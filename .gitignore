@@ -2,6 +2,7 @@
 # Legacy/custom validation output; canonical reports live in target/validation.
 /validation/results/
 /fuzz/target/
+/validation/compare/target/
 /.venv/
 /.verus-tool/
 /.verus-work/
