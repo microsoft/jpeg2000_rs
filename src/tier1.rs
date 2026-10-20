@@ -4396,6 +4396,8 @@ impl CodeBlockPlane {
         Ok(index)
     }
 
+    // Specialize the fixed offsets and neighbor kinds in the hot context traversal.
+    #[inline(always)]
     fn accumulate_neighbor(
         &self,
         x: u16,
@@ -5179,6 +5181,79 @@ mod tests {
         assert_eq!(plane.coefficient(0, 1).unwrap().magnitude, 12);
         assert!(plane.coefficient(0, 1).unwrap().refined);
         assert!(plane.coefficient(3, 0).is_err());
+    }
+
+    #[test]
+    fn neighbor_summaries_match_all_local_sign_states_and_stripe_boundaries() {
+        let mut patterns_checked = 0;
+        for (width, height, x, y) in [
+            (1_u16, 1_u16, 0_u16, 0_u16),
+            (1, 5, 0, 3),
+            (5, 1, 3, 0),
+            (3, 5, 0, 0),
+            (3, 5, 2, 4),
+            (3, 5, 0, 3),
+            (3, 5, 2, 3),
+            (3, 5, 1, 2),
+            (3, 5, 1, 3),
+        ] {
+            let mut neighbors = Vec::new();
+            for dy in -1..=1 {
+                for dx in -1..=1 {
+                    if dx == 0 && dy == 0 {
+                        continue;
+                    }
+                    let nx = i32::from(x) + dx;
+                    let ny = i32::from(y) + dy;
+                    if (0..i32::from(width)).contains(&nx) && (0..i32::from(height)).contains(&ny) {
+                        neighbors.push((
+                            u16::try_from(nx).unwrap(),
+                            u16::try_from(ny).unwrap(),
+                            dx,
+                            dy,
+                        ));
+                    }
+                }
+            }
+            let patterns = 3_u32.pow(u32::try_from(neighbors.len()).unwrap());
+            for pattern in 0..patterns {
+                patterns_checked += 1;
+                let mut plane = CodeBlockPlane::new(width, height).unwrap();
+                let mut remaining = pattern;
+                let mut full = NeighborSummary::default();
+                let mut causal = NeighborSummary::default();
+                for &(nx, ny, dx, dy) in &neighbors {
+                    let state = remaining % 3;
+                    remaining /= 3;
+                    if state == 0 {
+                        continue;
+                    }
+                    let negative = state == 2;
+                    plane.mark_significant(nx, ny, 1, negative).unwrap();
+                    for (vertical_causal, summary) in [(false, &mut full), (true, &mut causal)] {
+                        if vertical_causal && y % 4 == 3 && dy == 1 {
+                            continue;
+                        }
+                        let sign = if negative { -1 } else { 1 };
+                        if dy == 0 {
+                            summary.horizontal_significant += 1;
+                            summary.horizontal_sign_balance += sign;
+                        } else if dx == 0 {
+                            summary.vertical_significant += 1;
+                            summary.vertical_sign_balance += sign;
+                        } else {
+                            summary.diagonal_significant += 1;
+                        }
+                    }
+                }
+                assert_eq!(plane.neighbor_summary(x, y).unwrap(), full);
+                assert_eq!(
+                    plane.neighbor_summary_with_causality(x, y, true).unwrap(),
+                    causal,
+                );
+            }
+        }
+        assert_eq!(patterns_checked, 13_681);
     }
 
     #[test]

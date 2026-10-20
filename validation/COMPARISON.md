@@ -80,6 +80,33 @@ unsupported-feature rejections into speed scores, or treat the HT-heavy matrix
 as an unbiased feature-coverage percentage. Repeat on representative application
 inputs and profile measured bottlenecks before changing production algorithms.
 
+## Optional instruction profiling
+
+Use a separately symbolized release build and an independently qualified input
+when investigating a measured gap. For example, with Valgrind/Callgrind installed:
+
+```sh
+CARGO_PROFILE_RELEASE_DEBUG=line-tables-only cargo build \
+  --release --locked --manifest-path validation/compare/Cargo.toml \
+  --target-dir target/validation/profile-build --no-default-features --features scalar
+valgrind --tool=callgrind --collect-atstart=no '--toggle-collect=*decode_once*' \
+  --callgrind-out-file=target/validation/decoder.callgrind \
+  target/validation/profile-build/release/jpeg2000-comparison \
+  ours raw input.j2k target/validation/profile-samples.i64le 1
+callgrind_annotate --auto=no target/validation/decoder.callgrind
+```
+
+Use `hayro` instead of `ours` for the corresponding std-only reference path.
+Verify the resulting layout/sample hash against the qualified noninstrumented
+run before interpreting a profile. The collection includes both the warmup and
+the requested measured decode, including common-output conversion/native-state
+disposal, but excludes the caller's hashing and sample-file writes.
+Callgrind instruction counts are **not elapsed-time samples or peak-RSS
+measurements**. Keep them separate from the normal benchmark, preserve the
+profiler/compiler/build/source identities, and repeat uninstrumented timings
+before retaining an optimization. Do not substitute an instrumented run for
+the performance table or change host profiling permissions to run this check.
+
 ## Version-specific feature/API matrix
 
 **D** means documented, **S** source-inspected, and **T** exercised by this
