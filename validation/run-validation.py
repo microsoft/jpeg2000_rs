@@ -11,6 +11,7 @@ from pathlib import Path
 
 from numerical import run_numerical
 from resource_benchmarks import run_resources
+from hayro_comparison import run_comparison
 from framework import (
     build_subject,
     generate_corpus,
@@ -31,6 +32,11 @@ def parser() -> argparse.ArgumentParser:
     generate.add_argument("--check", action="store_true")
     commands.add_parser("verify")
     commands.add_parser("inventory")
+    comparison = commands.add_parser("compare-hayro")
+    comparison.add_argument("--output-dir", type=Path)
+    comparison.add_argument("--iterations", type=int, default=5)
+    comparison.add_argument("--repetitions", type=int, default=3)
+    comparison.add_argument("--capabilities-only", action="store_true")
     schemas = commands.add_parser("schemas")
     schemas.add_argument("--output-dir", type=Path)
     for name in ("run", "budget", "official", "numerical", "htj2k", "resources", "all"):
@@ -106,6 +112,14 @@ def main() -> int:
             )
             emit({key: result[key] for key in ("status", "selection", "summary", "blockers")})
             return int(result["status"] != "passed")
+        elif arguments.command == "compare-hayro":
+            result = run_comparison(
+                output_dir=arguments.output_dir, iterations=arguments.iterations,
+                repetitions=arguments.repetitions, capabilities_only=arguments.capabilities_only,
+            )
+            emit({"status": result["status"], "baseline_passed": result["baseline_passed"],
+                  "summary": result.get("summary"), "blockers": result["blockers"], "errors": result["errors"]})
+            return int(not result["baseline_passed"])
         elif arguments.command == "resources":
             executable = arguments.subject.resolve() if arguments.subject else None
             if arguments.no_build and executable is None:

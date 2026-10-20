@@ -1,0 +1,130 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["$schema", "schema_version", "status", "baseline_passed", "scope", "provenance", "blockers", "errors", "reference", "environment", "comparison_source_hashes", "iterations", "repetitions", "capabilities_only", "builds", "tools", "corpus", "capabilities", "performance"],
+  "properties": {
+    "$schema": {"type": "string"},
+    "schema_version": {"const": 1},
+    "status": {"enum": ["blocked", "running", "completed", "failed"]},
+    "baseline_passed": {"type": "boolean"},
+    "scope": {"type": "string", "minLength": 1},
+    "provenance": {"type": "object"},
+    "blockers": {"type": "array", "items": {"type": "string"}},
+    "errors": {"type": "array", "items": {"type": "string"}},
+    "reference": {
+      "type": "object", "additionalProperties": false,
+      "required": ["crate", "version", "checksum", "vcs_revision"],
+      "properties": {
+        "crate": {"const": "hayro-jpeg2000"},
+        "version": {"const": "0.4.1"},
+        "checksum": {"$ref": "#/$defs/hash"},
+        "vcs_revision": {"type": "string", "pattern": "^[0-9a-f]{40}$"}
+      }
+    },
+    "environment": {"type": "object"},
+    "comparison_source_hashes": {"type": "object", "minProperties": 3, "additionalProperties": {"$ref": "#/$defs/hash"}},
+    "iterations": {"type": "integer", "minimum": 1, "maximum": 100},
+    "repetitions": {"type": "integer", "minimum": 1, "maximum": 10},
+    "capabilities_only": {"type": "boolean"},
+    "builds": {"type": "object"},
+    "tools": {"type": "object"},
+    "corpus": {"type": "array", "items": {"type": "object", "required": ["id", "operation", "format", "expected", "input_sha256", "engines"]}},
+    "capabilities": {"type": "array", "items": {"$ref": "#/$defs/case"}},
+    "performance": {"type": "array", "items": {"$ref": "#/$defs/case"}},
+    "summary": {"type": "object"}
+  },
+  "allOf": [{
+    "if": {"properties": {"status": {"const": "completed"}}, "required": ["status"]},
+    "then": {"required": ["summary"], "properties": {
+      "baseline_passed": {"const": true}, "errors": {"maxItems": 0}, "blockers": {"maxItems": 0},
+      "builds": {"required": ["default", "scalar"]},
+      "tools": {"required": ["legacy_encoder", "legacy_decoder", "ht_encoder", "ht_decoder", "time"]},
+      "corpus": {"minItems": 17}, "capabilities": {"minItems": 53}
+    }}
+  }, {
+    "if": {"properties": {"status": {"const": "completed"}, "capabilities_only": {"const": false}}, "required": ["status", "capabilities_only"]},
+    "then": {"properties": {"performance": {"minItems": 8}}}
+  }],
+  "$defs": {
+    "hash": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "layout": {
+      "type": "object", "additionalProperties": false, "required": ["width", "height", "components"],
+      "properties": {
+        "width": {"type": "integer", "minimum": 1}, "height": {"type": "integer", "minimum": 1},
+        "components": {
+          "type": "array", "minItems": 1, "maxItems": 64,
+          "items": {
+            "type": "object", "additionalProperties": false,
+            "required": ["width", "height", "precision", "signed"],
+            "properties": {
+              "width": {"type": "integer", "minimum": 1}, "height": {"type": "integer", "minimum": 1},
+              "precision": {"type": "integer", "minimum": 1, "maximum": 16}, "signed": {"const": false}
+            }
+          }
+        }
+      }
+    },
+    "observation": {
+      "type": "object", "additionalProperties": false,
+      "required": ["schema_version", "engine", "hayro_version", "hayro_features", "lifecycle", "status", "decoder_accepted", "unsupported", "layout", "sample_count", "output_sha256", "timings", "error"],
+      "properties": {
+        "schema_version": {"const": 1}, "engine": {"enum": ["ours", "hayro"]},
+        "hayro_version": {"const": "0.4.1"},
+        "hayro_features": {"enum": ["published-defaults", "std-only", "no-defaults"]},
+        "lifecycle": {"type": "string", "minLength": 1},
+        "status": {"enum": ["decoded", "rejected", "not-comparable", "harness-error"]},
+        "decoder_accepted": {"type": "boolean"}, "unsupported": {"type": "boolean"},
+        "layout": {"anyOf": [{"$ref": "#/$defs/layout"}, {"type": "null"}]},
+        "sample_count": {"type": "integer", "minimum": 0},
+        "output_sha256": {"anyOf": [{"$ref": "#/$defs/hash"}, {"type": "null"}]},
+        "timings": {
+          "type": "array",
+          "items": {
+            "type": "object", "additionalProperties": false, "required": ["decode_ns", "common_output_ns"],
+            "properties": {"decode_ns": {"type": "integer", "minimum": 1}, "common_output_ns": {"type": "integer", "minimum": 1}}
+          }
+        },
+        "error": {"type": ["string", "null"]}
+      },
+      "allOf": [{
+        "if": {"properties": {"status": {"const": "decoded"}}, "required": ["status"]},
+        "then": {"properties": {
+          "decoder_accepted": {"const": true}, "unsupported": {"const": false},
+          "layout": {"$ref": "#/$defs/layout"}, "sample_count": {"minimum": 1},
+          "output_sha256": {"$ref": "#/$defs/hash"}, "timings": {"minItems": 1}, "error": {"type": "null"}
+        }}
+      }, {
+        "if": {"properties": {"status": {"const": "rejected"}}, "required": ["status"]},
+        "then": {"properties": {"decoder_accepted": {"const": false}, "error": {"type": "string", "minLength": 1}}}
+      }, {
+        "if": {"properties": {"status": {"enum": ["not-comparable", "harness-error"]}}, "required": ["status"]},
+        "then": {"properties": {"decoder_accepted": {"const": true}, "error": {"type": "string", "minLength": 1}}}
+      }]
+    },
+    "case": {
+      "type": "object",
+      "required": ["id", "format", "precision", "channels", "width", "height", "lossless", "high_throughput", "thresholds", "bindings", "engines", "performance", "error", "artifacts"],
+      "properties": {
+        "id": {"type": "string"},
+        "width": {"type": "integer", "minimum": 1}, "height": {"type": "integer", "minimum": 1},
+        "error": {"type": ["string", "null"]},
+        "engines": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "object",
+            "required": ["engine", "build", "status", "returncode", "process_elapsed_ms", "observation", "reference_metrics", "peak_rss_bytes", "error"],
+            "properties": {
+              "observation": {"anyOf": [{"$ref": "#/$defs/observation"}, {"type": "null"}]},
+              "status": {"enum": ["process-error", "qualified", "numerical-disagreement", "unsupported", "rejected", "not-comparable", "harness-error", "accepted-without-reference"]},
+              "peak_rss_bytes": {"type": ["integer", "null"], "minimum": 1},
+              "error": {"type": ["string", "null"]}
+            }
+          }
+        },
+        "performance": {"type": "object"},
+        "artifacts": {"type": "array", "items": {"type": "string"}}
+      }
+    }
+  }
+}

@@ -296,6 +296,16 @@ by CI. `all` does not implicitly invoke this Linux-specific gate; CI calls it
 separately. `--subject` selects a trusted prebuilt binary; `--no-build` uses
 the existing release harness.
 
+## Optional feature and performance comparison
+
+The separate `compare-hayro` command pins hayro-jpeg2000 without changing the
+production crate's dependencies. It qualifies common outputs against
+independent references before reporting release-mode timings and peak RSS.
+See [comparison methodology and feature evidence](COMPARISON.md) for exact
+versions, output/lifecycle semantics, limitations and reproduction commands.
+Default CI runs the capability/output checks; larger performance runs remain
+explicit rather than noisy CI speed assertions.
+
 ## Technical reference inventory
 
 `normative-coverage.json` is a static inventory of topics and implementation,

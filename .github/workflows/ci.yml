@@ -26,6 +26,8 @@ jobs:
       - run: cargo test --all-targets --locked
       - run: cargo test --doc --locked
       - run: cargo check --release --all-targets --locked
+      - name: Check optional comparison adapter
+        run: cargo test --manifest-path validation/compare/Cargo.toml --locked
 
   quality:
     name: Quality and package audit
@@ -37,6 +39,12 @@ jobs:
       - run: cargo doc --no-deps --locked
         env:
           RUSTDOCFLAGS: -D warnings
+      - name: Check comparison formatting, scalar build and diagnostics
+        run: |
+          cargo fmt --manifest-path validation/compare/Cargo.toml --all -- --check
+          cargo test --manifest-path validation/compare/Cargo.toml --locked --no-default-features --features scalar
+          cargo clippy --manifest-path validation/compare/Cargo.toml --all-targets --all-features --locked -- -D warnings
+          cargo clippy --manifest-path validation/compare/Cargo.toml --all-targets --locked --no-default-features --features scalar -- -D warnings
       - name: Check fuzz harnesses and bounded resource profile
         run: |
           cargo fmt --manifest-path fuzz/Cargo.toml --all -- --check
@@ -84,6 +92,8 @@ jobs:
       - run: .venv/bin/python validation/run-validation.py all
       - run: .venv/bin/python validation/run-validation.py htj2k
       - run: .venv/bin/python validation/run-validation.py resources
+      - name: Check pinned decoder comparison outputs and features
+        run: .venv/bin/python validation/run-validation.py compare-hayro --capabilities-only --iterations 1 --repetitions 1
       - name: Check validation did not modify tracked source
         run: git diff --exit-code
       - name: Upload validation reports
@@ -93,9 +103,11 @@ jobs:
           name: decoder-validation
           path: |
             target/validation/*.json
+            target/validation/hayro-comparison.md
             target/validation/numerical-failures/**
             target/validation/selection-failures/**
             target/validation/container-failures/**
             target/validation/resource-failures/**
+            target/validation/comparison-failures/**
           if-no-files-found: warn
           retention-days: 14

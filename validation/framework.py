@@ -185,6 +185,7 @@ def validate_evidence_schemas(output_dir: Path | None = None) -> dict[str, Any]:
         ("numerical-results.json", "numerical-result.schema.json"),
         ("htj2k-results.json", "numerical-result.schema.json"),
         ("resource-results.json", "resource-result.schema.json"),
+        ("hayro-comparison.json", "hayro-comparison.schema.json"),
     ):
         path = (output_dir or RESULTS_DIR) / name
         if path.is_file():
