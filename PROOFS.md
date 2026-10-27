@@ -1,5 +1,7 @@
 # Verus proofs
 
+<!-- Temporary documentation-only hold-routing fixture. Never merge. -->
+
 ## Reading this document
 
 The sections below describe individual contract boundaries, including narrower
