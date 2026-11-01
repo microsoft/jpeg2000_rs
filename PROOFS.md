@@ -177,6 +177,46 @@ technical candidate only: parent-owned record, review, CI, guarded integration
 and actual-main acceptance remain separate. No complete parsing, pixels,
 lifetime verification, normative conformance or publication claim follows.
 
+## Local main-header segment admission producer
+
+`Parser::read_main_header_segment` in `src/codestream/reader.rs` executes the
+actual `parse_layout` loop prefix: peek, return `None` for SOT, reject a
+main-header boundary, read a segment, checked-increment `main_header_segments`,
+then check known and allowed markers. The real loop calls it directly;
+dispatch, the progress guard and all later orchestration are unchanged.
+There is one executing algorithm, not a proof-only parser.
+
+The unconditional equality composes unchanged reader/marker contracts with one
+additive, nonrecursive `part1_read_main_header_segment` model in
+`specs/layout_input.rs`. A closed projection preserves the complete raw
+`Result<Option<Segment>>`, including every payload byte, marker and offset.
+The relation also includes every parser field and the raw caller counter,
+without valid-position, successful-budget, counter-range or input-limit
+premises. SOT and boundary exits do not charge or consume. Reader failures
+retain their original partial work updates; a successful read commits the
+cursor before counter overflow; unknown/disallowed markers retain the already
+incremented count. Existing model meanings are unchanged.
+
+Focused native tests on Rust 1.93.1 and MSRV 1.88 cover every marker/length
+word, arbitrary private states, counter/work frontiers, exact error precedence,
+borrowed payload identity, real prologue/reader/SOT producers and the real
+layout caller. Strict framework controls bind the complete result, old/final
+parser and counter, and actual caller. Executable behavior controls complement
+these checks; neither kind of mutation is normative conformance evidence.
+
+Qualification is **LOCAL-ONLY**, refreshed from the original admission
+amendment onto the locally qualified SOC/SIZ prologue and accepted SOT source.
+Only the admission amendment is carried forward; prior controllers, registry,
+models and source-eligibility profiles are not imported or expanded.
+Replay uses the pristine pinned release, unchanged tools, pins and flags.
+The local evidence retains original stdout/stderr, per-command source/tool
+hashes, actual positive SMT rows, matched module counts and separate entire
+ROOT/archive crate results. The model and projection have no standalone SMT
+jobs. Entire-crate source verification is not whole-layout, public-decoder,
+lifetime, model-to-standard, normative, main-approval or publication closure.
+This source candidate remains unmerged; solo-owner source review and fresh
+actual-main acceptance remain separate from technical CI qualification.
+
 ## Actual DFS/ADS decomposition resolution
 
 The decomposition resolver in `src/codestream/decomposition.rs` has a total

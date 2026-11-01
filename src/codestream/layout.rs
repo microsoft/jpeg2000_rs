@@ -4,7 +4,7 @@ use super::mct_resolution::{
     validate_unique_mct_array_indexes, validate_unique_mct_record_indexes,
 };
 use super::profile::classify_codestream_profile;
-use super::reader::{is_allowed_main_header, is_known_segment_marker, new_parser};
+use super::reader::new_parser;
 use super::{
     ADS, ATK, CAP, CBD, COC, COD, CPF, CRG, CodestreamInfo, CodestreamLayout,
     ComponentQuantizations, DFS, DecodeError, EOC, ImageSize, MAX_COMPONENTS, MCC, MCO, MCT,
@@ -89,29 +89,9 @@ impl<'a> Parser<'a> {
         )]
         loop {
             let previous_position = parser.position;
-            let marker = parser.peek_marker()?;
-            if marker == SOT {
+            let Some(segment) = parser.read_main_header_segment(&mut main_header_segments)? else {
                 break;
-            }
-            if crate::refinement::main_header_boundary(marker) {
-                return Err(parser.malformed_here(MalformedKind::InvalidMarkerOrder));
-            }
-            let segment = parser.read_segment()?;
-            main_header_segments = main_header_segments
-                .checked_add(1)
-                .ok_or_else(|| parser.malformed_here(MalformedKind::ArithmeticOverflow))?;
-            if !is_known_segment_marker(segment.marker) {
-                return Err(DecodeError::malformed(
-                    parser.offset(segment.offset),
-                    MalformedKind::InvalidMarker,
-                ));
-            }
-            if !is_allowed_main_header(segment.marker) {
-                return Err(DecodeError::malformed(
-                    parser.offset(segment.offset),
-                    MalformedKind::InvalidMarkerOrder,
-                ));
-            }
+            };
             match segment.marker {
                 CAP if extended_capabilities.is_some() => {
                     return Err(DecodeError::malformed(

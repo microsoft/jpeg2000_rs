@@ -707,6 +707,16 @@ verus! {
         match result { Err(error) => Err(error), Ok(segment) => Ok(segment_view(segment)) }
     }
 
+    closed spec fn main_header_segment_outcome(result: Result<Option<Segment<'_>>, DecodeError>)
+        -> Result<Option<crate::specs::Part1CodestreamSegment>, DecodeError>
+    {
+        match result {
+            Err(error) => Err(error),
+            Ok(None) => Ok(None),
+            Ok(Some(segment)) => Ok(Some(segment_view(segment))),
+        }
+    }
+
     closed spec fn tile_part_header_view(value: TilePart) -> (usize, u32, u16, u8, u8) {
         (value.start, value.length, value.tile_index, value.tile_part_index, value.tile_part_count)
     }

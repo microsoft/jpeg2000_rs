@@ -3,6 +3,250 @@ use super::reader::{is_allowed_main_header, is_allowed_tile_header, is_known_seg
 use super::*;
 use crate::tier1::SubbandOrientation;
 
+fn assert_main_header_admission_case<'a>(
+    input: &'a [u8],
+    limits: &'a ResourceLimits,
+    state: PacketAdmissionState,
+    count: u64,
+) -> Result<Option<Segment<'a>>, DecodeError> {
+    let raw = || Parser {
+        input,
+        limits,
+        position: state.position,
+        work_units: state.work,
+        packet_length_bytes: state.header_bytes,
+        packet_lengths: state.packet_count,
+    };
+    let mut reference = raw();
+    let mut expected_count = count;
+    // Replay the original loop prefix, including its fallible checked counter update.
+    let expected = (|| {
+        let marker = reference.peek_marker()?;
+        if marker == SOT {
+            return Ok(None);
+        }
+        if matches!(marker, SOC | SOD | EOC) {
+            return Err(reference.malformed_here(MalformedKind::InvalidMarkerOrder));
+        }
+        let segment = reference.read_segment()?;
+        expected_count = expected_count
+            .checked_add(1)
+            .ok_or_else(|| reference.malformed_here(MalformedKind::ArithmeticOverflow))?;
+        if !is_known_segment_marker(segment.marker) {
+            return Err(reference.malformed_at(segment.offset, MalformedKind::InvalidMarker));
+        }
+        if !is_allowed_main_header(segment.marker) {
+            return Err(reference.malformed_at(segment.offset, MalformedKind::InvalidMarkerOrder));
+        }
+        Ok(Some(segment))
+    })();
+    let mut actual = raw();
+    let mut actual_count = count;
+    let result = actual.read_main_header_segment(&mut actual_count);
+    assert_eq!(result, expected);
+    assert_eq!(actual_count, expected_count);
+    assert_packet_admission_state(
+        &actual,
+        PacketAdmissionState {
+            position: reference.position,
+            work: reference.work_units,
+            header_bytes: state.header_bytes,
+            packet_count: state.packet_count,
+        },
+        input,
+        limits,
+    );
+    if let Ok(Some(segment)) = result {
+        assert_eq!(
+            segment.payload.as_ptr(),
+            input[segment.offset + 4..].as_ptr()
+        );
+    }
+    result
+}
+
+#[test]
+fn actual_main_header_admission_preserves_every_marker_length_and_counter_order() {
+    let base = ResourceLimits::HARDENED;
+    let mut cases = 0;
+    for limits in [
+        base.with_maximum_work_units(0).unwrap(),
+        base.with_maximum_work_units(1).unwrap(),
+        base,
+    ] {
+        for count in [0, u64::MAX - 1, u64::MAX] {
+            for field in [2, 4] {
+                let mut input = [0x12, 0x34, 0xff, 0x52, 0, 4, 0x56, 0x78];
+                for value in 0..=u16::MAX {
+                    input[field..field + 2].copy_from_slice(&value.to_be_bytes());
+                    let _ = assert_main_header_admission_case(
+                        &input,
+                        &limits,
+                        PacketAdmissionState {
+                            position: 2,
+                            work: 0,
+                            header_bytes: u64::MAX,
+                            packet_count: 31,
+                        },
+                        count,
+                    );
+                    cases += 1;
+                }
+            }
+        }
+    }
+    assert_eq!(cases, 1_179_648);
+}
+
+#[test]
+fn actual_main_header_admission_preserves_arbitrary_reader_states_and_partial_commits() {
+    let base = ResourceLimits::HARDENED;
+    let mut cases = 0;
+    for limits in [
+        base,
+        base.with_maximum_work_units(0).unwrap(),
+        base.with_maximum_work_units(1).unwrap(),
+        base.with_maximum_input_bytes(0).unwrap(),
+    ] {
+        for marker in [
+            SOC, SOT, SOD, EOC, SIZ, COD, 0xff58, 0xff61, 0xff00, 0xffff, 0xff70,
+        ] {
+            let mut input = vec![0x31, 0x41];
+            input.extend(marker.to_be_bytes());
+            input.extend([0, 5, 0x59, 0x26, 0x53]);
+            for end in 0..=input.len() {
+                for position in [0, 2, end, end + 1, usize::MAX - 1, usize::MAX] {
+                    for work in [0, 1, base.maximum_work_units(), u64::MAX - 1, u64::MAX] {
+                        for count in [0, u64::MAX - 1, u64::MAX] {
+                            for (header_bytes, packet_count) in
+                                [(0, 0), (17, u64::MAX), (u64::MAX, 19)]
+                            {
+                                let _ = assert_main_header_admission_case(
+                                    &input[..end],
+                                    &limits,
+                                    PacketAdmissionState {
+                                        position,
+                                        work,
+                                        header_bytes,
+                                        packet_count,
+                                    },
+                                    count,
+                                );
+                                cases += 1;
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+    assert_eq!(cases, 118_800);
+}
+
+#[test]
+fn actual_main_header_admission_error_frontiers_are_not_normalized() {
+    let limits = ResourceLimits::HARDENED;
+    let input = [0x31, 0x41, 0xff, 0x70, 0, 5, 0x59, 0x26, 0x53];
+    let mut siz_input = input;
+    siz_input[2..4].copy_from_slice(&SIZ.to_be_bytes());
+    let boundary_inputs = [SOC, SOT, SOD, EOC].map(|marker| {
+        let mut bytes = input;
+        bytes[2..4].copy_from_slice(&marker.to_be_bytes());
+        (marker, bytes)
+    });
+    let mut parser = Parser {
+        input: &input,
+        limits: &limits,
+        position: 2,
+        work_units: 7,
+        packet_length_bytes: 19,
+        packet_lengths: u64::MAX,
+    };
+    let mut count = u64::MAX;
+    assert_eq!(
+        parser.read_main_header_segment(&mut count),
+        Err(DecodeError::MalformedInput {
+            offset: 9,
+            kind: MalformedKind::ArithmeticOverflow
+        })
+    );
+    assert_eq!(
+        (parser.position, parser.work_units, count),
+        (9, 8, u64::MAX)
+    );
+    count = 11;
+    parser.position = 2;
+    assert_eq!(
+        parser.read_main_header_segment(&mut count),
+        Err(DecodeError::MalformedInput {
+            offset: 2,
+            kind: MalformedKind::InvalidMarker
+        })
+    );
+    assert_eq!((parser.position, parser.work_units, count), (9, 9, 12));
+    parser.input = &siz_input;
+    parser.position = 2;
+    assert_eq!(
+        parser.read_main_header_segment(&mut count),
+        Err(DecodeError::MalformedInput {
+            offset: 2,
+            kind: MalformedKind::InvalidMarkerOrder
+        })
+    );
+    assert_eq!((parser.position, parser.work_units, count), (9, 10, 13));
+    for (marker, input) in &boundary_inputs {
+        parser.input = input;
+        parser.position = 2;
+        let before = (parser.position, parser.work_units, count);
+        let result = parser.read_main_header_segment(&mut count);
+        if *marker == SOT {
+            assert_eq!(result, Ok(None));
+        } else {
+            assert_eq!(
+                result,
+                Err(DecodeError::MalformedInput {
+                    offset: 2,
+                    kind: MalformedKind::InvalidMarkerOrder
+                })
+            );
+        }
+        assert_eq!((parser.position, parser.work_units, count), before);
+    }
+    assert_eq!(
+        (parser.packet_length_bytes, parser.packet_lengths),
+        (19, u64::MAX)
+    );
+}
+
+#[test]
+fn actual_main_header_admission_consumes_real_prologue_and_preserves_layout_dispatch() {
+    let limits = ResourceLimits::HARDENED;
+    let input = codestream_with_headers(1, &baseline_headers(), &[], &[]);
+    let layout = parse_layout(&input, &limits).unwrap();
+    let mut parser = new_parser(&input, &limits).unwrap();
+    let (size, _, start) = parser.parse_layout_prologue().unwrap();
+    assert_eq!(size, layout.info.image_size);
+    assert_eq!(parser.position, start);
+    let mut count = 1;
+    let mut markers = Vec::new();
+    while let Some(segment) = parser.read_main_header_segment(&mut count).unwrap() {
+        markers.push(segment.marker);
+    }
+    assert_eq!(markers, [COD, QCD]);
+    assert_eq!(count, layout.info.main_header_segments);
+    assert_eq!(count, 3);
+    let sot_position = parser.position;
+    let work = parser.work_units;
+    assert_eq!(parser.read_main_header_segment(&mut count), Ok(None));
+    assert_eq!(
+        (parser.position, parser.work_units, count),
+        (sot_position, work, 3)
+    );
+    assert_eq!(parser.read_sot(1).unwrap().start, sot_position);
+    assert_eq!(parser.position, sot_position + 12);
+    assert_eq!(parser.work_units, work + 1);
+}
+
 fn assert_layout_prologue_case(
     input: &[u8],
     limits: &ResourceLimits,
