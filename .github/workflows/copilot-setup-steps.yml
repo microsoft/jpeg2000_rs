@@ -30,7 +30,7 @@ jobs:
           sudo apt-get update
           sudo apt-get install --no-install-recommends -y python3-venv time
           python3 -m venv .venv
-          .venv/bin/python -m pip install -r validation/requirements.txt
+          .venv/bin/python -m pip install --require-hashes --only-binary=:all: -r validation/requirements.txt
       - name: Install the released pinned verifier
         run: |
           mkdir -p .verus-tool target/validation
