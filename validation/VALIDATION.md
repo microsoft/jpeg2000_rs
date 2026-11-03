@@ -23,6 +23,29 @@ It reports that owner-comment review is manual, not independently enforced.
 Before/after API receipts and actual current-commit owner-decision/check evidence
 remain necessary. The current pre-migration configuration must fail this audit.
 
+### Dependency-update proposals
+
+Dependabot checks Cargo at the repository root and `fuzz/`, validation's
+hash-locked pip inputs and GitHub Actions weekly. It groups ordinary version
+updates and limits them to one open version-update PR per ecosystem; this is
+not a blanket limit on security updates. It does not merge or publish anything.
+Verifier dependencies `vstd` and `verus_*` are excluded from automatic update
+proposals. Actual pin/resource/trust changes still require explicit owner review.
+
+The `.github/dependabot.yml` file uses JSON syntax, a valid YAML subset, so
+standard-library tests can validate the exact configuration without adding a
+YAML-parser dependency. The image-consumer probe deliberately depends on the
+generated unpacked package under `target/package/`, not the live source crate.
+It is not a standalone Dependabot Cargo root. Update its pinned `image`
+dependency manually and run the existing package/consumer/MSRV gates; never
+redirect that path merely to make dependency automation succeed.
+
+CI and Verus already have unfiltered `pull_request` triggers, including PRs
+targeting `release/0.1`; no new release-branch workflow or publisher is needed.
+Push validation and release promotions remain subject to the existing branch
+workflow and explicit freeze authorization. No frozen release ref is modified
+by dependency configuration. Optional preflight is not a release publisher.
+
 ### Decoder and framework commands
 
 Use Python with the pinned `jsonschema` dependency in `requirements.txt`.
