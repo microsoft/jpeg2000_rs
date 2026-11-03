@@ -2588,6 +2588,20 @@ whole-crate verification. Historical schema-v2 reports, including their former
 exhaustive source-coverage measurement. Retain historical evidence unchanged;
 regenerate with the commands above to produce a report for the current schema.
 
+The opt-in [source inventory extractor](validation/source_inventory.py) can
+add source-bound observations from private/hidden native compiler items,
+pinned Verus VIR and its dependency graph. Its separate
+[schema](validation/source-inventory.schema.json) retains derived and abstract
+items, unmatched origins, contract-syntax counts and caller-dependency data.
+It requires unchanged clean-source/tool bindings and input/report hashes.
+Location agreement is not native/Verus erasure equivalence; a nonempty
+postcondition is not a reviewed complete functional contract, and the Verus
+dependency graph includes specification/proof edges, not just runtime calls.
+Both source-function and functional coverage remain `not-measured`.
+Diagnostic native-compiler configurations and any final coverage metric
+require separate qualification; this extractor does not change verifier pins,
+lifetime flags, trusted boundaries or the accepted proof collector.
+
 Cargo can reuse an already verified artifact without emitting fresh JSON.
 For a fresh local report, clean only this crate's verification artifacts with
 `cargo clean -p jpeg2000-decoder --target-dir target/verus`, then repeat the report
