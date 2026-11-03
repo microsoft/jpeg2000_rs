@@ -56,14 +56,15 @@ def validate_ruleset(value: object) -> dict[str, object]:
         raise ValueError("deletion, non-fast-forward, review and status protections are required")
     review = _object(rules["pull_request"].get("parameters"), "review parameters")
     approvals = review.get("required_approving_review_count")
-    if type(approvals) is not int or approvals < 1:
-        raise ValueError("at least one native independent approving review is required")
-    for setting in ("dismiss_stale_reviews_on_push", "require_last_push_approval",
-                    "required_review_thread_resolution"):
-        if review.get(setting) is not True:
-            raise ValueError(f"{setting} must be enabled")
-    if type(review.get("require_code_owner_review")) is not bool:
-        raise ValueError("code-owner review configuration must be explicit")
+    if type(approvals) is not int or approvals != 0:
+        raise ValueError("solo owner review requires zero native approving reviews")
+    for setting in ("require_last_push_approval", "require_code_owner_review"):
+        if review.get(setting) is not False:
+            raise ValueError(f"{setting} must be disabled for solo owner review")
+    if review.get("required_review_thread_resolution") is not True:
+        raise ValueError("required_review_thread_resolution must remain enabled")
+    if type(review.get("dismiss_stale_reviews_on_push")) is not bool:
+        raise ValueError("dismiss_stale_reviews_on_push configuration must be explicit")
     status = _object(rules["required_status_checks"].get("parameters"), "status parameters")
     if status.get("strict_required_status_checks_policy") is not True:
         raise ValueError("strict required status checks must remain enabled")
@@ -81,12 +82,14 @@ def validate_ruleset(value: object) -> dict[str, object]:
         "required_approvals": approvals,
         "technical_checks": len(checks),
         "code_owner_review_required": review["require_code_owner_review"],
-        "scope": "read-only snapshot audit; not reviewer qualification or normative adjudication",
+        "review_mode": "solo-owner-managed",
+        "owner_comment_automatically_enforced": False,
+        "scope": "read-only snapshot audit; not independent review or normative adjudication",
     }
 
 
 def main() -> int:
-    parser = argparse.ArgumentParser(description="Read-only audit of native main review protections.")
+    parser = argparse.ArgumentParser(description="Read-only audit of solo-owner main protections.")
     parser.add_argument("snapshot", type=Path, help="fresh GitHub ruleset API JSON snapshot")
     arguments = parser.parse_args()
     try:

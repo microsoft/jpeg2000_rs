@@ -19,7 +19,7 @@ review and official conformance testing remain separate.
 
 The profile/record sections below preserve earlier freeze decisions and exact
 source evidence. They are historical, not the current development admission
-workflow. See [Independent review and technical CI](#independent-review-and-technical-ci)
+workflow. See [Solo owner review and technical CI](#solo-owner-review-and-technical-ci)
 for the replacement and its required administrative activation.
 
 ## Conditional main-header admission profile decision
@@ -298,10 +298,10 @@ that reading path.
 Ordinary Rust builds erase ghost code and retain Rust's borrow checking.
 Source and proof changes must be validated together.
 
-## Independent review and technical CI
+## Solo owner review and technical CI
 
 Normal development uses one source PR, its complete technical CI and an
-independent native GitHub approving review. It does not require a separate
+explicit owner review comment or instruction. It does not require a separate
 file-combination profile, registry PR or protection bootstrap for every change.
 The legacy failure workflow is retired, not changed to report false success.
 The [old controller](validation/check-model-review-hold.py), its tests and
@@ -312,20 +312,23 @@ The [old controller](validation/check-model-review-hold.py), its tests and
 Removing a workflow does not configure GitHub. Before this migration is merged,
 the owner must separately authorize and verify main ruleset25421374 with:
 
-- At least one required independent approving review, stale-review dismissal,
-  approval of the latest reviewable push and resolved review threads.
+- Zero required native approvals and no last-push or code-owner approval
+  requirement that the sole owner cannot satisfy. Resolved review threads
+  remain required; other existing review settings are preserved.
 - All twelve existing technical check contexts and their existing GitHub App
   identities, strict up-to-date checks, deletion/non-fast-forward protection
   and no bypass actors. Only the obsolete Model-review hold is retired.
 - The same default-branch-only scope; release protections, verifier/compiler/
   vstd pins, resource limits, trust and publication permissions are unchanged.
 
-GitHub determines eligible independent reviewers from existing repository
-permissions; a PR author cannot provide their own native approving review.
-No CODEOWNERS identities are invented by this migration. Specialist routing
-is unconfigured until the owner names real qualified accounts/teams with the
-necessary access. A maintainer's engineering approval is not automatically
-qualified normative adjudication.
+Automation currently creates PRs using the owner's GitHub account. GitHub does
+not let that account approve its own PR. The owner explicitly chose solo
+owner-managed review: an LGTM comment or direct instruction is owner approval,
+not independent native approval. CI does not automatically enforce that manual
+decision. A collaborator with merge permission can technically merge after
+the machine-enforced checks, so manual ownership is an explicit limitation.
+No CODEOWNERS identities or separate automation credentials are invented.
+Independent specialist/normative review is not established by this solo policy.
 
 The [read-only auditor](validation/review_policy.py) validates a fresh supplied
 ruleset API snapshot. It does not install settings, grant approval, validate
@@ -351,21 +354,24 @@ binding and negative-control gates remain unchanged.
 
 ### Safe one-time activation
 
-1. Independently review the exact migration head and confirm all twelve other
-   required checks. Obtain a new bounded owner decision for this candidate;
+1. Record the owner's solo-policy decision and permission for the migration,
+   bind the actual candidate/head/base and confirm all twelve technical
+   checks. The permission is owner review, not independent approval;
    earlier exact bootstrap permissions, including #232, cannot be reused.
-2. Save the complete current ruleset and source/ref identities. Enable and
-   verify the replacement native review protections **before** removing only
-   the obsolete required check. Preserve every other rule and integration ID.
+2. Save the complete current ruleset and source/ref identities. Verify the
+   solo-compatible review settings, strict checks and no bypass, then remove
+   only the obsolete required check. Preserve every other rule and integration
+   ID; do not install an unsatisfiable native-review requirement.
 3. Perform only the authorized normal migration merge, then verify actual-main
    code, native protections and fresh technical/source/package evidence.
 4. If activation fails before merge, restore the original complete ruleset.
-   If it fails after merge, keep the replacement native protections and fail
-   closed (restore the legacy requirement if necessary). Never restore a
-   zero-review, hold-free policy after deleting the legacy workflow.
+   If it fails after merge, fail closed by restoring the legacy required check
+   until repaired, even though its workflow has been retired. Do not waive a
+   failed technical check or silently claim restoration succeeded.
 
-No unreviewed interval, fabricated green result, admin/force-merge bypass or
-automatic subsequent source merge is permitted. Later PRs must rebase, retain
+No fabricated green result, admin/force-merge bypass or automatic subsequent
+source merge is permitted. Owner review does not change source/tool/evidence
+requirements. Later PRs must rebase, retain
 source semantics and pass fresh exact-head checks. A historical result is not
 qualification of a rewritten branch.
 

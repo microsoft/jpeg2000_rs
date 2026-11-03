@@ -23,9 +23,9 @@ class ReviewPolicyTests(unittest.TestCase):
             "rules": [
                 {"type": "deletion"}, {"type": "non_fast_forward"},
                 {"type": "pull_request", "parameters": {
-                    "required_approving_review_count": 1,
-                    "dismiss_stale_reviews_on_push": True,
-                    "require_last_push_approval": True,
+                    "required_approving_review_count": 0,
+                    "dismiss_stale_reviews_on_push": False,
+                    "require_last_push_approval": False,
                     "required_review_thread_resolution": True,
                     "require_code_owner_review": False,
                 }},
@@ -39,26 +39,30 @@ class ReviewPolicyTests(unittest.TestCase):
             ],
         }
 
-    def test_native_review_policy_passes_without_invented_codeowners(self):
+    def test_solo_owner_policy_passes_without_claiming_independence(self):
         result = review_policy.validate_ruleset(self.policy())
-        self.assertEqual(result["required_approvals"], 1)
+        self.assertEqual(result["required_approvals"], 0)
         self.assertEqual(result["technical_checks"], 12)
         self.assertFalse(result["code_owner_review_required"])
+        self.assertEqual(result["review_mode"], "solo-owner-managed")
+        self.assertFalse(result["owner_comment_automatically_enforced"])
 
-    def test_zero_bool_and_missing_review_counts_are_rejected(self):
-        for value in (0, False, None, "1"):
+    def test_native_review_lockout_bool_and_missing_counts_are_rejected(self):
+        for value in (1, False, None, "0"):
             with self.subTest(value=value):
                 data = self.policy()
                 data["rules"][2]["parameters"]["required_approving_review_count"] = value
-                with self.assertRaisesRegex(ValueError, "independent approving review"):
+                with self.assertRaisesRegex(ValueError, "zero native approving reviews"):
                     review_policy.validate_ruleset(data)
 
-    def test_stale_last_push_and_thread_resolution_cannot_be_disabled(self):
-        for setting in ("dismiss_stale_reviews_on_push", "require_last_push_approval",
-                        "required_review_thread_resolution"):
+    def test_implicit_review_lockout_and_unresolved_threads_are_rejected(self):
+        for setting, value in (("require_last_push_approval", True),
+                               ("require_code_owner_review", True),
+                               ("required_review_thread_resolution", False),
+                               ("dismiss_stale_reviews_on_push", None)):
             with self.subTest(setting=setting):
                 data = self.policy()
-                data["rules"][2]["parameters"][setting] = False
+                data["rules"][2]["parameters"][setting] = value
                 with self.assertRaisesRegex(ValueError, setting):
                     review_policy.validate_ruleset(data)
 
@@ -133,7 +137,7 @@ class ReviewPolicyTests(unittest.TestCase):
     def test_cli_is_read_only_and_reports_configuration_not_approval(self):
         result = self.run_audit(json.dumps(self.policy()))
         self.assertEqual(result.returncode, 0, result.stderr)
-        self.assertIn("not reviewer qualification", json.loads(result.stdout)["scope"])
+        self.assertIn("not independent review", json.loads(result.stdout)["scope"])
 
     def test_cli_invalid_json_and_policy_fail_explicitly(self):
         for content in ("{", "null", json.dumps({"enforcement": "active"})):

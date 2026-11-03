@@ -1,14 +1,14 @@
 # Trusted engineering amendment registry
 
-## Historical status after the native-review migration
+## Historical status after the solo-owner migration
 
 This registry and its controller/tests are retained as audit history, not the
 active admission mechanism after the separately reviewed migration is safely
 activated. No new file-combination profile or registry adoption is required for
 ordinary development. Existing records below retain their exact past meanings;
 they are neither new source permissions nor normative certificates.
-See [the replacement policy](../PROOFS.md#independent-review-and-technical-ci).
-The migration itself requires verified live native protections before the old
+See [the replacement policy](../PROOFS.md#solo-owner-review-and-technical-ci).
+The migration itself requires verified live technical protections before the old
 required check is retired; changing this document cannot activate that policy.
 
 This is policy data, not a proof or conformance certificate. The controller reads

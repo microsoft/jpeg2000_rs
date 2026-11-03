@@ -8,18 +8,19 @@ restricted, or standards-derived vectors.
 
 ### Review-policy administration audit
 
-Technical CI and independent native review are separate merge prerequisites.
-The [review policy](../PROOFS.md#independent-review-and-technical-ci) replaces
+Technical CI and manual solo-owner review are separate responsibilities.
+The [review policy](../PROOFS.md#solo-owner-review-and-technical-ci) replaces
 the historical per-file-combination hold only after a separately authorized,
-independently reviewed live configuration migration. No CODEOWNERS roster is
+owner-reviewed live configuration migration. No CODEOWNERS roster is
 fabricated. Normative adjudication and release permissions remain separate.
 
 An operator can capture main ruleset25421374 with the read-only GitHub API and
 run `python3 validation/review_policy.py path/to/fresh-ruleset.json`.
-This checks the required native-review settings and all twelve technical check
+This checks the solo-compatible review settings and all twelve technical check
 names/app identities. It never writes settings or approves a PR, and cannot
 prove that a supplied snapshot is live or that a reviewer is qualified.
-Before/after API receipts and actual current-commit review/check evidence
+It reports that owner-comment review is manual, not independently enforced.
+Before/after API receipts and actual current-commit owner-decision/check evidence
 remain necessary. The current pre-migration configuration must fail this audit.
 
 ### Decoder and framework commands
