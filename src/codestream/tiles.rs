@@ -1,6 +1,8 @@
 //! Tile-part header/payload parsing and owned tile-part construction.
 
+use super::coding_style::new_component_coding_styles;
 use super::mct_resolution::{replace_mct_array, replace_mct_record};
+use super::quantization::new_component_quantizations;
 use super::reader::{is_allowed_tile_header, is_known_segment_marker, read_u16, read_u32};
 use super::{
     ADS, ATK, CBD, COC, COD, COM, CodingStyle, ComponentCodingStyles, ComponentQuantizations, DFS,
@@ -352,72 +354,32 @@ impl<'a> Parser<'a> {
             return Err(self.malformed_here(MalformedKind::MissingRequiredStructure));
         }
         let mut component_coding_styles = if tile_cod_seen {
-            ComponentCodingStyles::new(components, tile_coding_style)?
+            new_component_coding_styles(components, tile_coding_style)?
         } else {
             inherited_coding_styles
         };
-        let mut component = 0_u16;
-        #[cfg_attr(
-            verus_keep_ghost,
-            verus_spec(
-                invariant component <= components,
-                decreases components - component,
-            )
-        )]
-        while component < components {
-            let coc_segment = match coc_segments.get(usize::from(component)) {
-                Some(segment) => *segment,
-                None => None,
-            };
-            if let Some(segment) = coc_segment {
-                let (_, style) = self.parse_coc(segment, components, tile_coding_style)?;
-                component_coding_styles.set(component, style)?;
-            }
-            component = component
-                .checked_add(1)
-                .ok_or_else(|| self.malformed_here(MalformedKind::ArithmeticOverflow))?;
-        }
+        self.apply_component_style_overrides(
+            components,
+            tile_coding_style,
+            &coc_segments,
+            &mut component_coding_styles,
+        )?;
         self.resolve_decomposition_structures(&mut component_coding_styles, &part2_extensions)?;
         let tile_quantization = match qcd_segment {
             Some(segment) => self.parse_qcd(segment, tile_coding_style)?,
             None => default_parameters.1,
         };
         let mut component_quantizations = if qcd_segment.is_some() {
-            ComponentQuantizations::new(components, tile_quantization)?
+            new_component_quantizations(components, tile_quantization)?
         } else {
             inherited_quantizations
         };
-        component = 0;
-        #[cfg_attr(
-            verus_keep_ghost,
-            verus_spec(
-                invariant component <= components,
-                decreases components - component,
-            )
-        )]
-        while component < components {
-            let qcc_segment = match qcc_segments.get(usize::from(component)) {
-                Some(segment) => *segment,
-                None => None,
-            };
-            if let Some(segment) = qcc_segment {
-                let style = component_coding_styles.style(component)?;
-                let (_, quantization) = self.parse_qcc(segment, components, style)?;
-                component_quantizations.set(component, quantization)?;
-            }
-            if !component_quantizations
-                .quantization(component)?
-                .is_compatible_with(component_coding_styles.style(component)?)
-            {
-                return Err(DecodeError::malformed(
-                    0,
-                    MalformedKind::InvalidQuantization,
-                ));
-            }
-            component = component
-                .checked_add(1)
-                .ok_or_else(|| self.malformed_here(MalformedKind::ArithmeticOverflow))?;
-        }
+        self.apply_component_quantization_overrides(
+            components,
+            &component_coding_styles,
+            &qcc_segments,
+            &mut component_quantizations,
+        )?;
         self.validate_progression_changes(
             &progression_changes,
             tile_coding_style.layers,

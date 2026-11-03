@@ -360,6 +360,33 @@ def join_origins(native: list[dict[str, Any]], vir: list[dict[str, Any]]) -> lis
     return rows
 
 
+def account_verus_origins(native: list[dict[str, Any]],
+                         vir: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    native_ids: dict[str, list[str]] = defaultdict(list)
+    for function in native:
+        if function["origin_disposition"] == "same-source-declaration-and-body-extent":
+            if len(function["vir_candidates"]) != 1:
+                raise ValueError("inconsistent exact native association")
+            native_ids[function["vir_candidates"][0]].append(function["source_id"])
+    result = []
+    for function in vir:
+        sources = []
+        if function["mode"] != "Exec":
+            disposition = "not-applicable-ghost"
+        elif function["body_disposition"] == "bodyless-trait-declaration":
+            disposition = "bodyless-trait-declaration"
+        else:
+            sources = native_ids[function["symbol"]]
+            disposition = ("same-source-declaration-and-body-extent" if len(sources) == 1
+                           else "ambiguous-native-origin" if sources
+                           else "unresolved-native-origin")
+        result.append({
+            **function, "native_origin_disposition": disposition,
+            "native_source_ids": list(sources),
+        })
+    return result
+
+
 def collect(root: Path, inputs: dict[str, Path], binding: dict[str, Any],
             proof: dict[str, Any]) -> dict[str, Any]:
     validate_schema(Path(__file__).with_name("proof-coverage.schema.json"), proof)
@@ -387,21 +414,27 @@ def collect(root: Path, inputs: dict[str, Path], binding: dict[str, Any],
     with inputs["vir"].open() as stream:
         vir = vir_functions(stream, root)
     rows = join_origins(native, vir)
+    vir = account_verus_origins(rows, vir)
     result = {
-        "schema_version": 1, "crate_name": CRATE, "provenance": current,
+        "schema_version": 2, "crate_name": CRATE, "provenance": current,
         "input_sha256": binding["inputs"], "compiler_capture": binding["compiler_capture"],
         "source_function_coverage": "not-measured",
         "functional_coverage": "not-measured",
+        "native_inventory_completeness": "not-established-by-rustdoc",
         "lifetime_analysis": proof["known_proof_boundary"]["lifetime_analysis"],
         "counts": {
             "native_function_items": len(rows),
             "native_origin_dispositions": dict(Counter(item["origin_disposition"] for item in rows)),
             "vir_modes": dict(Counter(item["mode"] for item in vir)),
+            "verus_exec_native_dispositions": dict(Counter(
+                item["native_origin_disposition"] for item in vir if item["mode"] == "Exec")),
         },
         "native_functions": rows, "vir_functions": vir,
         "verus_dependency_graph": dependency_graph(inputs["graph"].read_text()),
         "remaining_boundaries": [
             "Native compiler configuration/producer role needs independent qualification.",
+            "Rustdoc omits nested function bodies and may differ from production compiler-generated items.",
+            "Every unmatched Verus Exec body remains unresolved; absence from Rustdoc is not exclusion from production.",
             "Source locations do not prove native/Verus erasure equivalence.",
             "Contract syntax and verifier observation do not establish complete functional or normative properties.",
             "Derived/adaptor/dynamic/closure/initializer and actual runtime call paths need explicit review.",

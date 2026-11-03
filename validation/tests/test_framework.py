@@ -1125,6 +1125,150 @@ class FrameworkTests(WorkingFiles):
             framework._MAIN_COMPONENT_FINALIZATION_CONTRACTS, 6,
         )
 
+    def test_inventory_binds_shared_style_override_complete_result_and_frame(self):
+        self._assert_complete_packet_contract_bindings(
+            {"part1-complete-native-component-style-override-frames"},
+            framework._STYLE_OVERRIDE_CONTRACTS, 1,
+        )
+
+    def test_inventory_binds_shared_quantization_override_complete_result_and_frame(self):
+        self._assert_complete_packet_contract_bindings(
+            {"part1-complete-native-component-quantization-override-frames"},
+            framework._QUANTIZATION_OVERRIDE_CONTRACTS, 1,
+        )
+
+    def test_inventory_requires_both_actual_shared_quantization_callers(self):
+        coverage = json.loads((framework.VALIDATION / "normative-coverage.json").read_text())
+        entry = next(x for x in coverage["requirements"]
+                     if x["id"] == "part1-complete-native-component-quantization-override-frames")
+        reference = entry["contract_refs"][0]
+        read_text = Path.read_text
+        for caller in entry["implementation_refs"]:
+            if caller == reference:
+                continue
+            isolated = copy.deepcopy(entry)
+            isolated["implementation_refs"] = [caller]
+            isolated["contract_refs"] = [reference]
+            isolated["proof_refs"] = [reference]
+            data = dict(coverage, requirements=[isolated])
+            self.assertEqual(framework.validate_normative_coverage(data)["status"], "passed")
+            path = framework.ROOT / caller["path"]
+            native = read_text(path)
+            changed = native.replace("self.apply_component_quantization_overrides(",
+                                     "self.unlisted_quantization_overrides(", 1)
+            self.assertNotEqual(native, changed)
+
+            def altered(current, *args, **kwargs):
+                return changed if current == path else read_text(current, *args, **kwargs)
+
+            with self.subTest(caller=caller), mock.patch.object(Path, "read_text", altered), \
+                    self.assertRaisesRegex(ValueError, "not used by claimed implementation"):
+                framework.validate_normative_coverage(data)
+
+    def test_inventory_preserves_raw_qcc_through_both_checked_component_stages(self):
+        coverage = json.loads((framework.VALIDATION / "normative-coverage.json").read_text())
+        entry = copy.deepcopy(next(x for x in coverage["requirements"]
+                                   if x["id"] == "part1-complete-native-raw-quantization"))
+        reference = next(x for x in entry["contract_refs"] if x["symbol"] == "Parser::parse_qcc")
+        entry["implementation_refs"] = [
+            {"path": "src/codestream/layout.rs", "symbol": "Parser::parse_layout"},
+        ]
+        entry["contract_refs"] = [reference]
+        entry["proof_refs"] = [reference]
+        data = dict(coverage, requirements=[entry])
+        self.assertEqual(framework.validate_normative_coverage(data)["status"], "passed")
+        source = framework.ROOT / "src/codestream/quantization.rs"
+        read_text = Path.read_text
+        original = read_text(source)
+        mutations = [
+            ("self.apply_component_quantization_overrides(", "self.unlisted_quantization_stage("),
+            ("ensures (result, parsed_quantization_owner_view(final(quantizations)))",
+             "requires false, ensures (result, parsed_quantization_owner_view(final(quantizations)))"),
+            ("parsed_quantization_owner_view(final(quantizations))",
+             "parsed_quantization_owner_view(final(unrelated))"),
+            ("parsed_quantization_owner_view(old(quantizations))",
+             "parsed_quantization_owner_view(old(unrelated))"),
+            ("component_style_owner_view(styles), segment_slots_view(segments@)",
+             "component_style_owner_view(styles), segment_slots_view(unrelated@)"),
+            ("quantizations: &mut ComponentQuantizations,",
+             "quantizations: &mut ComponentQuantizations, unframed: &mut ComponentQuantizations,"),
+        ]
+        for before, after in mutations:
+            changed = original.replace(before, after, 1)
+            self.assertNotEqual(original, changed)
+
+            def altered(path, *args, **kwargs):
+                return changed if path == source else read_text(path, *args, **kwargs)
+
+            with self.subTest(mutation=before), mock.patch.object(Path, "read_text", altered), \
+                    self.assertRaisesRegex(ValueError, "not used by claimed implementation"):
+                framework.validate_normative_coverage(data)
+
+    def test_inventory_requires_both_actual_shared_style_callers(self):
+        coverage = json.loads((framework.VALIDATION / "normative-coverage.json").read_text())
+        entry = next(x for x in coverage["requirements"]
+                     if x["id"] == "part1-complete-native-component-style-override-frames")
+        reference = entry["contract_refs"][0]
+        read_text = Path.read_text
+        for caller in entry["implementation_refs"]:
+            if caller == reference:
+                continue
+            isolated = copy.deepcopy(entry)
+            isolated["implementation_refs"] = [caller]
+            isolated["contract_refs"] = [reference]
+            isolated["proof_refs"] = [reference]
+            data = dict(coverage, requirements=[isolated])
+            self.assertEqual(framework.validate_normative_coverage(data)["status"], "passed")
+            path = framework.ROOT / caller["path"]
+            native = read_text(path)
+            changed = native.replace("self.apply_component_style_overrides(",
+                                     "self.unlisted_style_overrides(", 1)
+            self.assertNotEqual(native, changed)
+
+            def altered(current, *args, **kwargs):
+                return changed if current == path else read_text(current, *args, **kwargs)
+
+            with self.subTest(caller=caller), mock.patch.object(Path, "read_text", altered), \
+                    self.assertRaisesRegex(ValueError, "not used by claimed implementation"):
+                framework.validate_normative_coverage(data)
+
+    def test_inventory_preserves_raw_coc_through_both_checked_style_stages(self):
+        coverage = json.loads((framework.VALIDATION / "normative-coverage.json").read_text())
+        entry = copy.deepcopy(next(x for x in coverage["requirements"]
+                                   if x["id"] == "part1-complete-native-raw-component-style"))
+        reference = next(x for x in entry["contract_refs"] if x["symbol"] == "Parser::parse_coc")
+        entry["implementation_refs"] = [
+            {"path": "src/codestream/layout.rs", "symbol": "Parser::parse_layout"},
+        ]
+        entry["contract_refs"] = [reference]
+        entry["proof_refs"] = [reference]
+        data = dict(coverage, requirements=[entry])
+        self.assertEqual(framework.validate_normative_coverage(data)["status"], "passed")
+        source = framework.ROOT / "src/codestream/coding_style.rs"
+        read_text = Path.read_text
+        original = read_text(source)
+        mutations = [
+            ("self.apply_component_style_overrides(", "self.unlisted_style_stage("),
+            ("ensures (result, component_style_owner_view(final(styles)))",
+             "requires false, ensures (result, component_style_owner_view(final(styles)))"),
+            ("component_style_owner_view(final(styles))",
+             "component_style_owner_view(final(unrelated))"),
+            ("component_style_owner_view(old(styles))",
+             "component_style_owner_view(old(unrelated))"),
+            ("styles: &mut ComponentCodingStyles,",
+             "styles: &mut ComponentCodingStyles, unframed: &mut ComponentCodingStyles,"),
+        ]
+        for before, after in mutations:
+            changed = original.replace(before, after, 1)
+            self.assertNotEqual(original, changed)
+
+            def altered(path, *args, **kwargs):
+                return changed if path == source else read_text(path, *args, **kwargs)
+
+            with self.subTest(mutation=before), mock.patch.object(Path, "read_text", altered), \
+                    self.assertRaisesRegex(ValueError, "not used by claimed implementation"):
+                framework.validate_normative_coverage(data)
+
     def test_inventory_requires_actual_layout_calls_to_both_main_component_finalizers(self):
         original = json.loads((framework.VALIDATION / "normative-coverage.json").read_text())
         entry = next(item for item in original["requirements"]
@@ -1468,19 +1612,21 @@ class FrameworkTests(WorkingFiles):
                     ):
                         return True
                     owner = caller["symbol"].rsplit("::", 1)[0] if "::" in caller["symbol"] else None
-                    return any(
-                        owner is not None and relay.startswith(owner + "::")
-                        and relay.rsplit("::", 1)[-1] != callee
-                        and framework._coverage_same_file_call(
-                            caller_source, caller["symbol"], relay.rsplit("::", 1)[-1],
-                            distinct_file=True,
+                    def follows(path, symbol, visited):
+                        text = path.read_text()
+                        if framework._coverage_same_file_call(text, symbol, callee, distinct_file=True):
+                            return True
+                        return any(
+                            owner is not None and relay.startswith(owner + "::")
+                            and (relay_path, relay) not in visited
+                            and relay.rsplit("::", 1)[-1] != callee
+                            and framework._coverage_same_file_call(
+                                text, symbol, relay.rsplit("::", 1)[-1], distinct_file=True)
+                            and follows(framework.ROOT / relay_path, relay,
+                                        visited | {(relay_path, relay)})
+                            for relay_path, relay in framework._COMPONENT_PRODUCER_RELAYS
                         )
-                        and framework._coverage_same_file_call(
-                            (framework.ROOT / relay_path).read_text(), relay, callee,
-                            distinct_file=True,
-                        )
-                        for relay_path, relay in framework._MAIN_COMPONENT_FINALIZATION_CONTRACTS
-                    )
+                    return follows(framework.ROOT / caller["path"], caller["symbol"], set())
                 return re.search(rf"\b{re.escape(callee)}\s*\(", caller_source) is not None
 
             actual_callers = [

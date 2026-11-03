@@ -13616,6 +13616,32 @@ pub open spec fn part1_quantization_compatible(
 }
 
 #[verifier::opaque]
+pub open spec fn part1_style_overrides_from(
+    components: u16, default: Part1ParsedCodingStyle, segments: Seq<Option<Part1CodestreamSegment>>,
+    limits: &crate::ResourceLimits, owner: (u16, Seq<Part1ParsedCodingStyle>), component: nat,
+) -> (Result<(), crate::DecodeError>, (u16, Seq<Part1ParsedCodingStyle>))
+    decreases components as nat - component,
+{
+    if component >= components { (Ok(()), owner) }
+    else {
+        let step = if component >= segments.len() || segments[component as int].is_none() {
+            (Ok(()), owner)
+        } else {
+            let segment = segments[component as int].unwrap();
+            match part1_parse_coc(segment.offset, segment.payload, components, default, limits) {
+                Err(error) => (Err(error), owner),
+                Ok((_, style)) => part1_set_component_style(owner, component as u16, style),
+            }
+        };
+        match step.0 {
+            Err(error) => (Err(error), step.1),
+            Ok(()) => part1_style_overrides_from(
+                components, default, segments, limits, step.1, component + 1),
+        }
+    }
+}
+
+#[verifier::opaque]
 pub open spec fn part1_main_styles_from(
     components: u16, default: Part1ParsedCodingStyle, segments: Seq<Option<Part1CodestreamSegment>>,
     limits: &crate::ResourceLimits, owner: (u16, Seq<Part1ParsedCodingStyle>), component: nat,
@@ -13656,6 +13682,41 @@ pub open spec fn part1_finish_main_styles(
                 match resolved.0 { Err(error) => Err(error), Ok(()) => Ok(resolved.1) }
             },
         },
+    }
+}
+
+#[verifier::opaque]
+pub open spec fn part1_quantization_overrides_from(
+    components: u16, styles: (u16, Seq<Part1ParsedCodingStyle>), segments: Seq<Option<Part1CodestreamSegment>>,
+    owner: (u16, Seq<Part2Quantization>), component: nat,
+) -> (Result<(), crate::DecodeError>, (u16, Seq<Part2Quantization>))
+    decreases components as nat - component,
+{
+    if component >= components { (Ok(()), owner) }
+    else {
+        let updated = if component >= segments.len() || segments[component as int].is_none() { (Ok(()), owner) }
+        else {
+            let segment = segments[component as int].unwrap();
+            match part1_style_owner_lookup(styles, component as u16) {
+                Err(error) => (Err(error), owner),
+                Ok(style) => match part1_parse_qcc(segment.offset, segment.payload, components, style) {
+                    Err(error) => (Err(error), owner),
+                    Ok((_, value)) => part1_set_component_quantization(owner, component as u16, value),
+                },
+            }
+        };
+        match updated.0 {
+            Err(error) => (Err(error), updated.1),
+            Ok(()) => match part1_quantization_owner_lookup(updated.1, component as u16) {
+                Err(error) => (Err(error), updated.1),
+                Ok(value) => match part1_style_owner_lookup(styles, component as u16) {
+                    Err(error) => (Err(error), updated.1),
+                    Ok(style) => if !part1_quantization_compatible(value, (style.decomposition_levels, style.decomposition_directions)) {
+                        (Err(part1_codestream_malformed(0, crate::MalformedKind::InvalidQuantization)), updated.1)
+                    } else { part1_quantization_overrides_from(components, styles, segments, updated.1, component + 1) },
+                },
+            },
+        }
     }
 }
 

@@ -1284,6 +1284,33 @@ _MAIN_COMPONENT_FINALIZATION_CONTRACTS = {
     ),
 }
 
+_STYLE_OVERRIDE_CONTRACTS = {
+    ("src/codestream/coding_style.rs", "Parser::apply_component_style_overrides"): (
+        "part1_style_overrides_from", r"\1",
+        _coverage_call("component_style_owner_view", _coverage_call("final", "styles")),
+        r"components\s*,\s*" + _coverage_call("parsed_coding_style_view", "default") + r"\s*,\s*"
+        + _coverage_call("segment_slots_view", r"segments@") + r"\s*,\s*&\s*self\.limits\s*,\s*"
+        + _coverage_call("component_style_owner_view", _coverage_call("old", "styles")) + r"\s*,\s*0",
+    ),
+}
+
+_QUANTIZATION_OVERRIDE_CONTRACTS = {
+    ("src/codestream/quantization.rs", "Parser::apply_component_quantization_overrides"): (
+        "part1_quantization_overrides_from", r"\1",
+        _coverage_call("parsed_quantization_owner_view", _coverage_call("final", "quantizations")),
+        r"components\s*,\s*" + _coverage_call("component_style_owner_view", "styles") + r"\s*,\s*"
+        + _coverage_call("segment_slots_view", r"segments@") + r"\s*,\s*"
+        + _coverage_call("parsed_quantization_owner_view", _coverage_call("old", "quantizations"))
+        + r"\s*,\s*0",
+    ),
+}
+
+_COMPONENT_PRODUCER_RELAYS = {
+    **_MAIN_COMPONENT_FINALIZATION_CONTRACTS,
+    **_STYLE_OVERRIDE_CONTRACTS,
+    **_QUANTIZATION_OVERRIDE_CONTRACTS,
+}
+
 _DECOMPOSITION_RESOLUTION_CONTRACTS = {
     ("src/codestream/extensions.rs", "Part2Extensions::decomposition_structure"): (
         "part1_dfs_lookup", _coverage_call("dfs_option_view", r"\1"), None,
@@ -2204,36 +2231,48 @@ def validate_normative_coverage(
         path: Path, caller: str, callee: str, *, require_caller_body: bool,
     ) -> bool:
         if require_caller_body:
-            if same_file_call(path, caller, callee, distinct_file=True):
-                return True
-            owner = caller.rsplit("::", 1)[0] if "::" in caller else None
-            for (relay_path, relay), binding in _MAIN_COMPONENT_FINALIZATION_CONTRACTS.items():
-                if owner is None or not relay.startswith(owner + "::"):
-                    continue
-                relay_short = relay.rsplit("::", 1)[-1]
-                if relay_short == callee or not same_file_call(
-                    path, caller, relay_short, distinct_file=True,
-                ):
-                    continue
-                resolved = (ROOT / relay_path).resolve()
-                header = function_header(resolved, relay)
-                if header is None or not same_file_call(
-                    resolved, relay, callee, distinct_file=True,
-                ):
-                    continue
-                text = source_text(resolved)
-                start = text.rfind("#[cfg_attr(verus_keep_ghost, verus_spec(", 0, header.start())
-                contract = text[start:header.start()] if start >= 0 else ""
-                model, projection, final_state, arguments = binding
-                # Preserve earlier caller objects through one actual, total-Result stage.
-                if final_state is None and re.search(
-                    r"\bverus_spec\(\s*(\w+)\s*=>\s*ensures\s+"
-                    + projection + r"\s*==\s*crate::specs::" + re.escape(model)
-                    + r"\s*\(\s*" + arguments + r"\s*,?\s*\)\s*,?\s*\)\)\]",
-                    contract,
-                ):
+            def through_style_producer(
+                current_path: Path, current_caller: str, visited: set[tuple[Path, str]],
+            ) -> bool:
+                if same_file_call(current_path, current_caller, callee, distinct_file=True):
                     return True
-            return False
+                owner = current_caller.rsplit("::", 1)[0] if "::" in current_caller else None
+                for (relay_path, relay), binding in _COMPONENT_PRODUCER_RELAYS.items():
+                    if owner is None or not relay.startswith(owner + "::"):
+                        continue
+                    relay_short = relay.rsplit("::", 1)[-1]
+                    resolved = (ROOT / relay_path).resolve()
+                    key = (resolved, relay)
+                    if key in visited or relay_short == callee or not same_file_call(
+                        current_path, current_caller, relay_short, distinct_file=True,
+                    ):
+                        continue
+                    header = function_header(resolved, relay)
+                    if header is None:
+                        continue
+                    text = source_text(resolved)
+                    start = text.rfind("#[cfg_attr(verus_keep_ghost, verus_spec(", 0, header.start())
+                    contract = text[start:header.start()] if start >= 0 else ""
+                    model, projection, final_state, arguments = binding
+                    result_term = (projection if final_state is None else
+                                   r"\(\s*" + projection + r"\s*,\s*" + final_state + r"\s*\)")
+                    match = re.search(
+                        r"\bverus_spec\(\s*(\w+)\s*=>\s*ensures\s+" + result_term
+                        + r"\s*==\s*crate::specs::(?P<model>" + re.escape(model) + r")\s*\(",
+                        contract,
+                    )
+                    signature = text[header.start():text.find("{", header.end())]
+                    mutable = set(re.findall(r"\b(\w+)\s*:\s*&\s*mut\b", signature))
+                    if re.search(r"&\s*mut\s+self\b", signature):
+                        mutable.add("self")
+                    framed = set(re.findall(
+                        r"\bfinal\(\s*(\w+)\s*\)", match.group() if match is not None else ""))
+                    if (re.search(r"\brequires\b", contract) is None and mutable == framed
+                            and _coverage_result_arguments(contract, match, model, arguments)
+                            and through_style_producer(resolved, relay, visited | {key})):
+                        return True
+                return False
+            return through_style_producer(path, caller, {(path, caller)})
         text = source_text(path)
         if re.fullmatch(r"\w+", callee) is None:
             return re.search(rf"\b{re.escape(callee)}\s*\(", text) is not None
@@ -2774,6 +2813,8 @@ def validate_normative_coverage(
                 or _DECOMPOSITION_BYTES_CONTRACTS.get((reference["path"], reference["symbol"]))
                 or _DECOMPOSITION_RESOLUTION_CONTRACTS.get((reference["path"], reference["symbol"]))
                 or _MAIN_COMPONENT_FINALIZATION_CONTRACTS.get((reference["path"], reference["symbol"]))
+                or _STYLE_OVERRIDE_CONTRACTS.get((reference["path"], reference["symbol"]))
+                or _QUANTIZATION_OVERRIDE_CONTRACTS.get((reference["path"], reference["symbol"]))
                 or _COMPONENT_DEPTH_BYTES_CONTRACTS.get((reference["path"], reference["symbol"]))
                 or _COMPONENT_HEADER_APPLICATION_CONTRACTS.get((reference["path"], reference["symbol"]))
                 or _PROFILE_BYTES_CONTRACTS.get((reference["path"], reference["symbol"]))

@@ -166,9 +166,11 @@ or exposed as an alternate result. Raw counts, physical holes, positional
 indices and unused tails are not normalized.
 
 Earlier inventory requirement objects are retained exactly. Their named caller
-check may follow one owning-type finalizer stage only when both actual call
-edges and that stage's exact, premise-free total-Result contract are present.
-Removing either edge or weakening the intermediate contract fails closed.
+check may follow a visited, bounded chain of registered owning-type component
+finalizer/override stages only when every actual call edge and each stage's
+exact, premise-free total-Result contract and model arguments are present.
+Mutable parameters must all appear in the complete final-state relation.
+Removing any edge or weakening an intermediate contract fails closed.
 
 Fresh matched-parent/root/archive and focused proof evidence belongs in the
 local qualification receipt, not inferred from definition counts or earlier
@@ -176,6 +178,64 @@ runs. Verification retains the pinned `--no-lifetime` boundary. This is a
 technical candidate only: parent-owned record, review, CI, guarded integration
 and actual-main acceptance remain separate. No complete parsing, pixels,
 lifetime verification, normative conformance or publication claim follows.
+
+## Shared main/tile component style override frames
+
+`Parser::apply_component_style_overrides` is the sole executing COC loop used
+by both the main style finalizer and the actual tile-part reader. Its total
+Result relation includes the entire mutable owner on success and failure:
+logical count, every physical style field and unused tail, and earlier
+positional updates retained when a later parse or setter fails. Traversal uses
+the actual passed component count, not an inherited owner's count. Short or
+absent slots are skipped; extra slots are ignored. Parsing still precedes slot
+admission, and the decoded component index does not replace positional ownership.
+
+The additive `part1_style_overrides_from` model composes the existing COC parser
+and setter. A second postcondition preserves the unchanged main-style Result
+model. The producer borrows the original owner rather than cloning, normalizing
+or staging it. Tile COD still resets through the existing sole factory;
+otherwise the raw inherited owner is preserved. Decomposition resolution still
+follows all overrides, and quantization processing retains its original order.
+Native tests compare complete raw owners and error prefixes and exercise both
+real inherited/reset reader paths. These are structural source regressions,
+not independent standards oracles.
+
+The additive inventory entry and negative controls bind both actual callers,
+the complete frame and every approved relay's arguments. This is a local
+override proof, not complete inherited tile configuration, quantization,
+decomposition/orchestration composition, public decoding, lifetime analysis,
+normative fidelity or release approval.
+
+## Shared main/tile quantization override and compatibility frames
+
+`Parser::apply_component_quantization_overrides` is the sole executing QCC and
+compatibility loop used by the main quantization finalizer and tile-part reader.
+Its total Result relation includes the complete mutable owner on every exit:
+logical count, actual Vec length, every quantization field/step and unused tail,
+and earlier updates retained on later failures. The actual passed component
+count controls traversal even when inherited style or quantization geometry
+differs. Short/absent slots remain lazy; extra slots are ignored.
+
+For a present slot, style lookup precedes QCC parsing, which precedes positional
+setter admission. Every component then checks quantization lookup before style
+lookup and compatibility. The additive `part1_quantization_overrides_from`
+model preserves these distinct error prefixes and partial commits, while a
+second postcondition retains the unchanged main-quantization Result model.
+The existing parser/getter/setter/compatibility/factory models and their
+visibility are unchanged. The producer borrows original storage without
+cloning, allocation or normalization. Tile QCD still resets through the sole
+existing factory, otherwise preserving raw inherited storage; all surrounding
+style/decomposition/QCD/quantization/progression ordering remains unchanged.
+
+Native structural regressions cover raw logical/physical owners, full tails,
+storage pointer/capacity and parser/input/style frames, exact error precedence,
+and real inherited/reset tile readers. They reuse the qualified QCC primitive,
+not an independent normative oracle. The additive inventory entry requires
+both actual callers and preserves every old entry and finalizer/COC recipe;
+bounded relay controls reject removed calls, premises and misbound arguments
+or mutable frames. This local fold proof does not establish full inherited
+configuration/reset/decomposition/orchestration, raw public decoding, lifetime
+analysis, source/functional coverage, normative fidelity or release approval.
 
 ## Local main-header segment admission producer
 
@@ -2591,8 +2651,15 @@ regenerate with the commands above to produce a report for the current schema.
 The opt-in [source inventory extractor](validation/source_inventory.py) can
 add source-bound observations from private/hidden native compiler items,
 pinned Verus VIR and its dependency graph. Its separate
-[schema](validation/source-inventory.schema.json) retains derived and abstract
-items, unmatched origins, contract-syntax counts and caller-dependency data.
+[schema](validation/source-inventory.schema.json), version2, retains derived
+and abstract items, both native-to-Verus and Verus-to-native dispositions,
+contract-syntax counts and caller-dependency data. Each Verus Exec body without
+one exact native source association remains explicitly unresolved, including
+nested functions that Rustdoc does not emit. Bodyless declarations and ghost
+items are not concrete native matches. Rustdoc may also differ from the actual
+production compiler's generated items; its item count is not an exhaustive
+production-body denominator. This inventory's completeness is explicitly
+`not-established-by-rustdoc`.
 It requires unchanged clean-source/tool bindings and input/report hashes.
 Location agreement is not native/Verus erasure equivalence; a nonempty
 postcondition is not a reviewed complete functional contract, and the Verus
@@ -3657,6 +3724,26 @@ missing samples rather than treating them as nonmatches; it is not silently
 changed or included here. Raw-key normalization, registration/sampling,
 opacity and complete F2/F4/F8 composition remain separate work. Whole-root
 and hosted qualification must match the delivered source before acceptance.
+## Complete Result of actual nested sample widening
+
+The existing `widen_samples` local function in
+`decode_general_compositing_layer` retains its sole executing body and caller.
+Its complete Result contract guarantees success, identical sample count and
+every u16 value widened exactly to u64, including empty input. Its loop ties
+the output length to the processed prefix and preserves pointwise sample
+identity, checked-index admission and real termination.
+
+This is a source-derived scalar-copy property, not a new normalization rule
+or a model-to-standard claim. The helper is not moved to make Rustdoc count it;
+nested/compiler-generated source-origin gaps remain explicit in the separate
+inventory. No runtime clone, precomputed output, successful-caller premise,
+trusted codec adapter or allocation-identity assumption is introduced.
+
+The contract uses the existing Vec/library trust boundary. It does not prove
+allocation-failure recovery, caller resource accounting, registration/opacity,
+raw public parsing, complete compositing-layer output or Verus lifetimes.
+Those producer/consumer joins and independent normative review remain separate.
+
 ## Complete native registration extent and geometry admission
 
 The real `registered_extent` now refines its complete typed-result model over
