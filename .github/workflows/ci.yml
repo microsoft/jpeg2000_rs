@@ -97,7 +97,9 @@ jobs:
       - name: Install pinned validation dependencies
         run: |
           ${{ matrix.python }} -m venv .venv
-          ${{ matrix.venv }} -m pip install -r validation/requirements.txt
+          ${{ matrix.venv }} --version
+          ${{ matrix.venv }} -m pip --version
+          ${{ matrix.venv }} -m pip install --require-hashes --only-binary=:all: -r validation/requirements.txt
       - name: Build pinned independent reference tools
         run: |
           bash validation/build-openjpeg.sh
@@ -173,7 +175,7 @@ jobs:
       - name: Install pinned validation dependencies
         run: |
           python3 -m venv .venv
-          .venv/bin/python -m pip install -r validation/requirements.txt
+          .venv/bin/python -m pip install --require-hashes --only-binary=:all: -r validation/requirements.txt
       - name: Install independent numerical reference tools
         run: |
           sudo apt-get update
