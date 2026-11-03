@@ -4,6 +4,42 @@
   "scope": "Technical reference inventory; not exhaustive standards-clause coverage or a conformance claim.",
   "requirements": [
     {
+      "id": "part1-complete-native-component-quantization-override-frames",
+      "topic": "Source-derived total Result and complete mutable quantization owner for the sole real main/tile QCC and compatibility fold. The passed count controls traversal, not inherited logical counts or physical lengths. Optional slots remain lazy and extra slots ignored; style lookup precedes QCC parsing, which precedes positional setter admission. Every component then performs quantization lookup before compatibility style lookup. Raw Vec holes, every quantization field/step/tail and earlier commits on parse/set/getter/compatibility errors are retained. No cloning, normalization or supplied results enter the production helper. Main and tile callers use the same producer; QCD resets through the sole existing factory, otherwise preserving inherited raw storage. Existing parser/getter/setter/compatibility/factory and old main Result models remain unchanged. This local source proof is not normative fidelity, complete reset/decomposition/orchestration/public decoding, lifetime, coverage or release approval.",
+      "implementation_refs": [
+        {"path": "src/codestream/quantization.rs", "symbol": "Parser::finish_main_component_quantizations"},
+        {"path": "src/codestream/tiles.rs", "symbol": "Parser::read_tile_part"},
+        {"path": "src/codestream/quantization.rs", "symbol": "Parser::apply_component_quantization_overrides"}
+      ],
+      "spec_refs": [
+        {"path": "specs/mod.rs", "symbol": "part1_quantization_overrides_from"},
+        {"path": "specs/mod.rs", "symbol": "part1_main_quantizations_from"},
+        {"path": "specs/mod.rs", "symbol": "part1_parse_qcc"},
+        {"path": "specs/mod.rs", "symbol": "part1_set_component_quantization"},
+        {"path": "specs/mod.rs", "symbol": "part1_component_quantizations_new"},
+        {"path": "specs/mod.rs", "symbol": "part1_quantization_compatible"},
+        {"path": "specs/mod.rs", "symbol": "part2_component_quantization"}
+      ],
+      "contract_refs": [
+        {"path": "src/codestream/quantization.rs", "symbol": "Parser::apply_component_quantization_overrides"}
+      ],
+      "proof_refs": [
+        {"path": "src/codestream/proof_support.rs", "symbol": "parsed_quantization_owner_view"},
+        {"path": "src/codestream/proof_support.rs", "symbol": "component_style_owner_view"},
+        {"path": "src/codestream/proof_support.rs", "symbol": "segment_slots_view"},
+        {"path": "src/codestream/coding_markers.rs", "symbol": "Parser::parse_qcc"},
+        {"path": "src/codestream/quantization.rs", "symbol": "ComponentQuantizations::set"},
+        {"path": "src/codestream/quantization.rs", "symbol": "ComponentQuantizations::quantization"},
+        {"path": "src/codestream/quantization.rs", "symbol": "Quantization::is_compatible_with"},
+        {"path": "src/codestream/quantization.rs", "symbol": "new_component_quantizations"}
+      ],
+      "test_refs": [
+        {"path": "src/codestream/tests.rs", "symbol": "actual_raw_component_quantization_overrides_keep_partial_owners_and_every_frame"},
+        {"path": "src/codestream/tests.rs", "symbol": "actual_component_quantization_overrides_preserve_lookup_parse_set_and_error_prefix_order"},
+        {"path": "src/codestream/tests.rs", "symbol": "actual_tile_quantizations_inherit_or_reset_and_use_real_override_producer"}
+      ]
+    },
+    {
       "id": "part1-complete-native-component-style-override-frames",
       "topic": "Source-derived complete Result/full mutable physical owner for the sole shared real main/tile COC loop. Actual components argument controls traversal even when inherited owner count differs; short/absent slots are skipped, extra slots ignored. Parse precedes setter admission, encoded indexes do not replace positional slot ownership, and earlier updates survive later parse/set errors. All64 style slots and every raw style field/tail are retained. Existing parse_coc/setter/factory and unchanged main-result model are reused. Both real main and tile callers use the same borrowed mutable producer; tile COD uses the existing sole factory, otherwise preserves the raw inherited owner. Decomposition follows the entire COC fold, and QCC/quantization/orchestration remain separate. This is local source correctness, not normative fidelity, complete inherited configuration/public parsing/lifetime or publication approval.",
       "implementation_refs": [

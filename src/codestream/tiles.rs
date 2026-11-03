@@ -2,6 +2,7 @@
 
 use super::coding_style::new_component_coding_styles;
 use super::mct_resolution::{replace_mct_array, replace_mct_record};
+use super::quantization::new_component_quantizations;
 use super::reader::{is_allowed_tile_header, is_known_segment_marker, read_u16, read_u32};
 use super::{
     ADS, ATK, CBD, COC, COD, COM, CodingStyle, ComponentCodingStyles, ComponentQuantizations, DFS,
@@ -369,41 +370,16 @@ impl<'a> Parser<'a> {
             None => default_parameters.1,
         };
         let mut component_quantizations = if qcd_segment.is_some() {
-            ComponentQuantizations::new(components, tile_quantization)?
+            new_component_quantizations(components, tile_quantization)?
         } else {
             inherited_quantizations
         };
-        let mut component = 0_u16;
-        #[cfg_attr(
-            verus_keep_ghost,
-            verus_spec(
-                invariant component <= components,
-                decreases components - component,
-            )
-        )]
-        while component < components {
-            let qcc_segment = match qcc_segments.get(usize::from(component)) {
-                Some(segment) => *segment,
-                None => None,
-            };
-            if let Some(segment) = qcc_segment {
-                let style = component_coding_styles.style(component)?;
-                let (_, quantization) = self.parse_qcc(segment, components, style)?;
-                component_quantizations.set(component, quantization)?;
-            }
-            if !component_quantizations
-                .quantization(component)?
-                .is_compatible_with(component_coding_styles.style(component)?)
-            {
-                return Err(DecodeError::malformed(
-                    0,
-                    MalformedKind::InvalidQuantization,
-                ));
-            }
-            component = component
-                .checked_add(1)
-                .ok_or_else(|| self.malformed_here(MalformedKind::ArithmeticOverflow))?;
-        }
+        self.apply_component_quantization_overrides(
+            components,
+            &component_coding_styles,
+            &qcc_segments,
+            &mut component_quantizations,
+        )?;
         self.validate_progression_changes(
             &progression_changes,
             tile_coding_style.layers,

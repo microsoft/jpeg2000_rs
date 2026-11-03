@@ -206,6 +206,37 @@ override proof, not complete inherited tile configuration, quantization,
 decomposition/orchestration composition, public decoding, lifetime analysis,
 normative fidelity or release approval.
 
+## Shared main/tile quantization override and compatibility frames
+
+`Parser::apply_component_quantization_overrides` is the sole executing QCC and
+compatibility loop used by the main quantization finalizer and tile-part reader.
+Its total Result relation includes the complete mutable owner on every exit:
+logical count, actual Vec length, every quantization field/step and unused tail,
+and earlier updates retained on later failures. The actual passed component
+count controls traversal even when inherited style or quantization geometry
+differs. Short/absent slots remain lazy; extra slots are ignored.
+
+For a present slot, style lookup precedes QCC parsing, which precedes positional
+setter admission. Every component then checks quantization lookup before style
+lookup and compatibility. The additive `part1_quantization_overrides_from`
+model preserves these distinct error prefixes and partial commits, while a
+second postcondition retains the unchanged main-quantization Result model.
+The existing parser/getter/setter/compatibility/factory models and their
+visibility are unchanged. The producer borrows original storage without
+cloning, allocation or normalization. Tile QCD still resets through the sole
+existing factory, otherwise preserving raw inherited storage; all surrounding
+style/decomposition/QCD/quantization/progression ordering remains unchanged.
+
+Native structural regressions cover raw logical/physical owners, full tails,
+storage pointer/capacity and parser/input/style frames, exact error precedence,
+and real inherited/reset tile readers. They reuse the qualified QCC primitive,
+not an independent normative oracle. The additive inventory entry requires
+both actual callers and preserves every old entry and finalizer/COC recipe;
+bounded relay controls reject removed calls, premises and misbound arguments
+or mutable frames. This local fold proof does not establish full inherited
+configuration/reset/decomposition/orchestration, raw public decoding, lifetime
+analysis, source/functional coverage, normative fidelity or release approval.
+
 ## Local main-header segment admission producer
 
 `Parser::read_main_header_segment` in `src/codestream/reader.rs` executes the
