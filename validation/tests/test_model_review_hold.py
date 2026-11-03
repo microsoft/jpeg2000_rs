@@ -1318,6 +1318,154 @@ class ModelReviewHoldTests(unittest.TestCase):
                     with patch.object(model_review_hold, "REGISTRY", registry):
                         self.assertTrue(model_review_hold.held_changes(self.repository, base, head))
 
+    @staticmethod
+    def execution_profiles():
+        return {
+            "jpip-effective-progression": {
+                "src/jpip/precinct.rs", "src/jpip/tests.rs",
+            },
+            "validation-python-hash-lock": {
+                ".github/workflows/ci.yml", ".github/workflows/copilot-setup-steps.yml",
+                ".github/workflows/verus.yml", "validation/requirements.in",
+                "validation/requirements.txt",
+            },
+            "source-observation-inventory": {
+                "validation/source_inventory.py", "validation/source-inventory.schema.json",
+                "validation/tests/test_source_inventory.py",
+            },
+        }
+
+    def execution_profile_fixture(self, profile, new_files=False):
+        paths = self.execution_profiles()[profile]
+        if new_files:
+            for path in paths:
+                target = self.repository / path
+                if target.exists():
+                    target.unlink()
+        originals = ({"specs/README.md": f"# Original {profile}\n"} if new_files else
+                     {path: f"original {path}\n" for path in paths})
+        return self.layout_fixture(
+            originals, {path: f"proposed {path}\n" for path in paths},
+            profile, "Exact execution profile fixture; no real source adoption.",
+        )
+
+    def test_execution_profiles_require_exact_scopes_and_trusted_adoption(self):
+        expected = self.execution_profiles()
+        self.assertEqual(
+            {name: model_review_hold.AMENDMENT_PROFILES.get(name) for name in expected},
+            expected,
+        )
+        for profile in expected:
+            for new_files in (False, True):
+                with self.subTest(profile=profile, new_files=new_files):
+                    base, head, entry = self.execution_profile_fixture(profile, new_files)
+                    if new_files:
+                        self.assertTrue(all(
+                            identity["before"] is None for identity in entry["paths"].values()
+                        ))
+                    with patch.object(model_review_hold, "REGISTRY", self.registry([])):
+                        self.assertEqual(set(model_review_hold.held_changes(
+                            self.repository, base, head)), set(entry["paths"]))
+                    with patch.object(model_review_hold, "REGISTRY", self.registry([entry])):
+                        self.assertEqual(model_review_hold.held_changes(
+                            self.repository, base, head), [])
+
+    def test_execution_profiles_reject_missing_or_expanded_records(self):
+        for profile in self.execution_profiles():
+            _, _, original = self.execution_profile_fixture(profile)
+            for path in original["paths"]:
+                with self.subTest(profile=profile, missing=path):
+                    entry = copy.deepcopy(original)
+                    del entry["paths"][path]
+                    with self.assertRaises(ValueError):
+                        model_review_hold.read_reviewed_amendments(self.registry([entry]))
+            for path in ("src/error.rs", "specs/new.rs",
+                         "validation/check-model-review-hold.py"):
+                with self.subTest(profile=profile, extra=path):
+                    entry = copy.deepcopy(original)
+                    entry["paths"][path] = copy.deepcopy(next(iter(entry["paths"].values())))
+                    with self.assertRaises(ValueError):
+                        model_review_hold.read_reviewed_amendments(self.registry([entry]))
+
+    def test_execution_profiles_reject_each_changed_blob_and_executable_mode(self):
+        self.git("config", "core.filemode", "false")
+        for profile in self.execution_profiles():
+            base, head, original = self.execution_profile_fixture(profile)
+            for index, path in enumerate(original["paths"]):
+                with self.subTest(profile=profile, path=path, kind="before"):
+                    entry = copy.deepcopy(original)
+                    entry["paths"][path]["before"] = "0" * 40
+                    with patch.object(model_review_hold, "REGISTRY", self.registry([entry])):
+                        self.assertEqual(set(model_review_hold.held_changes(
+                            self.repository, base, head)), set(original["paths"]))
+                for kind in ("after", "mode"):
+                    with self.subTest(profile=profile, path=path, kind=kind):
+                        self.git("checkout", "-b", f"{profile}-{index}-{kind}", head)
+                        if kind == "after":
+                            self.write(path, self.git("show", f"{head}:{path}") + "changed\n")
+                            changed = self.commit()
+                        else:
+                            self.git("update-index", "--chmod=+x", path)
+                            self.git("commit", "--message", "Executable mode")
+                            changed = self.git("rev-parse", "HEAD")
+                        with patch.object(model_review_hold, "REGISTRY", self.registry([original])):
+                            self.assertEqual(set(model_review_hold.held_changes(
+                                self.repository, base, changed)), set(original["paths"]))
+
+    def test_execution_profiles_reject_additional_sources_and_controls(self):
+        extras = (
+            "src/error.rs", "specs/new.rs", "proofs/new.rs", "Cargo.toml", "Cargo.lock",
+            "rust-toolchain.toml", ".github/workflows/model-review-hold.yml",
+            "validation/check-model-review-hold.py", "validation/tests/test_model_review_hold.py",
+            "validation/resource_benchmarks.py", "validation/generate-proof-coverage.py",
+        )
+        for profile in self.execution_profiles():
+            base, head, entry = self.execution_profile_fixture(profile)
+            for index, path in enumerate(extras):
+                with self.subTest(profile=profile, path=path):
+                    self.git("checkout", "-b", f"{profile}-extra-{index}", head)
+                    self.write(path, f"unapproved {profile} {path}\n")
+                    with patch.object(model_review_hold, "REGISTRY", self.registry([entry])):
+                        self.assertIn(path, model_review_hold.held_changes(
+                            self.repository, base, self.commit()))
+
+    def test_execution_profiles_reject_incomparable_combined_records(self):
+        for profile, paths in self.execution_profiles().items():
+            for other, other_paths in model_review_hold.AMENDMENT_PROFILES.items():
+                combined = paths | other_paths
+                if combined == paths or combined == other_paths:
+                    continue
+                with self.subTest(profile=profile, other=other):
+                    base, head, template = self.layout_fixture(
+                        {path: f"original {path}\n" for path in combined},
+                        {path: f"combined {path}\n" for path in combined},
+                        profile, "Two exact subset records cannot authorize their union.",
+                    )
+                    entries = [
+                        dict(template, id=f"union-{name}", profile=name, paths={
+                            path: {"before": self.git("rev-parse", f"{base}:{path}"),
+                                   "after": self.git("rev-parse", f"{head}:{path}")}
+                            for path in scope
+                        })
+                        for name, scope in ((profile, paths), (other, other_paths))
+                    ]
+                    registry = self.registry(entries)
+                    self.assertEqual(len(model_review_hold.read_reviewed_amendments(registry)), 2)
+                    with patch.object(model_review_hold, "REGISTRY", registry):
+                        self.assertEqual(set(model_review_hold.held_changes(
+                            self.repository, base, head)), combined)
+
+    def test_execution_profiles_cannot_use_candidate_written_registry(self):
+        for profile in self.execution_profiles():
+            base, _, entry = self.execution_profile_fixture(profile)
+            self.write("validation/reviewed-amendments.md",
+                       "```json\n" + json.dumps({
+                           "schema_version": 1, "amendments": [entry],
+                       }) + "\n```\n")
+            with patch.object(model_review_hold, "REGISTRY", self.registry([])):
+                self.assertEqual(set(model_review_hold.held_changes(
+                    self.repository, base, self.commit())), set(entry["paths"]))
+
     def test_invalid_trusted_registry_causes_explicit_cli_failure(self):
         self.write("src/lib.rs", "pub fn changed() {}\n")
         head = self.commit()

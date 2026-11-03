@@ -165,6 +165,18 @@ AMENDMENT_PROFILES = {
         "validation/expected-package-files.txt", "validation/framework.py",
         "validation/normative-coverage.json", "validation/tests/test_framework.py",
     }),
+    "jpip-effective-progression": frozenset({
+        "src/jpip/precinct.rs", "src/jpip/tests.rs",
+    }),
+    "validation-python-hash-lock": frozenset({
+        ".github/workflows/ci.yml", ".github/workflows/copilot-setup-steps.yml",
+        ".github/workflows/verus.yml", "validation/requirements.in",
+        "validation/requirements.txt",
+    }),
+    "source-observation-inventory": frozenset({
+        "validation/source_inventory.py", "validation/source-inventory.schema.json",
+        "validation/tests/test_source_inventory.py",
+    }),
 }
 
 
