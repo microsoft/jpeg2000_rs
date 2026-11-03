@@ -1294,7 +1294,22 @@ _STYLE_OVERRIDE_CONTRACTS = {
     ),
 }
 
-_STYLE_PRODUCER_RELAYS = {**_MAIN_COMPONENT_FINALIZATION_CONTRACTS, **_STYLE_OVERRIDE_CONTRACTS}
+_QUANTIZATION_OVERRIDE_CONTRACTS = {
+    ("src/codestream/quantization.rs", "Parser::apply_component_quantization_overrides"): (
+        "part1_quantization_overrides_from", r"\1",
+        _coverage_call("parsed_quantization_owner_view", _coverage_call("final", "quantizations")),
+        r"components\s*,\s*" + _coverage_call("component_style_owner_view", "styles") + r"\s*,\s*"
+        + _coverage_call("segment_slots_view", r"segments@") + r"\s*,\s*"
+        + _coverage_call("parsed_quantization_owner_view", _coverage_call("old", "quantizations"))
+        + r"\s*,\s*0",
+    ),
+}
+
+_COMPONENT_PRODUCER_RELAYS = {
+    **_MAIN_COMPONENT_FINALIZATION_CONTRACTS,
+    **_STYLE_OVERRIDE_CONTRACTS,
+    **_QUANTIZATION_OVERRIDE_CONTRACTS,
+}
 
 _DECOMPOSITION_RESOLUTION_CONTRACTS = {
     ("src/codestream/extensions.rs", "Part2Extensions::decomposition_structure"): (
@@ -2222,7 +2237,7 @@ def validate_normative_coverage(
                 if same_file_call(current_path, current_caller, callee, distinct_file=True):
                     return True
                 owner = current_caller.rsplit("::", 1)[0] if "::" in current_caller else None
-                for (relay_path, relay), binding in _STYLE_PRODUCER_RELAYS.items():
+                for (relay_path, relay), binding in _COMPONENT_PRODUCER_RELAYS.items():
                     if owner is None or not relay.startswith(owner + "::"):
                         continue
                     relay_short = relay.rsplit("::", 1)[-1]
@@ -2799,6 +2814,7 @@ def validate_normative_coverage(
                 or _DECOMPOSITION_RESOLUTION_CONTRACTS.get((reference["path"], reference["symbol"]))
                 or _MAIN_COMPONENT_FINALIZATION_CONTRACTS.get((reference["path"], reference["symbol"]))
                 or _STYLE_OVERRIDE_CONTRACTS.get((reference["path"], reference["symbol"]))
+                or _QUANTIZATION_OVERRIDE_CONTRACTS.get((reference["path"], reference["symbol"]))
                 or _COMPONENT_DEPTH_BYTES_CONTRACTS.get((reference["path"], reference["symbol"]))
                 or _COMPONENT_HEADER_APPLICATION_CONTRACTS.get((reference["path"], reference["symbol"]))
                 or _PROFILE_BYTES_CONTRACTS.get((reference["path"], reference["symbol"]))
