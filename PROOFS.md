@@ -2591,8 +2591,15 @@ regenerate with the commands above to produce a report for the current schema.
 The opt-in [source inventory extractor](validation/source_inventory.py) can
 add source-bound observations from private/hidden native compiler items,
 pinned Verus VIR and its dependency graph. Its separate
-[schema](validation/source-inventory.schema.json) retains derived and abstract
-items, unmatched origins, contract-syntax counts and caller-dependency data.
+[schema](validation/source-inventory.schema.json), version2, retains derived
+and abstract items, both native-to-Verus and Verus-to-native dispositions,
+contract-syntax counts and caller-dependency data. Each Verus Exec body without
+one exact native source association remains explicitly unresolved, including
+nested functions that Rustdoc does not emit. Bodyless declarations and ghost
+items are not concrete native matches. Rustdoc may also differ from the actual
+production compiler's generated items; its item count is not an exhaustive
+production-body denominator. This inventory's completeness is explicitly
+`not-established-by-rustdoc`.
 It requires unchanged clean-source/tool bindings and input/report hashes.
 Location agreement is not native/Verus erasure equivalence; a nonempty
 postcondition is not a reviewed complete functional contract, and the Verus

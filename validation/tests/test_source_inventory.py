@@ -232,6 +232,65 @@ class SourceInventoryTests(unittest.TestCase):
         self.assertEqual(report["source_function_coverage"], "not-measured")
         self.assertEqual(report["functional_coverage"], "not-measured")
         self.assertEqual(report["counts"]["native_function_items"], 1)
+        self.assertEqual(report["schema_version"], 2)
+        self.assertEqual(report["native_inventory_completeness"], "not-established-by-rustdoc")
+        self.assertEqual(report["counts"]["verus_exec_native_dispositions"],
+                         {"same-source-declaration-and-body-extent": 1})
+
+    def test_nested_exec_omitted_from_rustdoc_remains_visible(self):
+        (self.root / "src/lib.rs").write_text("fn fixture() {\n    fn hidden() {}\n}\n")
+        inputs, binding, proof, provenance = self.collect_fixture()
+        symbol = "jpeg2000_decoder::fixture::hidden"
+        nested = vir_function(symbol=symbol)
+        nested = nested.replace("src/lib.rs:1:1: 1:15", "src/lib.rs:2:5: 2:16")
+        nested = nested.replace("src/lib.rs:1:16: 3:2", "src/lib.rs:2:17: 2:18")
+        inputs["vir"].write_text(inputs["vir"].read_text() + nested)
+        binding["inputs"]["vir"] = inventory.sha256(inputs["vir"])
+        proof["functions"].append({"function": symbol, "disposition": "verified"})
+        proof["results"].update(verus_verified_obligations=2, verified_project_functions=2)
+        binding["proof_report_sha256"] = hashlib.sha256(
+            (json.dumps(proof, sort_keys=True, separators=(",", ":")) + "\n").encode()
+        ).hexdigest()
+        with patch.object(inventory, "source_binding", return_value=provenance):
+            report = inventory.collect(self.root, inputs, binding, proof)
+        function = next(x for x in report["vir_functions"] if x["symbol"] == symbol)
+        self.assertEqual(function["native_origin_disposition"], "unresolved-native-origin")
+        self.assertEqual(function["native_source_ids"], [])
+        self.assertEqual(function["ensure_counts"], [0, 0])
+        self.assertEqual(report["counts"]["native_function_items"], 1)
+        self.assertEqual(report["counts"]["verus_exec_native_dispositions"],
+                         {"same-source-declaration-and-body-extent": 1,
+                          "unresolved-native-origin": 1})
+
+    def test_derived_candidate_is_not_a_proved_native_association(self):
+        document = native_document()
+        document["index"]["0"]["attrs"] = ["automatically_derived"]
+        vir = self.parse(vir_function())
+        rows = inventory.join_origins(inventory.native_functions(document, self.root), vir)
+        result = inventory.account_verus_origins(rows, vir)[0]
+        self.assertEqual(result["native_origin_disposition"], "unresolved-native-origin")
+        self.assertEqual(result["native_source_ids"], [])
+
+    def test_reverse_join_reports_multiple_native_origins_as_ambiguous(self):
+        vir = self.parse(vir_function())
+        rows = inventory.join_origins(inventory.native_functions(native_document(), self.root), vir)
+        second = copy.deepcopy(rows[0])
+        second["source_id"] = "b" * 64
+        result = inventory.account_verus_origins([rows[0], second], vir)[0]
+        self.assertEqual(result["native_origin_disposition"], "ambiguous-native-origin")
+        self.assertEqual(result["native_source_ids"], [rows[0]["source_id"], second["source_id"]])
+
+    def test_ghost_and_bodyless_functions_are_not_concrete_native_matches(self):
+        for mode in ("Spec", "Proof"):
+            result = inventory.account_verus_origins([], self.parse(vir_function(mode=mode)))[0]
+            self.assertEqual(result["native_origin_disposition"], "not-applicable-ghost")
+            self.assertEqual(result["native_source_ids"], [])
+        text = vir_function().replace("(FunctionKind Static)", "(FunctionKind TraitMethodDecl)")
+        text = text.replace(':body (@@ "src/lib.rs:1:16: 3:2 (#0)" (> Block () "ignored (text)"))',
+                            ":body None")
+        result = inventory.account_verus_origins([], self.parse(text))[0]
+        self.assertEqual(result["native_origin_disposition"], "bodyless-trait-declaration")
+        self.assertEqual(result["native_source_ids"], [])
 
     def test_inventory_schema_rejects_promoted_coverage_or_review_claims(self):
         inputs, binding, proof, provenance = self.collect_fixture()
@@ -243,6 +302,10 @@ class SourceInventoryTests(unittest.TestCase):
             lambda x: x["native_functions"][0].update(functional_contract_review="complete"),
             lambda x: x["vir_functions"][0].update(functional_contract_review="complete"),
             lambda x: x["verus_dependency_graph"].update(scope="native runtime graph"),
+            lambda x: x.update(native_inventory_completeness="complete"),
+            lambda x: x.update(schema_version=1),
+            lambda x: x["vir_functions"][0].update(native_origin_disposition="verified"),
+            lambda x: x["vir_functions"][0].update(native_source_ids=[]),
         ]
         for mutation in mutations:
             changed = copy.deepcopy(report)
