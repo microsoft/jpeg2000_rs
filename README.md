@@ -6,8 +6,10 @@ and proofs attached to the production implementation.
 The Cargo package is `jpeg2000-decoder`; Rust code imports it as
 `jpeg2000_decoder`. The repository remains
 [`microsoft/jpeg2000_rs`](https://github.com/microsoft/jpeg2000_rs).
-The crate has not been published; registry publication requires a separate
-release authorization.
+Experimental [version 0.1.0](https://crates.io/crates/jpeg2000-decoder/0.1.0)
+is published, with [versioned API documentation](https://docs.rs/jpeg2000-decoder/0.1.0/jpeg2000_decoder/).
+The development branch keeps registry publication disabled; every subsequent
+release requires separate exact-candidate authorization and qualification.
 
 The library decodes raw codestreams and JP2/JPH containers, provides explicit
 JPX codestream and frame selection, and supports bounded JPIP databin
@@ -35,7 +37,7 @@ code. The optional `verus` feature enables the pinned verification library;
 it does not install or run the verifier. That feature is outside the runtime
 minimum-version guarantee and uses its own toolchain.
 See the [Cargo-Verus instructions](PROOFS.md#reproduce-verification).
-Package publication is disabled.
+Package publication from the development branch is disabled.
 
 ## Decode a JP2 image
 
