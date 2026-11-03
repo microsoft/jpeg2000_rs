@@ -166,9 +166,11 @@ or exposed as an alternate result. Raw counts, physical holes, positional
 indices and unused tails are not normalized.
 
 Earlier inventory requirement objects are retained exactly. Their named caller
-check may follow one owning-type finalizer stage only when both actual call
-edges and that stage's exact, premise-free total-Result contract are present.
-Removing either edge or weakening the intermediate contract fails closed.
+check may follow a visited, bounded chain of registered owning-type component
+finalizer/override stages only when every actual call edge and each stage's
+exact, premise-free total-Result contract and model arguments are present.
+Mutable parameters must all appear in the complete final-state relation.
+Removing any edge or weakening an intermediate contract fails closed.
 
 Fresh matched-parent/root/archive and focused proof evidence belongs in the
 local qualification receipt, not inferred from definition counts or earlier
@@ -176,6 +178,33 @@ runs. Verification retains the pinned `--no-lifetime` boundary. This is a
 technical candidate only: parent-owned record, review, CI, guarded integration
 and actual-main acceptance remain separate. No complete parsing, pixels,
 lifetime verification, normative conformance or publication claim follows.
+
+## Shared main/tile component style override frames
+
+`Parser::apply_component_style_overrides` is the sole executing COC loop used
+by both the main style finalizer and the actual tile-part reader. Its total
+Result relation includes the entire mutable owner on success and failure:
+logical count, every physical style field and unused tail, and earlier
+positional updates retained when a later parse or setter fails. Traversal uses
+the actual passed component count, not an inherited owner's count. Short or
+absent slots are skipped; extra slots are ignored. Parsing still precedes slot
+admission, and the decoded component index does not replace positional ownership.
+
+The additive `part1_style_overrides_from` model composes the existing COC parser
+and setter. A second postcondition preserves the unchanged main-style Result
+model. The producer borrows the original owner rather than cloning, normalizing
+or staging it. Tile COD still resets through the existing sole factory;
+otherwise the raw inherited owner is preserved. Decomposition resolution still
+follows all overrides, and quantization processing retains its original order.
+Native tests compare complete raw owners and error prefixes and exercise both
+real inherited/reset reader paths. These are structural source regressions,
+not independent standards oracles.
+
+The additive inventory entry and negative controls bind both actual callers,
+the complete frame and every approved relay's arguments. This is a local
+override proof, not complete inherited tile configuration, quantization,
+decomposition/orchestration composition, public decoding, lifetime analysis,
+normative fidelity or release approval.
 
 ## Local main-header segment admission producer
 

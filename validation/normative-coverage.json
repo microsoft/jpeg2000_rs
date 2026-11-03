@@ -4,6 +4,37 @@
   "scope": "Technical reference inventory; not exhaustive standards-clause coverage or a conformance claim.",
   "requirements": [
     {
+      "id": "part1-complete-native-component-style-override-frames",
+      "topic": "Source-derived complete Result/full mutable physical owner for the sole shared real main/tile COC loop. Actual components argument controls traversal even when inherited owner count differs; short/absent slots are skipped, extra slots ignored. Parse precedes setter admission, encoded indexes do not replace positional slot ownership, and earlier updates survive later parse/set errors. All64 style slots and every raw style field/tail are retained. Existing parse_coc/setter/factory and unchanged main-result model are reused. Both real main and tile callers use the same borrowed mutable producer; tile COD uses the existing sole factory, otherwise preserves the raw inherited owner. Decomposition follows the entire COC fold, and QCC/quantization/orchestration remain separate. This is local source correctness, not normative fidelity, complete inherited configuration/public parsing/lifetime or publication approval.",
+      "implementation_refs": [
+        {"path": "src/codestream/coding_style.rs", "symbol": "Parser::finish_main_component_styles"},
+        {"path": "src/codestream/tiles.rs", "symbol": "Parser::read_tile_part"},
+        {"path": "src/codestream/coding_style.rs", "symbol": "Parser::apply_component_style_overrides"}
+      ],
+      "spec_refs": [
+        {"path": "specs/mod.rs", "symbol": "part1_style_overrides_from"},
+        {"path": "specs/mod.rs", "symbol": "part1_main_styles_from"},
+        {"path": "specs/mod.rs", "symbol": "part1_parse_coc"},
+        {"path": "specs/mod.rs", "symbol": "part1_set_component_style"},
+        {"path": "specs/mod.rs", "symbol": "part1_component_styles_new"}
+      ],
+      "contract_refs": [
+        {"path": "src/codestream/coding_style.rs", "symbol": "Parser::apply_component_style_overrides"}
+      ],
+      "proof_refs": [
+        {"path": "src/codestream/proof_support.rs", "symbol": "component_style_owner_view"},
+        {"path": "src/codestream/proof_support.rs", "symbol": "segment_slots_view"},
+        {"path": "src/codestream/coding_markers.rs", "symbol": "Parser::parse_coc"},
+        {"path": "src/codestream/coding_style.rs", "symbol": "ComponentCodingStyles::set"},
+        {"path": "src/codestream/coding_style.rs", "symbol": "new_component_coding_styles"}
+      ],
+      "test_refs": [
+        {"path": "src/codestream/tests.rs", "symbol": "actual_raw_component_style_overrides_keep_partial_owners_and_every_frame"},
+        {"path": "src/codestream/tests.rs", "symbol": "actual_component_style_overrides_preserve_parse_before_slot_errors"},
+        {"path": "src/codestream/tests.rs", "symbol": "actual_tile_styles_inherit_or_reset_and_use_real_override_producer"}
+      ]
+    },
+    {
       "id": "part2-complete-native-component-header-application",
       "topic": "Source-derived actual main-header component bit-depth and registration application extracted from the sole layout call sites, in the same order, and the actual physical uniform-depth query. Total Result/every ImageSize field, complete physical component array including unused tails, arbitrary logical counts and independent optional uniform flags; missing depth/registration precedes physical slot bounds, partial per-component commits precede later errors, first-component lookup and paired flag updates occur only after a completed nonempty depth application. Empty input preserves all fields; zero logical components with nonempty depths errors at zero, while nonempty registrations succeeds. Every raw u8 precision/bool signedness and u16 registration word is admitted without normalization. Shared immutable Parser receiver frames all input/position/limits/work/packet fields. Existing actual SIZ/CBD/CRG raw producers and exact malformed constructor are reused, with a real reader-to-application regression. This is bounded source correctness, not normative fidelity, whole layout/read_tile_part/public parser/F2/F4/final F8 completion or conformance certification.",
       "implementation_refs": [

@@ -1,5 +1,6 @@
 //! Tile-part header/payload parsing and owned tile-part construction.
 
+use super::coding_style::new_component_coding_styles;
 use super::mct_resolution::{replace_mct_array, replace_mct_record};
 use super::reader::{is_allowed_tile_header, is_known_segment_marker, read_u16, read_u32};
 use super::{
@@ -352,31 +353,16 @@ impl<'a> Parser<'a> {
             return Err(self.malformed_here(MalformedKind::MissingRequiredStructure));
         }
         let mut component_coding_styles = if tile_cod_seen {
-            ComponentCodingStyles::new(components, tile_coding_style)?
+            new_component_coding_styles(components, tile_coding_style)?
         } else {
             inherited_coding_styles
         };
-        let mut component = 0_u16;
-        #[cfg_attr(
-            verus_keep_ghost,
-            verus_spec(
-                invariant component <= components,
-                decreases components - component,
-            )
-        )]
-        while component < components {
-            let coc_segment = match coc_segments.get(usize::from(component)) {
-                Some(segment) => *segment,
-                None => None,
-            };
-            if let Some(segment) = coc_segment {
-                let (_, style) = self.parse_coc(segment, components, tile_coding_style)?;
-                component_coding_styles.set(component, style)?;
-            }
-            component = component
-                .checked_add(1)
-                .ok_or_else(|| self.malformed_here(MalformedKind::ArithmeticOverflow))?;
-        }
+        self.apply_component_style_overrides(
+            components,
+            tile_coding_style,
+            &coc_segments,
+            &mut component_coding_styles,
+        )?;
         self.resolve_decomposition_structures(&mut component_coding_styles, &part2_extensions)?;
         let tile_quantization = match qcd_segment {
             Some(segment) => self.parse_qcd(segment, tile_coding_style)?,
@@ -387,7 +373,7 @@ impl<'a> Parser<'a> {
         } else {
             inherited_quantizations
         };
-        component = 0;
+        let mut component = 0_u16;
         #[cfg_attr(
             verus_keep_ghost,
             verus_spec(

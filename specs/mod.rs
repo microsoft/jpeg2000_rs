@@ -13616,6 +13616,32 @@ pub open spec fn part1_quantization_compatible(
 }
 
 #[verifier::opaque]
+pub open spec fn part1_style_overrides_from(
+    components: u16, default: Part1ParsedCodingStyle, segments: Seq<Option<Part1CodestreamSegment>>,
+    limits: &crate::ResourceLimits, owner: (u16, Seq<Part1ParsedCodingStyle>), component: nat,
+) -> (Result<(), crate::DecodeError>, (u16, Seq<Part1ParsedCodingStyle>))
+    decreases components as nat - component,
+{
+    if component >= components { (Ok(()), owner) }
+    else {
+        let step = if component >= segments.len() || segments[component as int].is_none() {
+            (Ok(()), owner)
+        } else {
+            let segment = segments[component as int].unwrap();
+            match part1_parse_coc(segment.offset, segment.payload, components, default, limits) {
+                Err(error) => (Err(error), owner),
+                Ok((_, style)) => part1_set_component_style(owner, component as u16, style),
+            }
+        };
+        match step.0 {
+            Err(error) => (Err(error), step.1),
+            Ok(()) => part1_style_overrides_from(
+                components, default, segments, limits, step.1, component + 1),
+        }
+    }
+}
+
+#[verifier::opaque]
 pub open spec fn part1_main_styles_from(
     components: u16, default: Part1ParsedCodingStyle, segments: Seq<Option<Part1CodestreamSegment>>,
     limits: &crate::ResourceLimits, owner: (u16, Seq<Part1ParsedCodingStyle>), component: nat,
