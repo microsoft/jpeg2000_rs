@@ -5,9 +5,10 @@
   "additionalProperties": false,
   "required": ["schema_version", "crate_name", "provenance", "input_sha256", "compiler_capture",
     "source_function_coverage", "functional_coverage", "lifetime_analysis", "counts",
-    "native_functions", "vir_functions", "verus_dependency_graph", "remaining_boundaries"],
+    "native_functions", "vir_functions", "verus_dependency_graph", "remaining_boundaries",
+    "native_inventory_completeness"],
   "properties": {
-    "schema_version": {"const": 1},
+    "schema_version": {"const": 2},
     "crate_name": {"const": "jpeg2000_decoder"},
     "provenance": {
       "type": "object",
@@ -20,10 +21,12 @@
     "compiler_capture": {"type": "object", "minProperties": 1},
     "source_function_coverage": {"const": "not-measured"},
     "functional_coverage": {"const": "not-measured"},
+    "native_inventory_completeness": {"const": "not-established-by-rustdoc"},
     "lifetime_analysis": {"type": "string", "minLength": 1},
     "counts": {
       "type": "object", "additionalProperties": false,
-      "required": ["native_function_items", "native_origin_dispositions", "vir_modes"],
+      "required": ["native_function_items", "native_origin_dispositions", "vir_modes",
+        "verus_exec_native_dispositions"],
       "properties": {
         "native_function_items": {"type": "integer", "minimum": 1},
         "native_origin_dispositions": {
@@ -34,6 +37,11 @@
         "vir_modes": {
           "type": "object", "minProperties": 1, "additionalProperties": {"type": "integer", "minimum": 1},
           "propertyNames": {"enum": ["Exec", "Spec", "Proof"]}
+        },
+        "verus_exec_native_dispositions": {
+          "type": "object", "additionalProperties": {"type": "integer", "minimum": 1},
+          "propertyNames": {"enum": ["same-source-declaration-and-body-extent",
+            "unresolved-native-origin", "ambiguous-native-origin", "bodyless-trait-declaration"]}
         }
       }
     },
@@ -65,7 +73,8 @@
       "items": {
         "type": "object", "additionalProperties": false,
         "required": ["symbol", "mode", "span", "body_span", "item_kind", "require_count", "ensure_counts",
-          "returns_expression", "body_disposition", "decrease_count", "contract_sha256", "functional_contract_review"],
+          "returns_expression", "body_disposition", "decrease_count", "contract_sha256", "functional_contract_review",
+          "native_origin_disposition", "native_source_ids"],
         "properties": {
           "symbol": {"type": "string", "pattern": "^jpeg2000_decoder::"},
           "mode": {"enum": ["Exec", "Spec", "Proof"]}, "span": {"$ref": "#/$defs/span"},
@@ -78,8 +87,29 @@
           "body_disposition": {"enum": ["bodyless-trait-declaration", "defined-body"]},
           "decrease_count": {"type": "integer", "minimum": 0},
           "contract_sha256": {"$ref": "#/$defs/hash"},
-          "functional_contract_review": {"const": "not-reviewed"}
-        }
+          "functional_contract_review": {"const": "not-reviewed"},
+          "native_origin_disposition": {"enum": ["same-source-declaration-and-body-extent",
+            "unresolved-native-origin", "ambiguous-native-origin", "bodyless-trait-declaration",
+            "not-applicable-ghost"]},
+          "native_source_ids": {"type": "array", "uniqueItems": true,
+            "items": {"$ref": "#/$defs/hash"}}
+        },
+        "allOf": [
+          {"if": {"properties": {"mode": {"enum": ["Spec", "Proof"]}}},
+           "then": {"properties": {"native_origin_disposition": {"const": "not-applicable-ghost"}}},
+           "else": {"properties": {"native_origin_disposition": {"enum": [
+             "same-source-declaration-and-body-extent", "unresolved-native-origin",
+             "ambiguous-native-origin", "bodyless-trait-declaration"]}}}},
+          {"oneOf": [
+            {"properties": {"native_origin_disposition": {"const": "same-source-declaration-and-body-extent"},
+              "native_source_ids": {"minItems": 1, "maxItems": 1}}},
+            {"properties": {"native_origin_disposition": {"const": "ambiguous-native-origin"},
+              "native_source_ids": {"minItems": 2}}},
+            {"properties": {"native_origin_disposition": {"enum": ["unresolved-native-origin",
+              "bodyless-trait-declaration", "not-applicable-ghost"]},
+              "native_source_ids": {"maxItems": 0}}}
+          ]}
+        ]
       }
     },
     "verus_dependency_graph": {
