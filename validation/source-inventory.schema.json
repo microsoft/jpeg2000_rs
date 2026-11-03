@@ -1,0 +1,111 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Source-bound compiler observations, not proof completeness",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "crate_name", "provenance", "input_sha256", "compiler_capture",
+    "source_function_coverage", "functional_coverage", "lifetime_analysis", "counts",
+    "native_functions", "vir_functions", "verus_dependency_graph", "remaining_boundaries"],
+  "properties": {
+    "schema_version": {"const": 1},
+    "crate_name": {"const": "jpeg2000_decoder"},
+    "provenance": {
+      "type": "object",
+      "required": ["git_commit", "git_dirty", "source_revision", "source_hashes", "tool_hashes", "python"]
+    },
+    "input_sha256": {
+      "type": "object", "additionalProperties": false, "required": ["native", "vir", "graph"],
+      "properties": {"native": {"$ref": "#/$defs/hash"}, "vir": {"$ref": "#/$defs/hash"}, "graph": {"$ref": "#/$defs/hash"}}
+    },
+    "compiler_capture": {"type": "object", "minProperties": 1},
+    "source_function_coverage": {"const": "not-measured"},
+    "functional_coverage": {"const": "not-measured"},
+    "lifetime_analysis": {"type": "string", "minLength": 1},
+    "counts": {
+      "type": "object", "additionalProperties": false,
+      "required": ["native_function_items", "native_origin_dispositions", "vir_modes"],
+      "properties": {
+        "native_function_items": {"type": "integer", "minimum": 1},
+        "native_origin_dispositions": {
+          "type": "object", "minProperties": 1, "additionalProperties": {"type": "integer", "minimum": 0},
+          "propertyNames": {"enum": ["derived-origin-not-compared", "abstract-declaration",
+            "same-source-declaration-and-body-extent", "ambiguous-or-different-body-origin", "no-exec-vir-origin"]}
+        },
+        "vir_modes": {
+          "type": "object", "minProperties": 1, "additionalProperties": {"type": "integer", "minimum": 1},
+          "propertyNames": {"enum": ["Exec", "Spec", "Proof"]}
+        }
+      }
+    },
+    "native_functions": {
+      "type": "array", "minItems": 1,
+      "items": {
+        "type": "object", "additionalProperties": false,
+        "required": ["source_id", "path", "begin", "end", "name", "owner_kind", "owner_span",
+          "derived", "source_sha256", "compiler_item_id", "has_body", "origin_disposition",
+          "vir_candidates", "functional_contract_review", "native_verus_erasure_equivalence"],
+        "properties": {
+          "source_id": {"$ref": "#/$defs/hash"}, "source_sha256": {"$ref": "#/$defs/hash"},
+          "path": {"type": "string", "pattern": "^src/.+\\.rs$"},
+          "begin": {"$ref": "#/$defs/position"}, "end": {"$ref": "#/$defs/position"},
+          "name": {"type": "string", "minLength": 1}, "owner_kind": {"enum": ["module", "impl", "trait"]},
+          "owner_span": {"oneOf": [{"type": "null"}, {"$ref": "#/$defs/native_span"}]},
+          "derived": {"type": "boolean"}, "has_body": {"type": "boolean"},
+          "compiler_item_id": {"type": "integer", "minimum": 0},
+          "origin_disposition": {"enum": ["derived-origin-not-compared", "abstract-declaration",
+            "same-source-declaration-and-body-extent", "ambiguous-or-different-body-origin", "no-exec-vir-origin"]},
+          "vir_candidates": {"type": "array", "items": {"type": "string", "pattern": "^jpeg2000_decoder::"}},
+          "functional_contract_review": {"const": "not-reviewed"},
+          "native_verus_erasure_equivalence": {"const": "not-established-by-location"}
+        }
+      }
+    },
+    "vir_functions": {
+      "type": "array", "minItems": 1,
+      "items": {
+        "type": "object", "additionalProperties": false,
+        "required": ["symbol", "mode", "span", "body_span", "item_kind", "require_count", "ensure_counts",
+          "returns_expression", "body_disposition", "decrease_count", "contract_sha256", "functional_contract_review"],
+        "properties": {
+          "symbol": {"type": "string", "pattern": "^jpeg2000_decoder::"},
+          "mode": {"enum": ["Exec", "Spec", "Proof"]}, "span": {"$ref": "#/$defs/span"},
+          "body_span": {"oneOf": [{"type": "null"}, {"$ref": "#/$defs/span"}]},
+          "item_kind": {"type": "string", "minLength": 1},
+          "require_count": {"type": "integer", "minimum": 0},
+          "ensure_counts": {"type": "array", "minItems": 2, "maxItems": 2,
+            "items": {"type": "integer", "minimum": 0}},
+          "returns_expression": {"type": "boolean"},
+          "body_disposition": {"enum": ["bodyless-trait-declaration", "defined-body"]},
+          "decrease_count": {"type": "integer", "minimum": 0},
+          "contract_sha256": {"$ref": "#/$defs/hash"},
+          "functional_contract_review": {"const": "not-reviewed"}
+        }
+      }
+    },
+    "verus_dependency_graph": {
+      "type": "object", "additionalProperties": false, "required": ["nodes", "edges", "scope"],
+      "properties": {
+        "nodes": {"type": "object", "minProperties": 1, "propertyNames": {"pattern": "^[0-9]+$"},
+          "additionalProperties": {"type": ["string", "null"]}},
+        "edges": {"type": "array", "minItems": 1, "items": {
+          "type": "array", "minItems": 2, "maxItems": 2, "items": {"type": "string", "pattern": "^[0-9]+$"}}},
+        "scope": {"const": "Verus dependency graph, including contract/proof/trait edges; not a native runtime call graph."}
+      }
+    },
+    "remaining_boundaries": {"type": "array", "minItems": 1, "items": {"type": "string", "minLength": 1}}
+  },
+  "$defs": {
+    "hash": {"type": "string", "pattern": "^[a-f0-9]{64}$"},
+    "position": {"type": "array", "minItems": 2, "maxItems": 2, "items": {"type": "integer", "minimum": 1}},
+    "span": {
+      "type": "object", "additionalProperties": false, "required": ["path", "begin", "end", "hygiene"],
+      "properties": {"path": {"type": "string", "minLength": 1}, "begin": {"$ref": "#/$defs/position"},
+        "end": {"$ref": "#/$defs/position"}, "hygiene": {"type": "integer", "minimum": 0}}
+    },
+    "native_span": {
+      "type": "object", "additionalProperties": false, "required": ["filename", "begin", "end"],
+      "properties": {"filename": {"type": "string", "minLength": 1},
+        "begin": {"$ref": "#/$defs/position"}, "end": {"$ref": "#/$defs/position"}}
+    }
+  }
+}
