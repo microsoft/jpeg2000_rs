@@ -192,8 +192,9 @@ distinguish incomplete data from successful reconstruction.
 
 Explicit `JpipPrecinctCodestreamPlan` transcodes are restricted to a single
 tile-part with LRCP progression, inline packet headers, and no POC, PLT, or PPT
-in the reconstructed input. Those plans require already-reframed headers;
-original packet-length declarations must not be copied into a shortened
+in the reconstructed input. Both the main and effective tile coding styles
+must use LRCP, including tile COD overrides. The plans require already-reframed
+headers; original packet-length declarations must not be copied into a shortened
 quality prefix. Automatic reconstruction performs its own header normalization.
 
 ## Selection

@@ -445,6 +445,104 @@ fn transcodes_precinct_ranges_into_a_decodable_codestream() {
 }
 
 #[test]
+fn explicit_precinct_transcodes_require_main_and_effective_tile_lrcp() {
+    let limits = ResourceLimits::default();
+    let mut cases = 0;
+    for main_progression in 0..=4 {
+        for tile_progression in [None, Some(0), Some(1), Some(2), Some(3), Some(4)] {
+            let mut source = decodable_codestream_with_layers(2);
+            let main_cod = source
+                .windows(2)
+                .position(|window| window == 0xff52_u16.to_be_bytes())
+                .unwrap();
+            source[main_cod + 5] = main_progression;
+            let tile_start = source
+                .windows(2)
+                .position(|window| window == 0xff90_u16.to_be_bytes())
+                .unwrap();
+            let tile_cod = tile_progression.map_or_else(Vec::new, |progression| {
+                segment(0xff52, &[0, progression, 0, 2, 0, 0, 0, 0, 0, 1])
+            });
+            source.splice(tile_start + 12..tile_start + 12, tile_cod.iter().copied());
+            let packet_start = tile_start + 14 + tile_cod.len();
+            let tile_length = u32::try_from(packet_start - tile_start + 2).unwrap();
+            source[tile_start + 6..tile_start + 10].copy_from_slice(&tile_length.to_be_bytes());
+            let parsed = crate::codestream::parse_layout(&source, &limits).unwrap();
+            let effective = tile_progression.unwrap_or(main_progression);
+            assert_eq!(
+                matches!(
+                    parsed.tile_parts[0].coding_style.progression_order,
+                    crate::codestream::ProgressionOrder::Lrcp
+                ),
+                effective == 0
+            );
+            let main = id(6, 0);
+            let tile_header = id(2, 0);
+            let precinct = id(0, 0);
+            let mut cache = DatabinCache::new(limits);
+            cache
+                .insert(fragment(main, 0, &source[..tile_start], true))
+                .unwrap();
+            cache
+                .insert(fragment(
+                    tile_header,
+                    0,
+                    &source[tile_start..packet_start],
+                    true,
+                ))
+                .unwrap();
+            cache.insert(fragment(precinct, 0, &[0, 0], true)).unwrap();
+            let plan = JpipPrecinctCodestreamPlan::new(
+                main,
+                tile_header,
+                vec![
+                    JpipPrecinctPacket::new(precinct, 0, 0, 1).unwrap(),
+                    JpipPrecinctPacket::new(precinct, 1, 1, 1).unwrap(),
+                ],
+                2,
+                &limits,
+            )
+            .unwrap();
+            for layers in [1, 2] {
+                let result = cache.transcode_precinct_codestream(&plan, layers);
+                if main_progression == 0 && effective == 0 {
+                    let transcoded = result.unwrap();
+                    assert!(transcoded.availability().is_available());
+                    let bytes = transcoded.codestream().unwrap().as_ref();
+                    let layout = crate::codestream::parse_layout(bytes, &limits).unwrap();
+                    assert_eq!(layout.tile_parts.len(), 1);
+                    assert_eq!(layout.tile_parts[0].coding_style.layers, layers);
+                    assert_eq!(layout.tile_parts[0].data, vec![0; usize::from(layers)]);
+                    let image =
+                        crate::decode_codestream(bytes, &crate::DecodeOptions::default()).unwrap();
+                    assert_eq!((image.width(), image.height()), (1, 1));
+                } else {
+                    assert_eq!(
+                        result.err(),
+                        Some(DecodeError::MalformedInput {
+                            offset: 0,
+                            kind: MalformedKind::InvalidJpipLayout,
+                        }),
+                        "main={main_progression}, tile={tile_progression:?}, layers={layers}"
+                    );
+                }
+                assert_eq!(
+                    cache.databin_view(main).unwrap().as_bytes(),
+                    &source[..tile_start]
+                );
+                assert_eq!(
+                    cache.databin_view(tile_header).unwrap().as_bytes(),
+                    &source[tile_start..packet_start]
+                );
+                assert_eq!(cache.databin_view(precinct).unwrap().as_bytes(), &[0, 0]);
+                cases += 1;
+            }
+        }
+    }
+    assert_eq!(cases, 60);
+}
+
+#[test]
 fn progressive_decode_advances_only_after_a_complete_layer() {
     let bytes = decodable_codestream_with_layers(2);
     let tile_start = bytes

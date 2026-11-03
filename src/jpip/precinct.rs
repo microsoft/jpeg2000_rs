@@ -457,6 +457,10 @@ fn validate_precinct_codestream(
             layout.info.coding_style.progression_order,
             crate::codestream::ProgressionOrder::Lrcp
         )
+        || !matches!(
+            layout.tile_parts[0].coding_style.progression_order,
+            crate::codestream::ProgressionOrder::Lrcp
+        )
         || layout.info.progression_changes.is_present()
         || layout.tile_parts[0].progression_changes.is_present()
         || layout.tile_parts[0].packet_lengths.is_present()
