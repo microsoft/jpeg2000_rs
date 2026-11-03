@@ -15,6 +15,13 @@ contracts and models. Exact run counts and source/tool hashes belong in fresh
 CI artifacts, not committed result snapshots. Independent model-to-standard
 review and official conformance testing remain separate.
 
+## Historical admission records
+
+The profile/record sections below preserve earlier freeze decisions and exact
+source evidence. They are historical, not the current development admission
+workflow. See [Solo owner review and technical CI](#solo-owner-review-and-technical-ci)
+for the replacement and its required administrative activation.
+
 ## Conditional main-header admission profile decision
 
 The [exact profile decision](validation/main-header-admission-profile-decision.md)
@@ -291,73 +298,82 @@ that reading path.
 Ordinary Rust builds erase ghost code and retain Rust's borrow checking.
 Source and proof changes must be validated together.
 
-## Temporary model-review hold
+## Solo owner review and technical CI
 
-The [model-review hold](.github/workflows/model-review-hold.yml) is a
-conservative engineering freeze while document-use, independent-review and
-trusted-adjudicator decisions are pending. It is not approval of any model's
-correspondence with an ITU edition.
+Normal development uses one source PR, its complete technical CI and an
+explicit owner review comment or instruction. It does not require a separate
+file-combination profile, registry PR or protection bootstrap for every change.
+The legacy failure workflow is retired, not changed to report false success.
+The [old controller](validation/check-model-review-hold.py), its tests and
+[registry](validation/reviewed-amendments.md) remain historical audit material.
 
-The [controller](validation/check-model-review-hold.py) holds changes to any
-Rust source, all files under `src/`, `.cargo/` and `.github/`, non-Markdown
-files under `specs/`, `proofs/` and `validation/`, Cargo/toolchain manifests
-and locks, and Git attributes/submodule configuration. This deliberately
-includes implementation-only edits, representation
-changes, tests and the controller itself: it does not try to infer semantic
-equivalence from a diff. Markdown audit-guide changes remain possible; their
-claims still need human review.
+### Required live protections
 
-The workflow targets pull requests to `main` and uses `pull_request_target`.
-It checks out the trusted default-branch `github.sha`, not a proposed branch
-or an arbitrary PR base, and runs only that controller. It fetches but never
-checks out or executes the
-proposed code. It assesses committed changes from the unique merge base,
-including deletions and renames. A policy edit in the same proposal cannot
-grant itself an exception. Missing history or ambiguous merge bases fail.
+Removing a workflow does not configure GitHub. Before this migration is merged,
+the owner must separately authorize and verify main ruleset25421374 with:
 
-The original hold had no amendment path and protected its own controller.
-The owner adopted the green documentation-only [one-time bootstrap
-authorization](validation/gate-bootstrap-authorization.md) in #166. Its exact
-two-file repair was deployed at `b81ba3149dedf23961e14ba035d4cc1c2dbd1b80`
-and accepted from fresh actual-main CI/Verus artifacts. The initial trusted
-registry was empty; that operation approved no source exception and changed
-no runtime/model/proof Rust, workflow, pin or resource setting.
+- Zero required native approvals and no last-push or code-owner approval
+  requirement that the sole owner cannot satisfy. Resolved review threads
+  remain required; other existing review settings are preserved.
+- All twelve existing technical check contexts and their existing GitHub App
+  identities, strict up-to-date checks, deletion/non-fast-forward protection
+  and no bypass actors. Only the obsolete Model-review hold is retired.
+- The same default-branch-only scope; release protections, verifier/compiler/
+  vstd pins, resource limits, trust and publication permissions are unchanged.
 
-The [trusted registry](validation/reviewed-amendments.md) now provides a bounded
-engineering amendment path. Registry-only Markdown PRs can pass CI before owner
-review because they do not amend held source. Their proposed data is validated
-by the normal tests, but the live gate reads only its trusted default-branch
-copy. Source PRs cannot approve themselves by also editing their own registry.
+Automation currently creates PRs using the owner's GitHub account. GitHub does
+not let that account approve its own PR. The owner explicitly chose solo
+owner-managed review: an LGTM comment or direct instruction is owner approval,
+not independent native approval. CI does not automatically enforce that manual
+decision. A collaborator with merge permission can technically merge after
+the machine-enforced checks, so manual ownership is an explicit limitation.
+No CODEOWNERS identities or separate automation credentials are invented.
+Independent specialist/normative review is not established by this solo policy.
 
-After owner adoption of a separate, all-green registry-only PR, an exact record
-can recognize the entire protected-path set, original/proposed Git blob IDs and
-regular-file modes. Unknown profiles, unlisted model/proof Rust, the controller,
-combined amendments and other protected changes remain held. Source branches
-must be refreshed from accepted main and all required checks must genuinely
-pass before source review is requested.
+The [read-only auditor](validation/review_policy.py) validates a fresh supplied
+ruleset API snapshot. It does not install settings, grant approval, validate
+reviewer expertise or establish that a snapshot is live. Activation receipts
+must separately bind the exact reviewed candidate, actual head/base, latest
+approving review and fresh successful technical runs.
 
-The owner separately authorized bounded source-derived model/proof development
-in #192. Its exact two-file deployment is accepted, and its single-use forward
-permission is spent. The `packet-metadata-finalization` profile recognizes only
-separately adopted, exact eight-path source records. These additions describe
-the actual executing producers; they are not independent standards
-correspondence approval or a general exception for model/proof Rust.
+### Assurance-sensitive changes
 
-Fingerprints and evidence identifiers are not semantic-equivalence or normative
-approval. This engineering mechanism does not complete trusted-adjudicator
-selection, independent normative review or enforcement configuration discussed
-in #149 and #150. No failed check may be waived, relabeled or treated as a green
-review handoff.
+Model/contract changes need a rationale, independent requirement/oracle
+evidence, applicable source/edition/use rights and qualified independent
+adjudication bound to the reviewed revision. Cover stronger premises, weaker
+postconditions, frames, termination, expected outcomes and actual caller joins.
+An author-written approval flag, a successful proof or a content fingerprint
+does not establish this correspondence. #149 and the normative-review work
+remain separate; this migration does not declare them complete.
 
-The check becomes available only after the workflow is merged into the default
-branch. Its presence does not configure branch protection or prevent direct
-pushes, administrative bypasses or changes to repository settings. Required
-checks/reviews and controller ownership need owner configuration and live
-demonstration before enforcement can be claimed. Existing Verus, runtime,
-numerical, resource and evidence gates remain unchanged.
+Verification pins, resource limits, trust boundaries, release refs, tags and
+uploads still require their explicit owner decisions. The new review workflow
+does not authorize any such changes or broaden decoder/conformance claims.
+Ordinary Rust, Verus root/actual-package, MSRV, numerical, resource, source/tool
+binding and negative-control gates remain unchanged.
 
-Run the controller regressions with
-`python3 -m unittest validation.tests.test_model_review_hold -v`.
+### Safe one-time activation
+
+1. Record the owner's solo-policy decision and permission for the migration,
+   bind the actual candidate/head/base and confirm all twelve technical
+   checks. The permission is owner review, not independent approval;
+   earlier exact bootstrap permissions, including #232, cannot be reused.
+2. Save the complete current ruleset and source/ref identities. Verify the
+   solo-compatible review settings, strict checks and no bypass, then remove
+   only the obsolete required check. Preserve every other rule and integration
+   ID; do not install an unsatisfiable native-review requirement.
+3. Perform only the authorized normal migration merge, then verify actual-main
+   code, native protections and fresh technical/source/package evidence.
+4. If activation fails before merge, restore the original complete ruleset.
+   If it fails after merge, fail closed by restoring the legacy required check
+   until repaired, even though its workflow has been retired. Do not waive a
+   failed technical check or silently claim restoration succeeded.
+
+No fabricated green result, admin/force-merge bypass or automatic subsequent
+source merge is permitted. Owner review does not change source/tool/evidence
+requirements. Later PRs must rebase, retain
+source semantics and pass fresh exact-head checks. A historical result is not
+qualification of a rewritten branch.
 
 ## Actual layout SOC/SIZ prologue
 
