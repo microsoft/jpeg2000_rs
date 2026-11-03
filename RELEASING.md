@@ -1,13 +1,38 @@
 # Publishing and releasing
 
 Publishing source, claiming standards conformance, and publishing a versioned
-crate are different decisions. `publish = false` remains in force until a
-package release is explicitly authorized.
+crate are different decisions. The development branch retains
+`publish = false`; a versioned release candidate enables publication only
+under its own exact authorization.
 
-The intended registry package is `jpeg2000-decoder`, imported in Rust as
+The registry package is `jpeg2000-decoder`, imported in Rust as
 `jpeg2000_decoder`. Repository URLs remain `microsoft/jpeg2000_rs`.
-Check registry name availability again for the actual release; an earlier
-not-found response does not reserve a name or authorize publication.
+Experimental [version 0.1.0](https://crates.io/crates/jpeg2000-decoder/0.1.0)
+has been published manually. Confirm current ownership and appropriate token
+or publisher permissions before preparing any subsequent version.
+
+## Published experimental baseline
+
+- Release branch: `release/0.1`.
+- Exact source commit: `88b592261540cf6b951c89a61be408fbd2cf8367`.
+- Published `jpeg2000-decoder-0.1.0.crate` SHA256:
+  `5aaa9ebd893f174ee4f8278e319a43a123f754ce0249c5e76698ceda513f5a78`.
+- [Versioned API documentation](https://docs.rs/jpeg2000-decoder/0.1.0/jpeg2000_decoder/).
+
+This records a completed publication, not normative conformance, full Verus
+coverage, or permission to repeat its one-use release operations.
+The published version cannot be overwritten. Confirmed bounded corrections
+to advertised behavior are considered for separately qualified 0.1.x
+backports; unavoidable public API/data-model changes or new capabilities
+belong in 0.2 under the [current release plan](https://github.com/microsoft/jpeg2000_rs/issues/226).
+Executing code, mathematical models and regression tests must travel together.
+The release branch remains frozen until an exact update is separately approved;
+no new tag or upload follows merely from a documentation or development change.
+
+The first manual upload did not require a GitHub publisher workflow. A
+packaging dry-run helper is not a publisher, and future upload automation
+requires its own ownership, authentication, protected environment, exact
+source/archive qualification and review decisions.
 
 ## Source publication
 
@@ -44,8 +69,10 @@ boundary before proposing any destructive operation.
 
 Source-publication approval does not by itself choose a history strategy or
 authorize ref deletion, force-pushing, or repository replacement/renaming.
-Keep the repository private until the actual retained content and any proposed
-operations have the required owner approval.
+The repository is already public. Any future visibility, history or disclosure
+operation still requires approval of its actual retained content and exact
+scope; existing public visibility is not permission to disclose restricted
+material or rewrite refs.
 
 ### Unsafe-code review
 
