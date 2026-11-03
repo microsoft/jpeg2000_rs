@@ -601,6 +601,84 @@ impl ComponentCodingStyles {
 impl Parser<'_> {
     #[cfg_attr(verus_keep_ghost, verifier::spinoff_prover)]
     #[cfg_attr(verus_keep_ghost, verus_spec(result =>
+        ensures (result, component_style_owner_view(final(styles)))
+            == crate::specs::part1_style_overrides_from(
+                components, parsed_coding_style_view(default), segment_slots_view(segments@),
+                &self.limits, component_style_owner_view(old(styles)), 0),
+            match result {
+                Ok(()) => crate::specs::part1_main_styles_from(
+                    components, parsed_coding_style_view(default), segment_slots_view(segments@),
+                    &self.limits, component_style_owner_view(old(styles)), 0)
+                    == Ok(component_style_owner_view(final(styles))),
+                Err(error) => crate::specs::part1_main_styles_from(
+                    components, parsed_coding_style_view(default), segment_slots_view(segments@),
+                    &self.limits, component_style_owner_view(old(styles)), 0) == Err(error),
+            },
+    ))]
+    pub(super) fn apply_component_style_overrides(
+        &self,
+        components: u16,
+        default: CodingStyle,
+        segments: &[Option<Segment<'_>>],
+        styles: &mut ComponentCodingStyles,
+    ) -> Result<(), DecodeError> {
+        #[cfg(verus_keep_ghost)]
+        proof_decl! {
+            let ghost initial = component_style_owner_view(styles);
+            let ghost frame_goal = crate::specs::part1_style_overrides_from(
+                components, parsed_coding_style_view(default), segment_slots_view(segments@),
+                &self.limits, initial, 0);
+            let ghost result_goal = crate::specs::part1_main_styles_from(
+                components, parsed_coding_style_view(default), segment_slots_view(segments@),
+                &self.limits, initial, 0);
+        }
+        let mut component = 0_u16;
+        #[cfg_attr(verus_keep_ghost, verus_spec(
+            invariant component <= components,
+                initial == component_style_owner_view(old(styles)),
+                frame_goal == crate::specs::part1_style_overrides_from(
+                    components, parsed_coding_style_view(default), segment_slots_view(segments@),
+                    &self.limits, initial, 0),
+                result_goal == crate::specs::part1_main_styles_from(
+                    components, parsed_coding_style_view(default), segment_slots_view(segments@),
+                    &self.limits, initial, 0),
+                frame_goal == crate::specs::part1_style_overrides_from(
+                    components, parsed_coding_style_view(default), segment_slots_view(segments@),
+                    &self.limits, component_style_owner_view(styles), component as nat),
+                result_goal == crate::specs::part1_main_styles_from(
+                    components, parsed_coding_style_view(default), segment_slots_view(segments@),
+                    &self.limits, component_style_owner_view(styles), component as nat),
+            decreases components - component,
+        ))]
+        while component < components {
+            #[cfg(verus_keep_ghost)]
+            proof! {
+                reveal_with_fuel(crate::specs::part1_style_overrides_from, 1);
+                reveal_with_fuel(crate::specs::part1_main_styles_from, 1);
+                reveal(crate::specs::part1_set_component_style);
+            }
+            let coc_segment = match segments.get(usize::from(component)) {
+                Some(segment) => *segment,
+                None => None,
+            };
+            if let Some(segment) = coc_segment {
+                let (_, style) = self.parse_coc(segment, components, default)?;
+                styles.set(component, style)?;
+            }
+            component = component
+                .checked_add(1)
+                .ok_or_else(|| self.malformed_here(MalformedKind::ArithmeticOverflow))?;
+        }
+        #[cfg(verus_keep_ghost)]
+        proof! {
+            reveal_with_fuel(crate::specs::part1_style_overrides_from, 1);
+            reveal_with_fuel(crate::specs::part1_main_styles_from, 1);
+        }
+        Ok(())
+    }
+
+    #[cfg_attr(verus_keep_ghost, verifier::spinoff_prover)]
+    #[cfg_attr(verus_keep_ghost, verus_spec(result =>
         ensures parsed_style_owner_outcome(result) == crate::specs::part1_finish_main_styles(
             components, parsed_coding_style_view(default), segment_slots_view(segments@),
             &self.limits, owned_extensions_view(extensions)),
@@ -619,47 +697,7 @@ impl Parser<'_> {
             reveal(crate::specs::part1_set_component_style);
         }
         let mut styles = new_component_coding_styles(components, default)?;
-        #[cfg(verus_keep_ghost)]
-        proof_decl! {
-            let ghost initial = component_style_owner_view(&styles);
-            let ghost goal = crate::specs::part1_main_styles_from(
-                components, parsed_coding_style_view(default), segment_slots_view(segments@),
-                &self.limits, component_style_owner_view(&styles), 0);
-        }
-        let mut component = 0_u16;
-        #[cfg_attr(verus_keep_ghost, verus_spec(
-            invariant component <= components,
-                crate::specs::part1_component_styles_new(components, parsed_coding_style_view(default)) == Ok(initial),
-                goal == crate::specs::part1_main_styles_from(
-                    components, parsed_coding_style_view(default), segment_slots_view(segments@),
-                    &self.limits, initial, 0),
-                goal == crate::specs::part1_main_styles_from(
-                    components, parsed_coding_style_view(default), segment_slots_view(segments@),
-                    &self.limits, component_style_owner_view(&styles), component as nat),
-            decreases components - component,
-        ))]
-        while component < components {
-            #[cfg(verus_keep_ghost)]
-            proof! {
-                reveal_with_fuel(crate::specs::part1_main_styles_from, 1);
-                reveal(crate::specs::part1_finish_main_styles);
-                reveal(crate::specs::part1_component_styles_new);
-                reveal(crate::specs::part1_set_component_style);
-            }
-            let coc_segment = match segments.get(usize::from(component)) {
-                Some(segment) => *segment,
-                None => None,
-            };
-            if let Some(segment) = coc_segment {
-                let (_, style) = self.parse_coc(segment, components, default)?;
-                styles.set(component, style)?;
-            }
-            component = component
-                .checked_add(1)
-                .ok_or_else(|| self.malformed_here(MalformedKind::ArithmeticOverflow))?;
-        }
-        #[cfg(verus_keep_ghost)]
-        proof! { reveal_with_fuel(crate::specs::part1_main_styles_from, 1); }
+        self.apply_component_style_overrides(components, default, segments, &mut styles)?;
         self.resolve_decomposition_structures(&mut styles, extensions)?;
         Ok(styles)
     }

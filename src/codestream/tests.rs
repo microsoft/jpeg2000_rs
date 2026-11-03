@@ -529,6 +529,258 @@ fn reference_main_styles(
     Ok(owner)
 }
 
+fn reference_style_overrides(
+    parser: &Parser<'_>,
+    components: u16,
+    default: CodingStyle,
+    segments: &[Option<Segment<'_>>],
+    owner: &mut ComponentCodingStyles,
+) -> Result<(), DecodeError> {
+    for component in 0..components {
+        if let Some(Some(segment)) = segments.get(usize::from(component)) {
+            let (_, style) = parser.parse_coc(*segment, components, default)?;
+            if component >= owner.components || usize::from(component) >= owner.styles.len() {
+                return Err(input_error_literal(0, MalformedKind::InvalidCodingStyle));
+            }
+            owner.styles[usize::from(component)] = style;
+        }
+    }
+    Ok(())
+}
+
+#[test]
+fn actual_raw_component_style_overrides_keep_partial_owners_and_every_frame() {
+    let input = [0xa5, 0x5a];
+    let limits = ResourceLimits::HARDENED;
+    let mut parser = new_parser(&input, &limits).unwrap();
+    let default = parser
+        .parse_cod(Segment {
+            marker: COD,
+            offset: 19,
+            payload: &[6, 4, 0, 3, 0, 2, 2, 2, 0, 1],
+        })
+        .unwrap();
+    let defaults = [default, raw_resolution_style(2, 4)];
+    let payloads: &[&[u8]] = &[&[], &[0], &[0, 0, 1, 2, 2, 0, 1], &[1, 0, 1, 3, 2, 0, 1]];
+    let mut cases = 0;
+    for components in [0, 1, 2, 63, 64, 65] {
+        for count in [0, 1, 2, 64, 65, u16::MAX] {
+            for default in defaults {
+                let styles = core::array::from_fn(|index| {
+                    raw_resolution_style((index % 4) as u8, index % 8)
+                });
+                for length in [0, 1, 2, 64, 66] {
+                    for pattern in 0..3 {
+                        for payload in payloads {
+                            let segments: Vec<_> = (0..length)
+                                .map(|index| {
+                                    if pattern == 0
+                                        || (pattern == 1 && index != 0)
+                                        || (pattern == 2 && index % 3 == 2)
+                                    {
+                                        None
+                                    } else {
+                                        Some(Segment {
+                                            marker: QCD,
+                                            offset: 100 + index * 17,
+                                            payload,
+                                        })
+                                    }
+                                })
+                                .collect();
+                            let before = segments.clone();
+                            for position in [0, usize::MAX] {
+                                let state = PacketAdmissionState {
+                                    position,
+                                    work: u64::MAX,
+                                    header_bytes: 97,
+                                    packet_count: u64::MAX,
+                                };
+                                set_packet_admission_state(&mut parser, state);
+                                let mut actual = ComponentCodingStyles {
+                                    components: count,
+                                    styles,
+                                };
+                                let mut expected = actual;
+                                let result = reference_style_overrides(
+                                    &parser,
+                                    components,
+                                    default,
+                                    &segments,
+                                    &mut expected,
+                                );
+                                assert_eq!(
+                                    parser.apply_component_style_overrides(
+                                        components,
+                                        default,
+                                        &segments,
+                                        &mut actual
+                                    ),
+                                    result,
+                                    "count={components}, inherited={count}, length={length}, pattern={pattern}"
+                                );
+                                assert_eq!(
+                                    (actual.components, actual.styles),
+                                    (expected.components, expected.styles)
+                                );
+                                assert_main_component_frames(
+                                    &parser, state, &input, &limits, &segments, &before,
+                                );
+                                cases += 1;
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+    for count in [0, 64, u16::MAX] {
+        let mut actual = ComponentCodingStyles {
+            components: count,
+            styles: [default; MAX_COMPONENTS],
+        };
+        let before = actual;
+        assert_eq!(
+            parser.apply_component_style_overrides(u16::MAX, default, &[None], &mut actual),
+            Ok(())
+        );
+        assert_eq!(actual, before);
+        cases += 1;
+    }
+    assert_eq!(cases, 8_643);
+}
+
+#[test]
+fn actual_component_style_overrides_preserve_parse_before_slot_errors() {
+    let input = [];
+    let limits = ResourceLimits::HARDENED;
+    let parser = new_parser(&input, &limits).unwrap();
+    let default = parser
+        .parse_cod(Segment {
+            marker: COD,
+            offset: 0,
+            payload: &[0, 0, 0, 1, 0, 0, 2, 2, 0, 1],
+        })
+        .unwrap();
+    let valid = Segment {
+        marker: COC,
+        offset: 101,
+        payload: &[1, 0, 0, 3, 2, 0, 1],
+    };
+    let malformed = Segment {
+        marker: COC,
+        offset: 203,
+        payload: &[1],
+    };
+    let parsed = parser.parse_coc(valid, 2, default).unwrap().1;
+    for count in [0, 1, 2] {
+        let mut actual = ComponentCodingStyles {
+            components: count,
+            styles: [default; MAX_COMPONENTS],
+        };
+        let mut expected = actual;
+        let result = reference_style_overrides(
+            &parser,
+            2,
+            default,
+            &[Some(valid), Some(malformed)],
+            &mut expected,
+        );
+        assert_eq!(
+            parser.apply_component_style_overrides(
+                2,
+                default,
+                &[Some(valid), Some(malformed)],
+                &mut actual
+            ),
+            result
+        );
+        assert_eq!(actual, expected);
+        assert_eq!(actual.styles[0], if count == 0 { default } else { parsed });
+        assert_eq!(actual.styles[1..], [default; MAX_COMPONENTS][1..]);
+    }
+    let mut actual = ComponentCodingStyles {
+        components: 2,
+        styles: [default; MAX_COMPONENTS],
+    };
+    assert_eq!(
+        parser.apply_component_style_overrides(2, default, &[Some(valid)], &mut actual),
+        Ok(())
+    );
+    assert_eq!(actual.styles[0], parsed);
+    assert_eq!(actual.styles[1], default);
+}
+
+#[test]
+fn actual_tile_styles_inherit_or_reset_and_use_real_override_producer() {
+    let limits = ResourceLimits::HARDENED;
+    let reference = new_parser(&[], &limits).unwrap();
+    let headers = baseline_headers();
+    let main_default = reference
+        .parse_cod(Segment {
+            marker: COD,
+            offset: 0,
+            payload: &[0, 0, 0, 1, 0, 0, 2, 2, 0, 1],
+        })
+        .unwrap();
+    let main_coc = [0, 0, 0, 4, 2, 0, 1];
+    let tile_coc = [1, 0, 0, 3, 2, 0, 1];
+    let tile_cod = [0, 0, 0, 1, 0, 0, 1, 2, 0, 1];
+    for reset in [false, true] {
+        let mut main_headers = headers.to_vec();
+        main_headers.push(segment(COC, &main_coc));
+        let mut tile_headers = Vec::new();
+        if reset {
+            tile_headers.push(segment(COD, &tile_cod));
+        }
+        tile_headers.push(segment(COC, &tile_coc));
+        let input = codestream_with_headers(2, &main_headers, &tile_headers, &[]);
+        let layout = parse_layout(&input, &limits).unwrap();
+        let tile_default = if reset {
+            reference
+                .parse_cod(Segment {
+                    marker: COD,
+                    offset: 0,
+                    payload: &tile_cod,
+                })
+                .unwrap()
+        } else {
+            main_default
+        };
+        let mut expected = ComponentCodingStyles {
+            components: 2,
+            styles: [tile_default; MAX_COMPONENTS],
+        };
+        if !reset {
+            expected.styles[0] = reference
+                .parse_coc(
+                    Segment {
+                        marker: COC,
+                        offset: 0,
+                        payload: &main_coc,
+                    },
+                    2,
+                    main_default,
+                )
+                .unwrap()
+                .1;
+        }
+        expected.styles[1] = reference
+            .parse_coc(
+                Segment {
+                    marker: COC,
+                    offset: 0,
+                    payload: &tile_coc,
+                },
+                2,
+                tile_default,
+            )
+            .unwrap()
+            .1;
+        assert_eq!(layout.tile_parts[0].component_coding_styles, expected);
+    }
+}
+
 fn reference_main_quantizations(
     parser: &Parser<'_>,
     components: u16,
