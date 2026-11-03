@@ -47,6 +47,41 @@
       ]
     },
     {
+      "id": "part1-complete-native-main-header-admission",
+      "topic": "LOCAL-ONLY source-derived actual parse_layout loop prefix: peek, stop at SOT without reading, reject main-header boundaries, consume the real segment reader, checked-increment the raw main-header counter, then require known and allowed markers. Unconditional raw Result<Option<complete borrowed segment>>/full parser/raw counter equality includes arbitrary private states, exact errors and precedence, read charges and cursor commits before later failures, committed counter increments before marker rejection and untouched accounting fields. One additive nonrecursive model composes unchanged reader and marker models; a closed projection retains every payload byte, offset and marker. Dispatch, progress guard and later orchestration remain outside this producer. Not integration approval, whole-root/layout/public-decoder proof or normative certification.",
+      "implementation_refs": [
+        {"path": "src/codestream/layout.rs", "symbol": "Parser::parse_layout"},
+        {"path": "src/codestream/reader.rs", "symbol": "Parser::read_main_header_segment"}
+      ],
+      "spec_refs": [
+        {"path": "specs/layout_input.rs", "symbol": "part1_read_main_header_segment"},
+        {"path": "specs/mod.rs", "symbol": "part1_codestream_peek_marker"},
+        {"path": "specs/mod.rs", "symbol": "part1_codestream_read_segment"},
+        {"path": "specs/mod.rs", "symbol": "part1_main_header_boundary"},
+        {"path": "specs/mod.rs", "symbol": "part1_known_segment_marker"},
+        {"path": "specs/mod.rs", "symbol": "part1_allowed_main_header"}
+      ],
+      "contract_refs": [
+        {"path": "src/codestream/reader.rs", "symbol": "Parser::read_main_header_segment"}
+      ],
+      "proof_refs": [
+        {"path": "src/codestream/proof_support.rs", "symbol": "main_header_segment_outcome"},
+        {"path": "src/codestream/proof_support.rs", "symbol": "parser_view"},
+        {"path": "src/codestream/proof_support.rs", "symbol": "segment_view"},
+        {"path": "src/codestream/reader.rs", "symbol": "Parser::peek_marker"},
+        {"path": "src/codestream/reader.rs", "symbol": "Parser::read_segment"},
+        {"path": "src/codestream/reader.rs", "symbol": "is_known_segment_marker"},
+        {"path": "src/codestream/reader.rs", "symbol": "is_allowed_main_header"},
+        {"path": "src/refinement/headers.rs", "symbol": "main_header_boundary"}
+      ],
+      "test_refs": [
+        {"path": "src/codestream/tests.rs", "symbol": "actual_main_header_admission_preserves_every_marker_length_and_counter_order"},
+        {"path": "src/codestream/tests.rs", "symbol": "actual_main_header_admission_preserves_arbitrary_reader_states_and_partial_commits"},
+        {"path": "src/codestream/tests.rs", "symbol": "actual_main_header_admission_error_frontiers_are_not_normalized"},
+        {"path": "src/codestream/tests.rs", "symbol": "actual_main_header_admission_consumes_real_prologue_and_preserves_layout_dispatch"}
+      ]
+    },
+    {
       "id": "part1-complete-native-layout-prologue",
       "topic": "Source-derived actual parse_layout SOC/SIZ prologue only: expect SOC, read the complete segment, require SIZ, derive the complete raw ImageSize/r_siz Result using the existing SIZ contract, then obtain main-header start. The actual caller uses the extracted helper in the original order. Unconditional raw Result/full-reader equality preserves arbitrary private states, reader partial charges and cursor commits, error offsets and precedence, all image/component/unused fields and every untouched accounting field. No input-limit admission is added to this private helper. One additive nonrecursive model composes unchanged reader and SIZ models; a closed projection preserves the complete result. Not normative certification, independent model-to-standard review, or proof of the remaining main/tile/layout/public-decoder or F2/F4/F8 joins.",
       "implementation_refs": [
@@ -1313,6 +1348,7 @@
       "topic": "Source-derived complete actual raw read_segment-to-SOT Result and all parser fields on success and error, plus exact source-set u16 known/main/tile marker predicates. Preserve original reader errors before SOT checks, segment charge/cursor partial commits, raw tile-count and part-index/count/length zero bypasses, all returned header fields, offsets and unused counters. No normalized cursor/header, supplied segment/result bank, successful budget premise, stricter format admission or model-to-standard claim. Whole header/layout/public/file decoding and independent conformance remain separate.",
       "implementation_refs": [
         {"path": "src/codestream/layout.rs", "symbol": "Parser::parse_layout"},
+        {"path": "src/codestream/reader.rs", "symbol": "Parser::read_main_header_segment"},
         {"path": "src/codestream/tiles.rs", "symbol": "Parser::read_tile_part"},
         {"path": "src/codestream/tiles.rs", "symbol": "Parser::read_sot"},
         {"path": "src/codestream/reader.rs", "symbol": "Parser::read_segment"}
@@ -6032,6 +6068,9 @@
       ],
       "id": "part1-complete-marker-parser",
       "implementation_refs": [
+        {
+          "path": "src/codestream/reader.rs", "symbol": "Parser::read_main_header_segment"
+        },
         {
           "path": "src/codestream/reader.rs", "symbol": "read_u16"
         },

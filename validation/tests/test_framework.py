@@ -1018,6 +1018,42 @@ class FrameworkTests(WorkingFiles):
             ("parser_view(final(self))", "parser_view(old(self))"),
         ])
 
+    def test_inventory_binds_actual_main_header_admission_raw_result_reader_counter_and_caller(self):
+        self._assert_complete_packet_contract_bindings(
+            {"part1-complete-native-main-header-admission"},
+            framework._MAIN_HEADER_ADMISSION_CONTRACTS, 1,
+        )
+        coverage = json.loads((framework.VALIDATION / "normative-coverage.json").read_text())
+        coverage["requirements"] = [
+            item for item in coverage["requirements"]
+            if item["id"] == "part1-complete-native-main-header-admission"
+        ]
+        self._assert_contract_text_mutations(coverage, (
+            ("main_header_segment_outcome(result)", "main_header_segment_outcome(unrelated)"),
+            ("main_header_segment_outcome(result)", "unlisted_outcome(result)"),
+            ("main_header_segment_outcome(result)", "result.is_ok()"),
+            ("parser_view(final(self))", "parser_view(old(self))"),
+            ("*final(main_header_segments)", "*old(main_header_segments)"),
+            (", *final(main_header_segments)", ""),
+            ("*old(main_header_segments)", "*final(main_header_segments)"),
+        ))
+        source = framework.ROOT / "src/codestream/layout.rs"
+        original = source.read_text()
+        read_text = Path.read_text
+        call = "parser.read_main_header_segment(&mut main_header_segments)?"
+        self.assertEqual(original.count(call), 1)
+        without_call = original.replace(call, "parser.unrelated_admission(&mut main_header_segments)?")
+        for extra in ("", "\nfn unrelated() { parser.read_main_header_segment(&mut count); }\n"):
+            modified = without_call + extra
+
+            def altered(path, *args, **kwargs):
+                return modified if path == source else read_text(path, *args, **kwargs)
+
+            with self.subTest(unrelated_call_elsewhere=bool(extra)), \
+                    mock.patch.object(Path, "read_text", altered), \
+                    self.assertRaisesRegex(ValueError, "not used by claimed implementation"):
+                framework.validate_normative_coverage(coverage)
+
     def test_inventory_binds_actual_layout_prologue_raw_result_reader_frame_and_caller(self):
         self._assert_complete_packet_contract_bindings(
             {"part1-complete-native-layout-prologue"},

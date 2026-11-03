@@ -1421,6 +1421,16 @@ _CODING_STYLE_BYTES_CONTRACTS = {
     ),
 }
 
+_MAIN_HEADER_ADMISSION_CONTRACTS = {
+    ("src/codestream/reader.rs", "Parser::read_main_header_segment"): (
+        "part1_read_main_header_segment", _coverage_call("main_header_segment_outcome", r"\1"),
+        _coverage_call("parser_view", _coverage_call("final", "self"))
+        + r"\s*,\s*\*\s*" + _coverage_call("final", "main_header_segments"),
+        _coverage_call("parser_view", _coverage_call("old", "self"))
+        + r"\s*,\s*\*\s*" + _coverage_call("old", "main_header_segments"),
+    ),
+}
+
 _LAYOUT_PROLOGUE_CONTRACTS = {
     ("src/codestream/layout.rs", "Parser::parse_layout_prologue"): (
         "part1_parse_layout_prologue", _coverage_call("layout_prologue_outcome", r"\1"),
@@ -2756,6 +2766,7 @@ def validate_normative_coverage(
                 or _TILE_DATA_WINDOW_CONTRACTS.get((reference["path"], reference["symbol"]))
                 or _SIZ_GEOMETRY_CONTRACTS.get((reference["path"], reference["symbol"]))
                 or _LAYOUT_PROLOGUE_CONTRACTS.get((reference["path"], reference["symbol"]))
+                or _MAIN_HEADER_ADMISSION_CONTRACTS.get((reference["path"], reference["symbol"]))
                 or _CODING_STYLE_BYTES_CONTRACTS.get((reference["path"], reference["symbol"]))
                 or _COMPONENT_STYLE_BYTES_CONTRACTS.get((reference["path"], reference["symbol"]))
                 or _QUANTIZATION_BYTES_CONTRACTS.get((reference["path"], reference["symbol"]))

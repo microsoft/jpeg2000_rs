@@ -6,8 +6,8 @@ use super::{
 };
 #[cfg(verus_keep_ghost)]
 use super::{
-    owned_extensions_view, parser_initial_outcome, parser_view, segment_outcome,
-    segment_tail_outcome, segment_view,
+    main_header_segment_outcome, owned_extensions_view, parser_initial_outcome, parser_view,
+    segment_outcome, segment_tail_outcome, segment_view,
 };
 #[cfg(verus_keep_ghost)]
 use vstd::prelude::*;
@@ -37,6 +37,47 @@ pub(super) fn new_parser<'a>(
     })
 }
 impl<'a> Parser<'a> {
+    #[cfg_attr(verus_keep_ghost, verus_spec(result =>
+        ensures (main_header_segment_outcome(result), parser_view(final(self)), *final(main_header_segments))
+            == crate::specs::part1_read_main_header_segment(
+                parser_view(old(self)), *old(main_header_segments)),
+    ))]
+    pub(super) fn read_main_header_segment(
+        &mut self,
+        main_header_segments: &mut u64,
+    ) -> Result<Option<Segment<'a>>, DecodeError> {
+        #[cfg(verus_keep_ghost)]
+        proof! {
+            reveal(crate::specs::part1_read_main_header_segment);
+            reveal(main_header_segment_outcome);
+        }
+        let marker = self.peek_marker()?;
+        if marker == SOT {
+            return Ok(None);
+        }
+        if crate::refinement::main_header_boundary(marker) {
+            return Err(self.malformed_here(MalformedKind::InvalidMarkerOrder));
+        }
+        let segment = self.read_segment()?;
+        *main_header_segments = match main_header_segments.checked_add(1) {
+            Some(value) => value,
+            None => return Err(self.malformed_here(MalformedKind::ArithmeticOverflow)),
+        };
+        if !is_known_segment_marker(segment.marker) {
+            return Err(DecodeError::malformed(
+                self.offset(segment.offset),
+                MalformedKind::InvalidMarker,
+            ));
+        }
+        if !is_allowed_main_header(segment.marker) {
+            return Err(DecodeError::malformed(
+                self.offset(segment.offset),
+                MalformedKind::InvalidMarkerOrder,
+            ));
+        }
+        Ok(Some(segment))
+    }
+
     #[cfg_attr(verus_keep_ghost, verifier::spinoff_prover)]
     #[cfg_attr(verus_keep_ghost, verus_spec(result =>
         ensures (result, parser_view(final(self)), owned_extensions_view(final(extensions)))
