@@ -346,6 +346,17 @@ fn decode_general_compositing_layer(
                     .ok_or_else(arithmetic_overflow)?;
             }
 
+            #[cfg_attr(
+                verus_keep_ghost,
+                verus_spec(output =>
+                    ensures match output {
+                        Ok(values) => values@.len() == samples@.len()
+                            && forall|i: int| 0 <= i < samples@.len()
+                                ==> #[trigger] values@[i] == samples@[i] as u64,
+                        Err(_) => false,
+                    },
+                )
+            )]
             fn widen_samples(samples: &[u16]) -> Result<Vec<u64>, DecodeError> {
                 let mut widened = Vec::with_capacity(samples.len());
                 let mut index = 0_usize;
@@ -353,6 +364,9 @@ fn decode_general_compositing_layer(
                     verus_keep_ghost,
                     verus_spec(
                         invariant index <= samples.len(),
+                            widened.len() == index,
+                            forall|i: int| 0 <= i < index
+                                ==> #[trigger] widened@[i] == samples@[i] as u64,
                         decreases samples.len() - index,
                     )
                 )]

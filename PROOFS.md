@@ -3664,6 +3664,26 @@ missing samples rather than treating them as nonmatches; it is not silently
 changed or included here. Raw-key normalization, registration/sampling,
 opacity and complete F2/F4/F8 composition remain separate work. Whole-root
 and hosted qualification must match the delivered source before acceptance.
+## Complete Result of actual nested sample widening
+
+The existing `widen_samples` local function in
+`decode_general_compositing_layer` retains its sole executing body and caller.
+Its complete Result contract guarantees success, identical sample count and
+every u16 value widened exactly to u64, including empty input. Its loop ties
+the output length to the processed prefix and preserves pointwise sample
+identity, checked-index admission and real termination.
+
+This is a source-derived scalar-copy property, not a new normalization rule
+or a model-to-standard claim. The helper is not moved to make Rustdoc count it;
+nested/compiler-generated source-origin gaps remain explicit in the separate
+inventory. No runtime clone, precomputed output, successful-caller premise,
+trusted codec adapter or allocation-identity assumption is introduced.
+
+The contract uses the existing Vec/library trust boundary. It does not prove
+allocation-failure recovery, caller resource accounting, registration/opacity,
+raw public parsing, complete compositing-layer output or Verus lifetimes.
+Those producer/consumer joins and independent normative review remain separate.
+
 ## Complete native registration extent and geometry admission
 
 The real `registered_extent` now refines its complete typed-result model over
