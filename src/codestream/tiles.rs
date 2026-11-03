@@ -12,7 +12,10 @@ use super::{
 };
 #[cfg(verus_keep_ghost)]
 use super::{
-    parser_view, tile_data_window_outcome, tile_part_header_outcome, tile_part_owned_view,
+    component_style_owner_view, optional_segment_view, owned_extensions_view,
+    parsed_coding_style_view, parsed_quantization_owner_view, parser_view, quantization_view,
+    segment_slots_view, tile_component_configuration_outcome, tile_data_window_outcome,
+    tile_part_header_outcome, tile_part_owned_view,
 };
 #[cfg(verus_keep_ghost)]
 use vstd::prelude::*;
@@ -77,6 +80,70 @@ impl<'a> TilePartPayload<'a> {
     }
 }
 impl<'a> Parser<'a> {
+    #[allow(clippy::too_many_arguments)]
+    #[cfg_attr(verus_keep_ghost, verifier::spinoff_prover)]
+    #[cfg_attr(verus_keep_ghost, verus_spec(result =>
+        ensures tile_component_configuration_outcome(result) == crate::specs::part1_finish_tile_components(
+            components, parsed_coding_style_view(tile_coding_style), tile_cod_seen,
+            segment_slots_view(coc_segments@), optional_segment_view(qcd_segment),
+            quantization_view(&default_quantization), segment_slots_view(qcc_segments@),
+            component_style_owner_view(&inherited_coding_styles),
+            parsed_quantization_owner_view(&inherited_quantizations),
+            owned_extensions_view(part2_extensions), &self.limits),
+    ))]
+    pub(super) fn finish_tile_component_configuration(
+        &self,
+        components: u16,
+        tile_coding_style: CodingStyle,
+        tile_cod_seen: bool,
+        coc_segments: &[Option<super::Segment<'a>>],
+        qcd_segment: Option<super::Segment<'a>>,
+        default_quantization: Quantization,
+        qcc_segments: &[Option<super::Segment<'a>>],
+        inherited_coding_styles: ComponentCodingStyles,
+        inherited_quantizations: ComponentQuantizations,
+        part2_extensions: &Part2Extensions,
+    ) -> Result<(ComponentCodingStyles, Quantization, ComponentQuantizations), DecodeError> {
+        #[cfg(verus_keep_ghost)]
+        proof! {
+            reveal(crate::specs::part1_finish_tile_components);
+            reveal(crate::specs::part1_component_styles_new);
+            reveal(crate::specs::part1_component_quantizations_new);
+        }
+        let mut component_coding_styles = if tile_cod_seen {
+            new_component_coding_styles(components, tile_coding_style)?
+        } else {
+            inherited_coding_styles
+        };
+        self.apply_component_style_overrides(
+            components,
+            tile_coding_style,
+            coc_segments,
+            &mut component_coding_styles,
+        )?;
+        self.resolve_decomposition_structures(&mut component_coding_styles, part2_extensions)?;
+        let tile_quantization = match qcd_segment {
+            Some(segment) => self.parse_qcd(segment, tile_coding_style)?,
+            None => default_quantization,
+        };
+        let mut component_quantizations = if qcd_segment.is_some() {
+            new_component_quantizations(components, tile_quantization)?
+        } else {
+            inherited_quantizations
+        };
+        self.apply_component_quantization_overrides(
+            components,
+            &component_coding_styles,
+            qcc_segments,
+            &mut component_quantizations,
+        )?;
+        Ok((
+            component_coding_styles,
+            tile_quantization,
+            component_quantizations,
+        ))
+    }
+
     #[cfg_attr(verus_keep_ghost, verifier::spinoff_prover)]
     #[cfg_attr(verus_keep_ghost, verus_spec(result =>
         ensures (tile_part_header_outcome(result), parser_view(final(self))) == crate::specs::part1_codestream_read_sot(
@@ -353,33 +420,19 @@ impl<'a> Parser<'a> {
         if !pending_mct.is_empty() || !pending_mcc.is_empty() {
             return Err(self.malformed_here(MalformedKind::MissingRequiredStructure));
         }
-        let mut component_coding_styles = if tile_cod_seen {
-            new_component_coding_styles(components, tile_coding_style)?
-        } else {
-            inherited_coding_styles
-        };
-        self.apply_component_style_overrides(
-            components,
-            tile_coding_style,
-            &coc_segments,
-            &mut component_coding_styles,
-        )?;
-        self.resolve_decomposition_structures(&mut component_coding_styles, &part2_extensions)?;
-        let tile_quantization = match qcd_segment {
-            Some(segment) => self.parse_qcd(segment, tile_coding_style)?,
-            None => default_parameters.1,
-        };
-        let mut component_quantizations = if qcd_segment.is_some() {
-            new_component_quantizations(components, tile_quantization)?
-        } else {
-            inherited_quantizations
-        };
-        self.apply_component_quantization_overrides(
-            components,
-            &component_coding_styles,
-            &qcc_segments,
-            &mut component_quantizations,
-        )?;
+        let (component_coding_styles, tile_quantization, component_quantizations) = self
+            .finish_tile_component_configuration(
+                components,
+                tile_coding_style,
+                tile_cod_seen,
+                &coc_segments,
+                qcd_segment,
+                default_parameters.1,
+                &qcc_segments,
+                inherited_coding_styles,
+                inherited_quantizations,
+                &part2_extensions,
+            )?;
         self.validate_progression_changes(
             &progression_changes,
             tile_coding_style.layers,

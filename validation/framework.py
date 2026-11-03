@@ -1305,10 +1305,26 @@ _QUANTIZATION_OVERRIDE_CONTRACTS = {
     ),
 }
 
+_TILE_COMPONENT_FINALIZATION_CONTRACTS = {
+    ("src/codestream/tiles.rs", "Parser::finish_tile_component_configuration"): (
+        "part1_finish_tile_components", _coverage_call("tile_component_configuration_outcome", r"\1"), None,
+        r"components\s*,\s*" + _coverage_call("parsed_coding_style_view", "tile_coding_style")
+        + r"\s*,\s*tile_cod_seen\s*,\s*" + _coverage_call("segment_slots_view", r"coc_segments@")
+        + r"\s*,\s*" + _coverage_call("optional_segment_view", "qcd_segment")
+        + r"\s*,\s*" + _coverage_call("quantization_view", r"&\s*default_quantization")
+        + r"\s*,\s*" + _coverage_call("segment_slots_view", r"qcc_segments@")
+        + r"\s*,\s*" + _coverage_call("component_style_owner_view", r"&\s*inherited_coding_styles")
+        + r"\s*,\s*" + _coverage_call("parsed_quantization_owner_view", r"&\s*inherited_quantizations")
+        + r"\s*,\s*" + _coverage_call("owned_extensions_view", "part2_extensions")
+        + r"\s*,\s*&\s*self\.limits",
+    ),
+}
+
 _COMPONENT_PRODUCER_RELAYS = {
     **_MAIN_COMPONENT_FINALIZATION_CONTRACTS,
     **_STYLE_OVERRIDE_CONTRACTS,
     **_QUANTIZATION_OVERRIDE_CONTRACTS,
+    **_TILE_COMPONENT_FINALIZATION_CONTRACTS,
 }
 
 _DECOMPOSITION_RESOLUTION_CONTRACTS = {
@@ -2815,6 +2831,7 @@ def validate_normative_coverage(
                 or _MAIN_COMPONENT_FINALIZATION_CONTRACTS.get((reference["path"], reference["symbol"]))
                 or _STYLE_OVERRIDE_CONTRACTS.get((reference["path"], reference["symbol"]))
                 or _QUANTIZATION_OVERRIDE_CONTRACTS.get((reference["path"], reference["symbol"]))
+                or _TILE_COMPONENT_FINALIZATION_CONTRACTS.get((reference["path"], reference["symbol"]))
                 or _COMPONENT_DEPTH_BYTES_CONTRACTS.get((reference["path"], reference["symbol"]))
                 or _COMPONENT_HEADER_APPLICATION_CONTRACTS.get((reference["path"], reference["symbol"]))
                 or _PROFILE_BYTES_CONTRACTS.get((reference["path"], reference["symbol"]))

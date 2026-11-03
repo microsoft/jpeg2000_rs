@@ -4,6 +4,42 @@
   "scope": "Technical reference inventory; not exhaustive standards-clause coverage or a conformance claim.",
   "requirements": [
     {
+      "id": "part1-complete-native-owned-tile-component-finalization",
+      "topic": "Source-derived complete owned Result for actual post-dispatch tile configuration. Actual parsed tile style and COD-seen flag select the sole style factory versus raw inherited owner; shared positional COC overrides precede batch DFS/ADS resolution, which precedes raw QCD parsing. QCD presence selects the sole quantization factory versus raw inherited Vec, then shared QCC/compatibility applies. Every success style/default quantization/owner field and unused tail is preserved; raw logical/physical geometry and exact first errors remain unnormalized. Original COD parsing stays in the real header dispatch, not moved to finalization. Owners are moved/consumed on errors, not cloned or exposed as artificial mutable results. Borrowed parser/input/limits/segments/extensions are framed. All old models and main/COC/QCC recipes remain unchanged. This post-dispatch join does not certify raw header dispatch/admission, normative corrected-rule correspondence, full #133/W09/public decoding, lifetime, coverage or release approval.",
+      "implementation_refs": [
+        {"path": "src/codestream/tiles.rs", "symbol": "Parser::read_tile_part"},
+        {"path": "src/codestream/tiles.rs", "symbol": "Parser::finish_tile_component_configuration"}
+      ],
+      "spec_refs": [
+        {"path": "specs/mod.rs", "symbol": "part1_finish_tile_components"},
+        {"path": "specs/mod.rs", "symbol": "part1_style_overrides_from"},
+        {"path": "specs/mod.rs", "symbol": "part1_resolve_decompositions"},
+        {"path": "specs/mod.rs", "symbol": "part1_parse_qcd_payload"},
+        {"path": "specs/mod.rs", "symbol": "part1_quantization_overrides_from"},
+        {"path": "specs/mod.rs", "symbol": "part1_component_styles_new"},
+        {"path": "specs/mod.rs", "symbol": "part1_component_quantizations_new"}
+      ],
+      "contract_refs": [
+        {"path": "src/codestream/tiles.rs", "symbol": "Parser::finish_tile_component_configuration"}
+      ],
+      "proof_refs": [
+        {"path": "src/codestream/proof_support.rs", "symbol": "tile_component_configuration_outcome"},
+        {"path": "src/codestream/proof_support.rs", "symbol": "optional_segment_view"},
+        {"path": "src/codestream/proof_support.rs", "symbol": "owned_extensions_view"},
+        {"path": "src/codestream/coding_style.rs", "symbol": "Parser::apply_component_style_overrides"},
+        {"path": "src/codestream/decomposition.rs", "symbol": "Parser::resolve_decomposition_structures"},
+        {"path": "src/codestream/coding_markers.rs", "symbol": "Parser::parse_qcd"},
+        {"path": "src/codestream/quantization.rs", "symbol": "Parser::apply_component_quantization_overrides"},
+        {"path": "src/codestream/coding_style.rs", "symbol": "new_component_coding_styles"},
+        {"path": "src/codestream/quantization.rs", "symbol": "new_component_quantizations"}
+      ],
+      "test_refs": [
+        {"path": "src/codestream/tests.rs", "symbol": "actual_owned_tile_components_preserve_raw_resets_inheritance_holes_and_frames"},
+        {"path": "src/codestream/tests.rs", "symbol": "actual_owned_tile_components_preserve_factory_override_resolution_qcd_error_order"},
+        {"path": "src/codestream/tests.rs", "symbol": "actual_tile_component_join_uses_real_dispatch_and_all_cod_qcd_reset_combinations"}
+      ]
+    },
+    {
       "id": "part1-complete-native-component-quantization-override-frames",
       "topic": "Source-derived total Result and complete mutable quantization owner for the sole real main/tile QCC and compatibility fold. The passed count controls traversal, not inherited logical counts or physical lengths. Optional slots remain lazy and extra slots ignored; style lookup precedes QCC parsing, which precedes positional setter admission. Every component then performs quantization lookup before compatibility style lookup. Raw Vec holes, every quantization field/step/tail and earlier commits on parse/set/getter/compatibility errors are retained. No cloning, normalization or supplied results enter the production helper. Main and tile callers use the same producer; QCD resets through the sole existing factory, otherwise preserving inherited raw storage. Existing parser/getter/setter/compatibility/factory and old main Result models remain unchanged. This local source proof is not normative fidelity, complete reset/decomposition/orchestration/public decoding, lifetime, coverage or release approval.",
       "implementation_refs": [

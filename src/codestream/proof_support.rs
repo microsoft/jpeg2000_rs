@@ -140,6 +140,29 @@ verus! {
         })
     }
 
+    closed spec fn optional_segment_view(segment: Option<Segment<'_>>)
+        -> Option<crate::specs::Part1CodestreamSegment>
+    {
+        match segment { None => None, Some(segment) => Some(segment_view(segment)) }
+    }
+
+    closed spec fn tile_component_configuration_outcome(
+        result: Result<(ComponentCodingStyles, Quantization, ComponentQuantizations), DecodeError>,
+    ) -> Result<(
+        (u16, Seq<crate::specs::Part1ParsedCodingStyle>),
+        crate::specs::Part2Quantization,
+        (u16, Seq<crate::specs::Part2Quantization>),
+    ), DecodeError> {
+        match result {
+            Err(error) => Err(error),
+            Ok((styles, quantization, quantizations)) => Ok((
+                component_style_owner_view(&styles),
+                quantization_view(&quantization),
+                parsed_quantization_owner_view(&quantizations),
+            )),
+        }
+    }
+
     pub closed spec fn component_coding_style_result(styles: &ComponentCodingStyles, component: u16) -> Result<CodingStyle, DecodeError> {
         if component >= styles.components {
             Err(DecodeError::MalformedInput { offset: 0, kind: MalformedKind::InvalidCodingStyle })

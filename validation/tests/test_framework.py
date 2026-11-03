@@ -1137,6 +1137,71 @@ class FrameworkTests(WorkingFiles):
             framework._QUANTIZATION_OVERRIDE_CONTRACTS, 1,
         )
 
+    def test_inventory_binds_owned_tile_component_finalization_complete_result(self):
+        self._assert_complete_packet_contract_bindings(
+            {"part1-complete-native-owned-tile-component-finalization"},
+            framework._TILE_COMPONENT_FINALIZATION_CONTRACTS, 1,
+        )
+
+    def test_inventory_requires_actual_tile_dispatch_call_to_owned_component_finalizer(self):
+        coverage = json.loads((framework.VALIDATION / "normative-coverage.json").read_text())
+        entry = copy.deepcopy(next(x for x in coverage["requirements"]
+                                   if x["id"] == "part1-complete-native-owned-tile-component-finalization"))
+        entry["implementation_refs"] = [
+            {"path": "src/codestream/tiles.rs", "symbol": "Parser::read_tile_part"},
+        ]
+        reference = entry["contract_refs"][0]
+        entry["proof_refs"] = [reference]
+        data = dict(coverage, requirements=[entry])
+        self.assertEqual(framework.validate_normative_coverage(data)["status"], "passed")
+        source = framework.ROOT / "src/codestream/tiles.rs"
+        read_text = Path.read_text
+        original = read_text(source)
+        changed = original.replace(".finish_tile_component_configuration(",
+                                   ".unlisted_tile_component_configuration(", 1)
+        self.assertNotEqual(original, changed)
+
+        def altered(path, *args, **kwargs):
+            return changed if path == source else read_text(path, *args, **kwargs)
+
+        with mock.patch.object(Path, "read_text", altered), \
+                self.assertRaisesRegex(ValueError, "not used by claimed implementation"):
+            framework.validate_normative_coverage(data)
+
+    def test_inventory_preserves_raw_tile_qcc_through_both_exact_component_stages(self):
+        coverage = json.loads((framework.VALIDATION / "normative-coverage.json").read_text())
+        entry = copy.deepcopy(next(x for x in coverage["requirements"]
+                                   if x["id"] == "part1-complete-native-raw-quantization"))
+        reference = next(x for x in entry["contract_refs"] if x["symbol"] == "Parser::parse_qcc")
+        entry["implementation_refs"] = [
+            {"path": "src/codestream/tiles.rs", "symbol": "Parser::read_tile_part"},
+        ]
+        entry["contract_refs"] = [reference]
+        entry["proof_refs"] = [reference]
+        data = dict(coverage, requirements=[entry])
+        self.assertEqual(framework.validate_normative_coverage(data)["status"], "passed")
+        source = framework.ROOT / "src/codestream/tiles.rs"
+        read_text = Path.read_text
+        original = read_text(source)
+        mutations = [
+            (".finish_tile_component_configuration(", ".unlisted_configuration("),
+            ("self.apply_component_quantization_overrides(", "self.unlisted_quantization("),
+            ("ensures tile_component_configuration_outcome(result)",
+             "requires false, ensures tile_component_configuration_outcome(result)"),
+            ("optional_segment_view(qcd_segment)", "optional_segment_view(unrelated)"),
+            ("owned_extensions_view(part2_extensions)", "owned_extensions_view(unrelated)"),
+        ]
+        for before, after in mutations:
+            changed = original.replace(before, after, 1)
+            self.assertNotEqual(original, changed)
+
+            def altered(path, *args, **kwargs):
+                return changed if path == source else read_text(path, *args, **kwargs)
+
+            with self.subTest(mutation=before), mock.patch.object(Path, "read_text", altered), \
+                    self.assertRaisesRegex(ValueError, "not used by claimed implementation"):
+                framework.validate_normative_coverage(data)
+
     def test_inventory_requires_both_actual_shared_quantization_callers(self):
         coverage = json.loads((framework.VALIDATION / "normative-coverage.json").read_text())
         entry = next(x for x in coverage["requirements"]
