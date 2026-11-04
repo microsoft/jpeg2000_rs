@@ -25,6 +25,8 @@ mod layout_input;
 pub use layout_input::*;
 mod tile_header_traversal;
 pub use tile_header_traversal::*;
+mod tile_part;
+pub use tile_part::*;
 
 pub use crate::proofs::internal_specs::{
     part2_composition_layer_prefix_matches, part2_composition_layer_prefix_safe,

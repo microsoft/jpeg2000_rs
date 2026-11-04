@@ -5,6 +5,8 @@ use crate::tier1::SubbandOrientation;
 
 #[path = "tile_header_traversal_tests.rs"]
 mod tile_header_traversal;
+#[path = "tile_part_tests.rs"]
+mod tile_part;
 
 fn assert_tile_header_admission_case<'a>(
     input: &'a [u8],

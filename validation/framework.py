@@ -1415,6 +1415,25 @@ _COMPONENT_SEGMENT_ADMISSION_CALLERS = {
     ),
 }
 
+_TILE_PART_READER_CONTRACTS = {
+    ("src/codestream/tiles.rs", "Parser::read_tile_part"): (
+        "part1_read_tile_part", _coverage_call("tile_part_read_outcome", r"\1"),
+        _coverage_call("parser_view", _coverage_call("final", "self")),
+        _coverage_call("parser_view", _coverage_call("old", "self")) + r"\s*,\s*"
+        + _coverage_call("tile_part_header_view", "tile_part") + r"\s*,\s*\(\s*"
+        + _coverage_call("parsed_coding_style_view", r"default_parameters\.0") + r"\s*,\s*"
+        + _coverage_call("quantization_view", r"&\s*default_parameters\.1") + r"\s*\)\s*,\s*"
+        + _coverage_call("component_style_owner_view", r"&\s*inherited_coding_styles") + r"\s*,\s*"
+        + _coverage_call("parsed_quantization_owner_view", r"&\s*inherited_quantizations") + r"\s*,\s*"
+        + _coverage_call("roi_shifts_view", r"&\s*inherited_roi_shifts") + r"\s*,\s*"
+        + _coverage_call("progression_changes_view", r"&\s*inherited_progression_changes") + r"\s*,\s*"
+        + _coverage_call("mct_parameters_view", r"&\s*mct_parameters") + r"\s*,\s*"
+        + _coverage_call("owned_extensions_view", r"&\s*part2_extensions") + r"\s*,\s*components\s*,\s*"
+        + _coverage_call("packet_lengths_view", r"&\s*main_packet_lengths") + r"\s*,\s*"
+        + _coverage_call("packed_packet_headers_view", r"&\s*main_packed_packet_headers"),
+    ),
+}
+
 _COMPONENT_PRODUCER_RELAYS = {
     **_MAIN_COMPONENT_FINALIZATION_CONTRACTS,
     **_STYLE_OVERRIDE_CONTRACTS,
@@ -1423,6 +1442,7 @@ _COMPONENT_PRODUCER_RELAYS = {
     **_COMPONENT_SEGMENT_ADMISSION_CONTRACTS,
     **_TILE_HEADER_ADMISSION_CONTRACTS,
     **_RAW_TILE_HEADER_CONTRACTS,
+    **_TILE_PART_READER_CONTRACTS,
 }
 
 _DECOMPOSITION_RESOLUTION_CONTRACTS = {
@@ -2944,6 +2964,7 @@ def validate_normative_coverage(
                 or _TILE_HEADER_ADMISSION_CONTRACTS.get((reference["path"], reference["symbol"]))
                 or _RAW_TILE_HEADER_CONTRACTS.get((reference["path"], reference["symbol"]))
                 or _ROI_SETTER_CONTRACTS.get((reference["path"], reference["symbol"]))
+                or _TILE_PART_READER_CONTRACTS.get((reference["path"], reference["symbol"]))
                 or _CODING_STYLE_BYTES_CONTRACTS.get((reference["path"], reference["symbol"]))
                 or _COMPONENT_STYLE_BYTES_CONTRACTS.get((reference["path"], reference["symbol"]))
                 or _QUANTIZATION_BYTES_CONTRACTS.get((reference["path"], reference["symbol"]))

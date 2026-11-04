@@ -32,6 +32,7 @@ specs/packet_progression.rs
 specs/packet_tile.rs
 specs/tag_tree.rs
 specs/tile_header_traversal.rs
+specs/tile_part.rs
 src/codestream/coding_markers.rs
 src/codestream/coding_style.rs
 src/codestream/decomposition.rs
@@ -52,6 +53,8 @@ src/codestream/tests.rs
 src/codestream/tile_header_traversal.rs
 src/codestream/tile_header_traversal_proof_support.rs
 src/codestream/tile_header_traversal_tests.rs
+src/codestream/tile_part_proof_support.rs
+src/codestream/tile_part_tests.rs
 src/codestream/tiles.rs
 src/codestream.rs
 src/color/admission.rs

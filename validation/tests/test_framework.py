@@ -1030,6 +1030,44 @@ class FrameworkTests(WorkingFiles):
             framework._RAW_TILE_HEADER_CONTRACTS, 8,
         )
 
+    def test_inventory_binds_actual_raw_tile_part_complete_tuple_and_reader_result(self):
+        self._assert_complete_packet_contract_bindings(
+            {"part1-complete-native-raw-tile-part-result"},
+            framework._TILE_PART_READER_CONTRACTS, 1,
+        )
+
+    def test_inventory_requires_raw_tile_part_layout_call_and_total_outcome(self):
+        coverage = json.loads((framework.VALIDATION / "normative-coverage.json").read_text())
+        entry = copy.deepcopy(next(item for item in coverage["requirements"]
+                                   if item["id"] == "part1-complete-native-raw-tile-part-result"))
+        entry["implementation_refs"] = [
+            {"path": "src/codestream/layout.rs", "symbol": "Parser::parse_layout"},
+        ]
+        reference = entry["contract_refs"][0]
+        entry["proof_refs"] = [reference]
+        data = dict(coverage, requirements=[entry])
+        self._assert_contract_text_mutations(data, (
+            ("tile_part_read_outcome(result)", "tile_part_read_outcome(unrelated)"),
+            ("tile_part_read_outcome(result)", "result.is_ok()"),
+            ("parser_view(final(self))", "parser_view(old(self))"),
+        ))
+        source = framework.ROOT / "src/codestream/layout.rs"
+        original = source.read_text()
+        read_text = Path.read_text
+        call = ".read_tile_part("
+        self.assertEqual(original.count(call), 1)
+        changed = original.replace(call, ".unlisted_tile_part_reader(", 1)
+        for extra in ("", "\nfn unrelated() { parser.read_tile_part(unrelated); }\n"):
+            modified = changed + extra
+
+            def altered(path, *args, **kwargs):
+                return modified if path == source else read_text(path, *args, **kwargs)
+
+            with self.subTest(unrelated_call_elsewhere=bool(extra)), \
+                    mock.patch.object(Path, "read_text", altered), \
+                    self.assertRaisesRegex(ValueError, "not used by claimed implementation"):
+                framework.validate_normative_coverage(data)
+
     def test_inventory_binds_raw_roi_setter_complete_physical_owner_and_first_errors(self):
         self._assert_complete_packet_contract_bindings(
             {"part1-complete-native-roi-setter-frame"},

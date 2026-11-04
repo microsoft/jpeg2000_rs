@@ -4,6 +4,52 @@
   "scope": "Technical reference inventory; not exhaustive standards-clause coverage or a conformance claim.",
   "requirements": [
     {
+      "id": "part1-complete-native-raw-tile-part-result",
+      "topic": "Source-derived total Result and complete reader-state composition of the actual read_tile_part body, replacing its former tile-index-only guarantee while retaining that guarantee. Raw bytes/inherited owners flow through the actual raw header producer, pending-fragment rejection, accepted owned style/quantization configuration, unchanged POC validator and MCT resolver, real data window and packet/packed-header finalizers, then every payload/MCT/extension field and borrowed data byte. No input-success premises, parsed-result banks, owner normalization or executing clones are added. Zero-length parts commit the scanned cursor before packet metadata errors; fixed-length parts commit only after both finalizers succeed. All earlier charges, typed first errors, raw physical tails, None-owner metadata and parser/input/limits/accounting frames are preserved. An exact proved ghost inverse of the complete style-owner projection reuses the unchanged native-owner POC model; it does not normalize or create an executing owner. This is source correspondence, not independently adjudicated normative correctness, full persistent tile/layout/public image composition, lifetime recovery, measured coverage or release approval.",
+      "implementation_refs": [
+        {"path": "src/codestream/layout.rs", "symbol": "Parser::parse_layout"},
+        {"path": "src/codestream/tiles.rs", "symbol": "Parser::read_tile_part"}
+      ],
+      "spec_refs": [
+        {"path": "specs/tile_part.rs", "symbol": "Part1TilePartPayload"},
+        {"path": "specs/tile_part.rs", "symbol": "Part1TilePartResult"},
+        {"path": "specs/tile_part.rs", "symbol": "part1_read_tile_part"},
+        {"path": "specs/tile_part.rs", "symbol": "part1_finish_tile_part"},
+        {"path": "specs/tile_part.rs", "symbol": "part1_tile_part_after_configuration"},
+        {"path": "specs/tile_part.rs", "symbol": "part1_tile_part_after_window"},
+        {"path": "specs/tile_header_traversal.rs", "symbol": "part1_read_tile_header"},
+        {"path": "specs/mod.rs", "symbol": "part1_finish_tile_components"},
+        {"path": "specs/mod.rs", "symbol": "part1_validate_progression_changes"},
+        {"path": "specs/mod.rs", "symbol": "part1_mct_graph"},
+        {"path": "specs/packet_input.rs", "symbol": "part1_tile_data_window"}
+      ],
+      "contract_refs": [
+        {"path": "src/codestream/tiles.rs", "symbol": "Parser::read_tile_part"}
+      ],
+      "proof_refs": [
+        {"path": "src/codestream/tile_part_proof_support.rs", "symbol": "tile_part_payload_view"},
+        {"path": "src/codestream/tile_part_proof_support.rs", "symbol": "tile_part_read_outcome"},
+        {"path": "src/codestream/tile_part_proof_support.rs", "symbol": "tile_part_native_styles"},
+        {"path": "src/codestream/tile_part_proof_support.rs", "symbol": "tile_part_native_styles_inverse"},
+        {"path": "src/codestream/proof_support.rs", "symbol": "parser_view"},
+        {"path": "src/codestream/tile_header_traversal.rs", "symbol": "Parser::read_tile_header"},
+        {"path": "src/codestream/tiles.rs", "symbol": "Parser::finish_tile_component_configuration"},
+        {"path": "src/codestream/coding_markers.rs", "symbol": "Parser::validate_progression_changes"},
+        {"path": "src/codestream/mct_resolution.rs", "symbol": "Parser::resolve_multiple_component_transform"},
+        {"path": "src/codestream/tiles.rs", "symbol": "Parser::tile_data_window"},
+        {"path": "src/codestream/packet_headers.rs", "symbol": "Parser::finish_packet_lengths"},
+        {"path": "src/codestream/packet_headers.rs", "symbol": "Parser::finish_packed_packet_headers"}
+      ],
+      "test_refs": [
+        {"path": "src/codestream/tile_part_tests.rs", "symbol": "actual_tile_part_raw_counts_full_physical_tails_metadata_and_returned_tuple"},
+        {"path": "src/codestream/tile_part_tests.rs", "symbol": "actual_tile_part_pending_fragments_precede_component_configuration_and_late_qcd"},
+        {"path": "src/codestream/tile_part_tests.rs", "symbol": "actual_tile_part_component_then_qcd_then_poc_then_mct_error_precedence"},
+        {"path": "src/codestream/tile_part_tests.rs", "symbol": "actual_tile_part_zero_length_commits_early_fixed_length_commits_after_packet_finalizers"},
+        {"path": "src/codestream/tile_part_tests.rs", "symbol": "actual_tile_part_complete_real_producers_packet_header_span_and_payload"},
+        {"path": "src/codestream/tile_part_tests.rs", "symbol": "actual_tile_part_header_reader_and_packet_partial_commits_are_not_transactional"}
+      ]
+    },
+    {
       "id": "part1-complete-native-owned-tile-component-finalization",
       "topic": "Source-derived complete owned Result for actual post-dispatch tile configuration. Actual parsed tile style and COD-seen flag select the sole style factory versus raw inherited owner; shared positional COC overrides precede batch DFS/ADS resolution, which precedes raw QCD parsing. QCD presence selects the sole quantization factory versus raw inherited Vec, then shared QCC/compatibility applies. Every success style/default quantization/owner field and unused tail is preserved; raw logical/physical geometry and exact first errors remain unnormalized. Original COD parsing stays in the real header dispatch, not moved to finalization. Owners are moved/consumed on errors, not cloned or exposed as artificial mutable results. Borrowed parser/input/limits/segments/extensions are framed. All old models and main/COC/QCC recipes remain unchanged. This post-dispatch join does not certify raw header dispatch/admission, normative corrected-rule correspondence, full #133/W09/public decoding, lifetime, coverage or release approval.",
       "implementation_refs": [
