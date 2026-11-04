@@ -1018,6 +1018,40 @@ class FrameworkTests(WorkingFiles):
             ("parser_view(final(self))", "parser_view(old(self))"),
         ])
 
+    def test_inventory_binds_actual_tile_header_admission_complete_result_and_reader_frame(self):
+        self._assert_complete_packet_contract_bindings(
+            {"part1-complete-native-tile-header-admission"},
+            framework._TILE_HEADER_ADMISSION_CONTRACTS, 1,
+        )
+
+    def test_inventory_requires_actual_tile_header_admission_call_and_complete_result(self):
+        coverage = json.loads((framework.VALIDATION / "normative-coverage.json").read_text())
+        coverage["requirements"] = [
+            item for item in coverage["requirements"]
+            if item["id"] == "part1-complete-native-tile-header-admission"
+        ]
+        self._assert_contract_text_mutations(coverage, (
+            ("main_header_segment_outcome(result)", "main_header_segment_outcome(unrelated)"),
+            ("main_header_segment_outcome(result)", "result.is_ok()"),
+            ("parser_view(final(self))", "parser_view(old(self))"),
+        ))
+        source = framework.ROOT / "src/codestream/tiles.rs"
+        original = source.read_text()
+        read_text = Path.read_text
+        call = "self.read_tile_header_segment()?"
+        self.assertEqual(original.count(call), 1)
+        changed = original.replace(call, "self.unlisted_tile_header_admission()?")
+        for extra in ("", "\nfn unrelated() { self.read_tile_header_segment(); }\n"):
+            modified = changed + extra
+
+            def altered(path, *args, **kwargs):
+                return modified if path == source else read_text(path, *args, **kwargs)
+
+            with self.subTest(unrelated_call_elsewhere=bool(extra)), \
+                    mock.patch.object(Path, "read_text", altered), \
+                    self.assertRaisesRegex(ValueError, "not used by claimed implementation"):
+                framework.validate_normative_coverage(coverage)
+
     def test_inventory_binds_actual_main_header_admission_raw_result_reader_counter_and_caller(self):
         self._assert_complete_packet_contract_bindings(
             {"part1-complete-native-main-header-admission"},

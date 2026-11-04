@@ -3,12 +3,12 @@
 use super::coding_style::new_component_coding_styles;
 use super::mct_resolution::{replace_mct_array, replace_mct_record};
 use super::quantization::new_component_quantizations;
-use super::reader::{is_allowed_tile_header, is_known_segment_marker, read_u16, read_u32};
+use super::reader::{read_u16, read_u32};
 use super::{
     ADS, ATK, CBD, COC, COD, COM, CodingStyle, ComponentCodingStyles, ComponentQuantizations, DFS,
     DecodeError, MAX_COMPONENTS, MCC, MCO, MCT, MalformedKind, MctParameters, NLT, PLT, POC, PPT,
     PackedPacketHeaders, PacketLengths, Parser, Part2Extensions, ProgressionChanges, QCC, QCD,
-    Quantization, RGN, RoiShifts, SOD, SOT, TilePart, TilePartPayload,
+    Quantization, RGN, RoiShifts, SOT, TilePart, TilePartPayload,
 };
 #[cfg(verus_keep_ghost)]
 use super::{
@@ -240,29 +240,12 @@ impl<'a> Parser<'a> {
         )]
         loop {
             let previous_position = self.position;
-            match self.peek_marker()? {
-                SOD => {
-                    tile_header_end = self.position;
-                    self.expect_standalone(SOD)?;
+            match self.read_tile_header_segment()? {
+                None => {
+                    tile_header_end = previous_position;
                     break;
                 }
-                marker if crate::refinement::tile_header_boundary(marker) => {
-                    return Err(self.malformed_here(MalformedKind::InvalidMarkerOrder));
-                }
-                _ => {
-                    let segment = self.read_segment()?;
-                    if !is_known_segment_marker(segment.marker) {
-                        return Err(DecodeError::malformed(
-                            self.offset(segment.offset),
-                            MalformedKind::InvalidMarker,
-                        ));
-                    }
-                    if !is_allowed_tile_header(segment.marker) {
-                        return Err(DecodeError::malformed(
-                            self.offset(segment.offset),
-                            MalformedKind::InvalidMarkerOrder,
-                        ));
-                    }
+                Some(segment) => {
                     if segment.marker != COM && segment.marker != PLT {
                         has_functional_header_marker = true;
                     }

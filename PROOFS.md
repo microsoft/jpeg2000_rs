@@ -179,6 +179,30 @@ technical candidate only: parent-owned record, review, CI, guarded integration
 and actual-main acceptance remain separate. No complete parsing, pixels,
 lifetime verification, normative conformance or publication claim follows.
 
+## Raw tile-header segment admission
+
+`Parser::read_tile_header_segment` is the sole raw admission prefix of the
+actual tile-part reader. It peeks first, consumes SOD through the existing
+standalone reader and returns `None`, rejects tile boundaries before reading a
+segment, then requires a known and tile-allowed marker after real segment
+consumption. Its total Result/full-reader contract preserves every borrowed
+payload byte and all input, limits, cursor, work and packet-accounting fields.
+Cursor and work commits before later work-limit or marker errors are retained.
+
+The additive model composes unchanged reader and marker models. The existing
+optional-segment projection is reused despite its historical main-header name.
+The caller records the header end from its pre-admission position, excluding
+SOD from PLT/PPT metadata windows. COD parsing remains in its original dispatch
+position; functional-marker flags, payload dispatch, progress checks and later
+configuration retain their original ordering.
+
+Native structural controls exercise every marker/length word, arbitrary raw
+reader states, first-error and partial-commit frontiers, and real dispatch with
+borrowed PLT/PPT windows. Inventory controls bind the complete Result/frame and
+actual named caller. This is not a proof of the complete dispatch loop, raw
+layout/public decoding, independent standards fidelity, lifetime analysis,
+coverage measurement or release readiness.
+
 ## Shared raw main/tile component marker admission
 
 `Parser::record_component_segment` is the sole executing slot-admission body

@@ -1320,6 +1320,14 @@ _TILE_COMPONENT_FINALIZATION_CONTRACTS = {
     ),
 }
 
+_TILE_HEADER_ADMISSION_CONTRACTS = {
+    ("src/codestream/reader.rs", "Parser::read_tile_header_segment"): (
+        "part1_read_tile_header_segment", _coverage_call("main_header_segment_outcome", r"\1"),
+        _coverage_call("parser_view", _coverage_call("final", "self")),
+        _coverage_call("parser_view", _coverage_call("old", "self")),
+    ),
+}
+
 _COMPONENT_SEGMENT_ADMISSION_CONTRACTS = {
     ("src/codestream/coding_markers.rs", "Parser::record_component_segment"): (
         "part1_record_component_segment", r"\1",
@@ -1342,6 +1350,7 @@ _COMPONENT_PRODUCER_RELAYS = {
     **_QUANTIZATION_OVERRIDE_CONTRACTS,
     **_TILE_COMPONENT_FINALIZATION_CONTRACTS,
     **_COMPONENT_SEGMENT_ADMISSION_CONTRACTS,
+    **_TILE_HEADER_ADMISSION_CONTRACTS,
 }
 
 _DECOMPOSITION_RESOLUTION_CONTRACTS = {
@@ -2853,6 +2862,7 @@ def validate_normative_coverage(
                 or _SIZ_GEOMETRY_CONTRACTS.get((reference["path"], reference["symbol"]))
                 or _LAYOUT_PROLOGUE_CONTRACTS.get((reference["path"], reference["symbol"]))
                 or _MAIN_HEADER_ADMISSION_CONTRACTS.get((reference["path"], reference["symbol"]))
+                or _TILE_HEADER_ADMISSION_CONTRACTS.get((reference["path"], reference["symbol"]))
                 or _CODING_STYLE_BYTES_CONTRACTS.get((reference["path"], reference["symbol"]))
                 or _COMPONENT_STYLE_BYTES_CONTRACTS.get((reference["path"], reference["symbol"]))
                 or _QUANTIZATION_BYTES_CONTRACTS.get((reference["path"], reference["symbol"]))

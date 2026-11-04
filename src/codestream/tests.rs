@@ -3,6 +3,232 @@ use super::reader::{is_allowed_main_header, is_allowed_tile_header, is_known_seg
 use super::*;
 use crate::tier1::SubbandOrientation;
 
+fn assert_tile_header_admission_case<'a>(
+    input: &'a [u8],
+    limits: &'a ResourceLimits,
+    state: PacketAdmissionState,
+) -> Result<Option<Segment<'a>>, DecodeError> {
+    let raw = || Parser {
+        input,
+        limits,
+        position: state.position,
+        work_units: state.work,
+        packet_length_bytes: state.header_bytes,
+        packet_lengths: state.packet_count,
+    };
+    let mut reference = raw();
+    // Replay the original tile loop prefix using its separately proved reader leaves.
+    let expected = (|| {
+        let marker = reference.peek_marker()?;
+        if marker == SOD {
+            reference.expect_standalone(SOD)?;
+            return Ok(None);
+        }
+        if matches!(marker, SOC | SIZ | SOT | EOC) {
+            return Err(reference.malformed_here(MalformedKind::InvalidMarkerOrder));
+        }
+        let segment = reference.read_segment()?;
+        if !is_known_segment_marker(segment.marker) {
+            return Err(reference.malformed_at(segment.offset, MalformedKind::InvalidMarker));
+        }
+        if !is_allowed_tile_header(segment.marker) {
+            return Err(reference.malformed_at(segment.offset, MalformedKind::InvalidMarkerOrder));
+        }
+        Ok(Some(segment))
+    })();
+    let mut actual = raw();
+    let result = actual.read_tile_header_segment();
+    assert_eq!(result, expected);
+    assert_packet_admission_state(
+        &actual,
+        PacketAdmissionState {
+            position: reference.position,
+            work: reference.work_units,
+            header_bytes: state.header_bytes,
+            packet_count: state.packet_count,
+        },
+        input,
+        limits,
+    );
+    if let Ok(Some(segment)) = result {
+        assert!(core::ptr::eq(
+            segment.payload.as_ptr(),
+            input[segment.offset + 4..].as_ptr(),
+        ));
+    }
+    result
+}
+
+#[test]
+fn actual_tile_header_admission_preserves_every_marker_and_length_word() {
+    let base = ResourceLimits::HARDENED;
+    let mut cases = 0;
+    for limits in [
+        base.with_maximum_work_units(0).unwrap(),
+        base.with_maximum_work_units(1).unwrap(),
+        base,
+    ] {
+        for field in [2, 4] {
+            let mut input = [0x12, 0x34, 0xff, 0x52, 0, 4, 0x56, 0x78];
+            for value in 0..=u16::MAX {
+                input[field..field + 2].copy_from_slice(&value.to_be_bytes());
+                let _ = assert_tile_header_admission_case(
+                    &input,
+                    &limits,
+                    PacketAdmissionState {
+                        position: 2,
+                        work: 0,
+                        header_bytes: u64::MAX,
+                        packet_count: 31,
+                    },
+                );
+                cases += 1;
+            }
+        }
+    }
+    assert_eq!(cases, 393_216);
+}
+
+#[test]
+fn actual_tile_header_admission_preserves_raw_states_and_partial_reader_commits() {
+    let base = ResourceLimits::HARDENED;
+    let mut cases = 0;
+    for limits in [
+        base,
+        base.with_maximum_work_units(0).unwrap(),
+        base.with_maximum_work_units(1).unwrap(),
+        base.with_maximum_input_bytes(0).unwrap(),
+    ] {
+        for marker in [
+            SOC, SIZ, SOT, SOD, EOC, COD, COM, PLT, PPT, 0xff70, 0xff00, 0xffff,
+        ] {
+            let mut input = vec![0x31, 0x41];
+            input.extend(marker.to_be_bytes());
+            input.extend([0, 5, 0x59, 0x26, 0x53]);
+            for end in 0..=input.len() {
+                for position in [0, 2, end, end + 1, usize::MAX - 1, usize::MAX] {
+                    for work in [0, 1, base.maximum_work_units(), u64::MAX - 1, u64::MAX] {
+                        for (header_bytes, packet_count) in [(0, 0), (17, u64::MAX), (u64::MAX, 19)]
+                        {
+                            let _ = assert_tile_header_admission_case(
+                                &input[..end],
+                                &limits,
+                                PacketAdmissionState {
+                                    position,
+                                    work,
+                                    header_bytes,
+                                    packet_count,
+                                },
+                            );
+                            cases += 1;
+                        }
+                    }
+                }
+            }
+        }
+    }
+    assert_eq!(cases, 43_200);
+}
+
+#[test]
+fn actual_tile_header_admission_keeps_sod_commit_and_boundary_error_priority() {
+    let limits = ResourceLimits::HARDENED.with_maximum_work_units(0).unwrap();
+    let input = [0x31, 0x41, 0xff, 0x93, 0, 1];
+    let mut parser = new_parser(&input, &limits).unwrap();
+    parser.position = 2;
+    assert_eq!(
+        parser.read_tile_header_segment(),
+        Err(DecodeError::LimitExceeded {
+            resource: Resource::WorkUnits,
+            limit: 0,
+            actual: 1
+        }),
+    );
+    assert_eq!((parser.position, parser.work_units), (4, 1));
+    for marker in [SOC, SIZ, SOT, EOC] {
+        let mut input = input;
+        input[2..4].copy_from_slice(&marker.to_be_bytes());
+        let mut parser = new_parser(&input, &limits).unwrap();
+        parser.position = 2;
+        assert_eq!(
+            parser.read_tile_header_segment(),
+            Err(input_error_literal(2, MalformedKind::InvalidMarkerOrder)),
+        );
+        assert_eq!((parser.position, parser.work_units), (2, 0));
+    }
+    let limits = ResourceLimits::HARDENED;
+    for (marker, kind) in [
+        (0xff70_u16, MalformedKind::InvalidMarker),
+        (CAP, MalformedKind::InvalidMarkerOrder),
+    ] {
+        let mut input = vec![0x31, 0x41];
+        input.extend(segment(marker, &[0x59, 0x26, 0x53]));
+        let mut parser = new_parser(&input, &limits).unwrap();
+        parser.position = 2;
+        assert_eq!(
+            parser.read_tile_header_segment(),
+            Err(input_error_literal(2, kind))
+        );
+        assert_eq!((parser.position, parser.work_units), (9, 1));
+    }
+}
+
+#[test]
+fn actual_tile_header_admission_joins_reader_dispatch_and_pre_sod_metadata_windows() {
+    let limits = ResourceLimits::HARDENED;
+    let tile_headers = [
+        segment(COM, &[0, 0, 0x59]),
+        baseline_headers()[0].clone(),
+        segment(COC, &[0, 0, 0, 2, 2, 0, 1]),
+        baseline_headers()[1].clone(),
+        segment(QCC, &[0, 0, 0]),
+        segment(PLT, &[0, 3]),
+        segment(PPT, &[0, 0xab]),
+    ];
+    let input = codestream_with_headers(1, &baseline_headers(), &tile_headers, &[0x12, 0x34]);
+    let layout = parse_layout(&input, &limits).unwrap();
+    let mut parser = new_parser(&input, &limits).unwrap();
+    parser.parse_layout_prologue().unwrap();
+    let mut count = 1;
+    while parser
+        .read_main_header_segment(&mut count)
+        .unwrap()
+        .is_some()
+    {}
+    parser.read_sot(1).unwrap();
+    let start = parser.position;
+    let mut markers = Vec::new();
+    let end = loop {
+        let before = parser.position;
+        let work = parser.work_units;
+        match parser.read_tile_header_segment().unwrap() {
+            Some(segment) => markers.push(segment.marker),
+            None => {
+                assert_eq!((parser.position, parser.work_units), (before + 2, work + 1));
+                break before;
+            }
+        }
+    };
+    assert_eq!(markers, [COM, COD, COC, QCD, QCC, PLT, PPT]);
+    assert_eq!(&input[end..end + 2], &SOD.to_be_bytes());
+    let tile = &layout.tile_parts[0];
+    assert_eq!(tile.data, &[0x12, 0x34]);
+    assert!(tile.has_functional_header_marker);
+    assert_eq!(
+        tile.packet_lengths.source,
+        PacketLengthSource::Plt(&input[start..end])
+    );
+    assert_eq!(
+        tile.packed_packet_headers.source,
+        PackedPacketHeaderSource::MarkerSegments {
+            header: &input[start..end],
+            marker: PPT,
+            logical_start: 0,
+        },
+    );
+    assert!(core::ptr::eq(tile.data.as_ptr(), input[end + 2..].as_ptr()));
+}
+
 fn assert_component_segment_admission_case(
     payload: &[u8],
     components: u16,

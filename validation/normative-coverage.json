@@ -40,6 +40,43 @@
       ]
     },
     {
+      "id": "part1-complete-native-tile-header-admission",
+      "topic": "Source-derived actual read_tile_part raw loop prefix: peek, consume SOD through the real standalone producer and return None, reject tile boundaries before segment reading, otherwise consume the real segment and require known then allowed markers. Complete raw Result<Option<borrowed segment>> and full parser/input/limits/cursor/work/packet-accounting equality preserve every error and partial commit, including SOD cursor/work updates before work-limit failure and segment updates before marker rejection. The actual reader retains its pre-SOD header-end position, later dispatch and progress check; COD parsing is not moved. Existing optional-segment projection and reader/marker models are reused unchanged. This bounded source proof is not full tile/header/layout/public decoding, independent normative fidelity, lifetime, coverage or release approval.",
+      "implementation_refs": [
+        {"path": "src/codestream/tiles.rs", "symbol": "Parser::read_tile_part"},
+        {"path": "src/codestream/reader.rs", "symbol": "Parser::read_tile_header_segment"}
+      ],
+      "spec_refs": [
+        {"path": "specs/layout_input.rs", "symbol": "part1_read_tile_header_segment"},
+        {"path": "specs/mod.rs", "symbol": "part1_codestream_peek_marker"},
+        {"path": "specs/mod.rs", "symbol": "part1_codestream_expect_standalone"},
+        {"path": "specs/mod.rs", "symbol": "part1_codestream_read_segment"},
+        {"path": "specs/mod.rs", "symbol": "part1_tile_header_boundary"},
+        {"path": "specs/mod.rs", "symbol": "part1_known_segment_marker"},
+        {"path": "specs/mod.rs", "symbol": "part1_allowed_tile_header"}
+      ],
+      "contract_refs": [
+        {"path": "src/codestream/reader.rs", "symbol": "Parser::read_tile_header_segment"}
+      ],
+      "proof_refs": [
+        {"path": "src/codestream/proof_support.rs", "symbol": "main_header_segment_outcome"},
+        {"path": "src/codestream/proof_support.rs", "symbol": "parser_view"},
+        {"path": "src/codestream/proof_support.rs", "symbol": "segment_view"},
+        {"path": "src/codestream/reader.rs", "symbol": "Parser::peek_marker"},
+        {"path": "src/codestream/reader.rs", "symbol": "Parser::expect_standalone"},
+        {"path": "src/codestream/reader.rs", "symbol": "Parser::read_segment"},
+        {"path": "src/codestream/reader.rs", "symbol": "is_known_segment_marker"},
+        {"path": "src/codestream/reader.rs", "symbol": "is_allowed_tile_header"},
+        {"path": "src/refinement/headers.rs", "symbol": "tile_header_boundary"}
+      ],
+      "test_refs": [
+        {"path": "src/codestream/tests.rs", "symbol": "actual_tile_header_admission_preserves_every_marker_and_length_word"},
+        {"path": "src/codestream/tests.rs", "symbol": "actual_tile_header_admission_preserves_raw_states_and_partial_reader_commits"},
+        {"path": "src/codestream/tests.rs", "symbol": "actual_tile_header_admission_keeps_sod_commit_and_boundary_error_priority"},
+        {"path": "src/codestream/tests.rs", "symbol": "actual_tile_header_admission_joins_reader_dispatch_and_pre_sod_metadata_windows"}
+      ]
+    },
+    {
       "id": "part1-complete-native-component-segment-admission",
       "topic": "Source-derived total Result and complete borrowed64-slot owner for the sole raw main/tile COC/QCC slot admission producer. Parse the encoded component before physical slot admission, then reject duplicates before committing the exact borrowed segment. Arbitrary passed counts, one/two-byte threshold, malformed/truncated indexes, physical holes/tails, prior successful slots, raw marker/offset/payload and immutable parser/input/limits/accounting are preserved on every exit. All four actual typed main/tile branches are linked with exact count/error-kind/owner arguments. Payload validation remains deferred to existing finalizers; this is source correctness, not normative admission, full header traversal/configuration/public decoding, lifetime, coverage or release approval.",
       "implementation_refs": [

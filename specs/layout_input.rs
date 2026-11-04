@@ -5,6 +5,37 @@ use super::*;
 verus! {
 
 #[verifier::opaque]
+pub(crate) open spec fn part1_read_tile_header_segment<'a>(
+    state: Part1CodestreamReader<'a>,
+) -> (Result<Option<Part1CodestreamSegment>, crate::DecodeError>, Part1CodestreamReader<'a>)
+{
+    match part1_codestream_peek_marker(state) {
+        Err(error) => (Err(error), state),
+        Ok(marker) => if marker == 0xff93 {
+            let sod = part1_codestream_expect_standalone(state, 0xff93);
+            match sod.0 {
+                Err(error) => (Err(error), sod.1),
+                Ok(()) => (Ok(None), sod.1),
+            }
+        } else if part1_tile_header_boundary(marker) {
+            (Err(part1_codestream_malformed(state.position, crate::MalformedKind::InvalidMarkerOrder)), state)
+        } else {
+            let read = part1_codestream_read_segment(state);
+            match read.0 {
+                Err(error) => (Err(error), read.1),
+                Ok(segment) => if !part1_known_segment_marker(segment.marker) {
+                    (Err(part1_codestream_malformed(segment.offset, crate::MalformedKind::InvalidMarker)), read.1)
+                } else if !part1_allowed_tile_header(segment.marker) {
+                    (Err(part1_codestream_malformed(segment.offset, crate::MalformedKind::InvalidMarkerOrder)), read.1)
+                } else {
+                    (Ok(Some(segment)), read.1)
+                },
+            }
+        },
+    }
+}
+
+#[verifier::opaque]
 pub(crate) open spec fn part1_record_component_segment<'a>(
     state: Part1CodestreamReader<'a>, segment: Part1CodestreamSegment,
     components: u16, invalid_kind: crate::MalformedKind,
