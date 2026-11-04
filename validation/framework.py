@@ -1436,6 +1436,30 @@ _TILE_PART_READER_CONTRACTS = {
     ),
 }
 
+_PERSISTENT_TILE_CONFIGURATION_FIELDS = (
+    "roi", "styles", "quantizations", "style_parts", "component_quantizations", "progression",
+)
+
+_PERSISTENT_TILE_CONFIGURATION_CONTRACTS = {
+    ("src/codestream/persistent_tile_configuration.rs", "Parser::commit_persistent_tile_configuration"): (
+        "part1_commit_persistent_tile_configuration", r"\1",
+        _coverage_call("persistent_tile_configuration_view", *(
+            _coverage_call("final", name) for name in _PERSISTENT_TILE_CONFIGURATION_FIELDS
+        )),
+        r"self\.position\s*,\s*start\s*,\s*index\s*,\s*payload_index\s*,\s*"
+        + _coverage_call("optional_roi_shifts_view", "previous_roi") + r"\s*,\s*"
+        + _coverage_call("tile_part_payload_view", "payload") + r"\s*,\s*"
+        + _coverage_call("persistent_tile_configuration_view", *(
+            _coverage_call("old", name) for name in _PERSISTENT_TILE_CONFIGURATION_FIELDS
+        )),
+    ),
+    ("src/codestream/quantization.rs", "RoiShifts::equals"): (
+        "part1_roi_shifts_equal", r"\1", None,
+        _coverage_call("roi_shifts_view", "self") + r"\s*,\s*"
+        + _coverage_call("roi_shifts_view", "other"),
+    ),
+}
+
 _COMPONENT_PRODUCER_RELAYS = {
     **_MAIN_COMPONENT_FINALIZATION_CONTRACTS,
     **_STYLE_OVERRIDE_CONTRACTS,
@@ -2446,6 +2470,16 @@ def validate_normative_coverage(
                 ("InvalidCodingStyle", "coc_segments"),
                 ("InvalidQuantization", "qcc_segments"),
             ))
+        if (callee == "commit_persistent_tile_configuration"
+                and path.relative_to(ROOT).as_posix() == "src/codestream/layout.rs"
+                and caller == "Parser::parse_layout"):
+            return body is not None and re.search(_coverage_call(
+                "parser." + callee, r"tile_part\.start", "tile_index",
+                _coverage_call("tile_part_payloads.len"), "previous_roi_shifts", r"&\s*payload",
+                r"&\s*mut\s*tile_roi_shifts", r"&\s*mut\s*tile_coding_styles",
+                r"&\s*mut\s*tile_quantizations", r"&\s*mut\s*tile_component_style_parts",
+                r"&\s*mut\s*tile_component_quantizations", r"&\s*mut\s*tile_progression_changes\s*,?",
+            ), body) is not None
         prefix = r"(?<![\w.])" if same_name else r"\b"
         return body is not None and re.search(rf"{prefix}{re.escape(callee)}\s*\(", body) is not None
 
@@ -2966,6 +3000,7 @@ def validate_normative_coverage(
                 or _RAW_TILE_HEADER_CONTRACTS.get((reference["path"], reference["symbol"]))
                 or _ROI_SETTER_CONTRACTS.get((reference["path"], reference["symbol"]))
                 or _TILE_PART_READER_CONTRACTS.get((reference["path"], reference["symbol"]))
+                or _PERSISTENT_TILE_CONFIGURATION_CONTRACTS.get((reference["path"], reference["symbol"]))
                 or _CODING_STYLE_BYTES_CONTRACTS.get((reference["path"], reference["symbol"]))
                 or _COMPONENT_STYLE_BYTES_CONTRACTS.get((reference["path"], reference["symbol"]))
                 or _QUANTIZATION_BYTES_CONTRACTS.get((reference["path"], reference["symbol"]))

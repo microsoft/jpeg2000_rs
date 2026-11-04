@@ -3,6 +3,8 @@ use super::reader::{is_allowed_main_header, is_allowed_tile_header, is_known_seg
 use super::*;
 use crate::tier1::SubbandOrientation;
 
+#[path = "persistent_tile_configuration_tests.rs"]
+mod persistent_tile_configuration;
 #[path = "tile_header_traversal_tests.rs"]
 mod tile_header_traversal;
 #[path = "tile_part_tests.rs"]

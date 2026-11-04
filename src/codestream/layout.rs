@@ -462,45 +462,24 @@ impl<'a> Parser<'a> {
                         main_packet_lengths,
                         packed_packet_headers,
                     )?;
-                    let roi_consistent = match previous_roi_shifts {
-                        Some(previous) => previous.equals(&payload.roi_shifts),
-                        None => true,
-                    };
-                    if !roi_consistent {
-                        return Err(DecodeError::malformed(
-                            parser.offset(tile_part.start),
-                            MalformedKind::InvalidRegionOfInterest,
-                        ));
-                    }
-                    let state = tile_roi_shifts
-                        .get_mut(tile_index)
-                        .ok_or_else(|| parser.malformed_here(MalformedKind::InvalidTilePart))?;
-                    *state = Some(payload.roi_shifts);
-                    *tile_coding_styles
-                        .get_mut(tile_index)
-                        .ok_or_else(|| parser.malformed_here(MalformedKind::InvalidTilePart))? =
-                        Some(payload.coding_style);
-                    *tile_quantizations
-                        .get_mut(tile_index)
-                        .ok_or_else(|| parser.malformed_here(MalformedKind::InvalidTilePart))? =
-                        Some(payload.quantization);
                     #[cfg(verus_keep_ghost)]
                     proof_decl! {
                         let ghost previous_style_parts = tile_component_style_parts@;
                         let ghost previous_payloads = tile_part_payloads@;
                     }
-                    *tile_component_style_parts
-                        .get_mut(tile_index)
-                        .ok_or_else(|| parser.malformed_here(MalformedKind::InvalidTilePart))? =
-                        Some(tile_part_payloads.len());
-                    *tile_component_quantizations
-                        .get_mut(tile_index)
-                        .ok_or_else(|| parser.malformed_here(MalformedKind::InvalidTilePart))? =
-                        Some(payload.component_quantizations.clone());
-                    *tile_progression_changes
-                        .get_mut(tile_index)
-                        .ok_or_else(|| parser.malformed_here(MalformedKind::InvalidTilePart))? =
-                        Some(payload.progression_changes.clone());
+                    parser.commit_persistent_tile_configuration(
+                        tile_part.start,
+                        tile_index,
+                        tile_part_payloads.len(),
+                        previous_roi_shifts,
+                        &payload,
+                        &mut tile_roi_shifts,
+                        &mut tile_coding_styles,
+                        &mut tile_quantizations,
+                        &mut tile_component_style_parts,
+                        &mut tile_component_quantizations,
+                        &mut tile_progression_changes,
+                    )?;
                     *tile_mct_parameters
                         .get_mut(tile_index)
                         .ok_or_else(|| parser.malformed_here(MalformedKind::InvalidTilePart))? =

@@ -582,6 +582,8 @@ include!("codestream/proof_support.rs");
 include!("codestream/tile_header_traversal_proof_support.rs");
 #[cfg(verus_keep_ghost)]
 include!("codestream/tile_part_proof_support.rs");
+#[cfg(verus_keep_ghost)]
+include!("codestream/persistent_tile_configuration_proof_support.rs");
 
 #[cfg_attr(verus_keep_ghost, verifier::verify)]
 mod coding_markers;
@@ -627,6 +629,8 @@ use packet_headers::decode_packet_length;
 pub(crate) use packet_headers::{packed_packet_headers_none, packet_lengths_none};
 #[cfg_attr(verus_keep_ghost, verifier::verify)]
 mod part2_transforms;
+#[cfg_attr(verus_keep_ghost, verifier::verify)]
+mod persistent_tile_configuration;
 #[cfg_attr(verus_keep_ghost, verifier::verify)]
 mod profile;
 #[cfg(test)]

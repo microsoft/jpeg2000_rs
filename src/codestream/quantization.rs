@@ -154,12 +154,19 @@ impl RoiShifts {
         }
     }
 
+    #[cfg_attr(verus_keep_ghost, verus_spec(result =>
+        ensures result == crate::specs::part1_roi_shifts_equal(roi_shifts_view(self), roi_shifts_view(other)),
+    ))]
     pub fn equals(&self, other: &Self) -> bool {
+        #[cfg(verus_keep_ghost)]
+        proof! { reveal(roi_shifts_view); }
         let mut component = 0_usize;
         #[cfg_attr(
             verus_keep_ghost,
             verus_spec(
                 invariant component <= self.shifts.len(),
+                    forall|index: int| 0 <= index < component ==>
+                        self.shifts@[index] == other.shifts@[index],
                 decreases self.shifts.len() - component,
             )
         )]
@@ -169,6 +176,8 @@ impl RoiShifts {
             }
             component += 1;
         }
+        #[cfg(verus_keep_ghost)]
+        proof! { assert(self.shifts@ =~= other.shifts@); }
         true
     }
 
