@@ -3,22 +3,49 @@
 use super::reader::read_u16;
 use super::{
     CodingStyle, ComponentCodingStylePayload, ComponentCodingStyles, DecodeError,
-    DecompositionDirection, MAX_QUANTIZATION_STEPS, MalformedKind, Parser, ProgressionChange,
-    ProgressionChanges, ProgressionOrder, Quantization, QuantizationStep, QuantizationStyle,
-    Resource, Segment, WaveletTransform,
+    DecompositionDirection, MAX_COMPONENTS, MAX_QUANTIZATION_STEPS, MalformedKind, Parser,
+    ProgressionChange, ProgressionChanges, ProgressionOrder, Quantization, QuantizationStep,
+    QuantizationStyle, Resource, Segment, WaveletTransform,
 };
 #[cfg(verus_keep_ghost)]
 use super::{
     component_coding_style_count, component_coding_style_payload_is_bounded,
     parsed_coding_style_outcome, parsed_coding_style_view, parsed_component_coding_style_outcome,
     parsed_component_coding_style_payload_outcome, parsed_component_quantization_outcome,
-    parsed_progression_outcome, parsed_quantization_outcome, progression_change_contains,
-    progression_changes_view, segment_view,
+    parsed_progression_outcome, parsed_quantization_outcome, parser_view,
+    progression_change_contains, progression_changes_view, segment_slots_view, segment_view,
 };
 #[cfg(verus_keep_ghost)]
 use vstd::prelude::*;
 
 impl<'a> Parser<'a> {
+    #[cfg_attr(verus_keep_ghost, verus_spec(result =>
+        ensures (result, segment_slots_view(final(segments)@), parser_view(self))
+            == crate::specs::part1_record_component_segment(
+                parser_view(self), segment_view(segment), components, invalid_kind,
+                segment_slots_view(old(segments)@)),
+    ))]
+    pub(super) fn record_component_segment(
+        &self,
+        segment: Segment<'a>,
+        components: u16,
+        invalid_kind: MalformedKind,
+        segments: &mut [Option<Segment<'a>>; MAX_COMPONENTS],
+    ) -> Result<(), DecodeError> {
+        #[cfg(verus_keep_ghost)]
+        proof! { reveal(crate::specs::part1_record_component_segment); }
+        let (component, _) = self.parse_component_index(segment, components, invalid_kind)?;
+        let index = usize::from(component);
+        if index >= segments.len() {
+            return Err(self.malformed_at(segment.offset, invalid_kind));
+        }
+        if segments[index].is_some() {
+            return Err(self.malformed_at(segment.offset, MalformedKind::InvalidMarkerOrder));
+        }
+        segments[index] = Some(segment);
+        Ok(())
+    }
+
     #[cfg_attr(verus_keep_ghost, verus_spec(result =>
         ensures parsed_coding_style_outcome(result) == crate::specs::part1_parse_cod_payload(segment.offset, segment.payload@, self.limits),
     ))]

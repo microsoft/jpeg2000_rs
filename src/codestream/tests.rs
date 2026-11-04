@@ -3,6 +3,232 @@ use super::reader::{is_allowed_main_header, is_allowed_tile_header, is_known_seg
 use super::*;
 use crate::tier1::SubbandOrientation;
 
+fn assert_component_segment_admission_case(
+    payload: &[u8],
+    components: u16,
+    invalid_kind: MalformedKind,
+    occupied: bool,
+) {
+    let input = [0x31, 0x41];
+    let limits = ResourceLimits::HARDENED;
+    let parser = Parser {
+        input: &input,
+        limits: &limits,
+        position: usize::MAX,
+        work_units: u64::MAX,
+        packet_length_bytes: 19,
+        packet_lengths: u64::MAX - 1,
+    };
+    let value = Segment {
+        marker: 0xff70,
+        offset: usize::MAX,
+        payload,
+    };
+    let mut actual = core::array::from_fn(|index| {
+        (index % 3 == 0).then_some(Segment {
+            marker: QCD,
+            offset: index,
+            payload: &input,
+        })
+    });
+    let component = if components < 257 {
+        payload.first().map(|byte| u16::from(*byte))
+    } else {
+        payload
+            .get(..2)
+            .map(|bytes| u16::from_be_bytes([bytes[0], bytes[1]]))
+    };
+    if let Some(component) = component
+        && let Some(slot) = actual.get_mut(usize::from(component))
+    {
+        *slot = occupied.then_some(Segment {
+            marker: COM,
+            offset: 23,
+            payload: &input,
+        });
+    }
+    let mut expected = actual;
+    let result = match component {
+        None => Err(input_error_literal(
+            value.offset,
+            MalformedKind::InvalidMarkerLength,
+        )),
+        Some(component) if component >= components || usize::from(component) >= MAX_COMPONENTS => {
+            Err(input_error_literal(value.offset, invalid_kind))
+        }
+        Some(component) if expected[usize::from(component)].is_some() => Err(input_error_literal(
+            value.offset,
+            MalformedKind::InvalidMarkerOrder,
+        )),
+        Some(component) => {
+            expected[usize::from(component)] = Some(value);
+            Ok(())
+        }
+    };
+    assert_eq!(
+        parser.record_component_segment(value, components, invalid_kind, &mut actual),
+        result
+    );
+    assert_eq!(actual, expected);
+    for (actual, expected) in actual.iter().zip(expected) {
+        if let (Some(actual), Some(expected)) = (actual, expected) {
+            assert!(core::ptr::eq(
+                actual.payload.as_ptr(),
+                expected.payload.as_ptr()
+            ));
+        }
+    }
+    assert_packet_admission_state(
+        &parser,
+        PacketAdmissionState {
+            position: usize::MAX,
+            work: u64::MAX,
+            header_bytes: 19,
+            packet_count: u64::MAX - 1,
+        },
+        &input,
+        &limits,
+    );
+}
+
+#[test]
+fn actual_component_segment_admission_preserves_raw_indexes_slots_and_all_frames() {
+    let mut cases = 0;
+    for kind in [
+        MalformedKind::InvalidCodingStyle,
+        MalformedKind::InvalidQuantization,
+    ] {
+        for occupied in [false, true] {
+            for components in [0, 1, 63, 64, 65, 255, 256, 257, 258, u16::MAX] {
+                assert_component_segment_admission_case(&[], components, kind, occupied);
+                cases += 1;
+                for byte in 0..=u8::MAX {
+                    assert_component_segment_admission_case(&[byte], components, kind, occupied);
+                    cases += 1;
+                }
+            }
+            for components in [257, u16::MAX] {
+                for word in 0..=u16::MAX {
+                    assert_component_segment_admission_case(
+                        &word.to_be_bytes(),
+                        components,
+                        kind,
+                        occupied,
+                    );
+                    cases += 1;
+                }
+            }
+        }
+    }
+    assert_eq!(cases, 534_568);
+}
+
+#[test]
+fn actual_component_segment_admission_keeps_earlier_slots_and_first_error() {
+    let limits = ResourceLimits::HARDENED;
+    let parser = new_parser(&[], &limits).unwrap();
+    let first = Segment {
+        marker: COC,
+        offset: 17,
+        payload: &[1, 0xff],
+    };
+    let mut slots = [None; MAX_COMPONENTS];
+    let kind = MalformedKind::InvalidCodingStyle;
+    assert_eq!(
+        parser.record_component_segment(first, 2, kind, &mut slots),
+        Ok(())
+    );
+    let committed = slots;
+    for (payload, components, error) in [
+        (&[][..], 2, MalformedKind::InvalidMarkerLength),
+        (&[1][..], 1, kind),
+        (&[1][..], 257, MalformedKind::InvalidMarkerLength),
+        (&[64][..], 65, kind),
+        (&[1][..], 2, MalformedKind::InvalidMarkerOrder),
+    ] {
+        let next = Segment {
+            offset: 29,
+            payload,
+            ..first
+        };
+        assert_eq!(
+            parser.record_component_segment(next, components, kind, &mut slots),
+            Err(input_error_literal(29, error)),
+        );
+        assert_eq!(slots, committed);
+    }
+    let next = Segment {
+        payload: &[0, 0xaa],
+        ..first
+    };
+    assert_eq!(
+        parser.record_component_segment(next, 2, kind, &mut slots),
+        Ok(())
+    );
+    assert_eq!(slots[0], Some(next));
+    assert_eq!(slots[1], Some(first));
+    assert!(slots[2..].iter().all(Option::is_none));
+}
+
+#[test]
+fn actual_component_segment_admission_joins_all_four_real_header_branches() {
+    let limits = ResourceLimits::HARDENED;
+    for (marker, payload, kind) in [
+        (
+            COC,
+            &[0, 0, 0, 2, 2, 0, 1][..],
+            MalformedKind::InvalidCodingStyle,
+        ),
+        (QCC, &[0, 0, 0][..], MalformedKind::InvalidQuantization),
+    ] {
+        for tile in [false, true] {
+            let make = |segments: &[Vec<u8>]| {
+                let mut main = baseline_headers().to_vec();
+                if tile {
+                    codestream_with_headers(1, &main, segments, &[])
+                } else {
+                    main.extend_from_slice(segments);
+                    codestream_with_headers(1, &main, &[], &[])
+                }
+            };
+            let valid = segment(marker, payload);
+            let input = make(core::slice::from_ref(&valid));
+            let layout = parse_layout(&input, &limits).unwrap();
+            assert_eq!(layout.tile_parts.len(), 1);
+            let duplicate = segment(marker, &[0]);
+            let input = make(&[valid.clone(), duplicate]);
+            let offset = input
+                .windows(2)
+                .enumerate()
+                .filter(|(_, bytes)| *bytes == marker.to_be_bytes())
+                .nth(1)
+                .unwrap()
+                .0;
+            assert_eq!(
+                parse_layout(&input, &limits),
+                Err(input_error_literal(
+                    offset,
+                    MalformedKind::InvalidMarkerOrder
+                )),
+            );
+            for (bytes, error) in [
+                (&[][..], MalformedKind::InvalidMarkerLength),
+                (&[1][..], kind),
+            ] {
+                let input = make(&[segment(marker, bytes)]);
+                let offset = input
+                    .windows(2)
+                    .position(|bytes| bytes == marker.to_be_bytes())
+                    .unwrap();
+                assert_eq!(
+                    parse_layout(&input, &limits),
+                    Err(input_error_literal(offset, error)),
+                );
+            }
+        }
+    }
+}
+
 fn assert_main_header_admission_case<'a>(
     input: &'a [u8],
     limits: &'a ResourceLimits,

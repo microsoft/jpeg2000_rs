@@ -122,26 +122,12 @@ impl<'a> Parser<'a> {
                 }
                 COD => coding_style = Some(parser.parse_cod(segment)?),
                 COC => {
-                    let (component, _) = parser.parse_component_index(
+                    parser.record_component_segment(
                         segment,
                         image_size.components,
                         MalformedKind::InvalidCodingStyle,
+                        &mut coc_segments,
                     )?;
-                    let slot = coc_segments
-                        .get_mut(usize::from(component))
-                        .ok_or_else(|| {
-                            DecodeError::malformed(
-                                parser.offset(segment.offset),
-                                MalformedKind::InvalidCodingStyle,
-                            )
-                        })?;
-                    if slot.is_some() {
-                        return Err(DecodeError::malformed(
-                            parser.offset(segment.offset),
-                            MalformedKind::InvalidMarkerOrder,
-                        ));
-                    }
-                    *slot = Some(segment);
                 }
                 QCD if qcd_segment.is_some() => {
                     return Err(DecodeError::malformed(
@@ -151,26 +137,12 @@ impl<'a> Parser<'a> {
                 }
                 QCD => qcd_segment = Some(segment),
                 QCC => {
-                    let (component, _) = parser.parse_component_index(
+                    parser.record_component_segment(
                         segment,
                         image_size.components,
                         MalformedKind::InvalidQuantization,
+                        &mut qcc_segments,
                     )?;
-                    let slot = qcc_segments
-                        .get_mut(usize::from(component))
-                        .ok_or_else(|| {
-                            DecodeError::malformed(
-                                parser.offset(segment.offset),
-                                MalformedKind::InvalidQuantization,
-                            )
-                        })?;
-                    if slot.is_some() {
-                        return Err(DecodeError::malformed(
-                            parser.offset(segment.offset),
-                            MalformedKind::InvalidMarkerOrder,
-                        ));
-                    }
-                    *slot = Some(segment);
                 }
                 RGN => {
                     let (component, shift) = parser.parse_rgn(segment, image_size.components)?;

@@ -276,27 +276,12 @@ impl<'a> Parser<'a> {
                         tile_cod_seen = true;
                         tile_coding_style = self.parse_cod(segment)?;
                     } else if segment.marker == COC {
-                        let (component, _) = self.parse_component_index(
+                        self.record_component_segment(
                             segment,
                             components,
                             MalformedKind::InvalidCodingStyle,
+                            &mut coc_segments,
                         )?;
-                        let slot =
-                            coc_segments
-                                .get_mut(usize::from(component))
-                                .ok_or_else(|| {
-                                    DecodeError::malformed(
-                                        self.offset(segment.offset),
-                                        MalformedKind::InvalidCodingStyle,
-                                    )
-                                })?;
-                        if slot.is_some() {
-                            return Err(DecodeError::malformed(
-                                self.offset(segment.offset),
-                                MalformedKind::InvalidMarkerOrder,
-                            ));
-                        }
-                        *slot = Some(segment);
                     } else if segment.marker == QCD {
                         if qcd_segment.is_some() {
                             return Err(DecodeError::malformed(
@@ -306,27 +291,12 @@ impl<'a> Parser<'a> {
                         }
                         qcd_segment = Some(segment);
                     } else if segment.marker == QCC {
-                        let (component, _) = self.parse_component_index(
+                        self.record_component_segment(
                             segment,
                             components,
                             MalformedKind::InvalidQuantization,
+                            &mut qcc_segments,
                         )?;
-                        let slot =
-                            qcc_segments
-                                .get_mut(usize::from(component))
-                                .ok_or_else(|| {
-                                    DecodeError::malformed(
-                                        self.offset(segment.offset),
-                                        MalformedKind::InvalidQuantization,
-                                    )
-                                })?;
-                        if slot.is_some() {
-                            return Err(DecodeError::malformed(
-                                self.offset(segment.offset),
-                                MalformedKind::InvalidMarkerOrder,
-                            ));
-                        }
-                        *slot = Some(segment);
                     } else if segment.marker == RGN {
                         let (component, shift) = self.parse_rgn(segment, components)?;
                         let index = usize::from(component);

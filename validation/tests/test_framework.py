@@ -1202,6 +1202,54 @@ class FrameworkTests(WorkingFiles):
                     self.assertRaisesRegex(ValueError, "not used by claimed implementation"):
                 framework.validate_normative_coverage(data)
 
+    def test_inventory_binds_shared_component_segment_result_slots_and_parser_frame(self):
+        self._assert_complete_packet_contract_bindings(
+            {"part1-complete-native-component-segment-admission"},
+            framework._COMPONENT_SEGMENT_ADMISSION_CONTRACTS, 1,
+        )
+
+    def test_inventory_requires_all_four_typed_component_segment_admission_calls(self):
+        coverage = json.loads((framework.VALIDATION / "normative-coverage.json").read_text())
+        entry = next(item for item in coverage["requirements"]
+                     if item["id"] == "part1-complete-native-component-segment-admission")
+        reference = entry["contract_refs"][0]
+        read_text = Path.read_text
+        for caller in entry["implementation_refs"]:
+            if caller == reference:
+                continue
+            isolated = copy.deepcopy(entry)
+            isolated["implementation_refs"] = [caller]
+            isolated["proof_refs"] = [reference]
+            data = dict(coverage, requirements=[isolated])
+            self.assertEqual(framework.validate_normative_coverage(data)["status"], "passed")
+            source = framework.ROOT / caller["path"]
+            original = read_text(source)
+            for kind, slots in (("InvalidCodingStyle", "coc_segments"),
+                                ("InvalidQuantization", "qcc_segments")):
+                pattern = (
+                    r"\.record_component_segment\(\s*segment\s*,\s*"
+                    r"(?:image_size\.)?components\s*,\s*MalformedKind::" + kind
+                    + r"\s*,\s*&mut\s+" + slots + r"\s*,?\s*\)"
+                )
+                match = re.search(pattern, original)
+                self.assertIsNotNone(match)
+                for changed_call in (
+                    match[0].replace(".record_component_segment(", ".unlisted_admission("),
+                    match[0].replace(kind, "InvalidMarker"),
+                    match[0].replace("&mut " + slots, "&mut unrelated"),
+                    match[0].replace("components", "unrelated", 1),
+                ):
+                    changed = original[:match.start()] + changed_call + original[match.end():]
+                    changed += "\nfn unrelated() { " + match[0] + "; }\n"
+
+                    def altered(path, *args, **kwargs):
+                        return changed if path == source else read_text(path, *args, **kwargs)
+
+                    with self.subTest(caller=caller, kind=kind, mutation=changed_call), \
+                            mock.patch.object(Path, "read_text", altered), \
+                            self.assertRaisesRegex(ValueError, "not used by claimed implementation"):
+                        framework.validate_normative_coverage(data)
+
     def test_inventory_requires_both_actual_shared_quantization_callers(self):
         coverage = json.loads((framework.VALIDATION / "normative-coverage.json").read_text())
         entry = next(x for x in coverage["requirements"]

@@ -1,8 +1,27 @@
-//! Source-derived models of the actual layout prologue and main-header admission.
+//! Source-derived models of the layout prologue and shared raw header admission.
 
 use super::*;
 
 verus! {
+
+#[verifier::opaque]
+pub(crate) open spec fn part1_record_component_segment<'a>(
+    state: Part1CodestreamReader<'a>, segment: Part1CodestreamSegment,
+    components: u16, invalid_kind: crate::MalformedKind,
+    segments: Seq<Option<Part1CodestreamSegment>>,
+) -> (Result<(), crate::DecodeError>, Seq<Option<Part1CodestreamSegment>>, Part1CodestreamReader<'a>)
+{
+    match part1_parse_component_index(segment.offset, segment.payload, components, invalid_kind) {
+        Err(error) => (Err(error), segments, state),
+        Ok((component, _)) => if component as nat >= segments.len() {
+            (Err(part1_codestream_malformed(segment.offset, invalid_kind)), segments, state)
+        } else if segments[component as int].is_some() {
+            (Err(part1_codestream_malformed(segment.offset, crate::MalformedKind::InvalidMarkerOrder)), segments, state)
+        } else {
+            (Ok(()), segments.update(component as int, Some(segment)), state)
+        },
+    }
+}
 
 #[verifier::opaque]
 pub(crate) open spec fn part1_parse_layout_prologue<'a>(state: Part1CodestreamReader<'a>)

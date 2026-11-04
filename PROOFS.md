@@ -179,6 +179,26 @@ technical candidate only: parent-owned record, review, CI, guarded integration
 and actual-main acceptance remain separate. No complete parsing, pixels,
 lifetime verification, normative conformance or publication claim follows.
 
+## Shared raw main/tile component marker admission
+
+`Parser::record_component_segment` is the sole executing slot-admission body
+used by all four main/tile COC/QCC branches. Its complete Result/frame contract
+starts from the raw segment, passed component count and physical64-slot owner.
+Index parsing precedes physical bounds admission, which precedes duplicate
+rejection and the single borrowed-segment commit. Every failure preserves all
+slots, including earlier commits and unused tails. The immutable parser retains
+its input, limits, cursor, work and packet accounting; no clone, allocation,
+normalization or prepared parse result is introduced.
+
+The additive model reuses the existing component-index parser without changing
+its one/two-byte threshold or error meanings. Payload validation still occurs
+later in the original finalizers. Native structural regressions exercise raw
+indexes, complete owners and pointer identity, first-error precedence and all
+four real reader paths. Inventory controls bind each caller's component count,
+error kind and COC/QCC owner independently. These are source/model checks, not
+independently adjudicated standards rules, complete header/configuration/public
+decoder proofs, lifetime analysis, coverage measurement or release approval.
+
 ## Shared main/tile component style override frames
 
 `Parser::apply_component_style_overrides` is the sole executing COC loop used

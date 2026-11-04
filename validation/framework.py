@@ -1320,11 +1320,28 @@ _TILE_COMPONENT_FINALIZATION_CONTRACTS = {
     ),
 }
 
+_COMPONENT_SEGMENT_ADMISSION_CONTRACTS = {
+    ("src/codestream/coding_markers.rs", "Parser::record_component_segment"): (
+        "part1_record_component_segment", r"\1",
+        _coverage_call("segment_slots_view", _coverage_call("final", "segments") + "@")
+        + r"\s*,\s*" + _coverage_call("parser_view", "self"),
+        _coverage_call("parser_view", "self") + r"\s*,\s*"
+        + _coverage_call("segment_view", "segment") + r"\s*,\s*components\s*,\s*invalid_kind\s*,\s*"
+        + _coverage_call("segment_slots_view", _coverage_call("old", "segments") + "@"),
+    ),
+}
+
+_COMPONENT_SEGMENT_ADMISSION_CALLERS = {
+    ("src/codestream/layout.rs", "Parser::parse_layout"): ("parser", r"image_size\.components"),
+    ("src/codestream/tiles.rs", "Parser::read_tile_part"): ("self", "components"),
+}
+
 _COMPONENT_PRODUCER_RELAYS = {
     **_MAIN_COMPONENT_FINALIZATION_CONTRACTS,
     **_STYLE_OVERRIDE_CONTRACTS,
     **_QUANTIZATION_OVERRIDE_CONTRACTS,
     **_TILE_COMPONENT_FINALIZATION_CONTRACTS,
+    **_COMPONENT_SEGMENT_ADMISSION_CONTRACTS,
 }
 
 _DECOMPOSITION_RESOLUTION_CONTRACTS = {
@@ -2306,6 +2323,20 @@ def validate_normative_coverage(
         if key not in bodies:
             bodies[key] = _coverage_function_body(source_text(path), function_header(path, caller))
         body = bodies[key]
+        admission = _COMPONENT_SEGMENT_ADMISSION_CALLERS.get(
+            (path.relative_to(ROOT).as_posix(), caller),
+        ) if callee == "record_component_segment" else None
+        if admission is not None:
+            receiver, components = admission
+            return body is not None and all(re.search(
+                _coverage_call(
+                    receiver + "." + callee, "segment", components,
+                    "MalformedKind::" + kind, r"&\s*mut\s*" + slots + r"\s*,?",
+                ), body,
+            ) is not None for kind, slots in (
+                ("InvalidCodingStyle", "coc_segments"),
+                ("InvalidQuantization", "qcc_segments"),
+            ))
         prefix = r"(?<![\w.])" if same_name else r"\b"
         return body is not None and re.search(rf"{prefix}{re.escape(callee)}\s*\(", body) is not None
 
@@ -2832,6 +2863,7 @@ def validate_normative_coverage(
                 or _STYLE_OVERRIDE_CONTRACTS.get((reference["path"], reference["symbol"]))
                 or _QUANTIZATION_OVERRIDE_CONTRACTS.get((reference["path"], reference["symbol"]))
                 or _TILE_COMPONENT_FINALIZATION_CONTRACTS.get((reference["path"], reference["symbol"]))
+                or _COMPONENT_SEGMENT_ADMISSION_CONTRACTS.get((reference["path"], reference["symbol"]))
                 or _COMPONENT_DEPTH_BYTES_CONTRACTS.get((reference["path"], reference["symbol"]))
                 or _COMPONENT_HEADER_APPLICATION_CONTRACTS.get((reference["path"], reference["symbol"]))
                 or _PROFILE_BYTES_CONTRACTS.get((reference["path"], reference["symbol"]))
