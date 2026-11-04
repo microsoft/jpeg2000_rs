@@ -1030,6 +1030,85 @@ class FrameworkTests(WorkingFiles):
             framework._RAW_TILE_HEADER_CONTRACTS, 8,
         )
 
+    def test_inventory_binds_complete_mct_parameter_record_and_reference_copies(self):
+        self._assert_complete_packet_contract_bindings(
+            {"part1-complete-native-mct-parameter-clone"},
+            framework._MCT_PARAMETER_CLONE_CONTRACTS, 3,
+        )
+
+    def test_inventory_mct_clone_guards_reuse_fresh_per_call_source_indexes(self):
+        coverage = json.loads((framework.VALIDATION / "normative-coverage.json").read_text())
+        entry = copy.deepcopy(next(item for item in coverage["requirements"]
+                                   if item["id"] == "part1-complete-native-mct-parameter-clone"))
+        data = dict(coverage, requirements=[entry])
+        paths = {
+            (framework.ROOT / path).resolve()
+            for path in (
+                "src/codestream/layout.rs",
+                "src/codestream/mct.rs",
+                "src/codestream/proof_support.rs",
+            )
+        }
+        counts = dict.fromkeys(paths, 0)
+        read_text = Path.read_text
+
+        def counted(path, *args, **kwargs):
+            if path in counts:
+                counts[path] += 1
+            return read_text(path, *args, **kwargs)
+
+        with mock.patch.object(Path, "read_text", counted):
+            self.assertEqual(framework.validate_normative_coverage(data)["status"], "passed")
+            self.assertEqual(counts, dict.fromkeys(paths, 1))
+            self.assertEqual(framework.validate_normative_coverage(data)["status"], "passed")
+            self.assertEqual(counts, dict.fromkeys(paths, 2))
+
+    def test_inventory_requires_typed_mct_clone_edges_not_unrelated_clone_calls(self):
+        coverage = json.loads((framework.VALIDATION / "normative-coverage.json").read_text())
+        entry = copy.deepcopy(next(item for item in coverage["requirements"]
+                                   if item["id"] == "part1-complete-native-mct-parameter-clone"))
+        data = dict(coverage, requirements=[entry])
+        read_text = Path.read_text
+        for path, before, after in (
+            ("src/codestream/layout.rs", "parameters.clone()", "parameters.unlisted_clone()"),
+            ("src/codestream/layout.rs", "main_mct_parameters.clone()", "main_mct_parameters.unlisted_clone()"),
+            ("src/codestream/mct.rs", "Clone::clone(&self.records)", "unrelated_records()"),
+            ("src/codestream/mct.rs", "Clone::clone(&self.collections)", "unrelated_collections()"),
+        ):
+            source = framework.ROOT / path
+            original = source.read_text()
+            self.assertIn(before, original)
+            changed = original.replace(before, after, 1)
+            changed += "\nfn unrelated() { unrelated.clone(); Clone::clone(&self.records); Clone::clone(&self.collections); }\n"
+
+            def altered(file, *args, **kwargs):
+                return changed if file == source else read_text(file, *args, **kwargs)
+
+            with self.subTest(edge=before), mock.patch.object(Path, "read_text", altered), \
+                    self.assertRaisesRegex(ValueError, "typed edge"):
+                framework.validate_normative_coverage(data)
+
+    def test_inventory_requires_all_three_physical_mct_copy_projection_fields(self):
+        coverage = json.loads((framework.VALIDATION / "normative-coverage.json").read_text())
+        entry = copy.deepcopy(next(item for item in coverage["requirements"]
+                                   if item["id"] == "part1-complete-native-mct-parameter-clone"))
+        data = dict(coverage, requirements=[entry])
+        source = framework.ROOT / "src/codestream/proof_support.rs"
+        original = source.read_text()
+        read_text = Path.read_text
+        for field in ("arrays", "records", "order"):
+            self.assertIn("complete." + field, original)
+            changed = original.replace("complete." + field, "unrelated_" + field, 1)
+
+            def altered(file, *args, **kwargs):
+                return changed if file == source else read_text(file, *args, **kwargs)
+
+            with self.subTest(field=field), mock.patch.object(Path, "read_text", altered), \
+                    self.assertRaisesRegex(ValueError, "all physical fields"):
+                framework.validate_normative_coverage(data)
+        for key in framework._MCT_PARAMETER_CLONE_CONTRACTS:
+            self.assertNotIn(key, framework._COMPONENT_PRODUCER_RELAYS)
+
     def test_inventory_binds_inherited_configuration_complete_five_field_result(self):
         self._assert_complete_packet_contract_bindings(
             {"part1-complete-native-inherited-tile-configuration-selection"},

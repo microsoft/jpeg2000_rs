@@ -179,6 +179,29 @@ technical candidate only: parent-owned record, review, CI, guarded integration
 and actual-main acceptance remain separate. No complete parsing, pixels,
 lifetime verification, normative conformance or publication claim follows.
 
+## Complete MCT parameter clone chain
+
+The actual `MctParameters`, `MctRecord` and `MctCollectionReference` clone
+implementations have complete physical copy contracts. One shared Cargo/Verus
+body replaces each former non-Copy derive. Original field order and Copy-field
+clone calls are retained so native qualification can compare the actual
+compiled bodies, including cleanup/unwind/drop paths, with the original
+derived implementations.
+
+Every array value, record, collection input/output, transform field and order
+entry is preserved, including unused, duplicate, dangling and otherwise
+unvalidated raw data. Parameter copies compare all three complete physical
+projections of the unchanged existing model rather than opaque spec-wrapper
+identity. Public closed ghost views are required by the public Clone trait
+contracts; no native API or trust boundary is changed.
+
+All layout clone sites, owning locals and inheritance order remain in place.
+No extra executing owner clone or alternate verification-only implementation
+is introduced. This prerequisite does not complete owned inheritance
+selection, the persistent fold, main/layout/public image composition,
+normative fidelity, general cfg/erasure/lifetime/source coverage or release
+qualification.
+
 ## Copy-only inherited tile configuration selection
 
 The actual layout caller uses `Parser::select_inherited_tile_configuration`

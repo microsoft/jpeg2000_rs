@@ -1,12 +1,15 @@
 //! Multiple-component-transform metadata, construction and equality.
 
 use super::{
-    MctArray, MctArrayKind, MctCollection, MctCollectionKind, MctNumericFormat, MctStage,
-    MctWavelet, MctWaveletType, MultipleComponentTransform,
+    MctArray, MctArrayKind, MctCollection, MctCollectionKind, MctCollectionReference,
+    MctNumericFormat, MctParameters, MctRecord, MctStage, MctWavelet, MctWaveletType,
+    MultipleComponentTransform,
 };
 #[cfg(verus_keep_ghost)]
 use super::{
-    mct_array_option, mct_array_view, mct_collection_view, mct_stage_view, mct_wavelet_option,
+    mcc_collection_reference_view, mcc_collection_references_view, mct_array_option,
+    mct_array_view, mct_arrays_view, mct_collection_view, mct_parameter_copy_view,
+    mct_parameters_view, mct_record_view, mct_records_view, mct_stage_view, mct_wavelet_option,
     mct_wavelet_view, multiple_component_transform_view,
 };
 #[cfg(verus_keep_ghost)]
@@ -455,6 +458,70 @@ pub(super) fn u16_lists_equal(left: &[u16], right: &[u16]) -> bool {
     proof! { assert(left@ =~= right@); }
     true
 }
+// Match the original derives' field order and Copy-field clone calls.
+#[allow(clippy::clone_on_copy)]
+impl Clone for MctCollectionReference {
+    #[inline]
+    #[cfg_attr(verus_keep_ghost, verus_spec(result =>
+        ensures mcc_collection_reference_view(&result)
+            == crate::specs::part1_mcc_collection_reference_copy(mcc_collection_reference_view(self)),
+    ))]
+    fn clone(&self) -> Self {
+        #[cfg(verus_keep_ghost)]
+        proof! { reveal(mcc_collection_reference_view); }
+        Self {
+            input_components: Clone::clone(&self.input_components),
+            output_components: Clone::clone(&self.output_components),
+            transform: Clone::clone(&self.transform),
+        }
+    }
+}
+
+#[allow(clippy::clone_on_copy)]
+impl Clone for MctRecord {
+    #[inline]
+    #[cfg_attr(verus_keep_ghost, verus_spec(result =>
+        ensures mct_record_view(&result)
+            == crate::specs::part1_mct_record_copy(mct_record_view(self)),
+    ))]
+    fn clone(&self) -> Self {
+        #[cfg(verus_keep_ghost)]
+        proof! {
+            reveal(mct_record_view);
+            reveal(mcc_collection_references_view);
+            reveal(crate::specs::part1_mct_record_copy);
+        }
+        Self {
+            index: Clone::clone(&self.index),
+            collections: Clone::clone(&self.collections),
+        }
+    }
+}
+
+impl Clone for MctParameters {
+    #[inline]
+    #[cfg_attr(verus_keep_ghost, verus_spec(result =>
+        ensures mct_parameter_copy_view(&result)
+            == crate::specs::part1_mct_parameters_copy(mct_parameter_copy_view(self)),
+    ))]
+    fn clone(&self) -> Self {
+        #[cfg(verus_keep_ghost)]
+        proof! {
+            reveal(mct_parameters_view);
+            reveal(mct_parameter_copy_view);
+            reveal(mct_arrays_view);
+            reveal(mct_records_view);
+            reveal(crate::specs::part1_mct_parameters_copy);
+            reveal(crate::specs::part1_mct_record_copy);
+        }
+        Self {
+            arrays: Clone::clone(&self.arrays),
+            records: Clone::clone(&self.records),
+            order: Clone::clone(&self.order),
+        }
+    }
+}
+
 impl Clone for MctArray {
     #[inline]
     #[cfg_attr(verus_keep_ghost, verus_spec(result => ensures mct_array_view(&result) == mct_array_view(self),))]

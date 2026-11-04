@@ -43,6 +43,7 @@ src/codestream/image_header.rs
 src/codestream/layout.rs
 src/codestream/mct.rs
 src/codestream/mct_markers.rs
+src/codestream/mct_parameter_clone_tests.rs
 src/codestream/mct_resolution.rs
 src/codestream/packet_headers.rs
 src/codestream/part2_transforms.rs

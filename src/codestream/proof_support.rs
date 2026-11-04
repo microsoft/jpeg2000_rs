@@ -345,7 +345,7 @@ verus! {
         values.map_values(|value: MctArray| mct_array_view(&value))
     }
 
-    closed spec fn mct_record_view(value: &MctRecord) -> crate::specs::Part1MctRecord {
+    pub closed spec fn mct_record_view(value: &MctRecord) -> crate::specs::Part1MctRecord {
         (value.index, mcc_collection_references_view(value.collections@))
     }
 
@@ -363,6 +363,13 @@ verus! {
         crate::specs::Part1MctParameters {
             arrays: mct_arrays_view(value.arrays@), records: mct_records_view(value.records@), order: value.order@,
         }
+    }
+
+    pub closed spec fn mct_parameter_copy_view(value: &MctParameters)
+        -> (Seq<crate::specs::Part2MctArray>, Seq<crate::specs::Part1MctRecord>, Seq<u8>)
+    {
+        let complete = mct_parameters_view(value);
+        (complete.arrays, complete.records, complete.order)
     }
 
     closed spec fn mct_collections_view(values: Seq<MctCollection>) -> Seq<crate::specs::Part2MctCollection> {
@@ -494,7 +501,7 @@ verus! {
         }
     }
 
-    closed spec fn mcc_collection_reference_view(value: &MctCollectionReference) -> crate::specs::Part1MccCollectionReference {
+    pub closed spec fn mcc_collection_reference_view(value: &MctCollectionReference) -> crate::specs::Part1MccCollectionReference {
         crate::specs::Part1MccCollectionReference {
             inputs: value.input_components@, outputs: value.output_components@, transform: mcc_reference_transform_view(value.transform),
         }

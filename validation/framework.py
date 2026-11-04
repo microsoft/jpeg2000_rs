@@ -1474,6 +1474,35 @@ _INHERITED_TILE_CONFIGURATION_CONTRACTS = {
     ),
 }
 
+_MCT_PARAMETER_CLONE_CONTRACTS = {
+    ("src/codestream/mct.rs", "MctParameters::clone"): (
+        "part1_mct_parameters_copy", _coverage_call("mct_parameter_copy_view", r"&\s*\1"),
+        None, _coverage_call("mct_parameter_copy_view", "self"),
+    ),
+    ("src/codestream/mct.rs", "MctRecord::clone"): (
+        "part1_mct_record_copy", _coverage_call("mct_record_view", r"&\s*\1"),
+        None, _coverage_call("mct_record_view", "self"),
+    ),
+    ("src/codestream/mct.rs", "MctCollectionReference::clone"): (
+        "part1_mcc_collection_reference_copy",
+        _coverage_call("mcc_collection_reference_view", r"&\s*\1"),
+        None, _coverage_call("mcc_collection_reference_view", "self"),
+    ),
+}
+
+_MCT_PARAMETER_CLONE_CONSUMERS = (
+    ("src/codestream/layout.rs", "Parser::parse_layout",
+     r"let\s+inherited_mct_parameters\s*=\s*match\s+"
+     + _coverage_call("tile_mct_parameters.get", "tile_index")
+     + r"\s*\{\s*Some\s*\(\s*Some\s*\(\s*parameters\s*\)\s*\)\s*=>\s*"
+     + _coverage_call("parameters.clone") + r"\s*,\s*_\s*=>\s*"
+     + _coverage_call("main_mct_parameters.clone") + r"\s*,?\s*\}\s*;"),
+    ("src/codestream/mct.rs", "MctParameters::clone",
+     _coverage_call("Clone::clone", r"&\s*self\.records")),
+    ("src/codestream/mct.rs", "MctRecord::clone",
+     _coverage_call("Clone::clone", r"&\s*self\.collections")),
+)
+
 _COMPONENT_PRODUCER_RELAYS = {
     **_MAIN_COMPONENT_FINALIZATION_CONTRACTS,
     **_STYLE_OVERRIDE_CONTRACTS,
@@ -2509,6 +2538,31 @@ def validate_normative_coverage(
     ids: set[str] = set()
     contract_functions: set[tuple[str, str]] = set()
     for entry in coverage["requirements"]:
+        if entry["id"] == "part1-complete-native-mct-parameter-clone":
+            layout = {"path": "src/codestream/layout.rs", "symbol": "Parser::parse_layout"}
+            if layout not in entry["implementation_refs"]:
+                raise ValueError("MCT clone not used by claimed implementation: actual layout required")
+            for path, symbol, pattern in _MCT_PARAMETER_CLONE_CONSUMERS:
+                consumer_path = (ROOT / path).resolve()
+                text = source_text(consumer_path)
+                body = _coverage_function_body(text, function_header(consumer_path, symbol))
+                if body is None or re.search(pattern, body) is None:
+                    raise ValueError(f"MCT clone not used by claimed implementation: typed edge {symbol}")
+            text = source_text((ROOT / "src/codestream/proof_support.rs").resolve())
+            projection_headers = list(re.finditer(
+                r"(?m)^([ \t]*)pub[ \t]+closed[ \t]+spec[ \t]+fn[ \t]+mct_parameter_copy_view\b",
+                text,
+            ))
+            body = (
+                _coverage_function_body(text, projection_headers[0])
+                if len(projection_headers) == 1 else None
+            )
+            complete = (
+                r"\s*let\s+complete\s*=\s*" + _coverage_call("mct_parameters_view", "value")
+                + r"\s*;\s*\(\s*complete\.arrays\s*,\s*complete\.records\s*,\s*complete\.order\s*\)\s*"
+            )
+            if body is None or re.fullmatch(complete, body) is None:
+                raise ValueError("MCT clone copy projection must retain all physical fields")
         if entry["id"] in ids:
             raise ValueError(f"duplicate normative inventory id: {entry['id']}")
         ids.add(entry["id"])
@@ -3025,6 +3079,7 @@ def validate_normative_coverage(
                 or _TILE_PART_READER_CONTRACTS.get((reference["path"], reference["symbol"]))
                 or _PERSISTENT_TILE_CONFIGURATION_CONTRACTS.get((reference["path"], reference["symbol"]))
                 or _INHERITED_TILE_CONFIGURATION_CONTRACTS.get((reference["path"], reference["symbol"]))
+                or _MCT_PARAMETER_CLONE_CONTRACTS.get((reference["path"], reference["symbol"]))
                 or _CODING_STYLE_BYTES_CONTRACTS.get((reference["path"], reference["symbol"]))
                 or _COMPONENT_STYLE_BYTES_CONTRACTS.get((reference["path"], reference["symbol"]))
                 or _QUANTIZATION_BYTES_CONTRACTS.get((reference["path"], reference["symbol"]))
