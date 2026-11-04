@@ -2404,6 +2404,13 @@ def validate_normative_coverage(
         if key not in bodies:
             bodies[key] = _coverage_function_body(source_text(path), function_header(path, caller))
         body = bodies[key]
+        if (callee == "read_tile_header" and caller == "Parser::read_tile_part"
+                and path.relative_to(ROOT).as_posix() == "src/codestream/tiles.rs"):
+            for field in ("completed_mct", "completed_mcc"):
+                binding = "_" + field
+                if (body is None or re.search(r"\b" + field + r"\s*:\s*" + binding + r"\s*,", body) is None
+                        or len(re.findall(r"\b" + binding + r"\b", body)) != 1):
+                    return False
         admission = _COMPONENT_SEGMENT_ADMISSION_CALLERS.get(
             (path.relative_to(ROOT).as_posix(), caller),
         ) if callee == "record_component_segment" else None

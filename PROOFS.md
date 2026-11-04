@@ -199,6 +199,11 @@ accumulator's prior header-end field unchanged. The older local frontier's
 pre-consumption header-end commit is deliberately not reused or relabeled.
 Pending MCT validation and every component/progression/MCT/data/metadata
 finalizer remain after header production in the actual reader.
+The completed MCT/MCC ID vectors remain named bindings in that outer reader
+through finalization, rather than being dropped by a wildcard destructure
+immediately after header parsing. Inventory controls reject discarded or
+explicitly early-dropped owners; matched-parent production MIR records retain
+the native drop-scope comparison.
 
 The existing ROI setter has an additive complete physical-owner frame contract,
 with no native logic change. Native controls exercise every marker word,

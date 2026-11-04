@@ -226,7 +226,9 @@ impl<'a> Parser<'a> {
             progression_changes,
             mct_parameters,
             pending_mct,
+            completed_mct: _completed_mct,
             pending_mcc,
+            completed_mcc: _completed_mcc,
             part2_extensions,
             ..
         } = self.read_tile_header(
