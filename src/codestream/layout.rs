@@ -3,6 +3,7 @@
 use super::mct_resolution::{
     validate_unique_mct_array_indexes, validate_unique_mct_record_indexes,
 };
+use super::persistent_tile_configuration::inherited_tile_owner;
 use super::profile::classify_codestream_profile;
 use super::reader::new_parser;
 use super::{
@@ -13,7 +14,10 @@ use super::{
     Resource, ResourceLimits, RoiShifts, SIZ, SOC, SOT, TLM, TilePartPayload,
 };
 #[cfg(verus_keep_ghost)]
-use super::{layout_prologue_outcome, parser_view};
+use super::{
+    layout_prologue_outcome, mct_parameter_copy_view, owned_extensions_view, parser_view,
+    progression_changes_view, quantization_owner_view,
+};
 #[cfg(verus_keep_ghost)]
 use vstd::prelude::*;
 
@@ -413,24 +417,43 @@ impl<'a> Parser<'a> {
                         &tile_component_style_parts,
                         &tile_part_payloads,
                     )?;
-                    let inherited_component_quantizations =
-                        match tile_component_quantizations.get(tile_index) {
-                            Some(Some(quantizations)) => quantizations.clone(),
-                            _ => component_quantizations.clone(),
-                        };
-                    let inherited_progression_changes =
-                        match tile_progression_changes.get(tile_index) {
-                            Some(Some(changes)) => changes.clone(),
-                            _ => progression_changes.clone(),
-                        };
-                    let inherited_mct_parameters = match tile_mct_parameters.get(tile_index) {
-                        Some(Some(parameters)) => parameters.clone(),
-                        _ => main_mct_parameters.clone(),
-                    };
-                    let inherited_part2_extensions = match tile_part2_extensions.get(tile_index) {
-                        Some(Some(extensions)) => extensions.clone(),
-                        _ => part2_extensions.clone(),
-                    };
+                    let inherited_component_quantizations = inherited_tile_owner(
+                        tile_index,
+                        &component_quantizations,
+                        &tile_component_quantizations,
+                    )
+                    .clone();
+                    let inherited_progression_changes = inherited_tile_owner(
+                        tile_index,
+                        &progression_changes,
+                        &tile_progression_changes,
+                    )
+                    .clone();
+                    let inherited_mct_parameters = inherited_tile_owner(
+                        tile_index,
+                        &main_mct_parameters,
+                        &tile_mct_parameters,
+                    )
+                    .clone();
+                    let inherited_part2_extensions =
+                        inherited_tile_owner(tile_index, &part2_extensions, &tile_part2_extensions)
+                            .clone();
+                    #[cfg(verus_keep_ghost)]
+                    proof! {
+                        reveal(crate::specs::part1_inherited_tile_owner);
+                        assert(quantization_owner_view(&inherited_component_quantizations)
+                            == quantization_owner_view(&crate::specs::part1_inherited_tile_owner(
+                                tile_index, component_quantizations, tile_component_quantizations@)));
+                        assert(progression_changes_view(&inherited_progression_changes)
+                            == progression_changes_view(&crate::specs::part1_inherited_tile_owner(
+                                tile_index, progression_changes, tile_progression_changes@)));
+                        assert(mct_parameter_copy_view(&inherited_mct_parameters)
+                            == mct_parameter_copy_view(&crate::specs::part1_inherited_tile_owner(
+                                tile_index, main_mct_parameters, tile_mct_parameters@)));
+                        assert(owned_extensions_view(&inherited_part2_extensions)
+                            == owned_extensions_view(&crate::specs::part1_inherited_tile_owner(
+                                tile_index, part2_extensions, tile_part2_extensions@)));
+                    }
                     let (payload, tile_parameters, tile_extensions) = parser.read_tile_part(
                         tile_part,
                         (inherited_default_style, inherited_default_quantization),

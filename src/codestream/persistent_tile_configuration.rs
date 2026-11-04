@@ -22,6 +22,23 @@ pub(super) type InheritedTileConfiguration = (
     ComponentCodingStyles,
 );
 
+#[inline]
+#[cfg_attr(verus_keep_ghost, verus_spec(result =>
+    ensures *result == crate::specs::part1_inherited_tile_owner(index, *main, states@),
+))]
+pub(super) fn inherited_tile_owner<'owner, T>(
+    index: usize,
+    main: &'owner T,
+    states: &'owner [Option<T>],
+) -> &'owner T {
+    #[cfg(verus_keep_ghost)]
+    proof! { reveal(crate::specs::part1_inherited_tile_owner); }
+    match states.get(index) {
+        Some(Some(owner)) => owner,
+        _ => main,
+    }
+}
+
 impl Parser<'_> {
     #[inline]
     #[allow(clippy::too_many_arguments)]

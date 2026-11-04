@@ -4,6 +4,12 @@ use super::*;
 
 verus! {
 
+pub open spec fn part1_inherited_tile_owner<T>(index: usize, main: T, states: Seq<Option<T>>) -> T {
+    if (index as int) < states.len() {
+        match states[index as int] { Some(owner) => owner, None => main }
+    } else { main }
+}
+
 pub open spec fn part1_roi_shifts_equal(left: Seq<u8>, right: Seq<u8>) -> bool {
     left == right
 }

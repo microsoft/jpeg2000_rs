@@ -179,6 +179,27 @@ technical candidate only: parent-owned record, review, CI, guarded integration
 and actual-main acceptance remain separate. No complete parsing, pixels,
 lifetime verification, normative conformance or publication claim follows.
 
+## Actual four-owned tile inheritance
+
+The actual layout caller uses one total borrowed `inherited_tile_owner`
+selection for each Q/POC/MCT/extensions source. Some selects that existing
+owner; None and out-of-range retain the main default. The helper has no
+Clone/Copy bound, no owning temporary, no runtime clone and no successful-input
+premise. Raw unequal state lengths, holes, arbitrary logical counts and every
+physical tail remain unnormalized.
+
+Each selected source is cloned immediately into its original named outer
+owning local. Lookup/clone interleaving, runtime one-clone-per-owner order and
+all later moves stay in place; only the two static branch clone sites become
+one call after selection. Four unconditional, complete cloned-view assertions
+are checked in the actual loop before `read_tile_part`, using the existing
+full clone contracts. The typed MCT source guard supports both original and
+new exact source forms and rejects unrelated clone calls.
+
+This is a proved inheritance cut point, not a complete persistent
+eight-state/payload fold, raw main/layout/public Result, normative fidelity,
+general cfg/erasure/lifetime/source coverage or release qualification.
+
 ## Complete MCT parameter clone chain
 
 The actual `MctParameters`, `MctRecord` and `MctCollectionReference` clone

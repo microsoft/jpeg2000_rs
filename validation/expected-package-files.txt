@@ -45,6 +45,7 @@ src/codestream/mct.rs
 src/codestream/mct_markers.rs
 src/codestream/mct_parameter_clone_tests.rs
 src/codestream/mct_resolution.rs
+src/codestream/owned_tile_inheritance_tests.rs
 src/codestream/packet_headers.rs
 src/codestream/part2_transforms.rs
 src/codestream/persistent_tile_configuration.rs
