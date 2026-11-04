@@ -4,6 +4,34 @@
   "scope": "Technical reference inventory; not exhaustive standards-clause coverage or a conformance claim.",
   "requirements": [
     {
+      "id": "part1-complete-native-persistent-tile-state-fold",
+      "topic": "Ghost-only actual layout-loop induction from eight all-None physical state vectors and an empty payload sequence, through actual reader-derived complete commit records, all eight ordered stores and payload append. The total ordered model reuses the accepted six-owner partial-commit relation, then stores complete MCT parameters, extensions and source payload. Actual successful prefixes equal the full fold; raw model bounds failures preserve their exact partial prefix. History is constructed only inside the actual loop from returned native owners, never supplied as a successful-parser or normalized-result premise. Every raw physical owner field, tail, hole, borrowed data window and prior payload remains; no executing clone/move/store/local/scope changes. This successful-prefix fold does not establish complete raw main/layout Result error composition, PLM/PPM/TLM/EOC/trailing/profile, normative fidelity, general cfg/erasure/lifetime/coverage or release qualification.",
+      "implementation_refs": [
+        {"path": "src/codestream/layout.rs", "symbol": "Parser::parse_layout"}
+      ],
+      "spec_refs": [
+        {"path": "specs/persistent_tile_configuration.rs", "symbol": "Part1PersistentTileState"},
+        {"path": "specs/persistent_tile_configuration.rs", "symbol": "Part1PersistentTileCommit"},
+        {"path": "specs/persistent_tile_configuration.rs", "symbol": "part1_empty_persistent_tile_state"},
+        {"path": "specs/persistent_tile_configuration.rs", "symbol": "part1_commit_persistent_tile_state"},
+        {"path": "specs/persistent_tile_configuration.rs", "symbol": "part1_persistent_tile_state_fold"},
+        {"path": "specs/persistent_tile_configuration.rs", "symbol": "part1_commit_persistent_tile_configuration"}
+      ],
+      "contract_refs": [
+        {"path": "src/codestream/persistent_tile_configuration.rs", "symbol": "Parser::commit_persistent_tile_configuration"}
+      ],
+      "proof_refs": [
+        {"path": "src/codestream/persistent_tile_configuration_proof_support.rs", "symbol": "persistent_tile_state_view"},
+        {"path": "src/codestream/persistent_tile_configuration_proof_support.rs", "symbol": "persistent_tile_configuration_sequences_view"},
+        {"path": "src/codestream/tiles.rs", "symbol": "Parser::read_tile_part"}
+      ],
+      "test_refs": [
+        {"path": "src/codestream/persistent_tile_configuration_tests.rs", "symbol": "actual_persistent_fold_keeps_all_eight_owners_per_tile_and_appends_source_payloads"},
+        {"path": "src/codestream/persistent_tile_configuration_tests.rs", "symbol": "actual_persistent_fold_rejects_late_tile_roi_change_before_trailing_data"},
+        {"path": "src/codestream/persistent_tile_configuration_tests.rs", "symbol": "actual_persistent_configuration_raw_geometry_first_errors_and_partial_frames"}
+      ]
+    },
+    {
       "id": "part1-complete-native-owned-tile-inheritance",
       "topic": "Source-derived total borrowed owner-or-default choice, used by all four actual owned inheritance initializers, plus verified complete cloned-local view checkpoints before the sole actual tile-part reader. Some selects the exact existing owner; None or out-of-range selects main. No Clone/Copy bound, owner construction, validation, logical-count constraint, normalization or successful-input premise. Q/POC/MCT/extensions each clone exactly once in their original order and original named outer owning local; lookup/clone interleaving and later moves remain. All raw unequal lengths/holes/full physical tails/unused nested data are retained and inputs remain immutable. The original two static branch clone sites per owner become one call after borrowed choice; runtime clone count stays one. Exact typed MCT consumer binding accepts both the original match and this new source form, never an unrelated clone. This proves an actual inheritance cut point, not the complete persistent fold/raw main/layout/public Result, normative fidelity, general cfg/erasure/lifetime/coverage or release qualification.",
       "implementation_refs": [

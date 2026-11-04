@@ -33,6 +33,80 @@ pub(crate) type Part1InheritedTileConfiguration = (
     (u16, Seq<Part1ParsedCodingStyle>),
 );
 
+pub(crate) type Part1PersistentMctParameters = (
+    Seq<Part2MctArray>, Seq<Part1MctRecord>, Seq<u8>,
+);
+
+pub(crate) type Part1PersistentTileState = (
+    Part1PersistentTileConfiguration,
+    Seq<Option<Part1PersistentMctParameters>>,
+    Seq<Option<Part2OwnedExtensions>>,
+    Seq<Part1TilePartPayload>,
+);
+
+pub(crate) struct Part1PersistentTileCommit {
+    pub position: usize,
+    pub start: usize,
+    pub index: usize,
+    pub previous_roi: Option<Seq<u8>>,
+    pub payload: Part1TilePartPayload,
+    pub parameters: Part1PersistentMctParameters,
+    pub extensions: Part2OwnedExtensions,
+}
+
+pub(crate) open spec fn part1_empty_persistent_tile_state(count: usize)
+    -> Part1PersistentTileState
+{
+    (
+        (Seq::new(count as nat, |_: int| None), Seq::new(count as nat, |_: int| None),
+         Seq::new(count as nat, |_: int| None), Seq::new(count as nat, |_: int| None),
+         Seq::new(count as nat, |_: int| None), Seq::new(count as nat, |_: int| None)),
+        Seq::new(count as nat, |_: int| None), Seq::new(count as nat, |_: int| None),
+        Seq::empty(),
+    )
+}
+
+#[verifier::opaque]
+pub(crate) open spec fn part1_commit_persistent_tile_state(
+    state: Part1PersistentTileState, commit: Part1PersistentTileCommit,
+) -> (Result<(), crate::DecodeError>, Part1PersistentTileState) {
+    let configured = part1_commit_persistent_tile_configuration(
+        commit.position, commit.start, commit.index, state.3.len() as usize,
+        commit.previous_roi, commit.payload, state.0);
+    let prefix = (configured.1, state.1, state.2, state.3);
+    match configured.0 {
+        Err(error) => (Err(error), prefix),
+        Ok(()) => if commit.index as int >= state.1.len() {
+            (Err(part1_codestream_malformed(commit.position, crate::MalformedKind::InvalidTilePart)), prefix)
+        } else {
+            let parameters = state.1.update(commit.index as int, Some(commit.parameters));
+            if commit.index as int >= state.2.len() {
+                (Err(part1_codestream_malformed(commit.position, crate::MalformedKind::InvalidTilePart)),
+                 (configured.1, parameters, state.2, state.3))
+            } else {
+                (Ok(()), (configured.1, parameters,
+                    state.2.update(commit.index as int, Some(commit.extensions)),
+                    state.3.push(commit.payload)))
+            }
+        },
+    }
+}
+
+#[verifier::opaque]
+pub(crate) open spec fn part1_persistent_tile_state_fold(
+    initial: Part1PersistentTileState, commits: Seq<Part1PersistentTileCommit>,
+) -> (Result<(), crate::DecodeError>, Part1PersistentTileState)
+    decreases commits.len(),
+{
+    if commits.len() == 0 { (Ok(()), initial) } else {
+        let prior = part1_persistent_tile_state_fold(initial, commits.drop_last());
+        match prior.0 {
+            Err(error) => (Err(error), prior.1),
+            Ok(()) => part1_commit_persistent_tile_state(prior.1, commits.last()),
+        }
+    }
+}
+
 #[verifier::opaque]
 pub(crate) open spec fn part1_select_inherited_tile_configuration(
     position: usize, index: usize, main_roi: Seq<u8>, main_style: Part1ParsedCodingStyle,

@@ -15,8 +15,10 @@ use super::{
 };
 #[cfg(verus_keep_ghost)]
 use super::{
-    layout_prologue_outcome, mct_parameter_copy_view, owned_extensions_view, parser_view,
-    progression_changes_view, quantization_owner_view,
+    layout_prologue_outcome, mct_parameter_copy_view, optional_roi_shifts_view,
+    owned_extensions_view, parser_view, persistent_tile_configuration_view,
+    persistent_tile_state_view, progression_changes_view, quantization_owner_view,
+    tile_part_payload_view,
 };
 #[cfg(verus_keep_ghost)]
 use vstd::prelude::*;
@@ -307,10 +309,34 @@ impl<'a> Parser<'a> {
         let mut tile_mct_parameters: Vec<Option<MctParameters>> = vec![None; tile_state_count];
         let mut tile_part2_extensions: Vec<Option<Part2Extensions>> = vec![None; tile_state_count];
 
+        #[cfg(verus_keep_ghost)]
+        proof_decl! {
+            let ghost initial_persistent_state = persistent_tile_state_view(
+                tile_roi_shifts@, tile_coding_styles@, tile_quantizations@,
+                tile_component_style_parts@, tile_component_quantizations@,
+                tile_progression_changes@, tile_mct_parameters@, tile_part2_extensions@,
+                tile_part_payloads@);
+            let ghost mut persistent_commits: Seq<crate::specs::Part1PersistentTileCommit> = Seq::empty();
+        }
+        #[cfg(verus_keep_ghost)]
+        proof! {
+            reveal(persistent_tile_state_view);
+            reveal(persistent_tile_configuration_view);
+            reveal(super::persistent_tile_configuration_sequences_view);
+            assert(initial_persistent_state == crate::specs::part1_empty_persistent_tile_state(tile_state_count));
+            reveal(crate::specs::part1_persistent_tile_state_fold);
+        }
         #[cfg_attr(
             verus_keep_ghost,
             verus_spec(
                 invariant
+                    crate::specs::part1_persistent_tile_state_fold(
+                        initial_persistent_state, persistent_commits)
+                        == (Ok(()), persistent_tile_state_view(
+                            tile_roi_shifts@, tile_coding_styles@, tile_quantizations@,
+                            tile_component_style_parts@, tile_component_quantizations@,
+                            tile_progression_changes@, tile_mct_parameters@, tile_part2_extensions@,
+                            tile_part_payloads@)),
                     tile_component_style_parts.len() == tile_state_count,
                     forall|tile: int| 0 <= tile < tile_component_style_parts.len() ==>
                         match #[trigger] tile_component_style_parts@[tile] {
@@ -471,6 +497,25 @@ impl<'a> Parser<'a> {
                     proof_decl! {
                         let ghost previous_style_parts = tile_component_style_parts@;
                         let ghost previous_payloads = tile_part_payloads@;
+                        let ghost previous_persistent_commits = persistent_commits;
+                        let ghost previous_persistent_state = persistent_tile_state_view(
+                            tile_roi_shifts@, tile_coding_styles@, tile_quantizations@,
+                            tile_component_style_parts@, tile_component_quantizations@,
+                            tile_progression_changes@, tile_mct_parameters@, tile_part2_extensions@,
+                            tile_part_payloads@);
+                        let ghost persistent_commit = crate::specs::Part1PersistentTileCommit {
+                            position: parser.position, start: tile_part.start, index: tile_index,
+                            previous_roi: optional_roi_shifts_view(previous_roi_shifts),
+                            payload: tile_part_payload_view(&payload),
+                            parameters: mct_parameter_copy_view(&tile_parameters),
+                            extensions: owned_extensions_view(&tile_extensions),
+                        };
+                    }
+                    #[cfg(verus_keep_ghost)]
+                    proof! {
+                        assert(crate::specs::part1_persistent_tile_state_fold(
+                            initial_persistent_state, previous_persistent_commits)
+                            == (Ok(()), previous_persistent_state));
                     }
                     parser.commit_persistent_tile_configuration(
                         tile_part.start,
@@ -496,6 +541,28 @@ impl<'a> Parser<'a> {
                     tile_part_payloads.push(payload);
                     #[cfg(verus_keep_ghost)]
                     proof! {
+                        reveal(persistent_tile_state_view);
+                        reveal(persistent_tile_configuration_view);
+                        reveal(super::persistent_tile_configuration_sequences_view);
+                        reveal(crate::specs::part1_commit_persistent_tile_state);
+                        assert(crate::specs::part1_commit_persistent_tile_state(
+                            previous_persistent_state, persistent_commit)
+                            == (Ok(()), persistent_tile_state_view(
+                                tile_roi_shifts@, tile_coding_styles@, tile_quantizations@,
+                                tile_component_style_parts@, tile_component_quantizations@,
+                                tile_progression_changes@, tile_mct_parameters@, tile_part2_extensions@,
+                                tile_part_payloads@)));
+                        persistent_commits = persistent_commits.push(persistent_commit);
+                        assert(persistent_commits.drop_last() == previous_persistent_commits);
+                        assert(persistent_commits.last() == persistent_commit);
+                        reveal(crate::specs::part1_persistent_tile_state_fold);
+                        assert(crate::specs::part1_persistent_tile_state_fold(
+                            initial_persistent_state, persistent_commits)
+                            == (Ok(()), persistent_tile_state_view(
+                                tile_roi_shifts@, tile_coding_styles@, tile_quantizations@,
+                                tile_component_style_parts@, tile_component_quantizations@,
+                                tile_progression_changes@, tile_mct_parameters@, tile_part2_extensions@,
+                                tile_part_payloads@)));
                         assert forall|tile: int| 0 <= tile < tile_component_style_parts.len() implies
                             match #[trigger] tile_component_style_parts@[tile] {
                                 Some(part) => part < tile_part_payloads.len()
