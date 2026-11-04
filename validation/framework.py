@@ -1460,6 +1460,20 @@ _PERSISTENT_TILE_CONFIGURATION_CONTRACTS = {
     ),
 }
 
+_INHERITED_TILE_CONFIGURATION_CONTRACTS = {
+    ("src/codestream/persistent_tile_configuration.rs", "Parser::select_inherited_tile_configuration"): (
+        "part1_select_inherited_tile_configuration",
+        _coverage_call("inherited_tile_configuration_outcome", r"\1"), None,
+        r"self\.position\s*,\s*index\s*,\s*"
+        + _coverage_call("roi_shifts_view", "main_roi") + r"\s*,\s*"
+        + _coverage_call("parsed_coding_style_view", r"\*\s*main_style") + r"\s*,\s*"
+        + _coverage_call("quantization_view", "main_quantization") + r"\s*,\s*"
+        + _coverage_call("component_style_owner_view", "main_components") + r"\s*,\s*"
+        + _coverage_call("persistent_tile_selection_view",
+                         "roi", "styles", "quantizations", "style_parts", "payloads"),
+    ),
+}
+
 _COMPONENT_PRODUCER_RELAYS = {
     **_MAIN_COMPONENT_FINALIZATION_CONTRACTS,
     **_STYLE_OVERRIDE_CONTRACTS,
@@ -2470,6 +2484,15 @@ def validate_normative_coverage(
                 ("InvalidCodingStyle", "coc_segments"),
                 ("InvalidQuantization", "qcc_segments"),
             ))
+        if (callee == "select_inherited_tile_configuration"
+                and path.relative_to(ROOT).as_posix() == "src/codestream/layout.rs"
+                and caller == "Parser::parse_layout"):
+            return body is not None and re.search(_coverage_call(
+                "parser." + callee, "tile_index", r"&\s*roi_shifts", r"&\s*coding_style",
+                r"&\s*quantization", r"&\s*component_coding_styles",
+                r"&\s*tile_roi_shifts", r"&\s*tile_coding_styles", r"&\s*tile_quantizations",
+                r"&\s*tile_component_style_parts", r"&\s*tile_part_payloads\s*,?",
+            ), body) is not None
         if (callee == "commit_persistent_tile_configuration"
                 and path.relative_to(ROOT).as_posix() == "src/codestream/layout.rs"
                 and caller == "Parser::parse_layout"):
@@ -3001,6 +3024,7 @@ def validate_normative_coverage(
                 or _ROI_SETTER_CONTRACTS.get((reference["path"], reference["symbol"]))
                 or _TILE_PART_READER_CONTRACTS.get((reference["path"], reference["symbol"]))
                 or _PERSISTENT_TILE_CONFIGURATION_CONTRACTS.get((reference["path"], reference["symbol"]))
+                or _INHERITED_TILE_CONFIGURATION_CONTRACTS.get((reference["path"], reference["symbol"]))
                 or _CODING_STYLE_BYTES_CONTRACTS.get((reference["path"], reference["symbol"]))
                 or _COMPONENT_STYLE_BYTES_CONTRACTS.get((reference["path"], reference["symbol"]))
                 or _QUANTIZATION_BYTES_CONTRACTS.get((reference["path"], reference["symbol"]))

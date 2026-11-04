@@ -395,42 +395,24 @@ impl<'a> Parser<'a> {
                         PackedPacketHeaders::none()
                     };
                     let tile_index = usize::from(tile_part.tile_index);
-                    let previous_roi_shifts = match tile_roi_shifts.get(tile_index) {
-                        Some(state) => *state,
-                        None => {
-                            return Err(parser.malformed_here(MalformedKind::InvalidTilePart));
-                        }
-                    };
-                    let inherited_roi_shifts = match previous_roi_shifts {
-                        Some(shifts) => shifts,
-                        None => roi_shifts,
-                    };
-                    let inherited_default_style = match tile_coding_styles.get(tile_index) {
-                        Some(Some(style)) => *style,
-                        _ => coding_style,
-                    };
-                    let inherited_default_quantization = match tile_quantizations.get(tile_index) {
-                        Some(Some(value)) => *value,
-                        _ => quantization,
-                    };
-                    let inherited_component_styles = match tile_component_style_parts
-                        .get(tile_index)
-                    {
-                        Some(Some(part)) => {
-                            #[cfg(verus_keep_ghost)]
-                            proof! {
-                                assert(*part < tile_part_payloads.len());
-                                assert(tile_part_payloads@[*part as int].tile_index as int == tile_index);
-                            }
-                            tile_part_payloads
-                                .get(*part)
-                                .ok_or_else(|| {
-                                    parser.malformed_here(MalformedKind::InvalidTilePart)
-                                })?
-                                .component_coding_styles
-                        }
-                        _ => component_coding_styles,
-                    };
+                    let (
+                        previous_roi_shifts,
+                        inherited_roi_shifts,
+                        inherited_default_style,
+                        inherited_default_quantization,
+                        inherited_component_styles,
+                    ) = parser.select_inherited_tile_configuration(
+                        tile_index,
+                        &roi_shifts,
+                        &coding_style,
+                        &quantization,
+                        &component_coding_styles,
+                        &tile_roi_shifts,
+                        &tile_coding_styles,
+                        &tile_quantizations,
+                        &tile_component_style_parts,
+                        &tile_part_payloads,
+                    )?;
                     let inherited_component_quantizations =
                         match tile_component_quantizations.get(tile_index) {
                             Some(Some(quantizations)) => quantizations.clone(),

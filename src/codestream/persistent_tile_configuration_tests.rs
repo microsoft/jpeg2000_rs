@@ -1,5 +1,205 @@
 use super::*;
 
+#[test]
+fn actual_inherited_selection_preserves_raw_fallbacks_indexes_owners_and_frames() {
+    let input = [11, 13];
+    let limits = ResourceLimits::HARDENED;
+    let parser = Parser {
+        input: &input,
+        limits: &limits,
+        position: 17,
+        work_units: u64::MAX,
+        packet_length_bytes: 97,
+        packet_lengths: 101,
+    };
+    let mut cases = 0;
+    for main_count in [0, u16::MAX] {
+        let main = raw_owned_tile_part_fixture(3);
+        let main_components = ComponentCodingStyles {
+            components: main_count,
+            styles: core::array::from_fn(|index| raw_resolution_style(index as u8, index)),
+        };
+        for geometry in 0..243 {
+            let mut digits = geometry;
+            let lengths: [usize; 5] = core::array::from_fn(|_| {
+                let length = [0, 1, 3][digits % 3];
+                digits /= 3;
+                length
+            });
+            let payloads: Vec<_> = (0..lengths[4])
+                .map(|index| {
+                    let mut payload = raw_owned_tile_part_fixture(index);
+                    payload.tile_index = u16::MAX;
+                    payload.component_coding_styles.components =
+                        if index.is_multiple_of(2) { 0 } else { u16::MAX };
+                    payload.component_coding_styles.styles[MAX_COMPONENTS - 1] =
+                        raw_resolution_style(17, index + 31);
+                    payload
+                })
+                .collect();
+            for index in [0, 1, 2, usize::MAX] {
+                for pattern in 0..5 {
+                    let mut state = state([lengths[0], lengths[1], lengths[2], lengths[3], 0, 0]);
+                    for (slot, roi) in state.roi.iter_mut().enumerate() {
+                        *roi = if (pattern + slot).is_multiple_of(2) {
+                            None
+                        } else {
+                            Some(RoiShifts {
+                                shifts: core::array::from_fn(|shift| (shift + slot) as u8),
+                            })
+                        };
+                    }
+                    for part in &mut state.parts {
+                        *part = match pattern {
+                            0 => None,
+                            1 => Some(0),
+                            2 => Some(lengths[4].saturating_sub(1)),
+                            3 => Some(usize::MAX),
+                            _ => Some(index),
+                        };
+                    }
+                    let before = state.clone();
+                    let payloads_before = payloads.clone();
+                    let previous = before.roi.get(index).copied().flatten();
+                    let part = before.parts.get(index).copied().flatten();
+                    let expected =
+                        if index >= lengths[0] || part.is_some_and(|part| part >= lengths[4]) {
+                            Err(DecodeError::malformed(17, MalformedKind::InvalidTilePart))
+                        } else {
+                            Ok((
+                                previous,
+                                previous.unwrap_or(main.roi_shifts),
+                                before
+                                    .styles
+                                    .get(index)
+                                    .copied()
+                                    .flatten()
+                                    .unwrap_or(main.coding_style),
+                                before
+                                    .quantizations
+                                    .get(index)
+                                    .copied()
+                                    .flatten()
+                                    .unwrap_or(main.quantization),
+                                part.map_or(main_components, |part| {
+                                    payloads[part].component_coding_styles
+                                }),
+                            ))
+                        };
+                    let result = parser.select_inherited_tile_configuration(
+                        index,
+                        &main.roi_shifts,
+                        &main.coding_style,
+                        &main.quantization,
+                        &main_components,
+                        &state.roi,
+                        &state.styles,
+                        &state.quantizations,
+                        &state.parts,
+                        &payloads,
+                    );
+                    assert_eq!(
+                        result, expected,
+                        "geometry={lengths:?}, index={index}, pattern={pattern}"
+                    );
+                    if let Ok(value) = &result {
+                        fn copy_only<T: Copy>(_: &T) {}
+                        copy_only(value);
+                    }
+                    assert_eq!(state, before);
+                    assert_eq!(payloads, payloads_before);
+                    assert_eq!(parser.position, 17);
+                    assert_eq!(parser.work_units, u64::MAX);
+                    assert_eq!(parser.packet_length_bytes, 97);
+                    assert_eq!(parser.packet_lengths, 101);
+                    assert!(core::ptr::eq(parser.input.as_ptr(), input.as_ptr()));
+                    assert!(core::ptr::eq(parser.limits, &limits));
+                    cases += 1;
+                }
+            }
+        }
+    }
+    assert_eq!(cases, 9_720);
+}
+
+#[test]
+fn actual_inherited_selection_returns_independent_copy_of_every_physical_style() {
+    let limits = ResourceLimits::default();
+    let parser = new_parser(&[], &limits).unwrap();
+    let mut main = raw_owned_tile_part_fixture(0);
+    let mut payload = raw_owned_tile_part_fixture(3);
+    payload.component_coding_styles.components = 0;
+    payload.component_coding_styles.styles[MAX_COMPONENTS - 1] = raw_resolution_style(255, 31);
+    let state = state([1; 6]);
+    let selected = parser
+        .select_inherited_tile_configuration(
+            0,
+            &main.roi_shifts,
+            &main.coding_style,
+            &main.quantization,
+            &main.component_coding_styles,
+            &state.roi,
+            &state.styles,
+            &state.quantizations,
+            &[Some(0)],
+            core::slice::from_ref(&payload),
+        )
+        .unwrap();
+    let before = payload.component_coding_styles;
+    payload.component_coding_styles.styles[MAX_COMPONENTS - 1] = main.coding_style;
+    main.component_coding_styles.components = 17;
+    assert_ne!(payload.component_coding_styles, before);
+    assert_eq!(main.component_coding_styles.components, 17);
+    assert_eq!(selected.4, before);
+    assert_eq!(selected.4.components, 0);
+    assert_eq!(
+        selected.4.styles[MAX_COMPONENTS - 1].decomposition_levels,
+        255
+    );
+}
+
+#[test]
+fn actual_layout_inherits_latest_component_owner_not_tile_index_or_first_part() {
+    let first = [
+        segment(COD, &[0, 0, 0, 3, 0, 0, 2, 2, 0, 1]),
+        segment(QCD, &[0x40, 0]),
+    ];
+    let second = [
+        segment(COD, &[0, 0, 0, 4, 0, 0, 2, 2, 0, 1]),
+        segment(QCD, &[0x60, 0]),
+    ];
+    let mut bytes = two_part_codestream(&first, &second);
+    let starts: Vec<_> = bytes
+        .windows(2)
+        .enumerate()
+        .filter_map(|(offset, pair)| (pair == SOT.to_be_bytes()).then_some(offset))
+        .collect();
+    assert_eq!(starts.len(), 2);
+    for start in starts {
+        bytes[start + 11] = 3;
+    }
+    bytes.truncate(bytes.len() - 2);
+    bytes.extend(segment(SOT, &[0, 0, 0, 0, 0, 15, 2, 3]));
+    bytes.extend(SOD.to_be_bytes());
+    bytes.push(0);
+    bytes.extend(EOC.to_be_bytes());
+    let limits = ResourceLimits::default();
+    let layout = parse_layout(&bytes, &limits).unwrap();
+    assert_eq!(layout.tile_parts.len(), 3);
+    for (index, expected_layers, expected_guard) in [(0, 3, 2), (1, 4, 3), (2, 4, 3)] {
+        let payload = &layout.tile_parts[index];
+        assert_eq!(payload.tile_part_index, index as u8);
+        assert_eq!(payload.tile_part_count, 3);
+        assert_eq!(payload.coding_style.layers, expected_layers);
+        assert_eq!(
+            payload.component_coding_styles.style(0).unwrap().layers,
+            expected_layers
+        );
+        assert_eq!(payload.quantization.guard_bits, expected_guard);
+        assert_eq!(payload.data, &[0]);
+    }
+}
+
 #[derive(Clone, Debug, Eq, PartialEq)]
 struct State {
     roi: Vec<Option<RoiShifts>>,

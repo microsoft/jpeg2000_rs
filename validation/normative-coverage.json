@@ -4,6 +4,35 @@
   "scope": "Technical reference inventory; not exhaustive standards-clause coverage or a conformance claim.",
   "requirements": [
     {
+      "id": "part1-complete-native-inherited-tile-configuration-selection",
+      "topic": "Source-derived complete five-field Result for the actual copy-only inherited configuration selection. The ROI state lookup rejects a missing slot before other selection; None ROI uses main ROI. Missing/None default COD and QCD slots fall back to their main defaults. A missing/None style-part slot uses the entire raw main component-style owner; Some selects the complete physical owner at the real payload index and rejects an out-of-range part. Native selection does not impose a new payload tile-ID check, logical-count constraint, aligned vector geometry, normalization or successful-input premise. Every raw physical tail and immutable input/parser/limits/accounting frame is retained. The helper borrows all input owners and returns Copy-only fields. All existing owned Q/POC/MCT/extension clones and their owning locals stay in the original outer scope. This bounded selection is not complete owned inheritance, persistence/layout/main/public composition, normative fidelity, general erasure/lifetime/coverage or release qualification.",
+      "implementation_refs": [
+        {"path": "src/codestream/layout.rs", "symbol": "Parser::parse_layout"},
+        {"path": "src/codestream/persistent_tile_configuration.rs", "symbol": "Parser::select_inherited_tile_configuration"}
+      ],
+      "spec_refs": [
+        {"path": "specs/persistent_tile_configuration.rs", "symbol": "Part1PersistentTileSelection"},
+        {"path": "specs/persistent_tile_configuration.rs", "symbol": "Part1InheritedTileConfiguration"},
+        {"path": "specs/persistent_tile_configuration.rs", "symbol": "part1_select_inherited_tile_configuration"},
+        {"path": "specs/tile_part.rs", "symbol": "Part1TilePartPayload"}
+      ],
+      "contract_refs": [
+        {"path": "src/codestream/persistent_tile_configuration.rs", "symbol": "Parser::select_inherited_tile_configuration"}
+      ],
+      "proof_refs": [
+        {"path": "src/codestream/persistent_tile_configuration_proof_support.rs", "symbol": "persistent_tile_selection_view"},
+        {"path": "src/codestream/persistent_tile_configuration_proof_support.rs", "symbol": "inherited_tile_configuration_outcome"},
+        {"path": "src/codestream/persistent_tile_configuration_proof_support.rs", "symbol": "optional_roi_shifts_view"},
+        {"path": "src/codestream/tile_part_proof_support.rs", "symbol": "tile_part_payload_view"},
+        {"path": "src/codestream/proof_support.rs", "symbol": "component_style_owner_view"}
+      ],
+      "test_refs": [
+        {"path": "src/codestream/persistent_tile_configuration_tests.rs", "symbol": "actual_inherited_selection_preserves_raw_fallbacks_indexes_owners_and_frames"},
+        {"path": "src/codestream/persistent_tile_configuration_tests.rs", "symbol": "actual_inherited_selection_returns_independent_copy_of_every_physical_style"},
+        {"path": "src/codestream/persistent_tile_configuration_tests.rs", "symbol": "actual_layout_inherits_latest_component_owner_not_tile_index_or_first_part"}
+      ]
+    },
+    {
       "id": "part1-complete-native-persistent-tile-configuration-commit",
       "topic": "Source-derived complete Result and all six raw mutable persistent configuration frames at the actual layout commit. Full physical ROI equality precedes every slot bound; ROI, default COD, default QCD, source-derived style-owner payload index, complete component quantization clone and complete POC clone commit in original order. Unequal raw slice lengths, holes, logical/physical owner mismatches and tails remain unnormalized. Later errors retain every earlier store; this is not transactional. The helper borrows all six existing owners and the real returned tile-part payload; MCT/extensions moves, payload append and every owning local remain in the original outer scope. No runtime owner clone is introduced for proofs. This bounded commit does not establish selection/inheritance, complete persistent tile/layout/main/public composition, independently adjudicated normative correctness, general erasure/lifetime/coverage or release approval.",
       "implementation_refs": [

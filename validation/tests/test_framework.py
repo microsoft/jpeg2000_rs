@@ -1030,6 +1030,53 @@ class FrameworkTests(WorkingFiles):
             framework._RAW_TILE_HEADER_CONTRACTS, 8,
         )
 
+    def test_inventory_binds_inherited_configuration_complete_five_field_result(self):
+        self._assert_complete_packet_contract_bindings(
+            {"part1-complete-native-inherited-tile-configuration-selection"},
+            framework._INHERITED_TILE_CONFIGURATION_CONTRACTS, 1,
+        )
+
+    def test_inventory_keeps_inherited_selection_out_of_component_stage_relays(self):
+        for key in framework._INHERITED_TILE_CONFIGURATION_CONTRACTS:
+            self.assertNotIn(key, framework._COMPONENT_PRODUCER_RELAYS)
+
+    def test_inventory_requires_real_inherited_selection_inputs_at_layout_caller(self):
+        coverage = json.loads((framework.VALIDATION / "normative-coverage.json").read_text())
+        entry = copy.deepcopy(next(item for item in coverage["requirements"]
+                                   if item["id"] == "part1-complete-native-inherited-tile-configuration-selection"))
+        entry["implementation_refs"] = [
+            {"path": "src/codestream/layout.rs", "symbol": "Parser::parse_layout"},
+        ]
+        entry["proof_refs"] = entry["contract_refs"][:1]
+        data = dict(coverage, requirements=[entry])
+        source = framework.ROOT / "src/codestream/layout.rs"
+        original = source.read_text()
+        read_text = Path.read_text
+        start = original.index("parser.select_inherited_tile_configuration(")
+        end = original.index(")?;", start) + 3
+        call = original[start:end]
+        for before, after in (
+            ("select_inherited_tile_configuration(", "unlisted_selection("),
+            ("tile_index,", "unrelated_index,"),
+            ("&roi_shifts,", "&unrelated_roi,"),
+            ("&coding_style,", "&unrelated_style,"),
+            ("&quantization,", "&unrelated_quantization,"),
+            ("&component_coding_styles,", "&unrelated_owner,"),
+            ("&tile_roi_shifts,", "&unrelated_states,"),
+            ("&tile_component_style_parts,", "&unrelated_parts,"),
+            ("&tile_part_payloads,", "&unrelated_payloads,"),
+        ):
+            self.assertIn(before, call)
+            changed = original[:start] + call.replace(before, after, 1) + original[end:]
+            changed += "\nfn unrelated() { parser.select_inherited_tile_configuration(unrelated); }\n"
+
+            def altered(path, *args, **kwargs):
+                return changed if path == source else read_text(path, *args, **kwargs)
+
+            with self.subTest(detached=before), mock.patch.object(Path, "read_text", altered), \
+                    self.assertRaisesRegex(ValueError, "not used by claimed implementation"):
+                framework.validate_normative_coverage(data)
+
     def test_inventory_binds_persistent_configuration_all_six_raw_frames_and_roi_equality(self):
         self._assert_complete_packet_contract_bindings(
             {"part1-complete-native-persistent-tile-configuration-commit"},
