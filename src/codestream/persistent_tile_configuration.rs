@@ -1,16 +1,26 @@
-//! Borrow-only commits into the existing persistent tile configuration owners.
+//! Borrowed selection and commits for the existing persistent configuration owners.
 
 use super::{
-    CodingStyle, ComponentQuantizations, DecodeError, MalformedKind, Parser, ProgressionChanges,
-    Quantization, RoiShifts, TilePartPayload,
+    CodingStyle, ComponentCodingStyles, ComponentQuantizations, DecodeError, MalformedKind, Parser,
+    ProgressionChanges, Quantization, RoiShifts, TilePartPayload,
 };
 #[cfg(verus_keep_ghost)]
 use super::{
-    optional_roi_shifts_view, parsed_quantization_owner_view, persistent_tile_configuration_view,
-    quantization_owner_view, roi_shifts_view, tile_part_payload_view,
+    component_style_owner_view, inherited_tile_configuration_outcome, optional_roi_shifts_view,
+    parsed_coding_style_view, parsed_quantization_owner_view, persistent_tile_configuration_view,
+    persistent_tile_selection_view, quantization_owner_view, quantization_view, roi_shifts_view,
+    tile_part_payload_view,
 };
 #[cfg(verus_keep_ghost)]
 use vstd::prelude::*;
+
+pub(super) type InheritedTileConfiguration = (
+    Option<RoiShifts>,
+    RoiShifts,
+    CodingStyle,
+    Quantization,
+    ComponentCodingStyles,
+);
 
 impl Parser<'_> {
     #[inline]
@@ -117,5 +127,76 @@ impl Parser<'_> {
             )? =
             Some(payload.progression_changes.clone());
         Ok(())
+    }
+
+    #[inline]
+    #[allow(clippy::too_many_arguments)]
+    #[cfg_attr(verus_keep_ghost, verifier::spinoff_prover)]
+    #[cfg_attr(verus_keep_ghost, verus_spec(result =>
+        ensures inherited_tile_configuration_outcome(result)
+            == crate::specs::part1_select_inherited_tile_configuration(
+                self.position, index, roi_shifts_view(main_roi),
+                parsed_coding_style_view(*main_style), quantization_view(main_quantization),
+                component_style_owner_view(main_components),
+                persistent_tile_selection_view(roi, styles, quantizations, style_parts, payloads)),
+    ))]
+    pub(super) fn select_inherited_tile_configuration(
+        &self,
+        index: usize,
+        main_roi: &RoiShifts,
+        main_style: &CodingStyle,
+        main_quantization: &Quantization,
+        main_components: &ComponentCodingStyles,
+        roi: &[Option<RoiShifts>],
+        styles: &[Option<CodingStyle>],
+        quantizations: &[Option<Quantization>],
+        style_parts: &[Option<usize>],
+        payloads: &[TilePartPayload<'_>],
+    ) -> Result<InheritedTileConfiguration, DecodeError> {
+        #[cfg(verus_keep_ghost)]
+        proof! {
+            reveal(inherited_tile_configuration_outcome);
+            reveal(persistent_tile_selection_view);
+            reveal(optional_roi_shifts_view);
+            reveal(tile_part_payload_view);
+            reveal(crate::specs::part1_select_inherited_tile_configuration);
+        }
+        let previous_roi_shifts = match roi.get(index) {
+            Some(state) => *state,
+            None => return Err(self.malformed_here(MalformedKind::InvalidTilePart)),
+        };
+        let inherited_roi_shifts = match previous_roi_shifts {
+            Some(shifts) => shifts,
+            None => *main_roi,
+        };
+        let inherited_default_style = match styles.get(index) {
+            Some(Some(style)) => *style,
+            _ => *main_style,
+        };
+        let inherited_default_quantization = match quantizations.get(index) {
+            Some(Some(value)) => *value,
+            _ => *main_quantization,
+        };
+        let inherited_component_styles = match style_parts.get(index) {
+            Some(Some(part)) => {
+                payloads
+                    .get(*part)
+                    .ok_or_else(
+                        #[cfg_attr(verus_keep_ghost, verus_spec(error: DecodeError =>
+                            ensures error == crate::specs::part1_codestream_malformed(self.position, MalformedKind::InvalidTilePart),
+                        ))]
+                        || self.malformed_here(MalformedKind::InvalidTilePart),
+                    )?
+                    .component_coding_styles
+            }
+            _ => *main_components,
+        };
+        Ok((
+            previous_roi_shifts,
+            inherited_roi_shifts,
+            inherited_default_style,
+            inherited_default_quantization,
+            inherited_component_styles,
+        ))
     }
 }

@@ -1,4 +1,4 @@
-//! Ordered persistent configuration commits, including partial error frames.
+//! Raw persistent configuration selection and ordered partial commit frames.
 
 use super::*;
 
@@ -16,6 +16,45 @@ pub(crate) type Part1PersistentTileConfiguration = (
     Seq<Option<(u16, Seq<Part2Quantization>)>>,
     Seq<Option<Seq<crate::codestream::ProgressionChange>>>,
 );
+
+pub(crate) type Part1PersistentTileSelection = (
+    Seq<Option<Seq<u8>>>, Seq<Option<Part1ParsedCodingStyle>>,
+    Seq<Option<Part2Quantization>>, Seq<Option<usize>>, Seq<Part1TilePartPayload>,
+);
+
+pub(crate) type Part1InheritedTileConfiguration = (
+    Option<Seq<u8>>, Seq<u8>, Part1ParsedCodingStyle, Part2Quantization,
+    (u16, Seq<Part1ParsedCodingStyle>),
+);
+
+#[verifier::opaque]
+pub(crate) open spec fn part1_select_inherited_tile_configuration(
+    position: usize, index: usize, main_roi: Seq<u8>, main_style: Part1ParsedCodingStyle,
+    main_quantization: Part2Quantization, main_components: (u16, Seq<Part1ParsedCodingStyle>),
+    state: Part1PersistentTileSelection,
+) -> Result<Part1InheritedTileConfiguration, crate::DecodeError> {
+    if index as int >= state.0.len() {
+        Err(part1_codestream_malformed(position, crate::MalformedKind::InvalidTilePart))
+    } else {
+        let previous = state.0[index as int];
+        let roi = match previous { Some(value) => value, None => main_roi };
+        let style = if (index as int) < state.1.len() {
+            match state.1[index as int] { Some(value) => value, None => main_style }
+        } else { main_style };
+        let quantization = if (index as int) < state.2.len() {
+            match state.2[index as int] { Some(value) => value, None => main_quantization }
+        } else { main_quantization };
+        let part = if (index as int) < state.3.len() { state.3[index as int] } else { None };
+        match part {
+            None => Ok((previous, roi, style, quantization, main_components)),
+            Some(part) => if part as int >= state.4.len() {
+                Err(part1_codestream_malformed(position, crate::MalformedKind::InvalidTilePart))
+            } else {
+                Ok((previous, roi, style, quantization, state.4[part as int].component_coding_styles))
+            },
+        }
+    }
+}
 
 #[verifier::opaque]
 pub(crate) open spec fn part1_persistent_tile_configuration_prefix(

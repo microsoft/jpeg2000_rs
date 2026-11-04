@@ -179,6 +179,26 @@ technical candidate only: parent-owned record, review, CI, guarded integration
 and actual-main acceptance remain separate. No complete parsing, pixels,
 lifetime verification, normative conformance or publication claim follows.
 
+## Copy-only inherited tile configuration selection
+
+The actual layout caller uses `Parser::select_inherited_tile_configuration`
+to select previous/current ROI, default style, default quantization and the
+complete physical component-style owner. Its total Result covers raw unequal
+state lengths, None fallbacks, invalid payload indexes, arbitrary logical
+counts and every unused tail. ROI lookup rejects first; style/quantization
+lookups retain their original main-default fallback. The style-part index
+selects the actual previous payload position, not its tile ID. No new tile-ID
+check, normalization or successful-input premise is introduced.
+
+All inputs are borrowed and all five returned fields are Copy-only.
+The existing owned quantization, progression, MCT and extension clones remain
+in the original outer scope. Source extraction and native retention require
+native evidence; this is not general cfg/erasure or lifetime qualification.
+
+This bounded selection does not complete owned inheritance, the persistent
+tile fold, main-header/layout/public image composition, normative fidelity,
+source/functional coverage or release qualification.
+
 ## Persistent tile configuration commit
 
 The actual layout caller uses one borrow-only
