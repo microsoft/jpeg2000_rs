@@ -1492,15 +1492,37 @@ _MCT_PARAMETER_CLONE_CONTRACTS = {
 
 _MCT_PARAMETER_CLONE_CONSUMERS = (
     ("src/codestream/layout.rs", "Parser::parse_layout",
-     r"let\s+inherited_mct_parameters\s*=\s*match\s+"
+     r"(?:let\s+inherited_mct_parameters\s*=\s*match\s+"
      + _coverage_call("tile_mct_parameters.get", "tile_index")
      + r"\s*\{\s*Some\s*\(\s*Some\s*\(\s*parameters\s*\)\s*\)\s*=>\s*"
      + _coverage_call("parameters.clone") + r"\s*,\s*_\s*=>\s*"
-     + _coverage_call("main_mct_parameters.clone") + r"\s*,?\s*\}\s*;"),
+     + _coverage_call("main_mct_parameters.clone") + r"\s*,?\s*\}\s*;"
+     + r"|let\s+inherited_mct_parameters\s*=\s*"
+     + _coverage_call("inherited_tile_owner", "tile_index",
+                      r"&\s*main_mct_parameters", r"&\s*tile_mct_parameters\s*,?")
+     + r"\s*\.\s*" + _coverage_call("clone") + r"\s*;)"),
     ("src/codestream/mct.rs", "MctParameters::clone",
      _coverage_call("Clone::clone", r"&\s*self\.records")),
     ("src/codestream/mct.rs", "MctRecord::clone",
      _coverage_call("Clone::clone", r"&\s*self\.collections")),
+)
+
+_OWNED_TILE_INHERITANCE_CONTRACTS = {
+    ("src/codestream/persistent_tile_configuration.rs", "inherited_tile_owner"): (
+        "part1_inherited_tile_owner", r"\*\s*\1", None,
+        r"index\s*,\s*\*\s*main\s*,\s*states\s*@",
+    ),
+}
+
+_OWNED_TILE_INHERITANCE_FIELDS = (
+    ("inherited_component_quantizations", "component_quantizations",
+     "tile_component_quantizations", "quantization_owner_view"),
+    ("inherited_progression_changes", "progression_changes",
+     "tile_progression_changes", "progression_changes_view"),
+    ("inherited_mct_parameters", "main_mct_parameters",
+     "tile_mct_parameters", "mct_parameter_copy_view"),
+    ("inherited_part2_extensions", "part2_extensions",
+     "tile_part2_extensions", "owned_extensions_view"),
 )
 
 _COMPONENT_PRODUCER_RELAYS = {
@@ -2538,6 +2560,47 @@ def validate_normative_coverage(
     ids: set[str] = set()
     contract_functions: set[tuple[str, str]] = set()
     for entry in coverage["requirements"]:
+        if entry["id"] == "part1-complete-native-owned-tile-inheritance":
+            layout = {"path": "src/codestream/layout.rs", "symbol": "Parser::parse_layout"}
+            if layout not in entry["implementation_refs"]:
+                raise ValueError("owned inheritance not used by claimed implementation: actual layout required")
+            layout_path = (ROOT / layout["path"]).resolve()
+            body = _coverage_function_body(source_text(layout_path), function_header(layout_path, layout["symbol"]))
+            if body is None or len(re.findall(r"\binherited_tile_owner\s*\(", body)) != 4:
+                raise ValueError("owned inheritance requires all four actual borrowed choices")
+            previous_end = 0
+            checkpoints = []
+            for local, main, states, view in _OWNED_TILE_INHERITANCE_FIELDS:
+                pattern = (
+                    r"\blet\s+" + local + r"\s*=\s*"
+                    + _coverage_call("inherited_tile_owner", "tile_index",
+                                     r"&\s*" + main, r"&\s*" + states + r"\s*,?")
+                    + r"\s*\.\s*" + _coverage_call("clone") + r"\s*;"
+                )
+                match = re.search(pattern, body)
+                if match is None or match.start() < previous_end:
+                    raise ValueError(f"owned inheritance clone/source/order mismatch: {local}")
+                previous_end = match.end()
+                checkpoints.append(_coverage_call(
+                    "assert",
+                    _coverage_call(view, r"&\s*" + local) + r"\s*==\s*"
+                    + _coverage_call(view, r"&\s*" + _coverage_call(
+                        "crate::specs::part1_inherited_tile_owner", "tile_index", main, states + r"\s*@",
+                    )),
+                ) + r"\s*;")
+            handoff = re.search(
+                r"\blet\s*\(\s*payload\s*,\s*tile_parameters\s*,\s*tile_extensions\s*\)\s*=\s*"
+                r"parser\s*\.\s*read_tile_part\s*\(", body,
+            )
+            proof = (
+                r"\s*#\[\s*cfg\s*\(\s*verus_keep_ghost\s*\)\s*\]\s*proof!\s*\{\s*"
+                + _coverage_call("reveal", r"crate::specs::part1_inherited_tile_owner") + r"\s*;\s*"
+                + r"\s*".join(checkpoints) + r"\s*\}\s*"
+            )
+            if handoff is None or handoff.start() < previous_end or re.fullmatch(
+                proof, body[previous_end:handoff.start()],
+            ) is None:
+                raise ValueError("owned inheritance requires four unconditional complete cloned-view checkpoints")
         if entry["id"] == "part1-complete-native-mct-parameter-clone":
             layout = {"path": "src/codestream/layout.rs", "symbol": "Parser::parse_layout"}
             if layout not in entry["implementation_refs"]:
@@ -3080,6 +3143,7 @@ def validate_normative_coverage(
                 or _PERSISTENT_TILE_CONFIGURATION_CONTRACTS.get((reference["path"], reference["symbol"]))
                 or _INHERITED_TILE_CONFIGURATION_CONTRACTS.get((reference["path"], reference["symbol"]))
                 or _MCT_PARAMETER_CLONE_CONTRACTS.get((reference["path"], reference["symbol"]))
+                or _OWNED_TILE_INHERITANCE_CONTRACTS.get((reference["path"], reference["symbol"]))
                 or _CODING_STYLE_BYTES_CONTRACTS.get((reference["path"], reference["symbol"]))
                 or _COMPONENT_STYLE_BYTES_CONTRACTS.get((reference["path"], reference["symbol"]))
                 or _QUANTIZATION_BYTES_CONTRACTS.get((reference["path"], reference["symbol"]))

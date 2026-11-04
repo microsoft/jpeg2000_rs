@@ -1030,6 +1030,112 @@ class FrameworkTests(WorkingFiles):
             framework._RAW_TILE_HEADER_CONTRACTS, 8,
         )
 
+    def test_inventory_binds_total_borrowed_owned_inheritance_choice(self):
+        self._assert_complete_packet_contract_bindings(
+            {"part1-complete-native-owned-tile-inheritance"},
+            framework._OWNED_TILE_INHERITANCE_CONTRACTS, 1,
+        )
+
+    def test_inventory_requires_all_four_ordered_clones_and_complete_checkpoints(self):
+        coverage = json.loads((framework.VALIDATION / "normative-coverage.json").read_text())
+        entry = copy.deepcopy(next(item for item in coverage["requirements"]
+                                   if item["id"] == "part1-complete-native-owned-tile-inheritance"))
+        data = dict(coverage, requirements=[entry])
+        source = framework.ROOT / "src/codestream/layout.rs"
+        original = source.read_text()
+        read_text = Path.read_text
+        start = original.index("let inherited_component_quantizations")
+        handoff = re.search(
+            r"\blet\s*\(\s*payload\s*,\s*tile_parameters\s*,\s*tile_extensions\s*\)",
+            original[start:],
+        )
+        self.assertIsNotNone(handoff)
+        end = start + handoff.start()
+        block = original[start:end]
+        mutations = [block.replace("inherited_tile_owner(", "unlisted_owner(", 1)]
+        for local, main, states, view in framework._OWNED_TILE_INHERITANCE_FIELDS:
+            mutations.extend((
+                re.sub(r"&\s*" + re.escape(main) + r"\b", "&unrelated_default", block, count=1),
+                re.sub(r"&\s*" + re.escape(states) + r"\b", "&unrelated_states", block, count=1),
+                re.sub(framework._coverage_call(view, r"&\s*" + local),
+                       view + "(&unrelated_result)", block, count=1),
+            ))
+        mutations.append(block.replace("proof! {", "if false { proof! {", 1) + "}\n")
+        for index, changed in enumerate(mutations):
+            self.assertNotEqual(changed, block)
+            modified = original[:start] + changed + original[end:]
+            modified += "\nfn unrelated() {\n" + block + "\n}\n"
+
+            def altered(path, *args, **kwargs):
+                return modified if path == source else read_text(path, *args, **kwargs)
+
+            with self.subTest(mutation=index), mock.patch.object(Path, "read_text", altered), \
+                    self.assertRaisesRegex(ValueError, "owned inheritance"):
+                framework.validate_normative_coverage(data)
+
+    def test_inventory_owned_inheritance_reuses_call_local_indexes_and_not_component_relays(self):
+        coverage = json.loads((framework.VALIDATION / "normative-coverage.json").read_text())
+        entry = copy.deepcopy(next(item for item in coverage["requirements"]
+                                   if item["id"] == "part1-complete-native-owned-tile-inheritance"))
+        data = dict(coverage, requirements=[entry])
+        paths = {
+            (framework.ROOT / "src/codestream/layout.rs").resolve(),
+            (framework.ROOT / "src/codestream/persistent_tile_configuration.rs").resolve(),
+        }
+        counts = dict.fromkeys(paths, 0)
+        read_text = Path.read_text
+
+        def counted(path, *args, **kwargs):
+            if path in counts:
+                counts[path] += 1
+            return read_text(path, *args, **kwargs)
+
+        with mock.patch.object(Path, "read_text", counted):
+            self.assertEqual(framework.validate_normative_coverage(data)["status"], "passed")
+            self.assertEqual(counts, dict.fromkeys(paths, 1))
+            self.assertEqual(framework.validate_normative_coverage(data)["status"], "passed")
+            self.assertEqual(counts, dict.fromkeys(paths, 2))
+        for key in framework._OWNED_TILE_INHERITANCE_CONTRACTS:
+            self.assertNotIn(key, framework._COMPONENT_PRODUCER_RELAYS)
+
+    def test_inventory_mct_clone_edge_preserves_original_and_borrowed_choice_forms(self):
+        coverage = json.loads((framework.VALIDATION / "normative-coverage.json").read_text())
+        entry = copy.deepcopy(next(item for item in coverage["requirements"]
+                                   if item["id"] == "part1-complete-native-mct-parameter-clone"))
+        data = dict(coverage, requirements=[entry])
+        source = framework.ROOT / "src/codestream/layout.rs"
+        original = source.read_text()
+        pattern = (
+            r"\blet\s+inherited_mct_parameters\s*=\s*"
+            + framework._coverage_call("inherited_tile_owner", "tile_index",
+                                       r"&\s*main_mct_parameters", r"&\s*tile_mct_parameters\s*,?")
+            + r"\s*\.\s*" + framework._coverage_call("clone") + r"\s*;"
+        )
+        match = re.search(pattern, original)
+        self.assertIsNotNone(match)
+        legacy = (
+            "let inherited_mct_parameters = match tile_mct_parameters.get(tile_index) {"
+            " Some(Some(parameters)) => parameters.clone(),"
+            " _ => main_mct_parameters.clone(), };"
+        )
+        read_text = Path.read_text
+        self.assertEqual(framework.validate_normative_coverage(data)["status"], "passed")
+        for before, after in (("", ""), ("parameters.clone()", "parameters.unlisted()"),
+                              ("main_mct_parameters.clone()", "main_mct_parameters.unlisted()")):
+            block = legacy if not before else legacy.replace(before, after, 1)
+            changed = original[:match.start()] + block + original[match.end():]
+            changed += "\nfn unrelated() { parameters.clone(); main_mct_parameters.clone(); }\n"
+
+            def altered(path, *args, **kwargs):
+                return changed if path == source else read_text(path, *args, **kwargs)
+
+            with self.subTest(legacy_edge=before), mock.patch.object(Path, "read_text", altered):
+                if before:
+                    with self.assertRaisesRegex(ValueError, "typed edge"):
+                        framework.validate_normative_coverage(data)
+                else:
+                    self.assertEqual(framework.validate_normative_coverage(data)["status"], "passed")
+
     def test_inventory_binds_complete_mct_parameter_record_and_reference_copies(self):
         self._assert_complete_packet_contract_bindings(
             {"part1-complete-native-mct-parameter-clone"},
@@ -1070,8 +1176,8 @@ class FrameworkTests(WorkingFiles):
         data = dict(coverage, requirements=[entry])
         read_text = Path.read_text
         for path, before, after in (
-            ("src/codestream/layout.rs", "parameters.clone()", "parameters.unlisted_clone()"),
-            ("src/codestream/layout.rs", "main_mct_parameters.clone()", "main_mct_parameters.unlisted_clone()"),
+            ("src/codestream/layout.rs", "&main_mct_parameters,", "&unrelated_mct_default,"),
+            ("src/codestream/layout.rs", "&tile_mct_parameters,", "&unrelated_mct_states,"),
             ("src/codestream/mct.rs", "Clone::clone(&self.records)", "unrelated_records()"),
             ("src/codestream/mct.rs", "Clone::clone(&self.collections)", "unrelated_collections()"),
         ):

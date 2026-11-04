@@ -5,6 +5,8 @@ use crate::tier1::SubbandOrientation;
 
 #[path = "mct_parameter_clone_tests.rs"]
 mod mct_parameter_clone;
+#[path = "owned_tile_inheritance_tests.rs"]
+mod owned_tile_inheritance;
 
 #[path = "persistent_tile_configuration_tests.rs"]
 mod persistent_tile_configuration;
