@@ -179,6 +179,85 @@ technical candidate only: parent-owned record, review, CI, guarded integration
 and actual-main acceptance remain separate. No complete parsing, pixels,
 lifetime verification, normative conformance or publication claim follows.
 
+## Complete raw tile-header traversal
+
+The actual tile-part reader calls `Parser::read_tile_header` to initialize and
+consume the sole raw header accumulator through SOD. The producer starts from
+real bytes and raw inherited style, ROI, progression, MCT and extension owners;
+it returns the complete owned accumulator or the first typed error together
+with the complete reader relation. The mutable traversal and dispatch contracts
+also retain every raw field and partial update on failure: all COC/QCC slots,
+style/ROI tails and seen flags, packet counters and fragments, pending/completed
+MCT/MCC owners, and extension metadata/work accounting.
+
+The existing raw admission and component-slot producers are reused rather than
+duplicating their algorithms. COD parsing remains in wire order, before later
+component finalization. Seen flags commit before the same fallible parsers as
+before. Header end is assigned from the pre-admission position only after SOD
+succeeds, matching the current reader; an SOD error leaves the new private
+accumulator's prior header-end field unchanged. The older local frontier's
+pre-consumption header-end commit is deliberately not reused or relabeled.
+Pending MCT validation and every component/progression/MCT/data/metadata
+finalizer remain after header production in the actual reader.
+The completed MCT/MCC ID vectors remain named bindings in that outer reader
+through finalization, rather than being dropped by a wildcard destructure
+immediately after header parsing. Inventory controls reject discarded or
+explicitly early-dropped owners; matched-parent production MIR records retain
+the native drop-scope comparison.
+
+The existing ROI setter has an additive complete physical-owner frame contract,
+with no native logic change. Native controls exercise every marker word,
+raw error/flag/prefix states, inherited owners, segmented MCT replacements and
+both tile-data finalizer paths. Exact inventory contracts bind initialization,
+owned return, all mutable stages and the real caller chain. This source proof
+does not independently certify marker semantics, complete the enclosing
+tile-part/layout/public image composition, restore lifetime analysis, measure
+coverage or authorize publication.
+
+## Raw tile-header segment admission
+
+`Parser::read_tile_header_segment` is the sole raw admission prefix of the
+actual tile-part reader. It peeks first, consumes SOD through the existing
+standalone reader and returns `None`, rejects tile boundaries before reading a
+segment, then requires a known and tile-allowed marker after real segment
+consumption. Its total Result/full-reader contract preserves every borrowed
+payload byte and all input, limits, cursor, work and packet-accounting fields.
+Cursor and work commits before later work-limit or marker errors are retained.
+
+The additive model composes unchanged reader and marker models. The existing
+optional-segment projection is reused despite its historical main-header name.
+The caller records the header end from its pre-admission position, excluding
+SOD from PLT/PPT metadata windows. COD parsing remains in its original dispatch
+position; functional-marker flags, payload dispatch, progress checks and later
+configuration retain their original ordering.
+
+Native structural controls exercise every marker/length word, arbitrary raw
+reader states, first-error and partial-commit frontiers, and real dispatch with
+borrowed PLT/PPT windows. Inventory controls bind the complete Result/frame and
+actual named caller. This is not a proof of the complete dispatch loop, raw
+layout/public decoding, independent standards fidelity, lifetime analysis,
+coverage measurement or release readiness.
+
+## Shared raw main/tile component marker admission
+
+`Parser::record_component_segment` is the sole executing slot-admission body
+used by all four main/tile COC/QCC branches. Its complete Result/frame contract
+starts from the raw segment, passed component count and physical64-slot owner.
+Index parsing precedes physical bounds admission, which precedes duplicate
+rejection and the single borrowed-segment commit. Every failure preserves all
+slots, including earlier commits and unused tails. The immutable parser retains
+its input, limits, cursor, work and packet accounting; no clone, allocation,
+normalization or prepared parse result is introduced.
+
+The additive model reuses the existing component-index parser without changing
+its one/two-byte threshold or error meanings. Payload validation still occurs
+later in the original finalizers. Native structural regressions exercise raw
+indexes, complete owners and pointer identity, first-error precedence and all
+four real reader paths. Inventory controls bind each caller's component count,
+error kind and COC/QCC owner independently. These are source/model checks, not
+independently adjudicated standards rules, complete header/configuration/public
+decoder proofs, lifetime analysis, coverage measurement or release approval.
+
 ## Shared main/tile component style override frames
 
 `Parser::apply_component_style_overrides` is the sole executing COC loop used

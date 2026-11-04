@@ -1,14 +1,13 @@
 //! Tile-part header/payload parsing and owned tile-part construction.
 
 use super::coding_style::new_component_coding_styles;
-use super::mct_resolution::{replace_mct_array, replace_mct_record};
 use super::quantization::new_component_quantizations;
-use super::reader::{is_allowed_tile_header, is_known_segment_marker, read_u16, read_u32};
+use super::reader::{read_u16, read_u32};
+use super::tile_header_traversal::TileHeaderAccumulator;
 use super::{
-    ADS, ATK, CBD, COC, COD, COM, CodingStyle, ComponentCodingStyles, ComponentQuantizations, DFS,
-    DecodeError, MAX_COMPONENTS, MCC, MCO, MCT, MalformedKind, MctParameters, NLT, PLT, POC, PPT,
-    PackedPacketHeaders, PacketLengths, Parser, Part2Extensions, ProgressionChanges, QCC, QCD,
-    Quantization, RGN, RoiShifts, SOD, SOT, TilePart, TilePartPayload,
+    CodingStyle, ComponentCodingStyles, ComponentQuantizations, DecodeError, MalformedKind,
+    MctParameters, PackedPacketHeaders, PacketLengths, Parser, Part2Extensions, ProgressionChanges,
+    Quantization, RoiShifts, SOT, TilePart, TilePartPayload,
 };
 #[cfg(verus_keep_ghost)]
 use super::{
@@ -201,222 +200,48 @@ impl<'a> Parser<'a> {
         inherited_quantizations: ComponentQuantizations,
         inherited_roi_shifts: RoiShifts,
         inherited_progression_changes: ProgressionChanges,
-        mut mct_parameters: MctParameters,
-        mut part2_extensions: Part2Extensions,
+        mct_parameters: MctParameters,
+        part2_extensions: Part2Extensions,
         components: u16,
         main_packet_lengths: PacketLengths<'a>,
         main_packed_packet_headers: PackedPacketHeaders<'a>,
     ) -> Result<(TilePartPayload<'a>, MctParameters, Part2Extensions), DecodeError> {
-        let tile_header_start = self.position;
-        let tile_header_end;
-        let mut tile_coding_style = default_parameters.0;
-        let mut tile_cod_seen = false;
-        let mut qcd_segment = None;
-        let mut coc_segments = [None; MAX_COMPONENTS];
-        let mut qcc_segments = [None; MAX_COMPONENTS];
-        let mut tile_roi_shifts = inherited_roi_shifts;
-        let mut roi_seen = [false; MAX_COMPONENTS];
-        let mut tile_rgn_seen = false;
-        let mut has_functional_header_marker = false;
-        let mut plt_seen = false;
-        let mut next_plt_index = 0_u16;
-        let mut plt_packet_count = 0_u64;
-        let mut plt_encoded_bytes = 0_u64;
-        let mut plt_payload_bytes = 0_u64;
-        let mut ppt_bytes = Vec::new();
-        let mut next_ppt_index = 0_u16;
-        let mut ppt_fragments = 0_u16;
-        let mut progression_changes = inherited_progression_changes;
-        let mut poc_seen = false;
-        let mut tile_mco_seen = false;
-        let mut pending_mct = Vec::new();
-        let mut completed_mct = Vec::new();
-        let mut pending_mcc = Vec::new();
-        let mut completed_mcc = Vec::new();
-        let input_length = self.input.len();
-        #[cfg_attr(
-            verus_keep_ghost,
-            verus_spec(decreases input_length as int - self.position as int,)
-        )]
-        loop {
-            let previous_position = self.position;
-            match self.peek_marker()? {
-                SOD => {
-                    tile_header_end = self.position;
-                    self.expect_standalone(SOD)?;
-                    break;
-                }
-                marker if crate::refinement::tile_header_boundary(marker) => {
-                    return Err(self.malformed_here(MalformedKind::InvalidMarkerOrder));
-                }
-                _ => {
-                    let segment = self.read_segment()?;
-                    if !is_known_segment_marker(segment.marker) {
-                        return Err(DecodeError::malformed(
-                            self.offset(segment.offset),
-                            MalformedKind::InvalidMarker,
-                        ));
-                    }
-                    if !is_allowed_tile_header(segment.marker) {
-                        return Err(DecodeError::malformed(
-                            self.offset(segment.offset),
-                            MalformedKind::InvalidMarkerOrder,
-                        ));
-                    }
-                    if segment.marker != COM && segment.marker != PLT {
-                        has_functional_header_marker = true;
-                    }
-                    if segment.marker == COD {
-                        if tile_cod_seen {
-                            return Err(DecodeError::malformed(
-                                self.offset(segment.offset),
-                                MalformedKind::InvalidMarkerOrder,
-                            ));
-                        }
-                        tile_cod_seen = true;
-                        tile_coding_style = self.parse_cod(segment)?;
-                    } else if segment.marker == COC {
-                        let (component, _) = self.parse_component_index(
-                            segment,
-                            components,
-                            MalformedKind::InvalidCodingStyle,
-                        )?;
-                        let slot =
-                            coc_segments
-                                .get_mut(usize::from(component))
-                                .ok_or_else(|| {
-                                    DecodeError::malformed(
-                                        self.offset(segment.offset),
-                                        MalformedKind::InvalidCodingStyle,
-                                    )
-                                })?;
-                        if slot.is_some() {
-                            return Err(DecodeError::malformed(
-                                self.offset(segment.offset),
-                                MalformedKind::InvalidMarkerOrder,
-                            ));
-                        }
-                        *slot = Some(segment);
-                    } else if segment.marker == QCD {
-                        if qcd_segment.is_some() {
-                            return Err(DecodeError::malformed(
-                                self.offset(segment.offset),
-                                MalformedKind::InvalidMarkerOrder,
-                            ));
-                        }
-                        qcd_segment = Some(segment);
-                    } else if segment.marker == QCC {
-                        let (component, _) = self.parse_component_index(
-                            segment,
-                            components,
-                            MalformedKind::InvalidQuantization,
-                        )?;
-                        let slot =
-                            qcc_segments
-                                .get_mut(usize::from(component))
-                                .ok_or_else(|| {
-                                    DecodeError::malformed(
-                                        self.offset(segment.offset),
-                                        MalformedKind::InvalidQuantization,
-                                    )
-                                })?;
-                        if slot.is_some() {
-                            return Err(DecodeError::malformed(
-                                self.offset(segment.offset),
-                                MalformedKind::InvalidMarkerOrder,
-                            ));
-                        }
-                        *slot = Some(segment);
-                    } else if segment.marker == RGN {
-                        let (component, shift) = self.parse_rgn(segment, components)?;
-                        let index = usize::from(component);
-                        if index >= roi_seen.len() || roi_seen[index] {
-                            return Err(DecodeError::malformed(
-                                self.offset(segment.offset),
-                                MalformedKind::InvalidMarkerOrder,
-                            ));
-                        }
-                        roi_seen[index] = true;
-                        tile_rgn_seen = true;
-                        tile_roi_shifts.set(component, shift)?;
-                    } else if segment.marker == MCT {
-                        if let Some(array) = self.consume_mct_fragment(
-                            segment,
-                            &mut pending_mct,
-                            &mut completed_mct,
-                        )? {
-                            replace_mct_array(&mut mct_parameters.arrays, array);
-                        }
-                    } else if segment.marker == MCC {
-                        if let Some(record) = self.consume_mcc_fragment(
-                            segment,
-                            components,
-                            &mut pending_mcc,
-                            &mut completed_mcc,
-                        )? {
-                            replace_mct_record(&mut mct_parameters.records, record);
-                        }
-                    } else if segment.marker == MCO {
-                        if tile_mco_seen {
-                            return Err(DecodeError::malformed(
-                                self.offset(segment.offset),
-                                MalformedKind::InvalidMarkerOrder,
-                            ));
-                        }
-                        tile_mco_seen = true;
-                        mct_parameters.order = self.parse_mco(segment)?;
-                    } else if segment.marker == PLT {
-                        self.parse_plt(
-                            segment,
-                            main_packet_lengths,
-                            &mut next_plt_index,
-                            &mut plt_seen,
-                            &mut plt_packet_count,
-                            &mut plt_encoded_bytes,
-                            &mut plt_payload_bytes,
-                        )?;
-                    } else if segment.marker == PPT {
-                        self.parse_ppt(
-                            segment,
-                            main_packed_packet_headers,
-                            &mut next_ppt_index,
-                            &mut ppt_fragments,
-                            &mut ppt_bytes,
-                        )?;
-                    } else if segment.marker == POC {
-                        if poc_seen || tile_part.tile_part_index != 0 {
-                            return Err(DecodeError::malformed(
-                                self.offset(segment.offset),
-                                MalformedKind::InvalidMarkerOrder,
-                            ));
-                        }
-                        poc_seen = true;
-                        progression_changes = self.parse_poc(segment, components)?;
-                    } else if segment.marker == DFS {
-                        self.parse_dfs(segment, &mut part2_extensions)?;
-                    } else if segment.marker == ADS {
-                        self.parse_ads(segment, &mut part2_extensions)?;
-                    } else if segment.marker == NLT {
-                        self.parse_nlt(segment, components, &mut part2_extensions)?;
-                    } else if segment.marker == CBD {
-                        return Err(DecodeError::malformed(
-                            self.offset(segment.offset),
-                            MalformedKind::InvalidMarkerOrder,
-                        ));
-                    } else if segment.marker == ATK {
-                        self.parse_atk(segment, &mut part2_extensions)?;
-                    } else if segment.marker != 0xff64 {
-                        return Err(DecodeError::malformed(
-                            self.offset(segment.offset),
-                            MalformedKind::InvalidMarker,
-                        ));
-                    }
-                }
-            }
-            if !crate::refinement::parser_progress(previous_position, self.position, input_length) {
-                return Err(self.malformed_here(MalformedKind::InvalidTilePart));
-            }
-        }
+        let TileHeaderAccumulator {
+            tile_header_start,
+            tile_header_end,
+            tile_coding_style,
+            tile_cod_seen,
+            qcd_segment,
+            coc_segments,
+            qcc_segments,
+            tile_roi_shifts,
+            tile_rgn_seen,
+            has_functional_header_marker,
+            plt_seen,
+            plt_packet_count,
+            plt_encoded_bytes,
+            plt_payload_bytes,
+            ppt_bytes,
+            ppt_fragments,
+            progression_changes,
+            mct_parameters,
+            pending_mct,
+            completed_mct: _completed_mct,
+            pending_mcc,
+            completed_mcc: _completed_mcc,
+            part2_extensions,
+            ..
+        } = self.read_tile_header(
+            default_parameters.0,
+            inherited_roi_shifts,
+            inherited_progression_changes,
+            mct_parameters,
+            part2_extensions,
+            components,
+            tile_part.tile_part_index,
+            main_packet_lengths,
+            main_packed_packet_headers,
+        )?;
         if !pending_mct.is_empty() || !pending_mcc.is_empty() {
             return Err(self.malformed_here(MalformedKind::MissingRequiredStructure));
         }

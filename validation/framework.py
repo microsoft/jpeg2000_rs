@@ -1320,11 +1320,109 @@ _TILE_COMPONENT_FINALIZATION_CONTRACTS = {
     ),
 }
 
+_TILE_HEADER_ADMISSION_CONTRACTS = {
+    ("src/codestream/reader.rs", "Parser::read_tile_header_segment"): (
+        "part1_read_tile_header_segment", _coverage_call("main_header_segment_outcome", r"\1"),
+        _coverage_call("parser_view", _coverage_call("final", "self")),
+        _coverage_call("parser_view", _coverage_call("old", "self")),
+    ),
+}
+
+_RAW_TILE_HEADER_CONTRACTS = {
+    ("src/codestream/tile_header_traversal.rs", "new_tile_header_accumulator"): (
+        "part1_tile_header_initial", _coverage_call("tile_header_accumulator_view", r"&\s*\1"), None,
+        r"start\s*,\s*" + _coverage_call("parsed_coding_style_view", "style") + r"\s*,\s*"
+        + _coverage_call("roi_shifts_view", r"&\s*roi") + r"\s*,\s*"
+        + _coverage_call("progression_changes_view", r"&\s*progression") + r"\s*,\s*"
+        + _coverage_call("mct_parameters_view", r"&\s*mct") + r"\s*,\s*"
+        + _coverage_call("owned_extensions_view", r"&\s*extensions"),
+    ),
+    ("src/codestream/tile_header_traversal.rs", "Parser::read_tile_header"): (
+        "part1_read_tile_header",
+        _coverage_call("tile_header_read_outcome", r"\1"),
+        _coverage_call("parser_view", _coverage_call("final", "self")),
+        _coverage_call("parser_view", _coverage_call("old", "self")) + r"\s*,\s*"
+        + _coverage_call("parsed_coding_style_view", "style") + r"\s*,\s*"
+        + _coverage_call("roi_shifts_view", r"&\s*roi") + r"\s*,\s*"
+        + _coverage_call("progression_changes_view", r"&\s*progression") + r"\s*,\s*"
+        + _coverage_call("mct_parameters_view", r"&\s*mct") + r"\s*,\s*"
+        + _coverage_call("owned_extensions_view", r"&\s*extensions")
+        + r"\s*,\s*components\s*,\s*tile_part_index\s*,\s*"
+        + _coverage_call("packet_lengths_view", r"&\s*main_lengths") + r"\s*,\s*"
+        + _coverage_call("packed_packet_headers_view", r"&\s*main_headers"),
+    ),
+}
+for _tile_symbol, _tile_model, _tile_arguments in (
+    ("dispatch_tile_header_segment", "part1_tile_header_dispatch",
+     _coverage_call("segment_view", "segment")
+     + r"\s*,\s*components\s*,\s*tile_part_index\s*,\s*"
+     + _coverage_call("packet_lengths_view", r"&\s*main_lengths") + r"\s*,\s*"
+     + _coverage_call("packed_packet_headers_view", r"&\s*main_headers")),
+    ("apply_tile_header_segment", "part1_tile_header_payload",
+     _coverage_call("segment_view", "segment")
+     + r"\s*,\s*components\s*,\s*tile_part_index\s*,\s*"
+     + _coverage_call("packet_lengths_view", r"&\s*main_lengths") + r"\s*,\s*"
+     + _coverage_call("packed_packet_headers_view", r"&\s*main_headers")),
+    ("apply_tile_header_extension_segment", "part1_tile_header_extension_payload",
+     _coverage_call("segment_view", "segment") + r"\s*,\s*components"),
+    ("apply_tile_header_packet_segment", "part1_tile_header_packet_payload",
+     _coverage_call("segment_view", "segment") + r"\s*,\s*"
+     + _coverage_call("packet_lengths_view", r"&\s*main_lengths") + r"\s*,\s*"
+     + _coverage_call("packed_packet_headers_view", r"&\s*main_headers")),
+    ("apply_tile_header_mct_segment", "part1_tile_header_mct_payload",
+     _coverage_call("segment_view", "segment") + r"\s*,\s*components"),
+    ("traverse_tile_header", "part1_traverse_tile_header",
+     r"components\s*,\s*tile_part_index\s*,\s*"
+     + _coverage_call("packet_lengths_view", r"&\s*main_lengths") + r"\s*,\s*"
+     + _coverage_call("packed_packet_headers_view", r"&\s*main_headers")),
+):
+    _RAW_TILE_HEADER_CONTRACTS[
+        ("src/codestream/tile_header_traversal.rs", "Parser::" + _tile_symbol)
+    ] = (
+        _tile_model, r"\1",
+        _coverage_call("parser_view", _coverage_call("final", "self")) + r"\s*,\s*"
+        + _coverage_call("tile_header_accumulator_view", _coverage_call("final", "raw")),
+        _coverage_call("parser_view", _coverage_call("old", "self")) + r"\s*,\s*"
+        + _coverage_call("tile_header_accumulator_view", _coverage_call("old", "raw"))
+        + r"\s*,\s*" + _tile_arguments,
+    )
+
+_ROI_SETTER_CONTRACTS = {
+    ("src/codestream/quantization.rs", "RoiShifts::set"): (
+        "part1_set_roi_shift", r"\1",
+        _coverage_call("roi_shifts_view", _coverage_call("final", "self")),
+        _coverage_call("roi_shifts_view", _coverage_call("old", "self"))
+        + r"\s*,\s*component\s*,\s*shift",
+    ),
+}
+
+_COMPONENT_SEGMENT_ADMISSION_CONTRACTS = {
+    ("src/codestream/coding_markers.rs", "Parser::record_component_segment"): (
+        "part1_record_component_segment", r"\1",
+        _coverage_call("segment_slots_view", _coverage_call("final", "segments") + "@")
+        + r"\s*,\s*" + _coverage_call("parser_view", "self"),
+        _coverage_call("parser_view", "self") + r"\s*,\s*"
+        + _coverage_call("segment_view", "segment") + r"\s*,\s*components\s*,\s*invalid_kind\s*,\s*"
+        + _coverage_call("segment_slots_view", _coverage_call("old", "segments") + "@"),
+    ),
+}
+
+_COMPONENT_SEGMENT_ADMISSION_CALLERS = {
+    ("src/codestream/layout.rs", "Parser::parse_layout"): ("parser", r"image_size\.components", ""),
+    ("src/codestream/tiles.rs", "Parser::read_tile_part"): ("self", "components", ""),
+    ("src/codestream/tile_header_traversal.rs", "Parser::apply_tile_header_segment"): (
+        "self", "components", r"raw\.",
+    ),
+}
+
 _COMPONENT_PRODUCER_RELAYS = {
     **_MAIN_COMPONENT_FINALIZATION_CONTRACTS,
     **_STYLE_OVERRIDE_CONTRACTS,
     **_QUANTIZATION_OVERRIDE_CONTRACTS,
     **_TILE_COMPONENT_FINALIZATION_CONTRACTS,
+    **_COMPONENT_SEGMENT_ADMISSION_CONTRACTS,
+    **_TILE_HEADER_ADMISSION_CONTRACTS,
+    **_RAW_TILE_HEADER_CONTRACTS,
 }
 
 _DECOMPOSITION_RESOLUTION_CONTRACTS = {
@@ -2306,6 +2404,27 @@ def validate_normative_coverage(
         if key not in bodies:
             bodies[key] = _coverage_function_body(source_text(path), function_header(path, caller))
         body = bodies[key]
+        if (callee == "read_tile_header" and caller == "Parser::read_tile_part"
+                and path.relative_to(ROOT).as_posix() == "src/codestream/tiles.rs"):
+            for field in ("completed_mct", "completed_mcc"):
+                binding = "_" + field
+                if (body is None or re.search(r"\b" + field + r"\s*:\s*" + binding + r"\s*,", body) is None
+                        or len(re.findall(r"\b" + binding + r"\b", body)) != 1):
+                    return False
+        admission = _COMPONENT_SEGMENT_ADMISSION_CALLERS.get(
+            (path.relative_to(ROOT).as_posix(), caller),
+        ) if callee == "record_component_segment" else None
+        if admission is not None:
+            receiver, components, owner = admission
+            return body is not None and all(re.search(
+                _coverage_call(
+                    receiver + "." + callee, "segment", components,
+                    "MalformedKind::" + kind, r"&\s*mut\s*" + owner + slots + r"\s*,?",
+                ), body,
+            ) is not None for kind, slots in (
+                ("InvalidCodingStyle", "coc_segments"),
+                ("InvalidQuantization", "qcc_segments"),
+            ))
         prefix = r"(?<![\w.])" if same_name else r"\b"
         return body is not None and re.search(rf"{prefix}{re.escape(callee)}\s*\(", body) is not None
 
@@ -2822,6 +2941,9 @@ def validate_normative_coverage(
                 or _SIZ_GEOMETRY_CONTRACTS.get((reference["path"], reference["symbol"]))
                 or _LAYOUT_PROLOGUE_CONTRACTS.get((reference["path"], reference["symbol"]))
                 or _MAIN_HEADER_ADMISSION_CONTRACTS.get((reference["path"], reference["symbol"]))
+                or _TILE_HEADER_ADMISSION_CONTRACTS.get((reference["path"], reference["symbol"]))
+                or _RAW_TILE_HEADER_CONTRACTS.get((reference["path"], reference["symbol"]))
+                or _ROI_SETTER_CONTRACTS.get((reference["path"], reference["symbol"]))
                 or _CODING_STYLE_BYTES_CONTRACTS.get((reference["path"], reference["symbol"]))
                 or _COMPONENT_STYLE_BYTES_CONTRACTS.get((reference["path"], reference["symbol"]))
                 or _QUANTIZATION_BYTES_CONTRACTS.get((reference["path"], reference["symbol"]))
@@ -2832,6 +2954,7 @@ def validate_normative_coverage(
                 or _STYLE_OVERRIDE_CONTRACTS.get((reference["path"], reference["symbol"]))
                 or _QUANTIZATION_OVERRIDE_CONTRACTS.get((reference["path"], reference["symbol"]))
                 or _TILE_COMPONENT_FINALIZATION_CONTRACTS.get((reference["path"], reference["symbol"]))
+                or _COMPONENT_SEGMENT_ADMISSION_CONTRACTS.get((reference["path"], reference["symbol"]))
                 or _COMPONENT_DEPTH_BYTES_CONTRACTS.get((reference["path"], reference["symbol"]))
                 or _COMPONENT_HEADER_APPLICATION_CONTRACTS.get((reference["path"], reference["symbol"]))
                 or _PROFILE_BYTES_CONTRACTS.get((reference["path"], reference["symbol"]))

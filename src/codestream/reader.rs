@@ -38,6 +38,40 @@ pub(super) fn new_parser<'a>(
 }
 impl<'a> Parser<'a> {
     #[cfg_attr(verus_keep_ghost, verus_spec(result =>
+        ensures (main_header_segment_outcome(result), parser_view(final(self)))
+            == crate::specs::part1_read_tile_header_segment(parser_view(old(self))),
+    ))]
+    pub(super) fn read_tile_header_segment(&mut self) -> Result<Option<Segment<'a>>, DecodeError> {
+        #[cfg(verus_keep_ghost)]
+        proof! {
+            reveal(crate::specs::part1_read_tile_header_segment);
+            reveal(main_header_segment_outcome);
+        }
+        let marker = self.peek_marker()?;
+        if marker == SOD {
+            self.expect_standalone(SOD)?;
+            return Ok(None);
+        }
+        if crate::refinement::tile_header_boundary(marker) {
+            return Err(self.malformed_here(MalformedKind::InvalidMarkerOrder));
+        }
+        let segment = self.read_segment()?;
+        if !is_known_segment_marker(segment.marker) {
+            return Err(DecodeError::malformed(
+                self.offset(segment.offset),
+                MalformedKind::InvalidMarker,
+            ));
+        }
+        if !is_allowed_tile_header(segment.marker) {
+            return Err(DecodeError::malformed(
+                self.offset(segment.offset),
+                MalformedKind::InvalidMarkerOrder,
+            ));
+        }
+        Ok(Some(segment))
+    }
+
+    #[cfg_attr(verus_keep_ghost, verus_spec(result =>
         ensures (main_header_segment_outcome(result), parser_view(final(self)), *final(main_header_segments))
             == crate::specs::part1_read_main_header_segment(
                 parser_view(old(self)), *old(main_header_segments)),
