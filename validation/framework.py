@@ -2543,11 +2543,12 @@ def validate_normative_coverage(
             if layout not in entry["implementation_refs"]:
                 raise ValueError("MCT clone not used by claimed implementation: actual layout required")
             for path, symbol, pattern in _MCT_PARAMETER_CLONE_CONSUMERS:
-                text = (ROOT / path).read_text()
-                body = _coverage_function_body(text, _coverage_function_header(text, symbol))
+                consumer_path = (ROOT / path).resolve()
+                text = source_text(consumer_path)
+                body = _coverage_function_body(text, function_header(consumer_path, symbol))
                 if body is None or re.search(pattern, body) is None:
                     raise ValueError(f"MCT clone not used by claimed implementation: typed edge {symbol}")
-            text = (ROOT / "src/codestream/proof_support.rs").read_text()
+            text = source_text((ROOT / "src/codestream/proof_support.rs").resolve())
             projection_headers = list(re.finditer(
                 r"(?m)^([ \t]*)pub[ \t]+closed[ \t]+spec[ \t]+fn[ \t]+mct_parameter_copy_view\b",
                 text,
