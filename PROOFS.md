@@ -179,6 +179,28 @@ technical candidate only: parent-owned record, review, CI, guarded integration
 and actual-main acceptance remain separate. No complete parsing, pixels,
 lifetime verification, normative conformance or publication claim follows.
 
+## Persistent tile configuration commit
+
+The actual layout caller uses one borrow-only
+`Parser::commit_persistent_tile_configuration` for its six persistent
+configuration stores. Full physical ROI equality precedes all slot bounds;
+ROI, default style, default quantization, source-derived style-owner payload
+index, component quantization owner and progression changes commit in that
+order. The total Result relation includes every mutable physical slot and
+partial prefix on error, including unequal raw lengths, holes, logical/physical
+owner mismatches and tails. It has no successful-result premise or owner
+normalization.
+
+The helper borrows the actual returned payload and the six existing owners.
+Only the existing component-quantization and progression stores clone their
+owned values. MCT/extension ownership, payload append and all other owning
+locals stay in the original outer scope. Native extraction and retention
+require native evidence; this is not a general Verus erasure or lifetime claim.
+
+This bounded commit does not complete selection/inheritance, the persistent
+tile fold, main-header/layout/public image composition, normative fidelity,
+source/functional coverage or release qualification.
+
 ## Complete actual raw tile-part Result
 
 `Parser::read_tile_part` has a total Result/full-reader relation from its actual

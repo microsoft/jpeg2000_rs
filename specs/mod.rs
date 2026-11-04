@@ -27,6 +27,8 @@ mod tile_header_traversal;
 pub use tile_header_traversal::*;
 mod tile_part;
 pub use tile_part::*;
+mod persistent_tile_configuration;
+pub use persistent_tile_configuration::*;
 
 pub use crate::proofs::internal_specs::{
     part2_composition_layer_prefix_matches, part2_composition_layer_prefix_safe,
