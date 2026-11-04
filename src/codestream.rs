@@ -469,7 +469,6 @@ struct Segment<'a> {
     payload: &'a [u8],
 }
 
-#[derive(Clone)]
 #[cfg_attr(not(verus_keep_ghost), derive(Debug, Eq, PartialEq))]
 struct MctParameters {
     arrays: Vec<MctArray>,
@@ -477,14 +476,12 @@ struct MctParameters {
     order: Vec<u8>,
 }
 
-#[derive(Clone)]
 #[cfg_attr(not(verus_keep_ghost), derive(Debug, Eq, PartialEq))]
 struct MctRecord {
     index: u8,
     collections: Vec<MctCollectionReference>,
 }
 
-#[derive(Clone)]
 #[cfg_attr(not(verus_keep_ghost), derive(Debug, Eq, PartialEq))]
 struct MctCollectionReference {
     input_components: Vec<u16>,

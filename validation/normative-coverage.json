@@ -4,6 +4,40 @@
   "scope": "Technical reference inventory; not exhaustive standards-clause coverage or a conformance claim.",
   "requirements": [
     {
+      "id": "part1-complete-native-mct-parameter-clone",
+      "topic": "Source-derived complete physical copy contracts for the actual MctParameters/MctRecord/MctCollectionReference clone chain used by both main and persistent tile inheritance. Sole shared Cargo/Verus bodies replace only the three unconditional non-Copy derives; their field clone order, Copy-field calls, unwind/cleanup/drop behavior and every layout call site/owning local are preserved. All arrays, values, records, nested collection inputs/outputs, transform fields and order entries copy without validating, sorting, deduplicating, truncating or normalizing unused/duplicate/dangling raw data. Native inputs remain immutable and nonempty cloned buffers are independent. Parameter copy uses the complete three-field projection of the unchanged existing model, not identity of its opaque spec-struct wrapper. No alternate executing cfg implementation, clone axiom or extra runtime proof clone. This prerequisite does not complete owned inheritance selection, persistent fold/raw main/layout/public composition, independently adjudicated normative correctness, general cfg/erasure/lifetime/coverage or release qualification.",
+      "implementation_refs": [
+        {"path": "src/codestream/layout.rs", "symbol": "Parser::parse_layout"},
+        {"path": "src/codestream/mct.rs", "symbol": "MctParameters::clone"},
+        {"path": "src/codestream/mct.rs", "symbol": "MctRecord::clone"}
+      ],
+      "spec_refs": [
+        {"path": "specs/mod.rs", "symbol": "part1_mct_parameters_copy"},
+        {"path": "specs/mod.rs", "symbol": "part1_mct_record_copy"},
+        {"path": "specs/mod.rs", "symbol": "part1_mcc_collection_reference_copy"},
+        {"path": "specs/mod.rs", "symbol": "Part1MctParameters"},
+        {"path": "specs/mod.rs", "symbol": "Part1MccCollectionReference"}
+      ],
+      "contract_refs": [
+        {"path": "src/codestream/mct.rs", "symbol": "MctParameters::clone"},
+        {"path": "src/codestream/mct.rs", "symbol": "MctRecord::clone"},
+        {"path": "src/codestream/mct.rs", "symbol": "MctCollectionReference::clone"}
+      ],
+      "proof_refs": [
+        {"path": "src/codestream/proof_support.rs", "symbol": "mct_parameter_copy_view"},
+        {"path": "src/codestream/proof_support.rs", "symbol": "mct_parameters_view"},
+        {"path": "src/codestream/proof_support.rs", "symbol": "mct_record_view"},
+        {"path": "src/codestream/proof_support.rs", "symbol": "mcc_collection_reference_view"},
+        {"path": "src/codestream/mct.rs", "symbol": "MctArray::clone"}
+      ],
+      "test_refs": [
+        {"path": "src/codestream/mct_parameter_clone_tests.rs", "symbol": "actual_mct_reference_clone_preserves_all_raw_fields_and_independent_buffers"},
+        {"path": "src/codestream/mct_parameter_clone_tests.rs", "symbol": "actual_mct_record_clone_preserves_every_index_collection_and_nested_buffer"},
+        {"path": "src/codestream/mct_parameter_clone_tests.rs", "symbol": "actual_mct_parameters_clone_preserves_unused_duplicate_dangling_data_and_order"},
+        {"path": "src/codestream/mct_parameter_clone_tests.rs", "symbol": "actual_layout_mct_clones_retain_main_and_persistent_unused_arrays"}
+      ]
+    },
+    {
       "id": "part1-complete-native-inherited-tile-configuration-selection",
       "topic": "Source-derived complete five-field Result for the actual copy-only inherited configuration selection. The ROI state lookup rejects a missing slot before other selection; None ROI uses main ROI. Missing/None default COD and QCD slots fall back to their main defaults. A missing/None style-part slot uses the entire raw main component-style owner; Some selects the complete physical owner at the real payload index and rejects an out-of-range part. Native selection does not impose a new payload tile-ID check, logical-count constraint, aligned vector geometry, normalization or successful-input premise. Every raw physical tail and immutable input/parser/limits/accounting frame is retained. The helper borrows all input owners and returns Copy-only fields. All existing owned Q/POC/MCT/extension clones and their owning locals stay in the original outer scope. This bounded selection is not complete owned inheritance, persistence/layout/main/public composition, normative fidelity, general erasure/lifetime/coverage or release qualification.",
       "implementation_refs": [

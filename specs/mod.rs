@@ -15664,6 +15664,22 @@ pub struct Part1MctParameters {
     pub order: Seq<u8>,
 }
 
+pub open spec fn part1_mct_parameters_copy(
+    value: (Seq<Part2MctArray>, Seq<Part1MctRecord>, Seq<u8>),
+) -> (Seq<Part2MctArray>, Seq<Part1MctRecord>, Seq<u8>) {
+    value
+}
+
+pub open spec fn part1_mct_record_copy(value: Part1MctRecord) -> Part1MctRecord {
+    value
+}
+
+pub open spec fn part1_mcc_collection_reference_copy(
+    value: Part1MccCollectionReference,
+) -> Part1MccCollectionReference {
+    value
+}
+
 pub open spec fn part1_mct_graph_element_count(
     rows: usize, columns: usize, kind: crate::codestream::MctArrayKind, reversible: bool,
 ) -> Result<usize, crate::DecodeError> {
