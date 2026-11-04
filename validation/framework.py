@@ -1415,6 +1415,8 @@ _COMPONENT_SEGMENT_ADMISSION_CALLERS = {
     ),
 }
 
+# Keep this boundary out of component-stage relays: a tile path must not
+# satisfy a missing main-header producer edge from the same layout caller.
 _TILE_PART_READER_CONTRACTS = {
     ("src/codestream/tiles.rs", "Parser::read_tile_part"): (
         "part1_read_tile_part", _coverage_call("tile_part_read_outcome", r"\1"),
@@ -1442,7 +1444,6 @@ _COMPONENT_PRODUCER_RELAYS = {
     **_COMPONENT_SEGMENT_ADMISSION_CONTRACTS,
     **_TILE_HEADER_ADMISSION_CONTRACTS,
     **_RAW_TILE_HEADER_CONTRACTS,
-    **_TILE_PART_READER_CONTRACTS,
 }
 
 _DECOMPOSITION_RESOLUTION_CONTRACTS = {

@@ -1036,6 +1036,15 @@ class FrameworkTests(WorkingFiles):
             framework._TILE_PART_READER_CONTRACTS, 1,
         )
 
+    def test_inventory_keeps_tile_part_boundary_out_of_component_stage_relay_scope(self):
+        key = ("src/codestream/tiles.rs", "Parser::read_tile_part")
+        self.assertIn(key, framework._TILE_PART_READER_CONTRACTS)
+        self.assertNotIn(key, framework._COMPONENT_PRODUCER_RELAYS)
+        self.assertIn(
+            ("src/codestream/tiles.rs", "Parser::finish_tile_component_configuration"),
+            framework._COMPONENT_PRODUCER_RELAYS,
+        )
+
     def test_inventory_requires_raw_tile_part_layout_call_and_total_outcome(self):
         coverage = json.loads((framework.VALIDATION / "normative-coverage.json").read_text())
         entry = copy.deepcopy(next(item for item in coverage["requirements"]
