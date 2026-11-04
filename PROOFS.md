@@ -237,6 +237,36 @@ or mutable frames. This local fold proof does not establish full inherited
 configuration/reset/decomposition/orchestration, raw public decoding, lifetime
 analysis, source/functional coverage, normative fidelity or release approval.
 
+## Owned post-dispatch tile component configuration
+
+`Parser::finish_tile_component_configuration` executes the actual tile reader's
+configuration block after header dispatch. Its unconditional owned Result binds
+every returned style/default-quantization/quantization-owner field and physical
+tail, including raw inherited counts and Vec holes. The actual tile COD-seen
+flag controls style reset versus inheritance, followed by the accepted shared
+COC fold and batch DFS/ADS resolver. Only then is the raw QCD parsed, its presence
+selecting quantization reset versus inheritance, followed by the accepted shared
+QCC/compatibility fold. Existing source-derived models/contracts are composed
+without changing their rules. Owners are moved, not cloned or normalized; on
+error they are consumed, not staged or exposed through a synthetic owner result.
+
+The real `read_tile_part` calls this sole producer. COD parsing remains at its
+original earlier header-dispatch position: the finalizer accepts that actual
+parsed style and raw flag, not a supplied COD parse outcome or success premise.
+The additive `part1_finish_tile_components` model preserves factory/override/
+resolver/QCD/QCC error order. Parser/input/limits and borrowed segment/extension
+owners remain immutable. Native tests include raw owner/frame/reset matrices,
+first-error ordering and all four real COD/QCD reset combinations. Structural
+references reuse qualified parsers and the batch resolver; they are not
+independent normative oracles.
+
+The additive technical inventory and negative controls retain every old object
+and recipe, bind the actual caller and require every bounded relay's exact
+premise-free Result/model arguments and mutable frames. This post-dispatch
+configuration join does not prove the header dispatch/admission that produced
+its inputs, final raw orchestration/public image composition, normative rule
+fidelity, complete #133/W09, lifetime, source/functional coverage or publication.
+
 ## Local main-header segment admission producer
 
 `Parser::read_main_header_segment` in `src/codestream/reader.rs` executes the

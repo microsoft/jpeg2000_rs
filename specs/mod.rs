@@ -13769,6 +13769,57 @@ pub open spec fn part1_finish_main_quantizations(
     }
 }
 
+#[verifier::opaque]
+pub open spec fn part1_finish_tile_components(
+    components: u16, coding_style: Part1ParsedCodingStyle, cod_seen: bool,
+    coc_segments: Seq<Option<Part1CodestreamSegment>>, qcd_segment: Option<Part1CodestreamSegment>,
+    default_quantization: Part2Quantization, qcc_segments: Seq<Option<Part1CodestreamSegment>>,
+    inherited_styles: (u16, Seq<Part1ParsedCodingStyle>), inherited_quantizations: (u16, Seq<Part2Quantization>),
+    extensions: Part2OwnedExtensions, limits: &crate::ResourceLimits,
+) -> Result<((u16, Seq<Part1ParsedCodingStyle>), Part2Quantization, (u16, Seq<Part2Quantization>)), crate::DecodeError> {
+    let initial = if cod_seen { part1_component_styles_new(components, coding_style) } else { Ok(inherited_styles) };
+    match initial {
+        Err(error) => Err(error),
+        Ok(styles) => {
+            let overrides = part1_style_overrides_from(components, coding_style, coc_segments, limits, styles, 0);
+            match overrides.0 {
+                Err(error) => Err(error),
+                Ok(()) => {
+                    let resolved = part1_resolve_decompositions(overrides.1, extensions);
+                    match resolved.0 {
+                        Err(error) => Err(error),
+                        Ok(()) => {
+                            let default = match qcd_segment {
+                                None => Ok(default_quantization),
+                                Some(segment) => part1_parse_qcd_payload(segment.offset, segment.payload, coding_style),
+                            };
+                            match default {
+                                Err(error) => Err(error),
+                                Ok(quantization) => {
+                                    let initial_quantizations = if qcd_segment.is_some() {
+                                        part1_component_quantizations_new(components, quantization)
+                                    } else { Ok(inherited_quantizations) };
+                                    match initial_quantizations {
+                                        Err(error) => Err(error),
+                                        Ok(owner) => {
+                                            let applied = part1_quantization_overrides_from(
+                                                components, resolved.1, qcc_segments, owner, 0);
+                                            match applied.0 {
+                                                Err(error) => Err(error),
+                                                Ok(()) => Ok((resolved.1, quantization, applied.1)),
+                                            }
+                                        },
+                                    }
+                                },
+                            }
+                        },
+                    }
+                },
+            }
+        },
+    }
+}
+
 pub struct Part1CodHeader {
     pub flags: u8, pub progression_order: crate::codestream::ProgressionOrder,
     pub layers: u16, pub multiple_component_transform: bool, pub decomposition_levels: u8,

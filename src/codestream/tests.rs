@@ -1108,6 +1108,395 @@ fn actual_tile_quantizations_inherit_or_reset_and_use_real_override_producer() {
     }
 }
 
+#[allow(clippy::too_many_arguments)]
+fn reference_tile_component_configuration(
+    parser: &Parser<'_>,
+    components: u16,
+    coding: CodingStyle,
+    reset_styles: bool,
+    coc: &[Option<Segment<'_>>],
+    qcd: Option<Segment<'_>>,
+    default_quantization: Quantization,
+    qcc: &[Option<Segment<'_>>],
+    inherited_styles: ComponentCodingStyles,
+    inherited_quantizations: ComponentQuantizations,
+    extensions: &Part2Extensions,
+) -> Result<(ComponentCodingStyles, Quantization, ComponentQuantizations), DecodeError> {
+    let mut styles = if reset_styles {
+        if components == 0 || usize::from(components) > MAX_COMPONENTS {
+            return Err(input_error_literal(0, MalformedKind::InvalidImageGeometry));
+        }
+        ComponentCodingStyles {
+            components,
+            styles: [coding; MAX_COMPONENTS],
+        }
+    } else {
+        inherited_styles
+    };
+    reference_style_overrides(parser, components, coding, coc, &mut styles)?;
+    parser.resolve_decomposition_structures(&mut styles, extensions)?;
+    let default = match qcd {
+        None => default_quantization,
+        Some(segment) => parser.parse_qcd(segment, coding)?,
+    };
+    let mut quantizations = if qcd.is_some() {
+        if components == 0 || usize::from(components) > MAX_COMPONENTS {
+            return Err(input_error_literal(0, MalformedKind::InvalidImageGeometry));
+        }
+        ComponentQuantizations {
+            components,
+            quantizations: vec![default; usize::from(components)],
+        }
+    } else {
+        inherited_quantizations
+    };
+    reference_quantization_overrides(parser, components, &styles, qcc, &mut quantizations)?;
+    Ok((styles, default, quantizations))
+}
+
+#[test]
+fn actual_owned_tile_components_preserve_raw_resets_inheritance_holes_and_frames() {
+    let input = [0x5a, 0xa5];
+    let limits = ResourceLimits::HARDENED;
+    let mut parser = new_parser(&input, &limits).unwrap();
+    let coding = raw_resolution_style(0, 0);
+    let default = raw_subband_quantization(QuantizationStyle::ScalarDerived, 1, 0);
+    let extensions = Part2Extensions::default();
+    let extension_before = extensions.clone();
+    let coc_value = Segment {
+        marker: COC,
+        offset: 101,
+        payload: &[1, 0, 0, 3, 2, 0, 1],
+    };
+    let qcc_value = Segment {
+        marker: QCC,
+        offset: 203,
+        payload: &[1, 1, 0x40, 0x19],
+    };
+    let qcd_value = Segment {
+        marker: QCD,
+        offset: 303,
+        payload: &[1, 0x48, 0x08],
+    };
+    let mut cases = 0;
+    for components in [0, 1, 2, 64, 65] {
+        for style_count in [0, 1, 2, 65] {
+            for quantization_count in [0, 1, 2, 65] {
+                for length in [0, 1, 2, 64] {
+                    for reset in [false, true] {
+                        for qcd in [
+                            None,
+                            Some(qcd_value),
+                            Some(Segment {
+                                marker: QCD,
+                                offset: 303,
+                                payload: &[],
+                            }),
+                        ] {
+                            for mode in 0..3 {
+                                let coc = match mode {
+                                    0 => [None, None],
+                                    1 => [Some(coc_value), None],
+                                    _ => [
+                                        Some(Segment {
+                                            marker: COC,
+                                            offset: 101,
+                                            payload: &[],
+                                        }),
+                                        None,
+                                    ],
+                                };
+                                let qcc = match mode {
+                                    0 => [None, None],
+                                    1 => [None, Some(qcc_value)],
+                                    _ => [
+                                        Some(Segment {
+                                            marker: QCC,
+                                            offset: 203,
+                                            payload: &[],
+                                        }),
+                                        None,
+                                    ],
+                                };
+                                for position in [0, usize::MAX] {
+                                    let state = PacketAdmissionState {
+                                        position,
+                                        work: u64::MAX,
+                                        header_bytes: 73,
+                                        packet_count: u64::MAX,
+                                    };
+                                    set_packet_admission_state(&mut parser, state);
+                                    let inherited_styles = ComponentCodingStyles {
+                                        components: style_count,
+                                        styles: core::array::from_fn(|i| {
+                                            raw_resolution_style((i % 3) as u8, i % 8)
+                                        }),
+                                    };
+                                    let mut values: Vec<_> = (0..length)
+                                        .map(|i| {
+                                            raw_subband_quantization(
+                                                QuantizationStyle::ScalarDerived,
+                                                1,
+                                                i % 8,
+                                            )
+                                        })
+                                        .collect();
+                                    values.reserve(3);
+                                    let pointer = values.as_ptr();
+                                    let capacity = values.capacity();
+                                    let inherited_quantizations = ComponentQuantizations {
+                                        components: quantization_count,
+                                        quantizations: values,
+                                    };
+                                    let expected = reference_tile_component_configuration(
+                                        &parser,
+                                        components,
+                                        coding,
+                                        reset,
+                                        &coc,
+                                        qcd,
+                                        default,
+                                        &qcc,
+                                        inherited_styles,
+                                        inherited_quantizations.clone(),
+                                        &extensions,
+                                    );
+                                    let actual = parser.finish_tile_component_configuration(
+                                        components,
+                                        coding,
+                                        reset,
+                                        &coc,
+                                        qcd,
+                                        default,
+                                        &qcc,
+                                        inherited_styles,
+                                        inherited_quantizations,
+                                        &extensions,
+                                    );
+                                    assert_eq!(
+                                        actual, expected,
+                                        "components={components}, styles={style_count}, quantizations={quantization_count}, length={length}, reset={reset}, qcd={qcd:?}, mode={mode}"
+                                    );
+                                    if let Ok((_, _, owner)) = &actual
+                                        && qcd.is_none()
+                                    {
+                                        assert_eq!(owner.quantizations.as_ptr(), pointer);
+                                        assert_eq!(owner.quantizations.capacity(), capacity);
+                                    }
+                                    assert_eq!(extensions, extension_before);
+                                    assert_main_component_frames(
+                                        &parser, state, &input, &limits, &coc, &coc,
+                                    );
+                                    assert_main_component_frames(
+                                        &parser, state, &input, &limits, &qcc, &qcc,
+                                    );
+                                    cases += 1;
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+    assert_eq!(cases, 11_520);
+}
+
+#[test]
+fn actual_owned_tile_components_preserve_factory_override_resolution_qcd_error_order() {
+    let limits = ResourceLimits::HARDENED;
+    let parser = new_parser(&[], &limits).unwrap();
+    let coding = parser
+        .parse_cod(Segment {
+            marker: COD,
+            offset: 0,
+            payload: &[0, 0, 0, 1, 0, 0, 2, 2, 0, 1],
+        })
+        .unwrap();
+    let styles = ComponentCodingStyles {
+        components: 2,
+        styles: [coding; MAX_COMPONENTS],
+    };
+    let quantization = raw_subband_quantization(QuantizationStyle::ScalarDerived, 1, 0);
+    let quants = ComponentQuantizations {
+        components: 2,
+        quantizations: vec![quantization; 3],
+    };
+    let extensions = Part2Extensions::default();
+    let bad_coc = Segment {
+        marker: COC,
+        offset: 101,
+        payload: &[],
+    };
+    let bad_qcd = Segment {
+        marker: QCD,
+        offset: 303,
+        payload: &[],
+    };
+    let bad_qcc = Segment {
+        marker: QCC,
+        offset: 203,
+        payload: &[],
+    };
+    assert_eq!(
+        parser.finish_tile_component_configuration(
+            0,
+            coding,
+            true,
+            &[Some(bad_coc)],
+            Some(bad_qcd),
+            quantization,
+            &[Some(bad_qcc)],
+            styles,
+            quants.clone(),
+            &extensions
+        ),
+        Err(input_error_literal(0, MalformedKind::InvalidImageGeometry)),
+    );
+    assert_eq!(
+        parser.finish_tile_component_configuration(
+            2,
+            coding,
+            false,
+            &[Some(bad_coc)],
+            Some(bad_qcd),
+            quantization,
+            &[Some(bad_qcc)],
+            styles,
+            quants.clone(),
+            &extensions
+        ),
+        Err(input_error_literal(101, MalformedKind::InvalidMarkerLength)),
+    );
+    let mut missing_dfs = styles;
+    missing_dfs.styles[0].decomposition_structure = Some(1);
+    let result = parser.finish_tile_component_configuration(
+        2,
+        coding,
+        false,
+        &[],
+        Some(bad_qcd),
+        quantization,
+        &[Some(bad_qcc)],
+        missing_dfs,
+        quants.clone(),
+        &extensions,
+    );
+    let mut expected = missing_dfs;
+    assert_eq!(
+        result,
+        parser
+            .resolve_decomposition_structures(&mut expected, &extensions)
+            .map(|()| (expected, quantization, quants.clone()))
+    );
+    assert!(result.is_err());
+    let empty_styles = ComponentCodingStyles {
+        components: 0,
+        ..styles
+    };
+    assert_eq!(
+        parser.finish_tile_component_configuration(
+            0,
+            coding,
+            false,
+            &[],
+            Some(bad_qcd),
+            quantization,
+            &[],
+            empty_styles,
+            quants.clone(),
+            &extensions
+        ),
+        Err(input_error_literal(303, MalformedKind::InvalidMarkerLength)),
+    );
+    assert_eq!(
+        parser.finish_tile_component_configuration(
+            2,
+            coding,
+            false,
+            &[],
+            Some(bad_qcd),
+            quantization,
+            &[Some(bad_qcc)],
+            styles,
+            quants,
+            &extensions
+        ),
+        Err(input_error_literal(303, MalformedKind::InvalidMarkerLength)),
+    );
+}
+
+#[test]
+fn actual_tile_component_join_uses_real_dispatch_and_all_cod_qcd_reset_combinations() {
+    let limits = ResourceLimits::HARDENED;
+    let reference = new_parser(&[], &limits).unwrap();
+    let tile_cod = [0, 0, 0, 1, 0, 0, 1, 2, 0, 1];
+    let tile_coc = [1, 0, 0, 3, 2, 0, 1];
+    let tile_qcd = [1, 0x48, 0x08];
+    let tile_qcc = [1, 1, 0x40, 0x19];
+    for reset_styles in [false, true] {
+        for reset_quantizations in [false, true] {
+            let mut main_headers = baseline_headers().to_vec();
+            main_headers.push(segment(COC, &[0, 0, 0, 4, 2, 0, 1]));
+            main_headers.push(segment(QCC, &[0, 1, 0x38, 0x73]));
+            let mut tile_headers = Vec::new();
+            if reset_styles {
+                tile_headers.push(segment(COD, &tile_cod));
+            }
+            tile_headers.push(segment(COC, &tile_coc));
+            if reset_quantizations {
+                tile_headers.push(segment(QCD, &tile_qcd));
+            }
+            tile_headers.push(segment(QCC, &tile_qcc));
+            let input = codestream_with_headers(2, &main_headers, &tile_headers, &[]);
+            let layout = parse_layout(&input, &limits).unwrap();
+            let tile = &layout.tile_parts[0];
+            let coc = [
+                None,
+                Some(Segment {
+                    marker: COC,
+                    offset: 0,
+                    payload: &tile_coc,
+                }),
+            ];
+            let qcc = [
+                None,
+                Some(Segment {
+                    marker: QCC,
+                    offset: 0,
+                    payload: &tile_qcc,
+                }),
+            ];
+            let qcd = if reset_quantizations {
+                Some(Segment {
+                    marker: QCD,
+                    offset: 0,
+                    payload: &tile_qcd,
+                })
+            } else {
+                None
+            };
+            let expected = reference_tile_component_configuration(
+                &reference,
+                2,
+                tile.coding_style,
+                reset_styles,
+                &coc,
+                qcd,
+                layout.info.quantization,
+                &qcc,
+                layout.info.component_coding_styles,
+                layout.info.component_quantizations.clone(),
+                &tile.part2_extensions,
+            )
+            .unwrap();
+            assert_eq!(tile.component_coding_styles, expected.0);
+            assert_eq!(tile.quantization, expected.1);
+            assert_eq!(tile.component_quantizations, expected.2);
+        }
+    }
+}
+
 fn reference_main_quantizations(
     parser: &Parser<'_>,
     components: u16,
