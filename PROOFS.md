@@ -179,6 +179,36 @@ technical candidate only: parent-owned record, review, CI, guarded integration
 and actual-main acceptance remain separate. No complete parsing, pixels,
 lifetime verification, normative conformance or publication claim follows.
 
+## Complete raw tile-header traversal
+
+The actual tile-part reader calls `Parser::read_tile_header` to initialize and
+consume the sole raw header accumulator through SOD. The producer starts from
+real bytes and raw inherited style, ROI, progression, MCT and extension owners;
+it returns the complete owned accumulator or the first typed error together
+with the complete reader relation. The mutable traversal and dispatch contracts
+also retain every raw field and partial update on failure: all COC/QCC slots,
+style/ROI tails and seen flags, packet counters and fragments, pending/completed
+MCT/MCC owners, and extension metadata/work accounting.
+
+The existing raw admission and component-slot producers are reused rather than
+duplicating their algorithms. COD parsing remains in wire order, before later
+component finalization. Seen flags commit before the same fallible parsers as
+before. Header end is assigned from the pre-admission position only after SOD
+succeeds, matching the current reader; an SOD error leaves the new private
+accumulator's prior header-end field unchanged. The older local frontier's
+pre-consumption header-end commit is deliberately not reused or relabeled.
+Pending MCT validation and every component/progression/MCT/data/metadata
+finalizer remain after header production in the actual reader.
+
+The existing ROI setter has an additive complete physical-owner frame contract,
+with no native logic change. Native controls exercise every marker word,
+raw error/flag/prefix states, inherited owners, segmented MCT replacements and
+both tile-data finalizer paths. Exact inventory contracts bind initialization,
+owned return, all mutable stages and the real caller chain. This source proof
+does not independently certify marker semantics, complete the enclosing
+tile-part/layout/public image composition, restore lifetime analysis, measure
+coverage or authorize publication.
+
 ## Raw tile-header segment admission
 
 `Parser::read_tile_header_segment` is the sole raw admission prefix of the

@@ -40,6 +40,85 @@
       ]
     },
     {
+      "id": "part1-complete-native-raw-tile-header-traversal",
+      "topic": "Source-derived complete actual raw read_tile_part header initialization/dispatch/traversal through SOD. Actual borrowed input and raw inherited style/ROI/progression/MCT/extensions produce the complete owned accumulator or typed first error and full reader frame. Every physical COC/QCC slot, raw style field, ROI seen/shift tail, packet counter/fragment/byte owner, pending/completed MCT/MCC owner and extension field is retained, including all partial commits before errors. The sole existing raw segment admission is reused; dispatch starts only after admission. COD parsing remains in wire-order dispatch, seen flags retain pre-parse commits, POC replaces inherited records and PLT/PPT/MCT/extension accounting retains original order. Header end is assigned only after successful SOD consumption, from its pre-admission position, matching the current caller; SOD errors preserve the new private accumulator's prior header-end field. Final pending-fragment validation and component/progression/MCT/data/metadata finalizers remain after this producer at the actual reader. No normalized tables, supplied outcomes, owner clones or alternate runtime are used. This is source correctness, not independently adjudicated normative rules, complete tile-part/layout/public image composition, lifetime, coverage or release approval.",
+      "implementation_refs": [
+        {"path": "src/codestream/tiles.rs", "symbol": "Parser::read_tile_part"},
+        {"path": "src/codestream/tile_header_traversal.rs", "symbol": "new_tile_header_accumulator"},
+        {"path": "src/codestream/tile_header_traversal.rs", "symbol": "Parser::read_tile_header"},
+        {"path": "src/codestream/tile_header_traversal.rs", "symbol": "Parser::traverse_tile_header"},
+        {"path": "src/codestream/tile_header_traversal.rs", "symbol": "Parser::dispatch_tile_header_segment"},
+        {"path": "src/codestream/tile_header_traversal.rs", "symbol": "Parser::apply_tile_header_segment"},
+        {"path": "src/codestream/tile_header_traversal.rs", "symbol": "Parser::apply_tile_header_extension_segment"},
+        {"path": "src/codestream/tile_header_traversal.rs", "symbol": "Parser::apply_tile_header_packet_segment"},
+        {"path": "src/codestream/tile_header_traversal.rs", "symbol": "Parser::apply_tile_header_mct_segment"}
+      ],
+      "spec_refs": [
+        {"path": "specs/tile_header_traversal.rs", "symbol": "Part1TileHeaderAccumulator"},
+        {"path": "specs/tile_header_traversal.rs", "symbol": "part1_tile_header_initial"},
+        {"path": "specs/tile_header_traversal.rs", "symbol": "part1_read_tile_header"},
+        {"path": "specs/tile_header_traversal.rs", "symbol": "part1_traverse_tile_header"},
+        {"path": "specs/tile_header_traversal.rs", "symbol": "part1_tile_header_traversal"},
+        {"path": "specs/tile_header_traversal.rs", "symbol": "part1_tile_header_dispatch"},
+        {"path": "specs/tile_header_traversal.rs", "symbol": "part1_tile_header_payload"},
+        {"path": "specs/tile_header_traversal.rs", "symbol": "part1_tile_header_extension_payload"},
+        {"path": "specs/tile_header_traversal.rs", "symbol": "part1_tile_header_packet_payload"},
+        {"path": "specs/tile_header_traversal.rs", "symbol": "part1_tile_header_mct_payload"},
+        {"path": "specs/layout_input.rs", "symbol": "part1_read_tile_header_segment"},
+        {"path": "specs/layout_input.rs", "symbol": "part1_record_component_segment"}
+      ],
+      "contract_refs": [
+        {"path": "src/codestream/tile_header_traversal.rs", "symbol": "new_tile_header_accumulator"},
+        {"path": "src/codestream/tile_header_traversal.rs", "symbol": "Parser::read_tile_header"},
+        {"path": "src/codestream/tile_header_traversal.rs", "symbol": "Parser::traverse_tile_header"},
+        {"path": "src/codestream/tile_header_traversal.rs", "symbol": "Parser::dispatch_tile_header_segment"},
+        {"path": "src/codestream/tile_header_traversal.rs", "symbol": "Parser::apply_tile_header_segment"},
+        {"path": "src/codestream/tile_header_traversal.rs", "symbol": "Parser::apply_tile_header_extension_segment"},
+        {"path": "src/codestream/tile_header_traversal.rs", "symbol": "Parser::apply_tile_header_packet_segment"},
+        {"path": "src/codestream/tile_header_traversal.rs", "symbol": "Parser::apply_tile_header_mct_segment"}
+      ],
+      "proof_refs": [
+        {"path": "src/codestream/tile_header_traversal_proof_support.rs", "symbol": "tile_header_accumulator_view"},
+        {"path": "src/codestream/tile_header_traversal_proof_support.rs", "symbol": "tile_header_read_outcome"},
+        {"path": "src/codestream/proof_support.rs", "symbol": "parser_view"},
+        {"path": "src/codestream/proof_support.rs", "symbol": "mct_pending_view"},
+        {"path": "src/codestream/proof_support.rs", "symbol": "mcc_pending_view"},
+        {"path": "src/codestream/reader.rs", "symbol": "Parser::read_tile_header_segment"},
+        {"path": "src/codestream/coding_markers.rs", "symbol": "Parser::record_component_segment"},
+        {"path": "src/codestream/quantization.rs", "symbol": "RoiShifts::set"}
+      ],
+      "test_refs": [
+        {"path": "src/codestream/tile_header_traversal_tests.rs", "symbol": "raw_tile_header_all_marker_words_preserve_admission_and_boundary_priority"},
+        {"path": "src/codestream/tile_header_traversal_tests.rs", "symbol": "raw_tile_header_read_error_frontiers_keep_complete_reader_and_raw_state"},
+        {"path": "src/codestream/tile_header_traversal_tests.rs", "symbol": "raw_tile_header_duplicate_parse_and_flag_order_is_not_transactional"},
+        {"path": "src/codestream/tile_header_traversal_tests.rs", "symbol": "raw_tile_header_metadata_and_ppt_errors_retain_partial_owners_and_work"},
+        {"path": "src/codestream/tile_header_traversal_tests.rs", "symbol": "raw_tile_header_packet_conflicts_and_ordered_partial_counters_survive_errors"},
+        {"path": "src/codestream/tile_header_traversal_tests.rs", "symbol": "raw_tile_header_poc_replaces_inherited_records_and_appends_in_wire_order"},
+        {"path": "src/codestream/tile_header_traversal_tests.rs", "symbol": "raw_tile_header_sod_stops_before_pending_and_inherited_finalizers"},
+        {"path": "src/codestream/tile_header_traversal_tests.rs", "symbol": "actual_tile_header_traversal_joins_real_producers_and_existing_caller_finalizers"}
+      ]
+    },
+    {
+      "id": "part1-complete-native-roi-setter-frame",
+      "topic": "Source-derived total Result and complete64-shift owner for the existing native RoiShifts::set, reused by actual main/tile dispatch. Physical admission precedes the single shift store; every other slot and the complete owner on out-of-range errors are preserved. No executing logic changes or normalization. This leaf is not normative ROI semantics or a whole decoder proof.",
+      "implementation_refs": [
+        {"path": "src/codestream/tile_header_traversal.rs", "symbol": "Parser::apply_tile_header_segment"},
+        {"path": "src/codestream/quantization.rs", "symbol": "RoiShifts::set"}
+      ],
+      "spec_refs": [
+        {"path": "specs/tile_header_traversal.rs", "symbol": "part1_set_roi_shift"}
+      ],
+      "contract_refs": [
+        {"path": "src/codestream/quantization.rs", "symbol": "RoiShifts::set"}
+      ],
+      "proof_refs": [
+        {"path": "src/codestream/proof_support.rs", "symbol": "roi_shifts_view"}
+      ],
+      "test_refs": [
+        {"path": "src/codestream/tile_header_traversal_tests.rs", "symbol": "raw_roi_setter_preserves_every_physical_shift_and_error_frame"}
+      ]
+    },
+    {
       "id": "part1-complete-native-tile-header-admission",
       "topic": "Source-derived actual read_tile_part raw loop prefix: peek, consume SOD through the real standalone producer and return None, reject tile boundaries before segment reading, otherwise consume the real segment and require known then allowed markers. Complete raw Result<Option<borrowed segment>> and full parser/input/limits/cursor/work/packet-accounting equality preserve every error and partial commit, including SOD cursor/work updates before work-limit failure and segment updates before marker rejection. The actual reader retains its pre-SOD header-end position, later dispatch and progress check; COD parsing is not moved. Existing optional-segment projection and reader/marker models are reused unchanged. This bounded source proof is not full tile/header/layout/public decoding, independent normative fidelity, lifetime, coverage or release approval.",
       "implementation_refs": [

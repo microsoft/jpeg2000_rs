@@ -1024,6 +1024,52 @@ class FrameworkTests(WorkingFiles):
             framework._TILE_HEADER_ADMISSION_CONTRACTS, 1,
         )
 
+    def test_inventory_binds_full_raw_tile_header_owned_result_and_every_mutable_frame(self):
+        self._assert_complete_packet_contract_bindings(
+            {"part1-complete-native-raw-tile-header-traversal"},
+            framework._RAW_TILE_HEADER_CONTRACTS, 8,
+        )
+
+    def test_inventory_binds_raw_roi_setter_complete_physical_owner_and_first_errors(self):
+        self._assert_complete_packet_contract_bindings(
+            {"part1-complete-native-roi-setter-frame"},
+            framework._ROI_SETTER_CONTRACTS, 1,
+        )
+
+    def test_inventory_requires_raw_rgn_link_through_all_actual_tile_header_producers(self):
+        coverage = json.loads((framework.VALIDATION / "normative-coverage.json").read_text())
+        entry = copy.deepcopy(next(item for item in coverage["requirements"]
+                                   if item["id"] == "part1-complete-native-raw-component-markers"))
+        reference = next(item for item in entry["contract_refs"]
+                         if item["symbol"] == "Parser::parse_rgn")
+        entry["implementation_refs"] = [
+            {"path": "src/codestream/tiles.rs", "symbol": "Parser::read_tile_part"},
+        ]
+        entry["contract_refs"] = [reference]
+        entry["proof_refs"] = [reference]
+        data = dict(coverage, requirements=[entry])
+        self.assertEqual(framework.validate_normative_coverage(data)["status"], "passed")
+        read_text = Path.read_text
+        for name, file in (
+            ("read_tile_header", "tiles.rs"),
+            ("traverse_tile_header", "tile_header_traversal.rs"),
+            ("dispatch_tile_header_segment", "tile_header_traversal.rs"),
+            ("apply_tile_header_segment", "tile_header_traversal.rs"),
+        ):
+            source = framework.ROOT / "src/codestream" / file
+            original = read_text(source)
+            call = "." + name + "("
+            self.assertEqual(original.count(call), 1)
+            changed = original.replace(call, ".unlisted_header_producer(", 1)
+            changed += "\nfn unrelated() { self." + name + "(unrelated); }\n"
+
+            def altered(path, *args, **kwargs):
+                return changed if path == source else read_text(path, *args, **kwargs)
+
+            with self.subTest(stage=name), mock.patch.object(Path, "read_text", altered), \
+                    self.assertRaisesRegex(ValueError, "not used by claimed implementation"):
+                framework.validate_normative_coverage(data)
+
     def test_inventory_requires_actual_tile_header_admission_call_and_complete_result(self):
         coverage = json.loads((framework.VALIDATION / "normative-coverage.json").read_text())
         coverage["requirements"] = [
@@ -1035,7 +1081,7 @@ class FrameworkTests(WorkingFiles):
             ("main_header_segment_outcome(result)", "result.is_ok()"),
             ("parser_view(final(self))", "parser_view(old(self))"),
         ))
-        source = framework.ROOT / "src/codestream/tiles.rs"
+        source = framework.ROOT / "src/codestream/tile_header_traversal.rs"
         original = source.read_text()
         read_text = Path.read_text
         call = "self.read_tile_header_segment()?"
@@ -1256,21 +1302,24 @@ class FrameworkTests(WorkingFiles):
             isolated["proof_refs"] = [reference]
             data = dict(coverage, requirements=[isolated])
             self.assertEqual(framework.validate_normative_coverage(data)["status"], "passed")
-            source = framework.ROOT / caller["path"]
+            source = framework.ROOT / (
+                "src/codestream/tile_header_traversal.rs"
+                if caller["path"] == "src/codestream/tiles.rs" else caller["path"]
+            )
             original = read_text(source)
             for kind, slots in (("InvalidCodingStyle", "coc_segments"),
                                 ("InvalidQuantization", "qcc_segments")):
                 pattern = (
                     r"\.record_component_segment\(\s*segment\s*,\s*"
                     r"(?:image_size\.)?components\s*,\s*MalformedKind::" + kind
-                    + r"\s*,\s*&mut\s+" + slots + r"\s*,?\s*\)"
+                    + r"\s*,\s*&mut\s+(?:raw\.)?" + slots + r"\s*,?\s*\)"
                 )
                 match = re.search(pattern, original)
                 self.assertIsNotNone(match)
                 for changed_call in (
                     match[0].replace(".record_component_segment(", ".unlisted_admission("),
                     match[0].replace(kind, "InvalidMarker"),
-                    match[0].replace("&mut " + slots, "&mut unrelated"),
+                    re.sub(r"&mut\s+(?:raw\.)?" + slots, "&mut unrelated", match[0]),
                     match[0].replace("components", "unrelated", 1),
                 ):
                     changed = original[:match.start()] + changed_call + original[match.end():]

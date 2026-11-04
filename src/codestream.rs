@@ -578,6 +578,8 @@ struct Parser<'a> {
 
 #[cfg(verus_keep_ghost)]
 include!("codestream/proof_support.rs");
+#[cfg(verus_keep_ghost)]
+include!("codestream/tile_header_traversal_proof_support.rs");
 
 #[cfg_attr(verus_keep_ghost, verifier::verify)]
 mod coding_markers;
@@ -635,6 +637,8 @@ mod reader;
 use reader::{
     is_standalone_marker, new_parser, read_u16, read_u32, read_u64, signed_u16, signed_u32,
 };
+#[cfg_attr(verus_keep_ghost, verifier::verify)]
+mod tile_header_traversal;
 #[cfg_attr(verus_keep_ghost, verifier::verify)]
 mod tiles;
 

@@ -172,11 +172,25 @@ impl RoiShifts {
         true
     }
 
+    #[cfg_attr(verus_keep_ghost, verus_spec(result =>
+        ensures (result, roi_shifts_view(final(self)))
+            == crate::specs::part1_set_roi_shift(roi_shifts_view(old(self)), component, shift),
+    ))]
     pub(super) fn set(&mut self, component: u16, shift: u8) -> Result<(), DecodeError> {
-        let value = self
-            .shifts
-            .get_mut(usize::from(component))
-            .ok_or_else(|| DecodeError::malformed(0, MalformedKind::InvalidRegionOfInterest))?;
+        #[cfg(verus_keep_ghost)]
+        proof! {
+            reveal(roi_shifts_view);
+            reveal(crate::specs::part1_set_roi_shift);
+            reveal(crate::specs::part1_codestream_malformed);
+            reveal(crate::specs::part1_codestream_offset);
+        }
+        let value = self.shifts.get_mut(usize::from(component)).ok_or_else(
+            #[cfg_attr(verus_keep_ghost, verus_spec(error: DecodeError =>
+                    ensures error == crate::specs::part1_codestream_malformed(
+                        0, MalformedKind::InvalidRegionOfInterest),
+                ))]
+            || DecodeError::malformed(0, MalformedKind::InvalidRegionOfInterest),
+        )?;
         *value = shift;
         Ok(())
     }

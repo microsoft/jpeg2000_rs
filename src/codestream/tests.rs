@@ -3,6 +3,9 @@ use super::reader::{is_allowed_main_header, is_allowed_tile_header, is_known_seg
 use super::*;
 use crate::tier1::SubbandOrientation;
 
+#[path = "tile_header_traversal_tests.rs"]
+mod tile_header_traversal;
+
 fn assert_tile_header_admission_case<'a>(
     input: &'a [u8],
     limits: &'a ResourceLimits,
