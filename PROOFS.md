@@ -179,6 +179,35 @@ technical candidate only: parent-owned record, review, CI, guarded integration
 and actual-main acceptance remain separate. No complete parsing, pixels,
 lifetime verification, normative conformance or publication claim follows.
 
+## Complete actual raw tile-part Result
+
+`Parser::read_tile_part` has a total Result/full-reader relation from its actual
+raw input and inherited owners. It composes the accepted raw header, pending
+fragment check, owned component configuration, POC validation, MCT resolution,
+data window and packet metadata producers. The complete payload projection
+retains every style, quantization, ROI, progression, transform, extension,
+packet-source and borrowed-data field, plus both returned owners. The previous
+tile-index postcondition remains in addition to this stronger relation.
+
+The zero-length path retains its early scanned cursor commit before later
+metadata errors. The fixed-length path commits only after both metadata
+finalizers succeed. Native code, failure order, allocation/owner scopes and
+unused physical tails are unchanged; no successful-result bank, normalized
+owner or executing proof adapter is introduced.
+
+The existing POC model takes a native style owner. A ghost-only exact inverse
+of the complete style projection is proved by existence and injectivity on
+every actual owner view, including arbitrary logical counts and physical
+fields/tails. This reuses the old POC model without weakening it or choosing a
+normalized representative. No runtime owner is created or cloned.
+
+Native regressions cover raw counts/tails and every returned field, first-error
+and partial-charge ordering, both cursor-commit paths and real packet/header
+producers. The inventory binds the full outcome, reader frame and actual layout
+caller. This is not a proof of the persistent tile/layout folds, raw public
+image composition, independent normative fidelity, lifetime recovery, measured
+coverage or publication readiness.
+
 ## Complete raw tile-header traversal
 
 The actual tile-part reader calls `Parser::read_tile_header` to initialize and

@@ -580,6 +580,8 @@ struct Parser<'a> {
 include!("codestream/proof_support.rs");
 #[cfg(verus_keep_ghost)]
 include!("codestream/tile_header_traversal_proof_support.rs");
+#[cfg(verus_keep_ghost)]
+include!("codestream/tile_part_proof_support.rs");
 
 #[cfg_attr(verus_keep_ghost, verifier::verify)]
 mod coding_markers;

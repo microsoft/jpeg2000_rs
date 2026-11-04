@@ -11,10 +11,12 @@ use super::{
 };
 #[cfg(verus_keep_ghost)]
 use super::{
-    component_style_owner_view, optional_segment_view, owned_extensions_view,
-    parsed_coding_style_view, parsed_quantization_owner_view, parser_view, quantization_view,
-    segment_slots_view, tile_component_configuration_outcome, tile_data_window_outcome,
-    tile_part_header_outcome, tile_part_owned_view,
+    component_style_owner_view, mct_parameters_view, optional_segment_view, owned_extensions_view,
+    packed_packet_headers_view, packet_lengths_view, parsed_coding_style_view,
+    parsed_quantization_owner_view, parser_view, progression_changes_view, quantization_view,
+    roi_shifts_view, segment_slots_view, tile_component_configuration_outcome,
+    tile_data_window_outcome, tile_part_header_outcome, tile_part_header_view,
+    tile_part_owned_view, tile_part_read_outcome,
 };
 #[cfg(verus_keep_ghost)]
 use vstd::prelude::*;
@@ -186,11 +188,22 @@ impl<'a> Parser<'a> {
     }
 
     #[allow(clippy::too_many_arguments)]
+    #[cfg_attr(verus_keep_ghost, verifier::spinoff_prover)]
     #[cfg_attr(verus_keep_ghost, verus_spec(result =>
-        ensures match result {
-            Ok((payload, _, _)) => payload.tile_index == tile_part.tile_index,
-            Err(_) => true,
-        },
+        ensures (tile_part_read_outcome(result), parser_view(final(self)))
+            == crate::specs::part1_read_tile_part(
+                parser_view(old(self)), tile_part_header_view(tile_part),
+                (parsed_coding_style_view(default_parameters.0), quantization_view(&default_parameters.1)),
+                component_style_owner_view(&inherited_coding_styles),
+                parsed_quantization_owner_view(&inherited_quantizations),
+                roi_shifts_view(&inherited_roi_shifts), progression_changes_view(&inherited_progression_changes),
+                mct_parameters_view(&mct_parameters), owned_extensions_view(&part2_extensions),
+                components, packet_lengths_view(&main_packet_lengths),
+                packed_packet_headers_view(&main_packed_packet_headers)),
+            match result {
+                Ok((payload, _, _)) => payload.tile_index == tile_part.tile_index,
+                Err(_) => true,
+            },
     ))]
     pub(super) fn read_tile_part(
         &mut self,
@@ -206,6 +219,22 @@ impl<'a> Parser<'a> {
         main_packet_lengths: PacketLengths<'a>,
         main_packed_packet_headers: PackedPacketHeaders<'a>,
     ) -> Result<(TilePartPayload<'a>, MctParameters, Part2Extensions), DecodeError> {
+        #[cfg(verus_keep_ghost)]
+        proof! {
+            reveal(crate::specs::part1_read_tile_part);
+            reveal(crate::specs::part1_finish_tile_part);
+            reveal(crate::specs::part1_tile_part_after_configuration);
+            reveal(crate::specs::part1_tile_part_after_window);
+            reveal(super::tile_header_read_outcome);
+            reveal(super::tile_header_accumulator_view);
+            reveal(super::mct_pending_view);
+            reveal(super::mcc_pending_view);
+            reveal(tile_component_configuration_outcome);
+            reveal(tile_part_read_outcome);
+            reveal(super::tile_part_payload_view);
+            reveal(parser_view);
+            reveal(tile_part_header_view);
+        }
         let TileHeaderAccumulator {
             tile_header_start,
             tile_header_end,
@@ -258,6 +287,8 @@ impl<'a> Parser<'a> {
                 inherited_quantizations,
                 &part2_extensions,
             )?;
+        #[cfg(verus_keep_ghost)]
+        proof! { super::tile_part_native_styles_inverse(&component_coding_styles); }
         self.validate_progression_changes(
             &progression_changes,
             tile_coding_style.layers,
