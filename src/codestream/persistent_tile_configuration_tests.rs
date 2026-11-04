@@ -128,7 +128,7 @@ fn actual_persistent_configuration_raw_geometry_first_errors_and_partial_frames(
                     }
                     let expected_result = if inconsistent {
                         Err(DecodeError::malformed(
-                            u64::MAX,
+                            usize::MAX as u64,
                             MalformedKind::InvalidRegionOfInterest,
                         ))
                     } else if prefix != 6 {
