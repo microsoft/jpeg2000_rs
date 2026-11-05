@@ -1030,6 +1030,131 @@ class FrameworkTests(WorkingFiles):
             framework._RAW_TILE_HEADER_CONTRACTS, 8,
         )
 
+    def test_inventory_binds_real_source_layer_color_and_consumed_image_conversion_results(self):
+        self._assert_complete_packet_contract_bindings(
+            {framework._JPX_LAYER_COLOR_ENTRY}, framework._JPX_LAYER_COLOR_CONTRACTS, 3, isolate=False,
+        )
+
+    def test_inventory_jpx_layer_color_requires_each_real_producer_model_and_checked_bridge(self):
+        coverage = json.loads((framework.VALIDATION / "normative-coverage.json").read_text())
+        entry = next(item for item in coverage["requirements"] if item["id"] == framework._JPX_LAYER_COLOR_ENTRY)
+        for field in ("contract_refs", "spec_refs", "proof_refs"):
+            for removed in entry[field]:
+                changed = copy.deepcopy(entry)
+                changed[field].remove(removed)
+                with self.subTest(field=field, removed=removed), self.assertRaisesRegex(ValueError, "whole JPX layer color Result"):
+                    framework.validate_normative_coverage(dict(coverage, requirements=[changed]))
+
+    def test_inventory_jpx_layer_color_binds_actual_file_index_options_override_and_decoded_handoffs(self):
+        coverage = json.loads((framework.VALIDATION / "normative-coverage.json").read_text())
+        entry = next(item for item in coverage["requirements"] if item["id"] == framework._JPX_LAYER_COLOR_ENTRY)
+        source = framework.ROOT / "src/jpx/layer_decode.rs"
+        original = source.read_text()
+        read_text = Path.read_text
+        begin = original.index("pub(super) fn decode_layer")
+        body = framework._coverage_function_body(original, framework._coverage_function_header(original, "decode_layer"))
+        if body is None:
+            self.fail("Actual decode_layer body is missing")
+        start = original.index(body, begin)
+        end = start + len(body)
+        for before, after in (
+            ("crate::decode::decode_jpx_file(file, codestream_index, options)",
+             "crate::decode::decode_jpx_file(file, 0, options)"),
+            ("crate::decode::decode_jpx_file(file, codestream_index, options)",
+             "crate::decode::decode_jpx_file(unrelated, codestream_index, options)"),
+            ("associated_typed_errors_known();", "unrelated();"),
+            ("associated_typed_success_known(&decoded, header);",
+             "associated_typed_success_known(&unrelated, header);"),
+            ("header.unwrap_or(file.header())", "file.header()"),
+            ("color_override.unwrap_or(&header.color)", "&header.color"),
+            ("options.limits()", "unrelated"),
+            ("&decoded,", "&unrelated,"),
+        ):
+            self.assertIn(before, body)
+            changed = original[:start] + body.replace(before, after, 1) + original[end:]
+
+            def altered(path, *args, **kwargs):
+                return changed if path == source else read_text(path, *args, **kwargs)
+
+            with self.subTest(before=before), mock.patch.object(Path, "read_text", altered), \
+                    self.assertRaisesRegex(ValueError, "real source/header/override/conversion handoffs"):
+                framework.validate_normative_coverage(dict(coverage, requirements=[entry]))
+
+    def test_inventory_jpx_layer_color_rejects_conditional_or_supplied_decoded_result_bridges(self):
+        coverage = json.loads((framework.VALIDATION / "normative-coverage.json").read_text())
+        entry = next(item for item in coverage["requirements"] if item["id"] == framework._JPX_LAYER_COLOR_ENTRY)
+        source = framework.ROOT / "src/jpx/layer_decode.rs"
+        original = source.read_text()
+        read_text = Path.read_text
+        for before, after in (
+            ("crate::decode::associated_typed_errors_known();",
+             "if false { crate::decode::associated_typed_errors_known(); }"),
+            ("crate::decode::associated_typed_success_known(&decoded, header);",
+             "if false { crate::decode::associated_typed_success_known(&decoded, header); }"),
+            ("crate::decode::decode_jpx_file(file, codestream_index, options)?", "supplied_successful_image?"),
+        ):
+            self.assertIn(before, original)
+            changed = original.replace(before, after, 1)
+
+            def altered(path, *args, **kwargs):
+                return changed if path == source else read_text(path, *args, **kwargs)
+
+            with self.subTest(before=before), mock.patch.object(Path, "read_text", altered), \
+                    self.assertRaisesRegex(ValueError, "real source/header/override/conversion handoffs"):
+                framework.validate_normative_coverage(dict(coverage, requirements=[entry]))
+
+    def test_inventory_jpx_layer_color_rejects_model_source_banks_wrong_fallbacks_and_truncated_planes(self):
+        coverage = json.loads((framework.VALIDATION / "normative-coverage.json").read_text())
+        entry = next(item for item in coverage["requirements"] if item["id"] == framework._JPX_LAYER_COLOR_ENTRY)
+        read_text = Path.read_text
+        for name, changes in (
+            ("specs/jpx_source.rs", (
+                ("match part2_decode_jpx_codestream(input, index, limits)", "match supplied_successful_decoded_image"),
+                ("Some(color) => color,", "Some(color) => input.2.2,"),
+                ("Some(header) => header.2, None => input.2.2", "Some(header) => input.2.2, None => input.2.2"),
+                ("color_convert_jp2(decoded.0.1, decoded.0.2, decoded.0.0, color,",
+                 "color_convert_jp2(decoded.0.1.take(0), decoded.0.2, decoded.0.0, color,"),
+                ("crate::limits::resource_work_limit(limits))", "0)"),
+            )),
+            ("src/jp2/proof_support.rs", (
+                ("Some(color) => Some(color_specification_method(color))", "Some(color) => None"),
+                ("None => None, Some(color)", "None => Some(unrelated), Some(color)"),
+            )),
+        ):
+            source = framework.ROOT / name
+            original = source.read_text()
+            for before, after in changes:
+                self.assertIn(before, original)
+                changed = original.replace(before, after, 1)
+
+                def altered(path, *args, **kwargs):
+                    return changed if path == source else read_text(path, *args, **kwargs)
+
+                with self.subTest(name=name, before=before), mock.patch.object(Path, "read_text", altered), \
+                        self.assertRaisesRegex(ValueError, "actual complete source/override models, not decoded-image banks"):
+                    framework.validate_normative_coverage(dict(coverage, requirements=[entry]))
+
+    def test_inventory_jpx_layer_color_keeps_call_local_caches_without_whole_source_relays(self):
+        coverage = json.loads((framework.VALIDATION / "normative-coverage.json").read_text())
+        entry = next(item for item in coverage["requirements"] if item["id"] == framework._JPX_LAYER_COLOR_ENTRY)
+        names = (
+            "src/jpx/layer_decode.rs", "src/decode/output.rs", "src/decode/proof_support.rs",
+            "src/jp2/proof_support.rs", "src/color/conversion.rs", "specs/jpx_source.rs",
+        )
+        counts = {framework.ROOT / name: 0 for name in names}
+        read_text = Path.read_text
+
+        def counted(path, *args, **kwargs):
+            if path in counts:
+                counts[path] += 1
+            return read_text(path, *args, **kwargs)
+
+        with mock.patch.object(Path, "read_text", counted):
+            for expected in (1, 2):
+                self.assertEqual(framework.validate_normative_coverage(dict(coverage, requirements=[entry]))["status"], "passed")
+                self.assertEqual(set(counts.values()), {expected})
+        self.assertNotIn(("src/jpx/layer_decode.rs", "decode_layer"), framework._COMPONENT_PRODUCER_RELAYS)
+
     def test_inventory_binds_actual_jpx_source_image_producer_and_complete_consumed_results(self):
         self._assert_complete_packet_contract_bindings(
             {framework._JPX_SOURCE_ENTRY}, framework._JPX_SOURCE_CONTRACTS, 6, isolate=False,

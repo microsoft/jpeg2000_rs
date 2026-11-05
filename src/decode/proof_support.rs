@@ -365,6 +365,17 @@ verus! {
         }
     }
 
+    pub(crate) proof fn associated_typed_errors_known()
+        ensures forall|error: DecodeError| associated_typed_outcome(Err(error)) == Err(error),
+    {
+    }
+
+    pub(crate) proof fn associated_typed_success_known(image: &TypedImage, header: Option<&jp2::Jp2Header>)
+        ensures associated_typed_outcome(Ok((*image, header)))
+            == Ok((crate::image::typed_image_value_view(*image), jp2::associated_header_option(header))),
+    {
+    }
+
     closed spec fn selected_tiles_outcome(result: Result<Vec<u16>, DecodeError>) -> Result<Seq<u16>, DecodeError> {
         match result { Err(error) => Err(error), Ok(tiles) => Ok(tiles@) }
     }

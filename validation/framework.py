@@ -1849,6 +1849,26 @@ _JPX_SOURCE_CONTRACTS = {
         + _coverage_call("crate::limits::resource_decoded_bytes_limit", "limits"),
     ),
 }
+_JPX_LAYER_COLOR_ENTRY = "part2-complete-native-jpx-source-layer-color-result"
+_JPX_LAYER_COLOR_CONTRACTS = {
+    ("src/jpx/layer_decode.rs", "decode_layer"): (
+        "part2_decode_jpx_layer", _coverage_call("crate::color::converted_image_result", r"\1"), None,
+        _coverage_call("jp2::jpx_file_decode_view", "file") + r"\s*,\s*codestream_index\s*,\s*"
+        + _coverage_call("jp2::optional_color_specification_method", "color_override") + r"\s*,\s*"
+        + _coverage_call("crate::options::decode_options_limits", "options"),
+    ),
+    ("src/decode/output.rs", "decode_jpx_file"):
+        _JPX_SOURCE_CONTRACTS[("src/decode/output.rs", "decode_jpx_file")],
+    ("src/color/conversion.rs", "convert_jp2_color"): (
+        "color_convert_jp2", _coverage_call("converted_image_result", r"\1"), None,
+        _coverage_call("crate::image::typed_image_component_views", "image") + r"\s*,\s*"
+        + _coverage_call("crate::image::typed_image_definition_views", "image") + r"\s*,\s*"
+        + _coverage_call("crate::image::typed_image_geometry", "image") + r"\s*,\s*"
+        + _coverage_call("crate::jp2::color_specification_method", "color") + r"\s*,\s*"
+        + _coverage_call("crate::limits::resource_decoded_bytes_limit", "limits") + r"\s*,\s*"
+        + _coverage_call("crate::limits::resource_work_limit", "limits"),
+    ),
+}
 _RAW_TYPED_CONTRACTS = {
     ("src/decode/api.rs", "decode_codestream"): (
         "part2_decode_raw_codestream", _coverage_call("crate::image::decoded_typed_image_outcome", r"\1"), None,
@@ -2783,6 +2803,63 @@ def validate_normative_coverage(
     ids: set[str] = set()
     contract_functions: set[tuple[str, str]] = set()
     for entry in coverage["requirements"]:
+        if entry["id"] == _JPX_LAYER_COLOR_ENTRY:
+            if {(ref["path"], ref["symbol"]) for ref in entry["contract_refs"]} != set(_JPX_LAYER_COLOR_CONTRACTS):
+                raise ValueError("whole JPX layer color Result requires actual layer/source/complete conversion contracts")
+            model_refs = {
+                ("specs/jpx_source.rs", "part2_decode_jpx_layer"),
+                ("specs/jpx_source.rs", "part2_decode_jpx_codestream"),
+                ("specs/mod.rs", "color_convert_jp2"),
+            }
+            if not model_refs.issubset({(ref["path"], ref["symbol"]) for ref in entry["spec_refs"]}):
+                raise ValueError("whole JPX layer color Result requires actual source-to-conversion models")
+            proof_refs = {
+                ("specs/jpx_source.rs", "part2_decode_jpx_layer_unfold"),
+                ("src/decode/proof_support.rs", "associated_typed_errors_known"),
+                ("src/decode/proof_support.rs", "associated_typed_success_known"),
+                ("src/jp2/proof_support.rs", "optional_color_specification_method"),
+                ("src/jp2/container.rs", "Jp2File::header"),
+                ("src/options.rs", "DecodeOptions::limits"),
+            }
+            if not proof_refs.issubset({(ref["path"], ref["symbol"]) for ref in entry["proof_refs"]}):
+                raise ValueError("whole JPX layer color Result requires actual outcome/override/header/limits bridges")
+            path = (ROOT / "src/jpx/layer_decode.rs").resolve()
+            body = _coverage_function_body(source_text(path), function_header(path, "decode_layer"))
+            expected = """
+                #[cfg(verus_keep_ghost)] proof! {
+                    crate::decode::associated_typed_errors_known();
+                    crate::specs::part2_decode_jpx_layer_unfold(
+                        jp2::jpx_file_decode_view(file), codestream_index,
+                        jp2::optional_color_specification_method(color_override), crate::options::decode_options_limits(options));
+                }
+                let (decoded, header) = crate::decode::decode_jpx_file(file, codestream_index, options)?;
+                #[cfg(verus_keep_ghost)] proof! { crate::decode::associated_typed_success_known(&decoded, header); }
+                let header = header.unwrap_or(file.header());
+                crate::color::convert_jp2_color(
+                    &decoded, color_override.unwrap_or(&header.color), options.limits(),)
+            """
+            if body is None or "".join(body.split()) != "".join(expected.split()):
+                raise ValueError("whole JPX layer color Result requires real source/header/override/conversion handoffs")
+            for (relative, symbol), expected in {
+                ("src/jp2/proof_support.rs", "optional_color_specification_method"):
+                    "match color { None => None, Some(color) => Some(color_specification_method(color)) }",
+                ("specs/jpx_source.rs", "part2_decode_jpx_layer"): """
+                    match part2_decode_jpx_codestream(input, index, limits) {
+                        Err(error) => Err(error),
+                        Ok(decoded) => {
+                            let color = match color_override {
+                                Some(color) => color,
+                                None => match decoded.1 { Some(header) => header.2, None => input.2.2 },
+                            };
+                            color_convert_jp2(decoded.0.1, decoded.0.2, decoded.0.0, color,
+                                crate::limits::resource_decoded_bytes_limit(limits), crate::limits::resource_work_limit(limits))
+                        },
+                    }
+                """,
+            }.items():
+                actual = _coverage_spec_function_body(source_text((ROOT / relative).resolve()), symbol)
+                if actual is None or "".join(actual.split()) != "".join(expected.split()):
+                    raise ValueError("whole JPX layer color Result requires actual complete source/override models, not decoded-image banks")
         if entry["id"] == _JPX_SOURCE_ENTRY:
             if {(ref["path"], ref["symbol"]) for ref in entry["contract_refs"]} != set(_JPX_SOURCE_CONTRACTS):
                 raise ValueError("whole JPX source Result requires actual file, raw info/decoder, association/validation/output contracts")
@@ -4110,6 +4187,8 @@ def validate_normative_coverage(
                     if entry["id"] == _RAW_TYPED_ENTRY else None)
                 or (_JPX_SOURCE_CONTRACTS.get((reference["path"], reference["symbol"]))
                     if entry["id"] == _JPX_SOURCE_ENTRY else None)
+                or (_JPX_LAYER_COLOR_CONTRACTS.get((reference["path"], reference["symbol"]))
+                    if entry["id"] == _JPX_LAYER_COLOR_ENTRY else None)
                 or _CODESTREAM_READER_CONTRACTS.get((reference["path"], reference["symbol"]))
                 or _SOT_READER_CONTRACTS.get((reference["path"], reference["symbol"]))
                 or _TILE_DATA_WINDOW_CONTRACTS.get((reference["path"], reference["symbol"]))

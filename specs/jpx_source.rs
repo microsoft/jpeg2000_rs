@@ -122,4 +122,40 @@ pub(crate) proof fn part2_decode_jpx_codestream_unfold(
 {
 }
 
+pub closed spec fn part2_decode_jpx_layer(
+    input: Part2JpxDecodeInput, index: usize, color_override: Option<crate::jp2::ColorMethod>,
+    limits: &crate::ResourceLimits,
+) -> Part2ConvertedImageResult {
+    match part2_decode_jpx_codestream(input, index, limits) {
+        Err(error) => Err(error),
+        Ok(decoded) => {
+            let color = match color_override {
+                Some(color) => color,
+                None => match decoded.1 { Some(header) => header.2, None => input.2.2 },
+            };
+            color_convert_jp2(decoded.0.1, decoded.0.2, decoded.0.0, color,
+                crate::limits::resource_decoded_bytes_limit(limits), crate::limits::resource_work_limit(limits))
+        },
+    }
+}
+
+pub(crate) proof fn part2_decode_jpx_layer_unfold(
+    input: Part2JpxDecodeInput, index: usize, color_override: Option<crate::jp2::ColorMethod>,
+    limits: &crate::ResourceLimits,
+)
+    ensures part2_decode_jpx_layer(input, index, color_override, limits)
+        == match part2_decode_jpx_codestream(input, index, limits) {
+            Err(error) => Err(error),
+            Ok(decoded) => {
+                let color = match color_override {
+                    Some(color) => color,
+                    None => match decoded.1 { Some(header) => header.2, None => input.2.2 },
+                };
+                color_convert_jp2(decoded.0.1, decoded.0.2, decoded.0.0, color,
+                    crate::limits::resource_decoded_bytes_limit(limits), crate::limits::resource_work_limit(limits))
+            },
+        },
+{
+}
+
 }
