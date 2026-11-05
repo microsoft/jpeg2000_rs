@@ -179,6 +179,48 @@ technical candidate only: parent-owned record, review, CI, guarded integration
 and actual-main acceptance remain separate. No complete parsing, pixels,
 lifetime verification, normative conformance or publication claim follows.
 
+## Complete actual raw main-header Result prefix
+
+The consuming `Parser::parse_layout` method now has a raw-input main-header
+Result relation. It propagates every modeled prologue, dispatch, traversal or
+finalization error exactly. When later layout processing succeeds, every
+returned main-header field equals the source-derived result. Later tile/layout
+errors are deliberately still allowed: this is **not** the complete raw-input
+layout Result contract.
+
+The actual main loop retains its original owning locals and scopes. A complete
+physical accumulator projection links initialization and each remaining raw
+traversal suffix, including deferred COC/QCC/QCD slots, ROI observations, PLM/PPM
+indexes and groups, extension metadata, pending/completed MCT/MCC fragments,
+owned CAP/PRF/CPF words, marker counts and the complete parser state. Its exit
+relation feeds the original ordered bit-depth, PPM/window, COD/QCD, component,
+progression, MCT-order, registration, graph and tile-count finalization.
+
+An unconditional ghost-only cut equates the whole modeled successful Result
+with all actual finalized owners, borrowed header/frame data and final reader,
+including work and packet counters. The existing tile loop carries the
+main-header field relation without changing its persistent-state proof. The
+accepted profile classifier then preserves every original CAP/PRF/CPF word.
+There is no prepared successful header bank, normalized physical owner or
+executing proof clone.
+
+Three initializations directly call the sole shared constructor bodies behind
+the public ROI/progression `none` interfaces and extension `Default` interface.
+Their values and zero-capacity empty owners are proved and tested; no original
+owning binding, move or lifetime is relocated. Native implementation
+observations and exact-source full qualification remain separate evidence.
+
+The inventory requires the actual layout contract and all three initializers,
+the complete raw model chain, full physical projections, actual raw wrapper,
+traversal invariant/exit and unconditional final-reader/owner cut. It does not
+add the whole reader to generic component producer relays. Independent encoded
+order/geometry, first-error and fragmented metadata tests complement the
+existing producer tests.
+
+Complete raw-input layout composition, corrected-rule prerequisites,
+normalization/public decoding, independent normative correspondence,
+production coverage/erasure/lifetimes and release qualification remain open.
+
 ## Complete actual codestream profile Result
 
 The actual `classify_codestream_profile` function carries a complete Result

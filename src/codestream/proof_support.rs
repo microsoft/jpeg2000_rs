@@ -1,5 +1,76 @@
 #[cfg(verus_keep_ghost)]
 verus! {
+    pub(crate) closed spec fn main_header_accumulator_view(
+        size: &ImageSize, r_siz: u16, start: usize, segments: u64,
+        style: Option<CodingStyle>, qcd: Option<Segment<'_>>,
+        coc: Seq<Option<Segment<'_>>>, qcc: Seq<Option<Segment<'_>>>,
+        roi: &RoiShifts, roi_seen: Seq<bool>,
+        plm: Seq<PacketLengths<'_>>, next_plm: u16, plm_seen: bool,
+        ppm: Seq<u8>, next_ppm: u16, ppm_fragments: u16,
+        progression: &ProgressionChanges, poc_seen: bool,
+        arrays: Seq<MctArray>, records: Seq<MctRecord>, order: &Option<Vec<u8>>,
+        pending_mct: Seq<MctFragment>, completed_mct: Seq<u8>,
+        pending_mcc: Seq<MccFragment>, completed_mcc: Seq<u8>,
+        capabilities: &Option<ExtendedCapabilities>, profile: &Option<ProfileNumber>,
+        corresponding_profile: &Option<ProfileNumber>, extensions: &Part2Extensions, next_tlm: u16,
+    ) -> crate::specs::Part1MainHeaderAccumulator {
+        crate::specs::Part1MainHeaderAccumulator {
+            image_size: parsed_image_size_view(size), r_siz, start, segments,
+            coding_style: match style { None => None, Some(style) => Some(parsed_coding_style_view(style)) },
+            qcd: optional_segment_view(qcd), coc: segment_slots_view(coc), qcc: segment_slots_view(qcc),
+            roi: roi_shifts_view(roi), roi_seen,
+            plm: packet_length_groups_view(plm), next_plm, plm_seen, ppm, next_ppm, ppm_fragments,
+            progression: progression_changes_view(progression), poc_seen,
+            arrays: mct_arrays_view(arrays), records: mct_records_view(records),
+            order: match order { None => None, Some(order) => Some(order@) },
+            pending_mct: mct_pending_view(pending_mct), completed_mct,
+            pending_mcc: mcc_pending_view(pending_mcc), completed_mcc,
+            capabilities: optional_capabilities_view(capabilities),
+            profile: optional_profile_number_view(profile),
+            corresponding_profile: optional_profile_number_view(corresponding_profile),
+            extensions: owned_extensions_view(extensions), next_tlm,
+        }
+    }
+
+    pub(crate) closed spec fn main_header_fields_view(
+        size: &ImageSize, style: CodingStyle, quantization: &Quantization,
+        styles: &ComponentCodingStyles, quantizations: &ComponentQuantizations,
+        roi: &RoiShifts, progression: &ProgressionChanges,
+        transform: &Option<MultipleComponentTransform>, extensions: &Part2Extensions,
+        r_siz: u16, capabilities: &Option<ExtendedCapabilities>,
+        profile: &Option<ProfileNumber>, corresponding_profile: &Option<ProfileNumber>, segments: u64,
+    ) -> crate::specs::Part1LayoutMainFields {
+        crate::specs::Part1LayoutMainFields {
+            image_size: parsed_image_size_view(size), coding_style: parsed_coding_style_view(style),
+            quantization: quantization_view(quantization), styles: component_style_owner_view(styles),
+            quantizations: parsed_quantization_owner_view(quantizations),
+            roi: roi_shifts_view(roi), progression: progression_changes_view(progression),
+            transform: match transform {
+                None => None, Some(transform) => Some(multiple_component_transform_view(transform)),
+            },
+            extensions: owned_extensions_view(extensions), r_siz,
+            capabilities: optional_capabilities_view(capabilities),
+            profile: optional_profile_number_view(profile),
+            corresponding_profile: optional_profile_number_view(corresponding_profile), segments,
+        }
+    }
+
+    pub(crate) closed spec fn layout_main_header_outcome(result: Result<CodestreamLayout<'_>, DecodeError>)
+        -> Result<crate::specs::Part1LayoutMainFields, DecodeError>
+    {
+        match result {
+            Err(error) => Err(error),
+            Ok(layout) => {
+                let info = layout.info;
+                Ok(main_header_fields_view(&info.image_size, info.coding_style, &info.quantization,
+                    &info.component_coding_styles, &info.component_quantizations, &info.roi_shifts,
+                    &info.progression_changes, &info.multiple_component_transform, &info.part2_extensions,
+                    info.profile.r_siz, &info.profile.extended_capabilities, &info.profile.profile,
+                    &info.profile.corresponding_profile, info.main_header_segments))
+            },
+        }
+    }
+
     pub closed spec fn image_size_component_infos(size: &ImageSize) -> Seq<ComponentInfo> {
         size.component_info@
     }

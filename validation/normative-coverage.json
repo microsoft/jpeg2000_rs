@@ -4,6 +4,53 @@
   "scope": "Technical reference inventory; not exhaustive standards-clause coverage or a conformance claim.",
   "requirements": [
     {
+      "id": "part1-complete-native-raw-main-header-result",
+      "topic": "Complete source-derived raw main-header Result prefix of the actual consuming layout method: real SOC/SIZ prologue, all physical accumulator fields and deferred component slots, all marker dispatches with exact first errors and partial counters/fragments, ordered bit-depth/PPM/header-window/COD-QCD/component/progression/MCT/registration/graph/tile-count finalization, and the complete actual successful reader/owner output at an unconditional proved cut. Its real layout Result contract propagates every modeled main-header error exactly and preserves every returned main-header field, including raw CAP/PRF/CPF owners, when the later layout succeeds; later tile/layout errors remain explicitly allowed. This is not a complete raw-input layout Result theorem. Existing producer contracts are reused, not replaced by a prepared header/result bank. Original native owning locals, scopes, lookup/move/drop order and parser body are retained; three initializations directly call the sole shared constructor bodies behind unchanged public None/default interfaces. Physical tails and Some(empty) distinctions are not normalized. Strict metadata binds actual raw initialization, traversal invariants/termination, final reader/work/packet state, all finalized owners, complete projections and the public raw wrapper; no generic reader producer relay is added. No corrected selected-edition model correspondence, general production cfg/erasure/lifetime/coverage, official conformance or release claim.",
+      "implementation_refs": [
+        {"path": "src/codestream/layout.rs", "symbol": "parse_layout"},
+        {"path": "src/codestream/layout.rs", "symbol": "Parser::parse_layout"},
+        {"path": "src/codestream/coding_style.rs", "symbol": "new_progression_changes"},
+        {"path": "src/codestream/quantization.rs", "symbol": "new_roi_shifts"},
+        {"path": "src/codestream/extensions.rs", "symbol": "new_part2_extensions"}
+      ],
+      "spec_refs": [
+        {"path": "specs/main_header.rs", "symbol": "part1_empty_extensions"},
+        {"path": "specs/main_header.rs", "symbol": "part1_empty_roi_shifts"},
+        {"path": "specs/main_header.rs", "symbol": "part1_empty_progression_changes"},
+        {"path": "specs/main_header.rs", "symbol": "part1_main_header_initial"},
+        {"path": "specs/main_header.rs", "symbol": "part1_main_header_payload"},
+        {"path": "specs/main_header.rs", "symbol": "part1_main_header_mct_payload"},
+        {"path": "specs/main_header.rs", "symbol": "part1_main_header_extension_payload"},
+        {"path": "specs/main_header.rs", "symbol": "part1_main_header_after_components"},
+        {"path": "specs/main_header.rs", "symbol": "part1_main_header_after_depths"},
+        {"path": "specs/main_header.rs", "symbol": "part1_finish_main_header"},
+        {"path": "specs/main_header.rs", "symbol": "part1_main_header_continuation"},
+        {"path": "specs/main_header.rs", "symbol": "part1_read_main_header"},
+        {"path": "specs/main_header.rs", "symbol": "part1_main_header_fields"},
+        {"path": "specs/main_header.rs", "symbol": "part1_main_header_layout_relation"}
+      ],
+      "contract_refs": [
+        {"path": "src/codestream/layout.rs", "symbol": "Parser::parse_layout"},
+        {"path": "src/codestream/coding_style.rs", "symbol": "new_progression_changes"},
+        {"path": "src/codestream/quantization.rs", "symbol": "new_roi_shifts"},
+        {"path": "src/codestream/extensions.rs", "symbol": "new_part2_extensions"}
+      ],
+      "proof_refs": [
+        {"path": "src/codestream/proof_support.rs", "symbol": "main_header_accumulator_view"},
+        {"path": "src/codestream/proof_support.rs", "symbol": "main_header_fields_view"},
+        {"path": "src/codestream/proof_support.rs", "symbol": "layout_main_header_outcome"},
+        {"path": "src/codestream/proof_support.rs", "symbol": "optional_capabilities_view"},
+        {"path": "src/codestream/proof_support.rs", "symbol": "optional_profile_number_view"},
+        {"path": "src/codestream/tile_part_proof_support.rs", "symbol": "tile_part_native_styles_inverse"}
+      ],
+      "test_refs": [
+        {"path": "src/codestream/main_header_result_tests.rs", "symbol": "actual_raw_main_header_initializers_preserve_all_physical_empty_owners"},
+        {"path": "src/codestream/main_header_result_tests.rs", "symbol": "actual_raw_main_header_result_composes_all_deferred_component_orders_and_geometry"},
+        {"path": "src/codestream/main_header_result_tests.rs", "symbol": "actual_raw_main_header_result_preserves_dispatch_and_finalization_first_errors"},
+        {"path": "src/codestream/main_header_result_tests.rs", "symbol": "actual_raw_main_header_result_joins_fragment_packet_metadata_and_owned_extensions"}
+      ]
+    },
+    {
       "id": "part1-complete-native-codestream-profile-result",
       "topic": "Whole actual classify_codestream_profile Result chain, not isolated capability getters: complete main/tile style observation with all three mutable flags and error frames, actual raw component/ROI/capability validation, both real iterator marker predicates, signaling/mode/header policy and every owned returned CAP/PRF/CPF word including unused tails and Some(empty) metadata. Raw passed component counts remain independent of owner logical counts and physical slots; no normalization or successful-input premise. Actual layout arguments and returned profile storage are source-bound. Two decoder calls use the existing proved sole free body behind the unchanged static public wrapper; no alternate executing decoder, external axiom or proof clone. Iterator reasoning uses existing pinned vstd laws, raw value/reference projection witnesses and proved lossless field-width casts. The full classifier contract is mandatory alongside all its consumed new contracts. This closes the actual profile Result boundary only, not the complete raw main-header/layout/public relation, independently reviewed normative fidelity, general cfg/erasure/lifetime/coverage, official conformance or release qualification.",
       "implementation_refs": [

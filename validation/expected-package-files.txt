@@ -23,6 +23,7 @@ specs/codestream_profile.rs
 specs/header.rs
 specs/layout_input.rs
 specs/legacy.rs
+specs/main_header.rs
 specs/mod.rs
 specs/mq.rs
 specs/packet.rs
@@ -42,6 +43,7 @@ src/codestream/extensions.rs
 src/codestream/geometry.rs
 src/codestream/image_header.rs
 src/codestream/layout.rs
+src/codestream/main_header_result_tests.rs
 src/codestream/mct.rs
 src/codestream/mct_markers.rs
 src/codestream/mct_parameter_clone_tests.rs

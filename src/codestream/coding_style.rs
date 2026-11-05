@@ -28,11 +28,18 @@ impl ProgressionChange {
             && component < self.component_end
     }
 }
+#[cfg_attr(verus_keep_ghost, verus_spec(result =>
+    ensures progression_changes_view(&result) == crate::specs::part1_empty_progression_changes(),
+))]
+pub(super) const fn new_progression_changes() -> ProgressionChanges {
+    ProgressionChanges {
+        records: Vec::new(),
+    }
+}
+
 impl ProgressionChanges {
     pub const fn none() -> Self {
-        Self {
-            records: Vec::new(),
-        }
+        new_progression_changes()
     }
 
     #[cfg_attr(verus_keep_ghost, verus_spec(result => ensures result@ == progression_changes_view(self),))]
