@@ -35,6 +35,10 @@ mod main_header;
 pub use main_header::*;
 mod raw_layout;
 pub use raw_layout::*;
+mod decoder_input;
+pub use decoder_input::*;
+mod raw_decode;
+pub use raw_decode::*;
 
 pub use crate::proofs::internal_specs::{
     part2_composition_layer_prefix_matches, part2_composition_layer_prefix_safe,
@@ -9409,32 +9413,7 @@ pub(crate) open spec fn part2_nonlinear_tile_region(
     layout: &crate::codestream::CodestreamLayout<'_>, component: u16, tile: u16,
     extent: (u32, u32, u32, u32),
 ) -> Result<Option<Part2NonlinearRegion>, crate::DecodeError> {
-    let extensions = part2_nonlinear_tile_extensions(
-        crate::codestream::owned_extensions_view(&layout.info.part2_extensions),
-        crate::codestream::tile_parts_owned_view(layout.tile_parts@), tile, layout.tile_parts@.len(),
-    );
-    match part2_nonlinear_transform_for(extensions.nonlinear, component) {
-        None => Ok(None),
-        Some(transform) => match part2_tile_component_bounds(
-            crate::codestream::selection_geometry_view(&layout.info.image_size),
-            crate::codestream::image_size_component_count(&layout.info.image_size),
-            crate::codestream::image_size_component_infos(&layout.info.image_size), tile, component,
-        ) {
-            Err(error) => Err(error),
-            Ok(bounds) => {
-                let x0 = if bounds.x0 > extent.0 { bounds.x0 } else { extent.0 };
-                let y0 = if bounds.y0 > extent.1 { bounds.y0 } else { extent.1 };
-                let x1 = if bounds.x1 < extent.2 { bounds.x1 } else { extent.2 };
-                let y1 = if bounds.y1 < extent.3 { bounds.y1 } else { extent.3 };
-                if x0 >= x1 || y0 >= y1 { Ok(None) } else {
-                    Ok(Some(Part2NonlinearRegion {
-                        component, x0: (x0 - extent.0) as u32, y0: (y0 - extent.1) as u32,
-                        x1: (x1 - extent.0) as u32, y1: (y1 - extent.1) as u32, transform,
-                    }))
-                }
-            },
-        },
-    }
+    part2_nonlinear_tile_region_input(crate::codestream::decoder_layout_input_view(layout), component, tile, extent)
 }
 
 pub(crate) open spec fn part2_nonlinear_tile_regions(
@@ -9443,15 +9422,7 @@ pub(crate) open spec fn part2_nonlinear_tile_regions(
 ) -> Result<Seq<Part2NonlinearRegion>, crate::DecodeError>
     decreases count - tile,
 {
-    if tile >= count { Ok(regions) }
-    else if tile > u16::MAX { Err(part1_block_placement_error(true)) }
-    else {
-        match part2_nonlinear_tile_region(layout, component, tile as u16, extent) {
-            Err(error) => Err(error),
-            Ok(region) => part2_nonlinear_tile_regions(layout, component, extent, count, tile + 1,
-                match region { None => regions, Some(region) => regions.push(region) }),
-        }
-    }
+    part2_nonlinear_tile_regions_input(crate::codestream::decoder_layout_input_view(layout), component, extent, count, tile, regions)
 }
 
 pub(crate) open spec fn part2_nonlinear_component_regions(
@@ -9460,21 +9431,13 @@ pub(crate) open spec fn part2_nonlinear_component_regions(
 ) -> Result<Seq<Part2NonlinearRegion>, crate::DecodeError>
     decreases layout.info.image_size.components - component,
 {
-    if component >= layout.info.image_size.components { Ok(regions) } else {
-        match part2_nonlinear_component_extent(&layout.info.image_size, image, component as u16) {
-            Err(error) => Err(error),
-            Ok((extent, count)) => match part2_nonlinear_tile_regions(layout, component as u16, extent, count, 0, regions) {
-                Err(error) => Err(error),
-                Ok(regions) => part2_nonlinear_component_regions(layout, image, component + 1, regions),
-            },
-        }
-    }
+    part2_nonlinear_component_regions_input(crate::codestream::decoder_layout_input_view(layout), image, component, regions)
 }
 
 pub(crate) open spec fn part2_collect_nonlinear_regions(
     layout: &crate::codestream::CodestreamLayout<'_>, image: Part1DecodedTypedImage,
 ) -> Result<Seq<Part2NonlinearRegion>, crate::DecodeError> {
-    part2_nonlinear_component_regions(layout, image, 0, Seq::empty())
+    part2_collect_nonlinear_regions_input(crate::codestream::decoder_layout_input_view(layout), image)
 }
 
 pub struct Part2OwnedExtensions {
@@ -9528,9 +9491,7 @@ pub open spec fn part2_collect_tile_parts(parts: Seq<Part2OwnedTilePart>, tile: 
 pub(crate) open spec fn part2_layout_execution_admission(layout: &crate::codestream::CodestreamLayout<'_>)
     -> Result<(), crate::DecodeError>
 {
-    part2_validate_execution_layout(layout.info.image_size.components,
-        crate::decode::execution_header_view(layout.info.component_coding_styles, &layout.info.part2_extensions),
-        crate::decode::execution_tile_headers(layout.tile_parts@))
+    part2_decoder_execution_admission(crate::codestream::decoder_layout_input_view(layout))
 }
 
 #[verifier::opaque]
@@ -9585,17 +9546,7 @@ pub(crate) open spec fn part2_typed_layout(
     layout: &crate::codestream::CodestreamLayout<'_>, decoded: Part1DecodedImageModel,
     limits: &crate::ResourceLimits,
 ) -> Result<Part1DecodedTypedImage, crate::DecodeError> {
-    match part1_decoded_image_typed(decoded, crate::limits::resource_decoded_bytes_limit(limits)) {
-        Err(error) => Err(error),
-        Ok(image) => match part2_collect_nonlinear_regions(layout, image) {
-            Err(error) => Err(error),
-            Ok(regions) => if regions.len() == 0 { Ok(image) } else {
-                let outcome = part2_apply_nonlinear_regions(image, regions,
-                    crate::limits::resource_decoded_bytes_limit(limits), crate::limits::resource_work_limit(limits));
-                match outcome.0 { Err(error) => Err(error), Ok(()) => Ok(outcome.1) }
-            },
-        },
-    }
+    part2_typed_layout_input(crate::codestream::decoder_layout_input_view(layout), decoded, limits)
 }
 
 #[verifier::opaque]
@@ -9603,58 +9554,19 @@ pub(crate) open spec fn part2_decode_typed_layout(
     input_bytes: usize, layout: &crate::codestream::CodestreamLayout<'_>, limits: &crate::ResourceLimits,
     requested: Option<&crate::DecodeSelection>,
 ) -> Result<Part1DecodedTypedImage, crate::DecodeError> {
-    let decoded = match requested {
-        None => part2_decode_layout(layout, limits),
-        Some(requested) => part2_decode_layout_selected(layout, requested, limits),
-    };
-    match decoded {
-        Err(error) => Err(error),
-        Ok(decoded) => match part2_typed_layout(layout, decoded, limits) {
-            Err(error) => Err(error),
-            Ok(image) => match part1_validate_typed_output_shape(
-                input_bytes, layout.tile_parts.len(), layout.info.image_size.components, image,
-            ) {
-                Err(error) => Err(error),
-                Ok(()) => Ok(image),
-            },
-        },
-    }
+    part2_decode_typed_layout_input(input_bytes, crate::codestream::decoder_layout_input_view(layout), limits, requested)
 }
 
 pub(crate) open spec fn part2_decode_layout(layout: &crate::codestream::CodestreamLayout<'_>, limits: &crate::ResourceLimits)
     -> Result<Part1DecodedImageModel, crate::DecodeError>
 {
-    match part2_layout_execution_admission(layout) {
-        Err(error) => Err(error),
-        Ok(()) => match part2_selection_tile_count(crate::codestream::selection_geometry_view(&layout.info.image_size)) {
-            Err(error) => Err(error),
-            Ok(count) => if count > u16::MAX as u64 + 1 {
-                Err(crate::DecodeError::MalformedInput { offset: 0, kind: crate::MalformedKind::InvalidImageGeometry })
-            } else {
-                part2_full_layout_tiles(&layout.info.image_size, crate::codestream::tile_parts_owned_view(layout.tile_parts@),
-                    crate::codestream::codestream_profile_capabilities(&layout.info.profile), limits, count, 0,
-                    Part2DecodedLayoutTile { prepared: Seq::empty(), counters: (0, 0, 0), mct_work: 0 })
-            },
-        },
-    }
+    part2_decode_layout_input(crate::codestream::decoder_layout_input_view(layout), limits)
 }
 
 pub(crate) open spec fn part2_decode_layout_selected(
     layout: &crate::codestream::CodestreamLayout<'_>, requested: &crate::DecodeSelection, limits: &crate::ResourceLimits,
 ) -> Result<Part1DecodedImageModel, crate::DecodeError> {
-    match part2_layout_execution_admission(layout) {
-        Err(error) => Err(error),
-        Ok(()) => match part2_validate_selection(crate::codestream::selection_geometry_view(&layout.info.image_size),
-            crate::options::decode_selection_view(requested)) {
-            Err(error) => Err(error),
-            Ok(selection) => if selection.1.len() != 4 { Err(part1_block_placement_error(false)) } else {
-                part2_selected_layout_tiles(&layout.info.image_size, crate::codestream::tile_parts_owned_view(layout.tile_parts@),
-                    crate::codestream::codestream_profile_capabilities(&layout.info.profile), selection.0,
-                    [selection.1[0], selection.1[1], selection.1[2], selection.1[3]], selection.2, limits, 0,
-                    Part2DecodedLayoutTile { prepared: Seq::empty(), counters: (0, 0, 0), mct_work: 0 })
-            },
-        },
-    }
+    part2_decode_layout_selected_input(crate::codestream::decoder_layout_input_view(layout), requested, limits)
 }
 
 pub struct Part2DecodedLayoutTile {

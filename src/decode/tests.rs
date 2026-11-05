@@ -40,6 +40,9 @@ use crate::packet::{
     decode_code_block_contribution, decode_progression_tile_packets,
 };
 
+#[path = "raw_typed_result_tests.rs"]
+mod raw_typed_result;
+
 fn reference_planned_block_geometry(
     grid: [u32; 4],
     clip: [u32; 4],

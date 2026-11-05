@@ -318,6 +318,11 @@ pub(super) fn decode_layout_selected(
 ) -> Result<DecodedImage, DecodeError> {
     #[cfg(verus_keep_ghost)]
     proof_decl! { let ghost goal = crate::specs::part2_decode_layout_selected(layout, requested, limits); }
+    #[cfg(verus_keep_ghost)]
+    proof! {
+        codestream::decoder_layout_input_fields(layout);
+        super::decoder_execution_inputs_known(layout);
+    }
     validate_part2_execution(layout)?;
     let selection = validate_selection(&layout.info.image_size, requested)?;
     #[cfg(verus_keep_ghost)]
@@ -1046,6 +1051,11 @@ pub(super) fn decode_layout(
 ) -> Result<DecodedImage, DecodeError> {
     #[cfg(verus_keep_ghost)]
     proof_decl! { let ghost goal = crate::specs::part2_decode_layout(layout, limits); }
+    #[cfg(verus_keep_ghost)]
+    proof! {
+        codestream::decoder_layout_input_fields(layout);
+        super::decoder_execution_inputs_known(layout);
+    }
     validate_part2_execution(layout)?;
     let tile_count = layout.info.image_size.tile_count()?;
     if tile_count > u64::from(u16::MAX) + 1 {

@@ -4,6 +4,63 @@
   "scope": "Technical reference inventory; not exhaustive standards-clause coverage or a conformance claim.",
   "requirements": [
     {
+      "id": "part2-complete-native-raw-codestream-typed-result",
+      "topic": "Complete actual compressed-byte full and selected typed-image Results, not supplied-layout or decoded-image admission: actual raw parser/input limits and every raw layout error feed one checked complete logical decoder-input projection, then real execution admission, selection, pixel reconstruction, typed conversion, nonlinear-region collection/application and output-shape producers. Actual limits and selected request are retained with every first error. No owning native layout/image is chosen or supplied; only fully projected Copy image/style/quantization/ROI types are recovered with checked unconditional inverse identities including raw counts and all physical tails. Existing native-layout models delegate to the same extracted nonduplicated input models. Checked complete-layout adequacy/error/unfolding bridges connect actual returned parser owners to actual unchanged raw API bodies. No native owner/clone/move/drop/scope change, runtime proof clone, external codec axiom, assumption/admission, alternate decoder, normalized owner or pin/cap/trust change. Both raw API contracts and all three consumed parser/decoder/type contracts are mandatory together. This supplies actual decoded-image producers for normalization/frame joins and proves the raw full/selected codestream sub-boundary only; container/layer/frame/progressive/JPIP, complete normalization/public composition, independent normative correspondence, production coverage/erasure/lifetimes and release remain separate.",
+      "implementation_refs": [
+        {"path": "src/decode/api.rs", "symbol": "decode_codestream"},
+        {"path": "src/decode/api.rs", "symbol": "decode_codestream_selected"},
+        {"path": "src/codestream/layout.rs", "symbol": "parse_layout"},
+        {"path": "src/decode/api.rs", "symbol": "decode_typed_layout"},
+        {"path": "src/decode/api.rs", "symbol": "typed_layout"},
+        {"path": "src/decode/api.rs", "symbol": "decode_jp2"},
+        {"path": "src/decode/api.rs", "symbol": "decode_jp2_selected"}
+      ],
+      "spec_refs": [
+        {"path": "specs/raw_decode.rs", "symbol": "part2_decode_raw_codestream"},
+        {"path": "specs/decoder_input.rs", "symbol": "part2_decoder_input_from_raw"},
+        {"path": "specs/decoder_input.rs", "symbol": "part2_decoder_tile_from_raw"},
+        {"path": "specs/decoder_input.rs", "symbol": "part2_decode_typed_layout_input"},
+        {"path": "specs/decoder_input.rs", "symbol": "part2_decode_layout_input"},
+        {"path": "specs/decoder_input.rs", "symbol": "part2_decode_layout_selected_input"},
+        {"path": "specs/decoder_input.rs", "symbol": "part2_typed_layout_input"},
+        {"path": "specs/decoder_input.rs", "symbol": "part2_collect_nonlinear_regions_input"},
+        {"path": "specs/decoder_input.rs", "symbol": "part2_nonlinear_component_regions_input"},
+        {"path": "specs/decoder_input.rs", "symbol": "part2_nonlinear_tile_regions_input"},
+        {"path": "specs/decoder_input.rs", "symbol": "part2_nonlinear_tile_region_input"},
+        {"path": "specs/decoder_input.rs", "symbol": "part2_decoder_execution_admission"},
+        {"path": "specs/raw_layout.rs", "symbol": "part1_parse_layout"},
+        {"path": "specs/mod.rs", "symbol": "part2_decode_typed_layout"},
+        {"path": "specs/mod.rs", "symbol": "part2_typed_layout"}
+      ],
+      "contract_refs": [
+        {"path": "src/decode/api.rs", "symbol": "decode_codestream"},
+        {"path": "src/decode/api.rs", "symbol": "decode_codestream_selected"},
+        {"path": "src/codestream/layout.rs", "symbol": "parse_layout"},
+        {"path": "src/decode/api.rs", "symbol": "decode_typed_layout"},
+        {"path": "src/decode/api.rs", "symbol": "typed_layout"}
+      ],
+      "proof_refs": [
+        {"path": "src/codestream/decoder_input_proof_support.rs", "symbol": "decoder_native_size_inverse"},
+        {"path": "src/codestream/decoder_input_proof_support.rs", "symbol": "decoder_native_style_inverse"},
+        {"path": "src/codestream/decoder_input_proof_support.rs", "symbol": "decoder_native_quantization_inverse"},
+        {"path": "src/codestream/decoder_input_proof_support.rs", "symbol": "decoder_native_roi_inverse"},
+        {"path": "src/codestream/decoder_input_proof_support.rs", "symbol": "decoder_native_component_styles_inverse"},
+        {"path": "src/codestream/decoder_input_proof_support.rs", "symbol": "decoder_execution_header_fields"},
+        {"path": "src/codestream/decoder_input_proof_support.rs", "symbol": "decoder_tile_input_matches_raw"},
+        {"path": "src/codestream/decoder_input_proof_support.rs", "symbol": "decoder_layout_input_matches_raw"},
+        {"path": "src/codestream/decoder_input_proof_support.rs", "symbol": "decoder_layout_errors_known"},
+        {"path": "src/decode/proof_support.rs", "symbol": "decoder_execution_inputs_known"},
+        {"path": "src/options.rs", "symbol": "DecodeOptions::limits"},
+        {"path": "specs/raw_decode.rs", "symbol": "part2_decode_raw_codestream_unfold"}
+      ],
+      "test_refs": [
+        {"path": "src/decode/raw_typed_result_tests.rs", "symbol": "actual_raw_typed_result_derives_full_and_reduced_signed_unsigned_planes_from_bytes"},
+        {"path": "src/decode/raw_typed_result_tests.rs", "symbol": "actual_raw_typed_result_preserves_parser_selection_and_backend_budget_first_errors"},
+        {"path": "src/decode/raw_typed_result_tests.rs", "symbol": "actual_raw_typed_result_joins_real_packed_packets_mct_and_nonlinear_regions"},
+        {"path": "src/decode/raw_typed_result_tests.rs", "symbol": "actual_raw_typed_result_keeps_independently_encoded_nonzero_samples_and_selected_geometry"}
+      ]
+    },
+    {
       "id": "part1-complete-native-raw-layout-result",
       "topic": "Complete actual raw-byte CodestreamLayout and CodestreamInfo Results, not parsed-header/layout admission: raw parser creation/input limit, actual main-header traversal/final reader, checked global tile count and limit, SOT, TLM/PLM/PPM selection, all inherited physical owners and original clones, real complete tile reader, ordered partial persistent commits/payload append, EOC/count/trailing errors, actual physical ROI iterator and full profile classification. Every Result error and all returned image/style/quantization/ROI/progression/MCT/extensions/profile/counters/consumed/source-payload fields compose from real input. Main traversal uses the actual pre-loop input length derived from the real prologue; no silent frame assumption. Public closed ghost models use checked unfolding lemmas, not external axioms. The real limit-error constructor has its complete typed return contract. A ghost-only shared sequence projection supports native selection without executing Vec-to-slice dereference in proof. All original native owners/scopes/clone/move/drop order remain; only an unused Copy-error closure argument is named for the specification frontend. Strict inventory binds all three actual complete contracts, raw model roots, full returned projections, real reader/counter/eight-state/payload suffix and terminal Results, primitive error constructor and actual decode consumers. Prior inventory meanings, producer relays and four unconditional owned handoff checks remain; exact guards recognize stronger ghost-only wrapper/ROI/length proofs. This is as-implemented raw layout, not independent selected-edition normative correspondence, full normalization/public pixels, general production cfg/erasure/lifetimes/coverage, official conformance or release qualification.",
       "implementation_refs": [

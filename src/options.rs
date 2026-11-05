@@ -9,12 +9,24 @@ pub struct DecodeOptions {
     limits: ResourceLimits,
 }
 
+#[cfg(verus_keep_ghost)]
+verus! {
+    pub closed spec fn decode_options_limits<'a>(options: &'a DecodeOptions) -> &'a ResourceLimits {
+        &options.limits
+    }
+}
+
 impl DecodeOptions {
     pub const fn new(limits: ResourceLimits) -> Self {
         Self { limits }
     }
 
+    #[cfg_attr(verus_keep_ghost, verus_spec(result =>
+        ensures result == decode_options_limits(self),
+    ))]
     pub const fn limits(&self) -> &ResourceLimits {
+        #[cfg(verus_keep_ghost)]
+        proof! { reveal(decode_options_limits); }
         &self.limits
     }
 }
