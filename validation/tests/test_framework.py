@@ -1030,6 +1030,114 @@ class FrameworkTests(WorkingFiles):
             framework._RAW_TILE_HEADER_CONTRACTS, 8,
         )
 
+    def test_inventory_binds_complete_actual_tile_loop_results_and_reader_frames(self):
+        self._assert_complete_packet_contract_bindings(
+            {"part1-complete-native-tile-loop-metadata-admission",
+             "part1-complete-native-tile-loop-termination"},
+            framework._TILE_LOOP_CONTRACTS, 2,
+        )
+
+    def test_inventory_tile_loop_requires_real_ordinal_tables_outputs_and_reader_handoff(self):
+        coverage = json.loads((framework.VALIDATION / "normative-coverage.json").read_text())
+        entry = copy.deepcopy(next(item for item in coverage["requirements"]
+                                   if item["id"] == "part1-complete-native-tile-loop-metadata-admission"))
+        data = dict(coverage, requirements=[entry])
+        self.assertEqual(framework.validate_normative_coverage(data)["status"], "passed")
+        source = framework.ROOT / "src/codestream/layout.rs"
+        original = source.read_text()
+        start = original.index("let tile_part = parser.read_sot(tile_count)?;")
+        end = original.index("let tile_index = usize::from(tile_part.tile_index);", start)
+        block = original[start:end]
+        read_text = Path.read_text
+        mutations = (
+            ("tile_parts - 1", "0"),
+            ("&part2_extensions.tile_part_lengths", "&unrelated_lengths"),
+            ("&plm_groups", "&unrelated_groups"),
+            ("&ppm_frames", "&unrelated_frames"),
+            ("ppm_fragments,", "0,"),
+            ("main_header,", "&[],"),
+            ("assert(tile_parts > 0)", "assert(true)"),
+            ("main_packet_lengths, packed_packet_headers", "unused_lengths, unused_headers"),
+        )
+        for before, after in mutations:
+            self.assertIn(before, block)
+            changed = original[:start] + block.replace(before, after, 1) + original[end:]
+            changed += "\nfn unrelated_complete_copy() {\n" + block + "\n}\n"
+
+            def altered(path, *args, **kwargs):
+                return changed if path == source else read_text(path, *args, **kwargs)
+
+            with self.subTest(before=before), mock.patch.object(Path, "read_text", altered), \
+                    self.assertRaisesRegex(ValueError, "not used by claimed implementation"):
+                framework.validate_normative_coverage(data)
+        changed = original.replace("            packed_packet_headers,\n", "            unrelated_headers,\n")
+        self.assertNotEqual(changed, original)
+
+        def altered_handoff(path, *args, **kwargs):
+            return changed if path == source else read_text(path, *args, **kwargs)
+
+        with mock.patch.object(Path, "read_text", altered_handoff), \
+                self.assertRaisesRegex(ValueError, "not used by claimed implementation"):
+            framework.validate_normative_coverage(data)
+
+    def test_inventory_tile_loop_termination_requires_actual_eoc_and_all_counts(self):
+        coverage = json.loads((framework.VALIDATION / "normative-coverage.json").read_text())
+        entry = copy.deepcopy(next(item for item in coverage["requirements"]
+                                   if item["id"] == "part1-complete-native-tile-loop-termination"))
+        data = dict(coverage, requirements=[entry])
+        self.assertEqual(framework.validate_normative_coverage(data)["status"], "passed")
+        source = framework.ROOT / "src/codestream/layout.rs"
+        original = source.read_text()
+        start = original.index("EOC => {")
+        end = original.index("_ => return Err(", start)
+        block = original[start:end]
+        read_text = Path.read_text
+        for before, after in (
+            ("tile_parts,", "0,"),
+            ("plm_seen,", "false,"),
+            ("plm_groups.len()", "0"),
+            ("ppm_fragments,", "0,"),
+            ("ppm_frames.len()", "plm_groups.len()"),
+            ("part2_extensions.tile_part_lengths.len()", "0"),
+            ("break;", "continue;"),
+            ("parser.finish_tile_part_traversal", "unrelated.finish_tile_part_traversal"),
+        ):
+            self.assertIn(before, block)
+            changed = original[:start] + block.replace(before, after, 1) + original[end:]
+            changed += "\nfn unrelated_complete_copy() { match EOC { " + block + " _ => {} } }\n"
+
+            def altered(path, *args, **kwargs):
+                return changed if path == source else read_text(path, *args, **kwargs)
+
+            with self.subTest(before=before), mock.patch.object(Path, "read_text", altered), \
+                    self.assertRaisesRegex(ValueError, "not used by claimed implementation"):
+                framework.validate_normative_coverage(data)
+
+    def test_inventory_tile_loop_reuses_call_local_cache_without_component_relays(self):
+        coverage = json.loads((framework.VALIDATION / "normative-coverage.json").read_text())
+        entries = [item for item in coverage["requirements"] if item["id"] in {
+            "part1-complete-native-tile-loop-metadata-admission", "part1-complete-native-tile-loop-termination",
+        }]
+        self.assertEqual(len(entries), 2)
+        data = dict(coverage, requirements=entries)
+        paths = {(framework.ROOT / name).resolve() for name in (
+            "src/codestream/layout.rs", "specs/layout_input.rs", "src/codestream/proof_support.rs",
+        )}
+        counts = dict.fromkeys(paths, 0)
+        read_text = Path.read_text
+
+        def counted(path, *args, **kwargs):
+            if path in counts:
+                counts[path] += 1
+            return read_text(path, *args, **kwargs)
+
+        with mock.patch.object(Path, "read_text", counted):
+            for expected in (1, 2):
+                self.assertEqual(framework.validate_normative_coverage(data)["status"], "passed")
+                self.assertEqual(counts, dict.fromkeys(paths, expected))
+        for key in framework._TILE_LOOP_CONTRACTS:
+            self.assertNotIn(key, framework._COMPONENT_PRODUCER_RELAYS)
+
     def test_inventory_binds_actual_persistent_fold_initialization_invariant_sources_and_commit(self):
         coverage = json.loads((framework.VALIDATION / "normative-coverage.json").read_text())
         entry = copy.deepcopy(next(item for item in coverage["requirements"]

@@ -1697,6 +1697,24 @@ _LAYOUT_PROLOGUE_CONTRACTS = {
     ),
 }
 
+_TILE_LOOP_CONTRACTS = {
+    ("src/codestream/layout.rs", "Parser::tile_part_main_metadata"): (
+        "part1_tile_part_main_metadata", _coverage_call("tile_part_main_metadata_outcome", r"\1"), None,
+        r"self\.position\s*,\s*" + _coverage_call("tile_part_header_view", "tile_part")
+        + r"\s*,\s*part_index\s*,\s*lengths\s*@\s*,\s*plm_seen\s*,\s*"
+        + _coverage_call("packet_length_groups_view", r"plm_groups\s*@") + r"\s*,\s*"
+        + _coverage_call("packed_header_frames_view", r"ppm_frames\s*@")
+        + r"\s*,\s*ppm_fragments\s*,\s*main_header\s*@",
+    ),
+    ("src/codestream/layout.rs", "Parser::finish_tile_part_traversal"): (
+        "part1_finish_tile_part_traversal", r"\1",
+        _coverage_call("parser_view", _coverage_call("final", "self")),
+        _coverage_call("parser_view", _coverage_call("old", "self"))
+        + r"\s*,\s*tile_parts\s*,\s*plm_seen\s*,\s*plm_count\s*,\s*"
+        r"ppm_fragments\s*,\s*ppm_count\s*,\s*tlm_count",
+    ),
+}
+
 _SIZ_GEOMETRY_CONTRACTS = {
     ("src/codestream/image_header.rs", "Parser::parse_siz"): (
         "part1_parse_siz", _coverage_call("parsed_siz_outcome", r"\1"), None,
@@ -2542,6 +2560,42 @@ def validate_normative_coverage(
                 ("InvalidCodingStyle", "coc_segments"),
                 ("InvalidQuantization", "qcc_segments"),
             ))
+        if (callee == "tile_part_main_metadata"
+                and path.relative_to(ROOT).as_posix() == "src/codestream/layout.rs"
+                and caller == "Parser::parse_layout"):
+            admission = (
+                r"\blet\s+tile_part\s*=\s*" + _coverage_call("parser.read_sot", "tile_count")
+                + r"\s*\?\s*;\s*#\[\s*cfg\s*\(\s*verus_keep_ghost\s*\)\s*\]\s*proof!\s*\{\s*"
+                + _coverage_call("assert", r"tile_parts\s*>\s*0") + r"\s*;\s*\}\s*"
+                r"let\s*\(\s*main_packet_lengths\s*,\s*packed_packet_headers\s*\)\s*=\s*"
+                r"parser\s*\.\s*" + _coverage_call(
+                    callee, "tile_part", r"tile_parts\s*-\s*1",
+                    r"&\s*part2_extensions\.tile_part_lengths", "plm_seen",
+                    r"&\s*plm_groups", r"&\s*ppm_frames", "ppm_fragments", r"main_header\s*,?",
+                ) + r"\s*\?\s*;"
+            )
+            handoff = _coverage_call(
+                "parser.read_tile_part", "tile_part",
+                r"\(\s*inherited_default_style\s*,\s*inherited_default_quantization\s*\)",
+                "inherited_component_styles", "inherited_component_quantizations",
+                "inherited_roi_shifts", "inherited_progression_changes",
+                "inherited_mct_parameters", "inherited_part2_extensions",
+                r"image_size\.components", "main_packet_lengths", r"packed_packet_headers\s*,?",
+            )
+            selected = re.search(admission, body) if body is not None else None
+            consumed = re.search(handoff, body) if body is not None else None
+            return selected is not None and consumed is not None and selected.end() < consumed.start()
+        if (callee == "finish_tile_part_traversal"
+                and path.relative_to(ROOT).as_posix() == "src/codestream/layout.rs"
+                and caller == "Parser::parse_layout"):
+            return body is not None and re.search(
+                r"\bEOC\s*=>\s*\{\s*" + _coverage_call(
+                    "parser." + callee, "tile_parts", "plm_seen",
+                    _coverage_call("plm_groups.len"), "ppm_fragments",
+                    _coverage_call("ppm_frames.len"),
+                    _coverage_call("part2_extensions.tile_part_lengths.len") + r"\s*,?",
+                ) + r"\s*\?\s*;\s*break\s*;\s*\}", body,
+            ) is not None
         if (callee == "select_inherited_tile_configuration"
                 and path.relative_to(ROOT).as_posix() == "src/codestream/layout.rs"
                 and caller == "Parser::parse_layout"):
@@ -3268,6 +3322,7 @@ def validate_normative_coverage(
                 or _TILE_DATA_WINDOW_CONTRACTS.get((reference["path"], reference["symbol"]))
                 or _SIZ_GEOMETRY_CONTRACTS.get((reference["path"], reference["symbol"]))
                 or _LAYOUT_PROLOGUE_CONTRACTS.get((reference["path"], reference["symbol"]))
+                or _TILE_LOOP_CONTRACTS.get((reference["path"], reference["symbol"]))
                 or _MAIN_HEADER_ADMISSION_CONTRACTS.get((reference["path"], reference["symbol"]))
                 or _TILE_HEADER_ADMISSION_CONTRACTS.get((reference["path"], reference["symbol"]))
                 or _RAW_TILE_HEADER_CONTRACTS.get((reference["path"], reference["symbol"]))

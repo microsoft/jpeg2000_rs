@@ -9,16 +9,18 @@ use super::reader::new_parser;
 use super::{
     ADS, ATK, CAP, CBD, COC, COD, CPF, CRG, CodestreamInfo, CodestreamLayout,
     ComponentQuantizations, DFS, DecodeError, EOC, ImageSize, MAX_COMPONENTS, MCC, MCO, MCT,
-    MalformedKind, MctParameters, NLT, PLM, POC, PPM, PRF, PackedPacketHeaderSource,
-    PackedPacketHeaders, PacketLengths, Parser, Part2Extensions, ProgressionChanges, QCC, QCD, RGN,
-    Resource, ResourceLimits, RoiShifts, SIZ, SOC, SOT, TLM, TilePartPayload,
+    MalformedKind, MctParameters, NLT, PLM, POC, PPM, PRF, PackedHeaderFrame,
+    PackedPacketHeaderSource, PackedPacketHeaders, PacketLengths, Parser, Part2Extensions,
+    ProgressionChanges, QCC, QCD, RGN, Resource, ResourceLimits, RoiShifts, SIZ, SOC, SOT, TLM,
+    TilePart, TilePartLength, TilePartPayload,
 };
 #[cfg(verus_keep_ghost)]
 use super::{
     layout_prologue_outcome, mct_parameter_copy_view, optional_roi_shifts_view,
-    owned_extensions_view, parser_view, persistent_tile_configuration_view,
+    owned_extensions_view, packed_header_frames_view, packed_packet_headers_view,
+    packet_length_groups_view, parser_view, persistent_tile_configuration_view,
     persistent_tile_state_view, progression_changes_view, quantization_owner_view,
-    tile_part_payload_view,
+    tile_part_header_view, tile_part_main_metadata_outcome, tile_part_payload_view,
 };
 #[cfg(verus_keep_ghost)]
 use vstd::prelude::*;
@@ -55,6 +57,145 @@ impl<'a> Parser<'a> {
         let (image_size, r_siz) = self.parse_siz(siz)?;
         let main_header_start = self.position;
         Ok((image_size, r_siz, main_header_start))
+    }
+
+    #[inline]
+    #[allow(clippy::too_many_arguments)]
+    #[cfg_attr(verus_keep_ghost, verifier::spinoff_prover)]
+    #[cfg_attr(verus_keep_ghost, verus_spec(result =>
+        ensures tile_part_main_metadata_outcome(result)
+            == crate::specs::part1_tile_part_main_metadata(
+                self.position, tile_part_header_view(tile_part), part_index, lengths@,
+                plm_seen, packet_length_groups_view(plm_groups@),
+                packed_header_frames_view(ppm_frames@), ppm_fragments, main_header@),
+    ))]
+    pub(super) fn tile_part_main_metadata(
+        &self,
+        tile_part: TilePart,
+        part_index: u32,
+        lengths: &[TilePartLength],
+        plm_seen: bool,
+        plm_groups: &[PacketLengths<'a>],
+        ppm_frames: &[PackedHeaderFrame],
+        ppm_fragments: u16,
+        main_header: &'a [u8],
+    ) -> Result<(PacketLengths<'a>, PackedPacketHeaders<'a>), DecodeError> {
+        #[cfg(verus_keep_ghost)]
+        proof! {
+            reveal(crate::specs::part1_tile_part_main_metadata);
+            reveal(tile_part_main_metadata_outcome);
+            reveal(tile_part_header_view);
+            reveal(packet_length_groups_view);
+            reveal(packed_header_frames_view);
+            reveal(packed_packet_headers_view);
+        }
+        if !lengths.is_empty() {
+            let entry_index = usize::try_from(part_index).map_err(
+                #[cfg_attr(verus_keep_ghost, verus_spec(error: DecodeError =>
+                    ensures error == crate::specs::part1_codestream_malformed(self.position, MalformedKind::ArithmeticOverflow),
+                ))]
+                |_conversion_error| self.malformed_here(MalformedKind::ArithmeticOverflow),
+            )?;
+            let entry = lengths.get(entry_index).ok_or_else(
+                #[cfg_attr(verus_keep_ghost, verus_spec(error: DecodeError =>
+                    ensures error == crate::specs::part1_codestream_malformed(tile_part.start, MalformedKind::InvalidTilePart),
+                ))]
+                || DecodeError::malformed(self.offset(tile_part.start), MalformedKind::InvalidTilePart),
+            )?;
+            if entry.length != tile_part.length
+                || matches!(entry.tile_index, Some(index) if index != tile_part.tile_index)
+            {
+                return Err(DecodeError::malformed(
+                    self.offset(tile_part.start),
+                    MalformedKind::InvalidTilePart,
+                ));
+            }
+        }
+        let main_packet_lengths = if plm_seen {
+            *plm_groups
+                .get(usize::try_from(part_index).map_err(
+                    #[cfg_attr(verus_keep_ghost, verus_spec(error: DecodeError =>
+                        ensures error == crate::specs::part1_codestream_malformed(self.position, MalformedKind::ArithmeticOverflow),
+                    ))]
+                    |_conversion_error| self.malformed_here(MalformedKind::ArithmeticOverflow),
+                )?)
+                .ok_or_else(
+                    #[cfg_attr(verus_keep_ghost, verus_spec(error: DecodeError =>
+                        ensures error == crate::specs::part1_codestream_malformed(tile_part.start, MalformedKind::InvalidPacketLength),
+                    ))]
+                    || DecodeError::malformed(self.offset(tile_part.start), MalformedKind::InvalidPacketLength),
+                )?
+        } else {
+            super::packet_lengths_none()
+        };
+        let packed_packet_headers = if ppm_fragments != 0 {
+            let frame = *ppm_frames
+                .get(usize::try_from(part_index).map_err(
+                    #[cfg_attr(verus_keep_ghost, verus_spec(error: DecodeError =>
+                        ensures error == crate::specs::part1_codestream_malformed(self.position, MalformedKind::ArithmeticOverflow),
+                    ))]
+                    |_conversion_error| self.malformed_here(MalformedKind::ArithmeticOverflow),
+                )?)
+                .ok_or_else(
+                    #[cfg_attr(verus_keep_ghost, verus_spec(error: DecodeError =>
+                        ensures error == crate::specs::part1_codestream_malformed(tile_part.start, MalformedKind::InvalidPackedPacketHeader),
+                    ))]
+                    || DecodeError::malformed(self.offset(tile_part.start), MalformedKind::InvalidPackedPacketHeader),
+                )?;
+            PackedPacketHeaders {
+                source: PackedPacketHeaderSource::MarkerSegments {
+                    header: main_header,
+                    marker: PPM,
+                    logical_start: frame.start,
+                },
+                length: frame.length,
+                fragments: ppm_fragments,
+            }
+        } else {
+            super::packed_packet_headers_none()
+        };
+        Ok((main_packet_lengths, packed_packet_headers))
+    }
+
+    #[inline]
+    #[cfg_attr(verus_keep_ghost, verifier::spinoff_prover)]
+    #[cfg_attr(verus_keep_ghost, verus_spec(result =>
+        ensures (result, parser_view(final(self)))
+            == crate::specs::part1_finish_tile_part_traversal(
+                parser_view(old(self)), tile_parts, plm_seen, plm_count,
+                ppm_fragments, ppm_count, tlm_count),
+    ))]
+    pub(super) fn finish_tile_part_traversal(
+        &mut self,
+        tile_parts: u32,
+        plm_seen: bool,
+        plm_count: usize,
+        ppm_fragments: u16,
+        ppm_count: usize,
+        tlm_count: usize,
+    ) -> Result<(), DecodeError> {
+        #[cfg(verus_keep_ghost)]
+        proof! {
+            reveal(crate::specs::part1_finish_tile_part_traversal);
+            reveal(parser_view);
+        }
+        if tile_parts == 0 {
+            return Err(self.malformed_here(MalformedKind::InvalidMarkerOrder));
+        }
+        self.expect_standalone(EOC)?;
+        if plm_seen && plm_count != tile_parts as usize {
+            return Err(self.malformed_here(MalformedKind::InvalidPacketLength));
+        }
+        if ppm_fragments != 0 && ppm_count != tile_parts as usize {
+            return Err(self.malformed_here(MalformedKind::InvalidPackedPacketHeader));
+        }
+        if tlm_count != 0 && tlm_count != tile_parts as usize {
+            return Err(self.malformed_here(MalformedKind::InvalidTilePart));
+        }
+        if self.position != self.input.len() {
+            return Err(self.malformed_here(MalformedKind::TrailingData));
+        }
+        Ok(())
     }
 
     fn parse_layout(self) -> Result<CodestreamLayout<'a>, DecodeError> {
@@ -365,65 +506,19 @@ impl<'a> Parser<'a> {
                         ));
                     }
                     let tile_part = parser.read_sot(tile_count)?;
-                    if !part2_extensions.tile_part_lengths.is_empty() {
-                        let entry_index = usize::try_from(tile_parts - 1).map_err(|_| {
-                            parser.malformed_here(MalformedKind::ArithmeticOverflow)
-                        })?;
-                        let entry = part2_extensions
-                            .tile_part_lengths
-                            .get(entry_index)
-                            .ok_or_else(|| {
-                                DecodeError::malformed(
-                                    parser.offset(tile_part.start),
-                                    MalformedKind::InvalidTilePart,
-                                )
-                            })?;
-                        if entry.length != tile_part.length
-                            || matches!(entry.tile_index, Some(index) if index != tile_part.tile_index)
-                        {
-                            return Err(DecodeError::malformed(
-                                parser.offset(tile_part.start),
-                                MalformedKind::InvalidTilePart,
-                            ));
-                        }
-                    }
-                    let main_packet_lengths = if plm_seen {
-                        *plm_groups
-                            .get(usize::try_from(tile_parts - 1).map_err(|_| {
-                                parser.malformed_here(MalformedKind::ArithmeticOverflow)
-                            })?)
-                            .ok_or_else(|| {
-                                DecodeError::malformed(
-                                    parser.offset(tile_part.start),
-                                    MalformedKind::InvalidPacketLength,
-                                )
-                            })?
-                    } else {
-                        PacketLengths::none()
-                    };
-                    let packed_packet_headers = if ppm_fragments != 0 {
-                        let frame = *ppm_frames
-                            .get(usize::try_from(tile_parts - 1).map_err(|_| {
-                                parser.malformed_here(MalformedKind::ArithmeticOverflow)
-                            })?)
-                            .ok_or_else(|| {
-                                DecodeError::malformed(
-                                    parser.offset(tile_part.start),
-                                    MalformedKind::InvalidPackedPacketHeader,
-                                )
-                            })?;
-                        PackedPacketHeaders {
-                            source: PackedPacketHeaderSource::MarkerSegments {
-                                header: main_header,
-                                marker: PPM,
-                                logical_start: frame.start,
-                            },
-                            length: frame.length,
-                            fragments: ppm_fragments,
-                        }
-                    } else {
-                        PackedPacketHeaders::none()
-                    };
+                    #[cfg(verus_keep_ghost)]
+                    proof! { assert(tile_parts > 0); }
+                    let (main_packet_lengths, packed_packet_headers) = parser
+                        .tile_part_main_metadata(
+                            tile_part,
+                            tile_parts - 1,
+                            &part2_extensions.tile_part_lengths,
+                            plm_seen,
+                            &plm_groups,
+                            &ppm_frames,
+                            ppm_fragments,
+                            main_header,
+                        )?;
                     let tile_index = usize::from(tile_part.tile_index);
                     let (
                         previous_roi_shifts,
@@ -611,24 +706,14 @@ impl<'a> Parser<'a> {
                     }
                 }
                 EOC => {
-                    if tile_parts == 0 {
-                        return Err(parser.malformed_here(MalformedKind::InvalidMarkerOrder));
-                    }
-                    parser.expect_standalone(EOC)?;
-                    if plm_seen && plm_groups.len() != tile_parts as usize {
-                        return Err(parser.malformed_here(MalformedKind::InvalidPacketLength));
-                    }
-                    if ppm_fragments != 0 && ppm_frames.len() != tile_parts as usize {
-                        return Err(parser.malformed_here(MalformedKind::InvalidPackedPacketHeader));
-                    }
-                    if !part2_extensions.tile_part_lengths.is_empty()
-                        && part2_extensions.tile_part_lengths.len() != tile_parts as usize
-                    {
-                        return Err(parser.malformed_here(MalformedKind::InvalidTilePart));
-                    }
-                    if parser.position != parser.input.len() {
-                        return Err(parser.malformed_here(MalformedKind::TrailingData));
-                    }
+                    parser.finish_tile_part_traversal(
+                        tile_parts,
+                        plm_seen,
+                        plm_groups.len(),
+                        ppm_fragments,
+                        ppm_frames.len(),
+                        part2_extensions.tile_part_lengths.len(),
+                    )?;
                     break;
                 }
                 _ => return Err(parser.malformed_here(MalformedKind::InvalidMarkerOrder)),
