@@ -31,7 +31,20 @@ fn actual_jpx_source_result_decodes_selected_real_bytes_and_retains_actual_heade
     let two_hundred = source(&[0xcf, 0xb4, 0x08, 0x04, 0x4f]);
     let options = DecodeOptions::default();
     let bytes = jpx_for_codestreams(&[one.clone(), two_hundred.clone()], 1, 1);
-    let file = jp2::parse(&bytes, options.limits()).unwrap();
+    let mut file = jp2::parse(&bytes, options.limits()).unwrap();
+    file.header.color.precedence = u8::MAX;
+    file.header.color.approximation = 7;
+    file.header.nested_box_count = u32::MAX;
+    file.header.palette_entries = u16::MAX;
+    file.header.component_mapping_entries = u16::MAX;
+    file.header.capture_resolution = Some(jp2::Resolution {
+        vertical_numerator: 3,
+        vertical_denominator: 2,
+        horizontal_numerator: 5,
+        horizontal_denominator: 4,
+        vertical_exponent: -1,
+        horizontal_exponent: 1,
+    });
     for (index, expected) in [(0, 1), (1, 200)] {
         let (image, header) = decode_jpx_file(&file, index, &options).unwrap();
         assert_eq!(
@@ -49,6 +62,7 @@ fn actual_jpx_source_result_decodes_selected_real_bytes_and_retains_actual_heade
             &TypedSamples::Unsigned(vec![expected])
         );
         assert!(std::ptr::eq(header.unwrap(), file.header()));
+        assert_eq!(header.unwrap(), file.header());
     }
 
     let bytes = jpx_for_compositing_layers(&[one, two_hundred], 1, 1, false);

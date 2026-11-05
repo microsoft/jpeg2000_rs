@@ -182,6 +182,7 @@ pub(super) fn convert_selected_color(
         crate::image::typed_image_value_view(decoded), jp2::associated_header_option(header),
         crate::limits::resource_component_limit(limits), crate::limits::resource_decoded_bytes_limit(limits),
     ),
+    match result { Err(_) => true, Ok(output) => output.1 == header },
 ))]
 pub(super) fn apply_associated_output<'a>(
     decoded: TypedImage,
@@ -262,6 +263,10 @@ pub(super) fn finish_associated_selected_output(
 #[cfg_attr(verus_keep_ghost, verus_spec(result =>
     ensures associated_typed_outcome(result) == crate::specs::part2_decode_jpx_codestream(
         jp2::jpx_file_decode_view(file), codestream_index, crate::options::decode_options_limits(options)),
+    match result {
+        Err(_) => true,
+        Ok(output) => output.1 == jp2::jpx_file_associated_header_reference(file, codestream_index),
+    },
 ))]
 pub(crate) fn decode_jpx_file<'a>(
     file: &'a jp2::Jp2File<'_>,
@@ -272,6 +277,7 @@ pub(crate) fn decode_jpx_file<'a>(
     proof! {
         reveal(associated_typed_outcome);
         codestream::complete_codestream_info_errors_known();
+        jp2::jpx_file_associated_header_reference_unfold(file, codestream_index);
         crate::specs::part2_decode_jpx_codestream_unfold(
             jp2::jpx_file_decode_view(file), codestream_index, crate::options::decode_options_limits(options));
     }

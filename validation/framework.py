@@ -2806,6 +2806,11 @@ def validate_normative_coverage(
                 ("src/codestream/proof_support.rs", "complete_codestream_info_errors_known"),
                 ("src/codestream/proof_support.rs", "complete_codestream_info_known_fields"),
                 ("src/jp2/proof_support.rs", "codestream_source_known_fields"),
+                ("src/jp2/proof_support.rs", "jpx_file_associated_header_reference_unfold"),
+                ("src/jp2/proof_support.rs", "jpx_file_associated_header_reference"),
+                ("src/jp2/proof_support.rs", "jpx_file_codestream_reference"),
+                ("src/jp2/proof_support.rs", "jpx_file_header_reference"),
+                ("src/jp2/proof_support.rs", "associated_header_reference"),
             }
             getters = {
                 ("src/jp2/box_reader.rs", "BoxType::equals"): "result == (self == other)",
@@ -2820,13 +2825,18 @@ def validate_normative_coverage(
                 ("src/jp2/container.rs", "Jp2File::file_type"):
                     "super::file_type_view(result) == super::jpx_file_decode_view(self).0",
                 ("src/jp2/container.rs", "Jp2File::header"):
-                    "super::associated_header_view(result) == super::jpx_file_decode_view(self).2",
+                    "super::associated_header_view(result) == super::jpx_file_decode_view(self).2,"
+                    "result == super::jpx_file_header_reference(self)",
                 ("src/jp2/container.rs", "Jp2File::codestream"): """
                     match result {
                         Err(error) => crate::specs::part2_jpx_codestream_lookup(
                             super::jpx_file_decode_view(self).1, index) == Err(error),
                         Ok(stream) => crate::specs::part2_jpx_codestream_lookup(
                             super::jpx_file_decode_view(self).1, index) == Ok(super::codestream_source_view(stream)),
+                    },
+                    match result {
+                        Err(_) => true,
+                        Ok(stream) => Some(stream) == super::jpx_file_codestream_reference(self, index),
                     }
                 """,
                 ("src/options.rs", "DecodeOptions::limits"): "result == decode_options_limits(self)",
@@ -2846,6 +2856,27 @@ def validate_normative_coverage(
                 wanted = "verus_spec(result=>ensures" + "".join(expected.split()) + ",)"
                 if wanted not in "".join(attrs.split()) or re.search(r"\brequires\b", attrs):
                     raise ValueError("whole JPX source Result requires actual getter/reference contracts")
+            for (relative, symbol), expected in {
+                ("src/decode/output.rs", "decode_jpx_file"): """
+                    match result {
+                        Err(_) => true,
+                        Ok(output) => output.1 == jp2::jpx_file_associated_header_reference(file, codestream_index),
+                    }
+                """,
+                ("src/decode/output.rs", "apply_associated_output"):
+                    "match result { Err(_) => true, Ok(output) => output.1 == header }",
+                ("src/jp2/container.rs", "associated_header_for_codestream"):
+                    "result == super::associated_header_reference(selected, fallback)",
+            }.items():
+                path = (ROOT / relative).resolve()
+                text = source_text(path)
+                header = function_header(path, symbol)
+                if header is None:
+                    raise ValueError("whole JPX source Result lacks executable Verus contract: full returned-header frames")
+                start = text.find("fn", header.start(), header.end())
+                attrs = text[text.rfind("#[cfg_attr", 0, start):start]
+                if "".join(expected.split()) + "," not in "".join(attrs.split()) or re.search(r"\brequires\b", attrs):
+                    raise ValueError("whole JPX source Result lacks executable Verus contract: full returned-header frames")
             path = (ROOT / "src/decode/output.rs").resolve()
             body = _coverage_function_body(source_text(path), function_header(path, "decode_jpx_file"))
             nested = _coverage_function_header(body, "decode_jpx_file_selected") if body is not None else None
@@ -2861,6 +2892,7 @@ def validate_normative_coverage(
                 #[cfg(verus_keep_ghost)] proof! {
                     reveal(associated_typed_outcome);
                     codestream::complete_codestream_info_errors_known();
+                    jp2::jpx_file_associated_header_reference_unfold(file, codestream_index);
                     crate::specs::part2_decode_jpx_codestream_unfold(
                         jp2::jpx_file_decode_view(file), codestream_index, crate::options::decode_options_limits(options));
                 }
@@ -2899,6 +2931,34 @@ def validate_normative_coverage(
                     (file_type_view(&file.file_type),
                         file.codestreams@.map_values(|stream: CodestreamBox| codestream_source_view(&stream)),
                         associated_header_view(&file.header))
+                """,
+                ("src/jp2/proof_support.rs", "jpx_file_codestream_reference"): """
+                    if index < file.codestreams@.len() {
+                        Some(&file.codestreams@[index as int])
+                    } else {
+                        None
+                    }
+                """,
+                ("src/jp2/proof_support.rs", "jpx_file_header_reference"): "&file.header",
+                ("src/jp2/proof_support.rs", "associated_header_reference"): """
+                    match &selected.codestream_header {
+                        None => Ok(fallback),
+                        Some(association) => match &association.parsed {
+                            Some(header) => Ok(header),
+                            None => Err(DecodeError::MalformedInput {
+                                offset: association.header.offset, kind: MalformedKind::MissingRequiredStructure,
+                            }),
+                        },
+                    }
+                """,
+                ("src/jp2/proof_support.rs", "jpx_file_associated_header_reference"): """
+                    match jpx_file_codestream_reference(file, index) {
+                        None => None,
+                        Some(selected) => match associated_header_reference(selected, jpx_file_header_reference(file)) {
+                            Err(_) => None,
+                            Ok(header) => Some(header),
+                        },
+                    }
                 """,
                 ("specs/jpx_source.rs", "part2_file_type_compatible"): "input.0 == brand || input.2.contains(brand)",
                 ("specs/jpx_source.rs", "part2_file_type_jpx"): """

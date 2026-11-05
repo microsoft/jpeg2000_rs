@@ -188,6 +188,15 @@ view retains the actual file type, every source byte sequence, box offset and
 optional parsed association, and fallback header. Checked getter contracts and
 raw-info field/error bridges connect those actual owners to the model.
 
+Additional checked lookup, association and output postconditions preserve the
+entire returned header reference from the actual source/fallback owner, not
+only the output/color projection used by decoding. ICC data, precedence,
+resolution records, counters and every other header field remain attached to
+that original header. These ghost functions select existing borrowed fields;
+they never choose or reconstruct an owning header from a partial view. This
+logical full-header frame does not certify disabled lifetime checking or
+general raw-pointer/allocation identity.
+
 The original native statements, owning locals, scopes and error order remain.
 The existing disabled nested selected decoder is preserved as nonexecuting
 historical context: it contributes no executing producer or proof handoff.

@@ -1186,6 +1186,33 @@ class FrameworkTests(WorkingFiles):
                 self.assertEqual(set(counts.values()), {expected})
         self.assertNotIn(("src/decode/output.rs", "decode_jpx_file"), framework._COMPONENT_PRODUCER_RELAYS)
 
+    def test_inventory_jpx_source_requires_full_returned_header_not_only_decoding_projection(self):
+        coverage = json.loads((framework.VALIDATION / "normative-coverage.json").read_text())
+        entry = next(item for item in coverage["requirements"] if item["id"] == framework._JPX_SOURCE_ENTRY)
+        read_text = Path.read_text
+        for name, before, after in (
+            ("src/decode/output.rs",
+             "output.1 == jp2::jpx_file_associated_header_reference(file, codestream_index)", "true"),
+            ("src/decode/output.rs", "Ok(output) => output.1 == header", "Ok(output) => true"),
+            ("src/jp2/container.rs", "result == super::associated_header_reference(selected, fallback)", "true"),
+            ("src/jp2/container.rs", "Some(stream) == super::jpx_file_codestream_reference(self, index)", "true"),
+            ("src/jp2/container.rs", "result == super::jpx_file_header_reference(self)", "true"),
+            ("src/jp2/proof_support.rs", "Some(&file.codestreams@[index as int])", "Some(&file.codestreams@[0])"),
+            ("src/jp2/proof_support.rs", "None => Ok(fallback)", "None => Ok(unrelated)"),
+            ("src/jp2/proof_support.rs", "Some(header) => Ok(header)", "Some(header) => Ok(fallback)"),
+        ):
+            source = framework.ROOT / name
+            original = source.read_text()
+            self.assertIn(before, original)
+            changed = original.replace(before, after, 1)
+
+            def altered(path, *args, **kwargs):
+                return changed if path == source else read_text(path, *args, **kwargs)
+
+            with self.subTest(name=name, before=before), mock.patch.object(Path, "read_text", altered), \
+                    self.assertRaisesRegex(ValueError, "returned-header frames|getter/reference contracts|complete physical/source models"):
+                framework.validate_normative_coverage(dict(coverage, requirements=[entry]))
+
     def test_inventory_binds_actual_compressed_byte_full_selected_typed_results(self):
         self._assert_complete_packet_contract_bindings(
             {framework._RAW_TYPED_ENTRY}, framework._RAW_TYPED_CONTRACTS, 5, isolate=False,

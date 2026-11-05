@@ -38,6 +38,11 @@
         {"path": "src/decode/output.rs", "symbol": "apply_associated_output"}
       ],
       "proof_refs": [
+        {"path": "src/jp2/proof_support.rs", "symbol": "jpx_file_associated_header_reference_unfold"},
+        {"path": "src/jp2/proof_support.rs", "symbol": "jpx_file_associated_header_reference"},
+        {"path": "src/jp2/proof_support.rs", "symbol": "jpx_file_codestream_reference"},
+        {"path": "src/jp2/proof_support.rs", "symbol": "jpx_file_header_reference"},
+        {"path": "src/jp2/proof_support.rs", "symbol": "associated_header_reference"},
         {"path": "src/jp2/proof_support.rs", "symbol": "codestream_source_known_fields"},
         {"path": "src/codestream/proof_support.rs", "symbol": "complete_codestream_info_errors_known"},
         {"path": "src/codestream/proof_support.rs", "symbol": "complete_codestream_info_known_fields"},

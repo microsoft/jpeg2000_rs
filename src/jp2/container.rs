@@ -69,6 +69,7 @@ impl FileType {
     ensures associated_header_outcome(result) == crate::specs::part2_associated_codestream_header(
         codestream_header_association_view(selected), associated_header_view(fallback),
     ),
+    result == super::associated_header_reference(selected, fallback),
 ))]
 pub(crate) fn associated_header_for_codestream<'a>(
     selected: &'a CodestreamBox<'_>,
@@ -130,6 +131,7 @@ impl<'a> Jp2File<'a> {
 
     #[cfg_attr(verus_keep_ghost, verus_spec(result =>
         ensures super::associated_header_view(result) == super::jpx_file_decode_view(self).2,
+            result == super::jpx_file_header_reference(self),
     ))]
     pub fn header(&self) -> &Jp2Header {
         &self.header
@@ -178,6 +180,10 @@ impl<'a> Jp2File<'a> {
                 super::jpx_file_decode_view(self).1, index) == Err(error),
             Ok(stream) => crate::specs::part2_jpx_codestream_lookup(
                 super::jpx_file_decode_view(self).1, index) == Ok(super::codestream_source_view(stream)),
+        },
+        match result {
+            Err(_) => true,
+            Ok(stream) => Some(stream) == super::jpx_file_codestream_reference(self, index),
         },
     ))]
     pub fn codestream(&self, index: usize) -> Result<&CodestreamBox<'a>, DecodeError> {
