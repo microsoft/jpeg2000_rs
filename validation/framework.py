@@ -2617,6 +2617,15 @@ _DECODER_LAYOUT_CONTRACTS = {
 
 
 _SOURCE_OPACITY_ENTRY = "part2-complete-native-source-layer-opacity-result"
+_COMPONENT_PLANE_ENTRY = "part2-complete-native-component-registration-plane-result"
+_COMPONENT_PLANE_CONTRACTS = {
+    ("src/jpx/registration.rs", "register_samples"): (
+        "part2_register_component_plane", _coverage_call("crate::color::normalized_plane_result", r"\1"), None,
+        r"crate::specs::Part2PlaneRegistration\s*\{\s*source\s*:\s*source@\s*,\s*"
+        r"source_width\s*,\s*source_height\s*,\s*width\s*,\s*height\s*,\s*horizontal_subsampling\s*,\s*"
+        r"vertical_subsampling\s*,\s*horizontal_grid\s*,\s*vertical_grid\s*,\s*horizontal_offset\s*,\s*vertical_offset\s*,?\s*\}",
+    ),
+}
 _SOURCE_OPACITY_CONTRACTS = {
     ("src/jpx/opacity.rs", "apply_layer_opacity"): (
         "part2_apply_source_layer_opacity", r"\1",
@@ -2832,6 +2841,56 @@ def validate_normative_coverage(
     ids: set[str] = set()
     contract_functions: set[tuple[str, str]] = set()
     for entry in coverage["requirements"]:
+        if entry["id"] == _COMPONENT_PLANE_ENTRY:
+            if {(ref["path"], ref["symbol"]) for ref in entry["contract_refs"]} != set(_COMPONENT_PLANE_CONTRACTS):
+                raise ValueError("whole registration plane Result requires actual component registration contract")
+            models = {("specs/jpx_normalization.rs", name) for name in (
+                "part2_register_component_plane", "part2_plane_registration_rows", "part2_plane_registration_columns",
+            )}
+            proofs = {("specs/jpx_normalization.rs", name) for name in (
+                "part2_plane_index_bound", "part2_plane_columns_step", "part2_plane_columns_error",
+                "part2_plane_rows_step", "part2_plane_rows_error",
+            )}
+            if not models.issubset({(ref["path"], ref["symbol"]) for ref in entry["spec_refs"]}) \
+                    or not proofs.issubset({(ref["path"], ref["symbol"]) for ref in entry["proof_refs"]}):
+                raise ValueError("whole registration plane Result requires complete traversal/index/error models and bridges")
+            path = (ROOT / "src/jpx/registration.rs").resolve()
+            body = _coverage_function_body(source_text(path), function_header(path, "register_samples"))
+            required = (
+                "source: source@, source_width, source_height, width, height,",
+                "horizontal_subsampling, vertical_subsampling, horizontal_grid, vertical_grid,",
+                "horizontal_offset, vertical_offset,",
+                "crate::specs::part2_plane_registration_rows(context, initial, y as nat) == Ok(output@)",
+                "crate::specs::part2_plane_registration_columns(context, y, source_y, row_initial, x as nat) == Ok(output@)",
+                "crate::specs::part2_plane_rows_step(context, initial, y as nat);",
+                "crate::specs::part2_plane_columns_step(context, y, source_y, row_initial, x as nat);",
+                "crate::specs::part2_plane_index_bound(width, height, x, y, output.len());",
+                "source_y_numerator >= vertical_offset", "source_y < source_height",
+                "source_x_numerator >= horizontal_offset", "source_x < source_width",
+                "index_of(width, x, y)?", "index_of(source_width, source_x, source_y)?",
+            )
+            if body is None or any("".join(item.split()) not in "".join(body.split()) for item in required):
+                raise ValueError("whole registration plane Result requires actual complete context/row/column/index handoffs")
+            source = source_text((ROOT / "specs/jpx_normalization.rs").resolve())
+            expected = """
+                match part2_layer_area(context.source_width, context.source_height) {
+                    Err(error) => Err(error),
+                    Ok(source_area) => {
+                        if context.source.len() != source_area as nat || context.horizontal_subsampling == 0
+                            || context.vertical_subsampling == 0 || context.horizontal_grid == 0 || context.vertical_grid == 0
+                        { Err(part2_composition_error(false)) }
+                        else {
+                            match part2_layer_area(context.width, context.height) {
+                                Err(error) => Err(error),
+                                Ok(area) => part2_plane_registration_rows(context, Seq::new(area as nat, |_index: int| 0u16), context.height as nat),
+                            }
+                        }
+                    },
+                }
+            """
+            actual = _coverage_spec_function_body(source, "part2_register_component_plane")
+            if actual is None or "".join(actual.split()) != "".join(expected.split()):
+                raise ValueError("whole registration plane Result requires complete actual admission/zero-seed/traversal model")
         if entry["id"] == _SOURCE_OPACITY_ENTRY:
             if {(ref["path"], ref["symbol"]) for ref in entry["contract_refs"]} != set(_SOURCE_OPACITY_CONTRACTS):
                 raise ValueError("whole source opacity Result requires actual opacity/source/owner/registration/chroma contracts")
@@ -4396,6 +4455,8 @@ def validate_normative_coverage(
                     if entry["id"] == _JPX_LAYER_COLOR_ENTRY else None)
                 or (_SOURCE_OPACITY_CONTRACTS.get((reference["path"], reference["symbol"]))
                     if entry["id"] == _SOURCE_OPACITY_ENTRY else None)
+                or (_COMPONENT_PLANE_CONTRACTS.get((reference["path"], reference["symbol"]))
+                    if entry["id"] == _COMPONENT_PLANE_ENTRY else None)
                 or _CODESTREAM_READER_CONTRACTS.get((reference["path"], reference["symbol"]))
                 or _SOT_READER_CONTRACTS.get((reference["path"], reference["symbol"]))
                 or _TILE_DATA_WINDOW_CONTRACTS.get((reference["path"], reference["symbol"]))

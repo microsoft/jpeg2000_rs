@@ -4,6 +4,34 @@
   "scope": "Technical reference inventory; not exhaustive standards-clause coverage or a conformance claim.",
   "requirements": [
     {
+      "id": "part2-complete-native-component-registration-plane-result",
+      "topic": "Complete actual register_samples Result needed by general-layer component normalization: all supplied raw source/destination geometry, full normalized source samples, full32bit grid/subsampling/offset domains, exact source-area/length/zero-factor admission and zero output seed compose the actual row/column traversal. Checked coordinate/index bounds preserve all selected samples and untouched zeros. Arithmetic overflow follows actual lazy row/column visitation, including skipped rows and zero-width destinations; there is no narrower grid/reachability/success premise or unused-tail trimming. Original native statements, loops, owner scopes and errors remain unchanged; pure row/column/error folds and checked index lemma are ghost-only. No bank, decoder duplicate, runtime clone, axiom/admission/tool/cap/trust change. This complete computational producer is a prerequisite, not a proof of the complete actual general-layer normalization/frame/public chain.",
+      "implementation_refs": [
+        {"path": "src/jpx/registration.rs", "symbol": "register_samples"},
+        {"path": "src/jpx/layer_decode.rs", "symbol": "decode_general_compositing_layer"}
+      ],
+      "spec_refs": [
+        {"path": "specs/jpx_normalization.rs", "symbol": "part2_register_component_plane"},
+        {"path": "specs/jpx_normalization.rs", "symbol": "part2_plane_registration_rows"},
+        {"path": "specs/jpx_normalization.rs", "symbol": "part2_plane_registration_columns"}
+      ],
+      "contract_refs": [
+        {"path": "src/jpx/registration.rs", "symbol": "register_samples"}
+      ],
+      "proof_refs": [
+        {"path": "specs/jpx_normalization.rs", "symbol": "part2_plane_index_bound"},
+        {"path": "specs/jpx_normalization.rs", "symbol": "part2_plane_columns_step"},
+        {"path": "specs/jpx_normalization.rs", "symbol": "part2_plane_columns_error"},
+        {"path": "specs/jpx_normalization.rs", "symbol": "part2_plane_rows_step"},
+        {"path": "specs/jpx_normalization.rs", "symbol": "part2_plane_rows_error"}
+      ],
+      "test_refs": [
+        {"path": "src/jpx/tests.rs", "symbol": "actual_component_registration_plane_matches_independent_small_canvas_mapping"},
+        {"path": "src/jpx/tests.rs", "symbol": "actual_component_registration_plane_retains_exact_invalid_input_and_zero_canvas_checks"},
+        {"path": "src/jpx/tests.rs", "symbol": "actual_component_registration_plane_preserves_lazy_row_column_overflow_order"}
+      ]
+    },
+    {
       "id": "part2-complete-native-source-layer-opacity-result",
       "topic": "Complete actual apply_layer_opacity Result and full owned-layer mutation/error frame from the real file/layer/configuration and actual registration/options. Native absent-opacity and existing straight/premultiplied modes retain exact bypass/first-error behavior. Real source decoding/conversion, owned-layer creation, actual grid registration and opacity copy derive external alpha rather than receiving a successful layer bank. Chroma retains count-before-lookup priority, real source header association/parsed/default choice, actual bit depth and complete key bytes, normalized keys and policy mutation. Missing parsed associations fall back here, unlike the erroring source-image decoder; no silent semantic unification. All returned errors and complete geometry/color-space/color/alpha values and pre-error state frames compose from actual producers. The original source statements/owners/scopes remain; the header-selection closure has a typed ghost-only contract using parenthesized type syntax required by the pinned parser. No runtime proof clone/native owner reconstruction/alternate decoder/axiom/admission/validity premise/pin/cap/trust change. General multisource assembly/normalization/frame/raw container/remaining public, corrected normative/production coverage/erasure/lifetimes/release remain separate.",
       "implementation_refs": [

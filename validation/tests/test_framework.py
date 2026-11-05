@@ -1030,6 +1030,82 @@ class FrameworkTests(WorkingFiles):
             framework._RAW_TILE_HEADER_CONTRACTS, 8,
         )
 
+    def test_inventory_binds_actual_complete_component_registration_plane_result(self):
+        self._assert_complete_packet_contract_bindings(
+            {framework._COMPONENT_PLANE_ENTRY}, framework._COMPONENT_PLANE_CONTRACTS, 1, isolate=False,
+        )
+
+    def test_inventory_component_plane_requires_every_actual_traversal_and_index_error_bridge(self):
+        coverage = json.loads((framework.VALIDATION / "normative-coverage.json").read_text())
+        entry = next(item for item in coverage["requirements"] if item["id"] == framework._COMPONENT_PLANE_ENTRY)
+        for field in ("contract_refs", "spec_refs", "proof_refs"):
+            for removed in entry[field]:
+                changed = copy.deepcopy(entry)
+                changed[field].remove(removed)
+                expected_error = "should be non-empty" if not changed[field] else "whole registration plane Result"
+                with self.subTest(field=field, removed=removed), self.assertRaisesRegex(ValueError, expected_error):
+                    framework.validate_normative_coverage(dict(coverage, requirements=[changed]))
+
+    def test_inventory_component_plane_binds_full_raw_context_lazy_rows_columns_and_indices(self):
+        coverage = json.loads((framework.VALIDATION / "normative-coverage.json").read_text())
+        entry = next(item for item in coverage["requirements"] if item["id"] == framework._COMPONENT_PLANE_ENTRY)
+        source = framework.ROOT / "src/jpx/registration.rs"
+        original = source.read_text()
+        read_text = Path.read_text
+        begin = original.index("pub(super) fn register_samples")
+        for before, after in (
+            ("source: source@", "source: source@.take(0)"),
+            ("horizontal_offset, vertical_offset,", "horizontal_offset: 0, vertical_offset: 0,"),
+            ("source_y_numerator >= vertical_offset", "source_y_numerator > vertical_offset"),
+            ("source_y < source_height", "source_y < height"),
+            ("source_x_numerator >= horizontal_offset", "source_x_numerator > horizontal_offset"),
+            ("source_x < source_width", "source_x < width"),
+            ("index_of(width, x, y)?", "index_of(width, 0, y)?"),
+            ("index_of(source_width, source_x, source_y)?", "index_of(source_width, source_x, 0)?"),
+        ):
+            self.assertIn(before, original[begin:])
+            changed = original[:begin] + original[begin:].replace(before, after)
+
+            def altered(path, *args, **kwargs):
+                return changed if path == source else read_text(path, *args, **kwargs)
+
+            with self.subTest(before=before), mock.patch.object(Path, "read_text", altered), \
+                    self.assertRaisesRegex(ValueError, "actual complete context/row/column/index handoffs"):
+                framework.validate_normative_coverage(dict(coverage, requirements=[entry]))
+
+    def test_inventory_component_plane_rejects_admission_seed_trimming_and_keeps_fresh_caches(self):
+        coverage = json.loads((framework.VALIDATION / "normative-coverage.json").read_text())
+        entry = next(item for item in coverage["requirements"] if item["id"] == framework._COMPONENT_PLANE_ENTRY)
+        source = framework.ROOT / "specs/jpx_normalization.rs"
+        original = source.read_text()
+        read_text = Path.read_text
+        for before, after in (
+            ("context.source.len() != source_area as nat", "context.source.len() > source_area as nat"),
+            ("context.horizontal_subsampling == 0", "context.horizontal_subsampling > 255"),
+            ("Seq::new(area as nat, |_index: int| 0u16)", "Seq::empty()"),
+            ("context.height as nat)", "0)"),
+        ):
+            self.assertIn(before, original)
+            changed = original.replace(before, after, 1)
+
+            def altered(path, *args, **kwargs):
+                return changed if path == source else read_text(path, *args, **kwargs)
+
+            with self.subTest(before=before), mock.patch.object(Path, "read_text", altered), \
+                    self.assertRaisesRegex(ValueError, "complete actual admission/zero-seed/traversal model"):
+                framework.validate_normative_coverage(dict(coverage, requirements=[entry]))
+        counts = {framework.ROOT / name: 0 for name in ("src/jpx/registration.rs", "specs/jpx_normalization.rs")}
+
+        def counted(path, *args, **kwargs):
+            if path in counts:
+                counts[path] += 1
+            return read_text(path, *args, **kwargs)
+
+        with mock.patch.object(Path, "read_text", counted):
+            for expected in (1, 2):
+                self.assertEqual(framework.validate_normative_coverage(dict(coverage, requirements=[entry]))["status"], "passed")
+                self.assertEqual(set(counts.values()), {expected})
+
     def test_inventory_binds_actual_source_opacity_complete_result_and_owned_error_frames(self):
         self._assert_complete_packet_contract_bindings(
             {framework._SOURCE_OPACITY_ENTRY}, framework._SOURCE_OPACITY_CONTRACTS, 8, isolate=False,

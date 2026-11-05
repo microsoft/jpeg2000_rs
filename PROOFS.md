@@ -179,6 +179,24 @@ technical candidate only: parent-owned record, review, CI, guarded integration
 and actual-main acceptance remain separate. No complete parsing, pixels,
 lifetime verification, normative conformance or publication claim follows.
 
+## Actual general-layer component registration plane
+
+The actual `register_samples` has a complete Result equality across its full
+source/destination geometry, normalized sample, grid/subsampling and offset
+domains. Exact admission, zero seeding, lazy row/column visitation and selected
+sample/untouched-zero results are retained. Overflow is checked only where the
+original traversal reaches it, including skipped source rows and zero-width
+destinations. No successful-input or narrower grid premise is introduced.
+
+Ghost row/column/error folds and a checked row-major bound lemma connect the
+original native loops and index calls without extracting/moving the owner or
+changing native statements. Native cases cover3,456 independent small-canvas
+mappings, exact invalid admission and lazy row/column overflow priority.
+
+This computational producer is needed by actual general-layer normalization.
+It is not the complete general-layer source/assembly/frame or public theorem;
+the real source/component/definition/output joins remain distinct work.
+
 ## Actual source-derived layer opacity Result and mutation frame
 
 The executing `apply_layer_opacity` now has a complete Result and owned-layer
