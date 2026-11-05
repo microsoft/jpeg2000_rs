@@ -1030,6 +1030,144 @@ class FrameworkTests(WorkingFiles):
             framework._RAW_TILE_HEADER_CONTRACTS, 8,
         )
 
+    def test_inventory_binds_whole_actual_codestream_profile_result_chain(self):
+        self._assert_complete_packet_contract_bindings(
+            {"part1-complete-native-codestream-profile-result"},
+            framework._PROFILE_RESULT_CONTRACTS, 7, isolate=False,
+        )
+
+    def test_inventory_whole_profile_rejects_getter_only_or_missing_chain_contracts(self):
+        coverage = json.loads((framework.VALIDATION / "normative-coverage.json").read_text())
+        entry = copy.deepcopy(next(item for item in coverage["requirements"]
+                                   if item["id"] == "part1-complete-native-codestream-profile-result"))
+        for removed in entry["contract_refs"]:
+            changed = copy.deepcopy(entry)
+            changed["contract_refs"].remove(removed)
+            with self.subTest(removed=removed), self.assertRaisesRegex(ValueError, "whole profile Result requires classifier"):
+                framework.validate_normative_coverage(dict(coverage, requirements=[changed]))
+        changed = copy.deepcopy(entry)
+        changed["implementation_refs"] = [ref for ref in changed["implementation_refs"]
+                                          if ref["path"] != "src/codestream/layout.rs"]
+        with self.assertRaisesRegex(ValueError, "not used by claimed implementation"):
+            framework.validate_normative_coverage(dict(coverage, requirements=[changed]))
+        changed = copy.deepcopy(entry)
+        changed["spec_refs"] = [ref for ref in changed["spec_refs"] if ref["symbol"] != "part1_classify_codestream_profile"]
+        with self.assertRaisesRegex(ValueError, "model must be bound"):
+            framework.validate_normative_coverage(dict(coverage, requirements=[changed]))
+
+    def test_inventory_whole_profile_requires_actual_layout_inputs_and_returned_storage(self):
+        coverage = json.loads((framework.VALIDATION / "normative-coverage.json").read_text())
+        entry = copy.deepcopy(next(item for item in coverage["requirements"]
+                                   if item["id"] == "part1-complete-native-codestream-profile-result"))
+        data = dict(coverage, requirements=[entry])
+        self.assertEqual(framework.validate_normative_coverage(data)["status"], "passed")
+        source = framework.ROOT / "src/codestream/layout.rs"
+        original = source.read_text()
+        start = original.index("let codestream_profile = classify_codestream_profile(")
+        block = original[start:]
+        read_text = Path.read_text
+        for before, after in (
+            ("r_siz,", "0,"),
+            ("extended_capabilities,", "None,"),
+            ("corresponding_profile,", "None,"),
+            ("&component_coding_styles,", "&unrelated_styles,"),
+            ("&roi_shifts,", "&unrelated_roi,"),
+            ("&tile_part_payloads,", "&unrelated_parts,"),
+            ("image_size.components,", "0,"),
+            ("roi_seen.iter().any(|seen| *seen)", "false"),
+            ("profile: codestream_profile,", "profile: unrelated_profile,"),
+        ):
+            self.assertIn(before, block)
+            changed = original[:start] + block.replace(before, after, 1)
+            changed += "\nfn unrelated_complete_copy() {\n" + block + "\n}\n"
+
+            def altered(path, *args, **kwargs):
+                return changed if path == source else read_text(path, *args, **kwargs)
+
+            with self.subTest(before=before), mock.patch.object(Path, "read_text", altered), \
+                    self.assertRaisesRegex(ValueError, "not used by claimed implementation"):
+                framework.validate_normative_coverage(data)
+
+    def test_inventory_whole_profile_requires_complete_owned_and_observed_physical_views(self):
+        coverage = json.loads((framework.VALIDATION / "normative-coverage.json").read_text())
+        entry = copy.deepcopy(next(item for item in coverage["requirements"]
+                                   if item["id"] == "part1-complete-native-codestream-profile-result"))
+        data = dict(coverage, requirements=[entry])
+        source = framework.ROOT / "src/codestream/proof_support.rs"
+        original = source.read_text()
+        start = original.index("pub(crate) closed spec fn optional_capabilities_view")
+        end = original.index("\n}", start)
+        block = original[start:end]
+        read_text = Path.read_text
+        for before, after in (
+            ("value.r_siz", "0"),
+            ("value.block_coding", "CodestreamBlockCoding::Legacy"),
+            ("&value.extended_capabilities", "&None"),
+            ("&value.profile", "&None"),
+            ("&value.corresponding_profile", "&value.profile"),
+            ("component_style_owner_view(&value.component_coding_styles)", "component_style_owner_view(&unrelated)"),
+            ("roi_shifts_view(&value.roi_shifts)", "roi_shifts_view(&unrelated)"),
+            ("value.has_roi_marker", "false"),
+            ("value.has_functional_header_marker", "false"),
+        ):
+            self.assertIn(before, block)
+            changed = original[:start] + block.replace(before, after, 1) + original[end:]
+
+            def altered(path, *args, **kwargs):
+                return changed if path == source else read_text(path, *args, **kwargs)
+
+            with self.subTest(before=before), mock.patch.object(Path, "read_text", altered), \
+                    self.assertRaisesRegex(ValueError, "requires complete raw projection"):
+                framework.validate_normative_coverage(data)
+
+    def test_inventory_whole_profile_rejects_normalized_some_empty_metadata(self):
+        coverage = json.loads((framework.VALIDATION / "normative-coverage.json").read_text())
+        entry = copy.deepcopy(next(item for item in coverage["requirements"]
+                                   if item["id"] == "part1-complete-native-codestream-profile-result"))
+        data = dict(coverage, requirements=[entry])
+        source = framework.ROOT / "src/codestream/proof_support.rs"
+        original = source.read_text()
+        read_text = Path.read_text
+        for before, after in (
+            ("Some(caps) => Some(extended_capabilities_view(caps))",
+             "Some(caps) => if caps.c_capabilities.is_empty() { None } else { Some(extended_capabilities_view(caps)) }"),
+            ("Some(number) => Some(profile_number_view(number))",
+             "Some(number) => if number.words.is_empty() { None } else { Some(profile_number_view(number)) }"),
+        ):
+            self.assertIn(before, original)
+            changed = original.replace(before, after, 1)
+
+            def altered(path, *args, **kwargs):
+                return changed if path == source else read_text(path, *args, **kwargs)
+
+            with self.subTest(before=before), mock.patch.object(Path, "read_text", altered), \
+                    self.assertRaisesRegex(ValueError, "requires complete raw projection"):
+                framework.validate_normative_coverage(data)
+
+    def test_inventory_whole_profile_reuses_call_local_cache_not_component_relays(self):
+        coverage = json.loads((framework.VALIDATION / "normative-coverage.json").read_text())
+        entry = copy.deepcopy(next(item for item in coverage["requirements"]
+                                   if item["id"] == "part1-complete-native-codestream-profile-result"))
+        data = dict(coverage, requirements=[entry])
+        paths = {(framework.ROOT / name).resolve() for name in (
+            "src/codestream/layout.rs", "src/codestream/profile.rs",
+            "src/codestream/proof_support.rs", "specs/codestream_profile.rs",
+        )}
+        counts = dict.fromkeys(paths, 0)
+        read_text = Path.read_text
+
+        def counted(path, *args, **kwargs):
+            if path in counts:
+                counts[path] += 1
+            return read_text(path, *args, **kwargs)
+
+        with mock.patch.object(Path, "read_text", counted):
+            for expected in (1, 2):
+                self.assertEqual(framework.validate_normative_coverage(data)["status"], "passed")
+                self.assertEqual(counts, dict.fromkeys(paths, expected))
+        for key in framework._PROFILE_RESULT_CONTRACTS:
+            self.assertNotIn(key, framework._COMPONENT_PRODUCER_RELAYS)
+
     def test_inventory_binds_complete_actual_tile_loop_results_and_reader_frames(self):
         self._assert_complete_packet_contract_bindings(
             {"part1-complete-native-tile-loop-metadata-admission",
@@ -2331,7 +2469,7 @@ class FrameworkTests(WorkingFiles):
             framework._TRANSFORM_ARRAY_BYTES_CONTRACTS, 7,
         )
 
-    def _assert_complete_packet_contract_bindings(self, entry_ids, recipes, expected_count):
+    def _assert_complete_packet_contract_bindings(self, entry_ids, recipes, expected_count, *, isolate=True):
         original_coverage = json.loads((framework.VALIDATION / "normative-coverage.json").read_text())
         self.assertEqual(framework.validate_normative_coverage(original_coverage)["status"], "passed")
         entries = [entry for entry in original_coverage["requirements"] if entry["id"] in entry_ids]
@@ -2361,7 +2499,8 @@ class FrameworkTests(WorkingFiles):
             claimed_consumer = reference in entry["contract_refs"]
             coverage = copy.deepcopy(original_coverage)
             coverage["requirements"] = [copy.deepcopy(entry)]
-            coverage["requirements"][0]["contract_refs"] = [reference] if claimed_consumer else entry["contract_refs"][:1]
+            if isolate:
+                coverage["requirements"][0]["contract_refs"] = [reference] if claimed_consumer else entry["contract_refs"][:1]
             source = framework.ROOT / reference["path"]
             original = source.read_text()
             def actual_call(caller):
@@ -2398,10 +2537,12 @@ class FrameworkTests(WorkingFiles):
             isolated = coverage["requirements"][0]
             if claimed_consumer:
                 self.assertTrue(actual_callers)
-                isolated["implementation_refs"] = actual_callers[:1]
-                isolated["spec_refs"] = [item for item in entry["spec_refs"] if item["symbol"] == model]
-            isolated["proof_refs"] = [reference]
-            isolated["test_refs"] = entry["test_refs"][:1]
+                if isolate:
+                    isolated["implementation_refs"] = actual_callers[:1]
+                    isolated["spec_refs"] = [item for item in entry["spec_refs"] if item["symbol"] == model]
+            if isolate:
+                isolated["proof_refs"] = [reference]
+                isolated["test_refs"] = entry["test_refs"][:1]
             self.assertEqual(framework.validate_normative_coverage(coverage)["status"], "passed")
             header = framework._coverage_function_header(original, reference["symbol"])
             signature = original.find("fn", header.start())
@@ -2463,7 +2604,8 @@ class FrameworkTests(WorkingFiles):
                         self.assertRaisesRegex(ValueError, "lacks executable Verus contract"):
                     framework.validate_normative_coverage(coverage)
             no_caller = copy.deepcopy(coverage)
-            no_caller["requirements"][0]["contract_refs"] = [reference]
+            if isolate:
+                no_caller["requirements"][0]["contract_refs"] = [reference]
             no_caller["requirements"][0]["implementation_refs"] = [reference]
             with self.assertRaisesRegex(ValueError, "not used by claimed implementation"):
                 framework.validate_normative_coverage(no_caller)
