@@ -176,9 +176,10 @@ mod tests {
         }
     }
 
-    fn opacity_source_snapshot(layer: &OwnedLayer)
-        -> (u32, u32, ConvertedColorSpace, Vec<Vec<u16>>, Option<(Vec<u16>, bool)>)
-    {
+    type OpacitySourceSnapshot =
+        (u32, u32, ConvertedColorSpace, Vec<Vec<u16>>, Option<(Vec<u16>, bool)>);
+
+    fn opacity_source_snapshot(layer: &OwnedLayer) -> OpacitySourceSnapshot {
         (layer.width, layer.height, layer.color_space, layer.colors.clone(), layer.alpha.clone())
     }
 
