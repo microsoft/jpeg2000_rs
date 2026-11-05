@@ -649,6 +649,21 @@ fn complete_native_association_and_selected_header_validation_preserve_raw_choic
                 kind: MalformedKind::MissingRequiredStructure
             })
         );
+        let mut file = parsed.clone();
+        file.file_type.brand = BoxType::JPX_BRAND;
+        file.codestreams = vec![stream];
+        let options = crate::DecodeOptions::new(
+            ResourceLimits::HARDENED
+                .with_maximum_input_bytes(0)
+                .unwrap(),
+        );
+        assert_eq!(
+            crate::decode::decode_jpx_file(&file, 0, &options),
+            Err(DecodeError::MalformedInput {
+                offset,
+                kind: MalformedKind::MissingRequiredStructure
+            })
+        );
     }
     let data = valid_codestream(64, 32);
     let mut info = crate::codestream::parse(&data, &ResourceLimits::default()).unwrap();

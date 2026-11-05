@@ -1,5 +1,80 @@
 #[cfg(verus_keep_ghost)]
 verus! {
+    pub closed spec fn file_type_view(file_type: &FileType) -> crate::specs::Part2FileType {
+        (file_type.brand, file_type.minor_version, file_type.compatible_brands@)
+    }
+
+    pub closed spec fn box_header_offset(header: BoxHeader) -> u64 {
+        header.offset
+    }
+
+    pub closed spec fn codestream_source_view(stream: &CodestreamBox) -> crate::specs::Part2CodestreamSource {
+        (stream.data@, stream.header.offset, codestream_header_association_view(stream))
+    }
+
+    pub(crate) proof fn codestream_source_known_fields(stream: &CodestreamBox)
+        ensures codestream_source_view(stream).2 == codestream_header_association_view(stream),
+    {
+    }
+
+    pub closed spec fn jpx_file_decode_view(file: &Jp2File) -> crate::specs::Part2JpxDecodeInput {
+        (file_type_view(&file.file_type),
+            file.codestreams@.map_values(|stream: CodestreamBox| codestream_source_view(&stream)),
+            associated_header_view(&file.header))
+    }
+
+    pub closed spec fn jpx_file_codestream_reference<'file, 'input>(
+        file: &'file Jp2File<'input>, index: usize,
+    ) -> Option<&'file CodestreamBox<'input>> {
+        if index < file.codestreams@.len() {
+            Some(&file.codestreams@[index as int])
+        } else {
+            None
+        }
+    }
+
+    pub closed spec fn jpx_file_header_reference<'file>(file: &'file Jp2File<'_>) -> &'file Jp2Header {
+        &file.header
+    }
+
+    pub closed spec fn associated_header_reference<'file>(
+        selected: &'file CodestreamBox<'_>, fallback: &'file Jp2Header,
+    ) -> Result<&'file Jp2Header, DecodeError> {
+        match &selected.codestream_header {
+            None => Ok(fallback),
+            Some(association) => match &association.parsed {
+                Some(header) => Ok(header),
+                None => Err(DecodeError::MalformedInput {
+                    offset: association.header.offset, kind: MalformedKind::MissingRequiredStructure,
+                }),
+            },
+        }
+    }
+
+    pub closed spec fn jpx_file_associated_header_reference<'file>(
+        file: &'file Jp2File<'_>, index: usize,
+    ) -> Option<&'file Jp2Header> {
+        match jpx_file_codestream_reference(file, index) {
+            None => None,
+            Some(selected) => match associated_header_reference(selected, jpx_file_header_reference(file)) {
+                Err(_) => None,
+                Ok(header) => Some(header),
+            },
+        }
+    }
+
+    pub(crate) proof fn jpx_file_associated_header_reference_unfold(file: &Jp2File, index: usize)
+        ensures jpx_file_associated_header_reference(file, index)
+            == match jpx_file_codestream_reference(file, index) {
+                None => None,
+                Some(selected) => match associated_header_reference(selected, jpx_file_header_reference(file)) {
+                    Err(_) => None,
+                    Ok(header) => Some(header),
+                },
+            },
+    {
+    }
+
     pub closed spec fn color_specification_method(color: &ColorSpecification) -> ColorMethod {
         color.method
     }

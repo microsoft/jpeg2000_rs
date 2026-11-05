@@ -4,6 +4,71 @@
   "scope": "Technical reference inventory; not exhaustive standards-clause coverage or a conformance claim.",
   "requirements": [
     {
+      "id": "part2-complete-native-jpx-source-image-result",
+      "topic": "Complete actual executing JPX file-to-associated-image Result, including real file/profile compatibility, source lookup/index/count, complete compressed bytes/offset/header association, raw info parser, selected header validation, raw full decoder and mapped output/actual returned header. The logical file/source projection is derived from actual owners, never supplied successful parser/image banks. All first errors and option limits remain in their original order. Checked native getters, full raw-info field/error and staged unfolding bridges feed the original outer decode_jpx_file body. The preserved cfg(any()) nested item is nonexecuting historical context and is excluded from real-handoff qualification; ghost handoffs inside it are explicitly rejected. Actual source/association/output tests retain independently encoded literal samples, actual header reference identity, palette/mapping/channel definitions, inherited empty headers, all truncated raw prefixes and parser/header/backend/output resource priority. The arbitrary-native missing parsed association is tested separately and is not mislabeled parser reachable. No native body/owner/scope/runtime clone/alternate decoder/axiom/admission/solver-budget/pin/cap/trust change. This derives real JPX decoded images needed by normalization/frame joins; raw container parsing, all public paths, full normalization/frame, corrected normative correspondence, production coverage/erasure/lifetimes and release remain separate.",
+      "implementation_refs": [
+        {"path": "src/decode/output.rs", "symbol": "decode_jpx_file"},
+        {"path": "src/decode/api.rs", "symbol": "decode_codestream"},
+        {"path": "src/codestream/layout.rs", "symbol": "parse"},
+        {"path": "src/jp2/container.rs", "symbol": "associated_header_for_codestream"},
+        {"path": "src/jp2/container.rs", "symbol": "validate_selected_header"},
+        {"path": "src/decode/output.rs", "symbol": "apply_associated_output"},
+        {"path": "src/jpx/layer_decode.rs", "symbol": "decode_layer"},
+        {"path": "src/jpx/layer_decode.rs", "symbol": "decode_general_compositing_layer"}
+      ],
+      "spec_refs": [
+        {"path": "specs/jpx_source.rs", "symbol": "part2_decode_jpx_codestream"},
+        {"path": "specs/jpx_source.rs", "symbol": "part2_decode_jpx_source"},
+        {"path": "specs/jpx_source.rs", "symbol": "part2_decode_jpx_associated"},
+        {"path": "specs/jpx_source.rs", "symbol": "part2_file_type_compatible"},
+        {"path": "specs/jpx_source.rs", "symbol": "part2_file_type_jpx"},
+        {"path": "specs/jpx_source.rs", "symbol": "part2_jpx_codestream_lookup"},
+        {"path": "specs/raw_layout.rs", "symbol": "part1_parse_info"},
+        {"path": "specs/raw_decode.rs", "symbol": "part2_decode_raw_codestream"},
+        {"path": "specs/mod.rs", "symbol": "part2_associated_codestream_header"},
+        {"path": "specs/mod.rs", "symbol": "part2_validate_selected_header"},
+        {"path": "specs/mod.rs", "symbol": "part2_apply_associated_output"}
+      ],
+      "contract_refs": [
+        {"path": "src/decode/output.rs", "symbol": "decode_jpx_file"},
+        {"path": "src/decode/api.rs", "symbol": "decode_codestream"},
+        {"path": "src/codestream/layout.rs", "symbol": "parse"},
+        {"path": "src/jp2/container.rs", "symbol": "associated_header_for_codestream"},
+        {"path": "src/jp2/container.rs", "symbol": "validate_selected_header"},
+        {"path": "src/decode/output.rs", "symbol": "apply_associated_output"}
+      ],
+      "proof_refs": [
+        {"path": "src/jp2/proof_support.rs", "symbol": "jpx_file_associated_header_reference_unfold"},
+        {"path": "src/jp2/proof_support.rs", "symbol": "jpx_file_associated_header_reference"},
+        {"path": "src/jp2/proof_support.rs", "symbol": "jpx_file_codestream_reference"},
+        {"path": "src/jp2/proof_support.rs", "symbol": "jpx_file_header_reference"},
+        {"path": "src/jp2/proof_support.rs", "symbol": "associated_header_reference"},
+        {"path": "src/jp2/proof_support.rs", "symbol": "codestream_source_known_fields"},
+        {"path": "src/codestream/proof_support.rs", "symbol": "complete_codestream_info_errors_known"},
+        {"path": "src/codestream/proof_support.rs", "symbol": "complete_codestream_info_known_fields"},
+        {"path": "specs/jpx_source.rs", "symbol": "part2_decode_jpx_codestream_unfold"},
+        {"path": "specs/jpx_source.rs", "symbol": "part2_decode_jpx_source_unfold"},
+        {"path": "specs/jpx_source.rs", "symbol": "part2_decode_jpx_associated_unfold"},
+        {"path": "src/jp2/box_reader.rs", "symbol": "BoxType::equals"},
+        {"path": "src/jp2/box_reader.rs", "symbol": "BoxHeader::offset"},
+        {"path": "src/jp2/container.rs", "symbol": "FileType::is_compatible_with"},
+        {"path": "src/jp2/container.rs", "symbol": "FileType::is_jpx_compatible"},
+        {"path": "src/jp2/container.rs", "symbol": "CodestreamBox::box_header"},
+        {"path": "src/jp2/container.rs", "symbol": "CodestreamBox::data"},
+        {"path": "src/jp2/container.rs", "symbol": "Jp2File::file_type"},
+        {"path": "src/jp2/container.rs", "symbol": "Jp2File::header"},
+        {"path": "src/jp2/container.rs", "symbol": "Jp2File::codestream"},
+        {"path": "src/options.rs", "symbol": "DecodeOptions::limits"}
+      ],
+      "test_refs": [
+        {"path": "src/decode/jpx_source_result_tests.rs", "symbol": "actual_jpx_source_result_decodes_selected_real_bytes_and_retains_actual_header_reference"},
+        {"path": "src/decode/jpx_source_result_tests.rs", "symbol": "actual_jpx_source_result_keeps_profile_lookup_and_inherited_association_priority"},
+        {"path": "src/decode/jpx_source_result_tests.rs", "symbol": "actual_jpx_source_result_preserves_parser_header_and_backend_budget_priority"},
+        {"path": "src/decode/jpx_source_result_tests.rs", "symbol": "actual_jpx_source_result_applies_real_associated_mapping_palette_definitions_and_limits"},
+        {"path": "src/jp2/tests.rs", "symbol": "complete_native_association_and_selected_header_validation_preserve_raw_choices"}
+      ]
+    },
+    {
       "id": "part2-complete-native-raw-codestream-typed-result",
       "topic": "Complete actual compressed-byte full and selected typed-image Results, not supplied-layout or decoded-image admission: actual raw parser/input limits and every raw layout error feed one checked complete logical decoder-input projection, then real execution admission, selection, pixel reconstruction, typed conversion, nonlinear-region collection/application and output-shape producers. Actual limits and selected request are retained with every first error. No owning native layout/image is chosen or supplied; only fully projected Copy image/style/quantization/ROI types are recovered with checked unconditional inverse identities including raw counts and all physical tails. Existing native-layout models delegate to the same extracted nonduplicated input models. Checked complete-layout adequacy/error/unfolding bridges connect actual returned parser owners to actual unchanged raw API bodies. No native owner/clone/move/drop/scope change, runtime proof clone, external codec axiom, assumption/admission, alternate decoder, normalized owner or pin/cap/trust change. Both raw API contracts and all three consumed parser/decoder/type contracts are mandatory together. This supplies actual decoded-image producers for normalization/frame joins and proves the raw full/selected codestream sub-boundary only; container/layer/frame/progressive/JPIP, complete normalization/public composition, independent normative correspondence, production coverage/erasure/lifetimes and release remain separate.",
       "implementation_refs": [

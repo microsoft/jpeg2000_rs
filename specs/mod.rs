@@ -39,6 +39,8 @@ mod decoder_input;
 pub use decoder_input::*;
 mod raw_decode;
 pub use raw_decode::*;
+mod jpx_source;
+pub use jpx_source::*;
 
 pub use crate::proofs::internal_specs::{
     part2_composition_layer_prefix_matches, part2_composition_layer_prefix_safe,

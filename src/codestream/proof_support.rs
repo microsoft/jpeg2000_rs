@@ -19,6 +19,26 @@ verus! {
         match value { Err(error) => Err(error), Ok(info) => Ok(complete_codestream_info_view(&info)) }
     }
 
+    pub(crate) proof fn complete_codestream_info_errors_known()
+        ensures forall|error: DecodeError|
+            complete_codestream_info_outcome(Err(error)) == Err(error),
+    {
+    }
+
+    pub(crate) proof fn complete_codestream_info_known_fields(info: &CodestreamInfo)
+        ensures
+            complete_codestream_info_view(info).0.image_size.geometry.0 == info.image_size.width,
+            complete_codestream_info_view(info).0.image_size.geometry.1 == info.image_size.height,
+            complete_codestream_info_view(info).0.image_size.components == info.image_size.components,
+            complete_codestream_info_view(info).0.image_size.uniform_bit_depth == info.image_size.uniform_bit_depth,
+            complete_codestream_info_view(info).0.image_size.uniform_signed == info.image_size.uniform_signed,
+            complete_codestream_info_outcome(Ok(*info)) == Ok(complete_codestream_info_view(info)),
+    {
+        reveal(main_header_fields_view);
+        reveal(parsed_image_size_view);
+        reveal(selection_geometry_view);
+    }
+
     pub closed spec fn complete_layout_outcome(value: Result<CodestreamLayout<'_>, DecodeError>)
         -> crate::specs::Part1CompleteLayoutResult
     {

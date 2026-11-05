@@ -276,6 +276,14 @@ def _coverage_function_body(text: str, header: re.Match[str] | None) -> str | No
     return text[body_start + 1:body_start + 1 + closing.start()]
 
 
+def _coverage_spec_function_body(text: str, symbol: str) -> str | None:
+    headers = list(re.finditer(
+        r"(?m)^([ \t]*)pub(?:\(crate\))?[ \t]+(?:open|closed)[ \t]+spec[ \t]+fn[ \t]+"
+        + re.escape(symbol) + r"\b", text,
+    ))
+    return _coverage_function_body(text, headers[0]) if len(headers) == 1 else None
+
+
 def _coverage_same_file_call(
     text: str, caller: str, callee: str, *, distinct_file: bool = False,
 ) -> bool:
@@ -1808,6 +1816,39 @@ _TYPED_LAYOUT_CONTRACTS = {
 }
 
 _RAW_TYPED_ENTRY = "part2-complete-native-raw-codestream-typed-result"
+_JPX_SOURCE_ENTRY = "part2-complete-native-jpx-source-image-result"
+_JPX_SOURCE_CONTRACTS = {
+    ("src/decode/output.rs", "decode_jpx_file"): (
+        "part2_decode_jpx_codestream", _coverage_call("associated_typed_outcome", r"\1"), None,
+        _coverage_call("jp2::jpx_file_decode_view", "file") + r"\s*,\s*codestream_index\s*,\s*"
+        + _coverage_call("crate::options::decode_options_limits", "options"),
+    ),
+    ("src/decode/api.rs", "decode_codestream"): (
+        "part2_decode_raw_codestream", _coverage_call("crate::image::decoded_typed_image_outcome", r"\1"), None,
+        r"input@\s*,\s*" + _coverage_call("crate::options::decode_options_limits", "options") + r"\s*,\s*None",
+    ),
+    ("src/codestream/layout.rs", "parse"): (
+        "part1_parse_info", _coverage_call("complete_codestream_info_outcome", r"\1"), None, r"input@\s*,\s*limits",
+    ),
+    ("src/jp2/container.rs", "associated_header_for_codestream"): (
+        "part2_associated_codestream_header", _coverage_call("associated_header_outcome", r"\1"), None,
+        _coverage_call("codestream_header_association_view", "selected") + r"\s*,\s*"
+        + _coverage_call("associated_header_view", "fallback"),
+    ),
+    ("src/jp2/container.rs", "validate_selected_header"): (
+        "part2_validate_selected_header", r"\1", None,
+        r"header\.image\s*,\s*codestream\.image_size\.width\s*,\s*codestream\.image_size\.height\s*,\s*"
+        r"codestream\.image_size\.components\s*,\s*codestream\.image_size\.uniform_bit_depth\s*,\s*"
+        r"codestream\.image_size\.uniform_signed\s*,\s*offset",
+    ),
+    ("src/decode/output.rs", "apply_associated_output"): (
+        "part2_apply_associated_output", _coverage_call("associated_typed_outcome", r"\1"), None,
+        _coverage_call("crate::image::typed_image_value_view", "decoded") + r"\s*,\s*"
+        + _coverage_call("jp2::associated_header_option", "header") + r"\s*,\s*"
+        + _coverage_call("crate::limits::resource_component_limit", "limits") + r"\s*,\s*"
+        + _coverage_call("crate::limits::resource_decoded_bytes_limit", "limits"),
+    ),
+}
 _RAW_TYPED_CONTRACTS = {
     ("src/decode/api.rs", "decode_codestream"): (
         "part2_decode_raw_codestream", _coverage_call("crate::image::decoded_typed_image_outcome", r"\1"), None,
@@ -2742,6 +2783,232 @@ def validate_normative_coverage(
     ids: set[str] = set()
     contract_functions: set[tuple[str, str]] = set()
     for entry in coverage["requirements"]:
+        if entry["id"] == _JPX_SOURCE_ENTRY:
+            if {(ref["path"], ref["symbol"]) for ref in entry["contract_refs"]} != set(_JPX_SOURCE_CONTRACTS):
+                raise ValueError("whole JPX source Result requires actual file, raw info/decoder, association/validation/output contracts")
+            model_refs = {
+                ("specs/jpx_source.rs", name) for name in (
+                    "part2_decode_jpx_codestream", "part2_decode_jpx_source", "part2_decode_jpx_associated",
+                    "part2_file_type_compatible", "part2_file_type_jpx", "part2_jpx_codestream_lookup",
+                )
+            } | {
+                ("specs/raw_layout.rs", "part1_parse_info"), ("specs/raw_decode.rs", "part2_decode_raw_codestream"),
+                ("specs/mod.rs", "part2_associated_codestream_header"),
+                ("specs/mod.rs", "part2_validate_selected_header"), ("specs/mod.rs", "part2_apply_associated_output"),
+            }
+            if not model_refs.issubset({(ref["path"], ref["symbol"]) for ref in entry["spec_refs"]}):
+                raise ValueError("whole JPX source Result requires the complete actual source/header/raw decoder/output model chain")
+            required_proofs = {
+                ("specs/jpx_source.rs", name) for name in (
+                    "part2_decode_jpx_codestream_unfold", "part2_decode_jpx_source_unfold", "part2_decode_jpx_associated_unfold",
+                )
+            } | {
+                ("src/codestream/proof_support.rs", "complete_codestream_info_errors_known"),
+                ("src/codestream/proof_support.rs", "complete_codestream_info_known_fields"),
+                ("src/jp2/proof_support.rs", "codestream_source_known_fields"),
+                ("src/jp2/proof_support.rs", "jpx_file_associated_header_reference_unfold"),
+                ("src/jp2/proof_support.rs", "jpx_file_associated_header_reference"),
+                ("src/jp2/proof_support.rs", "jpx_file_codestream_reference"),
+                ("src/jp2/proof_support.rs", "jpx_file_header_reference"),
+                ("src/jp2/proof_support.rs", "associated_header_reference"),
+            }
+            getters = {
+                ("src/jp2/box_reader.rs", "BoxType::equals"): "result == (self == other)",
+                ("src/jp2/box_reader.rs", "BoxHeader::offset"): "result == super::box_header_offset(self)",
+                ("src/jp2/container.rs", "FileType::is_compatible_with"):
+                    "result == crate::specs::part2_file_type_compatible(super::file_type_view(self), brand)",
+                ("src/jp2/container.rs", "FileType::is_jpx_compatible"):
+                    "result == crate::specs::part2_file_type_jpx(super::file_type_view(self))",
+                ("src/jp2/container.rs", "CodestreamBox::box_header"):
+                    "super::box_header_offset(result) == super::codestream_source_view(self).1",
+                ("src/jp2/container.rs", "CodestreamBox::data"): "result@ == super::codestream_source_view(self).0",
+                ("src/jp2/container.rs", "Jp2File::file_type"):
+                    "super::file_type_view(result) == super::jpx_file_decode_view(self).0",
+                ("src/jp2/container.rs", "Jp2File::header"):
+                    "super::associated_header_view(result) == super::jpx_file_decode_view(self).2,"
+                    "result == super::jpx_file_header_reference(self)",
+                ("src/jp2/container.rs", "Jp2File::codestream"): """
+                    match result {
+                        Err(error) => crate::specs::part2_jpx_codestream_lookup(
+                            super::jpx_file_decode_view(self).1, index) == Err(error),
+                        Ok(stream) => crate::specs::part2_jpx_codestream_lookup(
+                            super::jpx_file_decode_view(self).1, index) == Ok(super::codestream_source_view(stream)),
+                    },
+                    match result {
+                        Err(_) => true,
+                        Ok(stream) => Some(stream) == super::jpx_file_codestream_reference(self, index),
+                    }
+                """,
+                ("src/options.rs", "DecodeOptions::limits"): "result == decode_options_limits(self)",
+            }
+            if not (required_proofs | set(getters)).issubset(
+                {(ref["path"], ref["symbol"]) for ref in entry["proof_refs"]}
+            ):
+                raise ValueError("whole JPX source Result requires every checked source/getter/error/unfolding bridge")
+            for (relative, symbol), expected in getters.items():
+                path = (ROOT / relative).resolve()
+                text = source_text(path)
+                header = function_header(path, symbol)
+                if header is None:
+                    raise ValueError("whole JPX source Result requires actual getter/reference contracts")
+                start = text.find("fn", header.start(), header.end())
+                attrs = text[text.rfind("#[cfg_attr", 0, start):start]
+                wanted = "verus_spec(result=>ensures" + "".join(expected.split()) + ",)"
+                if wanted not in "".join(attrs.split()) or re.search(r"\brequires\b", attrs):
+                    raise ValueError("whole JPX source Result requires actual getter/reference contracts")
+            for (relative, symbol), expected in {
+                ("src/decode/output.rs", "decode_jpx_file"): """
+                    match result {
+                        Err(_) => true,
+                        Ok(output) => output.1 == jp2::jpx_file_associated_header_reference(file, codestream_index),
+                    }
+                """,
+                ("src/decode/output.rs", "apply_associated_output"):
+                    "match result { Err(_) => true, Ok(output) => output.1 == header }",
+                ("src/jp2/container.rs", "associated_header_for_codestream"):
+                    "result == super::associated_header_reference(selected, fallback)",
+            }.items():
+                path = (ROOT / relative).resolve()
+                text = source_text(path)
+                header = function_header(path, symbol)
+                if header is None:
+                    raise ValueError("whole JPX source Result lacks executable Verus contract: full returned-header frames")
+                start = text.find("fn", header.start(), header.end())
+                attrs = text[text.rfind("#[cfg_attr", 0, start):start]
+                if "".join(expected.split()) + "," not in "".join(attrs.split()) or re.search(r"\brequires\b", attrs):
+                    raise ValueError("whole JPX source Result lacks executable Verus contract: full returned-header frames")
+            path = (ROOT / "src/decode/output.rs").resolve()
+            body = _coverage_function_body(source_text(path), function_header(path, "decode_jpx_file"))
+            nested = _coverage_function_header(body, "decode_jpx_file_selected") if body is not None else None
+            disabled = re.search(r"#\[\s*cfg\s*\(\s*any\s*\(\s*\)\s*\)\s*\]\s*", body) if body is not None else None
+            if body is None or nested is None or disabled is None or body[disabled.end():nested.start()].strip():
+                raise ValueError("whole JPX source Result requires the preserved nonexecuting nested item")
+            opening = body.find("{", nested.end())
+            closing = re.search(rf"(?m)^{re.escape(nested[1])}\}}", body[opening + 1:])
+            if closing is None or "verus_keep_ghost" in body[disabled.start():opening + 1 + closing.end()]:
+                raise ValueError("whole JPX source Result cannot use a disabled nested proof as the real handoff")
+            body = body[:disabled.start()] + body[opening + 1 + closing.end():]
+            expected = """
+                #[cfg(verus_keep_ghost)] proof! {
+                    reveal(associated_typed_outcome);
+                    codestream::complete_codestream_info_errors_known();
+                    jp2::jpx_file_associated_header_reference_unfold(file, codestream_index);
+                    crate::specs::part2_decode_jpx_codestream_unfold(
+                        jp2::jpx_file_decode_view(file), codestream_index, crate::options::decode_options_limits(options));
+                }
+                if !file.file_type().is_jpx_compatible() {
+                    return Err(DecodeError::malformed(0, MalformedKind::InvalidProfile));
+                }
+                let selected = file.codestream(codestream_index)?;
+                #[cfg(verus_keep_ghost)] proof! {
+                    jp2::codestream_source_known_fields(selected);
+                    crate::specs::part2_decode_jpx_source_unfold(
+                        jp2::codestream_source_view(selected), jp2::jpx_file_decode_view(file).2,
+                        crate::options::decode_options_limits(options));
+                }
+                let associated_header = Some(jp2::associated_header_for_codestream(selected, file.header(),)?);
+                #[cfg(verus_keep_ghost)] proof! {
+                    crate::specs::part2_decode_jpx_associated_unfold(
+                        jp2::codestream_source_view(selected), jp2::associated_header_view(associated_header.unwrap()),
+                        crate::options::decode_options_limits(options));
+                }
+                let info = codestream::parse(selected.data(), options.limits())?;
+                #[cfg(verus_keep_ghost)] proof! { codestream::complete_codestream_info_known_fields(&info); }
+                if let Some(header) = associated_header {
+                    jp2::validate_selected_header(header, &info, selected.box_header().offset())?;
+                }
+                let decoded = decode_codestream(selected.data(), options)?;
+                apply_associated_output(decoded, associated_header, options.limits())
+            """
+            if "".join(body.split()) != "".join(expected.split()):
+                raise ValueError("whole JPX source Result requires actual executing source/header/raw decoder/output handoffs")
+            projections = {
+                ("src/jp2/proof_support.rs", "file_type_view"):
+                    "(file_type.brand, file_type.minor_version, file_type.compatible_brands@)",
+                ("src/jp2/proof_support.rs", "codestream_source_view"):
+                    "(stream.data@, stream.header.offset, codestream_header_association_view(stream))",
+                ("src/jp2/proof_support.rs", "jpx_file_decode_view"): """
+                    (file_type_view(&file.file_type),
+                        file.codestreams@.map_values(|stream: CodestreamBox| codestream_source_view(&stream)),
+                        associated_header_view(&file.header))
+                """,
+                ("src/jp2/proof_support.rs", "jpx_file_codestream_reference"): """
+                    if index < file.codestreams@.len() {
+                        Some(&file.codestreams@[index as int])
+                    } else {
+                        None
+                    }
+                """,
+                ("src/jp2/proof_support.rs", "jpx_file_header_reference"): "&file.header",
+                ("src/jp2/proof_support.rs", "associated_header_reference"): """
+                    match &selected.codestream_header {
+                        None => Ok(fallback),
+                        Some(association) => match &association.parsed {
+                            Some(header) => Ok(header),
+                            None => Err(DecodeError::MalformedInput {
+                                offset: association.header.offset, kind: MalformedKind::MissingRequiredStructure,
+                            }),
+                        },
+                    }
+                """,
+                ("src/jp2/proof_support.rs", "jpx_file_associated_header_reference"): """
+                    match jpx_file_codestream_reference(file, index) {
+                        None => None,
+                        Some(selected) => match associated_header_reference(selected, jpx_file_header_reference(file)) {
+                            Err(_) => None,
+                            Ok(header) => Some(header),
+                        },
+                    }
+                """,
+                ("specs/jpx_source.rs", "part2_file_type_compatible"): "input.0 == brand || input.2.contains(brand)",
+                ("specs/jpx_source.rs", "part2_file_type_jpx"): """
+                    part2_file_type_compatible(input, crate::jp2::BoxType::JPX_BRAND)
+                        || part2_file_type_compatible(input, crate::jp2::BoxType::JPX_BASELINE_BRAND)
+                """,
+                ("specs/jpx_source.rs", "part2_jpx_codestream_lookup"): """
+                    if index < input.len() { Ok(input[index as int]) }
+                    else { Err(crate::DecodeError::CodestreamIndexOutOfRange { index, codestreams: input.len() as usize }) }
+                """,
+                ("specs/jpx_source.rs", "part2_decode_jpx_codestream"): """
+                    if !part2_file_type_jpx(input.0) {
+                        Err(crate::DecodeError::MalformedInput { offset: 0, kind: crate::MalformedKind::InvalidProfile })
+                    } else {
+                        match part2_jpx_codestream_lookup(input.1, index) {
+                            Err(error) => Err(error),
+                            Ok(source) => part2_decode_jpx_source(source, input.2, limits),
+                        }
+                    }
+                """,
+                ("specs/jpx_source.rs", "part2_decode_jpx_source"): """
+                    match part2_associated_codestream_header(source.2, fallback) {
+                        Err(error) => Err(error),
+                        Ok(header) => part2_decode_jpx_associated(source, header, limits),
+                    }
+                """,
+                ("specs/jpx_source.rs", "part2_decode_jpx_associated"): """
+                    match part1_parse_info(source.0, limits) {
+                        Err(error) => Err(error),
+                        Ok(info) => match part2_validate_selected_header(
+                            header.1, info.0.image_size.geometry.0, info.0.image_size.geometry.1,
+                            info.0.image_size.components, info.0.image_size.uniform_bit_depth,
+                            info.0.image_size.uniform_signed, source.1,
+                        ) {
+                            Err(error) => Err(error),
+                            Ok(()) => match part2_decode_raw_codestream(source.0, limits, None) {
+                                Err(error) => Err(error),
+                                Ok(image) => part2_apply_associated_output(image, Some(header),
+                                    crate::limits::resource_component_limit(limits),
+                                    crate::limits::resource_decoded_bytes_limit(limits)),
+                            },
+                        },
+                    }
+                """,
+            }
+            for (relative, symbol), expected in projections.items():
+                path = (ROOT / relative).resolve()
+                actual = _coverage_spec_function_body(source_text(path), symbol)
+                if actual is None or "".join(actual.split()) != "".join(expected.split()):
+                    raise ValueError("whole JPX source Result requires complete physical/source models, not supplied banks or trimming")
         if entry["id"] == _RAW_TYPED_ENTRY:
             actual = {(ref["path"], ref["symbol"]) for ref in entry["contract_refs"]}
             if actual != set(_RAW_TYPED_CONTRACTS):
@@ -2828,12 +3095,7 @@ def validate_normative_coverage(
             }
             for (name, symbol), expected in projections.items():
                 source = source_text((ROOT / name).resolve())
-                headers_for_projection = list(re.finditer(
-                    r"(?m)^([ \t]*)pub(?:\(crate\))?[ \t]+(?:open|closed)[ \t]+spec[ \t]+fn[ \t]+"
-                    + re.escape(symbol) + r"\b", source,
-                ))
-                projected = (_coverage_function_body(source, headers_for_projection[0])
-                             if len(headers_for_projection) == 1 else None)
+                projected = _coverage_spec_function_body(source, symbol)
                 if projected is None or re.sub(r"\s+", "", projected) != re.sub(r"\s+", "", expected):
                     raise ValueError(f"whole raw typed Result requires complete raw/physical projection, not a layout/image bank: {symbol}")
             required_proofs = {
@@ -3846,6 +4108,8 @@ def validate_normative_coverage(
                 or _TYPED_LAYOUT_CONTRACTS.get((reference["path"], reference["symbol"]))
                 or (_RAW_TYPED_CONTRACTS.get((reference["path"], reference["symbol"]))
                     if entry["id"] == _RAW_TYPED_ENTRY else None)
+                or (_JPX_SOURCE_CONTRACTS.get((reference["path"], reference["symbol"]))
+                    if entry["id"] == _JPX_SOURCE_ENTRY else None)
                 or _CODESTREAM_READER_CONTRACTS.get((reference["path"], reference["symbol"]))
                 or _SOT_READER_CONTRACTS.get((reference["path"], reference["symbol"]))
                 or _TILE_DATA_WINDOW_CONTRACTS.get((reference["path"], reference["symbol"]))
