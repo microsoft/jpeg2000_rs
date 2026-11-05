@@ -16,33 +16,53 @@ use super::{
 };
 #[cfg(verus_keep_ghost)]
 use super::{
-    cap_payload_outcome, complete_codestream_profile_outcome, component_style_owner_view,
-    extended_capabilities_view, layout_main_header_outcome, layout_prologue_outcome,
-    main_header_accumulator_view, main_header_fields_view, mcc_fragment_outcome, mcc_pending_view,
-    mct_array_view, mct_arrays_view, mct_fragment_outcome, mct_graph_outcome,
-    mct_parameter_copy_view, mct_parameters_view, mct_pending_view, mct_record_view,
-    mct_records_view, multiple_component_transform_view, optional_capabilities_view,
-    optional_profile_number_view, optional_roi_shifts_view, optional_segment_view,
-    owned_extensions_view, packed_header_frames_view, packed_packet_headers_view,
-    packet_length_groups_view, parsed_coding_style_outcome, parsed_coding_style_view,
-    parsed_image_size_view, parsed_progression_outcome, parsed_quantization_outcome,
-    parsed_quantization_owner_outcome, parsed_quantization_owner_view, parsed_style_owner_outcome,
-    parser_view, persistent_tile_configuration_view, persistent_tile_state_view,
-    profile_number_outcome, profile_number_view, progression_changes_view, quantization_owner_view,
-    quantization_view, roi_shifts_view, segment_slots_view, segment_tail_outcome, segment_view,
-    selection_geometry_view, tile_part_header_view, tile_part_main_metadata_outcome,
-    tile_part_payload_view,
+    cap_payload_outcome, complete_codestream_info_outcome, complete_codestream_info_view,
+    complete_codestream_profile_outcome, complete_layout_outcome, component_style_owner_view,
+    extended_capabilities_view, inherited_tile_configuration_outcome, layout_main_header_outcome,
+    layout_prologue_outcome, main_header_accumulator_view, main_header_fields_view,
+    mcc_fragment_outcome, mcc_pending_view, mct_array_view, mct_arrays_view, mct_fragment_outcome,
+    mct_graph_outcome, mct_parameter_copy_view, mct_parameters_view, mct_pending_view,
+    mct_record_view, mct_records_view, multiple_component_transform_view,
+    optional_capabilities_view, optional_profile_number_view, optional_roi_shifts_view,
+    optional_segment_view, owned_extensions_view, packed_header_frames_view,
+    packed_packet_headers_view, packet_length_groups_view, parsed_coding_style_outcome,
+    parsed_coding_style_view, parsed_image_size_view, parsed_progression_outcome,
+    parsed_quantization_outcome, parsed_quantization_owner_outcome, parsed_quantization_owner_view,
+    parsed_style_owner_outcome, parser_initial_outcome, parser_view,
+    persistent_tile_configuration_view, persistent_tile_selection_view, persistent_tile_state_view,
+    profile_number_outcome, profile_number_view, profile_tile_inputs_view,
+    progression_changes_view, quantization_owner_view, quantization_view, roi_shifts_view,
+    segment_slots_view, segment_tail_outcome, segment_view, selection_geometry_view,
+    tile_part_header_view, tile_part_main_metadata_outcome, tile_part_payload_view,
 };
 #[cfg(verus_keep_ghost)]
 use vstd::prelude::*;
 
+#[cfg_attr(verus_keep_ghost, verus_spec(result =>
+    ensures complete_codestream_info_outcome(result) == crate::specs::part1_parse_info(input@, limits),
+))]
 pub fn parse(input: &[u8], limits: &ResourceLimits) -> Result<CodestreamInfo, DecodeError> {
+    #[cfg(verus_keep_ghost)]
+    proof! {
+        reveal(complete_codestream_info_outcome);
+        reveal(complete_layout_outcome);
+        crate::specs::part1_parse_info_unfold(input@, limits);
+    }
     Ok(parse_layout(input, limits)?.info)
 }
+#[cfg_attr(verus_keep_ghost, verus_spec(result =>
+    ensures complete_layout_outcome(result) == crate::specs::part1_parse_layout(input@, limits),
+))]
 pub fn parse_layout<'a>(
     input: &'a [u8],
     limits: &'a ResourceLimits,
 ) -> Result<CodestreamLayout<'a>, DecodeError> {
+    #[cfg(verus_keep_ghost)]
+    proof! {
+        reveal(complete_layout_outcome);
+        reveal(parser_initial_outcome);
+        crate::specs::part1_parse_layout_unfold(input@, limits);
+    }
     new_parser(input, limits)?.parse_layout()
 }
 impl<'a> Parser<'a> {
@@ -214,6 +234,7 @@ impl<'a> Parser<'a> {
         ensures crate::specs::part1_main_header_layout_relation(
             crate::specs::part1_read_main_header(parser_view(&self)),
             layout_main_header_outcome(result)),
+            complete_layout_outcome(result) == crate::specs::part1_read_layout(parser_view(&self)),
     ))]
     fn parse_layout(self) -> Result<CodestreamLayout<'a>, DecodeError> {
         #[cfg(verus_keep_ghost)]
@@ -225,6 +246,8 @@ impl<'a> Parser<'a> {
         proof! {
             reveal(crate::specs::part1_read_main_header);
             reveal(layout_main_header_outcome);
+            reveal(complete_layout_outcome);
+            reveal(crate::specs::part1_layout_from_main_result);
         }
         let mut parser = self;
         let (mut image_size, r_siz, main_header_start) = parser.parse_layout_prologue()?;
@@ -311,6 +334,7 @@ impl<'a> Parser<'a> {
                             pending_mct@, completed_mct@, pending_mcc@, completed_mcc@,
                             &extended_capabilities, &profile, &corresponding_profile, &part2_extensions, next_tlm_index),
                         input_length),
+                    input_length == crate::specs::part1_parse_layout_prologue(initial_reader).1.input.len() as usize,
                 ensures
                     main_goal == crate::specs::part1_finish_main_header(
                         parser_view(&parser), main_header_accumulator_view(
@@ -332,6 +356,7 @@ impl<'a> Parser<'a> {
                 reveal(super::main_header_segment_outcome);
                 reveal(crate::specs::part1_parser_progress);
                 reveal(crate::specs::part1_codestream_malformed);
+                reveal(crate::specs::part1_layout_from_main_result);
             }
             let previous_position = parser.position;
             let Some(segment) = parser.read_main_header_segment(&mut main_header_segments)? else {
@@ -674,9 +699,20 @@ impl<'a> Parser<'a> {
                 r_siz, &extended_capabilities, &profile, &corresponding_profile, main_header_segments));
         }
         let mut tile_parts = 0_u32;
+        #[cfg(verus_keep_ghost)]
+        proof_decl! {
+            let ghost layout_goal = crate::specs::part1_read_layout(initial_reader);
+        }
+        #[cfg(verus_keep_ghost)]
+        proof! { reveal(crate::specs::part1_layout_from_main_result); }
         let mut tile_part_payloads: Vec<TilePartPayload<'a>> = Vec::new();
-        let tile_state_count = usize::try_from(tile_count)
-            .map_err(|_| parser.malformed_here(MalformedKind::ArithmeticOverflow))?;
+        let tile_state_count = usize::try_from(tile_count).map_err(
+            #[cfg_attr(verus_keep_ghost, verus_spec(error: DecodeError =>
+                    ensures error == crate::specs::part1_codestream_malformed(
+                        parser.position, MalformedKind::ArithmeticOverflow),
+                ))]
+            |_tile_state_conversion_error| parser.malformed_here(MalformedKind::ArithmeticOverflow),
+        )?;
         let mut tile_roi_shifts = vec![None; tile_state_count];
         let mut tile_coding_styles = vec![None; tile_state_count];
         let mut tile_quantizations = vec![None; tile_state_count];
@@ -704,6 +740,9 @@ impl<'a> Parser<'a> {
             reveal(super::persistent_tile_configuration_sequences_view);
             assert(initial_persistent_state == crate::specs::part1_empty_persistent_tile_state(tile_state_count));
             reveal(crate::specs::part1_persistent_tile_state_fold);
+            assert(complete_main.reader == parser_view(&parser));
+            assert(layout_goal == crate::specs::part1_layout_continuation(
+                parser_view(&parser), complete_main, tile_parts, initial_persistent_state, input_length));
         }
         #[cfg_attr(
             verus_keep_ghost,
@@ -717,6 +756,8 @@ impl<'a> Parser<'a> {
                             tile_progression_changes@, tile_mct_parameters@, tile_part2_extensions@,
                             tile_part_payloads@)),
                     tile_component_style_parts.len() == tile_state_count,
+                    tile_mct_parameters.len() == tile_state_count,
+                    tile_part2_extensions.len() == tile_state_count,
                     forall|tile: int| 0 <= tile < tile_component_style_parts.len() ==>
                         match #[trigger] tile_component_style_parts@[tile] {
                             Some(part) => part < tile_part_payloads.len()
@@ -729,20 +770,81 @@ impl<'a> Parser<'a> {
                     initial_reader == parser_view(&self),
                     main_goal == crate::specs::part1_read_main_header(initial_reader),
                     main_goal == Ok(complete_main),
+                    layout_goal == crate::specs::part1_read_layout(initial_reader),
+                    complete_main.tile_count == tile_count,
+                    complete_main.raw.roi_seen == roi_seen@,
+                    complete_main.raw.plm_seen == plm_seen,
+                    complete_main.raw.plm == packet_length_groups_view(plm_groups@),
+                    complete_main.raw.ppm_fragments == ppm_fragments,
+                    complete_main.ppm_frames == packed_header_frames_view(ppm_frames@),
+                    complete_main.header == main_header@,
+                    complete_main.mct == mct_parameters_view(&main_mct_parameters),
                     crate::specs::part1_main_header_fields(complete_main) == main_header_fields_view(
                         &image_size, coding_style, &quantization, &component_coding_styles, &component_quantizations,
                         &roi_shifts, &progression_changes, &multiple_component_transform, &part2_extensions,
                         r_siz, &extended_capabilities, &profile, &corresponding_profile, main_header_segments),
+                invariant_except_break
+                    layout_goal == crate::specs::part1_layout_continuation(
+                        parser_view(&parser), complete_main, tile_parts, persistent_tile_state_view(
+                            tile_roi_shifts@, tile_coding_styles@, tile_quantizations@,
+                            tile_component_style_parts@, tile_component_quantizations@,
+                            tile_progression_changes@, tile_mct_parameters@, tile_part2_extensions@,
+                            tile_part_payloads@), input_length),
+                ensures
+                    layout_goal == crate::specs::part1_layout_after_tiles(
+                        parser_view(&parser), complete_main, tile_parts, persistent_tile_state_view(
+                            tile_roi_shifts@, tile_coding_styles@, tile_quantizations@,
+                            tile_component_style_parts@, tile_component_quantizations@,
+                            tile_progression_changes@, tile_mct_parameters@, tile_part2_extensions@,
+                            tile_part_payloads@)),
                 decreases input_length as int - parser.position as int,
             )
         )]
         loop {
+            #[cfg(verus_keep_ghost)]
+            proof! {
+                reveal_with_fuel(crate::specs::part1_layout_continuation, 1);
+                reveal(crate::specs::part1_layout_tile_part);
+                reveal(crate::specs::part1_layout_inherited_tile_part);
+                reveal(crate::specs::part1_commit_persistent_tile_state);
+                reveal(main_header_fields_view);
+                reveal(persistent_tile_state_view);
+                reveal(persistent_tile_configuration_view);
+                reveal(super::persistent_tile_configuration_sequences_view);
+                reveal(crate::specs::part1_parser_progress);
+                reveal(parser_view);
+                reveal(tile_part_header_view);
+                reveal(tile_part_main_metadata_outcome);
+                reveal(inherited_tile_configuration_outcome);
+                reveal(parsed_quantization_owner_view);
+                reveal(quantization_owner_view);
+                reveal(mct_parameter_copy_view);
+                reveal(mct_parameters_view);
+                reveal(super::tile_part_read_outcome);
+                reveal(persistent_tile_selection_view);
+                reveal(super::persistent_tile_selection_sequences_view);
+                reveal(optional_roi_shifts_view);
+                reveal(crate::specs::part1_codestream_malformed);
+                let state = persistent_tile_state_view(
+                    tile_roi_shifts@, tile_coding_styles@, tile_quantizations@,
+                    tile_component_style_parts@, tile_component_quantizations@,
+                    tile_progression_changes@, tile_mct_parameters@, tile_part2_extensions@, tile_part_payloads@);
+                let selection = super::persistent_tile_selection_sequences_view(
+                    tile_roi_shifts@, tile_coding_styles@, tile_quantizations@,
+                    tile_component_style_parts@, tile_part_payloads@);
+                assert(selection.0 =~= state.0.0);
+                assert(selection == (state.0.0, state.0.1, state.0.2, state.0.3, state.3));
+            }
             let previous_position = parser.position;
             match parser.peek_marker()? {
                 SOT => {
-                    tile_parts = tile_parts
-                        .checked_add(1)
-                        .ok_or_else(|| parser.malformed_here(MalformedKind::ArithmeticOverflow))?;
+                    tile_parts = tile_parts.checked_add(1).ok_or_else(
+                        #[cfg_attr(verus_keep_ghost, verus_spec(error: DecodeError =>
+                                ensures error == crate::specs::part1_codestream_malformed(
+                                    parser.position, MalformedKind::ArithmeticOverflow),
+                            ))]
+                        || parser.malformed_here(MalformedKind::ArithmeticOverflow),
+                    )?;
                     if tile_parts > parser.limits.maximum_tile_parts() {
                         return Err(DecodeError::limit(
                             Resource::TileParts,
@@ -972,6 +1074,28 @@ impl<'a> Parser<'a> {
         #[cfg(verus_keep_ghost)]
         proof! {
             reveal(main_header_fields_view);
+            reveal(crate::specs::part1_layout_after_tiles);
+            reveal(profile_tile_inputs_view);
+            reveal(tile_part_payload_view);
+            reveal(persistent_tile_state_view);
+            assert(profile_tile_inputs_view(tile_part_payloads@)
+                =~= crate::specs::part1_layout_profile_tiles(
+                    tile_part_payloads@.map_values(|part: TilePartPayload<'_>| tile_part_payload_view(&part))));
+            assert forall|index: int| 0 <= index < roi_seen@.len()
+                implies *roi_seen@.as_ref()[index] == #[trigger] roi_seen@[index] by {
+                roi_seen@.lemma_as_ref_index(index);
+            }
+            assert((exists|index: int| 0 <= index < roi_seen@.len() && *roi_seen@.as_ref()[index])
+                == (exists|index: int| 0 <= index < roi_seen@.len() && roi_seen@[index])) by {
+                if exists|index: int| 0 <= index < roi_seen@.len() && *roi_seen@.as_ref()[index] {
+                    let index = choose|index: int| 0 <= index < roi_seen@.len() && *roi_seen@.as_ref()[index];
+                    assert(roi_seen@[index]);
+                }
+                if exists|index: int| 0 <= index < roi_seen@.len() && roi_seen@[index] {
+                    let index = choose|index: int| 0 <= index < roi_seen@.len() && roi_seen@[index];
+                    assert(*roi_seen@.as_ref()[index]);
+                }
+            }
             assert(r_siz == complete_main.raw.r_siz);
             assert(optional_capabilities_view(&extended_capabilities) == complete_main.raw.capabilities);
             assert(optional_profile_number_view(&profile) == complete_main.raw.profile);
@@ -986,16 +1110,27 @@ impl<'a> Parser<'a> {
             &roi_shifts,
             &tile_part_payloads,
             image_size.components,
-            roi_seen.iter().any(|seen| *seen),
+            roi_seen.iter().any(
+                #[cfg_attr(verus_keep_ghost, verus_spec(result: bool =>
+                    ensures result == *seen,
+                ))]
+                |seen| *seen,
+            ),
         )?;
         #[cfg(verus_keep_ghost)]
         proof! {
-            reveal(crate::specs::part1_classify_codestream_profile);
-            reveal(crate::specs::part1_profile_after_observation);
-            reveal(crate::specs::part1_profile_output);
+            crate::specs::part1_classification_preserves_metadata(
+                complete_main.raw.r_siz, complete_main.raw.capabilities, complete_main.raw.profile,
+                complete_main.raw.corresponding_profile, complete_main.styles, complete_main.raw.roi,
+                crate::specs::part1_layout_profile_tiles(
+                    tile_part_payloads@.map_values(|part: TilePartPayload<'_>| tile_part_payload_view(&part))),
+                complete_main.raw.image_size.components,
+                exists|index: int| 0 <= index < complete_main.raw.roi_seen.len()
+                    && complete_main.raw.roi_seen[index]);
             reveal(complete_codestream_profile_outcome);
             reveal(super::complete_codestream_profile_view);
             reveal(main_header_fields_view);
+            reveal(complete_codestream_info_view);
             let actual_profile = super::complete_codestream_profile_view(&codestream_profile);
             assert(actual_profile.0 == complete_main.raw.r_siz);
             assert(actual_profile.2 == complete_main.raw.capabilities);

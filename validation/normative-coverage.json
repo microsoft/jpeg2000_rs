@@ -4,6 +4,49 @@
   "scope": "Technical reference inventory; not exhaustive standards-clause coverage or a conformance claim.",
   "requirements": [
     {
+      "id": "part1-complete-native-raw-layout-result",
+      "topic": "Complete actual raw-byte CodestreamLayout and CodestreamInfo Results, not parsed-header/layout admission: raw parser creation/input limit, actual main-header traversal/final reader, checked global tile count and limit, SOT, TLM/PLM/PPM selection, all inherited physical owners and original clones, real complete tile reader, ordered partial persistent commits/payload append, EOC/count/trailing errors, actual physical ROI iterator and full profile classification. Every Result error and all returned image/style/quantization/ROI/progression/MCT/extensions/profile/counters/consumed/source-payload fields compose from real input. Main traversal uses the actual pre-loop input length derived from the real prologue; no silent frame assumption. Public closed ghost models use checked unfolding lemmas, not external axioms. The real limit-error constructor has its complete typed return contract. A ghost-only shared sequence projection supports native selection without executing Vec-to-slice dereference in proof. All original native owners/scopes/clone/move/drop order remain; only an unused Copy-error closure argument is named for the specification frontend. Strict inventory binds all three actual complete contracts, raw model roots, full returned projections, real reader/counter/eight-state/payload suffix and terminal Results, primitive error constructor and actual decode consumers. Prior inventory meanings, producer relays and four unconditional owned handoff checks remain; exact guards recognize stronger ghost-only wrapper/ROI/length proofs. This is as-implemented raw layout, not independent selected-edition normative correspondence, full normalization/public pixels, general production cfg/erasure/lifetimes/coverage, official conformance or release qualification.",
+      "implementation_refs": [
+        {"path": "src/codestream/layout.rs", "symbol": "Parser::parse_layout"},
+        {"path": "src/codestream/layout.rs", "symbol": "parse_layout"},
+        {"path": "src/codestream/layout.rs", "symbol": "parse"},
+        {"path": "src/decode/api.rs", "symbol": "decode_codestream"},
+        {"path": "src/decode/output.rs", "symbol": "decode_jpx_file"}
+      ],
+      "spec_refs": [
+        {"path": "specs/raw_layout.rs", "symbol": "part1_parse_layout"},
+        {"path": "specs/raw_layout.rs", "symbol": "part1_parse_info"},
+        {"path": "specs/raw_layout.rs", "symbol": "part1_read_layout"},
+        {"path": "specs/raw_layout.rs", "symbol": "part1_layout_from_main_result"},
+        {"path": "specs/raw_layout.rs", "symbol": "part1_layout_continuation"},
+        {"path": "specs/raw_layout.rs", "symbol": "part1_layout_tile_part"},
+        {"path": "specs/raw_layout.rs", "symbol": "part1_layout_inherited_tile_part"},
+        {"path": "specs/raw_layout.rs", "symbol": "part1_layout_after_tiles"},
+        {"path": "specs/raw_layout.rs", "symbol": "part1_layout_profile_tiles"}
+      ],
+      "contract_refs": [
+        {"path": "src/codestream/layout.rs", "symbol": "Parser::parse_layout"},
+        {"path": "src/codestream/layout.rs", "symbol": "parse_layout"},
+        {"path": "src/codestream/layout.rs", "symbol": "parse"}
+      ],
+      "proof_refs": [
+        {"path": "src/codestream/proof_support.rs", "symbol": "complete_codestream_info_view"},
+        {"path": "src/codestream/proof_support.rs", "symbol": "complete_codestream_info_outcome"},
+        {"path": "src/codestream/proof_support.rs", "symbol": "complete_layout_outcome"},
+        {"path": "src/codestream/persistent_tile_configuration_proof_support.rs", "symbol": "persistent_tile_selection_sequences_view"},
+        {"path": "src/error.rs", "symbol": "DecodeError::limit"},
+        {"path": "specs/raw_layout.rs", "symbol": "part1_parse_layout_unfold"},
+        {"path": "specs/raw_layout.rs", "symbol": "part1_parse_info_unfold"},
+        {"path": "specs/codestream_profile.rs", "symbol": "part1_classification_preserves_metadata"}
+      ],
+      "test_refs": [
+        {"path": "src/codestream/raw_layout_result_tests.rs", "symbol": "actual_complete_raw_layout_result_keeps_interleaved_source_parts_and_public_info"},
+        {"path": "src/codestream/raw_layout_result_tests.rs", "symbol": "actual_complete_raw_layout_result_preserves_late_roi_end_and_profile_error_priority"},
+        {"path": "src/codestream/raw_layout_result_tests.rs", "symbol": "actual_complete_raw_layout_result_keeps_input_work_and_tile_limit_first_errors"},
+        {"path": "src/codestream/raw_layout_result_tests.rs", "symbol": "actual_complete_raw_layout_result_retains_full_owned_profile_words_and_classes"}
+      ]
+    },
+    {
       "id": "part1-complete-native-raw-main-header-result",
       "topic": "Complete source-derived raw main-header Result prefix of the actual consuming layout method: real SOC/SIZ prologue, all physical accumulator fields and deferred component slots, all marker dispatches with exact first errors and partial counters/fragments, ordered bit-depth/PPM/header-window/COD-QCD/component/progression/MCT/registration/graph/tile-count finalization, and the complete actual successful reader/owner output at an unconditional proved cut. Its real layout Result contract propagates every modeled main-header error exactly and preserves every returned main-header field, including raw CAP/PRF/CPF owners, when the later layout succeeds; later tile/layout errors remain explicitly allowed. This is not a complete raw-input layout Result theorem. Existing producer contracts are reused, not replaced by a prepared header/result bank. Original native owning locals, scopes, lookup/move/drop order and parser body are retained; three initializations directly call the sole shared constructor bodies behind unchanged public None/default interfaces. Physical tails and Some(empty) distinctions are not normalized. Strict metadata binds actual raw initialization, traversal invariants/termination, final reader/work/packet state, all finalized owners, complete projections and the public raw wrapper; no generic reader producer relay is added. No corrected selected-edition model correspondence, general production cfg/erasure/lifetime/coverage, official conformance or release claim.",
       "implementation_refs": [

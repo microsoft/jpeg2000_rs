@@ -33,6 +33,7 @@ specs/packet_orchestration.rs
 specs/packet_progression.rs
 specs/packet_tile.rs
 specs/persistent_tile_configuration.rs
+specs/raw_layout.rs
 specs/tag_tree.rs
 specs/tile_header_traversal.rs
 specs/tile_part.rs
@@ -58,6 +59,7 @@ src/codestream/profile.rs
 src/codestream/profile_result_tests.rs
 src/codestream/proof_support.rs
 src/codestream/quantization.rs
+src/codestream/raw_layout_result_tests.rs
 src/codestream/reader.rs
 src/codestream/tests.rs
 src/codestream/tile_header_traversal.rs

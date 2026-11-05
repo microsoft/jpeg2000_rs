@@ -179,14 +179,68 @@ technical candidate only: parent-owned record, review, CI, guarded integration
 and actual-main acceptance remain separate. No complete parsing, pixels,
 lifetime verification, normative conformance or publication claim follows.
 
+## Complete actual raw-input layout and info Results
+
+The actual consuming `Parser::parse_layout` now has a complete Result equality,
+alongside its retained main-header prefix relation. The public `parse_layout`
+and `parse` wrappers have complete raw-byte/limits contracts for every returned
+layout and info field. These are not contracts over supplied parsed headers,
+successful layouts, tile records or normalized owners.
+
+The raw models compose the real input-limit/parser creation, accepted whole
+main-header result and final reader, global checked tile counter/limit, SOT,
+TLM/PLM/PPM selection, all original inheritance/clone sites, complete raw tile
+reader, ordered persistent commit and source payload append, EOC/count/trailing
+termination, physical main ROI iterator and complete profile Result. All
+successful image/style/quantization/ROI/progression/MCT/extensions/profile,
+main/tile counters, consumed-byte counts and ordered source payload fields are
+included. Each actual error propagates in the original order.
+
+The orchestration model carries the original pre-main-loop input length from
+the actual prologue rather than silently assuming an opaque reader-frame
+property. Its remaining raw suffix and terminal Results are tied to the
+actual reader, checked counter, eight physical state vectors and payloads.
+The existing successful-prefix fold and four unconditional owned handoff
+checkpoints remain in place.
+
+The executing parser, owning bindings/scopes and all clone/move/drop order are
+retained. A previously wildcard Copy-error closure parameter is named for the
+specification frontend. The real limit-error constructor receives the same
+complete typed-return contract pattern as the existing malformed constructor.
+The real ROI iterator is retained, with a proved reference/value predicate
+relation. Shared sequence/slice selection views remain ghost-only, avoiding
+an executing Vec-to-slice dereference in proof.
+
+Public ghost entry models are closed at their namespace boundary and use
+checked internal unfolding lemmas. A checked profile metadata lemma reuses
+the accepted classifier model without expanding every policy branch in the
+orchestration solver context. None of these lemmas is an assumption, external
+codec specification or verifier/resource-budget increase.
+
+The inventory requires the internal and both public complete contracts,
+actual raw model roots, every physical returned projection, actual reader/
+counter/state/payload continuation and terminal Result, complete primitive
+limit error and real decode consumers. Existing entry meanings and producer
+relays are retained; precise old guards recognize the stronger ghost-only
+wrapper/ROI/input-length proofs rather than bypassing their original checks.
+Native regressions cover interleaved source ownership and public info,
+late ROI/termination/profile error priority, input/work/tile limit ordering
+and complete owned capability/profile words.
+
+This is the as-implemented raw layout boundary. Independent corrected-rule/
+selected-edition correspondence and approved #133/#222 prerequisites remain
+separate. Actual normalization and public pixels, production coverage/
+erasure/lifetimes, official conformance and release qualification are not
+established by these contracts or finite validation results.
+
 ## Complete actual raw main-header Result prefix
 
 The consuming `Parser::parse_layout` method now has a raw-input main-header
 Result relation. It propagates every modeled prologue, dispatch, traversal or
 finalization error exactly. When later layout processing succeeds, every
 returned main-header field equals the source-derived result. Later tile/layout
-errors are deliberately still allowed: this is **not** the complete raw-input
-layout Result contract.
+errors are deliberately still allowed by that narrower relation. The separate
+complete raw-layout contract above now constrains those later Results too.
 
 The actual main loop retains its original owning locals and scopes. A complete
 physical accumulator projection links initialization and each remaining raw
@@ -217,9 +271,11 @@ add the whole reader to generic component producer relays. Independent encoded
 order/geometry, first-error and fragmented metadata tests complement the
 existing producer tests.
 
-Complete raw-input layout composition, corrected-rule prerequisites,
-normalization/public decoding, independent normative correspondence,
-production coverage/erasure/lifetimes and release qualification remain open.
+The prefix relation alone does not establish raw-input layout composition;
+the separate whole contract above supplies that as-implemented composition.
+Corrected-rule prerequisites, normalization/public decoding, independent
+normative correspondence, production coverage/erasure/lifetimes and release
+qualification remain open.
 
 ## Complete actual codestream profile Result
 

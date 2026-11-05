@@ -1030,6 +1030,160 @@ class FrameworkTests(WorkingFiles):
             framework._RAW_TILE_HEADER_CONTRACTS, 8,
         )
 
+    def test_inventory_binds_complete_raw_layout_and_info_results_from_actual_bytes(self):
+        self._assert_complete_packet_contract_bindings(
+            {framework._RAW_LAYOUT_ENTRY}, framework._RAW_LAYOUT_CONTRACTS, 3, isolate=False,
+        )
+
+    def test_inventory_whole_raw_layout_requires_all_real_entry_contracts_models_and_consumers(self):
+        coverage = json.loads((framework.VALIDATION / "normative-coverage.json").read_text())
+        entry = copy.deepcopy(next(item for item in coverage["requirements"]
+                                   if item["id"] == framework._RAW_LAYOUT_ENTRY))
+        for field in ("contract_refs", "spec_refs"):
+            for removed in entry[field]:
+                changed = copy.deepcopy(entry)
+                changed[field].remove(removed)
+                with self.subTest(field=field, removed=removed), \
+                        self.assertRaisesRegex(ValueError, "whole raw layout"):
+                    framework.validate_normative_coverage(dict(coverage, requirements=[changed]))
+        for removed in [
+            {"path": "src/decode/api.rs", "symbol": "decode_codestream"},
+            {"path": "src/decode/output.rs", "symbol": "decode_jpx_file"},
+        ]:
+            changed = copy.deepcopy(entry)
+            changed["implementation_refs"].remove(removed)
+            with self.subTest(removed=removed), self.assertRaisesRegex(ValueError, "not used by claimed implementation"):
+                framework.validate_normative_coverage(dict(coverage, requirements=[changed]))
+
+    def test_inventory_whole_raw_layout_preserves_every_returned_field_and_some_empty_owner(self):
+        coverage = json.loads((framework.VALIDATION / "normative-coverage.json").read_text())
+        entry = next(item for item in coverage["requirements"] if item["id"] == framework._RAW_LAYOUT_ENTRY)
+        data = dict(coverage, requirements=[entry])
+        source = framework.ROOT / "src/codestream/proof_support.rs"
+        original = source.read_text()
+        read_text = Path.read_text
+        begin = original.index("pub closed spec fn complete_codestream_info_view")
+        end = original.index("pub(crate) closed spec fn main_header_accumulator_view", begin)
+        block = original[begin:end]
+        mutations = [
+            (f"value.{name}", "unrelated") for name in (
+                "image_size", "coding_style", "quantization", "component_coding_styles",
+                "component_quantizations", "roi_shifts", "progression_changes",
+                "multiple_component_transform", "part2_extensions", "profile.r_siz",
+                "profile.extended_capabilities", "profile.profile", "profile.corresponding_profile",
+                "main_header_segments", "tile_parts", "consumed_bytes",
+            )
+        ] + [
+            ("Err(error) => Err(error)", "Err(error) => Err(unrelated)"),
+            ("layout.tile_parts@.map_values", "layout.tile_parts@.drop_last().map_values"),
+            ("(info.0, info.1, info.2, info.3,", "(info.0, info.1, 0, info.3,"),
+        ]
+        for before, after in mutations:
+            self.assertIn(before, block)
+            changed = original[:begin] + block.replace(before, after, 1) + original[end:]
+
+            def altered(path, *args, **kwargs):
+                return changed if path == source else read_text(path, *args, **kwargs)
+
+            with self.subTest(before=before), mock.patch.object(Path, "read_text", altered), \
+                    self.assertRaisesRegex(ValueError, "complete physical returned projection"):
+                framework.validate_normative_coverage(data)
+        for before, after in (
+            ("Some(caps) => Some(extended_capabilities_view(caps))",
+             "Some(caps) => if caps.c_capabilities.is_empty() { None } else { Some(extended_capabilities_view(caps)) }"),
+            ("Some(number) => Some(profile_number_view(number))",
+             "Some(number) => if number.words.is_empty() { None } else { Some(profile_number_view(number)) }"),
+        ):
+            self.assertIn(before, original)
+            changed = original.replace(before, after, 1)
+
+            def altered(path, *args, **kwargs):
+                return changed if path == source else read_text(path, *args, **kwargs)
+
+            with self.subTest(before=before), mock.patch.object(Path, "read_text", altered), \
+                    self.assertRaisesRegex(ValueError, "complete physical returned projection"):
+                framework.validate_normative_coverage(data)
+
+    def test_inventory_whole_raw_layout_requires_actual_full_state_and_terminal_reader(self):
+        coverage = json.loads((framework.VALIDATION / "normative-coverage.json").read_text())
+        entry = next(item for item in coverage["requirements"] if item["id"] == framework._RAW_LAYOUT_ENTRY)
+        data = dict(coverage, requirements=[entry])
+        source = framework.ROOT / "src/codestream/layout.rs"
+        original = source.read_text()
+        read_text = Path.read_text
+        start = original.index("invariant_except_break")
+        end = original.index("decreases input_length", start)
+        block = original[start:end]
+        for before in (
+            "parser_view(&parser)", "complete_main", "tile_parts,",
+            "tile_roi_shifts@", "tile_coding_styles@", "tile_quantizations@",
+            "tile_component_style_parts@", "tile_component_quantizations@",
+            "tile_progression_changes@", "tile_mct_parameters@", "tile_part2_extensions@", "tile_part_payloads@",
+        ):
+            self.assertIn(before, block)
+            changed = original[:start] + block.replace(before, "unrelated", 1) + original[end:]
+
+            def altered(path, *args, **kwargs):
+                return changed if path == source else read_text(path, *args, **kwargs)
+
+            with self.subTest(before=before), mock.patch.object(Path, "read_text", altered), \
+                    self.assertRaisesRegex(ValueError, "actual reader/counter/eight-state"):
+                framework.validate_normative_coverage(data)
+        changed = original.replace("new_parser(input, limits)?.parse_layout()", "new_parser(&unrelated, limits)?.parse_layout()", 1)
+
+        def altered(path, *args, **kwargs):
+            return changed if path == source else read_text(path, *args, **kwargs)
+
+        with mock.patch.object(Path, "read_text", altered), self.assertRaisesRegex(ValueError, "actual byte/limits reader"):
+            framework.validate_normative_coverage(data)
+
+    def test_inventory_whole_raw_layout_rejects_source_banks_and_incomplete_limit_error(self):
+        coverage = json.loads((framework.VALIDATION / "normative-coverage.json").read_text())
+        entry = next(item for item in coverage["requirements"] if item["id"] == framework._RAW_LAYOUT_ENTRY)
+        data = dict(coverage, requirements=[entry])
+        read_text = Path.read_text
+        for name, before, after, message in (
+            ("specs/raw_layout.rs", "part1_codestream_reader_new(input, limits)", "prepared_reader(input)", "not a result bank"),
+            ("specs/raw_layout.rs", "part1_read_main_header(reader)", "supplied_successful_main_header(reader)", "not a result bank"),
+            ("specs/raw_layout.rs", "match part1_parse_layout(input, limits)", "match supplied_successful_layout(input)", "not a result bank"),
+            ("src/error.rs", "Self::LimitExceeded { resource, limit, actual }", "Self::LimitExceeded { resource, limit, actual: 0 }", "limit-error constructor"),
+            ("src/decode/api.rs", "codestream::parse_layout(input, options.limits())", "codestream::parse_layout(&unrelated, options.limits())", "actual raw consumers"),
+            ("src/decode/output.rs", "codestream::parse(selected.data(), options.limits())", "codestream::parse(&unrelated, options.limits())", "actual raw consumers"),
+        ):
+            source = framework.ROOT / name
+            original = source.read_text()
+            self.assertIn(before, original)
+            changed = original.replace(before, after, 1)
+
+            def altered(path, *args, **kwargs):
+                return changed if path == source else read_text(path, *args, **kwargs)
+
+            with self.subTest(before=before), mock.patch.object(Path, "read_text", altered), \
+                    self.assertRaisesRegex(ValueError, message):
+                framework.validate_normative_coverage(data)
+
+    def test_inventory_whole_raw_layout_uses_fresh_source_caches_without_whole_reader_relays(self):
+        coverage = json.loads((framework.VALIDATION / "normative-coverage.json").read_text())
+        entry = next(item for item in coverage["requirements"] if item["id"] == framework._RAW_LAYOUT_ENTRY)
+        data = dict(coverage, requirements=[entry])
+        names = (
+            "src/codestream/layout.rs", "src/codestream/proof_support.rs", "specs/raw_layout.rs",
+            "src/error.rs", "src/decode/api.rs", "src/decode/output.rs",
+        )
+        counts = {framework.ROOT / name: 0 for name in names}
+        read_text = Path.read_text
+
+        def counted(path, *args, **kwargs):
+            if path in counts:
+                counts[path] += 1
+            return read_text(path, *args, **kwargs)
+
+        with mock.patch.object(Path, "read_text", counted):
+            for expected in (1, 2):
+                self.assertEqual(framework.validate_normative_coverage(data)["status"], "passed")
+                self.assertEqual(set(counts.values()), {expected})
+        self.assertNotIn(framework._MAIN_HEADER_LAYOUT, framework._COMPONENT_PRODUCER_RELAYS)
+
     def test_inventory_binds_whole_actual_raw_main_header_result_chain(self):
         coverage = json.loads((framework.VALIDATION / "normative-coverage.json").read_text())
         entry = copy.deepcopy(next(item for item in coverage["requirements"]
@@ -1289,6 +1443,11 @@ class FrameworkTests(WorkingFiles):
         original = source.read_text()
         start = original.index("let codestream_profile = classify_codestream_profile(")
         block = original[start:]
+        roi_call = re.search(
+            framework._coverage_call("roi_seen.iter") + r"\s*\.\s*"
+            + framework._coverage_call("any", framework._RAW_ROI_PREDICATE), block,
+        )
+        self.assertIsNotNone(roi_call)
         read_text = Path.read_text
         for before, after in (
             ("r_siz,", "0,"),
@@ -1298,7 +1457,7 @@ class FrameworkTests(WorkingFiles):
             ("&roi_shifts,", "&unrelated_roi,"),
             ("&tile_part_payloads,", "&unrelated_parts,"),
             ("image_size.components,", "0,"),
-            ("roi_seen.iter().any(|seen| *seen)", "false"),
+            (roi_call[0], "false"),
             ("profile: codestream_profile,", "profile: unrelated_profile,"),
         ):
             self.assertIn(before, block)

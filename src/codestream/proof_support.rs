@@ -1,5 +1,37 @@
 #[cfg(verus_keep_ghost)]
 verus! {
+    pub closed spec fn complete_codestream_info_view(value: &CodestreamInfo)
+        -> (crate::specs::Part1LayoutMainFields, crate::specs::Part1ProfileMetadata, u32, u64)
+    {
+        (
+            main_header_fields_view(&value.image_size, value.coding_style, &value.quantization,
+                &value.component_coding_styles, &value.component_quantizations, &value.roi_shifts,
+                &value.progression_changes, &value.multiple_component_transform, &value.part2_extensions,
+                value.profile.r_siz, &value.profile.extended_capabilities, &value.profile.profile,
+                &value.profile.corresponding_profile, value.main_header_segments),
+            complete_codestream_profile_view(&value.profile), value.tile_parts, value.consumed_bytes,
+        )
+    }
+
+    pub closed spec fn complete_codestream_info_outcome(value: Result<CodestreamInfo, DecodeError>)
+        -> Result<(crate::specs::Part1LayoutMainFields, crate::specs::Part1ProfileMetadata, u32, u64), DecodeError>
+    {
+        match value { Err(error) => Err(error), Ok(info) => Ok(complete_codestream_info_view(&info)) }
+    }
+
+    pub closed spec fn complete_layout_outcome(value: Result<CodestreamLayout<'_>, DecodeError>)
+        -> crate::specs::Part1CompleteLayoutResult
+    {
+        match value {
+            Err(error) => Err(error),
+            Ok(layout) => {
+                let info = complete_codestream_info_view(&layout.info);
+                Ok((info.0, info.1, info.2, info.3,
+                    layout.tile_parts@.map_values(|part: TilePartPayload<'_>| tile_part_payload_view(&part))))
+            },
+        }
+    }
+
     pub(crate) closed spec fn main_header_accumulator_view(
         size: &ImageSize, r_siz: u16, start: usize, segments: u64,
         style: Option<CodingStyle>, qcd: Option<Segment<'_>>,

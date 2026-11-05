@@ -1969,6 +1969,32 @@ _MAIN_HEADER_INITIALIZER_CONTRACTS = {
 }
 
 _MAIN_HEADER_LAYOUT = ("src/codestream/layout.rs", "Parser::parse_layout")
+_RAW_LAYOUT_WRAPPER_BODY = (
+    r"\s*(?:#\[\s*cfg\s*\(\s*verus_keep_ghost\s*\)\s*\]\s*proof!\s*\{\s*"
+    + _coverage_call("reveal", "complete_layout_outcome") + r"\s*;\s*"
+    + _coverage_call("reveal", "parser_initial_outcome") + r"\s*;\s*"
+    + _coverage_call("crate::specs::part1_parse_layout_unfold", "input@", "limits")
+    + r"\s*;\s*\}\s*)?" + _coverage_call("new_parser", "input", "limits")
+    + r"\s*\?\s*\.\s*" + _coverage_call("parse_layout") + r"\s*"
+)
+_RAW_LAYOUT_ENTRY = "part1-complete-native-raw-layout-result"
+_RAW_LAYOUT_CONTRACTS = {
+    ("src/codestream/layout.rs", "parse"): (
+        "part1_parse_info", _coverage_call("complete_codestream_info_outcome", r"\1"), None, r"input@\s*,\s*limits",
+    ),
+    ("src/codestream/layout.rs", "parse_layout"): (
+        "part1_parse_layout", _coverage_call("complete_layout_outcome", r"\1"), None, r"input@\s*,\s*limits",
+    ),
+    _MAIN_HEADER_LAYOUT: (
+        "part1_read_layout", _coverage_call("complete_layout_outcome", r"\1"), None,
+        _coverage_call("parser_view", r"&\s*self"),
+    ),
+}
+_RAW_ROI_PREDICATE = (
+    r"(?:#\[\s*cfg_attr\s*\(\s*verus_keep_ghost\s*,\s*verus_spec\s*\(\s*"
+    r"result\s*:\s*bool\s*=>\s*ensures\s+result\s*==\s*\*\s*seen\s*,?\s*\)\s*\)\s*\]\s*)?"
+    r"\|\s*seen\s*\|\s*\*\s*seen\s*,?"
+)
 _MAIN_HEADER_RAW_ARGUMENTS = (
     r"&\s*image_size", "r_siz", "main_header_start", "main_header_segments",
     "coding_style", "qcd_segment", "coc_segments@", "qcc_segments@", r"&\s*roi_shifts", "roi_seen@",
@@ -2631,7 +2657,7 @@ def validate_normative_coverage(
                     callee, "r_siz", "extended_capabilities", "profile", "corresponding_profile",
                     r"&\s*component_coding_styles", r"&\s*roi_shifts", r"&\s*tile_part_payloads",
                     r"image_size\.components",
-                    _coverage_call("roi_seen.iter") + r"\s*\.\s*" + _coverage_call("any", r"\|\s*seen\s*\|\s*\*\s*seen")
+                    _coverage_call("roi_seen.iter") + r"\s*\.\s*" + _coverage_call("any", _RAW_ROI_PREDICATE)
                     + r"\s*,?",
                 ) + r"\s*\?\s*;", body,
             ) if body is not None else None
@@ -2699,6 +2725,133 @@ def validate_normative_coverage(
     ids: set[str] = set()
     contract_functions: set[tuple[str, str]] = set()
     for entry in coverage["requirements"]:
+        if entry["id"] == _RAW_LAYOUT_ENTRY:
+            expected = set(_RAW_LAYOUT_CONTRACTS)
+            actual = {(ref["path"], ref["symbol"]) for ref in entry["contract_refs"]}
+            if actual != expected:
+                raise ValueError("whole raw layout requires internal and both public complete Result contracts")
+            model_names = {
+                "part1_parse_layout", "part1_parse_info", "part1_read_layout",
+                "part1_layout_from_main_result", "part1_layout_continuation", "part1_layout_tile_part",
+                "part1_layout_inherited_tile_part", "part1_layout_after_tiles", "part1_layout_profile_tiles",
+            }
+            if not {("specs/raw_layout.rs", name) for name in model_names}.issubset(
+                {(ref["path"], ref["symbol"]) for ref in entry["spec_refs"]}
+            ):
+                raise ValueError("whole raw layout model must bind the raw source-derived chain")
+            path = (ROOT / "src/codestream/layout.rs").resolve()
+            body = _coverage_function_body(source_text(path), function_header(path, "Parser::parse_layout"))
+            public_body = _coverage_function_body(source_text(path), function_header(path, "parse_layout"))
+            if public_body is None or re.fullmatch(_RAW_LAYOUT_WRAPPER_BODY, public_body) is None:
+                raise ValueError("whole raw layout requires the actual byte/limits reader wrapper")
+            state = _coverage_call("persistent_tile_state_view", *(name + r"\s*@" for name in _PERSISTENT_TILE_STATE_FIELDS))
+            reader = _coverage_call("parser_view", r"&\s*parser")
+            if body is None or any(re.search(pattern, body) is None for pattern in (
+                r"let\s+ghost\s+initial_reader\s*=\s*" + _coverage_call("parser_view", r"&\s*self"),
+                r"let\s+ghost\s+layout_goal\s*=\s*" + _coverage_call("crate::specs::part1_read_layout", "initial_reader"),
+                r"input_length\s*==\s*" + _coverage_call("crate::specs::part1_parse_layout_prologue", "initial_reader")
+                + r"\.1\.input\.len\s*\(\s*\)\s+as\s+usize",
+                r"invariant_except_break\s+layout_goal\s*==\s*"
+                + _coverage_call("crate::specs::part1_layout_continuation", reader, "complete_main", "tile_parts", state, "input_length"),
+                r"ensures\s+layout_goal\s*==\s*"
+                + _coverage_call("crate::specs::part1_layout_after_tiles", reader, "complete_main", "tile_parts", state),
+            )):
+                raise ValueError("whole raw layout requires actual reader/counter/eight-state/payload continuation and terminal Result")
+            limit_path = (ROOT / "src/error.rs").resolve()
+            limit_text = source_text(limit_path)
+            limit_header = function_header(limit_path, "DecodeError::limit")
+            if limit_header is None:
+                raise ValueError("whole raw layout requires the actual complete limit-error constructor contract")
+            limit_position = limit_text.find("fn", limit_header.start())
+            limit_start = limit_text.rfind("#[cfg_attr", 0, limit_position)
+            if re.search(
+                r"verus_spec\s*\(\s*ensures\s+returns\s*\(\s*Self::LimitExceeded\s*\{\s*"
+                r"resource\s*,\s*limit\s*,\s*actual\s*,?\s*\}\s*\)\s*,?\s*\)",
+                limit_text[limit_start:limit_position],
+            ) is None:
+                raise ValueError("whole raw layout requires the actual complete limit-error constructor contract")
+            projections = {
+                "complete_codestream_info_view": """
+                    (
+                        main_header_fields_view(&value.image_size, value.coding_style, &value.quantization,
+                            &value.component_coding_styles, &value.component_quantizations, &value.roi_shifts,
+                            &value.progression_changes, &value.multiple_component_transform, &value.part2_extensions,
+                            value.profile.r_siz, &value.profile.extended_capabilities, &value.profile.profile,
+                            &value.profile.corresponding_profile, value.main_header_segments),
+                        complete_codestream_profile_view(&value.profile), value.tile_parts, value.consumed_bytes,
+                    )
+                """,
+                "complete_codestream_info_outcome": """
+                    match value { Err(error) => Err(error), Ok(info) => Ok(complete_codestream_info_view(&info)) }
+                """,
+                "complete_layout_outcome": """
+                    match value {
+                        Err(error) => Err(error),
+                        Ok(layout) => {
+                            let info = complete_codestream_info_view(&layout.info);
+                            Ok((info.0, info.1, info.2, info.3,
+                                layout.tile_parts@.map_values(|part: TilePartPayload<'_>| tile_part_payload_view(&part))))
+                        },
+                    }
+                """,
+                "optional_capabilities_view": """
+                    match value { None => None, Some(caps) => Some(extended_capabilities_view(caps)) }
+                """,
+                "optional_profile_number_view": """
+                    match value { None => None, Some(number) => Some(profile_number_view(number)) }
+                """,
+                "complete_codestream_profile_view": """
+                    (value.r_siz, value.block_coding, optional_capabilities_view(&value.extended_capabilities),
+                     optional_profile_number_view(&value.profile), optional_profile_number_view(&value.corresponding_profile))
+                """,
+            }
+            projection_source = source_text((ROOT / "src/codestream/proof_support.rs").resolve())
+            for name, expected_body in projections.items():
+                projection_headers = list(re.finditer(
+                    r"(?m)^([ \t]*)pub(?:\(crate\))?[ \t]+closed[ \t]+spec[ \t]+fn[ \t]+" + re.escape(name) + r"\b",
+                    projection_source,
+                ))
+                projected = (_coverage_function_body(projection_source, projection_headers[0])
+                             if len(projection_headers) == 1 else None)
+                if projected is None or re.sub(r"\s+", "", projected) != re.sub(r"\s+", "", expected_body):
+                    raise ValueError(f"whole raw layout requires complete physical returned projection: {name}")
+            model_source = source_text((ROOT / "specs/raw_layout.rs").resolve())
+            raw_models = {
+                "part1_read_layout": """
+                    part1_layout_from_main_result(part1_read_main_header(reader),
+                        part1_parse_layout_prologue(reader).1.input.len() as usize)
+                """,
+                "part1_parse_layout": """
+                    match part1_codestream_reader_new(input, limits) {
+                        Err(error) => Err(error), Ok(reader) => part1_read_layout(reader),
+                    }
+                """,
+                "part1_parse_info": """
+                    match part1_parse_layout(input, limits) {
+                        Err(error) => Err(error), Ok(layout) => Ok((layout.0, layout.1, layout.2, layout.3)),
+                    }
+                """,
+            }
+            for name, expected_body in raw_models.items():
+                model_headers = list(re.finditer(
+                    r"(?m)^([ \t]*)pub(?:\(crate\))?[ \t]+(?:open|closed)[ \t]+spec[ \t]+fn[ \t]+"
+                    + re.escape(name) + r"\b", model_source,
+                ))
+                modeled = (_coverage_function_body(model_source, model_headers[0])
+                           if len(model_headers) == 1 else None)
+                if modeled is None or re.sub(r"\s+", "", modeled) != re.sub(r"\s+", "", expected_body):
+                    raise ValueError(f"whole raw layout requires raw byte/reader model, not a result bank: {name}")
+            for reference, pattern in (
+                ({"path": "src/decode/api.rs", "symbol": "decode_codestream"},
+                 _coverage_call("codestream::parse_layout", "input", _coverage_call("options.limits"))),
+                ({"path": "src/decode/output.rs", "symbol": "decode_jpx_file"},
+                 _coverage_call("codestream::parse", _coverage_call("selected.data"), _coverage_call("options.limits"))),
+            ):
+                caller_path = (ROOT / reference["path"]).resolve()
+                caller_body = (_coverage_function_body(source_text(caller_path), function_header(caller_path, reference["symbol"]))
+                               if reference in entry["implementation_refs"] else None)
+                if caller_body is None or re.search(pattern, caller_body) is None:
+                    raise ValueError("whole raw layout not used by claimed implementation: actual raw consumers required")
         if entry["id"] in (
             "part1-complete-native-codestream-profile-result", "part1-complete-native-raw-main-header-result",
         ):
@@ -2810,10 +2963,7 @@ def validate_normative_coverage(
             public = {"path": _MAIN_HEADER_LAYOUT[0], "symbol": "parse_layout"}
             public_body = (_coverage_function_body(source_text(path), function_header(path, public["symbol"]))
                            if public in entry["implementation_refs"] else None)
-            if public_body is None or re.fullmatch(
-                r"\s*" + _coverage_call("new_parser", "input", "limits")
-                + r"\s*\?\s*\.\s*" + _coverage_call("parse_layout") + r"\s*", public_body,
-            ) is None:
+            if public_body is None or re.fullmatch(_RAW_LAYOUT_WRAPPER_BODY, public_body) is None:
                 raise ValueError("whole raw main-header Result not used by claimed implementation: actual raw wrapper")
             raw_view = _coverage_call("main_header_accumulator_view", *_MAIN_HEADER_RAW_ARGUMENTS)
             continuation = _coverage_call("crate::specs::part1_main_header_continuation",
@@ -2829,7 +2979,10 @@ def validate_normative_coverage(
                 r"let\s+ghost\s+raw_main\s*=\s*" + raw_view + r"\s*;",
                 r"verus_spec\s*\(\s*invariant\s+initial_reader\s*==\s*" + initial_reader
                 + r"\s*,\s*main_goal\s*==\s*" + root + r"\s*,\s*main_goal\s*==\s*" + continuation
-                + r"\s*,\s*ensures\s+main_goal\s*==\s*" + finish,
+                + r"\s*,(?:\s*input_length\s*==\s*"
+                + _coverage_call("crate::specs::part1_parse_layout_prologue", "initial_reader")
+                + r"\s*\.\s*1\s*\.\s*input\s*\.\s*len\s*\(\s*\)\s+as\s+usize\s*,)?"
+                + r"\s*ensures\s+main_goal\s*==\s*" + finish,
             )):
                 raise ValueError("whole raw main-header Result requires actual raw initialization, traversal and finalization state")
             completed = """
@@ -3553,6 +3706,8 @@ def validate_normative_coverage(
                 or _PROFILE_POLICY_CONTRACTS.get((reference["path"], reference["symbol"]))
                 or _PROFILE_RESULT_CONTRACTS.get((reference["path"], reference["symbol"]))
                 or _MAIN_HEADER_INITIALIZER_CONTRACTS.get((reference["path"], reference["symbol"]))
+                or (_RAW_LAYOUT_CONTRACTS.get((reference["path"], reference["symbol"]))
+                    if entry["id"] == _RAW_LAYOUT_ENTRY else None)
                 or _RAW_TILE_DECODING_CONTRACTS.get((reference["path"], reference["symbol"]))
                 or _TILE_COLLECTION_CONTRACTS.get((reference["path"], reference["symbol"]))
                 or _LAYOUT_DECODING_CONTRACTS.get((reference["path"], reference["symbol"]))
@@ -3640,7 +3795,15 @@ def validate_normative_coverage(
             if header_contract:
                 projected_result = re.search(named_prefix + header_contract[1] + model_suffix, contract)
             main_header_contract = (reference["path"], reference["symbol"]) == _MAIN_HEADER_LAYOUT
-            if main_header_contract:
+            if main_header_contract and entry["id"] == _RAW_LAYOUT_ENTRY:
+                projected_result = re.search(
+                    named_prefix + _coverage_call(
+                        "crate::specs::part1_main_header_layout_relation",
+                        _coverage_call("crate::specs::part1_read_main_header", _coverage_call("parser_view", r"&\s*self")),
+                        _coverage_call("layout_main_header_outcome", r"\1"),
+                    ) + r"\s*,\s*" + header_contract[1] + model_suffix, contract,
+                )
+            elif main_header_contract:
                 expected_result_model = "part1_main_header_layout_relation"
                 projected_result = re.search(
                     named_prefix + r"crate::specs::(?P<model>part1_main_header_layout_relation)\s*\(\s*"
@@ -4114,7 +4277,7 @@ def validate_normative_coverage(
             if not any(re.search(rf"\b{re.escape(symbol)}\b", contract) for symbol in spec_symbols):
                 raise ValueError(f"linked function contract lacks normative spec reference: {short}")
             main_header_caller = (
-                main_header_contract and entry["id"] == "part1-complete-native-raw-main-header-result"
+                main_header_contract and entry["id"] in ("part1-complete-native-raw-main-header-result", _RAW_LAYOUT_ENTRY)
             )
             if claimed_consumer and not main_header_caller and not any(
                 ref != reference

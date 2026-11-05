@@ -1,6 +1,6 @@
 use super::*;
 
-fn interleaved_persistent_parts(last_roi: Option<u8>) -> (Vec<u8>, Vec<usize>) {
+pub(super) fn interleaved_persistent_parts(last_roi: Option<u8>) -> (Vec<u8>, Vec<usize>) {
     let mut bytes = SOC.to_be_bytes().to_vec();
     let mut size = siz();
     size[22..26].copy_from_slice(&32_u32.to_be_bytes());
