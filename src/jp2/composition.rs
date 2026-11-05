@@ -11,6 +11,9 @@ use super::{
 use vstd::prelude::*;
 
 impl CompositingLayer<'_> {
+    #[cfg_attr(verus_keep_ghost, verus_spec(result =>
+        ensures super::box_header_offset(result) == super::source_layer_geometry(self).0,
+    ))]
     pub const fn box_header(&self) -> BoxHeader {
         self.header
     }
@@ -19,10 +22,16 @@ impl CompositingLayer<'_> {
         self.payload
     }
 
+    #[cfg_attr(verus_keep_ghost, verus_spec(result =>
+        ensures result == super::source_layer_geometry(self).1,
+    ))]
     pub const fn horizontal_grid_size(&self) -> u16 {
         self.horizontal_grid_size
     }
 
+    #[cfg_attr(verus_keep_ghost, verus_spec(result =>
+        ensures result == super::source_layer_geometry(self).2,
+    ))]
     pub const fn vertical_grid_size(&self) -> u16 {
         self.vertical_grid_size
     }
@@ -47,6 +56,9 @@ impl CompositingLayer<'_> {
         &self.channel_definition_records
     }
 
+    #[cfg_attr(verus_keep_ghost, verus_spec(result =>
+        ensures super::source_opacity_reference_view(result) == super::source_layer_opacity(self),
+    ))]
     pub const fn opacity(&self) -> Option<&LayerOpacity> {
         self.opacity.as_ref()
     }

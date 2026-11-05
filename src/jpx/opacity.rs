@@ -1,14 +1,14 @@
 //! Layer alpha modes and registered opacity application.
 use super::chroma::{apply_chroma_key_with_policy, normalized_chroma_keys};
 use super::layer_decode::{decode_layer, owned_layer_from_image};
-#[cfg(verus_keep_ghost)]
-use super::owned_layer_view;
 use super::registration::register_layer;
 use super::resources::{arithmetic_overflow, checked_area, index_of, invalid_layer};
 use super::{
     CompositingLayer, DecodeError, DecodeOptions, Jp2File, LayerOpacity, MalformedKind, OwnedLayer,
     jp2,
 };
+#[cfg(verus_keep_ghost)]
+use super::{layer_registration_view, owned_layer_view};
 #[cfg(verus_keep_ghost)]
 use vstd::prelude::*;
 
@@ -172,6 +172,13 @@ pub(super) fn copy_registered_layer_opacity(
     Ok(())
 }
 
+#[cfg_attr(verus_keep_ghost, verus_spec(result =>
+    ensures (result, owned_layer_view(final(owned))) == crate::specs::part2_apply_source_layer_opacity(
+        jp2::jpx_file_decode_view(file), jp2::source_layer_opacity(layer), jp2::source_layer_geometry(layer),
+        color_codestream, owned_layer_view(old(owned)),
+        match alpha_registration { None => None, Some(registration) => Some(layer_registration_view(registration)) },
+        crate::options::decode_options_limits(options)),
+))]
 pub(super) fn apply_layer_opacity(
     file: &Jp2File<'_>,
     layer: &CompositingLayer<'_>,
@@ -180,9 +187,19 @@ pub(super) fn apply_layer_opacity(
     alpha_registration: Option<&jp2::CodestreamRegistration>,
     options: &DecodeOptions,
 ) -> Result<(), DecodeError> {
+    #[cfg(verus_keep_ghost)]
+    proof! {
+        crate::specs::part2_apply_source_layer_opacity_unfold(
+            jp2::jpx_file_decode_view(file), jp2::source_layer_opacity(layer), jp2::source_layer_geometry(layer),
+            color_codestream, owned_layer_view(owned),
+            match alpha_registration { None => None, Some(registration) => Some(layer_registration_view(registration)) },
+            crate::options::decode_options_limits(options));
+    }
     let Some(opacity) = layer.opacity() else {
         return Ok(());
     };
+    #[cfg(verus_keep_ghost)]
+    proof! { jp2::source_opacity_known(opacity); }
     match opacity {
         LayerOpacity::Straight | LayerOpacity::Premultiplied => {
             let premultiplied = matches!(opacity, LayerOpacity::Premultiplied);
@@ -215,8 +232,18 @@ pub(super) fn apply_layer_opacity(
             let header = file
                 .codestream(color_codestream)?
                 .codestream_header()
-                .and_then(|association| association.parsed_header())
+                .and_then(
+                    #[cfg_attr(verus_keep_ghost, verus_spec(result: (Option<&jp2::Jp2Header>) =>
+                        ensures jp2::associated_header_option(result) == jp2::source_association_header_view(association).1,
+                    ))]
+                    |association| association.parsed_header(),
+                )
                 .unwrap_or(file.header());
+            #[cfg(verus_keep_ghost)]
+            proof! {
+                assert(crate::specs::part2_opacity_header_depth(jp2::jpx_file_decode_view(file), color_codestream)
+                    == Ok(header.image.bit_depth));
+            }
             let keys = normalized_chroma_keys(values, *channels, header.image.bit_depth)?;
             apply_chroma_key_with_policy(owned, &keys, true)?;
         }

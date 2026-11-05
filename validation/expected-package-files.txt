@@ -22,6 +22,7 @@ specs/README.md
 specs/codestream_profile.rs
 specs/decoder_input.rs
 specs/header.rs
+specs/jpx_opacity.rs
 specs/jpx_source.rs
 specs/layout_input.rs
 specs/legacy.rs

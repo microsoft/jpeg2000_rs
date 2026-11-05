@@ -1,5 +1,54 @@
 #[cfg(verus_keep_ghost)]
 verus! {
+    pub closed spec fn source_opacity_value_view(value: &LayerOpacity) -> crate::specs::Part2SourceOpacity {
+        match value {
+            LayerOpacity::Straight => crate::specs::Part2SourceOpacity::Straight,
+            LayerOpacity::Premultiplied => crate::specs::Part2SourceOpacity::Premultiplied,
+            LayerOpacity::ChromaKey { channels, values } =>
+                crate::specs::Part2SourceOpacity::ChromaKey { channels: *channels, values: values@ },
+        }
+    }
+
+    pub open spec fn source_opacity_reference_view(value: Option<&LayerOpacity>)
+        -> Option<crate::specs::Part2SourceOpacity>
+    {
+        match value { None => None, Some(value) => Some(source_opacity_value_view(value)) }
+    }
+
+    pub closed spec fn source_layer_opacity(layer: &CompositingLayer)
+        -> Option<crate::specs::Part2SourceOpacity>
+    {
+        match &layer.opacity { None => None, Some(opacity) => Some(source_opacity_value_view(opacity)) }
+    }
+
+    pub closed spec fn source_layer_geometry(layer: &CompositingLayer) -> (u64, u16, u16) {
+        (layer.header.offset, layer.horizontal_grid_size, layer.vertical_grid_size)
+    }
+
+    pub(crate) proof fn source_opacity_known(value: &LayerOpacity)
+        ensures source_opacity_value_view(value) == match value {
+            LayerOpacity::Straight => crate::specs::Part2SourceOpacity::Straight,
+            LayerOpacity::Premultiplied => crate::specs::Part2SourceOpacity::Premultiplied,
+            LayerOpacity::ChromaKey { channels, values } =>
+                crate::specs::Part2SourceOpacity::ChromaKey { channels: *channels, values: values@ },
+        },
+    {
+    }
+
+    pub closed spec fn source_association_header_view(association: &CodestreamHeaderAssociation)
+        -> (u64, Option<crate::specs::Part2AssociatedHeader>)
+    {
+        (association.header.offset, match &association.parsed {
+            None => None, Some(header) => Some(associated_header_view(header)),
+        })
+    }
+
+    pub open spec fn source_optional_association_view(association: Option<&CodestreamHeaderAssociation>)
+        -> Option<(u64, Option<crate::specs::Part2AssociatedHeader>)>
+    {
+        match association { None => None, Some(association) => Some(source_association_header_view(association)) }
+    }
+
     pub closed spec fn file_type_view(file_type: &FileType) -> crate::specs::Part2FileType {
         (file_type.brand, file_type.minor_version, file_type.compatible_brands@)
     }

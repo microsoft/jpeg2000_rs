@@ -179,6 +179,28 @@ technical candidate only: parent-owned record, review, CI, guarded integration
 and actual-main acceptance remain separate. No complete parsing, pixels,
 lifetime verification, normative conformance or publication claim follows.
 
+## Actual source-derived layer opacity Result and mutation frame
+
+The executing `apply_layer_opacity` now has a complete Result and owned-layer
+mutation/error-frame equality. Absent opacity and existing-alpha modes keep
+their exact bypass and first-error behavior. Registered external alpha derives
+from real source decoding/color conversion, actual owned-layer creation and
+registration before copying any alpha into the original owner.
+
+Chroma keying retains count-before-lookup priority, actual source header
+association/parsed/default choice, full bit depth/key bytes and mutation policy.
+A missing parsed association falls back in this path, unlike the source-image
+decoder's typed rejection. Checked metadata getters and the actual optional
+header-selection closure carry that distinction without a supplied image bank.
+The pinned attribute parser requires a parenthesized closure return type; this
+is a ghost-only annotation, not a tool migration or native owner/scope change.
+
+Native source cases cover no-op/mode frames, real registered alpha/crop/zero
+fill, actual inherited/associated header choice, all first errors and unchanged
+owners on failure. Full general normalization/assembly/frame, raw container and
+remaining public composition, independent corrected rules, production coverage/
+erasure/lifetimes and release remain separate.
+
 ## Actual source-derived JPX layer color Result
 
 The executing `decode_layer` composes the actual file/index source-image Result

@@ -102,6 +102,9 @@ impl<'a> CodestreamBox<'a> {
         self.data
     }
 
+    #[cfg_attr(verus_keep_ghost, verus_spec(result =>
+        ensures super::source_optional_association_view(result) == super::codestream_source_view(self).2,
+    ))]
     pub fn codestream_header(&self) -> Option<&CodestreamHeaderAssociation<'a>> {
         self.codestream_header.as_ref()
     }
@@ -116,6 +119,9 @@ impl CodestreamHeaderAssociation<'_> {
         self.payload
     }
 
+    #[cfg_attr(verus_keep_ghost, verus_spec(result =>
+        ensures super::associated_header_option(result) == super::source_association_header_view(self).1,
+    ))]
     pub fn parsed_header(&self) -> Option<&Jp2Header> {
         self.parsed.as_ref()
     }
