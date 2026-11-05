@@ -1,5 +1,152 @@
 use super::*;
 
+fn interleaved_persistent_parts(last_roi: Option<u8>) -> (Vec<u8>, Vec<usize>) {
+    let mut bytes = SOC.to_be_bytes().to_vec();
+    let mut size = siz();
+    size[22..26].copy_from_slice(&32_u32.to_be_bytes());
+    bytes.extend(size);
+    bytes.extend(segment(COD, &[0, 0, 0, 2, 0, 0, 2, 2, 0, 1]));
+    bytes.extend(segment(QCD, &[0, 0]));
+    let mut starts = Vec::new();
+    for (part, tile) in [0_u16, 1, 0, 1, 0, 1].into_iter().enumerate() {
+        let start = bytes.len();
+        starts.push(start);
+        let mut sot = tile.to_be_bytes().to_vec();
+        sot.extend(0_u32.to_be_bytes());
+        sot.extend([u8::try_from(part / 2).unwrap(), 3]);
+        bytes.extend(segment(SOT, &sot));
+        if part < 2 {
+            let layers = if tile == 0 { 3 } else { 5 };
+            bytes.extend(segment(COD, &[0, 0, 0, layers, 0, 0, 2, 2, 0, 1]));
+            bytes.extend(segment(QCD, &[if tile == 0 { 0x40 } else { 0x80 }, 0]));
+            bytes.extend(segment(RGN, &[0, 0, if tile == 0 { 7 } else { 9 }]));
+            bytes.extend(poc(&[[0, 0, 0, layers, 1, 1, 0]]));
+            bytes.extend(segment(DFS, &[0, tile as u8 + 1, 1, 0x40]));
+            bytes.extend(mct_i16(1, 1, &[if tile == 0 { 3 } else { 5 }]));
+            bytes.extend(mct_i16(200, 1, &[if tile == 0 { 9 } else { 11 }]));
+            bytes.extend(mcc(7, 1, true, 1, 0));
+            bytes.extend(mco(&[7]));
+        } else if part == 2 {
+            bytes.extend(segment(COD, &[0, 0, 0, 3, 0, 0, 3, 2, 0, 1]));
+            bytes.extend(segment(QCD, &[0x60, 0]));
+            bytes.extend(mcc(8, 1, true, 200, 0));
+            bytes.extend(mco(&[8]));
+        } else if part == 5 {
+            if let Some(shift) = last_roi {
+                bytes.extend(segment(RGN, &[0, 0, shift]));
+            }
+            bytes.extend(mcc(8, 1, true, 200, 0));
+            bytes.extend(mco(&[8]));
+        }
+        bytes.extend(SOD.to_be_bytes());
+        bytes.push(u8::try_from(part).unwrap());
+        let length = u32::try_from(bytes.len() - start).unwrap();
+        bytes[start + 6..start + 10].copy_from_slice(&length.to_be_bytes());
+    }
+    bytes.extend(EOC.to_be_bytes());
+    (bytes, starts)
+}
+
+#[test]
+fn actual_persistent_fold_keeps_all_eight_owners_per_tile_and_appends_source_payloads() {
+    let (bytes, starts) = interleaved_persistent_parts(None);
+    let limits = ResourceLimits::default();
+    let layout = parse_layout(&bytes, &limits).unwrap();
+    assert_eq!(layout.info.tile_parts, 6);
+    assert_eq!(layout.tile_parts.len(), 6);
+    assert_eq!(layout.info.consumed_bytes, bytes.len() as u64);
+    for (part, layers, guard, matrix) in [
+        (0, 3, 2, 3),
+        (1, 5, 4, 5),
+        (2, 3, 3, 9),
+        (3, 5, 4, 5),
+        (4, 3, 3, 9),
+        (5, 5, 4, 11),
+    ] {
+        let payload = &layout.tile_parts[part];
+        let tile = part % 2;
+        assert_eq!(payload.tile_index, tile as u16);
+        assert_eq!(payload.tile_part_index, (part / 2) as u8);
+        assert_eq!(payload.tile_part_count, 3);
+        assert_eq!(payload.coding_style.layers, layers);
+        assert_eq!(
+            payload.coding_style.code_block_width,
+            if part == 2 || part == 4 { 32 } else { 16 },
+        );
+        assert_eq!(
+            payload
+                .component_coding_styles
+                .style(0)
+                .unwrap()
+                .code_block_width,
+            payload.coding_style.code_block_width,
+        );
+        assert_eq!(
+            payload.component_coding_styles.style(0).unwrap().layers,
+            layers
+        );
+        assert_eq!(payload.quantization.guard_bits, guard);
+        assert_eq!(
+            payload
+                .component_quantizations
+                .quantization(0)
+                .unwrap()
+                .guard_bits,
+            guard,
+        );
+        assert_eq!(
+            payload.roi_shifts.shift(0).unwrap(),
+            if tile == 0 { 7 } else { 9 }
+        );
+        assert_eq!(payload.progression_changes.records.len(), 1);
+        assert_eq!(
+            payload.progression_changes.records[0].layer_end,
+            if tile == 0 { 3 } else { 5 },
+        );
+        assert_eq!(payload.part2_extensions.decomposition_structures.len(), 1);
+        assert_eq!(
+            payload.part2_extensions.decomposition_structures[0].index,
+            tile as u8 + 1,
+        );
+        assert_eq!(
+            payload
+                .multiple_component_transform
+                .as_ref()
+                .unwrap()
+                .stages()[0]
+                .collections()[0]
+                .matrix()
+                .unwrap()
+                .values(),
+            &[matrix],
+        );
+        assert_eq!(payload.has_roi_marker, part < 2);
+        let next = if part + 1 < starts.len() {
+            starts[part + 1]
+        } else {
+            bytes.len() - 2
+        };
+        assert_eq!(payload.data, &[part as u8]);
+        assert!(core::ptr::eq(
+            payload.data.as_ptr(),
+            bytes[next - 1..].as_ptr()
+        ));
+    }
+}
+
+#[test]
+fn actual_persistent_fold_rejects_late_tile_roi_change_before_trailing_data() {
+    let limits = ResourceLimits::default();
+    let (valid, _) = interleaved_persistent_parts(Some(9));
+    assert_eq!(parse_layout(&valid, &limits).unwrap().tile_parts.len(), 6);
+    let (mut invalid, starts) = interleaved_persistent_parts(Some(8));
+    invalid.extend([17, 19]);
+    assert_eq!(
+        parse_layout(&invalid, &limits).unwrap_err(),
+        DecodeError::malformed(starts[5] as u64, MalformedKind::InvalidRegionOfInterest),
+    );
+}
+
 #[test]
 fn actual_inherited_selection_preserves_raw_fallbacks_indexes_owners_and_frames() {
     let input = [11, 13];

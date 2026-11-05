@@ -1525,6 +1525,13 @@ _OWNED_TILE_INHERITANCE_FIELDS = (
      "tile_part2_extensions", "owned_extensions_view"),
 )
 
+_PERSISTENT_TILE_STATE_FIELDS = (
+    "tile_roi_shifts", "tile_coding_styles", "tile_quantizations",
+    "tile_component_style_parts", "tile_component_quantizations",
+    "tile_progression_changes", "tile_mct_parameters", "tile_part2_extensions",
+    "tile_part_payloads",
+)
+
 _COMPONENT_PRODUCER_RELAYS = {
     **_MAIN_COMPONENT_FINALIZATION_CONTRACTS,
     **_STYLE_OVERRIDE_CONTRACTS,
@@ -2560,6 +2567,132 @@ def validate_normative_coverage(
     ids: set[str] = set()
     contract_functions: set[tuple[str, str]] = set()
     for entry in coverage["requirements"]:
+        if entry["id"] == "part1-complete-native-persistent-tile-state-fold":
+            layout = {"path": "src/codestream/layout.rs", "symbol": "Parser::parse_layout"}
+            if layout not in entry["implementation_refs"]:
+                raise ValueError("persistent fold not used by claimed implementation: actual layout required")
+            path = (ROOT / layout["path"]).resolve()
+            body = _coverage_function_body(source_text(path), function_header(path, layout["symbol"]))
+            if body is None:
+                raise ValueError("persistent fold requires actual layout body")
+            view = _coverage_call(
+                "persistent_tile_state_view", *(name + r"\s*@" for name in _PERSISTENT_TILE_STATE_FIELDS),
+            )
+            fold = _coverage_call(
+                "crate::specs::part1_persistent_tile_state_fold",
+                "initial_persistent_state", "persistent_commits",
+            )
+            successful = r"\(\s*" + _coverage_call("Ok", r"\(\s*\)") + r"\s*,\s*" + view + r"\s*\)"
+            initialization = (
+                r"let\s+ghost\s+initial_persistent_state\s*=\s*" + view + r"\s*;\s*"
+                r"let\s+ghost\s+mut\s+persistent_commits\s*:\s*Seq\s*<\s*"
+                r"crate::specs::Part1PersistentTileCommit\s*>\s*=\s*Seq::empty\s*\(\s*\)\s*;"
+            )
+            invariant = r"verus_spec\s*\(\s*invariant\s+" + fold + r"\s*==\s*" + successful
+            if (re.search(initialization, body) is None
+                    or re.search(invariant, body) is None
+                    or re.search(_coverage_call(
+                        "assert", r"initial_persistent_state\s*==\s*"
+                        + _coverage_call("crate::specs::part1_empty_persistent_tile_state", "tile_state_count"),
+                    ), body) is None):
+                raise ValueError("persistent fold requires complete empty initialization and loop invariant")
+            snapshot = (
+                r"let\s+ghost\s+previous_persistent_state\s*=\s*" + view + r"\s*;\s*"
+                r"let\s+ghost\s+persistent_commit\s*=\s*crate::specs::Part1PersistentTileCommit\s*\{\s*"
+                r"position\s*:\s*parser\.position\s*,\s*start\s*:\s*tile_part\.start\s*,\s*"
+                r"index\s*:\s*tile_index\s*,\s*previous_roi\s*:\s*"
+                + _coverage_call("optional_roi_shifts_view", "previous_roi_shifts")
+                + r"\s*,\s*payload\s*:\s*" + _coverage_call("tile_part_payload_view", r"&\s*payload")
+                + r"\s*,\s*parameters\s*:\s*" + _coverage_call("mct_parameter_copy_view", r"&\s*tile_parameters")
+                + r"\s*,\s*extensions\s*:\s*" + _coverage_call("owned_extensions_view", r"&\s*tile_extensions")
+                + r"\s*,?\s*\}\s*;"
+            )
+            captured = re.search(snapshot, body)
+            handoff = re.search(
+                r"\blet\s*\(\s*payload\s*,\s*tile_parameters\s*,\s*tile_extensions\s*\)\s*=\s*"
+                r"parser\s*\.\s*read_tile_part\s*\(", body,
+            )
+            six_commit = re.search(r"\bparser\s*\.\s*commit_persistent_tile_configuration\s*\(", body)
+            if (captured is None or handoff is None or six_commit is None
+                    or not handoff.start() < captured.start() < six_commit.start()):
+                raise ValueError("persistent fold requires actual reader-derived complete commit snapshot")
+            stores = []
+            for states, owner in (("tile_mct_parameters", "tile_parameters"),
+                                   ("tile_part2_extensions", "tile_extensions")):
+                stores.append(
+                    r"\*\s*" + states + r"\s*\.\s*" + _coverage_call("get_mut", "tile_index")
+                    + r"\s*\.\s*" + _coverage_call(
+                        "ok_or_else", r"\|\|\s*" + _coverage_call(
+                            "parser.malformed_here", "MalformedKind::InvalidTilePart"),
+                    ) + r"\s*\?\s*=\s*" + _coverage_call("Some", owner) + r"\s*;"
+                )
+            step = _coverage_call(
+                "crate::specs::part1_commit_persistent_tile_state",
+                "previous_persistent_state", "persistent_commit",
+            )
+            checkpoint = (
+                r"\s*".join(stores) + r"\s*" + _coverage_call("tile_part_payloads.push", "payload")
+                + r"\s*;\s*#\[\s*cfg\s*\(\s*verus_keep_ghost\s*\)\s*\]\s*proof!\s*\{\s*"
+                + r"\s*".join(_coverage_call("reveal", name) + r"\s*;" for name in (
+                    "persistent_tile_state_view", "persistent_tile_configuration_view",
+                    "super::persistent_tile_configuration_sequences_view",
+                    "crate::specs::part1_commit_persistent_tile_state",
+                ))
+                + r"\s*" + _coverage_call("assert", step + r"\s*==\s*" + successful) + r"\s*;\s*"
+                r"persistent_commits\s*=\s*persistent_commits\.push\s*\(\s*persistent_commit\s*\)\s*;\s*"
+                + _coverage_call("assert", r"persistent_commits\.drop_last\s*\(\s*\)\s*==\s*previous_persistent_commits") + r"\s*;\s*"
+                + _coverage_call("assert", r"persistent_commits\.last\s*\(\s*\)\s*==\s*persistent_commit") + r"\s*;\s*"
+                + _coverage_call("reveal", "crate::specs::part1_persistent_tile_state_fold") + r"\s*;\s*"
+                + _coverage_call("assert", fold + r"\s*==\s*" + successful) + r"\s*;"
+            )
+            if re.search(checkpoint, body[six_commit.start():]) is None:
+                raise ValueError("persistent fold requires ordered actual stores/append and unconditional complete checkpoints")
+            projections = {
+                "persistent_tile_state_view": """
+                    (persistent_tile_configuration_sequences_view(
+                        roi, styles, quantizations, style_parts, component_quantizations, progression),
+                     parameters.map_values(|value: Option<MctParameters>| match value {
+                         None => None, Some(owner) => Some(mct_parameter_copy_view(&owner)),
+                     }),
+                     extensions.map_values(|value: Option<Part2Extensions>| match value {
+                         None => None, Some(owner) => Some(owned_extensions_view(&owner)),
+                     }),
+                     payloads.map_values(|value: TilePartPayload<'_>| tile_part_payload_view(&value)),)
+                """,
+                "persistent_tile_configuration_view": """
+                    persistent_tile_configuration_sequences_view(
+                        roi@, styles@, quantizations@, style_parts@, component_quantizations@, progression@)
+                """,
+                "persistent_tile_configuration_sequences_view": """
+                    (roi.map_values(|value: Option<RoiShifts>| match value {
+                        None => None, Some(shifts) => Some(roi_shifts_view(&shifts)),
+                     }),
+                     styles.map_values(|value: Option<CodingStyle>| match value {
+                        None => None, Some(style) => Some(parsed_coding_style_view(style)),
+                     }),
+                     quantizations.map_values(|value: Option<Quantization>| match value {
+                        None => None, Some(quantization) => Some(quantization_view(&quantization)),
+                     }),
+                     style_parts,
+                     component_quantizations.map_values(|value: Option<ComponentQuantizations>| match value {
+                        None => None, Some(owner) => Some(parsed_quantization_owner_view(&owner)),
+                     }),
+                     progression.map_values(|value: Option<ProgressionChanges>| match value {
+                        None => None, Some(changes) => Some(progression_changes_view(&changes)),
+                     }),)
+                """,
+            }
+            path = (ROOT / "src/codestream/persistent_tile_configuration_proof_support.rs").resolve()
+            for name, expected in projections.items():
+                text = source_text(path)
+                projection_headers = list(re.finditer(
+                    r"(?m)^([ \t]*)pub\(crate\)[ \t]+closed[ \t]+spec[ \t]+fn[ \t]+"
+                    + re.escape(name) + r"\b", text,
+                ))
+                projection = (_coverage_function_body(text, projection_headers[0])
+                              if len(projection_headers) == 1 else None)
+                if projection is None or re.sub(r"\s+", "", projection) != re.sub(r"\s+", "", expected):
+                    raise ValueError(f"persistent fold requires complete physical projection: {name}")
         if entry["id"] == "part1-complete-native-owned-tile-inheritance":
             layout = {"path": "src/codestream/layout.rs", "symbol": "Parser::parse_layout"}
             if layout not in entry["implementation_refs"]:

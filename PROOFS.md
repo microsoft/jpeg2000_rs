@@ -179,6 +179,35 @@ technical candidate only: parent-owned record, review, CI, guarded integration
 and actual-main acceptance remain separate. No complete parsing, pixels,
 lifetime verification, normative conformance or publication claim follows.
 
+## Actual persistent eight-state and payload fold
+
+The actual layout loop carries a ghost-only induction over all eight physical
+persistent owner vectors and the ordered payload vector. Its initial view is
+proved equal to eight all-None vectors and an empty payload sequence. Each
+history record is created only from the actual tile-part reader's returned
+payload, MCT parameters and extensions, together with the actual cursor,
+tile index and previous ROI. No parsed-result bank is supplied as a premise.
+
+The ordered commit model reuses the accepted six-owner partial-commit relation,
+then stores the complete MCT owner, stores extensions and appends the payload.
+It preserves raw independent lengths, holes, physical tails, borrowed bytes,
+first errors and the partial prefix before each bounds failure. The actual
+successful commit is proved equal to this model before extending the history;
+the loop invariant relates the complete accumulated history to every actual
+owner and payload. The earlier latest-component-style source invariant remains.
+The history contains committed steps, not calls that returned an error.
+
+All additions to the decoder are ghost-only. No executing initializer, lookup,
+clone, move, owning local, store, append, error return or scope is changed.
+The shared physical configuration projection also has a sequence form because
+ghost calls cannot implicitly invoke the executing Vec-to-slice dereference.
+The existing slice view delegates to that same complete projection.
+
+This closes the persistent successful-prefix fold, not the complete raw
+main-header/layout Result or its error composition, PLM/PPM/TLM admission,
+EOC/trailing/profile checks, public decoding, independently adjudicated
+normative fidelity, general cfg/erasure/lifetime/coverage or release gates.
+
 ## Actual four-owned tile inheritance
 
 The actual layout caller uses one total borrowed `inherited_tile_owner`

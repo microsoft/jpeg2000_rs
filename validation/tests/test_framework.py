@@ -1030,6 +1030,106 @@ class FrameworkTests(WorkingFiles):
             framework._RAW_TILE_HEADER_CONTRACTS, 8,
         )
 
+    def test_inventory_binds_actual_persistent_fold_initialization_invariant_sources_and_commit(self):
+        coverage = json.loads((framework.VALIDATION / "normative-coverage.json").read_text())
+        entry = copy.deepcopy(next(item for item in coverage["requirements"]
+                                   if item["id"] == "part1-complete-native-persistent-tile-state-fold"))
+        data = dict(coverage, requirements=[entry])
+        self.assertEqual(framework.validate_normative_coverage(data)["status"], "passed")
+        source = framework.ROOT / "src/codestream/layout.rs"
+        original = source.read_text()
+        read_text = Path.read_text
+        mutations = [
+            ("initial_persistent_state = persistent_tile_state_view(", "initial_persistent_state = unlisted_view("),
+            ("part1_empty_persistent_tile_state(tile_state_count)", "part1_empty_persistent_tile_state(0)"),
+            ("position: parser.position", "position: 0"),
+            ("start: tile_part.start", "start: 0"),
+            ("index: tile_index", "index: 0"),
+            ("optional_roi_shifts_view(previous_roi_shifts)", "optional_roi_shifts_view(None)"),
+            ("tile_part_payload_view(&payload)", "tile_part_payload_view(&unrelated)"),
+            ("mct_parameter_copy_view(&tile_parameters)", "mct_parameter_copy_view(&unrelated)"),
+            ("owned_extensions_view(&tile_extensions)", "owned_extensions_view(&unrelated)"),
+            ("Some(tile_parameters);", "Some(inherited_mct_parameters);"),
+            ("Some(tile_extensions);", "Some(inherited_part2_extensions);"),
+            ("tile_part_payloads.push(payload)", "tile_part_payloads.push(unrelated)"),
+            ("persistent_commits.push(persistent_commit)", "persistent_commits.push(unrelated)"),
+        ]
+        mutations.extend((name + "@", name + "_unrelated@") for name in framework._PERSISTENT_TILE_STATE_FIELDS)
+        for before, after in mutations:
+            self.assertIn(before, original)
+            modified = original.replace(before, after)
+            modified += "\nfn unrelated_complete_copy() {\n" + original + "\n}\n"
+
+            def altered(path, *args, **kwargs):
+                return modified if path == source else read_text(path, *args, **kwargs)
+
+            with self.subTest(before=before), mock.patch.object(Path, "read_text", altered), \
+                    self.assertRaisesRegex(ValueError, "persistent fold"):
+                framework.validate_normative_coverage(data)
+
+    def test_inventory_persistent_fold_rejects_conditional_commit_checkpoints(self):
+        coverage = json.loads((framework.VALIDATION / "normative-coverage.json").read_text())
+        entry = copy.deepcopy(next(item for item in coverage["requirements"]
+                                   if item["id"] == "part1-complete-native-persistent-tile-state-fold"))
+        data = dict(coverage, requirements=[entry])
+        source = framework.ROOT / "src/codestream/layout.rs"
+        original = source.read_text()
+        start = original.index("tile_part_payloads.push(payload);")
+        changed = original[:start] + original[start:].replace("proof! {", "if false { proof! {", 1) + "\n}"
+        read_text = Path.read_text
+
+        def altered(path, *args, **kwargs):
+            return changed if path == source else read_text(path, *args, **kwargs)
+
+        with mock.patch.object(Path, "read_text", altered), self.assertRaisesRegex(ValueError, "persistent fold"):
+            framework.validate_normative_coverage(data)
+
+    def test_inventory_persistent_fold_requires_every_physical_projection(self):
+        coverage = json.loads((framework.VALIDATION / "normative-coverage.json").read_text())
+        entry = copy.deepcopy(next(item for item in coverage["requirements"]
+                                   if item["id"] == "part1-complete-native-persistent-tile-state-fold"))
+        data = dict(coverage, requirements=[entry])
+        source = framework.ROOT / "src/codestream/persistent_tile_configuration_proof_support.rs"
+        original = source.read_text()
+        read_text = Path.read_text
+        for before in (
+            "roi@", "style_parts@", "component_quantizations@", "progression@",
+            "parameters.map_values", "extensions.map_values", "payloads.map_values",
+            "parsed_quantization_owner_view(&owner)", "mct_parameter_copy_view(&owner)",
+            "owned_extensions_view(&owner)", "tile_part_payload_view(&value)",
+        ):
+            self.assertIn(before, original)
+            start = original.index("pub(crate) closed spec fn persistent_tile_configuration_view") if before.endswith("@") else 0
+            changed = original[:start] + original[start:].replace(before, "unrelated_projection", 1)
+
+            def altered(path, *args, **kwargs):
+                return changed if path == source else read_text(path, *args, **kwargs)
+
+            with self.subTest(before=before), mock.patch.object(Path, "read_text", altered), \
+                    self.assertRaisesRegex(ValueError, "persistent fold requires complete physical projection"):
+                framework.validate_normative_coverage(data)
+
+    def test_inventory_persistent_fold_reuses_per_call_source_cache(self):
+        coverage = json.loads((framework.VALIDATION / "normative-coverage.json").read_text())
+        entry = copy.deepcopy(next(item for item in coverage["requirements"]
+                                   if item["id"] == "part1-complete-native-persistent-tile-state-fold"))
+        data = dict(coverage, requirements=[entry])
+        paths = {(framework.ROOT / name).resolve() for name in (
+            "src/codestream/layout.rs", "src/codestream/persistent_tile_configuration_proof_support.rs",
+        )}
+        counts = dict.fromkeys(paths, 0)
+        read_text = Path.read_text
+
+        def counted(path, *args, **kwargs):
+            if path in counts:
+                counts[path] += 1
+            return read_text(path, *args, **kwargs)
+
+        with mock.patch.object(Path, "read_text", counted):
+            for expected in (1, 2):
+                self.assertEqual(framework.validate_normative_coverage(data)["status"], "passed")
+                self.assertEqual(counts, dict.fromkeys(paths, expected))
+
     def test_inventory_binds_total_borrowed_owned_inheritance_choice(self):
         self._assert_complete_packet_contract_bindings(
             {"part1-complete-native-owned-tile-inheritance"},

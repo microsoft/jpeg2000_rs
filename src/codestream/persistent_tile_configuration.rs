@@ -72,6 +72,7 @@ impl Parser<'_> {
         #[cfg(verus_keep_ghost)]
         proof! {
             reveal(persistent_tile_configuration_view);
+            reveal(super::persistent_tile_configuration_sequences_view);
             reveal(optional_roi_shifts_view);
             reveal(tile_part_payload_view);
             reveal(roi_shifts_view);
