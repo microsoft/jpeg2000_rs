@@ -1030,6 +1030,84 @@ class FrameworkTests(WorkingFiles):
             framework._RAW_TILE_HEADER_CONTRACTS, 8,
         )
 
+    def test_inventory_binds_actual_complete_effective_layer_results(self):
+        self._assert_complete_packet_contract_bindings(
+            {framework._EFFECTIVE_LAYER_ENTRY}, framework._EFFECTIVE_LAYER_CONTRACTS, 2, isolate=False,
+        )
+
+    def test_inventory_effective_layer_requires_all_routing_models_and_reference_bridges(self):
+        coverage = json.loads((framework.VALIDATION / "normative-coverage.json").read_text())
+        entry = next(item for item in coverage["requirements"] if item["id"] == framework._EFFECTIVE_LAYER_ENTRY)
+        for field in ("contract_refs", "spec_refs", "proof_refs"):
+            for removed in entry[field]:
+                changed = copy.deepcopy(entry)
+                changed[field].remove(removed)
+                expected_error = "should be non-empty" if not changed[field] else "whole effective layer Result"
+                with self.subTest(field=field, removed=removed), self.assertRaisesRegex(ValueError, expected_error):
+                    framework.validate_normative_coverage(dict(coverage, requirements=[changed]))
+
+    def test_inventory_effective_layer_binds_actual_index_routing_color_and_opacity_handoffs(self):
+        coverage = json.loads((framework.VALIDATION / "normative-coverage.json").read_text())
+        entry = next(item for item in coverage["requirements"] if item["id"] == framework._EFFECTIVE_LAYER_ENTRY)
+        source = framework.ROOT / "src/jpx/layer_decode.rs"
+        original = source.read_text()
+        read_text = Path.read_text
+        for before, after in (
+            ("layer_index >= file.codestream_count()", "layer_index > file.codestream_count()"),
+            ("file.compositing_layer(layer_index)?", "file.compositing_layer(0)?"),
+            ("layer.registrations().len() > 1", "layer.registrations().len() > 2"),
+            ("let color_override = layer.color_group().first();", "let color_override = None;"),
+            ("layer.registrations().get(1)", "layer.registrations().get(0)"),
+        ):
+            self.assertIn(before, original)
+            changed = original.replace(before, after, 1)
+
+            def altered(path, *args, **kwargs):
+                return changed if path == source else read_text(path, *args, **kwargs)
+
+            with self.subTest(before=before), mock.patch.object(Path, "read_text", altered), \
+                    self.assertRaisesRegex(ValueError, "actual routing/source/fallback/registration/opacity handoffs"):
+                framework.validate_normative_coverage(dict(coverage, requirements=[entry]))
+
+    def test_inventory_effective_layer_preserves_full_reference_and_ordered_producer_models(self):
+        coverage = json.loads((framework.VALIDATION / "normative-coverage.json").read_text())
+        entry = next(item for item in coverage["requirements"] if item["id"] == framework._EFFECTIVE_LAYER_ENTRY)
+        read_text = Path.read_text
+        for name, before, after, error in (
+            ("src/jp2/container.rs", "Some(layer) == super::jpx_file_layer_reference(self, index)", "true",
+             "complete actual borrowed-layer reference"),
+            ("specs/jpx_dispatch.rs", "if index >= file.1.len()", "if index > file.1.len()", "actual ordered"),
+            ("specs/jpx_dispatch.rs", "part2_dispatch_owned_image(file, registration.0 as usize, color, limits)",
+             "part2_dispatch_owned_image(file, layer_index, color, limits)", "actual ordered"),
+        ):
+            source = framework.ROOT / name
+            original = source.read_text()
+            self.assertIn(before, original)
+            changed = original.replace(before, after, 1)
+
+            def altered(path, *args, **kwargs):
+                return changed if path == source else read_text(path, *args, **kwargs)
+
+            with self.subTest(name=name, before=before), mock.patch.object(Path, "read_text", altered), \
+                    self.assertRaisesRegex(ValueError, error):
+                framework.validate_normative_coverage(dict(coverage, requirements=[entry]))
+
+    def test_inventory_effective_layer_keeps_per_validation_metadata_and_native_source_caches(self):
+        coverage = json.loads((framework.VALIDATION / "normative-coverage.json").read_text())
+        entry = next(item for item in coverage["requirements"] if item["id"] == framework._EFFECTIVE_LAYER_ENTRY)
+        read_text = Path.read_text
+        counts = {framework.ROOT / name: 0 for name in ("src/jpx/layer_decode.rs", "specs/jpx_dispatch.rs")}
+
+        def counted(path, *args, **kwargs):
+            if path in counts:
+                counts[path] += 1
+            return read_text(path, *args, **kwargs)
+
+        with mock.patch.object(Path, "read_text", counted):
+            for expected in (1, 2):
+                self.assertEqual(framework.validate_normative_coverage(dict(coverage, requirements=[entry]))["status"], "passed")
+                self.assertEqual(set(counts.values()), {expected})
+
     def test_inventory_binds_actual_complete_general_layer_result(self):
         self._assert_complete_packet_contract_bindings(
             {framework._GENERAL_LAYER_ENTRY}, framework._GENERAL_LAYER_CONTRACTS, 1, isolate=False,

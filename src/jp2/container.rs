@@ -151,10 +151,21 @@ impl<'a> Jp2File<'a> {
         self.composition.is_some()
     }
 
+    #[cfg_attr(verus_keep_ghost, verus_spec(result =>
+        ensures result@ == super::source_file_layers(self),
+    ))]
     pub fn compositing_layers(&self) -> &[CompositingLayer<'a>] {
         &self.compositing_layers
     }
 
+    #[cfg_attr(verus_keep_ghost, verus_spec(result =>
+        ensures match result {
+            Err(error) => crate::specs::part2_layer_config_lookup(super::source_file_layer_configs(self), index) == Err(error),
+            Ok(layer) => crate::specs::part2_layer_config_lookup(super::source_file_layer_configs(self), index)
+                == Ok(super::source_layer_routing_config(self, layer)),
+        },
+        match result { Err(_) => true, Ok(layer) => Some(layer) == super::jpx_file_layer_reference(self, index) },
+    ))]
     pub fn compositing_layer(&self, index: usize) -> Result<&CompositingLayer<'a>, DecodeError> {
         self.compositing_layers
             .get(index)
@@ -176,6 +187,9 @@ impl<'a> Jp2File<'a> {
         self.metadata_depth
     }
 
+    #[cfg_attr(verus_keep_ghost, verus_spec(result =>
+        ensures result == super::jpx_file_decode_view(self).1.len(),
+    ))]
     pub fn codestream_count(&self) -> usize {
         self.codestreams.len()
     }

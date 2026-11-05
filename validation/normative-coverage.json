@@ -4,6 +4,43 @@
   "scope": "Technical reference inventory; not exhaustive standards-clause coverage or a conformance claim.",
   "requirements": [
     {
+      "id": "part2-complete-native-effective-layer-result",
+      "topic": "Complete actual decode_effective_layer and decode_compositing_layer Results from real parsed file/layer/options. Preserve implicit-codestream layer-index admission, exact declared-layer errors and full actual borrowed-layer identity, general/fast routing, optional layer color versus associated source-header fallback, real source/color/owner/registration/opacity producers and every returned plane/alpha/error. No supplied decoded layers, owning reconstruction or successful-source premise. Native statements, reference selections, owner scopes and helper placement remain unchanged. Parsed file/metadata are actual inputs; raw container parsing/inspection/timeline and final frame/public joins, normative/cfg/erasure/lifetimes/release remain separate.",
+      "implementation_refs": [
+        {"path": "src/jpx/layer_decode.rs", "symbol": "decode_effective_layer"},
+        {"path": "src/jpx/layer_decode.rs", "symbol": "decode_compositing_layer"},
+        {"path": "src/jpx/layer_decode.rs", "symbol": "decode_general_compositing_layer"},
+        {"path": "src/jpx/render.rs", "symbol": "render_jpx_layer"},
+        {"path": "src/jpx/render.rs", "symbol": "render_inspected_frame"},
+        {"path": "src/jp2/container.rs", "symbol": "Jp2File::compositing_layer"},
+        {"path": "src/jp2/container.rs", "symbol": "Jp2File::codestream_count"}
+      ],
+      "spec_refs": [
+        {"path": "specs/jpx_dispatch.rs", "symbol": "part2_decode_effective_layer"},
+        {"path": "specs/jpx_dispatch.rs", "symbol": "part2_layer_config_lookup"},
+        {"path": "specs/jpx_dispatch.rs", "symbol": "part2_decode_compositing_layer"},
+        {"path": "specs/jpx_dispatch.rs", "symbol": "part2_dispatch_owned_image"},
+        {"path": "specs/jpx_dispatch.rs", "symbol": "part2_dispatch_opacity_result"},
+        {"path": "specs/jpx_dispatch.rs", "symbol": "part2_dispatch_registration"}
+      ],
+      "contract_refs": [
+        {"path": "src/jpx/layer_decode.rs", "symbol": "decode_effective_layer"},
+        {"path": "src/jpx/layer_decode.rs", "symbol": "decode_compositing_layer"}
+      ],
+      "proof_refs": [
+        {"path": "src/jp2/proof_support.rs", "symbol": "source_file_layer_configs"},
+        {"path": "src/jp2/proof_support.rs", "symbol": "source_layer_routing_config"},
+        {"path": "src/jp2/proof_support.rs", "symbol": "source_layer_color_override"},
+        {"path": "src/jp2/proof_support.rs", "symbol": "jpx_file_layer_reference"}
+      ],
+      "test_refs": [
+        {"path": "src/jpx/tests.rs", "symbol": "actual_effective_layer_default_codestream_retains_literal_planes_and_index_priority"},
+        {"path": "src/jpx/tests.rs", "symbol": "actual_effective_layer_registered_fast_path_preserves_source_choice_and_alpha_modes"},
+        {"path": "src/jpx/tests.rs", "symbol": "actual_effective_layer_retains_optional_override_versus_actual_source_header_fallback"},
+        {"path": "src/jpx/tests.rs", "symbol": "actual_effective_layer_declared_lookup_keeps_full_borrowed_layer_and_layer_count_errors"}
+      ]
+    },
+    {
       "id": "part2-complete-native-general-layer-result",
       "topic": "Complete actual decode_general_compositing_layer Result from the real parsed file/layer/options: actual source lookup/decoding and registered extents, pixel admission, every normalized/registered/widened component with inherited definitions and original precision descriptors, component admission, explicit/default color and alpha definitions, actual typed image construction/color conversion/owned layer and component-specific chroma keys. Complete geometry/color-space/color/alpha output and exact early errors compose from executing producers, without supplied source-image/normalization banks or success premises. Metadata projections and ordered prefix/error folds are checked ghost-only. The existing verified free component/image constructors are called directly. The shared Copy channel-definition constructor is extracted into a verified free producer; its public wrapper delegates to it. The unchanged widening helper is deliberately lifted to module scope because the pinned outer verus_spec macro duplicates nested cfg_attr function contracts. These explicit native call-target/helper-placement changes require separate whole-library qualification; coordinate-only native MIR identity is not claimed. Native owning declarations, loop traversal, moves, reference selection and allocation bodies are retained. Frame/effective-layer/public container joins, normative correspondence, complete production coverage/erasure/lifetimes and release remain separate.",
       "implementation_refs": [

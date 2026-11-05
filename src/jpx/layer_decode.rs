@@ -20,11 +20,20 @@ use super::{
 #[cfg(verus_keep_ghost)]
 use vstd::prelude::*;
 
+#[cfg_attr(verus_keep_ghost, verus_spec(result =>
+    ensures owned_layer_outcome(result) == crate::specs::part2_decode_effective_layer(
+        jp2::jpx_file_decode_view(file), jp2::source_file_layer_configs(file), layer_index,
+        crate::options::decode_options_limits(options)),
+))]
 pub(super) fn decode_effective_layer(
     file: &Jp2File<'_>,
     layer_index: usize,
     options: &DecodeOptions,
 ) -> Result<OwnedLayer, DecodeError> {
+    #[cfg(verus_keep_ghost)]
+    proof! {
+        reveal(crate::specs::part2_decode_effective_layer);
+    }
     if file.compositing_layers().is_empty() {
         if layer_index >= file.codestream_count() {
             return Err(DecodeError::LayerIndexOutOfRange {
@@ -144,12 +153,22 @@ impl OwnedLayer {
     }
 }
 
+#[cfg_attr(verus_keep_ghost, verus_spec(result =>
+    ensures owned_layer_outcome(result) == crate::specs::part2_decode_compositing_layer(
+        jp2::jpx_file_decode_view(file), jp2::general_layer_config(file, layer),
+        jp2::source_layer_color_override(layer), jp2::source_layer_geometry(layer), layer_index,
+        crate::options::decode_options_limits(options)),
+))]
 fn decode_compositing_layer(
     file: &Jp2File<'_>,
     layer: &CompositingLayer<'_>,
     layer_index: usize,
     options: &DecodeOptions,
 ) -> Result<OwnedLayer, DecodeError> {
+    #[cfg(verus_keep_ghost)]
+    proof! {
+        reveal(crate::specs::part2_decode_compositing_layer);
+    }
     if !layer.channel_definition_records().is_empty()
         || layer.registrations().len() > 1
         || matches!(layer.opacity(), Some(LayerOpacity::ChromaKey { .. }))
