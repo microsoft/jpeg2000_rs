@@ -78,6 +78,10 @@ verus! {
     pub closed spec fn color_specification_method(color: &ColorSpecification) -> ColorMethod {
         color.method
     }
+
+    pub open spec fn optional_color_specification_method(color: Option<&ColorSpecification>) -> Option<ColorMethod> {
+        match color { None => None, Some(color) => Some(color_specification_method(color)) }
+    }
 }
 
 

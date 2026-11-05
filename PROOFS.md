@@ -179,6 +179,32 @@ technical candidate only: parent-owned record, review, CI, guarded integration
 and actual-main acceptance remain separate. No complete parsing, pixels,
 lifetime verification, normative conformance or publication claim follows.
 
+## Actual source-derived JPX layer color Result
+
+The executing `decode_layer` composes the actual file/index source-image Result
+with its associated/fallback header, actual optional color override and native
+color converter. Complete converted geometry, color space, precision, channel
+types, alpha associations and samples derive from real compressed sources.
+Source lookup/parser/header/backend/output errors precede color errors exactly
+as in the original function. No supplied decoded image or normalized layer is
+an input to the theorem.
+
+Checked outcome bridges expose the actual source error/success views without
+opening private representations across modules. The optional color view
+preserves the actual override or absence. The original executing statements,
+owned decoded binding, reference selections and scopes remain unchanged.
+
+Literal native cases cover independently encoded unsigned and signed sources,
+all real header/override choices, unsupported methods, source error priority
+and mapped grayscale-to-RGB output. Strict metadata binds the actual layer,
+source and converter contracts together and rejects placeholder handoffs,
+conditional bridges, wrong overrides or decoded-image banks.
+
+This is one real source-to-color normalization producer. General multi-source
+registration/component assembly/opacity/chroma, complete normalization/frame,
+raw container and remaining public composition, independent corrected rules,
+production coverage/erasure/lifetimes and release remain separate.
+
 ## Actual JPX source codestream and associated-image Results
 
 The executing `decode_jpx_file` now composes actual JPX compatibility, source

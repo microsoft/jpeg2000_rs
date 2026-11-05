@@ -4,6 +4,41 @@
   "scope": "Technical reference inventory; not exhaustive standards-clause coverage or a conformance claim.",
   "requirements": [
     {
+      "id": "part2-complete-native-jpx-source-layer-color-result",
+      "topic": "Complete actual decode_layer Result from the real JPX file/index/option limits and optional actual color override, through actual source decoding/associated header and complete color conversion. Raw source failures precede optional color/normalization failures exactly; the actual returned source image, channel definitions, geometry, raw associated/fallback color and real override feed conversion without supplied decoded/normalized banks. Every converted width/height/color-space/precision/channel type/alpha association/sample and first error is retained. Checked source outcome error/success bridges and a complete actual optional color view compose existing actual source/header/raw decoder and converter producers. Native owning bindings, order and scopes stay unchanged, with no runtime clone, reconstruction of native owners, decoder duplicate, axiom/admission/validity premise/pin/cap/trust change. Literal source tests cover signed/unsigned independently encoded1/129/200 planes, real header/override choices, supported/unsupported color methods, lookup/parser/header/backend priority and actual mapped source-to-RGB output. This supplies one real source-to-color normalization producer, not complete general multi-source registration/opacity/chroma/frame, raw container/remaining public, corrected normative, production coverage/erasure/lifetimes or release qualification.",
+      "implementation_refs": [
+        {"path": "src/jpx/layer_decode.rs", "symbol": "decode_layer"},
+        {"path": "src/decode/output.rs", "symbol": "decode_jpx_file"},
+        {"path": "src/color/conversion.rs", "symbol": "convert_jp2_color"},
+        {"path": "src/jpx/layer_decode.rs", "symbol": "decode_effective_layer"},
+        {"path": "src/jpx/layer_decode.rs", "symbol": "decode_compositing_layer"}
+      ],
+      "spec_refs": [
+        {"path": "specs/jpx_source.rs", "symbol": "part2_decode_jpx_layer"},
+        {"path": "specs/jpx_source.rs", "symbol": "part2_decode_jpx_codestream"},
+        {"path": "specs/mod.rs", "symbol": "color_convert_jp2"}
+      ],
+      "contract_refs": [
+        {"path": "src/jpx/layer_decode.rs", "symbol": "decode_layer"},
+        {"path": "src/decode/output.rs", "symbol": "decode_jpx_file"},
+        {"path": "src/color/conversion.rs", "symbol": "convert_jp2_color"}
+      ],
+      "proof_refs": [
+        {"path": "specs/jpx_source.rs", "symbol": "part2_decode_jpx_layer_unfold"},
+        {"path": "src/decode/proof_support.rs", "symbol": "associated_typed_errors_known"},
+        {"path": "src/decode/proof_support.rs", "symbol": "associated_typed_success_known"},
+        {"path": "src/jp2/proof_support.rs", "symbol": "optional_color_specification_method"},
+        {"path": "src/jp2/container.rs", "symbol": "Jp2File::header"},
+        {"path": "src/options.rs", "symbol": "DecodeOptions::limits"}
+      ],
+      "test_refs": [
+        {"path": "src/jpx/tests.rs", "symbol": "actual_jpx_layer_color_source_derives_literal_signed_and_unsigned_planes_from_bytes"},
+        {"path": "src/jpx/tests.rs", "symbol": "actual_jpx_layer_color_source_uses_real_header_and_actual_optional_override"},
+        {"path": "src/jpx/tests.rs", "symbol": "actual_jpx_layer_color_source_preserves_source_errors_before_override_and_conversion"},
+        {"path": "src/jpx/tests.rs", "symbol": "actual_jpx_layer_color_source_applies_source_channel_mapping_before_color_choice"}
+      ]
+    },
+    {
       "id": "part2-complete-native-jpx-source-image-result",
       "topic": "Complete actual executing JPX file-to-associated-image Result, including real file/profile compatibility, source lookup/index/count, complete compressed bytes/offset/header association, raw info parser, selected header validation, raw full decoder and mapped output/actual returned header. The logical file/source projection is derived from actual owners, never supplied successful parser/image banks. All first errors and option limits remain in their original order. Checked native getters, full raw-info field/error and staged unfolding bridges feed the original outer decode_jpx_file body. The preserved cfg(any()) nested item is nonexecuting historical context and is excluded from real-handoff qualification; ghost handoffs inside it are explicitly rejected. Actual source/association/output tests retain independently encoded literal samples, actual header reference identity, palette/mapping/channel definitions, inherited empty headers, all truncated raw prefixes and parser/header/backend/output resource priority. The arbitrary-native missing parsed association is tested separately and is not mislabeled parser reachable. No native body/owner/scope/runtime clone/alternate decoder/axiom/admission/solver-budget/pin/cap/trust change. This derives real JPX decoded images needed by normalization/frame joins; raw container parsing, all public paths, full normalization/frame, corrected normative correspondence, production coverage/erasure/lifetimes and release remain separate.",
       "implementation_refs": [

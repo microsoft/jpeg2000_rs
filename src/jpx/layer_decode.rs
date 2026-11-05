@@ -37,13 +37,27 @@ pub(super) fn decode_effective_layer(
     decode_compositing_layer(file, layer, layer_index, options)
 }
 
+#[cfg_attr(verus_keep_ghost, verus_spec(result =>
+    ensures crate::color::converted_image_result(result) == crate::specs::part2_decode_jpx_layer(
+        jp2::jpx_file_decode_view(file), codestream_index,
+        jp2::optional_color_specification_method(color_override), crate::options::decode_options_limits(options)),
+))]
 pub(super) fn decode_layer(
     file: &Jp2File<'_>,
     codestream_index: usize,
     color_override: Option<&jp2::ColorSpecification>,
     options: &DecodeOptions,
 ) -> Result<ConvertedImage, DecodeError> {
+    #[cfg(verus_keep_ghost)]
+    proof! {
+        crate::decode::associated_typed_errors_known();
+        crate::specs::part2_decode_jpx_layer_unfold(
+            jp2::jpx_file_decode_view(file), codestream_index,
+            jp2::optional_color_specification_method(color_override), crate::options::decode_options_limits(options));
+    }
     let (decoded, header) = crate::decode::decode_jpx_file(file, codestream_index, options)?;
+    #[cfg(verus_keep_ghost)]
+    proof! { crate::decode::associated_typed_success_known(&decoded, header); }
     let header = header.unwrap_or(file.header());
     crate::color::convert_jp2_color(
         &decoded,

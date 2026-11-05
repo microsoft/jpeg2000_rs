@@ -7,6 +7,144 @@ mod tests {
         source_over_alpha_numerator, source_over_color_numerator, source_over_rounded_ratio,
     };
 
+    fn source_layer_bytes(packet: &[u8], signed: bool) -> (Vec<u8>, usize) {
+        fn boxed(kind: [u8; 4], payload: &[u8]) -> Vec<u8> {
+            let mut bytes = u32::try_from(payload.len() + 8).unwrap().to_be_bytes().to_vec();
+            bytes.extend_from_slice(&kind);
+            bytes.extend_from_slice(payload);
+            bytes
+        }
+        let depth = if signed { 0x87 } else { 7 };
+        let mut source = vec![
+            0xff, 0x4f, 0xff, 0x51, 0, 41, 0, 0,
+            0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0,
+            0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0,
+            0, 1, depth, 1, 1,
+            0xff, 0x52, 0, 12, 0, 0, 0, 1, 0, 0, 0, 0, 0, 1,
+            0xff, 0x5c, 0, 4, 0x40, 0x40,
+            0xff, 0x90, 0, 10, 0, 0,
+        ];
+        source.extend_from_slice(&u32::try_from(packet.len() + 14).unwrap().to_be_bytes());
+        source.extend_from_slice(&[0, 1, 0xff, 0x93]);
+        source.extend_from_slice(packet);
+        source.extend_from_slice(&[0xff, 0xd9]);
+        let source_length = source.len();
+        let mut bytes = boxed(*b"jP  ", &[0x0d, 0x0a, 0x87, 0x0a]);
+        bytes.extend(boxed(*b"ftyp", b"jpxb\0\0\0\0jpxb"));
+        let mut header = boxed(*b"ihdr", &[0, 0, 0, 1, 0, 0, 0, 1, 0, 1, depth, 7, 0, 0]);
+        header.extend(boxed(*b"colr", &[1, 0, 0, 0, 0, 0, 17]));
+        bytes.extend(boxed(*b"jp2h", &header));
+        bytes.extend(boxed(*b"jp2c", &source));
+        (bytes, source_length)
+    }
+
+    #[test]
+    fn actual_jpx_layer_color_source_derives_literal_signed_and_unsigned_planes_from_bytes() {
+        let options = DecodeOptions::default();
+        for signed in [false, true] {
+            for (packet, expected) in [
+                (&[0xcf, 0xb4, 0x04, 0x09][..], 257),
+                (&[0xc0, 0x21, 0x03][..], 33_153),
+                (&[0xcf, 0xb4, 0x08, 0x04, 0x4f][..], 51_400),
+            ] {
+                let (bytes, _) = source_layer_bytes(packet, signed);
+                let file = jp2::parse(&bytes, options.limits()).unwrap();
+                let image = super::layer_decode::decode_layer(&file, 0, None, &options).unwrap();
+                assert_eq!((image.width(), image.height()), (1, 1));
+                assert_eq!(image.color_space(), ConvertedColorSpace::Grayscale);
+                assert_eq!(image.channels().len(), 1);
+                assert_eq!(image.channel(0).unwrap().channel_type(), crate::ConvertedChannelType::Gray);
+                assert_eq!(image.channel(0).unwrap().samples(), &[expected]);
+            }
+        }
+    }
+
+    #[test]
+    fn actual_jpx_layer_color_source_uses_real_header_and_actual_optional_override() {
+        let (bytes, _) = source_layer_bytes(&[0xcf, 0xb4, 0x04, 0x09], false);
+        let options = DecodeOptions::default();
+        let mut file = jp2::parse(&bytes, options.limits()).unwrap();
+        file.header.color.method = jp2::ColorMethod::AnyIcc { profile_bytes: 123 };
+        let gray = jp2::ColorSpecification::enumerated(jp2::ENUMERATED_GRAYSCALE);
+        assert_eq!(
+            super::layer_decode::decode_layer(&file, 0, None, &options),
+            Err(DecodeError::UnsupportedColorConversion { reason: crate::UnsupportedColorConversion::IccProfile }),
+        );
+        let image = super::layer_decode::decode_layer(&file, 0, Some(&gray), &options).unwrap();
+        assert_eq!(image.channel(0).unwrap().samples(), &[257]);
+        let unknown = jp2::ColorSpecification::enumerated(u32::MAX);
+        assert_eq!(
+            super::layer_decode::decode_layer(&file, 0, Some(&unknown), &options),
+            Err(DecodeError::UnsupportedColorConversion {
+                reason: crate::UnsupportedColorConversion::EnumeratedColorSpace,
+            }),
+        );
+        file.header.color = gray;
+        let mut icc = jp2::ColorSpecification::enumerated(0);
+        icc.method = jp2::ColorMethod::RestrictedIcc { profile_bytes: u64::MAX };
+        assert_eq!(
+            super::layer_decode::decode_layer(&file, 0, Some(&icc), &options),
+            Err(DecodeError::UnsupportedColorConversion { reason: crate::UnsupportedColorConversion::IccProfile }),
+        );
+    }
+
+    #[test]
+    fn actual_jpx_layer_color_source_preserves_source_errors_before_override_and_conversion() {
+        let (bytes, source_length) = source_layer_bytes(&[0xcf, 0xb4, 0x04, 0x09], false);
+        let file = jp2::parse(&bytes, &ResourceLimits::default()).unwrap();
+        let unknown = jp2::ColorSpecification::enumerated(u32::MAX);
+        let input_limited = DecodeOptions::new(ResourceLimits::HARDENED.with_maximum_input_bytes(0).unwrap());
+        assert_eq!(
+            super::layer_decode::decode_layer(&file, usize::MAX, Some(&unknown), &input_limited),
+            Err(DecodeError::CodestreamIndexOutOfRange { index: usize::MAX, codestreams: 1 }),
+        );
+        assert_eq!(
+            super::layer_decode::decode_layer(&file, 0, Some(&unknown), &input_limited),
+            Err(DecodeError::LimitExceeded { resource: Resource::InputBytes, limit: 0, actual: source_length as u64 }),
+        );
+        let packet_limited = DecodeOptions::new(ResourceLimits::HARDENED.with_maximum_packets(0).unwrap());
+        assert_eq!(
+            super::layer_decode::decode_layer(&file, 0, Some(&unknown), &packet_limited),
+            Err(DecodeError::LimitExceeded { resource: Resource::Packets, limit: 0, actual: 1 }),
+        );
+        let mut mismatch = file.clone();
+        mismatch.header.image.width = 2;
+        assert_eq!(
+            super::layer_decode::decode_layer(&mismatch, 0, Some(&unknown), &packet_limited),
+            Err(DecodeError::MalformedInput {
+                offset: mismatch.codestream(0).unwrap().box_header().offset(),
+                kind: crate::MalformedKind::ContainerCodestreamMismatch,
+            }),
+        );
+    }
+
+    #[test]
+    fn actual_jpx_layer_color_source_applies_source_channel_mapping_before_color_choice() {
+        let (bytes, _) = source_layer_bytes(&[0xcf, 0xb4, 0x04, 0x09], false);
+        let options = DecodeOptions::default();
+        let mut file = jp2::parse(&bytes, options.limits()).unwrap();
+        file.header.component_mappings = vec![
+            jp2::ComponentMapping { component: 0, mapping_type: jp2::MappingType::Direct },
+            jp2::ComponentMapping { component: 0, mapping_type: jp2::MappingType::Direct },
+            jp2::ComponentMapping { component: 0, mapping_type: jp2::MappingType::Direct },
+        ];
+        let rgb = jp2::ColorSpecification::enumerated(jp2::ENUMERATED_SRGB);
+        let image = super::layer_decode::decode_layer(&file, 0, Some(&rgb), &options).unwrap();
+        assert_eq!(image.color_space(), ConvertedColorSpace::Srgb);
+        assert_eq!(image.channels().len(), 3);
+        for channel in image.channels() {
+            assert_eq!(channel.samples(), &[257]);
+        }
+        file.header.component_mappings[0].component = 1;
+        let unknown = jp2::ColorSpecification::enumerated(u32::MAX);
+        assert_eq!(
+            super::layer_decode::decode_layer(&file, 0, Some(&unknown), &options),
+            Err(DecodeError::MalformedInput {
+                offset: 0, kind: crate::MalformedKind::InvalidImageGeometry,
+            }),
+        );
+    }
+
     fn independent_chroma_normalization(
         values: &[u8],
         channels: u8,
