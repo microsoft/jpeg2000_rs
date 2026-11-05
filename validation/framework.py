@@ -2570,7 +2570,7 @@ def validate_normative_coverage(
         if entry["id"] == "part1-complete-native-persistent-tile-state-fold":
             layout = {"path": "src/codestream/layout.rs", "symbol": "Parser::parse_layout"}
             if layout not in entry["implementation_refs"]:
-                raise ValueError("persistent fold requires actual layout implementation")
+                raise ValueError("persistent fold not used by claimed implementation: actual layout required")
             path = (ROOT / layout["path"]).resolve()
             body = _coverage_function_body(source_text(path), function_header(path, layout["symbol"]))
             if body is None:
