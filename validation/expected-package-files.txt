@@ -19,6 +19,7 @@ proofs/shared/mod.rs
 proofs/spec_properties/mod.rs
 specs/AUDIT_REFERENCE.md
 specs/README.md
+specs/codestream_profile.rs
 specs/header.rs
 specs/layout_input.rs
 specs/legacy.rs
@@ -52,6 +53,7 @@ src/codestream/persistent_tile_configuration.rs
 src/codestream/persistent_tile_configuration_proof_support.rs
 src/codestream/persistent_tile_configuration_tests.rs
 src/codestream/profile.rs
+src/codestream/profile_result_tests.rs
 src/codestream/proof_support.rs
 src/codestream/quantization.rs
 src/codestream/reader.rs

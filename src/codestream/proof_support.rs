@@ -324,6 +324,39 @@ verus! {
     pub closed spec fn codestream_profile_capabilities(value: &CodestreamProfile) -> Option<(u32, Seq<u16>)> {
         match value.extended_capabilities { None => None, Some(capabilities) => Some(extended_capabilities_view(&capabilities)) }
     }
+
+    pub(crate) closed spec fn optional_capabilities_view(value: &Option<ExtendedCapabilities>)
+        -> Option<(u32, Seq<u16>)>
+    {
+        match value { None => None, Some(caps) => Some(extended_capabilities_view(caps)) }
+    }
+
+    pub(crate) closed spec fn optional_profile_number_view(value: &Option<ProfileNumber>) -> Option<Seq<u16>> {
+        match value { None => None, Some(number) => Some(profile_number_view(number)) }
+    }
+
+    pub(crate) closed spec fn profile_tile_inputs_view(values: Seq<TilePartPayload<'_>>)
+        -> Seq<crate::specs::Part1ProfileTile>
+    {
+        values.map_values(|value: TilePartPayload<'_>| crate::specs::Part1ProfileTile {
+            styles: component_style_owner_view(&value.component_coding_styles),
+            roi: roi_shifts_view(&value.roi_shifts), has_roi: value.has_roi_marker,
+            has_functional: value.has_functional_header_marker,
+        })
+    }
+
+    pub(crate) closed spec fn complete_codestream_profile_view(value: &CodestreamProfile)
+        -> crate::specs::Part1ProfileMetadata
+    {
+        (value.r_siz, value.block_coding, optional_capabilities_view(&value.extended_capabilities),
+         optional_profile_number_view(&value.profile), optional_profile_number_view(&value.corresponding_profile))
+    }
+
+    pub(crate) closed spec fn complete_codestream_profile_outcome(value: Result<CodestreamProfile, DecodeError>)
+        -> Result<crate::specs::Part1ProfileMetadata, DecodeError>
+    {
+        match value { Err(error) => Err(error), Ok(profile) => Ok(complete_codestream_profile_view(&profile)) }
+    }
 }
 
 #[cfg(verus_keep_ghost)]

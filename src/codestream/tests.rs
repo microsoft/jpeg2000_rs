@@ -10,6 +10,8 @@ mod owned_tile_inheritance;
 
 #[path = "persistent_tile_configuration_tests.rs"]
 mod persistent_tile_configuration;
+#[path = "profile_result_tests.rs"]
+mod profile_result;
 #[path = "tile_header_traversal_tests.rs"]
 mod tile_header_traversal;
 #[path = "tile_part_tests.rs"]

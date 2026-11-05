@@ -4,6 +4,55 @@
   "scope": "Technical reference inventory; not exhaustive standards-clause coverage or a conformance claim.",
   "requirements": [
     {
+      "id": "part1-complete-native-codestream-profile-result",
+      "topic": "Whole actual classify_codestream_profile Result chain, not isolated capability getters: complete main/tile style observation with all three mutable flags and error frames, actual raw component/ROI/capability validation, both real iterator marker predicates, signaling/mode/header policy and every owned returned CAP/PRF/CPF word including unused tails and Some(empty) metadata. Raw passed component counts remain independent of owner logical counts and physical slots; no normalization or successful-input premise. Actual layout arguments and returned profile storage are source-bound. Two decoder calls use the existing proved sole free body behind the unchanged static public wrapper; no alternate executing decoder, external axiom or proof clone. Iterator reasoning uses existing pinned vstd laws, raw value/reference projection witnesses and proved lossless field-width casts. The full classifier contract is mandatory alongside all its consumed new contracts. This closes the actual profile Result boundary only, not the complete raw main-header/layout/public relation, independently reviewed normative fidelity, general cfg/erasure/lifetime/coverage, official conformance or release qualification.",
+      "implementation_refs": [
+        {"path": "src/codestream/layout.rs", "symbol": "Parser::parse_layout"},
+        {"path": "src/codestream/profile.rs", "symbol": "classify_codestream_profile"},
+        {"path": "src/codestream/profile.rs", "symbol": "validate_part15_component_capabilities"},
+        {"path": "src/codestream/profile.rs", "symbol": "observe_block_coding"},
+        {"path": "src/codestream/profile.rs", "symbol": "ExtendedCapabilities::advertises_part15"},
+        {"path": "src/codestream/profile.rs", "symbol": "ExtendedCapabilities::part15_allows_roi"},
+        {"path": "src/codestream/profile.rs", "symbol": "ExtendedCapabilities::part15_allows_heterogeneous_headers"},
+        {"path": "src/codestream/profile.rs", "symbol": "ExtendedCapabilities::part15_allows_irreversible_ht"}
+      ],
+      "spec_refs": [
+        {"path": "specs/codestream_profile.rs", "symbol": "part1_classify_codestream_profile"},
+        {"path": "specs/codestream_profile.rs", "symbol": "part1_profile_after_observation"},
+        {"path": "specs/codestream_profile.rs", "symbol": "part1_profile_output"},
+        {"path": "specs/codestream_profile.rs", "symbol": "part1_profile_observe"},
+        {"path": "specs/codestream_profile.rs", "symbol": "part1_profile_observe_components"},
+        {"path": "specs/codestream_profile.rs", "symbol": "part1_profile_observe_tiles"},
+        {"path": "specs/codestream_profile.rs", "symbol": "part1_profile_validate_components"},
+        {"path": "specs/codestream_profile.rs", "symbol": "part1_profile_validate_tiles"},
+        {"path": "specs/codestream_profile.rs", "symbol": "part1_profile_advertises_ht"},
+        {"path": "specs/codestream_profile.rs", "symbol": "part1_profile_capability_flag"}
+      ],
+      "contract_refs": [
+        {"path": "src/codestream/profile.rs", "symbol": "classify_codestream_profile"},
+        {"path": "src/codestream/profile.rs", "symbol": "validate_part15_component_capabilities"},
+        {"path": "src/codestream/profile.rs", "symbol": "observe_block_coding"},
+        {"path": "src/codestream/profile.rs", "symbol": "ExtendedCapabilities::advertises_part15"},
+        {"path": "src/codestream/profile.rs", "symbol": "ExtendedCapabilities::part15_allows_roi"},
+        {"path": "src/codestream/profile.rs", "symbol": "ExtendedCapabilities::part15_allows_heterogeneous_headers"},
+        {"path": "src/codestream/profile.rs", "symbol": "ExtendedCapabilities::part15_allows_irreversible_ht"}
+      ],
+      "proof_refs": [
+        {"path": "src/codestream/proof_support.rs", "symbol": "complete_codestream_profile_view"},
+        {"path": "src/codestream/proof_support.rs", "symbol": "complete_codestream_profile_outcome"},
+        {"path": "src/codestream/proof_support.rs", "symbol": "optional_capabilities_view"},
+        {"path": "src/codestream/proof_support.rs", "symbol": "optional_profile_number_view"},
+        {"path": "src/codestream/proof_support.rs", "symbol": "profile_tile_inputs_view"},
+        {"path": "src/tier1/coding.rs", "symbol": "tier1_block_coding_from_code_block_style"}
+      ],
+      "test_refs": [
+        {"path": "src/codestream/profile_result_tests.rs", "symbol": "actual_complete_profile_result_exhausts_capability_words_and_retains_every_owned_word"},
+        {"path": "src/codestream/profile_result_tests.rs", "symbol": "actual_complete_profile_result_preserves_raw_owner_counts_tails_and_first_style_errors"},
+        {"path": "src/codestream/profile_result_tests.rs", "symbol": "actual_complete_profile_result_composes_all_flag_combinations_and_raw_roi_policies"},
+        {"path": "src/codestream/profile_result_tests.rs", "symbol": "actual_complete_profile_result_uses_real_raw_header_and_layout_producers"}
+      ]
+    },
+    {
       "id": "part1-complete-native-tile-loop-metadata-admission",
       "topic": "Complete total Result of the actual borrowed/Copy-only TLM then PLM then PPM table selection, using the real zero-based global tile-part ordinal, raw independent table lengths, optional TLM tile IDs, declared lengths, complete raw packet-length owners and full PPM frame offsets/lengths/fragments/borrowed main-header bytes. All first errors and start-versus-reader offsets are retained; no table normalization or successful-parser premise. Actual checked-add counter positivity is proved before computing the ordinal at the real SOT caller; helper has no requires clause. Its exact two selected locals are passed to the actual reader. Default cases directly reuse the existing proved sole free constructor bodies; public const wrappers remain unchanged. No clone/allocation/new owning state, PLM framing/coexistence correction, full raw layout/public Result, normative, general cfg/erasure/lifetime/coverage or release claim.",
       "implementation_refs": [

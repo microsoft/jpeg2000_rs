@@ -1956,6 +1956,46 @@ _RAW_TILE_DECODING_CONTRACTS = {
     ),
 }
 
+_PROFILE_RESULT_CONTRACTS = {
+    ("src/codestream/profile.rs", "classify_codestream_profile"): (
+        "part1_classify_codestream_profile", _coverage_call("complete_codestream_profile_outcome", r"\1"), None,
+        r"r_siz\s*,\s*" + _coverage_call("optional_capabilities_view", r"&\s*extended_capabilities")
+        + r"\s*,\s*" + _coverage_call("optional_profile_number_view", r"&\s*profile")
+        + r"\s*,\s*" + _coverage_call("optional_profile_number_view", r"&\s*corresponding_profile")
+        + r"\s*,\s*" + _coverage_call("component_style_owner_view", "main_styles")
+        + r"\s*,\s*" + _coverage_call("roi_shifts_view", "main_roi_shifts")
+        + r"\s*,\s*" + _coverage_call("profile_tile_inputs_view", r"tile_parts\s*@")
+        + r"\s*,\s*components\s*,\s*main_has_roi_marker",
+    ),
+    ("src/codestream/profile.rs", "validate_part15_component_capabilities"): (
+        "part1_profile_validate_components", r"\1", None,
+        _coverage_call("extended_capabilities_view", "capabilities")
+        + r"\s*,\s*" + _coverage_call("component_style_owner_view", "styles")
+        + r"\s*,\s*" + _coverage_call("roi_shifts_view", "roi_shifts")
+        + r"\s*,\s*components\s*,\s*0\s*,\s*has_roi_marker",
+    ),
+    ("src/codestream/profile.rs", "observe_block_coding"): (
+        "part1_profile_observe", r"\1",
+        r"\(\s*\*\s*final\(\s*has_legacy\s*\)\s*,\s*\*\s*final\(\s*has_ht_only\s*\)\s*,\s*\*\s*final\(\s*has_mixed\s*\)\s*\)",
+        r"style\s*,\s*\(\s*\*\s*old\(\s*has_legacy\s*\)\s*,\s*\*\s*old\(\s*has_ht_only\s*\)\s*,\s*\*\s*old\(\s*has_mixed\s*\)\s*\)",
+    ),
+    ("src/codestream/profile.rs", "ExtendedCapabilities::advertises_part15"): (
+        "part1_profile_advertises_ht", r"\1", None, _coverage_call("extended_capabilities_view", "self"),
+    ),
+    ("src/codestream/profile.rs", "ExtendedCapabilities::part15_allows_roi"): (
+        "part1_profile_capability_flag", r"\1", None,
+        _coverage_call("extended_capabilities_view", "self") + r"\s*,\s*0x1000",
+    ),
+    ("src/codestream/profile.rs", "ExtendedCapabilities::part15_allows_heterogeneous_headers"): (
+        "part1_profile_capability_flag", r"\1", None,
+        _coverage_call("extended_capabilities_view", "self") + r"\s*,\s*0x0800",
+    ),
+    ("src/codestream/profile.rs", "ExtendedCapabilities::part15_allows_irreversible_ht"): (
+        "part1_profile_capability_flag", r"\1", None,
+        _coverage_call("extended_capabilities_view", "self") + r"\s*,\s*0x0020",
+    ),
+}
+
 _PROFILE_POLICY_CONTRACTS = {
     ("src/codestream/profile.rs", "ExtendedCapabilities::capability_for_part"): (
         "part2_capability_value", r"\1", None,
@@ -2560,6 +2600,21 @@ def validate_normative_coverage(
                 ("InvalidCodingStyle", "coc_segments"),
                 ("InvalidQuantization", "qcc_segments"),
             ))
+        if (callee == "classify_codestream_profile"
+                and path.relative_to(ROOT).as_posix() == "src/codestream/layout.rs"
+                and caller == "Parser::parse_layout"):
+            produced = re.search(
+                r"\blet\s+codestream_profile\s*=\s*" + _coverage_call(
+                    callee, "r_siz", "extended_capabilities", "profile", "corresponding_profile",
+                    r"&\s*component_coding_styles", r"&\s*roi_shifts", r"&\s*tile_part_payloads",
+                    r"image_size\.components",
+                    _coverage_call("roi_seen.iter") + r"\s*\.\s*" + _coverage_call("any", r"\|\s*seen\s*\|\s*\*\s*seen")
+                    + r"\s*,?",
+                ) + r"\s*\?\s*;", body,
+            ) if body is not None else None
+            return (produced is not None and re.search(
+                r"\bprofile\s*:\s*codestream_profile\s*,", body[produced.end():],
+            ) is not None)
         if (callee == "tile_part_main_metadata"
                 and path.relative_to(ROOT).as_posix() == "src/codestream/layout.rs"
                 and caller == "Parser::parse_layout"):
@@ -2621,6 +2676,44 @@ def validate_normative_coverage(
     ids: set[str] = set()
     contract_functions: set[tuple[str, str]] = set()
     for entry in coverage["requirements"]:
+        if entry["id"] == "part1-complete-native-codestream-profile-result":
+            expected = {key for key in _PROFILE_RESULT_CONTRACTS}
+            actual = {(item["path"], item["symbol"]) for item in entry["contract_refs"]}
+            if actual != expected:
+                raise ValueError("whole profile Result requires classifier, validation, flag fold and every consumed capability contract")
+            if {"path": "src/codestream/layout.rs", "symbol": "Parser::parse_layout"} not in entry["implementation_refs"]:
+                raise ValueError("whole profile Result not used by claimed implementation: actual layout required")
+            if {"path": "specs/codestream_profile.rs", "symbol": "part1_classify_codestream_profile"} not in entry["spec_refs"]:
+                raise ValueError("whole profile Result model must be bound to specs/codestream_profile.rs")
+            path = (ROOT / "src/codestream/proof_support.rs").resolve()
+            projections = {
+                "optional_capabilities_view": "match value { None => None, Some(caps) => Some(extended_capabilities_view(caps)) }",
+                "optional_profile_number_view": "match value { None => None, Some(number) => Some(profile_number_view(number)) }",
+                "complete_codestream_profile_view": """
+                    (value.r_siz, value.block_coding, optional_capabilities_view(&value.extended_capabilities),
+                     optional_profile_number_view(&value.profile), optional_profile_number_view(&value.corresponding_profile))
+                """,
+                "complete_codestream_profile_outcome": """
+                    match value { Err(error) => Err(error), Ok(profile) => Ok(complete_codestream_profile_view(&profile)) }
+                """,
+                "profile_tile_inputs_view": """
+                    values.map_values(|value: TilePartPayload<'_>| crate::specs::Part1ProfileTile {
+                        styles: component_style_owner_view(&value.component_coding_styles),
+                        roi: roi_shifts_view(&value.roi_shifts), has_roi: value.has_roi_marker,
+                        has_functional: value.has_functional_header_marker,
+                    })
+                """,
+            }
+            text = source_text(path)
+            for name, expected_body in projections.items():
+                projection_headers = list(re.finditer(
+                    r"(?m)^([ \t]*)pub\(crate\)[ \t]+closed[ \t]+spec[ \t]+fn[ \t]+"
+                    + re.escape(name) + r"\b", text,
+                ))
+                projection = (_coverage_function_body(text, projection_headers[0])
+                              if len(projection_headers) == 1 else None)
+                if projection is None or re.sub(r"\s+", "", projection) != re.sub(r"\s+", "", expected_body):
+                    raise ValueError(f"whole profile Result requires complete raw projection: {name}")
         if entry["id"] == "part1-complete-native-persistent-tile-state-fold":
             layout = {"path": "src/codestream/layout.rs", "symbol": "Parser::parse_layout"}
             if layout not in entry["implementation_refs"]:
@@ -3306,6 +3399,7 @@ def validate_normative_coverage(
                 or _LAYOUT_ACCOUNTING_CONTRACTS.get((reference["path"], reference["symbol"]))
                 or _TILE_METADATA_CONTRACTS.get((reference["path"], reference["symbol"]))
                 or _PROFILE_POLICY_CONTRACTS.get((reference["path"], reference["symbol"]))
+                or _PROFILE_RESULT_CONTRACTS.get((reference["path"], reference["symbol"]))
                 or _RAW_TILE_DECODING_CONTRACTS.get((reference["path"], reference["symbol"]))
                 or _TILE_COLLECTION_CONTRACTS.get((reference["path"], reference["symbol"]))
                 or _LAYOUT_DECODING_CONTRACTS.get((reference["path"], reference["symbol"]))

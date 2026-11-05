@@ -179,6 +179,39 @@ technical candidate only: parent-owned record, review, CI, guarded integration
 and actual-main acceptance remain separate. No complete parsing, pixels,
 lifetime verification, normative conformance or publication claim follows.
 
+## Complete actual codestream profile Result
+
+The actual `classify_codestream_profile` function carries a complete Result
+contract, not just contracts for its capability getters. It composes main and
+tile component observation, all three mutable block-coding flags, signaling,
+CAP field/mode/marker policy and real main/tile component validation. The
+returned view preserves every `r_siz`/coding-class field and all owned
+CAP/PRF/CPF words, including unused physical tails and Some(empty) metadata.
+
+The loops retain the raw passed component count independently of each style
+owner's logical count and physical slots. Style lookup, ROI lookup, block
+decoding, policy errors and the zero-component post-check keep their native
+order. Complete flag frames and whole Result continuations are linked through
+the actual nested loops. No normalized owner, successful-stage result bank,
+runtime proof clone or new project axiom is introduced.
+
+The two block-style decoder calls use the existing proved sole free body
+behind the unchanged static public wrapper. Existing pinned vstd iterator
+laws justify the original `any` calls, with explicit reference/value and
+existential witnesses. Bit-vector proofs show that the native field casts
+lose no value. Original owning input locals and their scopes are retained;
+ordinary native qualification checks the compiled behavior and cleanup.
+
+The inventory requires the full classifier contract and all consumed new
+contracts together, complete raw views, real layout arguments and storage of
+the returned profile. It cannot be satisfied by a getter-only subset.
+
+This closes the actual profile-classification Result boundary only. Raw
+main-header traversal and the complete raw-input layout/public Result remain
+separate. As-implemented policy refinement is not independently reviewed
+selected-edition correspondence, general cfg/erasure/lifetime/coverage,
+official conformance or release qualification.
+
 ## Actual tile-loop metadata admission and termination
 
 The actual SOT branch delegates TLM, PLM and PPM admission to a shared borrowed,
