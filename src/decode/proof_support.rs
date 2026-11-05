@@ -1,4 +1,25 @@
 verus! {
+    pub(crate) proof fn decoder_execution_inputs_known(layout: &CodestreamLayout<'_>)
+        ensures crate::specs::part2_decoder_execution_admission(codestream::decoder_layout_input_view(layout))
+            == crate::specs::part2_validate_execution_layout(
+                layout.info.image_size.components,
+                execution_header_view(layout.info.component_coding_styles, &layout.info.part2_extensions),
+                execution_tile_headers(layout.tile_parts@)),
+    {
+        codestream::decoder_layout_input_fields(layout);
+        reveal(execution_header_view);
+        reveal(execution_tile_headers);
+        let input = codestream::decoder_layout_input_view(layout);
+        assert(input.main_execution == execution_header_view(layout.info.component_coding_styles, &layout.info.part2_extensions));
+        assert forall|index: int| 0 <= index < layout.tile_parts.len()
+            implies #[trigger] crate::specs::part2_decoder_execution_tiles(input.parts)[index]
+                == execution_tile_headers(layout.tile_parts@)[index] by {
+            codestream::decoder_execution_header_fields(
+                layout.tile_parts@[index].component_coding_styles, &layout.tile_parts@[index].part2_extensions);
+        }
+        assert(crate::specs::part2_decoder_execution_tiles(input.parts) =~= execution_tile_headers(layout.tile_parts@));
+    }
+
     pub closed spec fn prepare_plan_view(plan: &PlannedTileComponent) -> crate::specs::Part1PreparePlan {
         crate::specs::Part1PreparePlan {
             component: plan.component, x: plan.x, y: plan.y, width: plan.width, height: plan.height,

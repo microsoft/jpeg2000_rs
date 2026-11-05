@@ -1807,6 +1807,23 @@ _TYPED_LAYOUT_CONTRACTS = {
     ),
 }
 
+_RAW_TYPED_ENTRY = "part2-complete-native-raw-codestream-typed-result"
+_RAW_TYPED_CONTRACTS = {
+    ("src/decode/api.rs", "decode_codestream"): (
+        "part2_decode_raw_codestream", _coverage_call("crate::image::decoded_typed_image_outcome", r"\1"), None,
+        r"input@\s*,\s*" + _coverage_call("crate::options::decode_options_limits", "options") + r"\s*,\s*None",
+    ),
+    ("src/decode/api.rs", "decode_codestream_selected"): (
+        "part2_decode_raw_codestream", _coverage_call("crate::image::decoded_typed_image_outcome", r"\1"), None,
+        r"input@\s*,\s*" + _coverage_call("crate::options::decode_options_limits", "options")
+        + r"\s*,\s*" + _coverage_call("Some", "selection"),
+    ),
+    **_TYPED_LAYOUT_CONTRACTS,
+    ("src/codestream/layout.rs", "parse_layout"): (
+        "part1_parse_layout", _coverage_call("complete_layout_outcome", r"\1"), None, r"input@\s*,\s*limits",
+    ),
+}
+
 _NONLINEAR_APPLICATION_CONTRACTS = {
     ("src/image/nonlinear.rs", "TypedImage::apply_nonlinear_regions"): (
         "part2_apply_nonlinear_regions", r"\1",
@@ -2725,6 +2742,114 @@ def validate_normative_coverage(
     ids: set[str] = set()
     contract_functions: set[tuple[str, str]] = set()
     for entry in coverage["requirements"]:
+        if entry["id"] == _RAW_TYPED_ENTRY:
+            actual = {(ref["path"], ref["symbol"]) for ref in entry["contract_refs"]}
+            if actual != set(_RAW_TYPED_CONTRACTS):
+                raise ValueError("whole raw typed Result requires both raw APIs, actual raw parser and complete decoder/type producers")
+            model_refs = {
+                ("specs/raw_decode.rs", "part2_decode_raw_codestream"),
+                ("specs/decoder_input.rs", "part2_decoder_input_from_raw"),
+                ("specs/decoder_input.rs", "part2_decoder_tile_from_raw"),
+                ("specs/decoder_input.rs", "part2_decode_typed_layout_input"),
+                ("specs/decoder_input.rs", "part2_decode_layout_input"),
+                ("specs/decoder_input.rs", "part2_decode_layout_selected_input"),
+                ("specs/decoder_input.rs", "part2_typed_layout_input"),
+                ("specs/decoder_input.rs", "part2_collect_nonlinear_regions_input"),
+            }
+            if not model_refs.issubset({(ref["path"], ref["symbol"]) for ref in entry["spec_refs"]}):
+                raise ValueError("whole raw typed Result model must bind the actual complete source/decoder/nonlinear chain")
+            path = (ROOT / "src/decode/api.rs").resolve()
+            text = source_text(path)
+            for name, requested in (("decode_codestream", "None"),
+                                    ("decode_codestream_selected", _coverage_call("Some", "selection"))):
+                body = _coverage_function_body(text, function_header(path, name))
+                prefix = (
+                    r"\s*#\[\s*cfg\s*\(\s*verus_keep_ghost\s*\)\s*\]\s*proof!\s*\{\s*"
+                    + _coverage_call("codestream::decoder_layout_errors_known") + r"\s*;\s*"
+                    + _coverage_call("crate::specs::part2_decode_raw_codestream_unfold",
+                                     "input@", _coverage_call("crate::options::decode_options_limits", "options"), requested)
+                    + r"\s*;\s*" + _coverage_call("reveal", "crate::specs::part2_decode_typed_layout") + r"\s*;\s*\}\s*"
+                )
+                parsed = r"let\s+layout\s*=\s*" + _coverage_call(
+                    "codestream::parse_layout", "input", _coverage_call("options.limits"),
+                ) + r"\s*\?\s*;\s*"
+                bridge = (
+                    r"#\[\s*cfg\s*\(\s*verus_keep_ghost\s*\)\s*\]\s*proof!\s*\{\s*"
+                    + _coverage_call("codestream::decoder_layout_input_matches_raw", r"&\s*layout") + r"\s*;\s*\}\s*"
+                )
+                decoded = _coverage_call("decode_typed_layout", _coverage_call("input.len"), r"&\s*layout",
+                                         _coverage_call("options.limits"), requested) + r"\s*"
+                if body is None or re.fullmatch(prefix + parsed + bridge + decoded, body) is None:
+                    raise ValueError("whole raw typed Result not used by claimed implementation: actual raw parser/projection/decoder handoff")
+            options_path = (ROOT / "src/options.rs").resolve()
+            options_text = source_text(options_path)
+            getter = function_header(options_path, "DecodeOptions::limits")
+            if getter is None:
+                raise ValueError("whole raw typed Result requires actual options-limit reference contract")
+            start = options_text.find("fn", getter.start(), getter.end())
+            attrs = options_text[options_text.rfind("#[cfg_attr", 0, start):start]
+            if re.search(
+                r"verus_spec\s*\(\s*(\w+)\s*=>\s*ensures\s+\1\s*==\s*"
+                + _coverage_call("decode_options_limits", "self"), attrs,
+            ) is None:
+                raise ValueError("whole raw typed Result requires actual options-limit reference contract")
+            projections = {
+                ("src/codestream/decoder_input_proof_support.rs", "decoder_layout_input_view"): """
+                    crate::specs::Part2DecoderLayoutInput {
+                        size: layout.info.image_size,
+                        main_execution: (
+                            layout.info.component_coding_styles,
+                            part2_execution_registry(&layout.info.part2_extensions),
+                            part2_kernel_registry(&layout.info.part2_extensions),
+                            part2_component_depths(&layout.info.part2_extensions),
+                        ),
+                        main_extensions: owned_extensions_view(&layout.info.part2_extensions),
+                        parts: tile_parts_owned_view(layout.tile_parts@),
+                        capabilities: codestream_profile_capabilities(&layout.info.profile),
+                    }
+                """,
+                ("specs/decoder_input.rs", "part2_decoder_input_from_raw"): """
+                    Part2DecoderLayoutInput {
+                        size: crate::codestream::decoder_native_size(raw.0.image_size),
+                        main_execution: part2_decoder_execution_header(
+                            crate::codestream::tile_part_native_styles(raw.0.styles), raw.0.extensions),
+                        main_extensions: raw.0.extensions,
+                        parts: raw.4.map_values(|value: Part1TilePartPayload| part2_decoder_tile_from_raw(value)),
+                        capabilities: raw.1.2,
+                    }
+                """,
+                ("specs/raw_decode.rs", "part2_decode_raw_codestream"): """
+                    match part1_parse_layout(input, limits) {
+                        Err(error) => Err(error),
+                        Ok(layout) => part2_decode_typed_layout_input(
+                            input.len() as usize, part2_decoder_input_from_raw(layout), limits, requested),
+                    }
+                """,
+            }
+            for (name, symbol), expected in projections.items():
+                source = source_text((ROOT / name).resolve())
+                headers_for_projection = list(re.finditer(
+                    r"(?m)^([ \t]*)pub(?:\(crate\))?[ \t]+(?:open|closed)[ \t]+spec[ \t]+fn[ \t]+"
+                    + re.escape(symbol) + r"\b", source,
+                ))
+                projected = (_coverage_function_body(source, headers_for_projection[0])
+                             if len(headers_for_projection) == 1 else None)
+                if projected is None or re.sub(r"\s+", "", projected) != re.sub(r"\s+", "", expected):
+                    raise ValueError(f"whole raw typed Result requires complete raw/physical projection, not a layout/image bank: {symbol}")
+            required_proofs = {
+                ("src/codestream/decoder_input_proof_support.rs", name) for name in (
+                    "decoder_native_size_inverse", "decoder_native_style_inverse", "decoder_native_quantization_inverse",
+                    "decoder_native_roi_inverse", "decoder_native_component_styles_inverse",
+                    "decoder_execution_header_fields", "decoder_tile_input_matches_raw", "decoder_layout_input_matches_raw",
+                    "decoder_layout_errors_known",
+                )
+            } | {
+                ("specs/raw_decode.rs", "part2_decode_raw_codestream_unfold"),
+                ("src/decode/proof_support.rs", "decoder_execution_inputs_known"),
+                ("src/options.rs", "DecodeOptions::limits"),
+            }
+            if not required_proofs.issubset({(ref["path"], ref["symbol"]) for ref in entry["proof_refs"]}):
+                raise ValueError("whole raw typed Result requires checked complete Copy inverses/projection/error/unfolding bridges")
         if entry["id"] == _RAW_LAYOUT_ENTRY:
             expected = set(_RAW_LAYOUT_CONTRACTS)
             actual = {(ref["path"], ref["symbol"]) for ref in entry["contract_refs"]}
@@ -3719,6 +3844,8 @@ def validate_normative_coverage(
                 or _NONLINEAR_SCALAR_CONTRACTS.get((reference["path"], reference["symbol"]))
                 or _NONLINEAR_APPLICATION_CONTRACTS.get((reference["path"], reference["symbol"]))
                 or _TYPED_LAYOUT_CONTRACTS.get((reference["path"], reference["symbol"]))
+                or (_RAW_TYPED_CONTRACTS.get((reference["path"], reference["symbol"]))
+                    if entry["id"] == _RAW_TYPED_ENTRY else None)
                 or _CODESTREAM_READER_CONTRACTS.get((reference["path"], reference["symbol"]))
                 or _SOT_READER_CONTRACTS.get((reference["path"], reference["symbol"]))
                 or _TILE_DATA_WINDOW_CONTRACTS.get((reference["path"], reference["symbol"]))

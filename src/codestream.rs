@@ -580,6 +580,8 @@ include!("codestream/tile_header_traversal_proof_support.rs");
 include!("codestream/tile_part_proof_support.rs");
 #[cfg(verus_keep_ghost)]
 include!("codestream/persistent_tile_configuration_proof_support.rs");
+#[cfg(verus_keep_ghost)]
+include!("codestream/decoder_input_proof_support.rs");
 
 #[cfg_attr(verus_keep_ghost, verifier::verify)]
 mod coding_markers;

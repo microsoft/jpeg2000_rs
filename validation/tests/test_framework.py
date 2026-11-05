@@ -1030,6 +1030,142 @@ class FrameworkTests(WorkingFiles):
             framework._RAW_TILE_HEADER_CONTRACTS, 8,
         )
 
+    def test_inventory_binds_actual_compressed_byte_full_selected_typed_results(self):
+        self._assert_complete_packet_contract_bindings(
+            {framework._RAW_TYPED_ENTRY}, framework._RAW_TYPED_CONTRACTS, 5, isolate=False,
+        )
+
+    def test_inventory_raw_typed_requires_both_raw_apis_and_all_actual_producers_bridges(self):
+        coverage = json.loads((framework.VALIDATION / "normative-coverage.json").read_text())
+        entry = copy.deepcopy(next(item for item in coverage["requirements"]
+                                   if item["id"] == framework._RAW_TYPED_ENTRY))
+        for field in ("contract_refs", "proof_refs"):
+            for removed in entry[field]:
+                changed = copy.deepcopy(entry)
+                changed[field].remove(removed)
+                with self.subTest(field=field, removed=removed), self.assertRaisesRegex(ValueError, "whole raw typed Result"):
+                    framework.validate_normative_coverage(dict(coverage, requirements=[changed]))
+        for symbol in ("part2_decode_raw_codestream", "part2_decode_typed_layout_input", "part2_collect_nonlinear_regions_input"):
+            changed = copy.deepcopy(entry)
+            changed["spec_refs"] = [ref for ref in changed["spec_refs"] if ref["symbol"] != symbol]
+            with self.subTest(symbol=symbol), self.assertRaisesRegex(ValueError, "model must bind"):
+                framework.validate_normative_coverage(dict(coverage, requirements=[changed]))
+
+    def test_inventory_raw_typed_requires_actual_input_limits_selection_and_unconditional_handoff(self):
+        coverage = json.loads((framework.VALIDATION / "normative-coverage.json").read_text())
+        entry = next(item for item in coverage["requirements"] if item["id"] == framework._RAW_TYPED_ENTRY)
+        data = dict(coverage, requirements=[entry])
+        source = framework.ROOT / "src/decode/api.rs"
+        original = source.read_text()
+        read_text = Path.read_text
+        begin = original.index("pub fn decode_codestream(")
+        end = original.index("pub(super) fn decode_typed_layout", begin)
+        block = original[begin:end]
+        for before, after in (
+            ("codestream::parse_layout(input, options.limits())", "codestream::parse_layout(&unrelated, options.limits())"),
+            ("decode_typed_layout(input.len(), &layout, options.limits(), None)", "decode_typed_layout(0, &layout, options.limits(), None)"),
+            ("decode_typed_layout(input.len(), &layout, options.limits(), Some(selection))",
+             "decode_typed_layout(input.len(), &layout, options.limits(), None)"),
+            ("codestream::decoder_layout_input_matches_raw(&layout);",
+             "if false { codestream::decoder_layout_input_matches_raw(&layout); }"),
+            ("codestream::decoder_layout_errors_known();", "unrelated();"),
+        ):
+            self.assertIn(before, block)
+            changed = original[:begin] + block.replace(before, after, 1) + original[end:]
+
+            def altered(path, *args, **kwargs):
+                return changed if path == source else read_text(path, *args, **kwargs)
+
+            with self.subTest(before=before), mock.patch.object(Path, "read_text", altered), \
+                    self.assertRaisesRegex(ValueError, "actual raw parser/projection/decoder handoff"):
+                framework.validate_normative_coverage(data)
+
+    def test_inventory_raw_typed_rejects_physical_projection_trimming_and_layout_image_banks(self):
+        coverage = json.loads((framework.VALIDATION / "normative-coverage.json").read_text())
+        entry = next(item for item in coverage["requirements"] if item["id"] == framework._RAW_TYPED_ENTRY)
+        data = dict(coverage, requirements=[entry])
+        read_text = Path.read_text
+        for name, changes in (
+            ("src/codestream/decoder_input_proof_support.rs", (
+                ("size: layout.info.image_size", "size: unrelated"),
+                ("layout.info.component_coding_styles,", "unrelated,"),
+                ("part2_execution_registry(&layout.info.part2_extensions)", "unrelated"),
+                ("part2_kernel_registry(&layout.info.part2_extensions)", "unrelated"),
+                ("part2_component_depths(&layout.info.part2_extensions)", "unrelated"),
+                ("parts: tile_parts_owned_view(layout.tile_parts@)", "parts: tile_parts_owned_view(layout.tile_parts@.drop_last())"),
+                ("capabilities: codestream_profile_capabilities(&layout.info.profile)", "capabilities: None"),
+            )),
+            ("specs/decoder_input.rs", (
+                ("decoder_native_size(raw.0.image_size)", "decoder_native_size(unrelated)"),
+                ("tile_part_native_styles(raw.0.styles)", "tile_part_native_styles(unrelated)"),
+                ("parts: raw.4.map_values", "parts: raw.4.drop_last().map_values"),
+                ("capabilities: raw.1.2", "capabilities: None"),
+            )),
+            ("specs/raw_decode.rs", (
+                ("match part1_parse_layout(input, limits)", "match supplied_successful_layout(input)"),
+                ("part2_decoder_input_from_raw(layout)", "supplied_decoded_image_bank(layout)"),
+                ("input.len() as usize", "0"),
+                ("limits, requested)", "limits, None)"),
+            )),
+        ):
+            source = framework.ROOT / name
+            original = source.read_text()
+            for before, after in changes:
+                self.assertIn(before, original)
+                changed = original.replace(before, after, 1)
+
+                def altered(path, *args, **kwargs):
+                    return changed if path == source else read_text(path, *args, **kwargs)
+
+                with self.subTest(name=name, before=before), mock.patch.object(Path, "read_text", altered), \
+                        self.assertRaisesRegex(ValueError, "complete raw/physical projection, not a layout/image bank"):
+                    framework.validate_normative_coverage(data)
+
+    def test_inventory_raw_typed_requires_the_actual_options_limit_reference_contract(self):
+        coverage = json.loads((framework.VALIDATION / "normative-coverage.json").read_text())
+        entry = next(item for item in coverage["requirements"] if item["id"] == framework._RAW_TYPED_ENTRY)
+        data = dict(coverage, requirements=[entry])
+        source = framework.ROOT / "src/options.rs"
+        original = source.read_text()
+        read_text = Path.read_text
+        for before, after in (
+            ("result == decode_options_limits(self)", "result == decode_options_limits(unrelated)"),
+            ("result == decode_options_limits(self)", "result == unrelated"),
+            ("verus_spec(result =>", "verus_spec(unrelated =>"),
+        ):
+            self.assertIn(before, original)
+            changed = original.replace(before, after, 1)
+
+            def altered(path, *args, **kwargs):
+                return changed if path == source else read_text(path, *args, **kwargs)
+
+            with self.subTest(before=before), mock.patch.object(Path, "read_text", altered), \
+                    self.assertRaisesRegex(ValueError, "actual options-limit reference contract"):
+                framework.validate_normative_coverage(data)
+
+    def test_inventory_raw_typed_reuses_call_local_source_cache_without_new_decoder_relays(self):
+        coverage = json.loads((framework.VALIDATION / "normative-coverage.json").read_text())
+        entry = next(item for item in coverage["requirements"] if item["id"] == framework._RAW_TYPED_ENTRY)
+        data = dict(coverage, requirements=[entry])
+        names = (
+            "src/decode/api.rs", "src/codestream/layout.rs", "src/codestream/decoder_input_proof_support.rs",
+            "specs/raw_decode.rs", "specs/decoder_input.rs", "src/options.rs",
+        )
+        counts = {framework.ROOT / name: 0 for name in names}
+        read_text = Path.read_text
+
+        def counted(path, *args, **kwargs):
+            if path in counts:
+                counts[path] += 1
+            return read_text(path, *args, **kwargs)
+
+        with mock.patch.object(Path, "read_text", counted):
+            for expected in (1, 2):
+                self.assertEqual(framework.validate_normative_coverage(data)["status"], "passed")
+                self.assertEqual(set(counts.values()), {expected})
+        self.assertNotIn(("src/decode/api.rs", "decode_codestream"), framework._COMPONENT_PRODUCER_RELAYS)
+        self.assertNotIn(("src/decode/api.rs", "decode_codestream_selected"), framework._COMPONENT_PRODUCER_RELAYS)
+
     def test_inventory_binds_complete_raw_layout_and_info_results_from_actual_bytes(self):
         self._assert_complete_packet_contract_bindings(
             {framework._RAW_LAYOUT_ENTRY}, framework._RAW_LAYOUT_CONTRACTS, 3, isolate=False,

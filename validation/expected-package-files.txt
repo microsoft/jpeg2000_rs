@@ -20,6 +20,7 @@ proofs/spec_properties/mod.rs
 specs/AUDIT_REFERENCE.md
 specs/README.md
 specs/codestream_profile.rs
+specs/decoder_input.rs
 specs/header.rs
 specs/layout_input.rs
 specs/legacy.rs
@@ -33,12 +34,14 @@ specs/packet_orchestration.rs
 specs/packet_progression.rs
 specs/packet_tile.rs
 specs/persistent_tile_configuration.rs
+specs/raw_decode.rs
 specs/raw_layout.rs
 specs/tag_tree.rs
 specs/tile_header_traversal.rs
 specs/tile_part.rs
 src/codestream/coding_markers.rs
 src/codestream/coding_style.rs
+src/codestream/decoder_input_proof_support.rs
 src/codestream/decomposition.rs
 src/codestream/extensions.rs
 src/codestream/geometry.rs
@@ -86,6 +89,7 @@ src/decode/geometry.rs
 src/decode/output.rs
 src/decode/planning.rs
 src/decode/proof_support.rs
+src/decode/raw_typed_result_tests.rs
 src/decode/reconstruction.rs
 src/decode/selection.rs
 src/decode/tests.rs

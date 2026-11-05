@@ -11,17 +11,42 @@ use super::{ImageSize, nonlinear_regions_outcome, nonlinear_regions_view};
 #[cfg(verus_keep_ghost)]
 use vstd::prelude::*;
 
+#[cfg_attr(verus_keep_ghost, verus_spec(result =>
+    ensures crate::image::decoded_typed_image_outcome(result) == crate::specs::part2_decode_raw_codestream(
+        input@, crate::options::decode_options_limits(options), None),
+))]
 pub fn decode_codestream(input: &[u8], options: &DecodeOptions) -> Result<TypedImage, DecodeError> {
+    #[cfg(verus_keep_ghost)]
+    proof! {
+        codestream::decoder_layout_errors_known();
+        crate::specs::part2_decode_raw_codestream_unfold(input@, crate::options::decode_options_limits(options), None);
+        reveal(crate::specs::part2_decode_typed_layout);
+    }
     let layout = codestream::parse_layout(input, options.limits())?;
+    #[cfg(verus_keep_ghost)]
+    proof! { codestream::decoder_layout_input_matches_raw(&layout); }
     decode_typed_layout(input.len(), &layout, options.limits(), None)
 }
 
+#[cfg_attr(verus_keep_ghost, verus_spec(result =>
+    ensures crate::image::decoded_typed_image_outcome(result) == crate::specs::part2_decode_raw_codestream(
+        input@, crate::options::decode_options_limits(options), Some(selection)),
+))]
 pub fn decode_codestream_selected(
     input: &[u8],
     options: &DecodeOptions,
     selection: &DecodeSelection,
 ) -> Result<TypedImage, DecodeError> {
+    #[cfg(verus_keep_ghost)]
+    proof! {
+        codestream::decoder_layout_errors_known();
+        crate::specs::part2_decode_raw_codestream_unfold(
+            input@, crate::options::decode_options_limits(options), Some(selection));
+        reveal(crate::specs::part2_decode_typed_layout);
+    }
     let layout = codestream::parse_layout(input, options.limits())?;
+    #[cfg(verus_keep_ghost)]
+    proof! { codestream::decoder_layout_input_matches_raw(&layout); }
     decode_typed_layout(input.len(), &layout, options.limits(), Some(selection))
 }
 
@@ -37,7 +62,11 @@ pub(super) fn decode_typed_layout(
     requested: Option<&DecodeSelection>,
 ) -> Result<TypedImage, DecodeError> {
     #[cfg(verus_keep_ghost)]
-    proof! { reveal(crate::specs::part2_decode_typed_layout); }
+    proof! {
+        reveal(crate::specs::part2_decode_typed_layout);
+        reveal(crate::specs::part2_typed_layout);
+        codestream::decoder_layout_input_fields(layout);
+    }
     let decoded = match requested {
         None => decode_layout(layout, limits)?,
         Some(requested) => decode_layout_selected(layout, requested, limits)?,
@@ -132,7 +161,10 @@ pub(super) fn typed_layout(
     limits: &ResourceLimits,
 ) -> Result<TypedImage, DecodeError> {
     #[cfg(verus_keep_ghost)]
-    proof! { reveal(crate::specs::part2_typed_layout); }
+    proof! {
+        reveal(crate::specs::part2_typed_layout);
+        codestream::decoder_layout_input_fields(layout);
+    }
     let mut image = decoded.typed(limits)?;
     let regions = collect_nonlinear_regions(layout, &image)?;
     if !regions.is_empty() {
@@ -190,7 +222,10 @@ pub(super) fn collect_nonlinear_regions<'a>(
         let ghost goal = crate::specs::part2_collect_nonlinear_regions(layout, image_view);
     }
     #[cfg(verus_keep_ghost)]
-    proof! { assert(nonlinear_regions_view(regions@) =~= Seq::empty()); }
+    proof! {
+        codestream::decoder_layout_input_fields(layout);
+        assert(nonlinear_regions_view(regions@) =~= Seq::empty());
+    }
     #[cfg_attr(
         verus_keep_ghost,
         verus_spec(
@@ -203,7 +238,10 @@ pub(super) fn collect_nonlinear_regions<'a>(
     )]
     while component < layout.info.image_size.components {
         #[cfg(verus_keep_ghost)]
-        proof! { reveal_with_fuel(crate::specs::part2_nonlinear_component_regions, 1); }
+        proof! {
+            codestream::decoder_layout_input_fields(layout);
+            reveal_with_fuel(crate::specs::part2_nonlinear_component_regions, 1);
+        }
         let (extent, tile_count) =
             nonlinear_component_extent(&layout.info.image_size, image, component)?;
         let (output_x0, output_y0, output_x1, output_y1) = extent;
@@ -232,7 +270,10 @@ pub(super) fn collect_nonlinear_regions<'a>(
         )]
         while tile < tile_count {
             #[cfg(verus_keep_ghost)]
-            proof! { reveal_with_fuel(crate::specs::part2_nonlinear_tile_regions, 1); }
+            proof! {
+                codestream::decoder_layout_input_fields(layout);
+                reveal_with_fuel(crate::specs::part2_nonlinear_tile_regions, 1);
+            }
             let tile_index = match u16::try_from(tile) {
                 Ok(index) => index,
                 Err(_) => return Err(arithmetic_overflow()),
@@ -293,11 +334,17 @@ pub(super) fn collect_nonlinear_regions<'a>(
             tile = tile.checked_add(1).ok_or_else(arithmetic_overflow)?;
         }
         #[cfg(verus_keep_ghost)]
-        proof! { reveal_with_fuel(crate::specs::part2_nonlinear_tile_regions, 1); }
+        proof! {
+            codestream::decoder_layout_input_fields(layout);
+            reveal_with_fuel(crate::specs::part2_nonlinear_tile_regions, 1);
+        }
         component = component.checked_add(1).ok_or_else(arithmetic_overflow)?;
     }
     #[cfg(verus_keep_ghost)]
-    proof! { reveal_with_fuel(crate::specs::part2_nonlinear_component_regions, 1); }
+    proof! {
+        codestream::decoder_layout_input_fields(layout);
+        reveal_with_fuel(crate::specs::part2_nonlinear_component_regions, 1);
+    }
     Ok(regions)
 }
 

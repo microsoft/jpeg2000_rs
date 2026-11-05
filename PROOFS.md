@@ -179,6 +179,49 @@ technical candidate only: parent-owned record, review, CI, guarded integration
 and actual-main acceptance remain separate. No complete parsing, pixels,
 lifetime verification, normative conformance or publication claim follows.
 
+## Actual compressed-codestream full and selected typed-image Results
+
+The actual full and selected codestream entry points now compose the raw
+layout Result with the real pixel reconstruction, typed conversion, nonlinear
+regions and output-shape producers. Their complete typed-image Result
+equalities start with compressed bytes and the actual options/selection,
+without requiring a supplied successful layout, decoded image or layer bank.
+Parser errors precede decoder admission, selection and pixel-stage errors
+exactly as in the original executing functions.
+
+The parsed-layout decoder models now share a complete logical decoder-input
+representation with the raw parser's output. This representation preserves the
+full Copy image geometry/component slots, execution styles/registries/depths,
+every owned tile payload/quantization/ROI/progression/MCT/extension/header/data
+projection and raw capability words that the decoder reads. Existing native
+layout model entry points remain available and delegate to that same
+nonduplicated model; nonlinear-region and full/selected reconstruction logic
+is moved, not shadowed by another executing decoder.
+
+Checked projection-adequacy proofs connect every actual parsed layout to the
+raw-result-derived decoder inputs. Ghost inverses recover only fully projected
+Copy types (image size, styles, quantization and ROI), including invalid raw
+logical counts and every physical tail. Their inverse identities are proved
+for every native value; no owning native layout/image is chosen or assumed,
+and no runtime clone, adapter or owner/scope movement is introduced.
+
+The actual options-limit reference getter has a checked read-only contract.
+Public closed raw-decode models use an internally verified unfolding lemma,
+and a checked parser-error lemma exposes exact error propagation without
+opening private parser representations across modules. The executing entry
+points and all original owned bindings remain unchanged.
+
+Independent raw-source tests cover literal full/reduced signed/unsigned planes,
+parser-versus-selection-versus-backend budget errors, every truncated prefix,
+real packed headers and ordered MCT, binary-complement nonlinear reconstruction,
+independently encoded nonzero samples and selected geometry. Exact-source
+inventory, semantic controls and full qualification remain distinct gates.
+
+These are as-implemented raw codestream full/selected producer contracts.
+Container/layer/frame/progressive/JPIP composition, actual normalization/frame
+joins, independent corrected-rule correspondence, genuine production coverage/
+erasure/lifetimes, official conformance and release qualification are separate.
+
 ## Complete actual raw-input layout and info Results
 
 The actual consuming `Parser::parse_layout` now has a complete Result equality,
