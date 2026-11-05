@@ -1030,6 +1030,119 @@ class FrameworkTests(WorkingFiles):
             framework._RAW_TILE_HEADER_CONTRACTS, 8,
         )
 
+    def test_inventory_binds_actual_source_opacity_complete_result_and_owned_error_frames(self):
+        self._assert_complete_packet_contract_bindings(
+            {framework._SOURCE_OPACITY_ENTRY}, framework._SOURCE_OPACITY_CONTRACTS, 8, isolate=False,
+        )
+
+    def test_inventory_source_opacity_requires_every_real_producer_model_and_checked_metadata_bridge(self):
+        coverage = json.loads((framework.VALIDATION / "normative-coverage.json").read_text())
+        entry = next(item for item in coverage["requirements"] if item["id"] == framework._SOURCE_OPACITY_ENTRY)
+        for field in ("contract_refs", "spec_refs", "proof_refs"):
+            for removed in entry[field]:
+                changed = copy.deepcopy(entry)
+                changed[field].remove(removed)
+                with self.subTest(field=field, removed=removed), self.assertRaisesRegex(ValueError, "whole source opacity Result"):
+                    framework.validate_normative_coverage(dict(coverage, requirements=[changed]))
+
+    def test_inventory_source_opacity_rejects_wrong_source_registration_header_policy_and_conditional_handoffs(self):
+        coverage = json.loads((framework.VALIDATION / "normative-coverage.json").read_text())
+        entry = next(item for item in coverage["requirements"] if item["id"] == framework._SOURCE_OPACITY_ENTRY)
+        source = framework.ROOT / "src/jpx/opacity.rs"
+        original = source.read_text()
+        read_text = Path.read_text
+        begin = original.index("pub(super) fn apply_layer_opacity")
+        for before, after in (
+            ("jp2::source_opacity_known(opacity);", "if false { jp2::source_opacity_known(opacity); }"),
+            ("matches!(opacity, LayerOpacity::Premultiplied)", "false"),
+            ("usize::from(registration.codestream_index)", "0"),
+            ("let alpha_source = owned_layer_from_image(&image)?;", "let alpha_source = supplied_successful_alpha?;"),
+            ("layer.horizontal_grid_size()", "0"),
+            ("copy_registered_layer_opacity(owned, &alpha_registered, premultiplied)",
+             "copy_registered_layer_opacity(owned, &alpha_source, premultiplied)"),
+            ("file\n                .codestream(color_codestream)", "file\n                .codestream(0)"),
+            ("association.parsed_header()", "None"),
+            ("apply_chroma_key_with_policy(owned, &keys, true)", "apply_chroma_key_with_policy(owned, &keys, false)"),
+        ):
+            self.assertIn(before, original[begin:])
+            changed = original[:begin] + original[begin:].replace(before, after, 1)
+
+            def altered(path, *args, **kwargs):
+                return changed if path == source else read_text(path, *args, **kwargs)
+
+            with self.subTest(before=before), mock.patch.object(Path, "read_text", altered), \
+                    self.assertRaisesRegex(ValueError, "actual source/registration/chroma mutation handoffs"):
+                framework.validate_normative_coverage(dict(coverage, requirements=[entry]))
+
+    def test_inventory_source_opacity_rejects_trimmed_metadata_banks_and_wrong_chroma_fallback(self):
+        coverage = json.loads((framework.VALIDATION / "normative-coverage.json").read_text())
+        entry = next(item for item in coverage["requirements"] if item["id"] == framework._SOURCE_OPACITY_ENTRY)
+        read_text = Path.read_text
+        for name, changes in (
+            ("src/jp2/proof_support.rs", (
+                ("channels: *channels, values: values@", "channels: *channels, values: values@.take(0)"),
+                ("(layer.header.offset, layer.horizontal_grid_size, layer.vertical_grid_size)", "(0, 0, 0)"),
+                ("Some(source_association_header_view(association))", "None"),
+            )),
+            ("specs/jpx_opacity.rs", (
+                ("match part2_decode_jpx_layer(file, registration.0 as usize, None, limits)", "match supplied_successful_layer"),
+                ("part2_register_layer(source, registration, grid.0, grid.1)", "part2_register_layer(source, registration, 0, 0)"),
+                ("None => file.2, Some(header) => header", "None => unrelated, Some(header) => header"),
+                ("Ok(header.1.bit_depth)", "Ok(unrelated)"),
+                ("(Err(error), owned)", "(Err(error), unrelated)"),
+                ("part2_apply_chroma_key_policy(owned, keys, true)", "part2_apply_chroma_key_policy(owned, keys, false)"),
+            )),
+        ):
+            source = framework.ROOT / name
+            original = source.read_text()
+            for before, after in changes:
+                self.assertIn(before, original)
+                changed = original.replace(before, after, 1)
+
+                def altered(path, *args, **kwargs):
+                    return changed if path == source else read_text(path, *args, **kwargs)
+
+                with self.subTest(name=name, before=before), mock.patch.object(Path, "read_text", altered), \
+                        self.assertRaisesRegex(ValueError, "complete source/metadata/owner projections, not image banks"):
+                    framework.validate_normative_coverage(dict(coverage, requirements=[entry]))
+
+    def test_inventory_source_opacity_requires_real_getter_values_and_fresh_call_local_caches(self):
+        coverage = json.loads((framework.VALIDATION / "normative-coverage.json").read_text())
+        entry = next(item for item in coverage["requirements"] if item["id"] == framework._SOURCE_OPACITY_ENTRY)
+        read_text = Path.read_text
+        for name, before in (
+            ("src/jp2/composition.rs", "super::source_opacity_reference_view(result) == super::source_layer_opacity(self)"),
+            ("src/jp2/composition.rs", "result == super::source_layer_geometry(self).1"),
+            ("src/jp2/composition.rs", "result == super::source_layer_geometry(self).2"),
+            ("src/jp2/container.rs", "super::source_optional_association_view(result) == super::codestream_source_view(self).2"),
+            ("src/jp2/container.rs", "super::associated_header_option(result) == super::source_association_header_view(self).1"),
+        ):
+            source = framework.ROOT / name
+            original = source.read_text()
+            self.assertIn(before, original)
+            changed = original.replace(before, "true", 1)
+
+            def altered(path, *args, **kwargs):
+                return changed if path == source else read_text(path, *args, **kwargs)
+
+            with self.subTest(name=name, before=before), mock.patch.object(Path, "read_text", altered), \
+                    self.assertRaisesRegex(ValueError, "actual metadata getter contracts"):
+                framework.validate_normative_coverage(dict(coverage, requirements=[entry]))
+        names = ("src/jpx/opacity.rs", "src/jp2/composition.rs", "src/jp2/container.rs",
+                 "src/jp2/proof_support.rs", "specs/jpx_opacity.rs")
+        counts = {framework.ROOT / name: 0 for name in names}
+
+        def counted(path, *args, **kwargs):
+            if path in counts:
+                counts[path] += 1
+            return read_text(path, *args, **kwargs)
+
+        with mock.patch.object(Path, "read_text", counted):
+            for expected in (1, 2):
+                self.assertEqual(framework.validate_normative_coverage(dict(coverage, requirements=[entry]))["status"], "passed")
+                self.assertEqual(set(counts.values()), {expected})
+        self.assertNotIn(("src/jpx/opacity.rs", "apply_layer_opacity"), framework._COMPONENT_PRODUCER_RELAYS)
+
     def test_inventory_binds_real_source_layer_color_and_consumed_image_conversion_results(self):
         self._assert_complete_packet_contract_bindings(
             {framework._JPX_LAYER_COLOR_ENTRY}, framework._JPX_LAYER_COLOR_CONTRACTS, 3, isolate=False,

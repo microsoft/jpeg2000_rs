@@ -2616,6 +2616,35 @@ _DECODER_LAYOUT_CONTRACTS = {
 }
 
 
+_SOURCE_OPACITY_ENTRY = "part2-complete-native-source-layer-opacity-result"
+_SOURCE_OPACITY_CONTRACTS = {
+    ("src/jpx/opacity.rs", "apply_layer_opacity"): (
+        "part2_apply_source_layer_opacity", r"\1",
+        _coverage_call("owned_layer_view", _coverage_call("final", "owned")),
+        _coverage_call("jp2::jpx_file_decode_view", "file") + r"\s*,\s*"
+        + _coverage_call("jp2::source_layer_opacity", "layer") + r"\s*,\s*"
+        + _coverage_call("jp2::source_layer_geometry", "layer") + r"\s*,\s*color_codestream\s*,\s*"
+        + _coverage_call("owned_layer_view", _coverage_call("old", "owned")) + r"\s*,\s*"
+        r"match\s+alpha_registration\s*\{\s*None\s*=>\s*None\s*,\s*Some\s*\(\s*registration\s*\)\s*=>\s*"
+        + _coverage_call("Some", _coverage_call("layer_registration_view", "registration")) + r"\s*,?\s*\}\s*,\s*"
+        + _coverage_call("crate::options::decode_options_limits", "options"),
+    ),
+    ("src/jpx/layer_decode.rs", "decode_layer"): _JPX_LAYER_COLOR_CONTRACTS[("src/jpx/layer_decode.rs", "decode_layer")],
+    ("src/jpx/layer_decode.rs", "owned_layer_from_image"): (
+        "part2_owned_layer_input", _coverage_call("owned_layer_outcome", r"\1"), None,
+        r"\s*,\s*".join(
+            _coverage_call("crate::color::converted_image_view", "image") + rf"\s*\.{index}" for index in (0, 1, 2)
+        ) + r"\s*,\s*" + _coverage_call("crate::color::converted_channel_views",
+                                      _coverage_call("crate::color::converted_image_view", "image") + r"\s*\.4"),
+    ),
+    ("src/jpx/registration.rs", "register_layer"): _LAYER_TRAVERSAL_CONTRACTS[("src/jpx/registration.rs", "register_layer")],
+    ("src/jpx/opacity.rs", "copy_registered_layer_opacity"): _LAYER_EXTERNAL_ALPHA_CONTRACTS[("src/jpx/opacity.rs", "copy_registered_layer_opacity")],
+    ("src/jpx/opacity.rs", "set_layer_alpha_mode"): _LAYER_OPACITY_CONTRACTS[("src/jpx/opacity.rs", "set_layer_alpha_mode")],
+    ("src/jpx/chroma.rs", "normalized_chroma_keys"): _LAYER_KEY_CONTRACTS[("src/jpx/chroma.rs", "normalized_chroma_keys")],
+    ("src/jpx/chroma.rs", "apply_chroma_key_with_policy"): _LAYER_OPACITY_CONTRACTS[("src/jpx/chroma.rs", "apply_chroma_key_with_policy")],
+}
+
+
 def validate_normative_coverage(
     coverage: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
@@ -2803,6 +2832,182 @@ def validate_normative_coverage(
     ids: set[str] = set()
     contract_functions: set[tuple[str, str]] = set()
     for entry in coverage["requirements"]:
+        if entry["id"] == _SOURCE_OPACITY_ENTRY:
+            if {(ref["path"], ref["symbol"]) for ref in entry["contract_refs"]} != set(_SOURCE_OPACITY_CONTRACTS):
+                raise ValueError("whole source opacity Result requires actual opacity/source/owner/registration/chroma contracts")
+            model_refs = {("specs/jpx_opacity.rs", name) for name in (
+                "part2_apply_source_layer_opacity", "part2_source_registered_opacity", "part2_opacity_header_depth",
+            )} | {("specs/jpx_source.rs", "part2_decode_jpx_layer")} | {
+                ("specs/mod.rs", name) for name in (
+                    "part2_owned_layer_input", "part2_register_layer", "part2_copy_registered_opacity",
+                    "part2_set_layer_alpha_mode", "part2_normalized_chroma_keys", "part2_apply_chroma_key_policy",
+                )
+            }
+            if not model_refs.issubset({(ref["path"], ref["symbol"]) for ref in entry["spec_refs"]}):
+                raise ValueError("whole source opacity Result requires actual source/registration/header-choice models")
+            proofs = {
+                ("specs/jpx_opacity.rs", "part2_apply_source_layer_opacity_unfold"),
+                ("src/jp2/proof_support.rs", "source_opacity_known"),
+                ("src/jp2/composition.rs", "CompositingLayer::opacity"),
+                ("src/jp2/composition.rs", "CompositingLayer::box_header"),
+                ("src/jp2/composition.rs", "CompositingLayer::horizontal_grid_size"),
+                ("src/jp2/composition.rs", "CompositingLayer::vertical_grid_size"),
+                ("src/jp2/container.rs", "CodestreamBox::codestream_header"),
+                ("src/jp2/container.rs", "CodestreamHeaderAssociation::parsed_header"),
+            }
+            if not proofs.issubset({(ref["path"], ref["symbol"]) for ref in entry["proof_refs"]}):
+                raise ValueError("whole source opacity Result requires checked actual getter/opacity/unfold bridges")
+            for (relative, symbol), expected in {
+                ("src/jp2/composition.rs", "CompositingLayer::opacity"):
+                    "super::source_opacity_reference_view(result) == super::source_layer_opacity(self)",
+                ("src/jp2/composition.rs", "CompositingLayer::box_header"):
+                    "super::box_header_offset(result) == super::source_layer_geometry(self).0",
+                ("src/jp2/composition.rs", "CompositingLayer::horizontal_grid_size"):
+                    "result == super::source_layer_geometry(self).1",
+                ("src/jp2/composition.rs", "CompositingLayer::vertical_grid_size"):
+                    "result == super::source_layer_geometry(self).2",
+                ("src/jp2/container.rs", "CodestreamBox::codestream_header"):
+                    "super::source_optional_association_view(result) == super::codestream_source_view(self).2",
+                ("src/jp2/container.rs", "CodestreamHeaderAssociation::parsed_header"):
+                    "super::associated_header_option(result) == super::source_association_header_view(self).1",
+            }.items():
+                path = (ROOT / relative).resolve()
+                text = source_text(path)
+                header = function_header(path, symbol)
+                if header is None:
+                    raise ValueError("whole source opacity Result requires actual metadata getter contracts")
+                start = text.find("fn", header.start(), header.end())
+                attrs = text[text.rfind("#[cfg_attr", 0, start):start]
+                wanted = "verus_spec(result=>ensures" + "".join(expected.split()) + ",)"
+                if wanted not in "".join(attrs.split()) or re.search(r"\brequires\b", attrs):
+                    raise ValueError("whole source opacity Result requires actual metadata getter contracts")
+            path = (ROOT / "src/jpx/opacity.rs").resolve()
+            body = _coverage_function_body(source_text(path), function_header(path, "apply_layer_opacity"))
+            expected = """
+                #[cfg(verus_keep_ghost)] proof! {
+                    crate::specs::part2_apply_source_layer_opacity_unfold(
+                        jp2::jpx_file_decode_view(file), jp2::source_layer_opacity(layer), jp2::source_layer_geometry(layer),
+                        color_codestream, owned_layer_view(owned),
+                        match alpha_registration { None => None, Some(registration) => Some(layer_registration_view(registration)) },
+                        crate::options::decode_options_limits(options));
+                }
+                let Some(opacity) = layer.opacity() else { return Ok(()); };
+                #[cfg(verus_keep_ghost)] proof! { jp2::source_opacity_known(opacity); }
+                match opacity {
+                    LayerOpacity::Straight | LayerOpacity::Premultiplied => {
+                        let premultiplied = matches!(opacity, LayerOpacity::Premultiplied);
+                        if let Some(registration) = alpha_registration {
+                            let image = decode_layer(file, usize::from(registration.codestream_index), None, options,)?;
+                            let alpha_source = owned_layer_from_image(&image)?;
+                            let alpha_registered = register_layer(
+                                &alpha_source, registration, layer.horizontal_grid_size(), layer.vertical_grid_size(),)?;
+                            copy_registered_layer_opacity(owned, &alpha_registered, premultiplied)?;
+                        } else {
+                            set_layer_alpha_mode(owned, premultiplied, layer.box_header().offset())?;
+                        }
+                    }
+                    LayerOpacity::ChromaKey { channels, values } => {
+                        if usize::from(*channels) != owned.colors.len() {
+                            return Err(DecodeError::malformed(layer.box_header().offset(), MalformedKind::InvalidBoxContents,));
+                        }
+                        let header = file.codestream(color_codestream)?.codestream_header()
+                            .and_then(
+                                #[cfg_attr(verus_keep_ghost, verus_spec(result: (Option<&jp2::Jp2Header>) =>
+                                    ensures jp2::associated_header_option(result) == jp2::source_association_header_view(association).1,
+                                ))]
+                                |association| association.parsed_header(),)
+                            .unwrap_or(file.header());
+                        #[cfg(verus_keep_ghost)] proof! {
+                            assert(crate::specs::part2_opacity_header_depth(jp2::jpx_file_decode_view(file), color_codestream)
+                                == Ok(header.image.bit_depth));
+                        }
+                        let keys = normalized_chroma_keys(values, *channels, header.image.bit_depth)?;
+                        apply_chroma_key_with_policy(owned, &keys, true)?;
+                    }
+                }
+                Ok(())
+            """
+            if body is None or "".join(body.split()) != "".join(expected.split()):
+                raise ValueError("whole source opacity Result requires actual source/registration/chroma mutation handoffs")
+            projections = {
+                ("src/jp2/proof_support.rs", "source_opacity_reference_view"):
+                    "match value { None => None, Some(value) => Some(source_opacity_value_view(value)) }",
+                ("src/jp2/proof_support.rs", "source_opacity_value_view"): """
+                    match value {
+                        LayerOpacity::Straight => crate::specs::Part2SourceOpacity::Straight,
+                        LayerOpacity::Premultiplied => crate::specs::Part2SourceOpacity::Premultiplied,
+                        LayerOpacity::ChromaKey { channels, values } =>
+                            crate::specs::Part2SourceOpacity::ChromaKey { channels: *channels, values: values@ },
+                    }
+                """,
+                ("src/jp2/proof_support.rs", "source_layer_opacity"):
+                    "match &layer.opacity { None => None, Some(opacity) => Some(source_opacity_value_view(opacity)) }",
+                ("src/jp2/proof_support.rs", "source_layer_geometry"):
+                    "(layer.header.offset, layer.horizontal_grid_size, layer.vertical_grid_size)",
+                ("src/jp2/proof_support.rs", "source_association_header_view"): """
+                    (association.header.offset, match &association.parsed {
+                        None => None, Some(header) => Some(associated_header_view(header)),
+                    })
+                """,
+                ("src/jp2/proof_support.rs", "source_optional_association_view"):
+                    "match association { None => None, Some(association) => Some(source_association_header_view(association)) }",
+                ("specs/jpx_opacity.rs", "part2_opacity_header_depth"): """
+                    match part2_jpx_codestream_lookup(file.1, index) {
+                        Err(error) => Err(error),
+                        Ok(source) => {
+                            let header = match source.2 {
+                                None => file.2,
+                                Some(association) => match association.1 { None => file.2, Some(header) => header },
+                            };
+                            Ok(header.1.bit_depth)
+                        },
+                    }
+                """,
+                ("specs/jpx_opacity.rs", "part2_source_registered_opacity"): """
+                    match part2_decode_jpx_layer(file, registration.0 as usize, None, limits) {
+                        Err(error) => (Err(error), owned),
+                        Ok(image) => match part2_owned_layer_input(image.0, image.1, image.2, image.4) {
+                            Err(error) => (Err(error), owned),
+                            Ok(source) => match part2_register_layer(source, registration, grid.0, grid.1) {
+                                Err(error) => (Err(error), owned),
+                                Ok(registered) => part2_copy_registered_opacity(owned, registered, premultiplied),
+                            },
+                        },
+                    }
+                """,
+                ("specs/jpx_opacity.rs", "part2_apply_source_layer_opacity"): """
+                    match opacity {
+                        None => (Ok(()), owned),
+                        Some(Part2SourceOpacity::Straight) | Some(Part2SourceOpacity::Premultiplied) => {
+                            let premultiplied = opacity == Some(Part2SourceOpacity::Premultiplied);
+                            match registration {
+                                None => part2_set_layer_alpha_mode(owned, premultiplied, geometry.0),
+                                Some(registration) => part2_source_registered_opacity(
+                                    file, registration, (geometry.1, geometry.2), owned, premultiplied, limits),
+                            }
+                        },
+                        Some(Part2SourceOpacity::ChromaKey { channels, values }) => {
+                            if channels as usize != owned.3.len() {
+                                (Err(crate::DecodeError::MalformedInput {
+                                    offset: geometry.0, kind: crate::MalformedKind::InvalidBoxContents,
+                                }), owned)
+                            } else {
+                                match part2_opacity_header_depth(file, color_codestream) {
+                                    Err(error) => (Err(error), owned),
+                                    Ok(depth) => match part2_normalized_chroma_keys(values, channels, depth) {
+                                        Err(error) => (Err(error), owned),
+                                        Ok(keys) => part2_apply_chroma_key_policy(owned, keys, true),
+                                    },
+                                }
+                            }
+                        },
+                    }
+                """,
+            }
+            for (relative, symbol), expected in projections.items():
+                actual = _coverage_spec_function_body(source_text((ROOT / relative).resolve()), symbol)
+                if actual is None or "".join(actual.split()) != "".join(expected.split()):
+                    raise ValueError("whole source opacity Result requires complete source/metadata/owner projections, not image banks")
         if entry["id"] == _JPX_LAYER_COLOR_ENTRY:
             if {(ref["path"], ref["symbol"]) for ref in entry["contract_refs"]} != set(_JPX_LAYER_COLOR_CONTRACTS):
                 raise ValueError("whole JPX layer color Result requires actual layer/source/complete conversion contracts")
@@ -4189,6 +4394,8 @@ def validate_normative_coverage(
                     if entry["id"] == _JPX_SOURCE_ENTRY else None)
                 or (_JPX_LAYER_COLOR_CONTRACTS.get((reference["path"], reference["symbol"]))
                     if entry["id"] == _JPX_LAYER_COLOR_ENTRY else None)
+                or (_SOURCE_OPACITY_CONTRACTS.get((reference["path"], reference["symbol"]))
+                    if entry["id"] == _SOURCE_OPACITY_ENTRY else None)
                 or _CODESTREAM_READER_CONTRACTS.get((reference["path"], reference["symbol"]))
                 or _SOT_READER_CONTRACTS.get((reference["path"], reference["symbol"]))
                 or _TILE_DATA_WINDOW_CONTRACTS.get((reference["path"], reference["symbol"]))

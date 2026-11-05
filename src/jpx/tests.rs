@@ -145,6 +145,163 @@ mod tests {
         );
     }
 
+    fn opacity_source_bytes(opacity: Option<&[u8]>, association: bool) -> Vec<u8> {
+        fn boxed(kind: [u8; 4], payload: &[u8]) -> Vec<u8> {
+            let mut bytes = u32::try_from(payload.len() + 8).unwrap().to_be_bytes().to_vec();
+            bytes.extend_from_slice(&kind);
+            bytes.extend_from_slice(payload);
+            bytes
+        }
+        let (mut bytes, length) = source_layer_bytes(&[0xcf, 0xb4, 0x04, 0x09], false);
+        let source = bytes.split_off(bytes.len() - length - 8);
+        if association {
+            bytes.extend(boxed(*b"jpch", &[]));
+        }
+        let mut layer = boxed(*b"creg", &[0, 1, 0, 1, 0, 0, 1, 1, 0, 0]);
+        if let Some(opacity) = opacity {
+            layer.extend(boxed(*b"opct", opacity));
+        }
+        bytes.extend(boxed(*b"jplh", &layer));
+        bytes.extend(source);
+        bytes
+    }
+
+    fn opacity_source_owned() -> OwnedLayer {
+        OwnedLayer {
+            width: 2,
+            height: 2,
+            color_space: ConvertedColorSpace::Grayscale,
+            colors: vec![vec![257, 12, 13, 14]],
+            alpha: Some((vec![7, 8, 9, 10], true)),
+        }
+    }
+
+    fn opacity_source_snapshot(layer: &OwnedLayer)
+        -> (u32, u32, ConvertedColorSpace, Vec<Vec<u16>>, Option<(Vec<u16>, bool)>)
+    {
+        (layer.width, layer.height, layer.color_space, layer.colors.clone(), layer.alpha.clone())
+    }
+
+    #[test]
+    fn actual_source_opacity_keeps_no_op_and_existing_alpha_mode_frames() {
+        let tight = DecodeOptions::new(ResourceLimits::HARDENED.with_maximum_input_bytes(0).unwrap());
+        for mode in [None, Some(&[0][..]), Some(&[1][..])] {
+            let bytes = opacity_source_bytes(mode, false);
+            let file = jp2::parse(&bytes, &ResourceLimits::default()).unwrap();
+            let layer = file.compositing_layer(0).unwrap();
+            let mut owned = opacity_source_owned();
+            let old = opacity_source_snapshot(&owned);
+            super::opacity::apply_layer_opacity(&file, layer, usize::MAX, &mut owned, None, &tight).unwrap();
+            assert_eq!(owned.colors, old.3);
+            assert_eq!((owned.width, owned.height, owned.color_space), (old.0, old.1, old.2));
+            let expected = match mode { None => true, Some(mode) => mode[0] == 1 };
+            assert_eq!(owned.alpha, Some((vec![7, 8, 9, 10], expected)));
+            if mode.is_some() {
+                owned.alpha = None;
+                let old = opacity_source_snapshot(&owned);
+                assert_eq!(
+                    super::opacity::apply_layer_opacity(&file, layer, 0, &mut owned, None, &tight),
+                    Err(DecodeError::MalformedInput {
+                        offset: layer.box_header().offset(), kind: crate::MalformedKind::MissingRequiredStructure,
+                    }),
+                );
+                assert_eq!(opacity_source_snapshot(&owned), old);
+            }
+        }
+    }
+
+    #[test]
+    fn actual_source_opacity_decodes_registers_real_alpha_and_preserves_every_error_frame() {
+        for (mode, premultiplied) in [(0, false), (1, true)] {
+            let bytes = opacity_source_bytes(Some(&[mode]), false);
+            let file = jp2::parse(&bytes, &ResourceLimits::default()).unwrap();
+            let layer = file.compositing_layer(0).unwrap();
+            let registration = &layer.registrations()[0];
+            let mut owned = opacity_source_owned();
+            let old = opacity_source_snapshot(&owned);
+            super::opacity::apply_layer_opacity(
+                &file, layer, 0, &mut owned, Some(registration), &DecodeOptions::default(),
+            ).unwrap();
+            assert_eq!(owned.alpha, Some((vec![257, 0, 0, 0], premultiplied)));
+            assert_eq!((owned.width, owned.height, owned.color_space, &owned.colors), (old.0, old.1, old.2, &old.3));
+            let old = opacity_source_snapshot(&owned);
+            let tight = DecodeOptions::new(ResourceLimits::HARDENED.with_maximum_input_bytes(0).unwrap());
+            assert_eq!(
+                super::opacity::apply_layer_opacity(&file, layer, 0, &mut owned, Some(registration), &tight),
+                Err(DecodeError::LimitExceeded {
+                    resource: Resource::InputBytes, limit: 0,
+                    actual: file.codestream(0).unwrap().data().len() as u64,
+                }),
+            );
+            assert_eq!(opacity_source_snapshot(&owned), old);
+            let invalid = jp2::CodestreamRegistration { codestream_index: u16::MAX, ..*registration };
+            assert_eq!(
+                super::opacity::apply_layer_opacity(
+                    &file, layer, 0, &mut owned, Some(&invalid), &DecodeOptions::default(),
+                ),
+                Err(DecodeError::CodestreamIndexOutOfRange { index: usize::from(u16::MAX), codestreams: 1 }),
+            );
+            assert_eq!(opacity_source_snapshot(&owned), old);
+        }
+    }
+
+    #[test]
+    fn actual_source_opacity_uses_actual_chroma_header_and_association_fallback() {
+        let options = DecodeOptions::default();
+        for association in [false, true] {
+            let bytes = opacity_source_bytes(Some(&[2, 1, 1]), association);
+            let mut file = jp2::parse(&bytes, options.limits()).unwrap();
+            if association {
+                file.header.image.bit_depth = jp2::ComponentBitDepth::Variable;
+            }
+            let layer = file.compositing_layer(0).unwrap();
+            let mut owned = opacity_source_owned();
+            let old = opacity_source_snapshot(&owned);
+            super::opacity::apply_layer_opacity(&file, layer, 0, &mut owned, None, &options).unwrap();
+            assert_eq!(owned.alpha, Some((vec![0, u16::MAX, u16::MAX, u16::MAX], false)));
+            assert_eq!((owned.width, owned.height, owned.color_space, &owned.colors), (old.0, old.1, old.2, &old.3));
+            if !association {
+                let mut file = file;
+                file.header.image.bit_depth = jp2::ComponentBitDepth::Variable;
+                let old = opacity_source_snapshot(&owned);
+                assert_eq!(
+                    super::opacity::apply_layer_opacity(
+                        &file, file.compositing_layer(0).unwrap(), 0, &mut owned, None, &options,
+                    ),
+                    Err(DecodeError::MalformedInput { offset: 0, kind: crate::MalformedKind::MissingRequiredStructure }),
+                );
+                assert_eq!(opacity_source_snapshot(&owned), old);
+            }
+        }
+    }
+
+    #[test]
+    fn actual_source_opacity_preserves_chroma_count_lookup_and_missing_sample_error_order() {
+        let bytes = opacity_source_bytes(Some(&[2, 1, 1]), false);
+        let file = jp2::parse(&bytes, &ResourceLimits::default()).unwrap();
+        let layer = file.compositing_layer(0).unwrap();
+        let options = DecodeOptions::default();
+        let mut owned = opacity_source_owned();
+        owned.colors.push(vec![1, 2, 3, 4]);
+        let old = opacity_source_snapshot(&owned);
+        assert_eq!(
+            super::opacity::apply_layer_opacity(&file, layer, usize::MAX, &mut owned, None, &options),
+            Err(DecodeError::MalformedInput { offset: layer.box_header().offset(), kind: crate::MalformedKind::InvalidBoxContents }),
+        );
+        assert_eq!(opacity_source_snapshot(&owned), old);
+        owned.colors.pop();
+        let old = opacity_source_snapshot(&owned);
+        assert_eq!(
+            super::opacity::apply_layer_opacity(&file, layer, usize::MAX, &mut owned, None, &options),
+            Err(DecodeError::CodestreamIndexOutOfRange { index: usize::MAX, codestreams: 1 }),
+        );
+        assert_eq!(opacity_source_snapshot(&owned), old);
+        owned.colors[0].pop();
+        let old = opacity_source_snapshot(&owned);
+        assert!(super::opacity::apply_layer_opacity(&file, layer, 0, &mut owned, None, &options).is_err());
+        assert_eq!(opacity_source_snapshot(&owned), old);
+    }
+
     fn independent_chroma_normalization(
         values: &[u8],
         channels: u8,

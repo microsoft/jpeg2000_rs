@@ -4,6 +4,59 @@
   "scope": "Technical reference inventory; not exhaustive standards-clause coverage or a conformance claim.",
   "requirements": [
     {
+      "id": "part2-complete-native-source-layer-opacity-result",
+      "topic": "Complete actual apply_layer_opacity Result and full owned-layer mutation/error frame from the real file/layer/configuration and actual registration/options. Native absent-opacity and existing straight/premultiplied modes retain exact bypass/first-error behavior. Real source decoding/conversion, owned-layer creation, actual grid registration and opacity copy derive external alpha rather than receiving a successful layer bank. Chroma retains count-before-lookup priority, real source header association/parsed/default choice, actual bit depth and complete key bytes, normalized keys and policy mutation. Missing parsed associations fall back here, unlike the erroring source-image decoder; no silent semantic unification. All returned errors and complete geometry/color-space/color/alpha values and pre-error state frames compose from actual producers. The original source statements/owners/scopes remain; the header-selection closure has a typed ghost-only contract using parenthesized type syntax required by the pinned parser. No runtime proof clone/native owner reconstruction/alternate decoder/axiom/admission/validity premise/pin/cap/trust change. General multisource assembly/normalization/frame/raw container/remaining public, corrected normative/production coverage/erasure/lifetimes/release remain separate.",
+      "implementation_refs": [
+        {"path": "src/jpx/opacity.rs", "symbol": "apply_layer_opacity"},
+        {"path": "src/jpx/layer_decode.rs", "symbol": "decode_layer"},
+        {"path": "src/jpx/layer_decode.rs", "symbol": "owned_layer_from_image"},
+        {"path": "src/jpx/registration.rs", "symbol": "register_layer"},
+        {"path": "src/jpx/opacity.rs", "symbol": "copy_registered_layer_opacity"},
+        {"path": "src/jpx/opacity.rs", "symbol": "set_layer_alpha_mode"},
+        {"path": "src/jpx/chroma.rs", "symbol": "normalized_chroma_keys"},
+        {"path": "src/jpx/chroma.rs", "symbol": "apply_chroma_key_with_policy"},
+        {"path": "src/jpx/layer_decode.rs", "symbol": "decode_compositing_layer"}
+      ],
+      "spec_refs": [
+        {"path": "specs/jpx_opacity.rs", "symbol": "part2_apply_source_layer_opacity"},
+        {"path": "specs/jpx_opacity.rs", "symbol": "part2_source_registered_opacity"},
+        {"path": "specs/jpx_opacity.rs", "symbol": "part2_opacity_header_depth"},
+        {"path": "specs/jpx_source.rs", "symbol": "part2_decode_jpx_layer"},
+        {"path": "specs/mod.rs", "symbol": "part2_owned_layer_input"},
+        {"path": "specs/mod.rs", "symbol": "part2_register_layer"},
+        {"path": "specs/mod.rs", "symbol": "part2_copy_registered_opacity"},
+        {"path": "specs/mod.rs", "symbol": "part2_set_layer_alpha_mode"},
+        {"path": "specs/mod.rs", "symbol": "part2_normalized_chroma_keys"},
+        {"path": "specs/mod.rs", "symbol": "part2_apply_chroma_key_policy"}
+      ],
+      "contract_refs": [
+        {"path": "src/jpx/opacity.rs", "symbol": "apply_layer_opacity"},
+        {"path": "src/jpx/layer_decode.rs", "symbol": "decode_layer"},
+        {"path": "src/jpx/layer_decode.rs", "symbol": "owned_layer_from_image"},
+        {"path": "src/jpx/registration.rs", "symbol": "register_layer"},
+        {"path": "src/jpx/opacity.rs", "symbol": "copy_registered_layer_opacity"},
+        {"path": "src/jpx/opacity.rs", "symbol": "set_layer_alpha_mode"},
+        {"path": "src/jpx/chroma.rs", "symbol": "normalized_chroma_keys"},
+        {"path": "src/jpx/chroma.rs", "symbol": "apply_chroma_key_with_policy"}
+      ],
+      "proof_refs": [
+        {"path": "specs/jpx_opacity.rs", "symbol": "part2_apply_source_layer_opacity_unfold"},
+        {"path": "src/jp2/proof_support.rs", "symbol": "source_opacity_known"},
+        {"path": "src/jp2/composition.rs", "symbol": "CompositingLayer::opacity"},
+        {"path": "src/jp2/composition.rs", "symbol": "CompositingLayer::box_header"},
+        {"path": "src/jp2/composition.rs", "symbol": "CompositingLayer::horizontal_grid_size"},
+        {"path": "src/jp2/composition.rs", "symbol": "CompositingLayer::vertical_grid_size"},
+        {"path": "src/jp2/container.rs", "symbol": "CodestreamBox::codestream_header"},
+        {"path": "src/jp2/container.rs", "symbol": "CodestreamHeaderAssociation::parsed_header"}
+      ],
+      "test_refs": [
+        {"path": "src/jpx/tests.rs", "symbol": "actual_source_opacity_keeps_no_op_and_existing_alpha_mode_frames"},
+        {"path": "src/jpx/tests.rs", "symbol": "actual_source_opacity_decodes_registers_real_alpha_and_preserves_every_error_frame"},
+        {"path": "src/jpx/tests.rs", "symbol": "actual_source_opacity_uses_actual_chroma_header_and_association_fallback"},
+        {"path": "src/jpx/tests.rs", "symbol": "actual_source_opacity_preserves_chroma_count_lookup_and_missing_sample_error_order"}
+      ]
+    },
+    {
       "id": "part2-complete-native-jpx-source-layer-color-result",
       "topic": "Complete actual decode_layer Result from the real JPX file/index/option limits and optional actual color override, through actual source decoding/associated header and complete color conversion. Raw source failures precede optional color/normalization failures exactly; the actual returned source image, channel definitions, geometry, raw associated/fallback color and real override feed conversion without supplied decoded/normalized banks. Every converted width/height/color-space/precision/channel type/alpha association/sample and first error is retained. Checked source outcome error/success bridges and a complete actual optional color view compose existing actual source/header/raw decoder and converter producers. Native owning bindings, order and scopes stay unchanged, with no runtime clone, reconstruction of native owners, decoder duplicate, axiom/admission/validity premise/pin/cap/trust change. Literal source tests cover signed/unsigned independently encoded1/129/200 planes, real header/override choices, supported/unsupported color methods, lookup/parser/header/backend priority and actual mapped source-to-RGB output. This supplies one real source-to-color normalization producer, not complete general multi-source registration/opacity/chroma/frame, raw container/remaining public, corrected normative, production coverage/erasure/lifetimes or release qualification.",
       "implementation_refs": [
