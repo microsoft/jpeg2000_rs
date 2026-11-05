@@ -303,6 +303,89 @@ mod tests {
         assert_eq!(opacity_source_snapshot(&owned), old);
     }
 
+    #[test]
+    fn actual_component_registration_plane_matches_independent_small_canvas_mapping() {
+        let mut cases = 0;
+        for source_width in [0_u32, 1, 3] {
+            for source_height in [0_u32, 2] {
+                let source = (0..source_width * source_height)
+                    .map(|index| u16::try_from(index * 17 + 1).unwrap()).collect::<Vec<_>>();
+                for width in [0_u32, 1, 4] {
+                    for height in [0_u32, 1, 3] {
+                        for hs in [1_u32, 2] {
+                            for vs in [1_u32, 3] {
+                                for hg in [1_u32, 2] {
+                                    for vg in [1_u32, 2] {
+                                        for ho in [0_u32, 1] {
+                                            for vo in [0_u32, 2] {
+                                                let expected = (0..width * height).map(|index| {
+                                                    let x = index % width;
+                                                    let y = index / width;
+                                                    if x * hg < ho || y * vg < vo { return 0; }
+                                                    let sx = (x * hg - ho) / hs;
+                                                    let sy = (y * vg - vo) / vs;
+                                                    if sx >= source_width || sy >= source_height { 0 }
+                                                    else { source[(sy * source_width + sx) as usize] }
+                                                }).collect::<Vec<_>>();
+                                                assert_eq!(
+                                                    super::registration::register_samples(&source, source_width, source_height,
+                                                        width, height, hs, vs, hg, vg, ho, vo),
+                                                    Ok(expected),
+                                                );
+                                                cases += 1;
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        assert_eq!(cases, 3456);
+    }
+
+    #[test]
+    fn actual_component_registration_plane_retains_exact_invalid_input_and_zero_canvas_checks() {
+        let invalid = Err(DecodeError::MalformedInput { offset: 0, kind: crate::MalformedKind::InvalidBoxContents });
+        for geometry in [[0, 1, 1, 1], [1, 0, 1, 1], [1, 1, 0, 1], [1, 1, 1, 0]] {
+            assert_eq!(
+                super::registration::register_samples(&[9], 1, 1, 0, 0,
+                    geometry[0], geometry[1], geometry[2], geometry[3], 0, 0),
+                invalid,
+            );
+        }
+        assert_eq!(super::registration::register_samples(&[], 1, 1, 0, 0, 1, 1, 1, 1, 0, 0), invalid);
+        assert_eq!(super::registration::register_samples(&[9], 1, 1, 0, 0, 1, 1, 1, 1, 0, 0), Ok(vec![]));
+        assert_eq!(super::registration::register_samples(&[], 0, 0, 2, 1, 1, 1, 1, 1, 0, 0), Ok(vec![0, 0]));
+    }
+
+    #[test]
+    fn actual_component_registration_plane_preserves_lazy_row_column_overflow_order() {
+        let overflow = Err(DecodeError::MalformedInput { offset: 0, kind: crate::MalformedKind::ArithmeticOverflow });
+        assert_eq!(
+            super::registration::register_samples(&[9], 1, 1, 3, 1, 1, 1, u32::MAX, 1, 0, 0),
+            overflow,
+        );
+        assert_eq!(
+            super::registration::register_samples(&[9], 1, 1, 3, 1, 1, 1, u32::MAX, 1, 0, 1),
+            Ok(vec![0, 0, 0]),
+        );
+        assert_eq!(
+            super::registration::register_samples(&[], 1, 0, 3, 1, 1, 1, u32::MAX, 1, 0, 0),
+            Ok(vec![0, 0, 0]),
+        );
+        assert_eq!(
+            super::registration::register_samples(&[9], 1, 1, 1, 3, 1, 1, 1, u32::MAX, 0, 0),
+            overflow,
+        );
+        assert_eq!(
+            super::registration::register_samples(&[9], 1, 1, 0, 3, 1, 1, 1, u32::MAX, 0, 0),
+            overflow,
+        );
+    }
+
     fn independent_chroma_normalization(
         values: &[u8],
         channels: u8,

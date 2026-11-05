@@ -9,6 +9,14 @@ use super::{layer_registration_view, owned_layer_outcome, owned_layer_view};
 use vstd::prelude::*;
 
 #[allow(clippy::too_many_arguments)]
+#[cfg_attr(verus_keep_ghost, verus_spec(result =>
+    ensures crate::color::normalized_plane_result(result) == crate::specs::part2_register_component_plane(
+        crate::specs::Part2PlaneRegistration {
+            source: source@, source_width, source_height, width, height,
+            horizontal_subsampling, vertical_subsampling, horizontal_grid, vertical_grid,
+            horizontal_offset, vertical_offset,
+        }),
+))]
 pub(super) fn register_samples(
     source: &[u16],
     source_width: u32,
@@ -22,6 +30,14 @@ pub(super) fn register_samples(
     horizontal_offset: u32,
     vertical_offset: u32,
 ) -> Result<Vec<u16>, DecodeError> {
+    #[cfg(verus_keep_ghost)]
+    proof_decl! {
+        let ghost context = crate::specs::Part2PlaneRegistration {
+            source: source@, source_width, source_height, width, height,
+            horizontal_subsampling, vertical_subsampling, horizontal_grid, vertical_grid,
+            horizontal_offset, vertical_offset,
+        };
+    }
     if source.len() != checked_area(source_width, source_height)?
         || horizontal_subsampling == 0
         || vertical_subsampling == 0
@@ -31,15 +47,42 @@ pub(super) fn register_samples(
         return Err(invalid_layer());
     }
     let mut output = vec![0_u16; checked_area(width, height)?];
+    #[cfg(verus_keep_ghost)]
+    proof_decl! { let ghost initial = output@; }
+    #[cfg(verus_keep_ghost)]
+    proof! {
+        reveal(crate::specs::part2_plane_registration_rows);
+        assert(initial =~= Seq::new(output.len() as nat, |_index: int| 0u16));
+    }
     let mut y = 0_u32;
     #[cfg_attr(
         verus_keep_ghost,
         verus_spec(
             invariant y <= height && vertical_subsampling > 0 && vertical_grid > 0,
+                horizontal_subsampling > 0, horizontal_grid > 0,
+                context == (crate::specs::Part2PlaneRegistration {
+                    source: source@, source_width, source_height, width, height,
+                    horizontal_subsampling, vertical_subsampling, horizontal_grid, vertical_grid,
+                    horizontal_offset, vertical_offset,
+                }),
+                crate::specs::part2_layer_area(source_width, source_height) == Ok(source.len()),
+                crate::specs::part2_layer_area(width, height) == Ok(output.len()),
+                initial == Seq::new(output.len() as nat, |_index: int| 0u16),
+                crate::specs::part2_plane_registration_rows(context, initial, y as nat) == Ok(output@),
             decreases height - y,
         )
     )]
     while y < height {
+        #[cfg(verus_keep_ghost)]
+        proof! {
+            crate::specs::part2_plane_rows_step(context, initial, y as nat);
+            if y as nat * vertical_grid as nat > u32::MAX as nat {
+                assert(crate::specs::part2_plane_registration_rows(context, initial, y as nat + 1)
+                    == Err(crate::specs::part2_composition_error(true)));
+                crate::specs::part2_plane_rows_error(context, initial, y as nat + 1, height as nat,
+                    crate::specs::part2_composition_error(true));
+            }
+        }
         let source_y_numerator = y
             .checked_mul(vertical_grid)
             .ok_or_else(arithmetic_overflow)?;
@@ -50,6 +93,10 @@ pub(super) fn register_samples(
                 vertical_subsampling,
             );
             if source_y < source_height {
+                #[cfg(verus_keep_ghost)]
+                proof_decl! { let ghost row_initial = output@; }
+                #[cfg(verus_keep_ghost)]
+                proof! { reveal(crate::specs::part2_plane_registration_columns); }
                 let mut x = 0_u32;
                 if horizontal_subsampling == 0 || horizontal_grid == 0 {
                     return Err(invalid_layer());
@@ -58,10 +105,36 @@ pub(super) fn register_samples(
                     verus_keep_ghost,
                     verus_spec(
                         invariant x <= width && horizontal_subsampling > 0 && horizontal_grid > 0,
+                            y < height, source_y < source_height,
+                            vertical_subsampling > 0, vertical_grid > 0,
+                            context == (crate::specs::Part2PlaneRegistration {
+                                source: source@, source_width, source_height, width, height,
+                                horizontal_subsampling, vertical_subsampling, horizontal_grid, vertical_grid,
+                                horizontal_offset, vertical_offset,
+                            }),
+                            crate::specs::part2_layer_area(source_width, source_height) == Ok(source.len()),
+                            crate::specs::part2_layer_area(width, height) == Ok(output.len()),
+                            initial == Seq::new(output.len() as nat, |_index: int| 0u16),
+                            crate::specs::part2_plane_registration_rows(context, initial, y as nat) == Ok(row_initial),
+                            crate::specs::part2_plane_registration_rows(context, initial, y as nat + 1)
+                                == crate::specs::part2_plane_registration_columns(context, y, source_y, row_initial, width as nat),
+                            crate::specs::part2_plane_registration_columns(context, y, source_y, row_initial, x as nat) == Ok(output@),
                         decreases width - x,
                     )
                 )]
                 while x < width {
+                    #[cfg(verus_keep_ghost)]
+                    proof! {
+                        crate::specs::part2_plane_columns_step(context, y, source_y, row_initial, x as nat);
+                        if x as nat * horizontal_grid as nat > u32::MAX as nat {
+                            assert(crate::specs::part2_plane_registration_columns(context, y, source_y, row_initial, x as nat + 1)
+                                == Err(crate::specs::part2_composition_error(true)));
+                            crate::specs::part2_plane_columns_error(context, y, source_y, row_initial,
+                                x as nat + 1, width as nat, crate::specs::part2_composition_error(true));
+                            crate::specs::part2_plane_rows_error(context, initial, y as nat + 1, height as nat,
+                                crate::specs::part2_composition_error(true));
+                        }
+                    }
                     let source_x_numerator = x
                         .checked_mul(horizontal_grid)
                         .ok_or_else(arithmetic_overflow)?;
@@ -72,10 +145,21 @@ pub(super) fn register_samples(
                             horizontal_subsampling,
                         );
                         if source_x < source_width {
+                            #[cfg(verus_keep_ghost)]
+                            proof! {
+                                crate::specs::part2_plane_index_bound(width, height, x, y, output.len());
+                                crate::specs::part2_plane_index_bound(
+                                    source_width, source_height, source_x, source_y, source.len());
+                            }
                             let destination = index_of(width, x, y)?;
                             *output.get_mut(destination).ok_or_else(invalid_layer)? = *source
                                 .get(index_of(source_width, source_x, source_y)?)
                                 .ok_or_else(invalid_layer)?;
+                        }
+                        #[cfg(verus_keep_ghost)]
+                        proof! {
+                            assert(crate::specs::part2_plane_registration_columns(
+                                context, y, source_y, row_initial, x as nat + 1) == Ok(output@));
                         }
                     }
                     x = x.checked_add(1).ok_or_else(arithmetic_overflow)?;
