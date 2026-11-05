@@ -1,5 +1,311 @@
 use super::*;
 
+#[test]
+fn actual_tile_loop_metadata_preserves_raw_tables_offsets_sources_and_reader() {
+    let input = [11, 13, 17];
+    let limits = ResourceLimits::HARDENED;
+    let parser = Parser {
+        input: &input,
+        limits: &limits,
+        position: 19,
+        work_units: u64::MAX,
+        packet_length_bytes: u64::MAX,
+        packet_lengths: 31,
+    };
+    let before = frame(&parser);
+    let mut cases = 0;
+    for geometry in 0..27 {
+        let lengths = [geometry % 3, geometry / 3 % 3, geometry / 9];
+        let lengths = lengths.map(|value| [0, 1, 3][value]);
+        for part_index in [0, 1, 3, u32::MAX] {
+            for pattern in 0..4 {
+                for plm_seen in [false, true] {
+                    for fragments in [0, 1, u16::MAX] {
+                        for variant in 0..3 {
+                            for start in [0, usize::MAX] {
+                                let tile = TilePart {
+                                    start,
+                                    length: [0, 7, u32::MAX][variant],
+                                    tile_index: [0, 1, u16::MAX][variant],
+                                    tile_part_index: u8::MAX,
+                                    tile_part_count: 0,
+                                };
+                                let tlm: Vec<_> = (0..lengths[0])
+                                    .map(|_| TilePartLength {
+                                        tile_index: match pattern {
+                                            0 => None,
+                                            2 => Some(tile.tile_index ^ 1),
+                                            _ => Some(tile.tile_index),
+                                        },
+                                        length: if pattern == 3 {
+                                            tile.length ^ 1
+                                        } else {
+                                            tile.length
+                                        },
+                                    })
+                                    .collect();
+                                let plm: Vec<_> = (0..lengths[1])
+                                    .map(|index| PacketLengths {
+                                        source: match index {
+                                            0 => PacketLengthSource::None,
+                                            1 => PacketLengthSource::Plm(&input),
+                                            _ => PacketLengthSource::Plt(&input[1..]),
+                                        },
+                                        packet_count: u64::MAX - index as u64,
+                                        encoded_bytes: index as u64,
+                                    })
+                                    .collect();
+                                let ppm: Vec<_> = (0..lengths[2])
+                                    .map(|index| PackedHeaderFrame {
+                                        start: usize::MAX - index,
+                                        length: if index == 0 { 0 } else { usize::MAX },
+                                    })
+                                    .collect();
+                                let selected = usize::try_from(u64::from(part_index)).unwrap();
+                                let error = if !tlm.is_empty()
+                                    && tlm.get(selected).is_none_or(|entry| {
+                                        entry.length != tile.length
+                                            || entry
+                                                .tile_index
+                                                .is_some_and(|index| index != tile.tile_index)
+                                    }) {
+                                    Some(MalformedKind::InvalidTilePart)
+                                } else if plm_seen && selected >= plm.len() {
+                                    Some(MalformedKind::InvalidPacketLength)
+                                } else if fragments != 0 && selected >= ppm.len() {
+                                    Some(MalformedKind::InvalidPackedPacketHeader)
+                                } else {
+                                    None
+                                };
+                                let expected = match error {
+                                    Some(kind) => Err(input_error_literal(start, kind)),
+                                    None => Ok((
+                                        if plm_seen {
+                                            plm[selected]
+                                        } else {
+                                            PacketLengths::none()
+                                        },
+                                        if fragments == 0 {
+                                            PackedPacketHeaders::none()
+                                        } else {
+                                            PackedPacketHeaders {
+                                                source: PackedPacketHeaderSource::MarkerSegments {
+                                                    header: &input,
+                                                    marker: PPM,
+                                                    logical_start: ppm[selected].start,
+                                                },
+                                                length: ppm[selected].length,
+                                                fragments,
+                                            }
+                                        },
+                                    )),
+                                };
+                                let result = parser.tile_part_main_metadata(
+                                    tile, part_index, &tlm, plm_seen, &plm, &ppm, fragments, &input,
+                                );
+                                assert_eq!(
+                                    result, expected,
+                                    "geometry={lengths:?}, part_index={part_index}, pattern={pattern}"
+                                );
+                                if let Ok(value) = &result {
+                                    fn copy_only<T: Copy>(_: &T) {}
+                                    copy_only(value);
+                                    if let PackedPacketHeaderSource::MarkerSegments {
+                                        header, ..
+                                    } = value.1.source
+                                    {
+                                        assert!(core::ptr::eq(header.as_ptr(), input.as_ptr()));
+                                    }
+                                }
+                                assert_eq!(frame(&parser), before);
+                                cases += 1;
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+    assert_eq!(cases, 15_552);
+}
+
+#[test]
+fn actual_tile_loop_termination_preserves_all_error_prefixes_and_reader_frames() {
+    let limits = ResourceLimits::HARDENED;
+    let inputs: &[(&[u8], usize, Option<MalformedKind>, usize)] = &[
+        (&[], 0, Some(MalformedKind::Truncated), 0),
+        (&[0xff], 0, Some(MalformedKind::Truncated), 0),
+        (&[0xff, 0xd9], 0, None, 2),
+        (&[0xff, 0xd9, 17], 0, None, 2),
+        (&[0xff, 0x90], 0, Some(MalformedKind::InvalidMarkerOrder), 0),
+        (&[0xfe, 0xd9], 0, Some(MalformedKind::InvalidMarker), 0),
+        (&[0xff, 0], 0, Some(MalformedKind::InvalidMarker), 0),
+        (&[0xff, 0xff], 0, Some(MalformedKind::InvalidMarker), 0),
+        (&[0, 0xff, 0xd9], 1, None, 3),
+        (&[0, 0xff, 0xd9], 2, Some(MalformedKind::Truncated), 2),
+        (
+            &[0xff, 0xd9],
+            usize::MAX,
+            Some(MalformedKind::Truncated),
+            usize::MAX,
+        ),
+    ];
+    let mut cases = 0;
+    for &(input, position, marker_error, consumed) in inputs {
+        for parts in [0, 1, 2, u32::MAX] {
+            for plm_seen in [false, true] {
+                for fragments in [0, 1, u16::MAX] {
+                    for geometry in 0..64 {
+                        let counts = [geometry % 4, geometry / 4 % 4, geometry / 16]
+                            .map(|index| [0, 1, 2, usize::MAX][index]);
+                        for work in [0, limits.maximum_work_units(), u64::MAX] {
+                            let mut parser = Parser {
+                                input,
+                                limits: &limits,
+                                position,
+                                work_units: work,
+                                packet_length_bytes: u64::MAX,
+                                packet_lengths: 37,
+                            };
+                            let mut expected_position = position;
+                            let mut expected_work = work;
+                            let expected = if parts == 0 {
+                                Err(input_error_literal(
+                                    position,
+                                    MalformedKind::InvalidMarkerOrder,
+                                ))
+                            } else if let Some(kind) = marker_error {
+                                Err(input_error_literal(position, kind))
+                            } else {
+                                expected_position = consumed;
+                                let next_work = u128::from(work) + 1;
+                                if next_work > u128::from(u64::MAX) {
+                                    Err(input_error_literal(
+                                        consumed,
+                                        MalformedKind::ArithmeticOverflow,
+                                    ))
+                                } else {
+                                    expected_work = next_work as u64;
+                                    if expected_work > limits.maximum_work_units() {
+                                        Err(DecodeError::limit(
+                                            Resource::WorkUnits,
+                                            limits.maximum_work_units(),
+                                            expected_work,
+                                        ))
+                                    } else {
+                                        let kind = if plm_seen && counts[0] != parts as usize {
+                                            Some(MalformedKind::InvalidPacketLength)
+                                        } else if fragments != 0 && counts[1] != parts as usize {
+                                            Some(MalformedKind::InvalidPackedPacketHeader)
+                                        } else if counts[2] != 0 && counts[2] != parts as usize {
+                                            Some(MalformedKind::InvalidTilePart)
+                                        } else if consumed != input.len() {
+                                            Some(MalformedKind::TrailingData)
+                                        } else {
+                                            None
+                                        };
+                                        match kind {
+                                            Some(kind) => Err(input_error_literal(consumed, kind)),
+                                            None => Ok(()),
+                                        }
+                                    }
+                                }
+                            };
+                            assert_eq!(
+                                parser.finish_tile_part_traversal(
+                                    parts, plm_seen, counts[0], fragments, counts[1], counts[2]
+                                ),
+                                expected,
+                                "input={input:?}, position={position}, parts={parts}, counts={counts:?}, work={work}",
+                            );
+                            assert_eq!(
+                                frame(&parser),
+                                (
+                                    input.as_ptr() as usize,
+                                    input.len(),
+                                    limits,
+                                    expected_position,
+                                    expected_work,
+                                    u64::MAX,
+                                    37,
+                                )
+                            );
+                            cases += 1;
+                        }
+                    }
+                }
+            }
+        }
+    }
+    assert_eq!(cases, 50_688);
+}
+
+#[test]
+fn actual_tile_loop_joins_raw_tlm_plm_ppm_and_eoc_first_error_order() {
+    let limits = ResourceLimits::default();
+    for (plm_count, ppm_count, tlm_count, trailing, expected) in [
+        (1, 1, 1, false, None),
+        (2, 2, 2, true, Some(MalformedKind::InvalidPacketLength)),
+        (
+            1,
+            2,
+            2,
+            true,
+            Some(MalformedKind::InvalidPackedPacketHeader),
+        ),
+        (1, 1, 2, true, Some(MalformedKind::InvalidTilePart)),
+        (1, 1, 1, true, Some(MalformedKind::TrailingData)),
+    ] {
+        let mut tlm = vec![0, 0x40];
+        for _ in 0..tlm_count {
+            tlm.extend(15_u32.to_be_bytes());
+        }
+        let mut ppm = Vec::new();
+        for _ in 0..ppm_count {
+            ppm.extend([0, 0, 0, 1, 0]);
+        }
+        let groups: Vec<&[u32]> = vec![&[2]; plm_count];
+        let mut bytes = codestream_with_headers(
+            1,
+            &[
+                segment(COD, &[0, 0, 0, 1, 0, 0, 2, 2, 0, 1]),
+                segment(QCD, &[0, 0]),
+                segment(TLM, &tlm),
+                plm(0, &groups),
+                super::ppm(0, &ppm),
+            ],
+            &[],
+            &[17],
+        );
+        let consumed = bytes.len();
+        if trailing {
+            bytes.push(19);
+        }
+        match expected {
+            Some(kind) => assert_eq!(
+                parse_layout(&bytes, &limits).unwrap_err(),
+                input_error_literal(consumed, kind)
+            ),
+            None => {
+                let layout = parse_layout(&bytes, &limits).unwrap();
+                assert_eq!(layout.info.tile_parts, 1);
+                assert_eq!(layout.info.consumed_bytes, bytes.len() as u64);
+                let payload = &layout.tile_parts[0];
+                assert_eq!(payload.data, &[17]);
+                assert_eq!(payload.packet_lengths.packet_count(), 1);
+                assert_eq!(
+                    payload.packet_lengths.iter().next_length().unwrap(),
+                    Some(2)
+                );
+                assert_eq!(
+                    payload.packed_packet_headers.reassemble(&limits).unwrap(),
+                    [0]
+                );
+            }
+        }
+    }
+}
+
 fn defaults() -> (CodingStyle, Quantization) {
     let mut style = raw_resolution_style(0, 7);
     style.decomposition_structure = None;

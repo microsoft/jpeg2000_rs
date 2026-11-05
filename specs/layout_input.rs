@@ -4,6 +4,96 @@ use super::*;
 
 verus! {
 
+pub open spec fn part1_empty_packet_lengths() -> Part1PacketLengths {
+    Part1PacketLengths { source: Part1PacketLengthSource::None, packet_count: 0, encoded_bytes: 0 }
+}
+
+pub open spec fn part1_empty_packed_packet_headers() -> Part1PackedHeaders {
+    Part1PackedHeaders { source: Part1PackedHeaderSource::None, length: 0, fragments: 0 }
+}
+
+#[verifier::opaque]
+pub(crate) open spec fn part1_tile_part_main_metadata(
+    position: usize, tile: (usize, u32, u16, u8, u8), part_index: u32,
+    lengths: Seq<crate::codestream::TilePartLength>, plm_seen: bool,
+    plm: Seq<Part1PacketLengths>, frames: Seq<(usize, usize)>,
+    fragments: u16, header: Seq<u8>,
+) -> Result<(Part1PacketLengths, Part1PackedHeaders), crate::DecodeError> {
+    let index = part_index as nat;
+    let tlm_error = if lengths.len() == 0 { None }
+        else if index > usize::MAX {
+            Some(part1_codestream_malformed(position, crate::MalformedKind::ArithmeticOverflow))
+        } else if index >= lengths.len() {
+            Some(part1_codestream_malformed(tile.0, crate::MalformedKind::InvalidTilePart))
+        } else {
+            let entry = lengths[index as int];
+            if entry.length != tile.1 || match entry.tile_index {
+                Some(value) => value != tile.2, None => false,
+            } {
+                Some(part1_codestream_malformed(tile.0, crate::MalformedKind::InvalidTilePart))
+            } else { None }
+        };
+    match tlm_error {
+        Some(error) => Err(error),
+        None => {
+            let selected_lengths = if !plm_seen { Ok(part1_empty_packet_lengths()) }
+                else if index > usize::MAX {
+                    Err(part1_codestream_malformed(position, crate::MalformedKind::ArithmeticOverflow))
+                } else if index >= plm.len() {
+                    Err(part1_codestream_malformed(tile.0, crate::MalformedKind::InvalidPacketLength))
+                } else { Ok(plm[index as int]) };
+            match selected_lengths {
+                Err(error) => Err(error),
+                Ok(selected) => if fragments == 0 { Ok((selected, part1_empty_packed_packet_headers())) }
+                    else if index > usize::MAX {
+                        Err(part1_codestream_malformed(position, crate::MalformedKind::ArithmeticOverflow))
+                    } else if index >= frames.len() {
+                        Err(part1_codestream_malformed(tile.0, crate::MalformedKind::InvalidPackedPacketHeader))
+                    } else {
+                        let frame = frames[index as int];
+                        Ok((selected, Part1PackedHeaders {
+                            source: Part1PackedHeaderSource::MarkerSegments {
+                                header, marker: 0xff60, logical_start: frame.0,
+                            },
+                            length: frame.1, fragments,
+                        }))
+                    },
+            }
+        },
+    }
+}
+
+#[verifier::opaque]
+pub(crate) open spec fn part1_finish_tile_part_traversal<'a>(
+    state: Part1CodestreamReader<'a>, tile_parts: u32,
+    plm_seen: bool, plm_count: usize, ppm_fragments: u16,
+    ppm_count: usize, tlm_count: usize,
+) -> (Result<(), crate::DecodeError>, Part1CodestreamReader<'a>) {
+    if tile_parts == 0 {
+        (Err(part1_codestream_malformed(state.position, crate::MalformedKind::InvalidMarkerOrder)), state)
+    } else {
+        let consumed = part1_codestream_expect_standalone(state, 0xffd9);
+        match consumed.0 {
+            Err(error) => (Err(error), consumed.1),
+            Ok(()) => {
+                let reader = consumed.1;
+                let error = if plm_seen && plm_count != tile_parts as usize {
+                    Some(crate::MalformedKind::InvalidPacketLength)
+                } else if ppm_fragments != 0 && ppm_count != tile_parts as usize {
+                    Some(crate::MalformedKind::InvalidPackedPacketHeader)
+                } else if tlm_count != 0 && tlm_count != tile_parts as usize {
+                    Some(crate::MalformedKind::InvalidTilePart)
+                } else if reader.position != reader.input.len() {
+                    Some(crate::MalformedKind::TrailingData)
+                } else { None };
+                (match error {
+                    Some(kind) => Err(part1_codestream_malformed(reader.position, kind)), None => Ok(()),
+                }, reader)
+            },
+        }
+    }
+}
+
 #[verifier::opaque]
 pub(crate) open spec fn part1_read_tile_header_segment<'a>(
     state: Part1CodestreamReader<'a>,

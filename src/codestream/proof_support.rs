@@ -442,6 +442,15 @@ verus! {
         }
     }
 
+    closed spec fn tile_part_main_metadata_outcome(
+        result: Result<(PacketLengths<'_>, PackedPacketHeaders<'_>), DecodeError>,
+    ) -> Result<(crate::specs::Part1PacketLengths, crate::specs::Part1PackedHeaders), DecodeError> {
+        match result {
+            Err(error) => Err(error),
+            Ok((lengths, headers)) => Ok((packet_lengths_view(&lengths), packed_packet_headers_view(&headers))),
+        }
+    }
+
     pub open spec fn packed_header_reassembly_outcome(result: Result<Vec<u8>, DecodeError>) -> Result<Seq<u8>, DecodeError> {
         match result { Ok(bytes) => Ok(bytes@), Err(error) => Err(error) }
     }

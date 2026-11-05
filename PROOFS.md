@@ -179,6 +179,33 @@ technical candidate only: parent-owned record, review, CI, guarded integration
 and actual-main acceptance remain separate. No complete parsing, pixels,
 lifetime verification, normative conformance or publication claim follows.
 
+## Actual tile-loop metadata admission and termination
+
+The actual SOT branch delegates TLM, PLM and PPM admission to a shared borrowed,
+Copy-only selector. It preserves the original lookup and first-error order,
+independent physical table lengths, optional TLM tile IDs, declared lengths,
+complete packet-length owners, PPM offsets/lengths/fragments and borrowed
+main-header window. The helper is total over raw zero-based u32 ordinals.
+The actual checked-add counter is proved positive before computing that
+ordinal at the caller; no parser-success or prepared-result premise is used.
+
+Default values call the existing proved free constructor bodies directly.
+Their public const wrappers remain unchanged: the accepted attribute frontend
+cannot attach the desired static-method contract, and no external-function
+axiom or alternate executing implementation is substituted. The real two
+selected locals are passed unchanged to the actual tile-part reader.
+
+The actual EOC branch delegates zero-part admission, standalone EOC reading,
+PLM count, PPM count, nonempty TLM count and trailing-data checks, then breaks.
+Its complete Result and final reader relation retains early/late error
+prefixes, cursor/work counters and all input/limits/accounting frames.
+Both helpers leave the original outer owned configuration locals, clone/move
+order, stores, payload append and scopes in place.
+
+These are as-implemented source joins, not PLM framing/coexistence corrections
+or a complete raw main-header/layout/profile/public Result, normative
+correspondence, general cfg/erasure/lifetime/coverage or release claim.
+
 ## Actual persistent eight-state and payload fold
 
 The actual layout loop carries a ghost-only induction over all eight physical

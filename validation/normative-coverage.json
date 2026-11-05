@@ -4,6 +4,57 @@
   "scope": "Technical reference inventory; not exhaustive standards-clause coverage or a conformance claim.",
   "requirements": [
     {
+      "id": "part1-complete-native-tile-loop-metadata-admission",
+      "topic": "Complete total Result of the actual borrowed/Copy-only TLM then PLM then PPM table selection, using the real zero-based global tile-part ordinal, raw independent table lengths, optional TLM tile IDs, declared lengths, complete raw packet-length owners and full PPM frame offsets/lengths/fragments/borrowed main-header bytes. All first errors and start-versus-reader offsets are retained; no table normalization or successful-parser premise. Actual checked-add counter positivity is proved before computing the ordinal at the real SOT caller; helper has no requires clause. Its exact two selected locals are passed to the actual reader. Default cases directly reuse the existing proved sole free constructor bodies; public const wrappers remain unchanged. No clone/allocation/new owning state, PLM framing/coexistence correction, full raw layout/public Result, normative, general cfg/erasure/lifetime/coverage or release claim.",
+      "implementation_refs": [
+        {"path": "src/codestream/layout.rs", "symbol": "Parser::parse_layout"},
+        {"path": "src/codestream/layout.rs", "symbol": "Parser::tile_part_main_metadata"}
+      ],
+      "spec_refs": [
+        {"path": "specs/layout_input.rs", "symbol": "part1_tile_part_main_metadata"},
+        {"path": "specs/layout_input.rs", "symbol": "part1_empty_packet_lengths"},
+        {"path": "specs/layout_input.rs", "symbol": "part1_empty_packed_packet_headers"}
+      ],
+      "contract_refs": [
+        {"path": "src/codestream/layout.rs", "symbol": "Parser::tile_part_main_metadata"}
+      ],
+      "proof_refs": [
+        {"path": "src/codestream/proof_support.rs", "symbol": "tile_part_main_metadata_outcome"},
+        {"path": "src/codestream/proof_support.rs", "symbol": "packet_length_groups_view"},
+        {"path": "src/codestream/proof_support.rs", "symbol": "packed_header_frames_view"},
+        {"path": "src/codestream/packet_headers.rs", "symbol": "packet_lengths_none"},
+        {"path": "src/codestream/packet_headers.rs", "symbol": "packed_packet_headers_none"},
+        {"path": "src/codestream/tiles.rs", "symbol": "Parser::read_tile_part"}
+      ],
+      "test_refs": [
+        {"path": "src/codestream/tile_part_tests.rs", "symbol": "actual_tile_loop_metadata_preserves_raw_tables_offsets_sources_and_reader"},
+        {"path": "src/codestream/tile_part_tests.rs", "symbol": "actual_tile_loop_joins_raw_tlm_plm_ppm_and_eoc_first_error_order"}
+      ]
+    },
+    {
+      "id": "part1-complete-native-tile-loop-termination",
+      "topic": "Complete actual EOC/count/trailing Result and final raw reader frame. Zero tile-part count rejects before marker consumption; otherwise real standalone EOC reading precedes PLM count, PPM count, nonempty TLM count and trailing-byte checks in that order. Every raw cursor/work/packet-accounting/limits/input field, early and late failure prefix and integer cast is retained, with no supplied-success premise or executing owned state change. Actual EOC branch delegates then breaks. Not complete main/layout/profile/public Result, independently adjudicated normative correctness, general cfg/erasure/lifetime/coverage or release qualification.",
+      "implementation_refs": [
+        {"path": "src/codestream/layout.rs", "symbol": "Parser::parse_layout"},
+        {"path": "src/codestream/layout.rs", "symbol": "Parser::finish_tile_part_traversal"}
+      ],
+      "spec_refs": [
+        {"path": "specs/layout_input.rs", "symbol": "part1_finish_tile_part_traversal"},
+        {"path": "specs/mod.rs", "symbol": "part1_codestream_expect_standalone"}
+      ],
+      "contract_refs": [
+        {"path": "src/codestream/layout.rs", "symbol": "Parser::finish_tile_part_traversal"}
+      ],
+      "proof_refs": [
+        {"path": "src/codestream/proof_support.rs", "symbol": "parser_view"},
+        {"path": "src/codestream/reader.rs", "symbol": "Parser::expect_standalone"}
+      ],
+      "test_refs": [
+        {"path": "src/codestream/tile_part_tests.rs", "symbol": "actual_tile_loop_termination_preserves_all_error_prefixes_and_reader_frames"},
+        {"path": "src/codestream/tile_part_tests.rs", "symbol": "actual_tile_loop_joins_raw_tlm_plm_ppm_and_eoc_first_error_order"}
+      ]
+    },
+    {
       "id": "part1-complete-native-persistent-tile-state-fold",
       "topic": "Ghost-only actual layout-loop induction from eight all-None physical state vectors and an empty payload sequence, through actual reader-derived complete commit records, all eight ordered stores and payload append. The total ordered model reuses the accepted six-owner partial-commit relation, then stores complete MCT parameters, extensions and source payload. Actual successful prefixes equal the full fold; raw model bounds failures preserve their exact partial prefix. History is constructed only inside the actual loop from returned native owners, never supplied as a successful-parser or normalized-result premise. Every raw physical owner field, tail, hole, borrowed data window and prior payload remains; no executing clone/move/store/local/scope changes. This successful-prefix fold does not establish complete raw main/layout Result error composition, PLM/PPM/TLM/EOC/trailing/profile, normative fidelity, general cfg/erasure/lifetime/coverage or release qualification.",
       "implementation_refs": [
