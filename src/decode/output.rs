@@ -259,11 +259,22 @@ pub(super) fn finish_associated_selected_output(
     convert_associated_selected_color(&mapped, header, target, limits)
 }
 
+#[cfg_attr(verus_keep_ghost, verus_spec(result =>
+    ensures associated_typed_outcome(result) == crate::specs::part2_decode_jpx_codestream(
+        jp2::jpx_file_decode_view(file), codestream_index, crate::options::decode_options_limits(options)),
+))]
 pub(crate) fn decode_jpx_file<'a>(
     file: &'a jp2::Jp2File<'_>,
     codestream_index: usize,
     options: &DecodeOptions,
 ) -> Result<(TypedImage, Option<&'a jp2::Jp2Header>), DecodeError> {
+    #[cfg(verus_keep_ghost)]
+    proof! {
+        reveal(associated_typed_outcome);
+        codestream::complete_codestream_info_errors_known();
+        crate::specs::part2_decode_jpx_codestream_unfold(
+            jp2::jpx_file_decode_view(file), codestream_index, crate::options::decode_options_limits(options));
+    }
     if !file.file_type().is_jpx_compatible() {
         return Err(DecodeError::malformed(0, MalformedKind::InvalidProfile));
     }
@@ -295,11 +306,28 @@ pub(crate) fn decode_jpx_file<'a>(
         apply_associated_output(decoded, associated_header, options.limits())
     }
     let selected = file.codestream(codestream_index)?;
+    #[cfg(verus_keep_ghost)]
+    proof! {
+        jp2::codestream_source_known_fields(selected);
+        crate::specs::part2_decode_jpx_source_unfold(
+            jp2::codestream_source_view(selected), jp2::jpx_file_decode_view(file).2,
+            crate::options::decode_options_limits(options));
+    }
     let associated_header = Some(jp2::associated_header_for_codestream(
         selected,
         file.header(),
     )?);
+    #[cfg(verus_keep_ghost)]
+    proof! {
+        crate::specs::part2_decode_jpx_associated_unfold(
+            jp2::codestream_source_view(selected), jp2::associated_header_view(associated_header.unwrap()),
+            crate::options::decode_options_limits(options));
+    }
     let info = codestream::parse(selected.data(), options.limits())?;
+    #[cfg(verus_keep_ghost)]
+    proof! {
+        codestream::complete_codestream_info_known_fields(&info);
+    }
     if let Some(header) = associated_header {
         jp2::validate_selected_header(header, &info, selected.box_header().offset())?;
     }

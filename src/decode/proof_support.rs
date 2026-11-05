@@ -356,7 +356,7 @@ verus! {
         match result { Err(error) => Err(error), Ok(region) => Ok(region@) }
     }
 
-    closed spec fn associated_typed_outcome(result: Result<(TypedImage, Option<&jp2::Jp2Header>), DecodeError>)
+    pub closed spec fn associated_typed_outcome(result: Result<(TypedImage, Option<&jp2::Jp2Header>), DecodeError>)
         -> Result<(crate::specs::Part1DecodedTypedImage, Option<crate::specs::Part2AssociatedHeader>), DecodeError>
     {
         match result {

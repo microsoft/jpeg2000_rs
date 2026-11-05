@@ -52,6 +52,7 @@ impl BoxType {
         ]
     }
 
+    #[cfg_attr(verus_keep_ghost, verus_spec(result => ensures result == (self == other),))]
     pub const fn equals(self, other: Self) -> bool {
         self.0 == other.0
     }
@@ -62,6 +63,7 @@ impl BoxHeader {
         self.box_type
     }
 
+    #[cfg_attr(verus_keep_ghost, verus_spec(result => ensures result == super::box_header_offset(self),))]
     pub const fn offset(self) -> u64 {
         self.offset
     }

@@ -1030,6 +1030,162 @@ class FrameworkTests(WorkingFiles):
             framework._RAW_TILE_HEADER_CONTRACTS, 8,
         )
 
+    def test_inventory_binds_actual_jpx_source_image_producer_and_complete_consumed_results(self):
+        self._assert_complete_packet_contract_bindings(
+            {framework._JPX_SOURCE_ENTRY}, framework._JPX_SOURCE_CONTRACTS, 6, isolate=False,
+        )
+
+    def test_inventory_jpx_source_requires_every_actual_producer_model_and_checked_bridge(self):
+        coverage = json.loads((framework.VALIDATION / "normative-coverage.json").read_text())
+        entry = next(item for item in coverage["requirements"] if item["id"] == framework._JPX_SOURCE_ENTRY)
+        for field in ("contract_refs", "spec_refs", "proof_refs"):
+            for removed in entry[field]:
+                changed = copy.deepcopy(entry)
+                changed[field].remove(removed)
+                with self.subTest(field=field, removed=removed), self.assertRaisesRegex(ValueError, "whole JPX source Result"):
+                    framework.validate_normative_coverage(dict(coverage, requirements=[changed]))
+
+    def test_inventory_jpx_source_binds_only_real_source_header_raw_decoder_and_output_handoffs(self):
+        coverage = json.loads((framework.VALIDATION / "normative-coverage.json").read_text())
+        entry = next(item for item in coverage["requirements"] if item["id"] == framework._JPX_SOURCE_ENTRY)
+        source = framework.ROOT / "src/decode/output.rs"
+        original = source.read_text()
+        read_text = Path.read_text
+        begin = original.index("pub(crate) fn decode_jpx_file")
+        end = original.index("pub(super) fn decode_jpx_file_selected", begin)
+        block = original[begin:end]
+        outer = block.rindex("let selected = file.codestream(codestream_index)?;")
+        for before, after in (
+            ("file.codestream(codestream_index)", "file.codestream(0)"),
+            ("jp2::codestream_source_known_fields(selected);", "if false { jp2::codestream_source_known_fields(selected); }"),
+            ("jp2::codestream_source_view(selected)", "jp2::codestream_source_view(unrelated)"),
+            ("codestream::parse(selected.data(), options.limits())", "codestream::parse(&unrelated, options.limits())"),
+            ("codestream::complete_codestream_info_known_fields(&info);", "unrelated();"),
+            ("selected.box_header().offset()", "0"),
+            ("decode_codestream(selected.data(), options)", "decode_codestream(selected.data(), &DecodeOptions::default())"),
+            ("apply_associated_output(decoded, associated_header, options.limits())",
+             "apply_associated_output(decoded, None, options.limits())"),
+        ):
+            self.assertIn(before, block[outer:])
+            changed = original[:begin] + block[:outer] + block[outer:].replace(before, after, 1) + original[end:]
+
+            def altered(path, *args, **kwargs):
+                return changed if path == source else read_text(path, *args, **kwargs)
+
+            with self.subTest(before=before), mock.patch.object(Path, "read_text", altered), \
+                    self.assertRaisesRegex(ValueError, "actual executing source/header/raw decoder/output handoffs"):
+                framework.validate_normative_coverage(dict(coverage, requirements=[entry]))
+
+    def test_inventory_jpx_source_rejects_proof_handoffs_moved_into_the_disabled_nested_item(self):
+        coverage = json.loads((framework.VALIDATION / "normative-coverage.json").read_text())
+        entry = next(item for item in coverage["requirements"] if item["id"] == framework._JPX_SOURCE_ENTRY)
+        source = framework.ROOT / "src/decode/output.rs"
+        original = source.read_text()
+        read_text = Path.read_text
+        begin = original.index("pub(crate) fn decode_jpx_file")
+        end = original.index("pub(super) fn decode_jpx_file_selected", begin)
+        block = original[begin:end]
+        outer = block.rindex("let selected = file.codestream(codestream_index)?;")
+        proof = "jp2::codestream_source_known_fields(selected);"
+        self.assertIn(proof, block[outer:])
+        prefix = block[:outer].replace(
+            "let selected = file.codestream(codestream_index)?;",
+            "let selected = file.codestream(codestream_index)?;\n"
+            "        #[cfg(verus_keep_ghost)] proof! { " + proof + " }",
+            1,
+        )
+        for suffix in (block[outer:], block[outer:].replace(proof, "", 1)):
+            changed = original[:begin] + prefix + suffix + original[end:]
+
+            def altered(path, *args, **kwargs):
+                return changed if path == source else read_text(path, *args, **kwargs)
+
+            with self.subTest(real_handoff_retained=proof in suffix), mock.patch.object(Path, "read_text", altered), \
+                    self.assertRaisesRegex(ValueError, "disabled nested proof"):
+                framework.validate_normative_coverage(dict(coverage, requirements=[entry]))
+
+    def test_inventory_jpx_source_rejects_source_header_projection_trimming_and_supplied_banks(self):
+        coverage = json.loads((framework.VALIDATION / "normative-coverage.json").read_text())
+        entry = next(item for item in coverage["requirements"] if item["id"] == framework._JPX_SOURCE_ENTRY)
+        read_text = Path.read_text
+        for name, changes in (
+            ("src/jp2/proof_support.rs", (
+                ("file_type.compatible_brands@", "Seq::empty()"),
+                ("stream.data@", "Seq::empty()"),
+                ("stream.header.offset,", "0,"),
+                ("codestream_header_association_view(stream))", "None)"),
+                ("file.codestreams@.map_values", "file.codestreams@.take(0).map_values"),
+                ("associated_header_view(&file.header))", "unrelated)"),
+            )),
+            ("specs/jpx_source.rs", (
+                ("input.0 == brand || input.2.contains(brand)", "input.2.contains(brand)"),
+                ("Ok(input[index as int])", "Ok(input[0])"),
+                ("part1_parse_info(source.0, limits)", "supplied_successful_info"),
+                ("part2_associated_codestream_header(source.2, fallback)", "part2_associated_codestream_header(None, fallback)"),
+                ("part2_decode_raw_codestream(source.0, limits, None)", "part2_decode_raw_codestream(Seq::empty(), limits, None)"),
+                ("part2_apply_associated_output(image, Some(header),", "part2_apply_associated_output(image, None,"),
+            )),
+        ):
+            source = framework.ROOT / name
+            original = source.read_text()
+            for before, after in changes:
+                self.assertIn(before, original)
+                changed = original.replace(before, after, 1)
+
+                def altered(path, *args, **kwargs):
+                    return changed if path == source else read_text(path, *args, **kwargs)
+
+                with self.subTest(name=name, before=before), mock.patch.object(Path, "read_text", altered), \
+                        self.assertRaisesRegex(ValueError, "complete physical/source models, not supplied banks or trimming"):
+                    framework.validate_normative_coverage(dict(coverage, requirements=[entry]))
+
+    def test_inventory_jpx_source_requires_actual_file_reference_and_getter_contract_values(self):
+        coverage = json.loads((framework.VALIDATION / "normative-coverage.json").read_text())
+        entry = next(item for item in coverage["requirements"] if item["id"] == framework._JPX_SOURCE_ENTRY)
+        read_text = Path.read_text
+        for name, before, after in (
+            ("src/jp2/container.rs", "super::file_type_view(self), brand", "super::file_type_view(self), unrelated"),
+            ("src/jp2/container.rs", "result@ == super::codestream_source_view(self).0", "result@ == unrelated"),
+            ("src/jp2/container.rs", "super::associated_header_view(result) == super::jpx_file_decode_view(self).2",
+             "super::associated_header_view(result) == unrelated"),
+            ("src/jp2/container.rs", "Ok(super::codestream_source_view(stream))", "Ok(unrelated)"),
+            ("src/jp2/box_reader.rs", "result == super::box_header_offset(self)", "result == 0"),
+            ("src/jp2/box_reader.rs", "result == (self == other)", "result == true"),
+            ("src/options.rs", "result == decode_options_limits(self)", "result == decode_options_limits(unrelated)"),
+        ):
+            source = framework.ROOT / name
+            original = source.read_text()
+            self.assertIn(before, original)
+            changed = original.replace(before, after, 1)
+
+            def altered(path, *args, **kwargs):
+                return changed if path == source else read_text(path, *args, **kwargs)
+
+            with self.subTest(name=name, before=before), mock.patch.object(Path, "read_text", altered), \
+                    self.assertRaisesRegex(ValueError, "actual getter/reference contracts"):
+                framework.validate_normative_coverage(dict(coverage, requirements=[entry]))
+
+    def test_inventory_jpx_source_keeps_fresh_call_local_caches_without_new_producer_relays(self):
+        coverage = json.loads((framework.VALIDATION / "normative-coverage.json").read_text())
+        entry = next(item for item in coverage["requirements"] if item["id"] == framework._JPX_SOURCE_ENTRY)
+        names = (
+            "src/jp2/proof_support.rs", "src/jp2/container.rs", "src/jp2/box_reader.rs",
+            "src/decode/output.rs", "specs/jpx_source.rs", "src/options.rs",
+        )
+        counts = {framework.ROOT / name: 0 for name in names}
+        read_text = Path.read_text
+
+        def counted(path, *args, **kwargs):
+            if path in counts:
+                counts[path] += 1
+            return read_text(path, *args, **kwargs)
+
+        with mock.patch.object(Path, "read_text", counted):
+            for expected in (1, 2):
+                self.assertEqual(framework.validate_normative_coverage(dict(coverage, requirements=[entry]))["status"], "passed")
+                self.assertEqual(set(counts.values()), {expected})
+        self.assertNotIn(("src/decode/output.rs", "decode_jpx_file"), framework._COMPONENT_PRODUCER_RELAYS)
+
     def test_inventory_binds_actual_compressed_byte_full_selected_typed_results(self):
         self._assert_complete_packet_contract_bindings(
             {framework._RAW_TYPED_ENTRY}, framework._RAW_TYPED_CONTRACTS, 5, isolate=False,

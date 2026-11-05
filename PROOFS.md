@@ -179,6 +179,34 @@ technical candidate only: parent-owned record, review, CI, guarded integration
 and actual-main acceptance remain separate. No complete parsing, pixels,
 lifetime verification, normative conformance or publication claim follows.
 
+## Actual JPX source codestream and associated-image Results
+
+The executing `decode_jpx_file` now composes actual JPX compatibility, source
+lookup, associated-header selection, raw info parsing, header validation, raw
+full decoding and mapped output into a complete image/header Result. A logical
+view retains the actual file type, every source byte sequence, box offset and
+optional parsed association, and fallback header. Checked getter contracts and
+raw-info field/error bridges connect those actual owners to the model.
+
+The original native statements, owning locals, scopes and error order remain.
+The existing disabled nested selected decoder is preserved as nonexecuting
+historical context: it contributes no executing producer or proof handoff.
+Inventory checks remove that item before binding the actual outer body and
+reject ghost handoffs hidden inside it. Closed public models use checked
+staged unfolding, not supplied parser/image outcomes or external axioms.
+
+Native tests cover independently encoded nonzero sources, actual fallback and
+associated-header reference identity, inherited empty headers, complete palette/
+mapping/channel-definition output, every truncated raw prefix and exact profile/
+lookup/parser/header/backend/output-budget priority. The arbitrary native
+missing-parsed-association branch is tested separately; it is not claimed to be
+reachable through successful container parsing.
+
+This is the actual file-to-decoded-image producer needed by JPX normalization.
+It is not a raw container parser theorem, complete normalization/frame/public
+composition, independent corrected-rule correspondence, production coverage/
+erasure/lifetimes, official conformance or release qualification.
+
 ## Actual compressed-codestream full and selected typed-image Results
 
 The actual full and selected codestream entry points now compose the raw

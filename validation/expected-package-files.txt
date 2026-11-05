@@ -22,6 +22,7 @@ specs/README.md
 specs/codestream_profile.rs
 specs/decoder_input.rs
 specs/header.rs
+specs/jpx_source.rs
 specs/layout_input.rs
 specs/legacy.rs
 specs/main_header.rs
@@ -86,6 +87,7 @@ src/decode/arithmetic.rs
 src/decode/code_blocks.rs
 src/decode/execution.rs
 src/decode/geometry.rs
+src/decode/jpx_source_result_tests.rs
 src/decode/output.rs
 src/decode/planning.rs
 src/decode/proof_support.rs

@@ -20,7 +20,12 @@ impl FileType {
         &self.compatible_brands
     }
 
+    #[cfg_attr(verus_keep_ghost, verus_spec(result =>
+        ensures result == crate::specs::part2_file_type_compatible(super::file_type_view(self), brand),
+    ))]
     pub fn is_compatible_with(&self, brand: BoxType) -> bool {
+        #[cfg(verus_keep_ghost)]
+        proof! { reveal(super::file_type_view); }
         if self.brand.equals(brand) {
             return true;
         }
@@ -29,6 +34,8 @@ impl FileType {
             verus_keep_ghost,
             verus_spec(
                 invariant index <= self.compatible_brands.len(),
+                    self.brand != brand,
+                    forall|i: int| 0 <= i < index ==> self.compatible_brands@[i] != brand,
                 decreases self.compatible_brands.len() - index,
             )
         )]
@@ -45,6 +52,9 @@ impl FileType {
         false
     }
 
+    #[cfg_attr(verus_keep_ghost, verus_spec(result =>
+        ensures result == crate::specs::part2_file_type_jpx(super::file_type_view(self)),
+    ))]
     pub fn is_jpx_compatible(&self) -> bool {
         self.is_compatible_with(BoxType::JPX_BRAND)
             || self.is_compatible_with(BoxType::JPX_BASELINE_BRAND)
@@ -77,10 +87,16 @@ pub(crate) fn associated_header_for_codestream<'a>(
 }
 
 impl<'a> CodestreamBox<'a> {
+    #[cfg_attr(verus_keep_ghost, verus_spec(result =>
+        ensures super::box_header_offset(result) == super::codestream_source_view(self).1,
+    ))]
     pub const fn box_header(&self) -> BoxHeader {
         self.header
     }
 
+    #[cfg_attr(verus_keep_ghost, verus_spec(result =>
+        ensures result@ == super::codestream_source_view(self).0,
+    ))]
     pub fn data(&self) -> &'a [u8] {
         self.data
     }
@@ -105,10 +121,16 @@ impl CodestreamHeaderAssociation<'_> {
 }
 
 impl<'a> Jp2File<'a> {
+    #[cfg_attr(verus_keep_ghost, verus_spec(result =>
+        ensures super::file_type_view(result) == super::jpx_file_decode_view(self).0,
+    ))]
     pub fn file_type(&self) -> &FileType {
         &self.file_type
     }
 
+    #[cfg_attr(verus_keep_ghost, verus_spec(result =>
+        ensures super::associated_header_view(result) == super::jpx_file_decode_view(self).2,
+    ))]
     pub fn header(&self) -> &Jp2Header {
         &self.header
     }
@@ -150,6 +172,14 @@ impl<'a> Jp2File<'a> {
         self.codestreams.len()
     }
 
+    #[cfg_attr(verus_keep_ghost, verus_spec(result =>
+        ensures match result {
+            Err(error) => crate::specs::part2_jpx_codestream_lookup(
+                super::jpx_file_decode_view(self).1, index) == Err(error),
+            Ok(stream) => crate::specs::part2_jpx_codestream_lookup(
+                super::jpx_file_decode_view(self).1, index) == Ok(super::codestream_source_view(stream)),
+        },
+    ))]
     pub fn codestream(&self, index: usize) -> Result<&CodestreamBox<'a>, DecodeError> {
         self.codestreams
             .get(index)
