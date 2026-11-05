@@ -181,6 +181,9 @@ impl DecodeError {
         Self::MalformedInput { offset, kind }
     }
 
+    #[cfg_attr(verus_keep_ghost, verus_spec(
+        ensures returns (Self::LimitExceeded { resource, limit, actual }),
+    ))]
     pub(crate) const fn limit(resource: Resource, limit: u64, actual: u64) -> Self {
         Self::LimitExceeded {
             resource,

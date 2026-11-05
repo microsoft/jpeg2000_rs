@@ -175,6 +175,7 @@ impl Parser<'_> {
         proof! {
             reveal(inherited_tile_configuration_outcome);
             reveal(persistent_tile_selection_view);
+            reveal(super::persistent_tile_selection_sequences_view);
             reveal(optional_roi_shifts_view);
             reveal(tile_part_payload_view);
             reveal(crate::specs::part1_select_inherited_tile_configuration);

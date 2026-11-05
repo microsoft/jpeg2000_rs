@@ -25,16 +25,24 @@ verus! {
         quantizations: &[Option<Quantization>], style_parts: &[Option<usize>],
         payloads: &[TilePartPayload<'_>],
     ) -> crate::specs::Part1PersistentTileSelection {
+        persistent_tile_selection_sequences_view(roi@, styles@, quantizations@, style_parts@, payloads@)
+    }
+
+    pub(crate) closed spec fn persistent_tile_selection_sequences_view(
+        roi: Seq<Option<RoiShifts>>, styles: Seq<Option<CodingStyle>>,
+        quantizations: Seq<Option<Quantization>>, style_parts: Seq<Option<usize>>,
+        payloads: Seq<TilePartPayload<'_>>,
+    ) -> crate::specs::Part1PersistentTileSelection {
         (
-            roi@.map_values(|value: Option<RoiShifts>| optional_roi_shifts_view(value)),
-            styles@.map_values(|value: Option<CodingStyle>| match value {
+            roi.map_values(|value: Option<RoiShifts>| optional_roi_shifts_view(value)),
+            styles.map_values(|value: Option<CodingStyle>| match value {
                 None => None, Some(style) => Some(parsed_coding_style_view(style)),
             }),
-            quantizations@.map_values(|value: Option<Quantization>| match value {
+            quantizations.map_values(|value: Option<Quantization>| match value {
                 None => None, Some(quantization) => Some(quantization_view(&quantization)),
             }),
-            style_parts@,
-            payloads@.map_values(|value: TilePartPayload<'_>| tile_part_payload_view(&value)),
+            style_parts,
+            payloads.map_values(|value: TilePartPayload<'_>| tile_part_payload_view(&value)),
         )
     }
 

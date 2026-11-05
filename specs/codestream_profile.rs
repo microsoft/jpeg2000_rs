@@ -204,4 +204,22 @@ pub(crate) open spec fn part1_classify_codestream_profile(
     }
 }
 
+pub(crate) proof fn part1_classification_preserves_metadata(
+    r_siz: u16, caps: Option<(u32, Seq<u16>)>, profile: Option<Seq<u16>>,
+    corresponding: Option<Seq<u16>>, styles: (u16, Seq<Part1ParsedCodingStyle>),
+    roi: Seq<u8>, tiles: Seq<Part1ProfileTile>, components: u16, has_roi: bool,
+)
+    ensures match part1_classify_codestream_profile(
+        r_siz, caps, profile, corresponding, styles, roi, tiles, components, has_roi,
+    ) {
+        Err(_) => true,
+        Ok(value) => value.0 == r_siz && value.2 == caps
+            && value.3 == profile && value.4 == corresponding,
+    },
+{
+    reveal(part1_classify_codestream_profile);
+    reveal(part1_profile_after_observation);
+    reveal(part1_profile_output);
+}
+
 }
