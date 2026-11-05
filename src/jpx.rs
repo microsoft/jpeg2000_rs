@@ -2,15 +2,14 @@ use crate::{
     DecodeError, DecodeOptions, MalformedKind, Resource, ResourceLimits,
     codestream::ComponentInfo,
     color::{ConvertedChannelType, ConvertedColorSpace, ConvertedImage},
-    image::{
-        ChannelAssociation, ChannelDefinition, ChannelType, TypedComponent, TypedImage,
-        TypedSamples,
-    },
+    image::{ChannelAssociation, ChannelDefinition, ChannelType, TypedComponent, TypedSamples},
     jp2::{
         self, ComponentBitDepth, CompositingLayer, CompositionInstruction, Jp2File, LayerOpacity,
     },
 };
 
+#[cfg(verus_keep_ghost)]
+use crate::image::TypedImage;
 #[cfg(verus_keep_ghost)]
 use vstd::prelude::*;
 

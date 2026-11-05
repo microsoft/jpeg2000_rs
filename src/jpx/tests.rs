@@ -145,6 +145,169 @@ mod tests {
         );
     }
 
+    fn general_source_bytes(
+        registrations: &[[u8; 6]],
+        definitions: &[(u16, u16, u16)],
+        opacity: Option<&[u8]>,
+        color: u32,
+    ) -> Vec<u8> {
+        fn boxed(kind: [u8; 4], payload: &[u8]) -> Vec<u8> {
+            let mut bytes = u32::try_from(payload.len() + 8).unwrap().to_be_bytes().to_vec();
+            bytes.extend_from_slice(&kind);
+            bytes.extend_from_slice(payload);
+            bytes
+        }
+        let packets: [&[u8]; 3] = [
+            &[0xcf, 0xb4, 0x04, 0x09],
+            &[0xc0, 0x21, 0x03],
+            &[0xcf, 0xb4, 0x08, 0x04, 0x4f],
+        ];
+        let (mut bytes, length) = source_layer_bytes(packets[0], false);
+        let first = bytes.split_off(bytes.len() - length - 8);
+        let mut layer = Vec::new();
+        if !registrations.is_empty() {
+            let mut records = vec![0, 2, 0, 1];
+            for record in registrations {
+                records.extend_from_slice(record);
+            }
+            layer.extend(boxed(*b"creg", &records));
+        }
+        let mut colr = vec![1, 0, 0];
+        colr.extend_from_slice(&color.to_be_bytes());
+        layer.extend(boxed(*b"cgrp", &boxed(*b"colr", &colr)));
+        if !definitions.is_empty() {
+            let mut records = u16::try_from(definitions.len()).unwrap().to_be_bytes().to_vec();
+            for (channel, kind, association) in definitions {
+                records.extend_from_slice(&channel.to_be_bytes());
+                records.extend_from_slice(&kind.to_be_bytes());
+                records.extend_from_slice(&association.to_be_bytes());
+            }
+            layer.extend(boxed(*b"cdef", &records));
+        }
+        if let Some(opacity) = opacity {
+            layer.extend(boxed(*b"opct", opacity));
+        }
+        bytes.extend(boxed(*b"jplh", &layer));
+        bytes.extend(first);
+        for packet in &packets[1..] {
+            let (mut source, length) = source_layer_bytes(packet, false);
+            bytes.extend(source.split_off(source.len() - length - 8));
+        }
+        bytes
+    }
+
+    #[test]
+    fn actual_general_layer_derives_literal_multisource_registered_planes() {
+        let options = DecodeOptions::default();
+        for (subsampling, offset, expected_width) in [(2, 0, 1), (4, 1, 3)] {
+            let bytes = general_source_bytes(
+                &[[0, 0, subsampling, 1, offset, 0], [0, 1, subsampling, 1, offset, 0],
+                    [0, 2, subsampling, 1, offset, 0]],
+                &[], None, jp2::ENUMERATED_SRGB,
+            );
+            let file = jp2::parse(&bytes, options.limits()).unwrap();
+            let original = file.clone();
+            let owned = super::layer_decode::decode_effective_layer(&file, 0, &options).unwrap();
+            assert_eq!((owned.width, owned.height), (expected_width, 1));
+            assert_eq!(owned.color_space, ConvertedColorSpace::Srgb);
+            let expected: Vec<Vec<u16>> = [257, 33_153, 51_400].into_iter()
+                .map(|value| if offset == 0 { vec![value] } else { vec![0, value, value] }).collect();
+            assert_eq!(owned.colors, expected);
+            assert_eq!(owned.alpha, None);
+            assert_eq!(file, original);
+        }
+    }
+
+    #[test]
+    fn actual_general_layer_clears_inherited_definitions_and_uses_actual_layer_records() {
+        let options = DecodeOptions::default();
+        let bytes = general_source_bytes(
+            &[[0, 0, 2, 1, 0, 0], [0, 1, 2, 1, 0, 0], [0, 2, 2, 1, 0, 0]],
+            &[(0, 0, 3), (1, 0, 1), (2, 0, 2)], None, jp2::ENUMERATED_SRGB,
+        );
+        let mut file = jp2::parse(&bytes, options.limits()).unwrap();
+        file.header.channel_definition_records = vec![jp2::ChannelDefinitionRecord {
+            channel: 0, definition: ChannelDefinition::new(ChannelType::Color, ChannelAssociation::Color(1)),
+        }];
+        let owned = super::layer_decode::decode_effective_layer(&file, 0, &options).unwrap();
+        assert_eq!(owned.colors, vec![vec![33_153], vec![51_400], vec![257]]);
+        assert_eq!(owned.alpha, None);
+
+        let bytes = general_source_bytes(&[], &[(0, 0, 1)], None, jp2::ENUMERATED_GRAYSCALE);
+        let file = jp2::parse(&bytes, options.limits()).unwrap();
+        let owned = super::layer_decode::decode_effective_layer(&file, 0, &options).unwrap();
+        assert_eq!((owned.width, owned.height, owned.color_space), (1, 1, ConvertedColorSpace::Grayscale));
+        assert_eq!(owned.colors, vec![vec![257]]);
+    }
+
+    #[test]
+    fn actual_general_layer_composes_straight_premultiplied_and_component_chroma_opacity() {
+        let options = DecodeOptions::default();
+        for (mode, premultiplied) in [(0, false), (1, true)] {
+            let bytes = general_source_bytes(
+                &[[0, 0, 2, 1, 0, 0], [0, 1, 2, 1, 0, 0]],
+                &[], Some(&[mode]), jp2::ENUMERATED_GRAYSCALE,
+            );
+            let file = jp2::parse(&bytes, options.limits()).unwrap();
+            let owned = super::layer_decode::decode_effective_layer(&file, 0, &options).unwrap();
+            assert_eq!(owned.colors, vec![vec![257]]);
+            assert_eq!(owned.alpha, Some((vec![33_153], premultiplied)));
+        }
+        for (last_key, alpha) in [(200, 0), (201, u16::MAX)] {
+            let bytes = general_source_bytes(
+                &[[0, 0, 2, 1, 0, 0], [0, 1, 2, 1, 0, 0], [0, 2, 2, 1, 0, 0]],
+                &[], Some(&[2, 3, 1, 129, last_key]), jp2::ENUMERATED_SRGB,
+            );
+            let file = jp2::parse(&bytes, options.limits()).unwrap();
+            let owned = super::layer_decode::decode_effective_layer(&file, 0, &options).unwrap();
+            assert_eq!(owned.colors, vec![vec![257], vec![33_153], vec![51_400]]);
+            assert_eq!(owned.alpha, Some((vec![alpha], false)));
+        }
+    }
+
+    #[test]
+    fn actual_general_layer_preserves_exact_source_resource_definition_and_chroma_error_priority() {
+        let invalid = DecodeError::MalformedInput { offset: 0, kind: crate::MalformedKind::InvalidBoxContents };
+        let options = DecodeOptions::default();
+        let input_limited = DecodeOptions::new(ResourceLimits::HARDENED.with_maximum_input_bytes(0).unwrap());
+        for color in [u32::MAX, jp2::ENUMERATED_SRGB] {
+            let bytes = general_source_bytes(
+                &[[0, 0, 2, 1, 0, 0], [0, 1, 2, 1, 0, 0]],
+                &[(0, 0, 4)], None, color,
+            );
+            let file = jp2::parse(&bytes, options.limits()).unwrap();
+            let expected = if color == u32::MAX {
+                DecodeError::UnsupportedColorConversion { reason: crate::UnsupportedColorConversion::EnumeratedColorSpace }
+            } else { DecodeError::LimitExceeded { resource: Resource::InputBytes, limit: 0,
+                actual: source_layer_bytes(&[0xcf, 0xb4, 0x04, 0x09], false).1 as u64 } };
+            assert_eq!(super::layer_decode::decode_effective_layer(&file, 0, &input_limited).err(), Some(expected));
+        }
+        let bytes = general_source_bytes(
+            &[[0, 0, 4, 1, 1, 0], [0, 1, 4, 1, 1, 0], [0, 2, 4, 1, 1, 0]],
+            &[(0, 0, 4)], None, jp2::ENUMERATED_SRGB,
+        );
+        let file = jp2::parse(&bytes, options.limits()).unwrap();
+        for (limits, expected) in [
+            (ResourceLimits::HARDENED.with_geometry_limits_for_test(2, 16, 16, 1, 16),
+                DecodeError::LimitExceeded { resource: Resource::Pixels, limit: 1, actual: 3 }),
+            (ResourceLimits::HARDENED.with_geometry_limits_for_test(2, 16, 16, 16, 16),
+                DecodeError::LimitExceeded { resource: Resource::Components, limit: 2, actual: 3 }),
+            (ResourceLimits::HARDENED, invalid),
+        ] {
+            let original = file.clone();
+            assert_eq!(super::layer_decode::decode_effective_layer(&file, 0, &DecodeOptions::new(limits)).err(), Some(expected));
+            assert_eq!(file, original);
+        }
+        for opacity in [&[2, 2, 1, 129][..], &[2, 3, 1, 129][..]] {
+            let bytes = general_source_bytes(
+                &[[0, 0, 2, 1, 0, 0], [0, 1, 2, 1, 0, 0], [0, 2, 2, 1, 0, 0]],
+                &[], Some(opacity), jp2::ENUMERATED_SRGB,
+            );
+            let file = jp2::parse(&bytes, options.limits()).unwrap();
+            assert_eq!(super::layer_decode::decode_effective_layer(&file, 0, &options).err(), Some(invalid));
+        }
+    }
+
     fn opacity_source_bytes(opacity: Option<&[u8]>, association: bool) -> Vec<u8> {
         fn boxed(kind: [u8; 4], payload: &[u8]) -> Vec<u8> {
             let mut bytes = u32::try_from(payload.len() + 8).unwrap().to_be_bytes().to_vec();

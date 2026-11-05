@@ -370,6 +370,15 @@ verus! {
     {
     }
 
+    pub(crate) proof fn associated_typed_outcome_known()
+        ensures forall|result: Result<(TypedImage, Option<&jp2::Jp2Header>), DecodeError>|
+            #[trigger] associated_typed_outcome(result) == match result {
+                Err(error) => Err(error),
+                Ok(output) => Ok((crate::image::typed_image_value_view(output.0), jp2::associated_header_option(output.1))),
+            },
+    {
+    }
+
     pub(crate) proof fn associated_typed_success_known(image: &TypedImage, header: Option<&jp2::Jp2Header>)
         ensures associated_typed_outcome(Ok((*image, header)))
             == Ok((crate::image::typed_image_value_view(*image), jp2::associated_header_option(header))),

@@ -191,7 +191,9 @@ pub(crate) use component_transform::inverse_component_values;
 pub use component_transform::{
     apply_irreversible_component_transform, apply_reversible_component_transform,
 };
-pub(crate) use layout::{typed_component_from_parts, typed_image_from_components_with_origin};
+pub(crate) use layout::{
+    channel_definition_new, typed_component_from_parts, typed_image_from_components_with_origin,
+};
 pub use mct::apply_multiple_component_transform;
 pub(crate) use mct::apply_multiple_component_transform_components;
 #[cfg(test)]
