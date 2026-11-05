@@ -179,6 +179,43 @@ technical candidate only: parent-owned record, review, CI, guarded integration
 and actual-main acceptance remain separate. No complete parsing, pixels,
 lifetime verification, normative conformance or publication claim follows.
 
+## Actual complete general-layer normalization Result
+
+`decode_general_compositing_layer` now derives its complete Result from the
+actual parsed file, selected layer and decoding options. Its checked source
+prefix calls the actual JPX decoder and registered-extent producers. The
+component prefix composes actual normalization, full-plane registration,
+sample widening, construction and every inherited channel definition, retaining
+the original precision/signed descriptors for component-specific chroma keys.
+Pixel/component admission, explicit records, default color/alpha definitions,
+typed-image admission, color conversion, owned-layer creation and chroma
+application preserve exact native error priority and complete returned planes.
+No successful image/normalization bank is an input to this relation.
+
+The existing verified free component/image constructors are called directly.
+Their now-unused associated convenience wrappers are test-only, matching the
+existing test-only `from_components` wrapper; no decoder producer is forked.
+The Copy channel-definition constructor is a shared verified free producer;
+the public constructor delegates to it. The unchanged widening helper is
+deliberately lifted to module scope: the pinned outer `verus_spec` rewrite
+otherwise injects an additional contract on its nested `cfg_attr` function.
+These are explicit native call-target/helper-placement changes, not a claim
+of coordinate-only native MIR identity. Owning locals, loop traversal,
+reference choices and allocation bodies are retained; all such differences
+need exact-source native qualification before acceptance.
+
+Real-byte regressions bind three independent scalar codestreams to literal
+multisource registered RGB planes, clearing inherited definitions, reordered
+layer records, absent registrations, straight/premultiplied/component-chroma
+opacity and source/resource/definition/key error priority. Strict inventory
+checks retain complete producer/model/error handoffs and reject omitted or
+trimmed inputs. They are finite tests, not coverage percentages.
+
+This closes the actual general normalizer's producer relation, not the
+remaining effective-layer/frame/public-container joins. Normative editions,
+permissions, independent adjudication, complete production cfg/erasure,
+official lifetime tooling and publication remain separate requirements.
+
 ## Actual general-layer component registration plane
 
 The actual `register_samples` has a complete Result equality across its full
@@ -4281,19 +4318,22 @@ missing samples rather than treating them as nonmatches; it is not silently
 changed or included here. Raw-key normalization, registration/sampling,
 opacity and complete F2/F4/F8 composition remain separate work. Whole-root
 and hosted qualification must match the delivered source before acceptance.
-## Complete Result of actual nested sample widening
+## Complete Result of actual sample widening
 
-The existing `widen_samples` local function in
-`decode_general_compositing_layer` retains its sole executing body and caller.
+The existing `widen_samples` function retains its sole executing body and
+general-normalizer caller.
 Its complete Result contract guarantees success, identical sample count and
 every u16 value widened exactly to u64, including empty input. Its loop ties
 the output length to the processed prefix and preserves pointwise sample
 identity, checked-index admission and real termination.
 
 This is a source-derived scalar-copy property, not a new normalization rule
-or a model-to-standard claim. The helper is not moved to make Rustdoc count it;
-nested/compiler-generated source-origin gaps remain explicit in the separate
-inventory. No runtime clone, precomputed output, successful-caller premise,
+or a model-to-standard claim. The helper was originally nested; complete
+general-Result annotation deliberately lifts that unchanged body to module
+scope because the pinned outer macro duplicates nested function contracts.
+It is not moved to inflate Rustdoc counts, and the changed native function
+path/call target requires explicit qualification. Remaining source-origin
+gaps stay explicit in the separate inventory. No runtime clone, precomputed output, successful-caller premise,
 trusted codec adapter or allocation-identity assumption is introduced.
 
 The contract uses the existing Vec/library trust boundary. It does not prove

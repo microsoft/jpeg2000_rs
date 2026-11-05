@@ -1,6 +1,26 @@
 #[cfg(verus_keep_ghost)]
 verus! {
     #[verifier::inline]
+    spec fn general_source_views(sources: Seq<(TypedImage, u8, u8, u32, u32)>)
+        -> Seq<crate::specs::Part2GeneralSource>
+    {
+        Seq::new(sources.len(), |i: int|
+            (crate::image::typed_image_value_view(sources[i].0),
+                sources[i].1, sources[i].2, sources[i].3, sources[i].4))
+    }
+
+    proof fn general_source_views_push(
+        sources: Seq<(TypedImage, u8, u8, u32, u32)>,
+        source: (TypedImage, u8, u8, u32, u32),
+    )
+        ensures general_source_views(sources.push(source)) == general_source_views(sources).push(
+            (crate::image::typed_image_value_view(source.0), source.1, source.2, source.3, source.4)),
+    {
+        assert(general_source_views(sources.push(source)) =~= general_source_views(sources).push(
+            (crate::image::typed_image_value_view(source.0), source.1, source.2, source.3, source.4)));
+    }
+
+    #[verifier::inline]
     spec fn timeline_instruction_view(instruction: CompositionInstruction) -> crate::specs::Part2TimelineInstruction {
         ((0, instruction.target_x, instruction.target_y, instruction.target_width, instruction.target_height,
             instruction.source_x, instruction.source_y, instruction.source_width, instruction.source_height,

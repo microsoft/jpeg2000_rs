@@ -2617,6 +2617,54 @@ _DECODER_LAYOUT_CONTRACTS = {
 
 
 _SOURCE_OPACITY_ENTRY = "part2-complete-native-source-layer-opacity-result"
+_GENERAL_LAYER_ENTRY = "part2-complete-native-general-layer-result"
+_GENERAL_LAYER_CONTRACTS = {
+    ("src/jpx/layer_decode.rs", "decode_general_compositing_layer"): (
+        "part2_decode_general_layer", _coverage_call("owned_layer_outcome", r"\1"), None,
+        _coverage_call("jp2::jpx_file_decode_view", "file") + r"\s*,\s*"
+        + _coverage_call("jp2::general_layer_config", "file", "layer") + r"\s*,\s*layer_index\s*,\s*"
+        + _coverage_call("crate::options::decode_options_limits", "options"),
+    ),
+}
+_GENERAL_LAYER_MODELS = {
+    ("specs/jpx_general.rs", name) for name in (
+        "part2_decode_general_layer", "part2_general_sources_prefix", "part2_general_source_step",
+        "part2_general_assembled_sources_prefix", "part2_general_components_prefix", "part2_general_component_step",
+        "part2_general_definitions", "part2_general_records_prefix", "part2_general_default_colors",
+        "part2_general_after_assembly", "part2_general_finish",
+    )
+}
+_GENERAL_LAYER_PROOFS = {
+    ("specs/jpx_general.rs", name) for name in (
+        "part2_general_sources_step", "part2_general_sources_error",
+        "part2_general_assembled_sources_step", "part2_general_assembled_sources_error",
+        "part2_general_components_step", "part2_general_components_error",
+        "part2_general_records_step", "part2_general_records_error",
+    )
+} | {
+    ("src/decode/proof_support.rs", "associated_typed_outcome_known"),
+    ("src/jpx/proof_support.rs", "general_source_views_push"),
+    ("src/jp2/proof_support.rs", "general_layer_config"),
+}
+_GENERAL_LAYER_HANDOFFS = (
+    "let color = layer.color_group().first().unwrap_or(&file.header().color);",
+    "let color_count = layer_color_count(color)?;",
+    "let (image, _) = crate::decode::decode_jpx_file(file, codestream_index, options)?;",
+    "width = width.min(registered_width);", "height = height.min(registered_height);",
+    "crate::specs::part2_general_sources_prefix(input, config, layer_index, limits, source_index as nat)",
+    "crate::specs::part2_general_components_prefix(source, config, width, height, component_index as nat, initial)",
+    "crate::color::normalize_component(component, image.width(), image.height(), image.x_origin(), image.y_origin(),)",
+    "u32::from(layer.horizontal_grid_size()), u32::from(layer.vertical_grid_size()), *horizontal_offset, *vertical_offset,",
+    "TypedSamples::Unsigned(widen_samples(&samples)?)",
+    "crate::image::typed_component_from_parts(",
+    "clear_channel_definitions(&mut components);", "validate_layer_definition(record.definition, color_count)?;",
+    "descriptors.push((component.info().precision, component.info().signed));",
+    "crate::image::typed_image_from_components_with_origin(width, height, 0, 0, components, options.limits(),)?",
+    "crate::color::convert_jp2_color(&assembled, color, options.limits())?",
+    "owned_layer_from_image(&converted)?",
+    "normalized_chroma_keys_for_components(values, descriptors.get(..color_count).ok_or_else(invalid_layer)?,)",
+    "apply_chroma_key(&mut owned, &keys)?;",
+)
 _COMPONENT_PLANE_ENTRY = "part2-complete-native-component-registration-plane-result"
 _COMPONENT_PLANE_CONTRACTS = {
     ("src/jpx/registration.rs", "register_samples"): (
@@ -2841,6 +2889,43 @@ def validate_normative_coverage(
     ids: set[str] = set()
     contract_functions: set[tuple[str, str]] = set()
     for entry in coverage["requirements"]:
+        if entry["id"] == _GENERAL_LAYER_ENTRY:
+            if {(ref["path"], ref["symbol"]) for ref in entry["contract_refs"]} != set(_GENERAL_LAYER_CONTRACTS):
+                raise ValueError("whole general layer Result requires the actual complete general normalizer contract")
+            if not _GENERAL_LAYER_MODELS.issubset({(ref["path"], ref["symbol"]) for ref in entry["spec_refs"]}) \
+                    or not _GENERAL_LAYER_PROOFS.issubset({(ref["path"], ref["symbol"]) for ref in entry["proof_refs"]}):
+                raise ValueError("whole general layer Result requires all actual source/component/definition/output models and error bridges")
+            path = (ROOT / "src/jpx/layer_decode.rs").resolve()
+            body = _coverage_function_body(source_text(path), function_header(path, "decode_general_compositing_layer"))
+            if body is None or any("".join(item.split()) not in "".join(body.split()) for item in _GENERAL_LAYER_HANDOFFS):
+                raise ValueError("whole general layer Result requires actual source/component/definition/output handoffs")
+            model = source_text((ROOT / "specs/jpx_general.rs").resolve())
+            required_models = {
+                "part2_general_source_step": (
+                    "part2_decode_jpx_codestream(file, selected.0, limits)",
+                    "part2_native_registered_extent(decoded.0.0.0, selected.1 as u32, config.horizontal_grid as u32, selected.3)",
+                    "part2_native_registered_extent(decoded.0.0.1, selected.2 as u32, config.vertical_grid as u32, selected.4)",
+                ),
+                "part2_general_component_step": (
+                    "color_normalize_component(component, image.0.0, image.0.1, image.0.2, image.0.3)",
+                    "part2_register_component_plane(Part2PlaneRegistration",
+                    "source: normalized,", "horizontal_offset: source.3", "vertical_offset: source.4",
+                    "image.2[index as int]", "previous.1.push((component.info.precision, component.info.signed))",
+                ),
+                "part2_general_finish": (
+                    "part2_general_definitions(config, colors, components.0)",
+                    "part2_typed_image_from_parts(width, height, 0, 0, defined,",
+                    "color_convert_jp2(image.1, image.2, image.0, config.color,",
+                    "part2_owned_layer_input(converted.0, converted.1, converted.2, converted.4)",
+                    "channels as usize != colors || components.1.len() < colors",
+                    "part2_normalized_component_chroma_keys(values, components.1.take(colors as int))",
+                    "part2_apply_chroma_key(owned, keys)",
+                ),
+            }
+            for name, required in required_models.items():
+                actual = _coverage_spec_function_body(model, name)
+                if actual is None or any("".join(item.split()) not in "".join(actual.split()) for item in required):
+                    raise ValueError("whole general layer Result requires complete actual producer models without supplied banks or trimming")
         if entry["id"] == _COMPONENT_PLANE_ENTRY:
             if {(ref["path"], ref["symbol"]) for ref in entry["contract_refs"]} != set(_COMPONENT_PLANE_CONTRACTS):
                 raise ValueError("whole registration plane Result requires actual component registration contract")
@@ -4457,6 +4542,8 @@ def validate_normative_coverage(
                     if entry["id"] == _SOURCE_OPACITY_ENTRY else None)
                 or (_COMPONENT_PLANE_CONTRACTS.get((reference["path"], reference["symbol"]))
                     if entry["id"] == _COMPONENT_PLANE_ENTRY else None)
+                or (_GENERAL_LAYER_CONTRACTS.get((reference["path"], reference["symbol"]))
+                    if entry["id"] == _GENERAL_LAYER_ENTRY else None)
                 or _CODESTREAM_READER_CONTRACTS.get((reference["path"], reference["symbol"]))
                 or _SOT_READER_CONTRACTS.get((reference["path"], reference["symbol"]))
                 or _TILE_DATA_WINDOW_CONTRACTS.get((reference["path"], reference["symbol"]))

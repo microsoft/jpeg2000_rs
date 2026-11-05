@@ -25,6 +25,7 @@ impl TypedImage {
         Self::from_components_with_origin(width, height, 0, 0, components, limits)
     }
 
+    #[cfg(test)]
     pub(crate) fn from_components_with_origin(
         width: u32,
         height: u32,
@@ -232,6 +233,7 @@ pub(crate) fn typed_component_from_parts(
 }
 
 impl TypedComponent {
+    #[cfg(test)]
     pub(crate) fn from_parts(
         width: u32,
         height: u32,
@@ -247,10 +249,19 @@ impl TypedComponent {
             ensures typed_component_view(final(self)) == typed_component_view(old(self)),
             typed_component_definitions(final(self))
                 == typed_component_definitions(old(self)).push(definition),
+            typed_component_output_view(final(self))
+                == (typed_component_output_view(old(self)).0,
+                    typed_component_output_view(old(self)).1.push(channel_definition_view(definition))),
         )
     )]
     pub(crate) fn add_channel_definition(&mut self, definition: ChannelDefinition) {
+        #[cfg(verus_keep_ghost)]
+        proof_decl! { let ghost previous = typed_component_output_view(self).1; }
         self.channel_definitions.push(definition);
+        #[cfg(verus_keep_ghost)]
+        proof! {
+            assert(typed_component_output_view(self).1 =~= previous.push(channel_definition_view(definition)));
+        }
     }
 
     #[cfg_attr(
@@ -305,12 +316,22 @@ impl TypedComponent {
     }
 }
 
+#[cfg_attr(verus_keep_ghost, verus_spec(result =>
+    ensures channel_definition_view(result) == (channel_type, association),
+))]
+pub(crate) const fn channel_definition_new(
+    channel_type: ChannelType,
+    association: ChannelAssociation,
+) -> ChannelDefinition {
+    ChannelDefinition {
+        channel_type,
+        association,
+    }
+}
+
 impl ChannelDefinition {
     pub const fn new(channel_type: ChannelType, association: ChannelAssociation) -> Self {
-        Self {
-            channel_type,
-            association,
-        }
+        channel_definition_new(channel_type, association)
     }
 
     #[cfg_attr(

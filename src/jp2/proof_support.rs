@@ -1,6 +1,6 @@
 #[cfg(verus_keep_ghost)]
 verus! {
-    pub closed spec fn source_opacity_value_view(value: &LayerOpacity) -> crate::specs::Part2SourceOpacity {
+    pub open spec fn source_opacity_value_view(value: &LayerOpacity) -> crate::specs::Part2SourceOpacity {
         match value {
             LayerOpacity::Straight => crate::specs::Part2SourceOpacity::Straight,
             LayerOpacity::Premultiplied => crate::specs::Part2SourceOpacity::Premultiplied,
@@ -23,6 +23,33 @@ verus! {
 
     pub closed spec fn source_layer_geometry(layer: &CompositingLayer) -> (u64, u16, u16) {
         (layer.header.offset, layer.horizontal_grid_size, layer.vertical_grid_size)
+    }
+
+    pub closed spec fn source_layer_registrations(layer: &CompositingLayer) -> Seq<CodestreamRegistration> {
+        layer.registrations@
+    }
+
+    pub closed spec fn source_layer_color_group(layer: &CompositingLayer) -> Seq<ColorSpecification> {
+        layer.color_group@
+    }
+
+    pub closed spec fn source_layer_definition_records(layer: &CompositingLayer) -> Seq<ChannelDefinitionRecord> {
+        layer.channel_definition_records@
+    }
+
+    pub open spec fn general_layer_config(file: &Jp2File, layer: &CompositingLayer) -> crate::specs::Part2GeneralLayerConfig {
+        let colors = source_layer_color_group(layer);
+        let records = source_layer_definition_records(layer);
+        crate::specs::Part2GeneralLayerConfig {
+            color: if colors.len() == 0 { jpx_file_decode_view(file).2.2 }
+                else { color_specification_method(&colors[0]) },
+            horizontal_grid: source_layer_geometry(layer).1,
+            vertical_grid: source_layer_geometry(layer).2,
+            registrations: source_layer_registrations(layer),
+            definitions: Seq::new(records.len(), |i: int|
+                (records[i].channel, crate::image::channel_definition_view(records[i].definition))),
+            opacity: source_layer_opacity(layer),
+        }
     }
 
     pub(crate) proof fn source_opacity_known(value: &LayerOpacity)

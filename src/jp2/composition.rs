@@ -36,6 +36,9 @@ impl CompositingLayer<'_> {
         self.vertical_grid_size
     }
 
+    #[cfg_attr(verus_keep_ghost, verus_spec(result =>
+        ensures result@ == super::source_layer_registrations(self),
+    ))]
     pub fn registrations(&self) -> &[CodestreamRegistration] {
         &self.registrations
     }
@@ -48,10 +51,16 @@ impl CompositingLayer<'_> {
         self.opacity.is_some()
     }
 
+    #[cfg_attr(verus_keep_ghost, verus_spec(result =>
+        ensures result@ == super::source_layer_color_group(self),
+    ))]
     pub fn color_group(&self) -> &[ColorSpecification] {
         &self.color_group
     }
 
+    #[cfg_attr(verus_keep_ghost, verus_spec(result =>
+        ensures result@ == super::source_layer_definition_records(self),
+    ))]
     pub fn channel_definition_records(&self) -> &[ChannelDefinitionRecord] {
         &self.channel_definition_records
     }

@@ -45,6 +45,8 @@ mod jpx_opacity;
 pub use jpx_opacity::*;
 mod jpx_normalization;
 pub use jpx_normalization::*;
+mod jpx_general;
+pub use jpx_general::*;
 
 pub use crate::proofs::internal_specs::{
     part2_composition_layer_prefix_matches, part2_composition_layer_prefix_safe,

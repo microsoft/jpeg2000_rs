@@ -4,6 +4,56 @@
   "scope": "Technical reference inventory; not exhaustive standards-clause coverage or a conformance claim.",
   "requirements": [
     {
+      "id": "part2-complete-native-general-layer-result",
+      "topic": "Complete actual decode_general_compositing_layer Result from the real parsed file/layer/options: actual source lookup/decoding and registered extents, pixel admission, every normalized/registered/widened component with inherited definitions and original precision descriptors, component admission, explicit/default color and alpha definitions, actual typed image construction/color conversion/owned layer and component-specific chroma keys. Complete geometry/color-space/color/alpha output and exact early errors compose from executing producers, without supplied source-image/normalization banks or success premises. Metadata projections and ordered prefix/error folds are checked ghost-only. The existing verified free component/image constructors are called directly. The shared Copy channel-definition constructor is extracted into a verified free producer; its public wrapper delegates to it. The unchanged widening helper is deliberately lifted to module scope because the pinned outer verus_spec macro duplicates nested cfg_attr function contracts. These explicit native call-target/helper-placement changes require separate whole-library qualification; coordinate-only native MIR identity is not claimed. Native owning declarations, loop traversal, moves, reference selection and allocation bodies are retained. Frame/effective-layer/public container joins, normative correspondence, complete production coverage/erasure/lifetimes and release remain separate.",
+      "implementation_refs": [
+        {"path": "src/jpx/layer_decode.rs", "symbol": "decode_general_compositing_layer"},
+        {"path": "src/jpx/layer_decode.rs", "symbol": "decode_compositing_layer"},
+        {"path": "src/jpx/layer_decode.rs", "symbol": "clear_channel_definitions"},
+        {"path": "src/jpx/layer_decode.rs", "symbol": "layer_color_count"},
+        {"path": "src/jpx/layer_decode.rs", "symbol": "validate_layer_definition"},
+        {"path": "src/jpx/layer_decode.rs", "symbol": "widen_samples"},
+        {"path": "src/image/layout.rs", "symbol": "typed_component_from_parts"},
+        {"path": "src/image/layout.rs", "symbol": "typed_image_from_components_with_origin"},
+        {"path": "src/image/layout.rs", "symbol": "channel_definition_new"}
+      ],
+      "spec_refs": [
+        {"path": "specs/jpx_general.rs", "symbol": "part2_decode_general_layer"},
+        {"path": "specs/jpx_general.rs", "symbol": "part2_general_sources_prefix"},
+        {"path": "specs/jpx_general.rs", "symbol": "part2_general_source_step"},
+        {"path": "specs/jpx_general.rs", "symbol": "part2_general_assembled_sources_prefix"},
+        {"path": "specs/jpx_general.rs", "symbol": "part2_general_components_prefix"},
+        {"path": "specs/jpx_general.rs", "symbol": "part2_general_component_step"},
+        {"path": "specs/jpx_general.rs", "symbol": "part2_general_definitions"},
+        {"path": "specs/jpx_general.rs", "symbol": "part2_general_records_prefix"},
+        {"path": "specs/jpx_general.rs", "symbol": "part2_general_default_colors"},
+        {"path": "specs/jpx_general.rs", "symbol": "part2_general_after_assembly"},
+        {"path": "specs/jpx_general.rs", "symbol": "part2_general_finish"}
+      ],
+      "contract_refs": [
+        {"path": "src/jpx/layer_decode.rs", "symbol": "decode_general_compositing_layer"}
+      ],
+      "proof_refs": [
+        {"path": "specs/jpx_general.rs", "symbol": "part2_general_sources_step"},
+        {"path": "specs/jpx_general.rs", "symbol": "part2_general_sources_error"},
+        {"path": "specs/jpx_general.rs", "symbol": "part2_general_assembled_sources_step"},
+        {"path": "specs/jpx_general.rs", "symbol": "part2_general_assembled_sources_error"},
+        {"path": "specs/jpx_general.rs", "symbol": "part2_general_components_step"},
+        {"path": "specs/jpx_general.rs", "symbol": "part2_general_components_error"},
+        {"path": "specs/jpx_general.rs", "symbol": "part2_general_records_step"},
+        {"path": "specs/jpx_general.rs", "symbol": "part2_general_records_error"},
+        {"path": "src/decode/proof_support.rs", "symbol": "associated_typed_outcome_known"},
+        {"path": "src/jpx/proof_support.rs", "symbol": "general_source_views_push"},
+        {"path": "src/jp2/proof_support.rs", "symbol": "general_layer_config"}
+      ],
+      "test_refs": [
+        {"path": "src/jpx/tests.rs", "symbol": "actual_general_layer_derives_literal_multisource_registered_planes"},
+        {"path": "src/jpx/tests.rs", "symbol": "actual_general_layer_clears_inherited_definitions_and_uses_actual_layer_records"},
+        {"path": "src/jpx/tests.rs", "symbol": "actual_general_layer_composes_straight_premultiplied_and_component_chroma_opacity"},
+        {"path": "src/jpx/tests.rs", "symbol": "actual_general_layer_preserves_exact_source_resource_definition_and_chroma_error_priority"}
+      ]
+    },
+    {
       "id": "part2-complete-native-component-registration-plane-result",
       "topic": "Complete actual register_samples Result needed by general-layer component normalization: all supplied raw source/destination geometry, full normalized source samples, full32bit grid/subsampling/offset domains, exact source-area/length/zero-factor admission and zero output seed compose the actual row/column traversal. Checked coordinate/index bounds preserve all selected samples and untouched zeros. Arithmetic overflow follows actual lazy row/column visitation, including skipped rows and zero-width destinations; there is no narrower grid/reachability/success premise or unused-tail trimming. Original native statements, loops, owner scopes and errors remain unchanged; pure row/column/error folds and checked index lemma are ghost-only. No bank, decoder duplicate, runtime clone, axiom/admission/tool/cap/trust change. This complete computational producer is a prerequisite, not a proof of the complete actual general-layer normalization/frame/public chain.",
       "implementation_refs": [
