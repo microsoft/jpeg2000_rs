@@ -3,6 +3,8 @@ use super::reader::{is_allowed_main_header, is_allowed_tile_header, is_known_seg
 use super::*;
 use crate::tier1::SubbandOrientation;
 
+#[path = "main_header_result_tests.rs"]
+mod main_header_result;
 #[path = "mct_parameter_clone_tests.rs"]
 mod mct_parameter_clone;
 #[path = "owned_tile_inheritance_tests.rs"]

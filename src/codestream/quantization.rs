@@ -134,11 +134,18 @@ impl ComponentQuantizations {
         true
     }
 }
+#[cfg_attr(verus_keep_ghost, verus_spec(result =>
+    ensures roi_shifts_view(&result) == crate::specs::part1_empty_roi_shifts(),
+))]
+pub(super) const fn new_roi_shifts() -> RoiShifts {
+    RoiShifts {
+        shifts: [0; MAX_COMPONENTS],
+    }
+}
+
 impl RoiShifts {
     pub const fn none() -> Self {
-        Self {
-            shifts: [0; MAX_COMPONENTS],
-        }
+        new_roi_shifts()
     }
 
     #[cfg_attr(verus_keep_ghost, verus_spec(result =>

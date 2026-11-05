@@ -297,7 +297,6 @@ pub struct TilePartLength {
     pub length: u32,
 }
 
-#[derive(Default)]
 #[cfg_attr(not(verus_keep_ghost), derive(Debug, Eq, PartialEq))]
 pub struct Part2Extensions {
     decomposition_structures: Vec<DecompositionStructure>,

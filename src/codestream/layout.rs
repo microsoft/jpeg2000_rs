@@ -11,16 +11,27 @@ use super::{
     ComponentQuantizations, DFS, DecodeError, EOC, ImageSize, MAX_COMPONENTS, MCC, MCO, MCT,
     MalformedKind, MctParameters, NLT, PLM, POC, PPM, PRF, PackedHeaderFrame,
     PackedPacketHeaderSource, PackedPacketHeaders, PacketLengths, Parser, Part2Extensions,
-    ProgressionChanges, QCC, QCD, RGN, Resource, ResourceLimits, RoiShifts, SIZ, SOC, SOT, TLM,
-    TilePart, TilePartLength, TilePartPayload,
+    ProgressionChanges, QCC, QCD, RGN, Resource, ResourceLimits, SIZ, SOC, SOT, TLM, TilePart,
+    TilePartLength, TilePartPayload,
 };
 #[cfg(verus_keep_ghost)]
 use super::{
-    layout_prologue_outcome, mct_parameter_copy_view, optional_roi_shifts_view,
+    cap_payload_outcome, complete_codestream_profile_outcome, component_style_owner_view,
+    extended_capabilities_view, layout_main_header_outcome, layout_prologue_outcome,
+    main_header_accumulator_view, main_header_fields_view, mcc_fragment_outcome, mcc_pending_view,
+    mct_array_view, mct_arrays_view, mct_fragment_outcome, mct_graph_outcome,
+    mct_parameter_copy_view, mct_parameters_view, mct_pending_view, mct_record_view,
+    mct_records_view, multiple_component_transform_view, optional_capabilities_view,
+    optional_profile_number_view, optional_roi_shifts_view, optional_segment_view,
     owned_extensions_view, packed_header_frames_view, packed_packet_headers_view,
-    packet_length_groups_view, parser_view, persistent_tile_configuration_view,
-    persistent_tile_state_view, progression_changes_view, quantization_owner_view,
-    tile_part_header_view, tile_part_main_metadata_outcome, tile_part_payload_view,
+    packet_length_groups_view, parsed_coding_style_outcome, parsed_coding_style_view,
+    parsed_image_size_view, parsed_progression_outcome, parsed_quantization_outcome,
+    parsed_quantization_owner_outcome, parsed_quantization_owner_view, parsed_style_owner_outcome,
+    parser_view, persistent_tile_configuration_view, persistent_tile_state_view,
+    profile_number_outcome, profile_number_view, progression_changes_view, quantization_owner_view,
+    quantization_view, roi_shifts_view, segment_slots_view, segment_tail_outcome, segment_view,
+    selection_geometry_view, tile_part_header_view, tile_part_main_metadata_outcome,
+    tile_part_payload_view,
 };
 #[cfg(verus_keep_ghost)]
 use vstd::prelude::*;
@@ -198,7 +209,23 @@ impl<'a> Parser<'a> {
         Ok(())
     }
 
+    #[cfg_attr(verus_keep_ghost, verifier::spinoff_prover)]
+    #[cfg_attr(verus_keep_ghost, verus_spec(result =>
+        ensures crate::specs::part1_main_header_layout_relation(
+            crate::specs::part1_read_main_header(parser_view(&self)),
+            layout_main_header_outcome(result)),
+    ))]
     fn parse_layout(self) -> Result<CodestreamLayout<'a>, DecodeError> {
+        #[cfg(verus_keep_ghost)]
+        proof_decl! {
+            let ghost initial_reader = parser_view(&self);
+            let ghost main_goal = crate::specs::part1_read_main_header(initial_reader);
+        }
+        #[cfg(verus_keep_ghost)]
+        proof! {
+            reveal(crate::specs::part1_read_main_header);
+            reveal(layout_main_header_outcome);
+        }
         let mut parser = self;
         let (mut image_size, r_siz, main_header_start) = parser.parse_layout_prologue()?;
         let mut main_header_segments = 1_u64;
@@ -206,7 +233,7 @@ impl<'a> Parser<'a> {
         let mut qcd_segment = None;
         let mut coc_segments = [None; MAX_COMPONENTS];
         let mut qcc_segments = [None; MAX_COMPONENTS];
-        let mut roi_shifts = RoiShifts::none();
+        let mut roi_shifts = super::quantization::new_roi_shifts();
         let mut roi_seen = [false; MAX_COMPONENTS];
         let mut plm_groups = Vec::new();
         let mut next_plm_index = 0_u16;
@@ -214,7 +241,7 @@ impl<'a> Parser<'a> {
         let mut ppm_bytes = Vec::new();
         let mut next_ppm_index = 0_u16;
         let mut ppm_fragments = 0_u16;
-        let mut progression_changes = ProgressionChanges::none();
+        let mut progression_changes = super::coding_style::new_progression_changes();
         let mut poc_seen = false;
         let mut mct_arrays = Vec::new();
         let mut mct_records = Vec::new();
@@ -226,19 +253,123 @@ impl<'a> Parser<'a> {
         let mut extended_capabilities = None;
         let mut profile = None;
         let mut corresponding_profile = None;
-        let mut part2_extensions = Part2Extensions::default();
+        let mut part2_extensions = super::extensions::new_part2_extensions();
         let mut next_tlm_index = 0_u16;
         let input_length = parser.input.len();
+        #[cfg(verus_keep_ghost)]
+        proof_decl! {
+            let ghost main_initial = main_header_accumulator_view(
+                &image_size, r_siz, main_header_start, main_header_segments,
+                coding_style, qcd_segment, coc_segments@, qcc_segments@, &roi_shifts, roi_seen@,
+                plm_groups@, next_plm_index, plm_seen, ppm_bytes@, next_ppm_index, ppm_fragments,
+                &progression_changes, poc_seen, mct_arrays@, mct_records@, &mct_order,
+                pending_mct@, completed_mct@, pending_mcc@, completed_mcc@,
+                &extended_capabilities, &profile, &corresponding_profile, &part2_extensions, next_tlm_index);
+        }
+        #[cfg(verus_keep_ghost)]
+        proof! {
+            reveal(main_header_accumulator_view);
+            reveal(segment_slots_view);
+            reveal(roi_shifts_view);
+            reveal(progression_changes_view);
+            reveal(mct_arrays_view);
+            reveal(mct_records_view);
+            reveal(mct_pending_view);
+            reveal(mcc_pending_view);
+            reveal(optional_segment_view);
+            reveal(optional_capabilities_view);
+            reveal(optional_profile_number_view);
+            reveal(packet_length_groups_view);
+            let expected = crate::specs::part1_main_header_initial(
+                parsed_image_size_view(&image_size), r_siz, main_header_start);
+            assert(main_initial.coc =~= expected.coc);
+            assert(main_initial.qcc =~= expected.qcc);
+            assert(main_initial.roi =~= expected.roi);
+            assert(main_initial.roi_seen =~= expected.roi_seen);
+            assert(main_initial.plm =~= expected.plm);
+            assert(main_initial.progression =~= expected.progression);
+            assert(main_initial.arrays =~= expected.arrays);
+            assert(main_initial.records =~= expected.records);
+            assert(main_initial.pending_mct =~= expected.pending_mct);
+            assert(main_initial.pending_mcc =~= expected.pending_mcc);
+            assert(main_initial == crate::specs::part1_main_header_initial(
+                parsed_image_size_view(&image_size), r_siz, main_header_start));
+        }
 
         #[cfg_attr(
             verus_keep_ghost,
-            verus_spec(decreases input_length as int - parser.position as int,)
+            verus_spec(
+                invariant
+                    initial_reader == parser_view(&self),
+                    main_goal == crate::specs::part1_read_main_header(initial_reader),
+                    main_goal == crate::specs::part1_main_header_continuation(
+                        parser_view(&parser), main_header_accumulator_view(
+                            &image_size, r_siz, main_header_start, main_header_segments,
+                            coding_style, qcd_segment, coc_segments@, qcc_segments@, &roi_shifts, roi_seen@,
+                            plm_groups@, next_plm_index, plm_seen, ppm_bytes@, next_ppm_index, ppm_fragments,
+                            &progression_changes, poc_seen, mct_arrays@, mct_records@, &mct_order,
+                            pending_mct@, completed_mct@, pending_mcc@, completed_mcc@,
+                            &extended_capabilities, &profile, &corresponding_profile, &part2_extensions, next_tlm_index),
+                        input_length),
+                ensures
+                    main_goal == crate::specs::part1_finish_main_header(
+                        parser_view(&parser), main_header_accumulator_view(
+                            &image_size, r_siz, main_header_start, main_header_segments,
+                            coding_style, qcd_segment, coc_segments@, qcc_segments@, &roi_shifts, roi_seen@,
+                            plm_groups@, next_plm_index, plm_seen, ppm_bytes@, next_ppm_index, ppm_fragments,
+                            &progression_changes, poc_seen, mct_arrays@, mct_records@, &mct_order,
+                            pending_mct@, completed_mct@, pending_mcc@, completed_mcc@,
+                            &extended_capabilities, &profile, &corresponding_profile, &part2_extensions, next_tlm_index)),
+                decreases input_length as int - parser.position as int,
+            )
         )]
         loop {
+            #[cfg(verus_keep_ghost)]
+            proof! {
+                reveal_with_fuel(crate::specs::part1_main_header_continuation, 1);
+                reveal(main_header_accumulator_view);
+                reveal(parser_view);
+                reveal(super::main_header_segment_outcome);
+                reveal(crate::specs::part1_parser_progress);
+                reveal(crate::specs::part1_codestream_malformed);
+            }
             let previous_position = parser.position;
             let Some(segment) = parser.read_main_header_segment(&mut main_header_segments)? else {
+                #[cfg(verus_keep_ghost)]
+                proof! { reveal(crate::specs::part1_read_main_header_segment); }
                 break;
             };
+            #[cfg(verus_keep_ghost)]
+            proof! {
+                reveal(crate::specs::part1_main_header_payload);
+                reveal(crate::specs::part1_main_header_mct_payload);
+                reveal(crate::specs::part1_main_header_extension_payload);
+                reveal(segment_view);
+                reveal(optional_segment_view);
+                reveal(segment_slots_view);
+                reveal(cap_payload_outcome);
+                reveal(extended_capabilities_view);
+                reveal(profile_number_outcome);
+                reveal(profile_number_view);
+                reveal(optional_capabilities_view);
+                reveal(optional_profile_number_view);
+                reveal(parsed_coding_style_outcome);
+                reveal(parsed_progression_outcome);
+                reveal(progression_changes_view);
+                reveal(mct_parameters_view);
+                reveal(mct_fragment_outcome);
+                reveal(mcc_fragment_outcome);
+                reveal(mct_pending_view);
+                reveal(mcc_pending_view);
+                reveal(mct_arrays_view);
+                reveal(mct_records_view);
+                reveal(mct_array_view);
+                reveal(mct_record_view);
+                reveal(segment_tail_outcome);
+                reveal(selection_geometry_view);
+                reveal(parsed_image_size_view);
+                reveal(roi_shifts_view);
+            }
             match segment.marker {
                 CAP if extended_capabilities.is_some() => {
                     return Err(DecodeError::malformed(
@@ -344,7 +475,13 @@ impl<'a> Parser<'a> {
                         &mut pending_mct,
                         &mut completed_mct,
                     )? {
+                        #[cfg(verus_keep_ghost)]
+                        proof_decl! {
+                            let ghost appended = mct_arrays_view(mct_arrays@).push(mct_array_view(&array));
+                        }
                         mct_arrays.push(array);
+                        #[cfg(verus_keep_ghost)]
+                        proof! { assert(mct_arrays_view(mct_arrays@) =~= appended); }
                         validate_unique_mct_array_indexes(&mct_arrays, segment.offset)?;
                     }
                 }
@@ -355,7 +492,13 @@ impl<'a> Parser<'a> {
                         &mut pending_mcc,
                         &mut completed_mcc,
                     )? {
+                        #[cfg(verus_keep_ghost)]
+                        proof_decl! {
+                            let ghost appended = mct_records_view(mct_records@).push(mct_record_view(&record));
+                        }
                         mct_records.push(record);
+                        #[cfg(verus_keep_ghost)]
+                        proof! { assert(mct_records_view(mct_records@) =~= appended); }
                         validate_unique_mct_record_indexes(&mct_records, segment.offset)?;
                     }
                 }
@@ -382,22 +525,76 @@ impl<'a> Parser<'a> {
                 return Err(parser.malformed_here(MalformedKind::InvalidMarkerLength));
             }
         }
+        #[cfg(verus_keep_ghost)]
+        proof_decl! {
+            let ghost raw_main = main_header_accumulator_view(
+                &image_size, r_siz, main_header_start, main_header_segments,
+                coding_style, qcd_segment, coc_segments@, qcc_segments@, &roi_shifts, roi_seen@,
+                plm_groups@, next_plm_index, plm_seen, ppm_bytes@, next_ppm_index, ppm_fragments,
+                &progression_changes, poc_seen, mct_arrays@, mct_records@, &mct_order,
+                pending_mct@, completed_mct@, pending_mcc@, completed_mcc@,
+                &extended_capabilities, &profile, &corresponding_profile, &part2_extensions, next_tlm_index);
+            let ghost main_reader = parser_view(&parser);
+        }
+        #[cfg(verus_keep_ghost)]
+        proof! {
+            assert(main_goal == crate::specs::part1_finish_main_header(main_reader, raw_main));
+            reveal(crate::specs::part1_finish_main_header);
+            reveal(main_header_accumulator_view);
+            reveal(owned_extensions_view);
+            reveal(parser_view);
+        }
         if !pending_mct.is_empty() || !pending_mcc.is_empty() {
             return Err(parser.malformed_here(MalformedKind::MissingRequiredStructure));
         }
         parser
             .apply_component_bit_depths(&mut image_size, &part2_extensions.component_bit_depths)?;
+        #[cfg(verus_keep_ghost)]
+        proof_decl! {
+            let ghost depth_main = crate::specs::Part1MainHeaderAccumulator {
+                image_size: parsed_image_size_view(&image_size), ..raw_main
+            };
+        }
+        #[cfg(verus_keep_ghost)]
+        proof! {
+            assert(main_goal == crate::specs::part1_main_header_after_depths(main_reader, depth_main));
+            reveal(crate::specs::part1_main_header_after_depths);
+            reveal(super::packed_header_frames_outcome);
+            reveal(packed_header_frames_view);
+            reveal(parsed_coding_style_outcome);
+            reveal(parsed_quantization_outcome);
+            reveal(parsed_style_owner_outcome);
+            reveal(parsed_quantization_owner_outcome);
+            reveal(segment_view);
+            reveal(optional_segment_view);
+        }
         let main_header_end = parser.position;
         let ppm_frames = parser.parse_ppm_frames(&ppm_bytes, ppm_fragments)?;
         let main_header = parser
             .input
             .get(main_header_start..main_header_end)
-            .ok_or_else(|| parser.malformed_here(MalformedKind::InvalidPackedPacketHeader))?;
+            .ok_or_else(
+                #[cfg_attr(verus_keep_ghost, verus_spec(error: DecodeError =>
+                    ensures error == crate::specs::part1_codestream_malformed(
+                        parser.position, MalformedKind::InvalidPackedPacketHeader),
+                ))]
+                || parser.malformed_here(MalformedKind::InvalidPackedPacketHeader),
+            )?;
 
         let coding_style = coding_style
-            .ok_or_else(|| DecodeError::malformed(0, MalformedKind::MissingRequiredStructure))?;
+            .ok_or_else(
+                #[cfg_attr(verus_keep_ghost, verus_spec(error: DecodeError =>
+                    ensures error == crate::specs::part1_codestream_malformed(0, MalformedKind::MissingRequiredStructure),
+                ))]
+                || DecodeError::malformed(0, MalformedKind::MissingRequiredStructure),
+            )?;
         let qcd_segment = qcd_segment
-            .ok_or_else(|| DecodeError::malformed(0, MalformedKind::MissingRequiredStructure))?;
+            .ok_or_else(
+                #[cfg_attr(verus_keep_ghost, verus_spec(error: DecodeError =>
+                    ensures error == crate::specs::part1_codestream_malformed(0, MalformedKind::MissingRequiredStructure),
+                ))]
+                || DecodeError::malformed(0, MalformedKind::MissingRequiredStructure),
+            )?;
         let quantization = parser.parse_qcd(qcd_segment, coding_style)?;
         let component_coding_styles = parser.finish_main_component_styles(
             image_size.components,
@@ -411,6 +608,16 @@ impl<'a> Parser<'a> {
             &component_coding_styles,
             &qcc_segments,
         )?;
+        #[cfg(verus_keep_ghost)]
+        proof! {
+            assert(main_goal == crate::specs::part1_main_header_after_components(
+                main_reader, depth_main, packed_header_frames_view(ppm_frames@), main_header@,
+                parsed_coding_style_view(coding_style), quantization_view(&quantization),
+                component_style_owner_view(&component_coding_styles),
+                parsed_quantization_owner_view(&component_quantizations)));
+            reveal(crate::specs::part1_main_header_after_components);
+            super::tile_part_native_styles_inverse(&component_coding_styles);
+        }
         parser.validate_progression_changes(
             &progression_changes,
             coding_style.layers,
@@ -435,6 +642,37 @@ impl<'a> Parser<'a> {
         let multiple_component_transform =
             parser.resolve_multiple_component_transform(&main_mct_parameters)?;
         let tile_count = image_size.tile_count()?;
+        #[cfg(verus_keep_ghost)]
+        proof_decl! {
+            let ghost complete_main = crate::specs::Part1MainHeader {
+                reader: parser_view(&parser),
+                raw: crate::specs::Part1MainHeaderAccumulator {
+                    image_size: parsed_image_size_view(&image_size), ..depth_main
+                },
+                end: main_header_end, header: main_header@, ppm_frames: packed_header_frames_view(ppm_frames@),
+                coding_style: parsed_coding_style_view(coding_style), quantization: quantization_view(&quantization),
+                styles: component_style_owner_view(&component_coding_styles),
+                quantizations: parsed_quantization_owner_view(&component_quantizations),
+                mct: mct_parameters_view(&main_mct_parameters),
+                transform: match multiple_component_transform {
+                    None => None, Some(transform) => Some(multiple_component_transform_view(&transform)),
+                },
+                tile_count,
+            };
+        }
+        #[cfg(verus_keep_ghost)]
+        proof! {
+            reveal(mct_parameters_view);
+            reveal(mct_graph_outcome);
+            reveal(selection_geometry_view);
+            reveal(parsed_image_size_view);
+            assert(main_goal == Ok(complete_main));
+            reveal(main_header_fields_view);
+            assert(crate::specs::part1_main_header_fields(complete_main) == main_header_fields_view(
+                &image_size, coding_style, &quantization, &component_coding_styles, &component_quantizations,
+                &roi_shifts, &progression_changes, &multiple_component_transform, &part2_extensions,
+                r_siz, &extended_capabilities, &profile, &corresponding_profile, main_header_segments));
+        }
         let mut tile_parts = 0_u32;
         let mut tile_part_payloads: Vec<TilePartPayload<'a>> = Vec::new();
         let tile_state_count = usize::try_from(tile_count)
@@ -488,6 +726,13 @@ impl<'a> Parser<'a> {
                             None => forall|prior: int| 0 <= prior < tile_part_payloads.len() ==>
                                 (#[trigger] tile_part_payloads@[prior]).tile_index as int != tile,
                         },
+                    initial_reader == parser_view(&self),
+                    main_goal == crate::specs::part1_read_main_header(initial_reader),
+                    main_goal == Ok(complete_main),
+                    crate::specs::part1_main_header_fields(complete_main) == main_header_fields_view(
+                        &image_size, coding_style, &quantization, &component_coding_styles, &component_quantizations,
+                        &roi_shifts, &progression_changes, &multiple_component_transform, &part2_extensions,
+                        r_siz, &extended_capabilities, &profile, &corresponding_profile, main_header_segments),
                 decreases input_length as int - parser.position as int,
             )
         )]
@@ -724,6 +969,14 @@ impl<'a> Parser<'a> {
             }
         }
 
+        #[cfg(verus_keep_ghost)]
+        proof! {
+            reveal(main_header_fields_view);
+            assert(r_siz == complete_main.raw.r_siz);
+            assert(optional_capabilities_view(&extended_capabilities) == complete_main.raw.capabilities);
+            assert(optional_profile_number_view(&profile) == complete_main.raw.profile);
+            assert(optional_profile_number_view(&corresponding_profile) == complete_main.raw.corresponding_profile);
+        }
         let codestream_profile = classify_codestream_profile(
             r_siz,
             extended_capabilities,
@@ -735,6 +988,20 @@ impl<'a> Parser<'a> {
             image_size.components,
             roi_seen.iter().any(|seen| *seen),
         )?;
+        #[cfg(verus_keep_ghost)]
+        proof! {
+            reveal(crate::specs::part1_classify_codestream_profile);
+            reveal(crate::specs::part1_profile_after_observation);
+            reveal(crate::specs::part1_profile_output);
+            reveal(complete_codestream_profile_outcome);
+            reveal(super::complete_codestream_profile_view);
+            reveal(main_header_fields_view);
+            let actual_profile = super::complete_codestream_profile_view(&codestream_profile);
+            assert(actual_profile.0 == complete_main.raw.r_siz);
+            assert(actual_profile.2 == complete_main.raw.capabilities);
+            assert(actual_profile.3 == complete_main.raw.profile);
+            assert(actual_profile.4 == complete_main.raw.corresponding_profile);
+        }
         Ok(CodestreamLayout {
             info: CodestreamInfo {
                 image_size,

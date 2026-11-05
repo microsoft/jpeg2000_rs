@@ -1030,6 +1030,230 @@ class FrameworkTests(WorkingFiles):
             framework._RAW_TILE_HEADER_CONTRACTS, 8,
         )
 
+    def test_inventory_binds_whole_actual_raw_main_header_result_chain(self):
+        coverage = json.loads((framework.VALIDATION / "normative-coverage.json").read_text())
+        entry = copy.deepcopy(next(item for item in coverage["requirements"]
+                                   if item["id"] == "part1-complete-native-raw-main-header-result"))
+        self.assertEqual(len(entry["contract_refs"]), 4)
+        self.assertEqual(framework.validate_normative_coverage(
+            dict(coverage, requirements=[entry]))["status"], "passed")
+        for removed in entry["contract_refs"]:
+            changed = copy.deepcopy(entry)
+            changed["contract_refs"].remove(removed)
+            with self.subTest(removed=removed), self.assertRaisesRegex(ValueError, "requires actual layout"):
+                framework.validate_normative_coverage(dict(coverage, requirements=[changed]))
+        for field, removed, message in (
+            ("implementation_refs", {"path": "src/codestream/layout.rs", "symbol": "parse_layout"},
+             "not used by claimed implementation"),
+            ("spec_refs", {"path": "specs/main_header.rs", "symbol": "part1_read_main_header"},
+             "model must bind"),
+            ("spec_refs", {"path": "specs/main_header.rs", "symbol": "part1_main_header_continuation"},
+             "model must bind"),
+        ):
+            changed = copy.deepcopy(entry)
+            changed[field].remove(removed)
+            with self.subTest(removed=removed), self.assertRaisesRegex(ValueError, message):
+                framework.validate_normative_coverage(dict(coverage, requirements=[changed]))
+
+    def test_inventory_raw_main_requires_real_result_reader_and_every_initializer_contract(self):
+        coverage = json.loads((framework.VALIDATION / "normative-coverage.json").read_text())
+        entry = next(item for item in coverage["requirements"]
+                     if item["id"] == "part1-complete-native-raw-main-header-result")
+        data = dict(coverage, requirements=[entry])
+        read_text = Path.read_text
+        mutations = [
+            ("src/codestream/layout.rs", "Parser::parse_layout", (
+                ("verus_spec(result =>", "verus_spec(unrelated =>"),
+                ("part1_read_main_header(parser_view(&self))", "part1_read_main_header(unrelated)"),
+                ("layout_main_header_outcome(result)", "layout_main_header_outcome(unrelated)"),
+                ("part1_main_header_layout_relation(", "unlisted_model("),
+                ("ensures crate::specs::", "requires false, ensures crate::specs::"),
+            )),
+        ]
+        for (path, symbol), recipe in framework._MAIN_HEADER_INITIALIZER_CONTRACTS.items():
+            mutations.append((path, symbol, (
+                ("verus_spec(result =>", "verus_spec(unrelated =>"),
+                (f"crate::specs::{recipe[0]}()", f"crate::specs::{recipe[0]}(unrelated)"),
+                (f"crate::specs::{recipe[0]}()", "crate::specs::unlisted_model()"),
+                ("ensures ", "requires false, ensures "),
+            )))
+        for name, symbol, changes in mutations:
+            source = framework.ROOT / name
+            original = source.read_text()
+            header = framework._coverage_function_header(original, symbol)
+            signature = original.find("fn", header.start())
+            start = original.rfind("#[cfg_attr", 0, signature)
+            contract = original[start:signature]
+            for before, after in changes:
+                self.assertIn(before, contract)
+                changed = original[:start] + contract.replace(before, after, 1) + original[signature:]
+
+                def altered(path, *args, **kwargs):
+                    return changed if path == source else read_text(path, *args, **kwargs)
+
+                with self.subTest(symbol=symbol, before=before), \
+                        mock.patch.object(Path, "read_text", altered), \
+                        self.assertRaisesRegex(ValueError, "lacks executable Verus contract"):
+                    framework.validate_normative_coverage(data)
+
+    def test_inventory_raw_main_binds_raw_initialization_loop_and_complete_unconditional_cut(self):
+        coverage = json.loads((framework.VALIDATION / "normative-coverage.json").read_text())
+        entry = next(item for item in coverage["requirements"]
+                     if item["id"] == "part1-complete-native-raw-main-header-result")
+        data = dict(coverage, requirements=[entry])
+        source = framework.ROOT / "src/codestream/layout.rs"
+        original = source.read_text()
+        start = original.index("let ghost main_initial = main_header_accumulator_view(")
+        end = original.index(");", start) + 2
+        block = original[start:end]
+        read_text = Path.read_text
+        arguments = (
+            "&image_size", "r_siz", "main_header_start", "main_header_segments",
+            "coding_style", "qcd_segment", "coc_segments@", "qcc_segments@", "&roi_shifts", "roi_seen@",
+            "plm_groups@", "next_plm_index", "plm_seen", "ppm_bytes@", "next_ppm_index", "ppm_fragments",
+            "&progression_changes", "poc_seen", "mct_arrays@", "mct_records@", "&mct_order",
+            "pending_mct@", "completed_mct@", "pending_mcc@", "completed_mcc@",
+            "&extended_capabilities", "&profile", "&corresponding_profile", "&part2_extensions", "next_tlm_index",
+        )
+        changes = []
+        for argument in arguments:
+            self.assertIn(argument, block)
+            changes.append(original[:start] + block.replace(argument, "unrelated", 1) + original[end:])
+        for before, after in (
+            ("let ghost initial_reader = parser_view(&self);", "let ghost initial_reader = unrelated;"),
+            ("reader: parser_view(&parser),", "reader: unrelated,"),
+            ("mct: mct_parameters_view(&main_mct_parameters),", "mct: unrelated,"),
+            ("ppm_frames: packed_header_frames_view(ppm_frames@)", "ppm_frames: Seq::empty()"),
+            ("assert(main_goal == Ok(complete_main));", "if false { assert(main_goal == Ok(complete_main)); }"),
+            ("ensures\n                    main_goal == crate::specs::part1_finish_main_header(",
+             "ensures\n                    true || main_goal == crate::specs::part1_finish_main_header("),
+        ):
+            self.assertIn(before, original)
+            changes.append(original.replace(before, after, 1))
+        for index, changed in enumerate(changes):
+            def altered(path, *args, **kwargs):
+                return changed if path == source else read_text(path, *args, **kwargs)
+
+            with self.subTest(index=index), mock.patch.object(Path, "read_text", altered), \
+                    self.assertRaisesRegex(ValueError, "whole raw main-header Result requires"):
+                framework.validate_normative_coverage(data)
+
+    def test_inventory_raw_main_preserves_all_physical_accumulator_and_returned_fields(self):
+        coverage = json.loads((framework.VALIDATION / "normative-coverage.json").read_text())
+        entry = next(item for item in coverage["requirements"]
+                     if item["id"] == "part1-complete-native-raw-main-header-result")
+        data = dict(coverage, requirements=[entry])
+        source = framework.ROOT / "src/codestream/proof_support.rs"
+        original = source.read_text()
+        read_text = Path.read_text
+        mutation_count = 0
+        for name in ("main_header_accumulator_view", "main_header_fields_view", "layout_main_header_outcome"):
+            header = re.search(r"(?m)^([ \t]*)pub\(crate\) closed spec fn " + name + r"\b", original)
+            body = framework._coverage_function_body(original, header)
+            self.assertIsNotNone(body)
+            begin = original.index(body, header.start())
+            for before, after in (
+                ("parsed_image_size_view(size)", "unrelated"),
+                ("optional_segment_view(qcd)", "None"),
+                ("segment_slots_view(coc)", "Seq::empty()"),
+                ("segment_slots_view(qcc)", "Seq::empty()"),
+                ("roi_shifts_view(roi)", "Seq::empty()"),
+                ("roi_seen,", "roi_seen: Seq::empty(),"),
+                ("packet_length_groups_view(plm)", "Seq::empty()"),
+                ("next_plm,", "next_plm: 0,"),
+                ("plm_seen,", "plm_seen: false,"),
+                ("ppm,", "ppm: Seq::empty(),"),
+                ("next_ppm,", "next_ppm: 0,"),
+                ("ppm_fragments,", "ppm_fragments: 0,"),
+                ("progression_changes_view(progression)", "Seq::empty()"),
+                ("mct_arrays_view(arrays)", "Seq::empty()"),
+                ("mct_records_view(records)", "Seq::empty()"),
+                ("Some(order) => Some(order@)", "Some(order) => Some(order@.drop_last())"),
+                ("mct_pending_view(pending_mct)", "Seq::empty()"),
+                ("completed_mct,", "completed_mct: Seq::empty(),"),
+                ("mcc_pending_view(pending_mcc)", "Seq::empty()"),
+                ("completed_mcc,", "completed_mcc: Seq::empty(),"),
+                ("optional_capabilities_view(capabilities)", "None"),
+                ("optional_profile_number_view(profile)", "None"),
+                ("optional_profile_number_view(corresponding_profile)", "None"),
+                ("owned_extensions_view(extensions)", "unrelated"),
+                ("next_tlm,", "next_tlm: 0,"),
+                ("component_style_owner_view(styles)", "unrelated"),
+                ("parsed_quantization_owner_view(quantizations)", "unrelated"),
+                ("Some(multiple_component_transform_view(transform))", "None"),
+                ("Err(error) => Err(error)", "Err(error) => Err(unrelated)"),
+                ("info.main_header_segments", "0"),
+                ("info.profile.r_siz", "0"),
+            ):
+                if before not in body:
+                    continue
+                mutation_count += 1
+                changed = original[:begin] + body.replace(before, after, 1) + original[begin + len(body):]
+
+                def altered(path, *args, **kwargs):
+                    return changed if path == source else read_text(path, *args, **kwargs)
+
+                with self.subTest(name=name, before=before), mock.patch.object(Path, "read_text", altered), \
+                        self.assertRaisesRegex(ValueError, "requires complete raw projection"):
+                    framework.validate_normative_coverage(data)
+        self.assertGreaterEqual(mutation_count, 35)
+
+    def test_inventory_raw_main_rejects_some_empty_normalization_and_unrelated_raw_wrapper(self):
+        coverage = json.loads((framework.VALIDATION / "normative-coverage.json").read_text())
+        entry = next(item for item in coverage["requirements"]
+                     if item["id"] == "part1-complete-native-raw-main-header-result")
+        data = dict(coverage, requirements=[entry])
+        read_text = Path.read_text
+        for name, before, after, message in (
+            ("src/codestream/proof_support.rs",
+             "Some(caps) => Some(extended_capabilities_view(caps))",
+             "Some(caps) => if caps.c_capabilities.is_empty() { None } else { Some(extended_capabilities_view(caps)) }",
+             "requires complete raw projection"),
+            ("src/codestream/proof_support.rs",
+             "Some(number) => Some(profile_number_view(number))",
+             "Some(number) => if number.words.is_empty() { None } else { Some(profile_number_view(number)) }",
+             "requires complete raw projection"),
+            ("src/codestream/layout.rs",
+             "new_parser(input, limits)?.parse_layout()",
+             "new_parser(&unrelated, limits)?.parse_layout()",
+             "not used by claimed implementation"),
+        ):
+            source = framework.ROOT / name
+            original = source.read_text()
+            self.assertIn(before, original)
+            changed = original.replace(before, after, 1)
+
+            def altered(path, *args, **kwargs):
+                return changed if path == source else read_text(path, *args, **kwargs)
+
+            with self.subTest(before=before), mock.patch.object(Path, "read_text", altered), \
+                    self.assertRaisesRegex(ValueError, message):
+                framework.validate_normative_coverage(data)
+
+    def test_inventory_raw_main_uses_fresh_call_local_source_cache_without_new_producer_relays(self):
+        coverage = json.loads((framework.VALIDATION / "normative-coverage.json").read_text())
+        entry = next(item for item in coverage["requirements"]
+                     if item["id"] == "part1-complete-native-raw-main-header-result")
+        data = dict(coverage, requirements=[entry])
+        paths = {(framework.ROOT / name).resolve() for name in (
+            "src/codestream/layout.rs", "src/codestream/proof_support.rs",
+            "src/codestream/coding_style.rs", "src/codestream/quantization.rs",
+            "src/codestream/extensions.rs", "specs/main_header.rs",
+        )}
+        counts = dict.fromkeys(paths, 0)
+        read_text = Path.read_text
+
+        def counted(path, *args, **kwargs):
+            if path in counts:
+                counts[path] += 1
+            return read_text(path, *args, **kwargs)
+
+        with mock.patch.object(Path, "read_text", counted):
+            for expected in (1, 2):
+                self.assertEqual(framework.validate_normative_coverage(data)["status"], "passed")
+                self.assertEqual(set(counts.values()), {expected})
+        self.assertNotIn(framework._MAIN_HEADER_LAYOUT, framework._COMPONENT_PRODUCER_RELAYS)
+
     def test_inventory_binds_whole_actual_codestream_profile_result_chain(self):
         self._assert_complete_packet_contract_bindings(
             {"part1-complete-native-codestream-profile-result"},

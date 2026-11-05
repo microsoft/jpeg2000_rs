@@ -1956,6 +1956,29 @@ _RAW_TILE_DECODING_CONTRACTS = {
     ),
 }
 
+_MAIN_HEADER_INITIALIZER_CONTRACTS = {
+    ("src/codestream/coding_style.rs", "new_progression_changes"): (
+        "part1_empty_progression_changes", _coverage_call("progression_changes_view", r"&\s*\1"), None, "",
+    ),
+    ("src/codestream/quantization.rs", "new_roi_shifts"): (
+        "part1_empty_roi_shifts", _coverage_call("roi_shifts_view", r"&\s*\1"), None, "",
+    ),
+    ("src/codestream/extensions.rs", "new_part2_extensions"): (
+        "part1_empty_extensions", _coverage_call("owned_extensions_view", r"&\s*\1"), None, "",
+    ),
+}
+
+_MAIN_HEADER_LAYOUT = ("src/codestream/layout.rs", "Parser::parse_layout")
+_MAIN_HEADER_RAW_ARGUMENTS = (
+    r"&\s*image_size", "r_siz", "main_header_start", "main_header_segments",
+    "coding_style", "qcd_segment", "coc_segments@", "qcc_segments@", r"&\s*roi_shifts", "roi_seen@",
+    "plm_groups@", "next_plm_index", "plm_seen", "ppm_bytes@", "next_ppm_index", "ppm_fragments",
+    r"&\s*progression_changes", "poc_seen", "mct_arrays@", "mct_records@", r"&\s*mct_order",
+    "pending_mct@", "completed_mct@", "pending_mcc@", "completed_mcc@",
+    r"&\s*extended_capabilities", r"&\s*profile", r"&\s*corresponding_profile",
+    r"&\s*part2_extensions", "next_tlm_index",
+)
+
 _PROFILE_RESULT_CONTRACTS = {
     ("src/codestream/profile.rs", "classify_codestream_profile"): (
         "part1_classify_codestream_profile", _coverage_call("complete_codestream_profile_outcome", r"\1"), None,
@@ -2676,14 +2699,20 @@ def validate_normative_coverage(
     ids: set[str] = set()
     contract_functions: set[tuple[str, str]] = set()
     for entry in coverage["requirements"]:
-        if entry["id"] == "part1-complete-native-codestream-profile-result":
-            expected = {key for key in _PROFILE_RESULT_CONTRACTS}
+        if entry["id"] in (
+            "part1-complete-native-codestream-profile-result", "part1-complete-native-raw-main-header-result",
+        ):
+            main_header = entry["id"] == "part1-complete-native-raw-main-header-result"
+            expected = ({_MAIN_HEADER_LAYOUT, *_MAIN_HEADER_INITIALIZER_CONTRACTS}
+                        if main_header else set(_PROFILE_RESULT_CONTRACTS))
             actual = {(item["path"], item["symbol"]) for item in entry["contract_refs"]}
             if actual != expected:
+                if main_header:
+                    raise ValueError("whole raw main-header Result requires actual layout and all three initializer contracts")
                 raise ValueError("whole profile Result requires classifier, validation, flag fold and every consumed capability contract")
             if {"path": "src/codestream/layout.rs", "symbol": "Parser::parse_layout"} not in entry["implementation_refs"]:
                 raise ValueError("whole profile Result not used by claimed implementation: actual layout required")
-            if {"path": "specs/codestream_profile.rs", "symbol": "part1_classify_codestream_profile"} not in entry["spec_refs"]:
+            if not main_header and {"path": "specs/codestream_profile.rs", "symbol": "part1_classify_codestream_profile"} not in entry["spec_refs"]:
                 raise ValueError("whole profile Result model must be bound to specs/codestream_profile.rs")
             path = (ROOT / "src/codestream/proof_support.rs").resolve()
             projections = {
@@ -2704,6 +2733,55 @@ def validate_normative_coverage(
                     })
                 """,
             }
+            if main_header:
+                projections.update({
+                    "main_header_accumulator_view": """
+                        crate::specs::Part1MainHeaderAccumulator {
+                            image_size: parsed_image_size_view(size), r_siz, start, segments,
+                            coding_style: match style { None => None, Some(style) => Some(parsed_coding_style_view(style)) },
+                            qcd: optional_segment_view(qcd), coc: segment_slots_view(coc), qcc: segment_slots_view(qcc),
+                            roi: roi_shifts_view(roi), roi_seen,
+                            plm: packet_length_groups_view(plm), next_plm, plm_seen, ppm, next_ppm, ppm_fragments,
+                            progression: progression_changes_view(progression), poc_seen,
+                            arrays: mct_arrays_view(arrays), records: mct_records_view(records),
+                            order: match order { None => None, Some(order) => Some(order@) },
+                            pending_mct: mct_pending_view(pending_mct), completed_mct,
+                            pending_mcc: mcc_pending_view(pending_mcc), completed_mcc,
+                            capabilities: optional_capabilities_view(capabilities),
+                            profile: optional_profile_number_view(profile),
+                            corresponding_profile: optional_profile_number_view(corresponding_profile),
+                            extensions: owned_extensions_view(extensions), next_tlm,
+                        }
+                    """,
+                    "main_header_fields_view": """
+                        crate::specs::Part1LayoutMainFields {
+                            image_size: parsed_image_size_view(size), coding_style: parsed_coding_style_view(style),
+                            quantization: quantization_view(quantization), styles: component_style_owner_view(styles),
+                            quantizations: parsed_quantization_owner_view(quantizations),
+                            roi: roi_shifts_view(roi), progression: progression_changes_view(progression),
+                            transform: match transform {
+                                None => None, Some(transform) => Some(multiple_component_transform_view(transform)),
+                            },
+                            extensions: owned_extensions_view(extensions), r_siz,
+                            capabilities: optional_capabilities_view(capabilities),
+                            profile: optional_profile_number_view(profile),
+                            corresponding_profile: optional_profile_number_view(corresponding_profile), segments,
+                        }
+                    """,
+                    "layout_main_header_outcome": """
+                        match result {
+                            Err(error) => Err(error),
+                            Ok(layout) => {
+                                let info = layout.info;
+                                Ok(main_header_fields_view(&info.image_size, info.coding_style, &info.quantization,
+                                    &info.component_coding_styles, &info.component_quantizations, &info.roi_shifts,
+                                    &info.progression_changes, &info.multiple_component_transform, &info.part2_extensions,
+                                    info.profile.r_siz, &info.profile.extended_capabilities, &info.profile.profile,
+                                    &info.profile.corresponding_profile, info.main_header_segments))
+                            },
+                        }
+                    """,
+                })
             text = source_text(path)
             for name, expected_body in projections.items():
                 projection_headers = list(re.finditer(
@@ -2713,7 +2791,81 @@ def validate_normative_coverage(
                 projection = (_coverage_function_body(text, projection_headers[0])
                               if len(projection_headers) == 1 else None)
                 if projection is None or re.sub(r"\s+", "", projection) != re.sub(r"\s+", "", expected_body):
-                    raise ValueError(f"whole profile Result requires complete raw projection: {name}")
+                    label = "whole raw main-header Result" if main_header else "whole profile Result"
+                    raise ValueError(f"{label} requires complete raw projection: {name}")
+        if entry["id"] == "part1-complete-native-raw-main-header-result":
+            models = {
+                "part1_main_header_initial", "part1_main_header_payload", "part1_main_header_mct_payload",
+                "part1_main_header_extension_payload", "part1_main_header_after_components",
+                "part1_main_header_after_depths", "part1_finish_main_header",
+                "part1_main_header_continuation", "part1_read_main_header", "part1_main_header_fields",
+                "part1_main_header_layout_relation",
+            }
+            if not {("specs/main_header.rs", name) for name in models}.issubset(
+                {(ref["path"], ref["symbol"]) for ref in entry["spec_refs"]}
+            ):
+                raise ValueError("whole raw main-header Result model must bind the complete source-derived chain")
+            path = (ROOT / _MAIN_HEADER_LAYOUT[0]).resolve()
+            body = _coverage_function_body(source_text(path), function_header(path, _MAIN_HEADER_LAYOUT[1]))
+            public = {"path": _MAIN_HEADER_LAYOUT[0], "symbol": "parse_layout"}
+            public_body = (_coverage_function_body(source_text(path), function_header(path, public["symbol"]))
+                           if public in entry["implementation_refs"] else None)
+            if public_body is None or re.fullmatch(
+                r"\s*" + _coverage_call("new_parser", "input", "limits")
+                + r"\s*\?\s*\.\s*" + _coverage_call("parse_layout") + r"\s*", public_body,
+            ) is None:
+                raise ValueError("whole raw main-header Result not used by claimed implementation: actual raw wrapper")
+            raw_view = _coverage_call("main_header_accumulator_view", *_MAIN_HEADER_RAW_ARGUMENTS)
+            continuation = _coverage_call("crate::specs::part1_main_header_continuation",
+                                         _coverage_call("parser_view", r"&\s*parser"), raw_view, "input_length")
+            finish = _coverage_call("crate::specs::part1_finish_main_header",
+                                   _coverage_call("parser_view", r"&\s*parser"), raw_view)
+            initial_reader = _coverage_call("parser_view", r"&\s*self")
+            root = _coverage_call("crate::specs::part1_read_main_header", "initial_reader")
+            if body is None or any(re.search(pattern, body) is None for pattern in (
+                r"let\s+ghost\s+initial_reader\s*=\s*" + initial_reader + r"\s*;",
+                r"let\s+ghost\s+main_goal\s*=\s*" + root + r"\s*;",
+                r"let\s+ghost\s+main_initial\s*=\s*" + raw_view + r"\s*;",
+                r"let\s+ghost\s+raw_main\s*=\s*" + raw_view + r"\s*;",
+                r"verus_spec\s*\(\s*invariant\s+initial_reader\s*==\s*" + initial_reader
+                + r"\s*,\s*main_goal\s*==\s*" + root + r"\s*,\s*main_goal\s*==\s*" + continuation
+                + r"\s*,\s*ensures\s+main_goal\s*==\s*" + finish,
+            )):
+                raise ValueError("whole raw main-header Result requires actual raw initialization, traversal and finalization state")
+            completed = """
+                let ghost complete_main = crate::specs::Part1MainHeader {
+                    reader: parser_view(&parser),
+                    raw: crate::specs::Part1MainHeaderAccumulator {
+                        image_size: parsed_image_size_view(&image_size), ..depth_main
+                    },
+                    end: main_header_end, header: main_header@, ppm_frames: packed_header_frames_view(ppm_frames@),
+                    coding_style: parsed_coding_style_view(coding_style), quantization: quantization_view(&quantization),
+                    styles: component_style_owner_view(&component_coding_styles),
+                    quantizations: parsed_quantization_owner_view(&component_quantizations),
+                    mct: mct_parameters_view(&main_mct_parameters),
+                    transform: match multiple_component_transform {
+                        None => None, Some(transform) => Some(multiple_component_transform_view(&transform)),
+                    },
+                    tile_count,
+                };
+            """
+            checkpoint = """
+                proof! {
+                    reveal(mct_parameters_view);
+                    reveal(mct_graph_outcome);
+                    reveal(selection_geometry_view);
+                    reveal(parsed_image_size_view);
+                    assert(main_goal == Ok(complete_main));
+                    reveal(main_header_fields_view);
+                    assert(crate::specs::part1_main_header_fields(complete_main) == main_header_fields_view(
+                        &image_size, coding_style, &quantization, &component_coding_styles, &component_quantizations,
+                        &roi_shifts, &progression_changes, &multiple_component_transform, &part2_extensions,
+                        r_siz, &extended_capabilities, &profile, &corresponding_profile, main_header_segments));
+                }
+            """
+            canonical_body = re.sub(r"\s+", "", body)
+            if any(re.sub(r"\s+", "", fragment) not in canonical_body for fragment in (completed, checkpoint)):
+                raise ValueError("whole raw main-header Result requires complete actual reader/owner output and unconditional cut")
         if entry["id"] == "part1-complete-native-persistent-tile-state-fold":
             layout = {"path": "src/codestream/layout.rs", "symbol": "Parser::parse_layout"}
             if layout not in entry["implementation_refs"]:
@@ -3400,6 +3552,7 @@ def validate_normative_coverage(
                 or _TILE_METADATA_CONTRACTS.get((reference["path"], reference["symbol"]))
                 or _PROFILE_POLICY_CONTRACTS.get((reference["path"], reference["symbol"]))
                 or _PROFILE_RESULT_CONTRACTS.get((reference["path"], reference["symbol"]))
+                or _MAIN_HEADER_INITIALIZER_CONTRACTS.get((reference["path"], reference["symbol"]))
                 or _RAW_TILE_DECODING_CONTRACTS.get((reference["path"], reference["symbol"]))
                 or _TILE_COLLECTION_CONTRACTS.get((reference["path"], reference["symbol"]))
                 or _LAYOUT_DECODING_CONTRACTS.get((reference["path"], reference["symbol"]))
@@ -3486,6 +3639,16 @@ def validate_normative_coverage(
             ) if result_projection else None
             if header_contract:
                 projected_result = re.search(named_prefix + header_contract[1] + model_suffix, contract)
+            main_header_contract = (reference["path"], reference["symbol"]) == _MAIN_HEADER_LAYOUT
+            if main_header_contract:
+                expected_result_model = "part1_main_header_layout_relation"
+                projected_result = re.search(
+                    named_prefix + r"crate::specs::(?P<model>part1_main_header_layout_relation)\s*\(\s*"
+                    + _coverage_call("crate::specs::part1_read_main_header",
+                                     _coverage_call("parser_view", r"&\s*self"))
+                    + r"\s*,\s*" + _coverage_call("layout_main_header_outcome", r"\1") + r"\s*\)",
+                    contract,
+                ) if re.search(r"\brequires\b", contract) is None else None
             state_term = (
                 r"(?:final\(\s*\w+\s*\)@|"
                 r"crate::specs::part2_composition_planes\(\s*final\(\s*\w+\s*\)@\s*\)|"
@@ -3950,7 +4113,10 @@ def validate_normative_coverage(
                 raise ValueError(f"linked function lacks executable Verus contract: {short}")
             if not any(re.search(rf"\b{re.escape(symbol)}\b", contract) for symbol in spec_symbols):
                 raise ValueError(f"linked function contract lacks normative spec reference: {short}")
-            if claimed_consumer and not any(
+            main_header_caller = (
+                main_header_contract and entry["id"] == "part1-complete-native-raw-main-header-result"
+            )
+            if claimed_consumer and not main_header_caller and not any(
                 ref != reference
                 and (cross_file_call(
                     (ROOT / ref["path"]).resolve(), ref["symbol"], short,

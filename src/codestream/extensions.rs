@@ -16,6 +16,42 @@ use super::{
 #[cfg(verus_keep_ghost)]
 use vstd::prelude::*;
 
+#[cfg_attr(verus_keep_ghost, verus_spec(result =>
+    ensures owned_extensions_view(&result) == crate::specs::part1_empty_extensions(),
+))]
+pub(super) const fn new_part2_extensions() -> Part2Extensions {
+    #[cfg(verus_keep_ghost)]
+    proof! { reveal(owned_extensions_view); }
+    let result = Part2Extensions {
+        decomposition_structures: Vec::new(),
+        arbitrary_decompositions: Vec::new(),
+        nonlinear_transforms: Vec::new(),
+        component_bit_depths: Vec::new(),
+        arbitrary_kernels: Vec::new(),
+        component_registrations: Vec::new(),
+        tile_part_lengths: Vec::new(),
+        metadata_bytes: 0,
+    };
+    #[cfg(verus_keep_ghost)]
+    proof! {
+        let actual = owned_extensions_view(&result);
+        assert(actual.decompositions =~= Seq::empty());
+        assert(actual.arbitrary =~= Seq::empty());
+        assert(actual.nonlinear =~= Seq::empty());
+        assert(actual.depths =~= Seq::empty());
+        assert(actual.kernels =~= Seq::empty());
+        assert(actual.registrations =~= Seq::empty());
+        assert(actual.lengths =~= Seq::empty());
+    }
+    result
+}
+
+impl Default for Part2Extensions {
+    fn default() -> Self {
+        new_part2_extensions()
+    }
+}
+
 impl DecompositionStructure {
     pub const fn index(&self) -> u8 {
         self.index
