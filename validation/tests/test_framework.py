@@ -1252,6 +1252,96 @@ class FrameworkTests(WorkingFiles):
                 self.assertEqual(framework.validate_normative_coverage(dict(coverage, requirements=[entry]))["status"], "passed")
                 self.assertEqual(set(counts.values()), {expected})
 
+    def test_inventory_binds_raw_public_jpx_boundary_and_actual_inspector(self):
+        producer = ("src/jpx/inspection.rs", "inspect_file")
+        self._assert_complete_packet_contract_bindings(
+            {framework._RAW_JPX_INSPECTION_ENTRY},
+            {producer: framework._RAW_JPX_INSPECTION_CONTRACTS[producer]}, 1, isolate=False,
+        )
+        coverage = json.loads((framework.VALIDATION / "normative-coverage.json").read_text())
+        entry = next(item for item in coverage["requirements"] if item["id"] == framework._RAW_JPX_INSPECTION_ENTRY)
+        source = framework.ROOT / "src/jpx/inspection.rs"
+        original = source.read_text()
+        read_text = Path.read_text
+        for before, after in (
+            ("super::raw_jpx_inspection_outcome(result)", "super::raw_jpx_inspection_outcome(arbitrary())"),
+            ("part2_inspect_raw_jpx_layers(input@, limits)", "part2_inspect_raw_jpx_layers(seq![], limits)"),
+        ):
+            self.assertIn(before, original)
+            changed = original.replace(before, after, 1)
+
+            def altered(path, *args, **kwargs):
+                return changed if path == source else read_text(path, *args, **kwargs)
+
+            with self.subTest(before=before), mock.patch.object(Path, "read_text", altered), \
+                    self.assertRaisesRegex(ValueError, "executable Verus contract"):
+                framework.validate_normative_coverage(dict(coverage, requirements=[entry]))
+
+    def test_inventory_raw_public_jpx_requires_every_actual_boundary_and_source_bridge(self):
+        coverage = json.loads((framework.VALIDATION / "normative-coverage.json").read_text())
+        entry = next(item for item in coverage["requirements"] if item["id"] == framework._RAW_JPX_INSPECTION_ENTRY)
+        for field in ("contract_refs", "spec_refs", "proof_refs"):
+            for removed in entry[field]:
+                changed = copy.deepcopy(entry)
+                changed[field].remove(removed)
+                expected_error = "should be non-empty" if not changed[field] else "whole raw public JPX Result"
+                with self.subTest(field=field, removed=removed), self.assertRaisesRegex(ValueError, expected_error):
+                    framework.validate_normative_coverage(dict(coverage, requirements=[changed]))
+
+    def test_inventory_raw_public_jpx_binds_original_raw_admission_and_inspector_pipeline(self):
+        coverage = json.loads((framework.VALIDATION / "normative-coverage.json").read_text())
+        entry = next(item for item in coverage["requirements"] if item["id"] == framework._RAW_JPX_INSPECTION_ENTRY)
+        source = framework.ROOT / "src/jpx/inspection.rs"
+        original = source.read_text()
+        before = "ensure_jpx(inspected.file())?"
+        self.assertIn(before, original)
+        changed = original.replace(before, "()", 1)
+        read_text = Path.read_text
+
+        def altered(path, *args, **kwargs):
+            return changed if path == source else read_text(path, *args, **kwargs)
+
+        with mock.patch.object(Path, "read_text", altered), \
+                self.assertRaisesRegex(ValueError, "actual raw/profile/inspector pipeline"):
+            framework.validate_normative_coverage(dict(coverage, requirements=[entry]))
+
+    def test_inventory_raw_public_jpx_rejects_trimmed_metadata_and_timeline_models(self):
+        coverage = json.loads((framework.VALIDATION / "normative-coverage.json").read_text())
+        entry = next(item for item in coverage["requirements"] if item["id"] == framework._RAW_JPX_INSPECTION_ENTRY)
+        source = framework.ROOT / "specs/jpx_raw_inspection.rs"
+        original = source.read_text()
+        read_text = Path.read_text
+        for before, after in (
+            ("metadata: (file.metadata_boxes, file.metadata_depth)", "metadata: (0, 0)"),
+            ("value.persistent, value.next_reuse", "false, 0"),
+            ("part2_raw_timeline_instruction(sets[i].3[j])", "arbitrary()"),
+        ):
+            self.assertIn(before, original)
+            changed = original.replace(before, after, 1)
+
+            def altered(path, *args, **kwargs):
+                return changed if path == source else read_text(path, *args, **kwargs)
+
+            with self.subTest(before=before), mock.patch.object(Path, "read_text", altered), \
+                    self.assertRaisesRegex(ValueError, "full raw-source/metadata/instruction/timeline models"):
+                framework.validate_normative_coverage(dict(coverage, requirements=[entry]))
+
+    def test_inventory_raw_public_jpx_keeps_fresh_actual_api_and_raw_conversion_caches(self):
+        coverage = json.loads((framework.VALIDATION / "normative-coverage.json").read_text())
+        entry = next(item for item in coverage["requirements"] if item["id"] == framework._RAW_JPX_INSPECTION_ENTRY)
+        read_text = Path.read_text
+        counts = {framework.ROOT / name: 0 for name in ("src/jpx/inspection.rs", "specs/jpx_raw_inspection.rs")}
+
+        def counted(path, *args, **kwargs):
+            if path in counts:
+                counts[path] += 1
+            return read_text(path, *args, **kwargs)
+
+        with mock.patch.object(Path, "read_text", counted):
+            for expected in (1, 2):
+                self.assertEqual(framework.validate_normative_coverage(dict(coverage, requirements=[entry]))["status"], "passed")
+                self.assertEqual(set(counts.values()), {expected})
+
     def test_inventory_raw_inspected_preserves_original_getter_postconditions(self):
         source = framework.ROOT / "src/jp2/container.rs"
         original = source.read_text()

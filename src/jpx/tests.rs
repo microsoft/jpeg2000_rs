@@ -502,6 +502,141 @@ mod tests {
         }
     }
 
+    fn raw_public_box(kind: [u8; 4], payload: &[u8]) -> Vec<u8> {
+        let mut bytes = u32::try_from(payload.len() + 8).unwrap().to_be_bytes().to_vec();
+        bytes.extend_from_slice(&kind);
+        bytes.extend_from_slice(payload);
+        bytes
+    }
+
+    fn raw_public_timeline_bytes(repeat: u16, tick: u32, width: u32, metadata: bool) -> (Vec<u8>, u64) {
+        let (mut bytes, length) = source_layer_bytes(&[0xcf, 0xb4, 0x04, 0x09], false);
+        let source = bytes.split_off(bytes.len() - length - 8);
+        bytes.extend(raw_public_box(*b"jplh", &[]));
+        let mut options = 1_u32.to_be_bytes().to_vec();
+        options.extend_from_slice(&1_u32.to_be_bytes());
+        options.push(255);
+        let mut composition = raw_public_box(*b"copt", &options);
+        let offset = (bytes.len() + 8 + composition.len()) as u64;
+        let mut instruction = 0x27_u16.to_be_bytes().to_vec();
+        instruction.extend_from_slice(&repeat.to_be_bytes());
+        instruction.extend_from_slice(&tick.to_be_bytes());
+        for value in [17_u32, 19, width, 5, 0x8000_0003, if repeat == 0 { 0 } else { 1 }, 7, 11, 13, 17] {
+            instruction.extend_from_slice(&value.to_be_bytes());
+        }
+        composition.extend(raw_public_box(*b"inst", &instruction));
+        composition.extend(raw_public_box(*b"xml ", b"<x/>"));
+        bytes.extend(raw_public_box(*b"comp", &composition));
+        if metadata {
+            bytes.extend(raw_public_box(*b"asoc", &raw_public_box(*b"xml ", &[1, 2])));
+        }
+        bytes.extend(source);
+        (bytes, offset)
+    }
+
+    #[test]
+    fn actual_raw_jpx_inspection_derives_every_implicit_and_declared_layer_field() {
+        let limits = ResourceLimits::default();
+        let metadata = inspect_jpx_layers(&source_frame_codestream_bytes(), &limits).unwrap();
+        assert_eq!(metadata.layers.len(), 3);
+        assert!(metadata.composition.is_none());
+        for (index, layer) in metadata.layers.iter().enumerate() {
+            assert_eq!(layer.index, index);
+            assert_eq!(layer.codestream_indices, [u16::try_from(index).unwrap()]);
+            assert_eq!((layer.width, layer.height, layer.horizontal_grid_size, layer.vertical_grid_size), (1, 1, 1, 1));
+            assert_eq!((layer.horizontal_offset, layer.vertical_offset, layer.nested_metadata_boxes), (0, 0, 0));
+            assert!(!layer.has_color_group && !layer.has_opacity_box);
+        }
+        let bytes = general_source_bytes(&[], &[], Some(&[0]), jp2::ENUMERATED_GRAYSCALE);
+        let metadata = inspect_jpx_layers(&bytes, &limits).unwrap();
+        let layer = &metadata.layers[0];
+        assert_eq!(layer.codestream_indices, [0]);
+        assert!(layer.has_color_group && layer.has_opacity_box);
+        assert_eq!((layer.width, layer.height), (1, 1));
+    }
+
+    #[test]
+    fn actual_raw_jpx_inspection_preserves_registration_order_duplicates_and_minimum_geometry() {
+        for registrations in [
+            [[0, 2, 8, 1, 1, 0], [0, 0, 4, 1, 1, 0], [0, 1, 6, 1, 1, 0]],
+            [[0, 2, 8, 1, 1, 0], [0, 0, 4, 1, 1, 0], [0, 2, 6, 1, 1, 0]],
+        ] {
+            let bytes = general_source_bytes(&registrations, &[], None, jp2::ENUMERATED_SRGB);
+            let metadata = inspect_jpx_layers(&bytes, &ResourceLimits::default()).unwrap();
+            let layer = &metadata.layers[0];
+            assert_eq!(layer.codestream_indices, registrations.map(|row| u16::from_be_bytes([row[0], row[1]])));
+            assert_eq!((layer.width, layer.height, layer.horizontal_grid_size, layer.vertical_grid_size), (3, 1, 2, 1));
+            assert_eq!((layer.horizontal_offset, layer.vertical_offset), (0, 0));
+            assert!(layer.has_color_group && !layer.has_opacity_box);
+        }
+    }
+
+    #[test]
+    fn actual_raw_jpx_inspection_derives_full_nested_timeline_fields_reuse_and_duration() {
+        for repeat in 0..3 {
+            let (bytes, _) = raw_public_timeline_bytes(repeat, 7, 3, false);
+            let metadata = inspect_jpx_layers(&bytes, &ResourceLimits::default()).unwrap();
+            let composition = metadata.composition.unwrap();
+            assert_eq!((composition.width, composition.height, composition.loop_count, composition.instruction_sets), (1, 1, 0, 1));
+            assert!(composition.has_unknown_boxes);
+            assert_eq!(composition.frames.len(), usize::from(repeat) + 1);
+            assert_eq!(composition.total_duration_milliseconds, 21 * (u64::from(repeat) + 1));
+            for (index, frame) in composition.frames.iter().enumerate() {
+                assert_eq!((frame.index, frame.start_milliseconds, frame.duration_milliseconds), (index, index as u64 * 21, 21));
+                assert!(frame.persistent);
+                assert_eq!(frame.instructions.len(), 1);
+                let instruction = &frame.instructions[0];
+                assert_eq!((instruction.layer_index, instruction.target_x, instruction.target_y, instruction.target_width, instruction.target_height), (0, 17, 19, 3, 5));
+                assert_eq!((instruction.source_x, instruction.source_y, instruction.source_width, instruction.source_height), (7, 11, 13, 17));
+                assert!(instruction.persistent);
+                assert_eq!(instruction.next_reuse, if repeat == 0 { 0 } else { 1 });
+            }
+        }
+    }
+
+    #[test]
+    fn actual_raw_jpx_inspection_keeps_container_and_info_errors_before_jpx_brand_admission() {
+        let (mut bytes, length) = source_layer_bytes(&[0xcf, 0xb4, 0x04, 0x09], false);
+        bytes[20..24].copy_from_slice(b"jp2 ");
+        bytes[28..32].copy_from_slice(b"jp2 ");
+        assert_eq!(inspect_jpx_layers(&bytes, &ResourceLimits::default()).err(), Some(DecodeError::MalformedInput {
+            offset: 0, kind: MalformedKind::InvalidProfile,
+        }));
+        bytes.truncate(bytes.len() - length - 8);
+        bytes.extend(raw_public_box(*b"jp2c", &[0]));
+        assert_eq!(inspect_jpx_layers(&bytes, &ResourceLimits::default()).err(), Some(DecodeError::MalformedInput {
+            offset: 0, kind: MalformedKind::Truncated,
+        }));
+        let offset = bytes.len() as u64;
+        bytes.push(0);
+        assert_eq!(inspect_jpx_layers(&bytes, &ResourceLimits::default()).err(), Some(DecodeError::MalformedInput {
+            offset, kind: MalformedKind::InvalidBoxLength,
+        }));
+    }
+
+    #[test]
+    fn actual_raw_jpx_inspection_keeps_raw_geometry_before_timeline_work_budget() {
+        let limits = ResourceLimits::default().with_maximum_frames(0).unwrap();
+        let (bytes, _) = raw_public_timeline_bytes(0, 7, 3, false);
+        assert_eq!(inspect_jpx_layers(&bytes, &limits).err(), Some(DecodeError::LimitExceeded {
+            resource: Resource::WorkUnits, limit: 0, actual: 1,
+        }));
+        let (bytes, offset) = raw_public_timeline_bytes(0, 7, 0, false);
+        assert_eq!(inspect_jpx_layers(&bytes, &limits).err(), Some(DecodeError::MalformedInput {
+            offset, kind: MalformedKind::InvalidImageGeometry,
+        }));
+    }
+
+    #[test]
+    fn actual_raw_jpx_inspection_derives_global_metadata_depth_and_rejects_all_prefixes() {
+        let (bytes, _) = raw_public_timeline_bytes(0, 7, 3, true);
+        let metadata = inspect_jpx_layers(&bytes, &ResourceLimits::default()).unwrap();
+        assert_eq!((metadata.metadata_boxes, metadata.metadata_depth), (2, 2));
+        for length in 0..bytes.len() {
+            assert!(inspect_jpx_layers(&bytes[..length], &ResourceLimits::default()).is_err());
+        }
+    }
+
     fn inspection_composition_bytes(unknown: bool) -> Vec<u8> {
         fn boxed(kind: [u8; 4], payload: &[u8]) -> Vec<u8> {
             let mut bytes = u32::try_from(payload.len() + 8).unwrap().to_be_bytes().to_vec();

@@ -4,6 +4,55 @@
   "scope": "Technical reference inventory; not exhaustive standards-clause coverage or a conformance claim.",
   "requirements": [
     {
+      "id": "part2-complete-native-raw-public-jpx-inspection-result",
+      "topic": "Complete actual public raw inspect_jpx_layers Result from bytes/limits through real raw container/info, unchanged JPX admission and actual parsed-file/timeline inspector. Every returned layer geometry/source order/flags, composition/frame/instruction/life/reuse/duration/unknown field and metadata count/depth derives from source producers. Public boundary uses the existing proved-boundary recipe, not an invented executing wrapper or supplied successful metadata/info/timeline bank. Native owners/calls/error/resource order unchanged; no rendering/normative/cfg/lifetime/release completion.",
+      "implementation_refs": [
+        {"path": "src/jpx/inspection.rs", "symbol": "inspect_jpx_layers"},
+        {"path": "src/jpx/inspection.rs", "symbol": "inspect_file"}
+      ],
+      "contract_refs": [
+        {"path": "src/jpx/inspection.rs", "symbol": "inspect_file"}
+      ],
+      "spec_refs": [
+        {"path": "specs/jpx_raw_inspection.rs", "symbol": "part2_inspect_raw_jpx_layers"},
+        {"path": "specs/jpx_raw_inspection.rs", "symbol": "part2_ensure_raw_jpx"},
+        {"path": "specs/jpx_raw_inspection.rs", "symbol": "part2_raw_inspection_file"},
+        {"path": "specs/jpx_raw_inspection.rs", "symbol": "part2_raw_inspection_layer"},
+        {"path": "specs/jpx_raw_inspection.rs", "symbol": "part2_raw_inspection_composition"},
+        {"path": "specs/jpx_raw_inspection.rs", "symbol": "part2_raw_inspection_geometries"},
+        {"path": "specs/jpx_raw_inspection.rs", "symbol": "part2_raw_timeline_sets"},
+        {"path": "specs/jpx_raw_inspection.rs", "symbol": "part2_raw_timeline_instruction"},
+        {"path": "specs/jp2_inspection.rs", "symbol": "part2_parse_and_inspect_container"},
+        {"path": "specs/jpx_inspection.rs", "symbol": "part2_inspect_jpx_file"}
+      ],
+      "proof_refs": [
+        {"path": "src/jpx/inspection.rs", "symbol": "inspect_jpx_layers"},
+        {"path": "src/jpx/proof_support.rs", "symbol": "raw_jpx_inspection_outcome"},
+        {"path": "src/jpx/proof_support.rs", "symbol": "raw_jpx_inspection_outcome_known"},
+        {"path": "src/jpx/proof_support.rs", "symbol": "raw_jpx_file_known"},
+        {"path": "src/jpx/proof_support.rs", "symbol": "raw_jpx_composition_known"},
+        {"path": "src/jpx/proof_support.rs", "symbol": "raw_jpx_geometries_known"},
+        {"path": "src/jpx/proof_support.rs", "symbol": "inspection_file_input"},
+        {"path": "src/jpx/proof_support.rs", "symbol": "inspection_source_geometries"},
+        {"path": "src/jpx/proof_support.rs", "symbol": "timeline_set_views"},
+        {"path": "specs/jpx_raw_inspection.rs", "symbol": "part2_inspect_raw_jpx_layers_unfold"},
+        {"path": "src/jp2/proof_support.rs", "symbol": "raw_jpx_inspection_parts_known"},
+        {"path": "src/jp2/proof_support.rs", "symbol": "raw_jpx_inspection_layer_known"},
+        {"path": "src/jp2/proof_support.rs", "symbol": "raw_inspected_file_reference"},
+        {"path": "src/jp2/proof_support.rs", "symbol": "raw_inspected_native_infos"},
+        {"path": "src/jp2/container.rs", "symbol": "InspectedJp2::file"},
+        {"path": "src/jp2/container.rs", "symbol": "InspectedJp2::codestreams"}
+      ],
+      "test_refs": [
+        {"path": "src/jpx/tests.rs", "symbol": "actual_raw_jpx_inspection_derives_every_implicit_and_declared_layer_field"},
+        {"path": "src/jpx/tests.rs", "symbol": "actual_raw_jpx_inspection_preserves_registration_order_duplicates_and_minimum_geometry"},
+        {"path": "src/jpx/tests.rs", "symbol": "actual_raw_jpx_inspection_derives_full_nested_timeline_fields_reuse_and_duration"},
+        {"path": "src/jpx/tests.rs", "symbol": "actual_raw_jpx_inspection_keeps_container_and_info_errors_before_jpx_brand_admission"},
+        {"path": "src/jpx/tests.rs", "symbol": "actual_raw_jpx_inspection_keeps_raw_geometry_before_timeline_work_budget"},
+        {"path": "src/jpx/tests.rs", "symbol": "actual_raw_jpx_inspection_derives_global_metadata_depth_and_rejects_all_prefixes"}
+      ]
+    },
+    {
       "id": "part2-complete-native-raw-inspected-container-results",
       "topic": "Complete actual raw parse_and_inspect and inspect_jph Results from actual raw container/codestream-info producers and limits. Original file and every full info record preserved; no supplied-success/source/layout/image/info banks. Native full-container-before-info, relative parse errors, profile-before-geometry, first/default/explicit-header selection, first-error and wrapper-after-inspection order retained. Real public CAP getter linked through existing full info/capability projections without widening native private-field access. Original owners/code/scopes retained; source/native observation and all gates required. Timeline/render/public image/normative/lifetime/cfg/release separate.",
       "implementation_refs": [

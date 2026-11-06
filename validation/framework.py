@@ -3048,6 +3048,41 @@ _JPX_INSPECTION_CONTRACTS = {
         + _coverage_call("jp2::jpx_file_decode_view", "file") + r"\s*\.1\.len\(\)",
     ),
 }
+_RAW_JPX_INSPECTION_ENTRY = "part2-complete-native-raw-public-jpx-inspection-result"
+_RAW_JPX_INSPECTION_APIS = {("src/jpx/inspection.rs", "inspect_jpx_layers")}
+_RAW_JPX_INSPECTION_CONTRACTS = {
+    ("src/jpx/inspection.rs", "inspect_file"): _JPX_INSPECTION_CONTRACTS[("src/jpx/inspection.rs", "inspect_file")],
+    ("src/jpx/inspection.rs", "inspect_jpx_layers"): (
+        "part2_inspect_raw_jpx_layers", _coverage_call("super::raw_jpx_inspection_outcome", r"\1"), None,
+        r"input\s*@\s*,\s*limits",
+    ),
+}
+_RAW_JPX_INSPECTION_MODELS = {
+    ("specs/jpx_raw_inspection.rs", name) for name in (
+        "part2_inspect_raw_jpx_layers", "part2_ensure_raw_jpx", "part2_raw_inspection_file",
+        "part2_raw_inspection_layer", "part2_raw_inspection_composition", "part2_raw_inspection_geometries",
+        "part2_raw_timeline_sets", "part2_raw_timeline_instruction",
+    )
+} | {
+    ("specs/jp2_inspection.rs", "part2_parse_and_inspect_container"),
+    ("specs/jpx_inspection.rs", "part2_inspect_jpx_file"),
+}
+_RAW_JPX_INSPECTION_PROOFS = {
+    ("src/jpx/proof_support.rs", name) for name in (
+        "raw_jpx_inspection_outcome", "raw_jpx_inspection_outcome_known", "raw_jpx_file_known",
+        "raw_jpx_composition_known", "raw_jpx_geometries_known",
+        "inspection_file_input", "inspection_source_geometries", "timeline_set_views",
+    )
+} | {
+    ("specs/jpx_raw_inspection.rs", "part2_inspect_raw_jpx_layers_unfold"),
+    ("src/jp2/proof_support.rs", "raw_jpx_inspection_parts_known"),
+    ("src/jp2/proof_support.rs", "raw_jpx_inspection_layer_known"),
+    ("src/jp2/proof_support.rs", "raw_inspected_file_reference"),
+    ("src/jp2/proof_support.rs", "raw_inspected_native_infos"),
+    ("src/jp2/container.rs", "InspectedJp2::file"),
+    ("src/jp2/container.rs", "InspectedJp2::codestreams"),
+    *_RAW_JPX_INSPECTION_APIS,
+}
 _JPX_INSPECTION_MODELS = {("specs/jpx_inspection.rs", name) for name in (
     "part2_inspect_jpx_file", "part2_inspection_layer_count", "part2_inspection_layer",
     "part2_inspection_layer_value", "part2_inspection_registration_prefix", "part2_inspection_registration_step",
@@ -3382,6 +3417,31 @@ def validate_normative_coverage(
     ids: set[str] = set()
     contract_functions: set[tuple[str, str]] = set()
     for entry in coverage["requirements"]:
+        if entry["id"] == _RAW_JPX_INSPECTION_ENTRY:
+            if {(ref["path"], ref["symbol"]) for ref in entry["contract_refs"]} != set(_RAW_JPX_INSPECTION_CONTRACTS) - _RAW_JPX_INSPECTION_APIS:
+                raise ValueError("whole raw public JPX Result requires its actual checked inspector producer")
+            if not _RAW_JPX_INSPECTION_MODELS.issubset({(ref["path"], ref["symbol"]) for ref in entry["spec_refs"]}) \
+                    or not _RAW_JPX_INSPECTION_PROOFS.issubset({(ref["path"], ref["symbol"]) for ref in entry["proof_refs"]}):
+                raise ValueError("whole raw public JPX Result requires the proved public boundary and full raw/timeline/getter bridges")
+            path = (ROOT / "src/jpx/inspection.rs").resolve()
+            body = _coverage_function_body(source_text(path), function_header(path, "inspect_jpx_layers"))
+            required = ("jp2::parse_and_inspect(input, limits)?", "ensure_jpx(inspected.file())?",
+                "inspect_file(inspected.file(), inspected.codestreams(), limits)")
+            if body is None or any("".join(item.split()) not in "".join(body.split()) for item in required):
+                raise ValueError("whole raw public JPX Result requires the actual raw/profile/inspector pipeline")
+            model = source_text((ROOT / "specs/jpx_raw_inspection.rs").resolve())
+            for name, required in {
+                "part2_inspect_raw_jpx_layers": ("part2_parse_and_inspect_container(input, limits)",
+                    "part2_ensure_raw_jpx(inspected.0.file_type)", "part2_inspect_jpx_file(part2_raw_inspection_file(inspected.0)"),
+                "part2_raw_inspection_file": ("codestreams: file.streams.len() as usize",
+                    "metadata: (file.metadata_boxes, file.metadata_depth)", "part2_raw_inspection_composition(value)"),
+                "part2_raw_timeline_sets": ("sets[i].1", "part2_raw_timeline_instruction(sets[i].3[j])"),
+                "part2_raw_timeline_instruction": ("value.source_x, value.source_y, value.source_width, value.source_height",
+                    "value.persistent, value.next_reuse", "value.life"),
+            }.items():
+                actual = _coverage_spec_function_body(model, name)
+                if actual is None or any("".join(item.split()) not in "".join(actual.split()) for item in required):
+                    raise ValueError("whole raw public JPX Result requires full raw-source/metadata/instruction/timeline models")
         if entry["id"] == _RAW_INSPECTED_ENTRY:
             if {(ref["path"], ref["symbol"]) for ref in entry["contract_refs"]} != set(_RAW_INSPECTED_CONTRACTS):
                 raise ValueError("whole raw inspected Results require actual parser/JPH/profile contracts")
@@ -5325,12 +5385,13 @@ def validate_normative_coverage(
         spec_symbols = {reference["symbol"] for reference in entry["spec_refs"]}
         proved_apis = [
             reference for reference in entry["proof_refs"]
-            if (reference["path"], reference["symbol"]) in (
+            if ((reference["path"], reference["symbol"]) in (
                 _PACKET_PROVED_BOUNDARY_APIS | _RECONSTRUCTION_PROVED_BOUNDARY_APIS
                 | _RESOLUTION_GEOMETRY_PROVED_BOUNDARY_APIS
                 | _SUBBAND_ADMISSION_PROVED_BOUNDARY_APIS
                 | _SUBBAND_VECTOR_PROVED_BOUNDARY_APIS
-            )
+            ) or (entry["id"] == _RAW_JPX_INSPECTION_ENTRY
+                  and (reference["path"], reference["symbol"]) in _RAW_JPX_INSPECTION_APIS))
             and reference not in entry["contract_refs"]
         ]
         for reference in [*entry["contract_refs"], *proved_apis]:
@@ -5824,6 +5885,8 @@ def validate_normative_coverage(
                     if entry["id"] == _SOURCE_FRAME_ENTRY else None)
                 or (_JPX_INSPECTION_CONTRACTS.get((reference["path"], reference["symbol"]))
                     if entry["id"] == _JPX_INSPECTION_ENTRY else None)
+                or (_RAW_JPX_INSPECTION_CONTRACTS.get((reference["path"], reference["symbol"]))
+                    if entry["id"] == _RAW_JPX_INSPECTION_ENTRY else None)
                 or (_BOX_READER_CONTRACTS.get((reference["path"], reference["symbol"]))
                     if entry["id"] == _BOX_READER_ENTRY else None)
                 or (_FILE_TYPE_CONTRACTS.get((reference["path"], reference["symbol"]))

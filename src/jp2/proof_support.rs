@@ -540,6 +540,14 @@ verus! {
         (raw_jp2_file_view(&value.file), raw_codestream_infos_view(value.codestreams@))
     }
 
+    pub closed spec fn raw_inspected_file_reference<'file, 'input>(value: &'file InspectedJp2<'input>) -> &'file Jp2File<'input> {
+        &value.file
+    }
+
+    pub closed spec fn raw_inspected_native_infos(value: &InspectedJp2) -> Seq<CodestreamInfo> {
+        value.codestreams@
+    }
+
     pub open spec fn raw_inspected_container_outcome(value: Result<InspectedJp2, DecodeError>)
         -> Result<crate::specs::Part2RawInspectedContainer, DecodeError>
     {
@@ -549,6 +557,27 @@ verus! {
     proof fn raw_inspection_file_fields_known(file: &Jp2File)
         ensures raw_jp2_file_view(file).file_type == file_type_view(&file.file_type),
             raw_jp2_file_view(file).header == raw_jp2_header_view(&file.header),
+    {
+    }
+
+    pub(crate) proof fn raw_jpx_inspection_parts_known(file: &Jp2File)
+        ensures raw_jp2_file_view(file).layers == raw_compositing_layers_view(source_file_layers(file)),
+            raw_jp2_file_view(file).streams.len() == jpx_file_decode_view(file).1.len(),
+            raw_jp2_file_view(file).file_type == jpx_file_decode_view(file).0,
+            (raw_jp2_file_view(file).metadata_boxes, raw_jp2_file_view(file).metadata_depth) == source_file_metadata(file),
+            raw_jp2_file_view(file).composition == match source_file_composition_reference(file) {
+                None => None, Some(value) => Some(raw_composition_view(value)),
+            },
+    {
+    }
+
+    pub(crate) proof fn raw_jpx_inspection_layer_known(layer: &CompositingLayer)
+        ensures raw_compositing_layer_view(layer).horizontal == source_layer_geometry(layer).1,
+            raw_compositing_layer_view(layer).vertical == source_layer_geometry(layer).2,
+            raw_compositing_layer_view(layer).registrations == source_layer_registrations(layer),
+            raw_compositing_layer_view(layer).colors.len() == source_layer_color_group(layer).len(),
+            raw_compositing_layer_view(layer).opacity.is_some() == source_layer_opacity(layer).is_some(),
+            raw_compositing_layer_view(layer).nested_metadata == source_layer_nested_metadata(layer),
     {
     }
 
