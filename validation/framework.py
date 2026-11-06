@@ -2617,6 +2617,31 @@ _DECODER_LAYOUT_CONTRACTS = {
 
 
 _SOURCE_OPACITY_ENTRY = "part2-complete-native-source-layer-opacity-result"
+_EFFECTIVE_LAYER_ENTRY = "part2-complete-native-effective-layer-result"
+_EFFECTIVE_LAYER_CONTRACTS = {
+    ("src/jpx/layer_decode.rs", "decode_effective_layer"): (
+        "part2_decode_effective_layer", _coverage_call("owned_layer_outcome", r"\1"), None,
+        _coverage_call("jp2::jpx_file_decode_view", "file") + r"\s*,\s*"
+        + _coverage_call("jp2::source_file_layer_configs", "file") + r"\s*,\s*layer_index\s*,\s*"
+        + _coverage_call("crate::options::decode_options_limits", "options"),
+    ),
+    ("src/jpx/layer_decode.rs", "decode_compositing_layer"): (
+        "part2_decode_compositing_layer", _coverage_call("owned_layer_outcome", r"\1"), None,
+        _coverage_call("jp2::jpx_file_decode_view", "file") + r"\s*,\s*"
+        + _coverage_call("jp2::general_layer_config", "file", "layer") + r"\s*,\s*"
+        + _coverage_call("jp2::source_layer_color_override", "layer") + r"\s*,\s*"
+        + _coverage_call("jp2::source_layer_geometry", "layer") + r"\s*,\s*layer_index\s*,\s*"
+        + _coverage_call("crate::options::decode_options_limits", "options"),
+    ),
+}
+_EFFECTIVE_LAYER_MODELS = {("specs/jpx_dispatch.rs", name) for name in (
+    "part2_decode_effective_layer", "part2_layer_config_lookup", "part2_decode_compositing_layer",
+    "part2_dispatch_owned_image", "part2_dispatch_opacity_result", "part2_dispatch_registration",
+)}
+_EFFECTIVE_LAYER_PROOFS = {("src/jp2/proof_support.rs", name) for name in (
+    "source_file_layer_configs", "source_layer_routing_config", "source_layer_color_override",
+    "jpx_file_layer_reference",
+)}
 _GENERAL_LAYER_ENTRY = "part2-complete-native-general-layer-result"
 _GENERAL_LAYER_CONTRACTS = {
     ("src/jpx/layer_decode.rs", "decode_general_compositing_layer"): (
@@ -2889,6 +2914,52 @@ def validate_normative_coverage(
     ids: set[str] = set()
     contract_functions: set[tuple[str, str]] = set()
     for entry in coverage["requirements"]:
+        if entry["id"] == _EFFECTIVE_LAYER_ENTRY:
+            if {(ref["path"], ref["symbol"]) for ref in entry["contract_refs"]} != set(_EFFECTIVE_LAYER_CONTRACTS):
+                raise ValueError("whole effective layer Result requires both actual complete dispatcher contracts")
+            if not _EFFECTIVE_LAYER_MODELS.issubset({(ref["path"], ref["symbol"]) for ref in entry["spec_refs"]}) \
+                    or not _EFFECTIVE_LAYER_PROOFS.issubset({(ref["path"], ref["symbol"]) for ref in entry["proof_refs"]}):
+                raise ValueError("whole effective layer Result requires all actual routing models and metadata/reference bridges")
+            path = (ROOT / "src/jpx/layer_decode.rs").resolve()
+            handoffs = {
+                "decode_effective_layer": (
+                    "if file.compositing_layers().is_empty()", "if layer_index >= file.codestream_count()",
+                    "owned_layer_from_image(&decode_layer(file, layer_index, None, options)?)",
+                    "let layer = file.compositing_layer(layer_index)?;",
+                    "decode_compositing_layer(file, layer, layer_index, options)",
+                ),
+                "decode_compositing_layer": (
+                    "!layer.channel_definition_records().is_empty()", "layer.registrations().len() > 1",
+                    "matches!(layer.opacity(), Some(LayerOpacity::ChromaKey { .. }))",
+                    "decode_general_compositing_layer(file, layer, layer_index, options)",
+                    "let color_override = layer.color_group().first();",
+                    "let image = decode_layer(file, layer_index, color_override, options)?;",
+                    "usize::from(first.codestream_index)", "let alpha_registration = layer.registrations().get(1);",
+                    "apply_layer_opacity(file, layer, layer_index, &mut owned, None, options)?;",
+                ),
+            }
+            for name, required in handoffs.items():
+                body = _coverage_function_body(source_text(path), function_header(path, name))
+                if body is None or any("".join(item.split()) not in "".join(body.split()) for item in required):
+                    raise ValueError("whole effective layer Result requires actual routing/source/fallback/registration/opacity handoffs")
+            path = (ROOT / "src/jp2/container.rs").resolve()
+            text = source_text(path)
+            header = function_header(path, "Jp2File::compositing_layer")
+            start = text.rfind("#[cfg_attr(verus_keep_ghost, verus_spec(", 0, header.start()) if header else -1
+            contract = text[start:header.start()] if start >= 0 else ""
+            if "Some(layer)==super::jpx_file_layer_reference(self,index)" not in "".join(contract.split()):
+                raise ValueError("whole effective layer Result requires complete actual borrowed-layer reference preservation")
+            model = source_text((ROOT / "specs/jpx_dispatch.rs").resolve())
+            required = (
+                "if index >= file.1.len()", "part2_dispatch_owned_image(file, index, None, limits)",
+                "part2_layer_config_lookup(layers, index)",
+                "part2_decode_general_layer(file, config, layer_index, limits)",
+                "part2_dispatch_owned_image(file, registration.0 as usize, color, limits)",
+                "part2_register_layer(owned, registration, geometry.1, geometry.2)",
+                "file, config.opacity, geometry, registration.0 as usize, registered,",
+            )
+            if any("".join(item.split()) not in "".join(model.split()) for item in required):
+                raise ValueError("whole effective layer Result requires actual ordered decoder/registration/opacity models")
         if entry["id"] == _GENERAL_LAYER_ENTRY:
             if {(ref["path"], ref["symbol"]) for ref in entry["contract_refs"]} != set(_GENERAL_LAYER_CONTRACTS):
                 raise ValueError("whole general layer Result requires the actual complete general normalizer contract")
@@ -4544,6 +4615,8 @@ def validate_normative_coverage(
                     if entry["id"] == _COMPONENT_PLANE_ENTRY else None)
                 or (_GENERAL_LAYER_CONTRACTS.get((reference["path"], reference["symbol"]))
                     if entry["id"] == _GENERAL_LAYER_ENTRY else None)
+                or (_EFFECTIVE_LAYER_CONTRACTS.get((reference["path"], reference["symbol"]))
+                    if entry["id"] == _EFFECTIVE_LAYER_ENTRY else None)
                 or _CODESTREAM_READER_CONTRACTS.get((reference["path"], reference["symbol"]))
                 or _SOT_READER_CONTRACTS.get((reference["path"], reference["symbol"]))
                 or _TILE_DATA_WINDOW_CONTRACTS.get((reference["path"], reference["symbol"]))

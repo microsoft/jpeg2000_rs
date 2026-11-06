@@ -33,6 +33,34 @@ verus! {
         layer.color_group@
     }
 
+    pub open spec fn source_layer_color_override(layer: &CompositingLayer) -> Option<ColorMethod> {
+        let colors = source_layer_color_group(layer);
+        if colors.len() == 0 { None } else { Some(color_specification_method(&colors[0])) }
+    }
+
+    pub closed spec fn source_file_layers<'input>(file: &Jp2File<'input>) -> Seq<CompositingLayer<'input>> {
+        file.compositing_layers@
+    }
+
+    pub open spec fn source_layer_routing_config(
+        file: &Jp2File, layer: &CompositingLayer,
+    ) -> crate::specs::Part2LayerRoutingConfig {
+        (general_layer_config(file, layer), source_layer_color_override(layer), source_layer_geometry(layer))
+    }
+
+    pub open spec fn source_file_layer_configs(file: &Jp2File) -> Seq<crate::specs::Part2LayerRoutingConfig> {
+        let layers = source_file_layers(file);
+        Seq::new(layers.len(), |i: int| source_layer_routing_config(file, &layers[i]))
+    }
+
+    pub closed spec fn jpx_file_layer_reference<'file, 'input>(
+        file: &'file Jp2File<'input>, index: usize,
+    ) -> Option<&'file CompositingLayer<'input>> {
+        if index < file.compositing_layers@.len() {
+            Some(&file.compositing_layers@[index as int])
+        } else { None }
+    }
+
     pub closed spec fn source_layer_definition_records(layer: &CompositingLayer) -> Seq<ChannelDefinitionRecord> {
         layer.channel_definition_records@
     }

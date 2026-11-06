@@ -308,6 +308,84 @@ mod tests {
         }
     }
 
+    #[test]
+    fn actual_effective_layer_default_codestream_retains_literal_planes_and_index_priority() {
+        let (bytes, _) = source_layer_bytes(&[0xcf, 0xb4, 0x04, 0x09], false);
+        let options = DecodeOptions::default();
+        let mut file = jp2::parse(&bytes, options.limits()).unwrap();
+        assert!(file.compositing_layers().is_empty());
+        let owned = super::layer_decode::decode_effective_layer(&file, 0, &options).unwrap();
+        assert_eq!((owned.width, owned.height, owned.color_space), (1, 1, ConvertedColorSpace::Grayscale));
+        assert_eq!(owned.colors, vec![vec![257]]);
+        assert_eq!(owned.alpha, None);
+        file.header.color.method = jp2::ColorMethod::AnyIcc { profile_bytes: u64::MAX };
+        let limited = DecodeOptions::new(ResourceLimits::HARDENED.with_maximum_input_bytes(0).unwrap());
+        for index in [1, usize::MAX] {
+            assert_eq!(super::layer_decode::decode_effective_layer(&file, index, &limited).err(),
+                Some(DecodeError::LayerIndexOutOfRange { index, layers: 1 }));
+        }
+    }
+
+    #[test]
+    fn actual_effective_layer_registered_fast_path_preserves_source_choice_and_alpha_modes() {
+        let options = DecodeOptions::default();
+        for (opacity, alpha) in [
+            (None, false), (Some(&[0][..]), false), (Some(&[1][..]), true),
+        ] {
+            let bytes = general_source_bytes(
+                &[[0, 2, 2, 1, 0, 0]], &[], opacity, jp2::ENUMERATED_GRAYSCALE,
+            );
+            let file = jp2::parse(&bytes, options.limits()).unwrap();
+            let owned = super::layer_decode::decode_effective_layer(&file, 0, &options).unwrap();
+            assert_eq!((owned.width, owned.height, owned.color_space), (1, 1, ConvertedColorSpace::Grayscale));
+            assert_eq!(owned.colors, vec![vec![51_400]]);
+            assert_eq!(owned.alpha, Some((vec![u16::MAX], alpha)));
+        }
+    }
+
+    #[test]
+    fn actual_effective_layer_retains_optional_override_versus_actual_source_header_fallback() {
+        let options = DecodeOptions::default();
+        let bytes = general_source_bytes(
+            &[[0, 0, 2, 1, 0, 0]], &[], None, jp2::ENUMERATED_GRAYSCALE,
+        );
+        let mut file = jp2::parse(&bytes, options.limits()).unwrap();
+        file.header.color.method = jp2::ColorMethod::AnyIcc { profile_bytes: 123 };
+        let owned = super::layer_decode::decode_effective_layer(&file, 0, &options).unwrap();
+        assert_eq!(owned.colors, vec![vec![257]]);
+        let bytes = opacity_source_bytes(None, false);
+        let mut file = jp2::parse(&bytes, options.limits()).unwrap();
+        file.header.color.method = jp2::ColorMethod::AnyIcc { profile_bytes: 123 };
+        assert_eq!(super::layer_decode::decode_effective_layer(&file, 0, &options).err(),
+            Some(DecodeError::UnsupportedColorConversion { reason: crate::UnsupportedColorConversion::IccProfile }));
+        let limited = DecodeOptions::new(ResourceLimits::HARDENED.with_maximum_input_bytes(0).unwrap());
+        assert_eq!(super::layer_decode::decode_effective_layer(&file, 0, &limited).err(),
+            Some(DecodeError::LimitExceeded { resource: Resource::InputBytes, limit: 0,
+                actual: source_layer_bytes(&[0xcf, 0xb4, 0x04, 0x09], false).1 as u64 }));
+    }
+
+    #[test]
+    fn actual_effective_layer_declared_lookup_keeps_full_borrowed_layer_and_layer_count_errors() {
+        let options = DecodeOptions::default();
+        let bytes = general_source_bytes(
+            &[[0, 0, 2, 1, 0, 0], [0, 1, 2, 1, 0, 0], [0, 2, 2, 1, 0, 0]],
+            &[(0, 0, 1), (1, 0, 2), (2, 0, 3)], None, jp2::ENUMERATED_SRGB,
+        );
+        let file = jp2::parse(&bytes, options.limits()).unwrap();
+        let original = file.clone();
+        assert_eq!(file.codestream_count(), 3);
+        assert!(std::ptr::eq(file.compositing_layer(0).unwrap(), &file.compositing_layers()[0]));
+        let owned = super::layer_decode::decode_effective_layer(&file, 0, &options).unwrap();
+        assert_eq!(owned.colors, vec![vec![257], vec![33_153], vec![51_400]]);
+        assert_eq!(owned.alpha, None);
+        let limited = DecodeOptions::new(ResourceLimits::HARDENED.with_maximum_input_bytes(0).unwrap());
+        for index in [1, usize::MAX] {
+            assert_eq!(super::layer_decode::decode_effective_layer(&file, index, &limited).err(),
+                Some(DecodeError::LayerIndexOutOfRange { index, layers: 1 }));
+        }
+        assert_eq!(file, original);
+    }
+
     fn opacity_source_bytes(opacity: Option<&[u8]>, association: bool) -> Vec<u8> {
         fn boxed(kind: [u8; 4], payload: &[u8]) -> Vec<u8> {
             let mut bytes = u32::try_from(payload.len() + 8).unwrap().to_be_bytes().to_vec();

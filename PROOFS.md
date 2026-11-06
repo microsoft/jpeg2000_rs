@@ -179,6 +179,27 @@ technical candidate only: parent-owned record, review, CI, guarded integration
 and actual-main acceptance remain separate. No complete parsing, pixels,
 lifetime verification, normative conformance or publication claim follows.
 
+## Actual effective-layer and compositing-layer dispatch Results
+
+The actual `decode_effective_layer` and `decode_compositing_layer` Results now
+compose real source producers, without supplied decoded layers. Declared-layer
+lookup retains the complete actual borrowed layer reference and exact layer
+count errors. The implicit-codestream path preserves its own layer-index check
+before source lookup, conversion or resource failures.
+
+The dispatcher retains native general-versus-fast routing, including explicit
+definitions, multiple registrations and chroma opacity. Fast decoding preserves
+the optional layer-color override: absence selects the actual associated source
+header, not a silently substituted file fallback. Actual image-to-owner,
+registration and opacity producers retain complete returned geometry, color,
+planes, alpha representation and first errors. No native statements, owning
+scopes or function placement change in this continuation.
+
+These are complete actual layer producer relations, not raw container parsing,
+inspection/timeline derivation or final frame/public rendering qualification.
+The single-source, normative, production cfg/erasure, lifetime and release
+boundaries remain unchanged.
+
 ## Actual complete general-layer normalization Result
 
 `decode_general_compositing_layer` now derives its complete Result from the
