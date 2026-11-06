@@ -9,12 +9,27 @@ use super::{associated_typed_outcome, color_selection_outcome, validated_selecti
 #[cfg(verus_keep_ghost)]
 use vstd::prelude::*;
 
+#[cfg_attr(verus_keep_ghost, verus_spec(result =>
+    ensures color_selection_outcome(result) == crate::specs::part2_color_selection_raw(
+        input@, limits, crate::options::decode_selection_view(requested)),
+))]
 pub(super) fn color_selection(
     input: &[u8],
     requested: &DecodeSelection,
     limits: &ResourceLimits,
 ) -> Result<(DecodeSelection, [u32; 4]), DecodeError> {
+    #[cfg(verus_keep_ghost)]
+    proof! {
+        codestream::decoder_layout_errors_known();
+        crate::specs::part2_color_selection_raw_unfold(input@, limits, crate::options::decode_selection_view(requested));
+    }
     let layout = codestream::parse_layout(input, limits)?;
+    #[cfg(verus_keep_ghost)]
+    proof! {
+        codestream::decoder_layout_input_matches_raw(&layout);
+        codestream::decoder_layout_input_fields(&layout);
+        codestream::selection_geometry_known_fields(&layout.info.image_size);
+    }
     let size = &layout.info.image_size;
     color_selection_for_size(size, requested)
 }

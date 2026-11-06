@@ -4,6 +4,78 @@
   "scope": "Technical reference inventory; not exhaustive standards-clause coverage or a conformance claim.",
   "requirements": [
     {
+      "id": "part2-complete-native-public-raw-container-color-results",
+      "topic": "Complete actual public raw JP2/JPH full/color-selected converted-image/error Results from actual bytes/options/selections through raw inspection/profile admission, compressed-byte core decode and complete header/color/crop admission. Actual color_selection derives expanded request and target from real raw layout, sharing existing pure selected decode logic by value without reconstructing a native selector. All sample/channel/alpha/geometry/precision/resource/first-error fields retained. Existing raw reference model interfaces/root body preserved; native owners/calls/code unchanged. Remaining JPX selected/progressive/JPIP/automatic dispatch and independent full-plan prerequisites stay separate.",
+      "implementation_refs": [
+        {"path": "src/decode/api.rs", "symbol": "decode_jp2_color"},
+        {"path": "src/decode/api.rs", "symbol": "decode_jp2_color_selected"},
+        {"path": "src/decode/api.rs", "symbol": "decode_jph_color"},
+        {"path": "src/decode/api.rs", "symbol": "decode_jph_color_selected"},
+        {"path": "src/jp2/container.rs", "symbol": "parse_and_inspect"},
+        {"path": "src/jp2/container.rs", "symbol": "inspect_jph"},
+        {"path": "src/decode/api.rs", "symbol": "decode_codestream"},
+        {"path": "src/decode/api.rs", "symbol": "decode_codestream_selected"},
+        {"path": "src/decode/output.rs", "symbol": "color_selection"},
+        {"path": "src/decode/output.rs", "symbol": "apply_jp2_output"},
+        {"path": "src/decode/output.rs", "symbol": "finish_associated_selected_output"},
+        {"path": "src/color/conversion.rs", "symbol": "convert_jp2_color"}
+      ],
+      "contract_refs": [
+        {"path": "src/jp2/container.rs", "symbol": "parse_and_inspect"},
+        {"path": "src/jp2/container.rs", "symbol": "inspect_jph"},
+        {"path": "src/decode/api.rs", "symbol": "decode_codestream"},
+        {"path": "src/decode/api.rs", "symbol": "decode_codestream_selected"},
+        {"path": "src/decode/output.rs", "symbol": "color_selection"},
+        {"path": "src/decode/output.rs", "symbol": "apply_jp2_output"},
+        {"path": "src/decode/output.rs", "symbol": "finish_associated_selected_output"},
+        {"path": "src/color/conversion.rs", "symbol": "convert_jp2_color"}
+      ],
+      "spec_refs": [
+        {"path": "specs/container_colors.rs", "symbol": "part2_decode_raw_color_container"},
+        {"path": "specs/container_colors.rs", "symbol": "part2_decode_file_color"},
+        {"path": "specs/container_colors.rs", "symbol": "part2_color_selection_raw"},
+        {"path": "specs/container_colors.rs", "symbol": "part2_color_selection_layout"},
+        {"path": "specs/raw_decode.rs", "symbol": "part2_decode_raw_codestream"},
+        {"path": "specs/raw_decode.rs", "symbol": "part2_decode_raw_codestream_value"},
+        {"path": "specs/decoder_input.rs", "symbol": "part2_decoder_input_from_raw"},
+        {"path": "specs/decoder_input.rs", "symbol": "part2_decode_layout_selected_input"},
+        {"path": "specs/decoder_input.rs", "symbol": "part2_decode_layout_selected_value_input"},
+        {"path": "specs/decoder_input.rs", "symbol": "part2_decode_typed_layout_input"},
+        {"path": "specs/decoder_input.rs", "symbol": "part2_decode_typed_layout_value_input"},
+        {"path": "specs/jp2_inspection.rs", "symbol": "part2_parse_and_inspect_container"},
+        {"path": "specs/jp2_inspection.rs", "symbol": "part2_inspect_jph_container"},
+        {"path": "specs/jpx_raw_frame.rs", "symbol": "part2_raw_associated_header"},
+        {"path": "specs/mod.rs", "symbol": "part2_color_selection_requested"},
+        {"path": "specs/mod.rs", "symbol": "part2_finish_associated_selected_output"},
+        {"path": "specs/mod.rs", "symbol": "part2_apply_output_header"},
+        {"path": "specs/mod.rs", "symbol": "color_convert_jp2"}
+      ],
+      "proof_refs": [
+        {"path": "src/decode/api.rs", "symbol": "decode_jp2_color"},
+        {"path": "src/decode/api.rs", "symbol": "decode_jp2_color_selected"},
+        {"path": "src/decode/api.rs", "symbol": "decode_jph_color"},
+        {"path": "src/decode/api.rs", "symbol": "decode_jph_color_selected"},
+        {"path": "specs/container_colors.rs", "symbol": "part2_decode_raw_color_container_unfold"},
+        {"path": "specs/container_colors.rs", "symbol": "part2_color_selection_raw_unfold"},
+        {"path": "specs/raw_decode.rs", "symbol": "part2_decode_raw_codestream_selection_value"},
+        {"path": "src/jp2/proof_support.rs", "symbol": "raw_render_file_known"},
+        {"path": "src/jp2/proof_support.rs", "symbol": "raw_inspected_file_reference"},
+        {"path": "src/codestream/decoder_input_proof_support.rs", "symbol": "decoder_layout_input_matches_raw"},
+        {"path": "src/codestream/decoder_input_proof_support.rs", "symbol": "decoder_layout_input_fields"},
+        {"path": "src/codestream/proof_support.rs", "symbol": "selection_geometry_known_fields"},
+        {"path": "src/decode/proof_support.rs", "symbol": "color_selection_outcome"},
+        {"path": "src/options.rs", "symbol": "decode_selection_view"}
+      ],
+      "test_refs": [
+        {"path": "src/decode/container_image_result_tests.rs", "symbol": "actual_raw_container_color_derives_complete_full_and_reduced_signed_unsigned_gray_planes"},
+        {"path": "src/decode/container_image_result_tests.rs", "symbol": "actual_raw_container_color_jph_preserves_real_cleanup_refinement_and_signed_normalization"},
+        {"path": "src/decode/container_image_result_tests.rs", "symbol": "actual_raw_container_color_derives_expanded_source_context_and_exact_requested_crop"},
+        {"path": "src/decode/container_image_result_tests.rs", "symbol": "actual_raw_container_color_keeps_palette_rgb_and_straight_premultiplied_alpha_metadata"},
+        {"path": "src/decode/container_image_result_tests.rs", "symbol": "actual_raw_container_color_preserves_header_mapping_before_color_admission"},
+        {"path": "src/decode/container_image_result_tests.rs", "symbol": "actual_raw_container_color_preserves_raw_inspection_selection_packet_and_profile_priority"}
+      ]
+    },
+    {
       "id": "part2-complete-native-public-raw-container-image-results",
       "topic": "Complete actual public raw JP2/JPH full and selected typed-image/error Results from actual bytes/options/selections through raw container/info/profile admission, compressed-byte core decode and complete palette/mapping/channel output admission. Full geometry/origins/components/signedness/precision/sample planes/channel definitions and first parser/profile/count/selection/backend/output errors retained. Existing raw stored-reference/header/source bridges; no successful parsed/layout/image banks, native reconstruction/clones or execution changes. Color-selected expansion/progressive/JPIP/automatic dispatch and independent normative/cfg/lifetime/release remain separate.",
       "implementation_refs": [

@@ -1252,6 +1252,111 @@ class FrameworkTests(WorkingFiles):
                 self.assertEqual(framework.validate_normative_coverage(dict(coverage, requirements=[entry]))["status"], "passed")
                 self.assertEqual(set(counts.values()), {expected})
 
+    def test_inventory_binds_public_raw_container_colors_and_actual_expansion_producers(self):
+        producers = {key: value for key, value in framework._RAW_CONTAINER_COLOR_CONTRACTS.items()
+                     if key not in framework._RAW_CONTAINER_COLOR_APIS}
+        self._assert_complete_packet_contract_bindings({framework._RAW_CONTAINER_COLOR_ENTRY}, producers, 8, isolate=False)
+        coverage = json.loads((framework.VALIDATION / "normative-coverage.json").read_text())
+        entry = next(item for item in coverage["requirements"] if item["id"] == framework._RAW_CONTAINER_COLOR_ENTRY)
+        source = framework.ROOT / "src/decode/api.rs"
+        original = source.read_text()
+        read_text = Path.read_text
+        for requested, jph in (("None", "false"), ("Some(crate::options::decode_selection_view(selection))", "false"),
+                               ("None", "true"), ("Some(crate::options::decode_selection_view(selection))", "true")):
+            before = f"part2_decode_raw_color_container(\n        input@, crate::options::decode_options_limits(options), {requested}, {jph})"
+            self.assertIn(before, original)
+            for after in (
+                before.replace("input@", "seq![]"),
+                before.replace(requested + ",", ("None" if requested != "None" else "Some(unrelated)") + ","),
+                before[:-len(jph) - 1] + ("false" if jph == "true" else "true") + ")",
+            ):
+                changed = original.replace(before, after, 1)
+
+                def altered(path, *args, **kwargs):
+                    return changed if path == source else read_text(path, *args, **kwargs)
+
+                with self.subTest(requested=requested, jph=jph, after=after), mock.patch.object(Path, "read_text", altered), \
+                        self.assertRaisesRegex(ValueError, "executable Verus contract"):
+                    framework.validate_normative_coverage(dict(coverage, requirements=[entry]))
+
+    def test_inventory_raw_container_colors_require_every_public_expansion_value_header_and_test_bridge(self):
+        coverage = json.loads((framework.VALIDATION / "normative-coverage.json").read_text())
+        entry = next(item for item in coverage["requirements"] if item["id"] == framework._RAW_CONTAINER_COLOR_ENTRY)
+        for field in ("contract_refs", "spec_refs", "proof_refs", "test_refs"):
+            for removed in entry[field]:
+                changed = copy.deepcopy(entry)
+                changed[field].remove(removed)
+                with self.subTest(field=field, removed=removed), self.assertRaisesRegex(ValueError, "whole raw container color Results"):
+                    framework.validate_normative_coverage(dict(coverage, requirements=[changed]))
+
+    def test_inventory_raw_container_colors_bind_actual_source_expansion_decode_mapping_and_target(self):
+        coverage = json.loads((framework.VALIDATION / "normative-coverage.json").read_text())
+        entry = next(item for item in coverage["requirements"] if item["id"] == framework._RAW_CONTAINER_COLOR_ENTRY)
+        read_text = Path.read_text
+        for name, anchor, before, after in (
+            ("src/decode/api.rs", "pub fn decode_jp2_color(", "jp2::parse_and_inspect(input, options.limits())?", "jp2::parse_and_inspect(&unrelated, options.limits())?"),
+            ("src/decode/api.rs", "pub fn decode_jp2_color(", "color_selection(codestream, selection, options.limits())?", "color_selection(codestream, &unrelated, options.limits())?"),
+            ("src/decode/api.rs", "pub fn decode_jp2_color(", "decode_codestream_selected(codestream, options, &expanded)?", "decode_codestream_selected(codestream, options, selection)?"),
+            ("src/decode/api.rs", "pub fn decode_jp2_color(", "apply_jp2_output(decoded, inspected.file().header(), options.limits())?", "decoded"),
+            ("src/decode/api.rs", "pub fn decode_jp2_color(", "Some(inspected.file().header()),\n        target,", "Some(inspected.file().header()),\n        [0, 0, 1, 1],"),
+            ("src/decode/output.rs", "pub(super) fn color_selection(", "codestream::parse_layout(input, limits)?", "codestream::parse_layout(&unrelated, limits)?"),
+        ):
+            source = framework.ROOT / name
+            original = source.read_text()
+            start = original.index(anchor)
+            self.assertIn(before, original[start:])
+            changed = original[:start] + original[start:].replace(before, after, 1)
+
+            def altered(path, *args, **kwargs):
+                return changed if path == source else read_text(path, *args, **kwargs)
+
+            expected = "actual raw layout expansion producer" if name.endswith("output.rs") else "actual raw/selection/expanded/core/header/color/target handoffs"
+            with self.subTest(before=before), mock.patch.object(Path, "read_text", altered), self.assertRaisesRegex(ValueError, expected):
+                framework.validate_normative_coverage(dict(coverage, requirements=[entry]))
+
+    def test_inventory_raw_container_colors_reject_trimmed_expansion_value_and_color_models(self):
+        coverage = json.loads((framework.VALIDATION / "normative-coverage.json").read_text())
+        entry = next(item for item in coverage["requirements"] if item["id"] == framework._RAW_CONTAINER_COLOR_ENTRY)
+        read_text = Path.read_text
+        for name, before, after in (
+            ("specs/container_colors.rs", "part2_color_selection_raw(file.streams[0].1, limits, requested)", "part2_color_selection_raw(seq![], limits, requested)"),
+            ("specs/container_colors.rs", "Some(expanded.0)", "Some(requested)"),
+            ("specs/container_colors.rs", "expanded.1[2]", "expanded.1[0]"),
+            ("specs/container_colors.rs", "part2_raw_associated_header(file.header)", "unrelated_header"),
+            ("specs/decoder_input.rs", "part2_decode_layout_selected_value_input(input, crate::options::decode_selection_view(requested), limits)", "part2_decode_layout_input(input, limits)"),
+            ("specs/decoder_input.rs", "Some(requested) => part2_decode_layout_selected_value_input(input, requested, limits)", "Some(requested) => part2_decode_layout_input(input, limits)"),
+            ("specs/raw_decode.rs", "part2_decode_typed_layout_value_input(", "unrelated_success_bank("),
+        ):
+            source = framework.ROOT / name
+            original = source.read_text()
+            self.assertIn(before, original)
+            changed = original.replace(before, after, 1)
+
+            def altered(path, *args, **kwargs):
+                return changed if path == source else read_text(path, *args, **kwargs)
+
+            with self.subTest(before=before), mock.patch.object(Path, "read_text", altered), \
+                    self.assertRaisesRegex(ValueError, "complete source/selection/value/header/color/target models"):
+                framework.validate_normative_coverage(dict(coverage, requirements=[entry]))
+
+    def test_inventory_raw_container_colors_keep_fresh_api_expansion_and_value_model_caches(self):
+        coverage = json.loads((framework.VALIDATION / "normative-coverage.json").read_text())
+        entry = next(item for item in coverage["requirements"] if item["id"] == framework._RAW_CONTAINER_COLOR_ENTRY)
+        read_text = Path.read_text
+        counts = {framework.ROOT / name: 0 for name in (
+            "src/decode/api.rs", "src/decode/output.rs", "specs/container_colors.rs", "specs/decoder_input.rs", "specs/raw_decode.rs",
+        )}
+
+        def counted(path, *args, **kwargs):
+            if path in counts:
+                counts[path] += 1
+            return read_text(path, *args, **kwargs)
+
+        with mock.patch.object(Path, "read_text", counted):
+            for expected in (1, 2):
+                self.assertEqual(framework.validate_normative_coverage(dict(coverage, requirements=[entry]))["status"], "passed")
+                self.assertEqual(set(counts.values()), {expected})
+
     def test_inventory_binds_public_raw_container_images_and_all_actual_producers(self):
         producers = {key: value for key, value in framework._RAW_CONTAINER_IMAGE_CONTRACTS.items()
                      if key not in framework._RAW_CONTAINER_IMAGE_APIS}
