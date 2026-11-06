@@ -1252,6 +1252,99 @@ class FrameworkTests(WorkingFiles):
                 self.assertEqual(framework.validate_normative_coverage(dict(coverage, requirements=[entry]))["status"], "passed")
                 self.assertEqual(set(counts.values()), {expected})
 
+    def test_inventory_binds_public_raw_render_apis_and_actual_producers(self):
+        producers = {key: value for key, value in framework._RAW_RENDER_CONTRACTS.items()
+                     if key not in framework._RAW_RENDER_APIS}
+        self._assert_complete_packet_contract_bindings({framework._RAW_RENDER_ENTRY}, producers, 3, isolate=False)
+        coverage = json.loads((framework.VALIDATION / "normative-coverage.json").read_text())
+        entry = next(item for item in coverage["requirements"] if item["id"] == framework._RAW_RENDER_ENTRY)
+        source = framework.ROOT / "src/jpx/render.rs"
+        original = source.read_text()
+        read_text = Path.read_text
+        for before, after in (
+            ("input@, layer_index, crate::options::decode_options_limits(options)",
+             "seq![], layer_index, crate::options::decode_options_limits(options)"),
+            ("input@, frame_index, crate::options::decode_options_limits(options)",
+             "input@, 0, crate::options::decode_options_limits(options)"),
+        ):
+            self.assertIn(before, original)
+            changed = original.replace(before, after, 1)
+
+            def altered(path, *args, **kwargs):
+                return changed if path == source else read_text(path, *args, **kwargs)
+
+            with self.subTest(before=before), mock.patch.object(Path, "read_text", altered), \
+                    self.assertRaisesRegex(ValueError, "executable Verus contract"):
+                framework.validate_normative_coverage(dict(coverage, requirements=[entry]))
+
+    def test_inventory_public_raw_render_requires_every_actual_boundary_and_source_bridge(self):
+        coverage = json.loads((framework.VALIDATION / "normative-coverage.json").read_text())
+        entry = next(item for item in coverage["requirements"] if item["id"] == framework._RAW_RENDER_ENTRY)
+        for field in ("contract_refs", "spec_refs", "proof_refs"):
+            for removed in entry[field]:
+                changed = copy.deepcopy(entry)
+                changed[field].remove(removed)
+                expected_error = "should be non-empty" if not changed[field] else "whole public raw rendering Results"
+                with self.subTest(field=field, removed=removed), self.assertRaisesRegex(ValueError, expected_error):
+                    framework.validate_normative_coverage(dict(coverage, requirements=[changed]))
+
+    def test_inventory_public_raw_render_binds_original_image_and_frame_pipelines(self):
+        coverage = json.loads((framework.VALIDATION / "normative-coverage.json").read_text())
+        entry = next(item for item in coverage["requirements"] if item["id"] == framework._RAW_RENDER_ENTRY)
+        source = framework.ROOT / "src/jpx/render.rs"
+        original = source.read_text()
+        read_text = Path.read_text
+        for before, after in (
+            ("decode_effective_layer(inspected.file(), layer_index, options)?.into_image()", "arbitrary()"),
+            ("render_inspected_frame(file, &metadata, frame_index, options)", "arbitrary()"),
+        ):
+            self.assertIn(before, original)
+            changed = original.replace(before, after, 1)
+
+            def altered(path, *args, **kwargs):
+                return changed if path == source else read_text(path, *args, **kwargs)
+
+            with self.subTest(before=before), mock.patch.object(Path, "read_text", altered), \
+                    self.assertRaisesRegex(ValueError, "actual raw/admission/source/image/frame pipelines"):
+                framework.validate_normative_coverage(dict(coverage, requirements=[entry]))
+
+    def test_inventory_public_raw_render_rejects_trimmed_header_and_routing_models(self):
+        coverage = json.loads((framework.VALIDATION / "normative-coverage.json").read_text())
+        entry = next(item for item in coverage["requirements"] if item["id"] == framework._RAW_RENDER_ENTRY)
+        source = framework.ROOT / "specs/jpx_raw_frame.rs"
+        original = source.read_text()
+        read_text = Path.read_text
+        for before, after in (
+            ("header.palette", "None"),
+            ("header.definitions", "Seq::empty()"),
+            ("opacity: layer.opacity", "opacity: None"),
+        ):
+            self.assertIn(before, original)
+            changed = original.replace(before, after, 1)
+
+            def altered(path, *args, **kwargs):
+                return changed if path == source else read_text(path, *args, **kwargs)
+
+            with self.subTest(before=before), mock.patch.object(Path, "read_text", altered), \
+                    self.assertRaisesRegex(ValueError, "complete byte-derived header/source/routing/render models"):
+                framework.validate_normative_coverage(dict(coverage, requirements=[entry]))
+
+    def test_inventory_public_raw_render_keeps_fresh_actual_api_and_raw_model_caches(self):
+        coverage = json.loads((framework.VALIDATION / "normative-coverage.json").read_text())
+        entry = next(item for item in coverage["requirements"] if item["id"] == framework._RAW_RENDER_ENTRY)
+        read_text = Path.read_text
+        counts = {framework.ROOT / name: 0 for name in ("src/jpx/render.rs", "specs/jpx_raw_frame.rs")}
+
+        def counted(path, *args, **kwargs):
+            if path in counts:
+                counts[path] += 1
+            return read_text(path, *args, **kwargs)
+
+        with mock.patch.object(Path, "read_text", counted):
+            for expected in (1, 2):
+                self.assertEqual(framework.validate_normative_coverage(dict(coverage, requirements=[entry]))["status"], "passed")
+                self.assertEqual(set(counts.values()), {expected})
+
     def test_inventory_binds_raw_public_jpx_boundary_and_actual_inspector(self):
         producer = ("src/jpx/inspection.rs", "inspect_file")
         self._assert_complete_packet_contract_bindings(

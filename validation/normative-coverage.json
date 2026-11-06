@@ -4,6 +4,62 @@
   "scope": "Technical reference inventory; not exhaustive standards-clause coverage or a conformance claim.",
   "requirements": [
     {
+      "id": "part2-complete-native-public-raw-layer-frame-results",
+      "topic": "Complete actual public raw render_jpx_layer and render_jpx_frame image/error Results from bytes/options limits through real container/info/admission/inspection/timeline/source-layer/frame producers. Full source header, palette, mapping, channel definitions, registration, opacity, color override, selected frame, geometry, sample planes and alpha representation retained. No supplied successful file/info/decoded-layer/image banks, native reconstruction/clones or execution changes. Public-only APIs checked with the existing proved-boundary recipe. Composition fallback/selected/progressive/JPIP, normative/cfg/lifetime/release remain separate.",
+      "implementation_refs": [
+        {"path": "src/jpx/render.rs", "symbol": "render_jpx_layer"},
+        {"path": "src/jpx/render.rs", "symbol": "render_jpx_frame"},
+        {"path": "src/jpx/render.rs", "symbol": "render_inspected_frame"},
+        {"path": "src/jpx/layer_decode.rs", "symbol": "decode_effective_layer"}
+      ],
+      "contract_refs": [
+        {"path": "src/jpx/render.rs", "symbol": "render_inspected_frame"},
+        {"path": "src/jpx/layer_decode.rs", "symbol": "decode_effective_layer"},
+        {"path": "src/jpx/layer_decode.rs", "symbol": "OwnedLayer::into_image"}
+      ],
+      "spec_refs": [
+        {"path": "specs/jpx_raw_frame.rs", "symbol": "part2_render_raw_jpx_layer"},
+        {"path": "specs/jpx_raw_frame.rs", "symbol": "part2_render_raw_jpx_frame"},
+        {"path": "specs/jpx_raw_frame.rs", "symbol": "part2_raw_associated_header"},
+        {"path": "specs/jpx_raw_frame.rs", "symbol": "part2_raw_codestream_source"},
+        {"path": "specs/jpx_raw_frame.rs", "symbol": "part2_raw_jpx_decode_input"},
+        {"path": "specs/jpx_raw_frame.rs", "symbol": "part2_raw_layer_routing"},
+        {"path": "specs/jpx_raw_frame.rs", "symbol": "part2_raw_layer_routings"},
+        {"path": "specs/jp2_inspection.rs", "symbol": "part2_parse_and_inspect_container"},
+        {"path": "specs/jpx_raw_inspection.rs", "symbol": "part2_ensure_raw_jpx"},
+        {"path": "specs/jpx_raw_inspection.rs", "symbol": "part2_raw_inspection_file"},
+        {"path": "specs/jpx_raw_inspection.rs", "symbol": "part2_raw_inspection_geometries"},
+        {"path": "specs/jpx_inspection.rs", "symbol": "part2_inspect_jpx_file"},
+        {"path": "specs/jpx_frame.rs", "symbol": "part2_render_inspected_source_frame"},
+        {"path": "specs/jpx_frame.rs", "symbol": "part2_owned_layer_image"},
+        {"path": "specs/jpx_dispatch.rs", "symbol": "part2_decode_effective_layer"}
+      ],
+      "proof_refs": [
+        {"path": "src/jpx/render.rs", "symbol": "render_jpx_layer"},
+        {"path": "src/jpx/render.rs", "symbol": "render_jpx_frame"},
+        {"path": "src/jp2/proof_support.rs", "symbol": "raw_render_header_known"},
+        {"path": "src/jp2/proof_support.rs", "symbol": "raw_render_stream_known"},
+        {"path": "src/jp2/proof_support.rs", "symbol": "raw_render_layer_known"},
+        {"path": "src/jp2/proof_support.rs", "symbol": "raw_render_file_known"},
+        {"path": "src/jp2/proof_support.rs", "symbol": "raw_inspected_file_reference"},
+        {"path": "src/jp2/proof_support.rs", "symbol": "raw_inspected_native_infos"},
+        {"path": "src/jpx/proof_support.rs", "symbol": "raw_jpx_inspection_outcome_known"},
+        {"path": "src/jpx/proof_support.rs", "symbol": "raw_jpx_file_known"},
+        {"path": "src/jpx/proof_support.rs", "symbol": "raw_jpx_geometries_known"},
+        {"path": "src/jpx/proof_support.rs", "symbol": "raw_jpx_render_metadata_known"},
+        {"path": "specs/jpx_raw_frame.rs", "symbol": "part2_render_raw_jpx_layer_unfold"},
+        {"path": "specs/jpx_raw_frame.rs", "symbol": "part2_render_raw_jpx_frame_unfold"}
+      ],
+      "test_refs": [
+        {"path": "src/jpx/tests.rs", "symbol": "actual_raw_render_layer_derives_literal_signed_and_unsigned_planes_and_alpha_metadata"},
+        {"path": "src/jpx/tests.rs", "symbol": "actual_raw_render_frame_composes_real_general_rgb_and_complete_straight_alpha"},
+        {"path": "src/jpx/tests.rs", "symbol": "actual_raw_render_frame_derives_persistence_reset_loop_and_native_supply_order"},
+        {"path": "src/jpx/tests.rs", "symbol": "actual_raw_render_keeps_raw_input_and_selection_before_entropy_packet_errors"},
+        {"path": "src/jpx/tests.rs", "symbol": "actual_raw_render_preserves_missing_composition_and_profile_before_requested_index"},
+        {"path": "src/jpx/tests.rs", "symbol": "actual_raw_render_frame_retains_full_scaled_clipped_sample_planes_and_geometry"}
+      ]
+    },
+    {
       "id": "part2-complete-native-raw-public-jpx-inspection-result",
       "topic": "Complete actual public raw inspect_jpx_layers Result from bytes/limits through real raw container/info, unchanged JPX admission and actual parsed-file/timeline inspector. Every returned layer geometry/source order/flags, composition/frame/instruction/life/reuse/duration/unknown field and metadata count/depth derives from source producers. Public boundary uses the existing proved-boundary recipe, not an invented executing wrapper or supplied successful metadata/info/timeline bank. Native owners/calls/error/resource order unchanged; no rendering/normative/cfg/lifetime/release completion.",
       "implementation_refs": [

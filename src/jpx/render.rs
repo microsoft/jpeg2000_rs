@@ -14,19 +14,34 @@ use super::{
 use super::{
     collected_layers_result, composition_source_view, frame_views, inspection_composition_view,
     instruction_views, layer_owned_planes_push, owned_layer_outcome, placement_views,
-    placement_views_push, supplied_views, supplied_views_push,
+    placement_views_push, raw_jpx_file_known, raw_jpx_geometries_known,
+    raw_jpx_inspection_outcome_known, raw_jpx_render_metadata_known, supplied_views,
+    supplied_views_push,
 };
 #[cfg(verus_keep_ghost)]
 use vstd::prelude::*;
 
 /// Renders one layer while retaining its straight/premultiplied sample representation.
 /// The alpha channel records that representation; frame/composition output is straight alpha.
+#[cfg_attr(verus_keep_ghost, verus_spec(result =>
+    ensures crate::color::converted_image_result(result) == crate::specs::part2_render_raw_jpx_layer(
+        input@, layer_index, crate::options::decode_options_limits(options)),
+))]
 pub fn render_jpx_layer(
     input: &[u8],
     layer_index: usize,
     options: &DecodeOptions,
 ) -> Result<ConvertedImage, DecodeError> {
+    #[cfg(verus_keep_ghost)]
+    proof! {
+        crate::specs::part2_render_raw_jpx_layer_unfold(input@, layer_index, crate::options::decode_options_limits(options));
+    }
     let inspected = jp2::parse_and_inspect(input, options.limits())?;
+    #[cfg(verus_keep_ghost)]
+    proof! {
+        jp2::raw_render_file_known(jp2::raw_inspected_file_reference(&inspected));
+        jp2::raw_jpx_inspection_parts_known(jp2::raw_inspected_file_reference(&inspected));
+    }
     ensure_jpx(inspected.file())?;
     decode_effective_layer(inspected.file(), layer_index, options)?.into_image()
 }
@@ -85,15 +100,33 @@ pub fn render_jpx_composition(
     )
 }
 
+#[cfg_attr(verus_keep_ghost, verus_spec(result =>
+    ensures crate::color::converted_image_result(result) == crate::specs::part2_render_raw_jpx_frame(
+        input@, frame_index, crate::options::decode_options_limits(options)),
+))]
 pub fn render_jpx_frame(
     input: &[u8],
     frame_index: usize,
     options: &DecodeOptions,
 ) -> Result<ConvertedImage, DecodeError> {
+    #[cfg(verus_keep_ghost)]
+    proof! {
+        crate::specs::part2_render_raw_jpx_frame_unfold(input@, frame_index, crate::options::decode_options_limits(options));
+        raw_jpx_inspection_outcome_known();
+    }
     let inspected = jp2::parse_and_inspect(input, options.limits())?;
     let file = inspected.file();
+    #[cfg(verus_keep_ghost)]
+    proof! {
+        jp2::raw_render_file_known(file);
+        jp2::raw_jpx_inspection_parts_known(file);
+        raw_jpx_file_known(file);
+        raw_jpx_geometries_known(jp2::raw_inspected_native_infos(&inspected));
+    }
     ensure_jpx(file)?;
     let metadata = inspect_file(file, inspected.codestreams(), options.limits())?;
+    #[cfg(verus_keep_ghost)]
+    proof! { raw_jpx_render_metadata_known(&metadata); }
     render_inspected_frame(file, &metadata, frame_index, options)
 }
 
