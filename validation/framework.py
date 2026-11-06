@@ -2617,6 +2617,25 @@ _DECODER_LAYOUT_CONTRACTS = {
 
 
 _SOURCE_OPACITY_ENTRY = "part2-complete-native-source-layer-opacity-result"
+_METADATA_TREE_ENTRY = "part2-complete-native-raw-metadata-tree-result"
+_METADATA_TREE_CONTRACTS = {
+    ("src/jp2/metadata.rs", "inspect_metadata_box"): (
+        "part2_inspect_metadata_box", r"\1", None,
+        _coverage_call("super::box_reference_view", "box_ref") + r"\s*,\s*\*\s*limits\s*,\s*depth\s*,\s*remaining_depth",
+    ),
+}
+_METADATA_TREE_MODELS = {
+    ("specs/jp2_metadata.rs", "part2_inspect_metadata_box"),
+    ("specs/jp2_metadata.rs", "part2_metadata_children"),
+    ("specs/mod.rs", "part2_metadata_count"),
+    ("src/limits.rs", "resource_box_depth_limit"),
+}
+_METADATA_TREE_PROOFS = {
+    ("specs/jp2_metadata.rs", "part2_metadata_start"),
+    ("src/limits.rs", "resource_box_depth_limit"),
+    ("src/limits.rs", "ResourceLimits::maximum_box_depth"),
+    ("src/refinement/headers.rs", "metadata_count"),
+}
 _OWNED_HEADER_CLONE_ENTRY = "part2-complete-native-owned-header-clone-producers"
 _OWNED_HEADER_CLONE_CONTRACTS = {
     ("src/jp2/clone_support.rs", "color_specification_clone"): (
@@ -3211,6 +3230,41 @@ def validate_normative_coverage(
     ids: set[str] = set()
     contract_functions: set[tuple[str, str]] = set()
     for entry in coverage["requirements"]:
+        if entry["id"] == _METADATA_TREE_ENTRY:
+            if {(ref["path"], ref["symbol"]) for ref in entry["contract_refs"]} != set(_METADATA_TREE_CONTRACTS):
+                raise ValueError("whole raw metadata tree Result requires actual recursive native producer contract")
+            if not _METADATA_TREE_MODELS.issubset({(ref["path"], ref["symbol"]) for ref in entry["spec_refs"]}) \
+                    or not _METADATA_TREE_PROOFS.issubset({(ref["path"], ref["symbol"]) for ref in entry["proof_refs"]}):
+                raise ValueError("whole raw metadata tree Result requires full count/depth/reader-seed bridges")
+            path = (ROOT / "src/jp2/metadata.rs").resolve()
+            body = _coverage_function_body(source_text(path), function_header(path, "inspect_metadata_box"))
+            required = (
+                "depth > limits.maximum_box_depth()", "return Ok((1, depth))",
+                "box_reader_from_input(box_ref.payload, limits)?", "remaining_boxes == 0", "remaining_boxes -= 1",
+                "remaining_depth.checked_sub(1)",
+                "inspect_metadata_box(child, limits, child_depth, child_remaining)?",
+                "count > u32::MAX - child_count", "crate::refinement::metadata_count(count, child_count)",
+                "u64::from(count) > limits.maximum_work_units()", "maximum_depth.max(observed_depth)",
+            )
+            if body is None or any("".join(item.split()) not in "".join(body.split()) for item in required):
+                raise ValueError("whole raw metadata tree Result requires actual ordered reader/child/count/depth handoffs")
+            model = source_text((ROOT / "specs/jp2_metadata.rs").resolve())
+            for name, required in {
+                "part2_inspect_metadata_box": (
+                    "depth > crate::limits::resource_box_depth_limit(&limits)",
+                    "input.0.0 != crate::jp2::BoxType::ASSOCIATION", "Ok((1, depth))",
+                    "part2_box_reader_from_input(input.1, limits)",
+                ),
+                "part2_metadata_children": (
+                    "part2_box_reader_next_ref(reader)", "fuel == 0", "remaining == 0",
+                    "part2_inspect_metadata_box(child, limits, child_depth, (remaining - 1) as u32)",
+                    "count > u32::MAX - observed.0", "part2_metadata_count(count, observed.0)",
+                    "if maximum >= observed.1 { maximum } else { observed.1 }",
+                ),
+            }.items():
+                actual = _coverage_spec_function_body(model, name)
+                if actual is None or any("".join(item.split()) not in "".join(actual.split()) for item in required):
+                    raise ValueError("whole raw metadata tree Result requires complete recursive reader/error/count/depth models")
         if entry["id"] == _OWNED_HEADER_CLONE_ENTRY:
             if {(ref["path"], ref["symbol"]) for ref in entry["contract_refs"]} != set(_OWNED_HEADER_CLONE_CONTRACTS):
                 raise ValueError("whole owned header clone Results require all four actual clone producer contracts")
@@ -5470,6 +5524,8 @@ def validate_normative_coverage(
                     if entry["id"] == _OWNED_HEADER_CLONE_ENTRY else None)
                 or (_ASSOCIATED_HEADER_CONTRACTS.get((reference["path"], reference["symbol"]))
                     if entry["id"] == _ASSOCIATED_HEADER_ENTRY else None)
+                or (_METADATA_TREE_CONTRACTS.get((reference["path"], reference["symbol"]))
+                    if entry["id"] == _METADATA_TREE_ENTRY else None)
                 or _CODESTREAM_READER_CONTRACTS.get((reference["path"], reference["symbol"]))
                 or _SOT_READER_CONTRACTS.get((reference["path"], reference["symbol"]))
                 or _TILE_DATA_WINDOW_CONTRACTS.get((reference["path"], reference["symbol"]))

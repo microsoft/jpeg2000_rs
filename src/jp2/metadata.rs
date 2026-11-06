@@ -1,19 +1,25 @@
 //! Bounded nested metadata inspection and resolution metadata parsing.
 
 use super::{
-    BoxReader, BoxRef, BoxType, DecodeError, MalformedKind, Resolution, Resource, ResourceLimits,
-    add_offset, box_reader_from_input, read_u16, rebase_error,
+    BoxRef, BoxType, DecodeError, MalformedKind, Resolution, Resource, ResourceLimits, add_offset,
+    box_reader_from_input, read_u16, rebase_error,
 };
 #[cfg(verus_keep_ghost)]
 use vstd::prelude::*;
 
-#[cfg_attr(verus_keep_ghost, verus_spec(decreases remaining_depth,))]
+#[cfg_attr(verus_keep_ghost, verus_spec(result =>
+    ensures result == crate::specs::part2_inspect_metadata_box(
+        super::box_reference_view(box_ref), *limits, depth, remaining_depth),
+    decreases remaining_depth,
+))]
 pub(super) fn inspect_metadata_box(
     box_ref: BoxRef<'_>,
     limits: &ResourceLimits,
     depth: u32,
     remaining_depth: u32,
 ) -> Result<(u32, u32), DecodeError> {
+    #[cfg(verus_keep_ghost)]
+    proof! { reveal(crate::specs::part2_inspect_metadata_box); }
     if depth > limits.maximum_box_depth() {
         return Err(DecodeError::limit(
             Resource::BoxDepth,
@@ -24,15 +30,43 @@ pub(super) fn inspect_metadata_box(
     if !box_ref.header.box_type().equals(BoxType::ASSOCIATION) {
         return Ok((1, depth));
     }
-    let child_depth = depth
-        .checked_add(1)
-        .ok_or_else(|| DecodeError::malformed(0, MalformedKind::ArithmeticOverflow))?;
-    let mut reader = BoxReader::new(box_ref.payload, limits)?;
+    let child_depth = depth.checked_add(1).ok_or_else(
+        #[cfg_attr(verus_keep_ghost, verus_spec(result: DecodeError =>
+                ensures result == crate::specs::part2_palette_arithmetic_error(0),
+            ))]
+        || DecodeError::malformed(0, MalformedKind::ArithmeticOverflow),
+    )?;
+    let mut reader = box_reader_from_input(box_ref.payload, limits)?;
     let mut count = 1_u32;
     let mut maximum_depth = depth;
     let mut remaining_boxes = box_ref.payload.len();
-    #[cfg_attr(verus_keep_ghost, verus_spec(decreases remaining_boxes,))]
+    #[cfg(verus_keep_ghost)]
+    proof_decl! { let ghost expected = crate::specs::part2_inspect_metadata_box(
+    super::box_reference_view(box_ref), *limits, depth, remaining_depth); }
+    #[cfg(verus_keep_ghost)]
+    proof! {
+    crate::specs::part2_metadata_start(super::box_reference_view(box_ref),
+        super::box_reader_state(&reader), *limits, depth, remaining_depth);
+    }
+    #[cfg_attr(verus_keep_ghost, verus_spec(
+    invariant_except_break expected == crate::specs::part2_metadata_children(
+            super::box_reference_view(box_ref), super::box_reader_state(&reader), *limits,
+            child_depth, remaining_depth, count, maximum_depth, remaining_boxes as nat),
+            expected == crate::specs::part2_inspect_metadata_box(
+                super::box_reference_view(box_ref), *limits, depth, remaining_depth),
+            depth < u32::MAX,
+            child_depth == depth as nat + 1,
+            depth <= crate::limits::resource_box_depth_limit(limits),
+            super::box_reference_view(box_ref).0.0 == BoxType::ASSOCIATION,
+        ensures expected == Ok((count, maximum_depth)),
+        decreases remaining_boxes,
+    ))]
     loop {
+        #[cfg(verus_keep_ghost)]
+        proof! {
+            reveal(crate::specs::part2_metadata_children);
+            reveal(crate::specs::part2_inspect_metadata_box);
+        }
         let Some(next) = reader.next_box_ref() else {
             break;
         };
@@ -44,9 +78,12 @@ pub(super) fn inspect_metadata_box(
         }
         remaining_boxes -= 1;
         let child = next?;
-        let child_remaining = remaining_depth
-            .checked_sub(1)
-            .ok_or_else(|| DecodeError::malformed(0, MalformedKind::ArithmeticOverflow))?;
+        let child_remaining = remaining_depth.checked_sub(1).ok_or_else(
+            #[cfg_attr(verus_keep_ghost, verus_spec(result: DecodeError =>
+                    ensures result == crate::specs::part2_palette_arithmetic_error(0),
+                ))]
+            || DecodeError::malformed(0, MalformedKind::ArithmeticOverflow),
+        )?;
         let (child_count, observed_depth) =
             inspect_metadata_box(child, limits, child_depth, child_remaining)?;
         if count > u32::MAX - child_count {

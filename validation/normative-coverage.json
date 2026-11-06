@@ -4,6 +4,36 @@
   "scope": "Technical reference inventory; not exhaustive standards-clause coverage or a conformance claim.",
   "requirements": [
     {
+      "id": "part2-complete-native-raw-metadata-tree-result",
+      "topic": "Complete actual recursive raw association metadata inspection Result: full source-derived count/maxdepth and exact depth/type/input/reader/fuel/remaining-depth/local-count-work error order. Real borrowed child producers and metadata_count, not supplied successful subtree banks/validity premises. Retain non-association/empty association seeds and reader-relative errors. One checked borrowed initializer retarget and depth-getter annotation require exact future native audit; no native owning scopes or allocation bodies moved. Full container/inspection/public/normative/cfg/erasure/lifetimes/release remain independent.",
+      "implementation_refs": [
+        {"path": "src/jp2/metadata.rs", "symbol": "inspect_metadata_box"},
+        {"path": "src/jp2/container.rs", "symbol": "parse"}
+      ],
+      "spec_refs": [
+        {"path": "specs/jp2_metadata.rs", "symbol": "part2_inspect_metadata_box"},
+        {"path": "specs/jp2_metadata.rs", "symbol": "part2_metadata_children"},
+        {"path": "specs/mod.rs", "symbol": "part2_metadata_count"},
+        {"path": "src/limits.rs", "symbol": "resource_box_depth_limit"}
+      ],
+      "contract_refs": [
+        {"path": "src/jp2/metadata.rs", "symbol": "inspect_metadata_box"}
+      ],
+      "proof_refs": [
+        {"path": "specs/jp2_metadata.rs", "symbol": "part2_metadata_start"},
+        {"path": "src/limits.rs", "symbol": "resource_box_depth_limit"},
+        {"path": "src/limits.rs", "symbol": "ResourceLimits::maximum_box_depth"},
+        {"path": "src/refinement/headers.rs", "symbol": "metadata_count"}
+      ],
+      "test_refs": [
+        {"path": "src/jp2/tests.rs", "symbol": "actual_raw_metadata_tree_keeps_non_association_and_empty_association_seed_behavior"},
+        {"path": "src/jp2/tests.rs", "symbol": "actual_raw_metadata_tree_derives_complete_nested_count_and_maximum_depth_from_bytes"},
+        {"path": "src/jp2/tests.rs", "symbol": "actual_raw_metadata_tree_keeps_exact_depth_before_kind_and_remaining_before_child_depth_priority"},
+        {"path": "src/jp2/tests.rs", "symbol": "actual_raw_metadata_tree_keeps_reader_relative_errors_before_remaining_depth_errors"},
+        {"path": "src/jp2/tests.rs", "symbol": "actual_raw_metadata_tree_keeps_nested_input_metadata_and_local_aggregate_work_limits"}
+      ]
+    },
+    {
       "id": "part2-complete-native-associated-codestream-header-result",
       "topic": "Complete actual associated codestream-header Result: initial full-parse priority, real default cloning and every inherited/overridden image/color/ICC/count/palette/mapping/definition/resolution field. Preserve vector clears, first override/order/error priorities and override-only BPCC requirement. Defaults are an actual native input, not asserted raw-derived/valid or supplied successful parser outputs. Original clone body extraction/public delegation, optional-palette/default callback routing and unused integer-error names need exact new native observation; no runtime proof clone or owner inversion. Whole file/tree/public/normative/cfg/erasure/lifetimes/release remain separate.",
       "implementation_refs": [

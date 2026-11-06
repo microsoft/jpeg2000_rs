@@ -2375,6 +2375,223 @@ fn actual_raw_associated_header_keeps_unknown_count_and_missing_default_before_s
     );
 }
 
+fn raw_metadata_box<'a>(payload: &'a [u8], kind: [u8; 4], offset: u64) -> BoxRef<'a> {
+    BoxRef {
+        header: BoxHeader {
+            box_type: BoxType::new(kind),
+            offset,
+            header_length: 8,
+            total_length: payload.len() as u64 + 8,
+        },
+        payload,
+    }
+}
+
+#[test]
+fn actual_raw_metadata_tree_keeps_non_association_and_empty_association_seed_behavior() {
+    let limits = ResourceLimits::default()
+        .with_maximum_input_bytes(1)
+        .unwrap();
+    for kind in [*b"xml ", *b"free", *b"jp2c"] {
+        assert_eq!(
+            super::metadata::inspect_metadata_box(
+                raw_metadata_box(&[0, 1, 2], kind, 99),
+                &limits,
+                1,
+                0
+            ),
+            Ok((1, 1))
+        );
+    }
+    for (depth, remaining) in [(0, 0), (1, 1), (32, 0)] {
+        assert_eq!(
+            super::metadata::inspect_metadata_box(
+                raw_metadata_box(&[], *b"asoc", 99),
+                &limits,
+                depth,
+                remaining
+            ),
+            Ok((1, depth))
+        );
+    }
+}
+
+#[test]
+fn actual_raw_metadata_tree_derives_complete_nested_count_and_maximum_depth_from_bytes() {
+    let mut children = box32(*b"xml ", &[7]);
+    children.extend_from_slice(&box32(*b"asoc", &[]));
+    let mut payload = box32(*b"xml ", &[]);
+    payload.extend_from_slice(&box32(*b"asoc", &children));
+    assert_eq!(
+        super::metadata::inspect_metadata_box(
+            raw_metadata_box(&payload, *b"asoc", 99),
+            &ResourceLimits::default(),
+            1,
+            2
+        ),
+        Ok((5, 3))
+    );
+    assert_eq!(
+        super::metadata::inspect_metadata_box(
+            raw_metadata_box(&payload, *b"asoc", 99),
+            &ResourceLimits::default(),
+            1,
+            1
+        ),
+        Err(DecodeError::MalformedInput {
+            offset: 0,
+            kind: MalformedKind::ArithmeticOverflow
+        })
+    );
+    let mut payload = Vec::new();
+    for _ in 0..257 {
+        payload.extend_from_slice(&box32(*b"xml ", &[]));
+    }
+    assert_eq!(
+        super::metadata::inspect_metadata_box(
+            raw_metadata_box(&payload, *b"asoc", 99),
+            &ResourceLimits::default(),
+            1,
+            1
+        ),
+        Ok((258, 2))
+    );
+}
+
+#[test]
+fn actual_raw_metadata_tree_keeps_exact_depth_before_kind_and_remaining_before_child_depth_priority()
+ {
+    let limits = ResourceLimits::default();
+    for kind in [*b"asoc", *b"xml "] {
+        assert_eq!(
+            super::metadata::inspect_metadata_box(raw_metadata_box(&[0], kind, 99), &limits, 33, 0),
+            Err(DecodeError::LimitExceeded {
+                resource: Resource::BoxDepth,
+                limit: 32,
+                actual: 33
+            })
+        );
+    }
+    let payload = box32(*b"xml ", &[]);
+    assert_eq!(
+        super::metadata::inspect_metadata_box(
+            raw_metadata_box(&payload, *b"asoc", 99),
+            &limits,
+            32,
+            1
+        ),
+        Err(DecodeError::LimitExceeded {
+            resource: Resource::BoxDepth,
+            limit: 32,
+            actual: 33
+        })
+    );
+    assert_eq!(
+        super::metadata::inspect_metadata_box(
+            raw_metadata_box(&payload, *b"asoc", 99),
+            &limits,
+            32,
+            0
+        ),
+        Err(DecodeError::MalformedInput {
+            offset: 0,
+            kind: MalformedKind::ArithmeticOverflow
+        })
+    );
+}
+
+#[test]
+fn actual_raw_metadata_tree_keeps_reader_relative_errors_before_remaining_depth_errors() {
+    let limits = ResourceLimits::default();
+    assert_eq!(
+        super::metadata::inspect_metadata_box(raw_metadata_box(&[0], *b"asoc", 99), &limits, 1, 0),
+        Err(DecodeError::MalformedInput {
+            offset: 0,
+            kind: MalformedKind::Truncated
+        })
+    );
+    let mut payload = box32(*b"xml ", &[]);
+    payload.extend_from_slice(&[0, 0]);
+    assert_eq!(
+        super::metadata::inspect_metadata_box(
+            raw_metadata_box(&payload, *b"asoc", 99),
+            &limits,
+            1,
+            1
+        ),
+        Err(DecodeError::MalformedInput {
+            offset: 8,
+            kind: MalformedKind::Truncated
+        })
+    );
+}
+
+#[test]
+fn actual_raw_metadata_tree_keeps_nested_input_metadata_and_local_aggregate_work_limits() {
+    let payload = box32(*b"xml ", &[]);
+    assert_eq!(
+        super::metadata::inspect_metadata_box(
+            raw_metadata_box(&payload, *b"asoc", 99),
+            &ResourceLimits::default()
+                .with_maximum_input_bytes(1)
+                .unwrap(),
+            1,
+            0
+        ),
+        Err(DecodeError::LimitExceeded {
+            resource: Resource::InputBytes,
+            limit: 1,
+            actual: 8
+        })
+    );
+    assert_eq!(
+        super::metadata::inspect_metadata_box(
+            raw_metadata_box(&payload, *b"asoc", 99),
+            &ResourceLimits::default()
+                .with_maximum_metadata_bytes(1)
+                .unwrap(),
+            1,
+            0
+        ),
+        Err(DecodeError::LimitExceeded {
+            resource: Resource::MetadataBytes,
+            limit: 1,
+            actual: 8
+        })
+    );
+    assert_eq!(
+        super::metadata::inspect_metadata_box(
+            raw_metadata_box(&payload, *b"asoc", 99),
+            &ResourceLimits::default()
+                .with_maximum_work_units(1)
+                .unwrap(),
+            1,
+            1
+        ),
+        Err(DecodeError::LimitExceeded {
+            resource: Resource::WorkUnits,
+            limit: 1,
+            actual: 2
+        })
+    );
+    let nested = box32(*b"asoc", &payload);
+    assert_eq!(
+        super::metadata::inspect_metadata_box(
+            raw_metadata_box(&nested, *b"asoc", 99),
+            &ResourceLimits::default()
+                .with_maximum_work_units(1)
+                .unwrap(),
+            1,
+            2
+        ),
+        Err(DecodeError::LimitExceeded {
+            resource: Resource::WorkUnits,
+            limit: 1,
+            actual: 2
+        })
+    );
+}
+
 fn valid_ht_codestream(width: u32, height: u32, style: u8) -> Vec<u8> {
     let mut siz = Vec::new();
     siz.extend_from_slice(&0x4000_u16.to_be_bytes());

@@ -179,6 +179,21 @@ technical candidate only: parent-owned record, review, CI, guarded integration
 and actual-main acceptance remain separate. No complete parsing, pixels,
 lifetime verification, normative conformance or publication claim follows.
 
+## Actual complete recursive raw metadata-tree Result
+
+The actual association metadata inspector derives its full count, maximum depth
+and exact errors from its actual borrowed reader and recursive child producers.
+It retains depth-before-type, non-association/empty-association seeds, reader
+errors before remaining-depth checks and local aggregate work checks. No supplied
+successful subtree-count bank, validity premise or owner inversion is used.
+The checked model uses the native remaining-depth/remaining-box progress and an
+explicit initial-reader relation; original native scopes remain in place.
+
+The initializer deliberately targets the existing checked shared reader producer;
+the actual depth getter has a matching field projection. The additional call
+target must be included in eventual exact native observation. This is not a full
+container/public, normative, cfg/erasure, lifetime or release claim.
+
 ## Actual complete associated codestream-header Result
 
 The actual associated-header producer retains its initial full-JP2-parse
