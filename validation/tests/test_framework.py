@@ -1252,6 +1252,104 @@ class FrameworkTests(WorkingFiles):
                 self.assertEqual(framework.validate_normative_coverage(dict(coverage, requirements=[entry]))["status"], "passed")
                 self.assertEqual(set(counts.values()), {expected})
 
+    def test_inventory_binds_public_raw_container_images_and_all_actual_producers(self):
+        producers = {key: value for key, value in framework._RAW_CONTAINER_IMAGE_CONTRACTS.items()
+                     if key not in framework._RAW_CONTAINER_IMAGE_APIS}
+        self._assert_complete_packet_contract_bindings({framework._RAW_CONTAINER_IMAGE_ENTRY}, producers, 5, isolate=False)
+        coverage = json.loads((framework.VALIDATION / "normative-coverage.json").read_text())
+        entry = next(item for item in coverage["requirements"] if item["id"] == framework._RAW_CONTAINER_IMAGE_ENTRY)
+        source = framework.ROOT / "src/decode/api.rs"
+        original = source.read_text()
+        read_text = Path.read_text
+        for requested, jph in (("None", "false"), ("Some(selection)", "false"), ("None", "true"), ("Some(selection)", "true")):
+            before = f"input@, crate::options::decode_options_limits(options), {requested}, {jph})"
+            self.assertIn(before, original)
+            for after in (
+                before.replace("input@", "seq![]"),
+                before.replace(requested + ",", ("None" if requested != "None" else "Some(selection)") + ","),
+                before[:-len(jph) - 1] + ("false" if jph == "true" else "true") + ")",
+            ):
+                changed = original.replace(before, after, 1)
+
+                def altered(path, *args, **kwargs):
+                    return changed if path == source else read_text(path, *args, **kwargs)
+
+                with self.subTest(requested=requested, jph=jph, after=after), mock.patch.object(Path, "read_text", altered), \
+                        self.assertRaisesRegex(ValueError, "executable Verus contract"):
+                    framework.validate_normative_coverage(dict(coverage, requirements=[entry]))
+
+    def test_inventory_raw_container_images_require_every_public_source_header_reference_and_test_bridge(self):
+        coverage = json.loads((framework.VALIDATION / "normative-coverage.json").read_text())
+        entry = next(item for item in coverage["requirements"] if item["id"] == framework._RAW_CONTAINER_IMAGE_ENTRY)
+        for field in ("contract_refs", "spec_refs", "proof_refs", "test_refs"):
+            for removed in entry[field]:
+                changed = copy.deepcopy(entry)
+                changed[field].remove(removed)
+                with self.subTest(field=field, removed=removed), self.assertRaisesRegex(ValueError, "whole raw container image Results"):
+                    framework.validate_normative_coverage(dict(coverage, requirements=[changed]))
+
+    def test_inventory_raw_container_images_bind_actual_raw_selection_and_header_handoffs(self):
+        coverage = json.loads((framework.VALIDATION / "normative-coverage.json").read_text())
+        entry = next(item for item in coverage["requirements"] if item["id"] == framework._RAW_CONTAINER_IMAGE_ENTRY)
+        source = framework.ROOT / "src/decode/api.rs"
+        original = source.read_text()
+        read_text = Path.read_text
+        for before, after in (
+            ("jp2::parse_and_inspect(input, options.limits())?", "jp2::parse_and_inspect(&unrelated, options.limits())?"),
+            ("inspected.file().codestream_count() != 1", "inspected.file().codestream_count() != 2"),
+            ("inspected.file().codestream(0)?.data(), options, selection", "inspected.file().codestream(0)?.data(), options, &unrelated"),
+            ("apply_jp2_output(decoded, inspected.file().header(), options.limits())", "Ok(decoded)"),
+            ("jp2::raw_render_file_known(jp2::raw_inspected_file_reference(&inspected))", "unrelated_bridge()"),
+        ):
+            self.assertIn(before, original)
+            changed = original.replace(before, after, 1)
+
+            def altered(path, *args, **kwargs):
+                return changed if path == source else read_text(path, *args, **kwargs)
+
+            with self.subTest(before=before), mock.patch.object(Path, "read_text", altered), \
+                    self.assertRaisesRegex(ValueError, "actual raw/brand/count/selection/header handoffs"):
+                framework.validate_normative_coverage(dict(coverage, requirements=[entry]))
+
+    def test_inventory_raw_container_images_reject_trimmed_raw_admission_selection_and_output_models(self):
+        coverage = json.loads((framework.VALIDATION / "normative-coverage.json").read_text())
+        entry = next(item for item in coverage["requirements"] if item["id"] == framework._RAW_CONTAINER_IMAGE_ENTRY)
+        source = framework.ROOT / "specs/container_images.rs"
+        original = source.read_text()
+        read_text = Path.read_text
+        for before, after in (
+            ("if jph { part2_inspect_jph_container(input, limits) }", "if false { part2_inspect_jph_container(input, limits) }"),
+            ("file.streams.len() != 1", "file.streams.len() != 2"),
+            ("part2_decode_raw_codestream(file.streams[0].1, limits, selection)", "part2_decode_raw_codestream(seq![], limits, None)"),
+            ("part2_raw_associated_header(file.header).0", "(None, seq![], seq![])"),
+            ("crate::limits::resource_decoded_bytes_limit(limits)", "u64::MAX"),
+        ):
+            self.assertIn(before, original)
+            changed = original.replace(before, after, 1)
+
+            def altered(path, *args, **kwargs):
+                return changed if path == source else read_text(path, *args, **kwargs)
+
+            with self.subTest(before=before), mock.patch.object(Path, "read_text", altered), \
+                    self.assertRaisesRegex(ValueError, "complete raw/inspection/profile/selection/output models"):
+                framework.validate_normative_coverage(dict(coverage, requirements=[entry]))
+
+    def test_inventory_raw_container_images_keep_fresh_actual_api_and_raw_model_caches(self):
+        coverage = json.loads((framework.VALIDATION / "normative-coverage.json").read_text())
+        entry = next(item for item in coverage["requirements"] if item["id"] == framework._RAW_CONTAINER_IMAGE_ENTRY)
+        read_text = Path.read_text
+        counts = {framework.ROOT / name: 0 for name in ("src/decode/api.rs", "specs/container_images.rs")}
+
+        def counted(path, *args, **kwargs):
+            if path in counts:
+                counts[path] += 1
+            return read_text(path, *args, **kwargs)
+
+        with mock.patch.object(Path, "read_text", counted):
+            for expected in (1, 2):
+                self.assertEqual(framework.validate_normative_coverage(dict(coverage, requirements=[entry]))["status"], "passed")
+                self.assertEqual(set(counts.values()), {expected})
+
     def test_inventory_binds_raw_composition_boundary_and_actual_dimension_canvas_producers(self):
         producers = {key: value for key, value in framework._RAW_COMPOSITION_RENDER_CONTRACTS.items()
                      if key not in framework._RAW_COMPOSITION_RENDER_APIS}

@@ -348,8 +348,18 @@ pub(super) fn collect_nonlinear_regions<'a>(
     Ok(regions)
 }
 
+#[cfg_attr(verus_keep_ghost, verus_spec(result =>
+    ensures crate::image::decoded_typed_image_outcome(result) == crate::specs::part2_decode_raw_single_container(
+        input@, crate::options::decode_options_limits(options), None, false),
+))]
 pub fn decode_jp2(input: &[u8], options: &DecodeOptions) -> Result<TypedImage, DecodeError> {
+    #[cfg(verus_keep_ghost)]
+    proof! {
+        crate::specs::part2_decode_raw_single_container_unfold(input@, crate::options::decode_options_limits(options), None, false);
+    }
     let inspected = jp2::parse_and_inspect(input, options.limits())?;
+    #[cfg(verus_keep_ghost)]
+    proof! { jp2::raw_render_file_known(jp2::raw_inspected_file_reference(&inspected)); }
     if !inspected
         .file()
         .file_type()
@@ -364,12 +374,22 @@ pub fn decode_jp2(input: &[u8], options: &DecodeOptions) -> Result<TypedImage, D
     apply_jp2_output(decoded, inspected.file().header(), options.limits())
 }
 
+#[cfg_attr(verus_keep_ghost, verus_spec(result =>
+    ensures crate::image::decoded_typed_image_outcome(result) == crate::specs::part2_decode_raw_single_container(
+        input@, crate::options::decode_options_limits(options), Some(selection), false),
+))]
 pub fn decode_jp2_selected(
     input: &[u8],
     options: &DecodeOptions,
     selection: &DecodeSelection,
 ) -> Result<TypedImage, DecodeError> {
+    #[cfg(verus_keep_ghost)]
+    proof! {
+        crate::specs::part2_decode_raw_single_container_unfold(input@, crate::options::decode_options_limits(options), Some(selection), false);
+    }
     let inspected = jp2::parse_and_inspect(input, options.limits())?;
+    #[cfg(verus_keep_ghost)]
+    proof! { jp2::raw_render_file_known(jp2::raw_inspected_file_reference(&inspected)); }
     if !inspected
         .file()
         .file_type()
@@ -428,8 +448,18 @@ pub fn decode_jp2_color_selected(
     )
 }
 
+#[cfg_attr(verus_keep_ghost, verus_spec(result =>
+    ensures crate::image::decoded_typed_image_outcome(result) == crate::specs::part2_decode_raw_single_container(
+        input@, crate::options::decode_options_limits(options), None, true),
+))]
 pub fn decode_jph(input: &[u8], options: &DecodeOptions) -> Result<TypedImage, DecodeError> {
+    #[cfg(verus_keep_ghost)]
+    proof! {
+        crate::specs::part2_decode_raw_single_container_unfold(input@, crate::options::decode_options_limits(options), None, true);
+    }
     let inspected = jp2::inspect_jph(input, options.limits())?;
+    #[cfg(verus_keep_ghost)]
+    proof! { jp2::raw_render_file_known(jp2::raw_inspected_file_reference(&inspected)); }
     if inspected.file().codestream_count() != 1 {
         return Err(DecodeError::malformed(0, MalformedKind::InvalidProfile));
     }
@@ -437,12 +467,22 @@ pub fn decode_jph(input: &[u8], options: &DecodeOptions) -> Result<TypedImage, D
     apply_jp2_output(decoded, inspected.file().header(), options.limits())
 }
 
+#[cfg_attr(verus_keep_ghost, verus_spec(result =>
+    ensures crate::image::decoded_typed_image_outcome(result) == crate::specs::part2_decode_raw_single_container(
+        input@, crate::options::decode_options_limits(options), Some(selection), true),
+))]
 pub fn decode_jph_selected(
     input: &[u8],
     options: &DecodeOptions,
     selection: &DecodeSelection,
 ) -> Result<TypedImage, DecodeError> {
+    #[cfg(verus_keep_ghost)]
+    proof! {
+        crate::specs::part2_decode_raw_single_container_unfold(input@, crate::options::decode_options_limits(options), Some(selection), true);
+    }
     let inspected = jp2::inspect_jph(input, options.limits())?;
+    #[cfg(verus_keep_ghost)]
+    proof! { jp2::raw_render_file_known(jp2::raw_inspected_file_reference(&inspected)); }
     if inspected.file().codestream_count() != 1 {
         return Err(DecodeError::malformed(0, MalformedKind::InvalidProfile));
     }

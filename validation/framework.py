@@ -3175,6 +3175,61 @@ _RAW_RENDER_PROOFS = {("src/jp2/proof_support.rs", name) for name in (
     ("specs/jpx_raw_frame.rs", "part2_render_raw_jpx_frame_unfold"),
     *_RAW_RENDER_APIS,
 }
+_RAW_CONTAINER_IMAGE_ENTRY = "part2-complete-native-public-raw-container-image-results"
+_RAW_CONTAINER_IMAGE_APIS = {("src/decode/api.rs", name) for name in (
+    "decode_jp2", "decode_jp2_selected", "decode_jph", "decode_jph_selected",
+)}
+_RAW_CONTAINER_IMAGE_CONTRACTS = {
+    **{
+        ("src/decode/api.rs", name): (
+            "part2_decode_raw_single_container", _coverage_call("crate::image::decoded_typed_image_outcome", r"\1"), None,
+            r"input\s*@\s*,\s*" + _coverage_call("crate::options::decode_options_limits", "options")
+            + r"\s*,\s*" + (_coverage_call("Some", "selection") if selected else "None")
+            + r"\s*,\s*" + ("true" if jph else "false"),
+        ) for name, selected, jph in (
+            ("decode_jp2", False, False), ("decode_jp2_selected", True, False),
+            ("decode_jph", False, True), ("decode_jph_selected", True, True),
+        )
+    },
+    **{key: _RAW_INSPECTED_CONTRACTS[key] for key in (
+        ("src/jp2/container.rs", "parse_and_inspect"), ("src/jp2/container.rs", "inspect_jph"),
+    )},
+    **{key: _RAW_TYPED_CONTRACTS[key] for key in (
+        ("src/decode/api.rs", "decode_codestream"), ("src/decode/api.rs", "decode_codestream_selected"),
+    )},
+    ("src/decode/output.rs", "apply_jp2_output"): (
+        "part2_apply_output_header", _coverage_call("crate::image::decoded_typed_image_outcome", r"\1"), None,
+        _coverage_call("crate::image::typed_image_value_view", "decoded") + r"\s*,\s*"
+        + _coverage_call("jp2::output_header_view", "header") + r"\s*,\s*"
+        + _coverage_call("crate::limits::resource_component_limit", "limits") + r"\s*,\s*"
+        + _coverage_call("crate::limits::resource_decoded_bytes_limit", "limits"),
+    ),
+}
+_RAW_CONTAINER_IMAGE_MODELS = {
+    ("specs/container_images.rs", "part2_decode_raw_single_container"),
+    ("specs/jp2_inspection.rs", "part2_parse_and_inspect_container"),
+    ("specs/jp2_inspection.rs", "part2_inspect_jph_container"),
+    ("specs/raw_decode.rs", "part2_decode_raw_codestream"),
+    ("specs/jpx_raw_frame.rs", "part2_raw_associated_header"),
+    ("specs/mod.rs", "part2_apply_output_header"),
+}
+_RAW_CONTAINER_IMAGE_PROOFS = {
+    ("specs/container_images.rs", "part2_decode_raw_single_container_unfold"),
+    ("src/jp2/proof_support.rs", "raw_render_file_known"),
+    ("src/jp2/proof_support.rs", "raw_inspected_file_reference"),
+    *_RAW_CONTAINER_IMAGE_APIS,
+} | {("src/jp2/container.rs", name) for name in (
+    "InspectedJp2::file", "Jp2File::header", "Jp2File::codestream", "Jp2File::codestream_count",
+    "Jp2File::file_type", "CodestreamBox::data", "FileType::is_compatible_with",
+)}
+_RAW_CONTAINER_IMAGE_TESTS = {("src/decode/container_image_result_tests.rs", "actual_raw_container_image_" + name) for name in (
+    "derives_signed_unsigned_full_and_reduced_planes",
+    "preserves_requested_tiles_regions_origins_and_selected_limits",
+    "applies_complete_palette_mapping_and_channel_definitions",
+    "jph_keeps_cleanup_refinement_signedness_and_public_selection",
+    "preserves_raw_parse_selection_and_packet_first_errors",
+    "checks_inspection_before_brand_count_and_backend",
+)}
 _RAW_COMPOSITION_RENDER_ENTRY = "part2-complete-native-public-raw-composition-result"
 _RAW_COMPOSITION_RENDER_APIS = {("src/jpx/render.rs", "render_jpx_composition")}
 _RAW_COMPOSITION_RENDER_CONTRACTS = {
@@ -3506,6 +3561,44 @@ def validate_normative_coverage(
     ids: set[str] = set()
     contract_functions: set[tuple[str, str]] = set()
     for entry in coverage["requirements"]:
+        if entry["id"] == _RAW_CONTAINER_IMAGE_ENTRY:
+            if {(ref["path"], ref["symbol"]) for ref in entry["contract_refs"]} != set(_RAW_CONTAINER_IMAGE_CONTRACTS) - _RAW_CONTAINER_IMAGE_APIS:
+                raise ValueError("whole raw container image Results require actual inspection/core/output producer contracts")
+            if not _RAW_CONTAINER_IMAGE_MODELS.issubset({(ref["path"], ref["symbol"]) for ref in entry["spec_refs"]}) \
+                    or not _RAW_CONTAINER_IMAGE_PROOFS.issubset({(ref["path"], ref["symbol"]) for ref in entry["proof_refs"]}) \
+                    or not _RAW_CONTAINER_IMAGE_TESTS.issubset({(ref["path"], ref["symbol"]) for ref in entry["test_refs"]}):
+                raise ValueError("whole raw container image Results require all public boundaries/raw/header/reference/selection/test bridges")
+            path = (ROOT / "src/decode/api.rs").resolve()
+            for name, selected, jph in (
+                ("decode_jp2", False, False), ("decode_jp2_selected", True, False),
+                ("decode_jph", False, True), ("decode_jph_selected", True, True),
+            ):
+                body = _coverage_function_body(source_text(path), function_header(path, name))
+                required = [
+                    ("jp2::inspect_jph" if jph else "jp2::parse_and_inspect") + "(input, options.limits())?",
+                    "inspected.file().codestream_count() != 1",
+                    ("decode_codestream_selected" if selected else "decode_codestream")
+                    + "(inspected.file().codestream(0)?.data(), options" + (", selection" if selected else "") + ")?",
+                    "apply_jp2_output(decoded, inspected.file().header(), options.limits())",
+                    "jp2::raw_render_file_known(jp2::raw_inspected_file_reference(&inspected))",
+                ]
+                if not jph:
+                    required.append("!inspected.file().file_type().is_compatible_with(jp2::BoxType::JP2_BRAND)")
+                if body is None or any("".join(item.split()) not in "".join(body.split()) for item in required):
+                    raise ValueError("whole raw container image Results require actual raw/brand/count/selection/header handoffs")
+            model = source_text((ROOT / "specs/container_images.rs").resolve())
+            actual = _coverage_spec_function_body(model, "part2_decode_raw_single_container")
+            required = (
+                "if jph { part2_inspect_jph_container(input, limits) }",
+                "else { part2_parse_and_inspect_container(input, limits) }",
+                "!jph && !part2_file_type_compatible(file.file_type, crate::jp2::BoxType::JP2_BRAND)",
+                "file.streams.len() != 1", "part2_container_error(0, crate::MalformedKind::InvalidProfile)",
+                "part2_decode_raw_codestream(file.streams[0].1, limits, selection)",
+                "part2_apply_output_header(decoded, part2_raw_associated_header(file.header).0,",
+                "crate::limits::resource_component_limit(limits)", "crate::limits::resource_decoded_bytes_limit(limits)",
+            )
+            if actual is None or any("".join(item.split()) not in "".join(actual.split()) for item in required):
+                raise ValueError("whole raw container image Results require complete raw/inspection/profile/selection/output models")
         if entry["id"] == _RAW_COMPOSITION_RENDER_ENTRY:
             if {(ref["path"], ref["symbol"]) for ref in entry["contract_refs"]} != set(_RAW_COMPOSITION_RENDER_CONTRACTS) - _RAW_COMPOSITION_RENDER_APIS:
                 raise ValueError("whole raw composition Result requires actual dimensions/layer/frame/canvas producer contracts")
@@ -5552,7 +5645,9 @@ def validate_normative_coverage(
               or (entry["id"] == _RAW_RENDER_ENTRY
                   and (reference["path"], reference["symbol"]) in _RAW_RENDER_APIS)
               or (entry["id"] == _RAW_COMPOSITION_RENDER_ENTRY
-                  and (reference["path"], reference["symbol"]) in _RAW_COMPOSITION_RENDER_APIS))
+                  and (reference["path"], reference["symbol"]) in _RAW_COMPOSITION_RENDER_APIS)
+              or (entry["id"] == _RAW_CONTAINER_IMAGE_ENTRY
+                  and (reference["path"], reference["symbol"]) in _RAW_CONTAINER_IMAGE_APIS))
             and reference not in entry["contract_refs"]
         ]
         for reference in [*entry["contract_refs"], *proved_apis]:
@@ -6048,6 +6143,8 @@ def validate_normative_coverage(
                     if entry["id"] == _RAW_RENDER_ENTRY else None)
                 or (_RAW_COMPOSITION_RENDER_CONTRACTS.get((reference["path"], reference["symbol"]))
                     if entry["id"] == _RAW_COMPOSITION_RENDER_ENTRY else None)
+                or (_RAW_CONTAINER_IMAGE_CONTRACTS.get((reference["path"], reference["symbol"]))
+                    if entry["id"] == _RAW_CONTAINER_IMAGE_ENTRY else None)
                 or (_JPX_INSPECTION_CONTRACTS.get((reference["path"], reference["symbol"]))
                     if entry["id"] == _JPX_INSPECTION_ENTRY else None)
                 or (_RAW_JPX_INSPECTION_CONTRACTS.get((reference["path"], reference["symbol"]))

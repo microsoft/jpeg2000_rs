@@ -4,6 +4,60 @@
   "scope": "Technical reference inventory; not exhaustive standards-clause coverage or a conformance claim.",
   "requirements": [
     {
+      "id": "part2-complete-native-public-raw-container-image-results",
+      "topic": "Complete actual public raw JP2/JPH full and selected typed-image/error Results from actual bytes/options/selections through raw container/info/profile admission, compressed-byte core decode and complete palette/mapping/channel output admission. Full geometry/origins/components/signedness/precision/sample planes/channel definitions and first parser/profile/count/selection/backend/output errors retained. Existing raw stored-reference/header/source bridges; no successful parsed/layout/image banks, native reconstruction/clones or execution changes. Color-selected expansion/progressive/JPIP/automatic dispatch and independent normative/cfg/lifetime/release remain separate.",
+      "implementation_refs": [
+        {"path": "src/decode/api.rs", "symbol": "decode_jp2"},
+        {"path": "src/decode/api.rs", "symbol": "decode_jp2_selected"},
+        {"path": "src/decode/api.rs", "symbol": "decode_jph"},
+        {"path": "src/decode/api.rs", "symbol": "decode_jph_selected"},
+        {"path": "src/jp2/container.rs", "symbol": "parse_and_inspect"},
+        {"path": "src/jp2/container.rs", "symbol": "inspect_jph"},
+        {"path": "src/decode/api.rs", "symbol": "decode_codestream"},
+        {"path": "src/decode/api.rs", "symbol": "decode_codestream_selected"},
+        {"path": "src/decode/output.rs", "symbol": "apply_jp2_output"}
+      ],
+      "contract_refs": [
+        {"path": "src/jp2/container.rs", "symbol": "parse_and_inspect"},
+        {"path": "src/jp2/container.rs", "symbol": "inspect_jph"},
+        {"path": "src/decode/api.rs", "symbol": "decode_codestream"},
+        {"path": "src/decode/api.rs", "symbol": "decode_codestream_selected"},
+        {"path": "src/decode/output.rs", "symbol": "apply_jp2_output"}
+      ],
+      "spec_refs": [
+        {"path": "specs/container_images.rs", "symbol": "part2_decode_raw_single_container"},
+        {"path": "specs/jp2_inspection.rs", "symbol": "part2_parse_and_inspect_container"},
+        {"path": "specs/jp2_inspection.rs", "symbol": "part2_inspect_jph_container"},
+        {"path": "specs/raw_decode.rs", "symbol": "part2_decode_raw_codestream"},
+        {"path": "specs/jpx_raw_frame.rs", "symbol": "part2_raw_associated_header"},
+        {"path": "specs/mod.rs", "symbol": "part2_apply_output_header"}
+      ],
+      "proof_refs": [
+        {"path": "src/decode/api.rs", "symbol": "decode_jp2"},
+        {"path": "src/decode/api.rs", "symbol": "decode_jp2_selected"},
+        {"path": "src/decode/api.rs", "symbol": "decode_jph"},
+        {"path": "src/decode/api.rs", "symbol": "decode_jph_selected"},
+        {"path": "specs/container_images.rs", "symbol": "part2_decode_raw_single_container_unfold"},
+        {"path": "src/jp2/proof_support.rs", "symbol": "raw_render_file_known"},
+        {"path": "src/jp2/proof_support.rs", "symbol": "raw_inspected_file_reference"},
+        {"path": "src/jp2/container.rs", "symbol": "InspectedJp2::file"},
+        {"path": "src/jp2/container.rs", "symbol": "Jp2File::header"},
+        {"path": "src/jp2/container.rs", "symbol": "Jp2File::codestream"},
+        {"path": "src/jp2/container.rs", "symbol": "Jp2File::codestream_count"},
+        {"path": "src/jp2/container.rs", "symbol": "Jp2File::file_type"},
+        {"path": "src/jp2/container.rs", "symbol": "CodestreamBox::data"},
+        {"path": "src/jp2/container.rs", "symbol": "FileType::is_compatible_with"}
+      ],
+      "test_refs": [
+        {"path": "src/decode/container_image_result_tests.rs", "symbol": "actual_raw_container_image_derives_signed_unsigned_full_and_reduced_planes"},
+        {"path": "src/decode/container_image_result_tests.rs", "symbol": "actual_raw_container_image_preserves_requested_tiles_regions_origins_and_selected_limits"},
+        {"path": "src/decode/container_image_result_tests.rs", "symbol": "actual_raw_container_image_applies_complete_palette_mapping_and_channel_definitions"},
+        {"path": "src/decode/container_image_result_tests.rs", "symbol": "actual_raw_container_image_jph_keeps_cleanup_refinement_signedness_and_public_selection"},
+        {"path": "src/decode/container_image_result_tests.rs", "symbol": "actual_raw_container_image_preserves_raw_parse_selection_and_packet_first_errors"},
+        {"path": "src/decode/container_image_result_tests.rs", "symbol": "actual_raw_container_image_checks_inspection_before_brand_count_and_backend"}
+      ]
+    },
+    {
       "id": "part2-complete-native-public-raw-composition-result",
       "topic": "Complete actual public raw render_jpx_composition image/error Result from actual bytes/options limits through raw container/info/admission/inspection and real frame/layer/canvas producers. Timeline-first branch retained; non-timeline fallback derives dimensions, each decoded placement and all sample/alpha/geometry/error fields without supplied decoded-success banks. Complete extent overflow/zero/width/height/pixel priority and first layer error preserved. Native owners/calls/code unchanged; public boundary uses existing inventory pattern. Selected/progressive/JPIP, normative/cfg/lifetime/release remain separate.",
       "implementation_refs": [
