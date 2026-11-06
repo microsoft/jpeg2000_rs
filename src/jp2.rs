@@ -255,7 +255,8 @@ pub struct ChannelDefinitionRecord {
 #[cfg_attr(verus_keep_ghost, verifier::verify)]
 mod box_reader;
 use box_reader::{
-    add_offset, byte_at_checked, read_box_type_at, read_u16, read_u32, rebase_error, required_box,
+    add_offset, box_reader_from_input, box_type_from_bytes, byte_at_checked, read_box_type_at,
+    read_u16, read_u32, rebase_error, required_box,
 };
 #[cfg_attr(verus_keep_ghost, verifier::verify)]
 mod color;

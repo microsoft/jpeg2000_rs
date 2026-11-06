@@ -4,6 +4,95 @@
   "scope": "Technical reference inventory; not exhaustive standards-clause coverage or a conformance claim.",
   "requirements": [
     {
+      "id": "part2-complete-native-raw-file-type-result",
+      "topic": "Complete actual raw file-type payload and JP2/JPX/JPH profile Results: checked payload offset/length, compatible-brand count before duplicates, every ordered native brand, minor version and exact profile error offsets. The actual public parse prologue has a checked prefix-error/returned-file-type relation using actual shared reader/signature/ftyp/profile producers; this is not complete later container parsing. No parsed-file/result bank, successful-parser premise or owner inversion. Primary brand and parser reader initialization add explicit shared-producer call targets, to qualify separately with prior extraction/debug differences. Native owning declarations/error/loop order are preserved. Later headers/associations/layers/composition/terminal/public/normative/cfg/erasure/lifetimes/release remain separate.",
+      "implementation_refs": [
+        {"path": "src/jp2/container.rs", "symbol": "parse_file_type"},
+        {"path": "src/jp2/container.rs", "symbol": "validate_file_type_profile"},
+        {"path": "src/jp2/container.rs", "symbol": "parse"},
+        {"path": "src/jp2/box_reader.rs", "symbol": "box_reader_from_input"},
+        {"path": "src/jp2/box_reader.rs", "symbol": "box_type_from_bytes"}
+      ],
+      "spec_refs": [
+        {"path": "specs/jp2_file_type.rs", "symbol": "part2_parse_file_type"},
+        {"path": "specs/jp2_file_type.rs", "symbol": "part2_file_type_brand_at"},
+        {"path": "specs/jp2_file_type.rs", "symbol": "part2_file_type_brands_prefix"},
+        {"path": "specs/jp2_file_type.rs", "symbol": "part2_validate_file_type_profile"},
+        {"path": "specs/jp2_file_type.rs", "symbol": "part2_container_prologue"}
+      ],
+      "contract_refs": [
+        {"path": "src/jp2/container.rs", "symbol": "parse_file_type"},
+        {"path": "src/jp2/container.rs", "symbol": "validate_file_type_profile"}
+      ],
+      "proof_refs": [
+        {"path": "specs/jp2_file_type.rs", "symbol": "part2_file_type_brands_step"},
+        {"path": "specs/jp2_file_type.rs", "symbol": "part2_file_type_brands_error"},
+        {"path": "src/jp2/proof_support.rs", "symbol": "file_type_view"},
+        {"path": "src/jp2/proof_support.rs", "symbol": "file_type_outcome"},
+        {"path": "src/jp2/proof_support.rs", "symbol": "container_prefix_relation"}
+      ],
+      "test_refs": [
+        {"path": "src/jp2/tests.rs", "symbol": "actual_raw_file_type_preserves_primary_minor_and_every_ordered_compatible_brand"},
+        {"path": "src/jp2/tests.rs", "symbol": "actual_raw_file_type_keeps_length_then_count_then_ordered_duplicate_error_priority"},
+        {"path": "src/jp2/tests.rs", "symbol": "actual_raw_file_type_retains_exact_jp2_jpx_jph_profile_admission_and_error_offsets"},
+        {"path": "src/jp2/tests.rs", "symbol": "actual_raw_file_type_checks_header_offset_first_and_preserves_unread_header_fields"},
+        {"path": "src/jp2/tests.rs", "symbol": "actual_container_prologue_keeps_input_work_metadata_and_signature_error_priority"},
+        {"path": "src/jp2/tests.rs", "symbol": "actual_container_prologue_keeps_box_order_length_brand_limit_and_duplicate_error_priority"},
+        {"path": "src/jp2/tests.rs", "symbol": "actual_container_prologue_preserves_profile_priority_and_complete_returned_file_type"}
+      ]
+    },
+    {
+      "id": "part2-complete-native-raw-box-reader-result",
+      "topic": "Complete actual private next_box/public next_box_ref Results and full native input/limits/position/metadata/work/failed mutation/error frames over arbitrary reader states. Preserve fixed/extended/toend lengths, exact header/payload contents and input reference, ordered arithmetic/bounds/resource errors, pre-error counter commits, codestream metadata bypass including pre-existing over-limit metadata, EOF and sticky public failure. Actual shared input initialization, required-box and bounded type-byte companions are contracted; header/offset/byte/rebase/integer companions are also computationally complete. No box/payload success bank, owner reconstruction or valid-reader premise. Static constructor macro limitations require one actual shared Copy type producer and borrowed reader initializer with legacy public new wrappers delegating, plus two verified type-producer call targets; no invented public associated contract. Native constructor/body/call/debug differences require explicit qualification, not blanket identity. Seven traversal error closures are checked; two wildcard integer-error args are named unused Copy_error for pinned support. No alternate decoder/trust/pin/cap/flag change; whole container/parser/inspection/public/normative/cfg/erasure/lifetimes/release remain separate.",
+      "implementation_refs": [
+        {"path": "src/jp2/box_reader.rs", "symbol": "BoxReader::next_box_ref"},
+        {"path": "src/jp2/box_reader.rs", "symbol": "BoxReader::next_box"},
+        {"path": "src/jp2/box_reader.rs", "symbol": "BoxReader::new"},
+        {"path": "src/jp2/box_reader.rs", "symbol": "BoxType::new"},
+        {"path": "src/jp2/box_reader.rs", "symbol": "box_reader_from_input"},
+        {"path": "src/jp2/box_reader.rs", "symbol": "box_type_from_bytes"},
+        {"path": "src/jp2/box_reader.rs", "symbol": "required_box"},
+        {"path": "src/jp2/box_reader.rs", "symbol": "read_box_type_at"},
+        {"path": "src/jp2/container.rs", "symbol": "parse"},
+        {"path": "src/jp2/container.rs", "symbol": "parse_file_type"}
+      ],
+      "spec_refs": [
+        {"path": "specs/jp2_box_reader.rs", "symbol": "part2_box_reader_from_input"},
+        {"path": "specs/jp2_box_reader.rs", "symbol": "part2_box_reader_next"},
+        {"path": "specs/jp2_box_reader.rs", "symbol": "part2_box_reader_next_ref"},
+        {"path": "specs/jp2_box_reader.rs", "symbol": "part2_box_reader_after_work"},
+        {"path": "specs/jp2_box_reader.rs", "symbol": "part2_box_reader_after_header"},
+        {"path": "specs/jp2_box_reader.rs", "symbol": "part2_box_reader_required"},
+        {"path": "specs/jp2_box_reader.rs", "symbol": "part2_box_type_at"},
+        {"path": "specs/jp2_box_reader.rs", "symbol": "part2_box_u32"},
+        {"path": "specs/jp2_box_reader.rs", "symbol": "part2_box_u64"}
+      ],
+      "contract_refs": [
+        {"path": "src/jp2/box_reader.rs", "symbol": "BoxReader::next_box_ref"},
+        {"path": "src/jp2/box_reader.rs", "symbol": "BoxReader::next_box"},
+        {"path": "src/jp2/box_reader.rs", "symbol": "box_reader_from_input"},
+        {"path": "src/jp2/box_reader.rs", "symbol": "required_box"},
+        {"path": "src/jp2/box_reader.rs", "symbol": "read_box_type_at"}
+      ],
+      "proof_refs": [
+        {"path": "src/jp2/proof_support.rs", "symbol": "box_reader_state"},
+        {"path": "src/jp2/proof_support.rs", "symbol": "box_reader_input_reference"},
+        {"path": "src/jp2/proof_support.rs", "symbol": "box_header_view"},
+        {"path": "src/jp2/proof_support.rs", "symbol": "box_reference_view"},
+        {"path": "src/jp2/proof_support.rs", "symbol": "box_read_outcome"},
+        {"path": "src/jp2/proof_support.rs", "symbol": "box_ref_outcome"},
+        {"path": "src/jp2/proof_support.rs", "symbol": "box_reader_outcome"},
+        {"path": "src/jp2/proof_support.rs", "symbol": "required_box_outcome"},
+        {"path": "src/jp2/proof_support.rs", "symbol": "box_type_from_bytes_model"}
+      ],
+      "test_refs": [
+        {"path": "src/jp2/tests.rs", "symbol": "actual_raw_box_reader_retains_fixed_extended_to_end_headers_payload_borrows_and_charges"},
+        {"path": "src/jp2/tests.rs", "symbol": "actual_raw_box_reader_preserves_literal_length_truncation_overflow_and_sticky_error_order"},
+        {"path": "src/jp2/tests.rs", "symbol": "actual_raw_box_reader_preserves_every_resource_and_arbitrary_counter_error_frame"},
+        {"path": "src/jp2/tests.rs", "symbol": "actual_raw_box_reader_shared_initialization_and_copy_type_constructor_match_literal_inputs"}
+      ]
+    },
+    {
       "id": "part2-complete-native-parsed-file-inspection-result",
       "topic": "Complete actual inspect_file Result over its native parsed-file/CodestreamInfo-slice/limits inputs: every implicit/declared layer field, ordered source/registration/minimum geometry, actual build_timeline output and checked duration/instruction-set/complete composition/frame/metadata fields, including exact early errors. The native info slice is an input to this computational producer, not a claim that arbitrary infos derive from source bytes; actual upstream info/container/public composition remains separate. Only immutable geometry actually read is projected; no owner reconstructed from logical contents and no success/validity premise. Full native borrowed-layer/composition metadata and profile/effective-count helpers are checked. Three existing map_err closures receive checked constant-error contracts; the pinned parser rejects wildcard arguments, requiring three named unused Copy TryFromIntError arguments. Executing statements, closure bodies, owners and helper placement remain; possible Copy debug-binding differences must be explicitly audited, not labeled blanket coordinate-only identity. Native regressions derive input infos through real byte parsing. Normative/cfg/erasure/lifetimes/release remain independent.",
       "implementation_refs": [

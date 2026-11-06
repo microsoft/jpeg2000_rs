@@ -22,6 +22,8 @@ specs/README.md
 specs/codestream_profile.rs
 specs/decoder_input.rs
 specs/header.rs
+specs/jp2_box_reader.rs
+specs/jp2_file_type.rs
 specs/jpx_dispatch.rs
 specs/jpx_frame.rs
 specs/jpx_general.rs

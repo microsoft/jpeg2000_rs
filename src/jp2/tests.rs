@@ -1,11 +1,622 @@
 use super::*;
 
+type RawBoxReaderSnapshot = (usize, u64, u64, bool, ResourceLimits);
+
+fn raw_box_reader_snapshot(reader: &BoxReader<'_>) -> RawBoxReaderSnapshot {
+    (
+        reader.position,
+        reader.metadata_bytes,
+        reader.work_units,
+        reader.failed,
+        reader.limits,
+    )
+}
+
+#[test]
+fn actual_raw_box_reader_retains_fixed_extended_to_end_headers_payload_borrows_and_charges() {
+    let limits = ResourceLimits::default();
+    let mut bytes = box32(*b"xml ", &[1, 2, 3]);
+    bytes.extend_from_slice(&1_u32.to_be_bytes());
+    bytes.extend_from_slice(b"jp2c");
+    bytes.extend_from_slice(&18_u64.to_be_bytes());
+    bytes.extend_from_slice(&[4, 5]);
+    bytes.extend_from_slice(&0_u32.to_be_bytes());
+    bytes.extend_from_slice(b"free");
+    bytes.extend_from_slice(&[6, 7, 8, 9]);
+    let mut reader = BoxReader::new(&bytes, &limits).unwrap();
+    for (offset, header_length, total_length, kind, payload) in [
+        (0, 8, 11, *b"xml ", &bytes[8..11]),
+        (11, 16, 18, *b"jp2c", &bytes[27..29]),
+        (29, 8, 12, *b"free", &bytes[37..41]),
+    ] {
+        let value = reader.next_box_ref().unwrap().unwrap();
+        assert_eq!(value.header.box_type().bytes(), kind);
+        assert_eq!(value.header.offset(), offset);
+        assert_eq!(value.header.header_length(), header_length);
+        assert_eq!(value.header.total_length(), total_length);
+        assert_eq!(
+            value.header.payload_offset().unwrap(),
+            offset + header_length
+        );
+        assert_eq!(
+            value.header.payload_length().unwrap(),
+            total_length - header_length
+        );
+        assert_eq!(value.payload, payload);
+        assert!(std::ptr::eq(value.payload, payload));
+        assert!(std::ptr::eq(reader.input, bytes.as_slice()));
+        assert_eq!(reader.limits, limits);
+    }
+    assert_eq!(raw_box_reader_snapshot(&reader), (41, 23, 3, false, limits));
+    let complete = raw_box_reader_snapshot(&reader);
+    for _ in 0..3 {
+        assert!(reader.next_box_ref().is_none());
+        assert_eq!(raw_box_reader_snapshot(&reader), complete);
+    }
+}
+
+#[test]
+fn actual_raw_box_reader_preserves_literal_length_truncation_overflow_and_sticky_error_order() {
+    let limits = ResourceLimits::default();
+    let check = |bytes: &[u8], kind| {
+        let mut reader = BoxReader::new(bytes, &limits).unwrap();
+        assert_eq!(
+            reader.next_box_ref().unwrap().err(),
+            Some(DecodeError::MalformedInput { offset: 0, kind })
+        );
+        assert_eq!(raw_box_reader_snapshot(&reader), (0, 0, 1, true, limits));
+        let failed = raw_box_reader_snapshot(&reader);
+        assert!(reader.next_box_ref().is_none());
+        assert_eq!(raw_box_reader_snapshot(&reader), failed);
+    };
+    for length in 1..8 {
+        check(&vec![0xaa; length], MalformedKind::Truncated);
+    }
+    for length in 2_u32..8 {
+        let mut bytes = length.to_be_bytes().to_vec();
+        bytes.extend_from_slice(b"free");
+        check(&bytes, MalformedKind::InvalidBoxLength);
+    }
+    for length in 8..16 {
+        let mut bytes = vec![0; length];
+        bytes[..4].copy_from_slice(&1_u32.to_be_bytes());
+        bytes[4..8].copy_from_slice(b"free");
+        check(&bytes, MalformedKind::Truncated);
+    }
+    for total in 0_u64..16 {
+        let mut bytes = 1_u32.to_be_bytes().to_vec();
+        bytes.extend_from_slice(b"free");
+        bytes.extend_from_slice(&total.to_be_bytes());
+        check(&bytes, MalformedKind::InvalidBoxLength);
+    }
+    let mut bytes = 12_u32.to_be_bytes().to_vec();
+    bytes.extend_from_slice(b"free");
+    check(&bytes, MalformedKind::Truncated);
+    let mut bytes = box32(*b"free", &[]);
+    bytes.extend_from_slice(&1_u32.to_be_bytes());
+    bytes.extend_from_slice(b"free");
+    bytes.extend_from_slice(&u64::MAX.to_be_bytes());
+    let mut reader = BoxReader::new(&bytes, &limits).unwrap();
+    reader.next_box_ref().unwrap().unwrap();
+    let kind = if usize::BITS == 64 {
+        MalformedKind::ArithmeticOverflow
+    } else {
+        MalformedKind::InvalidBoxLength
+    };
+    assert_eq!(
+        reader.next_box_ref().unwrap().err(),
+        Some(DecodeError::MalformedInput { offset: 8, kind })
+    );
+    assert_eq!(raw_box_reader_snapshot(&reader), (8, 8, 2, true, limits));
+}
+
+#[test]
+fn actual_raw_box_reader_preserves_every_resource_and_arbitrary_counter_error_frame() {
+    let bytes = box32(*b"free", &[]);
+    let base = ResourceLimits::default();
+    for (limits, expected, metadata) in [
+        (
+            base.with_maximum_work_units(0).unwrap(),
+            DecodeError::LimitExceeded {
+                resource: Resource::WorkUnits,
+                limit: 0,
+                actual: 1,
+            },
+            0,
+        ),
+        (
+            base.with_maximum_metadata_bytes(7).unwrap(),
+            DecodeError::LimitExceeded {
+                resource: Resource::MetadataBytes,
+                limit: 7,
+                actual: 8,
+            },
+            8,
+        ),
+    ] {
+        let mut reader = BoxReader::new(&bytes, &limits).unwrap();
+        assert_eq!(reader.next_box_ref().unwrap().err(), Some(expected));
+        assert_eq!(
+            raw_box_reader_snapshot(&reader),
+            (0, metadata, 1, true, limits)
+        );
+    }
+    for (position, metadata_bytes, work_units, failed) in [
+        (0, 0, u64::MAX, false),
+        (0, u64::MAX, 0, false),
+        (usize::MAX, 0, 0, false),
+        (usize::MAX, u64::MAX, u64::MAX, true),
+    ] {
+        let mut reader = BoxReader {
+            input: &bytes,
+            limits: base,
+            position,
+            metadata_bytes,
+            work_units,
+            failed,
+        };
+        if failed {
+            let before = raw_box_reader_snapshot(&reader);
+            assert!(reader.next_box_ref().is_none());
+            assert_eq!(raw_box_reader_snapshot(&reader), before);
+        } else {
+            assert_eq!(
+                reader.next_box_ref().unwrap().err(),
+                Some(DecodeError::MalformedInput {
+                    offset: position as u64,
+                    kind: MalformedKind::ArithmeticOverflow
+                })
+            );
+            assert_eq!(
+                raw_box_reader_snapshot(&reader),
+                (
+                    position,
+                    metadata_bytes,
+                    work_units.saturating_add(1),
+                    true,
+                    base
+                )
+            );
+        }
+        assert!(std::ptr::eq(reader.input, bytes.as_slice()));
+    }
+    let bytes = box32(*b"jp2c", &[]);
+    let limits = base.with_maximum_metadata_bytes(0).unwrap();
+    let mut reader = BoxReader {
+        input: &bytes,
+        limits,
+        position: 0,
+        metadata_bytes: u64::MAX,
+        work_units: 0,
+        failed: false,
+    };
+    assert!(reader.next_box_ref().unwrap().is_ok());
+    assert_eq!(
+        raw_box_reader_snapshot(&reader),
+        (8, u64::MAX, 1, false, limits)
+    );
+}
+
+#[test]
+fn actual_raw_box_reader_shared_initialization_and_copy_type_constructor_match_literal_inputs() {
+    let limits = ResourceLimits::default();
+    for bytes in [
+        [0; 4],
+        [u8::MAX; 4],
+        *b"jp2c",
+        *b"xml ",
+        [0x80, 1, 0xfe, 0x7f],
+    ] {
+        let kind = super::box_reader::box_type_from_bytes(bytes);
+        assert_eq!(kind.0, u32::from_be_bytes(bytes));
+        assert_eq!(kind.bytes(), bytes);
+        assert_eq!(kind, BoxType::new(bytes));
+        assert_eq!(
+            super::box_reader::read_u32(bytes),
+            u32::from_be_bytes(bytes)
+        );
+    }
+    let bytes = box32(*b"free", &[1, 2, 3, 4]);
+    let reader = super::box_reader::box_reader_from_input(&bytes, &limits).unwrap();
+    assert_eq!(raw_box_reader_snapshot(&reader), (0, 0, 0, false, limits));
+    assert!(std::ptr::eq(reader.input, bytes.as_slice()));
+    let limited = limits.with_maximum_input_bytes(0).unwrap();
+    for result in [
+        BoxReader::new(&bytes, &limited),
+        super::box_reader::box_reader_from_input(&bytes, &limited),
+    ] {
+        assert_eq!(
+            result.err(),
+            Some(DecodeError::LimitExceeded {
+                resource: Resource::InputBytes,
+                limit: 0,
+                actual: 12,
+            })
+        );
+    }
+    let mut empty = BoxReader::new(&[], &limits).unwrap();
+    assert!(empty.next_box_ref().is_none());
+    assert_eq!(raw_box_reader_snapshot(&empty), (0, 0, 0, false, limits));
+    assert_eq!(
+        required_box(&mut empty, 91).err(),
+        Some(DecodeError::MalformedInput {
+            offset: 91,
+            kind: MalformedKind::MissingRequiredStructure,
+        })
+    );
+    assert_eq!(raw_box_reader_snapshot(&empty), (0, 0, 0, false, limits));
+    assert_eq!(byte_at_checked(&[1, 2, 3], 1, 1, 91), Ok(3));
+    assert_eq!(
+        byte_at_checked(&[], usize::MAX, 1, 91),
+        Err(DecodeError::MalformedInput {
+            offset: 91,
+            kind: MalformedKind::ArithmeticOverflow
+        })
+    );
+    assert_eq!(
+        byte_at_checked(&[], 0, 0, 91),
+        Err(DecodeError::MalformedInput {
+            offset: 91,
+            kind: MalformedKind::InvalidBoxLength
+        })
+    );
+    assert_eq!(add_offset(17, 25), Ok(42));
+    assert_eq!(
+        add_offset(u64::MAX, 1),
+        Err(DecodeError::MalformedInput {
+            offset: u64::MAX,
+            kind: MalformedKind::ArithmeticOverflow
+        })
+    );
+    let malformed = DecodeError::MalformedInput {
+        offset: 25,
+        kind: MalformedKind::Truncated,
+    };
+    assert_eq!(
+        rebase_error(malformed, 17),
+        DecodeError::MalformedInput {
+            offset: 42,
+            kind: MalformedKind::Truncated
+        }
+    );
+    assert_eq!(
+        rebase_error(malformed, u64::MAX),
+        DecodeError::MalformedInput {
+            offset: u64::MAX,
+            kind: MalformedKind::ArithmeticOverflow
+        }
+    );
+    let limit_error = DecodeError::LimitExceeded {
+        resource: Resource::MetadataBytes,
+        limit: 1,
+        actual: 2,
+    };
+    assert_eq!(rebase_error(limit_error, u64::MAX), limit_error);
+    assert_eq!(
+        read_box_type_at(b"!jp2c", 1, 91),
+        Ok(BoxType::CONTIGUOUS_CODESTREAM)
+    );
+    assert_eq!(
+        read_box_type_at(&[], usize::MAX - 1, 91),
+        Err(DecodeError::MalformedInput {
+            offset: 91,
+            kind: MalformedKind::ArithmeticOverflow
+        })
+    );
+    assert_eq!(
+        read_box_type_at(b"abc", 0, 91),
+        Err(DecodeError::MalformedInput {
+            offset: 91,
+            kind: MalformedKind::InvalidBoxLength
+        })
+    );
+    let bad_header = BoxHeader {
+        box_type: BoxType::JP2_HEADER,
+        offset: u64::MAX,
+        header_length: 16,
+        total_length: 8,
+    };
+    assert_eq!(
+        bad_header.payload_offset(),
+        Err(DecodeError::MalformedInput {
+            offset: u64::MAX,
+            kind: MalformedKind::ArithmeticOverflow
+        })
+    );
+    assert_eq!(
+        bad_header.payload_length(),
+        Err(DecodeError::MalformedInput {
+            offset: u64::MAX,
+            kind: MalformedKind::InvalidBoxLength
+        })
+    );
+}
+
 fn box32(box_type: [u8; 4], payload: &[u8]) -> Vec<u8> {
     let length = u32::try_from(8 + payload.len()).unwrap();
     let mut bytes = length.to_be_bytes().to_vec();
     bytes.extend_from_slice(&box_type);
     bytes.extend_from_slice(payload);
     bytes
+}
+
+fn raw_file_type_box(payload: &[u8], offset: u64) -> BoxRef<'_> {
+    BoxRef {
+        header: BoxHeader {
+            box_type: BoxType::FILE_TYPE,
+            offset,
+            header_length: 8,
+            total_length: payload.len() as u64 + 8,
+        },
+        payload,
+    }
+}
+
+fn raw_file_type_payload(primary: [u8; 4], minor: u32, brands: &[[u8; 4]]) -> Vec<u8> {
+    let mut payload = primary.to_vec();
+    payload.extend_from_slice(&minor.to_be_bytes());
+    for brand in brands {
+        payload.extend_from_slice(brand);
+    }
+    payload
+}
+
+#[test]
+fn actual_raw_file_type_preserves_primary_minor_and_every_ordered_compatible_brand() {
+    let limits = ResourceLimits::default();
+    for minor in [0, 0x1234_5678, u32::MAX] {
+        let payload = raw_file_type_payload(*b"jp2 ", minor, &[*b"jp2 ", *b"jpx ", *b"jph "]);
+        let value =
+            super::container::parse_file_type(raw_file_type_box(&payload, 19), &limits).unwrap();
+        assert_eq!(value.brand, BoxType::JP2_BRAND);
+        assert_eq!(value.minor_version, minor);
+        assert_eq!(
+            value.compatible_brands(),
+            &[BoxType::JP2_BRAND, BoxType::JPX_BRAND, BoxType::JPH_BRAND]
+        );
+        assert!(value.is_jpx_compatible());
+        assert!(value.is_jph_compatible());
+    }
+}
+
+#[test]
+fn actual_raw_file_type_keeps_length_then_count_then_ordered_duplicate_error_priority() {
+    let limits = ResourceLimits::default();
+    for length in (0..8).chain(9..12) {
+        let payload = vec![0; length];
+        assert_eq!(
+            super::container::parse_file_type(raw_file_type_box(&payload, 19), &limits).err(),
+            Some(DecodeError::MalformedInput {
+                offset: 27,
+                kind: MalformedKind::InvalidBoxLength
+            })
+        );
+    }
+    for brands in [vec![*b"jp2 ", *b"jp2 "], vec![*b"jpx ", *b"jp2 ", *b"jpx "]] {
+        let payload = raw_file_type_payload(*b"jp2 ", 0, &brands);
+        let limited = limits.with_maximum_compatible_brands(1).unwrap();
+        assert_eq!(
+            super::container::parse_file_type(raw_file_type_box(&payload, 19), &limited).err(),
+            Some(DecodeError::LimitExceeded {
+                resource: Resource::CompatibleBrands,
+                limit: 1,
+                actual: brands.len() as u64
+            })
+        );
+        assert_eq!(
+            super::container::parse_file_type(raw_file_type_box(&payload, 19), &limits).err(),
+            Some(DecodeError::MalformedInput {
+                offset: 27,
+                kind: MalformedKind::InvalidBoxContents
+            })
+        );
+    }
+}
+
+#[test]
+fn actual_raw_file_type_retains_exact_jp2_jpx_jph_profile_admission_and_error_offsets() {
+    let limits = ResourceLimits::default();
+    let cases = [
+        (*b"jp2 ", 0, vec![*b"jp2 "], None),
+        (
+            *b"jp2 ",
+            0,
+            vec![*b"jpx "],
+            Some(MalformedKind::InvalidFileType),
+        ),
+        (*b"jph ", 0, vec![*b"jph "], None),
+        (
+            *b"jph ",
+            1,
+            vec![*b"jph "],
+            Some(MalformedKind::InvalidProfile),
+        ),
+        (*b"jph ", 0, vec![], Some(MalformedKind::InvalidProfile)),
+        (
+            *b"jpx ",
+            0,
+            vec![*b"jph "],
+            Some(MalformedKind::InvalidProfile),
+        ),
+        (
+            *b"jp2 ",
+            0,
+            vec![*b"jph ", *b"jpx "],
+            Some(MalformedKind::InvalidFileType),
+        ),
+        (*b"test", u32::MAX, vec![], None),
+    ];
+    for (primary, minor, brands, error) in cases {
+        let payload = raw_file_type_payload(primary, minor, &brands);
+        let file_type =
+            super::container::parse_file_type(raw_file_type_box(&payload, 19), &limits).unwrap();
+        assert_eq!(
+            super::container::validate_file_type_profile(&file_type, 91).err(),
+            error.map(|kind| DecodeError::MalformedInput { offset: 91, kind })
+        );
+    }
+}
+
+#[test]
+fn actual_raw_file_type_checks_header_offset_first_and_preserves_unread_header_fields() {
+    let limits = ResourceLimits::default();
+    let reference = raw_file_type_box(&[], u64::MAX);
+    assert_eq!(
+        super::container::parse_file_type(reference, &limits).err(),
+        Some(DecodeError::MalformedInput {
+            offset: u64::MAX,
+            kind: MalformedKind::ArithmeticOverflow
+        })
+    );
+    let payload = raw_file_type_payload(*b"jp2 ", 17, &[]);
+    let mut reference = raw_file_type_box(&payload, 19);
+    reference.header.total_length = 0;
+    reference.header.box_type = BoxType::COLOR_SPECIFICATION;
+    let no_brands = limits.with_maximum_compatible_brands(0).unwrap();
+    let value = super::container::parse_file_type(reference, &no_brands).unwrap();
+    assert_eq!(
+        (value.brand, value.minor_version, value.compatible_brands()),
+        (BoxType::JP2_BRAND, 17, &[][..])
+    );
+    assert_eq!(reference.header.total_length(), 0);
+    assert!(std::ptr::eq(reference.payload, payload.as_slice()));
+}
+
+#[test]
+fn actual_container_prologue_keeps_input_work_metadata_and_signature_error_priority() {
+    let limits = ResourceLimits::default();
+    let bad = box32(*b"free", &[1, 2, 3, 4]);
+    for (limits, expected) in [
+        (
+            limits.with_maximum_input_bytes(0).unwrap(),
+            DecodeError::LimitExceeded {
+                resource: Resource::InputBytes,
+                limit: 0,
+                actual: 12,
+            },
+        ),
+        (
+            limits.with_maximum_work_units(0).unwrap(),
+            DecodeError::LimitExceeded {
+                resource: Resource::WorkUnits,
+                limit: 0,
+                actual: 1,
+            },
+        ),
+        (
+            limits.with_maximum_metadata_bytes(7).unwrap(),
+            DecodeError::LimitExceeded {
+                resource: Resource::MetadataBytes,
+                limit: 7,
+                actual: 12,
+            },
+        ),
+        (
+            limits,
+            DecodeError::MalformedInput {
+                offset: 0,
+                kind: MalformedKind::InvalidSignature,
+            },
+        ),
+    ] {
+        assert_eq!(parse(&bad, &limits).err(), Some(expected));
+    }
+    let signature = box32(*b"jP  ", &SIGNATURE_MAGIC);
+    assert_eq!(
+        parse(&signature, &limits).err(),
+        Some(DecodeError::MalformedInput {
+            offset: 1,
+            kind: MalformedKind::MissingRequiredStructure
+        })
+    );
+}
+
+#[test]
+fn actual_container_prologue_keeps_box_order_length_brand_limit_and_duplicate_error_priority() {
+    let limits = ResourceLimits::default();
+    let signature = box32(*b"jP  ", &SIGNATURE_MAGIC);
+    let mut wrong = signature.clone();
+    wrong.extend(box32(*b"colr", &[]));
+    assert_eq!(
+        parse(&wrong, &limits).err(),
+        Some(DecodeError::MalformedInput {
+            offset: 12,
+            kind: MalformedKind::InvalidBoxOrder
+        })
+    );
+    let mut short = signature.clone();
+    short.extend(box32(*b"ftyp", b"abc"));
+    assert_eq!(
+        parse(&short, &limits).err(),
+        Some(DecodeError::MalformedInput {
+            offset: 20,
+            kind: MalformedKind::InvalidBoxLength
+        })
+    );
+    let mut duplicates = signature;
+    duplicates.extend(box32(
+        *b"ftyp",
+        &raw_file_type_payload(*b"jp2 ", 0, &[*b"jp2 ", *b"jp2 "]),
+    ));
+    let one_brand = limits.with_maximum_compatible_brands(1).unwrap();
+    assert_eq!(
+        parse(&duplicates, &one_brand).err(),
+        Some(DecodeError::LimitExceeded {
+            resource: Resource::CompatibleBrands,
+            limit: 1,
+            actual: 2
+        })
+    );
+    assert_eq!(
+        parse(&duplicates, &limits).err(),
+        Some(DecodeError::MalformedInput {
+            offset: 20,
+            kind: MalformedKind::InvalidBoxContents
+        })
+    );
+}
+
+#[test]
+fn actual_container_prologue_preserves_profile_priority_and_complete_returned_file_type() {
+    let limits = ResourceLimits::default();
+    let mut conflict = box32(*b"jP  ", &SIGNATURE_MAGIC);
+    conflict.extend(box32(
+        *b"ftyp",
+        &raw_file_type_payload(*b"jp2 ", 0, &[*b"jpx "]),
+    ));
+    assert_eq!(
+        parse(&conflict, &limits).err(),
+        Some(DecodeError::MalformedInput {
+            offset: 12,
+            kind: MalformedKind::InvalidFileType
+        })
+    );
+    let mut unknown = box32(*b"jP  ", &SIGNATURE_MAGIC);
+    unknown.extend(box32(*b"ftyp", &raw_file_type_payload(*b"test", 0, &[])));
+    assert_eq!(
+        parse(&unknown, &limits).err(),
+        Some(DecodeError::UnsupportedProfile {
+            feature: "unrecognized JPEG 2000 file brand"
+        })
+    );
+    let mut valid = box32(*b"jP  ", &SIGNATURE_MAGIC);
+    valid.extend(box32(
+        *b"ftyp",
+        &raw_file_type_payload(*b"jp2 ", 17, &[*b"jp2 "]),
+    ));
+    assert_eq!(
+        parse(&valid, &limits).err(),
+        Some(DecodeError::MalformedInput {
+            offset: 0,
+            kind: MalformedKind::MissingRequiredStructure
+        })
+    );
+    valid.extend(box32(*b"jp2h", &image_header_box(1, 1)));
+    valid.extend(box32(*b"jp2c", &valid_codestream(1, 1)));
+    let parsed = parse(&valid, &limits).unwrap();
+    assert_eq!(parsed.file_type.brand, BoxType::JP2_BRAND);
+    assert_eq!(parsed.file_type.minor_version, 17);
+    assert_eq!(parsed.file_type.compatible_brands(), &[BoxType::JP2_BRAND]);
 }
 
 fn marker_segment(marker: u16, payload: &[u8]) -> Vec<u8> {

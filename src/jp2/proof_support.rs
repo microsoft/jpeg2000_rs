@@ -1,5 +1,52 @@
 #[cfg(verus_keep_ghost)]
 verus! {
+    pub closed spec fn box_type_from_bytes_model(bytes: [u8; 4]) -> BoxType {
+        BoxType(crate::specs::part2_box_u32(bytes))
+    }
+
+    pub closed spec fn box_reader_state(reader: &BoxReader) -> crate::specs::Part2BoxReaderState {
+        crate::specs::Part2BoxReaderState {
+            input: reader.input@, limits: reader.limits, position: reader.position,
+            metadata_bytes: reader.metadata_bytes, work_units: reader.work_units, failed: reader.failed,
+        }
+    }
+
+    pub closed spec fn box_reader_input_reference<'a>(reader: &BoxReader<'a>) -> &'a [u8] {
+        reader.input
+    }
+
+    pub closed spec fn box_header_view(header: BoxHeader) -> crate::specs::Part2BoxHeader {
+        (header.box_type, header.offset, header.header_length, header.total_length)
+    }
+
+    pub open spec fn box_reference_view(value: BoxRef) -> crate::specs::Part2BoxReference {
+        (box_header_view(value.header), value.payload@)
+    }
+
+    pub open spec fn box_read_outcome(result: Result<Option<BoxRef>, DecodeError>)
+        -> Result<Option<crate::specs::Part2BoxReference>, DecodeError>
+    {
+        match result { Err(error) => Err(error), Ok(None) => Ok(None), Ok(Some(value)) => Ok(Some(box_reference_view(value))) }
+    }
+
+    pub open spec fn required_box_outcome(result: Result<BoxRef, DecodeError>)
+        -> Result<crate::specs::Part2BoxReference, DecodeError>
+    {
+        match result { Err(error) => Err(error), Ok(value) => Ok(box_reference_view(value)) }
+    }
+
+    pub open spec fn box_ref_outcome(result: Option<Result<BoxRef, DecodeError>>)
+        -> Option<Result<crate::specs::Part2BoxReference, DecodeError>>
+    {
+        match result { None => None, Some(Err(error)) => Some(Err(error)), Some(Ok(value)) => Some(Ok(box_reference_view(value))) }
+    }
+
+    pub open spec fn box_reader_outcome(result: Result<BoxReader, DecodeError>)
+        -> Result<crate::specs::Part2BoxReaderState, DecodeError>
+    {
+        match result { Err(error) => Err(error), Ok(reader) => Ok(box_reader_state(&reader)) }
+    }
+
     pub open spec fn source_opacity_value_view(value: &LayerOpacity) -> crate::specs::Part2SourceOpacity {
         match value {
             LayerOpacity::Straight => crate::specs::Part2SourceOpacity::Straight,
@@ -127,6 +174,22 @@ verus! {
 
     pub closed spec fn file_type_view(file_type: &FileType) -> crate::specs::Part2FileType {
         (file_type.brand, file_type.minor_version, file_type.compatible_brands@)
+    }
+
+    pub open spec fn file_type_outcome(result: Result<FileType, DecodeError>)
+        -> Result<crate::specs::Part2FileType, DecodeError>
+    {
+        match result { Err(error) => Err(error), Ok(value) => Ok(file_type_view(&value)) }
+    }
+
+    pub open spec fn container_prefix_relation(
+        result: Result<Jp2File, DecodeError>,
+        prefix: Result<(crate::specs::Part2FileType, crate::specs::Part2BoxReaderState), DecodeError>,
+    ) -> bool {
+        match prefix {
+            Err(error) => match result { Err(actual) => actual == error, Ok(_) => false },
+            Ok(value) => match result { Err(_) => true, Ok(file) => jpx_file_decode_view(&file).0 == value.0 },
+        }
     }
 
     pub closed spec fn box_header_offset(header: BoxHeader) -> u64 {

@@ -179,6 +179,60 @@ technical candidate only: parent-owned record, review, CI, guarded integration
 and actual-main acceptance remain separate. No complete parsing, pixels,
 lifetime verification, normative conformance or publication claim follows.
 
+## Actual raw file-type Result and public parser prologue
+
+The actual file-type payload parser now derives the complete primary brand,
+minor version and ordered compatible brands directly from borrowed raw bytes.
+Header-offset/length admission, brand-count limits and first duplicate-brand
+errors retain native priority. The JP2/JPX/JPH profile gate has a complete
+as-implemented Result, including exact error offsets.
+
+The actual public `parse` uses the checked shared reader initializer. Its
+checked prefix relation covers input/reader/signature/file-type/profile/brand
+admission errors and preservation of the complete file-type value in any
+successful returned file. This is intentionally a **prefix relation**, not a
+complete public container parsing Result: later headers, associations, layers,
+composition and terminal admission remain separate. No parsed-file/result bank
+or assumed successful parser is introduced.
+
+The primary-brand initializer and public parser reader initialization add
+explicit shared-producer call targets to the previously documented native
+extraction differences. Their qualification must be exact and separate;
+no blanket source-coordinate-only identity is claimed.
+
+## Actual raw container box-reader Results
+
+The actual private `BoxReader::next_box` and public `next_box_ref` have complete
+Result and old/final input/limits/position/metadata/work/failed relations.
+Fixed, extended and to-end lengths, every returned header/payload field,
+arithmetic/bounds/resource failures and sticky public failure behavior compose
+from the original traversal. Work and metadata charges retain their exact
+pre-error commits; codestream boxes bypass metadata charging and its limit
+check even for arbitrary pre-existing reader counters. No successful-box bank
+or valid-reader premise replaces actual byte parsing.
+
+The actual input reference is retained. Header payload offset/length, bounded
+byte/type access, offset addition/error rebasing, required-box state and
+integer reads also have complete computational Results. Native regressions
+bind payload references directly to original input windows and retain exact
+resource/counter/EOF/failure frames.
+
+The pinned static-associated annotation limitation is handled by two actual
+shared producers for the Copy box-type initializer and borrowed reader
+initializer. Legacy public `new` wrappers delegate; two box-type consumers
+call the verified shared producer. Those legacy static wrappers do not gain
+an invented associated-method contract: later parser composition must use
+the actual checked shared initializer. Constructor body extraction and call
+targets require explicit native qualification, not blanket MIR identity.
+Seven actual traversal error closures are checked; the two existing integer
+conversion closures require named unused Copy-error arguments under the
+pinned macro, with corresponding debug-only differences to authenticate.
+
+No native traversal statement, owning declaration, error branch or helper
+error body changes. This is a raw-container prerequisite, not complete JP2
+parsing, upstream inspected-info derivation, final public decoding, normative
+correspondence, general cfg/erasure/lifetimes or release qualification.
+
 ## Actual complete parsed-file inspection Result
 
 `inspect_file` now has a total Result over its actual parsed-file, native

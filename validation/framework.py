@@ -2617,6 +2617,61 @@ _DECODER_LAYOUT_CONTRACTS = {
 
 
 _SOURCE_OPACITY_ENTRY = "part2-complete-native-source-layer-opacity-result"
+_FILE_TYPE_ENTRY = "part2-complete-native-raw-file-type-result"
+_FILE_TYPE_CONTRACTS = {
+    ("src/jp2/container.rs", "parse_file_type"): (
+        "part2_parse_file_type", _coverage_call("super::file_type_outcome", r"\1"), None,
+        _coverage_call("super::box_reference_view", "box_ref") + r"\s*,\s*"
+        + _coverage_call("crate::limits::resource_compatible_brand_limit", "limits"),
+    ),
+    ("src/jp2/container.rs", "validate_file_type_profile"): (
+        "part2_validate_file_type_profile", r"\1", None,
+        _coverage_call("super::file_type_view", "file_type") + r"\s*,\s*offset",
+    ),
+}
+_FILE_TYPE_MODELS = {("specs/jp2_file_type.rs", name) for name in (
+    "part2_parse_file_type", "part2_file_type_brand_at", "part2_file_type_brands_prefix",
+    "part2_validate_file_type_profile", "part2_container_prologue",
+)}
+_FILE_TYPE_PROOFS = {("specs/jp2_file_type.rs", name) for name in (
+    "part2_file_type_brands_step", "part2_file_type_brands_error",
+)} | {("src/jp2/proof_support.rs", name) for name in (
+    "file_type_view", "file_type_outcome", "container_prefix_relation",
+)}
+_BOX_READER_ENTRY = "part2-complete-native-raw-box-reader-result"
+_BOX_READER_CONTRACTS = {
+    ("src/jp2/box_reader.rs", "BoxReader::next_box_ref"): (
+        "part2_box_reader_next_ref", _coverage_call("super::box_ref_outcome", r"\1"),
+        _coverage_call("super::box_reader_state", _coverage_call("final", "self")),
+        _coverage_call("super::box_reader_state", _coverage_call("old", "self")),
+    ),
+    ("src/jp2/box_reader.rs", "BoxReader::next_box"): (
+        "part2_box_reader_next", _coverage_call("super::box_read_outcome", r"\1"),
+        _coverage_call("super::box_reader_state", _coverage_call("final", "self")),
+        _coverage_call("super::box_reader_state", _coverage_call("old", "self")),
+    ),
+    ("src/jp2/box_reader.rs", "box_reader_from_input"): (
+        "part2_box_reader_from_input", _coverage_call("super::box_reader_outcome", r"\1"), None,
+        r"input@\s*,\s*\*\s*limits",
+    ),
+    ("src/jp2/box_reader.rs", "required_box"): (
+        "part2_box_reader_required", _coverage_call("super::required_box_outcome", r"\1"),
+        _coverage_call("super::box_reader_state", _coverage_call("final", "reader")),
+        _coverage_call("super::box_reader_state", _coverage_call("old", "reader")) + r"\s*,\s*expected_index",
+    ),
+    ("src/jp2/box_reader.rs", "read_box_type_at"): (
+        "part2_box_type_at", r"\1", None, r"payload@\s*,\s*position\s*,\s*offset",
+    ),
+}
+_BOX_READER_MODELS = {("specs/jp2_box_reader.rs", name) for name in (
+    "part2_box_reader_from_input", "part2_box_reader_next", "part2_box_reader_next_ref",
+    "part2_box_reader_after_work", "part2_box_reader_after_header", "part2_box_reader_required",
+    "part2_box_type_at", "part2_box_u32", "part2_box_u64",
+)}
+_BOX_READER_PROOFS = {("src/jp2/proof_support.rs", name) for name in (
+    "box_reader_state", "box_reader_input_reference", "box_header_view", "box_reference_view",
+    "box_read_outcome", "box_ref_outcome", "box_reader_outcome", "required_box_outcome", "box_type_from_bytes_model",
+)}
 _JPX_INSPECTION_ENTRY = "part2-complete-native-parsed-file-inspection-result"
 _JPX_INSPECTION_CONTRACTS = {
     ("src/jpx/inspection.rs", "inspect_file"): (
@@ -2965,6 +3020,104 @@ def validate_normative_coverage(
     ids: set[str] = set()
     contract_functions: set[tuple[str, str]] = set()
     for entry in coverage["requirements"]:
+        if entry["id"] == _FILE_TYPE_ENTRY:
+            if {(ref["path"], ref["symbol"]) for ref in entry["contract_refs"]} != set(_FILE_TYPE_CONTRACTS):
+                raise ValueError("whole raw file-type Result requires actual payload/profile contracts")
+            if not _FILE_TYPE_MODELS.issubset({(ref["path"], ref["symbol"]) for ref in entry["spec_refs"]}) \
+                    or not _FILE_TYPE_PROOFS.issubset({(ref["path"], ref["symbol"]) for ref in entry["proof_refs"]}):
+                raise ValueError("whole raw file-type Result requires all actual byte/brand/error/prefix bridges")
+            path = (ROOT / "src/jp2/container.rs").resolve()
+            body = _coverage_function_body(source_text(path), function_header(path, "parse_file_type"))
+            required = (
+                "box_ref.header.payload_offset()?", "box_ref.payload.len() < 8",
+                "if compatible_brand_count_u64 > u64::from(limits.maximum_compatible_brands())",
+                "let brand = box_type_from_bytes(",
+                "read_box_type_at(box_ref.payload, position, payload_offset)?",
+                "if previous.equals(compatible)", "compatible_brands.push(compatible)",
+                "minor_version: read_u32(",
+            )
+            if body is None or any("".join(item.split()) not in "".join(body.split()) for item in required):
+                raise ValueError("whole raw file-type Result requires actual ordered byte/limit/duplicate/field handoffs")
+            text = source_text(path)
+            header = function_header(path, "parse")
+            start = text.rfind("#[cfg_attr(verus_keep_ghost, verus_spec(", 0, header.start()) if header else -1
+            contract = text[start:header.start()] if start >= 0 else ""
+            if "super::container_prefix_relation(result,crate::specs::part2_container_prologue(input@,*limits))" \
+                    not in "".join(contract.split()):
+                raise ValueError("raw file-type prefix requires actual public parser error/type relation")
+            body = _coverage_function_body(text, header)
+            required = ("box_reader_from_input(input, limits)?", "required_box(&mut reader, 0)?",
+                        "required_box(&mut reader, 1)?", "parse_file_type(file_type_box, limits)?",
+                        "validate_file_type_profile(&file_type, file_type_box.header.offset())?")
+            if body is None or any("".join(item.split()) not in "".join(body.split()) for item in required):
+                raise ValueError("raw file-type prefix requires actual shared-reader/signature/payload/profile producers")
+            model = source_text((ROOT / "specs/jp2_file_type.rs").resolve())
+            handoffs = {
+                "part2_parse_file_type": ("payload.len() < 8 || payload.len() % 4 != 0",
+                    "count > maximum_brands as nat", "part2_file_type_brands_prefix(payload, offset, count)"),
+                "part2_file_type_brands_prefix": ("previous.contains(brand)", "Ok(previous.push(brand))"),
+                "part2_container_prologue": ("part2_box_reader_from_input(input, limits)",
+                    "part2_box_reader_required(reader, 0)", "part2_box_reader_required(first.1, 1)",
+                    "signature.1 != seq![0x0du8, 0x0au8, 0x87u8, 0x0au8]",
+                    "part2_validate_file_type_profile(file_type, file_type_box.0.1)"),
+            }
+            for name, fragments in handoffs.items():
+                actual = _coverage_spec_function_body(model, name)
+                if actual is None or any("".join(item.split()) not in "".join(actual.split()) for item in fragments):
+                    raise ValueError("whole raw file-type Result requires complete actual admission/ordered-brand/prefix models")
+        if entry["id"] == _BOX_READER_ENTRY:
+            if {(ref["path"], ref["symbol"]) for ref in entry["contract_refs"]} != set(_BOX_READER_CONTRACTS):
+                raise ValueError("whole raw box reader Result requires actual private/public/shared-init/companion contracts")
+            if not _BOX_READER_MODELS.issubset({(ref["path"], ref["symbol"]) for ref in entry["spec_refs"]}) \
+                    or not _BOX_READER_PROOFS.issubset({(ref["path"], ref["symbol"]) for ref in entry["proof_refs"]}):
+                raise ValueError("whole raw box reader Result requires all actual byte/state/input/payload bridges")
+            path = (ROOT / "src/jp2/box_reader.rs").resolve()
+            handoffs = {
+                "BoxReader::new": ("box_reader_from_input(input, limits)",),
+                "BoxType::new": ("box_type_from_bytes(bytes)",),
+                "BoxReader::next_box_ref": (
+                    "if self.failed", "match self.next_box()", "self.failed = true;",
+                ),
+                "BoxReader::next_box": (
+                    "if self.position == self.input.len()", "self.work_units = self.work_units.checked_add(1)",
+                    "let remaining = self.input.len().checked_sub(offset)",
+                    "let box_type = box_type_from_bytes(",
+                    "if total_length < header_length", "usize::try_from(total_length)",
+                    "let end = offset.checked_add(total_length_usize)", "if end > self.input.len()",
+                    "if !box_type.equals(BoxType::CONTIGUOUS_CODESTREAM)",
+                    "self.metadata_bytes = self.metadata_bytes.checked_add(total_length)",
+                    "self.position = end;", "payload: &self.input[payload_start..end]",
+                ),
+            }
+            for name, required in handoffs.items():
+                body = _coverage_function_body(source_text(path), function_header(path, name))
+                if body is None or any("".join(item.split()) not in "".join(body.split()) for item in required):
+                    raise ValueError("whole raw box reader Result requires actual constructor/byte/counter/limit/payload handoffs")
+            for name, argument in (("BoxReader::next_box_ref", "self"), ("BoxReader::next_box", "self"), ("required_box", "reader")):
+                text = source_text(path)
+                header = function_header(path, name)
+                start = text.rfind("#[cfg_attr(verus_keep_ghost, verus_spec(", 0, header.start()) if header else -1
+                contract = text[start:header.start()] if start >= 0 else ""
+                expected = f"super::box_reader_input_reference(final({argument}))==super::box_reader_input_reference(old({argument}))"
+                if expected not in "".join(contract.split()):
+                    raise ValueError("whole raw box reader Result requires complete actual input-reference frames")
+            model = source_text((ROOT / "specs/jp2_box_reader.rs").resolve())
+            required = {
+                "part2_box_reader_next_ref": ("if state.failed { (None, state) }", "failed: true, ..next.1"),
+                "part2_box_reader_next": ("state.position == state.input.len()", "state.work_units == u64::MAX",
+                    "Part2BoxReaderState { work_units: work, ..state }"),
+                "part2_box_reader_after_header": (
+                    "total_length < header_length", "end > state.input.len()",
+                    "kind != crate::jp2::BoxType::CONTIGUOUS_CODESTREAM",
+                    "metadata > crate::limits::resource_metadata_byte_limit(&state.limits)",
+                    "state.input.subrange(payload_start as int, end as int)",
+                    "Part2BoxReaderState { position: end as usize, ..charged }",
+                ),
+            }
+            for name, fragments in required.items():
+                actual = _coverage_spec_function_body(model, name)
+                if actual is None or any("".join(item.split()) not in "".join(actual.split()) for item in fragments):
+                    raise ValueError("whole raw box reader Result requires complete actual state/error/metadata-exemption models")
         if entry["id"] == _JPX_INSPECTION_ENTRY:
             if {(ref["path"], ref["symbol"]) for ref in entry["contract_refs"]} != set(_JPX_INSPECTION_CONTRACTS):
                 raise ValueError("whole parsed-file inspection Result requires actual inspection/count contracts")
@@ -4776,6 +4929,10 @@ def validate_normative_coverage(
                     if entry["id"] == _SOURCE_FRAME_ENTRY else None)
                 or (_JPX_INSPECTION_CONTRACTS.get((reference["path"], reference["symbol"]))
                     if entry["id"] == _JPX_INSPECTION_ENTRY else None)
+                or (_BOX_READER_CONTRACTS.get((reference["path"], reference["symbol"]))
+                    if entry["id"] == _BOX_READER_ENTRY else None)
+                or (_FILE_TYPE_CONTRACTS.get((reference["path"], reference["symbol"]))
+                    if entry["id"] == _FILE_TYPE_ENTRY else None)
                 or _CODESTREAM_READER_CONTRACTS.get((reference["path"], reference["symbol"]))
                 or _SOT_READER_CONTRACTS.get((reference["path"], reference["symbol"]))
                 or _TILE_DATA_WINDOW_CONTRACTS.get((reference["path"], reference["symbol"]))

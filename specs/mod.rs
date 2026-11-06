@@ -53,6 +53,10 @@ mod jpx_frame;
 pub use jpx_frame::*;
 mod jpx_inspection;
 pub use jpx_inspection::*;
+mod jp2_box_reader;
+pub use jp2_box_reader::*;
+mod jp2_file_type;
+pub use jp2_file_type::*;
 
 pub use crate::proofs::internal_specs::{
     part2_composition_layer_prefix_matches, part2_composition_layer_prefix_safe,
