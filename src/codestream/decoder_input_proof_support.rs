@@ -7,6 +7,15 @@ verus! {
         reveal(complete_layout_outcome);
     }
 
+    pub(crate) proof fn decoder_layout_main_info_matches_raw(layout: &CodestreamLayout<'_>)
+        ensures match complete_layout_outcome(Ok(*layout)) {
+            Err(_) => false,
+            Ok(raw) => raw.0 == complete_codestream_info_view(&layout.info).0,
+        },
+    {
+        reveal(complete_layout_outcome);
+    }
+
     pub(crate) closed spec fn decoder_native_size(raw: crate::specs::Part1ParsedImageSize) -> ImageSize {
         choose|value: ImageSize| parsed_image_size_view(&value) == raw
     }

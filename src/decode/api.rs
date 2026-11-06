@@ -576,44 +576,92 @@ pub fn decode_jph_color_selected(
     )
 }
 
+#[cfg_attr(verus_keep_ghost, verus_spec(result =>
+    ensures crate::image::decoded_typed_image_outcome(result) == crate::specs::part2_decode_raw_jpx_typed(
+        input@, codestream_index, crate::options::decode_options_limits(options), None),
+))]
 pub fn decode_jpx_codestream(
     input: &[u8],
     codestream_index: usize,
     options: &DecodeOptions,
 ) -> Result<TypedImage, DecodeError> {
+    #[cfg(verus_keep_ghost)]
+    proof! {
+        crate::specs::part2_decode_raw_jpx_typed_unfold(input@, codestream_index,
+            crate::options::decode_options_limits(options), None);
+        super::associated_typed_outcome_known();
+    }
     let file = jp2::parse(input, options.limits())?;
+    #[cfg(verus_keep_ghost)]
+    proof! { jp2::raw_render_file_known(&file); }
     let (decoded, _) = decode_jpx_file(&file, codestream_index, options)?;
     Ok(decoded)
 }
 
+#[cfg_attr(verus_keep_ghost, verus_spec(result =>
+    ensures crate::image::decoded_typed_image_outcome(result) == crate::specs::part2_decode_raw_jpx_typed(
+        input@, codestream_index, crate::options::decode_options_limits(options), Some(crate::options::decode_selection_view(selection))),
+))]
 pub fn decode_jpx_codestream_selected(
     input: &[u8],
     codestream_index: usize,
     options: &DecodeOptions,
     selection: &DecodeSelection,
 ) -> Result<TypedImage, DecodeError> {
+    #[cfg(verus_keep_ghost)]
+    proof! {
+        crate::specs::part2_decode_raw_jpx_typed_unfold(input@, codestream_index,
+            crate::options::decode_options_limits(options), Some(crate::options::decode_selection_view(selection)));
+        super::associated_typed_outcome_known();
+    }
     let file = jp2::parse(input, options.limits())?;
+    #[cfg(verus_keep_ghost)]
+    proof! { jp2::raw_render_file_known(&file); }
     let (decoded, _) = decode_jpx_file_selected(&file, codestream_index, options, selection)?;
     Ok(decoded)
 }
 
+#[cfg_attr(verus_keep_ghost, verus_spec(result =>
+    ensures crate::color::converted_image_result(result) == crate::specs::part2_decode_raw_jpx_color(
+        input@, codestream_index, crate::options::decode_options_limits(options), None),
+))]
 pub fn decode_jpx_codestream_color(
     input: &[u8],
     codestream_index: usize,
     options: &DecodeOptions,
 ) -> Result<crate::color::ConvertedImage, DecodeError> {
+    #[cfg(verus_keep_ghost)]
+    proof! {
+        crate::specs::part2_decode_raw_jpx_color_unfold(input@, codestream_index,
+            crate::options::decode_options_limits(options), None);
+        super::associated_typed_outcome_known();
+    }
     let file = jp2::parse(input, options.limits())?;
+    #[cfg(verus_keep_ghost)]
+    proof! { jp2::raw_render_file_known(&file); }
     let (decoded, header) = decode_jpx_file(&file, codestream_index, options)?;
     convert_associated_color(&decoded, header, options.limits())
 }
 
+#[cfg_attr(verus_keep_ghost, verus_spec(result =>
+    ensures crate::color::converted_image_result(result) == crate::specs::part2_decode_raw_jpx_color(
+        input@, codestream_index, crate::options::decode_options_limits(options), Some(crate::options::decode_selection_view(selection))),
+))]
 pub fn decode_jpx_codestream_color_selected(
     input: &[u8],
     codestream_index: usize,
     options: &DecodeOptions,
     selection: &DecodeSelection,
 ) -> Result<crate::color::ConvertedImage, DecodeError> {
+    #[cfg(verus_keep_ghost)]
+    proof! {
+        crate::specs::part2_decode_raw_jpx_color_unfold(input@, codestream_index,
+            crate::options::decode_options_limits(options), Some(crate::options::decode_selection_view(selection)));
+        super::associated_typed_outcome_known();
+    }
     let file = jp2::parse(input, options.limits())?;
+    #[cfg(verus_keep_ghost)]
+    proof! { jp2::raw_render_file_known(&file); }
     if !file.file_type().is_jpx_compatible() {
         return Err(DecodeError::malformed(0, MalformedKind::InvalidProfile));
     }
@@ -622,6 +670,8 @@ pub fn decode_jpx_codestream_color_selected(
         selection,
         options.limits(),
     )?;
+    #[cfg(verus_keep_ghost)]
+    proof! { assert(target == [target[0], target[1], target[2], target[3]]); }
     let (decoded, header) = decode_jpx_file_selected(&file, codestream_index, options, &expanded)?;
     convert_associated_selected_color(&decoded, header, target, options.limits())
 }
