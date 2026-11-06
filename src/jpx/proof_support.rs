@@ -77,6 +77,17 @@ verus! {
         reveal(raw_jpx_inspection_outcome);
     }
 
+    proof fn raw_jpx_render_metadata_known(metadata: &JpxInspection)
+        ensures match raw_jpx_inspection_outcome(Ok(*metadata)) {
+            Err(_) => false,
+            Ok(value) => inspection_composition_view(metadata) == match value.composition {
+                None => None, Some(composition) => Some(composition.source),
+            },
+        },
+    {
+        reveal(raw_jpx_inspection_outcome);
+    }
+
     proof fn raw_jpx_composition_known(composition: &jp2::Composition)
         ensures inspection_composition_config(composition)
             == crate::specs::part2_raw_inspection_composition(jp2::raw_composition_view(composition)),

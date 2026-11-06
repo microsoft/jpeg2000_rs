@@ -502,6 +502,131 @@ mod tests {
         }
     }
 
+    fn raw_render_composition_bytes(
+        mut bytes: Vec<u8>, layers: usize, canvas: (u32, u32),
+        frames: &[(u32, bool)], encoded_loops: u8, target: (u32, u32),
+    ) -> Vec<u8> {
+        let mut position = 0;
+        while &bytes[position + 4..position + 8] != b"jp2c" {
+            position += u32::from_be_bytes(bytes[position..position + 4].try_into().unwrap()) as usize;
+        }
+        let sources = bytes.split_off(position);
+        for _ in 0..layers {
+            bytes.extend(raw_public_box(*b"jplh", &[]));
+        }
+        let mut options = canvas.1.to_be_bytes().to_vec();
+        options.extend_from_slice(&canvas.0.to_be_bytes());
+        options.push(encoded_loops);
+        let mut composition = raw_public_box(*b"copt", &options);
+        for &(x, persistent) in frames {
+            let mut instruction = 7_u16.to_be_bytes().to_vec();
+            instruction.extend_from_slice(&0_u16.to_be_bytes());
+            instruction.extend_from_slice(&100_u32.to_be_bytes());
+            for value in [x, 0, target.0, target.1, if persistent { 0x8000_0001 } else { 1 }, 0] {
+                instruction.extend_from_slice(&value.to_be_bytes());
+            }
+            composition.extend(raw_public_box(*b"inst", &instruction));
+        }
+        bytes.extend(raw_public_box(*b"comp", &composition));
+        bytes.extend(sources);
+        bytes
+    }
+
+    #[test]
+    fn actual_raw_render_layer_derives_literal_signed_and_unsigned_planes_and_alpha_metadata() {
+        for signed in [false, true] {
+            for (packet, expected) in [
+                (&[0xcf, 0xb4, 0x04, 0x09][..], 257),
+                (&[0xc0, 0x21, 0x03][..], 33_153),
+                (&[0xcf, 0xb4, 0x08, 0x04, 0x4f][..], 51_400),
+            ] {
+                let (bytes, _) = source_layer_bytes(packet, signed);
+                let image = render_jpx_layer(&bytes, 0, &DecodeOptions::default()).unwrap();
+                assert_eq!((image.width(), image.height(), image.precision(), image.color_space()), (1, 1, 16, ConvertedColorSpace::Grayscale));
+                assert_eq!(image.channels().len(), 2);
+                assert_eq!(image.channel(0).unwrap().samples(), &[expected]);
+                assert_eq!(image.channel(0).unwrap().channel_type(), ConvertedChannelType::Gray);
+                assert_eq!(image.channel(1).unwrap().samples(), &[u16::MAX]);
+                assert_eq!(image.channel(1).unwrap().channel_type(), ConvertedChannelType::Alpha {
+                    premultiplied: false, association: ChannelAssociation::WholeImage,
+                });
+            }
+        }
+    }
+
+    #[test]
+    fn actual_raw_render_frame_composes_real_general_rgb_and_complete_straight_alpha() {
+        let bytes = general_source_bytes(
+            &[[0, 0, 2, 1, 0, 0], [0, 1, 2, 1, 0, 0], [0, 2, 2, 1, 0, 0]],
+            &[], None, jp2::ENUMERATED_SRGB,
+        );
+        let bytes = raw_render_composition_bytes(bytes, 0, (1, 1), &[(0, true)], 0, (1, 1));
+        let image = render_jpx_frame(&bytes, 0, &DecodeOptions::default()).unwrap();
+        assert_eq!((image.width(), image.height(), image.precision(), image.color_space()), (1, 1, 16, ConvertedColorSpace::Srgb));
+        assert_eq!(image.channels().len(), 4);
+        for (channel, expected) in image.channels().iter().zip([257, 33_153, 51_400, u16::MAX]) {
+            assert_eq!(channel.samples(), &[expected]);
+        }
+        assert_eq!(image.channel(3).unwrap().channel_type(), ConvertedChannelType::Alpha {
+            premultiplied: false, association: ChannelAssociation::WholeImage,
+        });
+    }
+
+    #[test]
+    fn actual_raw_render_frame_derives_persistence_reset_loop_and_native_supply_order() {
+        for persistent in [false, true] {
+            let bytes = raw_render_composition_bytes(source_frame_codestream_bytes(), 3,
+                (2, 1), &[(0, persistent), (1, true)], 1, (1, 1));
+            for requested in [1, 3] {
+                let image = render_jpx_frame(&bytes, requested, &DecodeOptions::default()).unwrap();
+                assert_eq!((image.width(), image.height()), (2, 1));
+                assert_eq!(image.channel(0).unwrap().samples(), &[if persistent { 257 } else { 0 }, 33_153]);
+                assert_eq!(image.channel(1).unwrap().samples(), &[if persistent { u16::MAX } else { 0 }, u16::MAX]);
+            }
+        }
+    }
+
+    #[test]
+    fn actual_raw_render_keeps_raw_input_and_selection_before_entropy_packet_errors() {
+        let (bytes, _) = source_layer_bytes(&[0xcf, 0xb4, 0x04, 0x09], false);
+        let input_limited = DecodeOptions::new(ResourceLimits::HARDENED.with_maximum_input_bytes(0).unwrap());
+        let expected = Some(DecodeError::LimitExceeded { resource: Resource::InputBytes, limit: 0, actual: bytes.len() as u64 });
+        assert_eq!(render_jpx_layer(&bytes, usize::MAX, &input_limited).err(), expected);
+        assert_eq!(render_jpx_frame(&bytes, usize::MAX, &input_limited).err(), expected);
+        let packet_limited = DecodeOptions::new(ResourceLimits::HARDENED.with_maximum_packets(0).unwrap());
+        assert_eq!(render_jpx_layer(&bytes, 1, &packet_limited).err(), Some(DecodeError::LayerIndexOutOfRange { index: 1, layers: 1 }));
+        assert_eq!(render_jpx_layer(&bytes, 0, &packet_limited).err(), Some(DecodeError::LimitExceeded { resource: Resource::Packets, limit: 0, actual: 1 }));
+        let bytes = raw_render_composition_bytes(bytes, 1, (1, 1), &[(0, true)], 0, (1, 1));
+        assert_eq!(render_jpx_frame(&bytes, 1, &packet_limited).err(), Some(DecodeError::FrameIndexOutOfRange { index: 1, frames: 1 }));
+        assert_eq!(render_jpx_frame(&bytes, 0, &packet_limited).err(), Some(DecodeError::LimitExceeded { resource: Resource::Packets, limit: 0, actual: 1 }));
+    }
+
+    #[test]
+    fn actual_raw_render_preserves_missing_composition_and_profile_before_requested_index() {
+        let (mut bytes, _) = source_layer_bytes(&[0xcf, 0xb4, 0x04, 0x09], false);
+        assert_eq!(render_jpx_frame(&bytes, usize::MAX, &DecodeOptions::default()).err(),
+            Some(DecodeError::FrameIndexOutOfRange { index: usize::MAX, frames: 0 }));
+        bytes[20..24].copy_from_slice(b"jp2 ");
+        bytes[28..32].copy_from_slice(b"jp2 ");
+        for error in [
+            render_jpx_layer(&bytes, usize::MAX, &DecodeOptions::default()).err(),
+            render_jpx_frame(&bytes, usize::MAX, &DecodeOptions::default()).err(),
+        ] {
+            assert_eq!(error, Some(DecodeError::MalformedInput { offset: 0, kind: MalformedKind::InvalidProfile }));
+        }
+    }
+
+    #[test]
+    fn actual_raw_render_frame_retains_full_scaled_clipped_sample_planes_and_geometry() {
+        let (bytes, _) = source_layer_bytes(&[0xcf, 0xb4, 0x08, 0x04, 0x4f], false);
+        let bytes = raw_render_composition_bytes(bytes, 1, (2, 1), &[(0, true)], 0, (3, 2));
+        let image = render_jpx_frame(&bytes, 0, &DecodeOptions::default()).unwrap();
+        assert_eq!((image.width(), image.height(), image.precision(), image.color_space()), (2, 1, 16, ConvertedColorSpace::Grayscale));
+        assert_eq!(image.channels().len(), 2);
+        assert_eq!(image.channel(0).unwrap().samples(), &[51_400, 51_400]);
+        assert_eq!(image.channel(1).unwrap().samples(), &[u16::MAX, u16::MAX]);
+    }
+
     fn raw_public_box(kind: [u8; 4], payload: &[u8]) -> Vec<u8> {
         let mut bytes = u32::try_from(payload.len() + 8).unwrap().to_be_bytes().to_vec();
         bytes.extend_from_slice(&kind);

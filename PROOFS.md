@@ -179,6 +179,22 @@ technical candidate only: parent-owned record, review, CI, guarded integration
 and actual-main acceptance remain separate. No complete parsing, pixels,
 lifetime verification, normative conformance or publication claim follows.
 
+## Actual public raw layer and frame image Results
+
+The public `render_jpx_layer` and `render_jpx_frame` now compose actual raw
+container/info/admission producers into the existing checked real source-layer
+and frame renderers. The frame path also derives actual inspection/timeline
+metadata. Full header/palette/mapping/definition, stored stream associations,
+registration/opacity/color routing and complete converted image/sample/alpha/
+geometry/error Results are connected to bytes and actual options limits.
+
+The bridges project actual native fields into the already checked producer
+inputs. No supplied decoded-success banks, native clones/reconstruction,
+executing caller, renderer change or new validity premise is introduced.
+Public-only boundaries use the existing inventory pattern. Composition fallback,
+selected/progressive/JPIP paths and independent full-plan gates remain separate.
+Fresh native observations and complete qualification are still required.
+
 ## Actual public raw JPX inspection and timeline Result
 
 The public `inspect_jpx_layers` now composes actual raw container/info Results,

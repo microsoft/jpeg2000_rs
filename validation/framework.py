@@ -3137,6 +3137,44 @@ _EFFECTIVE_LAYER_CONTRACTS = {
         + _coverage_call("crate::options::decode_options_limits", "options"),
     ),
 }
+_RAW_RENDER_ENTRY = "part2-complete-native-public-raw-layer-frame-results"
+_RAW_RENDER_APIS = {("src/jpx/render.rs", name) for name in ("render_jpx_layer", "render_jpx_frame")}
+_RAW_RENDER_CONTRACTS = {
+    ("src/jpx/render.rs", "render_jpx_layer"): (
+        "part2_render_raw_jpx_layer", _coverage_call("crate::color::converted_image_result", r"\1"), None,
+        r"input\s*@\s*,\s*layer_index\s*,\s*" + _coverage_call("crate::options::decode_options_limits", "options"),
+    ),
+    ("src/jpx/render.rs", "render_jpx_frame"): (
+        "part2_render_raw_jpx_frame", _coverage_call("crate::color::converted_image_result", r"\1"), None,
+        r"input\s*@\s*,\s*frame_index\s*,\s*" + _coverage_call("crate::options::decode_options_limits", "options"),
+    ),
+    ("src/jpx/render.rs", "render_inspected_frame"): _SOURCE_FRAME_CONTRACTS[("src/jpx/render.rs", "render_inspected_frame")],
+    ("src/jpx/layer_decode.rs", "OwnedLayer::into_image"): _SOURCE_FRAME_CONTRACTS[("src/jpx/layer_decode.rs", "OwnedLayer::into_image")],
+    ("src/jpx/layer_decode.rs", "decode_effective_layer"): _EFFECTIVE_LAYER_CONTRACTS[("src/jpx/layer_decode.rs", "decode_effective_layer")],
+}
+_RAW_RENDER_MODELS = {("specs/jpx_raw_frame.rs", name) for name in (
+    "part2_render_raw_jpx_layer", "part2_render_raw_jpx_frame", "part2_raw_associated_header",
+    "part2_raw_codestream_source", "part2_raw_jpx_decode_input", "part2_raw_layer_routing", "part2_raw_layer_routings",
+)} | {
+    ("specs/jp2_inspection.rs", "part2_parse_and_inspect_container"),
+    ("specs/jpx_raw_inspection.rs", "part2_ensure_raw_jpx"),
+    ("specs/jpx_raw_inspection.rs", "part2_raw_inspection_file"),
+    ("specs/jpx_raw_inspection.rs", "part2_raw_inspection_geometries"),
+    ("specs/jpx_inspection.rs", "part2_inspect_jpx_file"),
+    ("specs/jpx_frame.rs", "part2_render_inspected_source_frame"),
+    ("specs/jpx_frame.rs", "part2_owned_layer_image"),
+    ("specs/jpx_dispatch.rs", "part2_decode_effective_layer"),
+}
+_RAW_RENDER_PROOFS = {("src/jp2/proof_support.rs", name) for name in (
+    "raw_render_header_known", "raw_render_stream_known", "raw_render_layer_known", "raw_render_file_known",
+    "raw_inspected_file_reference", "raw_inspected_native_infos",
+)} | {("src/jpx/proof_support.rs", name) for name in (
+    "raw_jpx_inspection_outcome_known", "raw_jpx_file_known", "raw_jpx_geometries_known", "raw_jpx_render_metadata_known",
+)} | {
+    ("specs/jpx_raw_frame.rs", "part2_render_raw_jpx_layer_unfold"),
+    ("specs/jpx_raw_frame.rs", "part2_render_raw_jpx_frame_unfold"),
+    *_RAW_RENDER_APIS,
+}
 _EFFECTIVE_LAYER_MODELS = {("specs/jpx_dispatch.rs", name) for name in (
     "part2_decode_effective_layer", "part2_layer_config_lookup", "part2_decode_compositing_layer",
     "part2_dispatch_owned_image", "part2_dispatch_opacity_result", "part2_dispatch_registration",
@@ -3417,6 +3455,37 @@ def validate_normative_coverage(
     ids: set[str] = set()
     contract_functions: set[tuple[str, str]] = set()
     for entry in coverage["requirements"]:
+        if entry["id"] == _RAW_RENDER_ENTRY:
+            if {(ref["path"], ref["symbol"]) for ref in entry["contract_refs"]} != set(_RAW_RENDER_CONTRACTS) - _RAW_RENDER_APIS:
+                raise ValueError("whole public raw rendering Results require actual layer/image/frame producer contracts")
+            if not _RAW_RENDER_MODELS.issubset({(ref["path"], ref["symbol"]) for ref in entry["spec_refs"]}) \
+                    or not _RAW_RENDER_PROOFS.issubset({(ref["path"], ref["symbol"]) for ref in entry["proof_refs"]}):
+                raise ValueError("whole public raw rendering Results require both proved APIs and complete raw/source/render bridges")
+            path = (ROOT / "src/jpx/render.rs").resolve()
+            for name, required in {
+                "render_jpx_layer": ("jp2::parse_and_inspect(input, options.limits())?", "ensure_jpx(inspected.file())?",
+                    "decode_effective_layer(inspected.file(), layer_index, options)?.into_image()"),
+                "render_jpx_frame": ("jp2::parse_and_inspect(input, options.limits())?", "ensure_jpx(file)?",
+                    "inspect_file(file, inspected.codestreams(), options.limits())?",
+                    "render_inspected_frame(file, &metadata, frame_index, options)"),
+            }.items():
+                body = _coverage_function_body(source_text(path), function_header(path, name))
+                if body is None or any("".join(item.split()) not in "".join(body.split()) for item in required):
+                    raise ValueError("whole public raw rendering Results require actual raw/admission/source/image/frame pipelines")
+            model = source_text((ROOT / "specs/jpx_raw_frame.rs").resolve())
+            for name, required in {
+                "part2_render_raw_jpx_layer": ("part2_parse_and_inspect_container(input, limits)", "part2_ensure_raw_jpx(",
+                    "part2_decode_effective_layer(", "part2_owned_layer_image(owned)"),
+                "part2_render_raw_jpx_frame": ("part2_parse_and_inspect_container(input, limits)", "part2_inspect_jpx_file(",
+                    "part2_render_inspected_source_frame(", "Some(value.source)"),
+                "part2_raw_associated_header": ("header.palette", "header.mappings[i].component",
+                    "header.mappings[i].mapping_type", "header.definitions", "header.image, header.color.0"),
+                "part2_raw_layer_routing": ("layer.colors[0].0", "layer.registrations", "layer.definitions",
+                    "layer.opacity", "layer.header.1"),
+            }.items():
+                actual = _coverage_spec_function_body(model, name)
+                if actual is None or any("".join(item.split()) not in "".join(actual.split()) for item in required):
+                    raise ValueError("whole public raw rendering Results require complete byte-derived header/source/routing/render models")
         if entry["id"] == _RAW_JPX_INSPECTION_ENTRY:
             if {(ref["path"], ref["symbol"]) for ref in entry["contract_refs"]} != set(_RAW_JPX_INSPECTION_CONTRACTS) - _RAW_JPX_INSPECTION_APIS:
                 raise ValueError("whole raw public JPX Result requires its actual checked inspector producer")
@@ -5391,7 +5460,9 @@ def validate_normative_coverage(
                 | _SUBBAND_ADMISSION_PROVED_BOUNDARY_APIS
                 | _SUBBAND_VECTOR_PROVED_BOUNDARY_APIS
             ) or (entry["id"] == _RAW_JPX_INSPECTION_ENTRY
-                  and (reference["path"], reference["symbol"]) in _RAW_JPX_INSPECTION_APIS))
+                  and (reference["path"], reference["symbol"]) in _RAW_JPX_INSPECTION_APIS)
+              or (entry["id"] == _RAW_RENDER_ENTRY
+                  and (reference["path"], reference["symbol"]) in _RAW_RENDER_APIS))
             and reference not in entry["contract_refs"]
         ]
         for reference in [*entry["contract_refs"], *proved_apis]:
@@ -5883,6 +5954,8 @@ def validate_normative_coverage(
                     if entry["id"] == _EFFECTIVE_LAYER_ENTRY else None)
                 or (_SOURCE_FRAME_CONTRACTS.get((reference["path"], reference["symbol"]))
                     if entry["id"] == _SOURCE_FRAME_ENTRY else None)
+                or (_RAW_RENDER_CONTRACTS.get((reference["path"], reference["symbol"]))
+                    if entry["id"] == _RAW_RENDER_ENTRY else None)
                 or (_JPX_INSPECTION_CONTRACTS.get((reference["path"], reference["symbol"]))
                     if entry["id"] == _JPX_INSPECTION_ENTRY else None)
                 or (_RAW_JPX_INSPECTION_CONTRACTS.get((reference["path"], reference["symbol"]))

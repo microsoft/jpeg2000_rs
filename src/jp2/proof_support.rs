@@ -581,6 +581,55 @@ verus! {
     {
     }
 
+    pub(crate) proof fn raw_render_header_known(header: &Jp2Header)
+        ensures associated_header_view(header) == crate::specs::part2_raw_associated_header(raw_jp2_header_view(header)),
+    {
+        assert(output_header_view(header).1 =~=
+            crate::specs::part2_raw_associated_header(raw_jp2_header_view(header)).0.1);
+        assert(output_header_view(header).2 =~=
+            crate::specs::part2_raw_associated_header(raw_jp2_header_view(header)).0.2);
+    }
+
+    proof fn raw_render_stream_known(stream: &CodestreamBox)
+        ensures codestream_source_view(stream) == crate::specs::part2_raw_codestream_source(raw_codestream_view(stream)),
+    {
+        if let Some(association) = &stream.codestream_header {
+            if let Some(header) = &association.parsed {
+                raw_render_header_known(header);
+            }
+        }
+    }
+
+    proof fn raw_render_layer_known(file: &Jp2File, layer: &CompositingLayer)
+        ensures source_layer_routing_config(file, layer)
+            == crate::specs::part2_raw_layer_routing(raw_jp2_file_view(file), raw_compositing_layer_view(layer)),
+    {
+        raw_render_header_known(&file.header);
+        assert(general_layer_config(file, layer).definitions =~=
+            crate::specs::part2_raw_layer_routing(raw_jp2_file_view(file), raw_compositing_layer_view(layer)).0.definitions);
+    }
+
+    pub(crate) proof fn raw_render_file_known(file: &Jp2File)
+        ensures jpx_file_decode_view(file) == crate::specs::part2_raw_jpx_decode_input(raw_jp2_file_view(file)),
+            source_file_layer_configs(file) == crate::specs::part2_raw_layer_routings(raw_jp2_file_view(file)),
+    {
+        raw_render_header_known(&file.header);
+        assert forall|i: int| #![auto] 0 <= i < file.codestreams@.len() implies
+            codestream_source_view(&file.codestreams@[i])
+                == crate::specs::part2_raw_codestream_source(raw_codestream_view(&file.codestreams@[i])) by {
+            raw_render_stream_known(&file.codestreams@[i]);
+        }
+        assert(jpx_file_decode_view(file).1 =~=
+            crate::specs::part2_raw_jpx_decode_input(raw_jp2_file_view(file)).1);
+        let layers = source_file_layers(file);
+        assert forall|i: int| #![auto] 0 <= i < layers.len() implies
+            source_layer_routing_config(file, &layers[i])
+                == crate::specs::part2_raw_layer_routing(raw_jp2_file_view(file), raw_compositing_layer_view(&layers[i])) by {
+            raw_render_layer_known(file, &layers[i]);
+        }
+        assert(source_file_layer_configs(file) =~= crate::specs::part2_raw_layer_routings(raw_jp2_file_view(file)));
+    }
+
     pub open spec fn optional_palette_view(palette: &Option<Palette>) -> Option<crate::specs::Part2PaletteModel> {
         match palette { None => None, Some(value) => Some(palette_view(value)) }
     }
