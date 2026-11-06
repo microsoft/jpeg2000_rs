@@ -179,6 +179,24 @@ technical candidate only: parent-owned record, review, CI, guarded integration
 and actual-main acceptance remain separate. No complete parsing, pixels,
 lifetime verification, normative conformance or publication claim follows.
 
+## Actual public raw JP2/JPH typed-image and selection Results
+
+The public `decode_jp2`, `decode_jp2_selected`, `decode_jph` and
+`decode_jph_selected` now compose complete typed-image/error Results from raw
+bytes and actual options/selections. The common model retains real container
+and codestream inspection before brand/count admission, actual compressed-byte
+decoding and the main header's complete palette/mapping/channel output admission.
+Geometry/origins, signed and unsigned component samples, precision and channel
+definitions are retained, including selected tile/region/reduction behavior and
+first parser, profile, selection, backend and output errors.
+
+The existing checked raw-file/header/source bridges are reused. Native owners,
+calls and bodies are unchanged; there are no supplied parsed/decoded-success
+banks, reconstruction, runtime proof clones or added validity premises. Public
+boundaries use the existing inventory recipe. Color-selected expansion,
+progressive/JPIP/automatic dispatch and independent full-plan gates remain
+separate; fresh native observations and complete qualification remain required.
+
 ## Actual public raw composition and fallback Result
 
 The public `render_jpx_composition` now derives its complete image/error Result

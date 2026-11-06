@@ -40,6 +40,8 @@ use crate::packet::{
     decode_code_block_contribution, decode_progression_tile_packets,
 };
 
+#[path = "container_image_result_tests.rs"]
+mod container_image_result;
 #[path = "jpx_source_result_tests.rs"]
 mod jpx_source_result;
 #[path = "raw_typed_result_tests.rs"]

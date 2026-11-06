@@ -39,6 +39,8 @@ mod decoder_input;
 pub use decoder_input::*;
 mod raw_decode;
 pub use raw_decode::*;
+mod container_images;
+pub use container_images::*;
 mod jpx_source;
 pub use jpx_source::*;
 mod jpx_opacity;

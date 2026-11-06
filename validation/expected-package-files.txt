@@ -20,6 +20,7 @@ proofs/spec_properties/mod.rs
 specs/AUDIT_REFERENCE.md
 specs/README.md
 specs/codestream_profile.rs
+specs/container_images.rs
 specs/decoder_input.rs
 specs/header.rs
 specs/jp2_associated_header.rs
@@ -108,6 +109,7 @@ src/color.rs
 src/decode/api.rs
 src/decode/arithmetic.rs
 src/decode/code_blocks.rs
+src/decode/container_image_result_tests.rs
 src/decode/execution.rs
 src/decode/geometry.rs
 src/decode/jpx_source_result_tests.rs
