@@ -175,14 +175,23 @@ impl<'a> Jp2File<'a> {
             })
     }
 
+    #[cfg_attr(verus_keep_ghost, verus_spec(result =>
+        ensures result == super::source_file_composition_reference(self),
+    ))]
     pub const fn composition(&self) -> Option<&Composition> {
         self.composition.as_ref()
     }
 
+    #[cfg_attr(verus_keep_ghost, verus_spec(result =>
+        ensures result == super::source_file_metadata(self).0,
+    ))]
     pub const fn metadata_boxes(&self) -> u32 {
         self.metadata_boxes
     }
 
+    #[cfg_attr(verus_keep_ghost, verus_spec(result =>
+        ensures result == super::source_file_metadata(self).1,
+    ))]
     pub const fn metadata_depth(&self) -> u32 {
         self.metadata_depth
     }

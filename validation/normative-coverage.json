@@ -4,6 +4,54 @@
   "scope": "Technical reference inventory; not exhaustive standards-clause coverage or a conformance claim.",
   "requirements": [
     {
+      "id": "part2-complete-native-parsed-file-inspection-result",
+      "topic": "Complete actual inspect_file Result over its native parsed-file/CodestreamInfo-slice/limits inputs: every implicit/declared layer field, ordered source/registration/minimum geometry, actual build_timeline output and checked duration/instruction-set/complete composition/frame/metadata fields, including exact early errors. The native info slice is an input to this computational producer, not a claim that arbitrary infos derive from source bytes; actual upstream info/container/public composition remains separate. Only immutable geometry actually read is projected; no owner reconstructed from logical contents and no success/validity premise. Full native borrowed-layer/composition metadata and profile/effective-count helpers are checked. Three existing map_err closures receive checked constant-error contracts; the pinned parser rejects wildcard arguments, requiring three named unused Copy TryFromIntError arguments. Executing statements, closure bodies, owners and helper placement remain; possible Copy debug-binding differences must be explicitly audited, not labeled blanket coordinate-only identity. Native regressions derive input infos through real byte parsing. Normative/cfg/erasure/lifetimes/release remain independent.",
+      "implementation_refs": [
+        {"path": "src/jpx/inspection.rs", "symbol": "inspect_file"},
+        {"path": "src/jpx/inspection.rs", "symbol": "inspect_jpx_layers"},
+        {"path": "src/jpx/inspection.rs", "symbol": "effective_layer_count"},
+        {"path": "src/jpx/inspection.rs", "symbol": "ensure_jpx"},
+        {"path": "src/jpx/render.rs", "symbol": "render_jpx_composition"},
+        {"path": "src/jpx/timeline.rs", "symbol": "build_timeline"}
+      ],
+      "spec_refs": [
+        {"path": "specs/mod.rs", "symbol": "effective_jpx_layer_count"},
+        {"path": "specs/jpx_inspection.rs", "symbol": "part2_inspect_jpx_file"},
+        {"path": "specs/jpx_inspection.rs", "symbol": "part2_inspection_layer_count"},
+        {"path": "specs/jpx_inspection.rs", "symbol": "part2_inspection_layer"},
+        {"path": "specs/jpx_inspection.rs", "symbol": "part2_inspection_layer_value"},
+        {"path": "specs/jpx_inspection.rs", "symbol": "part2_inspection_registration_prefix"},
+        {"path": "specs/jpx_inspection.rs", "symbol": "part2_inspection_registration_step"},
+        {"path": "specs/jpx_inspection.rs", "symbol": "part2_inspection_layers_prefix"},
+        {"path": "specs/jpx_inspection.rs", "symbol": "part2_inspection_duration_prefix"},
+        {"path": "specs/jpx_inspection.rs", "symbol": "part2_inspection_composition"}
+      ],
+      "contract_refs": [
+        {"path": "src/jpx/inspection.rs", "symbol": "inspect_file"},
+        {"path": "src/jpx/inspection.rs", "symbol": "effective_layer_count"}
+      ],
+      "proof_refs": [
+        {"path": "specs/jpx_inspection.rs", "symbol": "part2_inspection_registrations_step"},
+        {"path": "specs/jpx_inspection.rs", "symbol": "part2_inspection_registrations_error"},
+        {"path": "specs/jpx_inspection.rs", "symbol": "part2_inspection_layers_step"},
+        {"path": "specs/jpx_inspection.rs", "symbol": "part2_inspection_layers_error"},
+        {"path": "specs/jpx_inspection.rs", "symbol": "part2_inspection_durations_step"},
+        {"path": "specs/jpx_inspection.rs", "symbol": "part2_inspection_durations_error"},
+        {"path": "src/jpx/proof_support.rs", "symbol": "inspection_file_input"},
+        {"path": "src/jpx/proof_support.rs", "symbol": "inspection_source_geometries"},
+        {"path": "src/jpx/proof_support.rs", "symbol": "inspection_result"},
+        {"path": "src/jpx/proof_support.rs", "symbol": "inspected_layer_view"},
+        {"path": "src/jpx/proof_support.rs", "symbol": "inspected_composition_view"},
+        {"path": "src/jp2/proof_support.rs", "symbol": "source_layer_reference_known"}
+      ],
+      "test_refs": [
+        {"path": "src/jpx/tests.rs", "symbol": "actual_jpx_inspection_keeps_every_implicit_and_declared_layer_metadata_field"},
+        {"path": "src/jpx/tests.rs", "symbol": "actual_jpx_inspection_derives_ordered_registered_sources_and_minimum_extents"},
+        {"path": "src/jpx/tests.rs", "symbol": "actual_jpx_inspection_composes_real_timeline_duration_and_complete_composition_fields"},
+        {"path": "src/jpx/tests.rs", "symbol": "actual_jpx_inspection_keeps_source_geometry_before_timeline_limit_and_profile_errors"}
+      ]
+    },
+    {
       "id": "part2-complete-native-source-frame-result",
       "topic": "Complete actual render_inspected_frame Result from the real parsed file, actual metadata value and options: preserve full borrowed composition, ordered persistent/loop frame selection, actual effective-layer decoding and repeated/indexed supplies, first failed decode break and complete existing normalized-frame output. The intermediate supplies are derived from actual decoders, not an input bank. Complete OwnedLayer::into_image Result also preserves actual geometry admission, absent-alpha opaque seed, existing alpha representation and final channel/image fields. Native statements/owners/loop/break/drop order are unchanged; frame helper visibility is parent-module-only for real-byte tests. Actual metadata is an input here; derivation by raw container parsing/inspection/timeline and final public entry joins remain separate, as do normative/cfg/erasure/lifetimes/release.",
       "implementation_refs": [

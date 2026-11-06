@@ -2617,6 +2617,33 @@ _DECODER_LAYOUT_CONTRACTS = {
 
 
 _SOURCE_OPACITY_ENTRY = "part2-complete-native-source-layer-opacity-result"
+_JPX_INSPECTION_ENTRY = "part2-complete-native-parsed-file-inspection-result"
+_JPX_INSPECTION_CONTRACTS = {
+    ("src/jpx/inspection.rs", "inspect_file"): (
+        "part2_inspect_jpx_file", _coverage_call("inspection_result", r"\1"), None,
+        _coverage_call("inspection_file_input", "file") + r"\s*,\s*"
+        + _coverage_call("inspection_source_geometries", "codestreams@") + r"\s*,\s*"
+        + _coverage_call("crate::limits::resource_frame_limit", "limits"),
+    ),
+    ("src/jpx/inspection.rs", "effective_layer_count"): (
+        "effective_jpx_layer_count", r"\1", None,
+        _coverage_call("jp2::source_file_layers", "file") + r"\s*\.len\(\)\s*,\s*"
+        + _coverage_call("jp2::jpx_file_decode_view", "file") + r"\s*\.1\.len\(\)",
+    ),
+}
+_JPX_INSPECTION_MODELS = {("specs/jpx_inspection.rs", name) for name in (
+    "part2_inspect_jpx_file", "part2_inspection_layer_count", "part2_inspection_layer",
+    "part2_inspection_layer_value", "part2_inspection_registration_prefix", "part2_inspection_registration_step",
+    "part2_inspection_layers_prefix", "part2_inspection_duration_prefix", "part2_inspection_composition",
+)} | {("specs/mod.rs", "effective_jpx_layer_count")}
+_JPX_INSPECTION_PROOFS = {("specs/jpx_inspection.rs", name) for name in (
+    "part2_inspection_registrations_step", "part2_inspection_registrations_error",
+    "part2_inspection_layers_step", "part2_inspection_layers_error",
+    "part2_inspection_durations_step", "part2_inspection_durations_error",
+)} | {("src/jpx/proof_support.rs", name) for name in (
+    "inspection_file_input", "inspection_source_geometries", "inspection_result",
+    "inspected_layer_view", "inspected_composition_view",
+)} | {("src/jp2/proof_support.rs", "source_layer_reference_known")}
 _SOURCE_FRAME_ENTRY = "part2-complete-native-source-frame-result"
 _SOURCE_FRAME_CONTRACTS = {
     ("src/jpx/render.rs", "render_inspected_frame"): (
@@ -2938,6 +2965,54 @@ def validate_normative_coverage(
     ids: set[str] = set()
     contract_functions: set[tuple[str, str]] = set()
     for entry in coverage["requirements"]:
+        if entry["id"] == _JPX_INSPECTION_ENTRY:
+            if {(ref["path"], ref["symbol"]) for ref in entry["contract_refs"]} != set(_JPX_INSPECTION_CONTRACTS):
+                raise ValueError("whole parsed-file inspection Result requires actual inspection/count contracts")
+            if not _JPX_INSPECTION_MODELS.issubset({(ref["path"], ref["symbol"]) for ref in entry["spec_refs"]}) \
+                    or not _JPX_INSPECTION_PROOFS.issubset({(ref["path"], ref["symbol"]) for ref in entry["proof_refs"]}):
+                raise ValueError("whole parsed-file inspection Result requires all actual layer/timeline/duration/error bridges")
+            path = (ROOT / "src/jpx/inspection.rs").resolve()
+            body = _coverage_function_body(source_text(path), function_header(path, "inspect_file"))
+            required = (
+                "let layer_count = effective_layer_count(file);",
+                "let codestream = codestreams.get(index).ok_or_else(invalid_layer)?;",
+                "let layer = file.compositing_layer(index)?;",
+                "codestream_indices.push(registration.codestream_index);",
+                "codestreams.get(usize::from(registration.codestream_index)).ok_or_else(invalid_layer)?",
+                "width = width.min(registered_extent(codestream.image_size.width, u32::from(registration.horizontal_subsampling), u32::from(layer.horizontal_grid_size()), registration.horizontal_offset,)?);",
+                "height = height.min(registered_extent(codestream.image_size.height, u32::from(registration.vertical_subsampling), u32::from(layer.vertical_grid_size()), registration.vertical_offset,)?);",
+                "build_timeline(composition, effective_layer_count(file), limits.maximum_frames(),)",
+                "crate::specs::part2_inspection_duration_prefix(frame_views(frames@), frame_index as nat)",
+                "instruction_sets: u32::try_from(composition.instruction_sets.len())",
+                "metadata_boxes: file.metadata_boxes()", "metadata_depth: file.metadata_depth()",
+            )
+            normalized = "".join(body.split()) if body is not None else ""
+            closure = "".join("""verus_spec(result: DecodeError =>
+                ensures result == crate::specs::part2_composition_error(true),""".split())
+            if body is None or any("".join(item.split()) not in normalized for item in required) \
+                    or normalized.count("codestreams.get(index).ok_or_else(invalid_layer)?") != 2 \
+                    or normalized.count(closure) != 3 or normalized.count("|_error|arithmetic_overflow()") != 3:
+                raise ValueError("whole parsed-file inspection Result requires actual ordered source/registration/timeline/error handoffs")
+            model = source_text((ROOT / "specs/jpx_inspection.rs").resolve())
+            handoffs = {
+                "part2_inspection_layer": (
+                    "if index as nat > u16::MAX as nat", "else if index >= geometries.len()",
+                    "part2_inspection_registration_prefix(config, geometries, config.registrations.len())",
+                ),
+                "part2_inspection_registration_step": (
+                    "registration.codestream_index as int", "if source >= geometries.len()",
+                    "registration.horizontal_subsampling as u32, layer.grid.0 as u32, registration.horizontal_offset",
+                    "registration.vertical_subsampling as u32, layer.grid.1 as u32, registration.vertical_offset",
+                ),
+                "part2_inspection_composition": (
+                    "part2_build_timeline(composition.sets,", "part2_inspection_duration_prefix(frames, frames.len())",
+                    "composition.sets.len() > u32::MAX as nat", "has_unknown_boxes: composition.has_unknown_boxes",
+                ),
+            }
+            for name, required in handoffs.items():
+                actual = _coverage_spec_function_body(model, name)
+                if actual is None or any("".join(item.split()) not in "".join(actual.split()) for item in required):
+                    raise ValueError("whole parsed-file inspection Result requires complete actual input/error/output models")
         if entry["id"] == _SOURCE_FRAME_ENTRY:
             if {(ref["path"], ref["symbol"]) for ref in entry["contract_refs"]} != set(_SOURCE_FRAME_CONTRACTS):
                 raise ValueError("whole source frame Result requires actual frame and owned-image contracts")
@@ -4699,6 +4774,8 @@ def validate_normative_coverage(
                     if entry["id"] == _EFFECTIVE_LAYER_ENTRY else None)
                 or (_SOURCE_FRAME_CONTRACTS.get((reference["path"], reference["symbol"]))
                     if entry["id"] == _SOURCE_FRAME_ENTRY else None)
+                or (_JPX_INSPECTION_CONTRACTS.get((reference["path"], reference["symbol"]))
+                    if entry["id"] == _JPX_INSPECTION_ENTRY else None)
                 or _CODESTREAM_READER_CONTRACTS.get((reference["path"], reference["symbol"]))
                 or _SOT_READER_CONTRACTS.get((reference["path"], reference["symbol"]))
                 or _TILE_DATA_WINDOW_CONTRACTS.get((reference["path"], reference["symbol"]))

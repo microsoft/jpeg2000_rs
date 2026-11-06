@@ -43,10 +43,16 @@ impl CompositingLayer<'_> {
         &self.registrations
     }
 
+    #[cfg_attr(verus_keep_ghost, verus_spec(result =>
+        ensures result == (super::source_layer_color_group(self).len() > 0),
+    ))]
     pub const fn has_color_group(&self) -> bool {
         !self.color_group.is_empty()
     }
 
+    #[cfg_attr(verus_keep_ghost, verus_spec(result =>
+        ensures result == super::source_layer_opacity(self).is_some(),
+    ))]
     pub const fn has_opacity_box(&self) -> bool {
         self.opacity.is_some()
     }
@@ -72,6 +78,9 @@ impl CompositingLayer<'_> {
         self.opacity.as_ref()
     }
 
+    #[cfg_attr(verus_keep_ghost, verus_spec(result =>
+        ensures result == super::source_layer_nested_metadata(self),
+    ))]
     pub const fn nested_metadata_boxes(&self) -> u32 {
         self.nested_metadata_boxes
     }

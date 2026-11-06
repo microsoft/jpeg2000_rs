@@ -25,6 +25,20 @@ verus! {
         (layer.header.offset, layer.horizontal_grid_size, layer.vertical_grid_size)
     }
 
+    pub closed spec fn source_layer_nested_metadata(layer: &CompositingLayer) -> u32 {
+        layer.nested_metadata_boxes
+    }
+
+    pub closed spec fn source_file_metadata(file: &Jp2File) -> (u32, u32) {
+        (file.metadata_boxes, file.metadata_depth)
+    }
+
+    pub closed spec fn source_file_composition_reference<'file>(
+        file: &'file Jp2File<'_>,
+    ) -> Option<&'file Composition> {
+        match &file.composition { None => None, Some(composition) => Some(composition) }
+    }
+
     pub closed spec fn source_layer_registrations(layer: &CompositingLayer) -> Seq<CodestreamRegistration> {
         layer.registrations@
     }
@@ -59,6 +73,13 @@ verus! {
         if index < file.compositing_layers@.len() {
             Some(&file.compositing_layers@[index as int])
         } else { None }
+    }
+
+    pub(crate) proof fn source_layer_reference_known(file: &Jp2File, index: usize)
+        ensures jpx_file_layer_reference(file, index) == if index < source_file_layers(file).len() {
+            Some(&source_file_layers(file)[index as int])
+        } else { None },
+    {
     }
 
     pub closed spec fn source_layer_definition_records(layer: &CompositingLayer) -> Seq<ChannelDefinitionRecord> {

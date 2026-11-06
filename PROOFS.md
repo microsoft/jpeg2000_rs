@@ -179,6 +179,37 @@ technical candidate only: parent-owned record, review, CI, guarded integration
 and actual-main acceptance remain separate. No complete parsing, pixels,
 lifetime verification, normative conformance or publication claim follows.
 
+## Actual complete parsed-file inspection Result
+
+`inspect_file` now has a total Result over its actual parsed-file, native
+`CodestreamInfo` slice and limits. It preserves every returned layer field,
+ordered registration/source index, actual registered minimum extent, flags
+and nested metadata count. Its actual timeline producer, checked duration
+sum, instruction-set conversion and complete composition/frame/metadata
+output retain the original first-error order.
+
+The source-info slice is a native input to this computational producer.
+This relation is not a claim that arbitrary supplied info is source-derived:
+composing the actual upstream info/container parser and final public entry
+remains separate. The model projects only the immutable geometry this native
+function reads; it never reconstructs an owning info/layer/file from that
+projection or assumes successful input.
+
+File/layer metadata and full native borrowed layer/composition projections,
+effective layer count and JPX profile admission are checked. Three existing
+`map_err` closures now have checked error contracts. The pinned attribute
+parser rejects wildcard closure parameters, so those unused Copy
+`TryFromIntError` parameters are deliberately named `_error`. No executing
+statements, closure body, owning scope or helper placement changes; possible
+unused-argument debug-binding differences require an explicit native audit,
+not a blanket coordinate-only identity claim.
+
+Real-byte regressions derive native infos through the actual parser and test
+all implicit/declared layer fields, ordered registered geometry, actual
+timeline duration/full composition metadata, and source-before-timeline
+error priority. These are finite observations. Corrected normative review,
+complete cfg/erasure/lifetimes and release remain independent gates.
+
 ## Actual decoded frame supply and complete frame Result
 
 `render_inspected_frame` derives its complete image/error Result from the

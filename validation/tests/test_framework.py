@@ -1030,6 +1030,85 @@ class FrameworkTests(WorkingFiles):
             framework._RAW_TILE_HEADER_CONTRACTS, 8,
         )
 
+    def test_inventory_binds_actual_complete_jpx_inspection_result(self):
+        self._assert_complete_packet_contract_bindings(
+            {framework._JPX_INSPECTION_ENTRY}, framework._JPX_INSPECTION_CONTRACTS, 2, isolate=False,
+        )
+
+    def test_inventory_jpx_inspection_requires_all_layer_timeline_duration_error_bridges(self):
+        coverage = json.loads((framework.VALIDATION / "normative-coverage.json").read_text())
+        entry = next(item for item in coverage["requirements"] if item["id"] == framework._JPX_INSPECTION_ENTRY)
+        for field in ("contract_refs", "spec_refs", "proof_refs"):
+            for removed in entry[field]:
+                changed = copy.deepcopy(entry)
+                changed[field].remove(removed)
+                expected_error = "should be non-empty" if not changed[field] else "whole parsed-file inspection Result"
+                with self.subTest(field=field, removed=removed), self.assertRaisesRegex(ValueError, expected_error):
+                    framework.validate_normative_coverage(dict(coverage, requirements=[changed]))
+
+    def test_inventory_jpx_inspection_binds_real_source_geometry_timeline_and_error_closures(self):
+        coverage = json.loads((framework.VALIDATION / "normative-coverage.json").read_text())
+        entry = next(item for item in coverage["requirements"] if item["id"] == framework._JPX_INSPECTION_ENTRY)
+        source = framework.ROOT / "src/jpx/inspection.rs"
+        original = source.read_text()
+        read_text = Path.read_text
+        begin = original.index("pub(super) fn inspect_file")
+        for before, after in (
+            ("codestreams.get(index)", "codestreams.get(0)"),
+            ("codestream_indices.push(registration.codestream_index)", "codestream_indices.push(0)"),
+            ("width = width.min(registered_extent(", "width = width.max(registered_extent("),
+            ("limits.maximum_frames(),", "0,"),
+            ("|_error| arithmetic_overflow()", "|_error| invalid_layer()"),
+        ):
+            self.assertIn(before, original[begin:])
+            changed = original[:begin] + original[begin:].replace(before, after, 1)
+
+            def altered(path, *args, **kwargs):
+                return changed if path == source else read_text(path, *args, **kwargs)
+
+            with self.subTest(before=before), mock.patch.object(Path, "read_text", altered), \
+                    self.assertRaisesRegex(ValueError, "actual ordered source/registration/timeline/error handoffs"):
+                framework.validate_normative_coverage(dict(coverage, requirements=[entry]))
+
+    def test_inventory_jpx_inspection_preserves_input_order_offsets_and_complete_composition_models(self):
+        coverage = json.loads((framework.VALIDATION / "normative-coverage.json").read_text())
+        entry = next(item for item in coverage["requirements"] if item["id"] == framework._JPX_INSPECTION_ENTRY)
+        source = framework.ROOT / "specs/jpx_inspection.rs"
+        original = source.read_text()
+        read_text = Path.read_text
+        for before, after in (
+            ("index as nat > u16::MAX as nat", "false"),
+            ("else if index >= geometries.len()", "else if false"),
+            ("registration.horizontal_offset", "0"),
+            ("composition.sets.len() > u32::MAX as nat", "false"),
+            ("has_unknown_boxes: composition.has_unknown_boxes", "has_unknown_boxes: false"),
+        ):
+            self.assertIn(before, original)
+            changed = original.replace(before, after, 1)
+
+            def altered(path, *args, **kwargs):
+                return changed if path == source else read_text(path, *args, **kwargs)
+
+            with self.subTest(before=before), mock.patch.object(Path, "read_text", altered), \
+                    self.assertRaisesRegex(ValueError, "complete actual input/error/output models"):
+                framework.validate_normative_coverage(dict(coverage, requirements=[entry]))
+
+    def test_inventory_jpx_inspection_keeps_fresh_actual_source_and_model_caches(self):
+        coverage = json.loads((framework.VALIDATION / "normative-coverage.json").read_text())
+        entry = next(item for item in coverage["requirements"] if item["id"] == framework._JPX_INSPECTION_ENTRY)
+        read_text = Path.read_text
+        counts = {framework.ROOT / name: 0 for name in ("src/jpx/inspection.rs", "specs/jpx_inspection.rs")}
+
+        def counted(path, *args, **kwargs):
+            if path in counts:
+                counts[path] += 1
+            return read_text(path, *args, **kwargs)
+
+        with mock.patch.object(Path, "read_text", counted):
+            for expected in (1, 2):
+                self.assertEqual(framework.validate_normative_coverage(dict(coverage, requirements=[entry]))["status"], "passed")
+                self.assertEqual(set(counts.values()), {expected})
+
     def test_inventory_binds_actual_complete_source_frame_and_owned_image_results(self):
         self._assert_complete_packet_contract_bindings(
             {framework._SOURCE_FRAME_ENTRY}, framework._SOURCE_FRAME_CONTRACTS, 2, isolate=False,
