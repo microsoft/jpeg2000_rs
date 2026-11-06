@@ -13,7 +13,8 @@ use super::{
 #[cfg(verus_keep_ghost)]
 use super::{
     frame_views, inspected_layer_view, inspected_layers_view, inspection_file_input,
-    inspection_layer_config, inspection_result, inspection_source_geometries, timeline_set_views,
+    inspection_layer_config, inspection_result, inspection_source_geometries, raw_jpx_file_known,
+    raw_jpx_geometries_known, raw_jpx_inspection_outcome_known, timeline_set_views,
 };
 #[cfg(verus_keep_ghost)]
 use vstd::prelude::*;
@@ -192,11 +193,25 @@ impl JpxInspection {
     }
 }
 
+#[cfg_attr(verus_keep_ghost, verus_spec(result =>
+    ensures super::raw_jpx_inspection_outcome(result) == crate::specs::part2_inspect_raw_jpx_layers(input@, limits),
+))]
 pub fn inspect_jpx_layers(
     input: &[u8],
     limits: &ResourceLimits,
 ) -> Result<JpxInspection, DecodeError> {
+    #[cfg(verus_keep_ghost)]
+    proof! {
+        crate::specs::part2_inspect_raw_jpx_layers_unfold(input@, limits);
+        raw_jpx_inspection_outcome_known();
+    }
     let inspected = jp2::parse_and_inspect(input, limits)?;
+    #[cfg(verus_keep_ghost)]
+    proof! {
+        raw_jpx_file_known(jp2::raw_inspected_file_reference(&inspected));
+        raw_jpx_geometries_known(jp2::raw_inspected_native_infos(&inspected));
+        jp2::raw_jpx_inspection_parts_known(jp2::raw_inspected_file_reference(&inspected));
+    }
     ensure_jpx(inspected.file())?;
     inspect_file(inspected.file(), inspected.codestreams(), limits)
 }

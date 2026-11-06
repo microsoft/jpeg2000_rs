@@ -64,6 +64,64 @@ verus! {
         }
     }
 
+    pub closed spec fn raw_jpx_inspection_outcome(result: Result<JpxInspection, DecodeError>)
+        -> Result<crate::specs::Part2JpxInspection, DecodeError>
+    {
+        inspection_result(result)
+    }
+
+    proof fn raw_jpx_inspection_outcome_known()
+        ensures forall|result: Result<JpxInspection, DecodeError>|
+            raw_jpx_inspection_outcome(result) == inspection_result(result),
+    {
+        reveal(raw_jpx_inspection_outcome);
+    }
+
+    proof fn raw_jpx_composition_known(composition: &jp2::Composition)
+        ensures inspection_composition_config(composition)
+            == crate::specs::part2_raw_inspection_composition(jp2::raw_composition_view(composition)),
+    {
+        assert forall|i: int| #![auto] 0 <= i < composition.instruction_sets@.len() implies
+            timeline_set_views(composition)[i]
+                == crate::specs::part2_raw_timeline_sets(jp2::raw_composition_view(composition).3)[i] by {
+            let instructions = composition.instruction_sets@[i].instructions@;
+            assert(timeline_instruction_views(instructions) =~=
+                Seq::new(instructions.len(), |j: int| crate::specs::part2_raw_timeline_instruction(instructions[j])));
+        }
+        assert(timeline_set_views(composition) =~=
+            crate::specs::part2_raw_timeline_sets(jp2::raw_composition_view(composition).3));
+    }
+
+    proof fn raw_jpx_file_known(file: &Jp2File)
+        ensures inspection_file_input(file) == crate::specs::part2_raw_inspection_file(jp2::raw_jp2_file_view(file)),
+    {
+        jp2::raw_jpx_inspection_parts_known(file);
+        let layers = jp2::source_file_layers(file);
+        assert forall|i: int| #![auto] 0 <= i < layers.len() implies
+            inspection_layer_config(&layers[i])
+                == crate::specs::part2_raw_inspection_layer(jp2::raw_compositing_layer_view(&layers[i])) by {
+            jp2::raw_jpx_inspection_layer_known(&layers[i]);
+        }
+        assert(inspection_file_input(file).layers =~=
+            crate::specs::part2_raw_inspection_file(jp2::raw_jp2_file_view(file)).layers);
+        if let Some(composition) = jp2::source_file_composition_reference(file) {
+            raw_jpx_composition_known(composition);
+        }
+    }
+
+    proof fn raw_jpx_geometries_known(infos: Seq<crate::codestream::CodestreamInfo>)
+        ensures inspection_source_geometries(infos)
+            == crate::specs::part2_raw_inspection_geometries(jp2::raw_codestream_infos_view(infos)),
+    {
+        assert forall|i: int| #![auto] 0 <= i < infos.len() implies
+            inspection_source_geometries(infos)[i]
+                == crate::specs::part2_raw_inspection_geometries(jp2::raw_codestream_infos_view(infos))[i] by {
+            crate::codestream::complete_codestream_info_known_fields(&infos[i]);
+        }
+        assert(inspection_source_geometries(infos)
+            =~= crate::specs::part2_raw_inspection_geometries(jp2::raw_codestream_infos_view(infos)));
+    }
+
     #[verifier::inline]
     spec fn inspection_result(result: Result<JpxInspection, DecodeError>)
         -> Result<crate::specs::Part2JpxInspection, DecodeError>

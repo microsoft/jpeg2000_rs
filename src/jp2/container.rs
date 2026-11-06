@@ -243,6 +243,10 @@ impl<'a> Jp2File<'a> {
 }
 
 impl<'a> InspectedJp2<'a> {
+    #[cfg_attr(verus_keep_ghost, verus_spec(result =>
+        ensures super::raw_jp2_file_view(result) == super::raw_inspected_container_view(self).0,
+            result == super::raw_inspected_file_reference(self),
+    ))]
     pub fn file(&self) -> &Jp2File<'a> {
         &self.file
     }
@@ -260,6 +264,10 @@ impl<'a> InspectedJp2<'a> {
             })
     }
 
+    #[cfg_attr(verus_keep_ghost, verus_spec(result =>
+        ensures super::raw_codestream_infos_view(result@) == super::raw_inspected_container_view(self).1,
+            result@ == super::raw_inspected_native_infos(self),
+    ))]
     pub fn codestreams(&self) -> &[CodestreamInfo] {
         &self.codestreams
     }

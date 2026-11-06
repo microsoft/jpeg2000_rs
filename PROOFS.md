@@ -179,6 +179,21 @@ technical candidate only: parent-owned record, review, CI, guarded integration
 and actual-main acceptance remain separate. No complete parsing, pixels,
 lifetime verification, normative conformance or publication claim follows.
 
+## Actual public raw JPX inspection and timeline Result
+
+The public `inspect_jpx_layers` now composes actual raw container/info Results,
+the unchanged checked JPX admission and the existing full parsed-file/timeline
+inspector. Complete returned layer/composition/frame/instruction metadata,
+duration/reuse/unknown flags and global metadata count/depth derive from bytes.
+Nested timeline projections are proved extensionally; the stored file/info
+getters retain exact reference/value frames without adding executing calls.
+
+The public-only API is registered using the existing proved-boundary inventory
+pattern, rather than inventing a native caller just to satisfy a metadata link.
+No supplied successful file/info/timeline bank, native clone/reconstruction,
+owner change, renderer change or budget/trust weakening is introduced.
+Fresh native observations and full qualification remain required.
+
 ## Actual raw container inspection Results
 
 The executing `parse_and_inspect` and `inspect_jph` now derive complete owned
