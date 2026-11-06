@@ -1252,6 +1252,80 @@ class FrameworkTests(WorkingFiles):
                 self.assertEqual(framework.validate_normative_coverage(dict(coverage, requirements=[entry]))["status"], "passed")
                 self.assertEqual(set(counts.values()), {expected})
 
+    def test_inventory_binds_actual_complete_raw_container_result(self):
+        self._assert_complete_packet_contract_bindings(
+            {framework._RAW_CONTAINER_ENTRY}, framework._RAW_CONTAINER_CONTRACTS, 1, isolate=False,
+        )
+
+    def test_inventory_raw_container_requires_every_actual_full_result_bridge(self):
+        coverage = json.loads((framework.VALIDATION / "normative-coverage.json").read_text())
+        entry = next(item for item in coverage["requirements"] if item["id"] == framework._RAW_CONTAINER_ENTRY)
+        for field in ("contract_refs", "spec_refs", "proof_refs"):
+            for removed in entry[field]:
+                changed = copy.deepcopy(entry)
+                changed[field].remove(removed)
+                expected_error = "should be non-empty" if not changed[field] else "whole raw container Result"
+                with self.subTest(field=field, removed=removed), self.assertRaisesRegex(ValueError, expected_error):
+                    framework.validate_normative_coverage(dict(coverage, requirements=[changed]))
+
+    def test_inventory_raw_container_binds_actual_counters_and_owned_attachment(self):
+        coverage = json.loads((framework.VALIDATION / "normative-coverage.json").read_text())
+        entry = next(item for item in coverage["requirements"] if item["id"] == framework._RAW_CONTAINER_ENTRY)
+        source = framework.ROOT / "src/jp2/container.rs"
+        original = source.read_text()
+        read_text = Path.read_text
+        for before, after in (
+            ("let mut box_count = 2_u64", "let mut box_count = 3_u64"),
+            ("metadata_depth = metadata_depth.max(depth)", "metadata_depth = depth"),
+            ("codestream_box.codestream_header = Some(association)", "codestream_box.codestream_header = None"),
+        ):
+            self.assertIn(before, original)
+            changed = original.replace(before, after, 1)
+
+            def altered(path, *args, **kwargs):
+                return changed if path == source else read_text(path, *args, **kwargs)
+
+            with self.subTest(before=before), mock.patch.object(Path, "read_text", altered), \
+                    self.assertRaisesRegex(ValueError, "actual source producers/counters/owned attachment/output handoffs"):
+                framework.validate_normative_coverage(dict(coverage, requirements=[entry]))
+
+    def test_inventory_raw_container_rejects_trimmed_attachment_and_metadata_models(self):
+        coverage = json.loads((framework.VALIDATION / "normative-coverage.json").read_text())
+        entry = next(item for item in coverage["requirements"] if item["id"] == framework._RAW_CONTAINER_ENTRY)
+        source = framework.ROOT / "specs/jp2_container.rs"
+        original = source.read_text()
+        read_text = Path.read_text
+        for before, after in (
+            ("Some(part2_codestream_association_clone(associations[i]))", "None"),
+            ("metadata_depth: state.metadata_depth", "metadata_depth: 0"),
+            ("box_count: state.box_count", "box_count: 0"),
+        ):
+            self.assertIn(before, original)
+            changed = original.replace(before, after, 1)
+
+            def altered(path, *args, **kwargs):
+                return changed if path == source else read_text(path, *args, **kwargs)
+
+            with self.subTest(before=before), mock.patch.object(Path, "read_text", altered), \
+                    self.assertRaisesRegex(ValueError, "complete raw traversal/metadata/attachment/final output models"):
+                framework.validate_normative_coverage(dict(coverage, requirements=[entry]))
+
+    def test_inventory_raw_container_keeps_fresh_actual_parser_and_model_caches(self):
+        coverage = json.loads((framework.VALIDATION / "normative-coverage.json").read_text())
+        entry = next(item for item in coverage["requirements"] if item["id"] == framework._RAW_CONTAINER_ENTRY)
+        read_text = Path.read_text
+        counts = {framework.ROOT / name: 0 for name in ("src/jp2/container.rs", "specs/jp2_container.rs")}
+
+        def counted(path, *args, **kwargs):
+            if path in counts:
+                counts[path] += 1
+            return read_text(path, *args, **kwargs)
+
+        with mock.patch.object(Path, "read_text", counted):
+            for expected in (1, 2):
+                self.assertEqual(framework.validate_normative_coverage(dict(coverage, requirements=[entry]))["status"], "passed")
+                self.assertEqual(set(counts.values()), {expected})
+
     def test_inventory_binds_actual_complete_association_clone_producers(self):
         self._assert_complete_packet_contract_bindings(
             {framework._ASSOCIATION_CLONE_ENTRY}, framework._ASSOCIATION_CLONE_CONTRACTS, 2, isolate=False,

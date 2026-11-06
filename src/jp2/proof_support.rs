@@ -482,6 +482,50 @@ verus! {
         association.payload
     }
 
+    pub closed spec fn raw_codestream_view(stream: &CodestreamBox) -> crate::specs::Part2RawCodestream {
+        (box_header_view(stream.header), stream.data@, match &stream.codestream_header {
+            None => None, Some(association) => Some(raw_codestream_association_view(association)),
+        })
+    }
+
+    pub open spec fn raw_codestreams_view(streams: Seq<CodestreamBox>) -> Seq<crate::specs::Part2RawCodestream> {
+        Seq::new(streams.len(), |i: int| raw_codestream_view(&streams[i]))
+    }
+
+    pub open spec fn raw_codestream_associations_view(associations: Seq<CodestreamHeaderAssociation>)
+        -> Seq<crate::specs::Part2RawCodestreamAssociation>
+    {
+        Seq::new(associations.len(), |i: int| raw_codestream_association_view(&associations[i]))
+    }
+
+    pub open spec fn raw_composition_option(composition: &Option<Composition>) -> Option<crate::specs::Part2RawComposition> {
+        match composition { None => None, Some(value) => Some(raw_composition_view(value)) }
+    }
+
+    pub open spec fn raw_container_state(
+        header: &Option<Jp2Header>, streams: Seq<CodestreamBox>, associations: Seq<CodestreamHeaderAssociation>,
+        layers: Seq<CompositingLayer>, composition: &Option<Composition>, metadata_boxes: u32, metadata_depth: u32, box_count: u64,
+    ) -> crate::specs::Part2RawContainerState {
+        crate::specs::Part2RawContainerState {
+            header: optional_jp2_header_view(header), streams: raw_codestreams_view(streams),
+            associations: raw_codestream_associations_view(associations), layers: raw_compositing_layers_view(layers),
+            composition: raw_composition_option(composition), metadata_boxes, metadata_depth, box_count,
+        }
+    }
+
+    pub closed spec fn raw_jp2_file_view(file: &Jp2File) -> crate::specs::Part2RawJp2File {
+        crate::specs::Part2RawJp2File {
+            file_type: file_type_view(&file.file_type), header: raw_jp2_header_view(&file.header),
+            streams: raw_codestreams_view(file.codestreams@), layers: raw_compositing_layers_view(file.compositing_layers@),
+            composition: raw_composition_option(&file.composition), metadata_boxes: file.metadata_boxes,
+            metadata_depth: file.metadata_depth, box_count: file.box_count,
+        }
+    }
+
+    pub open spec fn raw_jp2_file_outcome(result: Result<Jp2File, DecodeError>) -> Result<crate::specs::Part2RawJp2File, DecodeError> {
+        match result { Err(error) => Err(error), Ok(file) => Ok(raw_jp2_file_view(&file)) }
+    }
+
     pub open spec fn optional_palette_view(palette: &Option<Palette>) -> Option<crate::specs::Part2PaletteModel> {
         match palette { None => None, Some(value) => Some(palette_view(value)) }
     }

@@ -4,6 +4,49 @@
   "scope": "Technical reference inventory; not exhaustive standards-clause coverage or a conformance claim.",
   "requirements": [
     {
+      "id": "part2-complete-native-raw-container-result",
+      "topic": "Complete actual raw container::parse Result from bytes and actual limits, retaining original prologue relation, every full header/file-type/stream/association/layer/composition field, metadata count/depth and root box count. Source producers, native order/resource/reader/error priorities and original owner scopes preserved. Real checked association cloning attaches only the original association field; complete mutable vector frame preserves all other entries and original stored headers/payloads. No supplied successful-stage banks, assumed validity, owner reconstruction, runtime proof clones or trust/budget changes. Native extraction/routing/caller observations and full fresh qualification required. Inspection/timeline/public/normative/lifetime/cfg/release separate.",
+      "implementation_refs": [
+        {"path": "src/jp2/container.rs", "symbol": "parse_and_inspect"},
+        {"path": "src/jp2/container.rs", "symbol": "parse"},
+        {"path": "src/jp2/clone_support.rs", "symbol": "codestream_association_clone"}
+      ],
+      "contract_refs": [
+        {"path": "src/jp2/container.rs", "symbol": "parse"}
+      ],
+      "spec_refs": [
+        {"path": "specs/jp2_file_type.rs", "symbol": "part2_container_prologue"},
+        {"path": "specs/jp2_container.rs", "symbol": "part2_parse_container"},
+        {"path": "specs/jp2_container.rs", "symbol": "part2_container_boxes"},
+        {"path": "specs/jp2_container.rs", "symbol": "part2_container_step"},
+        {"path": "specs/jp2_container.rs", "symbol": "part2_container_finish"},
+        {"path": "specs/jp2_container.rs", "symbol": "part2_container_attach"},
+        {"path": "specs/jp2_container.rs", "symbol": "part2_container_initial_state"},
+        {"path": "specs/jp2_container.rs", "symbol": "part2_container_next_stream_count"},
+        {"path": "specs/jp2_container.rs", "symbol": "part2_container_error"}
+      ],
+      "proof_refs": [
+        {"path": "src/jp2/proof_support.rs", "symbol": "raw_jp2_file_outcome"},
+        {"path": "src/jp2/proof_support.rs", "symbol": "raw_jp2_file_view"},
+        {"path": "src/jp2/proof_support.rs", "symbol": "raw_container_state"},
+        {"path": "src/jp2/proof_support.rs", "symbol": "raw_codestream_view"},
+        {"path": "src/jp2/proof_support.rs", "symbol": "raw_codestreams_view"},
+        {"path": "src/jp2/proof_support.rs", "symbol": "raw_codestream_associations_view"},
+        {"path": "src/jp2/proof_support.rs", "symbol": "raw_codestream_association_view"},
+        {"path": "src/jp2/proof_support.rs", "symbol": "raw_jp2_header_view"},
+        {"path": "src/jp2/proof_support.rs", "symbol": "raw_composition_option"},
+        {"path": "src/jp2/proof_support.rs", "symbol": "raw_compositing_layers_view"}
+      ],
+      "test_refs": [
+        {"path": "src/jp2/tests.rs", "symbol": "actual_raw_container_retains_complete_header_and_original_uninspected_codestream_bytes"},
+        {"path": "src/jp2/tests.rs", "symbol": "actual_raw_container_attaches_every_owned_association_without_changing_other_streams"},
+        {"path": "src/jp2/tests.rs", "symbol": "actual_raw_container_retains_borrowed_layers_owned_composition_and_all_instruction_defaults"},
+        {"path": "src/jp2/tests.rs", "symbol": "actual_raw_container_keeps_profile_order_and_count_before_payload_priorities"},
+        {"path": "src/jp2/tests.rs", "symbol": "actual_raw_container_keeps_missing_excess_association_and_first_reference_error_priority"},
+        {"path": "src/jp2/tests.rs", "symbol": "actual_raw_container_derives_metadata_depth_counts_progress_and_empty_stream_admission"}
+      ]
+    },
+    {
       "id": "part2-complete-native-owned-codestream-association-clone-producers",
       "topic": "Actual optional full-header and owned codestream-association Clone producers retain every box-header field, payload byte/reference, arbitrary optional header metadata and independent original native owners. Original derived field-clone body extracted into checked shared producer; one explicit optional-header clone routing target and thin public delegation. No raw-origin/validity premise, parsed-result bank, ghost assumption or reconstructed owner. Exact native extraction/routing/wrapper observation and full qualification required; complete container parser/public/normative/lifetime/cfg/release separate.",
       "implementation_refs": [

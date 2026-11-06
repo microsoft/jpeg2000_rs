@@ -3597,6 +3597,342 @@ fn rejects_jph_brand_and_codestream_profile_inconsistencies() {
     ));
 }
 
+fn raw_container_start(jpx: bool, header: Option<&[u8]>) -> Vec<u8> {
+    let mut bytes = box32(*b"jP  ", &SIGNATURE_MAGIC);
+    bytes.extend(box32(
+        *b"ftyp",
+        if jpx {
+            b"jpx \0\0\0\0jpx "
+        } else {
+            b"jp2 \0\0\0\0jp2 "
+        },
+    ));
+    if let Some(header) = header {
+        bytes.extend(box32(*b"jp2h", header));
+    }
+    bytes
+}
+
+fn raw_container_owned_header() -> Vec<u8> {
+    let mut header = raw_jp2_header_image(u8::MAX, 3);
+    header.extend(box32(*b"bpcc", &[7, 0x87, 37]));
+    header.extend(box32(*b"colr", &[3, 173, 219, 1, 128, 255, 0, 17]));
+    header.extend(box32(*b"pclr", &[0, 2, 2, 7, 0x87, 5, 0x80, 7, 0x7f]));
+    header.extend(box32(*b"cmap", &[0, 0, 1, 0, 0, 1, 1, 1]));
+    header.extend(box32(
+        *b"cdef",
+        &raw_channel_definition_payload(&[(0, 0, 1), (1, 2, 0)]),
+    ));
+    header.extend(box32(*b"res ", &box32(*b"resc", &raw_resolution_payload())));
+    header
+}
+
+#[test]
+fn actual_raw_container_retains_complete_header_and_original_uninspected_codestream_bytes() {
+    let mut bytes = raw_container_start(false, Some(&raw_container_owned_header()));
+    let offset = bytes.len();
+    bytes.extend(box32(*b"jp2c", &[0, 255, 128, 17]));
+    let file = parse(&bytes, &ResourceLimits::default()).unwrap();
+    assert_eq!(file.box_count, 4);
+    assert_eq!((file.metadata_boxes, file.metadata_depth), (0, 0));
+    assert_eq!(
+        (
+            file.header.image.width,
+            file.header.image.height,
+            file.header.image.components
+        ),
+        (3, 2, 3)
+    );
+    assert!(file.header.image.unknown_color_space && file.header.image.intellectual_property);
+    assert_eq!(file.header.image.bit_depth, ComponentBitDepth::Variable);
+    assert_eq!(
+        (
+            file.header.color.precedence,
+            file.header.color.approximation
+        ),
+        (173, 219)
+    );
+    assert_eq!(
+        file.header.color.icc_profile(),
+        Some(&[1, 128, 255, 0, 17][..])
+    );
+    assert_eq!(
+        (
+            file.header.nested_box_count,
+            file.header.palette_entries,
+            file.header.palette_columns
+        ),
+        (7, 2, 2)
+    );
+    assert_eq!(
+        file.header.palette.as_ref().unwrap().values,
+        [5, -128, 7, 127]
+    );
+    assert_eq!(
+        (
+            file.header.component_mappings.len(),
+            file.header.channel_definition_records.len()
+        ),
+        (2, 2)
+    );
+    assert!(file.header.capture_resolution.is_some());
+    assert_eq!(file.header.display_resolution, None);
+    assert_eq!(file.codestreams[0].header.offset(), offset as u64);
+    assert!(std::ptr::eq(file.codestreams[0].data, &bytes[offset + 8..]));
+    assert_eq!(file.codestreams[0].codestream_header, None);
+    assert!(parse_and_inspect(&bytes, &ResourceLimits::default()).is_err());
+}
+
+#[test]
+fn actual_raw_container_attaches_every_owned_association_without_changing_other_streams() {
+    for count in 0..6 {
+        let mut bytes = raw_container_start(true, Some(&raw_container_owned_header()));
+        let mut headers = Vec::new();
+        for index in 0..count {
+            let payload = box32(*b"colr", &[3, index as u8, 201, 255, index as u8]);
+            let start = bytes.len();
+            bytes.extend(box32(*b"jpch", &payload));
+            headers.push((start, bytes.len()));
+        }
+        let mut streams = Vec::new();
+        for index in 0..count + 2 {
+            let start = bytes.len();
+            bytes.extend(box32(*b"jp2c", &[index as u8, 255, 0]));
+            streams.push((start, bytes.len()));
+        }
+        let file = parse(&bytes, &ResourceLimits::default()).unwrap();
+        assert_eq!(file.box_count, (5 + 2 * count) as u64);
+        for (index, (start, end)) in streams.iter().copied().enumerate() {
+            let stream = &file.codestreams[index];
+            assert_eq!(stream.header.offset(), start as u64);
+            assert!(std::ptr::eq(stream.data, &bytes[start + 8..end]));
+            if index < count {
+                let association = stream.codestream_header.as_ref().unwrap();
+                let (header_start, header_end) = headers[index];
+                assert_eq!(association.header.offset(), header_start as u64);
+                assert!(std::ptr::eq(
+                    association.payload,
+                    &bytes[header_start + 8..header_end]
+                ));
+                let parsed = association.parsed.as_ref().unwrap();
+                assert_eq!(
+                    (parsed.color.precedence, parsed.color.approximation),
+                    (index as u8, 201)
+                );
+                assert_eq!(parsed.color.icc_profile(), Some(&[255, index as u8][..]));
+                assert_eq!(parsed.palette, file.header.palette);
+                assert_eq!(parsed.component_mappings, file.header.component_mappings);
+                assert_eq!(
+                    parsed.channel_definition_records,
+                    file.header.channel_definition_records
+                );
+                assert_eq!(parsed.nested_box_count, 1);
+                assert_ne!(
+                    parsed.palette.as_ref().unwrap().values.as_ptr(),
+                    file.header.palette.as_ref().unwrap().values.as_ptr()
+                );
+            } else {
+                assert_eq!(stream.codestream_header, None);
+            }
+        }
+    }
+}
+
+#[test]
+fn actual_raw_container_retains_borrowed_layers_owned_composition_and_all_instruction_defaults() {
+    let mut bytes = raw_container_start(true, Some(&image_header_box(3, 2)));
+    let mut layer = box32(*b"creg", &[0, 2, 0, 2, 0, 1, 1, 1, 0, 0]);
+    layer.extend(box32(*b"cgrp", &box32(*b"colr", &[3, 17, 19, 255, 0])));
+    layer.extend(box32(*b"opct", &[2, 3, 17, 128, 255, 0]));
+    layer.extend(box32(*b"xml ", &[11]));
+    let start = bytes.len();
+    bytes.extend(box32(*b"jplh", &layer));
+    let end = bytes.len();
+    let mut composition = raw_composition_options(7);
+    composition.extend(box32(*b"inst", &[0, 0, 0, 11, 0, 0, 0, 9]));
+    composition.extend(box32(*b"free", &[17]));
+    bytes.extend(box32(*b"comp", &composition));
+    bytes.extend(box32(*b"jp2c", &[]));
+    bytes.extend(box32(*b"jp2c", &[17]));
+    let file = parse(&bytes, &ResourceLimits::default()).unwrap();
+    let layer = &file.compositing_layers[0];
+    assert!(std::ptr::eq(layer.payload, &bytes[start + 8..end]));
+    assert_eq!(
+        (layer.horizontal_grid_size, layer.vertical_grid_size),
+        (2, 2)
+    );
+    assert_eq!(layer.registrations[0].codestream_index, 1);
+    assert_eq!(layer.color_group[0].icc_profile(), Some(&[255, 0][..]));
+    assert_eq!(
+        layer.opacity,
+        Some(LayerOpacity::ChromaKey {
+            channels: 3,
+            values: vec![17, 128, 255, 0]
+        })
+    );
+    assert_eq!(layer.nested_metadata_boxes, 1);
+    let composition = file.composition.unwrap();
+    assert_eq!(
+        (
+            composition.width,
+            composition.height,
+            composition.loop_count
+        ),
+        (3, 2, 8)
+    );
+    assert!(composition.has_unknown_boxes);
+    assert_eq!(
+        (
+            composition.instruction_sets[0].flags,
+            composition.instruction_sets[0].repeat,
+            composition.instruction_sets[0].tick
+        ),
+        (0, 11, 9)
+    );
+    assert!(composition.instruction_sets[0].instructions.is_empty());
+}
+
+#[test]
+fn actual_raw_container_keeps_profile_order_and_count_before_payload_priorities() {
+    for jpx in [false, true] {
+        for kind in [*b"jpch", *b"jplh", *b"comp"] {
+            let mut bytes = raw_container_start(jpx, None);
+            let offset = bytes.len() as u64;
+            bytes.extend(box32(kind, &[0]));
+            assert_eq!(
+                parse(&bytes, &ResourceLimits::default()).err(),
+                Some(DecodeError::MalformedInput {
+                    offset,
+                    kind: if jpx {
+                        MalformedKind::InvalidBoxOrder
+                    } else {
+                        MalformedKind::InvalidFileType
+                    },
+                })
+            );
+        }
+    }
+    let limits = ResourceLimits::default()
+        .with_maximum_codestreams(1)
+        .unwrap();
+    let mut bytes = raw_container_start(true, Some(&image_header_box(3, 2)));
+    bytes.extend(box32(*b"jpch", &[]));
+    bytes.extend(box32(*b"jpch", &[0]));
+    assert_eq!(
+        parse(&bytes, &limits).err(),
+        Some(DecodeError::LimitExceeded {
+            resource: Resource::Codestreams,
+            limit: 1,
+            actual: 2
+        })
+    );
+    let mut bytes = minimal_jp2();
+    let offset = bytes.len() as u64;
+    bytes.extend(box32(*b"jp2c", &[]));
+    assert_eq!(
+        parse(&bytes, &limits).err(),
+        Some(DecodeError::LimitExceeded {
+            resource: Resource::Codestreams,
+            limit: 1,
+            actual: 2
+        })
+    );
+    assert_eq!(
+        parse(&bytes, &ResourceLimits::default()).err(),
+        Some(DecodeError::MalformedInput {
+            offset,
+            kind: MalformedKind::InvalidBoxContents
+        })
+    );
+    let mut bytes = raw_container_start(true, Some(&image_header_box(3, 2)));
+    bytes.extend(box32(*b"jplh", &[0]));
+    let limits = ResourceLimits::default().with_coding_style_limits_for_test(0, 33);
+    assert_eq!(
+        parse(&bytes, &limits).err(),
+        Some(DecodeError::LimitExceeded {
+            resource: Resource::Layers,
+            limit: 0,
+            actual: 1
+        })
+    );
+}
+
+#[test]
+fn actual_raw_container_keeps_missing_excess_association_and_first_reference_error_priority() {
+    let header = image_header_box(3, 2);
+    for count in 0..3 {
+        let mut bytes = raw_container_start(true, Some(&header));
+        for _ in 0..count {
+            bytes.extend(box32(*b"jpch", &[]));
+        }
+        assert_eq!(
+            parse(&bytes, &ResourceLimits::default()).err(),
+            Some(DecodeError::MalformedInput {
+                offset: 0,
+                kind: MalformedKind::MissingRequiredStructure
+            })
+        );
+    }
+    let mut bytes = raw_container_start(true, Some(&header));
+    bytes.extend(box32(*b"jpch", &[]));
+    bytes.extend(box32(*b"jpch", &[]));
+    let layer_offset = bytes.len() as u64;
+    bytes.extend(box32(
+        *b"jplh",
+        &box32(*b"creg", &[0, 1, 0, 1, 0, 9, 1, 1, 0, 0]),
+    ));
+    bytes.extend(box32(*b"jp2c", &[]));
+    assert_eq!(
+        parse(&bytes, &ResourceLimits::default()).err(),
+        Some(DecodeError::MalformedInput {
+            offset: 0,
+            kind: MalformedKind::InvalidBoxContents
+        })
+    );
+    bytes.extend(box32(*b"jp2c", &[]));
+    assert_eq!(
+        parse(&bytes, &ResourceLimits::default()).err(),
+        Some(DecodeError::MalformedInput {
+            offset: layer_offset,
+            kind: MalformedKind::InvalidBoxContents
+        })
+    );
+}
+
+#[test]
+fn actual_raw_container_derives_metadata_depth_counts_progress_and_empty_stream_admission() {
+    let mut bytes = raw_container_start(true, Some(&image_header_box(3, 2)));
+    let mut association = box32(*b"xml ", &[1]);
+    association.extend(box32(*b"asoc", &box32(*b"xml ", &[2])));
+    bytes.extend(box32(*b"asoc", &association));
+    bytes.extend(box32(*b"jp2c", &[]));
+    bytes.extend(box32(*b"uuid", &[17]));
+    let file = parse(&bytes, &ResourceLimits::default()).unwrap();
+    assert_eq!(
+        (file.metadata_boxes, file.metadata_depth, file.box_count),
+        (5, 3, 6)
+    );
+    assert!(file.codestreams[0].data.is_empty());
+    let offset = bytes.len() as u64;
+    bytes.push(0);
+    assert_eq!(
+        parse(&bytes, &ResourceLimits::default()).err(),
+        Some(DecodeError::MalformedInput {
+            offset,
+            kind: MalformedKind::InvalidBoxLength
+        })
+    );
+    let mut bytes = minimal_jp2();
+    bytes.extend(box32(*b"asoc", &[0]));
+    assert_eq!(
+        parse(&bytes, &ResourceLimits::default()).err(),
+        Some(DecodeError::MalformedInput {
+            offset: 0,
+            kind: MalformedKind::Truncated
+        })
+    );
+}
+
 fn minimal_jp2() -> Vec<u8> {
     let mut bytes = box32(*b"jP  ", &SIGNATURE_MAGIC);
     bytes.extend(box32(*b"ftyp", b"jp2 \0\0\0\0jp2 "));

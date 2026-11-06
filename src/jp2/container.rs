@@ -367,11 +367,12 @@ pub(crate) fn validate_selected_header(
 }
 
 #[cfg_attr(verus_keep_ghost, verus_spec(result =>
-    ensures super::container_prefix_relation(result, crate::specs::part2_container_prologue(input@, *limits)),
+    ensures super::raw_jp2_file_outcome(result) == crate::specs::part2_parse_container(input@, *limits),
+        super::container_prefix_relation(result, crate::specs::part2_container_prologue(input@, *limits)),
 ))]
 pub fn parse<'a>(input: &'a [u8], limits: &ResourceLimits) -> Result<Jp2File<'a>, DecodeError> {
     #[cfg(verus_keep_ghost)]
-    proof! { reveal(crate::specs::part2_container_prologue); }
+    proof! { reveal(crate::specs::part2_container_prologue); reveal(crate::specs::part2_parse_container); }
     let mut reader = box_reader_from_input(input, limits)?;
     let signature = required_box(&mut reader, 0)?;
     if !signature.header.box_type().equals(BoxType::SIGNATURE)
@@ -425,15 +426,42 @@ pub fn parse<'a>(input: &'a [u8], limits: &ResourceLimits) -> Result<Jp2File<'a>
     let mut metadata_boxes = 0_u32;
     let mut metadata_depth = 0_u32;
     let mut box_count = 2_u64;
+    #[cfg(verus_keep_ghost)]
+    proof_decl! { let ghost expected = crate::specs::part2_parse_container(input@, *limits); }
+    #[cfg(verus_keep_ghost)]
+    proof! {
+        assert(super::raw_codestreams_view(codestream_boxes@) =~= Seq::<crate::specs::Part2RawCodestream>::empty());
+        assert(super::raw_codestream_associations_view(codestream_headers@) =~= Seq::<crate::specs::Part2RawCodestreamAssociation>::empty());
+        assert(super::raw_compositing_layers_view(compositing_layers@) =~= Seq::<crate::specs::Part2RawCompositingLayer>::empty());
+    }
     #[cfg_attr(
         verus_keep_ghost,
         verus_spec(
-            invariant crate::specs::part2_container_prologue(input@, *limits)
-                == Ok((super::file_type_view(&file_type), prefix_reader)),
+            invariant_except_break expected == crate::specs::part2_container_boxes(input@, super::box_reader_state(&reader),
+                    super::raw_container_state(&parsed_header, codestream_boxes@, codestream_headers@,
+                        compositing_layers@, &composition, metadata_boxes, metadata_depth, box_count),
+                    super::file_type_view(&file_type), *limits),
+                expected == crate::specs::part2_parse_container(input@, *limits),
+                crate::specs::part2_container_prologue(input@, *limits)
+                    == Ok((super::file_type_view(&file_type), prefix_reader)),
+            ensures expected == crate::specs::part2_container_finish(
+                    super::raw_container_state(&parsed_header, codestream_boxes@, codestream_headers@,
+                        compositing_layers@, &composition, metadata_boxes, metadata_depth, box_count),
+                    super::file_type_view(&file_type)),
+                expected == crate::specs::part2_parse_container(input@, *limits),
+                crate::specs::part2_container_prologue(input@, *limits)
+                    == Ok((super::file_type_view(&file_type), prefix_reader)),
             decreases input.len() as int - reader.position as int,
         )
     )]
     loop {
+        #[cfg(verus_keep_ghost)]
+        proof! { reveal(crate::specs::part2_container_boxes); reveal(crate::specs::part2_container_step); }
+        #[cfg(verus_keep_ghost)]
+        proof_decl! {
+            let ghost previous_state = super::raw_container_state(&parsed_header, codestream_boxes@, codestream_headers@,
+                compositing_layers@, &composition, metadata_boxes, metadata_depth, box_count);
+        }
         let previous_position = reader.position;
         let Some(next) = reader.next_box_ref() else {
             break;
@@ -447,7 +475,12 @@ pub fn parse<'a>(input: &'a [u8], limits: &ResourceLimits) -> Result<Jp2File<'a>
         let box_ref = next?;
         box_count = box_count
             .checked_add(1)
-            .ok_or_else(|| DecodeError::malformed(0, MalformedKind::ArithmeticOverflow))?;
+            .ok_or_else(
+                #[cfg_attr(verus_keep_ghost, verus_spec(result: DecodeError =>
+                    ensures result == crate::specs::part2_container_error(0, MalformedKind::ArithmeticOverflow),
+                ))]
+                || DecodeError::malformed(0, MalformedKind::ArithmeticOverflow),
+            )?;
         let box_type = box_ref.header.box_type();
         if box_type.equals(BoxType::JP2_HEADER) {
             if parsed_header.is_some()
@@ -481,13 +514,24 @@ pub fn parse<'a>(input: &'a [u8], limits: &ResourceLimits) -> Result<Jp2File<'a>
             }
             let actual = u64::try_from(codestream_headers.len())
                 .ok()
-                .and_then(|value| value.checked_add(1))
-                .ok_or_else(|| {
-                    DecodeError::malformed(
-                        box_ref.header.offset(),
-                        MalformedKind::ArithmeticOverflow,
-                    )
-                })?;
+                .and_then(
+                    #[cfg_attr(verus_keep_ghost, verus_spec(result: (Option<u64>) =>
+                        ensures result == if value < u64::MAX { Some((value + 1) as u64) } else { None },
+                    ))]
+                    |value| value.checked_add(1),
+                )
+                .ok_or_else(
+                    #[cfg_attr(verus_keep_ghost, verus_spec(result: DecodeError =>
+                        ensures result == crate::specs::part2_container_error(
+                            super::box_header_view(box_ref.header).1, MalformedKind::ArithmeticOverflow),
+                    ))]
+                    || {
+                        DecodeError::malformed(
+                            box_ref.header.offset(),
+                            MalformedKind::ArithmeticOverflow,
+                        )
+                    },
+                )?;
             if actual > u64::from(limits.maximum_codestreams()) {
                 return Err(DecodeError::limit(
                     Resource::Codestreams,
@@ -523,9 +567,15 @@ pub fn parse<'a>(input: &'a [u8], limits: &ResourceLimits) -> Result<Jp2File<'a>
                     MalformedKind::InvalidBoxOrder,
                 ));
             }
-            let actual = compositing_layers.len().checked_add(1).ok_or_else(|| {
-                DecodeError::malformed(box_ref.header.offset(), MalformedKind::ArithmeticOverflow)
-            })?;
+            let actual = compositing_layers.len().checked_add(1).ok_or_else(
+                #[cfg_attr(verus_keep_ghost, verus_spec(result: DecodeError =>
+                    ensures result == crate::specs::part2_container_error(
+                        super::box_header_view(box_ref.header).1, MalformedKind::ArithmeticOverflow),
+                ))]
+                || {
+                    DecodeError::malformed(box_ref.header.offset(), MalformedKind::ArithmeticOverflow)
+                },
+            )?;
             if actual as u64 > u64::from(limits.maximum_layers()) {
                 return Err(DecodeError::limit(
                     Resource::Layers,
@@ -561,13 +611,24 @@ pub fn parse<'a>(input: &'a [u8], limits: &ResourceLimits) -> Result<Jp2File<'a>
             }
             let actual = u64::try_from(codestream_boxes.len())
                 .ok()
-                .and_then(|value| value.checked_add(1))
-                .ok_or_else(|| {
-                    DecodeError::malformed(
-                        box_ref.header.offset(),
-                        MalformedKind::ArithmeticOverflow,
-                    )
-                })?;
+                .and_then(
+                    #[cfg_attr(verus_keep_ghost, verus_spec(result: (Option<u64>) =>
+                        ensures result == if value < u64::MAX { Some((value + 1) as u64) } else { None },
+                    ))]
+                    |value| value.checked_add(1),
+                )
+                .ok_or_else(
+                    #[cfg_attr(verus_keep_ghost, verus_spec(result: DecodeError =>
+                        ensures result == crate::specs::part2_container_error(
+                            super::box_header_view(box_ref.header).1, MalformedKind::ArithmeticOverflow),
+                    ))]
+                    || {
+                        DecodeError::malformed(
+                            box_ref.header.offset(),
+                            MalformedKind::ArithmeticOverflow,
+                        )
+                    },
+                )?;
             if actual > u64::from(limits.maximum_codestreams()) {
                 return Err(DecodeError::limit(
                     Resource::Codestreams,
@@ -590,13 +651,48 @@ pub fn parse<'a>(input: &'a [u8], limits: &ResourceLimits) -> Result<Jp2File<'a>
             let (count, depth) = inspect_metadata_box(box_ref, limits, 1, u32::MAX - 1)?;
             metadata_boxes = metadata_boxes
                 .checked_add(count)
-                .ok_or_else(|| DecodeError::malformed(0, MalformedKind::ArithmeticOverflow))?;
+                .ok_or_else(
+                    #[cfg_attr(verus_keep_ghost, verus_spec(result: DecodeError =>
+                        ensures result == crate::specs::part2_container_error(0, MalformedKind::ArithmeticOverflow),
+                    ))]
+                    || DecodeError::malformed(0, MalformedKind::ArithmeticOverflow),
+                )?;
             metadata_depth = metadata_depth.max(depth);
+        }
+        #[cfg(verus_keep_ghost)]
+        proof! {
+            let step = crate::specs::part2_container_step(super::box_reference_view(box_ref), previous_state,
+                super::file_type_view(&file_type), *limits);
+            assert(step.is_ok());
+            assert(match step { Err(_) => false, Ok(state) => state.header == super::optional_jp2_header_view(&parsed_header) });
+            assert(match step { Err(_) => false, Ok(state) => state.streams == super::raw_codestreams_view(codestream_boxes@) });
+            assert(match step { Err(_) => false, Ok(state) => state.associations == super::raw_codestream_associations_view(codestream_headers@) });
+            assert(match step { Err(_) => false, Ok(state) => state.layers == super::raw_compositing_layers_view(compositing_layers@) });
+            assert(match step { Err(_) => false, Ok(state) => state.composition == super::raw_composition_option(&composition) });
+            assert(match step { Err(_) => false, Ok(state) =>
+                state.metadata_boxes == metadata_boxes && state.metadata_depth == metadata_depth && state.box_count == box_count });
+            assert(crate::specs::part2_container_step(super::box_reference_view(box_ref), previous_state,
+                    super::file_type_view(&file_type), *limits)
+                == Ok(super::raw_container_state(&parsed_header, codestream_boxes@, codestream_headers@,
+                    compositing_layers@, &composition, metadata_boxes, metadata_depth, box_count)));
         }
     }
 
-    let header = parsed_header
-        .ok_or_else(|| DecodeError::malformed(0, MalformedKind::MissingRequiredStructure))?;
+    #[cfg(verus_keep_ghost)]
+    proof_decl! {
+        let ghost final_state = super::raw_container_state(&parsed_header, codestream_boxes@, codestream_headers@,
+            compositing_layers@, &composition, metadata_boxes, metadata_depth, box_count);
+        let ghost original_streams = super::raw_codestreams_view(codestream_boxes@);
+        let ghost original_associations = super::raw_codestream_associations_view(codestream_headers@);
+    }
+    #[cfg(verus_keep_ghost)]
+    proof! { reveal(crate::specs::part2_container_finish); }
+    let header = parsed_header.ok_or_else(
+        #[cfg_attr(verus_keep_ghost, verus_spec(result: DecodeError =>
+            ensures result == crate::specs::part2_raw_header_missing(0),
+        ))]
+        || DecodeError::malformed(0, MalformedKind::MissingRequiredStructure),
+    )?;
     if codestream_boxes.is_empty() {
         return Err(DecodeError::malformed(
             0,
@@ -607,28 +703,95 @@ pub fn parse<'a>(input: &'a [u8], limits: &ResourceLimits) -> Result<Jp2File<'a>
         return Err(DecodeError::malformed(0, MalformedKind::InvalidBoxContents));
     }
     let mut header_index = 0_usize;
+    #[cfg(verus_keep_ghost)]
+    proof! {
+        assert(crate::specs::part2_container_attach(original_streams, original_associations, 0) =~= original_streams);
+    }
     #[cfg_attr(
         verus_keep_ghost,
         verus_spec(
             invariant header_index <= codestream_headers.len(),
                 crate::specs::part2_container_prologue(input@, *limits)
                     == Ok((super::file_type_view(&file_type), prefix_reader)),
+                expected == crate::specs::part2_parse_container(input@, *limits),
+                expected == crate::specs::part2_container_finish(final_state, super::file_type_view(&file_type)),
+                super::raw_codestreams_view(codestream_boxes@)
+                    == crate::specs::part2_container_attach(original_streams, original_associations, header_index as nat),
+                super::raw_codestream_associations_view(codestream_headers@) == original_associations,
+                codestream_headers.len() <= codestream_boxes.len(),
+                codestream_headers.len() == original_associations.len(),
+                codestream_boxes.len() == original_streams.len(),
+                final_state == (crate::specs::Part2RawContainerState {
+                    header: Some(super::raw_jp2_header_view(&header)), streams: original_streams,
+                    associations: original_associations, layers: super::raw_compositing_layers_view(compositing_layers@),
+                    composition: super::raw_composition_option(&composition), metadata_boxes, metadata_depth, box_count,
+                }),
             decreases codestream_headers.len() - header_index,
         )
     )]
     while header_index < codestream_headers.len() {
-        let association = codestream_headers
-            .get(header_index)
-            .ok_or_else(|| DecodeError::malformed(0, MalformedKind::ArithmeticOverflow))?
-            .clone();
+        #[cfg(verus_keep_ghost)]
+        proof_decl! {
+            let ghost previous_index = header_index;
+            let ghost previous_boxes = codestream_boxes@;
+        }
+        #[cfg(verus_keep_ghost)]
+        proof! {
+            reveal(super::raw_codestream_view);
+            assert(super::raw_codestreams_view(codestream_boxes@)[header_index as int]
+                == original_streams[header_index as int]);
+        }
+        let association = super::clone_support::codestream_association_clone(
+            codestream_headers
+                .get(header_index)
+                .ok_or_else(|| DecodeError::malformed(0, MalformedKind::ArithmeticOverflow))?,
+        );
         let codestream_box = codestream_boxes
             .get_mut(header_index)
             .ok_or_else(|| DecodeError::malformed(0, MalformedKind::InvalidBoxContents))?;
+        #[cfg(verus_keep_ghost)]
+        proof! {
+            assert(super::box_header_view(codestream_box.header) == original_streams[previous_index as int].0);
+            assert(codestream_box.data@ == original_streams[previous_index as int].1);
+        }
         codestream_box.codestream_header = Some(association);
+        #[cfg(verus_keep_ghost)]
+        proof! {
+            assert(super::box_header_view(codestream_box.header) == original_streams[previous_index as int].0);
+            assert(codestream_box.data@ == original_streams[previous_index as int].1);
+        }
         header_index = header_index
             .checked_add(1)
             .ok_or_else(|| DecodeError::malformed(0, MalformedKind::ArithmeticOverflow))?;
+        #[cfg(verus_keep_ghost)]
+        proof! {
+            reveal(super::raw_codestream_view);
+            reveal(super::raw_codestream_association_view);
+            assert(super::raw_codestreams_view(codestream_boxes@)[previous_index as int].0
+                == original_streams[previous_index as int].0);
+            assert(super::raw_codestreams_view(codestream_boxes@)[previous_index as int].1
+                == original_streams[previous_index as int].1);
+            assert(super::raw_codestreams_view(codestream_boxes@)[previous_index as int].2
+                == Some(original_associations[previous_index as int]));
+            assert forall|i: int| #![auto] 0 <= i < codestream_boxes@.len()
+                implies super::raw_codestreams_view(codestream_boxes@)[i]
+                    == crate::specs::part2_container_attach(original_streams, original_associations, previous_index as nat + 1)[i] by {
+                if i != previous_index as int {
+                    assert(codestream_boxes@[i] == previous_boxes[i]);
+                    assert(super::raw_codestreams_view(codestream_boxes@)[i]
+                        == super::raw_codestreams_view(previous_boxes)[i]);
+                    assert(super::raw_codestreams_view(previous_boxes)[i]
+                        == crate::specs::part2_container_attach(original_streams, original_associations, previous_index as nat)[i]);
+                    assert(crate::specs::part2_container_attach(original_streams, original_associations, previous_index as nat)[i]
+                        == crate::specs::part2_container_attach(original_streams, original_associations, previous_index as nat + 1)[i]);
+                }
+            }
+            assert(super::raw_codestreams_view(codestream_boxes@)
+                =~= crate::specs::part2_container_attach(original_streams, original_associations, previous_index as nat + 1));
+        }
     }
+    #[cfg(verus_keep_ghost)]
+    proof! { reveal(crate::specs::part2_container_finish); }
     validate_layer_references(&compositing_layers, codestream_boxes.len())?;
     Ok(Jp2File {
         file_type,

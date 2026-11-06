@@ -2709,6 +2709,28 @@ _METADATA_TREE_PROOFS = {
 }
 _OWNED_HEADER_CLONE_ENTRY = "part2-complete-native-owned-header-clone-producers"
 _ASSOCIATION_CLONE_ENTRY = "part2-complete-native-owned-codestream-association-clone-producers"
+_RAW_CONTAINER_ENTRY = "part2-complete-native-raw-container-result"
+_RAW_CONTAINER_CONTRACTS = {
+    ("src/jp2/container.rs", "parse"): (
+        "part2_parse_container", _coverage_call("super::raw_jp2_file_outcome", r"\1"), None,
+        r"input\s*@\s*,\s*\*\s*limits",
+    ),
+}
+_RAW_CONTAINER_MODELS = {
+    ("specs/jp2_container.rs", name) for name in (
+        "part2_parse_container", "part2_container_boxes", "part2_container_step",
+        "part2_container_finish", "part2_container_attach", "part2_container_initial_state",
+        "part2_container_next_stream_count", "part2_container_error",
+    )
+} | {("specs/jp2_file_type.rs", "part2_container_prologue")}
+_RAW_CONTAINER_PROOFS = {
+    ("src/jp2/proof_support.rs", name) for name in (
+        "raw_jp2_file_outcome", "raw_jp2_file_view", "raw_container_state",
+        "raw_codestream_view", "raw_codestreams_view", "raw_codestream_associations_view",
+        "raw_codestream_association_view", "raw_jp2_header_view", "raw_composition_option",
+        "raw_compositing_layers_view",
+    )
+}
 _ASSOCIATION_CLONE_CONTRACTS = {
     ("src/jp2/clone_support.rs", "optional_jp2_header_clone"): (
         "part2_optional_jp2_header_clone", _coverage_call("super::optional_jp2_header_view", r"&\s*\1"), None,
@@ -3320,6 +3342,39 @@ def validate_normative_coverage(
     ids: set[str] = set()
     contract_functions: set[tuple[str, str]] = set()
     for entry in coverage["requirements"]:
+        if entry["id"] == _RAW_CONTAINER_ENTRY:
+            if {(ref["path"], ref["symbol"]) for ref in entry["contract_refs"]} != set(_RAW_CONTAINER_CONTRACTS):
+                raise ValueError("whole raw container Result requires the actual complete parser contract")
+            if not _RAW_CONTAINER_MODELS.issubset({(ref["path"], ref["symbol"]) for ref in entry["spec_refs"]}) \
+                    or not _RAW_CONTAINER_PROOFS.issubset({(ref["path"], ref["symbol"]) for ref in entry["proof_refs"]}):
+                raise ValueError("whole raw container Result requires full traversal/owner/output/attachment bridges")
+            path = (ROOT / "src/jp2/container.rs").resolve()
+            body = _coverage_function_body(source_text(path), function_header(path, "parse"))
+            required = (
+                "box_reader_from_input(input, limits)?", "required_box(&mut reader, 0)?",
+                "parse_jp2_header(", "parse_codestream_header(", "parse_compositing_layer(box_ref, limits)?",
+                "parse_composition(box_ref, limits)?", "inspect_metadata_box(box_ref, limits, 1, u32::MAX - 1)?",
+                "let mut box_count = 2_u64", "metadata_depth = metadata_depth.max(depth)",
+                "super::clone_support::codestream_association_clone(", ".get_mut(header_index)",
+                "codestream_box.codestream_header = Some(association)",
+                "validate_layer_references(&compositing_layers, codestream_boxes.len())?",
+                "Jp2File { file_type, header, codestreams: codestream_boxes, compositing_layers, composition, metadata_boxes, metadata_depth, box_count, }",
+            )
+            if body is None or any("".join(item.split()) not in "".join(body.split()) for item in required):
+                raise ValueError("whole raw container Result requires actual source producers/counters/owned attachment/output handoffs")
+            model = source_text((ROOT / "specs/jp2_container.rs").resolve())
+            for name, required in {
+                "part2_container_step": ("previous.box_count == u64::MAX", "part2_parse_jp2_header(", "part2_parse_codestream_header(",
+                    "part2_parse_compositing_layer(", "part2_parse_composition(", "part2_inspect_metadata_box(",
+                    "metadata_depth: if state.metadata_depth < value.1 { value.1 } else { state.metadata_depth }"),
+                "part2_container_attach": ("streams[i].0, streams[i].1", "Some(part2_codestream_association_clone(associations[i]))"),
+                "part2_container_finish": ("state.associations.len() > state.streams.len()", "part2_validate_layer_references(",
+                    "streams: part2_container_attach(", "metadata_depth: state.metadata_depth", "box_count: state.box_count"),
+                "part2_parse_container": ("part2_container_prologue(input, limits)", "part2_container_initial_state()"),
+            }.items():
+                actual = _coverage_spec_function_body(model, name)
+                if actual is None or any("".join(item.split()) not in "".join(actual.split()) for item in required):
+                    raise ValueError("whole raw container Result requires complete raw traversal/metadata/attachment/final output models")
         if entry["id"] == _RAW_COMPOSITION_ENTRY:
             if {(ref["path"], ref["symbol"]) for ref in entry["contract_refs"]} != set(_RAW_COMPOSITION_CONTRACTS):
                 raise ValueError("whole raw composition Results require actual cursor/dimension/instruction/composition/reference contracts")
@@ -5720,6 +5775,8 @@ def validate_normative_coverage(
                     if entry["id"] == _OWNED_HEADER_CLONE_ENTRY else None)
                 or (_ASSOCIATION_CLONE_CONTRACTS.get((reference["path"], reference["symbol"]))
                     if entry["id"] == _ASSOCIATION_CLONE_ENTRY else None)
+                or (_RAW_CONTAINER_CONTRACTS.get((reference["path"], reference["symbol"]))
+                    if entry["id"] == _RAW_CONTAINER_ENTRY else None)
                 or (_ASSOCIATED_HEADER_CONTRACTS.get((reference["path"], reference["symbol"]))
                     if entry["id"] == _ASSOCIATED_HEADER_ENTRY else None)
                 or (_METADATA_TREE_CONTRACTS.get((reference["path"], reference["symbol"]))
