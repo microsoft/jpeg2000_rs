@@ -179,6 +179,26 @@ technical candidate only: parent-owned record, review, CI, guarded integration
 and actual-main acceptance remain separate. No complete parsing, pixels,
 lifetime verification, normative conformance or publication claim follows.
 
+## Actual raw container inspection Results
+
+The executing `parse_and_inspect` and `inspect_jph` now derive complete owned
+file/info Results from actual raw container and codestream-info producers.
+The original file and all observed info fields, first/default/associated-header
+selection, profile-before-geometry and container-before-info error priority,
+relative codestream errors and final JPH-wrapper check are retained. The CAP
+getter and real stored-file getters expose their full producer projections;
+no private native-field visibility or executing code is changed.
+
+The public closed models use the existing scoped-unfold lemma pattern.
+No supplied successful file/info/image bank, assumed validity or native
+reconstruction/clone is introduced. Timeline/rendering/final public image
+composition and full source qualification remain separate.
+
+The two existing getter inventory guards retain their mandatory original
+postconditions while permitting additional `ensures` clauses. Regression
+mutations still reject removal of either original opacity or stored-reference
+guarantee; the raw inspection frames strengthen rather than replace them.
+
 ## Actual association clone and raw container continuation
 
 The next container continuation checks the real optional-header and owned

@@ -526,6 +526,32 @@ verus! {
         match result { Err(error) => Err(error), Ok(file) => Ok(raw_jp2_file_view(&file)) }
     }
 
+    pub open spec fn raw_association_reference_option(value: Option<&CodestreamHeaderAssociation>)
+        -> Option<crate::specs::Part2RawCodestreamAssociation>
+    {
+        match value { None => None, Some(association) => Some(raw_codestream_association_view(association)) }
+    }
+
+    pub open spec fn raw_codestream_infos_view(infos: Seq<CodestreamInfo>) -> Seq<crate::specs::Part2RawCodestreamInfo> {
+        Seq::new(infos.len(), |i: int| crate::codestream::complete_codestream_info_view(&infos[i]))
+    }
+
+    pub closed spec fn raw_inspected_container_view(value: &InspectedJp2) -> crate::specs::Part2RawInspectedContainer {
+        (raw_jp2_file_view(&value.file), raw_codestream_infos_view(value.codestreams@))
+    }
+
+    pub open spec fn raw_inspected_container_outcome(value: Result<InspectedJp2, DecodeError>)
+        -> Result<crate::specs::Part2RawInspectedContainer, DecodeError>
+    {
+        match value { Err(error) => Err(error), Ok(inspected) => Ok(raw_inspected_container_view(&inspected)) }
+    }
+
+    proof fn raw_inspection_file_fields_known(file: &Jp2File)
+        ensures raw_jp2_file_view(file).file_type == file_type_view(&file.file_type),
+            raw_jp2_file_view(file).header == raw_jp2_header_view(&file.header),
+    {
+    }
+
     pub open spec fn optional_palette_view(palette: &Option<Palette>) -> Option<crate::specs::Part2PaletteModel> {
         match palette { None => None, Some(value) => Some(palette_view(value)) }
     }

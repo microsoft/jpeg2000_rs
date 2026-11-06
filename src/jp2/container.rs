@@ -108,6 +108,7 @@ impl<'a> CodestreamBox<'a> {
 
     #[cfg_attr(verus_keep_ghost, verus_spec(result =>
         ensures super::source_optional_association_view(result) == super::codestream_source_view(self).2,
+            super::raw_association_reference_option(result) == super::raw_codestream_view(self).2,
     ))]
     pub fn codestream_header(&self) -> Option<&CodestreamHeaderAssociation<'a>> {
         self.codestream_header.as_ref()
@@ -202,6 +203,7 @@ impl<'a> Jp2File<'a> {
 
     #[cfg_attr(verus_keep_ghost, verus_spec(result =>
         ensures result == super::jpx_file_decode_view(self).1.len(),
+            result == super::raw_jp2_file_view(self).streams.len(),
     ))]
     pub fn codestream_count(&self) -> usize {
         self.codestreams.len()
@@ -217,6 +219,13 @@ impl<'a> Jp2File<'a> {
         match result {
             Err(_) => true,
             Ok(stream) => Some(stream) == super::jpx_file_codestream_reference(self, index),
+        },
+        match result {
+            Err(error) => index >= super::raw_jp2_file_view(self).streams.len()
+                && error == (DecodeError::CodestreamIndexOutOfRange {
+                    index, codestreams: super::raw_jp2_file_view(self).streams.len() as usize }),
+            Ok(stream) => index < super::raw_jp2_file_view(self).streams.len()
+                && super::raw_codestream_view(stream) == super::raw_jp2_file_view(self).streams[index as int],
         },
     ))]
     pub fn codestream(&self, index: usize) -> Result<&CodestreamBox<'a>, DecodeError> {
@@ -256,24 +265,63 @@ impl<'a> InspectedJp2<'a> {
     }
 }
 
+#[cfg_attr(verus_keep_ghost, verus_spec(result =>
+    ensures super::raw_inspected_container_outcome(result)
+        == crate::specs::part2_parse_and_inspect_container(input@, limits),
+))]
 pub fn parse_and_inspect<'a>(
     input: &'a [u8],
     limits: &ResourceLimits,
 ) -> Result<InspectedJp2<'a>, DecodeError> {
+    #[cfg(verus_keep_ghost)]
+    proof! { crate::specs::part2_parse_and_inspect_container_unfold(input@, limits); }
     let file = parse(input, limits)?;
     let codestream_count = file.codestream_count();
     let mut inspected_codestreams = Vec::with_capacity(codestream_count);
     let mut index = 0_usize;
+    #[cfg(verus_keep_ghost)]
+    proof_decl! {
+        let ghost expected = crate::specs::part2_parse_and_inspect_container(input@, limits);
+        let ghost source = super::raw_jp2_file_view(&file);
+    }
+    #[cfg(verus_keep_ghost)]
+    proof! {
+        assert(super::raw_codestream_infos_view(inspected_codestreams@) =~= Seq::<crate::specs::Part2RawCodestreamInfo>::empty());
+    }
     #[cfg_attr(
         verus_keep_ghost,
         verus_spec(
             invariant index <= codestream_count,
+                codestream_count == source.streams.len(),
+                source == super::raw_jp2_file_view(&file),
+                inspected_codestreams.len() == index,
+                expected == crate::specs::part2_parse_and_inspect_container(input@, limits),
+                expected == crate::specs::part2_inspected_codestreams(source, limits, index,
+                    super::raw_codestream_infos_view(inspected_codestreams@)),
             decreases codestream_count - index,
         )
     )]
     while index < codestream_count {
+        #[cfg(verus_keep_ghost)]
+        proof! {
+            reveal(crate::specs::part2_inspected_codestreams);
+            reveal(crate::specs::part2_inspected_header);
+            super::raw_inspection_file_fields_known(&file);
+            codestream::complete_codestream_info_errors_known();
+        }
         let codestream_box = file.codestream(index)?;
         let info = codestream::parse(codestream_box.data, limits)?;
+        #[cfg(verus_keep_ghost)]
+        proof! {
+            codestream::complete_codestream_info_known_fields(&info);
+            reveal(super::raw_codestream_view);
+            reveal(super::raw_codestream_association_view);
+        }
+        #[cfg(verus_keep_ghost)]
+        proof_decl! {
+            let ghost previous_infos = super::raw_codestream_infos_view(inspected_codestreams@);
+            let ghost parsed_info = codestream::complete_codestream_info_view(&info);
+        }
         let jph = file.file_type.is_jph_compatible();
         if jph != info.profile.is_part15() {
             return Err(DecodeError::malformed(
@@ -290,21 +338,43 @@ pub fn parse_and_inspect<'a>(
             validate_container_codestream(header, &info, codestream_box.header.offset())?;
         }
         inspected_codestreams.push(info);
+        #[cfg(verus_keep_ghost)]
+        proof! {
+            assert(super::raw_codestream_infos_view(inspected_codestreams@) =~= previous_infos.push(parsed_info));
+        }
         index = index
             .checked_add(1)
-            .ok_or_else(|| DecodeError::malformed(0, MalformedKind::ArithmeticOverflow))?;
+            .ok_or_else(
+                #[cfg_attr(verus_keep_ghost, verus_spec(result: DecodeError =>
+                    ensures result == crate::specs::part2_container_error(0, MalformedKind::ArithmeticOverflow),
+                ))]
+                || DecodeError::malformed(0, MalformedKind::ArithmeticOverflow),
+            )?;
     }
+    #[cfg(verus_keep_ghost)]
+    proof! { reveal(crate::specs::part2_inspected_codestreams); }
     Ok(InspectedJp2 {
         file,
         codestreams: inspected_codestreams,
     })
 }
 
+#[cfg_attr(verus_keep_ghost, verus_spec(result =>
+    ensures super::raw_inspected_container_outcome(result)
+        == crate::specs::part2_inspect_jph_container(input@, limits),
+))]
 pub fn inspect_jph<'a>(
     input: &'a [u8],
     limits: &ResourceLimits,
 ) -> Result<InspectedJp2<'a>, DecodeError> {
+    #[cfg(verus_keep_ghost)]
+    proof! { crate::specs::part2_inspect_jph_container_unfold(input@, limits); }
     let inspected = parse_and_inspect(input, limits)?;
+    #[cfg(verus_keep_ghost)]
+    proof! {
+        reveal(super::raw_inspected_container_view);
+        super::raw_inspection_file_fields_known(&inspected.file);
+    }
     if !inspected.file.file_type.is_jph_compatible() {
         return Err(DecodeError::malformed(0, MalformedKind::InvalidProfile));
     }

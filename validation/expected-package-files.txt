@@ -31,6 +31,7 @@ specs/jp2_container.rs
 specs/jp2_file_type.rs
 specs/jp2_header.rs
 specs/jp2_image_header.rs
+specs/jp2_inspection.rs
 specs/jp2_layer.rs
 specs/jp2_metadata.rs
 specs/jp2_palette.rs

@@ -32,6 +32,8 @@ verus! {
             complete_codestream_info_view(info).0.image_size.components == info.image_size.components,
             complete_codestream_info_view(info).0.image_size.uniform_bit_depth == info.image_size.uniform_bit_depth,
             complete_codestream_info_view(info).0.image_size.uniform_signed == info.image_size.uniform_signed,
+            complete_codestream_info_view(info).1 == complete_codestream_profile_view(&info.profile),
+            complete_codestream_info_view(info).1.2 == codestream_profile_capabilities(&info.profile),
             complete_codestream_info_outcome(Ok(*info)) == Ok(complete_codestream_info_view(info)),
     {
         reveal(main_header_fields_view);

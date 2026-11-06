@@ -2710,6 +2710,46 @@ _METADATA_TREE_PROOFS = {
 _OWNED_HEADER_CLONE_ENTRY = "part2-complete-native-owned-header-clone-producers"
 _ASSOCIATION_CLONE_ENTRY = "part2-complete-native-owned-codestream-association-clone-producers"
 _RAW_CONTAINER_ENTRY = "part2-complete-native-raw-container-result"
+_RAW_INSPECTED_ENTRY = "part2-complete-native-raw-inspected-container-results"
+_RAW_INSPECTED_CONTRACTS = {
+    ("src/jp2/container.rs", "parse_and_inspect"): (
+        "part2_parse_and_inspect_container", _coverage_call("super::raw_inspected_container_outcome", r"\1"), None,
+        r"input\s*@\s*,\s*limits",
+    ),
+    ("src/jp2/container.rs", "inspect_jph"): (
+        "part2_inspect_jph_container", _coverage_call("super::raw_inspected_container_outcome", r"\1"), None,
+        r"input\s*@\s*,\s*limits",
+    ),
+    ("src/codestream/profile.rs", "CodestreamProfile::is_part15"): (
+        "part1_profile_optional_advertises_ht", r"\1", None,
+        _coverage_call("codestream_profile_capabilities", "self"),
+    ),
+}
+_RAW_INSPECTED_MODELS = {
+    ("specs/jp2_inspection.rs", name) for name in (
+        "part2_parse_and_inspect_container", "part2_inspect_jph_container",
+        "part2_inspected_codestreams", "part2_inspected_header",
+    )
+} | {
+    ("specs/jp2_container.rs", "part2_parse_container"),
+    ("specs/raw_layout.rs", "part1_parse_info"),
+    ("specs/codestream_profile.rs", "part1_profile_optional_advertises_ht"),
+}
+_RAW_INSPECTED_PROOFS = {
+    ("src/jp2/proof_support.rs", name) for name in (
+        "raw_inspected_container_outcome", "raw_inspected_container_view", "raw_codestream_infos_view",
+        "raw_inspection_file_fields_known", "raw_association_reference_option",
+        "raw_jp2_file_view", "raw_codestream_view", "raw_codestream_association_view",
+    )
+} | {
+    ("specs/jp2_inspection.rs", "part2_parse_and_inspect_container_unfold"),
+    ("specs/jp2_inspection.rs", "part2_inspect_jph_container_unfold"),
+    ("src/codestream/proof_support.rs", "complete_codestream_info_view"),
+    ("src/codestream/proof_support.rs", "complete_codestream_info_known_fields"),
+    ("src/jp2/container.rs", "Jp2File::codestream_count"),
+    ("src/jp2/container.rs", "Jp2File::codestream"),
+    ("src/jp2/container.rs", "CodestreamBox::codestream_header"),
+}
 _RAW_CONTAINER_CONTRACTS = {
     ("src/jp2/container.rs", "parse"): (
         "part2_parse_container", _coverage_call("super::raw_jp2_file_outcome", r"\1"), None,
@@ -3342,6 +3382,37 @@ def validate_normative_coverage(
     ids: set[str] = set()
     contract_functions: set[tuple[str, str]] = set()
     for entry in coverage["requirements"]:
+        if entry["id"] == _RAW_INSPECTED_ENTRY:
+            if {(ref["path"], ref["symbol"]) for ref in entry["contract_refs"]} != set(_RAW_INSPECTED_CONTRACTS):
+                raise ValueError("whole raw inspected Results require actual parser/JPH/profile contracts")
+            if not _RAW_INSPECTED_MODELS.issubset({(ref["path"], ref["symbol"]) for ref in entry["spec_refs"]}) \
+                    or not _RAW_INSPECTED_PROOFS.issubset({(ref["path"], ref["symbol"]) for ref in entry["proof_refs"]}):
+                raise ValueError("whole raw inspected Results require complete file/info/profile/getter bridges")
+            path = (ROOT / "src/jp2/container.rs").resolve()
+            for name, required in {
+                "parse_and_inspect": ("parse(input, limits)?", "codestream::parse(codestream_box.data, limits)?",
+                    "jph != info.profile.is_part15()", "Some(association) => association.parsed.as_ref()",
+                    "None if index == 0 => Some(&file.header)", "validate_container_codestream(header, &info, codestream_box.header.offset())?",
+                    "inspected_codestreams.push(info)", "InspectedJp2 { file, codestreams: inspected_codestreams, }"),
+                "inspect_jph": ("parse_and_inspect(input, limits)?", "!inspected.file.file_type.is_jph_compatible()"),
+            }.items():
+                body = _coverage_function_body(source_text(path), function_header(path, name))
+                if body is None or any("".join(item.split()) not in "".join(body.split()) for item in required):
+                    raise ValueError("whole raw inspected Results require actual source/info/profile/header/default/output handoffs")
+            model = source_text((ROOT / "specs/jp2_inspection.rs").resolve())
+            for name, required in {
+                "part2_inspected_header": ("part1_profile_optional_advertises_ht(info.1.2)", "Some(association) => association.2",
+                    "index == 0", "part2_validate_selected_header(header.image"),
+                "part2_inspected_codestreams": ("part1_parse_info(file.streams[index as int].1, limits)",
+                    "part2_inspected_header(file, index, info)", "infos.push(info)"),
+                "part2_parse_and_inspect_container": ("part2_parse_container(input, *limits)",
+                    "part2_inspected_codestreams(file, limits, 0, Seq::empty())"),
+                "part2_inspect_jph_container": ("part2_parse_and_inspect_container(input, limits)",
+                    "part2_file_type_compatible(inspected.0.file_type, crate::jp2::BoxType::JPH_BRAND)"),
+            }.items():
+                actual = _coverage_spec_function_body(model, name)
+                if actual is None or any("".join(item.split()) not in "".join(actual.split()) for item in required):
+                    raise ValueError("whole raw inspected Results require complete raw producer/profile/default/info/JPH models")
         if entry["id"] == _RAW_CONTAINER_ENTRY:
             if {(ref["path"], ref["symbol"]) for ref in entry["contract_refs"]} != set(_RAW_CONTAINER_CONTRACTS):
                 raise ValueError("whole raw container Result requires the actual complete parser contract")
@@ -4225,7 +4296,7 @@ def validate_normative_coverage(
                     raise ValueError("whole source opacity Result requires actual metadata getter contracts")
                 start = text.find("fn", header.start(), header.end())
                 attrs = text[text.rfind("#[cfg_attr", 0, start):start]
-                wanted = "verus_spec(result=>ensures" + "".join(expected.split()) + ",)"
+                wanted = "verus_spec(result=>ensures" + "".join(expected.split()) + ","
                 if wanted not in "".join(attrs.split()) or re.search(r"\brequires\b", attrs):
                     raise ValueError("whole source opacity Result requires actual metadata getter contracts")
             path = (ROOT / "src/jpx/opacity.rs").resolve()
@@ -4482,7 +4553,7 @@ def validate_normative_coverage(
                     raise ValueError("whole JPX source Result requires actual getter/reference contracts")
                 start = text.find("fn", header.start(), header.end())
                 attrs = text[text.rfind("#[cfg_attr", 0, start):start]
-                wanted = "verus_spec(result=>ensures" + "".join(expected.split()) + ",)"
+                wanted = "verus_spec(result=>ensures" + "".join(expected.split()) + ","
                 if wanted not in "".join(attrs.split()) or re.search(r"\brequires\b", attrs):
                     raise ValueError("whole JPX source Result requires actual getter/reference contracts")
             for (relative, symbol), expected in {
@@ -5777,6 +5848,8 @@ def validate_normative_coverage(
                     if entry["id"] == _ASSOCIATION_CLONE_ENTRY else None)
                 or (_RAW_CONTAINER_CONTRACTS.get((reference["path"], reference["symbol"]))
                     if entry["id"] == _RAW_CONTAINER_ENTRY else None)
+                or (_RAW_INSPECTED_CONTRACTS.get((reference["path"], reference["symbol"]))
+                    if entry["id"] == _RAW_INSPECTED_ENTRY else None)
                 or (_ASSOCIATED_HEADER_CONTRACTS.get((reference["path"], reference["symbol"]))
                     if entry["id"] == _ASSOCIATED_HEADER_ENTRY else None)
                 or (_METADATA_TREE_CONTRACTS.get((reference["path"], reference["symbol"]))
