@@ -267,6 +267,21 @@ verus! {
         color.method
     }
 
+    pub closed spec fn full_color_specification_view(color: &ColorSpecification) -> crate::specs::Part2ColorSpecification {
+        (color.method, color.precedence, color.approximation,
+            match &color.icc_profile { None => None, Some(profile) => Some(profile@) })
+    }
+
+    pub open spec fn color_specification_outcome(result: Result<ColorSpecification, DecodeError>)
+        -> Result<crate::specs::Part2ColorSpecification, DecodeError>
+    {
+        match result { Err(error) => Err(error), Ok(value) => Ok(full_color_specification_view(&value)) }
+    }
+
+    pub open spec fn optional_profile_bytes(profile: Option<&[u8]>) -> Option<Seq<u8>> {
+        match profile { None => None, Some(bytes) => Some(bytes@) }
+    }
+
     pub open spec fn optional_color_specification_method(color: Option<&ColorSpecification>) -> Option<ColorMethod> {
         match color { None => None, Some(color) => Some(color_specification_method(color)) }
     }

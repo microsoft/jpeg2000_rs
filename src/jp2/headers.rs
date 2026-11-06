@@ -339,11 +339,16 @@ pub(super) fn parse_jp2_header(
     })
 }
 
-fn parse_image_header(
+#[cfg_attr(verus_keep_ghost, verus_spec(result =>
+    ensures result == crate::specs::part2_parse_image_header(super::box_reference_view(box_ref), limits, base_offset),
+))]
+pub(super) fn parse_image_header(
     box_ref: BoxRef<'_>,
     limits: &ResourceLimits,
     base_offset: u64,
 ) -> Result<ImageHeader, DecodeError> {
+    #[cfg(verus_keep_ghost)]
+    proof! { reveal(crate::specs::part2_parse_image_header); }
     if box_ref.payload.len() != 14 {
         return Err(DecodeError::malformed(
             add_offset(base_offset, box_ref.header.offset())?,
@@ -392,7 +397,12 @@ fn parse_image_header(
     }
     let pixels = u64::from(width)
         .checked_mul(u64::from(height))
-        .ok_or_else(|| DecodeError::malformed(base_offset, MalformedKind::ArithmeticOverflow))?;
+        .ok_or_else(
+            #[cfg_attr(verus_keep_ghost, verus_spec(result: DecodeError =>
+                ensures result == (DecodeError::MalformedInput { offset: base_offset, kind: MalformedKind::ArithmeticOverflow }),
+            ))]
+            || DecodeError::malformed(base_offset, MalformedKind::ArithmeticOverflow),
+        )?;
     if pixels > limits.maximum_pixels() {
         return Err(DecodeError::limit(
             Resource::Pixels,
@@ -431,10 +441,15 @@ fn parse_image_header(
     })
 }
 
+#[cfg_attr(verus_keep_ghost, verus_spec(result =>
+    ensures result == crate::specs::part2_container_bit_depth(value, offset),
+))]
 pub(super) fn parse_bit_depth(value: u8, offset: u64) -> Result<ComponentBitDepth, DecodeError> {
     if value == 0xff {
         return Ok(ComponentBitDepth::Variable);
     }
+    #[cfg(verus_keep_ghost)]
+    proof! { assert((value & 0x7f) <= 127u8) by(bit_vector); }
     let bits = (value & 0x7f)
         .checked_add(1)
         .ok_or_else(|| DecodeError::malformed(offset, MalformedKind::ArithmeticOverflow))?;
@@ -450,7 +465,10 @@ pub(super) fn parse_bit_depth(value: u8, offset: u64) -> Result<ComponentBitDept
     })
 }
 
-fn validate_bpcc(
+#[cfg_attr(verus_keep_ghost, verus_spec(result =>
+    ensures result == crate::specs::part2_validate_bpcc(super::box_reference_view(box_ref), image, base_offset),
+))]
+pub(super) fn validate_bpcc(
     box_ref: BoxRef<'_>,
     image: ImageHeader,
     base_offset: u64,
@@ -462,14 +480,24 @@ fn validate_bpcc(
         ));
     }
     let mut index = 0_usize;
+    #[cfg(verus_keep_ghost)]
+    proof! { reveal(crate::specs::part2_bpcc_prefix); }
     #[cfg_attr(
         verus_keep_ghost,
         verus_spec(
             invariant index <= box_ref.payload.len(),
+                box_ref.payload.len() == image.components,
+                crate::specs::part2_bpcc_prefix(super::box_reference_view(box_ref), base_offset, index as nat) == Ok(()),
             decreases box_ref.payload.len() - index,
         )
     )]
     while index < box_ref.payload.len() {
+        #[cfg(verus_keep_ghost)]
+        proof! {
+            crate::specs::part2_bpcc_step(super::box_reference_view(box_ref), base_offset, index as nat);
+            crate::specs::part2_bpcc_error(super::box_reference_view(box_ref), base_offset,
+                index as nat + 1, box_ref.payload.len() as nat);
+        }
         if matches!(
             parse_bit_depth(box_ref.payload[index], base_offset)?,
             ComponentBitDepth::Variable

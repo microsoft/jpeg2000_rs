@@ -57,6 +57,10 @@ mod jp2_box_reader;
 pub use jp2_box_reader::*;
 mod jp2_file_type;
 pub use jp2_file_type::*;
+mod jp2_image_header;
+pub use jp2_image_header::*;
+mod jp2_color_header;
+pub use jp2_color_header::*;
 
 pub use crate::proofs::internal_specs::{
     part2_composition_layer_prefix_matches, part2_composition_layer_prefix_safe,

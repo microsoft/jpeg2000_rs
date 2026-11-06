@@ -1030,6 +1030,158 @@ class FrameworkTests(WorkingFiles):
             framework._RAW_TILE_HEADER_CONTRACTS, 8,
         )
 
+    def test_inventory_binds_actual_complete_raw_color_header_result(self):
+        self._assert_complete_packet_contract_bindings(
+            {framework._COLOR_HEADER_ENTRY}, framework._COLOR_HEADER_CONTRACTS, 1, isolate=False,
+        )
+
+    def test_inventory_raw_color_header_requires_every_actual_metadata_and_copy_bridge(self):
+        coverage = json.loads((framework.VALIDATION / "normative-coverage.json").read_text())
+        entry = next(item for item in coverage["requirements"] if item["id"] == framework._COLOR_HEADER_ENTRY)
+        for field in ("contract_refs", "spec_refs", "proof_refs"):
+            for removed in entry[field]:
+                changed = copy.deepcopy(entry)
+                changed[field].remove(removed)
+                expected_error = "should be non-empty" if not changed[field] else "whole raw color Result"
+                with self.subTest(field=field, removed=removed), self.assertRaisesRegex(ValueError, expected_error):
+                    framework.validate_normative_coverage(dict(coverage, requirements=[changed]))
+
+    def test_inventory_raw_color_header_binds_full_icc_bytes_and_native_precedence_metadata(self):
+        coverage = json.loads((framework.VALIDATION / "normative-coverage.json").read_text())
+        entry = next(item for item in coverage["requirements"] if item["id"] == framework._COLOR_HEADER_ENTRY)
+        source = framework.ROOT / "src/jp2/color.rs"
+        original = source.read_text()
+        read_text = Path.read_text
+        begin = original.index("fn parse_color_specification")
+        for before, after in (
+            ("copy_profile(&box_ref.payload[3..])?", "copy_profile(&box_ref.payload[3..4])?"),
+            ("precedence: box_ref.payload[1]", "precedence: 0"),
+            ("approximation: box_ref.payload[2]", "approximation: 0"),
+        ):
+            self.assertIn(before, original[begin:])
+            changed = original[:begin] + original[begin:].replace(before, after, 1)
+
+            def altered(path, *args, **kwargs):
+                return changed if path == source else read_text(path, *args, **kwargs)
+
+            with self.subTest(before=before), mock.patch.object(Path, "read_text", altered), \
+                    self.assertRaisesRegex(ValueError, "actual method/metadata/full-ICC handoffs"):
+                framework.validate_normative_coverage(dict(coverage, requirements=[entry]))
+
+    def test_inventory_raw_color_header_rejects_empty_profile_and_model_byte_trimming(self):
+        coverage = json.loads((framework.VALIDATION / "normative-coverage.json").read_text())
+        entry = next(item for item in coverage["requirements"] if item["id"] == framework._COLOR_HEADER_ENTRY)
+        source = framework.ROOT / "specs/jp2_color_header.rs"
+        original = source.read_text()
+        read_text = Path.read_text
+        for before, after in (
+            ("length == 0", "false"),
+            ("payload[1], payload[2]", "0, 0"),
+            ("Some(payload.subrange(3, payload.len() as int))", "Some(payload.subrange(3, 4))"),
+        ):
+            self.assertIn(before, original)
+            changed = original.replace(before, after)
+
+            def altered(path, *args, **kwargs):
+                return changed if path == source else read_text(path, *args, **kwargs)
+
+            with self.subTest(before=before), mock.patch.object(Path, "read_text", altered), \
+                    self.assertRaisesRegex(ValueError, "complete lazy-error/metadata/ICC-byte model"):
+                framework.validate_normative_coverage(dict(coverage, requirements=[entry]))
+
+    def test_inventory_raw_color_header_keeps_fresh_actual_color_and_model_caches(self):
+        coverage = json.loads((framework.VALIDATION / "normative-coverage.json").read_text())
+        entry = next(item for item in coverage["requirements"] if item["id"] == framework._COLOR_HEADER_ENTRY)
+        read_text = Path.read_text
+        counts = {framework.ROOT / name: 0 for name in ("src/jp2/color.rs", "specs/jp2_color_header.rs")}
+
+        def counted(path, *args, **kwargs):
+            if path in counts:
+                counts[path] += 1
+            return read_text(path, *args, **kwargs)
+
+        with mock.patch.object(Path, "read_text", counted):
+            for expected in (1, 2):
+                self.assertEqual(framework.validate_normative_coverage(dict(coverage, requirements=[entry]))["status"], "passed")
+                self.assertEqual(set(counts.values()), {expected})
+
+    def test_inventory_binds_actual_complete_raw_image_header_results(self):
+        self._assert_complete_packet_contract_bindings(
+            {framework._IMAGE_HEADER_ENTRY}, framework._IMAGE_HEADER_CONTRACTS, 3, isolate=False,
+        )
+
+    def test_inventory_raw_image_header_requires_all_field_depth_and_lazy_error_bridges(self):
+        coverage = json.loads((framework.VALIDATION / "normative-coverage.json").read_text())
+        entry = next(item for item in coverage["requirements"] if item["id"] == framework._IMAGE_HEADER_ENTRY)
+        for field in ("contract_refs", "spec_refs", "proof_refs"):
+            for removed in entry[field]:
+                changed = copy.deepcopy(entry)
+                changed[field].remove(removed)
+                expected_error = "should be non-empty" if not changed[field] else "whole raw image-header Result"
+                with self.subTest(field=field, removed=removed), self.assertRaisesRegex(ValueError, expected_error):
+                    framework.validate_normative_coverage(dict(coverage, requirements=[changed]))
+
+    def test_inventory_raw_image_header_binds_actual_ordered_limits_precision_and_flags(self):
+        coverage = json.loads((framework.VALIDATION / "normative-coverage.json").read_text())
+        entry = next(item for item in coverage["requirements"] if item["id"] == framework._IMAGE_HEADER_ENTRY)
+        source = framework.ROOT / "src/jp2/headers.rs"
+        original = source.read_text()
+        read_text = Path.read_text
+        begin = original.index("fn parse_image_header")
+        for before, after in (
+            ("box_ref.payload.len() != 14", "box_ref.payload.len() < 14"),
+            ("width > limits.maximum_width()", "width >= limits.maximum_width()"),
+            ("parse_bit_depth(box_ref.payload[10], base_offset)", "parse_bit_depth(box_ref.payload[10], 0)"),
+            ("match box_ref.payload[12]", "match box_ref.payload[13]"),
+        ):
+            self.assertIn(before, original[begin:])
+            changed = original[:begin] + original[begin:].replace(before, after, 1)
+
+            def altered(path, *args, **kwargs):
+                return changed if path == source else read_text(path, *args, **kwargs)
+
+            with self.subTest(before=before), mock.patch.object(Path, "read_text", altered), \
+                    self.assertRaisesRegex(ValueError, "actual field/limit/precision/flag priority"):
+                framework.validate_normative_coverage(dict(coverage, requirements=[entry]))
+
+    def test_inventory_raw_image_header_rejects_narrowed_depth_or_lost_relative_offset_fields(self):
+        coverage = json.loads((framework.VALIDATION / "normative-coverage.json").read_text())
+        entry = next(item for item in coverage["requirements"] if item["id"] == framework._IMAGE_HEADER_ENTRY)
+        source = framework.ROOT / "specs/jp2_image_header.rs"
+        original = source.read_text()
+        read_text = Path.read_text
+        for before, after in (
+            ("value == 0xff", "value >= 38"),
+            ("bits > 38", "bits >= 38"),
+            ("part2_box_add_offset(base, header.1)", "part2_box_add_offset(base, 0)"),
+            ("intellectual_property: payload[13] == 1", "intellectual_property: false"),
+        ):
+            self.assertIn(before, original)
+            changed = original.replace(before, after, 1)
+
+            def altered(path, *args, **kwargs):
+                return changed if path == source else read_text(path, *args, **kwargs)
+
+            with self.subTest(before=before), mock.patch.object(Path, "read_text", altered), \
+                    self.assertRaisesRegex(ValueError, "complete exact depth/lazy-offset/field models"):
+                framework.validate_normative_coverage(dict(coverage, requirements=[entry]))
+
+    def test_inventory_raw_image_header_keeps_fresh_actual_field_source_and_model_caches(self):
+        coverage = json.loads((framework.VALIDATION / "normative-coverage.json").read_text())
+        entry = next(item for item in coverage["requirements"] if item["id"] == framework._IMAGE_HEADER_ENTRY)
+        read_text = Path.read_text
+        counts = {framework.ROOT / name: 0 for name in ("src/jp2/headers.rs", "specs/jp2_image_header.rs")}
+
+        def counted(path, *args, **kwargs):
+            if path in counts:
+                counts[path] += 1
+            return read_text(path, *args, **kwargs)
+
+        with mock.patch.object(Path, "read_text", counted):
+            for expected in (1, 2):
+                self.assertEqual(framework.validate_normative_coverage(dict(coverage, requirements=[entry]))["status"], "passed")
+                self.assertEqual(set(counts.values()), {expected})
+
     def test_inventory_binds_actual_complete_raw_file_type_results(self):
         self._assert_complete_packet_contract_bindings(
             {framework._FILE_TYPE_ENTRY}, framework._FILE_TYPE_CONTRACTS, 2, isolate=False,

@@ -29,6 +29,9 @@ impl ColorSpecification {
         self.method
     }
 
+    #[cfg_attr(verus_keep_ghost, verus_spec(result =>
+        ensures super::optional_profile_bytes(result) == super::full_color_specification_view(self).3,
+    ))]
     pub fn icc_profile(&self) -> Option<&[u8]> {
         match &self.icc_profile {
             Some(profile) => Some(profile.as_slice()),
@@ -114,10 +117,16 @@ fn palette_value_error(arithmetic: bool) -> DecodeError {
     }
 }
 
+#[cfg_attr(verus_keep_ghost, verus_spec(result =>
+    ensures super::color_specification_outcome(result) == crate::specs::part2_parse_color_specification(
+        super::box_reference_view(box_ref), base_offset),
+))]
 pub(super) fn parse_color_specification(
     box_ref: BoxRef<'_>,
     base_offset: u64,
 ) -> Result<ColorSpecification, DecodeError> {
+    #[cfg(verus_keep_ghost)]
+    proof! { reveal(crate::specs::part2_parse_color_specification); }
     if box_ref.payload.len() < 3 {
         return Err(DecodeError::malformed(
             add_offset(base_offset, box_ref.header.offset())?,
@@ -175,6 +184,9 @@ pub(super) fn parse_color_specification(
     })
 }
 
+#[cfg_attr(verus_keep_ghost, verus_spec(result =>
+    ensures result.is_ok(), result.ok().unwrap()@ == source@,
+))]
 fn copy_profile(source: &[u8]) -> Result<Vec<u8>, DecodeError> {
     let mut profile = Vec::with_capacity(source.len());
     let mut index = 0_usize;
@@ -182,6 +194,7 @@ fn copy_profile(source: &[u8]) -> Result<Vec<u8>, DecodeError> {
         verus_keep_ghost,
         verus_spec(
             invariant index <= source.len(),
+                profile@ == source@.take(index as int),
             decreases source.len() - index,
         )
     )]

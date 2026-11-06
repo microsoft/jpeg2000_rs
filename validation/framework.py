@@ -2617,6 +2617,37 @@ _DECODER_LAYOUT_CONTRACTS = {
 
 
 _SOURCE_OPACITY_ENTRY = "part2-complete-native-source-layer-opacity-result"
+_COLOR_HEADER_ENTRY = "part2-complete-native-raw-color-header-result"
+_COLOR_HEADER_CONTRACTS = {
+    ("src/jp2/color.rs", "parse_color_specification"): (
+        "part2_parse_color_specification", _coverage_call("super::color_specification_outcome", r"\1"), None,
+        _coverage_call("super::box_reference_view", "box_ref") + r"\s*,\s*base_offset",
+    ),
+}
+_COLOR_HEADER_PROOFS = {
+    ("src/jp2/proof_support.rs", name) for name in (
+        "full_color_specification_view", "color_specification_outcome", "optional_profile_bytes",
+    )
+} | {("src/jp2/color.rs", "copy_profile")}
+_IMAGE_HEADER_ENTRY = "part2-complete-native-raw-image-header-result"
+_IMAGE_HEADER_CONTRACTS = {
+    ("src/jp2/headers.rs", "parse_image_header"): (
+        "part2_parse_image_header", r"\1", None,
+        _coverage_call("super::box_reference_view", "box_ref") + r"\s*,\s*limits\s*,\s*base_offset",
+    ),
+    ("src/jp2/headers.rs", "parse_bit_depth"): (
+        "part2_container_bit_depth", r"\1", None, r"value\s*,\s*offset",
+    ),
+    ("src/jp2/headers.rs", "validate_bpcc"): (
+        "part2_validate_bpcc", r"\1", None,
+        _coverage_call("super::box_reference_view", "box_ref") + r"\s*,\s*image\s*,\s*base_offset",
+    ),
+}
+_IMAGE_HEADER_MODELS = {("specs/jp2_image_header.rs", name) for name in (
+    "part2_parse_image_header", "part2_container_bit_depth", "part2_validate_bpcc",
+    "part2_bpcc_prefix", "part2_image_box_error",
+)}
+_IMAGE_HEADER_PROOFS = {("specs/jp2_image_header.rs", name) for name in ("part2_bpcc_step", "part2_bpcc_error")}
 _FILE_TYPE_ENTRY = "part2-complete-native-raw-file-type-result"
 _FILE_TYPE_CONTRACTS = {
     ("src/jp2/container.rs", "parse_file_type"): (
@@ -3020,6 +3051,58 @@ def validate_normative_coverage(
     ids: set[str] = set()
     contract_functions: set[tuple[str, str]] = set()
     for entry in coverage["requirements"]:
+        if entry["id"] == _COLOR_HEADER_ENTRY:
+            if {(ref["path"], ref["symbol"]) for ref in entry["contract_refs"]} != set(_COLOR_HEADER_CONTRACTS):
+                raise ValueError("whole raw color Result requires actual full color parser contract")
+            if {("specs/jp2_color_header.rs", "part2_parse_color_specification")} != {
+                    (ref["path"], ref["symbol"]) for ref in entry["spec_refs"]} \
+                    or not _COLOR_HEADER_PROOFS.issubset({(ref["path"], ref["symbol"]) for ref in entry["proof_refs"]}):
+                raise ValueError("whole raw color Result requires complete method/metadata/ICC-copy bridges")
+            path = (ROOT / "src/jp2/color.rs").resolve()
+            body = _coverage_function_body(source_text(path), function_header(path, "parse_color_specification"))
+            required = ("box_ref.payload.len() < 3", "method_value == 1", "box_ref.payload.len() != 7",
+                        "method_value == 2", "method_value == 3", "copy_profile(&box_ref.payload[3..])?",
+                        "precedence: box_ref.payload[1]", "approximation: box_ref.payload[2]", "icc_profile,")
+            if body is None or any("".join(item.split()) not in "".join(body.split()) for item in required) \
+                    or "".join(body.split()).count("copy_profile(&box_ref.payload[3..])?") != 2:
+                raise ValueError("whole raw color Result requires actual method/metadata/full-ICC handoffs")
+            model = source_text((ROOT / "specs/jp2_color_header.rs").resolve())
+            actual = _coverage_spec_function_body(model, "part2_parse_color_specification")
+            required = ("payload.len() < 3", "payload.len() != 7", "length == 0",
+                        "payload[1], payload[2]", "Some(payload.subrange(3, payload.len() as int))",
+                        "MalformedKind::InvalidColorSpecification")
+            if actual is None or any("".join(item.split()) not in "".join(actual.split()) for item in required):
+                raise ValueError("whole raw color Result requires complete lazy-error/metadata/ICC-byte model")
+        if entry["id"] == _IMAGE_HEADER_ENTRY:
+            if {(ref["path"], ref["symbol"]) for ref in entry["contract_refs"]} != set(_IMAGE_HEADER_CONTRACTS):
+                raise ValueError("whole raw image-header Result requires actual image/depth/BPCC contracts")
+            if not _IMAGE_HEADER_MODELS.issubset({(ref["path"], ref["symbol"]) for ref in entry["spec_refs"]}) \
+                    or not _IMAGE_HEADER_PROOFS.issubset({(ref["path"], ref["symbol"]) for ref in entry["proof_refs"]}):
+                raise ValueError("whole raw image-header Result requires complete raw field/lazy-offset/ordered-depth models")
+            path = (ROOT / "src/jp2/headers.rs").resolve()
+            body = _coverage_function_body(source_text(path), function_header(path, "parse_image_header"))
+            required = (
+                "box_ref.payload.len() != 14", "width == 0 || height == 0 || components == 0 || box_ref.payload[11] != 7",
+                "width > limits.maximum_width()", "height > limits.maximum_height()",
+                "components > limits.maximum_components()", "pixels > limits.maximum_pixels()",
+                "parse_bit_depth(box_ref.payload[10], base_offset)?", "match box_ref.payload[12]", "match box_ref.payload[13]",
+            )
+            normalized = "".join(body.split()) if body is not None else ""
+            positions = [normalized.find("".join(item.split())) for item in required]
+            if any(position < 0 for position in positions) or positions != sorted(positions):
+                raise ValueError("whole raw image-header Result requires actual field/limit/precision/flag priority")
+            model = source_text((ROOT / "specs/jp2_image_header.rs").resolve())
+            handoffs = {
+                "part2_container_bit_depth": ("value == 0xff", "bits > 38", "signed: value & 0x80 != 0"),
+                "part2_image_box_error": ("part2_box_add_offset(base, header.1)",),
+                "part2_parse_image_header": ("payload.len() != 14", "part2_container_bit_depth(payload[10], base)",
+                    "unknown_color_space: payload[12] == 1", "intellectual_property: payload[13] == 1"),
+                "part2_validate_bpcc": ("input.1.len() != image.components as nat", "part2_bpcc_prefix(input, base, input.1.len())"),
+            }
+            for name, fragments in handoffs.items():
+                actual = _coverage_spec_function_body(model, name)
+                if actual is None or any("".join(item.split()) not in "".join(actual.split()) for item in fragments):
+                    raise ValueError("whole raw image-header Result requires complete exact depth/lazy-offset/field models")
         if entry["id"] == _FILE_TYPE_ENTRY:
             if {(ref["path"], ref["symbol"]) for ref in entry["contract_refs"]} != set(_FILE_TYPE_CONTRACTS):
                 raise ValueError("whole raw file-type Result requires actual payload/profile contracts")
@@ -4933,6 +5016,10 @@ def validate_normative_coverage(
                     if entry["id"] == _BOX_READER_ENTRY else None)
                 or (_FILE_TYPE_CONTRACTS.get((reference["path"], reference["symbol"]))
                     if entry["id"] == _FILE_TYPE_ENTRY else None)
+                or (_IMAGE_HEADER_CONTRACTS.get((reference["path"], reference["symbol"]))
+                    if entry["id"] == _IMAGE_HEADER_ENTRY else None)
+                or (_COLOR_HEADER_CONTRACTS.get((reference["path"], reference["symbol"]))
+                    if entry["id"] == _COLOR_HEADER_ENTRY else None)
                 or _CODESTREAM_READER_CONTRACTS.get((reference["path"], reference["symbol"]))
                 or _SOT_READER_CONTRACTS.get((reference["path"], reference["symbol"]))
                 or _TILE_DATA_WINDOW_CONTRACTS.get((reference["path"], reference["symbol"]))

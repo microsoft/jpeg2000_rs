@@ -179,6 +179,43 @@ technical candidate only: parent-owned record, review, CI, guarded integration
 and actual-main acceptance remain separate. No complete parsing, pixels,
 lifetime verification, normative conformance or publication claim follows.
 
+## Actual complete raw color specification Result
+
+The actual color specification parser now derives its complete Result from
+borrowed raw bytes: method, precedence, approximation and every optional ICC
+profile byte. Enumerated colors retain their exact 32-bit value; restricted
+and unrestricted ICC methods retain all bytes copied by the sole native
+profile producer. The profile copy contract proves success and exact source
+identity without relocating its allocation, introducing a runtime proof
+clone or reconstructing an owning color header from a partial view.
+
+Length/method errors preserve lazy relative-offset arithmetic. Valid payloads
+do not evaluate otherwise overflowing unused error offsets. The actual ICC
+getter projects the complete retained bytes. These parser contracts do not
+assert color-profile conversion support, normative correctness, whole header
+or public parser completion, general cfg/erasure/lifetimes or release.
+
+## Actual raw image-header and component-depth Results
+
+The actual 14-byte image-header parser returns every field of the native Copy
+`ImageHeader`, with exact basic admission, width/height/component/pixel limits,
+precision and color/property flags. Its error model retains **lazy** relative
+offset evaluation: an overflowing base/header offset does not replace an
+earlier dimension-limit or base-offset precision error, and is not evaluated
+on otherwise valid input.
+
+The actual bit-depth producer covers all 256 byte values, including the
+variable-depth sentinel, signedness and the existing 38-bit ceiling. BPCC
+validation retains length-before-data and first-component error priority,
+without requiring a prevalidated image header or successful depth bank.
+Checked prefix/error folds and one existing arithmetic-error closure connect
+the native traversal. No executing statements or owning scopes change;
+parent-module helper visibility supports native tests.
+
+These are complete actual raw field producers, not complete JP2/associated
+header construction, terminal/public decoding, model-to-standard adjudication,
+general cfg/erasure/lifetimes or release qualification.
+
 ## Actual raw file-type Result and public parser prologue
 
 The actual file-type payload parser now derives the complete primary brand,

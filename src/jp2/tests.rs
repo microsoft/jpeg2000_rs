@@ -626,6 +626,258 @@ fn marker_segment(marker: u16, payload: &[u8]) -> Vec<u8> {
     bytes
 }
 
+fn raw_image_header_payload(
+    width: u32,
+    height: u32,
+    components: u16,
+    depth: u8,
+    flags: [u8; 2],
+) -> Vec<u8> {
+    let mut payload = height.to_be_bytes().to_vec();
+    payload.extend_from_slice(&width.to_be_bytes());
+    payload.extend_from_slice(&components.to_be_bytes());
+    payload.extend_from_slice(&[depth, 7, flags[0], flags[1]]);
+    payload
+}
+
+fn raw_image_header_box(payload: &[u8], offset: u64) -> BoxRef<'_> {
+    BoxRef {
+        header: BoxHeader {
+            box_type: BoxType::IMAGE_HEADER,
+            offset,
+            header_length: 8,
+            total_length: payload.len() as u64 + 8,
+        },
+        payload,
+    }
+}
+
+#[test]
+fn actual_raw_image_header_retains_every_copy_field_and_all_flags() {
+    let limits = ResourceLimits::default();
+    for (depth, expected) in [
+        (
+            7,
+            ComponentBitDepth::Uniform {
+                bits: 8,
+                signed: false,
+            },
+        ),
+        (
+            0x87,
+            ComponentBitDepth::Uniform {
+                bits: 8,
+                signed: true,
+            },
+        ),
+        (0xff, ComponentBitDepth::Variable),
+    ] {
+        for color in [0, 1] {
+            for property in [0, 1] {
+                let payload = raw_image_header_payload(3, 2, 4, depth, [color, property]);
+                let header = super::headers::parse_image_header(
+                    raw_image_header_box(&payload, 19),
+                    &limits,
+                    100,
+                )
+                .unwrap();
+                assert_eq!(
+                    header,
+                    ImageHeader {
+                        width: 3,
+                        height: 2,
+                        components: 4,
+                        bit_depth: expected,
+                        unknown_color_space: color == 1,
+                        intellectual_property: property == 1
+                    }
+                );
+            }
+        }
+    }
+}
+
+#[test]
+fn actual_raw_image_header_bit_depth_covers_every_byte_without_narrowed_admission() {
+    for value in 0..=u8::MAX {
+        let bits = u16::from(value % 128) + 1;
+        let expected = if value == 255 {
+            Ok(ComponentBitDepth::Variable)
+        } else if bits <= 38 {
+            Ok(ComponentBitDepth::Uniform {
+                bits: u8::try_from(bits).unwrap(),
+                signed: value >= 128,
+            })
+        } else {
+            Err(DecodeError::MalformedInput {
+                offset: 73,
+                kind: MalformedKind::InvalidBoxContents,
+            })
+        };
+        assert_eq!(parse_bit_depth(value, 73), expected);
+    }
+}
+
+#[test]
+fn actual_raw_image_header_preserves_limit_order_and_lazy_relative_offset_errors() {
+    let payload = raw_image_header_payload(3, 4, 3, 38, [2, 2]);
+    let base = ResourceLimits::default();
+    for (limits, expected) in [
+        (
+            base.with_geometry_limits_for_test(1, 2, 2, 1, 1),
+            DecodeError::LimitExceeded {
+                resource: Resource::Width,
+                limit: 2,
+                actual: 3,
+            },
+        ),
+        (
+            base.with_geometry_limits_for_test(1, 4, 2, 1, 1),
+            DecodeError::LimitExceeded {
+                resource: Resource::Height,
+                limit: 2,
+                actual: 4,
+            },
+        ),
+        (
+            base.with_geometry_limits_for_test(1, 4, 5, 1, 1),
+            DecodeError::LimitExceeded {
+                resource: Resource::Components,
+                limit: 1,
+                actual: 3,
+            },
+        ),
+        (
+            base.with_geometry_limits_for_test(4, 4, 5, 1, 1),
+            DecodeError::LimitExceeded {
+                resource: Resource::Pixels,
+                limit: 1,
+                actual: 12,
+            },
+        ),
+        (
+            base,
+            DecodeError::MalformedInput {
+                offset: u64::MAX,
+                kind: MalformedKind::InvalidBoxContents,
+            },
+        ),
+    ] {
+        assert_eq!(
+            super::headers::parse_image_header(
+                raw_image_header_box(&payload, 19),
+                &limits,
+                u64::MAX
+            )
+            .err(),
+            Some(expected)
+        );
+    }
+    let valid = raw_image_header_payload(1, 1, 1, 7, [0, 0]);
+    assert!(
+        super::headers::parse_image_header(raw_image_header_box(&valid, 19), &base, u64::MAX)
+            .is_ok()
+    );
+    for payload in [&[][..], &valid[..13]] {
+        assert_eq!(
+            super::headers::parse_image_header(raw_image_header_box(payload, 19), &base, u64::MAX)
+                .err(),
+            Some(DecodeError::MalformedInput {
+                offset: u64::MAX,
+                kind: MalformedKind::ArithmeticOverflow
+            })
+        );
+    }
+    for index in [12, 13] {
+        let mut invalid = valid.clone();
+        invalid[index] = 2;
+        assert_eq!(
+            super::headers::parse_image_header(raw_image_header_box(&invalid, 19), &base, 100)
+                .err(),
+            Some(DecodeError::MalformedInput {
+                offset: 119,
+                kind: MalformedKind::InvalidBoxContents
+            })
+        );
+        assert_eq!(
+            super::headers::parse_image_header(raw_image_header_box(&invalid, 19), &base, u64::MAX)
+                .err(),
+            Some(DecodeError::MalformedInput {
+                offset: u64::MAX,
+                kind: MalformedKind::ArithmeticOverflow
+            })
+        );
+    }
+}
+
+#[test]
+fn actual_raw_image_header_bpcc_retains_length_and_first_precision_error_priority() {
+    let image = ImageHeader {
+        width: 1,
+        height: 1,
+        components: 2,
+        bit_depth: ComponentBitDepth::Variable,
+        unknown_color_space: false,
+        intellectual_property: false,
+    };
+    for (payload, base, expected) in [
+        (&[0, 0x87][..], 100, Ok(())),
+        (
+            &[0][..],
+            100,
+            Err(DecodeError::MalformedInput {
+                offset: 119,
+                kind: MalformedKind::InvalidBoxLength,
+            }),
+        ),
+        (
+            &[0xff, 38][..],
+            100,
+            Err(DecodeError::MalformedInput {
+                offset: 119,
+                kind: MalformedKind::InvalidBoxContents,
+            }),
+        ),
+        (
+            &[38, 0xff][..],
+            100,
+            Err(DecodeError::MalformedInput {
+                offset: 100,
+                kind: MalformedKind::InvalidBoxContents,
+            }),
+        ),
+        (
+            &[38, 0xff][..],
+            u64::MAX,
+            Err(DecodeError::MalformedInput {
+                offset: u64::MAX,
+                kind: MalformedKind::InvalidBoxContents,
+            }),
+        ),
+        (
+            &[0xff, 38][..],
+            u64::MAX,
+            Err(DecodeError::MalformedInput {
+                offset: u64::MAX,
+                kind: MalformedKind::ArithmeticOverflow,
+            }),
+        ),
+    ] {
+        assert_eq!(
+            super::headers::validate_bpcc(raw_image_header_box(payload, 19), image, base),
+            expected
+        );
+    }
+    let empty = ImageHeader {
+        components: 0,
+        ..image
+    };
+    assert_eq!(
+        super::headers::validate_bpcc(raw_image_header_box(&[], 19), empty, u64::MAX),
+        Ok(())
+    );
+}
+
 fn valid_codestream(width: u32, height: u32) -> Vec<u8> {
     let mut siz = Vec::new();
     siz.extend_from_slice(&0_u16.to_be_bytes());
@@ -654,6 +906,109 @@ fn valid_codestream(width: u32, height: u32) -> Vec<u8> {
     assert_eq!(bytes.len() - tile_part_start, 14);
     bytes.extend_from_slice(&0xffd9_u16.to_be_bytes());
     bytes
+}
+
+#[test]
+fn actual_raw_color_header_preserves_enumerated_method_and_all_metadata_bytes() {
+    for space in [0_u32, 16, 17, 18, u32::MAX] {
+        for precedence in [0, u8::MAX] {
+            for approximation in [0, u8::MAX] {
+                let mut payload = vec![1, precedence, approximation];
+                payload.extend_from_slice(&space.to_be_bytes());
+                let color = parse_color_specification(raw_image_header_box(&payload, 19), u64::MAX)
+                    .unwrap();
+                assert_eq!(
+                    color.method(),
+                    ColorMethod::Enumerated { color_space: space }
+                );
+                assert_eq!(
+                    (color.precedence, color.approximation),
+                    (precedence, approximation)
+                );
+                assert_eq!(color.icc_profile(), None);
+            }
+        }
+    }
+}
+
+#[test]
+fn actual_raw_color_header_copies_every_restricted_and_unrestricted_icc_byte() {
+    for method in [2, 3] {
+        for length in [1, 2, 257] {
+            let profile: Vec<u8> = (0..length)
+                .map(|index| u8::try_from(index % 256).unwrap())
+                .collect();
+            let mut payload = vec![method, 173, 219];
+            payload.extend_from_slice(&profile);
+            let color = parse_color_specification(raw_image_header_box(&payload, 19), 100).unwrap();
+            let expected = if method == 2 {
+                ColorMethod::RestrictedIcc {
+                    profile_bytes: length as u64,
+                }
+            } else {
+                ColorMethod::AnyIcc {
+                    profile_bytes: length as u64,
+                }
+            };
+            assert_eq!(color.method(), expected);
+            assert_eq!((color.precedence, color.approximation), (173, 219));
+            assert_eq!(color.icc_profile(), Some(profile.as_slice()));
+            assert_ne!(color.icc_profile().unwrap().as_ptr(), payload[3..].as_ptr());
+        }
+    }
+}
+
+#[test]
+fn actual_raw_color_header_preserves_exact_length_method_and_lazy_offset_errors() {
+    for payload in [
+        &[][..],
+        &[1][..],
+        &[1, 0][..],
+        &[1, 0, 0][..],
+        &[2, 0, 0][..],
+        &[3, 0, 0][..],
+    ] {
+        assert_eq!(
+            parse_color_specification(raw_image_header_box(payload, 19), 100).err(),
+            Some(DecodeError::MalformedInput {
+                offset: 119,
+                kind: MalformedKind::InvalidBoxLength
+            })
+        );
+        assert_eq!(
+            parse_color_specification(raw_image_header_box(payload, 19), u64::MAX).err(),
+            Some(DecodeError::MalformedInput {
+                offset: u64::MAX,
+                kind: MalformedKind::ArithmeticOverflow
+            })
+        );
+    }
+    for method in [0, 4, u8::MAX] {
+        let payload = [method, 0, 0];
+        assert_eq!(
+            parse_color_specification(raw_image_header_box(&payload, 19), 100).err(),
+            Some(DecodeError::MalformedInput {
+                offset: 119,
+                kind: MalformedKind::InvalidColorSpecification
+            })
+        );
+    }
+    for method in [2, 3] {
+        assert!(
+            parse_color_specification(raw_image_header_box(&[method, 0, 0, 7], 19), u64::MAX)
+                .is_ok()
+        );
+    }
+}
+
+#[test]
+fn actual_raw_color_header_owned_profile_is_independent_of_original_source_storage() {
+    let mut payload = vec![3, 255, 254, 1, 128, 255, 0, 17];
+    let color = parse_color_specification(raw_image_header_box(&payload, 19), 100).unwrap();
+    payload.fill(0);
+    assert_eq!(color.method(), ColorMethod::AnyIcc { profile_bytes: 5 });
+    assert_eq!((color.precedence, color.approximation), (255, 254));
+    assert_eq!(color.icc_profile(), Some(&[1, 128, 255, 0, 17][..]));
 }
 
 fn valid_ht_codestream(width: u32, height: u32, style: u8) -> Vec<u8> {

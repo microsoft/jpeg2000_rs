@@ -4,6 +4,68 @@
   "scope": "Technical reference inventory; not exhaustive standards-clause coverage or a conformance claim.",
   "requirements": [
     {
+      "id": "part2-complete-native-raw-color-header-result",
+      "topic": "Complete actual raw color specification Result with method, precedence, approximation and every optional ICC byte. Actual native profile copying is checked exact/successful; no supplied profile/color bank, owner inversion, runtime proof clone or allocation/body/scope relocation. Retain lazy relative error offsets, enumerated32bit values and restricted/unrestricted ICC admission; this does not assert conversion support. Native ICC getter exposes full retained bytes. Whole header/container/public, normative/cfg/erasure/lifetimes/release remain separate.",
+      "implementation_refs": [
+        {"path": "src/jp2/color.rs", "symbol": "parse_color_specification"},
+        {"path": "src/jp2/color.rs", "symbol": "copy_profile"},
+        {"path": "src/jp2/color.rs", "symbol": "ColorSpecification::icc_profile"},
+        {"path": "src/jp2/headers.rs", "symbol": "parse_jp2_header"},
+        {"path": "src/jp2/headers.rs", "symbol": "parse_codestream_header"}
+      ],
+      "spec_refs": [
+        {"path": "specs/jp2_color_header.rs", "symbol": "part2_parse_color_specification"}
+      ],
+      "contract_refs": [
+        {"path": "src/jp2/color.rs", "symbol": "parse_color_specification"}
+      ],
+      "proof_refs": [
+        {"path": "src/jp2/proof_support.rs", "symbol": "full_color_specification_view"},
+        {"path": "src/jp2/proof_support.rs", "symbol": "color_specification_outcome"},
+        {"path": "src/jp2/proof_support.rs", "symbol": "optional_profile_bytes"},
+        {"path": "src/jp2/color.rs", "symbol": "copy_profile"}
+      ],
+      "test_refs": [
+        {"path": "src/jp2/tests.rs", "symbol": "actual_raw_color_header_preserves_enumerated_method_and_all_metadata_bytes"},
+        {"path": "src/jp2/tests.rs", "symbol": "actual_raw_color_header_copies_every_restricted_and_unrestricted_icc_byte"},
+        {"path": "src/jp2/tests.rs", "symbol": "actual_raw_color_header_preserves_exact_length_method_and_lazy_offset_errors"},
+        {"path": "src/jp2/tests.rs", "symbol": "actual_raw_color_header_owned_profile_is_independent_of_original_source_storage"}
+      ]
+    },
+    {
+      "id": "part2-complete-native-raw-image-header-result",
+      "topic": "Complete actual raw 14byte image-header/bit-depth/BPCC Results: every native Copy ImageHeader field, width/height/components/pixels-before-precision/flags error priority, all256depth encodings including variable/signed/38bit ceiling, ordered component length/precision errors and lazy relative-offset arithmetic. No prevalidated/successful header or depth bank, owner inversion, changed admission/caps or native statement/owner/scope changes. One existing empty-arg pixel-error closure has a checked contract; helper visibility becomes parent-only for native tests. Header/associated-container assembly, final raw public parsing, normative/cfg/erasure/lifetimes/release remain separate.",
+      "implementation_refs": [
+        {"path": "src/jp2/headers.rs", "symbol": "parse_image_header"},
+        {"path": "src/jp2/headers.rs", "symbol": "parse_bit_depth"},
+        {"path": "src/jp2/headers.rs", "symbol": "validate_bpcc"},
+        {"path": "src/jp2/headers.rs", "symbol": "parse_jp2_header"},
+        {"path": "src/jp2/headers.rs", "symbol": "parse_codestream_header"}
+      ],
+      "spec_refs": [
+        {"path": "specs/jp2_image_header.rs", "symbol": "part2_parse_image_header"},
+        {"path": "specs/jp2_image_header.rs", "symbol": "part2_container_bit_depth"},
+        {"path": "specs/jp2_image_header.rs", "symbol": "part2_validate_bpcc"},
+        {"path": "specs/jp2_image_header.rs", "symbol": "part2_bpcc_prefix"},
+        {"path": "specs/jp2_image_header.rs", "symbol": "part2_image_box_error"}
+      ],
+      "contract_refs": [
+        {"path": "src/jp2/headers.rs", "symbol": "parse_image_header"},
+        {"path": "src/jp2/headers.rs", "symbol": "parse_bit_depth"},
+        {"path": "src/jp2/headers.rs", "symbol": "validate_bpcc"}
+      ],
+      "proof_refs": [
+        {"path": "specs/jp2_image_header.rs", "symbol": "part2_bpcc_step"},
+        {"path": "specs/jp2_image_header.rs", "symbol": "part2_bpcc_error"}
+      ],
+      "test_refs": [
+        {"path": "src/jp2/tests.rs", "symbol": "actual_raw_image_header_retains_every_copy_field_and_all_flags"},
+        {"path": "src/jp2/tests.rs", "symbol": "actual_raw_image_header_bit_depth_covers_every_byte_without_narrowed_admission"},
+        {"path": "src/jp2/tests.rs", "symbol": "actual_raw_image_header_preserves_limit_order_and_lazy_relative_offset_errors"},
+        {"path": "src/jp2/tests.rs", "symbol": "actual_raw_image_header_bpcc_retains_length_and_first_precision_error_priority"}
+      ]
+    },
+    {
       "id": "part2-complete-native-raw-file-type-result",
       "topic": "Complete actual raw file-type payload and JP2/JPX/JPH profile Results: checked payload offset/length, compatible-brand count before duplicates, every ordered native brand, minor version and exact profile error offsets. The actual public parse prologue has a checked prefix-error/returned-file-type relation using actual shared reader/signature/ftyp/profile producers; this is not complete later container parsing. No parsed-file/result bank, successful-parser premise or owner inversion. Primary brand and parser reader initialization add explicit shared-producer call targets, to qualify separately with prior extraction/debug differences. Native owning declarations/error/loop order are preserved. Later headers/associations/layers/composition/terminal/public/normative/cfg/erasure/lifetimes/release remain separate.",
       "implementation_refs": [
