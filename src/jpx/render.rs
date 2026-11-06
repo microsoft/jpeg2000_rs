@@ -12,8 +12,9 @@ use super::{
 };
 #[cfg(verus_keep_ghost)]
 use super::{
-    collected_layers_result, frame_views, instruction_views, layer_owned_planes_push,
-    owned_layer_outcome, placement_views, placement_views_push, supplied_views,
+    collected_layers_result, composition_source_view, frame_views, inspection_composition_view,
+    instruction_views, layer_owned_planes_push, owned_layer_outcome, placement_views,
+    placement_views_push, supplied_views, supplied_views_push,
 };
 #[cfg(verus_keep_ghost)]
 use vstd::prelude::*;
@@ -96,12 +97,27 @@ pub fn render_jpx_frame(
     render_inspected_frame(file, &metadata, frame_index, options)
 }
 
-fn render_inspected_frame(
+#[cfg_attr(verus_keep_ghost, verus_spec(result =>
+    ensures crate::color::converted_image_result(result) == crate::specs::part2_render_inspected_source_frame(
+        jp2::jpx_file_decode_view(file), jp2::source_file_layer_configs(file), inspection_composition_view(metadata),
+        requested_frame, crate::options::decode_options_limits(options)),
+))]
+pub(super) fn render_inspected_frame(
     file: &Jp2File<'_>,
     metadata: &JpxInspection,
     requested_frame: usize,
     options: &DecodeOptions,
 ) -> Result<ConvertedImage, DecodeError> {
+    #[cfg(verus_keep_ghost)]
+    proof_decl! {
+        let ghost input = jp2::jpx_file_decode_view(file);
+        let ghost layers = jp2::source_file_layer_configs(file);
+        let ghost limits = crate::options::decode_options_limits(options);
+    }
+    #[cfg(verus_keep_ghost)]
+    proof! {
+        reveal(crate::specs::part2_render_inspected_source_frame);
+    }
     let composition = metadata
         .composition()
         .ok_or(DecodeError::FrameIndexOutOfRange {
@@ -115,19 +131,53 @@ fn render_inspected_frame(
     )?;
     let mut supplied = Vec::new();
     let mut index = 0_usize;
+    #[cfg(verus_keep_ghost)]
+    proof_decl! { let ghost selected = instruction_views(instructions@); }
+    #[cfg(verus_keep_ghost)]
+    proof! {
+        reveal(crate::specs::part2_frame_source_supplies);
+        assert(supplied_views(supplied@) =~= Seq::empty());
+    }
     #[cfg_attr(
         verus_keep_ghost,
         verus_spec(
             invariant index <= instructions.len(),
+                selected == instruction_views(instructions@),
+                input == jp2::jpx_file_decode_view(file),
+                layers == jp2::source_file_layer_configs(file),
+                limits == crate::options::decode_options_limits(options),
+            invariant_except_break
+                crate::specs::part2_frame_source_supplies(input, layers, selected, limits, index as nat)
+                    == (supplied_views(supplied@), false),
+            ensures supplied_views(supplied@)
+                == crate::specs::part2_frame_source_supplies(input, layers, selected, limits, selected.len()).0,
             decreases instructions.len() - index,
         )
     )]
     while index < instructions.len() {
+        #[cfg(verus_keep_ghost)]
+        proof! {
+            crate::specs::part2_frame_source_supplies_step(input, layers, selected, limits, index as nat);
+        }
         let instruction = instructions[index];
         let outcome = decode_effective_layer(file, instruction.layer_index(), options);
         let failed = outcome.is_err();
+        #[cfg(verus_keep_ghost)]
+        proof! {
+            supplied_views_push(supplied@, (instruction.layer_index, Some(outcome)));
+        }
         supplied.push((instruction.layer_index, Some(outcome)));
+        #[cfg(verus_keep_ghost)]
+        proof! {
+            assert(crate::specs::part2_frame_source_supplies(input, layers, selected, limits, index as nat + 1)
+                == (supplied_views(supplied@), failed));
+        }
         if failed {
+            #[cfg(verus_keep_ghost)]
+            proof! {
+                crate::specs::part2_frame_source_supplies_stopped(
+                    input, layers, selected, limits, index as nat + 1, selected.len());
+            }
             break;
         }
         index = index.checked_add(1).ok_or_else(arithmetic_overflow)?;

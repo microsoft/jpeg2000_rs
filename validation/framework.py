@@ -2617,6 +2617,30 @@ _DECODER_LAYOUT_CONTRACTS = {
 
 
 _SOURCE_OPACITY_ENTRY = "part2-complete-native-source-layer-opacity-result"
+_SOURCE_FRAME_ENTRY = "part2-complete-native-source-frame-result"
+_SOURCE_FRAME_CONTRACTS = {
+    ("src/jpx/render.rs", "render_inspected_frame"): (
+        "part2_render_inspected_source_frame", _coverage_call("crate::color::converted_image_result", r"\1"), None,
+        _coverage_call("jp2::jpx_file_decode_view", "file") + r"\s*,\s*"
+        + _coverage_call("jp2::source_file_layer_configs", "file") + r"\s*,\s*"
+        + _coverage_call("inspection_composition_view", "metadata") + r"\s*,\s*requested_frame\s*,\s*"
+        + _coverage_call("crate::options::decode_options_limits", "options"),
+    ),
+    ("src/jpx/layer_decode.rs", "OwnedLayer::into_image"): (
+        "part2_owned_layer_image", _coverage_call("crate::color::converted_image_result", r"\1"), None,
+        _coverage_call("owned_layer_view", r"&\s*self"),
+    ),
+}
+_SOURCE_FRAME_MODELS = {("specs/jpx_frame.rs", name) for name in (
+    "part2_render_inspected_source_frame", "part2_frame_source_supplies", "part2_owned_layer_image",
+)} | {("specs/jpx_dispatch.rs", "part2_decode_effective_layer"),
+      ("specs/mod.rs", "part2_render_normalized_frame")}
+_SOURCE_FRAME_PROOFS = {("specs/jpx_frame.rs", name) for name in (
+    "part2_frame_source_supplies_step", "part2_frame_source_supplies_stopped",
+)} | {("src/jpx/proof_support.rs", name) for name in (
+    "supplied_views_push", "composition_source_view", "composition_source_frames",
+    "inspection_composition_reference", "inspection_composition_view", "instruction_source_layer_index",
+)}
 _EFFECTIVE_LAYER_ENTRY = "part2-complete-native-effective-layer-result"
 _EFFECTIVE_LAYER_CONTRACTS = {
     ("src/jpx/layer_decode.rs", "decode_effective_layer"): (
@@ -2914,6 +2938,62 @@ def validate_normative_coverage(
     ids: set[str] = set()
     contract_functions: set[tuple[str, str]] = set()
     for entry in coverage["requirements"]:
+        if entry["id"] == _SOURCE_FRAME_ENTRY:
+            if {(ref["path"], ref["symbol"]) for ref in entry["contract_refs"]} != set(_SOURCE_FRAME_CONTRACTS):
+                raise ValueError("whole source frame Result requires actual frame and owned-image contracts")
+            if not _SOURCE_FRAME_MODELS.issubset({(ref["path"], ref["symbol"]) for ref in entry["spec_refs"]}) \
+                    or not _SOURCE_FRAME_PROOFS.issubset({(ref["path"], ref["symbol"]) for ref in entry["proof_refs"]}):
+                raise ValueError("whole source frame Result requires real decoding/rendering and lazy error/metadata bridges")
+            path = (ROOT / "src/jpx/render.rs").resolve()
+            body = _coverage_function_body(source_text(path), function_header(path, "render_inspected_frame"))
+            required = (
+                "select_frame_instructions(composition.frames(), composition.loop_count(), requested_frame,)",
+                "let outcome = decode_effective_layer(file, instruction.layer_index(), options);",
+                "let failed = outcome.is_err();",
+                "supplied.push((instruction.layer_index, Some(outcome)));",
+                "invariant_except_break", "if failed {",
+                "crate::specs::part2_frame_source_supplies_step(input, layers, selected, limits, index as nat);",
+                "crate::specs::part2_frame_source_supplies_stopped(input, layers, selected, limits, index as nat + 1, selected.len());",
+                "render_normalized_frame(composition.width(), composition.height(), composition.frames(), composition.loop_count(), requested_frame, supplied, options.limits().maximum_decoded_bytes(), options.limits(),)",
+            )
+            if body is None or any("".join(item.split()) not in "".join(body.split()) for item in required):
+                raise ValueError("whole source frame Result requires actual selection/decoding/lazy-break/full-render handoffs")
+            path = (ROOT / "src/jpx/layer_decode.rs").resolve()
+            body = _coverage_function_body(source_text(path), function_header(path, "OwnedLayer::into_image"))
+            required = (
+                "let pixels = checked_area(self.width, self.height)?;",
+                "None => (vec![u16::MAX; pixels], false)",
+                "crate::color::from_layer(self.width, self.height, self.color_space, self.colors, alpha, premultiplied,)",
+            )
+            if body is None or any("".join(item.split()) not in "".join(body.split()) for item in required):
+                raise ValueError("whole source frame Result requires actual owned-image geometry/alpha/output handoffs")
+            path = (ROOT / "src/jpx/inspection.rs").resolve()
+            text = source_text(path)
+            header = function_header(path, "JpxInspection::composition")
+            start = text.rfind("#[cfg_attr(verus_keep_ghost, verus_spec(", 0, header.start()) if header else -1
+            contract = text[start:header.start()] if start >= 0 else ""
+            if "result==inspection_composition_reference(self)" not in "".join(contract.split()):
+                raise ValueError("whole source frame Result requires complete actual borrowed-composition preservation")
+            model = source_text((ROOT / "specs/jpx_frame.rs").resolve())
+            model_handoffs = {
+                "part2_frame_source_supplies": (
+                    "if previous.1 { previous }", "let index = instructions[count - 1].0;",
+                    "part2_decode_effective_layer(file, layers, index, limits)",
+                    "previous.0.push((index, Some(outcome)))",
+                ),
+                "part2_render_inspected_source_frame": (
+                    "part2_select_frame(config.3, requested, config.2)",
+                    "part2_frame_source_supplies(file, layers, instructions, limits, instructions.len())",
+                    "part2_render_normalized_frame(config.0, config.1, config.3, config.2, requested, decoded.0,",
+                ),
+                "part2_owned_layer_image": (
+                    "None => (Seq::new(pixels as nat, |_i: int| u16::MAX), false)",
+                ),
+            }
+            for name, required in model_handoffs.items():
+                actual = _coverage_spec_function_body(model, name)
+                if actual is None or any("".join(item.split()) not in "".join(actual.split()) for item in required):
+                    raise ValueError("whole source frame Result requires actual ordered source supplies and complete output models")
         if entry["id"] == _EFFECTIVE_LAYER_ENTRY:
             if {(ref["path"], ref["symbol"]) for ref in entry["contract_refs"]} != set(_EFFECTIVE_LAYER_CONTRACTS):
                 raise ValueError("whole effective layer Result requires both actual complete dispatcher contracts")
@@ -4617,6 +4697,8 @@ def validate_normative_coverage(
                     if entry["id"] == _GENERAL_LAYER_ENTRY else None)
                 or (_EFFECTIVE_LAYER_CONTRACTS.get((reference["path"], reference["symbol"]))
                     if entry["id"] == _EFFECTIVE_LAYER_ENTRY else None)
+                or (_SOURCE_FRAME_CONTRACTS.get((reference["path"], reference["symbol"]))
+                    if entry["id"] == _SOURCE_FRAME_ENTRY else None)
                 or _CODESTREAM_READER_CONTRACTS.get((reference["path"], reference["symbol"]))
                 or _SOT_READER_CONTRACTS.get((reference["path"], reference["symbol"]))
                 or _TILE_DATA_WINDOW_CONTRACTS.get((reference["path"], reference["symbol"]))

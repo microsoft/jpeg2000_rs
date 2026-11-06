@@ -1,5 +1,35 @@
 #[cfg(verus_keep_ghost)]
 verus! {
+    pub closed spec fn composition_source_frames(composition: &JpxCompositionInfo) -> Seq<JpxFrameInfo> {
+        composition.frames@
+    }
+
+    pub closed spec fn instruction_source_layer_index(instruction: &JpxInstructionInfo) -> usize {
+        instruction.layer_index
+    }
+
+    pub closed spec fn composition_source_view(composition: &JpxCompositionInfo) -> crate::specs::Part2FrameSourceConfig {
+        (composition.width, composition.height, composition.loop_count, frame_views(composition.frames@))
+    }
+
+    pub closed spec fn inspection_composition_reference(metadata: &JpxInspection) -> Option<&JpxCompositionInfo> {
+        match &metadata.composition { None => None, Some(composition) => Some(composition) }
+    }
+
+    pub open spec fn inspection_composition_view(metadata: &JpxInspection) -> Option<crate::specs::Part2FrameSourceConfig> {
+        match inspection_composition_reference(metadata) {
+            None => None, Some(composition) => Some(composition_source_view(composition)),
+        }
+    }
+
+    proof fn supplied_views_push(supplied: Seq<SuppliedLayer>, value: SuppliedLayer)
+        ensures supplied_views(supplied.push(value)) == supplied_views(supplied).push(
+            (value.0, match value.1 { None => None, Some(outcome) => Some(owned_layer_outcome(outcome)) })),
+    {
+        assert(supplied_views(supplied.push(value)) =~= supplied_views(supplied).push(
+            (value.0, match value.1 { None => None, Some(outcome) => Some(owned_layer_outcome(outcome)) })));
+    }
+
     #[verifier::inline]
     spec fn general_source_views(sources: Seq<(TypedImage, u8, u8, u32, u32)>)
         -> Seq<crate::specs::Part2GeneralSource>

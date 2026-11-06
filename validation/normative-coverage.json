@@ -4,6 +4,46 @@
   "scope": "Technical reference inventory; not exhaustive standards-clause coverage or a conformance claim.",
   "requirements": [
     {
+      "id": "part2-complete-native-source-frame-result",
+      "topic": "Complete actual render_inspected_frame Result from the real parsed file, actual metadata value and options: preserve full borrowed composition, ordered persistent/loop frame selection, actual effective-layer decoding and repeated/indexed supplies, first failed decode break and complete existing normalized-frame output. The intermediate supplies are derived from actual decoders, not an input bank. Complete OwnedLayer::into_image Result also preserves actual geometry admission, absent-alpha opaque seed, existing alpha representation and final channel/image fields. Native statements/owners/loop/break/drop order are unchanged; frame helper visibility is parent-module-only for real-byte tests. Actual metadata is an input here; derivation by raw container parsing/inspection/timeline and final public entry joins remain separate, as do normative/cfg/erasure/lifetimes/release.",
+      "implementation_refs": [
+        {"path": "src/jpx/render.rs", "symbol": "render_inspected_frame"},
+        {"path": "src/jpx/render.rs", "symbol": "render_jpx_frame"},
+        {"path": "src/jpx/render.rs", "symbol": "render_jpx_composition"},
+        {"path": "src/jpx/render.rs", "symbol": "render_jpx_layer"},
+        {"path": "src/jpx/layer_decode.rs", "symbol": "OwnedLayer::into_image"},
+        {"path": "src/jpx/layer_decode.rs", "symbol": "decode_effective_layer"}
+      ],
+      "spec_refs": [
+        {"path": "specs/jpx_frame.rs", "symbol": "part2_render_inspected_source_frame"},
+        {"path": "specs/jpx_frame.rs", "symbol": "part2_frame_source_supplies"},
+        {"path": "specs/jpx_frame.rs", "symbol": "part2_owned_layer_image"},
+        {"path": "specs/jpx_dispatch.rs", "symbol": "part2_decode_effective_layer"},
+        {"path": "specs/mod.rs", "symbol": "part2_render_normalized_frame"}
+      ],
+      "contract_refs": [
+        {"path": "src/jpx/render.rs", "symbol": "render_inspected_frame"},
+        {"path": "src/jpx/layer_decode.rs", "symbol": "OwnedLayer::into_image"}
+      ],
+      "proof_refs": [
+        {"path": "specs/jpx_frame.rs", "symbol": "part2_frame_source_supplies_step"},
+        {"path": "specs/jpx_frame.rs", "symbol": "part2_frame_source_supplies_stopped"},
+        {"path": "src/jpx/proof_support.rs", "symbol": "supplied_views_push"},
+        {"path": "src/jpx/proof_support.rs", "symbol": "composition_source_view"},
+        {"path": "src/jpx/proof_support.rs", "symbol": "composition_source_frames"},
+        {"path": "src/jpx/proof_support.rs", "symbol": "inspection_composition_reference"},
+        {"path": "src/jpx/proof_support.rs", "symbol": "inspection_composition_view"},
+        {"path": "src/jpx/proof_support.rs", "symbol": "instruction_source_layer_index"}
+      ],
+      "test_refs": [
+        {"path": "src/jpx/tests.rs", "symbol": "actual_source_frame_composes_real_general_rgb_and_complete_straight_alpha_output"},
+        {"path": "src/jpx/tests.rs", "symbol": "actual_source_frame_decodes_repeated_and_distinct_layer_indices_in_native_supply_order"},
+        {"path": "src/jpx/tests.rs", "symbol": "actual_source_frame_keeps_composition_selection_and_first_decode_error_priority"},
+        {"path": "src/jpx/tests.rs", "symbol": "actual_source_frame_applies_real_persistence_reset_and_loop_selection"},
+        {"path": "src/jpx/tests.rs", "symbol": "single_layer_output_preserves_fractional_premultiplied_representation"}
+      ]
+    },
+    {
       "id": "part2-complete-native-effective-layer-result",
       "topic": "Complete actual decode_effective_layer and decode_compositing_layer Results from real parsed file/layer/options. Preserve implicit-codestream layer-index admission, exact declared-layer errors and full actual borrowed-layer identity, general/fast routing, optional layer color versus associated source-header fallback, real source/color/owner/registration/opacity producers and every returned plane/alpha/error. No supplied decoded layers, owning reconstruction or successful-source premise. Native statements, reference selections, owner scopes and helper placement remain unchanged. Parsed file/metadata are actual inputs; raw container parsing/inspection/timeline and final frame/public joins, normative/cfg/erasure/lifetimes/release remain separate.",
       "implementation_refs": [
