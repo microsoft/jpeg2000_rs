@@ -1,6 +1,6 @@
 //! Shared executing metadata-clone producers used by native Clone and Verus.
 
-use super::{ColorSpecification, Jp2Header, Palette};
+use super::{CodestreamHeaderAssociation, ColorSpecification, Jp2Header, Palette};
 #[cfg(verus_keep_ghost)]
 use vstd::prelude::*;
 
@@ -60,5 +60,36 @@ pub(super) fn jp2_header_clone(source: &Jp2Header) -> Jp2Header {
         channel_definition_records: Clone::clone(&source.channel_definition_records),
         capture_resolution: Clone::clone(&source.capture_resolution),
         display_resolution: Clone::clone(&source.display_resolution),
+    }
+}
+
+#[allow(
+    clippy::manual_map,
+    reason = "Explicit cases route the original optional header clone through its checked native producer"
+)]
+#[cfg_attr(verus_keep_ghost, verus_spec(result =>
+    ensures super::optional_jp2_header_view(&result)
+        == crate::specs::part2_optional_jp2_header_clone(super::optional_jp2_header_view(source)),
+))]
+pub(super) fn optional_jp2_header_clone(source: &Option<Jp2Header>) -> Option<Jp2Header> {
+    match source {
+        None => None,
+        Some(header) => Some(jp2_header_clone(header)),
+    }
+}
+
+#[cfg_attr(verus_keep_ghost, verus_spec(result =>
+    ensures super::raw_codestream_association_view(&result)
+        == crate::specs::part2_codestream_association_clone(super::raw_codestream_association_view(source)),
+        super::raw_codestream_association_payload_reference(&result)
+            == super::raw_codestream_association_payload_reference(source),
+))]
+pub(super) fn codestream_association_clone<'a>(
+    source: &CodestreamHeaderAssociation<'a>,
+) -> CodestreamHeaderAssociation<'a> {
+    CodestreamHeaderAssociation {
+        header: Clone::clone(&source.header),
+        payload: Clone::clone(&source.payload),
+        parsed: optional_jp2_header_clone(&source.parsed),
     }
 }

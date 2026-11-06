@@ -77,6 +77,8 @@ mod jp2_layer;
 pub use jp2_layer::*;
 mod jp2_composition;
 pub use jp2_composition::*;
+mod jp2_container;
+pub use jp2_container::*;
 
 pub use crate::proofs::internal_specs::{
     part2_composition_layer_prefix_matches, part2_composition_layer_prefix_safe,

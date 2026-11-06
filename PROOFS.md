@@ -179,6 +179,32 @@ technical candidate only: parent-owned record, review, CI, guarded integration
 and actual-main acceptance remain separate. No complete parsing, pixels,
 lifetime verification, normative conformance or publication claim follows.
 
+## Actual association clone and raw container continuation
+
+The next container continuation checks the real optional-header and owned
+codestream-association clone producers. Their contracts retain the complete
+stored box header, exact borrowed payload reference, optional full header
+metadata and independent native metadata owners, including arbitrary invalid
+metadata without a validity premise. The original derived association field
+clone body is extracted into the shared executing producer, with explicit
+optional-header routing through the already checked header clone. Native
+observation of this extraction/routing remains required before qualification;
+the complete container parse Result is not yet established.
+
+The executing raw-container parser now composes the actual prologue, ordered
+box steps, header/layer/composition producers, metadata count/depth and final
+association attachment/reference validation into its complete Result contract.
+The original prologue relation is retained. The mutable attachment frame
+preserves each stored header/payload and every other codestream entry; only the
+original association field is replaced using the checked native clone producer.
+All owner scopes and validation priorities remain in place, with one additional
+direct checked clone call target requiring explicit native observation.
+
+The complete parser contract passes local focused and whole verification.
+Strict inventory bindings, broader whole-parser regression families and fresh
+full qualification/protected integration remain required before acceptance.
+Inspection/timeline/final public joins are separate later milestones.
+
 ## Actual complete raw composition and reference Results
 
 The actual composition word reader preserves its complete old/final cursor and

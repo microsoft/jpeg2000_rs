@@ -20,6 +20,16 @@ pub open spec fn part2_jp2_header_clone(value: Part2RawJp2Header) -> Part2RawJp2
     value
 }
 
+pub open spec fn part2_optional_jp2_header_clone(value: Option<Part2RawJp2Header>) -> Option<Part2RawJp2Header> {
+    value
+}
+
+pub type Part2RawCodestreamAssociation = (Part2BoxHeader, Seq<u8>, Option<Part2RawJp2Header>);
+
+pub open spec fn part2_codestream_association_clone(value: Part2RawCodestreamAssociation) -> Part2RawCodestreamAssociation {
+    value
+}
+
 pub struct Part2AssociatedHeaderState {
     pub header: Part2RawJp2Header,
     pub image_override: bool,
