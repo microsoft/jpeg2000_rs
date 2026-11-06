@@ -21,6 +21,10 @@ pub open spec fn part1_profile_advertises_ht(caps: (u32, Seq<u16>)) -> bool {
     caps.0 & 0x00020000u32 != 0
 }
 
+pub open spec fn part1_profile_optional_advertises_ht(capabilities: Option<(u32, Seq<u16>)>) -> bool {
+    match capabilities { None => false, Some(caps) => part1_profile_advertises_ht(caps) }
+}
+
 pub open spec fn part1_profile_capability_flag(caps: (u32, Seq<u16>), mask: u16) -> bool {
     match part2_capability_value(caps, 15) { None => false, Some(word) => word & mask != 0 }
 }

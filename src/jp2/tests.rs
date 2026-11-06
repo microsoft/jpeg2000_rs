@@ -878,6 +878,253 @@ fn actual_raw_image_header_bpcc_retains_length_and_first_precision_error_priorit
     );
 }
 
+#[test]
+fn actual_raw_inspection_retains_original_file_and_complete_source_derived_info_fields() {
+    let stream = valid_codestream(64, 32);
+    let bytes = boxed_file(b"jp2 \0\0\0\0jp2 ", &stream);
+    let inspected = parse_and_inspect(&bytes, &ResourceLimits::default()).unwrap();
+    assert_eq!(inspected.file.box_count, 4);
+    assert_eq!(
+        (inspected.file.metadata_boxes, inspected.file.metadata_depth),
+        (0, 0)
+    );
+    let offset = inspected.file.codestreams[0]
+        .header
+        .payload_offset()
+        .unwrap() as usize;
+    assert!(std::ptr::eq(
+        inspected.file.codestreams[0].data,
+        &bytes[offset..]
+    ));
+    assert_eq!(inspected.codestreams.len(), 1);
+    let info = &inspected.codestreams[0];
+    assert_eq!(
+        (
+            info.image_size.width,
+            info.image_size.height,
+            info.image_size.components
+        ),
+        (64, 32, 1)
+    );
+    assert_eq!(
+        (
+            info.image_size.x_origin,
+            info.image_size.y_origin,
+            info.image_size.tile_x_origin,
+            info.image_size.tile_y_origin
+        ),
+        (0, 0, 0, 0)
+    );
+    assert_eq!(
+        (
+            info.image_size.tile_width,
+            info.image_size.tile_height,
+            info.image_size.tiles_across,
+            info.image_size.tiles_down
+        ),
+        (64, 32, 1, 1)
+    );
+    assert_eq!(
+        (
+            info.image_size.uniform_bit_depth,
+            info.image_size.uniform_signed
+        ),
+        (Some(8), Some(false))
+    );
+    assert_eq!(
+        (
+            info.coding_style.layers,
+            info.coding_style.decomposition_levels,
+            info.coding_style.code_block_width,
+            info.coding_style.code_block_height
+        ),
+        (1, 0, 16, 16)
+    );
+    assert_eq!(
+        info.coding_style.transform,
+        codestream::WaveletTransform::Reversible5x3
+    );
+    assert_eq!(
+        info.component_coding_styles.style(0).unwrap(),
+        info.coding_style
+    );
+    assert_eq!(
+        info.component_quantizations.quantization(0).unwrap(),
+        info.quantization
+    );
+    assert_eq!(
+        (
+            info.quantization.style,
+            info.quantization.guard_bits,
+            info.quantization.step_count
+        ),
+        (codestream::QuantizationStyle::None, 0, 1)
+    );
+    assert_eq!(info.roi_shifts.shift(0).unwrap(), 0);
+    assert!(info.progression_changes.is_empty());
+    assert!(info.multiple_component_transform.is_none());
+    assert!(!info.profile.is_part15());
+    assert_eq!(
+        (
+            info.main_header_segments,
+            info.tile_parts,
+            info.consumed_bytes
+        ),
+        (3, 1, stream.len() as u64)
+    );
+}
+
+#[test]
+fn actual_raw_inspection_keeps_complete_container_errors_before_relative_codestream_errors() {
+    let mut bytes = boxed_file(b"jp2 \0\0\0\0jp2 ", &[0]);
+    let offset = bytes.len() as u64;
+    bytes.push(0);
+    assert_eq!(
+        parse_and_inspect(&bytes, &ResourceLimits::default()).err(),
+        Some(DecodeError::MalformedInput {
+            offset,
+            kind: MalformedKind::InvalidBoxLength,
+        })
+    );
+    bytes.pop();
+    assert_eq!(
+        parse_and_inspect(&bytes, &ResourceLimits::default()).err(),
+        Some(DecodeError::MalformedInput {
+            offset: 0,
+            kind: MalformedKind::Truncated,
+        })
+    );
+}
+
+#[test]
+fn actual_raw_inspection_keeps_profile_before_geometry_and_first_stream_before_later_errors() {
+    for (brand, stream) in [
+        (&b"jph \0\0\0\0jph "[..], valid_codestream(63, 32)),
+        (&b"jp2 \0\0\0\0jp2 "[..], valid_ht_codestream(63, 32, 0x40)),
+    ] {
+        let bytes = boxed_file(brand, &stream);
+        let offset = parse(&bytes, &ResourceLimits::default())
+            .unwrap()
+            .codestreams[0]
+            .header
+            .offset();
+        assert_eq!(
+            parse_and_inspect(&bytes, &ResourceLimits::default()).err(),
+            Some(DecodeError::MalformedInput {
+                offset,
+                kind: MalformedKind::InvalidProfile,
+            })
+        );
+    }
+    let bytes = jpx_with_codestreams(
+        b"jpx \0\0\0\0jpx ",
+        &[valid_codestream(63, 32), vec![0]],
+        &[],
+    );
+    let offset = parse(&bytes, &ResourceLimits::default())
+        .unwrap()
+        .codestreams[0]
+        .header
+        .offset();
+    assert_eq!(
+        parse_and_inspect(&bytes, &ResourceLimits::default()).err(),
+        Some(DecodeError::MalformedInput {
+            offset,
+            kind: MalformedKind::ContainerCodestreamMismatch,
+        })
+    );
+}
+
+#[test]
+fn actual_raw_inspection_preserves_first_only_default_and_explicit_associated_header_choices() {
+    let streams = [valid_codestream(64, 32), valid_codestream(48, 16)];
+    let bytes = jpx_with_codestreams(b"jpx \0\0\0\0jpx ", &streams, &[]);
+    let inspected = parse_and_inspect(&bytes, &ResourceLimits::default()).unwrap();
+    assert_eq!(inspected.codestreams.len(), 2);
+    assert_eq!(
+        (
+            inspected.codestreams[1].image_size.width,
+            inspected.codestreams[1].image_size.height
+        ),
+        (48, 16)
+    );
+    assert!(inspected.file.codestreams[1].codestream_header.is_none());
+    let headers = [Vec::new(), image_header_box(48, 16)];
+    let bytes = jpx_with_codestreams(b"jpx \0\0\0\0jpx ", &streams, &headers);
+    let inspected = parse_and_inspect(&bytes, &ResourceLimits::default()).unwrap();
+    assert_eq!(inspected.codestreams.len(), 2);
+    assert_eq!(
+        inspected.file.codestreams[1]
+            .codestream_header
+            .as_ref()
+            .unwrap()
+            .parsed
+            .as_ref()
+            .unwrap()
+            .image
+            .width,
+        48
+    );
+    let headers = [Vec::new(), image_header_box(47, 16)];
+    let bytes = jpx_with_codestreams(b"jpx \0\0\0\0jpx ", &streams, &headers);
+    let offset = parse(&bytes, &ResourceLimits::default())
+        .unwrap()
+        .codestreams[1]
+        .header
+        .offset();
+    assert_eq!(
+        parse_and_inspect(&bytes, &ResourceLimits::default()).err(),
+        Some(DecodeError::MalformedInput {
+            offset,
+            kind: MalformedKind::ContainerCodestreamMismatch,
+        })
+    );
+}
+
+#[test]
+fn actual_raw_jph_inspection_checks_wrapper_profile_after_actual_inspection_and_all_prefixes() {
+    let bytes = boxed_file(b"jp2 \0\0\0\0jp2 ", &valid_codestream(64, 32));
+    for length in 0..bytes.len() {
+        assert!(parse_and_inspect(&bytes[..length], &ResourceLimits::default()).is_err());
+    }
+    assert_eq!(
+        inspect_jph(&bytes, &ResourceLimits::default()).err(),
+        Some(DecodeError::MalformedInput {
+            offset: 0,
+            kind: MalformedKind::InvalidProfile,
+        })
+    );
+    let bytes = boxed_file(b"jp2 \0\0\0\0jp2 ", &[0]);
+    assert_eq!(
+        inspect_jph(&bytes, &ResourceLimits::default()).err(),
+        Some(DecodeError::MalformedInput {
+            offset: 0,
+            kind: MalformedKind::Truncated,
+        })
+    );
+}
+
+#[test]
+fn actual_raw_jph_inspection_retains_capability_admission_independent_of_block_coding_mode() {
+    for style in [0x40, 0] {
+        let mut stream = valid_ht_codestream(64, 32, style);
+        if style == 0 {
+            let index = stream
+                .windows(6)
+                .position(|bytes| bytes == [0, 2, 0, 0, 0, 8])
+                .unwrap();
+            stream[index + 4..index + 6].copy_from_slice(&0x8008_u16.to_be_bytes());
+        }
+        let bytes = boxed_file(b"jph \0\0\0\0jph ", &stream);
+        let inspected = inspect_jph(&bytes, &ResourceLimits::default()).unwrap();
+        let info = &inspected.codestreams[0];
+        assert!(info.profile.is_part15());
+        assert_eq!(info.profile.uses_high_throughput(), style != 0);
+        assert_eq!(info.consumed_bytes, stream.len() as u64);
+        assert_eq!(inspected.file.file_type.brand, BoxType::JPH_BRAND);
+    }
+}
+
 fn valid_codestream(width: u32, height: u32) -> Vec<u8> {
     let mut siz = Vec::new();
     siz.extend_from_slice(&0_u16.to_be_bytes());

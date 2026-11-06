@@ -175,7 +175,12 @@ impl ProfileNumber {
     }
 }
 impl CodestreamProfile {
+    #[cfg_attr(verus_keep_ghost, verus_spec(result =>
+        ensures result == crate::specs::part1_profile_optional_advertises_ht(codestream_profile_capabilities(self)),
+    ))]
     pub fn is_part15(&self) -> bool {
+        #[cfg(verus_keep_ghost)]
+        proof! { reveal(codestream_profile_capabilities); }
         match self.extended_capabilities.as_ref() {
             Some(capabilities) => capabilities.advertises_part15(),
             None => false,
