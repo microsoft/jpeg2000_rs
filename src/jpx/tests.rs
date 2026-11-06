@@ -386,6 +386,122 @@ mod tests {
         assert_eq!(file, original);
     }
 
+    fn source_frame_instruction(layer_index: usize, target_x: u32) -> JpxInstructionInfo {
+        JpxInstructionInfo {
+            layer_index, target_x, target_y: 0, target_width: 1, target_height: 1,
+            source_x: 0, source_y: 0, source_width: 0, source_height: 0,
+            persistent: true, next_reuse: 0,
+        }
+    }
+
+    fn source_frame(index: usize, persistent: bool, instructions: Vec<JpxInstructionInfo>) -> JpxFrameInfo {
+        JpxFrameInfo {
+            index, start_milliseconds: index as u64 * 100, duration_milliseconds: 100,
+            persistent, instructions,
+        }
+    }
+
+    fn source_frame_codestream_bytes() -> Vec<u8> {
+        let (mut bytes, _) = source_layer_bytes(&[0xcf, 0xb4, 0x04, 0x09], false);
+        for packet in [&[0xc0, 0x21, 0x03][..], &[0xcf, 0xb4, 0x08, 0x04, 0x4f][..]] {
+            let (source, length) = source_layer_bytes(packet, false);
+            bytes.extend_from_slice(&source[source.len() - length - 8..]);
+        }
+        bytes
+    }
+
+    fn source_frame_metadata(width: u32, loop_count: u8, frames: Vec<JpxFrameInfo>) -> JpxInspection {
+        JpxInspection {
+            layers: Vec::new(),
+            composition: Some(JpxCompositionInfo {
+                width, height: 1, loop_count, instruction_sets: u32::try_from(frames.len()).unwrap(),
+                total_duration_milliseconds: frames.len() as u64 * 100, frames, has_unknown_boxes: false,
+            }),
+            metadata_boxes: 0, metadata_depth: 0,
+        }
+    }
+
+    #[test]
+    fn actual_source_frame_composes_real_general_rgb_and_complete_straight_alpha_output() {
+        let options = DecodeOptions::default();
+        let bytes = general_source_bytes(
+            &[[0, 0, 2, 1, 0, 0], [0, 1, 2, 1, 0, 0], [0, 2, 2, 1, 0, 0]],
+            &[], None, jp2::ENUMERATED_SRGB,
+        );
+        let file = jp2::parse(&bytes, options.limits()).unwrap();
+        let metadata = source_frame_metadata(1, 1,
+            vec![source_frame(0, true, vec![source_frame_instruction(0, 0)])]);
+        let original_file = file.clone();
+        let original_metadata = metadata.clone();
+        let direct = super::layer_decode::decode_effective_layer(&file, 0, &options).unwrap()
+            .into_image().unwrap();
+        assert_eq!(direct.channel(3).unwrap().samples(), &[u16::MAX]);
+        let image = super::render::render_inspected_frame(&file, &metadata, 0, &options).unwrap();
+        assert_eq!((image.width(), image.height(), image.color_space()), (1, 1, ConvertedColorSpace::Srgb));
+        assert_eq!(image.precision(), 16);
+        assert_eq!(image.channels().len(), 4);
+        for (channel, expected) in image.channels().iter().zip([257, 33_153, 51_400, u16::MAX]) {
+            assert_eq!(channel.samples(), &[expected]);
+        }
+        assert_eq!(image.channel(3).unwrap().channel_type(), ConvertedChannelType::Alpha {
+            premultiplied: false, association: ChannelAssociation::WholeImage,
+        });
+        assert_eq!(file, original_file);
+        assert_eq!(metadata, original_metadata);
+    }
+
+    #[test]
+    fn actual_source_frame_decodes_repeated_and_distinct_layer_indices_in_native_supply_order() {
+        let options = DecodeOptions::default();
+        let bytes = source_frame_codestream_bytes();
+        let file = jp2::parse(&bytes, options.limits()).unwrap();
+        for (second, expected) in [(0, 257), (1, 33_153), (2, 51_400)] {
+            let metadata = source_frame_metadata(2, 1, vec![source_frame(0, true,
+                vec![source_frame_instruction(0, 0), source_frame_instruction(second, 1)])]);
+            let image = super::render::render_inspected_frame(&file, &metadata, 0, &options).unwrap();
+            assert_eq!(image.channel(0).unwrap().samples(), &[257, expected]);
+            assert_eq!(image.channel(1).unwrap().samples(), &[u16::MAX, u16::MAX]);
+        }
+    }
+
+    #[test]
+    fn actual_source_frame_keeps_composition_selection_and_first_decode_error_priority() {
+        let options = DecodeOptions::default();
+        let (bytes, source_length) = source_layer_bytes(&[0xcf, 0xb4, 0x04, 0x09], false);
+        let file = jp2::parse(&bytes, options.limits()).unwrap();
+        let limited = DecodeOptions::new(ResourceLimits::HARDENED.with_maximum_input_bytes(0).unwrap());
+        let absent = JpxInspection { layers: Vec::new(), composition: None, metadata_boxes: 0, metadata_depth: 0 };
+        assert_eq!(super::render::render_inspected_frame(&file, &absent, usize::MAX, &limited).err(),
+            Some(DecodeError::FrameIndexOutOfRange { index: usize::MAX, frames: 0 }));
+        for indices in [[9, 0], [0, 9]] {
+            let metadata = source_frame_metadata(1, 1, vec![source_frame(0, true,
+                indices.into_iter().map(|index| source_frame_instruction(index, 0)).collect())]);
+            assert_eq!(super::render::render_inspected_frame(&file, &metadata, 1, &limited).err(),
+                Some(DecodeError::FrameIndexOutOfRange { index: 1, frames: 1 }));
+            let expected = if indices[0] == 9 { DecodeError::LayerIndexOutOfRange { index: 9, layers: 1 } }
+                else { DecodeError::LimitExceeded { resource: Resource::InputBytes, limit: 0, actual: source_length as u64 } };
+            assert_eq!(super::render::render_inspected_frame(&file, &metadata, 0, &limited).err(), Some(expected));
+        }
+    }
+
+    #[test]
+    fn actual_source_frame_applies_real_persistence_reset_and_loop_selection() {
+        let options = DecodeOptions::default();
+        let bytes = source_frame_codestream_bytes();
+        let file = jp2::parse(&bytes, options.limits()).unwrap();
+        for persistent in [false, true] {
+            let metadata = source_frame_metadata(2, 2, vec![
+                source_frame(0, persistent, vec![source_frame_instruction(0, 0)]),
+                source_frame(1, true, vec![source_frame_instruction(1, 1)]),
+            ]);
+            for requested in [1, 3] {
+                let image = super::render::render_inspected_frame(&file, &metadata, requested, &options).unwrap();
+                assert_eq!(image.channel(0).unwrap().samples(), &[if persistent { 257 } else { 0 }, 33_153]);
+                assert_eq!(image.channel(1).unwrap().samples(), &[if persistent { u16::MAX } else { 0 }, u16::MAX]);
+            }
+        }
+    }
+
     fn opacity_source_bytes(opacity: Option<&[u8]>, association: bool) -> Vec<u8> {
         fn boxed(kind: [u8; 4], payload: &[u8]) -> Vec<u8> {
             let mut bytes = u32::try_from(payload.len() + 8).unwrap().to_be_bytes().to_vec();

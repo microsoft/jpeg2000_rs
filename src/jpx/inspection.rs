@@ -6,6 +6,11 @@ use super::{
     JpxLayerInfo, MalformedKind, ResourceLimits, jp2,
 };
 #[cfg(verus_keep_ghost)]
+use super::{
+    composition_source_frames, composition_source_view, inspection_composition_reference,
+    instruction_source_layer_index,
+};
+#[cfg(verus_keep_ghost)]
 use vstd::prelude::*;
 
 impl JpxLayerInfo {
@@ -55,14 +60,17 @@ impl JpxLayerInfo {
 }
 
 impl JpxCompositionInfo {
+    #[cfg_attr(verus_keep_ghost, verus_spec(result => ensures result == composition_source_view(self).0,))]
     pub const fn width(&self) -> u32 {
         self.width
     }
 
+    #[cfg_attr(verus_keep_ghost, verus_spec(result => ensures result == composition_source_view(self).1,))]
     pub const fn height(&self) -> u32 {
         self.height
     }
 
+    #[cfg_attr(verus_keep_ghost, verus_spec(result => ensures result == composition_source_view(self).2,))]
     pub const fn loop_count(&self) -> u8 {
         self.loop_count
     }
@@ -71,6 +79,9 @@ impl JpxCompositionInfo {
         self.instruction_sets
     }
 
+    #[cfg_attr(verus_keep_ghost, verus_spec(result =>
+        ensures result@ == composition_source_frames(self),
+    ))]
     pub fn frames(&self) -> &[JpxFrameInfo] {
         &self.frames
     }
@@ -107,6 +118,7 @@ impl JpxFrameInfo {
 }
 
 impl JpxInstructionInfo {
+    #[cfg_attr(verus_keep_ghost, verus_spec(result => ensures result == instruction_source_layer_index(self),))]
     pub const fn layer_index(&self) -> usize {
         self.layer_index
     }
@@ -159,6 +171,9 @@ impl JpxInspection {
             })
     }
 
+    #[cfg_attr(verus_keep_ghost, verus_spec(result =>
+        ensures result == inspection_composition_reference(self),
+    ))]
     pub const fn composition(&self) -> Option<&JpxCompositionInfo> {
         self.composition.as_ref()
     }

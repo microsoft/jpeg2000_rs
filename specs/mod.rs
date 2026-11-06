@@ -49,6 +49,8 @@ mod jpx_general;
 pub use jpx_general::*;
 mod jpx_dispatch;
 pub use jpx_dispatch::*;
+mod jpx_frame;
+pub use jpx_frame::*;
 
 pub use crate::proofs::internal_specs::{
     part2_composition_layer_prefix_matches, part2_composition_layer_prefix_safe,

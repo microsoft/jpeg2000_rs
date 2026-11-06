@@ -15,7 +15,7 @@ use super::{
 #[cfg(verus_keep_ghost)]
 use super::{
     general_source_views, general_source_views_push, layer_borrowed_planes, layer_channels_outcome,
-    layer_owned_planes_push, owned_layer_outcome,
+    layer_owned_planes_push, owned_layer_outcome, owned_layer_view,
 };
 #[cfg(verus_keep_ghost)]
 use vstd::prelude::*;
@@ -136,12 +136,24 @@ pub(super) fn owned_layer_from_image(image: &ConvertedImage) -> Result<OwnedLaye
 }
 
 impl OwnedLayer {
+    #[cfg_attr(verus_keep_ghost, verus_spec(result =>
+        ensures crate::color::converted_image_result(result)
+            == crate::specs::part2_owned_layer_image(owned_layer_view(&self)),
+    ))]
     pub(super) fn into_image(self) -> Result<ConvertedImage, DecodeError> {
+        #[cfg(verus_keep_ghost)]
+        proof_decl! { let ghost input = owned_layer_view(&self); }
         let pixels = checked_area(self.width, self.height)?;
         let (alpha, premultiplied) = match self.alpha {
             Some(value) => value,
             None => (vec![u16::MAX; pixels], false),
         };
+        #[cfg(verus_keep_ghost)]
+        proof! {
+            if input.4.is_none() {
+                assert(alpha@ =~= Seq::new(pixels as nat, |_i: int| u16::MAX));
+            }
+        }
         crate::color::from_layer(
             self.width,
             self.height,

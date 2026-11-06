@@ -179,6 +179,32 @@ technical candidate only: parent-owned record, review, CI, guarded integration
 and actual-main acceptance remain separate. No complete parsing, pixels,
 lifetime verification, normative conformance or publication claim follows.
 
+## Actual decoded frame supply and complete frame Result
+
+`render_inspected_frame` derives its complete image/error Result from the
+actual parsed file, metadata value and options. Actual frame selection precedes
+all decoding. Each selected effective layer is decoded in native order,
+including repeated layer indices; the first failed decode is stored before
+the original early break. Checked prefix/stopped folds derive the indexed
+supplies consumed by the existing complete frame renderer. No decoded layer
+or successful result bank is an input to this relation.
+
+The composition getter preserves the complete native borrowed object, and its
+actual dimensions, frame sequence, loop count and instruction indices are
+projected by checked metadata accessors. `OwnedLayer::into_image` also has a
+complete Result: actual area admission, opaque default alpha, existing
+straight/premultiplied representation and all final image/channel fields.
+No native statements, owning declarations, loop/break or drop order change.
+Frame helper visibility is widened only to its parent module for native tests.
+
+Real-byte regressions bind general RGB output, indexed/repeated source
+decoding, composition/selection/first-source-error priority and persistent
+reset/loop behavior. These are finite observations, not coverage percentages.
+Actual metadata is an input here: deriving it through raw container
+parsing/inspection/timeline and composing the final public entries remain
+separate. Normative, production cfg/erasure, lifetime and release boundaries
+are unchanged.
+
 ## Actual effective-layer and compositing-layer dispatch Results
 
 The actual `decode_effective_layer` and `decode_compositing_layer` Results now

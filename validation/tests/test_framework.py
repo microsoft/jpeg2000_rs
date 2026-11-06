@@ -1030,6 +1030,86 @@ class FrameworkTests(WorkingFiles):
             framework._RAW_TILE_HEADER_CONTRACTS, 8,
         )
 
+    def test_inventory_binds_actual_complete_source_frame_and_owned_image_results(self):
+        self._assert_complete_packet_contract_bindings(
+            {framework._SOURCE_FRAME_ENTRY}, framework._SOURCE_FRAME_CONTRACTS, 2, isolate=False,
+        )
+
+    def test_inventory_source_frame_requires_all_actual_models_and_lazy_error_metadata_bridges(self):
+        coverage = json.loads((framework.VALIDATION / "normative-coverage.json").read_text())
+        entry = next(item for item in coverage["requirements"] if item["id"] == framework._SOURCE_FRAME_ENTRY)
+        for field in ("contract_refs", "spec_refs", "proof_refs"):
+            for removed in entry[field]:
+                changed = copy.deepcopy(entry)
+                changed[field].remove(removed)
+                expected_error = "should be non-empty" if not changed[field] else "whole source frame Result"
+                with self.subTest(field=field, removed=removed), self.assertRaisesRegex(ValueError, expected_error):
+                    framework.validate_normative_coverage(dict(coverage, requirements=[changed]))
+
+    def test_inventory_source_frame_binds_real_ordered_decoding_break_and_complete_image_handoffs(self):
+        coverage = json.loads((framework.VALIDATION / "normative-coverage.json").read_text())
+        entry = next(item for item in coverage["requirements"] if item["id"] == framework._SOURCE_FRAME_ENTRY)
+        read_text = Path.read_text
+        for name, before, after in (
+            ("src/jpx/render.rs", "decode_effective_layer(file, instruction.layer_index(), options)",
+             "decode_effective_layer(file, 0, options)"),
+            ("src/jpx/render.rs", "let failed = outcome.is_err();", "let failed = false;"),
+            ("src/jpx/render.rs", "supplied.push((instruction.layer_index, Some(outcome)))",
+             "supplied.push((0, Some(outcome)))"),
+            ("src/jpx/render.rs", "invariant_except_break", "invariant"),
+            ("src/jpx/layer_decode.rs", "None => (vec![u16::MAX; pixels], false)", "None => (vec![0; pixels], false)"),
+        ):
+            source = framework.ROOT / name
+            original = source.read_text()
+            self.assertIn(before, original)
+            changed = original.replace(before, after, 1)
+
+            def altered(path, *args, **kwargs):
+                return changed if path == source else read_text(path, *args, **kwargs)
+
+            with self.subTest(name=name, before=before), mock.patch.object(Path, "read_text", altered), \
+                    self.assertRaisesRegex(ValueError, "actual .*handoffs"):
+                framework.validate_normative_coverage(dict(coverage, requirements=[entry]))
+
+    def test_inventory_source_frame_requires_full_composition_and_untrimmed_actual_source_models(self):
+        coverage = json.loads((framework.VALIDATION / "normative-coverage.json").read_text())
+        entry = next(item for item in coverage["requirements"] if item["id"] == framework._SOURCE_FRAME_ENTRY)
+        read_text = Path.read_text
+        for name, before, after, error in (
+            ("src/jpx/inspection.rs", "result == inspection_composition_reference(self)", "true", "complete actual borrowed-composition"),
+            ("specs/jpx_frame.rs", "if previous.1 { previous }", "if false { previous }", "actual ordered source supplies"),
+            ("specs/jpx_frame.rs", "instructions[count - 1].0", "0", "actual ordered source supplies"),
+            ("specs/jpx_frame.rs", "part2_decode_effective_layer(file, layers, index, limits)",
+             "part2_decode_effective_layer(file, layers, 0, limits)", "actual ordered source supplies"),
+        ):
+            source = framework.ROOT / name
+            original = source.read_text()
+            self.assertIn(before, original)
+            changed = original.replace(before, after, 1)
+
+            def altered(path, *args, **kwargs):
+                return changed if path == source else read_text(path, *args, **kwargs)
+
+            with self.subTest(name=name, before=before), mock.patch.object(Path, "read_text", altered), \
+                    self.assertRaisesRegex(ValueError, error):
+                framework.validate_normative_coverage(dict(coverage, requirements=[entry]))
+
+    def test_inventory_source_frame_keeps_per_validation_native_and_model_caches(self):
+        coverage = json.loads((framework.VALIDATION / "normative-coverage.json").read_text())
+        entry = next(item for item in coverage["requirements"] if item["id"] == framework._SOURCE_FRAME_ENTRY)
+        read_text = Path.read_text
+        counts = {framework.ROOT / name: 0 for name in ("src/jpx/render.rs", "specs/jpx_frame.rs")}
+
+        def counted(path, *args, **kwargs):
+            if path in counts:
+                counts[path] += 1
+            return read_text(path, *args, **kwargs)
+
+        with mock.patch.object(Path, "read_text", counted):
+            for expected in (1, 2):
+                self.assertEqual(framework.validate_normative_coverage(dict(coverage, requirements=[entry]))["status"], "passed")
+                self.assertEqual(set(counts.values()), {expected})
+
     def test_inventory_binds_actual_complete_effective_layer_results(self):
         self._assert_complete_packet_contract_bindings(
             {framework._EFFECTIVE_LAYER_ENTRY}, framework._EFFECTIVE_LAYER_CONTRACTS, 2, isolate=False,
