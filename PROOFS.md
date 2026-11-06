@@ -179,6 +179,25 @@ technical candidate only: parent-owned record, review, CI, guarded integration
 and actual-main acceptance remain separate. No complete parsing, pixels,
 lifetime verification, normative conformance or publication claim follows.
 
+## Actual public raw JP2/JPH color and expanded-selection Results
+
+The public `decode_jp2_color`, `decode_jp2_color_selected`, `decode_jph_color`
+and `decode_jph_color_selected` compose complete converted-image/error Results
+from raw bytes/options/selections. The real `color_selection` producer now
+derives its expanded decode request and exact target crop from the actual raw
+layout. Pure selection-value helpers share the existing checked selected decode
+logic; the existing native-reference model interfaces and raw root body remain
+intact, with a checked equality connecting an actual expanded selection to its
+value projection. No native selector is reconstructed or supplied by a model.
+
+The raw root retains real inspection and brand/count admission, original full
+or expanded core decoding, complete header mapping and color/crop producers.
+All converted sample planes, channel/alpha metadata, geometry, precision,
+resources and first errors are retained. Native calls, owners and bodies are
+unchanged. Remaining JPX selected/progressive/JPIP/automatic dispatch and
+independent full-plan gates remain separate; fresh complete qualification is
+still required.
+
 ## Actual public raw JP2/JPH typed-image and selection Results
 
 The public `decode_jp2`, `decode_jp2_selected`, `decode_jph` and

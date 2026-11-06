@@ -163,10 +163,15 @@ pub(crate) open spec fn part2_decode_layout_input(
 pub(crate) open spec fn part2_decode_layout_selected_input(
     input: Part2DecoderLayoutInput, requested: &crate::DecodeSelection, limits: &crate::ResourceLimits,
 ) -> Result<Part1DecodedImageModel, crate::DecodeError> {
+    part2_decode_layout_selected_value_input(input, crate::options::decode_selection_view(requested), limits)
+}
+
+pub(crate) open spec fn part2_decode_layout_selected_value_input(
+    input: Part2DecoderLayoutInput, requested: Part2DecodeSelection, limits: &crate::ResourceLimits,
+) -> Result<Part1DecodedImageModel, crate::DecodeError> {
     match part2_decoder_execution_admission(input) {
         Err(error) => Err(error),
-        Ok(()) => match part2_validate_selection(crate::codestream::selection_geometry_view(&input.size),
-            crate::options::decode_selection_view(requested)) {
+        Ok(()) => match part2_validate_selection(crate::codestream::selection_geometry_view(&input.size), requested) {
             Err(error) => Err(error),
             Ok(selection) => if selection.1.len() != 4 { Err(part1_block_placement_error(false)) } else {
                 part2_selected_layout_tiles(&input.size, input.parts, input.capabilities, selection.0,
@@ -181,9 +186,18 @@ pub(crate) open spec fn part2_decode_typed_layout_input(
     input_bytes: usize, input: Part2DecoderLayoutInput, limits: &crate::ResourceLimits,
     requested: Option<&crate::DecodeSelection>,
 ) -> Result<Part1DecodedTypedImage, crate::DecodeError> {
+    part2_decode_typed_layout_value_input(input_bytes, input, limits, match requested {
+        None => None, Some(requested) => Some(crate::options::decode_selection_view(requested)),
+    })
+}
+
+pub(crate) open spec fn part2_decode_typed_layout_value_input(
+    input_bytes: usize, input: Part2DecoderLayoutInput, limits: &crate::ResourceLimits,
+    requested: Option<Part2DecodeSelection>,
+) -> Result<Part1DecodedTypedImage, crate::DecodeError> {
     let decoded = match requested {
         None => part2_decode_layout_input(input, limits),
-        Some(requested) => part2_decode_layout_selected_input(input, requested, limits),
+        Some(requested) => part2_decode_layout_selected_value_input(input, requested, limits),
     };
     match decoded {
         Err(error) => Err(error),

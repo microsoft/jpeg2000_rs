@@ -3230,6 +3230,74 @@ _RAW_CONTAINER_IMAGE_TESTS = {("src/decode/container_image_result_tests.rs", "ac
     "preserves_raw_parse_selection_and_packet_first_errors",
     "checks_inspection_before_brand_count_and_backend",
 )}
+_RAW_CONTAINER_COLOR_ENTRY = "part2-complete-native-public-raw-container-color-results"
+_RAW_CONTAINER_COLOR_APIS = {("src/decode/api.rs", name) for name in (
+    "decode_jp2_color", "decode_jp2_color_selected", "decode_jph_color", "decode_jph_color_selected",
+)}
+_RAW_CONTAINER_COLOR_CONTRACTS = {
+    **{
+        ("src/decode/api.rs", name): (
+            "part2_decode_raw_color_container", _coverage_call("crate::color::converted_image_result", r"\1"), None,
+            r"input\s*@\s*,\s*" + _coverage_call("crate::options::decode_options_limits", "options")
+            + r"\s*,\s*" + (_coverage_call("Some", _coverage_call("crate::options::decode_selection_view", "selection")) if selected else "None")
+            + r"\s*,\s*" + ("true" if jph else "false"),
+        ) for name, selected, jph in (
+            ("decode_jp2_color", False, False), ("decode_jp2_color_selected", True, False),
+            ("decode_jph_color", False, True), ("decode_jph_color_selected", True, True),
+        )
+    },
+    **{key: value for key, value in _RAW_CONTAINER_IMAGE_CONTRACTS.items() if key not in _RAW_CONTAINER_IMAGE_APIS},
+    ("src/decode/output.rs", "color_selection"): (
+        "part2_color_selection_raw", _coverage_call("color_selection_outcome", r"\1"), None,
+        r"input\s*@\s*,\s*limits\s*,\s*" + _coverage_call("crate::options::decode_selection_view", "requested"),
+    ),
+    ("src/decode/output.rs", "finish_associated_selected_output"): (
+        "part2_finish_associated_selected_output", _coverage_call("crate::color::converted_image_result", r"\1"), None,
+        _coverage_call("crate::image::typed_image_value_view", "decoded") + r"\s*,\s*"
+        + _coverage_call("jp2::associated_header_option", "header") + r"\s*,\s*target\s*,\s*"
+        + _coverage_call("crate::limits::resource_component_limit", "limits") + r"\s*,\s*"
+        + _coverage_call("crate::limits::resource_decoded_bytes_limit", "limits") + r"\s*,\s*"
+        + _coverage_call("crate::limits::resource_work_limit", "limits"),
+    ),
+    ("src/color/conversion.rs", "convert_jp2_color"): _JPX_LAYER_COLOR_CONTRACTS[("src/color/conversion.rs", "convert_jp2_color")],
+}
+_RAW_CONTAINER_COLOR_MODELS = {("specs/container_colors.rs", name) for name in (
+    "part2_decode_raw_color_container", "part2_decode_file_color", "part2_color_selection_raw", "part2_color_selection_layout",
+)} | {("specs/decoder_input.rs", name) for name in (
+    "part2_decoder_input_from_raw", "part2_decode_layout_selected_input", "part2_decode_layout_selected_value_input",
+    "part2_decode_typed_layout_input", "part2_decode_typed_layout_value_input",
+)} | {
+    ("specs/raw_decode.rs", "part2_decode_raw_codestream"),
+    ("specs/raw_decode.rs", "part2_decode_raw_codestream_value"),
+    ("specs/jp2_inspection.rs", "part2_parse_and_inspect_container"),
+    ("specs/jp2_inspection.rs", "part2_inspect_jph_container"),
+    ("specs/jpx_raw_frame.rs", "part2_raw_associated_header"),
+    ("specs/mod.rs", "part2_color_selection_requested"),
+    ("specs/mod.rs", "part2_finish_associated_selected_output"),
+    ("specs/mod.rs", "part2_apply_output_header"),
+    ("specs/mod.rs", "color_convert_jp2"),
+}
+_RAW_CONTAINER_COLOR_PROOFS = {
+    *_RAW_CONTAINER_COLOR_APIS,
+    ("specs/container_colors.rs", "part2_decode_raw_color_container_unfold"),
+    ("specs/container_colors.rs", "part2_color_selection_raw_unfold"),
+    ("specs/raw_decode.rs", "part2_decode_raw_codestream_selection_value"),
+    ("src/jp2/proof_support.rs", "raw_render_file_known"),
+    ("src/jp2/proof_support.rs", "raw_inspected_file_reference"),
+    ("src/codestream/decoder_input_proof_support.rs", "decoder_layout_input_matches_raw"),
+    ("src/codestream/decoder_input_proof_support.rs", "decoder_layout_input_fields"),
+    ("src/codestream/proof_support.rs", "selection_geometry_known_fields"),
+    ("src/decode/proof_support.rs", "color_selection_outcome"),
+    ("src/options.rs", "decode_selection_view"),
+}
+_RAW_CONTAINER_COLOR_TESTS = {("src/decode/container_image_result_tests.rs", "actual_raw_container_color_" + name) for name in (
+    "derives_complete_full_and_reduced_signed_unsigned_gray_planes",
+    "jph_preserves_real_cleanup_refinement_and_signed_normalization",
+    "derives_expanded_source_context_and_exact_requested_crop",
+    "keeps_palette_rgb_and_straight_premultiplied_alpha_metadata",
+    "preserves_header_mapping_before_color_admission",
+    "preserves_raw_inspection_selection_packet_and_profile_priority",
+)}
 _RAW_COMPOSITION_RENDER_ENTRY = "part2-complete-native-public-raw-composition-result"
 _RAW_COMPOSITION_RENDER_APIS = {("src/jpx/render.rs", "render_jpx_composition")}
 _RAW_COMPOSITION_RENDER_CONTRACTS = {
@@ -3561,6 +3629,87 @@ def validate_normative_coverage(
     ids: set[str] = set()
     contract_functions: set[tuple[str, str]] = set()
     for entry in coverage["requirements"]:
+        if entry["id"] == _RAW_CONTAINER_COLOR_ENTRY:
+            if {(ref["path"], ref["symbol"]) for ref in entry["contract_refs"]} != set(_RAW_CONTAINER_COLOR_CONTRACTS) - _RAW_CONTAINER_COLOR_APIS:
+                raise ValueError("whole raw container color Results require actual inspection/core/header/color/selection/crop producer contracts")
+            if not _RAW_CONTAINER_COLOR_MODELS.issubset({(ref["path"], ref["symbol"]) for ref in entry["spec_refs"]}) \
+                    or not _RAW_CONTAINER_COLOR_PROOFS.issubset({(ref["path"], ref["symbol"]) for ref in entry["proof_refs"]}) \
+                    or not _RAW_CONTAINER_COLOR_TESTS.issubset({(ref["path"], ref["symbol"]) for ref in entry["test_refs"]}):
+                raise ValueError("whole raw container color Results require all public/raw/expanded-selection/value/header/color/test bridges")
+            path = (ROOT / "src/decode/api.rs").resolve()
+            for name, selected, jph in (
+                ("decode_jp2_color", False, False), ("decode_jp2_color_selected", True, False),
+                ("decode_jph_color", False, True), ("decode_jph_color_selected", True, True),
+            ):
+                body = _coverage_function_body(source_text(path), function_header(path, name))
+                required = [
+                    ("jp2::inspect_jph" if jph else "jp2::parse_and_inspect") + "(input, options.limits())?",
+                    "inspected.file().codestream_count() != 1",
+                    "jp2::raw_render_file_known(jp2::raw_inspected_file_reference(&inspected))",
+                ]
+                if not jph:
+                    required.append("!inspected.file().file_type().is_compatible_with(jp2::BoxType::JP2_BRAND)")
+                required.extend((
+                    "let codestream = inspected.file().codestream(0)?.data()",
+                    "color_selection(codestream, selection, options.limits())?",
+                    "decode_codestream_selected(codestream, options, &expanded)?",
+                    "finish_associated_selected_output(decoded, Some(inspected.file().header()), target, options.limits(),)",
+                    "part2_decode_raw_codestream_selection_value(codestream@, crate::options::decode_options_limits(options), &expanded)",
+                ) if selected else (
+                    "decode_codestream(inspected.file().codestream(0)?.data(), options)?",
+                    "apply_jp2_output(decoded, inspected.file().header(), options.limits())?",
+                    "crate::color::convert_jp2_color(&mapped, &inspected.file().header().color, options.limits())",
+                ))
+                if body is None or any("".join(item.split()) not in "".join(body.split()) for item in required):
+                    raise ValueError("whole raw container color Results require actual raw/selection/expanded/core/header/color/target handoffs")
+            path = (ROOT / "src/decode/output.rs").resolve()
+            body = _coverage_function_body(source_text(path), function_header(path, "color_selection"))
+            if body is None or any("".join(item.split()) not in "".join(body.split()) for item in (
+                "codestream::parse_layout(input, limits)?", "let size = &layout.info.image_size",
+                "color_selection_for_size(size, requested)", "codestream::decoder_layout_input_matches_raw(&layout)",
+                "codestream::decoder_layout_input_fields(&layout)",
+            )):
+                raise ValueError("whole raw container color Results require actual raw layout expansion producer")
+            for path, name, required in (
+                ("specs/container_colors.rs", "part2_decode_raw_color_container",
+                 ("if jph { part2_inspect_jph_container(input, limits) }", "else { part2_parse_and_inspect_container(input, limits) }",
+                  "part2_decode_file_color(inspected.0, limits, requested, jph)")),
+                ("specs/container_colors.rs", "part2_decode_file_color",
+                 ("!jph && !part2_file_type_compatible(file.file_type, crate::jp2::BoxType::JP2_BRAND)",
+                  "file.streams.len() != 1", "part2_raw_associated_header(file.header)",
+                  "part2_decode_raw_codestream(file.streams[0].1, limits, None)",
+                  "part2_apply_output_header(decoded, header.0,", "color_convert_jp2(mapped.1, mapped.2, mapped.0, header.2,",
+                  "part2_color_selection_raw(file.streams[0].1, limits, requested)",
+                  "part2_decode_raw_codestream_value(file.streams[0].1, limits, Some(expanded.0))",
+                  "[expanded.1[0], expanded.1[1], expanded.1[2], expanded.1[3]]",
+                  "part2_finish_associated_selected_output(decoded, Some(header),",
+                  "crate::limits::resource_component_limit(limits)", "crate::limits::resource_decoded_bytes_limit(limits)",
+                  "crate::limits::resource_work_limit(limits)")),
+                ("specs/container_colors.rs", "part2_color_selection_raw",
+                 ("part1_parse_layout(input, limits)", "part2_color_selection_layout(layout, requested)")),
+                ("specs/container_colors.rs", "part2_color_selection_layout",
+                 ("part2_decoder_input_from_raw(layout).size", "part2_color_selection_requested(",
+                  "crate::codestream::selection_geometry_view(&size)", "crate::codestream::image_size_component_infos(&size)",
+                  "crate::codestream::image_size_component_count(&size), requested")),
+                ("specs/raw_decode.rs", "part2_decode_raw_codestream_value",
+                 ("part1_parse_layout(input, limits)", "part2_decode_typed_layout_value_input(",
+                  "input.len() as usize, part2_decoder_input_from_raw(layout), limits, requested")),
+                ("specs/decoder_input.rs", "part2_decode_layout_selected_input",
+                 ("part2_decode_layout_selected_value_input(input, crate::options::decode_selection_view(requested), limits)",)),
+                ("specs/decoder_input.rs", "part2_decode_typed_layout_input",
+                 ("part2_decode_typed_layout_value_input(input_bytes, input, limits, match requested {",
+                  "None => None, Some(requested) => Some(crate::options::decode_selection_view(requested))")),
+                ("specs/decoder_input.rs", "part2_decode_layout_selected_value_input",
+                 ("part2_decoder_execution_admission(input)", "part2_validate_selection(crate::codestream::selection_geometry_view(&input.size), requested)",
+                  "part2_selected_layout_tiles(&input.size, input.parts, input.capabilities, selection.0,",
+                  "[selection.1[0], selection.1[1], selection.1[2], selection.1[3]], selection.2, limits")),
+                ("specs/decoder_input.rs", "part2_decode_typed_layout_value_input",
+                 ("None => part2_decode_layout_input(input, limits)", "Some(requested) => part2_decode_layout_selected_value_input(input, requested, limits)",
+                  "part2_typed_layout_input(input, decoded, limits)", "part1_validate_typed_output_shape(input_bytes, input.parts.len() as usize, input.size.components, image)")),
+            ):
+                actual = _coverage_spec_function_body(source_text((ROOT / path).resolve()), name)
+                if actual is None or any("".join(item.split()) not in "".join(actual.split()) for item in required):
+                    raise ValueError("whole raw container color Results require complete source/selection/value/header/color/target models")
         if entry["id"] == _RAW_CONTAINER_IMAGE_ENTRY:
             if {(ref["path"], ref["symbol"]) for ref in entry["contract_refs"]} != set(_RAW_CONTAINER_IMAGE_CONTRACTS) - _RAW_CONTAINER_IMAGE_APIS:
                 raise ValueError("whole raw container image Results require actual inspection/core/output producer contracts")
@@ -5647,7 +5796,9 @@ def validate_normative_coverage(
               or (entry["id"] == _RAW_COMPOSITION_RENDER_ENTRY
                   and (reference["path"], reference["symbol"]) in _RAW_COMPOSITION_RENDER_APIS)
               or (entry["id"] == _RAW_CONTAINER_IMAGE_ENTRY
-                  and (reference["path"], reference["symbol"]) in _RAW_CONTAINER_IMAGE_APIS))
+                  and (reference["path"], reference["symbol"]) in _RAW_CONTAINER_IMAGE_APIS)
+              or (entry["id"] == _RAW_CONTAINER_COLOR_ENTRY
+                  and (reference["path"], reference["symbol"]) in _RAW_CONTAINER_COLOR_APIS))
             and reference not in entry["contract_refs"]
         ]
         for reference in [*entry["contract_refs"], *proved_apis]:
@@ -6145,6 +6296,8 @@ def validate_normative_coverage(
                     if entry["id"] == _RAW_COMPOSITION_RENDER_ENTRY else None)
                 or (_RAW_CONTAINER_IMAGE_CONTRACTS.get((reference["path"], reference["symbol"]))
                     if entry["id"] == _RAW_CONTAINER_IMAGE_ENTRY else None)
+                or (_RAW_CONTAINER_COLOR_CONTRACTS.get((reference["path"], reference["symbol"]))
+                    if entry["id"] == _RAW_CONTAINER_COLOR_ENTRY else None)
                 or (_JPX_INSPECTION_CONTRACTS.get((reference["path"], reference["symbol"]))
                     if entry["id"] == _JPX_INSPECTION_ENTRY else None)
                 or (_RAW_JPX_INSPECTION_CONTRACTS.get((reference["path"], reference["symbol"]))

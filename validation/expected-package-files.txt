@@ -20,6 +20,7 @@ proofs/spec_properties/mod.rs
 specs/AUDIT_REFERENCE.md
 specs/README.md
 specs/codestream_profile.rs
+specs/container_colors.rs
 specs/container_images.rs
 specs/decoder_input.rs
 specs/header.rs
