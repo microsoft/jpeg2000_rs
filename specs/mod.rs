@@ -67,6 +67,8 @@ mod jp2_resolution;
 pub use jp2_resolution::*;
 mod jp2_palette;
 pub use jp2_palette::*;
+mod jp2_header;
+pub use jp2_header::*;
 
 pub use crate::proofs::internal_specs::{
     part2_composition_layer_prefix_matches, part2_composition_layer_prefix_safe,

@@ -179,6 +179,40 @@ technical candidate only: parent-owned record, review, CI, guarded integration
 and actual-main acceptance remain separate. No complete parsing, pixels,
 lifetime verification, normative conformance or publication claim follows.
 
+## Actual complete raw JP2 header Result
+
+The actual JP2-header assembler derives every image/color/ICC/count/palette/
+mapping/definition/resolution field from its actual raw reader and checked
+primitive producers. Complete Results preserve first-color ownership while
+still parsing later colors, initial required-box errors, later progress-before-
+reader-error behavior, current mapping-count admission and all final required
+structures. A second resolution superbox is parsed before its duplicate test,
+as in the original native body. Original header, palette, profile and vector
+ownership scopes remain in place; no supplied successful parsed-header bank,
+validity premise, owner inversion or runtime proof clone is used.
+
+The initializer deliberately uses the existing checked shared borrowed reader
+producer, and four unused Copy integer-error arguments are named for the pinned
+macro. These additional native call/debug differences require explicit future
+MIR observation, not a byte-identity claim. Associated codestream default cloning,
+whole file/container/inspection/public composition, normative HOLD, coverage,
+cfg/erasure, lifetimes and release remain independent.
+
+## Actual complete raw owned Palette Result
+
+The actual raw palette parser derives the full entry count, ordered native
+precision/signed columns and every row-major value through the real bit-depth
+and scalar-value producers. Its complete Result retains first descriptor errors
+before sample-length validation, full entry/column counts, lazy offsets and both
+original native column/value allocations and ownership scopes. Internal partial
+row state is derived from the actual prior raw rows; no supplied successful
+descriptor/row/value bank, validity premise, owner inversion or runtime proof
+clone is used.
+
+These are as-implemented producer guarantees, not normative palette correctness.
+Palette HOLD, full header/recursive metadata/container/public composition,
+coverage, cfg/erasure, lifetimes and release acceptance remain separate.
+
 ## Actual complete raw palette scalar Result
 
 The actual scalar palette-value producer has a complete Result over its original

@@ -1515,6 +1515,489 @@ fn actual_raw_palette_rows_retain_the_original_column_and_value_owners() {
     );
 }
 
+#[test]
+fn actual_raw_palette_result_keeps_every_descriptor_byte_and_complete_owned_fields() {
+    for descriptor in 0..=u8::MAX {
+        let bits = descriptor % 128 + 1;
+        let mut payload = vec![0, 1, 1, descriptor];
+        if descriptor != u8::MAX && bits <= 38 {
+            payload.resize(4 + usize::from(bits).div_ceil(8), u8::MAX);
+        }
+        let result = parse_palette(raw_image_header_box(&payload, 19), 100);
+        if descriptor == u8::MAX {
+            assert_eq!(
+                result.err(),
+                Some(DecodeError::MalformedInput {
+                    offset: 119,
+                    kind: MalformedKind::InvalidBoxContents
+                })
+            );
+        } else if bits > 38 {
+            assert_eq!(
+                result.err(),
+                Some(DecodeError::MalformedInput {
+                    offset: 100,
+                    kind: MalformedKind::InvalidBoxContents
+                })
+            );
+        } else {
+            let palette = result.unwrap();
+            assert_eq!(palette.entries, 1);
+            assert_eq!(
+                palette.columns,
+                vec![PaletteColumn {
+                    precision: bits,
+                    signed: descriptor >= 128
+                }]
+            );
+            assert_eq!(
+                palette.values,
+                vec![if descriptor >= 128 {
+                    -1
+                } else {
+                    (1_i64 << bits) - 1
+                }]
+            );
+        }
+    }
+}
+
+#[test]
+fn actual_raw_palette_result_keeps_dimension_descriptor_then_sample_error_priority() {
+    for payload in [&[][..], &[0][..], &[0, 1][..], &[0, 1, 2, 38][..]] {
+        assert_eq!(
+            parse_palette(raw_image_header_box(payload, 19), 100).err(),
+            Some(DecodeError::MalformedInput {
+                offset: 119,
+                kind: MalformedKind::InvalidBoxLength
+            })
+        );
+    }
+    for (payload, offset, kind) in [
+        (&[0, 0, 1][..], 119, MalformedKind::InvalidBoxContents),
+        (&[0, 1, 0][..], 119, MalformedKind::InvalidBoxContents),
+        (
+            &[0, 1, 2, 38, 255][..],
+            100,
+            MalformedKind::InvalidBoxContents,
+        ),
+        (
+            &[0, 1, 2, 255, 38][..],
+            119,
+            MalformedKind::InvalidBoxContents,
+        ),
+        (&[0, 1, 1, 37][..], 119, MalformedKind::InvalidBoxLength),
+        (
+            &[0, 1, 1, 0, 1, 2][..],
+            119,
+            MalformedKind::InvalidBoxLength,
+        ),
+    ] {
+        assert_eq!(
+            parse_palette(raw_image_header_box(payload, 19), 100).err(),
+            Some(DecodeError::MalformedInput { offset, kind })
+        );
+    }
+    assert_eq!(
+        parse_palette(raw_image_header_box(&[0, 1, 2, 38, 255], 19), u64::MAX).err(),
+        Some(DecodeError::MalformedInput {
+            offset: u64::MAX,
+            kind: MalformedKind::InvalidBoxContents
+        })
+    );
+    assert_eq!(
+        parse_palette(raw_image_header_box(&[0, 1, 2, 255, 38], 19), u64::MAX).err(),
+        Some(DecodeError::MalformedInput {
+            offset: u64::MAX,
+            kind: MalformedKind::ArithmeticOverflow
+        })
+    );
+}
+
+#[test]
+fn actual_raw_palette_result_retains_ordered_mixed_width_rows_and_source_independent_owners() {
+    for entries in [1_u16, 2, 257] {
+        let mut payload = entries.to_be_bytes().to_vec();
+        payload.extend_from_slice(&[4, 0, 7, 0x87, 37]);
+        let mut expected = Vec::new();
+        for entry in 0..entries {
+            let byte = (entry % 256) as u8;
+            payload.extend_from_slice(&[byte, byte, byte, 0, 0, 0, 0, byte]);
+            expected.extend_from_slice(&[
+                i64::from(byte % 2),
+                i64::from(byte),
+                i64::from(byte as i8),
+                i64::from(byte),
+            ]);
+        }
+        let palette = parse_palette(raw_image_header_box(&payload, 19), u64::MAX).unwrap();
+        payload.fill(0);
+        assert_eq!(palette.entries, entries);
+        assert_eq!(
+            palette.columns,
+            vec![
+                PaletteColumn {
+                    precision: 1,
+                    signed: false
+                },
+                PaletteColumn {
+                    precision: 8,
+                    signed: false
+                },
+                PaletteColumn {
+                    precision: 8,
+                    signed: true
+                },
+                PaletteColumn {
+                    precision: 38,
+                    signed: false
+                },
+            ]
+        );
+        assert_eq!(palette.values, expected);
+    }
+}
+
+#[test]
+fn actual_raw_palette_result_admits_the_full_entry_and_column_counts_without_narrowing() {
+    let mut payload = u16::MAX.to_be_bytes().to_vec();
+    payload.extend_from_slice(&[1, 0]);
+    payload.resize(4 + usize::from(u16::MAX), u8::MAX);
+    let palette = parse_palette(raw_image_header_box(&payload, 19), u64::MAX).unwrap();
+    assert_eq!(palette.entries, u16::MAX);
+    assert_eq!(palette.columns.len(), 1);
+    assert_eq!(palette.values, vec![1; usize::from(u16::MAX)]);
+
+    let mut payload = vec![0, 1, u8::MAX];
+    payload.resize(3 + usize::from(u8::MAX), 0);
+    payload.resize(3 + 2 * usize::from(u8::MAX), u8::MAX);
+    let palette = parse_palette(raw_image_header_box(&payload, 19), u64::MAX).unwrap();
+    assert_eq!(palette.entries, 1);
+    assert_eq!(
+        palette.columns,
+        vec![
+            PaletteColumn {
+                precision: 1,
+                signed: false
+            };
+            usize::from(u8::MAX)
+        ]
+    );
+    assert_eq!(palette.values, vec![1; usize::from(u8::MAX)]);
+}
+
+fn raw_jp2_header_image(depth: u8, components: u16) -> Vec<u8> {
+    box32(
+        *b"ihdr",
+        &raw_image_header_payload(3, 2, components, depth, [1, 1]),
+    )
+}
+
+fn raw_jp2_header_color() -> Vec<u8> {
+    box32(*b"colr", &[1, 3, 4, 0, 0, 0, 16])
+}
+
+#[test]
+fn actual_raw_jp2_header_retains_every_owned_metadata_field_from_real_raw_producers() {
+    let mut payload = raw_jp2_header_image(u8::MAX, 3);
+    payload.extend_from_slice(&box32(*b"bpcc", &[7, 0x87, 37]));
+    payload.extend_from_slice(&box32(*b"colr", &[3, 173, 219, 1, 128, 255, 0, 17]));
+    payload.extend_from_slice(&box32(*b"pclr", &[0, 2, 2, 7, 0x87, 5, 0x80, 7, 0x7f]));
+    payload.extend_from_slice(&box32(*b"cmap", &[0, 0, 1, 0, 0, 1, 1, 1]));
+    payload.extend_from_slice(&box32(
+        *b"cdef",
+        &raw_channel_definition_payload(&[(0, 0, 1), (1, 2, 0)]),
+    ));
+    let mut resolution = box32(*b"resc", &raw_resolution_payload());
+    let mut display = raw_resolution_payload();
+    display[8] = 9;
+    resolution.extend_from_slice(&box32(*b"resd", &display));
+    payload.extend_from_slice(&box32(*b"res ", &resolution));
+    payload.extend_from_slice(&box32(*b"xml ", &[9, 8, 7]));
+    let header =
+        super::headers::parse_jp2_header(&payload, &ResourceLimits::default(), 100).unwrap();
+    payload.fill(0);
+    assert_eq!(
+        header.image,
+        ImageHeader {
+            width: 3,
+            height: 2,
+            components: 3,
+            bit_depth: ComponentBitDepth::Variable,
+            unknown_color_space: true,
+            intellectual_property: true,
+        }
+    );
+    assert_eq!(
+        header.color.method(),
+        ColorMethod::AnyIcc { profile_bytes: 5 }
+    );
+    assert_eq!(
+        (header.color.precedence, header.color.approximation),
+        (173, 219)
+    );
+    assert_eq!(header.color.icc_profile(), Some(&[1, 128, 255, 0, 17][..]));
+    assert_eq!(
+        (
+            header.nested_box_count,
+            header.palette_entries,
+            header.palette_columns
+        ),
+        (8, 2, 2)
+    );
+    assert_eq!(
+        (header.component_mapping_entries, header.channel_definitions),
+        (2, 2)
+    );
+    let palette = header.palette.unwrap();
+    assert_eq!(palette.entries, 2);
+    assert_eq!(
+        palette.columns,
+        vec![
+            PaletteColumn {
+                precision: 8,
+                signed: false
+            },
+            PaletteColumn {
+                precision: 8,
+                signed: true
+            }
+        ]
+    );
+    assert_eq!(palette.values, vec![5, -128, 7, 127]);
+    assert_eq!(
+        header.component_mappings,
+        vec![
+            ComponentMapping {
+                component: 0,
+                mapping_type: MappingType::Palette { column: 0 }
+            },
+            ComponentMapping {
+                component: 1,
+                mapping_type: MappingType::Palette { column: 1 }
+            },
+        ]
+    );
+    assert_eq!(
+        header.channel_definition_records,
+        vec![
+            ChannelDefinitionRecord {
+                channel: 0,
+                definition: ChannelDefinition::new(
+                    ChannelType::Color,
+                    ChannelAssociation::Color(1)
+                )
+            },
+            ChannelDefinitionRecord {
+                channel: 1,
+                definition: ChannelDefinition::new(
+                    ChannelType::PremultipliedOpacity,
+                    ChannelAssociation::WholeImage
+                )
+            },
+        ]
+    );
+    let capture = Resolution {
+        vertical_numerator: 1,
+        vertical_denominator: 257,
+        horizontal_numerator: 513,
+        horizontal_denominator: u16::MAX,
+        vertical_exponent: -128,
+        horizontal_exponent: 127,
+    };
+    assert_eq!(header.capture_resolution, Some(capture));
+    assert_eq!(
+        header.display_resolution,
+        Some(Resolution {
+            vertical_exponent: 9,
+            ..capture
+        })
+    );
+}
+
+#[test]
+fn actual_raw_jp2_header_preserves_first_color_but_still_parses_every_later_color() {
+    let mut payload = raw_jp2_header_image(7, 1);
+    payload.extend_from_slice(&raw_jp2_header_color());
+    payload.extend_from_slice(&box32(*b"colr", &[3, 255, 255, 7]));
+    let header =
+        super::headers::parse_jp2_header(&payload, &ResourceLimits::default(), u64::MAX).unwrap();
+    assert_eq!(
+        header.color.method(),
+        ColorMethod::Enumerated { color_space: 16 }
+    );
+    assert_eq!(
+        (header.color.precedence, header.color.approximation),
+        (3, 4)
+    );
+    assert_eq!(header.color.icc_profile(), None);
+    assert_eq!(header.nested_box_count, 3);
+    payload.truncate(raw_jp2_header_image(7, 1).len() + raw_jp2_header_color().len());
+    let offset = payload.len() as u64 + 100;
+    payload.extend_from_slice(&box32(*b"colr", &[0, 0, 0]));
+    assert_eq!(
+        super::headers::parse_jp2_header(&payload, &ResourceLimits::default(), 100).err(),
+        Some(DecodeError::MalformedInput {
+            offset,
+            kind: MalformedKind::InvalidColorSpecification
+        })
+    );
+}
+
+#[test]
+fn actual_raw_jp2_header_keeps_initial_required_input_metadata_and_later_progress_priority() {
+    let image = raw_jp2_header_image(7, 1);
+    assert_eq!(
+        super::headers::parse_jp2_header(&[], &ResourceLimits::default(), 100).err(),
+        Some(DecodeError::MalformedInput {
+            offset: 100,
+            kind: MalformedKind::MissingRequiredStructure
+        })
+    );
+    assert_eq!(
+        super::headers::parse_jp2_header(
+            &image,
+            &ResourceLimits::default()
+                .with_maximum_input_bytes(1)
+                .unwrap(),
+            100
+        )
+        .err(),
+        Some(DecodeError::LimitExceeded {
+            resource: Resource::InputBytes,
+            limit: 1,
+            actual: 22
+        })
+    );
+    assert_eq!(
+        super::headers::parse_jp2_header(
+            &image,
+            &ResourceLimits::default()
+                .with_maximum_metadata_bytes(1)
+                .unwrap(),
+            100
+        )
+        .err(),
+        Some(DecodeError::LimitExceeded {
+            resource: Resource::MetadataBytes,
+            limit: 1,
+            actual: 22
+        })
+    );
+    let mut payload = image;
+    payload.extend_from_slice(&raw_jp2_header_color());
+    assert_eq!(
+        super::headers::parse_jp2_header(
+            &payload,
+            &ResourceLimits::default()
+                .with_maximum_work_units(1)
+                .unwrap(),
+            100
+        )
+        .err(),
+        Some(DecodeError::MalformedInput {
+            offset: 122,
+            kind: MalformedKind::InvalidBoxLength
+        })
+    );
+}
+
+#[test]
+fn actual_raw_jp2_header_keeps_duplicate_checks_and_resolution_parse_before_duplicate() {
+    let mut prefix = raw_jp2_header_image(u8::MAX, 1);
+    prefix.extend_from_slice(&raw_jp2_header_color());
+    prefix.extend_from_slice(&box32(*b"bpcc", &[7]));
+    let offset = prefix.len() as u64 + 100;
+    let mut payload = prefix.clone();
+    payload.extend_from_slice(&box32(*b"bpcc", &[]));
+    assert_eq!(
+        super::headers::parse_jp2_header(&payload, &ResourceLimits::default(), 100).err(),
+        Some(DecodeError::MalformedInput {
+            offset,
+            kind: MalformedKind::InvalidBoxOrder
+        })
+    );
+    prefix.extend_from_slice(&box32(
+        *b"res ",
+        &box32(*b"resc", &raw_resolution_payload()),
+    ));
+    let second_offset = prefix.len() as u64 + 100;
+    let mut payload = prefix.clone();
+    payload.extend_from_slice(&box32(*b"res ", &[]));
+    assert_eq!(
+        super::headers::parse_jp2_header(&payload, &ResourceLimits::default(), 100).err(),
+        Some(DecodeError::MalformedInput {
+            offset: second_offset + 8,
+            kind: MalformedKind::MissingRequiredStructure
+        })
+    );
+    let mut payload = prefix;
+    payload.extend_from_slice(&box32(
+        *b"res ",
+        &box32(*b"resc", &raw_resolution_payload()),
+    ));
+    assert_eq!(
+        super::headers::parse_jp2_header(&payload, &ResourceLimits::default(), 100).err(),
+        Some(DecodeError::MalformedInput {
+            offset: second_offset,
+            kind: MalformedKind::InvalidBoxOrder
+        })
+    );
+}
+
+#[test]
+fn actual_raw_jp2_header_keeps_final_bpcc_palette_mapping_and_color_requirements() {
+    let mut variable = raw_jp2_header_image(u8::MAX, 1);
+    variable.extend_from_slice(&raw_jp2_header_color());
+    let mut unexpected_bpcc = raw_jp2_header_image(7, 1);
+    unexpected_bpcc.extend_from_slice(&raw_jp2_header_color());
+    unexpected_bpcc.extend_from_slice(&box32(*b"bpcc", &[7]));
+    let mut palette_without_mapping = raw_jp2_header_image(7, 1);
+    palette_without_mapping.extend_from_slice(&raw_jp2_header_color());
+    palette_without_mapping.extend_from_slice(&box32(*b"pclr", &[0, 1, 1, 0, 1]));
+    for payload in [
+        variable,
+        unexpected_bpcc,
+        palette_without_mapping,
+        raw_jp2_header_image(7, 1),
+    ] {
+        assert_eq!(
+            super::headers::parse_jp2_header(&payload, &ResourceLimits::default(), 100).err(),
+            Some(DecodeError::MalformedInput {
+                offset: 100,
+                kind: MalformedKind::MissingRequiredStructure
+            })
+        );
+    }
+}
+
+#[test]
+fn actual_raw_jp2_header_uses_actual_mapping_count_at_the_channel_definition_site() {
+    let mut prefix = raw_jp2_header_image(7, 1);
+    prefix.extend_from_slice(&raw_jp2_header_color());
+    let mapping = box32(*b"cmap", &[0, 0, 0, 0, 0, 0, 0, 0]);
+    let definition = box32(*b"cdef", &raw_channel_definition_payload(&[(1, 0, 1)]));
+    let mut payload = prefix.clone();
+    payload.extend_from_slice(&mapping);
+    payload.extend_from_slice(&definition);
+    let header =
+        super::headers::parse_jp2_header(&payload, &ResourceLimits::default(), 100).unwrap();
+    assert_eq!(header.image.components, 1);
+    assert_eq!(header.component_mapping_entries, 2);
+    assert_eq!(header.channel_definition_records[0].channel, 1);
+    let offset = prefix.len() as u64 + 100;
+    let mut payload = prefix;
+    payload.extend_from_slice(&definition);
+    payload.extend_from_slice(&mapping);
+    assert_eq!(
+        super::headers::parse_jp2_header(&payload, &ResourceLimits::default(), 100).err(),
+        Some(DecodeError::MalformedInput {
+            offset,
+            kind: MalformedKind::InvalidBoxContents
+        })
+    );
+}
+
 fn valid_ht_codestream(width: u32, height: u32, style: u8) -> Vec<u8> {
     let mut siz = Vec::new();
     siz.extend_from_slice(&0x4000_u16.to_be_bytes());

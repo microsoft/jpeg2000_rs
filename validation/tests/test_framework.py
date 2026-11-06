@@ -1030,6 +1030,155 @@ class FrameworkTests(WorkingFiles):
             framework._RAW_TILE_HEADER_CONTRACTS, 8,
         )
 
+    def test_inventory_binds_actual_complete_raw_jp2_header_result(self):
+        self._assert_complete_packet_contract_bindings(
+            {framework._RAW_JP2_HEADER_ENTRY}, framework._RAW_JP2_HEADER_CONTRACTS, 1, isolate=False,
+        )
+
+    def test_inventory_raw_jp2_header_requires_every_raw_producer_and_complete_metadata_bridge(self):
+        coverage = json.loads((framework.VALIDATION / "normative-coverage.json").read_text())
+        entry = next(item for item in coverage["requirements"] if item["id"] == framework._RAW_JP2_HEADER_ENTRY)
+        for field in ("contract_refs", "spec_refs", "proof_refs"):
+            for removed in entry[field]:
+                changed = copy.deepcopy(entry)
+                changed[field].remove(removed)
+                expected_error = "should be non-empty" if not changed[field] else "whole raw JP2 header Result"
+                with self.subTest(field=field, removed=removed), self.assertRaisesRegex(ValueError, expected_error):
+                    framework.validate_normative_coverage(dict(coverage, requirements=[changed]))
+
+    def test_inventory_raw_jp2_header_binds_actual_first_color_and_current_mapping_count(self):
+        coverage = json.loads((framework.VALIDATION / "normative-coverage.json").read_text())
+        entry = next(item for item in coverage["requirements"] if item["id"] == framework._RAW_JP2_HEADER_ENTRY)
+        source = framework.ROOT / "src/jp2/headers.rs"
+        original = source.read_text()
+        begin = original.index("pub(super) fn parse_jp2_header")
+        read_text = Path.read_text
+        for before, after in (
+            ("if color.is_none()", "if true"),
+            ("u16::try_from(component_mappings.len())", "u16::try_from(usize::from(image.components))"),
+            ("parse_image_header(image_box, limits, base_offset)?", "parse_image_header(image_box, limits, 0)?"),
+        ):
+            self.assertIn(before, original[begin:])
+            changed = original[:begin] + original[begin:].replace(before, after, 1)
+
+            def altered(path, *args, **kwargs):
+                return changed if path == source else read_text(path, *args, **kwargs)
+
+            with self.subTest(before=before), mock.patch.object(Path, "read_text", altered), \
+                    self.assertRaisesRegex(ValueError, "actual full fields/ordered producer/count handoffs"):
+                framework.validate_normative_coverage(dict(coverage, requirements=[entry]))
+
+    def test_inventory_raw_jp2_header_rejects_trimmed_output_counts_and_changed_first_color_models(self):
+        coverage = json.loads((framework.VALIDATION / "normative-coverage.json").read_text())
+        entry = next(item for item in coverage["requirements"] if item["id"] == framework._RAW_JP2_HEADER_ENTRY)
+        source = framework.ROOT / "specs/jp2_header.rs"
+        original = source.read_text()
+        read_text = Path.read_text
+        for before, after in (
+            ("component_mapping_entries: state.mappings.len() as u16", "component_mapping_entries: state.image.components"),
+            ("state.color.is_none()", "true"),
+            ("nested: (state.nested + 1) as u32", "nested: state.nested"),
+        ):
+            self.assertIn(before, original)
+            changed = original.replace(before, after, 1)
+
+            def altered(path, *args, **kwargs):
+                return changed if path == source else read_text(path, *args, **kwargs)
+
+            with self.subTest(before=before), mock.patch.object(Path, "read_text", altered), \
+                    self.assertRaisesRegex(ValueError, "complete raw producer/count/output models"):
+                framework.validate_normative_coverage(dict(coverage, requirements=[entry]))
+
+    def test_inventory_raw_jp2_header_keeps_fresh_actual_header_and_raw_model_caches(self):
+        coverage = json.loads((framework.VALIDATION / "normative-coverage.json").read_text())
+        entry = next(item for item in coverage["requirements"] if item["id"] == framework._RAW_JP2_HEADER_ENTRY)
+        read_text = Path.read_text
+        counts = {framework.ROOT / name: 0 for name in ("src/jp2/headers.rs", "specs/jp2_header.rs")}
+
+        def counted(path, *args, **kwargs):
+            if path in counts:
+                counts[path] += 1
+            return read_text(path, *args, **kwargs)
+
+        with mock.patch.object(Path, "read_text", counted):
+            for expected in (1, 2):
+                self.assertEqual(framework.validate_normative_coverage(dict(coverage, requirements=[entry]))["status"], "passed")
+                self.assertEqual(set(counts.values()), {expected})
+
+    def test_inventory_binds_actual_complete_raw_owned_palette_result(self):
+        self._assert_complete_packet_contract_bindings(
+            {framework._PALETTE_RESULT_ENTRY}, framework._PALETTE_RESULT_CONTRACTS, 1, isolate=False,
+        )
+
+    def test_inventory_raw_owned_palette_requires_every_actual_descriptor_row_and_owner_bridge(self):
+        coverage = json.loads((framework.VALIDATION / "normative-coverage.json").read_text())
+        entry = next(item for item in coverage["requirements"] if item["id"] == framework._PALETTE_RESULT_ENTRY)
+        for field in ("contract_refs", "spec_refs", "proof_refs"):
+            for removed in entry[field]:
+                changed = copy.deepcopy(entry)
+                changed[field].remove(removed)
+                expected_error = "should be non-empty" if not changed[field] else "whole raw owned Palette Result"
+                with self.subTest(field=field, removed=removed), self.assertRaisesRegex(ValueError, expected_error):
+                    framework.validate_normative_coverage(dict(coverage, requirements=[changed]))
+
+    def test_inventory_raw_owned_palette_binds_original_native_owners_and_entry_traversal(self):
+        coverage = json.loads((framework.VALIDATION / "normative-coverage.json").read_text())
+        entry = next(item for item in coverage["requirements"] if item["id"] == framework._PALETTE_RESULT_ENTRY)
+        source = framework.ROOT / "src/jp2/color.rs"
+        original = source.read_text()
+        read_text = Path.read_text
+        for before, after in (
+            ("let mut values = Vec::with_capacity(value_count)", "let mut values = Vec::new()"),
+            ("entry = entry.checked_add(1)", "entry = entry.checked_add(2)"),
+            ("descriptor.signed,\n                base_offset", "false,\n                base_offset"),
+        ):
+            self.assertIn(before, original)
+            changed = original.replace(before, after, 1)
+
+            def altered(path, *args, **kwargs):
+                return changed if path == source else read_text(path, *args, **kwargs)
+
+            with self.subTest(before=before), mock.patch.object(Path, "read_text", altered), \
+                    self.assertRaisesRegex(ValueError, "actual native owners/fields/ordered byte producers"):
+                framework.validate_normative_coverage(dict(coverage, requirements=[entry]))
+
+    def test_inventory_raw_owned_palette_rejects_trimmed_full_output_counts_and_descriptor_fields(self):
+        coverage = json.loads((framework.VALIDATION / "normative-coverage.json").read_text())
+        entry = next(item for item in coverage["requirements"] if item["id"] == framework._PALETTE_RESULT_ENTRY)
+        source = framework.ROOT / "specs/jp2_palette.rs"
+        original = source.read_text()
+        read_text = Path.read_text
+        for before, after in (
+            ("Ok((entries, descriptors.0, values.0))", "Ok((entries, descriptors.0, Seq::empty()))"),
+            ("part2_palette_rows(input, base, descriptors.0, entries as nat)", "part2_palette_rows(input, base, descriptors.0, 1)"),
+            ("previous.0.push(crate::jp2::PaletteColumn { precision: bits, signed })", "previous.0.push(crate::jp2::PaletteColumn { precision: 1, signed })"),
+        ):
+            self.assertIn(before, original)
+            changed = original.replace(before, after, 1)
+
+            def altered(path, *args, **kwargs):
+                return changed if path == source else read_text(path, *args, **kwargs)
+
+            with self.subTest(before=before), mock.patch.object(Path, "read_text", altered), \
+                    self.assertRaisesRegex(ValueError, "complete ordered descriptor/row/output models"):
+                framework.validate_normative_coverage(dict(coverage, requirements=[entry]))
+
+    def test_inventory_raw_owned_palette_keeps_fresh_actual_parser_and_full_model_caches(self):
+        coverage = json.loads((framework.VALIDATION / "normative-coverage.json").read_text())
+        entry = next(item for item in coverage["requirements"] if item["id"] == framework._PALETTE_RESULT_ENTRY)
+        read_text = Path.read_text
+        counts = {framework.ROOT / name: 0 for name in ("src/jp2/color.rs", "specs/jp2_palette.rs")}
+
+        def counted(path, *args, **kwargs):
+            if path in counts:
+                counts[path] += 1
+            return read_text(path, *args, **kwargs)
+
+        with mock.patch.object(Path, "read_text", counted):
+            for expected in (1, 2):
+                self.assertEqual(framework.validate_normative_coverage(dict(coverage, requirements=[entry]))["status"], "passed")
+                self.assertEqual(set(counts.values()), {expected})
+
     def test_inventory_binds_actual_complete_raw_palette_scalar_result(self):
         self._assert_complete_packet_contract_bindings(
             {framework._PALETTE_VALUE_ENTRY}, framework._PALETTE_VALUE_CONTRACTS, 1, isolate=False,

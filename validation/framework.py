@@ -2617,6 +2617,54 @@ _DECODER_LAYOUT_CONTRACTS = {
 
 
 _SOURCE_OPACITY_ENTRY = "part2-complete-native-source-layer-opacity-result"
+_RAW_JP2_HEADER_ENTRY = "part2-complete-native-raw-jp2-header-result"
+_RAW_JP2_HEADER_CONTRACTS = {
+    ("src/jp2/headers.rs", "parse_jp2_header"): (
+        "part2_parse_jp2_header", _coverage_call("super::raw_jp2_header_outcome", r"\1"), None,
+        r"payload\s*@\s*,\s*\*\s*limits\s*,\s*base_offset",
+    ),
+}
+_RAW_JP2_HEADER_MODELS = {
+    ("specs/jp2_header.rs", name) for name in (
+        "part2_parse_jp2_header", "part2_raw_header_boxes", "part2_raw_header_step",
+        "part2_raw_header_finish", "part2_raw_header_missing",
+    )
+} | {
+    ("specs/jp2_box_reader.rs", name) for name in ("part2_box_reader_from_input", "part2_box_reader_required")
+} | {
+    ("specs/jp2_image_header.rs", name) for name in ("part2_parse_image_header", "part2_validate_bpcc")
+} | {
+    ("specs/jp2_color_header.rs", "part2_parse_color_specification"),
+    ("specs/jp2_palette.rs", "part2_parse_palette"),
+    ("specs/jp2_channel_header.rs", "part2_parse_component_mapping"),
+    ("specs/jp2_channel_header.rs", "part2_parse_channel_definition"),
+    ("specs/jp2_resolution.rs", "part2_parse_resolution_superbox"),
+}
+_RAW_JP2_HEADER_PROOFS = {
+    ("src/jp2/proof_support.rs", name) for name in (
+        "raw_header_state", "raw_jp2_header_view", "raw_jp2_header_outcome",
+    )
+}
+_PALETTE_RESULT_ENTRY = "part2-complete-native-raw-owned-palette-result"
+_PALETTE_RESULT_CONTRACTS = {
+    ("src/jp2/color.rs", "parse_palette"): (
+        "part2_parse_palette", _coverage_call("super::palette_outcome", r"\1"), None,
+        _coverage_call("super::box_reference_view", "box_ref") + r"\s*,\s*base_offset",
+    ),
+}
+_PALETTE_RESULT_MODELS = {
+    ("specs/jp2_palette.rs", name) for name in (
+        "part2_parse_palette", "part2_palette_descriptors", "part2_palette_descriptor_step",
+        "part2_palette_value_step", "part2_palette_row", "part2_palette_rows", "part2_parse_palette_value",
+    )
+} | {("specs/jp2_image_header.rs", "part2_container_bit_depth")}
+_PALETTE_RESULT_PROOFS = {
+    ("specs/jp2_palette.rs", name) for name in (
+        "part2_palette_descriptors_step", "part2_palette_descriptors_error",
+        "part2_palette_row_step", "part2_palette_row_error", "part2_palette_rows_step", "part2_palette_rows_error",
+    )
+} | {("src/jp2/proof_support.rs", name) for name in ("palette_outcome", "palette_view")} \
+    | {("src/jp2/color.rs", "parse_palette_value"), ("src/jp2/headers.rs", "parse_bit_depth")}
 _PALETTE_VALUE_ENTRY = "part2-complete-native-raw-palette-scalar-result"
 _PALETTE_VALUE_CONTRACTS = {
     ("src/jp2/color.rs", "parse_palette_value"): (
@@ -3118,6 +3166,98 @@ def validate_normative_coverage(
     ids: set[str] = set()
     contract_functions: set[tuple[str, str]] = set()
     for entry in coverage["requirements"]:
+        if entry["id"] == _RAW_JP2_HEADER_ENTRY:
+            if {(ref["path"], ref["symbol"]) for ref in entry["contract_refs"]} != set(_RAW_JP2_HEADER_CONTRACTS):
+                raise ValueError("whole raw JP2 header Result requires actual complete assembler contract")
+            if not _RAW_JP2_HEADER_MODELS.issubset({(ref["path"], ref["symbol"]) for ref in entry["spec_refs"]}) \
+                    or not _RAW_JP2_HEADER_PROOFS.issubset({(ref["path"], ref["symbol"]) for ref in entry["proof_refs"]}):
+                raise ValueError("whole raw JP2 header Result requires every raw producer and complete owned metadata bridge")
+            path = (ROOT / "src/jp2/headers.rs").resolve()
+            body = _coverage_function_body(source_text(path), function_header(path, "parse_jp2_header"))
+            required = (
+                "box_reader_from_input(payload, limits)?", "required_box(&mut reader, 0)",
+                "parse_image_header(image_box, limits, base_offset)?",
+                "reader.position <= previous_position || reader.position > payload.len()",
+                "parse_color_specification(box_ref, base_offset)?", "if color.is_none()",
+                "parse_palette(box_ref, base_offset)?", "validate_bpcc(box_ref, image, base_offset)?",
+                "parse_component_mapping(box_ref, image.components, palette_columns, limits, base_offset,)",
+                "parse_channel_definition(box_ref, output_channels, base_offset)?",
+                "let (capture, display) = parse_resolution_superbox(",
+                "Ok(Jp2Header { image, color, nested_box_count, palette_entries, palette_columns, component_mapping_entries, channel_definitions, palette, component_mappings, channel_definition_records, capture_resolution, display_resolution, })",
+            )
+            if body is None or any("".join(item.split()) not in "".join(body.split()) for item in required) \
+                    or body.count("u16::try_from(component_mappings.len())") != 2:
+                raise ValueError("whole raw JP2 header Result requires actual full fields/ordered producer/count handoffs")
+            if body.index("let (capture, display) = parse_resolution_superbox(") > body.index("if capture_resolution.is_some()"):
+                raise ValueError("whole raw JP2 header Result requires native resolution-parse-before-duplicate priority")
+            model = source_text((ROOT / "specs/jp2_header.rs").resolve())
+            for name, required in {
+                "part2_parse_jp2_header": (
+                    "part2_box_reader_from_input(payload, limits)", "part2_box_reader_required(reader, 0)",
+                    "part2_parse_image_header(input, &limits, base)",
+                ),
+                "part2_raw_header_boxes": (
+                    "next.1.position <= reader.position || next.1.position > payload.len()",
+                    "state.nested == u32::MAX", "nested: (state.nested + 1) as u32",
+                ),
+                "part2_raw_header_step": (
+                    "part2_parse_color_specification(input, base)", "state.color.is_none()",
+                    "part2_parse_palette(input, base)", "part2_parse_component_mapping(",
+                    "part2_parse_channel_definition(", "part2_parse_resolution_superbox(input.1, limits, nested_base)",
+                ),
+                "part2_raw_header_finish": (
+                    "state.palette.is_some() && state.mappings.len() == 0",
+                    "component_mapping_entries: state.mappings.len() as u16",
+                    "channel_definitions: state.definitions.len() as u16",
+                    "palette: state.palette, mappings: state.mappings, definitions: state.definitions",
+                ),
+            }.items():
+                actual = _coverage_spec_function_body(model, name)
+                if actual is None or any("".join(item.split()) not in "".join(actual.split()) for item in required):
+                    raise ValueError("whole raw JP2 header Result requires complete raw producer/count/output models")
+        if entry["id"] == _PALETTE_RESULT_ENTRY:
+            if {(ref["path"], ref["symbol"]) for ref in entry["contract_refs"]} != set(_PALETTE_RESULT_CONTRACTS):
+                raise ValueError("whole raw owned Palette Result requires actual complete parser contract")
+            if not _PALETTE_RESULT_MODELS.issubset({(ref["path"], ref["symbol"]) for ref in entry["spec_refs"]}) \
+                    or not _PALETTE_RESULT_PROOFS.issubset({(ref["path"], ref["symbol"]) for ref in entry["proof_refs"]}):
+                raise ValueError("whole raw owned Palette Result requires full descriptor/row/owner/error bridges")
+            path = (ROOT / "src/jp2/color.rs").resolve()
+            body = _coverage_function_body(source_text(path), function_header(path, "parse_palette"))
+            required = (
+                "entries == 0 || columns == 0", "descriptor_end > box_ref.payload.len()",
+                "let mut columns = Vec::with_capacity(usize::from(columns))",
+                "parse_bit_depth(box_ref.payload[descriptor], base_offset)?",
+                "let mut values = Vec::with_capacity(value_count)",
+                "values.push(parse_palette_value(&box_ref.payload[offset..end], descriptor.precision, descriptor.signed, base_offset,)?)",
+                "column = column.checked_add(1)", "entry = entry.checked_add(1)",
+                "offset != box_ref.payload.len() || values.len() != value_count",
+                "Ok(Palette { entries, columns, values, })",
+            )
+            if body is None or any("".join(item.split()) not in "".join(body.split()) for item in required):
+                raise ValueError("whole raw owned Palette Result requires actual native owners/fields/ordered byte producers")
+            model = source_text((ROOT / "specs/jp2_palette.rs").resolve())
+            for name, required in {
+                "part2_parse_palette": (
+                    "entries == 0 || count == 0", "part2_palette_descriptors(input, base, count)",
+                    "payload.len() != expected", "part2_palette_rows(input, base, descriptors.0, entries as nat)",
+                    "values.1 != payload.len() || values.0.len() != value_count", "Ok((entries, descriptors.0, values.0))",
+                ),
+                "part2_palette_descriptor_step": (
+                    "part2_container_bit_depth(input.1[3 + index as int], base)",
+                    "previous.0.push(crate::jp2::PaletteColumn { precision: bits, signed })",
+                ),
+                "part2_palette_value_step": (
+                    "columns[index as int]", "input.1.subrange(previous.1 as int, end as int)",
+                    "descriptor.precision, descriptor.signed, base",
+                ),
+                "part2_palette_rows": (
+                    "part2_palette_rows(input, base, columns, (count - 1) as nat)",
+                    "part2_palette_row(input, base, columns, initial, columns.len())",
+                ),
+            }.items():
+                body = _coverage_spec_function_body(model, name)
+                if body is None or any("".join(item.split()) not in "".join(body.split()) for item in required):
+                    raise ValueError("whole raw owned Palette Result requires complete ordered descriptor/row/output models")
         if entry["id"] == _PALETTE_VALUE_ENTRY:
             if {(ref["path"], ref["symbol"]) for ref in entry["contract_refs"]} != set(_PALETTE_VALUE_CONTRACTS):
                 raise ValueError("whole raw palette scalar Result requires actual value producer contract")
@@ -5211,6 +5351,10 @@ def validate_normative_coverage(
                     if entry["id"] == _RESOLUTION_ENTRY else None)
                 or (_PALETTE_VALUE_CONTRACTS.get((reference["path"], reference["symbol"]))
                     if entry["id"] == _PALETTE_VALUE_ENTRY else None)
+                or (_PALETTE_RESULT_CONTRACTS.get((reference["path"], reference["symbol"]))
+                    if entry["id"] == _PALETTE_RESULT_ENTRY else None)
+                or (_RAW_JP2_HEADER_CONTRACTS.get((reference["path"], reference["symbol"]))
+                    if entry["id"] == _RAW_JP2_HEADER_ENTRY else None)
                 or _CODESTREAM_READER_CONTRACTS.get((reference["path"], reference["symbol"]))
                 or _SOT_READER_CONTRACTS.get((reference["path"], reference["symbol"]))
                 or _TILE_DATA_WINDOW_CONTRACTS.get((reference["path"], reference["symbol"]))

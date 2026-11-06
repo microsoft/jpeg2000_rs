@@ -347,6 +347,42 @@ verus! {
         (palette.entries, palette.columns@, palette.values@)
     }
 
+    pub open spec fn palette_outcome(result: Result<Palette, DecodeError>)
+        -> Result<crate::specs::Part2PaletteModel, DecodeError>
+    {
+        match result { Err(error) => Err(error), Ok(palette) => Ok(palette_view(&palette)) }
+    }
+
+    pub open spec fn raw_header_state(
+        image: ImageHeader, color: &Option<ColorSpecification>, saw_bpcc: bool, palette: &Option<Palette>,
+        mappings: Seq<ComponentMapping>, definitions: Seq<ChannelDefinitionRecord>,
+        capture: Option<Resolution>, display: Option<Resolution>, nested: u32,
+    ) -> crate::specs::Part2RawHeaderState {
+        crate::specs::Part2RawHeaderState {
+            image, color: match color { None => None, Some(value) => Some(full_color_specification_view(value)) },
+            saw_bpcc, palette: match palette { None => None, Some(value) => Some(palette_view(value)) },
+            mappings, definitions: channel_definition_records_view(definitions), capture, display, nested,
+        }
+    }
+
+    pub open spec fn raw_jp2_header_view(header: &Jp2Header) -> crate::specs::Part2RawJp2Header {
+        crate::specs::Part2RawJp2Header {
+            image: header.image, color: full_color_specification_view(&header.color),
+            nested_box_count: header.nested_box_count, palette_entries: header.palette_entries,
+            palette_columns: header.palette_columns, component_mapping_entries: header.component_mapping_entries,
+            channel_definitions: header.channel_definitions,
+            palette: match &header.palette { None => None, Some(value) => Some(palette_view(value)) },
+            mappings: header.component_mappings@, definitions: channel_definition_records_view(header.channel_definition_records@),
+            capture: header.capture_resolution, display: header.display_resolution,
+        }
+    }
+
+    pub open spec fn raw_jp2_header_outcome(result: Result<Jp2Header, DecodeError>)
+        -> Result<crate::specs::Part2RawJp2Header, DecodeError>
+    {
+        match result { Err(error) => Err(error), Ok(header) => Ok(raw_jp2_header_view(&header)) }
+    }
+
     pub open spec fn output_header_view(header: &Jp2Header) -> crate::specs::Part2OutputHeader {
         (
             match &header.palette { Some(palette) => Some(palette_view(palette)), None => None },

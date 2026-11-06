@@ -211,7 +211,13 @@ fn copy_profile(source: &[u8]) -> Result<Vec<u8>, DecodeError> {
     Ok(profile)
 }
 
+#[cfg_attr(verus_keep_ghost, verus_spec(result =>
+    ensures super::palette_outcome(result) == crate::specs::part2_parse_palette(
+        super::box_reference_view(box_ref), base_offset),
+))]
 pub(super) fn parse_palette(box_ref: BoxRef<'_>, base_offset: u64) -> Result<Palette, DecodeError> {
+    #[cfg(verus_keep_ghost)]
+    proof! { reveal(crate::specs::part2_parse_palette); }
     if box_ref.payload.len() < 3 {
         return Err(DecodeError::malformed(
             add_offset(base_offset, box_ref.header.offset())?,
@@ -238,14 +244,37 @@ pub(super) fn parse_palette(box_ref: BoxRef<'_>, base_offset: u64) -> Result<Pal
     let mut columns = Vec::with_capacity(usize::from(columns));
     let mut bytes_per_entry = 0_usize;
     let mut descriptor = 3_usize;
+    #[cfg(verus_keep_ghost)]
+    proof! {
+        reveal(crate::specs::part2_palette_descriptors);
+        assert(columns@ =~= Seq::<PaletteColumn>::empty());
+    }
     #[cfg_attr(
         verus_keep_ghost,
         verus_spec(
             invariant descriptor <= descriptor_end,
+                3 <= descriptor,
+                descriptor_end == 3 + box_ref.payload[2] as nat,
+                descriptor_end <= box_ref.payload.len(),
+                box_ref.payload.len() >= 3,
+                box_ref.payload[2] > 0,
+                entries > 0,
+                entries == crate::specs::part2_box_u16([box_ref.payload[0], box_ref.payload[1]]),
+                columns@.len() == descriptor - 3,
+                bytes_per_entry <= columns@.len() * 5,
+                crate::specs::part2_palette_descriptors(super::box_reference_view(box_ref),
+                    base_offset, (descriptor - 3) as nat) == Ok((columns@, bytes_per_entry)),
             decreases descriptor_end - descriptor,
         )
     )]
     while descriptor < descriptor_end {
+        #[cfg(verus_keep_ghost)]
+        proof! {
+            reveal(crate::specs::part2_parse_palette);
+            crate::specs::part2_palette_descriptors_step(super::box_reference_view(box_ref), base_offset, (descriptor - 3) as nat);
+            crate::specs::part2_palette_descriptors_error(super::box_reference_view(box_ref), base_offset,
+                (descriptor - 2) as nat, box_ref.payload[2] as nat);
+        }
         if descriptor >= box_ref.payload.len() {
             return Err(DecodeError::malformed(
                 add_offset(base_offset, box_ref.header.offset())?,
@@ -280,39 +309,118 @@ pub(super) fn parse_palette(box_ref: BoxRef<'_>, base_offset: u64) -> Result<Pal
     }
     let sample_bytes = usize::from(entries)
         .checked_mul(bytes_per_entry)
-        .ok_or_else(|| DecodeError::malformed(base_offset, MalformedKind::ArithmeticOverflow))?;
-    let expected_length = descriptor_end
-        .checked_add(sample_bytes)
-        .ok_or_else(|| DecodeError::malformed(base_offset, MalformedKind::ArithmeticOverflow))?;
+        .ok_or_else(
+            #[cfg_attr(verus_keep_ghost, verus_spec(result: DecodeError =>
+                ensures result == crate::specs::part2_palette_arithmetic_error(base_offset),
+            ))]
+            || DecodeError::malformed(base_offset, MalformedKind::ArithmeticOverflow),
+        )?;
+    let expected_length = descriptor_end.checked_add(sample_bytes).ok_or_else(
+        #[cfg_attr(verus_keep_ghost, verus_spec(result: DecodeError =>
+                ensures result == crate::specs::part2_palette_arithmetic_error(base_offset),
+            ))]
+        || DecodeError::malformed(base_offset, MalformedKind::ArithmeticOverflow),
+    )?;
     if box_ref.payload.len() != expected_length {
         return Err(DecodeError::malformed(
             add_offset(base_offset, box_ref.header.offset())?,
             MalformedKind::InvalidBoxLength,
         ));
     }
-    let value_count = usize::from(entries)
-        .checked_mul(columns.len())
-        .ok_or_else(|| DecodeError::malformed(base_offset, MalformedKind::ArithmeticOverflow))?;
+    let value_count = usize::from(entries).checked_mul(columns.len()).ok_or_else(
+        #[cfg_attr(verus_keep_ghost, verus_spec(result: DecodeError =>
+                ensures result == crate::specs::part2_palette_arithmetic_error(base_offset),
+            ))]
+        || DecodeError::malformed(base_offset, MalformedKind::ArithmeticOverflow),
+    )?;
     let mut values = Vec::with_capacity(value_count);
     let mut offset = descriptor_end;
     let mut entry = 0_u16;
+    #[cfg(verus_keep_ghost)]
+    proof! {
+        reveal(crate::specs::part2_palette_rows);
+        assert(values@ =~= Seq::<i64>::empty());
+    }
     #[cfg_attr(
         verus_keep_ghost,
         verus_spec(
             invariant entry <= entries,
+                box_ref.payload.len() >= 3,
+                entries > 0,
+                entries == crate::specs::part2_box_u16([box_ref.payload[0], box_ref.payload[1]]),
+                columns@.len() == box_ref.payload[2],
+                columns@.len() > 0,
+                descriptor_end == 3 + box_ref.payload[2] as nat,
+                descriptor_end <= box_ref.payload.len(),
+                crate::specs::part2_palette_descriptors(super::box_reference_view(box_ref),
+                    base_offset, box_ref.payload[2] as nat) == Ok((columns@, bytes_per_entry)),
+                sample_bytes == entries as nat * bytes_per_entry as nat,
+                expected_length == descriptor_end as nat + sample_bytes as nat,
+                box_ref.payload.len() == expected_length,
+                value_count == entries as nat * columns@.len(),
+                offset <= box_ref.payload.len(),
+                crate::specs::part2_palette_rows(super::box_reference_view(box_ref),
+                    base_offset, columns@, entry as nat) == Ok((values@, offset)),
             decreases entries - entry,
         )
     )]
     while entry < entries {
+        #[cfg(verus_keep_ghost)]
+        proof! {
+            reveal(crate::specs::part2_parse_palette);
+            crate::specs::part2_palette_rows_step(super::box_reference_view(box_ref), base_offset, columns@, entry as nat);
+            crate::specs::part2_palette_rows_error(super::box_reference_view(box_ref), base_offset,
+                columns@, entry as nat + 1, entries as nat);
+        }
         let mut column = 0_usize;
+        #[cfg(verus_keep_ghost)]
+        proof_decl! { let ghost row_initial = (values@, offset); }
+        #[cfg(verus_keep_ghost)]
+        proof! { reveal(crate::specs::part2_palette_row); }
         #[cfg_attr(
             verus_keep_ghost,
             verus_spec(
                 invariant column <= columns.len(),
+                    box_ref.payload.len() >= 3,
+                    entry < entries,
+                    entries > 0,
+                    entries == crate::specs::part2_box_u16([box_ref.payload[0], box_ref.payload[1]]),
+                    columns@.len() == box_ref.payload[2],
+                    columns@.len() > 0,
+                    descriptor_end == 3 + box_ref.payload[2] as nat,
+                    descriptor_end <= box_ref.payload.len(),
+                    crate::specs::part2_palette_descriptors(super::box_reference_view(box_ref),
+                        base_offset, box_ref.payload[2] as nat) == Ok((columns@, bytes_per_entry)),
+                    sample_bytes == entries as nat * bytes_per_entry as nat,
+                    expected_length == descriptor_end as nat + sample_bytes as nat,
+                    box_ref.payload.len() == expected_length,
+                    value_count == entries as nat * columns@.len(),
+                    offset <= box_ref.payload.len(),
+                    crate::specs::part2_palette_rows(super::box_reference_view(box_ref),
+                        base_offset, columns@, entry as nat) == Ok(row_initial),
+                    crate::specs::part2_palette_rows(super::box_reference_view(box_ref),
+                        base_offset, columns@, entry as nat + 1)
+                        == crate::specs::part2_palette_row(super::box_reference_view(box_ref), base_offset,
+                            columns@, row_initial, columns@.len()),
+                    match crate::specs::part2_palette_rows(super::box_reference_view(box_ref),
+                        base_offset, columns@, entry as nat + 1) {
+                        Err(error) => crate::specs::part2_palette_rows(super::box_reference_view(box_ref),
+                            base_offset, columns@, entries as nat) == Err(error), Ok(_) => true,
+                    },
+                    crate::specs::part2_palette_row(super::box_reference_view(box_ref), base_offset,
+                        columns@, row_initial, column as nat) == Ok((values@, offset)),
                 decreases columns.len() - column,
             )
         )]
         while column < columns.len() {
+            #[cfg(verus_keep_ghost)]
+            proof! {
+                reveal(crate::specs::part2_parse_palette);
+                crate::specs::part2_palette_row_step(super::box_reference_view(box_ref), base_offset,
+                    columns@, row_initial, column as nat);
+                crate::specs::part2_palette_row_error(super::box_reference_view(box_ref), base_offset,
+                    columns@, row_initial, column as nat + 1, columns@.len());
+            }
             let descriptor = columns.get(column).ok_or_else(|| {
                 DecodeError::malformed(base_offset, MalformedKind::InvalidBoxContents)
             })?;
@@ -322,9 +430,12 @@ pub(super) fn parse_palette(box_ref: BoxRef<'_>, base_offset: u64) -> Result<Pal
                     DecodeError::malformed(base_offset, MalformedKind::ArithmeticOverflow)
                 })?
                 / 8;
-            let end = offset.checked_add(byte_count).ok_or_else(|| {
-                DecodeError::malformed(base_offset, MalformedKind::ArithmeticOverflow)
-            })?;
+            let end = offset.checked_add(byte_count).ok_or_else(
+                #[cfg_attr(verus_keep_ghost, verus_spec(result: DecodeError =>
+                    ensures result == crate::specs::part2_palette_arithmetic_error(base_offset),
+                ))]
+                || DecodeError::malformed(base_offset, MalformedKind::ArithmeticOverflow),
+            )?;
             if end > box_ref.payload.len() {
                 return Err(DecodeError::malformed(
                     add_offset(base_offset, box_ref.header.offset())?,
