@@ -179,6 +179,41 @@ technical candidate only: parent-owned record, review, CI, guarded integration
 and actual-main acceptance remain separate. No complete parsing, pixels,
 lifetime verification, normative conformance or publication claim follows.
 
+## Actual complete raw composition and reference Results
+
+The actual composition word reader preserves its complete old/final cursor and
+error frame. Dimension validation, instruction-set parsing, composition assembly
+and layer-reference validation now derive complete Results from actual source
+fields/bytes/limits. Every optional target/source field, life/persistence/reuse,
+repeat/tick, record order, loop byte and unknown-box flag is retained, including
+zero-life/default and zero-record admission and exact geometry/count/arithmetic/
+ordering/resource priorities. Original native instruction/set owners remain in
+place; no supplied parsed-instruction/composition/result bank or validity
+premise is used.
+
+The instruction model follows the actual byte-cursor continuation, with local
+checked field projections rather than nonlinear record-index reconstruction;
+the original proof/tool/resource budgets are unchanged. The composition reader
+uses the existing checked initializer, an additional native call target requiring
+explicit observation. Full file/public, normative, coverage/cfg/erasure,
+lifetimes and release remain independent.
+
+## Actual complete raw borrowed compositing-layer Result
+
+The actual registration, full color-group, opacity and compositing-layer
+producers retain every native grid/ordered registration/color/ICC/definition/
+key/count/header/payload field and exact errors. Duplicate source indices remain
+admitted, registration errors use lazy offsets, opacity computes its offset
+eagerly, color parsing precedes component-limit admission and opacity/definition
+exclusion is unchanged. The original borrowed payload reference is preserved;
+all native vector/profile/key owners and scopes remain in place. No supplied
+parsed-layer/result bank or validity premise is used.
+
+The two reader initializers deliberately target the existing checked shared
+producer. These additional native targets require explicit eventual observation,
+not a blanket byte-identity claim. Full composition/container/public, normative,
+coverage/cfg/erasure, lifetimes and release remain independent.
+
 ## Actual complete recursive raw metadata-tree Result
 
 The actual association metadata inspector derives its full count, maximum depth

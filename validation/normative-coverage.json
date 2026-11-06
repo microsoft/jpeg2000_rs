@@ -4,6 +4,113 @@
   "scope": "Technical reference inventory; not exhaustive standards-clause coverage or a conformance claim.",
   "requirements": [
     {
+      "id": "part2-complete-native-raw-composition-and-reference-results",
+      "topic": "Complete actual raw word cursor/dimension/instruction/composition/reference Results. Every optional instruction field, ordered record, encoded life/persistence/reuse/source region/repeat/tick, actual options/loop/unknown flags and first reference errors preserved. Native cursor old/final frames and eager offsets, geometry/count/life/order/resource priority retained; zero-life/default/no-record admission unchanged. Original output owners/scopes retained, no supplied parsed instruction/composition/result banks or validity premise. One checked composition reader retarget requires explicit future native audit; full file/public/normative/cfg/erasure/lifetimes/release separate.",
+      "implementation_refs": [
+        {"path": "src/jp2/composition.rs", "symbol": "read_u32_at"},
+        {"path": "src/jp2/composition.rs", "symbol": "validate_dimensions"},
+        {"path": "src/jp2/composition.rs", "symbol": "parse_instruction_set"},
+        {"path": "src/jp2/composition.rs", "symbol": "parse_composition"},
+        {"path": "src/jp2/composition.rs", "symbol": "validate_layer_references"},
+        {"path": "src/jp2/container.rs", "symbol": "parse"}
+      ],
+      "spec_refs": [
+        {"path": "specs/jp2_composition.rs", "symbol": "part2_read_composition_word"},
+        {"path": "specs/jp2_composition.rs", "symbol": "part2_validate_composition_dimensions"},
+        {"path": "specs/jp2_composition.rs", "symbol": "part2_instruction_record_words"},
+        {"path": "specs/jp2_composition.rs", "symbol": "part2_instruction_record"},
+        {"path": "specs/jp2_composition.rs", "symbol": "part2_instruction_records"},
+        {"path": "specs/jp2_composition.rs", "symbol": "part2_instruction_result"},
+        {"path": "specs/jp2_composition.rs", "symbol": "part2_parse_instruction_set"},
+        {"path": "specs/jp2_composition.rs", "symbol": "part2_composition_finish"},
+        {"path": "specs/jp2_composition.rs", "symbol": "part2_composition_boxes"},
+        {"path": "specs/jp2_composition.rs", "symbol": "part2_parse_composition"},
+        {"path": "specs/jp2_layer.rs", "symbol": "part2_layer_registration_references"},
+        {"path": "specs/jp2_layer.rs", "symbol": "part2_layer_references"},
+        {"path": "specs/jp2_layer.rs", "symbol": "part2_validate_layer_references"}
+      ],
+      "contract_refs": [
+        {"path": "src/jp2/composition.rs", "symbol": "read_u32_at"},
+        {"path": "src/jp2/composition.rs", "symbol": "validate_dimensions"},
+        {"path": "src/jp2/composition.rs", "symbol": "parse_instruction_set"},
+        {"path": "src/jp2/composition.rs", "symbol": "parse_composition"},
+        {"path": "src/jp2/composition.rs", "symbol": "validate_layer_references"}
+      ],
+      "proof_refs": [
+        {"path": "src/jp2/proof_support.rs", "symbol": "raw_instruction_set_view"},
+        {"path": "src/jp2/proof_support.rs", "symbol": "raw_instruction_set_outcome"},
+        {"path": "src/jp2/proof_support.rs", "symbol": "raw_instruction_sets_view"},
+        {"path": "src/jp2/proof_support.rs", "symbol": "raw_composition_view"},
+        {"path": "src/jp2/proof_support.rs", "symbol": "raw_composition_outcome"},
+        {"path": "src/jp2/proof_support.rs", "symbol": "raw_compositing_layers_view"}
+      ],
+      "test_refs": [
+        {"path": "src/jp2/tests.rs", "symbol": "actual_raw_composition_word_retains_endian_cursor_and_complete_error_frames"},
+        {"path": "src/jp2/tests.rs", "symbol": "actual_raw_composition_dimensions_keep_geometry_width_height_pixel_priority"},
+        {"path": "src/jp2/tests.rs", "symbol": "actual_raw_composition_instruction_retains_every_optional_field_and_zero_life_defaults"},
+        {"path": "src/jp2/tests.rs", "symbol": "actual_raw_composition_instruction_covers_every_flag_and_eager_offset_admission"},
+        {"path": "src/jp2/tests.rs", "symbol": "actual_raw_composition_instruction_keeps_count_geometry_and_life_overflow_error_priority"},
+        {"path": "src/jp2/tests.rs", "symbol": "actual_raw_composition_retains_every_loop_byte_owned_instruction_set_and_unknown_flag"},
+        {"path": "src/jp2/tests.rs", "symbol": "actual_raw_composition_keeps_options_order_missing_geometry_and_reader_error_priority"},
+        {"path": "src/jp2/tests.rs", "symbol": "actual_raw_layer_references_preserve_implicit_index_explicit_source_and_first_error_offset"}
+      ]
+    },
+    {
+      "id": "part2-complete-native-raw-compositing-layer-result",
+      "topic": "Complete actual raw registration,color-group,opacity and borrowed compositing-layer Results: all grids/ordered duplicate registrations/full color metadata/ICC bytes/definitions/key bytes/nested metadata/header/payload and exact errors. Original payload reference preserved, native owners/scopes retained, no supplied parsed-layer bank or validity premise. Registration errors use lazy offsets while opacity offset is eager, component limits follow actual color parsing, mutual opacity/definition exclusion preserved. Two checked reader initializer retargets need explicit future native audit; no whole composition/container/public/normative/cfg/erasure/lifetimes/release claim.",
+      "implementation_refs": [
+        {"path": "src/jp2/composition.rs", "symbol": "parse_codestream_registration"},
+        {"path": "src/jp2/composition.rs", "symbol": "parse_color_group"},
+        {"path": "src/jp2/composition.rs", "symbol": "parse_layer_opacity"},
+        {"path": "src/jp2/composition.rs", "symbol": "parse_compositing_layer"},
+        {"path": "src/jp2/container.rs", "symbol": "parse"}
+      ],
+      "spec_refs": [
+        {"path": "specs/jp2_layer.rs", "symbol": "part2_parse_codestream_registration"},
+        {"path": "specs/jp2_layer.rs", "symbol": "part2_registration_entry"},
+        {"path": "specs/jp2_layer.rs", "symbol": "part2_registration_prefix"},
+        {"path": "specs/jp2_layer.rs", "symbol": "part2_parse_layer_opacity"},
+        {"path": "specs/jp2_layer.rs", "symbol": "part2_parse_color_group"},
+        {"path": "specs/jp2_layer.rs", "symbol": "part2_color_group_boxes"},
+        {"path": "specs/jp2_layer.rs", "symbol": "part2_color_group_finish"},
+        {"path": "specs/jp2_layer.rs", "symbol": "part2_parse_compositing_layer"},
+        {"path": "specs/jp2_layer.rs", "symbol": "part2_raw_layer_boxes"},
+        {"path": "specs/jp2_layer.rs", "symbol": "part2_raw_layer_step"},
+        {"path": "src/limits.rs", "symbol": "resource_codestream_limit"}
+      ],
+      "contract_refs": [
+        {"path": "src/jp2/composition.rs", "symbol": "parse_codestream_registration"},
+        {"path": "src/jp2/composition.rs", "symbol": "parse_color_group"},
+        {"path": "src/jp2/composition.rs", "symbol": "parse_layer_opacity"},
+        {"path": "src/jp2/composition.rs", "symbol": "parse_compositing_layer"}
+      ],
+      "proof_refs": [
+        {"path": "src/jp2/proof_support.rs", "symbol": "registration_outcome"},
+        {"path": "src/jp2/proof_support.rs", "symbol": "full_color_group_view"},
+        {"path": "src/jp2/proof_support.rs", "symbol": "color_group_outcome"},
+        {"path": "src/jp2/proof_support.rs", "symbol": "opacity_outcome"},
+        {"path": "src/jp2/proof_support.rs", "symbol": "raw_compositing_layer_view"},
+        {"path": "src/jp2/proof_support.rs", "symbol": "raw_compositing_layer_outcome"},
+        {"path": "src/jp2/proof_support.rs", "symbol": "raw_compositing_layer_state"},
+        {"path": "src/jp2/proof_support.rs", "symbol": "raw_compositing_layer_payload_reference"},
+        {"path": "specs/jp2_layer.rs", "symbol": "part2_registration_step"},
+        {"path": "specs/jp2_layer.rs", "symbol": "part2_registration_error"},
+        {"path": "src/limits.rs", "symbol": "ResourceLimits::maximum_codestreams"}
+      ],
+      "test_refs": [
+        {"path": "src/jp2/tests.rs", "symbol": "actual_raw_layer_registration_retains_grids_all_fields_order_and_duplicate_indices"},
+        {"path": "src/jp2/tests.rs", "symbol": "actual_raw_layer_registration_keeps_length_grid_count_and_record_error_priority"},
+        {"path": "src/jp2/tests.rs", "symbol": "actual_raw_layer_registration_covers_every_subsampling_byte_and_exact_offset_boundary"},
+        {"path": "src/jp2/tests.rs", "symbol": "actual_raw_layer_color_group_retains_order_all_metadata_and_every_owned_icc_byte"},
+        {"path": "src/jp2/tests.rs", "symbol": "actual_raw_layer_color_group_keeps_empty_kind_progress_and_parse_before_component_limit_priority"},
+        {"path": "src/jp2/tests.rs", "symbol": "actual_raw_layer_opacity_keeps_all_methods_lengths_and_eager_offset_error_priority"},
+        {"path": "src/jp2/tests.rs", "symbol": "actual_raw_layer_opacity_retains_arbitrary_channel_count_and_independent_key_bytes"},
+        {"path": "src/jp2/tests.rs", "symbol": "actual_raw_layer_header_preserves_empty_defaults_header_and_original_payload_reference"},
+        {"path": "src/jp2/tests.rs", "symbol": "actual_raw_layer_header_derives_all_raw_registration_color_opacity_and_nested_metadata_fields"},
+        {"path": "src/jp2/tests.rs", "symbol": "actual_raw_layer_header_keeps_duplicate_exclusion_and_metadata_reader_error_priority"}
+      ]
+    },
+    {
       "id": "part2-complete-native-raw-metadata-tree-result",
       "topic": "Complete actual recursive raw association metadata inspection Result: full source-derived count/maxdepth and exact depth/type/input/reader/fuel/remaining-depth/local-count-work error order. Real borrowed child producers and metadata_count, not supplied successful subtree banks/validity premises. Retain non-association/empty association seeds and reader-relative errors. One checked borrowed initializer retarget and depth-getter annotation require exact future native audit; no native owning scopes or allocation bodies moved. Full container/inspection/public/normative/cfg/erasure/lifetimes/release remain independent.",
       "implementation_refs": [

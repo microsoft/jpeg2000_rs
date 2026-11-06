@@ -1030,6 +1030,154 @@ class FrameworkTests(WorkingFiles):
             framework._RAW_TILE_HEADER_CONTRACTS, 8,
         )
 
+    def test_inventory_binds_actual_complete_raw_composition_results(self):
+        self._assert_complete_packet_contract_bindings(
+            {framework._RAW_COMPOSITION_ENTRY}, framework._RAW_COMPOSITION_CONTRACTS, 5, isolate=False,
+        )
+
+    def test_inventory_raw_composition_requires_every_actual_cursor_record_output_and_reference_bridge(self):
+        coverage = json.loads((framework.VALIDATION / "normative-coverage.json").read_text())
+        entry = next(item for item in coverage["requirements"] if item["id"] == framework._RAW_COMPOSITION_ENTRY)
+        for field in ("contract_refs", "spec_refs", "proof_refs"):
+            for removed in entry[field]:
+                changed = copy.deepcopy(entry)
+                changed[field].remove(removed)
+                expected_error = "should be non-empty" if not changed[field] else "whole raw composition Results"
+                with self.subTest(field=field, removed=removed), self.assertRaisesRegex(ValueError, expected_error):
+                    framework.validate_normative_coverage(dict(coverage, requirements=[changed]))
+
+    def test_inventory_raw_composition_binds_actual_life_cursor_loop_and_reference_handoffs(self):
+        coverage = json.loads((framework.VALIDATION / "normative-coverage.json").read_text())
+        entry = next(item for item in coverage["requirements"] if item["id"] == framework._RAW_COMPOSITION_ENTRY)
+        source = framework.ROOT / "src/jp2/composition.rs"
+        original = source.read_text()
+        read_text = Path.read_text
+        for before, after in (
+            (".checked_mul(tick)", ".checked_add(tick)"),
+            ("encoded_loop_count == u8::MAX", "encoded_loop_count == 0"),
+            ("usize::from(registration.codestream_index) >= codestream_count", "usize::from(registration.codestream_index) > codestream_count"),
+        ):
+            self.assertIn(before, original)
+            changed = original.replace(before, after, 1)
+
+            def altered(path, *args, **kwargs):
+                return changed if path == source else read_text(path, *args, **kwargs)
+
+            with self.subTest(before=before), mock.patch.object(Path, "read_text", altered), \
+                    self.assertRaisesRegex(ValueError, "actual cursor/record/geometry/loop/reference handoffs"):
+                framework.validate_normative_coverage(dict(coverage, requirements=[entry]))
+
+    def test_inventory_raw_composition_rejects_trimmed_cursor_flags_life_and_loop_models(self):
+        coverage = json.loads((framework.VALIDATION / "normative-coverage.json").read_text())
+        entry = next(item for item in coverage["requirements"] if item["id"] == framework._RAW_COMPOSITION_ENTRY)
+        source = framework.ROOT / "specs/jp2_composition.rs"
+        original = source.read_text()
+        read_text = Path.read_text
+        for before, after in (
+            ("flags & !0x0027u16 != 0", "false"),
+            ("life_value as nat * tick as nat", "life_value as nat + tick as nat"),
+            ("value.2 == u8::MAX", "value.2 == 0"),
+        ):
+            self.assertIn(before, original)
+            changed = original.replace(before, after, 1)
+
+            def altered(path, *args, **kwargs):
+                return changed if path == source else read_text(path, *args, **kwargs)
+
+            with self.subTest(before=before), mock.patch.object(Path, "read_text", altered), \
+                    self.assertRaisesRegex(ValueError, "complete cursor/flags/record/life/loop models"):
+                framework.validate_normative_coverage(dict(coverage, requirements=[entry]))
+
+    def test_inventory_raw_composition_keeps_fresh_actual_composition_and_record_model_caches(self):
+        coverage = json.loads((framework.VALIDATION / "normative-coverage.json").read_text())
+        entry = next(item for item in coverage["requirements"] if item["id"] == framework._RAW_COMPOSITION_ENTRY)
+        read_text = Path.read_text
+        counts = {framework.ROOT / name: 0 for name in ("src/jp2/composition.rs", "specs/jp2_composition.rs")}
+
+        def counted(path, *args, **kwargs):
+            if path in counts:
+                counts[path] += 1
+            return read_text(path, *args, **kwargs)
+
+        with mock.patch.object(Path, "read_text", counted):
+            for expected in (1, 2):
+                self.assertEqual(framework.validate_normative_coverage(dict(coverage, requirements=[entry]))["status"], "passed")
+                self.assertEqual(set(counts.values()), {expected})
+
+    def test_inventory_binds_actual_complete_raw_layer_header_results(self):
+        self._assert_complete_packet_contract_bindings(
+            {framework._RAW_LAYER_HEADER_ENTRY}, framework._RAW_LAYER_HEADER_CONTRACTS, 4, isolate=False,
+        )
+
+    def test_inventory_raw_layer_header_requires_every_actual_registration_metadata_and_borrow_bridge(self):
+        coverage = json.loads((framework.VALIDATION / "normative-coverage.json").read_text())
+        entry = next(item for item in coverage["requirements"] if item["id"] == framework._RAW_LAYER_HEADER_ENTRY)
+        for field in ("contract_refs", "spec_refs", "proof_refs"):
+            for removed in entry[field]:
+                changed = copy.deepcopy(entry)
+                changed[field].remove(removed)
+                expected_error = "should be non-empty" if not changed[field] else "whole raw layer Results"
+                with self.subTest(field=field, removed=removed), self.assertRaisesRegex(ValueError, expected_error):
+                    framework.validate_normative_coverage(dict(coverage, requirements=[changed]))
+
+    def test_inventory_raw_layer_header_binds_actual_registration_key_bytes_and_borrow_handoffs(self):
+        coverage = json.loads((framework.VALIDATION / "normative-coverage.json").read_text())
+        entry = next(item for item in coverage["requirements"] if item["id"] == framework._RAW_LAYER_HEADER_ENTRY)
+        source = framework.ROOT / "src/jp2/composition.rs"
+        original = source.read_text()
+        read_text = Path.read_text
+        for before, after in (
+            ("position.checked_add(6)", "position.checked_add(12)"),
+            ("copy_bytes(&box_ref.payload[2..])?", "copy_bytes(&box_ref.payload[2..3])?"),
+            ("payload: box_ref.payload,", "payload: &[],"),
+        ):
+            self.assertIn(before, original)
+            changed = original.replace(before, after, 1)
+
+            def altered(path, *args, **kwargs):
+                return changed if path == source else read_text(path, *args, **kwargs)
+
+            with self.subTest(before=before), mock.patch.object(Path, "read_text", altered), \
+                    self.assertRaisesRegex(ValueError, "actual source registration/ICC/key/borrow/metadata handoffs"):
+                framework.validate_normative_coverage(dict(coverage, requirements=[entry]))
+
+    def test_inventory_raw_layer_header_rejects_trimmed_key_offset_registration_and_borrow_models(self):
+        coverage = json.loads((framework.VALIDATION / "normative-coverage.json").read_text())
+        entry = next(item for item in coverage["requirements"] if item["id"] == framework._RAW_LAYER_HEADER_ENTRY)
+        source = framework.ROOT / "specs/jp2_layer.rs"
+        original = source.read_text()
+        read_text = Path.read_text
+        for before, after in (
+            ("horizontal_offset as u16 >= horizontal", "false"),
+            ("payload.subrange(2, payload.len() as int)", "payload.subrange(2, 3)"),
+            ("header: input.0, payload: input.1", "header: input.0, payload: Seq::empty()"),
+        ):
+            self.assertIn(before, original)
+            changed = original.replace(before, after, 1)
+
+            def altered(path, *args, **kwargs):
+                return changed if path == source else read_text(path, *args, **kwargs)
+
+            with self.subTest(before=before), mock.patch.object(Path, "read_text", altered), \
+                    self.assertRaisesRegex(ValueError, "full registration/ICC/key/borrow/order models"):
+                framework.validate_normative_coverage(dict(coverage, requirements=[entry]))
+
+    def test_inventory_raw_layer_header_keeps_fresh_actual_layer_and_full_model_caches(self):
+        coverage = json.loads((framework.VALIDATION / "normative-coverage.json").read_text())
+        entry = next(item for item in coverage["requirements"] if item["id"] == framework._RAW_LAYER_HEADER_ENTRY)
+        read_text = Path.read_text
+        counts = {framework.ROOT / name: 0 for name in ("src/jp2/composition.rs", "specs/jp2_layer.rs")}
+
+        def counted(path, *args, **kwargs):
+            if path in counts:
+                counts[path] += 1
+            return read_text(path, *args, **kwargs)
+
+        with mock.patch.object(Path, "read_text", counted):
+            for expected in (1, 2):
+                self.assertEqual(framework.validate_normative_coverage(dict(coverage, requirements=[entry]))["status"], "passed")
+                self.assertEqual(set(counts.values()), {expected})
+
     def test_inventory_binds_actual_complete_raw_metadata_tree_result(self):
         self._assert_complete_packet_contract_bindings(
             {framework._METADATA_TREE_ENTRY}, framework._METADATA_TREE_CONTRACTS, 1, isolate=False,

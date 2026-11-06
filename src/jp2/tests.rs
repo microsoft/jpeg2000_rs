@@ -2592,6 +2592,822 @@ fn actual_raw_metadata_tree_keeps_nested_input_metadata_and_local_aggregate_work
     );
 }
 
+#[test]
+fn actual_raw_layer_registration_retains_grids_all_fields_order_and_duplicate_indices() {
+    let payload = [
+        1, 0, 1, 1, 255, 255, 1, 255, 255, 254, 255, 255, 2, 1, 0, 255,
+    ];
+    let (horizontal, vertical, values) = super::composition::parse_codestream_registration(
+        raw_metadata_box(&payload, *b"creg", 19),
+        u64::MAX,
+        &ResourceLimits::default(),
+    )
+    .unwrap();
+    assert_eq!((horizontal, vertical), (256, 257));
+    assert_eq!(
+        values,
+        vec![
+            CodestreamRegistration {
+                codestream_index: u16::MAX,
+                horizontal_subsampling: 1,
+                vertical_subsampling: 255,
+                horizontal_offset: 255,
+                vertical_offset: 254
+            },
+            CodestreamRegistration {
+                codestream_index: u16::MAX,
+                horizontal_subsampling: 2,
+                vertical_subsampling: 1,
+                horizontal_offset: 0,
+                vertical_offset: 255
+            },
+        ]
+    );
+}
+
+#[test]
+fn actual_raw_layer_registration_keeps_length_grid_count_and_record_error_priority() {
+    let limits = ResourceLimits::default()
+        .with_maximum_codestreams(1)
+        .unwrap();
+    for payload in [&[][..], &[0; 9][..], &[0; 11][..]] {
+        assert_eq!(
+            super::composition::parse_codestream_registration(
+                raw_metadata_box(payload, *b"creg", 19),
+                100,
+                &limits
+            )
+            .err(),
+            Some(DecodeError::MalformedInput {
+                offset: 119,
+                kind: MalformedKind::InvalidBoxLength
+            })
+        );
+    }
+    let mut payload = vec![0; 16];
+    assert_eq!(
+        super::composition::parse_codestream_registration(
+            raw_metadata_box(&payload, *b"creg", 19),
+            100,
+            &limits
+        )
+        .err(),
+        Some(DecodeError::MalformedInput {
+            offset: 119,
+            kind: MalformedKind::InvalidBoxContents
+        })
+    );
+    payload[1] = 1;
+    payload[3] = 1;
+    assert_eq!(
+        super::composition::parse_codestream_registration(
+            raw_metadata_box(&payload, *b"creg", 19),
+            u64::MAX,
+            &limits
+        )
+        .err(),
+        Some(DecodeError::LimitExceeded {
+            resource: Resource::Codestreams,
+            limit: 1,
+            actual: 2
+        })
+    );
+    payload.truncate(10);
+    assert_eq!(
+        super::composition::parse_codestream_registration(
+            raw_metadata_box(&payload, *b"creg", 19),
+            u64::MAX,
+            &limits
+        )
+        .err(),
+        Some(DecodeError::MalformedInput {
+            offset: u64::MAX,
+            kind: MalformedKind::ArithmeticOverflow
+        })
+    );
+}
+
+#[test]
+fn actual_raw_layer_registration_covers_every_subsampling_byte_and_exact_offset_boundary() {
+    for factor in 0..=u8::MAX {
+        let payload = [0, 2, 0, 2, 0, 7, factor, 1, 1, 1];
+        let result = super::composition::parse_codestream_registration(
+            raw_metadata_box(&payload, *b"creg", 19),
+            100,
+            &ResourceLimits::default(),
+        );
+        if factor == 0 {
+            assert_eq!(
+                result.err(),
+                Some(DecodeError::MalformedInput {
+                    offset: 119,
+                    kind: MalformedKind::InvalidBoxContents
+                })
+            );
+        } else {
+            assert_eq!(result.unwrap().2[0].horizontal_subsampling, factor);
+        }
+    }
+    for position in [8, 9] {
+        let mut payload = [0, 2, 0, 2, 0, 7, 1, 1, 1, 1];
+        payload[position] = 2;
+        assert_eq!(
+            super::composition::parse_codestream_registration(
+                raw_metadata_box(&payload, *b"creg", 19),
+                100,
+                &ResourceLimits::default()
+            )
+            .err(),
+            Some(DecodeError::MalformedInput {
+                offset: 119,
+                kind: MalformedKind::InvalidBoxContents
+            })
+        );
+    }
+}
+
+#[test]
+fn actual_raw_layer_color_group_retains_order_all_metadata_and_every_owned_icc_byte() {
+    let mut payload = raw_jp2_header_color();
+    payload.extend_from_slice(&box32(*b"colr", &[2, 173, 219, 0, 255, 128, 17]));
+    payload.extend_from_slice(&box32(*b"colr", &[3, 5, 7, 11]));
+    let colors = super::composition::parse_color_group(
+        raw_metadata_box(&payload, *b"cgrp", 19),
+        &ResourceLimits::default(),
+        u64::MAX,
+    )
+    .unwrap();
+    payload.fill(0);
+    assert_eq!(colors.len(), 3);
+    assert_eq!(
+        colors[0].method(),
+        ColorMethod::Enumerated { color_space: 16 }
+    );
+    assert_eq!((colors[0].precedence, colors[0].approximation), (3, 4));
+    assert_eq!(
+        colors[1].method(),
+        ColorMethod::RestrictedIcc { profile_bytes: 4 }
+    );
+    assert_eq!((colors[1].precedence, colors[1].approximation), (173, 219));
+    assert_eq!(colors[1].icc_profile(), Some(&[0, 255, 128, 17][..]));
+    assert_eq!(colors[2].method(), ColorMethod::AnyIcc { profile_bytes: 1 });
+    assert_eq!(colors[2].icc_profile(), Some(&[11][..]));
+}
+
+#[test]
+fn actual_raw_layer_color_group_keeps_empty_kind_progress_and_parse_before_component_limit_priority()
+ {
+    let limits = ResourceLimits::default();
+    assert_eq!(
+        super::composition::parse_color_group(raw_metadata_box(&[], *b"cgrp", 19), &limits, 100)
+            .err(),
+        Some(DecodeError::MalformedInput {
+            offset: 100,
+            kind: MalformedKind::MissingRequiredStructure
+        })
+    );
+    assert_eq!(
+        super::composition::parse_color_group(raw_metadata_box(&[0], *b"cgrp", 19), &limits, 100)
+            .err(),
+        Some(DecodeError::MalformedInput {
+            offset: 100,
+            kind: MalformedKind::InvalidBoxLength
+        })
+    );
+    assert_eq!(
+        super::composition::parse_color_group(
+            raw_metadata_box(&box32(*b"free", &[]), *b"cgrp", 19),
+            &limits,
+            100
+        )
+        .err(),
+        Some(DecodeError::MalformedInput {
+            offset: 100,
+            kind: MalformedKind::InvalidBoxContents
+        })
+    );
+    let limits = limits.with_geometry_limits_for_test(0, 3, 2, 6, 1);
+    assert_eq!(
+        super::composition::parse_color_group(
+            raw_metadata_box(&box32(*b"colr", &[0, 0, 0]), *b"cgrp", 19),
+            &limits,
+            100
+        )
+        .err(),
+        Some(DecodeError::MalformedInput {
+            offset: 100,
+            kind: MalformedKind::InvalidColorSpecification
+        })
+    );
+    assert_eq!(
+        super::composition::parse_color_group(
+            raw_metadata_box(&raw_jp2_header_color(), *b"cgrp", 19),
+            &limits,
+            100
+        )
+        .err(),
+        Some(DecodeError::LimitExceeded {
+            resource: Resource::Components,
+            limit: 0,
+            actual: 1
+        })
+    );
+}
+
+#[test]
+fn actual_raw_layer_opacity_keeps_all_methods_lengths_and_eager_offset_error_priority() {
+    for method in 0..=u8::MAX {
+        for length in 0..=4 {
+            let mut payload = vec![1; length];
+            if let Some(first) = payload.first_mut() {
+                *first = method;
+            }
+            let result = super::composition::parse_layer_opacity(
+                raw_metadata_box(&payload, *b"opct", 19),
+                100,
+            );
+            if length == 1 && method <= 1 {
+                assert_eq!(
+                    result.unwrap(),
+                    if method == 0 {
+                        LayerOpacity::Straight
+                    } else {
+                        LayerOpacity::Premultiplied
+                    }
+                );
+            } else if method == 2 && length >= 3 {
+                assert_eq!(
+                    result.unwrap(),
+                    LayerOpacity::ChromaKey {
+                        channels: 1,
+                        values: vec![1; length - 2]
+                    }
+                );
+            } else {
+                let kind = if length == 0 || method <= 2 {
+                    MalformedKind::InvalidBoxLength
+                } else {
+                    MalformedKind::InvalidBoxContents
+                };
+                assert_eq!(
+                    result.err(),
+                    Some(DecodeError::MalformedInput { offset: 119, kind })
+                );
+            }
+            assert_eq!(
+                super::composition::parse_layer_opacity(
+                    raw_metadata_box(&payload, *b"opct", 19),
+                    u64::MAX
+                )
+                .err(),
+                Some(DecodeError::MalformedInput {
+                    offset: u64::MAX,
+                    kind: MalformedKind::ArithmeticOverflow
+                })
+            );
+        }
+    }
+}
+
+#[test]
+fn actual_raw_layer_opacity_retains_arbitrary_channel_count_and_independent_key_bytes() {
+    let mut payload = vec![2, 255, 0, 255, 128, 17];
+    let opacity =
+        super::composition::parse_layer_opacity(raw_metadata_box(&payload, *b"opct", 19), 100)
+            .unwrap();
+    payload.fill(0);
+    assert_eq!(
+        opacity,
+        LayerOpacity::ChromaKey {
+            channels: 255,
+            values: vec![0, 255, 128, 17]
+        }
+    );
+    assert_eq!(
+        super::composition::parse_layer_opacity(raw_metadata_box(&[2, 0, 7], *b"opct", 19), 100)
+            .err(),
+        Some(DecodeError::MalformedInput {
+            offset: 119,
+            kind: MalformedKind::InvalidBoxContents
+        })
+    );
+}
+
+#[test]
+fn actual_raw_layer_header_preserves_empty_defaults_header_and_original_payload_reference() {
+    let limits = ResourceLimits::default();
+    let payload = [];
+    let input = raw_metadata_box(&payload, *b"jplh", 99);
+    let layer = parse_compositing_layer(input, &limits).unwrap();
+    assert_eq!(layer.header, input.header);
+    assert!(std::ptr::eq(layer.payload, input.payload));
+    assert_eq!(
+        (layer.horizontal_grid_size, layer.vertical_grid_size),
+        (1, 1)
+    );
+    assert!(layer.registrations.is_empty());
+    assert!(layer.color_group.is_empty());
+    assert!(layer.channel_definition_records.is_empty());
+    assert_eq!(layer.opacity, None);
+    assert_eq!(layer.nested_metadata_boxes, 0);
+    assert_eq!(
+        parse_compositing_layer(raw_metadata_box(&[], *b"jplh", u64::MAX), &limits).err(),
+        Some(DecodeError::MalformedInput {
+            offset: u64::MAX,
+            kind: MalformedKind::ArithmeticOverflow
+        })
+    );
+}
+
+#[test]
+fn actual_raw_layer_header_derives_all_raw_registration_color_opacity_and_nested_metadata_fields() {
+    let registration = [1, 0, 1, 1, 0, 1, 2, 3, 255, 254, 0, 0, 1, 1, 0, 255];
+    let mut payload = box32(*b"creg", &registration);
+    let mut colors = raw_jp2_header_color();
+    colors.extend_from_slice(&box32(*b"colr", &[3, 7, 9, 0, 255, 128]));
+    payload.extend_from_slice(&box32(*b"cgrp", &colors));
+    payload.extend_from_slice(&box32(*b"opct", &[2, 3, 1, 255, 128, 0]));
+    payload.extend_from_slice(&box32(*b"asoc", &box32(*b"xml ", &[7])));
+    payload.extend_from_slice(&box32(*b"free", &[]));
+    let input = raw_metadata_box(&payload, *b"jplh", 99);
+    let layer = parse_compositing_layer(input, &ResourceLimits::default()).unwrap();
+    assert_eq!(layer.header, input.header);
+    assert!(std::ptr::eq(layer.payload, payload.as_slice()));
+    assert_eq!(
+        (layer.horizontal_grid_size, layer.vertical_grid_size),
+        (256, 257)
+    );
+    assert_eq!(layer.registrations.len(), 2);
+    assert_eq!(
+        layer.registrations[0],
+        CodestreamRegistration {
+            codestream_index: 1,
+            horizontal_subsampling: 2,
+            vertical_subsampling: 3,
+            horizontal_offset: 255,
+            vertical_offset: 254,
+        }
+    );
+    assert_eq!(layer.registrations[1].codestream_index, 0);
+    assert_eq!(layer.color_group.len(), 2);
+    assert_eq!(layer.color_group[1].icc_profile(), Some(&[0, 255, 128][..]));
+    assert_eq!(
+        (
+            layer.color_group[1].precedence,
+            layer.color_group[1].approximation
+        ),
+        (7, 9)
+    );
+    assert_eq!(
+        layer.opacity,
+        Some(LayerOpacity::ChromaKey {
+            channels: 3,
+            values: vec![1, 255, 128, 0]
+        })
+    );
+    assert!(layer.channel_definition_records.is_empty());
+    assert_eq!(layer.nested_metadata_boxes, 3);
+}
+
+#[test]
+fn actual_raw_layer_header_keeps_duplicate_exclusion_and_metadata_reader_error_priority() {
+    let registration = box32(*b"creg", &[0, 1, 0, 1, 0, 0, 1, 1, 0, 0]);
+    let group = box32(*b"cgrp", &raw_jp2_header_color());
+    let definition = box32(*b"cdef", &raw_channel_definition_payload(&[(0, 1, 0)]));
+    for (first, second) in [
+        (registration, box32(*b"creg", &[])),
+        (group, box32(*b"cgrp", &[])),
+        (box32(*b"opct", &[0]), box32(*b"cdef", &[])),
+        (definition, box32(*b"opct", &[])),
+    ] {
+        let offset = 107 + first.len() as u64;
+        let mut payload = first;
+        payload.extend_from_slice(&second);
+        assert_eq!(
+            parse_compositing_layer(
+                raw_metadata_box(&payload, *b"jplh", 99),
+                &ResourceLimits::default()
+            )
+            .err(),
+            Some(DecodeError::MalformedInput {
+                offset,
+                kind: MalformedKind::InvalidBoxOrder
+            })
+        );
+    }
+    assert_eq!(
+        parse_compositing_layer(
+            raw_metadata_box(&[0], *b"jplh", 99),
+            &ResourceLimits::default()
+        )
+        .err(),
+        Some(DecodeError::MalformedInput {
+            offset: 107,
+            kind: MalformedKind::InvalidBoxLength
+        })
+    );
+    let definition = box32(
+        *b"cdef",
+        &raw_channel_definition_payload(&[(u16::MAX - 1, u16::MAX, u16::MAX)]),
+    );
+    let layer = parse_compositing_layer(
+        raw_metadata_box(&definition, *b"jplh", 99),
+        &ResourceLimits::default(),
+    )
+    .unwrap();
+    assert_eq!(layer.channel_definition_records[0].channel, u16::MAX - 1);
+    assert_eq!(layer.opacity, None);
+}
+
+fn raw_instruction_payload(flags: u16, repeat: u16, tick: u32, words: &[u32]) -> Vec<u8> {
+    let mut payload = flags.to_be_bytes().to_vec();
+    payload.extend_from_slice(&repeat.to_be_bytes());
+    payload.extend_from_slice(&tick.to_be_bytes());
+    for word in words {
+        payload.extend_from_slice(&word.to_be_bytes());
+    }
+    payload
+}
+
+#[test]
+fn actual_raw_composition_word_retains_endian_cursor_and_complete_error_frames() {
+    let input = [9, 0x80, 0x01, 0xff, 0x7f, 3];
+    let mut position = 1;
+    assert_eq!(
+        super::composition::read_u32_at(&input, &mut position, 197),
+        Ok(0x8001_ff7f)
+    );
+    assert_eq!(position, 5);
+    for initial in [3, input.len(), input.len() + 1, usize::MAX] {
+        let mut position = initial;
+        assert_eq!(
+            super::composition::read_u32_at(&input, &mut position, 197),
+            Err(DecodeError::MalformedInput {
+                offset: 197,
+                kind: if initial == usize::MAX {
+                    MalformedKind::ArithmeticOverflow
+                } else {
+                    MalformedKind::InvalidBoxLength
+                },
+            })
+        );
+        assert_eq!(position, initial);
+    }
+}
+
+#[test]
+fn actual_raw_composition_dimensions_keep_geometry_width_height_pixel_priority() {
+    let limits = ResourceLimits::default().with_geometry_limits_for_test(1, 2, 2, 3, 1);
+    for (width, height, error) in [
+        (
+            0,
+            9,
+            DecodeError::MalformedInput {
+                offset: 197,
+                kind: MalformedKind::InvalidImageGeometry,
+            },
+        ),
+        (
+            3,
+            4,
+            DecodeError::LimitExceeded {
+                resource: Resource::Width,
+                limit: 2,
+                actual: 3,
+            },
+        ),
+        (
+            2,
+            4,
+            DecodeError::LimitExceeded {
+                resource: Resource::Height,
+                limit: 2,
+                actual: 4,
+            },
+        ),
+        (
+            2,
+            2,
+            DecodeError::LimitExceeded {
+                resource: Resource::Pixels,
+                limit: 3,
+                actual: 4,
+            },
+        ),
+    ] {
+        assert_eq!(
+            super::composition::validate_dimensions(width, height, &limits, 197),
+            Err(error)
+        );
+    }
+    let limits = limits.with_geometry_limits_for_test(1, u32::MAX, u32::MAX, u64::MAX, 1);
+    assert_eq!(
+        super::composition::validate_dimensions(u32::MAX, u32::MAX, &limits, u64::MAX),
+        Ok(())
+    );
+}
+
+#[test]
+fn actual_raw_composition_instruction_retains_every_optional_field_and_zero_life_defaults() {
+    for mask in 0..16 {
+        let flags = (mask & 7) | ((mask & 8) << 2);
+        let mut words = Vec::new();
+        if flags & 1 != 0 {
+            words.extend_from_slice(&[3, 5]);
+        }
+        if flags & 2 != 0 {
+            words.extend_from_slice(&[7, 11]);
+        }
+        if flags & 4 != 0 {
+            words.extend_from_slice(&[0x8000_0002, 13]);
+        }
+        if flags & 32 != 0 {
+            words.extend_from_slice(&[17, 19, 23, 29]);
+        }
+        let payload = raw_instruction_payload(flags, u16::MAX, 31, &words);
+        let set = super::composition::parse_instruction_set(
+            raw_metadata_box(&payload, *b"inst", 19),
+            (101, 103, 255),
+            100,
+            &ResourceLimits::default(),
+        )
+        .unwrap();
+        assert_eq!((set.flags, set.repeat, set.tick), (flags, u16::MAX, 31));
+        if flags == 0 {
+            assert!(set.instructions.is_empty());
+        } else {
+            assert_eq!(
+                set.instructions,
+                vec![CompositionInstruction {
+                    target_x: if flags & 1 != 0 { 3 } else { 0 },
+                    target_y: if flags & 1 != 0 { 5 } else { 0 },
+                    target_width: if flags & 2 != 0 { 7 } else { 101 },
+                    target_height: if flags & 2 != 0 { 11 } else { 103 },
+                    life: if flags & 4 != 0 { 62 } else { 0 },
+                    persistent: true,
+                    next_reuse: if flags & 4 != 0 { 13 } else { 0 },
+                    source_x: if flags & 32 != 0 { 17 } else { 0 },
+                    source_y: if flags & 32 != 0 { 19 } else { 0 },
+                    source_width: if flags & 32 != 0 { 23 } else { 0 },
+                    source_height: if flags & 32 != 0 { 29 } else { 0 },
+                }]
+            );
+        }
+    }
+}
+
+#[test]
+fn actual_raw_composition_instruction_covers_every_flag_and_eager_offset_admission() {
+    for flags in 0..=u16::MAX {
+        let payload = raw_instruction_payload(flags, 7, u32::MAX, &[]);
+        let result = super::composition::parse_instruction_set(
+            raw_metadata_box(&payload, *b"inst", 19),
+            (0, 0, 0),
+            100,
+            &ResourceLimits::default(),
+        );
+        if flags & !0x0027 == 0 {
+            assert!(result.unwrap().instructions.is_empty());
+        } else {
+            assert_eq!(
+                result.err(),
+                Some(DecodeError::MalformedInput {
+                    offset: 119,
+                    kind: MalformedKind::InvalidBoxContents
+                })
+            );
+        }
+    }
+    assert_eq!(
+        super::composition::parse_instruction_set(
+            raw_metadata_box(&[], *b"inst", 19),
+            (0, 0, 0),
+            u64::MAX,
+            &ResourceLimits::default()
+        )
+        .err(),
+        Some(DecodeError::MalformedInput {
+            offset: u64::MAX,
+            kind: MalformedKind::ArithmeticOverflow
+        })
+    );
+}
+
+#[test]
+fn actual_raw_composition_instruction_keeps_count_geometry_and_life_overflow_error_priority() {
+    let limits = ResourceLimits::default()
+        .with_maximum_work_units(1)
+        .unwrap();
+    let payload = raw_instruction_payload(2, 0, u32::MAX, &[0, 0, 0, 0]);
+    assert_eq!(
+        super::composition::parse_instruction_set(
+            raw_metadata_box(&payload, *b"inst", 19),
+            (1, 1, 0),
+            100,
+            &limits
+        )
+        .err(),
+        Some(DecodeError::LimitExceeded {
+            resource: Resource::WorkUnits,
+            limit: 1,
+            actual: 2
+        })
+    );
+    for (words, expected) in [
+        (
+            vec![0, 1, 0x7fff_ffff, 0],
+            MalformedKind::InvalidImageGeometry,
+        ),
+        (
+            vec![1, 1, 0x7fff_ffff, 0],
+            MalformedKind::ArithmeticOverflow,
+        ),
+    ] {
+        let payload = raw_instruction_payload(6, 0, 3, &words);
+        assert_eq!(
+            super::composition::parse_instruction_set(
+                raw_metadata_box(&payload, *b"inst", 19),
+                (1, 1, 0),
+                100,
+                &ResourceLimits::default()
+            )
+            .err(),
+            Some(DecodeError::MalformedInput {
+                offset: 119,
+                kind: expected
+            })
+        );
+    }
+    let payload = raw_instruction_payload(4, 0, 3, &[2, 17]);
+    let set = super::composition::parse_instruction_set(
+        raw_metadata_box(&payload, *b"inst", 19),
+        (1, 1, 0),
+        100,
+        &ResourceLimits::default(),
+    )
+    .unwrap();
+    assert_eq!(
+        (
+            set.instructions[0].life,
+            set.instructions[0].persistent,
+            set.instructions[0].next_reuse
+        ),
+        (6, false, 17)
+    );
+}
+
+fn raw_composition_options(encoded_loop: u8) -> Vec<u8> {
+    let mut payload = 2_u32.to_be_bytes().to_vec();
+    payload.extend_from_slice(&3_u32.to_be_bytes());
+    payload.push(encoded_loop);
+    box32(*b"copt", &payload)
+}
+
+#[test]
+fn actual_raw_composition_retains_every_loop_byte_owned_instruction_set_and_unknown_flag() {
+    for encoded_loop in 0..=u8::MAX {
+        let mut payload = box32(*b"free", &[7]);
+        payload.extend_from_slice(&raw_composition_options(encoded_loop));
+        payload.extend_from_slice(&box32(
+            *b"inst",
+            &raw_instruction_payload(1, 17, 19, &[23, 29]),
+        ));
+        payload.extend_from_slice(&box32(*b"inst", &raw_instruction_payload(0, 31, 37, &[])));
+        let composition = parse_composition(
+            raw_metadata_box(&payload, *b"comp", 99),
+            &ResourceLimits::default(),
+        )
+        .unwrap();
+        payload.fill(0);
+        assert_eq!((composition.width, composition.height), (3, 2));
+        assert_eq!(
+            composition.loop_count,
+            if encoded_loop == u8::MAX {
+                0
+            } else {
+                encoded_loop + 1
+            }
+        );
+        assert!(composition.has_unknown_boxes);
+        assert_eq!(composition.instruction_sets.len(), 2);
+        assert_eq!(
+            (
+                composition.instruction_sets[0].flags,
+                composition.instruction_sets[0].repeat,
+                composition.instruction_sets[0].tick
+            ),
+            (1, 17, 19)
+        );
+        assert_eq!(
+            (
+                composition.instruction_sets[0].instructions[0].target_x,
+                composition.instruction_sets[0].instructions[0].target_y
+            ),
+            (23, 29)
+        );
+        assert_eq!(
+            (
+                composition.instruction_sets[0].instructions[0].target_width,
+                composition.instruction_sets[0].instructions[0].target_height
+            ),
+            (3, 2)
+        );
+        assert_eq!(
+            (
+                composition.instruction_sets[1].repeat,
+                composition.instruction_sets[1].tick
+            ),
+            (31, 37)
+        );
+        assert!(composition.instruction_sets[1].instructions.is_empty());
+    }
+}
+
+#[test]
+fn actual_raw_composition_keeps_options_order_missing_geometry_and_reader_error_priority() {
+    let limits = ResourceLimits::default();
+    for payload in [&[][..], box32(*b"free", &[]).as_slice()] {
+        assert_eq!(
+            parse_composition(raw_metadata_box(payload, *b"comp", 99), &limits).err(),
+            Some(DecodeError::MalformedInput {
+                offset: 107,
+                kind: MalformedKind::MissingRequiredStructure
+            })
+        );
+    }
+    let payload = box32(*b"inst", &[]);
+    assert_eq!(
+        parse_composition(raw_metadata_box(&payload, *b"comp", 99), &limits).err(),
+        Some(DecodeError::MalformedInput {
+            offset: 107,
+            kind: MalformedKind::InvalidBoxOrder
+        })
+    );
+    let mut payload = raw_composition_options(0);
+    let offset = 107 + payload.len() as u64;
+    payload.extend_from_slice(&box32(*b"copt", &[]));
+    assert_eq!(
+        parse_composition(raw_metadata_box(&payload, *b"comp", 99), &limits).err(),
+        Some(DecodeError::MalformedInput {
+            offset,
+            kind: MalformedKind::InvalidBoxOrder
+        })
+    );
+    assert_eq!(
+        parse_composition(raw_metadata_box(&[0], *b"comp", 99), &limits).err(),
+        Some(DecodeError::MalformedInput {
+            offset: 107,
+            kind: MalformedKind::InvalidBoxLength
+        })
+    );
+    let composition = parse_composition(
+        raw_metadata_box(&raw_composition_options(0), *b"comp", 99),
+        &limits,
+    )
+    .unwrap();
+    assert!(!composition.has_unknown_boxes);
+    assert!(composition.instruction_sets.is_empty());
+}
+
+#[test]
+fn actual_raw_layer_references_preserve_implicit_index_explicit_source_and_first_error_offset() {
+    assert_eq!(validate_layer_references(&[], 0), Ok(()));
+    let first = parse_compositing_layer(
+        raw_metadata_box(&[], *b"jplh", 19),
+        &ResourceLimits::default(),
+    )
+    .unwrap();
+    let second = parse_compositing_layer(
+        raw_metadata_box(&[], *b"jplh", 27),
+        &ResourceLimits::default(),
+    )
+    .unwrap();
+    assert_eq!(
+        validate_layer_references(&[first, second], 1),
+        Err(DecodeError::MalformedInput {
+            offset: 27,
+            kind: MalformedKind::InvalidBoxContents
+        })
+    );
+    let payload = box32(*b"creg", &[0, 1, 0, 1, 255, 255, 1, 1, 0, 0]);
+    let layer = parse_compositing_layer(
+        raw_metadata_box(&payload, *b"jplh", 41),
+        &ResourceLimits::default(),
+    )
+    .unwrap();
+    assert_eq!(
+        validate_layer_references(std::slice::from_ref(&layer), usize::from(u16::MAX)),
+        Err(DecodeError::MalformedInput {
+            offset: 41,
+            kind: MalformedKind::InvalidBoxContents
+        })
+    );
+    assert_eq!(
+        validate_layer_references(std::slice::from_ref(&layer), usize::from(u16::MAX) + 1),
+        Ok(())
+    );
+}
+
 fn valid_ht_codestream(width: u32, height: u32, style: u8) -> Vec<u8> {
     let mut siz = Vec::new();
     siz.extend_from_slice(&0x4000_u16.to_be_bytes());

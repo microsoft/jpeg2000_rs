@@ -2617,6 +2617,77 @@ _DECODER_LAYOUT_CONTRACTS = {
 
 
 _SOURCE_OPACITY_ENTRY = "part2-complete-native-source-layer-opacity-result"
+_RAW_COMPOSITION_ENTRY = "part2-complete-native-raw-composition-and-reference-results"
+_RAW_COMPOSITION_CONTRACTS = {
+    ("src/jp2/composition.rs", "parse_instruction_set"): (
+        "part2_parse_instruction_set", _coverage_call("super::raw_instruction_set_outcome", r"\1"), None,
+        _coverage_call("super::box_reference_view", "box_ref") + r"\s*,\s*composition\s*,\s*base_offset\s*,\s*limits",
+    ),
+    ("src/jp2/composition.rs", "read_u32_at"): (
+        "part2_read_composition_word", r"\1", r"\*\s*" + _coverage_call("final", "position"),
+        r"input\s*@\s*,\s*\*\s*" + _coverage_call("old", "position") + r"\s*,\s*offset",
+    ),
+    ("src/jp2/composition.rs", "validate_dimensions"): (
+        "part2_validate_composition_dimensions", r"\1", None, r"width\s*,\s*height\s*,\s*limits\s*,\s*offset",
+    ),
+    ("src/jp2/composition.rs", "parse_composition"): (
+        "part2_parse_composition", _coverage_call("super::raw_composition_outcome", r"\1"), None,
+        _coverage_call("super::box_reference_view", "box_ref") + r"\s*,\s*\*\s*limits",
+    ),
+    ("src/jp2/composition.rs", "validate_layer_references"): (
+        "part2_validate_layer_references", r"\1", None,
+        _coverage_call("super::raw_compositing_layers_view", r"layers\s*@") + r"\s*,\s*codestream_count",
+    ),
+}
+_RAW_COMPOSITION_MODELS = {
+    ("specs/jp2_composition.rs", name) for name in (
+        "part2_parse_instruction_set", "part2_instruction_record", "part2_instruction_records",
+        "part2_instruction_result", "part2_instruction_record_words", "part2_read_composition_word",
+        "part2_validate_composition_dimensions", "part2_parse_composition", "part2_composition_boxes", "part2_composition_finish",
+    )
+} | {
+    ("specs/jp2_layer.rs", name) for name in ("part2_validate_layer_references", "part2_layer_references", "part2_layer_registration_references")
+}
+_RAW_COMPOSITION_PROOFS = {
+    ("src/jp2/proof_support.rs", name) for name in (
+        "raw_instruction_set_view", "raw_instruction_set_outcome", "raw_instruction_sets_view",
+        "raw_composition_view", "raw_composition_outcome", "raw_compositing_layers_view",
+    )
+}
+_RAW_LAYER_HEADER_ENTRY = "part2-complete-native-raw-compositing-layer-result"
+_RAW_LAYER_HEADER_CONTRACTS = {
+    ("src/jp2/composition.rs", "parse_codestream_registration"): (
+        "part2_parse_codestream_registration", _coverage_call("super::registration_outcome", r"\1"), None,
+        _coverage_call("super::box_reference_view", "box_ref") + r"\s*,\s*base_offset\s*,\s*limits",
+    ),
+    ("src/jp2/composition.rs", "parse_color_group"): (
+        "part2_parse_color_group", _coverage_call("super::color_group_outcome", r"\1"), None,
+        _coverage_call("super::box_reference_view", "box_ref") + r"\s*,\s*\*\s*limits\s*,\s*base_offset",
+    ),
+    ("src/jp2/composition.rs", "parse_layer_opacity"): (
+        "part2_parse_layer_opacity", _coverage_call("super::opacity_outcome", r"\1"), None,
+        _coverage_call("super::box_reference_view", "box_ref") + r"\s*,\s*base_offset",
+    ),
+    ("src/jp2/composition.rs", "parse_compositing_layer"): (
+        "part2_parse_compositing_layer", _coverage_call("super::raw_compositing_layer_outcome", r"\1"), None,
+        _coverage_call("super::box_reference_view", "box_ref") + r"\s*,\s*\*\s*limits",
+    ),
+}
+_RAW_LAYER_HEADER_MODELS = {
+    ("specs/jp2_layer.rs", name) for name in (
+        "part2_parse_codestream_registration", "part2_registration_entry", "part2_registration_prefix",
+        "part2_parse_layer_opacity", "part2_parse_color_group", "part2_color_group_boxes",
+        "part2_color_group_finish", "part2_parse_compositing_layer", "part2_raw_layer_boxes", "part2_raw_layer_step",
+    )
+} | {("src/limits.rs", "resource_codestream_limit")}
+_RAW_LAYER_HEADER_PROOFS = {
+    ("src/jp2/proof_support.rs", name) for name in (
+        "registration_outcome", "full_color_group_view", "color_group_outcome", "opacity_outcome",
+        "raw_compositing_layer_view", "raw_compositing_layer_outcome", "raw_compositing_layer_state", "raw_compositing_layer_payload_reference",
+    )
+} | {
+    ("specs/jp2_layer.rs", name) for name in ("part2_registration_step", "part2_registration_error")
+} | {("src/limits.rs", "ResourceLimits::maximum_codestreams")}
 _METADATA_TREE_ENTRY = "part2-complete-native-raw-metadata-tree-result"
 _METADATA_TREE_CONTRACTS = {
     ("src/jp2/metadata.rs", "inspect_metadata_box"): (
@@ -3230,6 +3301,91 @@ def validate_normative_coverage(
     ids: set[str] = set()
     contract_functions: set[tuple[str, str]] = set()
     for entry in coverage["requirements"]:
+        if entry["id"] == _RAW_COMPOSITION_ENTRY:
+            if {(ref["path"], ref["symbol"]) for ref in entry["contract_refs"]} != set(_RAW_COMPOSITION_CONTRACTS):
+                raise ValueError("whole raw composition Results require actual cursor/dimension/instruction/composition/reference contracts")
+            if not _RAW_COMPOSITION_MODELS.issubset({(ref["path"], ref["symbol"]) for ref in entry["spec_refs"]}) \
+                    or not _RAW_COMPOSITION_PROOFS.issubset({(ref["path"], ref["symbol"]) for ref in entry["proof_refs"]}):
+                raise ValueError("whole raw composition Results require full source/cursor/record/output/reference bridges")
+            path = (ROOT / "src/jp2/composition.rs").resolve()
+            for name, required in {
+                "read_u32_at": ("position.checked_add(4)", "input.get(*position..end)", "*position = end"),
+                "validate_dimensions": ("width == 0 || height == 0", "width > limits.maximum_width()", "height > limits.maximum_height()", "pixels > limits.maximum_pixels()"),
+                "parse_instruction_set": (
+                    "flags & !0x0027 != 0", "have_source_region = flags & 32 != 0",
+                    "persistent = encoded_life & 0x8000_0000 != 0", "life_value = encoded_life & 0x7fff_ffff",
+                    "life_value.checked_mul(tick)", "source_height = read_u32_at(box_ref.payload, &mut cursor, offset)?",
+                    "instructions.push(CompositionInstruction { target_x, target_y, target_width, target_height, life, persistent, next_reuse, source_x, source_y, source_width, source_height, })",
+                ),
+                "parse_composition": (
+                    "box_reader_from_input(box_ref.payload, limits)?", "options.is_some() || !instruction_sets.is_empty()",
+                    "validate_dimensions(width, height, limits, base_offset)?", "parse_instruction_set(",
+                    "actual as u64 > u64::from(limits.maximum_layers())", "encoded_loop_count == u8::MAX", "has_unknown_boxes = true",
+                ),
+                "validate_layer_references": (
+                    "layer_index >= codestream_count", "usize::from(registration.codestream_index) >= codestream_count", "layer.header.offset()",
+                ),
+            }.items():
+                body = _coverage_function_body(source_text(path), function_header(path, name))
+                if body is None or any("".join(item.split()) not in "".join(body.split()) for item in required):
+                    raise ValueError("whole raw composition Results require actual cursor/record/geometry/loop/reference handoffs")
+            model = source_text((ROOT / "specs/jp2_composition.rs").resolve())
+            for name, required in {
+                "part2_read_composition_word": ("end > usize::MAX as nat", "end > input.len()", "end as usize"),
+                "part2_instruction_record": (
+                    "source_width == 0 || source_height == 0", "if flags & 4 != 0 { encoded_life & 0x7fff_ffffu32 } else { 0u32 }",
+                    "life_value as nat * tick as nat", "life > u32::MAX as nat",
+                ),
+                "part2_parse_instruction_set": ("flags & !0x0027u16 != 0", "remaining % bytes != 0", "resource_work_limit(limits)"),
+                "part2_composition_finish": ("value.2 == u8::MAX", "(value.2 + 1) as u8"),
+            }.items():
+                actual = _coverage_spec_function_body(model, name)
+                if actual is None or any("".join(item.split()) not in "".join(actual.split()) for item in required):
+                    raise ValueError("whole raw composition Results require complete cursor/flags/record/life/loop models")
+        if entry["id"] == _RAW_LAYER_HEADER_ENTRY:
+            if {(ref["path"], ref["symbol"]) for ref in entry["contract_refs"]} != set(_RAW_LAYER_HEADER_CONTRACTS):
+                raise ValueError("whole raw layer Results require actual registration/color/opacity/borrowed layer contracts")
+            if not _RAW_LAYER_HEADER_MODELS.issubset({(ref["path"], ref["symbol"]) for ref in entry["spec_refs"]}) \
+                    or not _RAW_LAYER_HEADER_PROOFS.issubset({(ref["path"], ref["symbol"]) for ref in entry["proof_refs"]}):
+                raise ValueError("whole raw layer Results require complete ordered metadata/registration/borrow bridges")
+            path = (ROOT / "src/jp2/composition.rs").resolve()
+            for name, required in {
+                "parse_codestream_registration": (
+                    "horizontal_grid_size == 0 || vertical_grid_size == 0", "count as u64 > u64::from(limits.maximum_codestreams())",
+                    "horizontal_subsampling == 0", "vertical_subsampling == 0",
+                    "u16::from(horizontal_offset) >= horizontal_grid_size", "u16::from(vertical_offset) >= vertical_grid_size",
+                    "position.checked_add(6)",
+                ),
+                "parse_color_group": (
+                    "box_reader_from_input(box_ref.payload, limits)?", "colors.push(parse_color_specification(child, base_offset)?)",
+                    "colors.len() as u64 > u64::from(limits.maximum_components())",
+                ),
+                "parse_layer_opacity": (
+                    "add_offset(base_offset, box_ref.header.offset())?", "let channels = box_ref.payload[1]",
+                    "copy_bytes(&box_ref.payload[2..])?", "channels == 0",
+                ),
+                "parse_compositing_layer": (
+                    "box_reader_from_input(box_ref.payload, limits)?", "parse_codestream_registration(child, base_offset, limits)?",
+                    "opacity.is_some() || !channel_definition_records.is_empty()", "parse_channel_definition(child, u16::MAX, base_offset)?",
+                    "inspect_metadata_box(child, limits, 1, u32::MAX - 1)?",
+                    "header: box_ref.header", "payload: box_ref.payload",
+                ),
+            }.items():
+                body = _coverage_function_body(source_text(path), function_header(path, name))
+                if body is None or any("".join(item.split()) not in "".join(body.split()) for item in required):
+                    raise ValueError("whole raw layer Results require actual source registration/ICC/key/borrow/metadata handoffs")
+            model = source_text((ROOT / "specs/jp2_layer.rs").resolve())
+            for name, required in {
+                "part2_parse_codestream_registration": ("horizontal == 0 || vertical == 0", "resource_codestream_limit(limits)",),
+                "part2_registration_entry": ("horizontal_offset as u16 >= horizontal", "vertical_offset as u16 >= vertical"),
+                "part2_parse_layer_opacity": ("part2_box_add_offset(base, input.0.1)", "payload.subrange(2, payload.len() as int)", "channels: payload[1]"),
+                "part2_color_group_boxes": ("colors.push(value)", "resource_component_limit(&limits)", "part2_parse_color_specification(input, base)"),
+                "part2_parse_compositing_layer": ("header: input.0, payload: input.1", "has_registration: false"),
+                "part2_raw_layer_step": ("part2_inspect_metadata_box(input, limits, 1, (u32::MAX - 1) as u32)", "layer.opacity.is_some() || layer.definitions.len() > 0"),
+            }.items():
+                actual = _coverage_spec_function_body(model, name)
+                if actual is None or any("".join(item.split()) not in "".join(actual.split()) for item in required):
+                    raise ValueError("whole raw layer Results require full registration/ICC/key/borrow/order models")
         if entry["id"] == _METADATA_TREE_ENTRY:
             if {(ref["path"], ref["symbol"]) for ref in entry["contract_refs"]} != set(_METADATA_TREE_CONTRACTS):
                 raise ValueError("whole raw metadata tree Result requires actual recursive native producer contract")
@@ -5526,6 +5682,10 @@ def validate_normative_coverage(
                     if entry["id"] == _ASSOCIATED_HEADER_ENTRY else None)
                 or (_METADATA_TREE_CONTRACTS.get((reference["path"], reference["symbol"]))
                     if entry["id"] == _METADATA_TREE_ENTRY else None)
+                or (_RAW_LAYER_HEADER_CONTRACTS.get((reference["path"], reference["symbol"]))
+                    if entry["id"] == _RAW_LAYER_HEADER_ENTRY else None)
+                or (_RAW_COMPOSITION_CONTRACTS.get((reference["path"], reference["symbol"]))
+                    if entry["id"] == _RAW_COMPOSITION_ENTRY else None)
                 or _CODESTREAM_READER_CONTRACTS.get((reference["path"], reference["symbol"]))
                 or _SOT_READER_CONTRACTS.get((reference["path"], reference["symbol"]))
                 or _TILE_DATA_WINDOW_CONTRACTS.get((reference["path"], reference["symbol"]))

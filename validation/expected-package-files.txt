@@ -26,9 +26,11 @@ specs/jp2_associated_header.rs
 specs/jp2_box_reader.rs
 specs/jp2_channel_header.rs
 specs/jp2_color_header.rs
+specs/jp2_composition.rs
 specs/jp2_file_type.rs
 specs/jp2_header.rs
 specs/jp2_image_header.rs
+specs/jp2_layer.rs
 specs/jp2_metadata.rs
 specs/jp2_palette.rs
 specs/jp2_resolution.rs

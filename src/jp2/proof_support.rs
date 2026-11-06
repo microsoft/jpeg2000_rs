@@ -278,6 +278,87 @@ verus! {
         match result { Err(error) => Err(error), Ok(value) => Ok(full_color_specification_view(&value)) }
     }
 
+    pub open spec fn full_color_group_view(colors: Seq<ColorSpecification>) -> Seq<crate::specs::Part2ColorSpecification> {
+        Seq::new(colors.len(), |i: int| full_color_specification_view(&colors[i]))
+    }
+
+    pub open spec fn color_group_outcome(result: Result<Vec<ColorSpecification>, DecodeError>)
+        -> Result<Seq<crate::specs::Part2ColorSpecification>, DecodeError> {
+        match result { Err(error) => Err(error), Ok(colors) => Ok(full_color_group_view(colors@)) }
+    }
+
+    pub open spec fn registration_outcome(result: Result<(u16, u16, Vec<CodestreamRegistration>), DecodeError>)
+        -> Result<crate::specs::Part2RawRegistration, DecodeError> {
+        match result { Err(error) => Err(error), Ok(value) => Ok((value.0, value.1, value.2@)) }
+    }
+
+    pub open spec fn raw_instruction_set_view(value: &CompositionInstructionSet) -> crate::specs::Part2RawInstructionSet {
+        (value.flags, value.repeat, value.tick, value.instructions@)
+    }
+
+    pub open spec fn raw_instruction_set_outcome(result: Result<CompositionInstructionSet, DecodeError>)
+        -> Result<crate::specs::Part2RawInstructionSet, DecodeError> {
+        match result { Err(error) => Err(error), Ok(value) => Ok(raw_instruction_set_view(&value)) }
+    }
+
+    pub open spec fn raw_instruction_sets_view(values: Seq<CompositionInstructionSet>) -> Seq<crate::specs::Part2RawInstructionSet> {
+        Seq::new(values.len(), |i: int| raw_instruction_set_view(&values[i]))
+    }
+
+    pub open spec fn raw_composition_view(value: &Composition) -> crate::specs::Part2RawComposition {
+        (value.width, value.height, value.loop_count, raw_instruction_sets_view(value.instruction_sets@), value.has_unknown_boxes)
+    }
+
+    pub open spec fn raw_composition_outcome(result: Result<Composition, DecodeError>)
+        -> Result<crate::specs::Part2RawComposition, DecodeError> {
+        match result { Err(error) => Err(error), Ok(value) => Ok(raw_composition_view(&value)) }
+    }
+
+    pub open spec fn opacity_outcome(result: Result<LayerOpacity, DecodeError>)
+        -> Result<crate::specs::Part2SourceOpacity, DecodeError> {
+        match result { Err(error) => Err(error), Ok(value) => Ok(source_opacity_value_view(&value)) }
+    }
+
+    pub closed spec fn raw_compositing_layer_view(layer: &CompositingLayer) -> crate::specs::Part2RawCompositingLayer {
+        crate::specs::Part2RawCompositingLayer {
+            header: box_header_view(layer.header), payload: layer.payload@,
+            horizontal: layer.horizontal_grid_size, vertical: layer.vertical_grid_size,
+            registrations: layer.registrations@, colors: full_color_group_view(layer.color_group@),
+            definitions: channel_definition_records_view(layer.channel_definition_records@),
+            opacity: match &layer.opacity { None => None, Some(value) => Some(source_opacity_value_view(value)) },
+            nested_metadata: layer.nested_metadata_boxes,
+        }
+    }
+
+    pub closed spec fn raw_compositing_layer_payload_reference<'a>(layer: &CompositingLayer<'a>) -> &'a [u8] {
+        layer.payload
+    }
+
+    pub open spec fn raw_compositing_layers_view(layers: Seq<CompositingLayer>) -> Seq<crate::specs::Part2RawCompositingLayer> {
+        Seq::new(layers.len(), |i: int| raw_compositing_layer_view(&layers[i]))
+    }
+
+    pub open spec fn raw_compositing_layer_outcome(result: Result<CompositingLayer, DecodeError>)
+        -> Result<crate::specs::Part2RawCompositingLayer, DecodeError> {
+        match result { Err(error) => Err(error), Ok(value) => Ok(raw_compositing_layer_view(&value)) }
+    }
+
+    pub open spec fn raw_compositing_layer_state(
+        input: BoxRef, horizontal: u16, vertical: u16, registrations: Seq<CodestreamRegistration>,
+        colors: Seq<ColorSpecification>, definitions: Seq<ChannelDefinitionRecord>, opacity: &Option<LayerOpacity>,
+        nested_metadata: u32, has_registration: bool,
+    ) -> crate::specs::Part2RawLayerState {
+        crate::specs::Part2RawLayerState {
+            layer: crate::specs::Part2RawCompositingLayer {
+                header: box_header_view(input.header), payload: input.payload@, horizontal, vertical, registrations,
+                colors: full_color_group_view(colors), definitions: channel_definition_records_view(definitions),
+                opacity: match opacity { None => None, Some(value) => Some(source_opacity_value_view(value)) },
+                nested_metadata,
+            },
+            has_registration,
+        }
+    }
+
     pub open spec fn optional_profile_bytes(profile: Option<&[u8]>) -> Option<Seq<u8>> {
         match profile { None => None, Some(bytes) => Some(bytes@) }
     }
