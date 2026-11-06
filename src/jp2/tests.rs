@@ -1998,6 +1998,383 @@ fn actual_raw_jp2_header_uses_actual_mapping_count_at_the_channel_definition_sit
     );
 }
 
+fn raw_associated_defaults() -> Jp2Header {
+    Jp2Header {
+        image: ImageHeader {
+            width: 3,
+            height: 2,
+            components: 3,
+            bit_depth: ComponentBitDepth::Uniform {
+                bits: 8,
+                signed: false,
+            },
+            unknown_color_space: true,
+            intellectual_property: true,
+        },
+        color: ColorSpecification {
+            method: ColorMethod::AnyIcc { profile_bytes: 5 },
+            precedence: 173,
+            approximation: 219,
+            icc_profile: Some(vec![1, 128, 255, 0, 17]),
+        },
+        nested_box_count: 99,
+        palette_entries: 37,
+        palette_columns: 19,
+        component_mapping_entries: 21,
+        channel_definitions: 22,
+        palette: Some(Palette {
+            entries: 2,
+            columns: vec![
+                PaletteColumn {
+                    precision: 8,
+                    signed: false,
+                },
+                PaletteColumn {
+                    precision: 8,
+                    signed: true,
+                },
+            ],
+            values: vec![5, -128, 7, 127],
+        }),
+        component_mappings: vec![
+            ComponentMapping {
+                component: 0,
+                mapping_type: MappingType::Palette { column: 0 },
+            },
+            ComponentMapping {
+                component: 1,
+                mapping_type: MappingType::Palette { column: 1 },
+            },
+        ],
+        channel_definition_records: vec![ChannelDefinitionRecord {
+            channel: 1,
+            definition: ChannelDefinition::new(
+                ChannelType::PremultipliedOpacity,
+                ChannelAssociation::WholeImage,
+            ),
+        }],
+        capture_resolution: Some(Resolution {
+            vertical_numerator: 1,
+            vertical_denominator: 257,
+            horizontal_numerator: 513,
+            horizontal_denominator: u16::MAX,
+            vertical_exponent: -128,
+            horizontal_exponent: 127,
+        }),
+        display_resolution: None,
+    }
+}
+
+#[test]
+fn actual_native_metadata_clone_preserves_every_arbitrary_field_and_deep_owner() {
+    let source = raw_associated_defaults();
+    let cloned = source.clone();
+    assert_eq!(cloned, source);
+    assert_ne!(
+        cloned.color.icc_profile().unwrap().as_ptr(),
+        source.color.icc_profile().unwrap().as_ptr()
+    );
+    let (cloned_palette, source_palette) = (
+        cloned.palette.as_ref().unwrap(),
+        source.palette.as_ref().unwrap(),
+    );
+    assert_ne!(
+        cloned_palette.columns.as_ptr(),
+        source_palette.columns.as_ptr()
+    );
+    assert_ne!(
+        cloned_palette.values.as_ptr(),
+        source_palette.values.as_ptr()
+    );
+    assert_ne!(
+        cloned.component_mappings.as_ptr(),
+        source.component_mappings.as_ptr()
+    );
+    assert_ne!(
+        cloned.channel_definition_records.as_ptr(),
+        source.channel_definition_records.as_ptr()
+    );
+    assert_eq!(super::clone_support::jp2_header_clone(&source), source);
+    assert_eq!(super::clone_support::optional_palette_clone(&None), None);
+}
+
+#[test]
+fn actual_native_metadata_clone_keeps_invalid_palette_metadata_without_a_validity_premise() {
+    let mut source = raw_associated_defaults();
+    source.palette = Some(Palette {
+        entries: 0,
+        columns: vec![PaletteColumn {
+            precision: 0,
+            signed: true,
+        }],
+        values: vec![i64::MIN, i64::MAX],
+    });
+    source.image.components = 0;
+    source.image.bit_depth = ComponentBitDepth::Variable;
+    let cloned = source.clone();
+    assert_eq!(cloned, source);
+    assert_eq!(
+        super::clone_support::palette_clone(source.palette.as_ref().unwrap()),
+        source.palette.unwrap()
+    );
+}
+
+#[test]
+fn actual_raw_associated_header_complete_first_parse_preempts_defaults_and_fallback_errors() {
+    let defaults = raw_associated_defaults();
+    let mut payload = raw_jp2_header_image(7, 1);
+    payload.extend_from_slice(&raw_jp2_header_color());
+    let header = super::headers::parse_codestream_header(
+        &payload,
+        Some(&defaults),
+        &ResourceLimits::default(),
+        100,
+    )
+    .unwrap();
+    assert_eq!(
+        header.color.method(),
+        ColorMethod::Enumerated { color_space: 16 }
+    );
+    assert_eq!(header.palette, None);
+    assert_eq!(header.nested_box_count, 2);
+    assert_eq!(header.image.components, 1);
+    assert!(
+        super::headers::parse_codestream_header(&payload, None, &ResourceLimits::default(), 100)
+            .is_ok()
+    );
+    assert_eq!(
+        super::headers::parse_codestream_header(&[0], None, &ResourceLimits::default(), 100).err(),
+        Some(DecodeError::MalformedInput {
+            offset: 100,
+            kind: MalformedKind::MissingRequiredStructure
+        })
+    );
+}
+
+#[test]
+fn actual_raw_associated_header_inherits_full_defaults_counts_and_independent_owners() {
+    let mut defaults = raw_associated_defaults();
+    defaults.image.bit_depth = ComponentBitDepth::Variable;
+    let mut expected = defaults.clone();
+    expected.nested_box_count = 0;
+    let header = super::headers::parse_codestream_header(
+        &[],
+        Some(&defaults),
+        &ResourceLimits::default(),
+        u64::MAX,
+    )
+    .unwrap();
+    assert_eq!(header, expected);
+    assert_eq!(
+        (
+            header.palette_entries,
+            header.palette_columns,
+            header.component_mapping_entries,
+            header.channel_definitions
+        ),
+        (37, 19, 21, 22)
+    );
+    assert_ne!(
+        header.color.icc_profile().unwrap().as_ptr(),
+        defaults.color.icc_profile().unwrap().as_ptr()
+    );
+    assert_ne!(
+        header.palette.as_ref().unwrap().values.as_ptr(),
+        defaults.palette.as_ref().unwrap().values.as_ptr()
+    );
+}
+
+#[test]
+fn actual_raw_associated_header_image_override_clears_only_original_palette_record_owners() {
+    let defaults = raw_associated_defaults();
+    let payload = box32(*b"ihdr", &raw_image_header_payload(5, 7, 1, 7, [0, 1]));
+    let header = super::headers::parse_codestream_header(
+        &payload,
+        Some(&defaults),
+        &ResourceLimits::default(),
+        100,
+    )
+    .unwrap();
+    assert_eq!(header.image.width, 5);
+    assert_eq!(header.image.height, 7);
+    assert_eq!(header.image.components, 1);
+    assert_eq!(header.palette, None);
+    assert!(header.component_mappings.is_empty());
+    assert!(header.channel_definition_records.is_empty());
+    assert_eq!(
+        (
+            header.palette_entries,
+            header.palette_columns,
+            header.component_mapping_entries,
+            header.channel_definitions
+        ),
+        (0, 0, 0, 0)
+    );
+    assert_eq!(header.color, defaults.color);
+    assert_eq!(header.capture_resolution, defaults.capture_resolution);
+    assert_eq!(header.nested_box_count, 1);
+}
+
+#[test]
+fn actual_raw_associated_header_preserves_bpcc_before_image_and_override_only_final_requirement() {
+    let defaults = raw_associated_defaults();
+    let image = raw_jp2_header_image(u8::MAX, 3);
+    assert_eq!(
+        super::headers::parse_codestream_header(
+            &image,
+            Some(&defaults),
+            &ResourceLimits::default(),
+            100
+        )
+        .err(),
+        Some(DecodeError::MalformedInput {
+            offset: 100,
+            kind: MalformedKind::MissingRequiredStructure
+        })
+    );
+    let mut payload = box32(*b"bpcc", &[7, 0x87, 37]);
+    payload.extend_from_slice(&image);
+    let header = super::headers::parse_codestream_header(
+        &payload,
+        Some(&defaults),
+        &ResourceLimits::default(),
+        100,
+    )
+    .unwrap();
+    assert_eq!(header.image.bit_depth, ComponentBitDepth::Variable);
+    assert_eq!(header.nested_box_count, 2);
+    assert_eq!(header.palette, None);
+}
+
+#[test]
+fn actual_raw_associated_header_uses_real_first_color_palette_mapping_definition_resolution_overrides()
+ {
+    let defaults = raw_associated_defaults();
+    let mut payload = box32(*b"colr", &[3, 7, 9, 11, 12]);
+    payload.extend_from_slice(&raw_jp2_header_color());
+    payload.extend_from_slice(&box32(*b"pclr", &[0, 1, 1, 0, 1]));
+    payload.extend_from_slice(&box32(*b"cmap", &[0, 0, 1, 0]));
+    payload.extend_from_slice(&box32(
+        *b"cdef",
+        &raw_channel_definition_payload(&[(0, 1, 0)]),
+    ));
+    payload.extend_from_slice(&box32(
+        *b"res ",
+        &box32(*b"resc", &raw_resolution_payload()),
+    ));
+    let header = super::headers::parse_codestream_header(
+        &payload,
+        Some(&defaults),
+        &ResourceLimits::default(),
+        100,
+    )
+    .unwrap();
+    assert_eq!(
+        header.color.method(),
+        ColorMethod::AnyIcc { profile_bytes: 2 }
+    );
+    assert_eq!(
+        (header.color.precedence, header.color.approximation),
+        (7, 9)
+    );
+    assert_eq!(header.color.icc_profile(), Some(&[11, 12][..]));
+    assert_eq!(
+        (
+            header.palette_entries,
+            header.palette_columns,
+            header.component_mapping_entries,
+            header.channel_definitions
+        ),
+        (1, 1, 1, 1)
+    );
+    assert_eq!(header.palette.unwrap().values, vec![1]);
+    assert_eq!(
+        header.component_mappings,
+        vec![ComponentMapping {
+            component: 0,
+            mapping_type: MappingType::Palette { column: 0 }
+        }]
+    );
+    assert_eq!(
+        header.channel_definition_records[0].definition,
+        ChannelDefinition::new(ChannelType::Opacity, ChannelAssociation::WholeImage)
+    );
+    assert!(header.capture_resolution.is_some());
+    assert_eq!(header.display_resolution, None);
+    assert_eq!(header.nested_box_count, 6);
+}
+
+#[test]
+fn actual_raw_associated_header_keeps_override_order_before_payload_validation() {
+    let defaults = raw_associated_defaults();
+    let mut prefix = box32(*b"cmap", &[0, 0, 0, 0]);
+    let offset = 100 + prefix.len() as u64;
+    prefix.extend_from_slice(&box32(*b"pclr", &[]));
+    assert_eq!(
+        super::headers::parse_codestream_header(
+            &prefix,
+            Some(&defaults),
+            &ResourceLimits::default(),
+            100
+        )
+        .err(),
+        Some(DecodeError::MalformedInput {
+            offset,
+            kind: MalformedKind::InvalidBoxOrder
+        })
+    );
+    let mut prefix = box32(*b"res ", &box32(*b"resc", &raw_resolution_payload()));
+    let offset = 100 + prefix.len() as u64;
+    prefix.extend_from_slice(&box32(*b"res ", &[]));
+    assert_eq!(
+        super::headers::parse_codestream_header(
+            &prefix,
+            Some(&defaults),
+            &ResourceLimits::default(),
+            100
+        )
+        .err(),
+        Some(DecodeError::MalformedInput {
+            offset,
+            kind: MalformedKind::InvalidBoxOrder
+        })
+    );
+}
+
+#[test]
+fn actual_raw_associated_header_keeps_unknown_count_and_missing_default_before_second_input_limit()
+{
+    let defaults = raw_associated_defaults();
+    let payload = box32(*b"xml ", &[7]);
+    let header = super::headers::parse_codestream_header(
+        &payload,
+        Some(&defaults),
+        &ResourceLimits::default(),
+        100,
+    )
+    .unwrap();
+    assert_eq!(header.nested_box_count, 1);
+    assert_eq!(header.palette_entries, 37);
+    let limits = ResourceLimits::default()
+        .with_maximum_input_bytes(1)
+        .unwrap();
+    assert_eq!(
+        super::headers::parse_codestream_header(&payload, None, &limits, 100).err(),
+        Some(DecodeError::MalformedInput {
+            offset: 100,
+            kind: MalformedKind::MissingRequiredStructure
+        })
+    );
+    assert_eq!(
+        super::headers::parse_codestream_header(&payload, Some(&defaults), &limits, 100).err(),
+        Some(DecodeError::LimitExceeded {
+            resource: Resource::InputBytes,
+            limit: 1,
+            actual: 9
+        })
+    );
+}
+
 fn valid_ht_codestream(width: u32, height: u32, style: u8) -> Vec<u8> {
     let mut siz = Vec::new();
     siz.extend_from_slice(&0x4000_u16.to_be_bytes());

@@ -2617,6 +2617,51 @@ _DECODER_LAYOUT_CONTRACTS = {
 
 
 _SOURCE_OPACITY_ENTRY = "part2-complete-native-source-layer-opacity-result"
+_OWNED_HEADER_CLONE_ENTRY = "part2-complete-native-owned-header-clone-producers"
+_OWNED_HEADER_CLONE_CONTRACTS = {
+    ("src/jp2/clone_support.rs", "color_specification_clone"): (
+        "part2_color_specification_clone", _coverage_call("super::full_color_specification_view", r"&\s*\1"), None,
+        _coverage_call("super::full_color_specification_view", "source"),
+    ),
+    ("src/jp2/clone_support.rs", "palette_clone"): (
+        "part2_owned_palette_clone", _coverage_call("super::palette_view", r"&\s*\1"), None,
+        _coverage_call("super::palette_view", "source"),
+    ),
+    ("src/jp2/clone_support.rs", "optional_palette_clone"): (
+        "part2_optional_palette_clone", _coverage_call("super::optional_palette_view", r"&\s*\1"), None,
+        _coverage_call("super::optional_palette_view", "source"),
+    ),
+    ("src/jp2/clone_support.rs", "jp2_header_clone"): (
+        "part2_jp2_header_clone", _coverage_call("super::raw_jp2_header_view", r"&\s*\1"), None,
+        _coverage_call("super::raw_jp2_header_view", "source"),
+    ),
+}
+_OWNED_HEADER_CLONE_MODELS = {
+    ("specs/jp2_associated_header.rs", name) for name in (
+        "part2_color_specification_clone", "part2_owned_palette_clone", "part2_optional_palette_clone", "part2_jp2_header_clone",
+    )
+}
+_OWNED_HEADER_CLONE_PROOFS = {
+    ("src/jp2/proof_support.rs", name) for name in (
+        "full_color_specification_view", "palette_view", "optional_palette_view", "raw_jp2_header_view",
+    )
+}
+_ASSOCIATED_HEADER_ENTRY = "part2-complete-native-associated-codestream-header-result"
+_ASSOCIATED_HEADER_CONTRACTS = {
+    ("src/jp2/headers.rs", "parse_codestream_header"): (
+        "part2_parse_codestream_header", _coverage_call("super::raw_jp2_header_outcome", r"\1"), None,
+        r"payload\s*@\s*,\s*" + _coverage_call("super::raw_header_option", "defaults") + r"\s*,\s*\*\s*limits\s*,\s*base_offset",
+    ),
+}
+_ASSOCIATED_HEADER_MODELS = {
+    ("specs/jp2_associated_header.rs", name) for name in (
+        "part2_parse_codestream_header", "part2_associated_header_boxes", "part2_associated_header_step",
+        "part2_associated_header_finish", "part2_jp2_header_clone",
+    )
+} | {("specs/jp2_header.rs", "part2_parse_jp2_header")}
+_ASSOCIATED_HEADER_PROOFS = {
+    ("src/jp2/proof_support.rs", name) for name in ("raw_header_option", "associated_header_state", "raw_jp2_header_outcome")
+} | {("src/jp2/clone_support.rs", "jp2_header_clone")}
 _RAW_JP2_HEADER_ENTRY = "part2-complete-native-raw-jp2-header-result"
 _RAW_JP2_HEADER_CONTRACTS = {
     ("src/jp2/headers.rs", "parse_jp2_header"): (
@@ -3166,6 +3211,72 @@ def validate_normative_coverage(
     ids: set[str] = set()
     contract_functions: set[tuple[str, str]] = set()
     for entry in coverage["requirements"]:
+        if entry["id"] == _OWNED_HEADER_CLONE_ENTRY:
+            if {(ref["path"], ref["symbol"]) for ref in entry["contract_refs"]} != set(_OWNED_HEADER_CLONE_CONTRACTS):
+                raise ValueError("whole owned header clone Results require all four actual clone producer contracts")
+            if not _OWNED_HEADER_CLONE_MODELS.issubset({(ref["path"], ref["symbol"]) for ref in entry["spec_refs"]}) \
+                    or not _OWNED_HEADER_CLONE_PROOFS.issubset({(ref["path"], ref["symbol"]) for ref in entry["proof_refs"]}):
+                raise ValueError("whole owned header clone Results require complete profile/palette/header metadata bridges")
+            path = (ROOT / "src/jp2/clone_support.rs").resolve()
+            for name, required in {
+                "color_specification_clone": (
+                    "method: Clone::clone(&source.method)", "precedence: Clone::clone(&source.precedence)",
+                    "approximation: Clone::clone(&source.approximation)", "icc_profile: Clone::clone(&source.icc_profile)",
+                ),
+                "palette_clone": (
+                    "entries: Clone::clone(&source.entries)", "columns: Clone::clone(&source.columns)", "values: Clone::clone(&source.values)",
+                ),
+                "optional_palette_clone": ("None => None", "Some(palette) => Some(palette_clone(palette))"),
+                "jp2_header_clone": (
+                    "color: color_specification_clone(&source.color)", "palette: optional_palette_clone(&source.palette)",
+                    "component_mappings: Clone::clone(&source.component_mappings)",
+                    "channel_definition_records: Clone::clone(&source.channel_definition_records)",
+                ),
+            }.items():
+                body = _coverage_function_body(source_text(path), function_header(path, name))
+                if body is None or any("".join(item.split()) not in "".join(body.split()) for item in required):
+                    raise ValueError("whole owned header clone Results require actual original field clone and optional routing bodies")
+            model = source_text((ROOT / "specs/jp2_associated_header.rs").resolve())
+            for _, name in _OWNED_HEADER_CLONE_MODELS:
+                if (_coverage_spec_function_body(model, name) or "").strip() != "value":
+                    raise ValueError("whole owned header clone Results require complete unchanged metadata identity models")
+        if entry["id"] == _ASSOCIATED_HEADER_ENTRY:
+            if {(ref["path"], ref["symbol"]) for ref in entry["contract_refs"]} != set(_ASSOCIATED_HEADER_CONTRACTS):
+                raise ValueError("whole associated-header Result requires actual complete native parser contract")
+            if not _ASSOCIATED_HEADER_MODELS.issubset({(ref["path"], ref["symbol"]) for ref in entry["spec_refs"]}) \
+                    or not _ASSOCIATED_HEADER_PROOFS.issubset({(ref["path"], ref["symbol"]) for ref in entry["proof_refs"]}):
+                raise ValueError("whole associated-header Result requires actual full/default-clone/override metadata bridges")
+            path = (ROOT / "src/jp2/headers.rs").resolve()
+            body = _coverage_function_body(source_text(path), function_header(path, "parse_codestream_header"))
+            required = (
+                "if let Ok(header) = parse_jp2_header(payload, limits, base_offset)",
+                "super::clone_support::jp2_header_clone(default_header)", "box_reader_from_input(payload, limits)?",
+                "header.palette = None", "header.component_mappings.clear()", "header.channel_definition_records.clear()",
+                "palette_override || mapping_override || definition_override", "mapping_override || definition_override",
+                "if resolution_override", "if image_override && matches!(header.image.bit_depth, ComponentBitDepth::Variable) != saw_bpcc",
+                "header.nested_box_count = nested_box_count",
+            )
+            if body is None or any("".join(item.split()) not in "".join(body.split()) for item in required):
+                raise ValueError("whole associated-header Result requires actual clone/clear/order/retained metadata handoffs")
+            model = source_text((ROOT / "specs/jp2_associated_header.rs").resolve())
+            for name, required in {
+                "part2_parse_codestream_header": (
+                    "part2_parse_jp2_header(payload, limits, base)", "None => Err(part2_raw_header_missing(base))",
+                    "part2_associated_header_boxes(payload, reader, Part2AssociatedHeaderState",
+                ),
+                "part2_associated_header_step": (
+                    "image, palette: None, mappings: Seq::empty(), definitions: Seq::empty()",
+                    "state.palette_override || state.mapping_override || state.definition_override",
+                    "part2_parse_color_specification(input, base)", "!state.color_override",
+                ),
+                "part2_associated_header_finish": (
+                    "state.image_override", "state.header.palette.is_some() && state.header.mappings.len() == 0",
+                    "nested_box_count: state.nested, ..state.header",
+                ),
+            }.items():
+                actual = _coverage_spec_function_body(model, name)
+                if actual is None or any("".join(item.split()) not in "".join(actual.split()) for item in required):
+                    raise ValueError("whole associated-header Result requires complete inherited/override/output models")
         if entry["id"] == _RAW_JP2_HEADER_ENTRY:
             if {(ref["path"], ref["symbol"]) for ref in entry["contract_refs"]} != set(_RAW_JP2_HEADER_CONTRACTS):
                 raise ValueError("whole raw JP2 header Result requires actual complete assembler contract")
@@ -5355,6 +5466,10 @@ def validate_normative_coverage(
                     if entry["id"] == _PALETTE_RESULT_ENTRY else None)
                 or (_RAW_JP2_HEADER_CONTRACTS.get((reference["path"], reference["symbol"]))
                     if entry["id"] == _RAW_JP2_HEADER_ENTRY else None)
+                or (_OWNED_HEADER_CLONE_CONTRACTS.get((reference["path"], reference["symbol"]))
+                    if entry["id"] == _OWNED_HEADER_CLONE_ENTRY else None)
+                or (_ASSOCIATED_HEADER_CONTRACTS.get((reference["path"], reference["symbol"]))
+                    if entry["id"] == _ASSOCIATED_HEADER_ENTRY else None)
                 or _CODESTREAM_READER_CONTRACTS.get((reference["path"], reference["symbol"]))
                 or _SOT_READER_CONTRACTS.get((reference["path"], reference["symbol"]))
                 or _TILE_DATA_WINDOW_CONTRACTS.get((reference["path"], reference["symbol"]))

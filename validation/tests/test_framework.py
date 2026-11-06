@@ -1030,6 +1030,151 @@ class FrameworkTests(WorkingFiles):
             framework._RAW_TILE_HEADER_CONTRACTS, 8,
         )
 
+    def test_inventory_binds_actual_complete_owned_header_clone_producers(self):
+        self._assert_complete_packet_contract_bindings(
+            {framework._OWNED_HEADER_CLONE_ENTRY}, framework._OWNED_HEADER_CLONE_CONTRACTS, 4, isolate=False,
+        )
+
+    def test_inventory_owned_header_clone_requires_every_actual_metadata_bridge(self):
+        coverage = json.loads((framework.VALIDATION / "normative-coverage.json").read_text())
+        entry = next(item for item in coverage["requirements"] if item["id"] == framework._OWNED_HEADER_CLONE_ENTRY)
+        for field in ("contract_refs", "spec_refs", "proof_refs"):
+            for removed in entry[field]:
+                changed = copy.deepcopy(entry)
+                changed[field].remove(removed)
+                expected_error = "should be non-empty" if not changed[field] else "whole owned header clone Results"
+                with self.subTest(field=field, removed=removed), self.assertRaisesRegex(ValueError, expected_error):
+                    framework.validate_normative_coverage(dict(coverage, requirements=[changed]))
+
+    def test_inventory_owned_header_clone_binds_original_profile_palette_and_optional_clone_bodies(self):
+        coverage = json.loads((framework.VALIDATION / "normative-coverage.json").read_text())
+        entry = next(item for item in coverage["requirements"] if item["id"] == framework._OWNED_HEADER_CLONE_ENTRY)
+        source = framework.ROOT / "src/jp2/clone_support.rs"
+        original = source.read_text()
+        read_text = Path.read_text
+        for before, after in (
+            ("icc_profile: Clone::clone(&source.icc_profile)", "icc_profile: None"),
+            ("values: Clone::clone(&source.values)", "values: Vec::new()"),
+            ("Some(palette) => Some(palette_clone(palette))", "Some(_palette) => None"),
+        ):
+            self.assertIn(before, original)
+            changed = original.replace(before, after, 1)
+
+            def altered(path, *args, **kwargs):
+                return changed if path == source else read_text(path, *args, **kwargs)
+
+            with self.subTest(before=before), mock.patch.object(Path, "read_text", altered), \
+                    self.assertRaisesRegex(ValueError, "actual original field clone and optional routing bodies"):
+                framework.validate_normative_coverage(dict(coverage, requirements=[entry]))
+
+    def test_inventory_owned_header_clone_rejects_trimmed_metadata_identity_models(self):
+        coverage = json.loads((framework.VALIDATION / "normative-coverage.json").read_text())
+        entry = next(item for item in coverage["requirements"] if item["id"] == framework._OWNED_HEADER_CLONE_ENTRY)
+        source = framework.ROOT / "specs/jp2_associated_header.rs"
+        original = source.read_text()
+        read_text = Path.read_text
+        for name in ("part2_color_specification_clone", "part2_owned_palette_clone", "part2_optional_palette_clone", "part2_jp2_header_clone"):
+            start = original.index(f"pub open spec fn {name}")
+            end = original.index("\n}", start) + 2
+            changed = original[:start] + original[start:end].replace("    value\n}", "    arbitrary()\n}") + original[end:]
+
+            def altered(path, *args, **kwargs):
+                return changed if path == source else read_text(path, *args, **kwargs)
+
+            with self.subTest(name=name), mock.patch.object(Path, "read_text", altered), \
+                    self.assertRaisesRegex(ValueError, "complete unchanged metadata identity models"):
+                framework.validate_normative_coverage(dict(coverage, requirements=[entry]))
+
+    def test_inventory_owned_header_clone_keeps_fresh_actual_clone_and_identity_caches(self):
+        coverage = json.loads((framework.VALIDATION / "normative-coverage.json").read_text())
+        entry = next(item for item in coverage["requirements"] if item["id"] == framework._OWNED_HEADER_CLONE_ENTRY)
+        read_text = Path.read_text
+        counts = {framework.ROOT / name: 0 for name in ("src/jp2/clone_support.rs", "specs/jp2_associated_header.rs")}
+
+        def counted(path, *args, **kwargs):
+            if path in counts:
+                counts[path] += 1
+            return read_text(path, *args, **kwargs)
+
+        with mock.patch.object(Path, "read_text", counted):
+            for expected in (1, 2):
+                self.assertEqual(framework.validate_normative_coverage(dict(coverage, requirements=[entry]))["status"], "passed")
+                self.assertEqual(set(counts.values()), {expected})
+
+    def test_inventory_binds_actual_complete_associated_header_result(self):
+        self._assert_complete_packet_contract_bindings(
+            {framework._ASSOCIATED_HEADER_ENTRY}, framework._ASSOCIATED_HEADER_CONTRACTS, 1, isolate=False,
+        )
+
+    def test_inventory_associated_header_requires_every_actual_default_override_bridge(self):
+        coverage = json.loads((framework.VALIDATION / "normative-coverage.json").read_text())
+        entry = next(item for item in coverage["requirements"] if item["id"] == framework._ASSOCIATED_HEADER_ENTRY)
+        for field in ("contract_refs", "spec_refs", "proof_refs"):
+            for removed in entry[field]:
+                changed = copy.deepcopy(entry)
+                changed[field].remove(removed)
+                expected_error = "should be non-empty" if not changed[field] else "whole associated-header Result"
+                with self.subTest(field=field, removed=removed), self.assertRaisesRegex(ValueError, expected_error):
+                    framework.validate_normative_coverage(dict(coverage, requirements=[changed]))
+
+    def test_inventory_associated_header_binds_actual_clone_clear_and_override_only_bpcc_handoffs(self):
+        coverage = json.loads((framework.VALIDATION / "normative-coverage.json").read_text())
+        entry = next(item for item in coverage["requirements"] if item["id"] == framework._ASSOCIATED_HEADER_ENTRY)
+        source = framework.ROOT / "src/jp2/headers.rs"
+        original = source.read_text()
+        read_text = Path.read_text
+        for before, after in (
+            ("super::clone_support::jp2_header_clone(default_header)", "default_header.clone()"),
+            ("header.component_mappings.clear()", "header.component_mappings.shrink_to_fit()"),
+            ("if image_override && matches!", "if true && matches!"),
+        ):
+            self.assertIn(before, original)
+            changed = original.replace(before, after, 1)
+
+            def altered(path, *args, **kwargs):
+                return changed if path == source else read_text(path, *args, **kwargs)
+
+            with self.subTest(before=before), mock.patch.object(Path, "read_text", altered), \
+                    self.assertRaisesRegex(ValueError, "actual clone/clear/order/retained metadata handoffs"):
+                framework.validate_normative_coverage(dict(coverage, requirements=[entry]))
+
+    def test_inventory_associated_header_rejects_trimmed_inherited_clear_and_count_models(self):
+        coverage = json.loads((framework.VALIDATION / "normative-coverage.json").read_text())
+        entry = next(item for item in coverage["requirements"] if item["id"] == framework._ASSOCIATED_HEADER_ENTRY)
+        source = framework.ROOT / "specs/jp2_associated_header.rs"
+        original = source.read_text()
+        read_text = Path.read_text
+        for before, after in (
+            ("image, palette: None, mappings: Seq::empty(), definitions: Seq::empty()", "image, palette: header.palette, mappings: header.mappings, definitions: header.definitions"),
+            ("!state.color_override", "true"),
+            ("nested_box_count: state.nested, ..state.header", "nested_box_count: 1, ..state.header"),
+        ):
+            self.assertIn(before, original)
+            changed = original.replace(before, after, 1)
+
+            def altered(path, *args, **kwargs):
+                return changed if path == source else read_text(path, *args, **kwargs)
+
+            with self.subTest(before=before), mock.patch.object(Path, "read_text", altered), \
+                    self.assertRaisesRegex(ValueError, "complete inherited/override/output models"):
+                framework.validate_normative_coverage(dict(coverage, requirements=[entry]))
+
+    def test_inventory_associated_header_keeps_fresh_actual_header_and_inheritance_caches(self):
+        coverage = json.loads((framework.VALIDATION / "normative-coverage.json").read_text())
+        entry = next(item for item in coverage["requirements"] if item["id"] == framework._ASSOCIATED_HEADER_ENTRY)
+        read_text = Path.read_text
+        counts = {framework.ROOT / name: 0 for name in ("src/jp2/headers.rs", "specs/jp2_associated_header.rs")}
+
+        def counted(path, *args, **kwargs):
+            if path in counts:
+                counts[path] += 1
+            return read_text(path, *args, **kwargs)
+
+        with mock.patch.object(Path, "read_text", counted):
+            for expected in (1, 2):
+                self.assertEqual(framework.validate_normative_coverage(dict(coverage, requirements=[entry]))["status"], "passed")
+                self.assertEqual(set(counts.values()), {expected})
+
     def test_inventory_binds_actual_complete_raw_jp2_header_result(self):
         self._assert_complete_packet_contract_bindings(
             {framework._RAW_JP2_HEADER_ENTRY}, framework._RAW_JP2_HEADER_CONTRACTS, 1, isolate=False,

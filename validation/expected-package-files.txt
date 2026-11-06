@@ -22,6 +22,7 @@ specs/README.md
 specs/codestream_profile.rs
 specs/decoder_input.rs
 specs/header.rs
+specs/jp2_associated_header.rs
 specs/jp2_box_reader.rs
 specs/jp2_channel_header.rs
 specs/jp2_color_header.rs
@@ -126,6 +127,7 @@ src/image/samples.rs
 src/image/tests.rs
 src/image.rs
 src/jp2/box_reader.rs
+src/jp2/clone_support.rs
 src/jp2/color.rs
 src/jp2/composition.rs
 src/jp2/container.rs

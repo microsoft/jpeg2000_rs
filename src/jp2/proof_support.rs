@@ -383,6 +383,24 @@ verus! {
         match result { Err(error) => Err(error), Ok(header) => Ok(raw_jp2_header_view(&header)) }
     }
 
+    pub open spec fn raw_header_option(header: Option<&Jp2Header>) -> Option<crate::specs::Part2RawJp2Header> {
+        match header { None => None, Some(value) => Some(raw_jp2_header_view(value)) }
+    }
+
+    pub open spec fn optional_palette_view(palette: &Option<Palette>) -> Option<crate::specs::Part2PaletteModel> {
+        match palette { None => None, Some(value) => Some(palette_view(value)) }
+    }
+
+    pub open spec fn associated_header_state(
+        header: &Jp2Header, image_override: bool, color_override: bool, saw_bpcc: bool,
+        palette_override: bool, mapping_override: bool, definition_override: bool, resolution_override: bool, nested: u32,
+    ) -> crate::specs::Part2AssociatedHeaderState {
+        crate::specs::Part2AssociatedHeaderState {
+            header: raw_jp2_header_view(header), image_override, color_override, saw_bpcc,
+            palette_override, mapping_override, definition_override, resolution_override, nested,
+        }
+    }
+
     pub open spec fn output_header_view(header: &Jp2Header) -> crate::specs::Part2OutputHeader {
         (
             match &header.palette { Some(palette) => Some(palette_view(palette)), None => None },

@@ -4,6 +4,73 @@
   "scope": "Technical reference inventory; not exhaustive standards-clause coverage or a conformance claim.",
   "requirements": [
     {
+      "id": "part2-complete-native-associated-codestream-header-result",
+      "topic": "Complete actual associated codestream-header Result: initial full-parse priority, real default cloning and every inherited/overridden image/color/ICC/count/palette/mapping/definition/resolution field. Preserve vector clears, first override/order/error priorities and override-only BPCC requirement. Defaults are an actual native input, not asserted raw-derived/valid or supplied successful parser outputs. Original clone body extraction/public delegation, optional-palette/default callback routing and unused integer-error names need exact new native observation; no runtime proof clone or owner inversion. Whole file/tree/public/normative/cfg/erasure/lifetimes/release remain separate.",
+      "implementation_refs": [
+        {"path": "src/jp2/headers.rs", "symbol": "parse_codestream_header"},
+        {"path": "src/jp2/container.rs", "symbol": "parse"}
+      ],
+      "spec_refs": [
+        {"path": "specs/jp2_associated_header.rs", "symbol": "part2_parse_codestream_header"},
+        {"path": "specs/jp2_associated_header.rs", "symbol": "part2_associated_header_boxes"},
+        {"path": "specs/jp2_associated_header.rs", "symbol": "part2_associated_header_step"},
+        {"path": "specs/jp2_associated_header.rs", "symbol": "part2_associated_header_finish"},
+        {"path": "specs/jp2_associated_header.rs", "symbol": "part2_jp2_header_clone"},
+        {"path": "specs/jp2_header.rs", "symbol": "part2_parse_jp2_header"}
+      ],
+      "contract_refs": [
+        {"path": "src/jp2/headers.rs", "symbol": "parse_codestream_header"}
+      ],
+      "proof_refs": [
+        {"path": "src/jp2/proof_support.rs", "symbol": "raw_header_option"},
+        {"path": "src/jp2/proof_support.rs", "symbol": "associated_header_state"},
+        {"path": "src/jp2/proof_support.rs", "symbol": "raw_jp2_header_outcome"},
+        {"path": "src/jp2/clone_support.rs", "symbol": "jp2_header_clone"}
+      ],
+      "test_refs": [
+        {"path": "src/jp2/tests.rs", "symbol": "actual_raw_associated_header_complete_first_parse_preempts_defaults_and_fallback_errors"},
+        {"path": "src/jp2/tests.rs", "symbol": "actual_raw_associated_header_inherits_full_defaults_counts_and_independent_owners"},
+        {"path": "src/jp2/tests.rs", "symbol": "actual_raw_associated_header_image_override_clears_only_original_palette_record_owners"},
+        {"path": "src/jp2/tests.rs", "symbol": "actual_raw_associated_header_preserves_bpcc_before_image_and_override_only_final_requirement"},
+        {"path": "src/jp2/tests.rs", "symbol": "actual_raw_associated_header_uses_real_first_color_palette_mapping_definition_resolution_overrides"},
+        {"path": "src/jp2/tests.rs", "symbol": "actual_raw_associated_header_keeps_override_order_before_payload_validation"},
+        {"path": "src/jp2/tests.rs", "symbol": "actual_raw_associated_header_keeps_unknown_count_and_missing_default_before_second_input_limit"}
+      ]
+    },
+    {
+      "id": "part2-complete-native-owned-header-clone-producers",
+      "topic": "Actual shared executing color/palette/optional-palette/header clone producers preserve complete arbitrary metadata with original field clone bodies and owner cleanup scopes. Public Clone wrappers delegate; checked header body uses real checked color/optional-palette routing. No valid-metadata premise, owner reconstruction or proof-induced clone. Original derived native bodies observed exact except extraction/debug parameter labels and two header field-call retargets; optional/default routing/wrappers require full fresh native audit. Native lifetime/cfg/erasure/whole file/public/normative/release claims remain separate.",
+      "implementation_refs": [
+        {"path": "src/jp2/clone_support.rs", "symbol": "color_specification_clone"},
+        {"path": "src/jp2/clone_support.rs", "symbol": "palette_clone"},
+        {"path": "src/jp2/clone_support.rs", "symbol": "optional_palette_clone"},
+        {"path": "src/jp2/clone_support.rs", "symbol": "jp2_header_clone"},
+        {"path": "src/jp2/headers.rs", "symbol": "parse_codestream_header"}
+      ],
+      "spec_refs": [
+        {"path": "specs/jp2_associated_header.rs", "symbol": "part2_color_specification_clone"},
+        {"path": "specs/jp2_associated_header.rs", "symbol": "part2_owned_palette_clone"},
+        {"path": "specs/jp2_associated_header.rs", "symbol": "part2_optional_palette_clone"},
+        {"path": "specs/jp2_associated_header.rs", "symbol": "part2_jp2_header_clone"}
+      ],
+      "contract_refs": [
+        {"path": "src/jp2/clone_support.rs", "symbol": "color_specification_clone"},
+        {"path": "src/jp2/clone_support.rs", "symbol": "palette_clone"},
+        {"path": "src/jp2/clone_support.rs", "symbol": "optional_palette_clone"},
+        {"path": "src/jp2/clone_support.rs", "symbol": "jp2_header_clone"}
+      ],
+      "proof_refs": [
+        {"path": "src/jp2/proof_support.rs", "symbol": "full_color_specification_view"},
+        {"path": "src/jp2/proof_support.rs", "symbol": "palette_view"},
+        {"path": "src/jp2/proof_support.rs", "symbol": "optional_palette_view"},
+        {"path": "src/jp2/proof_support.rs", "symbol": "raw_jp2_header_view"}
+      ],
+      "test_refs": [
+        {"path": "src/jp2/tests.rs", "symbol": "actual_native_metadata_clone_preserves_every_arbitrary_field_and_deep_owner"},
+        {"path": "src/jp2/tests.rs", "symbol": "actual_native_metadata_clone_keeps_invalid_palette_metadata_without_a_validity_premise"}
+      ]
+    },
+    {
       "id": "part2-complete-native-raw-jp2-header-result",
       "topic": "Complete actual raw JP2 header assembler Result over bytes/limits/base: every image/color/ICC/count/palette/mapping/definition/resolution field and exact producer/error order. First color retained but all later colors parsed; actual initial required versus later progress-before-error priority; second resolution parsed before duplicate test; actual mapping count at definitions. Original owner scopes preserved, no supplied successful parsed-header bank/validity premise/owner inversion/runtime proof clone. One checked borrowed initializer retarget and four named unused Copy errors require future explicit MIR audit. Associated header cloning/whole container/inspection/public/normative/cfg/erasure/lifetimes/release remain separate.",
       "implementation_refs": [

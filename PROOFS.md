@@ -179,6 +179,32 @@ technical candidate only: parent-owned record, review, CI, guarded integration
 and actual-main acceptance remain separate. No complete parsing, pixels,
 lifetime verification, normative conformance or publication claim follows.
 
+## Actual complete associated codestream-header Result
+
+The actual associated-header producer retains its initial full-JP2-parse
+priority, exact fallback errors, actual default-header cloning and all image/
+color/palette/mapping/definition/resolution overrides. Complete Results include
+every retained metadata field and inherited count, actual vector clears, first
+override behavior and final requirements. Defaults are an actual native input
+to this producer; no claim that arbitrary defaults originate from raw bytes is
+made. No supplied successful decode/header-result bank or validity premise is
+introduced.
+
+The three original executing native derived-Clone bodies for color, palette and
+JP2 headers are shared checked producers, with thin public Clone delegation.
+The field-clone instructions and owning cleanup scopes were directly observed
+identical in both native configurations except exact extraction names/parameter
+debug labels and two header field-call retargets. An explicit optional-palette
+route is needed because the pinned generic Clone contract does not propagate
+its metadata. The fallback uses a checked native cloning callback, not a
+proof-induced clone. These routing/wrapper/callback changes require complete
+fresh native observation; they are not a blanket byte-identity, lifetime or
+allocation-panic claim. Scoped lint annotations retain the repository's explicit
+verified-case/checked-closure pattern.
+
+Whole container/tree/inspection/public composition, normative HOLD, coverage,
+cfg/erasure, lifetimes and release remain independent.
+
 ## Actual complete raw JP2 header Result
 
 The actual JP2-header assembler derives every image/color/ICC/count/palette/
