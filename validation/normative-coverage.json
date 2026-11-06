@@ -4,6 +4,34 @@
   "scope": "Technical reference inventory; not exhaustive standards-clause coverage or a conformance claim.",
   "requirements": [
     {
+      "id": "part2-complete-native-owned-codestream-association-clone-producers",
+      "topic": "Actual optional full-header and owned codestream-association Clone producers retain every box-header field, payload byte/reference, arbitrary optional header metadata and independent original native owners. Original derived field-clone body extracted into checked shared producer; one explicit optional-header clone routing target and thin public delegation. No raw-origin/validity premise, parsed-result bank, ghost assumption or reconstructed owner. Exact native extraction/routing/wrapper observation and full qualification required; complete container parser/public/normative/lifetime/cfg/release separate.",
+      "implementation_refs": [
+        {"path": "src/jp2.rs", "symbol": "CodestreamHeaderAssociation::clone"},
+        {"path": "src/jp2/clone_support.rs", "symbol": "optional_jp2_header_clone"},
+        {"path": "src/jp2/clone_support.rs", "symbol": "codestream_association_clone"},
+        {"path": "src/jp2/container.rs", "symbol": "parse"}
+      ],
+      "spec_refs": [
+        {"path": "specs/jp2_associated_header.rs", "symbol": "part2_optional_jp2_header_clone"},
+        {"path": "specs/jp2_associated_header.rs", "symbol": "part2_codestream_association_clone"}
+      ],
+      "contract_refs": [
+        {"path": "src/jp2/clone_support.rs", "symbol": "optional_jp2_header_clone"},
+        {"path": "src/jp2/clone_support.rs", "symbol": "codestream_association_clone"}
+      ],
+      "proof_refs": [
+        {"path": "src/jp2/proof_support.rs", "symbol": "optional_jp2_header_view"},
+        {"path": "src/jp2/proof_support.rs", "symbol": "raw_jp2_header_view"},
+        {"path": "src/jp2/proof_support.rs", "symbol": "raw_codestream_association_view"},
+        {"path": "src/jp2/proof_support.rs", "symbol": "raw_codestream_association_payload_reference"}
+      ],
+      "test_refs": [
+        {"path": "src/jp2/tests.rs", "symbol": "actual_native_association_clone_preserves_arbitrary_header_payload_and_independent_metadata_owners"},
+        {"path": "src/jp2/tests.rs", "symbol": "actual_native_association_clone_keeps_absent_and_invalid_metadata_without_a_validity_premise"}
+      ]
+    },
+    {
       "id": "part2-complete-native-raw-composition-and-reference-results",
       "topic": "Complete actual raw word cursor/dimension/instruction/composition/reference Results. Every optional instruction field, ordered record, encoded life/persistence/reuse/source region/repeat/tick, actual options/loop/unknown flags and first reference errors preserved. Native cursor old/final frames and eager offsets, geometry/count/life/order/resource priority retained; zero-life/default/no-record admission unchanged. Original output owners/scopes retained, no supplied parsed instruction/composition/result banks or validity premise. One checked composition reader retarget requires explicit future native audit; full file/public/normative/cfg/erasure/lifetimes/release separate.",
       "implementation_refs": [

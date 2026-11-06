@@ -2066,6 +2066,77 @@ fn raw_associated_defaults() -> Jp2Header {
 }
 
 #[test]
+fn actual_native_association_clone_preserves_arbitrary_header_payload_and_independent_metadata_owners()
+ {
+    let payload = [0, 128, 255, 17];
+    let source = CodestreamHeaderAssociation {
+        header: raw_metadata_box(&payload, *b"jpch", u64::MAX).header,
+        payload: &payload,
+        parsed: Some(raw_associated_defaults()),
+    };
+    let cloned = super::clone_support::codestream_association_clone(&source);
+    assert_eq!(cloned, source);
+    assert_eq!(cloned.payload.as_ptr(), source.payload.as_ptr());
+    assert_eq!(cloned.payload.len(), source.payload.len());
+    assert_eq!(source.clone(), source);
+    let (cloned_header, source_header) = (
+        cloned.parsed.as_ref().unwrap(),
+        source.parsed.as_ref().unwrap(),
+    );
+    assert_ne!(
+        cloned_header.color.icc_profile().unwrap().as_ptr(),
+        source_header.color.icc_profile().unwrap().as_ptr()
+    );
+    assert_ne!(
+        cloned_header.palette.as_ref().unwrap().columns.as_ptr(),
+        source_header.palette.as_ref().unwrap().columns.as_ptr()
+    );
+    assert_ne!(
+        cloned_header.palette.as_ref().unwrap().values.as_ptr(),
+        source_header.palette.as_ref().unwrap().values.as_ptr()
+    );
+    assert_ne!(
+        cloned_header.component_mappings.as_ptr(),
+        source_header.component_mappings.as_ptr()
+    );
+    assert_ne!(
+        cloned_header.channel_definition_records.as_ptr(),
+        source_header.channel_definition_records.as_ptr()
+    );
+    drop(source);
+    assert_eq!(cloned.payload, payload);
+    assert_eq!(cloned_header, &raw_associated_defaults());
+}
+
+#[test]
+fn actual_native_association_clone_keeps_absent_and_invalid_metadata_without_a_validity_premise() {
+    let payload = [1];
+    let mut source = CodestreamHeaderAssociation {
+        header: raw_metadata_box(&payload, *b"xxxx", 123).header,
+        payload: &payload,
+        parsed: None,
+    };
+    assert_eq!(super::clone_support::optional_jp2_header_clone(&None), None);
+    assert_eq!(source.clone(), source);
+    let mut header = raw_associated_defaults();
+    header.image.width = 0;
+    header.image.components = 0;
+    header.color.icc_profile = Some(Vec::new());
+    header.palette = Some(Palette {
+        entries: 0,
+        columns: vec![PaletteColumn {
+            precision: 0,
+            signed: true,
+        }],
+        values: vec![i64::MIN, i64::MAX],
+    });
+    source.parsed = Some(header);
+    let cloned = source.clone();
+    assert_eq!(cloned, source);
+    assert_eq!(cloned.payload.as_ptr(), payload.as_ptr());
+}
+
+#[test]
 fn actual_native_metadata_clone_preserves_every_arbitrary_field_and_deep_owner() {
     let source = raw_associated_defaults();
     let cloned = source.clone();

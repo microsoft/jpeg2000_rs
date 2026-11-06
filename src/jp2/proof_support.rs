@@ -468,6 +468,20 @@ verus! {
         match header { None => None, Some(value) => Some(raw_jp2_header_view(value)) }
     }
 
+    pub open spec fn optional_jp2_header_view(header: &Option<Jp2Header>) -> Option<crate::specs::Part2RawJp2Header> {
+        match header { None => None, Some(value) => Some(raw_jp2_header_view(value)) }
+    }
+
+    pub closed spec fn raw_codestream_association_view(association: &CodestreamHeaderAssociation)
+        -> crate::specs::Part2RawCodestreamAssociation
+    {
+        (box_header_view(association.header), association.payload@, optional_jp2_header_view(&association.parsed))
+    }
+
+    pub closed spec fn raw_codestream_association_payload_reference<'a>(association: &CodestreamHeaderAssociation<'a>) -> &'a [u8] {
+        association.payload
+    }
+
     pub open spec fn optional_palette_view(palette: &Option<Palette>) -> Option<crate::specs::Part2PaletteModel> {
         match palette { None => None, Some(value) => Some(palette_view(value)) }
     }

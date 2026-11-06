@@ -181,6 +181,16 @@ lifetime verification, normative conformance or publication claim follows.
 
 ## Actual complete raw composition and reference Results
 
+The next container continuation checks the real optional-header and owned
+codestream-association clone producers. Their contracts retain the complete
+stored box header, exact borrowed payload reference, optional full header
+metadata and independent native metadata owners, including arbitrary invalid
+metadata without a validity premise. The original derived association field
+clone body is extracted into the shared executing producer, with explicit
+optional-header routing through the already checked header clone. Native
+observation of this extraction/routing remains required before qualification;
+the complete container parse Result is not yet established.
+
 The actual composition word reader preserves its complete old/final cursor and
 error frame. Dimension validation, instruction-set parsing, composition assembly
 and layer-reference validation now derive complete Results from actual source

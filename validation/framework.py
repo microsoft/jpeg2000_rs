@@ -2708,6 +2708,25 @@ _METADATA_TREE_PROOFS = {
     ("src/refinement/headers.rs", "metadata_count"),
 }
 _OWNED_HEADER_CLONE_ENTRY = "part2-complete-native-owned-header-clone-producers"
+_ASSOCIATION_CLONE_ENTRY = "part2-complete-native-owned-codestream-association-clone-producers"
+_ASSOCIATION_CLONE_CONTRACTS = {
+    ("src/jp2/clone_support.rs", "optional_jp2_header_clone"): (
+        "part2_optional_jp2_header_clone", _coverage_call("super::optional_jp2_header_view", r"&\s*\1"), None,
+        _coverage_call("super::optional_jp2_header_view", "source"),
+    ),
+    ("src/jp2/clone_support.rs", "codestream_association_clone"): (
+        "part2_codestream_association_clone", _coverage_call("super::raw_codestream_association_view", r"&\s*\1"), None,
+        _coverage_call("super::raw_codestream_association_view", "source"),
+    ),
+}
+_ASSOCIATION_CLONE_MODELS = {
+    ("specs/jp2_associated_header.rs", name) for name in ("part2_optional_jp2_header_clone", "part2_codestream_association_clone")
+}
+_ASSOCIATION_CLONE_PROOFS = {
+    ("src/jp2/proof_support.rs", name) for name in (
+        "optional_jp2_header_view", "raw_jp2_header_view", "raw_codestream_association_view", "raw_codestream_association_payload_reference",
+    )
+}
 _OWNED_HEADER_CLONE_CONTRACTS = {
     ("src/jp2/clone_support.rs", "color_specification_clone"): (
         "part2_color_specification_clone", _coverage_call("super::full_color_specification_view", r"&\s*\1"), None,
@@ -3421,6 +3440,27 @@ def validate_normative_coverage(
                 actual = _coverage_spec_function_body(model, name)
                 if actual is None or any("".join(item.split()) not in "".join(actual.split()) for item in required):
                     raise ValueError("whole raw metadata tree Result requires complete recursive reader/error/count/depth models")
+        if entry["id"] == _ASSOCIATION_CLONE_ENTRY:
+            if {(ref["path"], ref["symbol"]) for ref in entry["contract_refs"]} != set(_ASSOCIATION_CLONE_CONTRACTS):
+                raise ValueError("whole association clone Results require both actual clone producer contracts")
+            if not _ASSOCIATION_CLONE_MODELS.issubset({(ref["path"], ref["symbol"]) for ref in entry["spec_refs"]}) \
+                    or not _ASSOCIATION_CLONE_PROOFS.issubset({(ref["path"], ref["symbol"]) for ref in entry["proof_refs"]}):
+                raise ValueError("whole association clone Results require full optional header and borrowed payload bridges")
+            path = (ROOT / "src/jp2/clone_support.rs").resolve()
+            for name, required in {
+                "optional_jp2_header_clone": ("None => None", "Some(header) => Some(jp2_header_clone(header))"),
+                "codestream_association_clone": (
+                    "header: Clone::clone(&source.header)", "payload: Clone::clone(&source.payload)",
+                    "parsed: optional_jp2_header_clone(&source.parsed)",
+                ),
+            }.items():
+                body = _coverage_function_body(source_text(path), function_header(path, name))
+                if body is None or any("".join(item.split()) not in "".join(body.split()) for item in required):
+                    raise ValueError("whole association clone Results require actual original field clone and optional header routing bodies")
+            model = source_text((ROOT / "specs/jp2_associated_header.rs").resolve())
+            for _, name in _ASSOCIATION_CLONE_MODELS:
+                if (_coverage_spec_function_body(model, name) or "").strip() != "value":
+                    raise ValueError("whole association clone Results require complete unchanged metadata identity models")
         if entry["id"] == _OWNED_HEADER_CLONE_ENTRY:
             if {(ref["path"], ref["symbol"]) for ref in entry["contract_refs"]} != set(_OWNED_HEADER_CLONE_CONTRACTS):
                 raise ValueError("whole owned header clone Results require all four actual clone producer contracts")
@@ -5678,6 +5718,8 @@ def validate_normative_coverage(
                     if entry["id"] == _RAW_JP2_HEADER_ENTRY else None)
                 or (_OWNED_HEADER_CLONE_CONTRACTS.get((reference["path"], reference["symbol"]))
                     if entry["id"] == _OWNED_HEADER_CLONE_ENTRY else None)
+                or (_ASSOCIATION_CLONE_CONTRACTS.get((reference["path"], reference["symbol"]))
+                    if entry["id"] == _ASSOCIATION_CLONE_ENTRY else None)
                 or (_ASSOCIATED_HEADER_CONTRACTS.get((reference["path"], reference["symbol"]))
                     if entry["id"] == _ASSOCIATED_HEADER_ENTRY else None)
                 or (_METADATA_TREE_CONTRACTS.get((reference["path"], reference["symbol"]))

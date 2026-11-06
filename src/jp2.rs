@@ -210,12 +210,17 @@ pub struct InspectedJp2<'a> {
     codestreams: Vec<CodestreamInfo>,
 }
 
-#[derive(Clone)]
 #[cfg_attr(not(verus_keep_ghost), derive(Debug, Eq, PartialEq))]
 pub struct CodestreamHeaderAssociation<'a> {
     pub header: BoxHeader,
     pub payload: &'a [u8],
     parsed: Option<Jp2Header>,
+}
+
+impl Clone for CodestreamHeaderAssociation<'_> {
+    fn clone(&self) -> Self {
+        clone_support::codestream_association_clone(self)
+    }
 }
 
 #[derive(Clone)]
