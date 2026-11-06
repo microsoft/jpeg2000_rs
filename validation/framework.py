@@ -2617,6 +2617,73 @@ _DECODER_LAYOUT_CONTRACTS = {
 
 
 _SOURCE_OPACITY_ENTRY = "part2-complete-native-source-layer-opacity-result"
+_PALETTE_VALUE_ENTRY = "part2-complete-native-raw-palette-scalar-result"
+_PALETTE_VALUE_CONTRACTS = {
+    ("src/jp2/color.rs", "parse_palette_value"): (
+        "part2_parse_palette_value", r"\1", None, r"bytes\s*@\s*,\s*precision\s*,\s*signed\s*,\s*offset",
+    ),
+}
+_PALETTE_VALUE_MODELS = {
+    ("specs/jp2_palette.rs", name) for name in (
+        "part2_parse_palette_value", "part2_palette_word_prefix",
+        "part2_palette_modulus_prefix", "part2_palette_arithmetic_error",
+    )
+}
+_PALETTE_VALUE_PROOFS = {
+    ("specs/jp2_palette.rs", name) for name in (
+        "part2_palette_word_step", "part2_palette_word_error",
+        "part2_palette_modulus_step", "part2_palette_modulus_error",
+    )
+}
+_RESOLUTION_ENTRY = "part2-complete-native-raw-resolution-and-metadata-copy-results"
+_RESOLUTION_CONTRACTS = {
+    ("src/jp2/metadata.rs", "parse_resolution"): (
+        "part2_parse_resolution", r"\1", None,
+        _coverage_call("super::box_reference_view", "box_ref") + r"\s*,\s*base_offset",
+    ),
+    ("src/jp2/metadata.rs", "parse_resolution_superbox"): (
+        "part2_parse_resolution_superbox", r"\1", None, r"payload\s*@\s*,\s*\*\s*limits\s*,\s*base_offset",
+    ),
+    ("src/jp2/metadata.rs", "copy_bytes"): (
+        "part2_copy_metadata_bytes", _coverage_call("super::metadata_bytes_outcome", r"\1"), None, r"input\s*@",
+    ),
+}
+_RESOLUTION_MODELS = {
+    ("specs/jp2_resolution.rs", name) for name in (
+        "part2_parse_resolution", "part2_parse_resolution_superbox", "part2_resolution_boxes",
+        "part2_resolution_finish", "part2_resolution_progress_error", "part2_copy_metadata_bytes",
+    )
+}
+_RESOLUTION_PROOFS = {
+    ("src/jp2/proof_support.rs", "metadata_bytes_outcome"),
+    ("src/jp2/box_reader.rs", "box_reader_from_input"),
+}
+_CHANNEL_HEADER_ENTRY = "part2-complete-native-raw-component-and-channel-header-results"
+_CHANNEL_HEADER_CONTRACTS = {
+    ("src/jp2/color.rs", "parse_component_mapping"): (
+        "part2_parse_component_mapping", _coverage_call("super::component_mapping_outcome", r"\1"), None,
+        _coverage_call("super::box_reference_view", "box_ref")
+        + r"\s*,\s*components\s*,\s*palette_columns\s*,\s*limits\s*,\s*base_offset",
+    ),
+    ("src/jp2/color.rs", "parse_channel_definition"): (
+        "part2_parse_channel_definition", _coverage_call("super::channel_definition_records_outcome", r"\1"), None,
+        _coverage_call("super::box_reference_view", "box_ref") + r"\s*,\s*output_channels\s*,\s*base_offset",
+    ),
+}
+_CHANNEL_HEADER_MODELS = {
+    ("specs/jp2_channel_header.rs", name) for name in (
+        "part2_parse_component_mapping", "part2_mapping_entry", "part2_parse_channel_definition", "part2_channel_record",
+    )
+} | {("specs/mod.rs", name) for name in ("part2_component_mapping_valid", "part2_channel_definition_valid")}
+_CHANNEL_HEADER_PROOFS = {
+    ("src/jp2/proof_support.rs", name) for name in (
+        "component_mapping_outcome", "channel_definition_records_view", "channel_definition_records_outcome",
+    )
+} | {
+    ("specs/jp2_channel_header.rs", name) for name in (
+        "part2_mapping_step", "part2_mapping_error", "part2_channel_records_step", "part2_channel_records_error",
+    )
+} | {("src/image/layout.rs", "channel_definition_new")}
 _COLOR_HEADER_ENTRY = "part2-complete-native-raw-color-header-result"
 _COLOR_HEADER_CONTRACTS = {
     ("src/jp2/color.rs", "parse_color_specification"): (
@@ -3051,6 +3118,124 @@ def validate_normative_coverage(
     ids: set[str] = set()
     contract_functions: set[tuple[str, str]] = set()
     for entry in coverage["requirements"]:
+        if entry["id"] == _PALETTE_VALUE_ENTRY:
+            if {(ref["path"], ref["symbol"]) for ref in entry["contract_refs"]} != set(_PALETTE_VALUE_CONTRACTS):
+                raise ValueError("whole raw palette scalar Result requires actual value producer contract")
+            if not _PALETTE_VALUE_MODELS.issubset({(ref["path"], ref["symbol"]) for ref in entry["spec_refs"]}) \
+                    or not _PALETTE_VALUE_PROOFS.issubset({(ref["path"], ref["symbol"]) for ref in entry["proof_refs"]}):
+                raise ValueError("whole raw palette scalar Result requires full byte/modulus/error folds")
+            path = (ROOT / "src/jp2/color.rs").resolve()
+            body = _coverage_function_body(source_text(path), function_header(path, "parse_palette_value"))
+            required = (
+                "precision == 0 || precision > 38 || bytes.is_empty() || bytes.len() > 5",
+                "raw.checked_mul(256)", "value.checked_add(u64::from(bytes[index]))",
+                "modulus.checked_mul(2)", "modulus.checked_sub(1)", "let value = raw & mask",
+                "signed && value & (modulus >> 1) != 0", "modulus.checked_sub(value)", "i64::try_from(value)",
+            )
+            if body is None or any("".join(item.split()) not in "".join(body.split()) for item in required):
+                raise ValueError("whole raw palette scalar Result requires actual admission/byte/mask/sign handoffs")
+            model = source_text((ROOT / "specs/jp2_palette.rs").resolve())
+            for name, required in {
+                "part2_parse_palette_value": (
+                    "precision == 0 || precision > 38 || bytes.len() == 0 || bytes.len() > 5",
+                    "raw & ((modulus - 1) as u64)", "signed && value & (modulus >> 1u64) != 0",
+                    "value > modulus || modulus as int - value as int > i64::MAX as int",
+                ),
+                "part2_palette_word_prefix": ("raw as nat * 256 + bytes[count - 1] as nat",),
+                "part2_palette_modulus_prefix": ("value as nat * 2",),
+            }.items():
+                body = _coverage_spec_function_body(model, name)
+                if body is None or any("".join(item.split()) not in "".join(body.split()) for item in required):
+                    raise ValueError("whole raw palette scalar Result requires complete byte/modulus/sign/error models")
+        if entry["id"] == _RESOLUTION_ENTRY:
+            if {(ref["path"], ref["symbol"]) for ref in entry["contract_refs"]} != set(_RESOLUTION_CONTRACTS):
+                raise ValueError("whole raw resolution Results require actual primitive/superbox/copy contracts")
+            if not _RESOLUTION_MODELS.issubset({(ref["path"], ref["symbol"]) for ref in entry["spec_refs"]}) \
+                    or not _RESOLUTION_PROOFS.issubset({(ref["path"], ref["symbol"]) for ref in entry["proof_refs"]}):
+                raise ValueError("whole raw resolution Results require full byte/traversal/copy bridges")
+            path = (ROOT / "src/jp2/metadata.rs").resolve()
+            for name, required in {
+                "parse_resolution": (
+                    "box_ref.payload.len() != 10",
+                    "vertical_numerator == 0 || vertical_denominator == 0 || horizontal_numerator == 0 || horizontal_denominator == 0",
+                    "vertical_exponent: box_ref.payload[8] as i8", "horizontal_exponent: box_ref.payload[9] as i8",
+                ),
+                "parse_resolution_superbox": (
+                    "box_reader_from_input(payload, limits)?", "reader.next_box_ref()",
+                    "reader.position <= previous_position || reader.position > payload.len()",
+                    "capture.is_some()", "display.is_some()",
+                    "capture = Some(parse_resolution(box_ref, base_offset)?)",
+                    "display = Some(parse_resolution(box_ref, base_offset)?)",
+                    "capture.is_none() && display.is_none()",
+                ),
+                "copy_bytes": ("input.get(index)", "index.checked_add(1)", "Ok(output)"),
+            }.items():
+                body = _coverage_function_body(source_text(path), function_header(path, name))
+                if body is None or any("".join(item.split()) not in "".join(body.split()) for item in required):
+                    raise ValueError("whole raw resolution Results require actual fields/traversal/copy handoffs")
+                if name == "parse_resolution_superbox" and body.index("reader.position <= previous_position") > body.index("next.map_err"):
+                    raise ValueError("whole raw resolution Results require native progress-before-reader-error priority")
+            model = source_text((ROOT / "specs/jp2_resolution.rs").resolve())
+            for name, required in {
+                "part2_parse_resolution": (
+                    "payload.len() != 10", "vertical_numerator == 0 || vertical_denominator == 0",
+                    "horizontal_numerator == 0 || horizontal_denominator == 0",
+                    "vertical_exponent: payload[8] as i8", "horizontal_exponent: payload[9] as i8",
+                ),
+                "part2_resolution_boxes": (
+                    "part2_box_reader_next_ref(reader)", "next.1.position <= reader.position || next.1.position > payload.len()",
+                    "Err(part2_resolution_progress_error(base, reader.position))", "capture.is_some()", "display.is_some()",
+                    "part2_resolution_boxes(payload, next.1, base, Some(value), display)",
+                    "part2_resolution_boxes(payload, next.1, base, capture, Some(value))",
+                ),
+                "part2_resolution_finish": ("capture.is_none() && display.is_none()", "Ok((capture, display))"),
+                "part2_copy_metadata_bytes": ("Ok(input)",),
+            }.items():
+                body = _coverage_spec_function_body(model, name)
+                if body is None or any("".join(item.split()) not in "".join(body.split()) for item in required):
+                    raise ValueError("whole raw resolution Results require complete field/error/traversal/copy models")
+        if entry["id"] == _CHANNEL_HEADER_ENTRY:
+            if {(ref["path"], ref["symbol"]) for ref in entry["contract_refs"]} != set(_CHANNEL_HEADER_CONTRACTS):
+                raise ValueError("whole raw channel Results require actual mapping and definition contracts")
+            if not _CHANNEL_HEADER_MODELS.issubset({(ref["path"], ref["symbol"]) for ref in entry["spec_refs"]}) \
+                    or not _CHANNEL_HEADER_PROOFS.issubset({(ref["path"], ref["symbol"]) for ref in entry["proof_refs"]}):
+                raise ValueError("whole raw channel Results require full record/validity/error/constructor bridges")
+            path = (ROOT / "src/jp2/color.rs").resolve()
+            for name, required in {
+                "parse_component_mapping": (
+                    "box_ref.payload.is_empty() || !box_ref.payload.len().is_multiple_of(4)",
+                    "u16::try_from(entry_count)", "entries > limits.maximum_components()",
+                    "crate::refinement::component_mapping_valid(component, components, mapping_type, palette_column, palette_columns,)",
+                    "mappings.push(ComponentMapping { component, mapping_type, })", "offset.checked_add(4)",
+                ),
+                "parse_channel_definition": (
+                    "entries == 0 || box_ref.payload.len() != expected_length",
+                    "crate::refinement::channel_definition_valid(channel, channel_type, association, output_channels,)",
+                    "definition: crate::image::channel_definition_new(channel_type, association)", "offset.checked_add(6)",
+                ),
+            }.items():
+                body = _coverage_function_body(source_text(path), function_header(path, name))
+                if body is None or any("".join(item.split()) not in "".join(body.split()) for item in required):
+                    raise ValueError("whole raw channel Results require actual ordered records and native validity handoffs")
+            model = source_text((ROOT / "specs/jp2_channel_header.rs").resolve())
+            for name, required in {
+                "part2_parse_component_mapping": (
+                    "length == 0 || length % 4 != 0", "count > u16::MAX as nat",
+                    "count > crate::limits::resource_component_limit(limits)",
+                ),
+                "part2_mapping_entry": (
+                    "offset + 4 > payload.len()", "part2_component_mapping_valid(component, components, kind, column, palette_columns)",
+                    "crate::jp2::MappingType::Palette { column }",
+                ),
+                "part2_parse_channel_definition": ("entries == 0 || payload.len() != 2 + entries as nat * 6",),
+                "part2_channel_record": (
+                    "offset + 6 > payload.len()", "part2_channel_definition_valid(channel, kind, association, output_channels)",
+                    "association == 0xffff", "crate::ChannelAssociation::Color(association)",
+                ),
+            }.items():
+                body = _coverage_spec_function_body(model, name)
+                if body is None or any("".join(item.split()) not in "".join(body.split()) for item in required):
+                    raise ValueError("whole raw channel Results require complete length/admission/record models")
         if entry["id"] == _COLOR_HEADER_ENTRY:
             if {(ref["path"], ref["symbol"]) for ref in entry["contract_refs"]} != set(_COLOR_HEADER_CONTRACTS):
                 raise ValueError("whole raw color Result requires actual full color parser contract")
@@ -5020,6 +5205,12 @@ def validate_normative_coverage(
                     if entry["id"] == _IMAGE_HEADER_ENTRY else None)
                 or (_COLOR_HEADER_CONTRACTS.get((reference["path"], reference["symbol"]))
                     if entry["id"] == _COLOR_HEADER_ENTRY else None)
+                or (_CHANNEL_HEADER_CONTRACTS.get((reference["path"], reference["symbol"]))
+                    if entry["id"] == _CHANNEL_HEADER_ENTRY else None)
+                or (_RESOLUTION_CONTRACTS.get((reference["path"], reference["symbol"]))
+                    if entry["id"] == _RESOLUTION_ENTRY else None)
+                or (_PALETTE_VALUE_CONTRACTS.get((reference["path"], reference["symbol"]))
+                    if entry["id"] == _PALETTE_VALUE_ENTRY else None)
                 or _CODESTREAM_READER_CONTRACTS.get((reference["path"], reference["symbol"]))
                 or _SOT_READER_CONTRACTS.get((reference["path"], reference["symbol"]))
                 or _TILE_DATA_WINDOW_CONTRACTS.get((reference["path"], reference["symbol"]))

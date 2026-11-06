@@ -1,10 +1,10 @@
 //! Colour profiles, palette samples, component mappings, and channel definitions.
 
 use super::{
-    BoxRef, ChannelAssociation, ChannelDefinition, ChannelDefinitionRecord, ChannelType,
-    ColorMethod, ColorSpecification, ComponentBitDepth, ComponentMapping, DecodeError,
-    MalformedKind, MappingType, Palette, PaletteColumn, Resource, ResourceLimits, add_offset,
-    parse_bit_depth, read_u16, read_u32,
+    BoxRef, ChannelAssociation, ChannelDefinitionRecord, ChannelType, ColorMethod,
+    ColorSpecification, ComponentBitDepth, ComponentMapping, DecodeError, MalformedKind,
+    MappingType, Palette, PaletteColumn, Resource, ResourceLimits, add_offset, parse_bit_depth,
+    read_u16, read_u32,
 };
 #[cfg(verus_keep_ghost)]
 use super::{color_specification_method, palette_view};
@@ -359,6 +359,10 @@ pub(super) fn parse_palette(box_ref: BoxRef<'_>, base_offset: u64) -> Result<Pal
     })
 }
 
+#[cfg_attr(verus_keep_ghost, verus_spec(result =>
+    ensures super::component_mapping_outcome(result) == crate::specs::part2_parse_component_mapping(
+        super::box_reference_view(box_ref), components, palette_columns, limits, base_offset),
+))]
 pub(super) fn parse_component_mapping(
     box_ref: BoxRef<'_>,
     components: u16,
@@ -373,8 +377,12 @@ pub(super) fn parse_component_mapping(
         ));
     }
     let entry_count = box_ref.payload.len() / 4;
-    let entries = u16::try_from(entry_count)
-        .map_err(|_| DecodeError::malformed(base_offset, MalformedKind::ArithmeticOverflow))?;
+    let entries = u16::try_from(entry_count).map_err(
+        #[cfg_attr(verus_keep_ghost, verus_spec(result: DecodeError =>
+            ensures result == (DecodeError::MalformedInput { offset: base_offset, kind: MalformedKind::ArithmeticOverflow }),
+        ))]
+        |_error| DecodeError::malformed(base_offset, MalformedKind::ArithmeticOverflow),
+    )?;
     if entries > limits.maximum_components() {
         return Err(DecodeError::limit(
             Resource::Components,
@@ -384,14 +392,33 @@ pub(super) fn parse_component_mapping(
     }
     let mut mappings = Vec::with_capacity(entry_count);
     let mut offset = 0_usize;
+    #[cfg(verus_keep_ghost)]
+    proof! {
+        reveal(crate::specs::part2_mapping_prefix);
+        assert(mappings@ =~= Seq::<ComponentMapping>::empty());
+    }
     #[cfg_attr(
         verus_keep_ghost,
         verus_spec(
             invariant offset <= box_ref.payload.len(),
+                offset % 4 == 0,
+                box_ref.payload.len() % 4 == 0,
+                entry_count == box_ref.payload.len() / 4,
+                entry_count <= u16::MAX,
+                entry_count <= crate::limits::resource_component_limit(limits),
+                crate::specs::part2_mapping_prefix(super::box_reference_view(box_ref),
+                    components, palette_columns, base_offset, (offset / 4) as nat) == Ok(mappings@),
             decreases box_ref.payload.len() - offset,
         )
     )]
     while offset < box_ref.payload.len() {
+        #[cfg(verus_keep_ghost)]
+        proof! {
+            crate::specs::part2_mapping_step(super::box_reference_view(box_ref),
+                components, palette_columns, base_offset, (offset / 4) as nat);
+            crate::specs::part2_mapping_error(super::box_reference_view(box_ref),
+                components, palette_columns, base_offset, (offset / 4 + 1) as nat, entry_count as nat);
+        }
         if box_ref.payload.len() - offset < 4 {
             return Err(DecodeError::malformed(
                 add_offset(base_offset, box_ref.header.offset())?,
@@ -431,6 +458,10 @@ pub(super) fn parse_component_mapping(
     Ok(mappings)
 }
 
+#[cfg_attr(verus_keep_ghost, verus_spec(result =>
+    ensures super::channel_definition_records_outcome(result) == crate::specs::part2_parse_channel_definition(
+        super::box_reference_view(box_ref), output_channels, base_offset),
+))]
 pub(super) fn parse_channel_definition(
     box_ref: BoxRef<'_>,
     output_channels: u16,
@@ -457,14 +488,34 @@ pub(super) fn parse_channel_definition(
     }
     let mut records = Vec::with_capacity(usize::from(entries));
     let mut offset = 2_usize;
+    #[cfg(verus_keep_ghost)]
+    proof! {
+        reveal(crate::specs::part2_channel_records_prefix);
+        assert(super::channel_definition_records_view(records@) =~= Seq::<crate::specs::Part2ChannelRecord>::empty());
+    }
     #[cfg_attr(
         verus_keep_ghost,
         verus_spec(
             invariant offset <= box_ref.payload.len(),
+                2 <= offset,
+                (offset - 2) % 6 == 0,
+                box_ref.payload.len() == 2 + entries as nat * 6,
+                entries == crate::specs::part2_box_u16([box_ref.payload[0], box_ref.payload[1]]),
+                entries > 0,
+                crate::specs::part2_channel_records_prefix(super::box_reference_view(box_ref),
+                    output_channels, base_offset, ((offset - 2) / 6) as nat)
+                    == Ok(super::channel_definition_records_view(records@)),
             decreases box_ref.payload.len() - offset,
         )
     )]
     while offset < box_ref.payload.len() {
+        #[cfg(verus_keep_ghost)]
+        proof! {
+            crate::specs::part2_channel_records_step(super::box_reference_view(box_ref),
+                output_channels, base_offset, ((offset - 2) / 6) as nat);
+            crate::specs::part2_channel_records_error(super::box_reference_view(box_ref),
+                output_channels, base_offset, ((offset - 2) / 6 + 1) as nat, entries as nat);
+        }
         if box_ref.payload.len() - offset < 6 {
             return Err(DecodeError::malformed(
                 add_offset(base_offset, box_ref.header.offset())?,
@@ -499,10 +550,17 @@ pub(super) fn parse_channel_definition(
         } else {
             ChannelAssociation::Color(association)
         };
+        #[cfg(verus_keep_ghost)]
+        proof_decl! { let ghost previous_records = records@; }
         records.push(ChannelDefinitionRecord {
             channel,
-            definition: ChannelDefinition::new(channel_type, association),
+            definition: crate::image::channel_definition_new(channel_type, association),
         });
+        #[cfg(verus_keep_ghost)]
+        proof! {
+            assert(super::channel_definition_records_view(records@) =~=
+                super::channel_definition_records_view(previous_records).push((channel, (channel_type, association))));
+        }
         offset = offset.checked_add(6).ok_or_else(|| {
             DecodeError::malformed(base_offset, MalformedKind::ArithmeticOverflow)
         })?;
@@ -510,12 +568,17 @@ pub(super) fn parse_channel_definition(
     Ok(records)
 }
 
-fn parse_palette_value(
+#[cfg_attr(verus_keep_ghost, verus_spec(result =>
+    ensures result == crate::specs::part2_parse_palette_value(bytes@, precision, signed, offset),
+))]
+pub(super) fn parse_palette_value(
     bytes: &[u8],
     precision: u8,
     signed: bool,
     offset: u64,
 ) -> Result<i64, DecodeError> {
+    #[cfg(verus_keep_ghost)]
+    proof! { reveal(crate::specs::part2_parse_palette_value); }
     if precision == 0 || precision > 38 || bytes.is_empty() || bytes.len() > 5 {
         return Err(DecodeError::malformed(
             offset,
@@ -524,54 +587,108 @@ fn parse_palette_value(
     }
     let mut raw = 0_u64;
     let mut index = 0_usize;
+    #[cfg(verus_keep_ghost)]
+    proof! { reveal(crate::specs::part2_palette_word_prefix); }
     #[cfg_attr(
         verus_keep_ghost,
         verus_spec(
             invariant index <= bytes.len(),
+                0 < bytes.len() <= 5,
+                0 < precision <= 38,
+                crate::specs::part2_palette_word_prefix(bytes@, offset, index as nat) == Ok(raw),
             decreases bytes.len() - index,
         )
     )]
     while index < bytes.len() {
+        #[cfg(verus_keep_ghost)]
+        proof! {
+            reveal(crate::specs::part2_parse_palette_value);
+            crate::specs::part2_palette_word_step(bytes@, offset, index as nat);
+            crate::specs::part2_palette_word_error(bytes@, offset, index as nat + 1, bytes.len() as nat);
+        }
         raw = raw
             .checked_mul(256)
-            .and_then(|value| value.checked_add(u64::from(bytes[index])))
-            .ok_or_else(|| DecodeError::malformed(offset, MalformedKind::ArithmeticOverflow))?;
+            .and_then(
+                #[cfg_attr(verus_keep_ghost, verus_spec(result: (Option<u64>) =>
+                    ensures result == if value as nat + bytes@[index as int] as nat > u64::MAX as nat { None }
+                        else { Some((value as nat + bytes@[index as int] as nat) as u64) },
+                ))]
+                |value| value.checked_add(u64::from(bytes[index])),
+            )
+            .ok_or_else(
+                #[cfg_attr(verus_keep_ghost, verus_spec(result: DecodeError =>
+                    ensures result == crate::specs::part2_palette_arithmetic_error(offset),
+                ))]
+                || DecodeError::malformed(offset, MalformedKind::ArithmeticOverflow),
+            )?;
         index = index
             .checked_add(1)
             .ok_or_else(|| DecodeError::malformed(offset, MalformedKind::ArithmeticOverflow))?;
     }
     let mut modulus = 1_u64;
     let mut bit = 0_u8;
+    #[cfg(verus_keep_ghost)]
+    proof! { reveal(crate::specs::part2_palette_modulus_prefix); }
     #[cfg_attr(
         verus_keep_ghost,
         verus_spec(
             invariant bit <= precision,
+                0 < bytes.len() <= 5,
+                0 < precision <= 38,
+                crate::specs::part2_palette_word_prefix(bytes@, offset, bytes.len() as nat) == Ok(raw),
+                crate::specs::part2_palette_modulus_prefix(offset, bit as nat) == Ok(modulus),
             decreases precision - bit,
         )
     )]
     while bit < precision {
-        modulus = modulus
-            .checked_mul(2)
-            .ok_or_else(|| DecodeError::malformed(offset, MalformedKind::ArithmeticOverflow))?;
+        #[cfg(verus_keep_ghost)]
+        proof! {
+            reveal(crate::specs::part2_parse_palette_value);
+            crate::specs::part2_palette_modulus_step(offset, bit as nat);
+            crate::specs::part2_palette_modulus_error(offset, bit as nat + 1, precision as nat);
+        }
+        modulus = modulus.checked_mul(2).ok_or_else(
+            #[cfg_attr(verus_keep_ghost, verus_spec(result: DecodeError =>
+                    ensures result == crate::specs::part2_palette_arithmetic_error(offset),
+                ))]
+            || DecodeError::malformed(offset, MalformedKind::ArithmeticOverflow),
+        )?;
         bit = bit
             .checked_add(1)
             .ok_or_else(|| DecodeError::malformed(offset, MalformedKind::ArithmeticOverflow))?;
     }
-    let mask = modulus
-        .checked_sub(1)
-        .ok_or_else(|| DecodeError::malformed(offset, MalformedKind::ArithmeticOverflow))?;
+    let mask = modulus.checked_sub(1).ok_or_else(
+        #[cfg_attr(verus_keep_ghost, verus_spec(result: DecodeError =>
+                ensures result == crate::specs::part2_palette_arithmetic_error(offset),
+            ))]
+        || DecodeError::malformed(offset, MalformedKind::ArithmeticOverflow),
+    )?;
     let value = raw & mask;
     if signed && value & (modulus >> 1) != 0 {
-        let magnitude =
-            i64::try_from(modulus.checked_sub(value).ok_or_else(|| {
-                DecodeError::malformed(offset, MalformedKind::ArithmeticOverflow)
-            })?)
-            .map_err(|_| DecodeError::malformed(offset, MalformedKind::ArithmeticOverflow))?;
-        0_i64
-            .checked_sub(magnitude)
-            .ok_or_else(|| DecodeError::malformed(offset, MalformedKind::ArithmeticOverflow))
+        let magnitude = i64::try_from(modulus.checked_sub(value).ok_or_else(
+            #[cfg_attr(verus_keep_ghost, verus_spec(result: DecodeError =>
+                    ensures result == crate::specs::part2_palette_arithmetic_error(offset),
+                ))]
+            || DecodeError::malformed(offset, MalformedKind::ArithmeticOverflow),
+        )?)
+        .map_err(
+            #[cfg_attr(verus_keep_ghost, verus_spec(result: DecodeError =>
+                    ensures result == crate::specs::part2_palette_arithmetic_error(offset),
+                ))]
+            |_error| DecodeError::malformed(offset, MalformedKind::ArithmeticOverflow),
+        )?;
+        0_i64.checked_sub(magnitude).ok_or_else(
+            #[cfg_attr(verus_keep_ghost, verus_spec(result: DecodeError =>
+                    ensures result == crate::specs::part2_palette_arithmetic_error(offset),
+                ))]
+            || DecodeError::malformed(offset, MalformedKind::ArithmeticOverflow),
+        )
     } else {
-        i64::try_from(value)
-            .map_err(|_| DecodeError::malformed(offset, MalformedKind::ArithmeticOverflow))
+        i64::try_from(value).map_err(
+            #[cfg_attr(verus_keep_ghost, verus_spec(result: DecodeError =>
+                ensures result == crate::specs::part2_palette_arithmetic_error(offset),
+            ))]
+            |_error| DecodeError::malformed(offset, MalformedKind::ArithmeticOverflow),
+        )
     }
 }

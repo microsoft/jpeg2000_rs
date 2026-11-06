@@ -179,6 +179,60 @@ technical candidate only: parent-owned record, review, CI, guarded integration
 and actual-main acceptance remain separate. No complete parsing, pixels,
 lifetime verification, normative conformance or publication claim follows.
 
+## Actual complete raw palette scalar Result
+
+The actual scalar palette-value producer has a complete Result over its original
+bytes, precision, signedness and error offset. It retains the full native
+precision/length admission, checked big-endian prefix and modulus traversal,
+masking, sign handling and exact errors. No extra byte-count/precision
+compatibility premise, supplied scalar bank or owner reconstruction is used.
+The checked modulus-prefix model includes its zero-step seed and contextual
+arithmetic errors; the existing decoded-color modulus-admission model remains
+unchanged.
+
+Two unused Copy integer-error arguments are named for the pinned macro, requiring
+explicit future native debug observation. Outer palette descriptor/value folds
+and their original native owners remain separate. This proves as-implemented
+behavior, not palette normative correctness: palette HOLD, complete raw Palette,
+header/container/public composition, coverage, cfg/erasure, lifetimes and release
+acceptance remain open.
+
+## Actual complete raw resolution and metadata-copy Results
+
+The actual resolution primitive and superbox producers retain all six native
+fields, signed exponent bytes, unknown-box traversal, both capture/display
+orders, duplicate-before-payload priority, missing-required errors and lazy
+offset arithmetic. The complete model follows the original native reader
+state and the actual progress check **before** rebasing reader errors: an
+unchanged-position reader failure is reported as an invalid box length by
+this producer. This records existing behavior, not a normative correction.
+The sole metadata byte-copy loop also has a complete successful Result retaining
+every byte in its original native owner.
+
+The superbox initializer deliberately targets the existing checked shared
+borrowed reader producer rather than the uncontracted static-method wrapper.
+This additional native call target must be included in the eventual exact
+native observation; no allocation body or ownership scope is moved. Recursive
+metadata-tree inspection, whole header/container/public composition, coverage,
+cfg/erasure, lifetimes and release remain independent.
+
+## Actual complete raw component and channel header Results
+
+The actual `parse_component_mapping` and `parse_channel_definition` producers
+derive every ordered native record directly from their borrowed bytes. Complete
+Results retain repeated records, exact native validity admission, all channel
+types/associations, length/conversion/component-limit priority and lazy rebased
+errors. No supplied valid-record bank, success premise or owner reconstruction
+is used.
+
+The actual channel-definition constructor call deliberately targets the existing
+checked shared Copy producer, instead of its uncontracted static-method wrapper;
+the unused integer-conversion error argument is named for the pinned macro.
+These are explicit native call-target/debug differences, not a byte-identity
+claim. Native allocation bodies and ownership scopes remain in place. Palette
+normative HOLD, full header/container/public composition, coverage, cfg/erasure,
+lifetimes and release acceptance remain independent.
+
 ## Actual complete raw color specification Result
 
 The actual color specification parser now derives its complete Result from

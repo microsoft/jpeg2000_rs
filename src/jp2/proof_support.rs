@@ -282,6 +282,31 @@ verus! {
         match profile { None => None, Some(bytes) => Some(bytes@) }
     }
 
+    pub open spec fn component_mapping_outcome(result: Result<Vec<ComponentMapping>, DecodeError>)
+        -> Result<Seq<ComponentMapping>, DecodeError>
+    {
+        match result { Err(error) => Err(error), Ok(records) => Ok(records@) }
+    }
+
+    pub open spec fn metadata_bytes_outcome(result: Result<Vec<u8>, DecodeError>)
+        -> Result<Seq<u8>, DecodeError>
+    {
+        match result { Err(error) => Err(error), Ok(bytes) => Ok(bytes@) }
+    }
+
+    pub open spec fn channel_definition_records_view(records: Seq<ChannelDefinitionRecord>)
+        -> Seq<crate::specs::Part2ChannelRecord>
+    {
+        Seq::new(records.len(), |i: int|
+            (records[i].channel, crate::image::channel_definition_view(records[i].definition)))
+    }
+
+    pub open spec fn channel_definition_records_outcome(result: Result<Vec<ChannelDefinitionRecord>, DecodeError>)
+        -> Result<Seq<crate::specs::Part2ChannelRecord>, DecodeError>
+    {
+        match result { Err(error) => Err(error), Ok(records) => Ok(channel_definition_records_view(records@)) }
+    }
+
     pub open spec fn optional_color_specification_method(color: Option<&ColorSpecification>) -> Option<ColorMethod> {
         match color { None => None, Some(color) => Some(color_specification_method(color)) }
     }

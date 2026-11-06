@@ -61,6 +61,12 @@ mod jp2_image_header;
 pub use jp2_image_header::*;
 mod jp2_color_header;
 pub use jp2_color_header::*;
+mod jp2_channel_header;
+pub use jp2_channel_header::*;
+mod jp2_resolution;
+pub use jp2_resolution::*;
+mod jp2_palette;
+pub use jp2_palette::*;
 
 pub use crate::proofs::internal_specs::{
     part2_composition_layer_prefix_matches, part2_composition_layer_prefix_safe,

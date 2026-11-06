@@ -4,6 +4,112 @@
   "scope": "Technical reference inventory; not exhaustive standards-clause coverage or a conformance claim.",
   "requirements": [
     {
+      "id": "part2-complete-native-raw-palette-scalar-result",
+      "topic": "Complete actual raw scalar palette-value Result over original bytes, precision, signedness and offset: native admission, big-endian prefix, checked modulus, mask/sign and exact errors. No byte-count/precision compatibility premise or narrowed admission, no supplied scalar/value bank or owner reconstruction. Two unused Copy integer-error arguments named for the pinned macro require explicit future native debug audit. Outer Palette descriptor/value owner folds, palette normative HOLD, whole header/container/public, coverage/cfg/erasure/lifetimes/release remain independent.",
+      "implementation_refs": [
+        {"path": "src/jp2/color.rs", "symbol": "parse_palette_value"},
+        {"path": "src/jp2/color.rs", "symbol": "parse_palette"}
+      ],
+      "spec_refs": [
+        {"path": "specs/jp2_palette.rs", "symbol": "part2_parse_palette_value"},
+        {"path": "specs/jp2_palette.rs", "symbol": "part2_palette_word_prefix"},
+        {"path": "specs/jp2_palette.rs", "symbol": "part2_palette_modulus_prefix"},
+        {"path": "specs/jp2_palette.rs", "symbol": "part2_palette_arithmetic_error"}
+      ],
+      "contract_refs": [
+        {"path": "src/jp2/color.rs", "symbol": "parse_palette_value"}
+      ],
+      "proof_refs": [
+        {"path": "specs/jp2_palette.rs", "symbol": "part2_palette_word_step"},
+        {"path": "specs/jp2_palette.rs", "symbol": "part2_palette_word_error"},
+        {"path": "specs/jp2_palette.rs", "symbol": "part2_palette_modulus_step"},
+        {"path": "specs/jp2_palette.rs", "symbol": "part2_palette_modulus_error"}
+      ],
+      "test_refs": [
+        {"path": "src/jp2/tests.rs", "symbol": "actual_raw_palette_value_keeps_every_precision_and_length_admission_boundary"},
+        {"path": "src/jp2/tests.rs", "symbol": "actual_raw_palette_value_retains_every_byte_value_with_native_padding_and_signedness"},
+        {"path": "src/jp2/tests.rs", "symbol": "actual_raw_palette_value_keeps_big_endian_five_byte_mask_and_sign_boundaries"},
+        {"path": "src/jp2/tests.rs", "symbol": "actual_raw_palette_rows_retain_the_original_column_and_value_owners"}
+      ]
+    },
+    {
+      "id": "part2-complete-native-raw-resolution-and-metadata-copy-results",
+      "topic": "Complete actual raw resolution primitive/superbox and metadata byte-copy Results. Preserve all six fields, signed exponents, unknown boxes, duplicate-before-payload priority, exact initial input limits, and native progress-before-reader-error behavior, not a normative correction. Complete native ordered reader continuation, not a supplied box/result bank. One actual borrowed reader initializer is retargeted to the existing checked shared producer, requiring explicit future native audit; no allocation/owner/body relocation. Nested metadata-tree inspection, whole header/container/public, coverage/cfg/erasure/lifetimes/release remain independent.",
+      "implementation_refs": [
+        {"path": "src/jp2/metadata.rs", "symbol": "parse_resolution"},
+        {"path": "src/jp2/metadata.rs", "symbol": "parse_resolution_superbox"},
+        {"path": "src/jp2/metadata.rs", "symbol": "copy_bytes"},
+        {"path": "src/jp2/composition.rs", "symbol": "parse_layer_opacity"},
+        {"path": "src/jp2/headers.rs", "symbol": "parse_jp2_header"},
+        {"path": "src/jp2/headers.rs", "symbol": "parse_codestream_header"},
+        {"path": "src/jp2/container.rs", "symbol": "parse"}
+      ],
+      "spec_refs": [
+        {"path": "specs/jp2_resolution.rs", "symbol": "part2_parse_resolution"},
+        {"path": "specs/jp2_resolution.rs", "symbol": "part2_parse_resolution_superbox"},
+        {"path": "specs/jp2_resolution.rs", "symbol": "part2_resolution_boxes"},
+        {"path": "specs/jp2_resolution.rs", "symbol": "part2_resolution_finish"},
+        {"path": "specs/jp2_resolution.rs", "symbol": "part2_resolution_progress_error"},
+        {"path": "specs/jp2_resolution.rs", "symbol": "part2_copy_metadata_bytes"}
+      ],
+      "contract_refs": [
+        {"path": "src/jp2/metadata.rs", "symbol": "parse_resolution"},
+        {"path": "src/jp2/metadata.rs", "symbol": "parse_resolution_superbox"},
+        {"path": "src/jp2/metadata.rs", "symbol": "copy_bytes"}
+      ],
+      "proof_refs": [
+        {"path": "src/jp2/proof_support.rs", "symbol": "metadata_bytes_outcome"},
+        {"path": "src/jp2/box_reader.rs", "symbol": "box_reader_from_input"}
+      ],
+      "test_refs": [
+        {"path": "src/jp2/tests.rs", "symbol": "actual_raw_resolution_retains_all_fields_and_every_signed_exponent_byte"},
+        {"path": "src/jp2/tests.rs", "symbol": "actual_raw_resolution_keeps_exact_length_zero_fields_and_lazy_relative_errors"},
+        {"path": "src/jp2/tests.rs", "symbol": "actual_raw_resolution_superbox_retains_both_orders_unknowns_and_duplicate_priority"},
+        {"path": "src/jp2/tests.rs", "symbol": "actual_raw_resolution_superbox_keeps_input_limit_then_progress_before_reader_errors"},
+        {"path": "src/jp2/tests.rs", "symbol": "actual_raw_metadata_copy_retains_every_byte_and_independent_owned_storage"}
+      ]
+    },
+    {
+      "id": "part2-complete-native-raw-component-and-channel-header-results",
+      "topic": "Complete actual raw component-mapping/channel-definition Results with every ordered record, native validity admission, repeats and lazy relative errors. Exact length/conversion/component-limit priority; every native channel type and association. Source-derived byte folds, not supplied records or owner reconstruction. One actual Copy constructor call deliberately retargets the existing checked shared producer and one unused integer-error argument is named; future full native observation must enumerate these differences. Palette normative HOLD, whole header/container/public, cfg/erasure/lifetimes/release remain separate.",
+      "implementation_refs": [
+        {"path": "src/jp2/color.rs", "symbol": "parse_component_mapping"},
+        {"path": "src/jp2/color.rs", "symbol": "parse_channel_definition"},
+        {"path": "src/jp2/headers.rs", "symbol": "parse_jp2_header"},
+        {"path": "src/jp2/headers.rs", "symbol": "parse_codestream_header"}
+      ],
+      "spec_refs": [
+        {"path": "specs/jp2_channel_header.rs", "symbol": "part2_parse_component_mapping"},
+        {"path": "specs/jp2_channel_header.rs", "symbol": "part2_mapping_entry"},
+        {"path": "specs/jp2_channel_header.rs", "symbol": "part2_parse_channel_definition"},
+        {"path": "specs/jp2_channel_header.rs", "symbol": "part2_channel_record"},
+        {"path": "specs/mod.rs", "symbol": "part2_component_mapping_valid"},
+        {"path": "specs/mod.rs", "symbol": "part2_channel_definition_valid"}
+      ],
+      "contract_refs": [
+        {"path": "src/jp2/color.rs", "symbol": "parse_component_mapping"},
+        {"path": "src/jp2/color.rs", "symbol": "parse_channel_definition"}
+      ],
+      "proof_refs": [
+        {"path": "src/jp2/proof_support.rs", "symbol": "component_mapping_outcome"},
+        {"path": "src/jp2/proof_support.rs", "symbol": "channel_definition_records_view"},
+        {"path": "src/jp2/proof_support.rs", "symbol": "channel_definition_records_outcome"},
+        {"path": "specs/jp2_channel_header.rs", "symbol": "part2_mapping_step"},
+        {"path": "specs/jp2_channel_header.rs", "symbol": "part2_mapping_error"},
+        {"path": "specs/jp2_channel_header.rs", "symbol": "part2_channel_records_step"},
+        {"path": "specs/jp2_channel_header.rs", "symbol": "part2_channel_records_error"},
+        {"path": "src/image/layout.rs", "symbol": "channel_definition_new"}
+      ],
+      "test_refs": [
+        {"path": "src/jp2/tests.rs", "symbol": "actual_raw_component_mapping_retains_order_repeats_and_every_record_field"},
+        {"path": "src/jp2/tests.rs", "symbol": "actual_raw_component_mapping_covers_every_method_and_column_byte"},
+        {"path": "src/jp2/tests.rs", "symbol": "actual_raw_component_mapping_keeps_length_conversion_limit_and_lazy_error_priority"},
+        {"path": "src/jp2/tests.rs", "symbol": "actual_raw_channel_definition_retains_order_repeats_types_and_associations"},
+        {"path": "src/jp2/tests.rs", "symbol": "actual_raw_channel_definition_keeps_all_channel_type_and_association_boundaries"},
+        {"path": "src/jp2/tests.rs", "symbol": "actual_raw_channel_definition_keeps_exact_lengths_full_count_and_lazy_offsets"}
+      ]
+    },
+    {
       "id": "part2-complete-native-raw-color-header-result",
       "topic": "Complete actual raw color specification Result with method, precedence, approximation and every optional ICC byte. Actual native profile copying is checked exact/successful; no supplied profile/color bank, owner inversion, runtime proof clone or allocation/body/scope relocation. Retain lazy relative error offsets, enumerated32bit values and restricted/unrestricted ICC admission; this does not assert conversion support. Native ICC getter exposes full retained bytes. Whole header/container/public, normative/cfg/erasure/lifetimes/release remain separate.",
       "implementation_refs": [
