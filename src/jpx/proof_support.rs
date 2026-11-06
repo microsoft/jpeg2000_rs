@@ -134,18 +134,64 @@ verus! {
     }
 
     #[verifier::inline]
+    spec fn inspection_value_view(metadata: &JpxInspection) -> crate::specs::Part2JpxInspection {
+        crate::specs::Part2JpxInspection {
+            layers: inspected_layers_view(metadata.layers@),
+            composition: match &metadata.composition {
+                None => None, Some(composition) => Some(inspected_composition_view(composition)),
+            },
+            metadata: (metadata.metadata_boxes, metadata.metadata_depth),
+        }
+    }
+
+    pub closed spec fn inspection_native_layers(metadata: &JpxInspection) -> Seq<JpxLayerInfo> {
+        metadata.layers@
+    }
+
+    pub closed spec fn inspected_layer_geometry(layer: &JpxLayerInfo) -> (u32, u32, u32, u32) {
+        (layer.horizontal_offset, layer.vertical_offset, layer.width, layer.height)
+    }
+
+    proof fn inspection_value_known(metadata: &JpxInspection)
+        ensures inspection_value_view(metadata).layers == inspected_layers_view(inspection_native_layers(metadata)),
+            match inspection_composition_reference(metadata) {
+                None => inspection_value_view(metadata).composition.is_none(),
+                Some(composition) => inspection_value_view(metadata).composition == Some(inspected_composition_view(composition)),
+            },
+            inspection_composition_view(metadata) == match inspection_value_view(metadata).composition {
+                None => None, Some(composition) => Some(composition.source),
+            },
+    {
+    }
+
+    proof fn inspected_layer_geometry_known(layer: &JpxLayerInfo)
+        ensures inspected_layer_view(layer).offset == (inspected_layer_geometry(layer).0, inspected_layer_geometry(layer).1),
+            inspected_layer_view(layer).geometry == (inspected_layer_geometry(layer).2, inspected_layer_geometry(layer).3),
+    {
+    }
+
+    proof fn inspection_layers_geometry_known(metadata: &JpxInspection)
+        ensures forall|i: int| #![auto] 0 <= i < inspection_native_layers(metadata).len() ==>
+            inspected_layer_geometry(&inspection_native_layers(metadata)[i])
+                == (inspection_value_view(metadata).layers[i].offset.0, inspection_value_view(metadata).layers[i].offset.1,
+                    inspection_value_view(metadata).layers[i].geometry.0, inspection_value_view(metadata).layers[i].geometry.1),
+    {
+        inspection_value_known(metadata);
+        assert forall|i: int| #![auto] 0 <= i < inspection_native_layers(metadata).len() implies
+            inspected_layer_geometry(&inspection_native_layers(metadata)[i])
+                == (inspection_value_view(metadata).layers[i].offset.0, inspection_value_view(metadata).layers[i].offset.1,
+                    inspection_value_view(metadata).layers[i].geometry.0, inspection_value_view(metadata).layers[i].geometry.1) by {
+            inspected_layer_geometry_known(&inspection_native_layers(metadata)[i]);
+        }
+    }
+
+    #[verifier::inline]
     spec fn inspection_result(result: Result<JpxInspection, DecodeError>)
         -> Result<crate::specs::Part2JpxInspection, DecodeError>
     {
         match result {
             Err(error) => Err(error),
-            Ok(metadata) => Ok(crate::specs::Part2JpxInspection {
-                layers: inspected_layers_view(metadata.layers@),
-                composition: match &metadata.composition {
-                    None => None, Some(composition) => Some(inspected_composition_view(composition)),
-                },
-                metadata: (metadata.metadata_boxes, metadata.metadata_depth),
-            }),
+            Ok(metadata) => Ok(inspection_value_view(&metadata)),
         }
     }
 

@@ -57,6 +57,8 @@ mod jpx_raw_inspection;
 pub use jpx_raw_inspection::*;
 mod jpx_raw_frame;
 pub use jpx_raw_frame::*;
+mod jpx_raw_composition;
+pub use jpx_raw_composition::*;
 mod jp2_box_reader;
 pub use jp2_box_reader::*;
 mod jp2_file_type;

@@ -179,6 +179,22 @@ technical candidate only: parent-owned record, review, CI, guarded integration
 and actual-main acceptance remain separate. No complete parsing, pixels,
 lifetime verification, normative conformance or publication claim follows.
 
+## Actual public raw composition and fallback Result
+
+The public `render_jpx_composition` now derives its complete image/error Result
+from actual raw producers, retaining timeline-first rendering and the complete
+non-timeline fallback. The dimension producer preserves ordered extent overflow,
+zero-area and width/height/pixel checks. The source prefix records each real
+decoded owned layer and metadata-derived placement, preserves first errors and
+the physical vector length/frame, then feeds the existing checked canvas renderer.
+
+Stored layer getters expose checked value frames without changing native field
+visibility. The existing inspection projection delegates to a shared private full
+value projection; no native owner, clone, caller, renderer or budget change is
+introduced. The dimension helper is visible only to its existing parent module
+for direct regressions. Fresh native observations/full qualification remain
+required; selected/progressive/JPIP and independent plan gates remain separate.
+
 ## Actual public raw layer and frame image Results
 
 The public `render_jpx_layer` and `render_jpx_frame` now compose actual raw

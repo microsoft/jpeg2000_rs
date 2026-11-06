@@ -12,9 +12,10 @@ use super::{
 };
 #[cfg(verus_keep_ghost)]
 use super::{
-    collected_layers_result, composition_source_view, frame_views, inspection_composition_view,
-    instruction_views, layer_owned_planes_push, owned_layer_outcome, placement_views,
-    placement_views_push, raw_jpx_file_known, raw_jpx_geometries_known,
+    collected_layers_result, composition_source_view, frame_views, inspected_layer_geometry_known,
+    inspection_composition_view, inspection_layers_geometry_known, inspection_value_known,
+    inspection_value_view, instruction_views, layer_owned_planes_push, owned_layer_outcome,
+    placement_views, placement_views_push, raw_jpx_file_known, raw_jpx_geometries_known,
     raw_jpx_inspection_outcome_known, raw_jpx_render_metadata_known, supplied_views,
     supplied_views_push,
 };
@@ -46,14 +47,37 @@ pub fn render_jpx_layer(
     decode_effective_layer(inspected.file(), layer_index, options)?.into_image()
 }
 
+#[cfg_attr(verus_keep_ghost, verus_spec(result =>
+    ensures crate::color::converted_image_result(result) == crate::specs::part2_render_raw_jpx_composition(
+        input@, crate::options::decode_options_limits(options)),
+))]
 pub fn render_jpx_composition(
     input: &[u8],
     options: &DecodeOptions,
 ) -> Result<ConvertedImage, DecodeError> {
+    #[cfg(verus_keep_ghost)]
+    proof! {
+        crate::specs::part2_render_raw_jpx_composition_unfold(input@, crate::options::decode_options_limits(options));
+        raw_jpx_inspection_outcome_known();
+        reveal(crate::specs::part2_render_source_composition);
+    }
     let inspected = jp2::parse_and_inspect(input, options.limits())?;
     let file = inspected.file();
+    #[cfg(verus_keep_ghost)]
+    proof! {
+        jp2::raw_render_file_known(file);
+        jp2::raw_jpx_inspection_parts_known(file);
+        raw_jpx_file_known(file);
+        raw_jpx_geometries_known(jp2::raw_inspected_native_infos(&inspected));
+    }
     ensure_jpx(file)?;
     let metadata = inspect_file(file, inspected.codestreams(), options.limits())?;
+    #[cfg(verus_keep_ghost)]
+    proof! {
+        inspection_value_known(&metadata);
+        inspection_layers_geometry_known(&metadata);
+        raw_jpx_render_metadata_known(&metadata);
+    }
     let has_frames = match metadata.composition() {
         Some(composition) => !composition.frames().is_empty(),
         None => false,
@@ -65,14 +89,52 @@ pub fn render_jpx_composition(
     let mut layers = Vec::new();
     let layer_count = effective_layer_count(file);
     let mut layer_index = 0_usize;
+    #[cfg(verus_keep_ghost)]
+    proof_decl! {
+        let ghost source = jp2::jpx_file_decode_view(file);
+        let ghost configs = jp2::source_file_layer_configs(file);
+        let ghost meta = inspection_value_view(&metadata);
+        let ghost limits = crate::options::decode_options_limits(options);
+        let ghost expected = crate::specs::part2_render_raw_jpx_composition(input@, limits);
+    }
+    #[cfg(verus_keep_ghost)]
+    proof! {
+        reveal(crate::specs::part2_composition_source_prefix);
+        assert(placement_views(layers@) =~= Seq::<crate::specs::Part2Placement>::empty());
+    }
     #[cfg_attr(
         verus_keep_ghost,
         verus_spec(
             invariant layer_index <= layer_count,
+                layers.len() == layer_index,
+                source == jp2::jpx_file_decode_view(file),
+                configs == jp2::source_file_layer_configs(file),
+                meta == inspection_value_view(&metadata),
+                meta.layers == super::inspected_layers_view(super::inspection_native_layers(&metadata)),
+                limits == crate::options::decode_options_limits(options),
+                expected == crate::specs::part2_render_raw_jpx_composition(input@, limits),
+                expected == crate::specs::part2_render_source_composition(source, configs, meta, limits),
+                layer_count == crate::specs::effective_jpx_layer_count(configs.len(), source.1.len()),
+                crate::specs::part2_composition_dimensions(meta, limits) == Ok((width, height)),
+                !(match meta.composition { None => false, Some(composition) => composition.source.3.len() > 0 }),
+                crate::specs::part2_composition_source_prefix(source, configs, meta, layer_index as nat, limits)
+                    == Ok(placement_views(layers@)),
+                forall|i: int| #![auto] 0 <= i < super::inspection_native_layers(&metadata).len() ==>
+                    super::inspected_layer_geometry(&super::inspection_native_layers(&metadata)[i])
+                        == (meta.layers[i].offset.0, meta.layers[i].offset.1, meta.layers[i].geometry.0, meta.layers[i].geometry.1),
             decreases layer_count - layer_index,
         )
     )]
     while layer_index < layer_count {
+        #[cfg(verus_keep_ghost)]
+        proof_decl! { let ghost previous_layers = layers@; }
+        #[cfg(verus_keep_ghost)]
+        proof! {
+            reveal(crate::specs::part2_composition_source_prefix);
+            reveal(crate::specs::part2_render_source_composition);
+            crate::specs::part2_composition_source_error(source, configs, meta,
+                layer_index as nat + 1, layer_count as nat, limits);
+        }
         layers.push((
             decode_effective_layer(file, layer_index, options)?,
             JpxInstructionInfo {
@@ -89,8 +151,20 @@ pub fn render_jpx_composition(
                 next_reuse: 0,
             },
         ));
+        #[cfg(verus_keep_ghost)]
+        proof! {
+            super::placement_views_push(previous_layers, layers@[layer_index as int]);
+            assert(layers@ =~= previous_layers.push(layers@[layer_index as int]));
+            assert(match crate::specs::part2_composition_source_prefix(source, configs, meta, layer_index as nat + 1, limits) {
+                Err(_) => false, Ok(decoded) => decoded =~= placement_views(layers@),
+            });
+            assert(crate::specs::part2_composition_source_prefix(source, configs, meta, layer_index as nat + 1, limits)
+                == Ok(placement_views(layers@)));
+        }
         layer_index = layer_index.checked_add(1).ok_or_else(arithmetic_overflow)?;
     }
+    #[cfg(verus_keep_ghost)]
+    proof! { reveal(crate::specs::part2_render_source_composition); }
     render_decoded_layers(
         width,
         height,
@@ -533,10 +607,19 @@ pub(super) fn render_decoded_layers(
     crate::color::from_composited(width, height, output_space, output_colors, output_alpha)
 }
 
-fn composition_dimensions(
+#[cfg_attr(verus_keep_ghost, verus_spec(result =>
+    ensures result == crate::specs::part2_composition_dimensions(inspection_value_view(inspection), limits),
+))]
+pub(super) fn composition_dimensions(
     inspection: &JpxInspection,
     limits: &ResourceLimits,
 ) -> Result<(u32, u32), DecodeError> {
+    #[cfg(verus_keep_ghost)]
+    proof! {
+        reveal(crate::specs::part2_composition_dimensions);
+        inspection_value_known(inspection);
+        inspection_layers_geometry_known(inspection);
+    }
     let (width, height) = match inspection.composition() {
         Some(composition) => (composition.width(), composition.height()),
         None => {
@@ -544,15 +627,38 @@ fn composition_dimensions(
             let mut height = 0_u32;
             let layer_count = inspection.layers().len();
             let mut index = 0_usize;
+            #[cfg(verus_keep_ghost)]
+            proof! { reveal(crate::specs::part2_composition_extent_prefix); }
             #[cfg_attr(
                 verus_keep_ghost,
                 verus_spec(
                     invariant index <= layer_count,
+                        layer_count == inspection_value_view(inspection).layers.len(),
+                        inspection_value_view(inspection).composition.is_none(),
+                        inspection_value_view(inspection).layers
+                            == super::inspected_layers_view(super::inspection_native_layers(inspection)),
+                        crate::specs::part2_composition_extent_prefix(inspection_value_view(inspection).layers, index as nat)
+                            == Ok((width, height)),
+                        forall|i: int| #![auto] 0 <= i < super::inspection_native_layers(inspection).len() ==>
+                            super::inspected_layer_geometry(&super::inspection_native_layers(inspection)[i])
+                                == (inspection_value_view(inspection).layers[i].offset.0,
+                                    inspection_value_view(inspection).layers[i].offset.1,
+                                    inspection_value_view(inspection).layers[i].geometry.0,
+                                    inspection_value_view(inspection).layers[i].geometry.1),
                     decreases layer_count - index,
                 )
             )]
             while index < layer_count {
+                #[cfg(verus_keep_ghost)]
+                proof! {
+                    reveal(crate::specs::part2_composition_dimensions);
+                    reveal(crate::specs::part2_composition_extent_prefix);
+                    crate::specs::part2_composition_extent_error(inspection_value_view(inspection).layers,
+                        index as nat + 1, layer_count as nat);
+                }
                 let layer = inspection.layer(index)?;
+                #[cfg(verus_keep_ghost)]
+                proof! { inspected_layer_geometry_known(layer); }
                 width = width.max(
                     layer
                         .horizontal_offset()
