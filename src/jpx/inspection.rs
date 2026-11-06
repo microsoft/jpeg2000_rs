@@ -36,18 +36,22 @@ impl JpxLayerInfo {
         self.vertical_grid_size
     }
 
+    #[cfg_attr(verus_keep_ghost, verus_spec(result => ensures result == super::inspected_layer_geometry(self).0,))]
     pub const fn horizontal_offset(&self) -> u32 {
         self.horizontal_offset
     }
 
+    #[cfg_attr(verus_keep_ghost, verus_spec(result => ensures result == super::inspected_layer_geometry(self).1,))]
     pub const fn vertical_offset(&self) -> u32 {
         self.vertical_offset
     }
 
+    #[cfg_attr(verus_keep_ghost, verus_spec(result => ensures result == super::inspected_layer_geometry(self).2,))]
     pub const fn width(&self) -> u32 {
         self.width
     }
 
+    #[cfg_attr(verus_keep_ghost, verus_spec(result => ensures result == super::inspected_layer_geometry(self).3,))]
     pub const fn height(&self) -> u32 {
         self.height
     }
@@ -164,10 +168,22 @@ impl JpxInstructionInfo {
 }
 
 impl JpxInspection {
+    #[cfg_attr(verus_keep_ghost, verus_spec(result =>
+        ensures result@ == super::inspection_native_layers(self),
+    ))]
     pub fn layers(&self) -> &[JpxLayerInfo] {
         &self.layers
     }
 
+    #[cfg_attr(verus_keep_ghost, verus_spec(result =>
+        ensures match result {
+            Err(error) => index >= super::inspection_native_layers(self).len()
+                && error == (DecodeError::LayerIndexOutOfRange {
+                    index, layers: super::inspection_native_layers(self).len() as usize }),
+            Ok(layer) => index < super::inspection_native_layers(self).len()
+                && *layer == super::inspection_native_layers(self)[index as int],
+        },
+    ))]
     pub fn layer(&self, index: usize) -> Result<&JpxLayerInfo, DecodeError> {
         self.layers
             .get(index)

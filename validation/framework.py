@@ -3175,6 +3175,57 @@ _RAW_RENDER_PROOFS = {("src/jp2/proof_support.rs", name) for name in (
     ("specs/jpx_raw_frame.rs", "part2_render_raw_jpx_frame_unfold"),
     *_RAW_RENDER_APIS,
 }
+_RAW_COMPOSITION_RENDER_ENTRY = "part2-complete-native-public-raw-composition-result"
+_RAW_COMPOSITION_RENDER_APIS = {("src/jpx/render.rs", "render_jpx_composition")}
+_RAW_COMPOSITION_RENDER_CONTRACTS = {
+    ("src/jpx/render.rs", "render_jpx_composition"): (
+        "part2_render_raw_jpx_composition", _coverage_call("crate::color::converted_image_result", r"\1"), None,
+        r"input\s*@\s*,\s*" + _coverage_call("crate::options::decode_options_limits", "options"),
+    ),
+    ("src/jpx/render.rs", "composition_dimensions"): (
+        "part2_composition_dimensions", r"\1", None,
+        _coverage_call("inspection_value_view", "inspection") + r"\s*,\s*limits",
+    ),
+    ("src/jpx/render.rs", "render_decoded_layers"): (
+        "part2_render_layers", _coverage_call("crate::color::converted_image_result", r"\1"), None,
+        r"width\s*,\s*height\s*,\s*" + _coverage_call("placement_views", r"layers\s*@")
+        + r"\s*,\s*maximum_decoded_bytes\s*,\s*" + _coverage_call("crate::limits::resource_work_limit", "limits"),
+    ),
+    ("src/jpx/render.rs", "render_inspected_frame"): _SOURCE_FRAME_CONTRACTS[("src/jpx/render.rs", "render_inspected_frame")],
+    ("src/jpx/layer_decode.rs", "decode_effective_layer"): _EFFECTIVE_LAYER_CONTRACTS[("src/jpx/layer_decode.rs", "decode_effective_layer")],
+}
+_RAW_COMPOSITION_RENDER_MODELS = {("specs/jpx_raw_composition.rs", name) for name in (
+    "part2_render_raw_jpx_composition", "part2_render_source_composition", "part2_composition_dimensions",
+    "part2_composition_extent_prefix", "part2_composition_source_prefix",
+)} | {
+    ("specs/jp2_inspection.rs", "part2_parse_and_inspect_container"),
+    ("specs/jpx_raw_frame.rs", "part2_raw_jpx_decode_input"),
+    ("specs/jpx_raw_frame.rs", "part2_raw_layer_routings"),
+    ("specs/jpx_raw_inspection.rs", "part2_ensure_raw_jpx"),
+    ("specs/jpx_raw_inspection.rs", "part2_raw_inspection_file"),
+    ("specs/jpx_raw_inspection.rs", "part2_raw_inspection_geometries"),
+    ("specs/jpx_inspection.rs", "part2_inspect_jpx_file"),
+    ("specs/jpx_frame.rs", "part2_render_inspected_source_frame"),
+    ("specs/jpx_dispatch.rs", "part2_decode_effective_layer"),
+    ("specs/mod.rs", "part2_render_layers"),
+}
+_RAW_COMPOSITION_RENDER_PROOFS = {
+    ("specs/jpx_raw_composition.rs", "part2_render_raw_jpx_composition_unfold"),
+    ("specs/jpx_raw_composition.rs", "part2_composition_extent_error"),
+    ("specs/jpx_raw_composition.rs", "part2_composition_source_error"),
+    ("src/jpx/proof_support.rs", "inspection_value_view"),
+    ("src/jpx/proof_support.rs", "inspection_value_known"),
+    ("src/jpx/proof_support.rs", "inspection_native_layers"),
+    ("src/jpx/proof_support.rs", "inspected_layer_geometry"),
+    ("src/jpx/proof_support.rs", "inspected_layer_geometry_known"),
+    ("src/jpx/proof_support.rs", "inspection_layers_geometry_known"),
+    ("src/jpx/proof_support.rs", "placement_views_push"),
+    ("src/jp2/proof_support.rs", "raw_render_file_known"),
+    *_RAW_COMPOSITION_RENDER_APIS,
+} | {("src/jpx/inspection.rs", name) for name in (
+    "JpxLayerInfo::horizontal_offset", "JpxLayerInfo::vertical_offset", "JpxLayerInfo::width", "JpxLayerInfo::height",
+    "JpxInspection::layers", "JpxInspection::layer",
+)}
 _EFFECTIVE_LAYER_MODELS = {("specs/jpx_dispatch.rs", name) for name in (
     "part2_decode_effective_layer", "part2_layer_config_lookup", "part2_decode_compositing_layer",
     "part2_dispatch_owned_image", "part2_dispatch_opacity_result", "part2_dispatch_registration",
@@ -3455,6 +3506,43 @@ def validate_normative_coverage(
     ids: set[str] = set()
     contract_functions: set[tuple[str, str]] = set()
     for entry in coverage["requirements"]:
+        if entry["id"] == _RAW_COMPOSITION_RENDER_ENTRY:
+            if {(ref["path"], ref["symbol"]) for ref in entry["contract_refs"]} != set(_RAW_COMPOSITION_RENDER_CONTRACTS) - _RAW_COMPOSITION_RENDER_APIS:
+                raise ValueError("whole raw composition Result requires actual dimensions/layer/frame/canvas producer contracts")
+            if not _RAW_COMPOSITION_RENDER_MODELS.issubset({(ref["path"], ref["symbol"]) for ref in entry["spec_refs"]}) \
+                    or not _RAW_COMPOSITION_RENDER_PROOFS.issubset({(ref["path"], ref["symbol"]) for ref in entry["proof_refs"]}):
+                raise ValueError("whole raw composition Result requires proved public boundary and complete extent/source/getter/canvas bridges")
+            path = (ROOT / "src/jpx/render.rs").resolve()
+            for name, required in {
+                "render_jpx_composition": ("jp2::parse_and_inspect(input, options.limits())?", "ensure_jpx(file)?",
+                    "inspect_file(file, inspected.codestreams(), options.limits())?",
+                    "if has_frames", "render_inspected_frame(file, &metadata, 0, options)",
+                    "composition_dimensions(&metadata, options.limits())?", "decode_effective_layer(file, layer_index, options)?",
+                    "target_width: metadata.layer(layer_index)?.width()", "target_height: metadata.layer(layer_index)?.height()",
+                    "render_decoded_layers("),
+                "composition_dimensions": ("layer.horizontal_offset()", "layer.vertical_offset()", "width = width.max(",
+                    "height = height.max(", "Resource::Width", "Resource::Height", "Resource::Pixels"),
+            }.items():
+                body = _coverage_function_body(source_text(path), function_header(path, name))
+                if body is None or any("".join(item.split()) not in "".join(body.split()) for item in required):
+                    raise ValueError("whole raw composition Result requires actual timeline-first/fallback/source/extent/resource pipelines")
+            model = source_text((ROOT / "specs/jpx_raw_composition.rs").resolve())
+            for name, required in {
+                "part2_render_raw_jpx_composition": ("part2_parse_and_inspect_container(input, limits)",
+                    "part2_ensure_raw_jpx(inspected.0.file_type)", "part2_inspect_jpx_file(", "part2_render_source_composition("),
+                "part2_render_source_composition": ("composition.source.3.len() > 0", "part2_render_inspected_source_frame(",
+                    "part2_composition_dimensions(metadata, limits)", "part2_composition_source_prefix(", "part2_render_layers("),
+                "part2_composition_source_prefix": ("part2_decode_effective_layer(file, layers, index, limits)",
+                    "index >= metadata.layers.len()", "metadata.layers[index as int].geometry.0",
+                    "metadata.layers[index as int].geometry.1", "previous.push((owned"),
+                "part2_composition_extent_prefix": ("layer.offset.0 as nat + layer.geometry.0 as nat",
+                    "layer.offset.1 as nat + layer.geometry.1 as nat", "width > u32::MAX as nat", "height > u32::MAX as nat"),
+                "part2_composition_dimensions": ("metadata.composition", "width == 0 || height == 0",
+                    "crate::Resource::Width", "crate::Resource::Height", "crate::Resource::Pixels", "u64::MAX as nat"),
+            }.items():
+                actual = _coverage_spec_function_body(model, name)
+                if actual is None or any("".join(item.split()) not in "".join(actual.split()) for item in required):
+                    raise ValueError("whole raw composition Result requires complete raw/timeline/fallback/extent/resource models")
         if entry["id"] == _RAW_RENDER_ENTRY:
             if {(ref["path"], ref["symbol"]) for ref in entry["contract_refs"]} != set(_RAW_RENDER_CONTRACTS) - _RAW_RENDER_APIS:
                 raise ValueError("whole public raw rendering Results require actual layer/image/frame producer contracts")
@@ -5462,7 +5550,9 @@ def validate_normative_coverage(
             ) or (entry["id"] == _RAW_JPX_INSPECTION_ENTRY
                   and (reference["path"], reference["symbol"]) in _RAW_JPX_INSPECTION_APIS)
               or (entry["id"] == _RAW_RENDER_ENTRY
-                  and (reference["path"], reference["symbol"]) in _RAW_RENDER_APIS))
+                  and (reference["path"], reference["symbol"]) in _RAW_RENDER_APIS)
+              or (entry["id"] == _RAW_COMPOSITION_RENDER_ENTRY
+                  and (reference["path"], reference["symbol"]) in _RAW_COMPOSITION_RENDER_APIS))
             and reference not in entry["contract_refs"]
         ]
         for reference in [*entry["contract_refs"], *proved_apis]:
@@ -5956,6 +6046,8 @@ def validate_normative_coverage(
                     if entry["id"] == _SOURCE_FRAME_ENTRY else None)
                 or (_RAW_RENDER_CONTRACTS.get((reference["path"], reference["symbol"]))
                     if entry["id"] == _RAW_RENDER_ENTRY else None)
+                or (_RAW_COMPOSITION_RENDER_CONTRACTS.get((reference["path"], reference["symbol"]))
+                    if entry["id"] == _RAW_COMPOSITION_RENDER_ENTRY else None)
                 or (_JPX_INSPECTION_CONTRACTS.get((reference["path"], reference["symbol"]))
                     if entry["id"] == _JPX_INSPECTION_ENTRY else None)
                 or (_RAW_JPX_INSPECTION_CONTRACTS.get((reference["path"], reference["symbol"]))

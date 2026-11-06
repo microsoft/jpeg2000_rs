@@ -502,6 +502,111 @@ mod tests {
         }
     }
 
+    fn raw_dimension_metadata(offset: (u32, u32), geometry: (u32, u32)) -> JpxInspection {
+        JpxInspection {
+            layers: vec![JpxLayerInfo {
+                index: 0, codestream_indices: vec![0], horizontal_grid_size: 1, vertical_grid_size: 1,
+                horizontal_offset: offset.0, vertical_offset: offset.1, width: geometry.0, height: geometry.1,
+                has_color_group: false, has_opacity_box: false, nested_metadata_boxes: 0,
+            }],
+            composition: None, metadata_boxes: 0, metadata_depth: 0,
+        }
+    }
+
+    #[test]
+    fn actual_raw_composition_fallback_decodes_all_implicit_sources_in_native_over_order() {
+        let image = render_jpx_composition(&source_frame_codestream_bytes(), &DecodeOptions::default()).unwrap();
+        assert_eq!((image.width(), image.height(), image.precision(), image.color_space()), (1, 1, 16, ConvertedColorSpace::Grayscale));
+        assert_eq!(image.channels().len(), 2);
+        assert_eq!(image.channel(0).unwrap().samples(), &[51_400]);
+        assert_eq!(image.channel(1).unwrap().samples(), &[u16::MAX]);
+        assert_eq!(image.channel(1).unwrap().channel_type(), ConvertedChannelType::Alpha {
+            premultiplied: false, association: ChannelAssociation::WholeImage,
+        });
+    }
+
+    #[test]
+    fn actual_raw_composition_fallback_retains_general_rgb_and_complete_straight_alpha() {
+        let bytes = general_source_bytes(
+            &[[0, 0, 2, 1, 0, 0], [0, 1, 2, 1, 0, 0], [0, 2, 2, 1, 0, 0]],
+            &[], None, jp2::ENUMERATED_SRGB,
+        );
+        let image = render_jpx_composition(&bytes, &DecodeOptions::default()).unwrap();
+        assert_eq!((image.width(), image.height(), image.precision(), image.color_space()), (1, 1, 16, ConvertedColorSpace::Srgb));
+        assert_eq!(image.channels().len(), 4);
+        for (channel, expected) in image.channels().iter().zip([257, 33_153, 51_400, u16::MAX]) {
+            assert_eq!(channel.samples(), &[expected]);
+        }
+        assert_eq!(image.channel(3).unwrap().channel_type(), ConvertedChannelType::Alpha {
+            premultiplied: false, association: ChannelAssociation::WholeImage,
+        });
+    }
+
+    #[test]
+    fn actual_raw_composition_zero_frame_options_use_declared_canvas_and_transparent_uncovered_planes() {
+        let (bytes, _) = source_layer_bytes(&[0xcf, 0xb4, 0x04, 0x09], false);
+        let bytes = raw_render_composition_bytes(bytes, 1, (3, 2), &[], 0, (1, 1));
+        let image = render_jpx_composition(&bytes, &DecodeOptions::default()).unwrap();
+        assert_eq!((image.width(), image.height()), (3, 2));
+        assert_eq!(image.channel(0).unwrap().samples(), &[257, 0, 0, 0, 0, 0]);
+        assert_eq!(image.channel(1).unwrap().samples(), &[u16::MAX, 0, 0, 0, 0, 0]);
+        assert_eq!(render_jpx_frame(&bytes, 0, &DecodeOptions::default()).err(),
+            Some(DecodeError::FrameIndexOutOfRange { index: 0, frames: 0 }));
+    }
+
+    #[test]
+    fn actual_raw_composition_timeline_branch_selects_first_frame_instead_of_fallback_layers() {
+        let bytes = raw_render_composition_bytes(source_frame_codestream_bytes(), 3,
+            (2, 1), &[(0, true), (1, true)], 1, (1, 1));
+        let image = render_jpx_composition(&bytes, &DecodeOptions::default()).unwrap();
+        assert_eq!((image.width(), image.height()), (2, 1));
+        assert_eq!(image.channel(0).unwrap().samples(), &[257, 0]);
+        assert_eq!(image.channel(1).unwrap().samples(), &[u16::MAX, 0]);
+    }
+
+    #[test]
+    fn actual_composition_dimensions_preserve_extent_overflow_zero_and_resource_priorities() {
+        let limits = ResourceLimits::default();
+        assert_eq!(super::render::composition_dimensions(&raw_dimension_metadata((0, 0), (0, 0)), &limits),
+            Err(DecodeError::MalformedInput { offset: 0, kind: MalformedKind::InvalidBoxContents }));
+        for offset in [(u32::MAX, 0), (0, u32::MAX)] {
+            assert_eq!(super::render::composition_dimensions(&raw_dimension_metadata(offset, (1, 1)), &limits),
+                Err(DecodeError::MalformedInput { offset: 0, kind: MalformedKind::ArithmeticOverflow }));
+        }
+        let metadata = raw_dimension_metadata((1, 2), (3, 4));
+        for (width, height, pixels, resource, limit, actual) in [
+            (3, 5, 1, Resource::Width, 3, 4),
+            (9, 5, 1, Resource::Height, 5, 6),
+            (9, 9, 23, Resource::Pixels, 23, 24),
+        ] {
+            let limits = limits.with_geometry_limits_for_test(1, width, height, pixels, 1);
+            assert_eq!(super::render::composition_dimensions(&metadata, &limits),
+                Err(DecodeError::LimitExceeded { resource, limit, actual }));
+        }
+        assert_eq!(super::render::composition_dimensions(&metadata, &limits), Ok((4, 6)));
+    }
+
+    #[test]
+    fn actual_raw_composition_keeps_input_profile_geometry_and_first_packet_error_order() {
+        let (mut bytes, _) = source_layer_bytes(&[0xcf, 0xb4, 0x04, 0x09], false);
+        let packet_limited = DecodeOptions::new(ResourceLimits::HARDENED.with_maximum_packets(0).unwrap());
+        assert_eq!(render_jpx_composition(&bytes, &packet_limited).err(),
+            Some(DecodeError::LimitExceeded { resource: Resource::Packets, limit: 0, actual: 1 }));
+        bytes[20..24].copy_from_slice(b"jp2 ");
+        bytes[28..32].copy_from_slice(b"jp2 ");
+        assert_eq!(render_jpx_composition(&bytes, &packet_limited).err(),
+            Some(DecodeError::MalformedInput { offset: 0, kind: MalformedKind::InvalidProfile }));
+        let input_limited = DecodeOptions::new(ResourceLimits::HARDENED.with_maximum_input_bytes(0).unwrap());
+        assert_eq!(render_jpx_composition(&bytes, &input_limited).err(),
+            Some(DecodeError::LimitExceeded { resource: Resource::InputBytes, limit: 0, actual: bytes.len() as u64 }));
+        let (bytes, _) = source_layer_bytes(&[0xcf, 0xb4, 0x04, 0x09], false);
+        let bytes = raw_render_composition_bytes(bytes, 1, (3, 2), &[], 0, (1, 1));
+        let limits = ResourceLimits::default().with_geometry_limits_for_test(1, 2, 9, u64::MAX, 1)
+            .with_maximum_packets(0).unwrap();
+        assert_eq!(render_jpx_composition(&bytes, &DecodeOptions::new(limits)).err(),
+            Some(DecodeError::LimitExceeded { resource: Resource::Width, limit: 2, actual: 3 }));
+    }
+
     fn raw_render_composition_bytes(
         mut bytes: Vec<u8>, layers: usize, canvas: (u32, u32),
         frames: &[(u32, bool)], encoded_loops: u8, target: (u32, u32),

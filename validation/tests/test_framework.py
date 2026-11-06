@@ -1252,6 +1252,95 @@ class FrameworkTests(WorkingFiles):
                 self.assertEqual(framework.validate_normative_coverage(dict(coverage, requirements=[entry]))["status"], "passed")
                 self.assertEqual(set(counts.values()), {expected})
 
+    def test_inventory_binds_raw_composition_boundary_and_actual_dimension_canvas_producers(self):
+        producers = {key: value for key, value in framework._RAW_COMPOSITION_RENDER_CONTRACTS.items()
+                     if key not in framework._RAW_COMPOSITION_RENDER_APIS}
+        self._assert_complete_packet_contract_bindings({framework._RAW_COMPOSITION_RENDER_ENTRY}, producers, 4, isolate=False)
+        coverage = json.loads((framework.VALIDATION / "normative-coverage.json").read_text())
+        entry = next(item for item in coverage["requirements"] if item["id"] == framework._RAW_COMPOSITION_RENDER_ENTRY)
+        source = framework.ROOT / "src/jpx/render.rs"
+        original = source.read_text()
+        before = "part2_render_raw_jpx_composition(\n        input@,"
+        self.assertIn(before, original)
+        changed = original.replace(before, "part2_render_raw_jpx_composition(\n        seq![],", 1)
+        read_text = Path.read_text
+
+        def altered(path, *args, **kwargs):
+            return changed if path == source else read_text(path, *args, **kwargs)
+
+        with mock.patch.object(Path, "read_text", altered), \
+                self.assertRaisesRegex(ValueError, "executable Verus contract"):
+            framework.validate_normative_coverage(dict(coverage, requirements=[entry]))
+
+    def test_inventory_raw_composition_requires_every_actual_boundary_extent_source_and_getter_bridge(self):
+        coverage = json.loads((framework.VALIDATION / "normative-coverage.json").read_text())
+        entry = next(item for item in coverage["requirements"] if item["id"] == framework._RAW_COMPOSITION_RENDER_ENTRY)
+        for field in ("contract_refs", "spec_refs", "proof_refs"):
+            for removed in entry[field]:
+                changed = copy.deepcopy(entry)
+                changed[field].remove(removed)
+                expected_error = "should be non-empty" if not changed[field] else "whole raw composition Result"
+                with self.subTest(field=field, removed=removed), self.assertRaisesRegex(ValueError, expected_error):
+                    framework.validate_normative_coverage(dict(coverage, requirements=[changed]))
+
+    def test_inventory_raw_composition_binds_timeline_first_and_actual_source_fallback(self):
+        coverage = json.loads((framework.VALIDATION / "normative-coverage.json").read_text())
+        entry = next(item for item in coverage["requirements"] if item["id"] == framework._RAW_COMPOSITION_RENDER_ENTRY)
+        source = framework.ROOT / "src/jpx/render.rs"
+        original = source.read_text()
+        read_text = Path.read_text
+        for before, after in (
+            ("if has_frames", "if false"),
+            ("target_width: metadata.layer(layer_index)?.width()", "target_width: 1"),
+            ("width = width.max(", "width = width.min("),
+        ):
+            self.assertIn(before, original)
+            changed = original.replace(before, after, 1)
+
+            def altered(path, *args, **kwargs):
+                return changed if path == source else read_text(path, *args, **kwargs)
+
+            with self.subTest(before=before), mock.patch.object(Path, "read_text", altered), \
+                    self.assertRaisesRegex(ValueError, "actual timeline-first/fallback/source/extent/resource pipelines"):
+                framework.validate_normative_coverage(dict(coverage, requirements=[entry]))
+
+    def test_inventory_raw_composition_rejects_trimmed_source_placement_and_extent_models(self):
+        coverage = json.loads((framework.VALIDATION / "normative-coverage.json").read_text())
+        entry = next(item for item in coverage["requirements"] if item["id"] == framework._RAW_COMPOSITION_RENDER_ENTRY)
+        source = framework.ROOT / "specs/jpx_raw_composition.rs"
+        original = source.read_text()
+        read_text = Path.read_text
+        for before, after in (
+            ("metadata.layers[index as int].geometry.0", "1"),
+            ("layer.offset.0 as nat + layer.geometry.0 as nat", "layer.geometry.0 as nat"),
+            ("composition.source.3.len() > 0", "false"),
+        ):
+            self.assertIn(before, original)
+            changed = original.replace(before, after, 1)
+
+            def altered(path, *args, **kwargs):
+                return changed if path == source else read_text(path, *args, **kwargs)
+
+            with self.subTest(before=before), mock.patch.object(Path, "read_text", altered), \
+                    self.assertRaisesRegex(ValueError, "complete raw/timeline/fallback/extent/resource models"):
+                framework.validate_normative_coverage(dict(coverage, requirements=[entry]))
+
+    def test_inventory_raw_composition_keeps_fresh_actual_api_and_fallback_model_caches(self):
+        coverage = json.loads((framework.VALIDATION / "normative-coverage.json").read_text())
+        entry = next(item for item in coverage["requirements"] if item["id"] == framework._RAW_COMPOSITION_RENDER_ENTRY)
+        read_text = Path.read_text
+        counts = {framework.ROOT / name: 0 for name in ("src/jpx/render.rs", "specs/jpx_raw_composition.rs")}
+
+        def counted(path, *args, **kwargs):
+            if path in counts:
+                counts[path] += 1
+            return read_text(path, *args, **kwargs)
+
+        with mock.patch.object(Path, "read_text", counted):
+            for expected in (1, 2):
+                self.assertEqual(framework.validate_normative_coverage(dict(coverage, requirements=[entry]))["status"], "passed")
+                self.assertEqual(set(counts.values()), {expected})
+
     def test_inventory_binds_public_raw_render_apis_and_actual_producers(self):
         producers = {key: value for key, value in framework._RAW_RENDER_CONTRACTS.items()
                      if key not in framework._RAW_RENDER_APIS}

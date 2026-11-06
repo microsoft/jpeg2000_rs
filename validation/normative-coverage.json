@@ -4,6 +4,68 @@
   "scope": "Technical reference inventory; not exhaustive standards-clause coverage or a conformance claim.",
   "requirements": [
     {
+      "id": "part2-complete-native-public-raw-composition-result",
+      "topic": "Complete actual public raw render_jpx_composition image/error Result from actual bytes/options limits through raw container/info/admission/inspection and real frame/layer/canvas producers. Timeline-first branch retained; non-timeline fallback derives dimensions, each decoded placement and all sample/alpha/geometry/error fields without supplied decoded-success banks. Complete extent overflow/zero/width/height/pixel priority and first layer error preserved. Native owners/calls/code unchanged; public boundary uses existing inventory pattern. Selected/progressive/JPIP, normative/cfg/lifetime/release remain separate.",
+      "implementation_refs": [
+        {"path": "src/jpx/render.rs", "symbol": "render_jpx_composition"},
+        {"path": "src/jpx/render.rs", "symbol": "composition_dimensions"},
+        {"path": "src/jpx/render.rs", "symbol": "render_decoded_layers"},
+        {"path": "src/jpx/render.rs", "symbol": "render_inspected_frame"},
+        {"path": "src/jpx/layer_decode.rs", "symbol": "decode_effective_layer"}
+      ],
+      "contract_refs": [
+        {"path": "src/jpx/render.rs", "symbol": "composition_dimensions"},
+        {"path": "src/jpx/render.rs", "symbol": "render_decoded_layers"},
+        {"path": "src/jpx/render.rs", "symbol": "render_inspected_frame"},
+        {"path": "src/jpx/layer_decode.rs", "symbol": "decode_effective_layer"}
+      ],
+      "spec_refs": [
+        {"path": "specs/jpx_raw_composition.rs", "symbol": "part2_render_raw_jpx_composition"},
+        {"path": "specs/jpx_raw_composition.rs", "symbol": "part2_render_source_composition"},
+        {"path": "specs/jpx_raw_composition.rs", "symbol": "part2_composition_dimensions"},
+        {"path": "specs/jpx_raw_composition.rs", "symbol": "part2_composition_extent_prefix"},
+        {"path": "specs/jpx_raw_composition.rs", "symbol": "part2_composition_source_prefix"},
+        {"path": "specs/jp2_inspection.rs", "symbol": "part2_parse_and_inspect_container"},
+        {"path": "specs/jpx_raw_frame.rs", "symbol": "part2_raw_jpx_decode_input"},
+        {"path": "specs/jpx_raw_frame.rs", "symbol": "part2_raw_layer_routings"},
+        {"path": "specs/jpx_raw_inspection.rs", "symbol": "part2_ensure_raw_jpx"},
+        {"path": "specs/jpx_raw_inspection.rs", "symbol": "part2_raw_inspection_file"},
+        {"path": "specs/jpx_raw_inspection.rs", "symbol": "part2_raw_inspection_geometries"},
+        {"path": "specs/jpx_inspection.rs", "symbol": "part2_inspect_jpx_file"},
+        {"path": "specs/jpx_frame.rs", "symbol": "part2_render_inspected_source_frame"},
+        {"path": "specs/jpx_dispatch.rs", "symbol": "part2_decode_effective_layer"},
+        {"path": "specs/mod.rs", "symbol": "part2_render_layers"}
+      ],
+      "proof_refs": [
+        {"path": "src/jpx/render.rs", "symbol": "render_jpx_composition"},
+        {"path": "specs/jpx_raw_composition.rs", "symbol": "part2_render_raw_jpx_composition_unfold"},
+        {"path": "specs/jpx_raw_composition.rs", "symbol": "part2_composition_extent_error"},
+        {"path": "specs/jpx_raw_composition.rs", "symbol": "part2_composition_source_error"},
+        {"path": "src/jpx/proof_support.rs", "symbol": "inspection_value_view"},
+        {"path": "src/jpx/proof_support.rs", "symbol": "inspection_value_known"},
+        {"path": "src/jpx/proof_support.rs", "symbol": "inspection_native_layers"},
+        {"path": "src/jpx/proof_support.rs", "symbol": "inspected_layer_geometry"},
+        {"path": "src/jpx/proof_support.rs", "symbol": "inspected_layer_geometry_known"},
+        {"path": "src/jpx/proof_support.rs", "symbol": "inspection_layers_geometry_known"},
+        {"path": "src/jpx/proof_support.rs", "symbol": "placement_views_push"},
+        {"path": "src/jp2/proof_support.rs", "symbol": "raw_render_file_known"},
+        {"path": "src/jpx/inspection.rs", "symbol": "JpxLayerInfo::horizontal_offset"},
+        {"path": "src/jpx/inspection.rs", "symbol": "JpxLayerInfo::vertical_offset"},
+        {"path": "src/jpx/inspection.rs", "symbol": "JpxLayerInfo::width"},
+        {"path": "src/jpx/inspection.rs", "symbol": "JpxLayerInfo::height"},
+        {"path": "src/jpx/inspection.rs", "symbol": "JpxInspection::layers"},
+        {"path": "src/jpx/inspection.rs", "symbol": "JpxInspection::layer"}
+      ],
+      "test_refs": [
+        {"path": "src/jpx/tests.rs", "symbol": "actual_raw_composition_fallback_decodes_all_implicit_sources_in_native_over_order"},
+        {"path": "src/jpx/tests.rs", "symbol": "actual_raw_composition_fallback_retains_general_rgb_and_complete_straight_alpha"},
+        {"path": "src/jpx/tests.rs", "symbol": "actual_raw_composition_zero_frame_options_use_declared_canvas_and_transparent_uncovered_planes"},
+        {"path": "src/jpx/tests.rs", "symbol": "actual_raw_composition_timeline_branch_selects_first_frame_instead_of_fallback_layers"},
+        {"path": "src/jpx/tests.rs", "symbol": "actual_composition_dimensions_preserve_extent_overflow_zero_and_resource_priorities"},
+        {"path": "src/jpx/tests.rs", "symbol": "actual_raw_composition_keeps_input_profile_geometry_and_first_packet_error_order"}
+      ]
+    },
+    {
       "id": "part2-complete-native-public-raw-layer-frame-results",
       "topic": "Complete actual public raw render_jpx_layer and render_jpx_frame image/error Results from bytes/options limits through real container/info/admission/inspection/timeline/source-layer/frame producers. Full source header, palette, mapping, channel definitions, registration, opacity, color override, selected frame, geometry, sample planes and alpha representation retained. No supplied successful file/info/decoded-layer/image banks, native reconstruction/clones or execution changes. Public-only APIs checked with the existing proved-boundary recipe. Composition fallback/selected/progressive/JPIP, normative/cfg/lifetime/release remain separate.",
       "implementation_refs": [
