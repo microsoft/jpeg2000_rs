@@ -85,6 +85,10 @@ verus! {
     pub closed spec fn resource_width_limit(limits: &ResourceLimits) -> u32 { limits.maximum_width }
     pub closed spec fn resource_height_limit(limits: &ResourceLimits) -> u32 { limits.maximum_height }
     pub closed spec fn resource_pixel_limit(limits: &ResourceLimits) -> u64 { limits.maximum_pixels }
+    pub closed spec fn resource_frame_limit(limits: &ResourceLimits) -> u32 { limits.maximum_frames }
+    pub closed spec fn resource_compatible_brand_limit(limits: &ResourceLimits) -> u32 { limits.maximum_compatible_brands }
+    pub closed spec fn resource_box_depth_limit(limits: &ResourceLimits) -> u32 { limits.maximum_box_depth }
+    pub closed spec fn resource_codestream_limit(limits: &ResourceLimits) -> u32 { limits.maximum_codestreams }
     pub closed spec fn resource_tile_limit(limits: &ResourceLimits) -> u32 { limits.maximum_tiles }
 
     pub closed spec fn resource_tile_part_limit(limits: &ResourceLimits) -> u32 {
@@ -169,14 +173,17 @@ impl ResourceLimits {
         self.maximum_metadata_bytes
     }
 
+    #[cfg_attr(verus_keep_ghost, verus_spec(result => ensures result == resource_box_depth_limit(self),))]
     pub const fn maximum_box_depth(&self) -> u32 {
         self.maximum_box_depth
     }
 
+    #[cfg_attr(verus_keep_ghost, verus_spec(result => ensures result == resource_compatible_brand_limit(self),))]
     pub const fn maximum_compatible_brands(&self) -> u32 {
         self.maximum_compatible_brands
     }
 
+    #[cfg_attr(verus_keep_ghost, verus_spec(result => ensures result == resource_codestream_limit(self),))]
     pub const fn maximum_codestreams(&self) -> u32 {
         self.maximum_codestreams
     }
@@ -249,6 +256,7 @@ impl ResourceLimits {
         self.maximum_layers
     }
 
+    #[cfg_attr(verus_keep_ghost, verus_spec(result => ensures result == resource_frame_limit(self),))]
     pub const fn maximum_frames(&self) -> u32 {
         self.maximum_frames
     }

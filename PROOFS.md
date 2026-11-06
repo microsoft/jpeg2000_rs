@@ -179,6 +179,292 @@ technical candidate only: parent-owned record, review, CI, guarded integration
 and actual-main acceptance remain separate. No complete parsing, pixels,
 lifetime verification, normative conformance or publication claim follows.
 
+## Actual complete raw composition and reference Results
+
+The actual composition word reader preserves its complete old/final cursor and
+error frame. Dimension validation, instruction-set parsing, composition assembly
+and layer-reference validation now derive complete Results from actual source
+fields/bytes/limits. Every optional target/source field, life/persistence/reuse,
+repeat/tick, record order, loop byte and unknown-box flag is retained, including
+zero-life/default and zero-record admission and exact geometry/count/arithmetic/
+ordering/resource priorities. Original native instruction/set owners remain in
+place; no supplied parsed-instruction/composition/result bank or validity
+premise is used.
+
+The instruction model follows the actual byte-cursor continuation, with local
+checked field projections rather than nonlinear record-index reconstruction;
+the original proof/tool/resource budgets are unchanged. The composition reader
+uses the existing checked initializer, an additional native call target requiring
+explicit observation. Full file/public, normative, coverage/cfg/erasure,
+lifetimes and release remain independent.
+
+## Actual complete raw borrowed compositing-layer Result
+
+The actual registration, full color-group, opacity and compositing-layer
+producers retain every native grid/ordered registration/color/ICC/definition/
+key/count/header/payload field and exact errors. Duplicate source indices remain
+admitted, registration errors use lazy offsets, opacity computes its offset
+eagerly, color parsing precedes component-limit admission and opacity/definition
+exclusion is unchanged. The original borrowed payload reference is preserved;
+all native vector/profile/key owners and scopes remain in place. No supplied
+parsed-layer/result bank or validity premise is used.
+
+The two reader initializers deliberately target the existing checked shared
+producer. These additional native targets require explicit eventual observation,
+not a blanket byte-identity claim. Full composition/container/public, normative,
+coverage/cfg/erasure, lifetimes and release remain independent.
+
+## Actual complete recursive raw metadata-tree Result
+
+The actual association metadata inspector derives its full count, maximum depth
+and exact errors from its actual borrowed reader and recursive child producers.
+It retains depth-before-type, non-association/empty-association seeds, reader
+errors before remaining-depth checks and local aggregate work checks. No supplied
+successful subtree-count bank, validity premise or owner inversion is used.
+The checked model uses the native remaining-depth/remaining-box progress and an
+explicit initial-reader relation; original native scopes remain in place.
+
+The initializer deliberately targets the existing checked shared reader producer;
+the actual depth getter has a matching field projection. The additional call
+target must be included in eventual exact native observation. This is not a full
+container/public, normative, cfg/erasure, lifetime or release claim.
+
+## Actual complete associated codestream-header Result
+
+The actual associated-header producer retains its initial full-JP2-parse
+priority, exact fallback errors, actual default-header cloning and all image/
+color/palette/mapping/definition/resolution overrides. Complete Results include
+every retained metadata field and inherited count, actual vector clears, first
+override behavior and final requirements. Defaults are an actual native input
+to this producer; no claim that arbitrary defaults originate from raw bytes is
+made. No supplied successful decode/header-result bank or validity premise is
+introduced.
+
+The three original executing native derived-Clone bodies for color, palette and
+JP2 headers are shared checked producers, with thin public Clone delegation.
+The field-clone instructions and owning cleanup scopes were directly observed
+identical in both native configurations except exact extraction names/parameter
+debug labels and two header field-call retargets. An explicit optional-palette
+route is needed because the pinned generic Clone contract does not propagate
+its metadata. The fallback uses a checked native cloning callback, not a
+proof-induced clone. These routing/wrapper/callback changes require complete
+fresh native observation; they are not a blanket byte-identity, lifetime or
+allocation-panic claim. Scoped lint annotations retain the repository's explicit
+verified-case/checked-closure pattern.
+
+Whole container/tree/inspection/public composition, normative HOLD, coverage,
+cfg/erasure, lifetimes and release remain independent.
+
+## Actual complete raw JP2 header Result
+
+The actual JP2-header assembler derives every image/color/ICC/count/palette/
+mapping/definition/resolution field from its actual raw reader and checked
+primitive producers. Complete Results preserve first-color ownership while
+still parsing later colors, initial required-box errors, later progress-before-
+reader-error behavior, current mapping-count admission and all final required
+structures. A second resolution superbox is parsed before its duplicate test,
+as in the original native body. Original header, palette, profile and vector
+ownership scopes remain in place; no supplied successful parsed-header bank,
+validity premise, owner inversion or runtime proof clone is used.
+
+The initializer deliberately uses the existing checked shared borrowed reader
+producer, and four unused Copy integer-error arguments are named for the pinned
+macro. These additional native call/debug differences require explicit future
+MIR observation, not a byte-identity claim. Associated codestream default cloning,
+whole file/container/inspection/public composition, normative HOLD, coverage,
+cfg/erasure, lifetimes and release remain independent.
+
+## Actual complete raw owned Palette Result
+
+The actual raw palette parser derives the full entry count, ordered native
+precision/signed columns and every row-major value through the real bit-depth
+and scalar-value producers. Its complete Result retains first descriptor errors
+before sample-length validation, full entry/column counts, lazy offsets and both
+original native column/value allocations and ownership scopes. Internal partial
+row state is derived from the actual prior raw rows; no supplied successful
+descriptor/row/value bank, validity premise, owner inversion or runtime proof
+clone is used.
+
+These are as-implemented producer guarantees, not normative palette correctness.
+Palette HOLD, full header/recursive metadata/container/public composition,
+coverage, cfg/erasure, lifetimes and release acceptance remain separate.
+
+## Actual complete raw palette scalar Result
+
+The actual scalar palette-value producer has a complete Result over its original
+bytes, precision, signedness and error offset. It retains the full native
+precision/length admission, checked big-endian prefix and modulus traversal,
+masking, sign handling and exact errors. No extra byte-count/precision
+compatibility premise, supplied scalar bank or owner reconstruction is used.
+The checked modulus-prefix model includes its zero-step seed and contextual
+arithmetic errors; the existing decoded-color modulus-admission model remains
+unchanged.
+
+Two unused Copy integer-error arguments are named for the pinned macro, requiring
+explicit future native debug observation. Outer palette descriptor/value folds
+and their original native owners remain separate. This proves as-implemented
+behavior, not palette normative correctness: palette HOLD, complete raw Palette,
+header/container/public composition, coverage, cfg/erasure, lifetimes and release
+acceptance remain open.
+
+## Actual complete raw resolution and metadata-copy Results
+
+The actual resolution primitive and superbox producers retain all six native
+fields, signed exponent bytes, unknown-box traversal, both capture/display
+orders, duplicate-before-payload priority, missing-required errors and lazy
+offset arithmetic. The complete model follows the original native reader
+state and the actual progress check **before** rebasing reader errors: an
+unchanged-position reader failure is reported as an invalid box length by
+this producer. This records existing behavior, not a normative correction.
+The sole metadata byte-copy loop also has a complete successful Result retaining
+every byte in its original native owner.
+
+The superbox initializer deliberately targets the existing checked shared
+borrowed reader producer rather than the uncontracted static-method wrapper.
+This additional native call target must be included in the eventual exact
+native observation; no allocation body or ownership scope is moved. Recursive
+metadata-tree inspection, whole header/container/public composition, coverage,
+cfg/erasure, lifetimes and release remain independent.
+
+## Actual complete raw component and channel header Results
+
+The actual `parse_component_mapping` and `parse_channel_definition` producers
+derive every ordered native record directly from their borrowed bytes. Complete
+Results retain repeated records, exact native validity admission, all channel
+types/associations, length/conversion/component-limit priority and lazy rebased
+errors. No supplied valid-record bank, success premise or owner reconstruction
+is used.
+
+The actual channel-definition constructor call deliberately targets the existing
+checked shared Copy producer, instead of its uncontracted static-method wrapper;
+the unused integer-conversion error argument is named for the pinned macro.
+These are explicit native call-target/debug differences, not a byte-identity
+claim. Native allocation bodies and ownership scopes remain in place. Palette
+normative HOLD, full header/container/public composition, coverage, cfg/erasure,
+lifetimes and release acceptance remain independent.
+
+## Actual complete raw color specification Result
+
+The actual color specification parser now derives its complete Result from
+borrowed raw bytes: method, precedence, approximation and every optional ICC
+profile byte. Enumerated colors retain their exact 32-bit value; restricted
+and unrestricted ICC methods retain all bytes copied by the sole native
+profile producer. The profile copy contract proves success and exact source
+identity without relocating its allocation, introducing a runtime proof
+clone or reconstructing an owning color header from a partial view.
+
+Length/method errors preserve lazy relative-offset arithmetic. Valid payloads
+do not evaluate otherwise overflowing unused error offsets. The actual ICC
+getter projects the complete retained bytes. These parser contracts do not
+assert color-profile conversion support, normative correctness, whole header
+or public parser completion, general cfg/erasure/lifetimes or release.
+
+## Actual raw image-header and component-depth Results
+
+The actual 14-byte image-header parser returns every field of the native Copy
+`ImageHeader`, with exact basic admission, width/height/component/pixel limits,
+precision and color/property flags. Its error model retains **lazy** relative
+offset evaluation: an overflowing base/header offset does not replace an
+earlier dimension-limit or base-offset precision error, and is not evaluated
+on otherwise valid input.
+
+The actual bit-depth producer covers all 256 byte values, including the
+variable-depth sentinel, signedness and the existing 38-bit ceiling. BPCC
+validation retains length-before-data and first-component error priority,
+without requiring a prevalidated image header or successful depth bank.
+Checked prefix/error folds and one existing arithmetic-error closure connect
+the native traversal. No executing statements or owning scopes change;
+parent-module helper visibility supports native tests.
+
+These are complete actual raw field producers, not complete JP2/associated
+header construction, terminal/public decoding, model-to-standard adjudication,
+general cfg/erasure/lifetimes or release qualification.
+
+## Actual raw file-type Result and public parser prologue
+
+The actual file-type payload parser now derives the complete primary brand,
+minor version and ordered compatible brands directly from borrowed raw bytes.
+Header-offset/length admission, brand-count limits and first duplicate-brand
+errors retain native priority. The JP2/JPX/JPH profile gate has a complete
+as-implemented Result, including exact error offsets.
+
+The actual public `parse` uses the checked shared reader initializer. Its
+checked prefix relation covers input/reader/signature/file-type/profile/brand
+admission errors and preservation of the complete file-type value in any
+successful returned file. This is intentionally a **prefix relation**, not a
+complete public container parsing Result: later headers, associations, layers,
+composition and terminal admission remain separate. No parsed-file/result bank
+or assumed successful parser is introduced.
+
+The primary-brand initializer and public parser reader initialization add
+explicit shared-producer call targets to the previously documented native
+extraction differences. Their qualification must be exact and separate;
+no blanket source-coordinate-only identity is claimed.
+
+## Actual raw container box-reader Results
+
+The actual private `BoxReader::next_box` and public `next_box_ref` have complete
+Result and old/final input/limits/position/metadata/work/failed relations.
+Fixed, extended and to-end lengths, every returned header/payload field,
+arithmetic/bounds/resource failures and sticky public failure behavior compose
+from the original traversal. Work and metadata charges retain their exact
+pre-error commits; codestream boxes bypass metadata charging and its limit
+check even for arbitrary pre-existing reader counters. No successful-box bank
+or valid-reader premise replaces actual byte parsing.
+
+The actual input reference is retained. Header payload offset/length, bounded
+byte/type access, offset addition/error rebasing, required-box state and
+integer reads also have complete computational Results. Native regressions
+bind payload references directly to original input windows and retain exact
+resource/counter/EOF/failure frames.
+
+The pinned static-associated annotation limitation is handled by two actual
+shared producers for the Copy box-type initializer and borrowed reader
+initializer. Legacy public `new` wrappers delegate; two box-type consumers
+call the verified shared producer. Those legacy static wrappers do not gain
+an invented associated-method contract: later parser composition must use
+the actual checked shared initializer. Constructor body extraction and call
+targets require explicit native qualification, not blanket MIR identity.
+Seven actual traversal error closures are checked; the two existing integer
+conversion closures require named unused Copy-error arguments under the
+pinned macro, with corresponding debug-only differences to authenticate.
+
+No native traversal statement, owning declaration, error branch or helper
+error body changes. This is a raw-container prerequisite, not complete JP2
+parsing, upstream inspected-info derivation, final public decoding, normative
+correspondence, general cfg/erasure/lifetimes or release qualification.
+
+## Actual complete parsed-file inspection Result
+
+`inspect_file` now has a total Result over its actual parsed-file, native
+`CodestreamInfo` slice and limits. It preserves every returned layer field,
+ordered registration/source index, actual registered minimum extent, flags
+and nested metadata count. Its actual timeline producer, checked duration
+sum, instruction-set conversion and complete composition/frame/metadata
+output retain the original first-error order.
+
+The source-info slice is a native input to this computational producer.
+This relation is not a claim that arbitrary supplied info is source-derived:
+composing the actual upstream info/container parser and final public entry
+remains separate. The model projects only the immutable geometry this native
+function reads; it never reconstructs an owning info/layer/file from that
+projection or assumes successful input.
+
+File/layer metadata and full native borrowed layer/composition projections,
+effective layer count and JPX profile admission are checked. Three existing
+`map_err` closures now have checked error contracts. The pinned attribute
+parser rejects wildcard closure parameters, so those unused Copy
+`TryFromIntError` parameters are deliberately named `_error`. No executing
+statements, closure body, owning scope or helper placement changes; possible
+unused-argument debug-binding differences require an explicit native audit,
+not a blanket coordinate-only identity claim.
+
+Real-byte regressions derive native infos through the actual parser and test
+all implicit/declared layer fields, ordered registered geometry, actual
+timeline duration/full composition metadata, and source-before-timeline
+error priority. These are finite observations. Corrected normative review,
+complete cfg/erasure/lifetimes and release remain independent gates.
+
 ## Actual decoded frame supply and complete frame Result
 
 `render_inspected_frame` derives its complete image/error Result from the

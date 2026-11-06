@@ -1,12 +1,12 @@
 //! Container assembly, file profiles, and codestream inspection.
 
 use super::{
-    BoxHeader, BoxReader, BoxRef, BoxType, CodestreamBox, CodestreamHeaderAssociation,
-    CodestreamInfo, ComponentBitDepth, CompositingLayer, Composition, DecodeError, FileType,
-    InspectedJp2, Jp2File, Jp2Header, MalformedKind, Resource, ResourceLimits, SIGNATURE_MAGIC,
-    codestream, inspect_metadata_box, parse_codestream_header, parse_compositing_layer,
-    parse_composition, parse_jp2_header, read_box_type_at, read_u32, required_box,
-    validate_layer_references,
+    BoxHeader, BoxRef, BoxType, CodestreamBox, CodestreamHeaderAssociation, CodestreamInfo,
+    ComponentBitDepth, CompositingLayer, Composition, DecodeError, FileType, InspectedJp2, Jp2File,
+    Jp2Header, MalformedKind, Resource, ResourceLimits, SIGNATURE_MAGIC, box_reader_from_input,
+    box_type_from_bytes, codestream, inspect_metadata_box, parse_codestream_header,
+    parse_compositing_layer, parse_composition, parse_jp2_header, read_box_type_at, read_u32,
+    required_box, validate_layer_references,
 };
 #[cfg(verus_keep_ghost)]
 use super::{
@@ -16,6 +16,7 @@ use super::{
 use vstd::prelude::*;
 
 impl FileType {
+    #[cfg_attr(verus_keep_ghost, verus_spec(result => ensures result@ == super::file_type_view(self).2,))]
     pub fn compatible_brands(&self) -> &[BoxType] {
         &self.compatible_brands
     }
@@ -60,6 +61,9 @@ impl FileType {
             || self.is_compatible_with(BoxType::JPX_BASELINE_BRAND)
     }
 
+    #[cfg_attr(verus_keep_ghost, verus_spec(result =>
+        ensures result == crate::specs::part2_file_type_compatible(super::file_type_view(self), BoxType::JPH_BRAND),
+    ))]
     pub fn is_jph_compatible(&self) -> bool {
         self.is_compatible_with(BoxType::JPH_BRAND)
     }
@@ -175,14 +179,23 @@ impl<'a> Jp2File<'a> {
             })
     }
 
+    #[cfg_attr(verus_keep_ghost, verus_spec(result =>
+        ensures result == super::source_file_composition_reference(self),
+    ))]
     pub const fn composition(&self) -> Option<&Composition> {
         self.composition.as_ref()
     }
 
+    #[cfg_attr(verus_keep_ghost, verus_spec(result =>
+        ensures result == super::source_file_metadata(self).0,
+    ))]
     pub const fn metadata_boxes(&self) -> u32 {
         self.metadata_boxes
     }
 
+    #[cfg_attr(verus_keep_ghost, verus_spec(result =>
+        ensures result == super::source_file_metadata(self).1,
+    ))]
     pub const fn metadata_depth(&self) -> u32 {
         self.metadata_depth
     }
@@ -353,8 +366,13 @@ pub(crate) fn validate_selected_header(
     validate_container_codestream(header, codestream, offset)
 }
 
+#[cfg_attr(verus_keep_ghost, verus_spec(result =>
+    ensures super::container_prefix_relation(result, crate::specs::part2_container_prologue(input@, *limits)),
+))]
 pub fn parse<'a>(input: &'a [u8], limits: &ResourceLimits) -> Result<Jp2File<'a>, DecodeError> {
-    let mut reader = BoxReader::new(input, limits)?;
+    #[cfg(verus_keep_ghost)]
+    proof! { reveal(crate::specs::part2_container_prologue); }
+    let mut reader = box_reader_from_input(input, limits)?;
     let signature = required_box(&mut reader, 0)?;
     if !signature.header.box_type().equals(BoxType::SIGNATURE)
         || signature.header.total_length() != 12
@@ -370,6 +388,10 @@ pub fn parse<'a>(input: &'a [u8], limits: &ResourceLimits) -> Result<Jp2File<'a>
         ));
     }
 
+    #[cfg(verus_keep_ghost)]
+    proof! {
+        assert(signature.payload@ =~= seq![0x0du8, 0x0au8, 0x87u8, 0x0au8]);
+    }
     let file_type_box = required_box(&mut reader, 1)?;
     if !file_type_box.header.box_type().equals(BoxType::FILE_TYPE) {
         return Err(DecodeError::malformed(
@@ -388,6 +410,13 @@ pub fn parse<'a>(input: &'a [u8], limits: &ResourceLimits) -> Result<Jp2File<'a>
         });
     }
 
+    #[cfg(verus_keep_ghost)]
+    proof_decl! { let ghost prefix_reader = super::box_reader_state(&reader); }
+    #[cfg(verus_keep_ghost)]
+    proof! {
+        assert(crate::specs::part2_container_prologue(input@, *limits)
+            == Ok((super::file_type_view(&file_type), prefix_reader)));
+    }
     let mut parsed_header = None;
     let mut codestream_boxes = Vec::new();
     let mut codestream_headers = Vec::new();
@@ -398,7 +427,11 @@ pub fn parse<'a>(input: &'a [u8], limits: &ResourceLimits) -> Result<Jp2File<'a>
     let mut box_count = 2_u64;
     #[cfg_attr(
         verus_keep_ghost,
-        verus_spec(decreases input.len() as int - reader.position as int,)
+        verus_spec(
+            invariant crate::specs::part2_container_prologue(input@, *limits)
+                == Ok((super::file_type_view(&file_type), prefix_reader)),
+            decreases input.len() as int - reader.position as int,
+        )
     )]
     loop {
         let previous_position = reader.position;
@@ -578,6 +611,8 @@ pub fn parse<'a>(input: &'a [u8], limits: &ResourceLimits) -> Result<Jp2File<'a>
         verus_keep_ghost,
         verus_spec(
             invariant header_index <= codestream_headers.len(),
+                crate::specs::part2_container_prologue(input@, *limits)
+                    == Ok((super::file_type_view(&file_type), prefix_reader)),
             decreases codestream_headers.len() - header_index,
         )
     )]
@@ -607,7 +642,19 @@ pub fn parse<'a>(input: &'a [u8], limits: &ResourceLimits) -> Result<Jp2File<'a>
     })
 }
 
-fn parse_file_type(box_ref: BoxRef<'_>, limits: &ResourceLimits) -> Result<FileType, DecodeError> {
+#[cfg_attr(verus_keep_ghost, verus_spec(result =>
+    ensures super::file_type_outcome(result) == crate::specs::part2_parse_file_type(
+        super::box_reference_view(box_ref), crate::limits::resource_compatible_brand_limit(limits)),
+))]
+pub(super) fn parse_file_type(
+    box_ref: BoxRef<'_>,
+    limits: &ResourceLimits,
+) -> Result<FileType, DecodeError> {
+    #[cfg(verus_keep_ghost)]
+    proof! {
+        reveal(crate::specs::part2_parse_file_type);
+        reveal(crate::specs::part2_file_type_brands_prefix);
+    }
     let payload_offset = box_ref.header.payload_offset()?;
     if box_ref.payload.len() < 8 || !box_ref.payload.len().is_multiple_of(4) {
         return Err(DecodeError::malformed(
@@ -620,7 +667,12 @@ fn parse_file_type(box_ref: BoxRef<'_>, limits: &ResourceLimits) -> Result<FileT
         .payload
         .len()
         .checked_sub(8)
-        .and_then(|bytes| bytes.checked_div(4))
+        .and_then(
+            #[cfg_attr(verus_keep_ghost, verus_spec(result: (Option<usize>) =>
+                ensures result == Some((bytes / 4) as usize),
+            ))]
+            |bytes| bytes.checked_div(4),
+        )
         .ok_or_else(|| DecodeError::malformed(payload_offset, MalformedKind::ArithmeticOverflow))?;
     let compatible_brand_count_u64 = u64::try_from(compatible_brand_count)
         .map_err(|_| DecodeError::malformed(payload_offset, MalformedKind::ArithmeticOverflow))?;
@@ -631,7 +683,7 @@ fn parse_file_type(box_ref: BoxRef<'_>, limits: &ResourceLimits) -> Result<FileT
             compatible_brand_count_u64,
         ));
     }
-    let brand = BoxType::new([
+    let brand = box_type_from_bytes([
         box_ref.payload[0],
         box_ref.payload[1],
         box_ref.payload[2],
@@ -639,24 +691,57 @@ fn parse_file_type(box_ref: BoxRef<'_>, limits: &ResourceLimits) -> Result<FileT
     ]);
     let mut compatible_brands: Vec<BoxType> = Vec::new();
     let mut position = 8_usize;
+    #[cfg(verus_keep_ghost)]
+    proof! { assert(compatible_brands@ =~= Seq::empty()); }
     #[cfg_attr(
         verus_keep_ghost,
         verus_spec(
             invariant position <= box_ref.payload.len(),
+                position >= 8,
+                box_ref.payload.len() % 4 == 0, position % 4 == 0,
+                crate::specs::part2_box_payload_offset(super::box_header_view(box_ref.header)) == Ok(payload_offset),
+                ((box_ref.payload.len() - 8) / 4) as nat <= crate::limits::resource_compatible_brand_limit(limits),
+                brand == super::box_type_from_bytes_model(
+                    [box_ref.payload@[0], box_ref.payload@[1], box_ref.payload@[2], box_ref.payload@[3]]),
+                compatible_brands.len() == (position - 8) / 4,
+                crate::specs::part2_file_type_brands_prefix(box_ref.payload@, payload_offset,
+                    ((position - 8) / 4) as nat) == Ok(compatible_brands@),
             decreases box_ref.payload.len() - position,
         )
     )]
     while position < box_ref.payload.len() {
+        #[cfg(verus_keep_ghost)]
+        proof! {
+            crate::specs::part2_file_type_brands_step(box_ref.payload@, payload_offset, ((position - 8) / 4) as nat);
+            crate::specs::part2_file_type_brands_error(box_ref.payload@, payload_offset,
+                ((position - 8) / 4) as nat + 1, ((box_ref.payload.len() - 8) / 4) as nat);
+        }
         let compatible = read_box_type_at(box_ref.payload, position, payload_offset)?;
         let mut prior = 0_usize;
         #[cfg_attr(
             verus_keep_ghost,
             verus_spec(
                 invariant prior <= compatible_brands.len(),
+                    position >= 8, position < box_ref.payload.len(),
+                    position % 4 == 0, box_ref.payload.len() % 4 == 0,
+                    crate::specs::part2_box_payload_offset(super::box_header_view(box_ref.header)) == Ok(payload_offset),
+                    ((box_ref.payload.len() - 8) / 4) as nat <= crate::limits::resource_compatible_brand_limit(limits),
+                    compatible_brands.len() == (position - 8) / 4,
+                    compatible == crate::specs::part2_file_type_brand_at(box_ref.payload@, ((position - 8) / 4) as nat),
+                    crate::specs::part2_file_type_brands_prefix(box_ref.payload@, payload_offset,
+                        ((position - 8) / 4) as nat) == Ok(compatible_brands@),
+                    forall|i: int| 0 <= i < prior ==> compatible_brands@[i] != compatible,
                 decreases compatible_brands.len() - prior,
             )
         )]
         while prior < compatible_brands.len() {
+            #[cfg(verus_keep_ghost)]
+            proof! {
+                reveal(crate::specs::part2_parse_file_type);
+                crate::specs::part2_file_type_brands_step(box_ref.payload@, payload_offset, ((position - 8) / 4) as nat);
+                crate::specs::part2_file_type_brands_error(box_ref.payload@, payload_offset,
+                    ((position - 8) / 4) as nat + 1, ((box_ref.payload.len() - 8) / 4) as nat);
+            }
             let previous = compatible_brands.get(prior).ok_or_else(|| {
                 DecodeError::malformed(box_ref.header.offset(), MalformedKind::ArithmeticOverflow)
             })?;
@@ -681,6 +766,11 @@ fn parse_file_type(box_ref: BoxRef<'_>, limits: &ResourceLimits) -> Result<FileT
             ));
         }
     }
+    #[cfg(verus_keep_ghost)]
+    proof! {
+        reveal(crate::specs::part2_parse_file_type);
+        reveal(super::file_type_view);
+    }
     Ok(FileType {
         brand,
         minor_version: read_u32([
@@ -693,7 +783,15 @@ fn parse_file_type(box_ref: BoxRef<'_>, limits: &ResourceLimits) -> Result<FileT
     })
 }
 
-fn validate_file_type_profile(file_type: &FileType, offset: u64) -> Result<(), DecodeError> {
+#[cfg_attr(verus_keep_ghost, verus_spec(result =>
+    ensures result == crate::specs::part2_validate_file_type_profile(super::file_type_view(file_type), offset),
+))]
+pub(super) fn validate_file_type_profile(
+    file_type: &FileType,
+    offset: u64,
+) -> Result<(), DecodeError> {
+    #[cfg(verus_keep_ghost)]
+    proof! { reveal(super::file_type_view); }
     if file_type.brand.equals(BoxType::JP2_BRAND) && file_type.is_jpx_compatible() {
         return Err(DecodeError::malformed(
             offset,

@@ -51,6 +51,32 @@ mod jpx_dispatch;
 pub use jpx_dispatch::*;
 mod jpx_frame;
 pub use jpx_frame::*;
+mod jpx_inspection;
+pub use jpx_inspection::*;
+mod jp2_box_reader;
+pub use jp2_box_reader::*;
+mod jp2_file_type;
+pub use jp2_file_type::*;
+mod jp2_image_header;
+pub use jp2_image_header::*;
+mod jp2_color_header;
+pub use jp2_color_header::*;
+mod jp2_channel_header;
+pub use jp2_channel_header::*;
+mod jp2_resolution;
+pub use jp2_resolution::*;
+mod jp2_palette;
+pub use jp2_palette::*;
+mod jp2_header;
+pub use jp2_header::*;
+mod jp2_associated_header;
+pub use jp2_associated_header::*;
+mod jp2_metadata;
+pub use jp2_metadata::*;
+mod jp2_layer;
+pub use jp2_layer::*;
+mod jp2_composition;
+pub use jp2_composition::*;
 
 pub use crate::proofs::internal_specs::{
     part2_composition_layer_prefix_matches, part2_composition_layer_prefix_safe,

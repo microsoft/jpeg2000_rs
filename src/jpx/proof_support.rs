@@ -1,5 +1,85 @@
 #[cfg(verus_keep_ghost)]
 verus! {
+    #[verifier::inline]
+    spec fn inspection_layer_config(layer: &CompositingLayer) -> crate::specs::Part2InspectionLayerConfig {
+        crate::specs::Part2InspectionLayerConfig {
+            grid: (jp2::source_layer_geometry(layer).1, jp2::source_layer_geometry(layer).2),
+            registrations: jp2::source_layer_registrations(layer),
+            has_color_group: jp2::source_layer_color_group(layer).len() > 0,
+            has_opacity_box: jp2::source_layer_opacity(layer).is_some(),
+            nested_metadata_boxes: jp2::source_layer_nested_metadata(layer),
+        }
+    }
+
+    #[verifier::inline]
+    spec fn inspection_composition_config(composition: &jp2::Composition)
+        -> crate::specs::Part2InspectionCompositionConfig
+    {
+        crate::specs::Part2InspectionCompositionConfig {
+            width: composition.width, height: composition.height, loop_count: composition.loop_count,
+            sets: timeline_set_views(composition), has_unknown_boxes: composition.has_unknown_boxes,
+        }
+    }
+
+    #[verifier::inline]
+    spec fn inspection_file_input(file: &Jp2File) -> crate::specs::Part2InspectionFileInput {
+        let layers = jp2::source_file_layers(file);
+        crate::specs::Part2InspectionFileInput {
+            layers: Seq::new(layers.len(), |i: int| inspection_layer_config(&layers[i])),
+            codestreams: jp2::jpx_file_decode_view(file).1.len() as usize,
+            composition: match jp2::source_file_composition_reference(file) {
+                None => None, Some(composition) => Some(inspection_composition_config(composition)),
+            },
+            metadata: jp2::source_file_metadata(file),
+        }
+    }
+
+    #[verifier::inline]
+    spec fn inspection_source_geometries(codestreams: Seq<crate::codestream::CodestreamInfo>) -> Seq<(u32, u32)> {
+        Seq::new(codestreams.len(), |i: int| (codestreams[i].image_size.width, codestreams[i].image_size.height))
+    }
+
+    #[verifier::inline]
+    spec fn inspected_layer_view(layer: &JpxLayerInfo) -> crate::specs::Part2LayerInspection {
+        crate::specs::Part2LayerInspection {
+            index: layer.index, codestream_indices: layer.codestream_indices@,
+            grid: (layer.horizontal_grid_size, layer.vertical_grid_size),
+            offset: (layer.horizontal_offset, layer.vertical_offset), geometry: (layer.width, layer.height),
+            has_color_group: layer.has_color_group, has_opacity_box: layer.has_opacity_box,
+            nested_metadata_boxes: layer.nested_metadata_boxes,
+        }
+    }
+
+    #[verifier::inline]
+    spec fn inspected_layers_view(layers: Seq<JpxLayerInfo>) -> Seq<crate::specs::Part2LayerInspection> {
+        Seq::new(layers.len(), |i: int| inspected_layer_view(&layers[i]))
+    }
+
+    #[verifier::inline]
+    spec fn inspected_composition_view(composition: &JpxCompositionInfo) -> crate::specs::Part2CompositionInspection {
+        crate::specs::Part2CompositionInspection {
+            source: composition_source_view(composition), instruction_sets: composition.instruction_sets,
+            total_duration_milliseconds: composition.total_duration_milliseconds,
+            has_unknown_boxes: composition.has_unknown_boxes,
+        }
+    }
+
+    #[verifier::inline]
+    spec fn inspection_result(result: Result<JpxInspection, DecodeError>)
+        -> Result<crate::specs::Part2JpxInspection, DecodeError>
+    {
+        match result {
+            Err(error) => Err(error),
+            Ok(metadata) => Ok(crate::specs::Part2JpxInspection {
+                layers: inspected_layers_view(metadata.layers@),
+                composition: match &metadata.composition {
+                    None => None, Some(composition) => Some(inspected_composition_view(composition)),
+                },
+                metadata: (metadata.metadata_boxes, metadata.metadata_depth),
+            }),
+        }
+    }
+
     pub closed spec fn composition_source_frames(composition: &JpxCompositionInfo) -> Seq<JpxFrameInfo> {
         composition.frames@
     }

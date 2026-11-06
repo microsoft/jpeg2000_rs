@@ -76,13 +76,18 @@ pub enum ColorMethod {
     AnyIcc { profile_bytes: u64 },
 }
 
-#[derive(Clone)]
 #[cfg_attr(not(verus_keep_ghost), derive(Debug, Eq, PartialEq))]
 pub struct ColorSpecification {
     pub method: ColorMethod,
     pub precedence: u8,
     pub approximation: u8,
     icc_profile: Option<Vec<u8>>,
+}
+
+impl Clone for ColorSpecification {
+    fn clone(&self) -> Self {
+        clone_support::color_specification_clone(self)
+    }
 }
 
 #[derive(Clone, Copy)]
@@ -96,7 +101,6 @@ pub struct Resolution {
     pub horizontal_exponent: i8,
 }
 
-#[derive(Clone)]
 #[cfg_attr(not(verus_keep_ghost), derive(Debug, Eq, PartialEq))]
 pub struct Jp2Header {
     pub image: ImageHeader,
@@ -111,6 +115,12 @@ pub struct Jp2Header {
     pub channel_definition_records: Vec<ChannelDefinitionRecord>,
     pub capture_resolution: Option<Resolution>,
     pub display_resolution: Option<Resolution>,
+}
+
+impl Clone for Jp2Header {
+    fn clone(&self) -> Self {
+        clone_support::jp2_header_clone(self)
+    }
 }
 
 #[derive(Clone)]
@@ -223,12 +233,17 @@ pub struct PaletteColumn {
     pub signed: bool,
 }
 
-#[derive(Clone)]
 #[cfg_attr(not(verus_keep_ghost), derive(Debug, Eq, PartialEq))]
 pub struct Palette {
     entries: u16,
     columns: Vec<PaletteColumn>,
     values: Vec<i64>,
+}
+
+impl Clone for Palette {
+    fn clone(&self) -> Self {
+        clone_support::palette_clone(self)
+    }
 }
 
 #[derive(Clone, Copy)]
@@ -254,8 +269,11 @@ pub struct ChannelDefinitionRecord {
 
 #[cfg_attr(verus_keep_ghost, verifier::verify)]
 mod box_reader;
+#[cfg_attr(verus_keep_ghost, verifier::verify)]
+mod clone_support;
 use box_reader::{
-    add_offset, byte_at_checked, read_box_type_at, read_u16, read_u32, rebase_error, required_box,
+    add_offset, box_reader_from_input, box_type_from_bytes, byte_at_checked, read_box_type_at,
+    read_u16, read_u32, rebase_error, required_box,
 };
 #[cfg_attr(verus_keep_ghost, verifier::verify)]
 mod color;

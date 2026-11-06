@@ -502,6 +502,136 @@ mod tests {
         }
     }
 
+    fn inspection_composition_bytes(unknown: bool) -> Vec<u8> {
+        fn boxed(kind: [u8; 4], payload: &[u8]) -> Vec<u8> {
+            let mut bytes = u32::try_from(payload.len() + 8).unwrap().to_be_bytes().to_vec();
+            bytes.extend_from_slice(&kind);
+            bytes.extend_from_slice(payload);
+            bytes
+        }
+        let (mut bytes, length) = source_layer_bytes(&[0xcf, 0xb4, 0x04, 0x09], false);
+        let source = bytes.split_off(bytes.len() - length - 8);
+        let mut options = 1_u32.to_be_bytes().to_vec();
+        options.extend_from_slice(&1_u32.to_be_bytes());
+        options.push(1);
+        let mut instruction = 7_u16.to_be_bytes().to_vec();
+        instruction.extend_from_slice(&0_u16.to_be_bytes());
+        instruction.extend_from_slice(&10_u32.to_be_bytes());
+        for value in [0_u32, 0, 1, 1, 0x8000_0005, 0] {
+            instruction.extend_from_slice(&value.to_be_bytes());
+        }
+        let mut composition = boxed(*b"copt", &options);
+        composition.extend(boxed(*b"inst", &instruction));
+        if unknown {
+            composition.extend(boxed(*b"xml ", b"<x/>"));
+        }
+        bytes.extend(boxed(*b"jplh", &[]));
+        bytes.extend(boxed(*b"comp", &composition));
+        bytes.extend(source);
+        bytes
+    }
+
+    #[test]
+    fn actual_jpx_inspection_keeps_every_implicit_and_declared_layer_metadata_field() {
+        let limits = ResourceLimits::default();
+        let bytes = source_frame_codestream_bytes();
+        let inspected = jp2::parse_and_inspect(&bytes, &limits).unwrap();
+        let metadata = super::inspection::inspect_file(inspected.file(), inspected.codestreams(), &limits).unwrap();
+        assert_eq!(metadata.layers().len(), 3);
+        assert!(metadata.composition().is_none());
+        for (index, layer) in metadata.layers().iter().enumerate() {
+            assert_eq!(layer.index(), index);
+            assert_eq!(layer.codestream_indices(), &[u16::try_from(index).unwrap()]);
+            assert_eq!((layer.width(), layer.height()), (1, 1));
+            assert_eq!((layer.horizontal_grid_size(), layer.vertical_grid_size()), (1, 1));
+            assert_eq!((layer.horizontal_offset(), layer.vertical_offset()), (0, 0));
+            assert!(!layer.has_color_group());
+            assert!(!layer.has_opacity_box());
+            assert_eq!(layer.nested_metadata_boxes(), 0);
+        }
+        assert_eq!((metadata.metadata_boxes(), metadata.metadata_depth()),
+            (inspected.file().metadata_boxes(), inspected.file().metadata_depth()));
+        assert_eq!(inspect_jpx_layers(&bytes, &limits).unwrap(), metadata);
+
+        let bytes = general_source_bytes(&[], &[], Some(&[0]), jp2::ENUMERATED_GRAYSCALE);
+        let inspected = jp2::parse_and_inspect(&bytes, &limits).unwrap();
+        let metadata = super::inspection::inspect_file(inspected.file(), inspected.codestreams(), &limits).unwrap();
+        let layer = metadata.layer(0).unwrap();
+        assert_eq!(metadata.layers().len(), 1);
+        assert_eq!(layer.codestream_indices(), &[0]);
+        assert_eq!((layer.width(), layer.height()), (1, 1));
+        assert!(layer.has_color_group());
+        assert!(layer.has_opacity_box());
+        assert_eq!(layer.nested_metadata_boxes(), 0);
+    }
+
+    #[test]
+    fn actual_jpx_inspection_derives_ordered_registered_sources_and_minimum_extents() {
+        let limits = ResourceLimits::default();
+        let bytes = general_source_bytes(
+            &[[0, 2, 8, 1, 1, 0], [0, 0, 4, 1, 1, 0], [0, 1, 6, 1, 1, 0]],
+            &[], None, jp2::ENUMERATED_SRGB,
+        );
+        let inspected = jp2::parse_and_inspect(&bytes, &limits).unwrap();
+        let metadata = super::inspection::inspect_file(inspected.file(), inspected.codestreams(), &limits).unwrap();
+        let layer = metadata.layer(0).unwrap();
+        assert_eq!(layer.codestream_indices(), &[2, 0, 1]);
+        assert_eq!((layer.width(), layer.height()), (3, 1));
+        assert_eq!((layer.horizontal_grid_size(), layer.vertical_grid_size()), (2, 1));
+        assert_eq!((layer.horizontal_offset(), layer.vertical_offset()), (0, 0));
+        assert!(layer.has_color_group());
+        assert!(!layer.has_opacity_box());
+        assert_eq!(layer.nested_metadata_boxes(), 0);
+        assert_eq!(inspect_jpx_layers(&bytes, &limits).unwrap(), metadata);
+        for count in 0..3 {
+            assert_eq!(super::inspection::inspect_file(inspected.file(), &inspected.codestreams()[..count], &limits).err(),
+                Some(DecodeError::MalformedInput { offset: 0, kind: MalformedKind::InvalidBoxContents }));
+        }
+    }
+
+    #[test]
+    fn actual_jpx_inspection_composes_real_timeline_duration_and_complete_composition_fields() {
+        let limits = ResourceLimits::default();
+        for unknown in [false, true] {
+            let bytes = inspection_composition_bytes(unknown);
+            let inspected = jp2::parse_and_inspect(&bytes, &limits).unwrap();
+            let original_file = inspected.file().clone();
+            let metadata = super::inspection::inspect_file(inspected.file(), inspected.codestreams(), &limits).unwrap();
+            let composition = metadata.composition().unwrap();
+            assert_eq!((composition.width(), composition.height()), (1, 1));
+            assert_eq!(composition.loop_count(), 2);
+            assert_eq!(composition.instruction_sets(), 1);
+            assert_eq!(composition.total_duration_milliseconds(), 50);
+            assert_eq!(composition.has_unknown_boxes(), unknown);
+            assert_eq!(composition.frames().len(), 1);
+            let frame = &composition.frames()[0];
+            assert_eq!((frame.index(), frame.start_milliseconds(), frame.duration_milliseconds()), (0, 0, 50));
+            assert!(frame.persistent());
+            assert_eq!(frame.instructions().len(), 1);
+            let instruction = &frame.instructions()[0];
+            assert_eq!((instruction.layer_index(), instruction.target_x(), instruction.target_y()), (0, 0, 0));
+            assert_eq!((instruction.target_width(), instruction.target_height()), (1, 1));
+            assert_eq!(instruction.source_region(), (0, 0, 0, 0));
+            assert_eq!(instruction.next_reuse(), 0);
+            assert!(instruction.persistent());
+            assert_eq!(inspected.file(), &original_file);
+        }
+    }
+
+    #[test]
+    fn actual_jpx_inspection_keeps_source_geometry_before_timeline_limit_and_profile_errors() {
+        let limits = ResourceLimits::default();
+        let bytes = inspection_composition_bytes(false);
+        let inspected = jp2::parse_and_inspect(&bytes, &limits).unwrap();
+        let no_frames = limits.with_maximum_frames(0).unwrap();
+        assert_eq!(super::inspection::inspect_file(inspected.file(), &[], &no_frames).err(),
+            Some(DecodeError::MalformedInput { offset: 0, kind: MalformedKind::InvalidBoxContents }));
+        assert_eq!(super::inspection::inspect_file(inspected.file(), inspected.codestreams(), &no_frames).err(),
+            Some(DecodeError::LimitExceeded { resource: Resource::WorkUnits, limit: 0, actual: 1 }));
+        assert_eq!(super::inspection::ensure_jpx(inspected.file()), Ok(()));
+        assert_eq!(super::inspection::effective_layer_count(inspected.file()), 1);
+    }
+
     fn opacity_source_bytes(opacity: Option<&[u8]>, association: bool) -> Vec<u8> {
         fn boxed(kind: [u8; 4], payload: &[u8]) -> Vec<u8> {
             let mut bytes = u32::try_from(payload.len() + 8).unwrap().to_be_bytes().to_vec();

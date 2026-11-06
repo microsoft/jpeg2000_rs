@@ -1,14 +1,18 @@
 //! Container and associated codestream headers, image dimensions, and bit depths.
 
 use super::{
-    BoxReader, BoxRef, BoxType, ComponentBitDepth, DecodeError, ImageHeader, Jp2Header,
-    MalformedKind, Resource, ResourceLimits, add_offset, parse_channel_definition,
+    BoxRef, BoxType, ComponentBitDepth, DecodeError, ImageHeader, Jp2Header, MalformedKind,
+    Resource, ResourceLimits, add_offset, box_reader_from_input, parse_channel_definition,
     parse_color_specification, parse_component_mapping, parse_palette, parse_resolution_superbox,
     read_u16, read_u32, rebase_error, required_box,
 };
 #[cfg(verus_keep_ghost)]
 use vstd::prelude::*;
 
+#[cfg_attr(verus_keep_ghost, verus_spec(result =>
+    ensures super::raw_jp2_header_outcome(result) == crate::specs::part2_parse_codestream_header(
+        payload@, super::raw_header_option(defaults), *limits, base_offset),
+))]
 pub(super) fn parse_codestream_header(
     payload: &[u8],
     defaults: Option<&Jp2Header>,
@@ -18,10 +22,22 @@ pub(super) fn parse_codestream_header(
     if let Ok(header) = parse_jp2_header(payload, limits, base_offset) {
         return Ok(header);
     }
-    let mut header = defaults.cloned().ok_or_else(|| {
-        DecodeError::malformed(base_offset, MalformedKind::MissingRequiredStructure)
-    })?;
-    let mut reader = BoxReader::new(payload, limits)?;
+    #[allow(
+        clippy::redundant_closure,
+        reason = "Checked closure exposes the full native clone contract to the pinned verifier"
+    )]
+    let mut header = defaults.map(
+        #[cfg_attr(verus_keep_ghost, verus_spec(result: Jp2Header =>
+            ensures super::raw_jp2_header_view(&result) == super::raw_jp2_header_view(default_header),
+        ))]
+        |default_header| super::clone_support::jp2_header_clone(default_header),
+    ).ok_or_else(
+        #[cfg_attr(verus_keep_ghost, verus_spec(result: DecodeError =>
+            ensures result == crate::specs::part2_raw_header_missing(base_offset),
+        ))]
+        || DecodeError::malformed(base_offset, MalformedKind::MissingRequiredStructure),
+    )?;
+    let mut reader = box_reader_from_input(payload, limits)?;
     let mut image_override = false;
     let mut color_override = false;
     let mut saw_bpcc = false;
@@ -30,11 +46,28 @@ pub(super) fn parse_codestream_header(
     let mut definition_override = false;
     let mut resolution_override = false;
     let mut nested_box_count = 0_u32;
+    #[cfg(verus_keep_ghost)]
+    proof_decl! { let ghost expected = crate::specs::part2_parse_codestream_header(
+    payload@, super::raw_header_option(defaults), *limits, base_offset); }
     #[cfg_attr(
         verus_keep_ghost,
-        verus_spec(decreases payload.len() as int - reader.position as int,)
+        verus_spec(
+            invariant_except_break expected == crate::specs::part2_associated_header_boxes(
+                payload@, super::box_reader_state(&reader),
+                super::associated_header_state(&header, image_override, color_override, saw_bpcc,
+                    palette_override, mapping_override, definition_override, resolution_override, nested_box_count),
+                *limits, base_offset),
+                expected == crate::specs::part2_parse_codestream_header(
+                    payload@, super::raw_header_option(defaults), *limits, base_offset),
+            ensures expected == crate::specs::part2_associated_header_finish(
+                super::associated_header_state(&header, image_override, color_override, saw_bpcc,
+                    palette_override, mapping_override, definition_override, resolution_override, nested_box_count), base_offset),
+            decreases payload.len() as int - reader.position as int,
+        )
     )]
     loop {
+        #[cfg(verus_keep_ghost)]
+        proof! { reveal(crate::specs::part2_associated_header_boxes); reveal(crate::specs::part2_associated_header_step); }
         let previous_position = reader.position;
         let Some(next) = reader.next_box_ref() else {
             break;
@@ -45,10 +78,18 @@ pub(super) fn parse_codestream_header(
                 MalformedKind::InvalidBoxLength,
             ));
         }
-        let box_ref = next.map_err(|error| rebase_error(error, base_offset))?;
-        nested_box_count = nested_box_count.checked_add(1).ok_or_else(|| {
-            DecodeError::malformed(base_offset, MalformedKind::ArithmeticOverflow)
-        })?;
+        let box_ref = next.map_err(
+            #[cfg_attr(verus_keep_ghost, verus_spec(result: DecodeError =>
+                ensures result == crate::specs::part2_box_rebase_error(error, base_offset),
+            ))]
+            |error| rebase_error(error, base_offset),
+        )?;
+        nested_box_count = nested_box_count.checked_add(1).ok_or_else(
+            #[cfg_attr(verus_keep_ghost, verus_spec(result: DecodeError =>
+                ensures result == crate::specs::part2_palette_arithmetic_error(base_offset),
+            ))]
+            || DecodeError::malformed(base_offset, MalformedKind::ArithmeticOverflow),
+        )?;
         let box_type = box_ref.header.box_type();
         if box_type.equals(BoxType::IMAGE_HEADER) {
             if image_override {
@@ -66,6 +107,12 @@ pub(super) fn parse_codestream_header(
             header.component_mapping_entries = 0;
             header.channel_definitions = 0;
             image_override = true;
+            #[cfg(verus_keep_ghost)]
+            proof! {
+                assert(header.component_mappings@ =~= Seq::<super::ComponentMapping>::empty());
+                assert(super::channel_definition_records_view(header.channel_definition_records@)
+                    =~= Seq::<crate::specs::Part2ChannelRecord>::empty());
+            }
         } else if box_type.equals(BoxType::BITS_PER_COMPONENT) {
             if saw_bpcc {
                 return Err(DecodeError::malformed(
@@ -90,9 +137,12 @@ pub(super) fn parse_codestream_header(
             }
             let palette = parse_palette(box_ref, base_offset)?;
             header.palette_entries = palette.entries;
-            header.palette_columns = u8::try_from(palette.columns.len()).map_err(|_| {
-                DecodeError::malformed(base_offset, MalformedKind::ArithmeticOverflow)
-            })?;
+            header.palette_columns = u8::try_from(palette.columns.len()).map_err(
+                #[cfg_attr(verus_keep_ghost, verus_spec(result: DecodeError =>
+                    ensures result == crate::specs::part2_palette_arithmetic_error(base_offset),
+                ))]
+                |_error| DecodeError::malformed(base_offset, MalformedKind::ArithmeticOverflow),
+            )?;
             header.palette = Some(palette);
             palette_override = true;
         } else if box_type.equals(BoxType::COMPONENT_MAPPING) {
@@ -103,9 +153,12 @@ pub(super) fn parse_codestream_header(
                 ));
             }
             let palette_columns = match &header.palette {
-                Some(palette) => u8::try_from(palette.columns.len()).map_err(|_| {
-                    DecodeError::malformed(base_offset, MalformedKind::ArithmeticOverflow)
-                })?,
+                Some(palette) => u8::try_from(palette.columns.len()).map_err(
+                    #[cfg_attr(verus_keep_ghost, verus_spec(result: DecodeError =>
+                        ensures result == crate::specs::part2_palette_arithmetic_error(base_offset),
+                    ))]
+                    |_error| DecodeError::malformed(base_offset, MalformedKind::ArithmeticOverflow),
+                )?,
                 None => 0,
             };
             header.component_mappings = parse_component_mapping(
@@ -116,9 +169,12 @@ pub(super) fn parse_codestream_header(
                 base_offset,
             )?;
             header.component_mapping_entries = u16::try_from(header.component_mappings.len())
-                .map_err(|_| {
-                    DecodeError::malformed(base_offset, MalformedKind::ArithmeticOverflow)
-                })?;
+                .map_err(
+                    #[cfg_attr(verus_keep_ghost, verus_spec(result: DecodeError =>
+                    ensures result == crate::specs::part2_palette_arithmetic_error(base_offset),
+                ))]
+                    |_error| DecodeError::malformed(base_offset, MalformedKind::ArithmeticOverflow),
+                )?;
             mapping_override = true;
         } else if box_type.equals(BoxType::CHANNEL_DEFINITION) {
             if definition_override {
@@ -130,16 +186,22 @@ pub(super) fn parse_codestream_header(
             let output_channels = if header.component_mappings.is_empty() {
                 header.image.components
             } else {
-                u16::try_from(header.component_mappings.len()).map_err(|_| {
-                    DecodeError::malformed(base_offset, MalformedKind::ArithmeticOverflow)
-                })?
+                u16::try_from(header.component_mappings.len()).map_err(
+                    #[cfg_attr(verus_keep_ghost, verus_spec(result: DecodeError =>
+                        ensures result == crate::specs::part2_palette_arithmetic_error(base_offset),
+                    ))]
+                    |_error| DecodeError::malformed(base_offset, MalformedKind::ArithmeticOverflow),
+                )?
             };
             header.channel_definition_records =
                 parse_channel_definition(box_ref, output_channels, base_offset)?;
             header.channel_definitions = u16::try_from(header.channel_definition_records.len())
-                .map_err(|_| {
-                    DecodeError::malformed(base_offset, MalformedKind::ArithmeticOverflow)
-                })?;
+                .map_err(
+                    #[cfg_attr(verus_keep_ghost, verus_spec(result: DecodeError =>
+                    ensures result == crate::specs::part2_palette_arithmetic_error(base_offset),
+                ))]
+                    |_error| DecodeError::malformed(base_offset, MalformedKind::ArithmeticOverflow),
+                )?;
             definition_override = true;
         } else if box_type.equals(BoxType::RESOLUTION) {
             if resolution_override {
@@ -174,14 +236,21 @@ pub(super) fn parse_codestream_header(
     Ok(header)
 }
 
+#[cfg_attr(verus_keep_ghost, verus_spec(result =>
+    ensures super::raw_jp2_header_outcome(result) == crate::specs::part2_parse_jp2_header(payload@, *limits, base_offset),
+))]
 pub(super) fn parse_jp2_header(
     payload: &[u8],
     limits: &ResourceLimits,
     base_offset: u64,
 ) -> Result<Jp2Header, DecodeError> {
-    let mut reader = BoxReader::new(payload, limits)?;
-    let image_box =
-        required_box(&mut reader, 0).map_err(|error| rebase_error(error, base_offset))?;
+    let mut reader = box_reader_from_input(payload, limits)?;
+    let image_box = required_box(&mut reader, 0).map_err(
+        #[cfg_attr(verus_keep_ghost, verus_spec(result: DecodeError =>
+            ensures result == crate::specs::part2_box_rebase_error(error, base_offset),
+        ))]
+        |error| rebase_error(error, base_offset),
+    )?;
     if !image_box.header.box_type().equals(BoxType::IMAGE_HEADER) {
         return Err(DecodeError::malformed(
             add_offset(base_offset, image_box.header.offset())?,
@@ -197,12 +266,32 @@ pub(super) fn parse_jp2_header(
     let mut capture_resolution = None;
     let mut display_resolution = None;
     let mut nested_box_count = 1_u32;
+    #[cfg(verus_keep_ghost)]
+    proof_decl! { let ghost expected = crate::specs::part2_parse_jp2_header(payload@, *limits, base_offset); }
+    #[cfg(verus_keep_ghost)]
+    proof! {
+        assert(component_mappings@ =~= Seq::<super::ComponentMapping>::empty());
+        assert(super::channel_definition_records_view(channel_definition_records@) =~= Seq::<crate::specs::Part2ChannelRecord>::empty());
+    }
 
     #[cfg_attr(
         verus_keep_ghost,
-        verus_spec(decreases payload.len() as int - reader.position as int,)
+        verus_spec(
+            invariant_except_break expected == crate::specs::part2_raw_header_boxes(
+                payload@, super::box_reader_state(&reader),
+                super::raw_header_state(image, &color, saw_bpcc, &palette, component_mappings@,
+                    channel_definition_records@, capture_resolution, display_resolution, nested_box_count),
+                *limits, base_offset),
+                expected == crate::specs::part2_parse_jp2_header(payload@, *limits, base_offset),
+            ensures expected == crate::specs::part2_raw_header_finish(
+                super::raw_header_state(image, &color, saw_bpcc, &palette, component_mappings@,
+                    channel_definition_records@, capture_resolution, display_resolution, nested_box_count), base_offset),
+            decreases payload.len() as int - reader.position as int,
+        )
     )]
     loop {
+        #[cfg(verus_keep_ghost)]
+        proof! { reveal(crate::specs::part2_raw_header_boxes); reveal(crate::specs::part2_raw_header_step); }
         let previous_position = reader.position;
         let Some(next) = reader.next_box_ref() else {
             break;
@@ -213,10 +302,18 @@ pub(super) fn parse_jp2_header(
                 MalformedKind::InvalidBoxLength,
             ));
         }
-        let box_ref = next.map_err(|error| rebase_error(error, base_offset))?;
-        nested_box_count = nested_box_count.checked_add(1).ok_or_else(|| {
-            DecodeError::malformed(base_offset, MalformedKind::ArithmeticOverflow)
-        })?;
+        let box_ref = next.map_err(
+            #[cfg_attr(verus_keep_ghost, verus_spec(result: DecodeError =>
+                ensures result == crate::specs::part2_box_rebase_error(error, base_offset),
+            ))]
+            |error| rebase_error(error, base_offset),
+        )?;
+        nested_box_count = nested_box_count.checked_add(1).ok_or_else(
+            #[cfg_attr(verus_keep_ghost, verus_spec(result: DecodeError =>
+                ensures result == crate::specs::part2_palette_arithmetic_error(base_offset),
+            ))]
+            || DecodeError::malformed(base_offset, MalformedKind::ArithmeticOverflow),
+        )?;
         let box_type = box_ref.header.box_type();
         if box_type.equals(BoxType::IMAGE_HEADER) {
             return Err(DecodeError::malformed(
@@ -254,9 +351,12 @@ pub(super) fn parse_jp2_header(
                 ));
             }
             let palette_columns = match &palette {
-                Some(parsed) => u8::try_from(parsed.columns.len()).map_err(|_| {
-                    DecodeError::malformed(base_offset, MalformedKind::ArithmeticOverflow)
-                })?,
+                Some(parsed) => u8::try_from(parsed.columns.len()).map_err(
+                    #[cfg_attr(verus_keep_ghost, verus_spec(result: DecodeError =>
+                        ensures result == crate::specs::part2_palette_arithmetic_error(base_offset),
+                    ))]
+                    |_error| DecodeError::malformed(base_offset, MalformedKind::ArithmeticOverflow),
+                )?,
                 None => 0,
             };
             component_mappings = parse_component_mapping(
@@ -276,9 +376,12 @@ pub(super) fn parse_jp2_header(
             let output_channels = if component_mappings.is_empty() {
                 image.components
             } else {
-                u16::try_from(component_mappings.len()).map_err(|_| {
-                    DecodeError::malformed(base_offset, MalformedKind::ArithmeticOverflow)
-                })?
+                u16::try_from(component_mappings.len()).map_err(
+                    #[cfg_attr(verus_keep_ghost, verus_spec(result: DecodeError =>
+                        ensures result == crate::specs::part2_palette_arithmetic_error(base_offset),
+                    ))]
+                    |_error| DecodeError::malformed(base_offset, MalformedKind::ArithmeticOverflow),
+                )?
             };
             channel_definition_records =
                 parse_channel_definition(box_ref, output_channels, base_offset)?;
@@ -311,18 +414,29 @@ pub(super) fn parse_jp2_header(
             MalformedKind::MissingRequiredStructure,
         ));
     }
-    let color = color.ok_or_else(|| {
-        DecodeError::malformed(base_offset, MalformedKind::MissingRequiredStructure)
-    })?;
+    let color = color.ok_or_else(
+        #[cfg_attr(verus_keep_ghost, verus_spec(result: DecodeError =>
+            ensures result == crate::specs::part2_raw_header_missing(base_offset),
+        ))]
+        || DecodeError::malformed(base_offset, MalformedKind::MissingRequiredStructure),
+    )?;
 
     let (palette_entries, palette_columns) = match &palette {
         Some(parsed) => (parsed.entries(), parsed.columns.len() as u8),
         None => (0, 0),
     };
-    let component_mapping_entries = u16::try_from(component_mappings.len())
-        .map_err(|_| DecodeError::malformed(base_offset, MalformedKind::ArithmeticOverflow))?;
-    let channel_definitions = u16::try_from(channel_definition_records.len())
-        .map_err(|_| DecodeError::malformed(base_offset, MalformedKind::ArithmeticOverflow))?;
+    let component_mapping_entries = u16::try_from(component_mappings.len()).map_err(
+        #[cfg_attr(verus_keep_ghost, verus_spec(result: DecodeError =>
+            ensures result == crate::specs::part2_palette_arithmetic_error(base_offset),
+        ))]
+        |_error| DecodeError::malformed(base_offset, MalformedKind::ArithmeticOverflow),
+    )?;
+    let channel_definitions = u16::try_from(channel_definition_records.len()).map_err(
+        #[cfg_attr(verus_keep_ghost, verus_spec(result: DecodeError =>
+            ensures result == crate::specs::part2_palette_arithmetic_error(base_offset),
+        ))]
+        |_error| DecodeError::malformed(base_offset, MalformedKind::ArithmeticOverflow),
+    )?;
     Ok(Jp2Header {
         image,
         color,
@@ -339,11 +453,16 @@ pub(super) fn parse_jp2_header(
     })
 }
 
-fn parse_image_header(
+#[cfg_attr(verus_keep_ghost, verus_spec(result =>
+    ensures result == crate::specs::part2_parse_image_header(super::box_reference_view(box_ref), limits, base_offset),
+))]
+pub(super) fn parse_image_header(
     box_ref: BoxRef<'_>,
     limits: &ResourceLimits,
     base_offset: u64,
 ) -> Result<ImageHeader, DecodeError> {
+    #[cfg(verus_keep_ghost)]
+    proof! { reveal(crate::specs::part2_parse_image_header); }
     if box_ref.payload.len() != 14 {
         return Err(DecodeError::malformed(
             add_offset(base_offset, box_ref.header.offset())?,
@@ -392,7 +511,12 @@ fn parse_image_header(
     }
     let pixels = u64::from(width)
         .checked_mul(u64::from(height))
-        .ok_or_else(|| DecodeError::malformed(base_offset, MalformedKind::ArithmeticOverflow))?;
+        .ok_or_else(
+            #[cfg_attr(verus_keep_ghost, verus_spec(result: DecodeError =>
+                ensures result == (DecodeError::MalformedInput { offset: base_offset, kind: MalformedKind::ArithmeticOverflow }),
+            ))]
+            || DecodeError::malformed(base_offset, MalformedKind::ArithmeticOverflow),
+        )?;
     if pixels > limits.maximum_pixels() {
         return Err(DecodeError::limit(
             Resource::Pixels,
@@ -431,10 +555,15 @@ fn parse_image_header(
     })
 }
 
+#[cfg_attr(verus_keep_ghost, verus_spec(result =>
+    ensures result == crate::specs::part2_container_bit_depth(value, offset),
+))]
 pub(super) fn parse_bit_depth(value: u8, offset: u64) -> Result<ComponentBitDepth, DecodeError> {
     if value == 0xff {
         return Ok(ComponentBitDepth::Variable);
     }
+    #[cfg(verus_keep_ghost)]
+    proof! { assert((value & 0x7f) <= 127u8) by(bit_vector); }
     let bits = (value & 0x7f)
         .checked_add(1)
         .ok_or_else(|| DecodeError::malformed(offset, MalformedKind::ArithmeticOverflow))?;
@@ -450,7 +579,10 @@ pub(super) fn parse_bit_depth(value: u8, offset: u64) -> Result<ComponentBitDept
     })
 }
 
-fn validate_bpcc(
+#[cfg_attr(verus_keep_ghost, verus_spec(result =>
+    ensures result == crate::specs::part2_validate_bpcc(super::box_reference_view(box_ref), image, base_offset),
+))]
+pub(super) fn validate_bpcc(
     box_ref: BoxRef<'_>,
     image: ImageHeader,
     base_offset: u64,
@@ -462,14 +594,24 @@ fn validate_bpcc(
         ));
     }
     let mut index = 0_usize;
+    #[cfg(verus_keep_ghost)]
+    proof! { reveal(crate::specs::part2_bpcc_prefix); }
     #[cfg_attr(
         verus_keep_ghost,
         verus_spec(
             invariant index <= box_ref.payload.len(),
+                box_ref.payload.len() == image.components,
+                crate::specs::part2_bpcc_prefix(super::box_reference_view(box_ref), base_offset, index as nat) == Ok(()),
             decreases box_ref.payload.len() - index,
         )
     )]
     while index < box_ref.payload.len() {
+        #[cfg(verus_keep_ghost)]
+        proof! {
+            crate::specs::part2_bpcc_step(super::box_reference_view(box_ref), base_offset, index as nat);
+            crate::specs::part2_bpcc_error(super::box_reference_view(box_ref), base_offset,
+                index as nat + 1, box_ref.payload.len() as nat);
+        }
         if matches!(
             parse_bit_depth(box_ref.payload[index], base_offset)?,
             ComponentBitDepth::Variable
