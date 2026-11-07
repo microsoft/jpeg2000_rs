@@ -38,6 +38,7 @@ specs/jp2_layer.rs
 specs/jp2_metadata.rs
 specs/jp2_palette.rs
 specs/jp2_resolution.rs
+specs/jpip_cache_views.rs
 specs/jpip_fragment.rs
 specs/jpip_message.rs
 specs/jpx_dispatch.rs
@@ -155,6 +156,7 @@ src/jpip/byte_io.rs
 src/jpip/cache.rs
 src/jpip/cache_entry_result_tests.rs
 src/jpip/cache_proof_support.rs
+src/jpip/cache_view_result_tests.rs
 src/jpip/mapping.rs
 src/jpip/message.rs
 src/jpip/message_result_tests.rs

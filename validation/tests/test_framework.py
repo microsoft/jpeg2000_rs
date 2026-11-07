@@ -1256,6 +1256,131 @@ class FrameworkTests(WorkingFiles):
                 self.assertEqual(framework.validate_normative_coverage(dict(coverage, requirements=[entry]))["status"], "passed")
                 self.assertEqual(set(counts.values()), {expected})
 
+    def test_inventory_jpip_cache_views_bind_all_five_complete_native_result_contracts(self):
+        self._assert_complete_packet_contract_bindings(
+            {framework._JPIP_CACHE_VIEW_ENTRY}, framework._JPIP_CACHE_VIEW_CONTRACTS, 5, isolate=False,
+        )
+
+    def test_inventory_jpip_cache_views_require_every_actual_model_storage_caller_and_test_bridge(self):
+        coverage = json.loads((framework.VALIDATION / "normative-coverage.json").read_text())
+        entry = next(item for item in coverage["requirements"] if item["id"] == framework._JPIP_CACHE_VIEW_ENTRY)
+        for field in ("implementation_refs", "contract_refs", "spec_refs", "proof_refs", "test_refs"):
+            for removed in entry[field]:
+                changed = copy.deepcopy(entry)
+                changed[field].remove(removed)
+                with self.subTest(field=field, removed=removed), self.assertRaisesRegex(ValueError, "whole JPIP cache view Results"):
+                    framework.validate_normative_coverage(dict(coverage, requirements=[changed]))
+
+    def test_inventory_jpip_cache_views_bind_first_match_scan_clone_layout_and_error_handoffs(self):
+        coverage = json.loads((framework.VALIDATION / "normative-coverage.json").read_text())
+        entry = next(item for item in coverage["requirements"] if item["id"] == framework._JPIP_CACHE_VIEW_ENTRY)
+        source = framework.ROOT / "src/jpip/cache.rs"
+        original = source.read_text()
+        read_text = Path.read_text
+        for before, after in (
+            ("bytes.saturating_add(fragment.bytes.len() as u64)", "bytes.saturating_add(0)"),
+            ("prefix = fragment.end()", "prefix = 0"),
+            ("databin.fragments[0].bytes.clone()", "databin.fragments[1].bytes.clone()"),
+            ("first.offset != 0", "first.offset != 1"),
+            ("let ghost identifiers = jpip_layout_view(layout)", "let ghost identifiers = Seq::empty()"),
+            ("self.databin_view(layout[index])?", "self.databin_view(layout[0])?"),
+            ("total > self.limits.maximum_input_bytes()", "total > 0"),
+            ("bytes.extend_from_slice(&parts[part_index].bytes)", "bytes.extend_from_slice(&parts[0].bytes)"),
+        ):
+            self.assertIn(before, original)
+            changed = original.replace(before, after, 1)
+
+            def altered(path, *args, **kwargs):
+                return changed if path == source else read_text(path, *args, **kwargs)
+
+            with self.subTest(before=before), mock.patch.object(Path, "read_text", altered), \
+                    self.assertRaisesRegex(ValueError, "actual first-match/ordered-scan/clone/layout/error handoffs"):
+                framework.validate_normative_coverage(dict(coverage, requirements=[entry]))
+
+    def test_inventory_jpip_cache_views_reject_trimmed_status_first_bytes_and_reconstruction_models(self):
+        coverage = json.loads((framework.VALIDATION / "normative-coverage.json").read_text())
+        entry = next(item for item in coverage["requirements"] if item["id"] == framework._JPIP_CACHE_VIEW_ENTRY)
+        source = framework.ROOT / "specs/jpip_cache_views.rs"
+        original = source.read_text()
+        read_text = Path.read_text
+        for before, after in (
+            ("fragment.0 == prefix", "fragment.0 >= prefix"),
+            ("part2_jpip_cache_error(status.1", "part2_jpip_cache_error(0"),
+            ("fragments[0].1", "fragments[1].1"),
+            ("actual: total as u64", "actual: 0"),
+            ("length > usize::MAX as nat", "length > u64::MAX as nat"),
+            ("part2_jpip_flatten_prefix(parts.0, parts.0.len())", "parts.0[0]"),
+            ("part2_jpip_fragment_error(offset, kind)", "part2_jpip_fragment_error(0, kind)"),
+        ):
+            self.assertIn(before, original)
+            changed = original.replace(before, after, 1)
+
+            def altered(path, *args, **kwargs):
+                return changed if path == source else read_text(path, *args, **kwargs)
+
+            with self.subTest(before=before), mock.patch.object(Path, "read_text", altered), \
+                    self.assertRaisesRegex(ValueError, "complete ordered-status/first-bytes/layout/error models"):
+                framework.validate_normative_coverage(dict(coverage, requirements=[entry]))
+
+    def test_inventory_jpip_cache_views_keep_physical_cache_status_layout_and_owned_byte_projections(self):
+        coverage = json.loads((framework.VALIDATION / "normative-coverage.json").read_text())
+        entry = next(item for item in coverage["requirements"] if item["id"] == framework._JPIP_CACHE_VIEW_ENTRY)
+        source = framework.ROOT / "src/jpip/cache_proof_support.rs"
+        original = source.read_text()
+        read_text = Path.read_text
+        for before, after in (
+            ("value.databins@", "unrelated@"),
+            ("value.contiguous_prefix", "0"),
+            ("Ok(jpip_byte_view(&value))", "Ok(Seq::empty())"),
+            ("databin_id_view(id)", "unrelated(id)"),
+            ("jpip_byte_view(&part)", "Seq::empty()"),
+        ):
+            self.assertIn(before, original)
+            changed = original.replace(before, after, 1)
+
+            def altered(path, *args, **kwargs):
+                return changed if path == source else read_text(path, *args, **kwargs)
+
+            with self.subTest(before=before), mock.patch.object(Path, "read_text", altered), \
+                    self.assertRaisesRegex(ValueError, "physical cache/layout/owned byte and status projections"):
+                framework.validate_normative_coverage(dict(coverage, requirements=[entry]))
+
+    def test_inventory_jpip_cache_views_keep_checked_final_status_scan_after_actual_loop(self):
+        coverage = json.loads((framework.VALIDATION / "normative-coverage.json").read_text())
+        entry = next(item for item in coverage["requirements"] if item["id"] == framework._JPIP_CACHE_VIEW_ENTRY)
+        source = framework.ROOT / "src/jpip/cache.rs"
+        original = source.read_text()
+        read_text = Path.read_text
+        header = framework._coverage_function_header(original, "DatabinCache::status")
+        body = framework._coverage_function_body(original, header)
+        self.assertIn("part2_jpip_status_scan", body)
+        changed_body = body.replace("reveal(crate::specs::part2_jpip_status_scan)", "reveal(unrelated)", 2)
+        changed = original.replace(body, changed_body, 1)
+
+        def altered(path, *args, **kwargs):
+            return changed if path == source else read_text(path, *args, **kwargs)
+
+        with mock.patch.object(Path, "read_text", altered), self.assertRaisesRegex(ValueError, "ordered-scan/clone/layout/error handoffs"):
+            framework.validate_normative_coverage(dict(coverage, requirements=[entry]))
+
+    def test_inventory_jpip_cache_views_keep_fresh_actual_model_and_native_storage_caches(self):
+        coverage = json.loads((framework.VALIDATION / "normative-coverage.json").read_text())
+        entry = next(item for item in coverage["requirements"] if item["id"] == framework._JPIP_CACHE_VIEW_ENTRY)
+        read_text = Path.read_text
+        counts = {framework.ROOT / name: 0 for name in (
+            "src/jpip/cache.rs", "src/jpip/cache_proof_support.rs", "specs/jpip_cache_views.rs",
+        )}
+
+        def counted(path, *args, **kwargs):
+            if path in counts:
+                counts[path] += 1
+            return read_text(path, *args, **kwargs)
+
+        with mock.patch.object(Path, "read_text", counted):
+            for expected in (1, 2):
+                self.assertEqual(framework.validate_normative_coverage(dict(coverage, requirements=[entry]))["status"], "passed")
+                self.assertEqual(set(counts.values()), {expected})
+
     def test_inventory_jpip_entries_bind_owned_copy_pointcopy_and_first_lookup_contracts(self):
         self._assert_complete_packet_contract_bindings({framework._JPIP_FRAGMENT_ENTRY}, framework._JPIP_FRAGMENT_CONTRACTS, 3, isolate=False)
 
