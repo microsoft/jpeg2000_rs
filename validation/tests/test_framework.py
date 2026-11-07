@@ -104,7 +104,11 @@ class FrameworkTests(WorkingFiles):
             for reference in entry["contract_refs"]:
                 source = framework.ROOT / reference["path"]
                 original = source.read_text()
-                header = framework._coverage_function_header(original, reference["symbol"])
+                header = framework._coverage_function_header(
+                    original, reference["symbol"],
+                    module_scope=(reference["path"] == "src/decode/output.rs"
+                                  and reference["symbol"] == "decode_jpx_file_selected"),
+                )
                 self.assertIsNotNone(header, reference)
                 signature = original.find("fn", header.start(), header.end())
                 start = original.rfind("#[cfg_attr", 0, signature)
@@ -1241,6 +1245,131 @@ class FrameworkTests(WorkingFiles):
         entry = next(item for item in coverage["requirements"] if item["id"] == framework._METADATA_TREE_ENTRY)
         read_text = Path.read_text
         counts = {framework.ROOT / name: 0 for name in ("src/jp2/metadata.rs", "specs/jp2_metadata.rs")}
+
+        def counted(path, *args, **kwargs):
+            if path in counts:
+                counts[path] += 1
+            return read_text(path, *args, **kwargs)
+
+        with mock.patch.object(Path, "read_text", counted):
+            for expected in (1, 2):
+                self.assertEqual(framework.validate_normative_coverage(dict(coverage, requirements=[entry]))["status"], "passed")
+                self.assertEqual(set(counts.values()), {expected})
+
+    def test_inventory_binds_public_raw_jpx_images_and_actual_selected_module_producers(self):
+        producers = {key: value for key, value in framework._RAW_JPX_PUBLIC_IMAGE_CONTRACTS.items()
+                     if key not in framework._RAW_JPX_PUBLIC_IMAGE_APIS}
+        self._assert_complete_packet_contract_bindings({framework._RAW_JPX_PUBLIC_IMAGE_ENTRY}, producers, 11, isolate=False)
+        coverage = json.loads((framework.VALIDATION / "normative-coverage.json").read_text())
+        entry = next(item for item in coverage["requirements"] if item["id"] == framework._RAW_JPX_PUBLIC_IMAGE_ENTRY)
+        source = framework.ROOT / "src/decode/api.rs"
+        original = source.read_text()
+        read_text = Path.read_text
+        for model, requested in (("typed", "None"), ("typed", "Some(crate::options::decode_selection_view(selection))"),
+                                  ("color", "None"), ("color", "Some(crate::options::decode_selection_view(selection))")):
+            before = f"part2_decode_raw_jpx_{model}(\n        input@, codestream_index, crate::options::decode_options_limits(options), {requested})"
+            self.assertIn(before, original)
+            for after in (
+                before.replace("input@", "seq![]"),
+                before.replace("codestream_index,", "0,"),
+                before.replace(requested + ")", ("None" if requested != "None" else "Some(unrelated)") + ")"),
+            ):
+                changed = original.replace(before, after, 1)
+
+                def altered(path, *args, **kwargs):
+                    return changed if path == source else read_text(path, *args, **kwargs)
+
+                with self.subTest(model=model, requested=requested, after=after), mock.patch.object(Path, "read_text", altered), \
+                        self.assertRaisesRegex(ValueError, "executable Verus contract"):
+                    framework.validate_normative_coverage(dict(coverage, requirements=[entry]))
+
+    def test_inventory_raw_jpx_images_require_all_selected_header_reference_and_value_bridges(self):
+        coverage = json.loads((framework.VALIDATION / "normative-coverage.json").read_text())
+        entry = next(item for item in coverage["requirements"] if item["id"] == framework._RAW_JPX_PUBLIC_IMAGE_ENTRY)
+        for field in ("contract_refs", "spec_refs", "proof_refs", "test_refs"):
+            for removed in entry[field]:
+                changed = copy.deepcopy(entry)
+                changed[field].remove(removed)
+                with self.subTest(field=field, removed=removed), self.assertRaisesRegex(ValueError, "whole raw JPX image Results"):
+                    framework.validate_normative_coverage(dict(coverage, requirements=[changed]))
+
+    def test_inventory_raw_jpx_images_bind_actual_raw_selected_typed_and_color_target_handoffs(self):
+        coverage = json.loads((framework.VALIDATION / "normative-coverage.json").read_text())
+        entry = next(item for item in coverage["requirements"] if item["id"] == framework._RAW_JPX_PUBLIC_IMAGE_ENTRY)
+        read_text = Path.read_text
+        for name, anchor, before, after, expected in (
+            ("src/decode/api.rs", "pub fn decode_jpx_codestream(", "jp2::parse(input, options.limits())?", "jp2::parse_and_inspect(input, options.limits())?", "actual raw/index/selection/header/color/target handoffs"),
+            ("src/decode/api.rs", "pub fn decode_jpx_codestream(", "decode_jpx_file_selected(&file, codestream_index, options, selection)?", "decode_jpx_file_selected(&file, 0, options, selection)?", "actual raw/index/selection/header/color/target handoffs"),
+            ("src/decode/api.rs", "pub fn decode_jpx_codestream(", "convert_associated_selected_color(&decoded, header, target, options.limits())", "convert_associated_selected_color(&decoded, header, [0, 0, 1, 1], options.limits())", "actual raw/index/selection/header/color/target handoffs"),
+            ("src/decode/output.rs", "pub(super) fn decode_jpx_file_selected(", "codestream::parse_layout(selected.data(), options.limits())?", "codestream::parse_layout(&unrelated, options.limits())?", "actual module-level selected producer"),
+            ("src/decode/output.rs", "pub(super) fn decode_jpx_file_selected(", "decode_layout_selected(&layout, selection, options.limits())?", "decode_layout_selected(&layout, &unrelated, options.limits())?", "actual module-level selected producer"),
+            ("src/decode/output.rs", "pub(super) fn decode_jpx_file_selected(", "codestream::decoder_layout_main_info_matches_raw(&layout)", "unrelated_layout_bridge()", "actual module-level selected producer"),
+        ):
+            source = framework.ROOT / name
+            original = source.read_text()
+            start = original.index(anchor) if "selected(" not in anchor else original.index("pub(super) fn decode_jpx_file_selected")
+            self.assertIn(before, original[start:])
+            changed = original[:start] + original[start:].replace(before, after, 1)
+
+            def altered(path, *args, **kwargs):
+                return changed if path == source else read_text(path, *args, **kwargs)
+
+            with self.subTest(before=before), mock.patch.object(Path, "read_text", altered), self.assertRaisesRegex(ValueError, expected):
+                framework.validate_normative_coverage(dict(coverage, requirements=[entry]))
+
+    def test_inventory_raw_jpx_images_reject_trimmed_selected_layout_and_raw_color_models(self):
+        coverage = json.loads((framework.VALIDATION / "normative-coverage.json").read_text())
+        entry = next(item for item in coverage["requirements"] if item["id"] == framework._RAW_JPX_PUBLIC_IMAGE_ENTRY)
+        source = framework.ROOT / "specs/jpx_public_images.rs"
+        original = source.read_text()
+        read_text = Path.read_text
+        for before, after in (
+            ("part2_parse_container(input, *limits)", "part2_parse_container(seq![], *limits)"),
+            ("part1_parse_layout(source.0, limits)", "part1_parse_layout(seq![], limits)"),
+            ("part2_typed_layout_input(input, decoded, limits)", "part2_decode_typed_layout_value_input(0, input, limits, Some(requested))"),
+            ("part2_apply_output_header(image, header.0,", "part2_apply_output_header(image, unrelated,"),
+            ("part2_decode_jpx_selected_file(file, index, limits, expanded.0)", "part2_decode_jpx_selected_file(file, index, limits, requested)"),
+            ("expanded.1[2]", "expanded.1[0]"),
+        ):
+            self.assertIn(before, original)
+            changed = original.replace(before, after, 1)
+
+            def altered(path, *args, **kwargs):
+                return changed if path == source else read_text(path, *args, **kwargs)
+
+            with self.subTest(before=before), mock.patch.object(Path, "read_text", altered), \
+                    self.assertRaisesRegex(ValueError, "complete raw/selected-layout/header/reference/color-target models"):
+                framework.validate_normative_coverage(dict(coverage, requirements=[entry]))
+
+    def test_inventory_raw_jpx_images_select_only_actual_module_producer_not_disabled_nested_item(self):
+        coverage = json.loads((framework.VALIDATION / "normative-coverage.json").read_text())
+        entry = next(item for item in coverage["requirements"] if item["id"] == framework._RAW_JPX_PUBLIC_IMAGE_ENTRY)
+        source = framework.ROOT / "src/decode/output.rs"
+        original = source.read_text()
+        nested = framework._coverage_function_header(original, "decode_jpx_file_selected")
+        actual = framework._coverage_function_header(original, "decode_jpx_file_selected", module_scope=True)
+        self.assertEqual(nested[1], "    ")
+        self.assertEqual(actual[1], "")
+        self.assertGreater(actual.start(), nested.start())
+        start = original.rfind("#[cfg_attr", 0, actual.start())
+        read_text = Path.read_text
+        old_frame = "Ok(output) => output.1 == jp2::jpx_file_associated_header_reference(file, codestream_index)"
+        for changed, expected in (
+            (original[:start] + original[start:].replace(old_frame, "Ok(output) => true", 1), "returned-header reference frame"),
+            (original[:start] + "#[cfg(any())]\n" + original[start:], "actual module-level selected producer"),
+            (original + "\npub fn decode_jpx_file_selected() {}\n", "actual module-level selected producer"),
+        ):
+            def altered(path, *args, **kwargs):
+                return changed if path == source else read_text(path, *args, **kwargs)
+
+            with mock.patch.object(Path, "read_text", altered), self.assertRaisesRegex(ValueError, expected):
+                framework.validate_normative_coverage(dict(coverage, requirements=[entry]))
+
+    def test_inventory_raw_jpx_images_keep_fresh_actual_module_api_and_raw_model_caches(self):
+        coverage = json.loads((framework.VALIDATION / "normative-coverage.json").read_text())
+        entry = next(item for item in coverage["requirements"] if item["id"] == framework._RAW_JPX_PUBLIC_IMAGE_ENTRY)
+        read_text = Path.read_text
+        counts = {framework.ROOT / name: 0 for name in ("src/decode/api.rs", "src/decode/output.rs", "specs/jpx_public_images.rs")}
 
         def counted(path, *args, **kwargs):
             if path in counts:
@@ -5615,6 +5744,8 @@ class FrameworkTests(WorkingFiles):
                     if framework._coverage_same_file_call(
                         caller_source, caller["symbol"], callee,
                         distinct_file=caller["path"] != reference["path"],
+                        module_scope=(caller["path"] == "src/decode/output.rs"
+                                      and caller["symbol"] == "decode_jpx_file_selected"),
                     ):
                         return True
                     owner = caller["symbol"].rsplit("::", 1)[0] if "::" in caller["symbol"] else None
@@ -5649,7 +5780,11 @@ class FrameworkTests(WorkingFiles):
                 isolated["proof_refs"] = [reference]
                 isolated["test_refs"] = entry["test_refs"][:1]
             self.assertEqual(framework.validate_normative_coverage(coverage)["status"], "passed")
-            header = framework._coverage_function_header(original, reference["symbol"])
+            header = framework._coverage_function_header(
+                original, reference["symbol"],
+                module_scope=(reference["path"] == "src/decode/output.rs"
+                              and reference["symbol"] == "decode_jpx_file_selected"),
+            )
             signature = original.find("fn", header.start())
             start = original.rfind("#[cfg_attr", 0, signature)
             contract = original[start:signature]

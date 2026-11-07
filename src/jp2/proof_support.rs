@@ -239,6 +239,35 @@ verus! {
         }
     }
 
+    pub closed spec fn source_codestream_association_reference<'file, 'input>(
+        stream: &'file CodestreamBox<'input>,
+    ) -> Option<&'file CodestreamHeaderAssociation<'input>> {
+        match &stream.codestream_header { None => None, Some(association) => Some(association) }
+    }
+
+    pub closed spec fn source_association_parsed_reference<'file>(
+        association: &'file CodestreamHeaderAssociation<'_>,
+    ) -> Option<&'file Jp2Header> {
+        match &association.parsed { None => None, Some(header) => Some(header) }
+    }
+
+    pub(crate) proof fn associated_header_reference_selectors(selected: &CodestreamBox, fallback: &Jp2Header)
+        ensures associated_header_reference(selected, fallback) == match source_codestream_association_reference(selected) {
+            None => Ok(fallback),
+            Some(association) => match source_association_parsed_reference(association) {
+                Some(header) => Ok(header),
+                None => Err(DecodeError::MalformedInput {
+                    offset: source_association_header_view(association).0, kind: MalformedKind::MissingRequiredStructure,
+                }),
+            },
+        },
+    {
+        reveal(associated_header_reference);
+        reveal(source_codestream_association_reference);
+        reveal(source_association_parsed_reference);
+        reveal(source_association_header_view);
+    }
+
     pub closed spec fn jpx_file_associated_header_reference<'file>(
         file: &'file Jp2File<'_>, index: usize,
     ) -> Option<&'file Jp2Header> {

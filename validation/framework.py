@@ -214,6 +214,7 @@ def _coverage_symbol_present(path: Path, symbol: str, *, text: str | None = None
 def _coverage_function_header(
     text: str, symbol: str, *,
     implementation_ranges: dict[tuple[str, str, str], list[tuple[int, int, str]] | None] | None = None,
+    module_scope: bool = False,
 ) -> re.Match[str] | None:
     """Resolve formatted methods in their actual impl, never another short name."""
     short = symbol.rsplit("::", 1)[-1]
@@ -221,6 +222,13 @@ def _coverage_function_header(
         rf"(?m)^([ \t]*)(?:(?:pub(?:\([^)\n]*\))?|const|async|unsafe)[ \t]+)*"
         rf"fn[ \t]+{re.escape(short)}\b",
     )
+    if module_scope:
+        matches = [match for match in pattern.finditer(text) if not match[1]]
+        if len(matches) != 1:
+            return None
+        match = matches[0]
+        prefix = text[text.rfind("\n}", 0, match.start()) + 2:match.start()]
+        return None if re.search(r"#\[\s*cfg\s*\(\s*any\s*\(\s*\)\s*\)\s*\]", prefix) else match
     if "::" in symbol:
         owner = symbol.rsplit("::", 1)[0].rsplit("::", 1)[-1]
         trait_scope = (
@@ -285,13 +293,13 @@ def _coverage_spec_function_body(text: str, symbol: str) -> str | None:
 
 
 def _coverage_same_file_call(
-    text: str, caller: str, callee: str, *, distinct_file: bool = False,
+    text: str, caller: str, callee: str, *, distinct_file: bool = False, module_scope: bool = False,
 ) -> bool:
     """Check another formatted function body, not the callee declaration."""
     same_name = caller.rsplit("::", 1)[-1] == callee
     if same_name and not distinct_file:
         return False
-    body = _coverage_function_body(text, _coverage_function_header(text, caller))
+    body = _coverage_function_body(text, _coverage_function_header(text, caller, module_scope=module_scope))
     prefix = r"(?<![\w.])" if same_name else r"\b"
     return body is not None and re.search(rf"{prefix}{re.escape(callee)}\s*\(", body) is not None
 
@@ -3298,6 +3306,94 @@ _RAW_CONTAINER_COLOR_TESTS = {("src/decode/container_image_result_tests.rs", "ac
     "preserves_header_mapping_before_color_admission",
     "preserves_raw_inspection_selection_packet_and_profile_priority",
 )}
+_RAW_JPX_PUBLIC_IMAGE_ENTRY = "part2-complete-native-public-raw-jpx-codestream-results"
+_RAW_JPX_PUBLIC_IMAGE_APIS = {("src/decode/api.rs", name) for name in (
+    "decode_jpx_codestream", "decode_jpx_codestream_selected", "decode_jpx_codestream_color", "decode_jpx_codestream_color_selected",
+)}
+_RAW_JPX_PUBLIC_IMAGE_CONTRACTS = {
+    **{
+        ("src/decode/api.rs", name): (
+            "part2_decode_raw_jpx_color" if color else "part2_decode_raw_jpx_typed",
+            _coverage_call("crate::color::converted_image_result" if color else "crate::image::decoded_typed_image_outcome", r"\1"), None,
+            r"input\s*@\s*,\s*codestream_index\s*,\s*" + _coverage_call("crate::options::decode_options_limits", "options")
+            + r"\s*,\s*" + (_coverage_call("Some", _coverage_call("crate::options::decode_selection_view", "selection")) if selected else "None"),
+        ) for name, selected, color in (
+            ("decode_jpx_codestream", False, False), ("decode_jpx_codestream_selected", True, False),
+            ("decode_jpx_codestream_color", False, True), ("decode_jpx_codestream_color_selected", True, True),
+        )
+    },
+    ("src/jp2/container.rs", "parse"): _RAW_CONTAINER_CONTRACTS[("src/jp2/container.rs", "parse")],
+    ("src/decode/output.rs", "decode_jpx_file"): _JPX_SOURCE_CONTRACTS[("src/decode/output.rs", "decode_jpx_file")],
+    ("src/decode/output.rs", "decode_jpx_file_selected"): (
+        "part2_decode_jpx_selected_file", _coverage_call("associated_typed_outcome", r"\1"), None,
+        _coverage_call("jp2::jpx_file_decode_view", "file") + r"\s*,\s*codestream_index\s*,\s*"
+        + _coverage_call("crate::options::decode_options_limits", "options") + r"\s*,\s*"
+        + _coverage_call("crate::options::decode_selection_view", "selection"),
+    ),
+    ("src/decode/output.rs", "color_selection"): _RAW_CONTAINER_COLOR_CONTRACTS[("src/decode/output.rs", "color_selection")],
+    **{
+        ("src/decode/output.rs", name): (
+            "part2_convert_associated_selected" if selected else "part2_convert_associated",
+            _coverage_call("crate::color::converted_image_result", r"\1"), None,
+            _coverage_call("crate::image::typed_image_value_view", r"\*\s*image") + r"\s*,\s*"
+            + _coverage_call("jp2::associated_header_option", "header") + (r"\s*,\s*target" if selected else "") + r"\s*,\s*"
+            + _coverage_call("crate::limits::resource_decoded_bytes_limit", "limits") + r"\s*,\s*"
+            + _coverage_call("crate::limits::resource_work_limit", "limits"),
+        ) for name, selected in (("convert_associated_color", False), ("convert_associated_selected_color", True))
+    },
+    ("src/codestream/layout.rs", "parse_layout"): _RAW_TYPED_CONTRACTS[("src/codestream/layout.rs", "parse_layout")],
+    ("src/decode/execution.rs", "decode_layout_selected"): _LAYOUT_DECODING_CONTRACTS[("src/decode/execution.rs", "decode_layout_selected")],
+    ("src/decode/api.rs", "typed_layout"): _TYPED_LAYOUT_CONTRACTS[("src/decode/api.rs", "typed_layout")],
+    ("src/jp2/container.rs", "validate_selected_header"): _JPX_SOURCE_CONTRACTS[("src/jp2/container.rs", "validate_selected_header")],
+    ("src/decode/output.rs", "apply_jp2_output"): _RAW_CONTAINER_COLOR_CONTRACTS[("src/decode/output.rs", "apply_jp2_output")],
+}
+_RAW_JPX_PUBLIC_IMAGE_MODELS = {("specs/jpx_public_images.rs", name) for name in (
+    "part2_decode_jpx_selected_layout", "part2_decode_jpx_selected_source", "part2_decode_jpx_selected_file",
+    "part2_decode_jpx_file_request", "part2_decode_raw_jpx_typed", "part2_decode_jpx_selected_color", "part2_decode_raw_jpx_color",
+)} | {
+    ("specs/jp2_container.rs", "part2_parse_container"),
+    ("specs/jpx_raw_frame.rs", "part2_raw_jpx_decode_input"),
+    ("specs/jpx_source.rs", "part2_decode_jpx_codestream"),
+    ("specs/raw_layout.rs", "part1_parse_layout"),
+    ("specs/decoder_input.rs", "part2_decoder_input_from_raw"),
+    ("specs/decoder_input.rs", "part2_decode_layout_selected_value_input"),
+    ("specs/decoder_input.rs", "part2_typed_layout_input"),
+    ("specs/container_colors.rs", "part2_color_selection_raw"),
+    ("specs/mod.rs", "part2_associated_codestream_header"),
+    ("specs/mod.rs", "part2_validate_selected_header"),
+    ("specs/mod.rs", "part2_apply_output_header"),
+    ("specs/mod.rs", "part2_convert_associated"),
+    ("specs/mod.rs", "part2_convert_associated_selected"),
+    ("specs/mod.rs", "part2_decode_layout_selected"),
+    ("specs/mod.rs", "part2_typed_layout"),
+}
+_RAW_JPX_PUBLIC_IMAGE_PROOFS = {
+    *_RAW_JPX_PUBLIC_IMAGE_APIS,
+    ("specs/jpx_public_images.rs", "part2_decode_jpx_selected_file_unfold"),
+    ("specs/jpx_public_images.rs", "part2_decode_raw_jpx_typed_unfold"),
+    ("specs/jpx_public_images.rs", "part2_decode_raw_jpx_color_unfold"),
+    ("src/jp2/proof_support.rs", "raw_render_file_known"),
+    ("src/jp2/proof_support.rs", "associated_header_reference_selectors"),
+    ("src/jp2/proof_support.rs", "source_codestream_association_reference"),
+    ("src/jp2/proof_support.rs", "source_association_parsed_reference"),
+    ("src/jp2/proof_support.rs", "jpx_file_associated_header_reference"),
+    ("src/jp2/proof_support.rs", "jpx_file_associated_header_reference_unfold"),
+    ("src/codestream/decoder_input_proof_support.rs", "decoder_layout_input_matches_raw"),
+    ("src/codestream/decoder_input_proof_support.rs", "decoder_layout_main_info_matches_raw"),
+    ("src/codestream/proof_support.rs", "complete_codestream_info_known_fields"),
+    ("src/decode/proof_support.rs", "associated_typed_outcome_known"),
+    ("src/jp2/container.rs", "CodestreamBox::codestream_header"),
+    ("src/jp2/container.rs", "CodestreamHeaderAssociation::parsed_header"),
+    ("src/jp2/container.rs", "CodestreamHeaderAssociation::box_header"),
+}
+_RAW_JPX_PUBLIC_IMAGE_TESTS = {("src/decode/jpx_source_result_tests.rs", "actual_raw_jpx_public_" + name) for name in (
+    "selects_real_nonzero_codestreams_and_complete_typed_planes",
+    "preserves_tile_region_reduction_and_selected_source_limits",
+    "selected_producer_retains_actual_fallback_and_associated_header_references",
+    "derives_associated_palette_rgb_and_complete_alpha_output",
+    "inspects_only_the_chosen_payload_after_raw_profile_and_index_admission",
+    "keeps_layout_header_selection_packet_and_palette_first_errors",
+)}
 _RAW_COMPOSITION_RENDER_ENTRY = "part2-complete-native-public-raw-composition-result"
 _RAW_COMPOSITION_RENDER_APIS = {("src/jpx/render.rs", "render_jpx_composition")}
 _RAW_COMPOSITION_RENDER_CONTRACTS = {
@@ -3466,6 +3562,8 @@ def validate_normative_coverage(
         if key not in headers:
             headers[key] = _coverage_function_header(
                 source_text(path), symbol, implementation_ranges=implementation_ranges,
+                module_scope=(path == (ROOT / "src/decode/output.rs").resolve()
+                              and symbol == "decode_jpx_file_selected"),
             )
         return headers[key]
 
@@ -3629,6 +3727,77 @@ def validate_normative_coverage(
     ids: set[str] = set()
     contract_functions: set[tuple[str, str]] = set()
     for entry in coverage["requirements"]:
+        if entry["id"] == _RAW_JPX_PUBLIC_IMAGE_ENTRY:
+            if {(ref["path"], ref["symbol"]) for ref in entry["contract_refs"]} != set(_RAW_JPX_PUBLIC_IMAGE_CONTRACTS) - _RAW_JPX_PUBLIC_IMAGE_APIS:
+                raise ValueError("whole raw JPX image Results require actual raw/selected-file/layout/header/typed/color producer contracts")
+            if not _RAW_JPX_PUBLIC_IMAGE_MODELS.issubset({(ref["path"], ref["symbol"]) for ref in entry["spec_refs"]}) \
+                    or not _RAW_JPX_PUBLIC_IMAGE_PROOFS.issubset({(ref["path"], ref["symbol"]) for ref in entry["proof_refs"]}) \
+                    or not _RAW_JPX_PUBLIC_IMAGE_TESTS.issubset({(ref["path"], ref["symbol"]) for ref in entry["test_refs"]}):
+                raise ValueError("whole raw JPX image Results require all public/selected/actual-header/layout-info/value/color/test bridges")
+            path = (ROOT / "src/decode/api.rs").resolve()
+            for name, selected, color in (
+                ("decode_jpx_codestream", False, False), ("decode_jpx_codestream_selected", True, False),
+                ("decode_jpx_codestream_color", False, True), ("decode_jpx_codestream_color_selected", True, True),
+            ):
+                body = _coverage_function_body(source_text(path), function_header(path, name))
+                required = ["jp2::parse(input, options.limits())?", "jp2::raw_render_file_known(&file)"]
+                required.append(("decode_jpx_file_selected" if selected else "decode_jpx_file")
+                    + "(&file, codestream_index, options" + (", &expanded" if color and selected else ", selection" if selected else "") + ")?")
+                if color and selected:
+                    required.extend(("!file.file_type().is_jpx_compatible()",
+                        "color_selection(file.codestream(codestream_index)?.data(), selection, options.limits(),)?",
+                        "convert_associated_selected_color(&decoded, header, target, options.limits())"))
+                elif color:
+                    required.append("convert_associated_color(&decoded, header, options.limits())")
+                else:
+                    required.append("Ok(decoded)")
+                if body is None or any("".join(item.split()) not in "".join(body.split()) for item in required):
+                    raise ValueError("whole raw JPX image Results require actual raw/index/selection/header/color/target handoffs")
+            path = (ROOT / "src/decode/output.rs").resolve()
+            text = source_text(path)
+            header = function_header(path, "decode_jpx_file_selected")
+            body = _coverage_function_body(text, header)
+            if header is None or header[1] or body is None or any("".join(item.split()) not in "".join(body.split()) for item in (
+                "!file.file_type().is_jpx_compatible()", "file.codestream(codestream_index)?",
+                "match selected.codestream_header()", "association.parsed_header()", "None => Some(file.header())",
+                "association.box_header().offset()", "codestream::parse_layout(selected.data(), options.limits())?",
+                "jp2::validate_selected_header(header, &layout.info, selected.box_header().offset())?",
+                "typed_layout(&layout, decode_layout_selected(&layout, selection, options.limits())?, options.limits(),)?",
+                "apply_jp2_output(decoded, header, options.limits())?", "Ok((image, associated_header))",
+                "codestream::decoder_layout_main_info_matches_raw(&layout)",
+                "jp2::associated_header_reference_selectors(selected, jp2::jpx_file_header_reference(file))",
+            )) or any(name + "(" in "".join(body.split()) for name in ("decode_typed_layout", "decode_codestream_selected", "validate_part1_output_shape")):
+                raise ValueError("whole raw JPX image Results require actual module-level selected producer and its retained layout/typed/error path")
+            signature = text.find("fn", header.start(), header.end())
+            attrs = text[text.rfind("#[cfg_attr", 0, signature):signature]
+            stored = "Ok(output) => output.1 == jp2::jpx_file_associated_header_reference(file, codestream_index)"
+            if "".join(stored.split()) not in "".join(attrs.split()) or re.search(r"\brequires\b", attrs):
+                raise ValueError("whole raw JPX image Results lacks executable Verus contract: complete actual selected returned-header reference frame")
+            for name, symbol, required in (
+                ("specs/jpx_public_images.rs", "part2_decode_raw_jpx_typed",
+                 ("part2_parse_container(input, *limits)", "part2_raw_jpx_decode_input(file)", "part2_decode_jpx_file_request(", "Ok(decoded.0)")),
+                ("specs/jpx_public_images.rs", "part2_decode_raw_jpx_color",
+                 ("part2_parse_container(input, *limits)", "part2_raw_jpx_decode_input(raw)", "part2_decode_jpx_selected_color(file, index, limits, requested)",
+                  "part2_decode_jpx_codestream(file, index, limits)", "part2_convert_associated(decoded.0, decoded.1,")),
+                ("specs/jpx_public_images.rs", "part2_decode_jpx_selected_file",
+                 ("!part2_file_type_jpx(input.0)", "part2_jpx_codestream_lookup(input.1, index)", "part2_decode_jpx_selected_source(source, input.2, limits, requested)")),
+                ("specs/jpx_public_images.rs", "part2_decode_jpx_selected_source",
+                 ("part2_associated_codestream_header(source.2, fallback)", "part1_parse_layout(source.0, limits)",
+                  "part2_decode_jpx_selected_layout(source, header, layout, limits, requested)")),
+                ("specs/jpx_public_images.rs", "part2_decode_jpx_selected_layout",
+                 ("layout.0.image_size", "part2_validate_selected_header(header.1, size.geometry.0, size.geometry.1, size.components,",
+                  "size.uniform_bit_depth, size.uniform_signed, source.1", "part2_decoder_input_from_raw(layout)",
+                  "part2_decode_layout_selected_value_input(input, requested, limits)", "part2_typed_layout_input(input, decoded, limits)",
+                  "part2_apply_output_header(image, header.0,", "Ok((mapped, Some(header)))")),
+                ("specs/jpx_public_images.rs", "part2_decode_jpx_selected_color",
+                 ("!part2_file_type_jpx(file.0)", "part2_jpx_codestream_lookup(file.1, index)",
+                  "part2_color_selection_raw(source.0, limits, requested)", "part2_decode_jpx_selected_file(file, index, limits, expanded.0)",
+                  "part2_convert_associated_selected(decoded.0, decoded.1,", "[expanded.1[0], expanded.1[1], expanded.1[2], expanded.1[3]]")),
+            ):
+                actual = _coverage_spec_function_body(source_text((ROOT / name).resolve()), symbol)
+                if actual is None or any("".join(item.split()) not in "".join(actual.split()) for item in required) \
+                        or (symbol == "part2_decode_jpx_selected_layout" and "part1_validate_typed_output_shape" in actual):
+                    raise ValueError("whole raw JPX image Results require complete raw/selected-layout/header/reference/color-target models")
         if entry["id"] == _RAW_CONTAINER_COLOR_ENTRY:
             if {(ref["path"], ref["symbol"]) for ref in entry["contract_refs"]} != set(_RAW_CONTAINER_COLOR_CONTRACTS) - _RAW_CONTAINER_COLOR_APIS:
                 raise ValueError("whole raw container color Results require actual inspection/core/header/color/selection/crop producer contracts")
@@ -5798,7 +5967,9 @@ def validate_normative_coverage(
               or (entry["id"] == _RAW_CONTAINER_IMAGE_ENTRY
                   and (reference["path"], reference["symbol"]) in _RAW_CONTAINER_IMAGE_APIS)
               or (entry["id"] == _RAW_CONTAINER_COLOR_ENTRY
-                  and (reference["path"], reference["symbol"]) in _RAW_CONTAINER_COLOR_APIS))
+                  and (reference["path"], reference["symbol"]) in _RAW_CONTAINER_COLOR_APIS)
+              or (entry["id"] == _RAW_JPX_PUBLIC_IMAGE_ENTRY
+                  and (reference["path"], reference["symbol"]) in _RAW_JPX_PUBLIC_IMAGE_APIS))
             and reference not in entry["contract_refs"]
         ]
         for reference in [*entry["contract_refs"], *proved_apis]:
@@ -6298,6 +6469,8 @@ def validate_normative_coverage(
                     if entry["id"] == _RAW_CONTAINER_IMAGE_ENTRY else None)
                 or (_RAW_CONTAINER_COLOR_CONTRACTS.get((reference["path"], reference["symbol"]))
                     if entry["id"] == _RAW_CONTAINER_COLOR_ENTRY else None)
+                or (_RAW_JPX_PUBLIC_IMAGE_CONTRACTS.get((reference["path"], reference["symbol"]))
+                    if entry["id"] == _RAW_JPX_PUBLIC_IMAGE_ENTRY else None)
                 or (_JPX_INSPECTION_CONTRACTS.get((reference["path"], reference["symbol"]))
                     if entry["id"] == _JPX_INSPECTION_ENTRY else None)
                 or (_RAW_JPX_INSPECTION_CONTRACTS.get((reference["path"], reference["symbol"]))

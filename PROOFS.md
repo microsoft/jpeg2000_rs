@@ -179,6 +179,29 @@ technical candidate only: parent-owned record, review, CI, guarded integration
 and actual-main acceptance remain separate. No complete parsing, pixels,
 lifetime verification, normative conformance or publication claim follows.
 
+## Actual public raw JPX codestream and selected-file Results
+
+The public `decode_jpx_codestream`, `decode_jpx_codestream_selected`,
+`decode_jpx_codestream_color` and `decode_jpx_codestream_color_selected`
+compose complete image/error Results from real raw container parsing and actual
+indexed full/selected file producers. Unselected payloads remain uninspected.
+Selected-color expansion/target generation precedes the actual selected-file
+producer, preserving its original error order.
+
+The actual `decode_jpx_file_selected` Result now derives associated/default
+headers, raw layout, geometry/bit-depth validation, selected decoding, original
+`typed_layout` and output-header admission, including the complete stored
+returned-header reference. It intentionally retains its existing path rather
+than introducing the full-decoder final output-shape validator. Checked native
+association/parsed-header getters and a raw-layout/main-info lemma connect
+actual values and references without new owners or executing clones.
+
+The preserved `cfg(any())` nested item remains nonexecuting; the inventory binds
+the actual module-level selected producer explicitly. Old inventory meanings
+and native code/calls/owners remain unchanged. Progressive/JPIP/automatic
+dispatch and independent full-plan gates remain separate; fresh complete
+qualification is still required.
+
 ## Actual public raw JP2/JPH color and expanded-selection Results
 
 The public `decode_jp2_color`, `decode_jp2_color_selected`, `decode_jph_color`

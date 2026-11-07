@@ -44,6 +44,7 @@ specs/jpx_general.rs
 specs/jpx_inspection.rs
 specs/jpx_normalization.rs
 specs/jpx_opacity.rs
+specs/jpx_public_images.rs
 specs/jpx_raw_composition.rs
 specs/jpx_raw_frame.rs
 specs/jpx_raw_inspection.rs

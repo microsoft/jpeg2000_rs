@@ -356,16 +356,40 @@ pub(crate) fn decode_jpx_file<'a>(
     apply_associated_output(decoded, associated_header, options.limits())
 }
 
+#[cfg_attr(verus_keep_ghost, verus_spec(result =>
+    ensures associated_typed_outcome(result) == crate::specs::part2_decode_jpx_selected_file(
+        jp2::jpx_file_decode_view(file), codestream_index, crate::options::decode_options_limits(options),
+        crate::options::decode_selection_view(selection)),
+    match result {
+        Err(_) => true,
+        Ok(output) => output.1 == jp2::jpx_file_associated_header_reference(file, codestream_index),
+    },
+))]
 pub(super) fn decode_jpx_file_selected<'a>(
     file: &'a jp2::Jp2File<'_>,
     codestream_index: usize,
     options: &DecodeOptions,
     selection: &DecodeSelection,
 ) -> Result<(TypedImage, Option<&'a jp2::Jp2Header>), DecodeError> {
+    #[cfg(verus_keep_ghost)]
+    proof! {
+        reveal(associated_typed_outcome);
+        codestream::decoder_layout_errors_known();
+        jp2::jpx_file_associated_header_reference_unfold(file, codestream_index);
+        crate::specs::part2_decode_jpx_selected_file_unfold(jp2::jpx_file_decode_view(file), codestream_index,
+            crate::options::decode_options_limits(options), crate::options::decode_selection_view(selection));
+        reveal(crate::specs::part2_decode_layout_selected);
+        reveal(crate::specs::part2_typed_layout);
+    }
     if !file.file_type().is_jpx_compatible() {
         return Err(DecodeError::malformed(0, MalformedKind::InvalidProfile));
     }
     let selected = file.codestream(codestream_index)?;
+    #[cfg(verus_keep_ghost)]
+    proof! {
+        jp2::codestream_source_known_fields(selected);
+        jp2::associated_header_reference_selectors(selected, jp2::jpx_file_header_reference(file));
+    }
     let associated_header = match selected.codestream_header() {
         Some(association) => match association.parsed_header() {
             Some(header) => Some(header),
@@ -379,6 +403,13 @@ pub(super) fn decode_jpx_file_selected<'a>(
         None => Some(file.header()),
     };
     let layout = codestream::parse_layout(selected.data(), options.limits())?;
+    #[cfg(verus_keep_ghost)]
+    proof! {
+        codestream::decoder_layout_input_matches_raw(&layout);
+        codestream::decoder_layout_input_fields(&layout);
+        codestream::decoder_layout_main_info_matches_raw(&layout);
+        codestream::complete_codestream_info_known_fields(&layout.info);
+    }
     if let Some(header) = associated_header {
         jp2::validate_selected_header(header, &layout.info, selected.box_header().offset())?;
     }
