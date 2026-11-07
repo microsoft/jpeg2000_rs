@@ -237,6 +237,8 @@ def _coverage_function_header(
         )
         if short == "clone":
             trait_scope = r"(?:Clone[ \t]+for[ \t]+)?"
+        if symbol == "JpipByteView::as_ref":
+            trait_scope = r"AsRef[ \t]*<[ \t]*\[[ \t]*u8[ \t]*\][ \t]*>[ \t]+for[ \t]+"
         if implementation_ranges is None:
             implementation_ranges = {}
         key = (text, owner, trait_scope)
@@ -346,6 +348,24 @@ def _coverage_body_clause(text: str) -> str:
     statement = text.split(";", 1)[0] + ";"
     normalized = re.sub(r",(?=\))", "", "".join(statement.split()))
     return normalized.replace("|{", "|", 1).replace("});", ");", 1)
+
+def _coverage_verified_body_clause(text: str, header: re.Match[str] | None, symbol: str, clause: str) -> bool:
+    if header is None:
+        return False
+    body = _coverage_function_body(text, header)
+    owner = symbol.split("::")[0]
+    verified_impls = re.finditer(
+        r"#\[\s*cfg_attr\(\s*verus_keep_ghost\s*,\s*verus_verify\s*\)\s*\]\s*impl\s+" + re.escape(owner) + r"\s*\{", text,
+    )
+    verified_owner = False
+    for implementation in verified_impls:
+        closing = re.search(r"(?m)^\}[ \t]*$", text[implementation.end():])
+        if closing is not None and implementation.end() <= header.start() < implementation.end() + closing.start():
+            verified_owner = True
+            break
+    return (verified_owner and body is not None
+            and _coverage_body_clause(body) == _coverage_body_clause("#[cfg(verus_keep_ghost)]" + clause)
+            and re.search(r"\b(?:requires|assume|admit|external_body)\b", body) is None)
 
 
 def _packet_header_contracts() -> dict[tuple[str, str], tuple[str, str, str | None, str]]:
@@ -3311,6 +3331,69 @@ _RAW_CONTAINER_COLOR_TESTS = {("src/decode/container_image_result_tests.rs", "ac
     "preserves_header_mapping_before_color_admission",
     "preserves_raw_inspection_selection_packet_and_profile_priority",
 )}
+_JPIP_FRAGMENT_ENTRY = "part9-complete-native-owned-entry-foundations"
+_JPIP_FRAGMENT_CONTRACTS = {
+    ("src/jpip/cache.rs", "copy_bytes"): (
+        "part2_jpip_copy_bytes", r"\1\s*@", None, r"input\s*@",
+    ),
+    ("src/jpip/cache.rs", "copy_into"): (
+        "part2_jpip_copy_into", r"\1", _coverage_call("final", "output") + r"\s*@",
+        _coverage_call("old", "output") + r"\s*@\s*,\s*output_start\s*,\s*input\s*@\s*,\s*error_offset",
+    ),
+    ("src/jpip/cache.rs", "DatabinCache::find_databin_index"): (
+        "part2_jpip_find_databin", r"\1", None,
+        _coverage_call("jpip_cache_view", "self") + r"\.1\s*,\s*" + _coverage_call("databin_id_view", "id") + r"\s*,\s*0",
+    ),
+}
+_JPIP_FRAGMENT_BODY_CLAUSES = {
+    "JpipFragment::new": "vstd::prelude::ensures(|result: Result<Self, DecodeError>| vstd::prelude::equal(jpip_fragment_outcome(result), jpip_fragment_new_input(databin, offset, &bytes, is_final, auxiliary, limits)));",
+    "JpipFragment::from_message": "vstd::prelude::ensures(|result: Result<Self, DecodeError>| vstd::prelude::equal(jpip_fragment_outcome(result), jpip_fragment_message_input(header, body, limits)));",
+    "DatabinCache::new": "vstd::prelude::ensures(|result: Self| vstd::prelude::equal(jpip_cache_view(&result), crate::specs::part2_jpip_empty_cache(limits)));",
+}
+_JPIP_FRAGMENT_GETTERS = {
+    "JpipFragment::databin": "databin_id_view(result) == jpip_fragment_view(self).0",
+    **{name: f"result == jpip_fragment_view(self).{field}" for name, field in (
+        ("JpipFragment::offset", 1), ("JpipFragment::final_length", 3), ("JpipFragment::auxiliary", 4),
+    )},
+    "JpipFragment::bytes": "result@ == jpip_fragment_view(self).2",
+    "StoredFragment::end": "result == crate::specs::part2_jpip_stored_end(jpip_stored_fragment_view(self))",
+    **{name: f"result == jpip_status_view(self).{field}" for name, field in (
+        ("DatabinStatus::final_length", 0), ("DatabinStatus::contiguous_prefix", 1),
+        ("DatabinStatus::stored_bytes", 2), ("DatabinStatus::interval_count", 3),
+    )},
+    "DatabinStatus::is_complete": "result == crate::specs::part2_jpip_status_complete(jpip_status_view(self))",
+    "JpipByteView::as_bytes": "result@ == jpip_byte_view(self)",
+    "JpipByteView::len": "result as nat == jpip_byte_view(self).len()",
+    "JpipByteView::is_empty": "result == (jpip_byte_view(self).len() == 0)",
+    "JpipByteView::into_bytes": "result@ == jpip_byte_view(&self), result == *jpip_byte_storage(&self)",
+    "JpipByteView::as_ref": "result@ == jpip_byte_view(self)",
+    "DatabinCache::stored_bytes": "result == jpip_cache_view(self).2",
+    "DatabinCache::accepted_fragments": "result == jpip_cache_view(self).3",
+    "DatabinCache::databin_count": "result as nat == jpip_cache_view(self).1.len()",
+}
+_JPIP_FRAGMENT_MODELS = {("specs/jpip_fragment.rs", name) for name in (
+    "part2_jpip_fragment_new", "part2_jpip_fragment_from_message", "part2_jpip_stored_end",
+    "part2_jpip_copy_bytes", "part2_jpip_copy_into", "part2_jpip_empty_cache", "part2_jpip_find_databin",
+    "part2_jpip_status_complete",
+)} | {
+    ("specs/jpip_message.rs", "part2_jpip_identity"), ("specs/mod.rs", "valid_jpip_fragment"),
+    ("specs/mod.rs", "complete_jpip_databin"),
+}
+_JPIP_FRAGMENT_PROOFS = {("src/jpip/cache.rs", name) for name in (*_JPIP_FRAGMENT_BODY_CLAUSES, *_JPIP_FRAGMENT_GETTERS)} | {
+    ("src/jpip/proof_support.rs", "databin_id_view"), ("src/jpip/proof_support.rs", "jpip_header_view"),
+} | {("src/jpip/cache_proof_support.rs", name) for name in (
+    "jpip_fragment_view", "jpip_fragment_outcome", "jpip_fragment_new_input", "jpip_fragment_message_input",
+    "jpip_stored_fragment_view", "jpip_databin_view", "jpip_cache_view", "jpip_status_view",
+    "jpip_byte_view", "jpip_byte_storage", "jpip_fragment_fields", "jpip_cache_fields", "jpip_status_fields",
+)}
+_JPIP_FRAGMENT_TESTS = {("src/jpip/cache_entry_result_tests.rs", name) for name in (
+    "actual_jpip_owned_fragment_derives_all_fields_and_moves_original_bytes_across_raw_frontiers",
+    "actual_jpip_owned_fragment_from_header_preserves_length_validation_and_owned_payload",
+    "actual_jpip_byte_copy_and_point_copy_preserve_full_outside_frames_and_every_error",
+    "actual_jpip_cache_empty_state_and_lookup_preserve_first_normalized_databin_identity",
+    "actual_jpip_stored_extent_and_status_getters_retain_saturation_and_exact_completeness",
+    "actual_jpip_owned_byte_view_getters_and_move_keep_original_storage_without_cloning",
+)}
 _JPIP_MESSAGE_ENTRY = "part9-complete-native-raw-message-results"
 _JPIP_MESSAGE_BOUNDARIES = {("src/jpip/message.rs", "JpipMessageParser::parse")}
 _JPIP_MESSAGE_CONTRACTS = {
@@ -3808,6 +3891,74 @@ def validate_normative_coverage(
     ids: set[str] = set()
     contract_functions: set[tuple[str, str]] = set()
     for entry in coverage["requirements"]:
+        if entry["id"] == _JPIP_FRAGMENT_ENTRY:
+            if {(ref["path"], ref["symbol"]) for ref in entry["contract_refs"]} != set(_JPIP_FRAGMENT_CONTRACTS):
+                raise ValueError("whole JPIP entry foundations require actual byte-copy/point-copy/normalized-lookup contracts")
+            if not _JPIP_FRAGMENT_MODELS.issubset({(ref["path"], ref["symbol"]) for ref in entry["spec_refs"]}) \
+                    or not _JPIP_FRAGMENT_PROOFS.issubset({(ref["path"], ref["symbol"]) for ref in entry["proof_refs"]}) \
+                    or not _JPIP_FRAGMENT_TESTS.issubset({(ref["path"], ref["symbol"]) for ref in entry["test_refs"]}):
+                raise ValueError("whole JPIP entry foundations require every owned/raw/header/cache/status/byte/move/test bridge")
+            path = (ROOT / "src/jpip/cache.rs").resolve()
+            text = source_text(path)
+            for name, clause in _JPIP_FRAGMENT_BODY_CLAUSES.items():
+                if not _coverage_verified_body_clause(text, function_header(path, name), name, clause):
+                    raise ValueError("whole JPIP entry foundations require exact checked constructor body clauses: " + name)
+            for name, clause in _JPIP_FRAGMENT_GETTERS.items():
+                header = function_header(path, name)
+                if header is None:
+                    raise ValueError("whole JPIP entry foundations require exact native getter declarations")
+                signature = text.find("fn", header.start(), header.end())
+                attrs = text[text.rfind("#[cfg_attr", 0, signature):signature]
+                if "ensures" + "".join(clause.split()) + "," not in "".join(attrs.split()) or re.search(r"\brequires\b", attrs):
+                    raise ValueError("whole JPIP entry foundations require complete stored getter/value/move frames")
+            for name, required in {
+                "JpipFragment::new": ("bytes.is_empty() && !is_final", "let length = bytes.len() as u64",
+                    "offset.checked_add(length)", "jpip_fragment_valid(offset, length, limits.maximum_input_bytes())",
+                    "bytes,", "final_length: if is_final { Some(end) } else { None }", "auxiliary,"),
+                "JpipFragment::from_message": ("body.len() as u64 != header.length", "header.offset",
+                    "Self::new(header.databin, header.offset, copy_bytes(body), header.last_byte, header.auxiliary, limits,)"),
+                "DatabinCache::new": ("limits,", "databins: Vec::new()", "stored_bytes: 0", "accepted_fragments: 0"),
+                "DatabinCache::find_databin_index": ("jpip_cache_fields(self)", "self.databins[index].id.same_as(id)",
+                    "return Some(index)", "index += 1", "part2_jpip_find_databin(jpip_cache_view(self).1, databin_id_view(id), index as nat)"),
+                "copy_bytes": ("Vec::with_capacity(input.len())", "output@ == input@.subrange(0, index as int)", "output.push(input[index])"),
+                "copy_into": ("output_start.checked_add(input.len())", "get_mut(output_start..output_end)", "target.copy_from_slice(input)"),
+            }.items():
+                body = _coverage_function_body(text, function_header(path, name))
+                if body is None or any("".join(item.split()) not in "".join(body.split()) for item in required):
+                    raise ValueError("whole JPIP entry foundations require actual raw/owned/header/lookup/copy handoffs")
+            model = source_text((ROOT / "specs/jpip_fragment.rs").resolve())
+            for name, required in {
+                "part2_jpip_fragment_new": ("bytes.len() == 0 && !last", "offset as nat + length as nat",
+                    "end > u64::MAX as nat", "valid_jpip_fragment", "actual: end as u64",
+                    "Ok((databin, offset, bytes, if last { Some(end as u64) } else { None }, auxiliary))"),
+                "part2_jpip_fragment_from_message": ("body.len() as u64 != header.2", "header.1",
+                    "part2_jpip_fragment_new(header.0, header.1, body, header.3, header.4, limits)"),
+                "part2_jpip_stored_end": ("fragment.0 as nat + (fragment.1.len() as u64) as nat", "end > u64::MAX as nat"),
+                "part2_jpip_copy_into": ("start as nat + input.len()", "end > usize::MAX as nat || end > output.len()",
+                    "ArithmeticOverflow)), output", "Seq::new(output.len()", "input[index - start as int]", "output[index]"),
+                "part2_jpip_empty_cache": ("(limits, Seq::empty(), 0, 0)",),
+                "part2_jpip_find_databin": ("position >= databins.len()", "part2_jpip_identity(databins[position as int].0, id)",
+                    "Some(position as usize)", "part2_jpip_find_databin(databins, id, position + 1)"),
+                "part2_jpip_status_complete": ("None => false", "complete_jpip_databin(status.1 as nat, length as nat)"),
+            }.items():
+                actual = _coverage_spec_function_body(model, name)
+                if actual is None or any("".join(item.split()) not in "".join(actual.split()) for item in required):
+                    raise ValueError("whole JPIP entry foundations require complete raw/owned/header/cache/copy/status models")
+            projections = source_text((ROOT / "src/jpip/cache_proof_support.rs").resolve())
+            for name, required in {
+                "jpip_fragment_view": ("databin_id_view(value.databin)", "value.offset", "value.bytes@", "value.final_length", "value.auxiliary"),
+                "jpip_fragment_new_input": ("part2_jpip_fragment_new(databin_id_view(databin), offset, bytes@, last, auxiliary, limits)",),
+                "jpip_fragment_message_input": ("part2_jpip_fragment_from_message(jpip_header_view(header), body@, limits)",),
+                "jpip_cache_view": ("value.limits", "value.databins@", "jpip_databin_view(&databin)", "value.stored_bytes", "value.accepted_fragments"),
+                "jpip_databin_view": ("databin_id_view(value.id)", "value.fragments@", "jpip_stored_fragment_view(&fragment)", "value.final_length"),
+                "jpip_stored_fragment_view": ("(value.offset, value.bytes@)",),
+                "jpip_status_view": ("(value.final_length, value.contiguous_prefix, value.stored_bytes, value.intervals)",),
+                "jpip_byte_view": ("value.bytes@",),
+                "jpip_byte_storage": ("&value.bytes",),
+            }.items():
+                actual = _coverage_spec_function_body(projections, name)
+                if actual is None or any("".join(item.split()) not in "".join(actual.split()) for item in required):
+                    raise ValueError("whole JPIP entry foundations require complete physical entry/owned-storage/cache projections")
         if entry["id"] == _JPIP_MESSAGE_ENTRY:
             if {(ref["path"], ref["symbol"]) for ref in entry["contract_refs"]} != set(_JPIP_MESSAGE_CONTRACTS) - _JPIP_MESSAGE_BOUNDARIES:
                 raise ValueError("whole raw JPIP message Results require actual message/parser/EOR/VBAS contracts")
@@ -3819,21 +3970,7 @@ def validate_normative_coverage(
             text = source_text(path)
             for name, clause in _JPIP_MESSAGE_BODY_CLAUSES.items():
                 header = function_header(path, name)
-                body = _coverage_function_body(text, header)
-                owner = name.split("::")[0]
-                verified_impls = re.finditer(
-                    r"#\[\s*cfg_attr\(\s*verus_keep_ghost\s*,\s*verus_verify\s*\)\s*\]\s*impl\s+" + re.escape(owner) + r"\s*\{", text,
-                )
-                verified_owner = False
-                for implementation in verified_impls:
-                    closing = re.search(r"(?m)^\}[ \t]*$", text[implementation.end():])
-                    if header is not None and closing is not None \
-                            and implementation.end() <= header.start() < implementation.end() + closing.start():
-                        verified_owner = True
-                        break
-                prefix = "#[cfg(verus_keep_ghost)]" + clause
-                if not verified_owner or body is None or _coverage_body_clause(body) != _coverage_body_clause(prefix) \
-                        or re.search(r"\b(?:requires|assume|admit|external_body)\b", body):
+                if not _coverage_verified_body_clause(text, header, name, clause):
                     raise ValueError("whole raw JPIP message Results require exact checked impl body clauses without trust or premises: " + name)
             for name, clause in _JPIP_MESSAGE_GETTERS.items():
                 header = function_header(path, name)
@@ -6659,6 +6796,8 @@ def validate_normative_coverage(
                     if entry["id"] == _RAW_JPX_PUBLIC_IMAGE_ENTRY else None)
                 or (_JPIP_MESSAGE_CONTRACTS.get((reference["path"], reference["symbol"]))
                     if entry["id"] == _JPIP_MESSAGE_ENTRY else None)
+                or (_JPIP_FRAGMENT_CONTRACTS.get((reference["path"], reference["symbol"]))
+                    if entry["id"] == _JPIP_FRAGMENT_ENTRY else None)
                 or (_JPX_INSPECTION_CONTRACTS.get((reference["path"], reference["symbol"]))
                     if entry["id"] == _JPX_INSPECTION_ENTRY else None)
                 or (_RAW_JPX_INSPECTION_CONTRACTS.get((reference["path"], reference["symbol"]))

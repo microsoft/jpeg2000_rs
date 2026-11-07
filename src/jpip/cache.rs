@@ -5,8 +5,20 @@ use super::{
     JpipMessageHeader, MalformedKind, Resource, ResourceLimits, StoredFragment,
 };
 #[cfg(verus_keep_ghost)]
+use super::{
+    databin_id_view, jpip_byte_storage, jpip_byte_view, jpip_cache_fields, jpip_cache_view,
+    jpip_fragment_fields, jpip_fragment_message_input, jpip_fragment_new_input,
+    jpip_fragment_outcome, jpip_fragment_view, jpip_header_fields, jpip_header_view,
+    jpip_status_fields, jpip_status_view, jpip_stored_fragment_view,
+};
+#[cfg(verus_keep_ghost)]
 use vstd::prelude::*;
 
+#[cfg(test)]
+#[path = "cache_entry_result_tests.rs"]
+mod entry_result_tests;
+
+#[cfg_attr(verus_keep_ghost, verus_verify)]
 impl JpipFragment {
     pub fn new(
         databin: DatabinId,
@@ -16,6 +28,15 @@ impl JpipFragment {
         auxiliary: Option<u64>,
         limits: &ResourceLimits,
     ) -> Result<Self, DecodeError> {
+        #[cfg(verus_keep_ghost)]
+        vstd::prelude::ensures(|result: Result<Self, DecodeError>| {
+            vstd::prelude::equal(
+                jpip_fragment_outcome(result),
+                jpip_fragment_new_input(databin, offset, &bytes, is_final, auxiliary, limits),
+            )
+        });
+        #[cfg(verus_keep_ghost)]
+        proof! { reveal(jpip_fragment_view); }
         if bytes.is_empty() && !is_final {
             return Err(DecodeError::malformed(
                 offset,
@@ -25,7 +46,12 @@ impl JpipFragment {
         let length = bytes.len() as u64;
         let end = offset
             .checked_add(length)
-            .ok_or_else(|| DecodeError::malformed(offset, MalformedKind::ArithmeticOverflow))?;
+            .ok_or_else(
+                #[cfg_attr(verus_keep_ghost, verus_spec(result: DecodeError =>
+                    ensures result == crate::specs::part2_jpip_fragment_error(offset, MalformedKind::ArithmeticOverflow),
+                ))]
+                || DecodeError::malformed(offset, MalformedKind::ArithmeticOverflow),
+            )?;
         if !crate::refinement::jpip_fragment_valid(offset, length, limits.maximum_input_bytes()) {
             return Err(DecodeError::limit(
                 Resource::InputBytes,
@@ -47,6 +73,15 @@ impl JpipFragment {
         body: &[u8],
         limits: &ResourceLimits,
     ) -> Result<Self, DecodeError> {
+        #[cfg(verus_keep_ghost)]
+        vstd::prelude::ensures(|result: Result<Self, DecodeError>| {
+            vstd::prelude::equal(
+                jpip_fragment_outcome(result),
+                jpip_fragment_message_input(header, body, limits),
+            )
+        });
+        #[cfg(verus_keep_ghost)]
+        proof! { jpip_header_fields(header); }
         if body.len() as u64 != header.length {
             return Err(DecodeError::malformed(
                 header.offset,
@@ -62,52 +97,93 @@ impl JpipFragment {
             limits,
         )
     }
+}
 
+impl JpipFragment {
+    #[cfg_attr(verus_keep_ghost, verus_spec(result =>
+        ensures databin_id_view(result) == jpip_fragment_view(self).0,
+    ))]
     pub const fn databin(&self) -> DatabinId {
+        #[cfg(verus_keep_ghost)]
+        proof! { jpip_fragment_fields(self); }
         self.databin
     }
 
+    #[cfg_attr(verus_keep_ghost, verus_spec(result => ensures result == jpip_fragment_view(self).1,))]
     pub const fn offset(&self) -> u64 {
+        #[cfg(verus_keep_ghost)]
+        proof! { jpip_fragment_fields(self); }
         self.offset
     }
 
+    #[cfg_attr(verus_keep_ghost, verus_spec(result => ensures result@ == jpip_fragment_view(self).2,))]
     pub fn bytes(&self) -> &[u8] {
+        #[cfg(verus_keep_ghost)]
+        proof! { jpip_fragment_fields(self); }
         &self.bytes
     }
 
+    #[cfg_attr(verus_keep_ghost, verus_spec(result => ensures result == jpip_fragment_view(self).3,))]
     pub const fn final_length(&self) -> Option<u64> {
+        #[cfg(verus_keep_ghost)]
+        proof! { jpip_fragment_fields(self); }
         self.final_length
     }
 
+    #[cfg_attr(verus_keep_ghost, verus_spec(result => ensures result == jpip_fragment_view(self).4,))]
     pub const fn auxiliary(&self) -> Option<u64> {
+        #[cfg(verus_keep_ghost)]
+        proof! { jpip_fragment_fields(self); }
         self.auxiliary
     }
 }
 
 impl StoredFragment {
+    #[cfg_attr(verus_keep_ghost, verus_spec(result =>
+        ensures result == crate::specs::part2_jpip_stored_end(jpip_stored_fragment_view(self)),
+    ))]
     pub(super) const fn end(&self) -> u64 {
+        #[cfg(verus_keep_ghost)]
+        proof! { reveal(jpip_stored_fragment_view); }
         self.offset.saturating_add(self.bytes.len() as u64)
     }
 }
 
 impl DatabinStatus {
+    #[cfg_attr(verus_keep_ghost, verus_spec(result => ensures result == jpip_status_view(self).0,))]
     pub const fn final_length(&self) -> Option<u64> {
+        #[cfg(verus_keep_ghost)]
+        proof! { jpip_status_fields(self); }
         self.final_length
     }
 
+    #[cfg_attr(verus_keep_ghost, verus_spec(result => ensures result == jpip_status_view(self).1,))]
     pub const fn contiguous_prefix(&self) -> u64 {
+        #[cfg(verus_keep_ghost)]
+        proof! { jpip_status_fields(self); }
         self.contiguous_prefix
     }
 
+    #[cfg_attr(verus_keep_ghost, verus_spec(result => ensures result == jpip_status_view(self).2,))]
     pub const fn stored_bytes(&self) -> u64 {
+        #[cfg(verus_keep_ghost)]
+        proof! { jpip_status_fields(self); }
         self.stored_bytes
     }
 
+    #[cfg_attr(verus_keep_ghost, verus_spec(result => ensures result == jpip_status_view(self).3,))]
     pub const fn interval_count(&self) -> u64 {
+        #[cfg(verus_keep_ghost)]
+        proof! { jpip_status_fields(self); }
         self.intervals
     }
 
+    #[cfg_attr(verus_keep_ghost, verus_spec(result =>
+        ensures result == crate::specs::part2_jpip_status_complete(jpip_status_view(self)),
+    ))]
     pub const fn is_complete(&self) -> bool {
+        #[cfg(verus_keep_ghost)]
+        proof! { jpip_status_fields(self); }
         match self.final_length {
             Some(length) => {
                 crate::refinement::jpip_databin_complete(self.contiguous_prefix, length)
@@ -118,31 +194,57 @@ impl DatabinStatus {
 }
 
 impl JpipByteView {
+    #[cfg_attr(verus_keep_ghost, verus_spec(result => ensures result@ == jpip_byte_view(self),))]
     pub fn as_bytes(&self) -> &[u8] {
+        #[cfg(verus_keep_ghost)]
+        proof! { reveal(jpip_byte_view); }
         &self.bytes
     }
 
+    #[cfg_attr(verus_keep_ghost, verus_spec(result => ensures result as nat == jpip_byte_view(self).len(),))]
     pub const fn len(&self) -> usize {
+        #[cfg(verus_keep_ghost)]
+        proof! { reveal(jpip_byte_view); }
         self.bytes.len()
     }
 
+    #[cfg_attr(verus_keep_ghost, verus_spec(result => ensures result == (jpip_byte_view(self).len() == 0),))]
     pub const fn is_empty(&self) -> bool {
+        #[cfg(verus_keep_ghost)]
+        proof! { reveal(jpip_byte_view); }
         self.bytes.is_empty()
     }
 
+    #[cfg_attr(verus_keep_ghost, verus_spec(result =>
+        ensures result@ == jpip_byte_view(&self),
+            result == *jpip_byte_storage(&self),
+    ))]
     pub fn into_bytes(self) -> Vec<u8> {
+        #[cfg(verus_keep_ghost)]
+        proof! { reveal(jpip_byte_view); reveal(jpip_byte_storage); }
         self.bytes
     }
 }
 
 impl AsRef<[u8]> for JpipByteView {
+    #[cfg_attr(verus_keep_ghost, verus_spec(result => ensures result@ == jpip_byte_view(self),))]
     fn as_ref(&self) -> &[u8] {
         self.as_bytes()
     }
 }
 
+#[cfg_attr(verus_keep_ghost, verus_verify)]
 impl DatabinCache {
     pub const fn new(limits: ResourceLimits) -> Self {
+        #[cfg(verus_keep_ghost)]
+        vstd::prelude::ensures(|result: Self| {
+            vstd::prelude::equal(
+                jpip_cache_view(&result),
+                crate::specs::part2_jpip_empty_cache(limits),
+            )
+        });
+        #[cfg(verus_keep_ghost)]
+        proof! { reveal(jpip_cache_view); }
         Self {
             limits,
             databins: Vec::new(),
@@ -150,16 +252,27 @@ impl DatabinCache {
             accepted_fragments: 0,
         }
     }
+}
 
+impl DatabinCache {
+    #[cfg_attr(verus_keep_ghost, verus_spec(result => ensures result == jpip_cache_view(self).2,))]
     pub const fn stored_bytes(&self) -> u64 {
+        #[cfg(verus_keep_ghost)]
+        proof! { jpip_cache_fields(self); }
         self.stored_bytes
     }
 
+    #[cfg_attr(verus_keep_ghost, verus_spec(result => ensures result == jpip_cache_view(self).3,))]
     pub const fn accepted_fragments(&self) -> u64 {
+        #[cfg(verus_keep_ghost)]
+        proof! { jpip_cache_fields(self); }
         self.accepted_fragments
     }
 
+    #[cfg_attr(verus_keep_ghost, verus_spec(result => ensures result as nat == jpip_cache_view(self).1.len(),))]
     pub fn databin_count(&self) -> usize {
+        #[cfg(verus_keep_ghost)]
+        proof! { jpip_cache_fields(self); }
         self.databins.len()
     }
 
@@ -504,21 +617,35 @@ impl DatabinCache {
         first.bytes.clone()
     }
 
+    #[cfg_attr(verus_keep_ghost, verus_spec(result =>
+        ensures result == crate::specs::part2_jpip_find_databin(jpip_cache_view(self).1, databin_id_view(id), 0),
+    ))]
     pub(super) fn find_databin_index(&self, id: DatabinId) -> Option<usize> {
+        #[cfg(verus_keep_ghost)]
+        proof! { jpip_cache_fields(self); }
         let mut index = 0_usize;
         #[cfg_attr(
             verus_keep_ghost,
             verus_spec(
                 invariant index <= self.databins.len(),
+                    jpip_cache_view(self).1.len() == self.databins.len(),
+                    forall|position: int| 0 <= position < self.databins.len() ==>
+                        #[trigger] jpip_cache_view(self).1[position].0 == databin_id_view(self.databins@[position].id),
+                    crate::specs::part2_jpip_find_databin(jpip_cache_view(self).1, databin_id_view(id), 0)
+                        == crate::specs::part2_jpip_find_databin(jpip_cache_view(self).1, databin_id_view(id), index as nat),
                 decreases self.databins.len() - index,
             )
         )]
         while index < self.databins.len() {
+            #[cfg(verus_keep_ghost)]
+            proof! { reveal(crate::specs::part2_jpip_find_databin); }
             if self.databins[index].id.same_as(id) {
                 return Some(index);
             }
             index += 1;
         }
+        #[cfg(verus_keep_ghost)]
+        proof! { reveal(crate::specs::part2_jpip_find_databin); }
         None
     }
 
@@ -572,6 +699,9 @@ const fn conflict(offset: u64) -> DecodeError {
     DecodeError::malformed(offset, MalformedKind::ConflictingJpipFragment)
 }
 
+#[cfg_attr(verus_keep_ghost, verus_spec(result =>
+    ensures result@ == crate::specs::part2_jpip_copy_bytes(input@),
+))]
 pub(super) fn copy_bytes(input: &[u8]) -> Vec<u8> {
     let mut output = Vec::with_capacity(input.len());
     let mut index = 0_usize;
@@ -579,6 +709,7 @@ pub(super) fn copy_bytes(input: &[u8]) -> Vec<u8> {
         verus_keep_ghost,
         verus_spec(
             invariant index <= input.len(),
+                output@ == input@.subrange(0, index as int),
             decreases input.len() - index,
         )
     )]
@@ -589,6 +720,9 @@ pub(super) fn copy_bytes(input: &[u8]) -> Vec<u8> {
     output
 }
 
+#[cfg_attr(verus_keep_ghost, verus_spec(result =>
+    ensures (result, final(output)@) == crate::specs::part2_jpip_copy_into(old(output)@, output_start, input@, error_offset),
+))]
 fn copy_into(
     output: &mut [u8],
     output_start: usize,
@@ -597,10 +731,20 @@ fn copy_into(
 ) -> Result<(), DecodeError> {
     let output_end = output_start
         .checked_add(input.len())
-        .ok_or_else(|| DecodeError::malformed(error_offset, MalformedKind::ArithmeticOverflow))?;
+        .ok_or_else(
+            #[cfg_attr(verus_keep_ghost, verus_spec(result: DecodeError =>
+                ensures result == crate::specs::part2_jpip_fragment_error(error_offset, MalformedKind::ArithmeticOverflow),
+            ))]
+            || DecodeError::malformed(error_offset, MalformedKind::ArithmeticOverflow),
+        )?;
     let target = output
         .get_mut(output_start..output_end)
-        .ok_or_else(|| DecodeError::malformed(error_offset, MalformedKind::ArithmeticOverflow))?;
+        .ok_or_else(
+            #[cfg_attr(verus_keep_ghost, verus_spec(result: DecodeError =>
+                ensures result == crate::specs::part2_jpip_fragment_error(error_offset, MalformedKind::ArithmeticOverflow),
+            ))]
+            || DecodeError::malformed(error_offset, MalformedKind::ArithmeticOverflow),
+        )?;
     target.copy_from_slice(input);
     Ok(())
 }

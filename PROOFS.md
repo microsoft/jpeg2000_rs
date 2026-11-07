@@ -179,6 +179,26 @@ technical candidate only: parent-owned record, review, CI, guarded integration
 and actual-main acceptance remain separate. No complete parsing, pixels,
 lifetime verification, normative conformance or publication claim follows.
 
+## Actual owned JPIP entries and cache foundations
+
+`JpipFragment::new` and `JpipFragment::from_message` now derive their complete
+owned databin/offset/bytes/final/auxiliary/error Results from actual caller
+vectors or parsed headers and raw bodies. Original empty-fragment, extent,
+limit and header-length priorities are retained. The checked static impl body
+clauses reuse the pinned mechanism described below; their input projections
+refer to actual caller values, not reconstructed native owners.
+
+The shared executing byte-copy and point-copy helpers have complete byte/error
+frames, including unchanged output on failure and exact outside-range data.
+Native byte-view getters and `into_bytes` retain stored bytes and the original
+vector move. Empty cache limits/counters/bins, first normalized databin lookup,
+stored saturating extents and status getters are connected to actual native
+records. These are foundations, not a complete atomic-cache-insertion or
+response-ingestion theorem. Executing code and owners are unchanged.
+
+Cache merge/response/transcode/progressive/automatic joins and independent
+full-plan gates remain separate; fresh complete qualification is still required.
+
 ## Actual raw JPIP message and inherited-parser Results
 
 The public `parse_jpip_message` and `JpipMessageParser::parse` now derive complete
