@@ -49,6 +49,8 @@ mod jpip_message;
 pub use jpip_message::*;
 mod jpip_fragment;
 pub use jpip_fragment::*;
+mod jpip_cache_views;
+pub use jpip_cache_views::*;
 mod jpx_source;
 pub use jpx_source::*;
 mod jpx_opacity;

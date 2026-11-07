@@ -179,6 +179,32 @@ technical candidate only: parent-owned record, review, CI, guarded integration
 and actual-main acceptance remain separate. No complete parsing, pixels,
 lifetime verification, normative conformance or publication claim follows.
 
+## Actual JPIP cache status, byte-view and reconstruction Results
+
+The executing `DatabinCache::status`, `is_complete`, `databin_view`,
+`databin_prefix` and shared `reconstruct` now have complete checked Results
+derived from the physical native cache and actual identifier/layout inputs.
+Status follows the existing native fragment order, saturating byte accounting
+and exact contiguous-prefix/final-length equality. No sorted/normalized-cache
+premise or successful byte-view bank is supplied.
+
+The original first-normalized-match and first-fragment clone behavior is
+preserved: a complete status does not cause this producer to synthesize a
+concatenated databin view from arbitrary internal fragments. Prefix views
+retain the original first-offset-zero rule and independent owned byte copy.
+Layout reconstruction derives every actual view, preserves order/repetition
+and first errors, checks cumulative input bytes and the existing `u128`/`usize`
+conversion, then proves the complete original byte concatenation.
+
+Models, input/storage projections and loop/error-persistence facts are
+ghost-only; existing production byte clones remain. The native result families
+cover arbitrary physical cache fields, paired identifier aliases, ordered
+status folds, exact first-fragment/missing cases, owned storage, 40 budget/error
+frontiers and integration with the original fragment normalization. Atomic
+insertion, public codestream/container layout-validation joins, response
+ingestion, transcode/progressive and independent normative/cfg/lifetime/release
+gates remain separate. These foundations are not full-plan completion.
+
 ## Actual owned JPIP entries and cache foundations
 
 `JpipFragment::new` and `JpipFragment::from_message` now derive their complete

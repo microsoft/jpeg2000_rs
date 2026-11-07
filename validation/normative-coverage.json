@@ -4,6 +4,78 @@
   "scope": "Technical reference inventory; not exhaustive standards-clause coverage or a conformance claim.",
   "requirements": [
     {
+      "id": "part9-complete-native-cache-view-results",
+      "topic": "Complete actual DatabinCache status/is_complete/databin_view/databin_prefix/reconstruct Results from physical native cache, actual identifiers and layout. Preserves first normalized lookup, native-order saturating status fold, original first-fragment byte clone even for arbitrary cache state, exact missing/error offsets and first resource frontier, layout order/repetition, original vector ownership and unchanged cache. Whole models derive every stage from cache/layout, not supplied successful byte-view banks or cache-validity premises. Atomic insertion/state, public codestream/container layout validation, response/transcode/progressive and independent normative/cfg/lifetime/release remain separate.",
+      "implementation_refs": [
+        {"path": "src/jpip/cache.rs", "symbol": "DatabinCache::status"},
+        {"path": "src/jpip/cache.rs", "symbol": "DatabinCache::is_complete"},
+        {"path": "src/jpip/cache.rs", "symbol": "DatabinCache::databin_view"},
+        {"path": "src/jpip/cache.rs", "symbol": "DatabinCache::databin_prefix"},
+        {"path": "src/jpip/cache.rs", "symbol": "DatabinCache::reconstruct"},
+        {"path": "src/jpip/reconstruction.rs", "symbol": "DatabinCache::reconstruct_codestream"},
+        {"path": "src/jpip/reconstruction.rs", "symbol": "DatabinCache::reconstruct_container"},
+        {"path": "src/jpip/progression.rs", "symbol": "DatabinCache::build_automatic_snapshot"}
+      ],
+      "contract_refs": [
+        {"path": "src/jpip/cache.rs", "symbol": "DatabinCache::status"},
+        {"path": "src/jpip/cache.rs", "symbol": "DatabinCache::is_complete"},
+        {"path": "src/jpip/cache.rs", "symbol": "DatabinCache::databin_view"},
+        {"path": "src/jpip/cache.rs", "symbol": "DatabinCache::databin_prefix"},
+        {"path": "src/jpip/cache.rs", "symbol": "DatabinCache::reconstruct"}
+      ],
+      "spec_refs": [
+        {"path": "specs/jpip_cache_views.rs", "symbol": "part2_jpip_cache_error"},
+        {"path": "specs/jpip_cache_views.rs", "symbol": "part2_jpip_status_scan"},
+        {"path": "specs/jpip_cache_views.rs", "symbol": "part2_jpip_databin_status"},
+        {"path": "specs/jpip_cache_views.rs", "symbol": "part2_jpip_cache_status"},
+        {"path": "specs/jpip_cache_views.rs", "symbol": "part2_jpip_cache_complete"},
+        {"path": "specs/jpip_cache_views.rs", "symbol": "part2_jpip_cache_view"},
+        {"path": "specs/jpip_cache_views.rs", "symbol": "part2_jpip_cache_prefix"},
+        {"path": "specs/jpip_cache_views.rs", "symbol": "part2_jpip_reconstruct_prefix"},
+        {"path": "specs/jpip_cache_views.rs", "symbol": "part2_jpip_flatten_prefix"},
+        {"path": "specs/jpip_cache_views.rs", "symbol": "part2_jpip_cache_reconstruct"},
+        {"path": "specs/jpip_fragment.rs", "symbol": "part2_jpip_find_databin"},
+        {"path": "specs/jpip_fragment.rs", "symbol": "part2_jpip_stored_end"},
+        {"path": "specs/jpip_fragment.rs", "symbol": "part2_jpip_status_complete"},
+        {"path": "specs/mod.rs", "symbol": "part9_reconstruction_length"}
+      ],
+      "proof_refs": [
+        {"path": "src/jpip/cache.rs", "symbol": "DatabinCache::status"},
+        {"path": "src/jpip/cache.rs", "symbol": "DatabinCache::is_complete"},
+        {"path": "src/jpip/cache.rs", "symbol": "DatabinCache::databin_view"},
+        {"path": "src/jpip/cache.rs", "symbol": "DatabinCache::databin_prefix"},
+        {"path": "src/jpip/cache.rs", "symbol": "DatabinCache::reconstruct"},
+        {"path": "src/jpip/cache.rs", "symbol": "DatabinCache::find_databin_index"},
+        {"path": "src/jpip/cache.rs", "symbol": "StoredFragment::end"},
+        {"path": "src/jpip/cache.rs", "symbol": "DatabinStatus::is_complete"},
+        {"path": "src/jpip/cache.rs", "symbol": "JpipByteView::into_bytes"},
+        {"path": "src/jpip/proof_support.rs", "symbol": "databin_id_view"},
+        {"path": "src/refinement/jpip.rs", "symbol": "jpip_reconstruction_length"},
+        {"path": "src/limits.rs", "symbol": "resource_input_byte_limit"},
+        {"path": "specs/jpip_cache_views.rs", "symbol": "part2_jpip_reconstruct_error_persists"},
+        {"path": "src/jpip/cache_proof_support.rs", "symbol": "jpip_cache_view"},
+        {"path": "src/jpip/cache_proof_support.rs", "symbol": "jpip_databin_view"},
+        {"path": "src/jpip/cache_proof_support.rs", "symbol": "jpip_stored_fragment_view"},
+        {"path": "src/jpip/cache_proof_support.rs", "symbol": "jpip_status_view"},
+        {"path": "src/jpip/cache_proof_support.rs", "symbol": "jpip_byte_view"},
+        {"path": "src/jpip/cache_proof_support.rs", "symbol": "jpip_byte_outcome"},
+        {"path": "src/jpip/cache_proof_support.rs", "symbol": "jpip_status_outcome"},
+        {"path": "src/jpip/cache_proof_support.rs", "symbol": "jpip_layout_view"},
+        {"path": "src/jpip/cache_proof_support.rs", "symbol": "jpip_view_parts"},
+        {"path": "src/jpip/cache_proof_support.rs", "symbol": "jpip_cache_fields"},
+        {"path": "src/jpip/cache_proof_support.rs", "symbol": "jpip_databin_fields"},
+        {"path": "src/jpip/cache_proof_support.rs", "symbol": "jpip_status_fields"}
+      ],
+      "test_refs": [
+        {"path": "src/jpip/cache_view_result_tests.rs", "symbol": "actual_jpip_cache_status_derives_every_field_and_native_fragment_order_without_validity_premises"},
+        {"path": "src/jpip/cache_view_result_tests.rs", "symbol": "actual_jpip_cache_view_keeps_first_normalized_match_first_fragment_and_exact_missing_errors"},
+        {"path": "src/jpip/cache_view_result_tests.rs", "symbol": "actual_jpip_cache_prefix_derives_first_fragment_offset_and_keeps_independent_owned_storage"},
+        {"path": "src/jpip/cache_view_result_tests.rs", "symbol": "actual_jpip_cache_reconstruction_keeps_requested_order_repetition_and_original_cache_storage"},
+        {"path": "src/jpip/cache_view_result_tests.rs", "symbol": "actual_jpip_cache_reconstruction_preserves_first_view_error_and_exact_input_budget_frontiers"},
+        {"path": "src/jpip/cache_view_result_tests.rs", "symbol": "actual_jpip_cache_read_producers_compose_original_fragment_normalization_and_reconstruction"}
+      ]
+    },
+    {
       "id": "part9-complete-native-owned-entry-foundations",
       "topic": "Complete actual owned JpipFragment::new/from_message Results from raw payload/header/databin inputs, all byte/offset/final/aux/error fields, original input-vector moves and header-length/error priority. Actual shared copy_bytes/copy_into value/point/error frames and normalized first-databin lookup derive complete results; cache empty state, stored extent, status and owned byte-view getter/move frames connected to native storage. Checked static impl body clauses preserve single executing constructors with no nativeowner reconstruction, success banks, new runtimeadapters or proofclones. Atomiccachemerge/ingest/transcode/progressive and independent normative/cfg/lifetime/release remain separate.",
       "implementation_refs": [

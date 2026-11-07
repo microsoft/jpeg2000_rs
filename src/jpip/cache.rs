@@ -6,10 +6,11 @@ use super::{
 };
 #[cfg(verus_keep_ghost)]
 use super::{
-    databin_id_view, jpip_byte_storage, jpip_byte_view, jpip_cache_fields, jpip_cache_view,
-    jpip_fragment_fields, jpip_fragment_message_input, jpip_fragment_new_input,
-    jpip_fragment_outcome, jpip_fragment_view, jpip_header_fields, jpip_header_view,
-    jpip_status_fields, jpip_status_view, jpip_stored_fragment_view,
+    databin_id_view, jpip_byte_outcome, jpip_byte_storage, jpip_byte_view, jpip_cache_fields,
+    jpip_cache_view, jpip_databin_fields, jpip_databin_view, jpip_fragment_fields,
+    jpip_fragment_message_input, jpip_fragment_new_input, jpip_fragment_outcome,
+    jpip_fragment_view, jpip_header_fields, jpip_header_view, jpip_layout_view, jpip_status_fields,
+    jpip_status_outcome, jpip_status_view, jpip_stored_fragment_view, jpip_view_parts,
 };
 #[cfg(verus_keep_ghost)]
 use vstd::prelude::*;
@@ -17,6 +18,9 @@ use vstd::prelude::*;
 #[cfg(test)]
 #[path = "cache_entry_result_tests.rs"]
 mod entry_result_tests;
+#[cfg(test)]
+#[path = "cache_view_result_tests.rs"]
+mod view_result_tests;
 
 #[cfg_attr(verus_keep_ghost, verus_verify)]
 impl JpipFragment {
@@ -540,9 +544,20 @@ impl DatabinCache {
         Ok(())
     }
 
+    #[cfg_attr(verus_keep_ghost, verus_spec(result =>
+        ensures jpip_status_outcome(result) == crate::specs::part2_jpip_cache_status(jpip_cache_view(self), databin_id_view(id)),
+    ))]
     pub fn status(&self, id: DatabinId) -> Option<DatabinStatus> {
+        #[cfg(verus_keep_ghost)]
+        proof! { jpip_cache_fields(self); }
         let index = self.find_databin_index(id)?;
         let databin = self.databins.get(index)?;
+        #[cfg(verus_keep_ghost)]
+        proof! {
+            jpip_databin_fields(databin);
+            assert(crate::specs::part2_jpip_cache_status(jpip_cache_view(self), databin_id_view(id)) ==
+                Some(crate::specs::part2_jpip_databin_status(jpip_databin_view(databin))));
+        }
         let mut prefix = 0_u64;
         let mut bytes = 0_u64;
         let mut index = 0_usize;
@@ -550,16 +565,40 @@ impl DatabinCache {
             verus_keep_ghost,
             verus_spec(
                 invariant index <= databin.fragments.len(),
+                    crate::specs::part2_jpip_cache_status(jpip_cache_view(self), databin_id_view(id)) ==
+                        Some(crate::specs::part2_jpip_databin_status(jpip_databin_view(databin))),
+                    jpip_databin_view(databin).2 == databin.final_length,
+                    jpip_databin_view(databin).1.len() == databin.fragments.len(),
+                    forall|position: int| 0 <= position < databin.fragments.len() ==>
+                        #[trigger] jpip_databin_view(databin).1[position] ==
+                            (databin.fragments@[position].offset, databin.fragments@[position].bytes@),
+                    forall|position: int| 0 <= position < databin.fragments.len() ==>
+                        #[trigger] jpip_databin_view(databin).1[position] ==
+                            jpip_stored_fragment_view(&databin.fragments@[position]),
+                    crate::specs::part2_jpip_status_scan(jpip_databin_view(databin).1, 0, 0, 0) ==
+                        crate::specs::part2_jpip_status_scan(jpip_databin_view(databin).1, index as nat, prefix, bytes),
                 decreases databin.fragments.len() - index,
             )
         )]
         while index < databin.fragments.len() {
+            #[cfg(verus_keep_ghost)]
+            proof! { reveal(crate::specs::part2_jpip_status_scan); }
             let fragment = &databin.fragments[index];
             bytes = bytes.saturating_add(fragment.bytes.len() as u64);
             if fragment.offset == prefix {
                 prefix = fragment.end();
             }
             index += 1;
+        }
+        #[cfg(verus_keep_ghost)]
+        proof! {
+            reveal(crate::specs::part2_jpip_status_scan);
+            reveal(jpip_status_view);
+            assert(crate::specs::part2_jpip_status_scan(jpip_databin_view(databin).1, 0, 0, 0) == (prefix, bytes));
+            assert(crate::specs::part2_jpip_databin_status(jpip_databin_view(databin)) ==
+                (databin.final_length, prefix, bytes, databin.fragments.len() as u64));
+            assert(crate::specs::part2_jpip_cache_status(jpip_cache_view(self), databin_id_view(id)) ==
+                Some((databin.final_length, prefix, bytes, databin.fragments.len() as u64)));
         }
         Some(DatabinStatus {
             final_length: databin.final_length,
@@ -569,6 +608,9 @@ impl DatabinCache {
         })
     }
 
+    #[cfg_attr(verus_keep_ghost, verus_spec(result =>
+        ensures result == crate::specs::part2_jpip_cache_complete(jpip_cache_view(self), databin_id_view(id)),
+    ))]
     pub fn is_complete(&self, id: DatabinId) -> bool {
         match self.status(id) {
             Some(status) => status.is_complete(),
@@ -576,18 +618,42 @@ impl DatabinCache {
         }
     }
 
+    #[cfg_attr(verus_keep_ghost, verus_spec(result =>
+        ensures jpip_byte_outcome(result) == crate::specs::part2_jpip_cache_view(jpip_cache_view(self), databin_id_view(id)),
+    ))]
     pub fn databin_view(&self, id: DatabinId) -> Result<JpipByteView, DecodeError> {
+        #[cfg(verus_keep_ghost)]
+        proof! { jpip_cache_fields(self); reveal(jpip_byte_view); }
         let index = self
             .find_databin_index(id)
-            .ok_or_else(|| DecodeError::malformed(0, MalformedKind::MissingRequiredStructure))?;
+            .ok_or_else(
+                #[cfg_attr(verus_keep_ghost, verus_spec(result: DecodeError =>
+                    ensures result == crate::specs::part2_jpip_cache_error(0, MalformedKind::MissingRequiredStructure),
+                ))]
+                || DecodeError::malformed(0, MalformedKind::MissingRequiredStructure),
+            )?;
         let databin = self
             .databins
             .get(index)
-            .ok_or_else(|| DecodeError::malformed(0, MalformedKind::ArithmeticOverflow))?;
+            .ok_or_else(
+                #[cfg_attr(verus_keep_ghost, verus_spec(result: DecodeError =>
+                    ensures result == crate::specs::part2_jpip_cache_error(0, MalformedKind::ArithmeticOverflow),
+                ))]
+                || DecodeError::malformed(0, MalformedKind::ArithmeticOverflow),
+            )?;
+        #[cfg(verus_keep_ghost)]
+        proof! { jpip_databin_fields(databin); }
         let status = self
             .status(id)
-            .ok_or_else(|| DecodeError::malformed(0, MalformedKind::MissingRequiredStructure))?;
+            .ok_or_else(
+                #[cfg_attr(verus_keep_ghost, verus_spec(result: DecodeError =>
+                    ensures result == crate::specs::part2_jpip_cache_error(0, MalformedKind::MissingRequiredStructure),
+                ))]
+                || DecodeError::malformed(0, MalformedKind::MissingRequiredStructure),
+            )?;
         if !status.is_complete() {
+            #[cfg(verus_keep_ghost)]
+            proof! { jpip_status_fields(&status); }
             return Err(DecodeError::malformed(
                 status.contiguous_prefix,
                 MalformedKind::MissingRequiredStructure,
@@ -601,13 +667,20 @@ impl DatabinCache {
         Ok(JpipByteView { bytes })
     }
 
+    #[cfg_attr(verus_keep_ghost, verus_spec(result =>
+        ensures result@ == crate::specs::part2_jpip_cache_prefix(jpip_cache_view(self), databin_id_view(id)),
+    ))]
     pub(super) fn databin_prefix(&self, id: DatabinId) -> Vec<u8> {
+        #[cfg(verus_keep_ghost)]
+        proof! { jpip_cache_fields(self); }
         let Some(index) = self.find_databin_index(id) else {
             return Vec::new();
         };
         let Some(databin) = self.databins.get(index) else {
             return Vec::new();
         };
+        #[cfg(verus_keep_ghost)]
+        proof! { jpip_databin_fields(databin); }
         let Some(first) = databin.fragments.first() else {
             return Vec::new();
         };
@@ -649,22 +722,72 @@ impl DatabinCache {
         None
     }
 
+    #[cfg_attr(verus_keep_ghost, verus_spec(result =>
+        ensures jpip_byte_outcome(result) == crate::specs::part2_jpip_cache_reconstruct(jpip_cache_view(self), jpip_layout_view(layout)),
+    ))]
     pub(super) fn reconstruct(&self, layout: &[DatabinId]) -> Result<JpipByteView, DecodeError> {
+        #[cfg(verus_keep_ghost)]
+        proof! { jpip_cache_fields(self); reveal(jpip_byte_view); }
+        #[cfg(verus_keep_ghost)]
+        proof_decl! {
+            let ghost cache = jpip_cache_view(self);
+            let ghost identifiers = jpip_layout_view(layout);
+        }
         let mut total = 0_u64;
         let mut parts = Vec::with_capacity(layout.len());
         let mut index = 0_usize;
+        #[cfg(verus_keep_ghost)]
+        proof! {
+            reveal(crate::specs::part2_jpip_reconstruct_prefix);
+            assert(jpip_view_parts(&parts) =~= Seq::<Seq<u8>>::empty());
+        }
         #[cfg_attr(
             verus_keep_ghost,
             verus_spec(
                 invariant index <= layout.len(),
+                    cache == jpip_cache_view(self),
+                    cache.0 == self.limits,
+                    identifiers == jpip_layout_view(layout),
+                    identifiers.len() == layout.len(),
+                    forall|position: int| 0 <= position < layout.len() ==>
+                        #[trigger] identifiers[position] == databin_id_view(layout@[position]),
+                    parts.len() == index,
+                    crate::specs::part2_jpip_reconstruct_prefix(cache, identifiers, index as nat) ==
+                        Ok((jpip_view_parts(&parts), total)),
                 decreases layout.len() - index,
             )
         )]
         while index < layout.len() {
+            #[cfg(verus_keep_ghost)]
+            proof! {
+                if let Err(error) = crate::specs::part2_jpip_cache_view(cache, identifiers[index as int]) {
+                    reveal(crate::specs::part2_jpip_reconstruct_prefix);
+                    crate::specs::part2_jpip_reconstruct_error_persists(cache, identifiers, index as nat + 1, identifiers.len(), error);
+                }
+            }
             let view = self.databin_view(layout[index])?;
+            #[cfg(verus_keep_ghost)]
+            proof! {
+                reveal(jpip_byte_view);
+                reveal(crate::specs::part2_jpip_reconstruct_prefix);
+                let next_total = total as nat + (jpip_byte_view(&view).len() as u64) as nat;
+                if next_total > u64::MAX as nat {
+                    crate::specs::part2_jpip_reconstruct_error_persists(cache, identifiers, index as nat + 1, identifiers.len(),
+                        crate::specs::part2_jpip_cache_error(0, MalformedKind::ArithmeticOverflow));
+                } else if next_total > crate::limits::resource_input_byte_limit(&cache.0) as nat {
+                    crate::specs::part2_jpip_reconstruct_error_persists(cache, identifiers, index as nat + 1, identifiers.len(),
+                        DecodeError::LimitExceeded { resource: Resource::InputBytes,
+                            limit: crate::limits::resource_input_byte_limit(&cache.0), actual: next_total as u64 });
+                }
+            }
             total = total
                 .checked_add(view.bytes.len() as u64)
-                .ok_or_else(|| DecodeError::malformed(0, MalformedKind::ArithmeticOverflow))?;
+                .ok_or_else(
+                    #[cfg_attr(verus_keep_ghost, verus_spec(result: DecodeError =>
+                        ensures result == crate::specs::part2_jpip_cache_error(0, MalformedKind::ArithmeticOverflow),
+                    ))]
+                    || DecodeError::malformed(0, MalformedKind::ArithmeticOverflow),
+                )?;
             if total > self.limits.maximum_input_bytes() {
                 return Err(DecodeError::limit(
                     Resource::InputBytes,
@@ -672,22 +795,48 @@ impl DatabinCache {
                     total,
                 ));
             }
+            #[cfg(verus_keep_ghost)]
+            proof_decl! {
+                let ghost previous_parts = jpip_view_parts(&parts);
+                let ghost current_bytes = jpip_byte_view(&view);
+            }
             parts.push(view);
+            #[cfg(verus_keep_ghost)]
+            proof! { assert(jpip_view_parts(&parts) =~= previous_parts.push(current_bytes)); }
             index += 1;
         }
         let contracted_total = crate::refinement::jpip_reconstruction_length(total, 0, 0, 0);
         let capacity = usize::try_from(contracted_total)
-            .map_err(|_| DecodeError::malformed(0, MalformedKind::ArithmeticOverflow))?;
+            .map_err(
+                #[cfg_attr(verus_keep_ghost, verus_spec(result: DecodeError =>
+                    ensures result == crate::specs::part2_jpip_cache_error(0, MalformedKind::ArithmeticOverflow),
+                ))]
+                |_error| DecodeError::malformed(0, MalformedKind::ArithmeticOverflow),
+            )?;
         let mut bytes = Vec::with_capacity(capacity);
         let mut part_index = 0_usize;
+        #[cfg(verus_keep_ghost)]
+        proof! { reveal(crate::specs::part2_jpip_flatten_prefix); }
         #[cfg_attr(
             verus_keep_ghost,
             verus_spec(
                 invariant part_index <= parts.len(),
+                    cache == jpip_cache_view(self),
+                    identifiers == jpip_layout_view(layout),
+                    crate::specs::part2_jpip_reconstruct_prefix(cache, identifiers, identifiers.len()) ==
+                        Ok((jpip_view_parts(&parts), total)),
+                    contracted_total == total as u128,
+                    contracted_total as nat <= usize::MAX as nat,
+                    jpip_view_parts(&parts).len() == parts.len(),
+                    forall|position: int| 0 <= position < parts.len() ==>
+                        #[trigger] jpip_view_parts(&parts)[position] == parts@[position].bytes@,
+                    bytes@ == crate::specs::part2_jpip_flatten_prefix(jpip_view_parts(&parts), part_index as nat),
                 decreases parts.len() - part_index,
             )
         )]
         while part_index < parts.len() {
+            #[cfg(verus_keep_ghost)]
+            proof! { reveal(crate::specs::part2_jpip_flatten_prefix); }
             bytes.extend_from_slice(&parts[part_index].bytes);
             part_index += 1;
         }

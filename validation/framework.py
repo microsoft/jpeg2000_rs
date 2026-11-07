@@ -3331,6 +3331,58 @@ _RAW_CONTAINER_COLOR_TESTS = {("src/decode/container_image_result_tests.rs", "ac
     "preserves_header_mapping_before_color_admission",
     "preserves_raw_inspection_selection_packet_and_profile_priority",
 )}
+_JPIP_CACHE_VIEW_ENTRY = "part9-complete-native-cache-view-results"
+_JPIP_CACHE_VIEW_CONTRACTS = {
+    ("src/jpip/cache.rs", name): (
+        model, projection, None,
+        _coverage_call("jpip_cache_view", "self") + r"\s*,\s*" + inputs,
+    )
+    for name, model, projection, inputs in (
+        ("DatabinCache::status", "part2_jpip_cache_status", _coverage_call("jpip_status_outcome", r"\1"), _coverage_call("databin_id_view", "id")),
+        ("DatabinCache::is_complete", "part2_jpip_cache_complete", r"\1", _coverage_call("databin_id_view", "id")),
+        ("DatabinCache::databin_view", "part2_jpip_cache_view", _coverage_call("jpip_byte_outcome", r"\1"), _coverage_call("databin_id_view", "id")),
+        ("DatabinCache::databin_prefix", "part2_jpip_cache_prefix", r"\1\s*@", _coverage_call("databin_id_view", "id")),
+        ("DatabinCache::reconstruct", "part2_jpip_cache_reconstruct", _coverage_call("jpip_byte_outcome", r"\1"), _coverage_call("jpip_layout_view", "layout")),
+    )
+}
+_JPIP_CACHE_VIEW_MODELS = {("specs/jpip_cache_views.rs", name) for name in (
+    "part2_jpip_cache_error", "part2_jpip_status_scan", "part2_jpip_databin_status",
+    "part2_jpip_cache_status", "part2_jpip_cache_complete", "part2_jpip_cache_view",
+    "part2_jpip_cache_prefix", "part2_jpip_reconstruct_prefix", "part2_jpip_flatten_prefix",
+    "part2_jpip_cache_reconstruct",
+)} | {
+    ("specs/jpip_fragment.rs", "part2_jpip_find_databin"),
+    ("specs/jpip_fragment.rs", "part2_jpip_stored_end"),
+    ("specs/jpip_fragment.rs", "part2_jpip_status_complete"),
+    ("specs/mod.rs", "part9_reconstruction_length"),
+}
+_JPIP_CACHE_VIEW_PROOFS = set(_JPIP_CACHE_VIEW_CONTRACTS) | {
+    ("src/jpip/cache.rs", "DatabinCache::find_databin_index"),
+    ("src/jpip/cache.rs", "StoredFragment::end"),
+    ("src/jpip/cache.rs", "DatabinStatus::is_complete"),
+    ("src/jpip/cache.rs", "JpipByteView::into_bytes"),
+    ("src/jpip/proof_support.rs", "databin_id_view"),
+    ("src/refinement/jpip.rs", "jpip_reconstruction_length"),
+    ("src/limits.rs", "resource_input_byte_limit"),
+    ("specs/jpip_cache_views.rs", "part2_jpip_reconstruct_error_persists"),
+} | {("src/jpip/cache_proof_support.rs", name) for name in (
+    "jpip_cache_view", "jpip_databin_view", "jpip_stored_fragment_view", "jpip_status_view",
+    "jpip_byte_view", "jpip_byte_outcome", "jpip_status_outcome", "jpip_layout_view",
+    "jpip_view_parts", "jpip_cache_fields", "jpip_databin_fields", "jpip_status_fields",
+)}
+_JPIP_CACHE_VIEW_TESTS = {("src/jpip/cache_view_result_tests.rs", name) for name in (
+    "actual_jpip_cache_status_derives_every_field_and_native_fragment_order_without_validity_premises",
+    "actual_jpip_cache_view_keeps_first_normalized_match_first_fragment_and_exact_missing_errors",
+    "actual_jpip_cache_prefix_derives_first_fragment_offset_and_keeps_independent_owned_storage",
+    "actual_jpip_cache_reconstruction_keeps_requested_order_repetition_and_original_cache_storage",
+    "actual_jpip_cache_reconstruction_preserves_first_view_error_and_exact_input_budget_frontiers",
+    "actual_jpip_cache_read_producers_compose_original_fragment_normalization_and_reconstruction",
+)}
+_JPIP_CACHE_VIEW_CALLERS = {
+    ("src/jpip/reconstruction.rs", "DatabinCache::reconstruct_codestream"),
+    ("src/jpip/reconstruction.rs", "DatabinCache::reconstruct_container"),
+    ("src/jpip/progression.rs", "DatabinCache::build_automatic_snapshot"),
+}
 _JPIP_FRAGMENT_ENTRY = "part9-complete-native-owned-entry-foundations"
 _JPIP_FRAGMENT_CONTRACTS = {
     ("src/jpip/cache.rs", "copy_bytes"): (
@@ -3891,6 +3943,79 @@ def validate_normative_coverage(
     ids: set[str] = set()
     contract_functions: set[tuple[str, str]] = set()
     for entry in coverage["requirements"]:
+        if entry["id"] == _JPIP_CACHE_VIEW_ENTRY:
+            if {(ref["path"], ref["symbol"]) for ref in entry["contract_refs"]} != set(_JPIP_CACHE_VIEW_CONTRACTS):
+                raise ValueError("whole JPIP cache view Results require all five actual status/view/prefix/reconstruction contracts")
+            if not _JPIP_CACHE_VIEW_MODELS.issubset({(ref["path"], ref["symbol"]) for ref in entry["spec_refs"]}) \
+                    or not _JPIP_CACHE_VIEW_PROOFS.issubset({(ref["path"], ref["symbol"]) for ref in entry["proof_refs"]}) \
+                    or not _JPIP_CACHE_VIEW_TESTS.issubset({(ref["path"], ref["symbol"]) for ref in entry["test_refs"]}):
+                raise ValueError("whole JPIP cache view Results require every physical/lookup/status/layout/owned/error/test bridge")
+            if not (set(_JPIP_CACHE_VIEW_CONTRACTS) | _JPIP_CACHE_VIEW_CALLERS).issubset(
+                    {(ref["path"], ref["symbol"]) for ref in entry["implementation_refs"]}):
+                raise ValueError("whole JPIP cache view Results linked function is not used by claimed implementation: actual callers missing")
+            path = (ROOT / "src/jpip/cache.rs").resolve()
+            text = source_text(path)
+            for name, required in {
+                "DatabinCache::status": ("self.find_databin_index(id)?", "self.databins.get(index)?",
+                    "jpip_databin_fields(databin)", "bytes.saturating_add(fragment.bytes.len() as u64)",
+                    "fragment.offset == prefix", "prefix = fragment.end()", "final_length: databin.final_length",
+                    "contiguous_prefix: prefix", "stored_bytes: bytes", "intervals: databin.fragments.len() as u64",
+                    "index += 1; } #[cfg(verus_keep_ghost)] proof! { reveal(crate::specs::part2_jpip_status_scan)"),
+                "DatabinCache::is_complete": ("self.status(id)", "Some(status) => status.is_complete()", "None => false"),
+                "DatabinCache::databin_view": ("self.find_databin_index(id)", "self.databins.get(index)", "self.status(id)",
+                    "status.is_complete()", "status.contiguous_prefix", "databin.fragments.is_empty()",
+                    "databin.fragments[0].bytes.clone()", "Ok(JpipByteView { bytes })"),
+                "DatabinCache::databin_prefix": ("self.find_databin_index(id)", "self.databins.get(index)",
+                    "databin.fragments.first()", "first.offset != 0", "first.bytes.clone()"),
+                "DatabinCache::reconstruct": ("let ghost cache = jpip_cache_view(self)", "let ghost identifiers = jpip_layout_view(layout)",
+                    "self.databin_view(layout[index])?", "total.checked_add(view.bytes.len() as u64)",
+                    "total > self.limits.maximum_input_bytes()", "parts.push(view)",
+                    "jpip_reconstruction_length(total, 0, 0, 0)", "usize::try_from(contracted_total)",
+                    "part2_jpip_reconstruct_error_persists", "bytes.extend_from_slice(&parts[part_index].bytes)",
+                    "part2_jpip_reconstruct_prefix(cache, identifiers, index as nat)", "jpip_view_parts(&parts)",
+                    "part2_jpip_flatten_prefix(jpip_view_parts(&parts), part_index as nat)"),
+            }.items():
+                body = _coverage_function_body(text, function_header(path, name))
+                if body is None or any("".join(item.split()) not in "".join(body.split()) for item in required):
+                    raise ValueError("whole JPIP cache view Results require actual first-match/ordered-scan/clone/layout/error handoffs")
+            model = source_text((ROOT / "specs/jpip_cache_views.rs").resolve())
+            for name, required in {
+                "part2_jpip_cache_error": ("part2_jpip_fragment_error(offset, kind)",),
+                "part2_jpip_status_scan": ("position >= fragments.len()", "bytes as nat + (fragment.1.len() as u64) as nat",
+                    "total > u64::MAX as nat", "fragment.0 == prefix", "part2_jpip_stored_end(fragment)",
+                    "part2_jpip_status_scan(fragments, position + 1, next_prefix, next_bytes)"),
+                "part2_jpip_databin_status": ("part2_jpip_status_scan(databin.1, 0, 0, 0)", "(databin.2, scan.0, scan.1, databin.1.len() as u64)"),
+                "part2_jpip_cache_status": ("part2_jpip_find_databin(cache.1, id, 0)", "index as nat >= cache.1.len()", "part2_jpip_databin_status(cache.1[index as int])"),
+                "part2_jpip_cache_complete": ("part2_jpip_cache_status(cache, id)", "None => false", "part2_jpip_status_complete(status)"),
+                "part2_jpip_cache_view": ("part2_jpip_find_databin(cache.1, id, 0)", "part2_jpip_cache_status(cache, id)",
+                    "part2_jpip_cache_error(status.1", "ArithmeticOverflow", "fragments[0].1"),
+                "part2_jpip_cache_prefix": ("part2_jpip_find_databin(cache.1, id, 0)", "index as nat >= cache.1.len()",
+                    "fragments.len() == 0 || fragments[0].0 != 0", "fragments[0].1"),
+                "part2_jpip_reconstruct_prefix": ("position == 0", "part2_jpip_reconstruct_prefix(cache, layout, (position - 1) as nat)",
+                    "part2_jpip_cache_view(cache, layout[position as int - 1])", "total > u64::MAX as nat",
+                    "resource_input_byte_limit(&cache.0)", "actual: total as u64", "previous.0.push(bytes)"),
+                "part2_jpip_flatten_prefix": ("position == 0", "part2_jpip_flatten_prefix(parts, (position - 1) as nat) + parts[position as int - 1]"),
+                "part2_jpip_cache_reconstruct": ("part2_jpip_reconstruct_prefix(cache, layout, layout.len())",
+                    "part9_reconstruction_length(parts.1 as nat, 0, 0, 0)", "length > usize::MAX as nat",
+                    "part2_jpip_flatten_prefix(parts.0, parts.0.len())"),
+            }.items():
+                actual = _coverage_spec_function_body(model, name)
+                if actual is None or any("".join(item.split()) not in "".join(actual.split()) for item in required):
+                    raise ValueError("whole JPIP cache view Results require complete ordered-status/first-bytes/layout/error models")
+            projections = source_text((ROOT / "src/jpip/cache_proof_support.rs").resolve())
+            for name, required in {
+                "jpip_cache_view": ("value.limits", "value.databins@", "jpip_databin_view(&databin)", "value.stored_bytes", "value.accepted_fragments"),
+                "jpip_databin_view": ("value.fragments@", "jpip_stored_fragment_view(&fragment)", "value.final_length"),
+                "jpip_status_view": ("value.final_length", "value.contiguous_prefix", "value.stored_bytes", "value.intervals"),
+                "jpip_byte_view": ("value.bytes@",),
+                "jpip_byte_outcome": ("Err(error) => Err(error)", "Ok(jpip_byte_view(&value))"),
+                "jpip_status_outcome": ("None => None", "Some(jpip_status_view(&value))"),
+                "jpip_layout_view": ("value@.map_values", "databin_id_view(id)"),
+                "jpip_view_parts": ("value@.map_values", "jpip_byte_view(&part)"),
+            }.items():
+                actual = _coverage_spec_function_body(projections, name)
+                if actual is None or any("".join(item.split()) not in "".join(actual.split()) for item in required):
+                    raise ValueError("whole JPIP cache view Results require physical cache/layout/owned byte and status projections")
         if entry["id"] == _JPIP_FRAGMENT_ENTRY:
             if {(ref["path"], ref["symbol"]) for ref in entry["contract_refs"]} != set(_JPIP_FRAGMENT_CONTRACTS):
                 raise ValueError("whole JPIP entry foundations require actual byte-copy/point-copy/normalized-lookup contracts")
@@ -6798,6 +6923,8 @@ def validate_normative_coverage(
                     if entry["id"] == _JPIP_MESSAGE_ENTRY else None)
                 or (_JPIP_FRAGMENT_CONTRACTS.get((reference["path"], reference["symbol"]))
                     if entry["id"] == _JPIP_FRAGMENT_ENTRY else None)
+                or (_JPIP_CACHE_VIEW_CONTRACTS.get((reference["path"], reference["symbol"]))
+                    if entry["id"] == _JPIP_CACHE_VIEW_ENTRY else None)
                 or (_JPX_INSPECTION_CONTRACTS.get((reference["path"], reference["symbol"]))
                     if entry["id"] == _JPX_INSPECTION_ENTRY else None)
                 or (_RAW_JPX_INSPECTION_CONTRACTS.get((reference["path"], reference["symbol"]))
