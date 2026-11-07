@@ -47,6 +47,8 @@ mod jpx_public_images;
 pub use jpx_public_images::*;
 mod jpip_message;
 pub use jpip_message::*;
+mod jpip_fragment;
+pub use jpip_fragment::*;
 mod jpx_source;
 pub use jpx_source::*;
 mod jpx_opacity;
