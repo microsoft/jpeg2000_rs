@@ -38,6 +38,7 @@ specs/jp2_layer.rs
 specs/jp2_metadata.rs
 specs/jp2_palette.rs
 specs/jp2_resolution.rs
+specs/jpip_message.rs
 specs/jpx_dispatch.rs
 specs/jpx_frame.rs
 specs/jpx_general.rs
@@ -153,8 +154,10 @@ src/jpip/byte_io.rs
 src/jpip/cache.rs
 src/jpip/mapping.rs
 src/jpip/message.rs
+src/jpip/message_result_tests.rs
 src/jpip/precinct.rs
 src/jpip/progression.rs
+src/jpip/proof_support.rs
 src/jpip/ranges.rs
 src/jpip/reconstruction.rs
 src/jpip/tests.rs

@@ -1256,6 +1256,154 @@ class FrameworkTests(WorkingFiles):
                 self.assertEqual(framework.validate_normative_coverage(dict(coverage, requirements=[entry]))["status"], "passed")
                 self.assertEqual(set(counts.values()), {expected})
 
+    def test_inventory_binds_actual_raw_jpip_message_parser_eor_and_partial_vbas_contracts(self):
+        producers = {key: value for key, value in framework._JPIP_MESSAGE_CONTRACTS.items()
+                     if key not in framework._JPIP_MESSAGE_BOUNDARIES}
+        self._assert_complete_packet_contract_bindings({framework._JPIP_MESSAGE_ENTRY}, producers, 3, isolate=False)
+        coverage = json.loads((framework.VALIDATION / "normative-coverage.json").read_text())
+        entry = next(item for item in coverage["requirements"] if item["id"] == framework._JPIP_MESSAGE_ENTRY)
+        source = framework.ROOT / "src/jpip/message.rs"
+        original = source.read_text()
+        before = "part2_jpip_parser_parse(input@, jpip_parser_view(old(self)))"
+        self.assertIn(before, original)
+        changed = original.replace(before, before.replace("input@", "seq![]"), 1)
+        read_text = Path.read_text
+
+        def altered(path, *args, **kwargs):
+            return changed if path == source else read_text(path, *args, **kwargs)
+
+        with mock.patch.object(Path, "read_text", altered), self.assertRaisesRegex(ValueError, "executable Verus contract"):
+            framework.validate_normative_coverage(dict(coverage, requirements=[entry]))
+
+    def test_inventory_jpip_message_binds_every_checked_static_impl_body_clause(self):
+        coverage = json.loads((framework.VALIDATION / "normative-coverage.json").read_text())
+        entry = next(item for item in coverage["requirements"] if item["id"] == framework._JPIP_MESSAGE_ENTRY)
+        source = framework.ROOT / "src/jpip/message.rs"
+        original = source.read_text()
+        read_text = Path.read_text
+        self.assertEqual(framework.validate_normative_coverage(dict(coverage, requirements=[entry]))["status"], "passed")
+        for name, clause in framework._JPIP_MESSAGE_BODY_CLAUSES.items():
+            start = framework._coverage_function_header(original, name).start()
+            body = framework._coverage_function_body(original, framework._coverage_function_header(original, name))
+            self.assertIn(framework._coverage_body_clause(clause), framework._coverage_body_clause(body))
+            body_start = original.find("{", start)
+            ensures = original.index("vstd::prelude::ensures", body_start)
+            changed = original[:ensures] + original[ensures:].replace("vstd::prelude::ensures", "unrelated_clause", 1)
+
+            def altered(path, *args, **kwargs):
+                return changed if path == source else read_text(path, *args, **kwargs)
+
+            with self.subTest(name=name), mock.patch.object(Path, "read_text", altered), \
+                    self.assertRaisesRegex(ValueError, "exact checked impl body clauses"):
+                framework.validate_normative_coverage(dict(coverage, requirements=[entry]))
+        changed = original.replace("verus_verify", "unrelated_rewriter", 1)
+
+        def altered(path, *args, **kwargs):
+            return changed if path == source else read_text(path, *args, **kwargs)
+
+        with mock.patch.object(Path, "read_text", altered), self.assertRaisesRegex(ValueError, "exact checked impl body clauses"):
+            framework.validate_normative_coverage(dict(coverage, requirements=[entry]))
+        changed += "\n#[cfg_attr(verus_keep_ghost, verus_verify)]\nimpl DatabinClass {}\n"
+        with mock.patch.object(Path, "read_text", altered), self.assertRaisesRegex(ValueError, "exact checked impl body clauses"):
+            framework.validate_normative_coverage(dict(coverage, requirements=[entry]))
+
+    def test_inventory_jpip_message_requires_all_raw_cursor_context_header_reference_and_test_bridges(self):
+        coverage = json.loads((framework.VALIDATION / "normative-coverage.json").read_text())
+        entry = next(item for item in coverage["requirements"] if item["id"] == framework._JPIP_MESSAGE_ENTRY)
+        for field in ("contract_refs", "spec_refs", "proof_refs", "test_refs"):
+            for removed in entry[field]:
+                changed = copy.deepcopy(entry)
+                changed[field].remove(removed)
+                with self.subTest(field=field, removed=removed), self.assertRaisesRegex(ValueError, "whole raw JPIP message Results"):
+                    framework.validate_normative_coverage(dict(coverage, requirements=[changed]))
+
+    def test_inventory_jpip_message_binds_actual_mask_context_commit_borrow_and_vbas_progress(self):
+        coverage = json.loads((framework.VALIDATION / "normative-coverage.json").read_text())
+        entry = next(item for item in coverage["requirements"] if item["id"] == framework._JPIP_MESSAGE_ENTRY)
+        source = framework.ROOT / "src/jpip/message.rs"
+        original = source.read_text()
+        read_text = Path.read_text
+        for before, after in (
+            ("read_vbas(input, &mut position, Some(0x0f))?", "read_vbas(input, &mut position, None)?"),
+            ("context.previous_class = Some(class_identifier)", "context.previous_class = Some(codestream)"),
+            ("body: &input[position..body_end]", "body: &input[0..body_end]"),
+            ("first_mask.unwrap_or(0x7f)", "first_mask.unwrap_or(0xff)"),
+            ("start == *old(position)", "start == *position"),
+            ("parse_jpip_message(input, &mut self.context, &self.limits)", "parse_jpip_message(&unrelated, &mut self.context, &self.limits)"),
+        ):
+            self.assertIn(before, original)
+            changed = original.replace(before, after, 1)
+
+            def altered(path, *args, **kwargs):
+                return changed if path == source else read_text(path, *args, **kwargs)
+
+            with self.subTest(before=before), mock.patch.object(Path, "read_text", altered), \
+                    self.assertRaisesRegex(ValueError, "actual raw/inherited/context/cursor/body/parser handoffs"):
+                framework.validate_normative_coverage(dict(coverage, requirements=[entry]))
+
+    def test_inventory_jpip_message_rejects_trimmed_raw_context_extent_and_partial_cursor_models(self):
+        coverage = json.loads((framework.VALIDATION / "normative-coverage.json").read_text())
+        entry = next(item for item in coverage["requirements"] if item["id"] == framework._JPIP_MESSAGE_ENTRY)
+        source = framework.ROOT / "specs/jpip_message.rs"
+        original = source.read_text()
+        read_text = Path.read_text
+        for before, after in (
+            ("value as nat * 128 + group as nat", "value as nat + group as nat"),
+            ("mask.is_none()", "mask.is_some()"),
+            ("input.subrange(position as int, end as int)", "input.subrange(0, end as int)"),
+            ("(Some(header.0.0), Some(header.0.2))", "(Some(header.0.2), Some(header.0.0))"),
+            ("_ => context", "_ => (None, None)"),
+        ):
+            self.assertIn(before, original)
+            changed = original.replace(before, after, 1)
+
+            def altered(path, *args, **kwargs):
+                return changed if path == source else read_text(path, *args, **kwargs)
+
+            with self.subTest(before=before), mock.patch.object(Path, "read_text", altered), \
+                    self.assertRaisesRegex(ValueError, "complete raw/partial-cursor/context/header/body/parser models"):
+                framework.validate_normative_coverage(dict(coverage, requirements=[entry]))
+
+    def test_inventory_jpip_message_requires_complete_getter_and_native_stored_body_projections(self):
+        coverage = json.loads((framework.VALIDATION / "normative-coverage.json").read_text())
+        entry = next(item for item in coverage["requirements"] if item["id"] == framework._JPIP_MESSAGE_ENTRY)
+        read_text = Path.read_text
+        for name, before, after, expected in (
+            ("src/jpip/message.rs", "result == jpip_eor_body_reference(self)", "result@ == jpip_eor_view(self).1", "stored getter value/reference frames"),
+            ("src/jpip/message.rs", "result == jpip_message_body_reference(self)", "true", "stored getter value/reference frames"),
+            ("src/jpip/proof_support.rs", "(value.previous_class, value.previous_codestream)", "(None, None)", "native field/stored-reference projections"),
+            ("src/jpip/proof_support.rs", "&value.limits", "&unrelated_limits", "native field/stored-reference projections"),
+            ("src/jpip/proof_support.rs", "(value.reason_code, value.body@, value.header_length)", "(0, value.body@, value.header_length)", "native field/stored-reference projections"),
+        ):
+            source = framework.ROOT / name
+            original = source.read_text()
+            self.assertIn(before, original)
+            changed = original.replace(before, after, 1)
+
+            def altered(path, *args, **kwargs):
+                return changed if path == source else read_text(path, *args, **kwargs)
+
+            with self.subTest(before=before), mock.patch.object(Path, "read_text", altered), self.assertRaisesRegex(ValueError, expected):
+                framework.validate_normative_coverage(dict(coverage, requirements=[entry]))
+
+    def test_inventory_jpip_message_keeps_fresh_native_static_clause_cursor_and_model_caches(self):
+        coverage = json.loads((framework.VALIDATION / "normative-coverage.json").read_text())
+        entry = next(item for item in coverage["requirements"] if item["id"] == framework._JPIP_MESSAGE_ENTRY)
+        read_text = Path.read_text
+        counts = {framework.ROOT / name: 0 for name in (
+            "src/jpip/message.rs", "src/jpip/proof_support.rs", "specs/jpip_message.rs",
+        )}
+
+        def counted(path, *args, **kwargs):
+            if path in counts:
+                counts[path] += 1
+            return read_text(path, *args, **kwargs)
+
+        with mock.patch.object(Path, "read_text", counted):
+            for expected in (1, 2):
+                self.assertEqual(framework.validate_normative_coverage(dict(coverage, requirements=[entry]))["status"], "passed")
+                self.assertEqual(set(counts.values()), {expected})
+
     def test_inventory_binds_public_raw_jpx_images_and_actual_selected_module_producers(self):
         producers = {key: value for key, value in framework._RAW_JPX_PUBLIC_IMAGE_CONTRACTS.items()
                      if key not in framework._RAW_JPX_PUBLIC_IMAGE_APIS}

@@ -18,6 +18,9 @@ const MAX_VBAS_BYTES: usize = 10;
 const SOC: [u8; 2] = [0xff, 0x4f];
 const EOC: [u8; 2] = [0xff, 0xd9];
 
+#[cfg(verus_keep_ghost)]
+include!("jpip/proof_support.rs");
+
 #[derive(Clone, Copy)]
 #[cfg_attr(not(verus_keep_ghost), derive(Debug, Eq, PartialEq, Hash))]
 #[non_exhaustive]

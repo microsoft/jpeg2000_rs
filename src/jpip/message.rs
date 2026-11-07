@@ -6,10 +6,27 @@ use super::{
     MAX_VBAS_BYTES, MalformedKind, Resource, ResourceLimits,
 };
 #[cfg(verus_keep_ghost)]
+use super::{
+    databin_id_outcome, databin_id_view, jpip_context_fields, jpip_context_view,
+    jpip_eor_body_reference, jpip_eor_view, jpip_header_fields, jpip_header_view,
+    jpip_message_body_reference, jpip_message_outcome, jpip_message_values_known,
+    jpip_message_view, jpip_parser_context, jpip_parser_fields, jpip_parser_limits,
+    jpip_parser_view,
+};
+#[cfg(verus_keep_ghost)]
 use vstd::prelude::*;
 
+#[cfg(test)]
+#[path = "message_result_tests.rs"]
+mod result_tests;
+
+#[cfg_attr(verus_keep_ghost, verus_verify)]
 impl DatabinClass {
     const fn from_identifier(identifier: u64) -> Option<Self> {
+        #[cfg(verus_keep_ghost)]
+        vstd::prelude::ensures(|result: Option<Self>| {
+            vstd::prelude::equal(result, crate::specs::part2_jpip_class(identifier))
+        });
         if !crate::refinement::jpip_class_identifier_valid(identifier) {
             return None;
         }
@@ -24,14 +41,33 @@ impl DatabinClass {
     }
 
     pub const fn has_auxiliary(identifier: u64) -> bool {
+        #[cfg(verus_keep_ghost)]
+        vstd::prelude::ensures(|result: bool| {
+            vstd::prelude::equal(result, crate::specs::part2_jpip_auxiliary(identifier))
+        });
         crate::refinement::jpip_auxiliary_present(identifier)
     }
 }
 
+#[cfg_attr(verus_keep_ghost, verus_verify)]
 impl DatabinId {
     pub fn new(class_identifier: u64, codestream: u64, in_class: u64) -> Result<Self, DecodeError> {
+        #[cfg(verus_keep_ghost)]
+        vstd::prelude::ensures(|result: Result<Self, DecodeError>| {
+            vstd::prelude::equal(
+                databin_id_outcome(result),
+                crate::specs::part2_jpip_databin(class_identifier, codestream, in_class),
+            )
+        });
+        #[cfg(verus_keep_ghost)]
+        proof! { reveal(databin_id_view); }
         let class = DatabinClass::from_identifier(class_identifier)
-            .ok_or_else(|| DecodeError::malformed(0, MalformedKind::InvalidJpipHeader))?;
+            .ok_or_else(
+                #[cfg_attr(verus_keep_ghost, verus_spec(result: DecodeError =>
+                    ensures result == crate::specs::part2_jpip_error(0, MalformedKind::InvalidJpipHeader),
+                ))]
+                || DecodeError::malformed(0, MalformedKind::InvalidJpipHeader),
+            )?;
         Ok(Self {
             class_identifier,
             class,
@@ -41,22 +77,55 @@ impl DatabinId {
     }
 
     pub const fn class_identifier(&self) -> u64 {
+        #[cfg(verus_keep_ghost)]
+        vstd::prelude::ensures(|result: u64| {
+            vstd::prelude::equal(result, databin_id_view(*self).0)
+        });
+        #[cfg(verus_keep_ghost)]
+        proof! { reveal(databin_id_view); }
         self.class_identifier
     }
 
     pub const fn class(&self) -> DatabinClass {
+        #[cfg(verus_keep_ghost)]
+        vstd::prelude::ensures(|result: DatabinClass| {
+            vstd::prelude::equal(result, databin_id_view(*self).1)
+        });
+        #[cfg(verus_keep_ghost)]
+        proof! { reveal(databin_id_view); }
         self.class
     }
 
     pub const fn codestream(&self) -> u64 {
+        #[cfg(verus_keep_ghost)]
+        vstd::prelude::ensures(|result: u64| {
+            vstd::prelude::equal(result, databin_id_view(*self).2)
+        });
+        #[cfg(verus_keep_ghost)]
+        proof! { reveal(databin_id_view); }
         self.codestream
     }
 
     pub const fn in_class(&self) -> u64 {
+        #[cfg(verus_keep_ghost)]
+        vstd::prelude::ensures(|result: u64| {
+            vstd::prelude::equal(result, databin_id_view(*self).3)
+        });
+        #[cfg(verus_keep_ghost)]
+        proof! { reveal(databin_id_view); }
         self.in_class
     }
 
     pub(super) const fn same_as(&self, other: Self) -> bool {
+        #[cfg(verus_keep_ghost)]
+        vstd::prelude::ensures(|result: bool| {
+            vstd::prelude::equal(
+                result,
+                crate::specs::part2_jpip_identity(databin_id_view(*self), databin_id_view(other)),
+            )
+        });
+        #[cfg(verus_keep_ghost)]
+        proof! { reveal(databin_id_view); }
         crate::refinement::jpip_databin_identity(
             self.class_identifier,
             self.codestream,
@@ -68,8 +137,13 @@ impl DatabinId {
     }
 }
 
+#[cfg_attr(verus_keep_ghost, verus_verify)]
 impl JpipHeaderContext {
     pub const fn new() -> Self {
+        #[cfg(verus_keep_ghost)]
+        vstd::prelude::ensures(|result: Self| jpip_context_view(result) == (None, None));
+        #[cfg(verus_keep_ghost)]
+        proof! { reveal(jpip_context_view); }
         Self {
             previous_class: None,
             previous_codestream: None,
@@ -77,32 +151,59 @@ impl JpipHeaderContext {
     }
 
     pub const fn previous_class(&self) -> Option<u64> {
+        #[cfg(verus_keep_ghost)]
+        vstd::prelude::ensures(|result: Option<u64>| result == jpip_context_view(*self).0);
+        #[cfg(verus_keep_ghost)]
+        proof! { reveal(jpip_context_view); }
         self.previous_class
     }
 
     pub const fn previous_codestream(&self) -> Option<u64> {
+        #[cfg(verus_keep_ghost)]
+        vstd::prelude::ensures(|result: Option<u64>| result == jpip_context_view(*self).1);
+        #[cfg(verus_keep_ghost)]
+        proof! { reveal(jpip_context_view); }
         self.previous_codestream
     }
 }
 
 impl JpipMessageHeader {
+    #[cfg_attr(verus_keep_ghost, verus_spec(result =>
+        ensures databin_id_view(result) == jpip_header_view(*self).0,
+    ))]
     pub const fn databin(&self) -> DatabinId {
+        #[cfg(verus_keep_ghost)]
+        proof! { jpip_header_fields(*self); }
         self.databin
     }
 
+    #[cfg_attr(verus_keep_ghost, verus_spec(result => ensures result == jpip_header_view(*self).1,))]
     pub const fn offset(&self) -> u64 {
+        #[cfg(verus_keep_ghost)]
+        proof! { jpip_header_fields(*self); }
         self.offset
     }
 
+    #[cfg_attr(verus_keep_ghost, verus_spec(result => ensures result == jpip_header_view(*self).2,))]
     pub const fn length(&self) -> u64 {
+        #[cfg(verus_keep_ghost)]
+        proof! { jpip_header_fields(*self); }
         self.length
     }
 
+    #[cfg_attr(verus_keep_ghost, verus_spec(result => ensures result == jpip_header_view(*self).3,))]
     pub const fn is_last_byte(&self) -> bool {
+        #[cfg(verus_keep_ghost)]
+        proof! { jpip_header_fields(*self); }
         self.last_byte
     }
 
+    #[cfg_attr(verus_keep_ghost, verus_spec(result =>
+        ensures result == crate::specs::part2_jpip_final_length(jpip_header_view(*self)),
+    ))]
     pub const fn final_length(&self) -> Option<u64> {
+        #[cfg(verus_keep_ghost)]
+        proof! { jpip_header_fields(*self); }
         if self.last_byte {
             Some(self.offset.saturating_add(self.length))
         } else {
@@ -110,31 +211,54 @@ impl JpipMessageHeader {
         }
     }
 
+    #[cfg_attr(verus_keep_ghost, verus_spec(result => ensures result == jpip_header_view(*self).4,))]
     pub const fn auxiliary(&self) -> Option<u64> {
+        #[cfg(verus_keep_ghost)]
+        proof! { jpip_header_fields(*self); }
         self.auxiliary
     }
 
+    #[cfg_attr(verus_keep_ghost, verus_spec(result => ensures result == jpip_header_view(*self).5,))]
     pub const fn header_length(&self) -> usize {
+        #[cfg(verus_keep_ghost)]
+        proof! { jpip_header_fields(*self); }
         self.header_length
     }
 }
 
 impl<'a> JpipEndOfResponse<'a> {
+    #[cfg_attr(verus_keep_ghost, verus_spec(result => ensures result == jpip_eor_view(self).0,))]
     pub const fn reason_code(&self) -> u8 {
+        #[cfg(verus_keep_ghost)]
+        proof! { reveal(jpip_eor_view); }
         self.reason_code
     }
 
+    #[cfg_attr(verus_keep_ghost, verus_spec(result =>
+        ensures result == jpip_eor_body_reference(self),
+            result@ == jpip_eor_view(self).1,
+    ))]
     pub const fn body(&self) -> &'a [u8] {
+        #[cfg(verus_keep_ghost)]
+        proof! { reveal(jpip_eor_view); reveal(jpip_eor_body_reference); }
         self.body
     }
 
+    #[cfg_attr(verus_keep_ghost, verus_spec(result => ensures result == jpip_eor_view(self).2,))]
     pub const fn header_length(&self) -> usize {
+        #[cfg(verus_keep_ghost)]
+        proof! { reveal(jpip_eor_view); }
         self.header_length
     }
 }
 
 impl<'a> JpipMessage<'a> {
+    #[cfg_attr(verus_keep_ghost, verus_spec(result =>
+        ensures result == jpip_message_body_reference(self),
+    ))]
     pub const fn body(&self) -> &'a [u8] {
+        #[cfg(verus_keep_ghost)]
+        proof! { reveal(jpip_message_body_reference); }
         match self {
             Self::Data { body, .. } => body,
             Self::EndOfResponse(end) => end.body,
@@ -142,28 +266,60 @@ impl<'a> JpipMessage<'a> {
     }
 }
 
+#[cfg_attr(verus_keep_ghost, verus_verify)]
 impl JpipMessageParser {
     pub const fn new(limits: ResourceLimits) -> Self {
+        #[cfg(verus_keep_ghost)]
+        vstd::prelude::ensures(|result: Self| {
+            vstd::prelude::equal(jpip_parser_context(&result), (None, None))
+                && vstd::prelude::equal(*jpip_parser_limits(&result), limits)
+        });
+        #[cfg(verus_keep_ghost)]
+        proof! { reveal(jpip_parser_context); reveal(jpip_parser_limits); reveal(jpip_context_view); }
         Self {
             context: JpipHeaderContext::new(),
             limits,
         }
     }
+}
 
+impl JpipMessageParser {
+    #[cfg_attr(verus_keep_ghost, verus_spec(result =>
+        ensures jpip_context_view(result) == jpip_parser_context(self),
+    ))]
     pub const fn context(&self) -> JpipHeaderContext {
+        #[cfg(verus_keep_ghost)]
+        proof! { jpip_parser_fields(self); }
         self.context
     }
 
+    #[cfg_attr(verus_keep_ghost, verus_spec(result =>
+        ensures (jpip_message_outcome(result), jpip_parser_view(final(self)))
+            == crate::specs::part2_jpip_parser_parse(input@, jpip_parser_view(old(self))),
+    ))]
     pub fn parse<'a>(&mut self, input: &'a [u8]) -> Result<(JpipMessage<'a>, usize), DecodeError> {
+        #[cfg(verus_keep_ghost)]
+        proof! { jpip_parser_fields(self); jpip_context_fields(self.context); }
         parse_jpip_message(input, &mut self.context, &self.limits)
     }
 }
 
+#[cfg_attr(verus_keep_ghost, verus_spec(result =>
+    ensures (jpip_message_outcome(result), jpip_context_view(*final(context)))
+        == crate::specs::part2_parse_jpip_message(input@, jpip_context_view(*old(context)), limits),
+))]
 pub fn parse_jpip_message<'a>(
     input: &'a [u8],
     context: &mut JpipHeaderContext,
     limits: &ResourceLimits,
 ) -> Result<(JpipMessage<'a>, usize), DecodeError> {
+    #[cfg(verus_keep_ghost)]
+    proof! {
+        jpip_context_fields(*context);
+        reveal(jpip_message_view);
+        reveal(jpip_header_view);
+        crate::specs::part2_parse_jpip_message_unfold(input@, jpip_context_view(*context), limits);
+    }
     if input.is_empty() {
         return Err(DecodeError::malformed(0, MalformedKind::Truncated));
     }
@@ -191,7 +347,12 @@ pub fn parse_jpip_message<'a>(
     } else {
         context
             .previous_class
-            .ok_or_else(|| DecodeError::malformed(0, MalformedKind::InvalidJpipHeader))?
+            .ok_or_else(
+                #[cfg_attr(verus_keep_ghost, verus_spec(result: DecodeError =>
+                    ensures result == crate::specs::part2_jpip_error(0, MalformedKind::InvalidJpipHeader),
+                ))]
+                || DecodeError::malformed(0, MalformedKind::InvalidJpipHeader),
+            )?
     };
     let codestream = if crate::refinement::jpip_header_has_explicit_codestream(form) {
         read_vbas(input, &mut position, None)?
@@ -210,9 +371,12 @@ pub fn parse_jpip_message<'a>(
     } else {
         None
     };
-    let end = offset.checked_add(length).ok_or_else(|| {
-        DecodeError::malformed(position as u64, MalformedKind::ArithmeticOverflow)
-    })?;
+    let end = offset.checked_add(length).ok_or_else(
+        #[cfg_attr(verus_keep_ghost, verus_spec(result: DecodeError =>
+            ensures result == crate::specs::part2_jpip_error(position, MalformedKind::ArithmeticOverflow),
+        ))]
+        || DecodeError::malformed(position as u64, MalformedKind::ArithmeticOverflow),
+    )?;
     if end > limits.maximum_input_bytes() {
         return Err(DecodeError::limit(
             Resource::InputBytes,
@@ -221,10 +385,18 @@ pub fn parse_jpip_message<'a>(
         ));
     }
     let body_length = usize::try_from(length)
-        .map_err(|_| DecodeError::malformed(position as u64, MalformedKind::ArithmeticOverflow))?;
-    let body_end = position.checked_add(body_length).ok_or_else(|| {
-        DecodeError::malformed(position as u64, MalformedKind::ArithmeticOverflow)
-    })?;
+        .map_err(
+            #[cfg_attr(verus_keep_ghost, verus_spec(result: DecodeError =>
+                ensures result == crate::specs::part2_jpip_error(position, MalformedKind::ArithmeticOverflow),
+            ))]
+            |_error| DecodeError::malformed(position as u64, MalformedKind::ArithmeticOverflow),
+        )?;
+    let body_end = position.checked_add(body_length).ok_or_else(
+        #[cfg_attr(verus_keep_ghost, verus_spec(result: DecodeError =>
+            ensures result == crate::specs::part2_jpip_error(position, MalformedKind::ArithmeticOverflow),
+        ))]
+        || DecodeError::malformed(position as u64, MalformedKind::ArithmeticOverflow),
+    )?;
     if body_end > input.len() {
         return Err(DecodeError::malformed(
             position as u64,
@@ -251,7 +423,12 @@ pub fn parse_jpip_message<'a>(
     ))
 }
 
+#[cfg_attr(verus_keep_ghost, verus_spec(result =>
+    ensures jpip_message_outcome(result) == crate::specs::part2_jpip_eor(input@),
+))]
 fn parse_end_of_response(input: &[u8]) -> Result<(JpipMessage<'_>, usize), DecodeError> {
+    #[cfg(verus_keep_ghost)]
+    proof! { reveal(jpip_message_view); }
     if input.len() < 2 {
         return Err(DecodeError::malformed(1, MalformedKind::Truncated));
     }
@@ -259,10 +436,18 @@ fn parse_end_of_response(input: &[u8]) -> Result<(JpipMessage<'_>, usize), Decod
     let mut position = 2_usize;
     let length = read_vbas(input, &mut position, None)?;
     let body_length = usize::try_from(length)
-        .map_err(|_| DecodeError::malformed(position as u64, MalformedKind::ArithmeticOverflow))?;
-    let body_end = position.checked_add(body_length).ok_or_else(|| {
-        DecodeError::malformed(position as u64, MalformedKind::ArithmeticOverflow)
-    })?;
+        .map_err(
+            #[cfg_attr(verus_keep_ghost, verus_spec(result: DecodeError =>
+                ensures result == crate::specs::part2_jpip_error(position, MalformedKind::ArithmeticOverflow),
+            ))]
+            |_error| DecodeError::malformed(position as u64, MalformedKind::ArithmeticOverflow),
+        )?;
+    let body_end = position.checked_add(body_length).ok_or_else(
+        #[cfg_attr(verus_keep_ghost, verus_spec(result: DecodeError =>
+            ensures result == crate::specs::part2_jpip_error(position, MalformedKind::ArithmeticOverflow),
+        ))]
+        || DecodeError::malformed(position as u64, MalformedKind::ArithmeticOverflow),
+    )?;
     if crate::refinement::jpip_eor_extent(position, body_length) != body_end as u128 {
         return Err(DecodeError::malformed(
             position as u64,
@@ -285,27 +470,45 @@ fn parse_end_of_response(input: &[u8]) -> Result<(JpipMessage<'_>, usize), Decod
     ))
 }
 
+#[cfg_attr(verus_keep_ghost, verus_spec(result =>
+    ensures (result, *final(position)) == crate::specs::part2_jpip_read_vbas(input@, *old(position), first_mask),
+))]
 fn read_vbas(
     input: &[u8],
     position: &mut usize,
     first_mask: Option<u8>,
 ) -> Result<u64, DecodeError> {
     let start = *position;
+    #[cfg(verus_keep_ghost)]
+    proof! { reveal(crate::specs::part2_jpip_read_vbas); }
     let first = *input
         .get(*position)
-        .ok_or_else(|| DecodeError::malformed(*position as u64, MalformedKind::Truncated))?;
+        .ok_or_else(
+            #[cfg_attr(verus_keep_ghost, verus_spec(result: DecodeError =>
+                ensures result == crate::specs::part2_jpip_error(*position, MalformedKind::Truncated),
+            ))]
+            || DecodeError::malformed(*position as u64, MalformedKind::Truncated),
+        )?;
     let mask = first_mask.unwrap_or(0x7f);
     let mut value = u64::from(first & mask);
     let mut byte = first;
     let mut count = 1_usize;
     *position = position
         .checked_add(1)
-        .ok_or_else(|| DecodeError::malformed(start as u64, MalformedKind::ArithmeticOverflow))?;
+        .ok_or_else(
+            #[cfg_attr(verus_keep_ghost, verus_spec(result: DecodeError =>
+                ensures result == crate::specs::part2_jpip_error(start, MalformedKind::ArithmeticOverflow),
+            ))]
+            || DecodeError::malformed(start as u64, MalformedKind::ArithmeticOverflow),
+        )?;
     if first_mask.is_none()
         && !crate::refinement::jpip_vbas_first_is_canonical(
-            u8::try_from(value).map_err(|_| {
-                DecodeError::malformed(start as u64, MalformedKind::InvalidJpipVbas)
-            })?,
+            u8::try_from(value).map_err(
+                #[cfg_attr(verus_keep_ghost, verus_spec(result: DecodeError =>
+                    ensures result == crate::specs::part2_jpip_error(start, MalformedKind::InvalidJpipVbas),
+                ))]
+                |_error| DecodeError::malformed(start as u64, MalformedKind::InvalidJpipVbas),
+            )?,
             byte & 0x80 != 0,
         )
     {
@@ -317,11 +520,19 @@ fn read_vbas(
     #[cfg_attr(
         verus_keep_ghost,
         verus_spec(
-            invariant count <= MAX_VBAS_BYTES,
+            invariant 1 <= count,
+                count <= MAX_VBAS_BYTES,
+                start == *old(position),
+                *position as nat == start as nat + count as nat,
+                *position <= input.len(),
+                crate::specs::part2_jpip_read_vbas(input@, start, first_mask)
+                == crate::specs::part2_jpip_vbas_tail(input@, start, *position, value, byte, count),
             decreases MAX_VBAS_BYTES - count,
         )
     )]
     while byte & 0x80 != 0 {
+        #[cfg(verus_keep_ghost)]
+        proof! { reveal(crate::specs::part2_jpip_vbas_tail); }
         if count >= MAX_VBAS_BYTES {
             return Err(DecodeError::malformed(
                 start as u64,
@@ -330,12 +541,28 @@ fn read_vbas(
         }
         byte = *input
             .get(*position)
-            .ok_or_else(|| DecodeError::malformed(*position as u64, MalformedKind::Truncated))?;
+            .ok_or_else(
+                #[cfg_attr(verus_keep_ghost, verus_spec(result: DecodeError =>
+                    ensures result == crate::specs::part2_jpip_error(*position, MalformedKind::Truncated),
+                ))]
+                || DecodeError::malformed(*position as u64, MalformedKind::Truncated),
+            )?;
         let group = byte & 0x7f;
         let stepped = value
             .checked_mul(128)
-            .and_then(|shifted| shifted.checked_add(u64::from(group)))
-            .ok_or_else(|| DecodeError::malformed(start as u64, MalformedKind::InvalidJpipVbas))?;
+            .and_then(
+                #[cfg_attr(verus_keep_ghost, verus_spec(result: (Option<u64>) =>
+                    ensures result == if shifted as nat + group as nat > u64::MAX as nat { None }
+                        else { Some((shifted as nat + group as nat) as u64) },
+                ))]
+                |shifted| shifted.checked_add(u64::from(group)),
+            )
+            .ok_or_else(
+                #[cfg_attr(verus_keep_ghost, verus_spec(result: DecodeError =>
+                    ensures result == crate::specs::part2_jpip_error(start, MalformedKind::InvalidJpipVbas),
+                ))]
+                || DecodeError::malformed(start as u64, MalformedKind::InvalidJpipVbas),
+            )?;
         if value > (u64::MAX - u64::from(group)) / 128
             || crate::refinement::jpip_vbas_step(value, group) != stepped
         {
@@ -345,11 +572,16 @@ fn read_vbas(
             ));
         }
         value = stepped;
-        *position = position.checked_add(1).ok_or_else(|| {
-            DecodeError::malformed(start as u64, MalformedKind::ArithmeticOverflow)
-        })?;
+        *position = position.checked_add(1).ok_or_else(
+            #[cfg_attr(verus_keep_ghost, verus_spec(result: DecodeError =>
+                ensures result == crate::specs::part2_jpip_error(start, MalformedKind::ArithmeticOverflow),
+            ))]
+            || DecodeError::malformed(start as u64, MalformedKind::ArithmeticOverflow),
+        )?;
         count += 1;
     }
+    #[cfg(verus_keep_ghost)]
+    proof! { reveal(crate::specs::part2_jpip_vbas_tail); }
     Ok(value)
 }
 

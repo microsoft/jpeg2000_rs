@@ -179,6 +179,28 @@ technical candidate only: parent-owned record, review, CI, guarded integration
 and actual-main acceptance remain separate. No complete parsing, pixels,
 lifetime verification, normative conformance or publication claim follows.
 
+## Actual raw JPIP message and inherited-parser Results
+
+The public `parse_jpip_message` and `JpipMessageParser::parse` now derive complete
+Data/EOR message, databin/header/body/consumed Results and context/limits mutation
+frames from actual input bytes. The actual VBAS traversal retains canonical,
+ten-byte, arithmetic and truncation frontiers with the precise partial cursor
+on every error. Context is committed only after a complete data body; EOR and
+errors preserve it. Checked getters retain native stored borrowed bodies.
+
+Static constructors and scalar getters use checked body clauses under
+impl-level rewriting because the pinned macro cannot stamp conditional method
+attributes before rewriting a static impl method. These clauses are proved by
+the same whole-root/archive verifier and bound exactly by the inventory, not
+external specifications or new adapters. Native bodies/calls/owners are
+unchanged; no model reconstructs a native owner or receives successful message
+banks. Existing JPIP class identity intentionally normalizes even/odd paired
+class identifiers.
+
+Cache insertion, response ingestion, transcoding, progressive and automatic
+composition remain later producer joins. Independent full-plan gates remain
+separate, and complete fresh qualification is still required.
+
 ## Actual public raw JPX codestream and selected-file Results
 
 The public `decode_jpx_codestream`, `decode_jpx_codestream_selected`,

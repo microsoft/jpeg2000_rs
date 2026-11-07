@@ -45,6 +45,8 @@ mod container_colors;
 pub use container_colors::*;
 mod jpx_public_images;
 pub use jpx_public_images::*;
+mod jpip_message;
+pub use jpip_message::*;
 mod jpx_source;
 pub use jpx_source::*;
 mod jpx_opacity;
