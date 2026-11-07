@@ -342,6 +342,11 @@ def _coverage_result_arguments(
 def _coverage_call(name: str, *arguments: str) -> str:
     return re.escape(name) + r"\s*\(\s*" + r"\s*,\s*".join(arguments) + r"\s*\)"
 
+def _coverage_body_clause(text: str) -> str:
+    statement = text.split(";", 1)[0] + ";"
+    normalized = re.sub(r",(?=\))", "", "".join(statement.split()))
+    return normalized.replace("|{", "|", 1).replace("});", ");", 1)
+
 
 def _packet_header_contracts() -> dict[tuple[str, str], tuple[str, str, str | None, str]]:
     def old(name: str) -> str:
@@ -3306,6 +3311,82 @@ _RAW_CONTAINER_COLOR_TESTS = {("src/decode/container_image_result_tests.rs", "ac
     "preserves_header_mapping_before_color_admission",
     "preserves_raw_inspection_selection_packet_and_profile_priority",
 )}
+_JPIP_MESSAGE_ENTRY = "part9-complete-native-raw-message-results"
+_JPIP_MESSAGE_BOUNDARIES = {("src/jpip/message.rs", "JpipMessageParser::parse")}
+_JPIP_MESSAGE_CONTRACTS = {
+    ("src/jpip/message.rs", "parse_jpip_message"): (
+        "part2_parse_jpip_message", _coverage_call("jpip_message_outcome", r"\1"),
+        _coverage_call("jpip_context_view", r"\*\s*" + _coverage_call("final", "context")),
+        r"input\s*@\s*,\s*" + _coverage_call("jpip_context_view", r"\*\s*" + _coverage_call("old", "context")) + r"\s*,\s*limits",
+    ),
+    ("src/jpip/message.rs", "JpipMessageParser::parse"): (
+        "part2_jpip_parser_parse", _coverage_call("jpip_message_outcome", r"\1"),
+        _coverage_call("jpip_parser_view", _coverage_call("final", "self")),
+        r"input\s*@\s*,\s*" + _coverage_call("jpip_parser_view", _coverage_call("old", "self")),
+    ),
+    ("src/jpip/message.rs", "parse_end_of_response"): (
+        "part2_jpip_eor", _coverage_call("jpip_message_outcome", r"\1"), None, r"input\s*@",
+    ),
+    ("src/jpip/message.rs", "read_vbas"): (
+        "part2_jpip_read_vbas", r"\1", r"\*\s*" + _coverage_call("final", "position"),
+        r"input\s*@\s*,\s*\*\s*" + _coverage_call("old", "position") + r"\s*,\s*first_mask",
+    ),
+}
+_JPIP_MESSAGE_BODY_CLAUSES = {
+    "DatabinClass::from_identifier": "vstd::prelude::ensures(|result: Option<Self>| vstd::prelude::equal(result, crate::specs::part2_jpip_class(identifier)));",
+    "DatabinClass::has_auxiliary": "vstd::prelude::ensures(|result: bool| vstd::prelude::equal(result, crate::specs::part2_jpip_auxiliary(identifier)));",
+    "DatabinId::new": "vstd::prelude::ensures(|result: Result<Self, DecodeError>| vstd::prelude::equal(databin_id_outcome(result), crate::specs::part2_jpip_databin(class_identifier, codestream, in_class)));",
+    **{name: f"vstd::prelude::ensures(|result: {kind}| vstd::prelude::equal(result, databin_id_view(*self).{field}));"
+       for name, kind, field in (
+           ("DatabinId::class_identifier", "u64", 0), ("DatabinId::class", "DatabinClass", 1),
+           ("DatabinId::codestream", "u64", 2), ("DatabinId::in_class", "u64", 3),
+       )},
+    "DatabinId::same_as": "vstd::prelude::ensures(|result: bool| vstd::prelude::equal(result, crate::specs::part2_jpip_identity(databin_id_view(*self), databin_id_view(other))));",
+    "JpipHeaderContext::new": "vstd::prelude::ensures(|result: Self| jpip_context_view(result) == (None, None));",
+    **{name: f"vstd::prelude::ensures(|result: Option<u64>| result == jpip_context_view(*self).{field});"
+       for name, field in (("JpipHeaderContext::previous_class", 0), ("JpipHeaderContext::previous_codestream", 1))},
+    "JpipMessageParser::new": "vstd::prelude::ensures(|result: Self| vstd::prelude::equal(jpip_parser_context(&result), (None, None)) && vstd::prelude::equal(*jpip_parser_limits(&result), limits));",
+}
+_JPIP_MESSAGE_GETTERS = {
+    "JpipMessageHeader::databin": "databin_id_view(result) == jpip_header_view(*self).0",
+    **{name: f"result == jpip_header_view(*self).{field}" for name, field in (
+        ("JpipMessageHeader::offset", 1), ("JpipMessageHeader::length", 2), ("JpipMessageHeader::is_last_byte", 3),
+        ("JpipMessageHeader::auxiliary", 4), ("JpipMessageHeader::header_length", 5),
+    )},
+    "JpipMessageHeader::final_length": "result == crate::specs::part2_jpip_final_length(jpip_header_view(*self))",
+    "JpipEndOfResponse::reason_code": "result == jpip_eor_view(self).0",
+    "JpipEndOfResponse::body": "result == jpip_eor_body_reference(self), result@ == jpip_eor_view(self).1",
+    "JpipEndOfResponse::header_length": "result == jpip_eor_view(self).2",
+    "JpipMessage::body": "result == jpip_message_body_reference(self)",
+    "JpipMessageParser::context": "jpip_context_view(result) == jpip_parser_context(self)",
+}
+_JPIP_MESSAGE_MODELS = {("specs/jpip_message.rs", name) for name in (
+    "part2_parse_jpip_message", "part2_jpip_parser_parse", "part2_jpip_data", "part2_jpip_data_after_identity",
+    "part2_jpip_eor", "part2_jpip_body", "part2_jpip_read_vbas", "part2_jpip_vbas_tail",
+    "part2_jpip_class", "part2_jpip_databin", "part2_jpip_auxiliary", "part2_jpip_identity", "part2_jpip_final_length",
+)} | {("specs/mod.rs", name) for name in (
+    "part9_header_form_valid", "part9_header_has_explicit_class", "part9_header_has_explicit_codestream",
+    "part9_vbas_first_is_canonical", "part9_vbas_step", "part9_auxiliary_present", "part9_eor_extent",
+    "part9_class_identifier_valid", "part9_databin_identity",
+)}
+_JPIP_MESSAGE_PROOFS = {
+    ("specs/jpip_message.rs", "part2_parse_jpip_message_unfold"),
+    *_JPIP_MESSAGE_BOUNDARIES,
+    *{("src/jpip/message.rs", name) for name in (*_JPIP_MESSAGE_BODY_CLAUSES, *_JPIP_MESSAGE_GETTERS)},
+} | {("src/jpip/proof_support.rs", name) for name in (
+    "databin_id_view", "databin_id_outcome", "jpip_context_view", "jpip_parser_context", "jpip_parser_limits",
+    "jpip_parser_view", "jpip_context_fields", "jpip_parser_fields", "jpip_header_view", "jpip_message_view",
+    "jpip_message_outcome", "jpip_message_body_reference", "jpip_eor_view", "jpip_eor_body_reference",
+    "jpip_message_values_known", "jpip_header_fields",
+)}
+_JPIP_MESSAGE_TESTS = {("src/jpip/message_result_tests.rs", name) for name in (
+    "actual_raw_jpip_vbas_matches_independent_values_and_partial_cursor_on_every_error",
+    "actual_raw_jpip_data_derives_all_header_fields_body_borrow_and_consumed_extent",
+    "actual_raw_jpip_inherited_context_commits_only_complete_data_messages",
+    "actual_raw_jpip_eor_and_prefix_bodies_preserve_context_and_original_borrowed_slices",
+    "actual_raw_jpip_rejects_canonical_overflow_extent_and_limit_frontiers_in_native_order",
+    "actual_raw_jpip_databin_and_header_getters_preserve_normalized_identity_and_saturating_final_length",
+)}
 _RAW_JPX_PUBLIC_IMAGE_ENTRY = "part2-complete-native-public-raw-jpx-codestream-results"
 _RAW_JPX_PUBLIC_IMAGE_APIS = {("src/decode/api.rs", name) for name in (
     "decode_jpx_codestream", "decode_jpx_codestream_selected", "decode_jpx_codestream_color", "decode_jpx_codestream_color_selected",
@@ -3727,6 +3808,109 @@ def validate_normative_coverage(
     ids: set[str] = set()
     contract_functions: set[tuple[str, str]] = set()
     for entry in coverage["requirements"]:
+        if entry["id"] == _JPIP_MESSAGE_ENTRY:
+            if {(ref["path"], ref["symbol"]) for ref in entry["contract_refs"]} != set(_JPIP_MESSAGE_CONTRACTS) - _JPIP_MESSAGE_BOUNDARIES:
+                raise ValueError("whole raw JPIP message Results require actual message/parser/EOR/VBAS contracts")
+            if not _JPIP_MESSAGE_MODELS.issubset({(ref["path"], ref["symbol"]) for ref in entry["spec_refs"]}) \
+                    or not _JPIP_MESSAGE_PROOFS.issubset({(ref["path"], ref["symbol"]) for ref in entry["proof_refs"]}) \
+                    or not _JPIP_MESSAGE_TESTS.issubset({(ref["path"], ref["symbol"]) for ref in entry["test_refs"]}):
+                raise ValueError("whole raw JPIP message Results require every raw/context/cursor/header/body/static/getter/test bridge")
+            path = (ROOT / "src/jpip/message.rs").resolve()
+            text = source_text(path)
+            for name, clause in _JPIP_MESSAGE_BODY_CLAUSES.items():
+                header = function_header(path, name)
+                body = _coverage_function_body(text, header)
+                owner = name.split("::")[0]
+                verified_impls = re.finditer(
+                    r"#\[\s*cfg_attr\(\s*verus_keep_ghost\s*,\s*verus_verify\s*\)\s*\]\s*impl\s+" + re.escape(owner) + r"\s*\{", text,
+                )
+                verified_owner = False
+                for implementation in verified_impls:
+                    closing = re.search(r"(?m)^\}[ \t]*$", text[implementation.end():])
+                    if header is not None and closing is not None \
+                            and implementation.end() <= header.start() < implementation.end() + closing.start():
+                        verified_owner = True
+                        break
+                prefix = "#[cfg(verus_keep_ghost)]" + clause
+                if not verified_owner or body is None or _coverage_body_clause(body) != _coverage_body_clause(prefix) \
+                        or re.search(r"\b(?:requires|assume|admit|external_body)\b", body):
+                    raise ValueError("whole raw JPIP message Results require exact checked impl body clauses without trust or premises: " + name)
+            for name, clause in _JPIP_MESSAGE_GETTERS.items():
+                header = function_header(path, name)
+                if header is None:
+                    raise ValueError("whole raw JPIP message Results require actual getter declaration")
+                signature = text.find("fn", header.start(), header.end())
+                attrs = text[text.rfind("#[cfg_attr", 0, signature):signature]
+                if "ensures" + "".join(clause.split()) + "," not in "".join(attrs.split()) or re.search(r"\brequires\b", attrs):
+                    raise ValueError("whole raw JPIP message Results require complete stored getter value/reference frames")
+            for name, required in {
+                "parse_jpip_message": ("input.is_empty()", "input.len() as u64 > limits.maximum_input_bytes()",
+                    "input[0] == 0", "parse_end_of_response(input)", "read_vbas(input, &mut position, Some(0x0f))",
+                    "context.previous_class", "context.previous_codestream", "DatabinId::new(class_identifier, codestream, in_class)",
+                    "context.previous_class = Some(class_identifier)", "context.previous_codestream = Some(codestream)",
+                    "body: &input[position..body_end]", "body_end"),
+                "read_vbas": ("let start = *position", "first_mask.unwrap_or(0x7f)",
+                    "jpip_vbas_first_is_canonical", "count >= MAX_VBAS_BYTES", "checked_mul(128)", "shifted.checked_add(u64::from(group))",
+                    "jpip_vbas_step(value, group)", "*position = position.checked_add(1)", "Ok(value)",
+                    "start == *old(position)", "part2_jpip_vbas_tail(input@, start, *position, value, byte, count)"),
+                "parse_end_of_response": ("input.len() < 2", "let reason_code = input[1]", "let mut position = 2_usize",
+                    "read_vbas(input, &mut position, None)", "jpip_eor_extent(position, body_length)",
+                    "body: &input[position..body_end]", "header_length: position"),
+                "JpipMessageParser::parse": ("parse_jpip_message(input, &mut self.context, &self.limits)",),
+            }.items():
+                body = _coverage_function_body(text, function_header(path, name))
+                if body is None or any("".join(item.split()) not in "".join(body.split()) for item in required):
+                    raise ValueError("whole raw JPIP message Results require actual raw/inherited/context/cursor/body/parser handoffs")
+            model = source_text((ROOT / "specs/jpip_message.rs").resolve())
+            for name, required in {
+                "part2_jpip_vbas_tail": ("byte & 0x80 == 0", "count >= 10", "position as nat >= input.len()",
+                    "input[position as int]", "value as nat * 128 + group as nat", "stepped > u64::MAX as nat",
+                    "part2_jpip_vbas_tail(input, start,", "InvalidJpipVbas"),
+                "part2_jpip_read_vbas": ("start as nat >= input.len()", "input[start as int]", "mask.is_none()",
+                    "first & 0x80 != 0 && value == 0", "part2_jpip_vbas_tail(input, start,"),
+                "part2_jpip_body": ("length as nat > usize::MAX as nat", "position as nat + length as nat > usize::MAX as nat",
+                    "end as nat > input.len()", "input.subrange(position as int, end as int)"),
+                "part2_jpip_eor": ("input.len() < 2", "part2_jpip_read_vbas(input, 2, None)",
+                    "part2_jpip_body(input, length.1, value)", "reason: input[1]", "header_length: length.1"),
+                "part2_jpip_data": ("part9_header_form_valid", "part2_jpip_read_vbas(input, 0, Some(0x0f))",
+                    "part9_header_has_explicit_class", "part9_header_has_explicit_codestream", "context.0", "context.1",
+                    "if form == 2", "part2_jpip_databin(class_value, stream_value, bin_value)",
+                    "part2_jpip_data_after_identity"),
+                "part2_jpip_data_after_identity": ("part2_jpip_read_vbas(input, position, None)",
+                    "part2_jpip_read_vbas(input, offset.1, None)", "part9_auxiliary_present", "offset_value as nat + length_value as nat",
+                    "end > u64::MAX as nat", "end > crate::limits::resource_input_byte_limit(limits)",
+                    "part2_jpip_body(input, auxiliary.1, length_value)", "header: (databin, offset_value, length_value, last, auxiliary_value, auxiliary.1)"),
+                "part2_parse_jpip_message": ("input.len() == 0", "input.len() as u64 > crate::limits::resource_input_byte_limit(limits)",
+                    "input[0] == 0", "part2_jpip_eor(input)", "part2_jpip_data(input, context, limits)",
+                    "(Some(header.0.0), Some(header.0.2))", "_ => context", "(parsed, next)"),
+                "part2_jpip_parser_parse": ("part2_parse_jpip_message(input, parser.0, &parser.1)", "(parsed.0, (parsed.1, parser.1))"),
+            }.items():
+                actual = _coverage_spec_function_body(model, name)
+                if actual is None or any("".join(item.split()) not in "".join(actual.split()) for item in required):
+                    raise ValueError("whole raw JPIP message Results require complete raw/partial-cursor/context/header/body/parser models")
+            projections = source_text((ROOT / "src/jpip/proof_support.rs").resolve())
+            for name, expected in {
+                "databin_id_view": "(value.class_identifier, value.class, value.codestream, value.in_class)",
+                "databin_id_outcome": "match value { Err(error) => Err(error), Ok(value) => Ok(databin_id_view(value)) }",
+                "jpip_context_view": "(value.previous_class, value.previous_codestream)",
+                "jpip_parser_context": "jpip_context_view(value.context)",
+                "jpip_parser_limits": "&value.limits",
+                "jpip_parser_view": "(jpip_parser_context(value), *jpip_parser_limits(value))",
+                "jpip_header_view": "(databin_id_view(value.databin), value.offset, value.length, value.last_byte, value.auxiliary, value.header_length)",
+                "jpip_eor_view": "(value.reason_code, value.body@, value.header_length)",
+                "jpip_eor_body_reference": "value.body",
+                "jpip_message_view": """match value {
+                    JpipMessage::Data { header, body } => crate::specs::Part2JpipMessage::Data { header: jpip_header_view(header), body: body@ },
+                    JpipMessage::EndOfResponse(value) => crate::specs::Part2JpipMessage::EndOfResponse {
+                        reason: value.reason_code, body: value.body@, header_length: value.header_length,
+                    },
+                }""",
+                "jpip_message_outcome": "match value { Err(error) => Err(error), Ok(value) => Ok((jpip_message_view(value.0), value.1)) }",
+                "jpip_message_body_reference": "match value { JpipMessage::Data { body, .. } => *body, JpipMessage::EndOfResponse(end) => end.body }",
+            }.items():
+                actual = _coverage_spec_function_body(projections, name)
+                if actual is None or "".join(actual.split()) != "".join(expected.split()):
+                    raise ValueError("whole raw JPIP message Results require complete native field/stored-reference projections")
         if entry["id"] == _RAW_JPX_PUBLIC_IMAGE_ENTRY:
             if {(ref["path"], ref["symbol"]) for ref in entry["contract_refs"]} != set(_RAW_JPX_PUBLIC_IMAGE_CONTRACTS) - _RAW_JPX_PUBLIC_IMAGE_APIS:
                 raise ValueError("whole raw JPX image Results require actual raw/selected-file/layout/header/typed/color producer contracts")
@@ -5969,7 +6153,9 @@ def validate_normative_coverage(
               or (entry["id"] == _RAW_CONTAINER_COLOR_ENTRY
                   and (reference["path"], reference["symbol"]) in _RAW_CONTAINER_COLOR_APIS)
               or (entry["id"] == _RAW_JPX_PUBLIC_IMAGE_ENTRY
-                  and (reference["path"], reference["symbol"]) in _RAW_JPX_PUBLIC_IMAGE_APIS))
+                  and (reference["path"], reference["symbol"]) in _RAW_JPX_PUBLIC_IMAGE_APIS)
+              or (entry["id"] == _JPIP_MESSAGE_ENTRY
+                  and (reference["path"], reference["symbol"]) in _JPIP_MESSAGE_BOUNDARIES))
             and reference not in entry["contract_refs"]
         ]
         for reference in [*entry["contract_refs"], *proved_apis]:
@@ -6471,6 +6657,8 @@ def validate_normative_coverage(
                     if entry["id"] == _RAW_CONTAINER_COLOR_ENTRY else None)
                 or (_RAW_JPX_PUBLIC_IMAGE_CONTRACTS.get((reference["path"], reference["symbol"]))
                     if entry["id"] == _RAW_JPX_PUBLIC_IMAGE_ENTRY else None)
+                or (_JPIP_MESSAGE_CONTRACTS.get((reference["path"], reference["symbol"]))
+                    if entry["id"] == _JPIP_MESSAGE_ENTRY else None)
                 or (_JPX_INSPECTION_CONTRACTS.get((reference["path"], reference["symbol"]))
                     if entry["id"] == _JPX_INSPECTION_ENTRY else None)
                 or (_RAW_JPX_INSPECTION_CONTRACTS.get((reference["path"], reference["symbol"]))
