@@ -179,6 +179,43 @@ technical candidate only: parent-owned record, review, CI, guarded integration
 and actual-main acceptance remain separate. No complete parsing, pixels,
 lifetime verification, normative conformance or publication claim follows.
 
+## Actual atomic JPIP cache insertion Result
+
+The shared executing `StoredFragment::clone` and `Databin::clone` implementations
+have checked logical field/content preservation contracts. They retain the
+existing field-clone operations and deep-copy storage; they are not ghost-only
+owner reconstructions or additional runtime proof clones. Their native MIR
+bodies differ from compiler-derived clones in reference temporaries and
+register uses, so literal coordinate-only erasure identity is not claimed.
+
+`DatabinCache::insert` derives its complete Result and final cache from the
+original physical cache and owned fragment. This includes count/error priority,
+first normalized bin lookup, final-length validation, overlapping-byte
+comparison, merge traversal, checked accounting and input budgets, original
+point copies, exact normalization, and replacement/appending with both counters.
+Every returned error preserves the original native cache value and all logical
+fields. The models require no sorted/valid-cache premise or supplied successful
+stage/byte bank.
+
+The original final-length and normalization blocks execute in shared checked
+`Databin` helpers so the complete entry-point check fits the unchanged pinned
+budget. Their branch order and existing field-clone operations are retained;
+the helpers do not add clones or reconstruct native owners. This extraction
+changes native call/body layout, so coordinate-only MIR identity is not claimed.
+The native tests exercise independent clone storage and
+arbitrary physical cache fields, including aliases, unsorted/duplicate fragments,
+invalid final-length announcements and error precedence. Error tests retain the
+original vector pointers, lengths and capacities at every cache storage level;
+exact normalization fixtures retain the first matched alias's identifier,
+merged bytes, final announcement and counters.
+
+The whole-model relation is joined to the executing insertion, including exact
+successful normalized bytes and unchanged nonselected databins. Qualification,
+guarded integration and actual-main acceptance remain separate; this boundary
+does not complete public layout validation, response/transcode/progressive joins,
+normative review, lifetime verification or the overall plan. The pinned
+`--no-lifetime` boundary and resource caps are unchanged.
+
 ## Actual JPIP cache status, byte-view and reconstruction Results
 
 The executing `DatabinCache::status`, `is_complete`, `databin_view`,

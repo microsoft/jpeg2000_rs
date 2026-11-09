@@ -60,6 +60,19 @@ verus! {
         value@.map_values(|part: JpipByteView| jpip_byte_view(&part))
     }
 
+    pub closed spec fn jpip_stored_parts(value: &Vec<StoredFragment>) -> Seq<crate::specs::Part2JpipStoredFragment> {
+        value@.map_values(|part: StoredFragment| jpip_stored_fragment_view(&part))
+    }
+
+    proof fn jpip_stored_parts_fields(value: &Vec<StoredFragment>)
+        ensures jpip_stored_parts(value).len() == value.len(),
+            forall|index: int| 0 <= index < value.len() ==>
+                #[trigger] jpip_stored_parts(value)[index] == (value@[index].offset, value@[index].bytes@),
+    {
+        reveal(jpip_stored_parts);
+        reveal(jpip_stored_fragment_view);
+    }
+
     proof fn jpip_fragment_fields(value: &JpipFragment)
         ensures jpip_fragment_view(value) == (databin_id_view(value.databin), value.offset, value.bytes@,
             value.final_length, value.auxiliary),
@@ -84,6 +97,7 @@ verus! {
     proof fn jpip_databin_fields(value: &Databin)
         ensures jpip_databin_view(value).2 == value.final_length,
             jpip_databin_view(value).1.len() == value.fragments.len(),
+            jpip_databin_view(value).1 == jpip_stored_parts(&value.fragments),
             forall|index: int| 0 <= index < value.fragments.len() ==>
                 #[trigger] jpip_databin_view(value).1[index] == jpip_stored_fragment_view(&value.fragments@[index]),
             forall|index: int| 0 <= index < value.fragments.len() ==>
@@ -91,6 +105,7 @@ verus! {
     {
         reveal(jpip_databin_view);
         reveal(jpip_stored_fragment_view);
+        reveal(jpip_stored_parts);
     }
 
     proof fn jpip_status_fields(value: &DatabinStatus)

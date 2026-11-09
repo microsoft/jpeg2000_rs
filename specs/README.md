@@ -61,6 +61,7 @@ Think of the decoder as a sequence of jobs:
 | Transforms | Undo quantization and wavelet/component transforms to rebuild sample values. | [Transform code](../src/transform.rs), [mathematical models](mod.rs) |
 | Channels and color | Interpret palettes and channel mappings, then perform supported color conversions. | [Color code](../src/color.rs), [sample processing](../src/decode/output.rs) |
 | Layers and frames | Combine prepared layers into output frames. | [JPX code](../src/jpx.rs), [composition models](mod.rs) |
+| JPIP cache mutation | Insert owned fragments atomically, compare overlaps and normalize bytes without changing the cache on returned errors. | [Insertion code](../src/jpip/cache.rs), [complete cache-state model](jpip_cache_insert.rs) |
 
 This is a map of responsibilities, not a claim that one theorem connects the
 entire pipeline. The [detailed component index](AUDIT_REFERENCE.md#component-entry-points-and-boundaries)

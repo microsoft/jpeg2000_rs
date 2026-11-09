@@ -70,6 +70,10 @@ verus! {
         limits.maximum_packets
     }
 
+    pub closed spec fn resource_jpip_fragment_limit(limits: &ResourceLimits) -> u64 {
+        limits.maximum_jpip_fragments
+    }
+
     pub closed spec fn resource_precinct_limit(limits: &ResourceLimits) -> u64 {
         limits.maximum_precincts
     }
@@ -279,6 +283,7 @@ impl ResourceLimits {
         self.maximum_decoded_bytes
     }
 
+    #[cfg_attr(verus_keep_ghost, verus_spec(result => ensures result == resource_jpip_fragment_limit(self),))]
     pub const fn maximum_jpip_fragments(&self) -> u64 {
         self.maximum_jpip_fragments
     }

@@ -3331,6 +3331,62 @@ _RAW_CONTAINER_COLOR_TESTS = {("src/decode/container_image_result_tests.rs", "ac
     "preserves_header_mapping_before_color_admission",
     "preserves_raw_inspection_selection_packet_and_profile_priority",
 )}
+_JPIP_CACHE_INSERT_ENTRY = "part9-complete-native-cache-insert-result"
+_JPIP_CACHE_INSERT_CONTRACTS = {
+    ("src/jpip/cache.rs", "DatabinCache::insert"): (
+        "part2_jpip_cache_insert", r"\1",
+        _coverage_call("jpip_cache_view", _coverage_call("final", "self")),
+        _coverage_call("jpip_cache_view", _coverage_call("old", "self"))
+        + r"\s*,\s*" + _coverage_call("jpip_fragment_view", r"&\s*fragment"),
+    ),
+}
+_JPIP_CACHE_INSERT_MODELS = {("specs/jpip_cache_insert.rs", name) for name in (
+    "part2_jpip_insert_overflow", "part2_jpip_insert_conflict", "part2_jpip_insert_first",
+    "part2_jpip_insert_overlap", "part2_jpip_insert_merge", "part2_jpip_insert_replaced",
+    "part2_jpip_insert_copy", "part2_jpip_insert_copy_stored", "part2_jpip_insert_normalize",
+    "part2_jpip_insert_commit", "part2_jpip_insert_incoming_copy", "part2_jpip_insert_stored_copy",
+    "part2_jpip_insert_account", "part2_jpip_insert_sum", "part2_jpip_insert_finish",
+    "part2_jpip_insert_merge_result", "part2_jpip_insert_first_result", "part2_jpip_insert_final_scan",
+    "part2_jpip_insert_final_state", "part2_jpip_insert_bin_remaining", "part2_jpip_insert_bin",
+    "part2_jpip_insert_result", "part2_jpip_cache_insert",
+)} | {
+    ("specs/jpip_fragment.rs", "part2_jpip_find_databin"),
+    ("specs/jpip_fragment.rs", "part2_jpip_stored_end"),
+    ("specs/jpip_fragment.rs", "part2_jpip_copy_into"),
+}
+_JPIP_CACHE_INSERT_PROOFS = set(_JPIP_CACHE_INSERT_CONTRACTS) | {
+    ("src/jpip/cache.rs", "Databin::validate_final_length"),
+    ("src/jpip/cache.rs", "Databin::normalize_fragments"),
+    ("src/jpip/cache.rs", "DatabinCache::find_databin_index"),
+    ("src/jpip/cache.rs", "StoredFragment::end"),
+    ("src/jpip/cache.rs", "copy_into"),
+    ("src/jpip/cache.rs", "conflict"),
+    ("src/jpip.rs", "Databin::clone"),
+    ("src/jpip.rs", "StoredFragment::clone"),
+    ("src/limits.rs", "resource_input_byte_limit"),
+    ("src/limits.rs", "resource_jpip_fragment_limit"),
+} | {("src/jpip/cache_proof_support.rs", name) for name in (
+    "jpip_fragment_view", "jpip_cache_view", "jpip_databin_view", "jpip_stored_fragment_view",
+    "jpip_stored_parts", "jpip_stored_parts_fields", "jpip_fragment_fields",
+    "jpip_cache_fields", "jpip_databin_fields",
+)} | {("specs/jpip_cache_insert.rs", name) for name in (
+    "part2_jpip_insert_bin_remaining_unfold", "part2_jpip_insert_final_scan_extent",
+    "part2_jpip_insert_result_unfold", "part2_jpip_cache_insert_error_frame",
+    "part2_jpip_insert_first_bounds", "part2_jpip_insert_merge_bounds",
+)} | {("src/refinement/jpip.rs", name) for name in (
+    "jpip_overlap_consistent", "jpip_final_length_consistent", "jpip_merge_start",
+    "jpip_merge_end", "jpip_transaction_commit",
+)}
+_JPIP_CACHE_INSERT_TESTS = {("src/jpip/cache_insert_result_tests.rs", name) for name in (
+    "actual_jpip_cache_insert_checked_clones_preserve_fields_and_independent_storage",
+    "actual_jpip_cache_insert_errors_preserve_complete_physical_state_and_error_precedence",
+    "actual_jpip_cache_insert_normalizes_exact_bytes_and_retains_first_alias_metadata",
+)}
+_JPIP_CACHE_INSERT_IMPLEMENTATIONS = set(_JPIP_CACHE_INSERT_CONTRACTS) | {
+    ("src/jpip/cache.rs", "Databin::validate_final_length"),
+    ("src/jpip/cache.rs", "Databin::normalize_fragments"),
+    ("src/jpip/message.rs", "ingest_jpip_response"),
+}
 _JPIP_CACHE_VIEW_ENTRY = "part9-complete-native-cache-view-results"
 _JPIP_CACHE_VIEW_CONTRACTS = {
     ("src/jpip/cache.rs", name): (
@@ -3787,6 +3843,15 @@ def validate_normative_coverage(
         path: Path, caller: str, callee: str, *, require_caller_body: bool,
     ) -> bool:
         if require_caller_body:
+            if (path == (ROOT / "src/jpip/cache.rs").resolve()
+                    and caller == "DatabinCache::insert" and callee == "jpip_final_length_consistent"):
+                text = source_text(path)
+                caller_body = _coverage_function_body(text, function_header(path, caller))
+                helper_body = _coverage_function_body(text, function_header(path, "Databin::validate_final_length"))
+                if (caller_body is not None and helper_body is not None
+                        and "databin.validate_final_length(&fragment,incoming_end)?" in "".join(caller_body.split())
+                        and "crate::refinement::jpip_final_length_consistent(final_length,new_final)" in "".join(helper_body.split())):
+                    return True
             def through_style_producer(
                 current_path: Path, current_caller: str, visited: set[tuple[Path, str]],
             ) -> bool:
@@ -3943,6 +4008,87 @@ def validate_normative_coverage(
     ids: set[str] = set()
     contract_functions: set[tuple[str, str]] = set()
     for entry in coverage["requirements"]:
+        if entry["id"] == _JPIP_CACHE_INSERT_ENTRY:
+            if {(ref["path"], ref["symbol"]) for ref in entry["contract_refs"]} != set(_JPIP_CACHE_INSERT_CONTRACTS):
+                raise ValueError("whole JPIP cache insertion requires the complete actual Result/cache-state contract")
+            if not _JPIP_CACHE_INSERT_MODELS.issubset({(ref["path"], ref["symbol"]) for ref in entry["spec_refs"]}) \
+                    or not _JPIP_CACHE_INSERT_PROOFS.issubset({(ref["path"], ref["symbol"]) for ref in entry["proof_refs"]}) \
+                    or not _JPIP_CACHE_INSERT_TESTS.issubset({(ref["path"], ref["symbol"]) for ref in entry["test_refs"]}):
+                raise ValueError("whole JPIP cache insertion requires every actual clone/traversal/copy/commit/caller/test bridge")
+            if not _JPIP_CACHE_INSERT_IMPLEMENTATIONS.issubset(
+                    {(ref["path"], ref["symbol"]) for ref in entry["implementation_refs"]}):
+                raise ValueError("whole JPIP cache insertion linked function is not used by claimed implementation: actual callers missing")
+            path = (ROOT / "src/jpip/cache.rs").resolve()
+            text = source_text(path)
+            for name, required in {
+                "DatabinCache::insert": (
+                    "let ghost original_cache = jpip_cache_view(self)", "let ghost original_owner = *self",
+                    "let ghost incoming = jpip_fragment_view(&fragment)", "part2_jpip_insert_result(original_cache, incoming)",
+                    "self.accepted_fragments.checked_add(1)", "next_count > self.limits.maximum_jpip_fragments()",
+                    "self.find_databin_index(fragment.databin)", ".clone()", "databin.validate_final_length(&fragment, incoming_end)?",
+                    "databin.fragments[first].end() < fragment.offset", "databin.fragments[last].offset <= merged_end",
+                    "stored.bytes.get(stored_start..stored_end)", "stored_overlap == incoming_overlap",
+                    "jpip_merge_start(merged_start, stored.offset)", "jpip_merge_end(merged_end, stored.end())",
+                    "merged_end.checked_sub(merged_start)", "checked_sub(replaced_bytes)",
+                    "self.stored_bytes.checked_add(added_bytes)", "new_stored_bytes > self.limits.maximum_input_bytes()",
+                    "vec![0_u8; merged_length]", "copy_into(&mut merged, start, &stored.bytes, stored.offset)?",
+                    "copy_into(&mut merged, incoming_start, &fragment.bytes, fragment.offset",
+                    "databin.normalize_fragments(first, last, merged_start, merged)?",
+                    "jpip_transaction_commit(true)", "self.databins[index] = databin", "self.databins.push(databin)",
+                    "self.stored_bytes = new_stored_bytes", "self.accepted_fragments = next_count",
+                    "expected == part2_jpip_insert_result(original_cache, incoming)",
+                ),
+                "Databin::validate_final_length": (
+                    "incoming_end > final_length", "jpip_final_length_consistent(final_length, new_final)",
+                    "self.fragments[stored_index].end() > new_final", "self.final_length = Some(new_final)",
+                ),
+                "Databin::normalize_fragments": (
+                    "self.fragments.len().checked_add(1)", ".get(prefix_index)", ".get(suffix_index)",
+                    ".clone()", "normalized.push(StoredFragment", "bytes: merged", "self.fragments = normalized",
+                ),
+            }.items():
+                body = _coverage_function_body(text, function_header(path, name))
+                missing = list(required) if body is None else [
+                    item for item in required if "".join(item.split()) not in "".join(body.split())
+                ]
+                if missing:
+                    raise ValueError(
+                        f"whole JPIP cache insertion requires original actual admission/overlap/copy/normalization/commit handoffs: {name}: {missing}"
+                    )
+            header = function_header(path, "DatabinCache::insert")
+            start = text.rfind("#[cfg_attr(verus_keep_ghost, verus_spec(", 0, header.start())
+            if "*final(self)==*old(self)" not in "".join(text[start:header.start()].split()):
+                raise ValueError("whole JPIP cache insertion requires the native-owner error frame")
+            model_path = (ROOT / "specs/jpip_cache_insert.rs").resolve()
+            model = source_text(model_path)
+            for name, required in {
+                "part2_jpip_insert_result": ("cache.3 as nat + 1", "resource_jpip_fragment_limit(&cache.0)",
+                    "part2_jpip_find_databin(cache.1, incoming.0, 0)", "cache.1[index as int]", "(incoming.0, Seq::empty(), None)"),
+                "part2_jpip_cache_insert": ("part2_jpip_insert_result(cache, incoming)", "Err(error) => (Err(error), cache)", "Ok(updated) => (Ok(()), updated)"),
+                "part2_jpip_insert_overlap": ("stored.1.subrange", "incoming.2.subrange", "usize::MAX", "part2_jpip_insert_conflict(start)"),
+                "part2_jpip_insert_merge": ("stored[position as int].0 > end", "part2_jpip_insert_overlap(fragment, incoming, incoming_end)",
+                    "position + 1", "part2_jpip_stored_end(fragment)"),
+                "part2_jpip_insert_final_state": ("end > length", "old_length != length", "part2_jpip_insert_final_scan(bin.1, length, position)"),
+                "part2_jpip_insert_final_scan": ("position >= stored.len()", "part2_jpip_stored_end(stored[position as int]) > length", "position + 1"),
+                "part2_jpip_insert_account": ("(length as u64) < replaced", "cache.2 as nat", "u64::MAX",
+                    "total > crate::limits::resource_input_byte_limit(&cache.0)", "Seq::new(length as nat, |_: int| 0u8)"),
+                "part2_jpip_insert_copy": ("stored.0 < start", "usize::MAX", "part2_jpip_copy_into(output"),
+                "part2_jpip_insert_normalize": ("stored.subrange(0, first as int)", "seq![(start, bytes)]",
+                    "stored.subrange(last as int, stored.len() as int)"),
+                "part2_jpip_insert_commit": ("bin.1.len() + 1 > usize::MAX", "cache.1.push(updated)", "cache.1.update(index as int, updated)", "total, count"),
+            }.items():
+                body = _coverage_spec_function_body(model, name)
+                if body is None or any("".join(item.split()) not in "".join(body.split()) for item in required):
+                    raise ValueError("whole JPIP cache insertion requires complete original-state/input-derived error and normalized-byte models")
+            clone_path = (ROOT / "src/jpip.rs").resolve()
+            clones = source_text(clone_path)
+            for name, required in {
+                "StoredFragment::clone": ("offset: self.offset", "bytes: self.bytes.clone()"),
+                "Databin::clone": ("id: self.id.clone()", "fragments: self.fragments.clone()", "final_length: self.final_length.clone()"),
+            }.items():
+                body = _coverage_function_body(clones, function_header(clone_path, name))
+                if body is None or any("".join(item.split()) not in "".join(body.split()) for item in required):
+                    raise ValueError("whole JPIP cache insertion requires the original checked field-clone operations")
         if entry["id"] == _JPIP_CACHE_VIEW_ENTRY:
             if {(ref["path"], ref["symbol"]) for ref in entry["contract_refs"]} != set(_JPIP_CACHE_VIEW_CONTRACTS):
                 raise ValueError("whole JPIP cache view Results require all five actual status/view/prefix/reconstruction contracts")
@@ -6925,6 +7071,8 @@ def validate_normative_coverage(
                     if entry["id"] == _JPIP_FRAGMENT_ENTRY else None)
                 or (_JPIP_CACHE_VIEW_CONTRACTS.get((reference["path"], reference["symbol"]))
                     if entry["id"] == _JPIP_CACHE_VIEW_ENTRY else None)
+                or (_JPIP_CACHE_INSERT_CONTRACTS.get((reference["path"], reference["symbol"]))
+                    if entry["id"] == _JPIP_CACHE_INSERT_ENTRY else None)
                 or (_JPX_INSPECTION_CONTRACTS.get((reference["path"], reference["symbol"]))
                     if entry["id"] == _JPX_INSPECTION_ENTRY else None)
                 or (_RAW_JPX_INSPECTION_CONTRACTS.get((reference["path"], reference["symbol"]))
