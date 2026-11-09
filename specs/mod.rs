@@ -53,6 +53,8 @@ mod jpip_cache_views;
 pub use jpip_cache_views::*;
 mod jpip_cache_insert;
 pub use jpip_cache_insert::*;
+mod jpip_layout;
+pub use jpip_layout::*;
 mod jpx_source;
 pub use jpx_source::*;
 mod jpx_opacity;
