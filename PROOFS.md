@@ -179,6 +179,36 @@ technical candidate only: parent-owned record, review, CI, guarded integration
 and actual-main acceptance remain separate. No complete parsing, pixels,
 lifetime verification, normative conformance or publication claim follows.
 
+## Actual owned JPIP plans and caller-planned packet Result
+
+The actual packet constructor and complete owned-plan constructor derive every
+returned field and error from their original identifiers, packet vector, layers
+and limits. The plan retains the original native packet-vector owner and
+computes exact physical layer ends through native-order grouping, codestream
+checks, checked cumulative lengths, missing-layer and trailing-entry checks.
+Packet and plan getters expose their stored values; layer count preserves the
+original narrowing of the physical layer-end vector length.
+
+`reconstruct_precinct_packets` derives its complete Result from the actual
+physical plan, requested layer count and native cache. It uses the real layer
+selector, checked prefix slice and original iterator/map/collect expression,
+then composes complete availability and exact packet-byte producers. Missing
+or partial availability returns no packet bytes; available status does not
+silently replace a later read error. No valid-plan/cache assumption, supplied
+status/byte/result bank, executing proof clone or owner reconstruction is added.
+Stored availability borrow and original optional-byte move frames are checked.
+
+Native tests cover independent constructor/error calculations, original vector
+ownership, arbitrary physical layer ends including out-of-range and narrowing
+cases, cache/request budgets and fields, exact reports and bytes, and raw
+response ingestion through missing/partial/available packet reconstruction.
+These fixtures reuse the independent wide-integer range/read oracles.
+
+These are as-implemented producer Results, not normative adjudication or full
+plan completion. Full transcode, semantic-container and progressive/automatic
+joins and independent cfg/erasure/lifetime/R1/internal/release gates remain
+separate. Proof/resource budgets and production `--no-lifetime` are unchanged.
+
 ## Actual JPIP range availability and packet byte Results
 
 The executing range constructor and stored range/missing/report getters expose

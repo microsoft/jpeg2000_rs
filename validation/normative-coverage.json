@@ -4,6 +4,74 @@
   "scope": "Technical reference inventory; not exhaustive standards-clause coverage or a conformance claim.",
   "requirements": [
     {
+      "id": "part9-complete-native-owned-plan-packet-results",
+      "topic": "Complete actual owned precinct packet/plan constructor Results and original packet-vector owner, all physical plan fields/layer ends/getters/selection and caller-planned reconstruct_precinct_packets Result from actual cache, plan and layers. Retains layer/header/packet/input/checked-total/first-empty-layer/trailing-entry priorities, physical layer-count narrowing and prefix selection, original iterator/map/collect and producer-derived availability/optional exact owned bytes. No valid-plan/cache premises, supplied status/byte/result banks, executing proof clones or owner reconstruction. Raw response insertion and independent wide-integer range/read oracles compose native fixtures. Full transcode/semantic-container/progressive/automatic and independent normative/cfg/lifetime/release remain separate.",
+      "implementation_refs": [
+        {"path": "src/jpip/precinct.rs", "symbol": "DatabinCache::reconstruct_precinct_packets"},
+        {"path": "src/jpip/ranges.rs", "symbol": "DatabinCache::availability"},
+        {"path": "src/jpip/ranges.rs", "symbol": "DatabinCache::read_packet_ranges"}
+      ],
+      "contract_refs": [
+        {"path": "src/jpip/ranges.rs", "symbol": "DatabinCache::availability"},
+        {"path": "src/jpip/ranges.rs", "symbol": "DatabinCache::read_packet_ranges"}
+      ],
+      "spec_refs": [
+        {"path": "specs/jpip_planned_packets.rs", "symbol": "part2_jpip_plan_invalid"},
+        {"path": "specs/jpip_planned_packets.rs", "symbol": "part2_jpip_packet_new"},
+        {"path": "specs/jpip_planned_packets.rs", "symbol": "part2_jpip_plan_layer_packets"},
+        {"path": "specs/jpip_planned_packets.rs", "symbol": "part2_jpip_plan_layers"},
+        {"path": "specs/jpip_planned_packets.rs", "symbol": "part2_jpip_plan_new"},
+        {"path": "specs/jpip_planned_packets.rs", "symbol": "part2_jpip_plan_packet_end"},
+        {"path": "specs/jpip_planned_packets.rs", "symbol": "part2_jpip_planned_packets"},
+        {"path": "specs/jpip_ranges.rs", "symbol": "part2_jpip_range_new"},
+        {"path": "specs/jpip_ranges.rs", "symbol": "part2_jpip_cache_availability"},
+        {"path": "specs/jpip_ranges.rs", "symbol": "part2_jpip_read_packets"}
+      ],
+      "proof_refs": [
+        {"path": "src/jpip/precinct.rs", "symbol": "DatabinCache::reconstruct_precinct_packets"},
+        {"path": "src/jpip/ranges.rs", "symbol": "DatabinCache::availability"},
+        {"path": "src/jpip/ranges.rs", "symbol": "DatabinCache::read_packet_ranges"},
+        {"path": "src/jpip/precinct.rs", "symbol": "JpipPrecinctPacket::new"},
+        {"path": "src/jpip/precinct.rs", "symbol": "JpipPrecinctPacket::range"},
+        {"path": "src/jpip/precinct.rs", "symbol": "JpipPrecinctPacket::layer"},
+        {"path": "src/jpip/precinct.rs", "symbol": "JpipPrecinctCodestreamPlan::new"},
+        {"path": "src/jpip/precinct.rs", "symbol": "JpipPrecinctCodestreamPlan::main_header"},
+        {"path": "src/jpip/precinct.rs", "symbol": "JpipPrecinctCodestreamPlan::tile_header"},
+        {"path": "src/jpip/precinct.rs", "symbol": "JpipPrecinctCodestreamPlan::packets"},
+        {"path": "src/jpip/precinct.rs", "symbol": "JpipPrecinctCodestreamPlan::layers"},
+        {"path": "src/jpip/precinct.rs", "symbol": "JpipPrecinctCodestreamPlan::packet_end_for_layers"},
+        {"path": "src/jpip/precinct.rs", "symbol": "JpipPrecinctPackets::layers"},
+        {"path": "src/jpip/precinct.rs", "symbol": "JpipPrecinctPackets::availability"},
+        {"path": "src/jpip/precinct.rs", "symbol": "JpipPrecinctPackets::packets"},
+        {"path": "src/jpip/precinct.rs", "symbol": "JpipPrecinctPackets::into_packets"},
+        {"path": "src/jpip/plan_proof_support.rs", "symbol": "jpip_packet_outcome"},
+        {"path": "src/jpip/plan_proof_support.rs", "symbol": "jpip_owned_packets_view"},
+        {"path": "src/jpip/plan_proof_support.rs", "symbol": "jpip_plan_view"},
+        {"path": "src/jpip/plan_proof_support.rs", "symbol": "jpip_plan_packet_owner"},
+        {"path": "src/jpip/plan_proof_support.rs", "symbol": "jpip_plan_layer_count"},
+        {"path": "src/jpip/plan_proof_support.rs", "symbol": "jpip_plan_outcome"},
+        {"path": "src/jpip/plan_proof_support.rs", "symbol": "jpip_planned_packets_view"},
+        {"path": "src/jpip/plan_proof_support.rs", "symbol": "jpip_planned_availability_owner"},
+        {"path": "src/jpip/plan_proof_support.rs", "symbol": "jpip_planned_packet_owner"},
+        {"path": "src/jpip/plan_proof_support.rs", "symbol": "jpip_planned_packets_outcome"},
+        {"path": "src/jpip/plan_proof_support.rs", "symbol": "jpip_optional_byte_view"},
+        {"path": "src/jpip/plan_proof_support.rs", "symbol": "jpip_optional_owned_byte_view"},
+        {"path": "src/jpip/plan_proof_support.rs", "symbol": "jpip_plan_fields"},
+        {"path": "src/jpip/ranges.rs", "symbol": "JpipDatabinRange::new"},
+        {"path": "src/jpip/range_proof_support.rs", "symbol": "jpip_packet_view"},
+        {"path": "src/jpip/range_proof_support.rs", "symbol": "jpip_range_view"},
+        {"path": "src/jpip/range_proof_support.rs", "symbol": "jpip_availability_view"},
+        {"path": "src/limits.rs", "symbol": "resource_layer_limit"},
+        {"path": "src/limits.rs", "symbol": "resource_packet_limit"},
+        {"path": "src/limits.rs", "symbol": "resource_input_byte_limit"}
+      ],
+      "test_refs": [
+        {"path": "src/jpip/planned_packet_result_tests.rs", "symbol": "actual_jpip_owned_packet_plans_preserve_full_fields_owner_and_first_admission_errors"},
+        {"path": "src/jpip/planned_packet_result_tests.rs", "symbol": "actual_jpip_planned_packet_results_derive_arbitrary_physical_selection_availability_and_bytes"},
+        {"path": "src/jpip/planned_packet_result_tests.rs", "symbol": "actual_jpip_planned_packets_compose_raw_ingestion_and_preserve_missing_partial_and_owned_outputs"}
+      ]
+    },
+    {
       "id": "part9-complete-native-range-availability-byte-results",
       "topic": "Complete actual range construction/getters, ordered availability Result/report/missing intervals/work budget, complete missing-tail records, append frames and exact packet byte reads from arbitrary physical cache and actual range/packet inputs. Retains first normalized aliases, native unsorted fragment order, saturating extents, packet/input/checked accounting/first-error priorities, request identity/order/repetition and original owned-byte/readonly-cache behavior. No valid-cache/sorted-fragment/supplied status-success banks or owner reconstruction. Owned plans, complete transcode/semantic-container/progressive joins and independent normative/cfg/lifetime/release remain separate.",
       "implementation_refs": [

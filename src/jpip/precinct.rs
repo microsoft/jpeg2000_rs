@@ -6,8 +6,22 @@ use super::{
     JpipPrecinctTranscode, MalformedKind, Resource, ResourceLimits, SOC,
 };
 #[cfg(verus_keep_ghost)]
+use super::{
+    databin_id_view, jpip_availability_view, jpip_byte_view, jpip_cache_view,
+    jpip_optional_byte_view, jpip_optional_owned_byte_view, jpip_owned_packets_view,
+    jpip_packet_outcome, jpip_packet_view, jpip_packets_view, jpip_plan_fields,
+    jpip_plan_layer_count, jpip_plan_outcome, jpip_plan_packet_owner, jpip_plan_view,
+    jpip_planned_availability_owner, jpip_planned_packet_owner, jpip_planned_packets_outcome,
+    jpip_planned_packets_view, jpip_range_view, jpip_ranges_view,
+};
+#[cfg(verus_keep_ghost)]
 use vstd::prelude::*;
 
+#[cfg(test)]
+#[path = "planned_packet_result_tests.rs"]
+mod result_tests;
+
+#[cfg_attr(verus_keep_ghost, verus_verify)]
 impl JpipPrecinctPacket {
     pub fn new(
         databin: DatabinId,
@@ -15,6 +29,20 @@ impl JpipPrecinctPacket {
         offset: u64,
         length: u64,
     ) -> Result<Self, DecodeError> {
+        #[cfg(verus_keep_ghost)]
+        vstd::prelude::ensures(|result: Result<Self, DecodeError>| {
+            vstd::prelude::equal(
+                jpip_packet_outcome(result),
+                crate::specs::part2_jpip_packet_new(
+                    databin_id_view(databin),
+                    layer,
+                    offset,
+                    length,
+                ),
+            )
+        });
+        #[cfg(verus_keep_ghost)]
+        proof! { reveal(jpip_packet_view); }
         if !matches!(databin.class(), DatabinClass::Precinct) {
             return Err(DecodeError::malformed(
                 offset,
@@ -28,14 +56,27 @@ impl JpipPrecinctPacket {
     }
 
     pub const fn range(&self) -> JpipDatabinRange {
+        #[cfg(verus_keep_ghost)]
+        vstd::prelude::ensures(|result: JpipDatabinRange| {
+            vstd::prelude::equal(jpip_range_view(result), jpip_packet_view(*self).0)
+        });
+        #[cfg(verus_keep_ghost)]
+        proof! { reveal(jpip_packet_view); }
         self.range
     }
 
     pub const fn layer(&self) -> u16 {
+        #[cfg(verus_keep_ghost)]
+        vstd::prelude::ensures(|result: u16| {
+            vstd::prelude::equal(result, jpip_packet_view(*self).1)
+        });
+        #[cfg(verus_keep_ghost)]
+        proof! { reveal(jpip_packet_view); }
         self.layer
     }
 }
 
+#[cfg_attr(verus_keep_ghost, verus_verify)]
 impl JpipPrecinctCodestreamPlan {
     pub fn new(
         main_header: DatabinId,
@@ -44,6 +85,32 @@ impl JpipPrecinctCodestreamPlan {
         layers: u16,
         limits: &ResourceLimits,
     ) -> Result<Self, DecodeError> {
+        #[cfg(verus_keep_ghost)]
+        vstd::prelude::ensures(|result: Result<Self, DecodeError>| {
+            vstd::prelude::equal(
+                jpip_plan_outcome(result),
+                crate::specs::part2_jpip_plan_new(
+                    databin_id_view(main_header),
+                    databin_id_view(tile_header),
+                    jpip_owned_packets_view(&packets),
+                    layers,
+                    limits,
+                ),
+            ) && match result {
+                Err(_) => true,
+                Ok(value) => vstd::prelude::equal(*jpip_plan_packet_owner(&value), packets),
+            }
+        });
+        #[cfg(verus_keep_ghost)]
+        proof! { reveal(jpip_plan_view); reveal(jpip_plan_packet_owner); reveal(jpip_packet_view); reveal(jpip_range_view); }
+        #[cfg(verus_keep_ghost)]
+        proof_decl! {
+            let ghost entries = jpip_owned_packets_view(&packets);
+            let ghost main = databin_id_view(main_header);
+            let ghost tile = databin_id_view(tile_header);
+            let ghost original_owner = packets;
+            let ghost expected = crate::specs::part2_jpip_plan_new(main, tile, entries, layers, limits);
+        }
         if layers == 0 || layers > limits.maximum_layers() {
             return Err(DecodeError::limit(
                 Resource::Layers,
@@ -73,19 +140,54 @@ impl JpipPrecinctCodestreamPlan {
             verus_keep_ghost,
             verus_spec(
                 invariant packet_index <= packets.len() && layer <= layers,
+                    packets == original_owner,
+                    entries == jpip_owned_packets_view(&packets), entries.len() == packets.len(),
+                    forall|index: int| 0 <= index < packets.len() ==>
+                        #[trigger] entries[index] == ((databin_id_view(packets@[index].range.databin),
+                            packets@[index].range.offset, packets@[index].range.length), packets@[index].layer),
+                    main == databin_id_view(main_header), tile == databin_id_view(tile_header),
+                    layer_ends.len() == layer as nat,
+                    expected == crate::specs::part2_jpip_plan_new(main, tile, entries, layers, limits),
+                    expected == crate::specs::part2_jpip_plan_layers(main, tile, entries, layers,
+                        layer, packet_index, total_bytes, layer_ends@, crate::limits::resource_input_byte_limit(limits)),
                 decreases layers - layer,
             )
         )]
         while layer < layers {
+            #[cfg(verus_keep_ghost)]
+            proof! { reveal(crate::specs::part2_jpip_plan_layers); }
             let layer_start = packet_index;
+            #[cfg(verus_keep_ghost)]
+            proof_decl! {
+                let ghost scan_expected = crate::specs::part2_jpip_plan_layer_packets(
+                    main, entries, layer, packet_index as nat, total_bytes, crate::limits::resource_input_byte_limit(limits));
+            }
             #[cfg_attr(
                 verus_keep_ghost,
                 verus_spec(
                     invariant packet_index <= packets.len(),
+                        packets == original_owner,
+                        entries == jpip_owned_packets_view(&packets), entries.len() == packets.len(),
+                        forall|index: int| 0 <= index < packets.len() ==>
+                            #[trigger] entries[index] == ((databin_id_view(packets@[index].range.databin),
+                                packets@[index].range.offset, packets@[index].range.length), packets@[index].layer),
+                        main == databin_id_view(main_header), tile == databin_id_view(tile_header),
+                        layer < layers, layer_start <= packet_index,
+                        expected == crate::specs::part2_jpip_plan_new(main, tile, entries, layers, limits),
+                        scan_expected == crate::specs::part2_jpip_plan_layer_packets(
+                            main, entries, layer, packet_index as nat, total_bytes, crate::limits::resource_input_byte_limit(limits)),
+                        expected == match scan_expected {
+                            Err(error) => Err(error),
+                            Ok(next) => if next.0 == layer_start { Err(crate::specs::part2_jpip_plan_invalid(layer as u64)) }
+                            else { crate::specs::part2_jpip_plan_layers(main, tile, entries, layers, (layer + 1) as u16,
+                                next.0, next.1, layer_ends@.push(next.0), crate::limits::resource_input_byte_limit(limits)) },
+                        },
                     decreases packets.len() - packet_index,
                 )
             )]
             while packet_index < packets.len() && packets[packet_index].layer == layer {
+                #[cfg(verus_keep_ghost)]
+                proof! { reveal(crate::specs::part2_jpip_plan_layer_packets); }
                 let packet = packets[packet_index];
                 if packet.range.databin.codestream() != main_header.codestream() {
                     return Err(DecodeError::malformed(
@@ -95,12 +197,14 @@ impl JpipPrecinctCodestreamPlan {
                 }
                 total_bytes = total_bytes
                     .checked_add(packet.range.length)
-                    .ok_or_else(|| {
-                        DecodeError::malformed(
-                            packet.range.offset,
-                            MalformedKind::ArithmeticOverflow,
-                        )
-                    })?;
+                    .ok_or_else(
+                        #[cfg_attr(verus_keep_ghost, verus_spec(result: DecodeError =>
+                            ensures result == crate::specs::part2_jpip_range_overflow(packet.range.offset),
+                        ))]
+                        || {
+                            DecodeError::malformed(packet.range.offset, MalformedKind::ArithmeticOverflow)
+                        },
+                    )?;
                 if total_bytes > limits.maximum_input_bytes() {
                     return Err(DecodeError::limit(
                         Resource::InputBytes,
@@ -110,6 +214,8 @@ impl JpipPrecinctCodestreamPlan {
                 }
                 packet_index += 1;
             }
+            #[cfg(verus_keep_ghost)]
+            proof! { reveal(crate::specs::part2_jpip_plan_layer_packets); }
             if packet_index == layer_start {
                 return Err(DecodeError::malformed(
                     u64::from(layer),
@@ -119,6 +225,8 @@ impl JpipPrecinctCodestreamPlan {
             layer_ends.push(packet_index);
             layer += 1;
         }
+        #[cfg(verus_keep_ghost)]
+        proof! { reveal(crate::specs::part2_jpip_plan_layers); }
         if packet_index != packets.len() {
             return Err(DecodeError::malformed(
                 packet_index as u64,
@@ -134,22 +242,55 @@ impl JpipPrecinctCodestreamPlan {
     }
 
     pub const fn main_header(&self) -> DatabinId {
+        #[cfg(verus_keep_ghost)]
+        vstd::prelude::ensures(|result: DatabinId| {
+            vstd::prelude::equal(databin_id_view(result), jpip_plan_view(self).0)
+        });
+        #[cfg(verus_keep_ghost)]
+        proof! { reveal(jpip_plan_view); }
         self.main_header
     }
 
     pub const fn tile_header(&self) -> DatabinId {
+        #[cfg(verus_keep_ghost)]
+        vstd::prelude::ensures(|result: DatabinId| {
+            vstd::prelude::equal(databin_id_view(result), jpip_plan_view(self).1)
+        });
+        #[cfg(verus_keep_ghost)]
+        proof! { reveal(jpip_plan_view); }
         self.tile_header
     }
 
     pub fn packets(&self) -> &[JpipPrecinctPacket] {
+        #[cfg(verus_keep_ghost)]
+        vstd::prelude::ensures(|result: &[JpipPrecinctPacket]| {
+            vstd::prelude::equal(jpip_packets_view(result), jpip_plan_view(self).2)
+        });
+        #[cfg(verus_keep_ghost)]
+        proof! { reveal(jpip_plan_view); }
         &self.packets
     }
 
     pub fn layers(&self) -> u16 {
+        #[cfg(verus_keep_ghost)]
+        vstd::prelude::ensures(|result: u16| {
+            vstd::prelude::equal(result, jpip_plan_layer_count(self))
+        });
+        #[cfg(verus_keep_ghost)]
+        proof! { reveal(jpip_plan_view); }
         self.layer_ends.len() as u16
     }
 
     fn packet_end_for_layers(&self, layers: u16) -> Result<usize, DecodeError> {
+        #[cfg(verus_keep_ghost)]
+        vstd::prelude::ensures(|result: Result<usize, DecodeError>| {
+            vstd::prelude::equal(
+                result,
+                crate::specs::part2_jpip_plan_packet_end(jpip_plan_view(self), layers),
+            )
+        });
+        #[cfg(verus_keep_ghost)]
+        proof! { reveal(jpip_plan_view); }
         if layers == 0 || layers > self.layers() {
             return Err(DecodeError::malformed(
                 u64::from(layers),
@@ -164,21 +305,39 @@ impl JpipPrecinctCodestreamPlan {
 }
 
 impl JpipPrecinctPackets {
+    #[cfg_attr(verus_keep_ghost, verus_spec(result => ensures result == jpip_planned_packets_view(self).0,))]
     pub const fn layers(&self) -> u16 {
+        #[cfg(verus_keep_ghost)]
+        proof! { reveal(jpip_planned_packets_view); }
         self.layers
     }
 
+    #[cfg_attr(verus_keep_ghost, verus_spec(result =>
+        ensures jpip_availability_view(result) == jpip_planned_packets_view(self).1,
+            result == jpip_planned_availability_owner(self),
+    ))]
     pub const fn availability(&self) -> &JpipAvailabilityReport {
+        #[cfg(verus_keep_ghost)]
+        proof! { reveal(jpip_planned_packets_view); reveal(jpip_planned_availability_owner); }
         &self.availability
     }
 
     /// Returns the caller-planned LRCP packet byte stream. Packet bytes are
     /// copied exactly; no packet-header syntax is invented or rewritten.
+    #[cfg_attr(verus_keep_ghost, verus_spec(result => ensures jpip_optional_byte_view(result) == jpip_planned_packets_view(self).2,))]
     pub const fn packets(&self) -> Option<&JpipByteView> {
+        #[cfg(verus_keep_ghost)]
+        proof! { reveal(jpip_planned_packets_view); }
         self.packets.as_ref()
     }
 
+    #[cfg_attr(verus_keep_ghost, verus_spec(result =>
+        ensures jpip_optional_owned_byte_view(result) == jpip_planned_packets_view(&self).2,
+            result == *jpip_planned_packet_owner(&self),
+    ))]
     pub fn into_packets(self) -> Option<JpipByteView> {
+        #[cfg(verus_keep_ghost)]
+        proof! { reveal(jpip_planned_packets_view); reveal(jpip_planned_packet_owner); }
         self.packets
     }
 }
@@ -280,18 +439,39 @@ impl DatabinCache {
         })
     }
 
+    #[cfg_attr(verus_keep_ghost, verus_spec(result =>
+        ensures jpip_planned_packets_outcome(result)
+            == crate::specs::part2_jpip_planned_packets(jpip_cache_view(self), jpip_plan_view(plan), layers),
+    ))]
     pub fn reconstruct_precinct_packets(
         &self,
         plan: &JpipPrecinctCodestreamPlan,
         layers: u16,
     ) -> Result<JpipPrecinctPackets, DecodeError> {
+        #[cfg(verus_keep_ghost)]
+        proof! { jpip_plan_fields(plan); reveal(jpip_packet_view); reveal(jpip_planned_packets_view); reveal(jpip_byte_view); }
         let packet_end = plan.packet_end_for_layers(layers)?;
-        let selected_packets = plan
-            .packets
-            .get(..packet_end)
-            .ok_or_else(|| DecodeError::malformed(0, MalformedKind::ArithmeticOverflow))?;
-        let ranges: Vec<JpipDatabinRange> =
-            selected_packets.iter().map(|packet| packet.range).collect();
+        let selected_packets = plan.packets.get(..packet_end).ok_or_else(
+            #[cfg_attr(verus_keep_ghost, verus_spec(result: DecodeError =>
+                    ensures result == crate::specs::part2_jpip_range_overflow(0),
+                ))]
+            || DecodeError::malformed(0, MalformedKind::ArithmeticOverflow),
+        )?;
+        let ranges: Vec<JpipDatabinRange> = selected_packets
+            .iter()
+            .map(
+                #[cfg_attr(verus_keep_ghost, verus_spec(result: JpipDatabinRange =>
+                ensures result == packet.range,
+            ))]
+                |packet: &JpipPrecinctPacket| packet.range,
+            )
+            .collect();
+        #[cfg(verus_keep_ghost)]
+        proof! {
+            assert(jpip_packets_view(selected_packets) =~= jpip_plan_view(plan).2.subrange(0, packet_end as int));
+            assert(ranges@.map_values(|range: JpipDatabinRange| jpip_range_view(range)) =~= jpip_packets_view(selected_packets).map_values(
+                |packet: crate::specs::Part2JpipPacket| packet.0));
+        }
         let availability = self.availability(&ranges)?;
         let packets = if availability.is_available() {
             Some(JpipByteView {

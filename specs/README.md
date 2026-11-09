@@ -65,6 +65,7 @@ Think of the decoder as a sequence of jobs:
 | JPIP public layouts | Validate caller codestream/container layouts and derive complete reconstructed bytes or the first error from the actual cache. | [Reconstruction code](../src/jpip/reconstruction.rs), [complete layout models](jpip_layout.rs) |
 | JPIP responses | Parse raw responses, insert actual fragments, and retain exact earlier commits and summary/error fields. | [Ingestion code](../src/jpip/message.rs), [complete response model](jpip_response.rs) |
 | JPIP ranges and packet bytes | Derive ordered missing intervals, exact work/error frontiers and original packet byte slices from the physical cache. | [Range code](../src/jpip/ranges.rs), [complete range/read models](jpip_ranges.rs) |
+| JPIP owned plans | Build actual layer boundaries and reconstruct caller-planned packet reports and optional exact bytes from physical plans and cache. | [Plan code](../src/jpip/precinct.rs), [complete plan/reconstruction models](jpip_planned_packets.rs) |
 
 This is a map of responsibilities, not a claim that one theorem connects the
 entire pipeline. The [detailed component index](AUDIT_REFERENCE.md#component-entry-points-and-boundaries)
