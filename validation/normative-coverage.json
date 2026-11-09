@@ -4,6 +4,50 @@
   "scope": "Technical reference inventory; not exhaustive standards-clause coverage or a conformance claim.",
   "requirements": [
     {
+      "id": "part9-complete-native-raw-response-result",
+      "topic": "Complete actual ingest_jpip_response Result/summary/final physical-cache projection from raw bytes and original cache through the actual fresh parser, suffix/context traversal, owned fragment construction and atomic cache insertion. Retains prior successful Data commits on every later error, original relative parse offsets, zero-consumption/count/extent/EOR/trailing/error priorities, exact messages/reason and stored getters. No parsed-message/cache-success banks, validity premises, native owner reconstruction or executing proof clones. Shared test-only cache storage frames are reused. Semantic-container/transcode/progressive and independent normative/cfg/lifetime/release gates remain separate.",
+      "implementation_refs": [
+        {"path": "src/jpip/message.rs", "symbol": "ingest_jpip_response"},
+        {"path": "src/jpip/message.rs", "symbol": "JpipMessageParser::parse"},
+        {"path": "src/jpip/cache.rs", "symbol": "DatabinCache::insert"}
+      ],
+      "contract_refs": [
+        {"path": "src/jpip/message.rs", "symbol": "JpipMessageParser::parse"},
+        {"path": "src/jpip/cache.rs", "symbol": "DatabinCache::insert"}
+      ],
+      "spec_refs": [
+        {"path": "specs/jpip_response.rs", "symbol": "part2_jpip_response_data"},
+        {"path": "specs/jpip_response.rs", "symbol": "part2_jpip_response_remaining"},
+        {"path": "specs/jpip_response.rs", "symbol": "part2_ingest_jpip_response"},
+        {"path": "specs/jpip_message.rs", "symbol": "part2_jpip_parser_parse"},
+        {"path": "specs/jpip_message.rs", "symbol": "part2_parse_jpip_message"},
+        {"path": "specs/jpip_fragment.rs", "symbol": "part2_jpip_fragment_from_message"},
+        {"path": "specs/jpip_cache_insert.rs", "symbol": "part2_jpip_cache_insert"}
+      ],
+      "proof_refs": [
+        {"path": "src/jpip/message.rs", "symbol": "ingest_jpip_response"},
+        {"path": "src/jpip/message.rs", "symbol": "JpipMessageParser::parse"},
+        {"path": "src/jpip/cache.rs", "symbol": "DatabinCache::insert"},
+        {"path": "src/jpip/cache.rs", "symbol": "JpipFragment::from_message"},
+        {"path": "src/jpip/message.rs", "symbol": "parse_jpip_message"},
+        {"path": "src/jpip/message.rs", "symbol": "JpipResponseSummary::messages"},
+        {"path": "src/jpip/message.rs", "symbol": "JpipResponseSummary::end_of_response_reason"},
+        {"path": "src/jpip/proof_support.rs", "symbol": "jpip_parser_context"},
+        {"path": "src/jpip/proof_support.rs", "symbol": "jpip_parser_limits"},
+        {"path": "src/jpip/proof_support.rs", "symbol": "jpip_message_values_known"},
+        {"path": "src/jpip/proof_support.rs", "symbol": "jpip_header_fields"},
+        {"path": "src/jpip/cache_proof_support.rs", "symbol": "jpip_cache_view"},
+        {"path": "src/jpip/cache_proof_support.rs", "symbol": "jpip_cache_fields"},
+        {"path": "src/jpip/cache_proof_support.rs", "symbol": "jpip_response_summary_view"},
+        {"path": "src/jpip/cache_proof_support.rs", "symbol": "jpip_response_outcome"}
+      ],
+      "test_refs": [
+        {"path": "src/jpip/response_result_tests.rs", "symbol": "actual_jpip_response_derives_full_summary_and_cache_from_raw_header_forms_and_eor"},
+        {"path": "src/jpip/response_result_tests.rs", "symbol": "actual_jpip_response_retains_exact_prior_commits_and_relative_errors_at_every_raw_cut"},
+        {"path": "src/jpip/response_result_tests.rs", "symbol": "actual_jpip_response_preserves_first_limit_overflow_error_and_native_cache_frames"}
+      ]
+    },
+    {
       "id": "part9-complete-native-public-layout-results",
       "topic": "Complete actual public reconstruct_codestream and reconstruct_container Results from arbitrary physical cache and actual caller layout. Derives shape/first-class/bin checks, ordered tile-pair class/codestream/bin equality and first invalid offset, metadata-only traversal, accepted original reconstruction Result/error/resource precedence and exact SOC/EOC byte admission. Readonly native cache and original clones remain; no sorted/cache-validity premises or supplied successful byte banks. Container reconstruction concatenates metadata bytes and does not newly parse JP2 boxes. Complete response/semantic-container/transcode/progressive and independent normative/cfg/lifetime/release gates remain separate.",
       "implementation_refs": [

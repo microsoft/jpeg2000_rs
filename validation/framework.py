@@ -3621,6 +3621,48 @@ _JPIP_MESSAGE_TESTS = {("src/jpip/message_result_tests.rs", name) for name in (
     "actual_raw_jpip_rejects_canonical_overflow_extent_and_limit_frontiers_in_native_order",
     "actual_raw_jpip_databin_and_header_getters_preserve_normalized_identity_and_saturating_final_length",
 )}
+_JPIP_RESPONSE_ENTRY = "part9-complete-native-raw-response-result"
+_JPIP_RESPONSE_APIS = {("src/jpip/message.rs", "ingest_jpip_response")}
+_JPIP_RESPONSE_CONTRACTS = {
+    ("src/jpip/message.rs", "ingest_jpip_response"): (
+        "part2_ingest_jpip_response", _coverage_call("jpip_response_outcome", r"\1"),
+        _coverage_call("jpip_cache_view", _coverage_call("final", "cache")),
+        r"input\s*@\s*,\s*" + _coverage_call("jpip_cache_view", _coverage_call("old", "cache")),
+    ),
+    ("src/jpip/message.rs", "JpipMessageParser::parse"):
+        _JPIP_MESSAGE_CONTRACTS[("src/jpip/message.rs", "JpipMessageParser::parse")],
+    ("src/jpip/cache.rs", "DatabinCache::insert"):
+        _JPIP_CACHE_INSERT_CONTRACTS[("src/jpip/cache.rs", "DatabinCache::insert")],
+}
+_JPIP_RESPONSE_MODELS = {("specs/jpip_response.rs", name) for name in (
+    "part2_jpip_response_data", "part2_jpip_response_remaining", "part2_ingest_jpip_response",
+)} | {
+    ("specs/jpip_message.rs", "part2_jpip_parser_parse"),
+    ("specs/jpip_message.rs", "part2_parse_jpip_message"),
+    ("specs/jpip_fragment.rs", "part2_jpip_fragment_from_message"),
+    ("specs/jpip_cache_insert.rs", "part2_jpip_cache_insert"),
+}
+_JPIP_RESPONSE_GETTERS = {
+    "JpipResponseSummary::messages": ("self.messages", "0"),
+    "JpipResponseSummary::end_of_response_reason": ("self.end_of_response_reason", "1"),
+}
+_JPIP_RESPONSE_PROOFS = set(_JPIP_RESPONSE_CONTRACTS) | {
+    ("src/jpip/cache.rs", "JpipFragment::from_message"),
+    ("src/jpip/message.rs", "parse_jpip_message"),
+    ("src/jpip/proof_support.rs", "jpip_parser_context"),
+    ("src/jpip/proof_support.rs", "jpip_parser_limits"),
+    ("src/jpip/proof_support.rs", "jpip_message_values_known"),
+    ("src/jpip/proof_support.rs", "jpip_header_fields"),
+} | {("src/jpip/message.rs", name) for name in _JPIP_RESPONSE_GETTERS} | {
+    ("src/jpip/cache_proof_support.rs", name) for name in (
+        "jpip_cache_view", "jpip_cache_fields", "jpip_response_summary_view", "jpip_response_outcome",
+    )
+}
+_JPIP_RESPONSE_TESTS = {("src/jpip/response_result_tests.rs", name) for name in (
+    "actual_jpip_response_derives_full_summary_and_cache_from_raw_header_forms_and_eor",
+    "actual_jpip_response_retains_exact_prior_commits_and_relative_errors_at_every_raw_cut",
+    "actual_jpip_response_preserves_first_limit_overflow_error_and_native_cache_frames",
+)}
 _RAW_JPX_PUBLIC_IMAGE_ENTRY = "part2-complete-native-public-raw-jpx-codestream-results"
 _RAW_JPX_PUBLIC_IMAGE_APIS = {("src/decode/api.rs", name) for name in (
     "decode_jpx_codestream", "decode_jpx_codestream_selected", "decode_jpx_codestream_color", "decode_jpx_codestream_color_selected",
@@ -4051,6 +4093,71 @@ def validate_normative_coverage(
     ids: set[str] = set()
     contract_functions: set[tuple[str, str]] = set()
     for entry in coverage["requirements"]:
+        if entry["id"] == _JPIP_RESPONSE_ENTRY:
+            if {(ref["path"], ref["symbol"]) for ref in entry["contract_refs"]} != set(_JPIP_RESPONSE_CONTRACTS) - _JPIP_RESPONSE_APIS:
+                raise ValueError("whole raw JPIP response requires complete actual parser/cache mutation consumer contracts")
+            for field, required in (
+                ("implementation_refs", set(_JPIP_RESPONSE_CONTRACTS)), ("spec_refs", _JPIP_RESPONSE_MODELS),
+                ("proof_refs", _JPIP_RESPONSE_PROOFS), ("test_refs", _JPIP_RESPONSE_TESTS),
+            ):
+                if not required.issubset({(ref["path"], ref["symbol"]) for ref in entry[field]}):
+                    raise ValueError("whole raw JPIP response linked function is not used by claimed implementation: actual raw/cache/summary/error/test bridge missing")
+            path = (ROOT / "src/jpip/message.rs").resolve()
+            text = source_text(path)
+            body = _coverage_function_body(text, function_header(path, "ingest_jpip_response"))
+            required = (
+                "JpipMessageParser::new(cache.limits)", "let mut position = 0_usize", "let mut messages = 0_u64",
+                "parser.parse(&input[position..])?", "consumed == 0",
+                "JpipFragment::from_message(header, body, &cache.limits)?", "cache.insert(fragment)?",
+                "messages.checked_add(1)", "position.checked_add(consumed)", "response_end != input.len()",
+                "end_of_response_reason: Some(end.reason_code)", "next_position <= position || next_position > input.len()",
+                "position = next_position", "end_of_response_reason: None",
+                "part2_jpip_response_remaining(input@, jpip_cache_view(cache)",
+                "jpip_parser_context(&parser), *jpip_parser_limits(&parser), position, messages)",
+                "assert(data == (Ok(messages), jpip_cache_view(cache)))",
+            )
+            if body is None or any("".join(item.split()) not in "".join(body.split()) for item in required):
+                raise ValueError("whole raw JPIP response requires original raw/suffix/fragment/commit/count/EOR/advance handoffs")
+            for name, (field, index) in _JPIP_RESPONSE_GETTERS.items():
+                header = function_header(path, name)
+                getter = _coverage_function_body(text, header)
+                signature = text.find("fn", header.start(), header.end()) if header else -1
+                attrs = text[text.rfind("#[cfg_attr", 0, signature):signature] if signature >= 0 else ""
+                expected = f"ensures result == jpip_response_summary_view(*self).{index},"
+                if (getter is None or field not in getter or "".join(expected.split()) not in "".join(attrs.split())
+                        or re.search(r"\brequires\b", attrs)):
+                    raise ValueError("whole raw JPIP response requires complete stored summary/getter fields without premises")
+            model = source_text((ROOT / "specs/jpip_response.rs").resolve())
+            for name, required in {
+                "part2_jpip_response_data": (
+                    "part2_jpip_fragment_from_message(header, body, &cache.0)", "part2_jpip_cache_insert(cache, fragment)",
+                    "Err(error) => (Err(error), inserted.1)", "messages == u64::MAX",
+                    "crate::MalformedKind::ArithmeticOverflow", "Ok((messages + 1) as u64), inserted.1",
+                ),
+                "part2_jpip_response_remaining": (
+                    "position as nat >= input.len()", "(Ok((messages, None)), cache)",
+                    "part2_parse_jpip_message(input.subrange(position as int, input.len() as int), context, &parser_limits)",
+                    "Err(error) => (Err(error), cache)", "consumed == 0",
+                    "part2_jpip_response_data(cache, header, body, position, messages)",
+                    "Err(error) => (Err(error), data.1)", "next > usize::MAX as nat",
+                    "next <= position as nat || next > input.len()",
+                    "part2_jpip_response_remaining(input, data.1, parsed.1, parser_limits, next as usize, next_messages)",
+                    "end > usize::MAX as nat", "end != input.len()", "crate::MalformedKind::TrailingData",
+                    "(Ok((messages, Some(reason))), cache)",
+                ),
+                "part2_ingest_jpip_response": ("part2_jpip_response_remaining(input, cache, (None, None), cache.0, 0, 0)",),
+            }.items():
+                actual = _coverage_spec_function_body(model, name)
+                if actual is None or any("".join(item.split()) not in "".join(actual.split()) for item in required):
+                    raise ValueError("whole raw JPIP response requires complete raw/partial-commit/relative-error/count/EOR models")
+            projections = source_text((ROOT / "src/jpip/cache_proof_support.rs").resolve())
+            for name, required in {
+                "jpip_response_summary_view": ("value.messages", "value.end_of_response_reason"),
+                "jpip_response_outcome": ("Err(error) => Err(error)", "Ok(jpip_response_summary_view(value))"),
+            }.items():
+                actual = _coverage_spec_function_body(projections, name)
+                if actual is None or any("".join(item.split()) not in "".join(actual.split()) for item in required):
+                    raise ValueError("whole raw JPIP response requires complete native summary/result projections")
         if entry["id"] == _JPIP_LAYOUT_ENTRY:
             if {(ref["path"], ref["symbol"]) for ref in entry["contract_refs"]} != set(_JPIP_LAYOUT_CONTRACTS) - _JPIP_LAYOUT_APIS:
                 raise ValueError("whole JPIP layout Results require the complete actual reconstruction consumer contract")
@@ -6681,7 +6788,9 @@ def validate_normative_coverage(
               or (entry["id"] == _JPIP_MESSAGE_ENTRY
                   and (reference["path"], reference["symbol"]) in _JPIP_MESSAGE_BOUNDARIES)
               or (entry["id"] == _JPIP_LAYOUT_ENTRY
-                  and (reference["path"], reference["symbol"]) in _JPIP_LAYOUT_APIS))
+                  and (reference["path"], reference["symbol"]) in _JPIP_LAYOUT_APIS)
+              or (entry["id"] == _JPIP_RESPONSE_ENTRY
+                  and (reference["path"], reference["symbol"]) in _JPIP_RESPONSE_APIS))
             and reference not in entry["contract_refs"]
         ]
         for reference in [*entry["contract_refs"], *proved_apis]:
@@ -7193,6 +7302,8 @@ def validate_normative_coverage(
                     if entry["id"] == _JPIP_CACHE_INSERT_ENTRY else None)
                 or (_JPIP_LAYOUT_CONTRACTS.get((reference["path"], reference["symbol"]))
                     if entry["id"] == _JPIP_LAYOUT_ENTRY else None)
+                or (_JPIP_RESPONSE_CONTRACTS.get((reference["path"], reference["symbol"]))
+                    if entry["id"] == _JPIP_RESPONSE_ENTRY else None)
                 or (_JPX_INSPECTION_CONTRACTS.get((reference["path"], reference["symbol"]))
                     if entry["id"] == _JPX_INSPECTION_ENTRY else None)
                 or (_RAW_JPX_INSPECTION_CONTRACTS.get((reference["path"], reference["symbol"]))

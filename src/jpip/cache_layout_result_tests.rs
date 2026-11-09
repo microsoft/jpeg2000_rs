@@ -16,7 +16,7 @@ struct BinFrame {
 }
 
 #[derive(Debug, Eq, PartialEq)]
-struct CacheFrame {
+pub(super) struct CacheFrame {
     limits: ResourceLimits,
     bins: Vec<BinFrame>,
     stored_bytes: u64,
@@ -24,11 +24,11 @@ struct CacheFrame {
     storage: (usize, usize, usize),
 }
 
-fn storage<T>(values: &Vec<T>) -> (usize, usize, usize) {
+pub(super) fn storage<T>(values: &Vec<T>) -> (usize, usize, usize) {
     (values.as_ptr() as usize, values.len(), values.capacity())
 }
 
-fn frame(cache: &DatabinCache) -> CacheFrame {
+pub(super) fn frame(cache: &DatabinCache) -> CacheFrame {
     CacheFrame {
         limits: cache.limits,
         bins: cache
@@ -55,11 +55,11 @@ fn frame(cache: &DatabinCache) -> CacheFrame {
     }
 }
 
-fn id(class: u64, stream: u64, bin: u64) -> DatabinId {
+pub(super) fn id(class: u64, stream: u64, bin: u64) -> DatabinId {
     DatabinId::new(class, stream, bin).unwrap()
 }
 
-fn bin(id: DatabinId, fragments: &[(u64, &[u8])], final_length: Option<u64>) -> Databin {
+pub(super) fn bin(id: DatabinId, fragments: &[(u64, &[u8])], final_length: Option<u64>) -> Databin {
     Databin {
         id,
         fragments: fragments

@@ -179,6 +179,36 @@ technical candidate only: parent-owned record, review, CI, guarded integration
 and actual-main acceptance remain separate. No complete parsing, pixels,
 lifetime verification, normative conformance or publication claim follows.
 
+## Actual raw JPIP response ingestion Result and cache state
+
+The executing `ingest_jpip_response` derives its complete Result, message count,
+end-of-response reason and final cache from raw response bytes and the original
+physical cache. The ghost-only fold follows the actual fresh parser and suffix
+positions, inherited context, owned fragment construction, atomic insertion,
+message counting and EOR/extent/trailing checks. No parsed-message bank,
+successful cache state, sorted-cache premise or executing proof clone is
+supplied. Stored summary getters expose their exact original fields.
+
+Response ingestion is not whole-response transactional rollback: earlier
+successful Data messages stay committed when a later parse, fragment, insertion,
+count, extent or EOR/trailing check fails. The complete model retains those
+partial commits and the original suffix-relative parser error offsets. It also
+retains the original initial suffix input-limit priority, per-fragment cache
+budgets, insertion-before-message-count order and fresh context on each call.
+
+Native tests derive complete summary/cache fields from raw header forms and EOR
+payloads, check every cut of a two-message/EOR response, and exercise arbitrary
+initial counters and byte/fragment limits. They reuse test-only native cache
+storage frames: no-commit errors preserve every cache vector pointer, length and
+capacity; prior commits preserve nonselected fragment storage and exact selected
+bytes/counters/final announcements. Proof annotations add no executing branches,
+copies or native owner changes.
+
+This is an as-implemented producer contract, not independent normative review.
+Semantic container expansion, transcoding, progressive/automatic joins and
+normative/cfg/erasure/lifetime/R1/internal/release gates remain separate. Pinned
+budgets and `--no-lifetime` are unchanged; full-plan completion is not claimed.
+
 ## Actual public JPIP layout reconstruction Results
 
 The executing `DatabinCache::reconstruct_codestream` and `reconstruct_container`

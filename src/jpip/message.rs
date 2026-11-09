@@ -7,11 +7,11 @@ use super::{
 };
 #[cfg(verus_keep_ghost)]
 use super::{
-    databin_id_outcome, databin_id_view, jpip_context_fields, jpip_context_view,
-    jpip_eor_body_reference, jpip_eor_view, jpip_header_fields, jpip_header_view,
-    jpip_message_body_reference, jpip_message_outcome, jpip_message_values_known,
+    databin_id_outcome, databin_id_view, jpip_cache_fields, jpip_cache_view, jpip_context_fields,
+    jpip_context_view, jpip_eor_body_reference, jpip_eor_view, jpip_header_fields,
+    jpip_header_view, jpip_message_body_reference, jpip_message_outcome, jpip_message_values_known,
     jpip_message_view, jpip_parser_context, jpip_parser_fields, jpip_parser_limits,
-    jpip_parser_view,
+    jpip_parser_view, jpip_response_outcome, jpip_response_summary_view,
 };
 #[cfg(verus_keep_ghost)]
 use vstd::prelude::*;
@@ -624,19 +624,42 @@ fn read_vbas(
 }
 
 impl JpipResponseSummary {
+    #[cfg_attr(verus_keep_ghost, verus_spec(result =>
+        ensures result == jpip_response_summary_view(*self).0,
+    ))]
     pub const fn messages(&self) -> u64 {
+        #[cfg(verus_keep_ghost)]
+        proof! { reveal(jpip_response_summary_view); }
         self.messages
     }
 
+    #[cfg_attr(verus_keep_ghost, verus_spec(result =>
+        ensures result == jpip_response_summary_view(*self).1,
+    ))]
     pub const fn end_of_response_reason(&self) -> Option<u8> {
+        #[cfg(verus_keep_ghost)]
+        proof! { reveal(jpip_response_summary_view); }
         self.end_of_response_reason
     }
 }
 
+#[cfg_attr(verus_keep_ghost, verus_spec(result =>
+    ensures (jpip_response_outcome(result), jpip_cache_view(final(cache)))
+        == crate::specs::part2_ingest_jpip_response(input@, jpip_cache_view(old(cache))),
+))]
 pub fn ingest_jpip_response(
     input: &[u8],
     cache: &mut DatabinCache,
 ) -> Result<JpipResponseSummary, DecodeError> {
+    #[cfg(verus_keep_ghost)]
+    proof! {
+        jpip_cache_fields(cache);
+        reveal(jpip_response_summary_view);
+    }
+    #[cfg(verus_keep_ghost)]
+    proof_decl! {
+        let ghost expected = crate::specs::part2_ingest_jpip_response(input@, jpip_cache_view(cache));
+    }
     let mut parser = JpipMessageParser::new(cache.limits);
     let mut position = 0_usize;
     let mut messages = 0_u64;
@@ -644,11 +667,25 @@ pub fn ingest_jpip_response(
         verus_keep_ghost,
         verus_spec(
             invariant position <= input.len(),
+                expected == crate::specs::part2_ingest_jpip_response(input@, jpip_cache_view(old(cache))),
+                expected == crate::specs::part2_jpip_response_remaining(input@, jpip_cache_view(cache),
+                    jpip_parser_context(&parser), *jpip_parser_limits(&parser), position, messages),
             decreases input.len() - position,
         )
     )]
     while position < input.len() {
+        #[cfg(verus_keep_ghost)]
+        proof! {
+            jpip_cache_fields(cache);
+            reveal(crate::specs::part2_jpip_response_remaining);
+        }
+        #[cfg(verus_keep_ghost)]
+        proof_decl! {
+            let ghost previous_cache = jpip_cache_view(cache);
+        }
         let (message, consumed) = parser.parse(&input[position..])?;
+        #[cfg(verus_keep_ghost)]
+        proof! { jpip_message_values_known(message); }
         if consumed == 0 {
             return Err(DecodeError::malformed(
                 position as u64,
@@ -657,16 +694,40 @@ pub fn ingest_jpip_response(
         }
         match message {
             JpipMessage::Data { header, body } => {
+                #[cfg(verus_keep_ghost)]
+                proof! {
+                    reveal(crate::specs::part2_jpip_response_data);
+                    jpip_header_fields(header);
+                }
+                #[cfg(verus_keep_ghost)]
+                proof_decl! {
+                    let ghost data = crate::specs::part2_jpip_response_data(previous_cache,
+                        jpip_header_view(header), body@, position, messages);
+                }
                 let fragment = JpipFragment::from_message(header, body, &cache.limits)?;
                 cache.insert(fragment)?;
-                messages = messages.checked_add(1).ok_or_else(|| {
-                    DecodeError::malformed(position as u64, MalformedKind::ArithmeticOverflow)
-                })?;
+                messages = messages.checked_add(1).ok_or_else(
+                    #[cfg_attr(verus_keep_ghost, verus_spec(result: DecodeError =>
+                        ensures result == crate::specs::part2_jpip_error(position, MalformedKind::ArithmeticOverflow),
+                    ))]
+                    || {
+                        DecodeError::malformed(position as u64, MalformedKind::ArithmeticOverflow)
+                    },
+                )?;
+                #[cfg(verus_keep_ghost)]
+                proof! {
+                    assert(data == (Ok(messages), jpip_cache_view(cache)));
+                }
             }
             JpipMessage::EndOfResponse(end) => {
-                let response_end = position.checked_add(consumed).ok_or_else(|| {
-                    DecodeError::malformed(position as u64, MalformedKind::ArithmeticOverflow)
-                })?;
+                let response_end = position.checked_add(consumed).ok_or_else(
+                    #[cfg_attr(verus_keep_ghost, verus_spec(result: DecodeError =>
+                        ensures result == crate::specs::part2_jpip_error(position, MalformedKind::ArithmeticOverflow),
+                    ))]
+                    || {
+                        DecodeError::malformed(position as u64, MalformedKind::ArithmeticOverflow)
+                    },
+                )?;
                 if response_end != input.len() {
                     return Err(DecodeError::malformed(
                         response_end as u64,
@@ -679,9 +740,14 @@ pub fn ingest_jpip_response(
                 });
             }
         }
-        let next_position = position.checked_add(consumed).ok_or_else(|| {
-            DecodeError::malformed(position as u64, MalformedKind::ArithmeticOverflow)
-        })?;
+        let next_position = position.checked_add(consumed).ok_or_else(
+            #[cfg_attr(verus_keep_ghost, verus_spec(result: DecodeError =>
+                ensures result == crate::specs::part2_jpip_error(position, MalformedKind::ArithmeticOverflow),
+            ))]
+            || {
+                DecodeError::malformed(position as u64, MalformedKind::ArithmeticOverflow)
+            },
+        )?;
         if next_position <= position || next_position > input.len() {
             return Err(DecodeError::malformed(
                 position as u64,
@@ -690,6 +756,8 @@ pub fn ingest_jpip_response(
         }
         position = next_position;
     }
+    #[cfg(verus_keep_ghost)]
+    proof! { reveal(crate::specs::part2_jpip_response_remaining); }
     Ok(JpipResponseSummary {
         messages,
         end_of_response_reason: None,
