@@ -57,6 +57,8 @@ mod jpip_layout;
 pub use jpip_layout::*;
 mod jpip_response;
 pub use jpip_response::*;
+mod jpip_ranges;
+pub use jpip_ranges::*;
 mod jpx_source;
 pub use jpx_source::*;
 mod jpx_opacity;

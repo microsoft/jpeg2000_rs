@@ -3663,6 +3663,67 @@ _JPIP_RESPONSE_TESTS = {("src/jpip/response_result_tests.rs", name) for name in 
     "actual_jpip_response_retains_exact_prior_commits_and_relative_errors_at_every_raw_cut",
     "actual_jpip_response_preserves_first_limit_overflow_error_and_native_cache_frames",
 )}
+_JPIP_RANGE_ENTRY = "part9-complete-native-range-availability-byte-results"
+_JPIP_RANGE_APIS = {("src/jpip/ranges.rs", "DatabinCache::availability")}
+_JPIP_RANGE_CONTRACTS = {
+    ("src/jpip/ranges.rs", name): (model, projection, None,
+        _coverage_call("jpip_cache_view", "self") + r"\s*,\s*" + inputs)
+    for name, model, projection, inputs in (
+        ("DatabinCache::availability", "part2_jpip_cache_availability",
+         _coverage_call("jpip_availability_outcome", r"\1"), _coverage_call("jpip_ranges_view", "ranges")),
+        ("DatabinCache::complete_databin_missing", "part2_jpip_complete_missing",
+         _coverage_call("jpip_missing_views", r"&\s*\1"), _coverage_call("databin_id_view", "id")),
+        ("DatabinCache::read_packet_ranges", "part2_jpip_read_packets",
+         _coverage_call("jpip_packet_bytes_outcome", r"\1"), _coverage_call("jpip_packets_view", "packets")),
+    )
+}
+_JPIP_RANGE_CALLERS = {
+    ("src/jpip/reconstruction.rs", "DatabinCache::expand_metadata_bin"),
+    ("src/jpip/ranges.rs", "DatabinCache::precinct_availability"),
+    ("src/jpip/ranges.rs", "DatabinCache::progressive_availability"),
+    ("src/jpip/precinct.rs", "DatabinCache::reconstruct_precinct_packets"),
+    ("src/jpip/precinct.rs", "DatabinCache::transcode_precinct_codestream"),
+}
+_JPIP_RANGE_MODELS = {("specs/jpip_ranges.rs", name) for name in (
+    "part2_jpip_range_overflow", "part2_jpip_range_new", "part2_jpip_complete_missing",
+    "part2_jpip_missing_total", "part2_jpip_availability_finish", "part2_jpip_availability_fragments",
+    "part2_jpip_availability_request", "part2_jpip_availability_remaining", "part2_jpip_cache_availability",
+    "part2_jpip_packet_total", "part2_jpip_packet_fragments", "part2_jpip_packet_remaining", "part2_jpip_read_packets",
+)}
+_JPIP_RANGE_BODY_CLAUSES = {
+    "JpipDatabinRange::new": "vstd::prelude::ensures(|result: Result<Self, DecodeError>| { vstd::prelude::equal(jpip_range_outcome(result), crate::specs::part2_jpip_range_new(databin_id_view(databin), offset, length)) });",
+    "JpipDatabinRange::databin": "vstd::prelude::ensures(|result: DatabinId| { vstd::prelude::equal(databin_id_view(result), jpip_range_view(*self).0) });",
+    "JpipDatabinRange::offset": "vstd::prelude::ensures(|result: u64| { vstd::prelude::equal(result, jpip_range_view(*self).1) });",
+    "JpipDatabinRange::length": "vstd::prelude::ensures(|result: u64| { vstd::prelude::equal(result, jpip_range_view(*self).2) });",
+}
+_JPIP_RANGE_GETTERS = {name: clause for name, clause in (
+    ("JpipMissingRange::databin", "databin_id_view(result) == jpip_missing_view(*self).0"),
+    ("JpipMissingRange::offset", "result == jpip_missing_view(*self).1"),
+    ("JpipMissingRange::length", "result == jpip_missing_view(*self).2"),
+    ("JpipAvailabilityReport::status", "result == jpip_availability_view(self).0"),
+    ("JpipAvailabilityReport::required_bytes", "result == jpip_availability_view(self).1"),
+    ("JpipAvailabilityReport::available_bytes", "result == jpip_availability_view(self).2"),
+    ("JpipAvailabilityReport::missing_ranges", "result@.map_values(|range: JpipMissingRange| jpip_missing_view(range)) == jpip_availability_view(self).3"),
+    ("JpipAvailabilityReport::is_available", "result == matches!(jpip_availability_view(self).0, JpipAvailability::Available)"),
+)}
+_JPIP_RANGE_PROJECTIONS = {("src/jpip/range_proof_support.rs", name) for name in (
+    "jpip_range_view", "jpip_range_outcome", "jpip_ranges_view", "jpip_missing_view", "jpip_missing_views",
+    "jpip_availability_view", "jpip_availability_outcome", "jpip_packet_view", "jpip_packets_view", "jpip_packet_bytes_outcome",
+)}
+_JPIP_RANGE_PROOFS = set(_JPIP_RANGE_CONTRACTS) | _JPIP_RANGE_PROJECTIONS | {
+    ("src/jpip/ranges.rs", name) for name in (*_JPIP_RANGE_BODY_CLAUSES, *_JPIP_RANGE_GETTERS, "append_missing_ranges")
+} | {
+    ("src/jpip/cache.rs", "DatabinCache::find_databin_index"),
+    ("src/jpip/cache.rs", "DatabinCache::status"), ("src/jpip/cache.rs", "StoredFragment::end"),
+    ("src/jpip/cache_proof_support.rs", "jpip_cache_fields"), ("src/jpip/cache_proof_support.rs", "jpip_databin_fields"),
+    ("src/limits.rs", "resource_input_byte_limit"), ("src/limits.rs", "resource_packet_limit"),
+    ("src/limits.rs", "resource_work_limit"), ("src/refinement/jpip.rs", "jpip_available_bytes"),
+}
+_JPIP_RANGE_TESTS = {("src/jpip/range_result_tests.rs", name) for name in (
+    "actual_jpip_range_entries_missing_tails_and_getters_retain_exact_native_fields",
+    "actual_jpip_availability_derives_ordered_missing_work_and_all_error_frontiers_without_cache_premises",
+    "actual_jpip_packet_bytes_keep_raw_order_repetition_saturation_priorities_and_original_cache_storage",
+)}
 _RAW_JPX_PUBLIC_IMAGE_ENTRY = "part2-complete-native-public-raw-jpx-codestream-results"
 _RAW_JPX_PUBLIC_IMAGE_APIS = {("src/decode/api.rs", name) for name in (
     "decode_jpx_codestream", "decode_jpx_codestream_selected", "decode_jpx_codestream_color", "decode_jpx_codestream_color_selected",
@@ -4093,6 +4154,91 @@ def validate_normative_coverage(
     ids: set[str] = set()
     contract_functions: set[tuple[str, str]] = set()
     for entry in coverage["requirements"]:
+        if entry["id"] == _JPIP_RANGE_ENTRY:
+            if {(ref["path"], ref["symbol"]) for ref in entry["contract_refs"]} != set(_JPIP_RANGE_CONTRACTS) - _JPIP_RANGE_APIS:
+                raise ValueError("whole raw JPIP ranges require complete actual missing/packet-byte consumer contracts")
+            for field, required in (
+                ("implementation_refs", set(_JPIP_RANGE_CONTRACTS) | _JPIP_RANGE_CALLERS),
+                ("spec_refs", _JPIP_RANGE_MODELS), ("proof_refs", _JPIP_RANGE_PROOFS), ("test_refs", _JPIP_RANGE_TESTS),
+            ):
+                if not required.issubset({(ref["path"], ref["symbol"]) for ref in entry[field]}):
+                    raise ValueError("whole raw JPIP ranges linked function is not used by claimed implementation: actual range/interval/work/byte/getter/caller/test bridge missing")
+            path = (ROOT / "src/jpip/ranges.rs").resolve()
+            text = source_text(path)
+            for name, clause in _JPIP_RANGE_BODY_CLAUSES.items():
+                if not _coverage_verified_body_clause(text, function_header(path, name), name, clause):
+                    raise ValueError("whole raw JPIP ranges require exact checked constructor/impl body clauses without premises")
+            for name, clause in _JPIP_RANGE_GETTERS.items():
+                header = function_header(path, name)
+                signature = text.find("fn", header.start(), header.end()) if header else -1
+                attrs = text[text.rfind("#[cfg_attr", 0, signature):signature] if signature >= 0 else ""
+                if "ensures" + "".join(clause.split()) + "," not in "".join(attrs.split()) or re.search(r"\brequires\b", attrs):
+                    raise ValueError("whole raw JPIP ranges require complete stored getter fields without premises")
+            for name, required in {
+                "DatabinCache::availability": (
+                    "ranges.len() as u64 > self.limits.maximum_packets()", "requested.offset.checked_add(requested.length)",
+                    "requested_end > self.limits.maximum_input_bytes()", "required_bytes.checked_add(requested.length)",
+                    "required_bytes > self.limits.maximum_input_bytes()", "self.find_databin_index(requested.databin)",
+                    "work.checked_add(1)", "work > self.limits.maximum_work_units()",
+                    "fragment.end() <= cursor", "fragment.offset >= requested_end", "fragment.offset > cursor",
+                    "fragment.offset.min(requested_end)", "cursor = fragment.end().min(requested_end)",
+                    "Some(requested_end - cursor)", "missing[missing_index].length.unwrap_or(0)",
+                    "required_bytes.checked_sub(missing_bytes)", "jpip_available_bytes(required_bytes, missing_bytes)",
+                    "jpip_range_complete(available_bytes, required_bytes)", "required_bytes,", "available_bytes,", "missing,",
+                    "part2_jpip_availability_remaining(cache, requests, range_index as nat",
+                    "scan_expected == Ok((cursor, work, jpip_missing_views(&missing)))",
+                    "part2_jpip_missing_total(final_missing, 0, 0)",
+                ),
+                "DatabinCache::complete_databin_missing": (
+                    "self.status(id)", "offset: status.contiguous_prefix()", "status.final_length().map(",
+                    "jpip_missing_length(", "offset: 0", "length: None",
+                ),
+                "DatabinCache::read_packet_ranges": (
+                    "total.checked_add(packets[packet_index].range.length)", "total > self.limits.maximum_input_bytes()",
+                    "usize::try_from(total)", "self.find_databin_index(range.databin)", "range.offset.checked_add(range.length)",
+                    "fragment.end() <= cursor", "fragment.offset > cursor", "fragment.end().min(end)",
+                    "usize::try_from(cursor - fragment.offset)", "copy_end.checked_sub(fragment.offset)",
+                    "fragment.bytes.get(local_start..local_end)", "output.extend_from_slice", "cursor = copy_end",
+                    "cursor != end", "part2_jpip_packet_remaining(cache, entries, packet_index as nat, output@)",
+                    "previous_output + fragment.bytes@.subrange(local_start as int, local_end as int)",
+                ),
+                "append_missing_ranges": ("output.push(input[index])", "original + incoming.subrange(0, index as int)",
+                    "jpip_missing_views(final(output)) == jpip_missing_views(old(output))"),
+            }.items():
+                header = function_header(path, name)
+                body = _coverage_function_body(text, header)
+                signature = text.find("fn", header.start(), header.end()) if header else -1
+                attrs = text[text.rfind("#[cfg_attr", 0, signature):signature] if signature >= 0 else ""
+                actual = "".join((attrs + (body or "")).split())
+                if body is None or any("".join(item.split()) not in actual for item in required):
+                    raise ValueError("whole raw JPIP ranges require original ordered range/work/missing/slice/append handoffs")
+            model = source_text((ROOT / "specs/jpip_ranges.rs").resolve())
+            for name, required in {
+                "part2_jpip_range_new": ("length == 0", "offset as nat + length as nat > u64::MAX as nat"),
+                "part2_jpip_complete_missing": ("part2_jpip_cache_status(cache, id)", "seq![(id, 0, None)]", "part9_missing_length"),
+                "part2_jpip_missing_total": ("next > u64::MAX as nat", "part2_jpip_missing_total(missing, position + 1, next as u64)"),
+                "part2_jpip_availability_finish": ("total > required", "part9_available_bytes", "complete_jpip_range", "required, available, missing"),
+                "part2_jpip_availability_fragments": ("position >= fragments.len() || cursor >= end", "next_work > u64::MAX as nat",
+                    "next_work > work_limit as nat", "fragment_end <= cursor", "fragment.0 >= end", "missing.push((requested.0, cursor",
+                    "next_cursor, next_work as u64, next_missing, work_limit)"),
+                "part2_jpip_availability_request": ("end > u64::MAX as nat", "end > input_limit as nat",
+                    "next_required > u64::MAX as nat", "next_required > input_limit as nat", "part2_jpip_find_databin",
+                    "missing.push((requested.0, requested.1, Some(requested.2)))", "part2_jpip_availability_fragments"),
+                "part2_jpip_availability_remaining": ("part2_jpip_availability_finish(required, missing)", "part2_jpip_availability_request",
+                    "part2_jpip_availability_remaining(cache, ranges, position + 1, next.0, next.1, next.2)"),
+                "part2_jpip_cache_availability": ("resource_packet_limit", "part2_jpip_availability_remaining(cache, ranges, 0, 0, 0, Seq::empty())"),
+                "part2_jpip_packet_total": ("packets[position as int].0.2 as nat", "next > u64::MAX as nat"),
+                "part2_jpip_packet_fragments": ("cursor != end", "fragment_end <= cursor", "fragment.0 > cursor",
+                    "start > usize::MAX as nat", "copy_end < fragment.0", "local_end > usize::MAX as nat",
+                    "start > local_end || local_end > fragment.1.len()", "output + fragment.1.subrange"),
+                "part2_jpip_packet_remaining": ("part2_jpip_find_databin", "index as nat >= cache.1.len()", "end > u64::MAX as nat",
+                    "part2_jpip_packet_fragments", "part2_jpip_packet_remaining(cache, packets, position + 1, bytes)"),
+                "part2_jpip_read_packets": ("part2_jpip_packet_total", "resource_input_byte_limit", "total as nat > usize::MAX as nat",
+                    "part2_jpip_packet_remaining(cache, packets, 0, Seq::empty())"),
+            }.items():
+                body = _coverage_spec_function_body(model, name)
+                if body is None or any("".join(item.split()) not in "".join(body.split()) for item in required):
+                    raise ValueError("whole raw JPIP ranges require complete native-order interval/work/first-error/byte models")
         if entry["id"] == _JPIP_RESPONSE_ENTRY:
             if {(ref["path"], ref["symbol"]) for ref in entry["contract_refs"]} != set(_JPIP_RESPONSE_CONTRACTS) - _JPIP_RESPONSE_APIS:
                 raise ValueError("whole raw JPIP response requires complete actual parser/cache mutation consumer contracts")
@@ -6790,7 +6936,9 @@ def validate_normative_coverage(
               or (entry["id"] == _JPIP_LAYOUT_ENTRY
                   and (reference["path"], reference["symbol"]) in _JPIP_LAYOUT_APIS)
               or (entry["id"] == _JPIP_RESPONSE_ENTRY
-                  and (reference["path"], reference["symbol"]) in _JPIP_RESPONSE_APIS))
+                  and (reference["path"], reference["symbol"]) in _JPIP_RESPONSE_APIS)
+              or (entry["id"] == _JPIP_RANGE_ENTRY
+                  and (reference["path"], reference["symbol"]) in _JPIP_RANGE_APIS))
             and reference not in entry["contract_refs"]
         ]
         for reference in [*entry["contract_refs"], *proved_apis]:
@@ -7304,6 +7452,8 @@ def validate_normative_coverage(
                     if entry["id"] == _JPIP_LAYOUT_ENTRY else None)
                 or (_JPIP_RESPONSE_CONTRACTS.get((reference["path"], reference["symbol"]))
                     if entry["id"] == _JPIP_RESPONSE_ENTRY else None)
+                or (_JPIP_RANGE_CONTRACTS.get((reference["path"], reference["symbol"]))
+                    if entry["id"] == _JPIP_RANGE_ENTRY else None)
                 or (_JPX_INSPECTION_CONTRACTS.get((reference["path"], reference["symbol"]))
                     if entry["id"] == _JPX_INSPECTION_ENTRY else None)
                 or (_RAW_JPX_INSPECTION_CONTRACTS.get((reference["path"], reference["symbol"]))

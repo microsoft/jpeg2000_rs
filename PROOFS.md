@@ -179,6 +179,39 @@ technical candidate only: parent-owned record, review, CI, guarded integration
 and actual-main acceptance remain separate. No complete parsing, pixels,
 lifetime verification, normative conformance or publication claim follows.
 
+## Actual JPIP range availability and packet byte Results
+
+The executing range constructor and stored range/missing/report getters expose
+their complete original values. `DatabinCache::availability` derives its full
+Result, status, required/available byte counts and ordered missing records from
+the physical cache and actual requested ranges. The model retains the first
+normalized lookup, native fragment order, saturating extents and exact
+packet/input/accounting/work/error frontiers without sorted or valid-cache
+premises. Missing records preserve request identifiers, order and repetition;
+they are not normalized into a mathematical union.
+
+The actual complete-databin missing helper preserves even the zero-length
+missing record for complete bins. Its caller decides when that record is needed.
+The append helper has a checked complete prefix-and-input sequence frame.
+`read_packet_ranges` derives exact bytes or the first returned error through
+original total/capacity checks, lookup, native-order coverage, conversions,
+slice bounds and concatenation. Its original priority and absolute-offset
+behavior differ from availability and remain unchanged.
+
+Ghost-only projections and root-derived scan/continuation equations connect
+every stage to its original inputs. Break exits have an explicit checked scan
+postcondition; no successful-status or byte bank is supplied. Native tests use
+independent wide-integer interval/read calculations and preserve all original
+cache storage on readonly calls. Three pinned conversion-error closures use
+named unused parameters for checked contracts; this does not add executing
+branches, clones or owner reconstruction.
+
+These are as-implemented producer Results, not normative adjudication or full
+plan completion. Owned plan construction, caller-planned reconstruction,
+semantic container expansion, transcoding, progressive/automatic joins and
+independent cfg/erasure/lifetime/R1/internal/release gates remain separate.
+Proof/resource budgets and production `--no-lifetime` are unchanged.
+
 ## Actual raw JPIP response ingestion Result and cache state
 
 The executing `ingest_jpip_response` derives its complete Result, message count,
