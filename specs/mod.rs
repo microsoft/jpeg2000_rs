@@ -51,6 +51,8 @@ mod jpip_fragment;
 pub use jpip_fragment::*;
 mod jpip_cache_views;
 pub use jpip_cache_views::*;
+mod jpip_cache_insert;
+pub use jpip_cache_insert::*;
 mod jpx_source;
 pub use jpx_source::*;
 mod jpx_opacity;

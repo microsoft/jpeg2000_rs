@@ -96,17 +96,46 @@ pub struct JpipFragment {
     auxiliary: Option<u64>,
 }
 
-#[derive(Clone)]
 struct StoredFragment {
     offset: u64,
     bytes: Vec<u8>,
 }
 
-#[derive(Clone)]
+impl Clone for StoredFragment {
+    #[cfg_attr(verus_keep_ghost, verus_spec(result =>
+        ensures jpip_stored_fragment_view(&result) == jpip_stored_fragment_view(self),
+    ))]
+    fn clone(&self) -> Self {
+        #[cfg(verus_keep_ghost)]
+        proof! { reveal(jpip_stored_fragment_view); }
+        Self {
+            offset: self.offset,
+            bytes: self.bytes.clone(),
+        }
+    }
+}
+
 struct Databin {
     id: DatabinId,
     fragments: Vec<StoredFragment>,
     final_length: Option<u64>,
+}
+
+impl Clone for Databin {
+    // Retain the derived implementation's field-clone calls and their order.
+    #[allow(clippy::clone_on_copy)]
+    #[cfg_attr(verus_keep_ghost, verus_spec(result =>
+        ensures jpip_databin_view(&result) == jpip_databin_view(self),
+    ))]
+    fn clone(&self) -> Self {
+        #[cfg(verus_keep_ghost)]
+        proof! { reveal(jpip_databin_view); }
+        Self {
+            id: self.id.clone(),
+            fragments: self.fragments.clone(),
+            final_length: self.final_length.clone(),
+        }
+    }
 }
 
 #[derive(Clone, Copy)]
