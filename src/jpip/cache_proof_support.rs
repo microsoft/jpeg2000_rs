@@ -48,6 +48,15 @@ verus! {
         match value { Err(error) => Err(error), Ok(value) => Ok(jpip_byte_view(&value)) }
     }
 
+    pub closed spec fn jpip_response_summary_view(value: JpipResponseSummary) -> crate::specs::Part2JpipResponseSummary {
+        (value.messages, value.end_of_response_reason)
+    }
+
+    pub open spec fn jpip_response_outcome(value: Result<JpipResponseSummary, DecodeError>)
+        -> Result<crate::specs::Part2JpipResponseSummary, DecodeError> {
+        match value { Err(error) => Err(error), Ok(value) => Ok(jpip_response_summary_view(value)) }
+    }
+
     pub open spec fn jpip_status_outcome(value: Option<DatabinStatus>) -> Option<crate::specs::Part2JpipStatus> {
         match value { None => None, Some(value) => Some(jpip_status_view(&value)) }
     }

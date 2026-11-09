@@ -1256,6 +1256,70 @@ class FrameworkTests(WorkingFiles):
                 self.assertEqual(framework.validate_normative_coverage(dict(coverage, requirements=[entry]))["status"], "passed")
                 self.assertEqual(set(counts.values()), {expected})
 
+    def test_inventory_jpip_response_binds_raw_result_and_actual_parser_cache_states(self):
+        self._assert_complete_packet_contract_bindings(
+            {framework._JPIP_RESPONSE_ENTRY}, framework._JPIP_RESPONSE_CONTRACTS, 3, isolate=False,
+        )
+
+    def test_inventory_jpip_response_requires_every_actual_bridge(self):
+        coverage = json.loads((framework.VALIDATION / "normative-coverage.json").read_text())
+        entry = next(item for item in coverage["requirements"] if item["id"] == framework._JPIP_RESPONSE_ENTRY)
+        for field in ("implementation_refs", "contract_refs", "spec_refs", "proof_refs", "test_refs"):
+            for removed in entry[field]:
+                changed = copy.deepcopy(entry)
+                changed[field].remove(removed)
+                with self.subTest(field=field, removed=removed), self.assertRaisesRegex(
+                        ValueError, "whole raw JPIP response|normative-coverage.schema.json"):
+                    framework.validate_normative_coverage(dict(coverage, requirements=[changed]))
+
+    def test_inventory_jpip_response_rejects_changed_native_suffix_commit_eor_and_summary_handoffs(self):
+        coverage = json.loads((framework.VALIDATION / "normative-coverage.json").read_text())
+        entry = next(item for item in coverage["requirements"] if item["id"] == framework._JPIP_RESPONSE_ENTRY)
+        source = framework.ROOT / "src/jpip/message.rs"
+        original, read_text = source.read_text(), Path.read_text
+        for before, after in (
+            ("parser.parse(&input[position..])?", "parser.parse(input)?"),
+            ("cache.insert(fragment)?", "Ok(())?"),
+            ("messages.checked_add(1)", "messages.checked_add(2)"),
+            ("response_end != input.len()", "false"),
+            ("end_of_response_reason: Some(end.reason_code)", "end_of_response_reason: None"),
+            ("next_position <= position || next_position > input.len()", "false"),
+            ("self.messages", "0"),
+        ):
+            self.assertIn(before, original)
+            changed = original.replace(before, after, 1)
+
+            def altered(path, *args, **kwargs):
+                return changed if path == source else read_text(path, *args, **kwargs)
+
+            with self.subTest(before=before), mock.patch.object(Path, "read_text", altered), \
+                    self.assertRaisesRegex(ValueError, "whole raw JPIP response"):
+                framework.validate_normative_coverage(dict(coverage, requirements=[entry]))
+
+    def test_inventory_jpip_response_rejects_trimmed_partial_commit_error_and_field_models(self):
+        coverage = json.loads((framework.VALIDATION / "normative-coverage.json").read_text())
+        entry = next(item for item in coverage["requirements"] if item["id"] == framework._JPIP_RESPONSE_ENTRY)
+        read_text = Path.read_text
+        for relative, before, after in (
+            ("specs/jpip_response.rs", "part2_jpip_cache_insert(cache, fragment)", "(Ok(()), cache)"),
+            ("specs/jpip_response.rs", "messages == u64::MAX", "false"),
+            ("specs/jpip_response.rs", "Err(error) => (Err(error), data.1)", "Err(error) => (Err(error), cache)"),
+            ("specs/jpip_response.rs", "end != input.len()", "false"),
+            ("specs/jpip_response.rs", "Some(reason)", "None"),
+            ("src/jpip/cache_proof_support.rs", "(value.messages, value.end_of_response_reason)", "(0, None)"),
+        ):
+            source = framework.ROOT / relative
+            original = source.read_text()
+            self.assertIn(before, original)
+            changed = original.replace(before, after, 1)
+
+            def altered(path, *args, **kwargs):
+                return changed if path == source else read_text(path, *args, **kwargs)
+
+            with self.subTest(before=before), mock.patch.object(Path, "read_text", altered), \
+                    self.assertRaisesRegex(ValueError, "whole raw JPIP response"):
+                framework.validate_normative_coverage(dict(coverage, requirements=[entry]))
+
     def test_inventory_jpip_layout_binds_both_complete_public_results(self):
         self._assert_complete_packet_contract_bindings(
             {framework._JPIP_LAYOUT_ENTRY}, framework._JPIP_LAYOUT_CONTRACTS, 4, isolate=False,

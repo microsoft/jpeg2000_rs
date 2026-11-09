@@ -55,6 +55,8 @@ mod jpip_cache_insert;
 pub use jpip_cache_insert::*;
 mod jpip_layout;
 pub use jpip_layout::*;
+mod jpip_response;
+pub use jpip_response::*;
 mod jpx_source;
 pub use jpx_source::*;
 mod jpx_opacity;
