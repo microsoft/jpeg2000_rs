@@ -1256,6 +1256,70 @@ class FrameworkTests(WorkingFiles):
                 self.assertEqual(framework.validate_normative_coverage(dict(coverage, requirements=[entry]))["status"], "passed")
                 self.assertEqual(set(counts.values()), {expected})
 
+    def test_inventory_jpip_layout_binds_both_complete_public_results(self):
+        self._assert_complete_packet_contract_bindings(
+            {framework._JPIP_LAYOUT_ENTRY}, framework._JPIP_LAYOUT_CONTRACTS, 4, isolate=False,
+        )
+
+    def test_inventory_jpip_layout_requires_every_actual_bridge(self):
+        coverage = json.loads((framework.VALIDATION / "normative-coverage.json").read_text())
+        entry = next(item for item in coverage["requirements"] if item["id"] == framework._JPIP_LAYOUT_ENTRY)
+        for field in ("implementation_refs", "contract_refs", "spec_refs", "proof_refs", "test_refs"):
+            for removed in entry[field]:
+                changed = copy.deepcopy(entry)
+                changed[field].remove(removed)
+                with self.subTest(field=field, removed=removed), self.assertRaisesRegex(
+                        ValueError, "whole JPIP layout|normative-coverage.schema.json"):
+                    framework.validate_normative_coverage(dict(coverage, requirements=[changed]))
+
+    def test_inventory_jpip_layout_rejects_changed_native_admission_and_cache_handoffs(self):
+        coverage = json.loads((framework.VALIDATION / "normative-coverage.json").read_text())
+        entry = next(item for item in coverage["requirements"] if item["id"] == framework._JPIP_LAYOUT_ENTRY)
+        source = framework.ROOT / "src/jpip/reconstruction.rs"
+        original, read_text = source.read_text(), Path.read_text
+        for before, after in (
+            ("layout.len() < 3", "layout.len() < 1"),
+            ("first.in_class != 0", "first.in_class != 1"),
+            ("header.codestream != first.codestream", "false"),
+            ("header.in_class != data.in_class", "false"),
+            ("self.reconstruct(layout)?", "self.reconstruct(&[])?"),
+            ("!view.bytes.ends_with(&EOC)", "false"),
+            ("layout[index].class, DatabinClass::Metadata", "layout[0].class, DatabinClass::Metadata"),
+        ):
+            self.assertIn(before, original)
+            changed = original.replace(before, after, 1)
+
+            def altered(path, *args, **kwargs):
+                return changed if path == source else read_text(path, *args, **kwargs)
+
+            with self.subTest(before=before), mock.patch.object(Path, "read_text", altered), \
+                    self.assertRaisesRegex(ValueError, "original ordered admission/cache/marker handoffs"):
+                framework.validate_normative_coverage(dict(coverage, requirements=[entry]))
+
+    def test_inventory_jpip_layout_rejects_trimmed_layout_error_and_byte_models(self):
+        coverage = json.loads((framework.VALIDATION / "normative-coverage.json").read_text())
+        entry = next(item for item in coverage["requirements"] if item["id"] == framework._JPIP_LAYOUT_ENTRY)
+        source = framework.ROOT / "specs/jpip_layout.rs"
+        original, read_text = source.read_text(), Path.read_text
+        for before, after in (
+            ("position + 1 > usize::MAX as nat", "false"),
+            ("header.2 != layout[0].2", "false"),
+            ("header.3 != data.3", "false"),
+            ("bytes[bytes.len() - 1] == 0xd9", "true"),
+            ("part2_jpip_codestream_pairs(layout, 1)", "Ok(())"),
+            ("part2_jpip_cache_reconstruct(cache, layout)", "Ok(Seq::empty())"),
+            ("part2_jpip_metadata_layout(layout, position + 1)", "Ok(())"),
+        ):
+            self.assertIn(before, original)
+            changed = original.replace(before, after, 1)
+
+            def altered(path, *args, **kwargs):
+                return changed if path == source else read_text(path, *args, **kwargs)
+
+            with self.subTest(before=before), mock.patch.object(Path, "read_text", altered), \
+                    self.assertRaisesRegex(ValueError, "original ordered admission/cache/marker handoffs"):
+                framework.validate_normative_coverage(dict(coverage, requirements=[entry]))
+
     def test_inventory_jpip_cache_insert_binds_complete_result_and_final_cache(self):
         self._assert_complete_packet_contract_bindings(
             {framework._JPIP_CACHE_INSERT_ENTRY}, framework._JPIP_CACHE_INSERT_CONTRACTS, 1, isolate=False,

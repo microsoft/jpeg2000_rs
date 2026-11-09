@@ -179,6 +179,39 @@ technical candidate only: parent-owned record, review, CI, guarded integration
 and actual-main acceptance remain separate. No complete parsing, pixels,
 lifetime verification, normative conformance or publication claim follows.
 
+## Actual public JPIP layout reconstruction Results
+
+The executing `DatabinCache::reconstruct_codestream` and `reconstruct_container`
+derive complete Results from the original physical cache and actual caller
+layout. Codestream reconstruction checks length/parity, the first main-header
+bin, ordered tile-header/data classes, codestream identifiers and paired bin
+identifiers before any cache access. It then composes the existing complete
+cache reconstruction Result and retains the original SOC/EOC byte checks.
+Container reconstruction rejects the first non-metadata entry, then derives
+the original concatenation; it does not parse or certify JP2 box structure.
+
+The ghost-only layout traversals retain exact first-error offsets and error
+priority over missing cache data and resource failures. They add no sorted or
+valid-cache premise, successful byte-view bank, native clone or owner change.
+Native tests cover arbitrary physical fragments, first normalized aliases,
+empty/incomplete bins, repeated/mixed-stream metadata requests, byte budgets,
+marker admission and original pointer/length/capacity frames at every cache
+storage level. Owned fragment insertion is composed in a separate fixture.
+
+These are as-implemented Result contracts, not independent normative
+adjudication. Response ingestion, semantic container expansion, transcoding,
+progressive joins, cfg/erasure/lifetime qualification and the full plan remain
+separate. Pinned proof/resource budgets and `--no-lifetime` are unchanged.
+
+To keep whole-source verification within those unchanged budgets, the existing
+raw message parser's post-identity reads and body construction execute in a
+checked shared helper. A ghost-only identity cut connects the actual preceding
+reads to that helper's complete model. The same operands, error order, borrowed
+body and successful context assignments are retained; no byte copy, native
+owner reconstruction or public input premise is added. The helper call changes
+native body/call layout, so literal coordinate-only MIR identity is not claimed
+for the parser, its moved closures or the new helper.
+
 ## Actual atomic JPIP cache insertion Result
 
 The shared executing `StoredFragment::clone` and `Databin::clone` implementations

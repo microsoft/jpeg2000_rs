@@ -7,13 +7,30 @@ use super::{
     copy_bytes, read_u32_be, read_u64_be, write_u32_be, write_u64_be,
 };
 #[cfg(verus_keep_ghost)]
+use super::{
+    databin_id_view, jpip_byte_outcome, jpip_byte_view, jpip_cache_view, jpip_layout_view,
+};
+#[cfg(verus_keep_ghost)]
 use vstd::prelude::*;
 
 impl DatabinCache {
+    #[cfg_attr(verus_keep_ghost, verus_spec(result =>
+        ensures jpip_byte_outcome(result) == crate::specs::part2_jpip_cache_codestream(
+            jpip_cache_view(self), jpip_layout_view(layout)),
+    ))]
     pub fn reconstruct_codestream(
         &self,
         layout: &[DatabinId],
     ) -> Result<JpipByteView, DecodeError> {
+        #[cfg(verus_keep_ghost)]
+        proof! { reveal(databin_id_view); }
+        #[cfg(verus_keep_ghost)]
+        proof_decl! { let ghost identifiers = jpip_layout_view(layout); }
+        #[cfg(verus_keep_ghost)]
+        proof! {
+            let length = layout.len();
+            assert((length & 1_usize) == length % 2_usize) by(bit_vector);
+        }
         if layout.len() < 3 || layout.len() & 1 == 0 {
             return Err(DecodeError::malformed(
                 layout.len() as u64,
@@ -29,19 +46,40 @@ impl DatabinCache {
             verus_keep_ghost,
             verus_spec(
                 invariant pair <= layout.len(),
+                    identifiers == jpip_layout_view(layout),
+                    identifiers.len() == layout.len(),
+                    forall|position: int| 0 <= position < layout.len() ==>
+                        #[trigger] identifiers[position] == databin_id_view(layout@[position]),
+                    layout.len() >= 3, layout.len() % 2 == 1, pair % 2 == 1,
+                    databin_id_view(first) == identifiers[0],
+                    first.class == DatabinClass::MainHeader, first.in_class == 0,
+                    crate::specs::part2_jpip_codestream_pairs(identifiers, 1) ==
+                        crate::specs::part2_jpip_codestream_pairs(identifiers, pair as nat),
                 decreases layout.len() - pair,
             )
         )]
         while pair < layout.len() {
-            let data_index = pair.checked_add(1).ok_or_else(|| {
+            #[cfg(verus_keep_ghost)]
+            proof! { reveal(crate::specs::part2_jpip_codestream_pairs); }
+            let data_index = pair.checked_add(1).ok_or_else(
+                #[cfg_attr(verus_keep_ghost, verus_spec(result: DecodeError =>
+                    ensures result == crate::specs::part2_jpip_cache_error(pair as u64, MalformedKind::ArithmeticOverflow),
+                ))]
+                || {
                 DecodeError::malformed(pair as u64, MalformedKind::ArithmeticOverflow)
             })?;
-            let header = *layout.get(pair).ok_or_else(|| {
-                DecodeError::malformed(pair as u64, MalformedKind::InvalidJpipLayout)
-            })?;
-            let data = *layout.get(data_index).ok_or_else(|| {
-                DecodeError::malformed(data_index as u64, MalformedKind::InvalidJpipLayout)
-            })?;
+            let header = *layout.get(pair).ok_or_else(
+                #[cfg_attr(verus_keep_ghost, verus_spec(result: DecodeError =>
+                    ensures result == crate::specs::part2_jpip_layout_error(pair as u64),
+                ))]
+                || DecodeError::malformed(pair as u64, MalformedKind::InvalidJpipLayout),
+            )?;
+            let data = *layout.get(data_index).ok_or_else(
+                #[cfg_attr(verus_keep_ghost, verus_spec(result: DecodeError =>
+                    ensures result == crate::specs::part2_jpip_layout_error(data_index as u64),
+                ))]
+                || DecodeError::malformed(data_index as u64, MalformedKind::InvalidJpipLayout),
+            )?;
             if !matches!(header.class, DatabinClass::TileHeader)
                 || !matches!(data.class, DatabinClass::TileData)
                 || header.codestream != first.codestream
@@ -55,7 +93,11 @@ impl DatabinCache {
             }
             pair += 2;
         }
+        #[cfg(verus_keep_ghost)]
+        proof! { reveal(crate::specs::part2_jpip_codestream_pairs); }
         let view = self.reconstruct(layout)?;
+        #[cfg(verus_keep_ghost)]
+        proof! { reveal(jpip_byte_view); }
         if !view.bytes.starts_with(&SOC) || !view.bytes.ends_with(&EOC) {
             return Err(DecodeError::malformed(
                 0,
@@ -65,7 +107,15 @@ impl DatabinCache {
         Ok(view)
     }
 
+    #[cfg_attr(verus_keep_ghost, verus_spec(result =>
+        ensures jpip_byte_outcome(result) == crate::specs::part2_jpip_cache_container(
+            jpip_cache_view(self), jpip_layout_view(layout)),
+    ))]
     pub fn reconstruct_container(&self, layout: &[DatabinId]) -> Result<JpipByteView, DecodeError> {
+        #[cfg(verus_keep_ghost)]
+        proof! { reveal(databin_id_view); }
+        #[cfg(verus_keep_ghost)]
+        proof_decl! { let ghost identifiers = jpip_layout_view(layout); }
         if layout.is_empty() {
             return Err(DecodeError::malformed(0, MalformedKind::InvalidJpipLayout));
         }
@@ -74,10 +124,18 @@ impl DatabinCache {
             verus_keep_ghost,
             verus_spec(
                 invariant index <= layout.len(),
+                    identifiers == jpip_layout_view(layout),
+                    identifiers.len() == layout.len(), layout.len() > 0,
+                    forall|position: int| 0 <= position < layout.len() ==>
+                        #[trigger] identifiers[position] == databin_id_view(layout@[position]),
+                    crate::specs::part2_jpip_metadata_layout(identifiers, 0) ==
+                        crate::specs::part2_jpip_metadata_layout(identifiers, index as nat),
                 decreases layout.len() - index,
             )
         )]
         while index < layout.len() {
+            #[cfg(verus_keep_ghost)]
+            proof! { reveal(crate::specs::part2_jpip_metadata_layout); }
             if !matches!(layout[index].class, DatabinClass::Metadata) {
                 return Err(DecodeError::malformed(
                     index as u64,
@@ -86,6 +144,8 @@ impl DatabinCache {
             }
             index += 1;
         }
+        #[cfg(verus_keep_ghost)]
+        proof! { reveal(crate::specs::part2_jpip_metadata_layout); }
         self.reconstruct(layout)
     }
 

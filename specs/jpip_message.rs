@@ -120,6 +120,7 @@ pub open spec fn part2_jpip_eor(input: Seq<u8>) -> Part2JpipParsed {
     }
 }
 
+#[verifier::opaque]
 pub open spec fn part2_jpip_data_after_identity(
     input: Seq<u8>, position: usize, databin: Part2JpipDatabin, last: bool, limits: &crate::ResourceLimits,
 ) -> Part2JpipParsed {
@@ -191,6 +192,33 @@ pub open spec fn part2_jpip_data(input: Seq<u8>, context: Part2JpipContext, limi
             },
         }
     }
+}
+
+pub(crate) proof fn part2_jpip_data_identity_cut(
+    input: Seq<u8>, context: Part2JpipContext, limits: &crate::ResourceLimits,
+    bin_value: u64, class_start: usize, class_value: u64, stream_start: usize,
+    stream_value: u64, body_start: usize, databin: Part2JpipDatabin,
+)
+    requires input.len() > 0,
+        part9_header_form_valid(((input[0] >> 5) & 3) as nat),
+        part2_jpip_read_vbas(input, 0, Some(0x0f)) == (Ok(bin_value), class_start),
+        (if part9_header_has_explicit_class(((input[0] >> 5) & 3) as nat) {
+            part2_jpip_read_vbas(input, class_start, None)
+        } else {
+            (match context.0 { None => Err(part2_jpip_error(0, crate::MalformedKind::InvalidJpipHeader)),
+                Some(value) => Ok(value) }, class_start)
+        }) == (Ok(class_value), stream_start),
+        (if part9_header_has_explicit_codestream(((input[0] >> 5) & 3) as nat) {
+            part2_jpip_read_vbas(input, stream_start, None)
+        } else {
+            (match context.1 { Some(value) => Ok(value), None =>
+                if (input[0] >> 5) & 3 == 2 { Ok(0) }
+                else { Err(part2_jpip_error(0, crate::MalformedKind::InvalidJpipHeader)) } }, stream_start)
+        }) == (Ok(stream_value), body_start),
+        part2_jpip_databin(class_value, stream_value, bin_value) == Ok(databin),
+    ensures part2_jpip_data(input, context, limits)
+        == part2_jpip_data_after_identity(input, body_start, databin, input[0] & 0x10 != 0, limits),
+{
 }
 
 pub closed spec fn part2_parse_jpip_message(input: Seq<u8>, context: Part2JpipContext, limits: &crate::ResourceLimits)

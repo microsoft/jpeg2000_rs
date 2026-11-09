@@ -339,8 +339,12 @@ pub fn parse_jpip_message<'a>(
         return Err(DecodeError::malformed(0, MalformedKind::InvalidJpipHeader));
     }
     let last_byte = input[0] & 0x10 != 0;
+    #[cfg(verus_keep_ghost)]
+    proof_decl! { let ghost initial_context = jpip_context_view(*context); }
     let mut position = 0_usize;
     let in_class = read_vbas(input, &mut position, Some(0x0f))?;
+    #[cfg(verus_keep_ghost)]
+    proof_decl! { let ghost class_start = position; }
 
     let class_identifier = if crate::refinement::jpip_header_has_explicit_class(form) {
         read_vbas(input, &mut position, None)?
@@ -354,6 +358,8 @@ pub fn parse_jpip_message<'a>(
                 || DecodeError::malformed(0, MalformedKind::InvalidJpipHeader),
             )?
     };
+    #[cfg(verus_keep_ghost)]
+    proof_decl! { let ghost stream_start = position; }
     let codestream = if crate::refinement::jpip_header_has_explicit_codestream(form) {
         read_vbas(input, &mut position, None)?
     } else if let Some(previous) = context.previous_codestream {
@@ -364,9 +370,43 @@ pub fn parse_jpip_message<'a>(
         return Err(DecodeError::malformed(0, MalformedKind::InvalidJpipHeader));
     };
     let databin = DatabinId::new(class_identifier, codestream, in_class)?;
+    #[cfg(verus_keep_ghost)]
+    proof! {
+        crate::specs::part2_jpip_data_identity_cut(input@, initial_context, limits,
+            in_class, class_start, class_identifier, stream_start, codestream, position, databin_id_view(databin));
+    }
+    let parsed = parse_data_after_identity(input, position, databin, last_byte, limits)?;
+    context.previous_class = Some(class_identifier);
+    context.previous_codestream = Some(codestream);
+    Ok(parsed)
+}
+
+#[cfg_attr(verus_keep_ghost, verus_spec(result =>
+    ensures jpip_message_outcome(result) == crate::specs::part2_jpip_data_after_identity(
+        input@, position, databin_id_view(databin), last_byte, limits),
+        match result {
+            Ok((JpipMessage::Data { header, .. }, _)) => databin_id_view(header.databin) == databin_id_view(databin),
+            Ok(_) => false,
+            Err(_) => true,
+        },
+))]
+fn parse_data_after_identity<'a>(
+    input: &'a [u8],
+    mut position: usize,
+    databin: DatabinId,
+    last_byte: bool,
+    limits: &ResourceLimits,
+) -> Result<(JpipMessage<'a>, usize), DecodeError> {
+    #[cfg(verus_keep_ghost)]
+    proof! {
+        reveal(crate::specs::part2_jpip_data_after_identity);
+        reveal(jpip_message_view);
+        reveal(jpip_header_view);
+        reveal(databin_id_view);
+    }
     let offset = read_vbas(input, &mut position, None)?;
     let length = read_vbas(input, &mut position, None)?;
-    let auxiliary = if DatabinClass::has_auxiliary(class_identifier) {
+    let auxiliary = if DatabinClass::has_auxiliary(databin.class_identifier) {
         Some(read_vbas(input, &mut position, None)?)
     } else {
         None
@@ -412,8 +452,6 @@ pub fn parse_jpip_message<'a>(
         auxiliary,
         header_length: position,
     };
-    context.previous_class = Some(class_identifier);
-    context.previous_codestream = Some(codestream);
     Ok((
         JpipMessage::Data {
             header,

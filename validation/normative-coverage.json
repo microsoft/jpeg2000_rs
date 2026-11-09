@@ -4,6 +4,49 @@
   "scope": "Technical reference inventory; not exhaustive standards-clause coverage or a conformance claim.",
   "requirements": [
     {
+      "id": "part9-complete-native-public-layout-results",
+      "topic": "Complete actual public reconstruct_codestream and reconstruct_container Results from arbitrary physical cache and actual caller layout. Derives shape/first-class/bin checks, ordered tile-pair class/codestream/bin equality and first invalid offset, metadata-only traversal, accepted original reconstruction Result/error/resource precedence and exact SOC/EOC byte admission. Readonly native cache and original clones remain; no sorted/cache-validity premises or supplied successful byte banks. Container reconstruction concatenates metadata bytes and does not newly parse JP2 boxes. Complete response/semantic-container/transcode/progressive and independent normative/cfg/lifetime/release gates remain separate.",
+      "implementation_refs": [
+        {"path": "src/jpip/reconstruction.rs", "symbol": "DatabinCache::reconstruct_codestream"},
+        {"path": "src/jpip/reconstruction.rs", "symbol": "DatabinCache::reconstruct_container"},
+        {"path": "src/jpip/message.rs", "symbol": "parse_jpip_message"}
+      ],
+      "contract_refs": [
+        {"path": "src/jpip/cache.rs", "symbol": "DatabinCache::reconstruct"},
+        {"path": "src/jpip/message.rs", "symbol": "parse_data_after_identity"}
+      ],
+      "spec_refs": [
+        {"path": "specs/jpip_layout.rs", "symbol": "part2_jpip_layout_error"},
+        {"path": "specs/jpip_layout.rs", "symbol": "part2_jpip_codestream_pairs"},
+        {"path": "specs/jpip_layout.rs", "symbol": "part2_jpip_codestream_markers"},
+        {"path": "specs/jpip_layout.rs", "symbol": "part2_jpip_cache_codestream"},
+        {"path": "specs/jpip_layout.rs", "symbol": "part2_jpip_metadata_layout"},
+        {"path": "specs/jpip_layout.rs", "symbol": "part2_jpip_cache_container"},
+        {"path": "specs/jpip_cache_views.rs", "symbol": "part2_jpip_cache_reconstruct"},
+        {"path": "specs/jpip_message.rs", "symbol": "part2_jpip_data_after_identity"},
+        {"path": "specs/jpip_message.rs", "symbol": "part2_jpip_data_identity_cut"}
+      ],
+      "proof_refs": [
+        {"path": "src/jpip/reconstruction.rs", "symbol": "DatabinCache::reconstruct_codestream"},
+        {"path": "src/jpip/reconstruction.rs", "symbol": "DatabinCache::reconstruct_container"},
+        {"path": "src/jpip/cache.rs", "symbol": "DatabinCache::reconstruct"},
+        {"path": "src/jpip/message.rs", "symbol": "parse_jpip_message"},
+        {"path": "src/jpip/message.rs", "symbol": "parse_data_after_identity"},
+        {"path": "specs/jpip_message.rs", "symbol": "part2_jpip_data_identity_cut"},
+        {"path": "src/jpip/proof_support.rs", "symbol": "databin_id_view"},
+        {"path": "src/jpip/cache_proof_support.rs", "symbol": "jpip_cache_view"},
+        {"path": "src/jpip/cache_proof_support.rs", "symbol": "jpip_layout_view"},
+        {"path": "src/jpip/cache_proof_support.rs", "symbol": "jpip_byte_view"},
+        {"path": "src/jpip/cache_proof_support.rs", "symbol": "jpip_byte_outcome"},
+        {"path": "specs/jpip_cache_views.rs", "symbol": "part2_jpip_cache_reconstruct"}
+      ],
+      "test_refs": [
+        {"path": "src/jpip/cache_layout_result_tests.rs", "symbol": "actual_jpip_layout_results_preserve_shape_classes_pair_order_and_error_precedence"},
+        {"path": "src/jpip/cache_layout_result_tests.rs", "symbol": "actual_jpip_layout_results_derive_arbitrary_cache_bytes_limits_markers_and_native_frames"},
+        {"path": "src/jpip/cache_layout_result_tests.rs", "symbol": "actual_jpip_layout_results_compose_owned_insertion_and_keep_as_implemented_marker_admission"}
+      ]
+    },
+    {
       "id": "part9-complete-native-cache-insert-result",
       "topic": "Complete actual DatabinCache::insert Result and final cache from original physical cache and owned fragment. Derives count/error precedence, first normalized bin selection, existing checked deep clones, final-length validation, overlap traversal/bytes, checked replacement/accounting/input limits, original point copies, prefix/merged/suffix normalization and atomic commit. Every returned error preserves the original native cache owner and logical fields. Shared validation/normalization helpers execute the original blocks without added clones, owner reconstruction, successful-stage banks or sorted/cache-validity premises. Public layout-validation, response/transcode/progressive joins and independent normative/cfg/lifetime/release gates remain separate.",
       "implementation_refs": [

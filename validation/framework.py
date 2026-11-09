@@ -3331,6 +3331,49 @@ _RAW_CONTAINER_COLOR_TESTS = {("src/decode/container_image_result_tests.rs", "ac
     "preserves_header_mapping_before_color_admission",
     "preserves_raw_inspection_selection_packet_and_profile_priority",
 )}
+_JPIP_LAYOUT_ENTRY = "part9-complete-native-public-layout-results"
+_JPIP_LAYOUT_CONTRACTS = {
+    ("src/jpip/reconstruction.rs", name): (
+        model, _coverage_call("jpip_byte_outcome", r"\1"), None,
+        _coverage_call("jpip_cache_view", "self") + r"\s*,\s*" + _coverage_call("jpip_layout_view", "layout"),
+    )
+    for name, model in (
+        ("DatabinCache::reconstruct_codestream", "part2_jpip_cache_codestream"),
+        ("DatabinCache::reconstruct_container", "part2_jpip_cache_container"),
+    )
+}
+_JPIP_LAYOUT_APIS = set(_JPIP_LAYOUT_CONTRACTS)
+_JPIP_LAYOUT_CONTRACTS[("src/jpip/cache.rs", "DatabinCache::reconstruct")] = (
+    "part2_jpip_cache_reconstruct", _coverage_call("jpip_byte_outcome", r"\1"), None,
+    _coverage_call("jpip_cache_view", "self") + r"\s*,\s*" + _coverage_call("jpip_layout_view", "layout"),
+)
+_JPIP_LAYOUT_CONTRACTS[("src/jpip/message.rs", "parse_data_after_identity")] = (
+    "part2_jpip_data_after_identity", _coverage_call("jpip_message_outcome", r"\1"), None,
+    r"input\s*@\s*,\s*position\s*,\s*" + _coverage_call("databin_id_view", "databin")
+    + r"\s*,\s*last_byte\s*,\s*limits",
+)
+_JPIP_LAYOUT_IMPLEMENTATIONS = _JPIP_LAYOUT_APIS | {("src/jpip/message.rs", "parse_jpip_message")}
+_JPIP_LAYOUT_MODELS = {("specs/jpip_layout.rs", name) for name in (
+    "part2_jpip_layout_error", "part2_jpip_codestream_pairs", "part2_jpip_codestream_markers",
+    "part2_jpip_cache_codestream", "part2_jpip_metadata_layout", "part2_jpip_cache_container",
+)} | {("specs/jpip_cache_views.rs", "part2_jpip_cache_reconstruct")} | {
+    ("specs/jpip_message.rs", "part2_jpip_data_after_identity"),
+    ("specs/jpip_message.rs", "part2_jpip_data_identity_cut"),
+}
+_JPIP_LAYOUT_PROOFS = set(_JPIP_LAYOUT_CONTRACTS) | {
+    ("src/jpip/cache.rs", "DatabinCache::reconstruct"),
+    ("src/jpip/proof_support.rs", "databin_id_view"),
+    ("src/jpip/message.rs", "parse_jpip_message"),
+    ("specs/jpip_message.rs", "part2_jpip_data_identity_cut"),
+    ("specs/jpip_cache_views.rs", "part2_jpip_cache_reconstruct"),
+} | {("src/jpip/cache_proof_support.rs", name) for name in (
+    "jpip_cache_view", "jpip_layout_view", "jpip_byte_view", "jpip_byte_outcome",
+)}
+_JPIP_LAYOUT_TESTS = {("src/jpip/cache_layout_result_tests.rs", name) for name in (
+    "actual_jpip_layout_results_preserve_shape_classes_pair_order_and_error_precedence",
+    "actual_jpip_layout_results_derive_arbitrary_cache_bytes_limits_markers_and_native_frames",
+    "actual_jpip_layout_results_compose_owned_insertion_and_keep_as_implemented_marker_admission",
+)}
 _JPIP_CACHE_INSERT_ENTRY = "part9-complete-native-cache-insert-result"
 _JPIP_CACHE_INSERT_CONTRACTS = {
     ("src/jpip/cache.rs", "DatabinCache::insert"): (
@@ -4008,6 +4051,73 @@ def validate_normative_coverage(
     ids: set[str] = set()
     contract_functions: set[tuple[str, str]] = set()
     for entry in coverage["requirements"]:
+        if entry["id"] == _JPIP_LAYOUT_ENTRY:
+            if {(ref["path"], ref["symbol"]) for ref in entry["contract_refs"]} != set(_JPIP_LAYOUT_CONTRACTS) - _JPIP_LAYOUT_APIS:
+                raise ValueError("whole JPIP layout Results require the complete actual reconstruction consumer contract")
+            for field, required in (
+                ("implementation_refs", _JPIP_LAYOUT_IMPLEMENTATIONS), ("spec_refs", _JPIP_LAYOUT_MODELS),
+                ("proof_refs", _JPIP_LAYOUT_PROOFS), ("test_refs", _JPIP_LAYOUT_TESTS),
+            ):
+                if not required.issubset({(ref["path"], ref["symbol"]) for ref in entry[field]}):
+                    if field == "implementation_refs":
+                        raise ValueError("whole JPIP layout Results linked function is not used by claimed implementation: actual public entrypoints missing")
+                    raise ValueError("whole JPIP layout Results require every actual cache/layout/byte/error/test bridge")
+            for relative, functions in (
+                ("src/jpip/reconstruction.rs", {
+                    "DatabinCache::reconstruct_codestream": (
+                        "layout.len() < 3 || layout.len() & 1 == 0",
+                        "first.class, DatabinClass::MainHeader", "first.in_class != 0",
+                        "pair.checked_add(1)", "layout.get(pair)", "layout.get(data_index)",
+                        "header.class, DatabinClass::TileHeader", "data.class, DatabinClass::TileData",
+                        "header.codestream != first.codestream", "data.codestream != first.codestream",
+                        "header.in_class != data.in_class", "pair += 2", "self.reconstruct(layout)?",
+                        "!view.bytes.starts_with(&SOC) || !view.bytes.ends_with(&EOC)", "Ok(view)",
+                        "part2_jpip_codestream_pairs(identifiers, 1)",
+                        "part2_jpip_codestream_pairs(identifiers, pair as nat)",
+                    ),
+                    "DatabinCache::reconstruct_container": (
+                        "layout.is_empty()", "layout[index].class, DatabinClass::Metadata",
+                        "index as u64", "index += 1", "self.reconstruct(layout)",
+                        "part2_jpip_metadata_layout(identifiers, 0)",
+                        "part2_jpip_metadata_layout(identifiers, index as nat)",
+                    ),
+                }),
+                ("specs/jpip_layout.rs", {
+                    "part2_jpip_layout_error": ("part2_jpip_cache_error(offset, crate::MalformedKind::InvalidJpipLayout)",),
+                    "part2_jpip_codestream_pairs": (
+                        "position >= layout.len()", "position + 1 > usize::MAX as nat",
+                        "position + 1 >= layout.len()", "header.1 != crate::jpip::DatabinClass::TileHeader",
+                        "data.1 != crate::jpip::DatabinClass::TileData", "header.2 != layout[0].2",
+                        "data.2 != layout[0].2", "header.3 != data.3",
+                        "part2_jpip_codestream_pairs(layout, position + 2)",
+                    ),
+                    "part2_jpip_codestream_markers": (
+                        "bytes.len() >= 2", "bytes[0] == 0xff", "bytes[1] == 0x4f",
+                        "bytes[bytes.len() - 2] == 0xff", "bytes[bytes.len() - 1] == 0xd9",
+                    ),
+                    "part2_jpip_cache_codestream": (
+                        "layout.len() < 3 || layout.len() % 2 == 0",
+                        "layout[0].1 != crate::jpip::DatabinClass::MainHeader", "layout[0].3 != 0",
+                        "part2_jpip_codestream_pairs(layout, 1)", "part2_jpip_cache_reconstruct(cache, layout)",
+                        "part2_jpip_codestream_markers(bytes)", "crate::MalformedKind::MissingRequiredStructure",
+                    ),
+                    "part2_jpip_metadata_layout": (
+                        "position >= layout.len()", "layout[position as int].1 != crate::jpip::DatabinClass::Metadata",
+                        "part2_jpip_layout_error(position as u64)", "part2_jpip_metadata_layout(layout, position + 1)",
+                    ),
+                    "part2_jpip_cache_container": (
+                        "layout.len() == 0", "part2_jpip_metadata_layout(layout, 0)",
+                        "part2_jpip_cache_reconstruct(cache, layout)",
+                    ),
+                }),
+            ):
+                path = (ROOT / relative).resolve()
+                text = source_text(path)
+                for name, required in functions.items():
+                    body = (_coverage_spec_function_body(text, name) if relative.startswith("specs/")
+                            else _coverage_function_body(text, function_header(path, name)))
+                    if body is None or any("".join(item.split()) not in "".join(body.split()) for item in required):
+                        raise ValueError("whole JPIP layout Results require original ordered admission/cache/marker handoffs")
         if entry["id"] == _JPIP_CACHE_INSERT_ENTRY:
             if {(ref["path"], ref["symbol"]) for ref in entry["contract_refs"]} != set(_JPIP_CACHE_INSERT_CONTRACTS):
                 raise ValueError("whole JPIP cache insertion requires the complete actual Result/cache-state contract")
@@ -4256,6 +4366,12 @@ def validate_normative_coverage(
                     "input[0] == 0", "parse_end_of_response(input)", "read_vbas(input, &mut position, Some(0x0f))",
                     "context.previous_class", "context.previous_codestream", "DatabinId::new(class_identifier, codestream, in_class)",
                     "context.previous_class = Some(class_identifier)", "context.previous_codestream = Some(codestream)",
+                    "parse_data_after_identity(input, position, databin, last_byte, limits)?", "Ok(parsed)"),
+                "parse_data_after_identity": ("read_vbas(input, &mut position, None)",
+                    "DatabinClass::has_auxiliary(databin.class_identifier)", "offset.checked_add(length)",
+                    "end > limits.maximum_input_bytes()", "usize::try_from(length)",
+                    "position.checked_add(body_length)", "body_end > input.len()",
+                    "databin,", "offset,", "length,", "last_byte,", "auxiliary,", "header_length: position",
                     "body: &input[position..body_end]", "body_end"),
                 "read_vbas": ("let start = *position", "first_mask.unwrap_or(0x7f)",
                     "jpip_vbas_first_is_canonical", "count >= MAX_VBAS_BYTES", "checked_mul(128)", "shifted.checked_add(u64::from(group))",
@@ -6563,7 +6679,9 @@ def validate_normative_coverage(
               or (entry["id"] == _RAW_JPX_PUBLIC_IMAGE_ENTRY
                   and (reference["path"], reference["symbol"]) in _RAW_JPX_PUBLIC_IMAGE_APIS)
               or (entry["id"] == _JPIP_MESSAGE_ENTRY
-                  and (reference["path"], reference["symbol"]) in _JPIP_MESSAGE_BOUNDARIES))
+                  and (reference["path"], reference["symbol"]) in _JPIP_MESSAGE_BOUNDARIES)
+              or (entry["id"] == _JPIP_LAYOUT_ENTRY
+                  and (reference["path"], reference["symbol"]) in _JPIP_LAYOUT_APIS))
             and reference not in entry["contract_refs"]
         ]
         for reference in [*entry["contract_refs"], *proved_apis]:
@@ -7073,6 +7191,8 @@ def validate_normative_coverage(
                     if entry["id"] == _JPIP_CACHE_VIEW_ENTRY else None)
                 or (_JPIP_CACHE_INSERT_CONTRACTS.get((reference["path"], reference["symbol"]))
                     if entry["id"] == _JPIP_CACHE_INSERT_ENTRY else None)
+                or (_JPIP_LAYOUT_CONTRACTS.get((reference["path"], reference["symbol"]))
+                    if entry["id"] == _JPIP_LAYOUT_ENTRY else None)
                 or (_JPX_INSPECTION_CONTRACTS.get((reference["path"], reference["symbol"]))
                     if entry["id"] == _JPX_INSPECTION_ENTRY else None)
                 or (_RAW_JPX_INSPECTION_CONTRACTS.get((reference["path"], reference["symbol"]))
