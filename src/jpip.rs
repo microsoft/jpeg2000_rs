@@ -22,6 +22,8 @@ const EOC: [u8; 2] = [0xff, 0xd9];
 include!("jpip/proof_support.rs");
 #[cfg(verus_keep_ghost)]
 include!("jpip/cache_proof_support.rs");
+#[cfg(verus_keep_ghost)]
+include!("jpip/range_proof_support.rs");
 
 #[derive(Clone, Copy)]
 #[cfg_attr(not(verus_keep_ghost), derive(Debug, Eq, PartialEq, Hash))]
@@ -411,6 +413,8 @@ mod reconstruction;
 use reconstruction::parse_jpip_placeholder;
 #[cfg(test)]
 mod cache_layout_result_tests;
+#[cfg(test)]
+mod range_result_tests;
 #[cfg(test)]
 mod response_result_tests;
 #[cfg(test)]

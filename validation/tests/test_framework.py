@@ -1256,6 +1256,69 @@ class FrameworkTests(WorkingFiles):
                 self.assertEqual(framework.validate_normative_coverage(dict(coverage, requirements=[entry]))["status"], "passed")
                 self.assertEqual(set(counts.values()), {expected})
 
+    def test_inventory_jpip_ranges_bind_actual_complete_availability_missing_and_packet_bytes(self):
+        self._assert_complete_packet_contract_bindings(
+            {framework._JPIP_RANGE_ENTRY}, framework._JPIP_RANGE_CONTRACTS, 3, isolate=False,
+        )
+
+    def test_inventory_jpip_ranges_require_every_actual_bridge(self):
+        coverage = json.loads((framework.VALIDATION / "normative-coverage.json").read_text())
+        entry = next(item for item in coverage["requirements"] if item["id"] == framework._JPIP_RANGE_ENTRY)
+        for field in ("implementation_refs", "contract_refs", "spec_refs", "proof_refs", "test_refs"):
+            for removed in entry[field]:
+                changed = copy.deepcopy(entry)
+                changed[field].remove(removed)
+                with self.subTest(field=field, removed=removed), self.assertRaisesRegex(
+                        ValueError, "whole raw JPIP ranges|normative-coverage.schema.json"):
+                    framework.validate_normative_coverage(dict(coverage, requirements=[changed]))
+
+    def test_inventory_jpip_ranges_reject_changed_work_interval_slice_and_getter_handoffs(self):
+        coverage = json.loads((framework.VALIDATION / "normative-coverage.json").read_text())
+        entry = next(item for item in coverage["requirements"] if item["id"] == framework._JPIP_RANGE_ENTRY)
+        source = framework.ROOT / "src/jpip/ranges.rs"
+        original, read_text = source.read_text(), Path.read_text
+        for before, after in (
+            ("work.checked_add(1)", "work.checked_add(0)"),
+            ("fragment.offset >= requested_end", "false"),
+            ("cursor = fragment.end().min(requested_end)", "cursor = requested_end"),
+            ("Some(requested_end - cursor)", "Some(0)"),
+            ("fragment.bytes.get(local_start..local_end)", "fragment.bytes.get(..local_end)"),
+            ("jpip_range_view(*self).1", "jpip_range_view(*self).2"),
+            ("output.push(input[index])", "output.push(input[0])"),
+        ):
+            self.assertIn(before, original)
+            changed = original.replace(before, after, 1)
+
+            def altered(path, *args, **kwargs):
+                return changed if path == source else read_text(path, *args, **kwargs)
+
+            with self.subTest(before=before), mock.patch.object(Path, "read_text", altered), \
+                    self.assertRaisesRegex(ValueError, "whole raw JPIP ranges"):
+                framework.validate_normative_coverage(dict(coverage, requirements=[entry]))
+
+    def test_inventory_jpip_ranges_reject_trimmed_order_budget_and_packet_byte_models(self):
+        coverage = json.loads((framework.VALIDATION / "normative-coverage.json").read_text())
+        entry = next(item for item in coverage["requirements"] if item["id"] == framework._JPIP_RANGE_ENTRY)
+        source = framework.ROOT / "specs/jpip_ranges.rs"
+        original, read_text = source.read_text(), Path.read_text
+        for before, after in (
+            ("next_work > work_limit as nat", "false"),
+            ("fragment.0 >= end", "false"),
+            ("next_required > input_limit as nat", "false"),
+            ("part2_jpip_availability_finish(required, missing)", "Err(part2_jpip_range_overflow(0))"),
+            ("start > local_end || local_end > fragment.1.len()", "false"),
+            ("output + fragment.1.subrange(start as int, local_end as int)", "output"),
+        ):
+            self.assertIn(before, original)
+            changed = original.replace(before, after, 1)
+
+            def altered(path, *args, **kwargs):
+                return changed if path == source else read_text(path, *args, **kwargs)
+
+            with self.subTest(before=before), mock.patch.object(Path, "read_text", altered), \
+                    self.assertRaisesRegex(ValueError, "whole raw JPIP ranges"):
+                framework.validate_normative_coverage(dict(coverage, requirements=[entry]))
+
     def test_inventory_jpip_response_binds_raw_result_and_actual_parser_cache_states(self):
         self._assert_complete_packet_contract_bindings(
             {framework._JPIP_RESPONSE_ENTRY}, framework._JPIP_RESPONSE_CONTRACTS, 3, isolate=False,

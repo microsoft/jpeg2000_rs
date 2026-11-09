@@ -43,6 +43,7 @@ specs/jpip_cache_views.rs
 specs/jpip_fragment.rs
 specs/jpip_layout.rs
 specs/jpip_message.rs
+specs/jpip_ranges.rs
 specs/jpip_response.rs
 specs/jpx_dispatch.rs
 specs/jpx_frame.rs
@@ -168,6 +169,8 @@ src/jpip/message_result_tests.rs
 src/jpip/precinct.rs
 src/jpip/progression.rs
 src/jpip/proof_support.rs
+src/jpip/range_proof_support.rs
+src/jpip/range_result_tests.rs
 src/jpip/ranges.rs
 src/jpip/reconstruction.rs
 src/jpip/response_result_tests.rs

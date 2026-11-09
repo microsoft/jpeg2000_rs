@@ -4,6 +4,81 @@
   "scope": "Technical reference inventory; not exhaustive standards-clause coverage or a conformance claim.",
   "requirements": [
     {
+      "id": "part9-complete-native-range-availability-byte-results",
+      "topic": "Complete actual range construction/getters, ordered availability Result/report/missing intervals/work budget, complete missing-tail records, append frames and exact packet byte reads from arbitrary physical cache and actual range/packet inputs. Retains first normalized aliases, native unsorted fragment order, saturating extents, packet/input/checked accounting/first-error priorities, request identity/order/repetition and original owned-byte/readonly-cache behavior. No valid-cache/sorted-fragment/supplied status-success banks or owner reconstruction. Owned plans, complete transcode/semantic-container/progressive joins and independent normative/cfg/lifetime/release remain separate.",
+      "implementation_refs": [
+        {"path": "src/jpip/reconstruction.rs", "symbol": "DatabinCache::expand_metadata_bin"},
+        {"path": "src/jpip/ranges.rs", "symbol": "DatabinCache::availability"},
+        {"path": "src/jpip/ranges.rs", "symbol": "DatabinCache::complete_databin_missing"},
+        {"path": "src/jpip/ranges.rs", "symbol": "DatabinCache::read_packet_ranges"},
+        {"path": "src/jpip/ranges.rs", "symbol": "DatabinCache::precinct_availability"},
+        {"path": "src/jpip/ranges.rs", "symbol": "DatabinCache::progressive_availability"},
+        {"path": "src/jpip/precinct.rs", "symbol": "DatabinCache::reconstruct_precinct_packets"},
+        {"path": "src/jpip/precinct.rs", "symbol": "DatabinCache::transcode_precinct_codestream"}
+      ],
+      "contract_refs": [
+        {"path": "src/jpip/ranges.rs", "symbol": "DatabinCache::complete_databin_missing"},
+        {"path": "src/jpip/ranges.rs", "symbol": "DatabinCache::read_packet_ranges"}
+      ],
+      "spec_refs": [
+        {"path": "specs/jpip_ranges.rs", "symbol": "part2_jpip_range_overflow"},
+        {"path": "specs/jpip_ranges.rs", "symbol": "part2_jpip_range_new"},
+        {"path": "specs/jpip_ranges.rs", "symbol": "part2_jpip_complete_missing"},
+        {"path": "specs/jpip_ranges.rs", "symbol": "part2_jpip_missing_total"},
+        {"path": "specs/jpip_ranges.rs", "symbol": "part2_jpip_availability_finish"},
+        {"path": "specs/jpip_ranges.rs", "symbol": "part2_jpip_availability_fragments"},
+        {"path": "specs/jpip_ranges.rs", "symbol": "part2_jpip_availability_request"},
+        {"path": "specs/jpip_ranges.rs", "symbol": "part2_jpip_availability_remaining"},
+        {"path": "specs/jpip_ranges.rs", "symbol": "part2_jpip_cache_availability"},
+        {"path": "specs/jpip_ranges.rs", "symbol": "part2_jpip_packet_total"},
+        {"path": "specs/jpip_ranges.rs", "symbol": "part2_jpip_packet_fragments"},
+        {"path": "specs/jpip_ranges.rs", "symbol": "part2_jpip_packet_remaining"},
+        {"path": "specs/jpip_ranges.rs", "symbol": "part2_jpip_read_packets"}
+      ],
+      "proof_refs": [
+        {"path": "src/jpip/ranges.rs", "symbol": "DatabinCache::availability"},
+        {"path": "src/jpip/ranges.rs", "symbol": "DatabinCache::complete_databin_missing"},
+        {"path": "src/jpip/ranges.rs", "symbol": "DatabinCache::read_packet_ranges"},
+        {"path": "src/jpip/ranges.rs", "symbol": "append_missing_ranges"},
+        {"path": "src/jpip/ranges.rs", "symbol": "JpipDatabinRange::new"},
+        {"path": "src/jpip/ranges.rs", "symbol": "JpipDatabinRange::databin"},
+        {"path": "src/jpip/ranges.rs", "symbol": "JpipDatabinRange::offset"},
+        {"path": "src/jpip/ranges.rs", "symbol": "JpipDatabinRange::length"},
+        {"path": "src/jpip/ranges.rs", "symbol": "JpipMissingRange::databin"},
+        {"path": "src/jpip/ranges.rs", "symbol": "JpipMissingRange::offset"},
+        {"path": "src/jpip/ranges.rs", "symbol": "JpipMissingRange::length"},
+        {"path": "src/jpip/ranges.rs", "symbol": "JpipAvailabilityReport::status"},
+        {"path": "src/jpip/ranges.rs", "symbol": "JpipAvailabilityReport::required_bytes"},
+        {"path": "src/jpip/ranges.rs", "symbol": "JpipAvailabilityReport::available_bytes"},
+        {"path": "src/jpip/ranges.rs", "symbol": "JpipAvailabilityReport::missing_ranges"},
+        {"path": "src/jpip/ranges.rs", "symbol": "JpipAvailabilityReport::is_available"},
+        {"path": "src/jpip/range_proof_support.rs", "symbol": "jpip_range_view"},
+        {"path": "src/jpip/range_proof_support.rs", "symbol": "jpip_range_outcome"},
+        {"path": "src/jpip/range_proof_support.rs", "symbol": "jpip_ranges_view"},
+        {"path": "src/jpip/range_proof_support.rs", "symbol": "jpip_missing_view"},
+        {"path": "src/jpip/range_proof_support.rs", "symbol": "jpip_missing_views"},
+        {"path": "src/jpip/range_proof_support.rs", "symbol": "jpip_availability_view"},
+        {"path": "src/jpip/range_proof_support.rs", "symbol": "jpip_availability_outcome"},
+        {"path": "src/jpip/range_proof_support.rs", "symbol": "jpip_packet_view"},
+        {"path": "src/jpip/range_proof_support.rs", "symbol": "jpip_packets_view"},
+        {"path": "src/jpip/range_proof_support.rs", "symbol": "jpip_packet_bytes_outcome"},
+        {"path": "src/jpip/cache.rs", "symbol": "DatabinCache::find_databin_index"},
+        {"path": "src/jpip/cache.rs", "symbol": "DatabinCache::status"},
+        {"path": "src/jpip/cache.rs", "symbol": "StoredFragment::end"},
+        {"path": "src/jpip/cache_proof_support.rs", "symbol": "jpip_cache_fields"},
+        {"path": "src/jpip/cache_proof_support.rs", "symbol": "jpip_databin_fields"},
+        {"path": "src/limits.rs", "symbol": "resource_input_byte_limit"},
+        {"path": "src/limits.rs", "symbol": "resource_packet_limit"},
+        {"path": "src/limits.rs", "symbol": "resource_work_limit"},
+        {"path": "src/refinement/jpip.rs", "symbol": "jpip_available_bytes"}
+      ],
+      "test_refs": [
+        {"path": "src/jpip/range_result_tests.rs", "symbol": "actual_jpip_range_entries_missing_tails_and_getters_retain_exact_native_fields"},
+        {"path": "src/jpip/range_result_tests.rs", "symbol": "actual_jpip_availability_derives_ordered_missing_work_and_all_error_frontiers_without_cache_premises"},
+        {"path": "src/jpip/range_result_tests.rs", "symbol": "actual_jpip_packet_bytes_keep_raw_order_repetition_saturation_priorities_and_original_cache_storage"}
+      ]
+    },
+    {
       "id": "part9-complete-native-raw-response-result",
       "topic": "Complete actual ingest_jpip_response Result/summary/final physical-cache projection from raw bytes and original cache through the actual fresh parser, suffix/context traversal, owned fragment construction and atomic cache insertion. Retains prior successful Data commits on every later error, original relative parse offsets, zero-consumption/count/extent/EOR/trailing/error priorities, exact messages/reason and stored getters. No parsed-message/cache-success banks, validity premises, native owner reconstruction or executing proof clones. Shared test-only cache storage frames are reused. Semantic-container/transcode/progressive and independent normative/cfg/lifetime/release gates remain separate.",
       "implementation_refs": [
