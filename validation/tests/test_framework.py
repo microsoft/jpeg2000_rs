@@ -1256,6 +1256,75 @@ class FrameworkTests(WorkingFiles):
                 self.assertEqual(framework.validate_normative_coverage(dict(coverage, requirements=[entry]))["status"], "passed")
                 self.assertEqual(set(counts.values()), {expected})
 
+    def test_inventory_jpip_planned_packets_bind_owned_selection_and_actual_cache_results(self):
+        self._assert_complete_packet_contract_bindings(
+            {framework._JPIP_PLANNED_ENTRY}, framework._JPIP_PLANNED_CONTRACTS, 3, isolate=False,
+        )
+
+    def test_inventory_jpip_planned_packets_require_every_actual_bridge(self):
+        coverage = json.loads((framework.VALIDATION / "normative-coverage.json").read_text())
+        entry = next(item for item in coverage["requirements"] if item["id"] == framework._JPIP_PLANNED_ENTRY)
+        for field in ("implementation_refs", "contract_refs", "spec_refs", "proof_refs", "test_refs"):
+            for removed in entry[field]:
+                changed = copy.deepcopy(entry)
+                changed[field].remove(removed)
+                with self.subTest(field=field, removed=removed), self.assertRaisesRegex(
+                        ValueError, "whole planned JPIP packets|normative-coverage.schema.json"):
+                    framework.validate_normative_coverage(dict(coverage, requirements=[changed]))
+
+    def test_inventory_jpip_planned_packets_reject_changed_native_constructor_iterator_and_owner_handoffs(self):
+        coverage = json.loads((framework.VALIDATION / "normative-coverage.json").read_text())
+        entry = next(item for item in coverage["requirements"] if item["id"] == framework._JPIP_PLANNED_ENTRY)
+        source = framework.ROOT / "src/jpip/precinct.rs"
+        original, read_text = source.read_text(), Path.read_text
+        for before, after in (
+            ("packet.range.databin.codestream() != main_header.codestream()", "false"),
+            (".checked_add(packet.range.length)", ".checked_add(0)"),
+            ("layer_ends.push(packet_index)", "layer_ends.push(0)"),
+            ("packet_index == layer_start", "false"),
+            ("*jpip_plan_packet_owner(&value), packets", "*jpip_plan_packet_owner(&value), *jpip_plan_packet_owner(&value)"),
+            ("plan.packet_end_for_layers(layers)?", "plan.packet_end_for_layers(1)?"),
+            ("|packet: &JpipPrecinctPacket| packet.range", "|packet: &JpipPrecinctPacket| selected_packets[0].range"),
+            ("self.read_packet_ranges(selected_packets)?", "self.read_packet_ranges(&[])?"),
+            ("result == *jpip_planned_packet_owner(&self)", "true"),
+        ):
+            self.assertIn(before, original)
+            start = (framework._coverage_function_header(original, "DatabinCache::reconstruct_precinct_packets").start()
+                     if before in ("plan.packet_end_for_layers(layers)?", "self.read_packet_ranges(selected_packets)?") else 0)
+            changed = original[:start] + original[start:].replace(before, after, 1)
+
+            def altered(path, *args, **kwargs):
+                return changed if path == source else read_text(path, *args, **kwargs)
+
+            with self.subTest(before=before), mock.patch.object(Path, "read_text", altered), \
+                    self.assertRaisesRegex(ValueError, "whole planned JPIP packets"):
+                framework.validate_normative_coverage(dict(coverage, requirements=[entry]))
+
+    def test_inventory_jpip_planned_packets_reject_trimmed_layer_selection_availability_and_byte_models(self):
+        coverage = json.loads((framework.VALIDATION / "normative-coverage.json").read_text())
+        entry = next(item for item in coverage["requirements"] if item["id"] == framework._JPIP_PLANNED_ENTRY)
+        source = framework.ROOT / "specs/jpip_planned_packets.rs"
+        original, read_text = source.read_text(), Path.read_text
+        for before, after in (
+            ("packet.0.0.2 != main.2", "false"),
+            ("next > input_limit as nat", "false"),
+            ("next.0 == position", "false"),
+            ("ends.push(next.0)", "ends.push(0)"),
+            ("layers > plan.3.len() as u16", "false"),
+            ("plan.2.subrange(0, end as int)", "plan.2"),
+            ("part2_jpip_cache_availability(cache, ranges)", "Err(part2_jpip_range_overflow(0))"),
+            ("part2_jpip_read_packets(cache, selected)", "Ok(Seq::empty())"),
+        ):
+            self.assertIn(before, original)
+            changed = original.replace(before, after, 1)
+
+            def altered(path, *args, **kwargs):
+                return changed if path == source else read_text(path, *args, **kwargs)
+
+            with self.subTest(before=before), mock.patch.object(Path, "read_text", altered), \
+                    self.assertRaisesRegex(ValueError, "whole planned JPIP packets"):
+                framework.validate_normative_coverage(dict(coverage, requirements=[entry]))
+
     def test_inventory_jpip_ranges_bind_actual_complete_availability_missing_and_packet_bytes(self):
         self._assert_complete_packet_contract_bindings(
             {framework._JPIP_RANGE_ENTRY}, framework._JPIP_RANGE_CONTRACTS, 3, isolate=False,

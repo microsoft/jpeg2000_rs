@@ -40,7 +40,7 @@ fn selected(cache: &DatabinCache, requested: DatabinId) -> Option<&Databin> {
     })
 }
 
-fn expected_availability(
+pub(super) fn expected_availability(
     cache: &DatabinCache,
     ranges: &[JpipDatabinRange],
 ) -> Result<JpipAvailabilityReport, DecodeError> {
@@ -154,7 +154,7 @@ fn expected_availability(
     })
 }
 
-fn expected_packets(
+pub(super) fn expected_packets(
     cache: &DatabinCache,
     packets: &[JpipPrecinctPacket],
 ) -> Result<Vec<u8>, DecodeError> {

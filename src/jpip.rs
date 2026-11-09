@@ -24,6 +24,8 @@ include!("jpip/proof_support.rs");
 include!("jpip/cache_proof_support.rs");
 #[cfg(verus_keep_ghost)]
 include!("jpip/range_proof_support.rs");
+#[cfg(verus_keep_ghost)]
+include!("jpip/plan_proof_support.rs");
 
 #[derive(Clone, Copy)]
 #[cfg_attr(not(verus_keep_ghost), derive(Debug, Eq, PartialEq, Hash))]
