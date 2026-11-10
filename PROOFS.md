@@ -292,8 +292,13 @@ cache/parser/report bank, executing proof clone or owner reconstruction is used.
 This is the as-implemented boundary, not a normative rule correction. In
 particular, the header-only branch retains its original missing-SOD and ignored
 trailing-byte behavior and differs from SOT parsing in PLT index admission;
-zero Psot retains its terminal rule and nonzero undersized Psot retains `None`
-data length. Independent word/marker/count, emitted-header/cut, admission/error
+zero Psot retains its terminal rule. For #219 (`DEV-926EF1A301` and
+`DEV-DFA2D383B6`), a nonzero Psot shorter than the retained header is now rejected
+as `InvalidTilePart` at that part's start; it cannot masquerade as an absent or
+zero unknown-length declaration. Exact before-fix parser/public-report assertion
+failures and the corrected raw Result contracts cover this own-documentation
+contradiction. This does not claim independent selected-edition adjudication.
+Independent word/marker/count, emitted-header/cut, admission/error
 and physical-cache/report/storage fixtures preserve those distinctions.
 Automatic normalization/snapshot/progressive and semantic-container joins and
 independent normative/adjudication/cfg/lifetime/R1/internal/release gates remain

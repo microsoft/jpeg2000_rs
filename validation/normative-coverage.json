@@ -5,7 +5,7 @@
   "requirements": [
     {
       "id": "part9-complete-native-raw-transition-results",
-      "topic": "Complete actual raw header-only/SOT/PLT/SOD tile-part transition parser Result and public DatabinCache::tile_part_transitions Result/status/transitions/semantic-needs/missing from arbitrary physical cache and actual raw header bytes. Derives every transition tile/part/count/data-length/functional/header field through real saturated big-endian reads, marker extents, PLT counting, original nested traversals and sufficiency-prefix aggregation. Retains first normalized aliases, native fragment order/first-fragment views, missing/error priorities, header-only trailing-SOD behavior, PLT index differences, zero-Psot terminal rule and nonzero undersized-Psot None. Complete stored need/transition/report getters and unchanged native input/cache/output storage behavior. No valid-cache/input/parsed-transition/success banks, executing clones or normative corrections. Automatic normalization/snapshot/progressive, semantic-container and independent normative/cfg/lifetime/release remain separate.",
+      "topic": "Complete actual raw header-only/SOT/PLT/SOD tile-part transition parser Result and public DatabinCache::tile_part_transitions Result/status/transitions/semantic-needs/missing from arbitrary physical cache and actual raw header bytes. Derives every transition tile/part/count/data-length/functional/header field through real saturated big-endian reads, marker extents, PLT counting, original nested traversals and sufficiency-prefix aggregation. Retains first normalized aliases, native fragment order/first-fragment views, missing/error priorities, header-only trailing-SOD behavior, PLT index differences and zero-Psot terminal rule. Issue219 DEV-926EF1A301/DEV-DFA2D383B6 correction: nonzero declarations shorter than the retained header return InvalidTilePart at the part start, never the unknown-length None reserved for absent/zero declarations. Complete stored need/transition/report getters and unchanged native input/cache/output storage behavior. No valid-cache/input/parsed-transition/success banks or executing clones. Automatic normalization/snapshot/progressive, semantic-container and independent selected-edition normative/cfg/lifetime/release remain separate.",
       "implementation_refs": [
         {"path": "src/jpip/mapping.rs", "symbol": "DatabinCache::tile_part_transitions"},
         {"path": "src/jpip/mapping.rs", "symbol": "parse_tile_part_transitions"},
@@ -82,6 +82,8 @@
         {"path": "src/refinement/jpip.rs", "symbol": "jpip_tile_transition_sufficient"}
       ],
       "test_refs": [
+        {"path": "src/jpip/transition_result_tests.rs", "symbol": "sarah_dev_926ef1a301_nonzero_psot_cannot_mean_unknown_length"},
+        {"path": "src/jpip/transition_result_tests.rs", "symbol": "sarah_dev_dfa2d383b6_public_report_rejects_nonzero_short_psot"},
         {"path": "src/jpip/transition_result_tests.rs", "symbol": "actual_jpip_transition_words_markers_and_plt_match_independent_extents_and_counts"},
         {"path": "src/jpip/transition_result_tests.rs", "symbol": "actual_jpip_raw_transitions_derive_all_fields_owned_headers_and_exact_emitted_cut_errors"},
         {"path": "src/jpip/transition_result_tests.rs", "symbol": "actual_jpip_raw_transition_admission_keeps_native_plt_sod_psot_and_first_error_differences"},

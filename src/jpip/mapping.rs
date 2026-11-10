@@ -72,7 +72,8 @@ impl JpipTilePartTransition {
 
     /// Original tile-part data bytes derived from a non-zero `Psot`.
     ///
-    /// `None` denotes the legal final-tile-part form whose `Psot` is zero.
+    /// With a retained SOT, `None` denotes the legal final-tile-part form whose
+    /// `Psot` is zero. Header-only bins without an SOT have no declared length.
     #[cfg_attr(verus_keep_ghost, verus_spec(result => ensures result == jpip_transition_view(self).3,))]
     pub const fn data_length(&self) -> Option<u64> {
         #[cfg(verus_keep_ghost)]
@@ -646,10 +647,12 @@ pub(super) fn parse_tile_part_transitions(
                 });
                 DecodeError::malformed(part_start as u64, MalformedKind::ArithmeticOverflow)
             })?;
-            declared.checked_sub(header_length).map(
-                #[cfg_attr(verus_keep_ghost, verus_spec(result: u64 => ensures result == data as u64,))]
-                |data: usize| data as u64,
-            )
+            Some(declared.checked_sub(header_length).ok_or_else(
+                #[cfg_attr(verus_keep_ghost, verus_spec(result: DecodeError =>
+                    ensures result == crate::specs::part2_jpip_cache_error(part_start as u64, MalformedKind::InvalidTilePart),
+                ))]
+                || DecodeError::malformed(part_start as u64, MalformedKind::InvalidTilePart),
+            )? as u64)
         };
         #[cfg(verus_keep_ghost)]
         proof_decl! { let ghost previous = jpip_transitions_view(&transitions); }

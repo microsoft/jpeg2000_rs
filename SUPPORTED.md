@@ -190,6 +190,11 @@ metadata placeholders, precinct mapping, packet reconstruction, and
 transactional progressive decode. Availability and missing-range results
 distinguish incomplete data from successful reconstruction.
 
+For retained SOT headers, a nonzero `Psot` must cover the complete retained
+header. An undersized declaration returns `InvalidTilePart` at the tile-part
+start; it is not an unknown-length transition. The final zero-`Psot` form and
+header-only bins without an SOT retain their unknown-length representation.
+
 Explicit `JpipPrecinctCodestreamPlan` transcodes are restricted to a single
 tile-part with LRCP progression, inline packet headers, and no POC, PLT, or PPT
 in the reconstructed input. Both the main and effective tile coding styles
