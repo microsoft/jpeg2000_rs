@@ -6,6 +6,14 @@ verus! {
 
 pub type Part2ColorSpecification = (crate::jp2::ColorMethod, u8, u8, Option<Seq<u8>>);
 
+pub open spec fn part2_validate_color_specification_prefix(input: Part2BoxReference, base: u64)
+    -> Result<(), crate::DecodeError>
+{
+    if input.1.len() < 3 {
+        Err(part2_image_box_error(base, input.0, crate::MalformedKind::InvalidBoxLength))
+    } else { Ok(()) }
+}
+
 #[verifier::opaque]
 pub open spec fn part2_parse_color_specification(input: Part2BoxReference, base: u64)
     -> Result<Part2ColorSpecification, crate::DecodeError>

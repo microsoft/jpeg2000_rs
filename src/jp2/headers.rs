@@ -4,7 +4,7 @@ use super::{
     BoxRef, BoxType, ComponentBitDepth, DecodeError, ImageHeader, Jp2Header, MalformedKind,
     Resource, ResourceLimits, add_offset, box_reader_from_input, parse_channel_definition,
     parse_color_specification, parse_component_mapping, parse_palette, parse_resolution_superbox,
-    read_u16, read_u32, rebase_error, required_box,
+    read_u16, read_u32, rebase_error, required_box, validate_color_specification_prefix,
 };
 #[cfg(verus_keep_ghost)]
 use vstd::prelude::*;
@@ -123,10 +123,11 @@ pub(super) fn parse_codestream_header(
             validate_bpcc(box_ref, header.image, base_offset)?;
             saw_bpcc = true;
         } else if box_type.equals(BoxType::COLOR_SPECIFICATION) {
-            let color = parse_color_specification(box_ref, base_offset)?;
             if crate::refinement::first_override_allowed(color_override) {
-                header.color = color;
+                header.color = parse_color_specification(box_ref, base_offset)?;
                 color_override = true;
+            } else {
+                validate_color_specification_prefix(box_ref, base_offset)?;
             }
         } else if box_type.equals(BoxType::PALETTE) {
             if palette_override || mapping_override || definition_override {
@@ -331,9 +332,10 @@ pub(super) fn parse_jp2_header(
             validate_bpcc(box_ref, image, base_offset)?;
             saw_bpcc = true;
         } else if box_type.equals(BoxType::COLOR_SPECIFICATION) {
-            let parsed_color = parse_color_specification(box_ref, base_offset)?;
             if color.is_none() {
-                color = Some(parsed_color);
+                color = Some(parse_color_specification(box_ref, base_offset)?);
+            } else {
+                validate_color_specification_prefix(box_ref, base_offset)?;
             }
         } else if box_type.equals(BoxType::PALETTE) {
             if palette.is_some() {

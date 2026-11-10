@@ -5723,8 +5723,8 @@ pub open spec fn valid_component_mapping(
             || (mapping_type == 1 && palette_column < palette_columns))
 }
 
-pub open spec fn valid_channel_association(association: nat, output_channels: nat) -> bool {
-    association <= output_channels || association == 0xffff
+pub open spec fn valid_channel_association(association: nat, color_channels: nat) -> bool {
+    association <= color_channels || association == 0xffff
 }
 
 pub open spec fn valid_color_sample(value: nat, maximum: nat) -> bool {
@@ -6258,7 +6258,7 @@ pub open spec fn part2_component_mapping_valid(
 pub open spec fn part2_channel_definition_valid(
     channel: u16,
     channel_type: u16,
-    association: u16,
+    _association: u16,
     output_channels: u16,
 ) -> bool {
     channel < output_channels
@@ -6266,7 +6266,6 @@ pub open spec fn part2_channel_definition_valid(
             || channel_type == 1
             || channel_type == 2
             || channel_type == 0xffff)
-        && (association <= output_channels || association == 0xffff)
 }
 
 pub open spec fn part2_first_override_allowed(already_overridden: bool) -> bool {

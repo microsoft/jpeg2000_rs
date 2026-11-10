@@ -1428,7 +1428,7 @@
     },
     {
       "id": "part2-complete-native-associated-codestream-header-result",
-      "topic": "Complete actual associated codestream-header Result: initial full-parse priority, real default cloning and every inherited/overridden image/color/ICC/count/palette/mapping/definition/resolution field. Preserve vector clears, first override/order/error priorities and override-only BPCC requirement. Defaults are an actual native input, not asserted raw-derived/valid or supplied successful parser outputs. Original clone body extraction/public delegation, optional-palette/default callback routing and unused integer-error names need exact new native observation; no runtime proof clone or owner inversion. Whole file/tree/public/normative/cfg/erasure/lifetimes/release remain separate.",
+      "topic": "Complete actual associated codestream-header Result: initial full-parse priority, real default cloning and every inherited/overridden image/color/ICC/count/palette/mapping/definition/resolution field. Sarah DEV-629A0A9C39: first provided color override retains full semantic parsing; subsequent COLR boxes use the shared three-byte prefix validator without interpreting or allocating irrelevant later color/ICC data. Preserve framing/reader/resource/counter/common-prefix/error order, vector clears and override-only BPCC requirement. Defaults are an actual native input, not asserted raw-derived/valid or supplied successful parser outputs. Whole file/tree/public/normative/cfg/erasure/lifetimes/release remain separate.",
       "implementation_refs": [
         {"path": "src/jp2/headers.rs", "symbol": "parse_codestream_header"},
         {"path": "src/jp2/container.rs", "symbol": "parse"}
@@ -1439,7 +1439,8 @@
         {"path": "specs/jp2_associated_header.rs", "symbol": "part2_associated_header_step"},
         {"path": "specs/jp2_associated_header.rs", "symbol": "part2_associated_header_finish"},
         {"path": "specs/jp2_associated_header.rs", "symbol": "part2_jp2_header_clone"},
-        {"path": "specs/jp2_header.rs", "symbol": "part2_parse_jp2_header"}
+        {"path": "specs/jp2_header.rs", "symbol": "part2_parse_jp2_header"},
+        {"path": "specs/jp2_color_header.rs", "symbol": "part2_validate_color_specification_prefix"}
       ],
       "contract_refs": [
         {"path": "src/jp2/headers.rs", "symbol": "parse_codestream_header"}
@@ -1457,7 +1458,9 @@
         {"path": "src/jp2/tests.rs", "symbol": "actual_raw_associated_header_preserves_bpcc_before_image_and_override_only_final_requirement"},
         {"path": "src/jp2/tests.rs", "symbol": "actual_raw_associated_header_uses_real_first_color_palette_mapping_definition_resolution_overrides"},
         {"path": "src/jp2/tests.rs", "symbol": "actual_raw_associated_header_keeps_override_order_before_payload_validation"},
-        {"path": "src/jp2/tests.rs", "symbol": "actual_raw_associated_header_keeps_unknown_count_and_missing_default_before_second_input_limit"}
+        {"path": "src/jp2/tests.rs", "symbol": "actual_raw_associated_header_keeps_unknown_count_and_missing_default_before_second_input_limit"},
+        {"path": "src/jp2/tests.rs", "symbol": "sarah_dev_629a0a9c39_later_colour_interpretations_preserve_selected_metadata"},
+        {"path": "src/jp2/tests.rs", "symbol": "sarah_dev_629a0a9c39_ignored_prefixes_keep_selected_and_error_policies"}
       ]
     },
     {
@@ -1495,7 +1498,7 @@
     },
     {
       "id": "part2-complete-native-raw-jp2-header-result",
-      "topic": "Complete actual raw JP2 header assembler Result over bytes/limits/base: every image/color/ICC/count/palette/mapping/definition/resolution field and exact producer/error order. First color retained but all later colors parsed; actual initial required versus later progress-before-error priority; second resolution parsed before duplicate test; actual mapping count at definitions. Original owner scopes preserved, no supplied successful parsed-header bank/validity premise/owner inversion/runtime proof clone. One checked borrowed initializer retarget and four named unused Copy errors require future explicit MIR audit. Associated header cloning/whole container/inspection/public/normative/cfg/erasure/lifetimes/release remain separate.",
+      "topic": "Complete actual raw JP2 header assembler Result over bytes/limits/base: every image/color/ICC/count/palette/mapping/definition/resolution field and exact producer/error order. Sarah DEV-629A0A9C39: fully parse the first selected color, retain it and ignore later interpretations after shared three-byte prefix validation; still frame/count/charge every later box and reject short common prefixes. Actual initial required versus later progress-before-error priority, second resolution parse-before-duplicate and actual mapping count at definitions retained. Original owner scopes preserved, no supplied successful parsed-header bank/validity premise/owner inversion/runtime proof clone. Associated header cloning/whole container/inspection/public/normative/cfg/erasure/lifetimes/release remain separate.",
       "implementation_refs": [
         {"path": "src/jp2/headers.rs", "symbol": "parse_jp2_header"},
         {"path": "src/jp2/headers.rs", "symbol": "parse_codestream_header"},
@@ -1512,6 +1515,7 @@
         {"path": "specs/jp2_image_header.rs", "symbol": "part2_parse_image_header"},
         {"path": "specs/jp2_image_header.rs", "symbol": "part2_validate_bpcc"},
         {"path": "specs/jp2_color_header.rs", "symbol": "part2_parse_color_specification"},
+        {"path": "specs/jp2_color_header.rs", "symbol": "part2_validate_color_specification_prefix"},
         {"path": "specs/jp2_palette.rs", "symbol": "part2_parse_palette"},
         {"path": "specs/jp2_channel_header.rs", "symbol": "part2_parse_component_mapping"},
         {"path": "specs/jp2_channel_header.rs", "symbol": "part2_parse_channel_definition"},
@@ -1527,11 +1531,13 @@
       ],
       "test_refs": [
         {"path": "src/jp2/tests.rs", "symbol": "actual_raw_jp2_header_retains_every_owned_metadata_field_from_real_raw_producers"},
-        {"path": "src/jp2/tests.rs", "symbol": "actual_raw_jp2_header_preserves_first_color_but_still_parses_every_later_color"},
+        {"path": "src/jp2/tests.rs", "symbol": "actual_raw_jp2_header_preserves_first_color_and_ignores_later_interpretations"},
         {"path": "src/jp2/tests.rs", "symbol": "actual_raw_jp2_header_keeps_initial_required_input_metadata_and_later_progress_priority"},
         {"path": "src/jp2/tests.rs", "symbol": "actual_raw_jp2_header_keeps_duplicate_checks_and_resolution_parse_before_duplicate"},
         {"path": "src/jp2/tests.rs", "symbol": "actual_raw_jp2_header_keeps_final_bpcc_palette_mapping_and_color_requirements"},
-        {"path": "src/jp2/tests.rs", "symbol": "actual_raw_jp2_header_uses_actual_mapping_count_at_the_channel_definition_site"}
+        {"path": "src/jp2/tests.rs", "symbol": "actual_raw_jp2_header_uses_actual_mapping_count_at_the_channel_definition_site"},
+        {"path": "src/jp2/tests.rs", "symbol": "sarah_dev_629a0a9c39_later_colour_interpretations_preserve_selected_metadata"},
+        {"path": "src/jp2/tests.rs", "symbol": "sarah_dev_629a0a9c39_ignored_prefixes_keep_selected_and_error_policies"}
       ]
     },
     {
@@ -1642,7 +1648,7 @@
     },
     {
       "id": "part2-complete-native-raw-component-and-channel-header-results",
-      "topic": "Complete actual raw component-mapping/channel-definition Results with every ordered record, native validity admission, repeats and lazy relative errors. Exact length/conversion/component-limit priority; every native channel type and association. Source-derived byte folds, not supplied records or owner reconstruction. One actual Copy constructor call deliberately retargets the existing checked shared producer and one unused integer-error argument is named; future full native observation must enumerate these differences. Palette normative HOLD, whole header/container/public, cfg/erasure/lifetimes/release remain separate.",
+      "topic": "Complete actual raw component-mapping/channel-definition Results with every ordered record, native validity admission, repeats and lazy relative errors. Sarah DEV-3DB90259D8: Cn remains a bounded physical channel index; Asoc is colour-index metadata, not bounded by the physical channel count in the raw record parser. Preserve all wire associations, record order/count/type/sentinels and lazy offset errors without claiming full one-channel RGB decoding or colour-space-aware validity. Actual helper and complete model share the distinction, with an unconditional association-independence property and real public original CDEF-handler evidence. Source-derived byte folds, not supplied records or owner reconstruction. Original shared Copy constructor routing unchanged. Palette normative HOLD, whole header/container/public, cfg/erasure/lifetimes/release remain separate.",
       "implementation_refs": [
         {"path": "src/jp2/color.rs", "symbol": "parse_component_mapping"},
         {"path": "src/jp2/color.rs", "symbol": "parse_channel_definition"},
@@ -1669,7 +1675,8 @@
         {"path": "specs/jp2_channel_header.rs", "symbol": "part2_mapping_error"},
         {"path": "specs/jp2_channel_header.rs", "symbol": "part2_channel_records_step"},
         {"path": "specs/jp2_channel_header.rs", "symbol": "part2_channel_records_error"},
-        {"path": "src/image/layout.rs", "symbol": "channel_definition_new"}
+        {"path": "src/image/layout.rs", "symbol": "channel_definition_new"},
+        {"path": "proofs/spec_properties/mod.rs", "symbol": "channel_definition_admission_is_independent_of_association"}
       ],
       "test_refs": [
         {"path": "src/jp2/tests.rs", "symbol": "actual_raw_component_mapping_retains_order_repeats_and_every_record_field"},
@@ -1677,24 +1684,29 @@
         {"path": "src/jp2/tests.rs", "symbol": "actual_raw_component_mapping_keeps_length_conversion_limit_and_lazy_error_priority"},
         {"path": "src/jp2/tests.rs", "symbol": "actual_raw_channel_definition_retains_order_repeats_types_and_associations"},
         {"path": "src/jp2/tests.rs", "symbol": "actual_raw_channel_definition_keeps_all_channel_type_and_association_boundaries"},
-        {"path": "src/jp2/tests.rs", "symbol": "actual_raw_channel_definition_keeps_exact_lengths_full_count_and_lazy_offsets"}
+        {"path": "src/jp2/tests.rs", "symbol": "actual_raw_channel_definition_keeps_exact_lengths_full_count_and_lazy_offsets"},
+        {"path": "src/jp2/tests.rs", "symbol": "sarah_dev_3db90259d8_rgb_associations_are_not_physical_channel_indices"},
+        {"path": "src/jp2/tests.rs", "symbol": "sarah_dev_3db90259d8_associations_retain_the_full_wire_domain"}
       ]
     },
     {
       "id": "part2-complete-native-raw-color-header-result",
-      "topic": "Complete actual raw color specification Result with method, precedence, approximation and every optional ICC byte. Actual native profile copying is checked exact/successful; no supplied profile/color bank, owner inversion, runtime proof clone or allocation/body/scope relocation. Retain lazy relative error offsets, enumerated32bit values and restricted/unrestricted ICC admission; this does not assert conversion support. Native ICC getter exposes full retained bytes. Whole header/container/public, normative/cfg/erasure/lifetimes/release remain separate.",
+      "topic": "Complete actual raw color specification Result with method, precedence, approximation and every optional ICC byte. Sarah DEV-629A0A9C39: extract the original common three-byte prefix validation as the sole shared checked producer used by selected-color parsing and by ignored later COLR boxes in full/associated headers. Preserve selected-color semantic/profile/byte-copy admission and lazy errors; do not interpret or allocate irrelevant later ICC data. Actual native profile copying is checked exact/successful; no supplied profile/color bank, owner inversion or runtime proof clone. This does not assert conversion support or selected-edition certification. Whole header/container/public, normative/cfg/erasure/lifetimes/release remain separate.",
       "implementation_refs": [
         {"path": "src/jp2/color.rs", "symbol": "parse_color_specification"},
+        {"path": "src/jp2/color.rs", "symbol": "validate_color_specification_prefix"},
         {"path": "src/jp2/color.rs", "symbol": "copy_profile"},
         {"path": "src/jp2/color.rs", "symbol": "ColorSpecification::icc_profile"},
         {"path": "src/jp2/headers.rs", "symbol": "parse_jp2_header"},
         {"path": "src/jp2/headers.rs", "symbol": "parse_codestream_header"}
       ],
       "spec_refs": [
-        {"path": "specs/jp2_color_header.rs", "symbol": "part2_parse_color_specification"}
+        {"path": "specs/jp2_color_header.rs", "symbol": "part2_parse_color_specification"},
+        {"path": "specs/jp2_color_header.rs", "symbol": "part2_validate_color_specification_prefix"}
       ],
       "contract_refs": [
-        {"path": "src/jp2/color.rs", "symbol": "parse_color_specification"}
+        {"path": "src/jp2/color.rs", "symbol": "parse_color_specification"},
+        {"path": "src/jp2/color.rs", "symbol": "validate_color_specification_prefix"}
       ],
       "proof_refs": [
         {"path": "src/jp2/proof_support.rs", "symbol": "full_color_specification_view"},
@@ -1706,7 +1718,9 @@
         {"path": "src/jp2/tests.rs", "symbol": "actual_raw_color_header_preserves_enumerated_method_and_all_metadata_bytes"},
         {"path": "src/jp2/tests.rs", "symbol": "actual_raw_color_header_copies_every_restricted_and_unrestricted_icc_byte"},
         {"path": "src/jp2/tests.rs", "symbol": "actual_raw_color_header_preserves_exact_length_method_and_lazy_offset_errors"},
-        {"path": "src/jp2/tests.rs", "symbol": "actual_raw_color_header_owned_profile_is_independent_of_original_source_storage"}
+        {"path": "src/jp2/tests.rs", "symbol": "actual_raw_color_header_owned_profile_is_independent_of_original_source_storage"},
+        {"path": "src/jp2/tests.rs", "symbol": "sarah_dev_629a0a9c39_later_colour_interpretations_preserve_selected_metadata"},
+        {"path": "src/jp2/tests.rs", "symbol": "sarah_dev_629a0a9c39_ignored_prefixes_keep_selected_and_error_policies"}
       ]
     },
     {
@@ -10070,6 +10084,10 @@
         {
           "path": "proofs/spec_properties/mod.rs",
           "symbol": "unassociated_channel_is_valid"
+        },
+        {
+          "path": "proofs/spec_properties/mod.rs",
+          "symbol": "channel_definition_admission_is_independent_of_association"
         }
       ],
       "spec_refs": [

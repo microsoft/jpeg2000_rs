@@ -90,6 +90,14 @@ field terminators are retained; overflow and truncated fields remain errors.
 Container parsing requires one initial signature and file-type prefix.
 Later top-level repetitions are malformed, including after a codestream;
 unknown opaque payloads are not scanned for embedded prefix bytes.
+CDEF metadata distinguishes physical channel indices from colour associations.
+Raw record parsing bounds the physical index, retains colour-index metadata
+independently, and preserves repeated descriptions and the whole-image and
+unassociated sentinels. Colour interpretation is a separate consumer step.
+Once a header colour specification is selected, later COLR boxes retain
+framing, resource accounting and common-prefix validation but do not replace
+the selection or trigger irrelevant colour/ICC interpretation. Associated
+headers apply the same rule after their first provided colour override.
 
 ## Coding features
 

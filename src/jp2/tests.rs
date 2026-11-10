@@ -1410,6 +1410,95 @@ fn actual_raw_channel_definition_retains_order_repeats_types_and_associations() 
 }
 
 #[test]
+fn sarah_dev_3db90259d8_rgb_associations_are_not_physical_channel_indices() {
+    let mut contexts = 0;
+    for (channels, count) in [
+        (1_u16, 3),
+        (2, 4),
+        (3, 5),
+        (4, 6),
+        (8, 10),
+        (64, 66),
+        (3, 65_535),
+    ] {
+        let mut raw = Vec::new();
+        let mut expected = Vec::new();
+        for index in 0..count {
+            let (channel, kind, association, channel_type, channel_association) = if index < 3 {
+                let color = u16::try_from(index + 1).unwrap();
+                (
+                    0,
+                    0,
+                    color,
+                    ChannelType::Color,
+                    ChannelAssociation::Color(color),
+                )
+            } else {
+                let channel = 1 + u16::try_from((index - 3) % u32::from(channels - 1)).unwrap();
+                (
+                    channel,
+                    u16::MAX,
+                    u16::MAX,
+                    ChannelType::Unspecified,
+                    ChannelAssociation::Unassociated,
+                )
+            };
+            raw.push((channel, kind, association));
+            expected.push(ChannelDefinitionRecord {
+                channel,
+                definition: ChannelDefinition::new(channel_type, channel_association),
+            });
+        }
+        let payload = raw_channel_definition_payload(&raw);
+        assert_eq!(
+            parse_channel_definition(raw_image_header_box(&payload, 19), channels, 100).unwrap(),
+            expected,
+            "physical channels={channels}, records={count}",
+        );
+        contexts += 1;
+    }
+    assert_eq!(contexts, 7);
+    for channels in [1_u16, 2, 3, 4, 8, 64] {
+        for (channel, kind) in [(channels, 0), (u16::MAX, 0), (0, 3)] {
+            let payload = raw_channel_definition_payload(&[(channel, kind, 3)]);
+            assert_eq!(
+                parse_channel_definition(raw_image_header_box(&payload, 19), channels, 100),
+                Err(DecodeError::MalformedInput {
+                    offset: 119,
+                    kind: MalformedKind::InvalidBoxContents
+                }),
+            );
+        }
+    }
+}
+
+#[test]
+fn sarah_dev_3db90259d8_associations_retain_the_full_wire_domain() {
+    let mut cases = 0;
+    for output in [0_u16, 1, 2, 64, u16::MAX] {
+        for channel in [0, output.saturating_sub(1), output] {
+            for kind in [0, 1, 2, 3, u16::MAX] {
+                let expected = channel < output && [0, 1, 2, u16::MAX].contains(&kind);
+                for association in 0..=u16::MAX {
+                    assert_eq!(
+                        crate::refinement::channel_definition_valid(
+                            channel,
+                            kind,
+                            association,
+                            output
+                        ),
+                        expected,
+                        "output={output} channel={channel} kind={kind} association={association}",
+                    );
+                    cases += 1;
+                }
+            }
+        }
+    }
+    assert_eq!(cases, 4_915_200);
+}
+
+#[test]
 fn actual_raw_channel_definition_keeps_all_channel_type_and_association_boundaries() {
     for output in [0, 1, u16::MAX] {
         for channel in [0, 1, u16::MAX - 1, u16::MAX] {
@@ -1418,9 +1507,7 @@ fn actual_raw_channel_definition_keeps_all_channel_type_and_association_boundari
                     let payload = raw_channel_definition_payload(&[(channel, kind, association)]);
                     let result =
                         parse_channel_definition(raw_image_header_box(&payload, 19), output, 100);
-                    let valid = channel < output
-                        && matches!(kind, 0 | 1 | 2 | u16::MAX)
-                        && (association <= output || association == u16::MAX);
+                    let valid = channel < output && matches!(kind, 0 | 1 | 2 | u16::MAX);
                     if valid {
                         assert_eq!(result.unwrap()[0].channel, channel);
                     } else {
@@ -2063,7 +2150,137 @@ fn actual_raw_jp2_header_retains_every_owned_metadata_field_from_real_raw_produc
 }
 
 #[test]
-fn actual_raw_jp2_header_preserves_first_color_but_still_parses_every_later_color() {
+fn sarah_dev_629a0a9c39_later_colour_interpretations_preserve_selected_metadata() {
+    let limits = ResourceLimits::default();
+    let mut contexts = 0;
+    for base in [0_u64, 40, 1 << 32, u64::MAX] {
+        let mut initial = raw_jp2_header_image(7, 3);
+        initial.extend(raw_jp2_header_color());
+        let baseline = super::headers::parse_jp2_header(&initial, &limits, base).unwrap();
+        let mut defaults = baseline.clone();
+        defaults.image.width += 1;
+        assert_eq!(
+            baseline.color.method(),
+            ColorMethod::Enumerated { color_space: 16 }
+        );
+        for method in 0..=u8::MAX {
+            for extra in [0, 1, 7, 31] {
+                let mut ignored = vec![method, 0, 0];
+                ignored
+                    .extend((0..extra).map(|index| u8::try_from((index * 17 + 3) % 256).unwrap()));
+                let later = box32(*b"colr", &ignored);
+                let mut full = initial.clone();
+                full.extend_from_slice(&later);
+                full.extend(raw_jp2_header_color());
+                let snapshot = full.clone();
+                let mut expected = baseline.clone();
+                expected.nested_box_count = 4;
+                assert_eq!(
+                    super::headers::parse_jp2_header(&full, &limits, base).unwrap(),
+                    expected,
+                    "method={method} extra={extra} base={base}",
+                );
+                assert_eq!(full, snapshot);
+                assert_eq!(
+                    super::headers::parse_codestream_header(&full, Some(&defaults), &limits, base)
+                        .unwrap(),
+                    expected,
+                );
+
+                let mut associated = raw_jp2_header_color();
+                associated.extend_from_slice(&later);
+                associated.extend(raw_jp2_header_color());
+                let snapshot = associated.clone();
+                expected.nested_box_count = 3;
+                assert_eq!(
+                    super::headers::parse_codestream_header(
+                        &associated,
+                        Some(&baseline),
+                        &limits,
+                        base
+                    )
+                    .unwrap(),
+                    expected,
+                );
+                assert_eq!(associated, snapshot);
+                contexts += 1;
+            }
+        }
+    }
+    assert_eq!(contexts, 4096);
+}
+
+#[test]
+fn sarah_dev_629a0a9c39_ignored_prefixes_keep_selected_and_error_policies() {
+    let limits = ResourceLimits::default();
+    for base in [0_u64, 100, u64::MAX] {
+        for length in 0..3 {
+            let payload = vec![255; length];
+            let expected = match base.checked_add(19) {
+                Some(offset) => DecodeError::MalformedInput {
+                    offset,
+                    kind: MalformedKind::InvalidBoxLength,
+                },
+                None => DecodeError::MalformedInput {
+                    offset: base,
+                    kind: MalformedKind::ArithmeticOverflow,
+                },
+            };
+            assert_eq!(
+                super::color::validate_color_specification_prefix(
+                    raw_image_header_box(&payload, 19),
+                    base
+                ),
+                Err(expected),
+            );
+            assert_eq!(
+                parse_color_specification(raw_image_header_box(&payload, 19), base).err(),
+                Some(expected),
+            );
+        }
+        for (payload, kind) in [
+            (&[1, 0, 0][..], MalformedKind::InvalidBoxLength),
+            (&[2, 0, 0][..], MalformedKind::InvalidBoxLength),
+            (&[3, 0, 0][..], MalformedKind::InvalidBoxLength),
+            (&[0, 0, 0][..], MalformedKind::InvalidColorSpecification),
+        ] {
+            assert_eq!(
+                super::color::validate_color_specification_prefix(
+                    raw_image_header_box(payload, 19),
+                    base
+                ),
+                Ok(()),
+            );
+            let expected = match base.checked_add(19) {
+                Some(offset) => DecodeError::MalformedInput { offset, kind },
+                None => DecodeError::MalformedInput {
+                    offset: base,
+                    kind: MalformedKind::ArithmeticOverflow,
+                },
+            };
+            assert_eq!(
+                parse_color_specification(raw_image_header_box(payload, 19), base).err(),
+                Some(expected),
+            );
+        }
+    }
+    let mut initial = raw_jp2_header_image(7, 3);
+    initial.extend(raw_jp2_header_color());
+    for length in 0..3 {
+        let mut bytes = initial.clone();
+        bytes.extend(box32(*b"colr", &vec![255; length]));
+        assert_eq!(
+            super::headers::parse_jp2_header(&bytes, &limits, 100).err(),
+            Some(DecodeError::MalformedInput {
+                offset: 100 + u64::try_from(initial.len()).unwrap(),
+                kind: MalformedKind::InvalidBoxLength,
+            }),
+        );
+    }
+}
+
+#[test]
+fn actual_raw_jp2_header_preserves_first_color_and_ignores_later_interpretations() {
     let mut payload = raw_jp2_header_image(7, 1);
     payload.extend_from_slice(&raw_jp2_header_color());
     payload.extend_from_slice(&box32(*b"colr", &[3, 255, 255, 7]));
@@ -2080,14 +2297,13 @@ fn actual_raw_jp2_header_preserves_first_color_but_still_parses_every_later_colo
     assert_eq!(header.color.icc_profile(), None);
     assert_eq!(header.nested_box_count, 3);
     payload.truncate(raw_jp2_header_image(7, 1).len() + raw_jp2_header_color().len());
-    let offset = payload.len() as u64 + 100;
     payload.extend_from_slice(&box32(*b"colr", &[0, 0, 0]));
     assert_eq!(
-        super::headers::parse_jp2_header(&payload, &ResourceLimits::default(), 100).err(),
-        Some(DecodeError::MalformedInput {
-            offset,
-            kind: MalformedKind::InvalidColorSpecification
-        })
+        super::headers::parse_jp2_header(&payload, &ResourceLimits::default(), 100)
+            .unwrap()
+            .color
+            .method(),
+        ColorMethod::Enumerated { color_space: 16 },
     );
 }
 

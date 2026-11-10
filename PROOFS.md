@@ -835,6 +835,18 @@ types/associations, length/conversion/component-limit priority and lazy rebased
 errors. No supplied valid-record bank, success premise or owner reconstruction
 is used.
 
+The Sarah `DEV-3DB90259D8` correction separates physical `Cn` admission from
+colour-index `Asoc` metadata. The real predicate and complete model retain the
+physical-channel and type checks without bounding associations by an unrelated
+physical count. The raw parser retains every association and ordered record,
+including repeated RGB associations on one physical channel and all 65,535
+records; this is not a claim of full one-channel RGB decoding or complete
+colour-space-aware association validation. An unconditional closed property
+states that raw physical admission is independent of the association value.
+The pinned public original CDEF handler independently retains 65,629 records
+across seven such header contexts. Native regressions cover the same records,
+all 4,915,200 scalar domain combinations and unchanged physical/type errors.
+
 The actual channel-definition constructor call deliberately targets the existing
 checked shared Copy producer, instead of its uncontracted static-method wrapper;
 the unused integer-conversion error argument is named for the pinned macro.
@@ -844,6 +856,21 @@ normative HOLD, full header/container/public composition, coverage, cfg/erasure,
 lifetimes and release acceptance remain independent.
 
 ## Actual complete raw color specification Result
+
+The Sarah `DEV-629A0A9C39` correction shares the original common three-byte
+prefix check between the full selected-color parser and ignored later COLR
+boxes. Full JP2 and associated-header producers still frame, count and charge
+every box, but do not interpret later methods or copy irrelevant ICC data.
+Selected-color parsing, short-prefix errors, lazy offset arithmetic,
+full-parse-before-defaults priority and first provided override policy remain.
+Complete full/associated/prefix models and native callers change together;
+the first-color admission policy and JPX colour-group selection are not expanded.
+The pinned public original COLR handler independently ignores 1,024 later
+method/payload combinations while rejecting three short prefixes and retaining
+its selected state. Native tests cover all methods at four raw bases across
+full, full-with-defaults and partial-associated routes, including `u64::MAX`.
+This is explicit reader-policy/implementation evidence, not independent
+selected-edition certification.
 
 The actual color specification parser now derives its complete Result from
 borrowed raw bytes: method, precedence, approximation and every optional ICC

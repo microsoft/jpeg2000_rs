@@ -3666,7 +3666,7 @@ class FrameworkTests(WorkingFiles):
 
     def test_inventory_binds_actual_complete_raw_color_header_result(self):
         self._assert_complete_packet_contract_bindings(
-            {framework._COLOR_HEADER_ENTRY}, framework._COLOR_HEADER_CONTRACTS, 1, isolate=False,
+            {framework._COLOR_HEADER_ENTRY}, framework._COLOR_HEADER_CONTRACTS, 2, isolate=False,
         )
 
     def test_inventory_raw_color_header_requires_every_actual_metadata_and_copy_bridge(self):
@@ -3691,6 +3691,7 @@ class FrameworkTests(WorkingFiles):
             ("copy_profile(&box_ref.payload[3..])?", "copy_profile(&box_ref.payload[3..4])?"),
             ("precedence: box_ref.payload[1]", "precedence: 0"),
             ("approximation: box_ref.payload[2]", "approximation: 0"),
+            ("validate_color_specification_prefix(box_ref, base_offset)?", "validate_color_specification_prefix(box_ref, 0)?"),
         ):
             self.assertIn(before, original[begin:])
             changed = original[:begin] + original[begin:].replace(before, after, 1)
