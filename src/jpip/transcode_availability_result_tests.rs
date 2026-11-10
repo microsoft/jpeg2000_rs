@@ -6,7 +6,7 @@ fn overflow() -> DecodeError {
     DecodeError::malformed(0, MalformedKind::ArithmeticOverflow)
 }
 
-fn expected_append(
+pub(super) fn expected_append(
     cache: &DatabinCache,
     requested: DatabinId,
     output: &mut JpipAvailabilityReport,

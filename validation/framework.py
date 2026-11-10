@@ -3846,6 +3846,78 @@ _JPIP_TRANSCODE_TESTS = {("src/jpip/transcode_result_tests.rs", name) for name i
     "actual_jpip_transcode_preserves_physical_header_layer_limit_and_raw_validation_error_frontiers",
 )} | {("src/jpip/transcode_availability_result_tests.rs",
        "actual_jpip_complete_header_requirements_preserve_partial_reports_and_physical_cache_priorities")}
+_JPIP_PROGRESSIVE_ENTRY = "part9-complete-native-caller-progressive-results"
+_JPIP_PROGRESSIVE_APIS = {("src/jpip/progression.rs", name) for name in (
+    "JpipProgressiveDecoder::update", "JpipProgressiveDecoder::update_selected",
+)}
+_JPIP_PROGRESSIVE_CONTRACTS = {
+    ("src/jpip/progression.rs", name): (
+        "part2_jpip_progressive_update", _coverage_call("jpip_progressive_outcome", r"\1"),
+        _coverage_call("jpip_progressive_decoder_view", _coverage_call("final", "self")),
+        _coverage_call("jpip_cache_view", "cache") + r"\s*,\s*"
+        + _coverage_call("jpip_progressive_decoder_view", _coverage_call("old", "self"))
+        + r"\s*,\s*options\s*,\s*" + selected,
+    )
+    for name, selected in (
+        ("JpipProgressiveDecoder::update", "None"),
+        ("JpipProgressiveDecoder::update_selected", _coverage_call("Some", "selection")),
+        ("JpipProgressiveDecoder::update_inner", "selection"),
+    )
+}
+_JPIP_PROGRESSIVE_CONTRACTS[("src/jpip/ranges.rs", "DatabinCache::progressive_availability")] = (
+    "part2_jpip_progressive_availability", _coverage_call("jpip_progressive_availability_outcome", r"\1"), None,
+    _coverage_call("jpip_cache_view", "self") + r"\s*,\s*" + _coverage_call("jpip_plan_view", "plan"),
+)
+_JPIP_PROGRESSIVE_CONTRACTS[("src/jpip/precinct.rs", "DatabinCache::transcode_precinct_codestream")] = (
+    _JPIP_TRANSCODE_CONTRACTS[("src/jpip/precinct.rs", "DatabinCache::transcode_precinct_codestream")]
+)
+_JPIP_PROGRESSIVE_CONTRACTS.update({
+    ("src/decode/api.rs", name): _RAW_TYPED_CONTRACTS[("src/decode/api.rs", name)]
+    for name in ("decode_codestream", "decode_codestream_selected")
+})
+_JPIP_PROGRESSIVE_MODELS = {("specs/jpip_progressive.rs", name) for name in (
+    "part2_jpip_progressive_layers", "part2_jpip_progressive_availability", "part2_jpip_progressive_update",
+)} | {
+    ("specs/jpip_transcode.rs", "part2_jpip_append_complete_requirement"),
+    ("specs/jpip_transcode.rs", "part2_jpip_transcode"),
+    ("specs/jpip_ranges.rs", "part2_jpip_cache_availability"),
+    ("specs/raw_decode.rs", "part2_decode_raw_codestream"),
+}
+_JPIP_PROGRESSIVE_BODY_CLAUSES = {
+    "JpipProgressiveDecoder::new": "vstd::prelude::ensures(|result: Self| { vstd::prelude::equal(jpip_progressive_decoder_view(&result), (jpip_plan_view(&plan), 0_u16)) && vstd::prelude::equal(*jpip_progressive_plan_owner(&result), plan) });",
+    "JpipProgressiveDecoder::plan": "vstd::prelude::ensures(|result: &JpipPrecinctCodestreamPlan| { vstd::prelude::equal(jpip_plan_view(result), jpip_progressive_decoder_view(self).0) && vstd::prelude::equal(result, jpip_progressive_plan_owner(self)) });",
+    "JpipProgressiveDecoder::decoded_layers": "vstd::prelude::ensures(|result: u16| { vstd::prelude::equal(result, jpip_progressive_decoder_view(self).1) });",
+}
+_JPIP_PROGRESSIVE_GETTERS = {name: clause for name, clause in (
+    ("JpipProgressiveUpdate::status", "result == jpip_progressive_update_view(self).0"),
+    ("JpipProgressiveUpdate::previous_layers", "result == jpip_progressive_update_view(self).1"),
+    ("JpipProgressiveUpdate::available_layers", "result == jpip_progressive_update_view(self).2"),
+    ("JpipProgressiveUpdate::missing_ranges", "result@.map_values(|range: JpipMissingRange| super::jpip_missing_view(range)) == jpip_progressive_update_view(self).3"),
+    ("JpipProgressiveUpdate::image", "jpip_optional_image_borrow_view(result) == jpip_progressive_update_view(self).4"),
+    ("JpipProgressiveUpdate::into_image", "jpip_optional_image_view(result) == jpip_progressive_update_view(&self).4"),
+)}
+_JPIP_PROGRESSIVE_PROJECTIONS = {("src/jpip/progression_proof_support.rs", name) for name in (
+    "jpip_progressive_decoder_view", "jpip_progressive_plan_owner", "jpip_progressive_update_view",
+    "jpip_progressive_image_borrow", "jpip_progressive_image_owner", "jpip_optional_image_view",
+    "jpip_optional_image_borrow_view", "jpip_progressive_outcome", "jpip_progressive_availability_outcome",
+)}
+_JPIP_PROGRESSIVE_PROOFS = set(_JPIP_PROGRESSIVE_CONTRACTS) | _JPIP_PROGRESSIVE_PROJECTIONS | {
+    ("src/jpip/progression.rs", name) for name in (*_JPIP_PROGRESSIVE_BODY_CLAUSES, *_JPIP_PROGRESSIVE_GETTERS)
+} | {
+    ("src/jpip/ranges.rs", "DatabinCache::append_complete_databin_requirement"),
+    ("src/jpip/precinct.rs", "JpipPrecinctCodestreamPlan::layers"),
+    ("src/jpip/cache.rs", "JpipByteView::as_bytes"),
+    ("src/image/proof_support.rs", "decoded_typed_image_outcome"),
+    ("src/image/proof_support.rs", "typed_image_value_view"),
+    ("src/refinement/jpip.rs", "jpip_progressive_update_valid"),
+    ("src/refinement/jpip.rs", "jpip_quality_prefix_available"),
+}
+_JPIP_PROGRESSIVE_TESTS = {("src/jpip/progressive_result_tests.rs", name) for name in (
+    "actual_jpip_progressive_constructor_waiting_protocol_errors_and_plan_owner_are_exact",
+    "actual_jpip_progressive_raw_updates_return_complete_images_and_original_optional_image_owners",
+    "actual_jpip_progressive_full_selected_decode_errors_preserve_prior_state_and_skip_unneeded_decoding",
+)} | {("src/jpip/progressive_availability_result_tests.rs",
+       "actual_jpip_progressive_availability_derives_physical_headers_layers_missing_and_narrowing_errors")}
 _RAW_JPX_PUBLIC_IMAGE_ENTRY = "part2-complete-native-public-raw-jpx-codestream-results"
 _RAW_JPX_PUBLIC_IMAGE_APIS = {("src/decode/api.rs", name) for name in (
     "decode_jpx_codestream", "decode_jpx_codestream_selected", "decode_jpx_codestream_color", "decode_jpx_codestream_color_selected",
@@ -4276,6 +4348,83 @@ def validate_normative_coverage(
     ids: set[str] = set()
     contract_functions: set[tuple[str, str]] = set()
     for entry in coverage["requirements"]:
+        if entry["id"] == _JPIP_PROGRESSIVE_ENTRY:
+            if {(ref["path"], ref["symbol"]) for ref in entry["contract_refs"]} != set(_JPIP_PROGRESSIVE_CONTRACTS) - _JPIP_PROGRESSIVE_APIS:
+                raise ValueError("whole caller JPIP progressive requires complete actual availability/transcode/full-selected consumers")
+            for field, required in (
+                ("implementation_refs", set(_JPIP_PROGRESSIVE_CONTRACTS)),
+                ("spec_refs", _JPIP_PROGRESSIVE_MODELS), ("proof_refs", _JPIP_PROGRESSIVE_PROOFS),
+                ("test_refs", _JPIP_PROGRESSIVE_TESTS),
+            ):
+                if not required.issubset({(ref["path"], ref["symbol"]) for ref in entry[field]}):
+                    raise ValueError("whole caller JPIP progressive linked function is not used by claimed implementation: actual header/layer/transcode/image/state/owner bridge missing")
+            path = (ROOT / "src/jpip/progression.rs").resolve()
+            text = source_text(path)
+            for name, clause in _JPIP_PROGRESSIVE_BODY_CLAUSES.items():
+                if not _coverage_verified_body_clause(text, function_header(path, name), name, clause):
+                    raise ValueError("whole caller JPIP progressive requires exact checked owned constructor/impl clauses")
+            for name, clause in _JPIP_PROGRESSIVE_GETTERS.items():
+                header = function_header(path, name)
+                signature = text.find("fn", header.start(), header.end()) if header else -1
+                attrs = text[text.rfind("#[cfg_attr", 0, signature):signature] if signature >= 0 else ""
+                if "ensures" + "".join(clause.split()) + "," not in "".join(attrs.split()) or re.search(r"\brequires\b", attrs):
+                    raise ValueError("whole caller JPIP progressive requires complete stored update fields and image values")
+                owner = {"JpipProgressiveUpdate::image": "result == jpip_progressive_image_borrow(self)",
+                         "JpipProgressiveUpdate::into_image": "result == *jpip_progressive_image_owner(&self)"}.get(name)
+                if owner is not None and "".join(owner.split()) not in "".join(attrs.split()):
+                    raise ValueError("whole caller JPIP progressive requires original optional image borrow/move owner")
+            for name in ("JpipProgressiveDecoder::update", "JpipProgressiveDecoder::update_selected", "JpipProgressiveDecoder::update_inner"):
+                header = function_header(path, name)
+                signature = text.find("fn", header.start(), header.end()) if header else -1
+                attrs = text[text.rfind("#[cfg_attr", 0, signature):signature] if signature >= 0 else ""
+                if "".join("jpip_progressive_plan_owner(final(self)) == jpip_progressive_plan_owner(old(self))".split()) not in "".join(attrs.split()):
+                    raise ValueError("whole caller JPIP progressive requires original native plan frame on every Result")
+            for relative, name, required in (
+                ("src/jpip/progression.rs", "JpipProgressiveDecoder::update", ("self.update_inner(cache, options, None)",)),
+                ("src/jpip/progression.rs", "JpipProgressiveDecoder::update_selected", ("self.update_inner(cache, options, Some(selection))",)),
+                ("src/jpip/progression.rs", "JpipProgressiveDecoder::update_inner", (
+                    "let previous_layers = self.decoded_layers", "cache.progressive_availability(&self.plan)?",
+                    "jpip_progressive_update_valid(", "jpip_quality_prefix_available(", "available_layers <= previous_layers",
+                    "cache.transcode_precinct_codestream(&self.plan, available_layers)?",
+                    "crate::decode_codestream_selected(view.as_ref(), options, selection)?",
+                    "crate::decode_codestream(view.as_ref(), options)?", "self.decoded_layers = available_layers",
+                    "image: None", "image: Some(image)", "JpipProgressiveStatus::QualityAdvanced",
+                )),
+                ("src/jpip/ranges.rs", "DatabinCache::progressive_availability", (
+                    "self.append_complete_databin_requirement(plan.main_header, &mut header_report)?",
+                    "self.append_complete_databin_requirement(plan.tile_header, &mut header_report)?",
+                    "!header_report.missing.is_empty()", "while layer < plan.layer_ends.len()", ".get(start..end)",
+                    "|packet: &JpipPrecinctPacket| packet.range", "self.availability(&ranges)?",
+                    "u16::try_from(layer)", "start = end", "layer += 1",
+                    "part2_jpip_progressive_layers(cache, packets, ends, layer as nat, start)",
+                )),
+            ):
+                target = (ROOT / relative).resolve()
+                body = _coverage_function_body(source_text(target), function_header(target, name))
+                if body is None or any("".join(item.split()) not in "".join(body.split()) for item in required):
+                    raise ValueError("whole caller JPIP progressive requires original header/layer/iterator/transcode/full-selected/state handoffs")
+                if name == "DatabinCache::progressive_availability" and "".join(body.split()).count("u16::try_from(layer)") != 2:
+                    raise ValueError("whole caller JPIP progressive requires both original physical layer-count narrowing checks")
+            model = source_text((ROOT / "specs/jpip_progressive.rs").resolve())
+            for name, required in {
+                "part2_jpip_progressive_layers": ("layer > u16::MAX as nat", "start > end || end as nat > packets.len()",
+                    "packets.subrange(start as int, end as int)", "part2_jpip_cache_availability(cache, ranges)",
+                    "Ok((layer as u16, report.3))", "part2_jpip_progressive_layers(cache, packets, ends, layer + 1, end)"),
+                "part2_jpip_progressive_availability": ("part2_jpip_append_complete_requirement(cache, plan.0",
+                    "part2_jpip_append_complete_requirement(cache, plan.1, main.1)", "Ok((0, tile.1.3))",
+                    "part2_jpip_progressive_layers(cache, plan.2, plan.3, 0, 0)"),
+                "part2_jpip_progressive_update": ("planned = decoder.0.3.len() as u16",
+                    "part2_jpip_progressive_availability(cache, decoder.0)", "valid_jpip_progressive_update",
+                    "available <= previous", "part2_jpip_transcode(cache, decoder.0, available)",
+                    "part2_decode_raw_codestream(", "crate::options::decode_options_limits(options), selection",
+                    "Err(error) => (Err(error), decoder)", "previous, available, missing, Some(image)",
+                    "(decoder.0, available)"),
+            }.items():
+                body = _coverage_spec_function_body(model, name)
+                if body is None or any("".join(item.split()) not in "".join(body.split()) for item in required):
+                    raise ValueError("whole caller JPIP progressive requires complete physical layer/full-selected-image/final-state models")
+                if name == "part2_jpip_progressive_layers" and "".join(body.split()).count("iflayer>u16::MAXasnat") != 2:
+                    raise ValueError("whole caller JPIP progressive requires both complete narrowing error models")
         if entry["id"] == _JPIP_TRANSCODE_ENTRY:
             if {(ref["path"], ref["symbol"]) for ref in entry["contract_refs"]} != set(_JPIP_TRANSCODE_CONTRACTS) - _JPIP_TRANSCODE_APIS:
                 raise ValueError("whole JPIP transcode requires complete actual availability/header/packet consumers")
@@ -7218,7 +7367,9 @@ def validate_normative_coverage(
               or (entry["id"] == _JPIP_PLANNED_ENTRY
                   and (reference["path"], reference["symbol"]) in _JPIP_PLANNED_APIS)
               or (entry["id"] == _JPIP_TRANSCODE_ENTRY
-                  and (reference["path"], reference["symbol"]) in _JPIP_TRANSCODE_APIS))
+                  and (reference["path"], reference["symbol"]) in _JPIP_TRANSCODE_APIS)
+              or (entry["id"] == _JPIP_PROGRESSIVE_ENTRY
+                  and (reference["path"], reference["symbol"]) in _JPIP_PROGRESSIVE_APIS))
             and reference not in entry["contract_refs"]
         ]
         for reference in [*entry["contract_refs"], *proved_apis]:
@@ -7738,6 +7889,8 @@ def validate_normative_coverage(
                     if entry["id"] == _JPIP_PLANNED_ENTRY else None)
                 or (_JPIP_TRANSCODE_CONTRACTS.get((reference["path"], reference["symbol"]))
                     if entry["id"] == _JPIP_TRANSCODE_ENTRY else None)
+                or (_JPIP_PROGRESSIVE_CONTRACTS.get((reference["path"], reference["symbol"]))
+                    if entry["id"] == _JPIP_PROGRESSIVE_ENTRY else None)
                 or (_JPX_INSPECTION_CONTRACTS.get((reference["path"], reference["symbol"]))
                     if entry["id"] == _JPX_INSPECTION_ENTRY else None)
                 or (_RAW_JPX_INSPECTION_CONTRACTS.get((reference["path"], reference["symbol"]))

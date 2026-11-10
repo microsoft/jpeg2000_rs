@@ -11,36 +11,84 @@ use super::{
     siz_cardinality, validate_packet_component_selection, write_u32_be,
 };
 #[cfg(verus_keep_ghost)]
+use super::{
+    jpip_cache_view, jpip_optional_image_borrow_view, jpip_optional_image_view, jpip_plan_view,
+    jpip_progressive_decoder_view, jpip_progressive_image_borrow, jpip_progressive_image_owner,
+    jpip_progressive_outcome, jpip_progressive_plan_owner, jpip_progressive_update_view,
+    jpip_transcode_view,
+};
+#[cfg(verus_keep_ghost)]
 use vstd::prelude::*;
 
+#[cfg(test)]
+#[path = "progressive_result_tests.rs"]
+mod result_tests;
+
 impl JpipProgressiveUpdate {
+    #[cfg_attr(verus_keep_ghost, verus_spec(result => ensures result == jpip_progressive_update_view(self).0,))]
     pub const fn status(&self) -> JpipProgressiveStatus {
+        #[cfg(verus_keep_ghost)]
+        proof! { reveal(jpip_progressive_update_view); }
         self.status
     }
 
+    #[cfg_attr(verus_keep_ghost, verus_spec(result => ensures result == jpip_progressive_update_view(self).1,))]
     pub const fn previous_layers(&self) -> u16 {
+        #[cfg(verus_keep_ghost)]
+        proof! { reveal(jpip_progressive_update_view); }
         self.previous_layers
     }
 
+    #[cfg_attr(verus_keep_ghost, verus_spec(result => ensures result == jpip_progressive_update_view(self).2,))]
     pub const fn available_layers(&self) -> u16 {
+        #[cfg(verus_keep_ghost)]
+        proof! { reveal(jpip_progressive_update_view); }
         self.available_layers
     }
 
+    #[cfg_attr(verus_keep_ghost, verus_spec(result =>
+        ensures result@.map_values(|range: JpipMissingRange| super::jpip_missing_view(range))
+            == jpip_progressive_update_view(self).3,
+    ))]
     pub fn missing_ranges(&self) -> &[JpipMissingRange] {
+        #[cfg(verus_keep_ghost)]
+        proof! { reveal(jpip_progressive_update_view); }
         &self.missing
     }
 
+    #[cfg_attr(verus_keep_ghost, verus_spec(result =>
+        ensures jpip_optional_image_borrow_view(result) == jpip_progressive_update_view(self).4,
+            result == jpip_progressive_image_borrow(self),
+    ))]
     pub const fn image(&self) -> Option<&crate::image::TypedImage> {
+        #[cfg(verus_keep_ghost)]
+        proof! { reveal(jpip_progressive_update_view); reveal(jpip_progressive_image_borrow); }
         self.image.as_ref()
     }
 
+    #[cfg_attr(verus_keep_ghost, verus_spec(result =>
+        ensures jpip_optional_image_view(result) == jpip_progressive_update_view(&self).4,
+            result == *jpip_progressive_image_owner(&self),
+    ))]
     pub fn into_image(self) -> Option<crate::image::TypedImage> {
+        #[cfg(verus_keep_ghost)]
+        proof! { reveal(jpip_progressive_update_view); reveal(jpip_progressive_image_owner); }
         self.image
     }
 }
 
+#[cfg_attr(verus_keep_ghost, verus_verify)]
 impl JpipProgressiveDecoder {
     pub const fn new(plan: JpipPrecinctCodestreamPlan) -> Self {
+        #[cfg(verus_keep_ghost)]
+        vstd::prelude::ensures(|result: Self| {
+            vstd::prelude::equal(
+                jpip_progressive_decoder_view(&result),
+                (jpip_plan_view(&plan), 0_u16),
+            ) && vstd::prelude::equal(*jpip_progressive_plan_owner(&result), plan)
+        });
+        #[cfg(verus_keep_ghost)]
+        proof! { reveal(jpip_progressive_decoder_view); reveal(jpip_progressive_plan_owner); }
         Self {
             plan,
             decoded_layers: 0,
@@ -48,13 +96,36 @@ impl JpipProgressiveDecoder {
     }
 
     pub const fn plan(&self) -> &JpipPrecinctCodestreamPlan {
+        #[cfg(verus_keep_ghost)]
+        vstd::prelude::ensures(|result: &JpipPrecinctCodestreamPlan| {
+            vstd::prelude::equal(
+                jpip_plan_view(result),
+                jpip_progressive_decoder_view(self).0,
+            ) && vstd::prelude::equal(result, jpip_progressive_plan_owner(self))
+        });
+        #[cfg(verus_keep_ghost)]
+        proof! { reveal(jpip_progressive_decoder_view); reveal(jpip_progressive_plan_owner); }
         &self.plan
     }
 
     pub const fn decoded_layers(&self) -> u16 {
+        #[cfg(verus_keep_ghost)]
+        vstd::prelude::ensures(|result: u16| {
+            vstd::prelude::equal(result, jpip_progressive_decoder_view(self).1)
+        });
+        #[cfg(verus_keep_ghost)]
+        proof! { reveal(jpip_progressive_decoder_view); }
         self.decoded_layers
     }
+}
 
+impl JpipProgressiveDecoder {
+    #[cfg_attr(verus_keep_ghost, verus_spec(result =>
+        ensures (jpip_progressive_outcome(result), jpip_progressive_decoder_view(final(self)))
+            == crate::specs::part2_jpip_progressive_update(jpip_cache_view(cache),
+                jpip_progressive_decoder_view(old(self)), options, None),
+            jpip_progressive_plan_owner(final(self)) == jpip_progressive_plan_owner(old(self)),
+    ))]
     pub fn update(
         &mut self,
         cache: &DatabinCache,
@@ -63,6 +134,12 @@ impl JpipProgressiveDecoder {
         self.update_inner(cache, options, None)
     }
 
+    #[cfg_attr(verus_keep_ghost, verus_spec(result =>
+        ensures (jpip_progressive_outcome(result), jpip_progressive_decoder_view(final(self)))
+            == crate::specs::part2_jpip_progressive_update(jpip_cache_view(cache),
+                jpip_progressive_decoder_view(old(self)), options, Some(selection)),
+            jpip_progressive_plan_owner(final(self)) == jpip_progressive_plan_owner(old(self)),
+    ))]
     pub fn update_selected(
         &mut self,
         cache: &DatabinCache,
@@ -72,12 +149,23 @@ impl JpipProgressiveDecoder {
         self.update_inner(cache, options, Some(selection))
     }
 
+    #[cfg_attr(verus_keep_ghost, verus_spec(result =>
+        ensures (jpip_progressive_outcome(result), jpip_progressive_decoder_view(final(self)))
+            == crate::specs::part2_jpip_progressive_update(jpip_cache_view(cache),
+                jpip_progressive_decoder_view(old(self)), options, selection),
+            jpip_progressive_plan_owner(final(self)) == jpip_progressive_plan_owner(old(self)),
+    ))]
     fn update_inner(
         &mut self,
         cache: &DatabinCache,
         options: &crate::DecodeOptions,
         selection: Option<&crate::DecodeSelection>,
     ) -> Result<JpipProgressiveUpdate, DecodeError> {
+        #[cfg(verus_keep_ghost)]
+        proof! {
+            reveal(jpip_progressive_decoder_view); reveal(jpip_progressive_plan_owner);
+            reveal(jpip_progressive_update_view); reveal(jpip_transcode_view);
+        }
         let previous_layers = self.decoded_layers;
         let (available_layers, missing) = cache.progressive_availability(&self.plan)?;
         if !crate::refinement::jpip_progressive_update_valid(
@@ -105,7 +193,12 @@ impl JpipProgressiveDecoder {
         let transcoded = cache.transcode_precinct_codestream(&self.plan, available_layers)?;
         let view = transcoded
             .codestream
-            .ok_or_else(|| DecodeError::malformed(0, MalformedKind::MissingRequiredStructure))?;
+            .ok_or_else(
+                #[cfg_attr(verus_keep_ghost, verus_spec(result: DecodeError =>
+                    ensures result == crate::specs::part2_jpip_cache_error(0, MalformedKind::MissingRequiredStructure),
+                ))]
+                || DecodeError::malformed(0, MalformedKind::MissingRequiredStructure),
+            )?;
         let image = match selection {
             Some(selection) => {
                 crate::decode_codestream_selected(view.as_ref(), options, selection)?

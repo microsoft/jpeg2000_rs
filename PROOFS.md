@@ -237,8 +237,38 @@ packet-before-header resource priority, raw-response ingestion to exact emitted
 codestreams and public decoded images, and original cache/plan/byte ownership.
 The native wildcard conversion closures retain their original bindings; their
 checked body specifications are ghost-only. Proof counts are not source or
-functional coverage, and the normative, semantic-container, progressive,
-automatic, cfg/erasure/lifetime/R1/internal/release gates remain separate.
+functional coverage. Caller-planned progression is described below; normative,
+semantic-container, automatic, cfg/erasure/lifetime/R1/internal/release gates
+remain separate.
+
+## Actual caller-planned JPIP progressive Result and decoder state
+
+The actual full and selected `JpipProgressiveDecoder` update APIs derive the
+complete returned status, previous/available layer counts, missing ranges and
+optional typed image, together with the final native decoder state. They start
+from the original physical cache, physical caller plan, previous decoded count,
+options and selection. There is no valid-plan/cache/prior-state premise or
+successful availability/transcode/image bank.
+
+The genuine complete-header requirements and per-layer native packet grouping
+produce availability and missing ranges. Decreasing/out-of-bounds physical ends
+and both original `u16::try_from` narrowing frontiers retain their exact errors.
+No-advance updates preserve state and skip transcoding and image decoding,
+including invalid decoder selections or restrictive decoder limits. Advancing
+updates compose the actual complete transcode with the actual raw full/selected
+typed-image decoder, including all sample/geometry/channel-definition fields.
+Only a successful image return commits `decoded_layers`; every returned error
+retains the original decoder and plan owners.
+
+The owned constructor, plan borrow, decoded-layer getter and every stored update
+getter are checked. Optional images retain their original borrow and owned move,
+without cloning or rebuilding images. Native fixtures cover arbitrary physical
+headers/layers, noncanonical prior states, raw incremental response updates,
+exact emitted full/selected images, decoder-versus-cache limits, skipped errors
+and original plan/component/sample storage. The original executing algorithms
+and wildcard bindings are unchanged. Automatic snapshot/progressive and semantic
+container joins, independent normative adjudication, coverage, cfg/erasure,
+lifetime, R1, internal and release gates remain separate.
 
 ## Actual JPIP range availability and packet byte Results
 

@@ -63,6 +63,8 @@ mod jpip_planned_packets;
 pub use jpip_planned_packets::*;
 mod jpip_transcode;
 pub use jpip_transcode::*;
+mod jpip_progressive;
+pub use jpip_progressive::*;
 mod jpx_source;
 pub use jpx_source::*;
 mod jpx_opacity;

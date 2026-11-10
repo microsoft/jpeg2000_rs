@@ -44,6 +44,7 @@ specs/jpip_fragment.rs
 specs/jpip_layout.rs
 specs/jpip_message.rs
 specs/jpip_planned_packets.rs
+specs/jpip_progressive.rs
 specs/jpip_ranges.rs
 specs/jpip_response.rs
 specs/jpip_transcode.rs
@@ -172,6 +173,9 @@ src/jpip/plan_proof_support.rs
 src/jpip/planned_packet_result_tests.rs
 src/jpip/precinct.rs
 src/jpip/progression.rs
+src/jpip/progression_proof_support.rs
+src/jpip/progressive_availability_result_tests.rs
+src/jpip/progressive_result_tests.rs
 src/jpip/proof_support.rs
 src/jpip/range_proof_support.rs
 src/jpip/range_result_tests.rs
