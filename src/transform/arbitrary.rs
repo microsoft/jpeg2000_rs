@@ -158,7 +158,7 @@ fn apply_arbitrary_step(
     proof_decl! { let ghost total_passes = target_passes as nat; let ghost start = target; }
     #[cfg(verus_keep_ghost)]
     proof! {
-        crate::proofs::production_impl::production_atk_targets_empty(original, crate::codestream::raw_kernel_step_view(*step), crate::codestream::raw_kernel_view(*kernel), start);
+        crate::proofs::production_impl::production_atk_targets_empty(original, crate::codestream::raw_kernel_step_view(*step), crate::codestream::raw_kernel_view(*kernel), low_pass_first, start);
     }
     #[cfg_attr(
             verus_keep_ghost,
@@ -172,7 +172,7 @@ fn apply_arbitrary_step(
                 original.len() >= start, original.len() - start + 1 <= usize::MAX,
                 target as nat == start as nat + 2 * (total_passes - target_passes),
                 crate::specs::part2_atk_target_prefix(
-                    original, crate::codestream::raw_kernel_step_view(*step), crate::codestream::raw_kernel_view(*kernel), start, (total_passes - target_passes) as nat,
+                    original, crate::codestream::raw_kernel_step_view(*step), crate::codestream::raw_kernel_view(*kernel), low_pass_first, start, (total_passes - target_passes) as nat,
                 ) == (Ok(()), output@),
                 decreases target_passes,
             )
@@ -180,13 +180,15 @@ fn apply_arbitrary_step(
     while target < output.len() {
         #[cfg(verus_keep_ghost)]
         proof! {
-            crate::proofs::production_impl::production_atk_targets_step(original, crate::codestream::raw_kernel_step_view(*step), crate::codestream::raw_kernel_view(*kernel), start, (total_passes - target_passes) as nat);
-            crate::proofs::production_impl::production_atk_targets_error_guard(original, crate::codestream::raw_kernel_step_view(*step), crate::codestream::raw_kernel_view(*kernel), start, (total_passes - target_passes + 1) as nat, total_passes);
+            crate::proofs::production_impl::production_atk_targets_step(original, crate::codestream::raw_kernel_step_view(*step), crate::codestream::raw_kernel_view(*kernel), low_pass_first, start, (total_passes - target_passes) as nat);
+            crate::proofs::production_impl::production_atk_targets_error_guard(original, crate::codestream::raw_kernel_step_view(*step), crate::codestream::raw_kernel_view(*kernel), low_pass_first, start, (total_passes - target_passes + 1) as nat, total_passes);
         }
         if kernel.reversible() {
-            output[target] = arbitrary_reversible_target(output, target, step, kernel)?;
+            output[target] =
+                arbitrary_reversible_target(output, target, step, kernel, low_pass_first)?;
         } else {
-            output[target] = arbitrary_irreversible_target(output, target, step, kernel)?;
+            output[target] =
+                arbitrary_irreversible_target(output, target, step, kernel, low_pass_first)?;
         }
         target = target.checked_add(2).ok_or_else(arithmetic_overflow)?;
         target_passes = target_passes
@@ -198,17 +200,18 @@ fn apply_arbitrary_step(
 
 #[cfg_attr(verus_keep_ghost, verus_spec(result =>
     requires target < output.len(),
-    ensures result == crate::specs::part2_atk_irreversible_target(output@, target, crate::codestream::raw_kernel_step_view(*step), crate::codestream::raw_kernel_view(*kernel)),
+    ensures result == crate::specs::part2_atk_irreversible_target(output@, target, crate::codestream::raw_kernel_step_view(*step), crate::codestream::raw_kernel_view(*kernel), low_pass_first),
 ))]
 fn arbitrary_irreversible_target(
     output: &[i64],
     target: usize,
     step: &KernelLiftingStep,
     kernel: &ArbitraryKernel,
+    low_pass_first: bool,
 ) -> Result<i64, DecodeError> {
     #[cfg(verus_keep_ghost)]
     proof! {
-        crate::proofs::production_impl::production_atk_irreversible_sum_empty(output@, target, crate::codestream::raw_kernel_step_view(*step), crate::codestream::raw_kernel_view(*kernel));
+        crate::proofs::production_impl::production_atk_irreversible_sum_empty(output@, target, crate::codestream::raw_kernel_step_view(*step), crate::codestream::raw_kernel_view(*kernel), low_pass_first);
     }
     let mut adjustment = 0_i128;
     let coefficient_count = step.coefficients().len();
@@ -218,14 +221,14 @@ fn arbitrary_irreversible_target(
         target < output.len(),
         coefficient_count == crate::codestream::raw_kernel_step_view(*step).3.len(),
         crate::specs::part2_atk_irreversible_sum(output@, target, crate::codestream::raw_kernel_step_view(*step),
-            crate::codestream::raw_kernel_view(*kernel), coefficient as nat) == Ok(adjustment),
+            crate::codestream::raw_kernel_view(*kernel), low_pass_first, coefficient as nat) == Ok(adjustment),
         decreases coefficient_count - coefficient,
     ))]
     while coefficient < coefficient_count {
         #[cfg(verus_keep_ghost)]
         proof! {
-            crate::proofs::production_impl::production_atk_irreversible_sum_step(output@, target, crate::codestream::raw_kernel_step_view(*step), crate::codestream::raw_kernel_view(*kernel), coefficient as nat);
-            crate::proofs::production_impl::production_atk_irreversible_sum_error_guard(output@, target, crate::codestream::raw_kernel_step_view(*step), crate::codestream::raw_kernel_view(*kernel), coefficient as nat + 1, coefficient_count as nat);
+            crate::proofs::production_impl::production_atk_irreversible_sum_step(output@, target, crate::codestream::raw_kernel_step_view(*step), crate::codestream::raw_kernel_view(*kernel), low_pass_first, coefficient as nat);
+            crate::proofs::production_impl::production_atk_irreversible_sum_error_guard(output@, target, crate::codestream::raw_kernel_step_view(*step), crate::codestream::raw_kernel_view(*kernel), low_pass_first, coefficient as nat + 1, coefficient_count as nat);
         }
         let alpha = coefficient_fixed(
             *step
@@ -241,6 +244,7 @@ fn arbitrary_irreversible_target(
             step.offset(),
             kernel.whole_sample_filter(),
             kernel.whole_sample_extension(),
+            low_pass_first,
         )?;
         adjustment = adjustment
             .checked_add(
@@ -263,18 +267,19 @@ fn arbitrary_irreversible_target(
 
 #[cfg_attr(verus_keep_ghost, verus_spec(result =>
     requires target < output.len(),
-    ensures result == crate::specs::part2_atk_reversible_target(output@, target, crate::codestream::raw_kernel_step_view(*step), crate::codestream::raw_kernel_view(*kernel)),
+    ensures result == crate::specs::part2_atk_reversible_target(output@, target, crate::codestream::raw_kernel_step_view(*step), crate::codestream::raw_kernel_view(*kernel), low_pass_first),
 ))]
 fn arbitrary_reversible_target(
     output: &[i64],
     target: usize,
     step: &KernelLiftingStep,
     kernel: &ArbitraryKernel,
+    low_pass_first: bool,
 ) -> Result<i64, DecodeError> {
     #[cfg(verus_keep_ghost)]
     proof! {
-        crate::proofs::production_impl::production_atk_sum_empty(output@, target, crate::codestream::raw_kernel_step_view(*step), crate::codestream::raw_kernel_view(*kernel));
-        crate::proofs::production_impl::production_atk_sum_error_guard(output@, target, crate::codestream::raw_kernel_step_view(*step), crate::codestream::raw_kernel_view(*kernel), 0, crate::codestream::raw_kernel_step_view(*step).3.len());
+        crate::proofs::production_impl::production_atk_sum_empty(output@, target, crate::codestream::raw_kernel_step_view(*step), crate::codestream::raw_kernel_view(*kernel), low_pass_first);
+        crate::proofs::production_impl::production_atk_sum_error_guard(output@, target, crate::codestream::raw_kernel_step_view(*step), crate::codestream::raw_kernel_view(*kernel), low_pass_first, 0, crate::codestream::raw_kernel_step_view(*step).3.len());
     }
     let mut sum = coefficient_integer(
         step.residue().ok_or_else(invalid_transform)?,
@@ -286,14 +291,14 @@ fn arbitrary_reversible_target(
         invariant coefficient <= count, target < output.len(),
         count == crate::codestream::raw_kernel_step_view(*step).3.len(),
         crate::specs::part2_atk_sum(output@, target, crate::codestream::raw_kernel_step_view(*step), crate::codestream::raw_kernel_view(*kernel).1,
-            crate::codestream::raw_kernel_view(*kernel).2, crate::codestream::raw_kernel_view(*kernel).4, coefficient as nat) == Ok(sum),
+            crate::codestream::raw_kernel_view(*kernel).2, crate::codestream::raw_kernel_view(*kernel).4, low_pass_first, coefficient as nat) == Ok(sum),
         decreases count - coefficient,
     ))]
     while coefficient < count {
         #[cfg(verus_keep_ghost)]
         proof! {
-            crate::proofs::production_impl::production_atk_sum_step(output@, target, crate::codestream::raw_kernel_step_view(*step), crate::codestream::raw_kernel_view(*kernel), coefficient as nat);
-            crate::proofs::production_impl::production_atk_sum_error_guard(output@, target, crate::codestream::raw_kernel_step_view(*step), crate::codestream::raw_kernel_view(*kernel), coefficient as nat + 1, count as nat);
+            crate::proofs::production_impl::production_atk_sum_step(output@, target, crate::codestream::raw_kernel_step_view(*step), crate::codestream::raw_kernel_view(*kernel), low_pass_first, coefficient as nat);
+            crate::proofs::production_impl::production_atk_sum_error_guard(output@, target, crate::codestream::raw_kernel_step_view(*step), crate::codestream::raw_kernel_view(*kernel), low_pass_first, coefficient as nat + 1, count as nat);
         }
         let alpha = coefficient_integer(
             *step
@@ -309,6 +314,7 @@ fn arbitrary_reversible_target(
             step.offset(),
             kernel.whole_sample_filter(),
             kernel.whole_sample_extension(),
+            low_pass_first,
         )?;
         sum = sum
             .checked_add(
@@ -333,7 +339,7 @@ fn arbitrary_reversible_target(
 }
 
 #[cfg_attr(verus_keep_ghost, verus_spec(result =>
-    ensures result == crate::specs::part2_atk_source_sum(samples@, target, coefficient, offset, whole_sample_filter, whole_sample_extension),
+    ensures result == crate::specs::part2_atk_source_sum(samples@, target, coefficient, offset, whole_sample_filter, whole_sample_extension, low_pass_first),
 ))]
 fn lifting_source_sum(
     samples: &[i64],
@@ -342,6 +348,7 @@ fn lifting_source_sum(
     offset: i8,
     whole_sample_filter: bool,
     whole_sample_extension: bool,
+    low_pass_first: bool,
 ) -> Result<i64, DecodeError> {
     let target = match isize::try_from(target) {
         Ok(value) => value,
@@ -370,12 +377,17 @@ fn lifting_source_sum(
         )?;
         left.checked_add(right).ok_or_else(arithmetic_overflow)
     } else {
-        let target_parity = target & 1;
+        let local_parity = target & 1;
         #[cfg(verus_keep_ghost)]
         proof! {
-            assert(0 <= target_parity <= 1) by(bit_vector)
-                requires target_parity == (target & 1isize);
+            assert(0 <= local_parity <= 1) by(bit_vector)
+                requires local_parity == (target & 1isize);
         }
+        let target_parity = if low_pass_first {
+            local_parity
+        } else {
+            1 - local_parity
+        };
         let doubled_parity = 2_isize
             .checked_mul(target_parity)
             .ok_or_else(arithmetic_overflow)?;

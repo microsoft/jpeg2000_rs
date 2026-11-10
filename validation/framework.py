@@ -7751,15 +7751,15 @@ def validate_normative_coverage(
                 ),
                 ("src/transform/arbitrary.rs", "arbitrary_reversible_target"): (
                     None, "part2_atk_reversible_target",
-                    r"output@\s*,\s*target\s*,\s*" + kernel_step_view + r"\s*,\s*" + kernel_view,
+                    r"output@\s*,\s*target\s*,\s*" + kernel_step_view + r"\s*,\s*" + kernel_view + r"\s*,\s*low_pass_first",
                 ),
                 ("src/transform/arbitrary.rs", "arbitrary_irreversible_target"): (
                     None, "part2_atk_irreversible_target",
-                    r"output@\s*,\s*target\s*,\s*" + kernel_step_view + r"\s*,\s*" + kernel_view,
+                    r"output@\s*,\s*target\s*,\s*" + kernel_step_view + r"\s*,\s*" + kernel_view + r"\s*,\s*low_pass_first",
                 ),
                 ("src/transform/arbitrary.rs", "lifting_source_sum"): (
                     None, "part2_atk_source_sum",
-                    r"samples@\s*,\s*target\s*,\s*coefficient\s*,\s*offset\s*,\s*whole_sample_filter\s*,\s*whole_sample_extension",
+                    r"samples@\s*,\s*target\s*,\s*coefficient\s*,\s*offset\s*,\s*whole_sample_filter\s*,\s*whole_sample_extension\s*,\s*low_pass_first",
                 ),
                 ("src/transform/arbitrary.rs", "extended_sample"): (
                     None, "part2_atk_extended", r"samples@\s*,\s*original_index\s*,\s*whole_sample_extension",

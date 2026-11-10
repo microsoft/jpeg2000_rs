@@ -7431,7 +7431,7 @@
     },
     {
       "id": "part2-complete-native-arbitrary-kernel-preparation",
-      "topic": "Complete actual native reversible/irreversible arbitrary inverse, all integer/binary32/64/128 coefficients and Q32 rounding, every target/step partial buffer, H/V/2D levels and None/Some component preparation. Native contradictory styles/flags/shapes/width hints, singleton/unvisited bypass and first errors remain modeled; private target bounds derive from actual loop guards. No normalized/success/budget/trace premise; general MCT/whole decoder and external normative adjudication remain separate.",
+      "topic": "Complete actual native reversible/irreversible arbitrary inverse, all integer/binary32/64/128 coefficients, Q32 arithmetic, every target/step partial buffer, H/V/2D levels and None/Some preparation. Intentional DEV-404E919A62 coordinate correction retains actual low-pass-first context through both target helpers, source sums, recursive models and loop proofs so half-filter taps use absolute band phase; whole-filter geometry/even-origin pairing remain. Coupled negative-Q32 correction restores signed unit scaling and nearest ties-away rounding while retaining positive checked-bias overflow/invalid-shift policy. Actual code/models/regressions change together. Raw contradictory descriptors, singleton/unvisited bypass and all first errors remain modeled; target bounds derive from real loop guards. No normalized/success/budget/trace premise. General MCT/whole decoder and independent selected-edition adjudication remain separate.",
       "contract_refs": [
         {"path": "src/transform/arbitrary.rs", "symbol": "inverse_arbitrary"},
         {"path": "src/transform/levels.rs", "symbol": "inverse_horizontal_arbitrary"},
@@ -7516,7 +7516,9 @@
         {"path": "src/transform/tests.rs", "symbol": "arbitrary_lifting_runs_reverse_step_parity_and_preserves_late_partial_errors"},
         {"path": "src/decode/tests.rs", "symbol": "full_native_kernel_preparation_preserves_real_dispatch_and_lazy_validation"},
         {"path": "src/decode/tests.rs", "symbol": "complete_standard_prepare_matches_independent_wide_multilevel_reference"},
-        {"path": "src/decode/tests.rs", "symbol": "complete_standard_prepare_preserves_all_ordered_rejections"}
+        {"path": "src/decode/tests.rs", "symbol": "complete_standard_prepare_preserves_all_ordered_rejections"},
+        {"path": "src/transform/tests.rs", "symbol": "sarah_dev_404e919a62_half_filter_uses_absolute_band_index"},
+        {"path": "src/transform/tests.rs", "symbol": "arbitrary_q32_unit_scaling_and_signed_rounding_are_exact"}
       ]
     },
     {

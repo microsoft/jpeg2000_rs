@@ -270,7 +270,8 @@ pub(super) fn round_shift_i128(value: i128, shift: u32) -> Result<i128, DecodeEr
     let adjusted = if value >= 0 {
         value.checked_add(half)
     } else {
-        value.checked_sub(half)
+        let bias = half.checked_sub(1).ok_or_else(arithmetic_overflow)?;
+        value.checked_add(bias)
     }
     .ok_or_else(arithmetic_overflow)?;
     Ok(adjusted >> shift)

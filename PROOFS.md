@@ -4345,7 +4345,7 @@ or execution trace is a premise.
 
 The Q32 model distinguishes native truncating division, ties-even binary
 coefficient conversion, the existing excessive-right-shift zero cutoff, and
-the signed lifting bias before arithmetic shifting. Explicit checked-result
+signed nearest rounding with ties away from zero before arithmetic shifting. Explicit checked-result
 matches, proved shift bounds and a faithful explicit zero/one rounding
 increment expose the existing semantics without adding trust or proof limits.
 The nonresizing lifting bodies use mutable slices and retain one executable
@@ -4371,6 +4371,28 @@ wrong native views/flags/counts/caps, partial or success-only results and a
 wrong primary clause followed by a correct duplicate. Whole-production
 verification and targeted inventory tests pass; complete frozen numerical,
 resource and hosted qualification remain separate acceptance gates.
+
+For #219 (`DEV-404E919A62`), actual low-pass-first context now reaches both
+reversible/irreversible target helpers, every source sum and their shared
+recursive models and proved loop continuations. Half-filter taps pair absolute
+half-grid coordinates rather than local array ordinals: when an odd-origin
+axis starts with high-pass data, the first low/high band coordinates differ.
+The source parity is inverted directly, without forming a potentially
+overflowing target-plus-origin integer. Whole-filter source geometry and
+even-origin pairing remain unchanged.
+
+The exact-coordinate regression also exposed coupled negative-Q32 arithmetic:
+unit scaling could decrement a negative value or reject `i64::MIN`. The negative
+bias is now half-minus-one before the signed floor shift, implementing nearest
+ties-away rounding without changing positive checked-bias overflow or invalid
+shift policy. Actual code/models and former as-implemented characterizations
+change together; 9/7, MCT and NLT arithmetic implementations are not modified.
+Independent absolute-coordinate tests cover 768 reversible/irreversible,
+phase, target-parity, filter, offset and signed-coefficient cases. Separate
+unit-scaling, signed-halfway and unsigned-magnitude references check the
+rounding correction, including the minimum signed sample. This is a bounded
+coordinate/arithmetic contract correction, not independent selected-edition
+certification or closure of the remaining Sarah findings.
 
 ### Complete native MCT arithmetic and matrix-row boundary
 
