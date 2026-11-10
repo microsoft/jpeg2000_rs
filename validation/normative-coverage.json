@@ -1218,7 +1218,7 @@
     },
     {
       "id": "part2-complete-native-raw-container-result",
-      "topic": "Complete actual raw container::parse Result from bytes and actual limits, retaining original prologue relation, every full header/file-type/stream/association/layer/composition field, metadata count/depth and root box count. Source producers, native order/resource/reader/error priorities and original owner scopes preserved. Real checked association cloning attaches only the original association field; complete mutable vector frame preserves all other entries and original stored headers/payloads. No supplied successful-stage banks, assumed validity, owner reconstruction, runtime proof clones or trust/budget changes. Native extraction/routing/caller observations and full fresh qualification required. Inspection/timeline/public/normative/lifetime/cfg/release separate.",
+      "topic": "Complete actual raw container::parse Result from bytes and actual limits, retaining original prologue relation, every full header/file-type/stream/association/layer/composition field, metadata count/depth and root box count. Sarah DEV-2D75F3E8F6/DEV-056D9FBFB2: later signature and file-type boxes are InvalidBoxOrder at their actual offsets, not ignorable metadata, after original framing/reader/resource/root-count checks. Unknown opaque payloads containing prefix bytes remain untouched. Source producers, other native order/resource/reader/error priorities and original owner scopes preserved. Real checked association cloning attaches only the original association field; complete mutable vector frame preserves all other entries and original stored headers/payloads. No supplied successful-stage banks, assumed validity, owner reconstruction, runtime proof clones or trust/budget changes. Native extraction/routing/caller observations and full fresh qualification required. Inspection/timeline/public/normative/lifetime/cfg/release separate.",
       "implementation_refs": [
         {"path": "src/jp2/container.rs", "symbol": "parse_and_inspect"},
         {"path": "src/jp2/container.rs", "symbol": "parse"},
@@ -1256,7 +1256,9 @@
         {"path": "src/jp2/tests.rs", "symbol": "actual_raw_container_retains_borrowed_layers_owned_composition_and_all_instruction_defaults"},
         {"path": "src/jp2/tests.rs", "symbol": "actual_raw_container_keeps_profile_order_and_count_before_payload_priorities"},
         {"path": "src/jp2/tests.rs", "symbol": "actual_raw_container_keeps_missing_excess_association_and_first_reference_error_priority"},
-        {"path": "src/jp2/tests.rs", "symbol": "actual_raw_container_derives_metadata_depth_counts_progress_and_empty_stream_admission"}
+        {"path": "src/jp2/tests.rs", "symbol": "actual_raw_container_derives_metadata_depth_counts_progress_and_empty_stream_admission"},
+        {"path": "src/jp2/tests.rs", "symbol": "sarah_dev_2d75f3e8f6_repeated_signature_is_not_ignorable_metadata"},
+        {"path": "src/jp2/tests.rs", "symbol": "sarah_dev_056d9fbfb2_repeated_file_type_is_not_ignorable_metadata"}
       ]
     },
     {

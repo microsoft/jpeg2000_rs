@@ -4275,6 +4275,103 @@ fn jpx_with_codestreams(
 }
 
 #[test]
+fn sarah_dev_2d75f3e8f6_repeated_signature_is_not_ignorable_metadata() {
+    assert_eq!(assert_unique_container_prefix(*b"jP  "), 9);
+}
+
+#[test]
+fn sarah_dev_056d9fbfb2_repeated_file_type_is_not_ignorable_metadata() {
+    assert_eq!(assert_unique_container_prefix(*b"ftyp"), 9);
+}
+
+fn assert_unique_container_prefix(kind: [u8; 4]) -> usize {
+    let original = include_bytes!("../../validation/image-consumer-probe/tests/fixtures/gray.jp2");
+    let limits = ResourceLimits::default();
+    assert!(parse(original, &limits).is_ok());
+    assert!(parse_and_inspect(original, &limits).is_ok());
+    assert!(crate::decode::decode_jp2(original, &crate::DecodeOptions::default()).is_ok());
+    let mut positions = Vec::new();
+    let mut position = 0;
+    while position < original.len() {
+        positions.push(position);
+        let length = u32::from_be_bytes(original[position..position + 4].try_into().unwrap());
+        position += usize::try_from(length).unwrap();
+    }
+    positions.push(position);
+    assert_eq!(positions.len(), 5);
+    assert_eq!(position, original.len());
+    let payload = if kind == *b"jP  " {
+        &original[8..positions[1]]
+    } else {
+        &original[positions[1] + 8..positions[2]]
+    };
+    let mut cases = 0;
+    for &offset in &positions[2..] {
+        for header in 0..3 {
+            let duplicate = match header {
+                0 => box32(kind, payload),
+                1 => {
+                    let mut bytes = 1_u32.to_be_bytes().to_vec();
+                    bytes.extend_from_slice(&kind);
+                    bytes.extend_from_slice(
+                        &u64::try_from(16 + payload.len()).unwrap().to_be_bytes(),
+                    );
+                    bytes.extend_from_slice(payload);
+                    bytes
+                }
+                _ => {
+                    let mut bytes = 0_u32.to_be_bytes().to_vec();
+                    bytes.extend_from_slice(&kind);
+                    bytes.extend_from_slice(payload);
+                    bytes
+                }
+            };
+            let insert = |extra: &[u8]| {
+                let mut bytes = original[..offset].to_vec();
+                bytes.extend_from_slice(extra);
+                bytes.extend_from_slice(&original[offset..]);
+                bytes
+            };
+            let bytes = insert(&duplicate);
+            let snapshot = bytes.clone();
+            let expected = Some(DecodeError::MalformedInput {
+                offset: u64::try_from(offset).unwrap(),
+                kind: MalformedKind::InvalidBoxOrder,
+            });
+            assert_eq!(
+                parse(&bytes, &limits).err(),
+                expected,
+                "kind={kind:?} offset={offset} header={header}"
+            );
+            assert_eq!(parse_and_inspect(&bytes, &limits).err(), expected);
+            assert_eq!(
+                crate::decode::decode_jp2(&bytes, &crate::DecodeOptions::default()).err(),
+                expected,
+            );
+            assert_eq!(bytes, snapshot);
+
+            let benign = insert(&box32(*b"free", &duplicate));
+            assert!(parse(&benign, &limits).is_ok());
+            assert!(crate::decode::decode_jp2(&benign, &crate::DecodeOptions::default()).is_ok());
+            cases += 1;
+        }
+    }
+    let mut invalid_length = 7_u32.to_be_bytes().to_vec();
+    invalid_length.extend_from_slice(&kind);
+    let mut bytes = original[..positions[2]].to_vec();
+    bytes.extend(invalid_length);
+    bytes.extend_from_slice(&original[positions[2]..]);
+    assert_eq!(
+        parse(&bytes, &limits).err(),
+        Some(DecodeError::MalformedInput {
+            offset: u64::try_from(positions[2]).unwrap(),
+            kind: MalformedKind::InvalidBoxLength,
+        })
+    );
+    cases
+}
+
+#[test]
 fn parses_minimal_file() {
     let bytes = minimal_jp2();
     let file = parse(&bytes, &ResourceLimits::default()).unwrap();

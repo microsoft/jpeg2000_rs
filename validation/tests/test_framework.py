@@ -2535,6 +2535,33 @@ class FrameworkTests(WorkingFiles):
                         self.assertRaisesRegex(ValueError, "executable Verus contract"):
                     framework.validate_normative_coverage(dict(coverage, requirements=[entry]))
 
+    def test_inventory_raw_container_binds_unique_prologue_kinds_in_source_and_model(self):
+        coverage = json.loads((framework.VALIDATION / "normative-coverage.json").read_text())
+        entry = next(item for item in coverage["requirements"] if item["id"] == framework._RAW_CONTAINER_ENTRY)
+        read_text = Path.read_text
+        self.assertEqual(framework.validate_normative_coverage(dict(coverage, requirements=[entry]))["status"], "passed")
+        for filename, clause, error in (
+            ("src/jp2/container.rs",
+             "box_type.equals(BoxType::SIGNATURE) || box_type.equals(BoxType::FILE_TYPE)",
+             "actual source producers/counters/owned attachment/output handoffs"),
+            ("specs/jp2_container.rs",
+             "kind == crate::jp2::BoxType::SIGNATURE || kind == crate::jp2::BoxType::FILE_TYPE",
+             "complete raw traversal/metadata/attachment/final output models"),
+        ):
+            source = framework.ROOT / filename
+            original = source.read_text()
+            self.assertIn(clause, original)
+            for kind in ("SIGNATURE", "FILE_TYPE"):
+                replacement = clause.replace("BoxType::" + kind, "BoxType::JP2_HEADER", 1)
+                changed = original.replace(clause, replacement, 1)
+
+                def altered(path, *args, **kwargs):
+                    return changed if path == source else read_text(path, *args, **kwargs)
+
+                with self.subTest(filename=filename, kind=kind), mock.patch.object(Path, "read_text", altered), \
+                        self.assertRaisesRegex(ValueError, error):
+                    framework.validate_normative_coverage(dict(coverage, requirements=[entry]))
+
     def test_inventory_raw_container_images_require_every_public_source_header_reference_and_test_bridge(self):
         coverage = json.loads((framework.VALIDATION / "normative-coverage.json").read_text())
         entry = next(item for item in coverage["requirements"] if item["id"] == framework._RAW_CONTAINER_IMAGE_ENTRY)

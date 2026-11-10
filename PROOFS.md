@@ -663,6 +663,17 @@ original association field is replaced using the checked native clone producer.
 All owner scopes and validation priorities remain in place, with one additional
 direct checked clone call target requiring explicit native observation.
 
+The Sarah `DEV-2D75F3E8F6`/`DEV-056D9FBFB2` corrections reject a later top-level
+signature or file-type box at its actual offset. The mandatory prologue is
+unchanged; box framing, resource and root-count checks still precede this
+admission. The actual full parser and complete step model agree, including
+boxes after the codestream. Unknown opaque payloads containing prefix bytes
+remain accepted. Original pinned public OpenJPEG signature/file-type state
+handlers independently accept the initial pair and reject repetition; this is
+not a claim that its decoder scans trailing boxes. Native regressions cover
+both types at all three later positions with fixed, extended and to-end
+framing, raw/inspected/decoded consumers and malformed-length priority.
+
 The complete parser contract passes local focused and whole verification.
 Strict inventory bindings, broader whole-parser regression families and fresh
 full qualification/protected integration remain required before acceptance.

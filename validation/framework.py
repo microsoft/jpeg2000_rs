@@ -5584,6 +5584,7 @@ def validate_normative_coverage(
             body = _coverage_function_body(source_text(path), function_header(path, "parse"))
             required = (
                 "box_reader_from_input(input, limits)?", "required_box(&mut reader, 0)?",
+                "box_type.equals(BoxType::SIGNATURE) || box_type.equals(BoxType::FILE_TYPE)",
                 "parse_jp2_header(", "parse_codestream_header(", "parse_compositing_layer(box_ref, limits)?",
                 "parse_composition(box_ref, limits)?", "inspect_metadata_box(box_ref, limits, 1, u32::MAX - 1)?",
                 "let mut box_count = 2_u64", "metadata_depth = metadata_depth.max(depth)",
@@ -5597,6 +5598,7 @@ def validate_normative_coverage(
             model = source_text((ROOT / "specs/jp2_container.rs").resolve())
             for name, required in {
                 "part2_container_step": ("previous.box_count == u64::MAX", "part2_parse_jp2_header(", "part2_parse_codestream_header(",
+                    "kind == crate::jp2::BoxType::SIGNATURE || kind == crate::jp2::BoxType::FILE_TYPE",
                     "part2_parse_compositing_layer(", "part2_parse_composition(", "part2_inspect_metadata_box(",
                     "metadata_depth: if state.metadata_depth < value.1 { value.1 } else { state.metadata_depth }"),
                 "part2_container_attach": ("streams[i].0, streams[i].1", "Some(part2_codestream_association_clone(associations[i]))"),
