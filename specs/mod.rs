@@ -65,6 +65,8 @@ mod jpip_transcode;
 pub use jpip_transcode::*;
 mod jpip_progressive;
 pub use jpip_progressive::*;
+mod jpip_transitions;
+pub use jpip_transitions::*;
 mod jpx_source;
 pub use jpx_source::*;
 mod jpx_opacity;

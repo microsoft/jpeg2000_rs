@@ -3918,6 +3918,70 @@ _JPIP_PROGRESSIVE_TESTS = {("src/jpip/progressive_result_tests.rs", name) for na
     "actual_jpip_progressive_full_selected_decode_errors_preserve_prior_state_and_skip_unneeded_decoding",
 )} | {("src/jpip/progressive_availability_result_tests.rs",
        "actual_jpip_progressive_availability_derives_physical_headers_layers_missing_and_narrowing_errors")}
+_JPIP_TRANSITION_ENTRY = "part9-complete-native-raw-transition-results"
+_JPIP_TRANSITION_APIS = {("src/jpip/mapping.rs", "DatabinCache::tile_part_transitions")}
+_JPIP_TRANSITION_CONTRACTS = {
+    ("src/jpip/mapping.rs", "DatabinCache::tile_part_transitions"): (
+        "part2_jpip_transition_report", _coverage_call("jpip_transition_report_outcome", r"\1"), None,
+        _coverage_call("jpip_cache_view", "self") + r"\s*,\s*codestream\s*,\s*tile",
+    ),
+    ("src/jpip/mapping.rs", "parse_tile_part_transitions"): (
+        "part2_jpip_parse_transitions", _coverage_call("jpip_transitions_outcome", r"\1"), None, r"input@\s*,\s*expected_tile",
+    ),
+    ("src/jpip/mapping.rs", "count_plt_packets"): ("part2_jpip_plt_count", r"\1", None, r"payload@"),
+    ("src/jpip/automatic_headers.rs", "marker_segment"): ("part2_jpip_marker_segment", r"\1", None, r"input@\s*,\s*position"),
+    ("src/jpip/byte_io.rs", "read_u16_be"): ("part2_jpip_read_u16", r"\1", None, r"input@\s*,\s*position"),
+    ("src/jpip/byte_io.rs", "read_u32_be"): ("part2_jpip_read_u32", r"\1", None, r"input@\s*,\s*position"),
+    ("src/jpip/cache.rs", "copy_bytes"): ("part2_jpip_copy_bytes", r"\1\s*@", None, r"input@"),
+}
+_JPIP_TRANSITION_CONTRACTS.update({
+    ("src/jpip/cache.rs", name): _JPIP_CACHE_VIEW_CONTRACTS[("src/jpip/cache.rs", name)]
+    for name in ("DatabinCache::is_complete", "DatabinCache::databin_view")
+})
+_JPIP_TRANSITION_CONTRACTS[("src/jpip/ranges.rs", "DatabinCache::complete_databin_missing")] = (
+    _JPIP_RANGE_CONTRACTS[("src/jpip/ranges.rs", "DatabinCache::complete_databin_missing")]
+)
+_JPIP_TRANSITION_MODELS = {("specs/jpip_transitions.rs", name) for name in (
+    "part2_jpip_read_u16", "part2_jpip_read_u32", "part2_jpip_marker_segment", "part2_jpip_plt_scan",
+    "part2_jpip_plt_count", "part2_jpip_transition_scan", "part2_jpip_transition_parts",
+    "part2_jpip_parse_transitions", "part2_jpip_transition_needs", "part2_jpip_transition_report",
+)} | {
+    ("specs/jpip_cache_views.rs", "part2_jpip_cache_complete"), ("specs/jpip_cache_views.rs", "part2_jpip_cache_view"),
+    ("specs/jpip_ranges.rs", "part2_jpip_complete_missing"), ("specs/jpip_fragment.rs", "part2_jpip_copy_bytes"),
+    ("specs/mod.rs", "jpip_tile_transition_sufficient"),
+}
+_JPIP_TRANSITION_GETTERS = {name: clause for name, clause in (
+    ("JpipSemanticNeed::kind", "result == jpip_semantic_need_view(*self).0"),
+    ("JpipSemanticNeed::identifier", "result == jpip_semantic_need_view(*self).1"),
+    ("JpipTilePartTransition::tile", "result == jpip_transition_view(self).0"),
+    ("JpipTilePartTransition::tile_part", "result == jpip_transition_view(self).1"),
+    ("JpipTilePartTransition::packet_count", "result == jpip_transition_view(self).2"),
+    ("JpipTilePartTransition::data_length", "result == jpip_transition_view(self).3"),
+    ("JpipTilePartTransition::has_functional_change", "result == jpip_transition_view(self).4"),
+    ("JpipTilePartTransition::header_bytes", "result@ == jpip_transition_view(self).5"),
+    ("JpipTilePartTransitionReport::status", "result == jpip_transition_report_view(self).0"),
+    ("JpipTilePartTransitionReport::transitions", "result@.map_values(|transition: JpipTilePartTransition| jpip_transition_view(&transition)) == jpip_transition_report_view(self).1"),
+    ("JpipTilePartTransitionReport::semantic_needs", "result@.map_values(|need: JpipSemanticNeed| jpip_semantic_need_view(need)) == jpip_transition_report_view(self).2"),
+    ("JpipTilePartTransitionReport::missing_ranges", "result@.map_values(|missing: JpipMissingRange| super::jpip_missing_view(missing)) == jpip_transition_report_view(self).3"),
+)}
+_JPIP_TRANSITION_PROJECTIONS = {("src/jpip/transition_proof_support.rs", name) for name in (
+    "jpip_transition_view", "jpip_transitions_view", "jpip_transitions_outcome", "jpip_semantic_need_view",
+    "jpip_semantic_needs_view", "jpip_transition_report_view", "jpip_transition_report_outcome",
+    "jpip_transition_sequence_shapes",
+)}
+_JPIP_TRANSITION_PROOFS = set(_JPIP_TRANSITION_CONTRACTS) | _JPIP_TRANSITION_PROJECTIONS | {
+    ("src/jpip/mapping.rs", name) for name in _JPIP_TRANSITION_GETTERS
+} | {
+    ("src/jpip/message.rs", "DatabinId::new"),
+    ("src/jpip/cache.rs", "JpipByteView::into_bytes"),
+    ("src/refinement/jpip.rs", "jpip_tile_transition_sufficient"),
+}
+_JPIP_TRANSITION_TESTS = {("src/jpip/transition_result_tests.rs", name) for name in (
+    "actual_jpip_transition_words_markers_and_plt_match_independent_extents_and_counts",
+    "actual_jpip_raw_transitions_derive_all_fields_owned_headers_and_exact_emitted_cut_errors",
+    "actual_jpip_raw_transition_admission_keeps_native_plt_sod_psot_and_first_error_differences",
+    "actual_jpip_public_transition_reports_preserve_physical_cache_needs_getters_and_native_storage",
+)}
 _RAW_JPX_PUBLIC_IMAGE_ENTRY = "part2-complete-native-public-raw-jpx-codestream-results"
 _RAW_JPX_PUBLIC_IMAGE_APIS = {("src/decode/api.rs", name) for name in (
     "decode_jpx_codestream", "decode_jpx_codestream_selected", "decode_jpx_codestream_color", "decode_jpx_codestream_color_selected",
@@ -4348,6 +4412,81 @@ def validate_normative_coverage(
     ids: set[str] = set()
     contract_functions: set[tuple[str, str]] = set()
     for entry in coverage["requirements"]:
+        if entry["id"] == _JPIP_TRANSITION_ENTRY:
+            if {(ref["path"], ref["symbol"]) for ref in entry["contract_refs"]} != set(_JPIP_TRANSITION_CONTRACTS) - _JPIP_TRANSITION_APIS:
+                raise ValueError("whole raw JPIP transitions require complete actual parser/word/marker/count/cache consumers")
+            for field, required in (
+                ("implementation_refs", set(_JPIP_TRANSITION_CONTRACTS)),
+                ("spec_refs", _JPIP_TRANSITION_MODELS), ("proof_refs", _JPIP_TRANSITION_PROOFS),
+                ("test_refs", _JPIP_TRANSITION_TESTS),
+            ):
+                if not required.issubset({(ref["path"], ref["symbol"]) for ref in entry[field]}):
+                    raise ValueError("whole raw JPIP transitions linked function is not used by claimed implementation: actual raw/header/PLT/cache/need/getter bridge missing")
+            path = (ROOT / "src/jpip/mapping.rs").resolve()
+            text = source_text(path)
+            for name, clause in _JPIP_TRANSITION_GETTERS.items():
+                header = function_header(path, name)
+                signature = text.find("fn", header.start(), header.end()) if header else -1
+                attrs = text[text.rfind("#[cfg_attr", 0, signature):signature] if signature >= 0 else ""
+                if "ensures" + "".join(clause.split()) + "," not in "".join(attrs.split()) or re.search(r"\brequires\b", attrs):
+                    raise ValueError("whole raw JPIP transitions require complete stored transition/report/need getters")
+            for relative, name, required in (
+                ("src/jpip/byte_io.rs", "read_u16_be", (".get(position..position.saturating_add(2))", ".first()", ".get(1)", "u16::from(high) << 8")),
+                ("src/jpip/byte_io.rs", "read_u32_be", (".get(position..position.saturating_add(4))", ".first()", ".get(3)", "u32::from(first) << 24")),
+                ("src/jpip/automatic_headers.rs", "marker_segment", ("read_u16_be(input, position)?",
+                    "matches!(marker, 0xff4f | 0xff93 | 0xffd9)", "length < 2", "read_u16_be(input, length_position)?", "end > input.len()")),
+                ("src/jpip/mapping.rs", "count_plt_packets", ("payload.is_empty()", "let mut position = 1_usize",
+                    "continuation = byte & 0x80 != 0", "count.checked_add(1)", "if continuation")),
+                ("src/jpip/mapping.rs", "parse_tile_part_transitions", (
+                    "!input.starts_with(&[0xff, 0x90])", "remaining_markers = input.len()", "remaining_parts = input.len()",
+                    "remaining_headers = input.len()", "marker_segment(input, position)?", "count_plt_packets(",
+                    "header: copy_bytes(input)", "marker != 0xff90 || sot_end.checked_sub(position) != Some(12)",
+                    "read_u16_be(input, position + 4)?", "tile != expected_tile", "read_u32_be(input, position + 6)?",
+                    "u16::from(index) != next_plt", "next_plt.checked_add(1)", "!found_sod",
+                    "tile_part_length == 0 && position < input.len()", "declared.checked_sub(header_length).map(",
+                    "copy_bytes(input.get(part_start..position)", "invariant_except_break",
+                    "part2_jpip_transition_parts(input@, expected_tile, position, remaining_parts, jpip_transitions_view(&transitions))",
+                )),
+                ("src/jpip/mapping.rs", "DatabinCache::tile_part_transitions", (
+                    "DatabinId::new(2, codestream, u64::from(tile))?", "!self.is_complete(id)",
+                    "self.complete_databin_missing(id)", "self.databin_view(id)?.into_bytes()",
+                    "parse_tile_part_transitions(&bytes, tile)?", "jpip_tile_transition_sufficient(",
+                    "transition.packet_count().is_none() && transition.data_length().is_none()", "preceding_packets_known = false",
+                    "(u64::from(tile) << 8) | u64::from(transition.tile_part())", "if needs.is_empty()",
+                )),
+            ):
+                target = (ROOT / relative).resolve()
+                body = _coverage_function_body(source_text(target), function_header(target, name))
+                if body is None or any("".join(item.split()) not in "".join(body.split()) for item in required):
+                    raise ValueError("whole raw JPIP transitions require original word/marker/PLT/SOT/SOD/cache/need handoffs")
+            model = source_text((ROOT / "specs/jpip_transitions.rs").resolve())
+            for name, required in {
+                "part2_jpip_read_u16": ("position as nat + 2 > input.len()", "position as nat + 2 > usize::MAX as nat"),
+                "part2_jpip_read_u32": ("position as nat + 4 > input.len()", "position as nat + 4 > usize::MAX as nat"),
+                "part2_jpip_marker_segment": ("part2_jpip_read_u16(input, position)", "marker == 0xff4f || marker == 0xff93 || marker == 0xffd9",
+                    "length < 2", "end > usize::MAX as nat", "end > input.len()"),
+                "part2_jpip_plt_scan": ("payload[position as int] & 0x80 != 0", "count == u64::MAX", "if continuation", "position + 1"),
+                "part2_jpip_transition_scan": ("remaining == 0", "if indexed", "payload.len() == 0 || payload[0] as u16 != next_plt",
+                    "indexed && next_plt == u16::MAX", "part2_jpip_plt_count(payload)", "total > u64::MAX as nat",
+                    "marker == 0xff61 || marker == 0xff64", "(remaining - 1) as usize"),
+                "part2_jpip_transition_parts": ("marker != 0xff90 || end as nat != position as nat + 12",
+                    "actual_tile != tile", "part2_jpip_read_u32", "!scan.4", "length == 0 && (scan.0 as nat) < input.len()",
+                    "length == 0 || (length as nat) < header_length", "input.subrange(position as int, scan.0 as int)",
+                    "transitions.push(transition)"),
+                "part2_jpip_parse_transitions": ("input.len() >= 2 && input[0] == 0xff && input[1] == 0x90",
+                    "part2_jpip_transition_scan(input, 0, input.len() as usize, false, false, None, 0)",
+                    "Ok(seq![(tile, 0u8, scan.2, None, scan.1, input)])"),
+                "part2_jpip_transition_needs": ("jpip_tile_transition_sufficient(transition.4, preceding_known, transition.3.is_some())",
+                    "((tile as u64) << 8) | transition.1 as u64", "preceding_known && (transition.2.is_some() || transition.3.is_some())"),
+                "part2_jpip_transition_report": ("(2u64, crate::jpip::DatabinClass::TileHeader, stream, tile as u64)",
+                    "!part2_jpip_cache_complete(cache, id)", "part2_jpip_complete_missing(cache, id)",
+                    "part2_jpip_cache_view(cache, id)", "part2_jpip_parse_transitions(bytes, tile)",
+                    "part2_jpip_transition_needs(transitions, 0, true, Seq::empty(), tile)",
+                    "if needs.len() == 0", "crate::jpip::JpipAvailability::Partial"),
+            }.items():
+                body = _coverage_spec_function_body(model, name)
+                if body is None or any("".join(item.split()) not in "".join(body.split()) for item in required):
+                    raise ValueError("whole raw JPIP transitions require complete native extent/PLT/header/error/prefix/report models")
         if entry["id"] == _JPIP_PROGRESSIVE_ENTRY:
             if {(ref["path"], ref["symbol"]) for ref in entry["contract_refs"]} != set(_JPIP_PROGRESSIVE_CONTRACTS) - _JPIP_PROGRESSIVE_APIS:
                 raise ValueError("whole caller JPIP progressive requires complete actual availability/transcode/full-selected consumers")
@@ -7369,7 +7508,9 @@ def validate_normative_coverage(
               or (entry["id"] == _JPIP_TRANSCODE_ENTRY
                   and (reference["path"], reference["symbol"]) in _JPIP_TRANSCODE_APIS)
               or (entry["id"] == _JPIP_PROGRESSIVE_ENTRY
-                  and (reference["path"], reference["symbol"]) in _JPIP_PROGRESSIVE_APIS))
+                  and (reference["path"], reference["symbol"]) in _JPIP_PROGRESSIVE_APIS)
+              or (entry["id"] == _JPIP_TRANSITION_ENTRY
+                  and (reference["path"], reference["symbol"]) in _JPIP_TRANSITION_APIS))
             and reference not in entry["contract_refs"]
         ]
         for reference in [*entry["contract_refs"], *proved_apis]:
@@ -7891,6 +8032,8 @@ def validate_normative_coverage(
                     if entry["id"] == _JPIP_TRANSCODE_ENTRY else None)
                 or (_JPIP_PROGRESSIVE_CONTRACTS.get((reference["path"], reference["symbol"]))
                     if entry["id"] == _JPIP_PROGRESSIVE_ENTRY else None)
+                or (_JPIP_TRANSITION_CONTRACTS.get((reference["path"], reference["symbol"]))
+                    if entry["id"] == _JPIP_TRANSITION_ENTRY else None)
                 or (_JPX_INSPECTION_CONTRACTS.get((reference["path"], reference["symbol"]))
                     if entry["id"] == _JPX_INSPECTION_ENTRY else None)
                 or (_RAW_JPX_INSPECTION_CONTRACTS.get((reference["path"], reference["symbol"]))

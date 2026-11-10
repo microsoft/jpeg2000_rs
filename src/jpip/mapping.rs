@@ -9,7 +9,18 @@ use super::{
     read_u16_be, read_u32_be,
 };
 #[cfg(verus_keep_ghost)]
+use super::{
+    databin_id_view, jpip_cache_view, jpip_missing_views, jpip_semantic_need_view,
+    jpip_semantic_needs_view, jpip_transition_report_outcome, jpip_transition_report_view,
+    jpip_transition_sequence_shapes, jpip_transition_view, jpip_transitions_outcome,
+    jpip_transitions_view,
+};
+#[cfg(verus_keep_ghost)]
 use vstd::prelude::*;
+
+#[cfg(test)]
+#[path = "transition_result_tests.rs"]
+mod result_tests;
 
 impl JpipPrecinctMapping {
     pub const fn databin(&self) -> DatabinId {
@@ -22,58 +33,103 @@ impl JpipPrecinctMapping {
 }
 
 impl JpipSemanticNeed {
+    #[cfg_attr(verus_keep_ghost, verus_spec(result => ensures result == jpip_semantic_need_view(*self).0,))]
     pub const fn kind(&self) -> JpipSemanticNeedKind {
+        #[cfg(verus_keep_ghost)]
+        proof! { reveal(jpip_semantic_need_view); }
         self.kind
     }
 
+    #[cfg_attr(verus_keep_ghost, verus_spec(result => ensures result == jpip_semantic_need_view(*self).1,))]
     pub const fn identifier(&self) -> u64 {
+        #[cfg(verus_keep_ghost)]
+        proof! { reveal(jpip_semantic_need_view); }
         self.identifier
     }
 }
 
 impl JpipTilePartTransition {
+    #[cfg_attr(verus_keep_ghost, verus_spec(result => ensures result == jpip_transition_view(self).0,))]
     pub const fn tile(&self) -> u16 {
+        #[cfg(verus_keep_ghost)]
+        proof! { reveal(jpip_transition_view); }
         self.tile
     }
 
+    #[cfg_attr(verus_keep_ghost, verus_spec(result => ensures result == jpip_transition_view(self).1,))]
     pub const fn tile_part(&self) -> u8 {
+        #[cfg(verus_keep_ghost)]
+        proof! { reveal(jpip_transition_view); }
         self.tile_part
     }
 
+    #[cfg_attr(verus_keep_ghost, verus_spec(result => ensures result == jpip_transition_view(self).2,))]
     pub const fn packet_count(&self) -> Option<u64> {
+        #[cfg(verus_keep_ghost)]
+        proof! { reveal(jpip_transition_view); }
         self.packet_count
     }
 
     /// Original tile-part data bytes derived from a non-zero `Psot`.
     ///
     /// `None` denotes the legal final-tile-part form whose `Psot` is zero.
+    #[cfg_attr(verus_keep_ghost, verus_spec(result => ensures result == jpip_transition_view(self).3,))]
     pub const fn data_length(&self) -> Option<u64> {
+        #[cfg(verus_keep_ghost)]
+        proof! { reveal(jpip_transition_view); }
         self.data_length
     }
 
+    #[cfg_attr(verus_keep_ghost, verus_spec(result => ensures result == jpip_transition_view(self).4,))]
     pub const fn has_functional_change(&self) -> bool {
+        #[cfg(verus_keep_ghost)]
+        proof! { reveal(jpip_transition_view); }
         self.functional
     }
 
+    #[cfg_attr(verus_keep_ghost, verus_spec(result => ensures result@ == jpip_transition_view(self).5,))]
     pub fn header_bytes(&self) -> &[u8] {
+        #[cfg(verus_keep_ghost)]
+        proof! { reveal(jpip_transition_view); }
         &self.header
     }
 }
 
 impl JpipTilePartTransitionReport {
+    #[cfg_attr(verus_keep_ghost, verus_spec(result => ensures result == jpip_transition_report_view(self).0,))]
     pub const fn status(&self) -> JpipAvailability {
+        #[cfg(verus_keep_ghost)]
+        proof! { reveal(jpip_transition_report_view); }
         self.status
     }
 
+    #[cfg_attr(verus_keep_ghost, verus_spec(result =>
+        ensures result@.map_values(|transition: JpipTilePartTransition| jpip_transition_view(&transition))
+            == jpip_transition_report_view(self).1,
+    ))]
     pub fn transitions(&self) -> &[JpipTilePartTransition] {
+        #[cfg(verus_keep_ghost)]
+        proof! { reveal(jpip_transition_report_view); }
         &self.transitions
     }
 
+    #[cfg_attr(verus_keep_ghost, verus_spec(result =>
+        ensures result@.map_values(|need: JpipSemanticNeed| jpip_semantic_need_view(need))
+            == jpip_transition_report_view(self).2,
+    ))]
     pub fn semantic_needs(&self) -> &[JpipSemanticNeed] {
+        #[cfg(verus_keep_ghost)]
+        proof! { reveal(jpip_transition_report_view); }
         &self.needs
     }
 
+    #[cfg_attr(verus_keep_ghost, verus_spec(result =>
+        ensures result@.map_values(|missing: JpipMissingRange| super::jpip_missing_view(missing))
+            == jpip_transition_report_view(self).3,
+    ))]
     pub fn missing_ranges(&self) -> &[JpipMissingRange] {
+        #[cfg(verus_keep_ghost)]
+        proof! { reveal(jpip_transition_report_view); }
         &self.missing
     }
 }
@@ -215,11 +271,20 @@ impl DatabinCache {
         })
     }
 
+    #[cfg_attr(verus_keep_ghost, verus_spec(result =>
+        ensures jpip_transition_report_outcome(result)
+            == crate::specs::part2_jpip_transition_report(jpip_cache_view(self), codestream, tile),
+    ))]
     pub fn tile_part_transitions(
         &self,
         codestream: u64,
         tile: u16,
     ) -> Result<JpipTilePartTransitionReport, DecodeError> {
+        #[cfg(verus_keep_ghost)]
+        proof! {
+            reveal(jpip_transition_report_view); reveal(jpip_semantic_need_view);
+            jpip_transition_sequence_shapes();
+        }
         let id = DatabinId::new(2, codestream, u64::from(tile))?;
         if !self.is_complete(id) {
             return Ok(JpipTilePartTransitionReport {
@@ -237,14 +302,29 @@ impl DatabinCache {
         let mut needs = Vec::new();
         let mut preceding_packets_known = true;
         let mut index = 0_usize;
+        #[cfg(verus_keep_ghost)]
+        proof_decl! {
+            let ghost entries = jpip_transitions_view(&transitions);
+            let ghost expected = crate::specs::part2_jpip_transition_needs(entries, 0, true, Seq::empty(), tile);
+        }
+        #[cfg(verus_keep_ghost)]
+        proof! { assert(jpip_semantic_needs_view(&needs) =~= Seq::empty()); }
         #[cfg_attr(
             verus_keep_ghost,
             verus_spec(
                 invariant index <= transitions.len(),
+                    entries == jpip_transitions_view(&transitions), entries.len() == transitions.len(),
+                    forall|position: int| 0 <= position < transitions.len() ==>
+                        #[trigger] entries[position] == jpip_transition_view(&transitions@[position]),
+                    expected == crate::specs::part2_jpip_transition_needs(entries, 0, true, Seq::empty(), tile),
+                    expected == crate::specs::part2_jpip_transition_needs(entries, index as nat,
+                        preceding_packets_known, jpip_semantic_needs_view(&needs), tile),
                 decreases transitions.len() - index,
             )
         )]
         while index < transitions.len() {
+            #[cfg(verus_keep_ghost)]
+            proof! { reveal(crate::specs::part2_jpip_transition_needs); }
             let transition = &transitions[index];
             if index > 0
                 && !crate::refinement::jpip_tile_transition_sufficient(
@@ -253,16 +333,26 @@ impl DatabinCache {
                     transition.data_length().is_some(),
                 )
             {
+                #[cfg(verus_keep_ghost)]
+                proof_decl! { let ghost previous = jpip_semantic_needs_view(&needs); }
                 needs.push(JpipSemanticNeed {
                     kind: JpipSemanticNeedKind::TilePartTransition,
                     identifier: (u64::from(tile) << 8) | u64::from(transition.tile_part()),
                 });
+                #[cfg(verus_keep_ghost)]
+                proof! {
+                    assert(jpip_semantic_needs_view(&needs) =~= previous.push((
+                        JpipSemanticNeedKind::TilePartTransition,
+                        ((tile as u64) << 8) | entries[index as int].1 as u64)));
+                }
             }
             if transition.packet_count().is_none() && transition.data_length().is_none() {
                 preceding_packets_known = false;
             }
             index += 1;
         }
+        #[cfg(verus_keep_ghost)]
+        proof! { reveal(crate::specs::part2_jpip_transition_needs); }
         Ok(JpipTilePartTransitionReport {
             status: if needs.is_empty() {
                 JpipAvailability::Available
@@ -276,20 +366,51 @@ impl DatabinCache {
     }
 }
 
+#[cfg_attr(verus_keep_ghost, verus_spec(result =>
+    ensures jpip_transitions_outcome(result) == crate::specs::part2_jpip_parse_transitions(input@, expected_tile),
+))]
 pub(super) fn parse_tile_part_transitions(
     input: &[u8],
     expected_tile: u16,
 ) -> Result<Vec<JpipTilePartTransition>, DecodeError> {
+    #[cfg(verus_keep_ghost)]
+    proof! { reveal(jpip_transition_view); jpip_transition_sequence_shapes(); }
     if !input.starts_with(&[0xff, 0x90]) {
         let mut functional = false;
         let mut packet_count = None;
         let mut position = 0_usize;
         let mut remaining_markers = input.len();
+        #[cfg(verus_keep_ghost)]
+        proof_decl! {
+            let ghost scan_expected = crate::specs::part2_jpip_transition_scan(input@, 0, input.len(), false, false, None, 0);
+        }
+        #[cfg(verus_keep_ghost)]
+        proof! { reveal(crate::specs::part2_jpip_transition_scan); }
         #[cfg_attr(
             verus_keep_ghost,
-            verus_spec(decreases remaining_markers,)
+            verus_spec(
+                invariant position <= input.len(), remaining_markers <= input.len(),
+                    scan_expected == crate::specs::part2_jpip_transition_scan(input@, 0, input.len(), false, false, None, 0),
+                    crate::specs::part2_jpip_parse_transitions(input@, expected_tile) == match scan_expected {
+                        Err(error) => Err(error),
+                        Ok(scan) => Ok(seq![(expected_tile, 0u8, scan.2, None, scan.1, input@)]),
+                    },
+                    position >= input.len() ==> match scan_expected {
+                        Err(_) => false,
+                        Ok(scan) => scan.0 == position && scan.1 == functional && scan.2 == packet_count && scan.3 == 0,
+                    },
+                invariant_except_break
+                    scan_expected == crate::specs::part2_jpip_transition_scan(input@, position, remaining_markers, false, functional, packet_count, 0),
+                ensures match scan_expected {
+                    Err(_) => false,
+                    Ok(scan) => scan.0 == position && scan.1 == functional && scan.2 == packet_count && scan.3 == 0,
+                },
+                decreases remaining_markers,
+            )
         )]
         while position < input.len() {
+            #[cfg(verus_keep_ghost)]
+            proof! { reveal(crate::specs::part2_jpip_transition_scan); }
             if remaining_markers == 0 {
                 return Err(DecodeError::malformed(
                     position as u64,
@@ -302,21 +423,29 @@ pub(super) fn parse_tile_part_transitions(
             }
             let (marker, payload_start, end) = marker_segment(input, position)?;
             if marker == 0xff58 {
-                let count = count_plt_packets(input.get(payload_start..end).ok_or_else(|| {
-                    DecodeError::malformed(position as u64, MalformedKind::Truncated)
-                })?)?;
+                let count = count_plt_packets(input.get(payload_start..end).ok_or_else(
+                    #[cfg_attr(verus_keep_ghost, verus_spec(result: DecodeError =>
+                        ensures result == crate::specs::part2_jpip_cache_error(position as u64, MalformedKind::Truncated),
+                    ))]
+                    || DecodeError::malformed(position as u64, MalformedKind::Truncated),
+                )?)?;
                 packet_count = Some(
                     packet_count
                         .unwrap_or(0_u64)
                         .checked_add(count)
-                        .ok_or_else(|| {
-                            DecodeError::malformed(0, MalformedKind::ArithmeticOverflow)
-                        })?,
+                        .ok_or_else(
+                            #[cfg_attr(verus_keep_ghost, verus_spec(result: DecodeError =>
+                                ensures result == crate::specs::part2_jpip_range_overflow(0),
+                            ))]
+                            || DecodeError::malformed(0, MalformedKind::ArithmeticOverflow),
+                        )?,
                 );
             } else if !matches!(marker, 0xff61 | 0xff64) {
                 functional = true;
             }
             position = end;
+            #[cfg(verus_keep_ghost)]
+            proof! { reveal(crate::specs::part2_jpip_transition_scan); }
         }
         return Ok(vec![JpipTilePartTransition {
             tile: expected_tile,
@@ -330,11 +459,28 @@ pub(super) fn parse_tile_part_transitions(
     let mut transitions = Vec::new();
     let mut position = 0_usize;
     let mut remaining_parts = input.len();
+    #[cfg(verus_keep_ghost)]
+    proof_decl! {
+        let ghost expected = crate::specs::part2_jpip_transition_parts(input@, expected_tile, 0, input.len(), Seq::empty());
+    }
+    #[cfg(verus_keep_ghost)]
+    proof! {
+        assert(jpip_transitions_view(&transitions) =~= Seq::empty());
+        reveal(crate::specs::part2_jpip_transition_parts);
+    }
     #[cfg_attr(
         verus_keep_ghost,
-        verus_spec(decreases remaining_parts,)
+        verus_spec(
+            invariant position <= input.len(), remaining_parts <= input.len(),
+                crate::specs::part2_jpip_parse_transitions(input@, expected_tile) == expected,
+                expected == crate::specs::part2_jpip_transition_parts(input@, expected_tile, 0, input.len(), Seq::empty()),
+                expected == crate::specs::part2_jpip_transition_parts(input@, expected_tile, position, remaining_parts, jpip_transitions_view(&transitions)),
+            decreases remaining_parts,
+        )
     )]
     while position < input.len() {
+        #[cfg(verus_keep_ghost)]
+        proof! { reveal(crate::specs::part2_jpip_transition_parts); }
         if remaining_parts == 0 {
             return Err(DecodeError::malformed(
                 position as u64,
@@ -359,7 +505,12 @@ pub(super) fn parse_tile_part_transitions(
         }
         let tile_part = *input
             .get(position + 10)
-            .ok_or_else(|| DecodeError::malformed(position as u64, MalformedKind::Truncated))?;
+            .ok_or_else(
+                #[cfg_attr(verus_keep_ghost, verus_spec(result: DecodeError =>
+                    ensures result == crate::specs::part2_jpip_cache_error(position as u64, MalformedKind::Truncated),
+                ))]
+                || DecodeError::malformed(position as u64, MalformedKind::Truncated),
+            )?;
         let tile_part_length = read_u32_be(input, position + 6)?;
         position = sot_end;
         let mut functional = false;
@@ -367,11 +518,41 @@ pub(super) fn parse_tile_part_transitions(
         let mut next_plt = 0_u16;
         let mut found_sod = false;
         let mut remaining_headers = input.len();
+        #[cfg(verus_keep_ghost)]
+        proof_decl! {
+            let ghost scan_expected = crate::specs::part2_jpip_transition_scan(input@, sot_end, input.len(), true, false, None, 0);
+        }
+        #[cfg(verus_keep_ghost)]
+        proof! { reveal(crate::specs::part2_jpip_transition_scan); }
         #[cfg_attr(
             verus_keep_ghost,
-            verus_spec(decreases remaining_headers,)
+            verus_spec(
+                invariant part_start <= position <= input.len(), remaining_headers <= input.len(),
+                    remaining_parts < input.len(),
+                    crate::specs::part2_jpip_parse_transitions(input@, expected_tile) == expected,
+                    sot_end == part_start + 12, sot_end <= input.len(),
+                    tile == expected_tile,
+                    crate::specs::part2_jpip_marker_segment(input@, part_start) == Ok((0xff90u16, (part_start + 4) as usize, sot_end)),
+                    crate::specs::part2_jpip_read_u16(input@, (part_start + 4) as usize) == Ok(tile),
+                    crate::specs::part2_jpip_read_u32(input@, (part_start + 6) as usize) == Ok(tile_part_length),
+                    tile_part == input@[part_start as int + 10],
+                    scan_expected == crate::specs::part2_jpip_transition_scan(input@, sot_end, input.len(), true, false, None, 0),
+                    expected == crate::specs::part2_jpip_transition_parts(input@, expected_tile, 0, input.len(), Seq::empty()),
+                    expected == crate::specs::part2_jpip_transition_parts(input@, expected_tile, part_start,
+                        (remaining_parts + 1) as usize, jpip_transitions_view(&transitions)),
+                    position >= input.len() && !found_sod ==> scan_expected == Ok((position, functional, packet_count, next_plt, false)),
+                invariant_except_break !found_sod,
+                    scan_expected == crate::specs::part2_jpip_transition_scan(input@, position, remaining_headers, true, functional, packet_count, next_plt),
+                ensures scan_expected == Ok((position, functional, packet_count, next_plt, found_sod)),
+                decreases remaining_headers,
+            )
         )]
         while position < input.len() {
+            #[cfg(verus_keep_ghost)]
+            proof! {
+                reveal(crate::specs::part2_jpip_transition_scan);
+                reveal(crate::specs::part2_jpip_transition_parts);
+            }
             if remaining_headers == 0 {
                 return Err(DecodeError::malformed(
                     position as u64,
@@ -380,42 +561,59 @@ pub(super) fn parse_tile_part_transitions(
             }
             remaining_headers -= 1;
             if input.get(position..position.saturating_add(2)) == Some(&[0xff, 0x93]) {
-                position = position
-                    .checked_add(2)
-                    .ok_or_else(|| DecodeError::malformed(0, MalformedKind::ArithmeticOverflow))?;
+                position = position.checked_add(2).ok_or_else(
+                    #[cfg_attr(verus_keep_ghost, verus_spec(result: DecodeError =>
+                            ensures result == crate::specs::part2_jpip_range_overflow(0),
+                        ))]
+                    || DecodeError::malformed(0, MalformedKind::ArithmeticOverflow),
+                )?;
                 found_sod = true;
                 break;
             }
             let (header_marker, payload_start, end) = marker_segment(input, position)?;
             if header_marker == 0xff58 {
-                let payload = input.get(payload_start..end).ok_or_else(|| {
-                    DecodeError::malformed(position as u64, MalformedKind::Truncated)
-                })?;
-                let index = *payload.first().ok_or_else(|| {
-                    DecodeError::malformed(position as u64, MalformedKind::InvalidPacketLength)
-                })?;
+                let payload = input.get(payload_start..end).ok_or_else(
+                    #[cfg_attr(verus_keep_ghost, verus_spec(result: DecodeError =>
+                        ensures result == crate::specs::part2_jpip_cache_error(position as u64, MalformedKind::Truncated),
+                    ))]
+                    || DecodeError::malformed(position as u64, MalformedKind::Truncated),
+                )?;
+                let index = *payload.first().ok_or_else(
+                    #[cfg_attr(verus_keep_ghost, verus_spec(result: DecodeError =>
+                        ensures result == crate::specs::part2_jpip_cache_error(position as u64, MalformedKind::InvalidPacketLength),
+                    ))]
+                    || DecodeError::malformed(position as u64, MalformedKind::InvalidPacketLength),
+                )?;
                 if u16::from(index) != next_plt {
                     return Err(DecodeError::malformed(
                         position as u64,
                         MalformedKind::InvalidPacketLength,
                     ));
                 }
-                next_plt = next_plt
-                    .checked_add(1)
-                    .ok_or_else(|| DecodeError::malformed(0, MalformedKind::ArithmeticOverflow))?;
+                next_plt = next_plt.checked_add(1).ok_or_else(
+                    #[cfg_attr(verus_keep_ghost, verus_spec(result: DecodeError =>
+                            ensures result == crate::specs::part2_jpip_range_overflow(0),
+                        ))]
+                    || DecodeError::malformed(0, MalformedKind::ArithmeticOverflow),
+                )?;
                 let count = count_plt_packets(payload)?;
                 packet_count = Some(
                     packet_count
                         .unwrap_or(0_u64)
                         .checked_add(count)
-                        .ok_or_else(|| {
-                            DecodeError::malformed(0, MalformedKind::ArithmeticOverflow)
-                        })?,
+                        .ok_or_else(
+                            #[cfg_attr(verus_keep_ghost, verus_spec(result: DecodeError =>
+                                ensures result == crate::specs::part2_jpip_range_overflow(0),
+                            ))]
+                            || DecodeError::malformed(0, MalformedKind::ArithmeticOverflow),
+                        )?,
                 );
             } else if !matches!(header_marker, 0xff61 | 0xff64) {
                 functional = true;
             }
             position = end;
+            #[cfg(verus_keep_ghost)]
+            proof! { reveal(crate::specs::part2_jpip_transition_scan); }
         }
         if !found_sod {
             return Err(DecodeError::malformed(
@@ -429,31 +627,59 @@ pub(super) fn parse_tile_part_transitions(
                 MalformedKind::InvalidTilePart,
             ));
         }
-        let header_length = position.checked_sub(part_start).ok_or_else(|| {
-            DecodeError::malformed(part_start as u64, MalformedKind::ArithmeticOverflow)
-        })?;
+        let header_length = position.checked_sub(part_start).ok_or_else(
+            #[cfg_attr(verus_keep_ghost, verus_spec(result: DecodeError =>
+                ensures result == crate::specs::part2_jpip_range_overflow(part_start as u64),
+            ))]
+            || DecodeError::malformed(part_start as u64, MalformedKind::ArithmeticOverflow),
+        )?;
         let data_length = if tile_part_length == 0 {
             None
         } else {
             let declared = usize::try_from(tile_part_length).map_err(|_| {
+                #[cfg(verus_keep_ghost)]
+                vstd::prelude::ensures(|result: DecodeError| {
+                    vstd::prelude::equal(
+                        result,
+                        crate::specs::part2_jpip_range_overflow(part_start as u64),
+                    )
+                });
                 DecodeError::malformed(part_start as u64, MalformedKind::ArithmeticOverflow)
             })?;
-            declared.checked_sub(header_length).map(|data| data as u64)
+            declared.checked_sub(header_length).map(
+                #[cfg_attr(verus_keep_ghost, verus_spec(result: u64 => ensures result == data as u64,))]
+                |data: usize| data as u64,
+            )
         };
+        #[cfg(verus_keep_ghost)]
+        proof_decl! { let ghost previous = jpip_transitions_view(&transitions); }
         transitions.push(JpipTilePartTransition {
             tile,
             tile_part,
             packet_count,
             data_length,
             functional,
-            header: copy_bytes(input.get(part_start..position).ok_or_else(|| {
-                DecodeError::malformed(part_start as u64, MalformedKind::Truncated)
-            })?),
+            header: copy_bytes(input.get(part_start..position).ok_or_else(
+                #[cfg_attr(verus_keep_ghost, verus_spec(result: DecodeError =>
+                    ensures result == crate::specs::part2_jpip_cache_error(part_start as u64, MalformedKind::Truncated),
+                ))]
+                || DecodeError::malformed(part_start as u64, MalformedKind::Truncated),
+            )?),
         });
+        #[cfg(verus_keep_ghost)]
+        proof! {
+            assert(jpip_transitions_view(&transitions) =~= previous.push((
+                tile, tile_part, packet_count, data_length, functional, input@.subrange(part_start as int, position as int))));
+        }
     }
+    #[cfg(verus_keep_ghost)]
+    proof! { reveal(crate::specs::part2_jpip_transition_parts); }
     Ok(transitions)
 }
 
+#[cfg_attr(verus_keep_ghost, verus_spec(result =>
+    ensures result == crate::specs::part2_jpip_plt_count(payload@),
+))]
 fn count_plt_packets(payload: &[u8]) -> Result<u64, DecodeError> {
     if payload.is_empty() {
         return Err(DecodeError::malformed(
@@ -468,19 +694,28 @@ fn count_plt_packets(payload: &[u8]) -> Result<u64, DecodeError> {
         verus_keep_ghost,
         verus_spec(
             invariant position <= payload.len(),
+                crate::specs::part2_jpip_plt_count(payload@)
+                    == crate::specs::part2_jpip_plt_scan(payload@, position as nat, count, continuation),
             decreases payload.len() - position,
         )
     )]
     while position < payload.len() {
+        #[cfg(verus_keep_ghost)]
+        proof! { reveal(crate::specs::part2_jpip_plt_scan); }
         let byte = payload[position];
         continuation = byte & 0x80 != 0;
         if !continuation {
-            count = count
-                .checked_add(1)
-                .ok_or_else(|| DecodeError::malformed(0, MalformedKind::ArithmeticOverflow))?;
+            count = count.checked_add(1).ok_or_else(
+                #[cfg_attr(verus_keep_ghost, verus_spec(result: DecodeError =>
+                        ensures result == crate::specs::part2_jpip_range_overflow(0),
+                    ))]
+                || DecodeError::malformed(0, MalformedKind::ArithmeticOverflow),
+            )?;
         }
         position += 1;
     }
+    #[cfg(verus_keep_ghost)]
+    proof! { reveal(crate::specs::part2_jpip_plt_scan); }
     if continuation {
         return Err(DecodeError::malformed(
             0,

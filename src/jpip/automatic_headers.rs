@@ -385,20 +385,29 @@ pub(super) fn append_empty_packet(
     Ok(())
 }
 
+#[cfg_attr(verus_keep_ghost, verus_spec(result =>
+    ensures result == crate::specs::part2_jpip_marker_segment(input@, position),
+))]
 pub(super) fn marker_segment(
     input: &[u8],
     position: usize,
 ) -> Result<(u16, usize, usize), DecodeError> {
     let marker = read_u16_be(input, position)?;
     if matches!(marker, 0xff4f | 0xff93 | 0xffd9) {
-        let end = position.checked_add(2).ok_or_else(|| {
-            DecodeError::malformed(position as u64, MalformedKind::ArithmeticOverflow)
-        })?;
+        let end = position.checked_add(2).ok_or_else(
+            #[cfg_attr(verus_keep_ghost, verus_spec(result: DecodeError =>
+                ensures result == crate::specs::part2_jpip_range_overflow(position as u64),
+            ))]
+            || DecodeError::malformed(position as u64, MalformedKind::ArithmeticOverflow),
+        )?;
         return Ok((marker, end, end));
     }
-    let length_position = position.checked_add(2).ok_or_else(|| {
-        DecodeError::malformed(position as u64, MalformedKind::ArithmeticOverflow)
-    })?;
+    let length_position = position.checked_add(2).ok_or_else(
+        #[cfg_attr(verus_keep_ghost, verus_spec(result: DecodeError =>
+            ensures result == crate::specs::part2_jpip_range_overflow(position as u64),
+        ))]
+        || DecodeError::malformed(position as u64, MalformedKind::ArithmeticOverflow),
+    )?;
     let length = usize::from(read_u16_be(input, length_position)?);
     if length < 2 {
         return Err(DecodeError::malformed(
@@ -408,17 +417,31 @@ pub(super) fn marker_segment(
     }
     let end = position
         .checked_add(2)
-        .and_then(|value| value.checked_add(length))
-        .ok_or_else(|| DecodeError::malformed(0, MalformedKind::ArithmeticOverflow))?;
+        .and_then(
+            #[cfg_attr(verus_keep_ghost, verus_spec(result: (Option<usize>) =>
+                ensures result == if value as nat + length as nat > usize::MAX as nat { None }
+                    else { Some((value as nat + length as nat) as usize) },
+            ))]
+            |value: usize| value.checked_add(length),
+        )
+        .ok_or_else(
+            #[cfg_attr(verus_keep_ghost, verus_spec(result: DecodeError =>
+                ensures result == crate::specs::part2_jpip_range_overflow(0),
+            ))]
+            || DecodeError::malformed(0, MalformedKind::ArithmeticOverflow),
+        )?;
     if end > input.len() {
         return Err(DecodeError::malformed(
             position as u64,
             MalformedKind::Truncated,
         ));
     }
-    let payload = position.checked_add(4).ok_or_else(|| {
-        DecodeError::malformed(position as u64, MalformedKind::ArithmeticOverflow)
-    })?;
+    let payload = position.checked_add(4).ok_or_else(
+        #[cfg_attr(verus_keep_ghost, verus_spec(result: DecodeError =>
+            ensures result == crate::specs::part2_jpip_range_overflow(position as u64),
+        ))]
+        || DecodeError::malformed(position as u64, MalformedKind::ArithmeticOverflow),
+    )?;
     Ok((marker, payload, end))
 }
 

@@ -48,6 +48,7 @@ specs/jpip_progressive.rs
 specs/jpip_ranges.rs
 specs/jpip_response.rs
 specs/jpip_transcode.rs
+specs/jpip_transitions.rs
 specs/jpx_dispatch.rs
 specs/jpx_frame.rs
 specs/jpx_general.rs
@@ -185,6 +186,8 @@ src/jpip/response_result_tests.rs
 src/jpip/tests.rs
 src/jpip/transcode_availability_result_tests.rs
 src/jpip/transcode_result_tests.rs
+src/jpip/transition_proof_support.rs
+src/jpip/transition_result_tests.rs
 src/jpip.rs
 src/jpx/channels.rs
 src/jpx/chroma.rs

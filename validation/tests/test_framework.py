@@ -1256,6 +1256,77 @@ class FrameworkTests(WorkingFiles):
                 self.assertEqual(framework.validate_normative_coverage(dict(coverage, requirements=[entry]))["status"], "passed")
                 self.assertEqual(set(counts.values()), {expected})
 
+    def test_inventory_jpip_transitions_bind_complete_actual_raw_and_public_report_results(self):
+        self._assert_complete_packet_contract_bindings(
+            {framework._JPIP_TRANSITION_ENTRY}, framework._JPIP_TRANSITION_CONTRACTS, 10, isolate=False,
+        )
+
+    def test_inventory_jpip_transitions_require_every_raw_cache_field_and_getter_bridge(self):
+        coverage = json.loads((framework.VALIDATION / "normative-coverage.json").read_text())
+        entry = next(item for item in coverage["requirements"] if item["id"] == framework._JPIP_TRANSITION_ENTRY)
+        for field in ("implementation_refs", "contract_refs", "spec_refs", "proof_refs", "test_refs"):
+            for removed in entry[field]:
+                changed = copy.deepcopy(entry)
+                changed[field].remove(removed)
+                with self.subTest(field=field, removed=removed), self.assertRaisesRegex(
+                        ValueError, "whole raw JPIP transitions|normative-coverage.schema.json"):
+                    framework.validate_normative_coverage(dict(coverage, requirements=[changed]))
+
+    def test_inventory_jpip_transitions_reject_changed_native_words_admission_prefix_and_getters(self):
+        coverage = json.loads((framework.VALIDATION / "normative-coverage.json").read_text())
+        entry = next(item for item in coverage["requirements"] if item["id"] == framework._JPIP_TRANSITION_ENTRY)
+        read_text = Path.read_text
+        for relative, symbol, before, after in (
+            ("src/jpip/byte_io.rs", "read_u16_be", ".get(position..position.saturating_add(2))", ".get(position..position.saturating_add(3))"),
+            ("src/jpip/automatic_headers.rs", "marker_segment", "length < 2", "false"),
+            ("src/jpip/mapping.rs", "count_plt_packets", ".checked_add(1)", ".checked_add(0)"),
+            ("src/jpip/mapping.rs", "parse_tile_part_transitions", "remaining_markers = input.len()", "remaining_markers = 0"),
+            ("src/jpip/mapping.rs", "parse_tile_part_transitions", "u16::from(index) != next_plt", "false"),
+            ("src/jpip/mapping.rs", "parse_tile_part_transitions", "declared.checked_sub(header_length)", "declared.checked_sub(0)"),
+            ("src/jpip/mapping.rs", "DatabinCache::tile_part_transitions", "DatabinId::new(2, codestream, u64::from(tile))?", "DatabinId::new(4, codestream, u64::from(tile))?"),
+            ("src/jpip/mapping.rs", "DatabinCache::tile_part_transitions", "preceding_packets_known = false", "preceding_packets_known = true"),
+            ("src/jpip/mapping.rs", "JpipTilePartTransition::data_length", "jpip_transition_view(self).3", "jpip_transition_view(self).2"),
+        ):
+            source = framework.ROOT / relative
+            original = source.read_text()
+            header = framework._coverage_function_header(original, symbol)
+            self.assertIsNotNone(header)
+            start = original.rfind("#[cfg_attr", 0, header.start())
+            self.assertIn(before, original[start:])
+            changed = original[:start] + original[start:].replace(before, after, 1)
+
+            def altered(path, *args, **kwargs):
+                return changed if path == source else read_text(path, *args, **kwargs)
+
+            with self.subTest(before=before), mock.patch.object(Path, "read_text", altered), \
+                    self.assertRaisesRegex(ValueError, "whole raw JPIP transitions"):
+                framework.validate_normative_coverage(dict(coverage, requirements=[entry]))
+
+    def test_inventory_jpip_transitions_reject_trimmed_native_extents_plt_optional_lengths_and_reports(self):
+        coverage = json.loads((framework.VALIDATION / "normative-coverage.json").read_text())
+        entry = next(item for item in coverage["requirements"] if item["id"] == framework._JPIP_TRANSITION_ENTRY)
+        source = framework.ROOT / "specs/jpip_transitions.rs"
+        original, read_text = source.read_text(), Path.read_text
+        for before, after in (
+            ("position as nat + 2 > usize::MAX as nat", "false"),
+            ("payload[position as int] & 0x80 != 0", "false"),
+            ("payload[0] as u16 != next_plt", "false"),
+            ("length == 0 || (length as nat) < header_length", "length == 0"),
+            ("Ok(seq![(tile, 0u8, scan.2, None, scan.1, input)])", "Ok(Seq::empty())"),
+            ("preceding_known && (transition.2.is_some() || transition.3.is_some())", "true"),
+            ("((tile as u64) << 8) | transition.1 as u64", "transition.1 as u64"),
+            ("crate::jpip::JpipAvailability::Partial", "crate::jpip::JpipAvailability::Available"),
+        ):
+            self.assertIn(before, original)
+            changed = original.replace(before, after, 1)
+
+            def altered(path, *args, **kwargs):
+                return changed if path == source else read_text(path, *args, **kwargs)
+
+            with self.subTest(before=before), mock.patch.object(Path, "read_text", altered), \
+                    self.assertRaisesRegex(ValueError, "whole raw JPIP transitions"):
+                framework.validate_normative_coverage(dict(coverage, requirements=[entry]))
+
     def test_inventory_jpip_progressive_binds_complete_full_selected_results_and_final_decoder_state(self):
         self._assert_complete_packet_contract_bindings(
             {framework._JPIP_PROGRESSIVE_ENTRY}, framework._JPIP_PROGRESSIVE_CONTRACTS, 7, isolate=False,

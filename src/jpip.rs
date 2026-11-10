@@ -28,6 +28,8 @@ include!("jpip/range_proof_support.rs");
 include!("jpip/plan_proof_support.rs");
 #[cfg(verus_keep_ghost)]
 include!("jpip/progression_proof_support.rs");
+#[cfg(verus_keep_ghost)]
+include!("jpip/transition_proof_support.rs");
 
 #[derive(Clone, Copy)]
 #[cfg_attr(not(verus_keep_ghost), derive(Debug, Eq, PartialEq, Hash))]
