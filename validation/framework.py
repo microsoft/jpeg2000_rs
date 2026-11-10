@@ -2864,7 +2864,10 @@ _ASSOCIATED_HEADER_MODELS = {
         "part2_parse_codestream_header", "part2_associated_header_boxes", "part2_associated_header_step",
         "part2_associated_header_finish", "part2_jp2_header_clone",
     )
-} | {("specs/jp2_header.rs", "part2_parse_jp2_header")}
+} | {
+    ("specs/jp2_header.rs", "part2_parse_jp2_header"),
+    ("specs/jp2_color_header.rs", "part2_validate_color_specification_prefix"),
+}
 _ASSOCIATED_HEADER_PROOFS = {
     ("src/jp2/proof_support.rs", name) for name in ("raw_header_option", "associated_header_state", "raw_jp2_header_outcome")
 } | {("src/jp2/clone_support.rs", "jp2_header_clone")}
@@ -2886,6 +2889,7 @@ _RAW_JP2_HEADER_MODELS = {
     ("specs/jp2_image_header.rs", name) for name in ("part2_parse_image_header", "part2_validate_bpcc")
 } | {
     ("specs/jp2_color_header.rs", "part2_parse_color_specification"),
+    ("specs/jp2_color_header.rs", "part2_validate_color_specification_prefix"),
     ("specs/jp2_palette.rs", "part2_parse_palette"),
     ("specs/jp2_channel_header.rs", "part2_parse_component_mapping"),
     ("specs/jp2_channel_header.rs", "part2_parse_channel_definition"),
@@ -2988,6 +2992,10 @@ _CHANNEL_HEADER_PROOFS = {
 }
 _COLOR_HEADER_ENTRY = "part2-complete-native-raw-color-header-result"
 _COLOR_HEADER_CONTRACTS = {
+    ("src/jp2/color.rs", "validate_color_specification_prefix"): (
+        "part2_validate_color_specification_prefix", r"\1", None,
+        _coverage_call("super::box_reference_view", "box_ref") + r"\s*,\s*base_offset",
+    ),
     ("src/jp2/color.rs", "parse_color_specification"): (
         "part2_parse_color_specification", _coverage_call("super::color_specification_outcome", r"\1"), None,
         _coverage_call("super::box_reference_view", "box_ref") + r"\s*,\s*base_offset",
@@ -5797,6 +5805,7 @@ def validate_normative_coverage(
                 "palette_override || mapping_override || definition_override", "mapping_override || definition_override",
                 "if resolution_override", "if image_override && matches!(header.image.bit_depth, ComponentBitDepth::Variable) != saw_bpcc",
                 "header.nested_box_count = nested_box_count",
+                "if crate::refinement::first_override_allowed(color_override) { header.color = parse_color_specification(box_ref, base_offset)?; color_override = true; } else { validate_color_specification_prefix(box_ref, base_offset)?; }",
             )
             if body is None or any("".join(item.split()) not in "".join(body.split()) for item in required):
                 raise ValueError("whole associated-header Result requires actual clone/clear/order/retained metadata handoffs")
@@ -5810,6 +5819,7 @@ def validate_normative_coverage(
                     "image, palette: None, mappings: Seq::empty(), definitions: Seq::empty()",
                     "state.palette_override || state.mapping_override || state.definition_override",
                     "part2_parse_color_specification(input, base)", "!state.color_override",
+                    "part2_validate_color_specification_prefix(input, base)",
                 ),
                 "part2_associated_header_finish": (
                     "state.image_override", "state.header.palette.is_some() && state.header.mappings.len() == 0",
@@ -5832,6 +5842,7 @@ def validate_normative_coverage(
                 "parse_image_header(image_box, limits, base_offset)?",
                 "reader.position <= previous_position || reader.position > payload.len()",
                 "parse_color_specification(box_ref, base_offset)?", "if color.is_none()",
+                "if color.is_none() { color = Some(parse_color_specification(box_ref, base_offset)?); } else { validate_color_specification_prefix(box_ref, base_offset)?; }",
                 "parse_palette(box_ref, base_offset)?", "validate_bpcc(box_ref, image, base_offset)?",
                 "parse_component_mapping(box_ref, image.components, palette_columns, limits, base_offset,)",
                 "parse_channel_definition(box_ref, output_channels, base_offset)?",
@@ -5855,6 +5866,7 @@ def validate_normative_coverage(
                 ),
                 "part2_raw_header_step": (
                     "part2_parse_color_specification(input, base)", "state.color.is_none()",
+                    "part2_validate_color_specification_prefix(input, base)",
                     "part2_parse_palette(input, base)", "part2_parse_component_mapping(",
                     "part2_parse_channel_definition(", "part2_parse_resolution_superbox(input.1, limits, nested_base)",
                 ),
@@ -6032,19 +6044,30 @@ def validate_normative_coverage(
         if entry["id"] == _COLOR_HEADER_ENTRY:
             if {(ref["path"], ref["symbol"]) for ref in entry["contract_refs"]} != set(_COLOR_HEADER_CONTRACTS):
                 raise ValueError("whole raw color Result requires actual full color parser contract")
-            if {("specs/jp2_color_header.rs", "part2_parse_color_specification")} != {
+            if {("specs/jp2_color_header.rs", name) for name in (
+                    "part2_parse_color_specification", "part2_validate_color_specification_prefix")} != {
                     (ref["path"], ref["symbol"]) for ref in entry["spec_refs"]} \
                     or not _COLOR_HEADER_PROOFS.issubset({(ref["path"], ref["symbol"]) for ref in entry["proof_refs"]}):
                 raise ValueError("whole raw color Result requires complete method/metadata/ICC-copy bridges")
             path = (ROOT / "src/jp2/color.rs").resolve()
             body = _coverage_function_body(source_text(path), function_header(path, "parse_color_specification"))
-            required = ("box_ref.payload.len() < 3", "method_value == 1", "box_ref.payload.len() != 7",
+            required = ("validate_color_specification_prefix(box_ref, base_offset)?", "method_value == 1", "box_ref.payload.len() != 7",
                         "method_value == 2", "method_value == 3", "copy_profile(&box_ref.payload[3..])?",
                         "precedence: box_ref.payload[1]", "approximation: box_ref.payload[2]", "icc_profile,")
             if body is None or any("".join(item.split()) not in "".join(body.split()) for item in required) \
                     or "".join(body.split()).count("copy_profile(&box_ref.payload[3..])?") != 2:
                 raise ValueError("whole raw color Result requires actual method/metadata/full-ICC handoffs")
+            prefix = _coverage_function_body(source_text(path), function_header(path, "validate_color_specification_prefix"))
+            prefix_required = ("box_ref.payload.len() < 3", "add_offset(base_offset, box_ref.header.offset())?",
+                               "MalformedKind::InvalidBoxLength", "Ok(())")
+            if prefix is None or any("".join(item.split()) not in "".join(prefix.split()) for item in prefix_required):
+                raise ValueError("whole raw color Result requires actual common-prefix/error validation")
             model = source_text((ROOT / "specs/jp2_color_header.rs").resolve())
+            prefix = _coverage_spec_function_body(model, "part2_validate_color_specification_prefix")
+            if prefix is None or any("".join(item.split()) not in "".join(prefix.split()) for item in (
+                    "input.1.len() < 3", "part2_image_box_error(base, input.0, crate::MalformedKind::InvalidBoxLength)",
+                    "Ok(())")):
+                raise ValueError("whole raw color Result requires complete common-prefix/error model")
             actual = _coverage_spec_function_body(model, "part2_parse_color_specification")
             required = ("payload.len() < 3", "payload.len() != 7", "length == 0",
                         "payload[1], payload[2]", "Some(payload.subrange(3, payload.len() as int))",

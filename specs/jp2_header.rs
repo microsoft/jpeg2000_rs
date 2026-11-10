@@ -76,10 +76,15 @@ pub open spec fn part2_raw_header_step(
             Err(error) => Err(error), Ok(()) => Ok(Part2RawHeaderState { saw_bpcc: true, ..state }),
         } }
     } else if kind == crate::jp2::BoxType::COLOR_SPECIFICATION {
-        match part2_parse_color_specification(input, base) {
-            Err(error) => Err(error),
-            Ok(parsed) => if state.color.is_none() { Ok(Part2RawHeaderState { color: Some(parsed), ..state }) }
-                else { Ok(state) },
+        if state.color.is_none() {
+            match part2_parse_color_specification(input, base) {
+                Err(error) => Err(error),
+                Ok(parsed) => Ok(Part2RawHeaderState { color: Some(parsed), ..state }),
+            }
+        } else {
+            match part2_validate_color_specification_prefix(input, base) {
+                Err(error) => Err(error), Ok(()) => Ok(state),
+            }
         }
     } else if kind == crate::jp2::BoxType::PALETTE {
         if state.palette.is_some() { Err(part2_image_box_error(base, input.0, crate::MalformedKind::InvalidBoxOrder)) }

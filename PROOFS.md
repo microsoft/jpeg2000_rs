@@ -857,6 +857,21 @@ lifetimes and release acceptance remain independent.
 
 ## Actual complete raw color specification Result
 
+The Sarah `DEV-629A0A9C39` correction shares the original common three-byte
+prefix check between the full selected-color parser and ignored later COLR
+boxes. Full JP2 and associated-header producers still frame, count and charge
+every box, but do not interpret later methods or copy irrelevant ICC data.
+Selected-color parsing, short-prefix errors, lazy offset arithmetic,
+full-parse-before-defaults priority and first provided override policy remain.
+Complete full/associated/prefix models and native callers change together;
+the first-color admission policy and JPX colour-group selection are not expanded.
+The pinned public original COLR handler independently ignores 1,024 later
+method/payload combinations while rejecting three short prefixes and retaining
+its selected state. Native tests cover all methods at four raw bases across
+full, full-with-defaults and partial-associated routes, including `u64::MAX`.
+This is explicit reader-policy/implementation evidence, not independent
+selected-edition certification.
+
 The actual color specification parser now derives its complete Result from
 borrowed raw bytes: method, precedence, approximation and every optional ICC
 profile byte. Enumerated colors retain their exact 32-bit value; restricted

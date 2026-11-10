@@ -284,6 +284,7 @@ use box_reader::{
 mod color;
 use color::{
     parse_channel_definition, parse_color_specification, parse_component_mapping, parse_palette,
+    validate_color_specification_prefix,
 };
 #[cfg_attr(verus_keep_ghost, verifier::verify)]
 mod composition;

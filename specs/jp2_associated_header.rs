@@ -80,11 +80,16 @@ pub open spec fn part2_associated_header_step(
             }
         }
     } else if kind == crate::jp2::BoxType::COLOR_SPECIFICATION {
-        match part2_parse_color_specification(input, base) {
-            Err(error) => Err(error),
-            Ok(color) => if !state.color_override {
-                Ok(Part2AssociatedHeaderState { header: Part2RawJp2Header { color, ..header }, color_override: true, ..state })
-            } else { Ok(state) },
+        if !state.color_override {
+            match part2_parse_color_specification(input, base) {
+                Err(error) => Err(error),
+                Ok(color) => Ok(Part2AssociatedHeaderState {
+                    header: Part2RawJp2Header { color, ..header }, color_override: true, ..state }),
+            }
+        } else {
+            match part2_validate_color_specification_prefix(input, base) {
+                Err(error) => Err(error), Ok(()) => Ok(state),
+            }
         }
     } else if kind == crate::jp2::BoxType::PALETTE {
         if state.palette_override || state.mapping_override || state.definition_override {

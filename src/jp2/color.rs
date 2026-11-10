@@ -118,6 +118,23 @@ fn palette_value_error(arithmetic: bool) -> DecodeError {
 }
 
 #[cfg_attr(verus_keep_ghost, verus_spec(result =>
+    ensures result == crate::specs::part2_validate_color_specification_prefix(
+        super::box_reference_view(box_ref), base_offset),
+))]
+pub(super) fn validate_color_specification_prefix(
+    box_ref: BoxRef<'_>,
+    base_offset: u64,
+) -> Result<(), DecodeError> {
+    if box_ref.payload.len() < 3 {
+        return Err(DecodeError::malformed(
+            add_offset(base_offset, box_ref.header.offset())?,
+            MalformedKind::InvalidBoxLength,
+        ));
+    }
+    Ok(())
+}
+
+#[cfg_attr(verus_keep_ghost, verus_spec(result =>
     ensures super::color_specification_outcome(result) == crate::specs::part2_parse_color_specification(
         super::box_reference_view(box_ref), base_offset),
 ))]
@@ -127,12 +144,7 @@ pub(super) fn parse_color_specification(
 ) -> Result<ColorSpecification, DecodeError> {
     #[cfg(verus_keep_ghost)]
     proof! { reveal(crate::specs::part2_parse_color_specification); }
-    if box_ref.payload.len() < 3 {
-        return Err(DecodeError::malformed(
-            add_offset(base_offset, box_ref.header.offset())?,
-            MalformedKind::InvalidBoxLength,
-        ));
-    }
+    validate_color_specification_prefix(box_ref, base_offset)?;
     let profile_bytes = u64::try_from(box_ref.payload.len() - 3)
         .map_err(|_| DecodeError::malformed(base_offset, MalformedKind::ArithmeticOverflow))?;
     let method_value = box_ref.payload[0];
