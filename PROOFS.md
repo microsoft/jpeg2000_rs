@@ -487,7 +487,7 @@ full-plan gates remain separate; fresh complete qualification is still required.
 
 The public `parse_jpip_message` and `JpipMessageParser::parse` now derive complete
 Data/EOR message, databin/header/body/consumed Results and context/limits mutation
-frames from actual input bytes. The actual VBAS traversal retains canonical,
+frames from actual input bytes. The actual VBAS traversal retains
 ten-byte, arithmetic and truncation frontiers with the precise partial cursor
 on every error. Context is committed only after a complete data body; EOR and
 errors preserve it. Checked getters retain native stored borrowed bodies.
@@ -496,10 +496,20 @@ Static constructors and scalar getters use checked body clauses under
 impl-level rewriting because the pinned macro cannot stamp conditional method
 attributes before rewriting a static impl method. These clauses are proved by
 the same whole-root/archive verifier and bound exactly by the inventory, not
-external specifications or new adapters. Native bodies/calls/owners are
-unchanged; no model reconstructs a native owner or receives successful message
+external specifications or new adapters. No model reconstructs a native owner or receives successful message
 banks. Existing JPIP class identity intentionally normalizes even/odd paired
 class identifiers.
+
+The Sarah `DEV-9A1ABE441F` correction removes the extra shortest-form rejection
+from the real field reader and its complete model, including its obsolete
+private predicate and characterization. Bounded leading-zero groups preserve
+the field value and physical terminator; ten-byte/u64 limits and truncation
+cursor/error ordering remain enforced. The pinned public OpenJPEG 2.5.0
+OpenJPIP field parsers independently pass 25,729 representable field cases;
+the actual Rust reader checks both starting offsets in 51,458 cases, and
+complete padded data/EOR headers retain context, limits and borrowed bodies.
+This is interoperability and arithmetic evidence, not independent
+selected-edition certification.
 
 Cache insertion, response ingestion, transcoding, progressive and automatic
 composition remain later producer joins. Independent full-plan gates remain

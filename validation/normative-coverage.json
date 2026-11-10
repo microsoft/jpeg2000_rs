@@ -689,7 +689,7 @@
     },
     {
       "id": "part9-complete-native-raw-message-results",
-      "topic": "Complete actual raw parse_jpip_message/JpipMessageParser::parse Data/EOR Results, header/databin/context/body/consumed fields and complete context/limits/error mutation frames. Actual VBAS primitive derives value and partial cursor through canonical/10byte/overflow/truncation frontiers. Checked static impl body clauses and getter/reference projections preserve one native implementation without new constructor adapters, reconstructed owners, successful result banks or runtime proof clones. Original error priority and context commit only after full data extent retained. Cache insertion/transcoding/progressive/automatic joins and independent normative/cfg/lifetime/release remain separate.",
+      "topic": "Complete actual raw parse_jpip_message/JpipMessageParser::parse Data/EOR Results, header/databin/context/body/consumed fields and complete context/limits/error mutation frames. Sarah DEV-9A1ABE441F: bounded value-equivalent leading-zero VBAS groups are admitted; actual primitive and complete model retain ten-byte/u64 overflow/truncation frontiers and exact partial cursor, without an extra shortest-form predicate. Checked static impl body clauses and getter/reference projections preserve one native implementation without new constructor adapters, reconstructed owners, successful result banks or runtime proof clones. Error ordering outside the removed admission and context commit only after full data extent retained. Cache insertion/transcoding/progressive/automatic joins and independent normative/cfg/lifetime/release remain separate.",
       "implementation_refs": [
         {"path": "src/jpip/message.rs", "symbol": "parse_jpip_message"},
         {"path": "src/jpip/message.rs", "symbol": "JpipMessageParser::parse"},
@@ -723,7 +723,6 @@
         {"path": "specs/mod.rs", "symbol": "part9_header_form_valid"},
         {"path": "specs/mod.rs", "symbol": "part9_header_has_explicit_class"},
         {"path": "specs/mod.rs", "symbol": "part9_header_has_explicit_codestream"},
-        {"path": "specs/mod.rs", "symbol": "part9_vbas_first_is_canonical"},
         {"path": "specs/mod.rs", "symbol": "part9_vbas_step"},
         {"path": "specs/mod.rs", "symbol": "part9_auxiliary_present"},
         {"path": "specs/mod.rs", "symbol": "part9_eor_extent"},
@@ -779,8 +778,10 @@
         {"path": "src/jpip/message_result_tests.rs", "symbol": "actual_raw_jpip_data_derives_all_header_fields_body_borrow_and_consumed_extent"},
         {"path": "src/jpip/message_result_tests.rs", "symbol": "actual_raw_jpip_inherited_context_commits_only_complete_data_messages"},
         {"path": "src/jpip/message_result_tests.rs", "symbol": "actual_raw_jpip_eor_and_prefix_bodies_preserve_context_and_original_borrowed_slices"},
-        {"path": "src/jpip/message_result_tests.rs", "symbol": "actual_raw_jpip_rejects_canonical_overflow_extent_and_limit_frontiers_in_native_order"},
-        {"path": "src/jpip/message_result_tests.rs", "symbol": "actual_raw_jpip_databin_and_header_getters_preserve_normalized_identity_and_saturating_final_length"}
+        {"path": "src/jpip/message_result_tests.rs", "symbol": "actual_raw_jpip_rejects_overflow_extent_and_limit_frontiers_in_native_order"},
+        {"path": "src/jpip/message_result_tests.rs", "symbol": "actual_raw_jpip_databin_and_header_getters_preserve_normalized_identity_and_saturating_final_length"},
+        {"path": "src/jpip/message_result_tests.rs", "symbol": "sarah_dev_9a1abe441f_bounded_vbas_padding_preserves_values_and_delimiters"},
+        {"path": "src/jpip/message_result_tests.rs", "symbol": "sarah_dev_9a1abe441f_padded_message_fields_preserve_context_and_body"}
       ]
     },
     {
@@ -11245,10 +11246,6 @@
         },
         {
           "path": "src/refinement/jpip.rs",
-          "symbol": "jpip_vbas_first_is_canonical"
-        },
-        {
-          "path": "src/refinement/jpip.rs",
           "symbol": "jpip_vbas_step"
         },
         {
@@ -11298,10 +11295,6 @@
         },
         {
           "path": "specs/mod.rs",
-          "symbol": "part9_vbas_first_is_canonical"
-        },
-        {
-          "path": "specs/mod.rs",
           "symbol": "part9_vbas_step"
         },
         {
@@ -11322,9 +11315,15 @@
         },
         {
           "path": "src/jpip/tests.rs", "symbol": "rejects_malformed_prefixes_and_vbas"
+        },
+        {
+          "path": "src/jpip/message_result_tests.rs", "symbol": "sarah_dev_9a1abe441f_bounded_vbas_padding_preserves_values_and_delimiters"
+        },
+        {
+          "path": "src/jpip/message_result_tests.rs", "symbol": "sarah_dev_9a1abe441f_padded_message_fields_preserve_context_and_body"
         }
       ],
-      "topic": "Binary Bin-ID forms 01/10/11, canonical bounded VBAS, auxiliary fields, and EOR framing"
+      "topic": "Binary Bin-ID forms 01/10/11, bounded value-equivalent VBAS including leading-zero groups (Sarah DEV-9A1ABE441F), auxiliary fields, and EOR framing; preserve ten-byte/u64/partial-cursor bounds without an extra shortest-form predicate"
     },
     {
       "contract_refs": [

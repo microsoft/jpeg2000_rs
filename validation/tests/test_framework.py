@@ -2202,6 +2202,7 @@ class FrameworkTests(WorkingFiles):
             ("context.previous_class = Some(class_identifier)", "context.previous_class = Some(codestream)"),
             ("body: &input[position..body_end]", "body: &input[0..body_end]"),
             ("first_mask.unwrap_or(0x7f)", "first_mask.unwrap_or(0xff)"),
+            ("let mut value = u64::from(first & mask)", "let mut value = u64::from(first)"),
             ("start == *old(position)", "start == *position"),
             ("parse_jpip_message(input, &mut self.context, &self.limits)", "parse_jpip_message(&unrelated, &mut self.context, &self.limits)"),
         ):
@@ -2223,7 +2224,7 @@ class FrameworkTests(WorkingFiles):
         read_text = Path.read_text
         for before, after in (
             ("value as nat * 128 + group as nat", "value as nat + group as nat"),
-            ("mask.is_none()", "mask.is_some()"),
+            ("None => 0x7f", "None => 0xff"),
             ("input.subrange(position as int, end as int)", "input.subrange(0, end as int)"),
             ("(Some(header.0.0), Some(header.0.2))", "(Some(header.0.2), Some(header.0.0))"),
             ("_ => context", "_ => (None, None)"),

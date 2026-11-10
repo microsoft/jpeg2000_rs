@@ -3602,7 +3602,7 @@ _JPIP_MESSAGE_MODELS = {("specs/jpip_message.rs", name) for name in (
     "part2_jpip_class", "part2_jpip_databin", "part2_jpip_auxiliary", "part2_jpip_identity", "part2_jpip_final_length",
 )} | {("specs/mod.rs", name) for name in (
     "part9_header_form_valid", "part9_header_has_explicit_class", "part9_header_has_explicit_codestream",
-    "part9_vbas_first_is_canonical", "part9_vbas_step", "part9_auxiliary_present", "part9_eor_extent",
+    "part9_vbas_step", "part9_auxiliary_present", "part9_eor_extent",
     "part9_class_identifier_valid", "part9_databin_identity",
 )}
 _JPIP_MESSAGE_PROOFS = {
@@ -3620,8 +3620,10 @@ _JPIP_MESSAGE_TESTS = {("src/jpip/message_result_tests.rs", name) for name in (
     "actual_raw_jpip_data_derives_all_header_fields_body_borrow_and_consumed_extent",
     "actual_raw_jpip_inherited_context_commits_only_complete_data_messages",
     "actual_raw_jpip_eor_and_prefix_bodies_preserve_context_and_original_borrowed_slices",
-    "actual_raw_jpip_rejects_canonical_overflow_extent_and_limit_frontiers_in_native_order",
+    "actual_raw_jpip_rejects_overflow_extent_and_limit_frontiers_in_native_order",
     "actual_raw_jpip_databin_and_header_getters_preserve_normalized_identity_and_saturating_final_length",
+    "sarah_dev_9a1abe441f_bounded_vbas_padding_preserves_values_and_delimiters",
+    "sarah_dev_9a1abe441f_padded_message_fields_preserve_context_and_body",
 )}
 _JPIP_RESPONSE_ENTRY = "part9-complete-native-raw-response-result"
 _JPIP_RESPONSE_APIS = {("src/jpip/message.rs", "ingest_jpip_response")}
@@ -5196,7 +5198,7 @@ def validate_normative_coverage(
                     "databin,", "offset,", "length,", "last_byte,", "auxiliary,", "header_length: position",
                     "body: &input[position..body_end]", "body_end"),
                 "read_vbas": ("let start = *position", "first_mask.unwrap_or(0x7f)",
-                    "jpip_vbas_first_is_canonical", "count >= MAX_VBAS_BYTES", "checked_mul(128)", "shifted.checked_add(u64::from(group))",
+                    "let mut value = u64::from(first & mask)", "count >= MAX_VBAS_BYTES", "checked_mul(128)", "shifted.checked_add(u64::from(group))",
                     "jpip_vbas_step(value, group)", "*position = position.checked_add(1)", "Ok(value)",
                     "start == *old(position)", "part2_jpip_vbas_tail(input@, start, *position, value, byte, count)"),
                 "parse_end_of_response": ("input.len() < 2", "let reason_code = input[1]", "let mut position = 2_usize",
@@ -5212,8 +5214,8 @@ def validate_normative_coverage(
                 "part2_jpip_vbas_tail": ("byte & 0x80 == 0", "count >= 10", "position as nat >= input.len()",
                     "input[position as int]", "value as nat * 128 + group as nat", "stepped > u64::MAX as nat",
                     "part2_jpip_vbas_tail(input, start,", "InvalidJpipVbas"),
-                "part2_jpip_read_vbas": ("start as nat >= input.len()", "input[start as int]", "mask.is_none()",
-                    "first & 0x80 != 0 && value == 0", "part2_jpip_vbas_tail(input, start,"),
+                "part2_jpip_read_vbas": ("start as nat >= input.len()", "input[start as int]", "let value = first & match mask",
+                    "None => 0x7f", "Some(mask) => mask", "part2_jpip_vbas_tail(input, start,"),
                 "part2_jpip_body": ("length as nat > usize::MAX as nat", "position as nat + length as nat > usize::MAX as nat",
                     "end as nat > input.len()", "input.subrange(position as int, end as int)"),
                 "part2_jpip_eor": ("input.len() < 2", "part2_jpip_read_vbas(input, 2, None)",

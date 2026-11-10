@@ -86,9 +86,7 @@ pub open spec fn part2_jpip_read_vbas(input: Seq<u8>, start: usize, mask: Option
         let first = input[start as int];
         let value = first & match mask { None => 0x7f, Some(mask) => mask };
         if start == usize::MAX { (Err(part2_jpip_error(start, crate::MalformedKind::ArithmeticOverflow)), start) }
-        else if mask.is_none() && first & 0x80 != 0 && value == 0 {
-            (Err(part2_jpip_error(start, crate::MalformedKind::InvalidJpipVbas)), (start + 1) as usize)
-        } else { part2_jpip_vbas_tail(input, start, (start + 1) as usize, value as u64, first, 1) }
+        else { part2_jpip_vbas_tail(input, start, (start + 1) as usize, value as u64, first, 1) }
     }
 }
 

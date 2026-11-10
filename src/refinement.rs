@@ -43,7 +43,7 @@ pub(crate) use jpip::{
     jpip_packet_reframed_length, jpip_precinct_in_class, jpip_progression_supported,
     jpip_progressive_update_valid, jpip_quality_prefix_available, jpip_range_complete,
     jpip_reconstruction_length, jpip_reframed_marker_removed, jpip_tile_transition_sufficient,
-    jpip_transaction_commit, jpip_vbas_first_is_canonical, jpip_vbas_step,
+    jpip_transaction_commit, jpip_vbas_step,
 };
 #[cfg_attr(verus_keep_ghost, verifier::verify)]
 mod packet;

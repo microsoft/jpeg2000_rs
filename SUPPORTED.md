@@ -84,6 +84,9 @@ requests retain the transform of each contributing source tile.
 Empty half-open resolution axes have zero code-block and precinct cells,
 including nonaligned endpoints. Fully clipped empty subbands produce no
 execution; empty resolutions do not introduce phantom precinct databin IDs.
+JPIP VBAS fields accept value-equivalent leading-zero groups within the
+existing ten-byte and unsigned 64-bit bounds. Physical header lengths and
+field terminators are retained; overflow and truncated fields remain errors.
 
 ## Coding features
 

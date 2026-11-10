@@ -5798,10 +5798,6 @@ pub open spec fn part9_header_has_explicit_codestream(form: nat) -> bool {
     form == 3
 }
 
-pub open spec fn part9_vbas_first_is_canonical(payload: nat, continued: bool) -> bool {
-    !continued || payload > 0
-}
-
 pub open spec fn part9_vbas_step(value: nat, group: nat) -> nat {
     value * 128 + group
 }
