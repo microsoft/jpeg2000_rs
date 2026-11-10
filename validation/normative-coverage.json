@@ -4,6 +4,75 @@
   "scope": "Technical reference inventory; not exhaustive standards-clause coverage or a conformance claim.",
   "requirements": [
     {
+      "id": "part9-complete-native-caller-progressive-results",
+      "topic": "Complete actual caller-planned JpipProgressiveDecoder full/selected update Result and final decoder state from original physical cache, plan, previous state, options and selection. Derives complete header/layer availability, physical grouping/first-error/narrowing/missing ranges, actual accepted transcode and real raw full/selected complete typed images/metadata/samples. Preserves protocol checks, no-advance decode skipping, cache versus decoder limits, first error, original plan owner and unchanged decoded layers on every returned error. Complete owned constructor/getters/update status/previous/available/missing/image fields, original optional image borrow/move. No valid-cache/plan/prior-state/success-transcode/image bank or executing clone. Automatic snapshots, semantic-container expansion and independent normative/cfg/lifetime/release remain separate.",
+      "implementation_refs": [
+        {"path": "src/jpip/progression.rs", "symbol": "JpipProgressiveDecoder::update"},
+        {"path": "src/jpip/progression.rs", "symbol": "JpipProgressiveDecoder::update_selected"},
+        {"path": "src/jpip/progression.rs", "symbol": "JpipProgressiveDecoder::update_inner"},
+        {"path": "src/jpip/ranges.rs", "symbol": "DatabinCache::progressive_availability"},
+        {"path": "src/jpip/precinct.rs", "symbol": "DatabinCache::transcode_precinct_codestream"},
+        {"path": "src/decode/api.rs", "symbol": "decode_codestream"},
+        {"path": "src/decode/api.rs", "symbol": "decode_codestream_selected"}
+      ],
+      "contract_refs": [
+        {"path": "src/jpip/progression.rs", "symbol": "JpipProgressiveDecoder::update_inner"},
+        {"path": "src/jpip/ranges.rs", "symbol": "DatabinCache::progressive_availability"},
+        {"path": "src/jpip/precinct.rs", "symbol": "DatabinCache::transcode_precinct_codestream"},
+        {"path": "src/decode/api.rs", "symbol": "decode_codestream"},
+        {"path": "src/decode/api.rs", "symbol": "decode_codestream_selected"}
+      ],
+      "spec_refs": [
+        {"path": "specs/jpip_progressive.rs", "symbol": "part2_jpip_progressive_layers"},
+        {"path": "specs/jpip_progressive.rs", "symbol": "part2_jpip_progressive_availability"},
+        {"path": "specs/jpip_progressive.rs", "symbol": "part2_jpip_progressive_update"},
+        {"path": "specs/jpip_transcode.rs", "symbol": "part2_jpip_append_complete_requirement"},
+        {"path": "specs/jpip_transcode.rs", "symbol": "part2_jpip_transcode"},
+        {"path": "specs/jpip_ranges.rs", "symbol": "part2_jpip_cache_availability"},
+        {"path": "specs/raw_decode.rs", "symbol": "part2_decode_raw_codestream"}
+      ],
+      "proof_refs": [
+        {"path": "src/jpip/progression.rs", "symbol": "JpipProgressiveDecoder::update"},
+        {"path": "src/jpip/progression.rs", "symbol": "JpipProgressiveDecoder::update_selected"},
+        {"path": "src/jpip/progression.rs", "symbol": "JpipProgressiveDecoder::update_inner"},
+        {"path": "src/jpip/ranges.rs", "symbol": "DatabinCache::progressive_availability"},
+        {"path": "src/jpip/precinct.rs", "symbol": "DatabinCache::transcode_precinct_codestream"},
+        {"path": "src/decode/api.rs", "symbol": "decode_codestream"},
+        {"path": "src/decode/api.rs", "symbol": "decode_codestream_selected"},
+        {"path": "src/jpip/progression_proof_support.rs", "symbol": "jpip_progressive_decoder_view"},
+        {"path": "src/jpip/progression_proof_support.rs", "symbol": "jpip_progressive_plan_owner"},
+        {"path": "src/jpip/progression_proof_support.rs", "symbol": "jpip_progressive_update_view"},
+        {"path": "src/jpip/progression_proof_support.rs", "symbol": "jpip_progressive_image_borrow"},
+        {"path": "src/jpip/progression_proof_support.rs", "symbol": "jpip_progressive_image_owner"},
+        {"path": "src/jpip/progression_proof_support.rs", "symbol": "jpip_optional_image_view"},
+        {"path": "src/jpip/progression_proof_support.rs", "symbol": "jpip_optional_image_borrow_view"},
+        {"path": "src/jpip/progression_proof_support.rs", "symbol": "jpip_progressive_outcome"},
+        {"path": "src/jpip/progression_proof_support.rs", "symbol": "jpip_progressive_availability_outcome"},
+        {"path": "src/jpip/progression.rs", "symbol": "JpipProgressiveDecoder::new"},
+        {"path": "src/jpip/progression.rs", "symbol": "JpipProgressiveDecoder::plan"},
+        {"path": "src/jpip/progression.rs", "symbol": "JpipProgressiveDecoder::decoded_layers"},
+        {"path": "src/jpip/progression.rs", "symbol": "JpipProgressiveUpdate::status"},
+        {"path": "src/jpip/progression.rs", "symbol": "JpipProgressiveUpdate::previous_layers"},
+        {"path": "src/jpip/progression.rs", "symbol": "JpipProgressiveUpdate::available_layers"},
+        {"path": "src/jpip/progression.rs", "symbol": "JpipProgressiveUpdate::missing_ranges"},
+        {"path": "src/jpip/progression.rs", "symbol": "JpipProgressiveUpdate::image"},
+        {"path": "src/jpip/progression.rs", "symbol": "JpipProgressiveUpdate::into_image"},
+        {"path": "src/jpip/ranges.rs", "symbol": "DatabinCache::append_complete_databin_requirement"},
+        {"path": "src/jpip/precinct.rs", "symbol": "JpipPrecinctCodestreamPlan::layers"},
+        {"path": "src/jpip/cache.rs", "symbol": "JpipByteView::as_bytes"},
+        {"path": "src/image/proof_support.rs", "symbol": "decoded_typed_image_outcome"},
+        {"path": "src/image/proof_support.rs", "symbol": "typed_image_value_view"},
+        {"path": "src/refinement/jpip.rs", "symbol": "jpip_progressive_update_valid"},
+        {"path": "src/refinement/jpip.rs", "symbol": "jpip_quality_prefix_available"}
+      ],
+      "test_refs": [
+        {"path": "src/jpip/progressive_result_tests.rs", "symbol": "actual_jpip_progressive_constructor_waiting_protocol_errors_and_plan_owner_are_exact"},
+        {"path": "src/jpip/progressive_result_tests.rs", "symbol": "actual_jpip_progressive_raw_updates_return_complete_images_and_original_optional_image_owners"},
+        {"path": "src/jpip/progressive_result_tests.rs", "symbol": "actual_jpip_progressive_full_selected_decode_errors_preserve_prior_state_and_skip_unneeded_decoding"},
+        {"path": "src/jpip/progressive_availability_result_tests.rs", "symbol": "actual_jpip_progressive_availability_derives_physical_headers_layers_missing_and_narrowing_errors"}
+      ]
+    },
+    {
       "id": "part9-complete-native-precinct-transcode-results",
       "topic": "Complete actual transcode_precinct_codestream Result from arbitrary physical cache/owned plan/layers through original physical selector, real packet plus complete-main/tile availability, original copied header owners, in-place COD layer scan with exact first-error partial bytes, Psot rewrite, checked lengths/resources, original concatenation and genuine final raw parse_layout validator. Complete required-header append Result/partial report, availability join, stored getters and original optional-byte move/availability borrow. Retains raw validator main/effective-tile LRCP, layer/single-tile/progression/packet-header restrictions and native priority/storage. No valid-cache/plan/success-parser premises, result banks, native owner reconstruction or executing proof clones. Semantic-container/progressive/automatic and independent normative/cfg/lifetime/release remain separate.",
       "implementation_refs": [

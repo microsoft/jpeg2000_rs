@@ -10,8 +10,8 @@ use super::{
     databin_id_view, jpip_availability_outcome, jpip_availability_view, jpip_cache_fields,
     jpip_cache_view, jpip_databin_fields, jpip_databin_view, jpip_missing_view, jpip_missing_views,
     jpip_packet_bytes_outcome, jpip_packet_view, jpip_packets_view, jpip_plan_fields,
-    jpip_plan_view, jpip_range_outcome, jpip_range_view, jpip_ranges_view, jpip_status_view,
-    jpip_stored_fragment_view,
+    jpip_plan_view, jpip_progressive_availability_outcome, jpip_range_outcome, jpip_range_view,
+    jpip_ranges_view, jpip_status_view, jpip_stored_fragment_view,
 };
 #[cfg(verus_keep_ghost)]
 use vstd::prelude::*;
@@ -19,6 +19,10 @@ use vstd::prelude::*;
 #[cfg(test)]
 #[path = "transcode_availability_result_tests.rs"]
 mod transcode_result_tests;
+
+#[cfg(test)]
+#[path = "progressive_availability_result_tests.rs"]
+mod progressive_result_tests;
 
 #[cfg_attr(verus_keep_ghost, verus_verify)]
 impl JpipDatabinRange {
@@ -638,19 +642,45 @@ impl DatabinCache {
         Ok(())
     }
 
+    #[cfg_attr(verus_keep_ghost, verus_spec(result =>
+        ensures jpip_progressive_availability_outcome(result)
+            == crate::specs::part2_jpip_progressive_availability(jpip_cache_view(self), jpip_plan_view(plan)),
+    ))]
     pub(super) fn progressive_availability(
         &self,
         plan: &JpipPrecinctCodestreamPlan,
     ) -> Result<(u16, Vec<JpipMissingRange>), DecodeError> {
+        #[cfg(verus_keep_ghost)]
+        proof! {
+            jpip_plan_fields(plan); reveal(jpip_packet_view); reveal(jpip_availability_view);
+        }
+        #[cfg(verus_keep_ghost)]
+        proof_decl! {
+            let ghost cache = jpip_cache_view(self);
+            let ghost packets = jpip_plan_view(plan).2;
+            let ghost ends = jpip_plan_view(plan).3;
+            let ghost expected = crate::specs::part2_jpip_progressive_availability(cache, jpip_plan_view(plan));
+        }
         let mut header_report = JpipAvailabilityReport {
             status: JpipAvailability::Available,
             required_bytes: 0,
             available_bytes: 0,
             missing: Vec::new(),
         };
+        #[cfg(verus_keep_ghost)]
+        proof! {
+            assert(jpip_missing_views(&header_report.missing) =~= Seq::empty());
+            assert(jpip_availability_view(&header_report)
+                == (JpipAvailability::Available, 0, 0, Seq::empty()));
+        }
         self.append_complete_databin_requirement(plan.main_header, &mut header_report)?;
         self.append_complete_databin_requirement(plan.tile_header, &mut header_report)?;
         if !header_report.missing.is_empty() {
+            #[cfg(verus_keep_ghost)]
+            proof! {
+                assert(jpip_missing_views(&header_report.missing).len() == header_report.missing.len());
+                assert(expected == Ok((0, jpip_missing_views(&header_report.missing))));
+            }
             return Ok((0, header_report.missing));
         }
         let mut layer = 0_usize;
@@ -658,25 +688,55 @@ impl DatabinCache {
         #[cfg_attr(
             verus_keep_ghost,
             verus_spec(
-                invariant start <= plan.packets.len(),
+                invariant start <= plan.packets.len(), layer <= plan.layer_ends.len(),
+                    cache == jpip_cache_view(self),
+                    packets == jpip_plan_view(plan).2, ends == jpip_plan_view(plan).3,
+                    packets.len() == plan.packets.len(), ends == plan.layer_ends@,
+                    forall|index: int| 0 <= index < plan.packets.len() ==>
+                        #[trigger] packets[index] == jpip_packet_view(plan.packets@[index]),
+                    expected == crate::specs::part2_jpip_progressive_availability(cache, jpip_plan_view(plan)),
+                    expected == crate::specs::part2_jpip_progressive_layers(cache, packets, ends, layer as nat, start),
                 decreases plan.layer_ends.len() - layer,
             )
         )]
         while layer < plan.layer_ends.len() {
-            let end = *plan
-                .layer_ends
-                .get(layer)
-                .ok_or_else(|| DecodeError::malformed(0, MalformedKind::ArithmeticOverflow))?;
-            let packet_layer = plan
-                .packets
-                .get(start..end)
-                .ok_or_else(|| DecodeError::malformed(0, MalformedKind::ArithmeticOverflow))?;
-            let ranges: Vec<JpipDatabinRange> =
-                packet_layer.iter().map(|packet| packet.range).collect();
+            #[cfg(verus_keep_ghost)]
+            proof! { reveal(crate::specs::part2_jpip_progressive_layers); }
+            let end = *plan.layer_ends.get(layer).ok_or_else(
+                #[cfg_attr(verus_keep_ghost, verus_spec(result: DecodeError =>
+                        ensures result == crate::specs::part2_jpip_range_overflow(0),
+                    ))]
+                || DecodeError::malformed(0, MalformedKind::ArithmeticOverflow),
+            )?;
+            let packet_layer = plan.packets.get(start..end).ok_or_else(
+                #[cfg_attr(verus_keep_ghost, verus_spec(result: DecodeError =>
+                        ensures result == crate::specs::part2_jpip_range_overflow(0),
+                    ))]
+                || DecodeError::malformed(0, MalformedKind::ArithmeticOverflow),
+            )?;
+            let ranges: Vec<JpipDatabinRange> = packet_layer
+                .iter()
+                .map(
+                    #[cfg_attr(verus_keep_ghost, verus_spec(result: JpipDatabinRange =>
+                    ensures result == packet.range,
+                ))]
+                    |packet: &JpipPrecinctPacket| packet.range,
+                )
+                .collect();
+            #[cfg(verus_keep_ghost)]
+            proof! {
+                assert(jpip_packets_view(packet_layer) =~= packets.subrange(start as int, end as int));
+                assert(ranges@.map_values(|range: JpipDatabinRange| jpip_range_view(range)) =~=
+                    jpip_packets_view(packet_layer).map_values(|packet: crate::specs::Part2JpipPacket| packet.0));
+            }
             let report = self.availability(&ranges)?;
             if !report.is_available() {
                 return Ok((
                     u16::try_from(layer).map_err(|_| {
+                        #[cfg(verus_keep_ghost)]
+                        vstd::prelude::ensures(|result: DecodeError| {
+                            vstd::prelude::equal(result, crate::specs::part2_jpip_range_overflow(0))
+                        });
                         DecodeError::malformed(0, MalformedKind::ArithmeticOverflow)
                     })?,
                     report.missing,
@@ -685,9 +745,16 @@ impl DatabinCache {
             start = end;
             layer += 1;
         }
+        #[cfg(verus_keep_ghost)]
+        proof! { reveal(crate::specs::part2_jpip_progressive_layers); }
         Ok((
-            u16::try_from(layer)
-                .map_err(|_| DecodeError::malformed(0, MalformedKind::ArithmeticOverflow))?,
+            u16::try_from(layer).map_err(|_| {
+                #[cfg(verus_keep_ghost)]
+                vstd::prelude::ensures(|result: DecodeError| {
+                    vstd::prelude::equal(result, crate::specs::part2_jpip_range_overflow(0))
+                });
+                DecodeError::malformed(0, MalformedKind::ArithmeticOverflow)
+            })?,
             Vec::new(),
         ))
     }

@@ -67,6 +67,7 @@ Think of the decoder as a sequence of jobs:
 | JPIP ranges and packet bytes | Derive ordered missing intervals, exact work/error frontiers and original packet byte slices from the physical cache. | [Range code](../src/jpip/ranges.rs), [complete range/read models](jpip_ranges.rs) |
 | JPIP owned plans | Build actual layer boundaries and reconstruct caller-planned packet reports and optional exact bytes from physical plans and cache. | [Plan code](../src/jpip/precinct.rs), [complete plan/reconstruction models](jpip_planned_packets.rs) |
 | JPIP transcode | Derive complete header availability, in-place layer patches and first-error frames, exact Psot/owned output bytes and genuine final raw-layout validation. | [Transcode code](../src/jpip/precinct.rs), [complete transcode models](jpip_transcode.rs) |
+| Caller-planned JPIP progression | Derive complete full/selected typed-image updates and final decoder state from physical cache/plan inputs, retaining earlier state on returned errors and skipping unneeded decoding. | [Progressive code](../src/jpip/progression.rs), [complete progressive models](jpip_progressive.rs) |
 
 This is a map of responsibilities, not a claim that one theorem connects the
 entire pipeline. The [detailed component index](AUDIT_REFERENCE.md#component-entry-points-and-boundaries)

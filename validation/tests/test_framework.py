@@ -1256,6 +1256,78 @@ class FrameworkTests(WorkingFiles):
                 self.assertEqual(framework.validate_normative_coverage(dict(coverage, requirements=[entry]))["status"], "passed")
                 self.assertEqual(set(counts.values()), {expected})
 
+    def test_inventory_jpip_progressive_binds_complete_full_selected_results_and_final_decoder_state(self):
+        self._assert_complete_packet_contract_bindings(
+            {framework._JPIP_PROGRESSIVE_ENTRY}, framework._JPIP_PROGRESSIVE_CONTRACTS, 7, isolate=False,
+        )
+
+    def test_inventory_jpip_progressive_requires_every_actual_availability_image_state_and_owner_bridge(self):
+        coverage = json.loads((framework.VALIDATION / "normative-coverage.json").read_text())
+        entry = next(item for item in coverage["requirements"] if item["id"] == framework._JPIP_PROGRESSIVE_ENTRY)
+        for field in ("implementation_refs", "contract_refs", "spec_refs", "proof_refs", "test_refs"):
+            for removed in entry[field]:
+                changed = copy.deepcopy(entry)
+                changed[field].remove(removed)
+                with self.subTest(field=field, removed=removed), self.assertRaisesRegex(
+                        ValueError, "whole caller JPIP progressive|normative-coverage.schema.json"):
+                    framework.validate_normative_coverage(dict(coverage, requirements=[changed]))
+
+    def test_inventory_jpip_progressive_rejects_changed_native_protocol_image_and_owner_handoffs(self):
+        coverage = json.loads((framework.VALIDATION / "normative-coverage.json").read_text())
+        entry = next(item for item in coverage["requirements"] if item["id"] == framework._JPIP_PROGRESSIVE_ENTRY)
+        read_text = Path.read_text
+        for relative, symbol, before, after in (
+            ("src/jpip/progression.rs", "JpipProgressiveDecoder::new", "*jpip_progressive_plan_owner(&result), plan", "*jpip_progressive_plan_owner(&result), *jpip_progressive_plan_owner(&result)"),
+            ("src/jpip/progression.rs", "JpipProgressiveDecoder::update", "self.update_inner(cache, options, None)", "self.update_inner(cache, options, Some(&crate::DecodeSelection::full_image()))"),
+            ("src/jpip/progression.rs", "JpipProgressiveDecoder::update_inner", "cache.progressive_availability(&self.plan)?", "Ok::<_, DecodeError>((0, Vec::new()))?"),
+            ("src/jpip/progression.rs", "JpipProgressiveDecoder::update_inner", "available_layers <= previous_layers", "false"),
+            ("src/jpip/progression.rs", "JpipProgressiveDecoder::update_inner", "cache.transcode_precinct_codestream(&self.plan, available_layers)?", "cache.transcode_precinct_codestream(&self.plan, 1)?"),
+            ("src/jpip/progression.rs", "JpipProgressiveDecoder::update_inner", "self.decoded_layers = available_layers", "self.decoded_layers = previous_layers"),
+            ("src/jpip/progression.rs", "JpipProgressiveDecoder::update_inner", "image: Some(image)", "image: None"),
+            ("src/jpip/ranges.rs", "DatabinCache::progressive_availability", "start = end", "start = 0"),
+            ("src/jpip/progression.rs", "JpipProgressiveUpdate::into_image", "result == *jpip_progressive_image_owner(&self)", "true"),
+        ):
+            source = framework.ROOT / relative
+            original = source.read_text()
+            header = framework._coverage_function_header(original, symbol)
+            self.assertIsNotNone(header)
+            start = original.rfind("#[cfg_attr", 0, header.start())
+            self.assertIn(before, original[start:])
+            changed = original[:start] + original[start:].replace(before, after, 1)
+
+            def altered(path, *args, **kwargs):
+                return changed if path == source else read_text(path, *args, **kwargs)
+
+            with self.subTest(before=before), mock.patch.object(Path, "read_text", altered), \
+                    self.assertRaisesRegex(ValueError, "whole caller JPIP progressive"):
+                framework.validate_normative_coverage(dict(coverage, requirements=[entry]))
+
+    def test_inventory_jpip_progressive_rejects_trimmed_layer_errors_fabricated_images_and_lost_commits(self):
+        coverage = json.loads((framework.VALIDATION / "normative-coverage.json").read_text())
+        entry = next(item for item in coverage["requirements"] if item["id"] == framework._JPIP_PROGRESSIVE_ENTRY)
+        source = framework.ROOT / "specs/jpip_progressive.rs"
+        original, read_text = source.read_text(), Path.read_text
+        for before, after in (
+            ("layer > u16::MAX as nat", "false"),
+            ("start > end || end as nat > packets.len()", "false"),
+            ("part2_jpip_cache_availability(cache, ranges)", "Err(part2_jpip_plan_invalid(0))"),
+            ("part2_jpip_append_complete_requirement(cache, plan.1, main.1)", "(Ok(()), main.1)"),
+            ("available <= previous", "false"),
+            ("part2_jpip_transcode(cache, decoder.0, available)", "Err(part2_jpip_plan_invalid(0))"),
+            ("crate::options::decode_options_limits(options), selection", "crate::options::decode_options_limits(options), None"),
+            ("previous, available, missing, Some(image)", "previous, available, missing, None"),
+            ("(decoder.0, available)", "decoder"),
+        ):
+            self.assertIn(before, original)
+            changed = original.replace(before, after, 1)
+
+            def altered(path, *args, **kwargs):
+                return changed if path == source else read_text(path, *args, **kwargs)
+
+            with self.subTest(before=before), mock.patch.object(Path, "read_text", altered), \
+                    self.assertRaisesRegex(ValueError, "whole caller JPIP progressive"):
+                framework.validate_normative_coverage(dict(coverage, requirements=[entry]))
+
     def test_inventory_jpip_transcode_binds_complete_actual_cache_and_raw_validated_results(self):
         self._assert_complete_packet_contract_bindings(
             {framework._JPIP_TRANSCODE_ENTRY}, framework._JPIP_TRANSCODE_CONTRACTS, 5, isolate=False,
