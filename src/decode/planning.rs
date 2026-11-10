@@ -775,6 +775,9 @@ pub(crate) fn derive_planned_subband_lattice(
         .checked_add(band[3])
         .ok_or_else(arithmetic_overflow)?
         .min(subband_y1);
+    if start_x >= end_x || start_y >= end_y {
+        return Ok(None);
+    }
     let first_block_x = floor_div_u32(start_x, block_size[0])?;
     let first_block_y = floor_div_u32(start_y, block_size[1])?;
     let blocks_across = ceil_div_u32(end_x, block_size[0])?

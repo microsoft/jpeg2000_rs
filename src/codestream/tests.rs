@@ -5567,10 +5567,12 @@ fn reference_resolution_geometry(
     if style.code_block_width == 0 || style.code_block_height == 0 {
         return Err(invalid);
     }
-    let cells = |start: u32, end: u32, step: u32| {
+    let cells = |start: u32, end: u32, step: u32| -> Result<u32, DecodeError> {
         let right = u64::from(end).div_ceil(u64::from(step));
         let left = u64::from(start) / u64::from(step);
-        u32::try_from(right.checked_sub(left).ok_or(arithmetic)?).map_err(|_| arithmetic)
+        let count =
+            u32::try_from(right.checked_sub(left).ok_or(arithmetic)?).map_err(|_| arithmetic)?;
+        Ok(if start == end { 0 } else { count })
     };
     let code_blocks_across = cells(x0, x1, u32::from(style.code_block_width))?;
     let code_blocks_down = cells(y0, y1, u32::from(style.code_block_height))?;

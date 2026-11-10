@@ -81,6 +81,15 @@ Tile-local nonlinear point transforms are applied on those native grids:
 discarded DWT levels reduce tile-component bounds before output clipping,
 including selected raw codestream, JP2 and JPX decoding. Tile and cropped
 requests retain the transform of each contributing source tile.
+Empty half-open resolution axes have zero code-block and precinct cells,
+including nonaligned endpoints. Fully clipped empty subbands produce no
+execution; empty resolutions do not introduce phantom precinct databin IDs.
+JPIP VBAS fields accept value-equivalent leading-zero groups within the
+existing ten-byte and unsigned 64-bit bounds. Physical header lengths and
+field terminators are retained; overflow and truncated fields remain errors.
+Container parsing requires one initial signature and file-type prefix.
+Later top-level repetitions are malformed, including after a codestream;
+unknown opaque payloads are not scanned for embedded prefix bytes.
 
 ## Coding features
 

@@ -627,6 +627,41 @@ fn progressive_decode_advances_only_after_a_complete_layer() {
 }
 
 #[test]
+fn sarah_dev_76bf9f9717_empty_resolutions_do_not_shift_precinct_databin_ids() {
+    for progression in 0..5 {
+        let mut siz = 0_u16.to_be_bytes().to_vec();
+        for value in [2_u32, 2, 1, 1, 2, 2, 0, 0] {
+            siz.extend_from_slice(&value.to_be_bytes());
+        }
+        siz.extend_from_slice(&[0, 1, 7, 1, 1]);
+        let mut main = SOC.to_vec();
+        main.extend(segment(0xff51, &siz));
+        main.extend(segment(0xff52, &[0, progression, 0, 1, 0, 3, 0, 0, 0, 1]));
+        main.extend(segment(0xff5c, &[0x40; 11]));
+        let mut sot = vec![0, 0];
+        sot.extend_from_slice(&15_u32.to_be_bytes());
+        sot.extend_from_slice(&[0, 1]);
+        let mut header = segment(0xff90, &sot);
+        header.extend_from_slice(&[0xff, 0x93]);
+        let mut cache = DatabinCache::new(ResourceLimits::default());
+        cache.insert(fragment(id(6, 0), 0, &main, true)).unwrap();
+        cache.insert(fragment(id(2, 0), 0, &header, true)).unwrap();
+        let map = cache.derive_precinct_map(0).unwrap();
+        assert_eq!(map.mappings().len(), 1);
+        assert_eq!(
+            map.mappings()[0].coordinate(),
+            JpipPrecinctCoordinate {
+                tile: 0,
+                component: 0,
+                resolution: 3,
+                precinct: 0,
+            }
+        );
+        assert_eq!(map.mappings()[0].databin().in_class(), 0);
+    }
+}
+
+#[test]
 fn automatic_mapping_decodes_incomplete_precinct_quality_prefixes() {
     let bytes = decodable_codestream_with_layers(2);
     let tile_start = bytes

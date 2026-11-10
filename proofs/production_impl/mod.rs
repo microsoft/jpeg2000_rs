@@ -17,9 +17,9 @@ use crate::specs::{
     part9_merge_end, part9_merge_start, part9_metadata_descent_allowed, part9_missing_length,
     part9_overlap_consistent, part9_packet_reframed_length, part9_precinct_flat_identity,
     part9_progression_supported, part9_reconstruction_length, part9_reframed_marker_removed,
-    part9_transaction_commit, part9_vbas_first_is_canonical, part9_vbas_step,
-    registered_channel_count, resampled_component_coordinate, signed_color_to_nominal,
-    tile_transform_scope, valid_box_lengths, valid_cbd_scope, valid_codestream_header_associations,
+    part9_transaction_commit, part9_vbas_step, registered_channel_count,
+    resampled_component_coordinate, signed_color_to_nominal, tile_transform_scope,
+    valid_box_lengths, valid_cbd_scope, valid_codestream_header_associations,
     valid_ht_cleanup_partition, valid_ht_pass_group, valid_ht_quad_origin,
     valid_ht_refinement_segment, valid_ht_style_prefix, valid_jp2_primary_brand,
     valid_jph_branding, valid_jpip_codestream_layout, valid_jpip_fragment,
@@ -4583,19 +4583,16 @@ pub proof fn production_part9_header_and_vbas_contracts_are_exact(
     form: nat,
     value: nat,
     group: nat,
-    continued: bool,
 )
     ensures
         part9_header_form_valid(form) == (1 <= form && form <= 3),
         part9_header_has_explicit_class(form) == (form >= 2),
         part9_header_has_explicit_codestream(form) == (form == 3),
-        part9_vbas_first_is_canonical(group, continued) == (!continued || group > 0),
         part9_vbas_step(value, group) == value * 128 + group,
 {
     reveal(part9_header_form_valid);
     reveal(part9_header_has_explicit_class);
     reveal(part9_header_has_explicit_codestream);
-    reveal(part9_vbas_first_is_canonical);
     reveal(part9_vbas_step);
 }
 

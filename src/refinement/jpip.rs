@@ -28,19 +28,6 @@ pub(crate) const fn jpip_header_has_explicit_codestream(form: u8) -> bool {
 #[cfg_attr(
     verus_keep_ghost,
     verus_spec(
-        ensures returns crate::specs::part9_vbas_first_is_canonical(
-            payload as nat,
-            continued,
-        ),
-    )
-)]
-pub(crate) const fn jpip_vbas_first_is_canonical(payload: u8, continued: bool) -> bool {
-    !continued || payload > 0
-}
-
-#[cfg_attr(
-    verus_keep_ghost,
-    verus_spec(
         requires value <= (u64::MAX - group as u64) / 128,
         ensures returns (
             crate::specs::part9_vbas_step(value as nat, group as nat) as u64

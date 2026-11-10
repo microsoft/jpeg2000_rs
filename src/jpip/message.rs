@@ -539,22 +539,6 @@ fn read_vbas(
             ))]
             || DecodeError::malformed(start as u64, MalformedKind::ArithmeticOverflow),
         )?;
-    if first_mask.is_none()
-        && !crate::refinement::jpip_vbas_first_is_canonical(
-            u8::try_from(value).map_err(
-                #[cfg_attr(verus_keep_ghost, verus_spec(result: DecodeError =>
-                    ensures result == crate::specs::part2_jpip_error(start, MalformedKind::InvalidJpipVbas),
-                ))]
-                |_error| DecodeError::malformed(start as u64, MalformedKind::InvalidJpipVbas),
-            )?,
-            byte & 0x80 != 0,
-        )
-    {
-        return Err(DecodeError::malformed(
-            start as u64,
-            MalformedKind::InvalidJpipVbas,
-        ));
-    }
     #[cfg_attr(
         verus_keep_ghost,
         verus_spec(

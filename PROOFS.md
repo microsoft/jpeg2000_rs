@@ -487,7 +487,7 @@ full-plan gates remain separate; fresh complete qualification is still required.
 
 The public `parse_jpip_message` and `JpipMessageParser::parse` now derive complete
 Data/EOR message, databin/header/body/consumed Results and context/limits mutation
-frames from actual input bytes. The actual VBAS traversal retains canonical,
+frames from actual input bytes. The actual VBAS traversal retains
 ten-byte, arithmetic and truncation frontiers with the precise partial cursor
 on every error. Context is committed only after a complete data body; EOR and
 errors preserve it. Checked getters retain native stored borrowed bodies.
@@ -496,10 +496,20 @@ Static constructors and scalar getters use checked body clauses under
 impl-level rewriting because the pinned macro cannot stamp conditional method
 attributes before rewriting a static impl method. These clauses are proved by
 the same whole-root/archive verifier and bound exactly by the inventory, not
-external specifications or new adapters. Native bodies/calls/owners are
-unchanged; no model reconstructs a native owner or receives successful message
+external specifications or new adapters. No model reconstructs a native owner or receives successful message
 banks. Existing JPIP class identity intentionally normalizes even/odd paired
 class identifiers.
+
+The Sarah `DEV-9A1ABE441F` correction removes the extra shortest-form rejection
+from the real field reader and its complete model, including its obsolete
+private predicate and characterization. Bounded leading-zero groups preserve
+the field value and physical terminator; ten-byte/u64 limits and truncation
+cursor/error ordering remain enforced. The pinned public OpenJPEG 2.5.0
+OpenJPIP field parsers independently pass 25,729 representable field cases;
+the actual Rust reader checks both starting offsets in 51,458 cases, and
+complete padded data/EOR headers retain context, limits and borrowed bodies.
+This is interoperability and arithmetic evidence, not independent
+selected-edition certification.
 
 Cache insertion, response ingestion, transcoding, progressive and automatic
 composition remain later producer joins. Independent full-plan gates remain
@@ -652,6 +662,17 @@ preserves each stored header/payload and every other codestream entry; only the
 original association field is replaced using the checked native clone producer.
 All owner scopes and validation priorities remain in place, with one additional
 direct checked clone call target requiring explicit native observation.
+
+The Sarah `DEV-2D75F3E8F6`/`DEV-056D9FBFB2` corrections reject a later top-level
+signature or file-type box at its actual offset. The mandatory prologue is
+unchanged; box framing, resource and root-count checks still precede this
+admission. The actual full parser and complete step model agree, including
+boxes after the codestream. Unknown opaque payloads containing prefix bytes
+remain accepted. Original pinned public OpenJPEG signature/file-type state
+handlers independently accept the initial pair and reject repetition; this is
+not a claim that its decoder scans trailing boxes. Native regressions cover
+both types at all three later positions with fixed, extended and to-end
+framing, raw/inspected/decoded consumers and malformed-length priority.
 
 The complete parser contract passes local focused and whole verification.
 Strict inventory bindings, broader whole-parser regression families and fresh
@@ -5494,7 +5515,12 @@ resolution-style traversal produce checked extents, code-block/precinct grids
 and products in original error order. The whole-image branch intentionally
 ignores registration while the tile branch uses registered clipping; the
 legacy reported subbands value remains3 for every nonzero resolution.
-No incidental policy was corrected or normalized during this composition.
+The later Sarah `DEV-76BF9F9717` correction gives an empty half-open sample
+axis zero code-block and precinct cells, including equal nonaligned endpoints.
+The other axis retains its own count; address arithmetic and metadata/error
+admission still run in their original order. Complete models and actual packet
+and JPIP-map consumers share this correction, without introducing prepared
+counts or a second executable geometry implementation.
 
 Coordinate and floor helpers, real field-view equalities, three exact native
 consumer contracts and the curated public boundary connect every result to
@@ -5648,6 +5674,10 @@ It derives checked intersections, block lattice and shape, then composes the
 real configured decoder/placement vector factory and packet-row metadata.
 An empty intersection preserves the original lazy style/bitplane/policy/limit
 admission, while subband-end overflow still precedes that bypass.
+The Sarah `DEV-76BF9F9717` correction also checks the fully clipped rectangle
+after both checked band ends and before block division. Empty intersections
+return no lattice or execution, including zero-width bands inside a subband;
+earlier overflow order and lazy divisor/style/limit admission are preserved.
 
 Two complete exact-binding contracts cover raw band/block/subband/style/
 policy/location/owned prefix/count/selection/limits without supplied lattice,
@@ -5655,6 +5685,10 @@ initialized decoders, prepared executions or successful resource premises.
 Actual native views and a proved packet-field observation bind all output
 fields without opening private executable representation or adding trust.
 Independent wide intersection/lattice tests cover 10,368 raw contexts;
+an additional 28,800 half-open rectangles and targeted overflow/divisor cases
+exercise the corrected clipping boundary. Tiny nonzero-origin resolutions
+check each empty grid axis, and real header databins check that empty
+resolutions do not shift precinct IDs in any progression order.
 57,600 full composition contexts compare packet presence/metadata, every
 decoder field, placement prefixes, indices and selected-only count/errors.
 Full resolution/precinct/component/tile and F2/F4/F8 joins remain separate.

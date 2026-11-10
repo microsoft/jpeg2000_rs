@@ -689,7 +689,7 @@
     },
     {
       "id": "part9-complete-native-raw-message-results",
-      "topic": "Complete actual raw parse_jpip_message/JpipMessageParser::parse Data/EOR Results, header/databin/context/body/consumed fields and complete context/limits/error mutation frames. Actual VBAS primitive derives value and partial cursor through canonical/10byte/overflow/truncation frontiers. Checked static impl body clauses and getter/reference projections preserve one native implementation without new constructor adapters, reconstructed owners, successful result banks or runtime proof clones. Original error priority and context commit only after full data extent retained. Cache insertion/transcoding/progressive/automatic joins and independent normative/cfg/lifetime/release remain separate.",
+      "topic": "Complete actual raw parse_jpip_message/JpipMessageParser::parse Data/EOR Results, header/databin/context/body/consumed fields and complete context/limits/error mutation frames. Sarah DEV-9A1ABE441F: bounded value-equivalent leading-zero VBAS groups are admitted; actual primitive and complete model retain ten-byte/u64 overflow/truncation frontiers and exact partial cursor, without an extra shortest-form predicate. Checked static impl body clauses and getter/reference projections preserve one native implementation without new constructor adapters, reconstructed owners, successful result banks or runtime proof clones. Error ordering outside the removed admission and context commit only after full data extent retained. Cache insertion/transcoding/progressive/automatic joins and independent normative/cfg/lifetime/release remain separate.",
       "implementation_refs": [
         {"path": "src/jpip/message.rs", "symbol": "parse_jpip_message"},
         {"path": "src/jpip/message.rs", "symbol": "JpipMessageParser::parse"},
@@ -723,7 +723,6 @@
         {"path": "specs/mod.rs", "symbol": "part9_header_form_valid"},
         {"path": "specs/mod.rs", "symbol": "part9_header_has_explicit_class"},
         {"path": "specs/mod.rs", "symbol": "part9_header_has_explicit_codestream"},
-        {"path": "specs/mod.rs", "symbol": "part9_vbas_first_is_canonical"},
         {"path": "specs/mod.rs", "symbol": "part9_vbas_step"},
         {"path": "specs/mod.rs", "symbol": "part9_auxiliary_present"},
         {"path": "specs/mod.rs", "symbol": "part9_eor_extent"},
@@ -779,8 +778,10 @@
         {"path": "src/jpip/message_result_tests.rs", "symbol": "actual_raw_jpip_data_derives_all_header_fields_body_borrow_and_consumed_extent"},
         {"path": "src/jpip/message_result_tests.rs", "symbol": "actual_raw_jpip_inherited_context_commits_only_complete_data_messages"},
         {"path": "src/jpip/message_result_tests.rs", "symbol": "actual_raw_jpip_eor_and_prefix_bodies_preserve_context_and_original_borrowed_slices"},
-        {"path": "src/jpip/message_result_tests.rs", "symbol": "actual_raw_jpip_rejects_canonical_overflow_extent_and_limit_frontiers_in_native_order"},
-        {"path": "src/jpip/message_result_tests.rs", "symbol": "actual_raw_jpip_databin_and_header_getters_preserve_normalized_identity_and_saturating_final_length"}
+        {"path": "src/jpip/message_result_tests.rs", "symbol": "actual_raw_jpip_rejects_overflow_extent_and_limit_frontiers_in_native_order"},
+        {"path": "src/jpip/message_result_tests.rs", "symbol": "actual_raw_jpip_databin_and_header_getters_preserve_normalized_identity_and_saturating_final_length"},
+        {"path": "src/jpip/message_result_tests.rs", "symbol": "sarah_dev_9a1abe441f_bounded_vbas_padding_preserves_values_and_delimiters"},
+        {"path": "src/jpip/message_result_tests.rs", "symbol": "sarah_dev_9a1abe441f_padded_message_fields_preserve_context_and_body"}
       ]
     },
     {
@@ -1217,7 +1218,7 @@
     },
     {
       "id": "part2-complete-native-raw-container-result",
-      "topic": "Complete actual raw container::parse Result from bytes and actual limits, retaining original prologue relation, every full header/file-type/stream/association/layer/composition field, metadata count/depth and root box count. Source producers, native order/resource/reader/error priorities and original owner scopes preserved. Real checked association cloning attaches only the original association field; complete mutable vector frame preserves all other entries and original stored headers/payloads. No supplied successful-stage banks, assumed validity, owner reconstruction, runtime proof clones or trust/budget changes. Native extraction/routing/caller observations and full fresh qualification required. Inspection/timeline/public/normative/lifetime/cfg/release separate.",
+      "topic": "Complete actual raw container::parse Result from bytes and actual limits, retaining original prologue relation, every full header/file-type/stream/association/layer/composition field, metadata count/depth and root box count. Sarah DEV-2D75F3E8F6/DEV-056D9FBFB2: later signature and file-type boxes are InvalidBoxOrder at their actual offsets, not ignorable metadata, after original framing/reader/resource/root-count checks. Unknown opaque payloads containing prefix bytes remain untouched. Source producers, other native order/resource/reader/error priorities and original owner scopes preserved. Real checked association cloning attaches only the original association field; complete mutable vector frame preserves all other entries and original stored headers/payloads. No supplied successful-stage banks, assumed validity, owner reconstruction, runtime proof clones or trust/budget changes. Native extraction/routing/caller observations and full fresh qualification required. Inspection/timeline/public/normative/lifetime/cfg/release separate.",
       "implementation_refs": [
         {"path": "src/jp2/container.rs", "symbol": "parse_and_inspect"},
         {"path": "src/jp2/container.rs", "symbol": "parse"},
@@ -1255,7 +1256,9 @@
         {"path": "src/jp2/tests.rs", "symbol": "actual_raw_container_retains_borrowed_layers_owned_composition_and_all_instruction_defaults"},
         {"path": "src/jp2/tests.rs", "symbol": "actual_raw_container_keeps_profile_order_and_count_before_payload_priorities"},
         {"path": "src/jp2/tests.rs", "symbol": "actual_raw_container_keeps_missing_excess_association_and_first_reference_error_priority"},
-        {"path": "src/jp2/tests.rs", "symbol": "actual_raw_container_derives_metadata_depth_counts_progress_and_empty_stream_admission"}
+        {"path": "src/jp2/tests.rs", "symbol": "actual_raw_container_derives_metadata_depth_counts_progress_and_empty_stream_admission"},
+        {"path": "src/jp2/tests.rs", "symbol": "sarah_dev_2d75f3e8f6_repeated_signature_is_not_ignorable_metadata"},
+        {"path": "src/jp2/tests.rs", "symbol": "sarah_dev_056d9fbfb2_repeated_file_type_is_not_ignorable_metadata"}
       ]
     },
     {
@@ -4982,7 +4985,7 @@
     },
     {
       "id": "part2-complete-native-subband-execution",
-      "topic": "Complete actual raw band/block/subband/style/HT policy/location/owned prefix/global count/selection/limits to optional full PacketSubbandExecution, all placement fields, flattened index and charged count. Actual checked intersections/lattice/shape derive before actual configured decoder vectors; no supplied lattice, counts, initialized state/results or successful budget/allocation premise. Preserve subband-end arithmetic before empty-intersection bypass, band-end/divisor/count error order, selected-only charging, actual packet orientation/shape/maximum-zero metadata, owned prefixes and laziness of unused fields. Real tile planner consumes the sole producer; full resolution/precinct/component/tile and decoder/file/F2/F4/F8 joins remain separate.",
+      "topic": "Complete actual raw band/block/subband/style/HT policy/location/owned prefix/global count/selection/limits to optional full PacketSubbandExecution, all placement fields, flattened index and charged count. Actual checked intersections/lattice/shape derive before actual configured decoder vectors; no supplied lattice, counts, initialized state/results or successful budget/allocation premise. Preserve subband-end arithmetic before empty-intersection bypass, band-end/divisor/count error order, selected-only charging, actual packet orientation/shape/maximum-zero metadata, owned prefixes and laziness of unused fields. Sarah DEV-76BF9F9717: fully clipped empty rectangles return no lattice before block division, after both checked band ends; retain the earlier preclip bypass and overflow/divisor ordering. Real tile planner consumes the sole producer; full resolution/precinct/component/tile and decoder/file/F2/F4/F8 joins remain separate.",
       "implementation_refs": [
         {"path": "src/decode/planning.rs", "symbol": "plan_progression_tile_at_selected"},
         {"path": "src/decode/planning.rs", "symbol": "plan_subband_execution"},
@@ -5006,7 +5009,8 @@
       ],
       "test_refs": [
         {"path": "src/decode/tests.rs", "symbol": "actual_subband_lattice_preserves_raw_overflow_empty_intersection_and_divisor_policy"},
-        {"path": "src/decode/tests.rs", "symbol": "actual_subband_execution_derives_full_packet_row_and_preserves_lazy_owned_prefix"}
+        {"path": "src/decode/tests.rs", "symbol": "actual_subband_execution_derives_full_packet_row_and_preserves_lazy_owned_prefix"},
+        {"path": "src/decode/tests.rs", "symbol": "sarah_dev_76bf9f9717_empty_geometry_is_not_a_subband_lattice"}
       ]
     },
     {
@@ -5277,7 +5281,7 @@
     },
     {
       "id": "part2-complete-native-resolution-geometry",
-      "topic": "Complete actual derive_component_resolution_geometry[_for] Result/all fields from original raw ImageSize, real component/style selectors, resolution and optional tile. Resolution admission precedes real coordinate production and downsampling; actual checked extents, code-block and precinct address/count products preserve first-error order. Whole-image coordinates deliberately ignore registration while the tile branch uses actual registered clipping; raw nonzero-resolution subbands remains the original value3, including anisotropic directions. No admitted bounds/style/scales, supplied geometry/count results, successful allocation or budget premise. Public whole-image boundary and actual packet/planner callers share the sole implementation; complete packet planning/F2/F4/F8 remain separate.",
+      "topic": "Complete actual derive_component_resolution_geometry[_for] Result/all fields from original raw ImageSize, real component/style selectors, resolution and optional tile. Resolution admission precedes real coordinate production and downsampling; actual checked extents, code-block and precinct address/count products preserve first-error order. Sarah DEV-76BF9F9717: each empty half-open sample axis has zero code-block and precinct cells, including nonaligned equal endpoints; the other axis, address arithmetic and metadata admission retain their own behavior. Whole-image coordinates deliberately ignore registration while the tile branch uses actual registered clipping; raw nonzero-resolution subbands remains the original value3, including anisotropic directions. No admitted bounds/style/scales, supplied geometry/count results, successful allocation or budget premise. Public whole-image boundary and actual packet/planner callers share the sole implementation; complete packet planning/F2/F4/F8 remain separate.",
       "implementation_refs": [
         {"path": "src/decode/geometry.rs", "symbol": "derive_component_resolution_geometry"},
         {"path": "src/decode/geometry.rs", "symbol": "derive_component_resolution_geometry_for"},
@@ -5311,7 +5315,9 @@
       ],
       "test_refs": [
         {"path": "src/codestream/tests.rs", "symbol": "resolution_geometry_matches_complete_raw_whole_and_registered_tile_outputs"},
-        {"path": "src/codestream/tests.rs", "symbol": "resolution_geometry_preserves_raw_admission_and_sampling_error_priority"}
+        {"path": "src/codestream/tests.rs", "symbol": "resolution_geometry_preserves_raw_admission_and_sampling_error_priority"},
+        {"path": "src/decode/tests.rs", "symbol": "sarah_dev_76bf9f9717_empty_geometry_has_zero_grid_axes"},
+        {"path": "src/jpip/tests.rs", "symbol": "sarah_dev_76bf9f9717_empty_resolutions_do_not_shift_precinct_databin_ids"}
       ]
     },
     {
@@ -11242,10 +11248,6 @@
         },
         {
           "path": "src/refinement/jpip.rs",
-          "symbol": "jpip_vbas_first_is_canonical"
-        },
-        {
-          "path": "src/refinement/jpip.rs",
           "symbol": "jpip_vbas_step"
         },
         {
@@ -11295,10 +11297,6 @@
         },
         {
           "path": "specs/mod.rs",
-          "symbol": "part9_vbas_first_is_canonical"
-        },
-        {
-          "path": "specs/mod.rs",
           "symbol": "part9_vbas_step"
         },
         {
@@ -11319,9 +11317,15 @@
         },
         {
           "path": "src/jpip/tests.rs", "symbol": "rejects_malformed_prefixes_and_vbas"
+        },
+        {
+          "path": "src/jpip/message_result_tests.rs", "symbol": "sarah_dev_9a1abe441f_bounded_vbas_padding_preserves_values_and_delimiters"
+        },
+        {
+          "path": "src/jpip/message_result_tests.rs", "symbol": "sarah_dev_9a1abe441f_padded_message_fields_preserve_context_and_body"
         }
       ],
-      "topic": "Binary Bin-ID forms 01/10/11, canonical bounded VBAS, auxiliary fields, and EOR framing"
+      "topic": "Binary Bin-ID forms 01/10/11, bounded value-equivalent VBAS including leading-zero groups (Sarah DEV-9A1ABE441F), auxiliary fields, and EOR framing; preserve ten-byte/u64/partial-cursor bounds without an extra shortest-form predicate"
     },
     {
       "contract_refs": [

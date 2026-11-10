@@ -2202,6 +2202,7 @@ class FrameworkTests(WorkingFiles):
             ("context.previous_class = Some(class_identifier)", "context.previous_class = Some(codestream)"),
             ("body: &input[position..body_end]", "body: &input[0..body_end]"),
             ("first_mask.unwrap_or(0x7f)", "first_mask.unwrap_or(0xff)"),
+            ("let mut value = u64::from(first & mask)", "let mut value = u64::from(first)"),
             ("start == *old(position)", "start == *position"),
             ("parse_jpip_message(input, &mut self.context, &self.limits)", "parse_jpip_message(&unrelated, &mut self.context, &self.limits)"),
         ):
@@ -2223,7 +2224,7 @@ class FrameworkTests(WorkingFiles):
         read_text = Path.read_text
         for before, after in (
             ("value as nat * 128 + group as nat", "value as nat + group as nat"),
-            ("mask.is_none()", "mask.is_some()"),
+            ("None => 0x7f", "None => 0xff"),
             ("input.subrange(position as int, end as int)", "input.subrange(0, end as int)"),
             ("(Some(header.0.0), Some(header.0.2))", "(Some(header.0.2), Some(header.0.0))"),
             ("_ => context", "_ => (None, None)"),
@@ -2532,6 +2533,33 @@ class FrameworkTests(WorkingFiles):
 
                 with self.subTest(requested=requested, jph=jph, after=after), mock.patch.object(Path, "read_text", altered), \
                         self.assertRaisesRegex(ValueError, "executable Verus contract"):
+                    framework.validate_normative_coverage(dict(coverage, requirements=[entry]))
+
+    def test_inventory_raw_container_binds_unique_prologue_kinds_in_source_and_model(self):
+        coverage = json.loads((framework.VALIDATION / "normative-coverage.json").read_text())
+        entry = next(item for item in coverage["requirements"] if item["id"] == framework._RAW_CONTAINER_ENTRY)
+        read_text = Path.read_text
+        self.assertEqual(framework.validate_normative_coverage(dict(coverage, requirements=[entry]))["status"], "passed")
+        for filename, clause, error in (
+            ("src/jp2/container.rs",
+             "box_type.equals(BoxType::SIGNATURE) || box_type.equals(BoxType::FILE_TYPE)",
+             "actual source producers/counters/owned attachment/output handoffs"),
+            ("specs/jp2_container.rs",
+             "kind == crate::jp2::BoxType::SIGNATURE || kind == crate::jp2::BoxType::FILE_TYPE",
+             "complete raw traversal/metadata/attachment/final output models"),
+        ):
+            source = framework.ROOT / filename
+            original = source.read_text()
+            self.assertIn(clause, original)
+            for kind in ("SIGNATURE", "FILE_TYPE"):
+                replacement = clause.replace("BoxType::" + kind, "BoxType::JP2_HEADER", 1)
+                changed = original.replace(clause, replacement, 1)
+
+                def altered(path, *args, **kwargs):
+                    return changed if path == source else read_text(path, *args, **kwargs)
+
+                with self.subTest(filename=filename, kind=kind), mock.patch.object(Path, "read_text", altered), \
+                        self.assertRaisesRegex(ValueError, error):
                     framework.validate_normative_coverage(dict(coverage, requirements=[entry]))
 
     def test_inventory_raw_container_images_require_every_public_source_header_reference_and_test_bridge(self):

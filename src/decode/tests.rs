@@ -524,6 +524,9 @@ fn reference_subband_lattice(
     }
     let ex = checked(u128::from(band[0]) + u128::from(band[2]))?.min(sx1);
     let ey = checked(u128::from(band[1]) + u128::from(band[3]))?.min(sy1);
+    if sx >= ex || sy >= ey {
+        return Ok(None);
+    }
     if block_size[0] == 0 || block_size[1] == 0 {
         return Err(invalid);
     }
@@ -538,6 +541,130 @@ fn reference_subband_lattice(
         clip: [sx, sy, ex, ey],
         blocks: [across, down],
     }))
+}
+
+#[test]
+fn sarah_dev_76bf9f9717_empty_geometry_is_not_a_subband_lattice() {
+    let mut subband = raw_planned_subband(0, 0, 0, SubbandOrientation::Hh);
+    subband.width = 14;
+    subband.height = 8;
+    assert_eq!(
+        derive_planned_subband_lattice([2, 0, 0, 4], [0, 0], subband),
+        Ok(None),
+    );
+    assert_eq!(
+        derive_planned_subband_lattice([2, 1, 0, u32::MAX], [0, 0], subband),
+        Err(arithmetic_overflow()),
+    );
+    assert_eq!(
+        derive_planned_subband_lattice([u32::MAX, 0, 1, 4], [0, 0], subband),
+        Ok(None),
+    );
+    assert_eq!(
+        derive_planned_subband_lattice([0, 0, 2, 2], [0, 0], subband),
+        Err(DecodeError::MalformedInput {
+            offset: 0,
+            kind: MalformedKind::InvalidCodeBlock,
+        }),
+    );
+    let mut cases = 0;
+    for bx in 0_u32..6 {
+        for by in 0_u32..6 {
+            for bw in 0_u32..5 {
+                for bh in 0_u32..5 {
+                    for (sx, sy) in [(0_u32, 0), (2, 1)] {
+                        for (sw, sh) in [(0_u32, 0), (1, 1), (3, 2), (7, 8)] {
+                            let mut subband =
+                                raw_planned_subband(sx, sy, 0, SubbandOrientation::Hh);
+                            subband.width = sw;
+                            subband.height = sh;
+                            let lo = [u64::from(bx.max(sx)), u64::from(by.max(sy))];
+                            let hi = [
+                                (u64::from(bx) + u64::from(bw)).min(u64::from(sx) + u64::from(sw)),
+                                (u64::from(by) + u64::from(bh)).min(u64::from(sy) + u64::from(sh)),
+                            ];
+                            for block in [1_u32, 2, 4, 64] {
+                                let actual = derive_planned_subband_lattice(
+                                    [bx, by, bw, bh],
+                                    [block, block],
+                                    subband,
+                                )
+                                .unwrap();
+                                if lo[0] >= hi[0] || lo[1] >= hi[1] {
+                                    assert!(
+                                        actual.is_none(),
+                                        "band={bx},{by},{bw},{bh} subband={sx},{sy},{sw},{sh} block={block}"
+                                    );
+                                } else {
+                                    let lattice =
+                                        actual.expect("nonempty rectangle needs its lattice");
+                                    assert_eq!(
+                                        lattice.clip,
+                                        [lo[0] as u32, lo[1] as u32, hi[0] as u32, hi[1] as u32],
+                                    );
+                                    let step = u64::from(block);
+                                    assert_eq!(
+                                        lattice.blocks,
+                                        [
+                                            u32::try_from(hi[0].div_ceil(step) - lo[0] / step)
+                                                .unwrap(),
+                                            u32::try_from(hi[1].div_ceil(step) - lo[1] / step)
+                                                .unwrap(),
+                                        ]
+                                    );
+                                    assert!(lattice.blocks[0] > 0 && lattice.blocks[1] > 0);
+                                }
+                                cases += 1;
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+    assert_eq!(cases, 28_800);
+}
+
+#[test]
+fn sarah_dev_76bf9f9717_empty_geometry_has_zero_grid_axes() {
+    let bytes = two_tile_codestream();
+    let limits = ResourceLimits::default();
+    let mut layout = parse_layout(&bytes, &limits).unwrap();
+    let style = CodingStyle {
+        decomposition_levels: 3,
+        ..layout.info.coding_style
+    };
+    for origin in [[0_u32, 0], [1, 0], [0, 1], [1, 1], [3, 5]] {
+        let size = &mut layout.info.image_size;
+        size.width = 1;
+        size.height = 1;
+        size.x_origin = origin[0];
+        size.y_origin = origin[1];
+        size.tile_width = 8;
+        size.tile_height = 8;
+        size.tile_x_origin = 0;
+        size.tile_y_origin = 0;
+        size.tiles_across = 1;
+        size.tiles_down = 1;
+        for resolution in 0..=3 {
+            let actual = derive_component_resolution_geometry(size, style, 0, resolution).unwrap();
+            let scale = 1_u32 << (3 - resolution);
+            let width = (origin[0] + 1).div_ceil(scale) - origin[0].div_ceil(scale);
+            let height = (origin[1] + 1).div_ceil(scale) - origin[1].div_ceil(scale);
+            assert_eq!((actual.width, actual.height), (width, height));
+            assert_eq!(
+                actual.code_blocks_across, width,
+                "origin={origin:?} resolution={resolution}"
+            );
+            assert_eq!(actual.code_blocks_down, height);
+            assert_eq!(actual.code_blocks, u64::from(width) * u64::from(height));
+            assert_eq!(
+                (actual.precincts_across, actual.precincts_down),
+                (width, height)
+            );
+            assert_eq!(actual.precincts, u64::from(width) * u64::from(height));
+        }
+    }
 }
 
 #[test]
@@ -6076,17 +6203,33 @@ fn sarah_dev_355fe751f9_reduced_tile_nlt_uses_native_coordinates() {
         bytes.extend(segment(0xff52, &[0, 0, 0, 1, 0, 2, 0, 0, 0, 1]));
         bytes.extend(segment(0xff5c, &[0x40; 8]));
         for (tile, slope) in [1_u8, 2, 4, 8].into_iter().enumerate() {
+            let tile_x = u32::try_from(tile % 2).unwrap() * 8;
+            let tile_y = u32::try_from(tile / 2).unwrap() * 8;
+            let packets = [4_u32, 2, 1]
+                .into_iter()
+                .filter(|scale| {
+                    let dx = u32::from(sampling[0]) * scale;
+                    let dy = u32::from(sampling[1]) * scale;
+                    tile_x.max(origin[0]).div_ceil(dx) < (tile_x + 8).div_ceil(dx)
+                        && tile_y.max(origin[1]).div_ceil(dy) < (tile_y + 8).div_ceil(dy)
+                })
+                .count();
             let mut nonlinear = vec![255, 255, 7, 1];
             for value in [1_u8, slope, 1, 1, 0] {
                 nonlinear.extend_from_slice(&[value, 0, 0]);
             }
             let nonlinear = segment(0xff76, &nonlinear);
             let mut sot = u16::try_from(tile).unwrap().to_be_bytes().to_vec();
-            sot.extend_from_slice(&u32::try_from(17 + nonlinear.len()).unwrap().to_be_bytes());
+            sot.extend_from_slice(
+                &u32::try_from(14 + nonlinear.len() + packets)
+                    .unwrap()
+                    .to_be_bytes(),
+            );
             sot.extend_from_slice(&[0, 1]);
             bytes.extend(segment(0xff90, &sot));
             bytes.extend(nonlinear);
-            bytes.extend_from_slice(&[255, 147, 0, 0, 0]);
+            bytes.extend_from_slice(&[255, 147]);
+            bytes.extend(std::iter::repeat_n(0, packets));
         }
         bytes.extend_from_slice(&[255, 217]);
         bytes

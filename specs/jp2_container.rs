@@ -63,7 +63,9 @@ pub open spec fn part2_container_step(
         let state = Part2RawContainerState { box_count: (previous.box_count + 1) as u64, ..previous };
         let kind = input.0.0;
         let offset = input.0.1;
-        if kind == crate::jp2::BoxType::JP2_HEADER {
+        if kind == crate::jp2::BoxType::SIGNATURE || kind == crate::jp2::BoxType::FILE_TYPE {
+            Err(part2_container_error(offset, crate::MalformedKind::InvalidBoxOrder))
+        } else if kind == crate::jp2::BoxType::JP2_HEADER {
             if state.header.is_some() || state.streams.len() > 0 || state.associations.len() > 0
                 || state.layers.len() > 0 || state.composition.is_some() {
                 Err(part2_container_error(offset, crate::MalformedKind::InvalidBoxOrder))

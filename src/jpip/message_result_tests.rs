@@ -68,9 +68,6 @@ fn reference_vbas(
     let mut position = start + 1;
     let mut value = u128::from(first & mask.unwrap_or(0x7f));
     let mut more = first & 0x80 != 0;
-    if mask.is_none() && more && value == 0 {
-        return (Err(invalid), position);
-    }
     for count in 1..=10 {
         if !more {
             return (Ok(u64::try_from(value).unwrap()), position);
@@ -96,6 +93,115 @@ fn reference_vbas(
         position += 1;
     }
     unreachable!()
+}
+
+#[test]
+fn sarah_dev_9a1abe441f_bounded_vbas_padding_preserves_values_and_delimiters() {
+    let mut values: Vec<u64> = (0..256).collect();
+    for bit in 1..64 {
+        let boundary = 1_u64 << bit;
+        values.extend([boundary - 1, boundary, boundary + 1]);
+    }
+    values.extend([u64::MAX - 1, u64::MAX]);
+    let mut seed = 0x6a09_e667_f3bc_c909_u64;
+    for _ in 0..256 {
+        seed ^= seed << 13;
+        seed ^= seed >> 7;
+        seed ^= seed << 17;
+        values.push(seed);
+    }
+    assert_eq!(values.len(), 703);
+    let mut cases = 0;
+    for value in values {
+        for mask in [None, Some(0x0f)] {
+            let mut field = vbas(value);
+            if mask.is_some() && field[0] & 0x7f > 0x0f {
+                field.insert(0, 0x80);
+            }
+            for padding in 0..=10 - field.len() {
+                for flags in if mask.is_some() {
+                    &[0x20_u8, 0x30, 0x40, 0x50, 0x60, 0x70][..]
+                } else {
+                    &[0_u8][..]
+                } {
+                    for prefix in [0, 3] {
+                        let mut input = vec![0x55; prefix];
+                        input.extend(std::iter::repeat_n(0x80, padding));
+                        input.extend_from_slice(&field);
+                        input[prefix] |= flags;
+                        let end = input.len();
+                        input.extend_from_slice(&[0x81, 0x02, 0x5a]);
+                        let snapshot = input.clone();
+                        let mut position = prefix;
+                        assert_eq!(
+                            (read_vbas(&input, &mut position, mask), position),
+                            (Ok(value), end),
+                            "value={value} mask={mask:?} padding={padding} flags={flags}"
+                        );
+                        assert_eq!(read_vbas(&input, &mut position, None), Ok(130));
+                        assert_eq!(position, end + 2);
+                        assert_eq!(input[position], 0x5a);
+                        assert_eq!(input, snapshot);
+                        cases += 1;
+                    }
+                }
+            }
+        }
+    }
+    assert_eq!(cases, 51_458);
+}
+
+#[test]
+fn sarah_dev_9a1abe441f_padded_message_fields_preserve_context_and_body() {
+    let limits = ResourceLimits::HARDENED;
+    for selected in 0..5 {
+        for padding in 0..10 {
+            let mut input = vec![0x70];
+            for (field, value) in [1_u8, 3, 2, 1, 5].into_iter().enumerate() {
+                if field == selected {
+                    input.extend(std::iter::repeat_n(0x80, padding));
+                }
+                input.push(value);
+            }
+            let header_length = input.len();
+            input.extend_from_slice(&[0xab, 0x5a]);
+            let snapshot = input.clone();
+            let mut context = JpipHeaderContext::new();
+            let (message, consumed) = parse_jpip_message(&input, &mut context, &limits).unwrap();
+            let JpipMessage::Data { header, body } = message else {
+                panic!("expected data");
+            };
+            assert_eq!(header.databin(), DatabinId::new(1, 3, 0).unwrap());
+            assert_eq!(
+                (header.offset(), header.length(), header.auxiliary()),
+                (2, 1, Some(5))
+            );
+            assert!(header.is_last_byte());
+            assert_eq!(header.header_length(), header_length);
+            assert_eq!(body, &[0xab]);
+            assert_eq!(body.as_ptr(), input[header_length..].as_ptr());
+            assert_eq!(consumed, header_length + 1);
+            assert_eq!(context.previous_class(), Some(1));
+            assert_eq!(context.previous_codestream(), Some(3));
+            assert_eq!(input[consumed], 0x5a);
+            assert_eq!(input, snapshot);
+
+            let mut eor = vec![0, 2];
+            eor.extend(std::iter::repeat_n(0x80, padding));
+            eor.extend_from_slice(&[1, 0xab, 0x5a]);
+            let before = context;
+            let (message, consumed) = parse_jpip_message(&eor, &mut context, &limits).unwrap();
+            let JpipMessage::EndOfResponse(message) = message else {
+                panic!("expected end of response");
+            };
+            assert_eq!(message.reason_code(), 2);
+            assert_eq!(message.body(), &[0xab]);
+            assert_eq!(message.header_length(), 3 + padding);
+            assert_eq!(consumed, 4 + padding);
+            assert_eq!(context, before);
+            assert_eq!(eor[consumed], 0x5a);
+        }
+    }
 }
 
 #[test]
@@ -319,7 +425,7 @@ fn actual_raw_jpip_eor_and_prefix_bodies_preserve_context_and_original_borrowed_
 }
 
 #[test]
-fn actual_raw_jpip_rejects_canonical_overflow_extent_and_limit_frontiers_in_native_order() {
+fn actual_raw_jpip_rejects_overflow_extent_and_limit_frontiers_in_native_order() {
     let limits = ResourceLimits::HARDENED;
     let original = JpipHeaderContext {
         previous_class: Some(8),
@@ -342,7 +448,7 @@ fn actual_raw_jpip_rejects_canonical_overflow_extent_and_limit_frontiers_in_nati
         ),
         (
             vec![0x40, 0x80, 0],
-            DecodeError::malformed(1, MalformedKind::InvalidJpipVbas),
+            DecodeError::malformed(3, MalformedKind::Truncated),
         ),
         (
             vec![0x40, 0, 0, 2, 1],

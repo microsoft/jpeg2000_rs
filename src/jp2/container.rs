@@ -565,7 +565,12 @@ pub fn parse<'a>(input: &'a [u8], limits: &ResourceLimits) -> Result<Jp2File<'a>
                 || DecodeError::malformed(0, MalformedKind::ArithmeticOverflow),
             )?;
         let box_type = box_ref.header.box_type();
-        if box_type.equals(BoxType::JP2_HEADER) {
+        if box_type.equals(BoxType::SIGNATURE) || box_type.equals(BoxType::FILE_TYPE) {
+            return Err(DecodeError::malformed(
+                box_ref.header.offset(),
+                MalformedKind::InvalidBoxOrder,
+            ));
+        } else if box_type.equals(BoxType::JP2_HEADER) {
             if parsed_header.is_some()
                 || !codestream_boxes.is_empty()
                 || !codestream_headers.is_empty()
