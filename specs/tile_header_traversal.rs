@@ -85,7 +85,7 @@ pub(crate) open spec fn part1_tile_header_payload<'a>(
     match segment.marker {
             0xff52 => if raw.tile_cod_seen { (Err(order_error), reader, raw) } else {
                 let changed = Part1TileHeaderAccumulator { tile_cod_seen: true, ..raw };
-                match part1_parse_cod_payload(segment.offset, segment.payload, reader.limits) {
+                match part1_parse_cod(segment.offset, segment.payload, reader.limits) {
                     Err(error) => (Err(error), reader, changed),
                     Ok(style) => (Ok(()), reader, Part1TileHeaderAccumulator { tile_coding_style: style, ..changed }),
                 }

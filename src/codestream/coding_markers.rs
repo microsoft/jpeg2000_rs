@@ -47,10 +47,67 @@ impl<'a> Parser<'a> {
     }
 
     #[cfg_attr(verus_keep_ghost, verus_spec(result =>
-        ensures parsed_coding_style_outcome(result) == crate::specs::part1_parse_cod_payload(segment.offset, segment.payload@, self.limits),
+        ensures parsed_coding_style_outcome(result) == crate::specs::part1_parse_cod(segment.offset, segment.payload@, self.limits),
     ))]
     pub(super) fn parse_cod(&self, segment: Segment<'a>) -> Result<CodingStyle, DecodeError> {
-        self.parse_cod_payload(segment.offset, segment.payload)
+        #[cfg(verus_keep_ghost)]
+        proof! { reveal(crate::specs::part1_parse_cod); }
+        let style = self.parse_cod_payload(segment.offset, segment.payload)?;
+        self.validate_ordinary_precincts(segment.offset, style)?;
+        Ok(style)
+    }
+
+    #[cfg_attr(verus_keep_ghost, verus_spec(result =>
+        ensures result == crate::specs::part1_validate_ordinary_precincts(
+            segment_offset, style.decomposition_structure, style.precincts_defined,
+            style.decomposition_levels, style.precinct_exponents@),
+    ))]
+    fn validate_ordinary_precincts(
+        &self,
+        segment_offset: usize,
+        style: CodingStyle,
+    ) -> Result<(), DecodeError> {
+        #[cfg(verus_keep_ghost)]
+        proof_decl! {
+            let ghost goal = crate::specs::part1_validate_ordinary_precincts(
+                segment_offset, style.decomposition_structure, style.precincts_defined,
+                style.decomposition_levels, style.precinct_exponents@);
+        }
+        #[cfg(verus_keep_ghost)]
+        proof! {
+            reveal(crate::specs::part1_validate_ordinary_precincts);
+        }
+        if style.decomposition_structure.is_some() || !style.precincts_defined {
+            return Ok(());
+        }
+        let mut resolution = 1_usize;
+        #[cfg_attr(verus_keep_ghost, verus_spec(
+            invariant 1 <= resolution,
+                resolution <= style.decomposition_levels as nat + 1,
+                goal == crate::specs::part1_validate_ordinary_precincts(
+                    segment_offset, style.decomposition_structure, style.precincts_defined,
+                    style.decomposition_levels, style.precinct_exponents@),
+                goal == crate::specs::part1_ordinary_precincts_from(
+                    segment_offset, style.decomposition_levels, style.precinct_exponents@, resolution),
+            decreases style.decomposition_levels as int + 1 - resolution as int,
+        ))]
+        while resolution <= usize::from(style.decomposition_levels) {
+            #[cfg(verus_keep_ghost)]
+            proof! {
+                reveal_with_fuel(crate::specs::part1_ordinary_precincts_from, 1);
+            }
+            if resolution >= style.precinct_exponents.len() {
+                return Err(self.malformed_at(segment_offset, MalformedKind::InvalidCodingStyle));
+            }
+            let pair = style.precinct_exponents[resolution];
+            if pair.0 == 0 || pair.1 == 0 {
+                return Err(self.malformed_at(segment_offset, MalformedKind::InvalidCodingStyle));
+            }
+            resolution += 1;
+        }
+        #[cfg(verus_keep_ghost)]
+        proof! { reveal_with_fuel(crate::specs::part1_ordinary_precincts_from, 1); }
+        Ok(())
     }
 
     #[cfg_attr(verus_keep_ghost, verus_spec(result =>
@@ -841,6 +898,7 @@ impl<'a> Parser<'a> {
         let mut style =
             self.parse_cod_payload(segment.offset, &prepared.payload[..prepared.length])?;
         style.decomposition_structure = prepared.decomposition_structure;
+        self.validate_ordinary_precincts(segment.offset, style)?;
         Ok((prepared.component, style))
     }
 

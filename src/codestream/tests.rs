@@ -18206,15 +18206,29 @@ fn actual_raw_cod_derives_full_style_defaults_precincts_and_ordered_admission() 
                         for offset in [0, 17, usize::MAX] {
                             let expected = reference_raw_coding_style(&bytes, offset, limit);
                             assert_eq!(parser.parse_cod_payload(offset, &bytes), expected);
+                            let marker_expected = expected.and_then(|style| {
+                                let nonempty_cells = !style.precincts_defined
+                                    || style
+                                        .precinct_exponents
+                                        .iter()
+                                        .take(usize::from(style.decomposition_levels) + 1)
+                                        .skip(1)
+                                        .all(|&(x, y)| u16::from(x) * u16::from(y) > 0);
+                                if nonempty_cells {
+                                    Ok(style)
+                                } else {
+                                    Err(malformed(offset, MalformedKind::InvalidCodingStyle))
+                                }
+                            });
                             assert_eq!(
                                 parser.parse_cod(Segment {
                                     marker: 0x1234,
                                     offset,
                                     payload: &bytes
                                 }),
-                                expected
+                                marker_expected
                             );
-                            successes += usize::from(expected.is_ok());
+                            successes += usize::from(marker_expected.is_ok());
                             cases += 1;
                         }
                     }
@@ -18273,6 +18287,128 @@ fn actual_raw_cod_derives_full_style_defaults_precincts_and_ordered_admission() 
         parser.parse_cod_payload(0, &overflow),
         Err(malformed(0, MalformedKind::ArithmeticOverflow))
     );
+}
+
+#[test]
+fn sarah_dev_64fd2ddb2b_ordinary_cod_rejects_zero_high_resolution_precinct_axes() {
+    assert_eq!(assert_ordinary_precinct_admission(COD), 10_240);
+}
+
+#[test]
+fn sarah_dev_64fd2ddb2b_ordinary_coc_rejects_zero_high_resolution_precinct_axes() {
+    assert_eq!(assert_ordinary_precinct_admission(COC), 10_240);
+}
+
+fn assert_ordinary_precinct_admission(marker: u16) -> usize {
+    let limits = ResourceLimits::HARDENED;
+    let default = new_parser(&[], &limits)
+        .unwrap()
+        .parse_cod_payload(0, &[0, 0, 0, 1, 0, 3, 0, 0, 0, 1])
+        .unwrap();
+    let mut cases = 0;
+    for depth in [0_u8, 1, 3, 32] {
+        for resolution in 0..=depth {
+            for word in 0..=u8::MAX {
+                let mut parameters = vec![depth, 0, 0, 0, 1];
+                parameters.extend(std::iter::repeat_n(0x11, usize::from(depth) + 1));
+                parameters[5 + usize::from(resolution)] = word;
+                let mut payload = if marker == COD {
+                    vec![1, 0, 0, 1, 0]
+                } else {
+                    vec![0, 1]
+                };
+                payload.extend_from_slice(&parameters);
+                let mut input = segment(COM, &[0, 1]);
+                input.extend(segment(marker, &payload));
+                let mut parser = new_parser(&input, &limits).unwrap();
+                assert_eq!(parser.read_segment().unwrap().marker, COM);
+                let selected = parser.read_segment().unwrap();
+                assert_eq!(
+                    (selected.marker, selected.offset, selected.payload),
+                    (marker, 6, payload.as_slice())
+                );
+                let before = (
+                    parser.position,
+                    parser.work_units,
+                    parser.packet_length_bytes,
+                    parser.packet_lengths,
+                );
+                let actual = if marker == COD {
+                    parser.parse_cod(selected)
+                } else {
+                    parser
+                        .parse_coc(selected, 1, default)
+                        .map(|(component, style)| {
+                            assert_eq!(component, 0);
+                            style
+                        })
+                };
+                let valid = resolution == 0 || (word % 16 != 0 && word / 16 != 0);
+                if valid {
+                    let style = actual.unwrap();
+                    assert_eq!(style.decomposition_levels, depth);
+                    assert_eq!(style.decomposition_structure, None);
+                    for index in 0..33 {
+                        let expected = if index > usize::from(depth) {
+                            (15, 15)
+                        } else if index == usize::from(resolution) {
+                            (word % 16, word / 16)
+                        } else {
+                            (1, 1)
+                        };
+                        assert_eq!(style.precinct_exponents[index], expected);
+                    }
+                } else {
+                    assert_eq!(
+                        actual,
+                        Err(DecodeError::MalformedInput {
+                            offset: 6,
+                            kind: MalformedKind::InvalidCodingStyle,
+                        }),
+                        "marker={marker:x} depth={depth} resolution={resolution} word={word}"
+                    );
+                }
+                assert_eq!(
+                    (
+                        parser.position,
+                        parser.work_units,
+                        parser.packet_length_bytes,
+                        parser.packet_lengths
+                    ),
+                    before
+                );
+                cases += 1;
+            }
+        }
+    }
+    cases
+}
+
+#[test]
+fn sarah_dev_64fd2ddb2b_extended_coc_keeps_deferred_precinct_admission() {
+    let limits = ResourceLimits::HARDENED;
+    let default = new_parser(&[], &limits)
+        .unwrap()
+        .parse_cod_payload(0, &[0, 0, 0, 1, 0, 3, 0, 0, 0, 1])
+        .unwrap();
+    for selector in [1_u8, 2, 127] {
+        for word in 0..=u8::MAX {
+            let payload = [0, 1, 0x80 | selector, 0, 0, 0, 1, 0, word, word, word];
+            let input = segment(COC, &payload);
+            let mut parser = new_parser(&input, &limits).unwrap();
+            let selected = parser.read_segment().unwrap();
+            let (component, style) = parser.parse_coc(selected, 1, default).unwrap();
+            assert_eq!(component, 0);
+            assert_eq!(style.decomposition_structure, Some(selector));
+            assert_eq!(style.decomposition_levels, 3);
+            assert_eq!(style.precinct_exponents[0], (0, 0));
+            assert!(
+                style.precinct_exponents[1..4]
+                    .iter()
+                    .all(|pair| *pair == (word % 16, word / 16))
+            );
+        }
+    }
 }
 
 #[test]

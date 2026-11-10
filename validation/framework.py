@@ -1694,6 +1694,13 @@ _QUANTIZATION_BYTES_CONTRACTS = {
     ),
 }
 
+_ORDINARY_PRECINCT_CONTRACTS = {
+    ("src/codestream/coding_markers.rs", "Parser::validate_ordinary_precincts"): (
+        "part1_validate_ordinary_precincts", r"\1", None,
+        r"segment_offset\s*,\s*style\.decomposition_structure\s*,\s*style\.precincts_defined\s*,\s*"
+        r"style\.decomposition_levels\s*,\s*style\.precinct_exponents\s*@",
+    ),
+}
 _COMPONENT_STYLE_BYTES_CONTRACTS = {
     ("src/codestream/coding_markers.rs", "Parser::prepare_coc_payload"): (
         "part1_coc_prepare", _coverage_call("parsed_component_coding_style_payload_outcome", r"\1"), None,
@@ -1709,18 +1716,18 @@ _COMPONENT_STYLE_BYTES_CONTRACTS = {
         r"segment\.offset\s*,\s*segment\.payload\s*@\s*,\s*components\s*,\s*"
         + _coverage_call("parsed_coding_style_view", "default") + r"\s*,\s*self\.limits",
     ),
-}
+} | _ORDINARY_PRECINCT_CONTRACTS
 
 _CODING_STYLE_BYTES_CONTRACTS = {
     ("src/codestream/coding_markers.rs", "Parser::parse_cod"): (
-        "part1_parse_cod_payload", _coverage_call("parsed_coding_style_outcome", r"\1"), None,
+        "part1_parse_cod", _coverage_call("parsed_coding_style_outcome", r"\1"), None,
         r"segment\.offset\s*,\s*segment\.payload\s*@\s*,\s*self\.limits",
     ),
     ("src/codestream/coding_markers.rs", "Parser::parse_cod_payload"): (
         "part1_parse_cod_payload", _coverage_call("parsed_coding_style_outcome", r"\1"), None,
         r"segment_offset\s*,\s*payload\s*@\s*,\s*self\.limits",
     ),
-}
+} | _ORDINARY_PRECINCT_CONTRACTS
 
 _MAIN_HEADER_ADMISSION_CONTRACTS = {
     ("src/codestream/reader.rs", "Parser::read_main_header_segment"): (

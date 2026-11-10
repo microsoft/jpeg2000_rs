@@ -6155,13 +6155,13 @@ class FrameworkTests(WorkingFiles):
     def test_inventory_binds_actual_raw_cod_bytes_to_complete_style_and_precinct_defaults(self):
         self._assert_complete_packet_contract_bindings(
             {"part1-complete-native-raw-coding-style"},
-            framework._CODING_STYLE_BYTES_CONTRACTS, 2,
+            framework._CODING_STYLE_BYTES_CONTRACTS, 3,
         )
 
     def test_inventory_binds_actual_raw_component_index_and_complete_coc_style(self):
         self._assert_complete_packet_contract_bindings(
             {"part1-complete-native-raw-component-style"},
-            framework._COMPONENT_STYLE_BYTES_CONTRACTS, 3,
+            framework._COMPONENT_STYLE_BYTES_CONTRACTS, 4,
         )
 
     def test_inventory_binds_actual_raw_qcd_qcc_results_and_all_unused_quantization_steps(self):

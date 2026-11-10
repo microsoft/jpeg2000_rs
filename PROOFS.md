@@ -2765,6 +2765,28 @@ parsing, file/layer/F2/F4 and final F8 joins stay separate.
 
 ## Complete native raw COD coding-style producer
 
+The Sarah `DEV-64FD2DDB2B` correction separates ordinary marker admission from
+the context-free raw payload bridge used to prepare Part 2 data. Both actual
+COD and COC wrappers apply one checked precinct validator after the original
+raw-payload errors; COC first restores its real decomposition selector.
+Ordinary `None` styles require both precinct axes to be nonzero above
+resolution zero. Explicit `Some` DFS/ADS selectors keep their existing deferred
+validation, and omitted precinct metadata retains its original laziness.
+Complete main/tile/COC models share the correction without a validity premise.
+The pinned public original SPcod/SPcoc handler independently checks all 10,240
+byte/position cases: 9,124 accepted and 1,116 rejected. Native tests exercise
+both marker paths, exact errors/nonconsuming parser frames and all 768 selected
+Part 2 cases; earlier cap/length/flag/selector errors remain in their order.
+The raw parser's old characterization is retained, with a separate widened
+nonempty-cell oracle for ordinary marker admission. This is not a blanket
+Part 2 precinct rule or independent selected-edition certification.
+The new model observes only the actual selector/defined/depth/precinct fields.
+A whole-root fixed-budget check exposed excessive unfolding of the existing
+shared colour-prefix model in the unrelated associated-header loop. That model
+is now opaque with explicit reveals in its actual prefix and selected-colour
+producers. Executing colour operations, loop bodies, budgets and trust are
+unchanged; whole-library verification passes with the original limits.
+
 Actual COD segment/payload parsing now derives complete CodingStyle Results,
 including all 32 default decomposition directions and all 33 actual/default
 precinct entries, directly from source bytes/offset/limits. Header/flag/

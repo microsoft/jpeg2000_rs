@@ -97,7 +97,7 @@ pub(crate) open spec fn part1_main_header_payload<'a>(
             }
         },
         0xff52 => if raw.coding_style.is_some() { (Err(order_error), reader, raw) } else {
-            match part1_parse_cod_payload(segment.offset, segment.payload, reader.limits) {
+            match part1_parse_cod(segment.offset, segment.payload, reader.limits) {
                 Err(error) => (Err(error), reader, raw),
                 Ok(style) => (Ok(()), reader, Part1MainHeaderAccumulator { coding_style: Some(style), ..raw }),
             }

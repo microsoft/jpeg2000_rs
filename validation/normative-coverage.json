@@ -4071,12 +4071,13 @@
     },
     {
       "id": "part1-complete-native-raw-component-style",
-      "topic": "Complete actual Parser::parse_component_index and parse_coc Result/every CodingStyle field from raw Segment bytes/offset, component count, raw default and real limits. Preserve one/two-byte threshold257, truncation before component validation and caller error kind, minimum/SCOC/DSC selector order, native43-byte COD scratch, inherited progression/layers/MCT/SOP/EPH, DSC default-depth substitution, exact actual COD admission and final decomposition selector. No marker/DSC-registry/default normalization is newly imposed. All scratch/frame/narrowing facts derive internally without prepared payload/style/result banks or admitted header/budget premises. Original slice copy/allocation/order remain; proved malformed helper and equivalent explicit bool byte encoding supply missing standard-library facts. Remaining quantization/Part2/tile/layout parser-to-output/file/F2/F4/final F8 stay separate.",
+      "topic": "Complete actual Parser::parse_component_index and parse_coc Result/every CodingStyle field from raw Segment bytes/offset, component count, raw default and real limits. Sarah DEV-64FD2DDB2B: after generic payload interpretation and restoration of the actual selector, ordinary None styles reject zero precinct axes above resolution0 through the shared checked validator; explicit Part2 Some selectors retain existing deferred admission. Preserve one/two-byte threshold257, truncation/component/minimum/SCOC/selector order, native43-byte scratch, inherited progression/layers/MCT/SOP/EPH, default-depth substitution and earlier COD errors. No registry/default normalization or validity/result bank; actual main/tile consumers share the sole code/models. Remaining quantization/Part2/tile/layout parser-to-output/file/F2/F4/final F8 stay separate.",
       "implementation_refs": [
         {"path": "src/codestream/layout.rs", "symbol": "Parser::parse_layout"},
         {"path": "src/codestream/tiles.rs", "symbol": "Parser::read_tile_part"},
         {"path": "src/codestream/coding_markers.rs", "symbol": "Parser::parse_coc"},
         {"path": "src/codestream/coding_markers.rs", "symbol": "Parser::prepare_coc_payload"},
+        {"path": "src/codestream/coding_markers.rs", "symbol": "Parser::validate_ordinary_precincts"},
         {"path": "src/codestream/coding_markers.rs", "symbol": "Parser::parse_component_index"},
         {"path": "src/codestream/coding_markers.rs", "symbol": "Parser::parse_cod_payload"}
       ],
@@ -4087,13 +4088,16 @@
         {"path": "specs/mod.rs", "symbol": "part1_coc_cod_payload"},
         {"path": "specs/mod.rs", "symbol": "part1_cod_progression_byte"},
         {"path": "specs/mod.rs", "symbol": "part1_coc_style"},
+        {"path": "specs/mod.rs", "symbol": "part1_validate_ordinary_precincts"},
+        {"path": "specs/mod.rs", "symbol": "part1_ordinary_precincts_from"},
         {"path": "specs/mod.rs", "symbol": "part1_parse_cod_payload"},
         {"path": "specs/mod.rs", "symbol": "part1_codestream_malformed"}
       ],
       "contract_refs": [
         {"path": "src/codestream/coding_markers.rs", "symbol": "Parser::prepare_coc_payload"},
         {"path": "src/codestream/coding_markers.rs", "symbol": "Parser::parse_component_index"},
-        {"path": "src/codestream/coding_markers.rs", "symbol": "Parser::parse_coc"}
+        {"path": "src/codestream/coding_markers.rs", "symbol": "Parser::parse_coc"},
+        {"path": "src/codestream/coding_markers.rs", "symbol": "Parser::validate_ordinary_precincts"}
       ],
       "proof_refs": [
         {"path": "src/codestream/proof_support.rs", "symbol": "parsed_coding_style_view"},
@@ -4105,20 +4109,26 @@
       ],
       "test_refs": [
         {"path": "src/codestream/tests.rs", "symbol": "actual_raw_component_styles_preserve_source_defaults_selectors_and_first_errors"},
-        {"path": "src/codestream/tests.rs", "symbol": "actual_component_index_preserves_width_threshold_error_kind_and_marker_independence"}
+        {"path": "src/codestream/tests.rs", "symbol": "actual_component_index_preserves_width_threshold_error_kind_and_marker_independence"},
+        {"path": "src/codestream/tests.rs", "symbol": "sarah_dev_64fd2ddb2b_ordinary_coc_rejects_zero_high_resolution_precinct_axes"},
+        {"path": "src/codestream/tests.rs", "symbol": "sarah_dev_64fd2ddb2b_extended_coc_keeps_deferred_precinct_admission"}
       ]
     },
     {
       "id": "part1-complete-native-raw-coding-style",
-      "topic": "Complete actual Parser::parse_cod/parse_cod_payload Result/every CodingStyle field, all32 default decomposition directions and33 actual/default precinct entries from raw bytes/offset/limits. Preserve header/flag/progression/layer/MCT/checked-u8 depth/resolution/block exponent/product/style/expected-length/lazy precinct capacity ordering, SOP/EPH flags and unvalidated arbitrary transform indices. No supplied coding style/precinct/result bank, normalized metadata or admitted header/budget premise. Actual main/tile/COC callers use sole bodies; the real shared proved Tier1 block-style producer replaces only its unsupported static facade at this computational call. Test-only raw cap fixture changes no production cap/API. Remaining COC/quantization/Part2/tile/layout parser-to-output/file/F2/F4/final F8 and delivery remain separate.",
+      "topic": "Complete actual Parser::parse_cod/parse_cod_payload Result/every CodingStyle field, all32 default decomposition directions and33 actual/default precinct entries from raw bytes/offset/limits. Sarah DEV-64FD2DDB2B: ordinary COD marker admission applies the shared checked nonzero-axis rule only above resolution0 and after existing raw-payload errors. The context-free raw payload bridge remains available to explicitly selected Part2 COC data; no blanket Part2/directional rejection. Main/tile complete models use the corrected marker producer, COC restores the actual selector before the same validator. Preserve other flags/progression/layer/MCT/depth/resolution/block/style/length/capacity/SOP/EPH/transform policy and all original owner scopes. No supplied style/precinct/result bank or admitted validity/budget premise. Remaining quantization/Part2/tile/layout parser-to-output/file/F2/F4/final F8 and delivery remain separate.",
       "implementation_refs": [
         {"path": "src/codestream/layout.rs", "symbol": "Parser::parse_layout"},
         {"path": "src/codestream/tiles.rs", "symbol": "Parser::read_tile_part"},
         {"path": "src/codestream/coding_markers.rs", "symbol": "Parser::parse_coc"},
         {"path": "src/codestream/coding_markers.rs", "symbol": "Parser::parse_cod"},
+        {"path": "src/codestream/coding_markers.rs", "symbol": "Parser::validate_ordinary_precincts"},
         {"path": "src/codestream/coding_markers.rs", "symbol": "Parser::parse_cod_payload"}
       ],
       "spec_refs": [
+        {"path": "specs/mod.rs", "symbol": "part1_parse_cod"},
+        {"path": "specs/mod.rs", "symbol": "part1_validate_ordinary_precincts"},
+        {"path": "specs/mod.rs", "symbol": "part1_ordinary_precincts_from"},
         {"path": "specs/mod.rs", "symbol": "part1_parse_cod_payload"},
         {"path": "specs/mod.rs", "symbol": "part1_cod_header"},
         {"path": "specs/mod.rs", "symbol": "part1_cod_progression"},
@@ -4130,7 +4140,8 @@
       ],
       "contract_refs": [
         {"path": "src/codestream/coding_markers.rs", "symbol": "Parser::parse_cod"},
-        {"path": "src/codestream/coding_markers.rs", "symbol": "Parser::parse_cod_payload"}
+        {"path": "src/codestream/coding_markers.rs", "symbol": "Parser::parse_cod_payload"},
+        {"path": "src/codestream/coding_markers.rs", "symbol": "Parser::validate_ordinary_precincts"}
       ],
       "proof_refs": [
         {"path": "src/codestream/proof_support.rs", "symbol": "parsed_coding_style_view"},
@@ -4140,7 +4151,9 @@
         {"path": "src/tier1/coding.rs", "symbol": "tier1_block_coding_from_code_block_style"}
       ],
       "test_refs": [
-        {"path": "src/codestream/tests.rs", "symbol": "actual_raw_cod_derives_full_style_defaults_precincts_and_ordered_admission"}
+        {"path": "src/codestream/tests.rs", "symbol": "actual_raw_cod_derives_full_style_defaults_precincts_and_ordered_admission"},
+        {"path": "src/codestream/tests.rs", "symbol": "sarah_dev_64fd2ddb2b_ordinary_cod_rejects_zero_high_resolution_precinct_axes"},
+        {"path": "src/codestream/tests.rs", "symbol": "sarah_dev_64fd2ddb2b_extended_coc_keeps_deferred_precinct_admission"}
       ]
     },
     {
