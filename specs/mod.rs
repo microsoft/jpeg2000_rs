@@ -61,6 +61,8 @@ mod jpip_ranges;
 pub use jpip_ranges::*;
 mod jpip_planned_packets;
 pub use jpip_planned_packets::*;
+mod jpip_transcode;
+pub use jpip_transcode::*;
 mod jpx_source;
 pub use jpx_source::*;
 mod jpx_opacity;

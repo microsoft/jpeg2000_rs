@@ -205,9 +205,40 @@ response ingestion through missing/partial/available packet reconstruction.
 These fixtures reuse the independent wide-integer range/read oracles.
 
 These are as-implemented producer Results, not normative adjudication or full
-plan completion. Full transcode, semantic-container and progressive/automatic
-joins and independent cfg/erasure/lifetime/R1/internal/release gates remain
-separate. Proof/resource budgets and production `--no-lifetime` are unchanged.
+plan completion. The separate complete transcode boundary is described below;
+semantic-container and progressive/automatic joins and independent
+cfg/erasure/lifetime/R1/internal/release gates remain separate. Proof/resource
+budgets and production `--no-lifetime` are unchanged.
+
+## Actual JPIP precinct transcode Result and mutable header frames
+
+The actual `transcode_precinct_codestream` derives its complete Result from the
+physical cache, physical caller plan and requested layers. The original selector,
+packet ranges and complete main/tile header requirements produce availability.
+Missing or partial data retains the exact report without fabricating a
+codestream. Available data passes through the actual owned byte reads, in-place
+COD layer patches, Psot rewrite, checked reconstruction lengths and input limit,
+original byte concatenation, and genuine final raw `parse_layout` validation.
+Single-tile/layer/main-and-effective-tile LRCP and progression/packet-header
+restrictions are derived from that actual parse, not a supplied layout.
+
+The header scanner and main/tile wrappers specify exact final bytes on success
+and every error, retaining earlier COD patches on a later failure. Complete
+header requirements likewise retain native report mutation order, including a
+committed required-byte count if subsequent available-byte addition overflows.
+The physical iterator/map/collect and fragment order are unchanged. Stored
+transcode getters, availability borrow and original optional-byte move are
+checked. No valid-cache/plan premise, successful-parser bank, executing proof
+clone, or native owner reconstruction is introduced.
+
+Native fixtures cover every cut of emitted multi-COD header segments, partial
+patch errors, arbitrary physical header states and full-width report counters,
+packet-before-header resource priority, raw-response ingestion to exact emitted
+codestreams and public decoded images, and original cache/plan/byte ownership.
+The native wildcard conversion closures retain their original bindings; their
+checked body specifications are ghost-only. Proof counts are not source or
+functional coverage, and the normative, semantic-container, progressive,
+automatic, cfg/erasure/lifetime/R1/internal/release gates remain separate.
 
 ## Actual JPIP range availability and packet byte Results
 

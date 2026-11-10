@@ -1256,6 +1256,77 @@ class FrameworkTests(WorkingFiles):
                 self.assertEqual(framework.validate_normative_coverage(dict(coverage, requirements=[entry]))["status"], "passed")
                 self.assertEqual(set(counts.values()), {expected})
 
+    def test_inventory_jpip_transcode_binds_complete_actual_cache_and_raw_validated_results(self):
+        self._assert_complete_packet_contract_bindings(
+            {framework._JPIP_TRANSCODE_ENTRY}, framework._JPIP_TRANSCODE_CONTRACTS, 5, isolate=False,
+        )
+
+    def test_inventory_jpip_transcode_requires_every_header_availability_raw_and_owner_bridge(self):
+        coverage = json.loads((framework.VALIDATION / "normative-coverage.json").read_text())
+        entry = next(item for item in coverage["requirements"] if item["id"] == framework._JPIP_TRANSCODE_ENTRY)
+        for field in ("implementation_refs", "contract_refs", "spec_refs", "proof_refs", "test_refs"):
+            for removed in entry[field]:
+                changed = copy.deepcopy(entry)
+                changed[field].remove(removed)
+                with self.subTest(field=field, removed=removed), self.assertRaisesRegex(
+                        ValueError, "whole JPIP transcode|normative-coverage.schema.json"):
+                    framework.validate_normative_coverage(dict(coverage, requirements=[changed]))
+
+    def test_inventory_jpip_transcode_rejects_changed_native_header_cache_validator_and_move_frames(self):
+        coverage = json.loads((framework.VALIDATION / "normative-coverage.json").read_text())
+        entry = next(item for item in coverage["requirements"] if item["id"] == framework._JPIP_TRANSCODE_ENTRY)
+        read_text = Path.read_text
+        for relative, symbol, before, after in (
+            ("src/jpip/precinct.rs", "DatabinCache::transcode_precinct_codestream", "self.precinct_availability(plan, packet_end)?", "self.availability(&[])?"),
+            ("src/jpip/precinct.rs", "DatabinCache::transcode_precinct_codestream", "self.databin_view(plan.main_header)?.into_bytes()", "self.databin_view(plan.tile_header)?.into_bytes()"),
+            ("src/jpip/precinct.rs", "DatabinCache::transcode_precinct_codestream", ".get_mut(6..10)", ".get_mut(2..6)"),
+            ("src/jpip/precinct.rs", "DatabinCache::transcode_precinct_codestream", "validate_precinct_codestream(&bytes, layers, &self.limits)?", "Ok::<(), DecodeError>(())?"),
+            ("src/jpip/precinct.rs", "patch_cod_layers", "segment_length < 7", "false"),
+            ("src/jpip/ranges.rs", "DatabinCache::precinct_availability", "self.append_complete_databin_requirement(plan.main_header, &mut report)?", "self.append_complete_databin_requirement(plan.tile_header, &mut report)?"),
+            ("src/jpip/ranges.rs", "DatabinCache::append_complete_databin_requirement", ".checked_add(header_report.required_bytes)", ".checked_add(0)"),
+            ("src/jpip/precinct.rs", "validate_precinct_codestream", "layout.info.coding_style.layers != layers", "false"),
+            ("src/jpip/precinct.rs", "JpipPrecinctTranscode::into_codestream", "result == *jpip_transcode_byte_owner(&self)", "true"),
+        ):
+            source = framework.ROOT / relative
+            original = source.read_text()
+            header = framework._coverage_function_header(original, symbol)
+            self.assertIsNotNone(header)
+            start = original.rfind("#[cfg_attr", 0, header.start())
+            self.assertIn(before, original[start:])
+            changed = original[:start] + original[start:].replace(before, after, 1)
+
+            def altered(path, *args, **kwargs):
+                return changed if path == source else read_text(path, *args, **kwargs)
+
+            with self.subTest(before=before), mock.patch.object(Path, "read_text", altered), \
+                    self.assertRaisesRegex(ValueError, "whole JPIP transcode"):
+                framework.validate_normative_coverage(dict(coverage, requirements=[entry]))
+
+    def test_inventory_jpip_transcode_rejects_missing_partial_commits_and_fabricated_output_models(self):
+        coverage = json.loads((framework.VALIDATION / "normative-coverage.json").read_text())
+        entry = next(item for item in coverage["requirements"] if item["id"] == framework._JPIP_TRANSCODE_ENTRY)
+        source = framework.ROOT / "specs/jpip_transcode.rs"
+        original, read_text = source.read_text(), Path.read_text
+        for before, after in (
+            ("Err(part2_jpip_range_overflow(0)), committed", "Err(part2_jpip_range_overflow(0)), report"),
+            ("part2_jpip_append_complete_requirement(cache, plan.0, report)", "(Ok(()), report)"),
+            ("part2_jpip_patch_cod_loop(patched, end as usize, layers, stop)", "part2_jpip_patch_cod_loop(header, end as usize, layers, stop)"),
+            ("part1_parse_layout(bytes, limits)", "Err(part2_jpip_plan_invalid(0))"),
+            ("layout.0.coding_style.layers != layers", "false"),
+            ("length > usize::MAX as nat || length > u32::MAX as nat", "false"),
+            ("Ok(()) => Ok(bytes)", "Ok(()) => Ok(Seq::empty())"),
+            ("part2_jpip_cache_view(cache, plan.1)", "part2_jpip_cache_view(cache, plan.0)"),
+        ):
+            self.assertIn(before, original)
+            changed = original.replace(before, after, 1)
+
+            def altered(path, *args, **kwargs):
+                return changed if path == source else read_text(path, *args, **kwargs)
+
+            with self.subTest(before=before), mock.patch.object(Path, "read_text", altered), \
+                    self.assertRaisesRegex(ValueError, "whole JPIP transcode"):
+                framework.validate_normative_coverage(dict(coverage, requirements=[entry]))
+
     def test_inventory_jpip_planned_packets_bind_owned_selection_and_actual_cache_results(self):
         self._assert_complete_packet_contract_bindings(
             {framework._JPIP_PLANNED_ENTRY}, framework._JPIP_PLANNED_CONTRACTS, 3, isolate=False,

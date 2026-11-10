@@ -7,12 +7,14 @@ use super::{
 };
 #[cfg(verus_keep_ghost)]
 use super::{
-    databin_id_view, jpip_availability_view, jpip_byte_view, jpip_cache_view,
+    databin_id_view, jpip_availability_view, jpip_byte_view, jpip_cache_fields, jpip_cache_view,
     jpip_optional_byte_view, jpip_optional_owned_byte_view, jpip_owned_packets_view,
     jpip_packet_outcome, jpip_packet_view, jpip_packets_view, jpip_plan_fields,
     jpip_plan_layer_count, jpip_plan_outcome, jpip_plan_packet_owner, jpip_plan_view,
     jpip_planned_availability_owner, jpip_planned_packet_owner, jpip_planned_packets_outcome,
     jpip_planned_packets_view, jpip_range_view, jpip_ranges_view,
+    jpip_transcode_availability_owner, jpip_transcode_byte_owner, jpip_transcode_outcome,
+    jpip_transcode_view,
 };
 #[cfg(verus_keep_ghost)]
 use vstd::prelude::*;
@@ -20,6 +22,10 @@ use vstd::prelude::*;
 #[cfg(test)]
 #[path = "planned_packet_result_tests.rs"]
 mod result_tests;
+
+#[cfg(test)]
+#[path = "transcode_result_tests.rs"]
+mod transcode_result_tests;
 
 #[cfg_attr(verus_keep_ghost, verus_verify)]
 impl JpipPrecinctPacket {
@@ -343,29 +349,56 @@ impl JpipPrecinctPackets {
 }
 
 impl JpipPrecinctTranscode {
+    #[cfg_attr(verus_keep_ghost, verus_spec(result => ensures result == jpip_transcode_view(self).0,))]
     pub const fn layers(&self) -> u16 {
+        #[cfg(verus_keep_ghost)]
+        proof! { reveal(jpip_transcode_view); }
         self.layers
     }
 
+    #[cfg_attr(verus_keep_ghost, verus_spec(result =>
+        ensures jpip_availability_view(result) == jpip_transcode_view(self).1,
+            result == jpip_transcode_availability_owner(self),
+    ))]
     pub const fn availability(&self) -> &JpipAvailabilityReport {
+        #[cfg(verus_keep_ghost)]
+        proof! { reveal(jpip_transcode_view); reveal(jpip_transcode_availability_owner); }
         &self.availability
     }
 
+    #[cfg_attr(verus_keep_ghost, verus_spec(result => ensures jpip_optional_byte_view(result) == jpip_transcode_view(self).2,))]
     pub const fn codestream(&self) -> Option<&JpipByteView> {
+        #[cfg(verus_keep_ghost)]
+        proof! { reveal(jpip_transcode_view); }
         self.codestream.as_ref()
     }
 
+    #[cfg_attr(verus_keep_ghost, verus_spec(result =>
+        ensures jpip_optional_owned_byte_view(result) == jpip_transcode_view(&self).2,
+            result == *jpip_transcode_byte_owner(&self),
+    ))]
     pub fn into_codestream(self) -> Option<JpipByteView> {
+        #[cfg(verus_keep_ghost)]
+        proof! { reveal(jpip_transcode_view); reveal(jpip_transcode_byte_owner); }
         self.codestream
     }
 }
 
 impl DatabinCache {
+    #[cfg_attr(verus_keep_ghost, verus_spec(result =>
+        ensures jpip_transcode_outcome(result)
+            == crate::specs::part2_jpip_transcode(jpip_cache_view(self), jpip_plan_view(plan), layers),
+    ))]
     pub fn transcode_precinct_codestream(
         &self,
         plan: &JpipPrecinctCodestreamPlan,
         layers: u16,
     ) -> Result<JpipPrecinctTranscode, DecodeError> {
+        #[cfg(verus_keep_ghost)]
+        proof! {
+            jpip_plan_fields(plan); jpip_cache_fields(self);
+            reveal(jpip_transcode_view); reveal(jpip_byte_view);
+        }
         let packet_end = plan.packet_end_for_layers(layers)?;
         let availability = self.precinct_availability(plan, packet_end)?;
         if !availability.is_available() {
@@ -379,37 +412,109 @@ impl DatabinCache {
         let mut tile_header = self.databin_view(plan.tile_header)?.into_bytes();
         validate_and_patch_main_header(&mut main_header, layers)?;
         validate_and_patch_tile_header(&mut tile_header, layers)?;
-        let selected_packets = plan
-            .packets
-            .get(..packet_end)
-            .ok_or_else(|| DecodeError::malformed(0, MalformedKind::ArithmeticOverflow))?;
+        let selected_packets = plan.packets.get(..packet_end).ok_or_else(
+            #[cfg_attr(verus_keep_ghost, verus_spec(result: DecodeError =>
+                    ensures result == crate::specs::part2_jpip_range_overflow(0),
+                ))]
+            || DecodeError::malformed(0, MalformedKind::ArithmeticOverflow),
+        )?;
+        #[cfg(verus_keep_ghost)]
+        proof! {
+        assert(jpip_packets_view(selected_packets) =~= jpip_plan_view(plan).2.subrange(0, packet_end as int));
+        }
         let packet_bytes = self.read_packet_ranges(selected_packets)?;
         let tile_part_length = tile_header
             .len()
             .checked_add(packet_bytes.len())
-            .ok_or_else(|| DecodeError::malformed(0, MalformedKind::ArithmeticOverflow))?;
-        let tile_part_length = u32::try_from(tile_part_length)
-            .map_err(|_| DecodeError::malformed(0, MalformedKind::ArithmeticOverflow))?;
+            .ok_or_else(
+                #[cfg_attr(verus_keep_ghost, verus_spec(result: DecodeError =>
+                    ensures result == crate::specs::part2_jpip_range_overflow(0),
+                ))]
+                || DecodeError::malformed(0, MalformedKind::ArithmeticOverflow),
+            )?;
+        let tile_part_length = u32::try_from(tile_part_length).map_err(|_| {
+            #[cfg(verus_keep_ghost)]
+            vstd::prelude::ensures(|result: DecodeError| {
+                vstd::prelude::equal(result, crate::specs::part2_jpip_range_overflow(0))
+            });
+            DecodeError::malformed(0, MalformedKind::ArithmeticOverflow)
+        })?;
+        #[cfg(verus_keep_ghost)]
+        proof! {
+            assert(((tile_part_length >> 24) & 0xff) <= u8::MAX as u32
+                && ((tile_part_length >> 16) & 0xff) <= u8::MAX as u32
+                && ((tile_part_length >> 8) & 0xff) <= u8::MAX as u32
+                && (tile_part_length & 0xff) <= u8::MAX as u32) by(bit_vector);
+        }
         let tile_part_bytes = [
-            u8::try_from((tile_part_length >> 24) & 0xff)
-                .map_err(|_| DecodeError::malformed(0, MalformedKind::ArithmeticOverflow))?,
-            u8::try_from((tile_part_length >> 16) & 0xff)
-                .map_err(|_| DecodeError::malformed(0, MalformedKind::ArithmeticOverflow))?,
-            u8::try_from((tile_part_length >> 8) & 0xff)
-                .map_err(|_| DecodeError::malformed(0, MalformedKind::ArithmeticOverflow))?,
-            u8::try_from(tile_part_length & 0xff)
-                .map_err(|_| DecodeError::malformed(0, MalformedKind::ArithmeticOverflow))?,
+            u8::try_from((tile_part_length >> 24) & 0xff).map_err(|_| {
+                #[cfg(verus_keep_ghost)]
+                vstd::prelude::ensures(|result: DecodeError| {
+                    vstd::prelude::equal(result, crate::specs::part2_jpip_range_overflow(0))
+                });
+                DecodeError::malformed(0, MalformedKind::ArithmeticOverflow)
+            })?,
+            u8::try_from((tile_part_length >> 16) & 0xff).map_err(|_| {
+                #[cfg(verus_keep_ghost)]
+                vstd::prelude::ensures(|result: DecodeError| {
+                    vstd::prelude::equal(result, crate::specs::part2_jpip_range_overflow(0))
+                });
+                DecodeError::malformed(0, MalformedKind::ArithmeticOverflow)
+            })?,
+            u8::try_from((tile_part_length >> 8) & 0xff).map_err(|_| {
+                #[cfg(verus_keep_ghost)]
+                vstd::prelude::ensures(|result: DecodeError| {
+                    vstd::prelude::equal(result, crate::specs::part2_jpip_range_overflow(0))
+                });
+                DecodeError::malformed(0, MalformedKind::ArithmeticOverflow)
+            })?,
+            u8::try_from(tile_part_length & 0xff).map_err(|_| {
+                #[cfg(verus_keep_ghost)]
+                vstd::prelude::ensures(|result: DecodeError| {
+                    vstd::prelude::equal(result, crate::specs::part2_jpip_range_overflow(0))
+                });
+                DecodeError::malformed(0, MalformedKind::ArithmeticOverflow)
+            })?,
         ];
+        #[cfg(verus_keep_ghost)]
+        proof_decl! { let ghost previous_tile = tile_header@; }
         tile_header
             .get_mut(6..10)
-            .ok_or_else(|| DecodeError::malformed(0, MalformedKind::InvalidTilePart))?
+            .ok_or_else(
+                #[cfg_attr(verus_keep_ghost, verus_spec(result: DecodeError =>
+                    ensures result == crate::specs::part2_jpip_cache_error(0, MalformedKind::InvalidTilePart),
+                ))]
+                || DecodeError::malformed(0, MalformedKind::InvalidTilePart),
+            )?
             .copy_from_slice(&tile_part_bytes);
+        #[cfg(verus_keep_ghost)]
+        proof! {
+            assert(tile_header@ =~= previous_tile.update(6, tile_part_bytes[0]).update(7, tile_part_bytes[1])
+                .update(8, tile_part_bytes[2]).update(9, tile_part_bytes[3]));
+        }
         let total = main_header
             .len()
             .checked_add(tile_header.len())
-            .and_then(|value| value.checked_add(packet_bytes.len()))
-            .and_then(|value| value.checked_add(EOC.len()))
-            .ok_or_else(|| DecodeError::malformed(0, MalformedKind::ArithmeticOverflow))?;
+            .and_then(
+                #[cfg_attr(verus_keep_ghost, verus_spec(result: (Option<usize>) =>
+                    ensures result == if value as nat + packet_bytes.len() as nat > usize::MAX as nat { None }
+                        else { Some((value as nat + packet_bytes.len() as nat) as usize) },
+                ))]
+                |value: usize| value.checked_add(packet_bytes.len()),
+            )
+            .and_then(
+                #[cfg_attr(verus_keep_ghost, verus_spec(result: (Option<usize>) =>
+                    ensures result == if value as nat + EOC.len() as nat > usize::MAX as nat { None }
+                        else { Some((value as nat + EOC.len() as nat) as usize) },
+                ))]
+                |value: usize| value.checked_add(EOC.len()),
+            )
+            .ok_or_else(
+                #[cfg_attr(verus_keep_ghost, verus_spec(result: DecodeError =>
+                    ensures result == crate::specs::part2_jpip_range_overflow(0),
+                ))]
+                || DecodeError::malformed(0, MalformedKind::ArithmeticOverflow),
+            )?;
         let contracted_total = crate::refinement::jpip_reconstruction_length(
             main_header.len() as u64,
             tile_header.len() as u64,
@@ -431,6 +536,10 @@ impl DatabinCache {
         bytes.extend_from_slice(&tile_header);
         bytes.extend_from_slice(&packet_bytes);
         bytes.extend_from_slice(&EOC);
+        #[cfg(verus_keep_ghost)]
+        proof! {
+            assert(bytes@ =~= main_header@ + tile_header@ + packet_bytes@ + seq![0xffu8, 0xd9u8]);
+        }
         validate_precinct_codestream(&bytes, layers, &self.limits)?;
         Ok(JpipPrecinctTranscode {
             layers,
@@ -488,6 +597,9 @@ impl DatabinCache {
     }
 }
 
+#[cfg_attr(verus_keep_ghost, verus_spec(result =>
+    ensures (result, final(header)@) == crate::specs::part2_jpip_patch_main(old(header)@, layers),
+))]
 fn validate_and_patch_main_header(header: &mut [u8], layers: u16) -> Result<(), DecodeError> {
     if !header.starts_with(&SOC) {
         return Err(DecodeError::malformed(
@@ -499,6 +611,9 @@ fn validate_and_patch_main_header(header: &mut [u8], layers: u16) -> Result<(), 
     Ok(())
 }
 
+#[cfg_attr(verus_keep_ghost, verus_spec(result =>
+    ensures (result, final(header)@) == crate::specs::part2_jpip_patch_tile(old(header)@, layers),
+))]
 fn validate_and_patch_tile_header(header: &mut [u8], layers: u16) -> Result<(), DecodeError> {
     if header.len() < 14
         || header.get(0..2) != Some(&[0xff, 0x90])
@@ -513,12 +628,19 @@ fn validate_and_patch_tile_header(header: &mut [u8], layers: u16) -> Result<(), 
     Ok(())
 }
 
+#[cfg_attr(verus_keep_ghost, verus_spec(result =>
+    ensures (result, final(header)@) == crate::specs::part2_jpip_patch_cod(old(header)@, start, layers, stop_at_sod),
+))]
 fn patch_cod_layers(
     header: &mut [u8],
     start: usize,
     layers: u16,
     stop_at_sod: bool,
 ) -> Result<(), DecodeError> {
+    #[cfg(verus_keep_ghost)]
+    proof_decl! {
+        let ghost expected = crate::specs::part2_jpip_patch_cod(header@, start, layers, stop_at_sod);
+    }
     if start > header.len() {
         return Err(DecodeError::malformed(
             start as u64,
@@ -530,19 +652,38 @@ fn patch_cod_layers(
         verus_keep_ghost,
         verus_spec(
             invariant position <= header.len(),
+                expected == crate::specs::part2_jpip_patch_cod(old(header)@, start, layers, stop_at_sod),
+                expected == crate::specs::part2_jpip_patch_cod_loop(header@, position, layers, stop_at_sod),
             decreases header.len() - position,
         )
     )]
     while position < header.len() {
+        #[cfg(verus_keep_ghost)]
+        proof! { reveal(crate::specs::part2_jpip_patch_cod_loop); }
         let marker_bytes = header
             .get(position..position.saturating_add(2))
-            .ok_or_else(|| DecodeError::malformed(position as u64, MalformedKind::Truncated))?;
+            .ok_or_else(
+                #[cfg_attr(verus_keep_ghost, verus_spec(result: DecodeError =>
+                    ensures result == crate::specs::part2_jpip_cache_error(position as u64, MalformedKind::Truncated),
+                ))]
+                || DecodeError::malformed(position as u64, MalformedKind::Truncated),
+            )?;
         let marker_high = *marker_bytes
             .first()
-            .ok_or_else(|| DecodeError::malformed(position as u64, MalformedKind::Truncated))?;
+            .ok_or_else(
+                #[cfg_attr(verus_keep_ghost, verus_spec(result: DecodeError =>
+                    ensures result == crate::specs::part2_jpip_cache_error(position as u64, MalformedKind::Truncated),
+                ))]
+                || DecodeError::malformed(position as u64, MalformedKind::Truncated),
+            )?;
         let marker_low = *marker_bytes
             .get(1)
-            .ok_or_else(|| DecodeError::malformed(position as u64, MalformedKind::Truncated))?;
+            .ok_or_else(
+                #[cfg_attr(verus_keep_ghost, verus_spec(result: DecodeError =>
+                    ensures result == crate::specs::part2_jpip_cache_error(position as u64, MalformedKind::Truncated),
+                ))]
+                || DecodeError::malformed(position as u64, MalformedKind::Truncated),
+            )?;
         let marker = (u16::from(marker_high) << 8) | u16::from(marker_low);
         if marker == 0xff93 {
             if stop_at_sod && position + 2 == header.len() {
@@ -561,13 +702,28 @@ fn patch_cod_layers(
         }
         let length_bytes = header
             .get(position.saturating_add(2)..position.saturating_add(4))
-            .ok_or_else(|| DecodeError::malformed(position as u64, MalformedKind::Truncated))?;
+            .ok_or_else(
+                #[cfg_attr(verus_keep_ghost, verus_spec(result: DecodeError =>
+                    ensures result == crate::specs::part2_jpip_cache_error(position as u64, MalformedKind::Truncated),
+                ))]
+                || DecodeError::malformed(position as u64, MalformedKind::Truncated),
+            )?;
         let length_high = *length_bytes
             .first()
-            .ok_or_else(|| DecodeError::malformed(position as u64, MalformedKind::Truncated))?;
+            .ok_or_else(
+                #[cfg_attr(verus_keep_ghost, verus_spec(result: DecodeError =>
+                    ensures result == crate::specs::part2_jpip_cache_error(position as u64, MalformedKind::Truncated),
+                ))]
+                || DecodeError::malformed(position as u64, MalformedKind::Truncated),
+            )?;
         let length_low = *length_bytes
             .get(1)
-            .ok_or_else(|| DecodeError::malformed(position as u64, MalformedKind::Truncated))?;
+            .ok_or_else(
+                #[cfg_attr(verus_keep_ghost, verus_spec(result: DecodeError =>
+                    ensures result == crate::specs::part2_jpip_cache_error(position as u64, MalformedKind::Truncated),
+                ))]
+                || DecodeError::malformed(position as u64, MalformedKind::Truncated),
+            )?;
         let segment_length = usize::from((u16::from(length_high) << 8) | u16::from(length_low));
         if segment_length < 2 {
             return Err(DecodeError::malformed(
@@ -577,10 +733,19 @@ fn patch_cod_layers(
         }
         let segment_end = position
             .checked_add(2)
-            .and_then(|value| value.checked_add(segment_length))
-            .ok_or_else(|| {
-                DecodeError::malformed(position as u64, MalformedKind::ArithmeticOverflow)
-            })?;
+            .and_then(
+                #[cfg_attr(verus_keep_ghost, verus_spec(result: (Option<usize>) =>
+                    ensures result == if value as nat + segment_length as nat > usize::MAX as nat { None }
+                        else { Some((value as nat + segment_length as nat) as usize) },
+                ))]
+                |value: usize| value.checked_add(segment_length),
+            )
+            .ok_or_else(
+                #[cfg_attr(verus_keep_ghost, verus_spec(result: DecodeError =>
+                    ensures result == crate::specs::part2_jpip_range_overflow(position as u64),
+                ))]
+                || DecodeError::malformed(position as u64, MalformedKind::ArithmeticOverflow),
+            )?;
         if segment_end <= position || segment_end > header.len() {
             return Err(DecodeError::malformed(
                 position as u64,
@@ -594,27 +759,65 @@ fn patch_cod_layers(
                     MalformedKind::InvalidCodingStyle,
                 ));
             }
+            #[cfg(verus_keep_ghost)]
+            proof! {
+                assert(((layers >> 8) & 0xff) <= u8::MAX as u16
+                    && (layers & 0xff) <= u8::MAX as u16) by(bit_vector);
+            }
             let bytes = [
                 u8::try_from((layers >> 8) & 0xff).map_err(|_| {
+                    #[cfg(verus_keep_ghost)]
+                    vstd::prelude::ensures(|result: DecodeError| {
+                        vstd::prelude::equal(
+                            result,
+                            crate::specs::part2_jpip_range_overflow(position as u64),
+                        )
+                    });
                     DecodeError::malformed(position as u64, MalformedKind::ArithmeticOverflow)
                 })?,
                 u8::try_from(layers & 0xff).map_err(|_| {
+                    #[cfg(verus_keep_ghost)]
+                    vstd::prelude::ensures(|result: DecodeError| {
+                        vstd::prelude::equal(
+                            result,
+                            crate::specs::part2_jpip_range_overflow(position as u64),
+                        )
+                    });
                     DecodeError::malformed(position as u64, MalformedKind::ArithmeticOverflow)
                 })?,
             ];
-            let layer_start = position.checked_add(6).ok_or_else(|| {
-                DecodeError::malformed(position as u64, MalformedKind::ArithmeticOverflow)
-            })?;
-            let layer_end = layer_start.checked_add(2).ok_or_else(|| {
-                DecodeError::malformed(position as u64, MalformedKind::ArithmeticOverflow)
-            })?;
+            let layer_start = position.checked_add(6).ok_or_else(
+                #[cfg_attr(verus_keep_ghost, verus_spec(result: DecodeError =>
+                    ensures result == crate::specs::part2_jpip_range_overflow(position as u64),
+                ))]
+                || DecodeError::malformed(position as u64, MalformedKind::ArithmeticOverflow),
+            )?;
+            let layer_end = layer_start.checked_add(2).ok_or_else(
+                #[cfg_attr(verus_keep_ghost, verus_spec(result: DecodeError =>
+                    ensures result == crate::specs::part2_jpip_range_overflow(position as u64),
+                ))]
+                || DecodeError::malformed(position as u64, MalformedKind::ArithmeticOverflow),
+            )?;
+            #[cfg(verus_keep_ghost)]
+            proof_decl! { let ghost previous = header@; }
             header
                 .get_mut(layer_start..layer_end)
-                .ok_or_else(|| DecodeError::malformed(position as u64, MalformedKind::Truncated))?
+                .ok_or_else(
+                    #[cfg_attr(verus_keep_ghost, verus_spec(result: DecodeError =>
+                        ensures result == crate::specs::part2_jpip_cache_error(position as u64, MalformedKind::Truncated),
+                    ))]
+                    || DecodeError::malformed(position as u64, MalformedKind::Truncated),
+                )?
                 .copy_from_slice(&bytes);
+            #[cfg(verus_keep_ghost)]
+            proof! {
+                assert(header@ =~= previous.update(position as int + 6, bytes[0]).update(position as int + 7, bytes[1]));
+            }
         }
         position = segment_end;
     }
+    #[cfg(verus_keep_ghost)]
+    proof! { reveal(crate::specs::part2_jpip_patch_cod_loop); }
     if stop_at_sod {
         return Err(DecodeError::malformed(
             position as u64,
@@ -624,12 +827,22 @@ fn patch_cod_layers(
     Ok(())
 }
 
+#[cfg_attr(verus_keep_ghost, verus_spec(result =>
+    ensures result == crate::specs::part2_jpip_validate_precinct(bytes@, layers, limits),
+))]
 fn validate_precinct_codestream(
     bytes: &[u8],
     layers: u16,
     limits: &ResourceLimits,
 ) -> Result<(), DecodeError> {
+    #[cfg(verus_keep_ghost)]
+    proof! {
+        crate::specs::part2_jpip_validate_precinct_unfold(bytes@, layers, limits);
+        crate::codestream::decoder_layout_errors_known();
+    }
     let layout = crate::codestream::parse_layout(bytes, limits)?;
+    #[cfg(verus_keep_ghost)]
+    proof! { crate::codestream::jpip_precinct_layout_fields(&layout); }
     if layout.info.image_size.tile_count()? != 1
         || layout.tile_parts.len() != 1
         || layout.info.coding_style.layers != layers

@@ -9,11 +9,16 @@ use super::{
 use super::{
     databin_id_view, jpip_availability_outcome, jpip_availability_view, jpip_cache_fields,
     jpip_cache_view, jpip_databin_fields, jpip_databin_view, jpip_missing_view, jpip_missing_views,
-    jpip_packet_bytes_outcome, jpip_packet_view, jpip_packets_view, jpip_range_outcome,
-    jpip_range_view, jpip_ranges_view, jpip_status_view, jpip_stored_fragment_view,
+    jpip_packet_bytes_outcome, jpip_packet_view, jpip_packets_view, jpip_plan_fields,
+    jpip_plan_view, jpip_range_outcome, jpip_range_view, jpip_ranges_view, jpip_status_view,
+    jpip_stored_fragment_view,
 };
 #[cfg(verus_keep_ghost)]
 use vstd::prelude::*;
+
+#[cfg(test)]
+#[path = "transcode_availability_result_tests.rs"]
+mod transcode_result_tests;
 
 #[cfg_attr(verus_keep_ghost, verus_verify)]
 impl JpipDatabinRange {
@@ -474,16 +479,38 @@ impl DatabinCache {
         })
     }
 
+    #[cfg_attr(verus_keep_ghost, verus_spec(result =>
+        ensures jpip_availability_outcome(result) == crate::specs::part2_jpip_precinct_availability(
+            jpip_cache_view(self), jpip_plan_view(plan), packet_end),
+    ))]
     pub(super) fn precinct_availability(
         &self,
         plan: &JpipPrecinctCodestreamPlan,
         packet_end: usize,
     ) -> Result<JpipAvailabilityReport, DecodeError> {
-        let packets = plan
-            .packets
-            .get(..packet_end)
-            .ok_or_else(|| DecodeError::malformed(0, MalformedKind::ArithmeticOverflow))?;
-        let ranges: Vec<JpipDatabinRange> = packets.iter().map(|packet| packet.range).collect();
+        #[cfg(verus_keep_ghost)]
+        proof! { jpip_plan_fields(plan); reveal(jpip_packet_view); reveal(jpip_availability_view); }
+        let packets = plan.packets.get(..packet_end).ok_or_else(
+            #[cfg_attr(verus_keep_ghost, verus_spec(result: DecodeError =>
+                    ensures result == crate::specs::part2_jpip_range_overflow(0),
+                ))]
+            || DecodeError::malformed(0, MalformedKind::ArithmeticOverflow),
+        )?;
+        let ranges: Vec<JpipDatabinRange> = packets
+            .iter()
+            .map(
+                #[cfg_attr(verus_keep_ghost, verus_spec(result: JpipDatabinRange =>
+                ensures result == packet.range,
+            ))]
+                |packet: &JpipPrecinctPacket| packet.range,
+            )
+            .collect();
+        #[cfg(verus_keep_ghost)]
+        proof! {
+            assert(jpip_packets_view(packets) =~= jpip_plan_view(plan).2.subrange(0, packet_end as int));
+            assert(ranges@.map_values(|range: JpipDatabinRange| jpip_range_view(range)) =~=
+                jpip_packets_view(packets).map_values(|packet: crate::specs::Part2JpipPacket| packet.0));
+        }
         let mut report = self.availability(&ranges)?;
         self.append_complete_databin_requirement(plan.main_header, &mut report)?;
         self.append_complete_databin_requirement(plan.tile_header, &mut report)?;
@@ -497,11 +524,28 @@ impl DatabinCache {
         Ok(report)
     }
 
+    #[cfg_attr(verus_keep_ghost, verus_spec(result =>
+        ensures (result, jpip_availability_view(final(report)))
+            == crate::specs::part2_jpip_append_complete_requirement(
+                jpip_cache_view(self), databin_id_view(id), jpip_availability_view(old(report))),
+    ))]
     fn append_complete_databin_requirement(
         &self,
         id: DatabinId,
         report: &mut JpipAvailabilityReport,
     ) -> Result<(), DecodeError> {
+        #[cfg(verus_keep_ghost)]
+        proof! {
+            reveal(jpip_availability_view); reveal(jpip_missing_view); reveal(jpip_range_view);
+            assert forall|ranges: &[JpipDatabinRange]| ranges@.len() == 1 ==>
+                #[trigger] jpip_ranges_view(ranges) == seq![jpip_range_view(ranges@[0])] by {
+                if ranges@.len() == 1 {
+                    assert(jpip_ranges_view(ranges) =~= seq![jpip_range_view(ranges@[0])]);
+                }
+            }
+        }
+        #[cfg(verus_keep_ghost)]
+        proof_decl! { let ghost original = jpip_availability_view(report); }
         let Some(status) = self.status(id) else {
             report.missing.push(JpipMissingRange {
                 databin: id,
@@ -514,7 +558,12 @@ impl DatabinCache {
             report.available_bytes = report
                 .available_bytes
                 .checked_add(status.contiguous_prefix())
-                .ok_or_else(|| DecodeError::malformed(0, MalformedKind::ArithmeticOverflow))?;
+                .ok_or_else(
+                    #[cfg_attr(verus_keep_ghost, verus_spec(result: DecodeError =>
+                        ensures result == crate::specs::part2_jpip_range_overflow(0),
+                    ))]
+                    || DecodeError::malformed(0, MalformedKind::ArithmeticOverflow),
+                )?;
             report.missing.push(JpipMissingRange {
                 databin: id,
                 offset: status.contiguous_prefix(),
@@ -535,21 +584,55 @@ impl DatabinCache {
         report.required_bytes = report
             .required_bytes
             .checked_add(header_report.required_bytes)
-            .ok_or_else(|| DecodeError::malformed(0, MalformedKind::ArithmeticOverflow))?;
+            .ok_or_else(
+                #[cfg_attr(verus_keep_ghost, verus_spec(result: DecodeError =>
+                    ensures result == crate::specs::part2_jpip_range_overflow(0),
+                ))]
+                || DecodeError::malformed(0, MalformedKind::ArithmeticOverflow),
+            )?;
         report.available_bytes = report
             .available_bytes
             .checked_add(header_report.available_bytes)
-            .ok_or_else(|| DecodeError::malformed(0, MalformedKind::ArithmeticOverflow))?;
+            .ok_or_else(
+                #[cfg_attr(verus_keep_ghost, verus_spec(result: DecodeError =>
+                    ensures result == crate::specs::part2_jpip_range_overflow(0),
+                ))]
+                || DecodeError::malformed(0, MalformedKind::ArithmeticOverflow),
+            )?;
+        #[cfg(verus_keep_ghost)]
+        proof_decl! {
+            let ghost expected = crate::specs::part2_jpip_append_complete_requirement(
+                jpip_cache_view(self), databin_id_view(id), original);
+            let ghost incoming = jpip_missing_views(&header_report.missing);
+            let ghost initial_missing = jpip_missing_views(&report.missing);
+        }
         let mut missing_index = 0_usize;
         #[cfg_attr(
             verus_keep_ghost,
             verus_spec(
                 invariant missing_index <= header_report.missing.len(),
+                    incoming == jpip_missing_views(&header_report.missing),
+                    initial_missing == original.3,
+                    expected == crate::specs::part2_jpip_append_complete_requirement(
+                        jpip_cache_view(self), databin_id_view(id), original),
+                    expected.0 == Ok(()),
+                    expected.1 == (report.status, report.required_bytes, report.available_bytes, initial_missing + incoming),
+                    jpip_missing_views(&report.missing) == initial_missing + incoming.subrange(0, missing_index as int),
+                    forall|index: int| 0 <= index < header_report.missing.len() ==>
+                        #[trigger] incoming[index] == jpip_missing_view(header_report.missing@[index]),
                 decreases header_report.missing.len() - missing_index,
             )
         )]
         while missing_index < header_report.missing.len() {
+            #[cfg(verus_keep_ghost)]
+            proof_decl! { let ghost previous = jpip_missing_views(&report.missing); }
             report.missing.push(header_report.missing[missing_index]);
+            #[cfg(verus_keep_ghost)]
+            proof! {
+                assert(jpip_missing_views(&report.missing) =~= previous.push(incoming[missing_index as int]));
+                assert(incoming.subrange(0, missing_index as int + 1) =~=
+                    incoming.subrange(0, missing_index as int).push(incoming[missing_index as int]));
+            }
             missing_index += 1;
         }
         Ok(())
