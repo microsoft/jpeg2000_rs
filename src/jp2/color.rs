@@ -125,6 +125,8 @@ pub(super) fn validate_color_specification_prefix(
     box_ref: BoxRef<'_>,
     base_offset: u64,
 ) -> Result<(), DecodeError> {
+    #[cfg(verus_keep_ghost)]
+    proof! { reveal(crate::specs::part2_validate_color_specification_prefix); }
     if box_ref.payload.len() < 3 {
         return Err(DecodeError::malformed(
             add_offset(base_offset, box_ref.header.offset())?,
@@ -143,7 +145,10 @@ pub(super) fn parse_color_specification(
     base_offset: u64,
 ) -> Result<ColorSpecification, DecodeError> {
     #[cfg(verus_keep_ghost)]
-    proof! { reveal(crate::specs::part2_parse_color_specification); }
+    proof! {
+        reveal(crate::specs::part2_parse_color_specification);
+        reveal(crate::specs::part2_validate_color_specification_prefix);
+    }
     validate_color_specification_prefix(box_ref, base_offset)?;
     let profile_bytes = u64::try_from(box_ref.payload.len() - 3)
         .map_err(|_| DecodeError::malformed(base_offset, MalformedKind::ArithmeticOverflow))?;

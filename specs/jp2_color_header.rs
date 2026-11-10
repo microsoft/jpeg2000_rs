@@ -6,6 +6,7 @@ verus! {
 
 pub type Part2ColorSpecification = (crate::jp2::ColorMethod, u8, u8, Option<Seq<u8>>);
 
+#[verifier::opaque]
 pub open spec fn part2_validate_color_specification_prefix(input: Part2BoxReference, base: u64)
     -> Result<(), crate::DecodeError>
 {

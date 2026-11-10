@@ -2780,6 +2780,12 @@ Part 2 cases; earlier cap/length/flag/selector errors remain in their order.
 The raw parser's old characterization is retained, with a separate widened
 nonempty-cell oracle for ordinary marker admission. This is not a blanket
 Part 2 precinct rule or independent selected-edition certification.
+The new model observes only the actual selector/defined/depth/precinct fields.
+A whole-root fixed-budget check exposed excessive unfolding of the existing
+shared colour-prefix model in the unrelated associated-header loop. That model
+is now opaque with explicit reveals in its actual prefix and selected-colour
+producers. Executing colour operations, loop bodies, budgets and trust are
+unchanged; whole-library verification passes with the original limits.
 
 Actual COD segment/payload parsing now derives complete CodingStyle Results,
 including all 32 default decomposition directions and all 33 actual/default
