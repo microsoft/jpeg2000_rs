@@ -270,6 +270,35 @@ and wildcard bindings are unchanged. Automatic snapshot/progressive and semantic
 container joins, independent normative adjudication, coverage, cfg/erasure,
 lifetime, R1, internal and release gates remain separate.
 
+## Actual raw JPIP tile transitions and complete cache reports
+
+The actual `parse_tile_part_transitions` derives its complete Result and every
+tile, part, packet-count, data-length, functional-change and owned header field
+from the raw byte slice and expected tile. The same executing saturated
+big-endian reads, marker extents, PLT counting and original nested traversals
+are checked. Native `usize` saturation is explicit in the word models, including
+truncation near the maximum position; no input-validity premise is added.
+Root-derived scan/part continuations and checked loop postconditions cover
+normal exits and SOD breaks at the original budgets.
+
+The public `DatabinCache::tile_part_transitions` composes actual identity,
+completeness, owned header reads, raw parsing and the original sufficiency-prefix
+scan into its complete status/transitions/semantic-needs/missing Result. All
+stored need, transition and report getters are checked. Arbitrary physical cache
+states retain first normalized aliases, native fragment order, first-fragment
+views, error priority and read-only storage. No parsed-transition or successful
+cache/parser/report bank, executing proof clone or owner reconstruction is used.
+
+This is the as-implemented boundary, not a normative rule correction. In
+particular, the header-only branch retains its original missing-SOD and ignored
+trailing-byte behavior and differs from SOT parsing in PLT index admission;
+zero Psot retains its terminal rule and nonzero undersized Psot retains `None`
+data length. Independent word/marker/count, emitted-header/cut, admission/error
+and physical-cache/report/storage fixtures preserve those distinctions.
+Automatic normalization/snapshot/progressive and semantic-container joins and
+independent normative/adjudication/cfg/lifetime/R1/internal/release gates remain
+separate. Proof and test counts are not source or functional coverage.
+
 ## Actual JPIP range availability and packet byte Results
 
 The executing range constructor and stored range/missing/report getters expose
