@@ -16,7 +16,7 @@ pub(crate) open spec fn part2_decode_jpx_selected_layout(
             let input = part2_decoder_input_from_raw(layout);
             match part2_decode_layout_selected_value_input(input, requested, limits) {
                 Err(error) => Err(error),
-                Ok(decoded) => match part2_typed_layout_input(input, decoded, limits) {
+                Ok(decoded) => match part2_typed_layout_input(input, decoded, requested.2, limits) {
                     Err(error) => Err(error),
                     Ok(image) => match part2_apply_output_header(image, header.0,
                         crate::limits::resource_component_limit(limits), crate::limits::resource_decoded_bytes_limit(limits)) {

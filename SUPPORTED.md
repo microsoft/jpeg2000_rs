@@ -77,6 +77,10 @@ requested native DWT resolution, including regions starting between component
 samples. It may decode bounded left/top context from neighboring tiles before
 cropping the converted output; resource limits include that context. Component
 selection continues to return the requested native component grids.
+Tile-local nonlinear point transforms are applied on those native grids:
+discarded DWT levels reduce tile-component bounds before output clipping,
+including selected raw codestream, JP2 and JPX decoding. Tile and cropped
+requests retain the transform of each contributing source tile.
 
 ## Coding features
 

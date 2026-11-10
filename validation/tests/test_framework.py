@@ -2348,7 +2348,7 @@ class FrameworkTests(WorkingFiles):
         for before, after in (
             ("part2_parse_container(input, *limits)", "part2_parse_container(seq![], *limits)"),
             ("part1_parse_layout(source.0, limits)", "part1_parse_layout(seq![], limits)"),
-            ("part2_typed_layout_input(input, decoded, limits)", "part2_decode_typed_layout_value_input(0, input, limits, Some(requested))"),
+            ("part2_typed_layout_input(input, decoded, requested.2, limits)", "part2_decode_typed_layout_value_input(0, input, limits, Some(requested))"),
             ("part2_apply_output_header(image, header.0,", "part2_apply_output_header(image, unrelated,"),
             ("part2_decode_jpx_selected_file(file, index, limits, expanded.0)", "part2_decode_jpx_selected_file(file, index, limits, requested)"),
             ("expanded.1[2]", "expanded.1[0]"),

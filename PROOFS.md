@@ -3024,6 +3024,22 @@ Independent exhaustive-u16 selection and wide-coordinate/reverse-owner tests
 exercise raw metadata, complete regions and first errors. Nonlinear sample
 execution and full typed/parser/file/F2/F4/final F8 joins remain separate.
 
+For #219 (`DEV-355FE751F9`), selected decoding now passes its discard level
+through the actual typed postprocessing, including the selected JPX producer.
+Tile-component bounds are ceiling-reduced to the native output resolution
+before clipping; intersecting unreduced tile bounds with reduced output
+coordinates incorrectly skipped or misassigned tile-local transforms.
+The executing bodies and complete raw/layout/JPX Result models change together.
+Scale-one traversal, source ownership, subsampling, metadata and public
+preprocessing error priorities are retained. The private collector rejects
+discard levels above 31 explicitly. Independent byte-to-output tests exercise
+252 full-image/tile/region raw, JP2 and JPX typed results and 72 JP2/JPX converted
+color results with distinct tile transforms, nonzero origins and subsampling;
+the raw-metadata reference also covers reduced
+coordinates and invalid discard values. This is a correction to the existing
+native-resolution processing contract, not independent selected-edition
+certification or closure of the remaining Sarah findings.
+
 ## Complete native typed output-shape admission
 
 The actual `validate_part1_output_shape` refines
