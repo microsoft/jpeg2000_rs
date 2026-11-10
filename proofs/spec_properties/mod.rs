@@ -1357,10 +1357,24 @@ pub proof fn valid_palette_mapping_has_bounded_column(
 {
 }
 
-pub proof fn unassociated_channel_is_valid(output_channels: nat)
+pub proof fn unassociated_channel_is_valid(color_channels: nat)
     ensures
-        valid_channel_association(0xffff, output_channels),
+        valid_channel_association(0xffff, color_channels),
 {
+}
+
+pub proof fn channel_definition_admission_is_independent_of_association(
+    channel: u16,
+    channel_type: u16,
+    first_association: u16,
+    second_association: u16,
+    output_channels: u16,
+)
+    ensures
+        crate::specs::part2_channel_definition_valid(channel, channel_type, first_association, output_channels)
+        == crate::specs::part2_channel_definition_valid(channel, channel_type, second_association, output_channels),
+{
+    reveal(crate::specs::part2_channel_definition_valid);
 }
 
 pub proof fn valid_color_sample_is_bounded(value: nat, maximum: nat)

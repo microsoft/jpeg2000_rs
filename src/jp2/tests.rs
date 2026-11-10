@@ -1410,6 +1410,95 @@ fn actual_raw_channel_definition_retains_order_repeats_types_and_associations() 
 }
 
 #[test]
+fn sarah_dev_3db90259d8_rgb_associations_are_not_physical_channel_indices() {
+    let mut contexts = 0;
+    for (channels, count) in [
+        (1_u16, 3),
+        (2, 4),
+        (3, 5),
+        (4, 6),
+        (8, 10),
+        (64, 66),
+        (3, 65_535),
+    ] {
+        let mut raw = Vec::new();
+        let mut expected = Vec::new();
+        for index in 0..count {
+            let (channel, kind, association, channel_type, channel_association) = if index < 3 {
+                let color = u16::try_from(index + 1).unwrap();
+                (
+                    0,
+                    0,
+                    color,
+                    ChannelType::Color,
+                    ChannelAssociation::Color(color),
+                )
+            } else {
+                let channel = 1 + u16::try_from((index - 3) % u32::from(channels - 1)).unwrap();
+                (
+                    channel,
+                    u16::MAX,
+                    u16::MAX,
+                    ChannelType::Unspecified,
+                    ChannelAssociation::Unassociated,
+                )
+            };
+            raw.push((channel, kind, association));
+            expected.push(ChannelDefinitionRecord {
+                channel,
+                definition: ChannelDefinition::new(channel_type, channel_association),
+            });
+        }
+        let payload = raw_channel_definition_payload(&raw);
+        assert_eq!(
+            parse_channel_definition(raw_image_header_box(&payload, 19), channels, 100).unwrap(),
+            expected,
+            "physical channels={channels}, records={count}",
+        );
+        contexts += 1;
+    }
+    assert_eq!(contexts, 7);
+    for channels in [1_u16, 2, 3, 4, 8, 64] {
+        for (channel, kind) in [(channels, 0), (u16::MAX, 0), (0, 3)] {
+            let payload = raw_channel_definition_payload(&[(channel, kind, 3)]);
+            assert_eq!(
+                parse_channel_definition(raw_image_header_box(&payload, 19), channels, 100),
+                Err(DecodeError::MalformedInput {
+                    offset: 119,
+                    kind: MalformedKind::InvalidBoxContents
+                }),
+            );
+        }
+    }
+}
+
+#[test]
+fn sarah_dev_3db90259d8_associations_retain_the_full_wire_domain() {
+    let mut cases = 0;
+    for output in [0_u16, 1, 2, 64, u16::MAX] {
+        for channel in [0, output.saturating_sub(1), output] {
+            for kind in [0, 1, 2, 3, u16::MAX] {
+                let expected = channel < output && [0, 1, 2, u16::MAX].contains(&kind);
+                for association in 0..=u16::MAX {
+                    assert_eq!(
+                        crate::refinement::channel_definition_valid(
+                            channel,
+                            kind,
+                            association,
+                            output
+                        ),
+                        expected,
+                        "output={output} channel={channel} kind={kind} association={association}",
+                    );
+                    cases += 1;
+                }
+            }
+        }
+    }
+    assert_eq!(cases, 4_915_200);
+}
+
+#[test]
 fn actual_raw_channel_definition_keeps_all_channel_type_and_association_boundaries() {
     for output in [0, 1, u16::MAX] {
         for channel in [0, 1, u16::MAX - 1, u16::MAX] {
@@ -1418,9 +1507,7 @@ fn actual_raw_channel_definition_keeps_all_channel_type_and_association_boundari
                     let payload = raw_channel_definition_payload(&[(channel, kind, association)]);
                     let result =
                         parse_channel_definition(raw_image_header_box(&payload, 19), output, 100);
-                    let valid = channel < output
-                        && matches!(kind, 0 | 1 | 2 | u16::MAX)
-                        && (association <= output || association == u16::MAX);
+                    let valid = channel < output && matches!(kind, 0 | 1 | 2 | u16::MAX);
                     if valid {
                         assert_eq!(result.unwrap()[0].channel, channel);
                     } else {

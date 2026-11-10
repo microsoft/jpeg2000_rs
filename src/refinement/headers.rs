@@ -156,7 +156,7 @@ pub(crate) const fn component_mapping_valid(
         ensures returns crate::specs::part2_channel_definition_valid(
             channel,
             channel_type,
-            association,
+            _association,
             output_channels,
         ),
     )
@@ -164,12 +164,11 @@ pub(crate) const fn component_mapping_valid(
 pub(crate) const fn channel_definition_valid(
     channel: u16,
     channel_type: u16,
-    association: u16,
+    _association: u16,
     output_channels: u16,
 ) -> bool {
-    channel < output_channels
-        && matches!(channel_type, 0 | 1 | 2 | 0xffff)
-        && (association <= output_channels || association == 0xffff)
+    // Associations identify colors, not physical channel slots.
+    channel < output_channels && matches!(channel_type, 0 | 1 | 2 | 0xffff)
 }
 
 #[cfg_attr(

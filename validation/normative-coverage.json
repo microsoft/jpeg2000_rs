@@ -1642,7 +1642,7 @@
     },
     {
       "id": "part2-complete-native-raw-component-and-channel-header-results",
-      "topic": "Complete actual raw component-mapping/channel-definition Results with every ordered record, native validity admission, repeats and lazy relative errors. Exact length/conversion/component-limit priority; every native channel type and association. Source-derived byte folds, not supplied records or owner reconstruction. One actual Copy constructor call deliberately retargets the existing checked shared producer and one unused integer-error argument is named; future full native observation must enumerate these differences. Palette normative HOLD, whole header/container/public, cfg/erasure/lifetimes/release remain separate.",
+      "topic": "Complete actual raw component-mapping/channel-definition Results with every ordered record, native validity admission, repeats and lazy relative errors. Sarah DEV-3DB90259D8: Cn remains a bounded physical channel index; Asoc is colour-index metadata, not bounded by the physical channel count in the raw record parser. Preserve all wire associations, record order/count/type/sentinels and lazy offset errors without claiming full one-channel RGB decoding or colour-space-aware validity. Actual helper and complete model share the distinction, with an unconditional association-independence property and real public original CDEF-handler evidence. Source-derived byte folds, not supplied records or owner reconstruction. Original shared Copy constructor routing unchanged. Palette normative HOLD, whole header/container/public, cfg/erasure/lifetimes/release remain separate.",
       "implementation_refs": [
         {"path": "src/jp2/color.rs", "symbol": "parse_component_mapping"},
         {"path": "src/jp2/color.rs", "symbol": "parse_channel_definition"},
@@ -1669,7 +1669,8 @@
         {"path": "specs/jp2_channel_header.rs", "symbol": "part2_mapping_error"},
         {"path": "specs/jp2_channel_header.rs", "symbol": "part2_channel_records_step"},
         {"path": "specs/jp2_channel_header.rs", "symbol": "part2_channel_records_error"},
-        {"path": "src/image/layout.rs", "symbol": "channel_definition_new"}
+        {"path": "src/image/layout.rs", "symbol": "channel_definition_new"},
+        {"path": "proofs/spec_properties/mod.rs", "symbol": "channel_definition_admission_is_independent_of_association"}
       ],
       "test_refs": [
         {"path": "src/jp2/tests.rs", "symbol": "actual_raw_component_mapping_retains_order_repeats_and_every_record_field"},
@@ -1677,7 +1678,9 @@
         {"path": "src/jp2/tests.rs", "symbol": "actual_raw_component_mapping_keeps_length_conversion_limit_and_lazy_error_priority"},
         {"path": "src/jp2/tests.rs", "symbol": "actual_raw_channel_definition_retains_order_repeats_types_and_associations"},
         {"path": "src/jp2/tests.rs", "symbol": "actual_raw_channel_definition_keeps_all_channel_type_and_association_boundaries"},
-        {"path": "src/jp2/tests.rs", "symbol": "actual_raw_channel_definition_keeps_exact_lengths_full_count_and_lazy_offsets"}
+        {"path": "src/jp2/tests.rs", "symbol": "actual_raw_channel_definition_keeps_exact_lengths_full_count_and_lazy_offsets"},
+        {"path": "src/jp2/tests.rs", "symbol": "sarah_dev_3db90259d8_rgb_associations_are_not_physical_channel_indices"},
+        {"path": "src/jp2/tests.rs", "symbol": "sarah_dev_3db90259d8_associations_retain_the_full_wire_domain"}
       ]
     },
     {
@@ -10070,6 +10073,10 @@
         {
           "path": "proofs/spec_properties/mod.rs",
           "symbol": "unassociated_channel_is_valid"
+        },
+        {
+          "path": "proofs/spec_properties/mod.rs",
+          "symbol": "channel_definition_admission_is_independent_of_association"
         }
       ],
       "spec_refs": [

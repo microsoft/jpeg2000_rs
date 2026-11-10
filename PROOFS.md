@@ -835,6 +835,18 @@ types/associations, length/conversion/component-limit priority and lazy rebased
 errors. No supplied valid-record bank, success premise or owner reconstruction
 is used.
 
+The Sarah `DEV-3DB90259D8` correction separates physical `Cn` admission from
+colour-index `Asoc` metadata. The real predicate and complete model retain the
+physical-channel and type checks without bounding associations by an unrelated
+physical count. The raw parser retains every association and ordered record,
+including repeated RGB associations on one physical channel and all 65,535
+records; this is not a claim of full one-channel RGB decoding or complete
+colour-space-aware association validation. An unconditional closed property
+states that raw physical admission is independent of the association value.
+The pinned public original CDEF handler independently retains 65,629 records
+across seven such header contexts. Native regressions cover the same records,
+all 4,915,200 scalar domain combinations and unchanged physical/type errors.
+
 The actual channel-definition constructor call deliberately targets the existing
 checked shared Copy producer, instead of its uncontracted static-method wrapper;
 the unused integer-conversion error argument is named for the pinned macro.

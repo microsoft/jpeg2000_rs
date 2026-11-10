@@ -2982,7 +2982,10 @@ _CHANNEL_HEADER_PROOFS = {
     ("specs/jp2_channel_header.rs", name) for name in (
         "part2_mapping_step", "part2_mapping_error", "part2_channel_records_step", "part2_channel_records_error",
     )
-} | {("src/image/layout.rs", "channel_definition_new")}
+} | {
+    ("src/image/layout.rs", "channel_definition_new"),
+    ("proofs/spec_properties/mod.rs", "channel_definition_admission_is_independent_of_association"),
+}
 _COLOR_HEADER_ENTRY = "part2-complete-native-raw-color-header-result"
 _COLOR_HEADER_CONTRACTS = {
     ("src/jp2/color.rs", "parse_color_specification"): (
