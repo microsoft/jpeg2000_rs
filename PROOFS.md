@@ -3707,8 +3707,10 @@ matches expose real first-error branches rather than relying on unspecified
 higher-order error closures. Prior failed monolithic proof attempts remain
 private evidence; no proof limit, arithmetic domain or primary pin is changed.
 
-Complete SOP sequence and packed-range ordering precede the actual prefix
-reader and packet-present bit. Actual descriptors are allocated and produced
+When an enabled SOP marker is present, complete marker/sequence validation
+precedes packed-range selection and the actual packet-present bit. An absent
+optional SOP instead proceeds directly to packed-range or inline-header
+selection. Actual descriptors are allocated and produced
 through F5L's sole reader/tree/header algorithms. Alignment and EPH precede
 whole-body preflight; actual mixed body execution then precedes final logical
 length and numeric conversion checks. Packed and inline physical offsets remain
@@ -3722,6 +3724,45 @@ Proved properties preserve readonly identity/contexts, first-error priority,
 preflight-before-coefficients and every prior state effect at final accounting.
 This is not progression, tile-part/header reassembly, packet-length iteration,
 JPIP outer-transaction or whole-F5H completion.
+
+For #219 (`DEV-709CD8127B`), the SOP-use flag now permits omission of the marker
+in both actual precinct and public multi-packet prefix readers. Reserved inline
+marker prefixes still undergo the existing SOP marker/length checks; packed
+body bytes are not reclassified as headers unless a real SOP prefix is present.
+The precinct
+path retains its sequence check and the multi path retains its existing
+sequence policy. Missing SOP no longer invents six consumed bytes or preempts
+packed-range admission. Executing code and both complete prefix models change
+together; the former mandatory-marker characterizations now distinguish
+absent markers from malformed present markers with exact error offsets.
+Two closed omission properties equate the complete prefix Result to the
+disabled-SOP path, including every reader field and error, without a successful
+decode or adequate-budget premise. The existing malformed/truncated SOP
+properties explicitly concern actual marker prefixes.
+Real raw/JP2/JPX full/selected tests cover 216 inline/PPT/PPM outputs with SOP
+present/absent, EPH enabled/disabled and empty/not-empty packet flags.
+The clean pinned [OpenJPEG 2.5.0 packet reader](https://github.com/uclouvain/openjpeg/blob/a5891555eb49ed7cc26b2901ea680acda136d811/src/lib/openjp2/t2.c#L1109)
+and an independently encoded one-pixel marked/omitted pair establish the
+interoperability basis. Only the six SOP bytes and their declared Psot extent
+differ; the SOP-use flag stays set. This is not independent selected-edition
+normative certification or closure of the remaining Sarah findings.
+
+The same packet-framing correction addresses `DEV-EA51ACDA28`: a separate
+private `finish_packet_header` reuses the actual checked byte loader to consume
+terminal stuffing after FF before EPH, body slicing and physical/logical prefix
+accounting. The existing public plain `align_to_byte` API is unchanged. All four
+actual single/multi/precinct completion sites and their complete models use the
+checked finisher. Header-byte limits, EOF and invalid stuffed MSB errors occur
+in the existing byte-loader order, without charging information-bit work for
+padding or executing Tier-1 first. Complete raw reader state is modeled on
+success and failure; precinct header effects and outer transaction policy
+remain intact. Tests check all 131,072 final-byte/tail/byte-cap combinations
+and EOF priorities, plus 12 SOP/EPH/inline/packed inspection variants whose
+three information bytes `C0 BE FF` require a fourth stuffing byte before an
+opaque 255-byte body. This does not certify those opaque bytes as decoded
+coefficients. The clean pinned [OpenJPEG byte-boundary implementation](https://github.com/uclouvain/openjpeg/blob/a5891555eb49ed7cc26b2901ea680acda136d811/src/lib/openjp2/bio.c#L208)
+independently corroborates the terminal load, not selected-edition conformance.
+
 ## Exact retained HT and selected group acceptance
 
 Four finite result/model/complete-state/input recipes bind the actual retained

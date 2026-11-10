@@ -5000,6 +5000,72 @@ fn top_level_apis_decode_poc_with_plm_plt_and_ppm_ppt() {
 }
 
 #[test]
+fn sarah_dev_709cd8127b_optional_sop_keeps_raw_selected_and_packed_outputs() {
+    let options = DecodeOptions::default();
+    let selection = DecodeSelection::full_image();
+    let mut cases = 0;
+    for flags in [0_u8, 2, 4, 6] {
+        for marked in [false, true] {
+            if marked && flags & 2 == 0 {
+                continue;
+            }
+            for first in [0_u8, 0x80] {
+                let mut header = vec![first];
+                if flags & 4 != 0 {
+                    header.extend_from_slice(&[0xff, 0x92]);
+                }
+                for packed in [None, Some(false), Some(true)] {
+                    let mut packet = Vec::new();
+                    if packed.is_some() {
+                        packet.extend_from_slice(&header);
+                    }
+                    if marked {
+                        packet.extend_from_slice(&[0xff, 0x91, 0, 4, 0, 0]);
+                    }
+                    if packed.is_none() {
+                        packet.extend_from_slice(&header);
+                    }
+                    let mut bytes = prepared_codestream(1, 1, 1, &[0x40, 0x40], &packet);
+                    let cod = bytes
+                        .windows(2)
+                        .position(|pair| pair == [0xff, 0x52])
+                        .unwrap();
+                    bytes[cod + 4] = flags;
+                    bytes[cod + 9] = 0;
+                    let bytes = match packed {
+                        None => bytes,
+                        Some(ppm) => pack_packet_header(bytes, ppm, &header),
+                    };
+                    let snapshot = bytes.clone();
+                    let jp2 = jp2_for_codestream(&bytes, 1, 1);
+                    let jpx = jpx_for_codestreams(std::slice::from_ref(&bytes), 1, 1);
+                    for result in [
+                        decode_codestream(&bytes, &options),
+                        decode_codestream_selected(&bytes, &options, &selection),
+                        decode_jp2(&jp2, &options),
+                        decode_jp2_selected(&jp2, &options, &selection),
+                        decode_jpx_codestream(&jpx, 0, &options),
+                        decode_jpx_codestream_selected(&jpx, 0, &options, &selection),
+                    ] {
+                        let image = result.unwrap_or_else(|error| {
+                            panic!("flags={flags} marked={marked} packed={packed:?} first={first}: {error:?}")
+                        });
+                        assert_eq!((image.width(), image.height()), (1, 1));
+                        assert_eq!(
+                            image.component(0).unwrap().samples(),
+                            &TypedSamples::Unsigned(vec![128]),
+                        );
+                        cases += 1;
+                    }
+                    assert_eq!(bytes, snapshot);
+                }
+            }
+        }
+    }
+    assert_eq!(cases, 216);
+}
+
+#[test]
 fn packed_headers_honor_plt_sop_and_eph() {
     let mut codestream = prepared_codestream(
         1,

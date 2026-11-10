@@ -175,7 +175,11 @@ pub open spec fn part1_precinct_payload_after_headers(
     present: bool, sop_bytes: usize,
     pass_limit: u32, byte_limit: u64, input_limit: u64, work_limit: u64,
 ) -> Part1PrecinctPayloadResult {
-    let reader = super::Part1PacketReaderState { bits_remaining: 0, ..reader };
+    let finished = super::part1_packet_reader_finish(reader);
+    match finished.0 {
+        Err(error) => (Err(error), state),
+        Ok(()) => {
+    let reader = finished.1;
     let header_bytes = reader.byte_index;
     if !parameters.packed && sop_bytes as nat + header_bytes as nat > usize::MAX {
         (Err(ht_reader_error(crate::MalformedKind::ArithmeticOverflow)), state)
@@ -202,6 +206,8 @@ pub open spec fn part1_precinct_payload_after_headers(
                     pass_limit, byte_limit, input_limit, work_limit)
             }
         }
+    }
+        },
     }
 }
 
@@ -234,7 +240,8 @@ pub open spec fn part1_precinct_payload_prefix(
     data: Seq<u8>, packed_headers: Seq<u8>, parameters: Part1PrecinctPayloadParameters,
     header_limit: u64, work_limit: u64,
 ) -> Result<Part1PrecinctPayloadReader, crate::DecodeError> {
-    let sop = if !parameters.sop { Ok(0usize) }
+    let sop = if !parameters.sop || data.len() < 2 || data[0] != 0xff
+        || (data[1] != 0x91 && (parameters.packed || data[1] < 0x90)) { Ok(0usize) }
     else if data.len() < 4 {
         Err(super::part1_packet_reader_error(parameters.error_offset, crate::MalformedKind::Truncated))
     } else if !super::part1_sop_valid(data[0], data[1], data[2], data[3]) {

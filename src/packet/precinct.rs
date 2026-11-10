@@ -854,7 +854,12 @@ pub(super) fn decode_precinct_packet_payload_prefix<'a>(
     let packed_offset = parameters.packed_offset;
     let expected_sop_sequence = parameters.expected_sop_sequence;
     let mut tile_offset = 0_usize;
-    if parameters.sop {
+    // Packed body bytes are not inline headers; only a real SOP prefix selects one.
+    if parameters.sop
+        && data.len() >= 2
+        && data[0] == 0xff
+        && (data[1] == 0x91 || (!parameters.packed && data[1] >= 0x90))
+    {
         let marker = match data.get(0..2) {
             Some(marker) => marker,
             None => return Err(packet_reader_error(offset, MalformedKind::Truncated)),
@@ -1038,7 +1043,7 @@ fn decode_precinct_packet_payload_after_headers(
     let packed = parameters.packed;
     let contributions = header.contributions;
     let contribution_count = header.contribution_count;
-    reader.align_to_byte();
+    reader.finish_packet_header()?;
     let header_bytes = reader.bytes_consumed();
     if packed {
         packed_bytes_consumed = header_bytes;

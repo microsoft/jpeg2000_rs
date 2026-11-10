@@ -65,6 +65,17 @@ pub open spec fn part1_packet_reader_load(s: Part1PacketReaderState)
 }
 
 #[verifier::opaque]
+pub open spec fn part1_packet_reader_finish(s: Part1PacketReaderState)
+    -> (Result<(), crate::DecodeError>, Part1PacketReaderState)
+{
+    let loaded = if s.previous_byte_was_ff { part1_packet_reader_load(s) } else { (Ok(()), s) };
+    match loaded.0 {
+        Err(error) => (Err(error), loaded.1),
+        Ok(()) => (Ok(()), Part1PacketReaderState { bits_remaining: 0, ..loaded.1 }),
+    }
+}
+
+#[verifier::opaque]
 pub open spec fn part1_packet_reader_read(s: Part1PacketReaderState)
     -> (Result<bool, crate::DecodeError>, Part1PacketReaderState)
 {

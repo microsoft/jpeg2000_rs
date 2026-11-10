@@ -81,7 +81,7 @@ pub open spec fn part1_multi_packet_admission(
 pub open spec fn part1_multi_packet_prefix(
     data:Seq<u8>,sop:bool,offset:usize,header_limit:u64,work_limit:u64,
 ) ->Result<Part1PrecinctPayloadReader,crate::DecodeError> {
-    let prefix=if !sop {Ok(0usize)}
+    let prefix=if !sop || data.len()<2 || data[0]!=0xff || data[1]<0x90 {Ok(0usize)}
     else if data.len()<4 {Err(part1_packet_reader_error(offset,crate::MalformedKind::Truncated))}
     else if !part1_sop_valid(data[0],data[1],data[2],data[3]) {Err(part1_packet_reader_error(offset,crate::MalformedKind::InvalidPacketHeader))}
     else if data.len()<6 {Err(part1_packet_reader_error(offset,crate::MalformedKind::Truncated))}
@@ -225,10 +225,16 @@ pub open spec fn part1_multi_payload(
             let state=Part1MultiPacketState {states:headers.1.states,inclusion:headers.1.inclusion,zero:headers.1.zero,..state};
             match headers.0 {
                 Err(error)=>(Err(error),state),
-                Ok(())=>match part1_multi_body_start(data,prefix.sop_bytes,headers.1.reader.byte_index,eph,offset) {
-                    Err(error)=>(Err(error),state),
-                    Ok(start)=>part1_multi_body(state,data,headers.1.contributions,prefix.present,headers.1.count,
-                        headers.1.reader.byte_index,start,offset,pass_limit,byte_limit,input_limit,work_limit),
+                Ok(())=>{
+                    let finished=part1_packet_reader_finish(headers.1.reader);
+                    match finished.0 {
+                        Err(error)=>(Err(error),state),
+                        Ok(())=>match part1_multi_body_start(data,prefix.sop_bytes,finished.1.byte_index,eph,offset) {
+                            Err(error)=>(Err(error),state),
+                            Ok(start)=>part1_multi_body(state,data,headers.1.contributions,prefix.present,headers.1.count,
+                                finished.1.byte_index,start,offset,pass_limit,byte_limit,input_limit,work_limit),
+                        },
+                    }
                 },
             }
         },
@@ -273,8 +279,14 @@ pub open spec fn part1_single_packet_present(
     match header.0 {
         Err(error)=>(Err(error),s),
         Ok(None)=>(Err(part1_packet_reader_error(header.4.byte_index,crate::MalformedKind::InvalidPacketHeader)),s),
-        Ok(Some(contribution))=>part1_single_packet_body(s,payload,
-            Part1PacketReaderState {bits_remaining:0,..header.4},contribution,pass_limit,byte_limit,input_limit,work_limit),
+        Ok(Some(contribution))=>{
+            let finished=part1_packet_reader_finish(header.4);
+            match finished.0 {
+                Err(error)=>(Err(error),s),
+                Ok(())=>part1_single_packet_body(s,payload,finished.1,contribution,
+                    pass_limit,byte_limit,input_limit,work_limit),
+            }
+        },
     }
 }
 
@@ -288,9 +300,15 @@ pub open spec fn part1_single_code_block_packet(
             let first=part1_packet_reader_read(reader);
             match first.0 {
                 Err(error)=>(Err(error),s),
-                Ok(false)=>if first.1.byte_index!=payload.len() {
-                    (Err(part1_packet_reader_error(first.1.byte_index,crate::MalformedKind::TrailingData)),s)
-                }else{(Ok(None),s)},
+                Ok(false)=>{
+                    let finished=part1_packet_reader_finish(first.1);
+                    match finished.0 {
+                        Err(error)=>(Err(error),s),
+                        Ok(())=>if finished.1.byte_index!=payload.len() {
+                            (Err(part1_packet_reader_error(finished.1.byte_index,crate::MalformedKind::TrailingData)),s)
+                        }else{(Ok(None),s)},
+                    }
+                },
                 Ok(true)=>part1_single_packet_present(s,payload,first.1,context,pass_limit,byte_limit,input_limit,work_limit),
             }
         },

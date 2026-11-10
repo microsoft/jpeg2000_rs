@@ -2365,7 +2365,8 @@ pub proof fn precinct_sop_truncation_precedes_packed_offsets_and_reader_budgets(
     data: Seq<u8>, packed: Seq<u8>, parameters: crate::specs::Part1PrecinctPayloadParameters,
     header_limit: u64, work_limit: u64,
 )
-    ensures parameters.sop && data.len() < 4 ==>
+    ensures parameters.sop && 2 <= data.len() < 4 && data[0] == 0xff
+        && (data[1] == 0x91 || (!parameters.packed && data[1] >= 0x90)) ==>
         crate::specs::part1_precinct_payload_prefix(data, packed, parameters, header_limit, work_limit)
             == Err(crate::specs::part1_packet_reader_error(parameters.error_offset, crate::MalformedKind::Truncated)),
 {
@@ -2375,10 +2376,32 @@ pub proof fn precinct_malformed_sop_precedes_missing_sequence_and_reader_budgets
     data: Seq<u8>, packed: Seq<u8>, parameters: crate::specs::Part1PrecinctPayloadParameters,
     header_limit: u64, work_limit: u64,
 )
-    ensures parameters.sop && data.len() >= 4
+    ensures parameters.sop && data.len() >= 4 && data[0] == 0xff
+        && (data[1] == 0x91 || (!parameters.packed && data[1] >= 0x90))
         && !crate::specs::part1_sop_valid(data[0], data[1], data[2], data[3]) ==>
         crate::specs::part1_precinct_payload_prefix(data, packed, parameters, header_limit, work_limit)
             == Err(crate::specs::ht_reader_error(crate::MalformedKind::InvalidPacketHeader)),
+{
+}
+
+pub proof fn precinct_sop_omission_preserves_disabled_prefix_result(
+    data: Seq<u8>, packed: Seq<u8>, parameters: crate::specs::Part1PrecinctPayloadParameters,
+    header_limit: u64, work_limit: u64,
+)
+    ensures (data.len() < 2 || data[0] != 0xff
+        || (data[1] != 0x91 && (parameters.packed || data[1] < 0x90))) ==>
+        crate::specs::part1_precinct_payload_prefix(data, packed, parameters, header_limit, work_limit)
+            == crate::specs::part1_precinct_payload_prefix(data, packed,
+                crate::specs::Part1PrecinctPayloadParameters { sop: false, ..parameters }, header_limit, work_limit),
+{
+}
+
+pub proof fn multi_sop_omission_preserves_disabled_prefix_result(
+    data: Seq<u8>, offset: usize, header_limit: u64, work_limit: u64,
+)
+    ensures (data.len() < 2 || data[0] != 0xff || data[1] < 0x90) ==>
+        crate::specs::part1_multi_packet_prefix(data, true, offset, header_limit, work_limit)
+            == crate::specs::part1_multi_packet_prefix(data, false, offset, header_limit, work_limit),
 {
 }
 

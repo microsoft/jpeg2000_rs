@@ -108,6 +108,19 @@ impl<'a> PacketBitReader<'a> {
     }
 
     #[cfg_attr(verus_keep_ghost, verus_spec(result =>
+        ensures (result, packet_bit_reader_view(final(self))) == crate::specs::part1_packet_reader_finish(packet_bit_reader_view(old(self))),
+    ))]
+    pub(crate) fn finish_packet_header(&mut self) -> Result<(), DecodeError> {
+        #[cfg(verus_keep_ghost)]
+        proof! { reveal(crate::specs::part1_packet_reader_finish); }
+        if self.previous_byte_was_ff {
+            self.load_byte()?;
+        }
+        self.align_to_byte();
+        Ok(())
+    }
+
+    #[cfg_attr(verus_keep_ghost, verus_spec(result =>
         ensures (result, packet_bit_reader_view(final(self))) == crate::specs::part1_packet_reader_read(packet_bit_reader_view(old(self))),
     ))]
     pub fn read_bit(&mut self) -> Result<bool, DecodeError> {
