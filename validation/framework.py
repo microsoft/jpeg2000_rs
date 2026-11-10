@@ -3782,6 +3782,70 @@ _JPIP_PLANNED_TESTS = {("src/jpip/planned_packet_result_tests.rs", name) for nam
     "actual_jpip_planned_packet_results_derive_arbitrary_physical_selection_availability_and_bytes",
     "actual_jpip_planned_packets_compose_raw_ingestion_and_preserve_missing_partial_and_owned_outputs",
 )}
+_JPIP_TRANSCODE_ENTRY = "part9-complete-native-precinct-transcode-results"
+_JPIP_TRANSCODE_APIS = {("src/jpip/precinct.rs", "DatabinCache::transcode_precinct_codestream")}
+_JPIP_TRANSCODE_CONTRACTS = {
+    ("src/jpip/precinct.rs", "DatabinCache::transcode_precinct_codestream"): (
+        "part2_jpip_transcode", _coverage_call("jpip_transcode_outcome", r"\1"), None,
+        _coverage_call("jpip_cache_view", "self") + r"\s*,\s*" + _coverage_call("jpip_plan_view", "plan") + r"\s*,\s*layers",
+    ),
+    ("src/jpip/ranges.rs", "DatabinCache::precinct_availability"): (
+        "part2_jpip_precinct_availability", _coverage_call("jpip_availability_outcome", r"\1"), None,
+        _coverage_call("jpip_cache_view", "self") + r"\s*,\s*" + _coverage_call("jpip_plan_view", "plan") + r"\s*,\s*packet_end",
+    ),
+}
+_JPIP_TRANSCODE_CONTRACTS.update({
+    ("src/jpip/ranges.rs", name): _JPIP_RANGE_CONTRACTS[("src/jpip/ranges.rs", name)]
+    for name in ("DatabinCache::availability", "DatabinCache::read_packet_ranges")
+})
+_JPIP_TRANSCODE_CONTRACTS[("src/jpip/cache.rs", "DatabinCache::databin_view")] = (
+    _JPIP_CACHE_VIEW_CONTRACTS[("src/jpip/cache.rs", "DatabinCache::databin_view")]
+)
+_JPIP_TRANSCODE_MODELS = {("specs/jpip_transcode.rs", name) for name in (
+    "part2_jpip_append_complete_requirement", "part2_jpip_precinct_availability",
+    "part2_jpip_patch_cod_loop", "part2_jpip_patch_cod", "part2_jpip_patch_main",
+    "part2_jpip_patch_tile", "part2_jpip_validate_precinct_raw", "part2_jpip_validate_precinct",
+    "part2_jpip_transcode_bytes", "part2_jpip_transcode_payload", "part2_jpip_transcode",
+)} | {
+    ("specs/jpip_planned_packets.rs", "part2_jpip_plan_packet_end"),
+    ("specs/jpip_ranges.rs", "part2_jpip_cache_availability"),
+    ("specs/jpip_ranges.rs", "part2_jpip_read_packets"),
+    ("specs/jpip_cache_views.rs", "part2_jpip_cache_status"),
+    ("specs/jpip_cache_views.rs", "part2_jpip_cache_view"),
+    ("specs/raw_layout.rs", "part1_parse_layout"),
+}
+_JPIP_TRANSCODE_FRAMES = {
+    ("src/jpip/ranges.rs", "DatabinCache::append_complete_databin_requirement"):
+        "(result, jpip_availability_view(final(report))) == crate::specs::part2_jpip_append_complete_requirement(jpip_cache_view(self), databin_id_view(id), jpip_availability_view(old(report)))",
+    **{("src/jpip/precinct.rs", name): clause for name, clause in (
+        ("patch_cod_layers", "(result, final(header)@) == crate::specs::part2_jpip_patch_cod(old(header)@, start, layers, stop_at_sod)"),
+        ("validate_and_patch_main_header", "(result, final(header)@) == crate::specs::part2_jpip_patch_main(old(header)@, layers)"),
+        ("validate_and_patch_tile_header", "(result, final(header)@) == crate::specs::part2_jpip_patch_tile(old(header)@, layers)"),
+        ("validate_precinct_codestream", "result == crate::specs::part2_jpip_validate_precinct(bytes@, layers, limits)"),
+        ("JpipPrecinctTranscode::layers", "result == jpip_transcode_view(self).0"),
+        ("JpipPrecinctTranscode::availability", "jpip_availability_view(result) == jpip_transcode_view(self).1"),
+        ("JpipPrecinctTranscode::codestream", "jpip_optional_byte_view(result) == jpip_transcode_view(self).2"),
+        ("JpipPrecinctTranscode::into_codestream", "jpip_optional_owned_byte_view(result) == jpip_transcode_view(&self).2"),
+    )},
+}
+_JPIP_TRANSCODE_PROOFS = set(_JPIP_TRANSCODE_CONTRACTS) | set(_JPIP_TRANSCODE_FRAMES) | {
+    ("src/jpip/plan_proof_support.rs", name) for name in (
+        "jpip_transcode_view", "jpip_transcode_availability_owner", "jpip_transcode_byte_owner", "jpip_transcode_outcome",
+    )
+} | {
+    ("src/codestream/decoder_input_proof_support.rs", "jpip_precinct_layout_fields"),
+    ("specs/jpip_transcode.rs", "part2_jpip_validate_precinct_unfold"),
+    ("src/codestream/layout.rs", "parse_layout"),
+    ("src/codestream/geometry.rs", "ImageSize::tile_count"),
+    ("src/jpip/cache.rs", "DatabinCache::status"),
+    ("src/jpip/precinct.rs", "JpipPrecinctCodestreamPlan::packet_end_for_layers"),
+}
+_JPIP_TRANSCODE_TESTS = {("src/jpip/transcode_result_tests.rs", name) for name in (
+    "actual_jpip_cod_header_scans_preserve_exact_patches_and_partial_mutations_at_every_cut",
+    "actual_jpip_transcode_composes_raw_responses_to_exact_owned_codestreams_and_public_images",
+    "actual_jpip_transcode_preserves_physical_header_layer_limit_and_raw_validation_error_frontiers",
+)} | {("src/jpip/transcode_availability_result_tests.rs",
+       "actual_jpip_complete_header_requirements_preserve_partial_reports_and_physical_cache_priorities")}
 _RAW_JPX_PUBLIC_IMAGE_ENTRY = "part2-complete-native-public-raw-jpx-codestream-results"
 _RAW_JPX_PUBLIC_IMAGE_APIS = {("src/decode/api.rs", name) for name in (
     "decode_jpx_codestream", "decode_jpx_codestream_selected", "decode_jpx_codestream_color", "decode_jpx_codestream_color_selected",
@@ -4212,6 +4276,93 @@ def validate_normative_coverage(
     ids: set[str] = set()
     contract_functions: set[tuple[str, str]] = set()
     for entry in coverage["requirements"]:
+        if entry["id"] == _JPIP_TRANSCODE_ENTRY:
+            if {(ref["path"], ref["symbol"]) for ref in entry["contract_refs"]} != set(_JPIP_TRANSCODE_CONTRACTS) - _JPIP_TRANSCODE_APIS:
+                raise ValueError("whole JPIP transcode requires complete actual availability/header/packet consumers")
+            for field, required in (
+                ("implementation_refs", set(_JPIP_TRANSCODE_CONTRACTS)),
+                ("spec_refs", _JPIP_TRANSCODE_MODELS), ("proof_refs", _JPIP_TRANSCODE_PROOFS),
+                ("test_refs", _JPIP_TRANSCODE_TESTS),
+            ):
+                if not required.issubset({(ref["path"], ref["symbol"]) for ref in entry[field]}):
+                    raise ValueError("whole JPIP transcode linked function is not used by claimed implementation: actual header/availability/raw-validation/owner bridge missing")
+            for (relative, name), clause in _JPIP_TRANSCODE_FRAMES.items():
+                path = (ROOT / relative).resolve()
+                text, header = source_text(path), function_header(path, name)
+                signature = text.find("fn", header.start(), header.end()) if header else -1
+                attrs = text[text.rfind("#[cfg_attr", 0, signature):signature] if signature >= 0 else ""
+                if "ensures" + "".join(clause.split()) + "," not in "".join(attrs.split()) or re.search(r"\brequires\b", attrs):
+                    raise ValueError("whole JPIP transcode requires complete stored values and mutable first-error frames")
+                owner = {"JpipPrecinctTranscode::availability": "result == jpip_transcode_availability_owner(self)",
+                         "JpipPrecinctTranscode::into_codestream": "result == *jpip_transcode_byte_owner(&self)"}.get(name)
+                if owner is not None and "".join(owner.split()) not in "".join(attrs.split()):
+                    raise ValueError("whole JPIP transcode requires original availability borrow and optional byte move owners")
+            for relative, name, required in (
+                ("src/jpip/precinct.rs", "DatabinCache::transcode_precinct_codestream", (
+                    "plan.packet_end_for_layers(layers)?", "self.precinct_availability(plan, packet_end)?",
+                    "!availability.is_available()", "self.databin_view(plan.main_header)?.into_bytes()",
+                    "self.databin_view(plan.tile_header)?.into_bytes()", "validate_and_patch_main_header(&mut main_header, layers)?",
+                    "validate_and_patch_tile_header(&mut tile_header, layers)?", ".get(..packet_end)",
+                    "self.read_packet_ranges(selected_packets)?", ".get_mut(6..10)", ".copy_from_slice(&tile_part_bytes)",
+                    "jpip_reconstruction_length(", "contracted_total != total as u128", "total as u64 > self.limits.maximum_input_bytes()",
+                    "bytes.extend_from_slice(&main_header)", "bytes.extend_from_slice(&tile_header)",
+                    "bytes.extend_from_slice(&packet_bytes)", "bytes.extend_from_slice(&EOC)",
+                    "validate_precinct_codestream(&bytes, layers, &self.limits)?", "Some(JpipByteView { bytes })",
+                )),
+                ("src/jpip/precinct.rs", "patch_cod_layers", (
+                    "start > header.len()", "while position < header.len()", "marker == 0xff93",
+                    "stop_at_sod && position + 2 == header.len()", "marker == 0xff4f || marker == 0xffd9",
+                    "segment_length < 2", "segment_end <= position || segment_end > header.len()",
+                    "marker == 0xff52", "segment_length < 7", "u8::try_from((layers >> 8) & 0xff)",
+                    "u8::try_from(layers & 0xff)", ".get_mut(layer_start..layer_end)", ".copy_from_slice(&bytes)",
+                    "position = segment_end", "part2_jpip_patch_cod_loop(header@, position, layers, stop_at_sod)",
+                )),
+                ("src/jpip/ranges.rs", "DatabinCache::precinct_availability", (
+                    ".get(..packet_end)", "packets.iter().map(", "|packet: &JpipPrecinctPacket| packet.range",
+                    "self.availability(&ranges)?", "self.append_complete_databin_requirement(plan.main_header, &mut report)?",
+                    "self.append_complete_databin_requirement(plan.tile_header, &mut report)?", "report.missing.is_empty()",
+                )),
+                ("src/jpip/ranges.rs", "DatabinCache::append_complete_databin_requirement", (
+                    "self.status(id)", "status.final_length()", ".checked_add(status.contiguous_prefix())",
+                    "final_length == 0", "self.availability(&[JpipDatabinRange::new(id, 0, final_length)?])?",
+                    ".checked_add(header_report.required_bytes)", ".checked_add(header_report.available_bytes)",
+                    "report.missing.push(header_report.missing[missing_index])",
+                )),
+                ("src/jpip/precinct.rs", "validate_precinct_codestream", (
+                    "crate::codestream::parse_layout(bytes, limits)?", "jpip_precinct_layout_fields(&layout)",
+                    "layout.info.image_size.tile_count()? != 1", "layout.tile_parts.len() != 1",
+                    "layout.info.coding_style.layers != layers", "layout.tile_parts[0].coding_style.progression_order",
+                    "layout.info.progression_changes.is_present()", "layout.tile_parts[0].progression_changes.is_present()",
+                    "layout.tile_parts[0].packet_lengths.is_present()", "layout.tile_parts[0].packed_packet_headers.is_present()",
+                )),
+            ):
+                path = (ROOT / relative).resolve()
+                body = _coverage_function_body(source_text(path), function_header(path, name))
+                if body is None or any("".join(item.split()) not in "".join(body.split()) for item in required):
+                    raise ValueError("whole JPIP transcode requires original header/length/iterator/availability/raw-validation handoffs")
+            model = source_text((ROOT / "specs/jpip_transcode.rs").resolve())
+            for name, required in {
+                "part2_jpip_append_complete_requirement": ("part2_jpip_cache_status(cache, id)", "report.3.push((id, 0, None))",
+                    "available > u64::MAX as nat", "required > u64::MAX as nat", "Err(part2_jpip_range_overflow(0)), committed"),
+                "part2_jpip_precinct_availability": ("end as nat > plan.2.len()", "part2_jpip_cache_availability(cache, ranges)",
+                    "part2_jpip_append_complete_requirement(cache, plan.0, report)", "part2_jpip_append_complete_requirement(cache, plan.1, main.1)"),
+                "part2_jpip_patch_cod_loop": ("position as nat + 2 > header.len()", "marker == 0xff93", "length < 7",
+                    "header.update(position as int + 6", ".update(position as int + 7", "part2_jpip_patch_cod_loop(patched, end as usize, layers, stop)"),
+                "part2_jpip_validate_precinct_raw": ("part1_parse_layout(bytes, limits)", "part2_selection_tile_count(layout.0.image_size.geometry)",
+                    "layout.0.coding_style.layers != layers", "tile.coding_style.progression_order", "tile.packet_lengths.source", "tile.packed_packet_headers.source"),
+                "part2_jpip_transcode_bytes": ("length > usize::MAX as nat || length > u32::MAX as nat", "tile.update(6",
+                    ".update(9", "total > usize::MAX as nat", "resource_input_byte_limit", "seq![0xffu8, 0xd9u8]",
+                    "part2_jpip_validate_precinct(bytes, layers, &cache.0)", "Ok(()) => Ok(bytes)"),
+                "part2_jpip_transcode_payload": ("part2_jpip_cache_view(cache, plan.0)", "part2_jpip_cache_view(cache, plan.1)",
+                    "part2_jpip_patch_main(main, layers)", "part2_jpip_patch_tile(tile, layers)",
+                    "part2_jpip_read_packets(cache, plan.2.subrange(0, end as int))"),
+                "part2_jpip_transcode": ("part2_jpip_plan_packet_end(plan, layers)", "part2_jpip_precinct_availability(cache, plan, end)",
+                    "availability.0 != crate::jpip::JpipAvailability::Available", "part2_jpip_transcode_payload(cache, plan, end, layers)",
+                    "Ok((layers, availability, Some(bytes)))"),
+            }.items():
+                body = _coverage_spec_function_body(model, name)
+                if body is None or any("".join(item.split()) not in "".join(body.split()) for item in required):
+                    raise ValueError("whole JPIP transcode requires complete mutable-header/partial-report/byte/raw-parse models")
         if entry["id"] == _JPIP_PLANNED_ENTRY:
             if {(ref["path"], ref["symbol"]) for ref in entry["contract_refs"]} != set(_JPIP_PLANNED_CONTRACTS) - _JPIP_PLANNED_APIS:
                 raise ValueError("whole planned JPIP packets require complete actual availability/byte consumers")
@@ -7065,7 +7216,9 @@ def validate_normative_coverage(
               or (entry["id"] == _JPIP_RANGE_ENTRY
                   and (reference["path"], reference["symbol"]) in _JPIP_RANGE_APIS)
               or (entry["id"] == _JPIP_PLANNED_ENTRY
-                  and (reference["path"], reference["symbol"]) in _JPIP_PLANNED_APIS))
+                  and (reference["path"], reference["symbol"]) in _JPIP_PLANNED_APIS)
+              or (entry["id"] == _JPIP_TRANSCODE_ENTRY
+                  and (reference["path"], reference["symbol"]) in _JPIP_TRANSCODE_APIS))
             and reference not in entry["contract_refs"]
         ]
         for reference in [*entry["contract_refs"], *proved_apis]:
@@ -7583,6 +7736,8 @@ def validate_normative_coverage(
                     if entry["id"] == _JPIP_RANGE_ENTRY else None)
                 or (_JPIP_PLANNED_CONTRACTS.get((reference["path"], reference["symbol"]))
                     if entry["id"] == _JPIP_PLANNED_ENTRY else None)
+                or (_JPIP_TRANSCODE_CONTRACTS.get((reference["path"], reference["symbol"]))
+                    if entry["id"] == _JPIP_TRANSCODE_ENTRY else None)
                 or (_JPX_INSPECTION_CONTRACTS.get((reference["path"], reference["symbol"]))
                     if entry["id"] == _JPX_INSPECTION_ENTRY else None)
                 or (_RAW_JPX_INSPECTION_CONTRACTS.get((reference["path"], reference["symbol"]))

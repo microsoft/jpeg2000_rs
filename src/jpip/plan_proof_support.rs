@@ -53,6 +53,24 @@ verus! {
         match value { None => None, Some(bytes) => Some(jpip_byte_view(&bytes)) }
     }
 
+    pub closed spec fn jpip_transcode_view(value: &JpipPrecinctTranscode) -> crate::specs::Part2JpipTranscode {
+        (value.layers, jpip_availability_view(&value.availability),
+            match &value.codestream { None => None, Some(bytes) => Some(jpip_byte_view(bytes)) })
+    }
+
+    pub closed spec fn jpip_transcode_availability_owner(value: &JpipPrecinctTranscode) -> &JpipAvailabilityReport {
+        &value.availability
+    }
+
+    pub closed spec fn jpip_transcode_byte_owner(value: &JpipPrecinctTranscode) -> &Option<JpipByteView> {
+        &value.codestream
+    }
+
+    pub open spec fn jpip_transcode_outcome(value: Result<JpipPrecinctTranscode, DecodeError>)
+        -> Result<crate::specs::Part2JpipTranscode, DecodeError> {
+        match value { Err(error) => Err(error), Ok(value) => Ok(jpip_transcode_view(&value)) }
+    }
+
     proof fn jpip_plan_fields(value: &JpipPrecinctCodestreamPlan)
         ensures jpip_plan_view(value) == (databin_id_view(value.main_header), databin_id_view(value.tile_header),
             jpip_owned_packets_view(&value.packets), value.layer_ends@),

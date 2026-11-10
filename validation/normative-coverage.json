@@ -4,6 +4,74 @@
   "scope": "Technical reference inventory; not exhaustive standards-clause coverage or a conformance claim.",
   "requirements": [
     {
+      "id": "part9-complete-native-precinct-transcode-results",
+      "topic": "Complete actual transcode_precinct_codestream Result from arbitrary physical cache/owned plan/layers through original physical selector, real packet plus complete-main/tile availability, original copied header owners, in-place COD layer scan with exact first-error partial bytes, Psot rewrite, checked lengths/resources, original concatenation and genuine final raw parse_layout validator. Complete required-header append Result/partial report, availability join, stored getters and original optional-byte move/availability borrow. Retains raw validator main/effective-tile LRCP, layer/single-tile/progression/packet-header restrictions and native priority/storage. No valid-cache/plan/success-parser premises, result banks, native owner reconstruction or executing proof clones. Semantic-container/progressive/automatic and independent normative/cfg/lifetime/release remain separate.",
+      "implementation_refs": [
+        {"path": "src/jpip/precinct.rs", "symbol": "DatabinCache::transcode_precinct_codestream"},
+        {"path": "src/jpip/ranges.rs", "symbol": "DatabinCache::precinct_availability"},
+        {"path": "src/jpip/ranges.rs", "symbol": "DatabinCache::availability"},
+        {"path": "src/jpip/ranges.rs", "symbol": "DatabinCache::read_packet_ranges"},
+        {"path": "src/jpip/cache.rs", "symbol": "DatabinCache::databin_view"}
+      ],
+      "contract_refs": [
+        {"path": "src/jpip/ranges.rs", "symbol": "DatabinCache::precinct_availability"},
+        {"path": "src/jpip/ranges.rs", "symbol": "DatabinCache::availability"},
+        {"path": "src/jpip/ranges.rs", "symbol": "DatabinCache::read_packet_ranges"},
+        {"path": "src/jpip/cache.rs", "symbol": "DatabinCache::databin_view"}
+      ],
+      "spec_refs": [
+        {"path": "specs/jpip_transcode.rs", "symbol": "part2_jpip_append_complete_requirement"},
+        {"path": "specs/jpip_transcode.rs", "symbol": "part2_jpip_precinct_availability"},
+        {"path": "specs/jpip_transcode.rs", "symbol": "part2_jpip_patch_cod_loop"},
+        {"path": "specs/jpip_transcode.rs", "symbol": "part2_jpip_patch_cod"},
+        {"path": "specs/jpip_transcode.rs", "symbol": "part2_jpip_patch_main"},
+        {"path": "specs/jpip_transcode.rs", "symbol": "part2_jpip_patch_tile"},
+        {"path": "specs/jpip_transcode.rs", "symbol": "part2_jpip_validate_precinct_raw"},
+        {"path": "specs/jpip_transcode.rs", "symbol": "part2_jpip_validate_precinct"},
+        {"path": "specs/jpip_transcode.rs", "symbol": "part2_jpip_transcode_bytes"},
+        {"path": "specs/jpip_transcode.rs", "symbol": "part2_jpip_transcode_payload"},
+        {"path": "specs/jpip_transcode.rs", "symbol": "part2_jpip_transcode"},
+        {"path": "specs/jpip_planned_packets.rs", "symbol": "part2_jpip_plan_packet_end"},
+        {"path": "specs/jpip_ranges.rs", "symbol": "part2_jpip_cache_availability"},
+        {"path": "specs/jpip_ranges.rs", "symbol": "part2_jpip_read_packets"},
+        {"path": "specs/jpip_cache_views.rs", "symbol": "part2_jpip_cache_status"},
+        {"path": "specs/jpip_cache_views.rs", "symbol": "part2_jpip_cache_view"},
+        {"path": "specs/raw_layout.rs", "symbol": "part1_parse_layout"}
+      ],
+      "proof_refs": [
+        {"path": "src/jpip/precinct.rs", "symbol": "DatabinCache::transcode_precinct_codestream"},
+        {"path": "src/jpip/ranges.rs", "symbol": "DatabinCache::precinct_availability"},
+        {"path": "src/jpip/ranges.rs", "symbol": "DatabinCache::availability"},
+        {"path": "src/jpip/ranges.rs", "symbol": "DatabinCache::read_packet_ranges"},
+        {"path": "src/jpip/cache.rs", "symbol": "DatabinCache::databin_view"},
+        {"path": "src/jpip/ranges.rs", "symbol": "DatabinCache::append_complete_databin_requirement"},
+        {"path": "src/jpip/precinct.rs", "symbol": "patch_cod_layers"},
+        {"path": "src/jpip/precinct.rs", "symbol": "validate_and_patch_main_header"},
+        {"path": "src/jpip/precinct.rs", "symbol": "validate_and_patch_tile_header"},
+        {"path": "src/jpip/precinct.rs", "symbol": "validate_precinct_codestream"},
+        {"path": "src/jpip/precinct.rs", "symbol": "JpipPrecinctTranscode::layers"},
+        {"path": "src/jpip/precinct.rs", "symbol": "JpipPrecinctTranscode::availability"},
+        {"path": "src/jpip/precinct.rs", "symbol": "JpipPrecinctTranscode::codestream"},
+        {"path": "src/jpip/precinct.rs", "symbol": "JpipPrecinctTranscode::into_codestream"},
+        {"path": "src/jpip/plan_proof_support.rs", "symbol": "jpip_transcode_view"},
+        {"path": "src/jpip/plan_proof_support.rs", "symbol": "jpip_transcode_availability_owner"},
+        {"path": "src/jpip/plan_proof_support.rs", "symbol": "jpip_transcode_byte_owner"},
+        {"path": "src/jpip/plan_proof_support.rs", "symbol": "jpip_transcode_outcome"},
+        {"path": "src/codestream/decoder_input_proof_support.rs", "symbol": "jpip_precinct_layout_fields"},
+        {"path": "specs/jpip_transcode.rs", "symbol": "part2_jpip_validate_precinct_unfold"},
+        {"path": "src/codestream/layout.rs", "symbol": "parse_layout"},
+        {"path": "src/codestream/geometry.rs", "symbol": "ImageSize::tile_count"},
+        {"path": "src/jpip/cache.rs", "symbol": "DatabinCache::status"},
+        {"path": "src/jpip/precinct.rs", "symbol": "JpipPrecinctCodestreamPlan::packet_end_for_layers"}
+      ],
+      "test_refs": [
+        {"path": "src/jpip/transcode_result_tests.rs", "symbol": "actual_jpip_cod_header_scans_preserve_exact_patches_and_partial_mutations_at_every_cut"},
+        {"path": "src/jpip/transcode_result_tests.rs", "symbol": "actual_jpip_transcode_composes_raw_responses_to_exact_owned_codestreams_and_public_images"},
+        {"path": "src/jpip/transcode_result_tests.rs", "symbol": "actual_jpip_transcode_preserves_physical_header_layer_limit_and_raw_validation_error_frontiers"},
+        {"path": "src/jpip/transcode_availability_result_tests.rs", "symbol": "actual_jpip_complete_header_requirements_preserve_partial_reports_and_physical_cache_priorities"}
+      ]
+    },
+    {
       "id": "part9-complete-native-owned-plan-packet-results",
       "topic": "Complete actual owned precinct packet/plan constructor Results and original packet-vector owner, all physical plan fields/layer ends/getters/selection and caller-planned reconstruct_precinct_packets Result from actual cache, plan and layers. Retains layer/header/packet/input/checked-total/first-empty-layer/trailing-entry priorities, physical layer-count narrowing and prefix selection, original iterator/map/collect and producer-derived availability/optional exact owned bytes. No valid-plan/cache premises, supplied status/byte/result banks, executing proof clones or owner reconstruction. Raw response insertion and independent wide-integer range/read oracles compose native fixtures. Full transcode/semantic-container/progressive/automatic and independent normative/cfg/lifetime/release remain separate.",
       "implementation_refs": [

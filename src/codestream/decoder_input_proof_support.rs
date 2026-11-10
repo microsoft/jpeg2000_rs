@@ -16,6 +16,33 @@ verus! {
         reveal(complete_layout_outcome);
     }
 
+    pub(crate) proof fn jpip_precinct_layout_fields(layout: &CodestreamLayout<'_>)
+        ensures match complete_layout_outcome(Ok(*layout)) {
+            Err(_) => false,
+            Ok(raw) =>
+                raw.0.image_size.geometry == selection_geometry_view(&layout.info.image_size)
+                && raw.0.coding_style.layers == layout.info.coding_style.layers
+                && raw.0.coding_style.progression_order == layout.info.coding_style.progression_order
+                && raw.0.progression == progression_changes_view(&layout.info.progression_changes)
+                && raw.4.len() == layout.tile_parts.len()
+                && forall|index: int| #![trigger raw.4[index]] 0 <= index < layout.tile_parts.len() ==> {
+                    let part = raw.4[index];
+                    let native = layout.tile_parts@[index];
+                    part.coding_style.progression_order == native.coding_style.progression_order
+                    && part.progression_changes == progression_changes_view(&native.progression_changes)
+                    && part.packet_lengths == packet_lengths_view(&native.packet_lengths)
+                    && part.packed_packet_headers == packed_packet_headers_view(&native.packed_packet_headers)
+                },
+        },
+    {
+        reveal(complete_layout_outcome);
+        reveal(complete_codestream_info_view);
+        reveal(main_header_fields_view);
+        reveal(parsed_image_size_view);
+        reveal(parsed_coding_style_view);
+        reveal(tile_part_payload_view);
+    }
+
     pub(crate) closed spec fn decoder_native_size(raw: crate::specs::Part1ParsedImageSize) -> ImageSize {
         choose|value: ImageSize| parsed_image_size_view(&value) == raw
     }

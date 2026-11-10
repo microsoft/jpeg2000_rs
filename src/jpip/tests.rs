@@ -95,7 +95,7 @@ fn decodable_codestream() -> Vec<u8> {
     decodable_codestream_with_layers(1)
 }
 
-fn decodable_codestream_with_layers(layers: u16) -> Vec<u8> {
+pub(super) fn decodable_codestream_with_layers(layers: u16) -> Vec<u8> {
     let mut siz = Vec::new();
     siz.extend_from_slice(&0_u16.to_be_bytes());
     siz.extend_from_slice(&1_u32.to_be_bytes());

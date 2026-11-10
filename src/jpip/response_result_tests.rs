@@ -1,7 +1,15 @@
 use super::cache_layout_result_tests::{bin, frame, id, storage};
 use super::*;
 
-fn data(form: u8, last: bool, bin: u8, class: u8, stream: u8, offset: u8, bytes: &[u8]) -> Vec<u8> {
+pub(super) fn data(
+    form: u8,
+    last: bool,
+    bin: u8,
+    class: u8,
+    stream: u8,
+    offset: u8,
+    bytes: &[u8],
+) -> Vec<u8> {
     let mut output = vec![(form << 5) | if last { 0x10 } else { 0 } | bin];
     if form >= 2 {
         output.push(class);
