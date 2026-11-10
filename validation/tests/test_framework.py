@@ -1311,7 +1311,7 @@ class FrameworkTests(WorkingFiles):
             ("position as nat + 2 > usize::MAX as nat", "false"),
             ("payload[position as int] & 0x80 != 0", "false"),
             ("payload[0] as u16 != next_plt", "false"),
-            ("length == 0 || (length as nat) < header_length", "length == 0"),
+            ("length != 0 && (length as nat) < header_length", "false"),
             ("Ok(seq![(tile, 0u8, scan.2, None, scan.1, input)])", "Ok(Seq::empty())"),
             ("preceding_known && (transition.2.is_some() || transition.3.is_some())", "true"),
             ("((tile as u64) << 8) | transition.1 as u64", "transition.1 as u64"),

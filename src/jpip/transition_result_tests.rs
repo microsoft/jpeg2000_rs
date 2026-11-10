@@ -1,6 +1,77 @@
 use super::super::cache_layout_result_tests::{bin, frame, id, storage};
 use super::*;
 
+#[test]
+fn sarah_dev_926ef1a301_nonzero_psot_cannot_mean_unknown_length() {
+    let witness = [0xff, 0x90, 0, 10, 0, 7, 0, 0, 0, 13, 5, 0, 0xff, 0x93];
+    let expected = Err(error(0, MalformedKind::InvalidTilePart));
+    assert_eq!(
+        parse_tile_part_transitions(&witness, 7),
+        expected,
+        "DEV-926EF1A301: nonzero Psot13 is shorter than its14-byte retained header"
+    );
+    for segments in [vec![], vec![segment(0xff64, b"length boundary")]] {
+        let length = u32::try_from(part(7, 5, 0, &segments).len()).unwrap();
+        for declared in [0, 1, length - 1, length, length + 1, u32::MAX] {
+            let input = part(7, 5, declared, &segments);
+            let owner = storage(&input);
+            let actual = parse_tile_part_transitions(&input, 7);
+            if declared != 0 && declared < length {
+                assert_eq!(actual, Err(error(0, MalformedKind::InvalidTilePart)));
+            } else {
+                let expected = if declared == 0 {
+                    None
+                } else {
+                    Some(u64::from(declared - length))
+                };
+                assert_eq!(actual.unwrap()[0].data_length(), expected);
+            }
+            assert_eq!(storage(&input), owner);
+        }
+    }
+    let first = part(7, 0, 14, &[]);
+    let later_short = [first.clone(), part(7, 1, 13, &[])].concat();
+    assert_eq!(
+        parse_tile_part_transitions(&later_short, 7),
+        Err(error(first.len(), MalformedKind::InvalidTilePart))
+    );
+    assert_eq!(
+        parse_tile_part_transitions(&part(7, 0, 1, &[segment(0xff58, &[1, 0x80])]), 7),
+        Err(error(12, MalformedKind::InvalidPacketLength))
+    );
+    let missing_sod = part(7, 0, 1, &[]);
+    assert_eq!(
+        parse_tile_part_transitions(&missing_sod[..12], 7),
+        Err(error(12, MalformedKind::MissingRequiredStructure))
+    );
+}
+
+#[test]
+fn sarah_dev_dfa2d383b6_public_report_rejects_nonzero_short_psot() {
+    let witness = [0xff, 0x90, 0, 10, 0, 7, 0, 0, 0, 13, 5, 0, 0xff, 0x93];
+    let mut cache = DatabinCache::new(ResourceLimits::HARDENED);
+    cache
+        .insert(
+            super::super::JpipFragment::new(
+                id(2, 3, 7),
+                0,
+                witness.to_vec(),
+                true,
+                None,
+                &ResourceLimits::HARDENED,
+            )
+            .unwrap(),
+        )
+        .unwrap();
+    let before = frame(&cache);
+    assert_eq!(
+        cache.tile_part_transitions(3, 7),
+        Err(error(0, MalformedKind::InvalidTilePart)),
+        "DEV-DFA2D383B6: public reports must not convert malformed Psot into the legal zero-Psot None"
+    );
+    assert_eq!(frame(&cache), before);
+}
+
 fn error(offset: usize, kind: MalformedKind) -> DecodeError {
     DecodeError::malformed(offset as u64, kind)
 }
@@ -151,7 +222,11 @@ fn transition(
         data_length: if declared == 0 {
             None
         } else {
-            u64::from(declared).checked_sub(bytes.len() as u64)
+            Some(
+                u64::from(declared)
+                    .checked_sub(bytes.len() as u64)
+                    .expect("a nonzero valid fixture declaration covers its retained header"),
+            )
         },
         functional,
         header: bytes.to_vec(),
@@ -190,6 +265,14 @@ fn actual_jpip_raw_transitions_derive_all_fields_owned_headers_and_exact_emitted
                 for (segments, packets, functional) in &variants {
                     let input = part(tile, number, declared, segments);
                     let owner = storage(&input);
+                    if declared != 0 && u64::from(declared) < input.len() as u64 {
+                        assert_eq!(
+                            parse_tile_part_transitions(&input, tile),
+                            Err(error(0, MalformedKind::InvalidTilePart))
+                        );
+                        assert_eq!(storage(&input), owner);
+                        continue;
+                    }
                     let actual = parse_tile_part_transitions(&input, tile).unwrap();
                     assert_eq!(
                         actual,
@@ -329,9 +412,16 @@ fn actual_jpip_raw_transition_admission_keeps_native_plt_sod_psot_and_first_erro
     let input = [first.clone(), second.clone()].concat();
     assert_eq!(
         parse_tile_part_transitions(&input, 2),
+        Err(error(0, MalformedKind::InvalidTilePart))
+    );
+    let first = part(2, 7, 14, &[]);
+    let second = part(2, 3, 18, &[segment(0xff52, &[])]);
+    let input = [first.clone(), second.clone()].concat();
+    assert_eq!(
+        parse_tile_part_transitions(&input, 2),
         Ok(vec![
-            transition(2, 7, None, false, 1, &first),
-            transition(2, 3, None, true, 1, &second),
+            transition(2, 7, None, false, 14, &first),
+            transition(2, 3, None, true, 18, &second),
         ])
     );
     assert_eq!(
@@ -360,16 +450,16 @@ fn actual_jpip_public_transition_reports_preserve_physical_cache_needs_getters_a
     for stream in [0, 3, u64::MAX] {
         for tile in [0, 1, u16::MAX] {
             let requested = id(2, stream, u64::from(tile));
-            let a = part(tile, 7, 1, &[]);
-            let b = part(tile, 3, 1, &[segment(0xff52, &[7])]);
+            let a = part(tile, 7, 14, &[]);
+            let b = part(tile, 3, 19, &[segment(0xff52, &[7])]);
             let c = part(tile, 4, 100, &[segment(0xff52, &[8])]);
-            let d = part(tile, 9, 1, &[segment(0xff52, &[9])]);
+            let d = part(tile, 9, 19, &[segment(0xff52, &[9])]);
             let bytes = [a.clone(), b.clone(), c.clone(), d.clone()].concat();
             let expected_transitions = vec![
-                transition(tile, 7, None, false, 1, &a),
-                transition(tile, 3, None, true, 1, &b),
+                transition(tile, 7, None, false, 14, &a),
+                transition(tile, 3, None, true, 19, &b),
                 transition(tile, 4, None, true, 100, &c),
-                transition(tile, 9, None, true, 1, &d),
+                transition(tile, 9, None, true, 19, &d),
             ];
             let needs = vec![
                 JpipSemanticNeed {
@@ -381,12 +471,26 @@ fn actual_jpip_public_transition_reports_preserve_physical_cache_needs_getters_a
                     identifier: (u64::from(tile) << 8) | 9,
                 },
             ];
-            let partial = JpipTilePartTransitionReport {
+            let stored_partial = JpipTilePartTransitionReport {
                 status: JpipAvailability::Partial,
-                transitions: expected_transitions,
-                needs,
+                transitions: Vec::new(),
+                needs: needs.clone(),
                 missing: Vec::new(),
             };
+            assert_eq!(stored_partial.status(), JpipAvailability::Partial);
+            assert_eq!(stored_partial.semantic_needs(), needs);
+            assert_eq!(
+                stored_partial.semantic_needs().as_ptr(),
+                stored_partial.needs.as_ptr()
+            );
+            let available = JpipTilePartTransitionReport {
+                status: JpipAvailability::Available,
+                transitions: expected_transitions,
+                needs: Vec::new(),
+                missing: Vec::new(),
+            };
+            let short = part(tile, 7, 13, &[]);
+            let later_short = [a.clone(), part(tile, 3, 18, &[segment(0xff52, &[7])])].concat();
             let missing = |offset, length| JpipTilePartTransitionReport {
                 status: JpipAvailability::Missing,
                 transitions: Vec::new(),
@@ -412,7 +516,19 @@ fn actual_jpip_public_transition_reports_preserve_physical_cache_needs_getters_a
                 ),
                 (
                     vec![bin(requested, &[(0, &bytes)], Some(bytes.len() as u64))],
-                    Ok(partial),
+                    Ok(available),
+                ),
+                (
+                    vec![bin(requested, &[(0, &short)], Some(short.len() as u64))],
+                    Err(error(0, MalformedKind::InvalidTilePart)),
+                ),
+                (
+                    vec![bin(
+                        requested,
+                        &[(0, &later_short)],
+                        Some(later_short.len() as u64),
+                    )],
+                    Err(error(a.len(), MalformedKind::InvalidTilePart)),
                 ),
                 (
                     vec![bin(
@@ -457,7 +573,7 @@ fn actual_jpip_public_transition_reports_preserve_physical_cache_needs_getters_a
                     ],
                     Ok(JpipTilePartTransitionReport {
                         status: JpipAvailability::Available,
-                        transitions: vec![transition(tile, 7, None, false, 1, &a)],
+                        transitions: vec![transition(tile, 7, None, false, 14, &a)],
                         needs: Vec::new(),
                         missing: Vec::new(),
                     }),

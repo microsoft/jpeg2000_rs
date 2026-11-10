@@ -145,8 +145,10 @@ pub open spec fn part2_jpip_transition_parts(
                                     if scan.0 < position { Err(part2_jpip_range_overflow(position as u64)) }
                                     else if length != 0 && length as nat > usize::MAX as nat {
                                         Err(part2_jpip_range_overflow(position as u64))
+                                    } else if length != 0 && (length as nat) < header_length {
+                                        Err(part2_jpip_cache_error(position as u64, crate::MalformedKind::InvalidTilePart))
                                     } else {
-                                        let data = if length == 0 || (length as nat) < header_length { None }
+                                        let data = if length == 0 { None }
                                             else { Some((length as nat - header_length) as u64) };
                                         let transition = (actual_tile, part, scan.2, data, scan.1,
                                             input.subrange(position as int, scan.0 as int));

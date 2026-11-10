@@ -3977,6 +3977,8 @@ _JPIP_TRANSITION_PROOFS = set(_JPIP_TRANSITION_CONTRACTS) | _JPIP_TRANSITION_PRO
     ("src/refinement/jpip.rs", "jpip_tile_transition_sufficient"),
 }
 _JPIP_TRANSITION_TESTS = {("src/jpip/transition_result_tests.rs", name) for name in (
+    "sarah_dev_926ef1a301_nonzero_psot_cannot_mean_unknown_length",
+    "sarah_dev_dfa2d383b6_public_report_rejects_nonzero_short_psot",
     "actual_jpip_transition_words_markers_and_plt_match_independent_extents_and_counts",
     "actual_jpip_raw_transitions_derive_all_fields_owned_headers_and_exact_emitted_cut_errors",
     "actual_jpip_raw_transition_admission_keeps_native_plt_sod_psot_and_first_error_differences",
@@ -4443,7 +4445,7 @@ def validate_normative_coverage(
                     "header: copy_bytes(input)", "marker != 0xff90 || sot_end.checked_sub(position) != Some(12)",
                     "read_u16_be(input, position + 4)?", "tile != expected_tile", "read_u32_be(input, position + 6)?",
                     "u16::from(index) != next_plt", "next_plt.checked_add(1)", "!found_sod",
-                    "tile_part_length == 0 && position < input.len()", "declared.checked_sub(header_length).map(",
+                    "tile_part_length == 0 && position < input.len()", "Some(declared.checked_sub(header_length).ok_or_else(",
                     "copy_bytes(input.get(part_start..position)", "invariant_except_break",
                     "part2_jpip_transition_parts(input@, expected_tile, position, remaining_parts, jpip_transitions_view(&transitions))",
                 )),
@@ -4471,7 +4473,8 @@ def validate_normative_coverage(
                     "marker == 0xff61 || marker == 0xff64", "(remaining - 1) as usize"),
                 "part2_jpip_transition_parts": ("marker != 0xff90 || end as nat != position as nat + 12",
                     "actual_tile != tile", "part2_jpip_read_u32", "!scan.4", "length == 0 && (scan.0 as nat) < input.len()",
-                    "length == 0 || (length as nat) < header_length", "input.subrange(position as int, scan.0 as int)",
+                    "length != 0 && (length as nat) < header_length", "let data = if length == 0 { None }",
+                    "input.subrange(position as int, scan.0 as int)",
                     "transitions.push(transition)"),
                 "part2_jpip_parse_transitions": ("input.len() >= 2 && input[0] == 0xff && input[1] == 0x90",
                     "part2_jpip_transition_scan(input, 0, input.len() as usize, false, false, None, 0)",

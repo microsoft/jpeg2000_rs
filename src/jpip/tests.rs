@@ -743,6 +743,8 @@ fn automatic_header_normalization_removes_reframed_markers() {
     tile.extend(segment(0xff58, &[0]));
     tile.extend(segment(0xff61, &[0]));
     tile.extend_from_slice(&[0xff, 0x93]);
+    let declared_length = u32::try_from(tile.len()).unwrap();
+    tile[6..10].copy_from_slice(&declared_length.to_be_bytes());
     let normalized_tile = normalize_automatic_tile_headers(&tile, 0)
         .unwrap()
         .remove(0);
@@ -759,9 +761,12 @@ fn automatic_header_normalization_removes_reframed_markers() {
     assert!(normalized_tile.ends_with(&[0xff, 0x93]));
 
     let mut ambiguous = tile;
+    ambiguous[11] = 2;
     let mut second = vec![0xff, 0x90, 0, 10, 0, 0, 0, 0, 0, 14, 1, 2];
     second.extend(segment(0xff52, &[0, 0, 0, 1, 0, 0, 0, 0, 0, 1]));
     second.extend_from_slice(&[0xff, 0x93]);
+    let declared_length = u32::try_from(second.len()).unwrap();
+    second[6..10].copy_from_slice(&declared_length.to_be_bytes());
     ambiguous.extend(second);
     let normalized = normalize_automatic_tile_headers(&ambiguous, 0).unwrap();
     assert_eq!(normalized.len(), 2);
@@ -835,6 +840,8 @@ fn automatic_mapping_supports_progressions_poc_sop_eph_and_reframed_headers() {
         tile_header.len() - 2..tile_header.len() - 2,
         segment(0xff61, &[0]),
     );
+    let declared_length = u32::try_from(tile_header.len() + 9).unwrap();
+    tile_header[6..10].copy_from_slice(&declared_length.to_be_bytes());
     cache
         .insert(fragment(id(2, 0), 0, &tile_header, true))
         .unwrap();
@@ -1013,11 +1020,15 @@ fn tile_part_transition_status_distinguishes_sufficient_packet_boundaries() {
     first[11] = 2;
     first.extend(segment(0xff58, &[0, 1]));
     first.extend_from_slice(&[0xff, 0x93]);
+    let first_length = u32::try_from(first.len() + 1).unwrap();
+    first[6..10].copy_from_slice(&first_length.to_be_bytes());
     let mut second = bytes[sot..sot + 12].to_vec();
     second[10] = 1;
     second[11] = 2;
     second.extend(segment(0xff52, &[0, 0, 0, 2, 0, 0, 0, 0, 0, 1]));
     second.extend_from_slice(&[0xff, 0x93]);
+    let second_length = u32::try_from(second.len() + 1).unwrap();
+    second[6..10].copy_from_slice(&second_length.to_be_bytes());
     let mut headers = first.clone();
     headers.extend(second.clone());
 
@@ -1031,6 +1042,7 @@ fn tile_part_transition_status_distinguishes_sufficient_packet_boundaries() {
 
     let mut insufficient = first[..12].to_vec();
     insufficient.extend_from_slice(&[0xff, 0x93]);
+    insufficient[6..10].copy_from_slice(&16_u32.to_be_bytes());
     insufficient.extend(second);
     let mut cache = DatabinCache::new(ResourceLimits::default());
     cache
