@@ -2233,7 +2233,8 @@ fn actual_full_selected_typed_layouts_join_real_decode_nonlinear_and_shape_produ
     ) -> Result<TypedImage, DecodeError> {
         let decoded = reference_complete_layout(layout, requested, limits)?;
         let mut image = decoded.typed(limits)?;
-        let regions = collect_nonlinear_regions(layout, &image)?;
+        let discard_levels = requested.map_or(0, DecodeSelection::discard_levels);
+        let regions = collect_nonlinear_regions(layout, &image, discard_levels)?;
         if !regions.is_empty() {
             image.apply_nonlinear_regions(&regions, limits)?;
         }
@@ -4581,7 +4582,14 @@ fn actual_nonlinear_regions_derive_last_raw_tile_owner_registered_clipping_and_e
     fn reference<'a>(
         layout: &'a CodestreamLayout<'_>,
         image: &TypedImage,
+        discard_levels: u8,
     ) -> Result<Vec<NonlinearRegion<'a>>, DecodeError> {
+        if discard_levels >= 32 {
+            return Err(DecodeError::InvalidSelection {
+                reason: SelectionError::ReductionTooLarge,
+            });
+        }
+        let scale = 1_u64 << discard_levels;
         let size = &layout.info.image_size;
         let mut regions = Vec::new();
         for component in 0..size.components {
@@ -4618,10 +4626,10 @@ fn actual_nonlinear_regions_derive_last_raw_tile_owner_registered_clipping_and_e
                     .min_by_key(|(priority, index, _)| (*priority, *index));
                 if let Some((_, _, transform)) = selected {
                     let bounds = size.tile_component_bounds(tile, component)?;
-                    let start_x = u64::from(bounds.x0).max(u64::from(x0));
-                    let start_y = u64::from(bounds.y0).max(u64::from(y0));
-                    let end_x = u64::from(bounds.x1).min(u64::from(x1));
-                    let end_y = u64::from(bounds.y1).min(u64::from(y1));
+                    let start_x = u64::from(bounds.x0).div_ceil(scale).max(u64::from(x0));
+                    let start_y = u64::from(bounds.y0).div_ceil(scale).max(u64::from(y0));
+                    let end_x = u64::from(bounds.x1).div_ceil(scale).min(u64::from(x1));
+                    let end_y = u64::from(bounds.y1).div_ceil(scale).min(u64::from(y1));
                     if start_x < end_x && start_y < end_y {
                         regions.push(NonlinearRegion {
                             component,
@@ -4737,19 +4745,22 @@ fn actual_nonlinear_regions_derive_last_raw_tile_owner_registered_clipping_and_e
                             })
                             .collect();
                         let image = TypedImage::for_test(width, height, x, y, components);
-                        let actual = collect_nonlinear_regions(&layout, &image).map(observe);
-                        let expected = reference(&layout, &image).map(observe);
-                        nonempty +=
-                            usize::from(matches!(&actual, Ok(regions) if !regions.is_empty()));
-                        successes += usize::from(actual.is_ok());
-                        assert_eq!(actual, expected);
-                        cases += 1;
+                        for discard_levels in [0, 1, 2, 31, 32, 255] {
+                            let actual = collect_nonlinear_regions(&layout, &image, discard_levels)
+                                .map(observe);
+                            let expected = reference(&layout, &image, discard_levels).map(observe);
+                            nonempty +=
+                                usize::from(matches!(&actual, Ok(regions) if !regions.is_empty()));
+                            successes += usize::from(actual.is_ok());
+                            assert_eq!(actual, expected);
+                            cases += 1;
+                        }
                     }
                 }
             }
         }
     }
-    assert_eq!(cases, 4_480);
+    assert_eq!(cases, 26_880);
     assert!(successes > 100);
     assert!(nonempty > 100);
 
@@ -4769,7 +4780,7 @@ fn actual_nonlinear_regions_derive_last_raw_tile_owner_registered_clipping_and_e
         )],
     );
     assert!(matches!(
-        collect_nonlinear_regions(&layout, &image),
+        collect_nonlinear_regions(&layout, &image, 0),
         Err(DecodeError::MalformedInput {
             kind: MalformedKind::ArithmeticOverflow,
             ..
@@ -4777,7 +4788,7 @@ fn actual_nonlinear_regions_derive_last_raw_tile_owner_registered_clipping_and_e
     ));
     layout.info.image_size.components = 0;
     assert!(
-        collect_nonlinear_regions(&layout, &image)
+        collect_nonlinear_regions(&layout, &image, 0)
             .unwrap()
             .is_empty()
     );
@@ -5983,6 +5994,133 @@ fn selected_tiles_and_regions_match_full_decode_crops() {
         selected_region.component(0).unwrap().samples(),
         &crate::image::TypedSamples::Unsigned(full_samples[1..4].to_vec())
     );
+}
+
+#[test]
+fn sarah_dev_355fe751f9_reduced_tile_nlt_uses_native_coordinates() {
+    fn grid(origin: [u32; 2], sampling: [u8; 2]) -> Vec<u8> {
+        let mut siz = 0_u16.to_be_bytes().to_vec();
+        for value in [16_u32, 16, origin[0], origin[1], 8, 8, 0, 0] {
+            siz.extend_from_slice(&value.to_be_bytes());
+        }
+        siz.extend_from_slice(&1_u16.to_be_bytes());
+        siz.extend_from_slice(&[7, sampling[0], sampling[1]]);
+        let mut bytes = 0xff4f_u16.to_be_bytes().to_vec();
+        bytes.extend(segment(0xff51, &siz));
+        bytes.extend(segment(0xff52, &[0, 0, 0, 1, 0, 2, 0, 0, 0, 1]));
+        bytes.extend(segment(0xff5c, &[0x40; 8]));
+        for (tile, slope) in [1_u8, 2, 4, 8].into_iter().enumerate() {
+            let mut nonlinear = vec![255, 255, 7, 1];
+            for value in [1_u8, slope, 1, 1, 0] {
+                nonlinear.extend_from_slice(&[value, 0, 0]);
+            }
+            let nonlinear = segment(0xff76, &nonlinear);
+            let mut sot = u16::try_from(tile).unwrap().to_be_bytes().to_vec();
+            sot.extend_from_slice(&u32::try_from(17 + nonlinear.len()).unwrap().to_be_bytes());
+            sot.extend_from_slice(&[0, 1]);
+            bytes.extend(segment(0xff90, &sot));
+            bytes.extend(nonlinear);
+            bytes.extend_from_slice(&[255, 147, 0, 0, 0]);
+        }
+        bytes.extend_from_slice(&[255, 217]);
+        bytes
+    }
+
+    let options = DecodeOptions::default();
+    let mut cases = 0;
+    let mut color_cases = 0;
+    for origin in [[0_u32, 0], [1, 1], [3, 1]] {
+        for sampling in [[1_u8, 1], [2, 2], [3, 2]] {
+            let bytes = grid(origin, sampling);
+            let snapshot = bytes.clone();
+            let width = 16 - origin[0];
+            let height = 16 - origin[1];
+            let jp2 = jp2_for_codestream(&bytes, width, height);
+            let jpx = jpx_for_codestreams(std::slice::from_ref(&bytes), width, height);
+            let maximum_discard = if sampling == [1, 1] { 2 } else { 1 };
+            for discard in 0..=maximum_discard {
+                let scale = 1_u32 << discard;
+                for (selection, bounds) in [
+                    (
+                        DecodeSelection::full_image(),
+                        [origin[0], origin[1], 16, 16],
+                    ),
+                    (DecodeSelection::tile(3), [8, 8, 16, 16]),
+                    (DecodeSelection::tiles(vec![3, 1]), [8, origin[1], 16, 16]),
+                    (
+                        DecodeSelection::full_image()
+                            .with_region(crate::ImageRegion::new(5, 3, 10, 12)),
+                        [5, 3, 15, 15],
+                    ),
+                ] {
+                    let selection = selection.with_discard_levels(discard);
+                    let before = selection.clone();
+                    let [x0, y0, x1, y1] = bounds.map(|value| value.div_ceil(scale));
+                    let dx = u32::from(sampling[0]) * scale;
+                    let dy = u32::from(sampling[1]) * scale;
+                    let cx0 = bounds[0].div_ceil(dx);
+                    let cy0 = bounds[1].div_ceil(dy);
+                    let cx1 = bounds[2].div_ceil(dx);
+                    let cy1 = bounds[3].div_ceil(dy);
+                    let mut expected = Vec::new();
+                    for y in cy0..cy1 {
+                        for x in cx0..cx1 {
+                            let tile = (y * dy / 8) * 2 + x * dx / 8;
+                            expected.push(128_u64 / [1, 2, 4, 8][tile as usize]);
+                        }
+                    }
+                    for result in [
+                        decode_codestream_selected(&bytes, &options, &selection),
+                        decode_jp2_selected(&jp2, &options, &selection),
+                        decode_jpx_codestream_selected(&jpx, 0, &options, &selection),
+                    ] {
+                        let image = result.unwrap();
+                        assert_eq!(
+                            (
+                                image.x_origin(),
+                                image.y_origin(),
+                                image.width(),
+                                image.height()
+                            ),
+                            (x0, y0, x1 - x0, y1 - y0),
+                        );
+                        let component = image.component(0).unwrap();
+                        assert_eq!(
+                            (component.width(), component.height()),
+                            (cx1 - cx0, cy1 - cy0)
+                        );
+                        assert_eq!(
+                            component.samples(),
+                            &TypedSamples::Unsigned(expected.clone()),
+                            "origin={origin:?} sampling={sampling:?} discard={discard} bounds={bounds:?}",
+                        );
+                        assert_eq!(component.info().x_subsampling, sampling[0]);
+                        assert_eq!(component.info().y_subsampling, sampling[1]);
+                        cases += 1;
+                    }
+                    if sampling == [1, 1] {
+                        let expected_color: Vec<_> = expected
+                            .iter()
+                            .map(|value| u16::try_from(*value).unwrap() * 257)
+                            .collect();
+                        for result in [
+                            decode_jp2_color_selected(&jp2, &options, &selection),
+                            decode_jpx_codestream_color_selected(&jpx, 0, &options, &selection),
+                        ] {
+                            let image = result.unwrap();
+                            assert_eq!((image.width(), image.height()), (x1 - x0, y1 - y0));
+                            assert_eq!(image.channel(0).unwrap().samples(), expected_color);
+                            color_cases += 1;
+                        }
+                    }
+                    assert_eq!(selection, before);
+                }
+            }
+            assert_eq!(bytes, snapshot);
+        }
+    }
+    assert_eq!(cases, 252);
+    assert_eq!(color_cases, 72);
 }
 
 #[test]

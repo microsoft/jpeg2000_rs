@@ -9487,33 +9487,33 @@ pub open spec fn part2_nonlinear_component_extent(
 
 pub(crate) open spec fn part2_nonlinear_tile_region(
     layout: &crate::codestream::CodestreamLayout<'_>, component: u16, tile: u16,
-    extent: (u32, u32, u32, u32),
+    extent: (u32, u32, u32, u32), scale: u32,
 ) -> Result<Option<Part2NonlinearRegion>, crate::DecodeError> {
-    part2_nonlinear_tile_region_input(crate::codestream::decoder_layout_input_view(layout), component, tile, extent)
+    part2_nonlinear_tile_region_input(crate::codestream::decoder_layout_input_view(layout), component, tile, extent, scale)
 }
 
 pub(crate) open spec fn part2_nonlinear_tile_regions(
     layout: &crate::codestream::CodestreamLayout<'_>, component: u16,
-    extent: (u32, u32, u32, u32), count: u64, tile: nat, regions: Seq<Part2NonlinearRegion>,
+    extent: (u32, u32, u32, u32), scale: u32, count: u64, tile: nat, regions: Seq<Part2NonlinearRegion>,
 ) -> Result<Seq<Part2NonlinearRegion>, crate::DecodeError>
     decreases count - tile,
 {
-    part2_nonlinear_tile_regions_input(crate::codestream::decoder_layout_input_view(layout), component, extent, count, tile, regions)
+    part2_nonlinear_tile_regions_input(crate::codestream::decoder_layout_input_view(layout), component, extent, scale, count, tile, regions)
 }
 
 pub(crate) open spec fn part2_nonlinear_component_regions(
     layout: &crate::codestream::CodestreamLayout<'_>, image: Part1DecodedTypedImage,
-    component: nat, regions: Seq<Part2NonlinearRegion>,
+    scale: u32, component: nat, regions: Seq<Part2NonlinearRegion>,
 ) -> Result<Seq<Part2NonlinearRegion>, crate::DecodeError>
     decreases layout.info.image_size.components - component,
 {
-    part2_nonlinear_component_regions_input(crate::codestream::decoder_layout_input_view(layout), image, component, regions)
+    part2_nonlinear_component_regions_input(crate::codestream::decoder_layout_input_view(layout), image, scale, component, regions)
 }
 
 pub(crate) open spec fn part2_collect_nonlinear_regions(
-    layout: &crate::codestream::CodestreamLayout<'_>, image: Part1DecodedTypedImage,
+    layout: &crate::codestream::CodestreamLayout<'_>, image: Part1DecodedTypedImage, discard_levels: u8,
 ) -> Result<Seq<Part2NonlinearRegion>, crate::DecodeError> {
-    part2_collect_nonlinear_regions_input(crate::codestream::decoder_layout_input_view(layout), image)
+    part2_collect_nonlinear_regions_input(crate::codestream::decoder_layout_input_view(layout), image, discard_levels)
 }
 
 pub struct Part2OwnedExtensions {
@@ -9620,9 +9620,9 @@ pub open spec fn part2_selected_layout_tiles(
 #[verifier::opaque]
 pub(crate) open spec fn part2_typed_layout(
     layout: &crate::codestream::CodestreamLayout<'_>, decoded: Part1DecodedImageModel,
-    limits: &crate::ResourceLimits,
+    discard_levels: u8, limits: &crate::ResourceLimits,
 ) -> Result<Part1DecodedTypedImage, crate::DecodeError> {
-    part2_typed_layout_input(crate::codestream::decoder_layout_input_view(layout), decoded, limits)
+    part2_typed_layout_input(crate::codestream::decoder_layout_input_view(layout), decoded, discard_levels, limits)
 }
 
 #[verifier::opaque]

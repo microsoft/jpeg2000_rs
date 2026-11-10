@@ -785,7 +785,7 @@
     },
     {
       "id": "part2-complete-native-public-raw-jpx-codestream-results",
-      "topic": "Complete actual public raw JPX codestream typed/color full-selected image/error Results from actual bytes/index/options/selections and real rawcontainer/selected-file/header/layout/decoder/output/color producers. Actual selected-file Result preserves layout-before-header validation and original selected decoder plus typed_layout path, without silently adding the full-output-shape validator. Entire returned-header stored reference proved through actual association/default selectors. Selected-color expansion/target before selected-file execution retained; unselected payloads remain uninspected. Existing disablednested item staysnonexecuting, actual moduleproducer is bound explicitly. No successbanks/nativechanges/clones/reconstruction/premises. Progressive/JPIP/dispatch and independent normative/cfg/lifetime/release remain separate.",
+      "topic": "Complete actual public raw JPX codestream typed/color full-selected image/error Results from bytes/index/options/selections through actual raw container, selected-file, header, decoder, output and color producers. Intentional Sarah DEV-355FE751F9 correction: the actual selected producer passes its discard level into typed_layout and native-resolution nonlinear tile clipping; matching complete Result models retain this context. Preserve layout-before-header validation, no added full-output-shape validator, complete stored returned-header references, selected-color expansion/target ordering and unselected-payload laziness. The disabled nested item remains nonexecuting. No success banks, proof clones, reconstruction premises or alternate decoders. Progressive/JPIP/dispatch and independent normative/cfg/lifetime/release remain separate.",
       "implementation_refs": [
         {"path": "src/decode/api.rs", "symbol": "decode_jpx_codestream"},
         {"path": "src/decode/api.rs", "symbol": "decode_jpx_codestream_selected"},
@@ -868,7 +868,8 @@
         {"path": "src/decode/jpx_source_result_tests.rs", "symbol": "actual_raw_jpx_public_selected_producer_retains_actual_fallback_and_associated_header_references"},
         {"path": "src/decode/jpx_source_result_tests.rs", "symbol": "actual_raw_jpx_public_derives_associated_palette_rgb_and_complete_alpha_output"},
         {"path": "src/decode/jpx_source_result_tests.rs", "symbol": "actual_raw_jpx_public_inspects_only_the_chosen_payload_after_raw_profile_and_index_admission"},
-        {"path": "src/decode/jpx_source_result_tests.rs", "symbol": "actual_raw_jpx_public_keeps_layout_header_selection_packet_and_palette_first_errors"}
+        {"path": "src/decode/jpx_source_result_tests.rs", "symbol": "actual_raw_jpx_public_keeps_layout_header_selection_packet_and_palette_first_errors"},
+        {"path": "src/decode/tests.rs", "symbol": "sarah_dev_355fe751f9_reduced_tile_nlt_uses_native_coordinates"}
       ]
     },
     {
@@ -2185,7 +2186,7 @@
     },
     {
       "id": "part2-complete-native-raw-codestream-typed-result",
-      "topic": "Complete actual compressed-byte full and selected typed-image Results, not supplied-layout or decoded-image admission: actual raw parser/input limits and every raw layout error feed one checked complete logical decoder-input projection, then real execution admission, selection, pixel reconstruction, typed conversion, nonlinear-region collection/application and output-shape producers. Actual limits and selected request are retained with every first error. No owning native layout/image is chosen or supplied; only fully projected Copy image/style/quantization/ROI types are recovered with checked unconditional inverse identities including raw counts and all physical tails. Existing native-layout models delegate to the same extracted nonduplicated input models. Checked complete-layout adequacy/error/unfolding bridges connect actual returned parser owners to actual unchanged raw API bodies. No native owner/clone/move/drop/scope change, runtime proof clone, external codec axiom, assumption/admission, alternate decoder, normalized owner or pin/cap/trust change. Both raw API contracts and all three consumed parser/decoder/type contracts are mandatory together. This supplies actual decoded-image producers for normalization/frame joins and proves the raw full/selected codestream sub-boundary only; container/layer/frame/progressive/JPIP, complete normalization/public composition, independent normative correspondence, production coverage/erasure/lifetimes and release remain separate.",
+      "topic": "Complete actual compressed-byte full/selected typed-image Results through the actual raw parser/input limits, complete checked decoder-input projection, execution admission, selection, reconstruction, typed conversion, nonlinear regions/application and final shape admission. Actual limits, selected request and every first error are retained. Intentional Sarah DEV-355FE751F9 correction carries discard context into native-resolution tile-local nonlinear processing in executing bodies and complete shared models. No supplied owning layout/image or successful-result bank; Copy projections retain unconditional inverse identities, raw counts and physical tails. Complete-layout adequacy/error/unfolding bridges still bind both unchanged public raw API bodies to all consumed parser/decoder/type contracts. No runtime proof clone, external codec axiom, assumption/admission, alternate decoder, normalized owner or pin/cap/trust change. Container/layer/frame/progressive/JPIP, full normalization/public composition, independent normative correspondence, coverage/erasure/lifetimes and release remain separate.",
       "implementation_refs": [
         {"path": "src/decode/api.rs", "symbol": "decode_codestream"},
         {"path": "src/decode/api.rs", "symbol": "decode_codestream_selected"},
@@ -2237,7 +2238,8 @@
         {"path": "src/decode/raw_typed_result_tests.rs", "symbol": "actual_raw_typed_result_derives_full_and_reduced_signed_unsigned_planes_from_bytes"},
         {"path": "src/decode/raw_typed_result_tests.rs", "symbol": "actual_raw_typed_result_preserves_parser_selection_and_backend_budget_first_errors"},
         {"path": "src/decode/raw_typed_result_tests.rs", "symbol": "actual_raw_typed_result_joins_real_packed_packets_mct_and_nonlinear_regions"},
-        {"path": "src/decode/raw_typed_result_tests.rs", "symbol": "actual_raw_typed_result_keeps_independently_encoded_nonzero_samples_and_selected_geometry"}
+        {"path": "src/decode/raw_typed_result_tests.rs", "symbol": "actual_raw_typed_result_keeps_independently_encoded_nonzero_samples_and_selected_geometry"},
+        {"path": "src/decode/tests.rs", "symbol": "sarah_dev_355fe751f9_reduced_tile_nlt_uses_native_coordinates"}
       ]
     },
     {
@@ -4255,7 +4257,7 @@
     },
     {
       "id": "part2-complete-native-full-selected-typed-layout-decoding",
-      "topic": "Complete actual full/selected raw parsed-layout/request/limits/input-length to final TypedImage Result, every geometry/descriptor/sample/channel-definition field and first error. Actual decode_layout/selected derives decoded images from genuine tile bytes/plans/metadata/empty state, then real typed conversion, source-owned nonlinear regions and complete owner mutation, then final output-shape admission compose in original order. No supplied decoded/typed/region/sample/result banks, normalized layout, successful admission/coverage/budget premises or callback. Public raw codestream entry points still execute actual byte parser first and call the sole private body. Actual compressed-byte parser functional Result, file/F2/F4/final F8 and delivery remain separate.",
+      "topic": "Complete actual full/selected parsed-layout/request/limits/input-length to final TypedImage Result, every geometry/descriptor/sample/channel-definition field and first error. Actual decode_layout/selected derives images from real tile bytes/plans/metadata/empty state, then typed conversion, source-owned nonlinear regions and complete mutation, then final shape admission in original order. Intentional Sarah DEV-355FE751F9 correction carries selected discard context through typed_layout and matching complete models so tile-local nonlinear processing clips reduced tile bounds to native output coordinates. Full-resolution behavior and existing public preprocessing error priorities remain. No supplied decoded/typed/region/sample/result banks, normalized layout or successful admission/coverage/budget premises. Public raw APIs retain the actual parser and sole private body. Independent normative/file/F2/F4/final F8 and delivery remain separate.",
       "implementation_refs": [
         {"path": "src/decode/api.rs", "symbol": "decode_codestream"},
         {"path": "src/decode/api.rs", "symbol": "decode_codestream_selected"},
@@ -4286,7 +4288,8 @@
         {"path": "src/image/proof_support.rs", "symbol": "decoded_typed_image_outcome"}
       ],
       "test_refs": [
-        {"path": "src/decode/tests.rs", "symbol": "actual_full_selected_typed_layouts_join_real_decode_nonlinear_and_shape_producers"}
+        {"path": "src/decode/tests.rs", "symbol": "actual_full_selected_typed_layouts_join_real_decode_nonlinear_and_shape_producers"},
+        {"path": "src/decode/tests.rs", "symbol": "sarah_dev_355fe751f9_reduced_tile_nlt_uses_native_coordinates"}
       ]
     },
     {
@@ -4492,7 +4495,7 @@
     },
     {
       "id": "part2-complete-native-nonlinear-region-production",
-      "topic": "Complete actual nonlinear transform selection, registered output metadata and full raw layout/image to ordered nonlinear regions Result. First component-specific transform precedes first default; last matching tile-part owner replaces main metadata even when empty. Preserve component-before-tile traversal, all metadata/check/narrowing order, lazy tile geometry only with a selected transform, clipping and every raw transform field. Prove all frames/bounds internally, no normalized metadata, supplied regions/transforms/results or success premises. Sole extracted bodies are used by actual typed_layout with original allocation and error policy. Nonlinear sample execution, final typed/raw parser/file/F2/F4/final F8 and delivery remain separate.",
+      "topic": "Complete actual nonlinear transform selection and raw layout/image/discard-level to ordered nonlinear regions Result. Intentional Sarah DEV-355FE751F9 correction ceiling-reduces tile-component bounds before native-resolution output clipping; invalid discard levels above31 return explicit ReductionTooLarge. First specific transform precedes first default; last matching tile-part owner replaces main metadata even when empty. Preserve valid-discard component-before-tile traversal, registered/subsampled metadata, narrowing order, lazy tile geometry and every raw transform field. All frames/bounds derive internally without normalized metadata, supplied regions/transforms/results or success premises. Actual typed_layout and selected JPX producer pass real discard context to the sole executing collector and complete models. Nonlinear scalar-rule certification, independent normative/file/F2/F4/final F8 and delivery remain separate.",
       "implementation_refs": [
         {"path": "src/decode/api.rs", "symbol": "typed_layout"},
         {"path": "src/decode/api.rs", "symbol": "collect_nonlinear_regions"},
@@ -4526,7 +4529,8 @@
       ],
       "test_refs": [
         {"path": "src/codestream/tests.rs", "symbol": "actual_nonlinear_lookup_preserves_first_specific_then_first_default_and_all_raw_fields"},
-        {"path": "src/decode/tests.rs", "symbol": "actual_nonlinear_regions_derive_last_raw_tile_owner_registered_clipping_and_error_order"}
+        {"path": "src/decode/tests.rs", "symbol": "actual_nonlinear_regions_derive_last_raw_tile_owner_registered_clipping_and_error_order"},
+        {"path": "src/decode/tests.rs", "symbol": "sarah_dev_355fe751f9_reduced_tile_nlt_uses_native_coordinates"}
       ]
     },
     {

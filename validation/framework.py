@@ -1840,7 +1840,7 @@ _SOT_READER_CONTRACTS = {
 _TYPED_LAYOUT_CONTRACTS = {
     ("src/decode/api.rs", "typed_layout"): (
         "part2_typed_layout", _coverage_call("crate::image::decoded_typed_image_outcome", r"\1"), None,
-        r"layout\s*,\s*" + _coverage_call("crate::image::decoded_image_view", "decoded") + r"\s*,\s*limits",
+        r"layout\s*,\s*" + _coverage_call("crate::image::decoded_image_view", "decoded") + r"\s*,\s*discard_levels\s*,\s*limits",
     ),
     ("src/decode/api.rs", "decode_typed_layout"): (
         "part2_decode_typed_layout", _coverage_call("crate::image::decoded_typed_image_outcome", r"\1"), None,
@@ -2024,7 +2024,7 @@ _NONLINEAR_REGIONS_CONTRACTS = {
     ),
     ("src/decode/api.rs", "collect_nonlinear_regions"): (
         "part2_collect_nonlinear_regions", _coverage_call("nonlinear_regions_outcome", r"\1"), None,
-        r"layout\s*,\s*" + _coverage_call("crate::image::typed_image_value_view", r"\*\s*image"),
+        r"layout\s*,\s*" + _coverage_call("crate::image::typed_image_value_view", r"\*\s*image") + r"\s*,\s*discard_levels",
     ),
 }
 
@@ -4071,7 +4071,7 @@ _RAW_JPX_PUBLIC_IMAGE_TESTS = {("src/decode/jpx_source_result_tests.rs", "actual
     "derives_associated_palette_rgb_and_complete_alpha_output",
     "inspects_only_the_chosen_payload_after_raw_profile_and_index_admission",
     "keeps_layout_header_selection_packet_and_palette_first_errors",
-)}
+)} | {("src/decode/tests.rs", "sarah_dev_355fe751f9_reduced_tile_nlt_uses_native_coordinates")}
 _RAW_COMPOSITION_RENDER_ENTRY = "part2-complete-native-public-raw-composition-result"
 _RAW_COMPOSITION_RENDER_APIS = {("src/jpx/render.rs", "render_jpx_composition")}
 _RAW_COMPOSITION_RENDER_CONTRACTS = {
@@ -5290,7 +5290,7 @@ def validate_normative_coverage(
                 "match selected.codestream_header()", "association.parsed_header()", "None => Some(file.header())",
                 "association.box_header().offset()", "codestream::parse_layout(selected.data(), options.limits())?",
                 "jp2::validate_selected_header(header, &layout.info, selected.box_header().offset())?",
-                "typed_layout(&layout, decode_layout_selected(&layout, selection, options.limits())?, options.limits(),)?",
+                "typed_layout(&layout, decode_layout_selected(&layout, selection, options.limits())?, selection.discard_levels(), options.limits(),)?",
                 "apply_jp2_output(decoded, header, options.limits())?", "Ok((image, associated_header))",
                 "codestream::decoder_layout_main_info_matches_raw(&layout)",
                 "jp2::associated_header_reference_selectors(selected, jp2::jpx_file_header_reference(file))",
@@ -5315,7 +5315,7 @@ def validate_normative_coverage(
                 ("specs/jpx_public_images.rs", "part2_decode_jpx_selected_layout",
                  ("layout.0.image_size", "part2_validate_selected_header(header.1, size.geometry.0, size.geometry.1, size.components,",
                   "size.uniform_bit_depth, size.uniform_signed, source.1", "part2_decoder_input_from_raw(layout)",
-                  "part2_decode_layout_selected_value_input(input, requested, limits)", "part2_typed_layout_input(input, decoded, limits)",
+                  "part2_decode_layout_selected_value_input(input, requested, limits)", "part2_typed_layout_input(input, decoded, requested.2, limits)",
                   "part2_apply_output_header(image, header.0,", "Ok((mapped, Some(header)))")),
                 ("specs/jpx_public_images.rs", "part2_decode_jpx_selected_color",
                  ("!part2_file_type_jpx(file.0)", "part2_jpx_codestream_lookup(file.1, index)",
@@ -5402,7 +5402,8 @@ def validate_normative_coverage(
                   "[selection.1[0], selection.1[1], selection.1[2], selection.1[3]], selection.2, limits")),
                 ("specs/decoder_input.rs", "part2_decode_typed_layout_value_input",
                  ("None => part2_decode_layout_input(input, limits)", "Some(requested) => part2_decode_layout_selected_value_input(input, requested, limits)",
-                  "part2_typed_layout_input(input, decoded, limits)", "part1_validate_typed_output_shape(input_bytes, input.parts.len() as usize, input.size.components, image)")),
+                  "let discard_levels = match requested { None => 0u8, Some(selection) => selection.2 }",
+                  "part2_typed_layout_input(input, decoded, discard_levels, limits)", "part1_validate_typed_output_shape(input_bytes, input.parts.len() as usize, input.size.components, image)")),
             ):
                 actual = _coverage_spec_function_body(source_text((ROOT / path).resolve()), name)
                 if actual is None or any("".join(item.split()) not in "".join(actual.split()) for item in required):

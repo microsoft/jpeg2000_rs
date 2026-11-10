@@ -322,6 +322,7 @@ pub(crate) fn decode_jpx_file<'a>(
         let decoded = typed_layout(
             &layout,
             decode_layout_selected(&layout, selection, options.limits())?,
+            selection.discard_levels(),
             options.limits(),
         )?;
         apply_associated_output(decoded, associated_header, options.limits())
@@ -416,6 +417,7 @@ pub(super) fn decode_jpx_file_selected<'a>(
     let decoded = typed_layout(
         &layout,
         decode_layout_selected(&layout, selection, options.limits())?,
+        selection.discard_levels(),
         options.limits(),
     )?;
     let image = match associated_header {

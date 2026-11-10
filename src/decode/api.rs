@@ -1,10 +1,10 @@
 use super::{
     CodestreamLayout, DecodeError, DecodeOptions, DecodeSelection, DecodedImage, MalformedKind,
-    NonlinearComponentExtent, NonlinearRegion, ResourceLimits, TypedImage, TypedSamples,
-    apply_jp2_output, arithmetic_overflow, codestream, color_selection, convert_associated_color,
-    convert_associated_selected_color, decode_jpx_file, decode_jpx_file_selected, decode_layout,
-    decode_layout_selected, finish_associated_selected_output, invalid_decode, jp2,
-    registered_ceil_div_u32,
+    NonlinearComponentExtent, NonlinearRegion, ResourceLimits, SelectionError, TypedImage,
+    TypedSamples, apply_jp2_output, arithmetic_overflow, ceil_div_u32, codestream, color_selection,
+    convert_associated_color, convert_associated_selected_color, decode_jpx_file,
+    decode_jpx_file_selected, decode_layout, decode_layout_selected,
+    finish_associated_selected_output, invalid_decode, jp2, registered_ceil_div_u32,
 };
 #[cfg(verus_keep_ghost)]
 use super::{ImageSize, nonlinear_regions_outcome, nonlinear_regions_view};
@@ -71,7 +71,11 @@ pub(super) fn decode_typed_layout(
         None => decode_layout(layout, limits)?,
         Some(requested) => decode_layout_selected(layout, requested, limits)?,
     };
-    let image = typed_layout(layout, decoded, limits)?;
+    let discard_levels = match requested {
+        None => 0,
+        Some(selection) => selection.discard_levels(),
+    };
+    let image = typed_layout(layout, decoded, discard_levels, limits)?;
     validate_part1_output_shape(input_bytes, layout, &image)?;
     Ok(image)
 }
@@ -152,12 +156,13 @@ pub(super) fn validate_part1_output_shape(
 
 #[cfg_attr(verus_keep_ghost, verus_spec(result =>
     ensures crate::image::decoded_typed_image_outcome(result) == crate::specs::part2_typed_layout(
-        layout, crate::image::decoded_image_view(decoded), limits,
+        layout, crate::image::decoded_image_view(decoded), discard_levels, limits,
     ),
 ))]
 pub(super) fn typed_layout(
     layout: &CodestreamLayout<'_>,
     decoded: DecodedImage,
+    discard_levels: u8,
     limits: &ResourceLimits,
 ) -> Result<TypedImage, DecodeError> {
     #[cfg(verus_keep_ghost)]
@@ -166,7 +171,7 @@ pub(super) fn typed_layout(
         codestream::decoder_layout_input_fields(layout);
     }
     let mut image = decoded.typed(limits)?;
-    let regions = collect_nonlinear_regions(layout, &image)?;
+    let regions = collect_nonlinear_regions(layout, &image, discard_levels)?;
     if !regions.is_empty() {
         image.apply_nonlinear_regions(&regions, limits)?;
     }
@@ -207,19 +212,26 @@ pub(super) fn nonlinear_component_extent(
 
 #[cfg_attr(verus_keep_ghost, verus_spec(result =>
     ensures nonlinear_regions_outcome(result) == crate::specs::part2_collect_nonlinear_regions(
-        layout, crate::image::typed_image_value_view(*image),
+        layout, crate::image::typed_image_value_view(*image), discard_levels,
     ),
 ))]
 pub(super) fn collect_nonlinear_regions<'a>(
     layout: &'a CodestreamLayout<'_>,
     image: &TypedImage,
+    discard_levels: u8,
 ) -> Result<Vec<NonlinearRegion<'a>>, DecodeError> {
+    if discard_levels >= 32 {
+        return Err(DecodeError::InvalidSelection {
+            reason: SelectionError::ReductionTooLarge,
+        });
+    }
+    let scale = 1_u32 << u32::from(discard_levels);
     let mut regions = Vec::new();
     let mut component = 0_u16;
     #[cfg(verus_keep_ghost)]
     proof_decl! {
         let ghost image_view = crate::image::typed_image_value_view(*image);
-        let ghost goal = crate::specs::part2_collect_nonlinear_regions(layout, image_view);
+        let ghost goal = crate::specs::part2_collect_nonlinear_regions(layout, image_view, discard_levels);
     }
     #[cfg(verus_keep_ghost)]
     proof! {
@@ -230,9 +242,10 @@ pub(super) fn collect_nonlinear_regions<'a>(
         verus_keep_ghost,
         verus_spec(
             invariant component <= layout.info.image_size.components,
+            discard_levels < 32, scale == 1u32 << (discard_levels as u32),
             image_view == crate::image::typed_image_value_view(*image),
-            goal == crate::specs::part2_collect_nonlinear_regions(layout, image_view),
-            goal == crate::specs::part2_nonlinear_component_regions(layout, image_view, component as nat, nonlinear_regions_view(regions@)),
+            goal == crate::specs::part2_collect_nonlinear_regions(layout, image_view, discard_levels),
+            goal == crate::specs::part2_nonlinear_component_regions(layout, image_view, scale, component as nat, nonlinear_regions_view(regions@)),
             decreases layout.info.image_size.components - component,
         )
     )]
@@ -248,7 +261,7 @@ pub(super) fn collect_nonlinear_regions<'a>(
         #[cfg(verus_keep_ghost)]
         proof_decl! {
             let ghost tile_goal = crate::specs::part2_nonlinear_tile_regions(
-                layout, component, extent, tile_count, 0, nonlinear_regions_view(regions@),
+                layout, component, extent, scale, tile_count, 0, nonlinear_regions_view(regions@),
             );
         }
         let mut tile = 0_u64;
@@ -256,14 +269,15 @@ pub(super) fn collect_nonlinear_regions<'a>(
             verus_keep_ghost,
             verus_spec(
                 invariant tile <= tile_count,
+                discard_levels < 32, scale == 1u32 << (discard_levels as u32),
                 image_view == crate::image::typed_image_value_view(*image),
                 component < layout.info.image_size.components,
-                goal == crate::specs::part2_collect_nonlinear_regions(layout, image_view),
+                goal == crate::specs::part2_collect_nonlinear_regions(layout, image_view, discard_levels),
                 goal == match tile_goal {
                     Err(error) => Err(error),
-                    Ok(regions) => crate::specs::part2_nonlinear_component_regions(layout, image_view, component as nat + 1, regions),
+                    Ok(regions) => crate::specs::part2_nonlinear_component_regions(layout, image_view, scale, component as nat + 1, regions),
                 },
-                tile_goal == crate::specs::part2_nonlinear_tile_regions(layout, component, extent, tile_count, tile as nat, nonlinear_regions_view(regions@)),
+                tile_goal == crate::specs::part2_nonlinear_tile_regions(layout, component, extent, scale, tile_count, tile as nat, nonlinear_regions_view(regions@)),
                 extent == (output_x0, output_y0, output_x1, output_y1),
                 decreases tile_count - tile,
             )
@@ -301,17 +315,17 @@ pub(super) fn collect_nonlinear_regions<'a>(
             #[cfg(verus_keep_ghost)]
             proof_decl! {
                 let ghost before = regions@;
-                let ghost region = crate::specs::part2_nonlinear_tile_region(layout, component, tile_index, extent);
+                let ghost region = crate::specs::part2_nonlinear_tile_region(layout, component, tile_index, extent, scale);
             }
             if let Some(transform) = extensions.nonlinear_transform_for(component) {
                 let bounds = layout
                     .info
                     .image_size
                     .tile_component_bounds(tile_index, component)?;
-                let x0 = bounds.x0.max(output_x0);
-                let y0 = bounds.y0.max(output_y0);
-                let x1 = bounds.x1.min(output_x1);
-                let y1 = bounds.y1.min(output_y1);
+                let x0 = ceil_div_u32(bounds.x0, scale)?.max(output_x0);
+                let y0 = ceil_div_u32(bounds.y0, scale)?.max(output_y0);
+                let x1 = ceil_div_u32(bounds.x1, scale)?.min(output_x1);
+                let y1 = ceil_div_u32(bounds.y1, scale)?.min(output_y1);
                 if x0 < x1 && y0 < y1 {
                     regions.push(NonlinearRegion {
                         component,

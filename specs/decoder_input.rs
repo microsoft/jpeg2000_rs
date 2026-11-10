@@ -61,7 +61,7 @@ pub(crate) open spec fn part2_decoder_execution_admission(input: Part2DecoderLay
 }
 
 pub(crate) open spec fn part2_nonlinear_tile_region_input(
-    input: Part2DecoderLayoutInput, component: u16, tile: u16, extent: (u32, u32, u32, u32),
+    input: Part2DecoderLayoutInput, component: u16, tile: u16, extent: (u32, u32, u32, u32), scale: u32,
 ) -> Result<Option<Part2NonlinearRegion>, crate::DecodeError> {
     let extensions = part2_nonlinear_tile_extensions(input.main_extensions, input.parts, tile, input.parts.len());
     match part2_nonlinear_transform_for(extensions.nonlinear, component) {
@@ -72,17 +72,29 @@ pub(crate) open spec fn part2_nonlinear_tile_region_input(
             crate::codestream::image_size_component_infos(&input.size), tile, component,
         ) {
             Err(error) => Err(error),
-            Ok(bounds) => {
-                let x0 = if bounds.x0 > extent.0 { bounds.x0 } else { extent.0 };
-                let y0 = if bounds.y0 > extent.1 { bounds.y0 } else { extent.1 };
-                let x1 = if bounds.x1 < extent.2 { bounds.x1 } else { extent.2 };
-                let y1 = if bounds.y1 < extent.3 { bounds.y1 } else { extent.3 };
-                if x0 >= x1 || y0 >= y1 { Ok(None) } else {
-                    Ok(Some(Part2NonlinearRegion {
-                        component, x0: (x0 - extent.0) as u32, y0: (y0 - extent.1) as u32,
-                        x1: (x1 - extent.0) as u32, y1: (y1 - extent.1) as u32, transform,
-                    }))
-                }
+            Ok(bounds) => match part2_selection_ceil(bounds.x0, scale) {
+                Err(error) => Err(error),
+                Ok(bx0) => match part2_selection_ceil(bounds.y0, scale) {
+                    Err(error) => Err(error),
+                    Ok(by0) => match part2_selection_ceil(bounds.x1, scale) {
+                        Err(error) => Err(error),
+                        Ok(bx1) => match part2_selection_ceil(bounds.y1, scale) {
+                            Err(error) => Err(error),
+                            Ok(by1) => {
+                                let x0 = if bx0 > extent.0 { bx0 } else { extent.0 };
+                                let y0 = if by0 > extent.1 { by0 } else { extent.1 };
+                                let x1 = if bx1 < extent.2 { bx1 } else { extent.2 };
+                                let y1 = if by1 < extent.3 { by1 } else { extent.3 };
+                                if x0 >= x1 || y0 >= y1 { Ok(None) } else {
+                                    Ok(Some(Part2NonlinearRegion {
+                                        component, x0: (x0 - extent.0) as u32, y0: (y0 - extent.1) as u32,
+                                        x1: (x1 - extent.0) as u32, y1: (y1 - extent.1) as u32, transform,
+                                    }))
+                                }
+                            },
+                        },
+                    },
+                },
             },
         },
     }
@@ -90,49 +102,53 @@ pub(crate) open spec fn part2_nonlinear_tile_region_input(
 
 pub(crate) open spec fn part2_nonlinear_tile_regions_input(
     input: Part2DecoderLayoutInput, component: u16, extent: (u32, u32, u32, u32),
-    count: u64, tile: nat, regions: Seq<Part2NonlinearRegion>,
+    scale: u32, count: u64, tile: nat, regions: Seq<Part2NonlinearRegion>,
 ) -> Result<Seq<Part2NonlinearRegion>, crate::DecodeError>
     decreases count - tile,
 {
     if tile >= count { Ok(regions) }
     else if tile > u16::MAX { Err(part1_block_placement_error(true)) }
     else {
-        match part2_nonlinear_tile_region_input(input, component, tile as u16, extent) {
+        match part2_nonlinear_tile_region_input(input, component, tile as u16, extent, scale) {
             Err(error) => Err(error),
-            Ok(region) => part2_nonlinear_tile_regions_input(input, component, extent, count, tile + 1,
+            Ok(region) => part2_nonlinear_tile_regions_input(input, component, extent, scale, count, tile + 1,
                 match region { None => regions, Some(region) => regions.push(region) }),
         }
     }
 }
 
 pub(crate) open spec fn part2_nonlinear_component_regions_input(
-    input: Part2DecoderLayoutInput, image: Part1DecodedTypedImage, component: nat, regions: Seq<Part2NonlinearRegion>,
+    input: Part2DecoderLayoutInput, image: Part1DecodedTypedImage, scale: u32, component: nat, regions: Seq<Part2NonlinearRegion>,
 ) -> Result<Seq<Part2NonlinearRegion>, crate::DecodeError>
     decreases input.size.components - component,
 {
     if component >= input.size.components { Ok(regions) } else {
         match part2_nonlinear_component_extent(&input.size, image, component as u16) {
             Err(error) => Err(error),
-            Ok((extent, count)) => match part2_nonlinear_tile_regions_input(input, component as u16, extent, count, 0, regions) {
+            Ok((extent, count)) => match part2_nonlinear_tile_regions_input(input, component as u16, extent, scale, count, 0, regions) {
                 Err(error) => Err(error),
-                Ok(regions) => part2_nonlinear_component_regions_input(input, image, component + 1, regions),
+                Ok(regions) => part2_nonlinear_component_regions_input(input, image, scale, component + 1, regions),
             },
         }
     }
 }
 
 pub(crate) open spec fn part2_collect_nonlinear_regions_input(
-    input: Part2DecoderLayoutInput, image: Part1DecodedTypedImage,
+    input: Part2DecoderLayoutInput, image: Part1DecodedTypedImage, discard_levels: u8,
 ) -> Result<Seq<Part2NonlinearRegion>, crate::DecodeError> {
-    part2_nonlinear_component_regions_input(input, image, 0, Seq::empty())
+    if discard_levels >= 32 {
+        Err(crate::DecodeError::InvalidSelection { reason: crate::SelectionError::ReductionTooLarge })
+    } else {
+        part2_nonlinear_component_regions_input(input, image, 1u32 << (discard_levels as u32), 0, Seq::empty())
+    }
 }
 
 pub(crate) open spec fn part2_typed_layout_input(
-    input: Part2DecoderLayoutInput, decoded: Part1DecodedImageModel, limits: &crate::ResourceLimits,
+    input: Part2DecoderLayoutInput, decoded: Part1DecodedImageModel, discard_levels: u8, limits: &crate::ResourceLimits,
 ) -> Result<Part1DecodedTypedImage, crate::DecodeError> {
     match part1_decoded_image_typed(decoded, crate::limits::resource_decoded_bytes_limit(limits)) {
         Err(error) => Err(error),
-        Ok(image) => match part2_collect_nonlinear_regions_input(input, image) {
+        Ok(image) => match part2_collect_nonlinear_regions_input(input, image, discard_levels) {
             Err(error) => Err(error),
             Ok(regions) => if regions.len() == 0 { Ok(image) } else {
                 let outcome = part2_apply_nonlinear_regions(image, regions,
@@ -199,9 +215,10 @@ pub(crate) open spec fn part2_decode_typed_layout_value_input(
         None => part2_decode_layout_input(input, limits),
         Some(requested) => part2_decode_layout_selected_value_input(input, requested, limits),
     };
+    let discard_levels = match requested { None => 0u8, Some(selection) => selection.2 };
     match decoded {
         Err(error) => Err(error),
-        Ok(decoded) => match part2_typed_layout_input(input, decoded, limits) {
+        Ok(decoded) => match part2_typed_layout_input(input, decoded, discard_levels, limits) {
             Err(error) => Err(error),
             Ok(image) => match part1_validate_typed_output_shape(input_bytes, input.parts.len() as usize, input.size.components, image) {
                 Err(error) => Err(error), Ok(()) => Ok(image),
