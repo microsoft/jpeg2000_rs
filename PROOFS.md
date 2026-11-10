@@ -5494,7 +5494,12 @@ resolution-style traversal produce checked extents, code-block/precinct grids
 and products in original error order. The whole-image branch intentionally
 ignores registration while the tile branch uses registered clipping; the
 legacy reported subbands value remains3 for every nonzero resolution.
-No incidental policy was corrected or normalized during this composition.
+The later Sarah `DEV-76BF9F9717` correction gives an empty half-open sample
+axis zero code-block and precinct cells, including equal nonaligned endpoints.
+The other axis retains its own count; address arithmetic and metadata/error
+admission still run in their original order. Complete models and actual packet
+and JPIP-map consumers share this correction, without introducing prepared
+counts or a second executable geometry implementation.
 
 Coordinate and floor helpers, real field-view equalities, three exact native
 consumer contracts and the curated public boundary connect every result to
@@ -5648,6 +5653,10 @@ It derives checked intersections, block lattice and shape, then composes the
 real configured decoder/placement vector factory and packet-row metadata.
 An empty intersection preserves the original lazy style/bitplane/policy/limit
 admission, while subband-end overflow still precedes that bypass.
+The Sarah `DEV-76BF9F9717` correction also checks the fully clipped rectangle
+after both checked band ends and before block division. Empty intersections
+return no lattice or execution, including zero-width bands inside a subband;
+earlier overflow order and lazy divisor/style/limit admission are preserved.
 
 Two complete exact-binding contracts cover raw band/block/subband/style/
 policy/location/owned prefix/count/selection/limits without supplied lattice,
@@ -5655,6 +5664,10 @@ initialized decoders, prepared executions or successful resource premises.
 Actual native views and a proved packet-field observation bind all output
 fields without opening private executable representation or adding trust.
 Independent wide intersection/lattice tests cover 10,368 raw contexts;
+an additional 28,800 half-open rectangles and targeted overflow/divisor cases
+exercise the corrected clipping boundary. Tiny nonzero-origin resolutions
+check each empty grid axis, and real header databins check that empty
+resolutions do not shift precinct IDs in any progression order.
 57,600 full composition contexts compare packet presence/metadata, every
 decoder field, placement prefixes, indices and selected-only count/errors.
 Full resolution/precinct/component/tile and F2/F4/F8 joins remain separate.

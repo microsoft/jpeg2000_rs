@@ -76,6 +76,8 @@ pub(crate) fn derive_component_resolution_geometry_for(
     let code_blocks_down = ceil_div_u32(resolution_y1, code_block_height)?
         .checked_sub(floor_div_u32(resolution_y0, code_block_height)?)
         .ok_or_else(arithmetic_overflow)?;
+    let code_blocks_across = if width == 0 { 0 } else { code_blocks_across };
+    let code_blocks_down = if height == 0 { 0 } else { code_blocks_down };
     let code_blocks = u64::from(code_blocks_across)
         .checked_mul(u64::from(code_blocks_down))
         .ok_or_else(arithmetic_overflow)?;
@@ -95,6 +97,8 @@ pub(crate) fn derive_component_resolution_geometry_for(
     let precincts_down = precinct_y1
         .checked_sub(precinct_y0)
         .ok_or_else(arithmetic_overflow)?;
+    let precincts_across = if width == 0 { 0 } else { precincts_across };
+    let precincts_down = if height == 0 { 0 } else { precincts_down };
     let precincts = u64::from(precincts_across)
         .checked_mul(u64::from(precincts_down))
         .ok_or_else(arithmetic_overflow)?;

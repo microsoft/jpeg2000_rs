@@ -2607,7 +2607,9 @@ pub open spec fn part2_resolution_codeblock_grid(bounds: [u32; 4], width: u32, h
                         Err(error) => Err(error),
                         Ok(y0) => match part1_image_checked_u32(y1 as int - y0 as int) {
                             Err(error) => Err(error),
-                            Ok(down) => part2_geometry_grid_product(across, down),
+                            Ok(down) => part2_geometry_grid_product(
+                                if bounds[0] == bounds[2] { 0 } else { across },
+                                if bounds[1] == bounds[3] { 0 } else { down }),
                         },
                     },
                 },
@@ -2631,7 +2633,9 @@ pub open spec fn part2_resolution_precinct_grid(bounds: [u32; 4], width: u32, he
                         Err(error) => Err(error),
                         Ok(across) => match part1_image_checked_u32(y1 as int - y0 as int) {
                             Err(error) => Err(error),
-                            Ok(down) => part2_geometry_grid_product(across, down),
+                            Ok(down) => part2_geometry_grid_product(
+                                if bounds[0] == bounds[2] { 0 } else { across },
+                                if bounds[1] == bounds[3] { 0 } else { down }),
                         },
                     },
                 },
@@ -10101,6 +10105,7 @@ pub open spec fn part2_planned_subband_lattice(
                         Ok(by1) => {
                             let ex = if bx1 <= sx1 { bx1 } else { sx1 };
                             let ey = if by1 <= sy1 { by1 } else { sy1 };
+                            if start_x >= ex || start_y >= ey { Ok(None) } else {
                             match part2_selection_floor(start_x, block_size[0]) {
                                 Err(error) => Err(error),
                                 Ok(fx) => match part2_selection_floor(start_y, block_size[1]) {
@@ -10122,6 +10127,7 @@ pub open spec fn part2_planned_subband_lattice(
                                         },
                                     },
                                 },
+                            }
                             }
                         },
                     },
