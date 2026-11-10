@@ -5756,7 +5756,7 @@
     },
     {
       "id": "part1-complete-native-public-packet-boundaries",
-      "topic": "Complete actual four single/multi-code-block and JPIP inner/transaction Result/full-native-state boundaries, real faithful subband/tree and original Vec clone/restore, exact error policy and skipped-decoder/identity frames. No supplied clone/header/decoder outcome, normalized shape, success or admitted-budget premise. Only internal producers claim actual consumers; the two standalone public single/multi APIs are proved API support with finite full-contract checks, not fabricated callers. No entire image/parser/conformance claim.",
+      "topic": "Complete actual four single/multi-code-block and JPIP inner/transaction Result/full-native-state boundaries, faithful subband/tree and original Vec clone/restore, exact error policy and skipped-decoder/identity frames. Intentional DEV-709CD8127B correction permits omitted SOP when enabled and retains malformed-present-marker/length and existing multi sequence policy. DEV-EA51ACDA28 checked completion consumes required terminal stuffing before EPH/body accounting with exact header-byte budget/EOF/stuffbit errors; the public plain align API stays unchanged. Sole executing readers/finisher and complete models change together. No supplied clone/header/decoder outcome, normalized shape, success or admitted-budget premise. Standalone APIs remain proved support, not fabricated consumers. No entire image/parser/conformance or selected-edition certification claim.",
       "contract_refs": [
         {
           "path": "src/packet/precinct.rs", "symbol": "decode_jpip_precinct_packet_inner"
@@ -5949,6 +5949,12 @@
         },
         {
           "path": "src/packet/proof_support.rs", "symbol": "packet_subband_view"
+        },
+        {
+          "path": "proofs/spec_properties/mod.rs", "symbol": "multi_sop_omission_preserves_disabled_prefix_result"
+        },
+        {
+          "path": "src/packet/bit_reader.rs", "symbol": "PacketBitReader::finish_packet_header"
         }
       ],
       "test_refs": [
@@ -5969,6 +5975,15 @@
         },
         {
           "path": "src/packet/tests.rs", "symbol": "precinct_skipped_execution_consumes_ranges_without_decoder_shape_or_counter_changes"
+        },
+        {
+          "path": "src/packet/tests.rs", "symbol": "public_multi_optional_sop_retains_empty_packet_state_and_budgets"
+        },
+        {
+          "path": "src/decode/tests.rs", "symbol": "sarah_dev_709cd8127b_optional_sop_keeps_raw_selected_and_packed_outputs"
+        },
+        {
+          "path": "src/packet/tests.rs", "symbol": "sarah_dev_ea51acda28_terminal_ff_header_counts_stuffing_before_body"
         }
       ]
     },
@@ -6767,7 +6782,7 @@
     },
     {
       "id": "part1-complete-native-header-tree-producers",
-      "topic": "Complete actual raw packet reader, full TagTree/packet-state/header segment traversal, all-byte Tier1 style parsing and scalar admission producers. Full returned errors/values and every final mutable owner are bound to actual old native inputs and typed caps. Header errors restore only packet state, not reader/trees. No normalized native shape/count, success, adequate-budget or supplied-result premise. Static wrappers/observational helpers are support, not independent result claims; not progression or normative conformance.",
+      "topic": "Complete actual raw packet reader, full TagTree/packet-state/header segment traversal, all-byte Tier1 style parsing and scalar admission producers. Intentional DEV-EA51ACDA28 correction adds a sole private checked packet-header finisher over the real byte loader: terminal FF consumes its required stuffed byte, preserves information-bit work count and all raw input/cap fields, and retains exact byte-budget-before-EOF-before-stuffbit errors/full state. Public plain alignment is unchanged. Full errors/values/every final mutable owner bind actual raw inputs and typed caps; header errors restore only packet state, not reader/trees. No normalized shape/count, success, adequate-budget or supplied-result premise. Static wrappers remain support, not fabricated consumers or normative certification.",
       "contract_refs": [
         {
           "path": "src/packet/errors.rs", "symbol": "packet_reader_error"
@@ -6795,6 +6810,9 @@
         },
         {
           "path": "src/packet/bit_reader.rs", "symbol": "PacketBitReader::load_byte"
+        },
+        {
+          "path": "src/packet/bit_reader.rs", "symbol": "PacketBitReader::finish_packet_header"
         },
         {
           "path": "src/packet/contributions.rs", "symbol": "code_block_packet_state_new"
@@ -6893,6 +6911,9 @@
         },
         {
           "path": "src/packet/bit_reader.rs", "symbol": "PacketBitReader::load_byte"
+        },
+        {
+          "path": "src/packet/bit_reader.rs", "symbol": "PacketBitReader::finish_packet_header"
         },
         {
           "path": "src/packet/contributions.rs", "symbol": "code_block_packet_state_new"
@@ -7034,6 +7055,10 @@
         },
         {
           "path": "specs/header.rs",
+          "symbol": "part1_packet_reader_finish"
+        },
+        {
+          "path": "specs/header.rs",
           "symbol": "part1_code_block_packet_initial"
         },
         {
@@ -7162,6 +7187,9 @@
           "path": "src/packet/bit_reader.rs", "symbol": "PacketBitReader::load_byte"
         },
         {
+          "path": "src/packet/bit_reader.rs", "symbol": "PacketBitReader::finish_packet_header"
+        },
+        {
           "path": "src/packet/contributions.rs", "symbol": "code_block_packet_state_new"
         },
         {
@@ -7254,12 +7282,18 @@
         {
           "path": "src/codestream/tests.rs",
           "symbol": "complete_packet_style_owners_preserve_raw_counts_styles_and_header_presence"
+        },
+        {
+          "path": "src/packet/tests.rs", "symbol": "checked_packet_header_finish_preserves_bits_and_byte_budget_order"
+        },
+        {
+          "path": "src/packet/tests.rs", "symbol": "sarah_dev_ea51acda28_terminal_ff_header_counts_stuffing_before_body"
         }
       ]
     },
     {
       "id": "part1-complete-native-precinct-composition",
-      "topic": "Complete actual TilePartPayload to single-precinct Result/full-state composition through raw metadata/style admission, actual SOP/prefix reader, header/overlapping subband-slot associations, alignment/EPH, full body preflight, real mixed coefficients and final inline/packed accounting. Complete readonly contexts and every final mutable owner, all native errors/caps/raw lengths/offsets. No supplied header/decoder outcome, normalized shape/count/window, trace or budget premise. Whole progression/reassembly and full F5L/F5H remain separate.",
+      "topic": "Complete actual TilePartPayload to single-precinct Result/full-state through raw metadata/style admission, actual SOP/prefix reader, header/subband-slot associations, checked terminal completion/EPH, full body preflight, real mixed coefficients and inline/packed accounting. DEV-709CD8127B permits omitted enabled SOP without confusing packed opaque body bytes for headers; actual markers retain marker/length/sequence checks and absence proceeds to packed-range/header admission. DEV-EA51ACDA28 uses actual checked terminal stuffing before EPH/body with all byte budgets/EOF/stuffbit errors, contexts and prior header effects retained. Sole executing code and complete models change together, without supplied header/decoder outcomes, normalized shape/count/window, trace or budget premises. Independent selected-edition/progression/reassembly/full F5L/F5H remain separate.",
       "contract_refs": [
         {
           "path": "src/packet/precinct.rs", "symbol": "decode_precinct_header_slot"
@@ -7363,6 +7397,12 @@
         },
         {
           "path": "src/packet/precinct.rs", "symbol": "decode_precinct_packet_payload_after_headers"
+        },
+        {
+          "path": "proofs/spec_properties/mod.rs", "symbol": "precinct_sop_omission_preserves_disabled_prefix_result"
+        },
+        {
+          "path": "src/packet/bit_reader.rs", "symbol": "PacketBitReader::finish_packet_header"
         }
       ],
       "test_refs": [
@@ -7380,6 +7420,12 @@
         },
         {
           "path": "src/packet/tests.rs", "symbol": "actual_precinct_wrapper_commits_literal_ht_cleanup_before_late_length_mismatch"
+        },
+        {
+          "path": "src/decode/tests.rs", "symbol": "sarah_dev_709cd8127b_optional_sop_keeps_raw_selected_and_packed_outputs"
+        },
+        {
+          "path": "src/packet/tests.rs", "symbol": "sarah_dev_ea51acda28_terminal_ff_header_counts_stuffing_before_body"
         }
       ]
     },

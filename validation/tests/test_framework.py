@@ -635,7 +635,7 @@ class FrameworkTests(WorkingFiles):
     def test_inventory_binds_complete_header_and_precinct_native_results(self):
         self._assert_complete_packet_contract_bindings({
             "part1-complete-native-header-tree-producers", "part1-complete-native-precinct-composition",
-        }, framework._PACKET_HEADER_CONTRACTS, 39)
+        }, framework._PACKET_HEADER_CONTRACTS, 40)
 
     def test_inventory_binds_actual_packed_inputs_and_full_progression_results(self):
         support = {

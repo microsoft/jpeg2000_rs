@@ -94,6 +94,11 @@ The implementation contains:
   Main-header QCD may precede COD; its quantization parameters are validated
   once the coding style is available, matching tile-header handling.
 - PLM/PLT packet lengths, PPM/PPT packed headers, SOP/EPH, and TLM checks.
+  When SOP use is enabled, individual packets may omit SOP. Present markers
+  retain their length and caller-specific sequence validation; inline and
+  packed-header accounting follows the bytes actually present.
+  Packet headers ending in FF consume the required stuffed byte before EPH
+  and body accounting, with byte limits and stuffing errors checked first.
 - The five Part 1 progression orders and POC sequencing, not additional Part 2
   progression-order extensions.
 - Legacy MQ and raw-bypass Tier-1 passes, coding-style routing, and Maxshift undo.

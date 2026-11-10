@@ -434,6 +434,8 @@ def _packet_header_contracts() -> dict[tuple[str, str], tuple[str, str, str | No
             "part1_packet_reader_read_bits", r"\1", reader(final("self")), arguments(reader(old("self")), "count")),
         "PacketBitReader::load_byte": (
             "part1_packet_reader_load", r"\1", reader(final("self")), reader(old("self"))),
+        "PacketBitReader::finish_packet_header": (
+            "part1_packet_reader_finish", r"\1", reader(final("self")), reader(old("self"))),
         "code_block_packet_state_new": (
             "part1_code_block_packet_initial", packet(r"&\s*\1"), None, ""),
         "header_segments_new": (

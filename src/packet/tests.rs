@@ -1746,6 +1746,61 @@ fn public_multi_boundary_preflights_every_body_then_keeps_prior_real_decoder_com
 }
 
 #[test]
+fn public_multi_optional_sop_retains_empty_packet_state_and_budgets() {
+    let limits = ResourceLimits::default()
+        .with_maximum_packet_header_bytes(1)
+        .unwrap();
+    for marked in [false, true] {
+        let data = if marked {
+            vec![0xff, 0x91, 0, 4, 0, 0, 0]
+        } else {
+            vec![0]
+        };
+        let tile = TilePartPayload::uniform_for_packet_decoding(
+            0,
+            0,
+            1,
+            1,
+            coding_style(true, false),
+            crate::codestream::RoiShifts::none(),
+            &data,
+        )
+        .unwrap();
+        let mut states = [code_block_packet_state_new()];
+        let mut inclusion = tag_tree_new(1, 1, &limits).unwrap();
+        let mut zero = tag_tree_new(1, 1, &limits).unwrap();
+        let contexts = [literal_precinct_header_context()];
+        let mut decoders = [one_bit_legacy_decoder(false)];
+        let before = format!("{:?}", decoders[0]);
+        assert_eq!(
+            decode_multi_code_block_packet(
+                &tile,
+                0,
+                PacketCodeBlockExecution {
+                    states: &mut states,
+                    inclusion_tree: &mut inclusion,
+                    zero_bitplane_tree: &mut zero,
+                    contexts: &contexts,
+                    decoders: &mut decoders,
+                },
+                &limits,
+            ),
+            Ok(PacketBodyDecode {
+                present: false,
+                code_blocks: 1,
+                contributions: 0,
+                segments: 0,
+                passes: 0,
+                header_bytes: 1,
+                body_bytes: 0,
+                bytes_consumed: if marked { 7 } else { 1 },
+            }),
+        );
+        assert_eq!(format!("{:?}", decoders[0]), before);
+    }
+}
+
+#[test]
 fn public_multi_uses_prefix_header_budget_and_ignores_sop_sequence_values() {
     let limits = ResourceLimits::default()
         .with_maximum_packet_header_bytes(1)
@@ -2638,6 +2693,157 @@ fn literal_payload_parameters() -> PrecinctPayloadParameters {
 }
 
 #[test]
+fn checked_packet_header_finish_preserves_bits_and_byte_budget_order() {
+    let mut cases = 0;
+    for byte in 0_u8..=u8::MAX {
+        for tail in 0_u8..=u8::MAX {
+            for cap in [1_u64, 2] {
+                let limits = ResourceLimits::default()
+                    .with_maximum_packet_header_bytes(cap)
+                    .unwrap()
+                    .with_maximum_work_units(8)
+                    .unwrap();
+                let data = [byte, tail];
+                let mut reader = super::bit_reader::packet_reader_prefix(&data, &limits);
+                assert_eq!(reader.read_bits(8), Ok(u32::from(byte)));
+                let before = (
+                    reader.byte_index,
+                    reader.current_byte,
+                    reader.bits_remaining,
+                    reader.previous_byte_was_ff,
+                    reader.bits_read,
+                );
+                let expected = if byte == 0xff && cap == 1 {
+                    Err(packet_reader_limit(Resource::PacketHeaderBytes, 1, 2))
+                } else if byte == 0xff && tail & 0x80 != 0 {
+                    Err(packet_reader_error(1, MalformedKind::InvalidBitStuffing))
+                } else {
+                    Ok(())
+                };
+                assert_eq!(
+                    reader.finish_packet_header(),
+                    expected,
+                    "byte={byte:#x} tail={tail:#x} cap={cap}",
+                );
+                if expected.is_err() {
+                    assert_eq!(
+                        (
+                            reader.byte_index,
+                            reader.current_byte,
+                            reader.bits_remaining,
+                            reader.previous_byte_was_ff,
+                            reader.bits_read
+                        ),
+                        before,
+                    );
+                } else {
+                    assert_eq!(reader.bytes_consumed(), if byte == 0xff { 2 } else { 1 });
+                    assert_eq!(reader.current_byte, if byte == 0xff { tail } else { byte });
+                    assert!(reader.is_byte_aligned());
+                    assert!(!reader.previous_byte_was_ff);
+                    assert_eq!(reader.bits_read(), 8);
+                }
+                assert_eq!(reader.input, data);
+                assert_eq!(reader.maximum_header_bytes, cap);
+                assert_eq!(reader.maximum_work_units, 8);
+                cases += 1;
+            }
+        }
+    }
+    assert_eq!(cases, 131_072);
+    for (cap, expected) in [
+        (1, packet_reader_limit(Resource::PacketHeaderBytes, 1, 2)),
+        (2, packet_reader_error(1, MalformedKind::Truncated)),
+    ] {
+        let limits = ResourceLimits::default()
+            .with_maximum_packet_header_bytes(cap)
+            .unwrap();
+        let mut reader = super::bit_reader::packet_reader_prefix(&[0xff], &limits);
+        assert_eq!(reader.read_bits(8), Ok(255));
+        assert_eq!(reader.finish_packet_header(), Err(expected));
+        assert_eq!(reader.bytes_consumed(), 1);
+        assert_eq!(reader.bits_read(), 8);
+    }
+}
+
+#[test]
+fn sarah_dev_ea51acda28_terminal_ff_header_counts_stuffing_before_body() {
+    let limits = ResourceLimits::default()
+        .with_maximum_packet_header_bytes(4)
+        .unwrap();
+    let mut cases = 0;
+    for sop in [false, true] {
+        for marked in [false, true] {
+            if marked && !sop {
+                continue;
+            }
+            for eph in [false, true] {
+                for packed in [false, true] {
+                    let mut precinct = literal_packet_precinct();
+                    precinct.contexts[0].maximum_zero_bitplanes = 8;
+                    precinct.decoders[0] = Tier1CodeBlockDecoder::new(
+                        1,
+                        1,
+                        8,
+                        SubbandOrientation::Ll,
+                        Tier1CodingStyle::default(),
+                    )
+                    .unwrap();
+                    let before = format!("{:?}", precinct.decoders[0]);
+                    let mut parameters = literal_payload_parameters();
+                    parameters.sop = sop;
+                    parameters.eph = eph;
+                    parameters.packed = packed;
+                    parameters.packed_offset = 1;
+                    parameters.decode_tier1 = false;
+                    parameters.expected_packet_length = None;
+                    let mut header = vec![0xc0, 0xbe, 0xff, 0];
+                    if eph {
+                        header.extend_from_slice(&[0xff, 0x92]);
+                    }
+                    let mut data = Vec::new();
+                    if marked {
+                        data.extend_from_slice(&[0xff, 0x91, 0, 4, 0x12, 0x34]);
+                    }
+                    if !packed {
+                        data.extend_from_slice(&header);
+                    }
+                    data.extend_from_slice(&[0xff; 255]);
+                    let mut packed_headers = vec![0xaa];
+                    if packed {
+                        packed_headers.extend_from_slice(&header);
+                    }
+                    let (decoded, tile_bytes, packed_bytes) = decode_precinct_packet_payload(
+                        &data,
+                        &packed_headers,
+                        parameters,
+                        &mut precinct,
+                        &limits,
+                    )
+                    .unwrap_or_else(|error| {
+                        panic!("sop={sop} marked={marked} eph={eph} packed={packed}: {error:?}")
+                    });
+                    assert_eq!(decoded.header_bytes, 4);
+                    assert_eq!(decoded.body_bytes, 255);
+                    assert_eq!(
+                        decoded.bytes_consumed,
+                        259 + u32::from(marked) * 6 + u32::from(eph) * 2
+                    );
+                    assert_eq!(tile_bytes, data.len());
+                    assert_eq!(packed_bytes, if packed { header.len() } else { 0 });
+                    assert_eq!(precinct.states[0].zero_bitplanes(), Some(6));
+                    assert_eq!(precinct.states[0].lblock, 8);
+                    assert_eq!(precinct.states[0].total_passes(), 1);
+                    assert_eq!(format!("{:?}", precinct.decoders[0]), before);
+                    cases += 1;
+                }
+            }
+        }
+    }
+    assert_eq!(cases, 12);
+}
+
+#[test]
 fn precinct_payload_prefix_checks_actual_markers_before_packed_ranges_and_budgets() {
     let limits = ResourceLimits::default()
         .with_maximum_work_units(1)
@@ -2646,22 +2852,40 @@ fn precinct_payload_prefix_checks_actual_markers_before_packed_ranges_and_budget
     parameters.sop = true;
     parameters.packed = true;
     parameters.packed_offset = usize::MAX;
-    for (data, kind) in [
-        (&[][..], MalformedKind::Truncated),
-        (&[0xff, 0x91, 0][..], MalformedKind::Truncated),
-        (&[0, 0x91, 0, 4][..], MalformedKind::InvalidPacketHeader),
-        (&[0xff, 0x91, 0, 4][..], MalformedKind::Truncated),
+    for (data, kind, expected_offset) in [
+        (&[][..], MalformedKind::Truncated, usize::MAX),
+        (&[0xff, 0x91, 0][..], MalformedKind::Truncated, 21),
+        (&[0, 0x91, 0, 4][..], MalformedKind::Truncated, usize::MAX),
+        (&[0xff, 0x91, 0, 4][..], MalformedKind::Truncated, 21),
+        (
+            &[0xff, 0x90, 0, 4, 0, 0][..],
+            MalformedKind::Truncated,
+            usize::MAX,
+        ),
+        (
+            &[0xff, 0x91, 0, 5, 0, 0][..],
+            MalformedKind::InvalidPacketHeader,
+            0,
+        ),
         (
             &[0xff, 0x91, 0, 4, 0x12, 0x35][..],
             MalformedKind::InvalidPacketHeader,
+            0,
         ),
     ] {
-        assert!(matches!(
-            decode_precinct_packet_payload_prefix(data, &[], parameters, &limits),
-            Err(DecodeError::MalformedInput { offset, kind: actual })
-                if actual == kind && offset == if kind == MalformedKind::Truncated { 21 } else { 0 }
-        ));
+        assert_eq!(
+            decode_precinct_packet_payload_prefix(data, &[], parameters, &limits).err(),
+            Some(packet_reader_error(expected_offset, kind)),
+            "data={data:?}",
+        );
     }
+    let mut inline = parameters;
+    inline.packed = false;
+    assert_eq!(
+        decode_precinct_packet_payload_prefix(&[0xff, 0x90, 0, 4, 0, 0], &[], inline, &limits,)
+            .err(),
+        Some(packet_reader_error(0, MalformedKind::InvalidPacketHeader)),
+    );
     let data = [0xff, 0x91, 0, 4, 0x12, 0x34, 0x80];
     assert!(matches!(
         decode_precinct_packet_payload_prefix(&data, &[], parameters, &limits),

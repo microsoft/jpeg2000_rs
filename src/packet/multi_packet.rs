@@ -189,7 +189,8 @@ fn read_multi_packet_prefix<'a>(
     limits: &ResourceLimits,
 ) -> Result<PrecinctPayloadReader<'a>, DecodeError> {
     let mut skip = 0_usize;
-    if sop {
+    // SOP is optional; a reserved marker prefix still needs full SOP validation.
+    if sop && data.len() >= 2 && data[0] == 0xff && data[1] >= 0x90 {
         let marker = match data.get(0..2) {
             Some(marker) => marker,
             None => return Err(packet_reader_error(offset, MalformedKind::Truncated)),
@@ -543,7 +544,7 @@ fn decode_multi_packet_payload(
             &mut progress,
         )?;
     }
-    reader.align_to_byte();
+    reader.finish_packet_header()?;
     let header = reader.bytes_consumed();
     let start = multi_packet_body_start(
         data,
@@ -627,7 +628,7 @@ pub fn decode_single_code_block_packet(
 ) -> Result<Option<CodeBlockBodyDecode>, DecodeError> {
     let mut reader = packet_reader_new(payload, limits)?;
     if !reader.read_bit()? {
-        reader.align_to_byte();
+        reader.finish_packet_header()?;
         if reader.bytes_consumed() != payload.len() {
             return Err(packet_reader_error(
                 reader.bytes_consumed(),
@@ -651,7 +652,7 @@ pub fn decode_single_code_block_packet(
             ));
         }
     };
-    reader.align_to_byte();
+    reader.finish_packet_header()?;
     let body_offset = reader.bytes_consumed();
     let body = match payload.get(body_offset..) {
         Some(body) => body,
