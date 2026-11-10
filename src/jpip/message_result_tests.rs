@@ -329,6 +329,187 @@ fn actual_raw_jpip_data_derives_all_header_fields_body_borrow_and_consumed_exten
 }
 
 #[test]
+fn sarah_initial_history_defaults_preserve_absence_and_effective_identifiers() {
+    let limits = ResourceLimits::HARDENED;
+    let fresh = JpipHeaderContext::new();
+    assert_eq!(fresh, JpipHeaderContext::default());
+    assert_eq!(
+        (fresh.previous_class(), fresh.previous_codestream()),
+        (None, None)
+    );
+    let mut cases = 0;
+    for previous_class in [None, Some(0), Some(1), Some(8)] {
+        for previous_codestream in [None, Some(0), Some(129), Some(u64::MAX)] {
+            for form in 1..=3 {
+                for explicit_class in 0..=8 {
+                    let class = if form == 1 {
+                        previous_class.unwrap_or(0)
+                    } else {
+                        explicit_class
+                    };
+                    let stream = if form == 3 {
+                        257
+                    } else {
+                        previous_codestream.unwrap_or(0)
+                    };
+                    for bin in [0, 1, 15, 16, 127, 128, 255, 16383] {
+                        for offset in [0, 1, 127, 128] {
+                            for length in [0, 1, 2, 127, 128] {
+                                for last in [false, true] {
+                                    let body = vec![0x5a; length];
+                                    let mut bytes =
+                                        data(form, (class, stream, bin), offset, &body, last, 129);
+                                    let extent = bytes.len();
+                                    bytes.push(0x55);
+                                    let mut context = JpipHeaderContext {
+                                        previous_class,
+                                        previous_codestream,
+                                    };
+                                    let (message, consumed) =
+                                        parse_jpip_message(&bytes, &mut context, &limits).unwrap();
+                                    let JpipMessage::Data {
+                                        header,
+                                        body: actual,
+                                    } = message
+                                    else {
+                                        panic!("expected data");
+                                    };
+                                    assert_eq!(
+                                        (
+                                            header.databin().class_identifier(),
+                                            header.databin().codestream(),
+                                            header.databin().in_class(),
+                                        ),
+                                        (class, stream, bin)
+                                    );
+                                    assert_eq!(
+                                        (header.offset(), header.length()),
+                                        (offset, length as u64)
+                                    );
+                                    assert_eq!(header.is_last_byte(), last);
+                                    assert_eq!(
+                                        header.auxiliary(),
+                                        if class % 2 == 1 { Some(129) } else { None }
+                                    );
+                                    assert_eq!(consumed, extent);
+                                    assert_eq!(header.header_length(), extent - length);
+                                    assert_eq!(actual, body);
+                                    assert!(std::ptr::eq(
+                                        actual.as_ptr(),
+                                        bytes[header.header_length()..extent].as_ptr()
+                                    ));
+                                    assert_eq!(
+                                        (context.previous_class(), context.previous_codestream()),
+                                        (Some(class), Some(stream))
+                                    );
+                                    cases += 1;
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+    assert_eq!(cases, 138_240);
+}
+
+#[test]
+fn sarah_initial_history_defaults_commit_only_after_complete_data() {
+    let limits = ResourceLimits::HARDENED;
+    for original in [
+        JpipHeaderContext::new(),
+        JpipHeaderContext {
+            previous_class: Some(8),
+            previous_codestream: None,
+        },
+        JpipHeaderContext {
+            previous_class: None,
+            previous_codestream: Some(129),
+        },
+    ] {
+        let class = original.previous_class().unwrap_or(0);
+        let stream = original.previous_codestream().unwrap_or(0);
+        let bytes = data(1, (class, stream, 16), 0, &[1, 2], true, 0);
+        for end in 0..bytes.len() {
+            let mut context = original;
+            assert!(parse_jpip_message(&bytes[..end], &mut context, &limits).is_err());
+            assert_eq!(context, original);
+        }
+        let mut context = original;
+        let end = eor(1, &[]);
+        assert!(parse_jpip_message(&end, &mut context, &limits).is_ok());
+        assert_eq!(context, original);
+        let (message, extent) = parse_jpip_message(&bytes, &mut context, &limits).unwrap();
+        assert_eq!((extent, message.body()), (bytes.len(), &[1, 2][..]));
+        assert_eq!(
+            (context.previous_class(), context.previous_codestream()),
+            (Some(class), Some(stream))
+        );
+        let committed = context;
+        let limited = limits.with_maximum_input_bytes(1).unwrap();
+        assert!(matches!(
+            parse_jpip_message(&bytes, &mut context, &limited),
+            Err(DecodeError::LimitExceeded {
+                resource: Resource::InputBytes,
+                ..
+            })
+        ));
+        assert_eq!(context, committed);
+    }
+}
+
+#[test]
+fn sarah_initial_history_defaults_are_response_local_not_cache_history() {
+    let limits = ResourceLimits::HARDENED;
+    let mut cache = DatabinCache::new(limits);
+    let explicit = data(3, (8, 129, 2), 0, &[7], true, 0);
+    assert_eq!(
+        ingest_jpip_response(&explicit, &mut cache)
+            .unwrap()
+            .messages(),
+        1
+    );
+    for bin in [0, 1, 16, 129] {
+        let mut bytes = data(1, (0, 0, bin), 0, &[1, 2], true, 0);
+        bytes.extend(eor(1, &[]));
+        let summary = ingest_jpip_response(&bytes, &mut cache).unwrap();
+        assert_eq!(
+            (summary.messages(), summary.end_of_response_reason()),
+            (1, Some(1))
+        );
+        assert_eq!(
+            cache
+                .databin_view(DatabinId::new(0, 0, bin).unwrap())
+                .unwrap()
+                .as_bytes(),
+            &[1, 2]
+        );
+    }
+    assert_eq!(
+        cache
+            .databin_view(DatabinId::new(8, 129, 2).unwrap())
+            .unwrap()
+            .as_bytes(),
+        &[7]
+    );
+    let mut parser = JpipMessageParser::new(limits);
+    parser.parse(&explicit).unwrap();
+    let inherited = data(1, (8, 129, 3), 0, &[9], true, 0);
+    let (message, _) = parser.parse(&inherited).unwrap();
+    let JpipMessage::Data { header, .. } = message else {
+        panic!("expected data");
+    };
+    assert_eq!(
+        (
+            header.databin().class_identifier(),
+            header.databin().codestream()
+        ),
+        (8, 129)
+    );
+}
+
+#[test]
 fn actual_raw_jpip_inherited_context_commits_only_complete_data_messages() {
     let limits = ResourceLimits::HARDENED;
     let mut parser = JpipMessageParser::new(limits);
@@ -380,11 +561,13 @@ fn actual_raw_jpip_inherited_context_commits_only_complete_data_messages() {
         previous_codestream: None,
     };
     let mut context = old;
+    let bytes = data(1, (8, 0, 0), 0, &[], false, 0);
+    let (message, consumed) = parse_jpip_message(&bytes, &mut context, &limits).unwrap();
+    assert_eq!((consumed, message.body()), (bytes.len(), &[][..]));
     assert_eq!(
-        parse_jpip_message(&data(1, (8, 0, 0), 0, &[], false, 0), &mut context, &limits),
-        Err(DecodeError::malformed(0, MalformedKind::InvalidJpipHeader))
+        (context.previous_class(), context.previous_codestream()),
+        (Some(8), Some(0))
     );
-    assert_eq!(context, old);
 }
 
 #[test]

@@ -51,6 +51,8 @@ pub struct DatabinId {
     in_class: u64,
 }
 
+/// Committed message history. Absent inherited fields decode as zero until a
+/// complete data message commits them; construction and EOR retain absence.
 #[derive(Clone, Copy, Default)]
 #[cfg_attr(not(verus_keep_ghost), derive(Debug, Eq, PartialEq))]
 pub struct JpipHeaderContext {

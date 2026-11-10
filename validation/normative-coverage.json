@@ -689,7 +689,7 @@
     },
     {
       "id": "part9-complete-native-raw-message-results",
-      "topic": "Complete actual raw parse_jpip_message/JpipMessageParser::parse Data/EOR Results, header/databin/context/body/consumed fields and complete context/limits/error mutation frames. Sarah DEV-9A1ABE441F: bounded value-equivalent leading-zero VBAS groups are admitted; actual primitive and complete model retain ten-byte/u64 overflow/truncation frontiers and exact partial cursor, without an extra shortest-form predicate. Checked static impl body clauses and getter/reference projections preserve one native implementation without new constructor adapters, reconstructed owners, successful result banks or runtime proof clones. Error ordering outside the removed admission and context commit only after full data extent retained. Cache insertion/transcoding/progressive/automatic joins and independent normative/cfg/lifetime/release remain separate.",
+      "topic": "Complete actual raw parse_jpip_message/JpipMessageParser::parse Data/EOR Results, header/databin/context/body/consumed fields and complete context/limits/error mutation frames. Sarah initial-history corrections: absent Class and CSn independently decode as zero in the first dependent header; explicit fields and committed history retain their values. Constructors/getters preserve raw None absence, only complete Data commits Some values, and each ingest_jpip_response starts fresh despite existing cache history. The unchanged public CADI receiver is bounded interoperability evidence, not independent selected-edition certification. Sarah DEV-9A1ABE441F: bounded value-equivalent leading-zero VBAS groups are admitted; actual primitive and complete model retain ten-byte/u64 overflow/truncation frontiers and exact partial cursor, without an extra shortest-form predicate. Checked static impl body clauses and getter/reference projections preserve one native implementation without new constructor adapters, reconstructed owners, successful result banks or runtime proof clones. Error ordering outside corrected initial inheritance and context commit only after full data extent retained. Cache insertion/transcoding/progressive/automatic joins and independent normative/cfg/lifetime/release remain separate.",
       "implementation_refs": [
         {"path": "src/jpip/message.rs", "symbol": "parse_jpip_message"},
         {"path": "src/jpip/message.rs", "symbol": "JpipMessageParser::parse"},
@@ -781,7 +781,10 @@
         {"path": "src/jpip/message_result_tests.rs", "symbol": "actual_raw_jpip_rejects_overflow_extent_and_limit_frontiers_in_native_order"},
         {"path": "src/jpip/message_result_tests.rs", "symbol": "actual_raw_jpip_databin_and_header_getters_preserve_normalized_identity_and_saturating_final_length"},
         {"path": "src/jpip/message_result_tests.rs", "symbol": "sarah_dev_9a1abe441f_bounded_vbas_padding_preserves_values_and_delimiters"},
-        {"path": "src/jpip/message_result_tests.rs", "symbol": "sarah_dev_9a1abe441f_padded_message_fields_preserve_context_and_body"}
+        {"path": "src/jpip/message_result_tests.rs", "symbol": "sarah_dev_9a1abe441f_padded_message_fields_preserve_context_and_body"},
+        {"path": "src/jpip/message_result_tests.rs", "symbol": "sarah_initial_history_defaults_preserve_absence_and_effective_identifiers"},
+        {"path": "src/jpip/message_result_tests.rs", "symbol": "sarah_initial_history_defaults_commit_only_after_complete_data"},
+        {"path": "src/jpip/message_result_tests.rs", "symbol": "sarah_initial_history_defaults_are_response_local_not_cache_history"}
       ]
     },
     {

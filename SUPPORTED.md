@@ -222,6 +222,12 @@ metadata placeholders, precinct mapping, packet reconstruction, and
 transactional progressive decode. Availability and missing-range results
 distinguish incomplete data from successful reconstruction.
 
+An inherited Class or CSn with no previous data-message value defaults
+independently to zero. Header-context getters still report `None` until a
+complete data message commits history; errors and EOR do not commit it.
+A persistent parser retains its history, but each response ingestion starts
+fresh even when its cache already contains databins.
+
 For retained SOT headers, a nonzero `Psot` must cover the complete retained
 header. An undersized declaration returns `InvalidTilePart` at the tile-part
 start; it is not an unknown-length transition. The final zero-`Psot` form and
