@@ -4285,11 +4285,32 @@ fn sarah_dev_056d9fbfb2_repeated_file_type_is_not_ignorable_metadata() {
 }
 
 fn assert_unique_container_prefix(kind: [u8; 4]) -> usize {
-    let original = include_bytes!("../../validation/image-consumer-probe/tests/fixtures/gray.jp2");
+    let mut codestream = valid_codestream(1, 1);
+    let qcd = codestream
+        .windows(2)
+        .position(|bytes| bytes == [0xff, 0x5c])
+        .unwrap();
+    codestream[qcd + 4..qcd + 6].copy_from_slice(&[0x40, 0x40]);
+    let sot = codestream
+        .windows(2)
+        .position(|bytes| bytes == [0xff, 0x90])
+        .unwrap();
+    codestream[sot + 6..sot + 10].copy_from_slice(&15_u32.to_be_bytes());
+    codestream.insert(codestream.len() - 2, 0);
+    let mut header = box32(*b"ihdr", &[0, 0, 0, 1, 0, 0, 0, 1, 0, 1, 7, 7, 0, 0]);
+    header.extend(box32(*b"colr", &[1, 0, 0, 0, 0, 0, 17]));
+    let mut original = box32(*b"jP  ", &SIGNATURE_MAGIC);
+    original.extend(box32(*b"ftyp", b"jp2 \0\0\0\0jp2 "));
+    original.extend(box32(*b"jp2h", &header));
+    original.extend(box32(*b"jp2c", &codestream));
     let limits = ResourceLimits::default();
-    assert!(parse(original, &limits).is_ok());
-    assert!(parse_and_inspect(original, &limits).is_ok());
-    assert!(crate::decode::decode_jp2(original, &crate::DecodeOptions::default()).is_ok());
+    assert!(parse(&original, &limits).is_ok());
+    assert!(parse_and_inspect(&original, &limits).is_ok());
+    let decoded = crate::decode::decode_jp2(&original, &crate::DecodeOptions::default()).unwrap();
+    assert_eq!(
+        decoded.component(0).unwrap().samples(),
+        &crate::image::TypedSamples::Unsigned(vec![128])
+    );
     let mut positions = Vec::new();
     let mut position = 0;
     while position < original.len() {
