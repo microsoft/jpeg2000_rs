@@ -110,6 +110,9 @@ The implementation contains:
 - Main/tile COD, COC, QCD, QCC, and RGN state and precedence.
   Main-header QCD may precede COD; its quantization parameters are validated
   once the coding style is available, matching tile-header handling.
+  Ordinary COD/COC precinct axes must be nonzero above resolution zero.
+  Resolution-zero zero exponents remain supported; explicit Part 2
+  decomposition selectors retain their separate deferred admission.
 - PLM/PLT packet lengths, PPM/PPT packed headers, SOP/EPH, and TLM checks.
   When SOP use is enabled, individual packets may omit SOP. Present markers
   retain their length and caller-specific sequence validation; inline and

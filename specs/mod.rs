@@ -13947,6 +13947,46 @@ pub open spec fn part1_parse_cod_payload(offset: usize, payload: Seq<u8>, limits
 }
 
 #[verifier::opaque]
+pub open spec fn part1_ordinary_precincts_from(
+    offset: usize, depth: u8, precincts: Seq<(u8, u8)>, resolution: usize,
+) -> Result<(), crate::DecodeError>
+    decreases if resolution <= depth {
+        depth as int + 1 - resolution as int
+    } else { 0 },
+{
+    if resolution > depth { Ok(()) }
+    else if resolution as nat >= precincts.len() {
+        Err(part1_codestream_malformed(offset, crate::MalformedKind::InvalidCodingStyle))
+    } else {
+        let pair = precincts[resolution as int];
+        if pair.0 == 0 || pair.1 == 0 {
+            Err(part1_codestream_malformed(offset, crate::MalformedKind::InvalidCodingStyle))
+        } else { part1_ordinary_precincts_from(offset, depth, precincts, (resolution + 1) as usize) }
+    }
+}
+
+#[verifier::opaque]
+pub open spec fn part1_validate_ordinary_precincts(
+    offset: usize, structure: Option<u8>, defined: bool, depth: u8, precincts: Seq<(u8, u8)>,
+) -> Result<(), crate::DecodeError> {
+    if structure.is_some() || !defined { Ok(()) }
+    else { part1_ordinary_precincts_from(offset, depth, precincts, 1) }
+}
+
+#[verifier::opaque]
+pub open spec fn part1_parse_cod(offset: usize, payload: Seq<u8>, limits: &crate::ResourceLimits)
+    -> Result<Part1ParsedCodingStyle, crate::DecodeError>
+{
+    match part1_parse_cod_payload(offset, payload, limits) {
+        Err(error) => Err(error),
+        Ok(style) => match part1_validate_ordinary_precincts(offset, style.decomposition_structure,
+            style.precincts_defined, style.decomposition_levels, style.precinct_exponents) {
+            Err(error) => Err(error), Ok(()) => Ok(style),
+        },
+    }
+}
+
+#[verifier::opaque]
 pub open spec fn part1_parse_component_index(
     offset: usize, payload: Seq<u8>, components: u16, invalid_kind: crate::MalformedKind,
 ) -> Result<(u16, usize), crate::DecodeError> {
@@ -14044,7 +14084,13 @@ pub open spec fn part1_parse_coc(
         Err(error) => Err(error),
         Ok(prepared) => match part1_parse_cod_payload(offset, prepared.payload, limits) {
             Err(error) => Err(error),
-            Ok(style) => Ok((prepared.component, part1_coc_style(style, prepared.decomposition_structure))),
+            Ok(style) => {
+                let selected = part1_coc_style(style, prepared.decomposition_structure);
+                match part1_validate_ordinary_precincts(offset, selected.decomposition_structure,
+                    selected.precincts_defined, selected.decomposition_levels, selected.precinct_exponents) {
+                    Err(error) => Err(error), Ok(()) => Ok((prepared.component, selected)),
+                }
+            },
         },
     }
 }
