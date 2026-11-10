@@ -1,6 +1,28 @@
 use super::*;
 
 #[test]
+fn arbitrary_q32_unit_scaling_and_signed_rounding_are_exact() {
+    for value in [i64::MIN, i64::MIN + 1, -65_536, -1, 0, 1, 65_536, i64::MAX] {
+        assert_eq!(fixed_mul_q32(value, 1_i64 << 32), Ok(value));
+    }
+    for (value, expected) in [
+        (-(1_i128 << 32), -1),
+        (-(1_i128 << 31) - 1, -1),
+        (-(1_i128 << 31), -1),
+        (-(1_i128 << 31) + 1, 0),
+        (-1, 0),
+        (0, 0),
+        (1, 0),
+        ((1_i128 << 31) - 1, 0),
+        (1_i128 << 31, 1),
+        ((1_i128 << 31) + 1, 1),
+        (1_i128 << 32, 1),
+    ] {
+        assert_eq!(round_shift_i128(value, 32), Ok(expected));
+    }
+}
+
+#[test]
 fn arbitrary_q32_arithmetic_preserves_full_signed_edges_and_errors() {
     let overflow = DecodeError::MalformedInput {
         offset: 0,
@@ -28,13 +50,10 @@ fn arbitrary_q32_arithmetic_preserves_full_signed_edges_and_errors() {
     for value in values {
         for factor in values {
             let product = i128::from(value) * i128::from(factor);
-            let half = 0x8000_0000_i128;
-            let biased = if product < 0 {
-                product - half
-            } else {
-                product + half
-            };
-            let expected = i64::try_from(biased >> 32).map_err(|_| overflow);
+            let magnitude = (product.unsigned_abs() + 0x8000_0000_u128) >> 32;
+            let rounded = i128::try_from(magnitude).unwrap();
+            let signed = if product < 0 { -rounded } else { rounded };
+            let expected = i64::try_from(signed).map_err(|_| overflow);
             assert_eq!(fixed_mul_q32(value, factor), expected);
             let expected = if factor == 0 {
                 Err(overflow)
@@ -45,17 +64,20 @@ fn arbitrary_q32_arithmetic_preserves_full_signed_edges_and_errors() {
             assert_eq!(fixed_div_q32(value, factor), expected);
         }
     }
-    assert_eq!(fixed_mul_q32(-1, 0x1_0000_0000), Ok(-2));
+    assert_eq!(fixed_mul_q32(-1, 0x1_0000_0000), Ok(-1));
     assert_eq!(fixed_div_q32(-1, 3), Ok(-1_431_655_765));
     assert_eq!(fixed_div_q32(1, -3), Ok(-1_431_655_765));
-    assert_eq!(round_shift_i128(i128::MIN, 1), Err(overflow));
+    assert_eq!(round_shift_i128(i128::MIN, 1), Ok(i128::MIN / 2));
     assert_eq!(round_shift_i128(i128::MAX, 1), Err(overflow));
     for shift in [0, 128, 129, u32::MAX] {
         assert_eq!(round_shift_i128(0, shift), Err(overflow));
     }
     for shift in [1, 2, 31, 32, 63, 64, 127] {
         assert_eq!(round_shift_i128(0, shift), Ok(0));
-        assert_eq!(round_shift_i128(-1, shift), Ok(-1));
+        assert_eq!(
+            round_shift_i128(-1, shift),
+            Ok(if shift == 1 { -1 } else { 0 })
+        );
     }
 }
 
@@ -302,8 +324,108 @@ fn arbitrary_sequences_preserve_all_raw_kinds_width_hints_flags_and_scaling_orde
     );
     assert_eq!(
         inverse_arbitrary(&[-2, -6], &[-4], true, &unit),
-        Ok(vec![-3, -4, -7])
+        Ok(vec![-2, -4, -6])
     );
+}
+
+#[test]
+fn sarah_dev_404e919a62_half_filter_uses_absolute_band_index() {
+    fn kernel(reversible: bool, odd: bool, whole: bool, offset: i8, alpha: i8) -> ArbitraryKernel {
+        let coefficient = if reversible {
+            KernelCoefficient::for_test(i128::from(alpha) as u128, 1)
+        } else {
+            KernelCoefficient::for_test(u128::from(f32::from(alpha).to_bits()), 4)
+        };
+        ArbitraryKernel::for_test(
+            reversible,
+            if reversible { 0 } else { 2 },
+            whole,
+            odd,
+            false,
+            (!reversible).then(|| KernelCoefficient::for_test(u128::from(1_f32.to_bits()), 4)),
+            vec![KernelLiftingStep::for_test(
+                offset,
+                0,
+                reversible.then(|| KernelCoefficient::for_test(0, 1)),
+                vec![coefficient],
+            )],
+        )
+    }
+
+    assert_eq!(
+        inverse_arbitrary(&[10], &[2, 7], false, &kernel(true, false, false, 0, 1)),
+        Ok(vec![2, 3, 7]),
+    );
+    let mut cases = 0;
+    for length in 2_usize..=9 {
+        for first in [false, true] {
+            for odd in [false, true] {
+                for reversible in [false, true] {
+                    for whole in [false, true] {
+                        for offset in [-2_i8, 0, 2] {
+                            for alpha in [-1_i8, 1] {
+                                let scale = if reversible { 1 } else { 65_536 };
+                                let input: Vec<_> = (0..length)
+                                    .map(|i| (i64::try_from(i).unwrap() * 7 - 19) * scale)
+                                    .collect();
+                                let low: Vec<_> = input
+                                    .iter()
+                                    .enumerate()
+                                    .filter_map(|(i, value)| {
+                                        ((i % 2 == 0) == first).then_some(*value)
+                                    })
+                                    .collect();
+                                let high: Vec<_> = input
+                                    .iter()
+                                    .enumerate()
+                                    .filter_map(|(i, value)| {
+                                        ((i % 2 == 0) != first).then_some(*value)
+                                    })
+                                    .collect();
+                                let origin = i64::from(!first);
+                                let end = origin + i64::try_from(length).unwrap() - 1;
+                                let parity = i64::from(odd);
+                                let first_source = origin + i64::from(origin % 2 == parity);
+                                let last_source = end - i64::from(end % 2 == parity);
+                                let sample = |coordinate: i64| {
+                                    input[usize::try_from(
+                                        coordinate.clamp(first_source, last_source) - origin,
+                                    )
+                                    .unwrap()]
+                                };
+                                let mut expected = input.clone();
+                                for (i, value) in expected.iter_mut().enumerate() {
+                                    let coordinate = origin + i64::try_from(i).unwrap();
+                                    if coordinate % 2 != parity {
+                                        continue;
+                                    }
+                                    let contribution = if whole {
+                                        sample(coordinate - 1) + sample(coordinate + 1)
+                                    } else {
+                                        let band_index = (coordinate - parity) / 2;
+                                        sample(2 * (band_index + i64::from(offset)) + 1 - parity)
+                                    };
+                                    *value -= i64::from(alpha) * contribution;
+                                }
+                                assert_eq!(
+                                    inverse_arbitrary(
+                                        &low,
+                                        &high,
+                                        first,
+                                        &kernel(reversible, odd, whole, offset, alpha)
+                                    ),
+                                    Ok(expected),
+                                    "length={length} first={first} odd={odd} reversible={reversible} whole={whole} offset={offset} alpha={alpha}",
+                                );
+                                cases += 1;
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+    assert_eq!(cases, 768);
 }
 
 #[test]

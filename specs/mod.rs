@@ -2793,7 +2793,7 @@ pub open spec fn part2_atk_round_shift(value: i128, shift: u32) -> Result<i128, 
     if shift == 0 || shift >= 128 { Err(part1_transform_error(true)) }
     else {
         let half = 1i128 << (shift - 1);
-        let adjusted = if value >= 0 { value as int + half as int } else { value as int - half as int };
+        let adjusted = if value >= 0 { value as int + half as int } else { value as int + half as int - 1 };
         match part2_atk_checked_i128(adjusted) {
             Err(error) => Err(error),
             Ok(adjusted) => Ok(adjusted >> shift),
@@ -2972,12 +2972,13 @@ pub open spec fn part2_atk_extended(samples: Seq<i64>, index: isize, whole: bool
     }
 }
 
-pub open spec fn part2_atk_half_index(target: isize, coefficient: isize, offset: i8) -> Result<isize, crate::DecodeError> {
+pub open spec fn part2_atk_half_index(target: isize, coefficient: isize, offset: i8, low_first: bool) -> Result<isize, crate::DecodeError> {
     match part2_atk_checked_isize(coefficient as int + offset as int) {
         Err(error) => Err(error),
         Ok(position) => match part2_atk_checked_isize(2 * position as int) {
             Err(error) => Err(error),
-            Ok(distance) => match part2_atk_checked_isize(1 - 2 * (target & 1isize) as int + distance as int) {
+            Ok(distance) => match part2_atk_checked_isize(
+                1 - 2 * (if low_first { (target & 1isize) as int } else { 1 - (target & 1isize) as int }) + distance as int) {
                 Err(error) => Err(error),
                 Ok(delta) => part2_atk_checked_isize(target as int + delta as int),
             },
@@ -2985,7 +2986,7 @@ pub open spec fn part2_atk_half_index(target: isize, coefficient: isize, offset:
     }
 }
 
-pub open spec fn part2_atk_source_sum(samples: Seq<i64>, target: usize, coefficient: usize, offset: i8, filter: bool, extension: bool)
+pub open spec fn part2_atk_source_sum(samples: Seq<i64>, target: usize, coefficient: usize, offset: i8, filter: bool, extension: bool, low_first: bool)
     -> Result<i64, crate::DecodeError>
 {
     if target > isize::MAX || coefficient > isize::MAX { Err(part1_transform_error(true)) } else {
@@ -3012,7 +3013,7 @@ pub open spec fn part2_atk_source_sum(samples: Seq<i64>, target: usize, coeffici
                 },
             }
         } else {
-            match part2_atk_half_index(position, tap, offset) {
+            match part2_atk_half_index(position, tap, offset, low_first) {
                 Err(error) => Err(error), Ok(index) => part2_atk_extended(samples, index, extension),
             }
         }
@@ -3020,19 +3021,19 @@ pub open spec fn part2_atk_source_sum(samples: Seq<i64>, target: usize, coeffici
 }
 
 #[verifier::opaque]
-pub open spec fn part2_atk_sum(samples: Seq<i64>, target: usize, step: Part2RawKernelStep, kind: u8, filter: bool, extension: bool, count: nat)
+pub open spec fn part2_atk_sum(samples: Seq<i64>, target: usize, step: Part2RawKernelStep, kind: u8, filter: bool, extension: bool, low_first: bool, count: nat)
     -> Result<i128, crate::DecodeError>
     decreases count,
 {
     if count == 0 {
         match step.2 { None => Err(part1_transform_error(false)), Some(residue) => part2_atk_integer(residue, kind) }
     } else {
-        match part2_atk_sum(samples, target, step, kind, filter, extension, (count - 1) as nat) {
+        match part2_atk_sum(samples, target, step, kind, filter, extension, low_first, (count - 1) as nat) {
             Err(error) => Err(error),
             Ok(previous) => if count > step.3.len() { Err(part1_transform_error(false)) } else {
                 match part2_atk_integer(step.3[count - 1], kind) {
                     Err(error) => Err(error),
-                    Ok(alpha) => match part2_atk_source_sum(samples, target, (count - 1) as usize, step.0, filter, extension) {
+                    Ok(alpha) => match part2_atk_source_sum(samples, target, (count - 1) as usize, step.0, filter, extension, low_first) {
                         Err(error) => Err(error),
                         Ok(contribution) => match part2_atk_checked_i128(alpha as int * contribution as int) {
                             Err(error) => Err(error),
@@ -3045,9 +3046,9 @@ pub open spec fn part2_atk_sum(samples: Seq<i64>, target: usize, step: Part2RawK
     }
 }
 
-pub open spec fn part2_atk_reversible_target(samples: Seq<i64>, target: usize, step: Part2RawKernelStep, kernel: Part2RawKernel)
+pub open spec fn part2_atk_reversible_target(samples: Seq<i64>, target: usize, step: Part2RawKernelStep, kernel: Part2RawKernel, low_first: bool)
     -> Result<i64, crate::DecodeError> {
-    match part2_atk_sum(samples, target, step, kernel.1, kernel.2, kernel.4, step.3.len()) {
+    match part2_atk_sum(samples, target, step, kernel.1, kernel.2, kernel.4, low_first, step.3.len()) {
         Err(error) => Err(error),
         Ok(sum) => if step.1 >= 127 { Err(part1_transform_error(false)) } else {
             match part2_atk_checked_i128(samples[target as int] as int - (sum >> (step.1 as u32)) as int) {
@@ -3064,20 +3065,20 @@ pub open spec fn part2_atk_target_passes(length: nat, start: usize) -> Result<us
 
 #[verifier::opaque]
 pub open spec fn part2_atk_irreversible_sum(
-    samples: Seq<i64>, target: usize, step: Part2RawKernelStep, kernel: Part2RawKernel, count: nat,
+    samples: Seq<i64>, target: usize, step: Part2RawKernelStep, kernel: Part2RawKernel, low_first: bool, count: nat,
 ) -> Result<i128, crate::DecodeError>
     decreases count,
 {
     if count == 0 { Ok(0) }
     else {
-        match part2_atk_irreversible_sum(samples, target, step, kernel, (count - 1) as nat) {
+        match part2_atk_irreversible_sum(samples, target, step, kernel, low_first, (count - 1) as nat) {
             Err(error) => Err(error),
             Ok(previous) => {
                 if count - 1 >= step.3.len() { Err(part1_transform_error(false)) }
                 else {
                     match part2_atk_fixed_coefficient(step.3[count - 1], kernel.1) {
                         Err(error) => Err(error),
-                        Ok(alpha) => match part2_atk_source_sum(samples, target, (count - 1) as usize, step.0, kernel.2, kernel.4) {
+                        Ok(alpha) => match part2_atk_source_sum(samples, target, (count - 1) as usize, step.0, kernel.2, kernel.4, low_first) {
                             Err(error) => Err(error),
                             Ok(contribution) => match part2_atk_checked_i128(alpha as int * contribution as int) {
                                 Err(error) => Err(error),
@@ -3092,9 +3093,9 @@ pub open spec fn part2_atk_irreversible_sum(
 }
 
 pub open spec fn part2_atk_irreversible_target(
-    samples: Seq<i64>, target: usize, step: Part2RawKernelStep, kernel: Part2RawKernel,
+    samples: Seq<i64>, target: usize, step: Part2RawKernelStep, kernel: Part2RawKernel, low_first: bool,
 ) -> Result<i64, crate::DecodeError> {
-    match part2_atk_irreversible_sum(samples, target, step, kernel, step.3.len()) {
+    match part2_atk_irreversible_sum(samples, target, step, kernel, low_first, step.3.len()) {
         Err(error) => Err(error),
         Ok(adjustment) => match part2_atk_round_shift(adjustment, 32) {
             Err(error) => Err(error),
@@ -3107,25 +3108,25 @@ pub open spec fn part2_atk_irreversible_target(
 }
 
 pub open spec fn part2_atk_target(
-    samples: Seq<i64>, target: usize, step: Part2RawKernelStep, kernel: Part2RawKernel,
+    samples: Seq<i64>, target: usize, step: Part2RawKernelStep, kernel: Part2RawKernel, low_first: bool,
 ) -> Result<i64, crate::DecodeError> {
-    if kernel.0 { part2_atk_reversible_target(samples, target, step, kernel) }
-    else { part2_atk_irreversible_target(samples, target, step, kernel) }
+    if kernel.0 { part2_atk_reversible_target(samples, target, step, kernel, low_first) }
+    else { part2_atk_irreversible_target(samples, target, step, kernel, low_first) }
 }
 
 #[verifier::opaque]
 pub open spec fn part2_atk_target_prefix(
-    original: Seq<i64>, step: Part2RawKernelStep, kernel: Part2RawKernel, start: usize, count: nat,
+    original: Seq<i64>, step: Part2RawKernelStep, kernel: Part2RawKernel, low_first: bool, start: usize, count: nat,
 ) -> Part2AtkMutation
     decreases count,
 {
     if count == 0 { (Ok(()), original) } else {
-        let previous = part2_atk_target_prefix(original, step, kernel, start, (count - 1) as nat);
+        let previous = part2_atk_target_prefix(original, step, kernel, low_first, start, (count - 1) as nat);
         match previous.0 {
             Err(_) => previous,
             Ok(()) => {
                 let target = (start as nat + 2 * (count - 1)) as usize;
-                match part2_atk_target(previous.1, target, step, kernel) {
+                match part2_atk_target(previous.1, target, step, kernel, low_first) {
                     Err(error) => (Err(error), previous.1),
                     Ok(value) => {
                         let updated = previous.1.update(target as int, value);
@@ -3142,7 +3143,7 @@ pub open spec fn part2_atk_step(samples: Seq<i64>, step: Part2RawKernelStep, ker
     let start = if (if low_first { update_odd } else { !update_odd }) { 1usize } else { 0usize };
     match part2_atk_target_passes(samples.len(), start) {
         Err(error) => (Err(error), samples),
-        Ok(count) => part2_atk_target_prefix(samples, step, kernel, start, count as nat),
+        Ok(count) => part2_atk_target_prefix(samples, step, kernel, low_first, start, count as nat),
     }
 }
 

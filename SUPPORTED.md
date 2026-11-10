@@ -107,6 +107,9 @@ The implementation contains:
 - Reversible 5/3 and fixed-point irreversible 9/7 synthesis.
 - Part 2 MCT/MCC/MCO transforms and segmented records; directional/general
   decomposition and kernel metadata via DFS/ADS/ATK; CRG, NLT, and CBD handling.
+  ATK half-filter taps retain absolute low/high band phase on odd-origin axes.
+  Its Q32 arithmetic preserves exact signed unit scaling and rounds nearest
+  with ties away from zero, subject to checked range and shift limits.
 
 Every feature is subject to resource, geometry, numeric-range, and profile
 validation. A list of implemented code paths is not an independent proof that
