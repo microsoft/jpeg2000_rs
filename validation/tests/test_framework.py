@@ -2411,7 +2411,7 @@ class FrameworkTests(WorkingFiles):
     def test_inventory_binds_public_raw_container_colors_and_actual_expansion_producers(self):
         producers = {key: value for key, value in framework._RAW_CONTAINER_COLOR_CONTRACTS.items()
                      if key not in framework._RAW_CONTAINER_COLOR_APIS}
-        self._assert_complete_packet_contract_bindings({framework._RAW_CONTAINER_COLOR_ENTRY}, producers, 8, isolate=False)
+        self._assert_complete_packet_contract_bindings({framework._RAW_CONTAINER_COLOR_ENTRY}, producers, 10, isolate=False)
         coverage = json.loads((framework.VALIDATION / "normative-coverage.json").read_text())
         entry = next(item for item in coverage["requirements"] if item["id"] == framework._RAW_CONTAINER_COLOR_ENTRY)
         source = framework.ROOT / "src/decode/api.rs"
@@ -2450,7 +2450,7 @@ class FrameworkTests(WorkingFiles):
         entry = next(item for item in coverage["requirements"] if item["id"] == framework._RAW_CONTAINER_COLOR_ENTRY)
         read_text = Path.read_text
         for name, anchor, before, after in (
-            ("src/decode/api.rs", "pub fn decode_jp2_color(", "jp2::parse_and_inspect(input, options.limits())?", "jp2::parse_and_inspect(&unrelated, options.limits())?"),
+            ("src/decode/api.rs", "pub fn decode_jp2_color(", "jp2::parse_and_inspect_for_display(input, options.limits())?", "jp2::parse_and_inspect_for_display(&unrelated, options.limits())?"),
             ("src/decode/api.rs", "pub fn decode_jp2_color(", "color_selection(codestream, selection, options.limits())?", "color_selection(codestream, &unrelated, options.limits())?"),
             ("src/decode/api.rs", "pub fn decode_jp2_color(", "decode_codestream_selected(codestream, options, &expanded)?", "decode_codestream_selected(codestream, options, selection)?"),
             ("src/decode/api.rs", "pub fn decode_jp2_color(", "apply_jp2_output(decoded, inspected.file().header(), options.limits())?", "decoded"),
@@ -2516,7 +2516,7 @@ class FrameworkTests(WorkingFiles):
     def test_inventory_binds_public_raw_container_images_and_all_actual_producers(self):
         producers = {key: value for key, value in framework._RAW_CONTAINER_IMAGE_CONTRACTS.items()
                      if key not in framework._RAW_CONTAINER_IMAGE_APIS}
-        self._assert_complete_packet_contract_bindings({framework._RAW_CONTAINER_IMAGE_ENTRY}, producers, 5, isolate=False)
+        self._assert_complete_packet_contract_bindings({framework._RAW_CONTAINER_IMAGE_ENTRY}, producers, 7, isolate=False)
         coverage = json.loads((framework.VALIDATION / "normative-coverage.json").read_text())
         entry = next(item for item in coverage["requirements"] if item["id"] == framework._RAW_CONTAINER_IMAGE_ENTRY)
         source = framework.ROOT / "src/decode/api.rs"
@@ -2583,7 +2583,8 @@ class FrameworkTests(WorkingFiles):
         original = source.read_text()
         read_text = Path.read_text
         for before, after in (
-            ("jp2::parse_and_inspect(input, options.limits())?", "jp2::parse_and_inspect(&unrelated, options.limits())?"),
+            ("jp2::parse_and_inspect_for_display(input, options.limits())?", "jp2::parse_and_inspect_for_display(&unrelated, options.limits())?"),
+            ("validate_jp2_display_profile(inspected.file())?", "Ok(())?"),
             ("inspected.file().codestream_count() != 1", "inspected.file().codestream_count() != 2"),
             ("inspected.file().codestream(0)?.data(), options, selection", "inspected.file().codestream(0)?.data(), options, &unrelated"),
             ("apply_jp2_output(decoded, inspected.file().header(), options.limits())", "Ok(decoded)"),
@@ -2932,7 +2933,7 @@ class FrameworkTests(WorkingFiles):
 
     def test_inventory_binds_actual_complete_raw_inspected_container_results(self):
         self._assert_complete_packet_contract_bindings(
-            {framework._RAW_INSPECTED_ENTRY}, framework._RAW_INSPECTED_CONTRACTS, 3, isolate=False,
+            {framework._RAW_INSPECTED_ENTRY}, framework._RAW_INSPECTED_CONTRACTS, 6, isolate=False,
         )
 
     def test_inventory_raw_inspected_requires_every_actual_complete_bridge(self):
@@ -2953,6 +2954,12 @@ class FrameworkTests(WorkingFiles):
         original = source.read_text()
         read_text = Path.read_text
         for before, after in (
+            ("parse_and_inspect_mode(input, limits, false)", "parse_and_inspect_mode(input, limits, true)"),
+            ("parse_and_inspect_mode(input, limits, true)", "parse_and_inspect_mode(input, limits, false)"),
+            ("inspection_count(&file, display_first)", "file.codestream_count()"),
+            ("count.min(1)", "count"),
+            ("!file.file_type().is_jpx_compatible()", "file.file_type().is_jpx_compatible()"),
+            ("!file.file_type().is_jph_compatible()", "file.file_type().is_jph_compatible()"),
             ("jph != info.profile.is_part15()", "jph == info.profile.is_part15()"),
             ("None if index == 0 => Some(&file.header)", "None if index != 0 => Some(&file.header)"),
             ("inspected_codestreams.push(info)", "drop(info)"),
@@ -2974,6 +2981,9 @@ class FrameworkTests(WorkingFiles):
         original = source.read_text()
         read_text = Path.read_text
         for before, after in (
+            ("part2_parse_and_inspect_container_mode(input, limits, false)", "part2_parse_and_inspect_container_mode(input, limits, true)"),
+            ("index >= part2_inspection_count(file, display_first)", "index >= file.streams.len()"),
+            ("if file.streams.len() > 0 { 1 } else { 0 }", "1"),
             ("infos.push(info)", "infos"),
             ("part1_profile_optional_advertises_ht(info.1.2)", "false"),
             ("Some(association) => association.2", "Some(_association) => None"),
@@ -2987,6 +2997,29 @@ class FrameworkTests(WorkingFiles):
             with self.subTest(before=before), mock.patch.object(Path, "read_text", altered), \
                     self.assertRaisesRegex(ValueError, "complete raw producer/profile/default/info/JPH models"):
                 framework.validate_normative_coverage(dict(coverage, requirements=[entry]))
+
+    def test_inventory_jp2_first_display_preserves_checked_profile_admission(self):
+        coverage = json.loads((framework.VALIDATION / "normative-coverage.json").read_text())
+        read_text = Path.read_text
+        for entry_id in (framework._RAW_CONTAINER_IMAGE_ENTRY, framework._RAW_CONTAINER_COLOR_ENTRY):
+            entry = next(item for item in coverage["requirements"] if item["id"] == entry_id)
+            for name, before in (
+                ("src/decode/api.rs", "count == 0"),
+                ("src/decode/api.rs", "file.file_type().is_jpx_compatible() && count != 1"),
+                ("specs/jp2_inspection.rs", "file.streams.len() == 0"),
+                ("specs/jp2_inspection.rs", "part2_file_type_jpx(file.file_type) && file.streams.len() != 1"),
+            ):
+                source = framework.ROOT / name
+                original = source.read_text()
+                self.assertIn(before, original)
+                changed = original.replace(before, "false", 1)
+
+                def altered(path, *args, **kwargs):
+                    return changed if path == source else read_text(path, *args, **kwargs)
+
+                with self.subTest(entry=entry_id, before=before), mock.patch.object(Path, "read_text", altered), \
+                        self.assertRaisesRegex(ValueError, "actual JP2 display profile admission"):
+                    framework.validate_normative_coverage(dict(coverage, requirements=[entry]))
 
     def test_inventory_raw_inspected_keeps_fresh_actual_parser_and_model_caches(self):
         coverage = json.loads((framework.VALIDATION / "normative-coverage.json").read_text())

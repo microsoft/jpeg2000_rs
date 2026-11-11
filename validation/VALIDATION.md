@@ -95,6 +95,12 @@ CI initializes the crate's pinned Rust toolchain in a job-local `RUSTUP_HOME`
 before building the native harness. This keeps validation independent of
 preinstalled runner toolchain/component state.
 
+The canonical Linux validation job builds the same pinned OpenJPEG source as
+the native numerical matrix instead of installing an unpinned distribution
+package. Its executables are added to `PATH` for all framework and validation
+commands. GNU Time must already be present on the runner; its absence fails
+the job rather than skipping or weakening resource validation.
+
 ### Native numerical platform gates
 
 The separate native numerical matrix builds the same pinned OpenJPEG and

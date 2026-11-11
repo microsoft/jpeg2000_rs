@@ -3789,6 +3789,153 @@ fn jp2_for_codestream(codestream: &[u8], width: u32, height: u32) -> Vec<u8> {
     jp2
 }
 
+fn independent_first_display_streams() -> (Vec<u8>, Vec<u8>) {
+    // OpenJPEG 2.5.0 losslessly encoded original constant source planes 17 and 203.
+    let prefix = [
+        0xff, 0x4f, 0xff, 0x51, 0x00, 0x29, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02, 0x00, 0x00, 0x00,
+        0x02, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02, 0x00, 0x00,
+        0x00, 0x02, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x01, 0x07, 0x01, 0x01,
+        0xff, 0x52, 0x00, 0x0c, 0x00, 0x00, 0x00, 0x01, 0x00, 0x00, 0x04, 0x04, 0x00, 0x01, 0xff,
+        0x5c, 0x00, 0x04, 0x40, 0x40, 0xff, 0x64, 0x00, 0x25, 0x00, 0x01, 0x43, 0x72, 0x65, 0x61,
+        0x74, 0x65, 0x64, 0x20, 0x62, 0x79, 0x20, 0x4f, 0x70, 0x65, 0x6e, 0x4a, 0x50, 0x45, 0x47,
+        0x20, 0x76, 0x65, 0x72, 0x73, 0x69, 0x6f, 0x6e, 0x20, 0x32, 0x2e, 0x35, 0x2e, 0x30,
+    ];
+    let mut first = prefix.to_vec();
+    first.extend_from_slice(&[
+        0xff, 0x90, 0x00, 0x0a, 0x00, 0x00, 0x00, 0x00, 0x00, 0x15, 0x00, 0x01, 0xff, 0x93, 0xcf,
+        0xb4, 0x10, 0x08, 0x84, 0xde, 0xcf, 0xff, 0xd9,
+    ]);
+    let mut second = prefix.to_vec();
+    second.extend_from_slice(&[
+        0xff, 0x90, 0x00, 0x0a, 0x00, 0x00, 0x00, 0x00, 0x00, 0x16, 0x00, 0x01, 0xff, 0x93, 0xcf,
+        0xb4, 0x14, 0x01, 0xd7, 0x89, 0x2a, 0x7f, 0xff, 0xd9,
+    ]);
+    (first, second)
+}
+
+#[test]
+fn sarah_dev_457acab2c3_later_jp2_streams_do_not_change_first_display() {
+    let (first, second) = independent_first_display_streams();
+    let options = DecodeOptions::default();
+    for (stream, expected) in [(&first, 17), (&second, 203)] {
+        let control = super::decode_jp2(&jp2_for_codestream(stream, 2, 2), &options).unwrap();
+        assert_eq!(
+            control.component(0).unwrap().samples(),
+            &crate::image::TypedSamples::Unsigned(vec![expected; 4])
+        );
+    }
+    for count in [2, 3, 8] {
+        let mut file = jp2_for_codestream(&first, 2, 2);
+        for _ in 1..count {
+            file.extend(box32(*b"jp2c", &second));
+        }
+        let typed = super::decode_jp2(&file, &options).unwrap();
+        assert_eq!(
+            typed.component(0).unwrap().samples(),
+            &crate::image::TypedSamples::Unsigned(vec![17; 4])
+        );
+        assert_eq!(
+            super::decode_jp2_color(&file, &options)
+                .unwrap()
+                .channel(0)
+                .unwrap()
+                .samples(),
+            &[17 * 257; 4]
+        );
+        for selection in [DecodeSelection::full_image(), DecodeSelection::tile(0)] {
+            let selected = super::decode_jp2_selected(&file, &options, &selection).unwrap();
+            assert_eq!(
+                selected.component(0).unwrap().samples(),
+                &crate::image::TypedSamples::Unsigned(vec![17; 4])
+            );
+            assert_eq!(
+                super::decode_jp2_color_selected(&file, &options, &selection)
+                    .unwrap()
+                    .channel(0)
+                    .unwrap()
+                    .samples(),
+                &[17 * 257; 4]
+            );
+        }
+    }
+    let mut ignored = jp2_for_codestream(&first, 2, 2);
+    ignored.extend(box32(*b"jp2c", &[0xff]));
+    assert_eq!(
+        super::decode_jp2(&ignored, &options)
+            .unwrap()
+            .component(0)
+            .unwrap()
+            .samples(),
+        &crate::image::TypedSamples::Unsigned(vec![17; 4])
+    );
+    let selection = DecodeSelection::full_image();
+    assert_eq!(
+        super::decode_jp2_selected(&ignored, &options, &selection)
+            .unwrap()
+            .component(0)
+            .unwrap()
+            .samples(),
+        &crate::image::TypedSamples::Unsigned(vec![17; 4])
+    );
+    for image in [
+        super::decode_jp2_color(&ignored, &options).unwrap(),
+        super::decode_jp2_color_selected(&ignored, &options, &selection).unwrap(),
+    ] {
+        assert_eq!(image.channel(0).unwrap().samples(), &[17 * 257; 4]);
+    }
+    assert!(crate::jp2::parse_and_inspect(&ignored, options.limits()).is_err());
+    let limits = options.limits().with_maximum_codestreams(1).unwrap();
+    let limited = DecodeOptions::new(limits);
+    for error in [
+        super::decode_jp2(&ignored, &limited).err(),
+        super::decode_jp2_selected(&ignored, &limited, &selection).err(),
+        super::decode_jp2_color(&ignored, &limited).err(),
+        super::decode_jp2_color_selected(&ignored, &limited, &selection).err(),
+    ] {
+        assert_eq!(
+            error,
+            Some(DecodeError::LimitExceeded {
+                resource: Resource::Codestreams,
+                limit: 1,
+                actual: 2,
+            })
+        );
+    }
+    let mut truncated = jp2_for_codestream(&first, 2, 2);
+    truncated.extend_from_slice(&[0, 0, 0, 9, b'j', b'p', b'2', b'c']);
+    let framing_error = crate::jp2::parse(&truncated, options.limits()).err();
+    assert!(framing_error.is_some());
+    for error in [
+        super::decode_jp2(&truncated, &options).err(),
+        super::decode_jp2_selected(&truncated, &options, &selection).err(),
+        super::decode_jp2_color(&truncated, &options).err(),
+        super::decode_jp2_color_selected(&truncated, &options, &selection).err(),
+    ] {
+        assert_eq!(error, framing_error);
+    }
+    let mut jpx = jp2_for_codestream(&first, 2, 2);
+    jpx.splice(12..32, box32(*b"ftyp", b"jpx \0\0\0\0jp2 jpx "));
+    jpx.extend(box32(*b"jp2c", &second));
+    assert_eq!(
+        crate::jp2::parse_and_inspect(&jpx, options.limits())
+            .unwrap()
+            .codestreams()
+            .len(),
+        2
+    );
+    for error in [
+        super::decode_jp2(&jpx, &options).err(),
+        super::decode_jp2_selected(&jpx, &options, &selection).err(),
+        super::decode_jp2_color(&jpx, &options).err(),
+        super::decode_jp2_color_selected(&jpx, &options, &selection).err(),
+    ] {
+        assert_eq!(
+            error,
+            Some(DecodeError::malformed(0, MalformedKind::InvalidProfile))
+        );
+    }
+}
+
 fn jpx_for_codestreams(codestreams: &[Vec<u8>], width: u32, height: u32) -> Vec<u8> {
     let mut jpx = box32(*b"jP  ", &[0x0d, 0x0a, 0x87, 0x0a]);
     jpx.extend(box32(*b"ftyp", b"jpxb\0\0\0\0jpxb"));

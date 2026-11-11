@@ -2758,6 +2758,18 @@ _RAW_INSPECTED_CONTRACTS = {
         "part2_parse_and_inspect_container", _coverage_call("super::raw_inspected_container_outcome", r"\1"), None,
         r"input\s*@\s*,\s*limits",
     ),
+    ("src/jp2/container.rs", "parse_and_inspect_for_display"): (
+        "part2_parse_and_inspect_container_mode", _coverage_call("super::raw_inspected_container_outcome", r"\1"), None,
+        r"input\s*@\s*,\s*limits\s*,\s*true",
+    ),
+    ("src/jp2/container.rs", "parse_and_inspect_mode"): (
+        "part2_parse_and_inspect_container_mode", _coverage_call("super::raw_inspected_container_outcome", r"\1"), None,
+        r"input\s*@\s*,\s*limits\s*,\s*display_first",
+    ),
+    ("src/jp2/container.rs", "inspection_count"): (
+        "part2_inspection_count", r"\1\s+as\s+nat", None,
+        _coverage_call("super::raw_jp2_file_view", "file") + r"\s*,\s*display_first",
+    ),
     ("src/jp2/container.rs", "inspect_jph"): (
         "part2_inspect_jph_container", _coverage_call("super::raw_inspected_container_outcome", r"\1"), None,
         r"input\s*@\s*,\s*limits",
@@ -2770,6 +2782,7 @@ _RAW_INSPECTED_CONTRACTS = {
 _RAW_INSPECTED_MODELS = {
     ("specs/jp2_inspection.rs", name) for name in (
         "part2_parse_and_inspect_container", "part2_inspect_jph_container",
+        "part2_parse_and_inspect_container_mode", "part2_inspection_count",
         "part2_inspected_codestreams", "part2_inspected_header",
     )
 } | {
@@ -2785,6 +2798,7 @@ _RAW_INSPECTED_PROOFS = {
     )
 } | {
     ("specs/jp2_inspection.rs", "part2_parse_and_inspect_container_unfold"),
+    ("specs/jp2_inspection.rs", "part2_parse_and_inspect_container_mode_unfold"),
     ("specs/jp2_inspection.rs", "part2_inspect_jph_container_unfold"),
     ("src/codestream/proof_support.rs", "complete_codestream_info_view"),
     ("src/codestream/proof_support.rs", "complete_codestream_info_known_fields"),
@@ -3283,7 +3297,12 @@ _RAW_CONTAINER_IMAGE_CONTRACTS = {
     },
     **{key: _RAW_INSPECTED_CONTRACTS[key] for key in (
         ("src/jp2/container.rs", "parse_and_inspect"), ("src/jp2/container.rs", "inspect_jph"),
+        ("src/jp2/container.rs", "parse_and_inspect_for_display"),
     )},
+    ("src/decode/api.rs", "validate_jp2_display_profile"): (
+        "part2_validate_jp2_display_profile", r"\1", None,
+        _coverage_call("jp2::raw_jp2_file_view", "file"),
+    ),
     **{key: _RAW_TYPED_CONTRACTS[key] for key in (
         ("src/decode/api.rs", "decode_codestream"), ("src/decode/api.rs", "decode_codestream_selected"),
     )},
@@ -3297,6 +3316,8 @@ _RAW_CONTAINER_IMAGE_CONTRACTS = {
 }
 _RAW_CONTAINER_IMAGE_MODELS = {
     ("specs/container_images.rs", "part2_decode_raw_single_container"),
+    ("specs/jp2_inspection.rs", "part2_parse_and_inspect_container_mode"),
+    ("specs/jp2_inspection.rs", "part2_validate_jp2_display_profile"),
     ("specs/jp2_inspection.rs", "part2_parse_and_inspect_container"),
     ("specs/jp2_inspection.rs", "part2_inspect_jph_container"),
     ("specs/raw_decode.rs", "part2_decode_raw_codestream"),
@@ -3319,7 +3340,7 @@ _RAW_CONTAINER_IMAGE_TESTS = {("src/decode/container_image_result_tests.rs", "ac
     "jph_keeps_cleanup_refinement_signedness_and_public_selection",
     "preserves_raw_parse_selection_and_packet_first_errors",
     "checks_inspection_before_brand_count_and_backend",
-)}
+)} | {("src/decode/tests.rs", "sarah_dev_457acab2c3_later_jp2_streams_do_not_change_first_display")}
 _RAW_CONTAINER_COLOR_ENTRY = "part2-complete-native-public-raw-container-color-results"
 _RAW_CONTAINER_COLOR_APIS = {("src/decode/api.rs", name) for name in (
     "decode_jp2_color", "decode_jp2_color_selected", "decode_jph_color", "decode_jph_color_selected",
@@ -3359,6 +3380,8 @@ _RAW_CONTAINER_COLOR_MODELS = {("specs/container_colors.rs", name) for name in (
 )} | {
     ("specs/raw_decode.rs", "part2_decode_raw_codestream"),
     ("specs/raw_decode.rs", "part2_decode_raw_codestream_value"),
+    ("specs/jp2_inspection.rs", "part2_parse_and_inspect_container_mode"),
+    ("specs/jp2_inspection.rs", "part2_validate_jp2_display_profile"),
     ("specs/jp2_inspection.rs", "part2_parse_and_inspect_container"),
     ("specs/jp2_inspection.rs", "part2_inspect_jph_container"),
     ("specs/jpx_raw_frame.rs", "part2_raw_associated_header"),
@@ -3387,7 +3410,7 @@ _RAW_CONTAINER_COLOR_TESTS = {("src/decode/container_image_result_tests.rs", "ac
     "keeps_palette_rgb_and_straight_premultiplied_alpha_metadata",
     "preserves_header_mapping_before_color_admission",
     "preserves_raw_inspection_selection_packet_and_profile_priority",
-)}
+)} | {("src/decode/tests.rs", "sarah_dev_457acab2c3_later_jp2_streams_do_not_change_first_display")}
 _JPIP_LAYOUT_ENTRY = "part9-complete-native-public-layout-results"
 _JPIP_LAYOUT_CONTRACTS = {
     ("src/jpip/reconstruction.rs", name): (
@@ -5405,12 +5428,10 @@ def validate_normative_coverage(
             ):
                 body = _coverage_function_body(source_text(path), function_header(path, name))
                 required = [
-                    ("jp2::inspect_jph" if jph else "jp2::parse_and_inspect") + "(input, options.limits())?",
-                    "inspected.file().codestream_count() != 1",
+                    ("jp2::inspect_jph" if jph else "jp2::parse_and_inspect_for_display") + "(input, options.limits())?",
+                    "inspected.file().codestream_count() != 1" if jph else "validate_jp2_display_profile(inspected.file())?",
                     "jp2::raw_render_file_known(jp2::raw_inspected_file_reference(&inspected))",
                 ]
-                if not jph:
-                    required.append("!inspected.file().file_type().is_compatible_with(jp2::BoxType::JP2_BRAND)")
                 required.extend((
                     "let codestream = inspected.file().codestream(0)?.data()",
                     "color_selection(codestream, selection, options.limits())?",
@@ -5434,11 +5455,11 @@ def validate_normative_coverage(
                 raise ValueError("whole raw container color Results require actual raw layout expansion producer")
             for path, name, required in (
                 ("specs/container_colors.rs", "part2_decode_raw_color_container",
-                 ("if jph { part2_inspect_jph_container(input, limits) }", "else { part2_parse_and_inspect_container(input, limits) }",
+                 ("if jph { part2_inspect_jph_container(input, limits) }", "else { part2_parse_and_inspect_container_mode(input, limits, true) }",
                   "part2_decode_file_color(inspected.0, limits, requested, jph)")),
                 ("specs/container_colors.rs", "part2_decode_file_color",
-                 ("!jph && !part2_file_type_compatible(file.file_type, crate::jp2::BoxType::JP2_BRAND)",
-                  "file.streams.len() != 1", "part2_raw_associated_header(file.header)",
+                 ("jph && file.streams.len() != 1", "!jph && part2_validate_jp2_display_profile(file).is_err()",
+                  "part2_raw_associated_header(file.header)",
                   "part2_decode_raw_codestream(file.streams[0].1, limits, None)",
                   "part2_apply_output_header(decoded, header.0,", "color_convert_jp2(mapped.1, mapped.2, mapped.0, header.2,",
                   "part2_color_selection_raw(file.streams[0].1, limits, requested)",
@@ -5473,6 +5494,20 @@ def validate_normative_coverage(
                 actual = _coverage_spec_function_body(source_text((ROOT / path).resolve()), name)
                 if actual is None or any("".join(item.split()) not in "".join(actual.split()) for item in required):
                     raise ValueError("whole raw container color Results require complete source/selection/value/header/color/target models")
+        if entry["id"] in (_RAW_CONTAINER_IMAGE_ENTRY, _RAW_CONTAINER_COLOR_ENTRY):
+            path = (ROOT / "src/decode/api.rs").resolve()
+            body = _coverage_function_body(source_text(path), function_header(path, "validate_jp2_display_profile"))
+            model = _coverage_spec_function_body(source_text((ROOT / "specs/jp2_inspection.rs").resolve()), "part2_validate_jp2_display_profile")
+            for actual, required in (
+                (body, ("let count = file.codestream_count()", "!file.file_type().is_compatible_with(jp2::BoxType::JP2_BRAND)",
+                        "count == 0", "file.file_type().is_jpx_compatible() && count != 1",
+                        "DecodeError::malformed(0, MalformedKind::InvalidProfile)", "Ok(())")),
+                (model, ("!part2_file_type_compatible(file.file_type, crate::jp2::BoxType::JP2_BRAND)",
+                         "file.streams.len() == 0", "part2_file_type_jpx(file.file_type) && file.streams.len() != 1",
+                         "part2_container_error(0, crate::MalformedKind::InvalidProfile)", "Ok(())")),
+            ):
+                if actual is None or any("".join(item.split()) not in "".join(actual.split()) for item in required):
+                    raise ValueError("whole raw container image/color Results require actual JP2 display profile admission")
         if entry["id"] == _RAW_CONTAINER_IMAGE_ENTRY:
             if {(ref["path"], ref["symbol"]) for ref in entry["contract_refs"]} != set(_RAW_CONTAINER_IMAGE_CONTRACTS) - _RAW_CONTAINER_IMAGE_APIS:
                 raise ValueError("whole raw container image Results require actual inspection/core/output producer contracts")
@@ -5487,24 +5522,22 @@ def validate_normative_coverage(
             ):
                 body = _coverage_function_body(source_text(path), function_header(path, name))
                 required = [
-                    ("jp2::inspect_jph" if jph else "jp2::parse_and_inspect") + "(input, options.limits())?",
-                    "inspected.file().codestream_count() != 1",
+                    ("jp2::inspect_jph" if jph else "jp2::parse_and_inspect_for_display") + "(input, options.limits())?",
+                    "inspected.file().codestream_count() != 1" if jph else "validate_jp2_display_profile(inspected.file())?",
                     ("decode_codestream_selected" if selected else "decode_codestream")
                     + "(inspected.file().codestream(0)?.data(), options" + (", selection" if selected else "") + ")?",
                     "apply_jp2_output(decoded, inspected.file().header(), options.limits())",
                     "jp2::raw_render_file_known(jp2::raw_inspected_file_reference(&inspected))",
                 ]
-                if not jph:
-                    required.append("!inspected.file().file_type().is_compatible_with(jp2::BoxType::JP2_BRAND)")
                 if body is None or any("".join(item.split()) not in "".join(body.split()) for item in required):
                     raise ValueError("whole raw container image Results require actual raw/brand/count/selection/header handoffs")
             model = source_text((ROOT / "specs/container_images.rs").resolve())
             actual = _coverage_spec_function_body(model, "part2_decode_raw_single_container")
             required = (
                 "if jph { part2_inspect_jph_container(input, limits) }",
-                "else { part2_parse_and_inspect_container(input, limits) }",
-                "!jph && !part2_file_type_compatible(file.file_type, crate::jp2::BoxType::JP2_BRAND)",
-                "file.streams.len() != 1", "part2_container_error(0, crate::MalformedKind::InvalidProfile)",
+                "else { part2_parse_and_inspect_container_mode(input, limits, true) }",
+                "!jph && part2_validate_jp2_display_profile(file).is_err()",
+                "jph && file.streams.len() != 1", "part2_container_error(0, crate::MalformedKind::InvalidProfile)",
                 "part2_decode_raw_codestream(file.streams[0].1, limits, selection)",
                 "part2_apply_output_header(decoded, part2_raw_associated_header(file.header).0,",
                 "crate::limits::resource_component_limit(limits)", "crate::limits::resource_decoded_bytes_limit(limits)",
@@ -5612,7 +5645,13 @@ def validate_normative_coverage(
                 raise ValueError("whole raw inspected Results require complete file/info/profile/getter bridges")
             path = (ROOT / "src/jp2/container.rs").resolve()
             for name, required in {
-                "parse_and_inspect": ("parse(input, limits)?", "codestream::parse(codestream_box.data, limits)?",
+                "parse_and_inspect": ("parse_and_inspect_mode(input, limits, false)",),
+                "parse_and_inspect_for_display": ("parse_and_inspect_mode(input, limits, true)",),
+                "inspection_count": ("let count = file.codestream_count()", "if display_first",
+                    "file.file_type().is_compatible_with(BoxType::JP2_BRAND)",
+                    "!file.file_type().is_jpx_compatible()", "!file.file_type().is_jph_compatible()", "count.min(1)"),
+                "parse_and_inspect_mode": ("parse(input, limits)?", "inspection_count(&file, display_first)",
+                    "codestream::parse(codestream_box.data, limits)?",
                     "jph != info.profile.is_part15()", "Some(association) => association.parsed.as_ref()",
                     "None if index == 0 => Some(&file.header)", "validate_container_codestream(header, &info, codestream_box.header.offset())?",
                     "inspected_codestreams.push(info)", "InspectedJp2 { file, codestreams: inspected_codestreams, }"),
@@ -5625,10 +5664,16 @@ def validate_normative_coverage(
             for name, required in {
                 "part2_inspected_header": ("part1_profile_optional_advertises_ht(info.1.2)", "Some(association) => association.2",
                     "index == 0", "part2_validate_selected_header(header.image"),
-                "part2_inspected_codestreams": ("part1_parse_info(file.streams[index as int].1, limits)",
+                "part2_inspection_count": ("if display_first && part2_file_type_compatible(file.file_type, crate::jp2::BoxType::JP2_BRAND)",
+                    "!part2_file_type_jpx(file.file_type)",
+                    "!part2_file_type_compatible(file.file_type, crate::jp2::BoxType::JPH_BRAND)",
+                    "if file.streams.len() > 0 { 1 } else { 0 }", "else { file.streams.len() }"),
+                "part2_inspected_codestreams": ("index >= part2_inspection_count(file, display_first)",
+                    "part1_parse_info(file.streams[index as int].1, limits)",
                     "part2_inspected_header(file, index, info)", "infos.push(info)"),
-                "part2_parse_and_inspect_container": ("part2_parse_container(input, *limits)",
-                    "part2_inspected_codestreams(file, limits, 0, Seq::empty())"),
+                "part2_parse_and_inspect_container": ("part2_parse_and_inspect_container_mode(input, limits, false)",),
+                "part2_parse_and_inspect_container_mode": ("part2_parse_container(input, *limits)",
+                    "part2_inspected_codestreams(file, limits, 0, Seq::empty(), display_first)"),
                 "part2_inspect_jph_container": ("part2_parse_and_inspect_container(input, limits)",
                     "part2_file_type_compatible(inspected.0.file_type, crate::jp2::BoxType::JPH_BRAND)"),
             }.items():

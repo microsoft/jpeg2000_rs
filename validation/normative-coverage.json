@@ -878,12 +878,14 @@
     },
     {
       "id": "part2-complete-native-public-raw-container-color-results",
-      "topic": "Complete actual public raw JP2/JPH full/color-selected converted-image/error Results from actual bytes/options/selections through raw inspection/profile admission, compressed-byte core decode and complete header/color/crop admission. Actual color_selection derives expanded request and target from real raw layout, sharing existing pure selected decode logic by value without reconstructing a native selector. All sample/channel/alpha/geometry/precision/resource/first-error fields retained. Existing raw reference model interfaces/root body preserved; native owners/calls/code unchanged. Remaining JPX selected/progressive/JPIP/automatic dispatch and independent full-plan prerequisites stay separate.",
+      "topic": "Complete actual public raw JP2/JPH full/color-selected converted-image/error Results from actual bytes/options/selections through raw inspection/profile admission, compressed-byte core decode and complete header/color/crop admission. Sarah DEV-457ACAB2C3: ordinary JP2 displays only the first codestream after charging and framing every physical box; actual profile admission preserves JPX singleton behavior and JPH paths. Explicit all-stream inspection remains distinct. Actual color_selection derives expanded request and target from real raw layout, sharing existing pure selected decode logic by value without reconstructing a native selector. All sample/channel/alpha/geometry/precision/resource/first-error fields retained. Remaining JPX selected/progressive/JPIP/automatic dispatch and independent full-plan prerequisites stay separate.",
       "implementation_refs": [
         {"path": "src/decode/api.rs", "symbol": "decode_jp2_color"},
         {"path": "src/decode/api.rs", "symbol": "decode_jp2_color_selected"},
         {"path": "src/decode/api.rs", "symbol": "decode_jph_color"},
         {"path": "src/decode/api.rs", "symbol": "decode_jph_color_selected"},
+        {"path": "src/decode/api.rs", "symbol": "validate_jp2_display_profile"},
+        {"path": "src/jp2/container.rs", "symbol": "parse_and_inspect_for_display"},
         {"path": "src/jp2/container.rs", "symbol": "parse_and_inspect"},
         {"path": "src/jp2/container.rs", "symbol": "inspect_jph"},
         {"path": "src/decode/api.rs", "symbol": "decode_codestream"},
@@ -894,6 +896,8 @@
         {"path": "src/color/conversion.rs", "symbol": "convert_jp2_color"}
       ],
       "contract_refs": [
+        {"path": "src/decode/api.rs", "symbol": "validate_jp2_display_profile"},
+        {"path": "src/jp2/container.rs", "symbol": "parse_and_inspect_for_display"},
         {"path": "src/jp2/container.rs", "symbol": "parse_and_inspect"},
         {"path": "src/jp2/container.rs", "symbol": "inspect_jph"},
         {"path": "src/decode/api.rs", "symbol": "decode_codestream"},
@@ -905,6 +909,8 @@
       ],
       "spec_refs": [
         {"path": "specs/container_colors.rs", "symbol": "part2_decode_raw_color_container"},
+        {"path": "specs/jp2_inspection.rs", "symbol": "part2_parse_and_inspect_container_mode"},
+        {"path": "specs/jp2_inspection.rs", "symbol": "part2_validate_jp2_display_profile"},
         {"path": "specs/container_colors.rs", "symbol": "part2_decode_file_color"},
         {"path": "specs/container_colors.rs", "symbol": "part2_color_selection_raw"},
         {"path": "specs/container_colors.rs", "symbol": "part2_color_selection_layout"},
@@ -940,6 +946,7 @@
         {"path": "src/options.rs", "symbol": "decode_selection_view"}
       ],
       "test_refs": [
+        {"path": "src/decode/tests.rs", "symbol": "sarah_dev_457acab2c3_later_jp2_streams_do_not_change_first_display"},
         {"path": "src/decode/container_image_result_tests.rs", "symbol": "actual_raw_container_color_derives_complete_full_and_reduced_signed_unsigned_gray_planes"},
         {"path": "src/decode/container_image_result_tests.rs", "symbol": "actual_raw_container_color_jph_preserves_real_cleanup_refinement_and_signed_normalization"},
         {"path": "src/decode/container_image_result_tests.rs", "symbol": "actual_raw_container_color_derives_expanded_source_context_and_exact_requested_crop"},
@@ -950,12 +957,14 @@
     },
     {
       "id": "part2-complete-native-public-raw-container-image-results",
-      "topic": "Complete actual public raw JP2/JPH full and selected typed-image/error Results from actual bytes/options/selections through raw container/info/profile admission, compressed-byte core decode and complete palette/mapping/channel output admission. Full geometry/origins/components/signedness/precision/sample planes/channel definitions and first parser/profile/count/selection/backend/output errors retained. Existing raw stored-reference/header/source bridges; no successful parsed/layout/image banks, native reconstruction/clones or execution changes. Color-selected expansion/progressive/JPIP/automatic dispatch and independent normative/cfg/lifetime/release remain separate.",
+      "topic": "Complete actual public raw JP2/JPH full and selected typed-image/error Results from actual bytes/options/selections through raw container/info/profile admission, compressed-byte core decode and complete palette/mapping/channel output admission. Sarah DEV-457ACAB2C3: ordinary JP2 selects the first codestream while all physical boxes retain framing/resource admission; no ignored later payload inspection. JPX compatibility/count and JPH behavior stay unchanged. Full geometry/origins/components/signedness/precision/sample planes/channel definitions and first parser/profile/count/selection/backend/output errors retained. Existing raw stored-reference/header/source bridges; no successful parsed/layout/image banks or native reconstruction/clones. Color-selected expansion/progressive/JPIP/automatic dispatch and independent normative/cfg/lifetime/release remain separate.",
       "implementation_refs": [
         {"path": "src/decode/api.rs", "symbol": "decode_jp2"},
         {"path": "src/decode/api.rs", "symbol": "decode_jp2_selected"},
         {"path": "src/decode/api.rs", "symbol": "decode_jph"},
         {"path": "src/decode/api.rs", "symbol": "decode_jph_selected"},
+        {"path": "src/decode/api.rs", "symbol": "validate_jp2_display_profile"},
+        {"path": "src/jp2/container.rs", "symbol": "parse_and_inspect_for_display"},
         {"path": "src/jp2/container.rs", "symbol": "parse_and_inspect"},
         {"path": "src/jp2/container.rs", "symbol": "inspect_jph"},
         {"path": "src/decode/api.rs", "symbol": "decode_codestream"},
@@ -963,6 +972,8 @@
         {"path": "src/decode/output.rs", "symbol": "apply_jp2_output"}
       ],
       "contract_refs": [
+        {"path": "src/decode/api.rs", "symbol": "validate_jp2_display_profile"},
+        {"path": "src/jp2/container.rs", "symbol": "parse_and_inspect_for_display"},
         {"path": "src/jp2/container.rs", "symbol": "parse_and_inspect"},
         {"path": "src/jp2/container.rs", "symbol": "inspect_jph"},
         {"path": "src/decode/api.rs", "symbol": "decode_codestream"},
@@ -971,6 +982,8 @@
       ],
       "spec_refs": [
         {"path": "specs/container_images.rs", "symbol": "part2_decode_raw_single_container"},
+        {"path": "specs/jp2_inspection.rs", "symbol": "part2_parse_and_inspect_container_mode"},
+        {"path": "specs/jp2_inspection.rs", "symbol": "part2_validate_jp2_display_profile"},
         {"path": "specs/jp2_inspection.rs", "symbol": "part2_parse_and_inspect_container"},
         {"path": "specs/jp2_inspection.rs", "symbol": "part2_inspect_jph_container"},
         {"path": "specs/raw_decode.rs", "symbol": "part2_decode_raw_codestream"},
@@ -994,6 +1007,7 @@
         {"path": "src/jp2/container.rs", "symbol": "FileType::is_compatible_with"}
       ],
       "test_refs": [
+        {"path": "src/decode/tests.rs", "symbol": "sarah_dev_457acab2c3_later_jp2_streams_do_not_change_first_display"},
         {"path": "src/decode/container_image_result_tests.rs", "symbol": "actual_raw_container_image_derives_signed_unsigned_full_and_reduced_planes"},
         {"path": "src/decode/container_image_result_tests.rs", "symbol": "actual_raw_container_image_preserves_requested_tiles_regions_origins_and_selected_limits"},
         {"path": "src/decode/container_image_result_tests.rs", "symbol": "actual_raw_container_image_applies_complete_palette_mapping_and_channel_definitions"},
@@ -1171,20 +1185,29 @@
     },
     {
       "id": "part2-complete-native-raw-inspected-container-results",
-      "topic": "Complete actual raw parse_and_inspect and inspect_jph Results from actual raw container/codestream-info producers and limits. Original file and every full info record preserved; no supplied-success/source/layout/image/info banks. Native full-container-before-info, relative parse errors, profile-before-geometry, first/default/explicit-header selection, first-error and wrapper-after-inspection order retained. Real public CAP getter linked through existing full info/capability projections without widening native private-field access. Original owners/code/scopes retained; source/native observation and all gates required. Timeline/render/public image/normative/lifetime/cfg/release separate.",
+      "topic": "Complete actual raw parse_and_inspect, profile-derived first-display inspection and inspect_jph Results from one actual raw container/codestream-info traversal and limits. Sarah DEV-457ACAB2C3: only ordinary JP2 display selects min(physical stream count,1); all-stream inspection still checks every payload. JPX/JPH and every physical framing/resource check are retained. Original file and every selected full info record preserved; no supplied-success/source/layout/image/info banks. Native full-container-before-info, relative parse errors, profile-before-geometry, first/default/explicit-header selection, first-error and wrapper-after-inspection order retained. Real public CAP getter linked through existing full info/capability projections without widening native private-field access. Source/native observation and all gates required. Timeline/render/public image/normative/lifetime/cfg/release separate.",
       "implementation_refs": [
+        {"path": "src/decode/api.rs", "symbol": "decode_jp2"},
         {"path": "src/decode/api.rs", "symbol": "decode_jph"},
+        {"path": "src/jp2/container.rs", "symbol": "parse_and_inspect_mode"},
+        {"path": "src/jp2/container.rs", "symbol": "parse_and_inspect_for_display"},
+        {"path": "src/jp2/container.rs", "symbol": "inspection_count"},
         {"path": "src/jp2/container.rs", "symbol": "parse_and_inspect"},
         {"path": "src/jp2/container.rs", "symbol": "inspect_jph"},
         {"path": "src/codestream/layout.rs", "symbol": "parse"},
         {"path": "src/codestream/profile.rs", "symbol": "CodestreamProfile::is_part15"}
       ],
       "contract_refs": [
+        {"path": "src/jp2/container.rs", "symbol": "parse_and_inspect_mode"},
+        {"path": "src/jp2/container.rs", "symbol": "parse_and_inspect_for_display"},
+        {"path": "src/jp2/container.rs", "symbol": "inspection_count"},
         {"path": "src/jp2/container.rs", "symbol": "parse_and_inspect"},
         {"path": "src/jp2/container.rs", "symbol": "inspect_jph"},
         {"path": "src/codestream/profile.rs", "symbol": "CodestreamProfile::is_part15"}
       ],
       "spec_refs": [
+        {"path": "specs/jp2_inspection.rs", "symbol": "part2_parse_and_inspect_container_mode"},
+        {"path": "specs/jp2_inspection.rs", "symbol": "part2_inspection_count"},
         {"path": "specs/jp2_inspection.rs", "symbol": "part2_parse_and_inspect_container"},
         {"path": "specs/jp2_inspection.rs", "symbol": "part2_inspect_jph_container"},
         {"path": "specs/jp2_inspection.rs", "symbol": "part2_inspected_codestreams"},
@@ -1203,6 +1226,7 @@
         {"path": "src/jp2/proof_support.rs", "symbol": "raw_codestream_view"},
         {"path": "src/jp2/proof_support.rs", "symbol": "raw_codestream_association_view"},
         {"path": "specs/jp2_inspection.rs", "symbol": "part2_parse_and_inspect_container_unfold"},
+        {"path": "specs/jp2_inspection.rs", "symbol": "part2_parse_and_inspect_container_mode_unfold"},
         {"path": "specs/jp2_inspection.rs", "symbol": "part2_inspect_jph_container_unfold"},
         {"path": "src/codestream/proof_support.rs", "symbol": "complete_codestream_info_view"},
         {"path": "src/codestream/proof_support.rs", "symbol": "complete_codestream_info_known_fields"},
@@ -1211,6 +1235,7 @@
         {"path": "src/jp2/container.rs", "symbol": "CodestreamBox::codestream_header"}
       ],
       "test_refs": [
+        {"path": "src/jp2/tests.rs", "symbol": "sarah_dev_457acab2c3_raw_jp2_retains_resource_admitted_later_streams"},
         {"path": "src/jp2/tests.rs", "symbol": "actual_raw_inspection_retains_original_file_and_complete_source_derived_info_fields"},
         {"path": "src/jp2/tests.rs", "symbol": "actual_raw_inspection_keeps_complete_container_errors_before_relative_codestream_errors"},
         {"path": "src/jp2/tests.rs", "symbol": "actual_raw_inspection_keeps_profile_before_geometry_and_first_stream_before_later_errors"},
@@ -1223,6 +1248,7 @@
       "id": "part2-complete-native-raw-container-result",
       "topic": "Complete actual raw container::parse Result from bytes and actual limits, retaining original prologue relation, every full header/file-type/stream/association/layer/composition field, metadata count/depth and root box count. Sarah DEV-174EC5FEE4: derive profile-aware header admission from actual checked JPH file-type compatibility, not a caller success premise; strict JP2/JPX paths remain distinct and absent colour stays explicit metadata. Sarah DEV-2D75F3E8F6/DEV-056D9FBFB2: later signature and file-type boxes are InvalidBoxOrder at their actual offsets, not ignorable metadata, after original framing/reader/resource/root-count checks. Unknown opaque payloads containing prefix bytes remain untouched. Other native order/resource/reader/error priorities and original owner scopes preserved. Real checked association cloning attaches only the original association field; complete mutable vector frame preserves all other entries and stored headers/payloads. No successful-stage banks, assumed validity, owner reconstruction, executing clones or trust/budget changes. Independent normative/lifetime/cfg/release gates remain separate.",
       "implementation_refs": [
+        {"path": "src/jp2/container.rs", "symbol": "parse_and_inspect_mode"},
         {"path": "src/jp2/container.rs", "symbol": "parse_and_inspect"},
         {"path": "src/jp2/container.rs", "symbol": "parse"},
         {"path": "src/jp2/clone_support.rs", "symbol": "codestream_association_clone"}

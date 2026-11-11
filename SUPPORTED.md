@@ -28,6 +28,13 @@ standard. The [technical reference inventory](validation/normative-coverage.json
 maps named implementation/model/contract/proof/test entries; it is not an
 exhaustive standards-clause or source-function-coverage measurement.
 
+Ordinary JP2 full/selected typed and colour decoding displays the first
+codestream, ignoring later codestream contents while retaining all-box framing
+and resource limits. Explicit `jp2::parse_and_inspect` still inspects every
+codestream. JPX selection/count and JPH singleton policies are unchanged.
+The pinned Glymur 0.13.8 first-display comparison preserves its warning about
+ignored later codestreams; it does not certify full container conformance.
+
 | Qualification family | Actual entry and inventory examples | Existing independent evidence | Remaining claim boundary |
 |---|---|---|---|
 | Part 1 raw headers, tile state and JP2 input | [Parser](src/codestream/layout.rs), [public raw APIs](src/decode/api.rs); `part1-complete-native-codestream-reader`, `part1-complete-native-raw-coding-style` | Generated framing/error tests and selected reference-coded inputs | Whole raw header/inherited-tile-to-layout result and public composition |

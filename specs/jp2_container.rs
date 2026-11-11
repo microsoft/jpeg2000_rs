@@ -135,7 +135,9 @@ pub open spec fn part2_container_step(
             } else {
                 match part2_container_next_stream_count(state.streams.len(), limits, offset) {
                     Err(error) => Err(error),
-                    Ok(actual) => if actual > 1 && !part2_file_type_jpx(file_type) {
+                    Ok(actual) => if actual > 1
+                        && part2_file_type_compatible(file_type, crate::jp2::BoxType::JPH_BRAND)
+                        && !part2_file_type_jpx(file_type) {
                         Err(part2_container_error(offset, crate::MalformedKind::InvalidBoxContents))
                     } else {
                         Ok(Part2RawContainerState { streams: state.streams.push((input.0, input.1, None)), ..state })

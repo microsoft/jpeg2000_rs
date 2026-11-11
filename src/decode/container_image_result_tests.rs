@@ -340,17 +340,15 @@ fn actual_raw_container_image_checks_inspection_before_brand_count_and_backend()
         assert_eq!(decode_jp2(bytes, &options), profile);
         assert_eq!(decode_jp2_selected(bytes, &options, &invalid), profile);
     }
-    let mut invalid_count = jp2_for_codestream(&stream, 5, 1);
-    let second_offset = invalid_count.len() as u64;
-    invalid_count.extend(box32(*b"jp2c", &stream));
-    let invalid_boxes = Err(DecodeError::malformed(
-        second_offset,
-        MalformedKind::InvalidBoxContents,
-    ));
-    assert_eq!(decode_jp2(&invalid_count, &options), invalid_boxes);
+    let mut later_stream = jp2_for_codestream(&stream, 5, 1);
+    let first = decode_jp2(&later_stream, &options).unwrap();
+    let selection_error = decode_jp2_selected(&later_stream, &options, &invalid);
+    assert!(selection_error.is_err());
+    later_stream.extend(box32(*b"jp2c", &stream));
+    assert_eq!(decode_jp2(&later_stream, &options), Ok(first));
     assert_eq!(
-        decode_jp2_selected(&invalid_count, &options, &invalid),
-        invalid_boxes
+        decode_jp2_selected(&later_stream, &options, &invalid),
+        selection_error
     );
     let mut bad_later = wrong_brand;
     bad_later.extend(box32(*b"jp2c", &[0]));

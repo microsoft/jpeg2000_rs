@@ -645,7 +645,17 @@ The original file and all observed info fields, first/default/associated-header
 selection, profile-before-geometry and container-before-info error priority,
 relative codestream errors and final JPH-wrapper check are retained. The CAP
 getter and real stored-file getters expose their full producer projections;
-no private native-field visibility or executing code is changed.
+no private native-field visibility is widened.
+
+Sarah `DEV-457ACAB2C3` separates ordinary JP2 first display from explicit
+all-stream inspection through one shared executing traversal. Both modes parse,
+frame and charge every physical box first. Only ordinary JP2 display inspects
+the first payload; the complete mode/count/profile models retain all physical
+stream slices and distinguish ignored payload contents from framing errors.
+All four typed/colour full/selected JP2 APIs use the checked display path.
+JPX compatibility/count admission and JPH policies are retained. The pinned
+Glymur 0.13.8 reader comparison retains its ignored-later-stream warning;
+it is bounded interoperability evidence, not selected-edition certification.
 
 The public closed models use the existing scoped-unfold lemma pattern.
 No supplied successful file/info/image bank, assumed validity or native
