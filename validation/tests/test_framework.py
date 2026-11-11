@@ -2200,6 +2200,8 @@ class FrameworkTests(WorkingFiles):
         for before, after in (
             ("read_vbas(input, &mut position, Some(0x0f))?", "read_vbas(input, &mut position, None)?"),
             ("context.previous_class = Some(class_identifier)", "context.previous_class = Some(codestream)"),
+            ("context.previous_class.unwrap_or(0)", "context.previous_class.unwrap_or(1)"),
+            ("context.previous_codestream.unwrap_or(0)", "context.previous_codestream.unwrap_or(1)"),
             ("body: &input[position..body_end]", "body: &input[0..body_end]"),
             ("first_mask.unwrap_or(0x7f)", "first_mask.unwrap_or(0xff)"),
             ("let mut value = u64::from(first & mask)", "let mut value = u64::from(first)"),
@@ -2225,6 +2227,8 @@ class FrameworkTests(WorkingFiles):
         for before, after in (
             ("value as nat * 128 + group as nat", "value as nat + group as nat"),
             ("None => 0x7f", "None => 0xff"),
+            ("match context.0 { None => Ok(0)", "match context.0 { None => Ok(1)"),
+            ("match context.1 { Some(value) => Ok(value), None => Ok(0)", "match context.1 { Some(value) => Ok(value), None => Ok(1)"),
             ("input.subrange(position as int, end as int)", "input.subrange(0, end as int)"),
             ("(Some(header.0.0), Some(header.0.2))", "(Some(header.0.2), Some(header.0.0))"),
             ("_ => context", "_ => (None, None)"),

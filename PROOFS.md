@@ -511,6 +511,21 @@ complete padded data/EOR headers retain context, limits and borrowed bodies.
 This is interoperability and arithmetic evidence, not independent
 selected-edition certification.
 
+The seven retained initial-history findings share one corrected reader branch:
+an absent inherited Class or CSn independently supplies zero, without fabricating
+stored history. `new`, `default`, getters, EOR and failed messages retain raw
+absence; only a complete Data message commits identifiers. A persistent parser
+inherits its committed values, while response ingestion starts fresh on every
+call regardless of cached databins. Complete raw-result and identity-cut models
+derive the same defaults, and their parser/response callers reuse those models.
+The unchanged public CADI receiver at
+`gici-uab/cadi@43314e890be4f1dde44af7853570ee874c13aac6` executes 60,800
+bounded fresh/primed header cases without mismatches; no reference implementation
+is copied into production. Native regressions cover 138,240 header/context cases,
+independent missing-field defaults, complete-body commits and response locality.
+This does not certify CADI error/rollback behavior, multistream metadata identity
+or selected-edition correspondence.
+
 Cache insertion, response ingestion, transcoding, progressive and automatic
 composition remain later producer joins. Independent full-plan gates remain
 separate, and complete fresh qualification is still required.

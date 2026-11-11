@@ -3642,6 +3642,9 @@ _JPIP_MESSAGE_TESTS = {("src/jpip/message_result_tests.rs", name) for name in (
     "actual_raw_jpip_databin_and_header_getters_preserve_normalized_identity_and_saturating_final_length",
     "sarah_dev_9a1abe441f_bounded_vbas_padding_preserves_values_and_delimiters",
     "sarah_dev_9a1abe441f_padded_message_fields_preserve_context_and_body",
+    "sarah_initial_history_defaults_preserve_absence_and_effective_identifiers",
+    "sarah_initial_history_defaults_commit_only_after_complete_data",
+    "sarah_initial_history_defaults_are_response_local_not_cache_history",
 )}
 _JPIP_RESPONSE_ENTRY = "part9-complete-native-raw-response-result"
 _JPIP_RESPONSE_APIS = {("src/jpip/message.rs", "ingest_jpip_response")}
@@ -5207,6 +5210,7 @@ def validate_normative_coverage(
                 "parse_jpip_message": ("input.is_empty()", "input.len() as u64 > limits.maximum_input_bytes()",
                     "input[0] == 0", "parse_end_of_response(input)", "read_vbas(input, &mut position, Some(0x0f))",
                     "context.previous_class", "context.previous_codestream", "DatabinId::new(class_identifier, codestream, in_class)",
+                    "context.previous_class.unwrap_or(0)", "context.previous_codestream.unwrap_or(0)",
                     "context.previous_class = Some(class_identifier)", "context.previous_codestream = Some(codestream)",
                     "parse_data_after_identity(input, position, databin, last_byte, limits)?", "Ok(parsed)"),
                 "parse_data_after_identity": ("read_vbas(input, &mut position, None)",
@@ -5240,7 +5244,9 @@ def validate_normative_coverage(
                     "part2_jpip_body(input, length.1, value)", "reason: input[1]", "header_length: length.1"),
                 "part2_jpip_data": ("part9_header_form_valid", "part2_jpip_read_vbas(input, 0, Some(0x0f))",
                     "part9_header_has_explicit_class", "part9_header_has_explicit_codestream", "context.0", "context.1",
-                    "if form == 2", "part2_jpip_databin(class_value, stream_value, bin_value)",
+                    "match context.0 { None => Ok(0), Some(value) => Ok(value) }",
+                    "match context.1 { Some(value) => Ok(value), None => Ok(0) }",
+                    "part2_jpip_databin(class_value, stream_value, bin_value)",
                     "part2_jpip_data_after_identity"),
                 "part2_jpip_data_after_identity": ("part2_jpip_read_vbas(input, position, None)",
                     "part2_jpip_read_vbas(input, offset.1, None)", "part9_auxiliary_present", "offset_value as nat + length_value as nat",

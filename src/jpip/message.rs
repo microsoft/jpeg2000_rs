@@ -349,25 +349,14 @@ pub fn parse_jpip_message<'a>(
     let class_identifier = if crate::refinement::jpip_header_has_explicit_class(form) {
         read_vbas(input, &mut position, None)?
     } else {
-        context
-            .previous_class
-            .ok_or_else(
-                #[cfg_attr(verus_keep_ghost, verus_spec(result: DecodeError =>
-                    ensures result == crate::specs::part2_jpip_error(0, MalformedKind::InvalidJpipHeader),
-                ))]
-                || DecodeError::malformed(0, MalformedKind::InvalidJpipHeader),
-            )?
+        context.previous_class.unwrap_or(0)
     };
     #[cfg(verus_keep_ghost)]
     proof_decl! { let ghost stream_start = position; }
     let codestream = if crate::refinement::jpip_header_has_explicit_codestream(form) {
         read_vbas(input, &mut position, None)?
-    } else if let Some(previous) = context.previous_codestream {
-        previous
-    } else if form == 2 {
-        0
     } else {
-        return Err(DecodeError::malformed(0, MalformedKind::InvalidJpipHeader));
+        context.previous_codestream.unwrap_or(0)
     };
     let databin = DatabinId::new(class_identifier, codestream, in_class)?;
     #[cfg(verus_keep_ghost)]

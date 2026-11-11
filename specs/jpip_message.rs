@@ -169,15 +169,14 @@ pub open spec fn part2_jpip_data(input: Seq<u8>, context: Part2JpipContext, limi
             Err(error) => Err(error),
             Ok(bin_value) => {
                 let class = if part9_header_has_explicit_class(form as nat) { part2_jpip_read_vbas(input, bin.1, None) }
-                    else { (match context.0 { None => Err(part2_jpip_error(0, crate::MalformedKind::InvalidJpipHeader)),
+                    else { (match context.0 { None => Ok(0),
                         Some(value) => Ok(value) }, bin.1) };
                 match class.0 {
                     Err(error) => Err(error),
                     Ok(class_value) => {
                         let stream = if part9_header_has_explicit_codestream(form as nat) {
                             part2_jpip_read_vbas(input, class.1, None)
-                        } else { (match context.1 { Some(value) => Ok(value), None =>
-                            if form == 2 { Ok(0) } else { Err(part2_jpip_error(0, crate::MalformedKind::InvalidJpipHeader)) } }, class.1) };
+                        } else { (match context.1 { Some(value) => Ok(value), None => Ok(0) }, class.1) };
                         match stream.0 {
                             Err(error) => Err(error),
                             Ok(stream_value) => match part2_jpip_databin(class_value, stream_value, bin_value) {
@@ -203,15 +202,13 @@ pub(crate) proof fn part2_jpip_data_identity_cut(
         (if part9_header_has_explicit_class(((input[0] >> 5) & 3) as nat) {
             part2_jpip_read_vbas(input, class_start, None)
         } else {
-            (match context.0 { None => Err(part2_jpip_error(0, crate::MalformedKind::InvalidJpipHeader)),
+            (match context.0 { None => Ok(0),
                 Some(value) => Ok(value) }, class_start)
         }) == (Ok(class_value), stream_start),
         (if part9_header_has_explicit_codestream(((input[0] >> 5) & 3) as nat) {
             part2_jpip_read_vbas(input, stream_start, None)
         } else {
-            (match context.1 { Some(value) => Ok(value), None =>
-                if (input[0] >> 5) & 3 == 2 { Ok(0) }
-                else { Err(part2_jpip_error(0, crate::MalformedKind::InvalidJpipHeader)) } }, stream_start)
+            (match context.1 { Some(value) => Ok(value), None => Ok(0) }, stream_start)
         }) == (Ok(stream_value), body_start),
         part2_jpip_databin(class_value, stream_value, bin_value) == Ok(databin),
     ensures part2_jpip_data(input, context, limits)

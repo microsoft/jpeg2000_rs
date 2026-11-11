@@ -192,7 +192,7 @@ fn actual_jpip_response_retains_exact_prior_commits_and_relative_errors_at_every
     let before = frame(&cache);
     assert_eq!(
         ingest_jpip_response(&[0x20], &mut cache),
-        Err(DecodeError::malformed(0, MalformedKind::InvalidJpipHeader))
+        Err(DecodeError::malformed(1, MalformedKind::Truncated))
     );
     assert_eq!(frame(&cache), before);
 }

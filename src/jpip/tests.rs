@@ -212,7 +212,7 @@ fn rejects_malformed_prefixes_and_vbas() {
     let limits = ResourceLimits::default();
     for input in [
         &[0x01, 0, 0][..],
-        &[0x21, 0, 0][..],
+        &[0x21, 0][..],
         &[0x40, 0x80, 0, 0][..],
         &[0x40, 0x80][..],
         &[0xc0, 8, 0, 0x80][..],
