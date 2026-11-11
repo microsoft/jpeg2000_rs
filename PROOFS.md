@@ -772,6 +772,26 @@ cfg/erasure, lifetimes and release remain independent.
 
 ## Actual complete raw JP2 header Result
 
+For Sarah `DEV-174EC5FEE4`, the former header body is the sole profile-aware
+producer. The strict JP2 wrapper forwards `false`; actual checked JPH branding
+supplies its own context through the container producer and complete model.
+Missing colour is admitted only with that context and the actual unknown-colour
+flag. A checked field-derived scan rejects colour-channel claims without a
+specified colour space. `ColorMethod::Unspecified` records real absence, with
+no source COLR/ICC record or guessed enumerated colour; explicit conversion and
+layer colour-count paths return `UnspecifiedColorSpace`. Complete header,
+container, conversion and caller models retain those distinctions. The scan's
+error proof uses the actual offending record as a witness, not a validity premise.
+
+The unchanged public OpenHTJ2K encoder/decoder at
+`72ea0450d2b522a88e7dbb9c1a9c164fb029c1f2` executes 48 paired explicit/unspecified
+colour cases, 96 actual decodes and 1,056 exact sample comparisons. One and three
+components, unsigned/signed 8/12-bit samples and small dimensions retain identical
+typed planes while missing colour remains unspecified. Its permissive box scanner
+is not used as a complete profile-admission oracle; this is bounded component
+interoperability, not selected-edition certification. Source/license notices and
+standalone reference execution remain separate from the Rust implementation.
+
 The actual JP2-header assembler derives every image/color/ICC/count/palette/
 mapping/definition/resolution field from its actual raw reader and checked
 primitive producers. Complete Results preserve first-color ownership while

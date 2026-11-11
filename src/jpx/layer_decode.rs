@@ -809,6 +809,9 @@ fn widen_samples(samples: &[u16]) -> Result<Vec<u64>, DecodeError> {
 ))]
 fn layer_color_count(color: &jp2::ColorSpecification) -> Result<usize, DecodeError> {
     match color.method() {
+        jp2::ColorMethod::Unspecified => Err(DecodeError::UnsupportedColorConversion {
+            reason: crate::UnsupportedColorConversion::UnspecifiedColorSpace,
+        }),
         jp2::ColorMethod::Enumerated {
             color_space: jp2::ENUMERATED_GRAYSCALE,
         } => Ok(1),

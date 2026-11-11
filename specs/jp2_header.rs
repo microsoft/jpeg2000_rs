@@ -35,16 +35,32 @@ pub open spec fn part2_raw_header_missing(base: u64) -> crate::DecodeError {
     crate::DecodeError::MalformedInput { offset: base, kind: crate::MalformedKind::MissingRequiredStructure }
 }
 
-pub open spec fn part2_raw_header_finish(state: Part2RawHeaderState, base: u64)
+pub open spec fn part2_unspecified_jph_color(definitions: Seq<Part2ChannelRecord>, base: u64)
+    -> Result<Part2ColorSpecification, crate::DecodeError>
+{
+    if exists |i: int| 0 <= i < definitions.len() && definitions[i].1.0 == crate::ChannelType::Color {
+        Err(crate::DecodeError::MalformedInput { offset: base, kind: crate::MalformedKind::InvalidProfile })
+    } else {
+        Ok((crate::jp2::ColorMethod::Unspecified, 0, 0, None))
+    }
+}
+
+pub open spec fn part2_raw_header_finish(state: Part2RawHeaderState, base: u64, allow_unspecified: bool)
     -> Result<Part2RawJp2Header, crate::DecodeError>
 {
     if matches!(state.image.bit_depth, crate::jp2::ComponentBitDepth::Variable) != state.saw_bpcc
         || (state.palette.is_some() && state.mappings.len() == 0) {
         Err(part2_raw_header_missing(base))
     } else {
-        match state.color {
-            None => Err(part2_raw_header_missing(base)),
-            Some(color) => {
+        let selected = match state.color {
+            Some(color) => Ok(color),
+            None => if allow_unspecified && state.image.unknown_color_space {
+                part2_unspecified_jph_color(state.definitions, base)
+            } else { Err(part2_raw_header_missing(base)) },
+        };
+        match selected {
+            Err(error) => Err(error),
+            Ok(color) => {
                 if state.mappings.len() > u16::MAX as nat || state.definitions.len() > u16::MAX as nat {
                     Err(part2_palette_arithmetic_error(base))
                 } else {
@@ -128,13 +144,13 @@ pub open spec fn part2_raw_header_step(
 #[verifier::opaque]
 pub open spec fn part2_raw_header_boxes(
     payload: Seq<u8>, reader: Part2BoxReaderState, state: Part2RawHeaderState,
-    limits: crate::ResourceLimits, base: u64,
+    limits: crate::ResourceLimits, base: u64, allow_unspecified: bool,
 ) -> Result<Part2RawJp2Header, crate::DecodeError>
     decreases payload.len() as int - reader.position as int,
 {
     let next = part2_box_reader_next_ref(reader);
     match next.0 {
-        None => part2_raw_header_finish(state, base),
+        None => part2_raw_header_finish(state, base, allow_unspecified),
         Some(result) => {
             if next.1.position <= reader.position || next.1.position > payload.len() {
                 Err(part2_resolution_progress_error(base, reader.position))
@@ -147,7 +163,7 @@ pub open spec fn part2_raw_header_boxes(
                             match part2_raw_header_step(input, Part2RawHeaderState {
                                 nested: (state.nested + 1) as u32, ..state }, limits, base) {
                                 Err(error) => Err(error),
-                                Ok(updated) => part2_raw_header_boxes(payload, next.1, updated, limits, base),
+                                Ok(updated) => part2_raw_header_boxes(payload, next.1, updated, limits, base, allow_unspecified),
                             }
                         }
                     },
@@ -159,6 +175,13 @@ pub open spec fn part2_raw_header_boxes(
 
 pub open spec fn part2_parse_jp2_header(payload: Seq<u8>, limits: crate::ResourceLimits, base: u64)
     -> Result<Part2RawJp2Header, crate::DecodeError>
+{
+    part2_parse_jp2_header_profile(payload, limits, base, false)
+}
+
+pub open spec fn part2_parse_jp2_header_profile(
+    payload: Seq<u8>, limits: crate::ResourceLimits, base: u64, allow_unspecified: bool,
+) -> Result<Part2RawJp2Header, crate::DecodeError>
 {
     match part2_box_reader_from_input(payload, limits) {
         Err(error) => Err(error),
@@ -175,7 +198,7 @@ pub open spec fn part2_parse_jp2_header(payload: Seq<u8>, limits: crate::Resourc
                             image, color: None, saw_bpcc: false, palette: None,
                             mappings: Seq::empty(), definitions: Seq::empty(),
                             capture: None, display: None, nested: 1,
-                        }, limits, base),
+                        }, limits, base, allow_unspecified),
                     }
                 },
             }

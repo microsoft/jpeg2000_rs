@@ -1,3 +1,4 @@
+use super::headers::parse_jp2_header;
 use super::*;
 
 type RawBoxReaderSnapshot = (usize, u64, u64, bool, ResourceLimits);
@@ -2162,6 +2163,100 @@ fn raw_jp2_header_color() -> Vec<u8> {
 }
 
 #[test]
+fn sarah_dev_174ec5fee4_only_declared_jph_profile_admits_absent_colour() {
+    let limits = ResourceLimits::default();
+    for components in [1_u16, 2, 3, 4, 8, 64] {
+        for unknown in [false, true] {
+            let payload = box32(
+                *b"ihdr",
+                &raw_image_header_payload(3, 2, components, 7, [u8::from(unknown), 0]),
+            );
+            for allow_unspecified in [false, true] {
+                let result = super::headers::parse_jp2_header_profile(
+                    &payload,
+                    &limits,
+                    100,
+                    allow_unspecified,
+                );
+                if unknown && allow_unspecified {
+                    let header = result.unwrap();
+                    assert_eq!(header.image.components, components);
+                    assert!(header.image.unknown_color_space);
+                    assert_eq!(header.color.method(), ColorMethod::Unspecified);
+                    assert_eq!(header.color.icc_profile(), None);
+                    assert_eq!(header.nested_box_count, 1);
+                } else {
+                    assert_eq!(
+                        result.err(),
+                        Some(DecodeError::MalformedInput {
+                            offset: 100,
+                            kind: MalformedKind::MissingRequiredStructure,
+                        })
+                    );
+                }
+            }
+            assert_eq!(
+                super::headers::parse_jp2_header(&payload, &limits, 100).err(),
+                Some(DecodeError::MalformedInput {
+                    offset: 100,
+                    kind: MalformedKind::MissingRequiredStructure,
+                })
+            );
+        }
+    }
+    let mut payload = box32(*b"ihdr", &raw_image_header_payload(3, 2, 1, 7, [1, 0]));
+    payload.extend(box32(*b"colr", &[1, 17, 29, 0, 0, 0, 0]));
+    let header = super::headers::parse_jp2_header_profile(&payload, &limits, 100, true).unwrap();
+    assert_eq!(
+        header.color.method(),
+        ColorMethod::Enumerated { color_space: 0 }
+    );
+    assert_eq!(
+        (header.color.precedence, header.color.approximation),
+        (17, 29)
+    );
+}
+
+#[test]
+fn sarah_dev_174ec5fee4_unspecified_jph_rejects_colour_channel_claims() {
+    let limits = ResourceLimits::default();
+    for kind in [0_u16, 1, 2, u16::MAX] {
+        let mut payload = box32(*b"ihdr", &raw_image_header_payload(3, 2, 1, 7, [1, 0]));
+        payload.extend(box32(
+            *b"cdef",
+            &raw_channel_definition_payload(&[(0, kind, if kind == 0 { 1 } else { 0 })]),
+        ));
+        let result = super::headers::parse_jp2_header_profile(&payload, &limits, 100, true);
+        if kind == 0 {
+            assert_eq!(
+                result.err(),
+                Some(DecodeError::MalformedInput {
+                    offset: 100,
+                    kind: MalformedKind::InvalidProfile,
+                })
+            );
+        } else {
+            let header = result.unwrap();
+            assert_eq!(header.color.method(), ColorMethod::Unspecified);
+            assert_eq!(header.channel_definition_records.len(), 1);
+            assert_eq!(header.channel_definitions, 1);
+        }
+    }
+    let mut payload = box32(
+        *b"ihdr",
+        &raw_image_header_payload(3, 2, 1, u8::MAX, [1, 0]),
+    );
+    payload.extend(box32(*b"bpcc", &[]));
+    assert_eq!(
+        super::headers::parse_jp2_header_profile(&payload, &limits, 100, true).err(),
+        Some(DecodeError::MalformedInput {
+            offset: 122,
+            kind: MalformedKind::InvalidBoxLength,
+        })
+    );
+}
+
+#[test]
 fn actual_raw_jp2_header_retains_every_owned_metadata_field_from_real_raw_producers() {
     let mut payload = raw_jp2_header_image(u8::MAX, 3);
     payload.extend_from_slice(&box32(*b"bpcc", &[7, 0x87, 37]));
@@ -2760,6 +2855,12 @@ fn actual_native_metadata_clone_preserves_every_arbitrary_field_and_deep_owner()
     );
     assert_eq!(super::clone_support::jp2_header_clone(&source), source);
     assert_eq!(super::clone_support::optional_palette_clone(&None), None);
+    let mut unspecified = source.clone();
+    unspecified.color = super::headers::unspecified_jph_color(&[], 0).unwrap();
+    let cloned = unspecified.clone();
+    assert_eq!(cloned, unspecified);
+    assert_eq!(cloned.color.method(), ColorMethod::Unspecified);
+    assert_eq!(cloned.color.icc_profile(), None);
 }
 
 #[test]

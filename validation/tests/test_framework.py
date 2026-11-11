@@ -3296,13 +3296,13 @@ class FrameworkTests(WorkingFiles):
 
     def test_inventory_binds_actual_complete_raw_jp2_header_result(self):
         self._assert_complete_packet_contract_bindings(
-            {framework._RAW_JP2_HEADER_ENTRY}, framework._RAW_JP2_HEADER_CONTRACTS, 1, isolate=False,
+            {framework._RAW_JP2_HEADER_ENTRY}, framework._RAW_JP2_HEADER_CONTRACTS, 3, isolate=False,
         )
 
     def test_inventory_raw_jp2_header_requires_every_raw_producer_and_complete_metadata_bridge(self):
         coverage = json.loads((framework.VALIDATION / "normative-coverage.json").read_text())
         entry = next(item for item in coverage["requirements"] if item["id"] == framework._RAW_JP2_HEADER_ENTRY)
-        for field in ("contract_refs", "spec_refs", "proof_refs"):
+        for field in ("contract_refs", "spec_refs", "proof_refs", "test_refs"):
             for removed in entry[field]:
                 changed = copy.deepcopy(entry)
                 changed[field].remove(removed)
@@ -3315,12 +3315,13 @@ class FrameworkTests(WorkingFiles):
         entry = next(item for item in coverage["requirements"] if item["id"] == framework._RAW_JP2_HEADER_ENTRY)
         source = framework.ROOT / "src/jp2/headers.rs"
         original = source.read_text()
-        begin = original.index("pub(super) fn parse_jp2_header")
+        begin = original.index("pub(super) fn parse_jp2_header_profile")
         read_text = Path.read_text
         for before, after in (
             ("if color.is_none()", "if true"),
             ("u16::try_from(component_mappings.len())", "u16::try_from(usize::from(image.components))"),
             ("parse_image_header(image_box, limits, base_offset)?", "parse_image_header(image_box, limits, 0)?"),
+            ("allow_unspecified && image.unknown_color_space", "allow_unspecified"),
         ):
             self.assertIn(before, original[begin:])
             changed = original[:begin] + original[begin:].replace(before, after, 1)
@@ -3342,6 +3343,7 @@ class FrameworkTests(WorkingFiles):
             ("component_mapping_entries: state.mappings.len() as u16", "component_mapping_entries: state.image.components"),
             ("state.color.is_none()", "true"),
             ("nested: (state.nested + 1) as u32", "nested: state.nested"),
+            ("allow_unspecified && state.image.unknown_color_space", "allow_unspecified"),
         ):
             self.assertIn(before, original)
             changed = original.replace(before, after, 1)

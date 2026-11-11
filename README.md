@@ -16,6 +16,12 @@ JPX codestream and frame selection, and supports bounded JPIP databin
 reconstruction. It returns typed sample planes without discarding component
 precision, signedness, origins, or subsampling.
 
+JPH component decoding accepts an omitted `colr` box when `UnkC=1`, without
+guessing a colour space. Its header reports `ColorMethod::Unspecified`; explicit
+colour conversion returns `UnsupportedColorConversion::UnspecifiedColorSpace`.
+These development API variants must be handled by exhaustive colour-method
+matches. Ordinary JP2/JPX header parsing still requires colour metadata.
+
 This is experimental software, not a certified JPEG 2000 implementation.
 Official conformance testing and broader independent validation are required
 before making a standards-conformance claim.

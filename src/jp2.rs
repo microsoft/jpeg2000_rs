@@ -71,9 +71,18 @@ pub struct ImageHeader {
 #[derive(Clone, Copy)]
 #[cfg_attr(not(verus_keep_ghost), derive(Debug, Eq, PartialEq))]
 pub enum ColorMethod {
-    Enumerated { color_space: u32 },
-    RestrictedIcc { profile_bytes: u64 },
-    AnyIcc { profile_bytes: u64 },
+    Enumerated {
+        color_space: u32,
+    },
+    RestrictedIcc {
+        profile_bytes: u64,
+    },
+    AnyIcc {
+        profile_bytes: u64,
+    },
+    /// No colour specification box in a permitted unspecified-colour JPH header.
+    /// Precedence and approximation are then zero placeholders, not source metadata.
+    Unspecified,
 }
 
 #[cfg_attr(not(verus_keep_ghost), derive(Debug, Eq, PartialEq))]
@@ -295,7 +304,7 @@ pub(crate) use container::{associated_header_for_codestream, validate_selected_h
 pub use container::{inspect_jph, parse, parse_and_inspect};
 #[cfg_attr(verus_keep_ghost, verifier::verify)]
 mod headers;
-use headers::{parse_bit_depth, parse_codestream_header, parse_jp2_header};
+use headers::{parse_bit_depth, parse_codestream_header, parse_jp2_header_profile};
 #[cfg_attr(verus_keep_ghost, verifier::verify)]
 mod metadata;
 use metadata::{copy_bytes, inspect_metadata_box, parse_resolution_superbox};

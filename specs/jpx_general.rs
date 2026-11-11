@@ -19,6 +19,8 @@ pub type Part2GeneralComponents = (Seq<Part2TypedComponentOutput>, Seq<(u8, bool
 
 pub open spec fn part2_general_color_count(color: crate::jp2::ColorMethod) -> Result<usize, crate::DecodeError> {
     match color {
+        crate::jp2::ColorMethod::Unspecified =>
+            Err(crate::DecodeError::UnsupportedColorConversion { reason: crate::UnsupportedColorConversion::UnspecifiedColorSpace }),
         crate::jp2::ColorMethod::Enumerated { color_space: crate::jp2::ENUMERATED_GRAYSCALE } => Ok(1),
         crate::jp2::ColorMethod::Enumerated { color_space: crate::jp2::ENUMERATED_SRGB | crate::jp2::ENUMERATED_SYCC } => Ok(3),
         crate::jp2::ColorMethod::RestrictedIcc { .. } | crate::jp2::ColorMethod::AnyIcc { .. } =>

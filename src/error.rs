@@ -95,6 +95,8 @@ pub enum UnsupportedColorConversion {
     EnumeratedColorSpace,
     ChannelLayout,
     AlphaAssociation,
+    /// Component samples have no specified colour space to convert.
+    UnspecifiedColorSpace,
 }
 
 #[derive(Clone, Copy)]
