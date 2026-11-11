@@ -4531,13 +4531,10 @@ fn actual_raw_container_keeps_profile_order_and_count_before_payload_priorities(
             actual: 2
         })
     );
-    assert_eq!(
-        parse(&bytes, &ResourceLimits::default()).err(),
-        Some(DecodeError::MalformedInput {
-            offset,
-            kind: MalformedKind::InvalidBoxContents
-        })
-    );
+    let parsed = parse(&bytes, &ResourceLimits::default()).unwrap();
+    assert_eq!(parsed.codestream_count(), 2);
+    assert_eq!(parsed.codestream(1).unwrap().header.offset(), offset);
+    assert!(parsed.codestream(1).unwrap().data().is_empty());
     let mut bytes = raw_container_start(true, Some(&image_header_box(3, 2)));
     bytes.extend(box32(*b"jplh", &[0]));
     let limits = ResourceLimits::default().with_coding_style_limits_for_test(0, 33);
@@ -5376,7 +5373,51 @@ fn retains_and_inspects_explicit_jpx_codestreams_and_headers() {
 }
 
 #[test]
-fn bounds_jpx_codestream_count_and_rejects_jp2_duplicates() {
+fn sarah_dev_457acab2c3_raw_jp2_retains_resource_admitted_later_streams() {
+    let stream = valid_codestream(64, 32);
+    for count in [2, 3, 8] {
+        let file = jpx_with_codestreams(b"jp2 \0\0\0\0jp2 ", &vec![stream.clone(); count], &[]);
+        let parsed = parse(&file, &ResourceLimits::default()).unwrap();
+        assert_eq!(parsed.codestream_count(), count);
+        assert_eq!(parsed.box_count, 3 + count as u64);
+        for index in 0..count {
+            assert_eq!(parsed.codestream(index).unwrap().data(), stream);
+        }
+        let inspected = parse_and_inspect(&file, &ResourceLimits::default()).unwrap();
+        assert_eq!(inspected.codestreams().len(), count);
+        let limits = ResourceLimits::default()
+            .with_maximum_codestreams(1)
+            .unwrap();
+        assert_eq!(
+            parse(&file, &limits).err(),
+            Some(DecodeError::LimitExceeded {
+                resource: Resource::Codestreams,
+                limit: 1,
+                actual: 2
+            })
+        );
+    }
+    let mixed = jpx_with_codestreams(
+        b"jph \0\0\0\0jph jpx ",
+        &[stream.clone(), stream.clone()],
+        &[],
+    );
+    assert_eq!(
+        parse(&mixed, &ResourceLimits::default()).err(),
+        Some(DecodeError::malformed(12, MalformedKind::InvalidProfile))
+    );
+    let jph = jpx_with_codestreams(b"jph \0\0\0\0jph ", &[stream.clone(), stream], &[]);
+    assert!(matches!(
+        parse(&jph, &ResourceLimits::default()),
+        Err(DecodeError::MalformedInput {
+            kind: MalformedKind::InvalidBoxContents,
+            ..
+        })
+    ));
+}
+
+#[test]
+fn bounds_jpx_and_jp2_codestream_counts() {
     let codestream = valid_codestream(64, 32);
     let bytes = jpx_with_codestreams(
         b"jpx \0\0\0\0jpx ",
@@ -5396,11 +5437,18 @@ fn bounds_jpx_codestream_count_and_rejects_jp2_duplicates() {
     ));
 
     let jp2 = jpx_with_codestreams(b"jp2 \0\0\0\0jp2 ", &[codestream.clone(), codestream], &[]);
+    assert_eq!(
+        parse(&jp2, &ResourceLimits::default())
+            .unwrap()
+            .codestream_count(),
+        2
+    );
     assert!(matches!(
-        parse(&jp2, &ResourceLimits::default()),
-        Err(DecodeError::MalformedInput {
-            kind: MalformedKind::InvalidBoxContents,
-            ..
+        parse(&jp2, &limits),
+        Err(DecodeError::LimitExceeded {
+            resource: Resource::Codestreams,
+            limit: 1,
+            actual: 2,
         })
     ));
 }

@@ -300,7 +300,9 @@ mod composition;
 use composition::{parse_compositing_layer, parse_composition, validate_layer_references};
 #[cfg_attr(verus_keep_ghost, verifier::verify)]
 mod container;
-pub(crate) use container::{associated_header_for_codestream, validate_selected_header};
+pub(crate) use container::{
+    associated_header_for_codestream, parse_and_inspect_for_display, validate_selected_header,
+};
 pub use container::{inspect_jph, parse, parse_and_inspect};
 #[cfg_attr(verus_keep_ghost, verifier::verify)]
 mod headers;

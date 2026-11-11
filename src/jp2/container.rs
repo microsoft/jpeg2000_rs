@@ -288,13 +288,57 @@ pub fn parse_and_inspect<'a>(
 ) -> Result<InspectedJp2<'a>, DecodeError> {
     #[cfg(verus_keep_ghost)]
     proof! { crate::specs::part2_parse_and_inspect_container_unfold(input@, limits); }
+    parse_and_inspect_mode(input, limits, false)
+}
+
+#[cfg_attr(verus_keep_ghost, verus_spec(result =>
+    ensures super::raw_inspected_container_outcome(result)
+        == crate::specs::part2_parse_and_inspect_container_mode(input@, limits, true),
+))]
+pub(crate) fn parse_and_inspect_for_display<'a>(
+    input: &'a [u8],
+    limits: &ResourceLimits,
+) -> Result<InspectedJp2<'a>, DecodeError> {
+    parse_and_inspect_mode(input, limits, true)
+}
+
+#[cfg_attr(verus_keep_ghost, verus_spec(result =>
+    ensures result as nat == crate::specs::part2_inspection_count(
+        super::raw_jp2_file_view(file), display_first),
+))]
+fn inspection_count(file: &Jp2File<'_>, display_first: bool) -> usize {
+    #[cfg(verus_keep_ghost)]
+    proof! { super::raw_inspection_file_fields_known(file); }
+    let count = file.codestream_count();
+    if display_first
+        && file.file_type().is_compatible_with(BoxType::JP2_BRAND)
+        && !file.file_type().is_jpx_compatible()
+        && !file.file_type().is_jph_compatible()
+    {
+        count.min(1)
+    } else {
+        count
+    }
+}
+
+#[cfg_attr(verus_keep_ghost, verus_spec(result =>
+    ensures super::raw_inspected_container_outcome(result)
+        == crate::specs::part2_parse_and_inspect_container_mode(input@, limits, display_first),
+))]
+fn parse_and_inspect_mode<'a>(
+    input: &'a [u8],
+    limits: &ResourceLimits,
+    display_first: bool,
+) -> Result<InspectedJp2<'a>, DecodeError> {
+    #[cfg(verus_keep_ghost)]
+    proof! { crate::specs::part2_parse_and_inspect_container_mode_unfold(input@, limits, display_first); }
     let file = parse(input, limits)?;
-    let codestream_count = file.codestream_count();
+    let codestream_count = inspection_count(&file, display_first);
     let mut inspected_codestreams = Vec::with_capacity(codestream_count);
     let mut index = 0_usize;
     #[cfg(verus_keep_ghost)]
     proof_decl! {
-        let ghost expected = crate::specs::part2_parse_and_inspect_container(input@, limits);
+        let ghost expected = crate::specs::part2_parse_and_inspect_container_mode(input@, limits, display_first);
         let ghost source = super::raw_jp2_file_view(&file);
     }
     #[cfg(verus_keep_ghost)]
@@ -305,12 +349,13 @@ pub fn parse_and_inspect<'a>(
         verus_keep_ghost,
         verus_spec(
             invariant index <= codestream_count,
-                codestream_count == source.streams.len(),
+                codestream_count == crate::specs::part2_inspection_count(source, display_first),
+                codestream_count <= source.streams.len(),
                 source == super::raw_jp2_file_view(&file),
                 inspected_codestreams.len() == index,
-                expected == crate::specs::part2_parse_and_inspect_container(input@, limits),
+                expected == crate::specs::part2_parse_and_inspect_container_mode(input@, limits, display_first),
                 expected == crate::specs::part2_inspected_codestreams(source, limits, index,
-                    super::raw_codestream_infos_view(inspected_codestreams@)),
+                    super::raw_codestream_infos_view(inspected_codestreams@), display_first),
             decreases codestream_count - index,
         )
     )]
@@ -725,7 +770,7 @@ pub fn parse<'a>(input: &'a [u8], limits: &ResourceLimits) -> Result<Jp2File<'a>
                     actual,
                 ));
             }
-            if actual > 1 && !file_type.is_jpx_compatible() {
+            if actual > 1 && file_type.is_jph_compatible() && !file_type.is_jpx_compatible() {
                 return Err(DecodeError::malformed(
                     box_ref.header.offset(),
                     MalformedKind::InvalidBoxContents,

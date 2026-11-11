@@ -22,6 +22,11 @@ colour conversion returns `UnsupportedColorConversion::UnspecifiedColorSpace`.
 These development API variants must be handled by exhaustive colour-method
 matches. Ordinary JP2/JPX header parsing still requires colour metadata.
 
+JP2 decoding displays the first codestream and ignores the contents of later
+codestream boxes. Container framing and resource limits still apply to every
+box. The explicit `jp2::parse_and_inspect` API inspects every codestream instead;
+JPX selection and JPH singleton policies are unchanged.
+
 This is experimental software, not a certified JPEG 2000 implementation.
 Official conformance testing and broader independent validation are required
 before making a standards-conformance claim.

@@ -35,8 +35,8 @@ pub(crate) proof fn part2_color_selection_raw_unfold(
 pub(crate) open spec fn part2_decode_file_color(
     file: Part2RawJp2File, limits: &crate::ResourceLimits, requested: Option<Part2DecodeSelection>, jph: bool,
 ) -> Part2ConvertedImageResult {
-    if (!jph && !part2_file_type_compatible(file.file_type, crate::jp2::BoxType::JP2_BRAND))
-        || file.streams.len() != 1 {
+    if (jph && file.streams.len() != 1)
+        || (!jph && part2_validate_jp2_display_profile(file).is_err()) {
         Err(part2_container_error(0, crate::MalformedKind::InvalidProfile))
     } else {
         let header = part2_raw_associated_header(file.header);
@@ -68,7 +68,7 @@ pub closed spec fn part2_decode_raw_color_container(
     input: Seq<u8>, limits: &crate::ResourceLimits, requested: Option<Part2DecodeSelection>, jph: bool,
 ) -> Part2ConvertedImageResult {
     let inspected = if jph { part2_inspect_jph_container(input, limits) }
-        else { part2_parse_and_inspect_container(input, limits) };
+        else { part2_parse_and_inspect_container_mode(input, limits, true) };
     match inspected {
         Err(error) => Err(error),
         Ok(inspected) => part2_decode_file_color(inspected.0, limits, requested, jph),
@@ -80,7 +80,7 @@ pub(crate) proof fn part2_decode_raw_color_container_unfold(
 )
     ensures part2_decode_raw_color_container(input, limits, requested, jph) == {
         let inspected = if jph { part2_inspect_jph_container(input, limits) }
-            else { part2_parse_and_inspect_container(input, limits) };
+            else { part2_parse_and_inspect_container_mode(input, limits, true) };
         match inspected {
             Err(error) => Err(error),
             Ok(inspected) => part2_decode_file_color(inspected.0, limits, requested, jph),

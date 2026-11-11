@@ -363,6 +363,23 @@ pub(super) fn collect_nonlinear_regions<'a>(
 }
 
 #[cfg_attr(verus_keep_ghost, verus_spec(result =>
+    ensures result == crate::specs::part2_validate_jp2_display_profile(
+        jp2::raw_jp2_file_view(file)),
+))]
+fn validate_jp2_display_profile(file: &jp2::Jp2File<'_>) -> Result<(), DecodeError> {
+    #[cfg(verus_keep_ghost)]
+    proof! { jp2::raw_render_file_known(file); }
+    let count = file.codestream_count();
+    if !file.file_type().is_compatible_with(jp2::BoxType::JP2_BRAND)
+        || count == 0
+        || (file.file_type().is_jpx_compatible() && count != 1)
+    {
+        return Err(DecodeError::malformed(0, MalformedKind::InvalidProfile));
+    }
+    Ok(())
+}
+
+#[cfg_attr(verus_keep_ghost, verus_spec(result =>
     ensures crate::image::decoded_typed_image_outcome(result) == crate::specs::part2_decode_raw_single_container(
         input@, crate::options::decode_options_limits(options), None, false),
 ))]
@@ -371,19 +388,10 @@ pub fn decode_jp2(input: &[u8], options: &DecodeOptions) -> Result<TypedImage, D
     proof! {
         crate::specs::part2_decode_raw_single_container_unfold(input@, crate::options::decode_options_limits(options), None, false);
     }
-    let inspected = jp2::parse_and_inspect(input, options.limits())?;
+    let inspected = jp2::parse_and_inspect_for_display(input, options.limits())?;
     #[cfg(verus_keep_ghost)]
     proof! { jp2::raw_render_file_known(jp2::raw_inspected_file_reference(&inspected)); }
-    if !inspected
-        .file()
-        .file_type()
-        .is_compatible_with(jp2::BoxType::JP2_BRAND)
-    {
-        return Err(DecodeError::malformed(0, MalformedKind::InvalidProfile));
-    }
-    if inspected.file().codestream_count() != 1 {
-        return Err(DecodeError::malformed(0, MalformedKind::InvalidProfile));
-    }
+    validate_jp2_display_profile(inspected.file())?;
     let decoded = decode_codestream(inspected.file().codestream(0)?.data(), options)?;
     apply_jp2_output(decoded, inspected.file().header(), options.limits())
 }
@@ -401,17 +409,10 @@ pub fn decode_jp2_selected(
     proof! {
         crate::specs::part2_decode_raw_single_container_unfold(input@, crate::options::decode_options_limits(options), Some(selection), false);
     }
-    let inspected = jp2::parse_and_inspect(input, options.limits())?;
+    let inspected = jp2::parse_and_inspect_for_display(input, options.limits())?;
     #[cfg(verus_keep_ghost)]
     proof! { jp2::raw_render_file_known(jp2::raw_inspected_file_reference(&inspected)); }
-    if !inspected
-        .file()
-        .file_type()
-        .is_compatible_with(jp2::BoxType::JP2_BRAND)
-        || inspected.file().codestream_count() != 1
-    {
-        return Err(DecodeError::malformed(0, MalformedKind::InvalidProfile));
-    }
+    validate_jp2_display_profile(inspected.file())?;
     let decoded =
         decode_codestream_selected(inspected.file().codestream(0)?.data(), options, selection)?;
     apply_jp2_output(decoded, inspected.file().header(), options.limits())
@@ -429,19 +430,10 @@ pub fn decode_jp2_color(
     proof! {
         crate::specs::part2_decode_raw_color_container_unfold(input@, crate::options::decode_options_limits(options), None, false);
     }
-    let inspected = jp2::parse_and_inspect(input, options.limits())?;
+    let inspected = jp2::parse_and_inspect_for_display(input, options.limits())?;
     #[cfg(verus_keep_ghost)]
     proof! { jp2::raw_render_file_known(jp2::raw_inspected_file_reference(&inspected)); }
-    if !inspected
-        .file()
-        .file_type()
-        .is_compatible_with(jp2::BoxType::JP2_BRAND)
-    {
-        return Err(DecodeError::malformed(0, MalformedKind::InvalidProfile));
-    }
-    if inspected.file().codestream_count() != 1 {
-        return Err(DecodeError::malformed(0, MalformedKind::InvalidProfile));
-    }
+    validate_jp2_display_profile(inspected.file())?;
     let decoded = decode_codestream(inspected.file().codestream(0)?.data(), options)?;
     let mapped = apply_jp2_output(decoded, inspected.file().header(), options.limits())?;
     crate::color::convert_jp2_color(&mapped, &inspected.file().header().color, options.limits())
@@ -461,17 +453,10 @@ pub fn decode_jp2_color_selected(
         crate::specs::part2_decode_raw_color_container_unfold(input@, crate::options::decode_options_limits(options),
             Some(crate::options::decode_selection_view(selection)), false);
     }
-    let inspected = jp2::parse_and_inspect(input, options.limits())?;
+    let inspected = jp2::parse_and_inspect_for_display(input, options.limits())?;
     #[cfg(verus_keep_ghost)]
     proof! { jp2::raw_render_file_known(jp2::raw_inspected_file_reference(&inspected)); }
-    if !inspected
-        .file()
-        .file_type()
-        .is_compatible_with(jp2::BoxType::JP2_BRAND)
-        || inspected.file().codestream_count() != 1
-    {
-        return Err(DecodeError::malformed(0, MalformedKind::InvalidProfile));
-    }
+    validate_jp2_display_profile(inspected.file())?;
     let codestream = inspected.file().codestream(0)?.data();
     let (expanded, target) = color_selection(codestream, selection, options.limits())?;
     #[cfg(verus_keep_ghost)]

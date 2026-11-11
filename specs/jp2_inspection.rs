@@ -7,6 +7,23 @@ verus! {
 pub(crate) type Part2RawCodestreamInfo = (Part1LayoutMainFields, Part1ProfileMetadata, u32, u64);
 pub(crate) type Part2RawInspectedContainer = (Part2RawJp2File, Seq<Part2RawCodestreamInfo>);
 
+pub(crate) open spec fn part2_inspection_count(file: Part2RawJp2File, display_first: bool) -> nat {
+    if display_first && part2_file_type_compatible(file.file_type, crate::jp2::BoxType::JP2_BRAND)
+        && !part2_file_type_jpx(file.file_type)
+        && !part2_file_type_compatible(file.file_type, crate::jp2::BoxType::JPH_BRAND) {
+        if file.streams.len() > 0 { 1 } else { 0 }
+    } else { file.streams.len() }
+}
+
+pub(crate) open spec fn part2_validate_jp2_display_profile(file: Part2RawJp2File)
+    -> Result<(), crate::DecodeError>
+{
+    if !part2_file_type_compatible(file.file_type, crate::jp2::BoxType::JP2_BRAND)
+        || file.streams.len() == 0 || (part2_file_type_jpx(file.file_type) && file.streams.len() != 1) {
+        Err(part2_container_error(0, crate::MalformedKind::InvalidProfile))
+    } else { Ok(()) }
+}
+
 pub(crate) open spec fn part2_inspected_header(
     file: Part2RawJp2File, index: usize, info: Part2RawCodestreamInfo,
 ) -> Result<(), crate::DecodeError> {
@@ -31,10 +48,11 @@ pub(crate) open spec fn part2_inspected_header(
 #[verifier::opaque]
 pub(crate) open spec fn part2_inspected_codestreams(
     file: Part2RawJp2File, limits: &crate::ResourceLimits, index: usize, infos: Seq<Part2RawCodestreamInfo>,
+    display_first: bool,
 ) -> Result<Part2RawInspectedContainer, crate::DecodeError>
     decreases file.streams.len() as int - index as int,
 {
-    if index >= file.streams.len() { Ok((file, infos)) }
+    if index >= part2_inspection_count(file, display_first) { Ok((file, infos)) }
     else {
         match part1_parse_info(file.streams[index as int].1, limits) {
             Err(error) => Err(error),
@@ -43,7 +61,7 @@ pub(crate) open spec fn part2_inspected_codestreams(
                 Ok(()) => if index == usize::MAX {
                     Err(part2_container_error(0, crate::MalformedKind::ArithmeticOverflow))
                 } else {
-                    part2_inspected_codestreams(file, limits, (index + 1) as usize, infos.push(info))
+                    part2_inspected_codestreams(file, limits, (index + 1) as usize, infos.push(info), display_first)
                 },
             },
         }
@@ -54,9 +72,17 @@ pub(crate) open spec fn part2_inspected_codestreams(
 pub closed spec fn part2_parse_and_inspect_container(input: Seq<u8>, limits: &crate::ResourceLimits)
     -> Result<Part2RawInspectedContainer, crate::DecodeError>
 {
+    part2_parse_and_inspect_container_mode(input, limits, false)
+}
+
+#[verifier::opaque]
+pub closed spec fn part2_parse_and_inspect_container_mode(
+    input: Seq<u8>, limits: &crate::ResourceLimits, display_first: bool,
+) -> Result<Part2RawInspectedContainer, crate::DecodeError>
+{
     match part2_parse_container(input, *limits) {
         Err(error) => Err(error),
-        Ok(file) => part2_inspected_codestreams(file, limits, 0, Seq::empty()),
+        Ok(file) => part2_inspected_codestreams(file, limits, 0, Seq::empty(), display_first),
     }
 }
 
@@ -73,12 +99,27 @@ pub closed spec fn part2_inspect_jph_container(input: Seq<u8>, limits: &crate::R
 }
 
 pub(crate) proof fn part2_parse_and_inspect_container_unfold(input: Seq<u8>, limits: &crate::ResourceLimits)
-    ensures part2_parse_and_inspect_container(input, limits) == match part2_parse_container(input, *limits) {
+    ensures part2_parse_and_inspect_container(input, limits)
+        == part2_parse_and_inspect_container_mode(input, limits, false),
+        part2_parse_and_inspect_container(input, limits) == match part2_parse_container(input, *limits) {
         Err(error) => Err(error),
-        Ok(file) => part2_inspected_codestreams(file, limits, 0, Seq::empty()),
+        Ok(file) => part2_inspected_codestreams(file, limits, 0, Seq::empty(), false),
     },
 {
     reveal(part2_parse_and_inspect_container);
+    reveal(part2_parse_and_inspect_container_mode);
+}
+
+pub(crate) proof fn part2_parse_and_inspect_container_mode_unfold(
+    input: Seq<u8>, limits: &crate::ResourceLimits, display_first: bool,
+)
+    ensures part2_parse_and_inspect_container_mode(input, limits, display_first)
+        == match part2_parse_container(input, *limits) {
+            Err(error) => Err(error),
+            Ok(file) => part2_inspected_codestreams(file, limits, 0, Seq::empty(), display_first),
+        },
+{
+    reveal(part2_parse_and_inspect_container_mode);
 }
 
 pub(crate) proof fn part2_inspect_jph_container_unfold(input: Seq<u8>, limits: &crate::ResourceLimits)
