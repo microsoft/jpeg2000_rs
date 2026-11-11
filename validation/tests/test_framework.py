@@ -3377,7 +3377,7 @@ class FrameworkTests(WorkingFiles):
     def test_inventory_raw_owned_palette_requires_every_actual_descriptor_row_and_owner_bridge(self):
         coverage = json.loads((framework.VALIDATION / "normative-coverage.json").read_text())
         entry = next(item for item in coverage["requirements"] if item["id"] == framework._PALETTE_RESULT_ENTRY)
-        for field in ("contract_refs", "spec_refs", "proof_refs"):
+        for field in ("contract_refs", "spec_refs", "proof_refs", "test_refs"):
             for removed in entry[field]:
                 changed = copy.deepcopy(entry)
                 changed[field].remove(removed)
@@ -3392,6 +3392,8 @@ class FrameworkTests(WorkingFiles):
         original = source.read_text()
         read_text = Path.read_text
         for before, after in (
+            ("entries == 0 || entries > 1024 || columns == 0",
+             "entries == 0 || entries > 1025 || columns == 0"),
             ("let mut values = Vec::with_capacity(value_count)", "let mut values = Vec::new()"),
             ("entry = entry.checked_add(1)", "entry = entry.checked_add(2)"),
             ("descriptor.signed,\n                base_offset", "false,\n                base_offset"),
@@ -3413,6 +3415,8 @@ class FrameworkTests(WorkingFiles):
         original = source.read_text()
         read_text = Path.read_text
         for before, after in (
+            ("entries == 0 || entries > 1024 || count == 0",
+             "entries == 0 || entries > 1025 || count == 0"),
             ("Ok((entries, descriptors.0, values.0))", "Ok((entries, descriptors.0, Seq::empty()))"),
             ("part2_palette_rows(input, base, descriptors.0, entries as nat)", "part2_palette_rows(input, base, descriptors.0, 1)"),
             ("previous.0.push(crate::jp2::PaletteColumn { precision: bits, signed })", "previous.0.push(crate::jp2::PaletteColumn { precision: 1, signed })"),

@@ -243,7 +243,7 @@ pub(super) fn parse_palette(box_ref: BoxRef<'_>, base_offset: u64) -> Result<Pal
     }
     let entries = read_u16([box_ref.payload[0], box_ref.payload[1]]);
     let columns = box_ref.payload[2];
-    if entries == 0 || columns == 0 {
+    if entries == 0 || entries > 1024 || columns == 0 {
         return Err(DecodeError::malformed(
             add_offset(base_offset, box_ref.header.offset())?,
             MalformedKind::InvalidBoxContents,
@@ -276,6 +276,7 @@ pub(super) fn parse_palette(box_ref: BoxRef<'_>, base_offset: u64) -> Result<Pal
                 box_ref.payload.len() >= 3,
                 box_ref.payload[2] > 0,
                 entries > 0,
+                entries <= 1024,
                 entries == crate::specs::part2_box_u16([box_ref.payload[0], box_ref.payload[1]]),
                 columns@.len() == descriptor - 3,
                 bytes_per_entry <= columns@.len() * 5,
@@ -364,6 +365,7 @@ pub(super) fn parse_palette(box_ref: BoxRef<'_>, base_offset: u64) -> Result<Pal
             invariant entry <= entries,
                 box_ref.payload.len() >= 3,
                 entries > 0,
+                entries <= 1024,
                 entries == crate::specs::part2_box_u16([box_ref.payload[0], box_ref.payload[1]]),
                 columns@.len() == box_ref.payload[2],
                 columns@.len() > 0,
@@ -401,6 +403,7 @@ pub(super) fn parse_palette(box_ref: BoxRef<'_>, base_offset: u64) -> Result<Pal
                     box_ref.payload.len() >= 3,
                     entry < entries,
                     entries > 0,
+                    entries <= 1024,
                     entries == crate::specs::part2_box_u16([box_ref.payload[0], box_ref.payload[1]]),
                     columns@.len() == box_ref.payload[2],
                     columns@.len() > 0,

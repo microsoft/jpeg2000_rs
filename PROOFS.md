@@ -794,15 +794,26 @@ cfg/erasure, lifetimes and release remain independent.
 The actual raw palette parser derives the full entry count, ordered native
 precision/signed columns and every row-major value through the real bit-depth
 and scalar-value producers. Its complete Result retains first descriptor errors
-before sample-length validation, full entry/column counts, lazy offsets and both
+before sample-length validation, admitted entry/full column counts, lazy offsets and both
 original native column/value allocations and ownership scopes. Internal partial
 row state is derived from the actual prior raw rows; no supplied successful
 descriptor/row/value bank, validity premise, owner inversion or runtime proof
 clone is used.
 
-These are as-implemented producer guarantees, not normative palette correctness.
-Palette HOLD, full header/recursive metadata/container/public composition,
-coverage, cfg/erasure, lifetimes and release acceptance remain separate.
+For Sarah `DEV-2032F100C3`, raw wire entries are now admitted only in `1..=1024`,
+before descriptor or table interpretation. The complete model and derived loop
+bounds agree; full 255-column admission, signed/38-bit values and arbitrary
+private Palette getter/lookup states are not restricted. The unchanged public
+OpenJPEG PCLR handler executes 1,048,576 complete-payload cases over every
+16-bit entry count and 16 column/precision/sign contexts: 16,384 accepted,
+1,032,192 rejected and 16,793,600 zero values checked without mismatches.
+Native regressions cover the exact threshold, every entry count, error/offset
+priority and full/associated/partial header and file parsing. The first
+reference attempt's NULL cleanup error was a harness failure and is preserved,
+not parser evidence; only the harness cleanup precondition was corrected.
+This is bounded raw-producer interoperability, not independent selected-edition
+certification. Normative review, coverage, cfg/erasure, lifetimes and release
+acceptance remain separate.
 
 ## Actual complete raw palette scalar Result
 

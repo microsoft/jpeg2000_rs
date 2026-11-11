@@ -218,7 +218,7 @@ pub open spec fn part2_parse_palette(input: Part2BoxReference, base: u64)
         let entries = part2_box_u16([payload[0], payload[1]]);
         let count = payload[2] as nat;
         let descriptor_end = 3 + count;
-        if entries == 0 || count == 0 {
+        if entries == 0 || entries > 1024 || count == 0 {
             Err(part2_image_box_error(base, input.0, crate::MalformedKind::InvalidBoxContents))
         } else if descriptor_end > usize::MAX as nat { Err(part2_palette_arithmetic_error(base)) }
         else if descriptor_end > payload.len() {

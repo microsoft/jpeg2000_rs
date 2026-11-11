@@ -1993,14 +1993,144 @@ fn actual_raw_palette_result_retains_ordered_mixed_width_rows_and_source_indepen
 }
 
 #[test]
-fn actual_raw_palette_result_admits_the_full_entry_and_column_counts_without_narrowing() {
-    let mut payload = u16::MAX.to_be_bytes().to_vec();
+fn sarah_dev_2032f100c3_palette_entry_domain_and_error_priority() {
+    let mut payload = vec![0; 4 + usize::from(u16::MAX)];
+    payload[2] = 1;
+    payload[3] = 7;
+    for entries in 0..=u16::MAX {
+        payload[..2].copy_from_slice(&entries.to_be_bytes());
+        let bytes = &payload[..4 + usize::from(entries)];
+        let result = parse_palette(raw_image_header_box(bytes, 19), 100);
+        if (1..=1024).contains(&entries) {
+            let palette = result.unwrap();
+            assert_eq!(palette.entries, entries);
+            assert_eq!(
+                palette.columns,
+                vec![PaletteColumn {
+                    precision: 8,
+                    signed: false
+                }]
+            );
+            assert_eq!(palette.values, vec![0; usize::from(entries)]);
+        } else {
+            assert_eq!(
+                result.err(),
+                Some(DecodeError::MalformedInput {
+                    offset: 119,
+                    kind: MalformedKind::InvalidBoxContents,
+                }),
+                "wire entries {entries}"
+            );
+        }
+    }
+    for bytes in [&[4, 1, 1, 255][..], &[4, 1, 255][..], &[255, 255, 0][..]] {
+        assert_eq!(
+            parse_palette(raw_image_header_box(bytes, 19), 100).err(),
+            Some(DecodeError::MalformedInput {
+                offset: 119,
+                kind: MalformedKind::InvalidBoxContents,
+            })
+        );
+        assert_eq!(
+            parse_palette(raw_image_header_box(bytes, 19), u64::MAX).err(),
+            Some(DecodeError::MalformedInput {
+                offset: u64::MAX,
+                kind: MalformedKind::ArithmeticOverflow,
+            })
+        );
+    }
+    assert_eq!(
+        parse_palette(raw_image_header_box(&[4, 1], 19), 100).err(),
+        Some(DecodeError::MalformedInput {
+            offset: 119,
+            kind: MalformedKind::InvalidBoxLength,
+        })
+    );
+    let mut widest = 1024_u16.to_be_bytes().to_vec();
+    widest.push(u8::MAX);
+    widest.resize(3 + usize::from(u8::MAX), 0);
+    widest.resize(3 + usize::from(u8::MAX) * 1025, 0xff);
+    let palette = parse_palette(raw_image_header_box(&widest, 19), u64::MAX).unwrap();
+    assert_eq!(palette.entries, 1024);
+    assert_eq!(palette.columns.len(), usize::from(u8::MAX));
+    assert_eq!(palette.values, vec![1; 1024 * usize::from(u8::MAX)]);
+}
+
+#[test]
+fn sarah_dev_2032f100c3_palette_domain_reaches_full_and_associated_headers() {
+    let limits = ResourceLimits::default();
+    let mut base_header = box32(*b"ihdr", &raw_image_header_payload(3, 2, 1, 7, [0, 0]));
+    base_header.extend(box32(*b"colr", &[1, 0, 0, 0, 0, 0, 17]));
+    let defaults = super::headers::parse_jp2_header(&base_header, &limits, 100).unwrap();
+    for entries in [1_u16, 1024, 1025, u16::MAX] {
+        let mut palette = entries.to_be_bytes().to_vec();
+        palette.extend_from_slice(&[1, 7]);
+        palette.resize(4 + usize::from(entries), 0);
+        let mut partial = box32(*b"pclr", &palette);
+        partial.extend(box32(*b"cmap", &[0, 0, 1, 0]));
+        let mut header = base_header.clone();
+        let relative = header.len() as u64;
+        header.extend_from_slice(&partial);
+        let expected = if entries <= 1024 {
+            Ok(entries)
+        } else {
+            Err(DecodeError::MalformedInput {
+                offset: 100 + relative,
+                kind: MalformedKind::InvalidBoxContents,
+            })
+        };
+        assert_eq!(
+            super::headers::parse_jp2_header(&header, &limits, 100)
+                .map(|header| header.palette_entries),
+            expected
+        );
+        assert_eq!(
+            super::headers::parse_codestream_header(&header, Some(&defaults), &limits, 100)
+                .map(|header| header.palette_entries),
+            expected
+        );
+        let expected_partial = if entries <= 1024 {
+            Ok(entries)
+        } else {
+            Err(DecodeError::MalformedInput {
+                offset: 100,
+                kind: MalformedKind::InvalidBoxContents,
+            })
+        };
+        assert_eq!(
+            super::headers::parse_codestream_header(&partial, Some(&defaults), &limits, 100)
+                .map(|header| header.palette_entries),
+            expected_partial
+        );
+        let mut file = box32(*b"jP  ", &SIGNATURE_MAGIC);
+        file.extend(box32(*b"ftyp", b"jp2 \0\0\0\0jp2 "));
+        let absolute = file.len() as u64 + 8 + relative;
+        file.extend(box32(*b"jp2h", &header));
+        file.extend(box32(*b"jp2c", &valid_codestream(3, 2)));
+        let expected_file = if entries <= 1024 {
+            Ok(entries)
+        } else {
+            Err(DecodeError::MalformedInput {
+                offset: absolute,
+                kind: MalformedKind::InvalidBoxContents,
+            })
+        };
+        assert_eq!(
+            parse(&file, &limits).map(|file| file.header().palette_entries),
+            expected_file
+        );
+    }
+}
+
+#[test]
+fn actual_raw_palette_result_bounds_entries_and_preserves_full_column_count() {
+    let mut payload = 1024_u16.to_be_bytes().to_vec();
     payload.extend_from_slice(&[1, 0]);
-    payload.resize(4 + usize::from(u16::MAX), u8::MAX);
+    payload.resize(4 + 1024, u8::MAX);
     let palette = parse_palette(raw_image_header_box(&payload, 19), u64::MAX).unwrap();
-    assert_eq!(palette.entries, u16::MAX);
+    assert_eq!(palette.entries, 1024);
     assert_eq!(palette.columns.len(), 1);
-    assert_eq!(palette.values, vec![1; usize::from(u16::MAX)]);
+    assert_eq!(palette.values, vec![1; 1024]);
 
     let mut payload = vec![0, 1, u8::MAX];
     payload.resize(3 + usize::from(u8::MAX), 0);
