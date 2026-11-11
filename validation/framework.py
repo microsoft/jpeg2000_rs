@@ -2927,6 +2927,14 @@ _PALETTE_RESULT_PROOFS = {
     )
 } | {("src/jp2/proof_support.rs", name) for name in ("palette_outcome", "palette_view")} \
     | {("src/jp2/color.rs", "parse_palette_value"), ("src/jp2/headers.rs", "parse_bit_depth")}
+_PALETTE_RESULT_TESTS = {("src/jp2/tests.rs", name) for name in (
+    "actual_raw_palette_result_keeps_every_descriptor_byte_and_complete_owned_fields",
+    "actual_raw_palette_result_keeps_dimension_descriptor_then_sample_error_priority",
+    "actual_raw_palette_result_retains_ordered_mixed_width_rows_and_source_independent_owners",
+    "actual_raw_palette_result_bounds_entries_and_preserves_full_column_count",
+    "sarah_dev_2032f100c3_palette_entry_domain_and_error_priority",
+    "sarah_dev_2032f100c3_palette_domain_reaches_full_and_associated_headers",
+)}
 _PALETTE_VALUE_ENTRY = "part2-complete-native-raw-palette-scalar-result"
 _PALETTE_VALUE_CONTRACTS = {
     ("src/jp2/color.rs", "parse_palette_value"): (
@@ -5897,12 +5905,13 @@ def validate_normative_coverage(
             if {(ref["path"], ref["symbol"]) for ref in entry["contract_refs"]} != set(_PALETTE_RESULT_CONTRACTS):
                 raise ValueError("whole raw owned Palette Result requires actual complete parser contract")
             if not _PALETTE_RESULT_MODELS.issubset({(ref["path"], ref["symbol"]) for ref in entry["spec_refs"]}) \
-                    or not _PALETTE_RESULT_PROOFS.issubset({(ref["path"], ref["symbol"]) for ref in entry["proof_refs"]}):
+                    or not _PALETTE_RESULT_PROOFS.issubset({(ref["path"], ref["symbol"]) for ref in entry["proof_refs"]}) \
+                    or not _PALETTE_RESULT_TESTS.issubset({(ref["path"], ref["symbol"]) for ref in entry["test_refs"]}):
                 raise ValueError("whole raw owned Palette Result requires full descriptor/row/owner/error bridges")
             path = (ROOT / "src/jp2/color.rs").resolve()
             body = _coverage_function_body(source_text(path), function_header(path, "parse_palette"))
             required = (
-                "entries == 0 || columns == 0", "descriptor_end > box_ref.payload.len()",
+                "entries == 0 || entries > 1024 || columns == 0", "descriptor_end > box_ref.payload.len()",
                 "let mut columns = Vec::with_capacity(usize::from(columns))",
                 "parse_bit_depth(box_ref.payload[descriptor], base_offset)?",
                 "let mut values = Vec::with_capacity(value_count)",
@@ -5916,7 +5925,7 @@ def validate_normative_coverage(
             model = source_text((ROOT / "specs/jp2_palette.rs").resolve())
             for name, required in {
                 "part2_parse_palette": (
-                    "entries == 0 || count == 0", "part2_palette_descriptors(input, base, count)",
+                    "entries == 0 || entries > 1024 || count == 0", "part2_palette_descriptors(input, base, count)",
                     "payload.len() != expected", "part2_palette_rows(input, base, descriptors.0, entries as nat)",
                     "values.1 != payload.len() || values.0.len() != value_count", "Ok((entries, descriptors.0, values.0))",
                 ),

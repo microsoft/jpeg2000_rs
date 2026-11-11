@@ -1545,7 +1545,7 @@
     },
     {
       "id": "part2-complete-native-raw-owned-palette-result",
-      "topic": "Complete actual raw Palette Result: all entry count, ordered precision/signed columns and every row-major scalar value derive from actual borrowed bytes through real bit-depth/scalar producers. Preserve first descriptor error before sample length, full counter bounds, lazy offsets and both original native column/value allocations/owners/scopes. No supplied successful descriptor/row/value bank, validity premise, owner inversion or runtime proof clone. Internal partial row state derives from actual prior raw rows. As-implemented only: palette normative HOLD, whole header/tree/container/public, coverage/cfg/erasure/lifetimes/release remain independent.",
+      "topic": "Complete actual raw Palette Result: entry count, ordered precision/signed columns and every row-major scalar value derive from actual borrowed bytes through real bit-depth/scalar producers. Sarah DEV-2032F100C3: actual wire admission and its complete model require NE1..1024 before descriptor/table interpretation, while full255column admission, signed/38bit scalar producers, arbitrary private Palette states, lazy offsets, initial short-prefix priority and original native column/value owners remain. Unchanged public OpenJPEG PCLR executed1048576 complete-payload contexts over allu16NE and16column/precision/sign configurations, with16384accepted1032192rejected16793600values/zero mismatches; bounded raw-producer interoperability, not selected-edition certification. Internal partial rows derive from actual prior raw rows, without supplied descriptor/row/value banks, validity premises, owner inversion or executing clones. Full/associated/partial/header/file callers retain their actual raw model composition. Independent normative review, coverage/cfg/erasure/lifetimes/release remain separate.",
       "implementation_refs": [
         {"path": "src/jp2/color.rs", "symbol": "parse_palette"},
         {"path": "src/jp2/headers.rs", "symbol": "parse_jp2_header"},
@@ -1580,7 +1580,9 @@
         {"path": "src/jp2/tests.rs", "symbol": "actual_raw_palette_result_keeps_every_descriptor_byte_and_complete_owned_fields"},
         {"path": "src/jp2/tests.rs", "symbol": "actual_raw_palette_result_keeps_dimension_descriptor_then_sample_error_priority"},
         {"path": "src/jp2/tests.rs", "symbol": "actual_raw_palette_result_retains_ordered_mixed_width_rows_and_source_independent_owners"},
-        {"path": "src/jp2/tests.rs", "symbol": "actual_raw_palette_result_admits_the_full_entry_and_column_counts_without_narrowing"}
+        {"path": "src/jp2/tests.rs", "symbol": "actual_raw_palette_result_bounds_entries_and_preserves_full_column_count"},
+        {"path": "src/jp2/tests.rs", "symbol": "sarah_dev_2032f100c3_palette_entry_domain_and_error_priority"},
+        {"path": "src/jp2/tests.rs", "symbol": "sarah_dev_2032f100c3_palette_domain_reaches_full_and_associated_headers"}
       ]
     },
     {

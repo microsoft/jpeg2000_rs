@@ -205,6 +205,8 @@ JP2 supports component bit depths, palette mappings, channel definitions,
 resolution metadata, and ICC profile retention. Color execution is pinned to
 enumerated values 16 (sRGB), 17 (grayscale), and 18 (sYCC), including signed,
 subsampled, and origin-aware channels and alpha handling.
+Palette boxes admit 1 through 1,024 entries and retain up to 255 columns;
+an out-of-domain entry count is rejected before descriptor/table interpretation.
 
 JPX exposes codestream/header association, layer registration, channel
 association, opacity, composition instructions, timing, and indexed frame
