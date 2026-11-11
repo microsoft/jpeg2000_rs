@@ -239,6 +239,11 @@ metadata placeholders, precinct mapping, packet reconstruction, and
 transactional progressive decode. Availability and missing-range results
 distinguish incomplete data from successful reconstruction.
 
+Equivalent metadata replacement retains its declared equivalent box type and
+short/extended header together with its payload. When original contents are
+selected first, their original header remains authoritative. This does not
+change metadata-bin scope, codestream-placeholder or NCS admission policies.
+
 An inherited Class or CSn with no previous data-message value defaults
 independently to zero. Header-context getters still report `None` until a
 complete data message commits history; errors and EOR do not commit it.

@@ -1044,6 +1044,186 @@ fn semantic_metadata_assembly_places_nested_boxes_and_codestreams() {
     );
 }
 
+fn equivalent_metadata_fixture(
+    whole_header: bool,
+    original_extended: bool,
+    equivalent_extended: bool,
+    flags: u32,
+) -> (DatabinCache, Vec<u8>) {
+    fn header(kind: [u8; 4], length: usize, extended: bool) -> Vec<u8> {
+        if extended {
+            let mut bytes = 1_u32.to_be_bytes().to_vec();
+            bytes.extend_from_slice(&kind);
+            bytes.extend_from_slice(&u64::try_from(length + 16).unwrap().to_be_bytes());
+            bytes
+        } else {
+            box32(kind, &vec![0; length])[..8].to_vec()
+        }
+    }
+
+    let color = [1, 0, 0, 0, 0, 0, 17];
+    let mut image_header = 1_u32.to_be_bytes().to_vec();
+    image_header.extend_from_slice(&1_u32.to_be_bytes());
+    image_header.extend_from_slice(&1_u16.to_be_bytes());
+    image_header.extend_from_slice(&[7, 7, 0, 0]);
+    let image_fields = box32(*b"ihdr", &image_header);
+    let mut plain_header = image_fields.clone();
+    plain_header.extend(box32(*b"colr", &color));
+    let equivalent_payload = if flags & 1 != 0 {
+        b"<not-the-original/>".to_vec()
+    } else if whole_header {
+        plain_header.clone()
+    } else {
+        color.to_vec()
+    };
+    let original_type = if flags & 1 != 0 { *b"colr" } else { *b"xref" };
+    let equivalent_type = if flags & 1 != 0 {
+        *b"xml "
+    } else if whole_header {
+        *b"jp2h"
+    } else {
+        *b"colr"
+    };
+    let original_header = header(original_type, color.len(), original_extended);
+    let equivalent_header = header(
+        equivalent_type,
+        equivalent_payload.len(),
+        equivalent_extended,
+    );
+    let mut fields = flags.to_be_bytes().to_vec();
+    fields.extend_from_slice(&3_u64.to_be_bytes());
+    fields.extend_from_slice(&original_header);
+    fields.extend_from_slice(&2_u64.to_be_bytes());
+    fields.extend_from_slice(&equivalent_header);
+    let placeholder = box32(*b"phld", &fields);
+
+    let mut root = box32(*b"jP  ", &[13, 10, 135, 10]);
+    root.extend(box32(*b"ftyp", b"jp2 \0\0\0\0jp2 "));
+    let mut expected = root.clone();
+    let mut cache = DatabinCache::new(ResourceLimits::default());
+    if whole_header {
+        root.extend(placeholder);
+        expected.extend(equivalent_header);
+        expected.extend(&equivalent_payload);
+    } else {
+        let mut transported = image_fields.clone();
+        transported.extend(placeholder);
+        root.extend(metadata_placeholder(
+            *b"jp2h",
+            u32::try_from(transported.len() + 8).unwrap(),
+            1,
+            1,
+            None,
+        ));
+        cache
+            .insert(fragment(id(8, 1), 0, &transported, true))
+            .unwrap();
+        let mut expected_payload = image_fields;
+        if flags & 1 != 0 {
+            expected_payload.extend(original_header);
+            expected_payload.extend(color);
+        } else {
+            expected_payload.extend(equivalent_header);
+            expected_payload.extend(&equivalent_payload);
+        }
+        expected.extend(box32(*b"jp2h", &expected_payload));
+    }
+    let codestream = box32(*b"jp2c", &decodable_codestream());
+    root.extend_from_slice(&codestream);
+    expected.extend(codestream);
+    cache.insert(fragment(id(8, 0), 0, &root, true)).unwrap();
+    cache
+        .insert(fragment(id(8, 2), 0, &equivalent_payload, true))
+        .unwrap();
+    cache.insert(fragment(id(8, 3), 0, &color, true)).unwrap();
+    crate::jp2::parse_and_inspect(&expected, &ResourceLimits::default()).unwrap();
+    (cache, expected)
+}
+
+#[test]
+fn semantic_equivalent_metadata_preserves_declared_representation() {
+    let mut failures = Vec::new();
+    for whole_header in [false, true] {
+        for original_extended in [false, true] {
+            for equivalent_extended in [false, true] {
+                let (cache, expected) = equivalent_metadata_fixture(
+                    whole_header,
+                    original_extended,
+                    equivalent_extended,
+                    2,
+                );
+                let actual = cache.assemble_semantic_container(0);
+                match actual {
+                    Ok(assembled) => assert_eq!(
+                        assembled.container().unwrap().as_bytes(),
+                        expected,
+                        "whole_header={whole_header} original_extended={original_extended} equivalent_extended={equivalent_extended}"
+                    ),
+                    Err(error) => failures.push(format!(
+                        "whole_header={whole_header} original_extended={original_extended} equivalent_extended={equivalent_extended}: {error:?}"
+                    )),
+                }
+            }
+        }
+    }
+    assert!(failures.is_empty(), "{}", failures.join("\n"));
+}
+
+#[test]
+fn semantic_original_metadata_precedes_available_equivalent_representation() {
+    for original_extended in [false, true] {
+        for equivalent_extended in [false, true] {
+            let (cache, expected) =
+                equivalent_metadata_fixture(false, original_extended, equivalent_extended, 3);
+            let actual = cache.assemble_semantic_container(0).unwrap();
+            assert_eq!(actual.container().unwrap().as_bytes(), expected);
+        }
+    }
+}
+
+#[test]
+fn placeholder_reconstruction_preserves_raw_precedence_and_header_owners() {
+    use super::reconstruction::{PlaceholderSource, placeholder_reconstruction};
+    use PlaceholderSource::{Codestream, Empty, Equivalent, Original};
+
+    let sources = [
+        Empty, Original, Equivalent, Original, Codestream, Original, Equivalent, Original,
+    ];
+    for original_length in [0, 1, 7, 8, 15, 16, 31] {
+        let original = vec![0x17; original_length];
+        for equivalent_length in [0, 1, 7, 8, 15, 16, 31] {
+            let equivalent = vec![0xc3; equivalent_length];
+            for (low_flags, expected_source) in sources.iter().copied().enumerate() {
+                for upper_flags in [0, 8, 0x10000, 0x8000_0000] {
+                    let flags = u32::try_from(low_flags).unwrap() | upper_flags;
+                    let expected_header = if expected_source == Equivalent {
+                        equivalent.as_slice()
+                    } else {
+                        original.as_slice()
+                    };
+                    let (source, header) =
+                        placeholder_reconstruction(flags, &original, Some(&equivalent)).unwrap();
+                    assert_eq!(source, expected_source);
+                    assert_eq!(header, expected_header);
+                    assert_eq!(header.as_ptr(), expected_header.as_ptr());
+                    let missing = placeholder_reconstruction(flags, &original, None);
+                    if expected_source == Equivalent {
+                        assert_eq!(
+                            missing,
+                            Err(DecodeError::MalformedInput {
+                                offset: 0,
+                                kind: MalformedKind::InvalidBoxContents,
+                            })
+                        );
+                    } else {
+                        assert_eq!(missing, Ok((expected_source, original.as_slice())));
+                    }
+                }
+            }
+        }
+    }
+}
+
 #[test]
 fn tile_part_transition_status_distinguishes_sufficient_packet_boundaries() {
     let bytes = decodable_codestream_with_layers(2);

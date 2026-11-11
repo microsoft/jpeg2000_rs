@@ -13,6 +13,69 @@ use super::{
 #[cfg(verus_keep_ghost)]
 use vstd::prelude::*;
 
+#[derive(Clone, Copy)]
+#[cfg_attr(not(verus_keep_ghost), derive(Debug, Eq, PartialEq))]
+pub(super) enum PlaceholderSource {
+    Original,
+    Equivalent,
+    Codestream,
+    Empty,
+}
+
+#[cfg(verus_keep_ghost)]
+verus! {
+    pub(super) open spec fn placeholder_source_view(source: PlaceholderSource) -> u8 {
+        match source {
+            PlaceholderSource::Original => 0,
+            PlaceholderSource::Equivalent => 1,
+            PlaceholderSource::Codestream => 2,
+            PlaceholderSource::Empty => 3,
+        }
+    }
+
+    pub(super) open spec fn placeholder_header_option_view(
+        header: Option<&[u8]>,
+    ) -> Option<Seq<u8>> {
+        match header { Some(bytes) => Some(bytes@), None => None }
+    }
+
+    pub(super) open spec fn placeholder_reconstruction_outcome(
+        value: Result<(PlaceholderSource, &[u8]), DecodeError>,
+    ) -> Result<(u8, Seq<u8>), DecodeError> {
+        match value {
+            Ok((source, header)) => Ok((placeholder_source_view(source), header@)),
+            Err(error) => Err(error),
+        }
+    }
+}
+
+#[cfg_attr(verus_keep_ghost, verus_spec(result =>
+    ensures placeholder_reconstruction_outcome(result)
+        == crate::specs::part2_jpip_placeholder_reconstruction(
+            flags, original@, placeholder_header_option_view(equivalent),
+        ),
+))]
+pub(super) fn placeholder_reconstruction<'a>(
+    flags: u32,
+    original: &'a [u8],
+    equivalent: Option<&'a [u8]>,
+) -> Result<(PlaceholderSource, &'a [u8]), DecodeError> {
+    #[cfg(verus_keep_ghost)]
+    proof! { reveal(crate::specs::part2_jpip_placeholder_reconstruction); }
+    if flags & 1 != 0 {
+        Ok((PlaceholderSource::Original, original))
+    } else if flags & 2 != 0 {
+        match equivalent {
+            Some(header) => Ok((PlaceholderSource::Equivalent, header)),
+            None => Err(DecodeError::malformed(0, MalformedKind::InvalidBoxContents)),
+        }
+    } else if flags & 4 != 0 {
+        Ok((PlaceholderSource::Codestream, original))
+    } else {
+        Ok((PlaceholderSource::Empty, original))
+    }
+}
+
 impl DatabinCache {
     #[cfg_attr(verus_keep_ghost, verus_spec(result =>
         ensures jpip_byte_outcome(result) == crate::specs::part2_jpip_cache_codestream(
@@ -276,10 +339,18 @@ impl DatabinCache {
                 .equals(crate::jp2::BoxType::new(*b"phld"))
             {
                 let placeholder = parse_jpip_placeholder(box_ref.payload)?;
+                let (source, header) = placeholder_reconstruction(
+                    placeholder.flags,
+                    &placeholder.original_header,
+                    match &placeholder.equivalent_header {
+                        Some(header) => Some(header.as_slice()),
+                        None => None,
+                    },
+                )?;
                 let mut payload = Vec::new();
                 let mut appended = false;
-                let replacement_complete = if placeholder.flags & 1 != 0 {
-                    self.expand_metadata_bin(
+                let replacement_complete = match source {
+                    PlaceholderSource::Original => self.expand_metadata_bin(
                         metadata_codestream,
                         placeholder.bin,
                         jpip_superbox(placeholder.original_type),
@@ -293,97 +364,97 @@ impl DatabinCache {
                         &mut payload,
                         missing,
                         needs,
-                    )?
-                } else if placeholder.flags & 2 != 0 {
-                    let bin = placeholder.equivalent_bin.ok_or_else(|| {
-                        DecodeError::malformed(0, MalformedKind::InvalidBoxContents)
-                    })?;
-                    let box_type = placeholder.equivalent_type.ok_or_else(|| {
-                        DecodeError::malformed(0, MalformedKind::InvalidBoxContents)
-                    })?;
-                    let _header = placeholder.equivalent_header.as_ref().ok_or_else(|| {
-                        DecodeError::malformed(0, MalformedKind::InvalidBoxContents)
-                    })?;
-                    self.expand_metadata_bin(
-                        metadata_codestream,
-                        bin,
-                        jpip_superbox(box_type),
-                        depth.checked_add(1).ok_or_else(|| {
-                            DecodeError::malformed(0, MalformedKind::ArithmeticOverflow)
-                        })?,
-                        remaining_depth.checked_sub(1).ok_or_else(|| {
-                            DecodeError::malformed(0, MalformedKind::ArithmeticOverflow)
-                        })?,
-                        active,
-                        &mut payload,
-                        missing,
-                        needs,
-                    )?
-                } else if placeholder.flags & 4 != 0 {
-                    let first_stream = placeholder.stream.ok_or_else(|| {
-                        DecodeError::malformed(0, MalformedKind::InvalidBoxContents)
-                    })?;
-                    let mut stream_index = 0_u32;
-                    let mut streams_complete = true;
-                    #[cfg_attr(
+                    )?,
+                    PlaceholderSource::Equivalent => {
+                        let bin = placeholder.equivalent_bin.ok_or_else(|| {
+                            DecodeError::malformed(0, MalformedKind::InvalidBoxContents)
+                        })?;
+                        let box_type = placeholder.equivalent_type.ok_or_else(|| {
+                            DecodeError::malformed(0, MalformedKind::InvalidBoxContents)
+                        })?;
+                        self.expand_metadata_bin(
+                            metadata_codestream,
+                            bin,
+                            jpip_superbox(box_type),
+                            depth.checked_add(1).ok_or_else(|| {
+                                DecodeError::malformed(0, MalformedKind::ArithmeticOverflow)
+                            })?,
+                            remaining_depth.checked_sub(1).ok_or_else(|| {
+                                DecodeError::malformed(0, MalformedKind::ArithmeticOverflow)
+                            })?,
+                            active,
+                            &mut payload,
+                            missing,
+                            needs,
+                        )?
+                    }
+                    PlaceholderSource::Codestream => {
+                        let first_stream = placeholder.stream.ok_or_else(|| {
+                            DecodeError::malformed(0, MalformedKind::InvalidBoxContents)
+                        })?;
+                        let mut stream_index = 0_u32;
+                        let mut streams_complete = true;
+                        #[cfg_attr(
                         verus_keep_ghost,
                         verus_spec(
                             invariant stream_index <= placeholder.stream_count,
                             decreases placeholder.stream_count - stream_index,
                         )
                     )]
-                    while stream_index < placeholder.stream_count {
-                        let stream = first_stream
-                            .checked_add(u64::from(stream_index))
-                            .ok_or_else(|| {
-                                DecodeError::malformed(0, MalformedKind::ArithmeticOverflow)
-                            })?;
-                        let snapshot = self.build_automatic_snapshot(
-                            stream,
-                            None,
-                            &JpipPacketSelection::all_components(),
-                            &self.limits,
-                        )?;
-                        match snapshot.ready {
-                            Some(snapshot) if snapshot.available_layers == snapshot.layers => {
-                                if placeholder.stream_count == 1 {
-                                    payload.extend_from_slice(snapshot.codestream.as_bytes());
-                                } else {
-                                    append_reconstructed_box(
-                                        output,
-                                        &placeholder.original_header,
-                                        snapshot.codestream.as_bytes(),
-                                    )?;
+                        while stream_index < placeholder.stream_count {
+                            let stream = first_stream
+                                .checked_add(u64::from(stream_index))
+                                .ok_or_else(|| {
+                                    DecodeError::malformed(0, MalformedKind::ArithmeticOverflow)
+                                })?;
+                            let snapshot = self.build_automatic_snapshot(
+                                stream,
+                                None,
+                                &JpipPacketSelection::all_components(),
+                                &self.limits,
+                            )?;
+                            match snapshot.ready {
+                                Some(snapshot) if snapshot.available_layers == snapshot.layers => {
+                                    if placeholder.stream_count == 1 {
+                                        payload.extend_from_slice(snapshot.codestream.as_bytes());
+                                    } else {
+                                        append_reconstructed_box(
+                                            output,
+                                            header,
+                                            snapshot.codestream.as_bytes(),
+                                        )?;
+                                    }
+                                }
+                                Some(snapshot) => {
+                                    append_missing_ranges(missing, &snapshot.missing);
+                                    needs.push(JpipSemanticNeed {
+                                        kind: JpipSemanticNeedKind::Codestream,
+                                        identifier: stream,
+                                    });
+                                    streams_complete = false;
+                                }
+                                None => {
+                                    append_missing_ranges(missing, &snapshot.missing);
+                                    needs.push(JpipSemanticNeed {
+                                        kind: JpipSemanticNeedKind::Codestream,
+                                        identifier: stream,
+                                    });
+                                    streams_complete = false;
                                 }
                             }
-                            Some(snapshot) => {
-                                append_missing_ranges(missing, &snapshot.missing);
-                                needs.push(JpipSemanticNeed {
-                                    kind: JpipSemanticNeedKind::Codestream,
-                                    identifier: stream,
-                                });
-                                streams_complete = false;
-                            }
-                            None => {
-                                append_missing_ranges(missing, &snapshot.missing);
-                                needs.push(JpipSemanticNeed {
-                                    kind: JpipSemanticNeedKind::Codestream,
-                                    identifier: stream,
-                                });
-                                streams_complete = false;
-                            }
+                            stream_index += 1;
                         }
-                        stream_index += 1;
+                        appended = placeholder.stream_count > 1 && streams_complete;
+                        streams_complete
                     }
-                    appended = placeholder.stream_count > 1 && streams_complete;
-                    streams_complete
-                } else {
-                    payload.clear();
-                    true
+                    PlaceholderSource::Empty => {
+                        payload.clear();
+                        true
+                    }
                 };
                 if replacement_complete {
                     if !appended {
-                        append_reconstructed_box(output, &placeholder.original_header, &payload)?;
+                        append_reconstructed_box(output, header, &payload)?;
                     }
                 } else {
                     complete = false;

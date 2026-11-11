@@ -367,6 +367,28 @@ Semantic container expansion, transcoding, progressive/automatic joins and
 normative/cfg/erasure/lifetime/R1/internal/release gates remain separate. Pinned
 budgets and `--no-lifetime` are unchanged; full-plan completion is not claimed.
 
+## Actual placeholder representation and header selection
+
+The executing `placeholder_reconstruction` derives its complete Result from
+arbitrary raw flags, original bytes and optional equivalent bytes. It returns
+the selected branch and exact borrowed header together. Original contents take
+precedence; equivalent contents require their own header; codestream and empty
+branches retain the original header. No parsed-header validity premise,
+successful result bank, allocation or native copy is introduced.
+
+The recursive metadata caller uses this one selection for both payload routing
+and output framing. Previously it traversed an equivalent payload using the
+equivalent type, but framed that payload using the original header. Public
+1x1 container witnesses cover leaf and superbox replacements with independent
+short/extended header choices. Original-first controls and raw flag/optional
+header/storage-owner cases retain the intended precedence and borrowing.
+
+This corrects an existing representation-consistency defect. The selector is
+not a wire-grammar validator: existing placeholder parsing and box framing
+retain their admission responsibilities. Complete recursive semantic-container
+Results, metadata-CSn scope, NCS semantics, selected-edition correspondence and
+independent closure remain separate. No all-53 or full-plan completion follows.
+
 ## Actual public JPIP layout reconstruction Results
 
 The executing `DatabinCache::reconstruct_codestream` and `reconstruct_container`

@@ -288,7 +288,7 @@ def _coverage_function_body(text: str, header: re.Match[str] | None) -> str | No
 
 def _coverage_spec_function_body(text: str, symbol: str) -> str | None:
     headers = list(re.finditer(
-        r"(?m)^([ \t]*)pub(?:\(crate\))?[ \t]+(?:open|closed)[ \t]+spec[ \t]+fn[ \t]+"
+        r"(?m)^([ \t]*)pub(?:\((?:crate|super)\))?[ \t]+(?:open|closed)[ \t]+spec[ \t]+fn[ \t]+"
         + re.escape(symbol) + r"\b", text,
     ))
     return _coverage_function_body(text, headers[0]) if len(headers) == 1 else None
@@ -3411,6 +3411,29 @@ _RAW_CONTAINER_COLOR_TESTS = {("src/decode/container_image_result_tests.rs", "ac
     "preserves_header_mapping_before_color_admission",
     "preserves_raw_inspection_selection_packet_and_profile_priority",
 )} | {("src/decode/tests.rs", "sarah_dev_457acab2c3_later_jp2_streams_do_not_change_first_display")}
+_JPIP_PLACEHOLDER_ENTRY = "part9-native-placeholder-representation-selection"
+_JPIP_PLACEHOLDER_CONTRACTS = {
+    ("src/jpip/reconstruction.rs", "placeholder_reconstruction"): (
+        "part2_jpip_placeholder_reconstruction",
+        _coverage_call("placeholder_reconstruction_outcome", r"\1"), None,
+        r"flags\s*,\s*original@\s*,\s*"
+        + _coverage_call("placeholder_header_option_view", "equivalent"),
+    ),
+}
+_JPIP_PLACEHOLDER_IMPLEMENTATIONS = set(_JPIP_PLACEHOLDER_CONTRACTS) | {
+    ("src/jpip/reconstruction.rs", "DatabinCache::expand_metadata_bin"),
+}
+_JPIP_PLACEHOLDER_MODELS = {("specs/jpip_layout.rs", "part2_jpip_placeholder_reconstruction")}
+_JPIP_PLACEHOLDER_PROOFS = set(_JPIP_PLACEHOLDER_CONTRACTS) | {
+    ("src/jpip/reconstruction.rs", name) for name in (
+        "placeholder_source_view", "placeholder_header_option_view", "placeholder_reconstruction_outcome",
+    )
+}
+_JPIP_PLACEHOLDER_TESTS = {("src/jpip/tests.rs", name) for name in (
+    "semantic_equivalent_metadata_preserves_declared_representation",
+    "semantic_original_metadata_precedes_available_equivalent_representation",
+    "placeholder_reconstruction_preserves_raw_precedence_and_header_owners",
+)}
 _JPIP_LAYOUT_ENTRY = "part9-complete-native-public-layout-results"
 _JPIP_LAYOUT_CONTRACTS = {
     ("src/jpip/reconstruction.rs", name): (
@@ -4956,6 +4979,65 @@ def validate_normative_coverage(
                 actual = _coverage_spec_function_body(projections, name)
                 if actual is None or any("".join(item.split()) not in "".join(actual.split()) for item in required):
                     raise ValueError("whole raw JPIP response requires complete native summary/result projections")
+        if entry["id"] == _JPIP_PLACEHOLDER_ENTRY:
+            for field, required in (
+                ("implementation_refs", _JPIP_PLACEHOLDER_IMPLEMENTATIONS),
+                ("contract_refs", set(_JPIP_PLACEHOLDER_CONTRACTS)),
+                ("spec_refs", _JPIP_PLACEHOLDER_MODELS), ("proof_refs", _JPIP_PLACEHOLDER_PROOFS),
+                ("test_refs", _JPIP_PLACEHOLDER_TESTS),
+            ):
+                if not required.issubset({(ref["path"], ref["symbol"]) for ref in entry[field]}):
+                    if field == "implementation_refs":
+                        raise ValueError("placeholder representation selection linked function is not used by claimed implementation: actual caller missing")
+                    raise ValueError("placeholder representation selection requires every native/model/result/caller/test bridge")
+            native_path = (ROOT / "src/jpip/reconstruction.rs").resolve()
+            native = source_text(native_path)
+            for name, required in {
+                "placeholder_reconstruction": (
+                    "if flags & 1 != 0", "PlaceholderSource::Original, original",
+                    "else if flags & 2 != 0", "PlaceholderSource::Equivalent, header",
+                    "None => Err(DecodeError::malformed(0, MalformedKind::InvalidBoxContents))",
+                    "else if flags & 4 != 0", "PlaceholderSource::Codestream, original",
+                    "PlaceholderSource::Empty, original",
+                ),
+                "DatabinCache::expand_metadata_bin": (
+                    "let (source, header) = placeholder_reconstruction(",
+                    "placeholder.flags", "&placeholder.original_header",
+                    "match &placeholder.equivalent_header", "Some(header) => Some(header.as_slice())",
+                    "match source", "PlaceholderSource::Equivalent =>", "jpip_superbox(box_type)",
+                    "append_reconstructed_box(output, header, &payload)",
+                ),
+            }.items():
+                body = _coverage_function_body(native, function_header(native_path, name))
+                if body is None or any("".join(item.split()) not in "".join(body.split()) for item in required):
+                    raise ValueError("placeholder representation selection requires the actual branch/header pair and caller framing")
+            projections = {
+                "placeholder_source_view": (
+                    "match source",
+                    "PlaceholderSource::Original => 0", "PlaceholderSource::Equivalent => 1",
+                    "PlaceholderSource::Codestream => 2", "PlaceholderSource::Empty => 3",
+                ),
+                "placeholder_header_option_view": ("match header", "Some(bytes) => Some(bytes@)", "None => None"),
+                "placeholder_reconstruction_outcome": (
+                    "match value",
+                    "Ok((source, header)) => Ok((placeholder_source_view(source), header@))",
+                    "Err(error) => Err(error)",
+                ),
+            }
+            model = source_text((ROOT / "specs/jpip_layout.rs").resolve())
+            for text, functions in (
+                (native, projections),
+                (model, {"part2_jpip_placeholder_reconstruction": (
+                    "if flags & 1 != 0", "Ok((0, original))", "else if flags & 2 != 0",
+                    "Some(header) => Ok((1, header))",
+                    "None => Err(part2_jpip_cache_error(0, crate::MalformedKind::InvalidBoxContents))",
+                    "else if flags & 4 != 0", "Ok((2, original))", "Ok((3, original))",
+                )}),
+            ):
+                for name, required in functions.items():
+                    body = _coverage_spec_function_body(text, name)
+                    if body is None or any("".join(item.split()) not in "".join(body.split()) for item in required):
+                        raise ValueError("placeholder representation selection requires complete raw header/error/result models")
         if entry["id"] == _JPIP_LAYOUT_ENTRY:
             if {(ref["path"], ref["symbol"]) for ref in entry["contract_refs"]} != set(_JPIP_LAYOUT_CONTRACTS) - _JPIP_LAYOUT_APIS:
                 raise ValueError("whole JPIP layout Results require the complete actual reconstruction consumer contract")
@@ -8180,6 +8262,8 @@ def validate_normative_coverage(
                     if entry["id"] == _JPIP_CACHE_INSERT_ENTRY else None)
                 or (_JPIP_LAYOUT_CONTRACTS.get((reference["path"], reference["symbol"]))
                     if entry["id"] == _JPIP_LAYOUT_ENTRY else None)
+                or (_JPIP_PLACEHOLDER_CONTRACTS.get((reference["path"], reference["symbol"]))
+                    if entry["id"] == _JPIP_PLACEHOLDER_ENTRY else None)
                 or (_JPIP_RESPONSE_CONTRACTS.get((reference["path"], reference["symbol"]))
                     if entry["id"] == _JPIP_RESPONSE_ENTRY else None)
                 or (_JPIP_RANGE_CONTRACTS.get((reference["path"], reference["symbol"]))

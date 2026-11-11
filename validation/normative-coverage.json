@@ -4,6 +4,31 @@
   "scope": "Technical reference inventory; not exhaustive standards-clause coverage or a conformance claim.",
   "requirements": [
     {
+      "id": "part9-native-placeholder-representation-selection",
+      "topic": "Complete actual raw placeholder representation/header selection Result from arbitrary flags, original bytes and optional equivalent bytes. One executing selector returns the branch and exact borrowed header together, preserving original-first precedence, equivalent missing-header errors, codestream/original header identity and empty representation. The recursive metadata caller uses that same selected branch/header, correcting DEV-6744E122C7 mixing an equivalent payload/type with the original shell. This is existing supported representation consistency, not a normative grammar amendment. Header validity, flag admission, recursive expansion/full public Result, metadata-CSn scope and NCS semantics remain separate; no selected-edition or independent-closure claim.",
+      "implementation_refs": [
+        {"path": "src/jpip/reconstruction.rs", "symbol": "placeholder_reconstruction"},
+        {"path": "src/jpip/reconstruction.rs", "symbol": "DatabinCache::expand_metadata_bin"}
+      ],
+      "contract_refs": [
+        {"path": "src/jpip/reconstruction.rs", "symbol": "placeholder_reconstruction"}
+      ],
+      "spec_refs": [
+        {"path": "specs/jpip_layout.rs", "symbol": "part2_jpip_placeholder_reconstruction"}
+      ],
+      "proof_refs": [
+        {"path": "src/jpip/reconstruction.rs", "symbol": "placeholder_source_view"},
+        {"path": "src/jpip/reconstruction.rs", "symbol": "placeholder_header_option_view"},
+        {"path": "src/jpip/reconstruction.rs", "symbol": "placeholder_reconstruction_outcome"},
+        {"path": "src/jpip/reconstruction.rs", "symbol": "placeholder_reconstruction"}
+      ],
+      "test_refs": [
+        {"path": "src/jpip/tests.rs", "symbol": "semantic_equivalent_metadata_preserves_declared_representation"},
+        {"path": "src/jpip/tests.rs", "symbol": "semantic_original_metadata_precedes_available_equivalent_representation"},
+        {"path": "src/jpip/tests.rs", "symbol": "placeholder_reconstruction_preserves_raw_precedence_and_header_owners"}
+      ]
+    },
+    {
       "id": "part9-complete-native-raw-transition-results",
       "topic": "Complete actual raw header-only/SOT/PLT/SOD tile-part transition parser Result and public DatabinCache::tile_part_transitions Result/status/transitions/semantic-needs/missing from arbitrary physical cache and actual raw header bytes. Derives every transition tile/part/count/data-length/functional/header field through real saturated big-endian reads, marker extents, PLT counting, original nested traversals and sufficiency-prefix aggregation. Retains first normalized aliases, native fragment order/first-fragment views, missing/error priorities, header-only trailing-SOD behavior, PLT index differences and zero-Psot terminal rule. Issue219 DEV-926EF1A301/DEV-DFA2D383B6 correction: nonzero declarations shorter than the retained header return InvalidTilePart at the part start, never the unknown-length None reserved for absent/zero declarations. Complete stored need/transition/report getters and unchanged native input/cache/output storage behavior. No valid-cache/input/parsed-transition/success banks or executing clones. Automatic normalization/snapshot/progressive, semantic-container and independent selected-edition normative/cfg/lifetime/release remain separate.",
       "implementation_refs": [
