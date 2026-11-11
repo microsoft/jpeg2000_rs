@@ -1,5 +1,77 @@
 use super::*;
 
+#[test]
+fn sarah_reserved_classes_have_no_registered_header_semantics() {
+    let assigned = [
+        Some(DatabinClass::Precinct),
+        Some(DatabinClass::Precinct),
+        Some(DatabinClass::TileHeader),
+        None,
+        Some(DatabinClass::TileData),
+        Some(DatabinClass::TileData),
+        Some(DatabinClass::MainHeader),
+        None,
+        Some(DatabinClass::Metadata),
+    ];
+    let mut failures = Vec::new();
+    for identifier in (0..=256).chain([u64::MAX - 1, u64::MAX]) {
+        assert_eq!(DatabinClass::has_auxiliary(identifier), identifier % 2 == 1);
+        let expected = usize::try_from(identifier)
+            .ok()
+            .and_then(|index| assigned.get(index))
+            .copied()
+            .flatten();
+        if DatabinClass::from_identifier(identifier) != expected {
+            failures.push(identifier);
+        }
+        for stream in [0, 37, u64::MAX] {
+            for bin in [0, 1, 128, u64::MAX] {
+                match (expected, DatabinId::new(identifier, stream, bin)) {
+                    (Some(class), Ok(value)) => {
+                        assert_eq!(value.class(), class);
+                        assert_eq!(value.class_identifier(), identifier);
+                        assert_eq!((value.codestream(), value.in_class()), (stream, bin));
+                    }
+                    (None, Err(error)) => assert_eq!(
+                        error,
+                        DecodeError::MalformedInput {
+                            offset: 0,
+                            kind: MalformedKind::InvalidJpipHeader,
+                        }
+                    ),
+                    (None, Ok(_)) => failures.push(identifier),
+                    other => panic!("identifier={identifier}: {other:?}"),
+                }
+            }
+        }
+    }
+    assert!(
+        failures.is_empty(),
+        "Unassigned semantic header classes: {failures:?}"
+    );
+}
+
+#[test]
+fn semantic_identity_aliases_only_assigned_auxiliary_classes() {
+    let classes = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 17, u64::MAX];
+    let canonical = [0, 0, 2, 3, 4, 4, 6, 7, 8, 9, 17, u64::MAX];
+    for (a, first) in classes.into_iter().enumerate() {
+        for (b, second) in classes.into_iter().enumerate() {
+            let raw = |class_identifier| DatabinId {
+                class_identifier,
+                class: DatabinClass::Metadata,
+                codestream: 37,
+                in_class: 129,
+            };
+            assert_eq!(
+                raw(first).same_as(raw(second)),
+                canonical[a] == canonical[b],
+                "raw identity {first}/{second} must not acquire undeclared standard semantics"
+            );
+        }
+    }
+}
+
 fn vbas(mut value: u64) -> Vec<u8> {
     let mut groups = vec![u8::try_from(value & 0x7f).unwrap()];
     value >>= 7;
@@ -290,12 +362,13 @@ fn actual_raw_jpip_data_derives_all_header_fields_body_borrow_and_consumed_exten
                             (id.class_identifier(), id.codestream(), id.in_class()),
                             (class, stream, bin)
                         );
-                        let expected_class = match class / 2 {
-                            0 => DatabinClass::Precinct,
-                            1 => DatabinClass::TileHeader,
-                            2 => DatabinClass::TileData,
-                            3 => DatabinClass::MainHeader,
-                            _ => DatabinClass::Metadata,
+                        let expected_class = match class {
+                            0 | 1 => DatabinClass::Precinct,
+                            2 => DatabinClass::TileHeader,
+                            4 | 5 => DatabinClass::TileData,
+                            6 => DatabinClass::MainHeader,
+                            8 => DatabinClass::Metadata,
+                            _ => DatabinClass::Unassigned,
                         };
                         assert_eq!(id.class(), expected_class);
                         assert_eq!(
@@ -689,15 +762,19 @@ fn actual_raw_jpip_rejects_overflow_extent_and_limit_frontiers_in_native_order()
 fn actual_raw_jpip_databin_and_header_getters_preserve_normalized_identity_and_saturating_final_length()
  {
     for class in 0..=8 {
-        let id = DatabinId::new(class, u64::MAX, 129).unwrap();
+        let id = DatabinId::from_wire(class, u64::MAX, 129).unwrap();
         assert_eq!(
             (id.class_identifier(), id.codestream(), id.in_class()),
             (class, u64::MAX, 129)
         );
-        let pair = if class < 8 { class ^ 1 } else { class };
-        assert!(id.same_as(DatabinId::new(pair, u64::MAX, 129).unwrap()));
-        assert!(!id.same_as(DatabinId::new(pair, 0, 129).unwrap()));
-        assert!(!id.same_as(DatabinId::new(pair, u64::MAX, 128).unwrap()));
+        let pair = if matches!(class, 0 | 1 | 4 | 5) {
+            class ^ 1
+        } else {
+            class
+        };
+        assert!(id.same_as(DatabinId::from_wire(pair, u64::MAX, 129).unwrap()));
+        assert!(!id.same_as(DatabinId::from_wire(pair, 0, 129).unwrap()));
+        assert!(!id.same_as(DatabinId::from_wire(pair, u64::MAX, 128).unwrap()));
         assert_eq!(DatabinClass::has_auxiliary(class), class % 2 == 1);
         for last in [false, true] {
             let header = JpipMessageHeader {

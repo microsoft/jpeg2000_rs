@@ -43,6 +43,7 @@ specs/jpip_cache_views.rs
 specs/jpip_fragment.rs
 specs/jpip_layout.rs
 specs/jpip_message.rs
+specs/jpip_normalization.rs
 specs/jpip_planned_packets.rs
 specs/jpip_progressive.rs
 specs/jpip_ranges.rs
@@ -170,6 +171,7 @@ src/jpip/cache_view_result_tests.rs
 src/jpip/mapping.rs
 src/jpip/message.rs
 src/jpip/message_result_tests.rs
+src/jpip/normalization_result_tests.rs
 src/jpip/plan_proof_support.rs
 src/jpip/planned_packet_result_tests.rs
 src/jpip/precinct.rs

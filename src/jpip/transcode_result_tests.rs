@@ -225,7 +225,7 @@ fn actual_jpip_transcode_preserves_physical_header_layer_limit_and_raw_validatio
                     .with_maximum_input_bytes(limit)
                     .unwrap(),
                 databins: vec![
-                    bin(id(7, 3, 0), &[(0, &original[..start])], Some(start as u64)),
+                    bin(id(6, 3, 0), &[(0, &original[..start])], Some(start as u64)),
                     bin(id(2, 3, 0), &[(0, &original[start..start + 14])], Some(14)),
                     bin(id(0, 3, 7), &[(0, &[0, 0, 0])], None),
                 ],

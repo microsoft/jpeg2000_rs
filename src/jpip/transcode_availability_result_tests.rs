@@ -1,4 +1,4 @@
-use super::super::cache_layout_result_tests::{bin, frame, id};
+use super::super::cache_layout_result_tests::{bin, class_key, frame, id};
 use super::super::range_result_tests::expected_availability;
 use super::*;
 
@@ -12,7 +12,7 @@ pub(super) fn expected_append(
     output: &mut JpipAvailabilityReport,
 ) -> Result<(), DecodeError> {
     let selected = cache.databins.iter().find(|value| {
-        value.id.class_identifier / 2 == requested.class_identifier / 2
+        class_key(value.id.class_identifier) == class_key(requested.class_identifier)
             && value.id.codestream == requested.codestream
             && value.id.in_class == requested.in_class
     });

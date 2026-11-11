@@ -307,7 +307,9 @@ pub open spec fn part2_jpip_insert_result(
     cache: Part2JpipCache, incoming: Part2JpipFragment,
 ) -> Result<Part2JpipCache, crate::DecodeError> {
     let count = cache.3 as nat + 1;
-    if count > u64::MAX as nat { Err(part2_jpip_insert_overflow(incoming.1)) }
+    if !part9_standard_class_assigned(incoming.0.0 as nat) {
+        Err(part2_jpip_error(0, crate::MalformedKind::InvalidJpipHeader))
+    } else if count > u64::MAX as nat { Err(part2_jpip_insert_overflow(incoming.1)) }
     else if count > crate::limits::resource_jpip_fragment_limit(&cache.0) as nat {
         Err(crate::DecodeError::LimitExceeded { resource: crate::Resource::JpipFragments,
             limit: crate::limits::resource_jpip_fragment_limit(&cache.0), actual: count as u64 })
@@ -325,7 +327,9 @@ pub open spec fn part2_jpip_insert_result(
 pub proof fn part2_jpip_insert_result_unfold(cache: Part2JpipCache, incoming: Part2JpipFragment)
     ensures part2_jpip_insert_result(cache, incoming) == {
         let count = cache.3 as nat + 1;
-        if count > u64::MAX as nat { Err(part2_jpip_insert_overflow(incoming.1)) }
+        if !part9_standard_class_assigned(incoming.0.0 as nat) {
+            Err(part2_jpip_error(0, crate::MalformedKind::InvalidJpipHeader))
+        } else if count > u64::MAX as nat { Err(part2_jpip_insert_overflow(incoming.1)) }
         else if count > crate::limits::resource_jpip_fragment_limit(&cache.0) as nat {
             Err(crate::DecodeError::LimitExceeded { resource: crate::Resource::JpipFragments,
                 limit: crate::limits::resource_jpip_fragment_limit(&cache.0), actual: count as u64 })

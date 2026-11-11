@@ -3499,6 +3499,7 @@ _JPIP_CACHE_INSERT_MODELS = {("specs/jpip_cache_insert.rs", name) for name in (
     ("specs/jpip_fragment.rs", "part2_jpip_find_databin"),
     ("specs/jpip_fragment.rs", "part2_jpip_stored_end"),
     ("specs/jpip_fragment.rs", "part2_jpip_copy_into"),
+    ("specs/mod.rs", "part9_standard_class_assigned"),
 }
 _JPIP_CACHE_INSERT_PROOFS = set(_JPIP_CACHE_INSERT_CONTRACTS) | {
     ("src/jpip/cache.rs", "Databin::validate_final_length"),
@@ -3527,6 +3528,7 @@ _JPIP_CACHE_INSERT_TESTS = {("src/jpip/cache_insert_result_tests.rs", name) for 
     "actual_jpip_cache_insert_checked_clones_preserve_fields_and_independent_storage",
     "actual_jpip_cache_insert_errors_preserve_complete_physical_state_and_error_precedence",
     "actual_jpip_cache_insert_normalizes_exact_bytes_and_retains_first_alias_metadata",
+    "reserved_wire_classes_cannot_mutate_recognized_or_physical_cache_state",
 )}
 _JPIP_CACHE_INSERT_IMPLEMENTATIONS = set(_JPIP_CACHE_INSERT_CONTRACTS) | {
     ("src/jpip/cache.rs", "Databin::validate_final_length"),
@@ -3673,6 +3675,7 @@ _JPIP_MESSAGE_BODY_CLAUSES = {
     "DatabinClass::from_identifier": "vstd::prelude::ensures(|result: Option<Self>| vstd::prelude::equal(result, crate::specs::part2_jpip_class(identifier)));",
     "DatabinClass::has_auxiliary": "vstd::prelude::ensures(|result: bool| vstd::prelude::equal(result, crate::specs::part2_jpip_auxiliary(identifier)));",
     "DatabinId::new": "vstd::prelude::ensures(|result: Result<Self, DecodeError>| vstd::prelude::equal(databin_id_outcome(result), crate::specs::part2_jpip_databin(class_identifier, codestream, in_class)));",
+    "DatabinId::from_wire": "vstd::prelude::ensures(|result: Result<Self, DecodeError>| vstd::prelude::equal(databin_id_outcome(result), crate::specs::part2_jpip_wire_databin(class_identifier, codestream, in_class)));",
     **{name: f"vstd::prelude::ensures(|result: {kind}| vstd::prelude::equal(result, databin_id_view(*self).{field}));"
        for name, kind, field in (
            ("DatabinId::class_identifier", "u64", 0), ("DatabinId::class", "DatabinClass", 1),
@@ -3700,11 +3703,11 @@ _JPIP_MESSAGE_GETTERS = {
 _JPIP_MESSAGE_MODELS = {("specs/jpip_message.rs", name) for name in (
     "part2_parse_jpip_message", "part2_jpip_parser_parse", "part2_jpip_data", "part2_jpip_data_after_identity",
     "part2_jpip_eor", "part2_jpip_body", "part2_jpip_read_vbas", "part2_jpip_vbas_tail",
-    "part2_jpip_class", "part2_jpip_databin", "part2_jpip_auxiliary", "part2_jpip_identity", "part2_jpip_final_length",
+    "part2_jpip_class", "part2_jpip_databin", "part2_jpip_wire_databin", "part2_jpip_auxiliary", "part2_jpip_identity", "part2_jpip_final_length",
 )} | {("specs/mod.rs", name) for name in (
     "part9_header_form_valid", "part9_header_has_explicit_class", "part9_header_has_explicit_codestream",
     "part9_vbas_step", "part9_auxiliary_present", "part9_eor_extent",
-    "part9_class_identifier_valid", "part9_databin_identity",
+    "part9_class_identifier_valid", "part9_standard_class_assigned", "part9_class_key", "part9_databin_identity",
 )}
 _JPIP_MESSAGE_PROOFS = {
     ("specs/jpip_message.rs", "part2_parse_jpip_message_unfold"),
@@ -3717,6 +3720,8 @@ _JPIP_MESSAGE_PROOFS = {
     "jpip_message_values_known", "jpip_header_fields",
 )}
 _JPIP_MESSAGE_TESTS = {("src/jpip/message_result_tests.rs", name) for name in (
+    "sarah_reserved_classes_have_no_registered_header_semantics",
+    "semantic_identity_aliases_only_assigned_auxiliary_classes",
     "actual_raw_jpip_vbas_matches_independent_values_and_partial_cursor_on_every_error",
     "actual_raw_jpip_data_derives_all_header_fields_body_borrow_and_consumed_extent",
     "actual_raw_jpip_inherited_context_commits_only_complete_data_messages",
@@ -4028,7 +4033,18 @@ _JPIP_PROGRESSIVE_TESTS = {("src/jpip/progressive_result_tests.rs", name) for na
        "actual_jpip_progressive_availability_derives_physical_headers_layers_missing_and_narrowing_errors")}
 _JPIP_TRANSITION_ENTRY = "part9-complete-native-raw-transition-results"
 _JPIP_TRANSITION_APIS = {("src/jpip/mapping.rs", "DatabinCache::tile_part_transitions")}
+_JPIP_TRANSITION_CALLERS = {("src/jpip/progression.rs", name) for name in (
+    "DatabinCache::build_automatic_snapshot", "DatabinCache::automatic_headers",
+)}
 _JPIP_TRANSITION_CONTRACTS = {
+    ("src/jpip/automatic_headers.rs", "normalize_automatic_tile_headers"): (
+        "part2_jpip_normalize_automatic_tile_headers", _coverage_call("jpip_normalized_headers_outcome", r"\1"),
+        None, r"input@\s*,\s*tile",
+    ),
+    ("src/jpip/automatic_headers.rs", "normalize_tile_header"): (
+        "part2_jpip_normalize_tile_header", _coverage_call("jpip_packet_bytes_outcome", r"\1"),
+        None, r"source@\s*,\s*tile\s*,\s*index\s*,\s*count",
+    ),
     ("src/jpip/mapping.rs", "DatabinCache::tile_part_transitions"): (
         "part2_jpip_transition_report", _coverage_call("jpip_transition_report_outcome", r"\1"), None,
         _coverage_call("jpip_cache_view", "self") + r"\s*,\s*codestream\s*,\s*tile",
@@ -4053,6 +4069,10 @@ _JPIP_TRANSITION_MODELS = {("specs/jpip_transitions.rs", name) for name in (
     "part2_jpip_read_u16", "part2_jpip_read_u32", "part2_jpip_marker_segment", "part2_jpip_plt_scan",
     "part2_jpip_plt_count", "part2_jpip_transition_scan", "part2_jpip_transition_parts",
     "part2_jpip_parse_transitions", "part2_jpip_transition_needs", "part2_jpip_transition_report",
+)} | {("specs/jpip_normalization.rs", name) for name in (
+    "part2_jpip_normalized_header_scan", "part2_jpip_normalized_header_after_start",
+    "part2_jpip_normalize_tile_header", "part2_jpip_normalized_header_entries",
+    "part2_jpip_normalize_automatic_tile_headers",
 )} | {
     ("specs/jpip_cache_views.rs", "part2_jpip_cache_complete"), ("specs/jpip_cache_views.rs", "part2_jpip_cache_view"),
     ("specs/jpip_ranges.rs", "part2_jpip_complete_missing"), ("specs/jpip_fragment.rs", "part2_jpip_copy_bytes"),
@@ -4073,6 +4093,7 @@ _JPIP_TRANSITION_GETTERS = {name: clause for name, clause in (
     ("JpipTilePartTransitionReport::missing_ranges", "result@.map_values(|missing: JpipMissingRange| super::jpip_missing_view(missing)) == jpip_transition_report_view(self).3"),
 )}
 _JPIP_TRANSITION_PROJECTIONS = {("src/jpip/transition_proof_support.rs", name) for name in (
+    "jpip_normalized_headers_outcome",
     "jpip_transition_view", "jpip_transitions_view", "jpip_transitions_outcome", "jpip_semantic_need_view",
     "jpip_semantic_needs_view", "jpip_transition_report_view", "jpip_transition_report_outcome",
     "jpip_transition_sequence_shapes",
@@ -4080,6 +4101,7 @@ _JPIP_TRANSITION_PROJECTIONS = {("src/jpip/transition_proof_support.rs", name) f
 _JPIP_TRANSITION_PROOFS = set(_JPIP_TRANSITION_CONTRACTS) | _JPIP_TRANSITION_PROJECTIONS | {
     ("src/jpip/mapping.rs", name) for name in _JPIP_TRANSITION_GETTERS
 } | {
+    ("src/jpip/range_proof_support.rs", "jpip_packet_bytes_outcome"),
     ("src/jpip/message.rs", "DatabinId::new"),
     ("src/jpip/cache.rs", "JpipByteView::into_bytes"),
     ("src/refinement/jpip.rs", "jpip_tile_transition_sufficient"),
@@ -4091,6 +4113,12 @@ _JPIP_TRANSITION_TESTS = {("src/jpip/transition_result_tests.rs", name) for name
     "actual_jpip_raw_transitions_derive_all_fields_owned_headers_and_exact_emitted_cut_errors",
     "actual_jpip_raw_transition_admission_keeps_native_plt_sod_psot_and_first_error_differences",
     "actual_jpip_public_transition_reports_preserve_physical_cache_needs_getters_and_native_storage",
+)} | {("src/jpip/normalization_result_tests.rs", name) for name in (
+    "raw_normalization_preserves_exact_markers_framing_optional_sod_and_input_storage",
+    "raw_normalization_retains_malformed_marker_and_index_error_precedence",
+)} | {("src/jpip/tests.rs", name) for name in (
+    "sarah_optional_sod_complete_header_forms_normalize_identically",
+    "sarah_optional_sod_public_snapshot_decodes_complete_empty_header",
 )}
 _RAW_JPX_PUBLIC_IMAGE_ENTRY = "part2-complete-native-public-raw-jpx-codestream-results"
 _RAW_JPX_PUBLIC_IMAGE_APIS = {("src/decode/api.rs", name) for name in (
@@ -4526,7 +4554,7 @@ def validate_normative_coverage(
             if {(ref["path"], ref["symbol"]) for ref in entry["contract_refs"]} != set(_JPIP_TRANSITION_CONTRACTS) - _JPIP_TRANSITION_APIS:
                 raise ValueError("whole raw JPIP transitions require complete actual parser/word/marker/count/cache consumers")
             for field, required in (
-                ("implementation_refs", set(_JPIP_TRANSITION_CONTRACTS)),
+                ("implementation_refs", set(_JPIP_TRANSITION_CONTRACTS) | _JPIP_TRANSITION_CALLERS),
                 ("spec_refs", _JPIP_TRANSITION_MODELS), ("proof_refs", _JPIP_TRANSITION_PROOFS),
                 ("test_refs", _JPIP_TRANSITION_TESTS),
             ):
@@ -4541,6 +4569,18 @@ def validate_normative_coverage(
                 if "ensures" + "".join(clause.split()) + "," not in "".join(attrs.split()) or re.search(r"\brequires\b", attrs):
                     raise ValueError("whole raw JPIP transitions require complete stored transition/report/need getters")
             for relative, name, required in (
+                ("src/jpip/automatic_headers.rs", "normalize_automatic_tile_headers", (
+                    "parse_tile_part_transitions(input, tile)?", "u8::try_from(transitions.len())",
+                    "normalize_tile_header(transition.header_bytes(), tile, index, count)?", "output.push(header)",
+                )),
+                ("src/jpip/automatic_headers.rs", "normalize_tile_header", (
+                    "source.starts_with(&[0xff, 0x90])", "marker_segment(source, 0)?",
+                    "marker != 0xff90 || end != 12", "u8::try_from(index)", "header.push(count)",
+                    "remaining_markers = source.len()", "remaining_markers -= 1",
+                    "source.get(position..position.saturating_add(2)) == Some(&[0xff, 0x93])",
+                    "marker_segment(source, position)?", "jpip_reframed_marker_removed(marker, true)",
+                    "if position != source.len() { return Err", "header.extend_from_slice(&[0xff, 0x93])",
+                )),
                 ("src/jpip/byte_io.rs", "read_u16_be", (".get(position..position.saturating_add(2))", ".first()", ".get(1)", "u16::from(high) << 8")),
                 ("src/jpip/byte_io.rs", "read_u32_be", (".get(position..position.saturating_add(4))", ".first()", ".get(3)", "u32::from(first) << 24")),
                 ("src/jpip/automatic_headers.rs", "marker_segment", ("read_u16_be(input, position)?",
@@ -4598,6 +4638,36 @@ def validate_normative_coverage(
                 body = _coverage_spec_function_body(model, name)
                 if body is None or any("".join(item.split()) not in "".join(body.split()) for item in required):
                     raise ValueError("whole raw JPIP transitions require complete native extent/PLT/header/error/prefix/report models")
+            model = source_text((ROOT / "specs/jpip_normalization.rs").resolve())
+            for name, required in {
+                "part2_jpip_normalized_header_scan": (
+                    "remaining == 0", "position as nat != source.len()", "end != source.len()",
+                    "part2_jpip_marker_segment(source, position)", "part9_reframed_marker_removed(marker as nat, true)",
+                    "output + source.subrange(position as int, end as int)", "output + seq![0xffu8, 0x93u8]",
+                ),
+                "part2_jpip_normalized_header_after_start": (
+                    "index > u8::MAX as usize", "((tile >> 8) & 0xff) as u8", "(tile & 0xff) as u8",
+                    "index as u8, count", "part2_jpip_normalized_header_scan(source, start, source.len() as usize,",
+                ),
+                "part2_jpip_normalize_tile_header": (
+                    "source.len() >= 2 && source[0] == 0xff && source[1] == 0x90",
+                    "part2_jpip_marker_segment(source, 0)", "marker != 0xff90 || end != 12",
+                    "part2_jpip_normalized_header_after_start(source, tile, index, count, end)",
+                    "part2_jpip_normalized_header_after_start(source, tile, index, count, 0)",
+                ),
+                "part2_jpip_normalized_header_entries": (
+                    "part2_jpip_normalize_tile_header(entries[position as int].5, tile,",
+                    "position as usize, entries.len() as u8", "position + 1, output.push(header)",
+                ),
+                "part2_jpip_normalize_automatic_tile_headers": (
+                    "part2_jpip_parse_transitions(input, tile)", "Err(error) => Err(error)",
+                    "entries.len() > u8::MAX as nat",
+                    "part2_jpip_normalized_header_entries(entries, tile, 0, Seq::empty())",
+                ),
+            }.items():
+                body = _coverage_spec_function_body(model, name)
+                if body is None or any("".join(item.split()) not in "".join(body.split()) for item in required):
+                    raise ValueError("whole raw JPIP transitions require complete native normalization Result models")
         if entry["id"] == _JPIP_PROGRESSIVE_ENTRY:
             if {(ref["path"], ref["symbol"]) for ref in entry["contract_refs"]} != set(_JPIP_PROGRESSIVE_CONTRACTS) - _JPIP_PROGRESSIVE_APIS:
                 raise ValueError("whole caller JPIP progressive requires complete actual availability/transcode/full-selected consumers")
@@ -5119,6 +5189,7 @@ def validate_normative_coverage(
             text = source_text(path)
             for name, required in {
                 "DatabinCache::insert": (
+                    "!crate::refinement::jpip_standard_class_assigned(fragment.databin.class_identifier())",
                     "let ghost original_cache = jpip_cache_view(self)", "let ghost original_owner = *self",
                     "let ghost incoming = jpip_fragment_view(&fragment)", "part2_jpip_insert_result(original_cache, incoming)",
                     "self.accepted_fragments.checked_add(1)", "next_count > self.limits.maximum_jpip_fragments()",
@@ -5159,7 +5230,9 @@ def validate_normative_coverage(
             model_path = (ROOT / "specs/jpip_cache_insert.rs").resolve()
             model = source_text(model_path)
             for name, required in {
-                "part2_jpip_insert_result": ("cache.3 as nat + 1", "resource_jpip_fragment_limit(&cache.0)",
+                "part2_jpip_insert_result": ("!part9_standard_class_assigned(incoming.0.0 as nat)",
+                    "part2_jpip_error(0, crate::MalformedKind::InvalidJpipHeader)",
+                    "cache.3 as nat + 1", "resource_jpip_fragment_limit(&cache.0)",
                     "part2_jpip_find_databin(cache.1, incoming.0, 0)", "cache.1[index as int]", "(incoming.0, Seq::empty(), None)"),
                 "part2_jpip_cache_insert": ("part2_jpip_insert_result(cache, incoming)", "Err(error) => (Err(error), cache)", "Ok(updated) => (Ok(()), updated)"),
                 "part2_jpip_insert_overlap": ("stored.1.subrange", "incoming.2.subrange", "usize::MAX", "part2_jpip_insert_conflict(start)"),
@@ -5349,9 +5422,13 @@ def validate_normative_coverage(
                 if "ensures" + "".join(clause.split()) + "," not in "".join(attrs.split()) or re.search(r"\brequires\b", attrs):
                     raise ValueError("whole raw JPIP message Results require complete stored getter value/reference frames")
             for name, required in {
+                "DatabinClass::from_identifier": ("jpip_standard_class_assigned(identifier)",
+                    "2 => Some(Self::TileHeader)", "6 => Some(Self::MainHeader)"),
+                "DatabinId::from_wire": ("matches!(class_identifier, 3 | 7)", "class: DatabinClass::Unassigned",
+                    "Self::new(class_identifier, codestream, in_class)"),
                 "parse_jpip_message": ("input.is_empty()", "input.len() as u64 > limits.maximum_input_bytes()",
                     "input[0] == 0", "parse_end_of_response(input)", "read_vbas(input, &mut position, Some(0x0f))",
-                    "context.previous_class", "context.previous_codestream", "DatabinId::new(class_identifier, codestream, in_class)",
+                    "context.previous_class", "context.previous_codestream", "DatabinId::from_wire(class_identifier, codestream, in_class)",
                     "context.previous_class.unwrap_or(0)", "context.previous_codestream.unwrap_or(0)",
                     "context.previous_class = Some(class_identifier)", "context.previous_codestream = Some(codestream)",
                     "parse_data_after_identity(input, position, databin, last_byte, limits)?", "Ok(parsed)"),
@@ -5375,6 +5452,10 @@ def validate_normative_coverage(
                     raise ValueError("whole raw JPIP message Results require actual raw/inherited/context/cursor/body/parser handoffs")
             model = source_text((ROOT / "specs/jpip_message.rs").resolve())
             for name, required in {
+                "part2_jpip_class": ("2 => Some(crate::jpip::DatabinClass::TileHeader)",
+                    "6 => Some(crate::jpip::DatabinClass::MainHeader)", "_ => None"),
+                "part2_jpip_wire_databin": ("identifier == 3 || identifier == 7",
+                    "crate::jpip::DatabinClass::Unassigned", "part2_jpip_databin(identifier, codestream, bin)"),
                 "part2_jpip_vbas_tail": ("byte & 0x80 == 0", "count >= 10", "position as nat >= input.len()",
                     "input[position as int]", "value as nat * 128 + group as nat", "stepped > u64::MAX as nat",
                     "part2_jpip_vbas_tail(input, start,", "InvalidJpipVbas"),
@@ -5388,7 +5469,7 @@ def validate_normative_coverage(
                     "part9_header_has_explicit_class", "part9_header_has_explicit_codestream", "context.0", "context.1",
                     "match context.0 { None => Ok(0), Some(value) => Ok(value) }",
                     "match context.1 { Some(value) => Ok(value), None => Ok(0) }",
-                    "part2_jpip_databin(class_value, stream_value, bin_value)",
+                    "part2_jpip_wire_databin(class_value, stream_value, bin_value)",
                     "part2_jpip_data_after_identity"),
                 "part2_jpip_data_after_identity": ("part2_jpip_read_vbas(input, position, None)",
                     "part2_jpip_read_vbas(input, offset.1, None)", "part9_auxiliary_present", "offset_value as nat + length_value as nat",

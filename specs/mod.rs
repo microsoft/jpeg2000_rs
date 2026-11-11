@@ -67,6 +67,8 @@ mod jpip_progressive;
 pub use jpip_progressive::*;
 mod jpip_transitions;
 pub use jpip_transitions::*;
+mod jpip_normalization;
+pub use jpip_normalization::*;
 mod jpx_source;
 pub use jpx_source::*;
 mod jpx_opacity;
@@ -5817,6 +5819,16 @@ pub open spec fn part9_class_identifier_valid(class_identifier: nat) -> bool {
     class_identifier <= 8
 }
 
+pub open spec fn part9_standard_class_assigned(class_identifier: nat) -> bool {
+    part9_class_identifier_valid(class_identifier) && class_identifier != 3 && class_identifier != 7
+}
+
+pub open spec fn part9_class_key(class_identifier: nat) -> nat {
+    if class_identifier == 1 { 0 }
+    else if class_identifier == 5 { 4 }
+    else { class_identifier }
+}
+
 pub open spec fn part9_databin_identity(
     first_class: nat,
     first_codestream: nat,
@@ -5825,7 +5837,7 @@ pub open spec fn part9_databin_identity(
     second_codestream: nat,
     second_in_class: nat,
 ) -> bool {
-    first_class / 2 == second_class / 2
+    part9_class_key(first_class) == part9_class_key(second_class)
         && first_codestream == second_codestream
         && first_in_class == second_in_class
 }

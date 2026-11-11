@@ -87,6 +87,19 @@ fn actual_jpip_response_derives_full_summary_and_cache_from_raw_header_forms_and
                             if let Some(reason) = reason {
                                 input.extend_from_slice(&[0, reason, 2, 0xfe, 0xff]);
                             }
+                            if matches!(class, 3 | 7) {
+                                let before = frame(&cache);
+                                assert_eq!(
+                                    ingest_jpip_response(&input, &mut cache),
+                                    Err(DecodeError::malformed(
+                                        0,
+                                        MalformedKind::InvalidJpipHeader
+                                    ))
+                                );
+                                assert_eq!(frame(&cache), before);
+                                cases += 1;
+                                continue;
+                            }
                             let summary = ingest_jpip_response(&input, &mut cache).unwrap();
                             assert_eq!(summary.messages(), 2);
                             assert_eq!(summary.end_of_response_reason(), reason);

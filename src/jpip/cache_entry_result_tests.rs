@@ -1,7 +1,7 @@
 use super::*;
 
 fn id(class: u64, stream: u64, bin: u64) -> DatabinId {
-    DatabinId::new(class, stream, bin).unwrap()
+    DatabinId::from_wire(class, stream, bin).unwrap()
 }
 
 #[test]
@@ -217,7 +217,7 @@ fn actual_jpip_cache_empty_state_and_lookup_preserve_first_normalized_databin_id
         (id(0, 1, 2), Some(0)),
         (id(1, 1, 2), Some(0)),
         (id(2, 1, 2), Some(2)),
-        (id(3, 1, 2), Some(2)),
+        (id(3, 1, 2), None),
         (id(8, u64::MAX, 16), Some(3)),
         (id(8, 1, 16), None),
         (id(0, 1, 3), None),

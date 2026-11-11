@@ -4628,7 +4628,7 @@ pub proof fn production_part9_identity_contract_is_exact(
             second_codestream,
             second_in_class,
         ) == (
-            first_class / 2 == second_class / 2
+            crate::specs::part9_class_key(first_class) == crate::specs::part9_class_key(second_class)
             && first_codestream == second_codestream
             && first_in_class == second_in_class
         ),

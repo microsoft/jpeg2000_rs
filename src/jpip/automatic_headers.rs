@@ -6,7 +6,16 @@ use super::{
     write_u32_be,
 };
 #[cfg(verus_keep_ghost)]
+use super::{
+    jpip_normalized_headers_outcome, jpip_packet_bytes_outcome, jpip_transition_sequence_shapes,
+    jpip_transition_view, jpip_transitions_view,
+};
+#[cfg(verus_keep_ghost)]
 use vstd::prelude::*;
+
+#[cfg(test)]
+#[path = "normalization_result_tests.rs"]
+mod result_tests;
 
 pub(super) fn normalize_main_header(input: &[u8]) -> Result<Vec<u8>, DecodeError> {
     if !input.starts_with(&SOC) {
@@ -47,92 +56,189 @@ pub(super) fn normalize_main_header(input: &[u8]) -> Result<Vec<u8>, DecodeError
     Ok(output)
 }
 
+#[cfg_attr(verus_keep_ghost, verus_spec(result =>
+    ensures jpip_normalized_headers_outcome(result)
+        == crate::specs::part2_jpip_normalize_automatic_tile_headers(input@, tile),
+))]
 pub(super) fn normalize_automatic_tile_headers(
     input: &[u8],
     tile: u16,
 ) -> Result<Vec<Vec<u8>>, DecodeError> {
     let transitions = parse_tile_part_transitions(input, tile)?;
-    let count = u8::try_from(transitions.len())
-        .map_err(|_| DecodeError::malformed(0, MalformedKind::ArithmeticOverflow))?;
+    #[cfg(verus_keep_ghost)]
+    proof! { jpip_transition_sequence_shapes(); }
+    #[cfg(verus_keep_ghost)]
+    proof_decl! {
+        let ghost entries = jpip_transitions_view(&transitions);
+        let ghost expected = crate::specs::part2_jpip_normalized_header_entries(entries, tile, 0, Seq::empty());
+    }
+    let count = u8::try_from(transitions.len()).map_err(
+        #[cfg_attr(verus_keep_ghost, verus_spec(result: DecodeError =>
+                ensures result == crate::specs::part2_jpip_range_overflow(0),
+            ))]
+        |_error| DecodeError::malformed(0, MalformedKind::ArithmeticOverflow),
+    )?;
     let mut output = Vec::with_capacity(transitions.len());
     let mut index = 0_usize;
+    #[cfg(verus_keep_ghost)]
+    proof! {
+        assert(output@.map_values(|header: Vec<u8>| header@) =~= Seq::<Seq<u8>>::empty());
+    }
     #[cfg_attr(
         verus_keep_ghost,
         verus_spec(
-            invariant index <= transitions.len(),
+            invariant index <= transitions.len(), transitions.len() <= u8::MAX,
+                entries == jpip_transitions_view(&transitions), entries.len() == transitions.len(),
+                count as nat == entries.len(),
+                forall|position: int| 0 <= position < transitions.len() ==>
+                    #[trigger] entries[position] == jpip_transition_view(&transitions@[position]),
+                expected == crate::specs::part2_jpip_normalize_automatic_tile_headers(input@, tile),
+                expected == crate::specs::part2_jpip_normalized_header_entries(entries, tile,
+                    index as nat, output@.map_values(|header: Vec<u8>| header@)),
             decreases transitions.len() - index,
         )
     )]
     while index < transitions.len() {
+        #[cfg(verus_keep_ghost)]
+        proof! { reveal(crate::specs::part2_jpip_normalized_header_entries); }
         let transition = transitions
             .get(index)
-            .ok_or_else(|| DecodeError::malformed(0, MalformedKind::InvalidTilePart))?;
-        let source = transition.header_bytes();
-        let marker_start = if source.starts_with(&[0xff, 0x90]) {
-            let (marker, _, end) = marker_segment(source, 0)?;
-            if marker != 0xff90 || end != 12 {
-                return Err(DecodeError::malformed(0, MalformedKind::InvalidTilePart));
-            }
-            end
-        } else {
-            0
-        };
-        let mut header = vec![0xff, 0x90, 0, 10];
-        header.push(
-            u8::try_from((tile >> 8) & 0xff)
-                .map_err(|_| DecodeError::malformed(0, MalformedKind::ArithmeticOverflow))?,
-        );
-        header.push(
-            u8::try_from(tile & 0xff)
-                .map_err(|_| DecodeError::malformed(0, MalformedKind::ArithmeticOverflow))?,
-        );
-        header.extend_from_slice(&[0, 0, 0, 0]);
-        header.push(
-            u8::try_from(index)
-                .map_err(|_| DecodeError::malformed(0, MalformedKind::ArithmeticOverflow))?,
-        );
-        header.push(count);
-        let mut position = marker_start;
-        let mut found_sod = false;
-        let mut remaining_markers = source.len();
-        #[cfg_attr(
-            verus_keep_ghost,
-            verus_spec(decreases remaining_markers,)
-        )]
-        while position < source.len() {
-            if remaining_markers == 0 {
-                return Err(DecodeError::malformed(
-                    position as u64,
-                    MalformedKind::InvalidMarkerLength,
-                ));
-            }
-            remaining_markers -= 1;
-            if source.get(position..position.saturating_add(2)) == Some(&[0xff, 0x93]) {
-                position = position.checked_add(2).ok_or_else(|| {
-                    DecodeError::malformed(position as u64, MalformedKind::ArithmeticOverflow)
-                })?;
-                found_sod = true;
-                break;
-            }
-            let (marker, _, end) = marker_segment(source, position)?;
-            if !crate::refinement::jpip_reframed_marker_removed(marker, true) {
-                header.extend_from_slice(source.get(position..end).ok_or_else(|| {
-                    DecodeError::malformed(position as u64, MalformedKind::Truncated)
-                })?);
-            }
-            position = end;
+            .ok_or_else(
+                #[cfg_attr(verus_keep_ghost, verus_spec(result: DecodeError =>
+                    ensures result == crate::specs::part2_jpip_cache_error(0, MalformedKind::InvalidTilePart),
+                ))]
+                || DecodeError::malformed(0, MalformedKind::InvalidTilePart),
+            )?;
+        let header = normalize_tile_header(transition.header_bytes(), tile, index, count)?;
+        #[cfg(verus_keep_ghost)]
+        proof_decl! {
+            let ghost previous = output@.map_values(|header: Vec<u8>| header@);
+            let ghost bytes = header@;
         }
-        if !found_sod || position != source.len() {
-            return Err(DecodeError::malformed(
-                position as u64,
-                MalformedKind::MissingRequiredStructure,
-            ));
-        }
-        header.extend_from_slice(&[0xff, 0x93]);
         output.push(header);
+        #[cfg(verus_keep_ghost)]
+        proof! {
+            assert(output@.map_values(|header: Vec<u8>| header@) =~= previous.push(bytes));
+        }
         index += 1;
     }
+    #[cfg(verus_keep_ghost)]
+    proof! { reveal(crate::specs::part2_jpip_normalized_header_entries); }
     Ok(output)
+}
+
+#[cfg_attr(verus_keep_ghost, verus_spec(result =>
+    ensures jpip_packet_bytes_outcome(result)
+        == crate::specs::part2_jpip_normalize_tile_header(source@, tile, index, count),
+))]
+pub(super) fn normalize_tile_header(
+    source: &[u8],
+    tile: u16,
+    index: usize,
+    count: u8,
+) -> Result<Vec<u8>, DecodeError> {
+    let marker_start = if source.starts_with(&[0xff, 0x90]) {
+        let (marker, _, end) = marker_segment(source, 0)?;
+        if marker != 0xff90 || end != 12 {
+            return Err(DecodeError::malformed(0, MalformedKind::InvalidTilePart));
+        }
+        end
+    } else {
+        0
+    };
+    let mut header = vec![0xff, 0x90, 0, 10];
+    #[cfg(verus_keep_ghost)]
+    proof! {
+        assert(((tile >> 8) & 0xff) <= 255) by (bit_vector);
+        assert((tile & 0xff) <= 255) by (bit_vector);
+    }
+    header.push(((tile >> 8) & 0xff) as u8);
+    header.push((tile & 0xff) as u8);
+    header.extend_from_slice(&[0, 0, 0, 0]);
+    header.push(u8::try_from(index).map_err(
+        #[cfg_attr(verus_keep_ghost, verus_spec(result: DecodeError =>
+                ensures result == crate::specs::part2_jpip_range_overflow(0),
+            ))]
+        |_error| DecodeError::malformed(0, MalformedKind::ArithmeticOverflow),
+    )?);
+    header.push(count);
+    let mut position = marker_start;
+    let mut remaining_markers = source.len();
+    #[cfg(verus_keep_ghost)]
+    proof_decl! {
+        let ghost expected = crate::specs::part2_jpip_normalized_header_scan(
+            source@, marker_start, source.len(), header@);
+    }
+    #[cfg(verus_keep_ghost)]
+    proof! {
+        assert(header@ =~= seq![0xffu8, 0x90u8, 0u8, 10u8, ((tile >> 8) & 0xff) as u8,
+            (tile & 0xff) as u8, 0u8, 0u8, 0u8, 0u8, index as u8, count]);
+        reveal(crate::specs::part2_jpip_normalized_header_scan);
+    }
+    #[cfg_attr(
+        verus_keep_ghost,
+        verus_spec(
+            invariant position <= source.len(), remaining_markers <= source.len(),
+                expected == crate::specs::part2_jpip_normalize_tile_header(source@, tile, index, count),
+                position == source.len() ==> expected == Ok(header@ + seq![0xffu8, 0x93u8]),
+            invariant_except_break expected == crate::specs::part2_jpip_normalized_header_scan(
+                source@, position, remaining_markers, header@),
+            ensures expected == if position != source.len() {
+                Err(crate::specs::part2_jpip_cache_error(position as u64, MalformedKind::MissingRequiredStructure))
+            } else { Ok(header@ + seq![0xffu8, 0x93u8]) },
+            decreases remaining_markers,
+        )
+    )]
+    while position < source.len() {
+        #[cfg(verus_keep_ghost)]
+        proof! { reveal(crate::specs::part2_jpip_normalized_header_scan); }
+        if remaining_markers == 0 {
+            return Err(DecodeError::malformed(
+                position as u64,
+                MalformedKind::InvalidMarkerLength,
+            ));
+        }
+        remaining_markers -= 1;
+        if source.get(position..position.saturating_add(2)) == Some(&[0xff, 0x93]) {
+            position = position.checked_add(2).ok_or_else(
+                #[cfg_attr(verus_keep_ghost, verus_spec(result: DecodeError =>
+                    ensures result == crate::specs::part2_jpip_range_overflow(position as u64),
+                ))]
+                || DecodeError::malformed(position as u64, MalformedKind::ArithmeticOverflow),
+            )?;
+            break;
+        }
+        let (marker, _, end) = marker_segment(source, position)?;
+        if !crate::refinement::jpip_reframed_marker_removed(marker, true) {
+            #[cfg(verus_keep_ghost)]
+            proof_decl! { let ghost previous = header@; }
+            header.extend_from_slice(source.get(position..end).ok_or_else(
+                #[cfg_attr(verus_keep_ghost, verus_spec(result: DecodeError =>
+                    ensures result == crate::specs::part2_jpip_cache_error(position as u64, MalformedKind::Truncated),
+                ))]
+                || DecodeError::malformed(position as u64, MalformedKind::Truncated),
+            )?);
+            #[cfg(verus_keep_ghost)]
+            proof! {
+                assert(header@ =~= previous + source@.subrange(position as int, end as int));
+            }
+        }
+        position = end;
+        #[cfg(verus_keep_ghost)]
+        proof! { reveal(crate::specs::part2_jpip_normalized_header_scan); }
+    }
+    if position != source.len() {
+        return Err(DecodeError::malformed(
+            position as u64,
+            MalformedKind::MissingRequiredStructure,
+        ));
+    }
+    #[cfg(verus_keep_ghost)]
+    proof_decl! { let ghost previous = header@; }
+    header.extend_from_slice(&[0xff, 0x93]);
+    #[cfg(verus_keep_ghost)]
+    proof! { assert(header@ =~= previous + seq![0xffu8, 0x93u8]); }
+    Ok(header)
 }
 
 pub(super) fn partition_automatic_tile_parts(

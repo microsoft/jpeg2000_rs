@@ -519,8 +519,20 @@ impl-level rewriting because the pinned macro cannot stamp conditional method
 attributes before rewriting a static impl method. These clauses are proved by
 the same whole-root/archive verifier and bound exactly by the inventory, not
 external specifications or new adapters. No model reconstructs a native owner or receives successful message
-banks. Existing JPIP class identity intentionally normalizes even/odd paired
-class identifiers.
+banks. Semantic class assignment recognizes 0, 1, 2, 4, 5, 6 and 8. Raw wire
+classes 3 and 7 retain their identifiers, auxiliary fields and context commits,
+but expose `Unassigned` rather than header semantics. Cache insertion rejects
+them without changing physical storage or counters. Only the assigned auxiliary
+pairs 0/1 and 4/5 share identity; other raw keys remain distinct.
+
+Automatic tile-header normalization accepts complete SOT-free header bins with
+or without a final SOD, emits one SOD, removes reframed markers and synthesizes
+the SOT tile/index/count fields. Retained SOT compatibility inputs still pass
+through the existing transition parser first. Trailing bytes after SOD and
+malformed marker errors remain errors. The complete raw single-header Result and
+transition-parser/fold composition are modeled separately from the rest of the
+automatic reconstruction pipeline; this is not a complete automatic-image or
+normative correspondence theorem.
 
 The Sarah `DEV-9A1ABE441F` correction removes the extra shortest-form rejection
 from the real field reader and its complete model, including its obsolete

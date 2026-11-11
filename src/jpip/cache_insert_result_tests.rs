@@ -51,7 +51,7 @@ fn snapshot(cache: &DatabinCache) -> CacheSnapshot {
 }
 
 fn id(class: u64, bin: u64) -> DatabinId {
-    DatabinId::new(class, 3, bin).unwrap()
+    DatabinId::from_wire(class, 3, bin).unwrap()
 }
 
 #[test]
@@ -126,7 +126,7 @@ fn actual_jpip_cache_insert_errors_preserve_complete_physical_state_and_error_pr
                                 limits,
                                 databins: vec![
                                     Databin {
-                                        id: id(6, 1),
+                                        id: id(4, 1),
                                         fragments: stored
                                             .iter()
                                             .map(|(offset, bytes)| StoredFragment {
@@ -137,7 +137,7 @@ fn actual_jpip_cache_insert_errors_preserve_complete_physical_state_and_error_pr
                                         final_length,
                                     },
                                     Databin {
-                                        id: id(7, 1),
+                                        id: id(5, 1),
                                         fragments: vec![StoredFragment {
                                             offset: 0,
                                             bytes: vec![42],
@@ -159,7 +159,7 @@ fn actual_jpip_cache_insert_errors_preserve_complete_physical_state_and_error_pr
                             let before = snapshot(&cache);
                             let owners = cache_storage(&cache);
                             let result = cache.insert(JpipFragment {
-                                databin: id(7, 1),
+                                databin: id(5, 1),
                                 offset,
                                 bytes: bytes.clone(),
                                 final_length: announced,
@@ -214,6 +214,60 @@ fn actual_jpip_cache_insert_errors_preserve_complete_physical_state_and_error_pr
 }
 
 #[test]
+fn reserved_wire_classes_cannot_mutate_recognized_or_physical_cache_state() {
+    let mut cases = 0;
+    for class in [3, 7] {
+        for count in [0, 2, u64::MAX] {
+            for limit in [0, 8] {
+                for offset in [0, u64::MAX] {
+                    let mut cache = DatabinCache {
+                        limits: ResourceLimits::HARDENED
+                            .with_maximum_input_bytes(limit)
+                            .unwrap(),
+                        databins: vec![
+                            Databin {
+                                id: id(class - 1, 1),
+                                fragments: vec![StoredFragment {
+                                    offset: 0,
+                                    bytes: vec![42],
+                                }],
+                                final_length: Some(1),
+                            },
+                            Databin {
+                                id: id(class, 1),
+                                fragments: vec![StoredFragment {
+                                    offset: 0,
+                                    bytes: vec![9],
+                                }],
+                                final_length: Some(1),
+                            },
+                        ],
+                        stored_bytes: u64::MAX,
+                        accepted_fragments: count,
+                    };
+                    let before = snapshot(&cache);
+                    let owners = cache_storage(&cache);
+                    assert_eq!(
+                        cache.insert(JpipFragment {
+                            databin: id(class, 1),
+                            offset,
+                            bytes: vec![1, 2],
+                            final_length: Some(0),
+                            auxiliary: Some(u64::MAX),
+                        }),
+                        Err(DecodeError::malformed(0, MalformedKind::InvalidJpipHeader))
+                    );
+                    assert_eq!(snapshot(&cache), before);
+                    assert_eq!(cache_storage(&cache), owners);
+                    cases += 1;
+                }
+            }
+        }
+    }
+    assert_eq!(cases, 24);
+}
+
+#[test]
 fn actual_jpip_cache_insert_normalizes_exact_bytes_and_retains_first_alias_metadata() {
     let limits = ResourceLimits::HARDENED
         .with_maximum_input_bytes(16)
@@ -224,34 +278,34 @@ fn actual_jpip_cache_insert_normalizes_exact_bytes_and_retains_first_alias_metad
             JpipFragment::new(id(class, 1), offset, bytes.to_vec(), last, None, &limits).unwrap(),
         )
     };
-    insert(&mut cache, 6, 4, &[5, 6], false).unwrap();
-    insert(&mut cache, 7, 0, &[1, 2], false).unwrap();
+    insert(&mut cache, 4, 4, &[5, 6], false).unwrap();
+    insert(&mut cache, 5, 0, &[1, 2], false).unwrap();
     assert_eq!(
         snapshot(&cache),
         (
             limits,
-            vec![(id(6, 1), vec![(0, vec![1, 2]), (4, vec![5, 6])], None)],
+            vec![(id(4, 1), vec![(0, vec![1, 2]), (4, vec![5, 6])], None)],
             4,
             2
         )
     );
-    insert(&mut cache, 7, 1, &[2, 3, 4, 5], false).unwrap();
+    insert(&mut cache, 5, 1, &[2, 3, 4, 5], false).unwrap();
     assert_eq!(
         snapshot(&cache),
         (
             limits,
-            vec![(id(6, 1), vec![(0, vec![1, 2, 3, 4, 5, 6])], None)],
+            vec![(id(4, 1), vec![(0, vec![1, 2, 3, 4, 5, 6])], None)],
             6,
             3
         )
     );
-    insert(&mut cache, 7, 6, &[], true).unwrap();
-    insert(&mut cache, 7, 2, &[3, 4], false).unwrap();
+    insert(&mut cache, 5, 6, &[], true).unwrap();
+    insert(&mut cache, 5, 2, &[3, 4], false).unwrap();
     assert_eq!(
         snapshot(&cache),
         (
             limits,
-            vec![(id(6, 1), vec![(0, vec![1, 2, 3, 4, 5, 6])], Some(6))],
+            vec![(id(4, 1), vec![(0, vec![1, 2, 3, 4, 5, 6])], Some(6))],
             6,
             5
         )
@@ -259,7 +313,7 @@ fn actual_jpip_cache_insert_normalizes_exact_bytes_and_retains_first_alias_metad
     let before = snapshot(&cache);
     let owners = cache_storage(&cache);
     assert_eq!(
-        insert(&mut cache, 7, 2, &[0xff], false),
+        insert(&mut cache, 5, 2, &[0xff], false),
         Err(DecodeError::malformed(
             2,
             MalformedKind::ConflictingJpipFragment
