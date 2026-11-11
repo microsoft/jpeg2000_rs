@@ -516,7 +516,7 @@ fn actual_jpip_public_transition_reports_preserve_physical_cache_needs_getters_a
                 ),
                 (
                     vec![bin(requested, &[(0, &bytes)], Some(bytes.len() as u64))],
-                    Ok(available),
+                    Ok(available.clone()),
                 ),
                 (
                     vec![bin(requested, &[(0, &short)], Some(short.len() as u64))],
@@ -569,6 +569,13 @@ fn actual_jpip_public_transition_reports_preserve_physical_cache_needs_getters_a
                             &[(0, &a)],
                             Some(a.len() as u64),
                         ),
+                        bin(requested, &[(0, &bytes)], Some(bytes.len() as u64)),
+                    ],
+                    Ok(available),
+                ),
+                (
+                    vec![
+                        bin(requested, &[(0, &a)], Some(a.len() as u64)),
                         bin(requested, &[(0, &bytes)], Some(bytes.len() as u64)),
                     ],
                     Ok(JpipTilePartTransitionReport {

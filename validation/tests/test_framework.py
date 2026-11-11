@@ -1258,8 +1258,68 @@ class FrameworkTests(WorkingFiles):
 
     def test_inventory_jpip_transitions_bind_complete_actual_raw_and_public_report_results(self):
         self._assert_complete_packet_contract_bindings(
-            {framework._JPIP_TRANSITION_ENTRY}, framework._JPIP_TRANSITION_CONTRACTS, 10, isolate=False,
+            {framework._JPIP_TRANSITION_ENTRY}, framework._JPIP_TRANSITION_CONTRACTS, 12, isolate=False,
         )
+
+    def test_inventory_jpip_semantic_class_admission_and_raw_wire_split_are_bound(self):
+        coverage = json.loads((framework.VALIDATION / "normative-coverage.json").read_text())
+        read_text = Path.read_text
+        mutations = (
+            (framework._JPIP_MESSAGE_ENTRY, "src/jpip/message.rs",
+             "class: DatabinClass::Unassigned", "class: DatabinClass::MainHeader"),
+            (framework._JPIP_MESSAGE_ENTRY, "src/jpip/message.rs",
+             "DatabinId::from_wire(class_identifier, codestream, in_class)?",
+             "DatabinId::new(class_identifier, codestream, in_class)?"),
+            (framework._JPIP_MESSAGE_ENTRY, "specs/jpip_message.rs",
+             "part2_jpip_wire_databin(class_value, stream_value, bin_value)",
+             "part2_jpip_databin(class_value, stream_value, bin_value)"),
+            (framework._JPIP_CACHE_INSERT_ENTRY, "src/jpip/cache.rs",
+             "!crate::refinement::jpip_standard_class_assigned(fragment.databin.class_identifier())", "false"),
+            (framework._JPIP_CACHE_INSERT_ENTRY, "specs/jpip_cache_insert.rs",
+             "!part9_standard_class_assigned(incoming.0.0 as nat)", "false"),
+        )
+        for owner, relative, before, after in mutations:
+            entry = next(item for item in coverage["requirements"] if item["id"] == owner)
+            source = framework.ROOT / relative
+            original = source.read_text()
+            self.assertIn(before, original)
+            changed = original.replace(before, after, 1)
+
+            def altered(path, *args, **kwargs):
+                return changed if path == source else read_text(path, *args, **kwargs)
+
+            with self.subTest(relative=relative, before=before), \
+                    mock.patch.object(Path, "read_text", altered), self.assertRaises(ValueError):
+                framework.validate_normative_coverage(dict(coverage, requirements=[entry]))
+
+    def test_inventory_jpip_normalization_binds_complete_native_and_model_handoffs(self):
+        coverage = json.loads((framework.VALIDATION / "normative-coverage.json").read_text())
+        entry = next(item for item in coverage["requirements"] if item["id"] == framework._JPIP_TRANSITION_ENTRY)
+        read_text = Path.read_text
+        for relative, before, after in (
+            ("src/jpip/automatic_headers.rs", "header.push(count)", "header.push(0)"),
+            ("src/jpip/automatic_headers.rs",
+             "if position != source.len() {\n        return Err",
+             "if position == source.len() {\n        return Err"),
+            ("src/jpip/automatic_headers.rs",
+             "normalize_tile_header(transition.header_bytes(), tile, index, count)?",
+             "normalize_tile_header(transition.header_bytes(), tile, 0, count)?"),
+            ("specs/jpip_normalization.rs", "end != source.len()", "end == source.len()"),
+            ("specs/jpip_normalization.rs", "position + 1, output.push(header)", "position + 1, output"),
+            ("specs/jpip_normalization.rs", "part2_jpip_parse_transitions(input, tile)",
+             "part2_jpip_parse_transitions(seq![], tile)"),
+        ):
+            source = framework.ROOT / relative
+            original = source.read_text()
+            self.assertIn(before, original)
+            changed = original.replace(before, after, 1)
+
+            def altered(path, *args, **kwargs):
+                return changed if path == source else read_text(path, *args, **kwargs)
+
+            with self.subTest(relative=relative, before=before), \
+                    mock.patch.object(Path, "read_text", altered), self.assertRaises(ValueError):
+                framework.validate_normative_coverage(dict(coverage, requirements=[entry]))
 
     def test_inventory_jpip_transitions_require_every_raw_cache_field_and_getter_bridge(self):
         coverage = json.loads((framework.VALIDATION / "normative-coverage.json").read_text())

@@ -1,4 +1,4 @@
-use super::cache_layout_result_tests::{bin, frame, id};
+use super::cache_layout_result_tests::{bin, class_key, frame, id};
 use super::*;
 
 fn state(databins: Vec<Databin>, input: u64, packets: u64, work: u64) -> DatabinCache {
@@ -34,7 +34,7 @@ fn missing(offset: u64) -> DecodeError {
 
 fn selected(cache: &DatabinCache, requested: DatabinId) -> Option<&Databin> {
     cache.databins.iter().find(|bin| {
-        bin.id.class_identifier / 2 == requested.class_identifier / 2
+        class_key(bin.id.class_identifier) == class_key(requested.class_identifier)
             && bin.id.codestream == requested.codestream
             && bin.id.in_class == requested.in_class
     })
@@ -294,8 +294,10 @@ fn actual_jpip_range_entries_missing_tails_and_getters_retain_exact_native_field
     );
     let before = frame(&cache);
     for (query, offset, length) in [
-        (id(7, 3, 0), 4, Some(0)),
-        (id(3, 3, 0), 2, None),
+        (id(6, 3, 0), 4, Some(0)),
+        (id(2, 3, 0), 2, None),
+        (id(7, 3, 0), 0, None),
+        (id(3, 3, 0), 0, None),
         (id(5, 3, 0), 0, Some(0)),
         (id(6, 4, 0), 0, None),
     ] {

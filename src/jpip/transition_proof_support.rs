@@ -13,6 +13,14 @@ verus! {
         match value { Err(error) => Err(error), Ok(value) => Ok(jpip_transitions_view(&value)) }
     }
 
+    pub open spec fn jpip_normalized_headers_outcome(value: Result<Vec<Vec<u8>>, DecodeError>)
+        -> Result<Seq<Seq<u8>>, DecodeError> {
+        match value {
+            Err(error) => Err(error),
+            Ok(value) => Ok(value@.map_values(|header: Vec<u8>| header@)),
+        }
+    }
+
     pub closed spec fn jpip_semantic_need_view(value: JpipSemanticNeed) -> crate::specs::Part2JpipSemanticNeed {
         (value.kind, value.identifier)
     }

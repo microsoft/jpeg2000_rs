@@ -1044,6 +1044,64 @@ fn semantic_metadata_assembly_places_nested_boxes_and_codestreams() {
     );
 }
 
+#[test]
+fn sarah_optional_sod_complete_header_forms_normalize_identically() {
+    for tile in [0_u16, 1, 255, 256, 65534] {
+        for retained in [
+            Vec::new(),
+            segment(0xff64, &[0, 1]),
+            segment(0xff64, &[0, 1, b'j', b'p', b'p']),
+        ] {
+            let mut expected = vec![0xff, 0x90, 0, 10];
+            expected.extend_from_slice(&tile.to_be_bytes());
+            expected.extend_from_slice(&[0, 0, 0, 0, 0, 1]);
+            expected.extend_from_slice(&retained);
+            expected.extend_from_slice(&[0xff, 0x93]);
+            for sod in [false, true] {
+                let mut wire = retained.clone();
+                if sod {
+                    wire.extend_from_slice(&[0xff, 0x93]);
+                }
+                assert_eq!(
+                    super::automatic_headers::normalize_automatic_tile_headers(&wire, tile)
+                        .unwrap(),
+                    vec![expected.clone()],
+                    "tile={tile} SOD={sod}"
+                );
+            }
+        }
+    }
+}
+
+#[test]
+fn sarah_optional_sod_public_snapshot_decodes_complete_empty_header() {
+    let code = decodable_codestream();
+    let sot = code
+        .windows(2)
+        .position(|bytes| bytes == [0xff, 0x90])
+        .unwrap();
+    let packet = sot + 14;
+    for tile_header in [Vec::new(), vec![0xff, 0x93], segment(0xff64, &[0, 1])] {
+        let mut cache = DatabinCache::new(ResourceLimits::default());
+        cache
+            .insert(fragment(id(6, 0), 0, &code[..sot], true))
+            .unwrap();
+        cache
+            .insert(fragment(id(2, 0), 0, &tile_header, true))
+            .unwrap();
+        cache
+            .insert(fragment(id(0, 0), 0, &code[packet..packet + 1], true))
+            .unwrap();
+        assert!(cache.is_complete(id(2, 0)));
+        let mut decoder = JpipAutomaticProgressiveDecoder::new(0);
+        let update = decoder
+            .update(&cache, &crate::DecodeOptions::default())
+            .unwrap();
+        assert_eq!(update.status(), JpipProgressiveStatus::Complete);
+        assert!(update.image().is_some());
+    }
+}
+
 fn equivalent_metadata_fixture(
     whole_header: bool,
     original_extended: bool,

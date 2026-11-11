@@ -30,8 +30,12 @@
     },
     {
       "id": "part9-complete-native-raw-transition-results",
-      "topic": "Complete actual raw header-only/SOT/PLT/SOD tile-part transition parser Result and public DatabinCache::tile_part_transitions Result/status/transitions/semantic-needs/missing from arbitrary physical cache and actual raw header bytes. Derives every transition tile/part/count/data-length/functional/header field through real saturated big-endian reads, marker extents, PLT counting, original nested traversals and sufficiency-prefix aggregation. Retains first normalized aliases, native fragment order/first-fragment views, missing/error priorities, header-only trailing-SOD behavior, PLT index differences and zero-Psot terminal rule. Issue219 DEV-926EF1A301/DEV-DFA2D383B6 correction: nonzero declarations shorter than the retained header return InvalidTilePart at the part start, never the unknown-length None reserved for absent/zero declarations. Complete stored need/transition/report getters and unchanged native input/cache/output storage behavior. No valid-cache/input/parsed-transition/success banks or executing clones. Automatic normalization/snapshot/progressive, semantic-container and independent selected-edition normative/cfg/lifetime/release remain separate.",
+      "topic": "Complete actual raw header-only/SOT/PLT/SOD transition parser and public cache transition-report Results, including every tile/part/count/data-length/functional/header/need/missing field from raw bytes and arbitrary physical cache. Preserves native ordering, first recognized-key matches, marker/PLT/Psot errors and stored getter/storage frames. Nonzero Psot shorter than the retained header remains InvalidTilePart, not unknown length. Complete raw single-header normalization and actual transition-parser/fold composition additionally derive canonical SOT fields, marker retention/removal, optional terminal SOD, exact trailing-byte/errors and count/index conversions. Complete SOT-free headers need not contain SOD; normalized output contains one. Actual automatic snapshot/header callers are linked, but complete snapshot/progressive/semantic-container Results and independent selected-edition/cfg/lifetime/release correspondence remain separate. No validity premises, supplied successful parsed banks or executing proof clones.",
       "implementation_refs": [
+        {"path": "src/jpip/progression.rs", "symbol": "DatabinCache::build_automatic_snapshot"},
+        {"path": "src/jpip/progression.rs", "symbol": "DatabinCache::automatic_headers"},
+        {"path": "src/jpip/automatic_headers.rs", "symbol": "normalize_automatic_tile_headers"},
+        {"path": "src/jpip/automatic_headers.rs", "symbol": "normalize_tile_header"},
         {"path": "src/jpip/mapping.rs", "symbol": "DatabinCache::tile_part_transitions"},
         {"path": "src/jpip/mapping.rs", "symbol": "parse_tile_part_transitions"},
         {"path": "src/jpip/mapping.rs", "symbol": "count_plt_packets"},
@@ -44,6 +48,8 @@
         {"path": "src/jpip/ranges.rs", "symbol": "DatabinCache::complete_databin_missing"}
       ],
       "contract_refs": [
+        {"path": "src/jpip/automatic_headers.rs", "symbol": "normalize_automatic_tile_headers"},
+        {"path": "src/jpip/automatic_headers.rs", "symbol": "normalize_tile_header"},
         {"path": "src/jpip/mapping.rs", "symbol": "parse_tile_part_transitions"},
         {"path": "src/jpip/mapping.rs", "symbol": "count_plt_packets"},
         {"path": "src/jpip/automatic_headers.rs", "symbol": "marker_segment"},
@@ -65,6 +71,11 @@
         {"path": "specs/jpip_transitions.rs", "symbol": "part2_jpip_parse_transitions"},
         {"path": "specs/jpip_transitions.rs", "symbol": "part2_jpip_transition_needs"},
         {"path": "specs/jpip_transitions.rs", "symbol": "part2_jpip_transition_report"},
+        {"path": "specs/jpip_normalization.rs", "symbol": "part2_jpip_normalized_header_scan"},
+        {"path": "specs/jpip_normalization.rs", "symbol": "part2_jpip_normalized_header_after_start"},
+        {"path": "specs/jpip_normalization.rs", "symbol": "part2_jpip_normalize_tile_header"},
+        {"path": "specs/jpip_normalization.rs", "symbol": "part2_jpip_normalized_header_entries"},
+        {"path": "specs/jpip_normalization.rs", "symbol": "part2_jpip_normalize_automatic_tile_headers"},
         {"path": "specs/jpip_cache_views.rs", "symbol": "part2_jpip_cache_complete"},
         {"path": "specs/jpip_cache_views.rs", "symbol": "part2_jpip_cache_view"},
         {"path": "specs/jpip_ranges.rs", "symbol": "part2_jpip_complete_missing"},
@@ -72,6 +83,10 @@
         {"path": "specs/mod.rs", "symbol": "jpip_tile_transition_sufficient"}
       ],
       "proof_refs": [
+        {"path": "src/jpip/automatic_headers.rs", "symbol": "normalize_automatic_tile_headers"},
+        {"path": "src/jpip/automatic_headers.rs", "symbol": "normalize_tile_header"},
+        {"path": "src/jpip/transition_proof_support.rs", "symbol": "jpip_normalized_headers_outcome"},
+        {"path": "src/jpip/range_proof_support.rs", "symbol": "jpip_packet_bytes_outcome"},
         {"path": "src/jpip/mapping.rs", "symbol": "DatabinCache::tile_part_transitions"},
         {"path": "src/jpip/mapping.rs", "symbol": "parse_tile_part_transitions"},
         {"path": "src/jpip/mapping.rs", "symbol": "count_plt_packets"},
@@ -112,7 +127,11 @@
         {"path": "src/jpip/transition_result_tests.rs", "symbol": "actual_jpip_transition_words_markers_and_plt_match_independent_extents_and_counts"},
         {"path": "src/jpip/transition_result_tests.rs", "symbol": "actual_jpip_raw_transitions_derive_all_fields_owned_headers_and_exact_emitted_cut_errors"},
         {"path": "src/jpip/transition_result_tests.rs", "symbol": "actual_jpip_raw_transition_admission_keeps_native_plt_sod_psot_and_first_error_differences"},
-        {"path": "src/jpip/transition_result_tests.rs", "symbol": "actual_jpip_public_transition_reports_preserve_physical_cache_needs_getters_and_native_storage"}
+        {"path": "src/jpip/transition_result_tests.rs", "symbol": "actual_jpip_public_transition_reports_preserve_physical_cache_needs_getters_and_native_storage"},
+        {"path": "src/jpip/normalization_result_tests.rs", "symbol": "raw_normalization_preserves_exact_markers_framing_optional_sod_and_input_storage"},
+        {"path": "src/jpip/normalization_result_tests.rs", "symbol": "raw_normalization_retains_malformed_marker_and_index_error_precedence"},
+        {"path": "src/jpip/tests.rs", "symbol": "sarah_optional_sod_complete_header_forms_normalize_identically"},
+        {"path": "src/jpip/tests.rs", "symbol": "sarah_optional_sod_public_snapshot_decodes_complete_empty_header"}
       ]
     },
     {
@@ -518,6 +537,7 @@
         {"path": "specs/jpip_cache_insert.rs", "symbol": "part2_jpip_insert_bin"},
         {"path": "specs/jpip_cache_insert.rs", "symbol": "part2_jpip_insert_result"},
         {"path": "specs/jpip_cache_insert.rs", "symbol": "part2_jpip_cache_insert"},
+        {"path": "specs/mod.rs", "symbol": "part9_standard_class_assigned"},
         {"path": "specs/jpip_fragment.rs", "symbol": "part2_jpip_find_databin"},
         {"path": "specs/jpip_fragment.rs", "symbol": "part2_jpip_stored_end"},
         {"path": "specs/jpip_fragment.rs", "symbol": "part2_jpip_copy_into"}
@@ -558,7 +578,8 @@
       "test_refs": [
         {"path": "src/jpip/cache_insert_result_tests.rs", "symbol": "actual_jpip_cache_insert_checked_clones_preserve_fields_and_independent_storage"},
         {"path": "src/jpip/cache_insert_result_tests.rs", "symbol": "actual_jpip_cache_insert_errors_preserve_complete_physical_state_and_error_precedence"},
-        {"path": "src/jpip/cache_insert_result_tests.rs", "symbol": "actual_jpip_cache_insert_normalizes_exact_bytes_and_retains_first_alias_metadata"}
+        {"path": "src/jpip/cache_insert_result_tests.rs", "symbol": "actual_jpip_cache_insert_normalizes_exact_bytes_and_retains_first_alias_metadata"},
+        {"path": "src/jpip/cache_insert_result_tests.rs", "symbol": "reserved_wire_classes_cannot_mutate_recognized_or_physical_cache_state"}
       ]
     },
     {
@@ -723,6 +744,7 @@
         {"path": "src/jpip/message.rs", "symbol": "DatabinClass::from_identifier"},
         {"path": "src/jpip/message.rs", "symbol": "DatabinClass::has_auxiliary"},
         {"path": "src/jpip/message.rs", "symbol": "DatabinId::new"},
+        {"path": "src/jpip/message.rs", "symbol": "DatabinId::from_wire"},
         {"path": "src/jpip/message.rs", "symbol": "JpipHeaderContext::new"},
         {"path": "src/jpip/message.rs", "symbol": "JpipMessageParser::new"}
       ],
@@ -742,6 +764,7 @@
         {"path": "specs/jpip_message.rs", "symbol": "part2_jpip_vbas_tail"},
         {"path": "specs/jpip_message.rs", "symbol": "part2_jpip_class"},
         {"path": "specs/jpip_message.rs", "symbol": "part2_jpip_databin"},
+        {"path": "specs/jpip_message.rs", "symbol": "part2_jpip_wire_databin"},
         {"path": "specs/jpip_message.rs", "symbol": "part2_jpip_auxiliary"},
         {"path": "specs/jpip_message.rs", "symbol": "part2_jpip_identity"},
         {"path": "specs/jpip_message.rs", "symbol": "part2_jpip_final_length"},
@@ -752,6 +775,8 @@
         {"path": "specs/mod.rs", "symbol": "part9_auxiliary_present"},
         {"path": "specs/mod.rs", "symbol": "part9_eor_extent"},
         {"path": "specs/mod.rs", "symbol": "part9_class_identifier_valid"},
+        {"path": "specs/mod.rs", "symbol": "part9_standard_class_assigned"},
+        {"path": "specs/mod.rs", "symbol": "part9_class_key"},
         {"path": "specs/mod.rs", "symbol": "part9_databin_identity"}
       ],
       "proof_refs": [
@@ -760,6 +785,7 @@
         {"path": "src/jpip/message.rs", "symbol": "DatabinClass::from_identifier"},
         {"path": "src/jpip/message.rs", "symbol": "DatabinClass::has_auxiliary"},
         {"path": "src/jpip/message.rs", "symbol": "DatabinId::new"},
+        {"path": "src/jpip/message.rs", "symbol": "DatabinId::from_wire"},
         {"path": "src/jpip/message.rs", "symbol": "DatabinId::class_identifier"},
         {"path": "src/jpip/message.rs", "symbol": "DatabinId::class"},
         {"path": "src/jpip/message.rs", "symbol": "DatabinId::codestream"},
@@ -809,7 +835,9 @@
         {"path": "src/jpip/message_result_tests.rs", "symbol": "sarah_dev_9a1abe441f_padded_message_fields_preserve_context_and_body"},
         {"path": "src/jpip/message_result_tests.rs", "symbol": "sarah_initial_history_defaults_preserve_absence_and_effective_identifiers"},
         {"path": "src/jpip/message_result_tests.rs", "symbol": "sarah_initial_history_defaults_commit_only_after_complete_data"},
-        {"path": "src/jpip/message_result_tests.rs", "symbol": "sarah_initial_history_defaults_are_response_local_not_cache_history"}
+        {"path": "src/jpip/message_result_tests.rs", "symbol": "sarah_initial_history_defaults_are_response_local_not_cache_history"},
+        {"path": "src/jpip/message_result_tests.rs", "symbol": "sarah_reserved_classes_have_no_registered_header_semantics"},
+        {"path": "src/jpip/message_result_tests.rs", "symbol": "semantic_identity_aliases_only_assigned_auxiliary_classes"}
       ]
     },
     {
@@ -11433,6 +11461,8 @@
           "path": "src/refinement/jpip.rs",
           "symbol": "jpip_class_identifier_valid"
         },
+        {"path": "src/refinement/jpip.rs", "symbol": "jpip_standard_class_assigned"},
+        {"path": "src/refinement/jpip.rs", "symbol": "jpip_class_key"},
         {
           "path": "src/refinement/jpip.rs",
           "symbol": "jpip_databin_identity"
@@ -11440,6 +11470,8 @@
       ],
       "id": "part9-databin-identity",
       "implementation_refs": [
+        {"path": "src/refinement/jpip.rs", "symbol": "jpip_standard_class_assigned"},
+        {"path": "src/refinement/jpip.rs", "symbol": "jpip_databin_identity"},
         {"path": "src/jpip/message.rs", "symbol": "DatabinClass::from_identifier"},
         {
           "path": "src/jpip/message.rs", "symbol": "DatabinId::new"
@@ -11459,6 +11491,8 @@
           "path": "specs/mod.rs",
           "symbol": "part9_class_identifier_valid"
         },
+        {"path": "specs/mod.rs", "symbol": "part9_standard_class_assigned"},
+        {"path": "specs/mod.rs", "symbol": "part9_class_key"},
         {
           "path": "specs/mod.rs",
           "symbol": "part9_databin_identity"
@@ -11472,7 +11506,7 @@
           "path": "src/jpip/tests.rs", "symbol": "reassembles_out_of_order_fragments"
         }
       ],
-      "topic": "Class, codestream number, and class-relative Bin-ID identity"
+      "topic": "Raw wire envelope remains 0..8; semantic assignment excludes3/7. Only assigned auxiliary pairs0/1 and4/5 share class identity. Other raw keys, codestream numbers and class-relative Bin-IDs remain distinct. This is the supported interoperability profile, not an independent selected-edition closure."
     },
     {
       "contract_refs": [

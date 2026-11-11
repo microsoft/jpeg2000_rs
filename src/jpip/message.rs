@@ -27,14 +27,14 @@ impl DatabinClass {
         vstd::prelude::ensures(|result: Option<Self>| {
             vstd::prelude::equal(result, crate::specs::part2_jpip_class(identifier))
         });
-        if !crate::refinement::jpip_class_identifier_valid(identifier) {
+        if !crate::refinement::jpip_standard_class_assigned(identifier) {
             return None;
         }
         match identifier {
             0 | 1 => Some(Self::Precinct),
-            2 | 3 => Some(Self::TileHeader),
+            2 => Some(Self::TileHeader),
             4 | 5 => Some(Self::TileData),
-            6 | 7 => Some(Self::MainHeader),
+            6 => Some(Self::MainHeader),
             8 => Some(Self::Metadata),
             _ => None,
         }
@@ -51,6 +51,32 @@ impl DatabinClass {
 
 #[cfg_attr(verus_keep_ghost, verus_verify)]
 impl DatabinId {
+    pub(super) fn from_wire(
+        class_identifier: u64,
+        codestream: u64,
+        in_class: u64,
+    ) -> Result<Self, DecodeError> {
+        #[cfg(verus_keep_ghost)]
+        vstd::prelude::ensures(|result: Result<Self, DecodeError>| {
+            vstd::prelude::equal(
+                databin_id_outcome(result),
+                crate::specs::part2_jpip_wire_databin(class_identifier, codestream, in_class),
+            )
+        });
+        #[cfg(verus_keep_ghost)]
+        proof! { reveal(databin_id_view); }
+        if matches!(class_identifier, 3 | 7) {
+            Ok(Self {
+                class_identifier,
+                class: DatabinClass::Unassigned,
+                codestream,
+                in_class,
+            })
+        } else {
+            Self::new(class_identifier, codestream, in_class)
+        }
+    }
+
     pub fn new(class_identifier: u64, codestream: u64, in_class: u64) -> Result<Self, DecodeError> {
         #[cfg(verus_keep_ghost)]
         vstd::prelude::ensures(|result: Result<Self, DecodeError>| {
@@ -358,7 +384,7 @@ pub fn parse_jpip_message<'a>(
     } else {
         context.previous_codestream.unwrap_or(0)
     };
-    let databin = DatabinId::new(class_identifier, codestream, in_class)?;
+    let databin = DatabinId::from_wire(class_identifier, codestream, in_class)?;
     #[cfg(verus_keep_ghost)]
     proof! {
         crate::specs::part2_jpip_data_identity_cut(input@, initial_context, limits,

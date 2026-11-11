@@ -3,7 +3,8 @@
 //!
 //! This proof-of-concept profile accepts the standard binary message-header
 //! forms with inherited, explicit-class, or explicit-class-and-codestream
-//! identifiers. It reassembles classes 0 through 8 and can reconstruct a
+//! identifiers. Raw reserved identifiers remain explicitly unassigned; cache
+//! reassembly supports classes 0, 1, 2, 4, 5, 6 and 8. It can reconstruct a
 //! bounded multi-tile packet/codestream views from explicit packet ranges or
 //! SIZ/COD/COC-derived precinct mappings across every progression order.
 //! It does not implement cache signaling, transport, request generation,
@@ -40,6 +41,8 @@ pub enum DatabinClass {
     TileData,
     MainHeader,
     Metadata,
+    /// A supported raw wire identifier without registered data-bin semantics.
+    Unassigned,
 }
 
 #[derive(Clone, Copy)]

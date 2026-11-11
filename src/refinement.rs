@@ -35,15 +35,15 @@ pub(crate) use headers::{
 #[cfg_attr(verus_keep_ghost, verifier::verify)]
 mod jpip;
 pub(crate) use jpip::{
-    jpip_auxiliary_present, jpip_available_bytes, jpip_box_length, jpip_class_identifier_valid,
-    jpip_databin_complete, jpip_databin_identity, jpip_eor_extent, jpip_final_length_consistent,
-    jpip_fragment_valid, jpip_header_form_valid, jpip_header_has_explicit_class,
-    jpip_header_has_explicit_codestream, jpip_merge_end, jpip_merge_start,
-    jpip_metadata_descent_allowed, jpip_missing_length, jpip_overlap_consistent,
-    jpip_packet_reframed_length, jpip_precinct_in_class, jpip_progression_supported,
-    jpip_progressive_update_valid, jpip_quality_prefix_available, jpip_range_complete,
-    jpip_reconstruction_length, jpip_reframed_marker_removed, jpip_tile_transition_sufficient,
-    jpip_transaction_commit, jpip_vbas_step,
+    jpip_auxiliary_present, jpip_available_bytes, jpip_box_length, jpip_databin_complete,
+    jpip_databin_identity, jpip_eor_extent, jpip_final_length_consistent, jpip_fragment_valid,
+    jpip_header_form_valid, jpip_header_has_explicit_class, jpip_header_has_explicit_codestream,
+    jpip_merge_end, jpip_merge_start, jpip_metadata_descent_allowed, jpip_missing_length,
+    jpip_overlap_consistent, jpip_packet_reframed_length, jpip_precinct_in_class,
+    jpip_progression_supported, jpip_progressive_update_valid, jpip_quality_prefix_available,
+    jpip_range_complete, jpip_reconstruction_length, jpip_reframed_marker_removed,
+    jpip_standard_class_assigned, jpip_tile_transition_sufficient, jpip_transaction_commit,
+    jpip_vbas_step,
 };
 #[cfg_attr(verus_keep_ghost, verifier::verify)]
 mod packet;

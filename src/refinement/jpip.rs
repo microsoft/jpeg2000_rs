@@ -70,6 +70,30 @@ pub(crate) const fn jpip_class_identifier_valid(class_identifier: u64) -> bool {
     class_identifier <= 8
 }
 
+#[cfg_attr(
+    verus_keep_ghost,
+    verus_spec(
+        ensures returns crate::specs::part9_standard_class_assigned(class_identifier as nat),
+    )
+)]
+pub(crate) const fn jpip_standard_class_assigned(class_identifier: u64) -> bool {
+    jpip_class_identifier_valid(class_identifier) && class_identifier != 3 && class_identifier != 7
+}
+
+#[cfg_attr(
+    verus_keep_ghost,
+    verus_spec(
+        ensures returns (crate::specs::part9_class_key(class_identifier as nat) as u64),
+    )
+)]
+pub(crate) const fn jpip_class_key(class_identifier: u64) -> u64 {
+    match class_identifier {
+        1 => 0,
+        5 => 4,
+        _ => class_identifier,
+    }
+}
+
 #[allow(clippy::too_many_arguments)]
 #[cfg_attr(
     verus_keep_ghost,
@@ -92,7 +116,7 @@ pub(crate) const fn jpip_databin_identity(
     second_codestream: u64,
     second_in_class: u64,
 ) -> bool {
-    first_class / 2 == second_class / 2
+    jpip_class_key(first_class) == jpip_class_key(second_class)
         && first_codestream == second_codestream
         && first_in_class == second_in_class
 }

@@ -239,6 +239,11 @@ metadata placeholders, precinct mapping, packet reconstruction, and
 transactional progressive decode. Availability and missing-range results
 distinguish incomplete data from successful reconstruction.
 
+Semantic data-bin classes are 0, 1, 2, 4, 5, 6 and 8. Raw class IDs 3 and 7
+remain parseable, including their auxiliary fields and header history, but are
+reported as `Unassigned` and rejected by cache insertion. Only classes 0/1
+and 4/5 share data-bin identity.
+
 Equivalent metadata replacement retains its declared equivalent box type and
 short/extended header together with its payload. When original contents are
 selected first, their original header remains authoritative. This does not
@@ -254,6 +259,9 @@ For retained SOT headers, a nonzero `Psot` must cover the complete retained
 header. An undersized declaration returns `InvalidTilePart` at the tile-part
 start; it is not an unknown-length transition. The final zero-`Psot` form and
 header-only bins without an SOT retain their unknown-length representation.
+Complete SOT-free tile-header bins may omit SOD. Automatic reconstruction
+normalizes either form to one final SOD; absent or incomplete bins are still
+unavailable, and bytes following SOD remain invalid.
 
 Explicit `JpipPrecinctCodestreamPlan` transcodes are restricted to a single
 tile-part with LRCP progression, inline packet headers, and no POC, PLT, or PPT

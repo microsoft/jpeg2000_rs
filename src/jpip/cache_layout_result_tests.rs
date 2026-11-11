@@ -56,7 +56,15 @@ pub(super) fn frame(cache: &DatabinCache) -> CacheFrame {
 }
 
 pub(super) fn id(class: u64, stream: u64, bin: u64) -> DatabinId {
-    DatabinId::new(class, stream, bin).unwrap()
+    DatabinId::from_wire(class, stream, bin).unwrap()
+}
+
+pub(super) fn class_key(class: u64) -> u64 {
+    match class {
+        1 => 0,
+        5 => 4,
+        _ => class,
+    }
 }
 
 pub(super) fn bin(id: DatabinId, fragments: &[(u64, &[u8])], final_length: Option<u64>) -> Databin {
@@ -92,7 +100,7 @@ fn expected_read(cache: &DatabinCache, layout: &[DatabinId]) -> Result<Vec<u8>, 
     let mut bytes = Vec::new();
     for requested in layout {
         let Some(bin) = cache.databins.iter().find(|bin| {
-            bin.id.class_identifier / 2 == requested.class_identifier / 2
+            class_key(bin.id.class_identifier) == class_key(requested.class_identifier)
                 && bin.id.codestream == requested.codestream
                 && bin.id.in_class == requested.in_class
         }) else {
@@ -316,7 +324,7 @@ fn actual_jpip_layout_results_compose_owned_insertion_and_keep_as_implemented_ma
             )
             .unwrap();
     }
-    let layout = [id(7, 3, 0), id(3, 3, 0), id(5, 3, 0)];
+    let layout = [id(6, 3, 0), id(2, 3, 0), id(5, 3, 0)];
     check(&state, &layout);
     assert_eq!(
         state.reconstruct_codestream(&layout).unwrap().as_bytes(),

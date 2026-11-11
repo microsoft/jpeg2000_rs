@@ -496,6 +496,9 @@ impl DatabinCache {
         }
         #[cfg(verus_keep_ghost)]
         proof! { crate::specs::part2_jpip_insert_result_unfold(original_cache, incoming); }
+        if !crate::refinement::jpip_standard_class_assigned(fragment.databin.class_identifier()) {
+            return Err(DecodeError::malformed(0, MalformedKind::InvalidJpipHeader));
+        }
         let next_count = self.accepted_fragments.checked_add(1).ok_or_else(
             #[cfg_attr(verus_keep_ghost, verus_spec(result: DecodeError =>
                 ensures result == crate::specs::part2_jpip_insert_overflow(fragment.offset),

@@ -24,9 +24,9 @@ pub open spec fn part2_jpip_error(offset: usize, kind: crate::MalformedKind) -> 
 pub open spec fn part2_jpip_class(identifier: u64) -> Option<crate::jpip::DatabinClass> {
     match identifier {
         0 | 1 => Some(crate::jpip::DatabinClass::Precinct),
-        2 | 3 => Some(crate::jpip::DatabinClass::TileHeader),
+        2 => Some(crate::jpip::DatabinClass::TileHeader),
         4 | 5 => Some(crate::jpip::DatabinClass::TileData),
-        6 | 7 => Some(crate::jpip::DatabinClass::MainHeader),
+        6 => Some(crate::jpip::DatabinClass::MainHeader),
         8 => Some(crate::jpip::DatabinClass::Metadata),
         _ => None,
     }
@@ -38,6 +38,13 @@ pub open spec fn part2_jpip_databin(identifier: u64, codestream: u64, bin: u64)
         None => Err(part2_jpip_error(0, crate::MalformedKind::InvalidJpipHeader)),
         Some(class) => Ok((identifier, class, codestream, bin)),
     }
+}
+
+pub open spec fn part2_jpip_wire_databin(identifier: u64, codestream: u64, bin: u64)
+    -> Result<Part2JpipDatabin, crate::DecodeError> {
+    if identifier == 3 || identifier == 7 {
+        Ok((identifier, crate::jpip::DatabinClass::Unassigned, codestream, bin))
+    } else { part2_jpip_databin(identifier, codestream, bin) }
 }
 
 pub open spec fn part2_jpip_auxiliary(identifier: u64) -> bool {
@@ -179,7 +186,7 @@ pub open spec fn part2_jpip_data(input: Seq<u8>, context: Part2JpipContext, limi
                         } else { (match context.1 { Some(value) => Ok(value), None => Ok(0) }, class.1) };
                         match stream.0 {
                             Err(error) => Err(error),
-                            Ok(stream_value) => match part2_jpip_databin(class_value, stream_value, bin_value) {
+                            Ok(stream_value) => match part2_jpip_wire_databin(class_value, stream_value, bin_value) {
                                 Err(error) => Err(error),
                                 Ok(databin) => part2_jpip_data_after_identity(input, stream.1, databin, input[0] & 0x10 != 0, limits),
                             },
@@ -210,7 +217,7 @@ pub(crate) proof fn part2_jpip_data_identity_cut(
         } else {
             (match context.1 { Some(value) => Ok(value), None => Ok(0) }, stream_start)
         }) == (Ok(stream_value), body_start),
-        part2_jpip_databin(class_value, stream_value, bin_value) == Ok(databin),
+        part2_jpip_wire_databin(class_value, stream_value, bin_value) == Ok(databin),
     ensures part2_jpip_data(input, context, limits)
         == part2_jpip_data_after_identity(input, body_start, databin, input[0] & 0x10 != 0, limits),
 {
