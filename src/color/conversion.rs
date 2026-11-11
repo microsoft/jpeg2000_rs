@@ -44,6 +44,11 @@ pub fn convert_jp2_color(
         return Err(invalid_color_input());
     }
     let (color_count, output_space, sycc) = match color.method() {
+        ColorMethod::Unspecified => {
+            return Err(unsupported(
+                UnsupportedColorConversion::UnspecifiedColorSpace,
+            ));
+        }
         ColorMethod::Enumerated {
             color_space: ENUMERATED_SRGB,
         } => (3_usize, ConvertedColorSpace::Srgb, false),

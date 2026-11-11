@@ -1,8 +1,9 @@
 //! Container and associated codestream headers, image dimensions, and bit depths.
 
 use super::{
-    BoxRef, BoxType, ComponentBitDepth, DecodeError, ImageHeader, Jp2Header, MalformedKind,
-    Resource, ResourceLimits, add_offset, box_reader_from_input, parse_channel_definition,
+    BoxRef, BoxType, ChannelDefinitionRecord, ChannelType, ColorMethod, ColorSpecification,
+    ComponentBitDepth, DecodeError, ImageHeader, Jp2Header, MalformedKind, Resource,
+    ResourceLimits, add_offset, box_reader_from_input, parse_channel_definition,
     parse_color_specification, parse_component_mapping, parse_palette, parse_resolution_superbox,
     read_u16, read_u32, rebase_error, required_box, validate_color_specification_prefix,
 };
@@ -245,6 +246,67 @@ pub(super) fn parse_jp2_header(
     limits: &ResourceLimits,
     base_offset: u64,
 ) -> Result<Jp2Header, DecodeError> {
+    parse_jp2_header_profile(payload, limits, base_offset, false)
+}
+
+#[cfg_attr(verus_keep_ghost, verus_spec(result =>
+    ensures super::color_specification_outcome(result)
+        == crate::specs::part2_unspecified_jph_color(
+            super::channel_definition_records_view(definitions@), base_offset),
+))]
+pub(super) fn unspecified_jph_color(
+    definitions: &[ChannelDefinitionRecord],
+    base_offset: u64,
+) -> Result<ColorSpecification, DecodeError> {
+    let mut index = 0_usize;
+    #[cfg_attr(
+        verus_keep_ghost,
+        verus_spec(
+            invariant index <= definitions.len(),
+                forall |i: int| 0 <= i < index ==>
+                    crate::image::channel_definition_view(definitions@[i].definition).0 != ChannelType::Color,
+            decreases definitions.len() - index,
+        )
+    )]
+    while index < definitions.len() {
+        if matches!(
+            definitions[index].definition.channel_type(),
+            ChannelType::Color
+        ) {
+            #[cfg(verus_keep_ghost)]
+            proof! {
+                assert(super::channel_definition_records_view(definitions@)[index as int].1.0
+                    == ChannelType::Color);
+                assert(exists |i: int| 0 <= i < definitions.len()
+                    && super::channel_definition_records_view(definitions@)[i].1.0 == ChannelType::Color);
+            }
+            return Err(DecodeError::malformed(
+                base_offset,
+                MalformedKind::InvalidProfile,
+            ));
+        }
+        index += 1;
+    }
+    #[cfg(verus_keep_ghost)]
+    proof! { reveal(super::full_color_specification_view); }
+    Ok(ColorSpecification {
+        method: ColorMethod::Unspecified,
+        precedence: 0,
+        approximation: 0,
+        icc_profile: None,
+    })
+}
+
+#[cfg_attr(verus_keep_ghost, verus_spec(result =>
+    ensures super::raw_jp2_header_outcome(result) == crate::specs::part2_parse_jp2_header_profile(
+        payload@, *limits, base_offset, allow_unspecified),
+))]
+pub(super) fn parse_jp2_header_profile(
+    payload: &[u8],
+    limits: &ResourceLimits,
+    base_offset: u64,
+    allow_unspecified: bool,
+) -> Result<Jp2Header, DecodeError> {
     let mut reader = box_reader_from_input(payload, limits)?;
     let image_box = required_box(&mut reader, 0).map_err(
         #[cfg_attr(verus_keep_ghost, verus_spec(result: DecodeError =>
@@ -268,7 +330,7 @@ pub(super) fn parse_jp2_header(
     let mut display_resolution = None;
     let mut nested_box_count = 1_u32;
     #[cfg(verus_keep_ghost)]
-    proof_decl! { let ghost expected = crate::specs::part2_parse_jp2_header(payload@, *limits, base_offset); }
+    proof_decl! { let ghost expected = crate::specs::part2_parse_jp2_header_profile(payload@, *limits, base_offset, allow_unspecified); }
     #[cfg(verus_keep_ghost)]
     proof! {
         assert(component_mappings@ =~= Seq::<super::ComponentMapping>::empty());
@@ -282,11 +344,11 @@ pub(super) fn parse_jp2_header(
                 payload@, super::box_reader_state(&reader),
                 super::raw_header_state(image, &color, saw_bpcc, &palette, component_mappings@,
                     channel_definition_records@, capture_resolution, display_resolution, nested_box_count),
-                *limits, base_offset),
-                expected == crate::specs::part2_parse_jp2_header(payload@, *limits, base_offset),
+                *limits, base_offset, allow_unspecified),
+                expected == crate::specs::part2_parse_jp2_header_profile(payload@, *limits, base_offset, allow_unspecified),
             ensures expected == crate::specs::part2_raw_header_finish(
                 super::raw_header_state(image, &color, saw_bpcc, &palette, component_mappings@,
-                    channel_definition_records@, capture_resolution, display_resolution, nested_box_count), base_offset),
+                    channel_definition_records@, capture_resolution, display_resolution, nested_box_count), base_offset, allow_unspecified),
             decreases payload.len() as int - reader.position as int,
         )
     )]
@@ -416,12 +478,18 @@ pub(super) fn parse_jp2_header(
             MalformedKind::MissingRequiredStructure,
         ));
     }
-    let color = color.ok_or_else(
-        #[cfg_attr(verus_keep_ghost, verus_spec(result: DecodeError =>
-            ensures result == crate::specs::part2_raw_header_missing(base_offset),
-        ))]
-        || DecodeError::malformed(base_offset, MalformedKind::MissingRequiredStructure),
-    )?;
+    let color = match color {
+        Some(color) => color,
+        None if allow_unspecified && image.unknown_color_space => {
+            unspecified_jph_color(&channel_definition_records, base_offset)?
+        }
+        None => {
+            return Err(DecodeError::malformed(
+                base_offset,
+                MalformedKind::MissingRequiredStructure,
+            ));
+        }
+    };
 
     let (palette_entries, palette_columns) = match &palette {
         Some(parsed) => (parsed.entries(), parsed.columns.len() as u8),

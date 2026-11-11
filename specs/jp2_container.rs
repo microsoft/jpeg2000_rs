@@ -72,7 +72,8 @@ pub open spec fn part2_container_step(
             } else {
                 match part2_box_payload_offset(input.0) {
                     Err(error) => Err(error),
-                    Ok(base) => match part2_parse_jp2_header(input.1, limits, base) {
+                    Ok(base) => match part2_parse_jp2_header_profile(input.1, limits, base,
+                        part2_file_type_compatible(file_type, crate::jp2::BoxType::JPH_BRAND)) {
                         Err(error) => Err(error),
                         Ok(header) => Ok(Part2RawContainerState { header: Some(header), ..state }),
                     },

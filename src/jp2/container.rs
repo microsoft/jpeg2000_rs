@@ -5,8 +5,8 @@ use super::{
     ComponentBitDepth, CompositingLayer, Composition, DecodeError, FileType, InspectedJp2, Jp2File,
     Jp2Header, MalformedKind, Resource, ResourceLimits, SIGNATURE_MAGIC, box_reader_from_input,
     box_type_from_bytes, codestream, inspect_metadata_box, parse_codestream_header,
-    parse_compositing_layer, parse_composition, parse_jp2_header, read_box_type_at, read_u32,
-    required_box, validate_layer_references,
+    parse_compositing_layer, parse_composition, parse_jp2_header_profile, read_box_type_at,
+    read_u32, required_box, validate_layer_references,
 };
 #[cfg(verus_keep_ghost)]
 use super::{
@@ -582,10 +582,11 @@ pub fn parse<'a>(input: &'a [u8], limits: &ResourceLimits) -> Result<Jp2File<'a>
                     MalformedKind::InvalidBoxOrder,
                 ));
             }
-            parsed_header = Some(parse_jp2_header(
+            parsed_header = Some(parse_jp2_header_profile(
                 box_ref.payload,
                 limits,
                 box_ref.header.payload_offset()?,
+                file_type.is_jph_compatible(),
             )?);
         } else if box_type.equals(BoxType::CODESTREAM_HEADER) {
             if !file_type.is_jpx_compatible() {

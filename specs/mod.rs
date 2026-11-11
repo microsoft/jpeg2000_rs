@@ -4771,6 +4771,9 @@ pub open spec fn color_output_format(method: crate::jp2::ColorMethod)
     -> Result<(usize, crate::color::ConvertedColorSpace, bool), crate::DecodeError>
 {
     match method {
+        crate::jp2::ColorMethod::Unspecified => Err(crate::DecodeError::UnsupportedColorConversion {
+            reason: crate::UnsupportedColorConversion::UnspecifiedColorSpace,
+        }),
         crate::jp2::ColorMethod::Enumerated { color_space: crate::jp2::ENUMERATED_SRGB } =>
             Ok((3, crate::color::ConvertedColorSpace::Srgb, false)),
         crate::jp2::ColorMethod::Enumerated { color_space: crate::jp2::ENUMERATED_GRAYSCALE } =>

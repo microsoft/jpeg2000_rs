@@ -2804,7 +2804,10 @@ _RAW_CONTAINER_MODELS = {
         "part2_container_finish", "part2_container_attach", "part2_container_initial_state",
         "part2_container_next_stream_count", "part2_container_error",
     )
-} | {("specs/jp2_file_type.rs", "part2_container_prologue")}
+} | {
+    ("specs/jp2_file_type.rs", "part2_container_prologue"),
+    ("specs/jp2_header.rs", "part2_parse_jp2_header_profile"),
+}
 _RAW_CONTAINER_PROOFS = {
     ("src/jp2/proof_support.rs", name) for name in (
         "raw_jp2_file_outcome", "raw_jp2_file_view", "raw_container_state",
@@ -2884,10 +2887,19 @@ _RAW_JP2_HEADER_CONTRACTS = {
         "part2_parse_jp2_header", _coverage_call("super::raw_jp2_header_outcome", r"\1"), None,
         r"payload\s*@\s*,\s*\*\s*limits\s*,\s*base_offset",
     ),
+    ("src/jp2/headers.rs", "parse_jp2_header_profile"): (
+        "part2_parse_jp2_header_profile", _coverage_call("super::raw_jp2_header_outcome", r"\1"), None,
+        r"payload\s*@\s*,\s*\*\s*limits\s*,\s*base_offset\s*,\s*allow_unspecified",
+    ),
+    ("src/jp2/headers.rs", "unspecified_jph_color"): (
+        "part2_unspecified_jph_color", _coverage_call("super::color_specification_outcome", r"\1"), None,
+        _coverage_call("super::channel_definition_records_view", r"definitions\s*@") + r"\s*,\s*base_offset",
+    ),
 }
 _RAW_JP2_HEADER_MODELS = {
     ("specs/jp2_header.rs", name) for name in (
-        "part2_parse_jp2_header", "part2_raw_header_boxes", "part2_raw_header_step",
+        "part2_parse_jp2_header", "part2_parse_jp2_header_profile", "part2_unspecified_jph_color",
+        "part2_raw_header_boxes", "part2_raw_header_step",
         "part2_raw_header_finish", "part2_raw_header_missing",
     )
 } | {
@@ -2905,7 +2917,24 @@ _RAW_JP2_HEADER_MODELS = {
 _RAW_JP2_HEADER_PROOFS = {
     ("src/jp2/proof_support.rs", name) for name in (
         "raw_header_state", "raw_jp2_header_view", "raw_jp2_header_outcome",
+        "full_color_specification_view", "color_specification_outcome", "channel_definition_records_view",
     )
+}
+_RAW_JP2_HEADER_TESTS = {
+    ("src/jp2/tests.rs", name) for name in (
+        "actual_raw_jp2_header_retains_every_owned_metadata_field_from_real_raw_producers",
+        "actual_raw_jp2_header_preserves_first_color_and_ignores_later_interpretations",
+        "actual_raw_jp2_header_keeps_initial_required_input_metadata_and_later_progress_priority",
+        "actual_raw_jp2_header_keeps_duplicate_checks_and_resolution_parse_before_duplicate",
+        "actual_raw_jp2_header_keeps_final_bpcc_palette_mapping_and_color_requirements",
+        "actual_raw_jp2_header_uses_actual_mapping_count_at_the_channel_definition_site",
+        "sarah_dev_629a0a9c39_later_colour_interpretations_preserve_selected_metadata",
+        "sarah_dev_629a0a9c39_ignored_prefixes_keep_selected_and_error_policies",
+    )
+} | {
+    ("src/jp2/tests.rs", "sarah_dev_174ec5fee4_only_declared_jph_profile_admits_absent_colour"),
+    ("src/jp2/tests.rs", "sarah_dev_174ec5fee4_unspecified_jph_rejects_colour_channel_claims"),
+    ("src/decode/tests.rs", "sarah_dev_174ec5fee4_jph_components_do_not_require_specified_colour"),
 }
 _PALETTE_RESULT_ENTRY = "part2-complete-native-raw-owned-palette-result"
 _PALETTE_RESULT_CONTRACTS = {
@@ -5617,7 +5646,8 @@ def validate_normative_coverage(
             required = (
                 "box_reader_from_input(input, limits)?", "required_box(&mut reader, 0)?",
                 "box_type.equals(BoxType::SIGNATURE) || box_type.equals(BoxType::FILE_TYPE)",
-                "parse_jp2_header(", "parse_codestream_header(", "parse_compositing_layer(box_ref, limits)?",
+                "parse_jp2_header_profile(", "file_type.is_jph_compatible()",
+                "parse_codestream_header(", "parse_compositing_layer(box_ref, limits)?",
                 "parse_composition(box_ref, limits)?", "inspect_metadata_box(box_ref, limits, 1, u32::MAX - 1)?",
                 "let mut box_count = 2_u64", "metadata_depth = metadata_depth.max(depth)",
                 "super::clone_support::codestream_association_clone(", ".get_mut(header_index)",
@@ -5629,7 +5659,9 @@ def validate_normative_coverage(
                 raise ValueError("whole raw container Result requires actual source producers/counters/owned attachment/output handoffs")
             model = source_text((ROOT / "specs/jp2_container.rs").resolve())
             for name, required in {
-                "part2_container_step": ("previous.box_count == u64::MAX", "part2_parse_jp2_header(", "part2_parse_codestream_header(",
+                "part2_container_step": ("previous.box_count == u64::MAX", "part2_parse_jp2_header_profile(",
+                    "part2_file_type_compatible(file_type, crate::jp2::BoxType::JPH_BRAND)",
+                    "part2_parse_codestream_header(",
                     "kind == crate::jp2::BoxType::SIGNATURE || kind == crate::jp2::BoxType::FILE_TYPE",
                     "part2_parse_compositing_layer(", "part2_parse_composition(", "part2_inspect_metadata_box(",
                     "metadata_depth: if state.metadata_depth < value.1 { value.1 } else { state.metadata_depth }"),
@@ -5854,10 +5886,21 @@ def validate_normative_coverage(
             if {(ref["path"], ref["symbol"]) for ref in entry["contract_refs"]} != set(_RAW_JP2_HEADER_CONTRACTS):
                 raise ValueError("whole raw JP2 header Result requires actual complete assembler contract")
             if not _RAW_JP2_HEADER_MODELS.issubset({(ref["path"], ref["symbol"]) for ref in entry["spec_refs"]}) \
-                    or not _RAW_JP2_HEADER_PROOFS.issubset({(ref["path"], ref["symbol"]) for ref in entry["proof_refs"]}):
+                    or not _RAW_JP2_HEADER_PROOFS.issubset({(ref["path"], ref["symbol"]) for ref in entry["proof_refs"]}) \
+                    or not _RAW_JP2_HEADER_TESTS.issubset({(ref["path"], ref["symbol"]) for ref in entry["test_refs"]}):
                 raise ValueError("whole raw JP2 header Result requires every raw producer and complete owned metadata bridge")
             path = (ROOT / "src/jp2/headers.rs").resolve()
-            body = _coverage_function_body(source_text(path), function_header(path, "parse_jp2_header"))
+            text = source_text(path)
+            strict = _coverage_function_body(text, function_header(path, "parse_jp2_header"))
+            if strict is None or "parse_jp2_header_profile(payload,limits,base_offset,false)" not in "".join(strict.split()):
+                raise ValueError("whole raw JP2 header Result requires strict JP2 forwarding without unspecified-colour admission")
+            absent = _coverage_function_body(text, function_header(path, "unspecified_jph_color"))
+            if absent is None or any("".join(item.split()) not in "".join(absent.split()) for item in (
+                "definitions[index].definition.channel_type()", "ChannelType::Color", "MalformedKind::InvalidProfile",
+                "method: ColorMethod::Unspecified", "precedence: 0", "approximation: 0", "icc_profile: None",
+            )):
+                raise ValueError("whole raw JP2 header Result requires actual explicit-absence construction and colour-channel exclusion")
+            body = _coverage_function_body(text, function_header(path, "parse_jp2_header_profile"))
             required = (
                 "box_reader_from_input(payload, limits)?", "required_box(&mut reader, 0)",
                 "parse_image_header(image_box, limits, base_offset)?",
@@ -5867,6 +5910,8 @@ def validate_normative_coverage(
                 "parse_palette(box_ref, base_offset)?", "validate_bpcc(box_ref, image, base_offset)?",
                 "parse_component_mapping(box_ref, image.components, palette_columns, limits, base_offset,)",
                 "parse_channel_definition(box_ref, output_channels, base_offset)?",
+                "None if allow_unspecified && image.unknown_color_space",
+                "unspecified_jph_color(&channel_definition_records, base_offset)?",
                 "let (capture, display) = parse_resolution_superbox(",
                 "Ok(Jp2Header { image, color, nested_box_count, palette_entries, palette_columns, component_mapping_entries, channel_definitions, palette, component_mappings, channel_definition_records, capture_resolution, display_resolution, })",
             )
@@ -5878,12 +5923,16 @@ def validate_normative_coverage(
             model = source_text((ROOT / "specs/jp2_header.rs").resolve())
             for name, required in {
                 "part2_parse_jp2_header": (
+                    "part2_parse_jp2_header_profile(payload, limits, base, false)",
+                ),
+                "part2_parse_jp2_header_profile": (
                     "part2_box_reader_from_input(payload, limits)", "part2_box_reader_required(reader, 0)",
                     "part2_parse_image_header(input, &limits, base)",
                 ),
                 "part2_raw_header_boxes": (
                     "next.1.position <= reader.position || next.1.position > payload.len()",
                     "state.nested == u32::MAX", "nested: (state.nested + 1) as u32",
+                    "part2_raw_header_finish(state, base, allow_unspecified)",
                 ),
                 "part2_raw_header_step": (
                     "part2_parse_color_specification(input, base)", "state.color.is_none()",
@@ -5892,10 +5941,16 @@ def validate_normative_coverage(
                     "part2_parse_channel_definition(", "part2_parse_resolution_superbox(input.1, limits, nested_base)",
                 ),
                 "part2_raw_header_finish": (
+                    "allow_unspecified && state.image.unknown_color_space",
+                    "part2_unspecified_jph_color(state.definitions, base)",
                     "state.palette.is_some() && state.mappings.len() == 0",
                     "component_mapping_entries: state.mappings.len() as u16",
                     "channel_definitions: state.definitions.len() as u16",
                     "palette: state.palette, mappings: state.mappings, definitions: state.definitions",
+                ),
+                "part2_unspecified_jph_color": (
+                    "definitions[i].1.0 == crate::ChannelType::Color", "crate::MalformedKind::InvalidProfile",
+                    "Ok((crate::jp2::ColorMethod::Unspecified, 0, 0, None))",
                 ),
             }.items():
                 actual = _coverage_spec_function_body(model, name)

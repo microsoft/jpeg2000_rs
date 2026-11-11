@@ -208,6 +208,14 @@ subsampled, and origin-aware channels and alpha handling.
 Palette boxes admit 1 through 1,024 entries and retain up to 255 columns;
 an out-of-domain entry count is rejected before descriptor/table interpretation.
 
+JPH component APIs retain typed planes when `colr` is absent and IHDR declares
+`UnkC=1`. `ColorMethod::Unspecified` represents that absence explicitly; it is
+not an enumerated colour value or an invented `colr` box. Its precedence and
+approximation placeholders are zero and its ICC profile is absent. Colour-channel
+claims without specified colour are rejected. Explicit colour conversion reports
+`UnsupportedColorConversion::UnspecifiedColorSpace` rather than inferring RGB or
+grayscale. JP2/JPX and `UnkC=0` retain their required-colour checks.
+
 JPX exposes codestream/header association, layer registration, channel
 association, opacity, composition instructions, timing, and indexed frame
 rendering. Rendering is bounded and deterministic; it does not provide a

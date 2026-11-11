@@ -5458,6 +5458,84 @@ fn decodes_ht_refinement_packet_body_through_inverse_quantization() {
 }
 
 #[test]
+fn sarah_dev_174ec5fee4_jph_components_do_not_require_specified_colour() {
+    for (coding, packet, expected) in [
+        (&[0, 0x10][..], &[0xe4, 0xfe, 0x00, 0x63, 0x00][..], 129),
+        (&[0, 0x18][..], &[0xf1, 0x80, 0x00, 0x63, 0x00][..], 125),
+    ] {
+        let mut codestream = prepared_codestream(1, 1, 1, coding, packet);
+        let siz = codestream
+            .windows(2)
+            .position(|bytes| bytes == [0xff, 0x51])
+            .unwrap();
+        codestream[siz + 4..siz + 6].copy_from_slice(&0x4000_u16.to_be_bytes());
+        let cod = codestream
+            .windows(2)
+            .position(|bytes| bytes == [0xff, 0x52])
+            .unwrap();
+        codestream.splice(cod..cod, segment(0xff50, &[0, 2, 0, 0, 0, 8]));
+        let cod = codestream
+            .windows(2)
+            .position(|bytes| bytes == [0xff, 0x52])
+            .unwrap();
+        codestream[cod + 9] = 0;
+        codestream[cod + 12] = 0x40;
+        let mut ihdr = Vec::new();
+        ihdr.extend_from_slice(&1_u32.to_be_bytes());
+        ihdr.extend_from_slice(&1_u32.to_be_bytes());
+        ihdr.extend_from_slice(&1_u16.to_be_bytes());
+        ihdr.extend_from_slice(&[7, 7, 1, 0]);
+        let unspecified_header = box32(*b"ihdr", &ihdr);
+        let mut specified_header = unspecified_header.clone();
+        specified_header.extend(box32(*b"colr", &[1, 0, 0, 0, 0, 0, 17]));
+        let wrap = |header: &[u8]| {
+            let mut file = box32(*b"jP  ", &[0x0d, 0x0a, 0x87, 0x0a]);
+            file.extend(box32(*b"ftyp", b"jph \0\0\0\0jph "));
+            file.extend(box32(*b"jp2h", header));
+            file.extend(box32(*b"jp2c", &codestream));
+            file
+        };
+        let options = DecodeOptions::default();
+        let specified = wrap(&specified_header);
+        let control = decode_jph(&specified, &options).unwrap();
+        assert_eq!(
+            control.component(0).unwrap().samples(),
+            &crate::image::TypedSamples::Unsigned(vec![expected])
+        );
+        let unspecified = wrap(&unspecified_header);
+        let inspected = crate::jp2::inspect_jph(&unspecified, options.limits()).unwrap();
+        let header = inspected.file().header();
+        assert_eq!(header.color.method(), crate::jp2::ColorMethod::Unspecified);
+        assert_eq!(header.color.icc_profile(), None);
+        assert_eq!(
+            (header.color.precedence, header.color.approximation),
+            (0, 0)
+        );
+        assert_eq!(header.nested_box_count, 1);
+        let actual = decode_jph(&unspecified, &options).unwrap();
+        assert_eq!(actual, control);
+        assert_eq!(
+            super::decode_jph_color(&unspecified, &options),
+            Err(DecodeError::UnsupportedColorConversion {
+                reason: crate::UnsupportedColorConversion::UnspecifiedColorSpace,
+            })
+        );
+        for selection in [DecodeSelection::full_image(), DecodeSelection::tile(0)] {
+            assert_eq!(
+                super::decode_jph_selected(&unspecified, &options, &selection).unwrap(),
+                control
+            );
+            assert_eq!(
+                super::decode_jph_color_selected(&unspecified, &options, &selection),
+                Err(DecodeError::UnsupportedColorConversion {
+                    reason: crate::UnsupportedColorConversion::UnspecifiedColorSpace,
+                })
+            );
+        }
+    }
+}
+
+#[test]
 fn top_level_jph_decodes_cleanup_only_ht_coefficients() {
     let mut codestream = prepared_codestream(1, 1, 1, &[0, 0x10], &[0xe4, 0xfe, 0x00, 0x63, 0x00]);
     let siz = codestream

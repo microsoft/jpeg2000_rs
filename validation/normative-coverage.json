@@ -1221,7 +1221,7 @@
     },
     {
       "id": "part2-complete-native-raw-container-result",
-      "topic": "Complete actual raw container::parse Result from bytes and actual limits, retaining original prologue relation, every full header/file-type/stream/association/layer/composition field, metadata count/depth and root box count. Sarah DEV-2D75F3E8F6/DEV-056D9FBFB2: later signature and file-type boxes are InvalidBoxOrder at their actual offsets, not ignorable metadata, after original framing/reader/resource/root-count checks. Unknown opaque payloads containing prefix bytes remain untouched. Source producers, other native order/resource/reader/error priorities and original owner scopes preserved. Real checked association cloning attaches only the original association field; complete mutable vector frame preserves all other entries and original stored headers/payloads. No supplied successful-stage banks, assumed validity, owner reconstruction, runtime proof clones or trust/budget changes. Native extraction/routing/caller observations and full fresh qualification required. Inspection/timeline/public/normative/lifetime/cfg/release separate.",
+      "topic": "Complete actual raw container::parse Result from bytes and actual limits, retaining original prologue relation, every full header/file-type/stream/association/layer/composition field, metadata count/depth and root box count. Sarah DEV-174EC5FEE4: derive profile-aware header admission from actual checked JPH file-type compatibility, not a caller success premise; strict JP2/JPX paths remain distinct and absent colour stays explicit metadata. Sarah DEV-2D75F3E8F6/DEV-056D9FBFB2: later signature and file-type boxes are InvalidBoxOrder at their actual offsets, not ignorable metadata, after original framing/reader/resource/root-count checks. Unknown opaque payloads containing prefix bytes remain untouched. Other native order/resource/reader/error priorities and original owner scopes preserved. Real checked association cloning attaches only the original association field; complete mutable vector frame preserves all other entries and stored headers/payloads. No successful-stage banks, assumed validity, owner reconstruction, executing clones or trust/budget changes. Independent normative/lifetime/cfg/release gates remain separate.",
       "implementation_refs": [
         {"path": "src/jp2/container.rs", "symbol": "parse_and_inspect"},
         {"path": "src/jp2/container.rs", "symbol": "parse"},
@@ -1232,6 +1232,7 @@
       ],
       "spec_refs": [
         {"path": "specs/jp2_file_type.rs", "symbol": "part2_container_prologue"},
+        {"path": "specs/jp2_header.rs", "symbol": "part2_parse_jp2_header_profile"},
         {"path": "specs/jp2_container.rs", "symbol": "part2_parse_container"},
         {"path": "specs/jp2_container.rs", "symbol": "part2_container_boxes"},
         {"path": "specs/jp2_container.rs", "symbol": "part2_container_step"},
@@ -1501,14 +1502,18 @@
     },
     {
       "id": "part2-complete-native-raw-jp2-header-result",
-      "topic": "Complete actual raw JP2 header assembler Result over bytes/limits/base: every image/color/ICC/count/palette/mapping/definition/resolution field and exact producer/error order. Sarah DEV-629A0A9C39: fully parse the first selected color, retain it and ignore later interpretations after shared three-byte prefix validation; still frame/count/charge every later box and reject short common prefixes. Actual initial required versus later progress-before-error priority, second resolution parse-before-duplicate and actual mapping count at definitions retained. Original owner scopes preserved, no supplied successful parsed-header bank/validity premise/owner inversion/runtime proof clone. Associated header cloning/whole container/inspection/public/normative/cfg/erasure/lifetimes/release remain separate.",
+      "topic": "Complete actual raw header assembler Result over bytes/limits/base/profile: strict JP2 wrapper delegates to the sole profile-aware producer withfalse; actual JPH file branding selects profile admission. Sarah DEV-174EC5FEE4: absent COLR is explicitly ColorMethod::Unspecified only when JPH context and actual IHDR unknown flag permit it; its checked constructor scan rejects colour-channel claims without specified colour. No invented enumerated colour/ICC profile; explicit conversion returns UnspecifiedColorSpace while typed full/selected planes remain independent. Every image/color/ICC/count/palette/mapping/definition/resolution field and original producer/error order retained. Sarah DEV-629A0A9C39: parse first selected color, retain it and ignore later interpretations after shared three-byte prefix validation; frame/count/charge every later box and reject short prefixes. Initial required versus later progress-before-error, second resolution parse-before-duplicate and actual mapping count at definitions preserved. No supplied successful parsed-header bank/validity premise/owner inversion/runtime proof clone. Independent selected-edition review/coverage/cfg/erasure/lifetimes/release remain separate.",
       "implementation_refs": [
         {"path": "src/jp2/headers.rs", "symbol": "parse_jp2_header"},
+        {"path": "src/jp2/headers.rs", "symbol": "parse_jp2_header_profile"},
+        {"path": "src/jp2/headers.rs", "symbol": "unspecified_jph_color"},
         {"path": "src/jp2/headers.rs", "symbol": "parse_codestream_header"},
         {"path": "src/jp2/container.rs", "symbol": "parse"}
       ],
       "spec_refs": [
         {"path": "specs/jp2_header.rs", "symbol": "part2_parse_jp2_header"},
+        {"path": "specs/jp2_header.rs", "symbol": "part2_parse_jp2_header_profile"},
+        {"path": "specs/jp2_header.rs", "symbol": "part2_unspecified_jph_color"},
         {"path": "specs/jp2_header.rs", "symbol": "part2_raw_header_boxes"},
         {"path": "specs/jp2_header.rs", "symbol": "part2_raw_header_step"},
         {"path": "specs/jp2_header.rs", "symbol": "part2_raw_header_finish"},
@@ -1525,12 +1530,17 @@
         {"path": "specs/jp2_resolution.rs", "symbol": "part2_parse_resolution_superbox"}
       ],
       "contract_refs": [
-        {"path": "src/jp2/headers.rs", "symbol": "parse_jp2_header"}
+        {"path": "src/jp2/headers.rs", "symbol": "parse_jp2_header"},
+        {"path": "src/jp2/headers.rs", "symbol": "parse_jp2_header_profile"},
+        {"path": "src/jp2/headers.rs", "symbol": "unspecified_jph_color"}
       ],
       "proof_refs": [
         {"path": "src/jp2/proof_support.rs", "symbol": "raw_header_state"},
         {"path": "src/jp2/proof_support.rs", "symbol": "raw_jp2_header_view"},
-        {"path": "src/jp2/proof_support.rs", "symbol": "raw_jp2_header_outcome"}
+        {"path": "src/jp2/proof_support.rs", "symbol": "raw_jp2_header_outcome"},
+        {"path": "src/jp2/proof_support.rs", "symbol": "full_color_specification_view"},
+        {"path": "src/jp2/proof_support.rs", "symbol": "color_specification_outcome"},
+        {"path": "src/jp2/proof_support.rs", "symbol": "channel_definition_records_view"}
       ],
       "test_refs": [
         {"path": "src/jp2/tests.rs", "symbol": "actual_raw_jp2_header_retains_every_owned_metadata_field_from_real_raw_producers"},
@@ -1540,7 +1550,10 @@
         {"path": "src/jp2/tests.rs", "symbol": "actual_raw_jp2_header_keeps_final_bpcc_palette_mapping_and_color_requirements"},
         {"path": "src/jp2/tests.rs", "symbol": "actual_raw_jp2_header_uses_actual_mapping_count_at_the_channel_definition_site"},
         {"path": "src/jp2/tests.rs", "symbol": "sarah_dev_629a0a9c39_later_colour_interpretations_preserve_selected_metadata"},
-        {"path": "src/jp2/tests.rs", "symbol": "sarah_dev_629a0a9c39_ignored_prefixes_keep_selected_and_error_policies"}
+        {"path": "src/jp2/tests.rs", "symbol": "sarah_dev_629a0a9c39_ignored_prefixes_keep_selected_and_error_policies"},
+        {"path": "src/jp2/tests.rs", "symbol": "sarah_dev_174ec5fee4_only_declared_jph_profile_admits_absent_colour"},
+        {"path": "src/jp2/tests.rs", "symbol": "sarah_dev_174ec5fee4_unspecified_jph_rejects_colour_channel_claims"},
+        {"path": "src/decode/tests.rs", "symbol": "sarah_dev_174ec5fee4_jph_components_do_not_require_specified_colour"}
       ]
     },
     {
