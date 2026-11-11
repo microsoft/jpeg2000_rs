@@ -4,6 +4,20 @@ use super::*;
 
 verus! {
 
+#[verifier::opaque]
+pub open spec fn part2_jpip_placeholder_reconstruction(
+    flags: u32, original: Seq<u8>, equivalent: Option<Seq<u8>>,
+) -> Result<(u8, Seq<u8>), crate::DecodeError> {
+    if flags & 1 != 0 { Ok((0, original)) }
+    else if flags & 2 != 0 {
+        match equivalent {
+            Some(header) => Ok((1, header)),
+            None => Err(part2_jpip_cache_error(0, crate::MalformedKind::InvalidBoxContents)),
+        }
+    } else if flags & 4 != 0 { Ok((2, original)) }
+    else { Ok((3, original)) }
+}
+
 pub open spec fn part2_jpip_layout_error(offset: u64) -> crate::DecodeError {
     part2_jpip_cache_error(offset, crate::MalformedKind::InvalidJpipLayout)
 }

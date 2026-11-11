@@ -1666,6 +1666,56 @@ class FrameworkTests(WorkingFiles):
                     self.assertRaisesRegex(ValueError, "whole raw JPIP response"):
                 framework.validate_normative_coverage(dict(coverage, requirements=[entry]))
 
+    def test_inventory_placeholder_reconstruction_binds_raw_flags_and_header_results(self):
+        self._assert_complete_packet_contract_bindings(
+            {framework._JPIP_PLACEHOLDER_ENTRY}, framework._JPIP_PLACEHOLDER_CONTRACTS, 1, isolate=False,
+        )
+
+    def test_spec_body_lookup_retains_parent_visibility_and_unique_definition(self):
+        for visibility in ("pub", "pub(crate)", "pub(super)"):
+            source = f"{visibility} open spec fn projection(flag: bool) -> bool {{\n    flag\n}}\n"
+            with self.subTest(visibility=visibility):
+                body = framework._coverage_spec_function_body(source, "projection")
+                self.assertIsNotNone(body)
+                self.assertIn("flag", body)
+                self.assertIsNone(framework._coverage_spec_function_body(source + source, "projection"))
+
+    def test_inventory_placeholder_reconstruction_requires_every_bridge(self):
+        coverage = json.loads((framework.VALIDATION / "normative-coverage.json").read_text())
+        entry = next(item for item in coverage["requirements"] if item["id"] == framework._JPIP_PLACEHOLDER_ENTRY)
+        for field in ("implementation_refs", "contract_refs", "spec_refs", "proof_refs", "test_refs"):
+            for removed in entry[field]:
+                changed = copy.deepcopy(entry)
+                changed[field].remove(removed)
+                with self.subTest(field=field, removed=removed), self.assertRaises(ValueError):
+                    framework.validate_normative_coverage(dict(coverage, requirements=[changed]))
+
+    def test_inventory_placeholder_reconstruction_rejects_mixed_representation_and_trimmed_models(self):
+        coverage = json.loads((framework.VALIDATION / "normative-coverage.json").read_text())
+        entry = next(item for item in coverage["requirements"] if item["id"] == framework._JPIP_PLACEHOLDER_ENTRY)
+        read_text = Path.read_text
+        for relative, before, after in (
+            ("src/jpip/reconstruction.rs", "PlaceholderSource::Equivalent, header", "PlaceholderSource::Equivalent, original"),
+            ("src/jpip/reconstruction.rs", "append_reconstructed_box(output, header, &payload)",
+             "append_reconstructed_box(output, &placeholder.original_header, &payload)"),
+            ("src/jpip/reconstruction.rs", "let replacement_complete = match source {",
+             "let replacement_complete = match PlaceholderSource::Original {"),
+            ("src/jpip/reconstruction.rs", "Some(bytes) => Some(bytes@)", "Some(bytes) => Some(Seq::empty())"),
+            ("src/jpip/reconstruction.rs", "Err(error) => Err(error)", "Err(error) => Err(other_error)"),
+            ("specs/jpip_layout.rs", "Some(header) => Ok((1, header))", "Some(header) => Ok((1, original))"),
+        ):
+            source = framework.ROOT / relative
+            original = source.read_text()
+            self.assertIn(before, original)
+            changed = original.replace(before, after, 1)
+
+            def altered(path, *args, **kwargs):
+                return changed if path == source else read_text(path, *args, **kwargs)
+
+            with self.subTest(before=before), mock.patch.object(Path, "read_text", altered), \
+                    self.assertRaisesRegex(ValueError, "placeholder representation selection"):
+                framework.validate_normative_coverage(dict(coverage, requirements=[entry]))
+
     def test_inventory_jpip_layout_binds_both_complete_public_results(self):
         self._assert_complete_packet_contract_bindings(
             {framework._JPIP_LAYOUT_ENTRY}, framework._JPIP_LAYOUT_CONTRACTS, 4, isolate=False,
