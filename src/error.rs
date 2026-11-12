@@ -170,11 +170,11 @@ pub enum DecodeError {
         limit: u64,
         actual: u64,
     },
-    /// Storage reservation was refused, including an unrepresentable capacity.
-    AllocationFailed,
     Io {
         kind: IoKind,
     },
+    /// Storage reservation was refused, including an unrepresentable capacity.
+    AllocationFailed,
 }
 
 impl DecodeError {
