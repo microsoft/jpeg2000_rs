@@ -7817,7 +7817,7 @@
     },
     {
       "id": "part2-complete-native-container-selection-output",
-      "topic": "Complete actual native tile geometry, ordered selection range/duplicate/rectangle/region/intersection validation, requested target and resampling context, real parsed-codestream header choice/validation, associated CMAP/CDEF/image admission and full/selected color output. All malformed native descriptors/requests/typed components, None/empty/identity and actual errors/caps included; only private loop bounds derive from actual guards. Relative to actual parsed metadata and typed inputs, not compressed parser-to-pixel/F8 or normative conformance.",
+      "topic": "Complete actual native tile/selection geometry, requested target, source-derived resampling context, parsed header choice/validation, associated metadata and full/selected color output. CRG physical offsets use component-separation units; actual context padding derives the required coded predecessor coordinate through the shared arithmetic primitive, not a fixed one-separation radius. Coded SIZ geometry and raw registration words remain unchanged. Preserve malformed native states, errors/caps, discard and saturated context behavior without supplied results or codec-validity premises. Arithmetic nonzero prerequisites are checked by real callers. This retained-assertion engineering scope is not independent normative or parser-to-pixel/F8 closure.",
       "contract_refs": [
         {"path": "src/codestream/geometry.rs", "symbol": "ImageSize::tile_count"},
         {"path": "src/codestream/geometry.rs", "symbol": "ImageSize::tile_bounds"},
@@ -7833,6 +7833,7 @@
         {"path": "src/decode/selection.rs", "symbol": "explicit_tiles_from_selection"},
         {"path": "src/decode/selection.rs", "symbol": "validate_selection"},
         {"path": "src/decode/output.rs", "symbol": "color_selection_from_validated"},
+        {"path": "src/decode/output.rs", "symbol": "component_context_padding"},
         {"path": "src/decode/output.rs", "symbol": "color_selection_for_size"},
         {"path": "src/decode/output.rs", "symbol": "apply_associated_output"},
         {"path": "src/decode/output.rs", "symbol": "convert_associated_color"},
@@ -7846,6 +7847,7 @@
         {"path": "src/decode/output.rs", "symbol": "color_selection"},
         {"path": "src/decode/output.rs", "symbol": "color_selection_for_size"},
         {"path": "src/decode/output.rs", "symbol": "color_selection_from_validated"},
+        {"path": "src/decode/output.rs", "symbol": "component_context_padding"},
         {"path": "src/decode/selection.rs", "symbol": "validate_selection"},
         {"path": "src/decode/selection.rs", "symbol": "validate_selection_tile_rectangle"},
         {"path": "src/decode/selection.rs", "symbol": "validate_selection_rectangle_cells"},
@@ -7875,6 +7877,8 @@
         {"path": "specs/mod.rs", "symbol": "part2_selection_explicit"},
         {"path": "specs/mod.rs", "symbol": "part2_validate_selection"},
         {"path": "specs/mod.rs", "symbol": "part2_color_selection_context"},
+        {"path": "specs/mod.rs", "symbol": "part2_color_context_padding"},
+        {"path": "specs/mod.rs", "symbol": "part2_crg_component_predecessor"},
         {"path": "specs/mod.rs", "symbol": "part2_color_selection_requested"},
         {"path": "specs/mod.rs", "symbol": "part2_apply_associated_output"},
         {"path": "specs/mod.rs", "symbol": "part2_convert_associated"},
@@ -7892,10 +7896,12 @@
         {"path": "proofs/production_impl/mod.rs", "symbol": "production_rectangle_rows_error"},
         {"path": "proofs/production_impl/mod.rs", "symbol": "production_selected_region_error"},
         {"path": "proofs/production_impl/mod.rs", "symbol": "production_selected_tiles_error"},
-        {"path": "proofs/production_impl/mod.rs", "symbol": "production_color_sampling_error_guard"}
+        {"path": "proofs/production_impl/mod.rs", "symbol": "production_color_sampling_error_guard"},
+        {"path": "src/refinement/geometry.rs", "symbol": "crg_component_predecessor"}
       ],
       "test_refs": [
         {"path": "src/decode/tests.rs", "symbol": "complete_native_selection_and_color_context_match_independent_spatial_reference"},
+        {"path": "src/decode/tests.rs", "symbol": "sarah_engineering_crg_color_context_contains_the_coded_predecessor"},
         {"path": "src/decode/tests.rs", "symbol": "associated_native_output_composes_actual_metadata_color_crop_and_none_bypass"},
         {"path": "src/jp2/tests.rs", "symbol": "complete_native_association_and_selected_header_validation_preserve_raw_choices"},
         {"path": "src/decode/tests.rs", "symbol": "selected_tiles_and_regions_match_full_decode_crops"}
@@ -8448,7 +8454,8 @@
         {"path": "src/image/proof_support.rs", "symbol": "typed_samples_view"},
         {"path": "proofs/spec_properties/mod.rs", "symbol": "color_precision_binary_bounds"},
         {"path": "proofs/production_impl/mod.rs", "symbol": "production_color_plane_step"},
-        {"path": "proofs/production_impl/mod.rs", "symbol": "production_color_plane_error"}
+        {"path": "proofs/production_impl/mod.rs", "symbol": "production_color_plane_error"},
+        {"path": "src/refinement/geometry.rs", "symbol": "crg_component_predecessor"}
       ],
       "spec_refs": [
         {"path": "specs/mod.rs", "symbol": "color_normalize_component"},
@@ -8457,14 +8464,17 @@
         {"path": "specs/mod.rs", "symbol": "color_component_index"},
         {"path": "specs/mod.rs", "symbol": "color_normalize_unsigned"},
         {"path": "specs/mod.rs", "symbol": "color_registered_coordinate"},
+        {"path": "specs/mod.rs", "symbol": "part2_crg_component_predecessor"},
         {"path": "specs/mod.rs", "symbol": "color_pixel_coordinates"}
       ],
       "test_refs": [
         {"path": "src/color/tests.rs", "symbol": "complete_normalized_component_planes_match_wide_registered_reference"},
         {"path": "src/color/tests.rs", "symbol": "registered_coordinates_match_wide_full_domain_boundaries"},
+        {"path": "src/color/tests.rs", "symbol": "sarah_engineering_crg_predecessor_uses_component_separation"},
+        {"path": "src/color/tests.rs", "symbol": "sarah_engineering_crg_context_and_full_sampling_select_identical_actual_values"},
         {"path": "src/color/tests.rs", "symbol": "normalized_component_rejects_every_invalid_stage_input_in_order"}
       ],
-      "topic": "Complete input-relative signed/unsigned integer component sampling and normalized output planes, registration, range and typed first-error behavior"
+      "topic": "Complete input-relative signed/unsigned sampling and normalized planes, range and typed first errors. Physical CRG predecessor uses registration times component separation, shared with selected context preparation. Coded window origins/bounds remain SIZ ceil geometry; CRG does not change decoded sample grids. Explicit full/cropped actual-value controls and unchanged wide raw boundary domains cover the engineering behavior; independent standards closure remains separate."
     },
     {
       "contract_refs": [

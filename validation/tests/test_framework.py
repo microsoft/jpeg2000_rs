@@ -7193,6 +7193,7 @@ class FrameworkTests(WorkingFiles):
             ("src/decode/selection.rs", "explicit_tiles_from_selection", "selected_tiles_outcome", "part2_selection_explicit", ("tile_selection_view(selection)", "tile_selection_view(unrelated)")),
             ("src/decode/selection.rs", "validate_selection", "validated_selection_outcome", "part2_validate_selection", ("decode_selection_view(selection)", "decode_selection_view(unrelated)")),
             ("src/decode/output.rs", "color_selection_from_validated", "color_selection_outcome", "part2_color_selection_context", ("size.x_origin, size.y_origin", "size.y_origin, size.x_origin")),
+            ("src/decode/output.rs", "component_context_padding", None, "part2_color_context_padding", ("target, sampling, registration", "target, sampling, 0")),
             ("src/decode/output.rs", "color_selection_for_size", "color_selection_outcome", "part2_color_selection_requested", ("decode_selection_view(requested)", "decode_selection_view(unrelated)")),
             ("src/decode/output.rs", "apply_associated_output", "associated_typed_outcome", "part2_apply_associated_output", ("typed_image_value_view(decoded)", "typed_image_value_view(unrelated)")),
             ("src/decode/output.rs", "convert_associated_color", "crate::color::converted_image_result", "part2_convert_associated", ("typed_image_value_view(*image)", "typed_image_value_view(*unrelated)")),
@@ -7202,7 +7203,7 @@ class FrameworkTests(WorkingFiles):
             ("src/jp2/container.rs", "validate_container_codestream", None, "part2_validate_selected_header", ("header.image, codestream.image_size.width", "header.image, 0")),
             ("src/jp2/container.rs", "validate_selected_header", None, "part2_validate_selected_header", ("codestream.image_size.uniform_signed, offset", "codestream.image_size.uniform_signed, 0")),
         )
-        self.assertEqual(len(cases), 22)
+        self.assertEqual(len(cases), 23)
         for relative, symbol, projection, model, argument in cases:
             reference = {"path": relative, "symbol": symbol}
             coverage = copy.deepcopy(original_coverage)

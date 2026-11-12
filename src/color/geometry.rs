@@ -50,20 +50,8 @@ pub(super) fn registered_floor_div(
     if divisor == 0 {
         return Err(invalid_color_input());
     }
-    let scale = 65_536_u64;
-    let numerator = u64::from(value)
-        .checked_mul(scale)
-        .ok_or_else(arithmetic_overflow)?;
-    if numerator <= u64::from(registration) {
-        return Ok(0);
-    }
-    let adjusted = numerator
-        .checked_sub(u64::from(registration))
-        .ok_or_else(arithmetic_overflow)?;
-    let denominator = u64::from(divisor)
-        .checked_mul(scale)
-        .ok_or_else(arithmetic_overflow)?;
-    match u32::try_from(adjusted / denominator) {
+    let predecessor = crate::refinement::crg_component_predecessor(value, divisor, registration);
+    match u32::try_from(predecessor) {
         Ok(value) => Ok(value),
         Err(_) => Err(arithmetic_overflow()),
     }

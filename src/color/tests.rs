@@ -4,8 +4,69 @@ use crate::{
     image::{ChannelDefinition, ChannelType, TypedComponent, TypedImage, TypedSamples},
 };
 
+#[test]
+fn sarah_engineering_crg_predecessor_uses_component_separation() {
+    for sampling in [1_u32, 2, 4, 8, 255] {
+        for registration in [0_u16, 1, 32_768, u16::MAX] {
+            for value in 0..=2 * sampling + 3 {
+                let position = u128::from(value) * 65_536;
+                let phase = u128::from(sampling) * u128::from(registration);
+                let expected =
+                    (position.saturating_sub(phase) / (u128::from(sampling) * 65_536)) as u32;
+                assert_eq!(
+                    registered_floor_div(value, sampling, registration),
+                    Ok(expected),
+                    "value={value} sampling={sampling} registration={registration}"
+                );
+                assert_eq!(
+                    registered_ceil_div(value, sampling, registration),
+                    Ok(value.div_ceil(sampling))
+                );
+            }
+        }
+    }
+}
+
+#[test]
+fn sarah_engineering_crg_context_and_full_sampling_select_identical_actual_values() {
+    let info = ComponentInfo {
+        precision: 8,
+        signed: false,
+        x_subsampling: 4,
+        y_subsampling: 1,
+        x_registration: 32_768,
+        y_registration: 0,
+    };
+    let values = [0_u64, 64, 128, 255];
+    let full = TypedComponent::from_parts(4, 1, info, TypedSamples::Unsigned(values.to_vec()));
+    for (coordinate, origin, expected) in [
+        (9_u32, 4_u32, 64_u64),
+        (10, 8, 128),
+        (13, 8, 128),
+        (14, 12, 255),
+    ] {
+        let start = origin.div_ceil(4) as usize;
+        let end = (coordinate + 1).div_ceil(4) as usize;
+        let cropped = TypedComponent::from_parts(
+            (end - start) as u32,
+            1,
+            info,
+            TypedSamples::Unsigned(values[start..end].to_vec()),
+        );
+        assert_eq!(
+            super::normalization::nominal_component_at(&full, 0, 0, coordinate, 0),
+            Ok(expected)
+        );
+        assert_eq!(
+            super::normalization::nominal_component_at(&cropped, origin, 0, coordinate - origin, 0),
+            Ok(expected)
+        );
+    }
+}
+
 fn registered_coordinate_wide(value: u32, sampling: u8, registration: u16, ceil: bool) -> u128 {
-    let numerator = (u128::from(value) * 65_536).saturating_sub(u128::from(registration));
+    let phase = u128::from(registration) * if ceil { 1 } else { u128::from(sampling) };
+    let numerator = (u128::from(value) * 65_536).saturating_sub(phase);
     let denominator = u128::from(sampling) * 65_536;
     if ceil {
         numerator.div_ceil(denominator)
@@ -727,8 +788,9 @@ fn registered_coordinates_match_wide_full_domain_boundaries() {
                     if divisor == 0 {
                         return Err(invalid);
                     }
-                    let numerator =
-                        (u128::from(value) * 65_536).saturating_sub(u128::from(registration));
+                    let phase =
+                        u128::from(registration) * if ceil { 1 } else { u128::from(divisor) };
+                    let numerator = (u128::from(value) * 65_536).saturating_sub(phase);
                     let denominator = u128::from(divisor) * 65_536;
                     let quotient = if ceil {
                         numerator.div_ceil(denominator)

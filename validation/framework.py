@@ -8265,6 +8265,9 @@ def validate_normative_coverage(
                     r"size\.x_origin\s*,\s*size\.y_origin\s*,\s*crate::codestream::image_size_component_infos\s*\(\s*size\s*\)"
                     r"\s*,\s*size\.components\s*,\s*validated_selection_view\s*\(\s*validated\s*\)",
                 ),
+                ("src/decode/output.rs", "component_context_padding"): (
+                    None, "part2_color_context_padding", r"target\s*,\s*sampling\s*,\s*registration",
+                ),
                 ("src/decode/output.rs", "color_selection_for_size"): (
                     "color_selection_outcome", "part2_color_selection_requested",
                     selection_geometry + r"\s*,\s*crate::codestream::image_size_component_infos\s*\(\s*size\s*\)"

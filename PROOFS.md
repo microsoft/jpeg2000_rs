@@ -2801,7 +2801,7 @@ before index/style admission, the one/two-byte threshold 257 and every raw
 shift byte, including 255. Marker identity and later shift execution policy
 are not newly checked in this helper.
 
-CRG binds the complete final parser and all eight Part2 extension fields on
+CRG binds the complete final parser and all Part2 extension fields on
 both success and failure. The actual shared metadata charge runs first:
 payload plus four bytes, checked metadata accumulation, metadata cap and
 actual work charging. Overflow leaves the original relevant counter;
@@ -4039,6 +4039,18 @@ component counts need not fit the physical64 entries; zero subsampling,
 discard>=32, saturated context and unaccessed malformed fields retain actual
 behavior. The original public selection APIs share one real constructor body.
 
+For the retained-assertion engineering CRG rule, one actual bounded arithmetic
+primitive computes the physical predecessor using registration times component
+separation. Both real sampling and context preparation call it. Its sole
+nonzero arithmetic prerequisite is checked by the actual callers; quotient
+bounds derive from Euclidean division, not a supplied valid-image premise.
+Context margins derive the required coded coordinate rather than guessing a
+one-separation radius or testing physical alignment alone. Coded SIZ and
+cropped-plane origins remain unchanged: CRG shifts sampling, not decoding.
+Complete Result/fold models, raw boundary contexts and full/cropped actual
+sample-value controls preserve that distinction and the original error/cap
+policy. Independent standards closure remains separate.
+
 The actual selected-codestream header producer chooses the parsed association
 or real fallback and reports a missing association at its real box offset.
 Actual container/codestream metadata validation includes native uniform/
@@ -4048,7 +4060,7 @@ and selected color conversion. The selected finishing body composes mapping,
 color and crop, including None bypass/missing-header ordering and actual byte/
 work admission before later crop errors.
 
-Twenty-two finite exact producer/model/result/input recipes bind these actual
+Twenty-three finite exact producer/model/result/input recipes bind these actual
 stages and genuine callers. Independent tests compare27,648 raw geometry/
 request/context cases,1,536 uniform-header cases, actual header choices and
 offsets, known full/selected grayscale samples, None identity, malformed typed

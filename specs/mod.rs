@@ -2728,18 +2728,37 @@ pub open spec fn part2_color_target(region: Seq<u32>, discard: u8) -> Result<Seq
     }
 }
 
+pub open spec fn part2_crg_component_predecessor(value: u32, divisor: u32, registration: u16) -> u64
+    recommends divisor > 0,
+{
+    let position = value as nat * 65536;
+    let phase = divisor as nat * registration as nat;
+    let adjusted = if position <= phase { 0nat } else { (position - phase) as nat };
+    (adjusted / (divisor as nat * 65536)) as u64
+}
+
+pub open spec fn part2_color_context_padding(target: u32, sampling: u8, registration: u16)
+    -> Result<u32, crate::DecodeError>
+{
+    if sampling == 0 { Err(part1_block_placement_error(false)) }
+    else {
+        let coded = part2_crg_component_predecessor(target, sampling as u32, registration) as nat * sampling as nat;
+        Ok((target as nat - coded) as u32)
+    }
+}
+
 pub open spec fn part2_color_sampling_step(previous: (u32, u32), info: crate::codestream::ComponentInfo, target: Seq<u32>)
     -> Result<(u32, u32), crate::DecodeError>
 {
     if info.x_subsampling == 0 || info.y_subsampling == 0 { Err(part1_block_placement_error(false)) }
     else {
-        let x = if target[0] as nat * 65536 <= info.x_registration as nat { 0nat }
-            else { (target[0] as nat * 65536 - info.x_registration as nat) as nat };
-        let y = if target[1] as nat * 65536 <= info.y_registration as nat { 0nat }
-            else { (target[1] as nat * 65536 - info.y_registration as nat) as nat };
+        let x = (target[0] as nat - part2_crg_component_predecessor(
+            target[0], info.x_subsampling as u32, info.x_registration) as nat * info.x_subsampling as nat) as u32;
+        let y = (target[1] as nat - part2_crg_component_predecessor(
+            target[1], info.y_subsampling as u32, info.y_registration) as nat * info.y_subsampling as nat) as u32;
         Ok((
-            if x % (info.x_subsampling as nat * 65536) == 0 { previous.0 } else { if previous.0 >= info.x_subsampling as u32 { previous.0 } else { info.x_subsampling as u32 } },
-            if y % (info.y_subsampling as nat * 65536) == 0 { previous.1 } else { if previous.1 >= info.y_subsampling as u32 { previous.1 } else { info.y_subsampling as u32 } },
+            if previous.0 >= x { previous.0 } else { x },
+            if previous.1 >= y { previous.1 } else { y },
         ))
     }
 }
@@ -4336,6 +4355,8 @@ pub open spec fn color_registered_coordinate(value: u32, divisor: u32, registrat
 {
     if divisor == 0 {
         Err(part2_color_input_error())
+    } else if !ceil {
+        Ok(part2_crg_component_predecessor(value, divisor, registration) as u32)
     } else {
         let numerator = (value as nat) * 65536;
         if numerator <= registration as nat {

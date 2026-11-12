@@ -95,6 +95,9 @@ LUT transforms normalize the complete unsigned source rank by `(2^B)-1`,
 including both endpoints; signed source samples retain their half-range offset.
 This retained-assertion behavior does not assert agreement with conflicting
 public scalar-normalization implementations.
+CRG words remain raw component-separation fractions. Color sampling applies
+that physical phase, while selected decoding retains the required predecessor
+on the unchanged SIZ coded grid, including at exact physical alignments.
 Empty half-open resolution axes have zero code-block and precinct cells,
 including nonaligned endpoints. Fully clipped empty subbands produce no
 execution; empty resolutions do not introduce phantom precinct databin IDs.

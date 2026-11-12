@@ -5947,6 +5947,50 @@ fn top_level_jp2_decode_returns_typed_image() {
 }
 
 #[test]
+fn sarah_engineering_crg_color_context_contains_the_coded_predecessor() {
+    let mut bytes = prepared_codestream(1024, 1024, 1, &[0x40, 0x40], &[0]);
+    let siz = bytes
+        .windows(2)
+        .position(|word| word == 0xff51_u16.to_be_bytes())
+        .unwrap();
+    bytes[siz + 41] = 4;
+    bytes[siz + 42] = 4;
+    let cod = bytes
+        .windows(2)
+        .position(|word| word == 0xff52_u16.to_be_bytes())
+        .unwrap();
+    bytes[cod + 9] = 0;
+    let sot = bytes
+        .windows(2)
+        .position(|word| word == 0xff90_u16.to_be_bytes())
+        .unwrap();
+    bytes.splice(sot..sot, segment(0xff63, &[0x80, 0, 0x80, 0]));
+    let limits = ResourceLimits::default();
+    let layout = parse_layout(&bytes, &limits).unwrap();
+    for (coordinate, required) in [(9_u32, 1_u32), (10, 2), (13, 2), (14, 3)] {
+        let selection = DecodeSelection::full_image()
+            .with_region(crate::ImageRegion::new(coordinate, coordinate, 1, 1));
+        let validated = validate_selection(&layout.info.image_size, &selection).unwrap();
+        let (expanded, target) =
+            super::output::color_selection_from_validated(&layout.info.image_size, validated)
+                .unwrap();
+        let context = expanded.region().unwrap();
+        assert_eq!(
+            target,
+            [coordinate, coordinate, coordinate + 1, coordinate + 1]
+        );
+        assert!(
+            context.x.div_ceil(4) <= required && context.y.div_ceil(4) <= required,
+            "coordinate={coordinate} required coded predecessor={required} context={context:?}"
+        );
+        assert_eq!(
+            (context.x + context.width, context.y + context.height),
+            (coordinate + 1, coordinate + 1)
+        );
+    }
+}
+
+#[test]
 fn complete_native_selection_and_color_context_match_independent_spatial_reference() {
     fn malformed(kind: MalformedKind) -> DecodeError {
         DecodeError::MalformedInput { offset: 0, kind }
@@ -6118,14 +6162,14 @@ fn complete_native_selection_and_color_context_match_independent_spatial_referen
             if info.x_subsampling == 0 || info.y_subsampling == 0 {
                 return Err(malformed(MalformedKind::InvalidCodeBlock));
             }
-            let x = (i128::from(target[0]) * 65_536 - i128::from(info.x_registration)).max(0);
-            let y = (i128::from(target[1]) * 65_536 - i128::from(info.y_registration)).max(0);
-            if x % (i128::from(info.x_subsampling) * 65_536) != 0 {
-                horizontal = horizontal.max(u32::from(info.x_subsampling));
-            }
-            if y % (i128::from(info.y_subsampling) * 65_536) != 0 {
-                vertical = vertical.max(u32::from(info.y_subsampling));
-            }
+            let sx = i128::from(info.x_subsampling);
+            let sy = i128::from(info.y_subsampling);
+            let x = (i128::from(target[0]) * 65_536 - sx * i128::from(info.x_registration)).max(0)
+                / (sx * 65_536);
+            let y = (i128::from(target[1]) * 65_536 - sy * i128::from(info.y_registration)).max(0)
+                / (sy * 65_536);
+            horizontal = horizontal.max(u32::try_from(i128::from(target[0]) - x * sx).unwrap());
+            vertical = vertical.max(u32::try_from(i128::from(target[1]) - y * sy).unwrap());
         }
         let hx = (u64::from(horizontal) * scale).min(u64::from(u32::MAX));
         let hy = (u64::from(vertical) * scale).min(u64::from(u32::MAX));

@@ -51,6 +51,28 @@ pub(super) fn color_selection_for_size(
 }
 
 #[cfg_attr(verus_keep_ghost, verus_spec(result =>
+    ensures result == crate::specs::part2_color_context_padding(target, sampling, registration),
+))]
+fn component_context_padding(
+    target: u32,
+    sampling: u8,
+    registration: u16,
+) -> Result<u32, DecodeError> {
+    if sampling == 0 {
+        return Err(invalid_decode());
+    }
+    let predecessor =
+        crate::refinement::crg_component_predecessor(target, u32::from(sampling), registration);
+    let coded = predecessor
+        .checked_mul(u64::from(sampling))
+        .ok_or_else(arithmetic_overflow)?;
+    let padding = u64::from(target)
+        .checked_sub(coded)
+        .ok_or_else(arithmetic_overflow)?;
+    u32::try_from(padding).map_err(|_| arithmetic_overflow())
+}
+
+#[cfg_attr(verus_keep_ghost, verus_spec(result =>
     ensures color_selection_outcome(result) == crate::specs::part2_color_selection_context(
         size.x_origin, size.y_origin, crate::codestream::image_size_component_infos(size), size.components,
         validated_selection_view(validated),
@@ -113,26 +135,16 @@ pub(super) fn color_selection_from_validated(
                 crate::codestream::image_size_component_infos(size), size.components, target@, component as nat + 1, size.components as nat);
         }
         let info = codestream::image_component_info(size, component)?;
-        let x_step = u64::from(info.x_subsampling)
-            .checked_mul(65_536)
-            .ok_or_else(arithmetic_overflow)?;
-        let y_step = u64::from(info.y_subsampling)
-            .checked_mul(65_536)
-            .ok_or_else(arithmetic_overflow)?;
-        let x = u64::from(target[0])
-            .checked_mul(65_536)
-            .ok_or_else(arithmetic_overflow)?
-            .saturating_sub(u64::from(info.x_registration));
-        let y = u64::from(target[1])
-            .checked_mul(65_536)
-            .ok_or_else(arithmetic_overflow)?
-            .saturating_sub(u64::from(info.y_registration));
-        if x.checked_rem(x_step).ok_or_else(invalid_decode)? != 0 {
-            horizontal = horizontal.max(u32::from(info.x_subsampling));
-        }
-        if y.checked_rem(y_step).ok_or_else(invalid_decode)? != 0 {
-            vertical = vertical.max(u32::from(info.y_subsampling));
-        }
+        horizontal = horizontal.max(component_context_padding(
+            target[0],
+            info.x_subsampling,
+            info.x_registration,
+        )?);
+        vertical = vertical.max(component_context_padding(
+            target[1],
+            info.y_subsampling,
+            info.y_registration,
+        )?);
         component = component.checked_add(1).ok_or_else(arithmetic_overflow)?;
     }
     let x0 = validated.region[0]
