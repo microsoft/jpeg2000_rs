@@ -163,6 +163,112 @@ fn sarah_engineering_plm_plt_equal_sums_do_not_hide_different_packets() {
     );
 }
 
+#[test]
+fn sarah_engineering_nlt_keeps_tile_and_main_header_precedence() {
+    let marker = |component: Option<u16>, precision: u8| {
+        let mut payload = component.unwrap_or(u16::MAX).to_be_bytes().to_vec();
+        payload.extend([precision - 1, 0]);
+        segment(NLT, &payload)
+    };
+    let limits = ResourceLimits::default();
+    let mut contexts = 0;
+    for main_default in [false, true] {
+        for tile_default in [false, true] {
+            for default_first in [false, true] {
+                let [cod, qcd] = baseline_headers();
+                let mut main = vec![cod, qcd, marker(Some(0), 9), marker(Some(2), 9)];
+                if main_default {
+                    main.push(marker(None, 8));
+                }
+                let mut tile = vec![marker(Some(2), 12)];
+                if tile_default {
+                    tile.insert(if default_first { 0 } else { 1 }, marker(None, 10));
+                }
+                let bytes = codestream_with_headers(3, &main, &tile, &[]);
+                let layout = parse_layout(&bytes, &limits).unwrap();
+                let extensions = &layout.tile_parts[0].part2_extensions;
+                for (component, precision) in [
+                    (0, Some(if tile_default { 10 } else { 9 })),
+                    (
+                        1,
+                        if tile_default {
+                            Some(10)
+                        } else if main_default {
+                            Some(8)
+                        } else {
+                            None
+                        },
+                    ),
+                    (2, Some(12)),
+                ] {
+                    assert_eq!(
+                        extensions
+                            .nonlinear_transform_for(component)
+                            .map(NonlinearPointTransform::precision),
+                        precision,
+                        "main_default={main_default} tile_default={tile_default} default_first={default_first} component={component}",
+                    );
+                    contexts += 1;
+                }
+            }
+        }
+    }
+    assert_eq!(contexts, 24);
+}
+
+#[test]
+fn sarah_engineering_nlt_scoped_replacement_preserves_parent_and_charged_errors() {
+    let limits = ResourceLimits::default();
+    let mut parser = new_parser(&[], &limits).unwrap();
+    let mut extensions = Part2Extensions::default();
+    let raw = |payload| Segment {
+        marker: NLT,
+        offset: 37,
+        payload,
+    };
+    parser
+        .parse_nlt(raw(&[0, 0, 8, 0]), 3, &mut extensions)
+        .unwrap();
+    extensions.nonlinear_local_count = Some(0);
+    for payload in [&[0, 1, 9, 0][..], &[0xff, 0xff, 10, 0], &[0, 1, 11, 0]] {
+        parser.parse_nlt(raw(payload), 3, &mut extensions).unwrap();
+    }
+    assert_eq!(extensions.nonlinear_local_count, Some(2));
+    assert_eq!(extensions.nonlinear_transforms.len(), 3);
+    assert_eq!(
+        extensions.nonlinear_transform_for(0).unwrap().precision(),
+        11
+    );
+    assert_eq!(
+        extensions.nonlinear_transform_for(1).unwrap().precision(),
+        12
+    );
+    assert_eq!(extensions.nonlinear_transforms[2].component(), Some(0));
+    assert_eq!(extensions.nonlinear_transforms[2].precision(), 9);
+
+    extensions.nonlinear_local_count = Some(usize::MAX);
+    let before = extensions.clone();
+    let work = parser.work_units;
+    assert_eq!(
+        parser.parse_nlt(raw(&[0, 2, 7, 0]), 3, &mut extensions),
+        Err(input_error_literal(37, MalformedKind::InvalidTransform))
+    );
+    assert_eq!(extensions.nonlinear_transforms, before.nonlinear_transforms);
+    assert_eq!(
+        extensions.nonlinear_local_count,
+        before.nonlinear_local_count
+    );
+    assert_eq!(extensions.metadata_bytes, before.metadata_bytes + 8);
+    assert_eq!(parser.work_units, work + 8);
+    assert_eq!(
+        parser.parse_nlt(raw(&[0, 2]), 3, &mut extensions),
+        Err(input_error_literal(37, MalformedKind::InvalidMarkerLength))
+    );
+    assert_eq!(extensions.nonlinear_transforms, before.nonlinear_transforms);
+    assert_eq!(extensions.metadata_bytes, before.metadata_bytes + 14);
+    assert_eq!(parser.work_units, work + 14);
+}
+
 #[path = "main_header_result_tests.rs"]
 mod main_header_result;
 #[path = "mct_parameter_clone_tests.rs"]
@@ -4608,6 +4714,12 @@ fn raw_owned_tile_part_fixture(variant: usize) -> TilePartPayload<'static> {
                 ],
             }],
             nonlinear_transforms: vec![nonlinear],
+            nonlinear_local_count: match variant % 4 {
+                0 => None,
+                1 => Some(0),
+                2 => Some(1),
+                _ => Some(usize::MAX),
+            },
             component_bit_depths: vec![
                 ComponentBitDepth {
                     precision: 0,

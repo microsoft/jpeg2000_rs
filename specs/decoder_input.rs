@@ -64,7 +64,7 @@ pub(crate) open spec fn part2_nonlinear_tile_region_input(
     input: Part2DecoderLayoutInput, component: u16, tile: u16, extent: (u32, u32, u32, u32), scale: u32,
 ) -> Result<Option<Part2NonlinearRegion>, crate::DecodeError> {
     let extensions = part2_nonlinear_tile_extensions(input.main_extensions, input.parts, tile, input.parts.len());
-    match part2_nonlinear_transform_for(extensions.nonlinear, component) {
+    match part2_nonlinear_transform_for(extensions.nonlinear, component, extensions.nonlinear_local_count) {
         None => Ok(None),
         Some(transform) => match part2_tile_component_bounds(
             crate::codestream::selection_geometry_view(&input.size),

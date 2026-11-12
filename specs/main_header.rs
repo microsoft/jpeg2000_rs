@@ -40,6 +40,7 @@ pub(crate) struct Part1MainHeaderAccumulator {
 pub(crate) open spec fn part1_empty_extensions() -> Part2OwnedExtensions {
     Part2OwnedExtensions {
         decompositions: Seq::empty(), arbitrary: Seq::empty(), nonlinear: Seq::empty(),
+        nonlinear_local_count: None,
         depths: Seq::empty(), kernels: Seq::empty(), registrations: Seq::empty(),
         lengths: Seq::empty(), metadata_bytes: 0,
     }

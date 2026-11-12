@@ -9220,12 +9220,25 @@ pub open spec fn part2_nlt_inverse_sample(
     }
 }
 
-pub open spec fn part2_nonlinear_transform_for(
+pub open spec fn part2_nonlinear_transform_for_unscoped(
     transforms: Seq<Part2OwnedNonlinear>, component: u16,
 ) -> Option<Part2OwnedNonlinear> {
     match part2_nonlinear_find(transforms, Some(component), 0) {
         Some(transform) => Some(transform),
         None => part2_nonlinear_find(transforms, None, 0),
+    }
+}
+
+pub open spec fn part2_nonlinear_transform_for(
+    transforms: Seq<Part2OwnedNonlinear>, component: u16, local_count: Option<usize>,
+) -> Option<Part2OwnedNonlinear> {
+    let split = match local_count {
+        None => transforms.len(),
+        Some(count) => if count < transforms.len() { count as nat } else { transforms.len() },
+    };
+    match part2_nonlinear_transform_for_unscoped(transforms.take(split as int), component) {
+        Some(transform) => Some(transform),
+        None => part2_nonlinear_transform_for_unscoped(transforms.skip(split as int), component),
     }
 }
 
@@ -9537,6 +9550,7 @@ pub struct Part2OwnedExtensions {
     pub decompositions: Seq<(u8, Seq<crate::codestream::DecompositionDirection>)>,
     pub arbitrary: Seq<(u8, Seq<u8>, Seq<crate::codestream::DecompositionDirection>)>,
     pub nonlinear: Seq<Part2OwnedNonlinear>,
+    pub nonlinear_local_count: Option<usize>,
     pub depths: Seq<crate::codestream::ComponentBitDepth>,
     pub kernels: Seq<(u8, u16, Part2RawKernel)>,
     pub registrations: Seq<crate::codestream::ComponentRegistration>,
@@ -14333,6 +14347,7 @@ pub open spec fn part1_extension_components(
     Part2OwnedExtensions {
         decompositions: extensions.decompositions, arbitrary: extensions.arbitrary,
         nonlinear: extensions.nonlinear, depths: extensions.depths, kernels: extensions.kernels,
+        nonlinear_local_count: extensions.nonlinear_local_count,
         registrations, lengths: extensions.lengths, metadata_bytes,
     }
 }
@@ -14553,6 +14568,7 @@ pub open spec fn part1_extension_decompositions(
 ) -> Part2OwnedExtensions {
     Part2OwnedExtensions {
         decompositions, arbitrary, nonlinear: extensions.nonlinear, depths: extensions.depths,
+        nonlinear_local_count: extensions.nonlinear_local_count,
         kernels: extensions.kernels, registrations: extensions.registrations,
         lengths: extensions.lengths, metadata_bytes: extensions.metadata_bytes,
     }
@@ -14594,6 +14610,7 @@ pub open spec fn part1_extension_depths(
     Part2OwnedExtensions {
         decompositions: extensions.decompositions, arbitrary: extensions.arbitrary,
         nonlinear: extensions.nonlinear, depths, kernels: extensions.kernels,
+        nonlinear_local_count: extensions.nonlinear_local_count,
         registrations: extensions.registrations, lengths: extensions.lengths,
         metadata_bytes: extensions.metadata_bytes,
     }
@@ -14868,13 +14885,28 @@ pub open spec fn part1_nlt_payload(segment: Part1CodestreamSegment, components: 
 }
 
 #[verifier::opaque]
-pub open spec fn part1_nlt_replace(entries: Seq<Part2OwnedNonlinear>, replacement: Part2OwnedNonlinear, position: nat)
-    -> Seq<Part2OwnedNonlinear>
-    decreases entries.len() - position,
+pub open spec fn part1_nlt_replace(
+    extensions: Part2OwnedExtensions, replacement: Part2OwnedNonlinear, position: nat, limit: usize, offset: usize,
+) -> (Result<(), crate::DecodeError>, Part2OwnedExtensions)
+    decreases if position < limit { limit - position } else { 0 },
 {
-    if position >= entries.len() { entries.push(replacement) }
-    else if entries[position as int].component == replacement.component { entries.update(position as int, replacement) }
-    else { part1_nlt_replace(entries, replacement, position + 1) }
+    if limit > extensions.nonlinear.len() {
+        (Err(part1_codestream_malformed(offset, crate::MalformedKind::InvalidTransform)), extensions)
+    } else if position >= limit {
+        if matches!(extensions.nonlinear_local_count, Some(count) if count == usize::MAX) {
+            (Err(part1_codestream_malformed(offset, crate::MalformedKind::ArithmeticOverflow)), extensions)
+        } else {
+            let count = match extensions.nonlinear_local_count {
+                Some(count) => Some((count + 1) as usize), None => None,
+            };
+            (Ok(()), Part2OwnedExtensions {
+                nonlinear_local_count: count,
+                ..part1_extension_nonlinear(extensions, extensions.nonlinear.insert(limit as int, replacement))
+            })
+        }
+    } else if extensions.nonlinear[position as int].component == replacement.component {
+        (Ok(()), part1_extension_nonlinear(extensions, extensions.nonlinear.update(position as int, replacement)))
+    } else { part1_nlt_replace(extensions, replacement, position + 1, limit, offset) }
 }
 
 pub open spec fn part1_extension_nonlinear(extensions: Part2OwnedExtensions, nonlinear: Seq<Part2OwnedNonlinear>)
@@ -14882,6 +14914,7 @@ pub open spec fn part1_extension_nonlinear(extensions: Part2OwnedExtensions, non
 {
     Part2OwnedExtensions {
         decompositions: extensions.decompositions, arbitrary: extensions.arbitrary, nonlinear,
+        nonlinear_local_count: extensions.nonlinear_local_count,
         depths: extensions.depths, kernels: extensions.kernels, registrations: extensions.registrations,
         lengths: extensions.lengths, metadata_bytes: extensions.metadata_bytes,
     }
@@ -14896,8 +14929,13 @@ pub open spec fn part1_parse_nlt<'a>(
     if charged.0.is_err() { charged } else {
         match part1_nlt_payload(segment, components) {
             Err(error) => (Err(error), charged.1, charged.2),
-            Ok(replacement) => (Ok(()), charged.1, part1_extension_nonlinear(charged.2,
-                part1_nlt_replace(charged.2.nonlinear, replacement, 0))),
+            Ok(replacement) => {
+                let limit = match charged.2.nonlinear_local_count {
+                    Some(count) => count, None => charged.2.nonlinear.len() as usize,
+                };
+                let applied = part1_nlt_replace(charged.2, replacement, 0, limit, segment.offset);
+                (applied.0, charged.1, applied.1)
+            },
         }
     }
 }
@@ -14908,6 +14946,7 @@ pub open spec fn part1_extension_lengths(
     Part2OwnedExtensions {
         decompositions: extensions.decompositions, arbitrary: extensions.arbitrary,
         nonlinear: extensions.nonlinear, depths: extensions.depths, kernels: extensions.kernels,
+        nonlinear_local_count: extensions.nonlinear_local_count,
         registrations: extensions.registrations, lengths, metadata_bytes: extensions.metadata_bytes,
     }
 }
@@ -15203,6 +15242,7 @@ pub open spec fn part1_extension_kernels(extensions: Part2OwnedExtensions, kerne
     Part2OwnedExtensions {
         decompositions: extensions.decompositions, arbitrary: extensions.arbitrary,
         nonlinear: extensions.nonlinear, depths: extensions.depths, kernels,
+        nonlinear_local_count: extensions.nonlinear_local_count,
         registrations: extensions.registrations, lengths: extensions.lengths, metadata_bytes: extensions.metadata_bytes,
     }
 }

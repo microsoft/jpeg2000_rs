@@ -302,6 +302,8 @@ pub struct Part2Extensions {
     decomposition_structures: Vec<DecompositionStructure>,
     arbitrary_decompositions: Vec<ArbitraryDecomposition>,
     nonlinear_transforms: Vec<NonlinearPointTransform>,
+    // A tile-local prefix precedes inherited transforms; main headers are unscoped.
+    nonlinear_local_count: Option<usize>,
     component_bit_depths: Vec<ComponentBitDepth>,
     arbitrary_kernels: Vec<ArbitraryKernel>,
     component_registrations: Vec<ComponentRegistration>,

@@ -9,9 +9,10 @@ use super::{
 use super::{
     ads_option_view, component_depth_views, dfs_option_view, nonlinear_transform_option_view,
     owned_arbitrary_decomposition_view, owned_decomposition_view, owned_extensions_view,
-    owned_kernel_view, owned_nonlinear_view, part2_component_depths, part2_execution_registry,
-    part2_kernel_registry, raw_kernel_coefficient_option, raw_kernel_coefficient_view,
-    raw_kernel_coefficients_view, raw_kernel_step_view, raw_kernel_steps_view, raw_kernel_view,
+    owned_kernel_view, owned_nonlinear_list_view, owned_nonlinear_view, part2_component_depths,
+    part2_execution_registry, part2_kernel_registry, raw_kernel_coefficient_option,
+    raw_kernel_coefficient_view, raw_kernel_coefficients_view, raw_kernel_step_view,
+    raw_kernel_steps_view, raw_kernel_view,
 };
 #[cfg(verus_keep_ghost)]
 use vstd::prelude::*;
@@ -26,6 +27,7 @@ pub(super) const fn new_part2_extensions() -> Part2Extensions {
         decomposition_structures: Vec::new(),
         arbitrary_decompositions: Vec::new(),
         nonlinear_transforms: Vec::new(),
+        nonlinear_local_count: None,
         component_bit_depths: Vec::new(),
         arbitrary_kernels: Vec::new(),
         component_registrations: Vec::new(),
@@ -312,6 +314,55 @@ impl ArbitraryKernel {
         &self.steps
     }
 }
+#[cfg_attr(verus_keep_ghost, verus_spec(result =>
+    ensures nonlinear_transform_option_view(result) == crate::specs::part2_nonlinear_transform_for_unscoped(
+        owned_nonlinear_list_view(transforms@), component,
+    ),
+))]
+fn find_nonlinear_transform(
+    transforms: &[NonlinearPointTransform],
+    component: u16,
+) -> Option<&NonlinearPointTransform> {
+    let mut position = 0_usize;
+    #[cfg_attr(verus_keep_ghost, verus_spec(
+        invariant position <= transforms.len(),
+            crate::specs::part2_nonlinear_find(owned_nonlinear_list_view(transforms@), Some(component), 0)
+                == crate::specs::part2_nonlinear_find(owned_nonlinear_list_view(transforms@), Some(component), position as nat),
+        decreases transforms.len() - position,
+    ))]
+    while position < transforms.len() {
+        #[cfg(verus_keep_ghost)]
+        proof! { reveal_with_fuel(crate::specs::part2_nonlinear_find, 1); }
+        let transform = &transforms[position];
+        if transform.component == Some(component) {
+            return Some(transform);
+        }
+        position += 1;
+    }
+    #[cfg(verus_keep_ghost)]
+    proof! { reveal_with_fuel(crate::specs::part2_nonlinear_find, 1); }
+    position = 0;
+    #[cfg_attr(verus_keep_ghost, verus_spec(
+        invariant position <= transforms.len(),
+            crate::specs::part2_nonlinear_find(owned_nonlinear_list_view(transforms@), Some(component), 0) == None,
+            crate::specs::part2_nonlinear_find(owned_nonlinear_list_view(transforms@), None, 0)
+                == crate::specs::part2_nonlinear_find(owned_nonlinear_list_view(transforms@), None, position as nat),
+        decreases transforms.len() - position,
+    ))]
+    while position < transforms.len() {
+        #[cfg(verus_keep_ghost)]
+        proof! { reveal_with_fuel(crate::specs::part2_nonlinear_find, 1); }
+        let transform = &transforms[position];
+        if transform.component.is_none() {
+            return Some(transform);
+        }
+        position += 1;
+    }
+    #[cfg(verus_keep_ghost)]
+    proof! { reveal_with_fuel(crate::specs::part2_nonlinear_find, 1); }
+    None
+}
+
 impl Part2Extensions {
     pub fn decomposition_structures(&self) -> &[DecompositionStructure] {
         &self.decomposition_structures
@@ -346,7 +397,7 @@ impl Part2Extensions {
 
     #[cfg_attr(verus_keep_ghost, verus_spec(result =>
         ensures nonlinear_transform_option_view(result) == crate::specs::part2_nonlinear_transform_for(
-            owned_extensions_view(self).nonlinear, component,
+            owned_extensions_view(self).nonlinear, component, owned_extensions_view(self).nonlinear_local_count,
         ),
     ))]
     pub(crate) fn nonlinear_transform_for(
@@ -354,45 +405,20 @@ impl Part2Extensions {
         component: u16,
     ) -> Option<&NonlinearPointTransform> {
         #[cfg(verus_keep_ghost)]
-        proof! { reveal(owned_extensions_view); reveal(owned_nonlinear_view); }
-        let mut position = 0_usize;
-        #[cfg_attr(verus_keep_ghost, verus_spec(
-            invariant position <= self.nonlinear_transforms.len(),
-                crate::specs::part2_nonlinear_find(owned_extensions_view(self).nonlinear, Some(component), 0)
-                    == crate::specs::part2_nonlinear_find(owned_extensions_view(self).nonlinear, Some(component), position as nat),
-            decreases self.nonlinear_transforms.len() - position,
-        ))]
-        while position < self.nonlinear_transforms.len() {
-            #[cfg(verus_keep_ghost)]
-            proof! { reveal_with_fuel(crate::specs::part2_nonlinear_find, 1); }
-            let transform = &self.nonlinear_transforms[position];
-            if transform.component == Some(component) {
-                return Some(transform);
-            }
-            position += 1;
-        }
+        proof! { reveal(owned_extensions_view); reveal(owned_nonlinear_list_view); }
+        let length = self.nonlinear_transforms.len();
+        let split = self.nonlinear_local_count.unwrap_or(length).min(length);
+        let local = &self.nonlinear_transforms[..split];
+        let inherited = &self.nonlinear_transforms[split..];
         #[cfg(verus_keep_ghost)]
-        proof! { reveal_with_fuel(crate::specs::part2_nonlinear_find, 1); }
-        position = 0;
-        #[cfg_attr(verus_keep_ghost, verus_spec(
-            invariant position <= self.nonlinear_transforms.len(),
-                crate::specs::part2_nonlinear_find(owned_extensions_view(self).nonlinear, Some(component), 0) == None,
-                crate::specs::part2_nonlinear_find(owned_extensions_view(self).nonlinear, None, 0)
-                    == crate::specs::part2_nonlinear_find(owned_extensions_view(self).nonlinear, None, position as nat),
-            decreases self.nonlinear_transforms.len() - position,
-        ))]
-        while position < self.nonlinear_transforms.len() {
-            #[cfg(verus_keep_ghost)]
-            proof! { reveal_with_fuel(crate::specs::part2_nonlinear_find, 1); }
-            let transform = &self.nonlinear_transforms[position];
-            if transform.component.is_none() {
-                return Some(transform);
-            }
-            position += 1;
+        proof! {
+            assert(owned_nonlinear_list_view(local@) =~= owned_extensions_view(self).nonlinear.take(split as int));
+            assert(owned_nonlinear_list_view(inherited@) =~= owned_extensions_view(self).nonlinear.skip(split as int));
         }
-        #[cfg(verus_keep_ghost)]
-        proof! { reveal_with_fuel(crate::specs::part2_nonlinear_find, 1); }
-        None
+        if let Some(transform) = find_nonlinear_transform(local, component) {
+            return Some(transform);
+        }
+        find_nonlinear_transform(inherited, component)
     }
 
     #[cfg_attr(verus_keep_ghost, verus_spec(result =>
@@ -646,6 +672,7 @@ impl Clone for Part2Extensions {
             decomposition_structures: self.decomposition_structures.clone(),
             arbitrary_decompositions: self.arbitrary_decompositions.clone(),
             nonlinear_transforms: self.nonlinear_transforms.clone(),
+            nonlinear_local_count: self.nonlinear_local_count,
             component_bit_depths: self.component_bit_depths.clone(),
             arbitrary_kernels: self.arbitrary_kernels.clone(),
             component_registrations: self.component_registrations.clone(),

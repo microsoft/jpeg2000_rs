@@ -2032,9 +2032,14 @@ _NONLINEAR_ARITHMETIC_CONTRACTS = {
 }
 
 _NONLINEAR_REGIONS_CONTRACTS = {
+    ("src/codestream/extensions.rs", "find_nonlinear_transform"): (
+        "part2_nonlinear_transform_for_unscoped", _coverage_call("nonlinear_transform_option_view", r"\1"), None,
+        _coverage_call("owned_nonlinear_list_view", r"transforms\s*@") + r"\s*,\s*component",
+    ),
     ("src/codestream/extensions.rs", "Part2Extensions::nonlinear_transform_for"): (
         "part2_nonlinear_transform_for", _coverage_call("nonlinear_transform_option_view", r"\1"), None,
-        _coverage_call("owned_extensions_view", "self") + r"\.nonlinear\s*,\s*component",
+        _coverage_call("owned_extensions_view", "self") + r"\.nonlinear\s*,\s*component\s*,\s*"
+        + _coverage_call("owned_extensions_view", "self") + r"\.nonlinear_local_count",
     ),
     ("src/decode/api.rs", "nonlinear_component_extent"): (
         "part2_nonlinear_component_extent", r"\1", None,

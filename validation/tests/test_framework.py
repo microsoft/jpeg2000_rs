@@ -909,7 +909,7 @@ class FrameworkTests(WorkingFiles):
     def test_inventory_binds_actual_source_derived_nonlinear_selection_and_complete_regions(self):
         self._assert_complete_packet_contract_bindings(
             {"part2-complete-native-nonlinear-region-production"},
-            framework._NONLINEAR_REGIONS_CONTRACTS, 3,
+            framework._NONLINEAR_REGIONS_CONTRACTS, 4,
         )
 
     def test_inventory_binds_actual_nonlinear_arithmetic_exact_results_and_error_frontiers(self):

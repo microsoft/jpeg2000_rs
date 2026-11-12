@@ -3195,10 +3195,21 @@ remain separate work.
 
 ## Complete native nonlinear region production
 
-The actual `Part2Extensions::nonlinear_transform_for` refines first specific,
-then first default selection over complete raw transform observations. Two
-explicit scans preserve the former iterator order without trusting callback
-results or normalizing descriptors.
+The actual `Part2Extensions::nonlinear_transform_for` preserves header provenance
+under the retained-assertion engineering profile: tile-specific, tile-default,
+main-specific, then main-default. The existing specific/default scans execute
+in one borrowed-slice helper, first on the local prefix and then on inherited
+descriptors. No descriptor copy, callback result or normalized transform is
+supplied to the model.
+
+The private optional local-prefix count is absent in main headers and starts
+at zero on the first tile-local NLT marker. Actual parsing replaces only a
+local matching selector or inserts before the inherited suffix, retaining the
+parent descriptors and local order. Complete raw replacement and caller models
+carry that field through initialization, metadata charges, copies, errors and
+typed-region selection. Invalid raw counts reject after payload admission;
+their original charge/error precedence is explicit. This engineering
+precedence is not independent standards closure.
 
 Actual `typed_layout` uses the single extracted `nonlinear_component_extent`
 and `collect_nonlinear_regions` bodies. Their complete Result contracts derive

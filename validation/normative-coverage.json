@@ -3821,7 +3821,7 @@
     },
     {
       "id": "part2-complete-native-raw-nonlinear-bytes",
-      "topic": "Complete actual raw NLT Result, every physical nonlinear descriptor field and complete parser/eight extension-owner state. Real shared charge precedes header, component/default selector, precision/type, short-form length, gamma/LUT header/length/value and retained parameter-tail admission. Sole actual gamma body retains five 24-bit words and zero rejection only at positions0/1/3. LUT retains stored count1..8191 plus one, ordered domain/bit1..32/width1/2/4/exact-length/value-cap checks and all decoded u32 points. Real tail/maximum primitives derive all bytes and masks without prepared records, normalized metadata or budget premises. Equivalent explicit first-match replacement preserves later duplicate/default selectors and all unrelated raw fields; failure retains exact charged metadata/work commits without registry mutation. Existing safe precision/sign primitive and standard array extensionality expose native values, not new trust. Remaining metadata/layout/file/layer/F2/F4/final F8 joins remain separate.",
+      "topic": "Complete actual raw NLT Result, every nonlinear descriptor and full parser/extension-owner frame, including optional local-prefix provenance. Real shared charge precedes header, selector, precision/type, gamma/LUT and parameter-tail admission. Gamma and LUT byte/value rules remain unchanged. Main-header replacement searches the full registry; tile-local replacement searches only its prefix and inserts before the inherited suffix, preserving parent descriptors and local order. Invalid raw prefix counts reject after payload admission; checked count overflow precedes insertion. Complete Result/prefix models retain exact charge/error frames without supplied records/results, normalized descriptors, success premises, new trust or budget changes. The tile caller starts local scope once; subsequent selection enforces retained-assertion header precedence. Independent standards closure and remaining outer joins remain separate.",
       "implementation_refs": [
         {"path": "src/codestream/layout.rs", "symbol": "Parser::parse_layout"},
         {"path": "src/codestream/tiles.rs", "symbol": "Parser::read_tile_part"},
@@ -3870,7 +3870,9 @@
       "test_refs": [
         {"path": "src/codestream/tests.rs", "symbol": "actual_nlt_preserves_all_component_selectors_precision_and_type_bytes"},
         {"path": "src/codestream/tests.rs", "symbol": "actual_nlt_preserves_gamma_words_point_widths_caps_and_tail_bytes"},
-        {"path": "src/codestream/tests.rs", "symbol": "actual_nlt_preserves_first_duplicate_all_owner_fields_and_ordered_budget_failures"}
+        {"path": "src/codestream/tests.rs", "symbol": "actual_nlt_preserves_first_duplicate_all_owner_fields_and_ordered_budget_failures"},
+        {"path": "src/codestream/tests.rs", "symbol": "sarah_engineering_nlt_keeps_tile_and_main_header_precedence"},
+        {"path": "src/codestream/tests.rs", "symbol": "sarah_engineering_nlt_scoped_replacement_preserves_parent_and_charged_errors"}
       ]
     },
     {
@@ -4644,8 +4646,10 @@
     },
     {
       "id": "part2-complete-native-nonlinear-region-production",
-      "topic": "Complete actual nonlinear transform selection and raw layout/image/discard-level to ordered nonlinear regions Result. Intentional Sarah DEV-355FE751F9 correction ceiling-reduces tile-component bounds before native-resolution output clipping; invalid discard levels above31 return explicit ReductionTooLarge. First specific transform precedes first default; last matching tile-part owner replaces main metadata even when empty. Preserve valid-discard component-before-tile traversal, registered/subsampled metadata, narrowing order, lazy tile geometry and every raw transform field. All frames/bounds derive internally without normalized metadata, supplied regions/transforms/results or success premises. Actual typed_layout and selected JPX producer pass real discard context to the sole executing collector and complete models. Nonlinear scalar-rule certification, independent normative/file/F2/F4/final F8 and delivery remain separate.",
+      "topic": "Complete actual nonlinear selection and raw layout/image/discard-level to ordered regions Result. Retained-assertion precedence is tile-specific, tile-default, main-specific, main-default using one actual borrowed-slice specific/default helper and retained local-prefix provenance. Last matching tile-part owner still replaces main metadata even when empty. DEV-355FE751F9 ceiling-reduces tile-component bounds before native-resolution output clipping; discard above31 explicitly rejects. Preserve component-before-tile traversal, registered/subsampled metadata, narrowing/error order, lazy geometry and every raw transform field. Actual typed_layout and selected JPX callers carry the real source/discard/provenance context to the sole collector and complete models. No supplied regions/results, validity premises, new trust or budget changes. Independent scalar/normative/file/F2/F4/final F8 and delivery remain separate.",
       "implementation_refs": [
+        {"path": "src/codestream/extensions.rs", "symbol": "Part2Extensions::nonlinear_transform_for"},
+        {"path": "src/codestream/extensions.rs", "symbol": "find_nonlinear_transform"},
         {"path": "src/decode/api.rs", "symbol": "typed_layout"},
         {"path": "src/decode/api.rs", "symbol": "collect_nonlinear_regions"},
         {"path": "src/decode/api.rs", "symbol": "nonlinear_component_extent"},
@@ -4653,6 +4657,7 @@
       ],
       "spec_refs": [
         {"path": "specs/mod.rs", "symbol": "part2_nonlinear_transform_for"},
+        {"path": "specs/mod.rs", "symbol": "part2_nonlinear_transform_for_unscoped"},
         {"path": "specs/mod.rs", "symbol": "part2_nonlinear_find"},
         {"path": "specs/mod.rs", "symbol": "part2_nonlinear_component_extent"},
         {"path": "specs/mod.rs", "symbol": "part2_collect_nonlinear_regions"},
@@ -4663,11 +4668,13 @@
         {"path": "specs/mod.rs", "symbol": "part2_registered_decode_ceil"}
       ],
       "contract_refs": [
+        {"path": "src/codestream/extensions.rs", "symbol": "find_nonlinear_transform"},
         {"path": "src/codestream/extensions.rs", "symbol": "Part2Extensions::nonlinear_transform_for"},
         {"path": "src/decode/api.rs", "symbol": "nonlinear_component_extent"},
         {"path": "src/decode/api.rs", "symbol": "collect_nonlinear_regions"}
       ],
       "proof_refs": [
+        {"path": "src/codestream/proof_support.rs", "symbol": "owned_nonlinear_list_view"},
         {"path": "src/codestream/proof_support.rs", "symbol": "owned_nonlinear_view"},
         {"path": "src/codestream/proof_support.rs", "symbol": "owned_extensions_view"},
         {"path": "src/codestream/proof_support.rs", "symbol": "nonlinear_transform_option_view"},
@@ -4678,6 +4685,8 @@
       ],
       "test_refs": [
         {"path": "src/codestream/tests.rs", "symbol": "actual_nonlinear_lookup_preserves_first_specific_then_first_default_and_all_raw_fields"},
+        {"path": "src/codestream/tests.rs", "symbol": "sarah_engineering_nlt_keeps_tile_and_main_header_precedence"},
+        {"path": "src/codestream/tests.rs", "symbol": "sarah_engineering_nlt_scoped_replacement_preserves_parent_and_charged_errors"},
         {"path": "src/decode/tests.rs", "symbol": "actual_nonlinear_regions_derive_last_raw_tile_owner_registered_clipping_and_error_order"},
         {"path": "src/decode/tests.rs", "symbol": "sarah_dev_355fe751f9_reduced_tile_nlt_uses_native_coordinates"}
       ]
