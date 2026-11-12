@@ -545,6 +545,53 @@ tile indices, and `all` or `x,y,width,height`. Selected output begins with a
 `FRAME` line containing the actual output origin, followed by the existing
 image observation.
 
+## Single-image JPX routing control
+
+The existing Rust `decode::tests::jpx_source_result` module includes a
+first-party 3x2 RGB8 single-image control, not a JP2 brand-only mutation.
+Its lossless, non-MCT, zero-decomposition codestream was independently encoded
+with OpenJPEG revision `a5891555eb49ed7cc26b2901ea680acda136d811`
+(`opj_compress -n 1 -r 1 -mct 0`); the six source RGB pixels are
+`(0,17,255), (128,64,193), (255,0,3), (7,253,99), (42,128,201), (194,88,0)`.
+OpenJPEG decoding independently reproduces those pixels exactly.
+
+The JPX wrapper was checked against the already acquired T.801 (06/2021):
+M.8/M.9.2, M.11/Table M.13, M.6.2.2/M.11.1, M.5.1/M.5.2.1, and M.11.5–M.11.8.
+It contains a signature, `ftyp` (`jpx ` major brand, `jpx `/`jpxb`
+compatibility, minor version 1),
+one immediately following `rreq`, `jp2h` with matching `ihdr` and sRGB `colr`,
+one empty inheriting `jpch`, one empty inheriting `jplh`, and one complete
+`jp2c`. Reader requirements declare standard features 1 and 5, with one-byte
+masks `0x80` and `0x40`, FUAM/DCM `0xc0`, and no vendor features. It has no
+palette, channel remapping, opacity, registration offsets, fragmentation,
+cross-references, composition, or animation. These absent features are not
+inferred from its brand.
+
+JHOVE 1.34.0 / JPEG2000-hul 1.4.5 additionally reports the wrapper well-formed
+and valid. This is supplementary structural evidence only: that module's
+documented JPX basis is an older draft, its reader-requirements validation is
+incomplete, and it also accepts legacy writer declarations excluded by the
+2021 source. Glymur provides an independent box dump, not a JPX validity
+oracle. Neither tool discharges selected-2023-edition correspondence.
+
+Run `cargo test --locked --lib jpx_source_result`. The single-image tests
+compare explicit typed/full-selected output with raw and JP2 equivalents and
+the literal source planes; a nontrivial crop checks geometry and sample
+selection. Color is exactly scaled to RGB16; layer/static-composition output
+adds fully opaque alpha. Frame zero correctly reports no frames. All four
+JP2 routes still reject this JPX-only wrapper, and out-of-range explicit
+codestream/layer selections reject. Existing tests in the same module
+separately exercise distinct nonzero codestream selection and actual
+associated palette/channel/alpha mappings; the rendering tests exercise
+composition/frame instructions. Those controls are not claims of independent
+native-JPX composition equivalence.
+
+This is a bounded existing-API routing solution for the declared single-image
+contract, not qualification of private PDF inputs, a generic JPX fallback, or
+a full standards/conformance assertion. Exact tool/input identities, failed
+candidate observations, and execution logs belong in ignored `target/`
+evidence, not in the distributed package.
+
 ## Nonzero JPX and JPIP relations
 
 The Python suite also builds first-party JPX and JPIP structures around

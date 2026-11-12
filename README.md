@@ -79,6 +79,46 @@ Use `decode_codestream` for a raw codestream, `decode_jph` for JPH, and
 JPX layer/frame APIs are separate from component sample decoding; see the
 [public exports](src/lib.rs).
 
+### Route a single-image JPX input
+
+Select the route from the input's declared profile and the embedding's required
+output, not by retrying a failed JP2 decode with relaxed admission:
+
+| Required output | Explicit JPX API |
+|---|---|
+| One codestream's typed samples, with its associated palette/channel mapping | `decode_jpx_codestream(input, codestream_index, options)` |
+| A region/native resolution of that codestream | `decode_jpx_codestream_selected(input, codestream_index, options, selection)` |
+| Converted color, rather than typed component values | `decode_jpx_codestream_color` / `decode_jpx_codestream_color_selected` |
+| A layer's registered channels and opacity | `inspect_jpx_layers`, then `render_jpx_layer(input, layer_index, options)` |
+| An actual composition or animation frame | `render_jpx_composition` / `render_jpx_frame` |
+
+```no_run
+use jpeg2000_decoder::{DecodeError, DecodeOptions, TypedImage, decode_jpx_codestream};
+
+fn decode_embedded_jpx(
+    input: &[u8],
+    codestream_index: usize, // Supplied by the embedding's selection policy.
+) -> Result<TypedImage, DecodeError> {
+    decode_jpx_codestream(input, codestream_index, &DecodeOptions::default())
+}
+```
+
+A single opaque image does not require animation or composition. Conversely,
+decoding a codestream is not equivalent to rendering a layer assembled from
+multiple codestreams, applying layer opacity, or compositing layers. Do not
+silently pick index zero for an ambiguous input. A static JPX without frame
+instructions has no frame zero; use the explicitly selected layer instead.
+Color and rendered output use 16-bit channels, not necessarily the component
+precision returned by typed decoding.
+
+The JP2 routes retain their JP2-compatibility and single-codestream requirements;
+a JPX-only compatibility list is not admitted there. JPX inspection/decoding is
+not a complete file-conformance or reader-requirements validator. An embedding
+must establish the required feature/selection contract rather than treating a
+brand or successful inspection as proof that arbitrary JPX semantics are
+supported. The [single-image routing control](validation/VALIDATION.md#single-image-jpx-routing-control)
+declares the narrower independently checked input and expectations.
+
 ## Select a region or native resolution
 
 ```no_run
