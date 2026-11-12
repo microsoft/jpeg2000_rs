@@ -2197,8 +2197,7 @@ fn actual_progression_accounting_keeps_every_ordered_overflow_and_new_offset_err
     assert_eq!(progress.seen, vec![false]);
 }
 
-#[test]
-fn full_progression_uses_real_ppt_reassembly_and_plt_iteration_without_tile_body_bytes() {
+fn literal_packed_progression_stream(layers: u16) -> Vec<u8> {
     fn segment(stream: &mut Vec<u8>, marker: u16, payload: &[u8]) {
         stream.extend_from_slice(&marker.to_be_bytes());
         stream.extend_from_slice(&u16::try_from(payload.len() + 2).unwrap().to_be_bytes());
@@ -2211,12 +2210,19 @@ fn full_progression_uses_real_ppt_reassembly_and_plt_iteration_without_tile_body
     }
     siz.extend_from_slice(&[0, 1, 7, 1, 1]);
     segment(&mut stream, 0xff51, &siz);
-    segment(&mut stream, 0xff52, &[0, 0, 0, 1, 0, 0, 0, 0, 0, 1]);
+    let [high, low] = layers.to_be_bytes();
+    segment(&mut stream, 0xff52, &[0, 0, high, low, 0, 0, 0, 0, 0, 1]);
     segment(&mut stream, 0xff5c, &[0x20, 0]);
     segment(&mut stream, 0xff90, &[0, 0, 0, 0, 0, 26, 0, 1]);
     segment(&mut stream, 0xff58, &[0, 1]);
     segment(&mut stream, 0xff61, &[0, 0]);
     stream.extend_from_slice(&[0xff, 0x93, 0xff, 0xd9]);
+    stream
+}
+
+#[test]
+fn full_progression_uses_real_ppt_reassembly_and_plt_iteration_without_tile_body_bytes() {
+    let stream = literal_packed_progression_stream(1);
     let limits = ResourceLimits::default();
     let layout = crate::codestream::parse_layout(&stream, &limits).unwrap();
     assert_eq!(layout.tile_parts.len(), 1);
@@ -2264,6 +2270,67 @@ fn full_progression_uses_real_ppt_reassembly_and_plt_iteration_without_tile_body
     );
     assert_eq!(format!("{:?}", inline.decoders[0]), decoder_before);
     assert_eq!(format!("{template:?}"), template_before);
+}
+
+#[test]
+fn retained_packet_prefixes_validate_poc_coverage_tile_parts_and_packed_lengths() {
+    let limits = ResourceLimits::default();
+    let grid = packet_grid_new_with_component_resolutions(2, 1, vec![1], vec![1], &limits).unwrap();
+    for layers in [1, 2] {
+        let mut part = literal_progression_tile(&[0], 2, 0, 0, 1);
+        part.progression_changes = ProgressionChanges::from_records(vec![ProgressionChange {
+            layer_end: layers,
+            ..literal_progression_window()
+        }]);
+        let result = decode_progression_tile_packets(
+            &[part],
+            &grid,
+            &mut [literal_ht_progression_precinct(0)],
+            &limits,
+        );
+        if layers == 2 {
+            assert_eq!(result.unwrap().packets, 1);
+        } else {
+            assert_eq!(
+                result,
+                Err(packet_reader_error(
+                    0,
+                    MalformedKind::InvalidProgressionOrderChange
+                ))
+            );
+        }
+    }
+
+    let parts = [
+        literal_progression_tile(&[0], 2, 0, 0, 2),
+        literal_progression_tile(&[], 2, 0, 1, 2),
+    ];
+    let result = decode_progression_tile_packets(
+        &parts,
+        &grid,
+        &mut [literal_ht_progression_precinct(0)],
+        &limits,
+    )
+    .unwrap();
+    assert_eq!((result.tile_parts, result.packets), (2, 1));
+
+    let stream = literal_packed_progression_stream(2);
+    let layout = crate::codestream::parse_layout(&stream, &limits).unwrap();
+    let result = decode_progression_tile_packets(
+        &layout.tile_parts,
+        &grid,
+        &mut [literal_packet_precinct()],
+        &limits,
+    )
+    .unwrap();
+    assert_eq!(
+        (
+            result.packets,
+            result.packet_header_bytes,
+            result.packet_body_bytes
+        ),
+        (1, 1, 0)
+    );
 }
 
 fn raw_iterator_grid() -> PacketGrid {
@@ -5109,7 +5176,7 @@ fn traverses_retained_tile_parts_and_preserves_precinct_state() {
 }
 
 #[test]
-fn progression_traversal_requires_exact_payload_and_tile_part_sequence() {
+fn progression_traversal_distinguishes_complete_packet_prefixes_from_broken_payloads() {
     let limits = ResourceLimits::default();
     let style = coding_style(false, false);
     let grid = PacketGrid::new(2, 1, 1, vec![1], &limits).unwrap();
@@ -5184,8 +5251,18 @@ fn progression_traversal_requires_exact_payload_and_tile_part_sequence() {
         has_roi_marker: false,
         data: &truncated_data,
     }];
+    let prefix =
+        decode_progression_tile_packets(&truncated_part, &grid, &mut [make_precinct()], &limits)
+            .unwrap();
+    assert_eq!(prefix.packets, 1);
+    assert_eq!(prefix.packet_header_bytes, 1);
+    assert_eq!(prefix.packet_body_bytes, 0);
+    let broken_part = [TilePartPayload {
+        data: &[0xe3],
+        ..truncated_part[0].clone()
+    }];
     assert!(matches!(
-        decode_progression_tile_packets(&truncated_part, &grid, &mut [make_precinct()], &limits,),
+        decode_progression_tile_packets(&broken_part, &grid, &mut [make_precinct()], &limits),
         Err(DecodeError::MalformedInput {
             kind: MalformedKind::Truncated,
             ..

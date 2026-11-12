@@ -7,7 +7,7 @@ description = "Memory-safe JPEG 2000 decoding with Verus verification"
 readme = "README.md"
 repository = "https://github.com/microsoft/jpeg2000_rs"
 license = "MIT"
-publish = ["crates-io"]
+publish = false
 include = [
     "Cargo.toml",
     "/LICENSE",

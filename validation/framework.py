@@ -606,6 +606,13 @@ def _packet_progression_contracts() -> dict[tuple[str, str], tuple[str, str, str
                  view("packet_precinct_view", old("precinct")))),
         "execute_progression_packet": (
             "part1_tile_packet", r"\1", execution_final, args(params, execution_old, "coordinate")),
+        "progression_packet_slot": (
+            "part1_tile_packet_slot", r"\1", None, args(grid, "coordinate")),
+        "omit_progression_packet": (
+            "part1_tile_omit_packet", r"\1", progress_final,
+            args(params, progress_old, "coordinate", "precinct_count")),
+        "all_progression_packets_seen": (
+            "part1_tile_all_seen", r"\1", None, "seen@"),
         "account_progression_packet": (
             "part1_tile_account", r"\1", progress_final,
             args(progress_old, "decoded", "tile_bytes", "packed_bytes", "expected", "seen_index")),
