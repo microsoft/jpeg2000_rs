@@ -70,7 +70,7 @@ None of these engineering trackers clears the document-use decisions in
 
 | Interface | Behavior |
 |---|---|
-| Raw codestream | Component decoding and metadata inspection |
+| Raw codestream | Typed component decoding, strict full centered reconstruction output, and metadata inspection |
 | JP2 | Container validation, typed component output, palette/channel mapping, and explicit color conversion |
 | JPH | Branding/capability inspection and legacy/HT/mixed component decoding |
 | JPX | Explicit indexed codestream, layer, composition, and frame APIs; no implicit first-codestream selection |
@@ -79,6 +79,15 @@ None of these engineering trackers clears the document-use decisions in
 Output retains component precision and signedness, image origins, subsampling,
 and channel association metadata. Component sample output and converted color
 output are distinct interfaces.
+`decode_codestream_reconstructed` additionally exposes the existing centered
+`i64` planes and fraction bits before output rounding, level shift and clipping.
+It shares full reconstruction with typed decoding and rejects every NLT
+declaration explicitly, including identity declarations and tile overrides,
+after propagating actual parser/reconstruction errors. Calling `typed` on its
+accepted output reproduces ordinary typed codestream decoding with the same
+limits. It supplies no container mapping, color, selection or recovery output;
+#296/W19 remains separate. Allocation-error propagation remains incomplete
+under #287, including shared paths reached by this API.
 Selected color conversion preserves the full-image sampling phase at the
 requested native DWT resolution, including regions starting between component
 samples. It may decode bounded left/top context from neighboring tiles before

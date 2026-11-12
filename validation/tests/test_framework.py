@@ -4978,6 +4978,21 @@ class FrameworkTests(WorkingFiles):
                     self.assertRaisesRegex(ValueError, "returned-header frames|getter/reference contracts|complete physical/source models"):
                 framework.validate_normative_coverage(dict(coverage, requirements=[entry]))
 
+    def test_inventory_binds_strict_raw_reconstruction_results_without_supplied_success(self):
+        self._assert_complete_packet_contract_bindings(
+            {framework._RAW_RECONSTRUCTED_ENTRY}, framework._RAW_RECONSTRUCTED_CONTRACTS, 3, isolate=False,
+        )
+
+    def test_inventory_strict_raw_reconstruction_requires_public_and_admission_contracts(self):
+        coverage = json.loads((framework.VALIDATION / "normative-coverage.json").read_text())
+        entry = next(item for item in coverage["requirements"]
+                     if item["id"] == framework._RAW_RECONSTRUCTED_ENTRY)
+        for removed in entry["contract_refs"]:
+            changed = copy.deepcopy(entry)
+            changed["contract_refs"].remove(removed)
+            with self.subTest(removed=removed), self.assertRaisesRegex(ValueError, "strict raw reconstruction Result"):
+                framework.validate_normative_coverage(dict(coverage, requirements=[changed]))
+
     def test_inventory_binds_actual_compressed_byte_full_selected_typed_results(self):
         self._assert_complete_packet_contract_bindings(
             {framework._RAW_TYPED_ENTRY}, framework._RAW_TYPED_CONTRACTS, 5, isolate=False,

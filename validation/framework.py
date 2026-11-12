@@ -1880,6 +1880,23 @@ _TYPED_LAYOUT_CONTRACTS = {
 }
 
 _RAW_TYPED_ENTRY = "part2-complete-native-raw-codestream-typed-result"
+_RAW_RECONSTRUCTED_ENTRY = "part2-strict-raw-codestream-reconstruction-result"
+_RAW_RECONSTRUCTED_CONTRACTS = {
+    ("src/decode/api.rs", "decode_codestream_reconstructed"): (
+        "part2_decode_raw_reconstructed_codestream",
+        _coverage_call("crate::image::decoded_image_outcome", r"\1"), None,
+        r"input@\s*,\s*" + _coverage_call("crate::options::decode_options_limits", "options"),
+    ),
+    ("src/decode/api.rs", "validate_reconstruction_transforms"): (
+        "part2_validate_reconstruction_transforms", r"\1", None,
+        _coverage_call("codestream::decoder_layout_input_view", "layout"),
+    ),
+    ("src/decode/api.rs", "validate_reconstructed_output_shape"): (
+        "part1_validate_reconstructed_output_shape", r"\1", None,
+        r"input_bytes\s*,\s*layout\.tile_parts\.len\(\)\s*,\s*layout\.info\.image_size\.components\s*,\s*"
+        + _coverage_call("crate::image::decoded_image_view", r"\*\s*image"),
+    ),
+}
 _JPX_SOURCE_ENTRY = "part2-complete-native-jpx-source-image-result"
 _JPX_SOURCE_CONTRACTS = {
     ("src/decode/output.rs", "decode_jpx_file"): (
@@ -7225,6 +7242,9 @@ def validate_normative_coverage(
                 actual = _coverage_spec_function_body(source_text(path), symbol)
                 if actual is None or "".join(actual.split()) != "".join(expected.split()):
                     raise ValueError("whole JPX source Result requires complete physical/source models, not supplied banks or trimming")
+        if entry["id"] == _RAW_RECONSTRUCTED_ENTRY:
+            if {(ref["path"], ref["symbol"]) for ref in entry["contract_refs"]} != set(_RAW_RECONSTRUCTED_CONTRACTS):
+                raise ValueError("strict raw reconstruction Result requires the public API and both output admissions")
         if entry["id"] == _RAW_TYPED_ENTRY:
             actual = {(ref["path"], ref["symbol"]) for ref in entry["contract_refs"]}
             if actual != set(_RAW_TYPED_CONTRACTS):
@@ -8354,6 +8374,8 @@ def validate_normative_coverage(
                 or _TYPED_LAYOUT_CONTRACTS.get((reference["path"], reference["symbol"]))
                 or (_RAW_TYPED_CONTRACTS.get((reference["path"], reference["symbol"]))
                     if entry["id"] == _RAW_TYPED_ENTRY else None)
+                or (_RAW_RECONSTRUCTED_CONTRACTS.get((reference["path"], reference["symbol"]))
+                    if entry["id"] == _RAW_RECONSTRUCTED_ENTRY else None)
                 or (_JPX_SOURCE_CONTRACTS.get((reference["path"], reference["symbol"]))
                     if entry["id"] == _JPX_SOURCE_ENTRY else None)
                 or (_JPX_LAYER_COLOR_CONTRACTS.get((reference["path"], reference["symbol"]))

@@ -16,11 +16,17 @@ use crate::{DecodeError, ResourceLimits};
 use vstd::prelude::*;
 
 impl DecodedImage {
+    #[cfg_attr(verus_keep_ghost, verus_spec(result => ensures result == decoded_image_view(*self).0,))]
     pub const fn width(&self) -> u32 {
+        #[cfg(verus_keep_ghost)]
+        proof! { reveal(decoded_image_view); }
         self.width
     }
 
+    #[cfg_attr(verus_keep_ghost, verus_spec(result => ensures result == decoded_image_view(*self).1,))]
     pub const fn height(&self) -> u32 {
+        #[cfg(verus_keep_ghost)]
+        proof! { reveal(decoded_image_view); }
         self.height
     }
 
@@ -32,7 +38,12 @@ impl DecodedImage {
         self.y_origin
     }
 
+    #[cfg_attr(verus_keep_ghost, verus_spec(result =>
+        ensures decoded_components_view(result@) == decoded_image_view(*self).4,
+    ))]
     pub fn components(&self) -> &[DecodedComponent] {
+        #[cfg(verus_keep_ghost)]
+        proof! { reveal(decoded_image_view); }
         &self.components
     }
 
@@ -148,11 +159,17 @@ impl DecodedImage {
 }
 
 impl DecodedComponent {
+    #[cfg_attr(verus_keep_ghost, verus_spec(result => ensures result == decoded_component_view(*self).0,))]
     pub const fn width(&self) -> u32 {
+        #[cfg(verus_keep_ghost)]
+        proof! { reveal(decoded_component_view); }
         self.width
     }
 
+    #[cfg_attr(verus_keep_ghost, verus_spec(result => ensures result == decoded_component_view(*self).1,))]
     pub const fn height(&self) -> u32 {
+        #[cfg(verus_keep_ghost)]
+        proof! { reveal(decoded_component_view); }
         self.height
     }
 
@@ -164,7 +181,12 @@ impl DecodedComponent {
         self.fraction_bits
     }
 
+    #[cfg_attr(verus_keep_ghost, verus_spec(result =>
+        ensures result@ == decoded_component_view(*self).4,
+    ))]
     pub fn samples(&self) -> &[i64] {
+        #[cfg(verus_keep_ghost)]
+        proof! { reveal(decoded_component_view); }
         &self.samples
     }
 
