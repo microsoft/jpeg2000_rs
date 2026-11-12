@@ -53,7 +53,8 @@ jobs:
           JPEG2000_INVENTORY_CRATE: jpeg2000_decoder
         run: |
           export RUSTC_WRAPPER="$PWD/target/native-inventory-driver/debug/jpeg2000-native-inventory"
-          export JPEG2000_INVENTORY_CAPTURE_ID="$(python3 -c 'import uuid; print(uuid.uuid4().hex)')"
+          JPEG2000_INVENTORY_CAPTURE_ID="$(python3 -c 'import uuid; print(uuid.uuid4().hex)')"
+          export JPEG2000_INVENTORY_CAPTURE_ID
           export JPEG2000_INVENTORY_OUTPUT="$PWD/target/native-inventory/default.json"
           CARGO_TARGET_DIR=target/native-inventory/default-build cargo +"$TOOLCHAIN" check --lib --locked
           test -s "$JPEG2000_INVENTORY_OUTPUT"
@@ -63,7 +64,8 @@ jobs:
           JPEG2000_INVENTORY_CRATE: jpeg2000_decoder
         run: |
           export RUSTC_WRAPPER="$PWD/target/native-inventory-driver/debug/jpeg2000-native-inventory"
-          export JPEG2000_INVENTORY_CAPTURE_ID="$(python3 -c 'import uuid; print(uuid.uuid4().hex)')"
+          JPEG2000_INVENTORY_CAPTURE_ID="$(python3 -c 'import uuid; print(uuid.uuid4().hex)')"
+          export JPEG2000_INVENTORY_CAPTURE_ID
           export JPEG2000_INVENTORY_OUTPUT="$PWD/target/native-inventory/all-features.json"
           CARGO_TARGET_DIR=target/native-inventory/all-features-build cargo +"$TOOLCHAIN" check --lib --all-features --locked
           test -s "$JPEG2000_INVENTORY_OUTPUT"

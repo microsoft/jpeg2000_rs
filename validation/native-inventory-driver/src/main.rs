@@ -223,5 +223,8 @@ fn main() {
             .unwrap_or_else(|| fail("JPEG2000_INVENTORY_OUTPUT is required")),
         arguments: arguments.clone(),
     };
+    if capture.capture_id.trim().is_empty() {
+        fail("JPEG2000_INVENTORY_CAPTURE_ID must not be empty");
+    }
     rustc_driver::run_compiler(&arguments, &mut capture);
 }

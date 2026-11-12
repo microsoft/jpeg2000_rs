@@ -129,10 +129,12 @@ class DriverTests(unittest.TestCase):
 
     def test_capture_identity_is_required_before_any_output(self):
         output = self.work / "must-not-exist.json"
-        result = self.invoke(output, None)
-        self.assertEqual(result.returncode, 2, result.stderr)
-        self.assertIn("JPEG2000_INVENTORY_CAPTURE_ID is required", result.stderr)
-        self.assertFalse(output.exists())
+        for capture_id in (None, "", " \t"):
+            with self.subTest(capture_id=capture_id):
+                result = self.invoke(output, capture_id)
+                self.assertEqual(result.returncode, 2, result.stderr)
+                self.assertIn("JPEG2000_INVENTORY_CAPTURE_ID", result.stderr)
+                self.assertFalse(output.exists())
 
 
 if __name__ == "__main__":
