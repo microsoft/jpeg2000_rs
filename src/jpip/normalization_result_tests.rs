@@ -1,6 +1,23 @@
 use super::*;
 
 #[test]
+fn automatic_main_header_refusal_preserves_input_and_exact_recovery() {
+    let input = [0xff, 0x4f, 0xff, 0x64, 0, 3, 7, 0xff, 0x52, 0, 3, 9];
+    let before = input;
+    assert_eq!(
+        crate::allocation::with_refusal(0, || normalize_main_header(&input)),
+        Err(DecodeError::AllocationFailed)
+    );
+    assert_eq!(input, before);
+    assert_eq!(normalize_main_header(&input).unwrap(), input);
+    assert_eq!(
+        normalize_main_header(&[0xff, 0x4f, 0xff]),
+        Err(DecodeError::malformed(2, MalformedKind::Truncated))
+    );
+    assert_eq!(normalize_main_header(&input).unwrap(), input);
+}
+
+#[test]
 fn raw_normalization_preserves_exact_markers_framing_optional_sod_and_input_storage() {
     let sources: &[(&[u8], &[u8])] = &[
         (&[], &[]),

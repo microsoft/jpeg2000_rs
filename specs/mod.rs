@@ -1,6 +1,8 @@
 use vstd::arithmetic::power2::pow2;
 use vstd::prelude::*;
 
+mod allocation;
+pub use allocation::*;
 mod mq;
 pub use mq::*;
 mod legacy;

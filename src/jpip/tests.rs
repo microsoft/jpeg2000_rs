@@ -681,6 +681,82 @@ fn sarah_dev_76bf9f9717_empty_resolutions_do_not_shift_precinct_databin_ids() {
 }
 
 #[test]
+fn automatic_managed_allocation_refusals_preserve_state_and_recover_exact_images() {
+    let bytes = decodable_codestream_with_layers(2);
+    let tile_start = bytes
+        .windows(2)
+        .position(|window| window == 0xff90_u16.to_be_bytes())
+        .unwrap();
+    let packet_start = tile_start + 14;
+    let mut cache = DatabinCache::new(ResourceLimits::default());
+    cache
+        .insert(fragment(id(6, 0), 0, &bytes[..tile_start], true))
+        .unwrap();
+    cache
+        .insert(fragment(
+            id(2, 0),
+            0,
+            &bytes[tile_start..packet_start],
+            true,
+        ))
+        .unwrap();
+    cache
+        .insert(fragment(
+            id(0, 0),
+            0,
+            &bytes[packet_start..packet_start + 2],
+            true,
+        ))
+        .unwrap();
+    let options = crate::DecodeOptions::default();
+    let expected = crate::decode_codestream(&bytes, &options).unwrap();
+    let selection = crate::DecodeSelection::full_image();
+    let packets = JpipPacketSelection::all_components();
+    for selected in [false, true] {
+        let mut refusals = 0;
+        let mut reached_end = false;
+        for ordinal in 0..32 {
+            let mut decoder = JpipAutomaticProgressiveDecoder::new(0);
+            let result = crate::allocation::with_refusal(ordinal, || {
+                if selected {
+                    decoder.update_selected(&cache, &options, &selection, &packets)
+                } else {
+                    decoder.update(&cache, &options)
+                }
+            });
+            let update = match result {
+                Err(DecodeError::AllocationFailed) => {
+                    refusals += 1;
+                    assert_eq!(decoder.decoded_layers(), 0);
+                    if selected {
+                        decoder.update_selected(&cache, &options, &selection, &packets)
+                    } else {
+                        decoder.update(&cache, &options)
+                    }
+                    .unwrap()
+                }
+                Ok(update) => {
+                    reached_end = true;
+                    update
+                }
+                Err(error) => panic!("unexpected managed-refusal error: {error}"),
+            };
+            assert_eq!(update.image(), Some(&expected));
+            assert_eq!(update.status(), JpipProgressiveStatus::Complete);
+            assert_eq!(decoder.decoded_layers(), 2);
+            if reached_end {
+                break;
+            }
+        }
+        assert!(refusals > 0);
+        assert!(
+            reached_end,
+            "managed request sweep exceeded its bounded fixture profile"
+        );
+    }
+}
+
+#[test]
 fn automatic_mapping_decodes_incomplete_precinct_quality_prefixes() {
     let bytes = decodable_codestream_with_layers(2);
     let tile_start = bytes

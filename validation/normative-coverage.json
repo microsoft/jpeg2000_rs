@@ -4,6 +4,39 @@
   "scope": "Technical reference inventory; not exhaustive standards-clause coverage or a conformance claim.",
   "requirements": [
     {
+      "id": "implementation-fallible-storage-reservation",
+      "topic": "Implementation policy, not a standards rule: fallible reservation preserves vector contents on either result; capacity construction returns an empty vector or AllocationFailed; byte extension appends exactly or preserves contents on refusal. Uses the pinned vstd try_reserve contract without new trusted declarations. Physical allocator availability/capacity is an external standard-library boundary. Automatic JPIP scratch/main-header callers propagate errors, but complete public allocation-aware Results and all remaining infallible sites remain open under issues287/130/300; no complete reachable-surface or OOM recovery claim.",
+      "implementation_refs": [
+        {"path": "src/allocation.rs", "symbol": "reserve_additional"},
+        {"path": "src/allocation.rs", "symbol": "empty_with_capacity"},
+        {"path": "src/allocation.rs", "symbol": "extend_bytes"},
+        {"path": "src/jpip/automatic_headers.rs", "symbol": "normalize_main_header"},
+        {"path": "src/jpip/progression.rs", "symbol": "DatabinCache::build_automatic_snapshot"},
+        {"path": "src/jpip/progression.rs", "symbol": "DatabinCache::automatic_headers"}
+      ],
+      "contract_refs": [
+        {"path": "src/allocation.rs", "symbol": "reserve_additional"},
+        {"path": "src/allocation.rs", "symbol": "empty_with_capacity"},
+        {"path": "src/allocation.rs", "symbol": "extend_bytes"}
+      ],
+      "spec_refs": [
+        {"path": "specs/allocation.rs", "symbol": "storage_reservation_result"},
+        {"path": "specs/allocation.rs", "symbol": "storage_capacity_result"},
+        {"path": "specs/allocation.rs", "symbol": "storage_extension_result"}
+      ],
+      "proof_refs": [
+        {"path": "src/allocation.rs", "symbol": "reserve_additional"},
+        {"path": "src/allocation.rs", "symbol": "empty_with_capacity"},
+        {"path": "src/allocation.rs", "symbol": "extend_bytes"}
+      ],
+      "test_refs": [
+        {"path": "src/allocation.rs", "symbol": "capacity_refusal_and_layout_overflow_return_typed_errors_and_recover"},
+        {"path": "src/allocation.rs", "symbol": "byte_extension_refusal_preserves_values_and_owner_then_recovers"},
+        {"path": "src/jpip/normalization_result_tests.rs", "symbol": "automatic_main_header_refusal_preserves_input_and_exact_recovery"},
+        {"path": "src/jpip/tests.rs", "symbol": "automatic_managed_allocation_refusals_preserve_state_and_recover_exact_images"}
+      ]
+    },
+    {
       "id": "part9-native-placeholder-representation-selection",
       "topic": "Complete actual raw placeholder representation/header selection Result from arbitrary flags, original bytes and optional equivalent bytes. One executing selector returns the branch and exact borrowed header together, preserving original-first precedence, equivalent missing-header errors, codestream/original header identity and empty representation. The recursive metadata caller uses that same selected branch/header, correcting DEV-6744E122C7 mixing an equivalent payload/type with the original shell. This is existing supported representation consistency, not a normative grammar amendment. Header validity, flag admission, recursive expansion/full public Result, metadata-CSn scope and NCS semantics remain separate; no selected-edition or independent-closure claim.",
       "implementation_refs": [

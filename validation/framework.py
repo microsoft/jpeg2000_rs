@@ -8631,6 +8631,31 @@ def validate_normative_coverage(
                     named_prefix + r"(?P<state>\(\s*" + header_contract[1] + r"\s*,\s*"
                     + header_contract[2] + r"\s*\))" + model_suffix, contract,
                 )
+            storage_contract = {
+                "reserve_additional": (
+                    "storage_reservation_result",
+                    r"old\(\s*values\s*\)@\s*,\s*final\(\s*values\s*\)@\s*,\s*\1",
+                ),
+                "empty_with_capacity": ("storage_capacity_result", r"\1"),
+                "extend_bytes": (
+                    "storage_extension_result",
+                    r"old\(\s*values\s*\)@\s*,\s*bytes@\s*,\s*"
+                    r"final\(\s*values\s*\)@\s*,\s*\1",
+                ),
+            }.get(short) if reference["path"] == "src/allocation.rs" else None
+            if storage_contract:
+                model, arguments = storage_contract
+                relation = re.search(
+                    named_prefix + r"crate::specs::(?P<model>" + re.escape(model)
+                    + r")\s*\(\s*(?P<state>" + arguments + r")\s*,?\s*\)", contract,
+                )
+                if relation is None or re.search(r"\brequires\b", contract):
+                    raise ValueError(f"linked function lacks executable Verus contract: {short}; invalid storage relation")
+                if mutating:
+                    state_result = relation
+                else:
+                    scalar_result = relation
+                expected_result_model = model
             final_parameters = set(re.findall(
                 r"\bfinal\(\s*(\w+(?:\.\w+)?)\s*\)" if bundle else r"\bfinal\(\s*(\w+)\s*\)",
                 state_result["state"],

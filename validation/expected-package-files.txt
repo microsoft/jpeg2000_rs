@@ -19,6 +19,7 @@ proofs/shared/mod.rs
 proofs/spec_properties/mod.rs
 specs/AUDIT_REFERENCE.md
 specs/README.md
+specs/allocation.rs
 specs/codestream_profile.rs
 specs/container_colors.rs
 specs/container_images.rs
@@ -78,6 +79,7 @@ specs/raw_layout.rs
 specs/tag_tree.rs
 specs/tile_header_traversal.rs
 specs/tile_part.rs
+src/allocation.rs
 src/codestream/coding_markers.rs
 src/codestream/coding_style.rs
 src/codestream/decoder_input_proof_support.rs

@@ -341,10 +341,10 @@ impl DatabinCache {
         let main = self.databin_view(main_id)?.into_bytes();
         let (tile_count, components) = siz_cardinality(&main, limits)?;
         validate_packet_component_selection(packet_selection, components)?;
-        let mut tile_headers = Vec::with_capacity(
+        let mut tile_headers = crate::allocation::empty_with_capacity(
             usize::try_from(tile_count)
                 .map_err(|_| DecodeError::malformed(0, MalformedKind::ArithmeticOverflow))?,
-        );
+        )?;
         let mut header_missing = Vec::new();
         let mut tile = 0_u64;
         #[cfg_attr(
@@ -385,7 +385,7 @@ impl DatabinCache {
         }
 
         let normalized_main = normalize_main_header(&main)?;
-        let mut normalized_tiles = Vec::with_capacity(tile_headers.len());
+        let mut normalized_tiles = crate::allocation::empty_with_capacity(tile_headers.len())?;
         let mut tile_index = 0_usize;
         #[cfg_attr(
             verus_keep_ghost,
@@ -407,7 +407,7 @@ impl DatabinCache {
         let template =
             build_automatic_transition_template(&normalized_main, &normalized_tiles, limits)?;
         let layout = crate::codestream::parse_layout(&template, limits)?;
-        let mut automatic_tiles = Vec::with_capacity(normalized_tiles.len());
+        let mut automatic_tiles = crate::allocation::empty_with_capacity(normalized_tiles.len())?;
         let mut maximum_layers = 0_u16;
         tile_index = 0;
         #[cfg_attr(
@@ -503,7 +503,7 @@ impl DatabinCache {
 
             let mut parsed = vec![vec![None; layer_count]; precinct_count];
             let mut offsets = vec![0_u64; precinct_count];
-            let mut databins = Vec::with_capacity(precinct_count);
+            let mut databins = crate::allocation::empty_with_capacity(precinct_count)?;
             let grid = plan.grid();
             let mut mapping_index = 0_usize;
             #[cfg_attr(
@@ -653,7 +653,7 @@ impl DatabinCache {
             }
 
             let tile_is_selected = jpip_tile_selected(selection, tile_number);
-            let mut packets = Vec::with_capacity(order.len());
+            let mut packets = crate::allocation::empty_with_capacity(order.len())?;
             let mut order_index = 0_usize;
             #[cfg_attr(
                 verus_keep_ghost,
@@ -946,10 +946,10 @@ impl DatabinCache {
             .databin_view(DatabinId::new(6, codestream, 0)?)?
             .into_bytes();
         let (tile_count, components) = siz_cardinality(&main, &self.limits)?;
-        let mut tiles = Vec::with_capacity(
+        let mut tiles = crate::allocation::empty_with_capacity(
             usize::try_from(tile_count)
                 .map_err(|_| DecodeError::malformed(0, MalformedKind::ArithmeticOverflow))?,
-        );
+        )?;
         let mut tile = 0_u64;
         #[cfg_attr(
             verus_keep_ghost,
@@ -966,7 +966,7 @@ impl DatabinCache {
             tile += 1;
         }
         let main = normalize_main_header(&main)?;
-        let mut normalized = Vec::with_capacity(tiles.len());
+        let mut normalized = crate::allocation::empty_with_capacity(tiles.len())?;
         let mut index = 0_usize;
         #[cfg_attr(
             verus_keep_ghost,

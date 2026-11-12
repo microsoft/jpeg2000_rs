@@ -11,6 +11,8 @@ compile_error!(
 use vstd::prelude::*;
 
 #[cfg_attr(verus_keep_ghost, verifier::verify)]
+mod allocation;
+#[cfg_attr(verus_keep_ghost, verifier::verify)]
 mod error;
 #[cfg_attr(verus_keep_ghost, verifier::verify)]
 mod limits;

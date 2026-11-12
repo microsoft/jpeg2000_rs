@@ -173,6 +173,8 @@ pub enum DecodeError {
     Io {
         kind: IoKind,
     },
+    /// Storage reservation was refused, including an unrepresentable capacity.
+    AllocationFailed,
 }
 
 impl DecodeError {
@@ -255,6 +257,7 @@ impl fmt::Display for DecodeError {
                 formatter,
                 "resource limit exceeded for {resource:?}: limit {limit}, actual {actual}"
             ),
+            Self::AllocationFailed => write!(formatter, "memory allocation failed"),
             Self::Io { kind } => write!(formatter, "I/O failure: {kind:?}"),
         }
     }
