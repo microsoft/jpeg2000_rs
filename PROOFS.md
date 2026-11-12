@@ -3159,6 +3159,16 @@ Rust division/remainder, interpolation and signed/type4 remapping preserve
 all original errors. Nonmonotone and out-of-target-range raw tables remain
 accepted here; the outer scalar dispatcher retains its separate final check.
 
+The user-approved retained-assertion profile normalizes the source rank with
+the checked inclusive maximum `(2^B)-1`, not the sample count `2^B`.
+Signed inputs retain the original half-range offset and the accepted integer
+source range is unchanged. The actual scalar producer and its complete
+checked Result model share this endpoint rule; gamma and binary-complement
+dispatch are unchanged. Ascending/descending tables with both source and
+target signs exercise 2,224 exact endpoint/interior contexts through the LUT
+producer and outer scalar dispatcher. Preserved conflicting public
+normalization evidence remains a separate standards-adjudication boundary.
+
 The private receiverless body is a sole module function for pinned attribute
 support. The actual position and interpolation arithmetic are extracted once and proved
 under opaque mathematical bodies to isolate nonlinear solver context without

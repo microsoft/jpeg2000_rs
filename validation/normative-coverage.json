@@ -4576,7 +4576,7 @@
     },
     {
       "id": "part2-complete-native-nonlinear-lut",
-      "topic": "Complete actual inverse NLT LUT Result for raw source sample, raw component descriptor and complete raw transform. Preserve output precision then minimum/maximum/point-count/source admission, source offset, checked scaling and clamping, checked interval conversion/position, Rust signed quotient/remainder, endpoint versus ordered point reads, every interpolation intermediate overflow, half-away ratio rounding and signed/type4 remapping. No normalized tables, supplied lookup/sample results, monotonicity, target-range or valid-source premises; unused descriptors/kinds stay unvalidated. Actual inverse scalar dispatch calls sole moved private body. Isolate actual interpolation under an opaque but proved model at original budgets; checked widening retains original conversion policy. Gamma/log/exp/whole dispatch/region/typed/parser/file/F2/F4/final F8 and delivery remain separate.",
+      "topic": "Complete actual inverse NLT LUT Result for raw sample/component/transform under the retained-assertion engineering endpoint rule: checked inclusive source-rank maximum(2^B)-1, unchanged signed offset and accepted source range. Preserve precision/minimum/maximum/point-count/source admission, checked scaling/clamping, interval conversion, Rust signed quotient/remainder, endpoint versus ordered reads, intermediate overflow, half-away rounding and signed/type4 remapping. No normalized tables, supplied results, monotonicity, target-range or valid-source premises; unused descriptors/kinds stay unvalidated. Actual outer scalar dispatch calls this sole body. Existing opaque proved interpolation and solver budgets remain unchanged. Preserve contrary public normalization evidence; independent standards closure and remaining outer joins remain separate.",
       "implementation_refs": [
         {"path": "src/image/nonlinear_math.rs", "symbol": "inverse_nlt_sample"},
         {"path": "src/image/nonlinear_math.rs", "symbol": "inverse_nlt_lut_sample"},
@@ -4608,7 +4608,8 @@
         {"path": "src/image/nonlinear_math.rs", "symbol": "nlt_round_ratio"}
       ],
       "test_refs": [
-        {"path": "src/image/tests.rs", "symbol": "actual_nonlinear_lut_derives_checked_interpolation_and_raw_type4_samples"}
+        {"path": "src/image/tests.rs", "symbol": "actual_nonlinear_lut_derives_checked_interpolation_and_raw_type4_samples"},
+        {"path": "src/image/tests.rs", "symbol": "sarah_engineering_nlt_lut_reaches_both_unsigned_rank_endpoints"}
       ]
     },
     {

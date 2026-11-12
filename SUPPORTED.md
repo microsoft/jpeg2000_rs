@@ -91,6 +91,10 @@ requests retain the transform of each contributing source tile.
 The retained-assertion engineering profile preserves NLT header scope:
 tile-specific, tile-default, main-specific, then main-default. Local defaults
 do not erase local specifics or the inherited fallback descriptors.
+LUT transforms normalize the complete unsigned source rank by `(2^B)-1`,
+including both endpoints; signed source samples retain their half-range offset.
+This retained-assertion behavior does not assert agreement with conflicting
+public scalar-normalization implementations.
 Empty half-open resolution axes have zero code-block and precinct cells,
 including nonaligned endpoints. Fully clipped empty subbands produce no
 execution; empty resolutions do not introduce phantom precinct databin IDs.

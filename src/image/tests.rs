@@ -3549,6 +3549,64 @@ fn actual_nonlinear_arithmetic_preserves_checked_i128_rounding_q32_and_power_bou
 }
 
 #[test]
+fn sarah_engineering_nlt_lut_reaches_both_unsigned_rank_endpoints() {
+    let mut contexts = 0;
+    for precision in [1_u8, 2, 4, 8] {
+        let maximum = (1_i128 << precision) - 1;
+        for source_signed in [false, true] {
+            for target_signed in [false, true] {
+                for descending in [false, true] {
+                    let info = ComponentInfo {
+                        precision,
+                        signed: source_signed,
+                        x_subsampling: 1,
+                        y_subsampling: 1,
+                        x_registration: 0,
+                        y_registration: 0,
+                    };
+                    let points = if descending {
+                        vec![255, 0]
+                    } else {
+                        vec![0, 255]
+                    };
+                    let transform = NonlinearPointTransform::for_test(
+                        8,
+                        target_signed,
+                        2,
+                        Some(0),
+                        Some(u32::MAX),
+                        points,
+                    );
+                    for rank in 0..=maximum {
+                        let source = rank
+                            - if source_signed {
+                                1_i128 << (precision - 1)
+                            } else {
+                                0
+                            };
+                        let interpolated = (rank * 255 + maximum / 2) / maximum;
+                        let raw = if descending {
+                            255 - interpolated
+                        } else {
+                            interpolated
+                        };
+                        let expected = raw - if target_signed { 128 } else { 0 };
+                        assert_eq!(
+                            inverse_nlt_lut_sample(source, info, &transform),
+                            Ok(expected),
+                            "precision={precision} source_signed={source_signed} target_signed={target_signed} descending={descending} rank={rank}"
+                        );
+                        assert_eq!(inverse_nlt_sample(source, info, &transform), Ok(expected));
+                        contexts += 1;
+                    }
+                }
+            }
+        }
+    }
+    assert_eq!(contexts, 2_224);
+}
+
+#[test]
 fn actual_nonlinear_lut_derives_checked_interpolation_and_raw_type4_samples() {
     fn reference(
         source: i128,
@@ -3578,8 +3636,8 @@ fn actual_nonlinear_lut_derives_checked_interpolation_and_raw_type4_samples() {
         if nominal < 0 || nominal as u128 >= scale {
             return Err(invalid_image());
         }
-        let low = u128::from(minimum) * scale;
-        let high = u128::from(maximum) * scale;
+        let low = u128::from(minimum) * (scale - 1);
+        let high = u128::from(maximum) * (scale - 1);
         let coordinate = (nominal as u128 * u128::from(u32::MAX)).clamp(low, high);
         let denominator = high - low;
         let position = (coordinate - low) * (points.len() - 1) as u128;
@@ -3775,7 +3833,7 @@ fn applies_lut_nlt_inverse_with_integer_interpolation() {
         .unwrap();
     assert_eq!(
         image.component(0).unwrap().samples(),
-        &TypedSamples::Unsigned(vec![0, 4, 8, 11])
+        &TypedSamples::Unsigned(vec![0, 5, 10, 15])
     );
     assert_eq!(image.component(0).unwrap().info().precision, 4);
 }

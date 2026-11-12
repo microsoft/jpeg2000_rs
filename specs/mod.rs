@@ -8910,16 +8910,19 @@ pub open spec fn part2_nlt_lut_sample(
                 } else {
                     match part2_nlt_power_of_two(info.precision) {
                         Err(error) => Err(error),
-                        Ok(source_scale) => match if info.signed { part2_nlt_power_of_two((info.precision - 1) as u8) } else { Ok(0i128) } {
+                        Ok(source_power) => match part2_atk_checked_i128(source_power as int - 1) {
+                            Err(error) => Err(error),
+                            Ok(source_scale) => match if info.signed { part2_nlt_power_of_two((info.precision - 1) as u8) } else { Ok(0i128) } {
                             Err(error) => Err(error),
                             Ok(source_offset) => match part2_atk_checked_i128(source as int + source_offset as int) {
                                 Err(error) => Err(error),
-                                Ok(nominal) => if nominal < 0 || nominal >= source_scale { Err(part1_image_error(false)) }
+                                Ok(nominal) => if nominal < 0 || nominal > source_scale { Err(part1_image_error(false)) }
                                 else {
                                     match part2_nlt_lut_position(transform.points, source_scale, nominal, minimum, maximum) {
                                         Err(error) => Err(error),
                                         Ok(raw) => part2_nlt_lut_finish(raw, transform),
                                     }
+                                    },
                                 },
                             },
                         },
