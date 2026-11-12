@@ -12,6 +12,7 @@ from unittest.mock import patch
 VALIDATION = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(VALIDATION))
 import source_inventory as inventory
+import source_contract_audit
 
 
 def vir_function(symbol="jpeg2000_decoder::fixture", mode="Exec", ensures="()",
@@ -348,6 +349,82 @@ class SourceInventoryTests(unittest.TestCase):
             with self.subTest(mutation=mutation), patch.object(inventory, "source_binding", return_value=provenance):
                 with self.assertRaises(ValueError):
                     inventory.collect(self.root, inputs, binding, proof)
+
+    def audit_fixture(self):
+        inputs, binding, proof, provenance = self.collect_fixture()
+        with patch.object(inventory, "source_binding", return_value=provenance):
+            report = inventory.collect(self.root, inputs, binding, proof)
+        return copy.deepcopy(report), copy.deepcopy(proof)
+
+    def test_contract_audit_joins_exact_ids_without_promoting_functional_coverage(self):
+        report, proof = self.audit_fixture()
+        result = source_contract_audit.audit(report, proof)
+        native = result["native_items"][0]
+        self.assertEqual(native["whole_crate_result_identity"], "exact-result-key-present")
+        self.assertEqual(native["postcondition_syntax"], "no-explicit-postcondition")
+        self.assertEqual(native["functional_contract_review"], "not-reviewed")
+        self.assertEqual(native["runtime_reachability"], "not-measured")
+        self.assertEqual(result["source_function_coverage"], "not-measured")
+        report["vir_functions"][0]["ensure_counts"] = [1, 0]
+        result = source_contract_audit.audit(report, proof)
+        self.assertEqual(result["native_items"][0]["postcondition_syntax"],
+                         "explicit-postcondition-present-unreviewed")
+        self.assertEqual(result["native_items"][0]["functional_contract_review"], "not-reviewed")
+        report["vir_functions"][0].update(ensure_counts=[0, 0], returns_expression=True)
+        self.assertEqual(source_contract_audit.audit(report, proof)["native_items"][0]["postcondition_syntax"],
+                         "explicit-postcondition-present-unreviewed")
+
+    def test_contract_audit_does_not_guess_impl_display_names_or_runtime_edges(self):
+        report, proof = self.audit_fixture()
+        proof["functions"][0]["function"] = "jpeg2000_decoder::SomeType::fixture"
+        result = source_contract_audit.audit(report, proof)
+        self.assertEqual(result["verus_exec_items"][0]["whole_crate_result_identity"],
+                         "result-key-crosswalk-unresolved")
+        self.assertEqual(result["result_keys_without_exact_vir_key"],
+                         ["jpeg2000_decoder::SomeType::fixture"])
+        self.assertEqual(result["runtime_reachability"], "not-measured")
+
+    def test_contract_audit_keeps_unmatched_derived_and_nested_exec_visible(self):
+        report, proof = self.audit_fixture()
+        native, vir = report["native_functions"][0], report["vir_functions"][0]
+        native.update(derived=True, origin_disposition="derived-origin-not-compared")
+        vir.update(native_origin_disposition="unresolved-native-origin", native_source_ids=[])
+        nested = copy.deepcopy(vir)
+        nested["symbol"] = "jpeg2000_decoder::fixture::nested"
+        report["vir_functions"].append(nested)
+        proof["functions"].append({"function": nested["symbol"], "disposition": "verified"})
+        proof["results"]["verified_project_functions"] = 2
+        result = source_contract_audit.audit(report, proof)
+        self.assertIsNone(result["native_items"][0]["vir_symbol"])
+        self.assertEqual(result["native_items"][0]["postcondition_syntax"], "unresolved-native-to-vir")
+        self.assertEqual(len(result["verus_exec_items"]), 2)
+        self.assertEqual(result["verus_exec_items"][0]["native_source_ids"], [])
+        vir.update(body_disposition="bodyless-trait-declaration", body_span=None,
+                   native_origin_disposition="bodyless-trait-declaration")
+        self.assertEqual(source_contract_audit.audit(report, proof)["verus_exec_items"][0]["postcondition_syntax"],
+                         "abstract-declaration")
+
+    def test_contract_audit_rejects_stale_counts_origins_and_provenance(self):
+        mutations = [
+            lambda r, p: p["provenance"].update(git_commit="b" * 40),
+            lambda r, p: p["source_hashes"].update({"src/lib.rs": "b" * 64}),
+            lambda r, p: r.update(lifetime_analysis="different"),
+            lambda r, p: p["functions"].append(copy.deepcopy(p["functions"][0])),
+            lambda r, p: p["results"].update(verified_project_functions=2),
+            lambda r, p: r["counts"].update(native_function_items=2),
+            lambda r, p: r["vir_functions"].append(copy.deepcopy(r["vir_functions"][0])),
+            lambda r, p: r["native_functions"].append(copy.deepcopy(r["native_functions"][0])),
+            lambda r, p: r["native_functions"][0].update(vir_candidates=["jpeg2000_decoder::absent"]),
+            lambda r, p: r["native_functions"][0]["vir_candidates"].append("jpeg2000_decoder::fixture"),
+            lambda r, p: r["native_functions"][0].update(origin_disposition="derived-origin-not-compared"),
+            lambda r, p: r["vir_functions"][0].update(
+                native_origin_disposition="unresolved-native-origin", native_source_ids=[]),
+        ]
+        for mutation in mutations:
+            report, proof = self.audit_fixture()
+            mutation(report, proof)
+            with self.subTest(mutation=mutation), self.assertRaises(ValueError):
+                source_contract_audit.audit(report, proof)
 
 
 if __name__ == "__main__":
