@@ -210,6 +210,7 @@ class FrameworkTests(WorkingFiles):
                 with self.subTest(expression=expression):
                     current = original + (
                         "\nfn coverage_index_caller() {\n"
+                        "    incomplete_plm_offset();\n"
                         f"    validate_packet_lengths(); {expression};\n"
                         "}\n"
                     )
