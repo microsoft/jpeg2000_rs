@@ -579,7 +579,8 @@
         {"path": "src/jpip/cache_insert_result_tests.rs", "symbol": "actual_jpip_cache_insert_checked_clones_preserve_fields_and_independent_storage"},
         {"path": "src/jpip/cache_insert_result_tests.rs", "symbol": "actual_jpip_cache_insert_errors_preserve_complete_physical_state_and_error_precedence"},
         {"path": "src/jpip/cache_insert_result_tests.rs", "symbol": "actual_jpip_cache_insert_normalizes_exact_bytes_and_retains_first_alias_metadata"},
-        {"path": "src/jpip/cache_insert_result_tests.rs", "symbol": "reserved_wire_classes_cannot_mutate_recognized_or_physical_cache_state"}
+        {"path": "src/jpip/cache_insert_result_tests.rs", "symbol": "reserved_wire_classes_cannot_mutate_recognized_or_physical_cache_state"},
+        {"path": "src/jpip/cache_insert_result_tests.rs", "symbol": "sarah_metadata_target_identity_preserves_sparse_union_and_error_frames"}
       ]
     },
     {
@@ -837,7 +838,8 @@
         {"path": "src/jpip/message_result_tests.rs", "symbol": "sarah_initial_history_defaults_commit_only_after_complete_data"},
         {"path": "src/jpip/message_result_tests.rs", "symbol": "sarah_initial_history_defaults_are_response_local_not_cache_history"},
         {"path": "src/jpip/message_result_tests.rs", "symbol": "sarah_reserved_classes_have_no_registered_header_semantics"},
-        {"path": "src/jpip/message_result_tests.rs", "symbol": "semantic_identity_aliases_only_assigned_auxiliary_classes"}
+        {"path": "src/jpip/message_result_tests.rs", "symbol": "semantic_identity_aliases_only_assigned_auxiliary_classes"},
+        {"path": "src/jpip/message_result_tests.rs", "symbol": "sarah_metadata_target_identity_retains_raw_codestream_fields"}
       ]
     },
     {
@@ -1376,6 +1378,7 @@
       "id": "part2-complete-native-raw-composition-and-reference-results",
       "topic": "Complete actual raw word cursor/dimension/instruction/composition/reference Results. Every optional instruction field, ordered record, encoded life/persistence/reuse/source region/repeat/tick, actual options/loop/unknown flags and first reference errors preserved. Native cursor old/final frames and eager offsets, geometry/count/life/order/resource priority retained; zero-life/default/no-record admission unchanged. Original output owners/scopes retained, no supplied parsed instruction/composition/result banks or validity premise. One checked composition reader retarget requires explicit future native audit; full file/public/normative/cfg/erasure/lifetimes/release separate.",
       "implementation_refs": [
+        {"path": "src/jp2/composition.rs", "symbol": "has_explicit_registration"},
         {"path": "src/jp2/composition.rs", "symbol": "read_u32_at"},
         {"path": "src/jp2/composition.rs", "symbol": "validate_dimensions"},
         {"path": "src/jp2/composition.rs", "symbol": "parse_instruction_set"},
@@ -1396,9 +1399,11 @@
         {"path": "specs/jp2_composition.rs", "symbol": "part2_parse_composition"},
         {"path": "specs/jp2_layer.rs", "symbol": "part2_layer_registration_references"},
         {"path": "specs/jp2_layer.rs", "symbol": "part2_layer_references"},
+        {"path": "specs/jp2_layer.rs", "symbol": "part2_any_layer_registration"},
         {"path": "specs/jp2_layer.rs", "symbol": "part2_validate_layer_references"}
       ],
       "contract_refs": [
+        {"path": "src/jp2/composition.rs", "symbol": "has_explicit_registration"},
         {"path": "src/jp2/composition.rs", "symbol": "read_u32_at"},
         {"path": "src/jp2/composition.rs", "symbol": "validate_dimensions"},
         {"path": "src/jp2/composition.rs", "symbol": "parse_instruction_set"},
@@ -1406,6 +1411,7 @@
         {"path": "src/jp2/composition.rs", "symbol": "validate_layer_references"}
       ],
       "proof_refs": [
+        {"path": "src/jp2/composition.rs", "symbol": "has_explicit_registration"},
         {"path": "src/jp2/proof_support.rs", "symbol": "raw_instruction_set_view"},
         {"path": "src/jp2/proof_support.rs", "symbol": "raw_instruction_set_outcome"},
         {"path": "src/jp2/proof_support.rs", "symbol": "raw_instruction_sets_view"},

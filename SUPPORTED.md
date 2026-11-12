@@ -243,6 +243,10 @@ Semantic data-bin classes are 0, 1, 2, 4, 5, 6 and 8. Raw class IDs 3 and 7
 remain parseable, including their auxiliary fields and header history, but are
 reported as `Unassigned` and rejected by cache insertion. Only classes 0/1
 and 4/5 share data-bin identity.
+Metadata class 8 is target-wide: CSn is retained in parsed headers and getters
+but does not partition metadata cache identity. Other classes remain
+codestream-scoped. This engineering behavior follows the user-approved retained
+Sarah assertions; independent selected-edition correspondence remains separate.
 
 Equivalent metadata replacement retains its declared equivalent box type and
 short/extended header together with its payload. When original contents are
@@ -269,6 +273,22 @@ in the reconstructed input. Both the main and effective tile coding styles
 must use LRCP, including tile COD overrides. The plans require already-reframed
 headers; original packet-length declarations must not be copied into a shortened
 quality prefix. Automatic reconstruction performs its own header normalization.
+
+### Retained-assertion engineering requirements
+
+The user-approved Sarah acceptance profile additionally requires:
+
+- A nonempty JPX codestream-header sequence has one header per codestream.
+- Association boxes contain at least two immediate children.
+- Explicit compositing-layer registration is present in every layer or none.
+- A nonpersistent, zero-life instruction has no rendering action; layer
+  assignment and reuse scheduling remain accounted.
+- Single-stream placeholders may carry an optional NCS word, consumed without
+  changing their stream count of one. Multistream NCS remains required/nonzero.
+
+These are intentional engineering behavior changes. Retained assertions,
+contrary public-reference observations and independent selected-edition
+correspondence remain separate; this profile does not assert standards closure.
 
 ## Selection
 

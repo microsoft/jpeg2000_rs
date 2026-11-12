@@ -833,7 +833,7 @@ pub fn parse<'a>(input: &'a [u8], limits: &ResourceLimits) -> Result<Jp2File<'a>
             MalformedKind::MissingRequiredStructure,
         ));
     }
-    if codestream_headers.len() > codestream_boxes.len() {
+    if !codestream_headers.is_empty() && codestream_headers.len() != codestream_boxes.len() {
         return Err(DecodeError::malformed(0, MalformedKind::InvalidBoxContents));
     }
     let mut header_index = 0_usize;

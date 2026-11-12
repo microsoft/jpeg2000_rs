@@ -13,7 +13,7 @@ pub(super) fn expected_append(
 ) -> Result<(), DecodeError> {
     let selected = cache.databins.iter().find(|value| {
         class_key(value.id.class_identifier) == class_key(requested.class_identifier)
-            && value.id.codestream == requested.codestream
+            && (requested.class_identifier == 8 || value.id.codestream == requested.codestream)
             && value.id.in_class == requested.in_class
     });
     let Some(selected) = selected else {

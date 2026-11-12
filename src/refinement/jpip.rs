@@ -117,7 +117,7 @@ pub(crate) const fn jpip_databin_identity(
     second_in_class: u64,
 ) -> bool {
     jpip_class_key(first_class) == jpip_class_key(second_class)
-        && first_codestream == second_codestream
+        && (first_class == 8 || first_codestream == second_codestream)
         && first_in_class == second_in_class
 }
 

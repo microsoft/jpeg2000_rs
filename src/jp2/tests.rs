@@ -3,6 +3,70 @@ use super::*;
 
 type RawBoxReaderSnapshot = (usize, u64, u64, bool, ResourceLimits);
 
+#[test]
+fn sarah_engineering_jpx_nonempty_header_sequence_is_complete() {
+    let streams = [valid_codestream(64, 32), valid_codestream(64, 32)];
+    for count in 0..=3 {
+        let headers = vec![Vec::new(); count];
+        let bytes = jpx_with_codestreams(b"jpx \0\0\0\0jpx ", &streams, &headers);
+        assert_eq!(
+            parse(&bytes, &ResourceLimits::default()).is_ok(),
+            count == 0 || count == 2
+        );
+    }
+}
+
+#[test]
+fn sarah_engineering_association_counts_immediate_children_not_descendants() {
+    let limits = ResourceLimits::default();
+    let pair = [box32(*b"xml ", &[]), box32(*b"free", &[])].concat();
+    let cases = [
+        (Vec::new(), false),
+        (box32(*b"xml ", &[]), false),
+        (box32(*b"asoc", &pair), false),
+        (pair.clone(), true),
+        (
+            [box32(*b"asoc", &pair), box32(*b"free", &[])].concat(),
+            true,
+        ),
+    ];
+    for (payload, valid) in cases {
+        let result = super::metadata::inspect_metadata_box(
+            raw_metadata_box(&payload, *b"asoc", 99),
+            &limits,
+            1,
+            8,
+        );
+        assert_eq!(result.is_ok(), valid, "{payload:02x?}: {result:?}");
+    }
+}
+
+#[test]
+fn sarah_engineering_registration_presence_is_file_wide() {
+    let limits = ResourceLimits::default();
+    for mask in 0..8 {
+        let bytes: Vec<_> = (0..3)
+            .flat_map(|index| {
+                let payload = if mask & (1 << index) == 0 {
+                    Vec::new()
+                } else {
+                    box32(*b"creg", &[0, 1, 0, 1, 0, 0, 1, 1, 0, 0])
+                };
+                box32(*b"jplh", &payload)
+            })
+            .collect();
+        let mut reader = BoxReader::new(&bytes, &limits).unwrap();
+        let mut layers = Vec::new();
+        while let Some(value) = reader.next_box_ref() {
+            layers.push(parse_compositing_layer(value.unwrap(), &limits).unwrap());
+        }
+        assert_eq!(
+            validate_layer_references(&layers, 3).is_ok(),
+            mask == 0 || mask == 7
+        );
+    }
+}
+
 fn raw_box_reader_snapshot(reader: &BoxReader<'_>) -> RawBoxReaderSnapshot {
     (
         reader.position,
@@ -3176,7 +3240,10 @@ fn actual_raw_metadata_tree_keeps_non_association_and_empty_association_seed_beh
                 depth,
                 remaining
             ),
-            Ok((1, depth))
+            Err(DecodeError::malformed(
+                99,
+                MalformedKind::InvalidBoxContents
+            ))
         );
     }
 }
@@ -3184,7 +3251,7 @@ fn actual_raw_metadata_tree_keeps_non_association_and_empty_association_seed_beh
 #[test]
 fn actual_raw_metadata_tree_derives_complete_nested_count_and_maximum_depth_from_bytes() {
     let mut children = box32(*b"xml ", &[7]);
-    children.extend_from_slice(&box32(*b"asoc", &[]));
+    children.extend_from_slice(&box32(*b"free", &[]));
     let mut payload = box32(*b"xml ", &[]);
     payload.extend_from_slice(&box32(*b"asoc", &children));
     assert_eq!(
@@ -3692,7 +3759,10 @@ fn actual_raw_layer_header_derives_all_raw_registration_color_opacity_and_nested
     colors.extend_from_slice(&box32(*b"colr", &[3, 7, 9, 0, 255, 128]));
     payload.extend_from_slice(&box32(*b"cgrp", &colors));
     payload.extend_from_slice(&box32(*b"opct", &[2, 3, 1, 255, 128, 0]));
-    payload.extend_from_slice(&box32(*b"asoc", &box32(*b"xml ", &[7])));
+    payload.extend_from_slice(&box32(
+        *b"asoc",
+        &[box32(*b"xml ", &[7]), box32(*b"free", &[])].concat(),
+    ));
     payload.extend_from_slice(&box32(*b"free", &[]));
     let input = raw_metadata_box(&payload, *b"jplh", 99);
     let layer = parse_compositing_layer(input, &ResourceLimits::default()).unwrap();
@@ -3731,7 +3801,7 @@ fn actual_raw_layer_header_derives_all_raw_registration_color_opacity_and_nested
         })
     );
     assert!(layer.channel_definition_records.is_empty());
-    assert_eq!(layer.nested_metadata_boxes, 3);
+    assert_eq!(layer.nested_metadata_boxes, 4);
 }
 
 #[test]
@@ -4394,8 +4464,19 @@ fn actual_raw_container_attaches_every_owned_association_without_changing_other_
             bytes.extend(box32(*b"jp2c", &[index as u8, 255, 0]));
             streams.push((start, bytes.len()));
         }
+        if count != 0 {
+            assert!(matches!(
+                parse(&bytes, &ResourceLimits::default()),
+                Err(DecodeError::MalformedInput {
+                    kind: MalformedKind::InvalidBoxContents,
+                    ..
+                })
+            ));
+            bytes.truncate(streams[count].0);
+            streams.truncate(count);
+        }
         let file = parse(&bytes, &ResourceLimits::default()).unwrap();
-        assert_eq!(file.box_count, (5 + 2 * count) as u64);
+        assert_eq!(file.box_count, (3 + count + streams.len()) as u64);
         for (index, (start, end)) in streams.iter().copied().enumerate() {
             let stream = &file.codestreams[index];
             assert_eq!(stream.header.offset(), start as u64);
@@ -4594,14 +4675,17 @@ fn actual_raw_container_keeps_missing_excess_association_and_first_reference_err
 fn actual_raw_container_derives_metadata_depth_counts_progress_and_empty_stream_admission() {
     let mut bytes = raw_container_start(true, Some(&image_header_box(3, 2)));
     let mut association = box32(*b"xml ", &[1]);
-    association.extend(box32(*b"asoc", &box32(*b"xml ", &[2])));
+    association.extend(box32(
+        *b"asoc",
+        &[box32(*b"xml ", &[2]), box32(*b"free", &[])].concat(),
+    ));
     bytes.extend(box32(*b"asoc", &association));
     bytes.extend(box32(*b"jp2c", &[]));
     bytes.extend(box32(*b"uuid", &[17]));
     let file = parse(&bytes, &ResourceLimits::default()).unwrap();
     assert_eq!(
         (file.metadata_boxes, file.metadata_depth, file.box_count),
-        (5, 3, 6)
+        (6, 3, 6)
     );
     assert!(file.codestreams[0].data.is_empty());
     let offset = bytes.len() as u64;
@@ -5691,16 +5775,29 @@ fn retains_general_layer_cdef_and_nested_metadata() {
     bytes.extend(box32(*b"ftyp", b"jpx \0\0\0\0jpx "));
     bytes.extend(box32(*b"jp2h", &image_header_box(64, 32)));
     let cdef = box32(*b"cdef", &[0, 2, 0, 0, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0]);
-    let nested = box32(*b"asoc", &box32(*b"lbl ", b"layer"));
+    let nested = box32(
+        *b"asoc",
+        &[box32(*b"lbl ", b"layer"), box32(*b"free", &[])].concat(),
+    );
     let mut layer = cdef;
     layer.extend(nested);
     bytes.extend(box32(*b"jplh", &layer));
-    bytes.extend(box32(*b"asoc", &box32(*b"asoc", &box32(*b"xml ", b"<x/>"))));
+    bytes.extend(box32(
+        *b"asoc",
+        &[
+            box32(
+                *b"asoc",
+                &[box32(*b"xml ", b"<x/>"), box32(*b"free", &[])].concat(),
+            ),
+            box32(*b"free", &[]),
+        ]
+        .concat(),
+    ));
     bytes.extend(box32(*b"jp2c", &codestream));
     let parsed = parse(&bytes, &ResourceLimits::default()).unwrap();
     let layer = parsed.compositing_layer(0).unwrap();
     assert_eq!(layer.channel_definition_records().len(), 2);
-    assert_eq!(layer.nested_metadata_boxes(), 2);
-    assert_eq!(parsed.metadata_boxes(), 3);
+    assert_eq!(layer.nested_metadata_boxes(), 3);
+    assert_eq!(parsed.metadata_boxes(), 5);
     assert_eq!(parsed.metadata_depth(), 3);
 }

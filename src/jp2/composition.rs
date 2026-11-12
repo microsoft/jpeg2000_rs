@@ -930,6 +930,33 @@ pub(super) fn validate_dimensions(
 }
 
 #[cfg_attr(verus_keep_ghost, verus_spec(result =>
+    ensures result == crate::specs::part2_any_layer_registration(
+        super::raw_compositing_layers_view(layers@), layers.len() as nat),
+))]
+fn has_explicit_registration(layers: &[CompositingLayer<'_>]) -> bool {
+    let mut found = false;
+    let mut index = 0_usize;
+    #[cfg(verus_keep_ghost)]
+    proof! {
+        reveal(crate::specs::part2_any_layer_registration);
+        reveal(super::raw_compositing_layer_view);
+    }
+    #[cfg_attr(verus_keep_ghost, verus_spec(
+        invariant index <= layers.len(),
+            found == crate::specs::part2_any_layer_registration(
+                super::raw_compositing_layers_view(layers@), index as nat),
+        decreases layers.len() - index,
+    ))]
+    while index < layers.len() {
+        found = found || !layers[index].registrations.is_empty();
+        index += 1;
+        #[cfg(verus_keep_ghost)]
+        proof! { reveal(crate::specs::part2_any_layer_registration); }
+    }
+    found
+}
+
+#[cfg_attr(verus_keep_ghost, verus_spec(result =>
     ensures result == crate::specs::part2_validate_layer_references(
         super::raw_compositing_layers_view(layers@), codestream_count),
 ))]
@@ -937,6 +964,7 @@ pub(super) fn validate_layer_references(
     layers: &[CompositingLayer<'_>],
     codestream_count: usize,
 ) -> Result<(), DecodeError> {
+    let explicit_registration = has_explicit_registration(layers);
     let mut layer_index = 0_usize;
     #[cfg(verus_keep_ghost)]
     proof_decl! { let ghost expected = crate::specs::part2_validate_layer_references(
@@ -945,6 +973,8 @@ pub(super) fn validate_layer_references(
         verus_keep_ghost,
         verus_spec(
             invariant layer_index <= layers.len(),
+                explicit_registration == crate::specs::part2_any_layer_registration(
+                    super::raw_compositing_layers_view(layers@), layers.len() as nat),
                 expected == crate::specs::part2_validate_layer_references(
                     super::raw_compositing_layers_view(layers@), codestream_count),
                 expected == crate::specs::part2_layer_references(
@@ -959,7 +989,7 @@ pub(super) fn validate_layer_references(
             .get(layer_index)
             .ok_or_else(|| DecodeError::malformed(0, MalformedKind::ArithmeticOverflow))?;
         if layer.registrations.is_empty() {
-            if layer_index >= codestream_count {
+            if explicit_registration || layer_index >= codestream_count {
                 return Err(DecodeError::malformed(
                     layer.header.offset(),
                     MalformedKind::InvalidBoxContents,

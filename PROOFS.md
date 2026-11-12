@@ -507,6 +507,13 @@ full-plan gates remain separate; fresh complete qualification is still required.
 
 ## Actual raw JPIP message and inherited-parser Results
 
+The user-approved retained-assertion engineering profile makes class8 metadata
+identity target-wide while preserving the original CSn in wire messages and
+getters. All other classes remain codestream-scoped. The shared executing
+identity predicate, raw models, exact identity theorem and cache consumers
+agree. Independent selected-edition correspondence remains pending; contrary
+public-cache observations are retained, not relabeled supporting evidence.
+
 The public `parse_jpip_message` and `JpipMessageParser::parse` now derive complete
 Data/EOR message, databin/header/body/consumed Results and context/limits mutation
 frames from actual input bytes. The actual VBAS traversal retains
@@ -524,6 +531,16 @@ classes 3 and 7 retain their identifiers, auxiliary fields and context commits,
 but expose `Unassigned` rather than header semantics. Cache insertion rejects
 them without changing physical storage or counters. Only the assigned auxiliary
 pairs 0/1 and 4/5 share identity; other raw keys remain distinct.
+
+The same engineering profile tightens JPX association inspection to two
+immediate children, nonempty codestream-header sequences to full cardinality,
+and compositing-layer registration presence to all-or-none. Complete raw
+metadata/container/layer Result models retain exact errors and ownership.
+Zero-life nonpersistent instructions add no frame action, while assignment
+and reuse transitions stay accounted in the complete timeline model. Optional
+single-stream NCS is consumed but ignored by the actual placeholder parser;
+that parser is not claimed to have a complete raw Result proof merely because
+the separately proved representation selector is unchanged.
 
 Automatic tile-header normalization accepts complete SOT-free header bins with
 or without a final SOD, emits one SOD, removes reframed markers and synthesizes

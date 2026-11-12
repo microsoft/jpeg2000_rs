@@ -39,6 +39,7 @@ pub(super) fn inspect_metadata_box(
     let mut reader = box_reader_from_input(box_ref.payload, limits)?;
     let mut count = 1_u32;
     let mut maximum_depth = depth;
+    let mut immediate_children = 0_usize;
     let mut remaining_boxes = box_ref.payload.len();
     #[cfg(verus_keep_ghost)]
     proof_decl! { let ghost expected = crate::specs::part2_inspect_metadata_box(
@@ -51,14 +52,16 @@ pub(super) fn inspect_metadata_box(
     #[cfg_attr(verus_keep_ghost, verus_spec(
     invariant_except_break expected == crate::specs::part2_metadata_children(
             super::box_reference_view(box_ref), super::box_reader_state(&reader), *limits,
-            child_depth, remaining_depth, count, maximum_depth, remaining_boxes as nat),
+            child_depth, remaining_depth, count, maximum_depth, remaining_boxes as nat, immediate_children),
             expected == crate::specs::part2_inspect_metadata_box(
                 super::box_reference_view(box_ref), *limits, depth, remaining_depth),
             depth < u32::MAX,
             child_depth == depth as nat + 1,
             depth <= crate::limits::resource_box_depth_limit(limits),
             super::box_reference_view(box_ref).0.0 == BoxType::ASSOCIATION,
-        ensures expected == Ok((count, maximum_depth)),
+        ensures expected == if immediate_children < 2 {
+            Err(DecodeError::MalformedInput { offset: super::box_reference_view(box_ref).0.1, kind: MalformedKind::InvalidBoxContents })
+        } else { Ok((count, maximum_depth)) },
         decreases remaining_boxes,
     ))]
     loop {
@@ -98,6 +101,18 @@ pub(super) fn inspect_metadata_box(
             ));
         }
         maximum_depth = maximum_depth.max(observed_depth);
+        immediate_children = immediate_children.checked_add(1).ok_or_else(
+            #[cfg_attr(verus_keep_ghost, verus_spec(result: DecodeError =>
+                ensures result == crate::specs::part2_palette_arithmetic_error(0),
+            ))]
+            || DecodeError::malformed(0, MalformedKind::ArithmeticOverflow),
+        )?;
+    }
+    if immediate_children < 2 {
+        return Err(DecodeError::malformed(
+            box_ref.header.offset(),
+            MalformedKind::InvalidBoxContents,
+        ));
     }
     Ok((count, maximum_depth))
 }

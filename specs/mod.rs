@@ -5838,7 +5838,7 @@ pub open spec fn part9_databin_identity(
     second_in_class: nat,
 ) -> bool {
     part9_class_key(first_class) == part9_class_key(second_class)
-        && first_codestream == second_codestream
+        && (first_class == 8 || first_codestream == second_codestream)
         && first_in_class == second_in_class
 }
 
@@ -7592,7 +7592,9 @@ pub open spec fn part2_timeline_frame(
     frames: Seq<Part2Frame>, time: u64, instruction: Part2Instruction, life: u32, maximum_frames: u32,
 ) -> Result<(Seq<Part2Frame>, u64), crate::DecodeError> {
     let fresh = frames.len() == 0 || frames.last().2 != 0;
-    if fresh && frames.len() >= maximum_frames as nat {
+    if life == 0 && !instruction.9 {
+        Ok((frames, time))
+    } else if fresh && frames.len() >= maximum_frames as nat {
         Err(crate::DecodeError::LimitExceeded { resource: crate::Resource::Frames,
             limit: maximum_frames as u64, actual: (frames.len() + 1) as u64 })
     } else if time as nat + life as nat > u64::MAX as nat {

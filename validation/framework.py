@@ -2661,6 +2661,10 @@ _DECODER_LAYOUT_CONTRACTS = {
 _SOURCE_OPACITY_ENTRY = "part2-complete-native-source-layer-opacity-result"
 _RAW_COMPOSITION_ENTRY = "part2-complete-native-raw-composition-and-reference-results"
 _RAW_COMPOSITION_CONTRACTS = {
+    ("src/jp2/composition.rs", "has_explicit_registration"): (
+        "part2_any_layer_registration", r"\1", None,
+        _coverage_call("super::raw_compositing_layers_view", r"layers\s*@") + r"\s*,\s*layers\.len\(\)\s+as\s+nat",
+    ),
     ("src/jp2/composition.rs", "parse_instruction_set"): (
         "part2_parse_instruction_set", _coverage_call("super::raw_instruction_set_outcome", r"\1"), None,
         _coverage_call("super::box_reference_view", "box_ref") + r"\s*,\s*composition\s*,\s*base_offset\s*,\s*limits",
@@ -2688,9 +2692,11 @@ _RAW_COMPOSITION_MODELS = {
         "part2_validate_composition_dimensions", "part2_parse_composition", "part2_composition_boxes", "part2_composition_finish",
     )
 } | {
-    ("specs/jp2_layer.rs", name) for name in ("part2_validate_layer_references", "part2_layer_references", "part2_layer_registration_references")
+    ("specs/jp2_layer.rs", name) for name in ("part2_validate_layer_references", "part2_layer_references", "part2_layer_registration_references", "part2_any_layer_registration")
 }
 _RAW_COMPOSITION_PROOFS = {
+    ("src/jp2/composition.rs", "has_explicit_registration"),
+} | {
     ("src/jp2/proof_support.rs", name) for name in (
         "raw_instruction_set_view", "raw_instruction_set_outcome", "raw_instruction_sets_view",
         "raw_composition_view", "raw_composition_outcome", "raw_compositing_layers_view",
@@ -3525,6 +3531,7 @@ _JPIP_CACHE_INSERT_PROOFS = set(_JPIP_CACHE_INSERT_CONTRACTS) | {
     "jpip_merge_end", "jpip_transaction_commit",
 )}
 _JPIP_CACHE_INSERT_TESTS = {("src/jpip/cache_insert_result_tests.rs", name) for name in (
+    "sarah_metadata_target_identity_preserves_sparse_union_and_error_frames",
     "actual_jpip_cache_insert_checked_clones_preserve_fields_and_independent_storage",
     "actual_jpip_cache_insert_errors_preserve_complete_physical_state_and_error_precedence",
     "actual_jpip_cache_insert_normalizes_exact_bytes_and_retains_first_alias_metadata",
@@ -3720,6 +3727,7 @@ _JPIP_MESSAGE_PROOFS = {
     "jpip_message_values_known", "jpip_header_fields",
 )}
 _JPIP_MESSAGE_TESTS = {("src/jpip/message_result_tests.rs", name) for name in (
+    "sarah_metadata_target_identity_retains_raw_codestream_fields",
     "sarah_reserved_classes_have_no_registered_header_semantics",
     "semantic_identity_aliases_only_assigned_auxiliary_classes",
     "actual_raw_jpip_vbas_matches_independent_values_and_partial_cursor_on_every_error",
@@ -5860,6 +5868,7 @@ def validate_normative_coverage(
                 "let mut box_count = 2_u64", "metadata_depth = metadata_depth.max(depth)",
                 "super::clone_support::codestream_association_clone(", ".get_mut(header_index)",
                 "codestream_box.codestream_header = Some(association)",
+                "!codestream_headers.is_empty() && codestream_headers.len() != codestream_boxes.len()",
                 "validate_layer_references(&compositing_layers, codestream_boxes.len())?",
                 "Jp2File { file_type, header, codestreams: codestream_boxes, compositing_layers, composition, metadata_boxes, metadata_depth, box_count, }",
             )
@@ -5874,7 +5883,7 @@ def validate_normative_coverage(
                     "part2_parse_compositing_layer(", "part2_parse_composition(", "part2_inspect_metadata_box(",
                     "metadata_depth: if state.metadata_depth < value.1 { value.1 } else { state.metadata_depth }"),
                 "part2_container_attach": ("streams[i].0, streams[i].1", "Some(part2_codestream_association_clone(associations[i]))"),
-                "part2_container_finish": ("state.associations.len() > state.streams.len()", "part2_validate_layer_references(",
+                "part2_container_finish": ("state.associations.len() != 0 && state.associations.len() != state.streams.len()", "part2_validate_layer_references(",
                     "streams: part2_container_attach(", "metadata_depth: state.metadata_depth", "box_count: state.box_count"),
                 "part2_parse_container": ("part2_container_prologue(input, limits)", "part2_container_initial_state()"),
             }.items():
@@ -5889,6 +5898,9 @@ def validate_normative_coverage(
                 raise ValueError("whole raw composition Results require full source/cursor/record/output/reference bridges")
             path = (ROOT / "src/jp2/composition.rs").resolve()
             for name, required in {
+                "has_explicit_registration": (
+                    "found = found || !layers[index].registrations.is_empty()", "index += 1",
+                ),
                 "read_u32_at": ("position.checked_add(4)", "input.get(*position..end)", "*position = end"),
                 "validate_dimensions": ("width == 0 || height == 0", "width > limits.maximum_width()", "height > limits.maximum_height()", "pixels > limits.maximum_pixels()"),
                 "parse_instruction_set": (
@@ -5903,7 +5915,8 @@ def validate_normative_coverage(
                     "actual as u64 > u64::from(limits.maximum_layers())", "encoded_loop_count == u8::MAX", "has_unknown_boxes = true",
                 ),
                 "validate_layer_references": (
-                    "layer_index >= codestream_count", "usize::from(registration.codestream_index) >= codestream_count", "layer.header.offset()",
+                    "has_explicit_registration(layers)", "explicit_registration || layer_index >= codestream_count",
+                    "usize::from(registration.codestream_index) >= codestream_count", "layer.header.offset()",
                 ),
             }.items():
                 body = _coverage_function_body(source_text(path), function_header(path, name))
@@ -5979,6 +5992,7 @@ def validate_normative_coverage(
                 "box_reader_from_input(box_ref.payload, limits)?", "remaining_boxes == 0", "remaining_boxes -= 1",
                 "remaining_depth.checked_sub(1)",
                 "inspect_metadata_box(child, limits, child_depth, child_remaining)?",
+                "immediate_children.checked_add(1)", "if immediate_children < 2 { return Err",
                 "count > u32::MAX - child_count", "crate::refinement::metadata_count(count, child_count)",
                 "u64::from(count) > limits.maximum_work_units()", "maximum_depth.max(observed_depth)",
             )
@@ -5992,6 +6006,7 @@ def validate_normative_coverage(
                     "part2_box_reader_from_input(input.1, limits)",
                 ),
                 "part2_metadata_children": (
+                    "None => if immediate < 2", "immediate == usize::MAX", "(immediate + 1) as usize",
                     "part2_box_reader_next_ref(reader)", "fuel == 0", "remaining == 0",
                     "part2_inspect_metadata_box(child, limits, child_depth, (remaining - 1) as u32)",
                     "count > u32::MAX - observed.0", "part2_metadata_count(count, observed.0)",

@@ -35,7 +35,7 @@ fn missing(offset: u64) -> DecodeError {
 fn selected(cache: &DatabinCache, requested: DatabinId) -> Option<&Databin> {
     cache.databins.iter().find(|bin| {
         class_key(bin.id.class_identifier) == class_key(requested.class_identifier)
-            && bin.id.codestream == requested.codestream
+            && (requested.class_identifier == 8 || bin.id.codestream == requested.codestream)
             && bin.id.in_class == requested.in_class
     })
 }

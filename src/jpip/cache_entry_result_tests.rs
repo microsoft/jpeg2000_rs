@@ -219,7 +219,7 @@ fn actual_jpip_cache_empty_state_and_lookup_preserve_first_normalized_databin_id
         (id(2, 1, 2), Some(2)),
         (id(3, 1, 2), None),
         (id(8, u64::MAX, 16), Some(3)),
-        (id(8, 1, 16), None),
+        (id(8, 1, 16), Some(3)),
         (id(0, 1, 3), None),
     ] {
         assert_eq!(cache.find_databin_index(wanted), expected);

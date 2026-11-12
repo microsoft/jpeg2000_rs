@@ -7,6 +7,23 @@ mod tests {
         source_over_alpha_numerator, source_over_color_numerator, source_over_rounded_ratio,
     };
 
+    #[test]
+    fn sarah_engineering_zero_life_nonpersistent_has_no_render_action() {
+        let instructions = (0..3).map(|index| CompositionInstruction {
+            target_x: index, target_y: 0, target_width: 1, target_height: 1,
+            life: if index == 2 { 5 } else { 0 }, persistent: index == 0,
+            next_reuse: 0, source_x: 0, source_y: 0, source_width: 0, source_height: 0,
+        }).collect();
+        let composition = Composition {
+            width: 3, height: 1, loop_count: 1, has_unknown_boxes: false,
+            instruction_sets: vec![CompositionInstructionSet { flags: 0x000b, repeat: 0, tick: 1, instructions }],
+        };
+        let frames = build_timeline(&composition, 3, 3).unwrap();
+        assert_eq!(frames.len(), 1);
+        assert_eq!(frames[0].duration_milliseconds(), 5);
+        assert_eq!(frames[0].instructions().iter().map(|value| value.layer_index()).collect::<Vec<_>>(), [0, 2]);
+    }
+
     fn source_layer_bytes(packet: &[u8], signed: bool) -> (Vec<u8>, usize) {
         fn boxed(kind: [u8; 4], payload: &[u8]) -> Vec<u8> {
             let mut bytes = u32::try_from(payload.len() + 8).unwrap().to_be_bytes().to_vec();
@@ -758,7 +775,9 @@ mod tests {
         composition.extend(raw_public_box(*b"xml ", b"<x/>"));
         bytes.extend(raw_public_box(*b"comp", &composition));
         if metadata {
-            bytes.extend(raw_public_box(*b"asoc", &raw_public_box(*b"xml ", &[1, 2])));
+            bytes.extend(raw_public_box(*b"asoc", &[
+                raw_public_box(*b"xml ", &[1, 2]), raw_public_box(*b"free", &[]),
+            ].concat()));
         }
         bytes.extend(source);
         (bytes, offset)
@@ -861,7 +880,7 @@ mod tests {
     fn actual_raw_jpx_inspection_derives_global_metadata_depth_and_rejects_all_prefixes() {
         let (bytes, _) = raw_public_timeline_bytes(0, 7, 3, true);
         let metadata = inspect_jpx_layers(&bytes, &ResourceLimits::default()).unwrap();
-        assert_eq!((metadata.metadata_boxes, metadata.metadata_depth), (2, 2));
+        assert_eq!((metadata.metadata_boxes, metadata.metadata_depth), (3, 2));
         for length in 0..bytes.len() {
             assert!(inspect_jpx_layers(&bytes[..length], &ResourceLimits::default()).is_err());
         }
@@ -4070,6 +4089,7 @@ mod tests {
                     Some(layer) => layer,
                     None => break,
                 };
+                if instruction.life != 0 || instruction.persistent {
                 let open = frames
                     .last()
                     .is_some_and(|frame| frame.duration_milliseconds == 0);
@@ -4106,6 +4126,7 @@ mod tests {
                 frame.duration_milliseconds = instruction.life;
                 frame.persistent = instruction.persistent;
                 time += u64::from(instruction.life);
+                }
                 if instruction.next_reuse != 0 {
                     let target = index + instruction.next_reuse as usize;
                     if target >= limit {

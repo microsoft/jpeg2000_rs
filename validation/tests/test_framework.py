@@ -1036,7 +1036,7 @@ class FrameworkTests(WorkingFiles):
 
     def test_inventory_binds_actual_complete_raw_composition_results(self):
         self._assert_complete_packet_contract_bindings(
-            {framework._RAW_COMPOSITION_ENTRY}, framework._RAW_COMPOSITION_CONTRACTS, 5, isolate=False,
+            {framework._RAW_COMPOSITION_ENTRY}, framework._RAW_COMPOSITION_CONTRACTS, 6, isolate=False,
         )
 
     def test_inventory_raw_composition_requires_every_actual_cursor_record_output_and_reference_bridge(self):

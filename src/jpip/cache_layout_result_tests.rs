@@ -101,7 +101,7 @@ fn expected_read(cache: &DatabinCache, layout: &[DatabinId]) -> Result<Vec<u8>, 
     for requested in layout {
         let Some(bin) = cache.databins.iter().find(|bin| {
             class_key(bin.id.class_identifier) == class_key(requested.class_identifier)
-                && bin.id.codestream == requested.codestream
+                && (requested.class_identifier == 8 || bin.id.codestream == requested.codestream)
                 && bin.id.in_class == requested.in_class
         }) else {
             return Err(DecodeError::malformed(

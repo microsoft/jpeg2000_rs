@@ -546,6 +546,12 @@ pub(super) fn parse_jpip_placeholder(payload: &[u8]) -> Result<JpipPlaceholder, 
             }
             count
         } else {
+            if payload.len().checked_sub(position) == Some(4) {
+                read_u32_be(payload, position)?;
+                position = position
+                    .checked_add(4)
+                    .ok_or_else(|| DecodeError::malformed(0, MalformedKind::ArithmeticOverflow))?;
+            }
             1
         };
         (Some(stream), count)
