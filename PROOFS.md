@@ -15,6 +15,33 @@ contracts and models. Exact run counts and source/tool hashes belong in fresh
 CI artifacts, not committed result snapshots. Independent model-to-standard
 review and official conformance testing remain separate.
 
+## Fallible-storage foundation and remaining boundary
+
+[The storage helpers](src/allocation.rs) use the already-pinned vstd
+`Vec::try_reserve` contract, without new trusted declarations or verifier
+exclusions. Their [models](specs/allocation.rs) retain sequence contents on
+either reservation result, empty successful capacity construction, and exact
+byte extension or unchanged contents on `AllocationFailed`. Capacity overflow
+and allocator refusal have that typed error, distinct from configured limits.
+Physical allocation availability, capacity and allocator internals remain a
+standard-library/environment boundary, not a new codec theorem.
+
+Automatic JPIP main-header normalization and selected scratch-vector
+reservations propagate these errors. The test-only thread-local hook refuses
+one managed request without exhausting host memory or replacing an allocator.
+Tests retain original bytes/owners on refusal and exact subsequent success.
+It does not intercept every allocation in a public decode or inspection call.
+
+This is a bounded foundation, not complete allocation recovery: other
+creation, growth, nested vectors and clones remain infallible. Automatic
+snapshot/header/progressive public Results remain unfinished under
+[#130](https://github.com/microsoft/jpeg2000_rs/issues/130), and their
+allocation-inclusive composition remains explicit under
+[#300](https://github.com/microsoft/jpeg2000_rs/issues/300).
+[#287](https://github.com/microsoft/jpeg2000_rs/issues/287) stays open until
+the promised reached parse/decode/inspect surface and cold-call matrix are
+qualified. Existing complete deterministic contracts are not weakened.
+
 ## Trailing whole-packet engineering admission
 
 The actual packet traversal accepts a retained prefix of complete packets

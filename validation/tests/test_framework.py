@@ -655,6 +655,34 @@ class FrameworkTests(WorkingFiles):
             self.assertIn(reference, entry["proof_refs"])
             self.assertNotIn(reference, entry["contract_refs"])
 
+    def test_inventory_storage_relations_bind_result_inputs_and_complete_vector_frame(self):
+        coverage = json.loads((framework.VALIDATION / "normative-coverage.json").read_text())
+        coverage["requirements"] = [
+            item for item in coverage["requirements"]
+            if item["id"] == "implementation-fallible-storage-reservation"
+        ]
+        framework.validate_normative_coverage(coverage)
+        source = framework.ROOT / "src/allocation.rs"
+        original = source.read_text()
+        read_text = Path.read_text
+        mutations = [
+            ("old(values)@", "values@"),
+            ("final(values)@", "old(values)@"),
+            ("bytes@", "Seq::<u8>::empty()"),
+            ("ensures crate::specs::storage_capacity_result(result)",
+             "requires capacity > 0, ensures crate::specs::storage_capacity_result(result)"),
+        ]
+        for before, after in mutations:
+            modified = original.replace(before, after, 1)
+            self.assertNotEqual(modified, original)
+
+            def altered(path, *args, **kwargs):
+                return modified if path == source else read_text(path, *args, **kwargs)
+
+            with self.subTest(before=before), mock.patch.object(Path, "read_text", altered), \
+                    self.assertRaisesRegex(ValueError, "lacks executable Verus contract"):
+                framework.validate_normative_coverage(coverage)
+
     def test_inventory_binds_all_final_packet_wrappers_and_native_execution_bundle(self):
         self._assert_complete_packet_contract_bindings({
             "part1-complete-native-public-packet-boundaries",

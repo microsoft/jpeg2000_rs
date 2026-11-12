@@ -24,7 +24,8 @@ pub(super) fn normalize_main_header(input: &[u8]) -> Result<Vec<u8>, DecodeError
             MalformedKind::MissingRequiredStructure,
         ));
     }
-    let mut output = vec![SOC[0], SOC[1]];
+    let mut output = crate::allocation::empty_with_capacity(SOC.len())?;
+    crate::allocation::extend_bytes(&mut output, &SOC)?;
     let mut position = 2_usize;
     let mut remaining_markers = input.len();
     #[cfg_attr(
@@ -47,9 +48,12 @@ pub(super) fn normalize_main_header(input: &[u8]) -> Result<Vec<u8>, DecodeError
             ));
         }
         if !crate::refinement::jpip_reframed_marker_removed(marker, false) {
-            output.extend_from_slice(input.get(position..end).ok_or_else(|| {
-                DecodeError::malformed(position as u64, MalformedKind::Truncated)
-            })?);
+            crate::allocation::extend_bytes(
+                &mut output,
+                input.get(position..end).ok_or_else(|| {
+                    DecodeError::malformed(position as u64, MalformedKind::Truncated)
+                })?,
+            )?;
         }
         position = end;
     }
