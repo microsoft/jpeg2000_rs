@@ -1,12 +1,16 @@
-#![no_main]
+#![cfg_attr(not(test), no_main)]
 
+#[cfg(test)]
+use crate::resource_limits;
 use jpeg2000_decoder::{
     DecodeOptions, DecodeSelection, ImageRegion, codestream, decode_codestream,
     decode_codestream_selected, decode_jp2, decode_jp2_selected, decode_jph, decode_jph_selected,
     decode_jpx_codestream, decode_jpx_codestream_selected, inspect_jph, inspect_jpx_layers, jp2,
     render_jpx_composition, render_jpx_frame, render_jpx_layer,
 };
+#[cfg(not(test))]
 use jpeg2000_decoder_fuzz::resource_limits;
+#[cfg(not(test))]
 use libfuzzer_sys::fuzz_target;
 
 const SOC: u16 = 0xff4f;
@@ -34,7 +38,10 @@ const SOT: u16 = 0xff90;
 const SOD: u16 = 0xff93;
 const EOC: u16 = 0xffd9;
 
-fuzz_target!(|data: &[u8]| {
+#[cfg(not(test))]
+fuzz_target!(|data: &[u8]| exercise_structured_framing(data));
+
+fn exercise_structured_framing(data: &[u8]) {
     let width = u32::from(data.first().copied().unwrap_or(0)) + 1;
     let height = u32::from(data.get(1).copied().unwrap_or(0)) + 1;
     let roi_shift = data.get(2).copied().unwrap_or(0);
@@ -115,11 +122,15 @@ fuzz_target!(|data: &[u8]| {
     let _ = render_jpx_composition(&composed, &options);
     let _ = render_jpx_frame(&composed, 0, &options);
     let mut nested = composed;
-    nested.extend(box32(*b"asoc", &box32(*b"asoc", &box32(*b"lbl ", b"fuzz"))));
+    let mut inner = box32(*b"lbl ", b"fuzz");
+    inner.extend(box32(*b"free", &[]));
+    let mut outer = box32(*b"lbl ", b"outer");
+    outer.extend(box32(*b"asoc", &inner));
+    nested.extend(box32(*b"asoc", &outer));
     let nested_inspection = inspect_jpx_layers(&nested, &limits).unwrap();
-    assert_eq!(nested_inspection.metadata_boxes(), 3);
+    assert_eq!(nested_inspection.metadata_boxes(), 5);
     assert_eq!(nested_inspection.metadata_depth(), 3);
-});
+}
 
 fn make_ht_codestream(width: u32, height: u32, selector: u8) -> Vec<u8> {
     let mut siz_payload = Vec::new();
@@ -441,4 +452,17 @@ fn box32(box_type: [u8; 4], payload: &[u8]) -> Vec<u8> {
     bytes.extend_from_slice(&box_type);
     bytes.extend_from_slice(payload);
     bytes
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn structured_positive_generators_admit_empty_input_and_all_selectors() {
+        exercise_structured_framing(&[]);
+        for selector in 0..=u8::MAX {
+            exercise_structured_framing(&[0, 0, selector, 0]);
+        }
+    }
 }
