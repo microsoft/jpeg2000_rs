@@ -21,6 +21,115 @@ use super::{
 #[cfg(verus_keep_ghost)]
 use vstd::prelude::*;
 
+#[cfg_attr(verus_keep_ghost, verus_spec(result =>
+    ensures result == crate::specs::part1_coded_singleton_gain(geometry),
+        result == 1 || result == 2 || result == 4,
+))]
+pub(super) fn coded_singleton_gain(geometry: SubbandGeometry) -> i64 {
+    if geometry.resolution == 0 {
+        return 1;
+    }
+    let horizontal = geometry.resolution_width == 1
+        && !geometry.low_pass_first_x
+        && matches!(
+            geometry.orientation,
+            super::SubbandOrientation::Hl | super::SubbandOrientation::Hh
+        );
+    let vertical = geometry.resolution_height == 1
+        && !geometry.low_pass_first_y
+        && matches!(
+            geometry.orientation,
+            super::SubbandOrientation::Lh | super::SubbandOrientation::Hh
+        );
+    match (horizontal, vertical) {
+        (true, true) => 4,
+        (true, false) | (false, true) => 2,
+        _ => 1,
+    }
+}
+
+#[cfg_attr(verus_keep_ghost, verus_spec(result =>
+    ensures (result, final(band)@) == crate::specs::part1_scale_coded_singleton_band(old(band)@, gain, 0),
+))]
+pub(super) fn scale_coded_singleton_band(
+    band: &mut WorkingSubband,
+    gain: i64,
+) -> Result<(), DecodeError> {
+    #[cfg(verus_keep_ghost)]
+    proof_decl! {
+        let ghost initial = band@;
+        let ghost goal = crate::specs::part1_scale_coded_singleton_band(initial, gain, 0);
+    }
+    let mut index = 0_usize;
+    #[cfg_attr(verus_keep_ghost, verus_spec(
+        invariant index <= band.samples.len(),
+            initial == old(band)@,
+            band.samples.len() == initial.3.len(),
+            goal == crate::specs::part1_scale_coded_singleton_band(initial, gain, 0),
+            goal == crate::specs::part1_scale_coded_singleton_band(band@, gain, index as nat),
+        decreases band.samples.len() - index,
+    ))]
+    while index < band.samples.len() {
+        #[cfg(verus_keep_ghost)]
+        proof! { reveal_with_fuel(crate::specs::part1_scale_coded_singleton_band, 1); }
+        let value = band.samples[index]
+            .checked_mul(gain)
+            .ok_or_else(arithmetic_overflow)?;
+        band.samples[index] = value;
+        index += 1;
+    }
+    #[cfg(verus_keep_ghost)]
+    proof! { reveal_with_fuel(crate::specs::part1_scale_coded_singleton_band, 1); }
+    Ok(())
+}
+
+#[cfg_attr(verus_keep_ghost, verus_spec(result =>
+    ensures (result, working_bands_view(final(working)@))
+        == crate::specs::part1_normalize_coded_singletons(
+            working_bands_view(old(working)@), geometry@, 0),
+))]
+pub(super) fn normalize_coded_singletons(
+    working: &mut [WorkingSubband],
+    geometry: &[SubbandGeometry],
+) -> Result<(), DecodeError> {
+    #[cfg(verus_keep_ghost)]
+    proof_decl! {
+        let ghost initial = working_bands_view(working@);
+        let ghost goal = crate::specs::part1_normalize_coded_singletons(initial, geometry@, 0);
+    }
+    let mut index = 0_usize;
+    #[cfg_attr(verus_keep_ghost, verus_spec(
+        invariant index <= working.len(),
+            initial == working_bands_view(old(working)@),
+            working.len() == initial.len(),
+            goal == crate::specs::part1_normalize_coded_singletons(initial, geometry@, 0),
+            goal == crate::specs::part1_normalize_coded_singletons(
+                working_bands_view(working@), geometry@, index as nat),
+        decreases working.len() - index,
+    ))]
+    while index < working.len() {
+        #[cfg(verus_keep_ghost)]
+        proof! { reveal_with_fuel(crate::specs::part1_normalize_coded_singletons, 1); }
+        let band_geometry = *geometry.get(index).ok_or_else(invalid_decode)?;
+        let gain = coded_singleton_gain(band_geometry);
+        if gain != 1 {
+            #[cfg(verus_keep_ghost)]
+            proof_decl! { let ghost before = working_bands_view(working@); }
+            let result = scale_coded_singleton_band(&mut working[index], gain);
+            #[cfg(verus_keep_ghost)]
+            proof! {
+                assert(working_bands_view(working@) =~= before.update(index as int,
+                    working_subband_view(working@[index as int])));
+            }
+            result?;
+        }
+        index += 1;
+    }
+    #[cfg(verus_keep_ghost)]
+    proof! { reveal_with_fuel(crate::specs::part1_normalize_coded_singletons, 1); }
+    Ok(())
+}
+
 impl PreparedTileComponent {
     pub const fn component(&self) -> u16 {
         self.component
@@ -803,6 +912,10 @@ pub(super) fn prepare_tile_component_with_kernel(
             .ok_or_else(arithmetic_overflow)?;
     }
     validate_prepare_coverage(&working.bands)?;
+    if matches!(coding_style.transform, WaveletTransform::Irreversible9x7) && kernel.is_none() {
+        // Coded singleton units precede the public operator's half-gain convention.
+        normalize_coded_singletons(&mut working.bands, &plan.subbands)?;
+    }
 
     let folded = reconstruct_prepare_working(
         &working.bands,

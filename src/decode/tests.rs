@@ -2649,6 +2649,28 @@ fn reference_standard_prepare(
     if bands.iter().any(|band| band.visited.iter().any(|v| !v)) {
         return Err(invalid);
     }
+    if !reversible {
+        for (band, geometry) in bands.iter_mut().zip(&plan.subbands) {
+            let horizontal = geometry.resolution > 0
+                && geometry.resolution_width == 1
+                && !geometry.low_pass_first_x
+                && matches!(
+                    geometry.orientation,
+                    SubbandOrientation::Hl | SubbandOrientation::Hh
+                );
+            let vertical = geometry.resolution > 0
+                && geometry.resolution_height == 1
+                && !geometry.low_pass_first_y
+                && matches!(
+                    geometry.orientation,
+                    SubbandOrientation::Lh | SubbandOrientation::Hh
+                );
+            let gain = 1_i128 << (u8::from(horizontal) + u8::from(vertical));
+            for value in &mut band.samples {
+                *value = i64::try_from(i128::from(*value) * gain).map_err(|_| arithmetic)?;
+            }
+        }
+    }
     let ll = bands.first().ok_or(invalid)?;
     let mut reconstructed = (ll.width, ll.height, fraction, ll.samples.clone());
     let mut first = 1;
@@ -5196,6 +5218,160 @@ fn output_shape_contracts_reject_empty_components_and_planes() {
     assert!(!crate::refinement::component_output_shape_valid(0, 3, 0));
     assert!(!crate::refinement::component_output_shape_valid(2, 0, 0));
     assert!(!crate::refinement::component_output_shape_valid(2, 3, 5));
+}
+
+#[test]
+fn sarah_engineering_nine_seven_normalizer_preserves_raw_frames_and_checked_prefixes() {
+    use super::reconstruction::{
+        coded_singleton_gain, normalize_coded_singletons, scale_coded_singleton_band,
+    };
+    let make_band = |samples: &[i64]| WorkingSubband {
+        width: u32::MAX,
+        height: 0,
+        fraction_bits: u8::MAX,
+        samples: samples.to_vec(),
+        visited: vec![true, false],
+    };
+    let arithmetic = DecodeError::MalformedInput {
+        offset: 0,
+        kind: MalformedKind::ArithmeticOverflow,
+    };
+    for gain in [i64::MIN, -2, 0, 1, 2, 4, i64::MAX] {
+        for values in [&[][..], &[1, i64::MAX, -3], &[i64::MIN, 3], &[0, -3, 3]] {
+            let mut expected = values.to_vec();
+            let mut status = Ok(());
+            for value in &mut expected {
+                match i64::try_from(i128::from(*value) * i128::from(gain)) {
+                    Ok(scaled) => *value = scaled,
+                    Err(_) => {
+                        status = Err(arithmetic);
+                        break;
+                    }
+                }
+            }
+            let mut band = make_band(values);
+            assert_eq!(scale_coded_singleton_band(&mut band, gain), status);
+            assert_eq!(band.samples, expected);
+            assert_eq!(
+                (band.width, band.height, band.fraction_bits),
+                (u32::MAX, 0, u8::MAX)
+            );
+            assert_eq!(band.visited, [true, false]);
+        }
+    }
+    let (plan, _, _) = standard_prepare_fixture(
+        &[codestream::DecompositionDirection::TwoDimensional],
+        false,
+        false,
+        0,
+    );
+    let base = plan.subbands[0];
+    let mut contexts = 0;
+    for resolution in [0, 1] {
+        for orientation in [
+            SubbandOrientation::Ll,
+            SubbandOrientation::Hl,
+            SubbandOrientation::Lh,
+            SubbandOrientation::Hh,
+        ] {
+            for width in [0, 1, 2] {
+                for height in [0, 1, 2] {
+                    for low_x in [false, true] {
+                        for low_y in [false, true] {
+                            let geometry = SubbandGeometry {
+                                resolution,
+                                orientation,
+                                resolution_width: width,
+                                resolution_height: height,
+                                low_pass_first_x: low_x,
+                                low_pass_first_y: low_y,
+                                ..base
+                            };
+                            let horizontal = resolution != 0
+                                && width == 1
+                                && !low_x
+                                && matches!(
+                                    orientation,
+                                    SubbandOrientation::Hl | SubbandOrientation::Hh
+                                );
+                            let vertical = resolution != 0
+                                && height == 1
+                                && !low_y
+                                && matches!(
+                                    orientation,
+                                    SubbandOrientation::Lh | SubbandOrientation::Hh
+                                );
+                            let gain = 1_i64 << (u8::from(horizontal) + u8::from(vertical));
+                            assert_eq!(coded_singleton_gain(geometry), gain);
+                            let mut bands = [make_band(&[-3, 0, 3])];
+                            normalize_coded_singletons(&mut bands, &[geometry]).unwrap();
+                            assert_eq!(bands[0].samples, [-3 * gain, 0, 3 * gain]);
+                            assert_eq!(
+                                (bands[0].width, bands[0].height, bands[0].fraction_bits),
+                                (u32::MAX, 0, u8::MAX)
+                            );
+                            assert_eq!(bands[0].visited, [true, false]);
+                            contexts += 1;
+                        }
+                    }
+                }
+            }
+        }
+    }
+    assert_eq!(contexts, 288);
+    let geometry = SubbandGeometry {
+        resolution: 1,
+        orientation: SubbandOrientation::Hl,
+        resolution_width: 1,
+        low_pass_first_x: false,
+        resolution_height: 2,
+        ..base
+    };
+    let mut bands = [make_band(&[1, 2]), make_band(&[3, 4])];
+    assert_eq!(
+        normalize_coded_singletons(&mut bands, &[geometry]),
+        Err(DecodeError::MalformedInput {
+            offset: 0,
+            kind: MalformedKind::InvalidCodeBlock
+        })
+    );
+    assert_eq!(bands[0].samples, [2, 4]);
+    assert_eq!(bands[1].samples, [3, 4]);
+    let mut bands = [make_band(&[1]), make_band(&[i64::MAX])];
+    assert_eq!(
+        normalize_coded_singletons(&mut bands, &[geometry, geometry]),
+        Err(arithmetic)
+    );
+    assert_eq!(bands[0].samples, [2]);
+    assert_eq!(bands[1].samples, [i64::MAX]);
+}
+
+#[test]
+fn sarah_engineering_nine_seven_coded_singleton_keeps_real_decoder_pixels() {
+    // OpenJPEG 2.5.0: 5x4 PGM, -I -n 2 -d 3,0 -t 4,4 -T 0,0.
+    let bytes = [
+        0xff, 0x4f, 0xff, 0x51, 0x00, 0x29, 0x00, 0x00, 0x00, 0x00, 0x00, 0x08, 0x00, 0x00, 0x00,
+        0x04, 0x00, 0x00, 0x00, 0x03, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x04, 0x00, 0x00,
+        0x00, 0x04, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x01, 0x07, 0x01, 0x01,
+        0xff, 0x52, 0x00, 0x0c, 0x00, 0x00, 0x00, 0x01, 0x00, 0x01, 0x04, 0x04, 0x00, 0x00, 0xff,
+        0x5c, 0x00, 0x0b, 0x42, 0x48, 0x24, 0x57, 0xd3, 0x57, 0xd3, 0x57, 0x62, 0xff, 0x64, 0x00,
+        0x25, 0x00, 0x01, 0x43, 0x72, 0x65, 0x61, 0x74, 0x65, 0x64, 0x20, 0x62, 0x79, 0x20, 0x4f,
+        0x70, 0x65, 0x6e, 0x4a, 0x50, 0x45, 0x47, 0x20, 0x76, 0x65, 0x72, 0x73, 0x69, 0x6f, 0x6e,
+        0x20, 0x32, 0x2e, 0x35, 0x2e, 0x30, 0xff, 0x90, 0x00, 0x0a, 0x00, 0x00, 0x00, 0x00, 0x00,
+        0x18, 0x00, 0x01, 0xff, 0x93, 0xc0, 0xf9, 0xc1, 0x40, 0x1d, 0x08, 0x08, 0x2f, 0x0b, 0x7f,
+        0xff, 0x90, 0x00, 0x0a, 0x00, 0x01, 0x00, 0x00, 0x00, 0x20, 0x00, 0x01, 0xff, 0x93, 0xc1,
+        0xf3, 0x84, 0x06, 0xbd, 0xc4, 0x9c, 0xc0, 0x7c, 0x80, 0xa0, 0x1f, 0x08, 0x40, 0x0d, 0x03,
+        0x0b, 0x3d, 0xff, 0xd9,
+    ];
+    let image = decode_codestream(&bytes, &DecodeOptions::default()).unwrap();
+    assert_eq!((image.width(), image.height()), (5, 4));
+    assert_eq!(
+        image.component(0).unwrap().samples(),
+        &TypedSamples::Unsigned(vec![
+            100, 111, 120, 130, 140, 105, 115, 124, 135, 145, 110, 121, 130, 140, 150, 115, 126,
+            135, 145, 155,
+        ])
+    );
 }
 
 #[test]

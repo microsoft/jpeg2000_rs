@@ -2051,6 +2051,23 @@ _NONLINEAR_REGIONS_CONTRACTS = {
     ),
 }
 
+_CODED_SINGLETON_CONTRACTS = {
+    ("src/decode/reconstruction.rs", "coded_singleton_gain"): (
+        "part1_coded_singleton_gain", r"\1", None, r"geometry",
+    ),
+    ("src/decode/reconstruction.rs", "scale_coded_singleton_band"): (
+        "part1_scale_coded_singleton_band", r"\1",
+        _coverage_call("final", "band") + r"\s*@",
+        _coverage_call("old", "band") + r"\s*@\s*,\s*gain\s*,\s*0",
+    ),
+    ("src/decode/reconstruction.rs", "normalize_coded_singletons"): (
+        "part1_normalize_coded_singletons", r"\1",
+        _coverage_call("working_bands_view", _coverage_call("final", "working") + r"\s*@"),
+        _coverage_call("working_bands_view", _coverage_call("old", "working") + r"\s*@")
+        + r"\s*,\s*geometry\s*@\s*,\s*0",
+    ),
+}
+
 _OUTPUT_SHAPE_CONTRACTS = {
     ("src/decode/api.rs", "validate_part1_output_shape"): (
         "part1_validate_typed_output_shape", r"\1", None,
@@ -8332,6 +8349,7 @@ def validate_normative_coverage(
                 or _TILE_COLLECTION_CONTRACTS.get((reference["path"], reference["symbol"]))
                 or _LAYOUT_DECODING_CONTRACTS.get((reference["path"], reference["symbol"]))
                 or _OUTPUT_SHAPE_CONTRACTS.get((reference["path"], reference["symbol"]))
+                or _CODED_SINGLETON_CONTRACTS.get((reference["path"], reference["symbol"]))
                 or _NONLINEAR_REGIONS_CONTRACTS.get((reference["path"], reference["symbol"]))
                 or _NONLINEAR_ARITHMETIC_CONTRACTS.get((reference["path"], reference["symbol"]))
                 or _NONLINEAR_LUT_CONTRACTS.get((reference["path"], reference["symbol"]))

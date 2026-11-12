@@ -41,6 +41,10 @@ pub fn inverse_9_7(
     low_pass_first: bool,
 ) -> Result<Vec<i64>, DecodeError> {
     let mut output = interleave(low, high, low_pass_first)?;
+    if output.len() == 1 && !low_pass_first {
+        output[0] >>= 1;
+        return Ok(output);
+    }
     if output.len() <= 1 {
         return Ok(output);
     }

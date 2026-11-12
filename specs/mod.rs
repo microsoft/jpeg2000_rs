@@ -3569,6 +3569,57 @@ pub open spec fn part1_prepare_coverage(bands: Seq<Part1WorkingSubbandModel>) ->
     } else { Err(part1_block_placement_error(false)) }
 }
 
+pub open spec fn part1_coded_singleton_gain(geometry: crate::decode::SubbandGeometry) -> i64 {
+    if geometry.resolution == 0 { 1 }
+    else {
+        let horizontal = geometry.resolution_width == 1 && !geometry.low_pass_first_x
+            && matches!(geometry.orientation, crate::tier1::SubbandOrientation::Hl | crate::tier1::SubbandOrientation::Hh);
+        let vertical = geometry.resolution_height == 1 && !geometry.low_pass_first_y
+            && matches!(geometry.orientation, crate::tier1::SubbandOrientation::Lh | crate::tier1::SubbandOrientation::Hh);
+        if horizontal && vertical { 4 } else if horizontal || vertical { 2 } else { 1 }
+    }
+}
+
+#[verifier::opaque]
+pub open spec fn part1_scale_coded_singleton_band(band: Part1WorkingSubbandModel, gain: i64, position: nat)
+    -> Part1WorkingSubbandState
+    decreases band.3.len() - position,
+{
+    if position >= band.3.len() { (Ok(()), band) }
+    else {
+        let value = band.3[position as int] as int * gain as int;
+        if value < i64::MIN || value > i64::MAX {
+            (Err(part1_block_placement_error(true)), band)
+        } else {
+            part1_scale_coded_singleton_band(
+                (band.0, band.1, band.2, band.3.update(position as int, value as i64), band.4),
+                gain, position + 1)
+        }
+    }
+}
+
+#[verifier::opaque]
+pub open spec fn part1_normalize_coded_singletons(
+    bands: Seq<Part1WorkingSubbandModel>, geometry: Seq<crate::decode::SubbandGeometry>, position: nat,
+) -> (Result<(), crate::DecodeError>, Seq<Part1WorkingSubbandModel>)
+    decreases bands.len() - position,
+{
+    if position >= bands.len() { (Ok(()), bands) }
+    else if position >= geometry.len() { (Err(part1_block_placement_error(false)), bands) }
+    else {
+        let gain = part1_coded_singleton_gain(geometry[position as int]);
+        if gain == 1 { part1_normalize_coded_singletons(bands, geometry, position + 1) }
+        else {
+            let scaled = part1_scale_coded_singleton_band(bands[position as int], gain, 0);
+            let changed = bands.update(position as int, scaled.1);
+            match scaled.0 {
+                Err(error) => (Err(error), changed),
+                Ok(()) => part1_normalize_coded_singletons(changed, geometry, position + 1),
+            }
+        }
+    }
+}
+
 pub open spec fn part1_prepare_band(band: Part1WorkingSubbandModel) -> Part1WaveletBand {
     (band.0, band.1, band.3)
 }
@@ -3758,12 +3809,20 @@ pub open spec fn part2_prepare_component(
                                     Err(error) => Err(error),
                                     Ok(()) => match part1_prepare_coverage(placed.1.0) {
                                         Err(error) => Err(error),
-                                        Ok(()) => if placed.1.0.len() == 0 { Err(part1_block_placement_error(false)) } else {
-                                            let ll = placed.1.0[0];
-                                            match part2_prepare_fold((ll.0, ll.1, ll.3, 1usize), placed.1.0, plan.subbands,
+                                        Ok(()) => {
+                                            let normalized = if matches!(style.0, crate::codestream::WaveletTransform::Irreversible9x7) && kernel.is_none() {
+                                                part1_normalize_coded_singletons(placed.1.0, plan.subbands, 0)
+                                            } else { (Ok(()), placed.1.0) };
+                                            match normalized.0 {
+                                                Err(error) => Err(error),
+                                                Ok(()) => if normalized.1.len() == 0 { Err(part1_block_placement_error(false)) } else {
+                                            let ll = normalized.1[0];
+                                            match part2_prepare_fold((ll.0, ll.1, ll.3, 1usize), normalized.1, plan.subbands,
                                                 style, reversible, kernel, maximum, plan.resolution as nat) {
                                                 Err(error) => Err(error),
                                                 Ok(folded) => part1_prepare_finish(plan, part1_prepare_fraction(reversible), folded),
+                                            }
+                                               },
                                             }
                                         },
                                     },
@@ -17071,7 +17130,9 @@ pub open spec fn part1_inverse_nine_seven(
 ) -> Result<Seq<i64>, crate::DecodeError> {
     match part1_interleaved(low, high, low_first) {
         Err(error) => Err(error),
-        Ok(samples) => if samples.len() <= 1 {
+        Ok(samples) => if samples.len() == 1 && !low_first {
+            Ok(samples.update(0, samples[0] >> 1))
+        } else if samples.len() <= 1 {
             Ok(samples)
         } else {
             let low_scaled = part1_scaling_prefix(samples, low_first, part1_nine_seven_scale(true), samples.len());

@@ -4467,6 +4467,14 @@ storage specify complete mutable states on first failure, with untouched
 positions retained. Supporting model properties establish complete sequence
 lengths and plane sample-count/metadata consistency.
 
+The retained-assertion engineering profile uses arithmetic half for an
+odd-origin high-only singleton in both standard kernels. Even-phase singleton,
+empty input and split-admission behavior are unchanged. The sole 9/7 body,
+complete sequence model and all horizontal/vertical/2D consumers share that
+rule. Raw public-operator controls include both signed integer extremes.
+This does not assert raw coefficient-unit equality with the preserved
+independent OpenJPEG primitive.
+
 The existing public `convert_samples` API has full Result semantics for its
 actual 1..38 precision policy, rounding, level shifting, clipping and checked
 failures. Its concrete consumer is an independent API test, not the decoder's
@@ -4542,7 +4550,7 @@ signed midpoint handling, initialization and nine-byte cumulative charging,
 ROI/quantization, placement/coverage/fraction checks, the entire mixed-direction
 multilevel 5/3 or Q16 9/7 fold and every final PreparedTileComponent field/error.
 Its original private with-kernel body shares these real stages; the complete
-native None/Some extension below preserves the original None result.
+native None/Some extension below shares the same None result.
 All public native malformed-input and resource cases remain modeled rejection,
 not header/normalization/coverage/budget/success/trace preconditions.
 The prepared-to-tile getter also has exact full-field/sample semantics.
@@ -4556,6 +4564,28 @@ models, unrelated or partial results, constant/reordered native inputs and
 success-only substitutions. The standard entry does not claim the generalized
 private producer under a standard-only model. No generic expression or
 implication matcher was added.
+
+### Coded singleton units at the actual preparation boundary
+
+The raw half-gain operator must not change already-correct coded pixel
+reconstruction. Actual builtin 9/7 preparation therefore normalizes applicable
+singleton detail-band units once, after coverage and before the shared
+reconstruction fold. Parent resolution dimensions, absolute low/high phase,
+orientation and nonzero resolution derive factors one, two or four; band
+length alone is not a normalization rule. Reversible and supplied ATK
+preparation paths are unchanged.
+
+The sole in-place scaling and band traversal have complete Result/mutable-state
+models, checked multiplication, exact first-error prefixes and explicit missing
+metadata rejection. Dimensions, fraction tags, visited bits, byte accounting
+and untouched suffixes are retained. No owning copy, result bank, valid-codec
+premise, trust or resource-limit change is introduced. An unchanged
+OpenJPEG-generated 169-byte odd-origin tiled stream retains its 20 actual
+native pixels while the raw operator and all three public spatial operators
+exercise the required halves. The preserved kernel-only attempt passes the
+raw operator but fails this coded-image control; it is not a shippable fix.
+Controls also cover 288 geometry/parity contexts and exact overflow and
+missing-metadata partial frames. Independent standards closure remains open.
 
 ### Complete native arbitrary kernels and None/Some preparation
 
