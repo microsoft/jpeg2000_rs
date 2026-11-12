@@ -146,10 +146,10 @@ The implementation contains:
 - HT cleanup, significance propagation, magnitude refinement, placeholder and
   replacement pass sets, and mixed legacy/HT routing.
 - Reversible 5/3 and fixed-point irreversible 9/7 synthesis.
-  Raw odd-origin high-only singleton operators use arithmetic half in the
-  retained-assertion engineering profile. Coded builtin 9/7 singleton units
-  are normalized once during preparation, before synthesis; reversible and
-  supplied ATK paths retain their existing conventions. Raw primitive units
+  Odd-origin high-only singleton operators use arithmetic half in the
+  retained-assertion engineering profile. Actual encoded singleton-tile
+  controls compare the compressed stream's reference decoder output, not
+  the original lossy input or pre-fix native output. Raw primitive units
   are not asserted identical across independent codecs.
 - Part 2 MCT/MCC/MCO transforms and segmented records; directional/general
   decomposition and kernel metadata via DFS/ADS/ATK; CRG, NLT, and CBD handling.

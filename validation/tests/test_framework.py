@@ -7173,12 +7173,6 @@ class FrameworkTests(WorkingFiles):
                             self.assertRaisesRegex(ValueError, "lacks executable Verus contract"):
                         framework.validate_normative_coverage(coverage)
 
-    def test_inventory_binds_coded_singleton_normalization_and_full_raw_error_frames(self):
-        self._assert_complete_packet_contract_bindings(
-            {"part1-complete-native-coded-singleton-normalization"},
-            framework._CODED_SINGLETON_CONTRACTS, 3,
-        )
-
     def test_inventory_binds_actual_selection_association_and_output_native_inputs(self):
         original_coverage = json.loads((framework.VALIDATION / "normative-coverage.json").read_text())
         entry = next(item for item in original_coverage["requirements"]

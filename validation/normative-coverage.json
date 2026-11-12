@@ -7592,42 +7592,6 @@
       ]
     },
     {
-      "id": "part1-complete-native-coded-singleton-normalization",
-      "topic": "Retained-assertion engineering 9/7 odd high-only singleton uses arithmetic half consistently in the sole raw kernel and its horizontal/vertical/2D operators. Actual coded builtin9/7 preparation converts each applicable singleton detail-axis unit once after coverage and before reconstruction; reversible and supplied ATK paths are untouched. Parent resolution dimensions, parity, orientation and resolution derive factors1/2/4, never band length alone. Sole executing in-place checked scaling preserves full dimensions/fraction/visited and exact partial sample/band error prefixes, with no owning copy, normalized-result bank or validity premise. Complete Result/fold models and real caller link preserve coded pixel behavior. Actual untouched OpenJPEG-generated odd-origin tile is a persistent native control; raw reference primitive units and independent standards closure remain separate.",
-      "implementation_refs": [
-        {"path": "src/decode/reconstruction.rs", "symbol": "prepare_tile_component_with_kernel"},
-        {"path": "src/decode/reconstruction.rs", "symbol": "normalize_coded_singletons"},
-        {"path": "src/decode/reconstruction.rs", "symbol": "scale_coded_singleton_band"},
-        {"path": "src/decode/reconstruction.rs", "symbol": "coded_singleton_gain"},
-        {"path": "src/transform/wavelets.rs", "symbol": "inverse_9_7"},
-        {"path": "src/image/mct_wavelet.rs", "symbol": "reconstruct_mct_wavelet"}
-      ],
-      "contract_refs": [
-        {"path": "src/decode/reconstruction.rs", "symbol": "coded_singleton_gain"},
-        {"path": "src/decode/reconstruction.rs", "symbol": "scale_coded_singleton_band"},
-        {"path": "src/decode/reconstruction.rs", "symbol": "normalize_coded_singletons"}
-      ],
-      "spec_refs": [
-        {"path": "specs/mod.rs", "symbol": "part1_coded_singleton_gain"},
-        {"path": "specs/mod.rs", "symbol": "part1_scale_coded_singleton_band"},
-        {"path": "specs/mod.rs", "symbol": "part1_normalize_coded_singletons"},
-        {"path": "specs/mod.rs", "symbol": "part1_inverse_nine_seven"},
-        {"path": "specs/mod.rs", "symbol": "part2_mct_wavelet_reconstruction"},
-        {"path": "specs/mod.rs", "symbol": "part2_prepare_component"}
-      ],
-      "proof_refs": [
-        {"path": "src/decode/proof_support.rs", "symbol": "working_subband_view"},
-        {"path": "src/decode/proof_support.rs", "symbol": "working_bands_view"}
-      ],
-      "test_refs": [
-        {"path": "src/transform/tests.rs", "symbol": "sarah_engineering_nine_seven_singleton_uses_the_same_odd_half_at_all_operators"},
-        {"path": "src/decode/tests.rs", "symbol": "sarah_engineering_nine_seven_normalizer_preserves_raw_frames_and_checked_prefixes"},
-        {"path": "src/decode/tests.rs", "symbol": "sarah_engineering_nine_seven_coded_singleton_keeps_real_decoder_pixels"},
-        {"path": "src/image/mct_wavelet.rs", "symbol": "sarah_engineering_nine_seven_spectral_consumer_retains_raw_operator_units"},
-        {"path": "src/decode/tests.rs", "symbol": "complete_standard_prepare_matches_independent_wide_multilevel_reference"}
-      ]
-    },
-    {
       "id": "part2-complete-native-arbitrary-kernel-preparation",
       "topic": "Complete actual native reversible/irreversible arbitrary inverse, all integer/binary32/64/128 coefficients, Q32 arithmetic, every target/step partial buffer, H/V/2D levels and None/Some preparation. Intentional DEV-404E919A62 coordinate correction retains actual low-pass-first context through both target helpers, source sums, recursive models and loop proofs so half-filter taps use absolute band phase; whole-filter geometry/even-origin pairing remain. Coupled negative-Q32 correction restores signed unit scaling and nearest ties-away rounding while retaining positive checked-bias overflow/invalid-shift policy. Actual code/models/regressions change together. Raw contradictory descriptors, singleton/unvisited bypass and all first errors remain modeled; target bounds derive from real loop guards. No normalized/success/budget/trace premise. General MCT/whole decoder and independent selected-edition adjudication remain separate.",
       "contract_refs": [
@@ -13532,9 +13496,12 @@
         {
           "path": "src/transform/tests.rs",
           "symbol": "complete_scaling_lifting_and_column_store_states_match_independent_arithmetic"
-        }
+        },
+        {"path": "src/transform/tests.rs", "symbol": "sarah_engineering_nine_seven_singleton_uses_the_same_odd_half_at_all_operators"},
+        {"path": "src/decode/tests.rs", "symbol": "sarah_engineering_nine_seven_coded_singleton_matches_actual_reference_pixels"},
+        {"path": "src/image/mct_wavelet.rs", "symbol": "sarah_engineering_nine_seven_spectral_consumer_retains_raw_operator_units"}
       ],
-      "topic": "Whole input-relative fixed-point 9/7 sequences with both scaling passes, four lifting passes, geometry, singletons, typed errors and complete partial buffers; not real-valued irreversible conformance"
+      "topic": "Whole input-relative fixed-point 9/7 sequences with both scaling passes, four lifting passes, geometry, typed errors and complete partial buffers. Retained-assertion odd high-only singleton uses arithmetic half consistently across raw spatial/spectral consumers. Actual encoded singleton-tile regression expects the independent compressed-stream decoder's samples, not old native output or lossy input. No compensating coded multiplier; independent universal real-valued conformance remains separate."
     },
     {
       "contract_refs": [

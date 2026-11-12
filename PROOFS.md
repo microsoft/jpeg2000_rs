@@ -4565,27 +4565,22 @@ success-only substitutions. The standard entry does not claim the generalized
 private producer under a standard-only model. No generic expression or
 implication matcher was added.
 
-### Coded singleton units at the actual preparation boundary
+### Actual coded singleton reference controls
 
-The raw half-gain operator must not change already-correct coded pixel
-reconstruction. Actual builtin 9/7 preparation therefore normalizes applicable
-singleton detail-band units once, after coverage and before the shared
-reconstruction fold. Parent resolution dimensions, absolute low/high phase,
-orientation and nonzero resolution derive factors one, two or four; band
-length alone is not a normalization rule. Reversible and supplied ATK
-preparation paths are unchanged.
+The actual compressed stream's decoder output is the coded-image oracle,
+not the lossy encoder input or pre-fix native pixels. Fresh reference decodes
+of horizontal, vertical and two-axis cropped singleton tiles exposed that
+the old native pixels differed by up to 14 or 21 integer levels. A rejected
+adapter preserved those incorrect pixels while satisfying the raw operator;
+that source and its local observations remain retained as failed evidence,
+not current qualification.
 
-The sole in-place scaling and band traversal have complete Result/mutable-state
-models, checked multiplication, exact first-error prefixes and explicit missing
-metadata rejection. Dimensions, fraction tags, visited bits, byte accounting
-and untouched suffixes are retained. No owning copy, result bank, valid-codec
-premise, trust or resource-limit change is introduced. An unchanged
-OpenJPEG-generated 169-byte odd-origin tiled stream retains its 20 actual
-native pixels while the raw operator and all three public spatial operators
-exercise the required halves. The preserved kernel-only attempt passes the
-raw operator but fails this coded-image control; it is not a shippable fix.
-Controls also cover 288 geometry/parity contexts and exact overflow and
-missing-metadata partial frames. Independent standards closure remains open.
+The correction uses the sole raw half-gain kernel without a compensating
+coded-band multiplier. The persistent 169-byte encoded regression expects
+the actual independent decoder's samples. Spatial and spectral consumers
+share the complete sequence model and unchanged preparation policy. Existing
+reversible/ATK arithmetic, trust, caps and compiler pins are unchanged.
+Independent standards closure remains separate from these finite controls.
 
 ### Complete native arbitrary kernels and None/Some preparation
 
