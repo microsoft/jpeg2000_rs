@@ -22,7 +22,8 @@ not invent clause anchors or resolve unavailable edition text.
 
 The separately acquired [T.801 (06/2021) publication](https://www.itu.int/rec/T-REC-T.801-202106-S/en)
 was used for ADS, ATK, NLT, CBD, and reversible integer decorrelation syntax
-and inverse-transform interpretation.
+and inverse-transform interpretation, and Annex M's single-image JPX
+[routing control](validation/VALIDATION.md#single-image-jpx-routing-control).
 Its SHA-256 is
 `8ec28b54b53f5b6898a02d0718566600809e1c86ecbbf64ab0e1e443e7f67f40`.
 This identifies the acquired reference only, not the selected 2023
