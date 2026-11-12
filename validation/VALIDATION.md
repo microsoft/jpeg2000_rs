@@ -980,3 +980,42 @@ The Cargo package is `jpeg2000-decoder`; its Rust namespace is
 are stable validation-protocol identifiers, not Cargo package names. They
 remain unchanged so old corpus and oracle configurations remain comparable.
 Historical source-bound proof reports retain their original namespace.
+
+### Initial source/contract triage (W04, not a coverage gate)
+
+`source_inventory.py` already consumes source-bound private/hidden Rustdoc
+JSON, pinned Verus VIR and the Verus dependency graph. Its schema-v2
+observations and the schema-v3 proof collector remain unchanged. Rustdoc is
+compiler/cfg/macro-aware, but omits nested bodies; source spans alone do not
+establish native/Verus erasure equivalence or a complete denominator.
+
+Given a previously collected inventory and its same-source/tool proof report:
+
+```sh
+.venv/bin/python validation/source_contract_audit.py \
+  --inventory target/w04/source-inventory.json \
+  --proof target/w04/proof/proof-coverage.json \
+  --output target/w04/source-contract-triage.json
+```
+
+This optional, offline diagnostic checks schemas, matching capture provenance,
+source hashes, duplicate identities, item counts and reciprocal exact origin
+associations. It records input/tool hashes without rebinding a historical
+capture to the current checkout. It is not new compiler evidence and does not
+independently authenticate the supplied artifacts' producer.
+
+The report preserves every native observation and every Verus Exec item,
+including unmatched/derived origins and bodyless declarations. It distinguishes
+absent explicit postconditions from present-but-unreviewed postconditions.
+Neither establishes full functional versus safety/shape-only coverage.
+Actual VIR IDs are compared only with *exact* whole-crate result keys:
+`impl&%...` and display names are not guessed to be equivalent, and an
+unresolved crosswalk is **not** a failed proof. Even an exact result key is
+only an observation, not an assurance that the function generated a query or
+has a complete contract.
+
+Runtime reachability and both coverage fields remain `not-measured`. The
+Verus graph includes specification/proof/trait dependencies, not native runtime
+calls. Keep exact run counts, source/tool hashes and qualification snapshots
+in retained artifacts, not committed progress reports, as required by
+[the proof documentation policy](../PROOFS.md#reading-this-document).
