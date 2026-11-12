@@ -630,6 +630,11 @@ verus! {
         match source {
             PacketLengthSource::None => crate::specs::Part1PacketLengthSource::None,
             PacketLengthSource::Plm(bytes) => crate::specs::Part1PacketLengthSource::Plm(bytes@),
+            PacketLengthSource::PlmSegments(fragments) => crate::specs::Part1PacketLengthSource::PlmSegments(
+                crate::specs::Part1PlmFragments {
+                    header: fragments.header@, first_start: fragments.first_start,
+                    first_end: fragments.first_end, declared: fragments.declared, marker_offset: fragments.marker_offset,
+                }),
             PacketLengthSource::Plt(header) => crate::specs::Part1PacketLengthSource::Plt(header@),
         }
     }
@@ -821,11 +826,16 @@ verus! {
         match value { Err(error) => Err(error), Ok(value) => Ok(owned_kernel_view(&value)) }
     }
 
+    pub closed spec fn owned_nonlinear_list_view(values: Seq<NonlinearPointTransform>) -> Seq<crate::specs::Part2OwnedNonlinear> {
+        values.map_values(|entry: NonlinearPointTransform| owned_nonlinear_view(&entry))
+    }
+
     pub closed spec fn owned_extensions_view(value: &Part2Extensions) -> crate::specs::Part2OwnedExtensions {
         crate::specs::Part2OwnedExtensions {
             decompositions: value.decomposition_structures@.map_values(|entry: DecompositionStructure| owned_decomposition_view(&entry)),
             arbitrary: value.arbitrary_decompositions@.map_values(|entry: ArbitraryDecomposition| owned_arbitrary_decomposition_view(&entry)),
             nonlinear: value.nonlinear_transforms@.map_values(|entry: NonlinearPointTransform| owned_nonlinear_view(&entry)),
+            nonlinear_local_count: value.nonlinear_local_count,
             depths: value.component_bit_depths@,
             kernels: value.arbitrary_kernels@.map_values(|entry: ArbitraryKernel| owned_kernel_view(&entry)),
             registrations: value.component_registrations@, lengths: value.tile_part_lengths@, metadata_bytes: value.metadata_bytes,

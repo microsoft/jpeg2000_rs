@@ -3,6 +3,272 @@ use super::reader::{is_allowed_main_header, is_allowed_tile_header, is_known_seg
 use super::*;
 use crate::tier1::SubbandOrientation;
 
+#[test]
+fn sarah_engineering_plm_groups_continue_between_complete_codewords() {
+    let first = segment(PLM, &[0, 4, 1]);
+    let second = segment(PLM, &[1, 0x81, 0, 2, 0]);
+    let bytes = [first, second].concat();
+    let limits = ResourceLimits::default();
+    let mut parser = new_parser(&bytes, &limits).unwrap();
+    let mut next = 0;
+    let mut groups = Vec::new();
+    for _ in 0..2 {
+        let marker = parser.read_segment().unwrap();
+        parser.parse_plm(marker, &mut next, &mut groups).unwrap();
+    }
+    assert_eq!(next, 2);
+    assert_eq!(groups.len(), 2);
+    assert_eq!(
+        (groups[0].packet_count(), groups[0].encoded_bytes()),
+        (3, 4)
+    );
+    let mut iter = groups[0].iter();
+    for expected in [1, 128, 2] {
+        assert_eq!(iter.next_length().unwrap(), Some(expected));
+    }
+    assert_eq!(iter.next_length().unwrap(), None);
+    assert_eq!(
+        (groups[1].packet_count(), groups[1].encoded_bytes()),
+        (0, 0)
+    );
+    assert_eq!(groups[1].iter().next_length().unwrap(), None);
+}
+
+#[test]
+fn sarah_engineering_consistent_plm_and_plt_coexist() {
+    let bytes = segment(PLT, &[0, 1]);
+    let limits = ResourceLimits::default();
+    let mut parser = new_parser(&bytes, &limits).unwrap();
+    let marker = parser.read_segment().unwrap();
+    let main = PacketLengths {
+        source: PacketLengthSource::Plm(&[1]),
+        packet_count: 1,
+        encoded_bytes: 1,
+    };
+    let (mut next, mut seen, mut packets, mut encoded, mut payload) = (0, false, 0, 0, 0);
+    parser
+        .parse_plt(
+            marker,
+            main,
+            &mut next,
+            &mut seen,
+            &mut packets,
+            &mut encoded,
+            &mut payload,
+        )
+        .unwrap();
+    assert_eq!((next, seen, packets, encoded, payload), (1, true, 1, 1, 1));
+}
+
+#[test]
+fn sarah_engineering_plm_continuations_reach_layout_across_other_markers() {
+    let limits = ResourceLimits::default();
+    for first_count in [0, 1, 2, 127, 254] {
+        let mut headers = vec![
+            segment(COD, &[0, 0, 0, 255, 0, 0, 2, 2, 0, 1]),
+            segment(QCD, &[0, 0]),
+        ];
+        let mut first = vec![0, 255];
+        first.extend(vec![1; first_count]);
+        headers.push(segment(PLM, &first));
+        headers.push(segment(0xff64, &[0, 0, 7, 9]));
+        let mut second = vec![1];
+        second.extend(vec![1; 255 - first_count]);
+        headers.push(segment(PLM, &second));
+        let data = vec![0; 255];
+        let bytes = codestream_with_headers(1, &headers, &[], &data);
+        let layout = parse_layout(&bytes, &limits).unwrap();
+        let lengths = layout.tile_parts[0].packet_lengths;
+        assert_eq!(
+            (lengths.packet_count(), lengths.encoded_bytes()),
+            (255, 255)
+        );
+        assert_eq!(lengths.incomplete_plm_offset(), None);
+        let mut iter = lengths.iter();
+        for _ in 0..255 {
+            assert_eq!(iter.next_length().unwrap(), Some(1));
+        }
+        assert_eq!(iter.next_length().unwrap(), None);
+    }
+}
+
+#[test]
+fn sarah_engineering_plm_incomplete_and_split_codewords_keep_original_offsets() {
+    let limits = ResourceLimits::default();
+    let cod = segment(COD, &[0, 0, 0, 1, 0, 0, 2, 2, 0, 1]);
+    let qcd = segment(QCD, &[0, 0]);
+    let bytes = codestream_with_headers(1, &[cod, qcd, segment(PLM, &[0, 3, 1])], &[], &[0]);
+    let offset = bytes
+        .windows(2)
+        .position(|word| word == PLM.to_be_bytes())
+        .unwrap();
+    assert_eq!(
+        parse_layout(&bytes, &limits),
+        Err(input_error_literal(
+            offset,
+            MalformedKind::InvalidMarkerLength
+        ))
+    );
+
+    let bytes = [segment(PLM, &[0, 3, 1]), segment(PLM, &[1, 0x80])].concat();
+    let mut parser = new_parser(&bytes, &limits).unwrap();
+    let mut next = 0;
+    let mut groups = Vec::new();
+    let first = parser.read_segment().unwrap();
+    parser.parse_plm(first, &mut next, &mut groups).unwrap();
+    let second = parser.read_segment().unwrap();
+    assert_eq!(
+        parser.parse_plm(second, &mut next, &mut groups),
+        Err(input_error_literal(
+            second.offset,
+            MalformedKind::InvalidPacketLength
+        ))
+    );
+    assert_eq!(next, 2);
+    assert_eq!(
+        (groups[0].packet_count(), groups[0].encoded_bytes()),
+        (1, 1)
+    );
+    assert_eq!((parser.packet_lengths, parser.packet_length_bytes), (1, 2));
+}
+
+#[test]
+fn sarah_engineering_plm_plt_equal_sums_do_not_hide_different_packets() {
+    let limits = ResourceLimits::default();
+    let cod = segment(COD, &[0, 0, 0, 2, 0, 0, 2, 2, 0, 1]);
+    let qcd = segment(QCD, &[0, 0]);
+    let bytes = codestream_with_headers(
+        1,
+        &[cod.clone(), qcd.clone(), plm(0, &[&[1, 2]])],
+        &[plt(0, &[1, 2])],
+        &[0; 3],
+    );
+    assert!(parse_layout(&bytes, &limits).is_ok());
+    let bytes = codestream_with_headers(
+        1,
+        &[cod, qcd, plm(0, &[&[1, 2]])],
+        &[plt(0, &[2, 1])],
+        &[0; 3],
+    );
+    let offset = bytes
+        .windows(2)
+        .position(|word| word == SOT.to_be_bytes())
+        .unwrap();
+    assert_eq!(
+        parse_layout(&bytes, &limits),
+        Err(input_error_literal(
+            offset,
+            MalformedKind::InvalidPacketLength
+        ))
+    );
+}
+
+#[test]
+fn sarah_engineering_nlt_keeps_tile_and_main_header_precedence() {
+    let marker = |component: Option<u16>, precision: u8| {
+        let mut payload = component.unwrap_or(u16::MAX).to_be_bytes().to_vec();
+        payload.extend([precision - 1, 0]);
+        segment(NLT, &payload)
+    };
+    let limits = ResourceLimits::default();
+    let mut contexts = 0;
+    for main_default in [false, true] {
+        for tile_default in [false, true] {
+            for default_first in [false, true] {
+                let [cod, qcd] = baseline_headers();
+                let mut main = vec![cod, qcd, marker(Some(0), 9), marker(Some(2), 9)];
+                if main_default {
+                    main.push(marker(None, 8));
+                }
+                let mut tile = vec![marker(Some(2), 12)];
+                if tile_default {
+                    tile.insert(if default_first { 0 } else { 1 }, marker(None, 10));
+                }
+                let bytes = codestream_with_headers(3, &main, &tile, &[]);
+                let layout = parse_layout(&bytes, &limits).unwrap();
+                let extensions = &layout.tile_parts[0].part2_extensions;
+                for (component, precision) in [
+                    (0, Some(if tile_default { 10 } else { 9 })),
+                    (
+                        1,
+                        if tile_default {
+                            Some(10)
+                        } else if main_default {
+                            Some(8)
+                        } else {
+                            None
+                        },
+                    ),
+                    (2, Some(12)),
+                ] {
+                    assert_eq!(
+                        extensions
+                            .nonlinear_transform_for(component)
+                            .map(NonlinearPointTransform::precision),
+                        precision,
+                        "main_default={main_default} tile_default={tile_default} default_first={default_first} component={component}",
+                    );
+                    contexts += 1;
+                }
+            }
+        }
+    }
+    assert_eq!(contexts, 24);
+}
+
+#[test]
+fn sarah_engineering_nlt_scoped_replacement_preserves_parent_and_charged_errors() {
+    let limits = ResourceLimits::default();
+    let mut parser = new_parser(&[], &limits).unwrap();
+    let mut extensions = Part2Extensions::default();
+    let raw = |payload| Segment {
+        marker: NLT,
+        offset: 37,
+        payload,
+    };
+    parser
+        .parse_nlt(raw(&[0, 0, 8, 0]), 3, &mut extensions)
+        .unwrap();
+    extensions.nonlinear_local_count = Some(0);
+    for payload in [&[0, 1, 9, 0][..], &[0xff, 0xff, 10, 0], &[0, 1, 11, 0]] {
+        parser.parse_nlt(raw(payload), 3, &mut extensions).unwrap();
+    }
+    assert_eq!(extensions.nonlinear_local_count, Some(2));
+    assert_eq!(extensions.nonlinear_transforms.len(), 3);
+    assert_eq!(
+        extensions.nonlinear_transform_for(0).unwrap().precision(),
+        11
+    );
+    assert_eq!(
+        extensions.nonlinear_transform_for(1).unwrap().precision(),
+        12
+    );
+    assert_eq!(extensions.nonlinear_transforms[2].component(), Some(0));
+    assert_eq!(extensions.nonlinear_transforms[2].precision(), 9);
+
+    extensions.nonlinear_local_count = Some(usize::MAX);
+    let before = extensions.clone();
+    let work = parser.work_units;
+    assert_eq!(
+        parser.parse_nlt(raw(&[0, 2, 7, 0]), 3, &mut extensions),
+        Err(input_error_literal(37, MalformedKind::InvalidTransform))
+    );
+    assert_eq!(extensions.nonlinear_transforms, before.nonlinear_transforms);
+    assert_eq!(
+        extensions.nonlinear_local_count,
+        before.nonlinear_local_count
+    );
+    assert_eq!(extensions.metadata_bytes, before.metadata_bytes + 8);
+    assert_eq!(parser.work_units, work + 8);
+    assert_eq!(
+        parser.parse_nlt(raw(&[0, 2]), 3, &mut extensions),
+        Err(input_error_literal(37, MalformedKind::InvalidMarkerLength))
+    );
+    assert_eq!(extensions.nonlinear_transforms, before.nonlinear_transforms);
+    assert_eq!(extensions.metadata_bytes, before.metadata_bytes + 14);
+    assert_eq!(parser.work_units, work + 14);
+}
+
 #[path = "main_header_result_tests.rs"]
 mod main_header_result;
 #[path = "mct_parameter_clone_tests.rs"]
@@ -4448,6 +4714,12 @@ fn raw_owned_tile_part_fixture(variant: usize) -> TilePartPayload<'static> {
                 ],
             }],
             nonlinear_transforms: vec![nonlinear],
+            nonlinear_local_count: match variant % 4 {
+                0 => None,
+                1 => Some(0),
+                2 => Some(1),
+                _ => Some(usize::MAX),
+            },
             component_bit_depths: vec![
                 ComponentBitDepth {
                     precision: 0,
@@ -6431,6 +6703,9 @@ fn packet_lengths_exhaustive_two_byte_windows_and_every_raw_iterator_field() {
                             position,
                             MalformedKind::InvalidPacketLength,
                         )),
+                        PacketLengthSource::PlmSegments(_) => unreachable!(
+                            "continued PLM descriptors have a separate physical-fragment domain"
+                        ),
                     };
                     let (expected_result, expected_position) = match expected {
                         Ok(Some((value, next))) => (Ok(Some(value)), next),
@@ -7003,7 +7278,7 @@ fn plm(index: u8, groups: &[&[u32]]) -> Vec<u8> {
     let mut payload = vec![index];
     for lengths in groups {
         let encoded = encode_packet_lengths(lengths);
-        payload.extend_from_slice(&u32::try_from(encoded.len()).unwrap().to_be_bytes());
+        payload.push(u8::try_from(encoded.len()).unwrap());
         payload.extend(encoded);
     }
     segment(PLM, &payload)
@@ -7857,7 +8132,7 @@ fn parses_and_retains_bounded_part2_matrix_and_offset_transform() {
         &[
             cod,
             qcd,
-            mct_i16(1, 1, &[1, 2, 3, 4]),
+            mct_i16(1, 1, &[1, 2, 4, 3, 5, -8]),
             mct_i16(2, 2, &[5, 6]),
             mcc(7, 2, true, 1, 2),
             mco(&[7]),
@@ -7875,7 +8150,7 @@ fn parses_and_retains_bounded_part2_matrix_and_offset_transform() {
     assert_eq!(collection.input_components(), &[0, 1]);
     assert_eq!(collection.output_components(), &[0, 1]);
     assert_eq!(collection.matrix().unwrap().index(), 1);
-    assert_eq!(collection.matrix().unwrap().values(), &[1, 2, 3, 4]);
+    assert_eq!(collection.matrix().unwrap().values(), &[1, 2, 4, 3, 5, -8]);
     assert_eq!(collection.offsets().unwrap().values(), &[5, 6]);
 }
 
@@ -7883,7 +8158,7 @@ fn parses_and_retains_bounded_part2_matrix_and_offset_transform() {
 fn reassembles_segmented_mct_and_mcc_with_contiguous_indexes() {
     let cod = segment(COD, &[0, 0, 0, 1, 0, 0, 2, 2, 0, 1]);
     let qcd = segment(QCD, &[0, 0]);
-    let matrix = mct_i16_segmented(1, 1, &[1, 2, 3, 4], 3);
+    let matrix = mct_i16_segmented(1, 1, &[1, 2, 4, 3, 5, -8], 3);
     let record = segmented_mcc(&mcc(7, 2, true, 1, 0), 5);
     let bytes = codestream_with_headers(
         2,
@@ -7909,7 +8184,7 @@ fn reassembles_segmented_mct_and_mcc_with_contiguous_indexes() {
             .matrix()
             .unwrap()
             .values(),
-        &[1, 2, 3, 4]
+        &[1, 2, 4, 3, 5, -8]
     );
 }
 
@@ -8108,13 +8383,13 @@ fn resolves_multiple_records_collections_subsets_permutations_and_tile_override(
         &[
             cod,
             qcd,
-            mct_i16(1, 1, &[1, 0, 0, 1]),
-            mct_i16(2, 1, &[1]),
+            mct_i16(1, 1, &[0, 1, 1, 0, 0, 1]),
+            mct_i16(2, 1, &[1, 1]),
             mcc_collections(7, &[(&[0, 2], &[2, 0], true, 1, 0)]),
             mcc_collections(8, &[(&[0], &[0], true, 2, 0), (&[1], &[1], true, 2, 0)]),
             mco(&[7, 8]),
         ],
-        &[mct_i16(2, 1, &[2]), mco(&[8, 7])],
+        &[mct_i16(2, 1, &[1, 2]), mco(&[8, 7])],
         &[],
     );
     let limits = ResourceLimits::default();
@@ -8138,7 +8413,7 @@ fn resolves_multiple_records_collections_subsets_permutations_and_tile_override(
     assert_eq!(tile.stages()[0].index(), 8);
     assert_eq!(
         tile.stages()[0].collections()[0].matrix().unwrap().values(),
-        &[2]
+        &[1, 2]
     );
 }
 
@@ -8151,7 +8426,7 @@ fn accepts_combined_part1_and_ordered_part2_inverse_transforms() {
         &[
             cod,
             qcd,
-            mct_i16(1, 1, &[1, 0, 0, 0, 1, 0, 0, 0, 1]),
+            mct_i16(1, 1, &[0, 0, 1, 0, 1, 0, 1, 0, 0, 0, 0, 1]),
             mcc(7, 3, true, 1, 0),
             mco(&[7]),
         ],
@@ -10027,12 +10302,6 @@ fn reference_plt_producer(
     limits: &ResourceLimits,
     case: &mut PltProducerCase<'_>,
 ) -> Result<(), DecodeError> {
-    if case.main.source != PacketLengthSource::None {
-        return Err(input_error_literal(
-            case.offset,
-            MalformedKind::InvalidMarkerOrder,
-        ));
-    }
     let Some(index) = case.payload.first() else {
         return Err(input_error_literal(
             case.offset,
@@ -10933,7 +11202,7 @@ fn reference_plm_producer(
         offset: case.offset as u64,
         kind,
     };
-    if case.payload.len() < 5 {
+    if case.payload.len() < 2 {
         return Err(malformed(MalformedKind::InvalidMarkerLength));
     }
     if u16::from(case.payload[0]) != case.next {
@@ -10942,21 +11211,18 @@ fn reference_plm_producer(
     case.next += 1;
     let mut remaining = &case.payload[1..];
     while !remaining.is_empty() {
-        if remaining.len() < 4 {
-            return Err(malformed(MalformedKind::InvalidMarkerLength));
-        }
-        let length = u32::from_be_bytes(remaining[..4].try_into().unwrap()) as u128;
-        let start = case.payload.len() as u128 - remaining.len() as u128 + 4;
-        if length > usize::MAX as u128 || start + length > usize::MAX as u128 {
-            return Err(malformed(MalformedKind::ArithmeticOverflow));
-        }
-        remaining = &remaining[4..];
-        if length > remaining.len() as u128 {
-            return Err(malformed(MalformedKind::InvalidMarkerLength));
-        }
-        let (encoded, tail) = remaining.split_at(length as usize);
+        let declared = usize::from(remaining[0]);
+        remaining = &remaining[1..];
+        let length = declared.min(remaining.len());
+        let (encoded, tail) = remaining.split_at(length);
         let (packet_count, _) =
             reference_packet_admission(limits, &mut case.state, encoded, case.offset)?;
+        if length < declared {
+            if case.offset as u128 + 4 + case.payload.len() as u128 > usize::MAX as u128 {
+                return Err(malformed(MalformedKind::ArithmeticOverflow));
+            }
+            return Err(malformed(MalformedKind::InvalidMarkerLength));
+        }
         case.groups.push(PacketLengths {
             source: PacketLengthSource::Plm(encoded),
             packet_count,
@@ -11006,22 +11272,108 @@ fn assert_plm_producer_case(limits: &ResourceLimits, case: PlmProducerCase<'_>) 
     assert_packet_admission_state(&parser, expected.state, &input, limits);
 }
 
-pub(super) fn reference_packet_sum(source: PacketLengthSource<'_>) -> Result<u64, DecodeError> {
-    let bytes = match source {
-        PacketLengthSource::None => return Ok(0),
-        PacketLengthSource::Plt(_) => {
-            return Err(input_error_literal(0, MalformedKind::InvalidPacketLength));
-        }
-        PacketLengthSource::Plm(bytes) => bytes,
+fn reference_packet_steps(source: PacketLengthSource<'_>) -> Vec<Result<u32, DecodeError>> {
+    let (header, target, capped, mut position, mut end) = match source {
+        PacketLengthSource::None => return Vec::new(),
+        PacketLengthSource::Plm(bytes) => (bytes, PLM, false, 0, bytes.len()),
+        PacketLengthSource::Plt(bytes) => (bytes, PLT, false, 0, 0),
+        PacketLengthSource::PlmSegments(fragments) => (
+            fragments.header,
+            PLM,
+            true,
+            fragments.first_start,
+            fragments.first_end,
+        ),
     };
-    let mut position = 0;
-    let mut values = Vec::new();
-    while position < bytes.len() {
-        let (value, next) = packet_length_wide_window(bytes, position, bytes.len())?;
-        values.push(value);
-        position = next;
+    let mut steps = Vec::new();
+    loop {
+        if position < end {
+            match packet_length_wide_window(header, position, end) {
+                Ok((value, next)) => {
+                    steps.push(Ok(value));
+                    position = next;
+                }
+                Err(error) => {
+                    steps.push(Err(error));
+                    break;
+                }
+            }
+        } else if position == header.len() {
+            break;
+        } else if position > header.len() || header.len() - position < 4 {
+            steps.push(Err(input_error_literal(
+                position,
+                MalformedKind::InvalidPacketLength,
+            )));
+            break;
+        } else {
+            let marker = u16::from_be_bytes([header[position], header[position + 1]]);
+            let length = usize::from(u16::from_be_bytes([
+                header[position + 2],
+                header[position + 3],
+            ]));
+            let physical_end = position as u128 + 2 + length as u128;
+            let error = if length < 2 {
+                Some(MalformedKind::InvalidMarkerLength)
+            } else if physical_end > usize::MAX as u128 {
+                Some(MalformedKind::ArithmeticOverflow)
+            } else if physical_end > header.len() as u128 && !(capped && marker == PLM) {
+                Some(MalformedKind::InvalidMarkerLength)
+            } else {
+                None
+            };
+            if let Some(kind) = error {
+                steps.push(Err(input_error_literal(position, kind)));
+                break;
+            }
+            let next_end = (physical_end as usize).min(header.len());
+            if marker == target {
+                let start = position as u128 + 5;
+                if start > usize::MAX as u128 || start > next_end as u128 {
+                    let kind = if start > usize::MAX as u128 {
+                        MalformedKind::ArithmeticOverflow
+                    } else {
+                        MalformedKind::InvalidMarkerLength
+                    };
+                    steps.push(Err(input_error_literal(next_end, kind)));
+                    break;
+                }
+                position = start as usize;
+                end = next_end;
+            } else {
+                position = next_end;
+            }
+        }
     }
-    let total: u128 = values.into_iter().map(u128::from).sum();
+    steps
+}
+
+fn reference_length_sources_match(
+    first: PacketLengthSource<'_>,
+    second: PacketLengthSource<'_>,
+) -> Result<bool, DecodeError> {
+    let mut first = reference_packet_steps(first).into_iter();
+    let mut second = reference_packet_steps(second).into_iter();
+    loop {
+        let left = first.next().transpose()?;
+        let right = second.next().transpose()?;
+        if left != right {
+            return Ok(false);
+        }
+        if left.is_none() {
+            return Ok(true);
+        }
+    }
+}
+
+pub(super) fn reference_packet_sum(source: PacketLengthSource<'_>) -> Result<u64, DecodeError> {
+    if matches!(source, PacketLengthSource::Plt(_)) {
+        return Err(input_error_literal(0, MalformedKind::InvalidPacketLength));
+    }
+    let mut total = 0_u128;
+    for step in reference_packet_steps(source) {
+        total += u128::from(step?);
+    }
     if total > u128::from(u64::MAX) {
         Err(input_error_literal(0, MalformedKind::ArithmeticOverflow))
     } else {
@@ -11058,6 +11410,16 @@ fn reference_length_finalization<'a>(
     } else {
         case.main
     };
+    if case.seen
+        && case.main.source != PacketLengthSource::None
+        && (case.main.packet_count != case.plt_count
+            || !reference_length_sources_match(case.main.source, lengths.source)?)
+    {
+        return Err(input_error_literal(
+            case.offset,
+            MalformedKind::InvalidPacketLength,
+        ));
+    }
     if lengths.source == PacketLengthSource::None {
         return Ok(lengths);
     }
@@ -11259,7 +11621,7 @@ fn actual_packed_finalization_preserves_zero_bypass_raw_main_and_exact_source_bo
 
 #[test]
 fn actual_packet_metadata_joins_real_plm_and_ppt_producers_without_prepared_results() {
-    let mut input = segment(PLM, &[0, 0, 0, 0, 1, 3]);
+    let mut input = segment(PLM, &[0, 1, 3]);
     input.extend(segment(PPT, &[0, 0xab]));
     let limits = ResourceLimits::HARDENED;
     let mut parser = new_parser(&input, &limits).unwrap();
@@ -11442,7 +11804,7 @@ fn actual_plm_groups_derive_raw_lengths_indexes_borrowed_sources_and_partial_com
 fn actual_plm_groups_preserve_charge_errors_append_caps_and_real_segment_reader_join() {
     let mut payload = vec![0];
     for encoded in [&[3][..], &[][..], &[0x81, 0][..]] {
-        payload.extend((encoded.len() as u32).to_be_bytes());
+        payload.push(u8::try_from(encoded.len()).unwrap());
         payload.extend(encoded);
     }
     let mut contexts = 0;
@@ -11680,8 +12042,9 @@ fn reference_mct_graph_element_count(
     let wide = rows as u128;
     let maximum = usize::MAX as u128;
     let result = if kind == MctArrayKind::Decorrelation {
-        let product = wide * columns as u128;
-        if product > maximum {
+        let partner = columns as u128 + u128::from(reversible);
+        let product = wide * partner;
+        if partner > maximum || product > maximum {
             return Err(error);
         }
         product
@@ -11770,6 +12133,22 @@ fn reference_mct_graph_collection(
                 array.values.len() != expected || (reversible && array.fraction_bits != 0)
             }) {
                 return Err(invalid);
+            }
+            if reversible
+                && kind == MctArrayKind::Decorrelation
+                && let Some(matrix) = &matrix
+            {
+                for stage in 0..=rows {
+                    let target = if stage == rows {
+                        rows - 1
+                    } else {
+                        rows - 1 - stage
+                    };
+                    let scale = matrix.values[stage * rows + target];
+                    if !scale.unsigned_abs().is_power_of_two() || (stage < rows && scale < 0) {
+                        return Err(invalid);
+                    }
+                }
             }
             Ok(MctCollection {
                 reversible,
@@ -11950,6 +12329,20 @@ fn actual_mct_graph_collections_preserve_lookup_shape_flags_and_all_fields() {
                                         _ => expected + 1,
                                     }
                                 ];
+                                if reversible && kind == MctArrayKind::Decorrelation && rows > 0 {
+                                    for stage in 0..=rows {
+                                        let target = if stage == rows {
+                                            rows - 1
+                                        } else {
+                                            rows - 1 - stage
+                                        };
+                                        if let Some(scale) =
+                                            matrix.values.get_mut(stage * rows + target)
+                                        {
+                                            *scale = if stage == rows { -4 } else { 2 };
+                                        }
+                                    }
+                                }
                                 let mut offsets = raw_mct_registry_array(8, variant + 1);
                                 offsets.kind = MctArrayKind::Offset;
                                 offsets.fraction_bits =
@@ -19476,7 +19869,7 @@ fn validates_packet_length_scope_indexes_coding_and_payload_sum() {
     ));
     let truncated_plm_group = codestream_with_headers(
         1,
-        &[cod.clone(), qcd.clone(), segment(PLM, &[0, 0, 0, 0, 2, 1])],
+        &[cod.clone(), qcd.clone(), segment(PLM, &[0, 2, 1])],
         &[],
         &[0],
     );
@@ -19517,13 +19910,7 @@ fn validates_packet_length_scope_indexes_coding_and_payload_sum() {
     ));
     let both_scopes =
         codestream_with_headers(1, &[cod, qcd, plm(0, &[&[1]])], &[plt(0, &[1])], &[0]);
-    assert!(matches!(
-        parse_layout(&both_scopes, &limits),
-        Err(DecodeError::MalformedInput {
-            kind: MalformedKind::InvalidMarkerOrder,
-            ..
-        })
-    ));
+    assert!(parse_layout(&both_scopes, &limits).is_ok());
 }
 
 #[test]

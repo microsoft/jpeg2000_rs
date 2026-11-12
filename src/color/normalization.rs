@@ -248,6 +248,7 @@ pub(super) fn nominal_component_at(
         .ok_or_else(arithmetic_overflow)?;
     let x_step = u32::from(info.x_subsampling);
     let y_step = u32::from(info.y_subsampling);
+    // Coded window origins follow SIZ; CRG shifts only the physical sample lookup.
     let component_x0 = registered_ceil_div(image_x_origin, x_step, info.x_registration)?;
     let component_y0 = registered_ceil_div(image_y_origin, y_step, info.y_registration)?;
     let component_x1 = component_x0

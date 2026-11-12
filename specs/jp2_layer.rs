@@ -299,6 +299,14 @@ pub open spec fn part2_layer_registration_references(layer: Part2RawCompositingL
 }
 
 #[verifier::opaque]
+pub open spec fn part2_any_layer_registration(layers: Seq<Part2RawCompositingLayer>, count: nat) -> bool
+    decreases count,
+{
+    count > 0 && (layers[count as int - 1].registrations.len() != 0
+        || part2_any_layer_registration(layers, (count - 1) as nat))
+}
+
+#[verifier::opaque]
 pub open spec fn part2_layer_references(layers: Seq<Part2RawCompositingLayer>, streams: usize, index: nat)
     -> Result<(), crate::DecodeError>
     decreases layers.len() - index,
@@ -307,7 +315,7 @@ pub open spec fn part2_layer_references(layers: Seq<Part2RawCompositingLayer>, s
     else {
         let layer = layers[index as int];
         if layer.registrations.len() == 0 {
-            if index >= streams as nat {
+            if part2_any_layer_registration(layers, layers.len()) || index >= streams as nat {
                 Err(crate::DecodeError::MalformedInput { offset: layer.header.1, kind: crate::MalformedKind::InvalidBoxContents })
             } else { part2_layer_references(layers, streams, index + 1) }
         } else {

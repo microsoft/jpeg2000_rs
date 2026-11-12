@@ -9,9 +9,10 @@ use super::{
 #[cfg(verus_keep_ghost)]
 use super::{
     atk_payload_outcome, kernel_coefficient_outcome, kernel_step_outcome, nlt_payload_outcome,
-    owned_extensions_view, owned_kernel_view, owned_nonlinear_view, parser_view,
-    raw_kernel_coefficient_option, raw_kernel_coefficient_view, raw_kernel_coefficients_view,
-    raw_kernel_step_view, raw_kernel_steps_view, raw_kernel_view, segment_view,
+    owned_extensions_view, owned_kernel_view, owned_nonlinear_list_view, owned_nonlinear_view,
+    parser_view, raw_kernel_coefficient_option, raw_kernel_coefficient_view,
+    raw_kernel_coefficients_view, raw_kernel_step_view, raw_kernel_steps_view, raw_kernel_view,
+    segment_view,
 };
 #[cfg(verus_keep_ghost)]
 use vstd::prelude::*;
@@ -39,32 +40,40 @@ impl<'a> Parser<'a> {
         proof! { reveal(crate::specs::part1_parse_nlt); }
         self.charge_extension_metadata(segment, extensions)?;
         let replacement = self.decode_nlt_payload(segment, components)?;
+        let local_count = extensions
+            .nonlinear_local_count
+            .unwrap_or(extensions.nonlinear_transforms.len());
         #[cfg(verus_keep_ghost)]
         proof_decl! {
             let ghost charged_parser = parser_view(self);
             let ghost charged_extensions = owned_extensions_view(extensions);
             let ghost decoded = owned_nonlinear_view(&replacement);
-            let ghost target = crate::specs::part1_nlt_replace(charged_extensions.nonlinear, decoded, 0);
         }
         #[cfg(verus_keep_ghost)]
         proof! {
             reveal(owned_nonlinear_view);
-            assert(goal == (Ok(()), charged_parser, crate::specs::part1_extension_nonlinear(charged_extensions, target)));
+            reveal(owned_nonlinear_list_view);
+            assert(goal == (crate::specs::part1_nlt_replace(charged_extensions, decoded, 0, local_count, segment.offset).0,
+                charged_parser, crate::specs::part1_nlt_replace(charged_extensions, decoded, 0, local_count, segment.offset).1));
+            reveal_with_fuel(crate::specs::part1_nlt_replace, 1);
+        }
+        if local_count > extensions.nonlinear_transforms.len() {
+            return Err(self.malformed_at(segment.offset, MalformedKind::InvalidTransform));
         }
         let mut position = 0_usize;
         #[cfg_attr(verus_keep_ghost, verus_spec(
-            invariant position <= extensions.nonlinear_transforms.len(),
+            invariant position <= local_count, local_count <= extensions.nonlinear_transforms.len(),
                 input == parser_view(old(self)),
                 extension_input == owned_extensions_view(old(extensions)),
                 parser_view(self) == charged_parser,
                 owned_extensions_view(extensions) == charged_extensions,
                 owned_nonlinear_view(&replacement) == decoded,
-                target == crate::specs::part1_nlt_replace(charged_extensions.nonlinear, decoded, position as nat),
                 goal == crate::specs::part1_parse_nlt(input, segment_view(segment), components, extension_input),
-                goal == (Ok(()), charged_parser, crate::specs::part1_extension_nonlinear(charged_extensions, target)),
-            decreases extensions.nonlinear_transforms.len() - position,
+                goal == (crate::specs::part1_nlt_replace(charged_extensions, decoded, position as nat, local_count, segment.offset).0,
+                    charged_parser, crate::specs::part1_nlt_replace(charged_extensions, decoded, position as nat, local_count, segment.offset).1),
+            decreases local_count - position,
         ))]
-        while position < extensions.nonlinear_transforms.len() {
+        while position < local_count {
             #[cfg(verus_keep_ghost)]
             proof! { reveal_with_fuel(crate::specs::part1_nlt_replace, 1); reveal(owned_nonlinear_view); }
             if extensions.nonlinear_transforms[position].component == replacement.component {
@@ -80,10 +89,24 @@ impl<'a> Parser<'a> {
         }
         #[cfg(verus_keep_ghost)]
         proof! { reveal_with_fuel(crate::specs::part1_nlt_replace, 1); }
-        extensions.nonlinear_transforms.push(replacement);
+        let next_count = match extensions.nonlinear_local_count {
+            Some(count) => Some(match count.checked_add(1) {
+                Some(value) => value,
+                None => {
+                    return Err(
+                        self.malformed_at(segment.offset, MalformedKind::ArithmeticOverflow)
+                    );
+                }
+            }),
+            None => None,
+        };
+        extensions
+            .nonlinear_transforms
+            .insert(local_count, replacement);
+        extensions.nonlinear_local_count = next_count;
         #[cfg(verus_keep_ghost)]
         proof! {
-            assert(owned_extensions_view(extensions).nonlinear =~= charged_extensions.nonlinear.push(decoded));
+            assert(owned_extensions_view(extensions).nonlinear =~= charged_extensions.nonlinear.insert(local_count as int, decoded));
         }
         Ok(())
     }

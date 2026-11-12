@@ -198,8 +198,8 @@ fn actual_layout_mct_clones_retain_main_and_persistent_unused_arrays() {
         &[
             cod,
             qcd,
-            mct_i16(1, 1, &[3]),
-            mct_i16(200, 1, &[9]),
+            mct_i16(1, 1, &[1, 4]),
+            mct_i16(200, 1, &[1, 8]),
             mcc(7, 1, true, 1, 0),
             mco(&[7]),
         ],
@@ -219,7 +219,7 @@ fn actual_layout_mct_clones_retain_main_and_persistent_unused_arrays() {
             .matrix()
             .unwrap()
             .values(),
-        &[3],
+        &[1, 4],
     );
     assert_eq!(
         layout.tile_parts[0]
@@ -231,11 +231,11 @@ fn actual_layout_mct_clones_retain_main_and_persistent_unused_arrays() {
             .matrix()
             .unwrap()
             .values(),
-        &[3],
+        &[1, 4],
     );
     let first = [
-        mct_i16(1, 1, &[3]),
-        mct_i16(200, 1, &[9]),
+        mct_i16(1, 1, &[1, 4]),
+        mct_i16(200, 1, &[1, 8]),
         mcc(7, 1, true, 1, 0),
         mco(&[7]),
     ];
@@ -243,7 +243,7 @@ fn actual_layout_mct_clones_retain_main_and_persistent_unused_arrays() {
     let bytes = two_part_codestream(&first, &second);
     let layout = parse_layout(&bytes, &limits).unwrap();
     assert_eq!(layout.tile_parts.len(), 2);
-    for (index, expected) in [(0, 3), (1, 9)] {
+    for (index, expected) in [(0, 4), (1, 8)] {
         let transform = layout.tile_parts[index]
             .multiple_component_transform
             .as_ref()
@@ -253,7 +253,7 @@ fn actual_layout_mct_clones_retain_main_and_persistent_unused_arrays() {
                 .matrix()
                 .unwrap()
                 .values(),
-            &[expected]
+            &[1, expected]
         );
     }
 }

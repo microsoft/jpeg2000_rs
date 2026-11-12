@@ -740,7 +740,7 @@ fn reference_sequence(
     if low.len() != low_count || high.len() != length - low_count {
         return Err(invalid_transform());
     }
-    let samples: Vec<_> = (0..length)
+    let mut samples: Vec<_> = (0..length)
         .map(|index| {
             if index.is_multiple_of(2) == low_first {
                 low[index / 2]
@@ -750,6 +750,9 @@ fn reference_sequence(
         })
         .collect();
     if length <= 1 {
+        if length == 1 && !low_first {
+            samples[0] >>= 1;
+        }
         return Ok(samples);
     }
     let (status, low_scaled) = reference_scale(&samples, low_first, 80621);
@@ -1887,6 +1890,80 @@ fn inverse_lifting_separates_sample_parity_from_predict_update_roles() {
     assert_eq!(inverse_5_3(&[2], &[-1, 1], false).unwrap(), vec![1, 2, 3]);
     assert_eq!(inverse_5_3(&[], &[18], false).unwrap(), vec![9]);
     assert_eq!(inverse_5_3(&[], &[-18], false).unwrap(), vec![-9]);
+}
+
+#[test]
+fn sarah_engineering_nine_seven_singleton_uses_the_same_odd_half_at_all_operators() {
+    let limits = ResourceLimits::default();
+    for value in [i64::MIN, -257, -242, -2, -1, 0, 1, 2, 242, 257, i64::MAX] {
+        assert_eq!(inverse_9_7(&[value], &[], true).unwrap(), [value]);
+        assert_eq!(inverse_9_7(&[], &[value], false).unwrap(), [value >> 1]);
+        let samples = [value];
+        let horizontal = inverse_horizontal_9_7(
+            WaveletBand {
+                width: 0,
+                height: 1,
+                samples: &[],
+            },
+            WaveletBand {
+                width: 1,
+                height: 1,
+                samples: &samples,
+            },
+            1,
+            false,
+            &limits,
+        )
+        .unwrap();
+        let vertical = inverse_vertical_9_7(
+            WaveletBand {
+                width: 1,
+                height: 0,
+                samples: &[],
+            },
+            WaveletBand {
+                width: 1,
+                height: 1,
+                samples: &samples,
+            },
+            1,
+            false,
+            &limits,
+        )
+        .unwrap();
+        assert_eq!(horizontal.samples(), &[value >> 1]);
+        assert_eq!(vertical.samples(), &[value >> 1]);
+        let level = WaveletLevel {
+            ll: WaveletBand {
+                width: 0,
+                height: 0,
+                samples: &[],
+            },
+            hl: WaveletBand {
+                width: 1,
+                height: 0,
+                samples: &[],
+            },
+            lh: WaveletBand {
+                width: 0,
+                height: 1,
+                samples: &[],
+            },
+            hh: WaveletBand {
+                width: 1,
+                height: 1,
+                samples: &samples,
+            },
+            output_width: 1,
+            output_height: 1,
+            low_pass_first_x: false,
+            low_pass_first_y: false,
+        };
+        assert_eq!(
+            inverse_level_9_7(level, &limits).unwrap().samples(),
+            &[value >> 2]
+        );
+    }
 }
 
 #[test]

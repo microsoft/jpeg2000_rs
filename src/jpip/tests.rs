@@ -55,6 +55,25 @@ fn metadata_placeholder(
 }
 
 #[test]
+fn sarah_engineering_single_stream_optional_ncs_is_consumed_but_not_applied() {
+    for flags in [4, 5, 6, 7] {
+        let framed = metadata_placeholder(*b"jp2c", 8, flags, 17, Some(u64::MAX));
+        let base = &framed[8..];
+        assert_eq!(parse_jpip_placeholder(base).unwrap().stream_count, 1);
+        for count in [0_u32, 1, 2, u32::MAX] {
+            let mut payload = base.to_vec();
+            payload.extend_from_slice(&count.to_be_bytes());
+            let parsed = parse_jpip_placeholder(&payload).unwrap();
+            assert_eq!(parsed.stream, Some(u64::MAX));
+            assert_eq!(parsed.stream_count, 1);
+            assert!(parse_jpip_placeholder(&payload[..payload.len() - 1]).is_err());
+            payload.push(0);
+            assert!(parse_jpip_placeholder(&payload).is_err());
+        }
+    }
+}
+
+#[test]
 fn placeholder_parser_accepts_standard_bit_flags_and_types_extensions() {
     let original = [0, 0, 0, 8, b'j', b'p', b'2', b'c'];
     let equivalent = [0, 0, 0, 8, b'j', b'p', b'2', b'c'];

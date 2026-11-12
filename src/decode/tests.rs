@@ -3134,17 +3134,18 @@ fn complete_coefficient_reconstruction_preserves_prefix_mct_and_error_frontiers(
                                         kind: MalformedKind::InvalidCodingStyle,
                                     })
                                 } else if with_mct {
-                                    expected_work += 2;
-                                    if maximum < 16 {
+                                    expected_work += if reversible { 3 } else { 2 };
+                                    let scratch = if reversible { 24 } else { 16 };
+                                    if maximum < scratch {
                                         Err(DecodeError::LimitExceeded {
                                             resource: Resource::DecodedBytes,
                                             limit: maximum,
-                                            actual: 16,
+                                            actual: scratch,
                                         })
                                     } else {
                                         for value in &mut expected[1].samples {
                                             *value = if reversible {
-                                                *value * 2 + 1
+                                                *value + 1
                                             } else {
                                                 i64::try_from(
                                                     i128::from(*value) * 2 * (1_i128 << 16)
@@ -3183,7 +3184,7 @@ fn complete_coefficient_reconstruction_preserves_prefix_mct_and_error_frontiers(
                                             reversible,
                                             vec![0],
                                             vec![0],
-                                            array(vec![2]),
+                                            array(if reversible { vec![1, 2] } else { vec![2] }),
                                             Some(array(vec![1])),
                                         )],
                                     ),
@@ -3690,7 +3691,7 @@ fn add_plt(mut bytes: Vec<u8>, lengths: &[u8]) -> Vec<u8> {
     bytes
 }
 
-fn add_single_component_mct(mut bytes: Vec<u8>, matrix: i16, offset: i16) -> Vec<u8> {
+fn add_single_component_mct(mut bytes: Vec<u8>, final_scale: i16, offset: i16) -> Vec<u8> {
     let sot = bytes
         .windows(2)
         .position(|window| window == 0xff90_u16.to_be_bytes())
@@ -3699,7 +3700,8 @@ fn add_single_component_mct(mut bytes: Vec<u8>, matrix: i16, offset: i16) -> Vec
     let mut matrix_payload = 0_u16.to_be_bytes().to_vec();
     matrix_payload.extend_from_slice(&0x0101_u16.to_be_bytes());
     matrix_payload.extend_from_slice(&0_u16.to_be_bytes());
-    matrix_payload.extend_from_slice(&matrix.to_be_bytes());
+    matrix_payload.extend_from_slice(&1_i16.to_be_bytes());
+    matrix_payload.extend_from_slice(&final_scale.to_be_bytes());
     markers.extend(segment(0xff74, &matrix_payload));
     let mut offset_payload = 0_u16.to_be_bytes().to_vec();
     offset_payload.extend_from_slice(&0x0202_u16.to_be_bytes());
@@ -3715,7 +3717,7 @@ fn add_single_component_mct(mut bytes: Vec<u8>, matrix: i16, offset: i16) -> Vec
     bytes
 }
 
-fn add_second_component_mct_stage(mut bytes: Vec<u8>, matrix: i16, offset: i16) -> Vec<u8> {
+fn add_second_component_mct_stage(mut bytes: Vec<u8>, final_scale: i16, offset: i16) -> Vec<u8> {
     let mco = bytes
         .windows(2)
         .position(|window| window == 0xff77_u16.to_be_bytes())
@@ -3724,7 +3726,8 @@ fn add_second_component_mct_stage(mut bytes: Vec<u8>, matrix: i16, offset: i16) 
     let mut matrix_payload = 0_u16.to_be_bytes().to_vec();
     matrix_payload.extend_from_slice(&0x0103_u16.to_be_bytes());
     matrix_payload.extend_from_slice(&0_u16.to_be_bytes());
-    matrix_payload.extend_from_slice(&matrix.to_be_bytes());
+    matrix_payload.extend_from_slice(&1_i16.to_be_bytes());
+    matrix_payload.extend_from_slice(&final_scale.to_be_bytes());
     markers.extend(segment(0xff74, &matrix_payload));
     let mut offset_payload = 0_u16.to_be_bytes().to_vec();
     offset_payload.extend_from_slice(&0x0204_u16.to_be_bytes());
@@ -4735,25 +4738,25 @@ fn applies_ordered_part2_mct_stages_to_raw_jp2_and_selected_jpx_decode() {
         .unwrap();
     codestream[cod + 9] = 0;
     let codestream =
-        add_second_component_mct_stage(add_single_component_mct(codestream, 2, 3), 3, 5);
+        add_second_component_mct_stage(add_single_component_mct(codestream, 2, 3), -4, 5);
     let options = DecodeOptions::default();
     let raw = decode_codestream(&codestream, &options).unwrap();
     assert_eq!(
         raw.component(0).unwrap().samples(),
-        &TypedSamples::Unsigned(vec![141])
+        &TypedSamples::Unsigned(vec![136])
     );
 
     let jp2 = jp2_for_codestream(&codestream, 1, 1);
     let boxed = decode_jp2(&jp2, &options).unwrap();
     assert_eq!(
         boxed.component(0).unwrap().samples(),
-        &TypedSamples::Unsigned(vec![141])
+        &TypedSamples::Unsigned(vec![136])
     );
     let jpx = jpx_for_codestreams(&[codestream.clone(), codestream], 1, 1);
     let selected = decode_jpx_codestream(&jpx, 1, &options).unwrap();
     assert_eq!(
         selected.component(0).unwrap().samples(),
-        &TypedSamples::Unsigned(vec![141])
+        &TypedSamples::Unsigned(vec![136])
     );
 }
 
@@ -5199,6 +5202,35 @@ fn output_shape_contracts_reject_empty_components_and_planes() {
 }
 
 #[test]
+fn sarah_engineering_nine_seven_coded_singleton_matches_actual_reference_pixels() {
+    // OpenJPEG 2.5.0: 5x4 PGM, -I -n 2 -d 3,0 -t 4,4 -T 0,0.
+    let bytes = [
+        0xff, 0x4f, 0xff, 0x51, 0x00, 0x29, 0x00, 0x00, 0x00, 0x00, 0x00, 0x08, 0x00, 0x00, 0x00,
+        0x04, 0x00, 0x00, 0x00, 0x03, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x04, 0x00, 0x00,
+        0x00, 0x04, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x01, 0x07, 0x01, 0x01,
+        0xff, 0x52, 0x00, 0x0c, 0x00, 0x00, 0x00, 0x01, 0x00, 0x01, 0x04, 0x04, 0x00, 0x00, 0xff,
+        0x5c, 0x00, 0x0b, 0x42, 0x48, 0x24, 0x57, 0xd3, 0x57, 0xd3, 0x57, 0x62, 0xff, 0x64, 0x00,
+        0x25, 0x00, 0x01, 0x43, 0x72, 0x65, 0x61, 0x74, 0x65, 0x64, 0x20, 0x62, 0x79, 0x20, 0x4f,
+        0x70, 0x65, 0x6e, 0x4a, 0x50, 0x45, 0x47, 0x20, 0x76, 0x65, 0x72, 0x73, 0x69, 0x6f, 0x6e,
+        0x20, 0x32, 0x2e, 0x35, 0x2e, 0x30, 0xff, 0x90, 0x00, 0x0a, 0x00, 0x00, 0x00, 0x00, 0x00,
+        0x18, 0x00, 0x01, 0xff, 0x93, 0xc0, 0xf9, 0xc1, 0x40, 0x1d, 0x08, 0x08, 0x2f, 0x0b, 0x7f,
+        0xff, 0x90, 0x00, 0x0a, 0x00, 0x01, 0x00, 0x00, 0x00, 0x20, 0x00, 0x01, 0xff, 0x93, 0xc1,
+        0xf3, 0x84, 0x06, 0xbd, 0xc4, 0x9c, 0xc0, 0x7c, 0x80, 0xa0, 0x1f, 0x08, 0x40, 0x0d, 0x03,
+        0x0b, 0x3d, 0xff, 0xd9,
+    ];
+    let image = decode_codestream(&bytes, &DecodeOptions::default()).unwrap();
+    assert_eq!((image.width(), image.height()), (5, 4));
+    // The compressed stream's reference decode, not its lossy encoder input, is the oracle.
+    assert_eq!(
+        image.component(0).unwrap().samples(),
+        &TypedSamples::Unsigned(vec![
+            114, 111, 120, 130, 140, 116, 115, 124, 135, 145, 119, 121, 130, 140, 150, 122, 126,
+            135, 145, 155,
+        ])
+    );
+}
+
+#[test]
 fn top_level_raw_and_jp2_decode_packed_packet_headers() {
     for ppm in [true, false] {
         let mut codestream = prepared_codestream(1, 1, 1, &[0, 0x40], &[0]);
@@ -5213,7 +5245,7 @@ fn top_level_raw_and_jp2_decode_packed_packet_headers() {
                 .windows(2)
                 .position(|window| window == 0xff90_u16.to_be_bytes())
                 .unwrap();
-            packed.splice(sot..sot, segment(0xff57, &[0, 0, 0, 0, 1, 1]));
+            packed.splice(sot..sot, segment(0xff57, &[0, 1, 1]));
         }
 
         let raw = decode_codestream(&packed, &DecodeOptions::default()).unwrap();
@@ -5248,7 +5280,7 @@ fn top_level_apis_decode_poc_with_plm_plt_and_ppm_ppt() {
                 .windows(2)
                 .position(|window| window == 0xff90_u16.to_be_bytes())
                 .unwrap();
-            packed.splice(sot..sot, segment(0xff57, &[0, 0, 0, 0, 2, 1, 1]));
+            packed.splice(sot..sot, segment(0xff57, &[0, 2, 1, 1]));
         } else {
             let sod = packed
                 .windows(2)
@@ -5947,6 +5979,50 @@ fn top_level_jp2_decode_returns_typed_image() {
 }
 
 #[test]
+fn sarah_engineering_crg_color_context_contains_the_coded_predecessor() {
+    let mut bytes = prepared_codestream(1024, 1024, 1, &[0x40, 0x40], &[0]);
+    let siz = bytes
+        .windows(2)
+        .position(|word| word == 0xff51_u16.to_be_bytes())
+        .unwrap();
+    bytes[siz + 41] = 4;
+    bytes[siz + 42] = 4;
+    let cod = bytes
+        .windows(2)
+        .position(|word| word == 0xff52_u16.to_be_bytes())
+        .unwrap();
+    bytes[cod + 9] = 0;
+    let sot = bytes
+        .windows(2)
+        .position(|word| word == 0xff90_u16.to_be_bytes())
+        .unwrap();
+    bytes.splice(sot..sot, segment(0xff63, &[0x80, 0, 0x80, 0]));
+    let limits = ResourceLimits::default();
+    let layout = parse_layout(&bytes, &limits).unwrap();
+    for (coordinate, required) in [(9_u32, 1_u32), (10, 2), (13, 2), (14, 3)] {
+        let selection = DecodeSelection::full_image()
+            .with_region(crate::ImageRegion::new(coordinate, coordinate, 1, 1));
+        let validated = validate_selection(&layout.info.image_size, &selection).unwrap();
+        let (expanded, target) =
+            super::output::color_selection_from_validated(&layout.info.image_size, validated)
+                .unwrap();
+        let context = expanded.region().unwrap();
+        assert_eq!(
+            target,
+            [coordinate, coordinate, coordinate + 1, coordinate + 1]
+        );
+        assert!(
+            context.x.div_ceil(4) <= required && context.y.div_ceil(4) <= required,
+            "coordinate={coordinate} required coded predecessor={required} context={context:?}"
+        );
+        assert_eq!(
+            (context.x + context.width, context.y + context.height),
+            (coordinate + 1, coordinate + 1)
+        );
+    }
+}
+
+#[test]
 fn complete_native_selection_and_color_context_match_independent_spatial_reference() {
     fn malformed(kind: MalformedKind) -> DecodeError {
         DecodeError::MalformedInput { offset: 0, kind }
@@ -6118,14 +6194,14 @@ fn complete_native_selection_and_color_context_match_independent_spatial_referen
             if info.x_subsampling == 0 || info.y_subsampling == 0 {
                 return Err(malformed(MalformedKind::InvalidCodeBlock));
             }
-            let x = (i128::from(target[0]) * 65_536 - i128::from(info.x_registration)).max(0);
-            let y = (i128::from(target[1]) * 65_536 - i128::from(info.y_registration)).max(0);
-            if x % (i128::from(info.x_subsampling) * 65_536) != 0 {
-                horizontal = horizontal.max(u32::from(info.x_subsampling));
-            }
-            if y % (i128::from(info.y_subsampling) * 65_536) != 0 {
-                vertical = vertical.max(u32::from(info.y_subsampling));
-            }
+            let sx = i128::from(info.x_subsampling);
+            let sy = i128::from(info.y_subsampling);
+            let x = (i128::from(target[0]) * 65_536 - sx * i128::from(info.x_registration)).max(0)
+                / (sx * 65_536);
+            let y = (i128::from(target[1]) * 65_536 - sy * i128::from(info.y_registration)).max(0)
+                / (sy * 65_536);
+            horizontal = horizontal.max(u32::try_from(i128::from(target[0]) - x * sx).unwrap());
+            vertical = vertical.max(u32::try_from(i128::from(target[1]) - y * sy).unwrap());
         }
         let hx = (u64::from(horizontal) * scale).min(u64::from(u32::MAX));
         let hy = (u64::from(vertical) * scale).min(u64::from(u32::MAX));

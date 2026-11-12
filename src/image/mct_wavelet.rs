@@ -445,3 +445,24 @@ pub(super) fn apply_mct_wavelet(
         },
     )
 }
+
+#[cfg(test)]
+mod singleton_tests {
+    use super::reconstruct_mct_wavelet;
+
+    #[test]
+    fn sarah_engineering_nine_seven_spectral_consumer_retains_raw_operator_units() {
+        for value in [i64::MIN, -257, -2, -1, 0, 1, 2, 257, i64::MAX] {
+            for reversible in [false, true] {
+                assert_eq!(
+                    reconstruct_mct_wavelet(&[value], &[1], &[false], reversible, 0, 1).unwrap(),
+                    [value >> 1],
+                );
+                assert_eq!(
+                    reconstruct_mct_wavelet(&[value], &[0], &[true], reversible, 1, 1).unwrap(),
+                    [value],
+                );
+            }
+        }
+    }
+}

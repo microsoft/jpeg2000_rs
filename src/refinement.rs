@@ -17,8 +17,9 @@ pub(crate) use composition::{
 #[cfg_attr(verus_keep_ghost, verifier::verify)]
 mod geometry;
 pub(crate) use geometry::{
-    ceil_div_u32, component_output_shape_valid, decode_output_shape_valid, registered_extent,
-    registered_source_coordinate, tile_clip_end, tile_clip_start,
+    ceil_div_u32, component_output_shape_valid, crg_component_predecessor,
+    decode_output_shape_valid, registered_extent, registered_source_coordinate, tile_clip_end,
+    tile_clip_start,
 };
 #[cfg_attr(verus_keep_ghost, verifier::verify)]
 mod headers;

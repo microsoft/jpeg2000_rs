@@ -214,6 +214,72 @@ fn actual_jpip_cache_insert_errors_preserve_complete_physical_state_and_error_pr
 }
 
 #[test]
+fn sarah_metadata_target_identity_preserves_sparse_union_and_error_frames() {
+    let limits = ResourceLimits::HARDENED;
+    let metadata = |stream| DatabinId::new(8, stream, 17).unwrap();
+    let mut cache = DatabinCache::new(limits);
+    for (stream, offset, bytes, last) in [
+        (3, 2, &[3, 4][..], true),
+        (9, 0, &[1, 2][..], false),
+        (u64::MAX, 1, &[2, 3][..], false),
+    ] {
+        cache
+            .insert(
+                JpipFragment::new(
+                    metadata(stream),
+                    offset,
+                    bytes.to_vec(),
+                    last,
+                    None,
+                    &limits,
+                )
+                .unwrap(),
+            )
+            .unwrap();
+    }
+    assert_eq!(
+        (
+            cache.databin_count(),
+            cache.stored_bytes(),
+            cache.accepted_fragments()
+        ),
+        (1, 4, 3)
+    );
+    for stream in [0, 1, 3, 9, u64::MAX] {
+        let query = metadata(stream);
+        assert!(cache.is_complete(query));
+        assert_eq!(cache.databin_view(query).unwrap().as_bytes(), &[1, 2, 3, 4]);
+    }
+    let before = snapshot(&cache);
+    let owners = cache_storage(&cache);
+    assert!(matches!(
+        cache.insert(JpipFragment::new(metadata(127), 1, vec![255], false, None, &limits).unwrap()),
+        Err(DecodeError::MalformedInput {
+            kind: MalformedKind::ConflictingJpipFragment,
+            ..
+        })
+    ));
+    assert_eq!(snapshot(&cache), before);
+    assert_eq!(cache_storage(&cache), owners);
+    for stream in [3, 9] {
+        cache
+            .insert(
+                JpipFragment::new(
+                    DatabinId::new(6, stream, 0).unwrap(),
+                    0,
+                    vec![42],
+                    true,
+                    None,
+                    &limits,
+                )
+                .unwrap(),
+            )
+            .unwrap();
+    }
+    assert_eq!((cache.databin_count(), cache.stored_bytes()), (3, 6));
+}
+
+#[test]
 fn reserved_wire_classes_cannot_mutate_recognized_or_physical_cache_state() {
     let mut cases = 0;
     for class in [3, 7] {

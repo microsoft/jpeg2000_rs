@@ -131,7 +131,7 @@ fn actual_raw_typed_result_joins_real_packed_packets_mct_and_nonlinear_regions()
         .position(|pair| pair == [0xff, 0x52])
         .unwrap();
     basic[cod + 9] = 0;
-    let transformed = add_second_component_mct_stage(add_single_component_mct(basic, 2, 3), 3, 5);
+    let transformed = add_second_component_mct_stage(add_single_component_mct(basic, 2, 3), -4, 5);
     for packed in [None, Some(false), Some(true)] {
         let bytes = match packed {
             None => transformed.clone(),
@@ -150,7 +150,7 @@ fn actual_raw_typed_result_joins_real_packed_packets_mct_and_nonlinear_regions()
             .unwrap();
             assert_eq!(
                 image.component(0).unwrap().samples(),
-                &TypedSamples::Unsigned(vec![141])
+                &TypedSamples::Unsigned(vec![136])
             );
         }
     }

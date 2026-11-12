@@ -685,7 +685,7 @@ fn actual_tile_part_complete_real_producers_packet_header_span_and_payload() {
         super::segment(ADS, &[2, 1, 0x40, 1, 0]),
         super::segment(NLT, &[0xff, 0xff, 7, 0]),
         super::segment(ATK, &[0x4a, 2, 0x3f, 0x80, 0, 0, 0]),
-        mct_i16(1, 1, &[1]),
+        mct_i16(1, 1, &[1, 1]),
         mcc(9, 1, true, 1, 0),
         mco(&[9]),
     ]

@@ -54,7 +54,16 @@ pub struct Part1PackedHeaders {
 pub enum Part1PacketLengthSource {
     None,
     Plm(Seq<u8>),
+    PlmSegments(Part1PlmFragments),
     Plt(Seq<u8>),
+}
+
+pub struct Part1PlmFragments {
+    pub header: Seq<u8>,
+    pub first_start: usize,
+    pub first_end: usize,
+    pub declared: u8,
+    pub marker_offset: usize,
 }
 
 pub struct Part1PacketLengths {
@@ -75,10 +84,7 @@ pub open spec fn part1_parse_plt<'a>(
     main: Part1PacketLengths, next_index: u16, seen: bool,
     packet_count: u64, encoded_bytes: u64, payload_bytes: u64,
 ) -> (Result<(), crate::DecodeError>, super::Part1CodestreamReader<'a>, u16, bool, u64, u64, u64) {
-    if !matches!(main.source, Part1PacketLengthSource::None) {
-        (Err(part1_packet_input_error(segment.offset, crate::MalformedKind::InvalidMarkerOrder)),
-            state, next_index, seen, packet_count, encoded_bytes, payload_bytes)
-    } else if segment.payload.len() == 0 {
+    if segment.payload.len() == 0 {
         (Err(part1_packet_input_error(segment.offset, crate::MalformedKind::InvalidMarkerLength)),
             state, next_index, seen, packet_count, encoded_bytes, payload_bytes)
     } else if segment.payload[0] as u16 != next_index {
@@ -257,22 +263,27 @@ pub open spec fn part1_packet_length_decode(encoded: Seq<u8>, start: usize, end:
 }
 
 #[verifier::opaque]
-pub open spec fn part1_sum_packet_lengths_from(bytes: Seq<u8>, position: usize, total: u64)
+pub open spec fn part1_sum_packet_lengths_from(s: Part1PacketLengthIter, total: u64)
     -> Result<u64, crate::DecodeError>
-    decreases bytes.len() - position,
+    decreases if s.position < part1_packet_length_source_size(s.source) {
+        part1_packet_length_source_size(s.source) - s.position } else { 0 },
 {
-    if position >= bytes.len() {
-        Ok(total)
+    let maximum = part1_packet_length_source_size(s.source);
+    if s.position > maximum {
+        Err(part1_packet_input_error(s.position, crate::MalformedKind::InvalidPacketLength))
     } else {
-        match part1_packet_length_decode(bytes, position, bytes.len() as usize) {
+        let next = part1_packet_length_next(s);
+        match next.0 {
             Err(error) => Err(error),
-            Ok((length, next)) => {
-                if next <= position || next > bytes.len() {
-                    Err(part1_packet_input_error(position, crate::MalformedKind::InvalidPacketLength))
+            Ok(None) => Ok(total),
+            Ok(Some(length)) => {
+                if next.1.position <= s.position || next.1.position > maximum {
+                    Err(part1_packet_input_error(s.position, crate::MalformedKind::InvalidPacketLength))
                 } else if total as int + length as int > u64::MAX {
                     Err(part1_packet_input_error(0, crate::MalformedKind::ArithmeticOverflow))
                 } else {
-                    part1_sum_packet_lengths_from(bytes, next, (total + length) as u64)
+                    part1_sum_packet_lengths_from(
+                        Part1PacketLengthIter { source: s.source, ..next.1 }, (total + length) as u64)
                 }
             },
         }
@@ -284,8 +295,55 @@ pub open spec fn part1_sum_packet_lengths(source: Part1PacketLengthSource) -> Re
     match source {
         Part1PacketLengthSource::None => Ok(0),
         Part1PacketLengthSource::Plt(_) => Err(part1_packet_input_error(0, crate::MalformedKind::InvalidPacketLength)),
-        Part1PacketLengthSource::Plm(bytes) => part1_sum_packet_lengths_from(bytes, 0, 0),
+        _ => part1_sum_packet_lengths_from(part1_packet_lengths_iter(
+            Part1PacketLengths { source, packet_count: 0, encoded_bytes: 0 }), 0),
     }
+}
+
+pub open spec fn part1_packet_length_source_size(source: Part1PacketLengthSource) -> nat {
+    match source {
+        Part1PacketLengthSource::None => 0,
+        Part1PacketLengthSource::Plm(bytes) | Part1PacketLengthSource::Plt(bytes) => bytes.len(),
+        Part1PacketLengthSource::PlmSegments(fragments) => fragments.header.len(),
+    }
+}
+
+#[verifier::opaque]
+pub open spec fn part1_packet_length_sources_match_from(left: Part1PacketLengthIter, right: Part1PacketLengthIter)
+    -> Result<bool, crate::DecodeError>
+    decreases if left.position < part1_packet_length_source_size(left.source) {
+        part1_packet_length_source_size(left.source) - left.position } else { 0 },
+{
+    let first = part1_packet_length_next(left);
+    match first.0 {
+        Err(error) => Err(error),
+        Ok(a) => {
+            let second = part1_packet_length_next(right);
+            match second.0 {
+                Err(error) => Err(error),
+                Ok(b) => {
+                    if a != b { Ok(false) }
+                    else if a.is_none() { Ok(true) }
+                    else if first.1.position <= left.position || first.1.position > part1_packet_length_source_size(left.source) {
+                        Err(part1_packet_input_error(left.position, crate::MalformedKind::InvalidPacketLength))
+                    } else {
+                        part1_packet_length_sources_match_from(
+                            Part1PacketLengthIter { source: left.source, ..first.1 },
+                            Part1PacketLengthIter { source: right.source, ..second.1 })
+                    }
+                },
+            }
+        },
+    }
+}
+
+#[verifier::opaque]
+pub open spec fn part1_packet_length_sources_match(first: Part1PacketLengthSource, second: Part1PacketLengthSource)
+    -> Result<bool, crate::DecodeError>
+{
+    part1_packet_length_sources_match_from(
+        part1_packet_lengths_iter(Part1PacketLengths { source: first, packet_count: 0, encoded_bytes: 0 }),
+        part1_packet_lengths_iter(Part1PacketLengths { source: second, packet_count: 0, encoded_bytes: 0 }))
 }
 
 #[verifier::opaque]
@@ -303,7 +361,15 @@ pub open spec fn part1_finish_packet_lengths(
                 packet_count: plt_count, encoded_bytes: plt_bytes,
             }
         } else { main };
-        if matches!(lengths.source, Part1PacketLengthSource::None) {
+        let consistency = if plt_seen && !matches!(main.source, Part1PacketLengthSource::None) {
+            if main.packet_count != plt_count { Ok(false) }
+            else { part1_packet_length_sources_match(main.source, lengths.source) }
+        } else { Ok(true) };
+        if consistency.is_err() {
+            Err(consistency->Err_0)
+        } else if !(consistency->Ok_0) {
+            Err(part1_packet_input_error(offset, crate::MalformedKind::InvalidPacketLength))
+        } else if matches!(lengths.source, Part1PacketLengthSource::None) {
             Ok(lengths)
         } else {
             let declared = if plt_seen { Ok(plt_payload) } else { part1_sum_packet_lengths(lengths.source) };
@@ -342,15 +408,34 @@ pub open spec fn part1_finish_packed_packet_headers(
 }
 
 pub open spec fn part1_packet_lengths_iter(s: Part1PacketLengths) -> Part1PacketLengthIter {
-    Part1PacketLengthIter { source: s.source, position: 0, segment_end: 0 }
+    match s.source {
+        Part1PacketLengthSource::PlmSegments(fragments) => Part1PacketLengthIter {
+            source: s.source, position: fragments.first_start, segment_end: fragments.first_end },
+        _ => Part1PacketLengthIter { source: s.source, position: 0, segment_end: 0 },
+    }
+}
+
+pub open spec fn part1_incomplete_plm_offset(s: Part1PacketLengths) -> Option<usize> {
+    match s.source {
+        Part1PacketLengthSource::PlmSegments(fragments) =>
+            if s.encoded_bytes != fragments.declared as u64 { Some(fragments.marker_offset) } else { None },
+        _ => None,
+    }
 }
 
 #[verifier::opaque]
 pub open spec fn part1_packet_length_plt(s: Part1PacketLengthIter) -> (Result<Option<u32>, crate::DecodeError>, Part1PacketLengthIter)
-    decreases match s.source { Part1PacketLengthSource::Plt(header) => if s.position < header.len() { header.len() - s.position } else { 0 }, _ => 0 },
+    decreases if s.position < part1_packet_length_source_size(s.source) {
+        part1_packet_length_source_size(s.source) - s.position } else { 0 },
 {
-    match s.source {
-        Part1PacketLengthSource::Plt(header) => {
+    let header = match s.source {
+        Part1PacketLengthSource::Plt(bytes) => Some(bytes),
+        Part1PacketLengthSource::PlmSegments(fragments) => Some(fragments.header),
+        _ => None,
+    };
+    match header {
+        Some(header) => {
+            let continued = matches!(s.source, Part1PacketLengthSource::PlmSegments(_));
             if s.position < s.segment_end {
                 match part1_packet_length_decode(header, s.position, s.segment_end) {
                     Err(error) => (Err(error), s),
@@ -367,26 +452,27 @@ pub open spec fn part1_packet_length_plt(s: Part1PacketLengthIter) -> (Result<Op
                     (Err(part1_packet_input_error(s.position, crate::MalformedKind::ArithmeticOverflow)), s)
                 } else {
                     let end = (s.position + 2 + marker_length) as usize;
-                    if end > header.len() {
+                    let marker = part1_packet_input_word(header, s.position);
+                    if end > header.len() && !(continued && marker == 0xff57) {
                         (Err(part1_packet_input_error(s.position, crate::MalformedKind::InvalidMarkerLength)), s)
                     } else {
-                        let marker = part1_packet_input_word(header, s.position);
-                        let next = Part1PacketLengthIter { position: end, ..s };
-                        if marker == 0xff58 {
+                        let fragment_end = if end > header.len() { header.len() as usize } else { end };
+                        let next = Part1PacketLengthIter { position: fragment_end, ..s };
+                        if marker == if continued { 0xff57u16 } else { 0xff58u16 } {
                             if end < marker_length || (end - marker_length) as nat + 3 > usize::MAX {
-                                (Err(part1_packet_input_error(end, crate::MalformedKind::ArithmeticOverflow)), next)
+                                (Err(part1_packet_input_error(fragment_end, crate::MalformedKind::ArithmeticOverflow)), next)
                             } else {
                                 let data = (end - marker_length + 3) as usize;
-                                if data > end {
-                                    (Err(part1_packet_input_error(end, crate::MalformedKind::InvalidMarkerLength)), next)
+                                if data > fragment_end {
+                                    (Err(part1_packet_input_error(fragment_end, crate::MalformedKind::InvalidMarkerLength)), next)
                                 } else {
-                                    let next = Part1PacketLengthIter { position: data, segment_end: end, ..s };
+                                    let next = Part1PacketLengthIter { position: data, segment_end: fragment_end, ..s };
                                     if data <= s.position || data > header.len() {
                                         (Err(part1_packet_input_error(s.position, crate::MalformedKind::InvalidPacketLength)), next)
                                     } else { part1_packet_length_plt(next) }
                                 }
                             }
-                        } else if end <= s.position || end > header.len() {
+                        } else if fragment_end <= s.position || fragment_end > header.len() {
                             (Err(part1_packet_input_error(s.position, crate::MalformedKind::InvalidPacketLength)), next)
                         } else { part1_packet_length_plt(next) }
                     }
@@ -410,7 +496,7 @@ pub open spec fn part1_packet_length_next(s: Part1PacketLengthIter) -> (Result<O
                 }
             }
         },
-        Part1PacketLengthSource::Plt(_) => part1_packet_length_plt(s),
+        Part1PacketLengthSource::Plt(_) | Part1PacketLengthSource::PlmSegments(_) => part1_packet_length_plt(s),
     }
 }
 

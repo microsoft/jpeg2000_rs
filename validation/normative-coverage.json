@@ -579,7 +579,8 @@
         {"path": "src/jpip/cache_insert_result_tests.rs", "symbol": "actual_jpip_cache_insert_checked_clones_preserve_fields_and_independent_storage"},
         {"path": "src/jpip/cache_insert_result_tests.rs", "symbol": "actual_jpip_cache_insert_errors_preserve_complete_physical_state_and_error_precedence"},
         {"path": "src/jpip/cache_insert_result_tests.rs", "symbol": "actual_jpip_cache_insert_normalizes_exact_bytes_and_retains_first_alias_metadata"},
-        {"path": "src/jpip/cache_insert_result_tests.rs", "symbol": "reserved_wire_classes_cannot_mutate_recognized_or_physical_cache_state"}
+        {"path": "src/jpip/cache_insert_result_tests.rs", "symbol": "reserved_wire_classes_cannot_mutate_recognized_or_physical_cache_state"},
+        {"path": "src/jpip/cache_insert_result_tests.rs", "symbol": "sarah_metadata_target_identity_preserves_sparse_union_and_error_frames"}
       ]
     },
     {
@@ -837,7 +838,8 @@
         {"path": "src/jpip/message_result_tests.rs", "symbol": "sarah_initial_history_defaults_commit_only_after_complete_data"},
         {"path": "src/jpip/message_result_tests.rs", "symbol": "sarah_initial_history_defaults_are_response_local_not_cache_history"},
         {"path": "src/jpip/message_result_tests.rs", "symbol": "sarah_reserved_classes_have_no_registered_header_semantics"},
-        {"path": "src/jpip/message_result_tests.rs", "symbol": "semantic_identity_aliases_only_assigned_auxiliary_classes"}
+        {"path": "src/jpip/message_result_tests.rs", "symbol": "semantic_identity_aliases_only_assigned_auxiliary_classes"},
+        {"path": "src/jpip/message_result_tests.rs", "symbol": "sarah_metadata_target_identity_retains_raw_codestream_fields"}
       ]
     },
     {
@@ -1376,6 +1378,7 @@
       "id": "part2-complete-native-raw-composition-and-reference-results",
       "topic": "Complete actual raw word cursor/dimension/instruction/composition/reference Results. Every optional instruction field, ordered record, encoded life/persistence/reuse/source region/repeat/tick, actual options/loop/unknown flags and first reference errors preserved. Native cursor old/final frames and eager offsets, geometry/count/life/order/resource priority retained; zero-life/default/no-record admission unchanged. Original output owners/scopes retained, no supplied parsed instruction/composition/result banks or validity premise. One checked composition reader retarget requires explicit future native audit; full file/public/normative/cfg/erasure/lifetimes/release separate.",
       "implementation_refs": [
+        {"path": "src/jp2/composition.rs", "symbol": "has_explicit_registration"},
         {"path": "src/jp2/composition.rs", "symbol": "read_u32_at"},
         {"path": "src/jp2/composition.rs", "symbol": "validate_dimensions"},
         {"path": "src/jp2/composition.rs", "symbol": "parse_instruction_set"},
@@ -1396,9 +1399,11 @@
         {"path": "specs/jp2_composition.rs", "symbol": "part2_parse_composition"},
         {"path": "specs/jp2_layer.rs", "symbol": "part2_layer_registration_references"},
         {"path": "specs/jp2_layer.rs", "symbol": "part2_layer_references"},
+        {"path": "specs/jp2_layer.rs", "symbol": "part2_any_layer_registration"},
         {"path": "specs/jp2_layer.rs", "symbol": "part2_validate_layer_references"}
       ],
       "contract_refs": [
+        {"path": "src/jp2/composition.rs", "symbol": "has_explicit_registration"},
         {"path": "src/jp2/composition.rs", "symbol": "read_u32_at"},
         {"path": "src/jp2/composition.rs", "symbol": "validate_dimensions"},
         {"path": "src/jp2/composition.rs", "symbol": "parse_instruction_set"},
@@ -1406,6 +1411,7 @@
         {"path": "src/jp2/composition.rs", "symbol": "validate_layer_references"}
       ],
       "proof_refs": [
+        {"path": "src/jp2/composition.rs", "symbol": "has_explicit_registration"},
         {"path": "src/jp2/proof_support.rs", "symbol": "raw_instruction_set_view"},
         {"path": "src/jp2/proof_support.rs", "symbol": "raw_instruction_set_outcome"},
         {"path": "src/jp2/proof_support.rs", "symbol": "raw_instruction_sets_view"},
@@ -3102,7 +3108,7 @@
     },
     {
       "id": "part1-complete-native-tile-packet-admission",
-      "topic": "Actual PLT/PPT tile packet admission, extracted from the sole real read_tile_part branches and wired back in original order. Raw main source presence rejects before empty payload, marker/index, fragment, counter or budget errors; absent sources remain absent even with nonzero raw metadata. PLT admits every raw u16 next-index against the actual u8 payload, commits the increment before genuine raw varint admission, then seen and the packet-count, encoded-byte and payload-total additions sequentially. Every failure retains exact full parser and five mutable scalar frames, including untouched tails. Index-only payloads and index 255 to 256 remain native. PPT consumes actual released packed-fragment production only after the raw main conflict check, preserving the complete next-index/fragment/byte/full-reader tuple. No prepared outcomes, normalized metadata, validity premises, new trust/caps/pins/budgets or termination bypass. Outer main/tile/file/parser/F2/F4/F8 composition and independent model-to-standard review remain separate.",
+      "topic": "Actual PLT/PPT tile packet admission in the retained-assertion engineering profile, wired to the sole read_tile_part branches in original order. PLT admits alongside PLM; consistency is checked using both full source-derived lists at finalization. PLT admits every raw u16 next-index against the actual u8 payload, commits the increment before genuine raw varint admission, then seen and the packet-count, encoded-byte and payload-total additions sequentially. Every failure retains exact full parser and five mutable scalar frames, including untouched tails. Index-only payloads and index 255 to 256 remain native. PPT retains its raw main-source conflict before packed-fragment admission, preserving its complete next-index/fragment/byte/full-reader tuple. No prepared outcomes, normalized metadata, validity premises, new trust/caps/pins/budgets or termination bypass. Independent standards closure and outer parser/F2/F4/F8 remain separate.",
       "implementation_refs": [
         {"path": "src/codestream/tiles.rs", "symbol": "Parser::read_tile_part"},
         {"path": "src/codestream/packet_headers.rs", "symbol": "Parser::parse_plt"},
@@ -3166,16 +3172,20 @@
     },
     {
       "id": "part1-complete-native-packet-metadata-finalization",
-      "topic": "Actual raw packet-length sum and full packet-length/packed-header final Results. Sum keeps None zero, raw Plt rejection at zero, actual Plm varint errors at their source positions and checked total overflow at zero. PLT overrides main only after genuine input bounds/slice; absent selected lengths skip all range/sum/logical-size checks, while present data derives the actual declared sum and checked data-plus-packed byte comparison in native error order. Raw counts/encoded-byte/source fields are not normalized. PPT zero fragments preserves every arbitrary main field even invalid supplied ranges; nonzero derives the exact borrowed input header, PPT marker, logical start, length and fragment fields. Independent full-reader frames and actual PLM/PPT producer-to-finisher regression; no prepared payload/results, validity premises, new trust/caps/pins/budgets or termination bypass. Actual PLT/PPT admission has its own row; outer main/tile/file/parser/F2/F4/F8 composition remains separate.",
+      "topic": "Actual raw packet-length sum and full packet-length/packed-header final Results under the retained-assertion engineering profile. Sum keeps None zero, raw Plt rejection at zero, actual contiguous/continued PLM varint errors at their physical source positions and checked total overflow at zero. PLT selection follows genuine input bounds/slice; simultaneous PLM/PLT requires equal counts and a complete packet-by-packet comparison, including real iterator errors, before payload validation. Absent selected lengths skip range/sum/logical-size checks. Raw counts/encoded-byte/source fields are not normalized. PPT zero fragments preserves every arbitrary main field even invalid supplied ranges; nonzero derives the exact borrowed input header, PPT marker, logical start, length and fragment fields. Independent full-reader frames, raw segmented-source controls and real PLM/PPT producer joins; no prepared results, validity premises, new trust/caps/pins/budgets or termination bypass. Independent standards closure and outer parser/F2/F4/F8 remain separate.",
       "implementation_refs": [
         {"path": "src/codestream/tiles.rs", "symbol": "Parser::read_tile_part"},
         {"path": "src/codestream/packet_headers.rs", "symbol": "Parser::finish_packet_lengths"},
         {"path": "src/codestream/packet_headers.rs", "symbol": "Parser::finish_packed_packet_headers"},
-        {"path": "src/codestream/packet_headers.rs", "symbol": "sum_packet_lengths"}
+        {"path": "src/codestream/packet_headers.rs", "symbol": "sum_packet_lengths"},
+        {"path": "src/codestream/packet_headers.rs", "symbol": "packet_length_sources_match"}
       ],
       "spec_refs": [
         {"path": "specs/packet_input.rs", "symbol": "part1_sum_packet_lengths"},
         {"path": "specs/packet_input.rs", "symbol": "part1_sum_packet_lengths_from"},
+        {"path": "specs/packet_input.rs", "symbol": "part1_packet_length_source_size"},
+        {"path": "specs/packet_input.rs", "symbol": "part1_packet_length_sources_match"},
+        {"path": "specs/packet_input.rs", "symbol": "part1_packet_length_sources_match_from"},
         {"path": "specs/packet_input.rs", "symbol": "part1_finish_packet_lengths"},
         {"path": "specs/packet_input.rs", "symbol": "part1_finish_packed_packet_headers"},
         {"path": "specs/packet_input.rs", "symbol": "part1_packet_length_decode"},
@@ -3183,6 +3193,7 @@
         {"path": "specs/packet_input.rs", "symbol": "Part1PackedHeaders"}
       ],
       "contract_refs": [
+        {"path": "src/codestream/packet_headers.rs", "symbol": "packet_length_sources_match"},
         {"path": "src/codestream/packet_headers.rs", "symbol": "sum_packet_lengths"},
         {"path": "src/codestream/packet_headers.rs", "symbol": "Parser::finish_packet_lengths"},
         {"path": "src/codestream/packet_headers.rs", "symbol": "Parser::finish_packed_packet_headers"}
@@ -3201,6 +3212,9 @@
       ],
       "test_refs": [
         {"path": "src/codestream/packet_headers.rs", "symbol": "actual_packet_sum_derives_raw_sources_all_short_varints_and_original_error_offsets"},
+        {"path": "src/codestream/packet_headers.rs", "symbol": "actual_segmented_plm_sum_derives_raw_physical_fragments_and_failure_offsets"},
+        {"path": "src/codestream/tests.rs", "symbol": "sarah_engineering_plm_plt_equal_sums_do_not_hide_different_packets"},
+        {"path": "src/codestream/tests.rs", "symbol": "sarah_engineering_consistent_plm_and_plt_coexist"},
         {"path": "src/codestream/tests.rs", "symbol": "actual_length_finalization_preserves_precedence_raw_fields_bounds_sums_and_reader"},
         {"path": "src/codestream/tests.rs", "symbol": "actual_packed_finalization_preserves_zero_bypass_raw_main_and_exact_source_borrows"},
         {"path": "src/codestream/tests.rs", "symbol": "actual_packet_metadata_joins_real_plm_and_ppt_producers_without_prepared_results"}
@@ -3208,24 +3222,30 @@
     },
     {
       "id": "part1-complete-native-packet-length-admission",
-      "topic": "Actual raw encoded packet-length admission and actual PLM group Result, complete parser state, next index and full borrowed group frames. Byte addition commits before its header-byte cap; genuine work charge precedes source-derived variable-length traversal; all varint errors map to the marker offset; global packet count commits only after complete traversal and before its packet cap. PLM minimum length and index admission precede the increment, retained on later failures including index 255 to 256. Every group length and borrowed source derives from real big-endian bytes; native admission partial commits survive errors; successful groups append before the TileParts cap. Preserve arbitrary prior groups and raw fields, source/order/error offsets and all parser input/limits/position/work/byte/count fields. No normalized lengths/groups/counters, admitted varints, supplied results, new trust/caps/pins/budgets or termination bypass. PLT/PPT admission and final metadata have separate local rows; outer parser/F2/F4/F8 joins remain separate.",
+      "topic": "Actual raw encoded packet-length admission and PLM group Result under the retained-assertion engineering profile, including complete parser state, next index and borrowed group frames. Byte addition commits before its header-byte cap; genuine work charge precedes variable-length traversal; varint errors map to the marker offset; global packet count commits after complete traversal and before its packet cap. One-octet PLM counts include zero. A last incomplete group continues across real marker segments at complete codewords using a borrowed Copy descriptor; other markers are skipped by the actual iterator. Complete groups append and continued groups update before the TileParts cap. Main-header completion rejects an unfinished last group at its originating PLM offset. Preserve arbitrary prior groups/raw fields, source/order/error offsets and all parser fields; no supplied results, validity premises, new trust/caps/pins/budgets or termination bypass. Independent standards closure remains separate.",
       "implementation_refs": [
         {"path": "src/codestream/layout.rs", "symbol": "Parser::parse_layout"},
         {"path": "src/codestream/tiles.rs", "symbol": "Parser::read_tile_part"},
         {"path": "src/codestream/packet_headers.rs", "symbol": "Parser::validate_packet_lengths"},
-        {"path": "src/codestream/packet_headers.rs", "symbol": "Parser::parse_plm"}
+        {"path": "src/codestream/packet_headers.rs", "symbol": "Parser::parse_plm"},
+        {"path": "src/codestream/packet_headers.rs", "symbol": "PacketLengths::incomplete_plm_offset"}
       ],
       "spec_refs": [
         {"path": "specs/mod.rs", "symbol": "part1_validate_packet_lengths"},
         {"path": "specs/mod.rs", "symbol": "part1_packet_length_admission_from"},
         {"path": "specs/mod.rs", "symbol": "part1_parse_plm"},
         {"path": "specs/mod.rs", "symbol": "part1_plm_groups_from"},
+        {"path": "specs/mod.rs", "symbol": "part1_plm_pending"},
+        {"path": "specs/mod.rs", "symbol": "part1_plm_fragment_source"},
+        {"path": "specs/packet_input.rs", "symbol": "part1_incomplete_plm_offset"},
+        {"path": "specs/packet_input.rs", "symbol": "Part1PlmFragments"},
         {"path": "specs/mod.rs", "symbol": "part1_codestream_packet_count"},
         {"path": "specs/mod.rs", "symbol": "part1_codestream_packet_bytes"},
         {"path": "specs/mod.rs", "symbol": "part1_codestream_charge_work"},
         {"path": "specs/packet_input.rs", "symbol": "part1_packet_length_decode"}
       ],
       "contract_refs": [
+        {"path": "src/codestream/packet_headers.rs", "symbol": "PacketLengths::incomplete_plm_offset"},
         {"path": "src/codestream/packet_headers.rs", "symbol": "Parser::validate_packet_lengths"},
         {"path": "src/codestream/packet_headers.rs", "symbol": "Parser::parse_plm"}
       ],
@@ -3236,7 +3256,6 @@
         {"path": "src/codestream/proof_support.rs", "symbol": "packet_length_groups_view"},
         {"path": "src/codestream/packet_headers.rs", "symbol": "decode_packet_length"},
         {"path": "src/codestream/reader.rs", "symbol": "Parser::charge_work"},
-        {"path": "src/codestream/reader.rs", "symbol": "read_u32"},
         {"path": "src/limits.rs", "symbol": "ResourceLimits::maximum_packet_header_bytes"},
         {"path": "src/limits.rs", "symbol": "ResourceLimits::maximum_packets"},
         {"path": "src/limits.rs", "symbol": "ResourceLimits::maximum_tile_parts"}
@@ -3245,7 +3264,10 @@
         {"path": "src/codestream/tests.rs", "symbol": "actual_packet_length_admission_derives_all_short_varints_and_full_reader_results"},
         {"path": "src/codestream/tests.rs", "symbol": "actual_packet_length_admission_preserves_byte_work_packet_overflow_and_limit_commits"},
         {"path": "src/codestream/tests.rs", "symbol": "actual_plm_groups_derive_raw_lengths_indexes_borrowed_sources_and_partial_commits"},
-        {"path": "src/codestream/tests.rs", "symbol": "actual_plm_groups_preserve_charge_errors_append_caps_and_real_segment_reader_join"}
+        {"path": "src/codestream/tests.rs", "symbol": "actual_plm_groups_preserve_charge_errors_append_caps_and_real_segment_reader_join"},
+        {"path": "src/codestream/tests.rs", "symbol": "sarah_engineering_plm_groups_continue_between_complete_codewords"},
+        {"path": "src/codestream/tests.rs", "symbol": "sarah_engineering_plm_continuations_reach_layout_across_other_markers"},
+        {"path": "src/codestream/tests.rs", "symbol": "sarah_engineering_plm_incomplete_and_split_codewords_keep_original_offsets"}
       ]
     },
     {
@@ -3330,6 +3352,82 @@
         {"path": "src/codestream/tests.rs", "symbol": "actual_mct_graph_element_counts_preserve_checked_intermediate_overflow"},
         {"path": "src/codestream/tests.rs", "symbol": "actual_mct_graph_collections_preserve_lookup_shape_flags_and_all_fields"},
         {"path": "src/codestream/tests.rs", "symbol": "actual_mct_graph_complete_parameters_preserve_order_first_records_and_empty_bypass"}
+      ]
+    },
+    {
+      "id": "part2-complete-native-reversible-decorrelation-engineering",
+      "topic": "Executing reversible integer decorrelation under the retained-assertion engineering profile and explicitly approved T.801June2021 interpretation. Present arrays have N*(N+1) row-major integer values, positive power-of-two regular pivots and signed power-of-two final magnitude. Sequential stored stages update N-1 down to zero and then N-1 again; non-target checked integer predictions use half bias and mathematical floor, the final sign follows subtraction, and integer offsets follow all stages. Interpret the apparent J-5 target-index inconsistency using FigureJ7, explicit off-diagonal explanation, reversibility and NULL identity; disclose this rather than claiming independent selected-edition closure. Resolver/preparation/complete staged Result/cache/ordered output-prefix failure frames/work and three-vector scratch admission bind actual raw owners and limits. Compute once per pixel with quadratic work; no count-only fix, supplied transform/results, new trust/caps/pins/budgets or termination bypass. Independent standards and whole-codec external-array qualification remain separate.",
+      "implementation_refs": [
+        {"path": "src/codestream/mct_resolution.rs", "symbol": "Parser::resolve_mct_collection"},
+        {"path": "src/codestream/mct_resolution.rs", "symbol": "Parser::expected_mct_elements"},
+        {"path": "src/codestream/mct_resolution.rs", "symbol": "validate_reversible_mct_coefficients"},
+        {"path": "src/codestream/mct_resolution.rs", "symbol": "reversible_mct_scale"},
+        {"path": "src/image/mct_decorrelation.rs", "symbol": "prepare_mct_decorrelation"},
+        {"path": "src/image/mct_decorrelation.rs", "symbol": "apply_mct_decorrelation"},
+        {"path": "src/image/mct_decorrelation.rs", "symbol": "apply_mct_decorrelation_pixel"},
+        {"path": "src/image/mct_decorrelation.rs", "symbol": "append_mct_decorrelation_rows"},
+        {"path": "src/image/mct_decorrelation.rs", "symbol": "decorrelation_mct_row"},
+        {"path": "src/image/mct.rs", "symbol": "inverse_reversible_mct"},
+        {"path": "src/image/mct.rs", "symbol": "reversible_mct_stage"},
+        {"path": "src/image/mct.rs", "symbol": "reversible_mct_row"},
+        {"path": "src/image/mct.rs", "symbol": "reversible_mct_output"},
+        {"path": "src/image/mct.rs", "symbol": "admit_reversible_mct_decorrelation"}
+      ],
+      "spec_refs": [
+        {"path": "specs/mod.rs", "symbol": "part1_mct_graph_collection"},
+        {"path": "specs/mod.rs", "symbol": "part1_mct_graph_element_count"},
+        {"path": "specs/mod.rs", "symbol": "part2_mct_power_of_two"},
+        {"path": "specs/mod.rs", "symbol": "part2_reversible_mct_scale"},
+        {"path": "specs/mod.rs", "symbol": "part2_validate_reversible_mct_coefficients"},
+        {"path": "specs/mod.rs", "symbol": "part2_mct_scale_prefix"},
+        {"path": "specs/mod.rs", "symbol": "part2_mct_scale_at"},
+        {"path": "specs/mod.rs", "symbol": "part2_reversible_mct_stage"},
+        {"path": "specs/mod.rs", "symbol": "part2_reversible_mct_sum"},
+        {"path": "specs/mod.rs", "symbol": "part2_reversible_mct_term"},
+        {"path": "specs/mod.rs", "symbol": "part2_reversible_mct_stages"},
+        {"path": "specs/mod.rs", "symbol": "part2_reversible_mct_advance"},
+        {"path": "specs/mod.rs", "symbol": "part2_inverse_reversible_mct"},
+        {"path": "specs/mod.rs", "symbol": "part2_reversible_mct_row"},
+        {"path": "specs/mod.rs", "symbol": "part2_reversible_mct_output"},
+        {"path": "specs/mod.rs", "symbol": "part2_reversible_mct_admission"},
+        {"path": "specs/mod.rs", "symbol": "part2_mct_prepare_decorrelation"},
+        {"path": "specs/mod.rs", "symbol": "part2_mct_decorrelation_rows"}
+      ],
+      "contract_refs": [
+        {"path": "src/codestream/mct_resolution.rs", "symbol": "Parser::expected_mct_elements"},
+        {"path": "src/codestream/mct_resolution.rs", "symbol": "validate_reversible_mct_coefficients"},
+        {"path": "src/codestream/mct_resolution.rs", "symbol": "reversible_mct_scale"},
+        {"path": "src/image/mct_decorrelation.rs", "symbol": "prepare_mct_decorrelation"},
+        {"path": "src/image/mct_decorrelation.rs", "symbol": "append_mct_decorrelation_rows"},
+        {"path": "src/image/mct.rs", "symbol": "inverse_reversible_mct"},
+        {"path": "src/image/mct.rs", "symbol": "reversible_mct_stage"},
+        {"path": "src/image/mct.rs", "symbol": "reversible_mct_row"},
+        {"path": "src/image/mct.rs", "symbol": "reversible_mct_output"},
+        {"path": "src/image/mct.rs", "symbol": "admit_reversible_mct_decorrelation"}
+      ],
+      "proof_refs": [
+        {"path": "src/codestream/proof_support.rs", "symbol": "mct_array_view"},
+        {"path": "src/codestream/proof_support.rs", "symbol": "mct_collection_view"},
+        {"path": "proofs/production_impl/mod.rs", "symbol": "production_mct_scale_empty"},
+        {"path": "proofs/production_impl/mod.rs", "symbol": "production_mct_scale_step"},
+        {"path": "proofs/production_impl/mod.rs", "symbol": "production_mct_scale_error"},
+        {"path": "proofs/production_impl/mod.rs", "symbol": "production_mct_serm_sum_empty"},
+        {"path": "proofs/production_impl/mod.rs", "symbol": "production_mct_serm_sum_step"},
+        {"path": "proofs/production_impl/mod.rs", "symbol": "production_mct_serm_sum_error"},
+        {"path": "proofs/production_impl/mod.rs", "symbol": "production_mct_serm_stages_empty"},
+        {"path": "proofs/production_impl/mod.rs", "symbol": "production_mct_serm_stages_step"},
+        {"path": "proofs/production_impl/mod.rs", "symbol": "production_mct_serm_stages_error"},
+        {"path": "proofs/production_impl/mod.rs", "symbol": "production_mct_rows_step"},
+        {"path": "proofs/production_impl/mod.rs", "symbol": "production_mct_rows_error"}
+      ],
+      "test_refs": [
+        {"path": "src/image/tests.rs", "symbol": "t801_reversible_mct_stages_keep_order_signed_ties_and_post_transform_offsets"},
+        {"path": "src/image/tests.rs", "symbol": "t801_reversible_mct_matches_independently_reversed_integer_lifting"},
+        {"path": "src/image/tests.rs", "symbol": "t801_reversible_mct_rejects_bad_scales_and_reports_integer_overflow"},
+        {"path": "src/image/tests.rs", "symbol": "native_mct_preparation_derives_real_ordered_indexes_fractions_and_late_work_errors"},
+        {"path": "src/decode/tests.rs", "symbol": "applies_ordered_part2_mct_stages_to_raw_jp2_and_selected_jpx_decode"},
+        {"path": "src/decode/raw_typed_result_tests.rs", "symbol": "actual_raw_typed_result_joins_real_packed_packets_mct_and_nonlinear_regions"},
+        {"path": "src/codestream/tests.rs", "symbol": "actual_mct_graph_collections_preserve_lookup_shape_flags_and_all_fields"}
       ]
     },
     {
@@ -3799,7 +3897,7 @@
     },
     {
       "id": "part2-complete-native-raw-nonlinear-bytes",
-      "topic": "Complete actual raw NLT Result, every physical nonlinear descriptor field and complete parser/eight extension-owner state. Real shared charge precedes header, component/default selector, precision/type, short-form length, gamma/LUT header/length/value and retained parameter-tail admission. Sole actual gamma body retains five 24-bit words and zero rejection only at positions0/1/3. LUT retains stored count1..8191 plus one, ordered domain/bit1..32/width1/2/4/exact-length/value-cap checks and all decoded u32 points. Real tail/maximum primitives derive all bytes and masks without prepared records, normalized metadata or budget premises. Equivalent explicit first-match replacement preserves later duplicate/default selectors and all unrelated raw fields; failure retains exact charged metadata/work commits without registry mutation. Existing safe precision/sign primitive and standard array extensionality expose native values, not new trust. Remaining metadata/layout/file/layer/F2/F4/final F8 joins remain separate.",
+      "topic": "Complete actual raw NLT Result, every nonlinear descriptor and full parser/extension-owner frame, including optional local-prefix provenance. Real shared charge precedes header, selector, precision/type, gamma/LUT and parameter-tail admission. Gamma and LUT byte/value rules remain unchanged. Main-header replacement searches the full registry; tile-local replacement searches only its prefix and inserts before the inherited suffix, preserving parent descriptors and local order. Invalid raw prefix counts reject after payload admission; checked count overflow precedes insertion. Complete Result/prefix models retain exact charge/error frames without supplied records/results, normalized descriptors, success premises, new trust or budget changes. The tile caller starts local scope once; subsequent selection enforces retained-assertion header precedence. Independent standards closure and remaining outer joins remain separate.",
       "implementation_refs": [
         {"path": "src/codestream/layout.rs", "symbol": "Parser::parse_layout"},
         {"path": "src/codestream/tiles.rs", "symbol": "Parser::read_tile_part"},
@@ -3848,7 +3946,9 @@
       "test_refs": [
         {"path": "src/codestream/tests.rs", "symbol": "actual_nlt_preserves_all_component_selectors_precision_and_type_bytes"},
         {"path": "src/codestream/tests.rs", "symbol": "actual_nlt_preserves_gamma_words_point_widths_caps_and_tail_bytes"},
-        {"path": "src/codestream/tests.rs", "symbol": "actual_nlt_preserves_first_duplicate_all_owner_fields_and_ordered_budget_failures"}
+        {"path": "src/codestream/tests.rs", "symbol": "actual_nlt_preserves_first_duplicate_all_owner_fields_and_ordered_budget_failures"},
+        {"path": "src/codestream/tests.rs", "symbol": "sarah_engineering_nlt_keeps_tile_and_main_header_precedence"},
+        {"path": "src/codestream/tests.rs", "symbol": "sarah_engineering_nlt_scoped_replacement_preserves_parent_and_charged_errors"}
       ]
     },
     {
@@ -4552,7 +4652,7 @@
     },
     {
       "id": "part2-complete-native-nonlinear-lut",
-      "topic": "Complete actual inverse NLT LUT Result for raw source sample, raw component descriptor and complete raw transform. Preserve output precision then minimum/maximum/point-count/source admission, source offset, checked scaling and clamping, checked interval conversion/position, Rust signed quotient/remainder, endpoint versus ordered point reads, every interpolation intermediate overflow, half-away ratio rounding and signed/type4 remapping. No normalized tables, supplied lookup/sample results, monotonicity, target-range or valid-source premises; unused descriptors/kinds stay unvalidated. Actual inverse scalar dispatch calls sole moved private body. Isolate actual interpolation under an opaque but proved model at original budgets; checked widening retains original conversion policy. Gamma/log/exp/whole dispatch/region/typed/parser/file/F2/F4/final F8 and delivery remain separate.",
+      "topic": "Complete actual inverse NLT LUT Result for raw sample/component/transform under the retained-assertion engineering endpoint rule: checked inclusive source-rank maximum(2^B)-1, unchanged signed offset and accepted source range. Preserve precision/minimum/maximum/point-count/source admission, checked scaling/clamping, interval conversion, Rust signed quotient/remainder, endpoint versus ordered reads, intermediate overflow, half-away rounding and signed/type4 remapping. No normalized tables, supplied results, monotonicity, target-range or valid-source premises; unused descriptors/kinds stay unvalidated. Actual outer scalar dispatch calls this sole body. Existing opaque proved interpolation and solver budgets remain unchanged. Preserve contrary public normalization evidence; independent standards closure and remaining outer joins remain separate.",
       "implementation_refs": [
         {"path": "src/image/nonlinear_math.rs", "symbol": "inverse_nlt_sample"},
         {"path": "src/image/nonlinear_math.rs", "symbol": "inverse_nlt_lut_sample"},
@@ -4584,7 +4684,8 @@
         {"path": "src/image/nonlinear_math.rs", "symbol": "nlt_round_ratio"}
       ],
       "test_refs": [
-        {"path": "src/image/tests.rs", "symbol": "actual_nonlinear_lut_derives_checked_interpolation_and_raw_type4_samples"}
+        {"path": "src/image/tests.rs", "symbol": "actual_nonlinear_lut_derives_checked_interpolation_and_raw_type4_samples"},
+        {"path": "src/image/tests.rs", "symbol": "sarah_engineering_nlt_lut_reaches_both_unsigned_rank_endpoints"}
       ]
     },
     {
@@ -4622,8 +4723,10 @@
     },
     {
       "id": "part2-complete-native-nonlinear-region-production",
-      "topic": "Complete actual nonlinear transform selection and raw layout/image/discard-level to ordered nonlinear regions Result. Intentional Sarah DEV-355FE751F9 correction ceiling-reduces tile-component bounds before native-resolution output clipping; invalid discard levels above31 return explicit ReductionTooLarge. First specific transform precedes first default; last matching tile-part owner replaces main metadata even when empty. Preserve valid-discard component-before-tile traversal, registered/subsampled metadata, narrowing order, lazy tile geometry and every raw transform field. All frames/bounds derive internally without normalized metadata, supplied regions/transforms/results or success premises. Actual typed_layout and selected JPX producer pass real discard context to the sole executing collector and complete models. Nonlinear scalar-rule certification, independent normative/file/F2/F4/final F8 and delivery remain separate.",
+      "topic": "Complete actual nonlinear selection and raw layout/image/discard-level to ordered regions Result. Retained-assertion precedence is tile-specific, tile-default, main-specific, main-default using one actual borrowed-slice specific/default helper and retained local-prefix provenance. Last matching tile-part owner still replaces main metadata even when empty. DEV-355FE751F9 ceiling-reduces tile-component bounds before native-resolution output clipping; discard above31 explicitly rejects. Preserve component-before-tile traversal, registered/subsampled metadata, narrowing/error order, lazy geometry and every raw transform field. Actual typed_layout and selected JPX callers carry the real source/discard/provenance context to the sole collector and complete models. No supplied regions/results, validity premises, new trust or budget changes. Independent scalar/normative/file/F2/F4/final F8 and delivery remain separate.",
       "implementation_refs": [
+        {"path": "src/codestream/extensions.rs", "symbol": "Part2Extensions::nonlinear_transform_for"},
+        {"path": "src/codestream/extensions.rs", "symbol": "find_nonlinear_transform"},
         {"path": "src/decode/api.rs", "symbol": "typed_layout"},
         {"path": "src/decode/api.rs", "symbol": "collect_nonlinear_regions"},
         {"path": "src/decode/api.rs", "symbol": "nonlinear_component_extent"},
@@ -4631,6 +4734,7 @@
       ],
       "spec_refs": [
         {"path": "specs/mod.rs", "symbol": "part2_nonlinear_transform_for"},
+        {"path": "specs/mod.rs", "symbol": "part2_nonlinear_transform_for_unscoped"},
         {"path": "specs/mod.rs", "symbol": "part2_nonlinear_find"},
         {"path": "specs/mod.rs", "symbol": "part2_nonlinear_component_extent"},
         {"path": "specs/mod.rs", "symbol": "part2_collect_nonlinear_regions"},
@@ -4641,11 +4745,13 @@
         {"path": "specs/mod.rs", "symbol": "part2_registered_decode_ceil"}
       ],
       "contract_refs": [
+        {"path": "src/codestream/extensions.rs", "symbol": "find_nonlinear_transform"},
         {"path": "src/codestream/extensions.rs", "symbol": "Part2Extensions::nonlinear_transform_for"},
         {"path": "src/decode/api.rs", "symbol": "nonlinear_component_extent"},
         {"path": "src/decode/api.rs", "symbol": "collect_nonlinear_regions"}
       ],
       "proof_refs": [
+        {"path": "src/codestream/proof_support.rs", "symbol": "owned_nonlinear_list_view"},
         {"path": "src/codestream/proof_support.rs", "symbol": "owned_nonlinear_view"},
         {"path": "src/codestream/proof_support.rs", "symbol": "owned_extensions_view"},
         {"path": "src/codestream/proof_support.rs", "symbol": "nonlinear_transform_option_view"},
@@ -4656,6 +4762,8 @@
       ],
       "test_refs": [
         {"path": "src/codestream/tests.rs", "symbol": "actual_nonlinear_lookup_preserves_first_specific_then_first_default_and_all_raw_fields"},
+        {"path": "src/codestream/tests.rs", "symbol": "sarah_engineering_nlt_keeps_tile_and_main_header_precedence"},
+        {"path": "src/codestream/tests.rs", "symbol": "sarah_engineering_nlt_scoped_replacement_preserves_parent_and_charged_errors"},
         {"path": "src/decode/tests.rs", "symbol": "actual_nonlinear_regions_derive_last_raw_tile_owner_registered_clipping_and_error_order"},
         {"path": "src/decode/tests.rs", "symbol": "sarah_dev_355fe751f9_reduced_tile_nlt_uses_native_coordinates"}
       ]
@@ -5811,6 +5919,8 @@
       "id": "part2-complete-native-coefficient-component-reconstruction",
       "topic": "Complete actual supplied-coefficient reconstruction: raw plan/style/first-match kernel lookup, ROI/quantization and standard/arbitrary inverse preparation, all actual MCT collection kinds and reverse stages, owner-buffer alias joins, standard RCT/ICT, and full/selected assembly. Complete Result/deep mutable state/work/native-limit relations have no supplied plan-success, normalized-layout, adequate-budget, trace or decoder-outcome premise. Public standalone APIs are explicit proof support, not fabricated internal consumers. Computational selected native scope, not compressed parser-to-pixel or normative/official-vector conformance.",
       "implementation_refs": [
+        {"path": "src/image/mct_decorrelation.rs", "symbol": "append_mct_decorrelation_rows"},
+        {"path": "src/image/mct_decorrelation.rs", "symbol": "apply_mct_decorrelation"},
         {"path": "src/image/mct.rs", "symbol": "apply_mct_collection"},
         {"path": "src/image/mct.rs", "symbol": "apply_mct_stage"},
         {"path": "src/image/mct.rs", "symbol": "apply_multiple_component_transform_components"},
@@ -5824,6 +5934,8 @@
         {"path": "src/decode/execution.rs", "symbol": "decode_layout_selected"}
       ],
       "spec_refs": [
+        {"path": "specs/mod.rs", "symbol": "part2_inverse_reversible_mct"},
+        {"path": "specs/mod.rs", "symbol": "part2_mct_prepare_decorrelation"},
         {"path": "specs/mod.rs", "symbol": "part2_mct_dependency"},
         {"path": "specs/mod.rs", "symbol": "part2_mct_decorrelation"},
         {"path": "specs/mod.rs", "symbol": "part2_mct_wavelet"},
@@ -5841,6 +5953,8 @@
         {"path": "specs/mod.rs", "symbol": "part2_kernel_registry_lookup"}
       ],
       "contract_refs": [
+        {"path": "src/image/mct.rs", "symbol": "inverse_reversible_mct"},
+        {"path": "src/image/mct_decorrelation.rs", "symbol": "prepare_mct_decorrelation"},
         {"path": "src/image/mct_dependency.rs", "symbol": "apply_mct_dependency"},
         {"path": "src/image/mct_decorrelation.rs", "symbol": "apply_mct_decorrelation"},
         {"path": "src/image/mct_wavelet.rs", "symbol": "apply_mct_wavelet"},
@@ -7785,7 +7899,7 @@
     },
     {
       "id": "part2-complete-native-container-selection-output",
-      "topic": "Complete actual native tile geometry, ordered selection range/duplicate/rectangle/region/intersection validation, requested target and resampling context, real parsed-codestream header choice/validation, associated CMAP/CDEF/image admission and full/selected color output. All malformed native descriptors/requests/typed components, None/empty/identity and actual errors/caps included; only private loop bounds derive from actual guards. Relative to actual parsed metadata and typed inputs, not compressed parser-to-pixel/F8 or normative conformance.",
+      "topic": "Complete actual native tile/selection geometry, requested target, source-derived resampling context, parsed header choice/validation, associated metadata and full/selected color output. CRG physical offsets use component-separation units; actual context padding derives the required coded predecessor coordinate through the shared arithmetic primitive, not a fixed one-separation radius. Coded SIZ geometry and raw registration words remain unchanged. Preserve malformed native states, errors/caps, discard and saturated context behavior without supplied results or codec-validity premises. Arithmetic nonzero prerequisites are checked by real callers. This retained-assertion engineering scope is not independent normative or parser-to-pixel/F8 closure.",
       "contract_refs": [
         {"path": "src/codestream/geometry.rs", "symbol": "ImageSize::tile_count"},
         {"path": "src/codestream/geometry.rs", "symbol": "ImageSize::tile_bounds"},
@@ -7801,6 +7915,7 @@
         {"path": "src/decode/selection.rs", "symbol": "explicit_tiles_from_selection"},
         {"path": "src/decode/selection.rs", "symbol": "validate_selection"},
         {"path": "src/decode/output.rs", "symbol": "color_selection_from_validated"},
+        {"path": "src/decode/output.rs", "symbol": "component_context_padding"},
         {"path": "src/decode/output.rs", "symbol": "color_selection_for_size"},
         {"path": "src/decode/output.rs", "symbol": "apply_associated_output"},
         {"path": "src/decode/output.rs", "symbol": "convert_associated_color"},
@@ -7814,6 +7929,7 @@
         {"path": "src/decode/output.rs", "symbol": "color_selection"},
         {"path": "src/decode/output.rs", "symbol": "color_selection_for_size"},
         {"path": "src/decode/output.rs", "symbol": "color_selection_from_validated"},
+        {"path": "src/decode/output.rs", "symbol": "component_context_padding"},
         {"path": "src/decode/selection.rs", "symbol": "validate_selection"},
         {"path": "src/decode/selection.rs", "symbol": "validate_selection_tile_rectangle"},
         {"path": "src/decode/selection.rs", "symbol": "validate_selection_rectangle_cells"},
@@ -7843,6 +7959,8 @@
         {"path": "specs/mod.rs", "symbol": "part2_selection_explicit"},
         {"path": "specs/mod.rs", "symbol": "part2_validate_selection"},
         {"path": "specs/mod.rs", "symbol": "part2_color_selection_context"},
+        {"path": "specs/mod.rs", "symbol": "part2_color_context_padding"},
+        {"path": "specs/mod.rs", "symbol": "part2_crg_component_predecessor"},
         {"path": "specs/mod.rs", "symbol": "part2_color_selection_requested"},
         {"path": "specs/mod.rs", "symbol": "part2_apply_associated_output"},
         {"path": "specs/mod.rs", "symbol": "part2_convert_associated"},
@@ -7860,10 +7978,12 @@
         {"path": "proofs/production_impl/mod.rs", "symbol": "production_rectangle_rows_error"},
         {"path": "proofs/production_impl/mod.rs", "symbol": "production_selected_region_error"},
         {"path": "proofs/production_impl/mod.rs", "symbol": "production_selected_tiles_error"},
-        {"path": "proofs/production_impl/mod.rs", "symbol": "production_color_sampling_error_guard"}
+        {"path": "proofs/production_impl/mod.rs", "symbol": "production_color_sampling_error_guard"},
+        {"path": "src/refinement/geometry.rs", "symbol": "crg_component_predecessor"}
       ],
       "test_refs": [
         {"path": "src/decode/tests.rs", "symbol": "complete_native_selection_and_color_context_match_independent_spatial_reference"},
+        {"path": "src/decode/tests.rs", "symbol": "sarah_engineering_crg_color_context_contains_the_coded_predecessor"},
         {"path": "src/decode/tests.rs", "symbol": "associated_native_output_composes_actual_metadata_color_crop_and_none_bypass"},
         {"path": "src/jp2/tests.rs", "symbol": "complete_native_association_and_selected_header_validation_preserve_raw_choices"},
         {"path": "src/decode/tests.rs", "symbol": "selected_tiles_and_regions_match_full_decode_crops"}
@@ -8416,7 +8536,8 @@
         {"path": "src/image/proof_support.rs", "symbol": "typed_samples_view"},
         {"path": "proofs/spec_properties/mod.rs", "symbol": "color_precision_binary_bounds"},
         {"path": "proofs/production_impl/mod.rs", "symbol": "production_color_plane_step"},
-        {"path": "proofs/production_impl/mod.rs", "symbol": "production_color_plane_error"}
+        {"path": "proofs/production_impl/mod.rs", "symbol": "production_color_plane_error"},
+        {"path": "src/refinement/geometry.rs", "symbol": "crg_component_predecessor"}
       ],
       "spec_refs": [
         {"path": "specs/mod.rs", "symbol": "color_normalize_component"},
@@ -8425,14 +8546,17 @@
         {"path": "specs/mod.rs", "symbol": "color_component_index"},
         {"path": "specs/mod.rs", "symbol": "color_normalize_unsigned"},
         {"path": "specs/mod.rs", "symbol": "color_registered_coordinate"},
+        {"path": "specs/mod.rs", "symbol": "part2_crg_component_predecessor"},
         {"path": "specs/mod.rs", "symbol": "color_pixel_coordinates"}
       ],
       "test_refs": [
         {"path": "src/color/tests.rs", "symbol": "complete_normalized_component_planes_match_wide_registered_reference"},
         {"path": "src/color/tests.rs", "symbol": "registered_coordinates_match_wide_full_domain_boundaries"},
+        {"path": "src/color/tests.rs", "symbol": "sarah_engineering_crg_predecessor_uses_component_separation"},
+        {"path": "src/color/tests.rs", "symbol": "sarah_engineering_crg_context_and_full_sampling_select_identical_actual_values"},
         {"path": "src/color/tests.rs", "symbol": "normalized_component_rejects_every_invalid_stage_input_in_order"}
       ],
-      "topic": "Complete input-relative signed/unsigned integer component sampling and normalized output planes, registration, range and typed first-error behavior"
+      "topic": "Complete input-relative signed/unsigned sampling and normalized planes, range and typed first errors. Physical CRG predecessor uses registration times component separation, shared with selected context preparation. Coded window origins/bounds remain SIZ ceil geometry; CRG does not change decoded sample grids. Explicit full/cropped actual-value controls and unchanged wide raw boundary domains cover the engineering behavior; independent standards closure remains separate."
     },
     {
       "contract_refs": [
@@ -13454,9 +13578,12 @@
         {
           "path": "src/transform/tests.rs",
           "symbol": "complete_scaling_lifting_and_column_store_states_match_independent_arithmetic"
-        }
+        },
+        {"path": "src/transform/tests.rs", "symbol": "sarah_engineering_nine_seven_singleton_uses_the_same_odd_half_at_all_operators"},
+        {"path": "src/decode/tests.rs", "symbol": "sarah_engineering_nine_seven_coded_singleton_matches_actual_reference_pixels"},
+        {"path": "src/image/mct_wavelet.rs", "symbol": "sarah_engineering_nine_seven_spectral_consumer_retains_raw_operator_units"}
       ],
-      "topic": "Whole input-relative fixed-point 9/7 sequences with both scaling passes, four lifting passes, geometry, singletons, typed errors and complete partial buffers; not real-valued irreversible conformance"
+      "topic": "Whole input-relative fixed-point 9/7 sequences with both scaling passes, four lifting passes, geometry, typed errors and complete partial buffers. Retained-assertion odd high-only singleton uses arithmetic half consistently across raw spatial/spectral consumers. Actual encoded singleton-tile regression expects the independent compressed-stream decoder's samples, not old native output or lossy input. No compensating coded multiplier; independent universal real-valued conformance remains separate."
     },
     {
       "contract_refs": [

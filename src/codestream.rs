@@ -302,6 +302,8 @@ pub struct Part2Extensions {
     decomposition_structures: Vec<DecompositionStructure>,
     arbitrary_decompositions: Vec<ArbitraryDecomposition>,
     nonlinear_transforms: Vec<NonlinearPointTransform>,
+    // A tile-local prefix precedes inherited transforms; main headers are unscoped.
+    nonlinear_local_count: Option<usize>,
     component_bit_depths: Vec<ComponentBitDepth>,
     arbitrary_kernels: Vec<ArbitraryKernel>,
     component_registrations: Vec<ComponentRegistration>,
@@ -424,7 +426,18 @@ pub struct MctCollection {
 enum PacketLengthSource<'a> {
     None,
     Plm(&'a [u8]),
+    PlmSegments(PlmPacketLengthFragments<'a>),
     Plt(&'a [u8]),
+}
+
+#[derive(Clone, Copy)]
+#[cfg_attr(not(verus_keep_ghost), derive(Debug, Eq, PartialEq))]
+struct PlmPacketLengthFragments<'a> {
+    header: &'a [u8],
+    first_start: usize,
+    first_end: usize,
+    declared: u8,
+    marker_offset: usize,
 }
 
 #[derive(Clone, Copy)]
@@ -620,6 +633,7 @@ use mct_resolution::{
     replace_mct_array, replace_mct_record, u8_list_contains, validate_parallel_collections,
     validate_unique_mct_array_indexes, validate_unique_mct_record_indexes,
 };
+pub(crate) use mct_resolution::{reversible_mct_scale, validate_reversible_mct_coefficients};
 #[cfg_attr(verus_keep_ghost, verifier::verify)]
 mod packet_headers;
 #[cfg(test)]

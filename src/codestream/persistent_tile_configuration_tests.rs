@@ -22,8 +22,8 @@ pub(super) fn interleaved_persistent_parts(last_roi: Option<u8>) -> (Vec<u8>, Ve
             bytes.extend(segment(RGN, &[0, 0, if tile == 0 { 7 } else { 9 }]));
             bytes.extend(poc(&[[0, 0, 0, layers, 1, 1, 0]]));
             bytes.extend(segment(DFS, &[0, tile as u8 + 1, 1, 0x40]));
-            bytes.extend(mct_i16(1, 1, &[if tile == 0 { 3 } else { 5 }]));
-            bytes.extend(mct_i16(200, 1, &[if tile == 0 { 9 } else { 11 }]));
+            bytes.extend(mct_i16(1, 1, &[1, if tile == 0 { 4 } else { 8 }]));
+            bytes.extend(mct_i16(200, 1, &[1, if tile == 0 { 16 } else { 32 }]));
             bytes.extend(mcc(7, 1, true, 1, 0));
             bytes.extend(mco(&[7]));
         } else if part == 2 {
@@ -56,12 +56,12 @@ fn actual_persistent_fold_keeps_all_eight_owners_per_tile_and_appends_source_pay
     assert_eq!(layout.tile_parts.len(), 6);
     assert_eq!(layout.info.consumed_bytes, bytes.len() as u64);
     for (part, layers, guard, matrix) in [
-        (0, 3, 2, 3),
-        (1, 5, 4, 5),
-        (2, 3, 3, 9),
-        (3, 5, 4, 5),
-        (4, 3, 3, 9),
-        (5, 5, 4, 11),
+        (0, 3, 2, 4),
+        (1, 5, 4, 8),
+        (2, 3, 3, 16),
+        (3, 5, 4, 8),
+        (4, 3, 3, 16),
+        (5, 5, 4, 32),
     ] {
         let payload = &layout.tile_parts[part];
         let tile = part % 2;
@@ -118,7 +118,7 @@ fn actual_persistent_fold_keeps_all_eight_owners_per_tile_and_appends_source_pay
                 .matrix()
                 .unwrap()
                 .values(),
-            &[matrix],
+            &[1, matrix],
         );
         assert_eq!(payload.has_roi_marker, part < 2);
         let next = if part + 1 < starts.len() {

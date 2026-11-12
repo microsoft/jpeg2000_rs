@@ -88,6 +88,16 @@ Tile-local nonlinear point transforms are applied on those native grids:
 discarded DWT levels reduce tile-component bounds before output clipping,
 including selected raw codestream, JP2 and JPX decoding. Tile and cropped
 requests retain the transform of each contributing source tile.
+The retained-assertion engineering profile preserves NLT header scope:
+tile-specific, tile-default, main-specific, then main-default. Local defaults
+do not erase local specifics or the inherited fallback descriptors.
+LUT transforms normalize the complete unsigned source rank by `(2^B)-1`,
+including both endpoints; signed source samples retain their half-range offset.
+This retained-assertion behavior does not assert agreement with conflicting
+public scalar-normalization implementations.
+CRG words remain raw component-separation fractions. Color sampling applies
+that physical phase, while selected decoding retains the required predecessor
+on the unchanged SIZ coded grid, including at exact physical alignments.
 Empty half-open resolution axes have zero code-block and precinct cells,
 including nonaligned endpoints. Fully clipped empty subbands produce no
 execution; empty resolutions do not introduce phantom precinct databin IDs.
@@ -121,6 +131,10 @@ The implementation contains:
   Resolution-zero zero exponents remain supported; explicit Part 2
   decomposition selectors retain their separate deferred admission.
 - PLM/PLT packet lengths, PPM/PPT packed headers, SOP/EPH, and TLM checks.
+  The retained-assertion engineering profile uses one-byte PLM group counts
+  and allows groups to continue across PLM markers at complete packet-length
+  codewords. An unfinished final group is rejected at its originating marker.
+  PLM and PLT may coexist only when their complete packet lists agree.
   When SOP use is enabled, individual packets may omit SOP. Present markers
   retain their length and caller-specific sequence validation; inline and
   packed-header accounting follows the bytes actually present.
@@ -132,8 +146,18 @@ The implementation contains:
 - HT cleanup, significance propagation, magnitude refinement, placeholder and
   replacement pass sets, and mixed legacy/HT routing.
 - Reversible 5/3 and fixed-point irreversible 9/7 synthesis.
+  Odd-origin high-only singleton operators use arithmetic half in the
+  retained-assertion engineering profile. Actual encoded singleton-tile
+  controls compare the compressed stream's reference decoder output, not
+  the original lossy input or pre-fix native output. Raw primitive units
+  are not asserted identical across independent codecs.
 - Part 2 MCT/MCC/MCO transforms and segmented records; directional/general
   decomposition and kernel metadata via DFS/ADS/ATK; CRG, NLT, and CBD handling.
+  Reversible decorrelation uses `N*(N+1)` integer coefficients for sequential
+  single-component updates, power-of-two scales, a possibly signed final scale,
+  floor-based half-biased predictions, and offsets after all stages complete.
+  Irreversible decorrelation retains its `N*N` matrix path. The 2021-source
+  interpretation and its limits are described in [PROOFS.md](PROOFS.md#reversible-integer-decorrelation-engineering-profile).
   ATK half-filter taps retain absolute low/high band phase on odd-origin axes.
   Its Q32 arithmetic preserves exact signed unit scaling and rounds nearest
   with ties away from zero, subject to checked range and shift limits.
@@ -243,6 +267,10 @@ Semantic data-bin classes are 0, 1, 2, 4, 5, 6 and 8. Raw class IDs 3 and 7
 remain parseable, including their auxiliary fields and header history, but are
 reported as `Unassigned` and rejected by cache insertion. Only classes 0/1
 and 4/5 share data-bin identity.
+Metadata class 8 is target-wide: CSn is retained in parsed headers and getters
+but does not partition metadata cache identity. Other classes remain
+codestream-scoped. This engineering behavior follows the user-approved retained
+Sarah assertions; independent selected-edition correspondence remains separate.
 
 Equivalent metadata replacement retains its declared equivalent box type and
 short/extended header together with its payload. When original contents are
@@ -269,6 +297,22 @@ in the reconstructed input. Both the main and effective tile coding styles
 must use LRCP, including tile COD overrides. The plans require already-reframed
 headers; original packet-length declarations must not be copied into a shortened
 quality prefix. Automatic reconstruction performs its own header normalization.
+
+### Retained-assertion engineering requirements
+
+The user-approved Sarah acceptance profile additionally requires:
+
+- A nonempty JPX codestream-header sequence has one header per codestream.
+- Association boxes contain at least two immediate children.
+- Explicit compositing-layer registration is present in every layer or none.
+- A nonpersistent, zero-life instruction has no rendering action; layer
+  assignment and reuse scheduling remain accounted.
+- Single-stream placeholders may carry an optional NCS word, consumed without
+  changing their stream count of one. Multistream NCS remains required/nonzero.
+
+These are intentional engineering behavior changes. Retained assertions,
+contrary public-reference observations and independent selected-edition
+correspondence remain separate; this profile does not assert standards closure.
 
 ## Selection
 

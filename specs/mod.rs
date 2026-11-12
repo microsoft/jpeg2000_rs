@@ -1177,12 +1177,228 @@ pub open spec fn part2_mct_decorrelation(
     }
 }
 
+pub open spec fn part2_mct_power_of_two(value: int) -> bool
+    decreases value,
+{
+    if value <= 1 { value == 1 }
+    else { value % 2 == 0 && part2_mct_power_of_two(value / 2) }
+}
+
+pub open spec fn part2_reversible_mct_scale(value: i64, signed: bool)
+    -> Result<i128, crate::DecodeError> {
+    let magnitude = if value < 0 { -(value as int) } else { value as int };
+    if value == 0 || (value < 0 && !signed) || !part2_mct_power_of_two(magnitude) {
+        Err(part1_transform_error(false))
+    } else { Ok(magnitude as i128) }
+}
+
+pub open spec fn part2_mct_scale_at(values: Seq<i64>, width: usize, stage: nat)
+    -> Result<(), crate::DecodeError>
+{
+    let target = if stage == width { width as int - 1 } else { width as int - 1 - stage as int };
+    let index = stage as int * width as int + target;
+    if width == 0 || stage > width { Err(part1_transform_error(false)) }
+    else if stage * width as int > usize::MAX || index > usize::MAX {
+        Err(part1_transform_error(true))
+    } else if index < 0 || index >= values.len() { Err(part1_transform_error(false)) }
+    else {
+        match part2_reversible_mct_scale(values[index], stage == width) {
+            Err(error) => Err(error), Ok(_) => Ok(()),
+        }
+    }
+}
+
+#[verifier::opaque]
+pub open spec fn part2_mct_scale_prefix(values: Seq<i64>, width: usize, count: nat)
+    -> Result<(), crate::DecodeError>
+    decreases count,
+{
+    if count == 0 { Ok(()) }
+    else {
+        match part2_mct_scale_prefix(values, width, (count - 1) as nat) {
+            Err(error) => Err(error), Ok(()) => part2_mct_scale_at(values, width, (count - 1) as nat),
+        }
+    }
+}
+
+pub open spec fn part2_validate_reversible_mct_coefficients(values: Seq<i64>, width: usize)
+    -> Result<(), crate::DecodeError> {
+    if width == 0 { Err(part1_transform_error(false)) }
+    else if width == usize::MAX || width as int * (width as int + 1) > usize::MAX {
+        Err(part1_transform_error(true))
+    } else if values.len() != width as int * (width as int + 1) {
+        Err(part1_transform_error(false))
+    } else { part2_mct_scale_prefix(values, width, (width as int + 1) as nat) }
+}
+
+pub open spec fn part2_reversible_mct_term(
+    previous: i128, matrix: Part2MctArray, source: Seq<i64>,
+    start: usize, target: usize, column: nat,
+) -> Result<i128, crate::DecodeError>
+{
+    if column == target { Ok(previous) }
+    else if start as int + column > usize::MAX { Err(part1_transform_error(true)) }
+    else if column >= source.len() || start as int + column >= matrix.4.len() {
+        Err(part1_transform_error(false))
+    } else {
+        match part2_atk_checked_i128(matrix.4[start as int + column] as int * source[column as int] as int) {
+            Err(error) => Err(error),
+            Ok(product) => part2_atk_checked_i128(previous as int + product as int),
+        }
+    }
+}
+
+#[verifier::opaque]
+pub open spec fn part2_reversible_mct_sum(
+    initial: i128, matrix: Part2MctArray, source: Seq<i64>,
+    start: usize, target: usize, count: nat,
+) -> Result<i128, crate::DecodeError>
+    decreases count,
+{
+    if count == 0 { Ok(initial) }
+    else {
+        match part2_reversible_mct_sum(initial, matrix, source, start, target, (count - 1) as nat) {
+            Err(error) => Err(error),
+            Ok(previous) => part2_reversible_mct_term(previous, matrix, source, start, target, (count - 1) as nat),
+        }
+    }
+}
+
+pub open spec fn part2_reversible_mct_stage(
+    matrix: Part2MctArray, source: Seq<i64>, stage: usize,
+) -> Result<i64, crate::DecodeError> {
+    let width = source.len();
+    if width == 0 || stage > width || matrix.3 != 0 { Err(part1_transform_error(false)) }
+    else {
+        let target = if stage == width { width as int - 1 } else { width as int - 1 - stage as int };
+        let start = stage as int * width as int;
+        if start > usize::MAX || start + target > usize::MAX { Err(part1_transform_error(true)) }
+        else if start + target >= matrix.4.len() { Err(part1_transform_error(false)) }
+        else {
+            let pivot = matrix.4[start + target];
+            match part2_reversible_mct_scale(pivot, stage == width) {
+                Err(error) => Err(error),
+                Ok(divisor) => match part2_reversible_mct_sum(
+                    (divisor / 2) as i128, matrix, source, start as usize, target as usize, width,
+                ) {
+                    Err(error) => Err(error),
+                    Ok(sum) => {
+                        let quotient = vstd::arithmetic::div_mod::rust_div(sum as int, divisor as int);
+                        let prediction = if vstd::arithmetic::div_mod::rust_rem(sum as int, divisor as int) < 0 {
+                            part2_atk_checked_i128(quotient - 1)
+                        } else { Ok(quotient as i128) };
+                        match prediction {
+                            Err(error) => Err(error),
+                            Ok(prediction) => match part2_atk_checked_i128(source[target] as int - prediction as int) {
+                                Err(error) => Err(error),
+                                Ok(value) => {
+                                    let signed_value = if pivot < 0 {
+                                        part2_atk_checked_i128(-(value as int))
+                                    } else { Ok(value) };
+                                    match signed_value {
+                                        Err(error) => Err(error), Ok(value) => part1_checked_sample(value as int),
+                                    }
+                                },
+                            },
+                        }
+                    },
+                },
+            }
+        }
+    }
+}
+
+pub open spec fn part2_reversible_mct_advance(matrix: Part2MctArray, previous: Seq<i64>, stage: nat)
+    -> Result<Seq<i64>, crate::DecodeError>
+{
+    if stage > usize::MAX { Err(part1_transform_error(true)) }
+    else {
+        match part2_reversible_mct_stage(matrix, previous, stage as usize) {
+            Err(error) => Err(error),
+            Ok(value) => {
+                let target = if stage == previous.len() { previous.len() as int - 1 }
+                    else { previous.len() as int - 1 - stage as int };
+                if target < 0 || target >= previous.len() { Err(part1_transform_error(false)) }
+                else { Ok(previous.update(target, value)) }
+            },
+        }
+    }
+}
+
+#[verifier::opaque]
+pub open spec fn part2_reversible_mct_stages(matrix: Part2MctArray, source: Seq<i64>, count: nat)
+    -> Result<Seq<i64>, crate::DecodeError>
+    decreases count,
+{
+    if count == 0 { Ok(source) }
+    else {
+        match part2_reversible_mct_stages(matrix, source, (count - 1) as nat) {
+            Err(error) => Err(error),
+            Ok(previous) => part2_reversible_mct_advance(matrix, previous, (count - 1) as nat),
+        }
+    }
+}
+
+pub open spec fn part2_inverse_reversible_mct(matrix: Part2MctArray, source: Seq<i64>)
+    -> Result<Seq<i64>, crate::DecodeError> {
+    if matrix.3 != 0 { Err(part1_transform_error(false)) }
+    else {
+        match part2_validate_reversible_mct_coefficients(matrix.4, source.len() as usize) {
+            Err(error) => Err(error),
+            Ok(()) => part2_reversible_mct_stages(matrix, source, (source.len() + 1) as nat),
+        }
+    }
+}
+
+pub open spec fn part2_reversible_mct_output(
+    values: Seq<i64>, offsets: Option<Part2MctArray>, row: usize,
+) -> Result<i64, crate::DecodeError> {
+    if row >= values.len() { Err(part1_transform_error(false)) }
+    else {
+        match part2_mct_offset(offsets, row) {
+            Err(error) => Err(error),
+            Ok(offset) => part1_checked_sample(values[row as int] as int + offset as int),
+        }
+    }
+}
+
+pub open spec fn part2_reversible_mct_row(
+    matrix: Part2MctArray, offsets: Option<Part2MctArray>, source: Seq<i64>, row: usize,
+) -> Result<i64, crate::DecodeError> {
+    if matrix.3 != 0 || (match offsets { Some(array) => array.3 != 0, None => false }) {
+        Err(part1_transform_error(false))
+    } else {
+        match part2_inverse_reversible_mct(matrix, source) {
+            Err(error) => Err(error),
+            Ok(values) => part2_reversible_mct_output(values, offsets, row),
+        }
+    }
+}
+
+pub open spec fn part2_reversible_mct_admission(
+    samples: usize, width: usize, before: u64, maximum_work: u64, maximum_bytes: u64,
+) -> (Result<(), crate::DecodeError>, u64) {
+    let partner = (width as u64) as int + 2;
+    let per_sample = (width as u64) as int * partner;
+    let operations = (samples as u64) as int * per_sample;
+    if partner > u64::MAX || per_sample > u64::MAX || operations > u64::MAX {
+        (Err(part1_transform_error(true)), before)
+    } else {
+        let charged = part2_mct_charge_work(before, operations as u64, maximum_work);
+        match charged.0 {
+            Err(error) => (Err(error), charged.1),
+            Ok(()) => if width as int * 3 > usize::MAX { (Err(part1_transform_error(true)), charged.1) }
+                else { (part1_image_byte_budget((width as int * 3) as nat, 8, maximum_bytes), charged.1) },
+        }
+    }
+}
+
 pub open spec fn part2_mct_decorrelation_row(
     collection: Part2MctCollection, source: Seq<i64>, fractions: Seq<u8>, row: usize,
 ) -> Result<i64, crate::DecodeError> {
     match collection.4 {
-        Some(matrix) => part2_mct_matrix_row(
-            matrix, collection.5, source, if collection.0 { None } else { Some(fractions) }, row),
+        Some(matrix) => if collection.0 { part2_reversible_mct_row(matrix, collection.5, source, row) }
+            else { part2_mct_matrix_row(matrix, collection.5, source, Some(fractions), row) },
         None => if row >= source.len() { Err(part1_transform_error(false)) }
         else if collection.0 {
             match part2_mct_offset(collection.5, row) {
@@ -1246,13 +1462,30 @@ pub open spec fn part2_mct_decorrelation_dimensions(collection: Part2MctCollecti
     let columns = collection.2.len();
     if rows == 0 || rows != columns { Err(part1_transform_error(false)) }
     else if rows > usize::MAX || columns > usize::MAX
-        || (collection.4.is_some() && rows * columns > usize::MAX) {
+        || (collection.4.is_some() && (
+            (collection.0 && columns == usize::MAX)
+            || rows * (if collection.0 { columns + 1 } else { columns }) > usize::MAX
+        )) {
         Err(part1_transform_error(true))
-    } else if match collection.4 { None => false, Some(matrix) => matrix.4.len() != rows * columns } {
+    } else if match collection.4 { None => false, Some(matrix) =>
+        matrix.4.len() != rows * (if collection.0 { columns + 1 } else { columns }) } {
         Err(part1_transform_error(false))
     } else if match collection.5 { None => false, Some(offsets) => offsets.4.len() != rows } {
         Err(part1_transform_error(false))
+    } else if collection.0 && collection.4.is_some() {
+        match part2_validate_reversible_mct_coefficients(collection.4.unwrap().4, rows as usize) {
+            Err(error) => Err(error), Ok(()) => Ok((rows as usize, columns as usize)),
+        }
     } else { Ok((rows as usize, columns as usize)) }
+}
+
+pub open spec fn part2_mct_collection_admission(
+    collection: Part2MctCollection, samples: usize, rows: usize, columns: usize,
+    before: u64, maximum_work: u64, maximum_bytes: u64,
+) -> (Result<(), crate::DecodeError>, u64) {
+    if collection.0 && collection.4.is_some() {
+        part2_reversible_mct_admission(samples, rows, before, maximum_work, maximum_bytes)
+    } else { part2_mct_decorrelation_admission(samples, rows, columns, before, maximum_work, maximum_bytes) }
 }
 
 pub open spec fn part2_mct_prepare_decorrelation(
@@ -1268,7 +1501,7 @@ pub open spec fn part2_mct_prepare_decorrelation(
                 Ok(destination) => match part2_mct_validate_layout(components, source, destination, collection.0) {
                     Err(error) => (Err(error), before),
                     Ok(samples) => {
-                        let admitted = part2_mct_decorrelation_admission(
+                        let admitted = part2_mct_collection_admission(collection,
                             samples, rows as usize, columns as usize, before, maximum_work, maximum_bytes);
                         match admitted.0 {
                             Err(error) => (Err(error), admitted.1),
@@ -2728,18 +2961,37 @@ pub open spec fn part2_color_target(region: Seq<u32>, discard: u8) -> Result<Seq
     }
 }
 
+pub open spec fn part2_crg_component_predecessor(value: u32, divisor: u32, registration: u16) -> u64
+    recommends divisor > 0,
+{
+    let position = value as nat * 65536;
+    let phase = divisor as nat * registration as nat;
+    let adjusted = if position <= phase { 0nat } else { (position - phase) as nat };
+    (adjusted / (divisor as nat * 65536)) as u64
+}
+
+pub open spec fn part2_color_context_padding(target: u32, sampling: u8, registration: u16)
+    -> Result<u32, crate::DecodeError>
+{
+    if sampling == 0 { Err(part1_block_placement_error(false)) }
+    else {
+        let coded = part2_crg_component_predecessor(target, sampling as u32, registration) as nat * sampling as nat;
+        Ok((target as nat - coded) as u32)
+    }
+}
+
 pub open spec fn part2_color_sampling_step(previous: (u32, u32), info: crate::codestream::ComponentInfo, target: Seq<u32>)
     -> Result<(u32, u32), crate::DecodeError>
 {
     if info.x_subsampling == 0 || info.y_subsampling == 0 { Err(part1_block_placement_error(false)) }
     else {
-        let x = if target[0] as nat * 65536 <= info.x_registration as nat { 0nat }
-            else { (target[0] as nat * 65536 - info.x_registration as nat) as nat };
-        let y = if target[1] as nat * 65536 <= info.y_registration as nat { 0nat }
-            else { (target[1] as nat * 65536 - info.y_registration as nat) as nat };
+        let x = (target[0] as nat - part2_crg_component_predecessor(
+            target[0], info.x_subsampling as u32, info.x_registration) as nat * info.x_subsampling as nat) as u32;
+        let y = (target[1] as nat - part2_crg_component_predecessor(
+            target[1], info.y_subsampling as u32, info.y_registration) as nat * info.y_subsampling as nat) as u32;
         Ok((
-            if x % (info.x_subsampling as nat * 65536) == 0 { previous.0 } else { if previous.0 >= info.x_subsampling as u32 { previous.0 } else { info.x_subsampling as u32 } },
-            if y % (info.y_subsampling as nat * 65536) == 0 { previous.1 } else { if previous.1 >= info.y_subsampling as u32 { previous.1 } else { info.y_subsampling as u32 } },
+            if previous.0 >= x { previous.0 } else { x },
+            if previous.1 >= y { previous.1 } else { y },
         ))
     }
 }
@@ -4336,6 +4588,8 @@ pub open spec fn color_registered_coordinate(value: u32, divisor: u32, registrat
 {
     if divisor == 0 {
         Err(part2_color_input_error())
+    } else if !ceil {
+        Ok(part2_crg_component_predecessor(value, divisor, registration) as u32)
     } else {
         let numerator = (value as nat) * 65536;
         if numerator <= registration as nat {
@@ -5838,7 +6092,7 @@ pub open spec fn part9_databin_identity(
     second_in_class: nat,
 ) -> bool {
     part9_class_key(first_class) == part9_class_key(second_class)
-        && first_codestream == second_codestream
+        && (first_class == 8 || first_codestream == second_codestream)
         && first_in_class == second_in_class
 }
 
@@ -7592,7 +7846,9 @@ pub open spec fn part2_timeline_frame(
     frames: Seq<Part2Frame>, time: u64, instruction: Part2Instruction, life: u32, maximum_frames: u32,
 ) -> Result<(Seq<Part2Frame>, u64), crate::DecodeError> {
     let fresh = frames.len() == 0 || frames.last().2 != 0;
-    if fresh && frames.len() >= maximum_frames as nat {
+    if life == 0 && !instruction.9 {
+        Ok((frames, time))
+    } else if fresh && frames.len() >= maximum_frames as nat {
         Err(crate::DecodeError::LimitExceeded { resource: crate::Resource::Frames,
             limit: maximum_frames as u64, actual: (frames.len() + 1) as u64 })
     } else if time as nat + life as nat > u64::MAX as nat {
@@ -8908,16 +9164,19 @@ pub open spec fn part2_nlt_lut_sample(
                 } else {
                     match part2_nlt_power_of_two(info.precision) {
                         Err(error) => Err(error),
-                        Ok(source_scale) => match if info.signed { part2_nlt_power_of_two((info.precision - 1) as u8) } else { Ok(0i128) } {
+                        Ok(source_power) => match part2_atk_checked_i128(source_power as int - 1) {
+                            Err(error) => Err(error),
+                            Ok(source_scale) => match if info.signed { part2_nlt_power_of_two((info.precision - 1) as u8) } else { Ok(0i128) } {
                             Err(error) => Err(error),
                             Ok(source_offset) => match part2_atk_checked_i128(source as int + source_offset as int) {
                                 Err(error) => Err(error),
-                                Ok(nominal) => if nominal < 0 || nominal >= source_scale { Err(part1_image_error(false)) }
+                                Ok(nominal) => if nominal < 0 || nominal > source_scale { Err(part1_image_error(false)) }
                                 else {
                                     match part2_nlt_lut_position(transform.points, source_scale, nominal, minimum, maximum) {
                                         Err(error) => Err(error),
                                         Ok(raw) => part2_nlt_lut_finish(raw, transform),
                                     }
+                                    },
                                 },
                             },
                         },
@@ -9218,12 +9477,25 @@ pub open spec fn part2_nlt_inverse_sample(
     }
 }
 
-pub open spec fn part2_nonlinear_transform_for(
+pub open spec fn part2_nonlinear_transform_for_unscoped(
     transforms: Seq<Part2OwnedNonlinear>, component: u16,
 ) -> Option<Part2OwnedNonlinear> {
     match part2_nonlinear_find(transforms, Some(component), 0) {
         Some(transform) => Some(transform),
         None => part2_nonlinear_find(transforms, None, 0),
+    }
+}
+
+pub open spec fn part2_nonlinear_transform_for(
+    transforms: Seq<Part2OwnedNonlinear>, component: u16, local_count: Option<usize>,
+) -> Option<Part2OwnedNonlinear> {
+    let split = match local_count {
+        None => transforms.len(),
+        Some(count) => if count < transforms.len() { count as nat } else { transforms.len() },
+    };
+    match part2_nonlinear_transform_for_unscoped(transforms.take(split as int), component) {
+        Some(transform) => Some(transform),
+        None => part2_nonlinear_transform_for_unscoped(transforms.skip(split as int), component),
     }
 }
 
@@ -9535,6 +9807,7 @@ pub struct Part2OwnedExtensions {
     pub decompositions: Seq<(u8, Seq<crate::codestream::DecompositionDirection>)>,
     pub arbitrary: Seq<(u8, Seq<u8>, Seq<crate::codestream::DecompositionDirection>)>,
     pub nonlinear: Seq<Part2OwnedNonlinear>,
+    pub nonlinear_local_count: Option<usize>,
     pub depths: Seq<crate::codestream::ComponentBitDepth>,
     pub kernels: Seq<(u8, u16, Part2RawKernel)>,
     pub registrations: Seq<crate::codestream::ComponentRegistration>,
@@ -12920,6 +13193,58 @@ pub open spec fn part1_validate_packet_lengths<'a>(
     }
 }
 
+pub open spec fn part1_plm_pending(groups: Seq<Part1PacketLengths>)
+    -> Option<(Part1PacketLengths, Part1PlmFragments)>
+{
+    if groups.len() == 0 { None }
+    else {
+        let previous = groups.last();
+        match previous.source {
+            Part1PacketLengthSource::PlmSegments(fragments) =>
+                if previous.encoded_bytes < fragments.declared as u64 { Some((previous, fragments)) } else { None },
+            _ => None,
+        }
+    }
+}
+
+#[verifier::opaque]
+pub open spec fn part1_plm_fragment_source<'a>(
+    state: Part1CodestreamReader<'a>, segment: Part1CodestreamSegment,
+    start: nat, end: nat, declared: u8, remaining: nat,
+    pending: Option<(Part1PacketLengths, Part1PlmFragments)>,
+) -> Result<Part1PacketLengthSource, crate::DecodeError> {
+    let encoded = segment.payload.subrange(start as int, end as int);
+    if pending.is_none() && encoded.len() >= remaining {
+        Ok(Part1PacketLengthSource::Plm(encoded))
+    } else {
+        let bounds = match pending {
+            Some((_, fragments)) => Some((fragments.first_start, fragments.first_end, fragments.marker_offset)),
+            None => {
+                if start + 4 > usize::MAX || segment.payload.len() + 4 > usize::MAX { None }
+                else { Some(((start + 4) as usize, (segment.payload.len() + 4) as usize, segment.offset)) }
+            },
+        };
+        match bounds {
+            None => Err(part1_codestream_malformed(segment.offset, crate::MalformedKind::ArithmeticOverflow)),
+            Some((first_start, first_end, marker_offset)) => {
+                if segment.offset as nat + 4 > usize::MAX || segment.offset as nat + 4 + end > usize::MAX {
+                    Err(part1_codestream_malformed(segment.offset, crate::MalformedKind::ArithmeticOverflow))
+                } else {
+                    let physical_end = segment.offset as nat + 4 + end;
+                    if marker_offset > physical_end || physical_end > state.input.len() {
+                        Err(part1_codestream_malformed(segment.offset, crate::MalformedKind::InvalidMarkerLength))
+                    } else {
+                        Ok(Part1PacketLengthSource::PlmSegments(Part1PlmFragments {
+                            header: state.input.subrange(marker_offset as int, physical_end as int),
+                            first_start, first_end, declared, marker_offset,
+                        }))
+                    }
+                }
+            },
+        }
+    }
+}
+
 #[verifier::opaque]
 pub open spec fn part1_plm_groups_from<'a>(
     state: Part1CodestreamReader<'a>, segment: Part1CodestreamSegment, next_index: u16,
@@ -12929,35 +13254,50 @@ pub open spec fn part1_plm_groups_from<'a>(
 {
     if position >= segment.payload.len() {
         (Ok(()), state, next_index, groups)
-    } else if segment.payload.len() - position < 4 {
-        (Err(part1_codestream_malformed(segment.offset, crate::MalformedKind::InvalidMarkerLength)), state, next_index, groups)
     } else {
-        let length = part1_siz_word(segment.payload, position as int) as nat;
-        let start = position + 4;
-        let end = start + length;
-        if length > usize::MAX || start > usize::MAX || end > usize::MAX {
-            (Err(part1_codestream_malformed(segment.offset, crate::MalformedKind::ArithmeticOverflow)), state, next_index, groups)
-        } else if end > segment.payload.len() {
-            (Err(part1_codestream_malformed(segment.offset, crate::MalformedKind::InvalidMarkerLength)), state, next_index, groups)
-        } else {
-            let encoded = segment.payload.subrange(start as int, end as int);
-            let admitted = part1_validate_packet_lengths(state, encoded, segment.offset);
-            match admitted.0 {
-                Err(error) => (Err(error), admitted.1, next_index, groups),
-                Ok((count, _)) => {
-                    let appended = groups.push(Part1PacketLengths {
-                        source: Part1PacketLengthSource::Plm(encoded), packet_count: count, encoded_bytes: encoded.len() as u64,
-                    });
-                    let maximum = crate::limits::resource_tile_part_limit(admitted.1.limits) as u64;
-                    if appended.len() > maximum {
-                        (Err(crate::DecodeError::LimitExceeded {
-                            resource: crate::Resource::TileParts, limit: maximum, actual: appended.len() as u64,
-                        }), admitted.1, next_index, appended)
-                    } else {
-                        part1_plm_groups_from(admitted.1, segment, next_index, end, appended)
+        let pending = part1_plm_pending(groups);
+        let (declared, remaining, start) = match pending {
+            Some((previous, fragments)) => (fragments.declared,
+                (fragments.declared as nat - previous.encoded_bytes as nat) as nat, position),
+            None => (segment.payload[position as int], segment.payload[position as int] as nat, position + 1),
+        };
+        let end = start + if remaining < segment.payload.len() - start { remaining } else { (segment.payload.len() - start) as nat };
+        let encoded = segment.payload.subrange(start as int, end as int);
+        let admitted = part1_validate_packet_lengths(state, encoded, segment.offset);
+        match admitted.0 {
+            Err(error) => (Err(error), admitted.1, next_index, groups),
+            Ok((count, _)) => {
+                let (previous_count, previous_bytes) = match pending {
+                    Some((previous, _)) => (previous.packet_count, previous.encoded_bytes),
+                    None => (0u64, 0u64),
+                };
+                if previous_count as int + count as int > u64::MAX
+                    || previous_bytes as int + encoded.len() > u64::MAX {
+                    (Err(part1_codestream_malformed(segment.offset, crate::MalformedKind::ArithmeticOverflow)),
+                        admitted.1, next_index, groups)
+                } else {
+                    let sourced = part1_plm_fragment_source(admitted.1, segment, start, end, declared, remaining, pending);
+                    match sourced {
+                        Err(error) => (Err(error), admitted.1, next_index, groups),
+                        Ok(source) => {
+                            let group = Part1PacketLengths { source,
+                                packet_count: (previous_count + count) as u64,
+                                encoded_bytes: (previous_bytes as int + encoded.len()) as u64 };
+                            let appended = if pending.is_some() {
+                                groups.update(groups.len() as int - 1, group)
+                            } else { groups.push(group) };
+                            let maximum = crate::limits::resource_tile_part_limit(admitted.1.limits) as u64;
+                            if appended.len() > maximum {
+                                (Err(crate::DecodeError::LimitExceeded {
+                                    resource: crate::Resource::TileParts, limit: maximum, actual: appended.len() as u64,
+                                }), admitted.1, next_index, appended)
+                            } else {
+                                part1_plm_groups_from(admitted.1, segment, next_index, end, appended)
+                            }
+                        },
                     }
-                },
-            }
+                }
+            },
         }
     }
 }
@@ -12967,7 +13307,7 @@ pub open spec fn part1_parse_plm<'a>(
     state: Part1CodestreamReader<'a>, segment: Part1CodestreamSegment,
     next_index: u16, groups: Seq<Part1PacketLengths>,
 ) -> (Result<(), crate::DecodeError>, Part1CodestreamReader<'a>, u16, Seq<Part1PacketLengths>) {
-    if segment.payload.len() < 5 {
+    if segment.payload.len() < 2 {
         (Err(part1_codestream_malformed(segment.offset, crate::MalformedKind::InvalidMarkerLength)), state, next_index, groups)
     } else if segment.payload[0] as u16 != next_index {
         (Err(part1_codestream_malformed(segment.offset, crate::MalformedKind::InvalidMarkerOrder)), state, next_index, groups)
@@ -14264,6 +14604,7 @@ pub open spec fn part1_extension_components(
     Part2OwnedExtensions {
         decompositions: extensions.decompositions, arbitrary: extensions.arbitrary,
         nonlinear: extensions.nonlinear, depths: extensions.depths, kernels: extensions.kernels,
+        nonlinear_local_count: extensions.nonlinear_local_count,
         registrations, lengths: extensions.lengths, metadata_bytes,
     }
 }
@@ -14484,6 +14825,7 @@ pub open spec fn part1_extension_decompositions(
 ) -> Part2OwnedExtensions {
     Part2OwnedExtensions {
         decompositions, arbitrary, nonlinear: extensions.nonlinear, depths: extensions.depths,
+        nonlinear_local_count: extensions.nonlinear_local_count,
         kernels: extensions.kernels, registrations: extensions.registrations,
         lengths: extensions.lengths, metadata_bytes: extensions.metadata_bytes,
     }
@@ -14525,6 +14867,7 @@ pub open spec fn part1_extension_depths(
     Part2OwnedExtensions {
         decompositions: extensions.decompositions, arbitrary: extensions.arbitrary,
         nonlinear: extensions.nonlinear, depths, kernels: extensions.kernels,
+        nonlinear_local_count: extensions.nonlinear_local_count,
         registrations: extensions.registrations, lengths: extensions.lengths,
         metadata_bytes: extensions.metadata_bytes,
     }
@@ -14799,13 +15142,28 @@ pub open spec fn part1_nlt_payload(segment: Part1CodestreamSegment, components: 
 }
 
 #[verifier::opaque]
-pub open spec fn part1_nlt_replace(entries: Seq<Part2OwnedNonlinear>, replacement: Part2OwnedNonlinear, position: nat)
-    -> Seq<Part2OwnedNonlinear>
-    decreases entries.len() - position,
+pub open spec fn part1_nlt_replace(
+    extensions: Part2OwnedExtensions, replacement: Part2OwnedNonlinear, position: nat, limit: usize, offset: usize,
+) -> (Result<(), crate::DecodeError>, Part2OwnedExtensions)
+    decreases if position < limit { limit - position } else { 0 },
 {
-    if position >= entries.len() { entries.push(replacement) }
-    else if entries[position as int].component == replacement.component { entries.update(position as int, replacement) }
-    else { part1_nlt_replace(entries, replacement, position + 1) }
+    if limit > extensions.nonlinear.len() {
+        (Err(part1_codestream_malformed(offset, crate::MalformedKind::InvalidTransform)), extensions)
+    } else if position >= limit {
+        if matches!(extensions.nonlinear_local_count, Some(count) if count == usize::MAX) {
+            (Err(part1_codestream_malformed(offset, crate::MalformedKind::ArithmeticOverflow)), extensions)
+        } else {
+            let count = match extensions.nonlinear_local_count {
+                Some(count) => Some((count + 1) as usize), None => None,
+            };
+            (Ok(()), Part2OwnedExtensions {
+                nonlinear_local_count: count,
+                ..part1_extension_nonlinear(extensions, extensions.nonlinear.insert(limit as int, replacement))
+            })
+        }
+    } else if extensions.nonlinear[position as int].component == replacement.component {
+        (Ok(()), part1_extension_nonlinear(extensions, extensions.nonlinear.update(position as int, replacement)))
+    } else { part1_nlt_replace(extensions, replacement, position + 1, limit, offset) }
 }
 
 pub open spec fn part1_extension_nonlinear(extensions: Part2OwnedExtensions, nonlinear: Seq<Part2OwnedNonlinear>)
@@ -14813,6 +15171,7 @@ pub open spec fn part1_extension_nonlinear(extensions: Part2OwnedExtensions, non
 {
     Part2OwnedExtensions {
         decompositions: extensions.decompositions, arbitrary: extensions.arbitrary, nonlinear,
+        nonlinear_local_count: extensions.nonlinear_local_count,
         depths: extensions.depths, kernels: extensions.kernels, registrations: extensions.registrations,
         lengths: extensions.lengths, metadata_bytes: extensions.metadata_bytes,
     }
@@ -14827,8 +15186,13 @@ pub open spec fn part1_parse_nlt<'a>(
     if charged.0.is_err() { charged } else {
         match part1_nlt_payload(segment, components) {
             Err(error) => (Err(error), charged.1, charged.2),
-            Ok(replacement) => (Ok(()), charged.1, part1_extension_nonlinear(charged.2,
-                part1_nlt_replace(charged.2.nonlinear, replacement, 0))),
+            Ok(replacement) => {
+                let limit = match charged.2.nonlinear_local_count {
+                    Some(count) => count, None => charged.2.nonlinear.len() as usize,
+                };
+                let applied = part1_nlt_replace(charged.2, replacement, 0, limit, segment.offset);
+                (applied.0, charged.1, applied.1)
+            },
         }
     }
 }
@@ -14839,6 +15203,7 @@ pub open spec fn part1_extension_lengths(
     Part2OwnedExtensions {
         decompositions: extensions.decompositions, arbitrary: extensions.arbitrary,
         nonlinear: extensions.nonlinear, depths: extensions.depths, kernels: extensions.kernels,
+        nonlinear_local_count: extensions.nonlinear_local_count,
         registrations: extensions.registrations, lengths, metadata_bytes: extensions.metadata_bytes,
     }
 }
@@ -15134,6 +15499,7 @@ pub open spec fn part1_extension_kernels(extensions: Part2OwnedExtensions, kerne
     Part2OwnedExtensions {
         decompositions: extensions.decompositions, arbitrary: extensions.arbitrary,
         nonlinear: extensions.nonlinear, depths: extensions.depths, kernels,
+        nonlinear_local_count: extensions.nonlinear_local_count,
         registrations: extensions.registrations, lengths: extensions.lengths, metadata_bytes: extensions.metadata_bytes,
     }
 }
@@ -15743,8 +16109,9 @@ pub open spec fn part1_mct_graph_element_count(
     let maximum = usize::MAX as int;
     let error = part1_codestream_malformed(0, crate::MalformedKind::ArithmeticOverflow);
     if kind == crate::codestream::MctArrayKind::Decorrelation {
-        let product = rows as int * columns as int;
-        if product > maximum { Err(error) } else { Ok(product as usize) }
+        let partner = if reversible { columns as int + 1 } else { columns as int };
+        let product = rows as int * partner;
+        if (reversible && columns == usize::MAX) || product > maximum { Err(error) } else { Ok(product as usize) }
     } else if reversible {
         if rows == usize::MAX { Err(error) }
         else {
@@ -15798,11 +16165,18 @@ pub open spec fn part1_mct_graph_collection(
                                         if invalid_offsets || invalid_matrix || (reversible && (floating_matrix || floating_offsets)) {
                                             Err(part1_codestream_malformed(0, crate::MalformedKind::InvalidTransform))
                                         } else {
-                                            Ok((reversible, reference.inputs, reference.outputs,
-                                                if kind == crate::codestream::MctArrayKind::Dependency {
-                                                    crate::codestream::MctCollectionKind::Dependency
-                                                } else { crate::codestream::MctCollectionKind::Decorrelation },
-                                                matrix, offsets, None))
+                                            let scales = if reversible && kind == crate::codestream::MctArrayKind::Decorrelation
+                                                && matrix.is_some() {
+                                                part2_validate_reversible_mct_coefficients(matrix.unwrap().4, rows as usize)
+                                            } else { Ok(()) };
+                                            match scales {
+                                                Err(error) => Err(error),
+                                                Ok(()) => Ok((reversible, reference.inputs, reference.outputs,
+                                                    if kind == crate::codestream::MctArrayKind::Dependency {
+                                                        crate::codestream::MctCollectionKind::Dependency
+                                                    } else { crate::codestream::MctCollectionKind::Decorrelation },
+                                                    matrix, offsets, None)),
+                                            }
                                         }
                                     },
                                 }
@@ -16938,7 +17312,9 @@ pub open spec fn part1_inverse_nine_seven(
 ) -> Result<Seq<i64>, crate::DecodeError> {
     match part1_interleaved(low, high, low_first) {
         Err(error) => Err(error),
-        Ok(samples) => if samples.len() <= 1 {
+        Ok(samples) => if samples.len() == 1 && !low_first {
+            Ok(samples.update(0, samples[0] >> 1))
+        } else if samples.len() <= 1 {
             Ok(samples)
         } else {
             let low_scaled = part1_scaling_prefix(samples, low_first, part1_nine_seven_scale(true), samples.len());

@@ -52,6 +52,21 @@ fn sarah_reserved_classes_have_no_registered_header_semantics() {
 }
 
 #[test]
+fn sarah_metadata_target_identity_retains_raw_codestream_fields() {
+    for first in [0, 1, 128, u64::MAX] {
+        for second in [0, 7, 129, u64::MAX] {
+            for class in 0..=8 {
+                let a = DatabinId::from_wire(class, first, 17).unwrap();
+                let b = DatabinId::from_wire(class, second, 17).unwrap();
+                assert_eq!(a.same_as(b), class == 8 || first == second);
+                assert_eq!((a.codestream(), b.codestream()), (first, second));
+                assert!(!a.same_as(DatabinId::from_wire(class, second, 18).unwrap()));
+            }
+        }
+    }
+}
+
+#[test]
 fn semantic_identity_aliases_only_assigned_auxiliary_classes() {
     let classes = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 17, u64::MAX];
     let canonical = [0, 0, 2, 3, 4, 4, 6, 7, 8, 9, 17, u64::MAX];
@@ -773,7 +788,10 @@ fn actual_raw_jpip_databin_and_header_getters_preserve_normalized_identity_and_s
             class
         };
         assert!(id.same_as(DatabinId::from_wire(pair, u64::MAX, 129).unwrap()));
-        assert!(!id.same_as(DatabinId::from_wire(pair, 0, 129).unwrap()));
+        assert_eq!(
+            id.same_as(DatabinId::from_wire(pair, 0, 129).unwrap()),
+            class == 8
+        );
         assert!(!id.same_as(DatabinId::from_wire(pair, u64::MAX, 128).unwrap()));
         assert_eq!(DatabinClass::has_auxiliary(class), class % 2 == 1);
         for last in [false, true] {

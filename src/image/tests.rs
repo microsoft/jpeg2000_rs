@@ -926,7 +926,11 @@ fn native_mct_decorrelation_dispatch_preserves_partial_matrix_rows() {
             reversible,
             vec![0, 1],
             vec![0, 1],
-            array(vec![2, 3, 4, 5]),
+            array(if reversible {
+                vec![3, 2, 4, -1, 5, 8]
+            } else {
+                vec![2, 3, 4, 5]
+            }),
             Some(array(vec![1, -1])),
         );
         let scale = if reversible { 1 } else { 1_i64 << 32 };
@@ -938,8 +942,191 @@ fn native_mct_decorrelation_dispatch_preserves_partial_matrix_rows() {
                 kind: MalformedKind::InvalidTransform,
             })
         );
-        assert_eq!(output, [123, 9 * scale, 17 * scale]);
+        assert_eq!(
+            output,
+            if reversible {
+                [123, 5, -17]
+            } else {
+                [123, 9 * scale, 17 * scale]
+            }
+        );
     }
+}
+
+fn t801_reversible_decorrelation_array(values: Vec<i64>) -> crate::codestream::MctArray {
+    crate::codestream::MctArray::from_values(
+        7,
+        crate::codestream::MctArrayKind::Decorrelation,
+        crate::codestream::MctNumericFormat::Int16,
+        0,
+        values,
+    )
+}
+
+#[test]
+fn t801_reversible_mct_stages_keep_order_signed_ties_and_post_transform_offsets() {
+    let matrix = t801_reversible_decorrelation_array(vec![3, 2, 4, -1, 5, -8]);
+    assert_eq!(
+        super::mct::inverse_reversible_mct(&matrix, &[7, -2]),
+        Ok(vec![4, 16])
+    );
+    let offsets = t801_reversible_decorrelation_array(vec![10, -20]);
+    let collection =
+        MctCollection::from_arrays(true, vec![0, 1], vec![0, 1], matrix, Some(offsets));
+    let mut output = vec![42];
+    append_mct_decorrelation_rows(&mut output, &collection, &[7, -2], &[0, 0], 2).unwrap();
+    assert_eq!(output, [42, 14, -4]);
+    let ties = t801_reversible_decorrelation_array(vec![-1, 2, 1, 0, 0, 1]);
+    assert_eq!(
+        super::mct::inverse_reversible_mct(&ties, &[1, 0]),
+        Ok(vec![1, 0])
+    );
+    assert_eq!(
+        super::mct::inverse_reversible_mct(&ties, &[-1, 0]),
+        Ok(vec![-1, -1])
+    );
+    for (final_scale, sign) in [(1, 1), (2, 1), (-1, -1), (i64::MIN, -1)] {
+        let single = t801_reversible_decorrelation_array(vec![4, final_scale]);
+        assert_eq!(
+            super::mct::inverse_reversible_mct(&single, &[17]),
+            Ok(vec![sign * 17])
+        );
+    }
+}
+
+#[test]
+fn t801_reversible_mct_matches_independently_reversed_integer_lifting() {
+    fn encode(original: &[i64], coefficients: &[i64], offsets: &[i64]) -> Vec<i64> {
+        let n = original.len();
+        let mut values: Vec<i64> = original
+            .iter()
+            .zip(offsets)
+            .map(|(&sample, &offset)| sample - offset)
+            .collect();
+        for stage in (0..=n).rev() {
+            let target = if stage == n { n - 1 } else { n - 1 - stage };
+            let row = &coefficients[stage * n..(stage + 1) * n];
+            let divisor = i128::from(row[target].unsigned_abs());
+            let dot: i128 = row
+                .iter()
+                .zip(&values)
+                .enumerate()
+                .filter(|(index, _)| *index != target)
+                .map(|(_, (&coefficient, &sample))| i128::from(coefficient) * i128::from(sample))
+                .sum();
+            let prediction = (2 * dot + divisor).div_euclid(2 * divisor);
+            let signed_sample = if row[target] < 0 {
+                -i128::from(values[target])
+            } else {
+                i128::from(values[target])
+            };
+            values[target] = i64::try_from(signed_sample + prediction).unwrap();
+        }
+        values
+    }
+    let mut seed = 0x49c7_bafd_u32;
+    for n in 1..=8 {
+        for case in 0..64 {
+            let mut coefficients = Vec::new();
+            for _ in 0..n * (n + 1) {
+                seed = seed.wrapping_mul(1_664_525).wrapping_add(1_013_904_223);
+                coefficients.push(i64::from(seed % 3) - 1);
+            }
+            for stage in 0..=n {
+                let target = if stage == n { n - 1 } else { n - 1 - stage };
+                coefficients[stage * n + target] =
+                    (1_i64 << (stage % 4)) * if stage == n && case % 2 == 0 { -1 } else { 1 };
+            }
+            let original: Vec<i64> = (0..n)
+                .map(|index| i64::try_from((index * 3 + case) % 31).unwrap() - 15)
+                .collect();
+            let offsets: Vec<i64> = (0..n)
+                .map(|index| i64::try_from((index + case) % 11).unwrap() - 5)
+                .collect();
+            let encoded = encode(&original, &coefficients, &offsets);
+            let matrix = t801_reversible_decorrelation_array(coefficients);
+            let offsets = t801_reversible_decorrelation_array(offsets);
+            let collection = MctCollection::from_arrays(
+                true,
+                (0..n).map(|index| u16::try_from(index).unwrap()).collect(),
+                (0..n).map(|index| u16::try_from(index).unwrap()).collect(),
+                matrix,
+                Some(offsets),
+            );
+            let mut actual = Vec::new();
+            append_mct_decorrelation_rows(&mut actual, &collection, &encoded, &[], n).unwrap();
+            assert_eq!(actual, original, "N={n}, case={case}");
+        }
+    }
+    let n = 63;
+    let mut identity = vec![0; n * (n + 1)];
+    for stage in 0..=n {
+        let target = if stage == n { n - 1 } else { n - 1 - stage };
+        identity[stage * n + target] = 1;
+    }
+    let source: Vec<i64> = (0..n)
+        .map(|index| i64::try_from(index).unwrap() - 31)
+        .collect();
+    assert_eq!(
+        super::mct::inverse_reversible_mct(&t801_reversible_decorrelation_array(identity), &source),
+        Ok(source)
+    );
+}
+
+#[test]
+fn t801_reversible_mct_rejects_bad_scales_and_reports_integer_overflow() {
+    let invalid = DecodeError::MalformedInput {
+        offset: 0,
+        kind: MalformedKind::InvalidTransform,
+    };
+    let overflow = DecodeError::MalformedInput {
+        offset: 0,
+        kind: MalformedKind::ArithmeticOverflow,
+    };
+    for (values, source) in [
+        (vec![1], vec![7]),
+        (vec![0, 1], vec![7]),
+        (vec![-2, 1], vec![7]),
+        (vec![3, 1], vec![7]),
+        (vec![1, 0], vec![7]),
+        (vec![1, -3], vec![7]),
+        (vec![], vec![]),
+    ] {
+        assert_eq!(
+            super::mct::inverse_reversible_mct(
+                &t801_reversible_decorrelation_array(values),
+                &source
+            ),
+            Err(invalid)
+        );
+    }
+    let negative = t801_reversible_decorrelation_array(vec![1, -1]);
+    assert_eq!(
+        super::mct::inverse_reversible_mct(&negative, &[i64::MIN]),
+        Err(overflow)
+    );
+    let mut coefficients = vec![0; 20];
+    for (stage, target) in [(0, 3), (1, 2), (2, 1), (3, 0), (4, 3)] {
+        coefficients[stage * 4 + target] = 1;
+    }
+    coefficients[..3].fill(i64::MAX);
+    let source = [i64::MAX; 4];
+    let matrix = t801_reversible_decorrelation_array(coefficients);
+    assert_eq!(
+        super::mct::inverse_reversible_mct(&matrix, &source),
+        Err(overflow)
+    );
+    assert_eq!(source, [i64::MAX; 4]);
+    let offsets = t801_reversible_decorrelation_array(vec![1]);
+    assert_eq!(
+        reversible_mct_row(
+            &t801_reversible_decorrelation_array(vec![1, 1]),
+            Some(&offsets),
+            &[i64::MAX],
+            0
+        ),
+        Err(overflow)
+    );
 }
 
 #[test]
@@ -1017,7 +1204,7 @@ fn native_mct_preparation_derives_real_ordered_indexes_fractions_and_late_work_e
             MctArrayKind::Offset,
             MctNumericFormat::Float64,
             u8::MAX,
-            vec![1, 0, 0, 1],
+            vec![0, 1, 1, 0, 0, 1],
         )
     };
     let collection = MctCollection::from_arrays(true, vec![17, 0], vec![0, 17], matrix(), None);
@@ -1055,26 +1242,26 @@ fn native_mct_preparation_derives_real_ordered_indexes_fractions_and_late_work_e
     assert_eq!(prepared.source_fraction_bits, [0, 0]);
     assert_eq!(
         (prepared.sample_count, prepared.rows, prepared.columns, work),
-        (2, 2, 2, 19)
+        (2, 2, 2, 23)
     );
-    for maximum_work in [18, 19, 20] {
-        for maximum_bytes in [31, 32, 33] {
+    for maximum_work in [22, 23, 24] {
+        for maximum_bytes in [47, 48, 49] {
             let limits = ResourceLimits::default()
                 .with_maximum_work_units(maximum_work)
                 .unwrap()
                 .with_maximum_decoded_bytes(maximum_bytes)
                 .unwrap();
-            let expected_error = if maximum_work < 19 {
+            let expected_error = if maximum_work < 23 {
                 Some(DecodeError::LimitExceeded {
                     resource: Resource::WorkUnits,
                     limit: maximum_work,
-                    actual: 19,
+                    actual: 23,
                 })
-            } else if maximum_bytes < 32 {
+            } else if maximum_bytes < 48 {
                 Some(DecodeError::LimitExceeded {
                     resource: Resource::DecodedBytes,
                     limit: maximum_bytes,
-                    actual: 32,
+                    actual: 48,
                 })
             } else {
                 None
@@ -1084,7 +1271,7 @@ fn native_mct_preparation_derives_real_ordered_indexes_fractions_and_late_work_e
                 prepare_mct_decorrelation(&components, &collection, &limits, &mut work).err(),
                 expected_error
             );
-            assert_eq!(work, 19);
+            assert_eq!(work, 23);
         }
     }
     let missing = MctCollection::from_arrays(true, vec![17, 0], vec![999, 17], matrix(), None);
@@ -1709,7 +1896,7 @@ fn native_mct_matrix_rows_preserve_numeric_values_raw_precision_domains_and_erro
     let offset = array(0, vec![1]);
     assert_eq!(
         reversible_mct_row(&matrix, Some(&offset), &[5, 7], 0),
-        Ok(-10)
+        Err(invalid)
     );
     assert_eq!(
         fixed_mct_row_scaled(&matrix, Some(&offset), &[5, 7], &[0, 0], 0),
@@ -1731,7 +1918,10 @@ fn native_mct_matrix_rows_preserve_numeric_values_raw_precision_domains_and_erro
     assert_eq!(fixed_mct_row_scaled(&one, None, &[1], &[1], 0), Ok(1));
     assert_eq!(fixed_mct_row_scaled(&one, None, &[-1], &[1], 0), Ok(-1));
     let empty = array(0, vec![]);
-    assert_eq!(reversible_mct_row(&empty, None, &[], usize::MAX), Ok(0));
+    assert_eq!(
+        reversible_mct_row(&empty, None, &[], usize::MAX),
+        Err(invalid)
+    );
     assert_eq!(
         fixed_mct_row_scaled(&empty, None, &[], &[], usize::MAX),
         Ok(0)
@@ -1739,7 +1929,7 @@ fn native_mct_matrix_rows_preserve_numeric_values_raw_precision_domains_and_erro
     assert_eq!(reversible_mct_row(&empty, None, &[1], 0), Err(invalid));
     assert_eq!(
         reversible_mct_row(&matrix, None, &[1, 2], usize::MAX),
-        Err(overflow)
+        Err(invalid)
     );
     assert_eq!(
         reversible_mct_row(&matrix, Some(&empty), &[1, 2], usize::MAX),
@@ -1752,7 +1942,7 @@ fn native_mct_matrix_rows_preserve_numeric_values_raw_precision_domains_and_erro
     let wide = array(0, vec![i64::MAX; 3]);
     assert_eq!(
         reversible_mct_row(&wide, None, &[i64::MAX; 3], 0),
-        Err(overflow)
+        Err(invalid)
     );
     let short = array(32, vec![]);
     assert_eq!(
@@ -1767,7 +1957,7 @@ fn native_mct_matrix_rows_preserve_numeric_values_raw_precision_domains_and_erro
         let zero = array(precision, vec![]);
         assert_eq!(
             reversible_mct_row(&zero, None, &[], usize::MAX),
-            if precision == 0 { Ok(0) } else { Err(invalid) }
+            Err(invalid)
         );
         assert_eq!(
             fixed_mct_row_scaled(&zero, None, &[], &[], usize::MAX),
@@ -3549,6 +3739,64 @@ fn actual_nonlinear_arithmetic_preserves_checked_i128_rounding_q32_and_power_bou
 }
 
 #[test]
+fn sarah_engineering_nlt_lut_reaches_both_unsigned_rank_endpoints() {
+    let mut contexts = 0;
+    for precision in [1_u8, 2, 4, 8] {
+        let maximum = (1_i128 << precision) - 1;
+        for source_signed in [false, true] {
+            for target_signed in [false, true] {
+                for descending in [false, true] {
+                    let info = ComponentInfo {
+                        precision,
+                        signed: source_signed,
+                        x_subsampling: 1,
+                        y_subsampling: 1,
+                        x_registration: 0,
+                        y_registration: 0,
+                    };
+                    let points = if descending {
+                        vec![255, 0]
+                    } else {
+                        vec![0, 255]
+                    };
+                    let transform = NonlinearPointTransform::for_test(
+                        8,
+                        target_signed,
+                        2,
+                        Some(0),
+                        Some(u32::MAX),
+                        points,
+                    );
+                    for rank in 0..=maximum {
+                        let source = rank
+                            - if source_signed {
+                                1_i128 << (precision - 1)
+                            } else {
+                                0
+                            };
+                        let interpolated = (rank * 255 + maximum / 2) / maximum;
+                        let raw = if descending {
+                            255 - interpolated
+                        } else {
+                            interpolated
+                        };
+                        let expected = raw - if target_signed { 128 } else { 0 };
+                        assert_eq!(
+                            inverse_nlt_lut_sample(source, info, &transform),
+                            Ok(expected),
+                            "precision={precision} source_signed={source_signed} target_signed={target_signed} descending={descending} rank={rank}"
+                        );
+                        assert_eq!(inverse_nlt_sample(source, info, &transform), Ok(expected));
+                        contexts += 1;
+                    }
+                }
+            }
+        }
+    }
+    assert_eq!(contexts, 2_224);
+}
+
+#[test]
 fn actual_nonlinear_lut_derives_checked_interpolation_and_raw_type4_samples() {
     fn reference(
         source: i128,
@@ -3578,8 +3826,8 @@ fn actual_nonlinear_lut_derives_checked_interpolation_and_raw_type4_samples() {
         if nominal < 0 || nominal as u128 >= scale {
             return Err(invalid_image());
         }
-        let low = u128::from(minimum) * scale;
-        let high = u128::from(maximum) * scale;
+        let low = u128::from(minimum) * (scale - 1);
+        let high = u128::from(maximum) * (scale - 1);
         let coordinate = (nominal as u128 * u128::from(u32::MAX)).clamp(low, high);
         let denominator = high - low;
         let position = (coordinate - low) * (points.len() - 1) as u128;
@@ -3775,7 +4023,7 @@ fn applies_lut_nlt_inverse_with_integer_interpolation() {
         .unwrap();
     assert_eq!(
         image.component(0).unwrap().samples(),
-        &TypedSamples::Unsigned(vec![0, 4, 8, 11])
+        &TypedSamples::Unsigned(vec![0, 5, 10, 15])
     );
     assert_eq!(image.component(0).unwrap().info().precision, 4);
 }
@@ -4356,7 +4604,7 @@ fn applies_ordered_subset_dependency_stages_in_reverse() {
             MctArrayKind::Decorrelation,
             MctNumericFormat::Int16,
             0,
-            vec![1],
+            vec![1, 1],
         )
     };
     let offset = |index, value| {

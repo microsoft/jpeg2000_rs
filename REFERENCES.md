@@ -21,11 +21,19 @@ not invent clause anchors or resolve unavailable edition text.
 | HTJ2K | [ITU-T T.814 (2019-06)](https://www.itu.int/rec/T-REC-T.814-201906-I/en), ISO/IEC 15444-15:2019 |
 
 The separately acquired [T.801 (06/2021) publication](https://www.itu.int/rec/T-REC-T.801-202106-S/en)
-was used for ADS, ATK, NLT, and CBD syntax and inverse-transform interpretation.
+was used for ADS, ATK, NLT, CBD, and reversible integer decorrelation syntax
+and inverse-transform interpretation.
 Its SHA-256 is
 `8ec28b54b53f5b6898a02d0718566600809e1c86ecbbf64ab0e1e443e7f67f40`.
 This identifies the acquired reference only, not the selected 2023
 consolidation; edition-difference reconciliation remains necessary.
+
+The reversible decorrelation engineering profile uses J.3.1.1.3, Figure J.7
+and the off-diagonal explanation in O.3.2. The apparent final-stage summation
+index inconsistency is disclosed in
+[the proof boundary](PROOFS.md#reversible-integer-decorrelation-engineering-profile).
+No normative prose, diagram or PDF is included in this repository. This
+interpretation is not an independent selected-2023-edition certification.
 
 The [official third-edition summary](https://www.itu.int/dms_pubrec/itu-t/rec/t/T-REC-T.801-202308-I!!SUM-HTM-E.htm)
 identifies progression-order extensions as a change from the 2021 edition.

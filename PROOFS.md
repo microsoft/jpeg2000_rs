@@ -507,6 +507,13 @@ full-plan gates remain separate; fresh complete qualification is still required.
 
 ## Actual raw JPIP message and inherited-parser Results
 
+The user-approved retained-assertion engineering profile makes class8 metadata
+identity target-wide while preserving the original CSn in wire messages and
+getters. All other classes remain codestream-scoped. The shared executing
+identity predicate, raw models, exact identity theorem and cache consumers
+agree. Independent selected-edition correspondence remains pending; contrary
+public-cache observations are retained, not relabeled supporting evidence.
+
 The public `parse_jpip_message` and `JpipMessageParser::parse` now derive complete
 Data/EOR message, databin/header/body/consumed Results and context/limits mutation
 frames from actual input bytes. The actual VBAS traversal retains
@@ -524,6 +531,16 @@ classes 3 and 7 retain their identifiers, auxiliary fields and context commits,
 but expose `Unassigned` rather than header semantics. Cache insertion rejects
 them without changing physical storage or counters. Only the assigned auxiliary
 pairs 0/1 and 4/5 share identity; other raw keys remain distinct.
+
+The same engineering profile tightens JPX association inspection to two
+immediate children, nonempty codestream-header sequences to full cardinality,
+and compositing-layer registration presence to all-or-none. Complete raw
+metadata/container/layer Result models retain exact errors and ownership.
+Zero-life nonpersistent instructions add no frame action, while assignment
+and reuse transitions stay accounted in the complete timeline model. Optional
+single-stream NCS is consumed but ignored by the actual placeholder parser;
+that parser is not claimed to have a complete raw Result proof merely because
+the separately proved representation selector is unchanged.
 
 Automatic tile-header normalization accepts complete SOT-free header bins with
 or without a final SOD, emits one SOD, removes reframed markers and synthesizes
@@ -2079,10 +2096,11 @@ standard/conformance, actual-main, SourceReady or publication requirements.
 
 The real `read_tile_part` PLT/PPT branches call extracted `Parser::parse_plt`
 and `Parser::parse_ppt` methods in their original order. Their source-derived
-models live in `specs/packet_input.rs`. Raw main source presence, not counts,
-lengths or fragment metadata, rejects conflicts before payload, index, fragment
-or budget errors. Both contracts cover arbitrary internal states without
-validity premises or prepared outcomes.
+models live in `specs/packet_input.rs`. PPT rejects raw main source presence
+before payload, index, fragment or budget errors. Under the retained-assertion
+engineering profile PLT does not reject PLM presence: both lists are admitted,
+then fully compared at finalization. Both contracts cover arbitrary internal
+states without validity premises or prepared outcomes.
 
 PLT retains index-only payloads and every raw `u16` next-index value against
 the actual `u8` payload. The index commits before genuine packet-length
@@ -2126,6 +2144,8 @@ constructing its borrowed source and raw count/encoded-byte fields. Otherwise
 it retains arbitrary main metadata. Absent selected lengths bypass logical-size
 checks; present lengths derive the declared sum before checked data-plus-packed
 addition and comparison, preserving all native error precedence and offsets.
+With both PLM and PLT present, equal packet counts and the complete two
+source-derived packet sequences are required before the payload comparison.
 The packed-header finisher returns every arbitrary main field when PPT fragments
 are zero, without validating unused ranges. Nonzero fragments derive the exact
 borrowed input range, PPT marker, logical start, length and fragment count.
@@ -2249,7 +2269,14 @@ check. Work errors use the parser position; byte/count overflow and malformed
 varints use the marker offset. Empty input still performs all counter checks.
 
 Actual PLM parsing derives every group length and borrowed source slice from
-the payload. Minimum length and index checks precede incrementing the index,
+the payload. The user-approved retained-assertion engineering profile uses
+one-octet counts, including zero, and permits groups to continue across PLM
+markers without splitting a packet-length codeword. A continued group retains
+a borrowed physical marker range, its first fragment boundaries, declared
+count and original marker offset; packet-length owners remain `Copy`.
+The iterator skips intervening markers and continuation indexes without
+reassembly allocation. Main-header completion rejects an unfinished last
+group at its original PLM offset. Minimum length and index checks precede incrementing the index,
 including 255 to 256. That increment and genuine admission partial commits
 survive later errors. Successful groups append before the tile-part cap, so
 that error retains the appended group. Arbitrary preexisting groups retain
@@ -2258,7 +2285,13 @@ their order, source variants, counters and encoded-byte metadata.
 Both sole executable bodies have exact total contracts, full initial-state
 and recursive-fold loop links, and checked mathematical termination. No
 admitted varints, normalized groups/counters, result banks, new trust,
-caps, pins, budgets or termination bypass are introduced. Independent
+caps, pins, budgets or termination bypass are introduced. Separately signaled
+PLM and PLT lists are both admitted with their original resource accounting,
+then compared packet by packet at tile-part finalization, not merely by their
+sum. The full iterator, sum and comparison models retain arbitrary raw source
+and cursor/error frames. This is engineering behavior under the retained
+assertions, not independent standards adjudication; conflicting public
+four-byte PLM implementations remain contrary evidence. Independent
 wide-arithmetic references cover 786,432 short-varint contexts, 12,000
 charge/overflow/limit contexts, 156,672 PLM index/truncation/frame contexts,
 262,144 raw length words and 1,080 PLM partial-commit contexts. A real segment
@@ -2304,7 +2337,10 @@ registry premise.
 The sole collection body checks nonzero/equal dimensions, resolves offsets
 before matrices with zero-index bypasses, executes actual checked element
 arithmetic, then rejects bad dimensions or floating reversible arrays. The
-count model preserves overflow of the intermediate product before halving,
+reversible decorrelation branch requires `N*(N+1)` coefficients and validates
+positive power-of-two regular pivots and a power-of-two final pivot magnitude;
+irreversible decorrelation retains `N*N`. Missing matrices retain identity.
+The count model preserves overflow of the intermediate product before halving,
 reversible row increment and final subtraction, including arbitrary native
 usize boundaries. The raw Offset kind retains its original non-Dependency
 collection-kind mapping rather than being normalized out.
@@ -2768,7 +2804,7 @@ before index/style admission, the one/two-byte threshold 257 and every raw
 shift byte, including 255. Marker identity and later shift execution policy
 are not newly checked in this helper.
 
-CRG binds the complete final parser and all eight Part2 extension fields on
+CRG binds the complete final parser and all Part2 extension fields on
 both success and failure. The actual shared metadata charge runs first:
 payload plus four bytes, checked metadata accumulation, metadata cap and
 actual work charging. Overflow leaves the original relevant counter;
@@ -3126,6 +3162,16 @@ Rust division/remainder, interpolation and signed/type4 remapping preserve
 all original errors. Nonmonotone and out-of-target-range raw tables remain
 accepted here; the outer scalar dispatcher retains its separate final check.
 
+The user-approved retained-assertion profile normalizes the source rank with
+the checked inclusive maximum `(2^B)-1`, not the sample count `2^B`.
+Signed inputs retain the original half-range offset and the accepted integer
+source range is unchanged. The actual scalar producer and its complete
+checked Result model share this endpoint rule; gamma and binary-complement
+dispatch are unchanged. Ascending/descending tables with both source and
+target signs exercise 2,224 exact endpoint/interior contexts through the LUT
+producer and outer scalar dispatcher. Preserved conflicting public
+normalization evidence remains a separate standards-adjudication boundary.
+
 The private receiverless body is a sole module function for pinned attribute
 support. The actual position and interpolation arithmetic are extracted once and proved
 under opaque mathematical bodies to isolate nonlinear solver context without
@@ -3162,10 +3208,21 @@ remain separate work.
 
 ## Complete native nonlinear region production
 
-The actual `Part2Extensions::nonlinear_transform_for` refines first specific,
-then first default selection over complete raw transform observations. Two
-explicit scans preserve the former iterator order without trusting callback
-results or normalizing descriptors.
+The actual `Part2Extensions::nonlinear_transform_for` preserves header provenance
+under the retained-assertion engineering profile: tile-specific, tile-default,
+main-specific, then main-default. The existing specific/default scans execute
+in one borrowed-slice helper, first on the local prefix and then on inherited
+descriptors. No descriptor copy, callback result or normalized transform is
+supplied to the model.
+
+The private optional local-prefix count is absent in main headers and starts
+at zero on the first tile-local NLT marker. Actual parsing replaces only a
+local matching selector or inserts before the inherited suffix, retaining the
+parent descriptors and local order. Complete raw replacement and caller models
+carry that field through initialization, metadata charges, copies, errors and
+typed-region selection. Invalid raw counts reject after payload admission;
+their original charge/error precedence is explicit. This engineering
+precedence is not independent standards closure.
 
 Actual `typed_layout` uses the single extracted `nonlinear_component_extent`
 and `collect_nonlinear_regions` bodies. Their complete Result contracts derive
@@ -3352,8 +3409,10 @@ whole reconstruction composition remain open.
 
 ## Actual native decorrelation row computation
 
-The real decorrelation pixel loop now calls one proved row dispatcher and one
-proved ordered row-append loop. The dispatcher includes both matrix branches
+The real decorrelation pixel loop calls one proved row dispatcher and one
+proved ordered row-append loop. Reversible matrices use the staged producer
+described below, computed once per pixel and reused by the append loop.
+The dispatcher includes both matrix branches
 and both lazy None branches over the complete native source/precision domains.
 It retains source-before-precision-before-offset error order, nearest-magnitude
 Q32 rescaling, checked i128 addition and final i64 conversion. The sole native
@@ -3361,8 +3420,9 @@ arithmetic bodies are shared with the existing matrix-row producers.
 
 The row-loop relation includes every initial scratch value and every value
 appended before the first error. Empty row ranges perform no validation; later
-failures preserve earlier output rows. The original scratch vectors, capacity,
-clear order and all-rows-before-component-stores policy remain intact. An
+failures preserve earlier output rows. The original source/output clear order and all-rows-before-component-stores
+policy remain intact. Reversible matrices additionally admit one bounded
+temporary vector, as described below. An
 explicit early-return loop invariant retains the real old scratch sequence,
 not a supplied result or normalized input premise.
 
@@ -3373,6 +3433,52 @@ numeric error, no current-pixel stores before every row succeeds, final-only
 precision updates and exact charged work. These tests do not replace the still
 open whole collection/dependency/wavelet/stage composition proofs or qualify
 general MCT against an independent external oracle.
+
+## Reversible integer decorrelation engineering profile
+
+The executing resolver, preparation, arithmetic and cached row producer now
+implement the retained reversible-decorrelation requirement together. A present
+integer array has `N*(N+1)` row-major values. The first `N` stages update one
+component each, from component `N-1` down to zero; the final stage updates
+component `N-1` again. Every update is visible to the following stage.
+Each prediction uses only non-target components, the magnitude of the
+target-column scale, and mathematical floor after adding half that scale.
+Regular scales must be positive powers of two. The final scale may be negative;
+its sign applies after prediction subtraction. Integer offsets apply only
+after all stages. The existing component lists provide the mapping.
+
+The source is T.801 (06/2021), J.3.1.1.3, Figure J.7 and O.3.2, identified
+in [REFERENCES.md](REFERENCES.md). The printed final-stage equation appears
+to include its target/scale entry in the sum. That reading cancels the last
+sample for a positive scale and contradicts the diagram, explicit explanation
+of off-diagonal contributions, reversibility, and missing-matrix identity.
+This engineering interpretation therefore excludes the target consistently
+at every stage. The final-scale sign follows the signed equation and example
+despite an apparent contradictory positive-only phrase. The illustrative
+example's inconsistent intermediate arithmetic is not an executable oracle.
+These discrepancies remain disclosed; no independent standards closure or
+selected-2023-edition reconciliation is inferred.
+
+The full Result models derive every count, scale, checked wide product/sum,
+rounding operation, target update and output offset from actual array/sample
+values. Explicit induction covers scale admission, sequential stage state and
+first-error propagation. No supplied numerical result, successful transform
+or normalized metadata premise replaces an executing producer.
+The transform is computed once per pixel, retaining quadratic work rather than
+recomputing it for each output. The additional temporary is admitted before
+execution: three `N`-sample vectors and `samples*N*(N+2)` work units under the
+unchanged caps. Stage errors leave the caller's output prefix unchanged;
+offset errors retain already appended rows. Components are not stored until
+all output rows succeed, and earlier completed pixels remain unchanged by a
+later failure.
+
+Focused native tests include literal stage-order/negative-half-tie/signed-scale/
+post-offset results, 512 independently reversed integer-lifting controls,
+63-component identity, invalid scales and integer overflow. Existing real
+raw/JP2/selected-JPX controls use legal single-component staged arrays with a
+signed final stage, preserving an observable order distinction.
+These controls and the as-implemented proof do not constitute an independent
+whole-codec array-MCT conformance oracle.
 
 ## Complete actual native decorrelation collection
 
@@ -3985,6 +4091,18 @@ component counts need not fit the physical64 entries; zero subsampling,
 discard>=32, saturated context and unaccessed malformed fields retain actual
 behavior. The original public selection APIs share one real constructor body.
 
+For the retained-assertion engineering CRG rule, one actual bounded arithmetic
+primitive computes the physical predecessor using registration times component
+separation. Both real sampling and context preparation call it. Its sole
+nonzero arithmetic prerequisite is checked by the actual callers; quotient
+bounds derive from Euclidean division, not a supplied valid-image premise.
+Context margins derive the required coded coordinate rather than guessing a
+one-separation radius or testing physical alignment alone. Coded SIZ and
+cropped-plane origins remain unchanged: CRG shifts sampling, not decoding.
+Complete Result/fold models, raw boundary contexts and full/cropped actual
+sample-value controls preserve that distinction and the original error/cap
+policy. Independent standards closure remains separate.
+
 The actual selected-codestream header producer chooses the parsed association
 or real fallback and reports a missing association at its real box offset.
 Actual container/codestream metadata validation includes native uniform/
@@ -3994,7 +4112,7 @@ and selected color conversion. The selected finishing body composes mapping,
 color and crop, including None bypass/missing-header ordering and actual byte/
 work admission before later crop errors.
 
-Twenty-two finite exact producer/model/result/input recipes bind these actual
+Twenty-three finite exact producer/model/result/input recipes bind these actual
 stages and genuine callers. Independent tests compare27,648 raw geometry/
 request/context cases,1,536 uniform-header cases, actual header choices and
 offsets, known full/selected grayscale samples, None identity, malformed typed
@@ -4401,6 +4519,14 @@ storage specify complete mutable states on first failure, with untouched
 positions retained. Supporting model properties establish complete sequence
 lengths and plane sample-count/metadata consistency.
 
+The retained-assertion engineering profile uses arithmetic half for an
+odd-origin high-only singleton in both standard kernels. Even-phase singleton,
+empty input and split-admission behavior are unchanged. The sole 9/7 body,
+complete sequence model and all horizontal/vertical/2D consumers share that
+rule. Raw public-operator controls include both signed integer extremes.
+This does not assert raw coefficient-unit equality with the preserved
+independent OpenJPEG primitive.
+
 The existing public `convert_samples` API has full Result semantics for its
 actual 1..38 precision policy, rounding, level shifting, clipping and checked
 failures. Its concrete consumer is an independent API test, not the decoder's
@@ -4476,7 +4602,7 @@ signed midpoint handling, initialization and nine-byte cumulative charging,
 ROI/quantization, placement/coverage/fraction checks, the entire mixed-direction
 multilevel 5/3 or Q16 9/7 fold and every final PreparedTileComponent field/error.
 Its original private with-kernel body shares these real stages; the complete
-native None/Some extension below preserves the original None result.
+native None/Some extension below shares the same None result.
 All public native malformed-input and resource cases remain modeled rejection,
 not header/normalization/coverage/budget/success/trace preconditions.
 The prepared-to-tile getter also has exact full-field/sample semantics.
@@ -4490,6 +4616,23 @@ models, unrelated or partial results, constant/reordered native inputs and
 success-only substitutions. The standard entry does not claim the generalized
 private producer under a standard-only model. No generic expression or
 implication matcher was added.
+
+### Actual coded singleton reference controls
+
+The actual compressed stream's decoder output is the coded-image oracle,
+not the lossy encoder input or pre-fix native pixels. Fresh reference decodes
+of horizontal, vertical and two-axis cropped singleton tiles exposed that
+the old native pixels differed by up to 14 or 21 integer levels. A rejected
+adapter preserved those incorrect pixels while satisfying the raw operator;
+that source and its local observations remain retained as failed evidence,
+not current qualification.
+
+The correction uses the sole raw half-gain kernel without a compensating
+coded-band multiplier. The persistent 169-byte encoded regression expects
+the actual independent decoder's samples. Spatial and spectral consumers
+share the complete sequence model and unchanged preparation policy. Existing
+reversible/ATK arithmetic, trust, caps and compiler pins are unchanged.
+Independent standards closure remains separate from these finite controls.
 
 ### Complete native arbitrary kernels and None/Some preparation
 
@@ -4564,8 +4707,10 @@ clients consume that fact without revealing private representation or raising
 proof budgets. Equal source/destination precision bypasses later shift checks,
 including native precision255, exactly as the body does.
 
-The actual reversible and per-source-fraction matrix-row loops refine one
-shared declarative dot fold. Coefficient indexing, native row multiplication,
+The actual per-source-fraction matrix-row loop refines its declarative dot
+fold. Reversible decorrelation instead uses the
+[sequential integer producer](#reversible-integer-decorrelation-engineering-profile).
+Coefficient indexing, native row multiplication,
 precision/offset admission, every checked wide term/sum and final narrowing
 are ordered exactly; empty rows and malformed physical arrays are not
 normalized. Full matrix/offset/source/fraction/row inputs are bound, not

@@ -1,7 +1,8 @@
 use super::arithmetic::{arithmetic_overflow, invalid_transform};
 use super::mct::{
-    admit_mct_decorrelation, apply_mct_destination_precisions, find_transform_component,
-    fixed_mct_row_scaled, offset_value, offset_value_scaled, read_transform_sample, rescale_i128,
+    admit_mct_decorrelation, admit_reversible_mct_decorrelation, apply_mct_destination_precisions,
+    find_transform_component, fixed_mct_row_scaled, inverse_reversible_mct, offset_value,
+    offset_value_scaled, read_transform_sample, rescale_i128, reversible_mct_output,
     reversible_mct_row, store_transform_sample, validate_mct_components_layout,
 };
 use super::{MctDecorrelationPreparation, TransformComponentMut};
@@ -46,11 +47,16 @@ pub(super) fn prepare_mct_decorrelation(
             matrix,
             Some(matrix)
                 if matrix.values().len()
-                    != rows.checked_mul(columns).ok_or_else(arithmetic_overflow)?
+                    != rows.checked_mul(if collection.reversible() {
+                        columns.checked_add(1).ok_or_else(arithmetic_overflow)?
+                    } else { columns }).ok_or_else(arithmetic_overflow)?
         )
         || invalid_offset_dimensions
     {
         return Err(invalid_transform());
+    }
+    if let (true, Some(matrix)) = (collection.reversible(), matrix) {
+        crate::codestream::validate_reversible_mct_coefficients(matrix.values(), rows)?;
     }
     let mut source_indexes = Vec::with_capacity(columns);
     let mut destination_indexes = Vec::with_capacity(rows);
@@ -140,7 +146,11 @@ pub(super) fn prepare_mct_decorrelation(
         &destination_indexes,
         collection.reversible(),
     )?;
-    admit_mct_decorrelation(sample_count, rows, columns, limits, work)?;
+    if collection.reversible() && matrix.is_some() {
+        admit_reversible_mct_decorrelation(sample_count, rows, limits, work)?;
+    } else {
+        admit_mct_decorrelation(sample_count, rows, columns, limits, work)?;
+    }
     let mut source_fraction_bits = Vec::with_capacity(source_indexes.len());
     let mut index_index = 0_usize;
     #[cfg_attr(
@@ -154,7 +164,7 @@ pub(super) fn prepare_mct_decorrelation(
             crate::specs::part2_mct_component_indices(before, style.2) == Ok(source_indexes@),
             crate::specs::part2_mct_component_indices(before, style.1) == Ok(destination_indexes@),
             crate::specs::part2_mct_validate_layout(before, source_indexes@, destination_indexes@, style.0) == Ok(sample_count),
-            crate::specs::part2_mct_decorrelation_admission(sample_count, rows, columns, initial_work,
+            crate::specs::part2_mct_collection_admission(style, sample_count, rows, columns, initial_work,
                 crate::limits::resource_work_limit(limits), crate::limits::resource_decoded_bytes_limit(limits)) == (Ok(()), *work),
             forall |position: int| 0 <= position < source_indexes@.len()
                 ==> source_indexes@[position] < before.len(),
@@ -258,6 +268,34 @@ pub(super) fn append_mct_decorrelation_rows(
     proof! {
         crate::proofs::production_impl::production_mct_rows_empty(initial, style, source@, source_fraction_bits@);
     }
+    let transformed = if rows > 0 && collection.reversible() {
+        match collection.matrix() {
+            None => None,
+            Some(matrix) => {
+                if matches!(collection.offsets(), Some(offsets) if offsets.fraction_bits() != 0) {
+                    #[cfg(verus_keep_ghost)]
+                    proof! {
+                        crate::proofs::production_impl::production_mct_rows_step(initial, style, source@, source_fraction_bits@, 0);
+                        crate::proofs::production_impl::production_mct_rows_error(initial, style, source@, source_fraction_bits@, 1, rows as nat);
+                    }
+                    return Err(invalid_transform());
+                }
+                match inverse_reversible_mct(matrix, source) {
+                    Ok(values) => Some(values),
+                    Err(error) => {
+                        #[cfg(verus_keep_ghost)]
+                        proof! {
+                            crate::proofs::production_impl::production_mct_rows_step(initial, style, source@, source_fraction_bits@, 0);
+                            crate::proofs::production_impl::production_mct_rows_error(initial, style, source@, source_fraction_bits@, 1, rows as nat);
+                        }
+                        return Err(error);
+                    }
+                }
+            }
+        }
+    } else {
+        None
+    };
     let mut row = 0_usize;
     #[cfg_attr(
         verus_keep_ghost,
@@ -265,6 +303,12 @@ pub(super) fn append_mct_decorrelation_rows(
             invariant row <= rows,
             initial == old(output)@,
             style == crate::codestream::mct_collection_view(collection),
+            match &transformed {
+                Some(values) => style.0 && style.4.is_some()
+                    && (match style.5 { Some(offsets) => offsets.3 == 0, None => true })
+                    && crate::specs::part2_inverse_reversible_mct(style.4.unwrap(), source@) == Ok(values@),
+                None => rows == 0 || !style.0 || style.4.is_none(),
+            },
             crate::specs::part2_mct_decorrelation_rows(initial, style, source@, source_fraction_bits@, row as nat)
                 == (Ok(()), output@),
             decreases rows - row,
@@ -275,7 +319,15 @@ pub(super) fn append_mct_decorrelation_rows(
         proof! {
             crate::proofs::production_impl::production_mct_rows_step(initial, style, source@, source_fraction_bits@, row as nat);
         }
-        let value = match decorrelation_mct_row(collection, source, source_fraction_bits, row) {
+        let value_result = match &transformed {
+            Some(values) => reversible_mct_output(values, collection.offsets(), row),
+            None => decorrelation_mct_row(collection, source, source_fraction_bits, row),
+        };
+        #[cfg(verus_keep_ghost)]
+        proof! {
+            assert(value_result == crate::specs::part2_mct_decorrelation_row(style, source@, source_fraction_bits@, row));
+        }
+        let value = match value_result {
             Ok(value) => value,
             Err(error) => {
                 #[cfg(verus_keep_ghost)]

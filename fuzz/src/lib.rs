@@ -1,5 +1,9 @@
 use jpeg2000_decoder::ResourceLimits;
 
+#[cfg(test)]
+#[path = "../fuzz_targets/structured_framing.rs"]
+mod structured_framing_tests;
+
 pub fn resource_limits() -> ResourceLimits {
     ResourceLimits::default()
         .with_maximum_input_bytes(1 << 20)

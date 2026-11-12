@@ -219,7 +219,7 @@ fn actual_raw_main_header_result_joins_fragment_packet_metadata_and_owned_extens
     let limits = ResourceLimits::default();
     let [cod, qcd] = baseline_headers();
     for metadata in 0_u8..8 {
-        let parts = mct_i16_segmented(1, 1, &[1, 0, 0, 1], 3);
+        let parts = mct_i16_segmented(1, 1, &[0, 1, 1, 0, 0, 1], 3);
         let record = mcc(3, 2, true, 1, 0);
         let record_parts = segmented_mcc(&record, 2);
         let mut headers = vec![
@@ -261,7 +261,7 @@ fn actual_raw_main_header_result_joins_fragment_packet_metadata_and_owned_extens
                 .matrix()
                 .unwrap()
                 .values(),
-            [1, 0, 0, 1]
+            [0, 1, 1, 0, 0, 1]
         );
         let extensions = &layout.info.part2_extensions;
         assert_eq!(extensions.decomposition_structures.len(), 1);

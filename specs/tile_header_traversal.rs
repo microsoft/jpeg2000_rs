@@ -143,7 +143,10 @@ pub(crate) open spec fn part1_tile_header_extension_payload<'a>(
                 (result.0, result.1, Part1TileHeaderAccumulator { part2_extensions: result.2, ..raw })
             },
             0xff76 => {
-                let result = part1_parse_nlt(reader, segment, components, raw.part2_extensions);
+                let extensions = if raw.part2_extensions.nonlinear_local_count.is_none() {
+                    super::Part2OwnedExtensions { nonlinear_local_count: Some(0), ..raw.part2_extensions }
+                } else { raw.part2_extensions };
+                let result = part1_parse_nlt(reader, segment, components, extensions);
                 (result.0, result.1, Part1TileHeaderAccumulator { part2_extensions: result.2, ..raw })
             },
             0xff79 => {

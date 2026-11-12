@@ -178,7 +178,7 @@ pub open spec fn part2_container_finish(state: Part2RawContainerState, file_type
         None => Err(part2_raw_header_missing(0)),
         Some(header) => {
             if state.streams.len() == 0 { Err(part2_raw_header_missing(0)) }
-            else if state.associations.len() > state.streams.len() {
+            else if state.associations.len() != 0 && state.associations.len() != state.streams.len() {
                 Err(part2_container_error(0, crate::MalformedKind::InvalidBoxContents))
             } else {
                 match part2_validate_layer_references(state.layers, state.streams.len() as usize) {

@@ -122,3 +122,36 @@ pub(crate) const fn registered_source_coordinate(
 ) -> u32 {
     (numerator - offset) / subsampling
 }
+
+#[cfg_attr(verus_keep_ghost, verus_spec(result =>
+    requires divisor > 0,
+    ensures result == crate::specs::part2_crg_component_predecessor(value, divisor, registration),
+        result as nat * divisor as nat <= value as nat, result <= value as u64,
+))]
+pub(crate) fn crg_component_predecessor(value: u32, divisor: u32, registration: u16) -> u64 {
+    #[cfg(verus_keep_ghost)]
+    proof! {
+        assert(divisor as int * registration as int <= u64::MAX) by(nonlinear_arith);
+    }
+    let position = u64::from(value) * 65_536;
+    let phase = u64::from(divisor) * u64::from(registration);
+    let denominator = u64::from(divisor) * 65_536;
+    let adjusted = position.saturating_sub(phase);
+    let predecessor = adjusted / denominator;
+    #[cfg(verus_keep_ghost)]
+    proof! {
+        vstd::arithmetic::div_mod::lemma_fundamental_div_mod(adjusted as int, denominator as int);
+        vstd::arithmetic::div_mod::lemma_mod_bound(adjusted as int, denominator as int);
+        assert(denominator as int == divisor as int * 65536);
+        assert(adjusted as int <= value as int * 65536);
+        assert(predecessor as int * denominator as int <= adjusted as int);
+        assert(predecessor as int * divisor as int <= value as int) by(nonlinear_arith)
+            requires denominator as int == divisor as int * 65536,
+                predecessor as int * denominator as int <= adjusted as int,
+                adjusted as int <= value as int * 65536;
+        assert(predecessor <= value as u64) by(nonlinear_arith)
+            requires predecessor as int >= 0, divisor as int >= 1,
+                predecessor as int * divisor as int <= value as int;
+    }
+    predecessor
+}

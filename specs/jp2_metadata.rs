@@ -19,7 +19,7 @@ pub open spec fn part2_inspect_metadata_box(
         match part2_box_reader_from_input(input.1, limits) {
             Err(error) => Err(error),
             Ok(reader) => part2_metadata_children(input, reader, limits, (depth + 1) as u32,
-                remaining, 1, depth, input.1.len()),
+                remaining, 1, depth, input.1.len(), 0),
         }
     }
 }
@@ -27,13 +27,15 @@ pub open spec fn part2_inspect_metadata_box(
 #[verifier::opaque]
 pub open spec fn part2_metadata_children(
     input: Part2BoxReference, reader: Part2BoxReaderState, limits: crate::ResourceLimits,
-    child_depth: u32, remaining: u32, count: u32, maximum: u32, fuel: nat,
+    child_depth: u32, remaining: u32, count: u32, maximum: u32, fuel: nat, immediate: usize,
 ) -> Result<(u32, u32), crate::DecodeError>
     decreases remaining, fuel, 0nat,
 {
     let next = part2_box_reader_next_ref(reader);
     match next.0 {
-        None => Ok((count, maximum)),
+        None => if immediate < 2 {
+            Err(crate::DecodeError::MalformedInput { offset: input.0.1, kind: crate::MalformedKind::InvalidBoxContents })
+        } else { Ok((count, maximum)) },
         Some(result) => {
             if fuel == 0 {
                 Err(crate::DecodeError::MalformedInput { offset: input.0.1, kind: crate::MalformedKind::InvalidBoxLength })
@@ -51,9 +53,12 @@ pub open spec fn part2_metadata_children(
                                     if updated > crate::limits::resource_work_limit(&limits) {
                                         Err(crate::DecodeError::LimitExceeded { resource: crate::Resource::WorkUnits,
                                             limit: crate::limits::resource_work_limit(&limits), actual: updated as u64 })
+                                    } else if immediate == usize::MAX {
+                                        Err(part2_palette_arithmetic_error(0))
                                     } else {
                                         part2_metadata_children(input, next.1, limits, child_depth, remaining,
-                                            updated, if maximum >= observed.1 { maximum } else { observed.1 }, (fuel - 1) as nat)
+                                            updated, if maximum >= observed.1 { maximum } else { observed.1 }, (fuel - 1) as nat,
+                                            (immediate + 1) as usize)
                                     }
                                 }
                             },
@@ -73,7 +78,7 @@ pub(crate) proof fn part2_metadata_start(
         depth < u32::MAX,
         part2_box_reader_from_input(input.1, limits) == Ok(reader),
     ensures part2_inspect_metadata_box(input, limits, depth, remaining)
-        == part2_metadata_children(input, reader, limits, (depth + 1) as u32, remaining, 1, depth, input.1.len()),
+        == part2_metadata_children(input, reader, limits, (depth + 1) as u32, remaining, 1, depth, input.1.len(), 0),
 {
     reveal_with_fuel(part2_inspect_metadata_box, 2);
     reveal(part2_metadata_children);

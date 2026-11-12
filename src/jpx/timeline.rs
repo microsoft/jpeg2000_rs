@@ -358,6 +358,9 @@ pub(super) fn append_timeline_frame(
         let ghost before = frame_views(frames@);
         let ghost old_time = *time;
     }
+    if life == 0 && !instruction.persistent {
+        return Ok(());
+    }
     let fresh = match frames.last() {
         Some(frame) => frame.duration_milliseconds != 0,
         None => true,

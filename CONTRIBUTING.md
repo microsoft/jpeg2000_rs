@@ -122,9 +122,14 @@ Compile targets independently from the main crate:
 
 ```sh
 cargo check --manifest-path fuzz/Cargo.toml --all-targets --locked
+cargo test --manifest-path fuzz/Cargo.toml --lib --locked
 cargo run --manifest-path fuzz/Cargo.toml --bin arbitrary_codestream -- \
   -runs=1000 -max_len=4096
 ```
+
+The fuzz library tests also exercise the structured positive-input builders,
+including empty input and every selector. Nested association fixtures retain
+at least two immediate children per association.
 
 Smoke runs do not establish coverage or sanitizer completeness. Use an
 appropriately instrumented cargo-fuzz/nightly setup for sustained campaigns.

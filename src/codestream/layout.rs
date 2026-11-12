@@ -572,6 +572,13 @@ impl<'a> Parser<'a> {
         if !pending_mct.is_empty() || !pending_mcc.is_empty() {
             return Err(parser.malformed_here(MalformedKind::MissingRequiredStructure));
         }
+        let incomplete_plm = match plm_groups.last() {
+            Some(last) => last.incomplete_plm_offset(),
+            None => None,
+        };
+        if let Some(offset) = incomplete_plm {
+            return Err(parser.malformed_at(offset, MalformedKind::InvalidMarkerLength));
+        }
         parser
             .apply_component_bit_depths(&mut image_size, &part2_extensions.component_bit_depths)?;
         #[cfg(verus_keep_ghost)]

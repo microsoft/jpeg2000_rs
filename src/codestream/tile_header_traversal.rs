@@ -282,6 +282,9 @@ impl<'a> Parser<'a> {
                 self.parse_ads(segment, &mut raw.part2_extensions)?;
             }
             NLT => {
+                if raw.part2_extensions.nonlinear_local_count.is_none() {
+                    raw.part2_extensions.nonlinear_local_count = Some(0);
+                }
                 self.parse_nlt(segment, components, &mut raw.part2_extensions)?;
             }
             ATK => {

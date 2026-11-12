@@ -402,7 +402,9 @@ pub(super) fn inverse_nlt_lut_sample(
     if source_info.precision == 0 || source_info.precision > 38 {
         return Err(invalid_image());
     }
-    let source_scale = nlt_power_of_two(source_info.precision)?;
+    let source_scale = nlt_power_of_two(source_info.precision)?
+        .checked_sub(1)
+        .ok_or_else(arithmetic_overflow)?;
     let source_offset = if source_info.signed {
         nlt_power_of_two(source_info.precision - 1)?
     } else {
@@ -411,7 +413,7 @@ pub(super) fn inverse_nlt_lut_sample(
     let nominal = source
         .checked_add(source_offset)
         .ok_or_else(arithmetic_overflow)?;
-    if nominal < 0 || nominal >= source_scale {
+    if nominal < 0 || nominal > source_scale {
         return Err(invalid_image());
     }
     let raw = nlt_lut_position(points, source_scale, nominal, minimum, maximum)?;

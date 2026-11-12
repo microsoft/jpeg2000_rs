@@ -620,7 +620,14 @@ fn raw_tile_header_packet_conflicts_and_ordered_partial_counters_survive_errors(
                 main_lengths,
                 main_headers
             ),
-            Err(input_error_literal(37, MalformedKind::InvalidMarkerOrder))
+            Err(input_error_literal(
+                37,
+                if marker == PLT {
+                    MalformedKind::InvalidMarkerLength
+                } else {
+                    MalformedKind::InvalidMarkerOrder
+                }
+            ))
         );
         assert_eq!(raw.has_functional_header_marker, marker == PPT);
         assert_eq!(
@@ -700,7 +707,7 @@ fn raw_tile_header_packet_conflicts_and_ordered_partial_counters_survive_errors(
 #[test]
 fn actual_tile_header_traversal_joins_real_producers_and_existing_caller_finalizers() {
     let [cod, qcd] = baseline_headers();
-    let [mct_first, mct_last] = mct_i16_segmented(1, 1, &[1], 1);
+    let [mct_first, mct_last] = mct_i16_segmented(1, 1, &[1, 1], 1);
     let headers = [
         qcd,
         cod,
