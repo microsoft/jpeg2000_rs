@@ -5251,8 +5251,9 @@ class FrameworkTests(WorkingFiles):
         ):
             source = framework.ROOT / name
             original = source.read_text()
-            self.assertIn(before, original)
-            changed = original.replace(before, after, 1)
+            start = original.index("pub fn decode_codestream(") if name == "src/decode/api.rs" else 0
+            self.assertIn(before, original[start:])
+            changed = original[:start] + original[start:].replace(before, after, 1)
 
             def altered(path, *args, **kwargs):
                 return changed if path == source else read_text(path, *args, **kwargs)
