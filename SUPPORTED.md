@@ -142,6 +142,11 @@ The implementation contains:
   and body accounting, with byte limits and stuffing errors checked first.
 - The five Part 1 progression orders and POC sequencing, not additional Part 2
   progression-order extensions.
+  Correctly framed trailing whole-packet prefixes are accepted after at least
+  one complete physical packet. Remaining coordinates must still cover the
+  declared grid; packet-length and packed-header metadata remain checked.
+  Mid-header/body damage, missing outer framing and unclaimed trailers are
+  not repaired by this admission.
 - Legacy MQ and raw-bypass Tier-1 passes, coding-style routing, and Maxshift undo.
 - HT cleanup, significance propagation, magnitude refinement, placeholder and
   replacement pass sets, and mixed legacy/HT routing.
