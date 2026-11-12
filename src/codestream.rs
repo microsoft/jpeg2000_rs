@@ -633,6 +633,7 @@ use mct_resolution::{
     replace_mct_array, replace_mct_record, u8_list_contains, validate_parallel_collections,
     validate_unique_mct_array_indexes, validate_unique_mct_record_indexes,
 };
+pub(crate) use mct_resolution::{reversible_mct_scale, validate_reversible_mct_coefficients};
 #[cfg_attr(verus_keep_ghost, verifier::verify)]
 mod packet_headers;
 #[cfg(test)]

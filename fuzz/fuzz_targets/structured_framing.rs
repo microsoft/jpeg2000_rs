@@ -215,6 +215,7 @@ fn make_codestream(
     matrix.extend_from_slice(&0x0101_u16.to_be_bytes());
     matrix.extend_from_slice(&0_u16.to_be_bytes());
     matrix.extend_from_slice(&1_i16.to_be_bytes());
+    matrix.extend_from_slice(&1_i16.to_be_bytes());
     bytes.extend(if roi_shift & 0x40 == 0 {
         segment(MCT, &matrix)
     } else {
@@ -309,6 +310,7 @@ fn make_codestream(
         let mut tile_matrix = 0_u16.to_be_bytes().to_vec();
         tile_matrix.extend_from_slice(&0x0101_u16.to_be_bytes());
         tile_matrix.extend_from_slice(&0_u16.to_be_bytes());
+        tile_matrix.extend_from_slice(&1_i16.to_be_bytes());
         tile_matrix.extend_from_slice(&2_i16.to_be_bytes());
         bytes.extend(segment(MCT, &tile_matrix));
         bytes.extend(segment(MCO, &[2, 2, 1]));

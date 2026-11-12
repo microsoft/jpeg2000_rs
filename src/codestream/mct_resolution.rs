@@ -18,6 +18,108 @@ use super::{
 use vstd::prelude::*;
 
 #[cfg_attr(verus_keep_ghost, verus_spec(result =>
+    ensures result == crate::specs::part2_reversible_mct_scale(value, signed),
+))]
+pub(crate) fn reversible_mct_scale(value: i64, signed: bool) -> Result<i128, DecodeError> {
+    if value == 0 || (value < 0 && !signed) {
+        return Err(DecodeError::malformed(0, MalformedKind::InvalidTransform));
+    }
+    let magnitude = if value < 0 {
+        -i128::from(value)
+    } else {
+        i128::from(value)
+    };
+    let mut remaining = magnitude;
+    #[cfg_attr(verus_keep_ghost, verus_spec(
+        invariant remaining > 0,
+            magnitude > 0,
+            value != 0,
+            signed || value > 0,
+            magnitude == if value < 0 { -(value as int) } else { value as int },
+            crate::specs::part2_mct_power_of_two(magnitude as int)
+                == crate::specs::part2_mct_power_of_two(remaining as int),
+        decreases remaining,
+    ))]
+    while remaining > 1 {
+        #[cfg(verus_keep_ghost)]
+        proof! { reveal_with_fuel(crate::specs::part2_mct_power_of_two, 2); }
+        if remaining % 2 != 0 {
+            return Err(DecodeError::malformed(0, MalformedKind::InvalidTransform));
+        }
+        remaining /= 2;
+    }
+    Ok(magnitude)
+}
+
+#[cfg_attr(verus_keep_ghost, verus_spec(result =>
+    ensures result == crate::specs::part2_validate_reversible_mct_coefficients(values@, count),
+))]
+pub(crate) fn validate_reversible_mct_coefficients(
+    values: &[i64],
+    count: usize,
+) -> Result<(), DecodeError> {
+    if count == 0 {
+        return Err(DecodeError::malformed(0, MalformedKind::InvalidTransform));
+    }
+    let stages = match count.checked_add(1) {
+        Some(value) => value,
+        None => return Err(DecodeError::malformed(0, MalformedKind::ArithmeticOverflow)),
+    };
+    let expected = match count.checked_mul(stages) {
+        Some(value) => value,
+        None => return Err(DecodeError::malformed(0, MalformedKind::ArithmeticOverflow)),
+    };
+    if values.len() != expected {
+        return Err(DecodeError::malformed(0, MalformedKind::InvalidTransform));
+    }
+    #[cfg(verus_keep_ghost)]
+    proof! { crate::proofs::production_impl::production_mct_scale_empty(values@, count); }
+    let mut stage = 0_usize;
+    #[cfg_attr(verus_keep_ghost, verus_spec(
+        invariant stage <= stages,
+            count > 0,
+            stages as int == count as int + 1,
+            expected as int == count as int * stages as int,
+            values@.len() == expected,
+            crate::specs::part2_mct_scale_prefix(values@, count, stage as nat) == Ok(()),
+        decreases stages - stage,
+    ))]
+    while stage < stages {
+        #[cfg(verus_keep_ghost)]
+        proof! {
+            crate::proofs::production_impl::production_mct_scale_step(values@, count, stage as nat);
+            crate::proofs::production_impl::production_mct_scale_error(values@, count, stage as nat + 1, stages as nat);
+        }
+        let target = if stage == count {
+            count - 1
+        } else {
+            count - 1 - stage
+        };
+        #[cfg(verus_keep_ghost)]
+        proof! {
+            assert(target < count);
+            assert((stage as int) * (count as int) + (target as int) < (expected as int)) by (nonlinear_arith)
+                requires stage < stages, target < count, count > 0,
+                    expected as int == count as int * stages as int;
+        }
+        let start = stage
+            .checked_mul(count)
+            .ok_or_else(|| DecodeError::malformed(0, MalformedKind::ArithmeticOverflow))?;
+        let index = start
+            .checked_add(target)
+            .ok_or_else(|| DecodeError::malformed(0, MalformedKind::ArithmeticOverflow))?;
+        reversible_mct_scale(
+            *values
+                .get(index)
+                .ok_or_else(|| DecodeError::malformed(0, MalformedKind::InvalidTransform))?,
+            stage == count,
+        )?;
+        stage += 1;
+    }
+    Ok(())
+}
+
+#[cfg_attr(verus_keep_ghost, verus_spec(result =>
     ensures result == crate::specs::part1_byte_list_contains(values@, value),
 ))]
 pub(super) fn u8_list_contains(values: &[u8], value: u8) -> bool {
@@ -199,6 +301,12 @@ impl<'a> Parser<'a> {
                 {
                     return Err(self.malformed_at(0, MalformedKind::InvalidTransform));
                 }
+                if let (true, Some(matrix)) = (
+                    reversible && mct_array_kinds_equal(kind, MctArrayKind::Decorrelation),
+                    &matrix,
+                ) {
+                    validate_reversible_mct_coefficients(&matrix.values, rows)?;
+                }
                 MctCollection {
                     reversible,
                     input_components: reference.input_components.clone(),
@@ -238,7 +346,15 @@ impl<'a> Parser<'a> {
         reversible: bool,
     ) -> Result<usize, DecodeError> {
         if mct_array_kinds_equal(kind, MctArrayKind::Decorrelation) {
-            match rows.checked_mul(columns) {
+            let stages = if reversible {
+                match columns.checked_add(1) {
+                    Some(value) => value,
+                    None => return Err(self.malformed_at(0, MalformedKind::ArithmeticOverflow)),
+                }
+            } else {
+                columns
+            };
+            match rows.checked_mul(stages) {
                 Some(value) => Ok(value),
                 None => Err(self.malformed_at(0, MalformedKind::ArithmeticOverflow)),
             }

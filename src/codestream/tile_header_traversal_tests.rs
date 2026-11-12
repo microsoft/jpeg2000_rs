@@ -707,7 +707,7 @@ fn raw_tile_header_packet_conflicts_and_ordered_partial_counters_survive_errors(
 #[test]
 fn actual_tile_header_traversal_joins_real_producers_and_existing_caller_finalizers() {
     let [cod, qcd] = baseline_headers();
-    let [mct_first, mct_last] = mct_i16_segmented(1, 1, &[1], 1);
+    let [mct_first, mct_last] = mct_i16_segmented(1, 1, &[1, 1], 1);
     let headers = [
         qcd,
         cod,

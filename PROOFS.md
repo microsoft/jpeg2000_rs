@@ -2337,7 +2337,10 @@ registry premise.
 The sole collection body checks nonzero/equal dimensions, resolves offsets
 before matrices with zero-index bypasses, executes actual checked element
 arithmetic, then rejects bad dimensions or floating reversible arrays. The
-count model preserves overflow of the intermediate product before halving,
+reversible decorrelation branch requires `N*(N+1)` coefficients and validates
+positive power-of-two regular pivots and a power-of-two final pivot magnitude;
+irreversible decorrelation retains `N*N`. Missing matrices retain identity.
+The count model preserves overflow of the intermediate product before halving,
 reversible row increment and final subtraction, including arbitrary native
 usize boundaries. The raw Offset kind retains its original non-Dependency
 collection-kind mapping rather than being normalized out.
@@ -3406,8 +3409,10 @@ whole reconstruction composition remain open.
 
 ## Actual native decorrelation row computation
 
-The real decorrelation pixel loop now calls one proved row dispatcher and one
-proved ordered row-append loop. The dispatcher includes both matrix branches
+The real decorrelation pixel loop calls one proved row dispatcher and one
+proved ordered row-append loop. Reversible matrices use the staged producer
+described below, computed once per pixel and reused by the append loop.
+The dispatcher includes both matrix branches
 and both lazy None branches over the complete native source/precision domains.
 It retains source-before-precision-before-offset error order, nearest-magnitude
 Q32 rescaling, checked i128 addition and final i64 conversion. The sole native
@@ -3415,8 +3420,9 @@ arithmetic bodies are shared with the existing matrix-row producers.
 
 The row-loop relation includes every initial scratch value and every value
 appended before the first error. Empty row ranges perform no validation; later
-failures preserve earlier output rows. The original scratch vectors, capacity,
-clear order and all-rows-before-component-stores policy remain intact. An
+failures preserve earlier output rows. The original source/output clear order and all-rows-before-component-stores
+policy remain intact. Reversible matrices additionally admit one bounded
+temporary vector, as described below. An
 explicit early-return loop invariant retains the real old scratch sequence,
 not a supplied result or normalized input premise.
 
@@ -3427,6 +3433,52 @@ numeric error, no current-pixel stores before every row succeeds, final-only
 precision updates and exact charged work. These tests do not replace the still
 open whole collection/dependency/wavelet/stage composition proofs or qualify
 general MCT against an independent external oracle.
+
+## Reversible integer decorrelation engineering profile
+
+The executing resolver, preparation, arithmetic and cached row producer now
+implement the retained reversible-decorrelation requirement together. A present
+integer array has `N*(N+1)` row-major values. The first `N` stages update one
+component each, from component `N-1` down to zero; the final stage updates
+component `N-1` again. Every update is visible to the following stage.
+Each prediction uses only non-target components, the magnitude of the
+target-column scale, and mathematical floor after adding half that scale.
+Regular scales must be positive powers of two. The final scale may be negative;
+its sign applies after prediction subtraction. Integer offsets apply only
+after all stages. The existing component lists provide the mapping.
+
+The source is T.801 (06/2021), J.3.1.1.3, Figure J.7 and O.3.2, identified
+in [REFERENCES.md](REFERENCES.md). The printed final-stage equation appears
+to include its target/scale entry in the sum. That reading cancels the last
+sample for a positive scale and contradicts the diagram, explicit explanation
+of off-diagonal contributions, reversibility, and missing-matrix identity.
+This engineering interpretation therefore excludes the target consistently
+at every stage. The final-scale sign follows the signed equation and example
+despite an apparent contradictory positive-only phrase. The illustrative
+example's inconsistent intermediate arithmetic is not an executable oracle.
+These discrepancies remain disclosed; no independent standards closure or
+selected-2023-edition reconciliation is inferred.
+
+The full Result models derive every count, scale, checked wide product/sum,
+rounding operation, target update and output offset from actual array/sample
+values. Explicit induction covers scale admission, sequential stage state and
+first-error propagation. No supplied numerical result, successful transform
+or normalized metadata premise replaces an executing producer.
+The transform is computed once per pixel, retaining quadratic work rather than
+recomputing it for each output. The additional temporary is admitted before
+execution: three `N`-sample vectors and `samples*N*(N+2)` work units under the
+unchanged caps. Stage errors leave the caller's output prefix unchanged;
+offset errors retain already appended rows. Components are not stored until
+all output rows succeed, and earlier completed pixels remain unchanged by a
+later failure.
+
+Focused native tests include literal stage-order/negative-half-tie/signed-scale/
+post-offset results, 512 independently reversed integer-lifting controls,
+63-component identity, invalid scales and integer overflow. Existing real
+raw/JP2/selected-JPX controls use legal single-component staged arrays with a
+signed final stage, preserving an observable order distinction.
+These controls and the as-implemented proof do not constitute an independent
+whole-codec array-MCT conformance oracle.
 
 ## Complete actual native decorrelation collection
 
@@ -4655,8 +4707,10 @@ clients consume that fact without revealing private representation or raising
 proof budgets. Equal source/destination precision bypasses later shift checks,
 including native precision255, exactly as the body does.
 
-The actual reversible and per-source-fraction matrix-row loops refine one
-shared declarative dot fold. Coefficient indexing, native row multiplication,
+The actual per-source-fraction matrix-row loop refines its declarative dot
+fold. Reversible decorrelation instead uses the
+[sequential integer producer](#reversible-integer-decorrelation-engineering-profile).
+Coefficient indexing, native row multiplication,
 precision/offset admission, every checked wide term/sum and final narrowing
 are ordered exactly; empty rows and malformed physical arrays are not
 normalized. Full matrix/offset/source/fraction/row inputs are bound, not

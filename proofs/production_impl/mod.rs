@@ -1221,6 +1221,102 @@ pub proof fn production_mct_store_rows_error(
     }
 }
 
+pub proof fn production_mct_scale_empty(values: Seq<i64>, width: usize)
+    ensures crate::specs::part2_mct_scale_prefix(values, width, 0) == Ok(()),
+{
+    reveal_with_fuel(crate::specs::part2_mct_scale_prefix, 1);
+}
+
+pub proof fn production_mct_scale_step(values: Seq<i64>, width: usize, count: nat)
+    ensures crate::specs::part2_mct_scale_prefix(values, width, count + 1)
+        == match crate::specs::part2_mct_scale_prefix(values, width, count) {
+            Err(error) => Err(error),
+            Ok(()) => crate::specs::part2_mct_scale_at(values, width, count),
+        },
+{
+    reveal_with_fuel(crate::specs::part2_mct_scale_prefix, 1);
+}
+
+pub proof fn production_mct_scale_error(values: Seq<i64>, width: usize, count: nat, end: nat)
+    requires count <= end,
+    ensures crate::specs::part2_mct_scale_prefix(values, width, count).is_err()
+        ==> crate::specs::part2_mct_scale_prefix(values, width, end)
+            == crate::specs::part2_mct_scale_prefix(values, width, count),
+    decreases end - count,
+{
+    if count < end {
+        production_mct_scale_error(values, width, count, (end - 1) as nat);
+        production_mct_scale_step(values, width, (end - 1) as nat);
+    }
+}
+
+pub proof fn production_mct_serm_sum_empty(
+    initial: i128, matrix: crate::specs::Part2MctArray, source: Seq<i64>, start: usize, target: usize,
+)
+    ensures crate::specs::part2_reversible_mct_sum(initial, matrix, source, start, target, 0) == Ok(initial),
+{
+    reveal_with_fuel(crate::specs::part2_reversible_mct_sum, 1);
+}
+
+pub proof fn production_mct_serm_sum_step(
+    initial: i128, matrix: crate::specs::Part2MctArray, source: Seq<i64>, start: usize, target: usize, count: nat,
+)
+    ensures crate::specs::part2_reversible_mct_sum(initial, matrix, source, start, target, count + 1)
+        == match crate::specs::part2_reversible_mct_sum(initial, matrix, source, start, target, count) {
+            Err(error) => Err(error),
+            Ok(value) => crate::specs::part2_reversible_mct_term(value, matrix, source, start, target, count),
+        },
+{
+    reveal_with_fuel(crate::specs::part2_reversible_mct_sum, 1);
+}
+
+pub proof fn production_mct_serm_sum_error(
+    initial: i128, matrix: crate::specs::Part2MctArray, source: Seq<i64>, start: usize, target: usize,
+    count: nat, end: nat,
+)
+    requires count <= end,
+    ensures crate::specs::part2_reversible_mct_sum(initial, matrix, source, start, target, count).is_err()
+        ==> crate::specs::part2_reversible_mct_sum(initial, matrix, source, start, target, end)
+            == crate::specs::part2_reversible_mct_sum(initial, matrix, source, start, target, count),
+    decreases end - count,
+{
+    if count < end {
+        production_mct_serm_sum_error(initial, matrix, source, start, target, count, (end - 1) as nat);
+        production_mct_serm_sum_step(initial, matrix, source, start, target, (end - 1) as nat);
+    }
+}
+
+pub proof fn production_mct_serm_stages_empty(matrix: crate::specs::Part2MctArray, source: Seq<i64>)
+    ensures crate::specs::part2_reversible_mct_stages(matrix, source, 0) == Ok(source),
+{
+    reveal_with_fuel(crate::specs::part2_reversible_mct_stages, 1);
+}
+
+pub proof fn production_mct_serm_stages_step(matrix: crate::specs::Part2MctArray, source: Seq<i64>, count: nat)
+    ensures crate::specs::part2_reversible_mct_stages(matrix, source, count + 1)
+        == match crate::specs::part2_reversible_mct_stages(matrix, source, count) {
+            Err(error) => Err(error),
+            Ok(values) => crate::specs::part2_reversible_mct_advance(matrix, values, count),
+        },
+{
+    reveal_with_fuel(crate::specs::part2_reversible_mct_stages, 1);
+}
+
+pub proof fn production_mct_serm_stages_error(
+    matrix: crate::specs::Part2MctArray, source: Seq<i64>, count: nat, end: nat,
+)
+    requires count <= end,
+    ensures crate::specs::part2_reversible_mct_stages(matrix, source, count).is_err()
+        ==> crate::specs::part2_reversible_mct_stages(matrix, source, end)
+            == crate::specs::part2_reversible_mct_stages(matrix, source, count),
+    decreases end - count,
+{
+    if count < end {
+        production_mct_serm_stages_error(matrix, source, count, (end - 1) as nat);
+        production_mct_serm_stages_step(matrix, source, (end - 1) as nat);
+    }
+}
+
 pub proof fn production_mct_rows_empty(
     initial: Seq<i64>, collection: crate::specs::Part2MctCollection, source: Seq<i64>, fractions: Seq<u8>,
 )

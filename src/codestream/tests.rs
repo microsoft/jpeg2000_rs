@@ -8132,7 +8132,7 @@ fn parses_and_retains_bounded_part2_matrix_and_offset_transform() {
         &[
             cod,
             qcd,
-            mct_i16(1, 1, &[1, 2, 3, 4]),
+            mct_i16(1, 1, &[1, 2, 4, 3, 5, -8]),
             mct_i16(2, 2, &[5, 6]),
             mcc(7, 2, true, 1, 2),
             mco(&[7]),
@@ -8150,7 +8150,7 @@ fn parses_and_retains_bounded_part2_matrix_and_offset_transform() {
     assert_eq!(collection.input_components(), &[0, 1]);
     assert_eq!(collection.output_components(), &[0, 1]);
     assert_eq!(collection.matrix().unwrap().index(), 1);
-    assert_eq!(collection.matrix().unwrap().values(), &[1, 2, 3, 4]);
+    assert_eq!(collection.matrix().unwrap().values(), &[1, 2, 4, 3, 5, -8]);
     assert_eq!(collection.offsets().unwrap().values(), &[5, 6]);
 }
 
@@ -8158,7 +8158,7 @@ fn parses_and_retains_bounded_part2_matrix_and_offset_transform() {
 fn reassembles_segmented_mct_and_mcc_with_contiguous_indexes() {
     let cod = segment(COD, &[0, 0, 0, 1, 0, 0, 2, 2, 0, 1]);
     let qcd = segment(QCD, &[0, 0]);
-    let matrix = mct_i16_segmented(1, 1, &[1, 2, 3, 4], 3);
+    let matrix = mct_i16_segmented(1, 1, &[1, 2, 4, 3, 5, -8], 3);
     let record = segmented_mcc(&mcc(7, 2, true, 1, 0), 5);
     let bytes = codestream_with_headers(
         2,
@@ -8184,7 +8184,7 @@ fn reassembles_segmented_mct_and_mcc_with_contiguous_indexes() {
             .matrix()
             .unwrap()
             .values(),
-        &[1, 2, 3, 4]
+        &[1, 2, 4, 3, 5, -8]
     );
 }
 
@@ -8383,13 +8383,13 @@ fn resolves_multiple_records_collections_subsets_permutations_and_tile_override(
         &[
             cod,
             qcd,
-            mct_i16(1, 1, &[1, 0, 0, 1]),
-            mct_i16(2, 1, &[1]),
+            mct_i16(1, 1, &[0, 1, 1, 0, 0, 1]),
+            mct_i16(2, 1, &[1, 1]),
             mcc_collections(7, &[(&[0, 2], &[2, 0], true, 1, 0)]),
             mcc_collections(8, &[(&[0], &[0], true, 2, 0), (&[1], &[1], true, 2, 0)]),
             mco(&[7, 8]),
         ],
-        &[mct_i16(2, 1, &[2]), mco(&[8, 7])],
+        &[mct_i16(2, 1, &[1, 2]), mco(&[8, 7])],
         &[],
     );
     let limits = ResourceLimits::default();
@@ -8413,7 +8413,7 @@ fn resolves_multiple_records_collections_subsets_permutations_and_tile_override(
     assert_eq!(tile.stages()[0].index(), 8);
     assert_eq!(
         tile.stages()[0].collections()[0].matrix().unwrap().values(),
-        &[2]
+        &[1, 2]
     );
 }
 
@@ -8426,7 +8426,7 @@ fn accepts_combined_part1_and_ordered_part2_inverse_transforms() {
         &[
             cod,
             qcd,
-            mct_i16(1, 1, &[1, 0, 0, 0, 1, 0, 0, 0, 1]),
+            mct_i16(1, 1, &[0, 0, 1, 0, 1, 0, 1, 0, 0, 0, 0, 1]),
             mcc(7, 3, true, 1, 0),
             mco(&[7]),
         ],
@@ -12042,8 +12042,9 @@ fn reference_mct_graph_element_count(
     let wide = rows as u128;
     let maximum = usize::MAX as u128;
     let result = if kind == MctArrayKind::Decorrelation {
-        let product = wide * columns as u128;
-        if product > maximum {
+        let partner = columns as u128 + u128::from(reversible);
+        let product = wide * partner;
+        if partner > maximum || product > maximum {
             return Err(error);
         }
         product
@@ -12132,6 +12133,22 @@ fn reference_mct_graph_collection(
                 array.values.len() != expected || (reversible && array.fraction_bits != 0)
             }) {
                 return Err(invalid);
+            }
+            if reversible
+                && kind == MctArrayKind::Decorrelation
+                && let Some(matrix) = &matrix
+            {
+                for stage in 0..=rows {
+                    let target = if stage == rows {
+                        rows - 1
+                    } else {
+                        rows - 1 - stage
+                    };
+                    let scale = matrix.values[stage * rows + target];
+                    if !scale.unsigned_abs().is_power_of_two() || (stage < rows && scale < 0) {
+                        return Err(invalid);
+                    }
+                }
             }
             Ok(MctCollection {
                 reversible,
@@ -12312,6 +12329,20 @@ fn actual_mct_graph_collections_preserve_lookup_shape_flags_and_all_fields() {
                                         _ => expected + 1,
                                     }
                                 ];
+                                if reversible && kind == MctArrayKind::Decorrelation && rows > 0 {
+                                    for stage in 0..=rows {
+                                        let target = if stage == rows {
+                                            rows - 1
+                                        } else {
+                                            rows - 1 - stage
+                                        };
+                                        if let Some(scale) =
+                                            matrix.values.get_mut(stage * rows + target)
+                                        {
+                                            *scale = if stage == rows { -4 } else { 2 };
+                                        }
+                                    }
+                                }
                                 let mut offsets = raw_mct_registry_array(8, variant + 1);
                                 offsets.kind = MctArrayKind::Offset;
                                 offsets.fraction_bits =

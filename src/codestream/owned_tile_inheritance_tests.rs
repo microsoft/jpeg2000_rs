@@ -165,8 +165,8 @@ fn actual_layout_owned_inheritance_retains_all_four_owner_families_between_parts
         segment(QCD, &[0x40, 0]),
         poc(&[[0, 0, 0, 3, 1, 1, 0]]),
         segment(DFS, &[0, 1, 1, 0x40]),
-        mct_i16(1, 1, &[3]),
-        mct_i16(200, 1, &[9]),
+        mct_i16(1, 1, &[1, 4]),
+        mct_i16(200, 1, &[1, 8]),
         mcc(7, 1, true, 1, 0),
         mco(&[7]),
     ];
@@ -175,7 +175,7 @@ fn actual_layout_owned_inheritance_retains_all_four_owner_families_between_parts
     let limits = ResourceLimits::default();
     let layout = parse_layout(&bytes, &limits).unwrap();
     assert_eq!(layout.tile_parts.len(), 2);
-    for (index, matrix) in [(0, 3), (1, 9)] {
+    for (index, matrix) in [(0, 4), (1, 8)] {
         let payload = &layout.tile_parts[index];
         assert_eq!(
             payload
@@ -202,7 +202,7 @@ fn actual_layout_owned_inheritance_retains_all_four_owner_families_between_parts
                 .matrix()
                 .unwrap()
                 .values(),
-            &[matrix],
+            &[1, matrix],
         );
         assert_eq!(payload.data, &[0]);
     }

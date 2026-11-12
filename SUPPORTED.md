@@ -153,6 +153,11 @@ The implementation contains:
   are not asserted identical across independent codecs.
 - Part 2 MCT/MCC/MCO transforms and segmented records; directional/general
   decomposition and kernel metadata via DFS/ADS/ATK; CRG, NLT, and CBD handling.
+  Reversible decorrelation uses `N*(N+1)` integer coefficients for sequential
+  single-component updates, power-of-two scales, a possibly signed final scale,
+  floor-based half-biased predictions, and offsets after all stages complete.
+  Irreversible decorrelation retains its `N*N` matrix path. The 2021-source
+  interpretation and its limits are described in [PROOFS.md](PROOFS.md#reversible-integer-decorrelation-engineering-profile).
   ATK half-filter taps retain absolute low/high band phase on odd-origin axes.
   Its Q32 arithmetic preserves exact signed unit scaling and rounds nearest
   with ties away from zero, subject to checked range and shift limits.

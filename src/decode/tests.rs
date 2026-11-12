@@ -3134,17 +3134,18 @@ fn complete_coefficient_reconstruction_preserves_prefix_mct_and_error_frontiers(
                                         kind: MalformedKind::InvalidCodingStyle,
                                     })
                                 } else if with_mct {
-                                    expected_work += 2;
-                                    if maximum < 16 {
+                                    expected_work += if reversible { 3 } else { 2 };
+                                    let scratch = if reversible { 24 } else { 16 };
+                                    if maximum < scratch {
                                         Err(DecodeError::LimitExceeded {
                                             resource: Resource::DecodedBytes,
                                             limit: maximum,
-                                            actual: 16,
+                                            actual: scratch,
                                         })
                                     } else {
                                         for value in &mut expected[1].samples {
                                             *value = if reversible {
-                                                *value * 2 + 1
+                                                *value + 1
                                             } else {
                                                 i64::try_from(
                                                     i128::from(*value) * 2 * (1_i128 << 16)
@@ -3183,7 +3184,7 @@ fn complete_coefficient_reconstruction_preserves_prefix_mct_and_error_frontiers(
                                             reversible,
                                             vec![0],
                                             vec![0],
-                                            array(vec![2]),
+                                            array(if reversible { vec![1, 2] } else { vec![2] }),
                                             Some(array(vec![1])),
                                         )],
                                     ),
@@ -3690,7 +3691,7 @@ fn add_plt(mut bytes: Vec<u8>, lengths: &[u8]) -> Vec<u8> {
     bytes
 }
 
-fn add_single_component_mct(mut bytes: Vec<u8>, matrix: i16, offset: i16) -> Vec<u8> {
+fn add_single_component_mct(mut bytes: Vec<u8>, final_scale: i16, offset: i16) -> Vec<u8> {
     let sot = bytes
         .windows(2)
         .position(|window| window == 0xff90_u16.to_be_bytes())
@@ -3699,7 +3700,8 @@ fn add_single_component_mct(mut bytes: Vec<u8>, matrix: i16, offset: i16) -> Vec
     let mut matrix_payload = 0_u16.to_be_bytes().to_vec();
     matrix_payload.extend_from_slice(&0x0101_u16.to_be_bytes());
     matrix_payload.extend_from_slice(&0_u16.to_be_bytes());
-    matrix_payload.extend_from_slice(&matrix.to_be_bytes());
+    matrix_payload.extend_from_slice(&1_i16.to_be_bytes());
+    matrix_payload.extend_from_slice(&final_scale.to_be_bytes());
     markers.extend(segment(0xff74, &matrix_payload));
     let mut offset_payload = 0_u16.to_be_bytes().to_vec();
     offset_payload.extend_from_slice(&0x0202_u16.to_be_bytes());
@@ -3715,7 +3717,7 @@ fn add_single_component_mct(mut bytes: Vec<u8>, matrix: i16, offset: i16) -> Vec
     bytes
 }
 
-fn add_second_component_mct_stage(mut bytes: Vec<u8>, matrix: i16, offset: i16) -> Vec<u8> {
+fn add_second_component_mct_stage(mut bytes: Vec<u8>, final_scale: i16, offset: i16) -> Vec<u8> {
     let mco = bytes
         .windows(2)
         .position(|window| window == 0xff77_u16.to_be_bytes())
@@ -3724,7 +3726,8 @@ fn add_second_component_mct_stage(mut bytes: Vec<u8>, matrix: i16, offset: i16) 
     let mut matrix_payload = 0_u16.to_be_bytes().to_vec();
     matrix_payload.extend_from_slice(&0x0103_u16.to_be_bytes());
     matrix_payload.extend_from_slice(&0_u16.to_be_bytes());
-    matrix_payload.extend_from_slice(&matrix.to_be_bytes());
+    matrix_payload.extend_from_slice(&1_i16.to_be_bytes());
+    matrix_payload.extend_from_slice(&final_scale.to_be_bytes());
     markers.extend(segment(0xff74, &matrix_payload));
     let mut offset_payload = 0_u16.to_be_bytes().to_vec();
     offset_payload.extend_from_slice(&0x0204_u16.to_be_bytes());
@@ -4735,25 +4738,25 @@ fn applies_ordered_part2_mct_stages_to_raw_jp2_and_selected_jpx_decode() {
         .unwrap();
     codestream[cod + 9] = 0;
     let codestream =
-        add_second_component_mct_stage(add_single_component_mct(codestream, 2, 3), 3, 5);
+        add_second_component_mct_stage(add_single_component_mct(codestream, 2, 3), -4, 5);
     let options = DecodeOptions::default();
     let raw = decode_codestream(&codestream, &options).unwrap();
     assert_eq!(
         raw.component(0).unwrap().samples(),
-        &TypedSamples::Unsigned(vec![141])
+        &TypedSamples::Unsigned(vec![136])
     );
 
     let jp2 = jp2_for_codestream(&codestream, 1, 1);
     let boxed = decode_jp2(&jp2, &options).unwrap();
     assert_eq!(
         boxed.component(0).unwrap().samples(),
-        &TypedSamples::Unsigned(vec![141])
+        &TypedSamples::Unsigned(vec![136])
     );
     let jpx = jpx_for_codestreams(&[codestream.clone(), codestream], 1, 1);
     let selected = decode_jpx_codestream(&jpx, 1, &options).unwrap();
     assert_eq!(
         selected.component(0).unwrap().samples(),
-        &TypedSamples::Unsigned(vec![141])
+        &TypedSamples::Unsigned(vec![136])
     );
 }
 

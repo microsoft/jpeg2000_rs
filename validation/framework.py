@@ -814,6 +814,12 @@ def _reconstruction_contracts() -> dict[tuple[str, str], tuple[str, str, str | N
     prepared_map_final = view("Seq::new", final("prepared") + owner_array,
         r"\|\s*index\s*:\s*int\s*\|\s*" + view("prepared_component_view", final("prepared") + r"\s*@\s*\[\s*index\s*\]"))
     image_contracts = {
+        "inverse_reversible_mct": ("part2_inverse_reversible_mct",
+            view("crate::transform::sequence_outcome", r"\1"), None,
+            args(view("crate::codestream::mct_array_view", "matrix"), "source@")),
+        "prepare_mct_decorrelation": ("part2_mct_prepare_decorrelation",
+            view("mct_decorrelation_preparation_outcome", r"\1"), r"\*\s*" + final("work"),
+            args(view("transform_components_view", "components"), collection, work_old, caps)),
         **{name: (model, r"\1", components_final, args(components_old, collection, work_old, caps))
            for name, model in (
                ("apply_mct_dependency", "part2_mct_dependency"),

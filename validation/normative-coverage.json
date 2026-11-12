@@ -3355,6 +3355,82 @@
       ]
     },
     {
+      "id": "part2-complete-native-reversible-decorrelation-engineering",
+      "topic": "Executing reversible integer decorrelation under the retained-assertion engineering profile and explicitly approved T.801June2021 interpretation. Present arrays have N*(N+1) row-major integer values, positive power-of-two regular pivots and signed power-of-two final magnitude. Sequential stored stages update N-1 down to zero and then N-1 again; non-target checked integer predictions use half bias and mathematical floor, the final sign follows subtraction, and integer offsets follow all stages. Interpret the apparent J-5 target-index inconsistency using FigureJ7, explicit off-diagonal explanation, reversibility and NULL identity; disclose this rather than claiming independent selected-edition closure. Resolver/preparation/complete staged Result/cache/ordered output-prefix failure frames/work and three-vector scratch admission bind actual raw owners and limits. Compute once per pixel with quadratic work; no count-only fix, supplied transform/results, new trust/caps/pins/budgets or termination bypass. Independent standards and whole-codec external-array qualification remain separate.",
+      "implementation_refs": [
+        {"path": "src/codestream/mct_resolution.rs", "symbol": "Parser::resolve_mct_collection"},
+        {"path": "src/codestream/mct_resolution.rs", "symbol": "Parser::expected_mct_elements"},
+        {"path": "src/codestream/mct_resolution.rs", "symbol": "validate_reversible_mct_coefficients"},
+        {"path": "src/codestream/mct_resolution.rs", "symbol": "reversible_mct_scale"},
+        {"path": "src/image/mct_decorrelation.rs", "symbol": "prepare_mct_decorrelation"},
+        {"path": "src/image/mct_decorrelation.rs", "symbol": "apply_mct_decorrelation"},
+        {"path": "src/image/mct_decorrelation.rs", "symbol": "apply_mct_decorrelation_pixel"},
+        {"path": "src/image/mct_decorrelation.rs", "symbol": "append_mct_decorrelation_rows"},
+        {"path": "src/image/mct_decorrelation.rs", "symbol": "decorrelation_mct_row"},
+        {"path": "src/image/mct.rs", "symbol": "inverse_reversible_mct"},
+        {"path": "src/image/mct.rs", "symbol": "reversible_mct_stage"},
+        {"path": "src/image/mct.rs", "symbol": "reversible_mct_row"},
+        {"path": "src/image/mct.rs", "symbol": "reversible_mct_output"},
+        {"path": "src/image/mct.rs", "symbol": "admit_reversible_mct_decorrelation"}
+      ],
+      "spec_refs": [
+        {"path": "specs/mod.rs", "symbol": "part1_mct_graph_collection"},
+        {"path": "specs/mod.rs", "symbol": "part1_mct_graph_element_count"},
+        {"path": "specs/mod.rs", "symbol": "part2_mct_power_of_two"},
+        {"path": "specs/mod.rs", "symbol": "part2_reversible_mct_scale"},
+        {"path": "specs/mod.rs", "symbol": "part2_validate_reversible_mct_coefficients"},
+        {"path": "specs/mod.rs", "symbol": "part2_mct_scale_prefix"},
+        {"path": "specs/mod.rs", "symbol": "part2_mct_scale_at"},
+        {"path": "specs/mod.rs", "symbol": "part2_reversible_mct_stage"},
+        {"path": "specs/mod.rs", "symbol": "part2_reversible_mct_sum"},
+        {"path": "specs/mod.rs", "symbol": "part2_reversible_mct_term"},
+        {"path": "specs/mod.rs", "symbol": "part2_reversible_mct_stages"},
+        {"path": "specs/mod.rs", "symbol": "part2_reversible_mct_advance"},
+        {"path": "specs/mod.rs", "symbol": "part2_inverse_reversible_mct"},
+        {"path": "specs/mod.rs", "symbol": "part2_reversible_mct_row"},
+        {"path": "specs/mod.rs", "symbol": "part2_reversible_mct_output"},
+        {"path": "specs/mod.rs", "symbol": "part2_reversible_mct_admission"},
+        {"path": "specs/mod.rs", "symbol": "part2_mct_prepare_decorrelation"},
+        {"path": "specs/mod.rs", "symbol": "part2_mct_decorrelation_rows"}
+      ],
+      "contract_refs": [
+        {"path": "src/codestream/mct_resolution.rs", "symbol": "Parser::expected_mct_elements"},
+        {"path": "src/codestream/mct_resolution.rs", "symbol": "validate_reversible_mct_coefficients"},
+        {"path": "src/codestream/mct_resolution.rs", "symbol": "reversible_mct_scale"},
+        {"path": "src/image/mct_decorrelation.rs", "symbol": "prepare_mct_decorrelation"},
+        {"path": "src/image/mct_decorrelation.rs", "symbol": "append_mct_decorrelation_rows"},
+        {"path": "src/image/mct.rs", "symbol": "inverse_reversible_mct"},
+        {"path": "src/image/mct.rs", "symbol": "reversible_mct_stage"},
+        {"path": "src/image/mct.rs", "symbol": "reversible_mct_row"},
+        {"path": "src/image/mct.rs", "symbol": "reversible_mct_output"},
+        {"path": "src/image/mct.rs", "symbol": "admit_reversible_mct_decorrelation"}
+      ],
+      "proof_refs": [
+        {"path": "src/codestream/proof_support.rs", "symbol": "mct_array_view"},
+        {"path": "src/codestream/proof_support.rs", "symbol": "mct_collection_view"},
+        {"path": "proofs/production_impl/mod.rs", "symbol": "production_mct_scale_empty"},
+        {"path": "proofs/production_impl/mod.rs", "symbol": "production_mct_scale_step"},
+        {"path": "proofs/production_impl/mod.rs", "symbol": "production_mct_scale_error"},
+        {"path": "proofs/production_impl/mod.rs", "symbol": "production_mct_serm_sum_empty"},
+        {"path": "proofs/production_impl/mod.rs", "symbol": "production_mct_serm_sum_step"},
+        {"path": "proofs/production_impl/mod.rs", "symbol": "production_mct_serm_sum_error"},
+        {"path": "proofs/production_impl/mod.rs", "symbol": "production_mct_serm_stages_empty"},
+        {"path": "proofs/production_impl/mod.rs", "symbol": "production_mct_serm_stages_step"},
+        {"path": "proofs/production_impl/mod.rs", "symbol": "production_mct_serm_stages_error"},
+        {"path": "proofs/production_impl/mod.rs", "symbol": "production_mct_rows_step"},
+        {"path": "proofs/production_impl/mod.rs", "symbol": "production_mct_rows_error"}
+      ],
+      "test_refs": [
+        {"path": "src/image/tests.rs", "symbol": "t801_reversible_mct_stages_keep_order_signed_ties_and_post_transform_offsets"},
+        {"path": "src/image/tests.rs", "symbol": "t801_reversible_mct_matches_independently_reversed_integer_lifting"},
+        {"path": "src/image/tests.rs", "symbol": "t801_reversible_mct_rejects_bad_scales_and_reports_integer_overflow"},
+        {"path": "src/image/tests.rs", "symbol": "native_mct_preparation_derives_real_ordered_indexes_fractions_and_late_work_errors"},
+        {"path": "src/decode/tests.rs", "symbol": "applies_ordered_part2_mct_stages_to_raw_jp2_and_selected_jpx_decode"},
+        {"path": "src/decode/raw_typed_result_tests.rs", "symbol": "actual_raw_typed_result_joins_real_packed_packets_mct_and_nonlinear_regions"},
+        {"path": "src/codestream/tests.rs", "symbol": "actual_mct_graph_collections_preserve_lookup_shape_flags_and_all_fields"}
+      ]
+    },
+    {
       "id": "part2-complete-native-mct-registry-production",
       "topic": "Actual raw MCT array/record first-index lookup, last-element-only duplicate admission, first-index replace-or-append and unique (index,kind) borrowed array reference. Full array index/kind/format/fraction/value and every record/collection/reference field remain unconstrained and observed. Earlier duplicate IDs do not fail admission when the last ID is unique; replacement is by index only and preserves later duplicates/order. Reference lookup ignores other kinds, errors at offset zero on zero or multiple matching arrays, and does not validate numerical values or dimensions. Unit-return mutations bind complete old/final vectors without signature changes. No prepared registries, uniqueness/normalization premises, result banks, new trust/caps/pins/budgets or termination bypass. Actual graph dimensions/resolution and outer parser/F2/F4/F8 joins remain separate.",
       "implementation_refs": [
@@ -5843,6 +5919,8 @@
       "id": "part2-complete-native-coefficient-component-reconstruction",
       "topic": "Complete actual supplied-coefficient reconstruction: raw plan/style/first-match kernel lookup, ROI/quantization and standard/arbitrary inverse preparation, all actual MCT collection kinds and reverse stages, owner-buffer alias joins, standard RCT/ICT, and full/selected assembly. Complete Result/deep mutable state/work/native-limit relations have no supplied plan-success, normalized-layout, adequate-budget, trace or decoder-outcome premise. Public standalone APIs are explicit proof support, not fabricated internal consumers. Computational selected native scope, not compressed parser-to-pixel or normative/official-vector conformance.",
       "implementation_refs": [
+        {"path": "src/image/mct_decorrelation.rs", "symbol": "append_mct_decorrelation_rows"},
+        {"path": "src/image/mct_decorrelation.rs", "symbol": "apply_mct_decorrelation"},
         {"path": "src/image/mct.rs", "symbol": "apply_mct_collection"},
         {"path": "src/image/mct.rs", "symbol": "apply_mct_stage"},
         {"path": "src/image/mct.rs", "symbol": "apply_multiple_component_transform_components"},
@@ -5856,6 +5934,8 @@
         {"path": "src/decode/execution.rs", "symbol": "decode_layout_selected"}
       ],
       "spec_refs": [
+        {"path": "specs/mod.rs", "symbol": "part2_inverse_reversible_mct"},
+        {"path": "specs/mod.rs", "symbol": "part2_mct_prepare_decorrelation"},
         {"path": "specs/mod.rs", "symbol": "part2_mct_dependency"},
         {"path": "specs/mod.rs", "symbol": "part2_mct_decorrelation"},
         {"path": "specs/mod.rs", "symbol": "part2_mct_wavelet"},
@@ -5873,6 +5953,8 @@
         {"path": "specs/mod.rs", "symbol": "part2_kernel_registry_lookup"}
       ],
       "contract_refs": [
+        {"path": "src/image/mct.rs", "symbol": "inverse_reversible_mct"},
+        {"path": "src/image/mct_decorrelation.rs", "symbol": "prepare_mct_decorrelation"},
         {"path": "src/image/mct_dependency.rs", "symbol": "apply_mct_dependency"},
         {"path": "src/image/mct_decorrelation.rs", "symbol": "apply_mct_decorrelation"},
         {"path": "src/image/mct_wavelet.rs", "symbol": "apply_mct_wavelet"},

@@ -1177,12 +1177,228 @@ pub open spec fn part2_mct_decorrelation(
     }
 }
 
+pub open spec fn part2_mct_power_of_two(value: int) -> bool
+    decreases value,
+{
+    if value <= 1 { value == 1 }
+    else { value % 2 == 0 && part2_mct_power_of_two(value / 2) }
+}
+
+pub open spec fn part2_reversible_mct_scale(value: i64, signed: bool)
+    -> Result<i128, crate::DecodeError> {
+    let magnitude = if value < 0 { -(value as int) } else { value as int };
+    if value == 0 || (value < 0 && !signed) || !part2_mct_power_of_two(magnitude) {
+        Err(part1_transform_error(false))
+    } else { Ok(magnitude as i128) }
+}
+
+pub open spec fn part2_mct_scale_at(values: Seq<i64>, width: usize, stage: nat)
+    -> Result<(), crate::DecodeError>
+{
+    let target = if stage == width { width as int - 1 } else { width as int - 1 - stage as int };
+    let index = stage as int * width as int + target;
+    if width == 0 || stage > width { Err(part1_transform_error(false)) }
+    else if stage * width as int > usize::MAX || index > usize::MAX {
+        Err(part1_transform_error(true))
+    } else if index < 0 || index >= values.len() { Err(part1_transform_error(false)) }
+    else {
+        match part2_reversible_mct_scale(values[index], stage == width) {
+            Err(error) => Err(error), Ok(_) => Ok(()),
+        }
+    }
+}
+
+#[verifier::opaque]
+pub open spec fn part2_mct_scale_prefix(values: Seq<i64>, width: usize, count: nat)
+    -> Result<(), crate::DecodeError>
+    decreases count,
+{
+    if count == 0 { Ok(()) }
+    else {
+        match part2_mct_scale_prefix(values, width, (count - 1) as nat) {
+            Err(error) => Err(error), Ok(()) => part2_mct_scale_at(values, width, (count - 1) as nat),
+        }
+    }
+}
+
+pub open spec fn part2_validate_reversible_mct_coefficients(values: Seq<i64>, width: usize)
+    -> Result<(), crate::DecodeError> {
+    if width == 0 { Err(part1_transform_error(false)) }
+    else if width == usize::MAX || width as int * (width as int + 1) > usize::MAX {
+        Err(part1_transform_error(true))
+    } else if values.len() != width as int * (width as int + 1) {
+        Err(part1_transform_error(false))
+    } else { part2_mct_scale_prefix(values, width, (width as int + 1) as nat) }
+}
+
+pub open spec fn part2_reversible_mct_term(
+    previous: i128, matrix: Part2MctArray, source: Seq<i64>,
+    start: usize, target: usize, column: nat,
+) -> Result<i128, crate::DecodeError>
+{
+    if column == target { Ok(previous) }
+    else if start as int + column > usize::MAX { Err(part1_transform_error(true)) }
+    else if column >= source.len() || start as int + column >= matrix.4.len() {
+        Err(part1_transform_error(false))
+    } else {
+        match part2_atk_checked_i128(matrix.4[start as int + column] as int * source[column as int] as int) {
+            Err(error) => Err(error),
+            Ok(product) => part2_atk_checked_i128(previous as int + product as int),
+        }
+    }
+}
+
+#[verifier::opaque]
+pub open spec fn part2_reversible_mct_sum(
+    initial: i128, matrix: Part2MctArray, source: Seq<i64>,
+    start: usize, target: usize, count: nat,
+) -> Result<i128, crate::DecodeError>
+    decreases count,
+{
+    if count == 0 { Ok(initial) }
+    else {
+        match part2_reversible_mct_sum(initial, matrix, source, start, target, (count - 1) as nat) {
+            Err(error) => Err(error),
+            Ok(previous) => part2_reversible_mct_term(previous, matrix, source, start, target, (count - 1) as nat),
+        }
+    }
+}
+
+pub open spec fn part2_reversible_mct_stage(
+    matrix: Part2MctArray, source: Seq<i64>, stage: usize,
+) -> Result<i64, crate::DecodeError> {
+    let width = source.len();
+    if width == 0 || stage > width || matrix.3 != 0 { Err(part1_transform_error(false)) }
+    else {
+        let target = if stage == width { width as int - 1 } else { width as int - 1 - stage as int };
+        let start = stage as int * width as int;
+        if start > usize::MAX || start + target > usize::MAX { Err(part1_transform_error(true)) }
+        else if start + target >= matrix.4.len() { Err(part1_transform_error(false)) }
+        else {
+            let pivot = matrix.4[start + target];
+            match part2_reversible_mct_scale(pivot, stage == width) {
+                Err(error) => Err(error),
+                Ok(divisor) => match part2_reversible_mct_sum(
+                    (divisor / 2) as i128, matrix, source, start as usize, target as usize, width,
+                ) {
+                    Err(error) => Err(error),
+                    Ok(sum) => {
+                        let quotient = vstd::arithmetic::div_mod::rust_div(sum as int, divisor as int);
+                        let prediction = if vstd::arithmetic::div_mod::rust_rem(sum as int, divisor as int) < 0 {
+                            part2_atk_checked_i128(quotient - 1)
+                        } else { Ok(quotient as i128) };
+                        match prediction {
+                            Err(error) => Err(error),
+                            Ok(prediction) => match part2_atk_checked_i128(source[target] as int - prediction as int) {
+                                Err(error) => Err(error),
+                                Ok(value) => {
+                                    let signed_value = if pivot < 0 {
+                                        part2_atk_checked_i128(-(value as int))
+                                    } else { Ok(value) };
+                                    match signed_value {
+                                        Err(error) => Err(error), Ok(value) => part1_checked_sample(value as int),
+                                    }
+                                },
+                            },
+                        }
+                    },
+                },
+            }
+        }
+    }
+}
+
+pub open spec fn part2_reversible_mct_advance(matrix: Part2MctArray, previous: Seq<i64>, stage: nat)
+    -> Result<Seq<i64>, crate::DecodeError>
+{
+    if stage > usize::MAX { Err(part1_transform_error(true)) }
+    else {
+        match part2_reversible_mct_stage(matrix, previous, stage as usize) {
+            Err(error) => Err(error),
+            Ok(value) => {
+                let target = if stage == previous.len() { previous.len() as int - 1 }
+                    else { previous.len() as int - 1 - stage as int };
+                if target < 0 || target >= previous.len() { Err(part1_transform_error(false)) }
+                else { Ok(previous.update(target, value)) }
+            },
+        }
+    }
+}
+
+#[verifier::opaque]
+pub open spec fn part2_reversible_mct_stages(matrix: Part2MctArray, source: Seq<i64>, count: nat)
+    -> Result<Seq<i64>, crate::DecodeError>
+    decreases count,
+{
+    if count == 0 { Ok(source) }
+    else {
+        match part2_reversible_mct_stages(matrix, source, (count - 1) as nat) {
+            Err(error) => Err(error),
+            Ok(previous) => part2_reversible_mct_advance(matrix, previous, (count - 1) as nat),
+        }
+    }
+}
+
+pub open spec fn part2_inverse_reversible_mct(matrix: Part2MctArray, source: Seq<i64>)
+    -> Result<Seq<i64>, crate::DecodeError> {
+    if matrix.3 != 0 { Err(part1_transform_error(false)) }
+    else {
+        match part2_validate_reversible_mct_coefficients(matrix.4, source.len() as usize) {
+            Err(error) => Err(error),
+            Ok(()) => part2_reversible_mct_stages(matrix, source, (source.len() + 1) as nat),
+        }
+    }
+}
+
+pub open spec fn part2_reversible_mct_output(
+    values: Seq<i64>, offsets: Option<Part2MctArray>, row: usize,
+) -> Result<i64, crate::DecodeError> {
+    if row >= values.len() { Err(part1_transform_error(false)) }
+    else {
+        match part2_mct_offset(offsets, row) {
+            Err(error) => Err(error),
+            Ok(offset) => part1_checked_sample(values[row as int] as int + offset as int),
+        }
+    }
+}
+
+pub open spec fn part2_reversible_mct_row(
+    matrix: Part2MctArray, offsets: Option<Part2MctArray>, source: Seq<i64>, row: usize,
+) -> Result<i64, crate::DecodeError> {
+    if matrix.3 != 0 || (match offsets { Some(array) => array.3 != 0, None => false }) {
+        Err(part1_transform_error(false))
+    } else {
+        match part2_inverse_reversible_mct(matrix, source) {
+            Err(error) => Err(error),
+            Ok(values) => part2_reversible_mct_output(values, offsets, row),
+        }
+    }
+}
+
+pub open spec fn part2_reversible_mct_admission(
+    samples: usize, width: usize, before: u64, maximum_work: u64, maximum_bytes: u64,
+) -> (Result<(), crate::DecodeError>, u64) {
+    let partner = (width as u64) as int + 2;
+    let per_sample = (width as u64) as int * partner;
+    let operations = (samples as u64) as int * per_sample;
+    if partner > u64::MAX || per_sample > u64::MAX || operations > u64::MAX {
+        (Err(part1_transform_error(true)), before)
+    } else {
+        let charged = part2_mct_charge_work(before, operations as u64, maximum_work);
+        match charged.0 {
+            Err(error) => (Err(error), charged.1),
+            Ok(()) => if width as int * 3 > usize::MAX { (Err(part1_transform_error(true)), charged.1) }
+                else { (part1_image_byte_budget((width as int * 3) as nat, 8, maximum_bytes), charged.1) },
+        }
+    }
+}
+
 pub open spec fn part2_mct_decorrelation_row(
     collection: Part2MctCollection, source: Seq<i64>, fractions: Seq<u8>, row: usize,
 ) -> Result<i64, crate::DecodeError> {
     match collection.4 {
-        Some(matrix) => part2_mct_matrix_row(
-            matrix, collection.5, source, if collection.0 { None } else { Some(fractions) }, row),
+        Some(matrix) => if collection.0 { part2_reversible_mct_row(matrix, collection.5, source, row) }
+            else { part2_mct_matrix_row(matrix, collection.5, source, Some(fractions), row) },
         None => if row >= source.len() { Err(part1_transform_error(false)) }
         else if collection.0 {
             match part2_mct_offset(collection.5, row) {
@@ -1246,13 +1462,30 @@ pub open spec fn part2_mct_decorrelation_dimensions(collection: Part2MctCollecti
     let columns = collection.2.len();
     if rows == 0 || rows != columns { Err(part1_transform_error(false)) }
     else if rows > usize::MAX || columns > usize::MAX
-        || (collection.4.is_some() && rows * columns > usize::MAX) {
+        || (collection.4.is_some() && (
+            (collection.0 && columns == usize::MAX)
+            || rows * (if collection.0 { columns + 1 } else { columns }) > usize::MAX
+        )) {
         Err(part1_transform_error(true))
-    } else if match collection.4 { None => false, Some(matrix) => matrix.4.len() != rows * columns } {
+    } else if match collection.4 { None => false, Some(matrix) =>
+        matrix.4.len() != rows * (if collection.0 { columns + 1 } else { columns }) } {
         Err(part1_transform_error(false))
     } else if match collection.5 { None => false, Some(offsets) => offsets.4.len() != rows } {
         Err(part1_transform_error(false))
+    } else if collection.0 && collection.4.is_some() {
+        match part2_validate_reversible_mct_coefficients(collection.4.unwrap().4, rows as usize) {
+            Err(error) => Err(error), Ok(()) => Ok((rows as usize, columns as usize)),
+        }
     } else { Ok((rows as usize, columns as usize)) }
+}
+
+pub open spec fn part2_mct_collection_admission(
+    collection: Part2MctCollection, samples: usize, rows: usize, columns: usize,
+    before: u64, maximum_work: u64, maximum_bytes: u64,
+) -> (Result<(), crate::DecodeError>, u64) {
+    if collection.0 && collection.4.is_some() {
+        part2_reversible_mct_admission(samples, rows, before, maximum_work, maximum_bytes)
+    } else { part2_mct_decorrelation_admission(samples, rows, columns, before, maximum_work, maximum_bytes) }
 }
 
 pub open spec fn part2_mct_prepare_decorrelation(
@@ -1268,7 +1501,7 @@ pub open spec fn part2_mct_prepare_decorrelation(
                 Ok(destination) => match part2_mct_validate_layout(components, source, destination, collection.0) {
                     Err(error) => (Err(error), before),
                     Ok(samples) => {
-                        let admitted = part2_mct_decorrelation_admission(
+                        let admitted = part2_mct_collection_admission(collection,
                             samples, rows as usize, columns as usize, before, maximum_work, maximum_bytes);
                         match admitted.0 {
                             Err(error) => (Err(error), admitted.1),
@@ -15876,8 +16109,9 @@ pub open spec fn part1_mct_graph_element_count(
     let maximum = usize::MAX as int;
     let error = part1_codestream_malformed(0, crate::MalformedKind::ArithmeticOverflow);
     if kind == crate::codestream::MctArrayKind::Decorrelation {
-        let product = rows as int * columns as int;
-        if product > maximum { Err(error) } else { Ok(product as usize) }
+        let partner = if reversible { columns as int + 1 } else { columns as int };
+        let product = rows as int * partner;
+        if (reversible && columns == usize::MAX) || product > maximum { Err(error) } else { Ok(product as usize) }
     } else if reversible {
         if rows == usize::MAX { Err(error) }
         else {
@@ -15931,11 +16165,18 @@ pub open spec fn part1_mct_graph_collection(
                                         if invalid_offsets || invalid_matrix || (reversible && (floating_matrix || floating_offsets)) {
                                             Err(part1_codestream_malformed(0, crate::MalformedKind::InvalidTransform))
                                         } else {
-                                            Ok((reversible, reference.inputs, reference.outputs,
-                                                if kind == crate::codestream::MctArrayKind::Dependency {
-                                                    crate::codestream::MctCollectionKind::Dependency
-                                                } else { crate::codestream::MctCollectionKind::Decorrelation },
-                                                matrix, offsets, None))
+                                            let scales = if reversible && kind == crate::codestream::MctArrayKind::Decorrelation
+                                                && matrix.is_some() {
+                                                part2_validate_reversible_mct_coefficients(matrix.unwrap().4, rows as usize)
+                                            } else { Ok(()) };
+                                            match scales {
+                                                Err(error) => Err(error),
+                                                Ok(()) => Ok((reversible, reference.inputs, reference.outputs,
+                                                    if kind == crate::codestream::MctArrayKind::Dependency {
+                                                        crate::codestream::MctCollectionKind::Dependency
+                                                    } else { crate::codestream::MctCollectionKind::Decorrelation },
+                                                    matrix, offsets, None)),
+                                            }
                                         }
                                     },
                                 }

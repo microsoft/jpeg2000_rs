@@ -663,7 +663,7 @@ class FrameworkTests(WorkingFiles):
     def test_inventory_binds_complete_coefficient_reconstruction_and_real_mct_owners(self):
         self._assert_complete_packet_contract_bindings(
             {"part2-complete-native-coefficient-component-reconstruction"},
-            framework._RECONSTRUCTION_CONTRACTS, 15,
+            framework._RECONSTRUCTION_CONTRACTS, 17,
         )
 
     def test_inventory_binds_complete_native_chroma_key_owner_and_inputs(self):

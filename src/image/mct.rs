@@ -578,6 +578,34 @@ pub(super) fn offset_value(offsets: Option<&MctArray>, row: usize) -> Result<i64
 }
 
 #[cfg_attr(verus_keep_ghost, verus_spec(result =>
+    ensures (result, *final(work)) == crate::specs::part2_reversible_mct_admission(
+        sample_count, count, *old(work),
+        crate::limits::resource_work_limit(limits), crate::limits::resource_decoded_bytes_limit(limits),
+    ),
+))]
+pub(super) fn admit_reversible_mct_decorrelation(
+    sample_count: usize,
+    count: usize,
+    limits: &ResourceLimits,
+    work: &mut u64,
+) -> Result<(), DecodeError> {
+    let per_component = (count as u64)
+        .checked_add(2)
+        .ok_or_else(arithmetic_overflow)?;
+    let per_sample = (count as u64)
+        .checked_mul(per_component)
+        .ok_or_else(arithmetic_overflow)?;
+    let operations = (sample_count as u64)
+        .checked_mul(per_sample)
+        .ok_or_else(arithmetic_overflow)?;
+    charge_mct_work(work, operations, limits)?;
+    check_mct_scratch(
+        count.checked_mul(3).ok_or_else(arithmetic_overflow)?,
+        limits,
+    )
+}
+
+#[cfg_attr(verus_keep_ghost, verus_spec(result =>
     ensures result == crate::specs::part2_mct_offset_scaled(crate::codestream::mct_array_option(offsets), row),
 ))]
 pub(super) fn offset_value_scaled(
@@ -816,8 +844,8 @@ fn apply_multiple_component_transform_legacy(
 }
 
 #[cfg_attr(verus_keep_ghost, verus_spec(result =>
-    ensures result == crate::specs::part2_mct_matrix_row(
-        crate::codestream::mct_array_view(matrix), crate::codestream::mct_array_option(offsets), source@, None, row,
+    ensures result == crate::specs::part2_reversible_mct_row(
+        crate::codestream::mct_array_view(matrix), crate::codestream::mct_array_option(offsets), source@, row,
     ),
 ))]
 pub(super) fn reversible_mct_row(
@@ -833,56 +861,192 @@ pub(super) fn reversible_mct_row(
     if matrix.fraction_bits() != 0 || floating_offsets {
         return Err(invalid_transform());
     }
-    let mut sum = match offsets {
-        Some(array) => i128::from(*array.values().get(row).ok_or_else(invalid_transform)?),
-        None => 0,
-    };
+    let values = inverse_reversible_mct(matrix, source)?;
+    reversible_mct_output(&values, offsets, row)
+}
+
+#[cfg_attr(verus_keep_ghost, verus_spec(result =>
+    ensures result == crate::specs::part2_reversible_mct_output(
+        values@, crate::codestream::mct_array_option(offsets), row,
+    ),
+))]
+pub(super) fn reversible_mct_output(
+    values: &[i64],
+    offsets: Option<&MctArray>,
+    row: usize,
+) -> Result<i64, DecodeError> {
+    values
+        .get(row)
+        .ok_or_else(invalid_transform)?
+        .checked_add(offset_value(offsets, row)?)
+        .ok_or_else(arithmetic_overflow)
+}
+
+#[cfg_attr(verus_keep_ghost, verus_spec(result =>
+    ensures result == crate::specs::part2_reversible_mct_stage(
+        crate::codestream::mct_array_view(matrix), source@, stage,
+    ),
+))]
+pub(super) fn reversible_mct_stage(
+    matrix: &MctArray,
+    source: &[i64],
+    stage: usize,
+) -> Result<i64, DecodeError> {
     let width = source.len();
-    let row_start = row.checked_mul(width).ok_or_else(arithmetic_overflow)?;
+    if width == 0 || stage > width || matrix.fraction_bits() != 0 {
+        return Err(invalid_transform());
+    }
+    let target = if stage == width {
+        width - 1
+    } else {
+        width - 1 - stage
+    };
+    let row_start = stage.checked_mul(width).ok_or_else(arithmetic_overflow)?;
+    let pivot_index = row_start
+        .checked_add(target)
+        .ok_or_else(arithmetic_overflow)?;
+    let pivot = *matrix
+        .values()
+        .get(pivot_index)
+        .ok_or_else(invalid_transform)?;
+    let divisor = crate::codestream::reversible_mct_scale(pivot, stage == width)?;
+    let mut sum = divisor / 2;
     #[cfg(verus_keep_ghost)]
     proof_decl! { let ghost initial = sum; }
     #[cfg(verus_keep_ghost)]
     proof! {
-        crate::proofs::production_impl::production_mct_dot_empty(initial, crate::codestream::mct_array_view(matrix), source@, None, row_start);
+        crate::proofs::production_impl::production_mct_serm_sum_empty(
+            initial, crate::codestream::mct_array_view(matrix), source@, row_start, target,
+        );
     }
     let mut column = 0_usize;
-    #[cfg_attr(
-        verus_keep_ghost,
-        verus_spec(
-            invariant column <= width,
+    #[cfg_attr(verus_keep_ghost, verus_spec(
+        invariant column <= width,
             width == source.len(),
-            row_start as nat == row as nat * width as nat,
-            crate::specs::part2_mct_row_initial(crate::codestream::mct_array_view(matrix), crate::codestream::mct_array_option(offsets), width as nat, None, row) == Ok(initial),
-            crate::specs::part2_mct_dot_prefix(initial, crate::codestream::mct_array_view(matrix), source@, None, row_start, column as nat) == Ok(sum),
-            decreases width - column,
-        )
-    )]
+            row_start as int == stage as int * width as int,
+            width > 0,
+            stage <= width,
+            target as int == if stage == width { width as int - 1 } else { width as int - 1 - stage as int },
+            pivot_index as int == row_start as int + target as int,
+            pivot_index < crate::codestream::mct_array_view(matrix).4.len(),
+            crate::codestream::mct_array_view(matrix).3 == 0,
+            crate::codestream::mct_array_view(matrix).4[pivot_index as int] == pivot,
+            crate::specs::part2_reversible_mct_scale(pivot, stage == width) == Ok(divisor),
+            divisor > 0,
+            initial == divisor / 2,
+            crate::specs::part2_reversible_mct_sum(
+                initial, crate::codestream::mct_array_view(matrix), source@, row_start, target, column as nat,
+            ) == Ok(sum),
+        decreases width - column,
+    ))]
     while column < width {
         #[cfg(verus_keep_ghost)]
         proof! {
-            crate::proofs::production_impl::production_mct_dot_step(initial, crate::codestream::mct_array_view(matrix), source@, None, row_start, column as nat);
-            crate::proofs::production_impl::production_mct_dot_error_guard(initial, crate::codestream::mct_array_view(matrix), source@, None, row_start, column as nat + 1, width as nat);
+            crate::proofs::production_impl::production_mct_serm_sum_step(
+                initial, crate::codestream::mct_array_view(matrix), source@, row_start, target, column as nat,
+            );
+            crate::proofs::production_impl::production_mct_serm_sum_error(
+                initial, crate::codestream::mct_array_view(matrix), source@, row_start, target, column as nat + 1, width as nat,
+            );
         }
-        let coefficient = *matrix
-            .values()
-            .get(
-                row_start
-                    .checked_add(column)
-                    .ok_or_else(arithmetic_overflow)?,
-            )
-            .ok_or_else(invalid_transform)?;
-        let product = i128::from(coefficient)
-            .checked_mul(i128::from(
-                *source.get(column).ok_or_else(invalid_transform)?,
-            ))
-            .ok_or_else(arithmetic_overflow)?;
-        sum = sum.checked_add(product).ok_or_else(arithmetic_overflow)?;
+        if column != target {
+            let coefficient = *matrix
+                .values()
+                .get(
+                    row_start
+                        .checked_add(column)
+                        .ok_or_else(arithmetic_overflow)?,
+                )
+                .ok_or_else(invalid_transform)?;
+            let product = i128::from(coefficient)
+                .checked_mul(i128::from(
+                    *source.get(column).ok_or_else(invalid_transform)?,
+                ))
+                .ok_or_else(arithmetic_overflow)?;
+            sum = sum.checked_add(product).ok_or_else(arithmetic_overflow)?;
+        }
         column = column.checked_add(1).ok_or_else(arithmetic_overflow)?;
     }
-    match i64::try_from(sum) {
+    let quotient = sum / divisor;
+    let prediction = if sum % divisor < 0 {
+        quotient.checked_sub(1).ok_or_else(arithmetic_overflow)?
+    } else {
+        quotient
+    };
+    let value = i128::from(*source.get(target).ok_or_else(invalid_transform)?)
+        .checked_sub(prediction)
+        .ok_or_else(arithmetic_overflow)?;
+    let value = if pivot < 0 {
+        0_i128.checked_sub(value).ok_or_else(arithmetic_overflow)?
+    } else {
+        value
+    };
+    match i64::try_from(value) {
         Ok(value) => Ok(value),
         Err(_) => Err(arithmetic_overflow()),
     }
+}
+
+#[cfg_attr(verus_keep_ghost, verus_spec(result =>
+    ensures crate::transform::sequence_outcome(result) == crate::specs::part2_inverse_reversible_mct(
+        crate::codestream::mct_array_view(matrix), source@,
+    ),
+))]
+pub(super) fn inverse_reversible_mct(
+    matrix: &MctArray,
+    source: &[i64],
+) -> Result<Vec<i64>, DecodeError> {
+    if matrix.fraction_bits() != 0 {
+        return Err(invalid_transform());
+    }
+    let count = source.len();
+    crate::codestream::validate_reversible_mct_coefficients(matrix.values(), count)?;
+    let stages = count.checked_add(1).ok_or_else(arithmetic_overflow)?;
+    let mut values = Vec::with_capacity(count);
+    values.extend_from_slice(source);
+    #[cfg(verus_keep_ghost)]
+    proof! {
+        assert(values@ =~= source@);
+        crate::proofs::production_impl::production_mct_serm_stages_empty(
+            crate::codestream::mct_array_view(matrix), source@,
+        );
+    }
+    let mut stage = 0_usize;
+    #[cfg_attr(verus_keep_ghost, verus_spec(
+        invariant stage <= stages,
+            count > 0,
+            count == source.len(),
+            stages as int == count as int + 1,
+            values@.len() == count,
+            crate::codestream::mct_array_view(matrix).3 == 0,
+            crate::specs::part2_validate_reversible_mct_coefficients(
+                crate::codestream::mct_array_view(matrix).4, count,
+            ) == Ok(()),
+            crate::specs::part2_reversible_mct_stages(
+                crate::codestream::mct_array_view(matrix), source@, stage as nat,
+            ) == Ok(values@),
+        decreases stages - stage,
+    ))]
+    while stage < stages {
+        #[cfg(verus_keep_ghost)]
+        proof! {
+            crate::proofs::production_impl::production_mct_serm_stages_step(
+                crate::codestream::mct_array_view(matrix), source@, stage as nat,
+            );
+            crate::proofs::production_impl::production_mct_serm_stages_error(
+                crate::codestream::mct_array_view(matrix), source@, stage as nat + 1, stages as nat,
+            );
+        }
+        let target = if stage == count {
+            count - 1
+        } else {
+            count - 1 - stage
+        };
+        let value = reversible_mct_stage(matrix, &values, stage)?;
+        *values.get_mut(target).ok_or_else(invalid_transform)? = value;
+        stage += 1;
+    }
+    Ok(values)
 }
 
 #[cfg_attr(verus_keep_ghost, verus_spec(result =>
