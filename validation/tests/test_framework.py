@@ -646,7 +646,7 @@ class FrameworkTests(WorkingFiles):
         recipes = {key: value for key, value in framework._PACKET_PROGRESSION_CONTRACTS.items() if key not in support}
         self._assert_complete_packet_contract_bindings({
             "part1-complete-native-packed-header-length-inputs", "part1-complete-native-grid-progression-composition",
-        }, recipes, 40)
+        }, recipes, 43)
         coverage = json.loads((framework.VALIDATION / "normative-coverage.json").read_text())
         entry = next(item for item in coverage["requirements"]
                      if item["id"] == "part1-complete-native-grid-progression-composition")

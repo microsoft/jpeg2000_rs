@@ -6582,6 +6582,9 @@
         {
           "path": "src/packet/tile.rs", "symbol": "execute_progression_packet"
         },
+        {"path": "src/packet/tile.rs", "symbol": "progression_packet_slot"},
+        {"path": "src/packet/tile.rs", "symbol": "omit_progression_packet"},
+        {"path": "src/packet/tile.rs", "symbol": "all_progression_packets_seen"},
         {
           "path": "src/packet/tile.rs", "symbol": "account_progression_packet"
         },
@@ -6692,6 +6695,9 @@
         {
           "path": "src/packet/tile.rs", "symbol": "execute_progression_packet"
         },
+        {"path": "src/packet/tile.rs", "symbol": "progression_packet_slot"},
+        {"path": "src/packet/tile.rs", "symbol": "omit_progression_packet"},
+        {"path": "src/packet/tile.rs", "symbol": "all_progression_packets_seen"},
         {
           "path": "src/packet/tile.rs", "symbol": "account_progression_packet"
         },
@@ -6737,6 +6743,9 @@
         }
       ],
       "spec_refs": [
+        {"path": "specs/packet_tile.rs", "symbol": "part1_tile_packet_slot"},
+        {"path": "specs/packet_tile.rs", "symbol": "part1_tile_omit_packet"},
+        {"path": "specs/packet_tile.rs", "symbol": "part1_tile_all_seen"},
         {
           "path": "specs/packet_progression.rs",
           "symbol": "part1_packet_grid_total_precincts"
@@ -7018,6 +7027,12 @@
         },
         {
           "path": "src/packet/tests.rs", "symbol": "full_progression_uses_real_ppt_reassembly_and_plt_iteration_without_tile_body_bytes"
+        },
+        {
+          "path": "src/packet/tests.rs", "symbol": "retained_packet_prefixes_validate_poc_coverage_tile_parts_and_packed_lengths"
+        },
+        {
+          "path": "src/decode/tests.rs", "symbol": "raw_packet_boundary_prefixes_preserve_reference_pixels_and_reject_partial_packets"
         },
         {
           "path": "src/packet/tests.rs", "symbol": "actual_progression_accounting_keeps_every_ordered_overflow_and_new_offset_error"

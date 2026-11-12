@@ -266,6 +266,32 @@ pub open spec fn part1_tile_account(
     }
 }
 
+pub open spec fn part1_tile_all_seen(seen:Seq<bool>)->bool {
+    forall |i:int| 0<=i<seen.len() ==> seen[i]
+}
+
+pub open spec fn part1_tile_packet_slot(grid:Part1PacketGrid,coordinate:crate::packet::PacketCoordinate)
+    -> Result<(usize,usize),crate::DecodeError> {
+    match super::part1_packet_grid_precinct_index(grid,coordinate.component,coordinate.resolution,coordinate.precinct) {
+        Err(error)=>Err(error),
+        Ok(index)=>if index as nat*grid.layers as nat+coordinate.layer as nat>usize::MAX {
+            Err(ht_reader_error(crate::MalformedKind::ArithmeticOverflow))
+        }else{Ok((index,(index as nat*grid.layers as nat+coordinate.layer as nat) as usize))},
+    }
+}
+
+pub open spec fn part1_tile_omit_packet(
+    params:Part1TilePacketParameters,p:Part1TilePacketProgress,
+    coordinate:crate::packet::PacketCoordinate,precinct_count:usize,
+) -> (Result<(),crate::DecodeError>,Part1TilePacketProgress) {
+    match part1_tile_packet_slot(params.grid,coordinate) {
+        Err(error)=>(Err(error),p),
+        Ok((index,seen))=>if index>=precinct_count || seen>=p.seen.len() {
+            (Err(super::part1_packet_reader_error(p.offset,crate::MalformedKind::InvalidPacketHeader)),p)
+        }else{(Ok(()),Part1TilePacketProgress {seen:p.seen.update(seen as int,true),..p})},
+    }
+}
+
 pub open spec fn part1_tile_packet(
     params:Part1TilePacketParameters,s:Part1TilePacketExecution,coordinate:crate::packet::PacketCoordinate,
 ) -> (Result<(),crate::DecodeError>,Part1TilePacketExecution) {
@@ -273,16 +299,19 @@ pub open spec fn part1_tile_packet(
         (Err(crate::DecodeError::MalformedInput {offset:params.input.payload_bytes,kind:crate::MalformedKind::Truncated}),s)
     }else{
         let part=params.parts[s.progress.current_tile_part as int];
+        let slot=part1_tile_packet_slot(params.grid,coordinate);
+        let duplicate=match slot {
+            Err(_)=>false,
+            Ok((_,seen))=>seen<s.progress.seen.len() && s.progress.seen[seen as int],
+        };
+        if duplicate {(Ok(()),s)}else{
         let length=part1_tile_packet_length_owned(part,s.progress);
         let s=Part1TilePacketExecution {progress:length.1,..s};
         match length.0 {
             Err(error)=>(Err(error),s),
-            Ok(expected)=>match super::part1_packet_grid_precinct_index(params.grid,coordinate.component,coordinate.resolution,coordinate.precinct) {
+            Ok(expected)=>match slot {
                 Err(error)=>(Err(error),s),
-                Ok(index)=>if index as nat*params.grid.layers as nat+coordinate.layer as nat>usize::MAX {
-                    (Err(ht_reader_error(crate::MalformedKind::ArithmeticOverflow)),s)
-                }else{
-                    let seen=(index as nat*params.grid.layers as nat+coordinate.layer as nat) as usize;
+                Ok((index,seen))=>{
                     if seen>=s.progress.seen.len() {(Err(super::part1_packet_reader_error(s.progress.offset,crate::MalformedKind::InvalidPacketHeader)),s)}
                     else if s.progress.seen[seen as int] {(Ok(()),s)}
                     else if index>=s.precincts.len() {(Err(super::part1_packet_reader_error(s.progress.offset,crate::MalformedKind::InvalidPacketHeader)),s)}
@@ -300,6 +329,7 @@ pub open spec fn part1_tile_packet(
                 },
             },
         }
+        }
     }
 }
 
@@ -311,15 +341,27 @@ pub open spec fn part1_tile_iteration(
         let s=Part1TilePacketExecution {progress:Part1TilePacketProgress {
             remaining_packets:(s.progress.remaining_packets-1) as u64,..s.progress
         },..s};
+        if s.progress.current_tile_part==params.parts.len() {
+            let omitted=part1_tile_omit_packet(params,s.progress,coordinate,s.precincts.len() as usize);
+            (match omitted.0 {Err(error)=>Err(error),Ok(())=>Ok(true)},
+                Part1TilePacketExecution {progress:omitted.1,..s})
+        }else{
         let boundary=part1_tile_boundary(params,s.progress);
         let s=Part1TilePacketExecution {progress:boundary.1,..s};
         match boundary.0 {
             Err(error)=>(Err(error),s),
-            Ok((changed,more))=>if changed {(Ok(more),s)}
+            Ok((changed,more))=>if changed {
+                if more {(Ok(true),s)}else{
+                    let omitted=part1_tile_omit_packet(params,s.progress,coordinate,s.precincts.len() as usize);
+                    (match omitted.0 {Err(error)=>Err(error),Ok(())=>Ok(true)},
+                        Part1TilePacketExecution {progress:omitted.1,..s})
+                }
+            }
                 else{
                     let packet=part1_tile_packet(params,s,coordinate);
                     (match packet.0 {Err(error)=>Err(error),Ok(())=>Ok(true)},packet.1)
                 },
+        }
         }
     }
 }
@@ -383,8 +425,13 @@ pub open spec fn part1_tile_finish(params:Part1TilePacketParameters,p:Part1TileP
     let scan=part1_tile_finish_scan(params,p);
     match scan.0 {
         Err(error)=>(Err(error),scan.1),
-        Ok(())=>if scan.1.packets!=params.grid.packet_count {
+        Ok(())=>if scan.1.packets!=params.grid.packet_count
+            && (scan.1.packets>params.grid.packet_count || scan.1.packets==0
+                || scan.1.seen.len()!=params.grid.packet_count as nat
+                || !part1_tile_all_seen(scan.1.seen)) {
             (Err(crate::DecodeError::MalformedInput {offset:params.input.payload_bytes,kind:crate::MalformedKind::Truncated}),scan.1)
+        }else if params.input.all_lengths && scan.1.packets!=params.input.declared_packets {
+            (Err(super::part1_packet_reader_error(0,crate::MalformedKind::InvalidPacketLength)),scan.1)
         }else if params.parts.len()>u32::MAX {(Err(ht_reader_error(crate::MalformedKind::ArithmeticOverflow)),scan.1)}
         else{(Ok(crate::packet::TilePacketDecode {
             tile_index:params.input.tile_index,tile_parts:params.parts.len() as u32,packets:scan.1.packets,
@@ -594,7 +641,7 @@ pub open spec fn part1_progression_tile_input_owned(
             declared_packets:0,all_lengths:true,packed:Seq::empty(),
         },crate::limits::resource_packet_header_byte_limit(limits)) {
             Err(error)=>Err(error),
-            Ok(input)=>if input.all_lengths && input.declared_packets!=grid.packet_count {
+            Ok(input)=>if input.all_lengths && input.declared_packets>grid.packet_count {
                 Err(ht_reader_error(crate::MalformedKind::InvalidPacketLength))
             } else {match part1_progression_precinct_layout(grid,precincts) {
                 Err(error)=>Err(error),Ok(())=>Ok(input),
