@@ -121,6 +121,10 @@ The implementation contains:
   Resolution-zero zero exponents remain supported; explicit Part 2
   decomposition selectors retain their separate deferred admission.
 - PLM/PLT packet lengths, PPM/PPT packed headers, SOP/EPH, and TLM checks.
+  The retained-assertion engineering profile uses one-byte PLM group counts
+  and allows groups to continue across PLM markers at complete packet-length
+  codewords. An unfinished final group is rejected at its originating marker.
+  PLM and PLT may coexist only when their complete packet lists agree.
   When SOP use is enabled, individual packets may omit SOP. Present markers
   retain their length and caller-specific sequence validation; inline and
   packed-header accounting follows the bytes actually present.

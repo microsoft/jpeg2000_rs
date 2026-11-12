@@ -2096,10 +2096,11 @@ standard/conformance, actual-main, SourceReady or publication requirements.
 
 The real `read_tile_part` PLT/PPT branches call extracted `Parser::parse_plt`
 and `Parser::parse_ppt` methods in their original order. Their source-derived
-models live in `specs/packet_input.rs`. Raw main source presence, not counts,
-lengths or fragment metadata, rejects conflicts before payload, index, fragment
-or budget errors. Both contracts cover arbitrary internal states without
-validity premises or prepared outcomes.
+models live in `specs/packet_input.rs`. PPT rejects raw main source presence
+before payload, index, fragment or budget errors. Under the retained-assertion
+engineering profile PLT does not reject PLM presence: both lists are admitted,
+then fully compared at finalization. Both contracts cover arbitrary internal
+states without validity premises or prepared outcomes.
 
 PLT retains index-only payloads and every raw `u16` next-index value against
 the actual `u8` payload. The index commits before genuine packet-length
@@ -2143,6 +2144,8 @@ constructing its borrowed source and raw count/encoded-byte fields. Otherwise
 it retains arbitrary main metadata. Absent selected lengths bypass logical-size
 checks; present lengths derive the declared sum before checked data-plus-packed
 addition and comparison, preserving all native error precedence and offsets.
+With both PLM and PLT present, equal packet counts and the complete two
+source-derived packet sequences are required before the payload comparison.
 The packed-header finisher returns every arbitrary main field when PPT fragments
 are zero, without validating unused ranges. Nonzero fragments derive the exact
 borrowed input range, PPT marker, logical start, length and fragment count.
@@ -2266,7 +2269,14 @@ check. Work errors use the parser position; byte/count overflow and malformed
 varints use the marker offset. Empty input still performs all counter checks.
 
 Actual PLM parsing derives every group length and borrowed source slice from
-the payload. Minimum length and index checks precede incrementing the index,
+the payload. The user-approved retained-assertion engineering profile uses
+one-octet counts, including zero, and permits groups to continue across PLM
+markers without splitting a packet-length codeword. A continued group retains
+a borrowed physical marker range, its first fragment boundaries, declared
+count and original marker offset; packet-length owners remain `Copy`.
+The iterator skips intervening markers and continuation indexes without
+reassembly allocation. Main-header completion rejects an unfinished last
+group at its original PLM offset. Minimum length and index checks precede incrementing the index,
 including 255 to 256. That increment and genuine admission partial commits
 survive later errors. Successful groups append before the tile-part cap, so
 that error retains the appended group. Arbitrary preexisting groups retain
@@ -2275,7 +2285,13 @@ their order, source variants, counters and encoded-byte metadata.
 Both sole executable bodies have exact total contracts, full initial-state
 and recursive-fold loop links, and checked mathematical termination. No
 admitted varints, normalized groups/counters, result banks, new trust,
-caps, pins, budgets or termination bypass are introduced. Independent
+caps, pins, budgets or termination bypass are introduced. Separately signaled
+PLM and PLT lists are both admitted with their original resource accounting,
+then compared packet by packet at tile-part finalization, not merely by their
+sum. The full iterator, sum and comparison models retain arbitrary raw source
+and cursor/error frames. This is engineering behavior under the retained
+assertions, not independent standards adjudication; conflicting public
+four-byte PLM implementations remain contrary evidence. Independent
 wide-arithmetic references cover 786,432 short-varint contexts, 12,000
 charge/overflow/limit contexts, 156,672 PLM index/truncation/frame contexts,
 262,144 raw length words and 1,080 PLM partial-commit contexts. A real segment

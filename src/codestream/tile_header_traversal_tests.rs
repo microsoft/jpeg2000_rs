@@ -620,7 +620,14 @@ fn raw_tile_header_packet_conflicts_and_ordered_partial_counters_survive_errors(
                 main_lengths,
                 main_headers
             ),
-            Err(input_error_literal(37, MalformedKind::InvalidMarkerOrder))
+            Err(input_error_literal(
+                37,
+                if marker == PLT {
+                    MalformedKind::InvalidMarkerLength
+                } else {
+                    MalformedKind::InvalidMarkerOrder
+                }
+            ))
         );
         assert_eq!(raw.has_functional_header_marker, marker == PPT);
         assert_eq!(

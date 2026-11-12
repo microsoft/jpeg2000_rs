@@ -313,6 +313,9 @@ pub(crate) open spec fn part1_finish_main_header<'a>(
 ) -> Part1MainHeaderResult<'a> {
     if raw.pending_mct.len() != 0 || raw.pending_mcc.len() != 0 {
         Err(part1_codestream_malformed(reader.position, crate::MalformedKind::MissingRequiredStructure))
+    } else if raw.plm.len() != 0 && super::part1_incomplete_plm_offset(raw.plm.last()).is_some() {
+        Err(part1_codestream_malformed(super::part1_incomplete_plm_offset(raw.plm.last())->Some_0,
+            crate::MalformedKind::InvalidMarkerLength))
     } else {
         let depths = part1_apply_component_depths(raw.image_size, raw.extensions.depths, reader.position);
         match depths.0 {

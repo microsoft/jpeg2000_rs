@@ -5213,7 +5213,7 @@ fn top_level_raw_and_jp2_decode_packed_packet_headers() {
                 .windows(2)
                 .position(|window| window == 0xff90_u16.to_be_bytes())
                 .unwrap();
-            packed.splice(sot..sot, segment(0xff57, &[0, 0, 0, 0, 1, 1]));
+            packed.splice(sot..sot, segment(0xff57, &[0, 1, 1]));
         }
 
         let raw = decode_codestream(&packed, &DecodeOptions::default()).unwrap();
@@ -5248,7 +5248,7 @@ fn top_level_apis_decode_poc_with_plm_plt_and_ppm_ppt() {
                 .windows(2)
                 .position(|window| window == 0xff90_u16.to_be_bytes())
                 .unwrap();
-            packed.splice(sot..sot, segment(0xff57, &[0, 0, 0, 0, 2, 1, 1]));
+            packed.splice(sot..sot, segment(0xff57, &[0, 2, 1, 1]));
         } else {
             let sod = packed
                 .windows(2)

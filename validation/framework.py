@@ -946,6 +946,10 @@ _PACKED_HEADER_BYTES_CONTRACTS = {
 }
 
 _PACKET_LENGTH_ADMISSION_CONTRACTS = {
+    ("src/codestream/packet_headers.rs", "PacketLengths::incomplete_plm_offset"): (
+        "part1_incomplete_plm_offset", r"\1", None,
+        _coverage_call("packet_lengths_view", "self"),
+    ),
     ("src/codestream/packet_headers.rs", "Parser::validate_packet_lengths"): (
         "part1_validate_packet_lengths", r"\1",
         _coverage_call("parser_view", _coverage_call("final", "self")),
@@ -1000,6 +1004,11 @@ _TILE_PACKET_ADMISSION_CONTRACTS = {
 }
 
 _PACKET_METADATA_FINALIZATION_CONTRACTS = {
+    ("src/codestream/packet_headers.rs", "packet_length_sources_match"): (
+        "part1_packet_length_sources_match", r"\1", None,
+        _coverage_call("packet_length_source_view", "first") + r"\s*,\s*"
+        + _coverage_call("packet_length_source_view", "second"),
+    ),
     ("src/codestream/packet_headers.rs", "sum_packet_lengths"): (
         "part1_sum_packet_lengths", r"\1", None,
         _coverage_call("packet_length_source_view", "source"),

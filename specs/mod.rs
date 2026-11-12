@@ -12922,6 +12922,58 @@ pub open spec fn part1_validate_packet_lengths<'a>(
     }
 }
 
+pub open spec fn part1_plm_pending(groups: Seq<Part1PacketLengths>)
+    -> Option<(Part1PacketLengths, Part1PlmFragments)>
+{
+    if groups.len() == 0 { None }
+    else {
+        let previous = groups.last();
+        match previous.source {
+            Part1PacketLengthSource::PlmSegments(fragments) =>
+                if previous.encoded_bytes < fragments.declared as u64 { Some((previous, fragments)) } else { None },
+            _ => None,
+        }
+    }
+}
+
+#[verifier::opaque]
+pub open spec fn part1_plm_fragment_source<'a>(
+    state: Part1CodestreamReader<'a>, segment: Part1CodestreamSegment,
+    start: nat, end: nat, declared: u8, remaining: nat,
+    pending: Option<(Part1PacketLengths, Part1PlmFragments)>,
+) -> Result<Part1PacketLengthSource, crate::DecodeError> {
+    let encoded = segment.payload.subrange(start as int, end as int);
+    if pending.is_none() && encoded.len() >= remaining {
+        Ok(Part1PacketLengthSource::Plm(encoded))
+    } else {
+        let bounds = match pending {
+            Some((_, fragments)) => Some((fragments.first_start, fragments.first_end, fragments.marker_offset)),
+            None => {
+                if start + 4 > usize::MAX || segment.payload.len() + 4 > usize::MAX { None }
+                else { Some(((start + 4) as usize, (segment.payload.len() + 4) as usize, segment.offset)) }
+            },
+        };
+        match bounds {
+            None => Err(part1_codestream_malformed(segment.offset, crate::MalformedKind::ArithmeticOverflow)),
+            Some((first_start, first_end, marker_offset)) => {
+                if segment.offset as nat + 4 > usize::MAX || segment.offset as nat + 4 + end > usize::MAX {
+                    Err(part1_codestream_malformed(segment.offset, crate::MalformedKind::ArithmeticOverflow))
+                } else {
+                    let physical_end = segment.offset as nat + 4 + end;
+                    if marker_offset > physical_end || physical_end > state.input.len() {
+                        Err(part1_codestream_malformed(segment.offset, crate::MalformedKind::InvalidMarkerLength))
+                    } else {
+                        Ok(Part1PacketLengthSource::PlmSegments(Part1PlmFragments {
+                            header: state.input.subrange(marker_offset as int, physical_end as int),
+                            first_start, first_end, declared, marker_offset,
+                        }))
+                    }
+                }
+            },
+        }
+    }
+}
+
 #[verifier::opaque]
 pub open spec fn part1_plm_groups_from<'a>(
     state: Part1CodestreamReader<'a>, segment: Part1CodestreamSegment, next_index: u16,
@@ -12931,35 +12983,50 @@ pub open spec fn part1_plm_groups_from<'a>(
 {
     if position >= segment.payload.len() {
         (Ok(()), state, next_index, groups)
-    } else if segment.payload.len() - position < 4 {
-        (Err(part1_codestream_malformed(segment.offset, crate::MalformedKind::InvalidMarkerLength)), state, next_index, groups)
     } else {
-        let length = part1_siz_word(segment.payload, position as int) as nat;
-        let start = position + 4;
-        let end = start + length;
-        if length > usize::MAX || start > usize::MAX || end > usize::MAX {
-            (Err(part1_codestream_malformed(segment.offset, crate::MalformedKind::ArithmeticOverflow)), state, next_index, groups)
-        } else if end > segment.payload.len() {
-            (Err(part1_codestream_malformed(segment.offset, crate::MalformedKind::InvalidMarkerLength)), state, next_index, groups)
-        } else {
-            let encoded = segment.payload.subrange(start as int, end as int);
-            let admitted = part1_validate_packet_lengths(state, encoded, segment.offset);
-            match admitted.0 {
-                Err(error) => (Err(error), admitted.1, next_index, groups),
-                Ok((count, _)) => {
-                    let appended = groups.push(Part1PacketLengths {
-                        source: Part1PacketLengthSource::Plm(encoded), packet_count: count, encoded_bytes: encoded.len() as u64,
-                    });
-                    let maximum = crate::limits::resource_tile_part_limit(admitted.1.limits) as u64;
-                    if appended.len() > maximum {
-                        (Err(crate::DecodeError::LimitExceeded {
-                            resource: crate::Resource::TileParts, limit: maximum, actual: appended.len() as u64,
-                        }), admitted.1, next_index, appended)
-                    } else {
-                        part1_plm_groups_from(admitted.1, segment, next_index, end, appended)
+        let pending = part1_plm_pending(groups);
+        let (declared, remaining, start) = match pending {
+            Some((previous, fragments)) => (fragments.declared,
+                (fragments.declared as nat - previous.encoded_bytes as nat) as nat, position),
+            None => (segment.payload[position as int], segment.payload[position as int] as nat, position + 1),
+        };
+        let end = start + if remaining < segment.payload.len() - start { remaining } else { (segment.payload.len() - start) as nat };
+        let encoded = segment.payload.subrange(start as int, end as int);
+        let admitted = part1_validate_packet_lengths(state, encoded, segment.offset);
+        match admitted.0 {
+            Err(error) => (Err(error), admitted.1, next_index, groups),
+            Ok((count, _)) => {
+                let (previous_count, previous_bytes) = match pending {
+                    Some((previous, _)) => (previous.packet_count, previous.encoded_bytes),
+                    None => (0u64, 0u64),
+                };
+                if previous_count as int + count as int > u64::MAX
+                    || previous_bytes as int + encoded.len() > u64::MAX {
+                    (Err(part1_codestream_malformed(segment.offset, crate::MalformedKind::ArithmeticOverflow)),
+                        admitted.1, next_index, groups)
+                } else {
+                    let sourced = part1_plm_fragment_source(admitted.1, segment, start, end, declared, remaining, pending);
+                    match sourced {
+                        Err(error) => (Err(error), admitted.1, next_index, groups),
+                        Ok(source) => {
+                            let group = Part1PacketLengths { source,
+                                packet_count: (previous_count + count) as u64,
+                                encoded_bytes: (previous_bytes as int + encoded.len()) as u64 };
+                            let appended = if pending.is_some() {
+                                groups.update(groups.len() as int - 1, group)
+                            } else { groups.push(group) };
+                            let maximum = crate::limits::resource_tile_part_limit(admitted.1.limits) as u64;
+                            if appended.len() > maximum {
+                                (Err(crate::DecodeError::LimitExceeded {
+                                    resource: crate::Resource::TileParts, limit: maximum, actual: appended.len() as u64,
+                                }), admitted.1, next_index, appended)
+                            } else {
+                                part1_plm_groups_from(admitted.1, segment, next_index, end, appended)
+                            }
+                        },
                     }
-                },
-            }
+                }
+            },
         }
     }
 }
@@ -12969,7 +13036,7 @@ pub open spec fn part1_parse_plm<'a>(
     state: Part1CodestreamReader<'a>, segment: Part1CodestreamSegment,
     next_index: u16, groups: Seq<Part1PacketLengths>,
 ) -> (Result<(), crate::DecodeError>, Part1CodestreamReader<'a>, u16, Seq<Part1PacketLengths>) {
-    if segment.payload.len() < 5 {
+    if segment.payload.len() < 2 {
         (Err(part1_codestream_malformed(segment.offset, crate::MalformedKind::InvalidMarkerLength)), state, next_index, groups)
     } else if segment.payload[0] as u16 != next_index {
         (Err(part1_codestream_malformed(segment.offset, crate::MalformedKind::InvalidMarkerOrder)), state, next_index, groups)

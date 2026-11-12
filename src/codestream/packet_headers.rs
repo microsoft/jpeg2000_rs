@@ -2,7 +2,7 @@
 
 use super::reader::read_u32;
 use super::{
-    DecodeError, MalformedKind, PLT, PPT, PackedHeaderFrame, PackedPacketHeaderSource,
+    DecodeError, MalformedKind, PLM, PLT, PPT, PackedHeaderFrame, PackedPacketHeaderSource,
     PackedPacketHeaders, PacketLengthIter, PacketLengthSource, PacketLengths, Parser, Resource,
     ResourceLimits, Segment,
 };
@@ -271,19 +271,40 @@ impl PacketLengths<'_> {
     }
 
     #[cfg_attr(verus_keep_ghost, verus_spec(result =>
+        ensures result == crate::specs::part1_incomplete_plm_offset(packet_lengths_view(self)),
+    ))]
+    pub(super) const fn incomplete_plm_offset(&self) -> Option<usize> {
+        match self.source {
+            PacketLengthSource::PlmSegments(fragments)
+                if self.encoded_bytes != fragments.declared as u64 =>
+            {
+                Some(fragments.marker_offset)
+            }
+            _ => None,
+        }
+    }
+
+    #[cfg_attr(verus_keep_ghost, verus_spec(result =>
         ensures packet_length_iter_view(&result) == crate::specs::part1_packet_lengths_iter(packet_lengths_view(self)),
     ))]
     pub(crate) const fn iter(&self) -> PacketLengthIter<'_> {
         PacketLengthIter {
             source: self.source,
-            position: 0,
-            segment_end: 0,
+            position: match self.source {
+                PacketLengthSource::PlmSegments(fragments) => fragments.first_start,
+                _ => 0,
+            },
+            segment_end: match self.source {
+                PacketLengthSource::PlmSegments(fragments) => fragments.first_end,
+                _ => 0,
+            },
         }
     }
 }
 impl PacketLengthIter<'_> {
     #[cfg_attr(verus_keep_ghost, verus_spec(result =>
         ensures (result, packet_length_iter_view(final(self))) == crate::specs::part1_packet_length_next(packet_length_iter_view(old(self))),
+            packet_length_iter_view(final(self)).source == packet_length_iter_view(old(self)).source,
             match result { Ok(Some(value)) => value > 0, _ => true },
             match result { Ok(Some(_)) => packet_length_iter_view(final(self)).position > packet_length_iter_view(old(self)).position, _ => true },
     ))]
@@ -302,14 +323,21 @@ impl PacketLengthIter<'_> {
                 self.position = next;
                 Ok(Some(length))
             }
-            PacketLengthSource::Plt(header) =>
-            {
+            PacketLengthSource::Plt(header)
+            | PacketLengthSource::PlmSegments(super::PlmPacketLengthFragments { header, .. }) => {
+                let continued_plm = matches!(self.source, PacketLengthSource::PlmSegments(_));
+                let target_marker = if continued_plm { PLM } else { PLT };
                 #[cfg_attr(
                     verus_keep_ghost,
                     verus_spec(
                         invariant initial == packet_length_iter_view(old(self)),
                             packet_length_iter_view(self).source == initial.source,
-                            initial.source == crate::specs::Part1PacketLengthSource::Plt(header@),
+                            match initial.source {
+                                crate::specs::Part1PacketLengthSource::Plt(bytes) => bytes == header@ && !continued_plm,
+                                crate::specs::Part1PacketLengthSource::PlmSegments(fragments) => fragments.header == header@ && continued_plm,
+                                _ => false,
+                            },
+                            target_marker == if continued_plm { PLM } else { PLT },
                             initial.position <= self.position,
                             crate::specs::part1_packet_length_next(initial)
                                 == crate::specs::part1_packet_length_plt(packet_length_iter_view(self)),
@@ -367,15 +395,16 @@ impl PacketLengthIter<'_> {
                             ));
                         }
                     };
-                    if end > header.len() {
+                    if end > header.len() && !(continued_plm && marker == PLM) {
                         return Err(packet_input_error(
                             self.position as u64,
                             MalformedKind::InvalidMarkerLength,
                         ));
                     }
-                    self.position = end;
-                    if marker == PLT {
-                        let before_index = match self.position.checked_sub(marker_length) {
+                    let fragment_end = end.min(header.len());
+                    self.position = fragment_end;
+                    if marker == target_marker {
+                        let before_index = match end.checked_sub(marker_length) {
                             Some(value) => value,
                             None => {
                                 return Err(packet_input_error(
@@ -393,14 +422,14 @@ impl PacketLengthIter<'_> {
                                 ));
                             }
                         };
-                        if data_start > end {
+                        if data_start > fragment_end {
                             return Err(packet_input_error(
                                 self.position as u64,
                                 MalformedKind::InvalidMarkerLength,
                             ));
                         }
                         self.position = data_start;
-                        self.segment_end = end;
+                        self.segment_end = fragment_end;
                     }
                     if self.position <= previous_position || self.position > header.len() {
                         return Err(packet_input_error(
@@ -435,12 +464,8 @@ impl<'a> Parser<'a> {
     ) -> Result<(), DecodeError> {
         #[cfg(verus_keep_ghost)]
         proof! { reveal(crate::specs::part1_parse_plt); }
-        if main.is_present() {
-            return Err(DecodeError::malformed(
-                self.offset(segment.offset),
-                MalformedKind::InvalidMarkerOrder,
-            ));
-        }
+        // Compare both complete lists when the tile-part is finalized.
+        let _ = main;
         if segment.payload.is_empty() {
             return Err(DecodeError::malformed(
                 self.offset(segment.offset),
@@ -553,7 +578,7 @@ impl<'a> Parser<'a> {
         }
         #[cfg(verus_keep_ghost)]
         proof! { reveal(crate::specs::part1_parse_plm); }
-        if segment.payload.len() < 5 {
+        if segment.payload.len() < 2 {
             return Err(self.malformed_at(segment.offset, MalformedKind::InvalidMarkerLength));
         }
         let index = u16::from(segment.payload[0]);
@@ -578,25 +603,41 @@ impl<'a> Parser<'a> {
         )]
         while position < segment.payload.len() {
             #[cfg(verus_keep_ghost)]
-            proof! { reveal_with_fuel(crate::specs::part1_plm_groups_from, 1); }
-            if segment.payload.len() - position < 4 {
-                return Err(self.malformed_at(segment.offset, MalformedKind::InvalidMarkerLength));
+            proof! {
+                reveal_with_fuel(crate::specs::part1_plm_groups_from, 1);
+                reveal(crate::specs::part1_plm_pending);
+                reveal(crate::specs::part1_plm_fragment_source);
             }
-            let encoded_length = match usize::try_from(read_u32([
-                segment.payload[position],
-                segment.payload[position + 1],
-                segment.payload[position + 2],
-                segment.payload[position + 3],
-            ])) {
-                Ok(value) => value,
-                Err(_) => {
-                    return Err(
-                        self.malformed_at(segment.offset, MalformedKind::ArithmeticOverflow)
-                    );
+            let pending = match groups.last() {
+                Some(previous) => match previous.source {
+                    PacketLengthSource::PlmSegments(fragments)
+                        if previous.encoded_bytes < u64::from(fragments.declared) =>
+                    {
+                        Some((*previous, fragments))
+                    }
+                    _ => None,
+                },
+                None => None,
+            };
+            let (declared, remaining) = match pending {
+                Some((previous, fragments)) => (
+                    fragments.declared,
+                    usize::from(fragments.declared) - previous.encoded_bytes as usize,
+                ),
+                None => {
+                    let declared = segment.payload[position];
+                    position += 1;
+                    (declared, usize::from(declared))
                 }
             };
-            position += 4;
-            let end = match position.checked_add(encoded_length) {
+            let end = position + remaining.min(segment.payload.len() - position);
+            let encoded = &segment.payload[position..end];
+            let (count, _) = self.validate_packet_lengths(encoded, segment.offset)?;
+            let (previous_count, previous_bytes) = match pending {
+                Some((previous, _)) => (previous.packet_count, previous.encoded_bytes),
+                None => (0, 0),
+            };
+            let packet_count = match previous_count.checked_add(count) {
                 Some(value) => value,
                 None => {
                     return Err(
@@ -604,24 +645,95 @@ impl<'a> Parser<'a> {
                     );
                 }
             };
-            if end > segment.payload.len() {
-                return Err(self.malformed_at(segment.offset, MalformedKind::InvalidMarkerLength));
-            }
-            let encoded = &segment.payload[position..end];
-            let (packet_count, _) = self.validate_packet_lengths(encoded, segment.offset)?;
+            let encoded_bytes = match previous_bytes.checked_add(encoded.len() as u64) {
+                Some(value) => value,
+                None => {
+                    return Err(
+                        self.malformed_at(segment.offset, MalformedKind::ArithmeticOverflow)
+                    );
+                }
+            };
+            let source =
+                if pending.is_some() || encoded.len() < remaining {
+                    let (first_start, first_end, marker_offset) = match pending {
+                        Some((_, fragments)) => (
+                            fragments.first_start,
+                            fragments.first_end,
+                            fragments.marker_offset,
+                        ),
+                        None => {
+                            let first_start = match position.checked_add(4) {
+                                Some(value) => value,
+                                None => {
+                                    return Err(self.malformed_at(
+                                        segment.offset,
+                                        MalformedKind::ArithmeticOverflow,
+                                    ));
+                                }
+                            };
+                            let first_end = match segment.payload.len().checked_add(4) {
+                                Some(value) => value,
+                                None => {
+                                    return Err(self.malformed_at(
+                                        segment.offset,
+                                        MalformedKind::ArithmeticOverflow,
+                                    ));
+                                }
+                            };
+                            (first_start, first_end, segment.offset)
+                        }
+                    };
+                    let payload_start = match segment.offset.checked_add(4) {
+                        Some(value) => value,
+                        None => {
+                            return Err(self
+                                .malformed_at(segment.offset, MalformedKind::ArithmeticOverflow));
+                        }
+                    };
+                    let physical_end = match payload_start.checked_add(end) {
+                        Some(value) => value,
+                        None => {
+                            return Err(self
+                                .malformed_at(segment.offset, MalformedKind::ArithmeticOverflow));
+                        }
+                    };
+                    let header = match self.input.get(marker_offset..physical_end) {
+                        Some(value) => value,
+                        None => {
+                            return Err(self
+                                .malformed_at(segment.offset, MalformedKind::InvalidMarkerLength));
+                        }
+                    };
+                    PacketLengthSource::PlmSegments(super::PlmPacketLengthFragments {
+                        header,
+                        first_start,
+                        first_end,
+                        declared,
+                        marker_offset,
+                    })
+                } else {
+                    PacketLengthSource::Plm(encoded)
+                };
             #[cfg(verus_keep_ghost)]
             proof_decl! { let ghost before = packet_length_groups_view(groups@); }
-            groups.push(PacketLengths {
-                source: PacketLengthSource::Plm(encoded),
+            let group = PacketLengths {
+                source,
                 packet_count,
-                encoded_bytes: encoded.len() as u64,
-            });
+                encoded_bytes,
+            };
+            if pending.is_some() {
+                let last = groups.len() - 1;
+                groups[last] = group;
+            } else {
+                groups.push(group);
+            }
             #[cfg(verus_keep_ghost)]
             proof! {
-                assert(packet_length_groups_view(groups@) =~= before.push(crate::specs::Part1PacketLengths {
-                    source: crate::specs::Part1PacketLengthSource::Plm(encoded@), packet_count,
-                    encoded_bytes: encoded.len() as u64,
-                }));
+                if pending.is_some() {
+                    assert(packet_length_groups_view(groups@) =~= before.update(before.len() as int - 1, packet_lengths_view(&group)));
+                } else {
+                    assert(packet_length_groups_view(groups@) =~= before.push(packet_lengths_view(&group)));
+                }
             }
             if groups.len() as u64 > u64::from(self.limits.maximum_tile_parts()) {
                 return Err(DecodeError::LimitExceeded {
@@ -907,6 +1019,13 @@ impl<'a> Parser<'a> {
         } else {
             main_packet_lengths
         };
+        if plt_seen
+            && main_packet_lengths.is_present()
+            && (main_packet_lengths.packet_count != plt_packet_count
+                || !packet_length_sources_match(main_packet_lengths.source, packet_lengths.source)?)
+        {
+            return Err(self.malformed_at(tile_part_offset, MalformedKind::InvalidPacketLength));
+        }
         if packet_lengths.is_present() {
             let declared_payload_bytes = if plt_seen {
                 plt_payload_bytes
@@ -1084,8 +1203,9 @@ fn sum_packet_lengths(source: PacketLengthSource<'_>) -> Result<u64, DecodeError
     proof_decl! { let ghost goal = crate::specs::part1_sum_packet_lengths(packet_length_source_view(source)); }
     #[cfg(verus_keep_ghost)]
     proof! { reveal(crate::specs::part1_sum_packet_lengths); }
-    let bytes = match source {
-        PacketLengthSource::Plm(bytes) => bytes,
+    let maximum = match source {
+        PacketLengthSource::Plm(bytes) => bytes.len(),
+        PacketLengthSource::PlmSegments(fragments) => fragments.header.len(),
         PacketLengthSource::None => return Ok(0),
         PacketLengthSource::Plt(_) => {
             return Err(DecodeError::malformed(
@@ -1094,22 +1214,41 @@ fn sum_packet_lengths(source: PacketLengthSource<'_>) -> Result<u64, DecodeError
             ));
         }
     };
-    let mut position = 0_usize;
+    let lengths = PacketLengths {
+        source,
+        packet_count: 0,
+        encoded_bytes: 0,
+    };
+    let mut iter = lengths.iter();
+    #[cfg(verus_keep_ghost)]
+    proof! { reveal_with_fuel(crate::specs::part1_sum_packet_lengths_from, 1); }
+    if iter.position > maximum {
+        return Err(packet_input_error(
+            iter.position as u64,
+            MalformedKind::InvalidPacketLength,
+        ));
+    }
     let mut total = 0_u64;
     #[cfg_attr(
         verus_keep_ghost,
         verus_spec(
-            invariant position <= bytes.len(),
+            invariant iter.position <= maximum,
+                packet_length_iter_view(&iter).source == packet_length_source_view(source),
                 goal == crate::specs::part1_sum_packet_lengths(packet_length_source_view(source)),
-                goal == crate::specs::part1_sum_packet_lengths_from(bytes@, position, total),
-            decreases bytes.len() - position,
+                goal == crate::specs::part1_sum_packet_lengths_from(packet_length_iter_view(&iter), total),
+                maximum as nat == crate::specs::part1_packet_length_source_size(packet_length_source_view(source)),
+            decreases maximum - iter.position,
         )
     )]
-    while position < bytes.len() {
+    loop {
         #[cfg(verus_keep_ghost)]
         proof! { reveal_with_fuel(crate::specs::part1_sum_packet_lengths_from, 1); }
-        let (length, next) = decode_packet_length(bytes, position, bytes.len())?;
-        if next <= position || next > bytes.len() {
+        let position = iter.position;
+        let length = match iter.next_length()? {
+            Some(length) => length,
+            None => return Ok(total),
+        };
+        if iter.position <= position || iter.position > maximum {
             return Err(DecodeError::malformed(
                 position as u64,
                 MalformedKind::InvalidPacketLength,
@@ -1122,17 +1261,104 @@ fn sum_packet_lengths(source: PacketLengthSource<'_>) -> Result<u64, DecodeError
                 ))]
             || DecodeError::malformed(0, MalformedKind::ArithmeticOverflow),
         )?;
-        position = next;
     }
+}
+
+#[cfg_attr(verus_keep_ghost, verifier::spinoff_prover)]
+#[cfg_attr(verus_keep_ghost, verus_spec(result =>
+    ensures result == crate::specs::part1_packet_length_sources_match(
+        packet_length_source_view(first), packet_length_source_view(second)),
+))]
+fn packet_length_sources_match(
+    first: PacketLengthSource<'_>,
+    second: PacketLengthSource<'_>,
+) -> Result<bool, DecodeError> {
     #[cfg(verus_keep_ghost)]
-    proof! { reveal_with_fuel(crate::specs::part1_sum_packet_lengths_from, 1); }
-    Ok(total)
+    proof! { reveal(crate::specs::part1_packet_length_sources_match); }
+    let first_lengths = PacketLengths {
+        source: first,
+        packet_count: 0,
+        encoded_bytes: 0,
+    };
+    let second_lengths = PacketLengths {
+        source: second,
+        packet_count: 0,
+        encoded_bytes: 0,
+    };
+    let mut left = first_lengths.iter();
+    let mut right = second_lengths.iter();
+    let maximum = match first {
+        PacketLengthSource::None => 0,
+        PacketLengthSource::Plm(bytes) | PacketLengthSource::Plt(bytes) => bytes.len(),
+        PacketLengthSource::PlmSegments(fragments) => fragments.header.len(),
+    };
+    #[cfg_attr(verus_keep_ghost, verus_spec(
+        invariant packet_length_iter_view(&left).source == packet_length_source_view(first),
+            packet_length_iter_view(&right).source == packet_length_source_view(second),
+            maximum as nat == crate::specs::part1_packet_length_source_size(packet_length_source_view(first)),
+            crate::specs::part1_packet_length_sources_match(packet_length_source_view(first), packet_length_source_view(second))
+                == crate::specs::part1_packet_length_sources_match_from(packet_length_iter_view(&left), packet_length_iter_view(&right)),
+        decreases if left.position < maximum { maximum - left.position } else { 0int },
+    ))]
+    loop {
+        #[cfg(verus_keep_ghost)]
+        proof! { reveal_with_fuel(crate::specs::part1_packet_length_sources_match_from, 1); }
+        let position = left.position;
+        let first = left.next_length()?;
+        let second = right.next_length()?;
+        if first != second {
+            return Ok(false);
+        }
+        if first.is_none() {
+            return Ok(true);
+        }
+        if left.position <= position || left.position > maximum {
+            return Err(packet_input_error(
+                position as u64,
+                MalformedKind::InvalidPacketLength,
+            ));
+        }
+    }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
     use crate::codestream::tests::reference_packet_sum;
+
+    #[test]
+    fn actual_segmented_plm_sum_derives_raw_physical_fragments_and_failure_offsets() {
+        let cases = [
+            Vec::new(),
+            vec![1, 0x81, 0],
+            vec![1, 0xff, 0x57, 0, 5, 1, 0x81, 0],
+            vec![1, 0xff, 0x64, 0, 2, 0xff, 0x57, 0, 5, 1, 0x81, 0],
+            vec![1, 0xff, 0x57, 0, 3, 1, 0x80],
+            vec![1, 0xff, 0x57, 0, 1, 1],
+            vec![1, 0xff, 0x58, 0, 9, 1],
+        ];
+        let mut contexts = 0;
+        for bytes in &cases {
+            for end in 0..=bytes.len() {
+                for first_start in [0, 1, 5, bytes.len(), usize::MAX] {
+                    for first_end in [0, 1, 5, bytes.len(), usize::MAX] {
+                        let source = PacketLengthSource::PlmSegments(
+                            super::super::PlmPacketLengthFragments {
+                                header: &bytes[..end],
+                                first_start,
+                                first_end,
+                                declared: 255,
+                                marker_offset: usize::MAX,
+                            },
+                        );
+                        assert_eq!(sum_packet_lengths(source), reference_packet_sum(source));
+                        contexts += 1;
+                    }
+                }
+            }
+        }
+        assert_eq!(contexts, 1_225);
+    }
 
     #[test]
     fn actual_packet_sum_derives_raw_sources_all_short_varints_and_original_error_offsets() {

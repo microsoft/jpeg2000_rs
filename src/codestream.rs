@@ -424,7 +424,18 @@ pub struct MctCollection {
 enum PacketLengthSource<'a> {
     None,
     Plm(&'a [u8]),
+    PlmSegments(PlmPacketLengthFragments<'a>),
     Plt(&'a [u8]),
+}
+
+#[derive(Clone, Copy)]
+#[cfg_attr(not(verus_keep_ghost), derive(Debug, Eq, PartialEq))]
+struct PlmPacketLengthFragments<'a> {
+    header: &'a [u8],
+    first_start: usize,
+    first_end: usize,
+    declared: u8,
+    marker_offset: usize,
 }
 
 #[derive(Clone, Copy)]

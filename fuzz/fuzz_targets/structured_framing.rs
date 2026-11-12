@@ -275,11 +275,7 @@ fn make_codestream(
         encode_packet_length(u32::try_from(logical_packet_length).unwrap_or(u32::MAX));
     if packet_length_mode & 1 == 0 {
         let mut plm = vec![0];
-        plm.extend_from_slice(
-            &u32::try_from(encoded_packet_length.len())
-                .unwrap()
-                .to_be_bytes(),
-        );
+        plm.push(u8::try_from(encoded_packet_length.len()).unwrap());
         plm.extend_from_slice(&encoded_packet_length);
         bytes.extend(segment(PLM, &plm));
     }

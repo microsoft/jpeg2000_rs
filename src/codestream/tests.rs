@@ -3,6 +3,166 @@ use super::reader::{is_allowed_main_header, is_allowed_tile_header, is_known_seg
 use super::*;
 use crate::tier1::SubbandOrientation;
 
+#[test]
+fn sarah_engineering_plm_groups_continue_between_complete_codewords() {
+    let first = segment(PLM, &[0, 4, 1]);
+    let second = segment(PLM, &[1, 0x81, 0, 2, 0]);
+    let bytes = [first, second].concat();
+    let limits = ResourceLimits::default();
+    let mut parser = new_parser(&bytes, &limits).unwrap();
+    let mut next = 0;
+    let mut groups = Vec::new();
+    for _ in 0..2 {
+        let marker = parser.read_segment().unwrap();
+        parser.parse_plm(marker, &mut next, &mut groups).unwrap();
+    }
+    assert_eq!(next, 2);
+    assert_eq!(groups.len(), 2);
+    assert_eq!(
+        (groups[0].packet_count(), groups[0].encoded_bytes()),
+        (3, 4)
+    );
+    let mut iter = groups[0].iter();
+    for expected in [1, 128, 2] {
+        assert_eq!(iter.next_length().unwrap(), Some(expected));
+    }
+    assert_eq!(iter.next_length().unwrap(), None);
+    assert_eq!(
+        (groups[1].packet_count(), groups[1].encoded_bytes()),
+        (0, 0)
+    );
+    assert_eq!(groups[1].iter().next_length().unwrap(), None);
+}
+
+#[test]
+fn sarah_engineering_consistent_plm_and_plt_coexist() {
+    let bytes = segment(PLT, &[0, 1]);
+    let limits = ResourceLimits::default();
+    let mut parser = new_parser(&bytes, &limits).unwrap();
+    let marker = parser.read_segment().unwrap();
+    let main = PacketLengths {
+        source: PacketLengthSource::Plm(&[1]),
+        packet_count: 1,
+        encoded_bytes: 1,
+    };
+    let (mut next, mut seen, mut packets, mut encoded, mut payload) = (0, false, 0, 0, 0);
+    parser
+        .parse_plt(
+            marker,
+            main,
+            &mut next,
+            &mut seen,
+            &mut packets,
+            &mut encoded,
+            &mut payload,
+        )
+        .unwrap();
+    assert_eq!((next, seen, packets, encoded, payload), (1, true, 1, 1, 1));
+}
+
+#[test]
+fn sarah_engineering_plm_continuations_reach_layout_across_other_markers() {
+    let limits = ResourceLimits::default();
+    for first_count in [0, 1, 2, 127, 254] {
+        let mut headers = vec![
+            segment(COD, &[0, 0, 0, 255, 0, 0, 2, 2, 0, 1]),
+            segment(QCD, &[0, 0]),
+        ];
+        let mut first = vec![0, 255];
+        first.extend(vec![1; first_count]);
+        headers.push(segment(PLM, &first));
+        headers.push(segment(0xff64, &[0, 0, 7, 9]));
+        let mut second = vec![1];
+        second.extend(vec![1; 255 - first_count]);
+        headers.push(segment(PLM, &second));
+        let data = vec![0; 255];
+        let bytes = codestream_with_headers(1, &headers, &[], &data);
+        let layout = parse_layout(&bytes, &limits).unwrap();
+        let lengths = layout.tile_parts[0].packet_lengths;
+        assert_eq!(
+            (lengths.packet_count(), lengths.encoded_bytes()),
+            (255, 255)
+        );
+        assert_eq!(lengths.incomplete_plm_offset(), None);
+        let mut iter = lengths.iter();
+        for _ in 0..255 {
+            assert_eq!(iter.next_length().unwrap(), Some(1));
+        }
+        assert_eq!(iter.next_length().unwrap(), None);
+    }
+}
+
+#[test]
+fn sarah_engineering_plm_incomplete_and_split_codewords_keep_original_offsets() {
+    let limits = ResourceLimits::default();
+    let cod = segment(COD, &[0, 0, 0, 1, 0, 0, 2, 2, 0, 1]);
+    let qcd = segment(QCD, &[0, 0]);
+    let bytes = codestream_with_headers(1, &[cod, qcd, segment(PLM, &[0, 3, 1])], &[], &[0]);
+    let offset = bytes
+        .windows(2)
+        .position(|word| word == PLM.to_be_bytes())
+        .unwrap();
+    assert_eq!(
+        parse_layout(&bytes, &limits),
+        Err(input_error_literal(
+            offset,
+            MalformedKind::InvalidMarkerLength
+        ))
+    );
+
+    let bytes = [segment(PLM, &[0, 3, 1]), segment(PLM, &[1, 0x80])].concat();
+    let mut parser = new_parser(&bytes, &limits).unwrap();
+    let mut next = 0;
+    let mut groups = Vec::new();
+    let first = parser.read_segment().unwrap();
+    parser.parse_plm(first, &mut next, &mut groups).unwrap();
+    let second = parser.read_segment().unwrap();
+    assert_eq!(
+        parser.parse_plm(second, &mut next, &mut groups),
+        Err(input_error_literal(
+            second.offset,
+            MalformedKind::InvalidPacketLength
+        ))
+    );
+    assert_eq!(next, 2);
+    assert_eq!(
+        (groups[0].packet_count(), groups[0].encoded_bytes()),
+        (1, 1)
+    );
+    assert_eq!((parser.packet_lengths, parser.packet_length_bytes), (1, 2));
+}
+
+#[test]
+fn sarah_engineering_plm_plt_equal_sums_do_not_hide_different_packets() {
+    let limits = ResourceLimits::default();
+    let cod = segment(COD, &[0, 0, 0, 2, 0, 0, 2, 2, 0, 1]);
+    let qcd = segment(QCD, &[0, 0]);
+    let bytes = codestream_with_headers(
+        1,
+        &[cod.clone(), qcd.clone(), plm(0, &[&[1, 2]])],
+        &[plt(0, &[1, 2])],
+        &[0; 3],
+    );
+    assert!(parse_layout(&bytes, &limits).is_ok());
+    let bytes = codestream_with_headers(
+        1,
+        &[cod, qcd, plm(0, &[&[1, 2]])],
+        &[plt(0, &[2, 1])],
+        &[0; 3],
+    );
+    let offset = bytes
+        .windows(2)
+        .position(|word| word == SOT.to_be_bytes())
+        .unwrap();
+    assert_eq!(
+        parse_layout(&bytes, &limits),
+        Err(input_error_literal(
+            offset,
+            MalformedKind::InvalidPacketLength
+        ))
+    );
+}
+
 #[path = "main_header_result_tests.rs"]
 mod main_header_result;
 #[path = "mct_parameter_clone_tests.rs"]
@@ -6431,6 +6591,9 @@ fn packet_lengths_exhaustive_two_byte_windows_and_every_raw_iterator_field() {
                             position,
                             MalformedKind::InvalidPacketLength,
                         )),
+                        PacketLengthSource::PlmSegments(_) => unreachable!(
+                            "continued PLM descriptors have a separate physical-fragment domain"
+                        ),
                     };
                     let (expected_result, expected_position) = match expected {
                         Ok(Some((value, next))) => (Ok(Some(value)), next),
@@ -7003,7 +7166,7 @@ fn plm(index: u8, groups: &[&[u32]]) -> Vec<u8> {
     let mut payload = vec![index];
     for lengths in groups {
         let encoded = encode_packet_lengths(lengths);
-        payload.extend_from_slice(&u32::try_from(encoded.len()).unwrap().to_be_bytes());
+        payload.push(u8::try_from(encoded.len()).unwrap());
         payload.extend(encoded);
     }
     segment(PLM, &payload)
@@ -10027,12 +10190,6 @@ fn reference_plt_producer(
     limits: &ResourceLimits,
     case: &mut PltProducerCase<'_>,
 ) -> Result<(), DecodeError> {
-    if case.main.source != PacketLengthSource::None {
-        return Err(input_error_literal(
-            case.offset,
-            MalformedKind::InvalidMarkerOrder,
-        ));
-    }
     let Some(index) = case.payload.first() else {
         return Err(input_error_literal(
             case.offset,
@@ -10933,7 +11090,7 @@ fn reference_plm_producer(
         offset: case.offset as u64,
         kind,
     };
-    if case.payload.len() < 5 {
+    if case.payload.len() < 2 {
         return Err(malformed(MalformedKind::InvalidMarkerLength));
     }
     if u16::from(case.payload[0]) != case.next {
@@ -10942,21 +11099,18 @@ fn reference_plm_producer(
     case.next += 1;
     let mut remaining = &case.payload[1..];
     while !remaining.is_empty() {
-        if remaining.len() < 4 {
-            return Err(malformed(MalformedKind::InvalidMarkerLength));
-        }
-        let length = u32::from_be_bytes(remaining[..4].try_into().unwrap()) as u128;
-        let start = case.payload.len() as u128 - remaining.len() as u128 + 4;
-        if length > usize::MAX as u128 || start + length > usize::MAX as u128 {
-            return Err(malformed(MalformedKind::ArithmeticOverflow));
-        }
-        remaining = &remaining[4..];
-        if length > remaining.len() as u128 {
-            return Err(malformed(MalformedKind::InvalidMarkerLength));
-        }
-        let (encoded, tail) = remaining.split_at(length as usize);
+        let declared = usize::from(remaining[0]);
+        remaining = &remaining[1..];
+        let length = declared.min(remaining.len());
+        let (encoded, tail) = remaining.split_at(length);
         let (packet_count, _) =
             reference_packet_admission(limits, &mut case.state, encoded, case.offset)?;
+        if length < declared {
+            if case.offset as u128 + 4 + case.payload.len() as u128 > usize::MAX as u128 {
+                return Err(malformed(MalformedKind::ArithmeticOverflow));
+            }
+            return Err(malformed(MalformedKind::InvalidMarkerLength));
+        }
         case.groups.push(PacketLengths {
             source: PacketLengthSource::Plm(encoded),
             packet_count,
@@ -11006,22 +11160,108 @@ fn assert_plm_producer_case(limits: &ResourceLimits, case: PlmProducerCase<'_>) 
     assert_packet_admission_state(&parser, expected.state, &input, limits);
 }
 
-pub(super) fn reference_packet_sum(source: PacketLengthSource<'_>) -> Result<u64, DecodeError> {
-    let bytes = match source {
-        PacketLengthSource::None => return Ok(0),
-        PacketLengthSource::Plt(_) => {
-            return Err(input_error_literal(0, MalformedKind::InvalidPacketLength));
-        }
-        PacketLengthSource::Plm(bytes) => bytes,
+fn reference_packet_steps(source: PacketLengthSource<'_>) -> Vec<Result<u32, DecodeError>> {
+    let (header, target, capped, mut position, mut end) = match source {
+        PacketLengthSource::None => return Vec::new(),
+        PacketLengthSource::Plm(bytes) => (bytes, PLM, false, 0, bytes.len()),
+        PacketLengthSource::Plt(bytes) => (bytes, PLT, false, 0, 0),
+        PacketLengthSource::PlmSegments(fragments) => (
+            fragments.header,
+            PLM,
+            true,
+            fragments.first_start,
+            fragments.first_end,
+        ),
     };
-    let mut position = 0;
-    let mut values = Vec::new();
-    while position < bytes.len() {
-        let (value, next) = packet_length_wide_window(bytes, position, bytes.len())?;
-        values.push(value);
-        position = next;
+    let mut steps = Vec::new();
+    loop {
+        if position < end {
+            match packet_length_wide_window(header, position, end) {
+                Ok((value, next)) => {
+                    steps.push(Ok(value));
+                    position = next;
+                }
+                Err(error) => {
+                    steps.push(Err(error));
+                    break;
+                }
+            }
+        } else if position == header.len() {
+            break;
+        } else if position > header.len() || header.len() - position < 4 {
+            steps.push(Err(input_error_literal(
+                position,
+                MalformedKind::InvalidPacketLength,
+            )));
+            break;
+        } else {
+            let marker = u16::from_be_bytes([header[position], header[position + 1]]);
+            let length = usize::from(u16::from_be_bytes([
+                header[position + 2],
+                header[position + 3],
+            ]));
+            let physical_end = position as u128 + 2 + length as u128;
+            let error = if length < 2 {
+                Some(MalformedKind::InvalidMarkerLength)
+            } else if physical_end > usize::MAX as u128 {
+                Some(MalformedKind::ArithmeticOverflow)
+            } else if physical_end > header.len() as u128 && !(capped && marker == PLM) {
+                Some(MalformedKind::InvalidMarkerLength)
+            } else {
+                None
+            };
+            if let Some(kind) = error {
+                steps.push(Err(input_error_literal(position, kind)));
+                break;
+            }
+            let next_end = (physical_end as usize).min(header.len());
+            if marker == target {
+                let start = position as u128 + 5;
+                if start > usize::MAX as u128 || start > next_end as u128 {
+                    let kind = if start > usize::MAX as u128 {
+                        MalformedKind::ArithmeticOverflow
+                    } else {
+                        MalformedKind::InvalidMarkerLength
+                    };
+                    steps.push(Err(input_error_literal(next_end, kind)));
+                    break;
+                }
+                position = start as usize;
+                end = next_end;
+            } else {
+                position = next_end;
+            }
+        }
     }
-    let total: u128 = values.into_iter().map(u128::from).sum();
+    steps
+}
+
+fn reference_length_sources_match(
+    first: PacketLengthSource<'_>,
+    second: PacketLengthSource<'_>,
+) -> Result<bool, DecodeError> {
+    let mut first = reference_packet_steps(first).into_iter();
+    let mut second = reference_packet_steps(second).into_iter();
+    loop {
+        let left = first.next().transpose()?;
+        let right = second.next().transpose()?;
+        if left != right {
+            return Ok(false);
+        }
+        if left.is_none() {
+            return Ok(true);
+        }
+    }
+}
+
+pub(super) fn reference_packet_sum(source: PacketLengthSource<'_>) -> Result<u64, DecodeError> {
+    if matches!(source, PacketLengthSource::Plt(_)) {
+        return Err(input_error_literal(0, MalformedKind::InvalidPacketLength));
+    }
+    let mut total = 0_u128;
+    for step in reference_packet_steps(source) {
+        total += u128::from(step?);
+    }
     if total > u128::from(u64::MAX) {
         Err(input_error_literal(0, MalformedKind::ArithmeticOverflow))
     } else {
@@ -11058,6 +11298,16 @@ fn reference_length_finalization<'a>(
     } else {
         case.main
     };
+    if case.seen
+        && case.main.source != PacketLengthSource::None
+        && (case.main.packet_count != case.plt_count
+            || !reference_length_sources_match(case.main.source, lengths.source)?)
+    {
+        return Err(input_error_literal(
+            case.offset,
+            MalformedKind::InvalidPacketLength,
+        ));
+    }
     if lengths.source == PacketLengthSource::None {
         return Ok(lengths);
     }
@@ -11259,7 +11509,7 @@ fn actual_packed_finalization_preserves_zero_bypass_raw_main_and_exact_source_bo
 
 #[test]
 fn actual_packet_metadata_joins_real_plm_and_ppt_producers_without_prepared_results() {
-    let mut input = segment(PLM, &[0, 0, 0, 0, 1, 3]);
+    let mut input = segment(PLM, &[0, 1, 3]);
     input.extend(segment(PPT, &[0, 0xab]));
     let limits = ResourceLimits::HARDENED;
     let mut parser = new_parser(&input, &limits).unwrap();
@@ -11442,7 +11692,7 @@ fn actual_plm_groups_derive_raw_lengths_indexes_borrowed_sources_and_partial_com
 fn actual_plm_groups_preserve_charge_errors_append_caps_and_real_segment_reader_join() {
     let mut payload = vec![0];
     for encoded in [&[3][..], &[][..], &[0x81, 0][..]] {
-        payload.extend((encoded.len() as u32).to_be_bytes());
+        payload.push(u8::try_from(encoded.len()).unwrap());
         payload.extend(encoded);
     }
     let mut contexts = 0;
@@ -19476,7 +19726,7 @@ fn validates_packet_length_scope_indexes_coding_and_payload_sum() {
     ));
     let truncated_plm_group = codestream_with_headers(
         1,
-        &[cod.clone(), qcd.clone(), segment(PLM, &[0, 0, 0, 0, 2, 1])],
+        &[cod.clone(), qcd.clone(), segment(PLM, &[0, 2, 1])],
         &[],
         &[0],
     );
@@ -19517,13 +19767,7 @@ fn validates_packet_length_scope_indexes_coding_and_payload_sum() {
     ));
     let both_scopes =
         codestream_with_headers(1, &[cod, qcd, plm(0, &[&[1]])], &[plt(0, &[1])], &[0]);
-    assert!(matches!(
-        parse_layout(&both_scopes, &limits),
-        Err(DecodeError::MalformedInput {
-            kind: MalformedKind::InvalidMarkerOrder,
-            ..
-        })
-    ));
+    assert!(parse_layout(&both_scopes, &limits).is_ok());
 }
 
 #[test]

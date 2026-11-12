@@ -6769,7 +6769,7 @@ class FrameworkTests(WorkingFiles):
     def test_inventory_binds_actual_packet_length_admission_full_reader_and_plm_group_production(self):
         self._assert_complete_packet_contract_bindings(
             {"part1-complete-native-packet-length-admission"},
-            framework._PACKET_LENGTH_ADMISSION_CONTRACTS, 2,
+            framework._PACKET_LENGTH_ADMISSION_CONTRACTS, 3,
         )
 
     def test_inventory_binds_actual_plt_ppt_main_conflicts_and_full_sequential_counter_frames(self):
@@ -6892,7 +6892,7 @@ class FrameworkTests(WorkingFiles):
     def test_inventory_binds_actual_packet_sums_and_complete_length_header_finalization(self):
         self._assert_complete_packet_contract_bindings(
             {"part1-complete-native-packet-metadata-finalization"},
-            framework._PACKET_METADATA_FINALIZATION_CONTRACTS, 3,
+            framework._PACKET_METADATA_FINALIZATION_CONTRACTS, 4,
         )
 
     def test_inventory_binds_actual_depth_registration_prefix_frames_and_real_uniformity(self):

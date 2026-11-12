@@ -630,6 +630,11 @@ verus! {
         match source {
             PacketLengthSource::None => crate::specs::Part1PacketLengthSource::None,
             PacketLengthSource::Plm(bytes) => crate::specs::Part1PacketLengthSource::Plm(bytes@),
+            PacketLengthSource::PlmSegments(fragments) => crate::specs::Part1PacketLengthSource::PlmSegments(
+                crate::specs::Part1PlmFragments {
+                    header: fragments.header@, first_start: fragments.first_start,
+                    first_end: fragments.first_end, declared: fragments.declared, marker_offset: fragments.marker_offset,
+                }),
             PacketLengthSource::Plt(header) => crate::specs::Part1PacketLengthSource::Plt(header@),
         }
     }
