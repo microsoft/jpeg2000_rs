@@ -1,0 +1,15 @@
+[package]
+name = "jpeg2000-native-inventory"
+version = "0.0.0"
+edition = "2024"
+publish = false
+license = "MIT"
+description = "Pinned diagnostic native compiler observations, not a coverage or verification claim"
+
+[workspace]
+
+[dependencies]
+serde_json = "=1.0.154"
+
+[lints.rust]
+unsafe_code = "forbid"
