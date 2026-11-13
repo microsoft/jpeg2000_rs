@@ -23,13 +23,21 @@ pub(super) fn write_u64_be(
     )
 }
 
+#[cfg_attr(verus_keep_ghost, verus_spec(result =>
+    ensures result == crate::specs::part2_jpip_read_u64(input@, position),
+))]
 pub(super) fn read_u64_be(input: &[u8], position: usize) -> Result<u64, DecodeError> {
     let high = u64::from(read_u32_be(input, position)?);
     let low = u64::from(read_u32_be(
         input,
         position
             .checked_add(4)
-            .ok_or_else(|| DecodeError::malformed(0, MalformedKind::ArithmeticOverflow))?,
+            .ok_or_else(
+                #[cfg_attr(verus_keep_ghost, verus_spec(result: DecodeError =>
+                    ensures result == crate::specs::part2_jpip_cache_error(0, MalformedKind::ArithmeticOverflow),
+                ))]
+                || DecodeError::malformed(0, MalformedKind::ArithmeticOverflow),
+            )?,
     )?);
     Ok((high << 32) | low)
 }

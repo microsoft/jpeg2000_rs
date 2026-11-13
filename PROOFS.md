@@ -464,6 +464,24 @@ budgets and `--no-lifetime` are unchanged; full-plan completion is not claimed.
 
 ## Actual placeholder representation and header selection
 
+The actual `parse_jpip_placeholder` now has a complete raw-input Result equality.
+Its logical value retains all nine native flags/id/header/type/equivalent/stream/
+count fields. Models compose real word reads, short/extended headers, flag
+admission, equivalent headers, explicit counts, the existing ignored legacy word
+and exact trailer/error precedence. No parsed-success or normalized-result bank
+is supplied. Existing native control flow, copies and owning bindings remain.
+
+The actual 64-bit reader composes its two existing 32-bit Result contracts.
+`BoxType::new` uses the repository's impl-level constructor contract frontend,
+in its own impl without changing the existing equality contract. A checked Copy
+word/array bridge preserves the existing byte constructor model while exposing
+value equality independently of opaque array identity. No native owner is
+chosen, cloned or moved by these ghost interfaces, and no new trust is added.
+
+This is a producer prerequisite. Recursive metadata expansion still needs its
+actual automatic snapshot dependency and complete output/missing/needs/error/
+state joins; neither public #130 group is completed by this parser contract.
+
 The executing `placeholder_reconstruction` derives its complete Result from
 arbitrary raw flags, original bytes and optional equivalent bytes. It returns
 the selected branch and exact borrowed header together. Original contents take
@@ -1423,6 +1441,32 @@ These are as-implemented raw codestream full/selected producer contracts.
 Container/layer/frame/progressive/JPIP composition, actual normalization/frame
 joins, independent corrected-rule correspondence, genuine production coverage/
 erasure/lifetimes, official conformance and release qualification are separate.
+
+## Bounded opt-in raw missing-EOC recovery
+
+`recovery` and `codestream::recovery_framing` are verified production modules.
+`specs/raw_recovery.rs` composes their exact structural Result/reader-state
+transitions, input and joint extra-stage work admission, one accepted fallible
+reservation response, exact std byte concatenation, the existing compressed-byte
+strict decoder Result and every report/actual geometry field. The reservation
+response has two outcomes, not independent fallible extension outcomes. No
+successful parser/image banks, generic error alternative, new trusted
+declaration, policy exclusion or old decoder-contract weakening is introduced.
+
+The preflight reuses checked SIZ, main/tile marker and SOT readers. Its separate
+marker-aware body traversal recognizes stuffed bytes, SOP/EPH and marker fill;
+another SOT/EOC or unrelated marker cannot authorize append. It is structural
+admission, not an entropy inspector: header semantics, packet/body completion
+and entropy still pass through one strict decode, without retries or discard.
+
+The added preflight/copy stage jointly obeys the existing work cap. Original
+and effective input lengths remain separately explicit; the ordinary decoder's
+existing stage-local limits are unchanged. This is not global cumulative work,
+physical allocation/capacity or deadline accounting. Std reservation/no-growth
+is the already disclosed library boundary. Native one-request/refusal,
+same-process and unwind controls do not establish mathematical allocator or
+unwind proofs. Full fallibility (W06/#287), cooperative deadlines (W07/#289),
+remaining #300 integration/qualification and W09/#291 completion remain open.
 
 ## Strict raw-codestream reconstruction Result
 

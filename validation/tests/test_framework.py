@@ -683,6 +683,48 @@ class FrameworkTests(WorkingFiles):
                     self.assertRaisesRegex(ValueError, "lacks executable Verus contract"):
                 framework.validate_normative_coverage(coverage)
 
+    def test_inventory_raw_recovery_binds_complete_results_states_and_public_export(self):
+        coverage = json.loads((framework.VALIDATION / "normative-coverage.json").read_text())
+        coverage["requirements"] = [
+            item for item in coverage["requirements"]
+            if item["id"] == framework._RAW_RECOVERY_ENTRY
+        ]
+        result = framework.validate_normative_coverage(coverage)
+        self.assertEqual(result["referenced_contract_functions"], 9)
+        read_text = Path.read_text
+        mutations = [
+            ("src/recovery.rs", "recovered_outcome(result)", "recovered_outcome(unrelated)"),
+            ("src/recovery.rs", "raw_repair_result(input@", "raw_repair_result(Seq::empty()"),
+            ("src/recovery.rs", "raw_recovery_admit(input_bytes, work, limits)",
+             "raw_recovery_admit(input_bytes, 0, limits)"),
+            ("src/recovery.rs", "crate::options::decode_options_limits(options)",
+             "unrelated_options_limits(options)"),
+            ("src/recovery.rs", "ensures crate::specs::raw_repair_result",
+             "requires input.len() > 0, ensures crate::specs::raw_repair_result"),
+            ("src/codestream/recovery_framing.rs", "parser_view(final(self))", "parser_view(old(self))"),
+            ("src/codestream/recovery_framing.rs", "raw_recovery_body(parser_view(old(self)))",
+             "raw_recovery_body(parser_view(final(self)))"),
+            ("src/lib.rs", "RawRecoveryReport, decode_codestream_recover_missing_eoc",
+             "RawRecoveryReport"),
+        ]
+        for relative, before, after in mutations:
+            source = framework.ROOT / relative
+            original = source.read_text()
+            self.assertIn(before, original)
+            modified = original.replace(before, after, 1)
+
+            def altered(path, *args, **kwargs):
+                return modified if path == source else read_text(path, *args, **kwargs)
+
+            with self.subTest(relative=relative, before=before), \
+                mock.patch.object(Path, "read_text", altered), \
+                self.assertRaises(ValueError):
+                framework.validate_normative_coverage(coverage)
+        incomplete = copy.deepcopy(coverage)
+        incomplete["requirements"][0]["contract_refs"].pop()
+        with self.assertRaisesRegex(ValueError, "all actual preflight"):
+            framework.validate_normative_coverage(incomplete)
+
     def test_inventory_main_header_storage_result_binds_raw_input_and_entire_result(self):
         coverage = json.loads((framework.VALIDATION / "normative-coverage.json").read_text())
         coverage["requirements"] = [
@@ -1855,8 +1897,35 @@ class FrameworkTests(WorkingFiles):
 
     def test_inventory_placeholder_reconstruction_binds_raw_flags_and_header_results(self):
         self._assert_complete_packet_contract_bindings(
-            {framework._JPIP_PLACEHOLDER_ENTRY}, framework._JPIP_PLACEHOLDER_CONTRACTS, 1, isolate=False,
+            {framework._JPIP_PLACEHOLDER_ENTRY}, framework._JPIP_PLACEHOLDER_CONTRACTS, 3, isolate=False,
         )
+
+    def test_inventory_placeholder_constructor_binds_checked_byte_and_word_results(self):
+        coverage = json.loads((framework.VALIDATION / "normative-coverage.json").read_text())
+        coverage["requirements"] = [
+            item for item in coverage["requirements"] if item["id"] == framework._JPIP_PLACEHOLDER_ENTRY
+        ]
+        self.assertEqual(framework.validate_normative_coverage(coverage)["status"], "passed")
+        source = framework.ROOT / "src/jp2/box_reader.rs"
+        original = source.read_text()
+        read_text = Path.read_text
+        for before, after in (
+            ("vstd::prelude::equal(result, super::box_type_from_bytes_model(bytes))", "true"),
+            ("super::box_type_from_word_model(crate::specs::part2_box_u32(bytes))",
+             "super::box_type_from_word_model(0)"),
+            ("#[cfg_attr(verus_keep_ghost, verus_verify)]\nimpl BoxType", "impl BoxType"),
+            ("vstd::prelude::ensures(|result: Self| {",
+             "vstd::prelude::requires(bytes[0] == 0); vstd::prelude::ensures(|result: Self| {"),
+        ):
+            self.assertIn(before, original)
+            changed = original.replace(before, after, 1)
+
+            def altered(path, *args, **kwargs):
+                return changed if path == source else read_text(path, *args, **kwargs)
+
+            with self.subTest(before=before), mock.patch.object(Path, "read_text", altered), \
+                    self.assertRaisesRegex(ValueError, "placeholder representation selection"):
+                framework.validate_normative_coverage(coverage)
 
     def test_spec_body_lookup_retains_parent_visibility_and_unique_definition(self):
         for visibility in ("pub", "pub(crate)", "pub(super)"):
@@ -1890,6 +1959,14 @@ class FrameworkTests(WorkingFiles):
             ("src/jpip/reconstruction.rs", "Some(bytes) => Some(bytes@)", "Some(bytes) => Some(Seq::empty())"),
             ("src/jpip/reconstruction.rs", "Err(error) => Err(error)", "Err(error) => Err(other_error)"),
             ("specs/jpip_layout.rs", "Some(header) => Ok((1, header))", "Some(header) => Ok((1, original))"),
+            ("src/jpip/reconstruction.rs", "stream_count: value.stream_count", "stream_count: 0"),
+            ("src/jpip/reconstruction.rs", "original_header: value.original_header@", "original_header: Seq::empty()"),
+            ("src/jpip/reconstruction.rs", "Ok(value) => Ok(placeholder_value_view(value))", "Ok(value) => Err(other_error)"),
+            ("specs/jpip_layout.rs", "count == 0", "false"),
+            ("specs/jpip_layout.rs", "stream.2 as nat != input.len()", "false"),
+            ("specs/jpip_layout.rs", "flags & !0x0f != 0", "false"),
+            ("specs/jpip_layout.rs", "equivalent_type: equivalent.2", "equivalent_type: None"),
+            ("specs/jpip_transitions.rs", "Ok(low) => Ok(((high as u64) << 32) | low as u64)", "Ok(low) => Ok(low as u64)"),
         ):
             source = framework.ROOT / relative
             original = source.read_text()

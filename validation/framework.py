@@ -1880,6 +1880,43 @@ _TYPED_LAYOUT_CONTRACTS = {
 }
 
 _RAW_TYPED_ENTRY = "part2-complete-native-raw-codestream-typed-result"
+_RAW_RECOVERY_ENTRY = "implementation-raw-missing-eoc-recovery"
+_RAW_RECOVERY_CONTRACTS = {
+    ("src/codestream/recovery_framing.rs", "recovery_framing"): (
+        "raw_recovery_framing", _coverage_call("framing_outcome", r"\1"), None, r"input@\s*,\s*limits",
+    ),
+    **{
+        ("src/codestream/recovery_framing.rs", "Parser::" + name): (
+            model, _coverage_call("framing_outcome", r"\1"),
+            _coverage_call("parser_view", _coverage_call("final", "self")),
+            _coverage_call("parser_view", _coverage_call("old", "self")) + suffix,
+        )
+        for name, model, suffix in (
+            ("recovery_main_headers", "raw_recovery_main_headers", r"\s*,\s*1\s*,\s*false\s*,\s*false"),
+            ("recovery_sot", "raw_recovery_sot", ""),
+            ("recovery_tile_headers", "raw_recovery_tile_headers", ""),
+            ("recovery_body", "raw_recovery_body", ""),
+        )
+    },
+    ("src/recovery.rs", "admit_repair"): (
+        "raw_recovery_admit", r"\1", None, r"input_bytes\s*,\s*work\s*,\s*limits",
+    ),
+    ("src/recovery.rs", "finish_recovery"): (
+        "raw_recovery_finish", _coverage_call("recovered_outcome", r"\1"), None,
+        r"original\s*,\s*\(\s*frame\.append_eoc\s*,\s*frame\.work_units\s*\)\s*,\s*"
+        + _coverage_call("crate::image::decoded_typed_image_outcome", "decoded"),
+    ),
+}
+_RAW_RECOVERY_RELATIONS = {
+    ("src/recovery.rs", "decode_codestream_recover_missing_eoc"): (
+        "raw_recovery_result", r"input@\s*,\s*"
+        + _coverage_call("crate::options::decode_options_limits", "options") + r"\s*,\s*"
+        + _coverage_call("recovered_outcome", r"\1"),
+    ),
+    ("src/recovery.rs", "append_eoc"): (
+        "raw_repair_result", r"input@\s*,\s*" + _coverage_call("repair_outcome", r"\1"),
+    ),
+}
 _RAW_RECONSTRUCTED_ENTRY = "part2-strict-raw-codestream-reconstruction-result"
 _RAW_RECONSTRUCTED_CONTRACTS = {
     ("src/decode/api.rs", "decode_codestream_reconstructed"): (
@@ -3463,6 +3500,12 @@ _RAW_CONTAINER_COLOR_TESTS = {("src/decode/container_image_result_tests.rs", "ac
 )} | {("src/decode/tests.rs", "sarah_dev_457acab2c3_later_jp2_streams_do_not_change_first_display")}
 _JPIP_PLACEHOLDER_ENTRY = "part9-native-placeholder-representation-selection"
 _JPIP_PLACEHOLDER_CONTRACTS = {
+    ("src/jpip/reconstruction.rs", "parse_jpip_placeholder"): (
+        "part2_jpip_parse_placeholder", _coverage_call("placeholder_parse_outcome", r"\1"), None, r"payload@",
+    ),
+    ("src/jpip/byte_io.rs", "read_u64_be"): (
+        "part2_jpip_read_u64", r"\1", None, r"input@\s*,\s*position",
+    ),
     ("src/jpip/reconstruction.rs", "placeholder_reconstruction"): (
         "part2_jpip_placeholder_reconstruction",
         _coverage_call("placeholder_reconstruction_outcome", r"\1"), None,
@@ -3472,17 +3515,36 @@ _JPIP_PLACEHOLDER_CONTRACTS = {
 }
 _JPIP_PLACEHOLDER_IMPLEMENTATIONS = set(_JPIP_PLACEHOLDER_CONTRACTS) | {
     ("src/jpip/reconstruction.rs", "DatabinCache::expand_metadata_bin"),
+    ("src/jp2/box_reader.rs", "BoxType::new"),
 }
-_JPIP_PLACEHOLDER_MODELS = {("specs/jpip_layout.rs", "part2_jpip_placeholder_reconstruction")}
+_JPIP_PLACEHOLDER_BODY_CLAUSE = (
+    "vstd::prelude::ensures(|result: Self| { "
+    "vstd::prelude::equal(result, super::box_type_from_bytes_model(bytes)) && "
+    "vstd::prelude::equal(result, super::box_type_from_word_model(crate::specs::part2_box_u32(bytes))) });"
+)
+_JPIP_PLACEHOLDER_MODELS = {("specs/jpip_layout.rs", name) for name in (
+    "part2_jpip_placeholder_reconstruction", "part2_jpip_parse_placeholder",
+    "part2_jpip_placeholder_header", "part2_jpip_placeholder_equivalent", "part2_jpip_placeholder_stream",
+)} | {("specs/jpip_transitions.rs", "part2_jpip_read_u64")} | {
+    ("src/jp2/proof_support.rs", name) for name in (
+        "box_type_from_bytes_model", "box_type_from_word_model",
+    )
+}
 _JPIP_PLACEHOLDER_PROOFS = set(_JPIP_PLACEHOLDER_CONTRACTS) | {
     ("src/jpip/reconstruction.rs", name) for name in (
         "placeholder_source_view", "placeholder_header_option_view", "placeholder_reconstruction_outcome",
+        "placeholder_value_view", "placeholder_parse_outcome",
     )
+} | {
+    ("src/jp2/proof_support.rs", "box_type_from_bytes_word"),
+    ("src/jp2/box_reader.rs", "BoxType::new"),
 }
 _JPIP_PLACEHOLDER_TESTS = {("src/jpip/tests.rs", name) for name in (
     "semantic_equivalent_metadata_preserves_declared_representation",
     "semantic_original_metadata_precedes_available_equivalent_representation",
     "placeholder_reconstruction_preserves_raw_precedence_and_header_owners",
+    "placeholder_parser_accepts_standard_bit_flags_and_types_extensions",
+    "placeholder_raw_results_preserve_every_field_and_first_error",
 )}
 _JPIP_LAYOUT_ENTRY = "part9-complete-native-public-layout-results"
 _JPIP_LAYOUT_CONTRACTS = {
@@ -4650,6 +4712,15 @@ def validate_normative_coverage(
             if body is None or any("".join(fragment.split()) not in "".join(body.split())
                                    for fragment in model_fragments):
                 raise ValueError("ordinal scratch frame requires exact bounds, old empty slot and complete matrix update")
+        if entry["id"] == _RAW_RECOVERY_ENTRY:
+            expected = set(_RAW_RECOVERY_CONTRACTS) | set(_RAW_RECOVERY_RELATIONS)
+            if {(ref["path"], ref["symbol"]) for ref in entry["contract_refs"]} != expected:
+                raise ValueError("raw recovery requires all actual preflight/state/copy/admission/report/public contracts")
+            lib = source_text((ROOT / "src/lib.rs").resolve())
+            if not re.search(
+                r"pub\s+use\s+recovery::\{[^}]*\bdecode_codestream_recover_missing_eoc\b[^}]*\}", lib,
+            ):
+                raise ValueError("raw recovery requires its actual public root export")
         if entry["id"] == "part9-ordered-main-header-storage-result":
             main = ("src/jpip/automatic_headers.rs", "normalize_main_header")
             if {(ref["path"], ref["symbol"]) for ref in entry["contract_refs"]} != {main}:
@@ -5218,6 +5289,12 @@ def validate_normative_coverage(
                     if field == "implementation_refs":
                         raise ValueError("placeholder representation selection linked function is not used by claimed implementation: actual caller missing")
                     raise ValueError("placeholder representation selection requires every native/model/result/caller/test bridge")
+            constructor_path = (ROOT / "src/jp2/box_reader.rs").resolve()
+            if not _coverage_verified_body_clause(
+                source_text(constructor_path), function_header(constructor_path, "BoxType::new"),
+                "BoxType::new", _JPIP_PLACEHOLDER_BODY_CLAUSE,
+            ):
+                raise ValueError("placeholder representation selection requires the checked byte/word constructor body clause")
             native_path = (ROOT / "src/jpip/reconstruction.rs").resolve()
             native = source_text(native_path)
             for name, required in {
@@ -5251,6 +5328,17 @@ def validate_normative_coverage(
                     "Ok((source, header)) => Ok((placeholder_source_view(source), header@))",
                     "Err(error) => Err(error)",
                 ),
+                "placeholder_value_view": (
+                    "flags: value.flags", "bin: value.bin",
+                    "original_header: value.original_header@", "original_type: value.original_type",
+                    "equivalent_bin: value.equivalent_bin", "match value.equivalent_header",
+                    "Some(header) => Some(header@)", "None => None",
+                    "equivalent_type: value.equivalent_type", "stream: value.stream",
+                    "stream_count: value.stream_count",
+                ),
+                "placeholder_parse_outcome": (
+                    "Ok(value) => Ok(placeholder_value_view(value))", "Err(error) => Err(error)",
+                ),
             }
             model = source_text((ROOT / "specs/jpip_layout.rs").resolve())
             for text, functions in (
@@ -5260,7 +5348,44 @@ def validate_normative_coverage(
                     "Some(header) => Ok((1, header))",
                     "None => Err(part2_jpip_cache_error(0, crate::MalformedKind::InvalidBoxContents))",
                     "else if flags & 4 != 0", "Ok((2, original))", "Ok((3, original))",
-                )}),
+                ),
+                    "part2_jpip_placeholder_header": (
+                        "part2_jpip_read_u32(input, position)", "if length == 1 { 16 } else { 8 }",
+                        "end > usize::MAX as nat", "end > input.len()",
+                        "input.subrange(position as int, end as int)", "box_type_from_word_model(",
+                    ),
+                    "part2_jpip_placeholder_equivalent": (
+                        "flags & 6 == 0", "Ok((None, None, None, position))",
+                        "part2_jpip_read_u64(input, position)", "position as nat + 8 > usize::MAX as nat",
+                        "part2_jpip_placeholder_header(input, (position + 8) as usize)",
+                        "Some(part2_jpip_copy_bytes(header.0))", "Some(header.1), header.2",
+                    ),
+                    "part2_jpip_placeholder_stream": (
+                        "flags & 4 == 0", "Ok((None, 0, position))", "part2_jpip_read_u64(input, position)",
+                        "flags & 8 != 0", "part2_jpip_read_u32(input, after)", "count == 0",
+                        "input.len() == after as nat + 4", "Ok(_) =>", "Ok((Some(stream), 1, (after + 4) as usize))",
+                    ),
+                    "part2_jpip_parse_placeholder": (
+                        "input.len() < 20", "part2_jpip_read_u32(input, 0)",
+                        "part2_jpip_read_u32(input, 4)", "part2_jpip_read_u32(input, 8)",
+                        "part2_jpip_placeholder_header(input, 12)", "flags & !0x0f != 0",
+                        "flags & 8 != 0 && flags & 4 == 0",
+                        "part2_jpip_placeholder_equivalent(input, flags, original.2)",
+                        "part2_jpip_placeholder_stream(input, flags, equivalent.3)",
+                        "stream.2 as nat != input.len()", "flags == 4 && input.len() == original.2 as nat + 24",
+                        "original.2 as u64", "bin: ((high as u64) << 32) | low as u64",
+                        "original_header: part2_jpip_copy_bytes(original.0)", "original_type: original.1",
+                        "equivalent_bin: equivalent.0", "equivalent_header: equivalent.1",
+                        "equivalent_type: equivalent.2", "stream: stream.0", "stream_count: stream.1",
+                    ),
+                }),
+                (source_text((ROOT / "specs/jpip_transitions.rs").resolve()), {
+                    "part2_jpip_read_u64": (
+                        "part2_jpip_read_u32(input, position)", "position as nat + 4 > usize::MAX as nat",
+                        "part2_jpip_read_u32(input, (position + 4) as usize)",
+                        "Ok(low) => Ok(((high as u64) << 32) | low as u64)",
+                    ),
+                }),
             ):
                 for name, required in functions.items():
                     body = _coverage_spec_function_body(text, name)
@@ -8441,6 +8566,8 @@ def validate_normative_coverage(
                 result_projection, expected_result_model = selection_contract[:2]
             header_contract = (
                 _PACKET_HEADER_CONTRACTS.get((reference["path"], reference["symbol"]))
+                or (_RAW_RECOVERY_CONTRACTS.get((reference["path"], reference["symbol"]))
+                    if entry["id"] == _RAW_RECOVERY_ENTRY else None)
                 or _PACKET_PROGRESSION_CONTRACTS.get((reference["path"], reference["symbol"]))
                 or _PACKET_WRAPPER_CONTRACTS.get((reference["path"], reference["symbol"]))
                 or _RECONSTRUCTION_CONTRACTS.get((reference["path"], reference["symbol"]))
@@ -8789,6 +8916,19 @@ def validate_normative_coverage(
                     state_result = relation
                 else:
                     scalar_result = relation
+                expected_result_model = model
+            recovery_relation = _RAW_RECOVERY_RELATIONS.get(
+                (reference["path"], reference["symbol"])
+            ) if entry["id"] == _RAW_RECOVERY_ENTRY else None
+            if recovery_relation:
+                model, arguments = recovery_relation
+                relation = re.search(
+                    named_prefix + r"crate::specs::(?P<model>" + re.escape(model)
+                    + r")\s*\(\s*(?P<state>" + arguments + r")\s*,?\s*\)", contract,
+                )
+                if relation is None or re.search(r"\brequires\b", contract):
+                    raise ValueError(f"linked function lacks executable Verus contract: {short}; invalid recovery relation")
+                scalar_result = relation
                 expected_result_model = model
             final_parameters = set(re.findall(
                 r"\bfinal\(\s*(\w+(?:\.\w+)?)\s*\)" if bundle else r"\bfinal\(\s*(\w+)\s*\)",
@@ -9159,7 +9299,13 @@ def validate_normative_coverage(
             main_header_caller = (
                 main_header_contract and entry["id"] in ("part1-complete-native-raw-main-header-result", _RAW_LAYOUT_ENTRY)
             )
-            if claimed_consumer and not main_header_caller and not any(
+            exported_recovery_entry = (
+                entry["id"] == _RAW_RECOVERY_ENTRY
+                and (reference["path"], reference["symbol"]) ==
+                    ("src/recovery.rs", "decode_codestream_recover_missing_eoc")
+                and re.search(r"\bpub\s+fn\s+decode_codestream_recover_missing_eoc\b", signature_match.group())
+            )
+            if claimed_consumer and not main_header_caller and not exported_recovery_entry and not any(
                 ref != reference
                 and (cross_file_call(
                     (ROOT / ref["path"]).resolve(), ref["symbol"], short,

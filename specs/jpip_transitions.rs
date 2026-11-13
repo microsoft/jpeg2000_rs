@@ -25,6 +25,20 @@ pub open spec fn part2_jpip_read_u32(input: Seq<u8>, position: usize) -> Result<
         | ((input[position as int + 2] as u32) << 8) | input[position as int + 3] as u32) }
 }
 
+pub open spec fn part2_jpip_read_u64(input: Seq<u8>, position: usize) -> Result<u64, crate::DecodeError> {
+    match part2_jpip_read_u32(input, position) {
+        Err(error) => Err(error),
+        Ok(high) => if position as nat + 4 > usize::MAX as nat {
+            Err(part2_jpip_cache_error(0, crate::MalformedKind::ArithmeticOverflow))
+        } else {
+            match part2_jpip_read_u32(input, (position + 4) as usize) {
+                Err(error) => Err(error),
+                Ok(low) => Ok(((high as u64) << 32) | low as u64),
+            }
+        },
+    }
+}
+
 pub open spec fn part2_jpip_marker_segment(input: Seq<u8>, position: usize)
     -> Result<(u16, usize, usize), crate::DecodeError> {
     match part2_jpip_read_u16(input, position) {

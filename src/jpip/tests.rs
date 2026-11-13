@@ -110,6 +110,86 @@ fn placeholder_parser_accepts_standard_bit_flags_and_types_extensions() {
     ));
 }
 
+#[test]
+fn placeholder_raw_results_preserve_every_field_and_first_error() {
+    let original = [0, 0, 0, 1, b'a', b's', b'o', b'c', 0, 0, 0, 0, 0, 0, 0, 32];
+    let equivalent = [0, 0, 0, 8, b'j', b'p', b'2', b'c'];
+    let mut payload = 14_u32.to_be_bytes().to_vec();
+    payload.extend_from_slice(&0x1122_3344_5566_7788_u64.to_be_bytes());
+    payload.extend_from_slice(&original);
+    payload.extend_from_slice(&0x9988_7766_5544_3322_u64.to_be_bytes());
+    payload.extend_from_slice(&equivalent);
+    payload.extend_from_slice(&0x0102_0304_0506_0708_u64.to_be_bytes());
+    payload.extend_from_slice(&3_u32.to_be_bytes());
+    let parsed = parse_jpip_placeholder(&payload).unwrap();
+    assert_eq!(parsed.flags, 14);
+    assert_eq!(parsed.bin, 0x1122_3344_5566_7788);
+    assert_eq!(parsed.original_header, original);
+    assert_eq!(parsed.original_type, crate::jp2::BoxType::ASSOCIATION);
+    assert_eq!(parsed.equivalent_bin, Some(0x9988_7766_5544_3322));
+    assert_eq!(
+        parsed.equivalent_header.as_deref(),
+        Some(equivalent.as_slice())
+    );
+    assert_eq!(
+        parsed.equivalent_type,
+        Some(crate::jp2::BoxType::CONTIGUOUS_CODESTREAM)
+    );
+    assert_eq!(parsed.stream, Some(0x0102_0304_0506_0708));
+    assert_eq!(parsed.stream_count, 3);
+
+    let reject = |bytes: &[u8]| match parse_jpip_placeholder(bytes) {
+        Err(error) => error,
+        Ok(_) => panic!("accepted malformed placeholder with {} bytes", bytes.len()),
+    };
+    for (length, offset, kind) in [
+        (0, 0, MalformedKind::InvalidBoxContents),
+        (19, 0, MalformedKind::InvalidBoxContents),
+        (20, 0, MalformedKind::InvalidBoxContents),
+        (28, 28, MalformedKind::Truncated),
+        (32, 32, MalformedKind::Truncated),
+        (36, 36, MalformedKind::Truncated),
+        (40, 0, MalformedKind::InvalidBoxContents),
+        (44, 44, MalformedKind::Truncated),
+        (48, 48, MalformedKind::Truncated),
+        (52, 52, MalformedKind::Truncated),
+        (55, 52, MalformedKind::Truncated),
+    ] {
+        assert_eq!(
+            reject(&payload[..length]),
+            DecodeError::MalformedInput { offset, kind },
+            "prefix {length}",
+        );
+    }
+    let invalid = DecodeError::malformed(0, MalformedKind::InvalidBoxContents);
+    let mut bad_flags = payload[..28].to_vec();
+    bad_flags[..4].copy_from_slice(&0x10_u32.to_be_bytes());
+    assert_eq!(reject(&bad_flags), invalid);
+    let mut zero_count = payload.clone();
+    zero_count[52..56].copy_from_slice(&0_u32.to_be_bytes());
+    assert_eq!(reject(&zero_count), invalid);
+    let mut trailer = payload.clone();
+    trailer.push(0);
+    assert_eq!(reject(&trailer), invalid);
+
+    let mut ignored_count = payload.clone();
+    ignored_count[..4].copy_from_slice(&6_u32.to_be_bytes());
+    ignored_count[52..56].copy_from_slice(&0xdead_beef_u32.to_be_bytes());
+    assert_eq!(
+        parse_jpip_placeholder(&ignored_count).unwrap().stream_count,
+        1
+    );
+    let mut original_only = payload[..28].to_vec();
+    original_only[..4].copy_from_slice(&1_u32.to_be_bytes());
+    let parsed = parse_jpip_placeholder(&original_only).unwrap();
+    assert_eq!(parsed.original_header, original);
+    assert_eq!(parsed.equivalent_bin, None);
+    assert_eq!(parsed.equivalent_header, None);
+    assert_eq!(parsed.equivalent_type, None);
+    assert_eq!(parsed.stream, None);
+    assert_eq!(parsed.stream_count, 0);
+}
+
 fn decodable_codestream() -> Vec<u8> {
     decodable_codestream_with_layers(1)
 }
