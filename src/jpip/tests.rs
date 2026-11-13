@@ -987,6 +987,131 @@ fn automatic_header_inputs_derive_exact_fields_and_recover_after_managed_refusal
 }
 
 #[test]
+fn automatic_progressive_actual_images_no_advance_and_errors_preserve_commit_state() {
+    let code = decodable_codestream_with_layers(2);
+    let limits = ResourceLimits::default();
+    let options = crate::DecodeOptions::default();
+    let sot = code
+        .windows(2)
+        .position(|value| value == [0xff, 0x90])
+        .unwrap();
+    let header_cache = || {
+        let mut cache = DatabinCache::new(limits);
+        cache
+            .insert(fragment(id(6, 0), 0, &code[..sot], true))
+            .unwrap();
+        cache
+            .insert(fragment(id(2, 0), 0, &code[sot..sot + 14], true))
+            .unwrap();
+        cache
+    };
+    let mut cache = header_cache();
+    let packets = JpipPacketSelection::all_components();
+    let expected = crate::decode_codestream(&code, &options).unwrap();
+    let mut decoder = JpipAutomaticProgressiveDecoder::new(0);
+    let waiting = decoder.update(&cache, &options).unwrap();
+    assert_eq!(
+        (
+            waiting.status(),
+            waiting.previous_layers(),
+            waiting.available_layers()
+        ),
+        (JpipProgressiveStatus::WaitingForData, 0, 0)
+    );
+    assert!(waiting.image().is_none());
+    assert_eq!(decoder.decoded_layers(), 0);
+    cache.insert(fragment(id(0, 0), 0, &[0], false)).unwrap();
+    let first = decoder.update(&cache, &options).unwrap();
+    assert_eq!(
+        (
+            first.status(),
+            first.previous_layers(),
+            first.available_layers()
+        ),
+        (JpipProgressiveStatus::QualityAdvanced, 0, 1)
+    );
+    assert_eq!(first.image(), Some(&expected));
+    assert_eq!(decoder.decoded_layers(), 1);
+    let repeated = decoder.update(&cache, &options).unwrap();
+    assert_eq!(
+        (
+            repeated.status(),
+            repeated.previous_layers(),
+            repeated.available_layers()
+        ),
+        (JpipProgressiveStatus::WaitingForData, 1, 1)
+    );
+    assert!(repeated.image().is_none());
+    cache.insert(fragment(id(0, 0), 1, &[0], true)).unwrap();
+    let complete = decoder.update(&cache, &options).unwrap();
+    assert_eq!(
+        (
+            complete.status(),
+            complete.previous_layers(),
+            complete.available_layers()
+        ),
+        (JpipProgressiveStatus::Complete, 1, 2)
+    );
+    assert_eq!(complete.image(), Some(&expected));
+    assert_eq!((decoder.codestream(), decoder.decoded_layers()), (0, 2));
+
+    let invalid = crate::DecodeSelection::tile(9);
+    let image_error = crate::decode_codestream_selected(&code, &options, &invalid).unwrap_err();
+    assert!(
+        cache
+            .build_automatic_snapshot(0, Some(&invalid), &packets, &limits)
+            .unwrap()
+            .ready
+            .is_some()
+    );
+    let mut fresh = JpipAutomaticProgressiveDecoder::new(0);
+    assert_eq!(
+        fresh
+            .update_selected(&cache, &options, &invalid, &packets)
+            .err(),
+        Some(image_error)
+    );
+    assert_eq!((fresh.codestream(), fresh.decoded_layers()), (0, 0));
+    let suppressed = decoder
+        .update_selected(&cache, &options, &invalid, &packets)
+        .unwrap();
+    assert_eq!(
+        (
+            suppressed.status(),
+            suppressed.previous_layers(),
+            suppressed.available_layers()
+        ),
+        (JpipProgressiveStatus::Complete, 2, 2)
+    );
+    assert!(suppressed.image().is_none());
+    let bad_packets = JpipPacketSelection::components(vec![1]);
+    assert_eq!(
+        decoder
+            .update_selected(
+                &cache,
+                &options,
+                &crate::DecodeSelection::full_image(),
+                &bad_packets
+            )
+            .err(),
+        Some(DecodeError::InvalidSelection {
+            reason: crate::SelectionError::EmptyComponentIntersection
+        })
+    );
+    assert_eq!(
+        decoder.update(&header_cache(), &options).err(),
+        Some(DecodeError::malformed(0, MalformedKind::InvalidJpipLayout))
+    );
+    assert_eq!((decoder.codestream(), decoder.decoded_layers()), (0, 2));
+    assert_eq!(cache.databin_view(id(6, 0)).unwrap().as_ref(), &code[..sot]);
+    assert_eq!(
+        cache.databin_view(id(2, 0)).unwrap().as_ref(),
+        &code[sot..sot + 14]
+    );
+    assert_eq!(cache.databin_view(id(0, 0)).unwrap().as_ref(), &[0, 0]);
+}
+
+#[test]
 fn automatic_managed_allocation_refusals_preserve_state_and_recover_exact_images() {
     let bytes = decodable_codestream_with_layers(2);
     let tile_start = bytes

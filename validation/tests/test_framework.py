@@ -934,6 +934,89 @@ class FrameworkTests(WorkingFiles):
                     self.assertRaisesRegex(ValueError, "executable Verus contract"):
                 framework.validate_normative_coverage(coverage)
 
+    def test_inventory_automatic_progressive_binds_all_actual_public_inputs_and_final_state(self):
+        coverage = json.loads((framework.VALIDATION / "normative-coverage.json").read_text())
+        coverage["requirements"] = [
+            item for item in coverage["requirements"] if item["id"] == framework._JPIP_AUTOMATIC_PROGRESSIVE_ENTRY
+        ]
+        self.assertEqual(len(coverage["requirements"]), 1)
+        framework.validate_normative_coverage(coverage)
+        source = framework.ROOT / "src/jpip/progression.rs"
+        original = source.read_text()
+        read_text = Path.read_text
+        for method in ("update", "update_selected", "update_inner"):
+            header = framework._coverage_function_header(original, "JpipAutomaticProgressiveDecoder::" + method)
+            start = original.rfind("#[cfg_attr", 0, header.start())
+            contract = original[start:header.start()]
+            for before, after in (
+                ("jpip_cache_view(cache)", "jpip_cache_view(other_cache)"),
+                ("super::jpip_automatic_progressive_decoder_view(old(self))",
+                 "super::jpip_automatic_progressive_decoder_view(self)"),
+                ("options,", "other_options,"),
+                ("jpip_progressive_outcome(result)", "jpip_progressive_outcome(other_result)"),
+                ("super::jpip_automatic_progressive_decoder_view(final(self))",
+                 "super::jpip_automatic_progressive_decoder_view(old(self))"),
+            ):
+                self.assertIn(before, contract)
+                modified = original[:start] + contract.replace(before, after) + original[header.start():]
+
+                def altered(path, *args, **kwargs):
+                    return modified if path == source else read_text(path, *args, **kwargs)
+
+                with self.subTest(method=method, before=before), mock.patch.object(Path, "read_text", altered), \
+                        self.assertRaisesRegex(ValueError, "executable Verus contract"):
+                    framework.validate_normative_coverage(coverage)
+
+    def test_inventory_automatic_progressive_rejects_supplied_image_or_changed_rollback_commit(self):
+        coverage = json.loads((framework.VALIDATION / "normative-coverage.json").read_text())
+        coverage["requirements"] = [
+            item for item in coverage["requirements"] if item["id"] == framework._JPIP_AUTOMATIC_PROGRESSIVE_ENTRY
+        ]
+        self.assertEqual(len(coverage["requirements"]), 1)
+        framework.validate_normative_coverage(coverage)
+        read_text = Path.read_text
+        source = framework.ROOT / "specs/jpip_progressive.rs"
+        original = source.read_text()
+        start = re.search(r"\bspec\s+fn\s+part2_jpip_automatic_progressive_run\b", original).start()
+        for before, after in (
+            ("part2_jpip_snapshot_run(input, events)", "supplied_snapshot_result"),
+            ("Some((Err(error), tail)) => Some(((Err(error), decoder, cache), tail))",
+             "Some((Err(error), tail)) => Some(((Err(error), (decoder.0, 0), cache), tail))"),
+            ("else if available <= previous", "else if available < previous"),
+            ("part2_decode_raw_codestream(snapshot.0,", "part2_decode_raw_codestream(Seq::empty(),"),
+            ("(decoder.0, available), cache)", "(decoder.0, previous), cache)"),
+        ):
+            self.assertIn(before, framework._coverage_spec_function_body(original, "part2_jpip_automatic_progressive_run"))
+            modified = original[:start] + original[start:].replace(before, after, 1)
+
+            def altered(path, *args, **kwargs):
+                return modified if path == source else read_text(path, *args, **kwargs)
+
+            with self.subTest(before=before), mock.patch.object(Path, "read_text", altered), \
+                    self.assertRaisesRegex(ValueError, "complete automatic progressive"):
+                framework.validate_normative_coverage(coverage)
+
+    def test_inventory_automatic_progressive_requires_verified_temporary_and_constructor_frames(self):
+        coverage = json.loads((framework.VALIDATION / "normative-coverage.json").read_text())
+        coverage["requirements"] = [
+            item for item in coverage["requirements"] if item["id"] == framework._JPIP_AUTOMATIC_PROGRESSIVE_ENTRY
+        ]
+        framework.validate_normative_coverage(coverage)
+        read_text = Path.read_text
+        for (relative, method), clause in framework._JPIP_AUTOMATIC_PROGRESSIVE_BODY_CLAUSES.items():
+            source = framework.ROOT / relative
+            original = source.read_text()
+            header = framework._coverage_function_header(original, method)
+            start = original.index("vstd::prelude::ensures", header.end())
+            modified = original[:start] + original[start:].replace("vstd::prelude::ensures", "unrelated_clause", 1)
+
+            def altered(path, *args, **kwargs):
+                return modified if path == source else read_text(path, *args, **kwargs)
+
+            with self.subTest(method=method), mock.patch.object(Path, "read_text", altered), \
+                    self.assertRaisesRegex(ValueError, "exact checked constructor/getter temporary"):
+                framework.validate_normative_coverage(coverage)
+
     def test_inventory_full_snapshot_rejects_lost_native_projection_and_finish_frames(self):
         coverage = json.loads((framework.VALIDATION / "normative-coverage.json").read_text())
         coverage["requirements"] = [

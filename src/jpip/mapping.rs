@@ -167,13 +167,25 @@ impl JpipPrecinctMap {
     }
 }
 
+#[cfg_attr(verus_keep_ghost, verus_verify)]
 impl JpipPacketSelection {
     pub const fn all_components() -> Self {
+        #[cfg(verus_keep_ghost)]
+        vstd::prelude::ensures(|result: Self| {
+            vstd::prelude::equal(
+                super::jpip_packet_selection_view(&result),
+                Seq::<u16>::empty(),
+            )
+        });
+        #[cfg(verus_keep_ghost)]
+        proof! { reveal(super::jpip_packet_selection_view); }
         Self {
             components: Vec::new(),
         }
     }
+}
 
+impl JpipPacketSelection {
     pub fn components(components: Vec<u16>) -> Self {
         Self { components }
     }

@@ -409,9 +409,39 @@ contract was checked on the actual whole root, with the original settings.
 Focused native controls exercise ready-None, zero-ready, incomplete quality
 prefix and complete byte-exact success, in addition to existing errors/refusals.
 
-This completes only the actual automatic snapshot producer Result. Progressive
-image/public update composition and semantic-container/public assembly remain
-separate #130 follow-ons; no overall issue completion or standards claim follows.
+The snapshot producer is the prerequisite for the automatic public update
+composition described below. Semantic-container/public assembly remains separate;
+no overall issue completion or standards claim follows.
+
+## Complete actual automatic-progressive public Result and state
+
+Both `JpipAutomaticProgressiveDecoder` public update methods and their sole
+`update_inner` implementation now have complete actual-input Result/image/final
+decoder/cache-state contracts. The model consumes the existing ordered automatic
+snapshot run, then invokes the accepted raw full/selected image producer on that
+snapshot's actual bytes. It accepts no supplied images, layouts or normalized
+decoder outcomes. A checked owning-module unfolding law exposes the closed run;
+the native caller discharges its actual snapshot-event and image-producer joins.
+
+Snapshot errors precede all metadata/image checks and preserve decoder state.
+Ready-None returns the actual missing report without advancing. Ready metadata
+validity precedes no-advance handling; no-advance returns no image and retains
+decoder state without executing the image producer. Image errors roll back to
+the prior decoder state; successful actual images commit available layers once,
+with exact status/previous/available/missing/image fields. Codestream identity and
+the immutable cache remain unchanged on every branch. Explicit checked error
+projection/current-state framing links the actual propagated first error.
+
+Constructors/getters and the original all-components temporary have checked
+forwarding contracts, with their original native owner/evaluation/drop behavior.
+Focused controls cover waiting, partial/full images, repeated no-advance, image
+error rollback, no-advance suppression of an otherwise failing selected image,
+snapshot-first errors, regressed availability and cache bytes. Caller-planned
+`JpipProgressiveDecoder`/#279 contracts and implementations are unchanged.
+
+This completes the remaining automatic-JPIP public update/image Result group
+under the unchanged verifier mode. Semantic-container/placeholder expansion and
+public assembly are the remaining #130 follow-on, not worked or certified here.
 
 ## Trailing whole-packet engineering admission
 

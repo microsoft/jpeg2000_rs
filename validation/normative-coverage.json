@@ -4,6 +4,44 @@
   "scope": "Technical reference inventory; not exhaustive standards-clause coverage or a conformance claim.",
   "requirements": [
     {
+      "id": "part9-complete-actual-automatic-progressive-public-result",
+      "topic": "Complete actual automatic progressive update/update_selected and sole update_inner Result, image and final decoder/cache state from actual cache/codestream/caller options/selection/components. Existing automatic snapshot run and accepted full/selected raw image producer compute outputs, not supplied images/layouts/outcomes. Checked snapshot-first error projection/current-state framing, ready-None, metadata validity before no-advance, suppressed image production, image-error rollback and single successful layer commit retain exact status/previous/available/missing/image fields, codestream identity and immutable cache. Checked temporary/constructor/getter contracts preserve original native ownership/evaluation/drop order with no new domains or verifier settings. Caller-planned/#279 work unchanged. This completes the automatic-JPIP public group; semantic-container/public assembly remains a separate #130 follow-on.",
+      "implementation_refs": [
+        {"path": "src/jpip/progression.rs", "symbol": "JpipAutomaticProgressiveDecoder::update"},
+        {"path": "src/jpip/progression.rs", "symbol": "JpipAutomaticProgressiveDecoder::update_selected"},
+        {"path": "src/jpip/progression.rs", "symbol": "JpipAutomaticProgressiveDecoder::update_inner"}
+      ],
+      "contract_refs": [
+        {"path": "src/jpip/progression.rs", "symbol": "JpipAutomaticProgressiveDecoder::update_inner"}
+      ],
+      "spec_refs": [
+        {"path": "specs/jpip_progressive.rs", "symbol": "part2_jpip_automatic_progressive_run"},
+        {"path": "specs/jpip_progressive.rs", "symbol": "part2_jpip_automatic_progressive_update_result"},
+        {"path": "specs/jpip_snapshot_inputs.rs", "symbol": "part2_jpip_automatic_snapshot_result"},
+        {"path": "specs/raw_decode.rs", "symbol": "part2_decode_raw_codestream"}
+      ],
+      "proof_refs": [
+        {"path": "src/jpip/progression.rs", "symbol": "JpipAutomaticProgressiveDecoder::update"},
+        {"path": "src/jpip/progression.rs", "symbol": "JpipAutomaticProgressiveDecoder::update_selected"},
+        {"path": "src/jpip/progression.rs", "symbol": "JpipAutomaticProgressiveDecoder::update_inner"},
+        {"path": "src/jpip/progression.rs", "symbol": "JpipAutomaticProgressiveDecoder::new"},
+        {"path": "src/jpip/progression.rs", "symbol": "JpipAutomaticProgressiveDecoder::codestream"},
+        {"path": "src/jpip/progression.rs", "symbol": "JpipAutomaticProgressiveDecoder::decoded_layers"},
+        {"path": "src/jpip/mapping.rs", "symbol": "JpipPacketSelection::all_components"},
+        {"path": "specs/jpip_progressive.rs", "symbol": "part2_jpip_automatic_progressive_run_unfold"},
+        {"path": "src/jpip/progression_proof_support.rs", "symbol": "jpip_automatic_snapshot_first_error"},
+        {"path": "src/jpip/progression_proof_support.rs", "symbol": "jpip_automatic_progressive_witness"},
+        {"path": "src/jpip/progression_proof_support.rs", "symbol": "jpip_automatic_snapshot_errors_known"},
+        {"path": "src/jpip/progression_proof_support.rs", "symbol": "jpip_automatic_update_errors_known"},
+        {"path": "src/decode/api.rs", "symbol": "decode_codestream"},
+        {"path": "src/decode/api.rs", "symbol": "decode_codestream_selected"}
+      ],
+      "test_refs": [
+        {"path": "src/jpip/tests.rs", "symbol": "automatic_progressive_actual_images_no_advance_and_errors_preserve_commit_state"},
+        {"path": "src/jpip/tests.rs", "symbol": "automatic_managed_allocation_refusals_preserve_state_and_recover_exact_images"}
+      ]
+    },
+    {
       "id": "part9-complete-original-automatic-snapshot-result",
       "topic": "Complete original native DatabinCache::build_automatic_snapshot Result from actual cache/codestream/selection/components/limits, including byte-exact success, ready-None, zero-ready, available/maximum layers, both missing collections and every reached error. Checked phase-error continuations, actual per-tile prefixes, response-linked reservation sites, full availability/missing folds, borrowed iterator/owned missing projections, accepted non-owning emission/PSOT frames and final EOC/limit/raw-layout tag joins prove the original predicate at the unchanged executing function. No supplied outputs, new caller/domain premise, old contract weakening or verifier/native ownership/evaluation changes. This completes the automatic snapshot producer only, not progressive image/public update or semantic-container follow-ons.",
       "implementation_refs": [

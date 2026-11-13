@@ -1,5 +1,52 @@
 #[cfg(verus_keep_ghost)]
 verus! {
+    pub(crate) proof fn jpip_automatic_update_errors_known()
+        ensures forall|error: DecodeError|
+            #[trigger] jpip_progressive_outcome(Err(error)) == Err(error),
+    {
+    }
+    pub(crate) proof fn jpip_automatic_snapshot_errors_known()
+        ensures forall|error: DecodeError|
+            #[trigger] jpip_automatic_snapshot_outcome(Err(error)) == Err(error),
+    {
+    }
+    pub(crate) proof fn jpip_automatic_progressive_witness(
+        cache: crate::specs::Part2JpipCache, decoder: crate::specs::Part2JpipAutomaticProgressiveDecoder,
+        options: &crate::DecodeOptions, selection: Option<&crate::DecodeSelection>, components: Seq<u16>,
+        events: Seq<crate::specs::Part2JpipSnapshotEvent>, result: crate::specs::Part2JpipAutomaticProgressiveResult,
+    )
+        requires crate::specs::part2_jpip_automatic_progressive_run(cache, decoder, options,
+            selection, components, events) == Some((result, Seq::empty())),
+        ensures crate::specs::part2_jpip_automatic_progressive_update_result(cache, decoder, options,
+            selection, components, result),
+    {
+    }
+
+    pub(crate) proof fn jpip_automatic_snapshot_first_error(
+        cache: crate::specs::Part2JpipCache, decoder: crate::specs::Part2JpipAutomaticProgressiveDecoder,
+        options: &crate::DecodeOptions, selection: Option<&crate::DecodeSelection>, components: Seq<u16>,
+        error: DecodeError,
+    )
+        requires crate::specs::part2_jpip_automatic_snapshot_result(cache, decoder.0,
+            jpip_snapshot_selection_view(selection), components, crate::options::decode_options_limits(options), Err(error)),
+        ensures crate::specs::part2_jpip_automatic_progressive_update_result(cache, decoder, options,
+            selection, components, (Err(error), decoder, cache)),
+    {
+        reveal(crate::specs::part2_jpip_automatic_snapshot_result);
+        let input = crate::specs::Part2JpipSnapshotInput {
+            cache, stream: decoder.0, selected: jpip_snapshot_selection_view(selection),
+            components, limits: crate::options::decode_options_limits(options),
+        };
+        let events = choose|events: Seq<crate::specs::Part2JpipSnapshotEvent>|
+            crate::specs::part2_jpip_snapshot_run(input, events) == Some((Err(error), Seq::empty()));
+        crate::specs::part2_jpip_automatic_progressive_run_unfold(cache, decoder, options, selection, components, events);
+        jpip_automatic_progressive_witness(cache, decoder, options, selection, components,
+            events, (Err(error), decoder, cache));
+    }
+    pub closed spec fn jpip_automatic_progressive_decoder_view(value: &JpipAutomaticProgressiveDecoder)
+        -> crate::specs::Part2JpipAutomaticProgressiveDecoder {
+        (value.codestream, value.decoded_layers)
+    }
     pub(crate) proof fn jpip_snapshot_plan_errors(
         root: crate::specs::Part2JpipSnapshotTileRoot<'_>, parts: Seq<crate::specs::Part2OwnedTilePart>,
     )

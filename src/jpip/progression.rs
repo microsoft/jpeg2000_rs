@@ -223,8 +223,18 @@ impl JpipProgressiveDecoder {
     }
 }
 
+#[cfg_attr(verus_keep_ghost, verus_verify)]
 impl JpipAutomaticProgressiveDecoder {
     pub const fn new(codestream: u64) -> Self {
+        #[cfg(verus_keep_ghost)]
+        vstd::prelude::ensures(|result: Self| {
+            vstd::prelude::equal(
+                super::jpip_automatic_progressive_decoder_view(&result),
+                (codestream, 0_u16),
+            )
+        });
+        #[cfg(verus_keep_ghost)]
+        proof! { reveal(super::jpip_automatic_progressive_decoder_view); }
         Self {
             codestream,
             decoded_layers: 0,
@@ -232,13 +242,40 @@ impl JpipAutomaticProgressiveDecoder {
     }
 
     pub const fn codestream(&self) -> u64 {
+        #[cfg(verus_keep_ghost)]
+        vstd::prelude::ensures(|result: u64| {
+            vstd::prelude::equal(
+                result,
+                super::jpip_automatic_progressive_decoder_view(self).0,
+            )
+        });
+        #[cfg(verus_keep_ghost)]
+        proof! { reveal(super::jpip_automatic_progressive_decoder_view); }
         self.codestream
     }
 
     pub const fn decoded_layers(&self) -> u16 {
+        #[cfg(verus_keep_ghost)]
+        vstd::prelude::ensures(|result: u16| {
+            vstd::prelude::equal(
+                result,
+                super::jpip_automatic_progressive_decoder_view(self).1,
+            )
+        });
+        #[cfg(verus_keep_ghost)]
+        proof! { reveal(super::jpip_automatic_progressive_decoder_view); }
         self.decoded_layers
     }
+}
 
+impl JpipAutomaticProgressiveDecoder {
+    #[cfg_attr(verus_keep_ghost, verus_spec(result =>
+        ensures crate::specs::part2_jpip_automatic_progressive_update_result(jpip_cache_view(cache),
+            super::jpip_automatic_progressive_decoder_view(old(self)), options, None, Seq::empty(),
+            (jpip_progressive_outcome(result), super::jpip_automatic_progressive_decoder_view(final(self)), jpip_cache_view(cache))),
+            super::jpip_automatic_progressive_decoder_view(final(self)).0
+                == super::jpip_automatic_progressive_decoder_view(old(self)).0,
+    ))]
     pub fn update(
         &mut self,
         cache: &DatabinCache,
@@ -247,6 +284,14 @@ impl JpipAutomaticProgressiveDecoder {
         self.update_inner(cache, options, None, &JpipPacketSelection::all_components())
     }
 
+    #[cfg_attr(verus_keep_ghost, verus_spec(result =>
+        ensures crate::specs::part2_jpip_automatic_progressive_update_result(jpip_cache_view(cache),
+            super::jpip_automatic_progressive_decoder_view(old(self)), options, Some(selection),
+            super::jpip_packet_selection_view(packets),
+            (jpip_progressive_outcome(result), super::jpip_automatic_progressive_decoder_view(final(self)), jpip_cache_view(cache))),
+            super::jpip_automatic_progressive_decoder_view(final(self)).0
+                == super::jpip_automatic_progressive_decoder_view(old(self)).0,
+    ))]
     pub fn update_selected(
         &mut self,
         cache: &DatabinCache,
@@ -257,6 +302,14 @@ impl JpipAutomaticProgressiveDecoder {
         self.update_inner(cache, options, Some(selection), packets)
     }
 
+    #[cfg_attr(verus_keep_ghost, verus_spec(result =>
+        ensures crate::specs::part2_jpip_automatic_progressive_update_result(jpip_cache_view(cache),
+            super::jpip_automatic_progressive_decoder_view(old(self)), options, selection,
+            super::jpip_packet_selection_view(packets),
+            (jpip_progressive_outcome(result), super::jpip_automatic_progressive_decoder_view(final(self)), jpip_cache_view(cache))),
+            super::jpip_automatic_progressive_decoder_view(final(self)).0
+                == super::jpip_automatic_progressive_decoder_view(old(self)).0,
+    ))]
     fn update_inner(
         &mut self,
         cache: &DatabinCache,
@@ -264,6 +317,51 @@ impl JpipAutomaticProgressiveDecoder {
         selection: Option<&crate::DecodeSelection>,
         packets: &JpipPacketSelection,
     ) -> Result<JpipProgressiveUpdate, DecodeError> {
+        #[cfg(verus_keep_ghost)]
+        proof! {
+            reveal(super::jpip_automatic_progressive_decoder_view);
+            reveal(jpip_progressive_update_view);
+            reveal(super::jpip_automatic_snapshot_result_view);
+            reveal(super::jpip_automatic_snapshot_view);
+            reveal(super::jpip_byte_view);
+        }
+        #[cfg(verus_keep_ghost)]
+        proof_decl! {
+            let ghost initial_decoder = super::jpip_automatic_progressive_decoder_view(self);
+            let ghost input = crate::specs::Part2JpipSnapshotInput {
+                cache: jpip_cache_view(cache), stream: self.codestream,
+                selected: super::jpip_snapshot_selection_view(selection),
+                components: super::jpip_packet_selection_view(packets),
+                limits: crate::options::decode_options_limits(options),
+            };
+        }
+        #[cfg(verus_keep_ghost)]
+        proof! {
+            super::jpip_automatic_snapshot_errors_known();
+            super::jpip_automatic_update_errors_known();
+            assert forall|error: DecodeError|
+                #[trigger] crate::specs::part2_jpip_automatic_snapshot_result(input.cache, input.stream, input.selected,
+                    input.components, input.limits, Err(error))
+                implies crate::specs::part2_jpip_automatic_progressive_update_result(input.cache, initial_decoder,
+                    options, selection, input.components, (Err(error), initial_decoder, input.cache)) by {
+                super::jpip_automatic_snapshot_first_error(input.cache, initial_decoder, options, selection, input.components, error);
+            }
+            assert(initial_decoder == (self.codestream, self.decoded_layers));
+            assert(input.stream == initial_decoder.0);
+            assert(input.cache == jpip_cache_view(cache));
+            assert(input.selected == super::jpip_snapshot_selection_view(selection));
+            assert(input.components == super::jpip_packet_selection_view(packets));
+            assert forall|error: DecodeError|
+                #[trigger] crate::specs::part2_jpip_automatic_snapshot_result(jpip_cache_view(cache), self.codestream,
+                    super::jpip_snapshot_selection_view(selection), super::jpip_packet_selection_view(packets),
+                    crate::options::decode_options_limits(options), Err(error))
+                implies crate::specs::part2_jpip_automatic_progressive_update_result(jpip_cache_view(cache),
+                    initial_decoder, options, selection, super::jpip_packet_selection_view(packets),
+                    (jpip_progressive_outcome(Err(error)), super::jpip_automatic_progressive_decoder_view(self), jpip_cache_view(cache))) by {
+                super::jpip_automatic_snapshot_first_error(jpip_cache_view(cache), initial_decoder,
+                    options, selection, super::jpip_packet_selection_view(packets), error);
+            }
+        }
         let previous_layers = self.decoded_layers;
         let result = cache.build_automatic_snapshot(
             self.codestream,
@@ -271,7 +369,26 @@ impl JpipAutomaticProgressiveDecoder {
             packets,
             options.limits(),
         )?;
+        #[cfg(verus_keep_ghost)]
+        proof! { reveal(crate::specs::part2_jpip_automatic_snapshot_result); }
+        #[cfg(verus_keep_ghost)]
+        proof_decl! {
+            let ghost snapshot_value = super::jpip_automatic_snapshot_result_view(&result);
+            let ghost snapshot_events = choose|events: Seq<crate::specs::Part2JpipSnapshotEvent>|
+                crate::specs::part2_jpip_snapshot_run(input, events) == Some((Ok(snapshot_value), Seq::empty()));
+        }
+        #[cfg(verus_keep_ghost)]
+        proof! {
+            crate::specs::part2_jpip_automatic_progressive_run_unfold(input.cache, initial_decoder,
+                options, selection, input.components, snapshot_events);
+        }
         let Some(snapshot) = result.ready else {
+            #[cfg(verus_keep_ghost)]
+            proof! {
+                super::jpip_automatic_progressive_witness(input.cache, initial_decoder, options, selection,
+                    input.components, snapshot_events, (Ok((JpipProgressiveStatus::WaitingForData,
+                        previous_layers, 0, super::jpip_missing_views(&result.missing), None)), initial_decoder, input.cache));
+            }
             return Ok(JpipProgressiveUpdate {
                 status: JpipProgressiveStatus::WaitingForData,
                 previous_layers,
@@ -285,6 +402,11 @@ impl JpipAutomaticProgressiveDecoder {
             snapshot.available_layers,
             snapshot.layers,
         ) {
+            #[cfg(verus_keep_ghost)]
+            proof! {
+                super::jpip_automatic_progressive_witness(input.cache, initial_decoder, options, selection,
+                    input.components, snapshot_events, (Err(crate::specs::part2_jpip_plan_invalid(0)), initial_decoder, input.cache));
+            }
             return Err(DecodeError::malformed(0, MalformedKind::InvalidJpipLayout));
         }
         if !crate::refinement::jpip_quality_prefix_available(
@@ -292,6 +414,15 @@ impl JpipAutomaticProgressiveDecoder {
             previous_layers,
         ) || snapshot.available_layers <= previous_layers
         {
+            #[cfg(verus_keep_ghost)]
+            proof! {
+                super::jpip_automatic_progressive_witness(input.cache, initial_decoder, options, selection,
+                    input.components, snapshot_events, (Ok((
+                        if snapshot.available_layers == snapshot.layers { JpipProgressiveStatus::Complete }
+                        else { JpipProgressiveStatus::WaitingForData },
+                        previous_layers, snapshot.available_layers, super::jpip_missing_views(&snapshot.missing), None)),
+                        initial_decoder, input.cache));
+            }
             return Ok(JpipProgressiveUpdate {
                 status: if snapshot.available_layers == snapshot.layers {
                     JpipProgressiveStatus::Complete
@@ -304,6 +435,17 @@ impl JpipAutomaticProgressiveDecoder {
                 image: None,
             });
         }
+        #[cfg(verus_keep_ghost)]
+        proof! {
+            assert forall|error: DecodeError|
+                crate::specs::part2_decode_raw_codestream(super::jpip_byte_view(&snapshot.codestream),
+                    crate::options::decode_options_limits(options), selection) == Err(error)
+                implies crate::specs::part2_jpip_automatic_progressive_update_result(input.cache, initial_decoder,
+                    options, selection, input.components, (Err(error), initial_decoder, input.cache)) by {
+                super::jpip_automatic_progressive_witness(input.cache, initial_decoder, options, selection,
+                    input.components, snapshot_events, (Err(error), initial_decoder, input.cache));
+            }
+        }
         let image = match selection {
             Some(selection) => {
                 crate::decode_codestream_selected(snapshot.codestream.as_ref(), options, selection)?
@@ -311,6 +453,15 @@ impl JpipAutomaticProgressiveDecoder {
             None => crate::decode_codestream(snapshot.codestream.as_ref(), options)?,
         };
         self.decoded_layers = snapshot.available_layers;
+        #[cfg(verus_keep_ghost)]
+        proof! {
+            super::jpip_automatic_progressive_witness(input.cache, initial_decoder, options, selection,
+                input.components, snapshot_events, (Ok((
+                    if snapshot.available_layers == snapshot.layers { JpipProgressiveStatus::Complete }
+                    else { JpipProgressiveStatus::QualityAdvanced },
+                    previous_layers, snapshot.available_layers, super::jpip_missing_views(&snapshot.missing),
+                    Some(crate::image::typed_image_value_view(image)))), (self.codestream, self.decoded_layers), input.cache));
+        }
         Ok(JpipProgressiveUpdate {
             status: if snapshot.available_layers == snapshot.layers {
                 JpipProgressiveStatus::Complete

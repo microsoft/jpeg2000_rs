@@ -3561,6 +3561,34 @@ _JPIP_MAPPING_PREFIX_CONTRACTS = {
 }
 _JPIP_GLOBAL_ERROR_ENTRY = "part9-original-actual-resolution-error-prefix"
 _JPIP_FULL_SNAPSHOT_ENTRY = "part9-complete-original-automatic-snapshot-result"
+_JPIP_AUTOMATIC_PROGRESSIVE_ENTRY = "part9-complete-actual-automatic-progressive-public-result"
+_JPIP_AUTOMATIC_PROGRESSIVE_APIS = frozenset({
+    ("src/jpip/progression.rs", "JpipAutomaticProgressiveDecoder::update"),
+    ("src/jpip/progression.rs", "JpipAutomaticProgressiveDecoder::update_selected"),
+})
+_JPIP_AUTOMATIC_PROGRESSIVE_BODY_CLAUSES = {
+    ("src/jpip/progression.rs", "JpipAutomaticProgressiveDecoder::new"):
+        "vstd::prelude::ensures(|result: Self| vstd::prelude::equal(super::jpip_automatic_progressive_decoder_view(&result), (codestream, 0_u16)));",
+    ("src/jpip/progression.rs", "JpipAutomaticProgressiveDecoder::codestream"):
+        "vstd::prelude::ensures(|result: u64| vstd::prelude::equal(result, super::jpip_automatic_progressive_decoder_view(self).0));",
+    ("src/jpip/progression.rs", "JpipAutomaticProgressiveDecoder::decoded_layers"):
+        "vstd::prelude::ensures(|result: u16| vstd::prelude::equal(result, super::jpip_automatic_progressive_decoder_view(self).1));",
+    ("src/jpip/mapping.rs", "JpipPacketSelection::all_components"):
+        "vstd::prelude::ensures(|result: Self| vstd::prelude::equal(super::jpip_packet_selection_view(&result), Seq::<u16>::empty()));",
+}
+_JPIP_AUTOMATIC_PROGRESSIVE_RELATIONS = {
+    ("src/jpip/progression.rs", "JpipAutomaticProgressiveDecoder::" + name): (
+        "part2_jpip_automatic_progressive_update_result",
+        r"jpip_cache_view\(\s*cache\s*\)\s*,\s*"
+        r"super::jpip_automatic_progressive_decoder_view\(\s*old\(\s*self\s*\)\s*\)\s*,\s*options\s*,\s*"
+        + selected + r"\s*,\s*" + components + r"\s*,\s*\(\s*jpip_progressive_outcome\(\s*\1\s*\)\s*,\s*"
+        r"super::jpip_automatic_progressive_decoder_view\(\s*final\(\s*self\s*\)\s*\)\s*,\s*jpip_cache_view\(\s*cache\s*\)\s*\)",
+    ) for name, selected, components in (
+        ("update", r"None", r"Seq::empty\(\s*\)"),
+        ("update_selected", r"Some\(\s*selection\s*\)", r"super::jpip_packet_selection_view\(\s*packets\s*\)"),
+        ("update_inner", r"selection", r"super::jpip_packet_selection_view\(\s*packets\s*\)"),
+    )
+}
 _JPIP_GLOBAL_ERROR_CONTRACTS = {
     **_JPIP_MAPPING_PREFIX_CONTRACTS,
     ("src/jpip/mapping.rs", "jpip_resolution_selected"):
@@ -4866,6 +4894,44 @@ def validate_normative_coverage(
     ids: set[str] = set()
     contract_functions: set[tuple[str, str]] = set()
     for entry in coverage["requirements"]:
+        if entry["id"] == _JPIP_AUTOMATIC_PROGRESSIVE_ENTRY:
+            if ({(ref["path"], ref["symbol"]) for ref in entry["contract_refs"]}
+                    != set(_JPIP_AUTOMATIC_PROGRESSIVE_RELATIONS) - _JPIP_AUTOMATIC_PROGRESSIVE_APIS
+                    or not _JPIP_AUTOMATIC_PROGRESSIVE_APIS.issubset(
+                        {(ref["path"], ref["symbol"]) for ref in entry["proof_refs"]})):
+                raise ValueError("complete automatic progressive requires both public and sole inner complete Result/state contracts")
+            for (relative, name), clause in _JPIP_AUTOMATIC_PROGRESSIVE_BODY_CLAUSES.items():
+                path = (ROOT / relative).resolve()
+                if not _coverage_verified_body_clause(source_text(path), function_header(path, name), name, clause):
+                    raise ValueError("complete automatic progressive requires exact checked constructor/getter temporary clauses")
+            model = source_text((ROOT / "specs/jpip_progressive.rs").resolve())
+            body = _coverage_spec_function_body(model, "part2_jpip_automatic_progressive_run")
+            for fragment in (
+                "part2_jpip_snapshot_run(input, events)", "cache, stream: decoder.0",
+                "Some((Err(error), tail)) => Some(((Err(error), decoder, cache), tail))",
+                "Some((Ok((None, missing)), tail))",
+                "valid_jpip_progressive_update(previous as nat, available as nat, maximum as nat)",
+                "else if available <= previous",
+                "part2_decode_raw_codestream(snapshot.0, crate::options::decode_options_limits(options), selection)",
+                "Err(error) => Some(((Err(error), decoder, cache), tail))",
+                "Some(image))), (decoder.0, available), cache)",
+            ):
+                if body is None or "".join(fragment.split()) not in "".join(body.split()):
+                    raise ValueError("complete automatic progressive requires actual snapshot/raw image and exact error/no-advance/commit/cache model")
+            source = source_text((ROOT / "src/jpip/progression.rs").resolve())
+            native = _coverage_function_body(source, _coverage_function_header(source, "JpipAutomaticProgressiveDecoder::update_inner"))
+            for fragment in (
+                "let result = cache.build_automatic_snapshot(",
+                "crate::specs::part2_jpip_automatic_progressive_run_unfold(input.cache, initial_decoder,",
+                "super::jpip_automatic_snapshot_first_error(",
+                "jpip_progressive_outcome(Err(error)), super::jpip_automatic_progressive_decoder_view(self), jpip_cache_view(cache)",
+                "crate::decode_codestream_selected(snapshot.codestream.as_ref(), options, selection)?",
+                "crate::decode_codestream(snapshot.codestream.as_ref(), options)?",
+                "self.decoded_layers = snapshot.available_layers",
+                "Some(crate::image::typed_image_value_view(image))",
+            ):
+                if native is None or "".join(fragment.split()) not in "".join(native.split()):
+                    raise ValueError("complete automatic progressive requires actual event/image/error/current-state forwarding at the sole caller")
         if entry["id"] == _JPIP_FULL_SNAPSHOT_ENTRY:
             if {(ref["path"], ref["symbol"]) for ref in entry["contract_refs"]} != {
                     ("src/jpip/progression.rs", "DatabinCache::build_automatic_snapshot")}:
@@ -9092,6 +9158,8 @@ def validate_normative_coverage(
                   and (reference["path"], reference["symbol"]) in _JPIP_TRANSCODE_APIS)
               or (entry["id"] == _JPIP_PROGRESSIVE_ENTRY
                   and (reference["path"], reference["symbol"]) in _JPIP_PROGRESSIVE_APIS)
+              or (entry["id"] == _JPIP_AUTOMATIC_PROGRESSIVE_ENTRY
+                  and (reference["path"], reference["symbol"]) in _JPIP_AUTOMATIC_PROGRESSIVE_APIS)
               or (entry["id"] == _JPIP_TRANSITION_ENTRY
                   and (reference["path"], reference["symbol"]) in _JPIP_TRANSITION_APIS))
             and reference not in entry["contract_refs"]
@@ -9914,6 +9982,9 @@ def validate_normative_coverage(
                     r"super::jpip_packet_selection_view\(\s*packet_selection\s*\)\s*,\s*limits\s*,\s*"
                     r"super::jpip_automatic_snapshot_outcome\(\s*\1\s*\)",
                 )
+            if entry["id"] == _JPIP_AUTOMATIC_PROGRESSIVE_ENTRY:
+                storage_contract = _JPIP_AUTOMATIC_PROGRESSIVE_RELATIONS.get(
+                    (reference["path"], reference["symbol"]), storage_contract)
             if storage_contract:
                 model, arguments = storage_contract
                 relation = re.search(
