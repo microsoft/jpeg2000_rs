@@ -1,14 +1,35 @@
 # Publishing and releasing
 
 Publishing source, claiming standards conformance, and publishing a versioned
-crate are different decisions. This release candidate uses
-`publish = ["crates-io"]` to permit Cargo's publication dry-run. That metadata
-does not authorize an upload. Development branches may keep `publish = false`.
+crate are different decisions. Development and maintenance-source candidates
+keep `publish = false`. An explicitly authorized publication manifest may use
+`publish = ["crates-io"]` to permit Cargo's publication dry-run; that metadata
+does not authorize an upload.
 
 The intended registry package is `jpeg2000-decoder`, imported in Rust as
 `jpeg2000_decoder`. Repository URLs remain `microsoft/jpeg2000_rs`.
 Check registry name availability again for the actual release; an earlier
 not-found response does not reserve a name or authorize publication.
+
+## Bounded 0.1.1 maintenance source candidate
+
+PR #313 prepares `0.1.1` from the published `0.1.0` source, backporting only
+the whole-packet-prefix correction from #309 with its models and tests.
+The published API is preserved; newer main corrections and breaking/new
+capabilities are not silently included. This is not a full-main backport or a
+new conformance claim.
+
+Qualify the exact versioned source and `jpeg2000-decoder-0.1.1.crate` separately,
+including the actual-package consumer and source-API compatibility with the
+published baseline. Earlier `0.1.0` preparation receipts retain their original
+identities and do not qualify a changed manifest/archive.
+
+Publication stays disabled in this source PR. Promotion into the frozen
+`release/0.1` branch is a separately authorized protected-ref operation;
+do not bypass its update restriction. Tags and registry uploads remain
+separate actions. Before any publication-enabled manifest is approved, repeat
+the exact candidate checks and obtain the version/source/archive authorization
+described below. Never replace the published `0.1.0` artifact.
 
 ## Manual first 0.1 release
 

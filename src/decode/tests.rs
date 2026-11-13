@@ -40,6 +40,76 @@ use crate::packet::{
     decode_code_block_contribution, decode_progression_tile_packets,
 };
 
+#[test]
+fn raw_packet_boundary_prefixes_preserve_reference_pixels_and_reject_partial_packets() {
+    // Independent OpenJPEG 2.5.4 lossless 1x1 gray0: two layers, no DWT.
+    let reference = [
+        0xff, 0x4f, 0xff, 0x51, 0x00, 0x29, 0x00, 0x00, 0x00, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00,
+        0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x01, 0x00, 0x00,
+        0x00, 0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x01, 0x07, 0x01, 0x01,
+        0xff, 0x52, 0x00, 0x0c, 0x00, 0x00, 0x00, 0x02, 0x00, 0x00, 0x04, 0x04, 0x00, 0x01, 0xff,
+        0x5c, 0x00, 0x04, 0x40, 0x40, 0xff, 0x90, 0x00, 0x0a, 0x00, 0x00, 0x00, 0x00, 0x00, 0x13,
+        0x00, 0x01, 0xff, 0x93, 0xdf, 0x80, 0x08, 0x07, 0x80, 0xff, 0xd9,
+    ];
+    let options = DecodeOptions::default();
+    for order in 0..5 {
+        for retained in 0..=5 {
+            let mut input = reference[..79 + retained].to_vec();
+            input[50] = order;
+            input[71..75].copy_from_slice(&(14 + retained as u32).to_be_bytes());
+            input.extend_from_slice(&[0xff, 0xd9]);
+            for selection in [None, Some(DecodeSelection::full_image())] {
+                let result = match selection {
+                    None => decode_codestream(&input, &options),
+                    Some(ref requested) => decode_codestream_selected(&input, &options, requested),
+                };
+                if retained >= 4 {
+                    let image = result.unwrap();
+                    assert_eq!((image.width(), image.height()), (1, 1));
+                    assert_eq!(
+                        image.components()[0].samples(),
+                        &TypedSamples::Unsigned(vec![0])
+                    );
+                } else {
+                    assert!(matches!(
+                        result,
+                        Err(DecodeError::MalformedInput {
+                            kind: MalformedKind::Truncated,
+                            ..
+                        })
+                    ));
+                }
+            }
+            for remove_last in [false, true] {
+                let mut input = reference[..65].to_vec();
+                let final_data: &[u8] = if remove_last { &[] } else { &reference[83..84] };
+                for (index, data) in [&reference[79..83], final_data].into_iter().enumerate() {
+                    let mut plt = vec![0xff, 0x58, 0, if data.is_empty() { 3 } else { 4 }, 0];
+                    if !data.is_empty() {
+                        plt.push(u8::try_from(data.len()).unwrap());
+                    }
+                    input.extend_from_slice(&[0xff, 0x90, 0, 10, 0, 0]);
+                    input.extend_from_slice(
+                        &u32::try_from(14 + plt.len() + data.len())
+                            .unwrap()
+                            .to_be_bytes(),
+                    );
+                    input.extend_from_slice(&[u8::try_from(index).unwrap(), 2]);
+                    input.extend_from_slice(&plt);
+                    input.extend_from_slice(&[0xff, 0x93]);
+                    input.extend_from_slice(data);
+                }
+                input.extend_from_slice(&[0xff, 0xd9]);
+                let image = decode_codestream(&input, &options).unwrap();
+                assert_eq!(
+                    image.components()[0].samples(),
+                    &TypedSamples::Unsigned(vec![0])
+                );
+            }
+        }
+    }
+}
+
 fn reference_planned_block_geometry(
     grid: [u32; 4],
     clip: [u32; 4],

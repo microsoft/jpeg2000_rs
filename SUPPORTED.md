@@ -90,6 +90,11 @@ The implementation contains:
   Main-header QCD may precede COD; its quantization parameters are validated
   once the coding style is available, matching tile-header handling.
 - PLM/PLT packet lengths, PPM/PPT packed headers, SOP/EPH, and TLM checks.
+  Correctly framed prefixes of complete packets are admitted through ordinary
+  decoding after at least one physical packet. The real bounded progression
+  must still cover the grid, and retained length/packed-header declarations
+  must agree. Incomplete packets, missing tile coverage and unclaimed trailers
+  remain errors; this is not a damaged-input recovery policy.
 - The five Part 1 progression orders and POC sequencing, not additional Part 2
   progression-order extensions.
 - Legacy MQ and raw-bypass Tier-1 passes, coding-style routing, and Maxshift undo.
