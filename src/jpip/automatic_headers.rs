@@ -676,50 +676,107 @@ pub(super) fn partition_automatic_tile_parts(
     Ok(Some(output))
 }
 
+#[cfg_attr(verus_keep_ghost, verus_spec(result =>
+    ensures jpip_packet_bytes_outcome(result) == crate::specs::part2_jpip_transition_template(
+        main@, tile_headers@.map_values(|parts: Vec<Vec<u8>>| parts@.map_values(|header: Vec<u8>| header@)), limits),
+))]
 pub(super) fn build_automatic_transition_template(
     main: &[u8],
     tile_headers: &[Vec<Vec<u8>>],
     limits: &ResourceLimits,
 ) -> Result<Vec<u8>, DecodeError> {
     let mut output = copy_bytes(main);
+    #[cfg(verus_keep_ghost)]
+    proof_decl! {
+        let ghost headers = tile_headers@.map_values(|parts: Vec<Vec<u8>>| parts@.map_values(|header: Vec<u8>| header@));
+        let ghost expected = crate::specs::part2_jpip_transition_template(main@, headers, limits);
+    }
     let mut tile = 0_usize;
     #[cfg_attr(
         verus_keep_ghost,
         verus_spec(
             invariant tile <= tile_headers.len(),
+                headers == tile_headers@.map_values(|parts: Vec<Vec<u8>>| parts@.map_values(|header: Vec<u8>| header@)),
+                expected == crate::specs::part2_jpip_transition_template(main@, headers, limits),
+                expected == crate::specs::part2_jpip_transition_template_fold(headers, tile as nat, 0, output@, limits),
             decreases tile_headers.len() - tile,
         )
     )]
     while tile < tile_headers.len() {
         let parts = tile_headers
             .get(tile)
-            .ok_or_else(|| DecodeError::malformed(0, MalformedKind::InvalidTilePart))?;
+            .ok_or_else(
+                #[cfg_attr(verus_keep_ghost, verus_spec(result: DecodeError =>
+                    ensures result == crate::specs::part2_jpip_cache_error(0, MalformedKind::InvalidTilePart),
+                ))]
+                || DecodeError::malformed(0, MalformedKind::InvalidTilePart),
+            )?;
         let mut part = 0_usize;
         #[cfg_attr(
             verus_keep_ghost,
             verus_spec(
-                invariant part <= parts.len(),
+                invariant part <= parts.len(), tile < tile_headers.len(),
+                    headers == tile_headers@.map_values(|parts: Vec<Vec<u8>>| parts@.map_values(|header: Vec<u8>| header@)),
+                    headers[tile as int] == parts@.map_values(|header: Vec<u8>| header@),
+                    expected == crate::specs::part2_jpip_transition_template(main@, headers, limits),
+                    expected == crate::specs::part2_jpip_transition_template_fold(headers, tile as nat, part as nat, output@, limits),
                 decreases parts.len() - part,
             )
         )]
         while part < parts.len() {
+            #[cfg(verus_keep_ghost)]
+            proof! { reveal(crate::specs::part2_jpip_transition_template_fold); }
             let start = output.len();
+            #[cfg(verus_keep_ghost)]
+            proof_decl! { let ghost previous = output@; }
             output.extend_from_slice(
                 parts
                     .get(part)
-                    .ok_or_else(|| DecodeError::malformed(0, MalformedKind::InvalidTilePart))?,
+                    .ok_or_else(
+                        #[cfg_attr(verus_keep_ghost, verus_spec(result: DecodeError =>
+                            ensures result == crate::specs::part2_jpip_cache_error(0, MalformedKind::InvalidTilePart),
+                        ))]
+                        || DecodeError::malformed(0, MalformedKind::InvalidTilePart),
+                    )?,
             );
-            let length = u32::try_from(output.len() - start)
-                .map_err(|_| DecodeError::malformed(0, MalformedKind::ArithmeticOverflow))?;
-            let length_position = start
-                .checked_add(6)
-                .ok_or_else(|| DecodeError::malformed(0, MalformedKind::ArithmeticOverflow))?;
+            #[cfg(verus_keep_ghost)]
+            proof! { assert(output@ =~= previous + headers[tile as int][part as int]); }
+            let length = u32::try_from(output.len() - start).map_err(
+                #[cfg_attr(verus_keep_ghost, verus_spec(result: DecodeError =>
+                        ensures result == crate::specs::part2_jpip_range_overflow(0),
+                    ))]
+                |_error| DecodeError::malformed(0, MalformedKind::ArithmeticOverflow),
+            )?;
+            let length_position = start.checked_add(6).ok_or_else(
+                #[cfg_attr(verus_keep_ghost, verus_spec(result: DecodeError =>
+                        ensures result == crate::specs::part2_jpip_range_overflow(0),
+                    ))]
+                || DecodeError::malformed(0, MalformedKind::ArithmeticOverflow),
+            )?;
             write_u32_be(&mut output, length_position, length)?;
+            #[cfg(verus_keep_ghost)]
+            proof! {
+                assert(crate::specs::part2_jpip_template_append(previous, headers[tile as int][part as int])
+                    == Ok(output@));
+                assert(expected == crate::specs::part2_jpip_transition_template_fold(
+                    headers, tile as nat, part as nat + 1, output@, limits));
+            }
             part += 1;
         }
+        #[cfg(verus_keep_ghost)]
+        proof! { reveal(crate::specs::part2_jpip_transition_template_fold); }
         tile += 1;
     }
+    #[cfg(verus_keep_ghost)]
+    proof! {
+        reveal(crate::specs::part2_jpip_transition_template_fold);
+        assert(expected == crate::specs::part2_jpip_template_finish(output@, limits));
+    }
+    #[cfg(verus_keep_ghost)]
+    proof_decl! { let ghost finished = output@; }
     output.extend_from_slice(&EOC);
+    #[cfg(verus_keep_ghost)]
+    proof! { assert(output@ =~= finished + seq![0xffu8, 0xd9u8]); }
     if output.len() as u64 > limits.maximum_input_bytes() {
         return Err(DecodeError::limit(
             Resource::InputBytes,
@@ -730,32 +787,71 @@ pub(super) fn build_automatic_transition_template(
     Ok(output)
 }
 
+#[cfg_attr(verus_keep_ghost, verus_spec(result =>
+    ensures jpip_packet_bytes_outcome(result) == crate::specs::part2_jpip_flat_template(
+        main@, tile_headers@.map_values(|header: Vec<u8>| header@), limits),
+))]
 pub(super) fn build_automatic_template(
     main: &[u8],
     tile_headers: &[Vec<u8>],
     limits: &ResourceLimits,
 ) -> Result<Vec<u8>, DecodeError> {
     let mut output = copy_bytes(main);
+    #[cfg(verus_keep_ghost)]
+    proof_decl! {
+        let ghost headers = tile_headers@.map_values(|header: Vec<u8>| header@);
+        let ghost expected = crate::specs::part2_jpip_flat_template(main@, headers, limits);
+    }
     let mut index = 0_usize;
     #[cfg_attr(
         verus_keep_ghost,
         verus_spec(
             invariant index <= tile_headers.len(),
+                headers == tile_headers@.map_values(|header: Vec<u8>| header@),
+                expected == crate::specs::part2_jpip_flat_template(main@, headers, limits),
+                expected == crate::specs::part2_jpip_flat_template_fold(headers, index as nat, output@, limits),
             decreases tile_headers.len() - index,
         )
     )]
     while index < tile_headers.len() {
+        #[cfg(verus_keep_ghost)]
+        proof! { reveal(crate::specs::part2_jpip_flat_template_fold); }
         let start = output.len();
+        #[cfg(verus_keep_ghost)]
+        proof_decl! { let ghost previous = output@; }
         output.extend_from_slice(&tile_headers[index]);
-        let length = u32::try_from(output.len() - start)
-            .map_err(|_| DecodeError::malformed(0, MalformedKind::ArithmeticOverflow))?;
-        let length_position = start
-            .checked_add(6)
-            .ok_or_else(|| DecodeError::malformed(0, MalformedKind::ArithmeticOverflow))?;
+        #[cfg(verus_keep_ghost)]
+        proof! { assert(output@ =~= previous + headers[index as int]); }
+        let length = u32::try_from(output.len() - start).map_err(
+            #[cfg_attr(verus_keep_ghost, verus_spec(result: DecodeError =>
+                    ensures result == crate::specs::part2_jpip_range_overflow(0),
+                ))]
+            |_error| DecodeError::malformed(0, MalformedKind::ArithmeticOverflow),
+        )?;
+        let length_position = start.checked_add(6).ok_or_else(
+            #[cfg_attr(verus_keep_ghost, verus_spec(result: DecodeError =>
+                    ensures result == crate::specs::part2_jpip_range_overflow(0),
+                ))]
+            || DecodeError::malformed(0, MalformedKind::ArithmeticOverflow),
+        )?;
         write_u32_be(&mut output, length_position, length)?;
+        #[cfg(verus_keep_ghost)]
+        proof! {
+            assert(crate::specs::part2_jpip_template_append(previous, headers[index as int]) == Ok(output@));
+            assert(expected == crate::specs::part2_jpip_flat_template_fold(headers, index as nat + 1, output@, limits));
+        }
         index += 1;
     }
+    #[cfg(verus_keep_ghost)]
+    proof! {
+        reveal(crate::specs::part2_jpip_flat_template_fold);
+        assert(expected == crate::specs::part2_jpip_template_finish(output@, limits));
+    }
+    #[cfg(verus_keep_ghost)]
+    proof_decl! { let ghost finished = output@; }
     output.extend_from_slice(&EOC);
+    #[cfg(verus_keep_ghost)]
+    proof! { assert(output@ =~= finished + seq![0xffu8, 0xd9u8]); }
     if output.len() as u64 > limits.maximum_input_bytes() {
         return Err(DecodeError::limit(
             Resource::InputBytes,
@@ -793,12 +889,23 @@ pub(super) fn automatic_tile_part<'a>(
     found.ok_or_else(|| DecodeError::malformed(0, MalformedKind::MissingRequiredStructure))
 }
 
+#[cfg_attr(verus_keep_ghost, verus_spec(result =>
+    ensures (result, final(output)@) == crate::specs::part2_jpip_append_empty_packet(
+        old(output)@, sop, eph, sequence),
+))]
 pub(super) fn append_empty_packet(
     output: &mut Vec<u8>,
     sop: bool,
     eph: bool,
     sequence: u16,
 ) -> Result<(), DecodeError> {
+    #[cfg(verus_keep_ghost)]
+    proof_decl! { let ghost before = output@; }
+    #[cfg(verus_keep_ghost)]
+    proof! {
+        assert(((sequence >> 8) & 0xff) <= u8::MAX as u16
+            && (sequence & 0xff) <= u8::MAX as u16) by(bit_vector);
+    }
     let expected = crate::refinement::jpip_packet_reframed_length(1, sop, eph);
     let start = output.len();
     if sop {
@@ -815,6 +922,11 @@ pub(super) fn append_empty_packet(
     output.push(0);
     if eph {
         output.extend_from_slice(&[0xff, 0x92]);
+    }
+    #[cfg(verus_keep_ghost)]
+    proof! {
+        assert(output@ =~= before + crate::specs::part2_jpip_empty_packet_bytes(sop, eph, sequence));
+        assert(output.len().checked_sub(start) == Some(expected));
     }
     if output.len().checked_sub(start) != Some(expected) {
         return Err(DecodeError::malformed(

@@ -4,6 +4,50 @@
   "scope": "Technical reference inventory; not exhaustive standards-clause coverage or a conformance claim.",
   "requirements": [
     {
+      "id": "part9-complete-native-word-template-results",
+      "topic": "Complete actual write_u32_be Result and mutable-byte frame, including unchanged invalid ranges, saturating end, partial writes before a short-window Truncated error and every untouched byte; complete append_empty_packet Result/byte frame; complete nested transition-template and flat-template Results from actual main/header bytes and caller limits, with ordered PSOT patches and patch errors preceding the final EOC/input-limit check. Actual snapshot template, empty-packet and PSOT byte-frame cutpoints consume these checked interfaces. No executing algorithm, owning binding/evaluation/drop order, allocation boundary, verifier policy or old contract changes. The symbolic short saturated-window law is not a physical reachability claim. This resolves the prior word-writer prerequisite, not the full cache-to-snapshot/public image/state or semantic-container groups of issue130.",
+      "implementation_refs": [
+        {"path": "src/jpip/byte_io.rs", "symbol": "write_u32_be"},
+        {"path": "src/jpip/automatic_headers.rs", "symbol": "append_empty_packet"},
+        {"path": "src/jpip/automatic_headers.rs", "symbol": "build_automatic_transition_template"},
+        {"path": "src/jpip/automatic_headers.rs", "symbol": "build_automatic_template"},
+        {"path": "src/jpip/progression.rs", "symbol": "DatabinCache::build_automatic_snapshot"},
+        {"path": "src/jpip/mapping.rs", "symbol": "DatabinCache::derive_precinct_map"}
+      ],
+      "contract_refs": [
+        {"path": "src/jpip/byte_io.rs", "symbol": "write_u32_be"},
+        {"path": "src/jpip/automatic_headers.rs", "symbol": "append_empty_packet"},
+        {"path": "src/jpip/automatic_headers.rs", "symbol": "build_automatic_transition_template"},
+        {"path": "src/jpip/automatic_headers.rs", "symbol": "build_automatic_template"}
+      ],
+      "spec_refs": [
+        {"path": "specs/jpip_byte_writes.rs", "symbol": "part2_jpip_u32_bytes"},
+        {"path": "specs/jpip_byte_writes.rs", "symbol": "part2_jpip_write_u32_end"},
+        {"path": "specs/jpip_byte_writes.rs", "symbol": "part2_jpip_write_u32"},
+        {"path": "specs/jpip_byte_writes.rs", "symbol": "part2_jpip_empty_packet_bytes"},
+        {"path": "specs/jpip_byte_writes.rs", "symbol": "part2_jpip_append_empty_packet"},
+        {"path": "specs/jpip_byte_writes.rs", "symbol": "part2_jpip_template_append"},
+        {"path": "specs/jpip_byte_writes.rs", "symbol": "part2_jpip_template_finish"},
+        {"path": "specs/jpip_byte_writes.rs", "symbol": "part2_jpip_transition_template_fold"},
+        {"path": "specs/jpip_byte_writes.rs", "symbol": "part2_jpip_transition_template"},
+        {"path": "specs/jpip_byte_writes.rs", "symbol": "part2_jpip_flat_template_fold"},
+        {"path": "specs/jpip_byte_writes.rs", "symbol": "part2_jpip_flat_template"}
+      ],
+      "proof_refs": [
+        {"path": "src/jpip/byte_io.rs", "symbol": "write_u32_be"},
+        {"path": "src/jpip/automatic_headers.rs", "symbol": "append_empty_packet"},
+        {"path": "src/jpip/automatic_headers.rs", "symbol": "build_automatic_transition_template"},
+        {"path": "src/jpip/automatic_headers.rs", "symbol": "build_automatic_template"},
+        {"path": "src/jpip/progression.rs", "symbol": "DatabinCache::build_automatic_snapshot"},
+        {"path": "specs/jpip_byte_writes.rs", "symbol": "part2_jpip_write_u32_short_saturated_window"}
+      ],
+      "test_refs": [
+        {"path": "src/jpip/normalization_result_tests.rs", "symbol": "checked_word_writes_preserve_big_endian_bytes_errors_and_every_outside_byte"},
+        {"path": "src/jpip/normalization_result_tests.rs", "symbol": "checked_empty_packets_preserve_prefix_framing_sequence_and_storage"},
+        {"path": "src/jpip/normalization_result_tests.rs", "symbol": "automatic_templates_preserve_all_parts_psot_bytes_and_patch_before_final_limit_errors"}
+      ]
+    },
+    {
       "id": "part9-complete-native-automatic-header-partition-inputs",
       "topic": "Complete actual raw SIZ-cardinality/checked-ceiling Results, cache-and-caller-derived automatic_headers Result including every normalized byte/count/component field and ordered typed reservation/main-normalization primitive events, and complete partition_automatic_tile_parts Result from its actual native header/state/transition/packet slices. Exact first cache/SIZ/geometry/tile/normalizer/length/overflow/missing errors, count-before-data-length/last-part policies, optional missing return and deep copied packet/header fields are retained without successful layout/image/header banks or valid-cache assumptions. Physical allocator internals and infallible clones remain existing environment boundaries. These are preparation/partition interfaces, not the complete build_automatic_snapshot or public progressive image/state Result; PSOT writer and remaining cache-to-packet/final emission joins stay open under issue130.",
       "implementation_refs": [

@@ -3498,6 +3498,78 @@ _RAW_CONTAINER_COLOR_TESTS = {("src/decode/container_image_result_tests.rs", "ac
     "preserves_header_mapping_before_color_admission",
     "preserves_raw_inspection_selection_packet_and_profile_priority",
 )} | {("src/decode/tests.rs", "sarah_dev_457acab2c3_later_jp2_streams_do_not_change_first_display")}
+_JPIP_BYTE_RESULT_ENTRY = "part9-complete-native-word-template-results"
+_JPIP_BYTE_RESULT_CONTRACTS = {
+    ("src/jpip/byte_io.rs", "write_u32_be"): (
+        "part2_jpip_write_u32", r"\1", _coverage_call("final", "output") + r"\s*@",
+        _coverage_call("old", "output") + r"@\s*,\s*position\s*,\s*value",
+    ),
+    ("src/jpip/automatic_headers.rs", "append_empty_packet"): (
+        "part2_jpip_append_empty_packet", r"\1", _coverage_call("final", "output") + r"\s*@",
+        _coverage_call("old", "output") + r"@\s*,\s*sop\s*,\s*eph\s*,\s*sequence",
+    ),
+    ("src/jpip/automatic_headers.rs", "build_automatic_transition_template"): (
+        "part2_jpip_transition_template", _coverage_call("jpip_packet_bytes_outcome", r"\1"), None,
+        r"main@\s*,\s*" + _coverage_call("tile_headers@.map_values",
+            r"\|parts:\s*Vec<Vec<u8>>\|\s*" + _coverage_call("parts@.map_values",
+                r"\|header:\s*Vec<u8>\|\s*header@")) + r"\s*,\s*limits",
+    ),
+    ("src/jpip/automatic_headers.rs", "build_automatic_template"): (
+        "part2_jpip_flat_template", _coverage_call("jpip_packet_bytes_outcome", r"\1"), None,
+        r"main@\s*,\s*" + _coverage_call("tile_headers@.map_values",
+            r"\|header:\s*Vec<u8>\|\s*header@") + r"\s*,\s*limits",
+    ),
+}
+_JPIP_BYTE_RESULT_MODELS = {
+    "part2_jpip_u32_bytes": ("(value >> 24)", "(value >> 16)", "(value >> 8)", "(value & 0xff)"),
+    "part2_jpip_write_u32_end": (
+        "position as nat + 4 > usize::MAX as nat",
+        "{ usize::MAX as nat } else { position as nat + 4 }",
+    ),
+    "part2_jpip_write_u32": (
+        "part2_jpip_write_u32_end(position)", "position as nat > end || end > before.len()",
+        "MalformedKind::Truncated)), before)", "if count == 4 { Ok(()) }",
+        "before.subrange(0, position as int)", "part2_jpip_u32_bytes(value).subrange(0, count as int)",
+        "before.subrange(end as int, before.len() as int)",
+    ),
+    "part2_jpip_empty_packet_bytes": (
+        "if sop", "((sequence >> 8) & 0xff) as u8", "(sequence & 0xff) as u8",
+        "seq![0u8]", "if eph { seq![0xffu8, 0x92u8] }",
+    ),
+    "part2_jpip_append_empty_packet": (
+        "(Ok(()), before + part2_jpip_empty_packet_bytes(sop, eph, sequence))",
+    ),
+    "part2_jpip_template_append": (
+        "header.len() > u32::MAX as nat", "before.len() + 6 > usize::MAX as nat",
+        "part2_jpip_write_u32(before + header, (before.len() + 6) as usize, header.len() as u32)",
+        "match written.0 { Err(error) => Err(error), Ok(()) => Ok(written.1) }",
+    ),
+    "part2_jpip_template_finish": (
+        "output + seq![0xffu8, 0xd9u8]",
+        "bytes.len() as u64 > crate::limits::resource_input_byte_limit(limits)",
+        "resource: crate::Resource::InputBytes",
+        "limit: crate::limits::resource_input_byte_limit(limits), actual: bytes.len() as u64",
+    ),
+    "part2_jpip_transition_template_fold": (
+        "if tile >= headers.len() { part2_jpip_template_finish(output, limits) }",
+        "part2_jpip_transition_template_fold(headers, tile + 1, 0, output, limits)",
+        "part2_jpip_template_append(output, headers[tile as int][part as int])",
+        "Err(error) => Err(error)",
+        "part2_jpip_transition_template_fold(headers, tile, part + 1, next, limits)",
+    ),
+    "part2_jpip_transition_template": ("part2_jpip_transition_template_fold(headers, 0, 0, main, limits)",),
+    "part2_jpip_flat_template_fold": (
+        "if index >= headers.len() { part2_jpip_template_finish(output, limits) }",
+        "part2_jpip_template_append(output, headers[index as int])", "Err(error) => Err(error)",
+        "part2_jpip_flat_template_fold(headers, index + 1, next, limits)",
+    ),
+    "part2_jpip_flat_template": ("part2_jpip_flat_template_fold(headers, 0, main, limits)",),
+}
+_JPIP_BYTE_RESULT_TESTS = {("src/jpip/normalization_result_tests.rs", name) for name in (
+    "checked_word_writes_preserve_big_endian_bytes_errors_and_every_outside_byte",
+    "checked_empty_packets_preserve_prefix_framing_sequence_and_storage",
+    "automatic_templates_preserve_all_parts_psot_bytes_and_patch_before_final_limit_errors",
+)}
 _JPIP_AUTOMATIC_INPUT_ENTRY = "part9-complete-native-automatic-header-partition-inputs"
 _JPIP_AUTOMATIC_INPUT_CONTRACTS = {
     ("src/jpip/mapping.rs", "siz_cardinality"): (
@@ -4683,6 +4755,41 @@ def validate_normative_coverage(
     ids: set[str] = set()
     contract_functions: set[tuple[str, str]] = set()
     for entry in coverage["requirements"]:
+        if entry["id"] == _JPIP_BYTE_RESULT_ENTRY:
+            contracts = set(_JPIP_BYTE_RESULT_CONTRACTS)
+            consumer = ("src/jpip/progression.rs", "DatabinCache::build_automatic_snapshot")
+            law = ("specs/jpip_byte_writes.rs", "part2_jpip_write_u32_short_saturated_window")
+            for field, required in (
+                ("implementation_refs", contracts | {consumer, ("src/jpip/mapping.rs", "DatabinCache::derive_precinct_map")}),
+                ("contract_refs", contracts),
+                ("spec_refs", {("specs/jpip_byte_writes.rs", name) for name in _JPIP_BYTE_RESULT_MODELS}),
+                ("proof_refs", contracts | {consumer, law}),
+                ("test_refs", _JPIP_BYTE_RESULT_TESTS),
+            ):
+                if not required.issubset({(ref["path"], ref["symbol"]) for ref in entry[field]}):
+                    if field == "implementation_refs":
+                        raise ValueError("linked function is not used by claimed implementation: JPIP word/template Results")
+                    raise ValueError("JPIP word/template Results require complete producers, consumers, models and regressions")
+            source = source_text((ROOT / "specs/jpip_byte_writes.rs").resolve())
+            for name, fragments in _JPIP_BYTE_RESULT_MODELS.items():
+                body = _coverage_spec_function_body(source, name)
+                if body is None or any("".join(item.split()) not in "".join(body.split()) for item in fragments):
+                    raise ValueError("JPIP word/template Results require exact partial-error frames, ordered patches and limits")
+            snapshot_source = source_text((ROOT / consumer[0]).resolve())
+            snapshot = _coverage_function_body(
+                snapshot_source, _coverage_function_header(snapshot_source, consumer[1]))
+            for fragment in (
+                "part2_jpip_transition_template(normalized_main@,",
+                "tile@.map_values(|header: Vec<u8>| header@)), limits) == Ok(template@)",
+                "let ghost before_empty = bytes@",
+                "(Ok(()), bytes@) == crate::specs::part2_jpip_append_empty_packet("
+                "before_empty, part.sop, part.eph, packet.ordinal)",
+                "let ghost before_psot = bytes@",
+                "(Ok(()), bytes@) == crate::specs::part2_jpip_write_u32("
+                "before_psot, length_position, tile_length)",
+            ):
+                if snapshot is None or "".join(fragment.split()) not in "".join(snapshot.split()):
+                    raise ValueError("JPIP word/template Results require the actual snapshot byte-frame cutpoints")
         if entry["id"] == _JPIP_AUTOMATIC_INPUT_ENTRY:
             contracts = set(_JPIP_AUTOMATIC_INPUT_CONTRACTS) | {
                 ("src/jpip/progression.rs", "DatabinCache::automatic_headers"),
@@ -8868,6 +8975,8 @@ def validate_normative_coverage(
                     if entry["id"] == _JPIP_PROGRESSIVE_ENTRY else None)
                 or (_JPIP_TRANSITION_CONTRACTS.get((reference["path"], reference["symbol"]))
                     if entry["id"] == _JPIP_TRANSITION_ENTRY else None)
+                or (_JPIP_BYTE_RESULT_CONTRACTS.get((reference["path"], reference["symbol"]))
+                    if entry["id"] == _JPIP_BYTE_RESULT_ENTRY else None)
                 or ((_JPIP_AUTOMATIC_INPUT_CONTRACTS.get((reference["path"], reference["symbol"]))
                      or _JPIP_TRANSITION_CONTRACTS.get((reference["path"], reference["symbol"]))
                      or _JPIP_CACHE_VIEW_CONTRACTS.get((reference["path"], reference["symbol"])))

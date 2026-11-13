@@ -39,6 +39,7 @@ specs/jp2_layer.rs
 specs/jp2_metadata.rs
 specs/jp2_palette.rs
 specs/jp2_resolution.rs
+specs/jpip_byte_writes.rs
 specs/jpip_cache_insert.rs
 specs/jpip_cache_views.rs
 specs/jpip_fragment.rs

@@ -130,13 +130,50 @@ the snapshot builder has separate waiting-data, caller-limit and multi-part
 normalization behavior. It shares the checked cardinality/normalizer producers
 and calls the checked partition producer, but those policies are not conflated.
 The remaining snapshot composition must still derive its cache-to-packet folds,
-actual PSOT-patched template/emission bytes and final image/error/decoder state.
-In particular, the reached `write_u32_be` currently lacks its complete Result
-and mutable byte frame. A word-writer model must preserve its native saturating
-range/partial-error behavior, not assume atomicity or an arbitrary codec error.
+join the checked byte-emission steps across every actual tile/part/packet,
+and derive final image/error/decoder state.
 Physical allocator internals and existing infallible copies/clones remain the
 declared standard-library boundary; no lifetime, global OOM, coverage or
 independent standards claim follows.
+
+## Checked PSOT word writes and automatic templates
+
+`write_u32_be` now has its complete `(Result, final bytes)` contract. An invalid
+initial saturating range leaves every byte unchanged. A valid four-byte window
+receives exactly the big-endian word. A valid saturated window shorter than four
+bytes receives its leading word bytes **before** returning the original
+`Truncated(position)` error. Every outside byte is framed. The symbolic
+short-window law does not establish physical reachability of a maximum-length
+native slice. All masked conversions are proved in range.
+
+The original callback-based scalar assignment and all native owning/evaluation/
+drop order remain unchanged. The loop retains both original caller-buffer
+identities and the borrowed-window future frame; this closes the partial-error
+postcondition without an atomic-error assumption or a new trusted interface.
+
+The actual nested `build_automatic_transition_template` and flat
+`build_automatic_template` have complete Results from their actual main/header
+bytes and caller limits. Their ordered folds append each raw header, derive its
+length, patch its PSOT through the checked writer, append EOC, and perform the
+final input-limit check. Empty tiles and patch errors before a final size error
+are retained. These helpers do not themselves validate SOC or header markers.
+`append_empty_packet` also has a complete Result and byte frame for its actual
+SOP/EPH flags and sequence. Its defensive conversion/length errors are proved
+unreachable on normal return, not admitted as arbitrary codec failures.
+
+`build_automatic_snapshot` consumes these interfaces at its actual template,
+empty-packet and final PSOT call sites, with checked exact byte-state cutpoints.
+Those are local composition steps, **not** a complete snapshot Result from cache
+and caller inputs. Remaining obligations include the ordered cache/acquisition,
+plan/iterator/packet-state folds, availability/missing ranges, complete emission
+fold and raw final-layout/image/decoder-state joins. Both public issue130 groups
+remain open; semantic-container expansion is untouched here.
+
+The writer allocates nothing. Template copies/extensions and empty-packet Vec
+growth retain their pre-existing infallible standard-library allocation boundary;
+no new `AllocationFailed` alternative or primitive event is introduced. Existing
+typed-reservation/main-normalization event models are unchanged. Rust 1.88,
+the pinned verifier and explicit `--no-lifetime` mode remain separate controls.
 
 ## Trailing whole-packet engineering admission
 
