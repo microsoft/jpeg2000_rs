@@ -22,10 +22,12 @@ pub open spec fn storage_capacity_result<T>(result: Result<Vec<T>, DecodeError>)
 pub open spec fn storage_extension_result(
     before: Seq<u8>, bytes: Seq<u8>, after: Seq<u8>, result: Result<(), DecodeError>,
 ) -> bool {
-    match result {
+    if bytes.len() == 0 {
+        result == Ok(()) && after == before
+    } else { match result {
         Ok(()) => after == before + bytes,
         Err(error) => error == DecodeError::AllocationFailed && after == before,
-    }
+    } }
 }
 
 }

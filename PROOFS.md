@@ -23,6 +23,9 @@ exclusions. Their [models](specs/allocation.rs) retain sequence contents on
 either reservation result, empty successful capacity construction, and exact
 byte extension or unchanged contents on `AllocationFailed`. Capacity overflow
 and allocator refusal have that typed error, distinct from configured limits.
+An empty byte extension is exactly successful and preserves its owner: it
+does not call the reservation primitive or consume a managed refusal. This
+excludes the former impossible allocation-failure model for an empty copy.
 Physical allocation availability, capacity and allocator internals remain a
 standard-library/environment boundary, not a new codec theorem.
 
