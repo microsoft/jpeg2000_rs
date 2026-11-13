@@ -827,6 +827,74 @@ class FrameworkTests(WorkingFiles):
                     self.assertRaisesRegex(ValueError, "ordinal"):
                 framework.validate_normative_coverage(coverage)
 
+    def test_inventory_word_template_results_bind_actual_inputs_and_complete_mutable_frames(self):
+        self._assert_complete_packet_contract_bindings(
+            {framework._JPIP_BYTE_RESULT_ENTRY}, framework._JPIP_BYTE_RESULT_CONTRACTS, 4, isolate=False)
+
+    def test_inventory_word_template_models_reject_atomic_errors_lost_frames_and_reordered_patches(self):
+        coverage = json.loads((framework.VALIDATION / "normative-coverage.json").read_text())
+        coverage["requirements"] = [
+            item for item in coverage["requirements"] if item["id"] == framework._JPIP_BYTE_RESULT_ENTRY
+        ]
+        read_text = Path.read_text
+        source = framework.ROOT / "specs/jpip_byte_writes.rs"
+        original = source.read_text()
+        for model, before, after in (
+            ("part2_jpip_write_u32_end", "usize::MAX as nat } else", "position as nat } else"),
+            ("part2_jpip_write_u32", "if count == 4 { Ok(()) }", "if count <= 4 { Ok(()) }"),
+            ("part2_jpip_write_u32", "before.subrange(0, position as int)", "Seq::empty()"),
+            ("part2_jpip_write_u32", "part2_jpip_u32_bytes(value).subrange(0, count as int)",
+             "before.subrange(position as int, end as int)"),
+            ("part2_jpip_write_u32", "before.subrange(end as int, before.len() as int)", "Seq::empty()"),
+            ("part2_jpip_empty_packet_bytes", "(sequence & 0xff) as u8", "0u8"),
+            ("part2_jpip_template_append", "(before.len() + 6) as usize", "(before.len() + 4) as usize"),
+            ("part2_jpip_template_append", "Ok(written.1)", "Ok(before + header)"),
+            ("part2_jpip_template_finish", "actual: bytes.len() as u64", "actual: output.len() as u64"),
+            ("part2_jpip_transition_template_fold", "Err(error) => Err(error)",
+             "Err(error) => part2_jpip_template_finish(output, limits)"),
+            ("part2_jpip_flat_template_fold", "index + 1, next, limits", "index + 1, output, limits"),
+        ):
+            self.assertIn(before, framework._coverage_spec_function_body(original, model))
+            start = re.search(r"\bspec\s+fn\s+" + re.escape(model) + r"\b", original).start()
+            modified = original[:start] + original[start:].replace(before, after, 1)
+
+            def altered(path, *args, **kwargs):
+                return modified if path == source else read_text(path, *args, **kwargs)
+
+            with self.subTest(model=model, before=before), mock.patch.object(Path, "read_text", altered), \
+                    self.assertRaisesRegex(ValueError, "JPIP word/template"):
+                framework.validate_normative_coverage(coverage)
+
+    def test_inventory_word_template_results_require_actual_snapshot_cutpoints_and_symbolic_law(self):
+        coverage = json.loads((framework.VALIDATION / "normative-coverage.json").read_text())
+        coverage["requirements"] = [
+            item for item in coverage["requirements"] if item["id"] == framework._JPIP_BYTE_RESULT_ENTRY
+        ]
+        read_text = Path.read_text
+        source = framework.ROOT / "src/jpip/progression.rs"
+        original = source.read_text()
+        for before, after in (
+            ("let ghost before_psot = bytes@", "let ghost before_psot = unrelated@"),
+            ("before_psot, length_position, tile_length", "before_psot, tile_start, tile_length"),
+            ("before_empty, part.sop, part.eph, packet.ordinal", "before_empty, part.sop, part.eph, 0"),
+            ("limits) == Ok(template@)", "limits) == Ok(unrelated@)"),
+        ):
+            self.assertIn(before, original)
+            modified = original.replace(before, after, 1)
+
+            def altered(path, *args, **kwargs):
+                return modified if path == source else read_text(path, *args, **kwargs)
+
+            with self.subTest(before=before), mock.patch.object(Path, "read_text", altered), \
+                    self.assertRaisesRegex(ValueError, "actual snapshot byte-frame"):
+                framework.validate_normative_coverage(coverage)
+        coverage["requirements"][0]["proof_refs"] = [
+            ref for ref in coverage["requirements"][0]["proof_refs"]
+            if ref["symbol"] != "part2_jpip_write_u32_short_saturated_window"
+        ]
+        with self.assertRaisesRegex(ValueError, "JPIP word/template Results require complete"):
+            framework.validate_normative_coverage(coverage)
+
     def test_inventory_automatic_input_results_bind_cache_and_actual_native_arguments(self):
         coverage = json.loads((framework.VALIDATION / "normative-coverage.json").read_text())
         coverage["requirements"] = [

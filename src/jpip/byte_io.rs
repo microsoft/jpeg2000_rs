@@ -149,14 +149,41 @@ pub(super) fn read_u32_be(input: &[u8], position: usize) -> Result<u32, DecodeEr
         | u32::from(fourth))
 }
 
+#[cfg_attr(verus_keep_ghost, verus_spec(result =>
+    ensures (result, final(output)@)
+        == crate::specs::part2_jpip_write_u32(old(output)@, position, value),
+))]
 pub(super) fn write_u32_be(
     output: &mut [u8],
     position: usize,
     value: u32,
 ) -> Result<(), DecodeError> {
+    #[cfg(verus_keep_ghost)]
+    proof_decl! {
+        let ghost before = output@;
+        let ghost after = final(output)@;
+        let ghost end = crate::specs::part2_jpip_write_u32_end(position);
+    }
     let bytes = output
         .get_mut(position..position.saturating_add(4))
-        .ok_or_else(|| DecodeError::malformed(position as u64, MalformedKind::Truncated))?;
+        .ok_or_else(
+            #[cfg_attr(verus_keep_ghost, verus_spec(result: DecodeError =>
+                ensures result == crate::specs::part2_jpip_cache_error(position as u64, MalformedKind::Truncated),
+            ))]
+            || DecodeError::malformed(position as u64, MalformedKind::Truncated),
+        )?;
+    #[cfg(verus_keep_ghost)]
+    proof! {
+        assert(position.saturating_add(4) as nat == end);
+        assert(bytes@ == before.subrange(position as int, end as int));
+        assert(bytes.len() <= 4);
+        assert(((value >> 24) & 0xff) <= u8::MAX as u32
+            && ((value >> 16) & 0xff) <= u8::MAX as u32
+            && ((value >> 8) & 0xff) <= u8::MAX as u32
+            && (value & 0xff) <= u8::MAX as u32) by(bit_vector);
+    }
+    #[cfg(verus_keep_ghost)]
+    proof_decl! { let ghost window = bytes@; }
     let source = [
         u8::try_from((value >> 24) & 0xff)
             .map_err(|_| DecodeError::malformed(0, MalformedKind::ArithmeticOverflow))?,
@@ -171,14 +198,42 @@ pub(super) fn write_u32_be(
     #[cfg_attr(
         verus_keep_ghost,
         verus_spec(
-            invariant index <= source.len(),
+            invariant index <= source.len(), index <= bytes.len(), bytes.len() <= 4,
+                before == old(output)@, after == final(output)@,
+                position as nat <= end, end <= before.len(),
+                source@ == crate::specs::part2_jpip_u32_bytes(value),
+                window == before.subrange(position as int, end as int),
+                window.len() == end - position as nat,
+                end == crate::specs::part2_jpip_write_u32_end(position),
+                window.len() == bytes.len(),
+                after == before.subrange(0, position as int) + final(bytes)@
+                    + before.subrange(end as int, before.len() as int),
+                bytes@ == source@.subrange(0, index as int)
+                    + window.subrange(index as int, window.len() as int),
+                index == bytes.len() && index < 4 ==>
+                    crate::specs::part2_jpip_write_u32(before, position, value) == (
+                        Err(crate::specs::part2_jpip_cache_error(position as u64, MalformedKind::Truncated)),
+                        before.subrange(0, position as int) + bytes@
+                            + before.subrange(end as int, before.len() as int)),
             decreases source.len() - index,
         )
     )]
     while index < source.len() {
+        #[cfg(verus_keep_ghost)]
+        proof! {
+            if index == bytes.len() {
+                assert(index < 4);
+                assert(bytes@ =~= crate::specs::part2_jpip_u32_bytes(value).subrange(0, index as int));
+            }
+        }
         *bytes
             .get_mut(index)
-            .ok_or_else(|| DecodeError::malformed(position as u64, MalformedKind::Truncated))? =
+            .ok_or_else(
+                #[cfg_attr(verus_keep_ghost, verus_spec(result: DecodeError =>
+                    ensures result == crate::specs::part2_jpip_cache_error(position as u64, MalformedKind::Truncated),
+                ))]
+                || DecodeError::malformed(position as u64, MalformedKind::Truncated),
+            )? =
             source[index];
         index += 1;
     }

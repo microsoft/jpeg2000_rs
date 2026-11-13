@@ -408,6 +408,12 @@ impl DatabinCache {
         }
         let template =
             build_automatic_transition_template(&normalized_main, &normalized_tiles, limits)?;
+        #[cfg(verus_keep_ghost)]
+        proof! {
+            assert(crate::specs::part2_jpip_transition_template(normalized_main@,
+                normalized_tiles@.map_values(|tile: Vec<Vec<u8>>|
+                    tile@.map_values(|header: Vec<u8>| header@)), limits) == Ok(template@));
+        }
         let layout = crate::codestream::parse_layout(&template, limits)?;
         let mut automatic_tiles = crate::allocation::empty_with_capacity(normalized_tiles.len())?;
         let mut maximum_layers = 0_u16;
@@ -988,7 +994,14 @@ impl DatabinCache {
                         })?;
                         bytes.extend_from_slice(packet_bytes);
                     } else {
+                        #[cfg(verus_keep_ghost)]
+                        proof_decl! { let ghost before_empty = bytes@; }
                         append_empty_packet(&mut bytes, part.sop, part.eph, packet.ordinal)?;
+                        #[cfg(verus_keep_ghost)]
+                        proof! {
+                            assert((Ok(()), bytes@) == crate::specs::part2_jpip_append_empty_packet(
+                                before_empty, part.sop, part.eph, packet.ordinal));
+                        }
                     }
                     packet_index += 1;
                 }
@@ -1001,7 +1014,14 @@ impl DatabinCache {
                 let length_position = tile_start
                     .checked_add(6)
                     .ok_or_else(|| DecodeError::malformed(0, MalformedKind::ArithmeticOverflow))?;
+                #[cfg(verus_keep_ghost)]
+                proof_decl! { let ghost before_psot = bytes@; }
                 write_u32_be(&mut bytes, length_position, tile_length)?;
+                #[cfg(verus_keep_ghost)]
+                proof! {
+                    assert((Ok(()), bytes@) == crate::specs::part2_jpip_write_u32(
+                        before_psot, length_position, tile_length));
+                }
                 part_index += 1;
             }
             tile_packet_index += 1;
