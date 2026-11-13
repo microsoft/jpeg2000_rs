@@ -447,6 +447,24 @@ budgets and `--no-lifetime` are unchanged; full-plan completion is not claimed.
 
 ## Actual placeholder representation and header selection
 
+The actual `parse_jpip_placeholder` now has a complete raw-input Result equality.
+Its logical value retains all nine native flags/id/header/type/equivalent/stream/
+count fields. Models compose real word reads, short/extended headers, flag
+admission, equivalent headers, explicit counts, the existing ignored legacy word
+and exact trailer/error precedence. No parsed-success or normalized-result bank
+is supplied. Existing native control flow, copies and owning bindings remain.
+
+The actual 64-bit reader composes its two existing 32-bit Result contracts.
+`BoxType::new` uses the repository's impl-level constructor contract frontend,
+in its own impl without changing the existing equality contract. A checked Copy
+word/array bridge preserves the existing byte constructor model while exposing
+value equality independently of opaque array identity. No native owner is
+chosen, cloned or moved by these ghost interfaces, and no new trust is added.
+
+This is a producer prerequisite. Recursive metadata expansion still needs its
+actual automatic snapshot dependency and complete output/missing/needs/error/
+state joins; neither public #130 group is completed by this parser contract.
+
 The executing `placeholder_reconstruction` derives its complete Result from
 arbitrary raw flags, original bytes and optional equivalent bytes. It returns
 the selected branch and exact borrowed header together. Original contents take

@@ -4,6 +4,19 @@ verus! {
         BoxType(crate::specs::part2_box_u32(bytes))
     }
 
+    // Value equality must not depend on the identity of separately built arrays.
+    pub closed spec fn box_type_from_word_model(word: u32) -> BoxType {
+        BoxType(word)
+    }
+
+    pub proof fn box_type_from_bytes_word(bytes: [u8; 4])
+        ensures box_type_from_bytes_model(bytes)
+            == box_type_from_word_model(crate::specs::part2_box_u32(bytes)),
+    {
+        reveal(box_type_from_bytes_model);
+        reveal(box_type_from_word_model);
+    }
+
     pub closed spec fn box_reader_state(reader: &BoxReader) -> crate::specs::Part2BoxReaderState {
         crate::specs::Part2BoxReaderState {
             input: reader.input@, limits: reader.limits, position: reader.position,

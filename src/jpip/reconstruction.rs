@@ -47,6 +47,30 @@ verus! {
             Err(error) => Err(error),
         }
     }
+
+    pub(super) open spec fn placeholder_value_view(
+        value: JpipPlaceholder,
+    ) -> crate::specs::Part2JpipPlaceholder {
+        crate::specs::Part2JpipPlaceholder {
+            flags: value.flags, bin: value.bin,
+            original_header: value.original_header@, original_type: value.original_type,
+            equivalent_bin: value.equivalent_bin,
+            equivalent_header: match value.equivalent_header {
+                Some(header) => Some(header@), None => None,
+            },
+            equivalent_type: value.equivalent_type,
+            stream: value.stream, stream_count: value.stream_count,
+        }
+    }
+
+    pub(super) open spec fn placeholder_parse_outcome(
+        result: Result<JpipPlaceholder, DecodeError>,
+    ) -> Result<crate::specs::Part2JpipPlaceholder, DecodeError> {
+        match result {
+            Ok(value) => Ok(placeholder_value_view(value)),
+            Err(error) => Err(error),
+        }
+    }
 }
 
 #[cfg_attr(verus_keep_ghost, verus_spec(result =>
@@ -477,7 +501,16 @@ impl DatabinCache {
     }
 }
 
+#[cfg_attr(verus_keep_ghost, verus_spec(result =>
+    ensures placeholder_parse_outcome(result) == crate::specs::part2_jpip_parse_placeholder(payload@),
+))]
 pub(super) fn parse_jpip_placeholder(payload: &[u8]) -> Result<JpipPlaceholder, DecodeError> {
+    #[cfg(verus_keep_ghost)]
+    proof! {
+        reveal(crate::specs::part2_jpip_parse_placeholder);
+        reveal(placeholder_parse_outcome);
+        reveal(placeholder_value_view);
+    }
     if payload.len() < 20 {
         return Err(DecodeError::malformed(0, MalformedKind::InvalidBoxContents));
     }
@@ -490,24 +523,65 @@ pub(super) fn parse_jpip_placeholder(payload: &[u8]) -> Result<JpipPlaceholder, 
     let header_length = if first_length == 1 { 16_usize } else { 8_usize };
     let original_end = original_start
         .checked_add(header_length)
-        .ok_or_else(|| DecodeError::malformed(0, MalformedKind::ArithmeticOverflow))?;
+        .ok_or_else(
+            #[cfg_attr(verus_keep_ghost, verus_spec(result: DecodeError =>
+                ensures result == crate::specs::part2_jpip_cache_error(0, MalformedKind::ArithmeticOverflow),
+            ))]
+            || DecodeError::malformed(0, MalformedKind::ArithmeticOverflow),
+        )?;
     let original = payload
         .get(original_start..original_end)
-        .ok_or_else(|| DecodeError::malformed(0, MalformedKind::InvalidBoxContents))?;
+        .ok_or_else(
+            #[cfg_attr(verus_keep_ghost, verus_spec(result: DecodeError =>
+                ensures result == crate::specs::part2_jpip_cache_error(0, MalformedKind::InvalidBoxContents),
+            ))]
+            || DecodeError::malformed(0, MalformedKind::InvalidBoxContents),
+        )?;
     let box_type = crate::jp2::BoxType::new([
         *original
             .get(4)
-            .ok_or_else(|| DecodeError::malformed(0, MalformedKind::InvalidBoxContents))?,
+            .ok_or_else(
+                #[cfg_attr(verus_keep_ghost, verus_spec(result: DecodeError =>
+                    ensures result == crate::specs::part2_jpip_cache_error(0, MalformedKind::InvalidBoxContents),
+                ))]
+                || DecodeError::malformed(0, MalformedKind::InvalidBoxContents),
+            )?,
         *original
             .get(5)
-            .ok_or_else(|| DecodeError::malformed(0, MalformedKind::InvalidBoxContents))?,
+            .ok_or_else(
+                #[cfg_attr(verus_keep_ghost, verus_spec(result: DecodeError =>
+                    ensures result == crate::specs::part2_jpip_cache_error(0, MalformedKind::InvalidBoxContents),
+                ))]
+                || DecodeError::malformed(0, MalformedKind::InvalidBoxContents),
+            )?,
         *original
             .get(6)
-            .ok_or_else(|| DecodeError::malformed(0, MalformedKind::InvalidBoxContents))?,
+            .ok_or_else(
+                #[cfg_attr(verus_keep_ghost, verus_spec(result: DecodeError =>
+                    ensures result == crate::specs::part2_jpip_cache_error(0, MalformedKind::InvalidBoxContents),
+                ))]
+                || DecodeError::malformed(0, MalformedKind::InvalidBoxContents),
+            )?,
         *original
             .get(7)
-            .ok_or_else(|| DecodeError::malformed(0, MalformedKind::InvalidBoxContents))?,
+            .ok_or_else(
+                #[cfg_attr(verus_keep_ghost, verus_spec(result: DecodeError =>
+                    ensures result == crate::specs::part2_jpip_cache_error(0, MalformedKind::InvalidBoxContents),
+                ))]
+                || DecodeError::malformed(0, MalformedKind::InvalidBoxContents),
+            )?,
     ]);
+    #[cfg(verus_keep_ghost)]
+    proof! {
+        reveal(crate::specs::part2_jpip_placeholder_header);
+        assert(crate::specs::part2_jpip_read_u32(payload@, 12) == Ok(first_length));
+        assert(original@ =~= payload@.subrange(12, original_end as int));
+        assert(box_type == crate::jp2::box_type_from_word_model(
+            ((original@[4] as u32) << 24) | ((original@[5] as u32) << 16)
+                | ((original@[6] as u32) << 8) | original@[7] as u32));
+        assert(crate::specs::part2_jpip_placeholder_header(payload@, 12)
+            == Ok((original@, box_type, original_end)));
+    }
     if flags & !0x0f != 0 || flags & 8 != 0 && flags & 4 == 0 {
         return Err(DecodeError::malformed(0, MalformedKind::InvalidBoxContents));
     }
@@ -516,31 +590,65 @@ pub(super) fn parse_jpip_placeholder(payload: &[u8]) -> Result<JpipPlaceholder, 
         let bin = read_u64_be(payload, position)?;
         position = position
             .checked_add(8)
-            .ok_or_else(|| DecodeError::malformed(0, MalformedKind::ArithmeticOverflow))?;
+            .ok_or_else(
+                #[cfg_attr(verus_keep_ghost, verus_spec(result: DecodeError =>
+                    ensures result == crate::specs::part2_jpip_cache_error(0, MalformedKind::ArithmeticOverflow),
+                ))]
+                || DecodeError::malformed(0, MalformedKind::ArithmeticOverflow),
+            )?;
         let length = read_u32_be(payload, position)?;
         let header_length = if length == 1 { 16_usize } else { 8_usize };
         let end = position
             .checked_add(header_length)
-            .ok_or_else(|| DecodeError::malformed(0, MalformedKind::ArithmeticOverflow))?;
+            .ok_or_else(
+                #[cfg_attr(verus_keep_ghost, verus_spec(result: DecodeError =>
+                    ensures result == crate::specs::part2_jpip_cache_error(0, MalformedKind::ArithmeticOverflow),
+                ))]
+                || DecodeError::malformed(0, MalformedKind::ArithmeticOverflow),
+            )?;
         let header = payload
             .get(position..end)
-            .ok_or_else(|| DecodeError::malformed(0, MalformedKind::InvalidBoxContents))?;
+            .ok_or_else(
+                #[cfg_attr(verus_keep_ghost, verus_spec(result: DecodeError =>
+                    ensures result == crate::specs::part2_jpip_cache_error(0, MalformedKind::InvalidBoxContents),
+                ))]
+                || DecodeError::malformed(0, MalformedKind::InvalidBoxContents),
+            )?;
         let box_type = crate::jp2::BoxType::new([header[4], header[5], header[6], header[7]]);
         position = end;
         (Some(bin), Some(copy_bytes(header)), Some(box_type))
     } else {
         (None, None, None)
     };
+    #[cfg(verus_keep_ghost)]
+    proof! {
+        assert(crate::specs::part2_jpip_placeholder_equivalent(payload@, flags, original_end)
+            == Ok((equivalent_bin, match equivalent_header {
+                Some(header) => Some(header@), None => None,
+            }, equivalent_type, position)));
+    }
+    #[cfg(verus_keep_ghost)]
+    proof_decl! { let ghost stream_start = position; }
     let (stream, stream_count) = if flags & 4 != 0 {
         let stream = read_u64_be(payload, position)?;
         position = position
             .checked_add(8)
-            .ok_or_else(|| DecodeError::malformed(0, MalformedKind::ArithmeticOverflow))?;
+            .ok_or_else(
+                #[cfg_attr(verus_keep_ghost, verus_spec(result: DecodeError =>
+                    ensures result == crate::specs::part2_jpip_cache_error(0, MalformedKind::ArithmeticOverflow),
+                ))]
+                || DecodeError::malformed(0, MalformedKind::ArithmeticOverflow),
+            )?;
         let count = if flags & 8 != 0 {
             let count = read_u32_be(payload, position)?;
             position = position
                 .checked_add(4)
-                .ok_or_else(|| DecodeError::malformed(0, MalformedKind::ArithmeticOverflow))?;
+                .ok_or_else(
+                    #[cfg_attr(verus_keep_ghost, verus_spec(result: DecodeError =>
+                        ensures result == crate::specs::part2_jpip_cache_error(0, MalformedKind::ArithmeticOverflow),
+                    ))]
+                    || DecodeError::malformed(0, MalformedKind::ArithmeticOverflow),
+                )?;
             if count == 0 {
                 return Err(DecodeError::malformed(0, MalformedKind::InvalidBoxContents));
             }
@@ -550,7 +658,12 @@ pub(super) fn parse_jpip_placeholder(payload: &[u8]) -> Result<JpipPlaceholder, 
                 read_u32_be(payload, position)?;
                 position = position
                     .checked_add(4)
-                    .ok_or_else(|| DecodeError::malformed(0, MalformedKind::ArithmeticOverflow))?;
+                    .ok_or_else(
+                        #[cfg_attr(verus_keep_ghost, verus_spec(result: DecodeError =>
+                            ensures result == crate::specs::part2_jpip_cache_error(0, MalformedKind::ArithmeticOverflow),
+                        ))]
+                        || DecodeError::malformed(0, MalformedKind::ArithmeticOverflow),
+                    )?;
             }
             1
         };
@@ -558,6 +671,11 @@ pub(super) fn parse_jpip_placeholder(payload: &[u8]) -> Result<JpipPlaceholder, 
     } else {
         (None, 0)
     };
+    #[cfg(verus_keep_ghost)]
+    proof! {
+        assert(crate::specs::part2_jpip_placeholder_stream(payload@, flags, stream_start)
+            == Ok((stream, stream_count, position)));
+    }
     if position != payload.len() {
         if flags == 4 && payload.len() == original_end + 24 {
             // Compatibility with the previously selected provisional layout.

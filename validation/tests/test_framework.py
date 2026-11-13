@@ -1819,8 +1819,35 @@ class FrameworkTests(WorkingFiles):
 
     def test_inventory_placeholder_reconstruction_binds_raw_flags_and_header_results(self):
         self._assert_complete_packet_contract_bindings(
-            {framework._JPIP_PLACEHOLDER_ENTRY}, framework._JPIP_PLACEHOLDER_CONTRACTS, 1, isolate=False,
+            {framework._JPIP_PLACEHOLDER_ENTRY}, framework._JPIP_PLACEHOLDER_CONTRACTS, 3, isolate=False,
         )
+
+    def test_inventory_placeholder_constructor_binds_checked_byte_and_word_results(self):
+        coverage = json.loads((framework.VALIDATION / "normative-coverage.json").read_text())
+        coverage["requirements"] = [
+            item for item in coverage["requirements"] if item["id"] == framework._JPIP_PLACEHOLDER_ENTRY
+        ]
+        self.assertEqual(framework.validate_normative_coverage(coverage)["status"], "passed")
+        source = framework.ROOT / "src/jp2/box_reader.rs"
+        original = source.read_text()
+        read_text = Path.read_text
+        for before, after in (
+            ("vstd::prelude::equal(result, super::box_type_from_bytes_model(bytes))", "true"),
+            ("super::box_type_from_word_model(crate::specs::part2_box_u32(bytes))",
+             "super::box_type_from_word_model(0)"),
+            ("#[cfg_attr(verus_keep_ghost, verus_verify)]\nimpl BoxType", "impl BoxType"),
+            ("vstd::prelude::ensures(|result: Self| {",
+             "vstd::prelude::requires(bytes[0] == 0); vstd::prelude::ensures(|result: Self| {"),
+        ):
+            self.assertIn(before, original)
+            changed = original.replace(before, after, 1)
+
+            def altered(path, *args, **kwargs):
+                return changed if path == source else read_text(path, *args, **kwargs)
+
+            with self.subTest(before=before), mock.patch.object(Path, "read_text", altered), \
+                    self.assertRaisesRegex(ValueError, "placeholder representation selection"):
+                framework.validate_normative_coverage(coverage)
 
     def test_spec_body_lookup_retains_parent_visibility_and_unique_definition(self):
         for visibility in ("pub", "pub(crate)", "pub(super)"):
@@ -1854,6 +1881,14 @@ class FrameworkTests(WorkingFiles):
             ("src/jpip/reconstruction.rs", "Some(bytes) => Some(bytes@)", "Some(bytes) => Some(Seq::empty())"),
             ("src/jpip/reconstruction.rs", "Err(error) => Err(error)", "Err(error) => Err(other_error)"),
             ("specs/jpip_layout.rs", "Some(header) => Ok((1, header))", "Some(header) => Ok((1, original))"),
+            ("src/jpip/reconstruction.rs", "stream_count: value.stream_count", "stream_count: 0"),
+            ("src/jpip/reconstruction.rs", "original_header: value.original_header@", "original_header: Seq::empty()"),
+            ("src/jpip/reconstruction.rs", "Ok(value) => Ok(placeholder_value_view(value))", "Ok(value) => Err(other_error)"),
+            ("specs/jpip_layout.rs", "count == 0", "false"),
+            ("specs/jpip_layout.rs", "stream.2 as nat != input.len()", "false"),
+            ("specs/jpip_layout.rs", "flags & !0x0f != 0", "false"),
+            ("specs/jpip_layout.rs", "equivalent_type: equivalent.2", "equivalent_type: None"),
+            ("specs/jpip_transitions.rs", "Ok(low) => Ok(((high as u64) << 32) | low as u64)", "Ok(low) => Ok(low as u64)"),
         ):
             source = framework.ROOT / relative
             original = source.read_text()
