@@ -36,6 +36,12 @@ See the [Cargo-Verus instructions](PROOFS.md#reproduce-verification).
 Release candidates are prepared from `release/0.1`. See
 [RELEASING.md](RELEASING.md) for validation and manual first-publication steps.
 
+The `0.1.1` maintenance source candidate backports only the bounded
+whole-packet-prefix correction from #309, with its models and tests. It retains
+the published `0.1.0` public API; it does not include every later main correction
+or the new capabilities in the separate `0.2` lane. Publication remains disabled
+until the separately authorized release steps in [RELEASING.md](RELEASING.md).
+
 ## Decode a JP2 image
 
 ```no_run
