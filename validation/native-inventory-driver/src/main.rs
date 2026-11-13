@@ -34,6 +34,11 @@ fn coordinates(
     )
 }
 
+fn source_callsite(tcx: TyCtxt<'_>, span: rustc_span::Span) -> serde_json::Value {
+    let (source, begin, end) = coordinates(tcx, span.source_callsite());
+    json!({"source": source, "begin": begin, "end": end})
+}
+
 struct Capture {
     crate_name: String,
     capture_id: String,
@@ -78,8 +83,8 @@ impl Callbacks for Capture {
             if runtime_callable && mir_available {
                 let body = tcx.optimized_mir(local);
                 for (block_index, block) in body.basic_blocks.iter_enumerated() {
-                    let (call_source, call_begin, call_end) =
-                        coordinates(tcx, block.terminator().source_info.span);
+                    let call_span = block.terminator().source_info.span;
+                    let (call_source, call_begin, call_end) = coordinates(tcx, call_span);
                     if let TerminatorKind::Call { func, .. } = &block.terminator().kind {
                         let called_type = func.ty(&body.local_decls, tcx);
                         let target = match called_type.kind() {
@@ -135,6 +140,8 @@ impl Callbacks for Capture {
                         target["source"] = json!(call_source);
                         target["begin"] = json!(call_begin);
                         target["end"] = json!(call_end);
+                        target["from_expansion"] = json!(call_span.from_expansion());
+                        target["source_callsite"] = source_callsite(tcx, call_span);
                         calls.push(target);
                     } else if let TerminatorKind::Drop { place, .. } = &block.terminator().kind {
                         calls.push(json!({
@@ -145,6 +152,8 @@ impl Callbacks for Capture {
                             "source": call_source,
                             "begin": call_begin,
                             "end": call_end,
+                            "from_expansion": call_span.from_expansion(),
+                            "source_callsite": source_callsite(tcx, call_span),
                         }));
                     }
                 }
@@ -158,6 +167,7 @@ impl Callbacks for Capture {
                 "begin": begin,
                 "end": end,
                 "from_expansion": span.from_expansion(),
+                "source_callsite": source_callsite(tcx, span),
                 "body_owner": body_owners.contains(&local),
                 "runtime_callable": runtime_callable,
                 "mir_available": mir_available,
