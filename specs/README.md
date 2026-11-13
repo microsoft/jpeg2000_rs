@@ -59,6 +59,7 @@ Think of the decoder as a sequence of jobs:
 | Packets | Work out which pieces of compressed data are present and in what order to process them. | [Packet code](../src/packet.rs), [packet models](packet.rs) |
 | Coefficients and arithmetic | Recover coefficient signs and magnitudes using legacy coding or HTJ2K, without losing high bits. | [Tier-1 code](../src/tier1.rs), [integer arithmetic](../src/magnitude.rs) |
 | Transforms | Undo quantization and wavelet/component transforms to rebuild sample values. | [Transform code](../src/transform.rs), [mathematical models](mod.rs) |
+| Strict raw reconstruction output | Compose actual raw parsing/full reconstruction, reject typed-domain NLT declarations, and validate centered planes before rounding/clipping. | [`decode_codestream_reconstructed`](../src/decode/api.rs), [exact raw Results](raw_decode.rs); no selection/container mapping/recovery claim |
 | Channels and color | Interpret palettes and channel mappings, then perform supported color conversions. | [Color code](../src/color.rs), [sample processing](../src/decode/output.rs) |
 | Layers and frames | Combine prepared layers into output frames. | [JPX code](../src/jpx.rs), [composition models](mod.rs) |
 | JPIP cache mutation | Insert owned fragments atomically, compare overlaps and normalize bytes without changing the cache on returned errors. | [Insertion code](../src/jpip/cache.rs), [complete cache-state model](jpip_cache_insert.rs) |

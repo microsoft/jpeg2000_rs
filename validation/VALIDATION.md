@@ -1066,3 +1066,18 @@ Verus graph includes specification/proof/trait dependencies, not native runtime
 calls. Keep exact run counts, source/tool hashes and qualification snapshots
 in retained artifacts, not committed progress reports, as required by
 [the proof documentation policy](../PROOFS.md#reading-this-document).
+
+### Native compiler identity observations
+
+The separate [native compiler producer](native-inventory-driver/README.md)
+records actual local definitions and MIR call sites, including nested,
+macro/derive, closure, constructor and constant/static observations that
+Rustdoc alone cannot supply. Its separate pinned SDK and real-compiler controls
+do not alter production/MSRV/Verus pins or the existing report schemas.
+Capture identities, new-output guards and source/tool hashes preserve origins.
+Generic, virtual, pointer and destructor boundaries remain explicit.
+
+The observations workflow retains those inputs for W04 review; it does not
+qualify a denominator, native/Verus erasure or result-key correspondence,
+effective public/runtime reachability, functional contracts or lifetime mode.
+All existing coverage fields remain `not-measured`.

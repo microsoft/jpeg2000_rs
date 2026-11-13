@@ -2424,6 +2424,54 @@
       ]
     },
     {
+      "id": "part2-strict-raw-codestream-reconstruction-result",
+      "topic": "Bounded strict W08/#296 full raw-codestream reconstruction output before typed rounding, unsigned level shift and clipping, using existing DecodedImage/DecodedComponent and exact raw/layout/coefficient/image contracts. Complete Result composition retains actual options/limits, every parser/reconstruction error, main/tile NLT rejection (including identity declarations), shape validation, centered i64 planes, fraction bits and geometry. No duplicate decoder/representation, successful-result bank, retry, fallback or invented missing pixels. New public API and dependent contracts remain visible under #223/#300. Selected reconstruction, container palette/channel/color output and W19 recovery are not supplied. Incomplete allocation-error propagation remains #287; source-function coverage, independent normative correspondence, lifetime verification and release qualification are not claimed.",
+      "implementation_refs": [
+        {"path": "src/decode/api.rs", "symbol": "decode_codestream_reconstructed"},
+        {"path": "src/decode/api.rs", "symbol": "validate_reconstruction_transforms"},
+        {"path": "src/decode/api.rs", "symbol": "validate_reconstructed_output_shape"},
+        {"path": "src/codestream/layout.rs", "symbol": "parse_layout"},
+        {"path": "src/decode/execution.rs", "symbol": "decode_layout"},
+        {"path": "src/image/samples.rs", "symbol": "DecodedImage::typed"},
+        {"path": "src/decode/raw_typed_result_tests.rs", "symbol": "reconstructed_output_roundtrips_independent_packets_and_retains_coded_geometry"}
+      ],
+      "spec_refs": [
+        {"path": "specs/raw_decode.rs", "symbol": "part2_decode_raw_reconstructed_codestream"},
+        {"path": "specs/raw_decode.rs", "symbol": "part2_decode_reconstructed_layout_input"},
+        {"path": "specs/raw_decode.rs", "symbol": "part2_validate_reconstruction_transforms"},
+        {"path": "specs/raw_decode.rs", "symbol": "part1_validate_reconstructed_output_shape"},
+        {"path": "specs/raw_decode.rs", "symbol": "part1_validate_reconstructed_output_components"},
+        {"path": "specs/raw_layout.rs", "symbol": "part1_parse_layout"},
+        {"path": "specs/decoder_input.rs", "symbol": "part2_decoder_input_from_raw"},
+        {"path": "specs/decoder_input.rs", "symbol": "part2_decode_layout_input"},
+        {"path": "specs/mod.rs", "symbol": "part1_decode_output_shape_valid"},
+        {"path": "specs/mod.rs", "symbol": "part1_component_output_shape_valid"}
+      ],
+      "contract_refs": [
+        {"path": "src/decode/api.rs", "symbol": "decode_codestream_reconstructed"},
+        {"path": "src/decode/api.rs", "symbol": "validate_reconstruction_transforms"},
+        {"path": "src/decode/api.rs", "symbol": "validate_reconstructed_output_shape"}
+      ],
+      "proof_refs": [
+        {"path": "specs/raw_decode.rs", "symbol": "part2_decode_raw_reconstructed_codestream_unfold"},
+        {"path": "src/codestream/decoder_input_proof_support.rs", "symbol": "decoder_layout_input_matches_raw"},
+        {"path": "src/codestream/decoder_input_proof_support.rs", "symbol": "decoder_layout_input_fields"},
+        {"path": "src/codestream/extensions.rs", "symbol": "Part2Extensions::nonlinear_transforms"},
+        {"path": "src/image/samples.rs", "symbol": "DecodedImage::width"},
+        {"path": "src/image/samples.rs", "symbol": "DecodedImage::height"},
+        {"path": "src/image/samples.rs", "symbol": "DecodedImage::components"},
+        {"path": "src/image/samples.rs", "symbol": "DecodedComponent::width"},
+        {"path": "src/image/samples.rs", "symbol": "DecodedComponent::height"},
+        {"path": "src/image/samples.rs", "symbol": "DecodedComponent::samples"}
+      ],
+      "test_refs": [
+        {"path": "src/decode/raw_typed_result_tests.rs", "symbol": "reconstructed_output_roundtrips_independent_packets_and_retains_coded_geometry"},
+        {"path": "src/decode/raw_typed_result_tests.rs", "symbol": "reconstructed_output_retains_fractional_overshoot_before_typed_rounding_and_clipping"},
+        {"path": "src/decode/raw_typed_result_tests.rs", "symbol": "reconstructed_output_rejects_main_and_tile_typed_domain_nlt_without_masking_decode_errors"},
+        {"path": "src/decode/raw_typed_result_tests.rs", "symbol": "reconstructed_output_keeps_strict_errors_limits_and_success_after_failure"}
+      ]
+    },
+    {
       "id": "part1-complete-native-raw-layout-result",
       "topic": "Complete actual raw-byte CodestreamLayout and CodestreamInfo Results, not parsed-header/layout admission: raw parser creation/input limit, actual main-header traversal/final reader, checked global tile count and limit, SOT, TLM/PLM/PPM selection, all inherited physical owners and original clones, real complete tile reader, ordered partial persistent commits/payload append, EOC/count/trailing errors, actual physical ROI iterator and full profile classification. Every Result error and all returned image/style/quantization/ROI/progression/MCT/extensions/profile/counters/consumed/source-payload fields compose from real input. Main traversal uses the actual pre-loop input length derived from the real prologue; no silent frame assumption. Public closed ghost models use checked unfolding lemmas, not external axioms. The real limit-error constructor has its complete typed return contract. A ghost-only shared sequence projection supports native selection without executing Vec-to-slice dereference in proof. All original native owners/scopes/clone/move/drop order remain; only an unused Copy-error closure argument is named for the specification frontend. Strict inventory binds all three actual complete contracts, raw model roots, full returned projections, real reader/counter/eight-state/payload suffix and terminal Results, primitive error constructor and actual decode consumers. Prior inventory meanings, producer relays and four unconditional owned handoff checks remain; exact guards recognize stronger ghost-only wrapper/ROI/length proofs. This is as-implemented raw layout, not independent selected-edition normative correspondence, full normalization/public pixels, general production cfg/erasure/lifetimes/coverage, official conformance or release qualification.",
       "implementation_refs": [

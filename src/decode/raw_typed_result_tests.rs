@@ -1,6 +1,240 @@
 use super::*;
 
 #[test]
+fn reconstructed_output_roundtrips_independent_packets_and_retains_coded_geometry() {
+    let options = DecodeOptions::default();
+    for (sample, packet) in [
+        (1_i64, &[0xcf, 0xb4, 0x04, 0x09][..]),
+        (129, &[0xc0, 0x21, 0x03][..]),
+        (200, &[0xcf, 0xb4, 0x08, 0x04, 0x4f][..]),
+    ] {
+        let mut bytes = prepared_codestream(1, 1, 1, &[0x40, 0x40], packet);
+        let cod = bytes.windows(2).position(|pair| pair == [255, 82]).unwrap();
+        bytes[cod + 9] = 0;
+        for signed in [false, true] {
+            bytes[42] = if signed { 0x87 } else { 7 };
+            let image = crate::decode_codestream_reconstructed(&bytes, &options).unwrap();
+            let component = image.component(0).unwrap();
+            assert_eq!(component.fraction_bits(), 0);
+            assert_eq!(component.samples(), &[sample - 128]);
+            assert_eq!(component.info().signed, signed);
+            assert_eq!(
+                image.typed(options.limits()),
+                decode_codestream(&bytes, &options)
+            );
+        }
+    }
+
+    let mut registered = prepared_codestream(7, 5, 1, &[0x40, 0x40], &[0]);
+    let cod = registered
+        .windows(2)
+        .position(|pair| pair == [255, 82])
+        .unwrap();
+    registered[cod + 9] = 0;
+    registered[16..20].copy_from_slice(&1_u32.to_be_bytes());
+    registered[20..24].copy_from_slice(&1_u32.to_be_bytes());
+    registered[43] = 2;
+    registered[44] = 3;
+    let sot = registered.windows(2).position(|p| p == [255, 144]).unwrap();
+    registered.splice(sot..sot, segment(0xff63, &[0x40, 0, 0x80, 0]));
+    for (bytes, geometry, dimensions, sampling) in [
+        (two_tile_codestream(), (5, 1, 1, 0), (5, 1), (1, 1, 0, 0)),
+        (registered, (6, 4, 1, 1), (3, 1), (2, 3, 0x4000, 0x8000)),
+    ] {
+        let image = crate::decode_codestream_reconstructed(&bytes, &options).unwrap();
+        assert_eq!(
+            (
+                image.width(),
+                image.height(),
+                image.x_origin(),
+                image.y_origin()
+            ),
+            geometry
+        );
+        let component = image.component(0).unwrap();
+        let info = component.info();
+        assert_eq!(
+            (
+                info.x_subsampling,
+                info.y_subsampling,
+                info.x_registration,
+                info.y_registration
+            ),
+            sampling
+        );
+        assert_eq!((component.width(), component.height()), dimensions);
+        assert_eq!(
+            component.samples(),
+            vec![0; (dimensions.0 * dimensions.1) as usize]
+        );
+        assert_eq!(
+            image.typed(options.limits()),
+            decode_codestream(&bytes, &options)
+        );
+    }
+}
+
+#[test]
+fn reconstructed_output_retains_fractional_overshoot_before_typed_rounding_and_clipping() {
+    let options = DecodeOptions::default();
+    // Independent OpenJPEG entropy bytes for centered -127 and +1. With no
+    // DWT levels and step 3/2, midpoint reconstruction is -765/4 and +9/4.
+    for (packet, numerator, typed) in [
+        (&[0xcf, 0xb4, 0x04, 0x09][..], -765_i64, 0_u64),
+        (&[0xc0, 0x21, 0x03][..], 9, 130),
+    ] {
+        let mut bytes = prepared_codestream(1, 1, 0, &[0x42, 0x44, 0], packet);
+        let cod = bytes.windows(2).position(|pair| pair == [255, 82]).unwrap();
+        bytes[cod + 9] = 0;
+        let image = crate::decode_codestream_reconstructed(&bytes, &options).unwrap();
+        let component = image.component(0).unwrap();
+        assert_eq!(component.fraction_bits(), 16);
+        assert_eq!(component.samples(), &[numerator * (1 << 14)]);
+        let converted = image.typed(options.limits()).unwrap();
+        assert_eq!(
+            converted.component(0).unwrap().samples(),
+            &TypedSamples::Unsigned(vec![typed])
+        );
+        assert_eq!(Ok(converted), decode_codestream(&bytes, &options));
+        if numerator < 0 {
+            // Average with centered zero before final conversion: 259/8,
+            // rather than the early-clipped typed average of 64.
+            let late_numerator = i128::from(component.samples()[0]) + (256_i128 << 16);
+            assert_eq!(late_numerator * 8, 259 * (2_i128 << 16));
+            assert_ne!(
+                late_numerator / (2_i128 << 16),
+                i128::from((typed + 128) / 2)
+            );
+        }
+    }
+    let mut bytes = prepared_codestream(1, 1, 1, &[0x40, 0x40], &[0]);
+    let cod = bytes.windows(2).position(|pair| pair == [255, 82]).unwrap();
+    bytes[cod + 9] = 0;
+    let bytes = add_single_component_mct(bytes, 1, 300);
+    let image = crate::decode_codestream_reconstructed(&bytes, &options).unwrap();
+    assert_eq!(image.component(0).unwrap().samples(), &[300]);
+    assert_eq!(
+        image.typed(options.limits()),
+        decode_codestream(&bytes, &options)
+    );
+    assert_eq!(
+        image
+            .typed(options.limits())
+            .unwrap()
+            .component(0)
+            .unwrap()
+            .samples(),
+        &TypedSamples::Unsigned(vec![255])
+    );
+}
+
+#[test]
+fn reconstructed_output_rejects_main_and_tile_typed_domain_nlt_without_masking_decode_errors() {
+    let options = DecodeOptions::default();
+    for tile in [false, true] {
+        for kind in [0_u8, 3] {
+            let mut bytes = prepared_codestream(1, 1, 1, &[0x40, 0x40], &[0xcf, 0xb4, 0x04, 0x09]);
+            let cod = bytes.windows(2).position(|pair| pair == [255, 82]).unwrap();
+            bytes[cod + 9] = 0;
+            bytes[42] = 0x87;
+            let sot = bytes
+                .windows(2)
+                .position(|pair| pair == [255, 144])
+                .unwrap();
+            let nlt = segment(0xff76, &[255, 255, 0x87, kind]);
+            if tile {
+                let length = u32::from_be_bytes(bytes[sot + 6..sot + 10].try_into().unwrap());
+                bytes[sot + 6..sot + 10]
+                    .copy_from_slice(&(length + nlt.len() as u32).to_be_bytes());
+                bytes.splice(sot + 12..sot + 12, nlt);
+            } else {
+                bytes.splice(sot..sot, nlt);
+            }
+            assert_eq!(
+                decode_codestream(&bytes, &options)
+                    .unwrap()
+                    .component(0)
+                    .unwrap()
+                    .samples(),
+                &TypedSamples::Signed(vec![if kind == 0 { -127 } else { -2 }])
+            );
+            assert_eq!(
+                crate::decode_codestream_reconstructed(&bytes, &options),
+                Err(DecodeError::UnsupportedFeature {
+                    feature: "nonlinear transforms on reconstruction samples"
+                })
+            );
+            let limited =
+                DecodeOptions::new(ResourceLimits::HARDENED.with_maximum_packets(0).unwrap());
+            let expected = decode_codestream(&bytes, &limited).unwrap_err();
+            assert!(matches!(
+                expected,
+                DecodeError::LimitExceeded {
+                    resource: Resource::Packets,
+                    ..
+                }
+            ));
+            assert_eq!(
+                crate::decode_codestream_reconstructed(&bytes, &limited),
+                Err(expected)
+            );
+            let sod = bytes
+                .windows(2)
+                .position(|pair| pair == [255, 147])
+                .unwrap();
+            bytes[sod + 2] = 0xff;
+            let expected = decode_codestream(&bytes, &options).unwrap_err();
+            assert_eq!(
+                crate::decode_codestream_reconstructed(&bytes, &options),
+                Err(expected)
+            );
+        }
+    }
+}
+
+#[test]
+fn reconstructed_output_keeps_strict_errors_limits_and_success_after_failure() {
+    let bytes = two_tile_codestream();
+    let options = DecodeOptions::default();
+    let expected = crate::decode_codestream_reconstructed(&bytes, &options).unwrap();
+    for end in 0..bytes.len() {
+        let error = decode_codestream(&bytes[..end], &options).unwrap_err();
+        assert_eq!(
+            crate::decode_codestream_reconstructed(&bytes[..end], &options),
+            Err(error)
+        );
+    }
+    for limits in [
+        ResourceLimits::HARDENED
+            .with_maximum_input_bytes(0)
+            .unwrap(),
+        ResourceLimits::HARDENED.with_maximum_work_units(0).unwrap(),
+        ResourceLimits::HARDENED.with_maximum_packets(0).unwrap(),
+        ResourceLimits::HARDENED
+            .with_maximum_decoded_bytes(0)
+            .unwrap(),
+    ] {
+        let limited = DecodeOptions::new(limits);
+        let error = decode_codestream(&bytes, &limited).unwrap_err();
+        assert!(matches!(error, DecodeError::LimitExceeded { .. }));
+        assert_eq!(
+            crate::decode_codestream_reconstructed(&bytes, &limited),
+            Err(error)
+        );
+        assert_eq!(
+            crate::decode_codestream_reconstructed(&bytes, &options).unwrap(),
+            expected
+        );
+    }
+    let container = jp2_for_codestream(&bytes, 5, 1);
+    let error = decode_codestream(&container, &options).unwrap_err();
+    assert_eq!(
+        crate::decode_codestream_reconstructed(&container, &options),
+        Err(error)
+    );
+}
+
+#[test]
 fn actual_raw_typed_result_derives_full_and_reduced_signed_unsigned_planes_from_bytes() {
     let options = DecodeOptions::default();
     let qcd = [0x40, 0x40, 0x48, 0x48, 0x50, 0x48, 0x48, 0x50];
