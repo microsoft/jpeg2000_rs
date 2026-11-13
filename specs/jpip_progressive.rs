@@ -20,6 +20,16 @@ pub open spec fn part2_jpip_ordinal_matrix_write(
             before[execution as int].update(layer as int, Some(sequence)))
 }
 
+pub open spec fn part2_jpip_packet_matrix_write(
+    before: Seq<Seq<Option<Seq<u8>>>>, after: Seq<Seq<Option<Seq<u8>>>>,
+    execution: usize, layer: u16, bytes: Seq<u8>,
+) -> bool {
+    (execution as nat) < before.len()
+        && (layer as nat) < before[execution as int].len()
+        && after == before.update(execution as int,
+            before[execution as int].update(layer as int, Some(bytes)))
+}
+
 #[verifier::opaque]
 pub open spec fn part2_jpip_progressive_layers(
     cache: Part2JpipCache, packets: Seq<Part2JpipPacket>, ends: Seq<usize>, layer: nat, start: usize,
