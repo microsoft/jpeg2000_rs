@@ -1336,6 +1336,89 @@ fn automatic_resolution_selection_error_is_reachable_from_actual_cache_and_calle
 }
 
 #[test]
+fn automatic_resolution_error_after_completed_tile_preserves_actual_cache_prefix() {
+    let bytes = two_tile_codestream();
+    let limits = ResourceLimits::default();
+    let starts: Vec<_> = bytes
+        .windows(2)
+        .enumerate()
+        .filter_map(|(index, value)| (value == [0xff, 0x90]).then_some(index))
+        .collect();
+    assert_eq!(starts.len(), 2);
+    let mut cache = DatabinCache::new(limits);
+    cache
+        .insert(fragment(id(6, 0), 0, &bytes[..starts[0]], true))
+        .unwrap();
+    for (tile, &start) in starts.iter().enumerate() {
+        cache
+            .insert(fragment(
+                id(2, tile as u64),
+                0,
+                &bytes[start..start + 14],
+                true,
+            ))
+            .unwrap();
+        cache
+            .insert(fragment(
+                id(0, tile as u64),
+                0,
+                &bytes[start + 14..start + 15],
+                true,
+            ))
+            .unwrap();
+    }
+    let components = JpipPacketSelection::all_components();
+    let error = DecodeError::InvalidSelection {
+        reason: crate::SelectionError::ReductionTooLarge,
+    };
+    for selection in [
+        crate::DecodeSelection::tile(1),
+        crate::DecodeSelection::tiles(vec![1]),
+    ] {
+        let selection = selection.with_discard_levels(2);
+        for _ in 0..2 {
+            assert_eq!(
+                cache
+                    .build_automatic_snapshot(0, Some(&selection), &components, &limits)
+                    .err(),
+                Some(error)
+            );
+            for (tile, &start) in starts.iter().enumerate() {
+                assert_eq!(
+                    cache.databin_view(id(2, tile as u64)).unwrap().as_ref(),
+                    &bytes[start..start + 14]
+                );
+                assert_eq!(
+                    cache.databin_view(id(0, tile as u64)).unwrap().as_ref(),
+                    &bytes[start + 14..start + 15]
+                );
+            }
+        }
+    }
+    assert_eq!(
+        crate::allocation::with_refusal(0, || cache.build_automatic_snapshot(
+            0,
+            Some(&crate::DecodeSelection::tile(1).with_discard_levels(2)),
+            &components,
+            &limits
+        ))
+        .err(),
+        Some(DecodeError::AllocationFailed),
+    );
+    assert_eq!(
+        cache
+            .build_automatic_snapshot(
+                0,
+                Some(&crate::DecodeSelection::tile(1).with_discard_levels(2)),
+                &components,
+                &limits
+            )
+            .err(),
+        Some(error)
+    );
+}
+
+#[test]
 fn automatic_acquisition_precedes_resolution_errors_and_incomplete_truncation_continues() {
     let mut bytes = decodable_codestream();
     let cod = bytes

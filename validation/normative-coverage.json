@@ -4,6 +4,40 @@
   "scope": "Technical reference inventory; not exhaustive standards-clause coverage or a conformance claim.",
   "requirements": [
     {
+      "id": "part9-original-actual-resolution-error-prefix",
+      "topic": "Checked original part2_jpip_automatic_snapshot_result(actual cache/codestream/selection/component selection/limits,Err(the same reached resolution error)) at the unchanged actual guarded call. Actual coordinate projection and ordered databin fold, canonical scratch clone/cell/row/state frames, acquired packet state and original per-tile/global prefix continuations derive it from actual inputs and reached primitive capacity/header events, including earlier completed native tiles. Every helper premise is proved at the actual caller; no new domain/caller premise, supplied success bank, arbitrary codec error, native owner/evaluation/drop change or verifier setting. This proves only the reached resolution-error consequence: full public snapshot/progressive Results, emission/success/image/sample assembly and both overall #130 public groups remain open.",
+      "implementation_refs": [
+        {"path": "src/jpip/progression.rs", "symbol": "DatabinCache::build_automatic_snapshot"},
+        {"path": "src/packet/precinct.rs", "symbol": "PacketPrecinctDecoder::coordinate"}
+      ],
+      "contract_refs": [
+        {"path": "src/jpip/mapping.rs", "symbol": "automatic_precinct_in_class"},
+        {"path": "src/jpip/mapping.rs", "symbol": "jpip_resolution_selected"}
+      ],
+      "spec_refs": [
+        {"path": "specs/jpip_snapshot_inputs.rs", "symbol": "part2_jpip_snapshot_in_class"},
+        {"path": "specs/jpip_snapshot_inputs.rs", "symbol": "part2_jpip_snapshot_resolution"},
+        {"path": "specs/jpip_snapshot_inputs.rs", "symbol": "part2_jpip_snapshot_databins"},
+        {"path": "specs/jpip_snapshot_inputs.rs", "symbol": "part2_jpip_snapshot_tile"},
+        {"path": "specs/jpip_snapshot_inputs.rs", "symbol": "part2_jpip_snapshot_tile_root"},
+        {"path": "specs/jpip_snapshot_inputs.rs", "symbol": "part2_jpip_automatic_snapshot_result"}
+      ],
+      "proof_refs": [
+        {"path": "src/packet/precinct.rs", "symbol": "PacketPrecinctDecoder::coordinate"},
+        {"path": "src/jpip/progression.rs", "symbol": "DatabinCache::build_automatic_snapshot"},
+        {"path": "src/jpip/progression_proof_support.rs", "symbol": "jpip_none_clone"},
+        {"path": "src/jpip/progression_proof_support.rs", "symbol": "jpip_none_row_clone_law"},
+        {"path": "src/jpip/progression_proof_support.rs", "symbol": "jpip_snapshot_tile_acquisition_prefix"},
+        {"path": "src/jpip/progression_proof_support.rs", "symbol": "jpip_snapshot_tile_root_error"},
+        {"path": "src/jpip/progression_proof_support.rs", "symbol": "jpip_snapshot_tile_root_advance"}
+      ],
+      "test_refs": [
+        {"path": "src/jpip/tests.rs", "symbol": "automatic_resolution_error_after_completed_tile_preserves_actual_cache_prefix"},
+        {"path": "src/jpip/tests.rs", "symbol": "automatic_acquisition_precedes_resolution_errors_and_incomplete_truncation_continues"},
+        {"path": "src/jpip/tests.rs", "symbol": "automatic_resolution_selection_error_is_reachable_from_actual_cache_and_caller"}
+      ]
+    },
+    {
       "id": "part9-complete-automatic-precinct-mapping-result",
       "topic": "Exact complete automatic_precinct_in_class Result from actual tile/component counts, tile/component/resolution/precinct/grid inputs, without a domain premise or native behavior change. Invalid-domain guards precede ordered checked grid-level Results and all checked sum/scale/component/product/tile arithmetic errors. Existing checked division/remainder and refinement identities establish that retained final guards add no arbitrary error. The archived actual mapping/model equality is positively checked. The original reached-resolution-error cache/caller lift remains open at the next precise PacketPrecinctDecoder::coordinate tuple/projection interface; sole actual whole-root failure retained outside source. No unproved databin-fold/global predicate or emission/full-public success join.",
       "implementation_refs": [

@@ -456,7 +456,13 @@ pub(crate) fn packet_precinct_from_subbands(
 }
 
 impl PacketPrecinctDecoder {
+    #[cfg_attr(verus_keep_ghost, verus_spec(result =>
+        ensures result == (packet_precinct_view(self).component,
+            packet_precinct_view(self).resolution, packet_precinct_view(self).precinct),
+    ))]
     pub const fn coordinate(&self) -> (u16, u8, u32) {
+        #[cfg(verus_keep_ghost)]
+        proof! { reveal(packet_precinct_view); }
         (self.component, self.resolution, self.precinct)
     }
 

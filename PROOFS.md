@@ -354,13 +354,34 @@ Native controls preserve invalid-domain-before-grid-before-overflow precedence,
 the original skipped-grid lookup at resolution zero, and exact maximum-u64
 success. The archived actual mapping/model equality is positively checked.
 
-The reached resolution error is **not yet lifted to the original cache/caller
-predicate**. The actual databin-prefix fold exposes the next interface:
-`PacketPrecinctDecoder::coordinate()` has no checked link between its returned
-tuple and the corresponding actual planned precinct projection. A complete-root
-diagnostic fails only at that exact tuple equality; its source is retained under
-ignored evidence, not assumed or committed. No databin-fold/per-tile/global error
-equivalence, emission or full-public success join is claimed.
+`PacketPrecinctDecoder::coordinate()` now forwards its exact actual planned
+precinct projection with a checked contract. The actual tuple equality and
+ordered databin-identity fold are checked, without another domain premise.
+
+## Original reached-resolution-error cache/caller lift
+
+At the unchanged guarded resolution call, the checked quantified consequence now
+includes the original
+`part2_jpip_automatic_snapshot_result(actual_cache, actual_stream,
+actual_selection, actual_components, actual_limits, Err(the_same_error))`.
+It derives from the actual cache/caller header/layout prefix, actual selected
+tile parts, plan, iterator, order and databin identities, the actual complete
+acquisition state, and the reached typed-capacity request/response events.
+
+Checked continuation lemmas preserve the original per-tile model and global
+prefix across previously completed native tiles. Their hypotheses are discharged
+at the actual caller, not supplied success banks. Nested scratch initialization
+uses checked consequences of the existing standard-library clone relation:
+None-valued cells, row extensionality and complete blocked/counter fields are
+derived from the original allocation expressions without new owning bindings,
+changed copy/drop order or new trust. A native control reaches the same error
+after a prior tile completes, for both index and set selection, and retains
+cache bytes and refusal/recovery precedence.
+
+This proves only the original reached resolution-error consequence and its
+necessary prefix frames. It does not add a complete public snapshot/progressive
+Result contract, prove final success/image/sample assembly, work emission, or
+close either public group of #130. Prior failed-source receipts remain archived.
 
 ## Trailing whole-packet engineering admission
 
