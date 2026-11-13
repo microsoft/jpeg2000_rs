@@ -71,6 +71,10 @@ class DriverTests(unittest.TestCase):
         report, _ = self.capture()
         self.assertTrue(self.function(report, "outer::nested")["mir_observed"])
         self.assertTrue(self.function(report, "expanded")["from_expansion"])
+        self.assertEqual(
+            self.function(report, "expanded")["source_callsite"]["source"],
+            str(Path(__file__).with_name("control.rs").resolve()),
+        )
         self.assertTrue(self.function(report, "<Record as std::clone::Clone>::clone")["from_expansion"])
         self.assertTrue(any(
             call.get("def_path") == "outer::nested"
@@ -82,6 +86,26 @@ class DriverTests(unittest.TestCase):
         test_report, _ = self.capture(("--cfg", "test"))
         self.assertTrue(self.function(test_report, "test_only")["body_owner"])
         self.assertNotIn("disabled", {item["def_path"] for item in test_report["functions"]})
+
+    def test_macro_calls_keep_definition_spans_and_distinct_source_callsites(self):
+        report, _ = self.capture()
+        calls = [
+            call for call in self.function(report, "macro_allocations")["calls"]
+            if call.get("def_path") == "std::vec::from_elem"
+        ]
+        self.assertEqual(len(calls), 2)
+        definitions = set()
+        callsites = set()
+        for call in calls:
+            self.assertTrue(call["from_expansion"])
+            self.assertIn("library/alloc/src/macros.rs", call["source"].replace("\\", "/"))
+            definitions.add((call["source"], tuple(call["begin"]), tuple(call["end"])))
+            callsite = call["source_callsite"]
+            self.assertEqual(callsite["source"], str(Path(__file__).with_name("control.rs").resolve()))
+            self.assertIsNotNone(callsite["end"])
+            callsites.add(tuple(callsite["begin"]))
+        self.assertEqual(len(definitions), 1)
+        self.assertEqual(len(callsites), 2)
 
     def test_abstract_const_and_runtime_constructors_are_not_conflated(self):
         report, _ = self.capture()
@@ -112,6 +136,9 @@ class DriverTests(unittest.TestCase):
             self.assertIsNotNone(call["block"])
             self.assertIsNotNone(call["source"])
             self.assertIsNotNone(call["begin"])
+            self.assertIsInstance(call["from_expansion"], bool)
+            self.assertIsNotNone(call["source_callsite"]["source"])
+            self.assertIsNotNone(call["source_callsite"]["begin"])
         self.assertTrue(any(
             call["kind"] == "drop-terminator"
             and call["resolution"]["dispatch"] == "unresolved-destructor"
