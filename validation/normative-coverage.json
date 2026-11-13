@@ -66,24 +66,44 @@
     },
     {
       "id": "part9-native-placeholder-representation-selection",
-      "topic": "Complete actual raw placeholder representation/header selection Result from arbitrary flags, original bytes and optional equivalent bytes. One executing selector returns the branch and exact borrowed header together, preserving original-first precedence, equivalent missing-header errors, codestream/original header identity and empty representation. The recursive metadata caller uses that same selected branch/header, correcting DEV-6744E122C7 mixing an equivalent payload/type with the original shell. This is existing supported representation consistency, not a normative grammar amendment. Header validity, flag admission, recursive expansion/full public Result, metadata-CSn scope and NCS semantics remain separate; no selected-edition or independent-closure claim.",
+      "topic": "Complete actual raw placeholder parsing Result from input bytes, including all nine fields, word/header/flag/count/trailer checks and first errors; checked u64 reads and value-based BoxType construction compose without array-identity assumptions. The existing representation selector still preserves original-first precedence, exact borrowed headers, equivalent missing-header errors and codestream/empty branches. No successful parser or normalized-result bank is supplied. This is as-implemented parsing and representation consistency, not a normative grammar amendment or complete recursive semantic-container/public Result. Full shell validity, metadata-CSn/NCS semantics, selected editions and independent qualification remain separate.",
       "implementation_refs": [
+        {"path": "src/jpip/reconstruction.rs", "symbol": "parse_jpip_placeholder"},
+        {"path": "src/jpip/byte_io.rs", "symbol": "read_u64_be"},
+        {"path": "src/jp2/box_reader.rs", "symbol": "BoxType::new"},
         {"path": "src/jpip/reconstruction.rs", "symbol": "placeholder_reconstruction"},
         {"path": "src/jpip/reconstruction.rs", "symbol": "DatabinCache::expand_metadata_bin"}
       ],
       "contract_refs": [
+        {"path": "src/jpip/reconstruction.rs", "symbol": "parse_jpip_placeholder"},
+        {"path": "src/jpip/byte_io.rs", "symbol": "read_u64_be"},
         {"path": "src/jpip/reconstruction.rs", "symbol": "placeholder_reconstruction"}
       ],
       "spec_refs": [
+        {"path": "specs/jpip_layout.rs", "symbol": "part2_jpip_parse_placeholder"},
+        {"path": "specs/jpip_layout.rs", "symbol": "part2_jpip_placeholder_header"},
+        {"path": "specs/jpip_layout.rs", "symbol": "part2_jpip_placeholder_equivalent"},
+        {"path": "specs/jpip_layout.rs", "symbol": "part2_jpip_placeholder_stream"},
+        {"path": "specs/jpip_transitions.rs", "symbol": "part2_jpip_read_u64"},
+        {"path": "src/jp2/proof_support.rs", "symbol": "box_type_from_bytes_model"},
+        {"path": "src/jp2/proof_support.rs", "symbol": "box_type_from_word_model"},
         {"path": "specs/jpip_layout.rs", "symbol": "part2_jpip_placeholder_reconstruction"}
       ],
       "proof_refs": [
+        {"path": "src/jpip/reconstruction.rs", "symbol": "placeholder_value_view"},
+        {"path": "src/jpip/reconstruction.rs", "symbol": "placeholder_parse_outcome"},
+        {"path": "src/jpip/reconstruction.rs", "symbol": "parse_jpip_placeholder"},
+        {"path": "src/jpip/byte_io.rs", "symbol": "read_u64_be"},
+        {"path": "src/jp2/box_reader.rs", "symbol": "BoxType::new"},
+        {"path": "src/jp2/proof_support.rs", "symbol": "box_type_from_bytes_word"},
         {"path": "src/jpip/reconstruction.rs", "symbol": "placeholder_source_view"},
         {"path": "src/jpip/reconstruction.rs", "symbol": "placeholder_header_option_view"},
         {"path": "src/jpip/reconstruction.rs", "symbol": "placeholder_reconstruction_outcome"},
         {"path": "src/jpip/reconstruction.rs", "symbol": "placeholder_reconstruction"}
       ],
       "test_refs": [
+        {"path": "src/jpip/tests.rs", "symbol": "placeholder_parser_accepts_standard_bit_flags_and_types_extensions"},
+        {"path": "src/jpip/tests.rs", "symbol": "placeholder_raw_results_preserve_every_field_and_first_error"},
         {"path": "src/jpip/tests.rs", "symbol": "semantic_equivalent_metadata_preserves_declared_representation"},
         {"path": "src/jpip/tests.rs", "symbol": "semantic_original_metadata_precedes_available_equivalent_representation"},
         {"path": "src/jpip/tests.rs", "symbol": "placeholder_reconstruction_preserves_raw_precedence_and_header_owners"}

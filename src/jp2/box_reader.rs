@@ -34,10 +34,6 @@ impl BoxType {
     pub const JPX_BASELINE_BRAND: Self = Self(0x6a70_7862);
     pub const JPH_BRAND: Self = Self(0x6a70_6820);
 
-    pub const fn new(bytes: [u8; 4]) -> Self {
-        box_type_from_bytes(bytes)
-    }
-
     pub const fn bytes(self) -> [u8; 4] {
         [
             (self.0 >> 24) as u8,
@@ -50,6 +46,23 @@ impl BoxType {
     #[cfg_attr(verus_keep_ghost, verus_spec(result => ensures result == (self == other),))]
     pub const fn equals(self, other: Self) -> bool {
         self.0 == other.0
+    }
+}
+
+#[cfg_attr(verus_keep_ghost, verus_verify)]
+impl BoxType {
+    pub const fn new(bytes: [u8; 4]) -> Self {
+        #[cfg(verus_keep_ghost)]
+        vstd::prelude::ensures(|result: Self| {
+            vstd::prelude::equal(result, super::box_type_from_bytes_model(bytes))
+                && vstd::prelude::equal(
+                    result,
+                    super::box_type_from_word_model(crate::specs::part2_box_u32(bytes)),
+                )
+        });
+        #[cfg(verus_keep_ghost)]
+        proof! { super::box_type_from_bytes_word(bytes); }
+        box_type_from_bytes(bytes)
     }
 }
 
