@@ -175,6 +175,37 @@ no new `AllocationFailed` alternative or primitive event is introduced. Existing
 typed-reservation/main-normalization event models are unchanged. Rust 1.88,
 the pinned verifier and explicit `--no-lifetime` mode remain separate controls.
 
+## Non-owning automatic phase Results and error states
+
+The executing ordinal, selected-precinct and tile-part emission operations now
+live in small private helpers with complete Result/state contracts. Their
+caller-owned vectors, prefix, plan and iterator remain at the original call
+sites; no owning argument is transferred into a phase. The prefix is borrowed
+as a Vec specifically to keep its dereference and suffix slicing after the
+precinct lookup, as in the original implementation.
+
+The ordinal contract retains the iterator state even when its next call fails
+or the subsequent work check refuses the coordinate. It frames every matrix
+cell and the full accumulated order, including a duplicate found after earlier
+successful writes. A checked cell continuation and separate inner/outer sequence
+identities establish the unchanged duplicate-error matrix without an atomicity
+assumption. The per-precinct contract composes the accepted mutable getter and
+raw decoder, retaining every other plan field and exact error/rollback state.
+The emission contract retains all partial header, payload and empty-packet bytes
+on errors, before any later PSOT patch; it uses the checked saturating writer.
+
+The native operations occur once and in the original order. Only non-owning
+borrows and Copy scalar control are factored; no Vec clone/move/drop or new
+allocation boundary is introduced. Existing byte and matrix cutpoints move with
+their executing operations, and strict inventory mutations bind both the phase
+contracts and their actual snapshot consumers.
+
+These are complete phase contracts, not the complete cache/caller
+`build_automatic_snapshot` Result. That remaining theorem must join ordered
+header/storage events, actual layout/plan inputs, packet acquisition and scratch
+updates, missing/ready metadata and final raw-layout admission to these phases.
+Public progressive image/state and semantic-container groups remain open.
+
 ## Trailing whole-packet engineering admission
 
 The actual packet traversal accepts a retained prefix of complete packets

@@ -391,10 +391,15 @@ struct JpipPlaceholder {
 
 #[cfg_attr(verus_keep_ghost, verifier::verify)]
 mod automatic_headers;
+#[cfg_attr(verus_keep_ghost, verifier::verify)]
+mod automatic_phases;
 use automatic_headers::{
     append_empty_packet, automatic_tile_part, build_automatic_template,
     build_automatic_transition_template, ceil_div_jpip, marker_segment,
     normalize_automatic_tile_headers, normalize_main_header, partition_automatic_tile_parts,
+};
+use automatic_phases::{
+    build_automatic_order, decode_automatic_precinct, emit_automatic_tile_part,
 };
 #[cfg_attr(verus_keep_ghost, verifier::verify)]
 mod byte_io;

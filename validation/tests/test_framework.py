@@ -800,12 +800,12 @@ class FrameworkTests(WorkingFiles):
         framework.validate_normative_coverage(coverage)
         read_text = Path.read_text
         mutations = (
-            ("src/jpip/progression.rs", "Some(layers) => layers.get_mut(usize::from(coordinate.layer))",
+            ("src/jpip/automatic_phases.rs", "Some(layers) => layers.get_mut(usize::from(coordinate.layer))",
              "Some(layers) => layers.get_mut(0)"),
-            ("src/jpip/progression.rs",
+            ("src/jpip/automatic_phases.rs",
              "assert(*layer_slot == before_ordinals[execution as int][coordinate.layer as int])",
              "assert(true)"),
-            ("src/jpip/progression.rs",
+            ("src/jpip/automatic_phases.rs",
              "execution, coordinate.layer, sequence", "execution, coordinate.layer, 0"),
             ("specs/jpip_progressive.rs",
              "before[execution as int][layer as int].is_none()", "true"),
@@ -830,6 +830,39 @@ class FrameworkTests(WorkingFiles):
     def test_inventory_word_template_results_bind_actual_inputs_and_complete_mutable_frames(self):
         self._assert_complete_packet_contract_bindings(
             {framework._JPIP_BYTE_RESULT_ENTRY}, framework._JPIP_BYTE_RESULT_CONTRACTS, 4, isolate=False)
+
+    def test_inventory_automatic_phases_bind_complete_result_and_every_mutable_input(self):
+        self._assert_complete_packet_contract_bindings(
+            {framework._JPIP_PHASE_ENTRY}, framework._JPIP_PHASE_CONTRACTS, 4, isolate=False)
+
+    def test_inventory_automatic_phase_models_reject_error_atomicity_and_lost_effect_order(self):
+        coverage = json.loads((framework.VALIDATION / "normative-coverage.json").read_text())
+        coverage["requirements"] = [
+            item for item in coverage["requirements"] if item["id"] == framework._JPIP_PHASE_ENTRY
+        ]
+        read_text = Path.read_text
+        source = framework.ROOT / "specs/jpip_phases.rs"
+        original = source.read_text()
+        for model, before, after in (
+            ("part2_jpip_order_phase", "Err(error) => (Err(error), step.1, ordinals, order)",
+             "Err(error) => (Err(error), iterator, ordinals, order)"),
+            ("part2_jpip_order_phase", "coordinate.layer as nat >= ordinals[execution as int].len()", "false"),
+            ("part2_jpip_precinct_phase", "precincts: plan.precincts.update(execution as int, step.1), ..plan",
+             "..plan"),
+            ("part2_jpip_emit_packets_phase", "Err(error) => (Err(error), step.1)", "Err(error) => (Err(error), before)"),
+            ("part2_jpip_emit_part_phase", "Err(error) => (Err(error), packets.1)", "Err(error) => (Err(error), before)"),
+            ("part2_jpip_emit_part_patch", "(start as nat + 6) as usize", "(start as nat + 4) as usize"),
+        ):
+            self.assertIn(before, framework._coverage_spec_function_body(original, model))
+            start = re.search(r"\bspec\s+fn\s+" + re.escape(model) + r"\b", original).start()
+            modified = original[:start] + original[start:].replace(before, after, 1)
+
+            def altered(path, *args, **kwargs):
+                return modified if path == source else read_text(path, *args, **kwargs)
+
+            with self.subTest(model=model, before=before), mock.patch.object(Path, "read_text", altered), \
+                    self.assertRaisesRegex(ValueError, "automatic phase Results"):
+                framework.validate_normative_coverage(coverage)
 
     def test_inventory_word_template_models_reject_atomic_errors_lost_frames_and_reordered_patches(self):
         coverage = json.loads((framework.VALIDATION / "normative-coverage.json").read_text())
@@ -871,14 +904,16 @@ class FrameworkTests(WorkingFiles):
             item for item in coverage["requirements"] if item["id"] == framework._JPIP_BYTE_RESULT_ENTRY
         ]
         read_text = Path.read_text
-        source = framework.ROOT / "src/jpip/progression.rs"
-        original = source.read_text()
-        for before, after in (
-            ("let ghost before_psot = bytes@", "let ghost before_psot = unrelated@"),
-            ("before_psot, length_position, tile_length", "before_psot, tile_start, tile_length"),
-            ("before_empty, part.sop, part.eph, packet.ordinal", "before_empty, part.sop, part.eph, 0"),
-            ("limits) == Ok(template@)", "limits) == Ok(unrelated@)"),
+        for relative, before, after in (
+            ("src/jpip/automatic_phases.rs", "let ghost before_psot = bytes@", "let ghost before_psot = unrelated@"),
+            ("src/jpip/automatic_phases.rs", "before_psot, length_position, tile_length", "before_psot, tile_start, tile_length"),
+            ("src/jpip/automatic_phases.rs", "before_empty, part.sop, part.eph, packet.ordinal", "before_empty, part.sop, part.eph, 0"),
+            ("src/jpip/progression.rs", "limits) == Ok(template@)", "limits) == Ok(unrelated@)"),
+            ("src/jpip/progression.rs", "emit_automatic_tile_part(&mut bytes, part, available_layers)",
+             "emit_automatic_tile_part(&mut bytes, part, 0)"),
         ):
+            source = framework.ROOT / relative
+            original = source.read_text()
             self.assertIn(before, original)
             modified = original.replace(before, after, 1)
 
