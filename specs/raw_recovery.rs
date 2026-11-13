@@ -43,22 +43,86 @@ pub(crate) open spec fn raw_recovery_admit(
     } else { Ok(()) }
 }
 
+pub(crate) open spec fn raw_recovery_report(
+    original: usize, frame: (bool, u64), geometry: (u32, u32, u32, u32),
+) -> Result<crate::RawRecoveryReport, crate::DecodeError> {
+    if frame.0 && original as int + 2 > u64::MAX {
+            Err(crate::DecodeError::MalformedInput { offset: 0, kind: crate::MalformedKind::ArithmeticOverflow })
+        } else {
+            let effective = (original as u64 + if frame.0 { 2u64 } else { 0u64 }) as u64;
+            Ok(crate::RawRecoveryReport {
+                appended_eoc: frame.0, original_bytes: original as u64, effective_bytes: effective,
+                width: geometry.0, height: geometry.1, x_origin: geometry.2, y_origin: geometry.3,
+                preflight_work_units: frame.1,
+                repair_copy_bytes: if frame.0 { effective } else { 0 },
+            })
+        }
+}
+
 pub(crate) open spec fn raw_recovery_finish(
     original: usize, frame: (bool, u64), decoded: Result<Part1DecodedTypedImage, crate::DecodeError>,
 ) -> Result<(Part1DecodedTypedImage, crate::RawRecoveryReport), crate::DecodeError> {
     match decoded {
         Err(error) => Err(error),
-        Ok(image) => if frame.0 && original as int + 2 > u64::MAX {
-            Err(crate::DecodeError::MalformedInput { offset: 0, kind: crate::MalformedKind::ArithmeticOverflow })
-        } else {
-            let effective = (original as u64 + if frame.0 { 2u64 } else { 0u64 }) as u64;
-            Ok((image, crate::RawRecoveryReport {
-                appended_eoc: frame.0, original_bytes: original as u64, effective_bytes: effective,
-                width: image.0.0, height: image.0.1, x_origin: image.0.2, y_origin: image.0.3,
-                preflight_work_units: frame.1,
-                repair_copy_bytes: if frame.0 { effective } else { 0 },
-            }))
+        Ok(image) => match raw_recovery_report(original, frame, image.0) {
+            Err(error) => Err(error),
+            Ok(report) => Ok((image, report)),
         },
+    }
+}
+
+pub(crate) open spec fn raw_reconstructed_recovery_finish(
+    original: usize, frame: (bool, u64), decoded: Result<Part1DecodedImageModel, crate::DecodeError>,
+) -> Result<(Part1DecodedImageModel, crate::RawRecoveryReport), crate::DecodeError> {
+    match decoded {
+        Err(error) => Err(error),
+        Ok(image) => match raw_recovery_report(original, frame, (image.0, image.1, image.2, image.3)) {
+            Err(error) => Err(error),
+            Ok(report) => Ok((image, report)),
+        },
+    }
+}
+
+pub closed spec fn raw_reconstructed_recovery_result(
+    input: Seq<u8>, limits: &crate::ResourceLimits,
+    result: Result<(Part1DecodedImageModel, crate::RawRecoveryReport), crate::DecodeError>,
+) -> bool {
+    raw_reconstructed_recovery_result_body(input, limits, result)
+}
+
+pub(crate) proof fn raw_reconstructed_recovery_result_unfold(input: Seq<u8>, limits: &crate::ResourceLimits)
+    ensures forall |result: Result<(Part1DecodedImageModel, crate::RawRecoveryReport), crate::DecodeError>|
+        raw_reconstructed_recovery_result(input, limits, result)
+            == raw_reconstructed_recovery_result_body(input, limits, result),
+{
+}
+
+pub(crate) open spec fn raw_reconstructed_recovery_result_body(
+    input: Seq<u8>, limits: &crate::ResourceLimits,
+    result: Result<(Part1DecodedImageModel, crate::RawRecoveryReport), crate::DecodeError>,
+) -> bool {
+    match raw_recovery_framing(input, limits) {
+        Err(error) => result == Err(error),
+        Ok(frame) => if !frame.0 {
+            result == raw_reconstructed_recovery_finish(input.len() as usize, frame,
+                part2_decode_raw_reconstructed_codestream(input, limits))
+        } else {
+            match raw_recovery_admit(input.len() as usize, frame.1, limits) {
+                Err(error) => result == Err(error),
+                Ok(()) => result == raw_reconstructed_recovery_reserved_response(input, limits, frame, false)
+                    || result == raw_reconstructed_recovery_reserved_response(input, limits, frame, true),
+            }
+        },
+    }
+}
+
+pub(crate) open spec fn raw_reconstructed_recovery_reserved_response(
+    input: Seq<u8>, limits: &crate::ResourceLimits, frame: (bool, u64), reserved: bool,
+) -> Result<(Part1DecodedImageModel, crate::RawRecoveryReport), crate::DecodeError> {
+    match raw_repair_response(input, reserved) {
+        Err(error) => Err(error),
+        Ok(bytes) => raw_reconstructed_recovery_finish(input.len() as usize, frame,
+            part2_decode_raw_reconstructed_codestream(bytes, limits)),
     }
 }
 
