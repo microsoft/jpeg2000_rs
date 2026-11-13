@@ -769,16 +769,20 @@ class FrameworkTests(WorkingFiles):
         original = source.read_text()
         read_text = Path.read_text
         mutations = (
-            ("events[0].2 != requested", "false"),
-            ("events[0].1 != length", "false"),
-            ("if events.len() == 0 { Some(result) } else { None }", "Some(result)"),
-            ("part2_jpip_storage_event(events.drop_first(), 1, 0, 2)",
+            ("part2_jpip_storage_event", "events[0].2 != requested", "false"),
+            ("part2_jpip_storage_event", "events[0].1 != length", "false"),
+            ("part2_jpip_main_header_finish",
+             "if events.len() == 0 { Some(result) } else { None }", "Some(result)"),
+            ("part2_jpip_normalize_main_header",
+             "part2_jpip_storage_event(events.drop_first(), 1, 0, 2)",
              "part2_jpip_storage_event(events, 1, 0, 2)"),
-            ("part2_jpip_normalize_main_header(input, events) == Some(result)", "true"),
+            ("part2_jpip_main_header_result",
+             "part2_jpip_normalize_main_header(input, events) == Some(result)", "true"),
         )
-        for before, after in mutations:
-            self.assertIn(before, original)
-            modified = original.replace(before, after, 1)
+        for model, before, after in mutations:
+            self.assertIn(before, framework._coverage_spec_function_body(original, model))
+            start = re.search(r"\bspec\s+fn\s+" + re.escape(model) + r"\b", original).start()
+            modified = original[:start] + original[start:].replace(before, after, 1)
 
             def altered(path, *args, **kwargs):
                 return modified if path == source else read_text(path, *args, **kwargs)
@@ -821,6 +825,88 @@ class FrameworkTests(WorkingFiles):
             with self.subTest(relative=relative, before=before), \
                     mock.patch.object(Path, "read_text", altered), \
                     self.assertRaisesRegex(ValueError, "ordinal"):
+                framework.validate_normative_coverage(coverage)
+
+    def test_inventory_automatic_input_results_bind_cache_and_actual_native_arguments(self):
+        coverage = json.loads((framework.VALIDATION / "normative-coverage.json").read_text())
+        coverage["requirements"] = [
+            item for item in coverage["requirements"] if item["id"] == framework._JPIP_AUTOMATIC_INPUT_ENTRY
+        ]
+        self.assertEqual(len(coverage["requirements"]), 1)
+        framework.validate_normative_coverage(coverage)
+        read_text = Path.read_text
+        for relative, before, after in (
+            ("src/jpip/progression.rs", "jpip_cache_view(self), codestream, jpip_automatic_headers_outcome(result)",
+             "jpip_cache_view(unrelated), codestream, jpip_automatic_headers_outcome(result)"),
+            ("src/jpip/progression.rs", "jpip_automatic_headers_outcome(result)",
+             "jpip_automatic_headers_outcome(unrelated)"),
+            ("src/jpip/progression.rs", "ensures crate::specs::part2_jpip_automatic_headers_result",
+             "ensures result.is_ok() ==> crate::specs::part2_jpip_automatic_headers_result"),
+            ("src/jpip/progression.rs", "ensures crate::specs::part2_jpip_automatic_headers_result",
+             "requires codestream == 0, ensures crate::specs::part2_jpip_automatic_headers_result"),
+            ("src/jpip/mapping.rs", "part2_jpip_siz_cardinality(main_header@, limits)",
+             "part2_jpip_siz_cardinality(Seq::empty(), limits)"),
+            ("src/jpip/automatic_headers.rs", "part2_jpip_ceil_div(value, divisor)",
+             "part2_jpip_ceil_div(divisor, value)"),
+            ("src/jpip/automatic_headers.rs", "jpip_automatic_packets_view(packets)",
+             "jpip_automatic_packets_view(unrelated)"),
+        ):
+            source = framework.ROOT / relative
+            original = source.read_text()
+            self.assertIn(before, original)
+            modified = original.replace(before, after, 1)
+
+            def altered(path, *args, **kwargs):
+                return modified if path == source else read_text(path, *args, **kwargs)
+
+            with self.subTest(relative=relative, before=before), mock.patch.object(Path, "read_text", altered), \
+                    self.assertRaisesRegex(ValueError, "lacks executable Verus contract"):
+                framework.validate_normative_coverage(coverage)
+
+    def test_inventory_automatic_input_models_reject_request_error_byte_and_metadata_trimming(self):
+        coverage = json.loads((framework.VALIDATION / "normative-coverage.json").read_text())
+        coverage["requirements"] = [
+            item for item in coverage["requirements"] if item["id"] == framework._JPIP_AUTOMATIC_INPUT_ENTRY
+        ]
+        read_text = Path.read_text
+        for relative, model, before, after in (
+            ("specs/jpip_normalization.rs", "part2_jpip_header_capacity",
+             "actual == site && count == elements", "actual == site"),
+            ("specs/jpip_normalization.rs", "part2_jpip_automatic_headers_finish",
+             "if events.len() == 0 { Some(result) } else { None }", "Some(result)"),
+            ("specs/jpip_normalization.rs", "part2_jpip_automatic_headers",
+             "part2_jpip_siz_cardinality(main, &cache.0)",
+             "part2_jpip_siz_cardinality(main, &unrelated)"),
+            ("specs/jpip_normalization.rs", "part2_jpip_automatic_raw_tiles",
+             "part2_jpip_cache_view(cache, (2u64,",
+             "part2_jpip_cache_view(cache, (6u64,"),
+            ("specs/jpip_normalization.rs", "part2_jpip_automatic_first_tiles",
+             "output.push(headers[0])", "output.push(headers[1])"),
+            ("specs/jpip_progressive.rs", "part2_jpip_partition_end",
+             "match transition.2", "match transition.3"),
+            ("specs/jpip_progressive.rs", "part2_jpip_partition_bytes", "None => Ok(None)",
+             "None => Err(part2_jpip_range_overflow(0))"),
+            ("specs/jpip_progressive.rs", "part2_jpip_partition_parts",
+             "packets.subrange(start as int, end as int)",
+             "packets.subrange(0, end as int)"),
+            ("src/jpip/progression_proof_support.rs", "jpip_automatic_packet_view",
+             "value.next_offset, value.required, value.ordinal, value.layer",
+             "value.next_offset, value.required, value.ordinal, 0"),
+            ("src/jpip/progression_proof_support.rs", "jpip_automatic_headers_view",
+             "value.tile_count, value.components",
+             "value.tile_count, 0"),
+        ):
+            source = framework.ROOT / relative
+            original = source.read_text()
+            self.assertIn(before, framework._coverage_spec_function_body(original, model))
+            start = re.search(r"\bspec\s+fn\s+" + re.escape(model) + r"\b", original).start()
+            modified = original[:start] + original[start:].replace(before, after, 1)
+
+            def altered(path, *args, **kwargs):
+                return modified if path == source else read_text(path, *args, **kwargs)
+
+            with self.subTest(relative=relative, before=before), mock.patch.object(Path, "read_text", altered), \
+                    self.assertRaisesRegex(ValueError, "automatic header/partition"):
                 framework.validate_normative_coverage(coverage)
 
     def test_inventory_binds_all_final_packet_wrappers_and_native_execution_bundle(self):
@@ -1607,19 +1693,21 @@ class FrameworkTests(WorkingFiles):
         entry = next(item for item in coverage["requirements"] if item["id"] == framework._JPIP_PROGRESSIVE_ENTRY)
         source = framework.ROOT / "specs/jpip_progressive.rs"
         original, read_text = source.read_text(), Path.read_text
-        for before, after in (
-            ("layer > u16::MAX as nat", "false"),
-            ("start > end || end as nat > packets.len()", "false"),
-            ("part2_jpip_cache_availability(cache, ranges)", "Err(part2_jpip_plan_invalid(0))"),
-            ("part2_jpip_append_complete_requirement(cache, plan.1, main.1)", "(Ok(()), main.1)"),
-            ("available <= previous", "false"),
-            ("part2_jpip_transcode(cache, decoder.0, available)", "Err(part2_jpip_plan_invalid(0))"),
-            ("crate::options::decode_options_limits(options), selection", "crate::options::decode_options_limits(options), None"),
-            ("previous, available, missing, Some(image)", "previous, available, missing, None"),
-            ("(decoder.0, available)", "decoder"),
+        for symbol, before, after in (
+            ("part2_jpip_progressive_layers", "layer > u16::MAX as nat", "false"),
+            ("part2_jpip_progressive_layers", "start > end || end as nat > packets.len()", "false"),
+            ("part2_jpip_progressive_layers", "part2_jpip_cache_availability(cache, ranges)", "Err(part2_jpip_plan_invalid(0))"),
+            ("part2_jpip_progressive_availability", "part2_jpip_append_complete_requirement(cache, plan.1, main.1)", "(Ok(()), main.1)"),
+            ("part2_jpip_progressive_update", "available <= previous", "false"),
+            ("part2_jpip_progressive_update", "part2_jpip_transcode(cache, decoder.0, available)", "Err(part2_jpip_plan_invalid(0))"),
+            ("part2_jpip_progressive_update", "crate::options::decode_options_limits(options), selection", "crate::options::decode_options_limits(options), None"),
+            ("part2_jpip_progressive_update", "previous, available, missing, Some(image)", "previous, available, missing, None"),
+            ("part2_jpip_progressive_update", "(decoder.0, available)", "decoder"),
         ):
-            self.assertIn(before, original)
-            changed = original.replace(before, after, 1)
+            body = framework._coverage_spec_function_body(original, symbol)
+            self.assertIsNotNone(body, symbol)
+            self.assertIn(before, body)
+            changed = original.replace(body, body.replace(before, after, 1), 1)
 
             def altered(path, *args, **kwargs):
                 return changed if path == source else read_text(path, *args, **kwargs)

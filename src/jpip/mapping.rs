@@ -728,6 +728,9 @@ fn count_plt_packets(payload: &[u8]) -> Result<u64, DecodeError> {
     Ok(count)
 }
 
+#[cfg_attr(verus_keep_ghost, verus_spec(result =>
+    ensures result == crate::specs::part2_jpip_siz_cardinality(main_header@, limits),
+))]
 pub(super) fn siz_cardinality(
     main_header: &[u8],
     limits: &ResourceLimits,
@@ -742,9 +745,16 @@ pub(super) fn siz_cardinality(
     let mut remaining_markers = main_header.len();
     #[cfg_attr(
         verus_keep_ghost,
-        verus_spec(decreases remaining_markers,)
+        verus_spec(
+            invariant position <= main_header.len(), remaining_markers <= main_header.len(),
+                crate::specs::part2_jpip_siz_cardinality(main_header@, limits)
+                    == crate::specs::part2_jpip_siz_scan(main_header@, position, remaining_markers, limits),
+            decreases remaining_markers,
+        )
     )]
     while position < main_header.len() {
+        #[cfg(verus_keep_ghost)]
+        proof! { reveal(crate::specs::part2_jpip_siz_scan); }
         if remaining_markers == 0 {
             return Err(DecodeError::malformed(
                 position as u64,
@@ -756,7 +766,12 @@ pub(super) fn siz_cardinality(
         if marker == 0xff51 {
             let payload = main_header
                 .get(payload_start..end)
-                .ok_or_else(|| DecodeError::malformed(0, MalformedKind::Truncated))?;
+                .ok_or_else(
+                    #[cfg_attr(verus_keep_ghost, verus_spec(result: DecodeError =>
+                        ensures result == crate::specs::part2_jpip_cache_error(0, MalformedKind::Truncated),
+                    ))]
+                    || DecodeError::malformed(0, MalformedKind::Truncated),
+                )?;
             if payload.len() < 36 {
                 return Err(DecodeError::malformed(
                     position as u64,
@@ -784,9 +799,12 @@ pub(super) fn siz_cardinality(
             }
             let tiles_x = ceil_div_jpip(u64::from(x_size - tile_x), u64::from(tile_width))?;
             let tiles_y = ceil_div_jpip(u64::from(y_size - tile_y), u64::from(tile_height))?;
-            let tiles = tiles_x
-                .checked_mul(tiles_y)
-                .ok_or_else(|| DecodeError::malformed(0, MalformedKind::ArithmeticOverflow))?;
+            let tiles = tiles_x.checked_mul(tiles_y).ok_or_else(
+                #[cfg_attr(verus_keep_ghost, verus_spec(result: DecodeError =>
+                        ensures result == crate::specs::part2_jpip_range_overflow(0),
+                    ))]
+                || DecodeError::malformed(0, MalformedKind::ArithmeticOverflow),
+            )?;
             if tiles == 0 || tiles > u64::from(limits.maximum_tiles()) {
                 return Err(DecodeError::limit(
                     Resource::Tiles,
@@ -798,6 +816,8 @@ pub(super) fn siz_cardinality(
         }
         position = end;
     }
+    #[cfg(verus_keep_ghost)]
+    proof! { reveal(crate::specs::part2_jpip_siz_scan); }
     Err(DecodeError::malformed(
         0,
         MalformedKind::MissingRequiredStructure,

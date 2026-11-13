@@ -761,6 +761,232 @@ fn sarah_dev_76bf9f9717_empty_resolutions_do_not_shift_precinct_databin_ids() {
 }
 
 #[test]
+fn automatic_tile_partition_derives_packet_fields_missing_and_exact_boundary_errors() {
+    let mut bytes = decodable_codestream();
+    let cod = bytes
+        .windows(2)
+        .position(|value| value == [0xff, 0x52])
+        .unwrap();
+    bytes[cod + 4] = 6;
+    let limits = ResourceLimits::default();
+    let layout = crate::codestream::parse_layout(&bytes, &limits).unwrap();
+    let states = [&layout.tile_parts[0], &layout.tile_parts[0]];
+    let headers = [vec![1, 2], vec![3, 4, 5]];
+    let transition = |packet_count, data_length| JpipTilePartTransition {
+        tile: 0,
+        tile_part: 0,
+        packet_count,
+        data_length,
+        functional: false,
+        header: Vec::new(),
+    };
+    let mut transitions = [transition(Some(1), Some(999)), transition(None, None)];
+    let packets = [
+        AutomaticPacket {
+            databin: id(0, 7),
+            bytes: Some(vec![11, 22]),
+            next_offset: 2,
+            required: true,
+            ordinal: 9,
+            layer: 0,
+        },
+        AutomaticPacket {
+            databin: id(0, 8),
+            bytes: Some(vec![33]),
+            next_offset: 1,
+            required: false,
+            ordinal: 10,
+            layer: 1,
+        },
+        AutomaticPacket {
+            databin: id(0, 9),
+            bytes: None,
+            next_offset: 4,
+            required: true,
+            ordinal: 11,
+            layer: 2,
+        },
+    ];
+    let projected = |packet: &AutomaticPacket| {
+        (
+            packet.databin,
+            packet.bytes.clone(),
+            packet.next_offset,
+            packet.required,
+            packet.ordinal,
+            packet.layer,
+        )
+    };
+    let parts = partition_automatic_tile_parts(&headers, &states, &transitions, &packets)
+        .unwrap()
+        .unwrap();
+    assert_eq!(parts.len(), 2);
+    for (index, part) in parts.iter().enumerate() {
+        assert_eq!(part.header, headers[index]);
+        assert_eq!((part.sop, part.eph), (true, true));
+    }
+    assert_eq!(
+        parts[0].packets.iter().map(&projected).collect::<Vec<_>>(),
+        packets[..1].iter().map(&projected).collect::<Vec<_>>()
+    );
+    assert_eq!(
+        parts[1].packets.iter().map(&projected).collect::<Vec<_>>(),
+        packets[1..].iter().map(&projected).collect::<Vec<_>>()
+    );
+    assert_ne!(parts[0].header.as_ptr(), headers[0].as_ptr());
+    assert_ne!(
+        parts[0].packets[0].bytes.as_ref().unwrap().as_ptr(),
+        packets[0].bytes.as_ref().unwrap().as_ptr()
+    );
+    transitions[0].packet_count = None;
+    transitions[0].data_length = Some(3);
+    let by_length = partition_automatic_tile_parts(&headers, &states, &transitions, &packets)
+        .unwrap()
+        .unwrap();
+    assert_eq!(by_length[0].packets.len(), 2);
+    transitions[0].data_length = Some(4);
+    assert!(
+        partition_automatic_tile_parts(&headers, &states, &transitions, &packets)
+            .unwrap()
+            .is_none()
+    );
+    transitions[0].data_length = Some(1);
+    assert_eq!(
+        partition_automatic_tile_parts(&headers, &states, &transitions, &packets).err(),
+        Some(DecodeError::malformed(
+            2,
+            MalformedKind::InvalidPacketLength
+        ))
+    );
+    assert_eq!(
+        partition_automatic_tile_parts(&headers[..1], &states, &transitions, &packets).err(),
+        Some(DecodeError::malformed(0, MalformedKind::InvalidTilePart))
+    );
+}
+
+#[test]
+fn automatic_header_inputs_preserve_cache_siz_and_reservation_error_order() {
+    let limits = ResourceLimits::default();
+    let mut cache = DatabinCache::new(limits);
+    crate::allocation::with_refusal(0, || {
+        assert_eq!(
+            cache.automatic_headers(0).err(),
+            Some(DecodeError::malformed(
+                0,
+                MalformedKind::MissingRequiredStructure
+            ))
+        );
+        assert_eq!(
+            crate::allocation::empty_with_capacity::<u8>(1),
+            Err(DecodeError::AllocationFailed)
+        );
+    });
+    let bytes = decodable_codestream();
+    let sot = bytes
+        .windows(2)
+        .position(|value| value == [0xff, 0x90])
+        .unwrap();
+    cache
+        .insert(fragment(id(6, 0), 0, &bytes[..sot], true))
+        .unwrap();
+    assert_eq!(
+        crate::allocation::with_refusal(0, || cache.automatic_headers(0)).err(),
+        Some(DecodeError::AllocationFailed)
+    );
+    crate::allocation::with_refusal(1, || {
+        assert_eq!(
+            cache.automatic_headers(0).err(),
+            Some(DecodeError::malformed(
+                0,
+                MalformedKind::MissingRequiredStructure
+            ))
+        );
+        assert_eq!(
+            crate::allocation::empty_with_capacity::<u8>(1),
+            Err(DecodeError::AllocationFailed)
+        );
+    });
+    let mut invalid = DatabinCache::new(limits);
+    invalid
+        .insert(fragment(id(6, 0), 0, &[0xff, 0x4f, 0xff], true))
+        .unwrap();
+    crate::allocation::with_refusal(0, || {
+        assert_eq!(
+            invalid.automatic_headers(0).err(),
+            Some(DecodeError::malformed(2, MalformedKind::Truncated))
+        );
+        assert_eq!(
+            crate::allocation::empty_with_capacity::<u8>(1),
+            Err(DecodeError::AllocationFailed)
+        );
+    });
+}
+
+#[test]
+fn automatic_header_inputs_derive_exact_fields_and_recover_after_managed_refusal() {
+    let bytes = decodable_codestream();
+    let sot = bytes
+        .windows(2)
+        .position(|value| value == [0xff, 0x90])
+        .unwrap();
+    let end = sot + 14;
+    let mut cache = DatabinCache::new(ResourceLimits::default());
+    cache
+        .insert(fragment(id(6, 0), 0, &bytes[..sot], true))
+        .unwrap();
+    cache
+        .insert(fragment(id(2, 0), 0, &bytes[sot..end], true))
+        .unwrap();
+    let mut tile = bytes[sot..end].to_vec();
+    tile[6..10].fill(0);
+    let expected = (bytes[..sot].to_vec(), vec![tile], 1_u64, 1_u16);
+    let collect = |cache: &DatabinCache| {
+        cache.automatic_headers(0).map(|headers| {
+            (
+                headers.main,
+                headers.tiles,
+                headers.tile_count,
+                headers.components,
+            )
+        })
+    };
+    let owner = (
+        cache.databins.as_ptr(),
+        cache.databins.len(),
+        cache.stored_bytes,
+        cache.accepted_fragments,
+    );
+    let mut refusals = 0;
+    let mut complete = false;
+    for ordinal in 0..32 {
+        match crate::allocation::with_refusal(ordinal, || collect(&cache)) {
+            Err(DecodeError::AllocationFailed) => {
+                refusals += 1;
+                assert_eq!(collect(&cache).unwrap(), expected);
+            }
+            Ok(actual) => {
+                assert_eq!(actual, expected);
+                complete = true;
+            }
+            Err(error) => panic!("unexpected automatic header error: {error}"),
+        }
+        assert_eq!(
+            (
+                cache.databins.as_ptr(),
+                cache.databins.len(),
+                cache.stored_bytes,
+                cache.accepted_fragments
+            ),
+            owner
+        );
+        if complete {
+            break;
+        }
+    }
+    assert!(refusals > 0 && complete);
+}
+
+#[test]
 fn automatic_managed_allocation_refusals_preserve_state_and_recover_exact_images() {
     let bytes = decodable_codestream_with_layers(2);
     let tile_start = bytes

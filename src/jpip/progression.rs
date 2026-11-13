@@ -12,6 +12,7 @@ use super::{
 };
 #[cfg(verus_keep_ghost)]
 use super::{
+    jpip_automatic_headers_outcome, jpip_automatic_headers_view, jpip_automatic_headers_witness,
     jpip_cache_view, jpip_optional_image_borrow_view, jpip_optional_image_view,
     jpip_parsed_packet_matrix, jpip_parsed_packet_matrix_update, jpip_parsed_packet_row_update,
     jpip_parsed_packet_value, jpip_plan_view, jpip_progressive_decoder_view,
@@ -1025,58 +1026,311 @@ impl DatabinCache {
         })
     }
 
+    #[cfg_attr(verus_keep_ghost, verus_spec(result =>
+        ensures crate::specs::part2_jpip_automatic_headers_result(
+            jpip_cache_view(self), codestream, jpip_automatic_headers_outcome(result)),
+    ))]
     pub(super) fn automatic_headers(
         &self,
         codestream: u64,
     ) -> Result<AutomaticHeaders, DecodeError> {
+        #[cfg(verus_keep_ghost)]
+        proof_decl! { let ghost cache = jpip_cache_view(self); }
+        #[cfg(verus_keep_ghost)]
+        proof! {
+            super::jpip_cache_fields(self);
+            assert forall|error: DecodeError|
+                crate::specs::part2_jpip_cache_view(cache,
+                    (6u64, super::DatabinClass::MainHeader, codestream, 0u64)) == Err(error)
+                implies crate::specs::part2_jpip_automatic_headers_result(cache, codestream, Err(error)) by {
+                reveal(crate::specs::part2_jpip_automatic_headers);
+                jpip_automatic_headers_witness(cache, codestream, Seq::empty(), Err(error));
+            }
+        }
         let main = self
             .databin_view(DatabinId::new(6, codestream, 0)?)?
             .into_bytes();
+        #[cfg(verus_keep_ghost)]
+        proof_decl! { let ghost raw_main = main@; }
+        #[cfg(verus_keep_ghost)]
+        proof! {
+            assert forall|error: DecodeError|
+                crate::specs::part2_jpip_siz_cardinality(raw_main, &self.limits) == Err(error)
+                implies crate::specs::part2_jpip_automatic_headers_result(cache, codestream, Err(error)) by {
+                reveal(crate::specs::part2_jpip_automatic_headers);
+                jpip_automatic_headers_witness(cache, codestream, Seq::empty(), Err(error));
+            }
+        }
         let (tile_count, components) = siz_cardinality(&main, &self.limits)?;
-        let mut tiles = crate::allocation::empty_with_capacity(
-            usize::try_from(tile_count)
-                .map_err(|_| DecodeError::malformed(0, MalformedKind::ArithmeticOverflow))?,
-        )?;
+        #[cfg(verus_keep_ghost)]
+        proof! {
+            reveal(crate::specs::part2_jpip_automatic_headers);
+            if tile_count > usize::MAX as u64 {
+                jpip_automatic_headers_witness(cache, codestream, Seq::empty(),
+                    Err(crate::specs::part2_jpip_range_overflow(0)));
+            } else {
+                jpip_automatic_headers_witness(cache, codestream,
+                    seq![crate::specs::Part2JpipAutomaticHeaderEvent::Capacity {
+                        site: 0, elements: tile_count as usize, succeeded: false }],
+                    Err(DecodeError::AllocationFailed));
+            }
+        }
+        let mut tiles =
+            crate::allocation::empty_with_capacity(usize::try_from(tile_count).map_err(
+                #[cfg_attr(verus_keep_ghost, verus_spec(result: DecodeError =>
+                        ensures result == crate::specs::part2_jpip_range_overflow(0),
+                    ))]
+                |_error| DecodeError::malformed(0, MalformedKind::ArithmeticOverflow),
+            )?)?;
+        #[cfg(verus_keep_ghost)]
+        proof_decl! {
+            let ghost capacity = crate::specs::Part2JpipAutomaticHeaderEvent::Capacity {
+                site: 0, elements: tile_count as usize, succeeded: true };
+        }
+        #[cfg(verus_keep_ghost)]
+        proof! {
+            assert(tiles@.map_values(|tile: Vec<u8>| tile@) =~= Seq::<Seq<u8>>::empty());
+            assert forall|tail: Seq<crate::specs::Part2JpipAutomaticHeaderEvent>|
+                crate::specs::part2_jpip_automatic_headers(cache, codestream, seq![capacity] + tail)
+                    == crate::specs::part2_jpip_automatic_headers_bins(raw_main,
+                        crate::specs::part2_jpip_automatic_raw_tiles(cache, codestream, tile_count, 0,
+                            tiles@.map_values(|tile: Vec<u8>| tile@)), tile_count, components, tail) by {
+                reveal(crate::specs::part2_jpip_automatic_headers);
+                assert((seq![capacity] + tail).drop_first() =~= tail);
+            }
+        }
         let mut tile = 0_u64;
         #[cfg_attr(
             verus_keep_ghost,
             verus_spec(
-                invariant tile <= tile_count,
+                invariant tile <= tile_count, tile_count <= usize::MAX as u64,
+                    raw_main == main@, cache == jpip_cache_view(self), cache.0 == self.limits,
+                    forall|tail: Seq<crate::specs::Part2JpipAutomaticHeaderEvent>|
+                        crate::specs::part2_jpip_automatic_headers(cache, codestream, seq![capacity] + tail)
+                            == crate::specs::part2_jpip_automatic_headers_bins(raw_main,
+                                crate::specs::part2_jpip_automatic_raw_tiles(cache, codestream, tile_count,
+                                    tile as nat, tiles@.map_values(|tile: Vec<u8>| tile@)),
+                                tile_count, components, tail),
                 decreases tile_count - tile,
             )
         )]
         while tile < tile_count {
+            #[cfg(verus_keep_ghost)]
+            proof_decl! {
+                let ghost previous_tiles = tiles@.map_values(|tile: Vec<u8>| tile@);
+            }
+            #[cfg(verus_keep_ghost)]
+            proof! {
+                reveal(crate::specs::part2_jpip_automatic_raw_tiles);
+                assert forall|error: DecodeError|
+                    crate::specs::part2_jpip_cache_view(cache,
+                        (2u64, super::DatabinClass::TileHeader, codestream, tile)) == Err(error)
+                    implies crate::specs::part2_jpip_automatic_headers_result(cache, codestream, Err(error)) by {
+                    assert(seq![capacity] + Seq::empty() =~= seq![capacity]);
+                    assert(crate::specs::part2_jpip_automatic_headers(cache, codestream, seq![capacity] + Seq::empty())
+                        == crate::specs::part2_jpip_automatic_headers_bins(raw_main,
+                            crate::specs::part2_jpip_automatic_raw_tiles(cache, codestream, tile_count,
+                                tile as nat, tiles@.map_values(|tile: Vec<u8>| tile@)),
+                            tile_count, components, Seq::empty()));
+                    jpip_automatic_headers_witness(cache, codestream, seq![capacity], Err(error));
+                }
+            }
             tiles.push(
                 self.databin_view(DatabinId::new(2, codestream, tile)?)?
                     .into_bytes(),
             );
+            #[cfg(verus_keep_ghost)]
+            proof! {
+                reveal(crate::specs::part2_jpip_automatic_raw_tiles);
+                let bytes = crate::specs::part2_jpip_cache_view(cache,
+                    (2u64, super::DatabinClass::TileHeader, codestream, tile)).get_Ok_0();
+                assert(crate::specs::part2_jpip_cache_view(cache,
+                    (2u64, super::DatabinClass::TileHeader, codestream, tile)) == Ok(bytes));
+                assert(tiles@.map_values(|tile: Vec<u8>| tile@) =~= previous_tiles.push(bytes));
+                assert forall|tail: Seq<crate::specs::Part2JpipAutomaticHeaderEvent>|
+                    crate::specs::part2_jpip_automatic_headers(cache, codestream, seq![capacity] + tail)
+                        == crate::specs::part2_jpip_automatic_headers_bins(raw_main,
+                            crate::specs::part2_jpip_automatic_raw_tiles(cache, codestream, tile_count,
+                                tile as nat + 1, tiles@.map_values(|tile: Vec<u8>| tile@)),
+                            tile_count, components, tail) by {
+                    assert(crate::specs::part2_jpip_automatic_headers(cache, codestream, seq![capacity] + tail)
+                        == crate::specs::part2_jpip_automatic_headers_bins(raw_main,
+                            crate::specs::part2_jpip_automatic_raw_tiles(cache, codestream, tile_count,
+                                tile as nat, previous_tiles), tile_count, components, tail));
+                }
+            }
             tile += 1;
         }
+        #[cfg(verus_keep_ghost)]
+        proof_decl! { let ghost raw_tiles = tiles@.map_values(|tile: Vec<u8>| tile@); }
+        #[cfg(verus_keep_ghost)]
+        proof! {
+            reveal(crate::specs::part2_jpip_automatic_raw_tiles);
+            assert forall|error: DecodeError|
+                crate::specs::part2_jpip_main_header_result(raw_main, Err(error))
+                implies crate::specs::part2_jpip_automatic_headers_result(cache, codestream, Err(error)) by {
+                let calls = choose|calls: Seq<crate::specs::Part2JpipStorageEvent>|
+                    crate::specs::part2_jpip_normalize_main_header(raw_main, calls) == Some(Err(error));
+                let event = crate::specs::Part2JpipAutomaticHeaderEvent::Main { calls };
+                assert(seq![capacity] + seq![event] =~= seq![capacity, event]);
+                assert(crate::specs::part2_jpip_automatic_headers(cache, codestream, seq![capacity] + seq![event])
+                    == crate::specs::part2_jpip_automatic_headers_bins(raw_main, Ok(raw_tiles),
+                        tile_count, components, seq![event]));
+                jpip_automatic_headers_witness(cache, codestream, seq![capacity, event], Err(error));
+            }
+        }
         let main = normalize_main_header(&main)?;
+        #[cfg(verus_keep_ghost)]
+        proof_decl! {
+            let ghost calls = choose|calls: Seq<crate::specs::Part2JpipStorageEvent>|
+                crate::specs::part2_jpip_normalize_main_header(raw_main, calls) == Some(Ok(main@));
+            let ghost main_event = crate::specs::Part2JpipAutomaticHeaderEvent::Main { calls };
+            let ghost prefix = seq![capacity, main_event,
+                crate::specs::Part2JpipAutomaticHeaderEvent::Capacity {
+                    site: 1, elements: tiles.len(), succeeded: true }];
+        }
+        #[cfg(verus_keep_ghost)]
+        proof! {
+            assert(seq![capacity] + seq![main_event,
+                crate::specs::Part2JpipAutomaticHeaderEvent::Capacity {
+                    site: 1, elements: tiles.len(), succeeded: false }]
+                =~= seq![capacity, main_event,
+                    crate::specs::Part2JpipAutomaticHeaderEvent::Capacity {
+                        site: 1, elements: tiles.len(), succeeded: false }]);
+            jpip_automatic_headers_witness(cache, codestream,
+                seq![capacity, main_event, crate::specs::Part2JpipAutomaticHeaderEvent::Capacity {
+                    site: 1, elements: tiles.len(), succeeded: false }], Err(DecodeError::AllocationFailed));
+        }
         let mut normalized = crate::allocation::empty_with_capacity(tiles.len())?;
         let mut index = 0_usize;
+        #[cfg(verus_keep_ghost)]
+        proof! {
+            assert(normalized@.map_values(|tile: Vec<u8>| tile@) =~= Seq::<Seq<u8>>::empty());
+            assert forall|tail: Seq<crate::specs::Part2JpipAutomaticHeaderEvent>|
+                crate::specs::part2_jpip_automatic_headers(cache, codestream, prefix + tail)
+                    == match crate::specs::part2_jpip_automatic_first_tiles(raw_tiles, 0, Seq::empty()) {
+                        Err(error) => crate::specs::part2_jpip_automatic_headers_finish(Err(error), tail),
+                        Ok(tiles) => crate::specs::part2_jpip_automatic_headers_finish(
+                            Ok((main@, tiles, tile_count, components)), tail),
+                    } by {
+                assert(prefix + tail =~= seq![capacity] + seq![main_event,
+                    crate::specs::Part2JpipAutomaticHeaderEvent::Capacity {
+                        site: 1, elements: tiles.len(), succeeded: true }] + tail);
+            }
+        }
         #[cfg_attr(
             verus_keep_ghost,
             verus_spec(
-                invariant index <= tiles.len(),
+                invariant index <= tiles.len(), normalized.len() == index,
+                    cache == jpip_cache_view(self), cache.0 == self.limits,
+                    raw_tiles == tiles@.map_values(|tile: Vec<u8>| tile@),
+                    forall|tail: Seq<crate::specs::Part2JpipAutomaticHeaderEvent>|
+                        crate::specs::part2_jpip_automatic_headers(cache, codestream, prefix + tail)
+                            == match crate::specs::part2_jpip_automatic_first_tiles(raw_tiles,
+                                index as nat, normalized@.map_values(|tile: Vec<u8>| tile@)) {
+                                Err(error) => crate::specs::part2_jpip_automatic_headers_finish(Err(error), tail),
+                                Ok(tiles) => crate::specs::part2_jpip_automatic_headers_finish(
+                                    Ok((main@, tiles, tile_count, components)), tail),
+                            },
                 decreases tiles.len() - index,
             )
         )]
         while index < tiles.len() {
+            #[cfg(verus_keep_ghost)]
+            proof_decl! {
+                let ghost previous_normalized = normalized@.map_values(|tile: Vec<u8>| tile@);
+            }
+            #[cfg(verus_keep_ghost)]
+            proof! {
+                reveal(crate::specs::part2_jpip_automatic_first_tiles);
+                assert forall|error: DecodeError|
+                    crate::specs::part2_jpip_automatic_first_tiles(raw_tiles,
+                        index as nat, normalized@.map_values(|tile: Vec<u8>| tile@)) == Err(error)
+                    implies crate::specs::part2_jpip_automatic_headers_result(cache, codestream, Err(error)) by {
+                    assert(prefix + Seq::empty() =~= prefix);
+                    assert(crate::specs::part2_jpip_automatic_headers(cache, codestream, prefix + Seq::empty())
+                        == crate::specs::part2_jpip_automatic_headers_finish(Err(error), Seq::empty()));
+                    jpip_automatic_headers_witness(cache, codestream, prefix, Err(error));
+                }
+                if index > u16::MAX as usize {
+                    assert(crate::specs::part2_jpip_automatic_headers_result(cache, codestream,
+                        Err(crate::specs::part2_jpip_range_overflow(0))));
+                } else {
+                    assert forall|error: DecodeError|
+                        crate::specs::part2_jpip_normalize_automatic_tile_headers(raw_tiles[index as int], index as u16)
+                            == Err(error)
+                        implies crate::specs::part2_jpip_automatic_headers_result(cache, codestream, Err(error)) by {
+                        assert(crate::specs::part2_jpip_automatic_first_tiles(raw_tiles,
+                            index as nat, normalized@.map_values(|tile: Vec<u8>| tile@)) == Err(error));
+                    }
+                }
+            }
             let headers = normalize_automatic_tile_headers(
                 &tiles[index],
-                u16::try_from(index)
-                    .map_err(|_| DecodeError::malformed(0, MalformedKind::ArithmeticOverflow))?,
+                u16::try_from(index).map_err(
+                    #[cfg_attr(verus_keep_ghost, verus_spec(result: DecodeError =>
+                            ensures result == crate::specs::part2_jpip_range_overflow(0),
+                        ))]
+                    |_error| DecodeError::malformed(0, MalformedKind::ArithmeticOverflow),
+                )?,
             )?;
+            #[cfg(verus_keep_ghost)]
+            proof! {
+                reveal(crate::specs::part2_jpip_automatic_first_tiles);
+                if headers.len() == 0 {
+                    assert(crate::specs::part2_jpip_automatic_first_tiles(raw_tiles,
+                        index as nat, previous_normalized) == Err(
+                            crate::specs::part2_jpip_cache_error(0, MalformedKind::MissingRequiredStructure)));
+                    assert(crate::specs::part2_jpip_automatic_headers_result(cache, codestream,
+                        Err(crate::specs::part2_jpip_cache_error(0, MalformedKind::MissingRequiredStructure))));
+                }
+            }
             normalized.push(
                 headers
                     .first()
-                    .ok_or_else(|| {
-                        DecodeError::malformed(0, MalformedKind::MissingRequiredStructure)
-                    })?
+                    .ok_or_else(
+                        #[cfg_attr(verus_keep_ghost, verus_spec(result: DecodeError =>
+                            ensures result == crate::specs::part2_jpip_cache_error(0, MalformedKind::MissingRequiredStructure),
+                        ))]
+                        || DecodeError::malformed(0, MalformedKind::MissingRequiredStructure),
+                    )?
                     .clone(),
             );
+            #[cfg(verus_keep_ghost)]
+            proof! {
+                reveal(crate::specs::part2_jpip_automatic_first_tiles);
+                assert(normalized@[index as int]@ =~= headers@[0]@);
+                assert(normalized@.map_values(|tile: Vec<u8>| tile@)
+                    =~= previous_normalized.push(headers@[0]@));
+                assert forall|tail: Seq<crate::specs::Part2JpipAutomaticHeaderEvent>|
+                    crate::specs::part2_jpip_automatic_headers(cache, codestream, prefix + tail)
+                        == match crate::specs::part2_jpip_automatic_first_tiles(raw_tiles,
+                            index as nat + 1, normalized@.map_values(|tile: Vec<u8>| tile@)) {
+                            Err(error) => crate::specs::part2_jpip_automatic_headers_finish(Err(error), tail),
+                            Ok(tiles) => crate::specs::part2_jpip_automatic_headers_finish(
+                                Ok((main@, tiles, tile_count, components)), tail),
+                        } by {
+                    assert(crate::specs::part2_jpip_automatic_headers(cache, codestream, prefix + tail)
+                        == match crate::specs::part2_jpip_automatic_first_tiles(raw_tiles,
+                            index as nat, previous_normalized) {
+                            Err(error) => crate::specs::part2_jpip_automatic_headers_finish(Err(error), tail),
+                            Ok(tiles) => crate::specs::part2_jpip_automatic_headers_finish(
+                                Ok((main@, tiles, tile_count, components)), tail),
+                        });
+                }
+            }
             index += 1;
+        }
+        #[cfg(verus_keep_ghost)]
+        proof! {
+            reveal(jpip_automatic_headers_view);
+            reveal(crate::specs::part2_jpip_automatic_first_tiles);
+            assert(prefix + Seq::empty() =~= prefix);
+            assert(crate::specs::part2_jpip_automatic_headers(cache, codestream, prefix + Seq::empty())
+                == crate::specs::part2_jpip_automatic_headers_finish(
+                    Ok((main@, normalized@.map_values(|tile: Vec<u8>| tile@), tile_count, components)), Seq::empty()));
+            jpip_automatic_headers_witness(cache, codestream, prefix,
+                Ok((main@, normalized@.map_values(|tile: Vec<u8>| tile@), tile_count, components)));
         }
         Ok(AutomaticHeaders {
             main,

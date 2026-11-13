@@ -99,6 +99,45 @@ controls cover duplicate **component selections**, first selection errors,
 decoder/cache state and managed-refusal ordering; they do not establish that
 the defensive duplicate-ordinal branch is publicly reachable.
 
+## Cache-derived automatic header and partition Results
+
+`DatabinCache::automatic_headers` derives its complete four-field Result from
+the actual physical cache and caller codestream identifier: normalized main
+bytes, first normalized header for every tile, tile count and component count.
+It preserves cache-before-SIZ, geometry-before-tile-limit, reservation-before-
+tile-fetch, tile-fetch-before-main-normalization and native tile-index/error
+order. Its event model records the two reached `Vec<Vec<u8>>` capacity requests
+and the existing main-normalizer primitive-call trace, not supplied header or
+codec outcomes. Request sizes/sites and exhausted event tails are checked.
+The source constructs witnesses only from the actual calls and the accepted
+normalizer relation. The shared cache is not mutated.
+
+The raw `siz_cardinality` and `ceil_div_jpip` helpers have complete Results too.
+Cardinality reads the first SIZ geometry fields; it is not full SIZ/component-
+table admission. Later markers/records remain ignored by this particular helper.
+
+`partition_automatic_tile_parts` has a complete Result from its actual native
+header/state/transition/packet slices. It retains shape-first errors, last-part
+and packet-count-before-data-length policy, checked counter/length errors,
+the original early `Ok(None)` for unavailable packet bytes, and exact deep
+copied header/packet fields and SOP/EPH flags. Its models use actual input
+projections, never parsed-success or image banks.
+
+These are complete preparation/partition interfaces, **not** a complete
+`build_automatic_snapshot` or public automatic progressive theorem.
+`automatic_headers` is the input factory used by `derive_precinct_map`;
+the snapshot builder has separate waiting-data, caller-limit and multi-part
+normalization behavior. It shares the checked cardinality/normalizer producers
+and calls the checked partition producer, but those policies are not conflated.
+The remaining snapshot composition must still derive its cache-to-packet folds,
+actual PSOT-patched template/emission bytes and final image/error/decoder state.
+In particular, the reached `write_u32_be` currently lacks its complete Result
+and mutable byte frame. A word-writer model must preserve its native saturating
+range/partial-error behavior, not assume atomicity or an arbitrary codec error.
+Physical allocator internals and existing infallible copies/clones remain the
+declared standard-library boundary; no lifetime, global OOM, coverage or
+independent standards claim follows.
+
 ## Trailing whole-packet engineering admission
 
 The actual packet traversal accepts a retained prefix of complete packets

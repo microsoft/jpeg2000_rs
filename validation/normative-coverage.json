@@ -4,6 +4,72 @@
   "scope": "Technical reference inventory; not exhaustive standards-clause coverage or a conformance claim.",
   "requirements": [
     {
+      "id": "part9-complete-native-automatic-header-partition-inputs",
+      "topic": "Complete actual raw SIZ-cardinality/checked-ceiling Results, cache-and-caller-derived automatic_headers Result including every normalized byte/count/component field and ordered typed reservation/main-normalization primitive events, and complete partition_automatic_tile_parts Result from its actual native header/state/transition/packet slices. Exact first cache/SIZ/geometry/tile/normalizer/length/overflow/missing errors, count-before-data-length/last-part policies, optional missing return and deep copied packet/header fields are retained without successful layout/image/header banks or valid-cache assumptions. Physical allocator internals and infallible clones remain existing environment boundaries. These are preparation/partition interfaces, not the complete build_automatic_snapshot or public progressive image/state Result; PSOT writer and remaining cache-to-packet/final emission joins stay open under issue130.",
+      "implementation_refs": [
+        {"path": "src/jpip/progression.rs", "symbol": "DatabinCache::automatic_headers"},
+        {"path": "src/jpip/progression.rs", "symbol": "DatabinCache::build_automatic_snapshot"},
+        {"path": "src/jpip/mapping.rs", "symbol": "DatabinCache::derive_precinct_map"},
+        {"path": "src/jpip/mapping.rs", "symbol": "siz_cardinality"},
+        {"path": "src/jpip/automatic_headers.rs", "symbol": "ceil_div_jpip"},
+        {"path": "src/jpip/automatic_headers.rs", "symbol": "partition_automatic_tile_parts"},
+        {"path": "src/jpip/automatic_headers.rs", "symbol": "normalize_main_header"},
+        {"path": "src/jpip/automatic_headers.rs", "symbol": "normalize_automatic_tile_headers"},
+        {"path": "src/jpip/cache.rs", "symbol": "DatabinCache::databin_view"}
+      ],
+      "contract_refs": [
+        {"path": "src/jpip/progression.rs", "symbol": "DatabinCache::automatic_headers"},
+        {"path": "src/jpip/mapping.rs", "symbol": "siz_cardinality"},
+        {"path": "src/jpip/automatic_headers.rs", "symbol": "ceil_div_jpip"},
+        {"path": "src/jpip/automatic_headers.rs", "symbol": "partition_automatic_tile_parts"},
+        {"path": "src/jpip/automatic_headers.rs", "symbol": "normalize_main_header"},
+        {"path": "src/jpip/automatic_headers.rs", "symbol": "normalize_automatic_tile_headers"},
+        {"path": "src/jpip/cache.rs", "symbol": "DatabinCache::databin_view"}
+      ],
+      "spec_refs": [
+        {"path": "specs/jpip_normalization.rs", "symbol": "part2_jpip_ceil_div"},
+        {"path": "specs/jpip_normalization.rs", "symbol": "part2_jpip_siz_payload"},
+        {"path": "specs/jpip_normalization.rs", "symbol": "part2_jpip_siz_scan"},
+        {"path": "specs/jpip_normalization.rs", "symbol": "part2_jpip_siz_cardinality"},
+        {"path": "specs/jpip_normalization.rs", "symbol": "part2_jpip_automatic_headers_finish"},
+        {"path": "specs/jpip_normalization.rs", "symbol": "part2_jpip_header_capacity"},
+        {"path": "specs/jpip_normalization.rs", "symbol": "part2_jpip_automatic_raw_tiles"},
+        {"path": "specs/jpip_normalization.rs", "symbol": "part2_jpip_automatic_first_tiles"},
+        {"path": "specs/jpip_normalization.rs", "symbol": "part2_jpip_automatic_headers_normalized"},
+        {"path": "specs/jpip_normalization.rs", "symbol": "part2_jpip_automatic_headers_bins"},
+        {"path": "specs/jpip_normalization.rs", "symbol": "part2_jpip_automatic_headers"},
+        {"path": "specs/jpip_normalization.rs", "symbol": "part2_jpip_automatic_headers_result"},
+        {"path": "specs/jpip_normalization.rs", "symbol": "part2_jpip_main_header_result"},
+        {"path": "specs/jpip_normalization.rs", "symbol": "part2_jpip_normalize_main_header"},
+        {"path": "specs/jpip_normalization.rs", "symbol": "part2_jpip_normalize_automatic_tile_headers"},
+        {"path": "specs/jpip_cache_views.rs", "symbol": "part2_jpip_cache_view"},
+        {"path": "specs/jpip_progressive.rs", "symbol": "part2_jpip_partition_bytes"},
+        {"path": "specs/jpip_progressive.rs", "symbol": "part2_jpip_partition_end"},
+        {"path": "specs/jpip_progressive.rs", "symbol": "part2_jpip_partition_parts"},
+        {"path": "specs/jpip_progressive.rs", "symbol": "part2_jpip_partition_automatic_tiles"}
+      ],
+      "proof_refs": [
+        {"path": "src/jpip/progression.rs", "symbol": "DatabinCache::automatic_headers"},
+        {"path": "src/jpip/mapping.rs", "symbol": "siz_cardinality"},
+        {"path": "src/jpip/automatic_headers.rs", "symbol": "ceil_div_jpip"},
+        {"path": "src/jpip/automatic_headers.rs", "symbol": "partition_automatic_tile_parts"},
+        {"path": "src/jpip/progression_proof_support.rs", "symbol": "jpip_automatic_headers_view"},
+        {"path": "src/jpip/progression_proof_support.rs", "symbol": "jpip_automatic_headers_outcome"},
+        {"path": "src/jpip/progression_proof_support.rs", "symbol": "jpip_automatic_headers_witness"},
+        {"path": "src/jpip/progression_proof_support.rs", "symbol": "jpip_automatic_headers_first_error"},
+        {"path": "src/jpip/progression_proof_support.rs", "symbol": "jpip_automatic_packet_view"},
+        {"path": "src/jpip/progression_proof_support.rs", "symbol": "jpip_automatic_packets_view"},
+        {"path": "src/jpip/progression_proof_support.rs", "symbol": "jpip_automatic_tile_part_view"},
+        {"path": "src/jpip/progression_proof_support.rs", "symbol": "jpip_automatic_partition_outcome"}
+      ],
+      "test_refs": [
+        {"path": "src/jpip/normalization_result_tests.rs", "symbol": "automatic_cardinality_preserves_first_siz_and_geometry_before_tile_limit_errors"},
+        {"path": "src/jpip/tests.rs", "symbol": "automatic_header_inputs_preserve_cache_siz_and_reservation_error_order"},
+        {"path": "src/jpip/tests.rs", "symbol": "automatic_header_inputs_derive_exact_fields_and_recover_after_managed_refusal"},
+        {"path": "src/jpip/tests.rs", "symbol": "automatic_tile_partition_derives_packet_fields_missing_and_exact_boundary_errors"}
+      ]
+    },
+    {
       "id": "part9-ordered-main-header-storage-result",
       "topic": "Actual raw automatic main-header normalization Result with an ordered trace of the existing byte-capacity/byte-extension primitive calls, their pre-call lengths, requested sizes and observed reservation outcomes. The input derives exact marker/error/removal/retained-byte behavior; no codec outcome is supplied by the trace. Invalid SOC precedes every request; later malformed markers precede requests for their bytes; failure and completion reject unused trace tails. Capacity and allocator availability remain the accepted vstd environment boundary; a primitive-call event is not a physical allocation, reachability, lifetime or global OOM theorem. Complete automatic snapshot/progressive image and semantic-container public Results remain open under issue130.",
       "implementation_refs": [

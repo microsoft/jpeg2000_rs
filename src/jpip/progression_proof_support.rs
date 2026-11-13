@@ -1,5 +1,77 @@
 #[cfg(verus_keep_ghost)]
 verus! {
+    pub closed spec fn jpip_automatic_packet_view(value: &AutomaticPacket)
+        -> crate::specs::Part2JpipAutomaticPacket {
+        (databin_id_view(value.databin), jpip_parsed_packet_value(value.bytes),
+            value.next_offset, value.required, value.ordinal, value.layer)
+    }
+
+    pub open spec fn jpip_automatic_packets_view(values: &[AutomaticPacket])
+        -> Seq<crate::specs::Part2JpipAutomaticPacket> {
+        values@.map_values(|value: AutomaticPacket| jpip_automatic_packet_view(&value))
+    }
+
+    pub closed spec fn jpip_automatic_tile_part_view(value: &AutomaticTilePart)
+        -> crate::specs::Part2JpipAutomaticTilePart {
+        (value.header@, value.packets@.map_values(|packet: AutomaticPacket| jpip_automatic_packet_view(&packet)),
+            value.sop, value.eph)
+    }
+
+    pub open spec fn jpip_automatic_partition_outcome(value: Result<Option<Vec<AutomaticTilePart>>, DecodeError>)
+        -> Result<Option<Seq<crate::specs::Part2JpipAutomaticTilePart>>, DecodeError> {
+        match value {
+            Err(error) => Err(error),
+            Ok(None) => Ok(None),
+            Ok(Some(parts)) => Ok(Some(parts@.map_values(|part: AutomaticTilePart| jpip_automatic_tile_part_view(&part)))),
+        }
+    }
+
+    pub closed spec fn jpip_automatic_headers_view(value: &AutomaticHeaders)
+        -> crate::specs::Part2JpipAutomaticHeaders {
+        (value.main@, value.tiles@.map_values(|tile: Vec<u8>| tile@), value.tile_count, value.components)
+    }
+
+    pub open spec fn jpip_automatic_headers_outcome(value: Result<AutomaticHeaders, DecodeError>)
+        -> Result<crate::specs::Part2JpipAutomaticHeaders, DecodeError> {
+        match value { Err(error) => Err(error), Ok(value) => Ok(jpip_automatic_headers_view(&value)) }
+    }
+
+    pub proof fn jpip_automatic_headers_witness(
+        cache: crate::specs::Part2JpipCache, stream: u64,
+        events: Seq<crate::specs::Part2JpipAutomaticHeaderEvent>,
+        result: Result<crate::specs::Part2JpipAutomaticHeaders, DecodeError>,
+    )
+        requires crate::specs::part2_jpip_automatic_headers(cache, stream, events) == Some(result),
+        ensures crate::specs::part2_jpip_automatic_headers_result(cache, stream, result),
+    {
+    }
+
+    pub proof fn jpip_automatic_headers_first_error(
+        cache: crate::specs::Part2JpipCache, stream: u64, error: DecodeError,
+    )
+        requires match crate::specs::part2_jpip_cache_view(cache,
+            (6u64, DatabinClass::MainHeader, stream, 0u64)) {
+            Err(first) => first == error,
+            Ok(main) => crate::specs::part2_jpip_siz_cardinality(main, &cache.0) == Err(error),
+        },
+        ensures forall|result: Result<crate::specs::Part2JpipAutomaticHeaders, DecodeError>|
+            crate::specs::part2_jpip_automatic_headers_result(cache, stream, result)
+                <==> result == Err(error),
+    {
+        assert forall|events: Seq<crate::specs::Part2JpipAutomaticHeaderEvent>|
+            #[trigger] crate::specs::part2_jpip_automatic_headers(cache, stream, events)
+                == if events.len() == 0 { Some(Err(error)) } else { None } by {
+            reveal(crate::specs::part2_jpip_automatic_headers);
+        }
+        jpip_automatic_headers_witness(cache, stream, Seq::empty(), Err(error));
+        assert forall|result: Result<crate::specs::Part2JpipAutomaticHeaders, DecodeError>|
+            crate::specs::part2_jpip_automatic_headers_result(cache, stream, result)
+                implies result == Err(error) by {
+            let events = choose|events: Seq<crate::specs::Part2JpipAutomaticHeaderEvent>|
+                crate::specs::part2_jpip_automatic_headers(cache, stream, events) == Some(result);
+        }
+    }
+
     pub proof fn jpip_filter_projection<A, B>(
         values: Seq<A>, keep: Seq<bool>, project: spec_fn(A) -> B, predicate: spec_fn(B) -> bool,
     )
