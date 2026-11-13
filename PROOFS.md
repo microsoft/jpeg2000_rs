@@ -1408,6 +1408,28 @@ same-process and unwind controls do not establish mathematical allocator or
 unwind proofs. Full fallibility (W06/#287), cooperative deadlines (W07/#289),
 remaining #300 integration/qualification and W09/#291 completion remain open.
 
+## Strict raw-codestream reconstruction Result
+
+`decode_codestream_reconstructed` composes the existing complete raw-layout and
+full-layout reconstruction contracts into an exact `DecodedImage` Result from
+input bytes and actual limits. The shared image projection retains every
+centered `i64` sample, fraction bit count, component descriptor and geometry
+field. There is no supplied-success bank, second decoder or typed-image copy.
+Parsing and reconstruction errors precede explicit rejection of any main/tile
+NLT declaration (including identity declarations), then final shape admission.
+Read-only sample/shape and NLT-length contracts connect the actual owners to
+the existing projections without exposing closed representations.
+
+The additive raw reconstruction models in `specs/raw_decode.rs` reuse the
+existing raw parser, decoder-input projection, coefficient/image models and
+shape predicates. Old full/selected typed contracts and bodies are unchanged.
+The inventory binds the new public API, admission helpers, exact models and
+focused independent-packet/rational-arithmetic regressions for #223/#300.
+This is the bounded strict W08 slice of #296, not selected/container mapping or
+W19 recovery output. Existing incomplete fallible allocation (#287), genuine
+coverage/erasure/lifetimes, independent normative review and release
+qualification remain separate; no standard text was processed for this slice.
+
 ## Complete actual raw-input layout and info Results
 
 The actual consuming `Parser::parse_layout` now has a complete Result equality,

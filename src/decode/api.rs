@@ -11,6 +11,156 @@ use super::{ImageSize, nonlinear_regions_outcome, nonlinear_regions_view};
 #[cfg(verus_keep_ghost)]
 use vstd::prelude::*;
 
+/// Decode a strict raw codestream to centered fixed-point reconstruction planes.
+///
+/// Each [`crate::image::DecodedComponent`] retains its `i64` samples and
+/// `fraction_bits`: the centered value is `sample / 2^fraction_bits`. No output
+/// rounding, unsigned level shift or clipping is performed. Image origins,
+/// component dimensions, subsampling and registration retain the coded grid.
+/// Wavelet and component transforms are the same as in [`decode_codestream`].
+///
+/// All NLT declarations (including identity declarations and tile overrides)
+/// are explicitly unsupported: they belong to the typed output domain. Parsing
+/// and reconstruction errors take precedence over this capability rejection.
+/// For accepted inputs, [`DecodedImage::typed`] produces the existing typed
+/// codestream output under the same limits.
+///
+/// This API accepts no containers and performs no palette/channel mapping,
+/// color conversion, selection or recovery. It never retries a failed decode.
+/// Existing limits apply; complete fallible allocation remains tracked in #287.
+#[cfg_attr(verus_keep_ghost, verus_spec(result =>
+    ensures crate::image::decoded_image_outcome(result) == crate::specs::part2_decode_raw_reconstructed_codestream(
+        input@, crate::options::decode_options_limits(options)),
+))]
+pub fn decode_codestream_reconstructed(
+    input: &[u8],
+    options: &DecodeOptions,
+) -> Result<DecodedImage, DecodeError> {
+    #[cfg(verus_keep_ghost)]
+    proof! {
+        codestream::decoder_layout_errors_known();
+        crate::specs::part2_decode_raw_reconstructed_codestream_unfold(
+            input@, crate::options::decode_options_limits(options));
+    }
+    let layout = codestream::parse_layout(input, options.limits())?;
+    #[cfg(verus_keep_ghost)]
+    proof! {
+        codestream::decoder_layout_input_matches_raw(&layout);
+        codestream::decoder_layout_input_fields(&layout);
+    }
+    let image = decode_layout(&layout, options.limits())?;
+    validate_reconstruction_transforms(&layout)?;
+    validate_reconstructed_output_shape(input.len(), &layout, &image)?;
+    Ok(image)
+}
+
+#[cfg_attr(verus_keep_ghost, verus_spec(result =>
+    ensures result == crate::specs::part2_validate_reconstruction_transforms(
+        codestream::decoder_layout_input_view(layout)),
+))]
+fn validate_reconstruction_transforms(layout: &CodestreamLayout<'_>) -> Result<(), DecodeError> {
+    #[cfg(verus_keep_ghost)]
+    proof! { codestream::decoder_layout_input_fields(layout); }
+    if !layout
+        .info
+        .part2_extensions
+        .nonlinear_transforms()
+        .is_empty()
+    {
+        return Err(DecodeError::UnsupportedFeature {
+            feature: "nonlinear transforms on reconstruction samples",
+        });
+    }
+    let mut index = 0_usize;
+    #[cfg_attr(verus_keep_ghost, verus_spec(
+        invariant index <= layout.tile_parts.len(),
+            codestream::owned_extensions_view(&layout.info.part2_extensions).nonlinear.len() == 0,
+            forall |i: int| 0 <= i < index ==>
+                codestream::tile_parts_owned_view(layout.tile_parts@)[i].part2_extensions.nonlinear.len() == 0,
+        decreases layout.tile_parts.len() - index,
+    ))]
+    while index < layout.tile_parts.len() {
+        let part = layout.tile_parts.get(index).ok_or_else(invalid_decode)?;
+        #[cfg(verus_keep_ghost)]
+        proof! {
+            reveal(codestream::tile_part_owned_view);
+            codestream::decoder_layout_input_fields(layout);
+        }
+        if !part.part2_extensions.nonlinear_transforms().is_empty() {
+            #[cfg(verus_keep_ghost)]
+            proof! {
+                assert(codestream::decoder_layout_input_view(layout).parts[index as int].part2_extensions.nonlinear.len() != 0);
+                assert(exists |i: int| 0 <= i < codestream::decoder_layout_input_view(layout).parts.len()
+                    && codestream::decoder_layout_input_view(layout).parts[i].part2_extensions.nonlinear.len() != 0);
+            }
+            return Err(DecodeError::UnsupportedFeature {
+                feature: "nonlinear transforms on reconstruction samples",
+            });
+        }
+        index = index.checked_add(1).ok_or_else(arithmetic_overflow)?;
+    }
+    #[cfg(verus_keep_ghost)]
+    proof! { codestream::decoder_layout_input_fields(layout); }
+    Ok(())
+}
+
+#[cfg_attr(verus_keep_ghost, verus_spec(result =>
+    ensures result == crate::specs::part1_validate_reconstructed_output_shape(
+        input_bytes, layout.tile_parts.len(), layout.info.image_size.components,
+        crate::image::decoded_image_view(*image)),
+))]
+fn validate_reconstructed_output_shape(
+    input_bytes: usize,
+    layout: &CodestreamLayout<'_>,
+    image: &DecodedImage,
+) -> Result<(), DecodeError> {
+    #[cfg(verus_keep_ghost)]
+    proof_decl! {
+        let ghost components = crate::image::decoded_image_view(*image).4;
+        let ghost goal = crate::specs::part1_validate_reconstructed_output_shape(
+            input_bytes, layout.tile_parts.len(), layout.info.image_size.components,
+            crate::image::decoded_image_view(*image));
+    }
+    if !crate::refinement::decode_output_shape_valid(
+        input_bytes,
+        layout.tile_parts.len(),
+        layout.info.image_size.components,
+        image.components().len(),
+        image.width(),
+        image.height(),
+    ) {
+        return Err(invalid_decode());
+    }
+    let component_count = image.components().len();
+    let mut index = 0_usize;
+    #[cfg_attr(verus_keep_ghost, verus_spec(
+        invariant index <= component_count,
+            component_count == components.len(),
+            components == crate::image::decoded_image_view(*image).4,
+            goal == crate::specs::part1_validate_reconstructed_output_shape(
+                input_bytes, layout.tile_parts.len(), layout.info.image_size.components,
+                crate::image::decoded_image_view(*image)),
+            goal == crate::specs::part1_validate_reconstructed_output_components(components, index as nat),
+        decreases component_count - index,
+    ))]
+    while index < component_count {
+        #[cfg(verus_keep_ghost)]
+        proof! { reveal_with_fuel(crate::specs::part1_validate_reconstructed_output_components, 1); }
+        let output = image.components().get(index).ok_or_else(invalid_decode)?;
+        if !crate::refinement::component_output_shape_valid(
+            output.width(),
+            output.height(),
+            output.samples().len(),
+        ) {
+            return Err(invalid_decode());
+        }
+        index = index.checked_add(1).ok_or_else(arithmetic_overflow)?;
+    }
+    #[cfg(verus_keep_ghost)]
+    proof! { reveal_with_fuel(crate::specs::part1_validate_reconstructed_output_components, 1); }
+    Ok(())
+}
+
 #[cfg_attr(verus_keep_ghost, verus_spec(result =>
     ensures crate::image::decoded_typed_image_outcome(result) == crate::specs::part2_decode_raw_codestream(
         input@, crate::options::decode_options_limits(options), None),
