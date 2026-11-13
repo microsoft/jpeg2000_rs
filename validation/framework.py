@@ -4664,6 +4664,54 @@ def validate_normative_coverage(
     ids: set[str] = set()
     contract_functions: set[tuple[str, str]] = set()
     for entry in coverage["requirements"]:
+        if entry["id"] == "part9-packet-reframing":
+            required = {
+                "proof_refs": {
+                    ("src/jpip/progression.rs", "DatabinCache::build_automatic_snapshot"),
+                },
+                "spec_refs": {
+                    ("specs/jpip_progressive.rs", "part2_jpip_ordinal_matrix_write"),
+                },
+                "test_refs": {
+                    ("src/jpip/tests.rs", "automatic_mapping_decodes_incomplete_precinct_quality_prefixes"),
+                    ("src/jpip/tests.rs", "automatic_managed_allocation_refusals_preserve_state_and_recover_exact_images"),
+                },
+            }
+            if any(not refs.issubset({(ref["path"], ref["symbol"]) for ref in entry[field]})
+                   for field, refs in required.items()):
+                raise ValueError("ordinal scratch frame requires its actual proof, model and controls")
+            source = source_text((ROOT / "src/jpip/progression.rs").resolve())
+            body = _coverage_function_body(
+                source, _coverage_function_header(source, "DatabinCache::build_automatic_snapshot"),
+            )
+            native_fragments = (
+                "let ghost before_ordinals = ordinals@.map_values(|row: Vec<Option<u16>>| row@)",
+                "let layer_slot = match ordinals.get_mut(execution) { "
+                "Some(layers) => layers.get_mut(usize::from(coordinate.layer)), None => None, }",
+                "assert(*layer_slot == before_ordinals[execution as int][coordinate.layer as int])",
+                "if layer_slot.is_some() { return Err(DecodeError::malformed("
+                "0, MalformedKind::InvalidProgressionOrderChange, )); }",
+                "*layer_slot = Some(sequence)",
+                "assert(crate::specs::part2_jpip_ordinal_matrix_write(before_ordinals, "
+                "ordinals@.map_values(|row: Vec<Option<u16>>| row@), execution, coordinate.layer, sequence))",
+                "order.push((coordinate, execution))",
+            )
+            compact = "".join(body.split()) if body is not None else ""
+            positions = [compact.find("".join(fragment.split())) for fragment in native_fragments]
+            if any(position < 0 for position in positions) or positions != sorted(positions):
+                raise ValueError("ordinal scratch frame requires the original lookup/error/duplicate/write/order handoff")
+            model = source_text((ROOT / "specs/jpip_progressive.rs").resolve())
+            body = _coverage_spec_function_body(model, "part2_jpip_ordinal_matrix_write")
+            model_fragments = (
+                "(execution as nat) < before.len()",
+                "(layer as nat) < before[execution as int].len()",
+                "before[execution as int][layer as int].is_none()",
+                "after == before.update(execution as int, "
+                "before[execution as int].update(layer as int, Some(sequence)))",
+            )
+            if body is None or any("".join(fragment.split()) not in "".join(body.split())
+                                   for fragment in model_fragments):
+                raise ValueError("ordinal scratch frame requires exact bounds, old empty slot and complete matrix update")
         if entry["id"] == _RAW_RECOVERY_ENTRY:
             expected = set(_RAW_RECOVERY_CONTRACTS) | set(_RAW_RECOVERY_RELATIONS)
             if {(ref["path"], ref["symbol"]) for ref in entry["contract_refs"]} != expected:

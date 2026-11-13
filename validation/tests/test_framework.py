@@ -787,6 +787,42 @@ class FrameworkTests(WorkingFiles):
                     self.assertRaisesRegex(ValueError, "ordered main-header storage"):
                 framework.validate_normative_coverage(coverage)
 
+    def test_inventory_jpip_ordinal_frame_binds_actual_match_prevalue_and_matrix_write(self):
+        coverage = json.loads((framework.VALIDATION / "normative-coverage.json").read_text())
+        coverage["requirements"] = [
+            item for item in coverage["requirements"] if item["id"] == "part9-packet-reframing"
+        ]
+        self.assertEqual(len(coverage["requirements"]), 1)
+        framework.validate_normative_coverage(coverage)
+        read_text = Path.read_text
+        mutations = (
+            ("src/jpip/progression.rs", "Some(layers) => layers.get_mut(usize::from(coordinate.layer))",
+             "Some(layers) => layers.get_mut(0)"),
+            ("src/jpip/progression.rs",
+             "assert(*layer_slot == before_ordinals[execution as int][coordinate.layer as int])",
+             "assert(true)"),
+            ("src/jpip/progression.rs",
+             "execution, coordinate.layer, sequence", "execution, coordinate.layer, 0"),
+            ("specs/jpip_progressive.rs",
+             "before[execution as int][layer as int].is_none()", "true"),
+            ("specs/jpip_progressive.rs",
+             "before[execution as int].update(layer as int, Some(sequence))",
+             "before[execution as int].update(0, Some(sequence))"),
+        )
+        for relative, before, after in mutations:
+            source = framework.ROOT / relative
+            original = source.read_text()
+            self.assertIn(before, original)
+            modified = original.replace(before, after, 1)
+
+            def altered(path, *args, **kwargs):
+                return modified if path == source else read_text(path, *args, **kwargs)
+
+            with self.subTest(relative=relative, before=before), \
+                    mock.patch.object(Path, "read_text", altered), \
+                    self.assertRaisesRegex(ValueError, "ordinal"):
+                framework.validate_normative_coverage(coverage)
+
     def test_inventory_binds_all_final_packet_wrappers_and_native_execution_bundle(self):
         self._assert_complete_packet_contract_bindings({
             "part1-complete-native-public-packet-boundaries",
