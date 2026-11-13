@@ -1303,6 +1303,75 @@ fn automatic_resolution_selection_error_is_reachable_from_actual_cache_and_calle
 }
 
 #[test]
+fn automatic_acquisition_precedes_resolution_errors_and_incomplete_truncation_continues() {
+    let mut bytes = decodable_codestream();
+    let cod = bytes
+        .windows(2)
+        .position(|value| value == [0xff, 0x52])
+        .unwrap();
+    bytes[cod + 4] = 2;
+    let limits = ResourceLimits::default();
+    let sot = bytes
+        .windows(2)
+        .position(|value| value == [0xff, 0x90])
+        .unwrap();
+    let packet = sot + 14;
+    let selection = crate::DecodeSelection::full_image().with_discard_levels(2);
+    let components = JpipPacketSelection::all_components();
+    let reduction = DecodeError::InvalidSelection {
+        reason: crate::SelectionError::ReductionTooLarge,
+    };
+    for (data, complete, expected) in [
+        (
+            &[0xff][..],
+            true,
+            DecodeError::malformed(1, MalformedKind::Truncated),
+        ),
+        (&[0xff][..], false, reduction),
+        (&[][..], false, reduction),
+        (&[0xff, 0x91, 0, 4, 0, 0, 0][..], true, reduction),
+    ] {
+        let mut cache = DatabinCache::new(limits);
+        cache
+            .insert(fragment(id(6, 0), 0, &bytes[..sot], true))
+            .unwrap();
+        cache
+            .insert(fragment(id(2, 0), 0, &bytes[sot..packet], true))
+            .unwrap();
+        if !data.is_empty() {
+            cache.insert(fragment(id(0, 0), 0, data, complete)).unwrap();
+        }
+        for _ in 0..2 {
+            assert_eq!(
+                cache
+                    .build_automatic_snapshot(0, Some(&selection), &components, &limits)
+                    .err(),
+                Some(expected),
+                "data={data:?} complete={complete}"
+            );
+            assert_eq!(cache.databin_prefix(id(0, 0)), data);
+            assert_eq!(cache.is_complete(id(0, 0)), complete);
+        }
+        assert_eq!(
+            crate::allocation::with_refusal(0, || cache.build_automatic_snapshot(
+                0,
+                Some(&selection),
+                &components,
+                &limits
+            ))
+            .err(),
+            Some(DecodeError::AllocationFailed),
+        );
+        assert_eq!(
+            cache
+                .build_automatic_snapshot(0, Some(&selection), &components, &limits)
+                .err(),
+            Some(expected)
+        );
+    }
+}
+
+#[test]
 fn automatic_raw_header_normalization_retains_repeated_transition_parse_identity() {
     let bytes = decodable_codestream();
     let sot = bytes

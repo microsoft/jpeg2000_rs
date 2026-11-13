@@ -4,8 +4,41 @@
   "scope": "Technical reference inventory; not exhaustive standards-clause coverage or a conformance claim.",
   "requirements": [
     {
+      "id": "part9-actual-automatic-acquisition-fold-and-selection",
+      "topic": "Checked successful actual acquisition-fold equality from captured cache/caller, raw tile projections, transitions, databin identities, order and complete initial scratch/decoder state. The suffix invariant proves every final precinct/parsed-byte/offset/blocked/transition/packet-count/byte-count field. Checked transactional decoder projection and actual assembled packet-prefix frames link enabled resolution errors through that successful state and the intervening reached site/tile/element/response capacity event. The model continuation expansion is checked for any subsequent continuation. Runtime body/order/owners are unchanged. Earlier global event-prefix joins, emission and full public Result remain outside this bounded cutpoint.",
+      "implementation_refs": [
+        {"path": "src/jpip/progression.rs", "symbol": "DatabinCache::build_automatic_snapshot"},
+        {"path": "src/jpip/automatic_phases.rs", "symbol": "decode_automatic_precinct"},
+        {"path": "src/jpip/mapping.rs", "symbol": "jpip_resolution_selected"}
+      ],
+      "contract_refs": [
+        {"path": "src/jpip/mapping.rs", "symbol": "JpipPacketSelection::includes_component"},
+        {"path": "src/jpip/mapping.rs", "symbol": "jpip_tile_selected"},
+        {"path": "src/jpip/mapping.rs", "symbol": "jpip_resolution_selected"}
+      ],
+      "spec_refs": [
+        {"path": "specs/jpip_snapshot_inputs.rs", "symbol": "part2_jpip_snapshot_component_included"},
+        {"path": "specs/jpip_snapshot_inputs.rs", "symbol": "part2_jpip_snapshot_tile_selected"},
+        {"path": "specs/jpip_snapshot_inputs.rs", "symbol": "part2_jpip_snapshot_resolution"},
+        {"path": "specs/jpip_snapshot_inputs.rs", "symbol": "part2_jpip_snapshot_parse_packets"},
+        {"path": "specs/jpip_snapshot_inputs.rs", "symbol": "part2_jpip_snapshot_decode_packet"},
+        {"path": "specs/jpip_snapshot_inputs.rs", "symbol": "part2_jpip_snapshot_make_packets"},
+        {"path": "specs/jpip_snapshot_inputs.rs", "symbol": "part2_jpip_snapshot_acquired_packets"}
+      ],
+      "proof_refs": [
+        {"path": "src/jpip/progression.rs", "symbol": "DatabinCache::build_automatic_snapshot"},
+        {"path": "src/jpip/progression_proof_support.rs", "symbol": "jpip_snapshot_decode_packet_known"},
+        {"path": "specs/jpip_snapshot_inputs.rs", "symbol": "part2_jpip_snapshot_acquired_resolution_error"},
+        {"path": "specs/jpip_snapshot_inputs.rs", "symbol": "part2_jpip_snapshot_acquired_packets_continuation"}
+      ],
+      "test_refs": [
+        {"path": "src/jpip/tests.rs", "symbol": "automatic_acquisition_precedes_resolution_errors_and_incomplete_truncation_continues"},
+        {"path": "src/jpip/tests.rs", "symbol": "automatic_resolution_selection_error_is_reachable_from_actual_cache_and_caller"}
+      ]
+    },
+    {
       "id": "part9-reachable-automatic-resolution-selection-result",
-      "topic": "Complete actual resolution-selection Result and enabling tile/component guard contracts, retaining style errors before checked-add/subtract ReductionTooLarge and equality-at-zero-count behavior. A checked mathematical continuation propagates an enabled current resolution error into the pending packet-construction model before scratch lookup. Actual cache/caller native control demonstrates ReductionTooLarge is reachable. This is NOT a checked lift into the whole cache/caller snapshot Result: the exact missing native packet-acquisition state/model equality was checked on the actual whole root and failed, retained outside committed source; no public contract or missing law is assumed.",
+      "topic": "Complete actual resolution-selection Result and enabling tile/component guard contracts, retaining style errors before checked-add/subtract ReductionTooLarge and equality-at-zero-count behavior. A checked mathematical continuation propagates an enabled current resolution error into the pending packet-construction model before scratch lookup. Actual cache/caller native control demonstrates ReductionTooLarge is reachable. The acquisition-state equality originally archived as a failed obligation is now checked by the separate actual-acquisition-fold entry, including the intervening ordered capacity event. This is still NOT the full cache/caller public snapshot Result; no missing global join is assumed.",
       "implementation_refs": [
         {"path": "src/jpip/progression.rs", "symbol": "DatabinCache::build_automatic_snapshot"},
         {"path": "src/jpip/mapping.rs", "symbol": "JpipPacketSelection::includes_component"},

@@ -877,6 +877,40 @@ class FrameworkTests(WorkingFiles):
         self._assert_complete_packet_contract_bindings(
             {framework._JPIP_RESOLUTION_EXIT_ENTRY}, framework._JPIP_RESOLUTION_EXIT_CONTRACTS, 3, isolate=False)
 
+    def test_inventory_acquisition_fold_binds_actual_selection_contracts(self):
+        self._assert_complete_packet_contract_bindings(
+            {framework._JPIP_ACQUISITION_ENTRY}, framework._JPIP_RESOLUTION_EXIT_CONTRACTS, 3, isolate=False)
+
+    def test_inventory_acquisition_fold_rejects_lost_state_inputs_or_allocation_order(self):
+        coverage = json.loads((framework.VALIDATION / "normative-coverage.json").read_text())
+        coverage["requirements"] = [
+            item for item in coverage["requirements"] if item["id"] == framework._JPIP_ACQUISITION_ENTRY
+        ]
+        self.assertEqual(len(coverage["requirements"]), 1)
+        framework.validate_normative_coverage(coverage)
+        read_text = Path.read_text
+        for relative, before, after in (
+            ("src/jpip/progression.rs", "bytes: transition_bytes,", "bytes: 0,"),
+            ("src/jpip/progression.rs", "parsed: jpip_parsed_packet_matrix(parsed@)", "parsed: Seq::empty()"),
+            ("src/jpip/progression.rs", "acquisition_input.cache == jpip_cache_view(self)", "true"),
+            ("src/jpip/progression.rs", "acquisition_order == order@", "true"),
+            ("src/jpip/progression.rs", "elements: order.len(), succeeded: true", "elements: order.len(), succeeded: false"),
+            ("specs/jpip_snapshot_inputs.rs", "order, 0, initial)", "order, 1, initial)"),
+            ("specs/jpip_snapshot_inputs.rs", "part2_jpip_snapshot_capacity(events, 4, tile, order.len() as usize)",
+             "part2_jpip_snapshot_capacity(events, 5, tile, order.len() as usize)"),
+        ):
+            source = framework.ROOT / relative
+            original = source.read_text()
+            self.assertIn(before, original)
+            modified = original.replace(before, after)
+
+            def altered(path, *args, **kwargs):
+                return modified if path == source else read_text(path, *args, **kwargs)
+
+            with self.subTest(relative=relative, before=before), mock.patch.object(Path, "read_text", altered), \
+                    self.assertRaisesRegex(ValueError, "actual acquisition fold"):
+                framework.validate_normative_coverage(coverage)
+
     def test_inventory_resolution_selection_rejects_error_priority_and_zero_count_changes(self):
         coverage = json.loads((framework.VALIDATION / "normative-coverage.json").read_text())
         coverage["requirements"] = [
