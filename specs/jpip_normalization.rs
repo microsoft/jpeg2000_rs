@@ -4,6 +4,93 @@ use super::*;
 
 verus! {
 
+/// Operation (0: byte-vector capacity, 1: byte extension), old length,
+/// requested elements/additional bytes, and observed reservation success.
+/// Physical capacity and allocator availability retain the existing vstd boundary.
+pub type Part2JpipStorageEvent = (u8, usize, usize, bool);
+
+pub open spec fn part2_jpip_storage_event(
+    events: Seq<Part2JpipStorageEvent>, operation: u8, length: usize, requested: usize,
+) -> Option<bool> {
+    if events.len() == 0 || events[0].0 != operation
+        || events[0].1 != length || events[0].2 != requested {
+        None
+    } else { Some(events[0].3) }
+}
+
+pub open spec fn part2_jpip_main_header_finish(
+    result: Result<Seq<u8>, crate::DecodeError>, events: Seq<Part2JpipStorageEvent>,
+) -> Option<Result<Seq<u8>, crate::DecodeError>> {
+    if events.len() == 0 { Some(result) } else { None }
+}
+
+#[verifier::opaque]
+pub open spec fn part2_jpip_main_header_scan(
+    input: Seq<u8>, position: usize, remaining: usize, output: Seq<u8>,
+    events: Seq<Part2JpipStorageEvent>,
+) -> Option<Result<Seq<u8>, crate::DecodeError>>
+    decreases remaining,
+{
+    if position as nat >= input.len() {
+        part2_jpip_main_header_finish(Ok(output), events)
+    } else if remaining == 0 {
+        part2_jpip_main_header_finish(Err(part2_jpip_cache_error(
+            position as u64, crate::MalformedKind::InvalidMarkerLength)), events)
+    } else {
+        match part2_jpip_marker_segment(input, position) {
+            Err(error) => part2_jpip_main_header_finish(Err(error), events),
+            Ok((marker, _, end)) => if marker == 0xff90 || marker == 0xff93 || marker == 0xffd9 {
+                part2_jpip_main_header_finish(Err(part2_jpip_cache_error(
+                    position as u64, crate::MalformedKind::InvalidMarkerOrder)), events)
+            } else if part9_reframed_marker_removed(marker as nat, false) {
+                part2_jpip_main_header_scan(input, end, (remaining - 1) as usize, output, events)
+            } else if position > end || end as nat > input.len() {
+                part2_jpip_main_header_finish(Err(part2_jpip_cache_error(
+                    position as u64, crate::MalformedKind::Truncated)), events)
+            } else {
+                let bytes = input.subrange(position as int, end as int);
+                match part2_jpip_storage_event(events, 1, output.len() as usize, bytes.len() as usize) {
+                    None => None,
+                    Some(false) => part2_jpip_main_header_finish(
+                        Err(crate::DecodeError::AllocationFailed), events.drop_first()),
+                    Some(true) => part2_jpip_main_header_scan(input, end, (remaining - 1) as usize,
+                        output + bytes, events.drop_first()),
+                }
+            },
+        }
+    }
+}
+
+#[verifier::opaque]
+pub open spec fn part2_jpip_normalize_main_header(
+    input: Seq<u8>, events: Seq<Part2JpipStorageEvent>,
+) -> Option<Result<Seq<u8>, crate::DecodeError>> {
+    if input.len() < 2 || input[0] != 0xff || input[1] != 0x4f {
+        part2_jpip_main_header_finish(Err(part2_jpip_cache_error(
+            0, crate::MalformedKind::MissingRequiredStructure)), events)
+    } else {
+        match part2_jpip_storage_event(events, 0, 0, 2) {
+            None => None,
+            Some(false) => part2_jpip_main_header_finish(
+                Err(crate::DecodeError::AllocationFailed), events.drop_first()),
+            Some(true) => match part2_jpip_storage_event(events.drop_first(), 1, 0, 2) {
+                None => None,
+                Some(false) => part2_jpip_main_header_finish(
+                    Err(crate::DecodeError::AllocationFailed), events.drop_first().drop_first()),
+                Some(true) => part2_jpip_main_header_scan(input, 2, input.len() as usize,
+                    seq![0xffu8, 0x4fu8], events.drop_first().drop_first()),
+            },
+        }
+    }
+}
+
+pub open spec fn part2_jpip_main_header_result(
+    input: Seq<u8>, result: Result<Seq<u8>, crate::DecodeError>,
+) -> bool {
+    exists|events: Seq<Part2JpipStorageEvent>|
+        part2_jpip_normalize_main_header(input, events) == Some(result)
+}
+
 #[verifier::opaque]
 pub open spec fn part2_jpip_normalized_header_scan(
     source: Seq<u8>, position: usize, remaining: usize, output: Seq<u8>,
