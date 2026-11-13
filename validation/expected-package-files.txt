@@ -76,6 +76,7 @@ specs/packet_tile.rs
 specs/persistent_tile_configuration.rs
 specs/raw_decode.rs
 specs/raw_layout.rs
+specs/raw_recovery.rs
 specs/tag_tree.rs
 specs/tile_header_traversal.rs
 specs/tile_part.rs
@@ -105,6 +106,7 @@ src/codestream/proof_support.rs
 src/codestream/quantization.rs
 src/codestream/raw_layout_result_tests.rs
 src/codestream/reader.rs
+src/codestream/recovery_framing.rs
 src/codestream/tests.rs
 src/codestream/tile_header_traversal.rs
 src/codestream/tile_header_traversal_proof_support.rs
@@ -223,6 +225,8 @@ src/packet/tag_tree.rs
 src/packet/tests.rs
 src/packet/tile.rs
 src/packet.rs
+src/recovery/tests.rs
+src/recovery.rs
 src/refinement/composition.rs
 src/refinement/geometry.rs
 src/refinement/headers.rs
