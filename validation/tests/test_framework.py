@@ -873,6 +873,38 @@ class FrameworkTests(WorkingFiles):
         self._assert_complete_packet_contract_bindings(
             {framework._JPIP_BYTE_RESULT_ENTRY}, framework._JPIP_BYTE_RESULT_CONTRACTS, 4, isolate=False)
 
+    def test_inventory_canonical_template_parse_exit_binds_actual_prefix_bytes_and_closed_error(self):
+        coverage = json.loads((framework.VALIDATION / "normative-coverage.json").read_text())
+        coverage["requirements"] = [
+            item for item in coverage["requirements"] if item["id"] == framework._JPIP_PARSE_EXIT_ENTRY
+        ]
+        self.assertEqual(len(coverage["requirements"]), 1)
+        framework.validate_normative_coverage(coverage)
+        read_text = Path.read_text
+        for relative, before, after in (
+            ("src/jpip/snapshot_header_proof_support.rs", "crate::codestream::decoder_layout_errors_known();", ""),
+            ("src/jpip/snapshot_header_proof_support.rs",
+             "part2_jpip_transition_template(main, headers, input.limits) == Ok(template)",
+             "part2_jpip_transition_template(main, headers, input.limits) == Ok(unrelated)"),
+            ("src/jpip/snapshot_header_proof_support.rs",
+             "complete_layout_outcome(Err(error))", "complete_layout_outcome(Err(unrelated))"),
+            ("src/jpip/progression.rs", "headers, template@, error", "headers, unrelated@, error"),
+            ("src/jpip/progression.rs",
+             "part2_jpip_transition_template(normalized_bytes, headers, input.limits) == Ok(template@)",
+             "part2_jpip_transition_template(normalized_bytes, headers, input.limits) == Ok(unrelated@)"),
+        ):
+            source = framework.ROOT / relative
+            original = source.read_text()
+            self.assertIn(before, original)
+            modified = original.replace(before, after, 1)
+
+            def altered(path, *args, **kwargs):
+                return modified if path == source else read_text(path, *args, **kwargs)
+
+            with self.subTest(before=before), mock.patch.object(Path, "read_text", altered), \
+                    self.assertRaisesRegex(ValueError, "canonical template parse exit"):
+                framework.validate_normative_coverage(coverage)
+
     def test_inventory_automatic_phases_bind_complete_result_and_every_mutable_input(self):
         self._assert_complete_packet_contract_bindings(
             {framework._JPIP_PHASE_ENTRY}, framework._JPIP_PHASE_CONTRACTS, 4, isolate=False)

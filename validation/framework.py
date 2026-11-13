@@ -3528,6 +3528,13 @@ _RAW_CONTAINER_COLOR_TESTS = {("src/decode/container_image_result_tests.rs", "ac
     "preserves_header_mapping_before_color_admission",
     "preserves_raw_inspection_selection_packet_and_profile_priority",
 )} | {("src/decode/tests.rs", "sarah_dev_457acab2c3_later_jp2_streams_do_not_change_first_display")}
+_JPIP_PARSE_EXIT_ENTRY = "part9-canonical-template-initial-parse-error"
+_JPIP_PARSE_EXIT_CONTRACTS = {
+    ("src/jpip/mapping.rs", "validate_packet_component_selection"): (
+        "part2_jpip_snapshot_component_selection", r"\1", None,
+        _coverage_call("super::jpip_packet_selection_view", "selection") + r"\s*,\s*components",
+    ),
+}
 _JPIP_PHASE_ENTRY = "part9-complete-nonowning-automatic-phase-results"
 _JPIP_PHASE_CONTRACTS = {
     ("src/jpip/automatic_phases.rs", "write_automatic_ordinal"): (
@@ -4816,6 +4823,46 @@ def validate_normative_coverage(
     ids: set[str] = set()
     contract_functions: set[tuple[str, str]] = set()
     for entry in coverage["requirements"]:
+        if entry["id"] == _JPIP_PARSE_EXIT_ENTRY:
+            required = {
+                ("src/jpip/snapshot_header_proof_support.rs", name) for name in (
+                    "jpip_snapshot_template_parse_error", "jpip_snapshot_headers_continuation",
+                    "jpip_snapshot_normalized_continuation", "jpip_snapshot_result_witness",
+                )
+            } | {("src/codestream/decoder_input_proof_support.rs", "decoder_layout_errors_known")}
+            if not required.issubset({(ref["path"], ref["symbol"]) for ref in entry["proof_refs"]}):
+                raise ValueError("canonical template parse exit requires checked continuations and the actual Err projection")
+            source = source_text((ROOT / "src/jpip/snapshot_header_proof_support.rs").resolve())
+            header = re.search(
+                r"(?m)^([ \t]*)pub\(crate\)\s+proof\s+fn\s+jpip_snapshot_template_parse_error\b", source,
+            )
+            body = _coverage_function_body(source, header)
+            if header is None or body is None:
+                raise ValueError("canonical template parse exit requires its checked lemma")
+            clause = source[header.start():source.find("{", header.end())]
+            for fragment in (
+                "part2_jpip_snapshot_run(input, prefix + tail)",
+                "part2_jpip_snapshot_after_normalized(input, main, raw, count, components, headers, tail)",
+                "part2_jpip_transition_template(main, headers, input.limits) == Ok(template)",
+                "complete_layout_outcome(Err(error)) == crate::specs::part1_parse_layout(template, input.limits)",
+                "part2_jpip_automatic_snapshot_result(input.cache, input.stream, input.selected, input.components, input.limits, Err(error))",
+            ):
+                if "".join(fragment.split()) not in "".join(clause.split()):
+                    raise ValueError("canonical template parse exit requires exact actual byte/event/error arguments")
+            if "crate::codestream::decoder_layout_errors_known();" not in body:
+                raise ValueError("canonical template parse exit requires the existing checked closed-error interface")
+            snapshot_source = source_text((ROOT / "src/jpip/progression.rs").resolve())
+            snapshot = _coverage_function_body(snapshot_source, _coverage_function_header(
+                snapshot_source, "DatabinCache::build_automatic_snapshot"))
+            for fragment in (
+                "part2_jpip_transition_template(normalized_bytes, headers, input.limits) == Ok(template@)",
+                "complete_layout_outcome(Err(error)) == crate::specs::part1_parse_layout(template@, limits)",
+                "super::jpip_snapshot_template_parse_error(input, prefix, normalized_bytes, raw_tiles,"
+                "tile_count, components, headers, template@, error)",
+                "let layout = crate::codestream::parse_layout(&template, limits)?",
+            ):
+                if snapshot is None or "".join(fragment.split()) not in "".join(snapshot.split()):
+                    raise ValueError("canonical template parse exit requires its actual parser caller and input projection")
         if entry["id"] == _JPIP_PHASE_ENTRY:
             if {(ref["path"], ref["symbol"]) for ref in entry["contract_refs"]} != set(_JPIP_PHASE_CONTRACTS):
                 raise ValueError("automatic phase Results require all complete native error/state contracts")
@@ -9135,6 +9182,9 @@ def validate_normative_coverage(
                     if entry["id"] == _JPIP_TRANSITION_ENTRY else None)
                 or (_JPIP_PHASE_CONTRACTS.get((reference["path"], reference["symbol"]))
                     if entry["id"] == _JPIP_PHASE_ENTRY else None)
+                or ((_JPIP_BYTE_RESULT_CONTRACTS.get((reference["path"], reference["symbol"]))
+                     or _JPIP_PARSE_EXIT_CONTRACTS.get((reference["path"], reference["symbol"])))
+                    if entry["id"] == _JPIP_PARSE_EXIT_ENTRY else None)
                 or (_JPIP_BYTE_RESULT_CONTRACTS.get((reference["path"], reference["symbol"]))
                     if entry["id"] == _JPIP_BYTE_RESULT_ENTRY else None)
                 or ((_JPIP_AUTOMATIC_INPUT_CONTRACTS.get((reference["path"], reference["symbol"]))

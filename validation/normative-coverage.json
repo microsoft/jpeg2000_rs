@@ -4,6 +4,38 @@
   "scope": "Technical reference inventory; not exhaustive standards-clause coverage or a conformance claim.",
   "requirements": [
     {
+      "id": "part9-canonical-template-initial-parse-error",
+      "topic": "Checked conditional lifting of the actual initial canonical-template parse_layout error into the cache/caller automatic snapshot Result predicate. Actual cache/header inputs, normalized bytes, caller limits and ordered reached capacity/main-normalizer events establish the exact template/prefix equation. The existing checked decoder_layout_errors_known interface exposes the closed complete-layout Err projection, without a new trust boundary or supplied layout/header/decoder Result. Only this early parse-error exit is established; no full native snapshot/public image/state or later packet/emission composition is claimed.",
+      "implementation_refs": [
+        {"path": "src/jpip/progression.rs", "symbol": "DatabinCache::build_automatic_snapshot"},
+        {"path": "src/jpip/automatic_headers.rs", "symbol": "build_automatic_transition_template"},
+        {"path": "src/jpip/mapping.rs", "symbol": "validate_packet_component_selection"},
+        {"path": "src/codestream/layout.rs", "symbol": "parse_layout"}
+      ],
+      "contract_refs": [
+        {"path": "src/jpip/mapping.rs", "symbol": "validate_packet_component_selection"},
+        {"path": "src/jpip/automatic_headers.rs", "symbol": "build_automatic_transition_template"}
+      ],
+      "proof_refs": [
+        {"path": "src/jpip/snapshot_header_proof_support.rs", "symbol": "jpip_snapshot_template_parse_error"},
+        {"path": "src/jpip/snapshot_header_proof_support.rs", "symbol": "jpip_snapshot_headers_continuation"},
+        {"path": "src/jpip/snapshot_header_proof_support.rs", "symbol": "jpip_snapshot_normalized_continuation"},
+        {"path": "src/jpip/snapshot_header_proof_support.rs", "symbol": "jpip_snapshot_result_witness"},
+        {"path": "src/codestream/decoder_input_proof_support.rs", "symbol": "decoder_layout_errors_known"}
+      ],
+      "spec_refs": [
+        {"path": "specs/jpip_snapshot_inputs.rs", "symbol": "part2_jpip_snapshot_normalized_events"},
+        {"path": "specs/jpip_snapshot_inputs.rs", "symbol": "part2_jpip_snapshot_component_selection"},
+        {"path": "specs/jpip_snapshot_inputs.rs", "symbol": "part2_jpip_snapshot_after_normalized"},
+        {"path": "specs/jpip_snapshot_inputs.rs", "symbol": "part2_jpip_automatic_snapshot_result"},
+        {"path": "specs/jpip_byte_writes.rs", "symbol": "part2_jpip_transition_template"},
+        {"path": "specs/raw_layout.rs", "symbol": "part1_parse_layout"}
+      ],
+      "test_refs": [
+        {"path": "src/jpip/tests.rs", "symbol": "automatic_snapshot_template_parse_error_keeps_canonical_bytes_and_cache_inputs"}
+      ]
+    },
+    {
       "id": "part9-complete-nonowning-automatic-phase-results",
       "topic": "Complete native Result/state contracts for actual non-owning automatic snapshot phases: ordinal construction retains final iterator, every matrix cell and full order on every error; selected precinct decoding retains every plan field and exact raw decoder error/rollback state; tile-part emission retains all partial header/payload/empty-packet bytes before missing, length or PSOT errors. The sole source implementation is called from build_automatic_snapshot at the original operation positions. Caller-owned Vec/layout/plan/iterator bindings remain in the caller, including prefix ownership and lookup-before-slicing order. No new allocation boundary, lifetime claim or complete cache/caller snapshot/public progressive Result is claimed.",
       "implementation_refs": [

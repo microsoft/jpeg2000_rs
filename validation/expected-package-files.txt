@@ -49,6 +49,8 @@ specs/jpip_normalization.rs
 specs/jpip_phases.rs
 specs/jpip_planned_packets.rs
 specs/jpip_progressive.rs
+specs/jpip_snapshot.rs
+specs/jpip_snapshot_inputs.rs
 specs/jpip_ranges.rs
 specs/jpip_response.rs
 specs/jpip_transcode.rs
@@ -192,6 +194,7 @@ src/jpip/range_result_tests.rs
 src/jpip/ranges.rs
 src/jpip/reconstruction.rs
 src/jpip/response_result_tests.rs
+src/jpip/snapshot_header_proof_support.rs
 src/jpip/tests.rs
 src/jpip/transcode_availability_result_tests.rs
 src/jpip/transcode_result_tests.rs

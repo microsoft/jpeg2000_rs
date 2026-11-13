@@ -334,8 +334,29 @@ impl DatabinCache {
         packet_selection: &JpipPacketSelection,
         limits: &ResourceLimits,
     ) -> Result<AutomaticSnapshotResult, DecodeError> {
+        #[cfg(verus_keep_ghost)]
+        proof_decl! {
+            let ghost input = crate::specs::Part2JpipSnapshotInput {
+                cache: jpip_cache_view(self), stream: codestream,
+                selected: super::jpip_snapshot_selection_view(selection),
+                components: super::jpip_packet_selection_view(packet_selection), limits,
+            };
+        }
+        #[cfg(verus_keep_ghost)]
+        proof! {
+            assert forall|error: DecodeError|
+                crate::specs::part2_jpip_cache_complete(input.cache,
+                    (6u64, super::DatabinClass::MainHeader, codestream, 0u64))
+                    && crate::specs::part2_jpip_snapshot_admit(input) == Err(error)
+                implies crate::specs::part2_jpip_automatic_snapshot_result(input.cache,
+                    input.stream, input.selected, input.components, input.limits, Err(error)) by {
+                super::jpip_snapshot_admission_error(input, error);
+            }
+        }
         let main_id = DatabinId::new(6, codestream, 0)?;
         if !self.is_complete(main_id) {
+            #[cfg(verus_keep_ghost)]
+            proof! { super::jpip_snapshot_main_waiting(input); }
             return Ok(AutomaticSnapshotResult {
                 ready: None,
                 missing: self.complete_databin_missing(main_id),
@@ -344,23 +365,66 @@ impl DatabinCache {
         let main = self.databin_view(main_id)?.into_bytes();
         let (tile_count, components) = siz_cardinality(&main, limits)?;
         validate_packet_component_selection(packet_selection, components)?;
-        let mut tile_headers = crate::allocation::empty_with_capacity(
-            usize::try_from(tile_count)
-                .map_err(|_| DecodeError::malformed(0, MalformedKind::ArithmeticOverflow))?,
-        )?;
+        #[cfg(verus_keep_ghost)]
+        proof! {
+            if tile_count <= usize::MAX as u64 {
+                super::jpip_snapshot_header_capacity_error(input, main@, tile_count, components);
+            }
+        }
+        let mut tile_headers =
+            crate::allocation::empty_with_capacity(usize::try_from(tile_count).map_err(
+                #[cfg_attr(verus_keep_ghost, verus_spec(result: DecodeError =>
+                        ensures result == crate::specs::part2_jpip_range_overflow(0),
+                    ))]
+                |_error| DecodeError::malformed(0, MalformedKind::ArithmeticOverflow),
+            )?)?;
         let mut header_missing = Vec::new();
+        #[cfg(verus_keep_ghost)]
+        proof_decl! {
+            let ghost raw_main = main@;
+            let ghost gather_goal = crate::specs::part2_jpip_snapshot_gather(
+                input, tile_count, 0, Seq::empty(), Seq::empty());
+        }
+        #[cfg(verus_keep_ghost)]
+        proof! {
+            super::jpip_snapshot_gather_continuation(input, raw_main, tile_count, components);
+            assert(tile_headers@.map_values(|value: Vec<u8>| value@) =~= Seq::<Seq<u8>>::empty());
+            assert(super::jpip_missing_views(&header_missing) =~= Seq::<crate::specs::Part2JpipMissing>::empty());
+        }
         let mut tile = 0_u64;
         #[cfg_attr(
             verus_keep_ghost,
             verus_spec(
                 invariant tile <= tile_count,
+                    super::jpip_snapshot_inputs_match(input, self, codestream, selection, packet_selection, limits),
+                    crate::specs::part2_jpip_cache_complete(input.cache,
+                        (6u64, super::DatabinClass::MainHeader, codestream, 0u64)),
+                    crate::specs::part2_jpip_snapshot_admit(input) == Ok((raw_main, tile_count, components)),
+                    tile_count <= usize::MAX as u64,
+                    gather_goal == crate::specs::part2_jpip_snapshot_gather(input, tile_count, tile,
+                        tile_headers@.map_values(|value: Vec<u8>| value@), super::jpip_missing_views(&header_missing)),
+                    forall|error: DecodeError| gather_goal == Err(error) ==>
+                        crate::specs::part2_jpip_automatic_snapshot_result(input.cache,
+                            input.stream, input.selected, input.components, input.limits, Err(error)),
                 decreases tile_count - tile,
             )
         )]
         while tile < tile_count {
+            #[cfg(verus_keep_ghost)]
+            proof! { reveal(crate::specs::part2_jpip_snapshot_gather); }
+            #[cfg(verus_keep_ghost)]
+            proof_decl! {
+                let ghost previous_headers = tile_headers@.map_values(|value: Vec<u8>| value@);
+                let ghost previous_missing = super::jpip_missing_views(&header_missing);
+            }
             let tile_id = DatabinId::new(2, codestream, tile)?;
             if self.is_complete(tile_id) {
                 tile_headers.push(self.databin_view(tile_id)?.into_bytes());
+                #[cfg(verus_keep_ghost)]
+                proof! {
+                    assert(tile_headers@.map_values(|value: Vec<u8>| value@) =~=
+                        previous_headers.push(tile_headers@[tile_headers.len() as int - 1]@));
+                }
             } else {
                 let additional = self.complete_databin_missing(tile_id);
                 let mut missing_index = 0_usize;
@@ -368,44 +432,156 @@ impl DatabinCache {
                     verus_keep_ghost,
                     verus_spec(
                         invariant missing_index <= additional.len(),
+                            gather_goal == crate::specs::part2_jpip_snapshot_gather(input, tile_count,
+                                (tile + 1) as u64, previous_headers,
+                                previous_missing + super::jpip_missing_views(&additional)),
+                            super::jpip_missing_views(&header_missing) == previous_missing
+                                + super::jpip_missing_views(&additional).subrange(0, missing_index as int),
                         decreases additional.len() - missing_index,
                     )
                 )]
                 while missing_index < additional.len() {
+                    #[cfg(verus_keep_ghost)]
+                    proof_decl! { let ghost previous_views = super::jpip_missing_views(&header_missing); }
                     header_missing.push(additional[missing_index]);
+                    #[cfg(verus_keep_ghost)]
+                    proof! {
+                        assert(super::jpip_missing_views(&header_missing) =~= previous_views.push(
+                            super::jpip_missing_view(additional@[missing_index as int])));
+                        assert(previous_views.push(super::jpip_missing_view(additional@[missing_index as int]))
+                            =~= previous_missing + super::jpip_missing_views(&additional).subrange(0, missing_index as int + 1));
+                    }
                     missing_index += 1;
+                }
+                #[cfg(verus_keep_ghost)]
+                proof! {
+                    assert(super::jpip_missing_views(&additional).subrange(0, additional.len() as int)
+                        =~= super::jpip_missing_views(&additional));
                 }
             }
             tile = tile
                 .checked_add(1)
                 .ok_or_else(|| DecodeError::malformed(0, MalformedKind::ArithmeticOverflow))?;
         }
+        #[cfg(verus_keep_ghost)]
+        proof! { reveal(crate::specs::part2_jpip_snapshot_gather); }
         if !header_missing.is_empty() {
+            #[cfg(verus_keep_ghost)]
+            proof! {
+                super::jpip_snapshot_headers_waiting(input, raw_main, tile_count, components,
+                    tile_headers@.map_values(|value: Vec<u8>| value@), super::jpip_missing_views(&header_missing));
+            }
             return Ok(AutomaticSnapshotResult {
                 ready: None,
                 missing: header_missing,
             });
         }
 
+        #[cfg(verus_keep_ghost)]
+        proof_decl! {
+            let ghost raw_tiles = tile_headers@.map_values(|value: Vec<u8>| value@);
+        }
+        #[cfg(verus_keep_ghost)]
+        proof! {
+            assert(super::jpip_missing_views(&header_missing) =~= Seq::<crate::specs::Part2JpipMissing>::empty());
+            assert forall|error: DecodeError|
+                crate::specs::part2_jpip_main_header_result(raw_main, Err(error))
+                implies crate::specs::part2_jpip_automatic_snapshot_result(input.cache,
+                    input.stream, input.selected, input.components, input.limits, Err(error)) by {
+                super::jpip_snapshot_main_normalization_error(input, raw_main, tile_count, components, raw_tiles, error);
+            }
+        }
         let normalized_main = normalize_main_header(&main)?;
+        #[cfg(verus_keep_ghost)]
+        proof_decl! {
+            let ghost main_calls = choose|calls: Seq<crate::specs::Part2JpipStorageEvent>|
+                crate::specs::part2_jpip_normalize_main_header(raw_main, calls) == Some(Ok(normalized_main@));
+            let ghost normalized_goal = crate::specs::part2_jpip_snapshot_normalize_tiles(raw_tiles, 0, Seq::empty());
+        }
+        #[cfg(verus_keep_ghost)]
+        proof! {
+            super::jpip_snapshot_normalization_continuation(input, raw_main, tile_count, components,
+                raw_tiles, normalized_main@, main_calls);
+            super::jpip_snapshot_normalized_continuation(input, raw_main, tile_count, components,
+                raw_tiles, normalized_main@, main_calls);
+        }
         let mut normalized_tiles = crate::allocation::empty_with_capacity(tile_headers.len())?;
+        #[cfg(verus_keep_ghost)]
+        proof! {
+            assert(normalized_tiles@.map_values(|parts: Vec<Vec<u8>>|
+                parts@.map_values(|header: Vec<u8>| header@)) =~= Seq::<Seq<Seq<u8>>>::empty());
+        }
         let mut tile_index = 0_usize;
         #[cfg_attr(
             verus_keep_ghost,
             verus_spec(
                 invariant tile_index <= tile_headers.len(),
+                    normalized_tiles.len() == tile_index,
+                    super::jpip_snapshot_inputs_match(input, self, codestream, selection, packet_selection, limits),
+                    raw_tiles == tile_headers@.map_values(|value: Vec<u8>| value@),
+                    forall|headers: Seq<Seq<Seq<u8>>>, tail: Seq<crate::specs::Part2JpipSnapshotEvent>|
+                        normalized_goal == Ok(headers) ==>
+                            crate::specs::part2_jpip_snapshot_run(input,
+                                crate::specs::part2_jpip_snapshot_normalized_events(
+                                    tile_count, raw_tiles.len() as usize, main_calls) + tail)
+                            == crate::specs::part2_jpip_snapshot_after_normalized(
+                                input, normalized_main@, raw_tiles, tile_count, components, headers, tail),
+                    normalized_goal == crate::specs::part2_jpip_snapshot_normalize_tiles(raw_tiles, tile_index as nat,
+                        normalized_tiles@.map_values(|parts: Vec<Vec<u8>>| parts@.map_values(|header: Vec<u8>| header@))),
+                    forall|error: DecodeError| normalized_goal == Err(error) ==>
+                        crate::specs::part2_jpip_automatic_snapshot_result(input.cache,
+                            input.stream, input.selected, input.components, input.limits, Err(error)),
                 decreases tile_headers.len() - tile_index,
             )
         )]
         while tile_index < tile_headers.len() {
+            #[cfg(verus_keep_ghost)]
+            proof! { reveal(crate::specs::part2_jpip_snapshot_normalize_tiles); }
+            #[cfg(verus_keep_ghost)]
+            proof_decl! { let ghost previous = normalized_tiles@.map_values(|parts: Vec<Vec<u8>>|
+            parts@.map_values(|header: Vec<u8>| header@)); }
             normalized_tiles.push(normalize_automatic_tile_headers(
                 tile_headers
                     .get(tile_index)
                     .ok_or_else(|| DecodeError::malformed(0, MalformedKind::ArithmeticOverflow))?,
-                u16::try_from(tile_index)
-                    .map_err(|_| DecodeError::malformed(0, MalformedKind::ArithmeticOverflow))?,
+                u16::try_from(tile_index).map_err(
+                    #[cfg_attr(verus_keep_ghost, verus_spec(result: DecodeError =>
+                            ensures result == crate::specs::part2_jpip_range_overflow(0),
+                        ))]
+                    |_error| DecodeError::malformed(0, MalformedKind::ArithmeticOverflow),
+                )?,
             )?);
+            #[cfg(verus_keep_ghost)]
+            proof! {
+                assert(normalized_tiles@.map_values(|parts: Vec<Vec<u8>>|
+                    parts@.map_values(|header: Vec<u8>| header@)) =~= previous.push(
+                        normalized_tiles@[tile_index as int]@.map_values(|header: Vec<u8>| header@)));
+            }
             tile_index += 1;
+        }
+        #[cfg(verus_keep_ghost)]
+        proof! { reveal(crate::specs::part2_jpip_snapshot_normalize_tiles); }
+        #[cfg(verus_keep_ghost)]
+        proof_decl! {
+            let ghost headers = normalized_tiles@.map_values(|parts: Vec<Vec<u8>>|
+                parts@.map_values(|header: Vec<u8>| header@));
+            let ghost normalized_bytes = normalized_main@;
+            let ghost prefix = crate::specs::part2_jpip_snapshot_normalized_events(
+                tile_count, raw_tiles.len() as usize, main_calls);
+        }
+        #[cfg(verus_keep_ghost)]
+        proof! {
+            assert(normalized_goal == Ok(headers));
+            assert forall|error: DecodeError|
+                crate::specs::part2_jpip_transition_template(normalized_bytes, headers, limits) == Err(error)
+                    implies crate::specs::part2_jpip_automatic_snapshot_result(input.cache,
+                        input.stream, input.selected, input.components, input.limits, Err(error)) by {
+                assert(prefix + Seq::empty() =~= prefix);
+                assert(crate::specs::part2_jpip_snapshot_run(input, prefix + Seq::empty())
+                    == crate::specs::part2_jpip_snapshot_after_normalized(input, normalized_bytes, raw_tiles,
+                        tile_count, components, headers, Seq::empty()));
+                super::jpip_snapshot_result_witness(input, prefix, Err(error));
+            }
         }
         let template =
             build_automatic_transition_template(&normalized_main, &normalized_tiles, limits)?;
@@ -414,6 +590,22 @@ impl DatabinCache {
             assert(crate::specs::part2_jpip_transition_template(normalized_main@,
                 normalized_tiles@.map_values(|tile: Vec<Vec<u8>>|
                     tile@.map_values(|header: Vec<u8>| header@)), limits) == Ok(template@));
+            assert(crate::specs::part2_jpip_transition_template(normalized_bytes, headers, input.limits) == Ok(template@));
+            assert forall|tail: Seq<crate::specs::Part2JpipSnapshotEvent>|
+                crate::specs::part2_jpip_snapshot_run(input, prefix + tail)
+                    == crate::specs::part2_jpip_snapshot_after_normalized(
+                        input, normalized_bytes, raw_tiles, tile_count, components, headers, tail) by {
+            }
+            assert(super::jpip_snapshot_inputs_match(input, self, codestream, selection, packet_selection, limits));
+            assert forall|error: DecodeError|
+                crate::codestream::complete_layout_outcome(Err(error))
+                    == crate::specs::part1_parse_layout(template@, limits)
+                implies crate::specs::part2_jpip_automatic_snapshot_result(jpip_cache_view(self),
+                    codestream, super::jpip_snapshot_selection_view(selection),
+                    super::jpip_packet_selection_view(packet_selection), limits, Err(error)) by {
+                super::jpip_snapshot_template_parse_error(input, prefix, normalized_bytes, raw_tiles,
+                    tile_count, components, headers, template@, error);
+            }
         }
         let layout = crate::codestream::parse_layout(&template, limits)?;
         let mut automatic_tiles = crate::allocation::empty_with_capacity(normalized_tiles.len())?;

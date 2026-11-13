@@ -883,15 +883,25 @@ pub(super) fn automatic_precinct_in_class(
     Ok(checked)
 }
 
+#[cfg_attr(verus_keep_ghost, verus_spec(result =>
+    ensures result == crate::specs::part2_jpip_snapshot_component_selection(
+        super::jpip_packet_selection_view(selection), components),
+))]
 pub(super) fn validate_packet_component_selection(
     selection: &JpipPacketSelection,
     components: u16,
 ) -> Result<(), DecodeError> {
+    #[cfg(verus_keep_ghost)]
+    proof! { reveal(super::jpip_packet_selection_view); }
     let mut index = 0_usize;
     #[cfg_attr(
         verus_keep_ghost,
         verus_spec(
             invariant index <= selection.components.len(),
+                forall|at: int| 0 <= at < index ==>
+                    selection.components@[at] < components
+                        && forall|previous: int| 0 <= previous < at ==>
+                            selection.components@[previous] != selection.components@[at],
             decreases selection.components.len() - index,
         )
     )]
@@ -902,7 +912,17 @@ pub(super) fn validate_packet_component_selection(
         #[cfg_attr(
             verus_keep_ghost,
             verus_spec(
-                invariant previous <= index,
+                invariant previous <= index, index < selection.components.len(),
+                    forall|at: int| 0 <= at < index ==>
+                        selection.components@[at] < components
+                            && forall|prior: int| 0 <= prior < at ==>
+                                selection.components@[prior] != selection.components@[at],
+                    component == selection.components@[index as int],
+                    !duplicate ==> forall|at: int| 0 <= at < previous ==>
+                        selection.components@[at] != component,
+                    duplicate ==> exists|at: int| 0 <= at < index
+                        && selection.components@[at] == component,
+                ensures duplicate || previous == index,
                 decreases index - previous,
             )
         )]
@@ -922,6 +942,19 @@ pub(super) fn validate_packet_component_selection(
             return Err(DecodeError::InvalidSelection {
                 reason: crate::SelectionError::EmptyComponentIntersection,
             });
+        }
+        #[cfg(verus_keep_ghost)]
+        proof! {
+            assert forall|at: int| 0 <= at <= index implies
+                selection.components@[at] < components
+                    && forall|prior: int| 0 <= prior < at ==>
+                        selection.components@[prior] != selection.components@[at] by {
+                if at == index {
+                    assert forall|prior: int| 0 <= prior < index implies
+                        selection.components@[prior] != selection.components@[index as int] by {
+                    }
+                }
+            }
         }
         index += 1;
     }
