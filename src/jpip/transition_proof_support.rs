@@ -1,5 +1,31 @@
 #[cfg(verus_keep_ghost)]
 verus! {
+    pub closed spec fn jpip_container_assembly_view(value: &JpipContainerAssembly)
+        -> crate::specs::Part2JpipContainerAssembly {
+        (value.status, jpip_missing_views(&value.missing), jpip_semantic_needs_view(&value.needs),
+            match value.container { None => None, Some(view) => Some(jpip_byte_view(&view)) })
+    }
+
+    pub open spec fn jpip_container_assembly_outcome(value: Result<JpipContainerAssembly, DecodeError>)
+        -> Result<crate::specs::Part2JpipContainerAssembly, DecodeError> {
+        match value { Err(error) => Err(error), Ok(value) => Ok(jpip_container_assembly_view(&value)) }
+    }
+
+    pub closed spec fn jpip_container_owner(value: &JpipContainerAssembly) -> &Option<JpipByteView> {
+        &value.container
+    }
+
+    pub closed spec fn jpip_container_borrow(value: &JpipContainerAssembly) -> Option<&JpipByteView> {
+        match &value.container { None => None, Some(bytes) => Some(bytes) }
+    }
+
+    pub open spec fn jpip_optional_container_value_view(value: Option<JpipByteView>) -> Option<Seq<u8>> {
+        match value { None => None, Some(bytes) => Some(jpip_byte_view(&bytes)) }
+    }
+
+    pub open spec fn jpip_optional_byte_borrow_view(value: Option<&JpipByteView>) -> Option<Seq<u8>> {
+        match value { None => None, Some(bytes) => Some(jpip_byte_view(bytes)) }
+    }
     pub closed spec fn jpip_transition_view(value: &JpipTilePartTransition) -> crate::specs::Part2JpipTransition {
         (value.tile, value.tile_part, value.packet_count, value.data_length, value.functional, value.header@)
     }

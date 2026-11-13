@@ -106,6 +106,19 @@ verus! {
     pub closed spec fn resource_layer_limit(limits: &ResourceLimits) -> u16 {
         limits.maximum_layers
     }
+
+    pub(crate) proof fn semantic_limit_value_equivalence()
+        ensures
+            forall|first: &ResourceLimits, second: &ResourceLimits|
+                #![trigger resource_input_byte_limit(first), resource_input_byte_limit(second)]
+                *first == *second ==> resource_input_byte_limit(first) == resource_input_byte_limit(second),
+            forall|first: &ResourceLimits, second: &ResourceLimits|
+                #![trigger resource_box_depth_limit(first), resource_box_depth_limit(second)]
+                *first == *second ==> resource_box_depth_limit(first) == resource_box_depth_limit(second),
+    {
+        reveal(resource_input_byte_limit);
+        reveal(resource_box_depth_limit);
+    }
 }
 
 impl ResourceLimits {

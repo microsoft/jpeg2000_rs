@@ -155,11 +155,26 @@ impl BoxHeader {
     }
 }
 
+#[cfg_attr(verus_keep_ghost, verus_verify)]
 impl<'a> BoxReader<'a> {
     pub fn new(input: &'a [u8], limits: &ResourceLimits) -> Result<Self, DecodeError> {
+        #[cfg(verus_keep_ghost)]
+        vstd::prelude::ensures(|result: Result<Self, DecodeError>| {
+            vstd::prelude::equal(
+                super::box_reader_outcome(result),
+                crate::specs::part2_box_reader_from_input(input.view(), *limits),
+            ) && match result {
+                Err(_) => true,
+                Ok(reader) => {
+                    vstd::prelude::equal(super::box_reader_input_reference(&reader), input)
+                }
+            }
+        });
         box_reader_from_input(input, limits)
     }
+}
 
+impl<'a> BoxReader<'a> {
     #[cfg_attr(verus_keep_ghost, verus_spec(result =>
         ensures result == super::box_reader_state(self).metadata_bytes,
     ))]

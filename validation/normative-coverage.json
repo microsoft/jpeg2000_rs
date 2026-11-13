@@ -14905,6 +14905,79 @@
         {"path": "src/recovery/tests.rs", "symbol": "reconstructed_recovery_refusal_limits_and_genuine_errors_preserve_recovery"},
         {"path": "src/decode/raw_typed_result_tests.rs", "symbol": "reconstructed_recovery_preserves_fractional_overshoot_before_typed_conversion"}
       ]
+    },
+    {
+      "id": "part9-complete-actual-recursive-semantic-container-result",
+      "topic": "Complete actual recursive semantic metadata/container assembly Result from physical cache bytes, accepted nine-field placeholder/raw box producers and automatic snapshot primitive events. All-depth/cycle/input/work/metadata/raw/parser/snapshot/writer/final inspection errors, missing/partial/available status, exact bytes, all four mutable active/output/missing/needs frames, counters, recursion-local payload restoration and immediate multi-stream global emission are retained. The public Result and assembly getter/borrow/owner wrappers are checked with no new caller/domain premises, supplied box/snapshot/image banks, native owner/evaluation/drop changes, trust or verifier-setting changes. Existing raw parser, flat reconstruction and automatic image APIs are reused unchanged. This completes the remaining #130 recursive public Result group within the existing environment/lifetime mode; allocation/policy qualification and standards claims remain separate.",
+      "implementation_refs": [
+        {"path": "src/jpip/reconstruction.rs", "symbol": "DatabinCache::assemble_semantic_container"},
+        {"path": "src/jpip/reconstruction.rs", "symbol": "DatabinCache::expand_metadata_bin"},
+        {"path": "src/jpip/reconstruction.rs", "symbol": "append_reconstructed_box"},
+        {"path": "src/jpip/reconstruction.rs", "symbol": "jpip_superbox"},
+        {"path": "src/jpip/byte_io.rs", "symbol": "write_u64_be"}
+      ],
+      "contract_refs": [
+        {"path": "src/jpip/reconstruction.rs", "symbol": "DatabinCache::expand_metadata_bin"}
+      ],
+      "spec_refs": [
+        {"path": "specs/jpip_layout.rs", "symbol": "part2_jpip_semantic_assembly_result"},
+        {"path": "specs/jpip_layout.rs", "symbol": "part2_jpip_semantic_assembly_run"},
+        {"path": "specs/jpip_layout.rs", "symbol": "part2_jpip_semantic_expand_result"},
+        {"path": "specs/jpip_layout.rs", "symbol": "part2_jpip_semantic_expand_trace"},
+        {"path": "specs/jpip_layout.rs", "symbol": "part2_jpip_semantic_expand_prefix"},
+        {"path": "specs/jpip_layout.rs", "symbol": "part2_jpip_semantic_expand"},
+        {"path": "specs/jpip_layout.rs", "symbol": "part2_jpip_semantic_boxes"},
+        {"path": "specs/jpip_layout.rs", "symbol": "part2_jpip_semantic_placeholder"},
+        {"path": "specs/jpip_layout.rs", "symbol": "part2_jpip_semantic_streams"},
+        {"path": "specs/jpip_layout.rs", "symbol": "part2_jpip_semantic_snapshot"},
+        {"path": "specs/jpip_layout.rs", "symbol": "part2_jpip_parse_placeholder"},
+        {"path": "specs/jpip_layout.rs", "symbol": "part2_jpip_append_reconstructed_box"},
+        {"path": "specs/jpip_layout.rs", "symbol": "part2_jpip_write_u64"},
+        {"path": "specs/jpip_snapshot_inputs.rs", "symbol": "part2_jpip_automatic_snapshot_result"},
+        {"path": "specs/jp2_box_reader.rs", "symbol": "part2_box_reader_from_input"},
+        {"path": "specs/jp2_box_reader.rs", "symbol": "part2_box_reader_next_ref"}
+      ],
+      "proof_refs": [
+        {"path": "src/jpip/reconstruction.rs", "symbol": "DatabinCache::assemble_semantic_container"},
+        {"path": "src/jpip/reconstruction.rs", "symbol": "DatabinCache::expand_metadata_bin"},
+        {"path": "src/jpip/reconstruction.rs", "symbol": "parse_jpip_placeholder"},
+        {"path": "src/jpip/reconstruction.rs", "symbol": "append_reconstructed_box"},
+        {"path": "src/jpip/reconstruction.rs", "symbol": "jpip_superbox"},
+        {"path": "src/jpip/byte_io.rs", "symbol": "write_u64_be"},
+        {"path": "src/jp2/box_reader.rs", "symbol": "BoxReader::new"},
+        {"path": "src/jp2/box_reader.rs", "symbol": "BoxReader::next_box_ref"},
+        {"path": "src/jp2/proof_support.rs", "symbol": "box_header_offset_view"},
+        {"path": "src/limits.rs", "symbol": "semantic_limit_value_equivalence"},
+        {"path": "src/jpip/progression.rs", "symbol": "DatabinCache::build_automatic_snapshot"},
+        {"path": "src/jp2/container.rs", "symbol": "parse_and_inspect"},
+        {"path": "src/jpip/mapping.rs", "symbol": "JpipContainerAssembly::status"},
+        {"path": "src/jpip/mapping.rs", "symbol": "JpipContainerAssembly::missing_ranges"},
+        {"path": "src/jpip/mapping.rs", "symbol": "JpipContainerAssembly::semantic_needs"},
+        {"path": "src/jpip/mapping.rs", "symbol": "JpipContainerAssembly::container"},
+        {"path": "src/jpip/mapping.rs", "symbol": "JpipContainerAssembly::into_container"},
+        {"path": "specs/jpip_layout.rs", "symbol": "part2_jpip_semantic_boxes_prefix"},
+        {"path": "specs/jpip_layout.rs", "symbol": "part2_jpip_semantic_box_bounds"},
+        {"path": "specs/jpip_layout.rs", "symbol": "part2_jpip_semantic_reader_frame"},
+        {"path": "specs/jpip_layout.rs", "symbol": "part2_jpip_semantic_placeholder_box_step"},
+        {"path": "specs/jpip_layout.rs", "symbol": "part2_jpip_semantic_original_error_prefix"},
+        {"path": "specs/jpip_layout.rs", "symbol": "part2_jpip_semantic_original_success_prefix"},
+        {"path": "specs/jpip_layout.rs", "symbol": "part2_jpip_semantic_equivalent_prefix"},
+        {"path": "specs/jpip_layout.rs", "symbol": "part2_jpip_semantic_metadata_error_lift"},
+        {"path": "specs/jpip_layout.rs", "symbol": "part2_jpip_semantic_stream_continuation"},
+        {"path": "specs/jpip_layout.rs", "symbol": "part2_jpip_semantic_stream_error_lift"},
+        {"path": "specs/jpip_layout.rs", "symbol": "part2_jpip_semantic_placeholder_advance"},
+        {"path": "specs/jpip_layout.rs", "symbol": "part2_jpip_semantic_placeholder_append_error"},
+        {"path": "specs/jpip_layout.rs", "symbol": "part2_jpip_semantic_expand_witness"},
+        {"path": "specs/jpip_layout.rs", "symbol": "part2_jpip_semantic_assembly_witness"},
+        {"path": "specs/jpip_layout.rs", "symbol": "part2_jpip_semantic_assembly_first_error"}
+      ],
+      "test_refs": [
+        {"path": "src/jpip/tests.rs", "symbol": "semantic_metadata_assembly_places_nested_boxes_and_codestreams"},
+        {"path": "src/jpip/tests.rs", "symbol": "semantic_equivalent_metadata_preserves_declared_representation"},
+        {"path": "src/jpip/tests.rs", "symbol": "semantic_original_metadata_precedes_available_equivalent_representation"},
+        {"path": "src/jpip/tests.rs", "symbol": "semantic_container_missing_cycle_depth_and_reader_errors_preserve_cache"},
+        {"path": "src/jpip/tests.rs", "symbol": "semantic_container_multistream_partial_output_and_reached_errors_keep_cache"}
+      ]
     }
   ]
 }

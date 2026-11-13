@@ -32,6 +32,13 @@ verus! {
         (header.box_type, header.offset, header.header_length, header.total_length)
     }
 
+    pub proof fn box_header_offset_view(header: BoxHeader)
+        ensures box_header_offset(header) == box_header_view(header).1,
+    {
+        reveal(box_header_offset);
+        reveal(box_header_view);
+    }
+
     pub open spec fn box_reference_view(value: BoxRef) -> crate::specs::Part2BoxReference {
         (box_header_view(value.header), value.payload@)
     }

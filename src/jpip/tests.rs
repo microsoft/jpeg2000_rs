@@ -2279,6 +2279,176 @@ fn semantic_metadata_assembly_places_nested_boxes_and_codestreams() {
 }
 
 #[test]
+fn semantic_container_missing_cycle_depth_and_reader_errors_preserve_cache() {
+    let limits = ResourceLimits::default();
+    let cache = DatabinCache::new(limits);
+    let missing = cache.assemble_semantic_container(0).unwrap();
+    assert_eq!(missing.status(), JpipAvailability::Missing);
+    assert_eq!(missing.semantic_needs().len(), 1);
+    assert_eq!(missing.semantic_needs()[0].identifier(), 0);
+    assert!(missing.into_container().is_none());
+
+    let cycle = metadata_placeholder(*b"jp2h", 8, 1, 0, None);
+    let mut cache = DatabinCache::new(limits);
+    cache.insert(fragment(id(8, 0), 0, &cycle, true)).unwrap();
+    assert_eq!(
+        cache.assemble_semantic_container(0).err().unwrap(),
+        DecodeError::MalformedInput {
+            offset: 0,
+            kind: MalformedKind::InvalidBoxContents,
+        }
+    );
+    assert_eq!(cache.databin_view(id(8, 0)).unwrap().as_bytes(), cycle);
+
+    let mut cache = DatabinCache::new(limits);
+    let maximum = limits.maximum_box_depth();
+    for bin in 0..=maximum {
+        let target = if bin == maximum {
+            0
+        } else {
+            u64::from(bin + 1)
+        };
+        let bytes = metadata_placeholder(*b"jp2h", 8, 1, target, None);
+        cache
+            .insert(fragment(id(8, u64::from(bin)), 0, &bytes, true))
+            .unwrap();
+    }
+    assert_eq!(
+        cache.assemble_semantic_container(0).err().unwrap(),
+        DecodeError::LimitExceeded {
+            resource: Resource::BoxDepth,
+            limit: u64::from(maximum),
+            actual: u64::from(maximum) + 1,
+        }
+    );
+
+    for (limits, root, expected) in [
+        (
+            limits,
+            Vec::new(),
+            crate::jp2::parse_and_inspect(&[], &limits).err().unwrap(),
+        ),
+        (
+            limits,
+            vec![0, 0, 0, 8, b'j'],
+            DecodeError::MalformedInput {
+                offset: 0,
+                kind: MalformedKind::Truncated,
+            },
+        ),
+        (
+            limits.with_maximum_work_units(1).unwrap(),
+            [box32(*b"free", &[]), box32(*b"free", &[])].concat(),
+            DecodeError::LimitExceeded {
+                resource: Resource::WorkUnits,
+                limit: 1,
+                actual: 2,
+            },
+        ),
+        (
+            limits.with_maximum_metadata_bytes(8).unwrap(),
+            [box32(*b"free", &[]), box32(*b"free", &[])].concat(),
+            DecodeError::LimitExceeded {
+                resource: Resource::MetadataBytes,
+                limit: 8,
+                actual: 16,
+            },
+        ),
+    ] {
+        let mut cache = DatabinCache::new(limits);
+        cache.insert(fragment(id(8, 0), 0, &root, true)).unwrap();
+        assert_eq!(
+            cache.assemble_semantic_container(0).err().unwrap(),
+            expected
+        );
+        assert_eq!(cache.databin_view(id(8, 0)).unwrap().as_bytes(), root);
+    }
+}
+
+#[test]
+fn semantic_container_multistream_partial_output_and_reached_errors_keep_cache() {
+    let mut root = metadata_placeholder(*b"jp2c", 8, 12, 0, Some(0));
+    root.extend_from_slice(&2_u32.to_be_bytes());
+    let length = u32::try_from(root.len()).unwrap();
+    root[..4].copy_from_slice(&length.to_be_bytes());
+    let mut cache = DatabinCache::new(ResourceLimits::default());
+    cache.insert(fragment(id(8, 0), 0, &root, true)).unwrap();
+    let missing = cache.assemble_semantic_container(0).unwrap();
+    assert_eq!(missing.status(), JpipAvailability::Missing);
+    assert_eq!(
+        missing
+            .semantic_needs()
+            .iter()
+            .map(JpipSemanticNeed::identifier)
+            .collect::<Vec<_>>(),
+        vec![0, 1]
+    );
+
+    let code = decodable_codestream();
+    let sot = code
+        .windows(2)
+        .position(|bytes| bytes == [0xff, 0x90])
+        .unwrap();
+    let packet = sot + 14;
+    for (databin, bytes) in [
+        (id(6, 0), &code[..sot]),
+        (id(2, 0), &code[sot..packet]),
+        (id(0, 0), &code[packet..packet + 1]),
+    ] {
+        cache.insert(fragment(databin, 0, bytes, true)).unwrap();
+    }
+    let partial = cache.assemble_semantic_container(0).unwrap();
+    assert_eq!(partial.status(), JpipAvailability::Partial);
+    assert!(partial.container().is_none());
+    assert_eq!(partial.semantic_needs().len(), 1);
+    assert_eq!(partial.semantic_needs()[0].identifier(), 1);
+    assert_eq!(
+        partial.semantic_needs()[0].kind(),
+        JpipSemanticNeedKind::Codestream
+    );
+    assert!(!partial.missing_ranges().is_empty());
+    assert_eq!(cache.databin_view(id(8, 0)).unwrap().as_bytes(), root);
+
+    let mut invalid = DatabinCache::new(ResourceLimits::default());
+    invalid.insert(fragment(id(8, 0), 0, &root, true)).unwrap();
+    invalid
+        .insert(fragment(id(6, 0), 0, &[0, 0], true))
+        .unwrap();
+    let expected = invalid
+        .build_automatic_snapshot(
+            0,
+            None,
+            &JpipPacketSelection::all_components(),
+            &ResourceLimits::default(),
+        )
+        .err()
+        .unwrap();
+    assert_eq!(
+        invalid.assemble_semantic_container(0).err().unwrap(),
+        expected
+    );
+    assert_eq!(invalid.databin_view(id(8, 0)).unwrap().as_bytes(), root);
+    assert_eq!(invalid.databin_view(id(6, 0)).unwrap().as_bytes(), [0, 0]);
+
+    let mut overflow = metadata_placeholder(*b"jp2c", 8, 12, 0, Some(u64::MAX));
+    overflow.extend_from_slice(&2_u32.to_be_bytes());
+    let length = u32::try_from(overflow.len()).unwrap();
+    overflow[..4].copy_from_slice(&length.to_be_bytes());
+    let mut cache = DatabinCache::new(ResourceLimits::default());
+    cache
+        .insert(fragment(id(8, 0), 0, &overflow, true))
+        .unwrap();
+    assert_eq!(
+        cache.assemble_semantic_container(0).err().unwrap(),
+        DecodeError::MalformedInput {
+            offset: 0,
+            kind: MalformedKind::ArithmeticOverflow,
+        }
+    );
+    assert_eq!(cache.databin_view(id(8, 0)).unwrap().as_bytes(), overflow);
+}
+
+#[test]
 fn sarah_optional_sod_complete_header_forms_normalize_identically() {
     for tile in [0_u16, 1, 255, 256, 65534] {
         for retained in [
@@ -2446,11 +2616,17 @@ fn semantic_equivalent_metadata_preserves_declared_representation() {
                 );
                 let actual = cache.assemble_semantic_container(0);
                 match actual {
-                    Ok(assembled) => assert_eq!(
-                        assembled.container().unwrap().as_bytes(),
-                        expected,
-                        "whole_header={whole_header} original_extended={original_extended} equivalent_extended={equivalent_extended}"
-                    ),
+                    Ok(assembled) => {
+                        let borrowed = assembled.container().unwrap().as_bytes();
+                        assert_eq!(
+                            borrowed, expected,
+                            "whole_header={whole_header} original_extended={original_extended} equivalent_extended={equivalent_extended}"
+                        );
+                        let pointer = borrowed.as_ptr();
+                        let owned = assembled.into_container().unwrap();
+                        assert_eq!(owned.as_bytes().as_ptr(), pointer);
+                        assert_eq!(owned.as_bytes(), expected);
+                    }
                     Err(error) => failures.push(format!(
                         "whole_header={whole_header} original_extended={original_extended} equivalent_extended={equivalent_extended}: {error:?}"
                     )),
