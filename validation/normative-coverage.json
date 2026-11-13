@@ -4,6 +4,47 @@
   "scope": "Technical reference inventory; not exhaustive standards-clause coverage or a conformance claim.",
   "requirements": [
     {
+      "id": "part9-complete-original-automatic-snapshot-result",
+      "topic": "Complete original native DatabinCache::build_automatic_snapshot Result from actual cache/codestream/selection/components/limits, including byte-exact success, ready-None, zero-ready, available/maximum layers, both missing collections and every reached error. Checked phase-error continuations, actual per-tile prefixes, response-linked reservation sites, full availability/missing folds, borrowed iterator/owned missing projections, accepted non-owning emission/PSOT frames and final EOC/limit/raw-layout tag joins prove the original predicate at the unchanged executing function. No supplied outputs, new caller/domain premise, old contract weakening or verifier/native ownership/evaluation changes. This completes the automatic snapshot producer only, not progressive image/public update or semantic-container follow-ons.",
+      "implementation_refs": [
+        {"path": "src/jpip/progression.rs", "symbol": "DatabinCache::build_automatic_snapshot"},
+        {"path": "src/jpip/progression.rs", "symbol": "JpipAutomaticProgressiveDecoder::update_inner"}
+      ],
+      "contract_refs": [
+        {"path": "src/jpip/progression.rs", "symbol": "DatabinCache::build_automatic_snapshot"}
+      ],
+      "spec_refs": [
+        {"path": "specs/jpip_snapshot_inputs.rs", "symbol": "part2_jpip_automatic_snapshot_result"},
+        {"path": "specs/jpip_snapshot_inputs.rs", "symbol": "part2_jpip_snapshot_run"},
+        {"path": "specs/jpip_snapshot_inputs.rs", "symbol": "part2_jpip_snapshot_tile"},
+        {"path": "specs/jpip_snapshot.rs", "symbol": "part2_jpip_snapshot_ready"},
+        {"path": "specs/jpip_snapshot.rs", "symbol": "part2_jpip_snapshot_available"},
+        {"path": "specs/jpip_snapshot.rs", "symbol": "part2_jpip_snapshot_missing"},
+        {"path": "specs/jpip_snapshot.rs", "symbol": "part2_jpip_snapshot_emit_tiles"},
+        {"path": "specs/jpip_byte_writes.rs", "symbol": "part2_jpip_template_finish"}
+      ],
+      "proof_refs": [
+        {"path": "src/jpip/progression.rs", "symbol": "DatabinCache::build_automatic_snapshot"},
+        {"path": "src/jpip/snapshot_header_proof_support.rs", "symbol": "jpip_snapshot_layout_capacity_error"},
+        {"path": "src/jpip/progression_proof_support.rs", "symbol": "jpip_automatic_snapshot_outcome"},
+        {"path": "src/jpip/progression_proof_support.rs", "symbol": "jpip_snapshot_root_ready_result"},
+        {"path": "src/jpip/progression_proof_support.rs", "symbol": "jpip_snapshot_root_emit_error"},
+        {"path": "src/jpip/progression_proof_support.rs", "symbol": "jpip_snapshot_tile_root_missing"},
+        {"path": "src/jpip/progression_proof_support.rs", "symbol": "jpip_missing_ref_projection"},
+        {"path": "src/jpip/progression_proof_support.rs", "symbol": "jpip_snapshot_layout_success_known"},
+        {"path": "src/jpip/progression_proof_support.rs", "symbol": "jpip_snapshot_mapping_capacity_error"},
+        {"path": "src/jpip/progression_proof_support.rs", "symbol": "jpip_snapshot_packet_capacity_error"},
+        {"path": "src/jpip/progression_proof_support.rs", "symbol": "jpip_snapshot_plan_errors"},
+        {"path": "src/jpip/progression_proof_support.rs", "symbol": "jpip_snapshot_iterator_errors"},
+        {"path": "src/jpip/progression_proof_support.rs", "symbol": "jpip_snapshot_order_errors"}
+      ],
+      "test_refs": [
+        {"path": "src/jpip/tests.rs", "symbol": "automatic_snapshot_complete_result_keeps_none_zero_prefix_and_final_bytes"},
+        {"path": "src/jpip/tests.rs", "symbol": "automatic_managed_allocation_refusals_preserve_state_and_recover_exact_images"},
+        {"path": "src/jpip/tests.rs", "symbol": "automatic_acquisition_precedes_resolution_errors_and_incomplete_truncation_continues"}
+      ]
+    },
+    {
       "id": "part9-original-actual-resolution-error-prefix",
       "topic": "Checked original part2_jpip_automatic_snapshot_result(actual cache/codestream/selection/component selection/limits,Err(the same reached resolution error)) at the unchanged actual guarded call. Actual coordinate projection and ordered databin fold, canonical scratch clone/cell/row/state frames, acquired packet state and original per-tile/global prefix continuations derive it from actual inputs and reached primitive capacity/header events, including earlier completed native tiles. Every helper premise is proved at the actual caller; no new domain/caller premise, supplied success bank, arbitrary codec error, native owner/evaluation/drop change or verifier setting. This proves only the reached resolution-error consequence: full public snapshot/progressive Results, emission/success/image/sample assembly and both overall #130 public groups remain open.",
       "implementation_refs": [

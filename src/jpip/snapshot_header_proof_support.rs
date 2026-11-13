@@ -1,5 +1,38 @@
 #[cfg(verus_keep_ghost)]
 verus! {
+    pub(crate) proof fn jpip_snapshot_layout_capacity_error(
+        input: crate::specs::Part2JpipSnapshotInput<'_>,
+        prefix: Seq<crate::specs::Part2JpipSnapshotEvent>, main: Seq<u8>, raw: Seq<Seq<u8>>,
+        count: u64, components: u16, headers: Seq<Seq<Seq<u8>>>, template: Seq<u8>,
+        layout: &crate::codestream::CodestreamLayout<'_>,
+    )
+        requires
+            forall|tail: Seq<crate::specs::Part2JpipSnapshotEvent>|
+                crate::specs::part2_jpip_snapshot_run(input, prefix + tail)
+                    == crate::specs::part2_jpip_snapshot_after_normalized(
+                        input, main, raw, count, components, headers, tail),
+            crate::specs::part2_jpip_transition_template(main, headers, input.limits) == Ok(template),
+            crate::codestream::complete_layout_outcome(Ok(*layout))
+                == crate::specs::part1_parse_layout(template, input.limits),
+        ensures crate::specs::part2_jpip_automatic_snapshot_result(input.cache, input.stream,
+            input.selected, input.components, input.limits, Err(DecodeError::AllocationFailed)),
+    {
+        crate::codestream::decoder_layout_main_info_matches_raw(layout);
+        let event = crate::specs::Part2JpipSnapshotEvent::Capacity {
+            site: 2, tile: 0, elements: headers.len() as usize, succeeded: false };
+        assert(seq![event].drop_first() =~= Seq::empty());
+        if let Ok(parsed) = crate::codestream::complete_layout_outcome(Ok(*layout)) {
+            assert(crate::specs::part1_parse_layout(template, input.limits) == Ok(parsed));
+            assert(crate::specs::part2_jpip_snapshot_after_normalized(
+                input, main, raw, count, components, headers, seq![event])
+                == Some((Err(DecodeError::AllocationFailed), Seq::empty())));
+        }
+        assert(crate::specs::part2_jpip_snapshot_run(input, prefix + seq![event])
+            == crate::specs::part2_jpip_snapshot_after_normalized(input, main, raw, count, components, headers, seq![event]));
+        assert(crate::specs::part2_jpip_snapshot_run(input, prefix + seq![event])
+            == Some((Err(DecodeError::AllocationFailed), Seq::empty())));
+        jpip_snapshot_result_witness(input, prefix + seq![event], Err(DecodeError::AllocationFailed));
+    }
     pub(crate) proof fn jpip_snapshot_layout_continuation(
         input: crate::specs::Part2JpipSnapshotInput<'_>,
         prefix: Seq<crate::specs::Part2JpipSnapshotEvent>, main: Seq<u8>, raw: Seq<Seq<u8>>,

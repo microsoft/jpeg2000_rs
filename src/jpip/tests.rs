@@ -1336,6 +1336,97 @@ fn automatic_resolution_selection_error_is_reachable_from_actual_cache_and_calle
 }
 
 #[test]
+fn automatic_snapshot_complete_result_keeps_none_zero_prefix_and_final_bytes() {
+    let code = decodable_codestream_with_layers(2);
+    let limits = ResourceLimits::default();
+    let sot = code
+        .windows(2)
+        .position(|value| value == [0xff, 0x90])
+        .unwrap();
+    let main = &code[..sot];
+    let mut first = code[sot..sot + 14].to_vec();
+    first[6..10].copy_from_slice(&15_u32.to_be_bytes());
+    first[11] = 2;
+    let mut second = first.clone();
+    second[10] = 1;
+    let headers = [first.clone(), second.clone()].concat();
+    let mut cache = DatabinCache::new(limits);
+    cache.insert(fragment(id(6, 0), 0, main, true)).unwrap();
+    cache.insert(fragment(id(2, 0), 0, &headers, true)).unwrap();
+    let selected = JpipPacketSelection::all_components();
+    let waiting = cache
+        .build_automatic_snapshot(0, None, &selected, &limits)
+        .unwrap();
+    assert!(waiting.ready.is_none());
+    assert_eq!(waiting.missing.len(), 1);
+    assert_eq!(
+        (
+            waiting.missing[0].databin(),
+            waiting.missing[0].offset(),
+            waiting.missing[0].length()
+        ),
+        (id(0, 0), 0, None)
+    );
+
+    cache.insert(fragment(id(0, 0), 0, &[0], false)).unwrap();
+    let prefix = cache
+        .build_automatic_snapshot(0, None, &selected, &limits)
+        .unwrap();
+    assert!(prefix.missing.is_empty());
+    let prefix = prefix.ready.unwrap();
+    assert_eq!((prefix.available_layers, prefix.layers), (1, 2));
+    assert_eq!(prefix.missing.len(), 1);
+    assert_eq!(
+        (
+            prefix.missing[0].databin(),
+            prefix.missing[0].offset(),
+            prefix.missing[0].length()
+        ),
+        (id(0, 0), 1, None)
+    );
+    let expected = [main, &first, &[0], &second, &[0], &EOC].concat();
+    assert_eq!(prefix.codestream.as_ref(), expected);
+    cache.insert(fragment(id(0, 0), 1, &[0], true)).unwrap();
+    let complete = cache
+        .build_automatic_snapshot(0, None, &selected, &limits)
+        .unwrap()
+        .ready
+        .unwrap();
+    assert_eq!((complete.available_layers, complete.layers), (2, 2));
+    assert!(complete.missing.is_empty());
+    assert_eq!(complete.codestream.as_ref(), expected);
+    assert_eq!(cache.databin_view(id(2, 0)).unwrap().as_ref(), headers);
+
+    let mut empty = DatabinCache::new(limits);
+    empty.insert(fragment(id(6, 0), 0, main, true)).unwrap();
+    empty.insert(fragment(id(2, 0), 0, &[], true)).unwrap();
+    let zero = empty
+        .build_automatic_snapshot(0, None, &selected, &limits)
+        .unwrap();
+    assert!(zero.missing.is_empty());
+    let zero = zero.ready.unwrap();
+    assert_eq!((zero.available_layers, zero.layers), (0, 2));
+    assert!(zero.codestream.as_ref().is_empty());
+    assert_eq!(zero.missing.len(), 1);
+    assert_eq!(
+        (
+            zero.missing[0].databin(),
+            zero.missing[0].offset(),
+            zero.missing[0].length()
+        ),
+        (id(0, 0), 0, None)
+    );
+    empty.insert(fragment(id(0, 0), 0, &[], true)).unwrap();
+    let zero = empty
+        .build_automatic_snapshot(0, None, &selected, &limits)
+        .unwrap()
+        .ready
+        .unwrap();
+    assert_eq!(zero.available_layers, 0);
+    assert_eq!(zero.missing[0].length(), Some(1));
+}
+
+#[test]
 fn automatic_resolution_error_after_completed_tile_preserves_actual_cache_prefix() {
     let bytes = two_tile_codestream();
     let limits = ResourceLimits::default();

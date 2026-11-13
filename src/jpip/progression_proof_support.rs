@@ -1,5 +1,363 @@
 #[cfg(verus_keep_ghost)]
 verus! {
+    pub(crate) proof fn jpip_snapshot_plan_errors(
+        root: crate::specs::Part2JpipSnapshotTileRoot<'_>, parts: Seq<crate::specs::Part2OwnedTilePart>,
+    )
+        requires crate::specs::part2_jpip_snapshot_tile_root(root), root.tile < root.headers.len(),
+            root.tile <= u16::MAX as nat, parts.len() != 0,
+            parts == root.layout.parts.filter(|part: crate::specs::Part2OwnedTilePart| part.tile_index == root.tile as u16),
+        ensures forall|error: DecodeError|
+            crate::specs::part2_progression_tile_plan_owned(&root.layout.size, parts[0].coding_style,
+                &parts[0].component_coding_styles, parts[0].component_quantizations, &parts[0].roi_shifts,
+                (root.tile as u16, 0), (false, 74, false), root.input.limits) == Err(error)
+            ==> crate::specs::part2_jpip_automatic_snapshot_result(root.input.cache, root.input.stream,
+                root.input.selected, root.input.components, root.input.limits, Err(error)),
+    {
+        assert forall|error: DecodeError|
+            crate::specs::part2_progression_tile_plan_owned(&root.layout.size, parts[0].coding_style,
+                &parts[0].component_coding_styles, parts[0].component_quantizations, &parts[0].roi_shifts,
+                (root.tile as u16, 0), (false, 74, false), root.input.limits) == Err(error)
+            implies crate::specs::part2_jpip_automatic_snapshot_result(root.input.cache, root.input.stream,
+                root.input.selected, root.input.components, root.input.limits, Err(error)) by {
+            jpip_snapshot_plan_error(root, parts, error);
+        }
+    }
+
+    pub(crate) proof fn jpip_snapshot_iterator_errors(
+        root: crate::specs::Part2JpipSnapshotTileRoot<'_>, parts: Seq<crate::specs::Part2OwnedTilePart>,
+        plan: crate::specs::Part2ProgressionTilePlan,
+    )
+        requires crate::specs::part2_jpip_snapshot_tile_root(root), root.tile < root.headers.len(),
+            root.tile <= u16::MAX as nat, parts.len() != 0,
+            parts == root.layout.parts.filter(|part: crate::specs::Part2OwnedTilePart| part.tile_index == root.tile as u16),
+            crate::specs::part2_progression_tile_plan_owned(&root.layout.size, parts[0].coding_style,
+                &parts[0].component_coding_styles, parts[0].component_quantizations, &parts[0].roi_shifts,
+                (root.tile as u16, 0), (false, 74, false), root.input.limits) == Ok(plan),
+        ensures forall|error: DecodeError|
+            crate::specs::part1_progression_iterator_initial(plan.grid, parts[0].coding_style.progression_order,
+                parts[0].progression_changes, crate::limits::resource_work_limit(root.input.limits)) == Err(error)
+            ==> crate::specs::part2_jpip_automatic_snapshot_result(root.input.cache, root.input.stream,
+                root.input.selected, root.input.components, root.input.limits, Err(error)),
+    {
+        assert forall|error: DecodeError|
+            crate::specs::part1_progression_iterator_initial(plan.grid, parts[0].coding_style.progression_order,
+                parts[0].progression_changes, crate::limits::resource_work_limit(root.input.limits)) == Err(error)
+            implies crate::specs::part2_jpip_automatic_snapshot_result(root.input.cache, root.input.stream,
+                root.input.selected, root.input.components, root.input.limits, Err(error)) by {
+            jpip_snapshot_iterator_error(root, parts, plan, error);
+        }
+    }
+
+    pub(crate) proof fn jpip_snapshot_order_errors(
+        root: crate::specs::Part2JpipSnapshotTileRoot<'_>, parts: Seq<crate::specs::Part2OwnedTilePart>,
+        plan: crate::specs::Part2ProgressionTilePlan, iterator: crate::specs::Part1ProgressionPacketIterator,
+    )
+        requires crate::specs::part2_jpip_snapshot_tile_root(root), root.tile < root.headers.len(),
+            root.tile <= u16::MAX as nat, parts.len() != 0,
+            parts == root.layout.parts.filter(|part: crate::specs::Part2OwnedTilePart| part.tile_index == root.tile as u16),
+            crate::specs::part2_progression_tile_plan_owned(&root.layout.size, parts[0].coding_style,
+                &parts[0].component_coding_styles, parts[0].component_quantizations, &parts[0].roi_shifts,
+                (root.tile as u16, 0), (false, 74, false), root.input.limits) == Ok(plan),
+            crate::specs::part1_progression_iterator_initial(plan.grid, parts[0].coding_style.progression_order,
+                parts[0].progression_changes, crate::limits::resource_work_limit(root.input.limits)) == Ok(iterator),
+        ensures forall|error: DecodeError|
+            crate::specs::part2_jpip_snapshot_order(iterator, crate::limits::resource_work_limit(root.input.limits), 0,
+                Seq::new(plan.precincts.len(), |_row: int| Seq::new(parts[0].coding_style.layers as nat, |_layer: int| None::<u16>)),
+                Seq::empty()) == Err(error)
+            ==> crate::specs::part2_jpip_automatic_snapshot_result(root.input.cache, root.input.stream,
+                root.input.selected, root.input.components, root.input.limits, Err(error)),
+    {
+        assert forall|error: DecodeError|
+            crate::specs::part2_jpip_snapshot_order(iterator, crate::limits::resource_work_limit(root.input.limits), 0,
+                Seq::new(plan.precincts.len(), |_row: int| Seq::new(parts[0].coding_style.layers as nat, |_layer: int| None::<u16>)),
+                Seq::empty()) == Err(error)
+            implies crate::specs::part2_jpip_automatic_snapshot_result(root.input.cache, root.input.stream,
+                root.input.selected, root.input.components, root.input.limits, Err(error)) by {
+            jpip_snapshot_order_error(root, parts, plan, iterator, error);
+        }
+    }
+    pub(crate) proof fn jpip_missing_ref_projection(
+        values: Seq<JpipMissingRange>, projected: Seq<crate::specs::Part2JpipMissing>,
+        id: crate::specs::Part2JpipDatabin,
+    )
+        requires projected == values.map_values(|entry: JpipMissingRange| jpip_missing_view(entry)),
+        ensures
+            (exists|index: int| 0 <= index < values.as_ref().len()
+                && crate::specs::part2_jpip_identity(jpip_missing_view(*values.as_ref()[index]).0, id))
+            <==> (exists|index: int| 0 <= index < projected.len()
+                && crate::specs::part2_jpip_identity(projected[index].0, id)),
+    {
+        assert forall|index: int| 0 <= index < values.len()
+            implies jpip_missing_view(*#[trigger] values.as_ref()[index]) == projected[index] by {
+            values.lemma_as_ref_index(index);
+        }
+        assert(values.as_ref().len() == projected.len());
+        if exists|index: int| 0 <= index < values.as_ref().len()
+            && crate::specs::part2_jpip_identity(jpip_missing_view(*values.as_ref()[index]).0, id) {
+            let index = choose|index: int| 0 <= index < values.as_ref().len()
+                && crate::specs::part2_jpip_identity(jpip_missing_view(*values.as_ref()[index]).0, id);
+            values.lemma_as_ref_index(index);
+            assert(crate::specs::part2_jpip_identity(projected[index].0, id));
+        }
+        if exists|index: int| 0 <= index < projected.len()
+            && crate::specs::part2_jpip_identity(projected[index].0, id) {
+            let index = choose|index: int| 0 <= index < projected.len()
+                && crate::specs::part2_jpip_identity(projected[index].0, id);
+            values.lemma_as_ref_index(index);
+            assert(crate::specs::part2_jpip_identity(jpip_missing_view(*values.as_ref()[index]).0, id));
+        }
+    }
+    pub(crate) proof fn jpip_snapshot_packet_error(
+        root: crate::specs::Part2JpipSnapshotTileRoot<'_>, parts: Seq<crate::specs::Part2OwnedTilePart>,
+        transitions: Seq<crate::specs::Part2JpipTransition>, databins: Seq<crate::specs::Part2JpipDatabin>,
+        order: crate::specs::Part2JpipSnapshotOrder, initial: crate::specs::Part2JpipSnapshotPacketState,
+        final_state: crate::specs::Part2JpipSnapshotPacketState,
+        capacity: crate::specs::Part2JpipSnapshotEvent, error: DecodeError,
+    )
+        requires crate::specs::part2_jpip_snapshot_tile_root(root), root.tile < root.headers.len(), parts.len() != 0,
+            root.tile <= u16::MAX as nat,
+            jpip_snapshot_tile_acquisition_known(root, parts, transitions, databins, order, initial, capacity),
+            crate::specs::part2_jpip_snapshot_parse_packets(root.input, parts, transitions, databins, order, 0, initial) == Ok(final_state),
+            crate::specs::part2_jpip_snapshot_make_packets(root.input, root.tile as u16, parts[0].component_coding_styles,
+                order, databins, final_state, 0, Seq::empty()) == Err(error),
+        ensures crate::specs::part2_jpip_automatic_snapshot_result(root.input.cache, root.input.stream,
+            root.input.selected, root.input.components, root.input.limits, Err(error)),
+    {
+        let accepted = crate::specs::Part2JpipSnapshotEvent::Capacity {
+            site: 4, tile: root.tile as usize, elements: order.len() as usize, succeeded: true };
+        assert(seq![accepted].drop_first() =~= Seq::empty());
+        reveal(jpip_snapshot_tile_acquisition_known);
+        assert(seq![capacity, accepted] =~= seq![capacity] + seq![accepted]);
+        assert(crate::specs::part2_jpip_snapshot_acquired_packets(root.input, parts, transitions, databins,
+            order, initial, root.tile as usize, parts[0].component_coding_styles, seq![accepted])
+            == Some((Err(error), Seq::empty())));
+        jpip_snapshot_tile_root_error(root, seq![capacity, accepted], error);
+    }
+    pub(crate) proof fn jpip_snapshot_mapping_capacity_error(
+        root: crate::specs::Part2JpipSnapshotTileRoot<'_>, parts: Seq<crate::specs::Part2OwnedTilePart>,
+        plan: crate::specs::Part2ProgressionTilePlan, iterator: crate::specs::Part1ProgressionPacketIterator,
+        order: crate::specs::Part2JpipSnapshotOrder,
+    )
+        requires crate::specs::part2_jpip_snapshot_tile_root(root), root.tile < root.headers.len(),
+            jpip_snapshot_plan_order_known(root, parts, plan, iterator, order),
+        ensures crate::specs::part2_jpip_automatic_snapshot_result(root.input.cache, root.input.stream,
+            root.input.selected, root.input.components, root.input.limits, Err(DecodeError::AllocationFailed)),
+    {
+        let events = seq![crate::specs::Part2JpipSnapshotEvent::Capacity {
+            site: 3, tile: root.tile as usize, elements: plan.precincts.len() as usize, succeeded: false }];
+        assert(events.drop_first() =~= Seq::empty());
+        jpip_snapshot_tile_root_error(root, events, DecodeError::AllocationFailed);
+    }
+
+    pub(crate) proof fn jpip_snapshot_packet_capacity_error(
+        root: crate::specs::Part2JpipSnapshotTileRoot<'_>, parts: Seq<crate::specs::Part2OwnedTilePart>,
+        transitions: Seq<crate::specs::Part2JpipTransition>, databins: Seq<crate::specs::Part2JpipDatabin>,
+        order: crate::specs::Part2JpipSnapshotOrder, initial: crate::specs::Part2JpipSnapshotPacketState,
+        final_state: crate::specs::Part2JpipSnapshotPacketState,
+        capacity: crate::specs::Part2JpipSnapshotEvent,
+    )
+        requires crate::specs::part2_jpip_snapshot_tile_root(root), root.tile < root.headers.len(),
+            jpip_snapshot_tile_acquisition_known(root, parts, transitions, databins, order, initial, capacity),
+            crate::specs::part2_jpip_snapshot_parse_packets(root.input, parts, transitions, databins, order, 0, initial) == Ok(final_state),
+        ensures crate::specs::part2_jpip_automatic_snapshot_result(root.input.cache, root.input.stream,
+            root.input.selected, root.input.components, root.input.limits, Err(DecodeError::AllocationFailed)),
+    {
+        let refused = crate::specs::Part2JpipSnapshotEvent::Capacity {
+            site: 4, tile: root.tile as usize, elements: order.len() as usize, succeeded: false };
+        assert(seq![refused].drop_first() =~= Seq::empty());
+        reveal(jpip_snapshot_tile_acquisition_known);
+        assert(seq![capacity, refused] =~= seq![capacity] + seq![refused]);
+        assert(crate::specs::part2_jpip_snapshot_acquired_packets(root.input, parts, transitions, databins,
+            order, initial, root.tile as usize, parts[0].component_coding_styles, seq![refused])
+            == Some((Err(DecodeError::AllocationFailed), Seq::empty())));
+        jpip_snapshot_tile_root_error(root, seq![capacity, refused], DecodeError::AllocationFailed);
+    }
+    pub(crate) proof fn jpip_snapshot_plan_error(
+        root: crate::specs::Part2JpipSnapshotTileRoot<'_>, parts: Seq<crate::specs::Part2OwnedTilePart>, error: DecodeError,
+    )
+        requires crate::specs::part2_jpip_snapshot_tile_root(root), root.tile < root.headers.len(),
+            root.tile <= u16::MAX as nat, parts.len() != 0,
+            parts == root.layout.parts.filter(|part: crate::specs::Part2OwnedTilePart| part.tile_index == root.tile as u16),
+            crate::specs::part2_progression_tile_plan_owned(&root.layout.size, parts[0].coding_style,
+                &parts[0].component_coding_styles, parts[0].component_quantizations, &parts[0].roi_shifts,
+                (root.tile as u16, 0), (false, 74, false), root.input.limits) == Err(error),
+        ensures crate::specs::part2_jpip_automatic_snapshot_result(root.input.cache, root.input.stream,
+            root.input.selected, root.input.components, root.input.limits, Err(error)),
+    {
+        jpip_snapshot_tile_root_error(root, Seq::empty(), error);
+    }
+
+    pub(crate) proof fn jpip_snapshot_iterator_error(
+        root: crate::specs::Part2JpipSnapshotTileRoot<'_>, parts: Seq<crate::specs::Part2OwnedTilePart>,
+        plan: crate::specs::Part2ProgressionTilePlan, error: DecodeError,
+    )
+        requires crate::specs::part2_jpip_snapshot_tile_root(root), root.tile < root.headers.len(),
+            root.tile <= u16::MAX as nat, parts.len() != 0,
+            parts == root.layout.parts.filter(|part: crate::specs::Part2OwnedTilePart| part.tile_index == root.tile as u16),
+            crate::specs::part2_progression_tile_plan_owned(&root.layout.size, parts[0].coding_style,
+                &parts[0].component_coding_styles, parts[0].component_quantizations, &parts[0].roi_shifts,
+                (root.tile as u16, 0), (false, 74, false), root.input.limits) == Ok(plan),
+            crate::specs::part1_progression_iterator_initial(plan.grid, parts[0].coding_style.progression_order,
+                parts[0].progression_changes, crate::limits::resource_work_limit(root.input.limits)) == Err(error),
+        ensures crate::specs::part2_jpip_automatic_snapshot_result(root.input.cache, root.input.stream,
+            root.input.selected, root.input.components, root.input.limits, Err(error)),
+    {
+        jpip_snapshot_tile_root_error(root, Seq::empty(), error);
+    }
+
+    pub(crate) proof fn jpip_snapshot_order_error(
+        root: crate::specs::Part2JpipSnapshotTileRoot<'_>, parts: Seq<crate::specs::Part2OwnedTilePart>,
+        plan: crate::specs::Part2ProgressionTilePlan, iterator: crate::specs::Part1ProgressionPacketIterator,
+        error: DecodeError,
+    )
+        requires crate::specs::part2_jpip_snapshot_tile_root(root), root.tile < root.headers.len(),
+            root.tile <= u16::MAX as nat, parts.len() != 0,
+            parts == root.layout.parts.filter(|part: crate::specs::Part2OwnedTilePart| part.tile_index == root.tile as u16),
+            crate::specs::part2_progression_tile_plan_owned(&root.layout.size, parts[0].coding_style,
+                &parts[0].component_coding_styles, parts[0].component_quantizations, &parts[0].roi_shifts,
+                (root.tile as u16, 0), (false, 74, false), root.input.limits) == Ok(plan),
+            crate::specs::part1_progression_iterator_initial(plan.grid, parts[0].coding_style.progression_order,
+                parts[0].progression_changes, crate::limits::resource_work_limit(root.input.limits)) == Ok(iterator),
+            crate::specs::part2_jpip_snapshot_order(iterator, crate::limits::resource_work_limit(root.input.limits), 0,
+                Seq::new(plan.precincts.len(), |_row: int| Seq::new(parts[0].coding_style.layers as nat, |_layer: int| None::<u16>)),
+                Seq::empty()) == Err(error),
+        ensures crate::specs::part2_jpip_automatic_snapshot_result(root.input.cache, root.input.stream,
+            root.input.selected, root.input.components, root.input.limits, Err(error)),
+    {
+        jpip_snapshot_tile_root_error(root, Seq::empty(), error);
+    }
+
+    pub(crate) proof fn jpip_snapshot_mapping_error(
+        root: crate::specs::Part2JpipSnapshotTileRoot<'_>, parts: Seq<crate::specs::Part2OwnedTilePart>,
+        plan: crate::specs::Part2ProgressionTilePlan, iterator: crate::specs::Part1ProgressionPacketIterator,
+        order: crate::specs::Part2JpipSnapshotOrder, error: DecodeError,
+    )
+        requires crate::specs::part2_jpip_snapshot_tile_root(root), root.tile < root.headers.len(),
+            jpip_snapshot_plan_order_known(root, parts, plan, iterator, order),
+            crate::specs::part2_jpip_snapshot_databins(root.input, root.count, root.components,
+                root.tile as usize, plan, 0, Seq::empty()) == Err(error),
+        ensures crate::specs::part2_jpip_automatic_snapshot_result(root.input.cache, root.input.stream,
+            root.input.selected, root.input.components, root.input.limits, Err(error)),
+    {
+        let events = seq![crate::specs::Part2JpipSnapshotEvent::Capacity {
+            site: 3, tile: root.tile as usize, elements: plan.precincts.len() as usize, succeeded: true }];
+        assert(events.drop_first() =~= Seq::empty());
+        jpip_snapshot_tile_root_error(root, events, error);
+    }
+
+    pub(crate) proof fn jpip_snapshot_acquisition_error(
+        root: crate::specs::Part2JpipSnapshotTileRoot<'_>, parts: Seq<crate::specs::Part2OwnedTilePart>,
+        transitions: Seq<crate::specs::Part2JpipTransition>, databins: Seq<crate::specs::Part2JpipDatabin>,
+        order: crate::specs::Part2JpipSnapshotOrder, initial: crate::specs::Part2JpipSnapshotPacketState,
+        capacity: crate::specs::Part2JpipSnapshotEvent, error: DecodeError,
+    )
+        requires crate::specs::part2_jpip_snapshot_tile_root(root), root.tile < root.headers.len(),
+            jpip_snapshot_tile_acquisition_known(root, parts, transitions, databins, order, initial, capacity),
+            crate::specs::part2_jpip_snapshot_parse_packets(root.input, parts, transitions, databins, order, 0, initial) == Err(error),
+        ensures crate::specs::part2_jpip_automatic_snapshot_result(root.input.cache, root.input.stream,
+            root.input.selected, root.input.components, root.input.limits, Err(error)),
+    {
+        reveal(jpip_snapshot_tile_acquisition_known);
+        assert(seq![capacity] =~= seq![capacity] + Seq::<crate::specs::Part2JpipSnapshotEvent>::empty());
+        assert(crate::specs::part2_jpip_snapshot_acquired_packets(root.input, parts, transitions, databins,
+            order, initial, root.tile as usize, parts[0].component_coding_styles, Seq::empty())
+            == Some((Err(error), Seq::empty())));
+        assert(crate::specs::part2_jpip_snapshot_tile(root.input, root.count, root.components, root.tile as usize,
+            root.layout, root.raw, root.headers, seq![capacity]) == Some((Err(error), Seq::empty())));
+        jpip_snapshot_tile_root_error(root, seq![capacity], error);
+    }
+    pub(crate) proof fn jpip_snapshot_root_emit_error(
+        root: crate::specs::Part2JpipSnapshotTileRoot<'_>, available: u16, error: DecodeError,
+    )
+        requires crate::specs::part2_jpip_snapshot_tile_root(root), root.tile >= root.headers.len(),
+            crate::specs::part2_jpip_snapshot_available(root.before, 0, 0, 0, root.maximum) == available,
+            available > 0,
+            crate::specs::part2_jpip_snapshot_emit_tiles(root.before, available, 0, root.main) == Err(error),
+        ensures crate::specs::part2_jpip_automatic_snapshot_result(root.input.cache, root.input.stream,
+            root.input.selected, root.input.components, root.input.limits, Err(error)),
+    {
+        jpip_snapshot_root_ready_result(root, Err(error));
+    }
+    pub(crate) proof fn jpip_snapshot_tile_root_missing(
+        root: crate::specs::Part2JpipSnapshotTileRoot<'_>,
+        events: Seq<crate::specs::Part2JpipSnapshotEvent>,
+        packets: Seq<crate::specs::Part2JpipAutomaticPacket>, layers: u16,
+        missing: Seq<crate::specs::Part2JpipMissing>,
+    )
+        requires crate::specs::part2_jpip_snapshot_tile_root(root), root.tile < root.headers.len(),
+            crate::specs::part2_jpip_snapshot_tile(root.input, root.count, root.components, root.tile as usize,
+                root.layout, root.raw, root.headers, events) == Some((Ok((None, packets, layers)), Seq::empty())),
+            missing == crate::specs::part2_jpip_snapshot_partition_missing(root.input.cache, packets, 0, Seq::empty()),
+        ensures crate::specs::part2_jpip_automatic_snapshot_result(root.input.cache, root.input.stream,
+            root.input.selected, root.input.components, root.input.limits, Ok((None, missing))),
+    {
+        reveal(crate::specs::part2_jpip_snapshot_tile_root);
+        reveal(crate::specs::part2_jpip_snapshot_tiles);
+        assert(root.events + events + Seq::empty() =~= root.events + events);
+        assert(crate::specs::part2_jpip_snapshot_run(root.input, root.events + events)
+            == crate::specs::part2_jpip_snapshot_tiles(root.input, root.count, root.components, root.main,
+                root.raw, root.headers, root.layout, root.tile, root.before, root.maximum, events));
+        assert(crate::specs::part2_jpip_snapshot_run(root.input, root.events + events)
+            == Some((Ok((None, missing)), Seq::empty())));
+        jpip_snapshot_result_witness(root.input, root.events + events, Ok((None, missing)));
+    }
+    pub(crate) open spec fn jpip_snapshot_ready_context(
+        root: crate::specs::Part2JpipSnapshotTileRoot<'_>, input: crate::specs::Part2JpipSnapshotInput<'_>,
+        tiles: crate::specs::Part2JpipAutomaticTiles, main: Seq<u8>, maximum: u16,
+    ) -> bool {
+        crate::specs::part2_jpip_snapshot_tile_root(root) && root.tile >= root.headers.len()
+            && root.input == input && root.before == tiles && root.main == main && root.maximum == maximum
+    }
+    pub(crate) closed spec fn jpip_automatic_snapshot_view(value: &AutomaticSnapshot)
+        -> crate::specs::Part2JpipAutomaticSnapshot {
+        (jpip_byte_view(&value.codestream), value.available_layers, value.layers,
+            jpip_missing_views(&value.missing))
+    }
+
+    pub(crate) closed spec fn jpip_automatic_snapshot_result_view(value: &AutomaticSnapshotResult)
+        -> crate::specs::Part2JpipAutomaticSnapshotResult {
+        (match value.ready { None => None, Some(snapshot) => Some(jpip_automatic_snapshot_view(&snapshot)) },
+            jpip_missing_views(&value.missing))
+    }
+
+    pub(crate) open spec fn jpip_automatic_snapshot_outcome(value: Result<AutomaticSnapshotResult, DecodeError>)
+        -> Result<crate::specs::Part2JpipAutomaticSnapshotResult, DecodeError> {
+        match value { Err(error) => Err(error), Ok(snapshot) => Ok(jpip_automatic_snapshot_result_view(&snapshot)) }
+    }
+
+    pub(crate) proof fn jpip_snapshot_root_ready_result(
+        root: crate::specs::Part2JpipSnapshotTileRoot<'_>,
+        result: Result<crate::specs::Part2JpipAutomaticSnapshotResult, DecodeError>,
+    )
+        requires crate::specs::part2_jpip_snapshot_tile_root(root), root.tile >= root.headers.len(),
+            crate::specs::part2_jpip_snapshot_ready(root.input.cache, root.before, root.main,
+                root.maximum, root.input.limits) == result,
+        ensures crate::specs::part2_jpip_automatic_snapshot_result(root.input.cache, root.input.stream,
+            root.input.selected, root.input.components, root.input.limits, result),
+    {
+        reveal(crate::specs::part2_jpip_snapshot_tile_root);
+        reveal(crate::specs::part2_jpip_snapshot_tiles);
+        assert(root.events + Seq::empty() =~= root.events);
+        assert(crate::specs::part2_jpip_snapshot_run(root.input, root.events + Seq::empty())
+            == crate::specs::part2_jpip_snapshot_tiles(root.input, root.count, root.components, root.main,
+                root.raw, root.headers, root.layout, root.tile, root.before, root.maximum, Seq::empty()));
+        assert(crate::specs::part2_jpip_snapshot_tiles(root.input, root.count, root.components, root.main,
+            root.raw, root.headers, root.layout, root.tile, root.before, root.maximum, Seq::empty())
+            == Some((result, Seq::empty())));
+        assert(crate::specs::part2_jpip_snapshot_run(root.input, root.events)
+            == Some((result, Seq::empty())));
+        jpip_snapshot_result_witness(root.input, root.events, result);
+    }
+
+    pub(crate) proof fn jpip_snapshot_layout_success_known<'a>()
+        ensures forall|layout: crate::codestream::CodestreamLayout<'a>|
+            #[trigger] crate::codestream::complete_layout_outcome(Ok(layout)).is_ok(),
+    {
+        assert forall|layout: crate::codestream::CodestreamLayout<'a>|
+            crate::codestream::complete_layout_outcome(Ok(layout)).is_ok() by {
+            crate::codestream::decoder_layout_main_info_matches_raw(&layout);
+        }
+    }
     pub(crate) proof fn jpip_none_clone<T: Clone>(value: Option<T>)
         requires vstd::pervasive::cloned(None::<T>, value),
         ensures value.is_none(),
@@ -20,11 +378,19 @@ verus! {
             vstd::pervasive::cloned(before, after)
                 && (forall|index: int| 0 <= index < before@.len() ==> #[trigger] before@[index].is_none())
             implies after@ == Seq::new(before@.len(), |_index: int| None::<T>) by {
+            assert(after@.len() == before@.len());
             assert forall|index: int| 0 <= index < after@.len()
                 implies #[trigger] after@[index].is_none() by {
+                assert(before@[index].is_none());
+                assert(vstd::pervasive::cloned(before@[index], after@[index]));
                 jpip_none_clone(after@[index]);
             }
-            assert(after@ =~= Seq::new(before@.len(), |_index: int| None::<T>));
+            let expected = Seq::new(before@.len(), |_index: int| None::<T>);
+            assert forall|index: int| 0 <= index < after@.len()
+                implies #[trigger] after@[index] == expected[index] by {
+                assert(after@[index] == None::<T>);
+            }
+            assert(after@ =~= expected);
         }
     }
     pub(crate) open spec fn jpip_snapshot_root_frame(

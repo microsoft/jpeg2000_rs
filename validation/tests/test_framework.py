@@ -901,6 +901,69 @@ class FrameworkTests(WorkingFiles):
         self._assert_complete_packet_contract_bindings(
             {framework._JPIP_GLOBAL_ERROR_ENTRY}, framework._JPIP_GLOBAL_ERROR_CONTRACTS, 2, isolate=False)
 
+    def test_inventory_full_snapshot_requires_complete_original_result_and_actual_arguments(self):
+        coverage = json.loads((framework.VALIDATION / "normative-coverage.json").read_text())
+        coverage["requirements"] = [
+            item for item in coverage["requirements"] if item["id"] == framework._JPIP_FULL_SNAPSHOT_ENTRY
+        ]
+        self.assertEqual(len(coverage["requirements"]), 1)
+        framework.validate_normative_coverage(coverage)
+        source = framework.ROOT / "src/jpip/progression.rs"
+        original = source.read_text()
+        header = framework._coverage_function_header(original, "DatabinCache::build_automatic_snapshot")
+        start = original.rfind("#[cfg_attr", 0, header.start())
+        contract = original[start:header.start()]
+        read_text = Path.read_text
+        for before, after in (
+            ("ensures crate::specs::part2_jpip_automatic_snapshot_result",
+             "ensures result.is_ok() ==> crate::specs::part2_jpip_automatic_snapshot_result"),
+            ("jpip_cache_view(self)", "jpip_cache_view(other)"),
+            ("codestream,", "other_stream,"),
+            ("super::jpip_snapshot_selection_view(selection)", "None"),
+            ("super::jpip_packet_selection_view(packet_selection)", "Seq::empty()"),
+            ("limits, super::jpip_automatic_snapshot_outcome(result)", "other_limits, super::jpip_automatic_snapshot_outcome(result)"),
+            ("super::jpip_automatic_snapshot_outcome(result)", "super::jpip_automatic_snapshot_outcome(other_result)"),
+        ):
+            self.assertIn(before, contract)
+            modified = original[:start] + contract.replace(before, after, 1) + original[header.start():]
+
+            def altered(path, *args, **kwargs):
+                return modified if path == source else read_text(path, *args, **kwargs)
+
+            with self.subTest(before=before), mock.patch.object(Path, "read_text", altered), \
+                    self.assertRaisesRegex(ValueError, "executable Verus contract"):
+                framework.validate_normative_coverage(coverage)
+
+    def test_inventory_full_snapshot_rejects_lost_native_projection_and_finish_frames(self):
+        coverage = json.loads((framework.VALIDATION / "normative-coverage.json").read_text())
+        coverage["requirements"] = [
+            item for item in coverage["requirements"] if item["id"] == framework._JPIP_FULL_SNAPSHOT_ENTRY
+        ]
+        self.assertEqual(len(coverage["requirements"]), 1)
+        framework.validate_normative_coverage(coverage)
+        read_text = Path.read_text
+        for relative, before, after in (
+            ("src/jpip/progression_proof_support.rs", "jpip_byte_view(&value.codestream)", "Seq::empty()"),
+            ("src/jpip/progression_proof_support.rs", "value.available_layers", "0"),
+            ("src/jpip/progression_proof_support.rs", "Ok(snapshot) => Ok(jpip_automatic_snapshot_result_view(&snapshot))",
+             "Ok(snapshot) => Ok((None, Seq::empty()))"),
+            ("src/jpip/progression.rs", "super::jpip_snapshot_tile_root_missing", "unrelated_missing"),
+            ("src/jpip/progression.rs", "super::jpip_missing_ref_projection", "unrelated_iterator_claim"),
+            ("src/jpip/progression.rs", "emitted_bytes + seq![0xffu8, 0xd9u8]", "emitted_bytes"),
+            ("src/jpip/progression.rs", "super::jpip_snapshot_layout_success_known()", "unrelated_layout_claim()"),
+        ):
+            source = framework.ROOT / relative
+            original = source.read_text()
+            self.assertIn(before, original)
+            modified = original.replace(before, after)
+
+            def altered(path, *args, **kwargs):
+                return modified if path == source else read_text(path, *args, **kwargs)
+
+            with self.subTest(relative=relative, before=before), mock.patch.object(Path, "read_text", altered), \
+                    self.assertRaisesRegex(ValueError, "complete automatic snapshot"):
+                framework.validate_normative_coverage(coverage)
+
     def test_inventory_original_resolution_error_rejects_lost_published_goal_or_prefix_frames(self):
         coverage = json.loads((framework.VALIDATION / "normative-coverage.json").read_text())
         coverage["requirements"] = [

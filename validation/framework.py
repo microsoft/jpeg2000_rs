@@ -3560,6 +3560,7 @@ _JPIP_MAPPING_PREFIX_CONTRACTS = {
     ),
 }
 _JPIP_GLOBAL_ERROR_ENTRY = "part9-original-actual-resolution-error-prefix"
+_JPIP_FULL_SNAPSHOT_ENTRY = "part9-complete-original-automatic-snapshot-result"
 _JPIP_GLOBAL_ERROR_CONTRACTS = {
     **_JPIP_MAPPING_PREFIX_CONTRACTS,
     ("src/jpip/mapping.rs", "jpip_resolution_selected"):
@@ -4865,6 +4866,60 @@ def validate_normative_coverage(
     ids: set[str] = set()
     contract_functions: set[tuple[str, str]] = set()
     for entry in coverage["requirements"]:
+        if entry["id"] == _JPIP_FULL_SNAPSHOT_ENTRY:
+            if {(ref["path"], ref["symbol"]) for ref in entry["contract_refs"]} != {
+                    ("src/jpip/progression.rs", "DatabinCache::build_automatic_snapshot")}:
+                raise ValueError("complete automatic snapshot requires the original actual public Result contract")
+            required = {
+                ("src/jpip/progression.rs", "DatabinCache::build_automatic_snapshot"),
+                ("src/jpip/snapshot_header_proof_support.rs", "jpip_snapshot_layout_capacity_error"),
+                *{("src/jpip/progression_proof_support.rs", name) for name in (
+                    "jpip_automatic_snapshot_outcome", "jpip_snapshot_root_ready_result",
+                    "jpip_snapshot_root_emit_error", "jpip_snapshot_tile_root_missing",
+                    "jpip_missing_ref_projection", "jpip_snapshot_layout_success_known",
+                    "jpip_snapshot_mapping_capacity_error", "jpip_snapshot_packet_capacity_error",
+                    "jpip_snapshot_plan_errors", "jpip_snapshot_iterator_errors", "jpip_snapshot_order_errors",
+                )},
+            }
+            if not required.issubset({(ref["path"], ref["symbol"]) for ref in entry["proof_refs"]}):
+                raise ValueError("complete automatic snapshot requires checked actual error/None/ready/emission/layout joins")
+            source = source_text((ROOT / "src/jpip/progression_proof_support.rs").resolve())
+            for name, fragments in {
+                "jpip_automatic_snapshot_view": (
+                    "jpip_byte_view(&value.codestream)", "value.available_layers", "value.layers",
+                    "jpip_missing_views(&value.missing)",
+                ),
+                "jpip_automatic_snapshot_result_view": (
+                    "match value.ready", "None => None", "Some(snapshot) => Some(jpip_automatic_snapshot_view(&snapshot))",
+                    "jpip_missing_views(&value.missing)",
+                ),
+                "jpip_automatic_snapshot_outcome": (
+                    "Err(error) => Err(error)", "Ok(snapshot) => Ok(jpip_automatic_snapshot_result_view(&snapshot))",
+                ),
+            }.items():
+                body = _coverage_spec_function_body(source, name)
+                if body is None or any("".join(item.split()) not in "".join(body.split()) for item in fragments):
+                    raise ValueError("complete automatic snapshot requires exact native output bytes/layers/missing/Result projection")
+            source = source_text((ROOT / "src/jpip/progression.rs").resolve())
+            native = _coverage_function_body(source, _coverage_function_header(source, "DatabinCache::build_automatic_snapshot"))
+            for fragment in (
+                "super::jpip_snapshot_layout_capacity_error(input, prefix, normalized_bytes, raw_tiles,",
+                "super::jpip_snapshot_mapping_capacity_error(current_root, native_parts, initial_plan, order_iterator, order@)",
+                "super::jpip_snapshot_packet_capacity_error(current_root, acquisition_parts, acquisition_transitions,",
+                "super::jpip_snapshot_tile_root_missing(current_root, partition_events, partition_packets,",
+                "available_goal == crate::specs::part2_jpip_snapshot_available(",
+                "missing_goal == crate::specs::part2_jpip_snapshot_missing(",
+                "super::jpip_missing_ref_projection(before_native_missing, before_missing,",
+                "emission_goal == crate::specs::part2_jpip_snapshot_emit_tiles(",
+                "super::jpip_snapshot_root_emit_error(tile_root, available_layers, error)",
+                "assert(bytes@ =~= emitted_bytes + seq![0xffu8, 0xd9u8])",
+                "assert(crate::specs::part2_jpip_template_finish(emitted_bytes, limits) == Ok(bytes@))",
+                "super::jpip_snapshot_layout_success_known()",
+                "crate::codestream::parse_layout(&bytes, limits)?",
+                "Ok((Some((bytes@, available_layers, maximum_layers, missing_goal)), Seq::empty()))",
+            ):
+                if native is None or "".join(fragment.split()) not in "".join(native.split()):
+                    raise ValueError("complete automatic snapshot requires actual ordered event, complete folds and final byte/layout joins")
         if entry["id"] == _JPIP_GLOBAL_ERROR_ENTRY:
             if {(ref["path"], ref["symbol"]) for ref in entry["contract_refs"]} != set(_JPIP_GLOBAL_ERROR_CONTRACTS):
                 raise ValueError("original resolution error requires complete actual mapping and resolution Results")
@@ -9849,6 +9904,15 @@ def validate_normative_coverage(
                     "part2_jpip_automatic_headers_result",
                     r"jpip_cache_view\(\s*self\s*\)\s*,\s*codestream\s*,\s*"
                     r"jpip_automatic_headers_outcome\(\s*\1\s*\)",
+                )
+            if (reference["path"], reference["symbol"]) == (
+                    "src/jpip/progression.rs", "DatabinCache::build_automatic_snapshot"):
+                storage_contract = (
+                    "part2_jpip_automatic_snapshot_result",
+                    r"jpip_cache_view\(\s*self\s*\)\s*,\s*codestream\s*,\s*"
+                    r"super::jpip_snapshot_selection_view\(\s*selection\s*\)\s*,\s*"
+                    r"super::jpip_packet_selection_view\(\s*packet_selection\s*\)\s*,\s*limits\s*,\s*"
+                    r"super::jpip_automatic_snapshot_outcome\(\s*\1\s*\)",
                 )
             if storage_contract:
                 model, arguments = storage_contract
