@@ -1,5 +1,33 @@
 #[cfg(verus_keep_ghost)]
 verus! {
+    pub proof fn jpip_filter_projection<A, B>(
+        values: Seq<A>, keep: Seq<bool>, project: spec_fn(A) -> B, predicate: spec_fn(B) -> bool,
+    )
+        requires keep.len() == values.len(),
+            forall|index: int| 0 <= index < values.len() ==>
+                keep[index] == predicate(project(#[trigger] values[index])),
+        ensures values.filter_index(|index: int| keep[index]).map_values(project)
+            == values.map_values(project).filter(predicate),
+        decreases values.len(),
+    {
+        reveal(Seq::filter_index);
+        reveal(Seq::filter);
+        if values.len() != 0 {
+            jpip_filter_projection(values.drop_last(), keep.drop_last(), project, predicate);
+            values.drop_last().filter_index_ext(
+                |index: int| keep[index], |index: int| keep.drop_last()[index]);
+            assert(values.drop_last().map_values(project) =~= values.map_values(project).drop_last());
+            if keep.last() {
+                assert(values.filter_index(|index: int| keep[index]).map_values(project) =~=
+                    values.drop_last().filter_index(|index: int| keep[index]).map_values(project)
+                        .push(project(values.last())));
+            }
+        } else {
+            assert(values.map_values(project) =~= Seq::<B>::empty());
+            assert(values.filter_index(|index: int| keep[index]).map_values(project) =~= Seq::<B>::empty());
+        }
+    }
+
     pub open spec fn jpip_parsed_packet_value(value: Option<Vec<u8>>) -> Option<Seq<u8>> {
         match value { None => None, Some(bytes) => Some(bytes@) }
     }

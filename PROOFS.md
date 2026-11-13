@@ -83,7 +83,17 @@ logical matrix. The equivalent non-owning LHS lookup stays within the original
 assignment, so its owning RHS packet copy is evaluated first as before.
 No owning temporary, extra copy or changed error/overwrite/drop order is added.
 
-These local matrix frames are not public automatic snapshot/update Results.
+The actual plan grid and precinct getters now expose their complete logical
+values. The mutable precinct getter also frames every other plan field and
+the future returned slice. Native getter bodies are unchanged.
+
+The original selected-tile `iter/filter/collect` traversal has a checked full
+payload projection and order. Its non-owning iterator binding uses the existing
+library iterator specifications; a checked pure filter/projection lemma links
+the actual selected values without supplying successful layout or codec data.
+The native traversal and collected owner stay unchanged.
+
+These local matrix and input interfaces are not public automatic snapshot/update Results.
 Complete cache/header/plan/packet/image/state joins remain separate. Native negative
 controls cover duplicate **component selections**, first selection errors,
 decoder/cache state and managed-refusal ordering; they do not establish that

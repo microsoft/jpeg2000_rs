@@ -421,11 +421,48 @@ impl DatabinCache {
         while tile_index < normalized_tiles.len() {
             let tile_number = u16::try_from(tile_index)
                 .map_err(|_| DecodeError::malformed(0, MalformedKind::ArithmeticOverflow))?;
-            let tile_parts: Vec<_> = layout
+            let tile_parts_iterator = layout
                 .tile_parts
                 .iter()
-                .filter(|part| part.tile_index == tile_number)
-                .collect();
+                .filter(
+                    #[cfg_attr(verus_keep_ghost, verus_spec(result: bool =>
+                        ensures result == (crate::codestream::tile_part_owned_view(*part).tile_index == tile_number),
+                    ))]
+                    |part| part.tile_index == tile_number,
+                );
+            #[cfg(verus_keep_ghost)]
+            proof_decl! {
+                let ghost filtered = tile_parts_iterator;
+                let ghost source = vstd::std_specs::iter::filter_iter(filtered);
+                let ghost keep = vstd::std_specs::iter::filter_keep(filtered);
+            }
+            let tile_parts: Vec<_> = tile_parts_iterator.collect();
+            #[cfg(verus_keep_ghost)]
+            proof! {
+                use vstd::std_specs::iter::IteratorSpec;
+                broadcast use vstd::std_specs::iter::group_iter_axioms;
+                assert(filtered.will_return_none());
+                assert(keep.len() == layout.tile_parts.len());
+                assert(tile_parts@ == filtered.remaining());
+                assert(source.remaining().subrange(0, keep.len() as int) =~= source.remaining());
+                assert(filtered.remaining()
+                    == source.remaining().subrange(0, keep.len() as int).filter_index(|index: int| keep[index]));
+                assert(tile_parts@ == source.remaining().filter_index(|index: int| keep[index]));
+                let project = |part: &crate::codestream::TilePartPayload<'_>|
+                    crate::codestream::tile_part_owned_view(part);
+                let predicate = |part: crate::specs::Part2OwnedTilePart| part.tile_index == tile_number;
+                assert(source.remaining().map_values(|part: &crate::codestream::TilePartPayload<'_>|
+                    crate::codestream::tile_part_owned_view(part))
+                    =~= crate::codestream::tile_parts_owned_view(layout.tile_parts@));
+                assert forall|index: int| 0 <= index < source.remaining().len()
+                    implies keep[index] == (crate::codestream::tile_part_owned_view(
+                        #[trigger] source.remaining()[index]).tile_index == tile_number) by {
+                }
+                super::jpip_filter_projection(source.remaining(), keep, project, predicate);
+                assert(tile_parts@.map_values(project) == source.remaining().map_values(project).filter(predicate));
+                assert(tile_parts@.map_values(project)
+                    == crate::codestream::tile_parts_owned_view(layout.tile_parts@).filter(predicate));
+            }
             let tile_part = *tile_parts
                 .first()
                 .ok_or_else(|| DecodeError::malformed(0, MalformedKind::InvalidTilePart))?;
