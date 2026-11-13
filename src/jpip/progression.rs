@@ -482,19 +482,43 @@ impl DatabinCache {
                 )?;
                 let sequence = u16::try_from(ordinal & u64::from(u16::MAX))
                     .map_err(|_| DecodeError::malformed(0, MalformedKind::ArithmeticOverflow))?;
-                let layer_slot = ordinals
-                    .get_mut(execution)
-                    .and_then(|layers| layers.get_mut(usize::from(coordinate.layer)))
-                    .ok_or_else(|| {
-                        DecodeError::malformed(0, MalformedKind::InvalidProgressionOrderChange)
-                    })?;
+                #[cfg(verus_keep_ghost)]
+                proof_decl! {
+                    let ghost before_ordinals = ordinals@.map_values(|row: Vec<Option<u16>>| row@);
+                }
+                let layer_slot = match ordinals.get_mut(execution) {
+                    Some(layers) => layers.get_mut(usize::from(coordinate.layer)),
+                    None => None,
+                }
+                .ok_or_else(|| {
+                    DecodeError::malformed(0, MalformedKind::InvalidProgressionOrderChange)
+                })?;
+                #[cfg(verus_keep_ghost)]
+                proof! {
+                    assert((execution as nat) < before_ordinals.len());
+                    assert((coordinate.layer as nat) < before_ordinals[execution as int].len());
+                    assert(*layer_slot == before_ordinals[execution as int][coordinate.layer as int]);
+                }
                 if layer_slot.is_some() {
                     return Err(DecodeError::malformed(
                         0,
                         MalformedKind::InvalidProgressionOrderChange,
                     ));
                 }
+                #[cfg(verus_keep_ghost)]
+                proof! {
+                    assert(before_ordinals[execution as int][coordinate.layer as int].is_none());
+                }
                 *layer_slot = Some(sequence);
+                #[cfg(verus_keep_ghost)]
+                proof! {
+                    assert(ordinals@.map_values(|row: Vec<Option<u16>>| row@)
+                        == before_ordinals.update(execution as int,
+                            before_ordinals[execution as int].update(coordinate.layer as int, Some(sequence))));
+                    assert(crate::specs::part2_jpip_ordinal_matrix_write(before_ordinals,
+                        ordinals@.map_values(|row: Vec<Option<u16>>| row@),
+                        execution, coordinate.layer, sequence));
+                }
                 order.push((coordinate, execution));
                 ordinal = ordinal
                     .checked_add(1)

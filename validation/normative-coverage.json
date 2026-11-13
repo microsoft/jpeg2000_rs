@@ -12152,6 +12152,9 @@
           "symbol": "production_part9_all_progressions_and_reframed_markers_are_classified"
         },
         {
+          "path": "src/jpip/progression.rs", "symbol": "DatabinCache::build_automatic_snapshot"
+        },
+        {
           "path": "proofs/production_impl/mod.rs",
           "symbol": "production_part9_reconstruction_and_reframing_lengths_are_exact"
         }
@@ -12168,6 +12171,9 @@
         {
           "path": "specs/mod.rs",
           "symbol": "part9_packet_reframed_length"
+        },
+        {
+          "path": "specs/jpip_progressive.rs", "symbol": "part2_jpip_ordinal_matrix_write"
         }
       ],
       "test_refs": [
@@ -12176,9 +12182,15 @@
         },
         {
           "path": "src/jpip/tests.rs", "symbol": "automatic_mapping_supports_progressions_poc_sop_eph_and_reframed_headers"
+        },
+        {
+          "path": "src/jpip/tests.rs", "symbol": "automatic_mapping_decodes_incomplete_precinct_quality_prefixes"
+        },
+        {
+          "path": "src/jpip/tests.rs", "symbol": "automatic_managed_allocation_refusals_preserve_state_and_recover_exact_images"
         }
       ],
-      "topic": "All five progression orders and POC windows with PLM/PLT/PPM/PPT removal and SOP/EPH packet reframing"
+      "topic": "All five progression orders and POC windows with PLM/PLT/PPM/PPT removal and SOP/EPH packet reframing. A local checked cutpoint additionally binds the actual callback-free ordinal lookup's pre-value, empty-slot write and every untouched ordinal row/slot; the original lookup error, duplicate check and order append remain. This is not a complete automatic snapshot/public Result. The parsed packet-byte matrix and all remaining automatic image/error/state joins stay open under issue130. Native duplicate controls concern component selection, not claimed public reachability of the defensive duplicate-ordinal branch."
     },
     {
       "contract_refs": [

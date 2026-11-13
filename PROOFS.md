@@ -67,6 +67,23 @@ Complete automatic snapshot/progressive image creation and recursive semantic
 container assembly remain unfinished; this prerequisite does not complete
 either group of issue130.
 
+The automatic packet-order loop uses a callback-free nested ordinal lookup.
+Its checked `part2_jpip_ordinal_matrix_write` cutpoint binds the actual old
+matrix, execution/layer indices and sequence: the selected slot was empty,
+exactly that slot receives `Some(sequence)`, and every other slot/row is
+unchanged. The preceding duplicate test reads the actual old slot. The native
+change removes only the non-owning `Option::and_then` callback; the existing
+lookup error, duplicate check, update, order append and owning values retain
+their original positions.
+
+This local matrix frame is not a public automatic snapshot/update Result.
+In particular, the later parsed packet-byte matrix still uses a separate
+nested mutable callback and needs its own verified state/byte coupling before
+snapshot bytes and public typed images can be composed. Native negative
+controls cover duplicate **component selections**, first selection errors,
+decoder/cache state and managed-refusal ordering; they do not establish that
+the defensive duplicate-ordinal branch is publicly reachable.
+
 ## Trailing whole-packet engineering admission
 
 The actual packet traversal accepts a retained prefix of complete packets

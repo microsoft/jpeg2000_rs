@@ -845,16 +845,46 @@ fn automatic_mapping_decodes_incomplete_precinct_quality_prefixes() {
         .unwrap();
     assert_eq!(update.status(), JpipProgressiveStatus::Complete);
     assert_eq!(update.image().unwrap().width(), 1);
-    assert!(
-        selected
-            .update_selected(
-                &cache,
-                &crate::DecodeOptions::default(),
-                &selection,
-                &JpipPacketSelection::components(vec![1]),
-            )
-            .is_err()
-    );
+    let cache_counters = (cache.stored_bytes, cache.accepted_fragments);
+    for rejected_components in [vec![1], vec![0, 0]] {
+        crate::allocation::with_refusal(0, || {
+            assert_eq!(
+                selected
+                    .update_selected(
+                        &cache,
+                        &crate::DecodeOptions::default(),
+                        &selection,
+                        &JpipPacketSelection::components(rejected_components),
+                    )
+                    .err(),
+                Some(DecodeError::InvalidSelection {
+                    reason: crate::SelectionError::EmptyComponentIntersection,
+                })
+            );
+            assert_eq!(selected.decoded_layers(), 2);
+            assert_eq!(selected.codestream(), 0);
+            assert_eq!(
+                (cache.stored_bytes, cache.accepted_fragments),
+                cache_counters
+            );
+            assert_eq!(
+                crate::allocation::empty_with_capacity::<u8>(1),
+                Err(DecodeError::AllocationFailed)
+            );
+        });
+    }
+    let repeated = selected
+        .update_selected(
+            &cache,
+            &crate::DecodeOptions::default(),
+            &selection,
+            &components,
+        )
+        .unwrap();
+    assert_eq!(repeated.status(), JpipProgressiveStatus::Complete);
+    assert_eq!(repeated.previous_layers(), 2);
+    assert_eq!(repeated.available_layers(), 2);
+    assert!(repeated.image().is_none());
 }
 
 #[test]

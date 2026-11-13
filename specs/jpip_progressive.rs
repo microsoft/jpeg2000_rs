@@ -9,6 +9,17 @@ pub type Part2JpipProgressiveUpdate = (
     crate::jpip::JpipProgressiveStatus, u16, u16, Seq<Part2JpipMissing>, Option<Part1DecodedTypedImage>,
 );
 
+pub open spec fn part2_jpip_ordinal_matrix_write(
+    before: Seq<Seq<Option<u16>>>, after: Seq<Seq<Option<u16>>>,
+    execution: usize, layer: u16, sequence: u16,
+) -> bool {
+    (execution as nat) < before.len()
+        && (layer as nat) < before[execution as int].len()
+        && before[execution as int][layer as int].is_none()
+        && after == before.update(execution as int,
+            before[execution as int].update(layer as int, Some(sequence)))
+}
+
 #[verifier::opaque]
 pub open spec fn part2_jpip_progressive_layers(
     cache: Part2JpipCache, packets: Seq<Part2JpipPacket>, ends: Seq<usize>, layer: nat, start: usize,
