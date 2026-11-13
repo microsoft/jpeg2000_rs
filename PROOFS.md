@@ -343,14 +343,24 @@ exact initial-iterator/model equality, followed by its actual order-phase Result
 Native controls exercise both constructor paths with the same duplicate-window
 work-limit error, first packet, suppression and terminal cursor state.
 
+`automatic_precinct_in_class` now has the exact complete
+`part2_jpip_snapshot_in_class` Result contract without a domain premise. Its
+ordered level fold retains the actual grid Result and sum; checked error
+closures expose their existing arithmetic error. Existing division/remainder
+laws prove the later quotient guard redundant after the original checked
+multiply/add, and the original refinement identity proves the final guard.
+All runtime expressions, callbacks, guards and evaluation order are unchanged.
+Native controls preserve invalid-domain-before-grid-before-overflow precedence,
+the original skipped-grid lookup at resolution zero, and exact maximum-u64
+success. The archived actual mapping/model equality is positively checked.
+
 The reached resolution error is **not yet lifted to the original cache/caller
-predicate**. The next complete-root diagnostic fails only at the actual
-`automatic_precinct_in_class(...)` result/model equality. This existing JPIP
-producer has no checked Result contract linking its actual tile/component/
-resolution/precinct/grid inputs to `part2_jpip_snapshot_in_class`. That precise
-consumer obligation is retained under ignored evidence, not assumed or
-committed. No per-tile/global error equivalence, emission or full-public success
-join is claimed.
+predicate**. The actual databin-prefix fold exposes the next interface:
+`PacketPrecinctDecoder::coordinate()` has no checked link between its returned
+tuple and the corresponding actual planned precinct projection. A complete-root
+diagnostic fails only at that exact tuple equality; its source is retained under
+ignored evidence, not assumed or committed. No databin-fold/per-tile/global error
+equivalence, emission or full-public success join is claimed.
 
 ## Trailing whole-packet engineering admission
 

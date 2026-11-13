@@ -893,6 +893,39 @@ class FrameworkTests(WorkingFiles):
         self._assert_complete_packet_contract_bindings(
             {framework._JPIP_ITERATOR_PREFIX_ENTRY}, recipes, 1, isolate=False)
 
+    def test_inventory_precinct_mapping_binds_all_actual_inputs_and_complete_result(self):
+        self._assert_complete_packet_contract_bindings(
+            {framework._JPIP_MAPPING_PREFIX_ENTRY}, framework._JPIP_MAPPING_PREFIX_CONTRACTS, 1, isolate=False)
+
+    def test_inventory_precinct_mapping_rejects_lost_domain_grid_or_arithmetic_policy(self):
+        coverage = json.loads((framework.VALIDATION / "normative-coverage.json").read_text())
+        coverage["requirements"] = [
+            item for item in coverage["requirements"] if item["id"] == framework._JPIP_MAPPING_PREFIX_ENTRY
+        ]
+        self.assertEqual(len(coverage["requirements"]), 1)
+        framework.validate_normative_coverage(coverage)
+        read_text = Path.read_text
+        for model, before, after in (
+            ("part2_jpip_snapshot_in_class", "tile >= tiles", "tile > tiles"),
+            ("part2_jpip_snapshot_in_class", "Err(error) => Err(error)", "Err(_) => Err(part2_jpip_range_overflow(0))"),
+            ("part2_jpip_snapshot_in_class", "let scaled = index * components as nat", "let scaled = index"),
+            ("part2_jpip_snapshot_in_class", "product > u64::MAX as nat", "false"),
+            ("part2_jpip_snapshot_level_start", "part1_packet_grid_precinct_count(grid, component, level)",
+             "part1_packet_grid_precinct_count(grid, component, 0)"),
+        ):
+            source = framework.ROOT / "specs/jpip_snapshot_inputs.rs"
+            original = source.read_text()
+            self.assertIn(before, framework._coverage_spec_function_body(original, model))
+            start = re.search(r"\bspec\s+fn\s+" + re.escape(model) + r"\b", original).start()
+            modified = original[:start] + original[start:].replace(before, after, 1)
+
+            def altered(path, *args, **kwargs):
+                return modified if path == source else read_text(path, *args, **kwargs)
+
+            with self.subTest(model=model, before=before), mock.patch.object(Path, "read_text", altered), \
+                    self.assertRaisesRegex(ValueError, "complete precinct mapping"):
+                framework.validate_normative_coverage(coverage)
+
     def test_inventory_associated_iterator_prefix_rejects_lost_verification_inputs_or_delegation(self):
         coverage = json.loads((framework.VALIDATION / "normative-coverage.json").read_text())
         coverage["requirements"] = [

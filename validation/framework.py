@@ -3551,6 +3551,14 @@ _JPIP_BLOCKED_BOUND_ENTRY = "part9-automatic-blocked-lookup-bound"
 _JPIP_PARSE_EXIT_ENTRY = "part9-canonical-template-initial-parse-error"
 _JPIP_LAYOUT_PREFIX_ENTRY = "part9-actual-layout-global-prefix"
 _JPIP_ITERATOR_PREFIX_ENTRY = "part9-checked-associated-iterator-prefix"
+_JPIP_MAPPING_PREFIX_ENTRY = "part9-complete-automatic-precinct-mapping-result"
+_JPIP_MAPPING_PREFIX_CONTRACTS = {
+    ("src/jpip/mapping.rs", "automatic_precinct_in_class"): (
+        "part2_jpip_snapshot_in_class", r"\1", None,
+        r"tile_count\s*,\s*components\s*,\s*tile\s*,\s*component\s*,\s*resolution\s*,\s*precinct\s*,\s*"
+        + _coverage_call("crate::packet::packet_grid_view", "grid"),
+    ),
+}
 _JPIP_ITERATOR_CONSTRUCTOR_CLAUSE = (
     "vstd::prelude::ensures(|result: Result<Self, DecodeError>| "
     "vstd::prelude::equal(progression_packet_iterator_outcome(result), "
@@ -4851,6 +4859,40 @@ def validate_normative_coverage(
     ids: set[str] = set()
     contract_functions: set[tuple[str, str]] = set()
     for entry in coverage["requirements"]:
+        if entry["id"] == _JPIP_MAPPING_PREFIX_ENTRY:
+            if {(ref["path"], ref["symbol"]) for ref in entry["contract_refs"]} != set(_JPIP_MAPPING_PREFIX_CONTRACTS):
+                raise ValueError("complete precinct mapping requires its actual complete Result contract")
+            model = source_text((ROOT / "specs/jpip_snapshot_inputs.rs").resolve())
+            for name, fragments in {
+                "part2_jpip_snapshot_level_start": (
+                    "part1_packet_grid_precinct_count(grid, component, level)",
+                    "Err(error) => Err(error)", "before as nat + count as nat > u64::MAX as nat",
+                    "(level + 1) as u8, (before as nat + count as nat) as u64",
+                ),
+                "part2_jpip_snapshot_in_class": (
+                    "tiles == 0 || components == 0 || tile >= tiles || component as u64 >= components",
+                    "part2_jpip_cache_error(0, crate::MalformedKind::InvalidJpipLayout)",
+                    "part2_jpip_snapshot_level_start(grid, component, resolution, 0, 0)",
+                    "Err(error) => Err(error)", "let index = start as nat + precinct as nat",
+                    "let scaled = index * components as nat", "let without = component as nat + scaled",
+                    "let product = without * tiles as nat", "let result = tile as nat + product",
+                    "index > u64::MAX as nat || scaled > u64::MAX as nat || without > u64::MAX as nat",
+                    "product > u64::MAX as nat || result > u64::MAX as nat",
+                    "Err(part2_jpip_range_overflow(0))", "Ok(result as u64)",
+                ),
+            }.items():
+                body = _coverage_spec_function_body(model, name)
+                if body is None or any("".join(item.split()) not in "".join(body.split()) for item in fragments):
+                    raise ValueError("complete precinct mapping requires original domain/grid/checked arithmetic error policy")
+            source = source_text((ROOT / "src/jpip/progression.rs").resolve())
+            native = _coverage_function_body(source, _coverage_function_header(source, "DatabinCache::build_automatic_snapshot"))
+            fragment = (
+                "assert(crate::specs::part2_jpip_snapshot_in_class(tile_count, components as u64,"
+                "tile_index as u64, component, resolution, precinct,"
+                "crate::packet::packet_grid_view(grid)) == Ok(in_class))"
+            )
+            if native is None or "".join(fragment.split()) not in "".join(native.split()):
+                raise ValueError("complete precinct mapping requires the exact actual mapping Result identity")
         if entry["id"] == _JPIP_ITERATOR_PREFIX_ENTRY:
             path = (ROOT / "src/packet/progression.rs").resolve()
             source = source_text(path)
@@ -9479,6 +9521,8 @@ def validate_normative_coverage(
                     if entry["id"] == _JPIP_HEADER_TRANSITION_ENTRY else None)
                 or (_JPIP_RESOLUTION_EXIT_CONTRACTS.get((reference["path"], reference["symbol"]))
                     if entry["id"] in {_JPIP_RESOLUTION_EXIT_ENTRY, _JPIP_ACQUISITION_ENTRY} else None)
+                or (_JPIP_MAPPING_PREFIX_CONTRACTS.get((reference["path"], reference["symbol"]))
+                    if entry["id"] == _JPIP_MAPPING_PREFIX_ENTRY else None)
                 or ((_JPIP_BYTE_RESULT_CONTRACTS.get((reference["path"], reference["symbol"]))
                      or _JPIP_PARSE_EXIT_CONTRACTS.get((reference["path"], reference["symbol"])))
                     if entry["id"] == _JPIP_PARSE_EXIT_ENTRY else None)

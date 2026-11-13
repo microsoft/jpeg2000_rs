@@ -4,6 +4,30 @@
   "scope": "Technical reference inventory; not exhaustive standards-clause coverage or a conformance claim.",
   "requirements": [
     {
+      "id": "part9-complete-automatic-precinct-mapping-result",
+      "topic": "Exact complete automatic_precinct_in_class Result from actual tile/component counts, tile/component/resolution/precinct/grid inputs, without a domain premise or native behavior change. Invalid-domain guards precede ordered checked grid-level Results and all checked sum/scale/component/product/tile arithmetic errors. Existing checked division/remainder and refinement identities establish that retained final guards add no arbitrary error. The archived actual mapping/model equality is positively checked. The original reached-resolution-error cache/caller lift remains open at the next precise PacketPrecinctDecoder::coordinate tuple/projection interface; sole actual whole-root failure retained outside source. No unproved databin-fold/global predicate or emission/full-public success join.",
+      "implementation_refs": [
+        {"path": "src/jpip/mapping.rs", "symbol": "automatic_precinct_in_class"},
+        {"path": "src/jpip/progression.rs", "symbol": "DatabinCache::build_automatic_snapshot"}
+      ],
+      "contract_refs": [
+        {"path": "src/jpip/mapping.rs", "symbol": "automatic_precinct_in_class"}
+      ],
+      "spec_refs": [
+        {"path": "specs/jpip_snapshot_inputs.rs", "symbol": "part2_jpip_snapshot_in_class"},
+        {"path": "specs/jpip_snapshot_inputs.rs", "symbol": "part2_jpip_snapshot_level_start"}
+      ],
+      "proof_refs": [
+        {"path": "src/jpip/mapping.rs", "symbol": "automatic_precinct_in_class"},
+        {"path": "src/jpip/progression.rs", "symbol": "DatabinCache::build_automatic_snapshot"},
+        {"path": "src/refinement/jpip.rs", "symbol": "jpip_precinct_in_class"}
+      ],
+      "test_refs": [
+        {"path": "src/jpip/tests.rs", "symbol": "automatic_precinct_mapping_keeps_domain_grid_and_overflow_error_order"},
+        {"path": "src/jpip/tests.rs", "symbol": "automatic_resolution_selection_error_is_reachable_from_actual_cache_and_caller"}
+      ]
+    },
+    {
       "id": "part9-checked-associated-iterator-prefix",
       "topic": "Complete checked associated ProgressionPacketIterator::new Result reusing its already-checked backing producer, with no domain premise or native delegation/ownership/evaluation change. Dedicated impl verification and body ensures expose the same actual grid/order/changes/work-limit model on all Results. The exact formerly archived constructor/model equality is positively checked in the actual automatic snapshot caller, followed by its actual order-phase Result. The reached resolution error is NOT yet lifted into the original cache/caller predicate: the next actual automatic_precinct_in_class result/model interface is a sole whole-root diagnostic failure retained outside committed source. Earlier requirement objects and receipts remain unchanged; no emission/full-public success work.",
       "implementation_refs": [

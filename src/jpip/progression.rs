@@ -813,6 +813,12 @@ impl DatabinCache {
                     precinct,
                     grid,
                 )?;
+                #[cfg(verus_keep_ghost)]
+                proof! {
+                    assert(crate::specs::part2_jpip_snapshot_in_class(tile_count, components as u64,
+                        tile_index as u64, component, resolution, precinct,
+                        crate::packet::packet_grid_view(grid)) == Ok(in_class));
+                }
                 databins.push(DatabinId::new(0, codestream, in_class)?);
                 mapping_index += 1;
             }

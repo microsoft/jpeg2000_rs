@@ -1240,6 +1240,39 @@ fn automatic_header_normalization_removes_reframed_markers() {
 }
 
 #[test]
+fn automatic_precinct_mapping_keeps_domain_grid_and_overflow_error_order() {
+    let limits = ResourceLimits::default();
+    let grid = crate::packet::PacketGrid::new(1, 1, 2, vec![2, 3], &limits).unwrap();
+    let layout = Err(DecodeError::malformed(0, MalformedKind::InvalidJpipLayout));
+    let coding = Err(DecodeError::malformed(0, MalformedKind::InvalidCodingStyle));
+    let overflow = Err(DecodeError::malformed(0, MalformedKind::ArithmeticOverflow));
+    for (tiles, components, tile, component, resolution, precinct, expected) in [
+        (0, 0, u64::MAX, u16::MAX, u8::MAX, u32::MAX, layout),
+        (1, 0, 0, 0, 0, 0, layout),
+        (1, 1, 1, 0, 0, 0, layout),
+        (1, 1, 0, 1, 0, 0, layout),
+        (1, 2, 0, 1, 1, u32::MAX, coding),
+        (1, u64::MAX, 0, 0, 3, u32::MAX, coding),
+        (3, 1, 2, 0, 1, 1, Ok(11)),
+        (1, 1, 0, 0, 2, 0, Ok(5)),
+        (1, 2, 0, 1, 0, 0, Ok(1)),
+        (1, u64::MAX, 0, 0, 1, 0, overflow),
+        (1, u64::MAX, 0, 1, 0, 1, overflow),
+        (2, u64::MAX, 0, 0, 0, 1, overflow),
+        (3, u64::MAX / 3, 2, 0, 0, 1, overflow),
+        (3, u64::MAX / 3, 0, 0, 0, 1, Ok(u64::MAX)),
+    ] {
+        assert_eq!(
+            super::mapping::automatic_precinct_in_class(
+                tiles, components, tile, component, resolution, precinct, &grid
+            ),
+            expected,
+            "tiles={tiles} components={components} tile={tile} coordinate=({component},{resolution},{precinct})",
+        );
+    }
+}
+
+#[test]
 fn automatic_resolution_selection_error_is_reachable_from_actual_cache_and_caller() {
     let bytes = decodable_codestream();
     let limits = ResourceLimits::default();
