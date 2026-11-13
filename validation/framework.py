@@ -3549,6 +3549,7 @@ _JPIP_HEADER_TRANSITION_ENTRY = "part9-automatic-source-header-transition-exits"
 _JPIP_PARSED_BOUND_ENTRY = "part9-automatic-parsed-row-layer-bounds"
 _JPIP_BLOCKED_BOUND_ENTRY = "part9-automatic-blocked-lookup-bound"
 _JPIP_PARSE_EXIT_ENTRY = "part9-canonical-template-initial-parse-error"
+_JPIP_LAYOUT_PREFIX_ENTRY = "part9-actual-layout-global-prefix"
 _JPIP_PARSE_EXIT_CONTRACTS = {
     ("src/jpip/mapping.rs", "validate_packet_component_selection"): (
         "part2_jpip_snapshot_component_selection", r"\1", None,
@@ -4843,6 +4844,48 @@ def validate_normative_coverage(
     ids: set[str] = set()
     contract_functions: set[tuple[str, str]] = set()
     for entry in coverage["requirements"]:
+        if entry["id"] == _JPIP_LAYOUT_PREFIX_ENTRY:
+            required = {
+                ("src/jpip/snapshot_header_proof_support.rs", "jpip_snapshot_layout_continuation"),
+                ("src/codestream/decoder_input_proof_support.rs", "decoder_layout_input_matches_raw"),
+                ("src/jpip/progression.rs", "DatabinCache::build_automatic_snapshot"),
+            }
+            if not required.issubset({(ref["path"], ref["symbol"]) for ref in entry["proof_refs"]}):
+                raise ValueError("actual layout prefix requires the checked inverse and actual continuation call")
+            source = source_text((ROOT / "src/jpip/snapshot_header_proof_support.rs").resolve())
+            header = re.search(
+                r"(?m)^([ \t]*)pub\(crate\)\s+proof\s+fn\s+jpip_snapshot_layout_continuation\b", source)
+            body = _coverage_function_body(source, header)
+            section = source[header.start():] if header else ""
+            clause = section.split("\n    {", 1)[0]
+            for fragment in (
+                "part2_jpip_snapshot_run(input, prefix + tail)",
+                "part2_jpip_snapshot_after_normalized(input, main, raw, count, components, headers, tail)",
+                "part2_jpip_transition_template(main, headers, input.limits) == Ok(template)",
+                "complete_layout_outcome(Ok(*layout)) == crate::specs::part1_parse_layout(template, input.limits)",
+                "ensures forall|tail: Seq<crate::specs::Part2JpipSnapshotEvent>|",
+                "site: 2, tile: 0, elements: headers.len() as usize, succeeded: true",
+                "crate::codestream::decoder_layout_input_view(layout), 0, Seq::empty(), 0, tail)",
+            ):
+                if body is None or "".join(fragment.split()) not in "".join(clause.split()):
+                    raise ValueError("actual layout prefix requires exact actual input, request, response and tail framing")
+            if "crate::codestream::decoder_layout_input_matches_raw(layout)" not in body:
+                raise ValueError("actual layout prefix requires its checked raw/native inverse")
+            source = source_text((ROOT / "src/jpip/progression.rs").resolve())
+            native = _coverage_function_body(source, _coverage_function_header(source, "DatabinCache::build_automatic_snapshot"))
+            for fragment in (
+                "let layout = crate::codestream::parse_layout(&template, limits)?",
+                "let mut automatic_tiles = crate::allocation::empty_with_capacity(normalized_tiles.len())?",
+                "super::jpip_snapshot_layout_continuation(input, prefix, normalized_bytes, raw_tiles,"
+                "tile_count, components, headers, template@, &layout)",
+                "crate::specs::part2_progression_tile_plan(&layout.info.image_size,"
+                "tile_part.coding_style, &tile_part.component_coding_styles,"
+                "&tile_part.component_quantizations, &tile_part.roi_shifts,"
+                "(tile_number, 0), (false, 74, false), limits)"
+                "== Ok(crate::decode::progression_plan_view(&plan))",
+            ):
+                if native is None or "".join(fragment.split()) not in "".join(native.split()):
+                    raise ValueError("actual layout prefix requires the reached native Results and actual planner identity")
         if entry["id"] == _JPIP_ACQUISITION_ENTRY:
             if {(ref["path"], ref["symbol"]) for ref in entry["contract_refs"]} != set(_JPIP_RESOLUTION_EXIT_CONTRACTS):
                 raise ValueError("actual acquisition fold requires the complete enabled selection contracts")
@@ -9396,7 +9439,7 @@ def validate_normative_coverage(
                      or _JPIP_PARSE_EXIT_CONTRACTS.get((reference["path"], reference["symbol"])))
                     if entry["id"] == _JPIP_PARSE_EXIT_ENTRY else None)
                 or (_JPIP_BYTE_RESULT_CONTRACTS.get((reference["path"], reference["symbol"]))
-                    if entry["id"] == _JPIP_BYTE_RESULT_ENTRY else None)
+                    if entry["id"] in {_JPIP_BYTE_RESULT_ENTRY, _JPIP_LAYOUT_PREFIX_ENTRY} else None)
                 or ((_JPIP_AUTOMATIC_INPUT_CONTRACTS.get((reference["path"], reference["symbol"]))
                      or _JPIP_TRANSITION_CONTRACTS.get((reference["path"], reference["symbol"]))
                      or _JPIP_CACHE_VIEW_CONTRACTS.get((reference["path"], reference["symbol"])))

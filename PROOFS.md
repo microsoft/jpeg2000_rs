@@ -325,6 +325,26 @@ truncation, empty prefixes and decoded packets, and retain refusal/recovery
 precedence. This closes only the acquisition-state/selection cutpoint, not
 earlier cache/caller event-prefix joins, emission or the full public Result.
 
+## Global prefix through the actual parsed layout
+
+`jpip_snapshot_layout_continuation` extends the existing cache/caller-derived
+header/template prefix through the actual successful layout parse and reached
+site-2 capacity response. The checked raw/native layout inverse supplies the
+exact decoder-input projection; concatenation and event-tail equalities preserve
+the original prefix. The actual call proves all premises from preceding native
+Results, without a new caller precondition, chosen layout or supplied outcome.
+The first native planning Result is also checked against its actual inputs.
+
+The reached resolution error is **not yet lifted to the original cache/caller
+predicate**. A complete-root diagnostic isolates the next missing equality:
+`part1_progression_iterator_initial(actual grid, order, changes, work limit) ==
+Ok(progression_packet_iterator_view(&actual iterator))` immediately after the
+unchanged `ProgressionPacketIterator::new` call. The backing free function has a
+checked complete Result contract, but the associated wrapper has no such
+postcondition. The exact sole-failure source is retained under ignored evidence;
+the failed assertion is not committed. No per-tile/global error equivalence is
+assumed, and no emission or full-public success join is attempted.
+
 ## Trailing whole-packet engineering admission
 
 The actual packet traversal accepts a retained prefix of complete packets

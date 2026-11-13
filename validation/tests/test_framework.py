@@ -881,6 +881,45 @@ class FrameworkTests(WorkingFiles):
         self._assert_complete_packet_contract_bindings(
             {framework._JPIP_ACQUISITION_ENTRY}, framework._JPIP_RESOLUTION_EXIT_CONTRACTS, 3, isolate=False)
 
+    def test_inventory_layout_prefix_binds_actual_template_result(self):
+        recipes = {key: value for key, value in framework._JPIP_BYTE_RESULT_CONTRACTS.items()
+                   if key[1] == "build_automatic_transition_template"}
+        self._assert_complete_packet_contract_bindings(
+            {framework._JPIP_LAYOUT_PREFIX_ENTRY}, recipes, 1, isolate=False)
+
+    def test_inventory_layout_prefix_rejects_lost_actual_layout_response_or_tail(self):
+        coverage = json.loads((framework.VALIDATION / "normative-coverage.json").read_text())
+        coverage["requirements"] = [
+            item for item in coverage["requirements"] if item["id"] == framework._JPIP_LAYOUT_PREFIX_ENTRY
+        ]
+        self.assertEqual(len(coverage["requirements"]), 1)
+        framework.validate_normative_coverage(coverage)
+        read_text = Path.read_text
+        for relative, before, after in (
+            ("src/jpip/snapshot_header_proof_support.rs", "site: 2, tile: 0, elements: headers.len() as usize",
+             "site: 2, tile: 1, elements: headers.len() as usize"),
+            ("src/jpip/snapshot_header_proof_support.rs", "succeeded: true", "succeeded: false"),
+            ("src/jpip/snapshot_header_proof_support.rs",
+             "crate::codestream::decoder_layout_input_view(layout), 0, Seq::empty(), 0, tail)",
+             "crate::codestream::decoder_layout_input_view(layout), 0, Seq::empty(), 0, Seq::empty())"),
+            ("src/jpip/snapshot_header_proof_support.rs",
+             "crate::codestream::decoder_layout_input_matches_raw(layout);", ""),
+            ("src/jpip/progression.rs",
+             "tile_count, components, headers, template@, &layout);",
+             "tile_count, components, headers, Seq::empty(), &layout);"),
+        ):
+            source = framework.ROOT / relative
+            original = source.read_text()
+            self.assertIn(before, original)
+            modified = original.replace(before, after)
+
+            def altered(path, *args, **kwargs):
+                return modified if path == source else read_text(path, *args, **kwargs)
+
+            with self.subTest(relative=relative, before=before), mock.patch.object(Path, "read_text", altered), \
+                    self.assertRaisesRegex(ValueError, "actual layout prefix"):
+                framework.validate_normative_coverage(coverage)
+
     def test_inventory_acquisition_fold_rejects_lost_state_inputs_or_allocation_order(self):
         coverage = json.loads((framework.VALIDATION / "normative-coverage.json").read_text())
         coverage["requirements"] = [

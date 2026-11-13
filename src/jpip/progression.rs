@@ -619,6 +619,11 @@ impl DatabinCache {
         }
         let layout = crate::codestream::parse_layout(&template, limits)?;
         let mut automatic_tiles = crate::allocation::empty_with_capacity(normalized_tiles.len())?;
+        #[cfg(verus_keep_ghost)]
+        proof! {
+            super::jpip_snapshot_layout_continuation(input, prefix, normalized_bytes, raw_tiles,
+                tile_count, components, headers, template@, &layout);
+        }
         let mut maximum_layers = 0_u16;
         tile_index = 0;
         #[cfg_attr(
@@ -690,6 +695,14 @@ impl DatabinCache {
                 &tile_part.roi_shifts,
                 limits,
             )?;
+            #[cfg(verus_keep_ghost)]
+            proof! {
+                assert(crate::specs::part2_progression_tile_plan(&layout.info.image_size,
+                    tile_part.coding_style, &tile_part.component_coding_styles,
+                    &tile_part.component_quantizations, &tile_part.roi_shifts,
+                    (tile_number, 0), (false, 74, false), limits)
+                    == Ok(crate::decode::progression_plan_view(&plan)));
+            }
             maximum_layers = maximum_layers.max(tile_part.coding_style.layers);
             let precinct_count = plan.precincts().len();
             let layer_count = usize::from(tile_part.coding_style.layers);

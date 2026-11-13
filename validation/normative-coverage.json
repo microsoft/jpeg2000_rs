@@ -4,6 +4,31 @@
   "scope": "Technical reference inventory; not exhaustive standards-clause coverage or a conformance claim.",
   "requirements": [
     {
+      "id": "part9-actual-layout-global-prefix",
+      "topic": "Checked original cache/caller normalized-header/template prefix extended through the actual successful layout parse, exact checked raw/native decoder-input inverse and reached site-2/tile-0/header-count successful capacity response. The actual call proves internal lemma premises from preceding native Results; all tail bytes/events and initial empty tile/layer state are exact. The actual native planning Result is separately checked from its actual fields. This is NOT a lift of the reached resolution error into the original cache/caller predicate: the next associated progression-iterator constructor/model equality is a sole actual whole-root diagnostic failure retained outside source, not assumed or committed. No native behavior, constructor contract, emission or full-public success join changes.",
+      "implementation_refs": [
+        {"path": "src/jpip/progression.rs", "symbol": "DatabinCache::build_automatic_snapshot"},
+        {"path": "src/jpip/automatic_headers.rs", "symbol": "build_automatic_transition_template"}
+      ],
+      "contract_refs": [
+        {"path": "src/jpip/automatic_headers.rs", "symbol": "build_automatic_transition_template"}
+      ],
+      "spec_refs": [
+        {"path": "specs/jpip_byte_writes.rs", "symbol": "part2_jpip_transition_template"},
+        {"path": "specs/jpip_snapshot_inputs.rs", "symbol": "part2_jpip_snapshot_after_normalized"},
+        {"path": "specs/jpip_snapshot_inputs.rs", "symbol": "part2_jpip_snapshot_tiles"}
+      ],
+      "proof_refs": [
+        {"path": "src/jpip/snapshot_header_proof_support.rs", "symbol": "jpip_snapshot_layout_continuation"},
+        {"path": "src/codestream/decoder_input_proof_support.rs", "symbol": "decoder_layout_input_matches_raw"},
+        {"path": "src/jpip/progression.rs", "symbol": "DatabinCache::build_automatic_snapshot"}
+      ],
+      "test_refs": [
+        {"path": "src/jpip/tests.rs", "symbol": "automatic_resolution_selection_error_is_reachable_from_actual_cache_and_caller"},
+        {"path": "src/jpip/tests.rs", "symbol": "automatic_snapshot_template_parse_error_keeps_canonical_bytes_and_cache_inputs"}
+      ]
+    },
+    {
       "id": "part9-actual-automatic-acquisition-fold-and-selection",
       "topic": "Checked successful actual acquisition-fold equality from captured cache/caller, raw tile projections, transitions, databin identities, order and complete initial scratch/decoder state. The suffix invariant proves every final precinct/parsed-byte/offset/blocked/transition/packet-count/byte-count field. Checked transactional decoder projection and actual assembled packet-prefix frames link enabled resolution errors through that successful state and the intervening reached site/tile/element/response capacity event. The model continuation expansion is checked for any subsequent continuation. Runtime body/order/owners are unchanged. Earlier global event-prefix joins, emission and full public Result remain outside this bounded cutpoint.",
       "implementation_refs": [
