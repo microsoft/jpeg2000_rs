@@ -100,12 +100,16 @@ pub(crate) open spec fn part2_jpip_snapshot_tile_selected(
     } }
 }
 
+pub(crate) open spec fn part2_jpip_snapshot_component_included(selected: Seq<u16>, component: u16) -> bool {
+    selected.len() == 0 || selected.contains(component)
+}
+
 pub(crate) open spec fn part2_jpip_snapshot_required(
     input: Part2JpipSnapshotInput<'_>, tile: u16, coordinate: crate::packet::PacketCoordinate,
     styles: crate::codestream::ComponentCodingStyles,
 ) -> Result<bool, crate::DecodeError> {
     if !part2_jpip_snapshot_tile_selected(input.selected, tile)
-        || (input.components.len() != 0 && !input.components.contains(coordinate.component)) { Ok(false) }
+        || !part2_jpip_snapshot_component_included(input.components, coordinate.component) { Ok(false) }
     else { part2_jpip_snapshot_resolution(input.selected, coordinate.component, coordinate.resolution, styles) }
 }
 
@@ -360,6 +364,22 @@ pub(crate) open spec fn part2_jpip_snapshot_partition_missing(
         } else { before };
         part2_jpip_snapshot_partition_missing(cache, packets, index + 1, next)
     }
+}
+
+pub(crate) proof fn part2_jpip_snapshot_resolution_current_error(
+    input: Part2JpipSnapshotInput<'_>, tile: u16, style: crate::codestream::ComponentCodingStyles,
+    order: Part2JpipSnapshotOrder, databins: Seq<Part2JpipDatabin>,
+    state: Part2JpipSnapshotPacketState, index: nat, before: Seq<Part2JpipAutomaticPacket>,
+    error: crate::DecodeError,
+)
+    ensures index < order.len()
+        && part2_jpip_snapshot_tile_selected(input.selected, tile)
+        && (input.components.len() == 0 || input.components.contains(order[index as int].0.component))
+        && part2_jpip_snapshot_resolution(input.selected, order[index as int].0.component,
+            order[index as int].0.resolution, style) == Err(error)
+        ==> part2_jpip_snapshot_make_packets(input, tile, style, order, databins, state, index, before) == Err(error),
+{
+    reveal(part2_jpip_snapshot_make_packets);
 }
 
 pub(crate) type Part2JpipSnapshotTile =

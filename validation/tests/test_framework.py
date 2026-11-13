@@ -873,6 +873,41 @@ class FrameworkTests(WorkingFiles):
         self._assert_complete_packet_contract_bindings(
             {framework._JPIP_BYTE_RESULT_ENTRY}, framework._JPIP_BYTE_RESULT_CONTRACTS, 4, isolate=False)
 
+    def test_inventory_resolution_selection_binds_actual_selection_styles_and_guard_results(self):
+        self._assert_complete_packet_contract_bindings(
+            {framework._JPIP_RESOLUTION_EXIT_ENTRY}, framework._JPIP_RESOLUTION_EXIT_CONTRACTS, 3, isolate=False)
+
+    def test_inventory_resolution_selection_rejects_error_priority_and_zero_count_changes(self):
+        coverage = json.loads((framework.VALIDATION / "normative-coverage.json").read_text())
+        coverage["requirements"] = [
+            item for item in coverage["requirements"] if item["id"] == framework._JPIP_RESOLUTION_EXIT_ENTRY
+        ]
+        self.assertEqual(len(coverage["requirements"]), 1)
+        framework.validate_normative_coverage(coverage)
+        read_text = Path.read_text
+        source = framework.ROOT / "specs/jpip_snapshot_inputs.rs"
+        original = source.read_text()
+        for model, before, after in (
+            ("part2_jpip_snapshot_resolution", "Err(error) => Err(error)",
+             "Err(error) => Err(crate::DecodeError::InvalidSelection { reason: crate::SelectionError::ReductionTooLarge })"),
+            ("part2_jpip_snapshot_resolution", "style.decomposition_levels as nat + 1 < discard as nat",
+             "style.decomposition_levels as nat + 1 <= discard as nat"),
+            ("part2_jpip_snapshot_resolution", "component_coding_style_result(&styles, component)",
+             "component_coding_style_result(&styles, 0)"),
+            ("part2_jpip_snapshot_required", "!part2_jpip_snapshot_component_included(input.components, coordinate.component)",
+             "false"),
+        ):
+            self.assertIn(before, framework._coverage_spec_function_body(original, model))
+            start = re.search(r"\bspec\s+fn\s+" + re.escape(model) + r"\b", original).start()
+            modified = original[:start] + original[start:].replace(before, after, 1)
+
+            def altered(path, *args, **kwargs):
+                return modified if path == source else read_text(path, *args, **kwargs)
+
+            with self.subTest(model=model, before=before), mock.patch.object(Path, "read_text", altered), \
+                    self.assertRaisesRegex(ValueError, "resolution selection Result"):
+                framework.validate_normative_coverage(coverage)
+
     def test_inventory_source_header_transition_exits_bind_actual_normalizer_and_parser_results(self):
         recipes = {key: value for key, value in framework._JPIP_TRANSITION_CONTRACTS.items()
                    if key[1] in {"normalize_automatic_tile_headers", "parse_tile_part_transitions"}}
