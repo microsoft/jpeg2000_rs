@@ -1,6 +1,50 @@
 use super::*;
 
 #[test]
+fn automatic_main_header_requests_preserve_validation_and_reservation_error_order() {
+    let input = [0xff, 0x4f, 0xff, 0x64, 0, 3, 7, 0xff, 0x57, 0, 3, 0];
+    assert_eq!(normalize_main_header(&input).unwrap(), input[..7]);
+    for input in [&[][..], &[0xff][..], &[0xff, 0x50][..]] {
+        crate::allocation::with_refusal(0, || {
+            assert_eq!(
+                normalize_main_header(input),
+                Err(DecodeError::malformed(
+                    0,
+                    MalformedKind::MissingRequiredStructure
+                ))
+            );
+            assert_eq!(
+                crate::allocation::empty_with_capacity::<u8>(1),
+                Err(DecodeError::AllocationFailed)
+            );
+        });
+    }
+    crate::allocation::with_refusal(1, || {
+        assert_eq!(normalize_main_header(&SOC), Ok(SOC.to_vec()));
+        assert_eq!(
+            crate::allocation::empty_with_capacity::<u8>(1),
+            Err(DecodeError::AllocationFailed)
+        );
+    });
+    crate::allocation::with_refusal(0, || {
+        assert_eq!(
+            normalize_main_header(&[0xff, 0x4f, 0xff]),
+            Err(DecodeError::AllocationFailed)
+        );
+    });
+    crate::allocation::with_refusal(1, || {
+        assert_eq!(
+            normalize_main_header(&[0xff, 0x4f, 0xff]),
+            Err(DecodeError::malformed(2, MalformedKind::Truncated))
+        );
+        assert_eq!(
+            crate::allocation::empty_with_capacity::<u8>(1),
+            Err(DecodeError::AllocationFailed)
+        );
+    });
+}
+
+#[test]
 fn automatic_main_header_refusal_preserves_input_and_exact_recovery() {
     let input = [0xff, 0x4f, 0xff, 0x64, 0, 3, 7, 0xff, 0x52, 0, 3, 9];
     let before = input;

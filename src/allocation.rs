@@ -31,6 +31,9 @@ pub(crate) fn empty_with_capacity<T>(capacity: usize) -> Result<Vec<T>, DecodeEr
         old(values)@, bytes@, final(values)@, result),
 ))]
 pub(crate) fn extend_bytes(values: &mut Vec<u8>, bytes: &[u8]) -> Result<(), DecodeError> {
+    if bytes.is_empty() {
+        return Ok(());
+    }
     reserve_additional(values, bytes.len())?;
     #[cfg(verus_keep_ghost)]
     proof_decl! { let ghost previous = values@; }
@@ -110,7 +113,11 @@ mod tests {
         let before = values.clone();
         let owner = (values.as_ptr(), values.len(), values.capacity());
         assert_eq!(
-            with_refusal(0, || extend_bytes(&mut values, &bytes)),
+            with_refusal(0, || {
+                assert_eq!(extend_bytes(&mut values, &[]), Ok(()));
+                assert_eq!((values.as_ptr(), values.len(), values.capacity()), owner);
+                extend_bytes(&mut values, &bytes)
+            }),
             Err(DecodeError::AllocationFailed)
         );
         assert_eq!(values, before);

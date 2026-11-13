@@ -725,6 +725,68 @@ class FrameworkTests(WorkingFiles):
         with self.assertRaisesRegex(ValueError, "all actual preflight"):
             framework.validate_normative_coverage(incomplete)
 
+    def test_inventory_main_header_storage_result_binds_raw_input_and_entire_result(self):
+        coverage = json.loads((framework.VALIDATION / "normative-coverage.json").read_text())
+        coverage["requirements"] = [
+            item for item in coverage["requirements"]
+            if item["id"] == "part9-ordered-main-header-storage-result"
+        ]
+        self.assertEqual(len(coverage["requirements"]), 1)
+        framework.validate_normative_coverage(coverage)
+        source = framework.ROOT / "src/jpip/automatic_headers.rs"
+        original = source.read_text()
+        read_text = Path.read_text
+        header = framework._coverage_function_header(original, "normalize_main_header")
+        signature = original.find("fn", header.start())
+        start = original.rfind("#[cfg_attr", 0, signature)
+        contract = original[start:signature]
+        mutations = [
+            ("input@, jpip_packet_bytes_outcome(result)", "Seq::empty(), jpip_packet_bytes_outcome(result)"),
+            ("jpip_packet_bytes_outcome(result)", "jpip_packet_bytes_outcome(unrelated)"),
+            ("ensures crate::specs::part2_jpip_main_header_result",
+             "ensures result.is_ok() ==> crate::specs::part2_jpip_main_header_result"),
+            ("ensures crate::specs::part2_jpip_main_header_result",
+             "requires input.len() > 0, ensures crate::specs::part2_jpip_main_header_result"),
+        ]
+        for before, after in mutations:
+            self.assertIn(before, contract)
+            modified = original[:start] + contract.replace(before, after, 1) + original[signature:]
+
+            def altered(path, *args, **kwargs):
+                return modified if path == source else read_text(path, *args, **kwargs)
+
+            with self.subTest(before=before), mock.patch.object(Path, "read_text", altered), \
+                    self.assertRaisesRegex(ValueError, "lacks executable Verus contract"):
+                framework.validate_normative_coverage(coverage)
+
+    def test_inventory_main_header_storage_rejects_lost_request_state_order_and_result_witnesses(self):
+        coverage = json.loads((framework.VALIDATION / "normative-coverage.json").read_text())
+        coverage["requirements"] = [
+            item for item in coverage["requirements"]
+            if item["id"] == "part9-ordered-main-header-storage-result"
+        ]
+        source = framework.ROOT / "specs/jpip_normalization.rs"
+        original = source.read_text()
+        read_text = Path.read_text
+        mutations = (
+            ("events[0].2 != requested", "false"),
+            ("events[0].1 != length", "false"),
+            ("if events.len() == 0 { Some(result) } else { None }", "Some(result)"),
+            ("part2_jpip_storage_event(events.drop_first(), 1, 0, 2)",
+             "part2_jpip_storage_event(events, 1, 0, 2)"),
+            ("part2_jpip_normalize_main_header(input, events) == Some(result)", "true"),
+        )
+        for before, after in mutations:
+            self.assertIn(before, original)
+            modified = original.replace(before, after, 1)
+
+            def altered(path, *args, **kwargs):
+                return modified if path == source else read_text(path, *args, **kwargs)
+
+            with self.subTest(before=before), mock.patch.object(Path, "read_text", altered), \
+                    self.assertRaisesRegex(ValueError, "ordered main-header storage"):
+                framework.validate_normative_coverage(coverage)
+
     def test_inventory_binds_all_final_packet_wrappers_and_native_execution_bundle(self):
         self._assert_complete_packet_contract_bindings({
             "part1-complete-native-public-packet-boundaries",
