@@ -141,6 +141,47 @@ Regions use absolute, half-open SIZ image-reference-grid coordinates. Discarding
 resolution levels selects native wavelet resolution, not a resize of a fully
 decoded image. A selection must fit the input's actual origin and geometry.
 
+## Keep reconstruction headroom
+
+```no_run
+use jpeg2000_decoder::{DecodeOptions, decode_codestream_reconstructed};
+
+# fn main() -> Result<(), Box<dyn std::error::Error>> {
+let input = std::fs::read("image.j2k")?;
+let options = DecodeOptions::default();
+let reconstructed = decode_codestream_reconstructed(&input, &options)?;
+for component in reconstructed.components() {
+    // Centered value = sample / 2^fraction_bits, before rounding or clipping.
+    println!("{:?}: {} fractional bits", component.info(), component.fraction_bits());
+}
+let typed = reconstructed.typed(options.limits())?;
+# let _ = typed;
+# Ok(())
+# }
+```
+
+This strict, full raw-codestream API returns the existing
+`image::DecodedImage` / `DecodedComponent`, not RGB or normalized planes.
+Wavelet/component transforms and resource limits are shared with typed decoding.
+For accepted inputs, `typed` reproduces `decode_codestream` under the same limits.
+Every NLT declaration, including identity and tile-local declarations, returns
+`UnsupportedFeature { feature: "nonlinear transforms on reconstruction samples" }`
+after any parsing/reconstruction error. No failed decode is retried.
+
+Samples retain signed centered `i64` headroom and per-component `fraction_bits`.
+Image origins/extents and component dimensions, subsampling and raw CRG
+registration are unchanged. Component coded-grid origins are the image origins
+ceiling-divided by component subsampling; registration describes physical phase,
+not extra decoded pixels. Consumers choose interpolation policy, widen operands
+to `i128` before weighting, retain fractions, then round centered values once
+(half away from zero), level-shift unsigned output and clamp to precision.
+
+There is no reconstructed selection/container/recovery API in this increment.
+Palette/channel mapping and color conversion are not applied or implied.
+Reconstructed recovery output remains future work (#296/W19).
+Recoverable allocation is still incomplete (#287); this API does not claim that
+every allocation failure returns an error.
+
 ## Resource limits and errors
 
 ```no_run

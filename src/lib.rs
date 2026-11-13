@@ -58,8 +58,8 @@ pub use color::{
     ConvertedChannel, ConvertedChannelType, ConvertedColorSpace, ConvertedImage, convert_jp2_color,
 };
 pub use decode::{
-    decode_codestream, decode_codestream_selected, decode_jp2, decode_jp2_color,
-    decode_jp2_color_selected, decode_jp2_selected, decode_jph, decode_jph_color,
+    decode_codestream, decode_codestream_reconstructed, decode_codestream_selected, decode_jp2,
+    decode_jp2_color, decode_jp2_color_selected, decode_jp2_selected, decode_jph, decode_jph_color,
     decode_jph_color_selected, decode_jph_selected, decode_jpx_codestream,
     decode_jpx_codestream_color, decode_jpx_codestream_color_selected,
     decode_jpx_codestream_selected,

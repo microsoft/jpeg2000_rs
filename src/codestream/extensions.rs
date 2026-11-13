@@ -372,7 +372,12 @@ impl Part2Extensions {
         &self.arbitrary_decompositions
     }
 
+    #[cfg_attr(verus_keep_ghost, verus_spec(result =>
+        ensures result.len() == owned_extensions_view(self).nonlinear.len(),
+    ))]
     pub fn nonlinear_transforms(&self) -> &[NonlinearPointTransform] {
+        #[cfg(verus_keep_ghost)]
+        proof! { reveal(owned_extensions_view); reveal(owned_nonlinear_list_view); }
         &self.nonlinear_transforms
     }
 
