@@ -261,6 +261,27 @@ A negative proof control rejects a layer claim about arbitrary old entries even
 when their execution index is valid; the native control preserves such a prefix
 while appended entries remain valid after actual Option/byte-vector updates.
 
+## Automatic source header and repeated transition-parser exits
+
+The source tile-header lookup is in bounds because the actual normalization loop
+appends exactly one normalized-header group per gathered raw header. Its checked
+cardinality and the tile/mapping loop frames retain the equal raw/normalized
+vector lengths and actual tile index.
+
+The following repeated transition-parser error is also impossible. The accepted
+normalizer first invokes that same deterministic parser on the same raw bytes
+and tile identifier. `part2_jpip_normalized_transition_parse_known` proves that
+normalization success implies parser success, without a new precondition.
+Actual processed-prefix facts retain that success across the intervening work,
+and the lookup binds the exact raw header and tile again. The existing complete
+Err projection cannot match this derived Ok parse model, so the corresponding
+cache/caller Result error implication follows by the checked contradiction.
+
+No reachable parser error is invented or replaced by an allocation alternative.
+The original guards and repeated call remain in their original order. A negative
+proof control rejects success without the prior normalization fact; native
+wrong-tile controls fail both the earlier normalization and parser as expected.
+
 ## Trailing whole-packet engineering admission
 
 The actual packet traversal accepts a retained prefix of complete packets

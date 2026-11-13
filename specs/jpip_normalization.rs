@@ -375,4 +375,10 @@ pub open spec fn part2_jpip_normalize_automatic_tile_headers(input: Seq<u8>, til
     }
 }
 
+pub proof fn part2_jpip_normalized_transition_parse_known(input: Seq<u8>, tile: u16)
+    ensures part2_jpip_normalize_automatic_tile_headers(input, tile).is_ok()
+        ==> part2_jpip_parse_transitions(input, tile).is_ok(),
+{
+}
+
 }
