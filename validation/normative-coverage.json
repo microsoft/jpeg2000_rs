@@ -4,6 +4,31 @@
   "scope": "Technical reference inventory; not exhaustive standards-clause coverage or a conformance claim.",
   "requirements": [
     {
+      "id": "part9-checked-associated-iterator-prefix",
+      "topic": "Complete checked associated ProgressionPacketIterator::new Result reusing its already-checked backing producer, with no domain premise or native delegation/ownership/evaluation change. Dedicated impl verification and body ensures expose the same actual grid/order/changes/work-limit model on all Results. The exact formerly archived constructor/model equality is positively checked in the actual automatic snapshot caller, followed by its actual order-phase Result. The reached resolution error is NOT yet lifted into the original cache/caller predicate: the next actual automatic_precinct_in_class result/model interface is a sole whole-root diagnostic failure retained outside committed source. Earlier requirement objects and receipts remain unchanged; no emission/full-public success work.",
+      "implementation_refs": [
+        {"path": "src/packet/progression.rs", "symbol": "ProgressionPacketIterator::new"},
+        {"path": "src/packet/progression.rs", "symbol": "progression_packet_iterator_new"},
+        {"path": "src/jpip/progression.rs", "symbol": "DatabinCache::build_automatic_snapshot"}
+      ],
+      "contract_refs": [
+        {"path": "src/packet/progression.rs", "symbol": "progression_packet_iterator_new"}
+      ],
+      "spec_refs": [
+        {"path": "specs/packet_progression.rs", "symbol": "part1_progression_iterator_initial"},
+        {"path": "specs/jpip_snapshot_inputs.rs", "symbol": "part2_jpip_snapshot_order"},
+        {"path": "specs/jpip_phases.rs", "symbol": "part2_jpip_order_phase"}
+      ],
+      "proof_refs": [
+        {"path": "src/packet/progression.rs", "symbol": "ProgressionPacketIterator::new"},
+        {"path": "src/jpip/progression.rs", "symbol": "DatabinCache::build_automatic_snapshot"}
+      ],
+      "test_refs": [
+        {"path": "src/packet/tests.rs", "symbol": "actual_progression_constructor_charges_duplicate_windows_and_next_suppresses_only_prior_membership"},
+        {"path": "src/jpip/tests.rs", "symbol": "automatic_resolution_selection_error_is_reachable_from_actual_cache_and_caller"}
+      ]
+    },
+    {
       "id": "part9-actual-layout-global-prefix",
       "topic": "Checked original cache/caller normalized-header/template prefix extended through the actual successful layout parse, exact checked raw/native decoder-input inverse and reached site-2/tile-0/header-count successful capacity response. The actual call proves internal lemma premises from preceding native Results; all tail bytes/events and initial empty tile/layer state are exact. The actual native planning Result is separately checked from its actual fields. This is NOT a lift of the reached resolution error into the original cache/caller predicate: the next associated progression-iterator constructor/model equality is a sole actual whole-root diagnostic failure retained outside source, not assumed or committed. No native behavior, constructor contract, emission or full-public success join changes.",
       "implementation_refs": [

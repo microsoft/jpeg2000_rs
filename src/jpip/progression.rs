@@ -714,6 +714,15 @@ impl DatabinCache {
                 &tile_part.progression_changes,
                 limits,
             )?;
+            #[cfg(verus_keep_ghost)]
+            proof! {
+                assert(crate::specs::part1_progression_iterator_initial(
+                    crate::decode::progression_plan_view(&plan).grid,
+                    tile_part.coding_style.progression_order,
+                    crate::codestream::progression_changes_view(&tile_part.progression_changes),
+                    crate::limits::resource_work_limit(limits))
+                    == Ok(crate::packet::progression_packet_iterator_view(&iterator)));
+            }
             let progression_code = match tile_part.coding_style.progression_order {
                 crate::codestream::ProgressionOrder::Lrcp => 0,
                 crate::codestream::ProgressionOrder::Rlcp => 1,
@@ -745,6 +754,8 @@ impl DatabinCache {
             build_automatic_order(&plan, &mut iterator, &mut ordinals, &mut order, limits)?;
             #[cfg(verus_keep_ghost)]
             proof! {
+                assert(crate::specs::part2_jpip_snapshot_order(order_iterator,
+                    crate::limits::resource_work_limit(limits), 0, order_ordinals, order_initial) == Ok(order@));
                 crate::specs::part2_jpip_order_phase_prefix_bounds(order_grid, order_iterator,
                     order_ordinals, order_initial, 0, crate::limits::resource_work_limit(limits));
                 assert forall|index: int| 0 <= index < order.len()

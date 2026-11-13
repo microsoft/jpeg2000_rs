@@ -335,15 +335,22 @@ the original prefix. The actual call proves all premises from preceding native
 Results, without a new caller precondition, chosen layout or supplied outcome.
 The first native planning Result is also checked against its actual inputs.
 
+The originally archived associated-constructor equality is now positively
+checked. A dedicated verified impl gives `ProgressionPacketIterator::new` its
+complete Result by reusing the checked backing producer. Its native delegation
+is unchanged, with no new domain premise. The actual snapshot call proves the
+exact initial-iterator/model equality, followed by its actual order-phase Result.
+Native controls exercise both constructor paths with the same duplicate-window
+work-limit error, first packet, suppression and terminal cursor state.
+
 The reached resolution error is **not yet lifted to the original cache/caller
-predicate**. A complete-root diagnostic isolates the next missing equality:
-`part1_progression_iterator_initial(actual grid, order, changes, work limit) ==
-Ok(progression_packet_iterator_view(&actual iterator))` immediately after the
-unchanged `ProgressionPacketIterator::new` call. The backing free function has a
-checked complete Result contract, but the associated wrapper has no such
-postcondition. The exact sole-failure source is retained under ignored evidence;
-the failed assertion is not committed. No per-tile/global error equivalence is
-assumed, and no emission or full-public success join is attempted.
+predicate**. The next complete-root diagnostic fails only at the actual
+`automatic_precinct_in_class(...)` result/model equality. This existing JPIP
+producer has no checked Result contract linking its actual tile/component/
+resolution/precinct/grid inputs to `part2_jpip_snapshot_in_class`. That precise
+consumer obligation is retained under ignored evidence, not assumed or
+committed. No per-tile/global error equivalence, emission or full-public success
+join is claimed.
 
 ## Trailing whole-packet engineering admission
 

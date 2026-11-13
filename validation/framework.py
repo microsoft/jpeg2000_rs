@@ -3550,6 +3550,13 @@ _JPIP_PARSED_BOUND_ENTRY = "part9-automatic-parsed-row-layer-bounds"
 _JPIP_BLOCKED_BOUND_ENTRY = "part9-automatic-blocked-lookup-bound"
 _JPIP_PARSE_EXIT_ENTRY = "part9-canonical-template-initial-parse-error"
 _JPIP_LAYOUT_PREFIX_ENTRY = "part9-actual-layout-global-prefix"
+_JPIP_ITERATOR_PREFIX_ENTRY = "part9-checked-associated-iterator-prefix"
+_JPIP_ITERATOR_CONSTRUCTOR_CLAUSE = (
+    "vstd::prelude::ensures(|result: Result<Self, DecodeError>| "
+    "vstd::prelude::equal(progression_packet_iterator_outcome(result), "
+    "crate::specs::part1_progression_iterator_initial(packet_grid_view(grid), default_order, "
+    "crate::codestream::progression_changes_view(changes), crate::limits::resource_work_limit(limits))));"
+)
 _JPIP_PARSE_EXIT_CONTRACTS = {
     ("src/jpip/mapping.rs", "validate_packet_component_selection"): (
         "part2_jpip_snapshot_component_selection", r"\1", None,
@@ -4844,6 +4851,43 @@ def validate_normative_coverage(
     ids: set[str] = set()
     contract_functions: set[tuple[str, str]] = set()
     for entry in coverage["requirements"]:
+        if entry["id"] == _JPIP_ITERATOR_PREFIX_ENTRY:
+            path = (ROOT / "src/packet/progression.rs").resolve()
+            source = source_text(path)
+            header = function_header(path, "ProgressionPacketIterator::new")
+            body = _coverage_function_body(source, header)
+            implementation = re.search(
+                r"#\[\s*cfg_attr\(\s*verus_keep_ghost\s*,\s*verus_verify\s*\)\s*\]\s*"
+                r"impl<'a>\s+ProgressionPacketIterator<'a>\s*\{", source)
+            closing = re.search(r"(?m)^\}[ \t]*$", source[implementation.end():]) if implementation else None
+            if (header is None or body is None or implementation is None or closing is None
+                    or not implementation.end() <= header.start() < implementation.end() + closing.start()
+                    or _coverage_body_clause(body) != _coverage_body_clause(
+                        "#[cfg(verus_keep_ghost)]" + _JPIP_ITERATOR_CONSTRUCTOR_CLAUSE)
+                    or re.search(r"\b(?:requires|assume|admit|external_body)\b", body)
+                    or not "".join(body.split()).endswith(
+                        "progression_packet_iterator_new(grid,default_order,changes,limits)")):
+                raise ValueError("checked associated iterator requires exact verified body Result and original delegation without premises")
+            required = {
+                ("src/packet/progression.rs", "ProgressionPacketIterator::new"),
+                ("src/jpip/progression.rs", "DatabinCache::build_automatic_snapshot"),
+            }
+            if not required.issubset({(ref["path"], ref["symbol"]) for ref in entry["proof_refs"]}):
+                raise ValueError("checked associated iterator requires its actual wrapper and caller proofs")
+            source = source_text((ROOT / "src/jpip/progression.rs").resolve())
+            native = _coverage_function_body(source, _coverage_function_header(source, "DatabinCache::build_automatic_snapshot"))
+            for fragment in (
+                "assert(crate::specs::part1_progression_iterator_initial("
+                "crate::decode::progression_plan_view(&plan).grid,"
+                "tile_part.coding_style.progression_order,"
+                "crate::codestream::progression_changes_view(&tile_part.progression_changes),"
+                "crate::limits::resource_work_limit(limits))"
+                "== Ok(crate::packet::progression_packet_iterator_view(&iterator)))",
+                "assert(crate::specs::part2_jpip_snapshot_order(order_iterator,"
+                "crate::limits::resource_work_limit(limits), 0, order_ordinals, order_initial) == Ok(order@))",
+            ):
+                if native is None or "".join(fragment.split()) not in "".join(native.split()):
+                    raise ValueError("checked associated iterator requires exact actual constructor and order Result identities")
         if entry["id"] == _JPIP_LAYOUT_PREFIX_ENTRY:
             required = {
                 ("src/jpip/snapshot_header_proof_support.rs", "jpip_snapshot_layout_continuation"),
