@@ -12171,6 +12171,10 @@
           "path": "proofs/production_impl/mod.rs",
           "symbol": "production_part9_all_progressions_and_reframed_markers_are_classified"
         },
+        {"path": "src/decode/planning.rs", "symbol": "ProgressionTilePlan::grid"},
+        {"path": "src/decode/planning.rs", "symbol": "ProgressionTilePlan::precincts"},
+        {"path": "src/decode/planning.rs", "symbol": "ProgressionTilePlan::precincts_mut"},
+        {"path": "src/jpip/progression_proof_support.rs", "symbol": "jpip_filter_projection"},
         {"path": "src/jpip/progression_proof_support.rs", "symbol": "jpip_parsed_packet_value"},
         {"path": "src/jpip/progression_proof_support.rs", "symbol": "jpip_parsed_packet_row"},
         {"path": "src/jpip/progression_proof_support.rs", "symbol": "jpip_parsed_packet_matrix"},
@@ -12218,7 +12222,7 @@
           "path": "src/jpip/tests.rs", "symbol": "automatic_managed_allocation_refusals_preserve_state_and_recover_exact_images"
         }
       ],
-      "topic": "All five progression orders and POC windows with PLM/PLT/PPM/PPT removal and SOP/EPH packet reframing. Local checked interfaces bind the ordinal empty-slot write and the exact parsed packet-byte matrix update, preserving every untouched row/slot/byte. Native packet-copy evaluation stays on the RHS of the original assignment before its checked LHS lookup, with existing error and ownership order. Named actual-value projections and checked sequence-update lemmas connect the matrices without chosen owners or supplied codec results. This is not a complete automatic snapshot/public Result; all remaining cache/header/plan/image/error/state joins stay open under issue130."
+      "topic": "All five progression orders and POC windows with packet-header removal and SOP/EPH reframing. Checked local interfaces retain exact ordinal and packet-byte matrix updates, plan grid/precinct getter values and complete future mutable-slice/other-plan-field frames. The original native iter/filter/collect traversal has a checked selected-tile order and full payload projection via existing iterator specifications and a proved filter/projection lemma. Existing assignment, error, ownership and native iteration semantics remain. No successful layout/codec Result is supplied. This is not the complete automatic snapshot/public Result; remaining cache/header/plan/image/error/state joins stay open under issue130."
     },
     {
       "contract_refs": [

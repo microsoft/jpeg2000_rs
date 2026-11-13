@@ -4668,6 +4668,10 @@ def validate_normative_coverage(
             required = {
                 "proof_refs": {
                     ("src/jpip/progression.rs", "DatabinCache::build_automatic_snapshot"),
+                    ("src/decode/planning.rs", "ProgressionTilePlan::grid"),
+                    ("src/decode/planning.rs", "ProgressionTilePlan::precincts"),
+                    ("src/decode/planning.rs", "ProgressionTilePlan::precincts_mut"),
+                    ("src/jpip/progression_proof_support.rs", "jpip_filter_projection"),
                     ("src/jpip/progression_proof_support.rs", "jpip_parsed_packet_value"),
                     ("src/jpip/progression_proof_support.rs", "jpip_parsed_packet_row"),
                     ("src/jpip/progression_proof_support.rs", "jpip_parsed_packet_matrix"),
@@ -4750,6 +4754,39 @@ def validate_normative_coverage(
                 if projection is None or any("".join(fragment.split()) not in "".join(projection.split())
                                              for fragment in fragments):
                     raise ValueError("packet scratch frame requires complete native byte projections")
+            planning_path = (ROOT / "src/decode/planning.rs").resolve()
+            planning = source_text(planning_path)
+            for symbol, clauses, returned in (
+                ("ProgressionTilePlan::grid", (
+                    "ensures crate::packet::packet_grid_view(result) == progression_plan_view(self).grid",
+                ), "&self.grid"),
+                ("ProgressionTilePlan::precincts", (
+                    "ensures super::planning_precincts_view(result@) == progression_plan_view(self).precincts",
+                ), "&self.precincts"),
+                ("ProgressionTilePlan::precincts_mut", (
+                    "ensures super::planning_precincts_view(result@) == progression_plan_view(old(self)).precincts",
+                    "progression_plan_view(final(self)) == (crate::specs::Part2ProgressionTilePlan { "
+                    "precincts: super::planning_precincts_view(final(result)@), "
+                    "..progression_plan_view(old(self)) })",
+                ), "&mut self.precincts"),
+            ):
+                header = function_header(planning_path, symbol)
+                signature = planning.find("fn", header.start(), header.end()) if header else -1
+                attrs = planning[planning.rfind("#[cfg_attr", 0, signature):signature] if signature >= 0 else ""
+                body = _coverage_function_body(planning, header)
+                if ("verus_spec(" not in attrs or re.search(r"\b(?:requires|assume|admit|external_body)\b", attrs)
+                        or any("".join(clause.split()) not in "".join(attrs.split()) for clause in clauses)
+                        or body is None or "".join(returned.split()) not in "".join(body.split())):
+                    raise ValueError("automatic inputs require complete checked plan getter and future-slice frames")
+            input_fragments = (
+                "let tile_parts_iterator = layout.tile_parts.iter().filter(",
+                "let tile_parts: Vec<_> = tile_parts_iterator.collect()",
+                "super::jpip_filter_projection(source.remaining(), keep, project, predicate)",
+                "assert(tile_parts@.map_values(project) == "
+                "crate::codestream::tile_parts_owned_view(layout.tile_parts@).filter(predicate))",
+            )
+            if any("".join(fragment.split()) not in compact for fragment in input_fragments):
+                raise ValueError("automatic inputs require the actual selected-tile order and complete payload projection")
         if entry["id"] == _RAW_RECOVERY_ENTRY:
             expected = set(_RAW_RECOVERY_CONTRACTS) | set(_RAW_RECOVERY_RELATIONS)
             if {(ref["path"], ref["symbol"]) for ref in entry["contract_refs"]} != expected:

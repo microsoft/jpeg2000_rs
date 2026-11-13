@@ -38,15 +38,34 @@ impl ProgressionTilePlan {
         self.tile_index
     }
 
+    #[cfg_attr(verus_keep_ghost, verus_spec(result =>
+        ensures crate::packet::packet_grid_view(result) == progression_plan_view(self).grid,
+    ))]
     pub const fn grid(&self) -> &PacketGrid {
+        #[cfg(verus_keep_ghost)]
+        proof! { reveal(progression_plan_view); }
         &self.grid
     }
 
+    #[cfg_attr(verus_keep_ghost, verus_spec(result =>
+        ensures super::planning_precincts_view(result@) == progression_plan_view(self).precincts,
+    ))]
     pub fn precincts(&self) -> &[PacketPrecinctDecoder] {
+        #[cfg(verus_keep_ghost)]
+        proof! { reveal(progression_plan_view); reveal(super::planning_precincts_view); }
         &self.precincts
     }
 
+    #[cfg_attr(verus_keep_ghost, verus_spec(result =>
+        ensures super::planning_precincts_view(result@) == progression_plan_view(old(self)).precincts,
+            progression_plan_view(final(self)) == (crate::specs::Part2ProgressionTilePlan {
+                precincts: super::planning_precincts_view(final(result)@),
+                ..progression_plan_view(old(self))
+            }),
+    ))]
     pub fn precincts_mut(&mut self) -> &mut [PacketPrecinctDecoder] {
+        #[cfg(verus_keep_ghost)]
+        proof! { reveal(progression_plan_view); reveal(super::planning_precincts_view); }
         &mut self.precincts
     }
 
