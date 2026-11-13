@@ -1,6 +1,70 @@
 use super::*;
 
 #[test]
+fn automatic_cardinality_preserves_first_siz_and_geometry_before_tile_limit_errors() {
+    let limits = ResourceLimits::default();
+    let mut payload = vec![0_u8; 36];
+    for (offset, value) in [(2, 10_u32), (6, 7), (18, 4), (22, 3), (26, 1), (30, 1)] {
+        payload[offset..offset + 4].copy_from_slice(&value.to_be_bytes());
+    }
+    payload[34..36].copy_from_slice(&3_u16.to_be_bytes());
+    let main = |payload: &[u8]| {
+        let mut bytes = vec![0xff, 0x4f, 0xff, 0x51];
+        bytes.extend_from_slice(&u16::try_from(payload.len() + 2).unwrap().to_be_bytes());
+        bytes.extend_from_slice(payload);
+        bytes
+    };
+    // Cardinality does not inspect the following component records or admit a complete SIZ.
+    let mut first = main(&payload);
+    first.extend_from_slice(&[0xff, 0x51, 0, 2]);
+    assert_eq!(super::super::siz_cardinality(&first, &limits), Ok((6, 3)));
+    assert_eq!(
+        super::super::siz_cardinality(&main(&payload[..35]), &limits),
+        Err(DecodeError::malformed(
+            2,
+            MalformedKind::InvalidImageGeometry
+        ))
+    );
+    let mut preceding_error = vec![0xff, 0x4f, 0xff, 0x64, 0, 1];
+    preceding_error.extend_from_slice(&first[2..]);
+    assert_eq!(
+        super::super::siz_cardinality(&preceding_error, &limits),
+        Err(DecodeError::malformed(
+            2,
+            MalformedKind::InvalidMarkerLength
+        ))
+    );
+    payload[2..6].copy_from_slice(&(limits.maximum_tiles() + 1).to_be_bytes());
+    payload[6..10].copy_from_slice(&1_u32.to_be_bytes());
+    payload[18..22].copy_from_slice(&1_u32.to_be_bytes());
+    payload[22..26].copy_from_slice(&1_u32.to_be_bytes());
+    payload[26..34].fill(0);
+    assert_eq!(
+        super::super::siz_cardinality(&main(&payload), &limits),
+        Err(DecodeError::limit(
+            Resource::Tiles,
+            u64::from(limits.maximum_tiles()),
+            u64::from(limits.maximum_tiles()) + 1,
+        ))
+    );
+    payload[34..36].copy_from_slice(&(limits.maximum_components() + 1).to_be_bytes());
+    assert_eq!(
+        super::super::siz_cardinality(&main(&payload), &limits),
+        Err(DecodeError::malformed(
+            2,
+            MalformedKind::InvalidImageGeometry
+        ))
+    );
+    assert_eq!(ceil_div_jpip(9, 4), Ok(3));
+    for (value, divisor) in [(0, 0), (u64::MAX, 2)] {
+        assert_eq!(
+            ceil_div_jpip(value, divisor),
+            Err(DecodeError::malformed(0, MalformedKind::ArithmeticOverflow))
+        );
+    }
+}
+
+#[test]
 fn automatic_main_header_requests_preserve_validation_and_reservation_error_order() {
     let input = [0xff, 0x4f, 0xff, 0x64, 0, 3, 7, 0xff, 0x57, 0, 3, 0];
     assert_eq!(normalize_main_header(&input).unwrap(), input[..7]);

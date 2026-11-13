@@ -3498,6 +3498,25 @@ _RAW_CONTAINER_COLOR_TESTS = {("src/decode/container_image_result_tests.rs", "ac
     "preserves_header_mapping_before_color_admission",
     "preserves_raw_inspection_selection_packet_and_profile_priority",
 )} | {("src/decode/tests.rs", "sarah_dev_457acab2c3_later_jp2_streams_do_not_change_first_display")}
+_JPIP_AUTOMATIC_INPUT_ENTRY = "part9-complete-native-automatic-header-partition-inputs"
+_JPIP_AUTOMATIC_INPUT_CONTRACTS = {
+    ("src/jpip/mapping.rs", "siz_cardinality"): (
+        "part2_jpip_siz_cardinality", r"\1", None, r"main_header@\s*,\s*limits",
+    ),
+    ("src/jpip/automatic_headers.rs", "ceil_div_jpip"): (
+        "part2_jpip_ceil_div", r"\1", None, r"value\s*,\s*divisor",
+    ),
+    ("src/jpip/automatic_headers.rs", "partition_automatic_tile_parts"): (
+        "part2_jpip_partition_automatic_tiles", _coverage_call("jpip_automatic_partition_outcome", r"\1"), None,
+        _coverage_call("headers@.map_values", r"\|header:\s*Vec<u8>\|\s*header@")
+        + r"\s*,\s*" + _coverage_call("states@.map_values",
+            r"\|state:\s*&crate::codestream::TilePartPayload<'_>\|\s*"
+            + _coverage_call("crate::codestream::tile_part_owned_view", "state"))
+        + r"\s*,\s*" + _coverage_call("transitions@.map_values",
+            r"\|transition:\s*JpipTilePartTransition\|\s*" + _coverage_call("jpip_transition_view", "&transition"))
+        + r"\s*,\s*" + _coverage_call("jpip_automatic_packets_view", "packets"),
+    ),
+}
 _JPIP_PLACEHOLDER_ENTRY = "part9-native-placeholder-representation-selection"
 _JPIP_PLACEHOLDER_CONTRACTS = {
     ("src/jpip/reconstruction.rs", "parse_jpip_placeholder"): (
@@ -4664,6 +4683,121 @@ def validate_normative_coverage(
     ids: set[str] = set()
     contract_functions: set[tuple[str, str]] = set()
     for entry in coverage["requirements"]:
+        if entry["id"] == _JPIP_AUTOMATIC_INPUT_ENTRY:
+            contracts = set(_JPIP_AUTOMATIC_INPUT_CONTRACTS) | {
+                ("src/jpip/progression.rs", "DatabinCache::automatic_headers"),
+                ("src/jpip/automatic_headers.rs", "normalize_main_header"),
+                ("src/jpip/automatic_headers.rs", "normalize_automatic_tile_headers"),
+                ("src/jpip/cache.rs", "DatabinCache::databin_view"),
+            }
+            if {(ref["path"], ref["symbol"]) for ref in entry["contract_refs"]} != contracts:
+                raise ValueError("automatic header/partition inputs require every complete actual Result contract")
+            for field, required in (
+                ("implementation_refs", contracts | {
+                    ("src/jpip/progression.rs", "DatabinCache::build_automatic_snapshot"),
+                    ("src/jpip/mapping.rs", "DatabinCache::derive_precinct_map"),
+                }),
+                ("proof_refs", {
+                    ("src/jpip/progression_proof_support.rs", name) for name in (
+                        "jpip_automatic_headers_view", "jpip_automatic_headers_outcome",
+                        "jpip_automatic_headers_witness", "jpip_automatic_headers_first_error",
+                        "jpip_automatic_packet_view",
+                        "jpip_automatic_packets_view", "jpip_automatic_tile_part_view",
+                        "jpip_automatic_partition_outcome",
+                    )
+                }),
+                ("test_refs", {
+                    ("src/jpip/normalization_result_tests.rs",
+                     "automatic_cardinality_preserves_first_siz_and_geometry_before_tile_limit_errors"),
+                    *(("src/jpip/tests.rs", name) for name in (
+                        "automatic_header_inputs_preserve_cache_siz_and_reservation_error_order",
+                        "automatic_header_inputs_derive_exact_fields_and_recover_after_managed_refusal",
+                        "automatic_tile_partition_derives_packet_fields_missing_and_exact_boundary_errors",
+                    )),
+                }),
+            ):
+                if not required.issubset({(ref["path"], ref["symbol"]) for ref in entry[field]}):
+                    raise ValueError("automatic header/partition inputs require actual consumers, complete views and regressions")
+            models = {
+                "specs/jpip_normalization.rs": {
+                    "part2_jpip_ceil_div": ("divisor == 0", "value as int + divisor as int - 1 > u64::MAX as int"),
+                    "part2_jpip_siz_payload": (
+                        "payload.len() < 36", "part2_jpip_read_u32(payload, 2)",
+                        "part2_jpip_read_u32(payload, 6)", "part2_jpip_read_u32(payload, 18)",
+                        "part2_jpip_read_u32(payload, 22)", "part2_jpip_read_u32(payload, 26)",
+                        "part2_jpip_read_u32(payload, 30)", "part2_jpip_read_u16(payload, 34)",
+                        "components == 0", "width == 0", "height == 0", "x <= tx", "y <= ty",
+                        "components > crate::limits::resource_component_limit(limits)",
+                        "count > crate::limits::resource_tile_limit(limits) as nat",
+                    ),
+                    "part2_jpip_siz_scan": ("remaining == 0", "part2_jpip_marker_segment(input, position)",
+                        "marker == 0xff51", "part2_jpip_siz_payload(", "(remaining - 1) as usize"),
+                    "part2_jpip_siz_cardinality": ("input.len() < 2", "input[0] != 0xff", "input[1] != 0x4f"),
+                    "part2_jpip_automatic_headers_finish": (
+                        "if events.len() == 0 { Some(result) } else { None }",
+                    ),
+                    "part2_jpip_header_capacity": ("events.len() == 0", "actual == site && count == elements"),
+                    "part2_jpip_automatic_raw_tiles": ("part2_jpip_cache_view(cache, (2u64,",
+                        "tile + 1, output.push(bytes)"),
+                    "part2_jpip_automatic_first_tiles": ("index > u16::MAX as nat",
+                        "part2_jpip_normalize_automatic_tile_headers(tiles[index as int], index as u16)",
+                        "headers.len() == 0", "index + 1, output.push(headers[0])"),
+                    "part2_jpip_automatic_headers_normalized": (
+                        "part2_jpip_header_capacity(events, 1, tiles.len() as usize)",
+                        "Err(crate::DecodeError::AllocationFailed), events.drop_first()",
+                        "part2_jpip_automatic_first_tiles(tiles, 0, Seq::empty())",
+                        "Ok((main, normalized, count, components))",
+                    ),
+                    "part2_jpip_automatic_headers_bins": ("Err(error) => part2_jpip_automatic_headers_finish(Err(error), events)",
+                        "part2_jpip_normalize_main_header(main, calls)",
+                        "Some(Err(error)) => part2_jpip_automatic_headers_finish(Err(error), events.drop_first())",
+                        "part2_jpip_automatic_headers_normalized("),
+                    "part2_jpip_automatic_headers": ("part2_jpip_cache_view(cache, (6u64,",
+                        "part2_jpip_siz_cardinality(main, &cache.0)", "count > usize::MAX as u64",
+                        "part2_jpip_header_capacity(events, 0, count as usize)",
+                        "part2_jpip_automatic_raw_tiles(cache, stream, count, 0, Seq::empty())"),
+                    "part2_jpip_automatic_headers_result": (
+                        "exists|events: Seq<Part2JpipAutomaticHeaderEvent>|",
+                        "part2_jpip_automatic_headers(cache, stream, events) == Some(result)",
+                    ),
+                },
+                "specs/jpip_progressive.rs": {
+                    "part2_jpip_partition_bytes": ("packets[end as int].1", "None => Ok(None)",
+                        "consumed as nat + (bytes.len() as u64) as nat", "consumed != target",
+                        "part2_jpip_cache_error(consumed, crate::MalformedKind::InvalidPacketLength)"),
+                    "part2_jpip_partition_end": ("part + 1 == count", "match transition.2",
+                        "packets_in_part > usize::MAX as u64", "match transition.3",
+                        "part2_jpip_partition_bytes(packets, target, start as nat, 0)"),
+                    "part2_jpip_partition_parts": ("start as nat != packets.len()", "Ok(None) => Ok(None)",
+                        "start > end || end as nat > packets.len()", "packets.subrange(start as int, end as int)",
+                        "state.coding_style.sop_markers, state.coding_style.eph_markers"),
+                    "part2_jpip_partition_automatic_tiles": ("headers.len() != states.len()",
+                        "headers.len() != transitions.len()", "headers.len() == 0",
+                        "part2_jpip_partition_parts(headers, states, transitions, packets, 0, 0, Seq::empty())"),
+                },
+            }
+            for relative, recipes in models.items():
+                source = source_text((ROOT / relative).resolve())
+                for name, fragments in recipes.items():
+                    if {"path": relative, "symbol": name} not in entry["spec_refs"]:
+                        raise ValueError("automatic header/partition inputs require every stage model")
+                    body = _coverage_spec_function_body(source, name)
+                    if body is None or any("".join(fragment.split()) not in "".join(body.split()) for fragment in fragments):
+                        raise ValueError("automatic header/partition inputs require exact native error/request/byte models")
+            views = source_text((ROOT / "src/jpip/progression_proof_support.rs").resolve())
+            for name, fragments in {
+                "jpip_automatic_headers_view": (
+                    "value.main@", "value.tiles@.map_values", "value.tile_count", "value.components"),
+                "jpip_automatic_packet_view": (
+                    "databin_id_view(value.databin)", "jpip_parsed_packet_value(value.bytes)",
+                    "value.next_offset", "value.required", "value.ordinal", "value.layer"),
+                "jpip_automatic_tile_part_view": (
+                    "value.header@", "value.packets@.map_values", "jpip_automatic_packet_view(&packet)",
+                    "value.sop", "value.eph"),
+            }.items():
+                body = _coverage_spec_function_body(views, name)
+                if body is None or any("".join(fragment.split()) not in "".join(body.split()) for fragment in fragments):
+                    raise ValueError("automatic header/partition inputs require every returned field projection")
         if entry["id"] == "part9-packet-reframing":
             required = {
                 "proof_refs": {
@@ -8732,6 +8866,10 @@ def validate_normative_coverage(
                     if entry["id"] == _JPIP_PROGRESSIVE_ENTRY else None)
                 or (_JPIP_TRANSITION_CONTRACTS.get((reference["path"], reference["symbol"]))
                     if entry["id"] == _JPIP_TRANSITION_ENTRY else None)
+                or ((_JPIP_AUTOMATIC_INPUT_CONTRACTS.get((reference["path"], reference["symbol"]))
+                     or _JPIP_TRANSITION_CONTRACTS.get((reference["path"], reference["symbol"]))
+                     or _JPIP_CACHE_VIEW_CONTRACTS.get((reference["path"], reference["symbol"])))
+                    if entry["id"] == _JPIP_AUTOMATIC_INPUT_ENTRY else None)
                 or (_JPX_INSPECTION_CONTRACTS.get((reference["path"], reference["symbol"]))
                     if entry["id"] == _JPX_INSPECTION_ENTRY else None)
                 or (_RAW_JPX_INSPECTION_CONTRACTS.get((reference["path"], reference["symbol"]))
@@ -8978,6 +9116,13 @@ def validate_normative_coverage(
                 storage_contract = (
                     "part2_jpip_main_header_result",
                     r"input@\s*,\s*jpip_packet_bytes_outcome\(\s*\1\s*\)",
+                )
+            if (reference["path"], reference["symbol"]) == (
+                    "src/jpip/progression.rs", "DatabinCache::automatic_headers"):
+                storage_contract = (
+                    "part2_jpip_automatic_headers_result",
+                    r"jpip_cache_view\(\s*self\s*\)\s*,\s*codestream\s*,\s*"
+                    r"jpip_automatic_headers_outcome\(\s*\1\s*\)",
                 )
             if storage_contract:
                 model, arguments = storage_contract
