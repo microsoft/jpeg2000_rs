@@ -1,0 +1,88 @@
+name: Native compiler observations
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  native-observations:
+    name: Native compiler observations (not coverage)
+    runs-on: ubuntu-latest
+    env:
+      TOOLCHAIN: nightly-2026-08-03
+      CARGO_BUILD_JOBS: "2"
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+      - name: Bind clean source before capture
+        run: |
+          mkdir -p target/native-inventory
+          git rev-parse HEAD > target/native-inventory/source-before.txt
+          test -z "$(git status --porcelain)"
+          git ls-files -z -- Cargo.toml Cargo.lock rust-toolchain.toml src specs proofs \
+            validation/native-inventory-driver .github/workflows/native-inventory.yml \
+            | xargs -0 sha256sum > target/native-inventory/source-sha256.txt
+      - name: Install the separate pinned diagnostic SDK
+        run: |
+          rustup toolchain install "$TOOLCHAIN" --profile minimal \
+            --component rustc-dev --component rustfmt --component clippy
+      - name: Check and build the producer
+        run: |
+          cargo +"$TOOLCHAIN" fmt --manifest-path validation/native-inventory-driver/Cargo.toml --all -- --check
+          cargo +"$TOOLCHAIN" clippy --manifest-path validation/native-inventory-driver/Cargo.toml \
+            --target-dir target/native-inventory-driver --all-targets --locked -- -D warnings
+          cargo +"$TOOLCHAIN" build --manifest-path validation/native-inventory-driver/Cargo.toml \
+            --target-dir target/native-inventory-driver --locked
+      - name: Execute real compiler and fail-closed controls
+        run: |
+          DRIVER="$PWD/target/native-inventory-driver/debug/jpeg2000-native-inventory"
+          RUSTC="$(rustup which --toolchain "$TOOLCHAIN" rustc)"
+          python3 validation/native-inventory-driver/test_driver.py --driver "$DRIVER" --rustc "$RUSTC"
+          "$RUSTC" -vV > target/native-inventory/compiler-version.txt
+          SDK="$("$RUSTC" --print sysroot)"
+          sha256sum "$DRIVER" "$RUSTC" "$SDK"/lib/libLLVM*.so* \
+            "$SDK"/lib/rustlib/x86_64-unknown-linux-gnu/lib/librustc_driver-*.so \
+            > target/native-inventory/tool-sha256.txt
+      - name: Capture the actual default native library
+        env:
+          JPEG2000_INVENTORY_CRATE: jpeg2000_decoder
+        run: |
+          export RUSTC_WRAPPER="$PWD/target/native-inventory-driver/debug/jpeg2000-native-inventory"
+          JPEG2000_INVENTORY_CAPTURE_ID="$(python3 -c 'import uuid; print(uuid.uuid4().hex)')"
+          export JPEG2000_INVENTORY_CAPTURE_ID
+          export JPEG2000_INVENTORY_OUTPUT="$PWD/target/native-inventory/default.json"
+          CARGO_TARGET_DIR=target/native-inventory/default-build cargo +"$TOOLCHAIN" check --lib --locked
+          test -s "$JPEG2000_INVENTORY_OUTPUT"
+          python3 -c 'import json,os,sys; r=json.load(open(os.environ["JPEG2000_INVENTORY_OUTPUT"])); sys.exit(0 if r["capture_id"]==os.environ["JPEG2000_INVENTORY_CAPTURE_ID"] and r["crate"]=="jpeg2000_decoder" else "native capture provenance mismatch")'
+      - name: Capture the actual all-feature native library
+        env:
+          JPEG2000_INVENTORY_CRATE: jpeg2000_decoder
+        run: |
+          export RUSTC_WRAPPER="$PWD/target/native-inventory-driver/debug/jpeg2000-native-inventory"
+          JPEG2000_INVENTORY_CAPTURE_ID="$(python3 -c 'import uuid; print(uuid.uuid4().hex)')"
+          export JPEG2000_INVENTORY_CAPTURE_ID
+          export JPEG2000_INVENTORY_OUTPUT="$PWD/target/native-inventory/all-features.json"
+          CARGO_TARGET_DIR=target/native-inventory/all-features-build cargo +"$TOOLCHAIN" check --lib --all-features --locked
+          test -s "$JPEG2000_INVENTORY_OUTPUT"
+          python3 -c 'import json,os,sys; r=json.load(open(os.environ["JPEG2000_INVENTORY_OUTPUT"])); sys.exit(0 if r["capture_id"]==os.environ["JPEG2000_INVENTORY_CAPTURE_ID"] and r["crate"]=="jpeg2000_decoder" else "native capture provenance mismatch")'
+      - name: Verify unchanged source
+        run: |
+          git rev-parse HEAD > target/native-inventory/source-after.txt
+          cmp target/native-inventory/source-before.txt target/native-inventory/source-after.txt
+          sha256sum --check target/native-inventory/source-sha256.txt
+          test -z "$(git status --porcelain)"
+      - name: Retain observations without a coverage claim
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: native-compiler-observations
+          path: |
+            target/native-inventory/*.json
+            target/native-inventory/*.txt
+          if-no-files-found: warn
+          retention-days: 14
