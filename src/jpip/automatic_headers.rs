@@ -17,45 +17,238 @@ use vstd::prelude::*;
 #[path = "normalization_result_tests.rs"]
 mod result_tests;
 
+#[cfg(verus_keep_ghost)]
+verus! {
+    proof fn main_header_result_witness(
+        input: Seq<u8>, events: Seq<crate::specs::Part2JpipStorageEvent>,
+        result: Result<Seq<u8>, DecodeError>,
+    )
+        requires crate::specs::part2_jpip_normalize_main_header(input, events) == Some(result),
+        ensures crate::specs::part2_jpip_main_header_result(input, result),
+    {
+    }
+
+    proof fn main_header_storage_events_are_ordered() {
+        reveal(crate::specs::part2_jpip_normalize_main_header);
+        reveal_with_fuel(crate::specs::part2_jpip_main_header_scan, 3);
+        assert(((0xffu16 << 8) | 0x64u16) == 0xff64u16) by (bit_vector);
+        assert(((0xffu16 << 8) | 0x57u16) == 0xff57u16) by (bit_vector);
+        assert(((0u16 << 8) | 1u16) == 1u16) by (bit_vector);
+        assert(((0u16 << 8) | 3u16) == 3u16) by (bit_vector);
+        let prefix = seq![(0u8, 0usize, 2usize, true), (1u8, 0usize, 2usize, true)];
+        let soc = seq![0xffu8, 0x4fu8];
+        let refusal = (1u8, 2usize, 5usize, false);
+        assert(crate::specs::part2_jpip_normalize_main_header(soc, prefix) == Some(Ok(soc)));
+        assert(crate::specs::part2_jpip_normalize_main_header(soc, prefix.push(refusal)) == None);
+        assert(crate::specs::part2_jpip_normalize_main_header(Seq::empty(),
+            seq![(0u8, 0usize, 2usize, false)]) == None);
+        assert(crate::specs::part2_jpip_normalize_main_header(soc,
+            seq![(0u8, 0usize, 3usize, false)]) == None);
+        assert(crate::specs::part2_jpip_normalize_main_header(soc,
+            seq![(0u8, 0usize, 2usize, false)])
+            == Some(Err(DecodeError::AllocationFailed)));
+        let invalid = soc + seq![0xffu8, 0x64u8, 0u8, 1u8];
+        assert(crate::specs::part2_jpip_marker_segment(invalid, 2)
+            == Err(crate::specs::part2_jpip_cache_error(2, MalformedKind::InvalidMarkerLength)));
+        assert(crate::specs::part2_jpip_normalize_main_header(invalid, prefix)
+            == Some(Err(crate::specs::part2_jpip_cache_error(2, MalformedKind::InvalidMarkerLength))));
+        assert(crate::specs::part2_jpip_normalize_main_header(invalid, prefix.push(refusal)) == None);
+        let retained = soc + seq![0xffu8, 0x64u8, 0u8, 3u8, 7u8];
+        let input = retained + seq![0xffu8, 0x57u8, 0u8, 3u8, 0u8];
+        assert(crate::specs::part2_jpip_marker_segment(input, 2) == Ok((0xff64u16, 6usize, 7usize)));
+        assert(crate::specs::part2_jpip_marker_segment(input, 7) == Ok((0xff57u16, 11usize, 12usize)));
+        assert(soc + input.subrange(2, 7) =~= retained);
+        assert(crate::specs::part2_jpip_main_header_scan(input, 7, 11, retained, Seq::empty())
+            == Some(Ok(retained)));
+        assert(crate::specs::part2_jpip_main_header_scan(input, 2, 12, soc,
+            seq![(1u8, 2usize, 5usize, true)]) == Some(Ok(retained)));
+        assert(crate::specs::part2_jpip_normalize_main_header(input,
+            prefix.push((1u8, 2usize, 5usize, true))) == Some(Ok(retained)));
+        assert(crate::specs::part2_jpip_normalize_main_header(input, prefix.push(refusal))
+            == Some(Err(DecodeError::AllocationFailed)));
+        assert(crate::specs::part2_jpip_normalize_main_header(input,
+            prefix.push((1u8, 0usize, 5usize, true))) == None);
+    }
+}
+
+#[cfg_attr(verus_keep_ghost, verus_spec(result =>
+    ensures crate::specs::part2_jpip_main_header_result(input@, jpip_packet_bytes_outcome(result)),
+))]
 pub(super) fn normalize_main_header(input: &[u8]) -> Result<Vec<u8>, DecodeError> {
     if !input.starts_with(&SOC) {
+        #[cfg(verus_keep_ghost)]
+        proof! {
+            reveal(crate::specs::part2_jpip_normalize_main_header);
+            main_header_result_witness(input@, Seq::empty(),
+                Err(crate::specs::part2_jpip_cache_error(0, MalformedKind::MissingRequiredStructure)));
+        }
         return Err(DecodeError::malformed(
             0,
             MalformedKind::MissingRequiredStructure,
         ));
     }
-    let mut output = crate::allocation::empty_with_capacity(SOC.len())?;
-    crate::allocation::extend_bytes(&mut output, &SOC)?;
+    let mut output = match crate::allocation::empty_with_capacity(SOC.len()) {
+        Ok(output) => output,
+        Err(error) => {
+            #[cfg(verus_keep_ghost)]
+            proof! {
+                reveal(crate::specs::part2_jpip_normalize_main_header);
+                main_header_result_witness(input@, seq![(0u8, 0usize, 2usize, false)], Err(error));
+            }
+            return Err(error);
+        }
+    };
+    match crate::allocation::extend_bytes(&mut output, &SOC) {
+        Ok(()) => {}
+        Err(error) => {
+            #[cfg(verus_keep_ghost)]
+            proof! {
+                reveal(crate::specs::part2_jpip_normalize_main_header);
+                main_header_result_witness(input@,
+                    seq![(0u8, 0usize, 2usize, true), (1u8, 0usize, 2usize, false)], Err(error));
+            }
+            return Err(error);
+        }
+    }
+    #[cfg(verus_keep_ghost)]
+    proof_decl! {
+        let ghost mut events = seq![(0u8, 0usize, 2usize, true), (1u8, 0usize, 2usize, true)];
+    }
     let mut position = 2_usize;
     let mut remaining_markers = input.len();
+    #[cfg(verus_keep_ghost)]
+    proof! {
+        reveal(crate::specs::part2_jpip_normalize_main_header);
+        assert(output@ =~= seq![0xffu8, 0x4fu8]);
+        assert forall|tail: Seq<crate::specs::Part2JpipStorageEvent>|
+            crate::specs::part2_jpip_normalize_main_header(input@, events + tail)
+                == crate::specs::part2_jpip_main_header_scan(input@,
+                    position, remaining_markers, output@, tail) by {
+            assert((events + tail).drop_first().drop_first() =~= tail);
+        }
+    }
     #[cfg_attr(
         verus_keep_ghost,
-        verus_spec(decreases remaining_markers,)
+        verus_spec(
+            invariant position <= input.len(), remaining_markers <= input.len(),
+                forall|tail: Seq<crate::specs::Part2JpipStorageEvent>|
+                    crate::specs::part2_jpip_normalize_main_header(input@, events + tail)
+                        == crate::specs::part2_jpip_main_header_scan(input@,
+                            position, remaining_markers, output@, tail),
+            decreases remaining_markers,
+        )
     )]
     while position < input.len() {
+        #[cfg(verus_keep_ghost)]
+        proof! { reveal(crate::specs::part2_jpip_main_header_scan); }
         if remaining_markers == 0 {
+            #[cfg(verus_keep_ghost)]
+            proof! {
+                assert(events + Seq::empty() =~= events);
+                assert(crate::specs::part2_jpip_normalize_main_header(input@, events + Seq::empty())
+                    == crate::specs::part2_jpip_main_header_scan(input@,
+                        position, remaining_markers, output@, Seq::empty()));
+                main_header_result_witness(input@, events,
+                    Err(crate::specs::part2_jpip_cache_error(position as u64, MalformedKind::InvalidMarkerLength)));
+            }
             return Err(DecodeError::malformed(
                 position as u64,
                 MalformedKind::InvalidMarkerLength,
             ));
         }
+        #[cfg(verus_keep_ghost)]
+        proof_decl! { let ghost previous_remaining = remaining_markers; }
         remaining_markers -= 1;
-        let (marker, _, end) = marker_segment(input, position)?;
+        let (marker, _, end) = match marker_segment(input, position) {
+            Ok(segment) => segment,
+            Err(error) => {
+                #[cfg(verus_keep_ghost)]
+                proof! {
+                    assert(events + Seq::empty() =~= events);
+                    assert(crate::specs::part2_jpip_normalize_main_header(input@, events + Seq::empty())
+                        == crate::specs::part2_jpip_main_header_scan(input@,
+                            position, previous_remaining, output@, Seq::empty()));
+                    main_header_result_witness(input@, events, Err(error));
+                }
+                return Err(error);
+            }
+        };
         if matches!(marker, 0xff90 | 0xff93 | 0xffd9) {
+            #[cfg(verus_keep_ghost)]
+            proof! {
+                assert(events + Seq::empty() =~= events);
+                assert(crate::specs::part2_jpip_normalize_main_header(input@, events + Seq::empty())
+                    == crate::specs::part2_jpip_main_header_scan(input@,
+                        position, previous_remaining, output@, Seq::empty()));
+                main_header_result_witness(input@, events,
+                    Err(crate::specs::part2_jpip_cache_error(position as u64, MalformedKind::InvalidMarkerOrder)));
+            }
             return Err(DecodeError::malformed(
                 position as u64,
                 MalformedKind::InvalidMarkerOrder,
             ));
         }
         if !crate::refinement::jpip_reframed_marker_removed(marker, false) {
-            crate::allocation::extend_bytes(
-                &mut output,
-                input.get(position..end).ok_or_else(|| {
-                    DecodeError::malformed(position as u64, MalformedKind::Truncated)
-                })?,
+            let bytes = input.get(position..end).ok_or_else(
+                #[cfg_attr(verus_keep_ghost, verus_spec(result: DecodeError =>
+                    ensures result == crate::specs::part2_jpip_cache_error(position as u64, MalformedKind::Truncated),
+                ))]
+                || DecodeError::malformed(position as u64, MalformedKind::Truncated),
             )?;
+            #[cfg(verus_keep_ghost)]
+            proof_decl! {
+                let ghost previous_output = output@;
+                let ghost previous_events = events;
+            }
+            let extension = crate::allocation::extend_bytes(&mut output, bytes);
+            #[cfg(verus_keep_ghost)]
+            proof! {
+                events = events.push((1u8, previous_output.len() as usize, bytes.len(), extension.is_ok()));
+                if extension.is_err() {
+                    let suffix = seq![(1u8, previous_output.len() as usize, bytes.len(), false)];
+                    assert(previous_events + suffix =~= events);
+                    assert(crate::specs::part2_jpip_normalize_main_header(input@, previous_events + suffix)
+                        == crate::specs::part2_jpip_main_header_scan(input@,
+                            position, previous_remaining, previous_output, suffix));
+                    main_header_result_witness(input@, events, Err(extension.get_Err_0()));
+                } else {
+                    assert forall|tail: Seq<crate::specs::Part2JpipStorageEvent>|
+                        crate::specs::part2_jpip_normalize_main_header(input@, events + tail)
+                            == crate::specs::part2_jpip_main_header_scan(input@,
+                                end, remaining_markers, output@, tail) by {
+                        let suffix = seq![(1u8, previous_output.len() as usize, bytes.len(), true)] + tail;
+                        assert(events + tail =~= previous_events + suffix);
+                        assert(suffix.drop_first() =~= tail);
+                        assert(crate::specs::part2_jpip_normalize_main_header(input@, previous_events + suffix)
+                            == crate::specs::part2_jpip_main_header_scan(input@,
+                                position, previous_remaining, previous_output, suffix));
+                    }
+                }
+            }
+            extension?;
+        } else {
+            #[cfg(verus_keep_ghost)]
+            proof! {
+                assert forall|tail: Seq<crate::specs::Part2JpipStorageEvent>|
+                    crate::specs::part2_jpip_normalize_main_header(input@, events + tail)
+                        == crate::specs::part2_jpip_main_header_scan(input@,
+                            end, remaining_markers, output@, tail) by {
+                    assert(crate::specs::part2_jpip_normalize_main_header(input@, events + tail)
+                        == crate::specs::part2_jpip_main_header_scan(input@,
+                            position, previous_remaining, output@, tail));
+                }
+            }
         }
         position = end;
+    }
+    #[cfg(verus_keep_ghost)]
+    proof! {
+        reveal(crate::specs::part2_jpip_main_header_scan);
+        assert(events + Seq::empty() =~= events);
+        assert(crate::specs::part2_jpip_normalize_main_header(input@, events + Seq::empty())
+            == crate::specs::part2_jpip_main_header_scan(input@,
+                position, remaining_markers, output@, Seq::empty()));
+        main_header_result_witness(input@, events, Ok(output@));
     }
     Ok(output)
 }

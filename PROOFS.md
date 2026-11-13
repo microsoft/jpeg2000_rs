@@ -42,6 +42,28 @@ allocation-inclusive composition remains explicit under
 the promised reached parse/decode/inspect surface and cold-call matrix are
 qualified. Existing complete deterministic contracts are not weakened.
 
+### Ordered automatic main-header primitive calls
+
+`normalize_main_header` additionally derives its complete byte/error Result
+from raw input and an ordered trace in
+[`jpip_normalization.rs`](specs/jpip_normalization.rs). Each event describes
+one existing capacity/extension call, its pre-call length, requested size and
+observed success. Events contain no parser, layout, decoder or image Results.
+The model itself derives marker reads, retained bytes, removal choices and
+first errors. Invalid SOC consumes no event, malformed markers cannot be
+bypassed by a later refusal, and every completion/refusal rejects unused events.
+The executing proof constructs its witness at the actual calls.
+
+This is the existing vstd reservation boundary, not a model of physical
+capacity or allocator internals. A primitive call is not necessarily a heap
+allocation: the initial SOC extension normally reuses the successful initial
+reservation. No extra physical allocation, global recovery or lifetime fact is
+claimed. The event interface can be composed by later producer models without
+passing successful codec outcomes, but currently covers byte vectors only.
+Complete automatic snapshot/progressive image creation and recursive semantic
+container assembly remain unfinished; this prerequisite does not complete
+either group of issue130.
+
 ## Trailing whole-packet engineering admission
 
 The actual packet traversal accepts a retained prefix of complete packets

@@ -4585,6 +4585,62 @@ def validate_normative_coverage(
     ids: set[str] = set()
     contract_functions: set[tuple[str, str]] = set()
     for entry in coverage["requirements"]:
+        if entry["id"] == "part9-ordered-main-header-storage-result":
+            main = ("src/jpip/automatic_headers.rs", "normalize_main_header")
+            if {(ref["path"], ref["symbol"]) for ref in entry["contract_refs"]} != {main}:
+                raise ValueError("ordered main-header storage requires its complete actual Result contract")
+            for field, required in (
+                ("implementation_refs", {main,
+                    ("src/jpip/progression.rs", "DatabinCache::build_automatic_snapshot"),
+                    ("src/jpip/progression.rs", "DatabinCache::automatic_headers")}),
+                ("proof_refs", {main,
+                    ("src/jpip/automatic_headers.rs", "main_header_result_witness"),
+                    ("src/jpip/automatic_headers.rs", "main_header_storage_events_are_ordered")}),
+                ("test_refs", {
+                    ("src/jpip/normalization_result_tests.rs",
+                     "automatic_main_header_refusal_preserves_input_and_exact_recovery"),
+                    ("src/jpip/normalization_result_tests.rs",
+                     "automatic_main_header_requests_preserve_validation_and_reservation_error_order")}),
+            ):
+                if not required.issubset({(ref["path"], ref["symbol"]) for ref in entry[field]}):
+                    raise ValueError("ordered main-header storage requires actual consumers and request/error controls")
+            model = source_text((ROOT / "specs/jpip_normalization.rs").resolve())
+            fragments = {
+                "part2_jpip_storage_event": (
+                    "events.len() == 0", "events[0].0 != operation", "events[0].1 != length",
+                    "events[0].2 != requested", "Some(events[0].3)",
+                ),
+                "part2_jpip_main_header_finish": (
+                    "if events.len() == 0 { Some(result) } else { None }",
+                ),
+                "part2_jpip_normalize_main_header": (
+                    "input.len() < 2 || input[0] != 0xff || input[1] != 0x4f",
+                    "part2_jpip_storage_event(events, 0, 0, 2)",
+                    "part2_jpip_storage_event(events.drop_first(), 1, 0, 2)",
+                    "Err(crate::DecodeError::AllocationFailed), events.drop_first()",
+                    "seq![0xffu8, 0x4fu8], events.drop_first().drop_first()",
+                ),
+                "part2_jpip_main_header_scan": (
+                    "part2_jpip_marker_segment(input, position)",
+                    "Err(error) => part2_jpip_main_header_finish(Err(error), events)",
+                    "marker == 0xff90 || marker == 0xff93 || marker == 0xffd9",
+                    "part9_reframed_marker_removed(marker as nat, false)",
+                    "part2_jpip_storage_event(events, 1, output.len() as usize, bytes.len() as usize)",
+                    "Err(crate::DecodeError::AllocationFailed), events.drop_first()",
+                    "output + bytes, events.drop_first()",
+                ),
+                "part2_jpip_main_header_result": (
+                    "exists|events: Seq<Part2JpipStorageEvent>|",
+                    "part2_jpip_normalize_main_header(input, events) == Some(result)",
+                ),
+            }
+            required_models = {("specs/jpip_normalization.rs", name) for name in fragments}
+            if not required_models.issubset({(ref["path"], ref["symbol"]) for ref in entry["spec_refs"]}):
+                raise ValueError("ordered main-header storage requires every request/result model")
+            for name, required in fragments.items():
+                body = _coverage_spec_function_body(model, name)
+                if body is None or any("".join(item.split()) not in "".join(body.split()) for item in required):
+                    raise ValueError("ordered main-header storage requires exact ordered request/error models")
         if entry["id"] == _JPIP_TRANSITION_ENTRY:
             if {(ref["path"], ref["symbol"]) for ref in entry["contract_refs"]} != set(_JPIP_TRANSITION_CONTRACTS) - _JPIP_TRANSITION_APIS:
                 raise ValueError("whole raw JPIP transitions require complete actual parser/word/marker/count/cache consumers")
@@ -8643,6 +8699,12 @@ def validate_normative_coverage(
                     r"final\(\s*values\s*\)@\s*,\s*\1",
                 ),
             }.get(short) if reference["path"] == "src/allocation.rs" else None
+            if (reference["path"], reference["symbol"]) == (
+                    "src/jpip/automatic_headers.rs", "normalize_main_header"):
+                storage_contract = (
+                    "part2_jpip_main_header_result",
+                    r"input@\s*,\s*jpip_packet_bytes_outcome\(\s*\1\s*\)",
+                )
             if storage_contract:
                 model, arguments = storage_contract
                 relation = re.search(
