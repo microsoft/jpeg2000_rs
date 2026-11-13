@@ -223,8 +223,18 @@ impl JpipProgressiveDecoder {
     }
 }
 
+#[cfg_attr(verus_keep_ghost, verus_verify)]
 impl JpipAutomaticProgressiveDecoder {
     pub const fn new(codestream: u64) -> Self {
+        #[cfg(verus_keep_ghost)]
+        vstd::prelude::ensures(|result: Self| {
+            vstd::prelude::equal(
+                super::jpip_automatic_progressive_decoder_view(&result),
+                (codestream, 0_u16),
+            )
+        });
+        #[cfg(verus_keep_ghost)]
+        proof! { reveal(super::jpip_automatic_progressive_decoder_view); }
         Self {
             codestream,
             decoded_layers: 0,
@@ -232,13 +242,40 @@ impl JpipAutomaticProgressiveDecoder {
     }
 
     pub const fn codestream(&self) -> u64 {
+        #[cfg(verus_keep_ghost)]
+        vstd::prelude::ensures(|result: u64| {
+            vstd::prelude::equal(
+                result,
+                super::jpip_automatic_progressive_decoder_view(self).0,
+            )
+        });
+        #[cfg(verus_keep_ghost)]
+        proof! { reveal(super::jpip_automatic_progressive_decoder_view); }
         self.codestream
     }
 
     pub const fn decoded_layers(&self) -> u16 {
+        #[cfg(verus_keep_ghost)]
+        vstd::prelude::ensures(|result: u16| {
+            vstd::prelude::equal(
+                result,
+                super::jpip_automatic_progressive_decoder_view(self).1,
+            )
+        });
+        #[cfg(verus_keep_ghost)]
+        proof! { reveal(super::jpip_automatic_progressive_decoder_view); }
         self.decoded_layers
     }
+}
 
+impl JpipAutomaticProgressiveDecoder {
+    #[cfg_attr(verus_keep_ghost, verus_spec(result =>
+        ensures crate::specs::part2_jpip_automatic_progressive_update_result(jpip_cache_view(cache),
+            super::jpip_automatic_progressive_decoder_view(old(self)), options, None, Seq::empty(),
+            (jpip_progressive_outcome(result), super::jpip_automatic_progressive_decoder_view(final(self)), jpip_cache_view(cache))),
+            super::jpip_automatic_progressive_decoder_view(final(self)).0
+                == super::jpip_automatic_progressive_decoder_view(old(self)).0,
+    ))]
     pub fn update(
         &mut self,
         cache: &DatabinCache,
@@ -247,6 +284,14 @@ impl JpipAutomaticProgressiveDecoder {
         self.update_inner(cache, options, None, &JpipPacketSelection::all_components())
     }
 
+    #[cfg_attr(verus_keep_ghost, verus_spec(result =>
+        ensures crate::specs::part2_jpip_automatic_progressive_update_result(jpip_cache_view(cache),
+            super::jpip_automatic_progressive_decoder_view(old(self)), options, Some(selection),
+            super::jpip_packet_selection_view(packets),
+            (jpip_progressive_outcome(result), super::jpip_automatic_progressive_decoder_view(final(self)), jpip_cache_view(cache))),
+            super::jpip_automatic_progressive_decoder_view(final(self)).0
+                == super::jpip_automatic_progressive_decoder_view(old(self)).0,
+    ))]
     pub fn update_selected(
         &mut self,
         cache: &DatabinCache,
@@ -257,6 +302,14 @@ impl JpipAutomaticProgressiveDecoder {
         self.update_inner(cache, options, Some(selection), packets)
     }
 
+    #[cfg_attr(verus_keep_ghost, verus_spec(result =>
+        ensures crate::specs::part2_jpip_automatic_progressive_update_result(jpip_cache_view(cache),
+            super::jpip_automatic_progressive_decoder_view(old(self)), options, selection,
+            super::jpip_packet_selection_view(packets),
+            (jpip_progressive_outcome(result), super::jpip_automatic_progressive_decoder_view(final(self)), jpip_cache_view(cache))),
+            super::jpip_automatic_progressive_decoder_view(final(self)).0
+                == super::jpip_automatic_progressive_decoder_view(old(self)).0,
+    ))]
     fn update_inner(
         &mut self,
         cache: &DatabinCache,
@@ -264,6 +317,51 @@ impl JpipAutomaticProgressiveDecoder {
         selection: Option<&crate::DecodeSelection>,
         packets: &JpipPacketSelection,
     ) -> Result<JpipProgressiveUpdate, DecodeError> {
+        #[cfg(verus_keep_ghost)]
+        proof! {
+            reveal(super::jpip_automatic_progressive_decoder_view);
+            reveal(jpip_progressive_update_view);
+            reveal(super::jpip_automatic_snapshot_result_view);
+            reveal(super::jpip_automatic_snapshot_view);
+            reveal(super::jpip_byte_view);
+        }
+        #[cfg(verus_keep_ghost)]
+        proof_decl! {
+            let ghost initial_decoder = super::jpip_automatic_progressive_decoder_view(self);
+            let ghost input = crate::specs::Part2JpipSnapshotInput {
+                cache: jpip_cache_view(cache), stream: self.codestream,
+                selected: super::jpip_snapshot_selection_view(selection),
+                components: super::jpip_packet_selection_view(packets),
+                limits: crate::options::decode_options_limits(options),
+            };
+        }
+        #[cfg(verus_keep_ghost)]
+        proof! {
+            super::jpip_automatic_snapshot_errors_known();
+            super::jpip_automatic_update_errors_known();
+            assert forall|error: DecodeError|
+                #[trigger] crate::specs::part2_jpip_automatic_snapshot_result(input.cache, input.stream, input.selected,
+                    input.components, input.limits, Err(error))
+                implies crate::specs::part2_jpip_automatic_progressive_update_result(input.cache, initial_decoder,
+                    options, selection, input.components, (Err(error), initial_decoder, input.cache)) by {
+                super::jpip_automatic_snapshot_first_error(input.cache, initial_decoder, options, selection, input.components, error);
+            }
+            assert(initial_decoder == (self.codestream, self.decoded_layers));
+            assert(input.stream == initial_decoder.0);
+            assert(input.cache == jpip_cache_view(cache));
+            assert(input.selected == super::jpip_snapshot_selection_view(selection));
+            assert(input.components == super::jpip_packet_selection_view(packets));
+            assert forall|error: DecodeError|
+                #[trigger] crate::specs::part2_jpip_automatic_snapshot_result(jpip_cache_view(cache), self.codestream,
+                    super::jpip_snapshot_selection_view(selection), super::jpip_packet_selection_view(packets),
+                    crate::options::decode_options_limits(options), Err(error))
+                implies crate::specs::part2_jpip_automatic_progressive_update_result(jpip_cache_view(cache),
+                    initial_decoder, options, selection, super::jpip_packet_selection_view(packets),
+                    (jpip_progressive_outcome(Err(error)), super::jpip_automatic_progressive_decoder_view(self), jpip_cache_view(cache))) by {
+                super::jpip_automatic_snapshot_first_error(jpip_cache_view(cache), initial_decoder,
+                    options, selection, super::jpip_packet_selection_view(packets), error);
+            }
+        }
         let previous_layers = self.decoded_layers;
         let result = cache.build_automatic_snapshot(
             self.codestream,
@@ -271,7 +369,26 @@ impl JpipAutomaticProgressiveDecoder {
             packets,
             options.limits(),
         )?;
+        #[cfg(verus_keep_ghost)]
+        proof! { reveal(crate::specs::part2_jpip_automatic_snapshot_result); }
+        #[cfg(verus_keep_ghost)]
+        proof_decl! {
+            let ghost snapshot_value = super::jpip_automatic_snapshot_result_view(&result);
+            let ghost snapshot_events = choose|events: Seq<crate::specs::Part2JpipSnapshotEvent>|
+                crate::specs::part2_jpip_snapshot_run(input, events) == Some((Ok(snapshot_value), Seq::empty()));
+        }
+        #[cfg(verus_keep_ghost)]
+        proof! {
+            crate::specs::part2_jpip_automatic_progressive_run_unfold(input.cache, initial_decoder,
+                options, selection, input.components, snapshot_events);
+        }
         let Some(snapshot) = result.ready else {
+            #[cfg(verus_keep_ghost)]
+            proof! {
+                super::jpip_automatic_progressive_witness(input.cache, initial_decoder, options, selection,
+                    input.components, snapshot_events, (Ok((JpipProgressiveStatus::WaitingForData,
+                        previous_layers, 0, super::jpip_missing_views(&result.missing), None)), initial_decoder, input.cache));
+            }
             return Ok(JpipProgressiveUpdate {
                 status: JpipProgressiveStatus::WaitingForData,
                 previous_layers,
@@ -285,6 +402,11 @@ impl JpipAutomaticProgressiveDecoder {
             snapshot.available_layers,
             snapshot.layers,
         ) {
+            #[cfg(verus_keep_ghost)]
+            proof! {
+                super::jpip_automatic_progressive_witness(input.cache, initial_decoder, options, selection,
+                    input.components, snapshot_events, (Err(crate::specs::part2_jpip_plan_invalid(0)), initial_decoder, input.cache));
+            }
             return Err(DecodeError::malformed(0, MalformedKind::InvalidJpipLayout));
         }
         if !crate::refinement::jpip_quality_prefix_available(
@@ -292,6 +414,15 @@ impl JpipAutomaticProgressiveDecoder {
             previous_layers,
         ) || snapshot.available_layers <= previous_layers
         {
+            #[cfg(verus_keep_ghost)]
+            proof! {
+                super::jpip_automatic_progressive_witness(input.cache, initial_decoder, options, selection,
+                    input.components, snapshot_events, (Ok((
+                        if snapshot.available_layers == snapshot.layers { JpipProgressiveStatus::Complete }
+                        else { JpipProgressiveStatus::WaitingForData },
+                        previous_layers, snapshot.available_layers, super::jpip_missing_views(&snapshot.missing), None)),
+                        initial_decoder, input.cache));
+            }
             return Ok(JpipProgressiveUpdate {
                 status: if snapshot.available_layers == snapshot.layers {
                     JpipProgressiveStatus::Complete
@@ -304,6 +435,17 @@ impl JpipAutomaticProgressiveDecoder {
                 image: None,
             });
         }
+        #[cfg(verus_keep_ghost)]
+        proof! {
+            assert forall|error: DecodeError|
+                crate::specs::part2_decode_raw_codestream(super::jpip_byte_view(&snapshot.codestream),
+                    crate::options::decode_options_limits(options), selection) == Err(error)
+                implies crate::specs::part2_jpip_automatic_progressive_update_result(input.cache, initial_decoder,
+                    options, selection, input.components, (Err(error), initial_decoder, input.cache)) by {
+                super::jpip_automatic_progressive_witness(input.cache, initial_decoder, options, selection,
+                    input.components, snapshot_events, (Err(error), initial_decoder, input.cache));
+            }
+        }
         let image = match selection {
             Some(selection) => {
                 crate::decode_codestream_selected(snapshot.codestream.as_ref(), options, selection)?
@@ -311,6 +453,15 @@ impl JpipAutomaticProgressiveDecoder {
             None => crate::decode_codestream(snapshot.codestream.as_ref(), options)?,
         };
         self.decoded_layers = snapshot.available_layers;
+        #[cfg(verus_keep_ghost)]
+        proof! {
+            super::jpip_automatic_progressive_witness(input.cache, initial_decoder, options, selection,
+                input.components, snapshot_events, (Ok((
+                    if snapshot.available_layers == snapshot.layers { JpipProgressiveStatus::Complete }
+                    else { JpipProgressiveStatus::QualityAdvanced },
+                    previous_layers, snapshot.available_layers, super::jpip_missing_views(&snapshot.missing),
+                    Some(crate::image::typed_image_value_view(image)))), (self.codestream, self.decoded_layers), input.cache));
+        }
         Ok(JpipProgressiveUpdate {
             status: if snapshot.available_layers == snapshot.layers {
                 JpipProgressiveStatus::Complete
@@ -327,6 +478,11 @@ impl JpipAutomaticProgressiveDecoder {
 
 impl DatabinCache {
     #[allow(clippy::manual_map)]
+    #[cfg_attr(verus_keep_ghost, verus_spec(result =>
+        ensures crate::specs::part2_jpip_automatic_snapshot_result(jpip_cache_view(self), codestream,
+            super::jpip_snapshot_selection_view(selection), super::jpip_packet_selection_view(packet_selection),
+            limits, super::jpip_automatic_snapshot_outcome(result)),
+    ))]
     pub(super) fn build_automatic_snapshot(
         &self,
         codestream: u64,
@@ -618,6 +774,11 @@ impl DatabinCache {
             }
         }
         let layout = crate::codestream::parse_layout(&template, limits)?;
+        #[cfg(verus_keep_ghost)]
+        proof! {
+            super::jpip_snapshot_layout_capacity_error(input, prefix, normalized_bytes, raw_tiles,
+                tile_count, components, headers, template@, &layout);
+        }
         let mut automatic_tiles = crate::allocation::empty_with_capacity(normalized_tiles.len())?;
         #[cfg(verus_keep_ghost)]
         proof! {
@@ -669,7 +830,10 @@ impl DatabinCache {
             #[cfg(verus_keep_ghost)]
             proof_decl! { let ghost current_root = tile_root; }
             #[cfg(verus_keep_ghost)]
-            proof! { crate::codestream::decoder_layout_input_fields(&layout); }
+            proof! {
+                crate::codestream::decoder_layout_input_fields(&layout);
+                assert(tile_index <= u16::MAX as nat);
+            }
             let tile_number = u16::try_from(tile_index)
                 .map_err(|_| DecodeError::malformed(0, MalformedKind::ArithmeticOverflow))?;
             let tile_parts_iterator = layout
@@ -714,9 +878,6 @@ impl DatabinCache {
                 assert(tile_parts@.map_values(project)
                     == crate::codestream::tile_parts_owned_view(layout.tile_parts@).filter(predicate));
             }
-            let tile_part = *tile_parts
-                .first()
-                .ok_or_else(|| DecodeError::malformed(0, MalformedKind::InvalidTilePart))?;
             #[cfg(verus_keep_ghost)]
             proof_decl! {
                 let ghost native_parts = tile_parts@.map_values(
@@ -724,9 +885,25 @@ impl DatabinCache {
             }
             #[cfg(verus_keep_ghost)]
             proof! {
+                if native_parts.len() == 0 {
+                    super::jpip_snapshot_tile_root_error(current_root, Seq::empty(),
+                        crate::specs::part2_jpip_cache_error(0, MalformedKind::InvalidTilePart));
+                }
+            }
+            let tile_part = *tile_parts
+                .first()
+                .ok_or_else(
+                    #[cfg_attr(verus_keep_ghost, verus_spec(result: DecodeError =>
+                        ensures result == crate::specs::part2_jpip_cache_error(0, MalformedKind::InvalidTilePart),
+                    ))]
+                    || DecodeError::malformed(0, MalformedKind::InvalidTilePart),
+                )?;
+            #[cfg(verus_keep_ghost)]
+            proof! {
                 assert(native_parts[0] == crate::codestream::tile_part_owned_view(tile_part));
                 assert(native_parts == current_root.layout.parts.filter(
                     |part: crate::specs::Part2OwnedTilePart| part.tile_index == current_root.tile as u16));
+                super::jpip_snapshot_plan_errors(current_root, native_parts);
             }
             let mut plan = crate::decode::plan_progression_tile_at_with_component_overrides(
                 &layout.info.image_size,
@@ -752,6 +929,10 @@ impl DatabinCache {
             let layer_count = usize::from(tile_part.coding_style.layers);
             let mut ordinals = vec![vec![None; layer_count]; precinct_count];
             let mut order = Vec::new();
+            #[cfg(verus_keep_ghost)]
+            proof! {
+                super::jpip_snapshot_iterator_errors(current_root, native_parts, initial_plan);
+            }
             let mut iterator = crate::packet::ProgressionPacketIterator::new(
                 plan.grid(),
                 tile_part.coding_style.progression_order,
@@ -808,6 +989,7 @@ impl DatabinCache {
                 }
                 assert(order_ordinals =~= Seq::new(initial_plan.precincts.len(), |_row: int|
                     Seq::new(tile_part.coding_style.layers as nat, |_layer: int| None::<u16>)));
+                super::jpip_snapshot_order_errors(current_root, native_parts, initial_plan, order_iterator);
             }
             build_automatic_order(&plan, &mut iterator, &mut ordinals, &mut order, limits)?;
             #[cfg(verus_keep_ghost)]
@@ -835,6 +1017,8 @@ impl DatabinCache {
                 }
             }
             let mut offsets = vec![0_u64; precinct_count];
+            #[cfg(verus_keep_ghost)]
+            proof! { super::jpip_snapshot_mapping_capacity_error(current_root, native_parts, initial_plan, order_iterator, order@); }
             let mut databins = crate::allocation::empty_with_capacity(precinct_count)?;
             let grid = plan.grid();
             #[cfg(verus_keep_ghost)]
@@ -870,6 +1054,12 @@ impl DatabinCache {
                 assert(jpip_parsed_packet_matrix(parsed@) =~= Seq::new(initial_plan.precincts.len(),
                     |_row: int| Seq::new(native_parts[0].coding_style.layers as nat, |_layer: int| None::<Seq<u8>>)));
                 assert(offsets@ =~= Seq::new(initial_plan.precincts.len(), |_row: int| 0u64));
+                assert forall|error: DecodeError| mapping_goal == Err(error)
+                    implies crate::specs::part2_jpip_automatic_snapshot_result(jpip_cache_view(self), codestream,
+                        super::jpip_snapshot_selection_view(selection), super::jpip_packet_selection_view(packet_selection),
+                        limits, Err(error)) by {
+                    super::jpip_snapshot_mapping_error(current_root, native_parts, initial_plan, order_iterator, order@, error);
+                }
             }
             let mut mapping_index = 0_usize;
             #[cfg_attr(
@@ -906,6 +1096,10 @@ impl DatabinCache {
                         mapping_goal == crate::specs::part2_jpip_snapshot_databins(
                             mapping_input, tile_count, components, tile_index, mapping_plan, mapping_index as nat,
                             databins@.map_values(|id: DatabinId| super::databin_id_view(id))),
+                        forall|error: DecodeError| mapping_goal == Err(error) ==>
+                            crate::specs::part2_jpip_automatic_snapshot_result(jpip_cache_view(self), codestream,
+                                super::jpip_snapshot_selection_view(selection), super::jpip_packet_selection_view(packet_selection),
+                                limits, Err(error)),
                         tile_index < tile_headers.len(),
                         tile_number as nat == tile_index as nat,
                         raw_tiles == tile_headers@.map_values(|header: Vec<u8>| header@),
@@ -1039,6 +1233,13 @@ impl DatabinCache {
                     order_iterator, acquisition_order, acquisition_databins, acquisition_transitions, acquisition_initial);
                 assert(super::jpip_snapshot_tile_acquisition_known(current_root, acquisition_parts,
                     acquisition_transitions, acquisition_databins, acquisition_order, acquisition_initial, tile_capacity));
+                assert forall|error: DecodeError| acquisition_goal == Err(error)
+                    implies crate::specs::part2_jpip_automatic_snapshot_result(jpip_cache_view(self), codestream,
+                        super::jpip_snapshot_selection_view(selection), super::jpip_packet_selection_view(packet_selection),
+                        limits, Err(error)) by {
+                    super::jpip_snapshot_acquisition_error(current_root, acquisition_parts, acquisition_transitions,
+                        acquisition_databins, acquisition_order, acquisition_initial, tile_capacity, error);
+                }
             }
             let mut order_index = 0_usize;
             #[cfg_attr(
@@ -1075,6 +1276,10 @@ impl DatabinCache {
                         acquisition_goal == crate::specs::part2_jpip_snapshot_parse_packets(
                             acquisition_input, acquisition_parts, acquisition_transitions, acquisition_databins,
                             acquisition_order, 0, acquisition_initial),
+                        forall|error: DecodeError| acquisition_goal == Err(error) ==>
+                            crate::specs::part2_jpip_automatic_snapshot_result(jpip_cache_view(self), codestream,
+                                super::jpip_snapshot_selection_view(selection), super::jpip_packet_selection_view(packet_selection),
+                                limits, Err(error)),
                         acquisition_goal == crate::specs::part2_jpip_snapshot_parse_packets(
                             acquisition_input, acquisition_parts, acquisition_transitions, acquisition_databins,
                             acquisition_order, order_index as nat, crate::specs::Part2JpipSnapshotPacketState {
@@ -1108,16 +1313,31 @@ impl DatabinCache {
                 }
                 let state = *tile_parts
                     .get(transition_index)
-                    .ok_or_else(|| DecodeError::malformed(0, MalformedKind::InvalidTilePart))?;
-                let databin = *databins
-                    .get(execution)
-                    .ok_or_else(|| DecodeError::malformed(0, MalformedKind::ArithmeticOverflow))?;
+                    .ok_or_else(
+                        #[cfg_attr(verus_keep_ghost, verus_spec(result: DecodeError =>
+                            ensures result == crate::specs::part2_jpip_cache_error(0, MalformedKind::InvalidTilePart),
+                        ))]
+                        || DecodeError::malformed(0, MalformedKind::InvalidTilePart),
+                    )?;
+                let databin = *databins.get(execution).ok_or_else(
+                    #[cfg_attr(verus_keep_ghost, verus_spec(result: DecodeError =>
+                            ensures result == crate::specs::part2_jpip_range_overflow(0),
+                        ))]
+                    || DecodeError::malformed(0, MalformedKind::ArithmeticOverflow),
+                )?;
                 let prefix = self.databin_prefix(databin);
-                let offset = *offsets
-                    .get(execution)
-                    .ok_or_else(|| DecodeError::malformed(0, MalformedKind::ArithmeticOverflow))?;
-                let start = usize::try_from(offset)
-                    .map_err(|_| DecodeError::malformed(0, MalformedKind::ArithmeticOverflow))?;
+                let offset = *offsets.get(execution).ok_or_else(
+                    #[cfg_attr(verus_keep_ghost, verus_spec(result: DecodeError =>
+                            ensures result == crate::specs::part2_jpip_range_overflow(0),
+                        ))]
+                    || DecodeError::malformed(0, MalformedKind::ArithmeticOverflow),
+                )?;
+                let start = usize::try_from(offset).map_err(
+                    #[cfg_attr(verus_keep_ghost, verus_spec(result: DecodeError =>
+                            ensures result == crate::specs::part2_jpip_range_overflow(0),
+                        ))]
+                    |_error| DecodeError::malformed(0, MalformedKind::ArithmeticOverflow),
+                )?;
                 if start >= prefix.len() {
                     *blocked.get_mut(execution).ok_or_else(|| {
                         DecodeError::malformed(0, MalformedKind::ArithmeticOverflow)
@@ -1125,6 +1345,8 @@ impl DatabinCache {
                     order_index += 1;
                     continue;
                 }
+                #[cfg(verus_keep_ghost)]
+                proof! { assert((order_index & 65535usize) <= u16::MAX as usize) by(bit_vector); }
                 let sequence = u16::try_from(order_index & usize::from(u16::MAX))
                     .map_err(|_| DecodeError::malformed(0, MalformedKind::ArithmeticOverflow))?;
                 #[cfg(verus_keep_ghost)]
@@ -1153,12 +1375,18 @@ impl DatabinCache {
                                 MalformedKind::InvalidPacketLength,
                             ));
                         }
-                        let end = start.checked_add(consumed).ok_or_else(|| {
-                            DecodeError::malformed(offset, MalformedKind::ArithmeticOverflow)
-                        })?;
-                        let packet_slice = prefix.get(start..end).ok_or_else(|| {
-                            DecodeError::malformed(offset, MalformedKind::Truncated)
-                        })?;
+                        let end = start.checked_add(consumed).ok_or_else(
+                            #[cfg_attr(verus_keep_ghost, verus_spec(result: DecodeError =>
+                                ensures result == crate::specs::part2_jpip_range_overflow(offset),
+                            ))]
+                            || DecodeError::malformed(offset, MalformedKind::ArithmeticOverflow),
+                        )?;
+                        let packet_slice = prefix.get(start..end).ok_or_else(
+                            #[cfg_attr(verus_keep_ghost, verus_spec(result: DecodeError =>
+                                ensures result == crate::specs::part2_jpip_cache_error(offset, MalformedKind::Truncated),
+                            ))]
+                            || { DecodeError::malformed(offset, MalformedKind::Truncated) },
+                        )?;
                         #[cfg(verus_keep_ghost)]
                         proof_decl! {
                             let ghost before_native = parsed@;
@@ -1193,18 +1421,25 @@ impl DatabinCache {
                         *offsets.get_mut(execution).ok_or_else(|| {
                             DecodeError::malformed(0, MalformedKind::ArithmeticOverflow)
                         })? = end as u64;
-                        transition_packets =
-                            transition_packets.checked_add(1).ok_or_else(|| {
-                                DecodeError::malformed(0, MalformedKind::ArithmeticOverflow)
-                            })?;
-                        transition_bytes = transition_bytes
-                            .checked_add(consumed as u64)
-                            .ok_or_else(|| {
-                                DecodeError::malformed(0, MalformedKind::ArithmeticOverflow)
-                            })?;
-                        let transition = transitions.get(transition_index).ok_or_else(|| {
-                            DecodeError::malformed(0, MalformedKind::InvalidTilePart)
-                        })?;
+                        transition_packets = transition_packets.checked_add(1).ok_or_else(
+                            #[cfg_attr(verus_keep_ghost, verus_spec(result: DecodeError =>
+                                    ensures result == crate::specs::part2_jpip_range_overflow(0),
+                                ))]
+                            || DecodeError::malformed(0, MalformedKind::ArithmeticOverflow),
+                        )?;
+                        transition_bytes =
+                            transition_bytes.checked_add(consumed as u64).ok_or_else(
+                                #[cfg_attr(verus_keep_ghost, verus_spec(result: DecodeError =>
+                                    ensures result == crate::specs::part2_jpip_range_overflow(0),
+                                ))]
+                                || DecodeError::malformed(0, MalformedKind::ArithmeticOverflow),
+                            )?;
+                        let transition = transitions.get(transition_index).ok_or_else(
+                            #[cfg_attr(verus_keep_ghost, verus_spec(result: DecodeError =>
+                                ensures result == crate::specs::part2_jpip_cache_error(0, MalformedKind::InvalidTilePart),
+                            ))]
+                            || { DecodeError::malformed(0, MalformedKind::InvalidTilePart) },
+                        )?;
                         let boundary = match transition.packet_count() {
                             Some(count) => transition_packets == count,
                             None => match transition.data_length() {
@@ -1212,9 +1447,12 @@ impl DatabinCache {
                                 None => false,
                             },
                         };
-                        let next_transition = transition_index.checked_add(1).ok_or_else(|| {
-                            DecodeError::malformed(0, MalformedKind::ArithmeticOverflow)
-                        })?;
+                        let next_transition = transition_index.checked_add(1).ok_or_else(
+                            #[cfg_attr(verus_keep_ghost, verus_spec(result: DecodeError =>
+                                ensures result == crate::specs::part2_jpip_range_overflow(0),
+                            ))]
+                            || DecodeError::malformed(0, MalformedKind::ArithmeticOverflow),
+                        )?;
                         if boundary && next_transition < transitions.len() {
                             transition_index = next_transition;
                             transition_packets = 0;
@@ -1246,6 +1484,16 @@ impl DatabinCache {
             }
 
             let tile_is_selected = jpip_tile_selected(selection, tile_number);
+            #[cfg(verus_keep_ghost)]
+            proof! {
+                super::jpip_snapshot_packet_capacity_error(current_root, acquisition_parts, acquisition_transitions,
+                    acquisition_databins, acquisition_order, acquisition_initial,
+                    crate::specs::Part2JpipSnapshotPacketState {
+                        precincts: crate::decode::progression_plan_view(&plan).precincts,
+                        parsed: jpip_parsed_packet_matrix(parsed@), offsets: offsets@, blocked: blocked@,
+                        transition: transition_index, packets: transition_packets, bytes: transition_bytes,
+                    }, tile_capacity);
+            }
             let mut packets = crate::allocation::empty_with_capacity(order.len())?;
             #[cfg(verus_keep_ghost)]
             proof_decl! {
@@ -1264,6 +1512,13 @@ impl DatabinCache {
             proof! {
                 assert(packets@.map_values(|packet: AutomaticPacket| super::jpip_automatic_packet_view(&packet))
                     =~= Seq::<crate::specs::Part2JpipAutomaticPacket>::empty());
+                assert forall|error: DecodeError| packet_goal == Err(error)
+                    implies crate::specs::part2_jpip_automatic_snapshot_result(jpip_cache_view(self), codestream,
+                        super::jpip_snapshot_selection_view(selection), super::jpip_packet_selection_view(packet_selection),
+                        limits, Err(error)) by {
+                    super::jpip_snapshot_packet_error(current_root, acquisition_parts, acquisition_transitions,
+                        acquisition_databins, acquisition_order, acquisition_initial, acquisition_final, tile_capacity, error);
+                }
             }
             let mut order_index = 0_usize;
             #[cfg_attr(
@@ -1306,6 +1561,10 @@ impl DatabinCache {
                         packet_goal == crate::specs::part2_jpip_snapshot_make_packets(acquisition_input,
                             tile_number, tile_part.component_coding_styles, acquisition_order,
                             acquisition_databins, acquisition_final, 0, Seq::empty()),
+                        forall|error: DecodeError| packet_goal == Err(error) ==>
+                            crate::specs::part2_jpip_automatic_snapshot_result(jpip_cache_view(self), codestream,
+                                super::jpip_snapshot_selection_view(selection), super::jpip_packet_selection_view(packet_selection),
+                                limits, Err(error)),
                         packet_goal == crate::specs::part2_jpip_snapshot_make_packets(acquisition_input,
                             tile_number, tile_part.component_coding_styles, acquisition_order,
                             acquisition_databins, acquisition_final, order_index as nat,
@@ -1387,19 +1646,29 @@ impl DatabinCache {
                 proof! {
                     assert(jpip_parsed_packet_value(packet_bytes)
                         == acquisition_final.parsed[execution as int][coordinate.layer as int]);
+                    assert((order_index & 65535usize) <= u16::MAX as usize) by(bit_vector);
                 }
                 packets.push(AutomaticPacket {
-                    databin: *databins.get(execution).ok_or_else(|| {
-                        DecodeError::malformed(0, MalformedKind::ArithmeticOverflow)
-                    })?,
+                    databin: *databins.get(execution).ok_or_else(
+                        #[cfg_attr(verus_keep_ghost, verus_spec(result: DecodeError =>
+                            ensures result == crate::specs::part2_jpip_range_overflow(0),
+                        ))]
+                        || DecodeError::malformed(0, MalformedKind::ArithmeticOverflow),
+                    )?,
                     bytes: packet_bytes,
-                    next_offset: *offsets.get(execution).ok_or_else(|| {
-                        DecodeError::malformed(0, MalformedKind::ArithmeticOverflow)
-                    })?,
+                    next_offset: *offsets.get(execution).ok_or_else(
+                        #[cfg_attr(verus_keep_ghost, verus_spec(result: DecodeError =>
+                            ensures result == crate::specs::part2_jpip_range_overflow(0),
+                        ))]
+                        || DecodeError::malformed(0, MalformedKind::ArithmeticOverflow),
+                    )?,
                     required,
-                    ordinal: u16::try_from(order_index & usize::from(u16::MAX)).map_err(|_| {
-                        DecodeError::malformed(0, MalformedKind::ArithmeticOverflow)
-                    })?,
+                    ordinal: u16::try_from(order_index & usize::from(u16::MAX)).map_err(
+                        #[cfg_attr(verus_keep_ghost, verus_spec(result: DecodeError =>
+                            ensures result == crate::specs::part2_jpip_range_overflow(0),
+                        ))]
+                        |_error| DecodeError::malformed(0, MalformedKind::ArithmeticOverflow),
+                    )?,
                     layer: coordinate.layer,
                 });
                 #[cfg(verus_keep_ghost)]
@@ -1418,6 +1687,27 @@ impl DatabinCache {
                 assert(packet_goal == Ok(packets@.map_values(
                     |packet: AutomaticPacket| super::jpip_automatic_packet_view(&packet))));
             }
+            #[cfg(verus_keep_ghost)]
+            proof_decl! {
+                let ghost partition_packets = packets@.map_values(
+                    |packet: AutomaticPacket| super::jpip_automatic_packet_view(&packet));
+                let ghost partition_events = seq![tile_capacity] + packet_events;
+            }
+            #[cfg(verus_keep_ghost)]
+            proof! {
+                assert forall|error: DecodeError|
+                    crate::specs::part2_jpip_partition_automatic_tiles(current_root.headers[current_root.tile as int],
+                        acquisition_parts, acquisition_transitions, partition_packets) == Err(error)
+                    implies crate::specs::part2_jpip_automatic_snapshot_result(jpip_cache_view(self), codestream,
+                        super::jpip_snapshot_selection_view(selection), super::jpip_packet_selection_view(packet_selection),
+                        limits, Err(error)) by {
+                    assert(partition_events =~= seq![tile_capacity] + packet_events);
+                    assert(crate::specs::part2_jpip_snapshot_tile(current_root.input, current_root.count,
+                        current_root.components, current_root.tile as usize, current_root.layout,
+                        current_root.raw, current_root.headers, partition_events) == Some((Err(error), Seq::empty())));
+                    super::jpip_snapshot_tile_root_error(current_root, partition_events, error);
+                }
+            }
             let Some(parts) = partition_automatic_tile_parts(
                 normalized_tiles
                     .get(tile_index)
@@ -1427,34 +1717,120 @@ impl DatabinCache {
                 &packets,
             )?
             else {
+                #[cfg(verus_keep_ghost)]
+                proof_decl! {
+                    let ghost partition_missing_goal = crate::specs::part2_jpip_snapshot_partition_missing(
+                        current_root.input.cache, partition_packets, 0, Seq::empty());
+                }
+                #[cfg(verus_keep_ghost)]
+                proof! {
+                    assert(crate::specs::part2_jpip_snapshot_tile(current_root.input, current_root.count,
+                        current_root.components, current_root.tile as usize, current_root.layout,
+                        current_root.raw, current_root.headers, partition_events)
+                        == Some((Ok((None, partition_packets, tile_part.coding_style.layers)), Seq::empty())));
+                }
                 let mut missing = Vec::new();
+                #[cfg(verus_keep_ghost)]
+                proof! {
+                    assert(super::jpip_missing_views(&missing)
+                        =~= Seq::<crate::specs::Part2JpipMissing>::empty());
+                }
                 let mut packet_index = 0_usize;
                 #[cfg_attr(
                     verus_keep_ghost,
                     verus_spec(
                         invariant packet_index <= packets.len(),
+                            partition_packets == packets@.map_values(
+                                |packet: AutomaticPacket| super::jpip_automatic_packet_view(&packet)),
+                            super::jpip_snapshot_inputs_match(current_root.input, self, codestream, selection, packet_selection, limits),
+                            crate::specs::part2_jpip_snapshot_tile_root(current_root), current_root.tile < current_root.headers.len(),
+                            crate::specs::part2_jpip_snapshot_tile(current_root.input, current_root.count,
+                                current_root.components, current_root.tile as usize, current_root.layout,
+                                current_root.raw, current_root.headers, partition_events)
+                                == Some((Ok((None, partition_packets, tile_part.coding_style.layers)), Seq::empty())),
+                            partition_missing_goal == crate::specs::part2_jpip_snapshot_partition_missing(
+                                current_root.input.cache, partition_packets, 0, Seq::empty()),
+                            partition_missing_goal == crate::specs::part2_jpip_snapshot_partition_missing(
+                                current_root.input.cache, partition_packets, packet_index as nat, super::jpip_missing_views(&missing)),
                         decreases packets.len() - packet_index,
                     )
                 )]
                 while packet_index < packets.len() {
+                    #[cfg(verus_keep_ghost)]
+                    proof! {
+                        reveal(crate::specs::part2_jpip_snapshot_partition_missing);
+                        reveal(super::jpip_automatic_packet_view);
+                        reveal(super::jpip_missing_view);
+                        broadcast use vstd::std_specs::iter::group_iter_axioms;
+                    }
+                    #[cfg(verus_keep_ghost)]
+                    proof_decl! {
+                        let ghost before_missing = super::jpip_missing_views(&missing);
+                        let ghost before_native_missing = missing@;
+                    }
                     let packet = packets.get(packet_index).ok_or_else(|| {
                         DecodeError::malformed(0, MalformedKind::ArithmeticOverflow)
                     })?;
+                    #[cfg(verus_keep_ghost)]
+                    proof! { super::jpip_missing_ref_projection(before_native_missing, before_missing, super::databin_id_view(packet.databin)); }
                     if packet.bytes.is_none()
                         && !missing
                             .iter()
-                            .any(|entry: &JpipMissingRange| entry.databin().same_as(packet.databin))
+                            .any(
+                                #[cfg_attr(verus_keep_ghost, verus_spec(result: bool =>
+                                    ensures result == crate::specs::part2_jpip_identity(
+                                        super::jpip_missing_view(*entry).0, super::databin_id_view(packet.databin)),
+                                ))]
+                                |entry: &JpipMissingRange| entry.databin().same_as(packet.databin),
+                            )
                     {
+                        #[cfg(verus_keep_ghost)]
+                        proof! {
+                            assert(!(exists|index: int| 0 <= index < before_missing.len()
+                                && crate::specs::part2_jpip_identity(before_missing[index].0,
+                                    super::databin_id_view(packet.databin))));
+                        }
                         missing.push(JpipMissingRange {
                             databin: packet.databin,
                             offset: packet.next_offset,
                             length: self
                                 .status(packet.databin)
-                                .and_then(|status| status.final_length())
-                                .map(|length| length.saturating_sub(packet.next_offset)),
+                                .and_then(
+                                    #[cfg_attr(verus_keep_ghost, verus_spec(result: (Option<u64>) =>
+                                        ensures result == super::jpip_status_view(&status).0,
+                                    ))]
+                                    |status| status.final_length(),
+                                )
+                                .map(
+                                    #[cfg_attr(verus_keep_ghost, verus_spec(result: u64 =>
+                                        ensures result == if length > packet.next_offset { length - packet.next_offset } else { 0 },
+                                    ))]
+                                    |length| length.saturating_sub(packet.next_offset),
+                                ),
                         });
+                        #[cfg(verus_keep_ghost)]
+                        proof! {
+                            assert(super::jpip_missing_views(&missing)
+                                =~= before_missing.push(super::jpip_missing_view(missing@[missing.len() as int - 1])));
+                        }
+                    } else {
+                        #[cfg(verus_keep_ghost)]
+                        proof! {
+                            if packet.bytes.is_none() {
+                                assert(exists|index: int| 0 <= index < before_missing.len()
+                                    && crate::specs::part2_jpip_identity(before_missing[index].0,
+                                        super::databin_id_view(packet.databin)));
+                            }
+                        }
                     }
                     packet_index += 1;
+                }
+                #[cfg(verus_keep_ghost)]
+                proof! {
+                    reveal(crate::specs::part2_jpip_snapshot_partition_missing);
+                    super::jpip_snapshot_tile_root_missing(current_root, partition_events, partition_packets,
+                        tile_part.coding_style.layers, super::jpip_missing_views(&missing));
+                    reveal(super::jpip_automatic_snapshot_result_view);
                 }
                 return Ok(AutomaticSnapshotResult {
                     ready: None,
@@ -1502,36 +1878,106 @@ impl DatabinCache {
             tile_index += 1;
         }
 
+        #[cfg(verus_keep_ghost)]
+        proof_decl! {
+            let ghost snapshot_tiles = super::jpip_automatic_tiles_view(automatic_tiles@);
+            let ghost available_goal = crate::specs::part2_jpip_snapshot_available(
+                snapshot_tiles, 0, 0, 0, maximum_layers);
+            let ghost ready_goal = crate::specs::part2_jpip_snapshot_ready(
+                input.cache, snapshot_tiles, tile_root.main, maximum_layers, input.limits);
+        }
+        #[cfg(verus_keep_ghost)]
+        proof! {
+            reveal(super::jpip_automatic_tiles_view);
+            reveal(super::jpip_automatic_tile_part_view);
+            reveal(super::jpip_automatic_packet_view);
+            reveal(super::jpip_automatic_snapshot_view);
+            reveal(super::jpip_automatic_snapshot_result_view);
+            reveal(super::jpip_byte_view);
+            assert(super::jpip_snapshot_ready_context(tile_root, input, snapshot_tiles, normalized_main@, maximum_layers));
+        }
         let mut available_layers = maximum_layers;
         let mut tile_packet_index = 0_usize;
         #[cfg_attr(
             verus_keep_ghost,
             verus_spec(
                 invariant tile_packet_index <= automatic_tiles.len(),
+                    snapshot_tiles == super::jpip_automatic_tiles_view(automatic_tiles@),
+                    super::jpip_snapshot_ready_context(tile_root, input, snapshot_tiles, normalized_main@, maximum_layers),
+                    super::jpip_snapshot_inputs_match(input, self, codestream, selection, packet_selection, limits),
+                    ready_goal == crate::specs::part2_jpip_snapshot_ready(input.cache, snapshot_tiles,
+                        normalized_main@, maximum_layers, input.limits),
+                    available_goal == crate::specs::part2_jpip_snapshot_available(snapshot_tiles, 0, 0, 0, maximum_layers),
+                    available_goal == crate::specs::part2_jpip_snapshot_available(
+                        snapshot_tiles, tile_packet_index as nat, 0, 0, available_layers),
                 decreases automatic_tiles.len() - tile_packet_index,
             )
         )]
         while tile_packet_index < automatic_tiles.len() {
+            #[cfg(verus_keep_ghost)]
+            proof! {
+                reveal(crate::specs::part2_jpip_snapshot_available);
+                reveal(super::jpip_automatic_tiles_view);
+                reveal(super::jpip_automatic_tile_part_view);
+                reveal(super::jpip_automatic_packet_view);
+            }
             let tile = &automatic_tiles[tile_packet_index];
             let mut part_index = 0_usize;
             #[cfg_attr(
                 verus_keep_ghost,
                 verus_spec(
                     invariant part_index <= tile.parts.len(),
+                        snapshot_tiles == super::jpip_automatic_tiles_view(automatic_tiles@),
+                        tile_packet_index < snapshot_tiles.len(),
+                        snapshot_tiles[tile_packet_index as int] == tile.parts@.map_values(
+                            |part: super::AutomaticTilePart| super::jpip_automatic_tile_part_view(&part)),
+                        super::jpip_snapshot_ready_context(tile_root, input, snapshot_tiles, normalized_main@, maximum_layers),
+                        super::jpip_snapshot_inputs_match(input, self, codestream, selection, packet_selection, limits),
+                        ready_goal == crate::specs::part2_jpip_snapshot_ready(input.cache, snapshot_tiles,
+                            normalized_main@, maximum_layers, input.limits),
+                        available_goal == crate::specs::part2_jpip_snapshot_available(snapshot_tiles, 0, 0, 0, maximum_layers),
+                        available_goal == crate::specs::part2_jpip_snapshot_available(
+                            snapshot_tiles, tile_packet_index as nat, part_index as nat, 0, available_layers),
                     decreases tile.parts.len() - part_index,
                 )
             )]
             while part_index < tile.parts.len() {
+                #[cfg(verus_keep_ghost)]
+                proof! {
+                    reveal(crate::specs::part2_jpip_snapshot_available);
+                    reveal(super::jpip_automatic_tile_part_view);
+                }
                 let part = &tile.parts[part_index];
                 let mut packet_index = 0_usize;
                 #[cfg_attr(
                     verus_keep_ghost,
                     verus_spec(
                         invariant packet_index <= part.packets.len(),
+                            snapshot_tiles == super::jpip_automatic_tiles_view(automatic_tiles@),
+                            tile_packet_index < snapshot_tiles.len(),
+                            part_index < snapshot_tiles[tile_packet_index as int].len(),
+                            snapshot_tiles[tile_packet_index as int][part_index as int]
+                                == super::jpip_automatic_tile_part_view(part),
+                            super::jpip_automatic_tile_part_view(part).1 == part.packets@.map_values(
+                                |packet: AutomaticPacket| super::jpip_automatic_packet_view(&packet)),
+                            snapshot_tiles[tile_packet_index as int] == tile.parts@.map_values(
+                                |part: super::AutomaticTilePart| super::jpip_automatic_tile_part_view(&part)),
+                            super::jpip_snapshot_ready_context(tile_root, input, snapshot_tiles, normalized_main@, maximum_layers),
+                            super::jpip_snapshot_inputs_match(input, self, codestream, selection, packet_selection, limits),
+                            ready_goal == crate::specs::part2_jpip_snapshot_ready(input.cache, snapshot_tiles,
+                                normalized_main@, maximum_layers, input.limits),
+                            available_goal == crate::specs::part2_jpip_snapshot_available(snapshot_tiles, 0, 0, 0, maximum_layers),
+                            available_goal == crate::specs::part2_jpip_snapshot_available(
+                                snapshot_tiles, tile_packet_index as nat, part_index as nat, packet_index as nat, available_layers),
                         decreases part.packets.len() - packet_index,
                     )
                 )]
                 while packet_index < part.packets.len() {
+                    #[cfg(verus_keep_ghost)]
+                    proof! {
+                        reveal(crate::specs::part2_jpip_snapshot_available);
+                        reveal(super::jpip_automatic_packet_view);
+                    }
                     let packet = &part.packets[packet_index];
                     let layer = packet.layer;
                     if packet.required && packet.bytes.is_none() {
@@ -1539,51 +1985,153 @@ impl DatabinCache {
                     }
                     packet_index += 1;
                 }
+                #[cfg(verus_keep_ghost)]
+                proof! { reveal(crate::specs::part2_jpip_snapshot_available); }
                 part_index += 1;
             }
+            #[cfg(verus_keep_ghost)]
+            proof! { reveal(crate::specs::part2_jpip_snapshot_available); }
             tile_packet_index += 1;
         }
+        #[cfg(verus_keep_ghost)]
+        proof! {
+            reveal(crate::specs::part2_jpip_snapshot_available);
+            assert(available_goal == available_layers);
+        }
         let mut missing = Vec::new();
+        #[cfg(verus_keep_ghost)]
+        proof_decl! {
+            let ghost missing_goal = crate::specs::part2_jpip_snapshot_missing(
+                input.cache, snapshot_tiles, available_layers, 0, 0, 0, Seq::empty());
+        }
         tile_packet_index = 0;
         #[cfg_attr(
             verus_keep_ghost,
             verus_spec(
                 invariant tile_packet_index <= automatic_tiles.len(),
+                    snapshot_tiles == super::jpip_automatic_tiles_view(automatic_tiles@),
+                    super::jpip_snapshot_ready_context(tile_root, input, snapshot_tiles, normalized_main@, maximum_layers),
+                    super::jpip_snapshot_inputs_match(input, self, codestream, selection, packet_selection, limits),
+                    ready_goal == crate::specs::part2_jpip_snapshot_ready(input.cache, snapshot_tiles,
+                        normalized_main@, maximum_layers, input.limits),
+                    available_goal == crate::specs::part2_jpip_snapshot_available(snapshot_tiles, 0, 0, 0, maximum_layers),
+                    available_goal == available_layers,
+                    missing_goal == crate::specs::part2_jpip_snapshot_missing(
+                        input.cache, snapshot_tiles, available_layers, 0, 0, 0, Seq::empty()),
+                    missing_goal == crate::specs::part2_jpip_snapshot_missing(
+                        input.cache, snapshot_tiles, available_layers, tile_packet_index as nat, 0, 0,
+                        super::jpip_missing_views(&missing)),
                 decreases automatic_tiles.len() - tile_packet_index,
             )
         )]
         while tile_packet_index < automatic_tiles.len() {
+            #[cfg(verus_keep_ghost)]
+            proof! {
+                reveal(crate::specs::part2_jpip_snapshot_missing);
+                reveal(super::jpip_automatic_tiles_view);
+                reveal(super::jpip_automatic_tile_part_view);
+                reveal(super::jpip_automatic_packet_view);
+            }
             let tile = &automatic_tiles[tile_packet_index];
             let mut part_index = 0_usize;
             #[cfg_attr(
                 verus_keep_ghost,
                 verus_spec(
                     invariant part_index <= tile.parts.len(),
+                        snapshot_tiles == super::jpip_automatic_tiles_view(automatic_tiles@),
+                        tile_packet_index < snapshot_tiles.len(),
+                        snapshot_tiles[tile_packet_index as int] == tile.parts@.map_values(
+                            |part: super::AutomaticTilePart| super::jpip_automatic_tile_part_view(&part)),
+                        super::jpip_snapshot_ready_context(tile_root, input, snapshot_tiles, normalized_main@, maximum_layers),
+                        super::jpip_snapshot_inputs_match(input, self, codestream, selection, packet_selection, limits),
+                        ready_goal == crate::specs::part2_jpip_snapshot_ready(input.cache, snapshot_tiles,
+                            normalized_main@, maximum_layers, input.limits),
+                        available_goal == crate::specs::part2_jpip_snapshot_available(snapshot_tiles, 0, 0, 0, maximum_layers),
+                        available_goal == available_layers,
+                        missing_goal == crate::specs::part2_jpip_snapshot_missing(
+                            input.cache, snapshot_tiles, available_layers, 0, 0, 0, Seq::empty()),
+                        missing_goal == crate::specs::part2_jpip_snapshot_missing(
+                            input.cache, snapshot_tiles, available_layers, tile_packet_index as nat, part_index as nat, 0,
+                            super::jpip_missing_views(&missing)),
                     decreases tile.parts.len() - part_index,
                 )
             )]
             while part_index < tile.parts.len() {
+                #[cfg(verus_keep_ghost)]
+                proof! {
+                    reveal(crate::specs::part2_jpip_snapshot_missing);
+                    reveal(super::jpip_automatic_tile_part_view);
+                }
                 let part = &tile.parts[part_index];
                 let mut packet_index = 0_usize;
                 #[cfg_attr(
                     verus_keep_ghost,
                     verus_spec(
                         invariant packet_index <= part.packets.len(),
+                            snapshot_tiles == super::jpip_automatic_tiles_view(automatic_tiles@),
+                            tile_packet_index < snapshot_tiles.len(), part_index < snapshot_tiles[tile_packet_index as int].len(),
+                            snapshot_tiles[tile_packet_index as int][part_index as int] == super::jpip_automatic_tile_part_view(part),
+                            super::jpip_automatic_tile_part_view(part).1 == part.packets@.map_values(
+                                |packet: AutomaticPacket| super::jpip_automatic_packet_view(&packet)),
+                            snapshot_tiles[tile_packet_index as int] == tile.parts@.map_values(
+                                |part: super::AutomaticTilePart| super::jpip_automatic_tile_part_view(&part)),
+                            super::jpip_snapshot_ready_context(tile_root, input, snapshot_tiles, normalized_main@, maximum_layers),
+                            super::jpip_snapshot_inputs_match(input, self, codestream, selection, packet_selection, limits),
+                            ready_goal == crate::specs::part2_jpip_snapshot_ready(input.cache, snapshot_tiles,
+                                normalized_main@, maximum_layers, input.limits),
+                            available_goal == crate::specs::part2_jpip_snapshot_available(snapshot_tiles, 0, 0, 0, maximum_layers),
+                            available_goal == available_layers,
+                            missing_goal == crate::specs::part2_jpip_snapshot_missing(
+                                input.cache, snapshot_tiles, available_layers, 0, 0, 0, Seq::empty()),
+                            missing_goal == crate::specs::part2_jpip_snapshot_missing(
+                                input.cache, snapshot_tiles, available_layers, tile_packet_index as nat, part_index as nat,
+                                packet_index as nat, super::jpip_missing_views(&missing)),
                         decreases part.packets.len() - packet_index,
                     )
                 )]
                 while packet_index < part.packets.len() {
+                    #[cfg(verus_keep_ghost)]
+                    proof! {
+                        reveal(crate::specs::part2_jpip_snapshot_missing);
+                        reveal(super::jpip_automatic_packet_view);
+                        reveal(super::jpip_missing_view);
+                        broadcast use vstd::std_specs::iter::group_iter_axioms;
+                    }
+                    #[cfg(verus_keep_ghost)]
+                    proof_decl! {
+                        let ghost before_missing = super::jpip_missing_views(&missing);
+                        let ghost before_native_missing = missing@;
+                    }
                     let packet = &part.packets[packet_index];
                     let layer = packet.layer;
+                    #[cfg(verus_keep_ghost)]
+                    proof! { super::jpip_missing_ref_projection(before_native_missing, before_missing, super::databin_id_view(packet.databin)); }
                     if packet.required
                         && layer == available_layers
                         && packet.bytes.is_none()
                         && !missing
                             .iter()
-                            .any(|entry: &JpipMissingRange| entry.databin().same_as(packet.databin))
+                            .any(
+                                #[cfg_attr(verus_keep_ghost, verus_spec(result: bool =>
+                                    ensures result == crate::specs::part2_jpip_identity(
+                                        super::jpip_missing_view(*entry).0, super::databin_id_view(packet.databin)),
+                                ))]
+                                |entry: &JpipMissingRange| entry.databin().same_as(packet.databin),
+                            )
                     {
+                        #[cfg(verus_keep_ghost)]
+                        proof! {
+                            assert(!(exists|index: int| 0 <= index < before_missing.len()
+                                && crate::specs::part2_jpip_identity(before_missing[index].0,
+                                    super::databin_id_view(packet.databin))));
+                        }
                         let status = self.status(packet.databin);
-                        let length = match status.and_then(|value| value.final_length()) {
+                        let length = match status.and_then(
+                            #[cfg_attr(verus_keep_ghost, verus_spec(result: (Option<u64>) =>
+                                ensures result == super::jpip_status_view(&value).0,
+                            ))]
+                            |value| value.final_length(),
+                        ) {
                             Some(final_length) if final_length > packet.next_offset => {
                                 Some(final_length - packet.next_offset)
                             }
@@ -1595,14 +2143,50 @@ impl DatabinCache {
                             offset: packet.next_offset,
                             length,
                         });
+                        #[cfg(verus_keep_ghost)]
+                        proof! {
+                            assert(super::jpip_missing_views(&missing)
+                                =~= before_missing.push(super::jpip_missing_view(missing@[missing.len() as int - 1])));
+                        }
+                    } else {
+                        #[cfg(verus_keep_ghost)]
+                        proof! {
+                            if packet.required && layer == available_layers && packet.bytes.is_none() {
+                                assert(exists|index: int| 0 <= index < before_missing.len()
+                                    && crate::specs::part2_jpip_identity(before_missing[index].0,
+                                        super::databin_id_view(packet.databin)));
+                            }
+                        }
+                    }
+                    #[cfg(verus_keep_ghost)]
+                    proof! {
+                        assert(super::jpip_missing_views(&missing) == crate::specs::part2_jpip_snapshot_missing_packet(
+                            input.cache, super::jpip_automatic_packet_view(packet), available_layers, before_missing));
                     }
                     packet_index += 1;
                 }
+                #[cfg(verus_keep_ghost)]
+                proof! { reveal(crate::specs::part2_jpip_snapshot_missing); }
                 part_index += 1;
             }
+            #[cfg(verus_keep_ghost)]
+            proof! { reveal(crate::specs::part2_jpip_snapshot_missing); }
             tile_packet_index += 1;
         }
+        #[cfg(verus_keep_ghost)]
+        proof! {
+            reveal(crate::specs::part2_jpip_snapshot_missing);
+            assert(missing_goal == super::jpip_missing_views(&missing));
+        }
         if available_layers == 0 {
+            #[cfg(verus_keep_ghost)]
+            proof! {
+                super::jpip_snapshot_root_ready_result(tile_root,
+                    Ok((Some((Seq::empty(), 0, maximum_layers, missing_goal)), Seq::empty())));
+                reveal(super::jpip_automatic_snapshot_view);
+                reveal(super::jpip_automatic_snapshot_result_view);
+                reveal(super::jpip_byte_view);
+            }
             return Ok(AutomaticSnapshotResult {
                 ready: Some(AutomaticSnapshot {
                     codestream: JpipByteView { bytes: Vec::new() },
@@ -1614,41 +2198,146 @@ impl DatabinCache {
             });
         }
 
+        #[cfg(verus_keep_ghost)]
+        proof_decl! {
+            let ghost emission_goal = crate::specs::part2_jpip_snapshot_emit_tiles(
+                snapshot_tiles, available_layers, 0, tile_root.main);
+        }
         let mut bytes = normalized_main;
         tile_packet_index = 0;
         #[cfg_attr(
             verus_keep_ghost,
             verus_spec(
                 invariant tile_packet_index <= automatic_tiles.len(),
+                    snapshot_tiles == super::jpip_automatic_tiles_view(automatic_tiles@),
+                    super::jpip_snapshot_ready_context(tile_root, input, snapshot_tiles, tile_root.main, maximum_layers),
+                    super::jpip_snapshot_inputs_match(input, self, codestream, selection, packet_selection, limits),
+                    ready_goal == crate::specs::part2_jpip_snapshot_ready(input.cache, snapshot_tiles,
+                        tile_root.main, maximum_layers, input.limits),
+                    available_goal == crate::specs::part2_jpip_snapshot_available(snapshot_tiles, 0, 0, 0, maximum_layers),
+                    available_goal == available_layers, available_layers > 0,
+                    missing_goal == crate::specs::part2_jpip_snapshot_missing(
+                        input.cache, snapshot_tiles, available_layers, 0, 0, 0, Seq::empty()),
+                    missing_goal == super::jpip_missing_views(&missing),
+                    emission_goal == crate::specs::part2_jpip_snapshot_emit_tiles(snapshot_tiles, available_layers, 0, tile_root.main),
+                    emission_goal == crate::specs::part2_jpip_snapshot_emit_tiles(
+                        snapshot_tiles, available_layers, tile_packet_index as nat, bytes@),
                 decreases automatic_tiles.len() - tile_packet_index,
             )
         )]
         while tile_packet_index < automatic_tiles.len() {
+            #[cfg(verus_keep_ghost)]
+            proof! {
+                reveal(crate::specs::part2_jpip_snapshot_emit_tiles);
+                reveal(super::jpip_automatic_tiles_view);
+            }
             let tile = &automatic_tiles[tile_packet_index];
             let mut part_index = 0_usize;
             #[cfg_attr(
                 verus_keep_ghost,
                 verus_spec(
                     invariant part_index <= tile.parts.len(),
+                        snapshot_tiles == super::jpip_automatic_tiles_view(automatic_tiles@),
+                        tile_packet_index < snapshot_tiles.len(),
+                        snapshot_tiles[tile_packet_index as int] == tile.parts@.map_values(
+                            |part: super::AutomaticTilePart| super::jpip_automatic_tile_part_view(&part)),
+                        super::jpip_snapshot_ready_context(tile_root, input, snapshot_tiles, tile_root.main, maximum_layers),
+                        super::jpip_snapshot_inputs_match(input, self, codestream, selection, packet_selection, limits),
+                        ready_goal == crate::specs::part2_jpip_snapshot_ready(input.cache, snapshot_tiles,
+                            tile_root.main, maximum_layers, input.limits),
+                        available_goal == crate::specs::part2_jpip_snapshot_available(snapshot_tiles, 0, 0, 0, maximum_layers),
+                        available_goal == available_layers, available_layers > 0,
+                        missing_goal == crate::specs::part2_jpip_snapshot_missing(
+                            input.cache, snapshot_tiles, available_layers, 0, 0, 0, Seq::empty()),
+                        missing_goal == super::jpip_missing_views(&missing),
+                        emission_goal == crate::specs::part2_jpip_snapshot_emit_tiles(
+                            snapshot_tiles, available_layers, 0, tile_root.main),
+                        emission_goal == match crate::specs::part2_jpip_snapshot_emit_parts(
+                            snapshot_tiles[tile_packet_index as int], available_layers, part_index as nat, bytes@) {
+                            Err(error) => Err(error),
+                            Ok(next) => crate::specs::part2_jpip_snapshot_emit_tiles(
+                                snapshot_tiles, available_layers, tile_packet_index as nat + 1, next),
+                        },
                     decreases tile.parts.len() - part_index,
                 )
             )]
             while part_index < tile.parts.len() {
+                #[cfg(verus_keep_ghost)]
+                proof! {
+                    reveal(crate::specs::part2_jpip_snapshot_emit_parts);
+                    reveal(super::jpip_automatic_tile_part_view);
+                }
                 let part = &tile.parts[part_index];
+                #[cfg(verus_keep_ghost)]
+                proof_decl! { let ghost before_emission = bytes@; }
+                #[cfg(verus_keep_ghost)]
+                proof! {
+                    assert forall|error: DecodeError|
+                        crate::specs::part2_jpip_emit_part_phase(before_emission,
+                            super::jpip_automatic_tile_part_view(part), available_layers).0 == Err(error)
+                        implies crate::specs::part2_jpip_automatic_snapshot_result(jpip_cache_view(self), codestream,
+                            super::jpip_snapshot_selection_view(selection), super::jpip_packet_selection_view(packet_selection),
+                            limits, Err(error)) by {
+                        assert(emission_goal == Err(error));
+                        super::jpip_snapshot_root_emit_error(tile_root, available_layers, error);
+                    }
+                }
                 emit_automatic_tile_part(&mut bytes, part, available_layers)?;
                 part_index += 1;
             }
+            #[cfg(verus_keep_ghost)]
+            proof! { reveal(crate::specs::part2_jpip_snapshot_emit_parts); }
             tile_packet_index += 1;
         }
+        #[cfg(verus_keep_ghost)]
+        proof! {
+            reveal(crate::specs::part2_jpip_snapshot_emit_tiles);
+            assert(emission_goal == Ok(bytes@));
+        }
+        #[cfg(verus_keep_ghost)]
+        proof_decl! { let ghost emitted_bytes = bytes@; }
         bytes.extend_from_slice(&EOC);
+        #[cfg(verus_keep_ghost)]
+        proof! { assert(bytes@ =~= emitted_bytes + seq![0xffu8, 0xd9u8]); }
         if bytes.len() as u64 > limits.maximum_input_bytes() {
+            #[cfg(verus_keep_ghost)]
+            proof! {
+                super::jpip_snapshot_root_ready_result(tile_root,
+                    Err(DecodeError::LimitExceeded {
+                        resource: crate::Resource::InputBytes,
+                        limit: crate::limits::resource_input_byte_limit(limits),
+                        actual: bytes.len() as u64,
+                    }));
+            }
             return Err(DecodeError::limit(
                 Resource::InputBytes,
                 limits.maximum_input_bytes(),
                 bytes.len() as u64,
             ));
         }
+        #[cfg(verus_keep_ghost)]
+        proof! {
+            assert(crate::specs::part2_jpip_template_finish(emitted_bytes, limits) == Ok(bytes@));
+            crate::codestream::decoder_layout_errors_known();
+            super::jpip_snapshot_layout_success_known();
+            assert forall|error: DecodeError|
+                crate::specs::part1_parse_layout(bytes@, limits) == Err(error)
+                implies crate::specs::part2_jpip_automatic_snapshot_result(jpip_cache_view(self), codestream,
+                    super::jpip_snapshot_selection_view(selection), super::jpip_packet_selection_view(packet_selection),
+                    limits, Err(error)) by {
+                super::jpip_snapshot_root_ready_result(tile_root, Err(error));
+            }
+        }
         crate::codestream::parse_layout(&bytes, limits)?;
+        #[cfg(verus_keep_ghost)]
+        proof! {
+            assert(crate::specs::part1_parse_layout(bytes@, limits).is_ok());
+            super::jpip_snapshot_root_ready_result(tile_root,
+                Ok((Some((bytes@, available_layers, maximum_layers, missing_goal)), Seq::empty())));
+            reveal(super::jpip_automatic_snapshot_result_view);
+            reveal(super::jpip_automatic_snapshot_view);
+            reveal(super::jpip_byte_view);
+        }
         Ok(AutomaticSnapshotResult {
             ready: Some(AutomaticSnapshot {
                 codestream: JpipByteView { bytes },

@@ -12,6 +12,102 @@ pub type Part2JpipProgressiveUpdate = (
 pub type Part2JpipAutomaticPacket = (Part2JpipDatabin, Option<Seq<u8>>, u64, bool, u16, u16);
 pub type Part2JpipAutomaticTilePart = (Seq<u8>, Seq<Part2JpipAutomaticPacket>, bool, bool);
 
+pub type Part2JpipAutomaticProgressiveDecoder = (u64, u16);
+pub type Part2JpipAutomaticProgressiveResult = (
+    Result<Part2JpipProgressiveUpdate, crate::DecodeError>, Part2JpipAutomaticProgressiveDecoder, Part2JpipCache,
+);
+
+pub closed spec fn part2_jpip_automatic_progressive_run(
+    cache: Part2JpipCache, decoder: Part2JpipAutomaticProgressiveDecoder,
+    options: &crate::DecodeOptions, selection: Option<&crate::DecodeSelection>, components: Seq<u16>,
+    events: Seq<Part2JpipSnapshotEvent>,
+) -> Option<(Part2JpipAutomaticProgressiveResult, Seq<Part2JpipSnapshotEvent>)> {
+    let input = Part2JpipSnapshotInput {
+        cache, stream: decoder.0,
+        selected: match selection { None => None, Some(value) => Some(crate::options::decode_selection_view(value)) },
+        components, limits: crate::options::decode_options_limits(options),
+    };
+    match part2_jpip_snapshot_run(input, events) {
+        None => None,
+        Some((Err(error), tail)) => Some(((Err(error), decoder, cache), tail)),
+        Some((Ok((None, missing)), tail)) => Some(((Ok((
+            crate::jpip::JpipProgressiveStatus::WaitingForData, decoder.1, 0, missing, None)), decoder, cache), tail)),
+        Some((Ok((Some(snapshot), _outer_missing)), tail)) => {
+            let previous = decoder.1;
+            let available = snapshot.1;
+            let maximum = snapshot.2;
+            if !valid_jpip_progressive_update(previous as nat, available as nat, maximum as nat) {
+                Some(((Err(part2_jpip_plan_invalid(0)), decoder, cache), tail))
+            } else if available <= previous {
+                Some(((Ok((if available == maximum { crate::jpip::JpipProgressiveStatus::Complete }
+                    else { crate::jpip::JpipProgressiveStatus::WaitingForData },
+                    previous, available, snapshot.3, None)), decoder, cache), tail))
+            } else {
+                match part2_decode_raw_codestream(snapshot.0, crate::options::decode_options_limits(options), selection) {
+                    Err(error) => Some(((Err(error), decoder, cache), tail)),
+                    Ok(image) => Some(((Ok((
+                        if available == maximum { crate::jpip::JpipProgressiveStatus::Complete }
+                        else { crate::jpip::JpipProgressiveStatus::QualityAdvanced },
+                        previous, available, snapshot.3, Some(image))), (decoder.0, available), cache), tail)),
+                }
+            }
+        },
+    }
+}
+
+pub open spec fn part2_jpip_automatic_progressive_update_result(
+    cache: Part2JpipCache, decoder: Part2JpipAutomaticProgressiveDecoder,
+    options: &crate::DecodeOptions, selection: Option<&crate::DecodeSelection>, components: Seq<u16>,
+    result: Part2JpipAutomaticProgressiveResult,
+) -> bool {
+    exists|events: Seq<Part2JpipSnapshotEvent>|
+        part2_jpip_automatic_progressive_run(cache, decoder, options, selection, components, events)
+            == Some((result, Seq::empty()))
+}
+
+pub(crate) proof fn part2_jpip_automatic_progressive_run_unfold(
+    cache: Part2JpipCache, decoder: Part2JpipAutomaticProgressiveDecoder,
+    options: &crate::DecodeOptions, selection: Option<&crate::DecodeSelection>, components: Seq<u16>,
+    events: Seq<Part2JpipSnapshotEvent>,
+)
+    ensures part2_jpip_automatic_progressive_run(cache, decoder, options, selection, components, events)
+        == {
+            let input = Part2JpipSnapshotInput {
+                cache, stream: decoder.0,
+                selected: match selection { None => None, Some(value) => Some(crate::options::decode_selection_view(value)) },
+                components, limits: crate::options::decode_options_limits(options),
+            };
+            match part2_jpip_snapshot_run(input, events) {
+                None => None,
+                Some((Err(error), tail)) => Some(((Err(error), decoder, cache), tail)),
+                Some((Ok((None, missing)), tail)) => Some(((Ok((
+                    crate::jpip::JpipProgressiveStatus::WaitingForData, decoder.1, 0, missing, None)), decoder, cache), tail)),
+                Some((Ok((Some(snapshot), _outer_missing)), tail)) => {
+                    let previous = decoder.1;
+                    let available = snapshot.1;
+                    let maximum = snapshot.2;
+                    if !valid_jpip_progressive_update(previous as nat, available as nat, maximum as nat) {
+                        Some(((Err(part2_jpip_plan_invalid(0)), decoder, cache), tail))
+                    } else if available <= previous {
+                        Some(((Ok((if available == maximum { crate::jpip::JpipProgressiveStatus::Complete }
+                            else { crate::jpip::JpipProgressiveStatus::WaitingForData },
+                            previous, available, snapshot.3, None)), decoder, cache), tail))
+                    } else {
+                        match part2_decode_raw_codestream(snapshot.0, crate::options::decode_options_limits(options), selection) {
+                            Err(error) => Some(((Err(error), decoder, cache), tail)),
+                            Ok(image) => Some(((Ok((
+                                if available == maximum { crate::jpip::JpipProgressiveStatus::Complete }
+                                else { crate::jpip::JpipProgressiveStatus::QualityAdvanced },
+                                previous, available, snapshot.3, Some(image))), (decoder.0, available), cache), tail)),
+                        }
+                    }
+                },
+            }
+        },
+{
+    reveal(part2_jpip_automatic_progressive_run);
+}
+
 #[verifier::opaque]
 pub open spec fn part2_jpip_partition_bytes(
     packets: Seq<Part2JpipAutomaticPacket>, target: u64, end: nat, consumed: u64,
