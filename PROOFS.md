@@ -282,6 +282,25 @@ The original guards and repeated call remain in their original order. A negative
 proof control rejects success without the prior normalization fact; native
 wrong-tile controls fail both the earlier normalization and parser as expected.
 
+## Reachable automatic resolution-selection error
+
+The actual resolution selector and enabling tile/component predicates now have
+complete input-derived Results/booleans. Style lookup errors precede checked
+`levels + 1 - discard` errors. A discard equal to the resolution count returns
+`Ok(false)`; a greater discard can return `ReductionTooLarge`. A valid cached
+fixture and ordinary caller selection demonstrate that this error is reachable,
+so no in-bounds/order/layout fact may simply exclude it.
+
+`part2_jpip_snapshot_resolution_current_error` checks the local mathematical
+continuation: when the original tile/component guards enable the call, its
+resolution error is the pending packet-construction error before scratch lookup.
+The whole cache/caller lift is still blocked by one exact missing checked law:
+the successful native packet-acquisition loop's full precinct/parsed/offset/
+blocked/transition state must equal `part2_jpip_snapshot_parse_packets` from its
+actual captured initial inputs. That assertion was actually checked on the whole
+root and failed alone; it is retained under ignored evidence, not assumed or
+committed. No unproved public Result contract or release action is introduced.
+
 ## Trailing whole-packet engineering admission
 
 The actual packet traversal accepts a retained prefix of complete packets

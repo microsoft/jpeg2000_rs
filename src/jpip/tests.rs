@@ -1240,6 +1240,69 @@ fn automatic_header_normalization_removes_reframed_markers() {
 }
 
 #[test]
+fn automatic_resolution_selection_error_is_reachable_from_actual_cache_and_caller() {
+    let bytes = decodable_codestream();
+    let limits = ResourceLimits::default();
+    let layout = crate::codestream::parse_layout(&bytes, &limits).unwrap();
+    let styles = &layout.tile_parts[0].component_coding_styles;
+    let selected = crate::DecodeSelection::full_image().with_discard_levels(2);
+    let error = DecodeError::InvalidSelection {
+        reason: crate::SelectionError::ReductionTooLarge,
+    };
+    assert_eq!(jpip_resolution_selected(None, 0, 0, styles), Ok(true));
+    assert_eq!(
+        jpip_resolution_selected(
+            Some(&crate::DecodeSelection::full_image().with_discard_levels(1)),
+            0,
+            0,
+            styles
+        ),
+        Ok(false)
+    );
+    assert_eq!(
+        jpip_resolution_selected(Some(&selected), 0, 0, styles),
+        Err(error)
+    );
+
+    let sot = bytes
+        .windows(2)
+        .position(|value| value == [0xff, 0x90])
+        .unwrap();
+    let packet = sot + 14;
+    let mut cache = DatabinCache::new(limits);
+    cache
+        .insert(fragment(id(6, 0), 0, &bytes[..sot], true))
+        .unwrap();
+    cache
+        .insert(fragment(id(2, 0), 0, &bytes[sot..packet], true))
+        .unwrap();
+    cache
+        .insert(fragment(id(0, 0), 0, &bytes[packet..bytes.len() - 2], true))
+        .unwrap();
+    for _ in 0..2 {
+        assert_eq!(
+            cache
+                .build_automatic_snapshot(
+                    0,
+                    Some(&selected),
+                    &JpipPacketSelection::all_components(),
+                    &limits
+                )
+                .err(),
+            Some(error)
+        );
+        assert_eq!(
+            cache.databin_view(id(6, 0)).unwrap().as_ref(),
+            &bytes[..sot]
+        );
+        assert_eq!(
+            cache.databin_view(id(2, 0)).unwrap().as_ref(),
+            &bytes[sot..packet]
+        );
+    }
+}
+
+#[test]
 fn automatic_raw_header_normalization_retains_repeated_transition_parse_identity() {
     let bytes = decodable_codestream();
     let sot = bytes

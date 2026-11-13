@@ -182,7 +182,13 @@ impl JpipPacketSelection {
         &self.components
     }
 
+    #[cfg_attr(verus_keep_ghost, verus_spec(result =>
+        ensures result == crate::specs::part2_jpip_snapshot_component_included(
+            super::jpip_packet_selection_view(self), component),
+    ))]
     pub(super) fn includes_component(&self, component: u16) -> bool {
+        #[cfg(verus_keep_ghost)]
+        proof! { reveal(super::jpip_packet_selection_view); }
         if self.components.is_empty() {
             return true;
         }
@@ -191,6 +197,8 @@ impl JpipPacketSelection {
             verus_keep_ghost,
             verus_spec(
                 invariant index <= self.components.len(),
+                    forall|previous: int| 0 <= previous < index ==>
+                        self.components@[previous] != component,
                 decreases self.components.len() - index,
             )
         )]
@@ -961,8 +969,18 @@ pub(super) fn validate_packet_component_selection(
     Ok(())
 }
 
-pub(super) fn jpip_tile_selected(selection: Option<&crate::DecodeSelection>, tile: u16) -> bool {
-    let Some(selection) = selection else {
+#[cfg_attr(verus_keep_ghost, verus_spec(result =>
+    ensures result == crate::specs::part2_jpip_snapshot_tile_selected(
+        super::jpip_snapshot_selection_view(requested_selection), tile),
+))]
+pub(super) fn jpip_tile_selected(
+    requested_selection: Option<&crate::DecodeSelection>,
+    tile: u16,
+) -> bool {
+    #[cfg(verus_keep_ghost)]
+    proof_decl! { let ghost selected_goal = crate::specs::part2_jpip_snapshot_tile_selected(
+    super::jpip_snapshot_selection_view(requested_selection), tile); }
+    let Some(selection) = requested_selection else {
         return true;
     };
     match selection.tile_selection() {
@@ -974,6 +992,12 @@ pub(super) fn jpip_tile_selected(selection: Option<&crate::DecodeSelection>, til
                 verus_keep_ghost,
                 verus_spec(
                     invariant index <= selected.len(),
+                        selected_goal == selected@.contains(tile),
+                        selected_goal == crate::specs::part2_jpip_snapshot_tile_selected(
+                            super::jpip_snapshot_selection_view(requested_selection), tile),
+                        crate::options::decode_selection_view(selection).0
+                            == crate::specs::Part2TileSelection::Set(selected@),
+                        forall|previous: int| 0 <= previous < index ==> selected@[previous] != tile,
                     decreases selected.len() - index,
                 )
             )]
@@ -988,6 +1012,10 @@ pub(super) fn jpip_tile_selected(selection: Option<&crate::DecodeSelection>, til
     }
 }
 
+#[cfg_attr(verus_keep_ghost, verus_spec(result =>
+    ensures result == crate::specs::part2_jpip_snapshot_resolution(
+        super::jpip_snapshot_selection_view(selection), component, resolution, *styles),
+))]
 pub(super) fn jpip_resolution_selected(
     selection: Option<&crate::DecodeSelection>,
     component: u16,
@@ -1002,7 +1030,12 @@ pub(super) fn jpip_resolution_selected(
         .style(component)?
         .decomposition_levels
         .checked_add(1)
-        .and_then(|value| value.checked_sub(discard))
+        .and_then(
+            #[cfg_attr(verus_keep_ghost, verus_spec(result: (Option<u8>) =>
+                ensures result == if value < discard { None } else { Some((value - discard) as u8) },
+            ))]
+            |value| value.checked_sub(discard),
+        )
         .ok_or(DecodeError::InvalidSelection {
             reason: crate::SelectionError::ReductionTooLarge,
         })?;

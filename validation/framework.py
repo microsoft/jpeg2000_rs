@@ -3528,6 +3528,22 @@ _RAW_CONTAINER_COLOR_TESTS = {("src/decode/container_image_result_tests.rs", "ac
     "preserves_header_mapping_before_color_admission",
     "preserves_raw_inspection_selection_packet_and_profile_priority",
 )} | {("src/decode/tests.rs", "sarah_dev_457acab2c3_later_jp2_streams_do_not_change_first_display")}
+_JPIP_RESOLUTION_EXIT_ENTRY = "part9-reachable-automatic-resolution-selection-result"
+_JPIP_RESOLUTION_EXIT_CONTRACTS = {
+    ("src/jpip/mapping.rs", "JpipPacketSelection::includes_component"): (
+        "part2_jpip_snapshot_component_included", r"\1", None,
+        _coverage_call("super::jpip_packet_selection_view", "self") + r"\s*,\s*component",
+    ),
+    ("src/jpip/mapping.rs", "jpip_tile_selected"): (
+        "part2_jpip_snapshot_tile_selected", r"\1", None,
+        _coverage_call("super::jpip_snapshot_selection_view", "requested_selection") + r"\s*,\s*tile",
+    ),
+    ("src/jpip/mapping.rs", "jpip_resolution_selected"): (
+        "part2_jpip_snapshot_resolution", r"\1", None,
+        _coverage_call("super::jpip_snapshot_selection_view", "selection")
+        + r"\s*,\s*component\s*,\s*resolution\s*,\s*\*\s*styles",
+    ),
+}
 _JPIP_HEADER_TRANSITION_ENTRY = "part9-automatic-source-header-transition-exits"
 _JPIP_PARSED_BOUND_ENTRY = "part9-automatic-parsed-row-layer-bounds"
 _JPIP_BLOCKED_BOUND_ENTRY = "part9-automatic-blocked-lookup-bound"
@@ -4826,6 +4842,29 @@ def validate_normative_coverage(
     ids: set[str] = set()
     contract_functions: set[tuple[str, str]] = set()
     for entry in coverage["requirements"]:
+        if entry["id"] == _JPIP_RESOLUTION_EXIT_ENTRY:
+            if {(ref["path"], ref["symbol"]) for ref in entry["contract_refs"]} != set(_JPIP_RESOLUTION_EXIT_CONTRACTS):
+                raise ValueError("resolution selection Result requires all actual short-circuit guard/helper contracts")
+            model = source_text((ROOT / "specs/jpip_snapshot_inputs.rs").resolve())
+            for name, fragments in {
+                "part2_jpip_snapshot_resolution": (
+                    "component_coding_style_result(&styles, component)", "Err(error) => Err(error)",
+                    "style.decomposition_levels == u8::MAX",
+                    "style.decomposition_levels as nat + 1 < discard as nat",
+                    "SelectionError::ReductionTooLarge",
+                    "(resolution as nat) < style.decomposition_levels as nat + 1 - discard as nat",
+                ),
+                "part2_jpip_snapshot_required": (
+                    "!part2_jpip_snapshot_tile_selected(input.selected, tile)",
+                    "!part2_jpip_snapshot_component_included(input.components, coordinate.component)",
+                    "part2_jpip_snapshot_resolution(input.selected, coordinate.component, coordinate.resolution, styles)",
+                ),
+            }.items():
+                body = _coverage_spec_function_body(model, name)
+                if body is None or any("".join(item.split()) not in "".join(body.split()) for item in fragments):
+                    raise ValueError("resolution selection Result requires exact style/add/subtract and guarded error policy")
+            if {"path": "specs/jpip_snapshot_inputs.rs", "symbol": "part2_jpip_snapshot_resolution_current_error"} not in entry["proof_refs"]:
+                raise ValueError("resolution selection Result requires the checked local error continuation")
         if entry["id"] == _JPIP_HEADER_TRANSITION_ENTRY:
             required = {
                 ("specs/jpip_normalization.rs", "part2_jpip_normalized_transition_parse_known"),
@@ -9297,6 +9336,8 @@ def validate_normative_coverage(
                     if entry["id"] == _JPIP_PARSED_BOUND_ENTRY else None)
                 or (_JPIP_TRANSITION_CONTRACTS.get((reference["path"], reference["symbol"]))
                     if entry["id"] == _JPIP_HEADER_TRANSITION_ENTRY else None)
+                or (_JPIP_RESOLUTION_EXIT_CONTRACTS.get((reference["path"], reference["symbol"]))
+                    if entry["id"] == _JPIP_RESOLUTION_EXIT_ENTRY else None)
                 or ((_JPIP_BYTE_RESULT_CONTRACTS.get((reference["path"], reference["symbol"]))
                      or _JPIP_PARSE_EXIT_CONTRACTS.get((reference["path"], reference["symbol"])))
                     if entry["id"] == _JPIP_PARSE_EXIT_ENTRY else None)
