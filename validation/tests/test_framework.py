@@ -881,6 +881,83 @@ class FrameworkTests(WorkingFiles):
         self._assert_complete_packet_contract_bindings(
             {framework._JPIP_ACQUISITION_ENTRY}, framework._JPIP_RESOLUTION_EXIT_CONTRACTS, 3, isolate=False)
 
+    def test_inventory_layout_prefix_binds_actual_template_result(self):
+        recipes = {key: value for key, value in framework._JPIP_BYTE_RESULT_CONTRACTS.items()
+                   if key[1] == "build_automatic_transition_template"}
+        self._assert_complete_packet_contract_bindings(
+            {framework._JPIP_LAYOUT_PREFIX_ENTRY}, recipes, 1, isolate=False)
+
+    def test_inventory_associated_iterator_prefix_binds_existing_backing_result(self):
+        recipes = {key: value for key, value in framework._PACKET_PROGRESSION_CONTRACTS.items()
+                   if key[1] == "progression_packet_iterator_new"}
+        self._assert_complete_packet_contract_bindings(
+            {framework._JPIP_ITERATOR_PREFIX_ENTRY}, recipes, 1, isolate=False)
+
+    def test_inventory_associated_iterator_prefix_rejects_lost_verification_inputs_or_delegation(self):
+        coverage = json.loads((framework.VALIDATION / "normative-coverage.json").read_text())
+        coverage["requirements"] = [
+            item for item in coverage["requirements"] if item["id"] == framework._JPIP_ITERATOR_PREFIX_ENTRY
+        ]
+        self.assertEqual(len(coverage["requirements"]), 1)
+        framework.validate_normative_coverage(coverage)
+        read_text = Path.read_text
+        for relative, before, after in (
+            ("src/packet/progression.rs", "verus_keep_ghost, verus_verify", "verus_keep_ghost, unrelated_marker"),
+            ("src/packet/progression.rs", "vstd::prelude::ensures", "unrelated_clause"),
+            ("src/packet/progression.rs",
+             "progression_packet_iterator_new(grid, default_order, changes, limits)",
+             "progression_packet_iterator_new(grid, ProgressionOrder::Lrcp, changes, limits)"),
+            ("src/packet/progression.rs", "packet_grid_view(grid),\n                    default_order,",
+             "packet_grid_view(grid),\n                    ProgressionOrder::Lrcp,"),
+            ("src/jpip/progression.rs",
+             "== Ok(crate::packet::progression_packet_iterator_view(&iterator))", "== Err(error)"),
+            ("src/jpip/progression.rs", "0, order_ordinals, order_initial) == Ok(order@)", "0, order_ordinals, order_initial).is_ok()"),
+        ):
+            source = framework.ROOT / relative
+            original = source.read_text()
+            self.assertIn(before, original)
+            modified = original.replace(before, after)
+
+            def altered(path, *args, **kwargs):
+                return modified if path == source else read_text(path, *args, **kwargs)
+
+            with self.subTest(relative=relative, before=before), mock.patch.object(Path, "read_text", altered), \
+                    self.assertRaisesRegex(ValueError, "checked associated iterator"):
+                framework.validate_normative_coverage(coverage)
+
+    def test_inventory_layout_prefix_rejects_lost_actual_layout_response_or_tail(self):
+        coverage = json.loads((framework.VALIDATION / "normative-coverage.json").read_text())
+        coverage["requirements"] = [
+            item for item in coverage["requirements"] if item["id"] == framework._JPIP_LAYOUT_PREFIX_ENTRY
+        ]
+        self.assertEqual(len(coverage["requirements"]), 1)
+        framework.validate_normative_coverage(coverage)
+        read_text = Path.read_text
+        for relative, before, after in (
+            ("src/jpip/snapshot_header_proof_support.rs", "site: 2, tile: 0, elements: headers.len() as usize",
+             "site: 2, tile: 1, elements: headers.len() as usize"),
+            ("src/jpip/snapshot_header_proof_support.rs", "succeeded: true", "succeeded: false"),
+            ("src/jpip/snapshot_header_proof_support.rs",
+             "crate::codestream::decoder_layout_input_view(layout), 0, Seq::empty(), 0, tail)",
+             "crate::codestream::decoder_layout_input_view(layout), 0, Seq::empty(), 0, Seq::empty())"),
+            ("src/jpip/snapshot_header_proof_support.rs",
+             "crate::codestream::decoder_layout_input_matches_raw(layout);", ""),
+            ("src/jpip/progression.rs",
+             "tile_count, components, headers, template@, &layout);",
+             "tile_count, components, headers, Seq::empty(), &layout);"),
+        ):
+            source = framework.ROOT / relative
+            original = source.read_text()
+            self.assertIn(before, original)
+            modified = original.replace(before, after)
+
+            def altered(path, *args, **kwargs):
+                return modified if path == source else read_text(path, *args, **kwargs)
+
+            with self.subTest(relative=relative, before=before), mock.patch.object(Path, "read_text", altered), \
+                    self.assertRaisesRegex(ValueError, "actual layout prefix"):
+                framework.validate_normative_coverage(coverage)
+
     def test_inventory_acquisition_fold_rejects_lost_state_inputs_or_allocation_order(self):
         coverage = json.loads((framework.VALIDATION / "normative-coverage.json").read_text())
         coverage["requirements"] = [
@@ -1069,8 +1146,15 @@ class FrameworkTests(WorkingFiles):
         ):
             source = framework.ROOT / relative
             original = source.read_text()
-            self.assertIn(before, original)
-            modified = original.replace(before, after, 1)
+            start = 0
+            if relative == "src/jpip/snapshot_header_proof_support.rs":
+                header = re.search(
+                    r"\bproof\s+fn\s+jpip_snapshot_template_parse_error\b", original,
+                )
+                self.assertIsNotNone(header)
+                start = header.start()
+            self.assertIn(before, original[start:])
+            modified = original[:start] + original[start:].replace(before, after, 1)
 
             def altered(path, *args, **kwargs):
                 return modified if path == source else read_text(path, *args, **kwargs)

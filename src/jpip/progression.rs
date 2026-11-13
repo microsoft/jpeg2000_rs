@@ -619,6 +619,11 @@ impl DatabinCache {
         }
         let layout = crate::codestream::parse_layout(&template, limits)?;
         let mut automatic_tiles = crate::allocation::empty_with_capacity(normalized_tiles.len())?;
+        #[cfg(verus_keep_ghost)]
+        proof! {
+            super::jpip_snapshot_layout_continuation(input, prefix, normalized_bytes, raw_tiles,
+                tile_count, components, headers, template@, &layout);
+        }
         let mut maximum_layers = 0_u16;
         tile_index = 0;
         #[cfg_attr(
@@ -690,6 +695,14 @@ impl DatabinCache {
                 &tile_part.roi_shifts,
                 limits,
             )?;
+            #[cfg(verus_keep_ghost)]
+            proof! {
+                assert(crate::specs::part2_progression_tile_plan(&layout.info.image_size,
+                    tile_part.coding_style, &tile_part.component_coding_styles,
+                    &tile_part.component_quantizations, &tile_part.roi_shifts,
+                    (tile_number, 0), (false, 74, false), limits)
+                    == Ok(crate::decode::progression_plan_view(&plan)));
+            }
             maximum_layers = maximum_layers.max(tile_part.coding_style.layers);
             let precinct_count = plan.precincts().len();
             let layer_count = usize::from(tile_part.coding_style.layers);
@@ -701,6 +714,15 @@ impl DatabinCache {
                 &tile_part.progression_changes,
                 limits,
             )?;
+            #[cfg(verus_keep_ghost)]
+            proof! {
+                assert(crate::specs::part1_progression_iterator_initial(
+                    crate::decode::progression_plan_view(&plan).grid,
+                    tile_part.coding_style.progression_order,
+                    crate::codestream::progression_changes_view(&tile_part.progression_changes),
+                    crate::limits::resource_work_limit(limits))
+                    == Ok(crate::packet::progression_packet_iterator_view(&iterator)));
+            }
             let progression_code = match tile_part.coding_style.progression_order {
                 crate::codestream::ProgressionOrder::Lrcp => 0,
                 crate::codestream::ProgressionOrder::Rlcp => 1,
@@ -732,6 +754,8 @@ impl DatabinCache {
             build_automatic_order(&plan, &mut iterator, &mut ordinals, &mut order, limits)?;
             #[cfg(verus_keep_ghost)]
             proof! {
+                assert(crate::specs::part2_jpip_snapshot_order(order_iterator,
+                    crate::limits::resource_work_limit(limits), 0, order_ordinals, order_initial) == Ok(order@));
                 crate::specs::part2_jpip_order_phase_prefix_bounds(order_grid, order_iterator,
                     order_ordinals, order_initial, 0, crate::limits::resource_work_limit(limits));
                 assert forall|index: int| 0 <= index < order.len()

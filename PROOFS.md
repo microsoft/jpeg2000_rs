@@ -325,6 +325,33 @@ truncation, empty prefixes and decoded packets, and retain refusal/recovery
 precedence. This closes only the acquisition-state/selection cutpoint, not
 earlier cache/caller event-prefix joins, emission or the full public Result.
 
+## Global prefix through the actual parsed layout
+
+`jpip_snapshot_layout_continuation` extends the existing cache/caller-derived
+header/template prefix through the actual successful layout parse and reached
+site-2 capacity response. The checked raw/native layout inverse supplies the
+exact decoder-input projection; concatenation and event-tail equalities preserve
+the original prefix. The actual call proves all premises from preceding native
+Results, without a new caller precondition, chosen layout or supplied outcome.
+The first native planning Result is also checked against its actual inputs.
+
+The originally archived associated-constructor equality is now positively
+checked. A dedicated verified impl gives `ProgressionPacketIterator::new` its
+complete Result by reusing the checked backing producer. Its native delegation
+is unchanged, with no new domain premise. The actual snapshot call proves the
+exact initial-iterator/model equality, followed by its actual order-phase Result.
+Native controls exercise both constructor paths with the same duplicate-window
+work-limit error, first packet, suppression and terminal cursor state.
+
+The reached resolution error is **not yet lifted to the original cache/caller
+predicate**. The next complete-root diagnostic fails only at the actual
+`automatic_precinct_in_class(...)` result/model equality. This existing JPIP
+producer has no checked Result contract linking its actual tile/component/
+resolution/precinct/grid inputs to `part2_jpip_snapshot_in_class`. That precise
+consumer obligation is retained under ignored evidence, not assumed or
+committed. No per-tile/global error equivalence, emission or full-public success
+join is claimed.
+
 ## Trailing whole-packet engineering admission
 
 The actual packet traversal accepts a retained prefix of complete packets

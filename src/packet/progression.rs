@@ -776,6 +776,7 @@ pub(crate) fn progression_packet_iterator_new<'a>(
     })
 }
 
+#[cfg_attr(verus_keep_ghost, verus_verify)]
 impl<'a> ProgressionPacketIterator<'a> {
     pub fn new(
         grid: &'a PacketGrid,
@@ -783,9 +784,23 @@ impl<'a> ProgressionPacketIterator<'a> {
         changes: &'a ProgressionChanges,
         limits: &ResourceLimits,
     ) -> Result<Self, DecodeError> {
+        #[cfg(verus_keep_ghost)]
+        vstd::prelude::ensures(|result: Result<Self, DecodeError>| {
+            vstd::prelude::equal(
+                progression_packet_iterator_outcome(result),
+                crate::specs::part1_progression_iterator_initial(
+                    packet_grid_view(grid),
+                    default_order,
+                    crate::codestream::progression_changes_view(changes),
+                    crate::limits::resource_work_limit(limits),
+                ),
+            )
+        });
         progression_packet_iterator_new(grid, default_order, changes, limits)
     }
+}
 
+impl<'a> ProgressionPacketIterator<'a> {
     #[cfg_attr(verus_keep_ghost, verus_spec(result =>
         ensures result == progression_packet_iterator_view(self).emitted,
     ))]

@@ -1,5 +1,49 @@
 #[cfg(verus_keep_ghost)]
 verus! {
+    pub(crate) proof fn jpip_snapshot_layout_continuation(
+        input: crate::specs::Part2JpipSnapshotInput<'_>,
+        prefix: Seq<crate::specs::Part2JpipSnapshotEvent>, main: Seq<u8>, raw: Seq<Seq<u8>>,
+        count: u64, components: u16, headers: Seq<Seq<Seq<u8>>>, template: Seq<u8>,
+        layout: &crate::codestream::CodestreamLayout<'_>,
+    )
+        requires
+            forall|tail: Seq<crate::specs::Part2JpipSnapshotEvent>|
+                crate::specs::part2_jpip_snapshot_run(input, prefix + tail)
+                    == crate::specs::part2_jpip_snapshot_after_normalized(
+                        input, main, raw, count, components, headers, tail),
+            crate::specs::part2_jpip_transition_template(main, headers, input.limits) == Ok(template),
+            crate::codestream::complete_layout_outcome(Ok(*layout))
+                == crate::specs::part1_parse_layout(template, input.limits),
+        ensures forall|tail: Seq<crate::specs::Part2JpipSnapshotEvent>|
+            crate::specs::part2_jpip_snapshot_run(input,
+                (prefix + seq![crate::specs::Part2JpipSnapshotEvent::Capacity {
+                    site: 2, tile: 0, elements: headers.len() as usize, succeeded: true }]) + tail)
+                == crate::specs::part2_jpip_snapshot_tiles(input, count, components, main, raw, headers,
+                    crate::codestream::decoder_layout_input_view(layout), 0, Seq::empty(), 0, tail),
+    {
+        crate::codestream::decoder_layout_input_matches_raw(layout);
+        let event = crate::specs::Part2JpipSnapshotEvent::Capacity {
+            site: 2, tile: 0, elements: headers.len() as usize, succeeded: true };
+        assert forall|tail: Seq<crate::specs::Part2JpipSnapshotEvent>|
+            crate::specs::part2_jpip_snapshot_run(input, (prefix + seq![event]) + tail)
+                == crate::specs::part2_jpip_snapshot_tiles(input, count, components, main, raw, headers,
+                    crate::codestream::decoder_layout_input_view(layout), 0, Seq::empty(), 0, tail) by {
+            assert((prefix + seq![event]) + tail =~= prefix + (seq![event] + tail));
+            assert((seq![event] + tail).drop_first() =~= tail);
+            assert(crate::specs::part2_jpip_snapshot_capacity(seq![event] + tail,
+                2, 0, headers.len() as usize) == Some((Ok(()), tail)));
+            if let Ok(parsed) = crate::codestream::complete_layout_outcome(Ok(*layout)) {
+                assert(crate::specs::part1_parse_layout(template, input.limits) == Ok(parsed));
+                assert(crate::specs::part2_decoder_input_from_raw(parsed)
+                    == crate::codestream::decoder_layout_input_view(layout));
+                assert(crate::specs::part2_jpip_snapshot_after_normalized(
+                    input, main, raw, count, components, headers, seq![event] + tail)
+                    == crate::specs::part2_jpip_snapshot_tiles(input, count, components, main, raw, headers,
+                        crate::codestream::decoder_layout_input_view(layout), 0, Seq::empty(), 0, tail));
+            }
+        }
+    }
+
     pub open spec fn jpip_snapshot_selection_view(value: Option<&crate::DecodeSelection>)
         -> Option<crate::specs::Part2DecodeSelection> {
         match value { None => None, Some(value) => Some(crate::options::decode_selection_view(value)) }

@@ -2701,48 +2701,56 @@ fn actual_progression_constructor_charges_duplicate_windows_and_next_suppresses_
     let limited = ResourceLimits::default()
         .with_maximum_work_units(1)
         .unwrap();
-    assert!(matches!(
-        progression_packet_iterator_new(&grid, ProgressionOrder::Cprl, &changes, &limited),
-        Err(DecodeError::LimitExceeded {
-            resource: Resource::WorkUnits,
-            limit: 1,
-            actual: 2
-        })
-    ));
     let limits = ResourceLimits::default()
         .with_maximum_work_units(2)
         .unwrap();
-    let mut iterator =
-        progression_packet_iterator_new(&grid, ProgressionOrder::Cprl, &changes, &limits).unwrap();
-    assert_eq!(
-        iterator.next_packet(),
-        Ok(Some(PacketCoordinate {
-            layer: 0,
-            resolution: 0,
-            component: 0,
-            precinct: 0
-        }))
-    );
-    assert_eq!(
-        (
-            iterator.window_index,
-            iterator.window_candidate,
-            iterator.window_candidates,
-            iterator.emitted
-        ),
-        (0, 1, 1, 1)
-    );
-    assert_eq!(iterator.next_packet(), Ok(None));
-    assert_eq!(
-        (
-            iterator.window_index,
-            iterator.window_candidate,
-            iterator.window_candidates,
-            iterator.emitted
-        ),
-        (2, 0, 0, 1)
-    );
-    assert_eq!(iterator.next_packet(), Ok(None));
+    for associated in [false, true] {
+        let new = |limits: &ResourceLimits| {
+            if associated {
+                ProgressionPacketIterator::new(&grid, ProgressionOrder::Cprl, &changes, limits)
+            } else {
+                progression_packet_iterator_new(&grid, ProgressionOrder::Cprl, &changes, limits)
+            }
+        };
+        assert!(matches!(
+            new(&limited),
+            Err(DecodeError::LimitExceeded {
+                resource: Resource::WorkUnits,
+                limit: 1,
+                actual: 2
+            })
+        ));
+        let mut iterator = new(&limits).unwrap();
+        assert_eq!(
+            iterator.next_packet(),
+            Ok(Some(PacketCoordinate {
+                layer: 0,
+                resolution: 0,
+                component: 0,
+                precinct: 0
+            }))
+        );
+        assert_eq!(
+            (
+                iterator.window_index,
+                iterator.window_candidate,
+                iterator.window_candidates,
+                iterator.emitted
+            ),
+            (0, 1, 1, 1)
+        );
+        assert_eq!(iterator.next_packet(), Ok(None));
+        assert_eq!(
+            (
+                iterator.window_index,
+                iterator.window_candidate,
+                iterator.window_candidates,
+                iterator.emitted
+            ),
+            (2, 0, 0, 1)
+        );
+        assert_eq!(iterator.next_packet(), Ok(None));
+    }
 }
 
 fn literal_payload_parameters() -> PrecinctPayloadParameters {
