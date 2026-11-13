@@ -4,6 +4,34 @@
   "scope": "Technical reference inventory; not exhaustive standards-clause coverage or a conformance claim.",
   "requirements": [
     {
+      "id": "part9-ordered-main-header-storage-result",
+      "topic": "Actual raw automatic main-header normalization Result with an ordered trace of the existing byte-capacity/byte-extension primitive calls, their pre-call lengths, requested sizes and observed reservation outcomes. The input derives exact marker/error/removal/retained-byte behavior; no codec outcome is supplied by the trace. Invalid SOC precedes every request; later malformed markers precede requests for their bytes; failure and completion reject unused trace tails. Capacity and allocator availability remain the accepted vstd environment boundary; a primitive-call event is not a physical allocation, reachability, lifetime or global OOM theorem. Complete automatic snapshot/progressive image and semantic-container public Results remain open under issue130.",
+      "implementation_refs": [
+        {"path": "src/jpip/automatic_headers.rs", "symbol": "normalize_main_header"},
+        {"path": "src/jpip/progression.rs", "symbol": "DatabinCache::build_automatic_snapshot"},
+        {"path": "src/jpip/progression.rs", "symbol": "DatabinCache::automatic_headers"}
+      ],
+      "contract_refs": [
+        {"path": "src/jpip/automatic_headers.rs", "symbol": "normalize_main_header"}
+      ],
+      "spec_refs": [
+        {"path": "specs/jpip_normalization.rs", "symbol": "part2_jpip_storage_event"},
+        {"path": "specs/jpip_normalization.rs", "symbol": "part2_jpip_main_header_finish"},
+        {"path": "specs/jpip_normalization.rs", "symbol": "part2_jpip_main_header_scan"},
+        {"path": "specs/jpip_normalization.rs", "symbol": "part2_jpip_normalize_main_header"},
+        {"path": "specs/jpip_normalization.rs", "symbol": "part2_jpip_main_header_result"}
+      ],
+      "proof_refs": [
+        {"path": "src/jpip/automatic_headers.rs", "symbol": "normalize_main_header"},
+        {"path": "src/jpip/automatic_headers.rs", "symbol": "main_header_result_witness"},
+        {"path": "src/jpip/automatic_headers.rs", "symbol": "main_header_storage_events_are_ordered"}
+      ],
+      "test_refs": [
+        {"path": "src/jpip/normalization_result_tests.rs", "symbol": "automatic_main_header_refusal_preserves_input_and_exact_recovery"},
+        {"path": "src/jpip/normalization_result_tests.rs", "symbol": "automatic_main_header_requests_preserve_validation_and_reservation_error_order"}
+      ]
+    },
+    {
       "id": "implementation-fallible-storage-reservation",
       "topic": "Implementation policy, not a standards rule: fallible reservation preserves vector contents on either result; capacity construction returns an empty vector or AllocationFailed; byte extension appends exactly or preserves contents on refusal. Uses the pinned vstd try_reserve contract without new trusted declarations. Physical allocator availability/capacity is an external standard-library boundary. Automatic JPIP scratch/main-header callers propagate errors, but complete public allocation-aware Results and all remaining infallible sites remain open under issues287/130/300; no complete reachable-surface or OOM recovery claim.",
       "implementation_refs": [
