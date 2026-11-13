@@ -3551,6 +3551,20 @@ _JPIP_BLOCKED_BOUND_ENTRY = "part9-automatic-blocked-lookup-bound"
 _JPIP_PARSE_EXIT_ENTRY = "part9-canonical-template-initial-parse-error"
 _JPIP_LAYOUT_PREFIX_ENTRY = "part9-actual-layout-global-prefix"
 _JPIP_ITERATOR_PREFIX_ENTRY = "part9-checked-associated-iterator-prefix"
+_JPIP_MAPPING_PREFIX_ENTRY = "part9-complete-automatic-precinct-mapping-result"
+_JPIP_MAPPING_PREFIX_CONTRACTS = {
+    ("src/jpip/mapping.rs", "automatic_precinct_in_class"): (
+        "part2_jpip_snapshot_in_class", r"\1", None,
+        r"tile_count\s*,\s*components\s*,\s*tile\s*,\s*component\s*,\s*resolution\s*,\s*precinct\s*,\s*"
+        + _coverage_call("crate::packet::packet_grid_view", "grid"),
+    ),
+}
+_JPIP_GLOBAL_ERROR_ENTRY = "part9-original-actual-resolution-error-prefix"
+_JPIP_GLOBAL_ERROR_CONTRACTS = {
+    **_JPIP_MAPPING_PREFIX_CONTRACTS,
+    ("src/jpip/mapping.rs", "jpip_resolution_selected"):
+        _JPIP_RESOLUTION_EXIT_CONTRACTS[("src/jpip/mapping.rs", "jpip_resolution_selected")],
+}
 _JPIP_ITERATOR_CONSTRUCTOR_CLAUSE = (
     "vstd::prelude::ensures(|result: Result<Self, DecodeError>| "
     "vstd::prelude::equal(progression_packet_iterator_outcome(result), "
@@ -4851,6 +4865,96 @@ def validate_normative_coverage(
     ids: set[str] = set()
     contract_functions: set[tuple[str, str]] = set()
     for entry in coverage["requirements"]:
+        if entry["id"] == _JPIP_GLOBAL_ERROR_ENTRY:
+            if {(ref["path"], ref["symbol"]) for ref in entry["contract_refs"]} != set(_JPIP_GLOBAL_ERROR_CONTRACTS):
+                raise ValueError("original resolution error requires complete actual mapping and resolution Results")
+            required = {
+                ("src/packet/precinct.rs", "PacketPrecinctDecoder::coordinate"),
+                ("src/jpip/progression.rs", "DatabinCache::build_automatic_snapshot"),
+                *{("src/jpip/progression_proof_support.rs", name) for name in (
+                    "jpip_none_clone", "jpip_none_row_clone_law", "jpip_snapshot_tile_acquisition_prefix",
+                    "jpip_snapshot_tile_root_error", "jpip_snapshot_tile_root_advance",
+                )},
+            }
+            if not required.issubset({(ref["path"], ref["symbol"]) for ref in entry["proof_refs"]}):
+                raise ValueError("original resolution error requires all checked actual coordinate and prefix/frame proofs")
+            source = source_text((ROOT / "src/packet/precinct.rs").resolve())
+            header = _coverage_function_header(source, "PacketPrecinctDecoder::coordinate")
+            start = source.rfind("#[cfg_attr", 0, header.start()) if header else -1
+            clause = source[start:header.start()] if start >= 0 else ""
+            if "".join(("ensures result == (packet_precinct_view(self).component, "
+                "packet_precinct_view(self).resolution, packet_precinct_view(self).precinct)").split()) not in "".join(clause.split()):
+                raise ValueError("original resolution error requires the exact checked actual coordinate projection")
+            source = source_text((ROOT / "src/jpip/progression.rs").resolve())
+            native = _coverage_function_body(source, _coverage_function_header(source, "DatabinCache::build_automatic_snapshot"))
+            guarded = re.search(
+                r"assert\s+forall\|error:\s*DecodeError\|\s*tile_is_selected([\s\S]+?)\s+by\s*\{", native or "")
+            target = (
+                "crate::specs::part2_jpip_automatic_snapshot_result(jpip_cache_view(self),"
+                "codestream, super::jpip_snapshot_selection_view(selection),"
+                "super::jpip_packet_selection_view(packet_selection), limits, Err(error))"
+            )
+            if guarded is None or "".join(("&& " + target).split()) not in "".join(guarded[1].split()):
+                raise ValueError("original resolution error requires the guarded published original cache/caller predicate")
+            for fragment in (
+                "crate::specs::part2_jpip_snapshot_tile_root(tile_root)",
+                "tile_root.before == super::jpip_automatic_tiles_view(automatic_tiles@)",
+                "tile_root.maximum == maximum_layers",
+                "current_root.input == acquisition_input",
+                "assert(mapping_goal == Ok(databins@.map_values(|id: DatabinId| super::databin_id_view(id))))",
+                "assert((component, resolution, precinct) == ("
+                "mapping_plan.precincts[mapping_index as int].component,"
+                "mapping_plan.precincts[mapping_index as int].resolution,"
+                "mapping_plan.precincts[mapping_index as int].precinct))",
+                "super::jpip_snapshot_tile_acquisition_prefix(current_root, native_parts, initial_plan,",
+                "super::jpip_snapshot_tile_root_error(current_root, seq![tile_capacity] + packet_events, error)",
+                "super::jpip_snapshot_tile_root_advance(current_root, completed_events,",
+                "events: current_root.events + completed_events, tile: current_root.tile + 1",
+                "before: current_root.before.push(completed_parts), maximum: maximum_layers",
+            ):
+                if native is None or "".join(fragment.split()) not in "".join(native.split()):
+                    raise ValueError("original resolution error requires actual input/event/per-tile state framing at the caller")
+            source = source_text((ROOT / "src/jpip/progression_proof_support.rs").resolve())
+            header = re.search(r"(?m)^([ \t]*)pub\(crate\)\s+proof\s+fn\s+jpip_snapshot_tile_root_error\b", source)
+            clause = source[header.start():source.find("{", header.end())] if header else ""
+            if ("".join("requires crate::specs::part2_jpip_snapshot_tile_root(root)".split()) not in "".join(clause.split())
+                    or "".join("ensures crate::specs::part2_jpip_automatic_snapshot_result(root.input.cache, root.input.stream,"
+                        "root.input.selected, root.input.components, root.input.limits, Err(error))".split()) not in "".join(clause.split())):
+                raise ValueError("original resolution error requires the checked global prefix consequence without a shortcut")
+        if entry["id"] == _JPIP_MAPPING_PREFIX_ENTRY:
+            if {(ref["path"], ref["symbol"]) for ref in entry["contract_refs"]} != set(_JPIP_MAPPING_PREFIX_CONTRACTS):
+                raise ValueError("complete precinct mapping requires its actual complete Result contract")
+            model = source_text((ROOT / "specs/jpip_snapshot_inputs.rs").resolve())
+            for name, fragments in {
+                "part2_jpip_snapshot_level_start": (
+                    "part1_packet_grid_precinct_count(grid, component, level)",
+                    "Err(error) => Err(error)", "before as nat + count as nat > u64::MAX as nat",
+                    "(level + 1) as u8, (before as nat + count as nat) as u64",
+                ),
+                "part2_jpip_snapshot_in_class": (
+                    "tiles == 0 || components == 0 || tile >= tiles || component as u64 >= components",
+                    "part2_jpip_cache_error(0, crate::MalformedKind::InvalidJpipLayout)",
+                    "part2_jpip_snapshot_level_start(grid, component, resolution, 0, 0)",
+                    "Err(error) => Err(error)", "let index = start as nat + precinct as nat",
+                    "let scaled = index * components as nat", "let without = component as nat + scaled",
+                    "let product = without * tiles as nat", "let result = tile as nat + product",
+                    "index > u64::MAX as nat || scaled > u64::MAX as nat || without > u64::MAX as nat",
+                    "product > u64::MAX as nat || result > u64::MAX as nat",
+                    "Err(part2_jpip_range_overflow(0))", "Ok(result as u64)",
+                ),
+            }.items():
+                body = _coverage_spec_function_body(model, name)
+                if body is None or any("".join(item.split()) not in "".join(body.split()) for item in fragments):
+                    raise ValueError("complete precinct mapping requires original domain/grid/checked arithmetic error policy")
+            source = source_text((ROOT / "src/jpip/progression.rs").resolve())
+            native = _coverage_function_body(source, _coverage_function_header(source, "DatabinCache::build_automatic_snapshot"))
+            fragment = (
+                "assert(crate::specs::part2_jpip_snapshot_in_class(tile_count, components as u64,"
+                "tile_index as u64, component, resolution, precinct,"
+                "crate::packet::packet_grid_view(grid)) == Ok(in_class))"
+            )
+            if native is None or "".join(fragment.split()) not in "".join(native.split()):
+                raise ValueError("complete precinct mapping requires the exact actual mapping Result identity")
         if entry["id"] == _JPIP_ITERATOR_PREFIX_ENTRY:
             path = (ROOT / "src/packet/progression.rs").resolve()
             source = source_text(path)
@@ -9479,6 +9583,10 @@ def validate_normative_coverage(
                     if entry["id"] == _JPIP_HEADER_TRANSITION_ENTRY else None)
                 or (_JPIP_RESOLUTION_EXIT_CONTRACTS.get((reference["path"], reference["symbol"]))
                     if entry["id"] in {_JPIP_RESOLUTION_EXIT_ENTRY, _JPIP_ACQUISITION_ENTRY} else None)
+                or (_JPIP_MAPPING_PREFIX_CONTRACTS.get((reference["path"], reference["symbol"]))
+                    if entry["id"] == _JPIP_MAPPING_PREFIX_ENTRY else None)
+                or (_JPIP_GLOBAL_ERROR_CONTRACTS.get((reference["path"], reference["symbol"]))
+                    if entry["id"] == _JPIP_GLOBAL_ERROR_ENTRY else None)
                 or ((_JPIP_BYTE_RESULT_CONTRACTS.get((reference["path"], reference["symbol"]))
                      or _JPIP_PARSE_EXIT_CONTRACTS.get((reference["path"], reference["symbol"])))
                     if entry["id"] == _JPIP_PARSE_EXIT_ENTRY else None)

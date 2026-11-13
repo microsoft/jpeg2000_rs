@@ -833,6 +833,11 @@ pub(super) fn siz_cardinality(
 }
 
 #[allow(clippy::too_many_arguments)]
+#[cfg_attr(verus_keep_ghost, verus_spec(result =>
+    ensures result == crate::specs::part2_jpip_snapshot_in_class(
+        tile_count, components, tile, component, resolution, precinct,
+        crate::packet::packet_grid_view(grid)),
+))]
 pub(super) fn automatic_precinct_in_class(
     tile_count: u64,
     components: u64,
@@ -851,35 +856,85 @@ pub(super) fn automatic_precinct_in_class(
     }
     let mut level_start = 0_u64;
     let mut level = 0_u8;
+    #[cfg(verus_keep_ghost)]
+    proof_decl! {
+        let ghost level_goal = crate::specs::part2_jpip_snapshot_level_start(
+            crate::packet::packet_grid_view(grid), component, resolution, 0, 0);
+    }
     #[cfg_attr(
         verus_keep_ghost,
         verus_spec(
             invariant level <= resolution,
+                tile_count > 0, components > 0, tile < tile_count, (component as u64) < components,
+                level_goal == crate::specs::part2_jpip_snapshot_level_start(
+                    crate::packet::packet_grid_view(grid), component, resolution, 0, 0),
+                level_goal == crate::specs::part2_jpip_snapshot_level_start(
+                    crate::packet::packet_grid_view(grid), component, resolution, level, level_start),
             decreases resolution - level,
         )
     )]
     while level < resolution {
+        #[cfg(verus_keep_ghost)]
+        proof! { reveal(crate::specs::part2_jpip_snapshot_level_start); }
         level_start = level_start
             .checked_add(u64::from(grid.precinct_count(component, level)?))
-            .ok_or_else(|| DecodeError::malformed(0, MalformedKind::ArithmeticOverflow))?;
+            .ok_or_else(
+                #[cfg_attr(verus_keep_ghost, verus_spec(result: DecodeError =>
+                    ensures result == crate::specs::part2_jpip_range_overflow(0),
+                ))]
+                || DecodeError::malformed(0, MalformedKind::ArithmeticOverflow),
+            )?;
         level += 1;
     }
-    let precinct_index = level_start
-        .checked_add(u64::from(precinct))
-        .ok_or_else(|| DecodeError::malformed(0, MalformedKind::ArithmeticOverflow))?;
+    #[cfg(verus_keep_ghost)]
+    proof! {
+        reveal(crate::specs::part2_jpip_snapshot_level_start);
+        assert(level_goal == Ok(level_start));
+    }
+    let precinct_index = level_start.checked_add(u64::from(precinct)).ok_or_else(
+        #[cfg_attr(verus_keep_ghost, verus_spec(result: DecodeError =>
+                ensures result == crate::specs::part2_jpip_range_overflow(0),
+            ))]
+        || DecodeError::malformed(0, MalformedKind::ArithmeticOverflow),
+    )?;
     let without_tile = u64::from(component)
-        .checked_add(
-            precinct_index
-                .checked_mul(components)
-                .ok_or_else(|| DecodeError::malformed(0, MalformedKind::ArithmeticOverflow))?,
-        )
-        .ok_or_else(|| DecodeError::malformed(0, MalformedKind::ArithmeticOverflow))?;
-    let product = without_tile
-        .checked_mul(tile_count)
-        .ok_or_else(|| DecodeError::malformed(0, MalformedKind::ArithmeticOverflow))?;
-    let checked = tile
-        .checked_add(product)
-        .ok_or_else(|| DecodeError::malformed(0, MalformedKind::ArithmeticOverflow))?;
+        .checked_add(precinct_index.checked_mul(components).ok_or_else(
+            #[cfg_attr(verus_keep_ghost, verus_spec(result: DecodeError =>
+                        ensures result == crate::specs::part2_jpip_range_overflow(0),
+                    ))]
+            || DecodeError::malformed(0, MalformedKind::ArithmeticOverflow),
+        )?)
+        .ok_or_else(
+            #[cfg_attr(verus_keep_ghost, verus_spec(result: DecodeError =>
+                ensures result == crate::specs::part2_jpip_range_overflow(0),
+            ))]
+            || DecodeError::malformed(0, MalformedKind::ArithmeticOverflow),
+        )?;
+    let product = without_tile.checked_mul(tile_count).ok_or_else(
+        #[cfg_attr(verus_keep_ghost, verus_spec(result: DecodeError =>
+                ensures result == crate::specs::part2_jpip_range_overflow(0),
+            ))]
+        || DecodeError::malformed(0, MalformedKind::ArithmeticOverflow),
+    )?;
+    let checked = tile.checked_add(product).ok_or_else(
+        #[cfg_attr(verus_keep_ghost, verus_spec(result: DecodeError =>
+                ensures result == crate::specs::part2_jpip_range_overflow(0),
+            ))]
+        || DecodeError::malformed(0, MalformedKind::ArithmeticOverflow),
+    )?;
+    #[cfg(verus_keep_ghost)]
+    proof! {
+        let bound = u64::MAX as int - tile as int;
+        let divisor = tile_count as int;
+        vstd::arithmetic::div_mod::lemma_fundamental_div_mod(bound, divisor);
+        vstd::arithmetic::div_mod::lemma_mod_bound(bound, divisor);
+        assert(without_tile as int * divisor <= bound);
+        assert(without_tile as int <= bound / divisor) by(nonlinear_arith)
+            requires divisor > 0,
+                bound == divisor * (bound / divisor) + bound % divisor,
+                bound % divisor < divisor,
+                without_tile as int * divisor <= bound;
+    }
     if without_tile > (u64::MAX - tile) / tile_count {
         return Err(DecodeError::malformed(0, MalformedKind::ArithmeticOverflow));
     }

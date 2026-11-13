@@ -893,6 +893,75 @@ class FrameworkTests(WorkingFiles):
         self._assert_complete_packet_contract_bindings(
             {framework._JPIP_ITERATOR_PREFIX_ENTRY}, recipes, 1, isolate=False)
 
+    def test_inventory_precinct_mapping_binds_all_actual_inputs_and_complete_result(self):
+        self._assert_complete_packet_contract_bindings(
+            {framework._JPIP_MAPPING_PREFIX_ENTRY}, framework._JPIP_MAPPING_PREFIX_CONTRACTS, 1, isolate=False)
+
+    def test_inventory_original_resolution_error_binds_actual_mapping_and_selection_results(self):
+        self._assert_complete_packet_contract_bindings(
+            {framework._JPIP_GLOBAL_ERROR_ENTRY}, framework._JPIP_GLOBAL_ERROR_CONTRACTS, 2, isolate=False)
+
+    def test_inventory_original_resolution_error_rejects_lost_published_goal_or_prefix_frames(self):
+        coverage = json.loads((framework.VALIDATION / "normative-coverage.json").read_text())
+        coverage["requirements"] = [
+            item for item in coverage["requirements"] if item["id"] == framework._JPIP_GLOBAL_ERROR_ENTRY
+        ]
+        self.assertEqual(len(coverage["requirements"]), 1)
+        framework.validate_normative_coverage(coverage)
+        read_text = Path.read_text
+        for relative, before, after in (
+            ("src/jpip/progression.rs", "&& crate::specs::part2_jpip_automatic_snapshot_result", "&& unrelated_predicate"),
+            ("src/jpip/progression.rs", "current_root.input == acquisition_input", "true"),
+            ("src/jpip/progression.rs", "tile_root.before == super::jpip_automatic_tiles_view(automatic_tiles@)", "true"),
+            ("src/jpip/progression.rs", "events: current_root.events + completed_events", "events: completed_events"),
+            ("src/jpip/progression.rs", "super::jpip_snapshot_tile_root_error(current_root, seq![tile_capacity] + packet_events, error)",
+             "unrelated_error_claim(current_root, seq![tile_capacity] + packet_events, error)"),
+            ("src/packet/precinct.rs", "packet_precinct_view(self).precinct", "0"),
+            ("src/jpip/progression_proof_support.rs",
+             "requires crate::specs::part2_jpip_snapshot_tile_root(root), root.tile < root.headers.len()",
+             "requires true, root.tile < root.headers.len()"),
+        ):
+            source = framework.ROOT / relative
+            original = source.read_text()
+            self.assertIn(before, original)
+            modified = original.replace(before, after)
+
+            def altered(path, *args, **kwargs):
+                return modified if path == source else read_text(path, *args, **kwargs)
+
+            with self.subTest(relative=relative, before=before), mock.patch.object(Path, "read_text", altered), \
+                    self.assertRaisesRegex(ValueError, "original resolution error"):
+                framework.validate_normative_coverage(coverage)
+
+    def test_inventory_precinct_mapping_rejects_lost_domain_grid_or_arithmetic_policy(self):
+        coverage = json.loads((framework.VALIDATION / "normative-coverage.json").read_text())
+        coverage["requirements"] = [
+            item for item in coverage["requirements"] if item["id"] == framework._JPIP_MAPPING_PREFIX_ENTRY
+        ]
+        self.assertEqual(len(coverage["requirements"]), 1)
+        framework.validate_normative_coverage(coverage)
+        read_text = Path.read_text
+        for model, before, after in (
+            ("part2_jpip_snapshot_in_class", "tile >= tiles", "tile > tiles"),
+            ("part2_jpip_snapshot_in_class", "Err(error) => Err(error)", "Err(_) => Err(part2_jpip_range_overflow(0))"),
+            ("part2_jpip_snapshot_in_class", "let scaled = index * components as nat", "let scaled = index"),
+            ("part2_jpip_snapshot_in_class", "product > u64::MAX as nat", "false"),
+            ("part2_jpip_snapshot_level_start", "part1_packet_grid_precinct_count(grid, component, level)",
+             "part1_packet_grid_precinct_count(grid, component, 0)"),
+        ):
+            source = framework.ROOT / "specs/jpip_snapshot_inputs.rs"
+            original = source.read_text()
+            self.assertIn(before, framework._coverage_spec_function_body(original, model))
+            start = re.search(r"\bspec\s+fn\s+" + re.escape(model) + r"\b", original).start()
+            modified = original[:start] + original[start:].replace(before, after, 1)
+
+            def altered(path, *args, **kwargs):
+                return modified if path == source else read_text(path, *args, **kwargs)
+
+            with self.subTest(model=model, before=before), mock.patch.object(Path, "read_text", altered), \
+                    self.assertRaisesRegex(ValueError, "complete precinct mapping"):
+                framework.validate_normative_coverage(coverage)
+
     def test_inventory_associated_iterator_prefix_rejects_lost_verification_inputs_or_delegation(self):
         coverage = json.loads((framework.VALIDATION / "normative-coverage.json").read_text())
         coverage["requirements"] = [

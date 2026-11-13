@@ -343,14 +343,45 @@ exact initial-iterator/model equality, followed by its actual order-phase Result
 Native controls exercise both constructor paths with the same duplicate-window
 work-limit error, first packet, suppression and terminal cursor state.
 
-The reached resolution error is **not yet lifted to the original cache/caller
-predicate**. The next complete-root diagnostic fails only at the actual
-`automatic_precinct_in_class(...)` result/model equality. This existing JPIP
-producer has no checked Result contract linking its actual tile/component/
-resolution/precinct/grid inputs to `part2_jpip_snapshot_in_class`. That precise
-consumer obligation is retained under ignored evidence, not assumed or
-committed. No per-tile/global error equivalence, emission or full-public success
-join is claimed.
+`automatic_precinct_in_class` now has the exact complete
+`part2_jpip_snapshot_in_class` Result contract without a domain premise. Its
+ordered level fold retains the actual grid Result and sum; checked error
+closures expose their existing arithmetic error. Existing division/remainder
+laws prove the later quotient guard redundant after the original checked
+multiply/add, and the original refinement identity proves the final guard.
+All runtime expressions, callbacks, guards and evaluation order are unchanged.
+Native controls preserve invalid-domain-before-grid-before-overflow precedence,
+the original skipped-grid lookup at resolution zero, and exact maximum-u64
+success. The archived actual mapping/model equality is positively checked.
+
+`PacketPrecinctDecoder::coordinate()` now forwards its exact actual planned
+precinct projection with a checked contract. The actual tuple equality and
+ordered databin-identity fold are checked, without another domain premise.
+
+## Original reached-resolution-error cache/caller lift
+
+At the unchanged guarded resolution call, the checked quantified consequence now
+includes the original
+`part2_jpip_automatic_snapshot_result(actual_cache, actual_stream,
+actual_selection, actual_components, actual_limits, Err(the_same_error))`.
+It derives from the actual cache/caller header/layout prefix, actual selected
+tile parts, plan, iterator, order and databin identities, the actual complete
+acquisition state, and the reached typed-capacity request/response events.
+
+Checked continuation lemmas preserve the original per-tile model and global
+prefix across previously completed native tiles. Their hypotheses are discharged
+at the actual caller, not supplied success banks. Nested scratch initialization
+uses checked consequences of the existing standard-library clone relation:
+None-valued cells, row extensionality and complete blocked/counter fields are
+derived from the original allocation expressions without new owning bindings,
+changed copy/drop order or new trust. A native control reaches the same error
+after a prior tile completes, for both index and set selection, and retains
+cache bytes and refusal/recovery precedence.
+
+This proves only the original reached resolution-error consequence and its
+necessary prefix frames. It does not add a complete public snapshot/progressive
+Result contract, prove final success/image/sample assembly, work emission, or
+close either public group of #130. Prior failed-source receipts remain archived.
 
 ## Trailing whole-packet engineering admission
 

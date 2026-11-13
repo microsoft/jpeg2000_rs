@@ -1240,6 +1240,39 @@ fn automatic_header_normalization_removes_reframed_markers() {
 }
 
 #[test]
+fn automatic_precinct_mapping_keeps_domain_grid_and_overflow_error_order() {
+    let limits = ResourceLimits::default();
+    let grid = crate::packet::PacketGrid::new(1, 1, 2, vec![2, 3], &limits).unwrap();
+    let layout = Err(DecodeError::malformed(0, MalformedKind::InvalidJpipLayout));
+    let coding = Err(DecodeError::malformed(0, MalformedKind::InvalidCodingStyle));
+    let overflow = Err(DecodeError::malformed(0, MalformedKind::ArithmeticOverflow));
+    for (tiles, components, tile, component, resolution, precinct, expected) in [
+        (0, 0, u64::MAX, u16::MAX, u8::MAX, u32::MAX, layout),
+        (1, 0, 0, 0, 0, 0, layout),
+        (1, 1, 1, 0, 0, 0, layout),
+        (1, 1, 0, 1, 0, 0, layout),
+        (1, 2, 0, 1, 1, u32::MAX, coding),
+        (1, u64::MAX, 0, 0, 3, u32::MAX, coding),
+        (3, 1, 2, 0, 1, 1, Ok(11)),
+        (1, 1, 0, 0, 2, 0, Ok(5)),
+        (1, 2, 0, 1, 0, 0, Ok(1)),
+        (1, u64::MAX, 0, 0, 1, 0, overflow),
+        (1, u64::MAX, 0, 1, 0, 1, overflow),
+        (2, u64::MAX, 0, 0, 0, 1, overflow),
+        (3, u64::MAX / 3, 2, 0, 0, 1, overflow),
+        (3, u64::MAX / 3, 0, 0, 0, 1, Ok(u64::MAX)),
+    ] {
+        assert_eq!(
+            super::mapping::automatic_precinct_in_class(
+                tiles, components, tile, component, resolution, precinct, &grid
+            ),
+            expected,
+            "tiles={tiles} components={components} tile={tile} coordinate=({component},{resolution},{precinct})",
+        );
+    }
+}
+
+#[test]
 fn automatic_resolution_selection_error_is_reachable_from_actual_cache_and_caller() {
     let bytes = decodable_codestream();
     let limits = ResourceLimits::default();
@@ -1300,6 +1333,89 @@ fn automatic_resolution_selection_error_is_reachable_from_actual_cache_and_calle
             &bytes[sot..packet]
         );
     }
+}
+
+#[test]
+fn automatic_resolution_error_after_completed_tile_preserves_actual_cache_prefix() {
+    let bytes = two_tile_codestream();
+    let limits = ResourceLimits::default();
+    let starts: Vec<_> = bytes
+        .windows(2)
+        .enumerate()
+        .filter_map(|(index, value)| (value == [0xff, 0x90]).then_some(index))
+        .collect();
+    assert_eq!(starts.len(), 2);
+    let mut cache = DatabinCache::new(limits);
+    cache
+        .insert(fragment(id(6, 0), 0, &bytes[..starts[0]], true))
+        .unwrap();
+    for (tile, &start) in starts.iter().enumerate() {
+        cache
+            .insert(fragment(
+                id(2, tile as u64),
+                0,
+                &bytes[start..start + 14],
+                true,
+            ))
+            .unwrap();
+        cache
+            .insert(fragment(
+                id(0, tile as u64),
+                0,
+                &bytes[start + 14..start + 15],
+                true,
+            ))
+            .unwrap();
+    }
+    let components = JpipPacketSelection::all_components();
+    let error = DecodeError::InvalidSelection {
+        reason: crate::SelectionError::ReductionTooLarge,
+    };
+    for selection in [
+        crate::DecodeSelection::tile(1),
+        crate::DecodeSelection::tiles(vec![1]),
+    ] {
+        let selection = selection.with_discard_levels(2);
+        for _ in 0..2 {
+            assert_eq!(
+                cache
+                    .build_automatic_snapshot(0, Some(&selection), &components, &limits)
+                    .err(),
+                Some(error)
+            );
+            for (tile, &start) in starts.iter().enumerate() {
+                assert_eq!(
+                    cache.databin_view(id(2, tile as u64)).unwrap().as_ref(),
+                    &bytes[start..start + 14]
+                );
+                assert_eq!(
+                    cache.databin_view(id(0, tile as u64)).unwrap().as_ref(),
+                    &bytes[start + 14..start + 15]
+                );
+            }
+        }
+    }
+    assert_eq!(
+        crate::allocation::with_refusal(0, || cache.build_automatic_snapshot(
+            0,
+            Some(&crate::DecodeSelection::tile(1).with_discard_levels(2)),
+            &components,
+            &limits
+        ))
+        .err(),
+        Some(DecodeError::AllocationFailed),
+    );
+    assert_eq!(
+        cache
+            .build_automatic_snapshot(
+                0,
+                Some(&crate::DecodeSelection::tile(1).with_discard_levels(2)),
+                &components,
+                &limits
+            )
+            .err(),
+        Some(error)
+    );
 }
 
 #[test]
