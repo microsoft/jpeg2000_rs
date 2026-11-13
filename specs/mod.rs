@@ -41,6 +41,8 @@ mod decoder_input;
 pub use decoder_input::*;
 mod raw_decode;
 pub use raw_decode::*;
+mod raw_recovery;
+pub use raw_recovery::*;
 mod container_images;
 pub use container_images::*;
 mod container_colors;

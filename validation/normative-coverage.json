@@ -14147,6 +14147,70 @@
         {"path": "src/magnitude.rs", "symbol": "exact_full_capacity_addition_matches_bit_carry_reference"}
       ],
       "topic": "Complete six-limb unsigned natural-value interfaces, exact capacity overflow, full native shift domains and modulo low-word semantics; not coefficient normalization or HT bitstream meaning"
+    },
+    {
+      "id": "implementation-raw-missing-eoc-recovery",
+      "topic": "Optional implementation policy, not normative certification: explicit raw-only sole-tile/sole-open-ended-part EOC repair. Exact shared-reader structural preflight Result/state and marker-aware body traversal; one fallible reservation response followed by exact std content concatenation; exact input/joint-extra-stage work admission, one strict raw decode Result and actual image/report geometry. No supplied successful parser/image banks, arbitrary error retries, suffix discard or missing-tile synthesis. Header semantics and entropy remain strict. Std reservation/no-growth and actual refusal/unwind behavior are disclosed library/native boundaries, not mathematical allocator/unwind proofs. Strict counters remain stage-local; no new global accounting or deadline scope. W06/W07 and issues287/289/300 remain open; this is not W09/291 completion.",
+      "implementation_refs": [
+        {"path": "src/recovery.rs", "symbol": "decode_codestream_recover_missing_eoc"},
+        {"path": "src/recovery.rs", "symbol": "admit_repair"},
+        {"path": "src/recovery.rs", "symbol": "append_eoc"},
+        {"path": "src/recovery.rs", "symbol": "finish_recovery"},
+        {"path": "src/codestream/recovery_framing.rs", "symbol": "recovery_framing"},
+        {"path": "src/codestream/recovery_framing.rs", "symbol": "Parser::recovery_main_headers"},
+        {"path": "src/codestream/recovery_framing.rs", "symbol": "Parser::recovery_sot"},
+        {"path": "src/codestream/recovery_framing.rs", "symbol": "Parser::recovery_tile_headers"},
+        {"path": "src/codestream/recovery_framing.rs", "symbol": "Parser::recovery_body"}
+      ],
+      "contract_refs": [
+        {"path": "src/recovery.rs", "symbol": "decode_codestream_recover_missing_eoc"},
+        {"path": "src/recovery.rs", "symbol": "admit_repair"},
+        {"path": "src/recovery.rs", "symbol": "append_eoc"},
+        {"path": "src/recovery.rs", "symbol": "finish_recovery"},
+        {"path": "src/codestream/recovery_framing.rs", "symbol": "recovery_framing"},
+        {"path": "src/codestream/recovery_framing.rs", "symbol": "Parser::recovery_main_headers"},
+        {"path": "src/codestream/recovery_framing.rs", "symbol": "Parser::recovery_sot"},
+        {"path": "src/codestream/recovery_framing.rs", "symbol": "Parser::recovery_tile_headers"},
+        {"path": "src/codestream/recovery_framing.rs", "symbol": "Parser::recovery_body"}
+      ],
+      "spec_refs": [
+        {"path": "specs/raw_recovery.rs", "symbol": "raw_repair_response"},
+        {"path": "specs/raw_recovery.rs", "symbol": "raw_repair_result"},
+        {"path": "specs/raw_recovery.rs", "symbol": "raw_recovery_admit"},
+        {"path": "specs/raw_recovery.rs", "symbol": "raw_recovery_finish"},
+        {"path": "specs/raw_recovery.rs", "symbol": "raw_recovery_result"},
+        {"path": "specs/raw_recovery.rs", "symbol": "raw_recovery_result_body"},
+        {"path": "specs/raw_recovery.rs", "symbol": "raw_recovery_reserved_response"},
+        {"path": "specs/raw_recovery.rs", "symbol": "raw_recovery_framing"},
+        {"path": "specs/raw_recovery.rs", "symbol": "raw_recovery_main_headers"},
+        {"path": "specs/raw_recovery.rs", "symbol": "raw_recovery_main_loop"},
+        {"path": "specs/raw_recovery.rs", "symbol": "raw_recovery_sot"},
+        {"path": "specs/raw_recovery.rs", "symbol": "raw_recovery_tile_headers"},
+        {"path": "specs/raw_recovery.rs", "symbol": "raw_recovery_tile_loop"},
+        {"path": "specs/raw_recovery.rs", "symbol": "raw_recovery_body"},
+        {"path": "specs/raw_recovery.rs", "symbol": "raw_recovery_body_loop"}
+      ],
+      "proof_refs": [
+        {"path": "src/recovery.rs", "symbol": "decode_codestream_recover_missing_eoc"},
+        {"path": "src/recovery.rs", "symbol": "admit_repair"},
+        {"path": "src/recovery.rs", "symbol": "append_eoc"},
+        {"path": "src/recovery.rs", "symbol": "finish_recovery"},
+        {"path": "src/codestream/recovery_framing.rs", "symbol": "recovery_framing"},
+        {"path": "src/codestream/recovery_framing.rs", "symbol": "Parser::recovery_main_headers"},
+        {"path": "src/codestream/recovery_framing.rs", "symbol": "Parser::recovery_sot"},
+        {"path": "src/codestream/recovery_framing.rs", "symbol": "Parser::recovery_tile_headers"},
+        {"path": "src/codestream/recovery_framing.rs", "symbol": "Parser::recovery_body"},
+        {"path": "specs/raw_recovery.rs", "symbol": "raw_recovery_result_unfold"}
+      ],
+      "test_refs": [
+        {"path": "src/recovery/tests.rs", "symbol": "only_open_ended_eoc_loss_is_repaired_and_strict_stays_strict"},
+        {"path": "src/recovery/tests.rs", "symbol": "finite_other_tiles_parts_and_existing_eoc_trailers_never_reserve_a_repair"},
+        {"path": "src/recovery/tests.rs", "symbol": "incomplete_headers_and_sop_framing_reject_without_repair"},
+        {"path": "src/recovery/tests.rs", "symbol": "header_payload_marker_bytes_are_not_mistaken_for_tile_parts_or_eoc"},
+        {"path": "src/recovery/tests.rs", "symbol": "genuine_entropy_and_output_limit_errors_are_forwarded_without_retry"},
+        {"path": "src/recovery/tests.rs", "symbol": "input_and_joint_preflight_copy_work_limits_precede_reservation"},
+        {"path": "src/recovery/tests.rs", "symbol": "one_atomic_reservation_refusal_and_unwind_leave_exact_same_process_success"}
+      ]
     }
   ]
 }
