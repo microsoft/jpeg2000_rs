@@ -1,4 +1,5 @@
 //! Explicit raw-only EOC recovery. This is not a conformance or deadline mode.
+use crate::image::DecodedImage;
 use crate::{DecodeError, DecodeOptions, MalformedKind, Resource, ResourceLimits, TypedImage};
 #[cfg(verus_keep_ghost)]
 use vstd::prelude::*;
@@ -35,6 +36,13 @@ pub struct RawRecoveredImage {
     pub report: RawRecoveryReport,
 }
 
+#[cfg_attr(not(verus_keep_ghost), derive(Debug, Eq, PartialEq))]
+#[non_exhaustive]
+pub struct RawRecoveredReconstructedImage {
+    pub image: DecodedImage,
+    pub report: RawRecoveryReport,
+}
+
 #[cfg(verus_keep_ghost)]
 verus! {
     pub open spec fn recovered_outcome(result: Result<RawRecoveredImage, DecodeError>)
@@ -50,6 +58,16 @@ verus! {
         -> Result<Seq<u8>, DecodeError>
     {
         match result { Ok(bytes) => Ok(bytes@), Err(error) => Err(error) }
+    }
+
+    pub open spec fn reconstructed_recovered_outcome(
+        result: Result<RawRecoveredReconstructedImage, DecodeError>,
+    ) -> Result<(crate::specs::Part1DecodedImageModel, RawRecoveryReport), DecodeError>
+    {
+        match result {
+            Ok(decoded) => Ok((crate::image::decoded_image_view(decoded.image), decoded.report)),
+            Err(error) => Err(error),
+        }
     }
 }
 
@@ -97,6 +115,50 @@ pub fn decode_codestream_recover_missing_eoc(
         input.len(),
         frame,
         crate::decode_codestream(&repaired, options),
+    )
+}
+
+/// Recover the same bounded missing-EOC case while retaining reconstruction samples.
+///
+/// Admission, one fallible repair copy, limits and report accounting are identical
+/// to `decode_codestream_recover_missing_eoc`. The one strict decode uses
+/// `decode_codestream_reconstructed`, preserving centered samples, fraction bits
+/// and actual geometry before output conversion. Its NLT rejection and genuine
+/// parser/reconstruction errors are propagated without retry.
+///
+/// This API has no container, selection, color, deadline or additional recovery
+/// policy. Full fallible allocation remains incomplete under #287.
+#[cfg_attr(verus_keep_ghost, verus_spec(result =>
+    ensures crate::specs::raw_reconstructed_recovery_result(
+        input@, crate::options::decode_options_limits(options),
+        reconstructed_recovered_outcome(result)),
+))]
+pub fn decode_codestream_reconstructed_recover_missing_eoc(
+    input: &[u8],
+    options: &DecodeOptions,
+) -> Result<RawRecoveredReconstructedImage, DecodeError> {
+    #[cfg(verus_keep_ghost)]
+    proof! {
+        crate::specs::raw_reconstructed_recovery_result_unfold(
+            input@, crate::options::decode_options_limits(options));
+        reveal(crate::codestream::recovery_framing::framing_outcome);
+    }
+    let frame = crate::codestream::recovery_framing(input, options.limits())?;
+    if !frame.append_eoc {
+        return finish_reconstructed_recovery(
+            input.len(),
+            frame,
+            crate::decode_codestream_reconstructed(input, options),
+        );
+    }
+    admit_repair(input.len(), frame.work_units, options.limits())?;
+    let repaired = append_eoc(input)?;
+    #[cfg(verus_keep_ghost)]
+    proof! { reveal(crate::specs::raw_repair_result); reveal(repair_outcome); }
+    finish_reconstructed_recovery(
+        input.len(),
+        frame,
+        crate::decode_codestream_reconstructed(&repaired, options),
     )
 }
 
@@ -162,22 +224,66 @@ fn finish_recovery(
     decoded: Result<TypedImage, DecodeError>,
 ) -> Result<RawRecoveredImage, DecodeError> {
     let image = decoded?;
+    let report = recovery_report(
+        original,
+        frame,
+        (
+            image.width(),
+            image.height(),
+            image.x_origin(),
+            image.y_origin(),
+        ),
+    )?;
+    Ok(RawRecoveredImage { image, report })
+}
+
+#[cfg_attr(verus_keep_ghost, verus_spec(result =>
+    ensures reconstructed_recovered_outcome(result) == crate::specs::raw_reconstructed_recovery_finish(
+        original, (frame.append_eoc, frame.work_units), crate::image::decoded_image_outcome(decoded)),
+))]
+fn finish_reconstructed_recovery(
+    original: usize,
+    frame: crate::codestream::RecoveryFraming,
+    decoded: Result<DecodedImage, DecodeError>,
+) -> Result<RawRecoveredReconstructedImage, DecodeError> {
+    let image = decoded?;
+    let report = recovery_report(
+        original,
+        frame,
+        (
+            image.width(),
+            image.height(),
+            image.x_origin(),
+            image.y_origin(),
+        ),
+    )?;
+    Ok(RawRecoveredReconstructedImage { image, report })
+}
+
+#[cfg_attr(verus_keep_ghost, verus_spec(result =>
+    ensures result == crate::specs::raw_recovery_report(
+        original, (frame.append_eoc, frame.work_units), geometry),
+))]
+fn recovery_report(
+    original: usize,
+    frame: crate::codestream::RecoveryFraming,
+    geometry: (u32, u32, u32, u32),
+) -> Result<RawRecoveryReport, DecodeError> {
     let effective = (original as u64)
         .checked_add(if frame.append_eoc { 2 } else { 0 })
         .ok_or(DecodeError::MalformedInput {
             offset: 0,
             kind: MalformedKind::ArithmeticOverflow,
         })?;
-    let report = RawRecoveryReport {
+    Ok(RawRecoveryReport {
         appended_eoc: frame.append_eoc,
         original_bytes: original as u64,
         effective_bytes: effective,
-        width: image.width(),
-        height: image.height(),
-        x_origin: image.x_origin(),
-        y_origin: image.y_origin(),
+        width: geometry.0,
+        height: geometry.1,
+        x_origin: geometry.2,
+        y_origin: geometry.3,
         preflight_work_units: frame.work_units,
         repair_copy_bytes: if frame.append_eoc { effective } else { 0 },
-    };
-    Ok(RawRecoveredImage { image, report })
+    })
 }

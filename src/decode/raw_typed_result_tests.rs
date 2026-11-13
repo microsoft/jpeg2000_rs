@@ -129,6 +129,45 @@ fn reconstructed_output_retains_fractional_overshoot_before_typed_rounding_and_c
 }
 
 #[test]
+fn reconstructed_recovery_preserves_fractional_overshoot_before_typed_conversion() {
+    let options = DecodeOptions::default();
+    for (packet, numerator) in [
+        (&[0xcf, 0xb4, 0x04, 0x09][..], -765_i64),
+        (&[0xc0, 0x21, 0x03][..], 9),
+    ] {
+        let mut original = prepared_codestream(1, 1, 0, &[0x42, 0x44, 0], packet);
+        let cod = original
+            .windows(2)
+            .position(|pair| pair == [255, 82])
+            .unwrap();
+        original[cod + 9] = 0;
+        let sot = original
+            .windows(2)
+            .position(|pair| pair == [255, 144])
+            .unwrap();
+        assert!(original.ends_with(&[0xff, 0xd9]));
+        let mut bytes = original[..original.len() - 2].to_vec();
+        bytes[sot + 6..sot + 10].fill(0);
+        let recovered =
+            crate::decode_codestream_reconstructed_recover_missing_eoc(&bytes, &options).unwrap();
+        let component = recovered.image.component(0).unwrap();
+        assert_eq!(component.fraction_bits(), 16);
+        assert_eq!(component.samples(), &[numerator * (1 << 14)]);
+        assert_eq!(
+            recovered.image,
+            crate::decode_codestream_reconstructed(&original, &options).unwrap()
+        );
+        assert_eq!(
+            recovered.image.typed(options.limits()),
+            decode_codestream(&original, &options)
+        );
+        assert!(recovered.report.appended_eoc);
+        assert_eq!(recovered.report.original_bytes, bytes.len() as u64);
+        assert_eq!(recovered.report.effective_bytes, original.len() as u64);
+    }
+}
+
+#[test]
 fn reconstructed_output_rejects_main_and_tile_typed_domain_nlt_without_masking_decode_errors() {
     let options = DecodeOptions::default();
     for tile in [false, true] {
