@@ -1215,8 +1215,15 @@ class FrameworkTests(WorkingFiles):
         ):
             source = framework.ROOT / relative
             original = source.read_text()
-            self.assertIn(before, original)
-            modified = original.replace(before, after, 1)
+            start = 0
+            if relative == "src/jpip/snapshot_header_proof_support.rs":
+                header = re.search(
+                    r"\bproof\s+fn\s+jpip_snapshot_template_parse_error\b", original,
+                )
+                self.assertIsNotNone(header)
+                start = header.start()
+            self.assertIn(before, original[start:])
+            modified = original[:start] + original[start:].replace(before, after, 1)
 
             def altered(path, *args, **kwargs):
                 return modified if path == source else read_text(path, *args, **kwargs)
