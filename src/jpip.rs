@@ -30,6 +30,8 @@ include!("jpip/plan_proof_support.rs");
 #[cfg(verus_keep_ghost)]
 include!("jpip/progression_proof_support.rs");
 #[cfg(verus_keep_ghost)]
+include!("jpip/snapshot_header_proof_support.rs");
+#[cfg(verus_keep_ghost)]
 include!("jpip/transition_proof_support.rs");
 
 #[derive(Clone, Copy)]

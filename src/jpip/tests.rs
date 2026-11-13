@@ -1240,6 +1240,50 @@ fn automatic_header_normalization_removes_reframed_markers() {
 }
 
 #[test]
+fn automatic_snapshot_template_parse_error_keeps_canonical_bytes_and_cache_inputs() {
+    let mut bytes = decodable_codestream();
+    let cod = bytes
+        .windows(2)
+        .position(|value| value == [0xff, 0x52])
+        .unwrap();
+    bytes[cod + 9] = u8::MAX;
+    let sot = bytes
+        .windows(2)
+        .position(|value| value == [0xff, 0x90])
+        .unwrap();
+    let packet = sot + 14;
+    let limits = ResourceLimits::default();
+    let main = &bytes[..sot];
+    let tile = &bytes[sot..packet];
+    let normalized_main = normalize_main_header(main).unwrap();
+    let normalized_tiles = vec![normalize_automatic_tile_headers(tile, 0).unwrap()];
+    let template =
+        build_automatic_transition_template(&normalized_main, &normalized_tiles, &limits).unwrap();
+    assert_eq!(&template[..normalized_main.len()], &normalized_main);
+    let expected = crate::codestream::parse_layout(&template, &limits)
+        .err()
+        .unwrap();
+    assert_eq!(
+        expected,
+        DecodeError::malformed(cod as u64, MalformedKind::ArithmeticOverflow)
+    );
+    let mut cache = DatabinCache::new(limits);
+    cache.insert(fragment(id(6, 0), 0, main, true)).unwrap();
+    cache.insert(fragment(id(2, 0), 0, tile, true)).unwrap();
+    let selected = JpipPacketSelection::all_components();
+    for _ in 0..2 {
+        assert_eq!(
+            cache
+                .build_automatic_snapshot(0, None, &selected, &limits)
+                .err(),
+            Some(expected)
+        );
+        assert_eq!(cache.databin_view(id(6, 0)).unwrap().as_ref(), main);
+        assert_eq!(cache.databin_view(id(2, 0)).unwrap().as_ref(), tile);
+    }
+}
+
+#[test]
 fn automatic_precinct_phase_preserves_lookup_and_truncation_error_frames_then_recovers() {
     let bytes = decodable_codestream();
     let limits = ResourceLimits::default();

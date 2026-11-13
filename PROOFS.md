@@ -206,6 +206,27 @@ header/storage events, actual layout/plan inputs, packet acquisition and scratch
 updates, missing/ready metadata and final raw-layout admission to these phases.
 Public progressive image/state and semantic-container groups remain open.
 
+## Automatic canonical-template parse-error continuation
+
+The actual snapshot header prefix now retains the exact normalized main/tile
+bytes and the ordered reached capacity/main-normalizer events. The accepted
+writer/template contract binds the actual `template` bytes to that canonical
+value before the initial `parse_layout(&template, limits)?` call.
+
+`jpip_snapshot_template_parse_error` lifts the actual parser's returned error
+into the cache/caller snapshot Result predicate using that exact byte/event
+equation. The previously missing fact was not a decoder result or allocation
+assumption: the parser's complete outcome projection is closed outside its
+module. Its existing checked `decoder_layout_errors_known` interface supplies
+`complete_layout_outcome(Err(error)) == Err(error)`. Removing that call fails the
+specific raw-parse error assertion; with it the lemma and actual call-site
+cutpoint verify.
+
+Only this conditional early parse-error exit is established. The complete
+`build_automatic_snapshot` Result is not asserted, and packet/emission joins are
+unchanged. The full mathematical Result definition is the continuation target,
+not a claim that every later native branch has been composed.
+
 ## Trailing whole-packet engineering admission
 
 The actual packet traversal accepts a retained prefix of complete packets
