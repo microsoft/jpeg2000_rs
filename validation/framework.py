@@ -4620,6 +4620,8 @@ def validate_normative_coverage(
                      "automatic_main_header_requests_preserve_validation_and_reservation_error_order")}),
             ):
                 if not required.issubset({(ref["path"], ref["symbol"]) for ref in entry[field]}):
+                    if field == "implementation_refs":
+                        raise ValueError("ordered main-header storage not used by claimed implementation")
                     raise ValueError("ordered main-header storage requires actual consumers and request/error controls")
             model = source_text((ROOT / "specs/jpip_normalization.rs").resolve())
             fragments = {
