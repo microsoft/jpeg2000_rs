@@ -6,7 +6,7 @@ use jpeg2000_decoder::{
         decode_progression_prepared_image, derive_component_subbands,
         plan_progression_tile_at_with_component_overrides,
     },
-    decode_codestream,
+    decode_codestream, decode_codestream_recover_missing_eoc,
     packet::decode_progression_tile_packets,
 };
 use jpeg2000_decoder_fuzz::resource_limits;
@@ -14,7 +14,9 @@ use libfuzzer_sys::fuzz_target;
 
 fuzz_target!(|data: &[u8]| {
     let limits = resource_limits();
-    let _ = decode_codestream(data, &DecodeOptions::new(limits));
+    let options = DecodeOptions::new(limits);
+    let _ = decode_codestream(data, &options);
+    let _ = decode_codestream_recover_missing_eoc(data, &options);
     let Ok(layout) = codestream::parse_layout(data, &limits) else {
         return;
     };

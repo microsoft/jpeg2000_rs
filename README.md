@@ -79,6 +79,30 @@ Use `decode_codestream` for a raw codestream, `decode_jph` for JPH, and
 JPX layer/frame APIs are separate from component sample decoding; see the
 [public exports](src/lib.rs).
 
+### Explicit raw missing-EOC recovery
+
+`decode_codestream_recover_missing_eoc(input, options)` is a separate opt-in
+API. It can append only `FF D9` to the documented sole image tile / sole
+open-ended (`Psot=0`, part index zero, count zero or one) tile part after checked
+structural framing. One ordinary strict decode must then succeed; incomplete
+headers/packets, genuine entropy errors, finite-Psot EOC loss, other parts/tiles,
+and existing-EOC-plus-trailer inputs are not repaired. No bytes are discarded.
+Intact inputs use ordinary strict decoding without a repair copy.
+
+The result contains the typed image and a non-exhaustive report stating whether
+EOC was appended, original/effective sizes, actual width/height/origin and the
+additional preflight/copy accounting. The extra stage jointly respects the
+existing work cap; strict decode retains its existing **separate stage-local
+counters**, not a new global counter. A repair uses one fallible reservation
+and exactly input length plus two logical bytes. Std physical reservation and
+native refusal/unwind tests are not mathematical allocator/unwind proofs.
+
+This is a bounded raw-only W09 increment, **not completion of W09/#291**:
+W06/#287's full fallible surface, W07/#289's cooperative deadline API/scope and
+the remaining #300 integration obligations are still open. No deadline exists
+in this API. Container dimensions, absent tiles, MQ damage, trailers and
+reconstruction output remain separate W10/W11/W15/W18/W19 work.
+
 ### Route a single-image JPX input
 
 Select the route from the input's declared profile and the embedding's required
