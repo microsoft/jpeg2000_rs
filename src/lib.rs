@@ -42,6 +42,9 @@ pub mod mq;
 #[cfg_attr(verus_keep_ghost, verifier::verify)]
 pub mod packet;
 #[cfg_attr(verus_keep_ghost, verifier::verify)]
+pub mod recovery;
+pub use recovery::{RawRecoveredImage, RawRecoveryReport, decode_codestream_recover_missing_eoc};
+#[cfg_attr(verus_keep_ghost, verifier::verify)]
 pub mod tier1;
 #[cfg_attr(verus_keep_ghost, verifier::verify)]
 pub mod transform;

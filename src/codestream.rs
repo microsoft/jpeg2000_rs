@@ -651,10 +651,13 @@ use profile::{count_set_bits, maximum_u32_for_bits};
 mod quantization;
 #[cfg_attr(verus_keep_ghost, verifier::verify)]
 mod reader;
+#[cfg_attr(verus_keep_ghost, verifier::verify)]
+pub(crate) mod recovery_framing;
 #[cfg(test)]
 use reader::{
     is_standalone_marker, new_parser, read_u16, read_u32, read_u64, signed_u16, signed_u32,
 };
+pub(crate) use recovery_framing::{RecoveryFraming, recovery_framing};
 #[cfg_attr(verus_keep_ghost, verifier::verify)]
 mod tile_header_traversal;
 #[cfg_attr(verus_keep_ghost, verifier::verify)]

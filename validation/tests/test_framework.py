@@ -683,6 +683,48 @@ class FrameworkTests(WorkingFiles):
                     self.assertRaisesRegex(ValueError, "lacks executable Verus contract"):
                 framework.validate_normative_coverage(coverage)
 
+    def test_inventory_raw_recovery_binds_complete_results_states_and_public_export(self):
+        coverage = json.loads((framework.VALIDATION / "normative-coverage.json").read_text())
+        coverage["requirements"] = [
+            item for item in coverage["requirements"]
+            if item["id"] == framework._RAW_RECOVERY_ENTRY
+        ]
+        result = framework.validate_normative_coverage(coverage)
+        self.assertEqual(result["referenced_contract_functions"], 9)
+        read_text = Path.read_text
+        mutations = [
+            ("src/recovery.rs", "recovered_outcome(result)", "recovered_outcome(unrelated)"),
+            ("src/recovery.rs", "raw_repair_result(input@", "raw_repair_result(Seq::empty()"),
+            ("src/recovery.rs", "raw_recovery_admit(input_bytes, work, limits)",
+             "raw_recovery_admit(input_bytes, 0, limits)"),
+            ("src/recovery.rs", "crate::options::decode_options_limits(options)",
+             "unrelated_options_limits(options)"),
+            ("src/recovery.rs", "ensures crate::specs::raw_repair_result",
+             "requires input.len() > 0, ensures crate::specs::raw_repair_result"),
+            ("src/codestream/recovery_framing.rs", "parser_view(final(self))", "parser_view(old(self))"),
+            ("src/codestream/recovery_framing.rs", "raw_recovery_body(parser_view(old(self)))",
+             "raw_recovery_body(parser_view(final(self)))"),
+            ("src/lib.rs", "RawRecoveryReport, decode_codestream_recover_missing_eoc",
+             "RawRecoveryReport"),
+        ]
+        for relative, before, after in mutations:
+            source = framework.ROOT / relative
+            original = source.read_text()
+            self.assertIn(before, original)
+            modified = original.replace(before, after, 1)
+
+            def altered(path, *args, **kwargs):
+                return modified if path == source else read_text(path, *args, **kwargs)
+
+            with self.subTest(relative=relative, before=before), \
+                mock.patch.object(Path, "read_text", altered), \
+                self.assertRaises(ValueError):
+                framework.validate_normative_coverage(coverage)
+        incomplete = copy.deepcopy(coverage)
+        incomplete["requirements"][0]["contract_refs"].pop()
+        with self.assertRaisesRegex(ValueError, "all actual preflight"):
+            framework.validate_normative_coverage(incomplete)
+
     def test_inventory_main_header_storage_result_binds_raw_input_and_entire_result(self):
         coverage = json.loads((framework.VALIDATION / "normative-coverage.json").read_text())
         coverage["requirements"] = [

@@ -1880,6 +1880,43 @@ _TYPED_LAYOUT_CONTRACTS = {
 }
 
 _RAW_TYPED_ENTRY = "part2-complete-native-raw-codestream-typed-result"
+_RAW_RECOVERY_ENTRY = "implementation-raw-missing-eoc-recovery"
+_RAW_RECOVERY_CONTRACTS = {
+    ("src/codestream/recovery_framing.rs", "recovery_framing"): (
+        "raw_recovery_framing", _coverage_call("framing_outcome", r"\1"), None, r"input@\s*,\s*limits",
+    ),
+    **{
+        ("src/codestream/recovery_framing.rs", "Parser::" + name): (
+            model, _coverage_call("framing_outcome", r"\1"),
+            _coverage_call("parser_view", _coverage_call("final", "self")),
+            _coverage_call("parser_view", _coverage_call("old", "self")) + suffix,
+        )
+        for name, model, suffix in (
+            ("recovery_main_headers", "raw_recovery_main_headers", r"\s*,\s*1\s*,\s*false\s*,\s*false"),
+            ("recovery_sot", "raw_recovery_sot", ""),
+            ("recovery_tile_headers", "raw_recovery_tile_headers", ""),
+            ("recovery_body", "raw_recovery_body", ""),
+        )
+    },
+    ("src/recovery.rs", "admit_repair"): (
+        "raw_recovery_admit", r"\1", None, r"input_bytes\s*,\s*work\s*,\s*limits",
+    ),
+    ("src/recovery.rs", "finish_recovery"): (
+        "raw_recovery_finish", _coverage_call("recovered_outcome", r"\1"), None,
+        r"original\s*,\s*\(\s*frame\.append_eoc\s*,\s*frame\.work_units\s*\)\s*,\s*"
+        + _coverage_call("crate::image::decoded_typed_image_outcome", "decoded"),
+    ),
+}
+_RAW_RECOVERY_RELATIONS = {
+    ("src/recovery.rs", "decode_codestream_recover_missing_eoc"): (
+        "raw_recovery_result", r"input@\s*,\s*"
+        + _coverage_call("crate::options::decode_options_limits", "options") + r"\s*,\s*"
+        + _coverage_call("recovered_outcome", r"\1"),
+    ),
+    ("src/recovery.rs", "append_eoc"): (
+        "raw_repair_result", r"input@\s*,\s*" + _coverage_call("repair_outcome", r"\1"),
+    ),
+}
 _RAW_RECONSTRUCTED_ENTRY = "part2-strict-raw-codestream-reconstruction-result"
 _RAW_RECONSTRUCTED_CONTRACTS = {
     ("src/decode/api.rs", "decode_codestream_reconstructed"): (
@@ -4602,6 +4639,15 @@ def validate_normative_coverage(
     ids: set[str] = set()
     contract_functions: set[tuple[str, str]] = set()
     for entry in coverage["requirements"]:
+        if entry["id"] == _RAW_RECOVERY_ENTRY:
+            expected = set(_RAW_RECOVERY_CONTRACTS) | set(_RAW_RECOVERY_RELATIONS)
+            if {(ref["path"], ref["symbol"]) for ref in entry["contract_refs"]} != expected:
+                raise ValueError("raw recovery requires all actual preflight/state/copy/admission/report/public contracts")
+            lib = source_text((ROOT / "src/lib.rs").resolve())
+            if not re.search(
+                r"pub\s+use\s+recovery::\{[^}]*\bdecode_codestream_recover_missing_eoc\b[^}]*\}", lib,
+            ):
+                raise ValueError("raw recovery requires its actual public root export")
         if entry["id"] == "part9-ordered-main-header-storage-result":
             main = ("src/jpip/automatic_headers.rs", "normalize_main_header")
             if {(ref["path"], ref["symbol"]) for ref in entry["contract_refs"]} != {main}:
@@ -8393,6 +8439,8 @@ def validate_normative_coverage(
                 result_projection, expected_result_model = selection_contract[:2]
             header_contract = (
                 _PACKET_HEADER_CONTRACTS.get((reference["path"], reference["symbol"]))
+                or (_RAW_RECOVERY_CONTRACTS.get((reference["path"], reference["symbol"]))
+                    if entry["id"] == _RAW_RECOVERY_ENTRY else None)
                 or _PACKET_PROGRESSION_CONTRACTS.get((reference["path"], reference["symbol"]))
                 or _PACKET_WRAPPER_CONTRACTS.get((reference["path"], reference["symbol"]))
                 or _RECONSTRUCTION_CONTRACTS.get((reference["path"], reference["symbol"]))
@@ -8741,6 +8789,19 @@ def validate_normative_coverage(
                     state_result = relation
                 else:
                     scalar_result = relation
+                expected_result_model = model
+            recovery_relation = _RAW_RECOVERY_RELATIONS.get(
+                (reference["path"], reference["symbol"])
+            ) if entry["id"] == _RAW_RECOVERY_ENTRY else None
+            if recovery_relation:
+                model, arguments = recovery_relation
+                relation = re.search(
+                    named_prefix + r"crate::specs::(?P<model>" + re.escape(model)
+                    + r")\s*\(\s*(?P<state>" + arguments + r")\s*,?\s*\)", contract,
+                )
+                if relation is None or re.search(r"\brequires\b", contract):
+                    raise ValueError(f"linked function lacks executable Verus contract: {short}; invalid recovery relation")
+                scalar_result = relation
                 expected_result_model = model
             final_parameters = set(re.findall(
                 r"\bfinal\(\s*(\w+(?:\.\w+)?)\s*\)" if bundle else r"\bfinal\(\s*(\w+)\s*\)",
@@ -9111,7 +9172,13 @@ def validate_normative_coverage(
             main_header_caller = (
                 main_header_contract and entry["id"] in ("part1-complete-native-raw-main-header-result", _RAW_LAYOUT_ENTRY)
             )
-            if claimed_consumer and not main_header_caller and not any(
+            exported_recovery_entry = (
+                entry["id"] == _RAW_RECOVERY_ENTRY
+                and (reference["path"], reference["symbol"]) ==
+                    ("src/recovery.rs", "decode_codestream_recover_missing_eoc")
+                and re.search(r"\bpub\s+fn\s+decode_codestream_recover_missing_eoc\b", signature_match.group())
+            )
+            if claimed_consumer and not main_header_caller and not exported_recovery_entry and not any(
                 ref != reference
                 and (cross_file_call(
                     (ROOT / ref["path"]).resolve(), ref["symbol"], short,
