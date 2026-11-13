@@ -76,10 +76,15 @@ change removes only the non-owning `Option::and_then` callback; the existing
 lookup error, duplicate check, update, order append and owning values retain
 their original positions.
 
-This local matrix frame is not a public automatic snapshot/update Result.
-In particular, the later parsed packet-byte matrix still uses a separate
-nested mutable callback and needs its own verified state/byte coupling before
-snapshot bytes and public typed images can be composed. Native negative
+The parsed packet-byte assignment now also has a checked exact matrix frame.
+Named projections retain every optional byte-vector value. Checked sequence
+update lemmas connect the actual native row/cell updates to the complete
+logical matrix. The equivalent non-owning LHS lookup stays within the original
+assignment, so its owning RHS packet copy is evaluated first as before.
+No owning temporary, extra copy or changed error/overwrite/drop order is added.
+
+These local matrix frames are not public automatic snapshot/update Results.
+Complete cache/header/plan/packet/image/state joins remain separate. Native negative
 controls cover duplicate **component selections**, first selection errors,
 decoder/cache state and managed-refusal ordering; they do not establish that
 the defensive duplicate-ordinal branch is publicly reachable.

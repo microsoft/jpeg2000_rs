@@ -12,10 +12,11 @@ use super::{
 };
 #[cfg(verus_keep_ghost)]
 use super::{
-    jpip_cache_view, jpip_optional_image_borrow_view, jpip_optional_image_view, jpip_plan_view,
-    jpip_progressive_decoder_view, jpip_progressive_image_borrow, jpip_progressive_image_owner,
-    jpip_progressive_outcome, jpip_progressive_plan_owner, jpip_progressive_update_view,
-    jpip_transcode_view,
+    jpip_cache_view, jpip_optional_image_borrow_view, jpip_optional_image_view,
+    jpip_parsed_packet_matrix, jpip_parsed_packet_matrix_update, jpip_parsed_packet_row_update,
+    jpip_parsed_packet_value, jpip_plan_view, jpip_progressive_decoder_view,
+    jpip_progressive_image_borrow, jpip_progressive_image_owner, jpip_progressive_outcome,
+    jpip_progressive_plan_owner, jpip_progressive_update_view, jpip_transcode_view,
 };
 #[cfg(verus_keep_ghost)]
 use vstd::prelude::*;
@@ -626,12 +627,37 @@ impl DatabinCache {
                         let packet_slice = prefix.get(start..end).ok_or_else(|| {
                             DecodeError::malformed(offset, MalformedKind::Truncated)
                         })?;
-                        *parsed
-                            .get_mut(execution)
-                            .and_then(|layers| layers.get_mut(usize::from(coordinate.layer)))
-                            .ok_or_else(|| {
-                                DecodeError::malformed(0, MalformedKind::ArithmeticOverflow)
-                            })? = Some(copy_bytes(packet_slice));
+                        #[cfg(verus_keep_ghost)]
+                        proof_decl! {
+                            let ghost before_native = parsed@;
+                            let ghost before_parsed = jpip_parsed_packet_matrix(parsed@);
+                        }
+                        *(match parsed.get_mut(execution) {
+                            Some(layers) => layers.get_mut(usize::from(coordinate.layer)),
+                            None => None,
+                        })
+                        .ok_or_else(|| {
+                            DecodeError::malformed(0, MalformedKind::ArithmeticOverflow)
+                        })? = Some(copy_bytes(packet_slice));
+                        #[cfg(verus_keep_ghost)]
+                        proof! {
+                            assert((execution as nat) < before_parsed.len());
+                            assert((coordinate.layer as nat) < before_parsed[execution as int].len());
+                            assert(parsed@ =~= before_native.update(execution as int, parsed@[execution as int]));
+                            assert(parsed@[execution as int]@ =~= before_native[execution as int]@.update(
+                                coordinate.layer as int, parsed@[execution as int]@[coordinate.layer as int]));
+                            assert(jpip_parsed_packet_value(
+                                parsed@[execution as int]@[coordinate.layer as int]) == Some(packet_slice@));
+                            jpip_parsed_packet_matrix_update(before_native, execution as int, parsed@[execution as int]);
+                            jpip_parsed_packet_row_update(before_native[execution as int], parsed@[execution as int],
+                                coordinate.layer as int, parsed@[execution as int]@[coordinate.layer as int]);
+                            assert(jpip_parsed_packet_matrix(parsed@) == before_parsed.update(
+                                execution as int, before_parsed[execution as int].update(
+                                    coordinate.layer as int, Some(packet_slice@))));
+                            assert(crate::specs::part2_jpip_packet_matrix_write(
+                                before_parsed, jpip_parsed_packet_matrix(parsed@),
+                                execution, coordinate.layer, packet_slice@));
+                        }
                         *offsets.get_mut(execution).ok_or_else(|| {
                             DecodeError::malformed(0, MalformedKind::ArithmeticOverflow)
                         })? = end as u64;

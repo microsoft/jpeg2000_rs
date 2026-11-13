@@ -4668,9 +4668,15 @@ def validate_normative_coverage(
             required = {
                 "proof_refs": {
                     ("src/jpip/progression.rs", "DatabinCache::build_automatic_snapshot"),
+                    ("src/jpip/progression_proof_support.rs", "jpip_parsed_packet_value"),
+                    ("src/jpip/progression_proof_support.rs", "jpip_parsed_packet_row"),
+                    ("src/jpip/progression_proof_support.rs", "jpip_parsed_packet_matrix"),
+                    ("src/jpip/progression_proof_support.rs", "jpip_parsed_packet_matrix_update"),
+                    ("src/jpip/progression_proof_support.rs", "jpip_parsed_packet_row_update"),
                 },
                 "spec_refs": {
                     ("specs/jpip_progressive.rs", "part2_jpip_ordinal_matrix_write"),
+                    ("specs/jpip_progressive.rs", "part2_jpip_packet_matrix_write"),
                 },
                 "test_refs": {
                     ("src/jpip/tests.rs", "automatic_mapping_decodes_incomplete_precinct_quality_prefixes"),
@@ -4712,6 +4718,38 @@ def validate_normative_coverage(
             if body is None or any("".join(fragment.split()) not in "".join(body.split())
                                    for fragment in model_fragments):
                 raise ValueError("ordinal scratch frame requires exact bounds, old empty slot and complete matrix update")
+            packet_fragments = (
+                "let ghost before_native = parsed@",
+                "let ghost before_parsed = jpip_parsed_packet_matrix(parsed@)",
+                "*(match parsed.get_mut(execution) { "
+                "Some(layers) => layers.get_mut(usize::from(coordinate.layer)), None => None, })"
+                ".ok_or_else(|| { DecodeError::malformed(0, MalformedKind::ArithmeticOverflow) })?"
+                " = Some(copy_bytes(packet_slice))",
+                "assert(crate::specs::part2_jpip_packet_matrix_write(before_parsed, "
+                "jpip_parsed_packet_matrix(parsed@), execution, coordinate.layer, packet_slice@))",
+            )
+            positions = [compact.find("".join(fragment.split())) for fragment in packet_fragments]
+            if any(position < 0 for position in positions) or positions != sorted(positions):
+                raise ValueError("packet scratch frame requires actual bytes and the original assignment ordering")
+            packet_model = _coverage_spec_function_body(model, "part2_jpip_packet_matrix_write")
+            if packet_model is None or any("".join(fragment.split()) not in "".join(packet_model.split())
+                                          for fragment in (
+                                              "(execution as nat) < before.len()",
+                                              "(layer as nat) < before[execution as int].len()",
+                                              "after == before.update(execution as int, "
+                                              "before[execution as int].update(layer as int, Some(bytes)))",
+                                          )):
+                raise ValueError("packet scratch frame requires complete bounds and byte matrix update")
+            projections = source_text((ROOT / "src/jpip/progression_proof_support.rs").resolve())
+            for name, fragments in {
+                "jpip_parsed_packet_value": ("None => None", "Some(bytes) => Some(bytes@)"),
+                "jpip_parsed_packet_row": ("value@.map_values(", "jpip_parsed_packet_value(cell)"),
+                "jpip_parsed_packet_matrix": ("value.map_values(", "jpip_parsed_packet_row(row)"),
+            }.items():
+                projection = _coverage_spec_function_body(projections, name)
+                if projection is None or any("".join(fragment.split()) not in "".join(projection.split())
+                                             for fragment in fragments):
+                    raise ValueError("packet scratch frame requires complete native byte projections")
         if entry["id"] == _RAW_RECOVERY_ENTRY:
             expected = set(_RAW_RECOVERY_CONTRACTS) | set(_RAW_RECOVERY_RELATIONS)
             if {(ref["path"], ref["symbol"]) for ref in entry["contract_refs"]} != expected:
