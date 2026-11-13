@@ -873,6 +873,41 @@ class FrameworkTests(WorkingFiles):
         self._assert_complete_packet_contract_bindings(
             {framework._JPIP_BYTE_RESULT_ENTRY}, framework._JPIP_BYTE_RESULT_CONTRACTS, 4, isolate=False)
 
+    def test_inventory_parsed_lookups_bind_checked_order_result_and_all_scratch_shapes(self):
+        recipes = {key: value for key, value in framework._JPIP_PHASE_CONTRACTS.items()
+                   if key[1] == "build_automatic_order"}
+        self._assert_complete_packet_contract_bindings(
+            {framework._JPIP_PARSED_BOUND_ENTRY}, recipes, 1, isolate=False)
+
+    def test_inventory_parsed_lookups_reject_lost_layer_shape_and_guard_facts(self):
+        coverage = json.loads((framework.VALIDATION / "normative-coverage.json").read_text())
+        coverage["requirements"] = [
+            item for item in coverage["requirements"] if item["id"] == framework._JPIP_PARSED_BOUND_ENTRY
+        ]
+        self.assertEqual(len(coverage["requirements"]), 1)
+        framework.validate_normative_coverage(coverage)
+        read_text = Path.read_text
+        for relative, before, after in (
+            ("src/jpip/progression.rs", "order_ordinals[row].len() == layer_count", "true"),
+            ("src/jpip/progression.rs", "parsed@[row]@.len() == layer_count", "true"),
+            ("src/jpip/progression.rs", "assert(execution < parsed.len())", "assert(true)"),
+            ("src/jpip/progression.rs", "assert((coordinate.layer as usize) < parsed_layers.len())", "assert(true)"),
+            ("src/jpip/progression.rs", ".get(usize::from(coordinate.layer))", ".get(0)"),
+            ("specs/jpip_phases.rs", ".2[row].len()\n                == ordinals[row].len()", ".2[row].len() == 0"),
+            ("specs/jpip_phases.rs", ".3[index].0.layer as nat", ".3[index].0.resolution as nat"),
+        ):
+            source = framework.ROOT / relative
+            original = source.read_text()
+            self.assertIn(before, original)
+            modified = original.replace(before, after)
+
+            def altered(path, *args, **kwargs):
+                return modified if path == source else read_text(path, *args, **kwargs)
+
+            with self.subTest(before=before), mock.patch.object(Path, "read_text", altered), \
+                    self.assertRaisesRegex(ValueError, "parsed lookup bounds"):
+                framework.validate_normative_coverage(coverage)
+
     def test_inventory_blocked_lookup_binds_successful_order_result_and_every_mutable_frame(self):
         recipes = {key: value for key, value in framework._JPIP_PHASE_CONTRACTS.items()
                    if key[1] == "build_automatic_order"}

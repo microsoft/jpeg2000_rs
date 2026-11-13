@@ -130,6 +130,16 @@ pub proof fn part2_jpip_order_phase_prefix_bounds(
             < part2_jpip_order_phase(grid, iterator, ordinals, order, ordinal, remaining).3.len()
             ==> (#[trigger] part2_jpip_order_phase(grid, iterator, ordinals, order, ordinal, remaining).3[index].1 as nat)
                 < ordinals.len(),
+        part2_jpip_order_phase(grid, iterator, ordinals, order, ordinal, remaining).2.len() == ordinals.len(),
+        forall|row: int| 0 <= row < ordinals.len() ==>
+            #[trigger] part2_jpip_order_phase(grid, iterator, ordinals, order, ordinal, remaining).2[row].len()
+                == ordinals[row].len(),
+        forall|index: int| order.len() <= index
+            < part2_jpip_order_phase(grid, iterator, ordinals, order, ordinal, remaining).3.len() ==>
+                (part2_jpip_order_phase(grid, iterator, ordinals, order, ordinal, remaining).3[index].1 as nat)
+                    < ordinals.len()
+                && (#[trigger] part2_jpip_order_phase(grid, iterator, ordinals, order, ordinal, remaining).3[index].0.layer as nat)
+                    < ordinals[part2_jpip_order_phase(grid, iterator, ordinals, order, ordinal, remaining).3[index].1 as int].len(),
     decreases remaining,
 {
     reveal(part2_jpip_order_phase);
@@ -144,6 +154,9 @@ pub proof fn part2_jpip_order_phase_prefix_bounds(
                     let next_ordinals = ordinals.update(execution as int, ordinals[execution as int].update(
                         coordinate.layer as int, Some((ordinal & 65535) as u16)));
                     let next_order = order.push((coordinate, execution));
+                    assert forall|row: int| 0 <= row < ordinals.len() implies
+                        #[trigger] next_ordinals[row].len() == ordinals[row].len() by {
+                    }
                     if ordinal != u64::MAX {
                         part2_jpip_order_phase_prefix_bounds(grid, step.1, next_ordinals, next_order,
                             (ordinal + 1) as u64, (remaining - 1) as u64);
@@ -152,6 +165,13 @@ pub proof fn part2_jpip_order_phase_prefix_bounds(
                         assert(order.is_prefix_of(output));
                         assert forall|index: int| order.len() <= index < output.len()
                             implies (#[trigger] output[index].1 as nat) < ordinals.len() by {
+                            if index == order.len() {
+                                assert(output[index] == next_order[index]);
+                            }
+                        }
+                        assert forall|index: int| order.len() <= index < output.len()
+                            implies (#[trigger] output[index].0.layer as nat)
+                                < ordinals[output[index].1 as int].len() by {
                             if index == order.len() {
                                 assert(output[index] == next_order[index]);
                             }

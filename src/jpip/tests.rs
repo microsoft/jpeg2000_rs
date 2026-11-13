@@ -1492,6 +1492,25 @@ fn automatic_order_phase_preserves_exact_partial_error_states_and_next_call_orde
             .all(|(_, execution)| blocked.get(*execution).is_some())
     );
 
+    let mut parsed = vec![vec![None::<Vec<u8>>; 2]; plan.precincts().len()];
+    for (coordinate, execution) in &order {
+        let rows = parsed.len();
+        let layers = parsed[*execution].len();
+        *parsed
+            .get_mut(*execution)
+            .unwrap()
+            .get_mut(usize::from(coordinate.layer))
+            .unwrap() = Some(vec![coordinate.layer as u8]);
+        assert_eq!(parsed.len(), rows);
+        assert_eq!(parsed[*execution].len(), layers);
+    }
+    assert!(order.iter().all(|(coordinate, execution)| {
+        parsed
+            .get(*execution)
+            .and_then(|row| row.get(usize::from(coordinate.layer)))
+            .is_some()
+    }));
+
     let invalid_prefix = (order[0].0, usize::MAX);
     let mut iterator = make_iterator();
     let mut ordinals = vec![vec![None; 2]];
@@ -1507,6 +1526,28 @@ fn automatic_order_phase_preserves_exact_partial_error_states_and_next_call_orde
             .iter()
             .all(|(_, execution)| blocked.get(*execution).is_some())
     );
+
+    let mut invalid_layer = order[0].0;
+    invalid_layer.layer = u16::MAX;
+    let mut iterator = make_iterator();
+    let mut ordinals = vec![vec![None; 2]];
+    let mut seeded = vec![(invalid_layer, 0)];
+    assert_eq!(
+        build_automatic_order(&plan, &mut iterator, &mut ordinals, &mut seeded, &limits),
+        Ok(())
+    );
+    assert!(parsed.get(seeded[0].1).is_some());
+    assert!(
+        parsed[seeded[0].1]
+            .get(usize::from(seeded[0].0.layer))
+            .is_none()
+    );
+    assert!(seeded[1..].iter().all(|(coordinate, execution)| {
+        parsed
+            .get(*execution)
+            .and_then(|row| row.get(usize::from(coordinate.layer)))
+            .is_some()
+    }));
 }
 
 #[test]
