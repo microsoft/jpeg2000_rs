@@ -1607,10 +1607,35 @@ existing raw parser, decoder-input projection, coefficient/image models and
 shape predicates. Old full/selected typed contracts and bodies are unchanged.
 The inventory binds the new public API, admission helpers, exact models and
 focused independent-packet/rational-arithmetic regressions for #223/#300.
-This is the bounded strict W08 slice of #296, not selected/container mapping or
-W19 recovery output. Existing incomplete fallible allocation (#287), genuine
+This is the bounded strict W08 slice of #296, not selected/container mapping.
+The bounded raw recovery counterpart is described below. Existing incomplete
+fallible allocation (#287), genuine
 coverage/erasure/lifetimes, independent normative review and release
 qualification remain separate; no standard text was processed for this slice.
+
+## Bounded raw reconstructed recovery Result
+
+`decode_codestream_reconstructed_recover_missing_eoc` composes the accepted
+raw missing-EOC framing, admission and one-reservation copy with exactly one
+strict `decode_codestream_reconstructed` call. Its complete Result models in
+`specs/raw_recovery.rs` retain every centered sample, fraction bit count,
+component descriptor and actual geometry field, together with the original
+and effective lengths and all recovery accounting. It performs no typed
+conversion or reconstruction retry. Genuine decode errors and the strict
+reconstruction API's NLT rejection keep their existing order.
+
+Both output domains share the checked report constructor. The reconstructed
+origin getters have exact checked projection contracts; no supplied output
+owner or image Result is added. Regressions cover nonzero origins, independent
+centered planes, fractional overshoot before clipping, strict finite-part
+rejection, one-request refusal/recovery, input/output limits and genuine
+entropy/NLT errors. Existing typed and strict API behavior is unchanged.
+
+This is only the raw sole-open-ended-part W19 increment. Container, selection,
+color and other recovery policies are not added. Full shared fallibility and
+cooperative deadlines (#287/#289), the remaining #296 output scope and
+#300/qualification stay open. Existing physical std capacity, unwind, global
+accounting and disabled lifetime boundaries are unchanged.
 
 ## Complete actual raw-input layout and info Results
 

@@ -690,7 +690,7 @@ class FrameworkTests(WorkingFiles):
             if item["id"] == framework._RAW_RECOVERY_ENTRY
         ]
         result = framework.validate_normative_coverage(coverage)
-        self.assertEqual(result["referenced_contract_functions"], 9)
+        self.assertEqual(result["referenced_contract_functions"], 10)
         read_text = Path.read_text
         mutations = [
             ("src/recovery.rs", "recovered_outcome(result)", "recovered_outcome(unrelated)"),
@@ -704,8 +704,7 @@ class FrameworkTests(WorkingFiles):
             ("src/codestream/recovery_framing.rs", "parser_view(final(self))", "parser_view(old(self))"),
             ("src/codestream/recovery_framing.rs", "raw_recovery_body(parser_view(old(self)))",
              "raw_recovery_body(parser_view(final(self)))"),
-            ("src/lib.rs", "RawRecoveryReport, decode_codestream_recover_missing_eoc",
-             "RawRecoveryReport"),
+            ("src/lib.rs", "decode_codestream_recover_missing_eoc", "unrelated_recovery_entry"),
         ]
         for relative, before, after in mutations:
             source = framework.ROOT / relative
@@ -724,6 +723,49 @@ class FrameworkTests(WorkingFiles):
         incomplete["requirements"][0]["contract_refs"].pop()
         with self.assertRaisesRegex(ValueError, "all actual preflight"):
             framework.validate_normative_coverage(incomplete)
+
+    def test_inventory_reconstructed_recovery_binds_actual_decode_report_and_export(self):
+        coverage = json.loads((framework.VALIDATION / "normative-coverage.json").read_text())
+        coverage["requirements"] = [
+            item for item in coverage["requirements"]
+            if item["id"] == framework._RECONSTRUCTED_RECOVERY_ENTRY
+        ]
+        result = framework.validate_normative_coverage(coverage)
+        self.assertEqual(result["referenced_contract_functions"], 11)
+        read_text = Path.read_text
+        mutations = [
+            ("src/recovery.rs", "reconstructed_recovered_outcome(result)",
+             "reconstructed_recovered_outcome(unrelated)"),
+            ("src/recovery.rs", "frame.work_units), geometry)",
+             "frame.work_units), (0, 0, 0, 0))"),
+            ("src/lib.rs", "decode_codestream_reconstructed_recover_missing_eoc",
+             "unrelated_reconstructed_recovery"),
+            ("specs/raw_recovery.rs", "part2_decode_raw_reconstructed_codestream(input, limits)",
+             "part2_decode_raw_codestream(input, limits, None)"),
+            ("specs/raw_recovery.rs", "raw_repair_response(input, reserved)",
+             "raw_repair_response(input, false)"),
+        ]
+        for relative, before, after in mutations:
+            source = framework.ROOT / relative
+            original = source.read_text()
+            self.assertIn(before, original)
+            modified = original.replace(before, after, 1)
+
+            def altered(path, *args, **kwargs):
+                return modified if path == source else read_text(path, *args, **kwargs)
+
+            with self.subTest(relative=relative, before=before), \
+                mock.patch.object(Path, "read_text", altered), \
+                self.assertRaises(ValueError):
+                framework.validate_normative_coverage(coverage)
+        incomplete = copy.deepcopy(coverage)
+        incomplete["requirements"][0]["contract_refs"].pop()
+        with self.assertRaisesRegex(ValueError, "all actual preflight"):
+            framework.validate_normative_coverage(incomplete)
+        missing_consumer = copy.deepcopy(coverage)
+        missing_consumer["requirements"][0]["implementation_refs"].pop()
+        with self.assertRaisesRegex(ValueError, "not used by claimed implementation"):
+            framework.validate_normative_coverage(missing_consumer)
 
     def test_inventory_main_header_storage_result_binds_raw_input_and_entire_result(self):
         coverage = json.loads((framework.VALIDATION / "normative-coverage.json").read_text())

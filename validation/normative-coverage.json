@@ -14431,6 +14431,7 @@
         {"path": "src/recovery.rs", "symbol": "admit_repair"},
         {"path": "src/recovery.rs", "symbol": "append_eoc"},
         {"path": "src/recovery.rs", "symbol": "finish_recovery"},
+        {"path": "src/recovery.rs", "symbol": "recovery_report"},
         {"path": "src/codestream/recovery_framing.rs", "symbol": "recovery_framing"},
         {"path": "src/codestream/recovery_framing.rs", "symbol": "Parser::recovery_main_headers"},
         {"path": "src/codestream/recovery_framing.rs", "symbol": "Parser::recovery_sot"},
@@ -14442,6 +14443,7 @@
         {"path": "src/recovery.rs", "symbol": "admit_repair"},
         {"path": "src/recovery.rs", "symbol": "append_eoc"},
         {"path": "src/recovery.rs", "symbol": "finish_recovery"},
+        {"path": "src/recovery.rs", "symbol": "recovery_report"},
         {"path": "src/codestream/recovery_framing.rs", "symbol": "recovery_framing"},
         {"path": "src/codestream/recovery_framing.rs", "symbol": "Parser::recovery_main_headers"},
         {"path": "src/codestream/recovery_framing.rs", "symbol": "Parser::recovery_sot"},
@@ -14453,6 +14455,7 @@
         {"path": "specs/raw_recovery.rs", "symbol": "raw_repair_result"},
         {"path": "specs/raw_recovery.rs", "symbol": "raw_recovery_admit"},
         {"path": "specs/raw_recovery.rs", "symbol": "raw_recovery_finish"},
+        {"path": "specs/raw_recovery.rs", "symbol": "raw_recovery_report"},
         {"path": "specs/raw_recovery.rs", "symbol": "raw_recovery_result"},
         {"path": "specs/raw_recovery.rs", "symbol": "raw_recovery_result_body"},
         {"path": "specs/raw_recovery.rs", "symbol": "raw_recovery_reserved_response"},
@@ -14470,6 +14473,7 @@
         {"path": "src/recovery.rs", "symbol": "admit_repair"},
         {"path": "src/recovery.rs", "symbol": "append_eoc"},
         {"path": "src/recovery.rs", "symbol": "finish_recovery"},
+        {"path": "src/recovery.rs", "symbol": "recovery_report"},
         {"path": "src/codestream/recovery_framing.rs", "symbol": "recovery_framing"},
         {"path": "src/codestream/recovery_framing.rs", "symbol": "Parser::recovery_main_headers"},
         {"path": "src/codestream/recovery_framing.rs", "symbol": "Parser::recovery_sot"},
@@ -14485,6 +14489,73 @@
         {"path": "src/recovery/tests.rs", "symbol": "genuine_entropy_and_output_limit_errors_are_forwarded_without_retry"},
         {"path": "src/recovery/tests.rs", "symbol": "input_and_joint_preflight_copy_work_limits_precede_reservation"},
         {"path": "src/recovery/tests.rs", "symbol": "one_atomic_reservation_refusal_and_unwind_leave_exact_same_process_success"}
+      ]
+    },
+    {
+      "id": "implementation-raw-reconstructed-missing-eoc-recovery",
+      "topic": "Optional sole-open-ended-part missing-EOC recovery with centered reconstruction output. The same actual structural framing, input/joint-extra-stage work admission and one fallible repair reservation compose one complete strict raw reconstruction Result, all centered samples/fraction bits/component descriptors/geometry and every original/effective/report field. No typed clipping, parser/reconstruction retry, supplied image bank, additional recovery policy or changed strict API. NLT and genuine decode errors retain strict reconstruction ordering. Shared full fallibility/deadlines, remaining selection/container/color output and qualification stay open under issues287/289/291/296/300; physical allocation and lifetime claims are not introduced.",
+      "implementation_refs": [
+        {"path": "src/recovery.rs", "symbol": "decode_codestream_reconstructed_recover_missing_eoc"},
+        {"path": "src/recovery.rs", "symbol": "finish_reconstructed_recovery"},
+        {"path": "src/recovery.rs", "symbol": "recovery_report"},
+        {"path": "src/recovery.rs", "symbol": "admit_repair"},
+        {"path": "src/recovery.rs", "symbol": "append_eoc"},
+        {"path": "src/codestream/recovery_framing.rs", "symbol": "recovery_framing"},
+        {"path": "src/codestream/recovery_framing.rs", "symbol": "Parser::recovery_main_headers"},
+        {"path": "src/codestream/recovery_framing.rs", "symbol": "Parser::recovery_sot"},
+        {"path": "src/codestream/recovery_framing.rs", "symbol": "Parser::recovery_tile_headers"},
+        {"path": "src/codestream/recovery_framing.rs", "symbol": "Parser::recovery_body"},
+        {"path": "src/decode/api.rs", "symbol": "decode_codestream_reconstructed"}
+      ],
+      "contract_refs": [
+        {"path": "src/recovery.rs", "symbol": "decode_codestream_reconstructed_recover_missing_eoc"},
+        {"path": "src/recovery.rs", "symbol": "finish_reconstructed_recovery"},
+        {"path": "src/recovery.rs", "symbol": "recovery_report"},
+        {"path": "src/recovery.rs", "symbol": "admit_repair"},
+        {"path": "src/recovery.rs", "symbol": "append_eoc"},
+        {"path": "src/codestream/recovery_framing.rs", "symbol": "recovery_framing"},
+        {"path": "src/codestream/recovery_framing.rs", "symbol": "Parser::recovery_main_headers"},
+        {"path": "src/codestream/recovery_framing.rs", "symbol": "Parser::recovery_sot"},
+        {"path": "src/codestream/recovery_framing.rs", "symbol": "Parser::recovery_tile_headers"},
+        {"path": "src/codestream/recovery_framing.rs", "symbol": "Parser::recovery_body"},
+        {"path": "src/decode/api.rs", "symbol": "decode_codestream_reconstructed"}
+      ],
+      "spec_refs": [
+        {"path": "specs/raw_recovery.rs", "symbol": "raw_recovery_framing"},
+        {"path": "specs/raw_recovery.rs", "symbol": "raw_recovery_main_headers"},
+        {"path": "specs/raw_recovery.rs", "symbol": "raw_recovery_sot"},
+        {"path": "specs/raw_recovery.rs", "symbol": "raw_recovery_tile_headers"},
+        {"path": "specs/raw_recovery.rs", "symbol": "raw_recovery_body"},
+        {"path": "specs/raw_recovery.rs", "symbol": "raw_repair_response"},
+        {"path": "specs/raw_recovery.rs", "symbol": "raw_repair_result"},
+        {"path": "specs/raw_recovery.rs", "symbol": "raw_recovery_admit"},
+        {"path": "specs/raw_recovery.rs", "symbol": "raw_recovery_report"},
+        {"path": "specs/raw_recovery.rs", "symbol": "raw_reconstructed_recovery_result"},
+        {"path": "specs/raw_recovery.rs", "symbol": "raw_reconstructed_recovery_result_body"},
+        {"path": "specs/raw_recovery.rs", "symbol": "raw_reconstructed_recovery_reserved_response"},
+        {"path": "specs/raw_recovery.rs", "symbol": "raw_reconstructed_recovery_finish"},
+        {"path": "specs/raw_decode.rs", "symbol": "part2_decode_raw_reconstructed_codestream"}
+      ],
+      "proof_refs": [
+        {"path": "src/recovery.rs", "symbol": "decode_codestream_reconstructed_recover_missing_eoc"},
+        {"path": "src/recovery.rs", "symbol": "finish_reconstructed_recovery"},
+        {"path": "src/recovery.rs", "symbol": "recovery_report"},
+        {"path": "src/recovery.rs", "symbol": "admit_repair"},
+        {"path": "src/recovery.rs", "symbol": "append_eoc"},
+        {"path": "src/codestream/recovery_framing.rs", "symbol": "recovery_framing"},
+        {"path": "src/codestream/recovery_framing.rs", "symbol": "Parser::recovery_main_headers"},
+        {"path": "src/codestream/recovery_framing.rs", "symbol": "Parser::recovery_sot"},
+        {"path": "src/codestream/recovery_framing.rs", "symbol": "Parser::recovery_tile_headers"},
+        {"path": "src/codestream/recovery_framing.rs", "symbol": "Parser::recovery_body"},
+        {"path": "src/decode/api.rs", "symbol": "decode_codestream_reconstructed"},
+        {"path": "src/image/samples.rs", "symbol": "DecodedImage::x_origin"},
+        {"path": "src/image/samples.rs", "symbol": "DecodedImage::y_origin"},
+        {"path": "specs/raw_recovery.rs", "symbol": "raw_reconstructed_recovery_result_unfold"}
+      ],
+      "test_refs": [
+        {"path": "src/recovery/tests.rs", "symbol": "reconstructed_recovery_retains_centered_planes_geometry_and_report"},
+        {"path": "src/recovery/tests.rs", "symbol": "reconstructed_recovery_refusal_limits_and_genuine_errors_preserve_recovery"},
+        {"path": "src/decode/raw_typed_result_tests.rs", "symbol": "reconstructed_recovery_preserves_fractional_overshoot_before_typed_conversion"}
       ]
     }
   ]

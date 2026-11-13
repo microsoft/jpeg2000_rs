@@ -85,8 +85,16 @@ It shares full reconstruction with typed decoding and rejects every NLT
 declaration explicitly, including identity declarations and tile overrides,
 after propagating actual parser/reconstruction errors. Calling `typed` on its
 accepted output reproduces ordinary typed codestream decoding with the same
-limits. It supplies no container mapping, color, selection or recovery output;
-#296/W19 remains separate. Allocation-error propagation remains incomplete
+limits. This strict entry supplies no container mapping, color, selection or
+recovery output. Its explicit
+`decode_codestream_reconstructed_recover_missing_eoc` counterpart supports only
+the same bounded raw sole-open-ended-tile-part EOC repair as
+`decode_codestream_recover_missing_eoc`. It returns centered reconstruction
+planes and fraction bits with genuine origins and the same original/effective
+length, preflight and copy report. Both use one strict decode, without retries;
+NLT and genuine reconstruction errors remain errors. No additional recovery,
+container, selection or color policy is added. Full #296 scope remains open.
+Allocation-error propagation remains incomplete
 under #287, including shared paths reached by this API.
 Selected color conversion preserves the full-image sampling phase at the
 requested native DWT resolution, including regions starting between component

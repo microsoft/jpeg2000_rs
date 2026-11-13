@@ -1906,6 +1906,10 @@ _RAW_RECOVERY_CONTRACTS = {
         r"original\s*,\s*\(\s*frame\.append_eoc\s*,\s*frame\.work_units\s*\)\s*,\s*"
         + _coverage_call("crate::image::decoded_typed_image_outcome", "decoded"),
     ),
+    ("src/recovery.rs", "recovery_report"): (
+        "raw_recovery_report", r"\1", None,
+        r"original\s*,\s*\(\s*frame\.append_eoc\s*,\s*frame\.work_units\s*\)\s*,\s*geometry",
+    ),
 }
 _RAW_RECOVERY_RELATIONS = {
     ("src/recovery.rs", "decode_codestream_recover_missing_eoc"): (
@@ -1933,6 +1937,32 @@ _RAW_RECONSTRUCTED_CONTRACTS = {
         r"input_bytes\s*,\s*layout\.tile_parts\.len\(\)\s*,\s*layout\.info\.image_size\.components\s*,\s*"
         + _coverage_call("crate::image::decoded_image_view", r"\*\s*image"),
     ),
+}
+_RECONSTRUCTED_RECOVERY_ENTRY = "implementation-raw-reconstructed-missing-eoc-recovery"
+_RECONSTRUCTED_RECOVERY_CONTRACTS = {
+    reference: recipe for reference, recipe in _RAW_RECOVERY_CONTRACTS.items()
+    if reference != ("src/recovery.rs", "finish_recovery")
+}
+_RECONSTRUCTED_RECOVERY_CONTRACTS.update({
+    ("src/recovery.rs", "finish_reconstructed_recovery"): (
+        "raw_reconstructed_recovery_finish", _coverage_call("reconstructed_recovered_outcome", r"\1"), None,
+        r"original\s*,\s*\(\s*frame\.append_eoc\s*,\s*frame\.work_units\s*\)\s*,\s*"
+        + _coverage_call("crate::image::decoded_image_outcome", "decoded"),
+    ),
+    ("src/decode/api.rs", "decode_codestream_reconstructed"):
+        _RAW_RECONSTRUCTED_CONTRACTS[("src/decode/api.rs", "decode_codestream_reconstructed")],
+})
+_RECONSTRUCTED_RECOVERY_RELATIONS = {
+    ("src/recovery.rs", "decode_codestream_reconstructed_recover_missing_eoc"): (
+        "raw_reconstructed_recovery_result", r"input@\s*,\s*"
+        + _coverage_call("crate::options::decode_options_limits", "options") + r"\s*,\s*"
+        + _coverage_call("reconstructed_recovered_outcome", r"\1"),
+    ),
+    ("src/recovery.rs", "append_eoc"): _RAW_RECOVERY_RELATIONS[("src/recovery.rs", "append_eoc")],
+}
+_RAW_RECOVERY_PUBLIC_ENTRIES = {
+    _RAW_RECOVERY_ENTRY: "decode_codestream_recover_missing_eoc",
+    _RECONSTRUCTED_RECOVERY_ENTRY: "decode_codestream_reconstructed_recover_missing_eoc",
 }
 _JPX_SOURCE_ENTRY = "part2-complete-native-jpx-source-image-result"
 _JPX_SOURCE_CONTRACTS = {
@@ -5117,15 +5147,54 @@ def validate_normative_coverage(
             )
             if any("".join(fragment.split()) not in compact for fragment in input_fragments):
                 raise ValueError("automatic inputs require the actual selected-tile order and complete payload projection")
-        if entry["id"] == _RAW_RECOVERY_ENTRY:
-            expected = set(_RAW_RECOVERY_CONTRACTS) | set(_RAW_RECOVERY_RELATIONS)
+        if entry["id"] in _RAW_RECOVERY_PUBLIC_ENTRIES:
+            reconstructed = entry["id"] == _RECONSTRUCTED_RECOVERY_ENTRY
+            contracts = _RECONSTRUCTED_RECOVERY_CONTRACTS if reconstructed else _RAW_RECOVERY_CONTRACTS
+            relations = _RECONSTRUCTED_RECOVERY_RELATIONS if reconstructed else _RAW_RECOVERY_RELATIONS
+            expected = set(contracts) | set(relations)
             if {(ref["path"], ref["symbol"]) for ref in entry["contract_refs"]} != expected:
                 raise ValueError("raw recovery requires all actual preflight/state/copy/admission/report/public contracts")
             lib = source_text((ROOT / "src/lib.rs").resolve())
             if not re.search(
-                r"pub\s+use\s+recovery::\{[^}]*\bdecode_codestream_recover_missing_eoc\b[^}]*\}", lib,
+                r"pub\s+use\s+recovery::\{[^}]*\b"
+                + re.escape(_RAW_RECOVERY_PUBLIC_ENTRIES[entry["id"]]) + r"\b[^}]*\}", lib,
             ):
                 raise ValueError("raw recovery requires its actual public root export")
+            if reconstructed:
+                if not expected.issubset({(ref["path"], ref["symbol"]) for ref in entry["implementation_refs"]}):
+                    raise ValueError("reconstructed recovery not used by claimed implementation")
+                required = {
+                    ("specs/raw_recovery.rs", name) for name in (
+                        "raw_reconstructed_recovery_result", "raw_reconstructed_recovery_result_body",
+                        "raw_reconstructed_recovery_reserved_response", "raw_reconstructed_recovery_finish",
+                        "raw_recovery_report", "raw_repair_response", "raw_recovery_framing",
+                    )
+                } | {("specs/raw_decode.rs", "part2_decode_raw_reconstructed_codestream")}
+                if not required.issubset({(ref["path"], ref["symbol"]) for ref in entry["spec_refs"]}):
+                    raise ValueError("reconstructed recovery requires actual framing, reservation, reconstruction and report models")
+                model = source_text((ROOT / "specs/raw_recovery.rs").resolve())
+                for name, fragments in {
+                    "raw_reconstructed_recovery_result_body": (
+                        "match raw_recovery_framing(input, limits)",
+                        "match raw_recovery_admit(input.len() as usize, frame.1, limits)",
+                        "part2_decode_raw_reconstructed_codestream(input, limits)",
+                        "raw_reconstructed_recovery_reserved_response(input, limits, frame, false)",
+                        "raw_reconstructed_recovery_reserved_response(input, limits, frame, true)",
+                    ),
+                    "raw_reconstructed_recovery_reserved_response": (
+                        "match raw_repair_response(input, reserved)",
+                        "part2_decode_raw_reconstructed_codestream(bytes, limits)",
+                    ),
+                    "raw_reconstructed_recovery_finish": (
+                        "Err(error) => Err(error)",
+                        "raw_recovery_report(original, frame, (image.0, image.1, image.2, image.3))",
+                        "Ok(report) => Ok((image, report))",
+                    ),
+                }.items():
+                    body = _coverage_spec_function_body(model, name)
+                    if body is None or any("".join(fragment.split()) not in "".join(body.split())
+                                           for fragment in fragments):
+                        raise ValueError("reconstructed recovery requires complete raw reconstruction and report composition")
         if entry["id"] == "part9-ordered-main-header-storage-result":
             main = ("src/jpip/automatic_headers.rs", "normalize_main_header")
             if {(ref["path"], ref["symbol"]) for ref in entry["contract_refs"]} != {main}:
@@ -8973,6 +9042,8 @@ def validate_normative_coverage(
                 _PACKET_HEADER_CONTRACTS.get((reference["path"], reference["symbol"]))
                 or (_RAW_RECOVERY_CONTRACTS.get((reference["path"], reference["symbol"]))
                     if entry["id"] == _RAW_RECOVERY_ENTRY else None)
+                or (_RECONSTRUCTED_RECOVERY_CONTRACTS.get((reference["path"], reference["symbol"]))
+                    if entry["id"] == _RECONSTRUCTED_RECOVERY_ENTRY else None)
                 or _PACKET_PROGRESSION_CONTRACTS.get((reference["path"], reference["symbol"]))
                 or _PACKET_WRAPPER_CONTRACTS.get((reference["path"], reference["symbol"]))
                 or _RECONSTRUCTION_CONTRACTS.get((reference["path"], reference["symbol"]))
@@ -9337,9 +9408,12 @@ def validate_normative_coverage(
                 else:
                     scalar_result = relation
                 expected_result_model = model
-            recovery_relation = _RAW_RECOVERY_RELATIONS.get(
-                (reference["path"], reference["symbol"])
-            ) if entry["id"] == _RAW_RECOVERY_ENTRY else None
+            recovery_relations = (
+                _RAW_RECOVERY_RELATIONS if entry["id"] == _RAW_RECOVERY_ENTRY
+                else _RECONSTRUCTED_RECOVERY_RELATIONS if entry["id"] == _RECONSTRUCTED_RECOVERY_ENTRY
+                else {}
+            )
+            recovery_relation = recovery_relations.get((reference["path"], reference["symbol"]))
             if recovery_relation:
                 model, arguments = recovery_relation
                 relation = re.search(
@@ -9724,10 +9798,13 @@ def validate_normative_coverage(
                 main_header_contract and entry["id"] in ("part1-complete-native-raw-main-header-result", _RAW_LAYOUT_ENTRY)
             )
             exported_recovery_entry = (
-                entry["id"] == _RAW_RECOVERY_ENTRY
+                entry["id"] in _RAW_RECOVERY_PUBLIC_ENTRIES
                 and (reference["path"], reference["symbol"]) ==
-                    ("src/recovery.rs", "decode_codestream_recover_missing_eoc")
-                and re.search(r"\bpub\s+fn\s+decode_codestream_recover_missing_eoc\b", signature_match.group())
+                    ("src/recovery.rs", _RAW_RECOVERY_PUBLIC_ENTRIES[entry["id"]])
+                and re.search(
+                    r"\bpub\s+fn\s+" + re.escape(_RAW_RECOVERY_PUBLIC_ENTRIES[entry["id"]]) + r"\b",
+                    signature_match.group(),
+                )
             )
             if claimed_consumer and not main_header_caller and not exported_recovery_entry and not any(
                 ref != reference

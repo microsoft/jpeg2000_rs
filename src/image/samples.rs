@@ -30,11 +30,17 @@ impl DecodedImage {
         self.height
     }
 
+    #[cfg_attr(verus_keep_ghost, verus_spec(result => ensures result == decoded_image_view(*self).2,))]
     pub const fn x_origin(&self) -> u32 {
+        #[cfg(verus_keep_ghost)]
+        proof! { reveal(decoded_image_view); }
         self.x_origin
     }
 
+    #[cfg_attr(verus_keep_ghost, verus_spec(result => ensures result == decoded_image_view(*self).3,))]
     pub const fn y_origin(&self) -> u32 {
+        #[cfg(verus_keep_ghost)]
+        proof! { reveal(decoded_image_view); }
         self.y_origin
     }
 

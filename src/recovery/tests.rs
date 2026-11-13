@@ -297,3 +297,152 @@ fn one_atomic_reservation_refusal_and_unwind_leave_exact_same_process_success() 
     assert_eq!(decode(&bytes).unwrap(), expected);
     assert!(crate::decode_codestream(&bytes, &DecodeOptions::default()).is_err());
 }
+
+#[test]
+fn reconstructed_recovery_retains_centered_planes_geometry_and_report() {
+    let options = DecodeOptions::default();
+    for (original, centered) in [
+        (GRAY0, &[-128_i64][..]),
+        (OFFSET, &[-128_i64, -64, 0, 127][..]),
+    ] {
+        let strict = crate::decode_codestream_reconstructed(original, &options).unwrap();
+        let bytes = damaged(original);
+        assert!(crate::decode_codestream_reconstructed(&bytes, &options).is_err());
+        let recovered =
+            decode_codestream_reconstructed_recover_missing_eoc(&bytes, &options).unwrap();
+        assert_eq!(recovered.image, strict);
+        assert_eq!(recovered.image.components()[0].samples(), centered);
+        assert_eq!(recovered.image.components()[0].fraction_bits(), 0);
+        let typed = decode(&bytes).unwrap();
+        assert_eq!(
+            recovered.image.typed(options.limits()).unwrap(),
+            typed.image
+        );
+        assert_eq!(recovered.report, typed.report);
+        assert_eq!(
+            (recovered.report.x_origin, recovered.report.y_origin),
+            (strict.x_origin(), strict.y_origin())
+        );
+        let intact =
+            decode_codestream_reconstructed_recover_missing_eoc(original, &options).unwrap();
+        assert_eq!(intact.image, strict);
+        assert!(!intact.report.appended_eoc);
+        assert_eq!(intact.report.repair_copy_bytes, 0);
+        let mut finite = bytes;
+        finite[SOT + 6..SOT + 10].copy_from_slice(&19u32.to_be_bytes());
+        allocation::with_refusal(0, || {
+            assert_eq!(
+                decode_codestream_reconstructed_recover_missing_eoc(&finite, &options).unwrap_err(),
+                crate::decode_codestream_reconstructed(&finite, &options).unwrap_err()
+            );
+            assert_eq!(
+                allocation::empty_with_capacity::<u8>(1),
+                Err(DecodeError::AllocationFailed)
+            );
+        });
+    }
+}
+
+#[test]
+fn reconstructed_recovery_refusal_limits_and_genuine_errors_preserve_recovery() {
+    let bytes = damaged(GRAY0);
+    let options = DecodeOptions::default();
+    let expected = decode_codestream_reconstructed_recover_missing_eoc(&bytes, &options).unwrap();
+    allocation::with_refusal(0, || {
+        assert_eq!(
+            decode_codestream_reconstructed_recover_missing_eoc(&bytes, &options).unwrap_err(),
+            DecodeError::AllocationFailed
+        );
+        assert_eq!(
+            decode_codestream_reconstructed_recover_missing_eoc(&bytes, &options).unwrap(),
+            expected
+        );
+    });
+    allocation::with_refusal(1, || {
+        assert_eq!(
+            decode_codestream_reconstructed_recover_missing_eoc(&bytes, &options).unwrap(),
+            expected
+        );
+        assert_eq!(
+            allocation::empty_with_capacity::<u8>(1),
+            Err(DecodeError::AllocationFailed)
+        );
+    });
+    let limited = DecodeOptions::new(
+        ResourceLimits::HARDENED
+            .with_maximum_input_bytes(bytes.len() as u64)
+            .unwrap(),
+    );
+    allocation::with_refusal(0, || {
+        assert_eq!(
+            decode_codestream_reconstructed_recover_missing_eoc(&bytes, &limited).unwrap_err(),
+            DecodeError::LimitExceeded {
+                resource: Resource::InputBytes,
+                limit: bytes.len() as u64,
+                actual: bytes.len() as u64 + 2,
+            }
+        );
+        assert_eq!(
+            allocation::empty_with_capacity::<u8>(1),
+            Err(DecodeError::AllocationFailed)
+        );
+    });
+    let frame = crate::codestream::recovery_framing(&bytes, options.limits()).unwrap();
+    let combined = frame.work_units + bytes.len() as u64 + 2;
+    let limited = DecodeOptions::new(
+        ResourceLimits::HARDENED
+            .with_maximum_work_units(combined - 1)
+            .unwrap(),
+    );
+    allocation::with_refusal(0, || {
+        assert_eq!(
+            decode_codestream_reconstructed_recover_missing_eoc(&bytes, &limited).unwrap_err(),
+            DecodeError::LimitExceeded {
+                resource: Resource::WorkUnits,
+                limit: combined - 1,
+                actual: combined,
+            }
+        );
+        assert_eq!(
+            allocation::empty_with_capacity::<u8>(1),
+            Err(DecodeError::AllocationFailed)
+        );
+    });
+    let boundary = DecodeOptions::new(
+        ResourceLimits::HARDENED
+            .with_maximum_work_units(combined)
+            .unwrap(),
+    );
+    assert_eq!(
+        decode_codestream_reconstructed_recover_missing_eoc(&bytes, &boundary).unwrap(),
+        expected
+    );
+    let limited = DecodeOptions::new(
+        ResourceLimits::HARDENED
+            .with_maximum_decoded_bytes(0)
+            .unwrap(),
+    );
+    assert_eq!(
+        decode_codestream_reconstructed_recover_missing_eoc(&bytes, &limited).unwrap_err(),
+        crate::decode_codestream_reconstructed(GRAY0, &limited).unwrap_err()
+    );
+    let corrupt = &bytes[..BODY + 2];
+    let mut effective = corrupt.to_vec();
+    effective.extend_from_slice(&[0xff, 0xd9]);
+    assert_eq!(
+        decode_codestream_reconstructed_recover_missing_eoc(corrupt, &options).unwrap_err(),
+        crate::decode_codestream_reconstructed(&effective, &options).unwrap_err()
+    );
+    let mut nlt = bytes.clone();
+    nlt.splice(SOT..SOT, [0xff, 0x76, 0, 6, 0xff, 0xff, 7, 0]);
+    assert_eq!(
+        decode_codestream_reconstructed_recover_missing_eoc(&nlt, &options).unwrap_err(),
+        DecodeError::UnsupportedFeature {
+            feature: "nonlinear transforms on reconstruction samples"
+        }
+    );
+    assert_eq!(
+        decode_codestream_reconstructed_recover_missing_eoc(&bytes, &options).unwrap(),
+        expected
+    );
+}
