@@ -1693,19 +1693,21 @@ class FrameworkTests(WorkingFiles):
         entry = next(item for item in coverage["requirements"] if item["id"] == framework._JPIP_PROGRESSIVE_ENTRY)
         source = framework.ROOT / "specs/jpip_progressive.rs"
         original, read_text = source.read_text(), Path.read_text
-        for before, after in (
-            ("layer > u16::MAX as nat", "false"),
-            ("start > end || end as nat > packets.len()", "false"),
-            ("part2_jpip_cache_availability(cache, ranges)", "Err(part2_jpip_plan_invalid(0))"),
-            ("part2_jpip_append_complete_requirement(cache, plan.1, main.1)", "(Ok(()), main.1)"),
-            ("available <= previous", "false"),
-            ("part2_jpip_transcode(cache, decoder.0, available)", "Err(part2_jpip_plan_invalid(0))"),
-            ("crate::options::decode_options_limits(options), selection", "crate::options::decode_options_limits(options), None"),
-            ("previous, available, missing, Some(image)", "previous, available, missing, None"),
-            ("(decoder.0, available)", "decoder"),
+        for symbol, before, after in (
+            ("part2_jpip_progressive_layers", "layer > u16::MAX as nat", "false"),
+            ("part2_jpip_progressive_layers", "start > end || end as nat > packets.len()", "false"),
+            ("part2_jpip_progressive_layers", "part2_jpip_cache_availability(cache, ranges)", "Err(part2_jpip_plan_invalid(0))"),
+            ("part2_jpip_progressive_availability", "part2_jpip_append_complete_requirement(cache, plan.1, main.1)", "(Ok(()), main.1)"),
+            ("part2_jpip_progressive_update", "available <= previous", "false"),
+            ("part2_jpip_progressive_update", "part2_jpip_transcode(cache, decoder.0, available)", "Err(part2_jpip_plan_invalid(0))"),
+            ("part2_jpip_progressive_update", "crate::options::decode_options_limits(options), selection", "crate::options::decode_options_limits(options), None"),
+            ("part2_jpip_progressive_update", "previous, available, missing, Some(image)", "previous, available, missing, None"),
+            ("part2_jpip_progressive_update", "(decoder.0, available)", "decoder"),
         ):
-            self.assertIn(before, original)
-            changed = original.replace(before, after, 1)
+            body = framework._coverage_spec_function_body(original, symbol)
+            self.assertIsNotNone(body, symbol)
+            self.assertIn(before, body)
+            changed = original.replace(body, body.replace(before, after, 1), 1)
 
             def altered(path, *args, **kwargs):
                 return changed if path == source else read_text(path, *args, **kwargs)

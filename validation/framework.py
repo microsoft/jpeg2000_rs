@@ -4717,6 +4717,8 @@ def validate_normative_coverage(
                 }),
             ):
                 if not required.issubset({(ref["path"], ref["symbol"]) for ref in entry[field]}):
+                    if field == "implementation_refs":
+                        raise ValueError("automatic header/partition inputs not used by claimed implementation: actual consumers missing")
                     raise ValueError("automatic header/partition inputs require actual consumers, complete views and regressions")
             models = {
                 "specs/jpip_normalization.rs": {
