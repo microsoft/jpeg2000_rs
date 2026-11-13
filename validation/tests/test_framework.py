@@ -873,6 +873,39 @@ class FrameworkTests(WorkingFiles):
         self._assert_complete_packet_contract_bindings(
             {framework._JPIP_BYTE_RESULT_ENTRY}, framework._JPIP_BYTE_RESULT_CONTRACTS, 4, isolate=False)
 
+    def test_inventory_blocked_lookup_binds_successful_order_result_and_every_mutable_frame(self):
+        recipes = {key: value for key, value in framework._JPIP_PHASE_CONTRACTS.items()
+                   if key[1] == "build_automatic_order"}
+        self._assert_complete_packet_contract_bindings(
+            {framework._JPIP_BLOCKED_BOUND_ENTRY}, recipes, 1, isolate=False)
+
+    def test_inventory_blocked_lookup_rejects_lost_empty_prefix_and_scratch_length_facts(self):
+        coverage = json.loads((framework.VALIDATION / "normative-coverage.json").read_text())
+        coverage["requirements"] = [
+            item for item in coverage["requirements"] if item["id"] == framework._JPIP_BLOCKED_BOUND_ENTRY
+        ]
+        self.assertEqual(len(coverage["requirements"]), 1)
+        framework.validate_normative_coverage(coverage)
+        read_text = Path.read_text
+        for relative, before, after in (
+            ("src/jpip/progression.rs", "assert(order_initial.len() == 0)", "assert(true)"),
+            ("src/jpip/progression.rs", "assert(order_ordinals.len() == precinct_count)", "assert(true)"),
+            ("src/jpip/progression.rs", "blocked.len() == precinct_count", "blocked.len() >= precinct_count"),
+            ("src/jpip/progression.rs", "assert(execution < blocked.len())", "assert(execution <= blocked.len())"),
+            ("specs/jpip_phases.rs", "forall|index: int| order.len() <= index", "forall|index: int| 0 <= index"),
+        ):
+            source = framework.ROOT / relative
+            original = source.read_text()
+            self.assertIn(before, original)
+            modified = original.replace(before, after, 1)
+
+            def altered(path, *args, **kwargs):
+                return modified if path == source else read_text(path, *args, **kwargs)
+
+            with self.subTest(before=before), mock.patch.object(Path, "read_text", altered), \
+                    self.assertRaisesRegex(ValueError, "blocked lookup bound"):
+                framework.validate_normative_coverage(coverage)
+
     def test_inventory_canonical_template_parse_exit_binds_actual_prefix_bytes_and_closed_error(self):
         coverage = json.loads((framework.VALIDATION / "normative-coverage.json").read_text())
         coverage["requirements"] = [
