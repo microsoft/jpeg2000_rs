@@ -49,10 +49,10 @@ specs/jpip_normalization.rs
 specs/jpip_phases.rs
 specs/jpip_planned_packets.rs
 specs/jpip_progressive.rs
-specs/jpip_snapshot.rs
-specs/jpip_snapshot_inputs.rs
 specs/jpip_ranges.rs
 specs/jpip_response.rs
+specs/jpip_snapshot.rs
+specs/jpip_snapshot_inputs.rs
 specs/jpip_transcode.rs
 specs/jpip_transitions.rs
 specs/jpx_dispatch.rs
