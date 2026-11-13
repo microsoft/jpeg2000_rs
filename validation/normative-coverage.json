@@ -4,6 +4,30 @@
   "scope": "Technical reference inventory; not exhaustive standards-clause coverage or a conformance claim.",
   "requirements": [
     {
+      "id": "part9-automatic-source-header-transition-exits",
+      "topic": "Checked bounds for actual source tile-header lookup and impossibility of a later repeated transition-parser Err after successful earlier normalization. Actual normalization cardinality proves raw/normalized header-vector length equality. The accepted normalizer first calls the same deterministic parser on the same immutable raw bytes and tile identifier; processed-prefix facts retain success to the actual repeated call. Its existing exact Err projection is inconsistent with that derived Ok model, closing any corresponding actual cache/caller Result error implication without a fabricated reachable error or new event alternative. Runtime guards/order and all neighboring joins remain unchanged.",
+      "implementation_refs": [
+        {"path": "src/jpip/progression.rs", "symbol": "DatabinCache::build_automatic_snapshot"},
+        {"path": "src/jpip/automatic_headers.rs", "symbol": "normalize_automatic_tile_headers"},
+        {"path": "src/jpip/mapping.rs", "symbol": "parse_tile_part_transitions"}
+      ],
+      "contract_refs": [
+        {"path": "src/jpip/automatic_headers.rs", "symbol": "normalize_automatic_tile_headers"},
+        {"path": "src/jpip/mapping.rs", "symbol": "parse_tile_part_transitions"}
+      ],
+      "spec_refs": [
+        {"path": "specs/jpip_normalization.rs", "symbol": "part2_jpip_normalize_automatic_tile_headers"},
+        {"path": "specs/jpip_transitions.rs", "symbol": "part2_jpip_parse_transitions"}
+      ],
+      "proof_refs": [
+        {"path": "specs/jpip_normalization.rs", "symbol": "part2_jpip_normalized_transition_parse_known"},
+        {"path": "src/jpip/progression.rs", "symbol": "DatabinCache::build_automatic_snapshot"}
+      ],
+      "test_refs": [
+        {"path": "src/jpip/tests.rs", "symbol": "automatic_raw_header_normalization_retains_repeated_transition_parse_identity"}
+      ]
+    },
+    {
       "id": "part9-automatic-parsed-row-layer-bounds",
       "topic": "Checked bounds for the actual automatic snapshot parsed.get(execution) row and subsequent coordinate.layer cell guards. The existing unconditional order suffix law is extended with ordinal outer/row shape and appended layer bounds relative to each original execution row. Actual empty order and uniform ordinal/parsed initialization, plus existing complete parsed matrix update frames, establish and retain the paired lookup bounds. Arbitrary original prefixes remain untouched and may contain invalid layers. No new caller premise, assumed phase postcondition, runtime guard, transition/selection/emission join or full public Result is introduced.",
       "implementation_refs": [

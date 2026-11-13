@@ -517,6 +517,9 @@ impl DatabinCache {
             verus_spec(
                 invariant tile_index <= tile_headers.len(),
                     normalized_tiles.len() == tile_index,
+                    forall|index: int| 0 <= index < tile_index ==>
+                        index <= u16::MAX as nat
+                            && crate::specs::part2_jpip_parse_transitions(raw_tiles[index], index as u16).is_ok(),
                     super::jpip_snapshot_inputs_match(input, self, codestream, selection, packet_selection, limits),
                     raw_tiles == tile_headers@.map_values(|value: Vec<u8>| value@),
                     forall|headers: Seq<Seq<Seq<u8>>>, tail: Seq<crate::specs::Part2JpipSnapshotEvent>|
@@ -553,6 +556,10 @@ impl DatabinCache {
             )?);
             #[cfg(verus_keep_ghost)]
             proof! {
+                assert(crate::specs::part2_jpip_normalize_automatic_tile_headers(
+                    raw_tiles[tile_index as int], tile_index as u16).is_ok());
+                crate::specs::part2_jpip_normalized_transition_parse_known(
+                    raw_tiles[tile_index as int], tile_index as u16);
                 assert(normalized_tiles@.map_values(|parts: Vec<Vec<u8>>|
                     parts@.map_values(|header: Vec<u8>| header@)) =~= previous.push(
                         normalized_tiles@[tile_index as int]@.map_values(|header: Vec<u8>| header@)));
@@ -560,7 +567,10 @@ impl DatabinCache {
             tile_index += 1;
         }
         #[cfg(verus_keep_ghost)]
-        proof! { reveal(crate::specs::part2_jpip_snapshot_normalize_tiles); }
+        proof! {
+            reveal(crate::specs::part2_jpip_snapshot_normalize_tiles);
+            assert(normalized_tiles.len() == tile_headers.len());
+        }
         #[cfg(verus_keep_ghost)]
         proof_decl! {
             let ghost headers = normalized_tiles@.map_values(|parts: Vec<Vec<u8>>|
@@ -615,6 +625,11 @@ impl DatabinCache {
             verus_keep_ghost,
             verus_spec(
                 invariant tile_index <= normalized_tiles.len(),
+                    normalized_tiles.len() == tile_headers.len(),
+                    raw_tiles == tile_headers@.map_values(|header: Vec<u8>| header@),
+                    forall|index: int| 0 <= index < raw_tiles.len() ==>
+                        index <= u16::MAX as nat
+                            && crate::specs::part2_jpip_parse_transitions(raw_tiles[index], index as u16).is_ok(),
                 decreases normalized_tiles.len() - tile_index,
             )
         )]
@@ -743,6 +758,12 @@ impl DatabinCache {
                 verus_keep_ghost,
                 verus_spec(
                     invariant mapping_index <= precinct_count,
+                        tile_index < tile_headers.len(),
+                        tile_number as nat == tile_index as nat,
+                        raw_tiles == tile_headers@.map_values(|header: Vec<u8>| header@),
+                        forall|index: int| 0 <= index < raw_tiles.len() ==>
+                            index <= u16::MAX as nat
+                                && crate::specs::part2_jpip_parse_transitions(raw_tiles[index], index as u16).is_ok(),
                         forall|index: int| 0 <= index < order.len() ==>
                             (#[trigger] order@[index].1 as nat) < precinct_count,
                         forall|index: int| 0 <= index < order.len() ==>
@@ -771,9 +792,27 @@ impl DatabinCache {
                 databins.push(DatabinId::new(0, codestream, in_class)?);
                 mapping_index += 1;
             }
+            #[cfg(verus_keep_ghost)]
+            proof! { assert(tile_index < tile_headers.len()); }
             let source_tile_header = tile_headers
                 .get(tile_index)
                 .ok_or_else(|| DecodeError::malformed(0, MalformedKind::ArithmeticOverflow))?;
+            #[cfg(verus_keep_ghost)]
+            proof! {
+                assert(source_tile_header@ == raw_tiles[tile_index as int]);
+                assert(crate::specs::part2_jpip_parse_transitions(source_tile_header@, tile_number).is_ok());
+                assert forall|error: DecodeError|
+                    super::jpip_transitions_outcome(Err(error))
+                        != crate::specs::part2_jpip_parse_transitions(source_tile_header@, tile_number) by {
+                }
+                assert forall|error: DecodeError|
+                    super::jpip_transitions_outcome(Err(error))
+                        == crate::specs::part2_jpip_parse_transitions(source_tile_header@, tile_number)
+                    implies crate::specs::part2_jpip_automatic_snapshot_result(jpip_cache_view(self),
+                        codestream, super::jpip_snapshot_selection_view(selection),
+                        super::jpip_packet_selection_view(packet_selection), limits, Err(error)) by {
+                }
+            }
             let transitions = parse_tile_part_transitions(source_tile_header, tile_number)?;
             let mut transition_index = 0_usize;
             let mut transition_packets = 0_u64;

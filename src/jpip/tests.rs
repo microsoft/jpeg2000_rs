@@ -1240,6 +1240,34 @@ fn automatic_header_normalization_removes_reframed_markers() {
 }
 
 #[test]
+fn automatic_raw_header_normalization_retains_repeated_transition_parse_identity() {
+    let bytes = decodable_codestream();
+    let sot = bytes
+        .windows(2)
+        .position(|value| value == [0xff, 0x90])
+        .unwrap();
+    let header = bytes[sot..sot + 14].to_vec();
+    let before = header.clone();
+    let owner = (header.as_ptr(), header.len(), header.capacity());
+    let normalized = normalize_automatic_tile_headers(&header, 0).unwrap();
+    assert_eq!(normalized.len(), 1);
+    for _ in 0..2 {
+        let transitions = parse_tile_part_transitions(&header, 0).unwrap();
+        assert_eq!(transitions.len(), normalized.len());
+        assert_eq!(transitions[0].header_bytes(), header);
+        assert_eq!(header, before);
+        assert_eq!((header.as_ptr(), header.len(), header.capacity()), owner);
+    }
+    let error = DecodeError::malformed(0, MalformedKind::InvalidTilePart);
+    assert_eq!(parse_tile_part_transitions(&header, 1).err(), Some(error));
+    assert_eq!(
+        normalize_automatic_tile_headers(&header, 1).err(),
+        Some(error)
+    );
+    assert_eq!(header, before);
+}
+
+#[test]
 fn automatic_snapshot_template_parse_error_keeps_canonical_bytes_and_cache_inputs() {
     let mut bytes = decodable_codestream();
     let cod = bytes

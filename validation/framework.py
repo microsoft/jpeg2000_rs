@@ -3528,6 +3528,7 @@ _RAW_CONTAINER_COLOR_TESTS = {("src/decode/container_image_result_tests.rs", "ac
     "preserves_header_mapping_before_color_admission",
     "preserves_raw_inspection_selection_packet_and_profile_priority",
 )} | {("src/decode/tests.rs", "sarah_dev_457acab2c3_later_jp2_streams_do_not_change_first_display")}
+_JPIP_HEADER_TRANSITION_ENTRY = "part9-automatic-source-header-transition-exits"
 _JPIP_PARSED_BOUND_ENTRY = "part9-automatic-parsed-row-layer-bounds"
 _JPIP_BLOCKED_BOUND_ENTRY = "part9-automatic-blocked-lookup-bound"
 _JPIP_PARSE_EXIT_ENTRY = "part9-canonical-template-initial-parse-error"
@@ -4825,6 +4826,37 @@ def validate_normative_coverage(
     ids: set[str] = set()
     contract_functions: set[tuple[str, str]] = set()
     for entry in coverage["requirements"]:
+        if entry["id"] == _JPIP_HEADER_TRANSITION_ENTRY:
+            required = {
+                ("specs/jpip_normalization.rs", "part2_jpip_normalized_transition_parse_known"),
+                ("src/jpip/progression.rs", "DatabinCache::build_automatic_snapshot"),
+            }
+            if not required.issubset({(ref["path"], ref["symbol"]) for ref in entry["proof_refs"]}):
+                raise ValueError("source-header transition exits require the checked normalization law and actual caller")
+            model = source_text((ROOT / "specs/jpip_normalization.rs").resolve())
+            header = re.search(
+                r"(?m)^([ \t]*)pub\s+proof\s+fn\s+part2_jpip_normalized_transition_parse_known\b", model)
+            clause = model[header.start():model.find("{", header.end())] if header else ""
+            if not clause or re.search(r"\brequires\b", clause) or "".join((
+                "ensures part2_jpip_normalize_automatic_tile_headers(input, tile).is_ok() "
+                "==> part2_jpip_parse_transitions(input, tile).is_ok()"
+            ).split()) not in "".join(clause.split()):
+                raise ValueError("source-header transition exits require exact same-input normalization success implication")
+            source = source_text((ROOT / "src/jpip/progression.rs").resolve())
+            native = _coverage_function_body(source, _coverage_function_header(source, "DatabinCache::build_automatic_snapshot"))
+            for fragment in (
+                "normalized_tiles.len() == tile_index", "normalized_tiles.len() == tile_headers.len()",
+                "raw_tiles == tile_headers@.map_values(|header: Vec<u8>| header@)",
+                "part2_jpip_normalized_transition_parse_known(raw_tiles[tile_index as int], tile_index as u16)",
+                "tile_number as nat == tile_index as nat", "assert(tile_index < tile_headers.len())",
+                "assert(source_tile_header@ == raw_tiles[tile_index as int])",
+                "part2_jpip_parse_transitions(source_tile_header@, tile_number).is_ok()",
+                "super::jpip_transitions_outcome(Err(error)) != crate::specs::part2_jpip_parse_transitions(source_tile_header@, tile_number)",
+                "let source_tile_header = tile_headers .get(tile_index) .ok_or_else(|| DecodeError::malformed(0, MalformedKind::ArithmeticOverflow))?",
+                "let transitions = parse_tile_part_transitions(source_tile_header, tile_number)?",
+            ):
+                if native is None or "".join(fragment.split()) not in "".join(native.split()):
+                    raise ValueError("source-header transition exits require actual header count, bytes, tile and unchanged guards")
         if entry["id"] == _JPIP_PARSED_BOUND_ENTRY:
             required = {
                 ("specs/jpip_phases.rs", "part2_jpip_order_phase_prefix_bounds"),
@@ -9263,6 +9295,8 @@ def validate_normative_coverage(
                     if entry["id"] == _JPIP_BLOCKED_BOUND_ENTRY else None)
                 or (_JPIP_PHASE_CONTRACTS.get((reference["path"], reference["symbol"]))
                     if entry["id"] == _JPIP_PARSED_BOUND_ENTRY else None)
+                or (_JPIP_TRANSITION_CONTRACTS.get((reference["path"], reference["symbol"]))
+                    if entry["id"] == _JPIP_HEADER_TRANSITION_ENTRY else None)
                 or ((_JPIP_BYTE_RESULT_CONTRACTS.get((reference["path"], reference["symbol"]))
                      or _JPIP_PARSE_EXIT_CONTRACTS.get((reference["path"], reference["symbol"])))
                     if entry["id"] == _JPIP_PARSE_EXIT_ENTRY else None)
