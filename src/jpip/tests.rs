@@ -1477,6 +1477,36 @@ fn automatic_order_phase_preserves_exact_partial_error_states_and_next_call_orde
     );
     assert_eq!(iterator.emitted(), 1);
     assert!(ordinals.is_empty() && order.is_empty());
+
+    let mut iterator = make_iterator();
+    let mut ordinals = vec![vec![None; 2]];
+    let mut order = Vec::new();
+    assert_eq!(
+        build_automatic_order(&plan, &mut iterator, &mut ordinals, &mut order, &limits),
+        Ok(())
+    );
+    let blocked = vec![false; plan.precincts().len()];
+    assert!(
+        order
+            .iter()
+            .all(|(_, execution)| blocked.get(*execution).is_some())
+    );
+
+    let invalid_prefix = (order[0].0, usize::MAX);
+    let mut iterator = make_iterator();
+    let mut ordinals = vec![vec![None; 2]];
+    let mut seeded = vec![invalid_prefix];
+    assert_eq!(
+        build_automatic_order(&plan, &mut iterator, &mut ordinals, &mut seeded, &limits),
+        Ok(())
+    );
+    assert_eq!(seeded[0], invalid_prefix);
+    assert!(blocked.get(seeded[0].1).is_none());
+    assert!(
+        seeded[1..]
+            .iter()
+            .all(|(_, execution)| blocked.get(*execution).is_some())
+    );
 }
 
 #[test]

@@ -699,7 +699,27 @@ impl DatabinCache {
                     MalformedKind::InvalidProgressionOrderChange,
                 ));
             }
+            #[cfg(verus_keep_ghost)]
+            proof_decl! {
+                let ghost order_grid = crate::decode::progression_plan_view(&plan).grid;
+                let ghost order_iterator = crate::packet::progression_packet_iterator_view(&iterator);
+                let ghost order_ordinals = ordinals@.map_values(|row: Vec<Option<u16>>| row@);
+                let ghost order_initial = order@;
+            }
+            #[cfg(verus_keep_ghost)]
+            proof! {
+                assert(order_initial.len() == 0);
+                assert(order_ordinals.len() == precinct_count);
+            }
             build_automatic_order(&plan, &mut iterator, &mut ordinals, &mut order, limits)?;
+            #[cfg(verus_keep_ghost)]
+            proof! {
+                crate::specs::part2_jpip_order_phase_prefix_bounds(order_grid, order_iterator,
+                    order_ordinals, order_initial, 0, crate::limits::resource_work_limit(limits));
+                assert forall|index: int| 0 <= index < order.len()
+                    implies (#[trigger] order@[index].1 as nat) < precinct_count by {
+                }
+            }
 
             let mut parsed = vec![vec![None; layer_count]; precinct_count];
             let mut offsets = vec![0_u64; precinct_count];
@@ -710,6 +730,8 @@ impl DatabinCache {
                 verus_keep_ghost,
                 verus_spec(
                     invariant mapping_index <= precinct_count,
+                        forall|index: int| 0 <= index < order.len() ==>
+                            (#[trigger] order@[index].1 as nat) < precinct_count,
                     decreases precinct_count - mapping_index,
                 )
             )]
@@ -744,11 +766,16 @@ impl DatabinCache {
                 verus_keep_ghost,
                 verus_spec(
                     invariant order_index <= order.len(),
+                        blocked.len() == precinct_count,
+                        forall|index: int| 0 <= index < order.len() ==>
+                            (#[trigger] order@[index].1 as nat) < precinct_count,
                     decreases order.len() - order_index,
                 )
             )]
             while order_index < order.len() {
                 let (coordinate, execution) = order[order_index];
+                #[cfg(verus_keep_ghost)]
+                proof! { assert(execution < blocked.len()); }
                 if *blocked
                     .get(execution)
                     .ok_or_else(|| DecodeError::malformed(0, MalformedKind::ArithmeticOverflow))?

@@ -227,6 +227,23 @@ Only this conditional early parse-error exit is established. The complete
 unchanged. The full mathematical Result definition is the continuation target,
 not a claim that every later native branch has been composed.
 
+## Automatic blocked-lookup bound
+
+The actual packet-acquisition `blocked.get(execution)` error is impossible.
+`part2_jpip_order_phase_prefix_bounds` proves, without new preconditions, that
+the checked order phase retains an arbitrary original prefix and bounds each
+appended execution by the original ordinal-matrix length. It does not assert
+that an arbitrary supplied prefix was valid.
+
+The actual caller starts with an empty order and a matrix whose outer length is
+`precinct_count`. Its successful phase Result therefore bounds every entry.
+The mapping and packet loops retain this fact and the actual initialized
+`blocked.len() == precinct_count`; the checked assertion immediately before the
+unchanged lookup establishes its standard-library in-bounds condition.
+No runtime guard, assumed postcondition or public snapshot contract is added.
+A negative proof control rejects a bound over arbitrary pre-existing entries;
+native controls retain such an invalid prefix but bound all appended entries.
+
 ## Trailing whole-packet engineering admission
 
 The actual packet traversal accepts a retained prefix of complete packets

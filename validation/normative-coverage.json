@@ -4,6 +4,27 @@
   "scope": "Technical reference inventory; not exhaustive standards-clause coverage or a conformance claim.",
   "requirements": [
     {
+      "id": "part9-automatic-blocked-lookup-bound",
+      "topic": "Checked impossibility of the actual automatic snapshot blocked.get(execution) Err branch. The unconditional order-phase law preserves an arbitrary existing prefix and bounds only appended execution indices by the original ordinal-matrix length. Actual caller empty-order and initialized matrix facts plus successful checked phase output establish all emitted indices; native scratch initialization and loop frames retain blocked.len == precinct_count at the unchanged lookup. No new caller precondition, reachability premise, runtime guard or order-phase postcondition is assumed. Transition/selection/emission and the full public Result remain separate.",
+      "implementation_refs": [
+        {"path": "src/jpip/progression.rs", "symbol": "DatabinCache::build_automatic_snapshot"},
+        {"path": "src/jpip/automatic_phases.rs", "symbol": "build_automatic_order"}
+      ],
+      "contract_refs": [
+        {"path": "src/jpip/automatic_phases.rs", "symbol": "build_automatic_order"}
+      ],
+      "spec_refs": [
+        {"path": "specs/jpip_phases.rs", "symbol": "part2_jpip_order_phase"}
+      ],
+      "proof_refs": [
+        {"path": "specs/jpip_phases.rs", "symbol": "part2_jpip_order_phase_prefix_bounds"},
+        {"path": "src/jpip/progression.rs", "symbol": "DatabinCache::build_automatic_snapshot"}
+      ],
+      "test_refs": [
+        {"path": "src/jpip/tests.rs", "symbol": "automatic_order_phase_preserves_exact_partial_error_states_and_next_call_order"}
+      ]
+    },
+    {
       "id": "part9-canonical-template-initial-parse-error",
       "topic": "Checked conditional lifting of the actual initial canonical-template parse_layout error into the cache/caller automatic snapshot Result predicate. Actual cache/header inputs, normalized bytes, caller limits and ordered reached capacity/main-normalizer events establish the exact template/prefix equation. The existing checked decoder_layout_errors_known interface exposes the closed complete-layout Err projection, without a new trust boundary or supplied layout/header/decoder Result. Only this early parse-error exit is established; no full native snapshot/public image/state or later packet/emission composition is claimed.",
       "implementation_refs": [

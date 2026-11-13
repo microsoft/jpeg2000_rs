@@ -120,4 +120,47 @@ pub open spec fn part2_jpip_order_phase(
     }
 }
 
+pub proof fn part2_jpip_order_phase_prefix_bounds(
+    grid: Part1PacketGrid, iterator: Part1ProgressionPacketIterator,
+    ordinals: Part2JpipOrdinalMatrix, order: Part2JpipPacketOrder, ordinal: u64, remaining: u64,
+)
+    ensures
+        order.is_prefix_of(part2_jpip_order_phase(grid, iterator, ordinals, order, ordinal, remaining).3),
+        forall|index: int| order.len() <= index
+            < part2_jpip_order_phase(grid, iterator, ordinals, order, ordinal, remaining).3.len()
+            ==> (#[trigger] part2_jpip_order_phase(grid, iterator, ordinals, order, ordinal, remaining).3[index].1 as nat)
+                < ordinals.len(),
+    decreases remaining,
+{
+    reveal(part2_jpip_order_phase);
+    let step = part1_progression_iterator_next(iterator);
+    if let Ok(Some(coordinate)) = step.0 {
+        if remaining != 0 {
+            if let Ok(execution) = part1_packet_grid_precinct_index(grid,
+                coordinate.component, coordinate.resolution, coordinate.precinct) {
+                if (execution as nat) < ordinals.len()
+                    && (coordinate.layer as nat) < ordinals[execution as int].len()
+                    && ordinals[execution as int][coordinate.layer as int].is_none() {
+                    let next_ordinals = ordinals.update(execution as int, ordinals[execution as int].update(
+                        coordinate.layer as int, Some((ordinal & 65535) as u16)));
+                    let next_order = order.push((coordinate, execution));
+                    if ordinal != u64::MAX {
+                        part2_jpip_order_phase_prefix_bounds(grid, step.1, next_ordinals, next_order,
+                            (ordinal + 1) as u64, (remaining - 1) as u64);
+                        let output = part2_jpip_order_phase(grid, step.1, next_ordinals, next_order,
+                            (ordinal + 1) as u64, (remaining - 1) as u64).3;
+                        assert(order.is_prefix_of(output));
+                        assert forall|index: int| order.len() <= index < output.len()
+                            implies (#[trigger] output[index].1 as nat) < ordinals.len() by {
+                            if index == order.len() {
+                                assert(output[index] == next_order[index]);
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
 }

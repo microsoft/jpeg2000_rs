@@ -3528,6 +3528,7 @@ _RAW_CONTAINER_COLOR_TESTS = {("src/decode/container_image_result_tests.rs", "ac
     "preserves_header_mapping_before_color_admission",
     "preserves_raw_inspection_selection_packet_and_profile_priority",
 )} | {("src/decode/tests.rs", "sarah_dev_457acab2c3_later_jp2_streams_do_not_change_first_display")}
+_JPIP_BLOCKED_BOUND_ENTRY = "part9-automatic-blocked-lookup-bound"
 _JPIP_PARSE_EXIT_ENTRY = "part9-canonical-template-initial-parse-error"
 _JPIP_PARSE_EXIT_CONTRACTS = {
     ("src/jpip/mapping.rs", "validate_packet_component_selection"): (
@@ -4823,6 +4824,42 @@ def validate_normative_coverage(
     ids: set[str] = set()
     contract_functions: set[tuple[str, str]] = set()
     for entry in coverage["requirements"]:
+        if entry["id"] == _JPIP_BLOCKED_BOUND_ENTRY:
+            required = {
+                ("specs/jpip_phases.rs", "part2_jpip_order_phase_prefix_bounds"),
+                ("src/jpip/progression.rs", "DatabinCache::build_automatic_snapshot"),
+            }
+            if not required.issubset({(ref["path"], ref["symbol"]) for ref in entry["proof_refs"]}):
+                raise ValueError("blocked lookup bound requires the checked model law and actual caller")
+            model = source_text((ROOT / "specs/jpip_phases.rs").resolve())
+            header = re.search(r"(?m)^([ \t]*)pub\s+proof\s+fn\s+part2_jpip_order_phase_prefix_bounds\b", model)
+            body = _coverage_function_body(model, header)
+            clause = model[header.start():model.find("{", header.end())] if header else ""
+            if body is None or re.search(r"\brequires\b", clause):
+                raise ValueError("blocked lookup bound requires an unconditional checked suffix law")
+            for fragment in (
+                "order.is_prefix_of(part2_jpip_order_phase(grid, iterator, ordinals, order, ordinal, remaining).3)",
+                "order.len() <= index",
+                "part2_jpip_order_phase(grid, iterator, ordinals, order, ordinal, remaining).3[index].1 as nat",
+                "< ordinals.len()",
+            ):
+                if "".join(fragment.split()) not in "".join(clause.split()):
+                    raise ValueError("blocked lookup bound requires exact original-prefix and appended-index framing")
+            source = source_text((ROOT / "src/jpip/progression.rs").resolve())
+            native = _coverage_function_body(source, _coverage_function_header(source, "DatabinCache::build_automatic_snapshot"))
+            for fragment in (
+                "let ghost order_iterator = crate::packet::progression_packet_iterator_view(&iterator)",
+                "let ghost order_ordinals = ordinals@.map_values(|row: Vec<Option<u16>>| row@)",
+                "let ghost order_initial = order@",
+                "assert(order_initial.len() == 0)", "assert(order_ordinals.len() == precinct_count)",
+                "part2_jpip_order_phase_prefix_bounds(order_grid, order_iterator, order_ordinals, order_initial, 0,",
+                "blocked.len() == precinct_count",
+                "order@[index].1 as nat) < precinct_count",
+                "assert(execution < blocked.len())",
+                "if *blocked .get(execution) .ok_or_else(|| DecodeError::malformed(0, MalformedKind::ArithmeticOverflow))?",
+            ):
+                if native is None or "".join(fragment.split()) not in "".join(native.split()):
+                    raise ValueError("blocked lookup bound requires actual empty order, scratch lengths and unchanged lookup")
         if entry["id"] == _JPIP_PARSE_EXIT_ENTRY:
             required = {
                 ("src/jpip/snapshot_header_proof_support.rs", name) for name in (
@@ -9182,6 +9219,8 @@ def validate_normative_coverage(
                     if entry["id"] == _JPIP_TRANSITION_ENTRY else None)
                 or (_JPIP_PHASE_CONTRACTS.get((reference["path"], reference["symbol"]))
                     if entry["id"] == _JPIP_PHASE_ENTRY else None)
+                or (_JPIP_PHASE_CONTRACTS.get((reference["path"], reference["symbol"]))
+                    if entry["id"] == _JPIP_BLOCKED_BOUND_ENTRY else None)
                 or ((_JPIP_BYTE_RESULT_CONTRACTS.get((reference["path"], reference["symbol"]))
                      or _JPIP_PARSE_EXIT_CONTRACTS.get((reference["path"], reference["symbol"])))
                     if entry["id"] == _JPIP_PARSE_EXIT_ENTRY else None)
