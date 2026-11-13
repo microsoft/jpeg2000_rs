@@ -244,6 +244,23 @@ No runtime guard, assumed postcondition or public snapshot contract is added.
 A negative proof control rejects a bound over arbitrary pre-existing entries;
 native controls retain such an invalid prefix but bound all appended entries.
 
+## Automatic parsed row and layer bounds
+
+The same checked order suffix law now retains every ordinal row length and
+bounds each appended coordinate's layer by its original execution row length.
+It still makes no validity claim for an arbitrary original prefix.
+
+The actual empty order and uniform ordinal initialization therefore establish
+both execution and layer bounds. Actual parsed initialization has the same
+`precinct_count` outer length and `layer_count` rows. The accepted complete
+matrix update frames retain these lengths through packet-byte acquisition.
+The checked loop facts prove both later `parsed.get(execution)` and
+`parsed_layers.get(coordinate.layer)` in bounds at their unchanged runtime guards.
+No new premise, phase postcondition, runtime operation or neighboring join is added.
+A negative proof control rejects a layer claim about arbitrary old entries even
+when their execution index is valid; the native control preserves such a prefix
+while appended entries remain valid after actual Option/byte-vector updates.
+
 ## Trailing whole-packet engineering admission
 
 The actual packet traversal accepts a retained prefix of complete packets

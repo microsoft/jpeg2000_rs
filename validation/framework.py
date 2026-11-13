@@ -3528,6 +3528,7 @@ _RAW_CONTAINER_COLOR_TESTS = {("src/decode/container_image_result_tests.rs", "ac
     "preserves_header_mapping_before_color_admission",
     "preserves_raw_inspection_selection_packet_and_profile_priority",
 )} | {("src/decode/tests.rs", "sarah_dev_457acab2c3_later_jp2_streams_do_not_change_first_display")}
+_JPIP_PARSED_BOUND_ENTRY = "part9-automatic-parsed-row-layer-bounds"
 _JPIP_BLOCKED_BOUND_ENTRY = "part9-automatic-blocked-lookup-bound"
 _JPIP_PARSE_EXIT_ENTRY = "part9-canonical-template-initial-parse-error"
 _JPIP_PARSE_EXIT_CONTRACTS = {
@@ -4824,6 +4825,42 @@ def validate_normative_coverage(
     ids: set[str] = set()
     contract_functions: set[tuple[str, str]] = set()
     for entry in coverage["requirements"]:
+        if entry["id"] == _JPIP_PARSED_BOUND_ENTRY:
+            required = {
+                ("specs/jpip_phases.rs", "part2_jpip_order_phase_prefix_bounds"),
+                ("src/jpip/progression.rs", "DatabinCache::build_automatic_snapshot"),
+                ("src/jpip/progression_proof_support.rs", "jpip_parsed_packet_matrix_update"),
+                ("src/jpip/progression_proof_support.rs", "jpip_parsed_packet_row_update"),
+            }
+            if not required.issubset({(ref["path"], ref["symbol"]) for ref in entry["proof_refs"]}):
+                raise ValueError("parsed lookup bounds require the checked order law and complete matrix frames")
+            model = source_text((ROOT / "specs/jpip_phases.rs").resolve())
+            header = re.search(r"(?m)^([ \t]*)pub\s+proof\s+fn\s+part2_jpip_order_phase_prefix_bounds\b", model)
+            clause = model[header.start():model.find("{", header.end())] if header else ""
+            if not clause or re.search(r"\brequires\b", clause):
+                raise ValueError("parsed lookup bounds require an unconditional suffix and matrix-shape law")
+            for fragment in (
+                "order.len() <= index",
+                "part2_jpip_order_phase(grid, iterator, ordinals, order, ordinal, remaining).2.len() == ordinals.len()",
+                "part2_jpip_order_phase(grid, iterator, ordinals, order, ordinal, remaining).2[row].len() == ordinals[row].len()",
+                "part2_jpip_order_phase(grid, iterator, ordinals, order, ordinal, remaining).3[index].0.layer as nat",
+                "< ordinals[part2_jpip_order_phase(grid, iterator, ordinals, order, ordinal, remaining).3[index].1 as int].len()",
+            ):
+                if "".join(fragment.split()) not in "".join(clause.split()):
+                    raise ValueError("parsed lookup bounds require exact appended-layer and original-row-shape framing")
+            source = source_text((ROOT / "src/jpip/progression.rs").resolve())
+            native = _coverage_function_body(source, _coverage_function_header(source, "DatabinCache::build_automatic_snapshot"))
+            for fragment in (
+                "assert(order_initial.len() == 0)", "order_ordinals[row].len() == layer_count",
+                "let mut parsed = vec![vec![None; layer_count]; precinct_count]",
+                "parsed.len() == precinct_count", "parsed@[row]@.len() == layer_count",
+                "order@[index].0.layer as nat) < layer_count", "assert(execution < parsed.len())",
+                "assert((coordinate.layer as usize) < parsed_layers.len())",
+                "let parsed_layers = parsed .get(execution) .ok_or_else(|| DecodeError::malformed(0, MalformedKind::ArithmeticOverflow))?",
+                "parsed_layers .get(usize::from(coordinate.layer)) .ok_or_else(|| DecodeError::malformed(0, MalformedKind::ArithmeticOverflow))?",
+            ):
+                if native is None or "".join(fragment.split()) not in "".join(native.split()):
+                    raise ValueError("parsed lookup bounds require actual empty-order and scratch row/layer facts at unchanged guards")
         if entry["id"] == _JPIP_BLOCKED_BOUND_ENTRY:
             required = {
                 ("specs/jpip_phases.rs", "part2_jpip_order_phase_prefix_bounds"),
@@ -4839,7 +4876,10 @@ def validate_normative_coverage(
                 raise ValueError("blocked lookup bound requires an unconditional checked suffix law")
             for fragment in (
                 "order.is_prefix_of(part2_jpip_order_phase(grid, iterator, ordinals, order, ordinal, remaining).3)",
-                "order.len() <= index",
+                "forall|index: int| order.len() <= index "
+                "< part2_jpip_order_phase(grid, iterator, ordinals, order, ordinal, remaining).3.len() "
+                "==> (#[trigger] part2_jpip_order_phase(grid, iterator, ordinals, order, ordinal, remaining).3[index].1 as nat) "
+                "< ordinals.len()",
                 "part2_jpip_order_phase(grid, iterator, ordinals, order, ordinal, remaining).3[index].1 as nat",
                 "< ordinals.len()",
             ):
@@ -9221,6 +9261,8 @@ def validate_normative_coverage(
                     if entry["id"] == _JPIP_PHASE_ENTRY else None)
                 or (_JPIP_PHASE_CONTRACTS.get((reference["path"], reference["symbol"]))
                     if entry["id"] == _JPIP_BLOCKED_BOUND_ENTRY else None)
+                or (_JPIP_PHASE_CONTRACTS.get((reference["path"], reference["symbol"]))
+                    if entry["id"] == _JPIP_PARSED_BOUND_ENTRY else None)
                 or ((_JPIP_BYTE_RESULT_CONTRACTS.get((reference["path"], reference["symbol"]))
                      or _JPIP_PARSE_EXIT_CONTRACTS.get((reference["path"], reference["symbol"])))
                     if entry["id"] == _JPIP_PARSE_EXIT_ENTRY else None)

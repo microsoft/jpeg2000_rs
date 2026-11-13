@@ -710,6 +710,9 @@ impl DatabinCache {
             proof! {
                 assert(order_initial.len() == 0);
                 assert(order_ordinals.len() == precinct_count);
+                assert forall|row: int| 0 <= row < order_ordinals.len()
+                    implies #[trigger] order_ordinals[row].len() == layer_count by {
+                }
             }
             build_automatic_order(&plan, &mut iterator, &mut ordinals, &mut order, limits)?;
             #[cfg(verus_keep_ghost)]
@@ -719,9 +722,19 @@ impl DatabinCache {
                 assert forall|index: int| 0 <= index < order.len()
                     implies (#[trigger] order@[index].1 as nat) < precinct_count by {
                 }
+                assert forall|index: int| 0 <= index < order.len()
+                    implies (#[trigger] order@[index].0.layer as nat) < layer_count by {
+                }
             }
 
             let mut parsed = vec![vec![None; layer_count]; precinct_count];
+            #[cfg(verus_keep_ghost)]
+            proof! {
+                assert(parsed.len() == precinct_count);
+                assert forall|row: int| 0 <= row < parsed.len()
+                    implies #[trigger] parsed@[row]@.len() == layer_count by {
+                }
+            }
             let mut offsets = vec![0_u64; precinct_count];
             let mut databins = crate::allocation::empty_with_capacity(precinct_count)?;
             let grid = plan.grid();
@@ -732,6 +745,11 @@ impl DatabinCache {
                     invariant mapping_index <= precinct_count,
                         forall|index: int| 0 <= index < order.len() ==>
                             (#[trigger] order@[index].1 as nat) < precinct_count,
+                        forall|index: int| 0 <= index < order.len() ==>
+                            (#[trigger] order@[index].0.layer as nat) < layer_count,
+                        parsed.len() == precinct_count,
+                        forall|row: int| 0 <= row < parsed.len() ==>
+                            #[trigger] parsed@[row]@.len() == layer_count,
                     decreases precinct_count - mapping_index,
                 )
             )]
@@ -769,6 +787,11 @@ impl DatabinCache {
                         blocked.len() == precinct_count,
                         forall|index: int| 0 <= index < order.len() ==>
                             (#[trigger] order@[index].1 as nat) < precinct_count,
+                        forall|index: int| 0 <= index < order.len() ==>
+                            (#[trigger] order@[index].0.layer as nat) < layer_count,
+                        parsed.len() == precinct_count,
+                        forall|row: int| 0 <= row < parsed.len() ==>
+                            #[trigger] parsed@[row]@.len() == layer_count,
                     decreases order.len() - order_index,
                 )
             )]
@@ -909,6 +932,12 @@ impl DatabinCache {
                 verus_keep_ghost,
                 verus_spec(
                     invariant order_index <= order.len(),
+                        parsed.len() == precinct_count,
+                        forall|row: int| 0 <= row < parsed.len() ==>
+                            #[trigger] parsed@[row]@.len() == layer_count,
+                        forall|index: int| 0 <= index < order.len() ==>
+                            (#[trigger] order@[index].1 as nat) < precinct_count
+                                && (order@[index].0.layer as nat) < layer_count,
                     decreases order.len() - order_index,
                 )
             )]
@@ -922,9 +951,13 @@ impl DatabinCache {
                         coordinate.resolution,
                         &tile_part.component_coding_styles,
                     )?;
+                #[cfg(verus_keep_ghost)]
+                proof! { assert(execution < parsed.len()); }
                 let parsed_layers = parsed
                     .get(execution)
                     .ok_or_else(|| DecodeError::malformed(0, MalformedKind::ArithmeticOverflow))?;
+                #[cfg(verus_keep_ghost)]
+                proof! { assert((coordinate.layer as usize) < parsed_layers.len()); }
                 let packet_bytes = match parsed_layers
                     .get(usize::from(coordinate.layer))
                     .ok_or_else(|| DecodeError::malformed(0, MalformedKind::ArithmeticOverflow))?
