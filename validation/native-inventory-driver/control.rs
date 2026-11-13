@@ -73,3 +73,7 @@ pub fn with_closure(value: u8) -> u8 {
 pub fn with_drop(value: Vec<u8>) -> usize {
     value.len()
 }
+
+pub fn macro_allocations() -> (Vec<u8>, Vec<u16>) {
+    (vec![0u8; 2], vec![0u16; 3])
+}

@@ -8,6 +8,12 @@ identities and source locations. Compiler instance resolution distinguishes
 concrete implementations, shims and virtual dispatch; generic/function-pointer
 targets and destructor implementations remain explicitly unresolved.
 
+Function, call and drop records also retain Rustc's `source_callsite` coordinates
+alongside the original spans. Calls and drops identify whether their span came
+from expansion. This distinguishes separate invocations of a macro whose
+original call spans all point at the same library macro definition; it does not
+replace those original spans or establish a native/Verus identity join.
+
 It is **not** a qualified production denominator, a native/Verus erasure or
 result-key crosswalk, complete runtime reachability, functional-contract
 classification, lifetime proof, or a standards/conformance gate. Definition IDs
