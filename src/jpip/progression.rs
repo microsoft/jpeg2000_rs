@@ -818,11 +818,53 @@ impl DatabinCache {
             let mut transition_packets = 0_u64;
             let mut transition_bytes = 0_u64;
             let mut blocked = vec![false; precinct_count];
+            #[cfg(verus_keep_ghost)]
+            proof_decl! {
+                let ghost acquisition_input = crate::specs::Part2JpipSnapshotInput {
+                    cache: jpip_cache_view(self), stream: codestream,
+                    selected: super::jpip_snapshot_selection_view(selection),
+                    components: super::jpip_packet_selection_view(packet_selection), limits,
+                };
+                let ghost acquisition_parts = tile_parts@.map_values(
+                    |part: &crate::codestream::TilePartPayload<'_>| crate::codestream::tile_part_owned_view(part));
+                let ghost acquisition_transitions = super::jpip_transitions_view(&transitions);
+                let ghost acquisition_databins = databins@.map_values(
+                    |id: DatabinId| super::databin_id_view(id));
+                let ghost acquisition_order = order@;
+                let ghost acquisition_initial = crate::specs::Part2JpipSnapshotPacketState {
+                    precincts: crate::decode::progression_plan_view(&plan).precincts,
+                    parsed: jpip_parsed_packet_matrix(parsed@), offsets: offsets@, blocked: blocked@,
+                    transition: transition_index, packets: transition_packets, bytes: transition_bytes,
+                };
+                let ghost acquisition_goal = crate::specs::part2_jpip_snapshot_parse_packets(
+                    acquisition_input, acquisition_parts, acquisition_transitions, acquisition_databins,
+                    acquisition_order, 0, acquisition_initial);
+            }
             let mut order_index = 0_usize;
             #[cfg_attr(
                 verus_keep_ghost,
                 verus_spec(
                     invariant order_index <= order.len(),
+                        acquisition_input.cache == jpip_cache_view(self),
+                        acquisition_input.limits == limits,
+                        acquisition_input.selected == super::jpip_snapshot_selection_view(selection),
+                        acquisition_input.components == super::jpip_packet_selection_view(packet_selection),
+                        tile_number as nat == tile_index as nat,
+                        acquisition_parts == tile_parts@.map_values(
+                            |part: &crate::codestream::TilePartPayload<'_>| crate::codestream::tile_part_owned_view(part)),
+                        acquisition_transitions == super::jpip_transitions_view(&transitions),
+                        acquisition_databins == databins@.map_values(|id: DatabinId| super::databin_id_view(id)),
+                        acquisition_order == order@,
+                        acquisition_goal == crate::specs::part2_jpip_snapshot_parse_packets(
+                            acquisition_input, acquisition_parts, acquisition_transitions, acquisition_databins,
+                            acquisition_order, 0, acquisition_initial),
+                        acquisition_goal == crate::specs::part2_jpip_snapshot_parse_packets(
+                            acquisition_input, acquisition_parts, acquisition_transitions, acquisition_databins,
+                            acquisition_order, order_index as nat, crate::specs::Part2JpipSnapshotPacketState {
+                                precincts: crate::decode::progression_plan_view(&plan).precincts,
+                                parsed: jpip_parsed_packet_matrix(parsed@), offsets: offsets@, blocked: blocked@,
+                                transition: transition_index, packets: transition_packets, bytes: transition_bytes,
+                            }),
                         blocked.len() == precinct_count,
                         forall|index: int| 0 <= index < order.len() ==>
                             (#[trigger] order@[index].1 as nat) < precinct_count,
@@ -835,6 +877,8 @@ impl DatabinCache {
                 )
             )]
             while order_index < order.len() {
+                #[cfg(verus_keep_ghost)]
+                proof! { reveal(crate::specs::part2_jpip_snapshot_parse_packets); }
                 let (coordinate, execution) = order[order_index];
                 #[cfg(verus_keep_ghost)]
                 proof! { assert(execution < blocked.len()); }
@@ -866,6 +910,15 @@ impl DatabinCache {
                 }
                 let sequence = u16::try_from(order_index & usize::from(u16::MAX))
                     .map_err(|_| DecodeError::malformed(0, MalformedKind::ArithmeticOverflow))?;
+                #[cfg(verus_keep_ghost)]
+                proof! {
+                    if execution < crate::decode::progression_plan_view(&plan).precincts.len() {
+                        super::jpip_snapshot_decode_packet_known(
+                            crate::decode::progression_plan_view(&plan).precincts[execution as int],
+                            state, prefix@.subrange(start as int, prefix.len() as int),
+                            sequence, coordinate.layer, limits);
+                    }
+                }
                 match decode_automatic_precinct(
                     &mut plan,
                     execution,
@@ -963,14 +1016,66 @@ impl DatabinCache {
                 }
                 order_index += 1;
             }
+            #[cfg(verus_keep_ghost)]
+            proof! {
+                reveal(crate::specs::part2_jpip_snapshot_parse_packets);
+                assert(crate::specs::part2_jpip_snapshot_parse_packets(acquisition_input,
+                    acquisition_parts, acquisition_transitions, acquisition_databins, acquisition_order,
+                    0, acquisition_initial) == Ok(crate::specs::Part2JpipSnapshotPacketState {
+                        precincts: crate::decode::progression_plan_view(&plan).precincts,
+                        parsed: jpip_parsed_packet_matrix(parsed@), offsets: offsets@, blocked: blocked@,
+                        transition: transition_index, packets: transition_packets, bytes: transition_bytes,
+                    }));
+            }
 
             let tile_is_selected = jpip_tile_selected(selection, tile_number);
             let mut packets = crate::allocation::empty_with_capacity(order.len())?;
+            #[cfg(verus_keep_ghost)]
+            proof_decl! {
+                let ghost acquisition_final = crate::specs::Part2JpipSnapshotPacketState {
+                    precincts: crate::decode::progression_plan_view(&plan).precincts,
+                    parsed: jpip_parsed_packet_matrix(parsed@), offsets: offsets@, blocked: blocked@,
+                    transition: transition_index, packets: transition_packets, bytes: transition_bytes,
+                };
+                let ghost packet_events = seq![crate::specs::Part2JpipSnapshotEvent::Capacity {
+                    site: 4, tile: tile_index, elements: order.len(), succeeded: true }];
+                let ghost packet_goal = crate::specs::part2_jpip_snapshot_make_packets(acquisition_input,
+                    tile_number, tile_part.component_coding_styles, acquisition_order,
+                    acquisition_databins, acquisition_final, 0, Seq::empty());
+            }
+            #[cfg(verus_keep_ghost)]
+            proof! {
+                assert(packets@.map_values(|packet: AutomaticPacket| super::jpip_automatic_packet_view(&packet))
+                    =~= Seq::<crate::specs::Part2JpipAutomaticPacket>::empty());
+            }
             let mut order_index = 0_usize;
             #[cfg_attr(
                 verus_keep_ghost,
                 verus_spec(
                     invariant order_index <= order.len(),
+                        acquisition_input.cache == jpip_cache_view(self),
+                        acquisition_input.limits == limits,
+                        acquisition_input.selected == super::jpip_snapshot_selection_view(selection),
+                        acquisition_input.components == super::jpip_packet_selection_view(packet_selection),
+                        tile_number as nat == tile_index as nat,
+                        tile_is_selected == crate::specs::part2_jpip_snapshot_tile_selected(
+                            acquisition_input.selected, tile_number),
+                        acquisition_order == order@,
+                        acquisition_databins == databins@.map_values(|id: DatabinId| super::databin_id_view(id)),
+                        acquisition_final.parsed == jpip_parsed_packet_matrix(parsed@),
+                        acquisition_final.offsets == offsets@,
+                        crate::specs::part2_jpip_snapshot_parse_packets(acquisition_input,
+                            acquisition_parts, acquisition_transitions, acquisition_databins,
+                            acquisition_order, 0, acquisition_initial) == Ok(acquisition_final),
+                        packet_events == seq![crate::specs::Part2JpipSnapshotEvent::Capacity {
+                            site: 4, tile: tile_index, elements: order.len(), succeeded: true }],
+                        packet_goal == crate::specs::part2_jpip_snapshot_make_packets(acquisition_input,
+                            tile_number, tile_part.component_coding_styles, acquisition_order,
+                            acquisition_databins, acquisition_final, 0, Seq::empty()),
+                        packet_goal == crate::specs::part2_jpip_snapshot_make_packets(acquisition_input,
+                            tile_number, tile_part.component_coding_styles, acquisition_order,
+                            acquisition_databins, acquisition_final, order_index as nat,
+                            packets@.map_values(|packet: AutomaticPacket| super::jpip_automatic_packet_view(&packet))),
                         parsed.len() == precinct_count,
                         forall|row: int| 0 <= row < parsed.len() ==>
                             #[trigger] parsed@[row]@.len() == layer_count,
@@ -982,6 +1087,35 @@ impl DatabinCache {
             )]
             while order_index < order.len() {
                 let (coordinate, execution) = order[order_index];
+                #[cfg(verus_keep_ghost)]
+                proof_decl! {
+                    let ghost before_packets = packets@.map_values(
+                        |packet: AutomaticPacket| super::jpip_automatic_packet_view(&packet));
+                }
+                #[cfg(verus_keep_ghost)]
+                proof! {
+                    reveal(crate::specs::part2_jpip_snapshot_make_packets);
+                    reveal(super::jpip_automatic_packet_view);
+                    assert(packet_events.drop_first() =~= Seq::<crate::specs::Part2JpipSnapshotEvent>::empty());
+                    assert forall|error: DecodeError|
+                        tile_is_selected
+                            && crate::specs::part2_jpip_snapshot_component_included(
+                                super::jpip_packet_selection_view(packet_selection), coordinate.component)
+                            && crate::specs::part2_jpip_snapshot_resolution(
+                                super::jpip_snapshot_selection_view(selection), coordinate.component,
+                                coordinate.resolution, tile_part.component_coding_styles) == Err(error)
+                        implies crate::specs::part2_jpip_snapshot_acquired_packets(acquisition_input,
+                            acquisition_parts, acquisition_transitions, acquisition_databins, acquisition_order,
+                            acquisition_initial, tile_index, tile_part.component_coding_styles, packet_events)
+                            == Some((Err(error), Seq::empty())) by {
+                        crate::specs::part2_jpip_snapshot_acquired_resolution_error(acquisition_input,
+                            acquisition_parts, acquisition_transitions, acquisition_databins, acquisition_order,
+                            acquisition_initial, acquisition_final, tile_index, tile_part.component_coding_styles,
+                            order_index as nat, packets@.map_values(
+                                |packet: AutomaticPacket| super::jpip_automatic_packet_view(&packet)),
+                            packet_events, Seq::empty(), error);
+                    }
+                }
                 let required = tile_is_selected
                     && packet_selection.includes_component(coordinate.component)
                     && jpip_resolution_selected(
@@ -1004,6 +1138,11 @@ impl DatabinCache {
                     Some(bytes) => Some(bytes.clone()),
                     None => None,
                 };
+                #[cfg(verus_keep_ghost)]
+                proof! {
+                    assert(jpip_parsed_packet_value(packet_bytes)
+                        == acquisition_final.parsed[execution as int][coordinate.layer as int]);
+                }
                 packets.push(AutomaticPacket {
                     databin: *databins.get(execution).ok_or_else(|| {
                         DecodeError::malformed(0, MalformedKind::ArithmeticOverflow)
@@ -1018,6 +1157,14 @@ impl DatabinCache {
                     })?,
                     layer: coordinate.layer,
                 });
+                #[cfg(verus_keep_ghost)]
+                proof! {
+                    assert(packets@.map_values(|packet: AutomaticPacket| super::jpip_automatic_packet_view(&packet))
+                        =~= before_packets.push((acquisition_databins[execution as int],
+                            acquisition_final.parsed[execution as int][coordinate.layer as int],
+                            acquisition_final.offsets[execution as int], required,
+                            ((order_index as usize) & 65535) as u16, coordinate.layer)));
+                }
                 order_index += 1;
             }
             let Some(parts) = partition_automatic_tile_parts(

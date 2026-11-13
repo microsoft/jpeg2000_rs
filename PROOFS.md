@@ -294,12 +294,36 @@ so no in-bounds/order/layout fact may simply exclude it.
 `part2_jpip_snapshot_resolution_current_error` checks the local mathematical
 continuation: when the original tile/component guards enable the call, its
 resolution error is the pending packet-construction error before scratch lookup.
-The whole cache/caller lift is still blocked by one exact missing checked law:
-the successful native packet-acquisition loop's full precinct/parsed/offset/
-blocked/transition state must equal `part2_jpip_snapshot_parse_packets` from its
-actual captured initial inputs. That assertion was actually checked on the whole
-root and failed alone; it is retained under ignored evidence, not assumed or
-committed. No unproved public Result contract or release action is introduced.
+The originally missing native acquisition-fold equality is now checked as
+described below. The full cache/caller Result remains separate: no unproved
+public Result contract or release action is introduced.
+
+## Actual acquisition fold and resolution continuation
+
+The actual snapshot loop retains its original initial inputs and a recursive
+suffix equality through every native step. Its successful exit proves the exact
+`part2_jpip_snapshot_parse_packets(..., 0, initial) == Ok(final)` assertion,
+including all precinct decoder states, every parsed packet byte, offsets,
+blocked flags, transition index, packet count and byte count. The checked
+`jpip_snapshot_decode_packet_known` bridges the actual borrowed tile header and
+accepted transactional raw precinct decoder to the owned logical header model.
+Missing data and incomplete truncation retain their original blocking behavior;
+decode errors and all guards retain their original order.
+
+The next loop retains the actual assembled packet prefix. At each unchanged
+resolution call, its reachable error is lifted through that prefix and the exact
+successful acquisition state into `part2_jpip_snapshot_acquired_packets`. This
+cutpoint includes the intervening capacity request with its actual site, tile,
+element count and reached successful response. Allocation refusal still wins
+before resolution selection. The unconditional checked continuation-expansion
+law preserves the former model expression for any subsequent continuation.
+
+All additions to the executing builder are erased proof instrumentation; no
+native owner, call, copy, assignment, move, drop or error expression changes.
+Focused cache regressions distinguish complete SOP truncation from incomplete
+truncation, empty prefixes and decoded packets, and retain refusal/recovery
+precedence. This closes only the acquisition-state/selection cutpoint, not
+earlier cache/caller event-prefix joins, emission or the full public Result.
 
 ## Trailing whole-packet engineering admission
 

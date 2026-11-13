@@ -3529,6 +3529,7 @@ _RAW_CONTAINER_COLOR_TESTS = {("src/decode/container_image_result_tests.rs", "ac
     "preserves_raw_inspection_selection_packet_and_profile_priority",
 )} | {("src/decode/tests.rs", "sarah_dev_457acab2c3_later_jp2_streams_do_not_change_first_display")}
 _JPIP_RESOLUTION_EXIT_ENTRY = "part9-reachable-automatic-resolution-selection-result"
+_JPIP_ACQUISITION_ENTRY = "part9-actual-automatic-acquisition-fold-and-selection"
 _JPIP_RESOLUTION_EXIT_CONTRACTS = {
     ("src/jpip/mapping.rs", "JpipPacketSelection::includes_component"): (
         "part2_jpip_snapshot_component_included", r"\1", None,
@@ -4842,6 +4843,59 @@ def validate_normative_coverage(
     ids: set[str] = set()
     contract_functions: set[tuple[str, str]] = set()
     for entry in coverage["requirements"]:
+        if entry["id"] == _JPIP_ACQUISITION_ENTRY:
+            if {(ref["path"], ref["symbol"]) for ref in entry["contract_refs"]} != set(_JPIP_RESOLUTION_EXIT_CONTRACTS):
+                raise ValueError("actual acquisition fold requires the complete enabled selection contracts")
+            proofs = {
+                ("src/jpip/progression.rs", "DatabinCache::build_automatic_snapshot"),
+                ("src/jpip/progression_proof_support.rs", "jpip_snapshot_decode_packet_known"),
+                ("specs/jpip_snapshot_inputs.rs", "part2_jpip_snapshot_acquired_resolution_error"),
+                ("specs/jpip_snapshot_inputs.rs", "part2_jpip_snapshot_acquired_packets_continuation"),
+            }
+            if not proofs.issubset({(ref["path"], ref["symbol"]) for ref in entry["proof_refs"]}):
+                raise ValueError("actual acquisition fold requires checked state, decoder and continuation proofs")
+            source = source_text((ROOT / "src/jpip/progression.rs").resolve())
+            native = _coverage_function_body(source, _coverage_function_header(source, "DatabinCache::build_automatic_snapshot"))
+            for fragment in (
+                "acquisition_input.cache == jpip_cache_view(self)",
+                "acquisition_input.selected == super::jpip_snapshot_selection_view(selection)",
+                "acquisition_input.components == super::jpip_packet_selection_view(packet_selection)",
+                "acquisition_parts == tile_parts@.map_values("
+                "|part: &crate::codestream::TilePartPayload<'_>| crate::codestream::tile_part_owned_view(part))",
+                "acquisition_transitions == super::jpip_transitions_view(&transitions)",
+                "acquisition_databins == databins@.map_values(|id: DatabinId| super::databin_id_view(id))",
+                "acquisition_order == order@",
+                "acquisition_goal == crate::specs::part2_jpip_snapshot_parse_packets("
+                "acquisition_input, acquisition_parts, acquisition_transitions, acquisition_databins, "
+                "acquisition_order, order_index as nat, crate::specs::Part2JpipSnapshotPacketState {"
+                "precincts: crate::decode::progression_plan_view(&plan).precincts,"
+                "parsed: jpip_parsed_packet_matrix(parsed@), offsets: offsets@, blocked: blocked@,"
+                "transition: transition_index, packets: transition_packets, bytes: transition_bytes, })",
+                "assert(crate::specs::part2_jpip_snapshot_parse_packets(acquisition_input,"
+                "acquisition_parts, acquisition_transitions, acquisition_databins, acquisition_order,"
+                "0, acquisition_initial) == Ok(crate::specs::Part2JpipSnapshotPacketState {"
+                "precincts: crate::decode::progression_plan_view(&plan).precincts,"
+                "parsed: jpip_parsed_packet_matrix(parsed@), offsets: offsets@, blocked: blocked@,"
+                "transition: transition_index, packets: transition_packets, bytes: transition_bytes, }))",
+                "let mut packets = crate::allocation::empty_with_capacity(order.len())?",
+                "site: 4, tile: tile_index, elements: order.len(), succeeded: true",
+                "acquisition_final.parsed == jpip_parsed_packet_matrix(parsed@)",
+                "acquisition_final.offsets == offsets@",
+                "crate::specs::part2_jpip_snapshot_acquired_resolution_error(acquisition_input,",
+                "== Some((Err(error), Seq::empty()))",
+            ):
+                if native is None or "".join(fragment.split()) not in "".join(native.split()):
+                    raise ValueError("actual acquisition fold requires exact native inputs, full state and ordered response-linked continuation")
+            model = source_text((ROOT / "specs/jpip_snapshot_inputs.rs").resolve())
+            acquired = _coverage_spec_function_body(model, "part2_jpip_snapshot_acquired_packets")
+            for fragment in (
+                "part2_jpip_snapshot_parse_packets(input, parts, transitions, databins, order, 0, initial)",
+                "part2_jpip_snapshot_bind(part2_jpip_snapshot_lift(parsed, events),",
+                "part2_jpip_snapshot_capacity(events, 4, tile, order.len() as usize)",
+                "part2_jpip_snapshot_make_packets(input, tile as u16, styles, order, databins, state, 0, Seq::empty())",
+            ):
+                if acquired is None or "".join(fragment.split()) not in "".join(acquired.split()):
+                    raise ValueError("actual acquisition fold requires acquisition-before-capacity-before-selection model")
         if entry["id"] == _JPIP_RESOLUTION_EXIT_ENTRY:
             if {(ref["path"], ref["symbol"]) for ref in entry["contract_refs"]} != set(_JPIP_RESOLUTION_EXIT_CONTRACTS):
                 raise ValueError("resolution selection Result requires all actual short-circuit guard/helper contracts")
@@ -9337,7 +9391,7 @@ def validate_normative_coverage(
                 or (_JPIP_TRANSITION_CONTRACTS.get((reference["path"], reference["symbol"]))
                     if entry["id"] == _JPIP_HEADER_TRANSITION_ENTRY else None)
                 or (_JPIP_RESOLUTION_EXIT_CONTRACTS.get((reference["path"], reference["symbol"]))
-                    if entry["id"] == _JPIP_RESOLUTION_EXIT_ENTRY else None)
+                    if entry["id"] in {_JPIP_RESOLUTION_EXIT_ENTRY, _JPIP_ACQUISITION_ENTRY} else None)
                 or ((_JPIP_BYTE_RESULT_CONTRACTS.get((reference["path"], reference["symbol"]))
                      or _JPIP_PARSE_EXIT_CONTRACTS.get((reference["path"], reference["symbol"])))
                     if entry["id"] == _JPIP_PARSE_EXIT_ENTRY else None)

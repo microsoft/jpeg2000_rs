@@ -1,5 +1,16 @@
 #[cfg(verus_keep_ghost)]
 verus! {
+    pub(crate) proof fn jpip_snapshot_decode_packet_known(
+        initial: crate::specs::Part1PacketPrecinctState,
+        template: &crate::codestream::TilePartPayload<'_>, data: Seq<u8>,
+        sequence: u16, layer: u16, limits: &ResourceLimits,
+    )
+        ensures crate::specs::part2_jpip_snapshot_decode_packet(initial,
+            crate::codestream::tile_part_owned_view(template), data, sequence, layer, limits)
+            == crate::specs::part1_jpip_precinct_packet(initial, template, data, sequence, layer, limits),
+    {
+    }
+
     pub closed spec fn jpip_automatic_packet_view(value: &AutomaticPacket)
         -> crate::specs::Part2JpipAutomaticPacket {
         (databin_id_view(value.databin), jpip_parsed_packet_value(value.bytes),

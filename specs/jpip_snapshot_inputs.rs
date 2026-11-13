@@ -385,6 +385,71 @@ pub(crate) proof fn part2_jpip_snapshot_resolution_current_error(
 pub(crate) type Part2JpipSnapshotTile =
     (Option<Seq<Part2JpipAutomaticTilePart>>, Seq<Part2JpipAutomaticPacket>, u16);
 
+pub(crate) open spec fn part2_jpip_snapshot_acquired_packets(
+    input: Part2JpipSnapshotInput<'_>, parts: Seq<Part2OwnedTilePart>,
+    transitions: Seq<Part2JpipTransition>, databins: Seq<Part2JpipDatabin>,
+    order: Part2JpipSnapshotOrder, initial: Part2JpipSnapshotPacketState,
+    tile: usize, styles: crate::codestream::ComponentCodingStyles,
+    events: Seq<Part2JpipSnapshotEvent>,
+) -> Part2JpipSnapshotRun<Seq<Part2JpipAutomaticPacket>> {
+    let parsed = part2_jpip_snapshot_parse_packets(input, parts, transitions, databins, order, 0, initial);
+    part2_jpip_snapshot_bind(part2_jpip_snapshot_lift(parsed, events),
+        |state: Part2JpipSnapshotPacketState, events| {
+        part2_jpip_snapshot_bind(part2_jpip_snapshot_capacity(events, 4, tile, order.len() as usize),
+            |_unit: (), events| {
+            part2_jpip_snapshot_lift(part2_jpip_snapshot_make_packets(input, tile as u16,
+                styles, order, databins, state, 0, Seq::empty()), events)
+        })
+    })
+}
+
+pub(crate) proof fn part2_jpip_snapshot_acquired_resolution_error(
+    input: Part2JpipSnapshotInput<'_>, parts: Seq<Part2OwnedTilePart>,
+    transitions: Seq<Part2JpipTransition>, databins: Seq<Part2JpipDatabin>,
+    order: Part2JpipSnapshotOrder, initial: Part2JpipSnapshotPacketState,
+    state: Part2JpipSnapshotPacketState, tile: usize, styles: crate::codestream::ComponentCodingStyles,
+    index: nat, before: Seq<Part2JpipAutomaticPacket>, events: Seq<Part2JpipSnapshotEvent>,
+    tail: Seq<Part2JpipSnapshotEvent>, error: crate::DecodeError,
+)
+    requires
+        part2_jpip_snapshot_parse_packets(input, parts, transitions, databins, order, 0, initial) == Ok(state),
+        part2_jpip_snapshot_make_packets(input, tile as u16, styles, order, databins, state, 0, Seq::empty())
+            == part2_jpip_snapshot_make_packets(input, tile as u16, styles, order, databins, state, index, before),
+        part2_jpip_snapshot_capacity(events, 4, tile, order.len() as usize) == Some((Ok(()), tail)),
+    ensures index < order.len()
+        && part2_jpip_snapshot_tile_selected(input.selected, tile as u16)
+        && part2_jpip_snapshot_component_included(input.components, order[index as int].0.component)
+        && part2_jpip_snapshot_resolution(input.selected, order[index as int].0.component,
+            order[index as int].0.resolution, styles) == Err(error)
+        ==> part2_jpip_snapshot_acquired_packets(input, parts, transitions, databins, order,
+            initial, tile, styles, events) == Some((Err(error), tail)),
+{
+    part2_jpip_snapshot_resolution_current_error(input, tile as u16, styles, order, databins,
+        state, index, before, error);
+}
+
+pub(crate) proof fn part2_jpip_snapshot_acquired_packets_continuation<T>(
+    input: Part2JpipSnapshotInput<'_>, parts: Seq<Part2OwnedTilePart>,
+    transitions: Seq<Part2JpipTransition>, databins: Seq<Part2JpipDatabin>,
+    order: Part2JpipSnapshotOrder, initial: Part2JpipSnapshotPacketState,
+    tile: usize, styles: crate::codestream::ComponentCodingStyles,
+    events: Seq<Part2JpipSnapshotEvent>,
+    next: spec_fn(Seq<Part2JpipAutomaticPacket>, Seq<Part2JpipSnapshotEvent>) -> Part2JpipSnapshotRun<T>,
+)
+    ensures part2_jpip_snapshot_bind(part2_jpip_snapshot_acquired_packets(input, parts, transitions,
+        databins, order, initial, tile, styles, events), next)
+        == part2_jpip_snapshot_bind(part2_jpip_snapshot_lift(
+            part2_jpip_snapshot_parse_packets(input, parts, transitions, databins, order, 0, initial), events),
+            |state: Part2JpipSnapshotPacketState, events| {
+            part2_jpip_snapshot_bind(part2_jpip_snapshot_capacity(events, 4, tile, order.len() as usize),
+                |_unit: (), events| {
+                part2_jpip_snapshot_bind(part2_jpip_snapshot_lift(part2_jpip_snapshot_make_packets(
+                    input, tile as u16, styles, order, databins, state, 0, Seq::empty()), events), next)
+            })
+        }),
+{
+}
+
 pub(crate) open spec fn part2_jpip_snapshot_tile(
     input: Part2JpipSnapshotInput<'_>, count: u64, components: u16, tile: usize,
     layout: Part2DecoderLayoutInput, raw: Seq<Seq<u8>>, headers: Seq<Seq<Seq<u8>>>,
@@ -431,28 +496,20 @@ pub(crate) open spec fn part2_jpip_snapshot_tile(
                                             blocked: Seq::new(plan.precincts.len(), |_index: int| false),
                                             transition: 0, packets: 0, bytes: 0,
                                         };
-                                        let parsed = part2_jpip_snapshot_parse_packets(input, parts, transitions,
-                                            databins, order, 0, state);
-                                        part2_jpip_snapshot_bind(part2_jpip_snapshot_lift(parsed, events),
-                                            |state: Part2JpipSnapshotPacketState, events| {
-                                            part2_jpip_snapshot_bind(part2_jpip_snapshot_capacity(events, 4, tile,
-                                                order.len() as usize), |_unit: (), events| {
-                                                let packets = part2_jpip_snapshot_make_packets(input, tile as u16,
-                                                    first.component_coding_styles, order, databins, state, 0, Seq::empty());
-                                                part2_jpip_snapshot_bind(part2_jpip_snapshot_lift(packets, events),
-                                                    |packets: Seq<Part2JpipAutomaticPacket>, events| {
-                                                    if tile as nat >= headers.len() {
-                                                        part2_jpip_snapshot_lift(Err(part2_jpip_range_overflow(0)), events)
-                                                    } else {
-                                                        match part2_jpip_partition_automatic_tiles(
-                                                            headers[tile as int], parts, transitions, packets) {
-                                                            Err(error) => part2_jpip_snapshot_lift(Err(error), events),
-                                                            Ok(parts) => part2_jpip_snapshot_lift(
-                                                                Ok((parts, packets, first.coding_style.layers)), events),
-                                                        }
-                                                    }
-                                                })
-                                            })
+                                        part2_jpip_snapshot_bind(part2_jpip_snapshot_acquired_packets(
+                                            input, parts, transitions, databins, order, state, tile,
+                                            first.component_coding_styles, events),
+                                            |packets: Seq<Part2JpipAutomaticPacket>, events| {
+                                            if tile as nat >= headers.len() {
+                                                part2_jpip_snapshot_lift(Err(part2_jpip_range_overflow(0)), events)
+                                            } else {
+                                                match part2_jpip_partition_automatic_tiles(
+                                                    headers[tile as int], parts, transitions, packets) {
+                                                    Err(error) => part2_jpip_snapshot_lift(Err(error), events),
+                                                    Ok(parts) => part2_jpip_snapshot_lift(
+                                                        Ok((parts, packets, first.coding_style.layers)), events),
+                                                }
+                                            }
                                         })
                                     })
                                 }
