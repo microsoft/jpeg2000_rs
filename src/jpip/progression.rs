@@ -5,10 +5,11 @@ use super::{
     DatabinCache, DatabinId, DecodeError, EOC, JpipAutomaticProgressiveDecoder, JpipByteView,
     JpipMissingRange, JpipPacketSelection, JpipPrecinctCodestreamPlan, JpipProgressiveDecoder,
     JpipProgressiveStatus, JpipProgressiveUpdate, MalformedKind, Resource, ResourceLimits,
-    append_empty_packet, automatic_precinct_in_class, build_automatic_transition_template,
-    copy_bytes, jpip_resolution_selected, jpip_tile_selected, normalize_automatic_tile_headers,
-    normalize_main_header, parse_tile_part_transitions, partition_automatic_tile_parts,
-    siz_cardinality, validate_packet_component_selection, write_u32_be,
+    automatic_precinct_in_class, build_automatic_order, build_automatic_transition_template,
+    copy_bytes, decode_automatic_precinct, emit_automatic_tile_part, jpip_resolution_selected,
+    jpip_tile_selected, normalize_automatic_tile_headers, normalize_main_header,
+    parse_tile_part_transitions, partition_automatic_tile_parts, siz_cardinality,
+    validate_packet_component_selection,
 };
 #[cfg(verus_keep_ghost)]
 use super::{
@@ -506,69 +507,7 @@ impl DatabinCache {
                     MalformedKind::InvalidProgressionOrderChange,
                 ));
             }
-            let mut ordinal = 0_u64;
-            let mut remaining_packets = limits.maximum_work_units();
-            #[cfg_attr(
-                verus_keep_ghost,
-                verus_spec(decreases remaining_packets,)
-            )]
-            while let Some(coordinate) = iterator.next_packet()? {
-                if remaining_packets == 0 {
-                    return Err(DecodeError::malformed(
-                        0,
-                        MalformedKind::InvalidProgressionOrderChange,
-                    ));
-                }
-                remaining_packets -= 1;
-                let execution = plan.grid().precinct_index(
-                    coordinate.component,
-                    coordinate.resolution,
-                    coordinate.precinct,
-                )?;
-                let sequence = u16::try_from(ordinal & u64::from(u16::MAX))
-                    .map_err(|_| DecodeError::malformed(0, MalformedKind::ArithmeticOverflow))?;
-                #[cfg(verus_keep_ghost)]
-                proof_decl! {
-                    let ghost before_ordinals = ordinals@.map_values(|row: Vec<Option<u16>>| row@);
-                }
-                let layer_slot = match ordinals.get_mut(execution) {
-                    Some(layers) => layers.get_mut(usize::from(coordinate.layer)),
-                    None => None,
-                }
-                .ok_or_else(|| {
-                    DecodeError::malformed(0, MalformedKind::InvalidProgressionOrderChange)
-                })?;
-                #[cfg(verus_keep_ghost)]
-                proof! {
-                    assert((execution as nat) < before_ordinals.len());
-                    assert((coordinate.layer as nat) < before_ordinals[execution as int].len());
-                    assert(*layer_slot == before_ordinals[execution as int][coordinate.layer as int]);
-                }
-                if layer_slot.is_some() {
-                    return Err(DecodeError::malformed(
-                        0,
-                        MalformedKind::InvalidProgressionOrderChange,
-                    ));
-                }
-                #[cfg(verus_keep_ghost)]
-                proof! {
-                    assert(before_ordinals[execution as int][coordinate.layer as int].is_none());
-                }
-                *layer_slot = Some(sequence);
-                #[cfg(verus_keep_ghost)]
-                proof! {
-                    assert(ordinals@.map_values(|row: Vec<Option<u16>>| row@)
-                        == before_ordinals.update(execution as int,
-                            before_ordinals[execution as int].update(coordinate.layer as int, Some(sequence))));
-                    assert(crate::specs::part2_jpip_ordinal_matrix_write(before_ordinals,
-                        ordinals@.map_values(|row: Vec<Option<u16>>| row@),
-                        execution, coordinate.layer, sequence));
-                }
-                order.push((coordinate, execution));
-                ordinal = ordinal
-                    .checked_add(1)
-                    .ok_or_else(|| DecodeError::malformed(0, MalformedKind::ArithmeticOverflow))?;
-            }
+            build_automatic_order(&plan, &mut iterator, &mut ordinals, &mut order, limits)?;
 
             let mut parsed = vec![vec![None; layer_count]; precinct_count];
             let mut offsets = vec![0_u64; precinct_count];
@@ -646,16 +585,14 @@ impl DatabinCache {
                 }
                 let sequence = u16::try_from(order_index & usize::from(u16::MAX))
                     .map_err(|_| DecodeError::malformed(0, MalformedKind::ArithmeticOverflow))?;
-                let precinct_decoder = plan
-                    .precincts_mut()
-                    .get_mut(execution)
-                    .ok_or_else(|| DecodeError::malformed(0, MalformedKind::ArithmeticOverflow))?;
-                match crate::packet::decode_jpip_precinct_packet(
+                match decode_automatic_precinct(
+                    &mut plan,
+                    execution,
                     state,
-                    &prefix[start..],
+                    &prefix,
+                    start,
                     sequence,
                     coordinate.layer,
-                    precinct_decoder,
                     limits,
                 ) {
                     Ok(consumed) => {
@@ -972,56 +909,7 @@ impl DatabinCache {
             )]
             while part_index < tile.parts.len() {
                 let part = &tile.parts[part_index];
-                let tile_start = bytes.len();
-                bytes.extend_from_slice(&part.header);
-                let mut packet_index = 0_usize;
-                #[cfg_attr(
-                    verus_keep_ghost,
-                    verus_spec(
-                        invariant packet_index <= part.packets.len(),
-                        decreases part.packets.len() - packet_index,
-                    )
-                )]
-                while packet_index < part.packets.len() {
-                    let packet = &part.packets[packet_index];
-                    let layer = packet.layer;
-                    if packet.required && layer < available_layers {
-                        let packet_bytes = packet.bytes.as_ref().ok_or_else(|| {
-                            DecodeError::malformed(
-                                packet.next_offset,
-                                MalformedKind::MissingRequiredStructure,
-                            )
-                        })?;
-                        bytes.extend_from_slice(packet_bytes);
-                    } else {
-                        #[cfg(verus_keep_ghost)]
-                        proof_decl! { let ghost before_empty = bytes@; }
-                        append_empty_packet(&mut bytes, part.sop, part.eph, packet.ordinal)?;
-                        #[cfg(verus_keep_ghost)]
-                        proof! {
-                            assert((Ok(()), bytes@) == crate::specs::part2_jpip_append_empty_packet(
-                                before_empty, part.sop, part.eph, packet.ordinal));
-                        }
-                    }
-                    packet_index += 1;
-                }
-                let tile_length = bytes
-                    .len()
-                    .checked_sub(tile_start)
-                    .ok_or_else(|| DecodeError::malformed(0, MalformedKind::ArithmeticOverflow))?;
-                let tile_length = u32::try_from(tile_length)
-                    .map_err(|_| DecodeError::malformed(0, MalformedKind::ArithmeticOverflow))?;
-                let length_position = tile_start
-                    .checked_add(6)
-                    .ok_or_else(|| DecodeError::malformed(0, MalformedKind::ArithmeticOverflow))?;
-                #[cfg(verus_keep_ghost)]
-                proof_decl! { let ghost before_psot = bytes@; }
-                write_u32_be(&mut bytes, length_position, tile_length)?;
-                #[cfg(verus_keep_ghost)]
-                proof! {
-                    assert((Ok(()), bytes@) == crate::specs::part2_jpip_write_u32(
-                        before_psot, length_position, tile_length));
-                }
+                emit_automatic_tile_part(&mut bytes, part, available_layers)?;
                 part_index += 1;
             }
             tile_packet_index += 1;

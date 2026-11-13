@@ -3528,6 +3528,37 @@ _RAW_CONTAINER_COLOR_TESTS = {("src/decode/container_image_result_tests.rs", "ac
     "preserves_header_mapping_before_color_admission",
     "preserves_raw_inspection_selection_packet_and_profile_priority",
 )} | {("src/decode/tests.rs", "sarah_dev_457acab2c3_later_jp2_streams_do_not_change_first_display")}
+_JPIP_PHASE_ENTRY = "part9-complete-nonowning-automatic-phase-results"
+_JPIP_PHASE_CONTRACTS = {
+    ("src/jpip/automatic_phases.rs", "write_automatic_ordinal"): (
+        "part2_jpip_ordinal_cell_phase", r"\1", r"\*\s*" + _coverage_call("final", "slot"),
+        r"\*\s*" + _coverage_call("old", "slot") + r"\s*,\s*sequence",
+    ),
+    ("src/jpip/automatic_phases.rs", "build_automatic_order"): (
+        "part2_jpip_order_phase", r"\1",
+        _coverage_call("crate::packet::progression_packet_iterator_view", _coverage_call("final", "iterator"))
+        + r"\s*,\s*" + _coverage_call("final", "ordinals")
+        + r"@\s*\.\s*map_values\s*\(\s*\|row:\s*Vec<Option<u16>>\|\s*row@\s*\)"
+        + r"\s*,\s*" + _coverage_call("final", "order") + r"@",
+        _coverage_call("crate::decode::progression_plan_view", "plan") + r"\.grid\s*,\s*"
+        + _coverage_call("crate::packet::progression_packet_iterator_view", _coverage_call("old", "iterator"))
+        + r"\s*,\s*" + _coverage_call("old", "ordinals")
+        + r"@\s*\.\s*map_values\s*\(\s*\|row:\s*Vec<Option<u16>>\|\s*row@\s*\)"
+        + r"\s*,\s*" + _coverage_call("old", "order") + r"@\s*,\s*0\s*,\s*"
+        + _coverage_call("crate::limits::resource_work_limit", "limits"),
+    ),
+    ("src/jpip/automatic_phases.rs", "decode_automatic_precinct"): (
+        "part2_jpip_precinct_phase", r"\1",
+        _coverage_call("crate::decode::progression_plan_view", _coverage_call("final", "plan")),
+        _coverage_call("crate::decode::progression_plan_view", _coverage_call("old", "plan"))
+        + r"\s*,\s*execution\s*,\s*template\s*,\s*prefix@\s*,\s*start\s*,\s*sequence\s*,\s*layer\s*,\s*limits",
+    ),
+    ("src/jpip/automatic_phases.rs", "emit_automatic_tile_part"): (
+        "part2_jpip_emit_part_phase", r"\1", _coverage_call("final", "bytes") + r"@",
+        _coverage_call("old", "bytes") + r"@\s*,\s*"
+        + _coverage_call("super::jpip_automatic_tile_part_view", "part") + r"\s*,\s*available_layers",
+    ),
+}
 _JPIP_BYTE_RESULT_ENTRY = "part9-complete-native-word-template-results"
 _JPIP_BYTE_RESULT_CONTRACTS = {
     ("src/jpip/byte_io.rs", "write_u32_be"): (
@@ -4785,6 +4816,43 @@ def validate_normative_coverage(
     ids: set[str] = set()
     contract_functions: set[tuple[str, str]] = set()
     for entry in coverage["requirements"]:
+        if entry["id"] == _JPIP_PHASE_ENTRY:
+            if {(ref["path"], ref["symbol"]) for ref in entry["contract_refs"]} != set(_JPIP_PHASE_CONTRACTS):
+                raise ValueError("automatic phase Results require all complete native error/state contracts")
+            model_source = source_text((ROOT / "specs/jpip_phases.rs").resolve())
+            for name, fragments in {
+                "part2_jpip_ordinal_cell_phase": ("before.is_some()", ")), before)", "(Ok(()), Some(sequence))"),
+                "part2_jpip_order_phase": (
+                    "part1_progression_iterator_next(iterator)",
+                    "match step.0 { Err(error) => (Err(error), step.1, ordinals, order)",
+                    "Ok(None) => (Ok(()), step.1, ordinals, order)", "remaining == 0",
+                    "coordinate.layer as nat >= ordinals[execution as int].len()",
+                    "ordinals[execution as int][coordinate.layer as int].is_some()",
+                    "let order = order.push((coordinate, execution))", "ordinal == u64::MAX",
+                    "(Err(part2_jpip_range_overflow(0)), step.1, ordinals, order)",
+                ),
+                "part2_jpip_precinct_phase": (
+                    "execution as nat >= plan.precincts.len()", "(Err(part2_jpip_range_overflow(0)), plan)",
+                    "part1_jpip_precinct_packet(plan.precincts[execution as int], template,",
+                    "prefix.subrange(start as int, prefix.len() as int)", "precincts: plan.precincts.update(execution as int, step.1), ..plan",
+                ),
+                "part2_jpip_emit_packet_phase": (
+                    "packet.3 && packet.5 < available", "MalformedKind::MissingRequiredStructure)), before)",
+                    "(Ok(()), before + bytes)", "part2_jpip_empty_packet_bytes(sop, eph, packet.4)",
+                ),
+                "part2_jpip_emit_packets_phase": (
+                    "Err(error) => (Err(error), step.1)",
+                    "part2_jpip_emit_packets_phase(part, available, packet + 1, step.1)",
+                ),
+                "part2_jpip_emit_part_patch": ("(Err(part2_jpip_range_overflow(0)), before)",
+                    "part2_jpip_write_u32(before, (start as nat + 6) as usize, (before.len() - start as nat) as u32)"),
+                "part2_jpip_emit_part_phase": ("before + part.0", "Err(error) => (Err(error), packets.1)",
+                    "part2_jpip_emit_part_patch(packets.1, before.len() as usize)"),
+            }.items():
+                body = _coverage_spec_function_body(model_source, name)
+                if {"path": "specs/jpip_phases.rs", "symbol": name} not in entry["spec_refs"] \
+                        or body is None or any("".join(item.split()) not in "".join(body.split()) for item in fragments):
+                    raise ValueError("automatic phase Results require exact partial-error state and ordered native effects")
         if entry["id"] == _JPIP_BYTE_RESULT_ENTRY:
             contracts = set(_JPIP_BYTE_RESULT_CONTRACTS)
             consumer = ("src/jpip/progression.rs", "DatabinCache::build_automatic_snapshot")
@@ -4811,6 +4879,14 @@ def validate_normative_coverage(
             for fragment in (
                 "part2_jpip_transition_template(normalized_main@,",
                 "tile@.map_values(|header: Vec<u8>| header@)), limits) == Ok(template@)",
+                "emit_automatic_tile_part(&mut bytes, part, available_layers)?",
+            ):
+                if snapshot is None or "".join(fragment.split()) not in "".join(snapshot.split()):
+                    raise ValueError("JPIP word/template Results require the actual snapshot byte-frame cutpoints")
+            phase_source = source_text((ROOT / "src/jpip/automatic_phases.rs").resolve())
+            emitter = _coverage_function_body(
+                phase_source, _coverage_function_header(phase_source, "emit_automatic_tile_part"))
+            for fragment in (
                 "let ghost before_empty = bytes@",
                 "(Ok(()), bytes@) == crate::specs::part2_jpip_append_empty_packet("
                 "before_empty, part.sop, part.eph, packet.ordinal)",
@@ -4818,7 +4894,7 @@ def validate_normative_coverage(
                 "(Ok(()), bytes@) == crate::specs::part2_jpip_write_u32("
                 "before_psot, length_position, tile_length)",
             ):
-                if snapshot is None or "".join(fragment.split()) not in "".join(snapshot.split()):
+                if emitter is None or "".join(fragment.split()) not in "".join(emitter.split()):
                     raise ValueError("JPIP word/template Results require the actual snapshot byte-frame cutpoints")
         if entry["id"] == _JPIP_AUTOMATIC_INPUT_ENTRY:
             contracts = set(_JPIP_AUTOMATIC_INPUT_CONTRACTS) | {
@@ -4967,20 +5043,31 @@ def validate_normative_coverage(
             body = _coverage_function_body(
                 source, _coverage_function_header(source, "DatabinCache::build_automatic_snapshot"),
             )
+            phase_source = source_text((ROOT / "src/jpip/automatic_phases.rs").resolve())
+            phase = _coverage_function_body(
+                phase_source, _coverage_function_header(phase_source, "build_automatic_order"))
+            cell = _coverage_function_body(
+                phase_source, _coverage_function_header(phase_source, "write_automatic_ordinal"))
+            if body is None or "build_automatic_order(&plan, &mut iterator, &mut ordinals, &mut order, limits)?" not in body:
+                raise ValueError("ordinal scratch frame requires its actual non-owning phase consumer")
+            if cell is None or any("".join(item.split()) not in "".join(cell.split()) for item in (
+                "if slot.is_some() { return Err(DecodeError::malformed(0, MalformedKind::InvalidProgressionOrderChange, )); }",
+                "*slot = Some(sequence)",
+            )):
+                raise ValueError("ordinal scratch frame requires its exact checked cell error/update")
             native_fragments = (
                 "let ghost before_ordinals = ordinals@.map_values(|row: Vec<Option<u16>>| row@)",
                 "let layer_slot = match ordinals.get_mut(execution) { "
                 "Some(layers) => layers.get_mut(usize::from(coordinate.layer)), None => None, }",
                 "assert(*layer_slot == before_ordinals[execution as int][coordinate.layer as int])",
-                "if layer_slot.is_some() { return Err(DecodeError::malformed("
-                "0, MalformedKind::InvalidProgressionOrderChange, )); }",
-                "*layer_slot = Some(sequence)",
+                "match write_automatic_ordinal(layer_slot, sequence)",
                 "assert(crate::specs::part2_jpip_ordinal_matrix_write(before_ordinals, "
                 "ordinals@.map_values(|row: Vec<Option<u16>>| row@), execution, coordinate.layer, sequence))",
                 "order.push((coordinate, execution))",
             )
             compact = "".join(body.split()) if body is not None else ""
-            positions = [compact.find("".join(fragment.split())) for fragment in native_fragments]
+            phase_compact = "".join(phase.split()) if phase is not None else ""
+            positions = [phase_compact.find("".join(fragment.split())) for fragment in native_fragments]
             if any(position < 0 for position in positions) or positions != sorted(positions):
                 raise ValueError("ordinal scratch frame requires the original lookup/error/duplicate/write/order handoff")
             model = source_text((ROOT / "specs/jpip_progressive.rs").resolve())
@@ -9046,6 +9133,8 @@ def validate_normative_coverage(
                     if entry["id"] == _JPIP_PROGRESSIVE_ENTRY else None)
                 or (_JPIP_TRANSITION_CONTRACTS.get((reference["path"], reference["symbol"]))
                     if entry["id"] == _JPIP_TRANSITION_ENTRY else None)
+                or (_JPIP_PHASE_CONTRACTS.get((reference["path"], reference["symbol"]))
+                    if entry["id"] == _JPIP_PHASE_ENTRY else None)
                 or (_JPIP_BYTE_RESULT_CONTRACTS.get((reference["path"], reference["symbol"]))
                     if entry["id"] == _JPIP_BYTE_RESULT_ENTRY else None)
                 or ((_JPIP_AUTOMATIC_INPUT_CONTRACTS.get((reference["path"], reference["symbol"]))
@@ -9661,7 +9750,11 @@ def validate_normative_coverage(
             )
             header_arguments_bound = (
                 header_contract is None
-                or (re.search(r"\brequires\b", contract) is None
+                or ((re.search(r"\brequires\b", contract) is None
+                     or (entry["id"] == _JPIP_PHASE_ENTRY
+                         and reference["symbol"] == "decode_automatic_precinct"
+                         and len(re.findall(r"\brequires\b", contract)) == 1
+                         and re.search(r"\brequires\s+start\s*<=\s*prefix\.len\(\)\s*,\s*ensures\b", contract)))
                     and _coverage_result_arguments(contract, named_result, header_contract[0], header_contract[3]))
             )
             statistic_arguments = {

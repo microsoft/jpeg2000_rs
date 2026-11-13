@@ -1240,6 +1240,202 @@ fn automatic_header_normalization_removes_reframed_markers() {
 }
 
 #[test]
+fn automatic_precinct_phase_preserves_lookup_and_truncation_error_frames_then_recovers() {
+    let bytes = decodable_codestream();
+    let limits = ResourceLimits::default();
+    let layout = crate::codestream::parse_layout(&bytes, &limits).unwrap();
+    let part = &layout.tile_parts[0];
+    let make_plan = || {
+        crate::decode::plan_progression_tile_at_with_component_overrides(
+            &layout.info.image_size,
+            0,
+            part.coding_style,
+            &part.component_coding_styles,
+            &part.component_quantizations,
+            &part.roi_shifts,
+            &limits,
+        )
+        .unwrap()
+    };
+    let mut plan = make_plan();
+    let owner = plan.precincts().as_ptr();
+    let coordinate = plan.precincts()[0].coordinate();
+    let states = plan.precincts()[0].states().to_vec();
+    let prefix = Vec::new();
+    assert_eq!(
+        decode_automatic_precinct(&mut plan, usize::MAX, part, &prefix, 0, 0, 0, &limits),
+        Err(DecodeError::malformed(0, MalformedKind::ArithmeticOverflow))
+    );
+    assert_eq!(plan.precincts().as_ptr(), owner);
+    assert_eq!(plan.precincts()[0].states(), states);
+    assert_eq!(
+        decode_automatic_precinct(&mut plan, 0, part, &prefix, 0, 0, 0, &limits),
+        Err(DecodeError::malformed(0, MalformedKind::Truncated))
+    );
+    assert_eq!(plan.precincts().as_ptr(), owner);
+    assert_eq!(plan.precincts()[0].coordinate(), coordinate);
+    assert_eq!(plan.precincts()[0].states(), states);
+    let mut fresh = make_plan();
+    let prefix = vec![0];
+    assert_eq!(
+        decode_automatic_precinct(&mut plan, 0, part, &prefix, 0, 0, 0, &limits),
+        Ok(1)
+    );
+    assert_eq!(
+        decode_automatic_precinct(&mut fresh, 0, part, &prefix, 0, 0, 0, &limits),
+        Ok(1)
+    );
+    assert_eq!(plan.precincts()[0].states(), fresh.precincts()[0].states());
+}
+
+#[test]
+fn automatic_emission_phase_retains_partial_payload_errors_before_psot_and_exact_empty_framing() {
+    let header = vec![0xff, 0x90, 0, 10, 0, 0, 9, 8, 7, 6, 0, 1, 0xff, 0x93];
+    let mut part = AutomaticTilePart {
+        header,
+        packets: vec![
+            AutomaticPacket {
+                databin: id(0, 0),
+                bytes: Some(vec![19, 20]),
+                next_offset: 2,
+                required: true,
+                ordinal: 0,
+                layer: 0,
+            },
+            AutomaticPacket {
+                databin: id(0, 1),
+                bytes: None,
+                next_offset: 13,
+                required: true,
+                ordinal: 0x1234,
+                layer: 1,
+            },
+        ],
+        sop: true,
+        eph: true,
+    };
+    let header_owner = (part.header.as_ptr(), part.header.capacity());
+    let payload_owner = part.packets[0].bytes.as_ref().unwrap().as_ptr();
+    let mut bytes = vec![31, 32];
+    let mut partial = bytes.clone();
+    partial.extend_from_slice(&part.header);
+    partial.extend_from_slice(&[19, 20]);
+    assert_eq!(
+        emit_automatic_tile_part(&mut bytes, &part, 2),
+        Err(DecodeError::malformed(
+            13,
+            MalformedKind::MissingRequiredStructure
+        ))
+    );
+    assert_eq!(bytes, partial);
+    assert_eq!(&bytes[8..12], &[9, 8, 7, 6]);
+    assert_eq!((part.header.as_ptr(), part.header.capacity()), header_owner);
+    assert_eq!(
+        part.packets[0].bytes.as_ref().unwrap().as_ptr(),
+        payload_owner
+    );
+
+    let mut bytes = vec![31, 32];
+    let mut expected = partial;
+    expected.extend_from_slice(&[0xff, 0x91, 0, 4, 0x12, 0x34, 0, 0xff, 0x92]);
+    let length = u32::try_from(expected.len() - 2).unwrap();
+    expected[8..12].copy_from_slice(&length.to_be_bytes());
+    assert_eq!(emit_automatic_tile_part(&mut bytes, &part, 1), Ok(()));
+    assert_eq!(bytes, expected);
+
+    part.header = vec![7; 9];
+    part.packets.clear();
+    let mut bytes = vec![31, 32];
+    assert_eq!(
+        emit_automatic_tile_part(&mut bytes, &part, 1),
+        Err(DecodeError::malformed(8, MalformedKind::Truncated))
+    );
+    assert_eq!(bytes, [vec![31, 32], vec![7; 9]].concat());
+}
+
+#[test]
+fn automatic_order_phase_preserves_exact_partial_error_states_and_next_call_order() {
+    let mut bytes = decodable_codestream();
+    let cod = bytes
+        .windows(2)
+        .position(|value| value == [0xff, 0x52])
+        .unwrap();
+    bytes[cod + 6..cod + 8].copy_from_slice(&2_u16.to_be_bytes());
+    let limits = ResourceLimits::default();
+    let layout = crate::codestream::parse_layout(&bytes, &limits).unwrap();
+    let part = &layout.tile_parts[0];
+    let plan = crate::decode::plan_progression_tile_at_with_component_overrides(
+        &layout.info.image_size,
+        0,
+        part.coding_style,
+        &part.component_coding_styles,
+        &part.component_quantizations,
+        &part.roi_shifts,
+        &limits,
+    )
+    .unwrap();
+    assert_eq!(plan.precincts().len(), 1);
+    let make_iterator = || {
+        crate::packet::ProgressionPacketIterator::new(
+            plan.grid(),
+            part.coding_style.progression_order,
+            &part.progression_changes,
+            &limits,
+        )
+        .unwrap()
+    };
+    let error = DecodeError::malformed(0, MalformedKind::InvalidProgressionOrderChange);
+    let mut iterator = make_iterator();
+    let mut ordinals = vec![vec![None, Some(91)]];
+    let mut order = Vec::with_capacity(2);
+    let owner = (
+        order.as_ptr(),
+        order.capacity(),
+        ordinals.as_ptr(),
+        ordinals[0].as_ptr(),
+    );
+    assert_eq!(
+        build_automatic_order(&plan, &mut iterator, &mut ordinals, &mut order, &limits),
+        Err(error)
+    );
+    assert_eq!(iterator.emitted(), 2);
+    assert_eq!(ordinals, vec![vec![Some(0), Some(91)]]);
+    assert_eq!(order.len(), 1);
+    assert_eq!((order[0].0.layer, order[0].1), (0, 0));
+    assert_eq!(
+        (
+            order.as_ptr(),
+            order.capacity(),
+            ordinals.as_ptr(),
+            ordinals[0].as_ptr()
+        ),
+        owner
+    );
+
+    let mut iterator = make_iterator();
+    let mut ordinals = vec![vec![None; 2]];
+    let mut order = Vec::new();
+    let small = limits.with_maximum_work_units(1).unwrap();
+    assert_eq!(
+        build_automatic_order(&plan, &mut iterator, &mut ordinals, &mut order, &small),
+        Err(error)
+    );
+    assert_eq!(iterator.emitted(), 2);
+    assert_eq!(ordinals, vec![vec![Some(0), None]]);
+    assert_eq!(order.len(), 1);
+
+    let mut iterator = make_iterator();
+    let mut ordinals = Vec::new();
+    let mut order = Vec::new();
+    assert_eq!(
+        build_automatic_order(&plan, &mut iterator, &mut ordinals, &mut order, &limits),
+        Err(error)
+    );
+    assert_eq!(iterator.emitted(), 1);
+    assert!(ordinals.is_empty() && order.is_empty());
+}
+
+#[test]
 fn automatic_mapping_supports_progressions_poc_sop_eph_and_reframed_headers() {
     let limits = ResourceLimits::default();
     for progression in 0_u8..=4 {

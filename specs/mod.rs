@@ -71,6 +71,8 @@ mod jpip_progressive;
 pub use jpip_progressive::*;
 mod jpip_byte_writes;
 pub use jpip_byte_writes::*;
+mod jpip_phases;
+pub use jpip_phases::*;
 mod jpip_transitions;
 pub use jpip_transitions::*;
 mod jpip_normalization;

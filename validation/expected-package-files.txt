@@ -46,6 +46,7 @@ specs/jpip_fragment.rs
 specs/jpip_layout.rs
 specs/jpip_message.rs
 specs/jpip_normalization.rs
+specs/jpip_phases.rs
 specs/jpip_planned_packets.rs
 specs/jpip_progressive.rs
 specs/jpip_ranges.rs
@@ -166,6 +167,7 @@ src/jp2/proof_support.rs
 src/jp2/tests.rs
 src/jp2.rs
 src/jpip/automatic_headers.rs
+src/jpip/automatic_phases.rs
 src/jpip/byte_io.rs
 src/jpip/cache.rs
 src/jpip/cache_entry_result_tests.rs
