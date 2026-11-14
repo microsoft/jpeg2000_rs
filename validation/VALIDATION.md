@@ -1110,8 +1110,21 @@ complete input-derived Result/normal model; actual component geometry, plans,
 snapshots and decode/public continuations bind precise allocation prefixes.
 Bounded controls retain empty/overflow/limit priority, first/later refusal,
 readonly owners and raw/selected/container restoration. Broader planning and
-selected tile-metadata owners, entropy/image buffers and existing-buffer
-growth remain separate.
+entropy/image buffers and existing-buffer growth remain separate.
+The selected tile-resolution metadata owner is now fallible at its original
+frontier after the `Some(discard)` branch and before per-component style/
+reduction/transform/level checks. `None` retains its allocation-free MCT style
+admission and empty output; zero components consumes no response. Distinct
+`TileMetadataCapacity` events with `SelectedResolutions` source contexts/counts
+cannot alias geometry, grid, parse or later packet requests. The preceding
+tile-part/MCT-identity/kernel admission remains earlier, and constructing the
+metadata record remains an allocation-free move. Input-derived metadata and
+after-metadata runs bind exact real planning/decode/public continuations,
+including partial prior owners/counters, first errors and tails. New bounded
+controls cover first/later refusal, None/empty/selection/overflow/style
+precedence, pointer/owner preservation, later work rejection and raw selected/
+container restore. Existing unselected projections remain allocation-free at
+this metadata frontier; broader subband/precinct/planning owners stay separate.
 Successful reservation relies on the documented standard-library boundary,
 not a physical-capacity theorem inferred from sequence models.
 Same-file links are checked inside another listed, formatted function body;

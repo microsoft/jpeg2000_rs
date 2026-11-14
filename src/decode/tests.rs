@@ -5350,7 +5350,7 @@ fn packed_storage_raw_container_selected_and_reconstruction_refuse_only_after_pa
         Err(DecodeError::AllocationFailed)
     ));
     assert!(matches!(
-        crate::allocation::with_refusal(16, || decode_codestream_selected(
+        crate::allocation::with_refusal(17, || decode_codestream_selected(
             &bytes, &options, &selection
         )),
         Err(DecodeError::AllocationFailed)
@@ -5386,7 +5386,7 @@ fn preparation_storage_public_outer_and_bitmap_refusal_restore_raw_and_container
             Err(DecodeError::AllocationFailed)
         ));
         assert!(matches!(
-            crate::allocation::with_refusal(after, || decode_codestream_selected(
+            crate::allocation::with_refusal(after + 1, || decode_codestream_selected(
                 &bytes, &options, &selection
             )),
             Err(DecodeError::AllocationFailed)
@@ -5433,7 +5433,7 @@ fn grid_storage_raw_selected_container_refusal_preserves_parse_and_restores() {
         Err(DecodeError::AllocationFailed)
     ));
     assert!(matches!(
-        crate::allocation::with_refusal(14, || decode_codestream_selected(
+        crate::allocation::with_refusal(15, || decode_codestream_selected(
             &bytes, &options, &selection
         )),
         Err(DecodeError::AllocationFailed)
@@ -5624,7 +5624,7 @@ fn geometry_storage_public_raw_selected_container_roles_restore() {
             Err(DecodeError::AllocationFailed)
         ));
         assert!(matches!(
-            crate::allocation::with_refusal(after, || decode_codestream_selected(
+            crate::allocation::with_refusal(after + 1, || decode_codestream_selected(
                 &bytes, &options, &selection
             )),
             Err(DecodeError::AllocationFailed)
@@ -5640,6 +5640,196 @@ fn geometry_storage_public_raw_selected_container_roles_restore() {
         expected
     );
     assert_eq!(decode_jp2(&jp2, &options).unwrap(), expected);
+    assert_eq!(bytes, source);
+}
+
+fn tile_metadata_storage_fixture() -> Vec<u8> {
+    let mut bytes = prepared_codestream(1, 1, 1, &[0, 0x40], &[0]);
+    let cod = bytes
+        .windows(2)
+        .position(|pair| pair == [0xff, 0x52])
+        .unwrap();
+    bytes[cod + 9] = 0;
+    bytes
+}
+
+#[test]
+fn tile_metadata_storage_selected_first_later_empty_none_and_restore() {
+    let bytes = tile_metadata_storage_fixture();
+    let limits = ResourceLimits::default();
+    let layout = parse_layout(&bytes, &limits).unwrap();
+    let main = layout.info.coding_style;
+    let styles = ComponentCodingStyles::uniform(2, main).unwrap();
+    let source = format!("{styles:?}");
+    assert_eq!(
+        crate::allocation::with_refusal(0, || prepare_tile_component_resolutions(
+            &styles,
+            main,
+            2,
+            Some(0)
+        )),
+        Err(DecodeError::AllocationFailed)
+    );
+    crate::allocation::with_refusal(1, || {
+        let prior = prepare_tile_component_resolutions(&styles, main, 2, Some(0)).unwrap();
+        assert_eq!(
+            prepare_tile_component_resolutions(&styles, main, 2, Some(0)),
+            Err(DecodeError::AllocationFailed)
+        );
+        assert_eq!(prior, [1, 1]);
+    });
+    crate::allocation::with_refusal(0, || {
+        assert!(
+            prepare_tile_component_resolutions(&styles, main, 2, None)
+                .unwrap()
+                .is_empty()
+        );
+        assert!(
+            prepare_tile_component_resolutions(&styles, main, 0, Some(u8::MAX))
+                .unwrap()
+                .is_empty()
+        );
+        assert_eq!(
+            prepare_tile_component_resolutions(&styles, main, 2, Some(0)),
+            Err(DecodeError::AllocationFailed)
+        );
+    });
+    assert_eq!(
+        prepare_tile_component_resolutions(&styles, main, 2, Some(0)).unwrap(),
+        [1, 1]
+    );
+    assert_eq!(format!("{styles:?}"), source);
+}
+
+#[test]
+fn tile_metadata_storage_preserves_admission_owner_and_style_error_order() {
+    let bytes = tile_metadata_storage_fixture();
+    let limits = ResourceLimits::default();
+    let layout = parse_layout(&bytes, &limits).unwrap();
+    let mut invalid = layout.tile_parts[0].clone();
+    invalid.coding_style.transform = WaveletTransform::Arbitrary(u8::MAX);
+    let source = format!("{:?}", layout.tile_parts);
+    crate::allocation::with_refusal(0, || {
+        assert!(matches!(
+            prepare_tile_decode_metadata(&[], 1, Some(0)),
+            Err(DecodeError::MalformedInput {
+                kind: MalformedKind::InvalidTilePart,
+                ..
+            })
+        ));
+        assert!(matches!(
+            prepare_tile_decode_metadata(&[invalid], 1, Some(0)),
+            Err(DecodeError::MalformedInput {
+                kind: MalformedKind::MissingRequiredStructure,
+                ..
+            })
+        ));
+        assert!(matches!(
+            prepare_tile_decode_metadata(&layout.tile_parts, 1, Some(0)),
+            Err(DecodeError::AllocationFailed)
+        ));
+    });
+    let styles = &layout.tile_parts[0].component_coding_styles;
+    let main = layout.tile_parts[0].coding_style;
+    crate::allocation::with_refusal(1, || {
+        assert!(matches!(
+            prepare_tile_component_resolutions(styles, main, 1, Some(u8::MAX)),
+            Err(DecodeError::InvalidSelection {
+                reason: SelectionError::ReductionTooLarge
+            })
+        ));
+        assert_eq!(
+            crate::allocation::empty_with_capacity::<u8>(1),
+            Err(DecodeError::AllocationFailed)
+        );
+    });
+    let mut overflowing = main;
+    overflowing.decomposition_levels = u8::MAX;
+    let overflow_styles = ComponentCodingStyles::uniform(1, overflowing).unwrap();
+    assert!(matches!(
+        prepare_tile_component_resolutions(&overflow_styles, overflowing, 1, Some(0)),
+        Err(DecodeError::InvalidSelection {
+            reason: SelectionError::ReductionTooLarge
+        })
+    ));
+    let metadata = prepare_tile_decode_metadata(&layout.tile_parts, 1, Some(0)).unwrap();
+    assert!(core::ptr::eq(metadata.first, &layout.tile_parts[0]));
+    assert_eq!(metadata.resolution_counts, [1]);
+    assert_eq!(format!("{:?}", layout.tile_parts), source);
+}
+
+#[test]
+fn tile_metadata_storage_selected_work_error_retains_exact_prior_requests() {
+    let bytes = tile_metadata_storage_fixture();
+    let limits = ResourceLimits::default();
+    let layout = parse_layout(&bytes, &limits).unwrap();
+    let tight = limits.with_maximum_work_units(0).unwrap();
+    crate::allocation::with_refusal(5, || {
+        assert!(matches!(
+            decode_tile_parts_at(
+                &layout.info.image_size,
+                0,
+                &layout.tile_parts,
+                &layout.info.profile,
+                Some(0),
+                &tight,
+                Vec::new(),
+                (0, 0, 0),
+                0
+            ),
+            Err(DecodeError::LimitExceeded {
+                resource: Resource::WorkUnits,
+                ..
+            })
+        ));
+        assert_eq!(
+            crate::allocation::empty_with_capacity::<u8>(1),
+            Err(DecodeError::AllocationFailed)
+        );
+    });
+    assert!(
+        decode_tile_parts_at(
+            &layout.info.image_size,
+            0,
+            &layout.tile_parts,
+            &layout.info.profile,
+            Some(0),
+            &limits,
+            Vec::new(),
+            (0, 0, 0),
+            0
+        )
+        .is_ok()
+    );
+}
+
+#[test]
+fn tile_metadata_storage_raw_selected_container_refusal_and_restore() {
+    let bytes = tile_metadata_storage_fixture();
+    let options = DecodeOptions::default();
+    let selection = DecodeSelection::full_image();
+    let jp2 = jp2_for_codestream(&bytes, 1, 1);
+    let source = bytes.clone();
+    crate::allocation::with_refusal(11, || parse_layout(&bytes, options.limits())).unwrap();
+    assert!(matches!(
+        crate::allocation::with_refusal(11, || decode_codestream_selected(
+            &bytes, &options, &selection
+        )),
+        Err(DecodeError::AllocationFailed)
+    ));
+    assert!(matches!(
+        crate::allocation::with_refusal(23, || decode_jp2_selected(&jp2, &options, &selection)),
+        Err(DecodeError::AllocationFailed)
+    ));
+    let expected = decode_codestream(&bytes, &options).unwrap();
+    assert_eq!(
+        decode_codestream_selected(&bytes, &options, &selection).unwrap(),
+        expected
+    );
+    assert_eq!(
+        decode_jp2_selected(&jp2, &options, &selection).unwrap(),
+        expected
+    );
     assert_eq!(bytes, source);
 }
 

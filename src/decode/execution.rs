@@ -35,7 +35,9 @@ pub(crate) fn optional_multiple_component_transforms_equal(
 }
 
 #[cfg_attr(verus_keep_ghost, verus_spec(result =>
-    ensures resolution_counts_outcome_for_tile(result) == crate::specs::part2_tile_component_resolutions(
+    ensures crate::specs::part2_tile_resolutions_result(styles,main,components,discard,resolution_counts_outcome_for_tile(result)),
+        resolution_counts_outcome_for_tile(result)!=Err(DecodeError::AllocationFailed) ==>
+        resolution_counts_outcome_for_tile(result) == crate::specs::part2_tile_component_resolutions(
         styles, main, components, discard,
     ),
 ))]
@@ -45,6 +47,8 @@ pub(crate) fn prepare_tile_component_resolutions(
     components: u16,
     discard: Option<u8>,
 ) -> Result<Vec<u8>, DecodeError> {
+    #[cfg(verus_keep_ghost)]
+    proof! {crate::specs::part2_tile_resolutions_normal(styles,main,components,discard);}
     let discard_levels = match discard {
         None => {
             if main.multiple_component_transform {
@@ -53,6 +57,7 @@ pub(crate) fn prepare_tile_component_resolutions(
                 #[cfg_attr(verus_keep_ghost, verus_spec(
                     invariant component <= count, count == if components <= 3 { components } else { 3u16 },
                         discard.is_none(), main.multiple_component_transform,
+                        crate::specs::part2_tile_resolutions_result(styles,main,components,discard,crate::specs::part2_tile_component_resolutions(styles,main,components,discard)),
                         crate::specs::part2_full_tile_style_admission(styles, main, components, 0)
                             == crate::specs::part2_full_tile_style_admission(styles, main, components, component),
                     decreases count - component,
@@ -76,11 +81,23 @@ pub(crate) fn prepare_tile_component_resolutions(
         }
         Some(levels) => levels,
     };
-    let mut counts = Vec::with_capacity(usize::from(components));
+    let reserved = if components == 0 {
+        Ok(Vec::new())
+    } else {
+        crate::allocation::empty_with_capacity(usize::from(components))
+    };
+    #[cfg(verus_keep_ghost)]
+    proof! {
+        crate::specs::part2_tile_metadata_capacity_observed(crate::specs::Part2TileMetadataCapacityContext::SelectedResolutions {styles:*styles,main,components,discard:discard_levels},
+            match reserved {Ok(_)=>Ok(()),Err(error)=>Err(error)});
+        if reserved.is_err(){crate::specs::part2_tile_resolutions_refused(styles,main,components,discard_levels);}
+    }
+    let mut counts = reserved?;
     let mut component = 0_u16;
     #[cfg_attr(verus_keep_ghost, verus_spec(
         invariant component <= components,
             discard == Some(discard_levels),
+            crate::specs::part2_tile_resolutions_result(styles,main,components,discard,crate::specs::part2_tile_component_resolutions(styles,main,components,discard)),
             crate::specs::part2_selected_tile_resolutions(styles, main, components, discard_levels, 0, Seq::empty())
                 == crate::specs::part2_selected_tile_resolutions(styles, main, components, discard_levels, component, counts@),
         decreases components - component,
@@ -128,7 +145,9 @@ pub(crate) fn prepare_tile_component_resolutions(
 }
 
 #[cfg_attr(verus_keep_ghost, verus_spec(result =>
-    ensures tile_decode_metadata_outcome(result) == crate::specs::part2_tile_decode_metadata(parts@, components, discard),
+    ensures crate::specs::part2_tile_metadata_result(codestream::tile_parts_owned_view(parts@),components,discard,tile_decode_metadata_outcome(result)),
+        tile_decode_metadata_outcome(result)!=Err(DecodeError::AllocationFailed) ==>
+        tile_decode_metadata_outcome(result) == crate::specs::part2_tile_decode_metadata(parts@, components, discard),
 ))]
 pub(crate) fn prepare_tile_decode_metadata<'a, 'data>(
     parts: &'a [TilePartPayload<'data>],
@@ -136,7 +155,10 @@ pub(crate) fn prepare_tile_decode_metadata<'a, 'data>(
     discard: Option<u8>,
 ) -> Result<TileDecodeMetadata<'a, 'data>, DecodeError> {
     #[cfg(verus_keep_ghost)]
-    proof! { reveal(codestream::tile_part_owned_view); }
+    proof! {
+        reveal(codestream::tile_part_owned_view);
+        crate::specs::part2_tile_metadata_normal(codestream::tile_parts_owned_view(parts@),components,discard);
+    }
     let first = match parts.first() {
         Some(first) => first,
         None => {
@@ -149,6 +171,7 @@ pub(crate) fn prepare_tile_decode_metadata<'a, 'data>(
     let mut index = 0_usize;
     #[cfg_attr(verus_keep_ghost, verus_spec(
         invariant index <= parts.len(), parts.len() > 0, *first == parts@[0],
+            crate::specs::part2_tile_metadata_result(codestream::tile_parts_owned_view(parts@),components,discard,crate::specs::part2_tile_decode_metadata(parts@,components,discard)),
             forall |i: int| 0 <= i < index ==> tile_part_mct_view(&parts@[i]) == tile_part_mct_view(first),
         decreases parts.len() - index,
     ))]
@@ -190,12 +213,18 @@ pub(crate) fn prepare_tile_decode_metadata<'a, 'data>(
         }
     };
     let standard = (main.multiple_component_transform, irreversible);
-    let resolution_counts = prepare_tile_component_resolutions(
+    let resolution_result = prepare_tile_component_resolutions(
         &first.component_coding_styles,
         main,
         components,
         discard,
-    )?;
+    );
+    #[cfg(verus_keep_ghost)]
+    proof! {if let Err(error)=resolution_result {
+        crate::specs::part2_tile_metadata_resolution_error(codestream::tile_parts_owned_view(parts@),components,discard,
+            codestream::tile_part_owned_view(first),standard,error);
+    }}
+    let resolution_counts = resolution_result?;
     Ok(TileDecodeMetadata {
         first,
         standard,
@@ -231,7 +260,13 @@ pub(crate) fn decode_tile_parts_at(
         crate::specs::part2_tile_decode_normal(size,tile,codestream::tile_parts_owned_view(parts@),
             codestream::codestream_profile_capabilities(profile),discard,limits,prepared_components_view(prepared@),initial,mct_work);
     }
-    let metadata = prepare_tile_decode_metadata(parts, size.components, discard)?;
+    let metadata_result = prepare_tile_decode_metadata(parts, size.components, discard);
+    #[cfg(verus_keep_ghost)]
+    proof! {if let Err(error)=metadata_result {
+        crate::specs::part2_tile_metadata_decode_error(size,tile,codestream::tile_parts_owned_view(parts@),codestream::codestream_profile_capabilities(profile),
+            discard,limits,prepared_components_view(prepared@),initial,mct_work,error);
+    }}
+    let metadata = metadata_result?;
     #[cfg(verus_keep_ghost)]
     proof! { reveal(tile_decode_metadata_view); }
     let first = metadata.first;

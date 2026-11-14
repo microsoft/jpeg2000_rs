@@ -165,15 +165,8 @@ pub(crate) proof fn part2_planned_decode_packet_error(plan: Part2ProgressionTile
 pub(crate) open spec fn part2_tile_decode_run(size: &crate::codestream::ImageSize, tile: u16, parts: Seq<Part2OwnedTilePart>,
     caps: Option<(u32, Seq<u16>)>, discard: Option<u8>, limits: &crate::ResourceLimits, prepared: Seq<Part1AssemblyTile>,
     initial: (u64, u64, u64), work: u64, events: Seq<Part2JpipSnapshotEvent>) -> Part2ColdRun<Part2DecodedLayoutTile> {
-    match part2_tile_decode_metadata_owned(parts, crate::codestream::image_size_component_count(size), discard) {
-        Err(error) => Some((Err(error), events)),
-        Ok(metadata) => {
-            part2_jpip_snapshot_bind(part2_grid_plan_run(size, metadata.first.coding_style, &metadata.first.component_coding_styles,
-                metadata.first.component_quantizations, &metadata.first.roi_shifts, (tile, match discard { None => 0u8, Some(levels) => levels }),
-                (part2_profile_multiple_sets(caps), part2_profile_magnitude_bound(caps), part2_profile_force_ht(caps)), limits,events),
-                |plan:Part2ProgressionTilePlan,rest|part2_tile_after_grid_plan(size,parts,metadata,discard,limits,prepared,initial,work,plan,rest))
-        },
-    }
+    part2_jpip_snapshot_bind(part2_tile_metadata_run(parts,crate::codestream::image_size_component_count(size),discard,events),
+        |metadata:Part2TileDecodeMetadata,rest|part2_tile_after_metadata_run(size,tile,parts,caps,discard,limits,prepared,initial,work,metadata,rest))
 }
 #[verifier::opaque]
 pub(crate) open spec fn part2_tile_decode_result(size: &crate::codestream::ImageSize, tile: u16, parts: Seq<Part2OwnedTilePart>,
@@ -187,24 +180,17 @@ pub(crate) proof fn part2_tile_decode_normal(size: &crate::codestream::ImageSize
     ensures part2_tile_decode_result(size, tile, parts, caps, discard, limits, prepared, initial, work,
         part2_decode_tile_parts_owned(size, tile, parts, caps, discard, limits, prepared, initial, work)),
 {
-    reveal(part2_tile_decode_result);reveal(part2_grid_plan_result);
+    reveal(part2_tile_decode_result);
     let result = part2_decode_tile_parts_owned(size, tile, parts, caps, discard, limits, prepared, initial, work);
-    match part2_tile_decode_metadata_owned(parts, crate::codestream::image_size_component_count(size), discard) {
-        Err(_) => { part2_cold_pure::<Part2DecodedLayoutTile>(result); },
-        Ok(metadata) => {
-            let select=(tile,match discard {None=>0u8,Some(level)=>level});
-            let policy=(part2_profile_multiple_sets(caps),part2_profile_magnitude_bound(caps),part2_profile_force_ht(caps));
-            let plan=part2_progression_tile_plan_owned(size,metadata.first.coding_style,&metadata.first.component_coding_styles,metadata.first.component_quantizations,&metadata.first.roi_shifts,select,policy,limits);
-            part2_grid_plan_normal(size,metadata.first.coding_style,&metadata.first.component_coding_styles,metadata.first.component_quantizations,&metadata.first.roi_shifts,select,policy,limits);
-            part2_grid_plan_frames(size,metadata.first.coding_style,&metadata.first.component_coding_styles,metadata.first.component_quantizations,&metadata.first.roi_shifts,select,policy,limits,plan);
-            if let Ok(value)=plan {
-                part2_tile_after_grid_plan_normal(size,tile,parts,caps,discard,limits,prepared,initial,work,metadata,value);
-                part2_decode_eta(|events|part2_tile_after_grid_plan(size,parts,metadata,discard,limits,prepared,initial,work,value,events),result);
-            }
-            part2_cold_bind(|events|part2_grid_plan_run(size,metadata.first.coding_style,&metadata.first.component_coding_styles,metadata.first.component_quantizations,&metadata.first.roi_shifts,select,policy,limits,events),
-                |plan:Part2ProgressionTilePlan,rest|part2_tile_after_grid_plan(size,parts,metadata,discard,limits,prepared,initial,work,plan,rest),plan,result);
-        },
+    let metadata=part2_tile_decode_metadata_owned(parts,crate::codestream::image_size_component_count(size),discard);
+    part2_tile_metadata_normal(parts,crate::codestream::image_size_component_count(size),discard);
+    part2_tile_metadata_frames(parts,crate::codestream::image_size_component_count(size),discard,metadata);
+    if let Ok(value)=metadata {
+        part2_tile_after_metadata_normal(size,tile,parts,caps,discard,limits,prepared,initial,work,value);
+        part2_decode_eta(|events|part2_tile_after_metadata_run(size,tile,parts,caps,discard,limits,prepared,initial,work,value,events),result);
     }
+    part2_cold_bind(|events|part2_tile_metadata_run(parts,crate::codestream::image_size_component_count(size),discard,events),
+        |metadata:Part2TileDecodeMetadata,rest|part2_tile_after_metadata_run(size,tile,parts,caps,discard,limits,prepared,initial,work,metadata,rest),metadata,result);
 }
 pub(crate) proof fn part2_tile_decode_components_actual(size: &crate::codestream::ImageSize, tile: u16, parts: Seq<Part2OwnedTilePart>,
     caps: Option<(u32, Seq<u16>)>, discard: Option<u8>, limits: &crate::ResourceLimits, prepared: Seq<Part1AssemblyTile>,
@@ -217,6 +203,7 @@ pub(crate) proof fn part2_tile_decode_components_actual(size: &crate::codestream
         part2_planned_tile_accounting(plan, match discard { None => None, Some(_) => Some(metadata.resolution_counts) }, initial, limits) == Ok(counters),
         part2_grid_plan_result(size,metadata.first.coding_style,&metadata.first.component_coding_styles,metadata.first.component_quantizations,&metadata.first.roi_shifts,
             (tile,match discard {None=>0u8,Some(level)=>level}),(part2_profile_multiple_sets(caps),part2_profile_magnitude_bound(caps),part2_profile_force_ht(caps)),limits,Ok(plan)),
+        part2_tile_metadata_result(parts,crate::codestream::image_size_component_count(size),discard,Ok(metadata)),
         part2_planned_decode_result(plan, parts, metadata.first, size, metadata.standard, match discard { None => None, Some(_) => Some(metadata.resolution_counts) },
             limits, prepared, work, result),
     ensures part2_tile_decode_result(size, tile, parts, caps, discard, limits, prepared, initial, work, match result {
@@ -237,6 +224,10 @@ pub(crate) proof fn part2_tile_decode_components_actual(size: &crate::codestream
     part2_cold_bind(|events|part2_grid_plan_run(size,metadata.first.coding_style,&metadata.first.component_coding_styles,metadata.first.component_quantizations,&metadata.first.roi_shifts,
         (tile,match discard {None=>0u8,Some(level)=>level}),(part2_profile_multiple_sets(caps),part2_profile_magnitude_bound(caps),part2_profile_force_ht(caps)),limits,events),
         |plan:Part2ProgressionTilePlan,rest|part2_tile_after_grid_plan(size,parts,metadata,discard,limits,prepared,initial,work,plan,rest),Ok(plan),final_result);
+    part2_decode_eta(|events|part2_tile_after_metadata_run(size,tile,parts,caps,discard,limits,prepared,initial,work,metadata,events),final_result);
+    part2_tile_metadata_frames(parts,crate::codestream::image_size_component_count(size),discard,Ok(metadata));
+    part2_cold_bind(|events|part2_tile_metadata_run(parts,crate::codestream::image_size_component_count(size),discard,events),
+        |metadata:Part2TileDecodeMetadata,rest|part2_tile_after_metadata_run(size,tile,parts,caps,discard,limits,prepared,initial,work,metadata,rest),Ok(metadata),final_result);
 }
 #[verifier::opaque]
 pub(crate) open spec fn part2_full_decode_run(size: &crate::codestream::ImageSize, parts: Seq<Part2OwnedTilePart>, caps: Option<(u32, Seq<u16>)>,

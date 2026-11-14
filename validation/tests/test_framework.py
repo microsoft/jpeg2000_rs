@@ -8196,6 +8196,35 @@ class FrameworkTests(WorkingFiles):
                     self.assertRaisesRegex(ValueError, "ordered cold quantization storage"):
                 framework.validate_normative_coverage(dict(coverage, requirements=[entry]))
 
+    def test_inventory_tile_metadata_storage_requires_selected_role_none_and_admission_order(self):
+        coverage = json.loads((framework.VALIDATION / "normative-coverage.json").read_text())
+        entry = next(item for item in coverage["requirements"] if item["id"] == "part2-complete-native-tile-decode-metadata")
+        data = dict(coverage, requirements=[entry])
+        self.assertEqual(framework.validate_normative_coverage(data)["status"], "passed")
+        read_text = Path.read_text
+        for relative, symbol, before, after in (
+            ("specs/cold_tile_metadata.rs", "part2_tile_metadata_capacity_count", "components as usize", "1usize"),
+            ("specs/cold_tile_metadata.rs", "part2_tile_metadata_capacity_run", "count==0", "count==1"),
+            ("specs/cold_tile_metadata.rs", "part2_tile_metadata_capacity_run", "Part2JpipSnapshotEvent::TileMetadataCapacity", "Part2JpipSnapshotEvent::GeometryCapacity"),
+            ("specs/cold_tile_metadata.rs", "part2_tile_metadata_capacity_run", "events.drop_first()", "events"),
+            ("specs/cold_tile_metadata.rs", "part2_tile_resolutions_run", "None=>Some((ordinary,events))", "None=>Some((ordinary,events.drop_first()))"),
+            ("specs/cold_tile_metadata.rs", "part2_tile_metadata_admit", "part2_tile_decode_standard_owned(parts[0])", "supplied_standard(parts[0])"),
+            ("src/decode/execution.rs", "prepare_tile_component_resolutions", "empty_with_capacity(usize::from(components))", "empty_with_capacity(1)"),
+        ):
+            source = framework.ROOT / relative
+            original = source.read_text()
+            body = (framework._coverage_function_body(original, framework._coverage_function_header(original, symbol))
+                    if relative.startswith("src/") else framework._coverage_spec_function_body(original, symbol))
+            self.assertIn(before, body)
+            changed = original.replace(body, body.replace(before, after, 1), 1)
+
+            def altered(path, *args, **kwargs):
+                return changed if path == source else read_text(path, *args, **kwargs)
+
+            with self.subTest(symbol=symbol, before=before), mock.patch.object(Path, "read_text", altered), \
+                    self.assertRaisesRegex(ValueError, "tile metadata fresh storage"):
+                framework.validate_normative_coverage(data)
+
     def test_inventory_geometry_storage_requires_actual_roles_vectors_and_frontiers(self):
         coverage = json.loads((framework.VALIDATION / "normative-coverage.json").read_text())
         entry = next(item for item in coverage["requirements"] if item["id"] == "part2-complete-native-component-packet-grid")
@@ -8300,7 +8329,7 @@ class FrameworkTests(WorkingFiles):
             ("specs/cold_packed_headers.rs", "part2_packed_requests_run", "source != requests[0]", "source != requests[1]"),
             ("specs/cold_packed_headers.rs", "part2_packed_requests_run", "events.drop_first()", "events"),
             ("specs/cold_packed_headers.rs", "part2_packet_run", "Some(((Err(error), precincts), rest))", "Some(((Err(error), Seq::empty()), rest))"),
-            ("specs/cold_decode_packets.rs", "part2_tile_decode_run", "part2_grid_plan_run(", "supplied_plan("),
+            ("specs/cold_tile_metadata.rs", "part2_tile_after_metadata_run", "part2_grid_plan_run(", "supplied_plan("),
             ("specs/cold_decode_packets.rs", "part2_full_decode_run", "before.counters", "(0,0,0)"),
             ("src/codestream/packet_headers.rs", "PackedPacketHeaders::reassemble", "empty_with_capacity(self.length)", "empty_with_capacity(1)"),
         ):
@@ -8550,6 +8579,12 @@ class FrameworkTests(WorkingFiles):
                 if key in framework._PACKET_GRID_PRODUCER_CONTRACTS:
                     isolated["test_refs"] += [
                         {"path": path, "symbol": symbol} for path, symbol in sorted(framework._GEOMETRY_STORAGE_TESTS)
+                        if {"path": path, "symbol": symbol} not in isolated["test_refs"]
+                    ]
+                if key in {("src/decode/execution.rs", name) for name in (
+                        "prepare_tile_component_resolutions", "prepare_tile_decode_metadata")}:
+                    isolated["test_refs"] += [
+                        {"path": path, "symbol": symbol} for path, symbol in sorted(framework._TILE_METADATA_STORAGE_TESTS)
                         if {"path": path, "symbol": symbol} not in isolated["test_refs"]
                     ]
             self.assertEqual(framework.validate_normative_coverage(coverage)["status"], "passed")
