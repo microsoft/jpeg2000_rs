@@ -1567,6 +1567,18 @@ _MCT_FALLIBLE_INHERITANCE = (
     + r"\s*;\s*\}\s*return\s+Err\s*\(\s*error\s*\)\s*;\s*\}\s*\}\s*;"
 )
 
+_PART2_FALLIBLE_INHERITANCE = (
+    r"let\s+extensions_source\s*=\s*"
+    + _coverage_call("inherited_tile_owner", "tile_index", r"&\s*part2_extensions",
+                     r"&\s*tile_part2_extensions\s*,?")
+    + r"\s*;\s*let\s+inherited_part2_extensions\s*=\s*match\s+"
+    + _coverage_call("extensions_source.try_duplicate")
+    + r"\s*\{\s*Ok\s*\(\s*values\s*\)\s*=>\s*values\s*,\s*Err\s*\(\s*error\s*\)\s*=>\s*\{"
+    + r"\s*#\[\s*cfg\s*\(\s*verus_keep_ghost\s*\)\s*\]\s*proof!\s*\{\s*"
+    + _coverage_call("crate::specs::part1_cold_layout_sot_extensions_error", "cold_sot", "error")
+    + r"\s*;\s*\}\s*return\s+Err\s*\(\s*error\s*\)\s*;\s*\}\s*\}\s*;"
+)
+
 _MCT_PARAMETER_CLONE_CONSUMERS = (
     ("src/codestream/layout.rs", "Parser::parse_layout",
      r"(?:let\s+inherited_mct_parameters\s*=\s*match\s+"
@@ -5086,6 +5098,39 @@ _COLD_SOURCE_BODIES = {
 }
 
 _QUANTIZATION_COLD_GUARDS = {
+    ("specs/cold_extensions_copy.rs", "part1_part2_copy_leaf"): (
+        "part1_mct_copy_leaf(MctCopyPath::Extensions(path), count)",
+    ),
+    ("specs/cold_layout.rs", "part1_cold_layout_extensions_requests"): (
+        "part1_part2_copy_requests(part1_inherited_tile_owner(index, main.raw.extensions, state.2))",
+    ),
+    ("specs/cold_extensions_copy.rs", "part1_part2_copy_site"): (
+        "Part2CopyPath::Decompositions => 23", "Part2CopyPath::Directions(_) => 24",
+        "Part2CopyPath::Arbitrary => 25", "Part2CopyPath::Sublevels(_) => 26", "Part2CopyPath::Splits(_) => 27",
+        "Part2CopyPath::Nonlinear => 28", "Part2CopyPath::Parameters(_) => 29", "Part2CopyPath::Points(_) => 30",
+        "Part2CopyPath::Depths => 31", "Part2CopyPath::Kernels => 32", "Part2CopyPath::Steps(_) => 33",
+        "Part2CopyPath::Coefficients(_, _) => 34", "Part2CopyPath::Registrations => 35", "Part2CopyPath::Lengths => 36",
+    ),
+    ("specs/cold_extensions_copy.rs", "part1_part2_copy_requests"): (
+        "part1_part2_dfs_vector(value.decompositions)", "part1_part2_ads_vector(value.arbitrary)",
+        "part1_part2_nlt_vector(value.nonlinear) +",
+        "part1_part2_copy_leaf(Part2CopyPath::Depths, value.depths.len() as usize)",
+        "part1_part2_kernel_vector(value.kernels)",
+        "part1_part2_copy_leaf(Part2CopyPath::Registrations, value.registrations.len() as usize)",
+        "part1_part2_copy_leaf(Part2CopyPath::Lengths, value.lengths.len() as usize)",
+    ),
+    ("specs/cold_extensions_copy.rs", "part1_part2_nlt_requests"): (
+        "Part2CopyPath::Parameters(position), value.parameters.len()", "Part2CopyPath::Points(position), value.points.len()",
+    ),
+    ("specs/cold_extensions_copy.rs", "part1_part2_steps_tail"): (
+        "part1_part2_step_requests(values[position as int], kernel, position as usize)",
+        "part1_part2_steps_tail(values, kernel, position + 1)",
+    ),
+    ("specs/cold_layout.rs", "part1_cold_layout_after_mct_copy"): (
+        "part1_mct_copy_run(part1_cold_layout_extensions_requests(main, state, tile.2 as usize), events)",
+        "Some((Err(error), rest)) => Some(((Err(error), reader, tile_parts, state), rest))",
+        "Some((Ok(()), rest)) => part1_cold_layout_after_extensions_copy",
+    ),
     ("specs/cold_mct_copy.rs", "part1_mct_copy_leaf"): (
         "count == 0 { Seq::empty() }", "seq![Part1MctCopyRequest { path, elements: count }]",
     ),
@@ -5093,6 +5138,7 @@ _QUANTIZATION_COLD_GUARDS = {
         "MctCopyPath::Arrays => 16", "MctCopyPath::ArrayValues(_) => 17",
         "MctCopyPath::Records => 18", "MctCopyPath::Collections(_) => 19",
         "MctCopyPath::Inputs(_, _) => 20", "MctCopyPath::Outputs(_, _) => 21", "MctCopyPath::Order => 22",
+        "MctCopyPath::Extensions(path) => part1_part2_copy_site(path)",
     ),
     ("specs/cold_mct_copy.rs", "part1_mct_copy_run"): (
         "requests.len() == 0 { Some((Ok(()), events))",
@@ -5230,6 +5276,20 @@ _MCT_COPY_PROOFS = {("specs/cold_mct_copy.rs", name) for name in (
 )} | {("specs/cold_layout.rs", name) for name in (
     "part1_cold_layout_after_mct_normal", "part1_cold_layout_mct_normal_bind", "part1_cold_layout_after_progression_frame",
 )} | {("specs/cold_layout_continuations.rs", "part1_cold_layout_sot_mct_error")}
+
+_PART2_COPY_MODELS = {("specs/cold_extensions_copy.rs", name) for name in (
+    "part1_part2_copy_site", "part1_part2_copy_leaf", "part1_part2_copy_requests",
+    "part1_part2_dfs_requests", "part1_part2_dfs_tail", "part1_part2_ads_requests", "part1_part2_ads_tail",
+    "part1_part2_nlt_requests", "part1_part2_nlt_tail", "part1_part2_step_requests", "part1_part2_steps_tail",
+    "part1_part2_kernel_requests", "part1_part2_kernels_tail", "part1_part2_copy_stage", "part1_part2_copy_tail",
+)} | {("specs/cold_layout.rs", name) for name in (
+    "part1_cold_layout_extensions_requests", "part1_cold_layout_after_extensions_copy",
+)}
+_PART2_COPY_PROOFS = {("specs/cold_extensions_copy.rs", name) for name in (
+    "part1_part2_copy_start", "part1_part2_copy_advance",
+)} | {("specs/cold_layout.rs", name) for name in (
+    "part1_cold_layout_after_extensions_normal", "part1_cold_layout_after_extensions_frame",
+)} | {("specs/cold_layout_continuations.rs", "part1_cold_layout_sot_extensions_error")}
 
 
 for _contracts, _models, _proofs in (
@@ -9963,12 +10023,19 @@ def validate_normative_coverage(
             if (not _MCT_COPY_MODELS.issubset({(r["path"], r["symbol"]) for r in entry["spec_refs"]})
                     or not _MCT_COPY_PROOFS.issubset({(r["path"], r["symbol"]) for r in entry["proof_refs"]})):
                 raise ValueError("owned inheritance requires complete fallible MCT request/frame links")
+            if (not _PART2_COPY_MODELS.issubset({(r["path"], r["symbol"]) for r in entry["spec_refs"]})
+                    or not _PART2_COPY_PROOFS.issubset({(r["path"], r["symbol"]) for r in entry["proof_refs"]})):
+                raise ValueError("owned inheritance requires complete fallible Part2 request/frame links")
             copy_path = (ROOT / "src/codestream/mct_copy.rs").resolve()
             copy_source = source_text(copy_path)
             if (re.search(r"\bfn\s+copy_flat\s*<\s*T\s*:\s*Copy\s*>", copy_source) is None
                     or "crate::allocation::copy_values(source)" not in copy_source
                     or re.search(r"\.\s*clone\s*\(|Clone\s*::\s*clone", copy_source)):
                 raise ValueError("owned inheritance requires explicit fallible nested MCT copies, not generic Clone")
+            extensions_copy_source = source_text((ROOT / "src/codestream/extensions_copy.rs").resolve())
+            if (re.search(r"\.\s*clone\s*\(|Clone\s*::\s*clone", extensions_copy_source)
+                    or "use super::mct_copy::{copy_flat, reserve_values};" not in extensions_copy_source):
+                raise ValueError("owned inheritance requires explicit fallible nested Part2 copies, not generic Clone")
             layout = {"path": "src/codestream/layout.rs", "symbol": "Parser::parse_layout"}
             if layout not in entry["implementation_refs"]:
                 raise ValueError("owned inheritance not used by claimed implementation: actual layout required")
@@ -9999,6 +10066,8 @@ def validate_normative_coverage(
                         + r"\s*;\s*let\s+" + local + r"\s*=\s*match\s+"
                         + _coverage_call(source + ".try_duplicate") + r"\s*\{"
                     )
+                if local == "inherited_part2_extensions":
+                    pattern = _PART2_FALLIBLE_INHERITANCE
                 match = re.search(pattern, body)
                 if match is None or match.start() < previous_end:
                     raise ValueError(f"owned inheritance clone/source/order mismatch: {local}")
@@ -11419,7 +11488,25 @@ def validate_normative_coverage(
                     signature_match.group(),
                 )
             )
-            if claimed_consumer and not main_header_caller and not exported_recovery_entry and not any(
+            normal_mct_copy_consumer = False
+            normal_mct_methods = {
+                "MctParameters::clone": "MctParameters::try_duplicate",
+                "MctRecord::clone": "MctRecord::try_duplicate_at",
+                "MctCollectionReference::clone": "MctCollectionReference::try_duplicate_at",
+            }
+            if (entry["id"] == "part1-complete-native-mct-parameter-clone"
+                    and reference["path"] == "src/codestream/mct.rs" and reference["symbol"] in normal_mct_methods):
+                layout_path = (ROOT / "src/codestream/layout.rs").resolve()
+                layout_body = _coverage_function_body(source_text(layout_path),
+                    function_header(layout_path, "Parser::parse_layout"))
+                normal_mct_copy_consumer = (
+                    {("src/codestream/mct_copy.rs", normal_mct_methods[reference["symbol"]]),
+                     ("specs/cold_mct_copy.rs", "part1_mct_copy_normal")}.issubset(
+                        {(r["path"], r["symbol"]) for r in entry["proof_refs"]})
+                    and layout_body is not None
+                    and re.search(_MCT_FALLIBLE_INHERITANCE, layout_body) is not None
+                )
+            if claimed_consumer and not main_header_caller and not exported_recovery_entry and not normal_mct_copy_consumer and not any(
                 ref != reference
                 and (cross_file_call(
                     (ROOT / ref["path"]).resolve(), ref["symbol"], short,

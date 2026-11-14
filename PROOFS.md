@@ -103,7 +103,7 @@ Results, ordinary projections and arbitrary-tail frames. Checked non-owning
 error continuations isolate this cold environment from the original live
 normal tile induction without increasing proof resources.
 
-This still does **not** complete #287. Other MCT/Part 2 deep owner copies,
+This still does **not** complete #287. Other deep owner copies,
 payload/container/image growth and remaining nested construction stay
 outside these increments, as do global allocation availability and #289
 deadline APIs. Cumulative budgeting #288 is withdrawn, not remaining work.
@@ -147,10 +147,29 @@ owners before a refused inheritance copy remain unchanged; all existing
 partial configuration stores and later move/destination error order remain.
 
 MCT marker construction and separate resolved-transform owner copies,
-Part 2 extension deep copies, payload/container/image growth and #289
+payload/container/image growth and #289
 deadlines remain outside this bounded increment. #288 budgeting is withdrawn.
 These sequence/response proofs do not establish physical capacity or host
 allocation availability.
+
+### Part 2 extension inheritance copies
+
+The reached `Part2Extensions` inheritance copy is explicitly fallible through
+decomposition directions, arbitrary sublevels/splits, nonlinear parameter/
+point vectors, depths, kernels/steps/coefficients, registrations and lengths.
+Scalar optional fields, full coefficient bytes, metadata counters and physical
+tails remain exact and unvalidated by copying. Main construction and persistent
+commit remain moves. Public Clone APIs and the separate tile-payload extension
+Clone remain unchanged; payload construction/growth is not covered here.
+
+[`cold_extensions_copy.rs`](specs/cold_extensions_copy.rs) extends the existing
+checked owner-request algebra with source/path/index descriptors at sites
+23–36, in actual field/nested order. Empty fields consume no response, and
+first refusal retains its exact tail/source/reader/counter/persistent frame.
+Checked private normal/frame continuations compose the real copy through
+existing public cold Results without supplied successful owners or allocation
+availability assumptions. No proof-resource, limit, pin, lifetime or MSRV
+change is involved.
 
 ### Ordered automatic main-header primitive calls
 

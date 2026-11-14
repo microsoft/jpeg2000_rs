@@ -987,6 +987,13 @@ without pretending that persistent MCT moves allocate. Existing Clone APIs
 and their normal contracts stay intact. Mutations reject old-site aliases,
 lost indices, changed zero/no-event behavior, swapped field sizes and lost
 failure tails.
+Part 2 inheritance extends the same checked request algebra at sites 23–36.
+Exact source owner, physical vector/kernel/step indices, field order, optional
+scalars and empty/no-request behavior remain bound. The inventory recognizes
+the actual fallible inheritance edge and retains old MCT Clone requirements
+through their checked normal-copy links, not an unrelated remaining `.clone`
+call. Mutations reject old-site aliases, lost indices, swapped lengths and
+lost failure frames. Payload extension cloning remains a separate boundary.
 Same-file links are checked inside another listed, formatted function body;
 the contract's own declaration, an unrelated function or an indirect caller
 does not qualify as a direct same-file call. Unsupported formatting can fail

@@ -20,7 +20,7 @@ verus! {
     ensures crate::specs::part1_mct_copy_result(crate::specs::part1_mct_copy_leaf(_path, count), copy_outcome(result)),
         match result { Ok(values) => values@.len() == 0, Err(error) => error == DecodeError::AllocationFailed },
 ))]
-fn reserve_values<T>(count: usize, _path: MctCopyPath) -> Result<Vec<T>, DecodeError> {
+pub(super) fn reserve_values<T>(count: usize, _path: MctCopyPath) -> Result<Vec<T>, DecodeError> {
     let result = if count == 0 {
         Ok(Vec::new())
     } else {
@@ -39,7 +39,7 @@ fn reserve_values<T>(count: usize, _path: MctCopyPath) -> Result<Vec<T>, DecodeE
         crate::specs::part1_mct_copy_leaf(_path, source.len()), copy_outcome(result)),
         match result { Ok(values) => values@ == source@, Err(error) => error == DecodeError::AllocationFailed },
 ))]
-fn copy_flat<T: Copy>(source: &[T], _path: MctCopyPath) -> Result<Vec<T>, DecodeError> {
+pub(super) fn copy_flat<T: Copy>(source: &[T], _path: MctCopyPath) -> Result<Vec<T>, DecodeError> {
     let result = crate::allocation::copy_values(source);
     #[cfg(verus_keep_ghost)]
     proof! {

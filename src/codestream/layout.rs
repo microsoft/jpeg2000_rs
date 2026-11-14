@@ -1198,9 +1198,16 @@ impl<'a> Parser<'a> {
                             return Err(error);
                         }
                     };
-                    let inherited_part2_extensions =
-                        inherited_tile_owner(tile_index, &part2_extensions, &tile_part2_extensions)
-                            .clone();
+                    let extensions_source =
+                        inherited_tile_owner(tile_index, &part2_extensions, &tile_part2_extensions);
+                    let inherited_part2_extensions = match extensions_source.try_duplicate() {
+                        Ok(values) => values,
+                        Err(error) => {
+                            #[cfg(verus_keep_ghost)]
+                            proof! { crate::specs::part1_cold_layout_sot_extensions_error(cold_sot, error); }
+                            return Err(error);
+                        }
+                    };
                     #[cfg(verus_keep_ghost)]
                     proof! {
                         reveal(crate::specs::part1_inherited_tile_owner);

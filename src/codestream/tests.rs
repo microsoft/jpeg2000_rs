@@ -8124,6 +8124,90 @@ fn retains_bounded_profile_numbers_and_rejects_zero_most_significant_words() {
 }
 
 #[test]
+fn part2_owner_storage_nested_refusal_restore_empty_and_source_independence() {
+    let original = raw_owned_tile_part_fixture(3).part2_extensions;
+    let before = original.clone();
+    for after in [0, 3, 8, 13] {
+        assert!(matches!(
+            crate::allocation::with_refusal(after, || original.try_duplicate()),
+            Err(DecodeError::AllocationFailed)
+        ));
+        assert_eq!(original, before);
+        let copied = original.try_duplicate().unwrap();
+        assert_eq!(copied, original);
+        assert_ne!(
+            copied.decomposition_structures.as_ptr(),
+            original.decomposition_structures.as_ptr()
+        );
+        assert_ne!(
+            copied.decomposition_structures[0].directions.as_ptr(),
+            original.decomposition_structures[0].directions.as_ptr()
+        );
+        assert_ne!(
+            copied.nonlinear_transforms[0].parameters.as_ptr(),
+            original.nonlinear_transforms[0].parameters.as_ptr()
+        );
+        assert_ne!(
+            copied.arbitrary_kernels[0].steps[0].coefficients.as_ptr(),
+            original.arbitrary_kernels[0].steps[0].coefficients.as_ptr()
+        );
+    }
+    let mut empty = super::extensions::new_part2_extensions();
+    empty.nonlinear_local_count = Some(usize::MAX);
+    empty.metadata_bytes = u64::MAX;
+    crate::allocation::with_refusal(0, || {
+        assert_eq!(empty.try_duplicate().unwrap(), empty);
+        assert_eq!(
+            crate::allocation::copy_values(&[1_u8]),
+            Err(DecodeError::AllocationFailed)
+        );
+    });
+}
+
+#[test]
+fn part2_owner_storage_raw_restores_main_and_persistent_nested_owners() {
+    let mut bytes = two_part_codestream(&[], &[]);
+    let at = bytes
+        .windows(2)
+        .position(|word| word == SOT.to_be_bytes())
+        .unwrap();
+    bytes.splice(at..at, segment(DFS, &[0, 1, 1, 0x40]));
+    let limits = ResourceLimits::default();
+    let expected = parse_layout(&bytes, &limits).unwrap();
+    for after in [10, 15] {
+        assert!(matches!(
+            crate::allocation::with_refusal(after, || parse_layout(&bytes, &limits)),
+            Err(DecodeError::AllocationFailed)
+        ));
+        let restored = parse_layout(&bytes, &limits).unwrap();
+        assert_eq!(
+            restored.info.part2_extensions,
+            expected.info.part2_extensions
+        );
+        assert_eq!(restored.info.consumed_bytes, expected.info.consumed_bytes);
+        assert_eq!(restored.info.tile_parts, 2);
+        for (actual, original) in restored.tile_parts.iter().zip(&expected.tile_parts) {
+            assert_eq!(actual.part2_extensions, original.part2_extensions);
+            assert!(core::ptr::eq(actual.data.as_ptr(), original.data.as_ptr()));
+        }
+    }
+    let mut malformed = two_part_codestream(&[], &[]);
+    let at = malformed
+        .windows(2)
+        .position(|word| word == SOT.to_be_bytes())
+        .unwrap();
+    malformed.splice(at..at, segment(DFS, &[0]));
+    let ordinary = parse_layout(&malformed, &limits).unwrap_err();
+    crate::allocation::with_refusal(0, || {
+        assert_eq!(parse_layout(&malformed, &limits).unwrap_err(), ordinary);
+        assert_eq!(
+            crate::allocation::copy_values(&[1_u8]),
+            Err(DecodeError::AllocationFailed)
+        );
+    });
+}
+
+#[test]
 fn mct_owner_storage_raw_inheritance_restores_after_prior_persistent_commit() {
     let array = mct_i16(1, 1, &[1]);
     let mut bytes = two_part_codestream(&[], &[]);

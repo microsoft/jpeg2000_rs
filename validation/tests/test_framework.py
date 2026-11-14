@@ -6973,6 +6973,14 @@ class FrameworkTests(WorkingFiles):
         )
         read_text = Path.read_text
         self.assertEqual(framework.validate_normative_coverage(data)["status"], "passed")
+        for normal in (
+            {"path": "src/codestream/mct_copy.rs", "symbol": "MctParameters::try_duplicate"},
+            {"path": "specs/cold_mct_copy.rs", "symbol": "part1_mct_copy_normal"},
+        ):
+            missing = copy.deepcopy(entry)
+            missing["proof_refs"].remove(normal)
+            with self.subTest(missing_normal=normal), self.assertRaisesRegex(ValueError, "not used by claimed implementation"):
+                framework.validate_normative_coverage(dict(coverage, requirements=[missing]))
         for before, after in (("", ""), ("parameters.clone()", "parameters.unlisted()"),
                               ("main_mct_parameters.clone()", "main_mct_parameters.unlisted()")):
             block = legacy if not before else legacy.replace(before, after, 1)
@@ -8060,6 +8068,21 @@ class FrameworkTests(WorkingFiles):
             ("specs/cold_layout.rs", "part1_cold_layout_after_progression_copy",
              "part1_cold_layout_mct_requests(main, state, tile.2 as usize)",
              "part1_cold_layout_mct_requests(main, state, 0usize)"),
+            ("specs/cold_extensions_copy.rs", "part1_part2_copy_site",
+             "Part2CopyPath::Parameters(_) => 29", "Part2CopyPath::Parameters(_) => 20"),
+            ("specs/cold_extensions_copy.rs", "part1_part2_copy_leaf",
+             "MctCopyPath::Extensions(path)", "MctCopyPath::Order"),
+            ("specs/cold_extensions_copy.rs", "part1_part2_copy_requests",
+             "part1_part2_nlt_vector(value.nonlinear)", "part1_part2_nlt_vector(value.nonlinear).drop_first()"),
+            ("specs/cold_extensions_copy.rs", "part1_part2_nlt_requests",
+             "value.parameters.len()", "value.points.len()"),
+            ("specs/cold_extensions_copy.rs", "part1_part2_steps_tail",
+             "values[position as int], kernel, position as usize", "values[0], kernel, 0usize"),
+            ("specs/cold_layout.rs", "part1_cold_layout_extensions_requests",
+             "index, main.raw.extensions, state.2", "0usize, main.raw.extensions, state.2"),
+            ("specs/cold_layout.rs", "part1_cold_layout_after_mct_copy",
+             "Some(((Err(error), reader, tile_parts, state), rest))",
+             "Some(((Err(error), reader, (tile_parts + 1) as u32, state), rest))"),
         ):
             source = framework.ROOT / relative
             original = source.read_text()
@@ -8165,6 +8188,10 @@ class FrameworkTests(WorkingFiles):
             def actual_call(caller):
                 caller_source = (framework.ROOT / caller["path"]).read_text()
                 callee = reference["symbol"].rsplit("::", 1)[-1]
+                if (key in framework._MCT_PARAMETER_CLONE_CONTRACTS
+                        and caller == {"path": "src/codestream/layout.rs", "symbol": "Parser::parse_layout"}
+                        and re.search(framework._MCT_FALLIBLE_INHERITANCE, caller_source)):
+                    return True
                 if caller["path"] == reference["path"] or framework._coverage_named_caller_required(reference["path"]):
                     if framework._coverage_same_file_call(
                         caller_source, caller["symbol"], callee,
@@ -8204,8 +8231,15 @@ class FrameworkTests(WorkingFiles):
             if isolate:
                 cold_models, cold_proofs = framework._coverage_cold_links({key})
                 if isolated["id"] == "part1-complete-native-owned-tile-inheritance":
-                    cold_models |= framework._MCT_COPY_MODELS
-                    cold_proofs |= framework._MCT_COPY_PROOFS
+                    cold_models |= framework._MCT_COPY_MODELS | framework._PART2_COPY_MODELS
+                    cold_proofs |= framework._MCT_COPY_PROOFS | framework._PART2_COPY_PROOFS
+                if isolated["id"] == "part1-complete-native-mct-parameter-clone":
+                    cold_proofs |= {
+                        ("src/codestream/mct_copy.rs", "MctParameters::try_duplicate"),
+                        ("src/codestream/mct_copy.rs", "MctRecord::try_duplicate_at"),
+                        ("src/codestream/mct_copy.rs", "MctCollectionReference::try_duplicate_at"),
+                        ("specs/cold_mct_copy.rs", "part1_mct_copy_normal"),
+                    }
                 isolated["spec_refs"].extend(
                     {"path": path, "symbol": symbol} for path, symbol in sorted(cold_models)
                     if {"path": path, "symbol": symbol} not in isolated["spec_refs"]

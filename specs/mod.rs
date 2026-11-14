@@ -51,6 +51,8 @@ mod cold_progression;
 pub use cold_progression::*;
 mod cold_mct_copy;
 pub use cold_mct_copy::*;
+mod cold_extensions_copy;
+pub use cold_extensions_copy::*;
 mod cold_header_progression;
 pub use cold_header_progression::*;
 mod decoder_input;

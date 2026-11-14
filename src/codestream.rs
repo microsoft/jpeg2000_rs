@@ -498,6 +498,26 @@ pub(crate) enum MctCopyPath {
     Inputs(usize, usize),
     Outputs(usize, usize),
     Order,
+    Extensions(Part2CopyPath),
+}
+
+#[derive(Clone, Copy)]
+#[cfg_attr(not(verus_keep_ghost), derive(Debug, Eq, PartialEq))]
+pub(crate) enum Part2CopyPath {
+    Decompositions,
+    Directions(usize),
+    Arbitrary,
+    Sublevels(usize),
+    Splits(usize),
+    Nonlinear,
+    Parameters(usize),
+    Points(usize),
+    Depths,
+    Kernels,
+    Steps(usize),
+    Coefficients(usize, usize),
+    Registrations,
+    Lengths,
 }
 
 #[cfg_attr(not(verus_keep_ghost), derive(Debug, Eq, PartialEq))]
@@ -618,6 +638,7 @@ mod coding_style;
 mod decomposition;
 #[cfg_attr(verus_keep_ghost, verifier::verify)]
 mod extensions;
+mod extensions_copy;
 #[cfg_attr(verus_keep_ghost, verifier::verify)]
 mod geometry;
 #[cfg(test)]

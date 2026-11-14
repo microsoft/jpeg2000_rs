@@ -56,7 +56,7 @@ pub(crate) open spec fn part1_cold_layout_read_input<'a>(
     }
 }
 
-pub(crate) open spec fn part1_cold_layout_after_mct_copy<'a>(
+pub(crate) open spec fn part1_cold_layout_after_extensions_copy<'a>(
     reader: Part1CodestreamReader<'a>, main: Part1MainHeader<'a>, tile_parts: u32,
     state: Part1PersistentTileState, tile: (usize, u32, u16, u8, u8),
     lengths: Part1PacketLengths, headers: Part1PackedHeaders,
@@ -78,6 +78,27 @@ pub(crate) open spec fn part1_cold_layout_after_mct_copy<'a>(
                 }
             },
         },
+    }
+}
+
+pub(crate) open spec fn part1_cold_layout_extensions_requests(
+    main: Part1MainHeader<'_>, state: Part1PersistentTileState, index: usize,
+) -> Seq<Part1MctCopyRequest> {
+    part1_part2_copy_requests(part1_inherited_tile_owner(index, main.raw.extensions, state.2))
+}
+
+#[verifier::opaque]
+pub(crate) open spec fn part1_cold_layout_after_mct_copy<'a>(
+    reader: Part1CodestreamReader<'a>, main: Part1MainHeader<'a>, tile_parts: u32,
+    state: Part1PersistentTileState, tile: (usize, u32, u16, u8, u8),
+    lengths: Part1PacketLengths, headers: Part1PackedHeaders,
+    selected: Part1InheritedTileConfiguration, events: Seq<Part1ColdStorageEvent>,
+) -> Option<((Result<(), crate::DecodeError>, Part1CodestreamReader<'a>, u32, Part1PersistentTileState), Seq<Part1ColdStorageEvent>)> {
+    match part1_mct_copy_run(part1_cold_layout_extensions_requests(main, state, tile.2 as usize), events) {
+        None => None,
+        Some((Err(error), rest)) => Some(((Err(error), reader, tile_parts, state), rest)),
+        Some((Ok(()), rest)) => part1_cold_layout_after_extensions_copy(
+            reader, main, tile_parts, state, tile, lengths, headers, selected, rest),
     }
 }
 
@@ -272,7 +293,7 @@ pub(crate) proof fn part1_cold_commit_normal(
         state.3.len() as usize, commit.previous_roi, commit.payload, state.0);
 }
 
-pub(crate) proof fn part1_cold_layout_after_mct_normal<'a>(
+pub(crate) proof fn part1_cold_layout_after_extensions_normal<'a>(
     reader: Part1CodestreamReader<'a>, main: Part1MainHeader<'a>, tile_parts: u32,
     state: Part1PersistentTileState, tile: (usize, u32, u16, u8, u8),
     lengths: Part1PacketLengths, headers: Part1PackedHeaders, selected: Part1InheritedTileConfiguration,
@@ -281,7 +302,7 @@ pub(crate) proof fn part1_cold_layout_after_mct_normal<'a>(
         main.raw.roi, main.coding_style, main.quantization, main.styles,
         (state.0.0, state.0.1, state.0.2, state.0.3, state.3)) == Ok(selected),
     ensures forall|tail: Seq<Part1ColdStorageEvent>|
-        part1_cold_layout_after_mct_copy(reader, main, tile_parts, state, tile, lengths, headers, selected, calls + tail)
+        part1_cold_layout_after_extensions_copy(reader, main, tile_parts, state, tile, lengths, headers, selected, calls + tail)
             == Some((part1_layout_inherited_tile_part(reader, main, tile_parts, state, tile, lengths, headers), tail)),
 {
     reveal(part1_layout_inherited_tile_part);
@@ -308,7 +329,7 @@ pub(crate) proof fn part1_cold_layout_after_mct_normal<'a>(
     };
     let calls = read_calls + committed;
     assert forall|tail: Seq<Part1ColdStorageEvent>|
-        part1_cold_layout_after_mct_copy(reader, main, tile_parts, state, tile, lengths, headers, selected, calls + tail)
+        part1_cold_layout_after_extensions_copy(reader, main, tile_parts, state, tile, lengths, headers, selected, calls + tail)
             == Some((part1_layout_inherited_tile_part(reader, main, tile_parts, state, tile, lengths, headers), tail)) by {
         assert(calls + tail =~= read_calls + (committed + tail));
         assert(part1_cold_tile_part_run(input, read_calls + (committed + tail)) == Some((normal, committed + tail)));
@@ -327,6 +348,32 @@ pub(crate) proof fn part1_cold_layout_after_mct_normal<'a>(
         }
     }
     calls
+}
+
+pub(crate) proof fn part1_cold_layout_after_mct_normal<'a>(
+    reader: Part1CodestreamReader<'a>, main: Part1MainHeader<'a>, tile_parts: u32,
+    state: Part1PersistentTileState, tile: (usize, u32, u16, u8, u8),
+    lengths: Part1PacketLengths, headers: Part1PackedHeaders, selected: Part1InheritedTileConfiguration,
+) -> (calls: Seq<Part1ColdStorageEvent>)
+    requires part1_select_inherited_tile_configuration(reader.position, tile.2 as usize,
+        main.raw.roi, main.coding_style, main.quantization, main.styles,
+        (state.0.0, state.0.1, state.0.2, state.0.3, state.3)) == Ok(selected),
+    ensures forall|tail: Seq<Part1ColdStorageEvent>|
+        part1_cold_layout_after_mct_copy(reader, main, tile_parts, state, tile, lengths, headers, selected, calls + tail)
+            == Some((part1_layout_inherited_tile_part(reader, main, tile_parts, state, tile, lengths, headers), tail)),
+{
+    let rest = part1_cold_layout_after_extensions_normal(
+        reader, main, tile_parts, state, tile, lengths, headers, selected);
+    let requests = part1_cold_layout_extensions_requests(main, state, tile.2 as usize);
+    let before = part1_mct_copy_normal_calls(requests);
+    assert forall|tail: Seq<Part1ColdStorageEvent>|
+        part1_cold_layout_after_mct_copy(reader, main, tile_parts, state, tile, lengths, headers, selected, (before + rest) + tail)
+            == Some((part1_layout_inherited_tile_part(reader, main, tile_parts, state, tile, lengths, headers), tail)) by {
+        assert((before + rest) + tail =~= before + (rest + tail));
+        reveal(part1_cold_layout_after_mct_copy);
+        part1_mct_copy_normal(requests, rest + tail);
+    }
+    before + rest
 }
 
 pub(crate) proof fn part1_cold_layout_inherited_normal<'a>(
@@ -517,6 +564,7 @@ pub(crate) proof fn part1_cold_layout_inherited_projection<'a>(
     ensures result == part1_layout_inherited_tile_part(reader, main, tile_parts, state, tile, lengths, headers),
 {
     reveal(part1_cold_layout_after_progression_copy);
+    reveal(part1_cold_layout_after_mct_copy);
     reveal(part1_layout_inherited_tile_part);
     let index = tile.2 as usize;
     if let Ok(selected) = part1_select_inherited_tile_configuration(reader.position, index,
@@ -528,8 +576,13 @@ pub(crate) proof fn part1_cold_layout_inherited_projection<'a>(
         let after_progression = if progression.len() == 0 { after_quantization } else { after_quantization.drop_first() };
         let copied = part1_mct_copy_run(part1_cold_layout_mct_requests(main, state, index), after_progression);
         assert(copied.is_some());
+        let (status, after_mct) = copied.unwrap();
+        part1_mct_copy_projection(part1_cold_layout_mct_requests(main, state, index), after_progression, status, after_mct);
+        assert(status == Ok(()));
+        let copied = part1_mct_copy_run(part1_cold_layout_extensions_requests(main, state, index), after_mct);
+        assert(copied.is_some());
         let (status, after_copy) = copied.unwrap();
-        part1_mct_copy_projection(part1_cold_layout_mct_requests(main, state, index), after_progression, status, after_copy);
+        part1_mct_copy_projection(part1_cold_layout_extensions_requests(main, state, index), after_mct, status, after_copy);
         assert(status == Ok(()));
         let input = part1_cold_layout_read_input(reader, main, state, tile, lengths, headers, selected);
         if let Some((read, after_read)) = part1_cold_tile_part_run(input, after_copy) {
@@ -640,7 +693,7 @@ pub(crate) proof fn part1_cold_commit_frame(
     }
 }
 
-pub(crate) proof fn part1_cold_layout_after_mct_frame<'a>(
+pub(crate) proof fn part1_cold_layout_after_extensions_frame<'a>(
     reader: Part1CodestreamReader<'a>, main: Part1MainHeader<'a>, tile_parts: u32,
     state: Part1PersistentTileState, tile: (usize, u32, u16, u8, u8),
     lengths: Part1PacketLengths, headers: Part1PackedHeaders, selected: Part1InheritedTileConfiguration,
@@ -648,9 +701,9 @@ pub(crate) proof fn part1_cold_layout_after_mct_frame<'a>(
     result: (Result<(), crate::DecodeError>, Part1CodestreamReader<'a>, u32, Part1PersistentTileState),
     rest: Seq<Part1ColdStorageEvent>, tail: Seq<Part1ColdStorageEvent>,
 )
-    requires part1_cold_layout_after_mct_copy(
+    requires part1_cold_layout_after_extensions_copy(
         reader, main, tile_parts, state, tile, lengths, headers, selected, events) == Some((result, rest)),
-    ensures part1_cold_layout_after_mct_copy(
+    ensures part1_cold_layout_after_extensions_copy(
         reader, main, tile_parts, state, tile, lengths, headers, selected, events + tail) == Some((result, rest + tail)),
 {
     let input = part1_cold_layout_read_input(reader, main, state, tile, lengths, headers, selected);
@@ -664,6 +717,30 @@ pub(crate) proof fn part1_cold_layout_after_mct_frame<'a>(
             if let Some((committed, after)) = part1_cold_commit_state(state, commit, after_read) {
                 part1_cold_commit_frame(state, commit, after_read, committed, after, tail);
             }
+        }
+    }
+}
+
+pub(crate) proof fn part1_cold_layout_after_mct_frame<'a>(
+    reader: Part1CodestreamReader<'a>, main: Part1MainHeader<'a>, tile_parts: u32,
+    state: Part1PersistentTileState, tile: (usize, u32, u16, u8, u8),
+    lengths: Part1PacketLengths, headers: Part1PackedHeaders, selected: Part1InheritedTileConfiguration,
+    events: Seq<Part1ColdStorageEvent>,
+    result: (Result<(), crate::DecodeError>, Part1CodestreamReader<'a>, u32, Part1PersistentTileState),
+    rest: Seq<Part1ColdStorageEvent>, tail: Seq<Part1ColdStorageEvent>,
+)
+    requires part1_cold_layout_after_mct_copy(
+        reader, main, tile_parts, state, tile, lengths, headers, selected, events) == Some((result, rest)),
+    ensures part1_cold_layout_after_mct_copy(
+        reader, main, tile_parts, state, tile, lengths, headers, selected, events + tail) == Some((result, rest + tail)),
+{
+    reveal(part1_cold_layout_after_mct_copy);
+    let requests = part1_cold_layout_extensions_requests(main, state, tile.2 as usize);
+    if let Some((copied, after)) = part1_mct_copy_run(requests, events) {
+        part1_mct_copy_frame(requests, events, copied, after, tail);
+        if copied.is_ok() {
+            part1_cold_layout_after_extensions_frame(
+                reader, main, tile_parts, state, tile, lengths, headers, selected, after, result, rest, tail);
         }
     }
 }

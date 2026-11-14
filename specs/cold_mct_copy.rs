@@ -16,6 +16,7 @@ pub(crate) open spec fn part1_mct_copy_site(path: MctCopyPath) -> u8 {
         MctCopyPath::Records => 18, MctCopyPath::Collections(_) => 19,
         MctCopyPath::Inputs(_, _) => 20, MctCopyPath::Outputs(_, _) => 21,
         MctCopyPath::Order => 22,
+        MctCopyPath::Extensions(path) => part1_part2_copy_site(path),
     }
 }
 

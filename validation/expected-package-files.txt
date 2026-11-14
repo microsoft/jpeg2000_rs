@@ -21,6 +21,7 @@ specs/AUDIT_REFERENCE.md
 specs/README.md
 specs/allocation.rs
 specs/codestream_profile.rs
+specs/cold_extensions_copy.rs
 specs/cold_header_progression.rs
 specs/cold_layout.rs
 specs/cold_layout_continuations.rs
@@ -98,6 +99,7 @@ src/codestream/coding_style.rs
 src/codestream/decoder_input_proof_support.rs
 src/codestream/decomposition.rs
 src/codestream/extensions.rs
+src/codestream/extensions_copy.rs
 src/codestream/geometry.rs
 src/codestream/image_header.rs
 src/codestream/layout.rs
