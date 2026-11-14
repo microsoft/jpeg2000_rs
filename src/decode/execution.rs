@@ -239,7 +239,7 @@ pub(crate) fn decode_tile_parts_at(
         None => None,
         Some(_) => Some(metadata.resolution_counts.as_slice()),
     };
-    let plan = plan_progression_tile_at_selected(
+    let plan_result = plan_progression_tile_at_selected(
         size,
         tile,
         first.coding_style,
@@ -251,7 +251,13 @@ pub(crate) fn decode_tile_parts_at(
         profile.part15_magnitude_bound(),
         profile.part15_requires_all_ht_blocks(),
         limits,
-    )?;
+    );
+    #[cfg(verus_keep_ghost)]
+    proof! {if let Err(error)=plan_result {
+        crate::specs::part2_tile_grid_plan_error(size,tile,codestream::tile_parts_owned_view(parts@),codestream::codestream_profile_capabilities(profile),
+            discard,limits,prepared_components_view(prepared@),initial,mct_work,tile_decode_metadata_view(&metadata),error);
+    }}
+    let plan = plan_result?;
     let counters = account_planned_tile(&plan, maximum_resolution_counts, initial, limits)?;
     #[cfg(verus_keep_ghost)]
     proof_decl! {

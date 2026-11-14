@@ -50,7 +50,9 @@ fn packet_grid_resolution_summary(values: &[u8]) -> Result<(u8, bool), DecodeErr
 }
 
 #[cfg_attr(verus_keep_ghost, verus_spec(result =>
-    ensures packet_grid_count_outcome(result) == crate::specs::part1_grid_count_summary(
+    ensures crate::specs::part2_grid_summary_result(counts@,component_resolutions@,resolutions,expected,packet_grid_count_outcome(result)),
+        packet_grid_count_outcome(result)!=Err(DecodeError::AllocationFailed) ==>
+        packet_grid_count_outcome(result) == crate::specs::part1_grid_count_summary(
         counts@,component_resolutions@,resolutions,expected),
 ))]
 fn packet_grid_count_summary(
@@ -59,6 +61,8 @@ fn packet_grid_count_summary(
     resolutions: u8,
     expected: usize,
 ) -> Result<PacketGridCountState, DecodeError> {
+    #[cfg(verus_keep_ghost)]
+    proof! {crate::specs::part2_grid_summary_normal(counts@,component_resolutions@,resolutions,expected);}
     let capacity = match expected.checked_add(1) {
         Some(capacity) => capacity,
         None => return Err(packet_arithmetic_overflow()),
@@ -69,12 +73,23 @@ fn packet_grid_count_summary(
         resolution: 0,
         total: 0,
         maximum: 0,
-        offsets: Vec::with_capacity(capacity),
+        offsets: {
+            let reserved = crate::allocation::empty_with_capacity(capacity);
+            #[cfg(verus_keep_ghost)]
+            proof! {
+                let context=crate::specs::Part2GridCapacityContext::Offsets {counts:counts@,resolutions:component_resolutions@,maximum:resolutions,expected};
+                crate::specs::part2_grid_capacity_observed(context,match reserved {Ok(_)=>Ok(()),Err(error)=>Err(error)});
+                if reserved.is_err(){crate::specs::part2_grid_summary_refused(counts@,component_resolutions@,resolutions,expected);}
+            }
+            reserved?
+        },
     };
     #[cfg(verus_keep_ghost)]
     proof! { reveal(crate::specs::part1_grid_count_summary_run); }
     #[cfg_attr(verus_keep_ghost, verus_spec(
         invariant state.index <= counts@.len(),
+            crate::specs::part2_grid_summary_result(counts@,component_resolutions@,resolutions,expected,
+                crate::specs::part1_grid_count_summary(counts@,component_resolutions@,resolutions,expected)),
             crate::specs::part1_grid_count_summary(counts@,component_resolutions@,resolutions,expected)
             == crate::specs::part1_grid_count_summary_run(counts@,component_resolutions@,resolutions,packet_grid_count_view(&state)),
         decreases counts@.len()-state.index,
@@ -233,7 +248,9 @@ impl PacketGrid {
             None => Err(packet_arithmetic_overflow()),
         }
     }
-
+}
+#[cfg_attr(verus_keep_ghost, verus_verify)]
+impl PacketGrid {
     pub fn new(
         layers: u16,
         components: u16,
@@ -241,13 +258,53 @@ impl PacketGrid {
         precinct_counts: Vec<u32>,
         limits: &ResourceLimits,
     ) -> Result<Self, DecodeError> {
-        Self::new_with_component_resolutions(
+        #[cfg(verus_keep_ghost)]
+        vstd::prelude::ensures(|result: Result<Self, DecodeError>| {
+            crate::specs::part1_uniform_grid_cold_result(
+                layers,
+                components,
+                resolutions,
+                precinct_counts.view(),
+                limits,
+                packet_grid_outcome(result),
+            ) && (vstd::prelude::equal(
+                packet_grid_outcome(result),
+                Err(DecodeError::AllocationFailed),
+            ) || vstd::prelude::equal(
+                packet_grid_outcome(result),
+                crate::specs::part1_uniform_grid_model(
+                    layers,
+                    components,
+                    resolutions,
+                    precinct_counts.view(),
+                    limits,
+                ),
+            ))
+        });
+        #[cfg(verus_keep_ghost)]
+        proof! {crate::specs::part2_uniform_grid_normal(layers,components,resolutions,precinct_counts@,limits);}
+        let filled = crate::allocation::filled_values(resolutions, usize::from(components));
+        #[cfg(verus_keep_ghost)]
+        proof! {
+            crate::specs::part2_grid_capacity_observed(crate::specs::Part2GridCapacityContext::Uniform {layers,components,resolutions,counts:precinct_counts@},
+                match filled {Ok(_)=>Ok(()),Err(error)=>Err(error)});
+            if let Err(error)=filled {
+                crate::specs::part2_uniform_grid_actual(layers,components,resolutions,precinct_counts@,limits,Err(error),Err(error));
+            }
+        }
+        let component_resolutions = filled?;
+        #[cfg(verus_keep_ghost)]
+        proof_decl! {let ghost source_counts=precinct_counts@;}
+        let result = Self::new_with_component_resolutions(
             layers,
             components,
-            vec![resolutions; usize::from(components)],
+            component_resolutions,
             precinct_counts,
             limits,
-        )
+        );
+        #[cfg(verus_keep_ghost)]
+        proof! {crate::specs::part2_uniform_grid_actual(layers,components,resolutions,source_counts,limits,Ok(()),packet_grid_outcome(result));}
+        result
     }
 
     pub(crate) fn new_with_component_resolutions(
@@ -257,6 +314,31 @@ impl PacketGrid {
         precinct_counts: Vec<u32>,
         limits: &ResourceLimits,
     ) -> Result<Self, DecodeError> {
+        #[cfg(verus_keep_ghost)]
+        vstd::prelude::ensures(|result: Result<Self, DecodeError>| {
+            crate::specs::part2_grid_result(
+                layers,
+                components,
+                component_resolutions.view(),
+                precinct_counts.view(),
+                None,
+                limits,
+                packet_grid_outcome(result),
+            ) && (vstd::prelude::equal(
+                packet_grid_outcome(result),
+                Err(DecodeError::AllocationFailed),
+            ) || vstd::prelude::equal(
+                packet_grid_outcome(result),
+                crate::specs::part1_packet_grid_new(
+                    layers,
+                    components,
+                    component_resolutions.view(),
+                    precinct_counts.view(),
+                    None,
+                    limits,
+                ),
+            ))
+        });
         packet_grid_new_with_component_resolutions(
             layers,
             components,
@@ -268,7 +350,9 @@ impl PacketGrid {
 }
 
 #[cfg_attr(verus_keep_ghost,verus_spec(result =>
-    ensures packet_grid_outcome(result)==crate::specs::part1_packet_grid_new(
+    ensures crate::specs::part2_grid_result(layers,components,component_resolutions@,precinct_counts@,None,limits,packet_grid_outcome(result)),
+        packet_grid_outcome(result)!=Err(DecodeError::AllocationFailed) ==>
+        packet_grid_outcome(result)==crate::specs::part1_packet_grid_new(
         layers,components,component_resolutions@,precinct_counts@,None,limits),
 ))]
 pub(crate) fn packet_grid_new_with_component_resolutions(
@@ -289,7 +373,9 @@ pub(crate) fn packet_grid_new_with_component_resolutions(
 }
 
 #[cfg_attr(verus_keep_ghost,verus_spec(result =>
-    ensures packet_grid_outcome(result)==crate::specs::part1_packet_grid_new(
+    ensures crate::specs::part2_grid_result(layers,components,component_resolutions@,precinct_counts@,packet_selection_view(selected_resolution_counts),limits,packet_grid_outcome(result)),
+        packet_grid_outcome(result)!=Err(DecodeError::AllocationFailed) ==>
+        packet_grid_outcome(result)==crate::specs::part1_packet_grid_new(
         layers,components,component_resolutions@,precinct_counts@,packet_selection_view(selected_resolution_counts),limits),
 ))]
 pub(crate) fn packet_grid_new_with_selected_resolutions(
@@ -300,6 +386,8 @@ pub(crate) fn packet_grid_new_with_selected_resolutions(
     selected_resolution_counts: Option<&[u8]>,
     limits: &ResourceLimits,
 ) -> Result<PacketGrid, DecodeError> {
+    #[cfg(verus_keep_ghost)]
+    proof! {crate::specs::part2_grid_normal(layers,components,component_resolutions@,precinct_counts@,packet_selection_view(selected_resolution_counts),limits);}
     let (resolutions, has_zero_resolution) =
         packet_grid_resolution_summary(&component_resolutions)?;
     if layers == 0 || components == 0 {
@@ -340,12 +428,18 @@ pub(crate) fn packet_grid_new_with_selected_resolutions(
         return Err(packet_reader_error(0, MalformedKind::InvalidCodingStyle));
     }
 
-    let summary = packet_grid_count_summary(
+    let summary_result = packet_grid_count_summary(
         &precinct_counts,
         &component_resolutions,
         resolutions,
         expected_counts,
-    )?;
+    );
+    #[cfg(verus_keep_ghost)]
+    proof! {if let Err(error)=summary_result {
+        crate::specs::part2_grid_summary_error(layers,components,component_resolutions@,precinct_counts@,packet_selection_view(selected_resolution_counts),limits,
+            resolutions,expected_counts,error);
+    }}
+    let summary = summary_result?;
     let total_precincts = summary.total;
     let maximum_precincts_per_resolution = summary.maximum;
     let precinct_offsets = summary.offsets;
@@ -1122,4 +1216,112 @@ fn unravel(mut index: u64, dimensions: [u64; 4]) -> Result<[u64; 4], DecodeError
         return Err(packet_reader_error(0, MalformedKind::InvalidCodingStyle));
     }
     Ok([index, first, second, third])
+}
+
+#[cfg(test)]
+mod grid_storage_tests {
+    use super::*;
+
+    #[test]
+    fn grid_storage_offset_empty_overflow_and_refusal_frontier_restore() {
+        let empty = packet_grid_count_summary(&[], &[], 0, 0).unwrap();
+        assert_eq!(empty.offsets, [0]);
+        crate::allocation::with_refusal(0, || {
+            assert!(matches!(
+                packet_grid_count_summary(&[], &[], 0, usize::MAX),
+                Err(DecodeError::MalformedInput {
+                    kind: MalformedKind::ArithmeticOverflow,
+                    ..
+                })
+            ));
+            assert!(matches!(
+                packet_grid_count_summary(&[], &[], 0, 0),
+                Err(DecodeError::AllocationFailed)
+            ));
+        });
+        assert!(matches!(
+            crate::allocation::with_refusal(0, || packet_grid_count_summary(&[1], &[], 1, 1)),
+            Err(DecodeError::AllocationFailed)
+        ));
+        assert!(matches!(
+            packet_grid_count_summary(&[1], &[], 1, 1),
+            Err(DecodeError::MalformedInput {
+                kind: MalformedKind::InvalidCodingStyle,
+                ..
+            })
+        ));
+        let summary = packet_grid_count_summary(&[2, 0, 3, 4], &[1, 2], 2, 4).unwrap();
+        assert_eq!(summary.offsets, [0, 2, 2, 5, 9]);
+        assert_eq!((summary.total, summary.maximum), (9, 4));
+    }
+
+    #[test]
+    fn grid_storage_uniform_first_and_later_refusal_restore_exact_offsets() {
+        let limits = ResourceLimits::default();
+        for after in [0, 1] {
+            assert!(matches!(
+                crate::allocation::with_refusal(after, || PacketGrid::new(
+                    2,
+                    2,
+                    2,
+                    vec![1, 2, 3, 4],
+                    &limits
+                )),
+                Err(DecodeError::AllocationFailed)
+            ));
+        }
+        crate::allocation::with_refusal(0, || {
+            assert!(matches!(
+                PacketGrid::new(0, 0, 0, Vec::new(), &limits),
+                Err(DecodeError::MalformedInput {
+                    kind: MalformedKind::InvalidCodingStyle,
+                    ..
+                })
+            ));
+            assert!(matches!(
+                PacketGrid::new(0, 1, 1, vec![1], &limits),
+                Err(DecodeError::AllocationFailed)
+            ));
+        });
+        let grid = PacketGrid::new(2, 2, 2, vec![1, 2, 3, 4], &limits).unwrap();
+        assert_eq!(grid.component_resolutions, [2, 2]);
+        assert_eq!(grid.precinct_offsets, [0, 1, 3, 6, 10]);
+        assert_eq!((grid.packet_count, grid.candidate_count), (20, 32));
+    }
+
+    #[test]
+    fn grid_storage_admission_precedes_offsets_and_work_limit_follows() {
+        let limits = ResourceLimits::default();
+        let tight = limits.with_maximum_work_units(1).unwrap();
+        crate::allocation::with_refusal(0, || {
+            assert!(matches!(
+                packet_grid_new_with_component_resolutions(1, 1, vec![1], Vec::new(), &limits),
+                Err(DecodeError::MalformedInput {
+                    kind: MalformedKind::InvalidCodingStyle,
+                    ..
+                })
+            ));
+            assert!(matches!(
+                packet_grid_new_with_component_resolutions(2, 1, vec![1], vec![1], &tight),
+                Err(DecodeError::AllocationFailed)
+            ));
+        });
+        crate::allocation::with_refusal(1, || {
+            assert!(matches!(
+                packet_grid_new_with_component_resolutions(2, 1, vec![1], vec![1], &tight),
+                Err(DecodeError::LimitExceeded {
+                    resource: Resource::WorkUnits,
+                    ..
+                })
+            ));
+            assert_eq!(
+                crate::allocation::empty_with_capacity::<u8>(1),
+                Err(DecodeError::AllocationFailed)
+            );
+        });
+        let empty =
+            packet_grid_new_with_component_resolutions(1, 1, vec![1], vec![0], &limits).unwrap();
+        assert_eq!(empty.precinct_offsets, [0, 0]);
+        assert_eq!(empty.packet_count, 0);
+    }
 }

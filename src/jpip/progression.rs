@@ -982,7 +982,7 @@ impl DatabinCache {
                     |part: crate::specs::Part2OwnedTilePart| part.tile_index == current_root.tile as u16));
                 super::jpip_snapshot_plan_errors(current_root, native_parts);
             }
-            let mut plan = crate::decode::plan_progression_tile_at_with_component_overrides(
+            let plan_result = crate::decode::plan_progression_tile_at_with_component_overrides(
                 &layout.info.image_size,
                 tile_number,
                 tile_part.coding_style,
@@ -990,7 +990,14 @@ impl DatabinCache {
                 &tile_part.component_quantizations,
                 &tile_part.roi_shifts,
                 limits,
-            )?;
+            );
+            #[cfg(verus_keep_ghost)]
+            proof! {
+                crate::specs::part2_grid_plan_public_equivalent(&layout.info.image_size,tile_part.coding_style,&tile_part.component_coding_styles,
+                    &tile_part.component_quantizations,&tile_part.roi_shifts,(tile_number,0),(false,74,false),limits);
+                if let Err(error)=plan_result {super::jpip_snapshot_grid_plan_error(current_root,native_parts,error);}
+            }
+            let mut plan=plan_result?;
             #[cfg(verus_keep_ghost)]
             proof_decl! { let ghost initial_plan = crate::decode::progression_plan_view(&plan); }
             #[cfg(verus_keep_ghost)]
@@ -1693,7 +1700,7 @@ impl DatabinCache {
                             order_index as nat, packets@.map_values(
                                 |packet: AutomaticPacket| super::jpip_automatic_packet_view(&packet)),
                             packet_events, Seq::empty(), error);
-                        assert(crate::specs::part2_jpip_snapshot_tile(current_root.input, current_root.count,
+                        assert(crate::specs::part2_jpip_snapshot_tile_normal_run(current_root.input, current_root.count,
                             current_root.components, current_root.tile as usize, current_root.layout,
                             current_root.raw, current_root.headers, seq![tile_capacity] + packet_events)
                             == Some((Err(error), Seq::empty())));
@@ -1785,7 +1792,7 @@ impl DatabinCache {
                         super::jpip_snapshot_selection_view(selection), super::jpip_packet_selection_view(packet_selection),
                         limits, Err(error)) by {
                     assert(partition_events =~= seq![tile_capacity] + packet_events);
-                    assert(crate::specs::part2_jpip_snapshot_tile(current_root.input, current_root.count,
+                    assert(crate::specs::part2_jpip_snapshot_tile_normal_run(current_root.input, current_root.count,
                         current_root.components, current_root.tile as usize, current_root.layout,
                         current_root.raw, current_root.headers, partition_events) == Some((Err(error), Seq::empty())));
                     super::jpip_snapshot_tile_root_error(current_root, partition_events, error);
@@ -1807,7 +1814,7 @@ impl DatabinCache {
                 }
                 #[cfg(verus_keep_ghost)]
                 proof! {
-                    assert(crate::specs::part2_jpip_snapshot_tile(current_root.input, current_root.count,
+                    assert(crate::specs::part2_jpip_snapshot_tile_normal_run(current_root.input, current_root.count,
                         current_root.components, current_root.tile as usize, current_root.layout,
                         current_root.raw, current_root.headers, partition_events)
                         == Some((Ok((None, partition_packets, tile_part.coding_style.layers)), Seq::empty())));
@@ -1829,7 +1836,7 @@ impl DatabinCache {
                             current_root.input == initial_tile_root.input,
                             current_root.prefix == initial_tile_root.prefix,
                             crate::specs::part2_jpip_snapshot_tile_root(current_root), current_root.tile < current_root.headers.len(),
-                            crate::specs::part2_jpip_snapshot_tile(current_root.input, current_root.count,
+                            crate::specs::part2_jpip_snapshot_tile_normal_run(current_root.input, current_root.count,
                                 current_root.components, current_root.tile as usize, current_root.layout,
                                 current_root.raw, current_root.headers, partition_events)
                                 == Some((Ok((None, partition_packets, tile_part.coding_style.layers)), Seq::empty())),
@@ -1931,12 +1938,12 @@ impl DatabinCache {
                     |part: super::AutomaticTilePart| super::jpip_automatic_tile_part_view(&part));
                 let ghost completed_packets = packets@.map_values(
                     |packet: AutomaticPacket| super::jpip_automatic_packet_view(&packet));
-                let ghost completed_events = seq![tile_capacity] + packet_events;
+                let ghost mut completed_events = seq![tile_capacity] + packet_events;
             }
             #[cfg(verus_keep_ghost)]
             proof! {
                 assert forall|tail: Seq<crate::specs::Part2JpipSnapshotEvent>|
-                    crate::specs::part2_jpip_snapshot_tile(current_root.input, current_root.count,
+                    crate::specs::part2_jpip_snapshot_tile_normal_run(current_root.input, current_root.count,
                         current_root.components, current_root.tile as usize, current_root.layout,
                         current_root.raw, current_root.headers, completed_events + tail)
                         == Some((Ok((Some(completed_parts), completed_packets, tile_part.coding_style.layers)), tail)) by {
@@ -1952,6 +1959,7 @@ impl DatabinCache {
                 }
                 super::jpip_snapshot_tile_root_advance(current_root, completed_events,
                     completed_parts, completed_packets, tile_part.coding_style.layers);
+                completed_events=crate::specs::part2_jpip_grid_normal_calls(current_root.input,current_root.tile as usize,current_root.layout)+completed_events;
             }
             automatic_tiles.push(AutomaticTile { parts });
             #[cfg(verus_keep_ghost)]

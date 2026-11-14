@@ -25,6 +25,9 @@ specs/cold_bitmap.rs
 specs/cold_decode_finish.rs
 specs/cold_decode_packets.rs
 specs/cold_extensions_copy.rs
+specs/cold_grid.rs
+specs/cold_grid_geometry.rs
+specs/cold_grid_plan.rs
 specs/cold_header_progression.rs
 specs/cold_inspection_storage.rs
 specs/cold_layout.rs

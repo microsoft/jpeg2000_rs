@@ -5,6 +5,7 @@ use super::*;
 verus! {
 
 pub enum Part2JpipSnapshotEvent {
+    GridCapacity { context: Part2GridCapacityContext, elements: usize, succeeded: bool },
     PacketPreparationCapacity { context: Part2PacketPreparationContext, elements: usize, succeeded: bool },
     PackedHeaderCapacity { source: Part1PackedHeaders, succeeded: bool },
     InspectionCapacity { collection: crate::allocation::InspectionCollection, elements: usize, succeeded: bool },
@@ -538,7 +539,65 @@ pub(crate) proof fn part2_jpip_snapshot_acquired_packets_continuation<T>(
 {
 }
 
+pub(crate) open spec fn part2_jpip_grid_plan(input:Part2JpipSnapshotInput<'_>,tile:usize,layout:Part2DecoderLayoutInput,
+    events:Seq<Part2JpipSnapshotEvent>)->Part2ColdRun<Part2ProgressionTilePlan> {
+    let parts=layout.parts.filter(|part:Part2OwnedTilePart|part.tile_index==tile as u16);
+    let first=parts[0];
+    part2_grid_plan_run(&layout.size,first.coding_style,&first.component_coding_styles,first.component_quantizations,&first.roi_shifts,
+        (tile as u16,0),(false,74,false),input.limits,events)
+}
+pub(crate) open spec fn part2_jpip_grid_plan_value(input:Part2JpipSnapshotInput<'_>,tile:usize,layout:Part2DecoderLayoutInput)->Result<Part2ProgressionTilePlan,crate::DecodeError> {
+    let parts=layout.parts.filter(|part:Part2OwnedTilePart|part.tile_index==tile as u16);
+    let first=parts[0];
+    part2_progression_tile_plan_owned(&layout.size,first.coding_style,&first.component_coding_styles,first.component_quantizations,&first.roi_shifts,
+        (tile as u16,0),(false,74,false),input.limits)
+}
+#[verifier::opaque]
+pub(crate) open spec fn part2_jpip_grid_normal_calls(input:Part2JpipSnapshotInput<'_>,tile:usize,layout:Part2DecoderLayoutInput)->Seq<Part2JpipSnapshotEvent> {
+    if tile>u16::MAX as usize || layout.parts.filter(|part:Part2OwnedTilePart|part.tile_index==tile as u16).len()==0 {Seq::empty()}
+    else {
+        let run=|events|part2_jpip_grid_plan(input,tile,layout,events);
+        choose|calls:Seq<Part2JpipSnapshotEvent>| #[trigger] part2_cold_prefix(run,calls,part2_jpip_grid_plan_value(input,tile,layout))
+    }
+}
+#[verifier::opaque]
 pub(crate) open spec fn part2_jpip_snapshot_tile(
+    input: Part2JpipSnapshotInput<'_>, count:u64,components:u16,tile:usize,layout:Part2DecoderLayoutInput,
+    raw:Seq<Seq<u8>>,headers:Seq<Seq<Seq<u8>>>,events:Seq<Part2JpipSnapshotEvent>)->Part2JpipSnapshotRun<Part2JpipSnapshotTile> {
+    if tile>u16::MAX as usize || layout.parts.filter(|part:Part2OwnedTilePart|part.tile_index==tile as u16).len()==0 {
+        part2_jpip_snapshot_tile_normal_run(input,count,components,tile,layout,raw,headers,events)
+    }else{
+        part2_jpip_snapshot_bind(part2_jpip_grid_plan(input,tile,layout,events),
+            |_:Part2ProgressionTilePlan,rest|part2_jpip_snapshot_tile_normal_run(input,count,components,tile,layout,raw,headers,rest))
+    }
+}
+pub(crate) proof fn part2_jpip_grid_normal_frame(input:Part2JpipSnapshotInput<'_>,count:u64,components:u16,tile:usize,layout:Part2DecoderLayoutInput,
+    raw:Seq<Seq<u8>>,headers:Seq<Seq<Seq<u8>>>)
+    ensures forall|events| #[trigger] part2_jpip_snapshot_tile(input,count,components,tile,layout,raw,headers,
+        part2_jpip_grid_normal_calls(input,tile,layout)+events)==part2_jpip_snapshot_tile_normal_run(input,count,components,tile,layout,raw,headers,events),
+{
+    reveal(part2_jpip_grid_normal_calls);reveal(part2_jpip_snapshot_tile);
+    if tile>u16::MAX as usize || layout.parts.filter(|part:Part2OwnedTilePart|part.tile_index==tile as u16).len()==0 {
+        assert forall|events:Seq<Part2JpipSnapshotEvent>|part2_jpip_grid_normal_calls(input,tile,layout)+events =~= events by {};
+    }else{
+        reveal(part2_grid_plan_result);
+        let parts=layout.parts.filter(|part:Part2OwnedTilePart|part.tile_index==tile as u16);let first=parts[0];
+        part2_grid_plan_normal(&layout.size,first.coding_style,&first.component_coding_styles,first.component_quantizations,&first.roi_shifts,
+            (tile as u16,0),(false,74,false),input.limits);
+        let run=|events|part2_jpip_grid_plan(input,tile,layout,events);
+        let result=part2_jpip_grid_plan_value(input,tile,layout);
+        part2_decode_eta(|events|part2_grid_plan_run(&layout.size,first.coding_style,&first.component_coding_styles,first.component_quantizations,&first.roi_shifts,
+            (tile as u16,0),(false,74,false),input.limits,events),result);
+        assert(part2_cold_framed(run,result));
+        assert(part2_cold_prefix(run,part2_jpip_grid_normal_calls(input,tile,layout),result));
+        assert forall|events:Seq<Part2JpipSnapshotEvent>|
+            part2_jpip_snapshot_tile(input,count,components,tile,layout,raw,headers,part2_jpip_grid_normal_calls(input,tile,layout)+events)
+                ==part2_jpip_snapshot_tile_normal_run(input,count,components,tile,layout,raw,headers,events) by {
+            part2_cold_prefix_at(run,part2_jpip_grid_normal_calls(input,tile,layout),result,events);
+        }
+    }
+}
+pub(crate) open spec fn part2_jpip_snapshot_tile_normal_run(
     input: Part2JpipSnapshotInput<'_>, count: u64, components: u16, tile: usize,
     layout: Part2DecoderLayoutInput, raw: Seq<Seq<u8>>, headers: Seq<Seq<Seq<u8>>>,
     events: Seq<Part2JpipSnapshotEvent>,

@@ -1082,9 +1082,23 @@ states compose through all existing decode/public continuations. The reusable
 Copy-fill helper preserves exact values and empty success without invoking
 allocating Clone. Bounded controls include first/later refusal, empty grids,
 malformed/earlier-work rejection and raw/container restoration.
-Entropy/image buffers, grid/planning owners and existing-buffer growth remain
-separate. Successful reservation relies on the documented standard-library
-boundary, not a physical-capacity theorem inferred from sequence models.
+Fresh PacketGrid offsets and the directly reached uniform-resolution vector
+now use distinct `GridCapacity` contexts. Offset capacity is checked
+`expected + 1`; even an empty summary requests its sentinel slot. Overflow
+precedes that request. Uniform component filling occurs at the original
+argument frontier, before the grid's own admission; zero components consumes
+no response. Geometry, cardinality and limit checks retain their original
+positions, including selected/work validation after offset construction.
+Actual source-derived geometry folds, plans and full/selected decode folds
+bind grid responses before packet/preparation/header responses. Automatic
+snapshot preparation has a checked grid-normal projection and actual refusal
+join, preserving the distinct template/final/image parse phases, prior
+owner/counter/decoder/cache frames and unconsumed tails. Native static
+constructors use the existing pinned inline-spec form without body hoisting.
+Fresh upstream geometry count/descriptor buffers, broader planning owners,
+entropy/image buffers and existing-buffer growth remain separate.
+Successful reservation relies on the documented standard-library boundary,
+not a physical-capacity theorem inferred from sequence models.
 Same-file links are checked inside another listed, formatted function body;
 the contract's own declaration, an unrelated function or an indirect caller
 does not qualify as a direct same-file call. Unsupported formatting can fail

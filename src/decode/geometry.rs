@@ -273,7 +273,9 @@ pub(crate) fn prepare_component_resolution_counts(
 }
 
 #[cfg_attr(verus_keep_ghost, verus_spec(result =>
-    ensures crate::packet::packet_grid_outcome(result) == crate::specs::part2_packet_grid_from_components(
+    ensures crate::specs::part2_derived_grid_result(size,coding_styles,layers,limits,tile_index,discard_levels,crate::packet::packet_grid_outcome(result)),
+        crate::packet::packet_grid_outcome(result)!=Err(DecodeError::AllocationFailed) ==>
+        crate::packet::packet_grid_outcome(result) == crate::specs::part2_packet_grid_from_components(
         size, coding_styles, layers, limits, tile_index, discard_levels,
     ),
 ))]
@@ -286,7 +288,10 @@ pub(crate) fn derive_packet_grid_for_components(
     discard_levels: u8,
 ) -> Result<PacketGrid, DecodeError> {
     #[cfg(verus_keep_ghost)]
-    proof! { codestream::selection_geometry_known_fields(size); }
+    proof! {
+        codestream::selection_geometry_known_fields(size);
+        crate::specs::part2_derived_grid_normal(size,coding_styles,layers,limits,tile_index,discard_levels);
+    }
     let (maximum_resolutions, component_resolutions, selected_resolution_counts) =
         prepare_component_resolution_counts(size.components, coding_styles, discard_levels)?;
     #[cfg(verus_keep_ghost)]
@@ -308,6 +313,11 @@ pub(crate) fn derive_packet_grid_for_components(
                 component <= size.components,
                 codestream::image_size_component_count(size) == size.components,
                 descriptors == (maximum_resolutions, component_resolutions@, selected_resolution_counts@),
+                crate::specs::part2_derived_grid_result(size,coding_styles,layers,limits,tile_index,discard_levels,
+                    crate::specs::part2_packet_grid_from_components(size,coding_styles,layers,limits,tile_index,discard_levels)),
+                forall|events:Seq<crate::specs::Part2JpipSnapshotEvent>|
+                    crate::specs::part2_derived_grid_run(size,coding_styles,layers,limits,tile_index,discard_levels,events)
+                        ==crate::specs::part2_grid_components_cold_run(size,coding_styles,layers,limits,tile_index,discard_levels,descriptors,component,precinct_counts@,total_code_blocks,events),
                 crate::specs::part2_packet_grid_from_components(size, coding_styles, layers, limits, tile_index, discard_levels)
                     == crate::specs::part2_packet_grid_components_run(
                         size, coding_styles, layers, limits, tile_index, discard_levels,
@@ -318,7 +328,7 @@ pub(crate) fn derive_packet_grid_for_components(
     )]
     while component < size.components {
         #[cfg(verus_keep_ghost)]
-        proof! { reveal(crate::specs::part2_packet_grid_components_run); }
+        proof! { reveal(crate::specs::part2_packet_grid_components_run); reveal_with_fuel(crate::specs::part2_grid_components_cold_run,1); }
         let style = coding_styles.style(component)?;
         let resolutions = style
             .decomposition_levels
@@ -330,6 +340,11 @@ pub(crate) fn derive_packet_grid_for_components(
             assert(codestream::component_coding_style_result(coding_styles, component) == Ok(style));
             assert(style.decomposition_levels < u8::MAX);
             assert(resolutions as int == style.decomposition_levels as int + 1);
+            assert forall|events:Seq<crate::specs::Part2JpipSnapshotEvent>|
+                crate::specs::part2_derived_grid_run(size,coding_styles,layers,limits,tile_index,discard_levels,events)
+                    ==crate::specs::part2_grid_resolutions_cold_run(size,coding_styles,layers,limits,tile_index,discard_levels,descriptors,component,style,resolutions,0,precinct_counts@,total_code_blocks,events) by {
+                crate::specs::part2_grid_component_cold_start(size,coding_styles,layers,limits,tile_index,discard_levels,descriptors,component,precinct_counts@,total_code_blocks,style,resolutions,events);
+            }
             crate::proofs::production_impl::production_packet_grid_component_start(
                 size, coding_styles, layers, limits, tile_index, discard_levels,
                 descriptors, component, precinct_counts@, total_code_blocks, style, resolutions,
@@ -350,6 +365,11 @@ pub(crate) fn derive_packet_grid_for_components(
                     codestream::image_size_component_count(size) == size.components,
                     resolution <= maximum_resolutions,
                     descriptors == (maximum_resolutions, component_resolutions@, selected_resolution_counts@),
+                    crate::specs::part2_derived_grid_result(size,coding_styles,layers,limits,tile_index,discard_levels,
+                        crate::specs::part2_packet_grid_from_components(size,coding_styles,layers,limits,tile_index,discard_levels)),
+                    forall|events:Seq<crate::specs::Part2JpipSnapshotEvent>|
+                        crate::specs::part2_derived_grid_run(size,coding_styles,layers,limits,tile_index,discard_levels,events)
+                            ==crate::specs::part2_grid_resolutions_cold_run(size,coding_styles,layers,limits,tile_index,discard_levels,descriptors,component,style,resolutions,resolution,precinct_counts@,total_code_blocks,events),
                     crate::specs::part2_packet_grid_from_components(size, coding_styles, layers, limits, tile_index, discard_levels)
                         == crate::specs::part2_packet_grid_resolutions_run(
                             size, coding_styles, layers, limits, tile_index, discard_levels,
@@ -361,7 +381,7 @@ pub(crate) fn derive_packet_grid_for_components(
         )]
         while resolution < maximum_resolutions {
             #[cfg(verus_keep_ghost)]
-            proof! { reveal(crate::specs::part2_packet_grid_resolutions_run); }
+            proof! { reveal(crate::specs::part2_packet_grid_resolutions_run);reveal_with_fuel(crate::specs::part2_grid_resolutions_cold_run,1); }
             if resolution < resolutions {
                 let geometry = derive_component_resolution_geometry_for(
                     size, style, component, resolution, tile_index,
@@ -409,12 +429,15 @@ pub(crate) fn derive_packet_grid_for_components(
         #[cfg(verus_keep_ghost)]
         proof! {
             reveal(crate::specs::part2_packet_grid_resolutions_run);
+            reveal_with_fuel(crate::specs::part2_grid_resolutions_cold_run,1);
         }
         component = component.checked_add(1).ok_or_else(arithmetic_overflow)?;
     }
     #[cfg(verus_keep_ghost)]
-    proof! { reveal(crate::specs::part2_packet_grid_components_run); }
-    crate::packet::packet_grid_new_with_selected_resolutions(
+    proof! { reveal(crate::specs::part2_packet_grid_components_run);reveal_with_fuel(crate::specs::part2_grid_components_cold_run,1); }
+    #[cfg(verus_keep_ghost)]
+    proof_decl! {let ghost final_counts=precinct_counts@;}
+    let result = crate::packet::packet_grid_new_with_selected_resolutions(
         layers,
         size.components,
         component_resolutions,
@@ -425,7 +448,16 @@ pub(crate) fn derive_packet_grid_for_components(
             Some(&selected_resolution_counts)
         },
         limits,
-    )
+    );
+    #[cfg(verus_keep_ghost)]
+    proof! {
+        reveal(crate::specs::part2_derived_grid_result);reveal(crate::specs::part2_grid_result);
+        crate::specs::part2_cold_framed_extensional(
+            |events|crate::specs::part2_grid_run(layers,size.components,descriptors.1,final_counts,if discard_levels==0{None}else{Some(descriptors.2)},limits,events),
+            |events|crate::specs::part2_derived_grid_run(size,coding_styles,layers,limits,tile_index,discard_levels,events),
+            crate::packet::packet_grid_outcome(result));
+    }
+    result
 }
 
 #[cfg_attr(verus_keep_ghost, verus_spec(result =>

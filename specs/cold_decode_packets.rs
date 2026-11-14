@@ -168,19 +168,10 @@ pub(crate) open spec fn part2_tile_decode_run(size: &crate::codestream::ImageSiz
     match part2_tile_decode_metadata_owned(parts, crate::codestream::image_size_component_count(size), discard) {
         Err(error) => Some((Err(error), events)),
         Ok(metadata) => {
-            let maximum = match discard { None => None, Some(_) => Some(metadata.resolution_counts) };
-            match part2_progression_tile_plan_owned(size, metadata.first.coding_style, &metadata.first.component_coding_styles,
+            part2_jpip_snapshot_bind(part2_grid_plan_run(size, metadata.first.coding_style, &metadata.first.component_coding_styles,
                 metadata.first.component_quantizations, &metadata.first.roi_shifts, (tile, match discard { None => 0u8, Some(levels) => levels }),
-                (part2_profile_multiple_sets(caps), part2_profile_magnitude_bound(caps), part2_profile_force_ht(caps)), limits) {
-                Err(error) => Some((Err(error), events)),
-                Ok(plan) => match part2_planned_tile_accounting(plan, maximum, initial, limits) {
-                    Err(error) => Some((Err(error), events)),
-                    Ok(counters) => part2_jpip_snapshot_bind(part2_planned_decode_run(plan, parts, metadata.first, size, metadata.standard, maximum,
-                        limits, prepared, work, events), |decoded: Part2DecodedTileComponents, rest| Some((Ok(Part2DecodedLayoutTile {
-                            prepared: decoded.prepared, counters, mct_work: decoded.mct_work,
-                        }), rest))),
-                },
-            }
+                (part2_profile_multiple_sets(caps), part2_profile_magnitude_bound(caps), part2_profile_force_ht(caps)), limits,events),
+                |plan:Part2ProgressionTilePlan,rest|part2_tile_after_grid_plan(size,parts,metadata,discard,limits,prepared,initial,work,plan,rest))
         },
     }
 }
@@ -196,28 +187,22 @@ pub(crate) proof fn part2_tile_decode_normal(size: &crate::codestream::ImageSize
     ensures part2_tile_decode_result(size, tile, parts, caps, discard, limits, prepared, initial, work,
         part2_decode_tile_parts_owned(size, tile, parts, caps, discard, limits, prepared, initial, work)),
 {
-    reveal(part2_tile_decode_result); reveal(part2_planned_decode_result);
+    reveal(part2_tile_decode_result);reveal(part2_grid_plan_result);
     let result = part2_decode_tile_parts_owned(size, tile, parts, caps, discard, limits, prepared, initial, work);
     match part2_tile_decode_metadata_owned(parts, crate::codestream::image_size_component_count(size), discard) {
         Err(_) => { part2_cold_pure::<Part2DecodedLayoutTile>(result); },
         Ok(metadata) => {
-            let maximum = match discard { None => None, Some(_) => Some(metadata.resolution_counts) };
-            match part2_progression_tile_plan_owned(size, metadata.first.coding_style, &metadata.first.component_coding_styles,
-                metadata.first.component_quantizations, &metadata.first.roi_shifts, (tile, match discard { None => 0u8, Some(levels) => levels }),
-                (part2_profile_multiple_sets(caps), part2_profile_magnitude_bound(caps), part2_profile_force_ht(caps)), limits) {
-                Err(_) => { part2_cold_pure::<Part2DecodedLayoutTile>(result); },
-                Ok(plan) => match part2_planned_tile_accounting(plan, maximum, initial, limits) {
-                    Err(_) => { part2_cold_pure::<Part2DecodedLayoutTile>(result); },
-                    Ok(counters) => {
-                        part2_planned_decode_normal(plan, parts, metadata.first, size, metadata.standard, maximum, limits, prepared, work);
-                        let decoded = part2_decode_planned_tile_components_owned(plan, parts, metadata.first, size, metadata.standard, maximum, limits, prepared, work);
-                        if let Ok(value) = decoded { part2_cold_pure::<Part2DecodedLayoutTile>(Ok(Part2DecodedLayoutTile { prepared: value.prepared, counters, mct_work: value.mct_work })); }
-                        part2_cold_bind(
-                            |events| part2_planned_decode_run(plan, parts, metadata.first, size, metadata.standard, maximum, limits, prepared, work, events),
-                            |decoded: Part2DecodedTileComponents, rest| Some((Ok(Part2DecodedLayoutTile { prepared: decoded.prepared, counters, mct_work: decoded.mct_work }), rest)), decoded, result);
-                    },
-                },
+            let select=(tile,match discard {None=>0u8,Some(level)=>level});
+            let policy=(part2_profile_multiple_sets(caps),part2_profile_magnitude_bound(caps),part2_profile_force_ht(caps));
+            let plan=part2_progression_tile_plan_owned(size,metadata.first.coding_style,&metadata.first.component_coding_styles,metadata.first.component_quantizations,&metadata.first.roi_shifts,select,policy,limits);
+            part2_grid_plan_normal(size,metadata.first.coding_style,&metadata.first.component_coding_styles,metadata.first.component_quantizations,&metadata.first.roi_shifts,select,policy,limits);
+            part2_grid_plan_frames(size,metadata.first.coding_style,&metadata.first.component_coding_styles,metadata.first.component_quantizations,&metadata.first.roi_shifts,select,policy,limits,plan);
+            if let Ok(value)=plan {
+                part2_tile_after_grid_plan_normal(size,tile,parts,caps,discard,limits,prepared,initial,work,metadata,value);
+                part2_decode_eta(|events|part2_tile_after_grid_plan(size,parts,metadata,discard,limits,prepared,initial,work,value,events),result);
             }
+            part2_cold_bind(|events|part2_grid_plan_run(size,metadata.first.coding_style,&metadata.first.component_coding_styles,metadata.first.component_quantizations,&metadata.first.roi_shifts,select,policy,limits,events),
+                |plan:Part2ProgressionTilePlan,rest|part2_tile_after_grid_plan(size,parts,metadata,discard,limits,prepared,initial,work,plan,rest),plan,result);
         },
     }
 }
@@ -230,6 +215,8 @@ pub(crate) proof fn part2_tile_decode_components_actual(size: &crate::codestream
             metadata.first.component_quantizations, &metadata.first.roi_shifts, (tile, match discard { None => 0u8, Some(levels) => levels }),
             (part2_profile_multiple_sets(caps), part2_profile_magnitude_bound(caps), part2_profile_force_ht(caps)), limits) == Ok(plan),
         part2_planned_tile_accounting(plan, match discard { None => None, Some(_) => Some(metadata.resolution_counts) }, initial, limits) == Ok(counters),
+        part2_grid_plan_result(size,metadata.first.coding_style,&metadata.first.component_coding_styles,metadata.first.component_quantizations,&metadata.first.roi_shifts,
+            (tile,match discard {None=>0u8,Some(level)=>level}),(part2_profile_multiple_sets(caps),part2_profile_magnitude_bound(caps),part2_profile_force_ht(caps)),limits,Ok(plan)),
         part2_planned_decode_result(plan, parts, metadata.first, size, metadata.standard, match discard { None => None, Some(_) => Some(metadata.resolution_counts) },
             limits, prepared, work, result),
     ensures part2_tile_decode_result(size, tile, parts, caps, discard, limits, prepared, initial, work, match result {
@@ -242,6 +229,14 @@ pub(crate) proof fn part2_tile_decode_components_actual(size: &crate::codestream
     let final_result = match result { Err(error) => Err(error), Ok(decoded) => Ok(Part2DecodedLayoutTile { prepared: decoded.prepared, counters, mct_work: decoded.mct_work }) };
     if let Ok(value) = result { part2_cold_pure::<Part2DecodedLayoutTile>(Ok(Part2DecodedLayoutTile { prepared: value.prepared, counters, mct_work: value.mct_work })); }
     part2_cold_bind(|events| part2_planned_decode_run(plan, parts, metadata.first, size, metadata.standard, maximum, limits, prepared, work, events), finish, result, final_result);
+    part2_decode_eta(|events|part2_jpip_snapshot_bind(part2_planned_decode_run(plan,parts,metadata.first,size,metadata.standard,maximum,limits,prepared,work,events),finish),final_result);
+    reveal(part2_grid_plan_result);
+    part2_grid_plan_frames(size,metadata.first.coding_style,&metadata.first.component_coding_styles,metadata.first.component_quantizations,&metadata.first.roi_shifts,
+        (tile,match discard {None=>0u8,Some(level)=>level}),(part2_profile_multiple_sets(caps),part2_profile_magnitude_bound(caps),part2_profile_force_ht(caps)),limits,Ok(plan));
+    part2_decode_eta(|events|part2_tile_after_grid_plan(size,parts,metadata,discard,limits,prepared,initial,work,plan,events),final_result);
+    part2_cold_bind(|events|part2_grid_plan_run(size,metadata.first.coding_style,&metadata.first.component_coding_styles,metadata.first.component_quantizations,&metadata.first.roi_shifts,
+        (tile,match discard {None=>0u8,Some(level)=>level}),(part2_profile_multiple_sets(caps),part2_profile_magnitude_bound(caps),part2_profile_force_ht(caps)),limits,events),
+        |plan:Part2ProgressionTilePlan,rest|part2_tile_after_grid_plan(size,parts,metadata,discard,limits,prepared,initial,work,plan,rest),Ok(plan),final_result);
 }
 #[verifier::opaque]
 pub(crate) open spec fn part2_full_decode_run(size: &crate::codestream::ImageSize, parts: Seq<Part2OwnedTilePart>, caps: Option<(u32, Seq<u16>)>,

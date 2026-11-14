@@ -8196,6 +8196,36 @@ class FrameworkTests(WorkingFiles):
                     self.assertRaisesRegex(ValueError, "ordered cold quantization storage"):
                 framework.validate_normative_coverage(dict(coverage, requirements=[entry]))
 
+    def test_inventory_grid_storage_requires_actual_offset_uniform_counts_and_plan_phase(self):
+        coverage = json.loads((framework.VALIDATION / "normative-coverage.json").read_text())
+        entry = next(item for item in coverage["requirements"] if item["id"] == "part1-complete-native-grid-progression-composition")
+        data = dict(coverage, requirements=[entry])
+        self.assertEqual(framework.validate_normative_coverage(data)["status"], "passed")
+        read_text = Path.read_text
+        for relative, symbol, before, after in (
+            ("specs/cold_grid.rs", "part2_grid_capacity_count", "(expected+1) as usize", "expected"),
+            ("specs/cold_grid.rs", "part2_grid_capacity_run", "Part2JpipSnapshotEvent::GridCapacity", "Part2JpipSnapshotEvent::PacketPreparationCapacity"),
+            ("specs/cold_grid.rs", "part2_grid_capacity_run", "actual!=context || elements!=count", "actual!=context && elements!=count"),
+            ("specs/cold_grid.rs", "part2_grid_capacity_run", "events.drop_first()", "events"),
+            ("specs/cold_grid.rs", "part2_grid_summary_run", "expected==usize::MAX", "expected==0"),
+            ("specs/jpip_snapshot_inputs.rs", "part2_jpip_snapshot_tile", "part2_jpip_grid_plan(input,tile,layout,events)", "supplied_plan(input,tile,layout,events)"),
+            ("src/packet/progression.rs", "packet_grid_count_summary", "empty_with_capacity(capacity)", "empty_with_capacity(expected)"),
+            ("src/packet/progression.rs", "PacketGrid::new", "filled_values(resolutions, usize::from(components))", "filled_values(0, usize::from(components))"),
+        ):
+            source = framework.ROOT / relative
+            original = source.read_text()
+            body = (framework._coverage_function_body(original, framework._coverage_function_header(original, symbol))
+                    if relative.startswith("src/") else framework._coverage_spec_function_body(original, symbol))
+            self.assertIn(before, body)
+            changed = original.replace(body, body.replace(before, after, 1), 1)
+
+            def altered(path, *args, **kwargs):
+                return changed if path == source else read_text(path, *args, **kwargs)
+
+            with self.subTest(symbol=symbol, before=before), mock.patch.object(Path, "read_text", altered), \
+                    self.assertRaisesRegex(ValueError, "grid fresh storage"):
+                framework.validate_normative_coverage(data)
+
     def test_inventory_preparation_storage_requires_outer_seen_source_order_and_zero_frames(self):
         coverage = json.loads((framework.VALIDATION / "normative-coverage.json").read_text())
         entry = next(item for item in coverage["requirements"] if item["id"] == "part1-complete-native-grid-progression-composition")
@@ -8239,7 +8269,7 @@ class FrameworkTests(WorkingFiles):
             ("specs/cold_packed_headers.rs", "part2_packed_requests_run", "source != requests[0]", "source != requests[1]"),
             ("specs/cold_packed_headers.rs", "part2_packed_requests_run", "events.drop_first()", "events"),
             ("specs/cold_packed_headers.rs", "part2_packet_run", "Some(((Err(error), precincts), rest))", "Some(((Err(error), Seq::empty()), rest))"),
-            ("specs/cold_decode_packets.rs", "part2_tile_decode_run", "part2_progression_tile_plan_owned(", "supplied_plan("),
+            ("specs/cold_decode_packets.rs", "part2_tile_decode_run", "part2_grid_plan_run(", "supplied_plan("),
             ("specs/cold_decode_packets.rs", "part2_full_decode_run", "before.counters", "(0,0,0)"),
             ("src/codestream/packet_headers.rs", "PackedPacketHeaders::reassemble", "empty_with_capacity(self.length)", "empty_with_capacity(1)"),
         ):
@@ -8478,6 +8508,12 @@ class FrameworkTests(WorkingFiles):
                 if key in {("src/packet/tile.rs", "prepare_progression_payloads"), ("src/packet/tile.rs", "progression_tile_progress_new")}:
                     isolated["test_refs"] += [
                         {"path": path, "symbol": symbol} for path, symbol in sorted(framework._PREPARATION_STORAGE_TESTS)
+                        if {"path": path, "symbol": symbol} not in isolated["test_refs"]
+                    ]
+                if key in {("src/packet/progression.rs", name) for name in (
+                        "packet_grid_count_summary", "packet_grid_new_with_component_resolutions", "packet_grid_new_with_selected_resolutions")}:
+                    isolated["test_refs"] += [
+                        {"path": path, "symbol": symbol} for path, symbol in sorted(framework._GRID_STORAGE_TESTS)
                         if {"path": path, "symbol": symbol} not in isolated["test_refs"]
                     ]
             self.assertEqual(framework.validate_normative_coverage(coverage)["status"], "passed")

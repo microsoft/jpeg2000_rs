@@ -4796,6 +4796,11 @@ _RAW_RENDER_PROOFS |= {("specs/jpx_raw_frame.rs", "part2_render_raw_cold_metadat
 _RAW_COMPOSITION_RENDER_PROOFS |= {("specs/jpx_raw_frame.rs", "part2_render_raw_cold_metadata_error")}
 
 _COLD_RESULT_MODELS = {
+    "part1_grid_count_summary": ("part2_grid_summary_result", "specs/cold_grid.rs", "part2_grid_summary_normal"),
+    "part1_packet_grid_new": ("part2_grid_result", "specs/cold_grid.rs", "part2_grid_normal"),
+    "part2_packet_grid_from_components": ("part2_derived_grid_result", "specs/cold_grid_geometry.rs", "part2_derived_grid_normal"),
+    "part2_progression_tile_plan": ("part2_grid_plan_result", "specs/cold_grid_plan.rs", "part2_grid_plan_normal"),
+    "part1_progression_plan_cold_result": ("part1_progression_plan_cold_result", "specs/cold_grid_plan.rs", "part2_grid_plan_normal"),
     "part1_packed_header_reassembly": ("part2_packed_reassembly_result", "specs/cold_packed_headers.rs", "part2_packed_reassembly_normal"),
     "part1_progression_payloads": ("part2_prepare_payloads_result", "specs/cold_packet_preparation.rs", "part2_prepare_payloads_normal"),
     "part1_tile_progress_initial": ("part2_progress_initial_result", "specs/cold_packet_preparation.rs", "part2_progress_initial_normal"),
@@ -4941,6 +4946,8 @@ def _coverage_cold_relation(
 ) -> tuple[str, str]:
     model, outcome, state, inputs = legacy
     cold_model = _COLD_RESULT_MODELS[model][0]
+    if model == "part2_progression_tile_plan":
+        inputs = inputs.replace("quantizations", _coverage_call("codestream::quantization_owner_view", "quantizations"))
     if model == "part1_progression_payloads":
         inputs = _coverage_call("crate::codestream::tile_parts_owned_view", "tile_parts@") + r"\s*,\s*tile_index\s*,\s*" \
             + _coverage_call("crate::limits::resource_packet_header_byte_limit", "limits")
@@ -5025,6 +5032,7 @@ _COLD_RESULT_CONTRACTS = {
         _PROGRESSION_BYTES_CONTRACTS, _RAW_TILE_HEADER_CONTRACTS,
         _PACKET_PROGRESSION_CONTRACTS, _LAYOUT_DECODING_CONTRACTS,
         _RAW_TILE_DECODING_CONTRACTS, _PACKET_RECONSTRUCTION_CONTRACTS, _TYPED_LAYOUT_CONTRACTS,
+        _PACKET_GRID_PRODUCER_CONTRACTS, _COMPONENT_TILE_PLANNING_CONTRACTS,
     )
     for key, legacy in contracts.items()
     if legacy[0] in _COLD_RESULT_MODELS
@@ -5037,6 +5045,11 @@ _packed_public_key = ("src/packet/tile.rs", "decode_progression_tile_packets")
 _packed_public_arguments = _COLD_RESULT_CONTRACTS[_packed_public_key][1].replace(
     _coverage_call("crate::codestream::tile_parts_owned_view", "tile_parts@"), "tile_parts@")
 _COLD_RESULT_CONTRACTS[_packed_public_key] = ("part1_progression_tile_cold_result", _packed_public_arguments)
+_grid_plan_public_key = ("src/decode/planning.rs", "plan_progression_tile_at_with_component_overrides")
+_grid_plan_public_legacy = _COMPONENT_TILE_PLANNING_CONTRACTS[_grid_plan_public_key]
+_COLD_RESULT_CONTRACTS[_grid_plan_public_key] = (
+    "part1_progression_plan_cold_result", _grid_plan_public_legacy[3] + r"\s*,\s*" + _grid_plan_public_legacy[1],
+)
 
 _COLD_TILE_INPUT_FIELDS = (
     ("reader", _coverage_call("parser_view", _coverage_call("old", "self"))),
@@ -5090,6 +5103,7 @@ for _header_symbol, _header_model, _raw_pattern, _header_outcome in (
     )
 
 _COLD_INNER_RUNS = {
+    "part1_progression_plan_cold_result": "part2_grid_plan_run",
     "part1_progression_tile_cold_result": "part2_packet_run",
     "part2_inspection_capacity_result": "part2_inspection_capacity",
     "part1_profile_storage_result": "part1_profile_run",
@@ -5119,6 +5133,22 @@ def _coverage_cold_links(keys: set[tuple[str, str]]) -> tuple[set[tuple[str, str
         }.get(model, model.removesuffix("_result") + "_run")
         models.update(((path, model), (path, run)))
         proofs.add((path, normal))
+        if model in ("part2_grid_result", "part2_grid_summary_result"):
+            models.update(("specs/cold_grid.rs", name) for name in (
+                "part2_grid_admit", "part2_grid_capacity_count", "part2_grid_capacity_run", "part2_grid_capacity_result",
+                "part2_uniform_grid_run", "part1_uniform_grid_cold_result", "part1_uniform_grid_model",
+            ))
+            proofs.update(("specs/cold_grid.rs", name) for name in (
+                "part2_grid_capacity_observed", "part2_grid_summary_refused", "part2_grid_summary_error",
+                "part2_uniform_grid_normal", "part2_uniform_grid_actual",
+            ))
+            proofs.update(("src/packet/progression.rs", name) for name in ("PacketGrid::new", "PacketGrid::new_with_component_resolutions"))
+        if model == "part2_derived_grid_result":
+            models.update((path, name) for name in ("part2_grid_components_cold_run", "part2_grid_resolutions_cold_run"))
+            proofs.update((path, name) for name in ("part2_grid_components_cold_normal", "part2_grid_resolutions_cold_normal", "part2_grid_component_cold_start"))
+        if model in ("part2_grid_plan_result", "part1_progression_plan_cold_result"):
+            models.add((path, "part2_grid_plan_result"))
+            proofs.update((path, name) for name in ("part2_grid_plan_frames", "part2_grid_plan_error", "part2_grid_plan_public_equivalent"))
         if model in ("part2_prepare_payloads_result", "part2_progress_initial_result"):
             models.update((path, name) for name in ("part2_preparation_count", "part2_preparation_capacity_run", "part2_preparation_capacity_result"))
             proofs.add((path, "part2_preparation_observed"))
@@ -5164,7 +5194,9 @@ def _coverage_cold_result_body(text: str, model: str) -> bool:
         **_COLD_INNER_RUNS,
     }.get(model, model.removesuffix("_result") + "_run")
     call = run + "(" + ",".join(names[:-1] + ["events"]) + ")"
-    if model == "part1_progression_tile_cold_result":
+    if model == "part1_progression_plan_cold_result":
+        expected = "part2_grid_plan_result(size,style,styles,crate::codestream::quantization_owner_view(quantizations),roi,selection,policy,limits,result)"
+    elif model == "part1_progression_tile_cold_result":
         expected = "part2_packet_result(crate::codestream::tile_parts_owned_view(parts), grid, precincts, selection, limits, result)"
     elif model == "part2_packet_result":
         expected = "exists|prefix: Seq<Part2JpipSnapshotEvent>| #[trigger] part2_packet_prefix(parts, grid, precincts, selection, limits, prefix, result)"
@@ -5274,6 +5306,72 @@ _COLD_SOURCE_BODIES = {
     """, "whole effective layer Result requires actual ordered decoder/registration/opacity models"),
 }
 
+_GRID_STORAGE_TESTS = {
+    ("src/packet/progression.rs", "grid_storage_offset_empty_overflow_and_refusal_frontier_restore"),
+    ("src/packet/progression.rs", "grid_storage_uniform_first_and_later_refusal_restore_exact_offsets"),
+    ("src/packet/progression.rs", "grid_storage_admission_precedes_offsets_and_work_limit_follows"),
+    ("src/decode/tests.rs", "grid_storage_raw_selected_container_refusal_preserves_parse_and_restores"),
+}
+_GRID_STORAGE_GUARDS = {
+    ("specs/cold_grid.rs", "part2_grid_capacity_count"): (
+        "Part2GridCapacityContext::Offsets {expected,..}=>(expected+1) as usize",
+        "Part2GridCapacityContext::Uniform {components,..}=>components as usize",
+    ),
+    ("specs/cold_grid.rs", "part2_grid_capacity_run"): (
+        "if count==0 {Some((Ok(()),events))}", "Part2JpipSnapshotEvent::GridCapacity",
+        "actual!=context || elements!=count", "Err(crate::DecodeError::AllocationFailed)", "events.drop_first()", "_=>None",
+    ),
+    ("specs/cold_grid.rs", "part2_grid_summary_run"): (
+        "if expected==usize::MAX {Some((part1_grid_count_summary(counts,resolutions,maximum,expected),events))}",
+        "Part2GridCapacityContext::Offsets {counts,resolutions,maximum,expected}",
+        "part1_grid_count_summary(counts,resolutions,maximum,expected)",
+    ),
+    ("specs/cold_grid.rs", "part2_grid_run"): (
+        "part2_grid_admit(layers,components,resolutions,counts,limits)", "Err(error)=>Some((Err(error),events))",
+        "part2_grid_summary_run(counts,resolutions,maximum,expected,events)",
+        "part1_packet_grid_new(layers,components,resolutions,counts,selected,limits)",
+    ),
+    ("specs/cold_grid.rs", "part2_uniform_grid_run"): (
+        "Part2GridCapacityContext::Uniform {layers,components,resolutions,counts}",
+        "part2_grid_run(layers,components,Seq::new(components as nat,|_:int|resolutions),counts,None,limits,rest)",
+    ),
+    ("specs/cold_grid_geometry.rs", "part2_grid_components_cold_run"): (
+        "part2_grid_run(layers,crate::codestream::image_size_component_count(size),descriptors.1,counts",
+        "component_coding_style_result(styles,component)", "part2_grid_resolutions_cold_run(",
+    ),
+    ("specs/cold_grid_geometry.rs", "part2_grid_resolutions_cold_run"): (
+        "part2_resolution_geometry(", "part2_packet_grid_subband_delta(style,resolution)",
+        "part2_packet_grid_codeblocks(total,geometry.code_blocks,resolution<resolutions-discard,limits)",
+        "counts.push(if subbands==0{0u32}else{geometry.precincts as u32}),next,events)",
+    ),
+    ("specs/cold_grid_plan.rs", "part2_grid_plan_run"): (
+        "part2_selection_tile_bounds(", "part2_derived_grid_run(size,styles,style.layers,limits,Some(selection.0),selection.1,events)",
+        "part2_progression_tile_plan_owned(size,style,styles,quantizations,roi,selection,policy,limits)",
+    ),
+    ("specs/jpip_snapshot_inputs.rs", "part2_jpip_snapshot_tile"): (
+        "part2_jpip_grid_plan(input,tile,layout,events)", "|_:Part2ProgressionTilePlan,rest|part2_jpip_snapshot_tile_normal_run(input,count,components,tile,layout,raw,headers,rest)",
+    ),
+    ("specs/jpip_snapshot_inputs.rs", "part2_jpip_grid_plan"): (
+        "layout.parts.filter(|part:Part2OwnedTilePart|part.tile_index==tile as u16)", "let first=parts[0]",
+        "part2_grid_plan_run(&layout.size,first.coding_style,&first.component_coding_styles,first.component_quantizations,&first.roi_shifts,",
+    ),
+}
+_GRID_STORAGE_NATIVE_ORDER = {
+    ("src/packet/progression.rs", "packet_grid_count_summary"): (
+        "expected.checked_add(1)", "offsets: {", "empty_with_capacity(capacity)", "part2_grid_capacity_observed(",
+        "reserved?", "while state.index < counts.len()", "state.offsets.push(offset)",
+    ),
+    ("src/packet/progression.rs", "PacketGrid::new"): (
+        "part1_uniform_grid_cold_result(", "filled_values(resolutions, usize::from(components))",
+        "part2_grid_capacity_observed(", "let component_resolutions = filled?", "Self::new_with_component_resolutions(",
+        "part2_uniform_grid_actual(layers,components,resolutions,source_counts,limits,Ok(())",
+    ),
+    ("src/packet/progression.rs", "packet_grid_new_with_selected_resolutions"): (
+        "packet_grid_resolution_summary(", "if layers == 0 || components == 0", "if precinct_counts.len() != expected_counts",
+        "packet_grid_count_summary(", "part2_grid_summary_error(", "let summary = summary_result?", "packet_grid_selected_precincts(",
+        "if candidate_count > limits.maximum_work_units()",
+    ),
+}
 _PREPARATION_STORAGE_TESTS = {
     ("src/allocation.rs", "preparation_fill_zero_refusal_and_restore_keep_exact_values"),
     ("src/packet/tests.rs", "preparation_storage_outer_and_seen_refusals_preserve_precincts_and_restore"),
@@ -5367,9 +5465,12 @@ _PACKED_STORAGE_GUARDS = {
     ),
     ("specs/cold_decode_packets.rs", "part2_tile_decode_run"): (
         "part2_tile_decode_metadata_owned(parts, crate::codestream::image_size_component_count(size), discard)",
-        "part2_progression_tile_plan_owned(", "part2_planned_tile_accounting(plan, maximum, initial, limits)",
-        "part2_planned_decode_run(plan, parts, metadata.first, size, metadata.standard, maximum",
-        "prepared: decoded.prepared, counters, mct_work: decoded.mct_work",
+        "part2_grid_plan_run(", "part2_tile_after_grid_plan(size,parts,metadata,discard,limits,prepared,initial,work,plan,rest)",
+    ),
+    ("specs/cold_grid_plan.rs", "part2_tile_after_grid_plan"): (
+        "part2_planned_tile_accounting(plan,maximum,initial,limits)",
+        "part2_planned_decode_run(plan,parts,metadata.first,size,metadata.standard,maximum",
+        "prepared:decoded.prepared,counters,mct_work:decoded.mct_work",
     ),
     ("specs/cold_decode_packets.rs", "part2_full_decode_run"): (
         "part2_collect_tile_parts(parts, tile as u16)",
@@ -6508,9 +6609,17 @@ def validate_normative_coverage(
                     "jpip_snapshot_mapping_capacity_error", "jpip_snapshot_packet_capacity_error",
                     "jpip_snapshot_plan_errors", "jpip_snapshot_iterator_errors", "jpip_snapshot_order_errors",
                 )},
+                ("specs/jpip_snapshot_inputs.rs", "part2_jpip_grid_normal_frame"),
+                ("src/jpip/progression_proof_support.rs", "jpip_snapshot_grid_plan_error"),
+                ("src/jpip/progression_proof_support.rs", "jpip_snapshot_tile_actual_error"),
             }
             if not required.issubset({(ref["path"], ref["symbol"]) for ref in entry["proof_refs"]}):
                 raise ValueError("complete automatic snapshot requires checked actual error/None/ready/emission/layout joins")
+            if not {("specs/jpip_snapshot_inputs.rs", name) for name in (
+                    "part2_jpip_snapshot_tile_normal_run", "part2_jpip_grid_plan",
+                    "part2_jpip_grid_plan_value", "part2_jpip_grid_normal_calls",
+            )}.issubset({(ref["path"], ref["symbol"]) for ref in entry["spec_refs"]}):
+                raise ValueError("complete automatic snapshot requires actual grid plan phase and checked normal-prefix links")
             source = source_text((ROOT / "src/jpip/progression_proof_support.rs").resolve())
             for name, fragments in {
                 "jpip_automatic_snapshot_view": (
@@ -12418,6 +12527,24 @@ def validate_normative_coverage(
                 for ref in preparation_entry["contract_refs"]):
             if not _PREPARATION_STORAGE_TESTS.issubset({(ref["path"], ref["symbol"]) for ref in preparation_entry["test_refs"]}):
                 raise ValueError("packet preparation storage requires bounded refusal/restore/empty/state/public controls")
+        for (relative, symbol), fragments in _GRID_STORAGE_GUARDS.items():
+            body = _coverage_spec_function_body(source_text((ROOT / relative).resolve()), symbol)
+            compact = "".join(body.split()) if body is not None else ""
+            if any("".join(fragment.split()) not in compact for fragment in fragments):
+                raise ValueError("grid fresh storage requires actual distinct source/count, arithmetic/admission, plan and snapshot event/tail composition")
+        for (relative, symbol), fragments in _GRID_STORAGE_NATIVE_ORDER.items():
+            path = (ROOT / relative).resolve()
+            body = _coverage_function_body(source_text(path), function_header(path, symbol))
+            compact = "".join(body.split()) if body is not None else ""
+            positions = [compact.find("".join(fragment.split())) for fragment in fragments]
+            if any(position < 0 for position in positions) or positions != sorted(positions):
+                raise ValueError("grid fresh storage requires original actual constructor/field/admission/owner/error order")
+        if any((ref["path"], ref["symbol"]) in {
+                ("src/packet/progression.rs", "packet_grid_count_summary"),
+                ("src/packet/progression.rs", "packet_grid_new_with_component_resolutions"),
+                ("src/packet/progression.rs", "packet_grid_new_with_selected_resolutions")} for ref in preparation_entry["contract_refs"]):
+            if not _GRID_STORAGE_TESTS.issubset({(ref["path"], ref["symbol"]) for ref in preparation_entry["test_refs"]}):
+                raise ValueError("grid fresh storage requires bounded offset/uniform/refusal/restore/overflow/work/public controls")
     return {
         "status": "passed",
         "inventory_items": len(ids),

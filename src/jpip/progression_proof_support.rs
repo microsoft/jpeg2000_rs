@@ -146,6 +146,24 @@ verus! {
         -> crate::specs::Part2JpipAutomaticProgressiveDecoder {
         (value.codestream, value.decoded_layers)
     }
+    pub(crate) proof fn jpip_snapshot_grid_plan_error(root:crate::specs::Part2JpipSnapshotTileRoot<'_>,parts:Seq<crate::specs::Part2OwnedTilePart>,error:DecodeError)
+        requires crate::specs::part2_jpip_snapshot_tile_root(root),root.tile<root.headers.len(),root.tile<=u16::MAX as nat,parts.len()>0,
+            parts==root.layout.parts.filter(|part:crate::specs::Part2OwnedTilePart|part.tile_index==root.tile as u16),
+            crate::specs::part2_grid_plan_result(&root.layout.size,parts[0].coding_style,&parts[0].component_coding_styles,parts[0].component_quantizations,&parts[0].roi_shifts,
+                (root.tile as u16,0),(false,74,false),root.input.limits,Err(error)),
+        ensures crate::specs::part2_jpip_automatic_snapshot_result(root.input.cache,root.input.stream,root.input.selected,root.input.components,root.input.limits,Err(error)),
+    {
+        reveal(crate::specs::part2_grid_plan_result);
+        reveal(crate::specs::part2_jpip_snapshot_tile);
+        let run=|events|crate::specs::part2_jpip_grid_plan(root.input,root.tile as usize,root.layout,events);
+        crate::specs::part2_decode_eta(|events|crate::specs::part2_grid_plan_run(&root.layout.size,parts[0].coding_style,&parts[0].component_coding_styles,parts[0].component_quantizations,&parts[0].roi_shifts,
+            (root.tile as u16,0),(false,74,false),root.input.limits,events),Err(error));
+        let calls=crate::specs::part2_cold_witness(run,Err(error));
+        crate::specs::part2_cold_prefix_at(run,calls,Err(error),Seq::empty());
+        assert(calls+Seq::empty() =~= calls);
+        jpip_snapshot_tile_actual_error(root,calls,error);
+    }
+
     pub(crate) proof fn jpip_snapshot_plan_errors(
         root: crate::specs::Part2JpipSnapshotTileRoot<'_>, parts: Seq<crate::specs::Part2OwnedTilePart>,
     )
@@ -408,7 +426,7 @@ verus! {
         assert(crate::specs::part2_jpip_snapshot_acquired_packets(root.input, parts, transitions, databins,
             order, initial, root.tile as usize, parts[0].component_coding_styles, Seq::empty())
             == Some((Err(error), Seq::empty())));
-        assert(crate::specs::part2_jpip_snapshot_tile(root.input, root.count, root.components, root.tile as usize,
+        assert(crate::specs::part2_jpip_snapshot_tile_normal_run(root.input, root.count, root.components, root.tile as usize,
             root.layout, root.raw, root.headers, seq![capacity]) == Some((Err(error), Seq::empty())));
         jpip_snapshot_tile_root_error(root, seq![capacity], error);
     }
@@ -431,13 +449,15 @@ verus! {
         missing: Seq<crate::specs::Part2JpipMissing>,
     )
         requires crate::specs::part2_jpip_snapshot_tile_root(root), root.tile < root.headers.len(),
-            crate::specs::part2_jpip_snapshot_tile(root.input, root.count, root.components, root.tile as usize,
+            crate::specs::part2_jpip_snapshot_tile_normal_run(root.input, root.count, root.components, root.tile as usize,
                 root.layout, root.raw, root.headers, events) == Some((Ok((None, packets, layers)), Seq::empty())),
             missing == crate::specs::part2_jpip_snapshot_partition_missing(root.input.cache, packets, 0, Seq::empty()),
         ensures crate::specs::part2_jpip_automatic_snapshot_result(root.input.cache, root.input.stream,
             root.input.selected, root.input.components, root.input.limits, Ok((None, missing))),
     {
         reveal_with_fuel(crate::specs::part2_jpip_snapshot_prepare_tiles, 1);
+        crate::specs::part2_jpip_grid_normal_frame(root.input,root.count,root.components,root.tile as usize,root.layout,root.raw,root.headers);
+        let events=crate::specs::part2_jpip_grid_normal_calls(root.input,root.tile as usize,root.layout)+events;
         crate::specs::part2_jpip_snapshot_root_join(root, events);
         assert(root.events + events + Seq::empty() =~= root.events + events);
         assert(crate::specs::part2_jpip_snapshot_run(root.input, root.prefix + (root.events + events))
@@ -607,7 +627,7 @@ verus! {
         capacity: crate::specs::Part2JpipSnapshotEvent,
     ) -> bool {
         forall|tail: Seq<crate::specs::Part2JpipSnapshotEvent>|
-            #[trigger] crate::specs::part2_jpip_snapshot_tile(root.input, root.count, root.components,
+            #[trigger] crate::specs::part2_jpip_snapshot_tile_normal_run(root.input, root.count, root.components,
                 root.tile as usize, root.layout, root.raw, root.headers, seq![capacity] + tail)
             == crate::specs::part2_jpip_snapshot_bind(crate::specs::part2_jpip_snapshot_acquired_packets(
                 root.input, parts, transitions, databins, order, initial, root.tile as usize,
@@ -680,7 +700,7 @@ verus! {
                     crate::specs::part2_jpip_parse_transitions(root.raw[root.tile as int], root.tile as u16) == Ok(transitions),
                     initial == jpip_snapshot_initial_packets(plan, parts[0].coding_style.layers),
                 ensures forall|tail: Seq<crate::specs::Part2JpipSnapshotEvent>|
-                    #[trigger] crate::specs::part2_jpip_snapshot_tile(root.input, root.count, root.components, root.tile as usize,
+                    #[trigger] crate::specs::part2_jpip_snapshot_tile_normal_run(root.input, root.count, root.components, root.tile as usize,
                         root.layout, root.raw, root.headers,
                         seq![crate::specs::Part2JpipSnapshotEvent::Capacity {
                             site: 3, tile: root.tile as usize, elements: plan.precincts.len() as usize, succeeded: true }] + tail)
@@ -690,7 +710,7 @@ verus! {
                             |packets, events| jpip_snapshot_tile_finish(root, parts, transitions, packets, events)),
             {
                 assert forall|tail: Seq<crate::specs::Part2JpipSnapshotEvent>|
-                    #[trigger] crate::specs::part2_jpip_snapshot_tile(root.input, root.count, root.components, root.tile as usize,
+                    #[trigger] crate::specs::part2_jpip_snapshot_tile_normal_run(root.input, root.count, root.components, root.tile as usize,
                         root.layout, root.raw, root.headers,
                         seq![crate::specs::Part2JpipSnapshotEvent::Capacity {
                             site: 3, tile: root.tile as usize, elements: plan.precincts.len() as usize, succeeded: true }] + tail)
@@ -709,10 +729,21 @@ verus! {
                 events: Seq<crate::specs::Part2JpipSnapshotEvent>, error: DecodeError,
             )
                 requires crate::specs::part2_jpip_snapshot_tile_root(root), root.tile < root.headers.len(),
-                    crate::specs::part2_jpip_snapshot_tile(root.input, root.count, root.components, root.tile as usize,
+                    crate::specs::part2_jpip_snapshot_tile_normal_run(root.input, root.count, root.components, root.tile as usize,
                         root.layout, root.raw, root.headers, events) == Some((Err(error), Seq::empty())),
                 ensures crate::specs::part2_jpip_automatic_snapshot_result(root.input.cache, root.input.stream,
                     root.input.selected, root.input.components, root.input.limits, Err(error)),
+            {
+                crate::specs::part2_jpip_grid_normal_frame(root.input,root.count,root.components,root.tile as usize,root.layout,root.raw,root.headers);
+                let events=crate::specs::part2_jpip_grid_normal_calls(root.input,root.tile as usize,root.layout)+events;
+                jpip_snapshot_tile_actual_error(root,events,error);
+            }
+
+            pub(crate) proof fn jpip_snapshot_tile_actual_error(
+                root:crate::specs::Part2JpipSnapshotTileRoot<'_>,events:Seq<crate::specs::Part2JpipSnapshotEvent>,error:DecodeError)
+                requires crate::specs::part2_jpip_snapshot_tile_root(root),root.tile<root.headers.len(),
+                    crate::specs::part2_jpip_snapshot_tile(root.input,root.count,root.components,root.tile as usize,root.layout,root.raw,root.headers,events)==Some((Err(error),Seq::empty())),
+                ensures crate::specs::part2_jpip_automatic_snapshot_result(root.input.cache,root.input.stream,root.input.selected,root.input.components,root.input.limits,Err(error)),
             {
                 reveal_with_fuel(crate::specs::part2_jpip_snapshot_prepare_tiles, 1);
                 crate::specs::part2_jpip_snapshot_root_join(root, events);
@@ -729,13 +760,21 @@ verus! {
             )
                 requires crate::specs::part2_jpip_snapshot_tile_root(root), root.tile < root.headers.len(),
                     forall|tail: Seq<crate::specs::Part2JpipSnapshotEvent>|
-                        crate::specs::part2_jpip_snapshot_tile(root.input, root.count, root.components, root.tile as usize,
+                        crate::specs::part2_jpip_snapshot_tile_normal_run(root.input, root.count, root.components, root.tile as usize,
                             root.layout, root.raw, root.headers, events + tail)
                             == Some((Ok((Some(parts), packets, layers)), tail)),
                 ensures crate::specs::part2_jpip_snapshot_tile_root(crate::specs::Part2JpipSnapshotTileRoot {
-                    events: root.events + events, tile: root.tile + 1, before: root.before.push(parts),
+                    events: root.events + (crate::specs::part2_jpip_grid_normal_calls(root.input,root.tile as usize,root.layout)+events), tile: root.tile + 1, before: root.before.push(parts),
                     maximum: if layers > root.maximum { layers } else { root.maximum }, ..root }),
             {
+                crate::specs::part2_jpip_grid_normal_frame(root.input,root.count,root.components,root.tile as usize,root.layout,root.raw,root.headers);
+                let calls=crate::specs::part2_jpip_grid_normal_calls(root.input,root.tile as usize,root.layout);
+                assert forall|tail:Seq<crate::specs::Part2JpipSnapshotEvent>|
+                    crate::specs::part2_jpip_snapshot_tile(root.input,root.count,root.components,root.tile as usize,root.layout,root.raw,root.headers,(calls+events)+tail)
+                        ==Some((Ok((Some(parts),packets,layers)),tail)) by {
+                    assert((calls+events)+tail =~= calls+(events+tail));
+                }
+                let events=crate::specs::part2_jpip_grid_normal_calls(root.input,root.tile as usize,root.layout)+events;
                 reveal(crate::specs::part2_jpip_snapshot_tile_root);
                 reveal(crate::specs::part2_jpip_snapshot_hot_prefix);
                 reveal_with_fuel(crate::specs::part2_jpip_snapshot_prepare_tiles, 1);
