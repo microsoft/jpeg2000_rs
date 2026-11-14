@@ -20,11 +20,12 @@ use super::{
 use super::{
     code_block_contribution_option_view, code_block_header_outcome, code_block_packet_state_view,
     packet_bit_reader_view, packet_body_contributions_view, packet_decoder_outcome,
-    packet_execution_view, packet_executions_view, packet_precinct_decoders,
-    packet_precinct_outcome, packet_precinct_view, packet_states_view, packet_subband_view,
-    precinct_contexts_outcome, precinct_header_view, precinct_initialization_view,
-    precinct_payload_header_view, precinct_payload_parameters_view,
-    precinct_payload_reader_outcome, precinct_payload_reader_view, tag_tree_outcome, tag_tree_view,
+    packet_decoder_states, packet_execution_view, packet_executions_outcome,
+    packet_executions_view, packet_precinct_decoders, packet_precinct_outcome,
+    packet_precinct_view, packet_states_view, packet_subband_view, precinct_contexts_outcome,
+    precinct_header_view, precinct_initialization_view, precinct_payload_header_view,
+    precinct_payload_parameters_view, precinct_payload_reader_outcome,
+    precinct_payload_reader_view, tag_tree_outcome, tag_tree_view,
 };
 #[cfg(verus_keep_ghost)]
 use vstd::prelude::*;
@@ -216,6 +217,28 @@ pub(crate) fn prepare_precinct_contexts(
     Ok((states, contexts))
 }
 
+#[cfg_attr(verus_keep_ghost, verus_spec(result =>
+    ensures crate::specs::part2_singleton_values_result(packet_execution_view(&execution),packet_executions_outcome(result)),
+        match result {Ok(values)=>packet_executions_view(values@)==seq![packet_execution_view(&execution)],
+            Err(error)=>error==DecodeError::AllocationFailed},
+))]
+fn packet_singleton_execution(
+    execution: PacketSubbandExecution,
+) -> Result<Vec<PacketSubbandExecution>, DecodeError> {
+    let reserved = crate::allocation::empty_with_capacity(1);
+    #[cfg(verus_keep_ghost)]
+    proof! {
+        crate::specs::part2_singleton_values_observed(packet_execution_view(&execution),
+            match reserved {Ok(_)=>Ok(()),Err(error)=>Err(error)});
+    }
+    let mut values = reserved?;
+    values.push(execution);
+    #[cfg(verus_keep_ghost)]
+    proof! {assert(packet_executions_view(values@) =~= seq![packet_execution_view(&execution)]);}
+    Ok(values)
+}
+
+#[cfg_attr(verus_keep_ghost, verus_verify)]
 impl PacketPrecinctDecoder {
     pub fn new(
         geometry: PacketPrecinctGeometry,
@@ -223,20 +246,66 @@ impl PacketPrecinctDecoder {
         decoders: Vec<Tier1CodeBlockDecoder>,
         limits: &ResourceLimits,
     ) -> Result<Self, DecodeError> {
-        Self::new_subbands(
+        #[cfg(verus_keep_ghost)]
+        vstd::prelude::ensures(|result: Result<Self, DecodeError>| {
+            crate::specs::part1_precinct_singleton_storage_result(
+                geometry,
+                tier1_style,
+                packet_decoder_states(decoders.view()),
+                limits,
+                packet_precinct_outcome(result),
+            ) && (vstd::prelude::equal(
+                packet_precinct_outcome(result),
+                Err(DecodeError::AllocationFailed),
+            ) || vstd::prelude::equal(
+                packet_precinct_outcome(result),
+                crate::specs::part2_precinct_from_executions(
+                    geometry.component,
+                    geometry.resolution,
+                    geometry.precinct,
+                    tier1_style,
+                    seq![crate::specs::part2_precinct_singleton_execution(
+                        geometry,
+                        packet_decoder_states(decoders.view())
+                    )],
+                    limits,
+                ),
+            ))
+        });
+        #[cfg(verus_keep_ghost)]
+        proof_decl! {
+            let ghost initial=packet_decoder_states(decoders@);
+            let ghost mut first:Result<Seq<crate::specs::Part2PacketSubbandExecution>,DecodeError>;
+        }
+        let result = Self::new_subbands(
             geometry.component,
             geometry.resolution,
             geometry.precinct,
             tier1_style,
-            vec![PacketSubbandExecution {
-                orientation: SubbandOrientation::Ll,
-                code_blocks_across: geometry.code_blocks_across,
-                code_blocks_down: geometry.code_blocks_down,
-                maximum_zero_bitplanes: geometry.maximum_zero_bitplanes,
-                decoders,
-            }],
+            {
+                let executions = packet_singleton_execution(PacketSubbandExecution {
+                    orientation: SubbandOrientation::Ll,
+                    code_blocks_across: geometry.code_blocks_across,
+                    code_blocks_down: geometry.code_blocks_down,
+                    maximum_zero_bitplanes: geometry.maximum_zero_bitplanes,
+                    decoders,
+                });
+                #[cfg(verus_keep_ghost)]
+                proof! {
+                    reveal(packet_execution_view);
+                    first=packet_executions_outcome(executions);
+                    if let Err(error)=executions {
+                        crate::specs::part2_precinct_singleton_observed(geometry,tier1_style,initial,limits,first,Err(error));
+                    }
+                }
+                executions?
+            },
             limits,
-        )
+        );
+        #[cfg(verus_keep_ghost)]
+        proof! {crate::specs::part2_precinct_singleton_observed(geometry,tier1_style,initial,limits,
+        first,packet_precinct_outcome(result));}
+        result
     }
 
     /// An empty execution list represents a precinct with no nonempty subbands.
@@ -248,14 +317,44 @@ impl PacketPrecinctDecoder {
         executions: Vec<PacketSubbandExecution>,
         limits: &ResourceLimits,
     ) -> Result<Self, DecodeError> {
-        packet_precinct_from_subbands(
+        #[cfg(verus_keep_ghost)]
+        vstd::prelude::ensures(|result: Result<Self, DecodeError>| {
+            crate::specs::part1_precinct_subbands_storage_result(
+                component,
+                resolution,
+                precinct,
+                tier1_style,
+                packet_executions_view(executions.view()),
+                limits,
+                packet_precinct_outcome(result),
+            ) && (vstd::prelude::equal(
+                packet_precinct_outcome(result),
+                Err(DecodeError::AllocationFailed),
+            ) || vstd::prelude::equal(
+                packet_precinct_outcome(result),
+                crate::specs::part2_precinct_from_executions(
+                    component,
+                    resolution,
+                    precinct,
+                    tier1_style,
+                    packet_executions_view(executions.view()),
+                    limits,
+                ),
+            ))
+        });
+        #[cfg(verus_keep_ghost)]
+        proof_decl! {let ghost original=packet_executions_view(executions@);}
+        let result = packet_precinct_from_subbands(
             component,
             resolution,
             precinct,
             tier1_style,
             executions,
             limits,
-        )
+        );
+        #[cfg(verus_keep_ghost)]
+        proof! {crate::specs::part2_precinct_subbands_observed(component,resolution,precinct,tier1_style,original,limits,packet_precinct_outcome(result));}
+        result
     }
 }
 

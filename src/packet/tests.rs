@@ -1,6 +1,178 @@
 use super::*;
 
 #[test]
+fn precinct_singleton_storage_first_later_refusals_restore_exact_owners() {
+    let limits = ResourceLimits::default();
+    let geometry = PacketPrecinctGeometry {
+        component: 7,
+        resolution: 2,
+        precinct: 19,
+        code_blocks_across: 1,
+        code_blocks_down: 1,
+        maximum_zero_bitplanes: 3,
+    };
+    let style = Tier1CodingStyle::default();
+    let expected = PacketPrecinctDecoder::new_subbands(
+        geometry.component,
+        geometry.resolution,
+        geometry.precinct,
+        style,
+        vec![PacketSubbandExecution {
+            orientation: SubbandOrientation::Ll,
+            code_blocks_across: 1,
+            code_blocks_down: 1,
+            maximum_zero_bitplanes: 3,
+            decoders: vec![one_bit_legacy_decoder(false)],
+        }],
+        &limits,
+    )
+    .unwrap();
+    for after in 0..4 {
+        let decoders = vec![one_bit_legacy_decoder(false)];
+        assert!(matches!(
+            crate::allocation::with_refusal(after, || PacketPrecinctDecoder::new(
+                geometry, style, decoders, &limits
+            )),
+            Err(DecodeError::AllocationFailed)
+        ));
+        let decoders = vec![one_bit_legacy_decoder(false)];
+        let coefficients = decoders[0].plane().coefficients().as_ptr();
+        let actual = PacketPrecinctDecoder::new(geometry, style, decoders, &limits).unwrap();
+        assert_eq!(
+            exact_packet_precinct_snapshot(&actual),
+            exact_packet_precinct_snapshot(&expected)
+        );
+        assert_eq!(
+            actual.decoders()[0].plane().coefficients().as_ptr(),
+            coefficients
+        );
+    }
+}
+
+#[test]
+fn precinct_singleton_storage_precedes_child_admission_without_false_empty_requests() {
+    let limits = ResourceLimits::default();
+    let geometry = PacketPrecinctGeometry {
+        component: u16::MAX,
+        resolution: u8::MAX,
+        precinct: u32::MAX,
+        code_blocks_across: 0,
+        code_blocks_down: 1,
+        maximum_zero_bitplanes: 1,
+    };
+    let style = Tier1CodingStyle::default();
+    let invalid = DecodeError::MalformedInput {
+        offset: 0,
+        kind: MalformedKind::InvalidPacketHeader,
+    };
+    assert!(matches!(
+        crate::allocation::with_refusal(0, || PacketPrecinctDecoder::new(
+            geometry,
+            style,
+            Vec::new(),
+            &limits
+        )),
+        Err(DecodeError::AllocationFailed)
+    ));
+    crate::allocation::with_refusal(2, || {
+        assert!(matches!(
+            PacketPrecinctDecoder::new(geometry, style, Vec::new(), &limits),
+            Err(error) if error == invalid
+        ));
+        assert_eq!(
+            crate::allocation::empty_with_capacity::<u8>(1),
+            Err(DecodeError::AllocationFailed)
+        );
+    });
+    crate::allocation::with_refusal(0, || {
+        let empty =
+            PacketPrecinctDecoder::new_subbands(7, 2, 19, style, Vec::new(), &limits).unwrap();
+        assert!(empty.states().is_empty());
+        assert!(matches!(
+            PacketPrecinctDecoder::new(geometry, style, Vec::new(), &limits),
+            Err(DecodeError::AllocationFailed)
+        ));
+    });
+    let mismatch = PacketPrecinctGeometry {
+        code_blocks_across: 1,
+        ..geometry
+    };
+    crate::allocation::with_refusal(2, || {
+        assert!(matches!(
+            PacketPrecinctDecoder::new(mismatch, style, Vec::new(), &limits),
+            Err(error) if error == invalid
+        ));
+        assert_eq!(
+            crate::allocation::empty_with_capacity::<u8>(1),
+            Err(DecodeError::AllocationFailed)
+        );
+    });
+    let limited = limits.with_maximum_work_units(1).unwrap();
+    let wide = PacketPrecinctGeometry {
+        code_blocks_across: 2,
+        ..geometry
+    };
+    assert!(matches!(
+        PacketPrecinctDecoder::new(wide, style, Vec::new(), &limited),
+        Err(DecodeError::LimitExceeded {
+            resource: Resource::WorkUnits,
+            limit: 1,
+            actual: 2
+        })
+    ));
+}
+
+#[test]
+fn precinct_singleton_storage_real_full_selected_packet_callers_restore() {
+    let limits = ResourceLimits::default();
+    let data = [0xe4, 0xfe, 0, 0x63, 0];
+    let parts = [literal_progression_tile(&data, 1, 0, 0, 1)];
+    let grid = PacketGrid::new(1, 1, 1, vec![1], &limits).unwrap();
+    let geometry = PacketPrecinctGeometry {
+        component: 0,
+        resolution: 0,
+        precinct: 0,
+        code_blocks_across: 1,
+        code_blocks_down: 1,
+        maximum_zero_bitplanes: 1,
+    };
+    let style = Tier1CodingStyle::from_code_block_style(0x40).unwrap();
+    let run = |decoders, selected| -> Result<_, DecodeError> {
+        let mut precincts = [PacketPrecinctDecoder::new(
+            geometry, style, decoders, &limits,
+        )?];
+        let decoded = if selected {
+            decode_progression_tile_packets_selected(
+                &parts,
+                &grid,
+                &mut precincts,
+                Some(&[1]),
+                &limits,
+            )?
+        } else {
+            decode_progression_tile_packets(&parts, &grid, &mut precincts, &limits)?
+        };
+        Ok((decoded, exact_packet_precinct_snapshot(&precincts[0])))
+    };
+    let expected = run(vec![literal_ht_decoder(1)], false).unwrap();
+    assert_eq!(expected.0.packets, 1);
+    assert_eq!(expected.0.contributions, 1);
+    for selected in [false, true] {
+        for after in [0, 1] {
+            let decoders = vec![literal_ht_decoder(1)];
+            assert_eq!(
+                crate::allocation::with_refusal(after, || run(decoders, selected)),
+                Err(DecodeError::AllocationFailed)
+            );
+            assert_eq!(
+                run(vec![literal_ht_decoder(1)], selected).unwrap(),
+                expected
+            );
+        }
+    }
+}
+
+#[test]
 fn precinct_context_preparation_preserves_raw_prefixes_and_exact_leaf_metadata() {
     let style = Tier1CodingStyle {
         force_high_throughput: true,

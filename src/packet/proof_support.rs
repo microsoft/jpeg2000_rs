@@ -220,6 +220,16 @@ verus! {
         Seq::new(values.len(), |index: int| packet_execution_view(&values[index]))
     }
 
+    pub open spec fn packet_executions_outcome(result: Result<Vec<PacketSubbandExecution>, DecodeError>)
+        -> Result<Seq<crate::specs::Part2PacketSubbandExecution>, DecodeError>
+    {
+        match result { Err(error) => Err(error), Ok(values) => Ok(packet_executions_view(values@)) }
+    }
+
+    pub open spec fn packet_decoder_states(values: Seq<Tier1CodeBlockDecoder>) -> Seq<crate::specs::Tier1DecoderState> {
+        values.map_values(|decoder: Tier1CodeBlockDecoder| crate::tier1::tier1_decoder_state(&decoder))
+    }
+
     pub closed spec fn precinct_initialization_view(
         coordinate: (u16, u8, u32), states: Seq<CodeBlockPacketState>, contexts: Seq<CodeBlockPacketContext>,
         decoders: Seq<Tier1CodeBlockDecoder>, subbands: Seq<PacketSubbandState>,

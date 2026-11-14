@@ -5559,6 +5559,100 @@ _TIER1_INITIAL_TESTS = {
     ("src/decode/tests.rs", "tier1_initial_storage_cell_columns_rows_retain_prior_owners_and_restore"),
     ("src/decode/tests.rs", "tier1_initial_storage_public_raw_selected_container_roles_and_restore"),
 }
+_PRECINCT_SINGLETON_ENTRY = "part2-complete-native-precinct-initialization"
+_PRECINCT_SINGLETON_MODELS = {("specs/cold_precinct_singleton.rs", name) for name in (
+    "part2_precinct_singleton_execution", "part2_singleton_capacity_run", "part2_singleton_values_run",
+    "part2_singleton_values_result", "part2_precinct_singleton_run",
+    "part1_precinct_singleton_storage_result", "part1_precinct_subbands_storage_result",
+)}
+_PRECINCT_SINGLETON_PROOFS = {("specs/cold_precinct_singleton.rs", name) for name in (
+    "part2_singleton_values_observed", "part2_precinct_subbands_observed",
+    "part2_precinct_singleton_observed", "part2_precinct_singleton_normal",
+)} | {("src/packet/precinct.rs", name) for name in (
+    "packet_singleton_execution", "PacketPrecinctDecoder::new", "PacketPrecinctDecoder::new_subbands",
+)} | {("src/packet/proof_support.rs", name) for name in (
+    "packet_executions_outcome", "packet_decoder_states",
+)} | {("src/allocation.rs", "empty_with_capacity")}
+_PRECINCT_SINGLETON_TESTS = {("src/packet/tests.rs", name) for name in (
+    "precinct_singleton_storage_first_later_refusals_restore_exact_owners",
+    "precinct_singleton_storage_precedes_child_admission_without_false_empty_requests",
+    "precinct_singleton_storage_real_full_selected_packet_callers_restore",
+)}
+_PRECINCT_SINGLETON_BODIES = {
+    "part2_precinct_singleton_execution": """
+        Part2PacketSubbandExecution {orientation:crate::tier1::SubbandOrientation::Ll,
+            across:geometry.code_blocks_across,down:geometry.code_blocks_down,
+            maximum_zero:geometry.maximum_zero_bitplanes,decoders}
+    """,
+    "part2_singleton_capacity_run": """
+        if events.len()==0{None}else{match events[0] {
+            Part2JpipSnapshotEvent::PrecinctSingletonCapacity {execution:actual,elements,succeeded}=>
+                if actual!=execution || elements!=1{None}else{
+                    Some((if succeeded{Ok(())}else{Err(crate::DecodeError::AllocationFailed)},events.drop_first()))
+                },
+            _=>None,
+        }}
+    """,
+    "part2_singleton_values_run": """
+        part2_jpip_snapshot_bind(part2_singleton_capacity_run(execution,events),
+            |_:(),rest|Some((Ok(seq![execution]),rest)))
+    """,
+    "part2_singleton_values_result": """
+        part2_cold_framed(|events|part2_singleton_values_run(execution,events),result)
+    """,
+    "part2_precinct_singleton_run": """
+        part2_jpip_snapshot_bind(part2_singleton_values_run(part2_precinct_singleton_execution(geometry,decoders),events),
+            |executions:Seq<Part2PacketSubbandExecution>,rest|part2_precinct_state_run(
+                geometry.component,geometry.resolution,geometry.precinct,style,executions,limits,rest))
+    """,
+    "part1_precinct_singleton_storage_result": """
+        part2_cold_framed(|events|part2_precinct_singleton_run(geometry,style,decoders,limits,events),result)
+    """,
+    "part1_precinct_subbands_storage_result": """
+        part2_precinct_state_result(component,resolution,precinct,style,executions,limits,result)
+    """,
+}
+_PRECINCT_SINGLETON_NATIVE_ORDER = {
+    "packet_singleton_execution": (
+        "empty_with_capacity(1)", "part2_singleton_values_observed(packet_execution_view(&execution),",
+        "match reserved {Ok(_)=>Ok(()),Err(error)=>Err(error)}", "let mut values = reserved?",
+        "values.push(execution)", "Ok(values)",
+    ),
+    "PacketPrecinctDecoder::new": (
+        "Self::new_subbands(geometry.component,geometry.resolution,geometry.precinct,tier1_style,{",
+        "packet_singleton_execution(PacketSubbandExecution {orientation:SubbandOrientation::Ll,code_blocks_across:geometry.code_blocks_across,code_blocks_down:geometry.code_blocks_down,maximum_zero_bitplanes:geometry.maximum_zero_bitplanes,decoders,})",
+        "first=packet_executions_outcome(executions)", "if let Err(error)=executions",
+        "part2_precinct_singleton_observed(", "executions?", "},limits,",
+        "part2_precinct_singleton_observed(",
+    ),
+    "PacketPrecinctDecoder::new_subbands": (
+        "packet_precinct_from_subbands(component,resolution,precinct,tier1_style,executions,limits,)",
+        "part2_precinct_subbands_observed(",
+    ),
+}
+_PRECINCT_SINGLETON_PUBLIC_CONTRACTS = {
+    "PacketPrecinctDecoder::new": """
+        vstd::prelude::ensures(|result: Result<Self,DecodeError>| {
+            crate::specs::part1_precinct_singleton_storage_result(
+                geometry,tier1_style,packet_decoder_states(decoders.view()),limits,packet_precinct_outcome(result),
+            ) && (vstd::prelude::equal(packet_precinct_outcome(result),Err(DecodeError::AllocationFailed))
+                || vstd::prelude::equal(packet_precinct_outcome(result),crate::specs::part2_precinct_from_executions(
+                    geometry.component,geometry.resolution,geometry.precinct,tier1_style,
+                    seq![crate::specs::part2_precinct_singleton_execution(geometry,packet_decoder_states(decoders.view()))],limits,
+                )))
+        });
+    """,
+    "PacketPrecinctDecoder::new_subbands": """
+        vstd::prelude::ensures(|result: Result<Self,DecodeError>| {
+            crate::specs::part1_precinct_subbands_storage_result(
+                component,resolution,precinct,tier1_style,packet_executions_view(executions.view()),limits,packet_precinct_outcome(result),
+            ) && (vstd::prelude::equal(packet_precinct_outcome(result),Err(DecodeError::AllocationFailed))
+                || vstd::prelude::equal(packet_precinct_outcome(result),crate::specs::part2_precinct_from_executions(
+                    component,resolution,precinct,tier1_style,packet_executions_view(executions.view()),limits,
+                )))
+        });
+    """,
+}
 _PLANE_ROLE_TESTS = {
     ("src/tier1/tests.rs", "tier1_plane_storage_standalone_duplicate_frontiers_and_exact_restore"),
     ("src/tier1/tests.rs", "tier1_plane_storage_cleanup_output_copy_refusals_restore_state_and_output"),
@@ -13417,6 +13511,46 @@ def validate_normative_coverage(
                     "part2_codeblock_cell_result", "part2_codeblock_owner_result"} for ref in entry["contract_refs"]):
                 if not _TIER1_INITIAL_TESTS.issubset({(ref["path"], ref["symbol"]) for ref in entry["test_refs"]}):
                     raise ValueError("initial Tier1 storage requires bounded refusal/restore/zero/ordinary-policy/row-owner/real-public controls")
+    if _PRECINCT_SINGLETON_ENTRY in ids:
+        singleton_entry = next(item for item in coverage["requirements"] if item["id"] == _PRECINCT_SINGLETON_ENTRY)
+        for field, required in (("spec_refs", _PRECINCT_SINGLETON_MODELS),
+                                ("proof_refs", _PRECINCT_SINGLETON_PROOFS),
+                                ("test_refs", _PRECINCT_SINGLETON_TESTS)):
+            if not required.issubset({(ref["path"], ref["symbol"]) for ref in singleton_entry[field]}):
+                raise ValueError("precinct singleton storage requires actual primitive/child/normal and bounded refusal/restore links")
+        singleton_source = source_text((ROOT / "specs/cold_precinct_singleton.rs").resolve())
+        for symbol, expected in _PRECINCT_SINGLETON_BODIES.items():
+            body = _coverage_spec_function_body(singleton_source, symbol)
+            if body is None or "".join(body.split()) != "".join(expected.split()):
+                raise ValueError("precinct singleton storage requires the actual distinct request, source-derived wrapper and exact child/error/tail program")
+        path = (ROOT / "src/packet/precinct.rs").resolve()
+        text = source_text(path)
+        if re.search(r"#\[cfg_attr\(verus_keep_ghost,\s*verus_verify\)\]\s*impl\s+PacketPrecinctDecoder\s*\{", text) is None:
+            raise ValueError("precinct singleton storage requires pinned verified public constructor contracts")
+        for symbol, fragments in _PRECINCT_SINGLETON_NATIVE_ORDER.items():
+            header = function_header(path, symbol)
+            body = _coverage_function_body(text, header)
+            compact = "".join(body.split()) if body is not None else ""
+            position = 0
+            for fragment in fragments:
+                token = "".join(fragment.split())
+                found = compact.find(token, position)
+                if found < 0:
+                    raise ValueError("precinct singleton storage requires unchanged argument/field/move/request/child/error order")
+                position = found + len(token)
+            if symbol in _PRECINCT_SINGLETON_PUBLIC_CONTRACTS:
+                expected = re.sub(r",(?=\))", "", "".join(_PRECINCT_SINGLETON_PUBLIC_CONTRACTS[symbol].split()))
+                if expected not in re.sub(r",(?=\))", "", compact):
+                    raise ValueError("precinct singleton storage requires precise unconditional public input/Result and checked normal projections")
+            else:
+                signature = text.find("fn", header.start(), header.end())
+                declaration = text[text.rfind("#[cfg_attr", 0, signature):signature]
+                expected = "ensures crate::specs::part2_singleton_values_result(packet_execution_view(&execution),packet_executions_outcome(result)),"
+                if "".join(expected.split()) not in "".join(declaration.split()) or re.search(r"\brequires\b", declaration):
+                    raise ValueError("precinct singleton storage requires exact primitive-to-owned-wrapper Result linkage")
+            if symbol == "PacketPrecinctDecoder::new_subbands" and any(
+                    token in compact for token in ("packet_singleton_execution(", "empty_with_capacity(")):
+                raise ValueError("precinct singleton storage cannot invent an empty/subbands facade allocation")
     if ids & {"part15-complete-actual-cleanup-plane", "part15-cleanup-only-actual-symbol-caller",
               "part15-complete-actual-refinement-plane", "part15-complete-substantive-segment-byte-entry",
               "part15-complete-retained-refinement-and-placeholder-steps", "part1-complete-native-grid-progression-composition"}:

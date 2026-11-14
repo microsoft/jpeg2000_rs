@@ -16,6 +16,7 @@ pub(crate) proof fn part2_tile_plane_calls_observed(params:Part1TilePacketParame
     requires part2_plane_tile_run_result(params,initial,result),
     ensures part2_cold_framed(|events|part2_tile_plane_calls_run(params,initial,events),Ok(result)),
 {
+    reveal(part2_plane_tile_run_result);
     let raw=|calls|part2_plane_tile_run(params,initial,calls);
     let calls=choose|calls| #[trigger] part2_tier1_storage_prefix(raw,calls,Ok(result));
     assert(calls+Seq::empty() =~= calls);

@@ -7009,7 +7009,14 @@
         {"path": "specs/cold_packet_precinct.rs", "symbol": "part2_precinct_initial"},
         {"path": "specs/cold_packet_precinct.rs", "symbol": "part2_precinct_state_run"},
         {"path": "specs/cold_packet_precinct.rs", "symbol": "part2_precinct_state_result"},
-        {"path": "specs/cold_precinct_storage.rs", "symbol": "part2_precinct_plan_finish"}
+        {"path": "specs/cold_precinct_storage.rs", "symbol": "part2_precinct_plan_finish"},
+        {"path": "specs/cold_precinct_singleton.rs", "symbol": "part2_precinct_singleton_execution"},
+        {"path": "specs/cold_precinct_singleton.rs", "symbol": "part2_singleton_capacity_run"},
+        {"path": "specs/cold_precinct_singleton.rs", "symbol": "part2_singleton_values_run"},
+        {"path": "specs/cold_precinct_singleton.rs", "symbol": "part2_singleton_values_result"},
+        {"path": "specs/cold_precinct_singleton.rs", "symbol": "part2_precinct_singleton_run"},
+        {"path": "specs/cold_precinct_singleton.rs", "symbol": "part1_precinct_singleton_storage_result"},
+        {"path": "specs/cold_precinct_singleton.rs", "symbol": "part1_precinct_subbands_storage_result"}
       ],
       "contract_refs": [
         {"path": "src/packet/precinct.rs", "symbol": "prepare_precinct_contexts"},
@@ -7040,11 +7047,24 @@
         {"path": "specs/cold_packet_precinct.rs", "symbol": "part2_precinct_state_zero_step"},
         {"path": "specs/cold_packet_precinct.rs", "symbol": "part2_precinct_state_join"},
         {"path": "specs/cold_packet_precinct.rs", "symbol": "part2_precinct_state_frames"},
-        {"path": "specs/cold_precinct_storage.rs", "symbol": "part2_precinct_rows_end"}
+        {"path": "specs/cold_precinct_storage.rs", "symbol": "part2_precinct_rows_end"},
+        {"path": "specs/cold_precinct_singleton.rs", "symbol": "part2_singleton_values_observed"},
+        {"path": "specs/cold_precinct_singleton.rs", "symbol": "part2_precinct_subbands_observed"},
+        {"path": "specs/cold_precinct_singleton.rs", "symbol": "part2_precinct_singleton_observed"},
+        {"path": "specs/cold_precinct_singleton.rs", "symbol": "part2_precinct_singleton_normal"},
+        {"path": "src/packet/precinct.rs", "symbol": "packet_singleton_execution"},
+        {"path": "src/packet/precinct.rs", "symbol": "PacketPrecinctDecoder::new"},
+        {"path": "src/packet/precinct.rs", "symbol": "PacketPrecinctDecoder::new_subbands"},
+        {"path": "src/packet/proof_support.rs", "symbol": "packet_executions_outcome"},
+        {"path": "src/packet/proof_support.rs", "symbol": "packet_decoder_states"},
+        {"path": "src/allocation.rs", "symbol": "empty_with_capacity"}
       ],
       "test_refs": [
         {"path": "src/packet/tests.rs", "symbol": "precinct_context_preparation_preserves_raw_prefixes_and_exact_leaf_metadata"},
         {"path": "src/packet/tests.rs", "symbol": "actual_precinct_initialization_keeps_all_owned_state_limits_and_empty_policy"},
+        {"path": "src/packet/tests.rs", "symbol": "precinct_singleton_storage_first_later_refusals_restore_exact_owners"},
+        {"path": "src/packet/tests.rs", "symbol": "precinct_singleton_storage_precedes_child_admission_without_false_empty_requests"},
+        {"path": "src/packet/tests.rs", "symbol": "precinct_singleton_storage_real_full_selected_packet_callers_restore"},
         {"path": "src/packet/tests.rs", "symbol": "packet_precinct_storage_tag_nodes_admission_refusal_and_exact_restore"},
         {"path": "src/packet/tests.rs", "symbol": "packet_precinct_storage_subbands_and_ordered_tree_refusals_restore_every_owner"},
         {"path": "src/packet/tests.rs", "symbol": "packet_precinct_storage_empty_and_ordinary_priority_consume_no_later_request"},
