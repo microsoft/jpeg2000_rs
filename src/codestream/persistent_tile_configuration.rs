@@ -213,6 +213,19 @@ impl Parser<'_> {
                 == (Ok(()), persistent_tile_configuration_view(
                     roi, styles, quantizations, style_parts, component_quantizations, progression)));
         }
+        let copied_progression = match payload.progression_changes.try_duplicate() {
+            Ok(values) => values,
+            Err(error) => {
+                #[cfg(verus_keep_ghost)]
+                proof! {
+                    crate::specs::part1_commit_progression_cold_refused(self.position, start, index, payload_index,
+                        optional_roi_shifts_view(previous_roi), tile_part_payload_view(payload), initial,
+                        persistent_tile_configuration_view(
+                            roi, styles, quantizations, style_parts, component_quantizations, progression), error);
+                }
+                return Err(error);
+            }
+        };
         *progression
             .get_mut(index)
             .ok_or_else(
@@ -221,7 +234,7 @@ impl Parser<'_> {
                 ))]
                 || self.malformed_here(MalformedKind::InvalidTilePart),
             )? =
-            Some(payload.progression_changes.clone());
+            Some(copied_progression);
         #[cfg(verus_keep_ghost)]
         proof! {
             assert(crate::specs::part1_persistent_tile_configuration_prefix(

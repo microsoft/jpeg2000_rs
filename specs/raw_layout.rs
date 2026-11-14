@@ -247,7 +247,7 @@ pub(crate) proof fn part1_cold_layout_refused(
     reveal(part1_cold_layout_result);
     part1_cold_storage_trace_runs(header.tile_count as usize, 0, Some(site));
     let later = part1_cold_storage_trace(header.tile_count as usize, 0, Some(site));
-    let main_calls = part1_main_quantization_normal_calls(part1_prepare_main_quantization(reader));
+    let main_calls = part1_main_header_normal_calls(reader);
     part1_main_header_cold_normal(reader, later);
     let events = main_calls + later;
     assert(part1_layout_with_cold_storage(reader, events)

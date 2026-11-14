@@ -3200,7 +3200,13 @@
         {"path": "specs/cold_layout.rs", "symbol": "part1_cold_layout_prefix"},
         {"path": "specs/cold_layout.rs", "symbol": "part1_quantized_layout_cold_run"},
         {"path": "specs/cold_quantization.rs", "symbol": "part1_main_header_cold_run"},
-        {"path": "specs/cold_quantization.rs", "symbol": "part1_prepare_main_quantization"}
+        {"path": "specs/cold_quantization.rs", "symbol": "part1_prepare_main_quantization"},
+        {"path": "specs/cold_header_progression.rs", "symbol": "part1_main_progression_continuation"},
+        {"path": "specs/cold_header_progression.rs", "symbol": "part1_prepare_main_progression_run"},
+        {"path": "specs/cold_header_progression.rs", "symbol": "part1_read_tile_progression_run"},
+        {"path": "specs/cold_header_progression.rs", "symbol": "part1_tile_progression_traversal"},
+        {"path": "specs/cold_progression.rs", "symbol": "part1_parse_poc_storage"},
+        {"path": "specs/cold_progression.rs", "symbol": "part1_poc_cold_run"}
       ],
       "contract_refs": [
         {"path": "src/codestream/layout.rs", "symbol": "Parser::parse_layout"},
@@ -3226,14 +3232,28 @@
         {"path": "specs/cold_layout_continuations.rs", "symbol": "part1_cold_layout_sot_commit_error"},
         {"path": "specs/cold_layout_continuations.rs", "symbol": "part1_cold_layout_sot_copy_error"},
         {"path": "specs/cold_layout_continuations.rs", "symbol": "part1_cold_layout_sot_read_error"},
-        {"path": "specs/cold_quantization.rs", "symbol": "part1_main_quantization_normal"}
+        {"path": "specs/cold_quantization.rs", "symbol": "part1_main_quantization_normal"},
+        {"path": "specs/cold_header_progression.rs", "symbol": "part1_cold_main_advance"},
+        {"path": "specs/cold_header_progression.rs", "symbol": "part1_cold_main_poc_error"},
+        {"path": "specs/cold_header_progression.rs", "symbol": "part1_prepare_main_progression_frame"},
+        {"path": "specs/cold_header_progression.rs", "symbol": "part1_prepare_main_progression_normal"},
+        {"path": "specs/cold_header_progression.rs", "symbol": "part1_prepare_main_progression_projection"},
+        {"path": "specs/cold_header_progression.rs", "symbol": "part1_read_tile_progression_frame"},
+        {"path": "specs/cold_header_progression.rs", "symbol": "part1_read_tile_progression_normal"},
+        {"path": "specs/cold_header_progression.rs", "symbol": "part1_read_tile_progression_projection"},
+        {"path": "specs/cold_header_progression.rs", "symbol": "part1_tile_progression_payload_storage_observed"},
+        {"path": "specs/cold_header_progression.rs", "symbol": "part1_tile_progression_step"},
+        {"path": "specs/cold_layout_continuations.rs", "symbol": "part1_cold_layout_sot_progression_error"}
       ],
       "test_refs": [
         {"path": "src/codestream/raw_layout_result_tests.rs", "symbol": "actual_complete_raw_layout_result_keeps_interleaved_source_parts_and_public_info"},
         {"path": "src/codestream/raw_layout_result_tests.rs", "symbol": "actual_complete_raw_layout_result_preserves_late_roi_end_and_profile_error_priority"},
         {"path": "src/codestream/raw_layout_result_tests.rs", "symbol": "actual_complete_raw_layout_result_keeps_input_work_and_tile_limit_first_errors"},
         {"path": "src/codestream/raw_layout_result_tests.rs", "symbol": "actual_complete_raw_layout_result_retains_full_owned_profile_words_and_classes"},
-        {"path": "src/codestream/tests.rs", "symbol": "cold_tile_storage_refusal_is_typed_and_restores_raw_inspection"}
+        {"path": "src/codestream/tests.rs", "symbol": "cold_tile_storage_refusal_is_typed_and_restores_raw_inspection"},
+        {"path": "src/codestream/tests.rs", "symbol": "progression_storage_raw_headers_copies_and_duplicate_precedence_restore"},
+        {"path": "src/jp2/tests.rs", "symbol": "progression_storage_container_first_and_commit_refusals_restore"},
+        {"path": "src/codestream/persistent_tile_configuration_tests.rs", "symbol": "progression_storage_commit_keeps_fifth_store_and_earlier_error_precedence"}
       ]
     },
     {
@@ -3267,7 +3287,13 @@
         {"path": "specs/cold_layout.rs", "symbol": "part1_cold_layout_prefix"},
         {"path": "specs/cold_layout.rs", "symbol": "part1_quantized_layout_cold_run"},
         {"path": "specs/cold_quantization.rs", "symbol": "part1_main_header_cold_run"},
-        {"path": "specs/cold_quantization.rs", "symbol": "part1_prepare_main_quantization"}
+        {"path": "specs/cold_quantization.rs", "symbol": "part1_prepare_main_quantization"},
+        {"path": "specs/cold_header_progression.rs", "symbol": "part1_main_progression_continuation"},
+        {"path": "specs/cold_header_progression.rs", "symbol": "part1_prepare_main_progression_run"},
+        {"path": "specs/cold_header_progression.rs", "symbol": "part1_read_tile_progression_run"},
+        {"path": "specs/cold_header_progression.rs", "symbol": "part1_tile_progression_traversal"},
+        {"path": "specs/cold_progression.rs", "symbol": "part1_parse_poc_storage"},
+        {"path": "specs/cold_progression.rs", "symbol": "part1_poc_cold_run"}
       ],
       "contract_refs": [
         {"path": "src/codestream/layout.rs", "symbol": "Parser::parse_layout"},
@@ -3290,7 +3316,18 @@
         {"path": "specs/cold_layout_continuations.rs", "symbol": "part1_cold_layout_sot_commit_error"},
         {"path": "specs/cold_layout_continuations.rs", "symbol": "part1_cold_layout_sot_copy_error"},
         {"path": "specs/cold_layout_continuations.rs", "symbol": "part1_cold_layout_sot_read_error"},
-        {"path": "specs/cold_quantization.rs", "symbol": "part1_main_quantization_normal"}
+        {"path": "specs/cold_quantization.rs", "symbol": "part1_main_quantization_normal"},
+        {"path": "specs/cold_header_progression.rs", "symbol": "part1_cold_main_advance"},
+        {"path": "specs/cold_header_progression.rs", "symbol": "part1_cold_main_poc_error"},
+        {"path": "specs/cold_header_progression.rs", "symbol": "part1_prepare_main_progression_frame"},
+        {"path": "specs/cold_header_progression.rs", "symbol": "part1_prepare_main_progression_normal"},
+        {"path": "specs/cold_header_progression.rs", "symbol": "part1_prepare_main_progression_projection"},
+        {"path": "specs/cold_header_progression.rs", "symbol": "part1_read_tile_progression_frame"},
+        {"path": "specs/cold_header_progression.rs", "symbol": "part1_read_tile_progression_normal"},
+        {"path": "specs/cold_header_progression.rs", "symbol": "part1_read_tile_progression_projection"},
+        {"path": "specs/cold_header_progression.rs", "symbol": "part1_tile_progression_payload_storage_observed"},
+        {"path": "specs/cold_header_progression.rs", "symbol": "part1_tile_progression_step"},
+        {"path": "specs/cold_layout_continuations.rs", "symbol": "part1_cold_layout_sot_progression_error"}
       ],
       "test_refs": [
         {"path": "src/codestream/main_header_result_tests.rs", "symbol": "actual_raw_main_header_initializers_preserve_all_physical_empty_owners"},
@@ -3692,7 +3729,15 @@
         {"path": "specs/tile_header_traversal.rs", "symbol": "part1_tile_header_packet_payload"},
         {"path": "specs/tile_header_traversal.rs", "symbol": "part1_tile_header_mct_payload"},
         {"path": "specs/layout_input.rs", "symbol": "part1_read_tile_header_segment"},
-        {"path": "specs/layout_input.rs", "symbol": "part1_record_component_segment"}
+        {"path": "specs/layout_input.rs", "symbol": "part1_record_component_segment"},
+        {"path": "specs/cold_header_progression.rs", "symbol": "part1_read_tile_progression_result"},
+        {"path": "specs/cold_header_progression.rs", "symbol": "part1_read_tile_progression_root_run"},
+        {"path": "specs/cold_header_progression.rs", "symbol": "part1_tile_progression_dispatch"},
+        {"path": "specs/cold_header_progression.rs", "symbol": "part1_tile_progression_dispatch_result"},
+        {"path": "specs/cold_header_progression.rs", "symbol": "part1_tile_progression_payload_storage"},
+        {"path": "specs/cold_header_progression.rs", "symbol": "part1_tile_progression_payload_storage_result"},
+        {"path": "specs/cold_header_progression.rs", "symbol": "part1_tile_progression_result"},
+        {"path": "specs/cold_header_progression.rs", "symbol": "part1_tile_progression_root_run"}
       ],
       "contract_refs": [
         {"path": "src/codestream/tile_header_traversal.rs", "symbol": "new_tile_header_accumulator"},
@@ -3712,7 +3757,11 @@
         {"path": "src/codestream/proof_support.rs", "symbol": "mcc_pending_view"},
         {"path": "src/codestream/reader.rs", "symbol": "Parser::read_tile_header_segment"},
         {"path": "src/codestream/coding_markers.rs", "symbol": "Parser::record_component_segment"},
-        {"path": "src/codestream/quantization.rs", "symbol": "RoiShifts::set"}
+        {"path": "src/codestream/quantization.rs", "symbol": "RoiShifts::set"},
+        {"path": "specs/cold_header_progression.rs", "symbol": "part1_read_tile_progression_normal"},
+        {"path": "specs/cold_header_progression.rs", "symbol": "part1_tile_progression_dispatch_normal"},
+        {"path": "specs/cold_header_progression.rs", "symbol": "part1_tile_progression_payload_storage_normal"},
+        {"path": "specs/cold_header_progression.rs", "symbol": "part1_tile_progression_traversal_normal"}
       ],
       "test_refs": [
         {"path": "src/codestream/tile_header_traversal_tests.rs", "symbol": "raw_tile_header_all_marker_words_preserve_admission_and_boundary_priority"},
@@ -4665,6 +4714,8 @@
       ],
       "spec_refs": [
         {"path": "specs/mod.rs", "symbol": "part1_parse_poc"},
+        {"path": "specs/cold_progression.rs", "symbol": "part1_parse_poc_storage"},
+        {"path": "specs/cold_progression.rs", "symbol": "part1_parse_poc_storage_result"},
         {"path": "specs/mod.rs", "symbol": "part1_poc_records"},
         {"path": "specs/mod.rs", "symbol": "part1_poc_record"},
         {"path": "specs/mod.rs", "symbol": "part1_poc_component"},
@@ -4680,6 +4731,7 @@
       ],
       "proof_refs": [
         {"path": "src/codestream/proof_support.rs", "symbol": "parsed_progression_outcome"},
+        {"path": "specs/cold_progression.rs", "symbol": "part1_parse_poc_storage_normal"},
         {"path": "src/codestream/proof_support.rs", "symbol": "progression_changes_view"},
         {"path": "src/codestream/proof_support.rs", "symbol": "segment_view"},
         {"path": "src/codestream/reader.rs", "symbol": "read_u16"}
@@ -4687,7 +4739,9 @@
       "test_refs": [
         {"path": "src/codestream/tests.rs", "symbol": "actual_poc_reads_preserve_width_fallback_endian_bytes_and_segment_error_offsets"},
         {"path": "src/codestream/tests.rs", "symbol": "actual_poc_preserves_raw_records_width_thresholds_end256_and_error_precedence"},
-        {"path": "src/codestream/tests.rs", "symbol": "actual_poc_reader_join_retains_raw_invalid_ranges_and_rejects_bad_order"}
+        {"path": "src/codestream/tests.rs", "symbol": "actual_poc_reader_join_retains_raw_invalid_ranges_and_rejects_bad_order"},
+        {"path": "src/codestream/tests.rs", "symbol": "poc_construction_keeps_shape_before_reservation_and_records_after_it"},
+        {"path": "src/codestream/tests.rs", "symbol": "progression_flat_copy_empty_refusal_and_restore_keep_independent_records"}
       ]
     },
     {

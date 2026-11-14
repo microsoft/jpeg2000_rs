@@ -108,7 +108,13 @@ impl<'a> Parser<'a> {
     #[allow(clippy::too_many_arguments)]
     #[cfg_attr(verus_keep_ghost, verifier::spinoff_prover)]
     #[cfg_attr(verus_keep_ghost, verus_spec(result =>
-        ensures (result, parser_view(final(self)), tile_header_accumulator_view(final(raw)))
+        ensures crate::specs::part1_tile_progression_dispatch_result(
+                parser_view(old(self)), tile_header_accumulator_view(old(raw)),
+                segment_view(segment), components, tile_part_index,
+                packet_lengths_view(&main_lengths), packed_packet_headers_view(&main_headers),
+                (result, parser_view(final(self)), tile_header_accumulator_view(final(raw)))),
+            result != Err(DecodeError::AllocationFailed) ==>
+            (result, parser_view(final(self)), tile_header_accumulator_view(final(raw)))
             == crate::specs::part1_tile_header_dispatch(
                 parser_view(old(self)), tile_header_accumulator_view(old(raw)),
                 segment_view(segment), components, tile_part_index,
@@ -124,6 +130,11 @@ impl<'a> Parser<'a> {
         main_headers: PackedPacketHeaders<'a>,
     ) -> Result<(), DecodeError> {
         #[cfg(verus_keep_ghost)]
+        proof_decl! {
+            let ghost cold_reader = parser_view(self);
+            let ghost cold_raw = tile_header_accumulator_view(raw);
+        }
+        #[cfg(verus_keep_ghost)]
         proof! {
             reveal(crate::specs::part1_tile_header_dispatch);
             reveal(tile_header_accumulator_view);
@@ -132,24 +143,51 @@ impl<'a> Parser<'a> {
         if segment.marker != COM && segment.marker != PLT {
             raw.has_functional_header_marker = true;
         }
-        self.apply_tile_header_segment(
+        let result = self.apply_tile_header_segment(
             raw,
             segment,
             components,
             tile_part_index,
             main_lengths,
             main_headers,
-        )
+        );
+        #[cfg(verus_keep_ghost)]
+        proof! {
+            crate::specs::part1_tile_progression_payload_storage_observed(
+                cold_reader, crate::specs::Part1TileHeaderAccumulator {
+                    has_functional_header_marker: cold_raw.has_functional_header_marker
+                        || (segment.marker != COM && segment.marker != PLT), ..cold_raw
+                }, segment_view(segment), components, tile_part_index,
+                packet_lengths_view(&main_lengths), packed_packet_headers_view(&main_headers),
+                (result, parser_view(self), tile_header_accumulator_view(raw)));
+            crate::specs::part1_tile_progression_dispatch_observed(
+                cold_reader, cold_raw, segment_view(segment), components, tile_part_index,
+                packet_lengths_view(&main_lengths), packed_packet_headers_view(&main_headers),
+                (result, parser_view(self), tile_header_accumulator_view(raw)));
+            if result != Err(DecodeError::AllocationFailed) {
+                reveal(crate::specs::part1_tile_progression_dispatch_result);
+                let events = choose|events: Seq<crate::specs::Part1ColdStorageEvent>|
+                    crate::specs::part1_tile_progression_dispatch(
+                        cold_reader, cold_raw, segment_view(segment), components, tile_part_index,
+                        packet_lengths_view(&main_lengths), packed_packet_headers_view(&main_headers), events)
+                        == Some(((result, parser_view(self), tile_header_accumulator_view(raw)), Seq::empty()));
+                crate::specs::part1_tile_progression_dispatch_projection(
+                    cold_reader, cold_raw, segment_view(segment), components, tile_part_index,
+                    packet_lengths_view(&main_lengths), packed_packet_headers_view(&main_headers), events,
+                    (result, parser_view(self), tile_header_accumulator_view(raw)), Seq::empty());
+            }
+        }
+        result
     }
 
     #[allow(clippy::too_many_arguments)]
     #[cfg_attr(verus_keep_ghost, verifier::spinoff_prover)]
     #[cfg_attr(verus_keep_ghost, verus_spec(result =>
-        ensures (result, parser_view(final(self)), tile_header_accumulator_view(final(raw)))
-            == crate::specs::part1_tile_header_payload(
+        ensures crate::specs::part1_tile_progression_payload_storage_result(
                 parser_view(old(self)), tile_header_accumulator_view(old(raw)),
                 segment_view(segment), components, tile_part_index,
-                packet_lengths_view(&main_lengths), packed_packet_headers_view(&main_headers)),
+                packet_lengths_view(&main_lengths), packed_packet_headers_view(&main_headers),
+                (result, parser_view(final(self)), tile_header_accumulator_view(final(raw)))),
     ))]
     pub(super) fn apply_tile_header_segment(
         &mut self,
@@ -160,6 +198,11 @@ impl<'a> Parser<'a> {
         main_lengths: PacketLengths<'a>,
         main_headers: PackedPacketHeaders<'a>,
     ) -> Result<(), DecodeError> {
+        #[cfg(verus_keep_ghost)]
+        proof_decl! {
+            let ghost cold_reader = parser_view(self);
+            let ghost cold_raw = tile_header_accumulator_view(raw);
+        }
         #[cfg(verus_keep_ghost)]
         proof! {
             reveal(crate::specs::part1_tile_header_payload);
@@ -234,7 +277,15 @@ impl<'a> Parser<'a> {
                     ));
                 }
                 raw.poc_seen = true;
-                raw.progression_changes = self.parse_poc(segment, components)?;
+                let parsed = self.parse_poc(segment, components);
+                #[cfg(verus_keep_ghost)]
+                proof! {
+                    crate::specs::part1_tile_progression_payload_storage_leaf(
+                        cold_reader, cold_raw, segment_view(segment), components,
+                        packet_lengths_view(&main_lengths), packed_packet_headers_view(&main_headers),
+                        parsed_progression_outcome(parsed));
+                }
+                raw.progression_changes = parsed?;
             }
             DFS | ADS | NLT | ATK => {
                 self.apply_tile_header_extension_segment(raw, segment, components)?
@@ -416,7 +467,13 @@ impl<'a> Parser<'a> {
 
     #[cfg_attr(verus_keep_ghost, verifier::spinoff_prover)]
     #[cfg_attr(verus_keep_ghost, verus_spec(result =>
-        ensures (result, parser_view(final(self)), tile_header_accumulator_view(final(raw)))
+        ensures crate::specs::part1_tile_progression_result(crate::specs::Part1ColdTileHeaderInput {
+                reader: parser_view(old(self)), raw: tile_header_accumulator_view(old(raw)),
+                components, index: tile_part_index, lengths: packet_lengths_view(&main_lengths),
+                headers: packed_packet_headers_view(&main_headers),
+            }, (result, parser_view(final(self)), tile_header_accumulator_view(final(raw)))),
+            result != Err(DecodeError::AllocationFailed) ==>
+            (result, parser_view(final(self)), tile_header_accumulator_view(final(raw)))
             == crate::specs::part1_traverse_tile_header(
                 parser_view(old(self)), tile_header_accumulator_view(old(raw)),
                 components, tile_part_index, packet_lengths_view(&main_lengths),
@@ -433,14 +490,29 @@ impl<'a> Parser<'a> {
         let input_length = self.input.len();
         #[cfg(verus_keep_ghost)]
         proof_decl! {
+            let ghost cold_input = crate::specs::Part1ColdTileHeaderInput {
+                reader: parser_view(self), raw: tile_header_accumulator_view(raw),
+                components, index: tile_part_index, lengths: packet_lengths_view(&main_lengths),
+                headers: packed_packet_headers_view(&main_headers),
+            };
             let ghost initial = crate::specs::part1_tile_header_traversal(
                 parser_view(self), tile_header_accumulator_view(raw), components, tile_part_index,
                 packet_lengths_view(&main_lengths), packed_packet_headers_view(&main_headers), input_length);
         }
         #[cfg(verus_keep_ghost)]
-        proof! { reveal(crate::specs::part1_traverse_tile_header); }
+        proof! {
+            reveal(crate::specs::part1_traverse_tile_header);
+            crate::specs::part1_tile_progression_start(cold_input);
+        }
         #[cfg_attr(verus_keep_ghost, verus_spec(
             invariant
+                cold_input == (crate::specs::Part1ColdTileHeaderInput {
+                    reader: parser_view(old(self)), raw: tile_header_accumulator_view(old(raw)),
+                    components, index: tile_part_index, lengths: packet_lengths_view(&main_lengths),
+                    headers: packed_packet_headers_view(&main_headers),
+                }),
+                input_length == cold_input.reader.input.len(),
+                crate::specs::part1_tile_progression_prefix(cold_input, parser_view(self), tile_header_accumulator_view(raw)),
                 initial == crate::specs::part1_traverse_tile_header(
                     parser_view(old(self)), tile_header_accumulator_view(old(raw)), components,
                     tile_part_index, packet_lengths_view(&main_lengths), packed_packet_headers_view(&main_headers)),
@@ -459,21 +531,43 @@ impl<'a> Parser<'a> {
                 reveal(crate::specs::part1_parser_progress);
                 reveal(crate::specs::part1_codestream_malformed);
             }
+            #[cfg(verus_keep_ghost)]
+            proof_decl! {
+                let ghost cold_reader = parser_view(self);
+                let ghost cold_raw = tile_header_accumulator_view(raw);
+            }
             let previous_position = self.position;
-            match self.read_tile_header_segment()? {
-                None => {
+            match self.read_tile_header_segment() {
+                Err(error) => {
+                    #[cfg(verus_keep_ghost)]
+                    proof! { crate::specs::part1_tile_progression_finish(cold_input, cold_reader, cold_raw); }
+                    return Err(error);
+                }
+                Ok(None) => {
                     raw.tile_header_end = previous_position;
+                    #[cfg(verus_keep_ghost)]
+                    proof! { crate::specs::part1_tile_progression_finish(cold_input, cold_reader, cold_raw); }
                     return Ok(());
                 }
-                Some(segment) => {
-                    self.dispatch_tile_header_segment(
+                Ok(Some(segment)) => {
+                    let result = self.dispatch_tile_header_segment(
                         raw,
                         segment,
                         components,
                         tile_part_index,
                         main_lengths,
                         main_headers,
-                    )?;
+                    );
+                    #[cfg(verus_keep_ghost)]
+                    proof! {
+                        crate::specs::part1_tile_progression_step(
+                            cold_input, cold_reader, cold_raw, segment_view(segment),
+                            (result, parser_view(self), tile_header_accumulator_view(raw)));
+                    }
+                    match result {
+                        Ok(()) => (),
+                        Err(error) => return Err(error),
+                    }
                 }
             }
             if !crate::refinement::parser_progress(previous_position, self.position, input_length) {
@@ -484,7 +578,15 @@ impl<'a> Parser<'a> {
 
     #[allow(clippy::too_many_arguments)]
     #[cfg_attr(verus_keep_ghost, verus_spec(result =>
-        ensures (tile_header_read_outcome(result), parser_view(final(self)))
+        ensures crate::specs::part1_read_tile_progression_result(crate::specs::Part1ColdTileHeaderInput {
+                reader: parser_view(old(self)), raw: crate::specs::part1_tile_header_initial(
+                    old(self).position, parsed_coding_style_view(style), roi_shifts_view(&roi),
+                    progression_changes_view(&progression), mct_parameters_view(&mct), owned_extensions_view(&extensions)),
+                components, index: tile_part_index, lengths: packet_lengths_view(&main_lengths),
+                headers: packed_packet_headers_view(&main_headers),
+            }, (tile_header_read_outcome(result), parser_view(final(self)))),
+            tile_header_read_outcome(result) != Err(DecodeError::AllocationFailed) ==>
+            (tile_header_read_outcome(result), parser_view(final(self)))
             == crate::specs::part1_read_tile_header(parser_view(old(self)),
                 parsed_coding_style_view(style), roi_shifts_view(&roi),
                 progression_changes_view(&progression), mct_parameters_view(&mct),
@@ -504,19 +606,37 @@ impl<'a> Parser<'a> {
         main_headers: PackedPacketHeaders<'a>,
     ) -> Result<TileHeaderAccumulator<'a>, DecodeError> {
         #[cfg(verus_keep_ghost)]
+        proof_decl! {
+            let ghost cold_input = crate::specs::Part1ColdTileHeaderInput {
+                reader: parser_view(self), raw: crate::specs::part1_tile_header_initial(
+                    self.position, parsed_coding_style_view(style), roi_shifts_view(&roi),
+                    progression_changes_view(&progression), mct_parameters_view(&mct), owned_extensions_view(&extensions)),
+                components, index: tile_part_index, lengths: packet_lengths_view(&main_lengths),
+                headers: packed_packet_headers_view(&main_headers),
+            };
+        }
+        #[cfg(verus_keep_ghost)]
         proof! {
             reveal(tile_header_read_outcome);
             reveal(crate::specs::part1_read_tile_header);
         }
         let mut raw =
             new_tile_header_accumulator(self.position, style, roi, progression, mct, extensions);
-        self.traverse_tile_header(
+        let result = self.traverse_tile_header(
             &mut raw,
             components,
             tile_part_index,
             main_lengths,
             main_headers,
-        )?;
-        Ok(raw)
+        );
+        #[cfg(verus_keep_ghost)]
+        proof! {
+            crate::specs::part1_read_tile_progression_observed(
+                cold_input, (result, parser_view(self), tile_header_accumulator_view(&raw)));
+        }
+        match result {
+            Ok(()) => Ok(raw),
+            Err(error) => Err(error),
+        }
     }
 }

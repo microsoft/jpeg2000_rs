@@ -4746,6 +4746,23 @@ _SOURCE_OPACITY_CONTRACTS = {
 }
 
 _COLD_RESULT_MODELS = {
+    "part1_parse_poc": (
+        "part1_parse_poc_storage_result", "specs/cold_progression.rs", "part1_parse_poc_storage_normal",
+    ),
+    "part1_tile_header_payload": (
+        "part1_tile_progression_payload_storage_result", "specs/cold_header_progression.rs",
+        "part1_tile_progression_payload_storage_normal",
+    ),
+    "part1_tile_header_dispatch": (
+        "part1_tile_progression_dispatch_result", "specs/cold_header_progression.rs",
+        "part1_tile_progression_dispatch_normal",
+    ),
+    "part1_traverse_tile_header": (
+        "part1_tile_progression_result", "specs/cold_header_progression.rs", "part1_tile_progression_traversal_normal",
+    ),
+    "part1_read_tile_header": (
+        "part1_read_tile_progression_result", "specs/cold_header_progression.rs", "part1_read_tile_progression_normal",
+    ),
     "part1_component_quantizations_new": (
         "part1_component_quantizations_storage_result", "specs/mod.rs", "part1_component_quantizations_storage_normal",
     ),
@@ -4861,6 +4878,7 @@ _COLD_RESULT_CONTRACTS = {
         _SOURCE_OPACITY_CONTRACTS, _JPIP_PROGRESSIVE_CONTRACTS, _JPIP_TRANSCODE_CONTRACTS,
         _MAIN_COMPONENT_FINALIZATION_CONTRACTS, _TILE_COMPONENT_FINALIZATION_CONTRACTS,
         _PERSISTENT_TILE_CONFIGURATION_CONTRACTS,
+        _PROGRESSION_BYTES_CONTRACTS, _RAW_TILE_HEADER_CONTRACTS,
     )
     for key, legacy in contracts.items()
     if legacy[0] in _COLD_RESULT_MODELS
@@ -4894,6 +4912,41 @@ _COLD_RESULT_CONTRACTS[("src/codestream/tiles.rs", "Parser::read_tile_part")] = 
     + r"\s*,\s*" + _coverage_call("parser_view", _coverage_call("final", "self")) + r"\s*\)",
 )
 
+_COLD_HEADER_FIELDS = (
+    ("reader", _coverage_call("parser_view", _coverage_call("old", "self"))),
+    ("raw", _coverage_call("tile_header_accumulator_view", _coverage_call("old", "raw"))),
+    ("components", None), ("index", "tile_part_index"),
+    ("lengths", _coverage_call("packet_lengths_view", r"&\s*main_lengths")),
+    ("headers", _coverage_call("packed_packet_headers_view", r"&\s*main_headers")),
+)
+for _header_symbol, _header_model, _raw_pattern, _header_outcome in (
+    ("traverse_tile_header", "part1_tile_progression_result", _COLD_HEADER_FIELDS[1][1],
+     r"\1\s*,\s*" + _coverage_call("parser_view", _coverage_call("final", "self"))
+     + r"\s*,\s*" + _coverage_call("tile_header_accumulator_view", _coverage_call("final", "raw"))),
+    ("read_tile_header", "part1_read_tile_progression_result",
+     _coverage_call("crate::specs::part1_tile_header_initial", _coverage_call("old", "self") + r"\.position",
+        _coverage_call("parsed_coding_style_view", "style"), _coverage_call("roi_shifts_view", r"&\s*roi"),
+        _coverage_call("progression_changes_view", r"&\s*progression"),
+        _coverage_call("mct_parameters_view", r"&\s*mct"), _coverage_call("owned_extensions_view", r"&\s*extensions")),
+     _coverage_call("tile_header_read_outcome", r"\1") + r"\s*,\s*"
+     + _coverage_call("parser_view", _coverage_call("final", "self"))),
+):
+    _COLD_RESULT_CONTRACTS[("src/codestream/tile_header_traversal.rs", "Parser::" + _header_symbol)] = (
+        _header_model, r"crate::specs::Part1ColdTileHeaderInput\s*\{\s*" + r"\s*,\s*".join(
+            re.escape(name) + (r"\s*:\s*" + (_raw_pattern if name == "raw" else pattern)
+                              if pattern is not None else "")
+            for name, pattern in _COLD_HEADER_FIELDS
+        ) + r"\s*,?\s*\}\s*,\s*\(\s*" + _header_outcome + r"\s*\)",
+    )
+
+_COLD_INNER_RUNS = {
+    "part1_parse_poc_storage_result": "part1_parse_poc_storage",
+    "part1_tile_progression_payload_storage_result": "part1_tile_progression_payload_storage",
+    "part1_tile_progression_dispatch_result": "part1_tile_progression_dispatch",
+    "part1_tile_progression_result": "part1_tile_progression_root_run",
+    "part1_read_tile_progression_result": "part1_read_tile_progression_root_run",
+}
+
 
 def _coverage_cold_links(keys: set[tuple[str, str]]) -> tuple[set[tuple[str, str]], set[tuple[str, str]]]:
     models, proofs = set(), set()
@@ -4907,6 +4960,7 @@ def _coverage_cold_links(keys: set[tuple[str, str]]) -> tuple[set[tuple[str, str
             "part1_cold_layout_result": "part1_layout_with_cold_storage",
             "part1_parse_info_cold_result": "part1_parse_info_with_cold_storage",
             "part1_parse_layout_cold_result": "part1_parse_layout_with_cold_storage",
+            **_COLD_INNER_RUNS,
         }.get(model, model.removesuffix("_result") + "_run")
         models.update(((path, model), (path, run)))
         proofs.add((path, normal))
@@ -4925,9 +4979,18 @@ def _coverage_cold_result_body(text: str, model: str) -> bool:
         "part1_cold_layout_result": "part1_layout_with_cold_storage",
         "part1_parse_info_cold_result": "part1_parse_info_with_cold_storage",
         "part1_parse_layout_cold_result": "part1_parse_layout_with_cold_storage",
+        **_COLD_INNER_RUNS,
     }.get(model, model.removesuffix("_result") + "_run")
     call = run + "(" + ",".join(names[:-1] + ["events"]) + ")"
-    if model in ("part1_component_quantizations_storage_result", "part1_finish_main_quantizations_storage_result"):
+    if model == "part1_tile_progression_payload_storage_result":
+        expected = """
+            if segment.marker == 0xff5f && !raw.poc_seen && tile_part_index == 0 {
+                exists|reserved: bool| result == part1_tile_progression_payload_storage(
+                    reader, raw, segment, components, tile_part_index, lengths, headers, reserved)
+            } else { result == part1_tile_header_payload(reader, raw, segment, components, tile_part_index, lengths, headers) }
+        """
+    elif model in ("part1_component_quantizations_storage_result", "part1_finish_main_quantizations_storage_result",
+                   "part1_parse_poc_storage_result"):
         expected = "exists|reserved: bool|result==" + model.removesuffix("_result") \
             + "(" + ",".join(names[:-1] + ["reserved"]) + ")"
     elif model.startswith("part1_"):
@@ -5011,6 +5074,35 @@ _COLD_SOURCE_BODIES = {
 }
 
 _QUANTIZATION_COLD_GUARDS = {
+    ("specs/cold_progression.rs", "part1_poc_cold_run"): (
+        "!part1_poc_storage_shape(segment, components)",
+        "Some((part1_parse_poc(segment, components), events))",
+        "part1_quantization_storage_request(site, part1_poc_storage_elements(segment, components), events)",
+        "Some((Err(error), rest)) => Some((Err(error), rest))",
+    ),
+    ("specs/cold_header_progression.rs", "part1_main_progression_payload"): (
+        "segment.marker == 0xff5f && !raw.poc_seen",
+        "Part1MainHeaderAccumulator { poc_seen: true, ..raw }",
+        "part1_poc_cold_run(12, segment, raw.image_size.components, events)",
+        "Some((Err(error), rest)) => Some(((Err(error), reader, changed), rest))",
+    ),
+    ("specs/cold_header_progression.rs", "part1_tile_progression_payload"): (
+        "segment.marker == 0xff5f && !raw.poc_seen && tile_part_index == 0",
+        "Part1TileHeaderAccumulator { poc_seen: true, ..raw }",
+        "part1_poc_cold_run(13, segment, components, events)",
+        "Some((Err(error), rest)) => Some(((Err(error), reader, changed), rest))",
+    ),
+    ("specs/cold_layout.rs", "part1_cold_layout_after_inherited_copy"): (
+        "part1_inherited_tile_owner(tile.2 as usize, main.raw.progression, state.0.5)",
+        "progression.len() == 0", "part1_quantization_storage_request(14, progression.len() as usize, events)",
+        "Some((Err(error), rest)) => Some(((Err(error), reader, tile_parts, state), rest))",
+    ),
+    ("specs/persistent_tile_configuration.rs", "part1_commit_progression_cold_run"): (
+        "previous_roi, payload, state, 5)", "Err(_) => Some((prefix, events))",
+        "payload.progression_changes.len() == 0",
+        "part1_quantization_storage_request(15, payload.progression_changes.len() as usize, events)",
+        "Some((Err(error), rest)) => Some(((Err(error), prefix.1), rest))",
+    ),
     ("specs/cold_quantization.rs", "part1_main_quantization_cold_complete"): (
         "Err(error) => Some((Err(error), events))",
         "part1_quantization_storage_request(8, input.raw.image_size.components as usize, events)",
@@ -5055,6 +5147,11 @@ _QUANTIZATION_ROOT_MODELS = {
     )
 } | {("specs/cold_quantization.rs", name) for name in (
     "part1_main_header_cold_run", "part1_prepare_main_quantization",
+)} | {("specs/cold_header_progression.rs", name) for name in (
+    "part1_prepare_main_progression_run", "part1_main_progression_continuation",
+    "part1_tile_progression_traversal", "part1_read_tile_progression_run",
+)} | {("specs/cold_progression.rs", name) for name in (
+    "part1_poc_cold_run", "part1_parse_poc_storage",
 )}
 _QUANTIZATION_ROOT_PROOFS = {
     ("specs/cold_layout.rs", name) for name in (
@@ -5064,6 +5161,14 @@ _QUANTIZATION_ROOT_PROOFS = {
 } | {("specs/cold_layout_continuations.rs", name) for name in (
     "part1_cold_layout_sot_commit_error", "part1_cold_layout_sot_copy_error", "part1_cold_layout_sot_read_error",
 )} | {("specs/cold_quantization.rs", "part1_main_quantization_normal")}
+_QUANTIZATION_ROOT_PROOFS |= {
+    ("specs/cold_header_progression.rs", name) for name in (
+        "part1_prepare_main_progression_normal", "part1_prepare_main_progression_frame",
+        "part1_prepare_main_progression_projection", "part1_cold_main_advance", "part1_cold_main_poc_error",
+        "part1_tile_progression_payload_storage_observed", "part1_tile_progression_step",
+        "part1_read_tile_progression_normal", "part1_read_tile_progression_frame", "part1_read_tile_progression_projection",
+    )
+} | {("specs/cold_layout_continuations.rs", "part1_cold_layout_sot_progression_error")}
 
 
 for _contracts, _models, _proofs in (
@@ -9617,6 +9722,8 @@ def validate_normative_coverage(
                 r"let\s+ghost\s+main_initial\s*=\s*" + raw_view + r"\s*;",
                 r"let\s+ghost\s+raw_main\s*=\s*" + raw_view + r"\s*;",
                 r"verus_spec\s*\(\s*invariant\s+initial_reader\s*==\s*" + initial_reader
+                + r"\s*,\s*" + _coverage_call("crate::specs::part1_cold_main_prefix",
+                    "initial_reader", _coverage_call("parser_view", r"&\s*parser"), raw_view)
                 + r"\s*,\s*" + _coverage_call("crate::specs::part1_cold_layout_result", "initial_reader",
                     _coverage_call("crate::specs::part1_read_layout", "initial_reader"))
                 + r"\s*,\s*main_quantization_goal\s*==\s*" + prepared_continuation
@@ -9808,24 +9915,31 @@ def validate_normative_coverage(
                                      r"&\s*" + main, r"&\s*" + states + r"\s*,?")
                     + r"\s*\.\s*" + _coverage_call("clone") + r"\s*;"
                 )
-                if local == "inherited_component_quantizations":
+                if local in ("inherited_component_quantizations", "inherited_progression_changes"):
+                    source = ("quantization_source" if local == "inherited_component_quantizations"
+                              else "progression_source")
                     pattern = (
-                        r"\blet\s+quantization_source\s*=\s*"
+                        r"\blet\s+" + source + r"\s*=\s*"
                         + _coverage_call("inherited_tile_owner", "tile_index", r"&\s*" + main,
                                          r"&\s*" + states + r"\s*,?")
                         + r"\s*;\s*let\s+" + local + r"\s*=\s*match\s+"
-                        + _coverage_call("quantization_source.try_duplicate") + r"\s*\{"
+                        + _coverage_call(source + ".try_duplicate") + r"\s*\{"
                     )
                 match = re.search(pattern, body)
                 if match is None or match.start() < previous_end:
                     raise ValueError(f"owned inheritance clone/source/order mismatch: {local}")
                 previous_end = match.end()
-                if local == "inherited_component_quantizations":
-                    following = re.search(r"\blet\s+inherited_progression_changes\b", body[match.end():])
+                if local in ("inherited_component_quantizations", "inherited_progression_changes"):
+                    next_local, refusal = (
+                        ("inherited_progression_changes", "part1_cold_layout_sot_copy_error")
+                        if local == "inherited_component_quantizations" else
+                        ("inherited_mct_parameters", "part1_cold_layout_sot_progression_error")
+                    )
+                    following = re.search(r"\blet\s+" + next_local + r"\b", body[match.end():])
                     phase = body[match.end():match.end() + following.start()] if following else ""
                     if any("".join(item.split()) not in "".join(phase.split()) for item in (
                         "Ok(values) => values", "Err(error) =>",
-                        "crate::specs::part1_cold_layout_sot_copy_error(cold_sot, error)", "return Err(error)",
+                        "crate::specs::" + refusal + "(cold_sot, error)", "return Err(error)",
                     )):
                         raise ValueError(f"owned inheritance clone/source/order mismatch: {local}")
                 checkpoints.append(_coverage_call(

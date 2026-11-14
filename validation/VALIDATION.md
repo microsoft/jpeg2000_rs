@@ -971,6 +971,15 @@ reader. Commit-copy schemas bind all six mutable configuration owners,
 including the four already-stored fields on refusal. Source guards distinguish
 main creation, conditional tile creation, inheritance and commit request sites;
 moving a refusal to an older tile-vector site or losing a partial owner fails.
+POC schemas retain the exact reached reservation response inside main/tile
+traversal, not a later allocation-error alternative. Main/tile construction
+sites 12/13, inherited copy 14 and fifth-store commit copy 15 remain distinct.
+The actual reader/seen-flag frames, branch-local response-to-event conversion
+and checked normal projections are linked to their executing consumers.
+Bounded managed controls cover refusal/restore, empty copies, duplicate/shape
+precedence and RHS-before-destination partial commits. Deep MCT/Part 2 copies,
+payload/container/image growth and #289 deadlines are outside this increment;
+#288 cumulative budgeting is withdrawn, not remaining work.
 Same-file links are checked inside another listed, formatted function body;
 the contract's own declaration, an unrelated function or an indirect caller
 does not qualify as a direct same-file call. Unsupported formatting can fail

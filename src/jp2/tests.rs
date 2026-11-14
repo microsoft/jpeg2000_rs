@@ -1040,6 +1040,39 @@ fn actual_raw_inspection_retains_original_file_and_complete_source_derived_info_
 }
 
 #[test]
+fn progression_storage_container_first_and_commit_refusals_restore() {
+    let mut stream = valid_codestream(64, 32);
+    let at = stream
+        .windows(2)
+        .position(|bytes| bytes == [0xff, 0x90])
+        .unwrap();
+    stream.splice(at..at, marker_segment(0xff5f, &[0, 0, 0, 1, 1, 1, 0]));
+    let bytes = boxed_file(b"jp2 \0\0\0\0jp2 ", &stream);
+    let limits = ResourceLimits::default();
+    let expected = parse_and_inspect(&bytes, &limits).unwrap();
+    for after in [0, 13] {
+        assert!(matches!(
+            crate::allocation::with_refusal(after, || parse_and_inspect(&bytes, &limits)),
+            Err(DecodeError::AllocationFailed)
+        ));
+        let restored = parse_and_inspect(&bytes, &limits).unwrap();
+        assert_eq!(
+            restored.codestreams()[0].progression_changes.records(),
+            expected.codestreams()[0].progression_changes.records()
+        );
+        assert_eq!(
+            restored.codestreams()[0].consumed_bytes,
+            expected.codestreams()[0].consumed_bytes
+        );
+        assert_eq!(restored.file().box_count, expected.file().box_count);
+        assert!(core::ptr::eq(
+            restored.file().codestream(0).unwrap().data(),
+            expected.file().codestream(0).unwrap().data()
+        ));
+    }
+}
+
+#[test]
 fn cold_tile_storage_refusal_is_typed_and_restores_container_inspection() {
     let stream = valid_codestream(64, 32);
     let bytes = boxed_file(b"jp2 \0\0\0\0jp2 ", &stream);

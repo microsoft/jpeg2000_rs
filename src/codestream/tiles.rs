@@ -297,7 +297,7 @@ impl<'a> Parser<'a> {
             reveal(parser_view);
             reveal(tile_part_header_view);
         }
-        let header = self.read_tile_header(
+        let header = match self.read_tile_header(
             default_parameters.0,
             inherited_roi_shifts,
             inherited_progression_changes,
@@ -307,7 +307,14 @@ impl<'a> Parser<'a> {
             tile_part.tile_part_index,
             main_packet_lengths,
             main_packed_packet_headers,
-        )?;
+        ) {
+            Ok(header) => header,
+            Err(error) => {
+                #[cfg(verus_keep_ghost)]
+                proof! { crate::specs::part1_cold_tile_header_error(cold_input, error, parser_view(self)); }
+                return Err(error);
+            }
+        };
         #[cfg(verus_keep_ghost)]
         proof_decl! {
             let ghost cold_raw = super::tile_header_accumulator_view(&header);

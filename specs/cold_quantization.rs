@@ -212,7 +212,10 @@ pub(crate) open spec fn part1_main_quantization_cold_complete<'a>(
 pub(crate) open spec fn part1_main_header_cold_run<'a>(
     reader: Part1CodestreamReader<'a>, events: Seq<Part1ColdStorageEvent>,
 ) -> Option<(Part1MainHeaderResult<'a>, Seq<Part1ColdStorageEvent>)> {
-    part1_main_quantization_cold_complete(part1_prepare_main_quantization(reader), events)
+    match part1_prepare_main_progression_run(reader, events) {
+        None => None,
+        Some((prepared, rest)) => part1_main_quantization_cold_complete(prepared, rest),
+    }
 }
 
 pub(crate) open spec fn part1_main_quantization_normal_calls(
@@ -233,10 +236,13 @@ pub(crate) proof fn part1_main_header_cold_normal<'a>(
     reader: Part1CodestreamReader<'a>, tail: Seq<Part1ColdStorageEvent>,
 )
     ensures part1_main_header_cold_run(reader,
-        part1_main_quantization_normal_calls(part1_prepare_main_quantization(reader)) + tail)
+        part1_main_header_normal_calls(reader) + tail)
             == Some((part1_read_main_header(reader), tail)),
 {
     part1_main_quantization_normal(reader);
+    let first = part1_prepare_main_progression_normal(reader);
+    let last = part1_main_quantization_normal_calls(part1_prepare_main_quantization(reader));
+    assert((first + last) + tail =~= first + (last + tail));
     match part1_prepare_main_quantization(reader) {
         Err(_) => { assert(Seq::<Part1ColdStorageEvent>::empty() + tail =~= tail); },
         Ok(input) => if input.raw.image_size.components == 0 || input.raw.image_size.components > 64 {
@@ -258,6 +264,9 @@ pub(crate) proof fn part1_main_header_cold_projection<'a>(
     ensures result == part1_read_main_header(reader),
 {
     part1_main_quantization_normal(reader);
+    if let Some((prepared, after)) = part1_prepare_main_progression_run(reader, events) {
+        part1_prepare_main_progression_projection(reader, events, prepared, after);
+    }
 }
 
 pub(crate) proof fn part1_main_header_cold_frame<'a>(
@@ -267,7 +276,16 @@ pub(crate) proof fn part1_main_header_cold_frame<'a>(
     requires part1_main_header_cold_run(reader, events) == Some((result, rest)),
     ensures part1_main_header_cold_run(reader, events + tail) == Some((result, rest + tail)),
 {
-    if events.len() > 0 { assert((events + tail).drop_first() =~= events.drop_first() + tail); }
+    if let Some((prepared, after)) = part1_prepare_main_progression_run(reader, events) {
+        part1_prepare_main_progression_frame(reader, events, prepared, after, tail);
+        if after.len() > 0 { assert((after + tail).drop_first() =~= after.drop_first() + tail); }
+    }
+}
+
+pub(crate) open spec fn part1_main_header_normal_calls(reader: Part1CodestreamReader<'_>)
+    -> Seq<Part1ColdStorageEvent> {
+    part1_prepare_main_progression_calls(reader)
+        + part1_main_quantization_normal_calls(part1_prepare_main_quantization(reader))
 }
 
 }

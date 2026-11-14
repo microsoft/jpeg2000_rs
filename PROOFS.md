@@ -103,11 +103,29 @@ Results, ordinary projections and arbitrary-tail frames. Checked non-owning
 error continuations isolate this cold environment from the original live
 normal tile induction without increasing proof resources.
 
-This still does **not** complete #287. Other progression/MCT/Part 2 owner
-copies, payload/container/image growth and remaining nested construction stay
-outside this increment; so do global allocation availability, cumulative
-budgeting and deadline APIs. The original normal models and public
+This still does **not** complete #287. MCT/Part 2 deep owner copies,
+payload/container/image growth and remaining nested construction stay
+outside these increments, as do global allocation availability and #289
+deadline APIs. Cumulative budgeting #288 is withdrawn, not remaining work.
+The original normal models and public
 automatic/progressive/semantic Result/frame contracts remain checked.
+
+### Flat progression construction and persistent owner copies
+
+POC shape/alignment rejection precedes reservation; record syntax checks
+follow it, in their original order. `ProgressionChange` is flat `Copy`, so
+the reached inherited/committed owners reuse `copy_values`, never deep
+`Clone`. Empty owners consume no request. Sites 12/13 are actual main/tile
+POC construction, 14 is inheritance after quantization copying, and 15 is
+commit after the fifth store but before progression-slot lookup.
+
+[`cold_progression.rs`](specs/cold_progression.rs) links actual primitive
+responses to flat records. [`cold_header_progression.rs`](specs/cold_header_progression.rs)
+binds those responses inside the executing header traversals, retaining seen
+flags, reader/counter state, earlier errors and exact tails. Checked private
+continuations preserve normal projections without unfolding the cold
+environment throughout the existing hot folds. Persistent refusal retains
+precisely the earlier stores; earlier ROI/slot errors still win.
 
 ### Ordered automatic main-header primitive calls
 

@@ -7230,7 +7230,10 @@ class FrameworkTests(WorkingFiles):
             {"path": "src/codestream/tiles.rs", "symbol": "Parser::read_tile_part"},
         ]
         entry["contract_refs"] = [reference]
-        entry["proof_refs"] = [reference]
+        _, cold_proofs = framework._coverage_cold_links({(reference["path"], reference["symbol"])})
+        entry["proof_refs"] = [reference] + [
+            {"path": path, "symbol": symbol} for path, symbol in sorted(cold_proofs)
+        ]
         data = dict(coverage, requirements=[entry])
         self.assertEqual(framework.validate_normative_coverage(data)["status"], "passed")
         source = framework.ROOT / "src/codestream/tiles.rs"
@@ -7304,9 +7307,9 @@ class FrameworkTests(WorkingFiles):
         source = framework.ROOT / "src/codestream/tile_header_traversal.rs"
         original = source.read_text()
         read_text = Path.read_text
-        call = "self.read_tile_header_segment()?"
+        call = "self.read_tile_header_segment()"
         self.assertEqual(original.count(call), 1)
-        changed = original.replace(call, "self.unlisted_tile_header_admission()?")
+        changed = original.replace(call, "self.unlisted_tile_header_admission()")
         for extra in ("", "\nfn unrelated() { self.read_tile_header_segment(); }\n"):
             modified = changed + extra
 
@@ -8026,6 +8029,25 @@ class FrameworkTests(WorkingFiles):
             ("specs/persistent_tile_configuration.rs", "part1_commit_quantization_cold_run",
              "previous_roi, payload, state, 4)", "previous_roi, payload, state, 5)"),
             ("specs/persistent_tile_configuration.rs", "part1_commit_quantization_cold_run",
+             "Some(((Err(error), prefix.1), rest))", "Some(((Err(error), state), rest))"),
+            ("specs/cold_header_progression.rs", "part1_main_progression_payload",
+             "part1_poc_cold_run(12,", "part1_poc_cold_run(8,"),
+            ("specs/cold_progression.rs", "part1_poc_cold_run",
+             "Some((part1_parse_poc(segment, components), events))",
+             "Some((part1_parse_poc(segment, components), events.drop_first()))"),
+            ("specs/cold_header_progression.rs", "part1_main_progression_payload",
+             "poc_seen: true", "poc_seen: false"),
+            ("specs/cold_header_progression.rs", "part1_tile_progression_payload",
+             "part1_poc_cold_run(13,", "part1_poc_cold_run(9,"),
+            ("specs/cold_header_progression.rs", "part1_tile_progression_payload",
+             "&& tile_part_index == 0", "&& tile_part_index == 1"),
+            ("specs/cold_layout.rs", "part1_cold_layout_after_inherited_copy",
+             "part1_quantization_storage_request(14,", "part1_quantization_storage_request(10,"),
+            ("specs/persistent_tile_configuration.rs", "part1_commit_progression_cold_run",
+             "previous_roi, payload, state, 5)", "previous_roi, payload, state, 4)"),
+            ("specs/persistent_tile_configuration.rs", "part1_commit_progression_cold_run",
+             "part1_quantization_storage_request(15,", "part1_quantization_storage_request(11,"),
+            ("specs/persistent_tile_configuration.rs", "part1_commit_progression_cold_run",
              "Some(((Err(error), prefix.1), rest))", "Some(((Err(error), state), rest))"),
         ):
             source = framework.ROOT / relative

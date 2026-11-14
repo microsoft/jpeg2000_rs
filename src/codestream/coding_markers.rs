@@ -343,7 +343,9 @@ impl<'a> Parser<'a> {
 
     #[cfg_attr(verus_keep_ghost, verifier::spinoff_prover)]
     #[cfg_attr(verus_keep_ghost, verus_spec(result =>
-        ensures parsed_progression_outcome(result) == crate::specs::part1_parse_poc(segment_view(segment), components),
+        ensures crate::specs::part1_parse_poc_storage_result(segment_view(segment), components, parsed_progression_outcome(result)),
+            parsed_progression_outcome(result) != Err(DecodeError::AllocationFailed) ==>
+                parsed_progression_outcome(result) == crate::specs::part1_parse_poc(segment_view(segment), components),
     ))]
     pub(super) fn parse_poc(
         &self,
@@ -351,7 +353,10 @@ impl<'a> Parser<'a> {
         components: u16,
     ) -> Result<ProgressionChanges, DecodeError> {
         #[cfg(verus_keep_ghost)]
-        proof! { reveal(crate::specs::part1_parse_poc); }
+        proof! {
+            reveal(crate::specs::part1_parse_poc);
+            crate::specs::part1_parse_poc_storage_normal(segment_view(segment), components);
+        }
         let component_bytes = if components < 257 { 1_usize } else { 2_usize };
         let doubled = match component_bytes.checked_mul(2) {
             Some(value) => value,
@@ -369,7 +374,18 @@ impl<'a> Parser<'a> {
         if segment.payload.is_empty() || remainder != 0 {
             return Err(self.malformed_at(segment.offset, MalformedKind::InvalidMarkerLength));
         }
-        let mut records = Vec::with_capacity(segment.payload.len() / record_bytes);
+        let mut records = match crate::allocation::empty_with_capacity(
+            segment.payload.len() / record_bytes,
+        ) {
+            Ok(records) => records,
+            Err(error) => {
+                #[cfg(verus_keep_ghost)]
+                proof! {
+                    crate::specs::part1_parse_poc_storage_observed(segment_view(segment), components, false, Err(error));
+                }
+                return Err(error);
+            }
+        };
         let mut position = 0_usize;
         let mut remaining_records = segment.payload.len() / record_bytes;
         #[cfg(verus_keep_ghost)]
@@ -382,6 +398,8 @@ impl<'a> Parser<'a> {
             verus_keep_ghost,
             verus_spec(
                 invariant position <= segment.payload.len(),
+                    crate::specs::part1_parse_poc_storage_result(
+                        segment_view(segment), components, crate::specs::part1_parse_poc(segment_view(segment), components)),
                     component_bytes == if components < 257 { 1usize } else { 2usize },
                     record_bytes == 2 * component_bytes + 5,
                     record_bytes == 7 || record_bytes == 9,

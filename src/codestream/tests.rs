@@ -8694,6 +8694,130 @@ fn cold_tile_storage_refusal_is_typed_and_restores_raw_inspection() {
 }
 
 #[test]
+fn progression_flat_copy_empty_refusal_and_restore_keep_independent_records() {
+    let record = raw_progression_windows()[0];
+    let original = ProgressionChanges::from_records(vec![record]);
+    crate::allocation::with_refusal(0, || {
+        assert!(
+            ProgressionChanges::none()
+                .try_duplicate()
+                .unwrap()
+                .is_empty()
+        );
+        assert!(matches!(
+            original.try_duplicate(),
+            Err(DecodeError::AllocationFailed)
+        ));
+    });
+    let mut restored = original.try_duplicate().unwrap();
+    restored.records[0].layer_end ^= 1;
+    assert_eq!(original.records(), &[record]);
+    assert_ne!(restored.records(), original.records());
+}
+
+#[test]
+fn poc_construction_keeps_shape_before_reservation_and_records_after_it() {
+    let limits = ResourceLimits::default();
+    let parser = new_parser(&[], &limits).unwrap();
+    let bytes = poc(&[[0, 0, 0, 1, 1, 1, 0]]);
+    let valid = Segment {
+        marker: POC,
+        offset: 29,
+        payload: &bytes[4..],
+    };
+    let expected = parser.parse_poc(valid, 1).unwrap();
+    crate::allocation::with_refusal(0, || {
+        let empty = Segment {
+            marker: POC,
+            offset: 29,
+            payload: &[],
+        };
+        assert_eq!(
+            parser.parse_poc(empty, 1).unwrap_err(),
+            DecodeError::MalformedInput {
+                offset: 29,
+                kind: MalformedKind::InvalidMarkerLength
+            }
+        );
+        assert!(matches!(
+            parser.parse_poc(valid, 1),
+            Err(DecodeError::AllocationFailed)
+        ));
+    });
+    assert_eq!(
+        parser.parse_poc(valid, 1).unwrap().records(),
+        expected.records()
+    );
+    let mut invalid = bytes;
+    invalid[10] = u8::MAX;
+    let malformed = Segment {
+        marker: POC,
+        offset: 29,
+        payload: &invalid[4..],
+    };
+    let ordinary = parser.parse_poc(malformed, 1).unwrap_err();
+    assert_ne!(ordinary, DecodeError::AllocationFailed);
+    assert!(matches!(
+        crate::allocation::with_refusal(0, || parser.parse_poc(malformed, 1)),
+        Err(DecodeError::AllocationFailed)
+    ));
+    assert_eq!(parser.parse_poc(malformed, 1).unwrap_err(), ordinary);
+}
+
+#[test]
+fn progression_storage_raw_headers_copies_and_duplicate_precedence_restore() {
+    let record = poc(&[[0, 0, 0, 2, 1, 1, 0]]);
+    let mut main = two_part_codestream(&[], &[]);
+    let at = main
+        .windows(2)
+        .position(|bytes| bytes == SOT.to_be_bytes())
+        .unwrap();
+    main.splice(at..at, record.clone());
+    let tile = two_part_codestream(core::slice::from_ref(&record), &[]);
+    let limits = ResourceLimits::default();
+    for (bytes, refusals) in [(&main, &[0, 11][..]), (&tile, &[10, 12, 14][..])] {
+        let expected = parse_layout(bytes, &limits).unwrap();
+        for &after in refusals {
+            assert!(matches!(
+                crate::allocation::with_refusal(after, || parse_layout(bytes, &limits)),
+                Err(DecodeError::AllocationFailed)
+            ));
+            let restored = parse_layout(bytes, &limits).unwrap();
+            assert_eq!(
+                restored.info.progression_changes.records(),
+                expected.info.progression_changes.records()
+            );
+            assert_eq!(restored.info.consumed_bytes, expected.info.consumed_bytes);
+            assert_eq!(
+                restored.info.main_header_segments,
+                expected.info.main_header_segments
+            );
+            assert_eq!(restored.info.tile_parts, expected.info.tile_parts);
+            for (actual, original) in restored.tile_parts.iter().zip(&expected.tile_parts) {
+                assert_eq!(
+                    actual.progression_changes.records(),
+                    original.progression_changes.records()
+                );
+                assert!(core::ptr::eq(actual.data.as_ptr(), original.data.as_ptr()));
+            }
+        }
+    }
+    let at = main
+        .windows(2)
+        .position(|bytes| bytes == SOT.to_be_bytes())
+        .unwrap();
+    main.splice(at..at, record);
+    let ordinary = parse_layout(&main, &limits).unwrap_err();
+    crate::allocation::with_refusal(1, || {
+        assert_eq!(parse_layout(&main, &limits).unwrap_err(), ordinary);
+        assert_eq!(
+            crate::allocation::copy_values(&[1_u8]),
+            Err(DecodeError::AllocationFailed)
+        );
+    });
+}
+
+#[test]
 fn parses_retains_and_persists_progression_changes() {
     let first = poc(&[[0, 0, 0, 1, 1, 1, 1], [0, 0, 0, 2, 1, 1, 0]]);
     let bytes = two_part_codestream(&[first], &[]);

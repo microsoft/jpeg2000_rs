@@ -371,6 +371,7 @@ impl<'a> Parser<'a> {
             assert(main_initial.pending_mcc =~= expected.pending_mcc);
             assert(main_initial == crate::specs::part1_main_header_initial(
                 parsed_image_size_view(&image_size), r_siz, main_header_start));
+            crate::specs::part1_cold_main_start(initial_reader, parser_view(&parser), main_initial);
         }
 
         #[cfg_attr(
@@ -378,6 +379,14 @@ impl<'a> Parser<'a> {
             verus_spec(
                 invariant
                     initial_reader == parser_view(&self),
+                    crate::specs::part1_cold_main_prefix(
+                        initial_reader, parser_view(&parser), main_header_accumulator_view(
+                            &image_size, r_siz, main_header_start, main_header_segments,
+                            coding_style, qcd_segment, coc_segments@, qcc_segments@, &roi_shifts, roi_seen@,
+                            plm_groups@, next_plm_index, plm_seen, ppm_bytes@, next_ppm_index, ppm_fragments,
+                            &progression_changes, poc_seen, mct_arrays@, mct_records@, &mct_order,
+                            pending_mct@, completed_mct@, pending_mcc@, completed_mcc@,
+                            &extended_capabilities, &profile, &corresponding_profile, &part2_extensions, next_tlm_index)),
                     crate::specs::part1_cold_layout_result(
                         initial_reader, crate::specs::part1_read_layout(initial_reader)),
                     main_quantization_goal == crate::specs::part1_main_quantization_continuation(
@@ -431,6 +440,17 @@ impl<'a> Parser<'a> {
                 reveal(crate::specs::part1_parser_progress);
                 reveal(crate::specs::part1_codestream_malformed);
                 reveal(crate::specs::part1_layout_from_main_result);
+            }
+            #[cfg(verus_keep_ghost)]
+            proof_decl! {
+                let ghost cold_main_reader = parser_view(&parser);
+                let ghost cold_main_raw = main_header_accumulator_view(
+                    &image_size, r_siz, main_header_start, main_header_segments,
+                    coding_style, qcd_segment, coc_segments@, qcc_segments@, &roi_shifts, roi_seen@,
+                    plm_groups@, next_plm_index, plm_seen, ppm_bytes@, next_ppm_index, ppm_fragments,
+                    &progression_changes, poc_seen, mct_arrays@, mct_records@, &mct_order,
+                    pending_mct@, completed_mct@, pending_mcc@, completed_mcc@,
+                    &extended_capabilities, &profile, &corresponding_profile, &part2_extensions, next_tlm_index);
             }
             let previous_position = parser.position;
             let Some(segment) = parser.read_main_header_segment(&mut main_header_segments)? else {
@@ -554,7 +574,17 @@ impl<'a> Parser<'a> {
                         ));
                     }
                     poc_seen = true;
-                    progression_changes = parser.parse_poc(segment, image_size.components)?;
+                    progression_changes = match parser.parse_poc(segment, image_size.components) {
+                        Ok(values) => values,
+                        Err(error) => {
+                            #[cfg(verus_keep_ghost)]
+                            proof! {
+                                crate::specs::part1_cold_main_poc_error(
+                                    initial_reader, cold_main_reader, cold_main_raw, segment_view(segment), error);
+                            }
+                            return Err(error);
+                        }
+                    };
                 }
                 TLM => parser.parse_tlm(
                     segment,
@@ -622,6 +652,18 @@ impl<'a> Parser<'a> {
             if !crate::refinement::parser_progress(previous_position, parser.position, input_length)
             {
                 return Err(parser.malformed_here(MalformedKind::InvalidMarkerLength));
+            }
+            #[cfg(verus_keep_ghost)]
+            proof! {
+                crate::specs::part1_cold_main_advance(
+                    initial_reader, cold_main_reader, cold_main_raw, parser_view(&parser),
+                    main_header_accumulator_view(
+                        &image_size, r_siz, main_header_start, main_header_segments,
+                        coding_style, qcd_segment, coc_segments@, qcc_segments@, &roi_shifts, roi_seen@,
+                        plm_groups@, next_plm_index, plm_seen, ppm_bytes@, next_ppm_index, ppm_fragments,
+                        &progression_changes, poc_seen, mct_arrays@, mct_records@, &mct_order,
+                        pending_mct@, completed_mct@, pending_mcc@, completed_mcc@,
+                        &extended_capabilities, &profile, &corresponding_profile, &part2_extensions, next_tlm_index));
             }
         }
         #[cfg(verus_keep_ghost)]
@@ -1130,12 +1172,19 @@ impl<'a> Parser<'a> {
                                 return Err(error);
                             }
                         };
-                    let inherited_progression_changes = inherited_tile_owner(
+                    let progression_source = inherited_tile_owner(
                         tile_index,
                         &progression_changes,
                         &tile_progression_changes,
-                    )
-                    .clone();
+                    );
+                    let inherited_progression_changes = match progression_source.try_duplicate() {
+                        Ok(values) => values,
+                        Err(error) => {
+                            #[cfg(verus_keep_ghost)]
+                            proof! { crate::specs::part1_cold_layout_sot_progression_error(cold_sot, error); }
+                            return Err(error);
+                        }
+                    };
                     let inherited_mct_parameters = inherited_tile_owner(
                         tile_index,
                         &main_mct_parameters,
