@@ -575,32 +575,39 @@
         {"path": "src/jpip/automatic_headers.rs", "symbol": "normalize_main_header"},
         {"path": "src/jpip/progression.rs", "symbol": "DatabinCache::build_automatic_snapshot"},
         {"path": "src/jpip/progression.rs", "symbol": "DatabinCache::automatic_headers"},
-        {"path": "src/codestream/layout.rs", "symbol": "Parser::parse_layout"}
+        {"path": "src/codestream/layout.rs", "symbol": "Parser::parse_layout"},
+        {"path": "src/codestream/quantization.rs", "symbol": "ComponentQuantizations::try_duplicate"}
       ],
       "contract_refs": [
         {"path": "src/allocation.rs", "symbol": "reserve_additional"},
         {"path": "src/allocation.rs", "symbol": "empty_with_capacity"},
         {"path": "src/allocation.rs", "symbol": "extend_bytes"},
-        {"path": "src/allocation.rs", "symbol": "none_values"}
+        {"path": "src/allocation.rs", "symbol": "none_values"},
+        {"path": "src/allocation.rs", "symbol": "copy_values"}
       ],
       "spec_refs": [
         {"path": "specs/allocation.rs", "symbol": "storage_reservation_result"},
         {"path": "specs/allocation.rs", "symbol": "storage_capacity_result"},
         {"path": "specs/allocation.rs", "symbol": "storage_extension_result"},
-        {"path": "specs/allocation.rs", "symbol": "storage_none_result"}
+        {"path": "specs/allocation.rs", "symbol": "storage_none_result"},
+        {"path": "specs/allocation.rs", "symbol": "storage_copy_result"},
+        {"path": "specs/cold_quantization.rs", "symbol": "part1_quantization_owner_copy_result"}
       ],
       "proof_refs": [
         {"path": "src/allocation.rs", "symbol": "reserve_additional"},
         {"path": "src/allocation.rs", "symbol": "empty_with_capacity"},
         {"path": "src/allocation.rs", "symbol": "extend_bytes"},
-        {"path": "src/allocation.rs", "symbol": "none_values"}
+        {"path": "src/allocation.rs", "symbol": "none_values"},
+        {"path": "src/allocation.rs", "symbol": "copy_values"},
+        {"path": "src/codestream/quantization.rs", "symbol": "ComponentQuantizations::try_duplicate"}
       ],
       "test_refs": [
         {"path": "src/allocation.rs", "symbol": "capacity_refusal_and_layout_overflow_return_typed_errors_and_recover"},
         {"path": "src/allocation.rs", "symbol": "byte_extension_refusal_preserves_values_and_owner_then_recovers"},
         {"path": "src/jpip/normalization_result_tests.rs", "symbol": "automatic_main_header_refusal_preserves_input_and_exact_recovery"},
         {"path": "src/jpip/tests.rs", "symbol": "automatic_managed_allocation_refusals_preserve_state_and_recover_exact_images"},
-        {"path": "src/allocation.rs", "symbol": "none_storage_refuses_once_without_requiring_clone_and_restores"}
+        {"path": "src/allocation.rs", "symbol": "none_storage_refuses_once_without_requiring_clone_and_restores"},
+        {"path": "src/allocation.rs", "symbol": "shallow_copy_refusal_preserves_source_and_restores_exact_values"}
       ]
     },
     {
@@ -3188,7 +3195,12 @@
         {"path": "specs/raw_layout.rs", "symbol": "part1_parse_layout_cold_result"},
         {"path": "specs/raw_layout.rs", "symbol": "part1_parse_layout_with_cold_storage"},
         {"path": "specs/raw_layout.rs", "symbol": "part1_cold_layout_result"},
-        {"path": "specs/raw_layout.rs", "symbol": "part1_layout_with_cold_storage"}
+        {"path": "specs/raw_layout.rs", "symbol": "part1_layout_with_cold_storage"},
+        {"path": "specs/cold_layout.rs", "symbol": "part1_cold_layout_continuation"},
+        {"path": "specs/cold_layout.rs", "symbol": "part1_cold_layout_prefix"},
+        {"path": "specs/cold_layout.rs", "symbol": "part1_quantized_layout_cold_run"},
+        {"path": "specs/cold_quantization.rs", "symbol": "part1_main_header_cold_run"},
+        {"path": "specs/cold_quantization.rs", "symbol": "part1_prepare_main_quantization"}
       ],
       "contract_refs": [
         {"path": "src/codestream/layout.rs", "symbol": "Parser::parse_layout"},
@@ -3206,7 +3218,15 @@
         {"path": "specs/codestream_profile.rs", "symbol": "part1_classification_preserves_metadata"},
         {"path": "specs/raw_layout.rs", "symbol": "part1_parse_info_cold_normal"},
         {"path": "specs/raw_layout.rs", "symbol": "part1_parse_layout_cold_normal"},
-        {"path": "specs/raw_layout.rs", "symbol": "part1_cold_layout_normal"}
+        {"path": "specs/raw_layout.rs", "symbol": "part1_cold_layout_normal"},
+        {"path": "specs/cold_layout.rs", "symbol": "part1_cold_layout_advance_normal"},
+        {"path": "specs/cold_layout.rs", "symbol": "part1_quantized_layout_cold_frame"},
+        {"path": "specs/cold_layout.rs", "symbol": "part1_quantized_layout_cold_normal"},
+        {"path": "specs/cold_layout.rs", "symbol": "part1_quantized_layout_cold_projection"},
+        {"path": "specs/cold_layout_continuations.rs", "symbol": "part1_cold_layout_sot_commit_error"},
+        {"path": "specs/cold_layout_continuations.rs", "symbol": "part1_cold_layout_sot_copy_error"},
+        {"path": "specs/cold_layout_continuations.rs", "symbol": "part1_cold_layout_sot_read_error"},
+        {"path": "specs/cold_quantization.rs", "symbol": "part1_main_quantization_normal"}
       ],
       "test_refs": [
         {"path": "src/codestream/raw_layout_result_tests.rs", "symbol": "actual_complete_raw_layout_result_keeps_interleaved_source_parts_and_public_info"},
@@ -3242,7 +3262,12 @@
         {"path": "specs/main_header.rs", "symbol": "part1_main_header_fields"},
         {"path": "specs/main_header.rs", "symbol": "part1_main_header_layout_relation"},
         {"path": "specs/raw_layout.rs", "symbol": "part1_cold_layout_result"},
-        {"path": "specs/raw_layout.rs", "symbol": "part1_layout_with_cold_storage"}
+        {"path": "specs/raw_layout.rs", "symbol": "part1_layout_with_cold_storage"},
+        {"path": "specs/cold_layout.rs", "symbol": "part1_cold_layout_continuation"},
+        {"path": "specs/cold_layout.rs", "symbol": "part1_cold_layout_prefix"},
+        {"path": "specs/cold_layout.rs", "symbol": "part1_quantized_layout_cold_run"},
+        {"path": "specs/cold_quantization.rs", "symbol": "part1_main_header_cold_run"},
+        {"path": "specs/cold_quantization.rs", "symbol": "part1_prepare_main_quantization"}
       ],
       "contract_refs": [
         {"path": "src/codestream/layout.rs", "symbol": "Parser::parse_layout"},
@@ -3257,7 +3282,15 @@
         {"path": "src/codestream/proof_support.rs", "symbol": "optional_capabilities_view"},
         {"path": "src/codestream/proof_support.rs", "symbol": "optional_profile_number_view"},
         {"path": "src/codestream/tile_part_proof_support.rs", "symbol": "tile_part_native_styles_inverse"},
-        {"path": "specs/raw_layout.rs", "symbol": "part1_cold_layout_normal"}
+        {"path": "specs/raw_layout.rs", "symbol": "part1_cold_layout_normal"},
+        {"path": "specs/cold_layout.rs", "symbol": "part1_cold_layout_advance_normal"},
+        {"path": "specs/cold_layout.rs", "symbol": "part1_quantized_layout_cold_frame"},
+        {"path": "specs/cold_layout.rs", "symbol": "part1_quantized_layout_cold_normal"},
+        {"path": "specs/cold_layout.rs", "symbol": "part1_quantized_layout_cold_projection"},
+        {"path": "specs/cold_layout_continuations.rs", "symbol": "part1_cold_layout_sot_commit_error"},
+        {"path": "specs/cold_layout_continuations.rs", "symbol": "part1_cold_layout_sot_copy_error"},
+        {"path": "specs/cold_layout_continuations.rs", "symbol": "part1_cold_layout_sot_read_error"},
+        {"path": "specs/cold_quantization.rs", "symbol": "part1_main_quantization_normal"}
       ],
       "test_refs": [
         {"path": "src/codestream/main_header_result_tests.rs", "symbol": "actual_raw_main_header_initializers_preserve_all_physical_empty_owners"},
@@ -3325,7 +3358,9 @@
       "spec_refs": [
         {"path": "specs/layout_input.rs", "symbol": "part1_tile_part_main_metadata"},
         {"path": "specs/layout_input.rs", "symbol": "part1_empty_packet_lengths"},
-        {"path": "specs/layout_input.rs", "symbol": "part1_empty_packed_packet_headers"}
+        {"path": "specs/layout_input.rs", "symbol": "part1_empty_packed_packet_headers"},
+        {"path": "specs/cold_tile_part.rs", "symbol": "part1_cold_tile_part_result"},
+        {"path": "specs/cold_tile_part.rs", "symbol": "part1_cold_tile_part_run"}
       ],
       "contract_refs": [
         {"path": "src/codestream/layout.rs", "symbol": "Parser::tile_part_main_metadata"}
@@ -3336,7 +3371,8 @@
         {"path": "src/codestream/proof_support.rs", "symbol": "packed_header_frames_view"},
         {"path": "src/codestream/packet_headers.rs", "symbol": "packet_lengths_none"},
         {"path": "src/codestream/packet_headers.rs", "symbol": "packed_packet_headers_none"},
-        {"path": "src/codestream/tiles.rs", "symbol": "Parser::read_tile_part"}
+        {"path": "src/codestream/tiles.rs", "symbol": "Parser::read_tile_part"},
+        {"path": "specs/cold_tile_part.rs", "symbol": "part1_cold_tile_part_normal"}
       ],
       "test_refs": [
         {"path": "src/codestream/tile_part_tests.rs", "symbol": "actual_tile_loop_metadata_preserves_raw_tables_offsets_sources_and_reader"},
@@ -3378,7 +3414,12 @@
         {"path": "specs/persistent_tile_configuration.rs", "symbol": "part1_empty_persistent_tile_state"},
         {"path": "specs/persistent_tile_configuration.rs", "symbol": "part1_commit_persistent_tile_state"},
         {"path": "specs/persistent_tile_configuration.rs", "symbol": "part1_persistent_tile_state_fold"},
-        {"path": "specs/persistent_tile_configuration.rs", "symbol": "part1_commit_persistent_tile_configuration"}
+        {"path": "specs/persistent_tile_configuration.rs", "symbol": "part1_commit_persistent_tile_configuration"},
+        {"path": "specs/cold_layout.rs", "symbol": "part1_cold_commit_state"},
+        {"path": "specs/cold_tile_part.rs", "symbol": "part1_cold_tile_part_result"},
+        {"path": "specs/cold_tile_part.rs", "symbol": "part1_cold_tile_part_run"},
+        {"path": "specs/persistent_tile_configuration.rs", "symbol": "part1_commit_quantization_cold_result"},
+        {"path": "specs/persistent_tile_configuration.rs", "symbol": "part1_commit_quantization_cold_run"}
       ],
       "contract_refs": [
         {"path": "src/codestream/persistent_tile_configuration.rs", "symbol": "Parser::commit_persistent_tile_configuration"}
@@ -3386,12 +3427,17 @@
       "proof_refs": [
         {"path": "src/codestream/persistent_tile_configuration_proof_support.rs", "symbol": "persistent_tile_state_view"},
         {"path": "src/codestream/persistent_tile_configuration_proof_support.rs", "symbol": "persistent_tile_configuration_sequences_view"},
-        {"path": "src/codestream/tiles.rs", "symbol": "Parser::read_tile_part"}
+        {"path": "src/codestream/tiles.rs", "symbol": "Parser::read_tile_part"},
+        {"path": "specs/cold_layout.rs", "symbol": "part1_cold_commit_normal"},
+        {"path": "specs/cold_tile_part.rs", "symbol": "part1_cold_tile_part_normal"},
+        {"path": "specs/persistent_tile_configuration.rs", "symbol": "part1_commit_quantization_cold_normal"},
+        {"path": "src/codestream/quantization.rs", "symbol": "ComponentQuantizations::try_duplicate"}
       ],
       "test_refs": [
         {"path": "src/codestream/persistent_tile_configuration_tests.rs", "symbol": "actual_persistent_fold_keeps_all_eight_owners_per_tile_and_appends_source_payloads"},
         {"path": "src/codestream/persistent_tile_configuration_tests.rs", "symbol": "actual_persistent_fold_rejects_late_tile_roi_change_before_trailing_data"},
-        {"path": "src/codestream/persistent_tile_configuration_tests.rs", "symbol": "actual_persistent_configuration_raw_geometry_first_errors_and_partial_frames"}
+        {"path": "src/codestream/persistent_tile_configuration_tests.rs", "symbol": "actual_persistent_configuration_raw_geometry_first_errors_and_partial_frames"},
+        {"path": "src/codestream/persistent_tile_configuration_tests.rs", "symbol": "refused_quantization_commit_keeps_exact_partial_owners_and_restores"}
       ]
     },
     {
@@ -3497,7 +3543,10 @@
         {"path": "specs/persistent_tile_configuration.rs", "symbol": "part1_commit_persistent_tile_configuration"},
         {"path": "specs/persistent_tile_configuration.rs", "symbol": "part1_persistent_tile_configuration_prefix"},
         {"path": "specs/persistent_tile_configuration.rs", "symbol": "part1_roi_shifts_equal"},
-        {"path": "specs/tile_part.rs", "symbol": "Part1TilePartPayload"}
+        {"path": "specs/tile_part.rs", "symbol": "Part1TilePartPayload"},
+        {"path": "specs/cold_layout.rs", "symbol": "part1_cold_commit_state"},
+        {"path": "specs/persistent_tile_configuration.rs", "symbol": "part1_commit_quantization_cold_result"},
+        {"path": "specs/persistent_tile_configuration.rs", "symbol": "part1_commit_quantization_cold_run"}
       ],
       "contract_refs": [
         {"path": "src/codestream/persistent_tile_configuration.rs", "symbol": "Parser::commit_persistent_tile_configuration"},
@@ -3508,13 +3557,17 @@
         {"path": "src/codestream/persistent_tile_configuration_proof_support.rs", "symbol": "optional_roi_shifts_view"},
         {"path": "src/codestream/tile_part_proof_support.rs", "symbol": "tile_part_payload_view"},
         {"path": "src/codestream/quantization.rs", "symbol": "ComponentQuantizations::clone"},
-        {"path": "src/codestream/coding_style.rs", "symbol": "ProgressionChanges::clone"}
+        {"path": "src/codestream/coding_style.rs", "symbol": "ProgressionChanges::clone"},
+        {"path": "specs/cold_layout.rs", "symbol": "part1_cold_commit_normal"},
+        {"path": "specs/persistent_tile_configuration.rs", "symbol": "part1_commit_quantization_cold_normal"},
+        {"path": "src/codestream/quantization.rs", "symbol": "ComponentQuantizations::try_duplicate"}
       ],
       "test_refs": [
         {"path": "src/codestream/persistent_tile_configuration_tests.rs", "symbol": "actual_roi_equality_compares_every_physical_shift"},
         {"path": "src/codestream/persistent_tile_configuration_tests.rs", "symbol": "actual_persistent_configuration_raw_geometry_first_errors_and_partial_frames"},
         {"path": "src/codestream/persistent_tile_configuration_tests.rs", "symbol": "actual_persistent_configuration_clones_only_stored_owned_fields_without_aliases"},
-        {"path": "src/codestream/persistent_tile_configuration_tests.rs", "symbol": "actual_layout_persists_configuration_through_real_parts_and_rejects_roi_change"}
+        {"path": "src/codestream/persistent_tile_configuration_tests.rs", "symbol": "actual_layout_persists_configuration_through_real_parts_and_rejects_roi_change"},
+        {"path": "src/codestream/persistent_tile_configuration_tests.rs", "symbol": "refused_quantization_commit_keeps_exact_partial_owners_and_restores"}
       ]
     },
     {
@@ -3535,7 +3588,11 @@
         {"path": "specs/mod.rs", "symbol": "part1_finish_tile_components"},
         {"path": "specs/mod.rs", "symbol": "part1_validate_progression_changes"},
         {"path": "specs/mod.rs", "symbol": "part1_mct_graph"},
-        {"path": "specs/packet_input.rs", "symbol": "part1_tile_data_window"}
+        {"path": "specs/packet_input.rs", "symbol": "part1_tile_data_window"},
+        {"path": "specs/cold_tile_part.rs", "symbol": "part1_cold_tile_part_result"},
+        {"path": "specs/cold_tile_part.rs", "symbol": "part1_cold_tile_part_run"},
+        {"path": "specs/cold_tile_quantization.rs", "symbol": "part1_tile_components_cold_result"},
+        {"path": "specs/cold_tile_quantization.rs", "symbol": "part1_tile_components_cold_run"}
       ],
       "contract_refs": [
         {"path": "src/codestream/tiles.rs", "symbol": "Parser::read_tile_part"}
@@ -3552,7 +3609,9 @@
         {"path": "src/codestream/mct_resolution.rs", "symbol": "Parser::resolve_multiple_component_transform"},
         {"path": "src/codestream/tiles.rs", "symbol": "Parser::tile_data_window"},
         {"path": "src/codestream/packet_headers.rs", "symbol": "Parser::finish_packet_lengths"},
-        {"path": "src/codestream/packet_headers.rs", "symbol": "Parser::finish_packed_packet_headers"}
+        {"path": "src/codestream/packet_headers.rs", "symbol": "Parser::finish_packed_packet_headers"},
+        {"path": "specs/cold_tile_part.rs", "symbol": "part1_cold_tile_part_normal"},
+        {"path": "specs/cold_tile_quantization.rs", "symbol": "part1_tile_components_cold_normal"}
       ],
       "test_refs": [
         {"path": "src/codestream/tile_part_tests.rs", "symbol": "actual_tile_part_raw_counts_full_physical_tails_metadata_and_returned_tuple"},
@@ -3560,7 +3619,8 @@
         {"path": "src/codestream/tile_part_tests.rs", "symbol": "actual_tile_part_component_then_qcd_then_poc_then_mct_error_precedence"},
         {"path": "src/codestream/tile_part_tests.rs", "symbol": "actual_tile_part_zero_length_commits_early_fixed_length_commits_after_packet_finalizers"},
         {"path": "src/codestream/tile_part_tests.rs", "symbol": "actual_tile_part_complete_real_producers_packet_header_span_and_payload"},
-        {"path": "src/codestream/tile_part_tests.rs", "symbol": "actual_tile_part_header_reader_and_packet_partial_commits_are_not_transactional"}
+        {"path": "src/codestream/tile_part_tests.rs", "symbol": "actual_tile_part_header_reader_and_packet_partial_commits_are_not_transactional"},
+        {"path": "src/codestream/tests.rs", "symbol": "tile_quantization_creation_refuses_after_inheritance_and_restores_persistent_values"}
       ]
     },
     {
@@ -3577,7 +3637,11 @@
         {"path": "specs/mod.rs", "symbol": "part1_parse_qcd_payload"},
         {"path": "specs/mod.rs", "symbol": "part1_quantization_overrides_from"},
         {"path": "specs/mod.rs", "symbol": "part1_component_styles_new"},
-        {"path": "specs/mod.rs", "symbol": "part1_component_quantizations_new"}
+        {"path": "specs/mod.rs", "symbol": "part1_component_quantizations_new"},
+        {"path": "specs/cold_tile_quantization.rs", "symbol": "part1_tile_components_cold_result"},
+        {"path": "specs/cold_tile_quantization.rs", "symbol": "part1_tile_components_cold_run"},
+        {"path": "specs/mod.rs", "symbol": "part1_component_quantizations_storage"},
+        {"path": "specs/mod.rs", "symbol": "part1_component_quantizations_storage_result"}
       ],
       "contract_refs": [
         {"path": "src/codestream/tiles.rs", "symbol": "Parser::finish_tile_component_configuration"}
@@ -3591,12 +3655,15 @@
         {"path": "src/codestream/coding_markers.rs", "symbol": "Parser::parse_qcd"},
         {"path": "src/codestream/quantization.rs", "symbol": "Parser::apply_component_quantization_overrides"},
         {"path": "src/codestream/coding_style.rs", "symbol": "new_component_coding_styles"},
-        {"path": "src/codestream/quantization.rs", "symbol": "new_component_quantizations"}
+        {"path": "src/codestream/quantization.rs", "symbol": "new_component_quantizations"},
+        {"path": "specs/cold_tile_quantization.rs", "symbol": "part1_tile_components_cold_normal"},
+        {"path": "specs/mod.rs", "symbol": "part1_component_quantizations_storage_normal"}
       ],
       "test_refs": [
         {"path": "src/codestream/tests.rs", "symbol": "actual_owned_tile_components_preserve_raw_resets_inheritance_holes_and_frames"},
         {"path": "src/codestream/tests.rs", "symbol": "actual_owned_tile_components_preserve_factory_override_resolution_qcd_error_order"},
-        {"path": "src/codestream/tests.rs", "symbol": "actual_tile_component_join_uses_real_dispatch_and_all_cod_qcd_reset_combinations"}
+        {"path": "src/codestream/tests.rs", "symbol": "actual_tile_component_join_uses_real_dispatch_and_all_cod_qcd_reset_combinations"},
+        {"path": "src/codestream/tests.rs", "symbol": "tile_quantization_creation_refuses_after_inheritance_and_restores_persistent_values"}
       ]
     },
     {
@@ -3757,7 +3824,9 @@
         {"path": "specs/mod.rs", "symbol": "part1_set_component_quantization"},
         {"path": "specs/mod.rs", "symbol": "part1_component_quantizations_new"},
         {"path": "specs/mod.rs", "symbol": "part1_quantization_compatible"},
-        {"path": "specs/mod.rs", "symbol": "part2_component_quantization"}
+        {"path": "specs/mod.rs", "symbol": "part2_component_quantization"},
+        {"path": "specs/mod.rs", "symbol": "part1_component_quantizations_storage"},
+        {"path": "specs/mod.rs", "symbol": "part1_component_quantizations_storage_result"}
       ],
       "contract_refs": [
         {"path": "src/codestream/quantization.rs", "symbol": "Parser::apply_component_quantization_overrides"}
@@ -3770,7 +3839,8 @@
         {"path": "src/codestream/quantization.rs", "symbol": "ComponentQuantizations::set"},
         {"path": "src/codestream/quantization.rs", "symbol": "ComponentQuantizations::quantization"},
         {"path": "src/codestream/quantization.rs", "symbol": "Quantization::is_compatible_with"},
-        {"path": "src/codestream/quantization.rs", "symbol": "new_component_quantizations"}
+        {"path": "src/codestream/quantization.rs", "symbol": "new_component_quantizations"},
+        {"path": "specs/mod.rs", "symbol": "part1_component_quantizations_storage_normal"}
       ],
       "test_refs": [
         {"path": "src/codestream/tests.rs", "symbol": "actual_raw_component_quantization_overrides_keep_partial_owners_and_every_frame"},
@@ -4862,7 +4932,11 @@
         {"path": "specs/mod.rs", "symbol": "part1_main_styles_from"},
         {"path": "specs/mod.rs", "symbol": "part1_finish_main_styles"},
         {"path": "specs/mod.rs", "symbol": "part1_main_quantizations_from"},
-        {"path": "specs/mod.rs", "symbol": "part1_finish_main_quantizations"}
+        {"path": "specs/mod.rs", "symbol": "part1_finish_main_quantizations"},
+        {"path": "specs/mod.rs", "symbol": "part1_component_quantizations_storage"},
+        {"path": "specs/mod.rs", "symbol": "part1_component_quantizations_storage_result"},
+        {"path": "specs/mod.rs", "symbol": "part1_finish_main_quantizations_storage"},
+        {"path": "specs/mod.rs", "symbol": "part1_finish_main_quantizations_storage_result"}
       ],
       "contract_refs": [
         {"path": "src/codestream/coding_style.rs", "symbol": "new_component_coding_styles"},
@@ -4879,7 +4953,9 @@
         {"path": "src/codestream/proof_support.rs", "symbol": "parsed_quantization_owner_outcome"},
         {"path": "src/codestream/proof_support.rs", "symbol": "segment_slots_view"},
         {"path": "src/codestream/coding_style.rs", "symbol": "ComponentCodingStyles::style"},
-        {"path": "src/codestream/quantization.rs", "symbol": "ComponentQuantizations::quantization"}
+        {"path": "src/codestream/quantization.rs", "symbol": "ComponentQuantizations::quantization"},
+        {"path": "specs/mod.rs", "symbol": "part1_component_quantizations_storage_normal"},
+        {"path": "specs/mod.rs", "symbol": "part1_finish_main_quantizations_storage_normal"}
       ],
       "test_refs": [
         {"path": "src/codestream/tests.rs", "symbol": "actual_main_component_finalizers_preserve_specific_raw_order_and_unused_payloads"},
@@ -4888,7 +4964,8 @@
         {"path": "src/codestream/tests.rs", "symbol": "actual_main_component_compatibility_preserves_raw_fields_and_truncated_directions"},
         {"path": "src/codestream/tests.rs", "symbol": "actual_main_component_styles_preserve_lazy_slots_defaults_resolution_and_first_errors"},
         {"path": "src/codestream/tests.rs", "symbol": "actual_main_component_quantizations_preserve_resolved_styles_slots_compatibility_and_first_errors"},
-        {"path": "src/codestream/tests.rs", "symbol": "actual_main_component_finalizers_consume_real_header_reader_and_decomposition_producers"}
+        {"path": "src/codestream/tests.rs", "symbol": "actual_main_component_finalizers_consume_real_header_reader_and_decomposition_producers"},
+        {"path": "src/codestream/tests.rs", "symbol": "component_quantization_reservations_preserve_geometry_source_and_independent_restore"}
       ]
     },
     {

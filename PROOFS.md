@@ -71,11 +71,43 @@ preserving earlier canvas/instruction errors. Recovery distinguishes repair
 reservation from subsequent strict decode calls. Checked normal witnesses
 retain every original deterministic model.
 
-This increment does **not** make quantization construction, inherited/committed
-copies, payload/container/image growth or every remaining parse/decode/inspect
-allocation fallible. Managed refusal controls are bounded and thread-local;
-sequence models do not prove physical capacity, host allocator availability
-or general OOM recovery.
+The eight-vector boundary is extended by the quantization/copy increment below,
+not by a claim about all remaining parse/decode/inspect allocation. Managed
+refusal controls are bounded and thread-local; sequence models do not prove
+physical capacity, host allocator availability or general OOM recovery.
+
+### Component quantization creation and reached owner copies
+
+`ComponentQuantizations` construction validates geometry before reserving,
+then fills its component-sized vector. `copy_values<T: Copy>` reserves once
+and copies shallow values; it never invokes a potentially allocating `Clone`.
+Empty copies succeed without consuming a reservation. The actual cold parser
+uses the checked component-owner wrapper for inherited and committed copies,
+while unrelated `Clone` APIs retain their existing boundary.
+
+The inner trace retains the eight original tile-vector sites 0–7. Distinct
+sites identify main component creation (8), conditional tile-QCD creation (9),
+inherited owner copying (10) and persistent owner copying (11). Their executing
+order is derived from bytes and current parser/owner state, not numeric tag
+order. In particular, main creation precedes the eight vectors; inheritance
+precedes a reached tile-QCD reset; commit copying occurs after the first four
+configuration stores, before the quantization-owner slot lookup. A refused
+commit retains that exact partial owner frame.
+
+[`cold_quantization.rs`](specs/cold_quantization.rs) provides the checked
+input-derived pre-reservation main-header fold. The tile and complete layout
+models in [`cold_tile_quantization.rs`](specs/cold_tile_quantization.rs),
+[`cold_tile_part.rs`](specs/cold_tile_part.rs) and
+[`cold_layout.rs`](specs/cold_layout.rs) retain complete reader/counter/owner
+Results, ordinary projections and arbitrary-tail frames. Checked non-owning
+error continuations isolate this cold environment from the original live
+normal tile induction without increasing proof resources.
+
+This still does **not** complete #287. Other progression/MCT/Part 2 owner
+copies, payload/container/image growth and remaining nested construction stay
+outside this increment; so do global allocation availability, cumulative
+budgeting and deadline APIs. The original normal models and public
+automatic/progressive/semantic Result/frame contracts remain checked.
 
 ### Ordered automatic main-header primitive calls
 

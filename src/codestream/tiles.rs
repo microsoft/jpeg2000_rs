@@ -84,7 +84,15 @@ impl<'a> Parser<'a> {
     #[allow(clippy::too_many_arguments)]
     #[cfg_attr(verus_keep_ghost, verifier::spinoff_prover)]
     #[cfg_attr(verus_keep_ghost, verus_spec(result =>
-        ensures tile_component_configuration_outcome(result) == crate::specs::part1_finish_tile_components(
+        ensures crate::specs::part1_tile_components_cold_result(
+            components, parsed_coding_style_view(tile_coding_style), tile_cod_seen,
+            segment_slots_view(coc_segments@), optional_segment_view(qcd_segment),
+            quantization_view(&default_quantization), segment_slots_view(qcc_segments@),
+            component_style_owner_view(&inherited_coding_styles),
+            parsed_quantization_owner_view(&inherited_quantizations),
+            owned_extensions_view(part2_extensions), &self.limits, tile_component_configuration_outcome(result)),
+        tile_component_configuration_outcome(result) != Err(DecodeError::AllocationFailed) ==>
+            tile_component_configuration_outcome(result) == crate::specs::part1_finish_tile_components(
             components, parsed_coding_style_view(tile_coding_style), tile_cod_seen,
             segment_slots_view(coc_segments@), optional_segment_view(qcd_segment),
             quantization_view(&default_quantization), segment_slots_view(qcc_segments@),
@@ -107,6 +115,13 @@ impl<'a> Parser<'a> {
     ) -> Result<(ComponentCodingStyles, Quantization, ComponentQuantizations), DecodeError> {
         #[cfg(verus_keep_ghost)]
         proof! {
+            crate::specs::part1_tile_components_cold_normal(
+                components, parsed_coding_style_view(tile_coding_style), tile_cod_seen,
+                segment_slots_view(coc_segments@), optional_segment_view(qcd_segment),
+                quantization_view(&default_quantization), segment_slots_view(qcc_segments@),
+                component_style_owner_view(&inherited_coding_styles),
+                parsed_quantization_owner_view(&inherited_quantizations),
+                owned_extensions_view(part2_extensions), &self.limits);
             reveal(crate::specs::part1_finish_tile_components);
             reveal(crate::specs::part1_component_styles_new);
             reveal(crate::specs::part1_component_quantizations_new);
@@ -127,8 +142,28 @@ impl<'a> Parser<'a> {
             Some(segment) => self.parse_qcd(segment, tile_coding_style)?,
             None => default_quantization,
         };
+        #[cfg(verus_keep_ghost)]
+        proof! { reveal(crate::specs::part1_prepare_tile_quantization); }
         let mut component_quantizations = if qcd_segment.is_some() {
-            new_component_quantizations(components, tile_quantization)?
+            match new_component_quantizations(components, tile_quantization) {
+                Ok(values) => values,
+                Err(error) => {
+                    #[cfg(verus_keep_ghost)]
+                    proof! {
+                        if error == DecodeError::AllocationFailed {
+                            crate::specs::part1_tile_components_cold_refused(
+                                components, parsed_coding_style_view(tile_coding_style), tile_cod_seen,
+                                segment_slots_view(coc_segments@), optional_segment_view(qcd_segment),
+                                quantization_view(&default_quantization), segment_slots_view(qcc_segments@),
+                                component_style_owner_view(&inherited_coding_styles),
+                                parsed_quantization_owner_view(&inherited_quantizations),
+                                owned_extensions_view(part2_extensions), &self.limits,
+                                (component_style_owner_view(&component_coding_styles), quantization_view(&tile_quantization)), error);
+                        }
+                    }
+                    return Err(error);
+                }
+            }
         } else {
             inherited_quantizations
         };
@@ -190,7 +225,19 @@ impl<'a> Parser<'a> {
     #[allow(clippy::too_many_arguments)]
     #[cfg_attr(verus_keep_ghost, verifier::spinoff_prover)]
     #[cfg_attr(verus_keep_ghost, verus_spec(result =>
-        ensures (tile_part_read_outcome(result), parser_view(final(self)))
+        ensures crate::specs::part1_cold_tile_part_result(crate::specs::Part1ColdTileInput {
+                reader: parser_view(old(self)), tile: tile_part_header_view(tile_part),
+                defaults: (parsed_coding_style_view(default_parameters.0), quantization_view(&default_parameters.1)),
+                styles: component_style_owner_view(&inherited_coding_styles),
+                quantizations: parsed_quantization_owner_view(&inherited_quantizations),
+                roi: roi_shifts_view(&inherited_roi_shifts),
+                progression: progression_changes_view(&inherited_progression_changes),
+                mct: mct_parameters_view(&mct_parameters), extensions: owned_extensions_view(&part2_extensions),
+                components, lengths: packet_lengths_view(&main_packet_lengths),
+                headers: packed_packet_headers_view(&main_packed_packet_headers),
+            }, (tile_part_read_outcome(result), parser_view(final(self)))),
+            tile_part_read_outcome(result) != Err(DecodeError::AllocationFailed) ==>
+            (tile_part_read_outcome(result), parser_view(final(self)))
             == crate::specs::part1_read_tile_part(
                 parser_view(old(self)), tile_part_header_view(tile_part),
                 (parsed_coding_style_view(default_parameters.0), quantization_view(&default_parameters.1)),
@@ -220,7 +267,22 @@ impl<'a> Parser<'a> {
         main_packed_packet_headers: PackedPacketHeaders<'a>,
     ) -> Result<(TilePartPayload<'a>, MctParameters, Part2Extensions), DecodeError> {
         #[cfg(verus_keep_ghost)]
+        proof_decl! {
+            let ghost cold_input = crate::specs::Part1ColdTileInput {
+                reader: parser_view(self), tile: tile_part_header_view(tile_part),
+                defaults: (parsed_coding_style_view(default_parameters.0), quantization_view(&default_parameters.1)),
+                styles: component_style_owner_view(&inherited_coding_styles),
+                quantizations: parsed_quantization_owner_view(&inherited_quantizations),
+                roi: roi_shifts_view(&inherited_roi_shifts),
+                progression: progression_changes_view(&inherited_progression_changes),
+                mct: mct_parameters_view(&mct_parameters), extensions: owned_extensions_view(&part2_extensions),
+                components, lengths: packet_lengths_view(&main_packet_lengths),
+                headers: packed_packet_headers_view(&main_packed_packet_headers),
+            };
+        }
+        #[cfg(verus_keep_ghost)]
         proof! {
+            crate::specs::part1_cold_tile_part_normal(cold_input);
             reveal(crate::specs::part1_read_tile_part);
             reveal(crate::specs::part1_finish_tile_part);
             reveal(crate::specs::part1_tile_part_after_configuration);
@@ -234,6 +296,22 @@ impl<'a> Parser<'a> {
             reveal(super::tile_part_payload_view);
             reveal(parser_view);
             reveal(tile_part_header_view);
+        }
+        let header = self.read_tile_header(
+            default_parameters.0,
+            inherited_roi_shifts,
+            inherited_progression_changes,
+            mct_parameters,
+            part2_extensions,
+            components,
+            tile_part.tile_part_index,
+            main_packet_lengths,
+            main_packed_packet_headers,
+        )?;
+        #[cfg(verus_keep_ghost)]
+        proof_decl! {
+            let ghost cold_raw = super::tile_header_accumulator_view(&header);
+            let ghost header_reader = parser_view(self);
         }
         let TileHeaderAccumulator {
             tile_header_start,
@@ -260,33 +338,35 @@ impl<'a> Parser<'a> {
             completed_mcc: _completed_mcc,
             part2_extensions,
             ..
-        } = self.read_tile_header(
-            default_parameters.0,
-            inherited_roi_shifts,
-            inherited_progression_changes,
-            mct_parameters,
-            part2_extensions,
-            components,
-            tile_part.tile_part_index,
-            main_packet_lengths,
-            main_packed_packet_headers,
-        )?;
+        } = header;
         if !pending_mct.is_empty() || !pending_mcc.is_empty() {
             return Err(self.malformed_here(MalformedKind::MissingRequiredStructure));
         }
-        let (component_coding_styles, tile_quantization, component_quantizations) = self
-            .finish_tile_component_configuration(
-                components,
-                tile_coding_style,
-                tile_cod_seen,
-                &coc_segments,
-                qcd_segment,
-                default_parameters.1,
-                &qcc_segments,
-                inherited_coding_styles,
-                inherited_quantizations,
-                &part2_extensions,
-            )?;
+        let configuration = self.finish_tile_component_configuration(
+            components,
+            tile_coding_style,
+            tile_cod_seen,
+            &coc_segments,
+            qcd_segment,
+            default_parameters.1,
+            &qcc_segments,
+            inherited_coding_styles,
+            inherited_quantizations,
+            &part2_extensions,
+        );
+        let (component_coding_styles, tile_quantization, component_quantizations) =
+            match configuration {
+                Ok(values) => values,
+                Err(error) => {
+                    #[cfg(verus_keep_ghost)]
+                    proof! {
+                        if error == DecodeError::AllocationFailed {
+                            crate::specs::part1_cold_tile_part_refused(cold_input, cold_raw, header_reader, error);
+                        }
+                    }
+                    return Err(error);
+                }
+            };
         #[cfg(verus_keep_ghost)]
         proof! { super::tile_part_native_styles_inverse(&component_coding_styles); }
         self.validate_progression_changes(

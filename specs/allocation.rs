@@ -39,4 +39,13 @@ pub open spec fn storage_extension_result(
     } }
 }
 
+pub open spec fn storage_copy_result<T>(
+    source: Seq<T>, result: Result<Vec<T>, DecodeError>,
+) -> bool {
+    match result {
+        Ok(values) => values@ == source,
+        Err(error) => source.len() > 0 && error == DecodeError::AllocationFailed,
+    }
+}
+
 }

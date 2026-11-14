@@ -18,8 +18,11 @@ use vstd::prelude::*;
 // Shared executable factory; see the associated-constructor frontend limitation
 // documented alongside new_component_coding_styles.
 #[cfg_attr(verus_keep_ghost, verus_spec(result =>
-    ensures parsed_quantization_owner_outcome(result) == crate::specs::part1_component_quantizations_new(
-        components, quantization_view(&default)),
+    ensures crate::specs::part1_component_quantizations_storage_result(
+        components, quantization_view(&default), parsed_quantization_owner_outcome(result)),
+        result != Err(DecodeError::AllocationFailed) ==>
+            parsed_quantization_owner_outcome(result) == crate::specs::part1_component_quantizations_new(
+                components, quantization_view(&default)),
 ))]
 pub(super) fn new_component_quantizations(
     components: u16,
@@ -28,18 +31,51 @@ pub(super) fn new_component_quantizations(
     #[cfg(verus_keep_ghost)]
     proof! { reveal(crate::specs::part1_component_quantizations_new); }
     if components == 0 || usize::from(components) > MAX_COMPONENTS {
+        #[cfg(verus_keep_ghost)]
+        proof! {
+            crate::specs::part1_component_quantizations_storage_observed(
+                components, quantization_view(&default), true,
+                Err(crate::specs::part1_codestream_malformed(0, MalformedKind::InvalidImageGeometry)));
+        }
         return Err(DecodeError::malformed(
             0,
             MalformedKind::InvalidImageGeometry,
         ));
     }
+    let count = usize::from(components);
+    let mut quantizations = match crate::allocation::empty_with_capacity(count) {
+        Ok(values) => values,
+        Err(error) => {
+            #[cfg(verus_keep_ghost)]
+            proof! {
+                crate::specs::part1_component_quantizations_storage_observed(
+                    components, quantization_view(&default), false, Err(error));
+            }
+            return Err(error);
+        }
+    };
+    #[cfg_attr(verus_keep_ghost, verus_spec(
+        invariant quantizations.len() <= count,
+            count == components,
+            quantizations@ == Seq::<Quantization>::new(quantizations.len() as nat, |_: int| default),
+        decreases count - quantizations.len(),
+    ))]
+    while quantizations.len() < count {
+        quantizations.push(default);
+        #[cfg(verus_keep_ghost)]
+        proof! {
+            assert(quantizations@ =~= Seq::<Quantization>::new(quantizations.len() as nat, |_: int| default));
+        }
+    }
     let owner = ComponentQuantizations {
         components,
-        quantizations: vec![default; usize::from(components)],
+        quantizations,
     };
     #[cfg(verus_keep_ghost)]
     proof! {
         assert(parsed_quantization_owner_view(&owner).1 =~= Seq::new(components as nat, |i: int| quantization_view(&default)));
+        crate::specs::part1_component_quantizations_storage_observed(
+            components, quantization_view(&default), true, Ok(parsed_quantization_owner_view(&owner)));
     }
     Ok(owner)
 }
@@ -51,6 +87,24 @@ impl ComponentQuantizations {
 
     pub(crate) fn uniform(components: u16, default: Quantization) -> Result<Self, DecodeError> {
         Self::new(components, default)
+    }
+
+    #[cfg_attr(verus_keep_ghost, verus_spec(result =>
+        ensures crate::specs::part1_quantization_owner_copy_result(quantization_owner_view(self), result),
+        match result {
+            Err(error) => error == DecodeError::AllocationFailed
+                && quantization_owner_view(self).1.len() > 0,
+            Ok(owner) => quantization_owner_view(&owner) == quantization_owner_view(self),
+        },
+    ))]
+    pub(super) fn try_duplicate(&self) -> Result<Self, DecodeError> {
+        #[cfg(verus_keep_ghost)]
+        proof! { reveal(quantization_owner_view); }
+        let quantizations = crate::allocation::copy_values(&self.quantizations)?;
+        Ok(Self {
+            components: self.components,
+            quantizations,
+        })
     }
 
     #[cfg_attr(verus_keep_ghost, verus_spec(result =>
@@ -403,8 +457,12 @@ impl Parser<'_> {
 
     #[cfg_attr(verus_keep_ghost, verifier::spinoff_prover)]
     #[cfg_attr(verus_keep_ghost, verus_spec(result =>
-        ensures parsed_quantization_owner_outcome(result) == crate::specs::part1_finish_main_quantizations(
-            components, quantization_view(&default), component_style_owner_view(styles), segment_slots_view(segments@)),
+        ensures crate::specs::part1_finish_main_quantizations_storage_result(
+            components, quantization_view(&default), component_style_owner_view(styles),
+            segment_slots_view(segments@), parsed_quantization_owner_outcome(result)),
+            result != Err(DecodeError::AllocationFailed) ==>
+                parsed_quantization_owner_outcome(result) == crate::specs::part1_finish_main_quantizations(
+                    components, quantization_view(&default), component_style_owner_view(styles), segment_slots_view(segments@)),
     ))]
     pub(super) fn finish_main_component_quantizations(
         &self,
@@ -421,13 +479,39 @@ impl Parser<'_> {
             reveal(crate::specs::part1_quantization_owner_lookup);
             reveal(crate::specs::part1_set_component_quantization);
         }
-        let mut quantizations = new_component_quantizations(components, default)?;
-        self.apply_component_quantization_overrides(
+        let initial = new_component_quantizations(components, default);
+        #[cfg(verus_keep_ghost)]
+        proof_decl! {
+            let ghost reserved = choose|reserved: bool| parsed_quantization_owner_outcome(initial)
+                == crate::specs::part1_component_quantizations_storage(
+                    components, quantization_view(&default), reserved);
+        }
+        let mut quantizations = match initial {
+            Ok(values) => values,
+            Err(error) => {
+                #[cfg(verus_keep_ghost)]
+                proof! {
+                    crate::specs::part1_finish_main_quantizations_storage_observed(
+                        components, quantization_view(&default), component_style_owner_view(styles),
+                        segment_slots_view(segments@), reserved, Err(error));
+                }
+                return Err(error);
+            }
+        };
+        let applied = self.apply_component_quantization_overrides(
             components,
             styles,
             segments,
             &mut quantizations,
-        )?;
+        );
+        #[cfg(verus_keep_ghost)]
+        proof! {
+            crate::specs::part1_finish_main_quantizations_storage_observed(
+                components, quantization_view(&default), component_style_owner_view(styles),
+                segment_slots_view(segments@), reserved,
+                match applied { Err(error) => Err(error), Ok(()) => Ok(parsed_quantization_owner_view(&quantizations)) });
+        }
+        applied?;
         Ok(quantizations)
     }
 }

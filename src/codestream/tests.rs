@@ -8638,7 +8638,7 @@ fn cold_tile_storage_refusal_is_typed_and_restores_raw_inspection() {
     let bytes = codestream(&[1, 2, 3], false);
     let limits = ResourceLimits::default();
     let expected = parse(&bytes, &limits).unwrap();
-    for after in [0, 7] {
+    for after in [0, 1, 8, 9, 10] {
         assert_eq!(
             crate::allocation::with_refusal(after, || parse(&bytes, &limits)).err(),
             Some(DecodeError::AllocationFailed)
@@ -8647,6 +8647,11 @@ fn cold_tile_storage_refusal_is_typed_and_restores_raw_inspection() {
         assert_eq!(restored.consumed_bytes, expected.consumed_bytes);
         assert_eq!(restored.tile_parts, expected.tile_parts);
         assert_eq!(restored.image_size, expected.image_size);
+        assert!(
+            restored
+                .component_quantizations
+                .equals(&expected.component_quantizations)
+        );
     }
 
     let malformed = &bytes[..1];
@@ -8667,6 +8672,25 @@ fn cold_tile_storage_refusal_is_typed_and_restores_raw_inspection() {
         Some(DecodeError::AllocationFailed)
     );
     assert_eq!(parse(late_malformed, &limits).unwrap_err(), ordinary_error);
+
+    let mut invalid_quantization = bytes.clone();
+    let qcd = invalid_quantization
+        .windows(2)
+        .position(|word| word == QCD.to_be_bytes())
+        .unwrap();
+    invalid_quantization[qcd + 4] = 3;
+    let ordinary_error = parse(&invalid_quantization, &limits).unwrap_err();
+    assert_ne!(ordinary_error, DecodeError::AllocationFailed);
+    crate::allocation::with_refusal(0, || {
+        assert_eq!(
+            parse(&invalid_quantization, &limits).unwrap_err(),
+            ordinary_error
+        );
+        assert_eq!(
+            crate::allocation::none_values::<u8>(1),
+            Err(DecodeError::AllocationFailed)
+        );
+    });
 }
 
 #[test]
@@ -20091,6 +20115,54 @@ fn retains_main_and_tile_component_style_and_quantization_overrides() {
     let tile_one_quantization = tile.component_quantizations.quantization(1).unwrap();
     assert_eq!(tile_one_quantization.step_count, 7);
     assert_eq!(tile_one_quantization.step(6).unwrap().exponent, 11);
+}
+
+#[test]
+fn component_quantization_reservations_preserve_geometry_source_and_independent_restore() {
+    let info = parse(&codestream(&[0], false), &ResourceLimits::default()).unwrap();
+    let default = info.component_quantizations.quantization(0).unwrap();
+    let original = ComponentQuantizations::uniform(3, default).unwrap();
+    crate::allocation::with_refusal(0, || {
+        assert!(matches!(
+            ComponentQuantizations::uniform(0, default),
+            Err(DecodeError::MalformedInput {
+                kind: MalformedKind::InvalidImageGeometry,
+                ..
+            })
+        ));
+        assert!(matches!(
+            ComponentQuantizations::uniform(3, default),
+            Err(DecodeError::AllocationFailed)
+        ));
+    });
+    crate::allocation::with_refusal(0, || {
+        assert!(matches!(
+            original.try_duplicate(),
+            Err(DecodeError::AllocationFailed)
+        ));
+        assert_eq!(original.quantization(2).unwrap(), default);
+    });
+    let mut restored = original.try_duplicate().unwrap();
+    let mut changed = default;
+    changed.guard_bits += 1;
+    restored.set(2, changed).unwrap();
+    assert_eq!(original.quantization(2).unwrap(), default);
+    assert_eq!(restored.quantization(2).unwrap(), changed);
+}
+
+#[test]
+fn tile_quantization_creation_refuses_after_inheritance_and_restores_persistent_values() {
+    let bytes = two_part_codestream(&[segment(QCD, &[0x40, 0x40])], &[]);
+    let limits = ResourceLimits::default();
+    let expected = parse_layout(&bytes, &limits).unwrap();
+    assert_eq!(expected.tile_parts[0].quantization.guard_bits, 2);
+    assert_eq!(
+        crate::allocation::with_refusal(10, || parse_layout(&bytes, &limits)).err(),
+        Some(DecodeError::AllocationFailed)
+    );
+    let restored = parse_layout(&bytes, &limits).unwrap();
+    assert_eq!(restored.info, expected.info);
+    assert_eq!(restored.tile_parts, expected.tile_parts);
 }
 
 #[test]

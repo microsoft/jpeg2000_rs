@@ -47,6 +47,33 @@ pub(crate) fn none_values<T>(count: usize) -> Result<Vec<Option<T>>, DecodeError
 }
 
 #[cfg_attr(verus_keep_ghost, verus_spec(result =>
+    ensures crate::specs::storage_copy_result(source@, result),
+))]
+pub(crate) fn copy_values<T: Copy>(source: &[T]) -> Result<Vec<T>, DecodeError> {
+    if source.is_empty() {
+        #[cfg(verus_keep_ghost)]
+        proof! { assert(source@ =~= Seq::<T>::empty()); }
+        return Ok(Vec::new());
+    }
+    let mut values = empty_with_capacity(source.len())?;
+    let mut index = 0_usize;
+    #[cfg_attr(verus_keep_ghost, verus_spec(
+        invariant index <= source.len(),
+            values@ == source@.take(index as int),
+        decreases source.len() - index,
+    ))]
+    while index < source.len() {
+        values.push(source[index]);
+        index += 1;
+        #[cfg(verus_keep_ghost)]
+        proof! { assert(values@ =~= source@.take(index as int)); }
+    }
+    #[cfg(verus_keep_ghost)]
+    proof! { assert(values@ =~= source@); }
+    Ok(values)
+}
+
+#[cfg_attr(verus_keep_ghost, verus_spec(result =>
     ensures crate::specs::storage_extension_result(
         old(values)@, bytes@, final(values)@, result),
 ))]
@@ -102,6 +129,18 @@ pub(crate) fn with_refusal<T>(after: usize, operation: impl FnOnce() -> T) -> T 
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn shallow_copy_refusal_preserves_source_and_restores_exact_values() {
+        let source = [3_u16, 5, 8];
+        with_refusal(0, || {
+            assert!(copy_values::<u16>(&[]).unwrap().is_empty());
+            assert_eq!(copy_values(&source), Err(DecodeError::AllocationFailed));
+            assert_eq!(source, [3, 5, 8]);
+            assert_eq!(copy_values(&source).unwrap(), source);
+        });
+        assert_eq!(copy_values(&source).unwrap(), source);
+    }
 
     #[test]
     fn none_storage_refuses_once_without_requiring_clone_and_restores() {

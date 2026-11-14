@@ -1045,7 +1045,7 @@ fn cold_tile_storage_refusal_is_typed_and_restores_container_inspection() {
     let bytes = boxed_file(b"jp2 \0\0\0\0jp2 ", &stream);
     let limits = ResourceLimits::default();
     let expected = parse_and_inspect(&bytes, &limits).unwrap();
-    for after in [0, 7] {
+    for after in [0, 1, 8, 9, 10] {
         assert_eq!(
             crate::allocation::with_refusal(after, || parse_and_inspect(&bytes, &limits)).err(),
             Some(DecodeError::AllocationFailed)
@@ -1061,6 +1061,11 @@ fn cold_tile_storage_refusal_is_typed_and_restores_container_inspection() {
             restored.file().codestream(0).unwrap().data(),
             expected.file().codestream(0).unwrap().data()
         ));
+        assert!(
+            restored.codestreams()[0]
+                .component_quantizations
+                .equals(&expected.codestreams()[0].component_quantizations)
+        );
     }
     let mut malformed = bytes.clone();
     malformed[0] = 0;

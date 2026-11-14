@@ -26,6 +26,14 @@ model-to-standard review remains outstanding.
   provides the corresponding implementation, model, contract, proof and tests.
 - **For a standards audit:** choose a component and confirm the reference
   edition first. Compare its rules with the model before judging the proof.
+- **For cold-storage error review:** start at [allocation helpers](../src/allocation.rs)
+  and their [primitive relations](allocation.rs), then follow the
+  [main quantization cutpoint](cold_quantization.rs), [tile creation](cold_tile_quantization.rs),
+  [tile reader frames](cold_tile_part.rs), [complete cold layout](cold_layout.rs)
+  and [checked error continuations](cold_layout_continuations.rs).
+  Trace entries contain primitive responses, not supplied layouts/images.
+  Normal projections and exact unconsumed tails are separate from physical
+  allocator availability.
 
 Here is the current document basis; none of these rows means "conformance
 certified."

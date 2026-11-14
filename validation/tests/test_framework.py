@@ -6407,8 +6407,8 @@ class FrameworkTests(WorkingFiles):
             ("mct: mct_parameters_view(&main_mct_parameters),", "mct: unrelated,"),
             ("ppm_frames: packed_header_frames_view(ppm_frames@)", "ppm_frames: Seq::empty()"),
             ("assert(main_goal == Ok(complete_main));", "if false { assert(main_goal == Ok(complete_main)); }"),
-            ("ensures\n                    main_goal == crate::specs::part1_finish_main_header(",
-             "ensures\n                    true || main_goal == crate::specs::part1_finish_main_header("),
+            ("main_goal == crate::specs::part1_finish_main_header(",
+             "true || main_goal == crate::specs::part1_finish_main_header("),
         ):
             self.assertIn(before, original)
             changes.append(original.replace(before, after, 1))
@@ -6901,7 +6901,7 @@ class FrameworkTests(WorkingFiles):
         source = framework.ROOT / "src/codestream/layout.rs"
         original = source.read_text()
         read_text = Path.read_text
-        start = original.index("let inherited_component_quantizations")
+        start = original.index("let quantization_source")
         handoff = re.search(
             r"\blet\s*\(\s*payload\s*,\s*tile_parameters\s*,\s*tile_extensions\s*\)",
             original[start:],
@@ -6917,7 +6917,8 @@ class FrameworkTests(WorkingFiles):
                 re.sub(framework._coverage_call(view, r"&\s*" + local),
                        view + "(&unrelated_result)", block, count=1),
             ))
-        mutations.append(block.replace("proof! {", "if false { proof! {", 1) + "}\n")
+        mutations.append(block.replace("reveal(crate::specs::part1_inherited_tile_owner);",
+                                       "if false { reveal(crate::specs::part1_inherited_tile_owner);", 1) + "}\n")
         for index, changed in enumerate(mutations):
             self.assertNotEqual(changed, block)
             modified = original[:start] + changed + original[end:]
@@ -7138,6 +7139,8 @@ class FrameworkTests(WorkingFiles):
         ]
         entry["contract_refs"] = entry["contract_refs"][:1]
         entry["proof_refs"] = entry["contract_refs"][:1]
+        _, cold_proofs = framework._coverage_cold_links({(ref["path"], ref["symbol"]) for ref in entry["contract_refs"]})
+        entry["proof_refs"].extend({"path": path, "symbol": symbol} for path, symbol in sorted(cold_proofs))
         data = dict(coverage, requirements=[entry])
         source = framework.ROOT / "src/codestream/layout.rs"
         original = source.read_text()
@@ -7186,6 +7189,8 @@ class FrameworkTests(WorkingFiles):
         ]
         reference = entry["contract_refs"][0]
         entry["proof_refs"] = [reference]
+        _, cold_proofs = framework._coverage_cold_links({(ref["path"], ref["symbol"]) for ref in entry["contract_refs"]})
+        entry["proof_refs"].extend({"path": path, "symbol": symbol} for path, symbol in sorted(cold_proofs))
         data = dict(coverage, requirements=[entry])
         self._assert_contract_text_mutations(data, (
             ("tile_part_read_outcome(result)", "tile_part_read_outcome(unrelated)"),
@@ -7447,6 +7452,8 @@ class FrameworkTests(WorkingFiles):
         ]
         reference = entry["contract_refs"][0]
         entry["proof_refs"] = [reference]
+        _, cold_proofs = framework._coverage_cold_links({(ref["path"], ref["symbol"]) for ref in entry["contract_refs"]})
+        entry["proof_refs"].extend({"path": path, "symbol": symbol} for path, symbol in sorted(cold_proofs))
         data = dict(coverage, requirements=[entry])
         self.assertEqual(framework.validate_normative_coverage(data)["status"], "passed")
         source = framework.ROOT / "src/codestream/tiles.rs"
@@ -7481,8 +7488,8 @@ class FrameworkTests(WorkingFiles):
         mutations = [
             (".finish_tile_component_configuration(", ".unlisted_configuration("),
             ("self.apply_component_quantization_overrides(", "self.unlisted_quantization("),
-            ("ensures tile_component_configuration_outcome(result)",
-             "requires false, ensures tile_component_configuration_outcome(result)"),
+            ("ensures crate::specs::part1_tile_components_cold_result(",
+             "requires false, ensures crate::specs::part1_tile_components_cold_result("),
             ("optional_segment_view(qcd_segment)", "optional_segment_view(unrelated)"),
             ("owned_extensions_view(part2_extensions)", "owned_extensions_view(unrelated)"),
         ]
@@ -7694,6 +7701,8 @@ class FrameworkTests(WorkingFiles):
                              if ref["symbol"] == f"Parser::{symbol}")
             isolated["contract_refs"] = [reference]
             isolated["proof_refs"] = [reference]
+            _, cold_proofs = framework._coverage_cold_links({(reference["path"], reference["symbol"])})
+            isolated["proof_refs"].extend({"path": path, "symbol": name} for path, name in sorted(cold_proofs))
             isolated["implementation_refs"] = [
                 {"path": "src/codestream/layout.rs", "symbol": "Parser::parse_layout"},
             ]
@@ -7979,6 +7988,58 @@ class FrameworkTests(WorkingFiles):
             {"part2-complete-native-raw-transform-array-bytes"},
             framework._TRANSFORM_ARRAY_BYTES_CONTRACTS, 7,
         )
+
+    def test_inventory_fallible_copy_rejects_deep_clone_and_lost_empty_request_boundary(self):
+        coverage = json.loads((framework.VALIDATION / "normative-coverage.json").read_text())
+        entry = next(item for item in coverage["requirements"] if item["id"] == "implementation-fallible-storage-reservation")
+        source = framework.ROOT / "src/allocation.rs"
+        original, read_text = source.read_text(), Path.read_text
+        for before, after in (
+            ("copy_values<T: Copy>", "copy_values<T: Clone>"),
+            ("if source.is_empty()", "if false"),
+        ):
+            self.assertIn(before, original)
+            changed = original.replace(before, after, 1)
+
+            def altered(path, *args, **kwargs):
+                return changed if path == source else read_text(path, *args, **kwargs)
+
+            with self.subTest(before=before), mock.patch.object(Path, "read_text", altered), \
+                    self.assertRaisesRegex(ValueError, "fallible copy storage"):
+                framework.validate_normative_coverage(dict(coverage, requirements=[entry]))
+
+    def test_inventory_quantization_cold_order_rejects_relabelled_requests_and_lost_partial_owners(self):
+        coverage = json.loads((framework.VALIDATION / "normative-coverage.json").read_text())
+        entry = next(item for item in coverage["requirements"] if item["id"] == framework._RAW_LAYOUT_ENTRY)
+        read_text = Path.read_text
+        for relative, symbol, before, after in (
+            ("specs/cold_quantization.rs", "part1_main_quantization_cold_complete",
+             "part1_quantization_storage_request(8,", "part1_quantization_storage_request(0,"),
+            ("specs/cold_quantization.rs", "part1_main_quantization_cold_complete",
+             "Err(error) => Some((Err(error), events))", "Err(error) => Some((Err(error), events.drop_first()))"),
+            ("specs/cold_layout.rs", "part1_quantized_layout_cold_run",
+             "part1_main_header_cold_run(reader, events)", "part1_main_header_cold_run(reader, events.drop_first())"),
+            ("specs/cold_layout.rs", "part1_cold_layout_inherited",
+             "part1_quantization_storage_request(10,", "part1_quantization_storage_request(1,"),
+            ("specs/cold_tile_quantization.rs", "part1_tile_components_cold_run",
+             "part1_quantization_storage_request(9,", "part1_quantization_storage_request(2,"),
+            ("specs/persistent_tile_configuration.rs", "part1_commit_quantization_cold_run",
+             "previous_roi, payload, state, 4)", "previous_roi, payload, state, 5)"),
+            ("specs/persistent_tile_configuration.rs", "part1_commit_quantization_cold_run",
+             "Some(((Err(error), prefix.1), rest))", "Some(((Err(error), state), rest))"),
+        ):
+            source = framework.ROOT / relative
+            original = source.read_text()
+            body = framework._coverage_spec_function_body(original, symbol)
+            self.assertIn(before, body)
+            changed = original.replace(body, body.replace(before, after, 1), 1)
+
+            def altered(path, *args, **kwargs):
+                return changed if path == source else read_text(path, *args, **kwargs)
+
+            with self.subTest(symbol=symbol, before=before), mock.patch.object(Path, "read_text", altered), \
+                    self.assertRaisesRegex(ValueError, "ordered cold quantization storage"):
+                framework.validate_normative_coverage(dict(coverage, requirements=[entry]))
 
     def test_inventory_cold_relations_require_complete_result_bodies_and_checked_normal_links(self):
         coverage = json.loads((framework.VALIDATION / "normative-coverage.json").read_text())

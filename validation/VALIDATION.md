@@ -964,6 +964,13 @@ kinds, selected/full inputs and ordered nested parser phases cannot substitute
 for one another. The inventory retains the original requirement objects and
 normal models; a generic `AllocationFailed` alternative, guarded cold relation,
 unrelated named result or missing final-state field does not qualify.
+Component-quantization constructor/finalizer schemas retain their exact
+observed reservation response and checked normal projections. The tile-reader
+schema binds every field of its input-derived context and its actual final
+reader. Commit-copy schemas bind all six mutable configuration owners,
+including the four already-stored fields on refusal. Source guards distinguish
+main creation, conditional tile creation, inheritance and commit request sites;
+moving a refusal to an older tile-vector site or losing a partial owner fails.
 Same-file links are checked inside another listed, formatted function body;
 the contract's own declaration, an unrelated function or an indirect caller
 does not qualify as a direct same-file call. Unsupported formatting can fail

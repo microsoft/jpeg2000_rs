@@ -2217,6 +2217,7 @@ _RAW_LAYOUT_WRAPPER_BODY = """
             #[cfg(verus_keep_ghost)] proof_decl! { let ghost reader = parser_view(&parser); }
             let result = parser.parse_layout();
             #[cfg(verus_keep_ghost)] proof! {
+                crate::specs::part1_cold_layout_calls(reader, complete_layout_outcome(result));
                 let events = choose|events: Seq<crate::specs::Part1ColdStorageEvent>|
                     crate::specs::part1_layout_with_cold_storage(reader, events)
                         == Some((complete_layout_outcome(result), Seq::empty()));
@@ -4745,6 +4746,21 @@ _SOURCE_OPACITY_CONTRACTS = {
 }
 
 _COLD_RESULT_MODELS = {
+    "part1_component_quantizations_new": (
+        "part1_component_quantizations_storage_result", "specs/mod.rs", "part1_component_quantizations_storage_normal",
+    ),
+    "part1_finish_main_quantizations": (
+        "part1_finish_main_quantizations_storage_result", "specs/mod.rs", "part1_finish_main_quantizations_storage_normal",
+    ),
+    "part1_finish_tile_components": (
+        "part1_tile_components_cold_result", "specs/cold_tile_quantization.rs", "part1_tile_components_cold_normal",
+    ),
+    "part1_read_tile_part": (
+        "part1_cold_tile_part_result", "specs/cold_tile_part.rs", "part1_cold_tile_part_normal",
+    ),
+    "part1_commit_persistent_tile_configuration": (
+        "part1_commit_quantization_cold_result", "specs/persistent_tile_configuration.rs", "part1_commit_quantization_cold_normal",
+    ),
     "part1_read_layout": ("part1_cold_layout_result", "specs/raw_layout.rs", "part1_cold_layout_normal"),
     "part1_parse_info": ("part1_parse_info_cold_result", "specs/raw_layout.rs", "part1_parse_info_cold_normal"),
     "part1_parse_layout": ("part1_parse_layout_cold_result", "specs/raw_layout.rs", "part1_parse_layout_cold_normal"),
@@ -4843,6 +4859,8 @@ _COLD_RESULT_CONTRACTS = {
         _SOURCE_FRAME_CONTRACTS, _RAW_RENDER_CONTRACTS, _RAW_COMPOSITION_RENDER_CONTRACTS,
         _RAW_JPX_INSPECTION_CONTRACTS, _EFFECTIVE_LAYER_CONTRACTS, _GENERAL_LAYER_CONTRACTS,
         _SOURCE_OPACITY_CONTRACTS, _JPIP_PROGRESSIVE_CONTRACTS, _JPIP_TRANSCODE_CONTRACTS,
+        _MAIN_COMPONENT_FINALIZATION_CONTRACTS, _TILE_COMPONENT_FINALIZATION_CONTRACTS,
+        _PERSISTENT_TILE_CONFIGURATION_CONTRACTS,
     )
     for key, legacy in contracts.items()
     if legacy[0] in _COLD_RESULT_MODELS
@@ -4852,6 +4870,30 @@ _COLD_RESULT_CONTRACTS = {
     ),
 }
 
+_COLD_TILE_INPUT_FIELDS = (
+    ("reader", _coverage_call("parser_view", _coverage_call("old", "self"))),
+    ("tile", _coverage_call("tile_part_header_view", "tile_part")),
+    ("defaults", r"\(\s*" + _coverage_call("parsed_coding_style_view", r"default_parameters\.0")
+     + r"\s*,\s*" + _coverage_call("quantization_view", r"&\s*default_parameters\.1") + r"\s*\)"),
+    ("styles", _coverage_call("component_style_owner_view", r"&\s*inherited_coding_styles")),
+    ("quantizations", _coverage_call("parsed_quantization_owner_view", r"&\s*inherited_quantizations")),
+    ("roi", _coverage_call("roi_shifts_view", r"&\s*inherited_roi_shifts")),
+    ("progression", _coverage_call("progression_changes_view", r"&\s*inherited_progression_changes")),
+    ("mct", _coverage_call("mct_parameters_view", r"&\s*mct_parameters")),
+    ("extensions", _coverage_call("owned_extensions_view", r"&\s*part2_extensions")),
+    ("components", None),
+    ("lengths", _coverage_call("packet_lengths_view", r"&\s*main_packet_lengths")),
+    ("headers", _coverage_call("packed_packet_headers_view", r"&\s*main_packed_packet_headers")),
+)
+_COLD_RESULT_CONTRACTS[("src/codestream/tiles.rs", "Parser::read_tile_part")] = (
+    "part1_cold_tile_part_result",
+    r"crate::specs::Part1ColdTileInput\s*\{\s*" + r"\s*,\s*".join(
+        re.escape(name) + (r"\s*:\s*" + pattern if pattern is not None else "")
+        for name, pattern in _COLD_TILE_INPUT_FIELDS
+    ) + r"\s*,?\s*\}\s*,\s*\(\s*" + _coverage_call("tile_part_read_outcome", r"\1")
+    + r"\s*,\s*" + _coverage_call("parser_view", _coverage_call("final", "self")) + r"\s*\)",
+)
+
 
 def _coverage_cold_links(keys: set[tuple[str, str]]) -> tuple[set[tuple[str, str]], set[tuple[str, str]]]:
     models, proofs = set(), set()
@@ -4860,6 +4902,8 @@ def _coverage_cold_links(keys: set[tuple[str, str]]) -> tuple[set[tuple[str, str
         model = _COLD_RESULT_CONTRACTS[key][0]
         path, normal = metadata.get(model, ("specs/jpip_transcode.rs", "part2_jpip_validate_precinct_cold_normal"))
         run = {
+            "part1_component_quantizations_storage_result": "part1_component_quantizations_storage",
+            "part1_finish_main_quantizations_storage_result": "part1_finish_main_quantizations_storage",
             "part1_cold_layout_result": "part1_layout_with_cold_storage",
             "part1_parse_info_cold_result": "part1_parse_info_with_cold_storage",
             "part1_parse_layout_cold_result": "part1_parse_layout_with_cold_storage",
@@ -4870,7 +4914,8 @@ def _coverage_cold_links(keys: set[tuple[str, str]]) -> tuple[set[tuple[str, str
 
 
 def _coverage_cold_result_body(text: str, model: str) -> bool:
-    signature = re.search(r"\bspec\s+fn\s+" + re.escape(model) + r"\s*\((.*?)\)\s*->\s*bool\b", text, re.S)
+    signature = re.search(r"\bspec\s+fn\s+" + re.escape(model)
+        + r"(?:\s*<\s*'\w+(?:\s*,\s*'\w+)*\s*>)?\s*\((.*?)\)\s*->\s*bool\b", text, re.S)
     if signature is None:
         return False
     names = re.findall(r"(?:^|,)\s*(\w+)\s*:(?!:)", signature[1])
@@ -4882,7 +4927,10 @@ def _coverage_cold_result_body(text: str, model: str) -> bool:
         "part1_parse_layout_cold_result": "part1_parse_layout_with_cold_storage",
     }.get(model, model.removesuffix("_result") + "_run")
     call = run + "(" + ",".join(names[:-1] + ["events"]) + ")"
-    if model.startswith("part1_"):
+    if model in ("part1_component_quantizations_storage_result", "part1_finish_main_quantizations_storage_result"):
+        expected = "exists|reserved: bool|result==" + model.removesuffix("_result") \
+            + "(" + ",".join(names[:-1] + ["reserved"]) + ")"
+    elif model.startswith("part1_"):
         expected = "exists|events: Seq<Part1ColdStorageEvent>|" + call + "== Some((result, Seq::empty()))"
     elif model == "part2_jpip_planned_cold_result":
         expected = "exists|events: Seq<Part2JpipAutomaticEvent>|" + call + "== Some((result, Seq::empty()))"
@@ -4961,6 +5009,61 @@ _COLD_SOURCE_BODIES = {
         }
     """, "whole effective layer Result requires actual ordered decoder/registration/opacity models"),
 }
+
+_QUANTIZATION_COLD_GUARDS = {
+    ("specs/cold_quantization.rs", "part1_main_quantization_cold_complete"): (
+        "Err(error) => Some((Err(error), events))",
+        "part1_quantization_storage_request(8, input.raw.image_size.components as usize, events)",
+        "Some((Err(error), rest)) => Some((Err(error), rest))",
+        "Some((Ok(()), rest)) => Some((part1_main_quantization_reserved(input), rest))",
+    ),
+    ("specs/cold_layout.rs", "part1_quantized_layout_cold_run"): (
+        "part1_main_header_cold_run(reader, events)",
+        "Some((Err(error), rest)) => Some((Err(error), rest))",
+        "Some((Ok(header), rest)) => part1_cold_layout_after_main(reader, header, rest)",
+    ),
+    ("specs/cold_layout.rs", "part1_cold_layout_after_main"): (
+        "part1_cold_tile_storage(header.tile_count as usize, 0, events)",
+        "Some((Err(error), rest)) => Some((Err(error), rest))",
+        "Some((Ok(()), rest)) => part1_cold_layout_continuation",
+    ),
+    ("specs/cold_layout.rs", "part1_cold_layout_inherited"): (
+        "part1_select_inherited_tile_configuration(reader.position, index,",
+        "part1_inherited_tile_owner(index, main.quantizations, state.0.4)",
+        "part1_quantization_storage_request(10, quantizations.1.len() as usize, events)",
+        "Some((Err(error), rest)) => Some(((Err(error), reader, tile_parts, state), rest))",
+    ),
+    ("specs/cold_tile_quantization.rs", "part1_tile_components_cold_run"): (
+        "part1_prepare_tile_quantization(",
+        "Err(error) => Some((Err(error), events))",
+        "qcd.is_none() || components == 0 || components > 64",
+        "part1_quantization_storage_request(9, components as usize, events)",
+        "Some((Err(error), rest)) => Some((Err(error), rest))",
+    ),
+    ("specs/persistent_tile_configuration.rs", "part1_commit_quantization_cold_run"): (
+        "previous_roi, payload, state, 4)",
+        "Err(_) => Some((prefix, events))",
+        "payload.component_quantizations.1.len() == 0",
+        "part1_quantization_storage_request(11, payload.component_quantizations.1.len() as usize, events)",
+        "Some((Err(error), rest)) => Some(((Err(error), prefix.1), rest))",
+    ),
+}
+
+_QUANTIZATION_ROOT_MODELS = {
+    ("specs/cold_layout.rs", name) for name in (
+        "part1_cold_layout_continuation", "part1_cold_layout_prefix", "part1_quantized_layout_cold_run",
+    )
+} | {("specs/cold_quantization.rs", name) for name in (
+    "part1_main_header_cold_run", "part1_prepare_main_quantization",
+)}
+_QUANTIZATION_ROOT_PROOFS = {
+    ("specs/cold_layout.rs", name) for name in (
+        "part1_cold_layout_advance_normal", "part1_quantized_layout_cold_frame",
+        "part1_quantized_layout_cold_normal", "part1_quantized_layout_cold_projection",
+    )
+} | {("specs/cold_layout_continuations.rs", name) for name in (
+    "part1_cold_layout_sot_commit_error", "part1_cold_layout_sot_copy_error", "part1_cold_layout_sot_read_error",
+)} | {("specs/cold_quantization.rs", "part1_main_quantization_normal")}
 
 
 for _contracts, _models, _proofs in (
@@ -5055,6 +5158,14 @@ def validate_normative_coverage(
                         + r"\s*==\s*crate::specs::(?P<model>" + re.escape(model) + r")\s*\(",
                         contract,
                     )
+                    cold_binding = _COLD_RESULT_CONTRACTS.get((relay_path, relay))
+                    if cold_binding:
+                        cold_model, cold_arguments = cold_binding
+                        match = re.search(
+                            r"\bverus_spec\(\s*(\w+)\s*=>\s*ensures\s+crate::specs::(?P<model>"
+                            + re.escape(cold_model) + r")\s*\(\s*(?P<state>" + cold_arguments + r")\s*,?\s*\)",
+                            contract,
+                        )
                     signature = text[header.start():text.find("{", header.end())]
                     mutable = set(re.findall(r"\b(\w+)\s*:\s*&\s*mut\b", signature))
                     if re.search(r"&\s*mut\s+self\b", signature):
@@ -5062,7 +5173,8 @@ def validate_normative_coverage(
                     framed = set(re.findall(
                         r"\bfinal\(\s*(\w+)\s*\)", match.group() if match is not None else ""))
                     if (re.search(r"\brequires\b", contract) is None and mutable == framed
-                            and _coverage_result_arguments(contract, match, model, arguments)
+                            and (match is not None if cold_binding else
+                                 _coverage_result_arguments(contract, match, model, arguments))
                             and through_style_producer(resolved, relay, visited | {key})):
                         return True
                 return False
@@ -5181,6 +5293,17 @@ def validate_normative_coverage(
     ids: set[str] = set()
     contract_functions: set[tuple[str, str]] = set()
     for entry in coverage["requirements"]:
+        if entry["id"] == "implementation-fallible-storage-reservation":
+            copy_path = (ROOT / "src/allocation.rs").resolve()
+            copy_source = source_text(copy_path)
+            copy_body = _coverage_function_body(copy_source, function_header(copy_path, "copy_values"))
+            if (re.search(r"\bfn\s+copy_values\s*<\s*T\s*:\s*Copy\s*>", copy_source) is None
+                    or copy_body is None
+                    or any("".join(fragment.split()) not in "".join(copy_body.split()) for fragment in (
+                        "if source.is_empty() {", "return Ok(Vec::new())",
+                        "empty_with_capacity(source.len())?", "values.push(source[index])",
+                    )) or ".clone(" in "".join(copy_body.split())):
+                raise ValueError("fallible copy storage requires shallow Copy values and exact empty/no-request construction")
         cold_family = _COLD_LOCAL_FAMILIES.get(entry["id"])
         if cold_family:
             cold_models, cold_proofs = _coverage_cold_links(set(cold_family[0]))
@@ -5193,6 +5316,24 @@ def validate_normative_coverage(
             actual_body = _coverage_spec_function_body(source_text((ROOT / relative).resolve()), symbol)
             if actual_body is None or "".join(actual_body.split()) != "".join(expected_body.split()):
                 raise ValueError(diagnostic)
+        if entry["id"] in (_RAW_LAYOUT_ENTRY, "part1-complete-native-raw-main-header-result",
+                            "part1-complete-native-persistent-tile-configuration-commit"):
+            diagnostic = ("whole raw layout" if entry["id"] == _RAW_LAYOUT_ENTRY
+                          else "whole raw main-header Result" if entry["id"] == "part1-complete-native-raw-main-header-result"
+                          else "persistent configuration")
+            if entry["id"] != "part1-complete-native-persistent-tile-configuration-commit" and (
+                    not _QUANTIZATION_ROOT_MODELS.issubset({(r["path"], r["symbol"]) for r in entry["spec_refs"]})
+                    or not _QUANTIZATION_ROOT_PROOFS.issubset({(r["path"], r["symbol"]) for r in entry["proof_refs"]})):
+                raise ValueError(diagnostic + " requires complete cold quantization source and normal/frame proof links")
+            for (relative, symbol), fragments in _QUANTIZATION_COLD_GUARDS.items():
+                actual = _coverage_spec_function_body(source_text((ROOT / relative).resolve()), symbol)
+                compact = "".join(actual.split()) if actual is not None else ""
+                cursor = 0
+                for fragment in fragments:
+                    position = compact.find("".join(fragment.split()), cursor)
+                    if position < 0:
+                        raise ValueError(diagnostic + " requires ordered cold quantization storage and exact partial-owner frames")
+                    cursor = position + len("".join(fragment.split()))
         if entry["id"] == _JPIP_SEMANTIC_ENTRY:
             required = {
                 *_JPIP_SEMANTIC_RELATIONS,
@@ -9231,12 +9372,19 @@ def validate_normative_coverage(
                 raise ValueError("whole raw layout requires the actual byte/limits reader wrapper")
             state = _coverage_call("persistent_tile_state_view", *(name + r"\s*@" for name in _PERSISTENT_TILE_STATE_FIELDS))
             reader = _coverage_call("parser_view", r"&\s*parser")
+            cold_root = (
+                r"crate::specs::Part1ColdLayoutRoot\s*\{\s*initial\s*:\s*initial_reader\s*,\s*"
+                r"main\s*:\s*complete_main\s*,\s*reader\s*:\s*" + reader
+                + r"\s*,\s*parts\s*:\s*tile_parts\s*,\s*state\s*:\s*" + state
+                + r"\s*,\s*input_length\s*,?\s*\}"
+            )
             if body is None or any(re.search(pattern, body) is None for pattern in (
                 r"let\s+ghost\s+initial_reader\s*=\s*" + _coverage_call("parser_view", r"&\s*self"),
                 r"let\s+ghost\s+layout_goal\s*=\s*" + _coverage_call("crate::specs::part1_read_layout", "initial_reader"),
                 r"input_length\s*==\s*" + _coverage_call("crate::specs::part1_parse_layout_prologue", "initial_reader")
                 + r"\.1\.input\.len\s*\(\s*\)\s+as\s+usize",
-                r"invariant_except_break\s+layout_goal\s*==\s*"
+                r"invariant_except_break\s+" + _coverage_call("crate::specs::part1_cold_layout_prefix", cold_root)
+                + r"\s*,\s*layout_goal\s*==\s*"
                 + _coverage_call("crate::specs::part1_layout_continuation", reader, "complete_main", "tile_parts", state, "input_length"),
                 r"ensures\s+layout_goal\s*==\s*"
                 + _coverage_call("crate::specs::part1_layout_after_tiles", reader, "complete_main", "tile_parts", state),
@@ -9455,21 +9603,29 @@ def validate_normative_coverage(
                                          _coverage_call("parser_view", r"&\s*parser"), raw_view, "input_length")
             finish = _coverage_call("crate::specs::part1_finish_main_header",
                                    _coverage_call("parser_view", r"&\s*parser"), raw_view)
+            prepared_continuation = _coverage_call("crate::specs::part1_main_quantization_continuation",
+                _coverage_call("parser_view", r"&\s*parser"), raw_view, "input_length")
+            prepared_finish = _coverage_call("crate::specs::part1_main_quantization_finish",
+                _coverage_call("parser_view", r"&\s*parser"), raw_view)
             initial_reader = _coverage_call("parser_view", r"&\s*self")
             root = _coverage_call("crate::specs::part1_read_main_header", "initial_reader")
             if body is None or any(re.search(pattern, body) is None for pattern in (
                 r"let\s+ghost\s+initial_reader\s*=\s*" + initial_reader + r"\s*;",
                 r"let\s+ghost\s+main_goal\s*=\s*" + root + r"\s*;",
+                r"let\s+ghost\s+main_quantization_goal\s*=\s*"
+                + _coverage_call("crate::specs::part1_prepare_main_quantization", "initial_reader") + r"\s*;",
                 r"let\s+ghost\s+main_initial\s*=\s*" + raw_view + r"\s*;",
                 r"let\s+ghost\s+raw_main\s*=\s*" + raw_view + r"\s*;",
                 r"verus_spec\s*\(\s*invariant\s+initial_reader\s*==\s*" + initial_reader
                 + r"\s*,\s*" + _coverage_call("crate::specs::part1_cold_layout_result", "initial_reader",
                     _coverage_call("crate::specs::part1_read_layout", "initial_reader"))
+                + r"\s*,\s*main_quantization_goal\s*==\s*" + prepared_continuation
                 + r"\s*,\s*main_goal\s*==\s*" + root + r"\s*,\s*main_goal\s*==\s*" + continuation
                 + r"\s*,(?:\s*input_length\s*==\s*"
                 + _coverage_call("crate::specs::part1_parse_layout_prologue", "initial_reader")
                 + r"\s*\.\s*1\s*\.\s*input\s*\.\s*len\s*\(\s*\)\s+as\s+usize\s*,)?"
-                + r"\s*ensures\s+main_goal\s*==\s*" + finish,
+                + r"\s*ensures\s+main_quantization_goal\s*==\s*" + prepared_finish
+                + r"\s*,\s*main_goal\s*==\s*" + finish,
             )):
                 raise ValueError("whole raw main-header Result requires actual raw initialization, traversal and finalization state")
             completed = """
@@ -9548,12 +9704,15 @@ def validate_normative_coverage(
             )
             captured = re.search(snapshot, body)
             handoff = re.search(
+                r"\blet\s+read_result\s*=\s*parser\s*\.\s*read_tile_part\s*\(", body,
+            )
+            unpacked = re.search(
                 r"\blet\s*\(\s*payload\s*,\s*tile_parameters\s*,\s*tile_extensions\s*\)\s*=\s*"
-                r"parser\s*\.\s*read_tile_part\s*\(", body,
+                r"match\s+read_result\s*\{", body,
             )
             six_commit = re.search(r"\bparser\s*\.\s*commit_persistent_tile_configuration\s*\(", body)
-            if (captured is None or handoff is None or six_commit is None
-                    or not handoff.start() < captured.start() < six_commit.start()):
+            if (captured is None or handoff is None or unpacked is None or six_commit is None
+                    or not handoff.start() < unpacked.start() < captured.start() < six_commit.start()):
                 raise ValueError("persistent fold requires actual reader-derived complete commit snapshot")
             stores = []
             for states, owner in (("tile_mct_parameters", "tile_parameters"),
@@ -9649,10 +9808,26 @@ def validate_normative_coverage(
                                      r"&\s*" + main, r"&\s*" + states + r"\s*,?")
                     + r"\s*\.\s*" + _coverage_call("clone") + r"\s*;"
                 )
+                if local == "inherited_component_quantizations":
+                    pattern = (
+                        r"\blet\s+quantization_source\s*=\s*"
+                        + _coverage_call("inherited_tile_owner", "tile_index", r"&\s*" + main,
+                                         r"&\s*" + states + r"\s*,?")
+                        + r"\s*;\s*let\s+" + local + r"\s*=\s*match\s+"
+                        + _coverage_call("quantization_source.try_duplicate") + r"\s*\{"
+                    )
                 match = re.search(pattern, body)
                 if match is None or match.start() < previous_end:
                     raise ValueError(f"owned inheritance clone/source/order mismatch: {local}")
                 previous_end = match.end()
+                if local == "inherited_component_quantizations":
+                    following = re.search(r"\blet\s+inherited_progression_changes\b", body[match.end():])
+                    phase = body[match.end():match.end() + following.start()] if following else ""
+                    if any("".join(item.split()) not in "".join(phase.split()) for item in (
+                        "Ok(values) => values", "Err(error) =>",
+                        "crate::specs::part1_cold_layout_sot_copy_error(cold_sot, error)", "return Err(error)",
+                    )):
+                        raise ValueError(f"owned inheritance clone/source/order mismatch: {local}")
                 checkpoints.append(_coverage_call(
                     "assert",
                     _coverage_call(view, r"&\s*" + local) + r"\s*==\s*"
@@ -9661,8 +9836,28 @@ def validate_normative_coverage(
                     )),
                 ) + r"\s*;")
             handoff = re.search(
-                r"\blet\s*\(\s*payload\s*,\s*tile_parameters\s*,\s*tile_extensions\s*\)\s*=\s*"
-                r"parser\s*\.\s*read_tile_part\s*\(", body,
+                r"\blet\s+read_result\s*=\s*parser\s*\.\s*read_tile_part\s*\(", body,
+            )
+            input_fields = (
+                ("reader", _coverage_call("parser_view", r"&\s*parser")),
+                ("tile", _coverage_call("tile_part_header_view", "tile_part")),
+                ("defaults", r"\(\s*" + _coverage_call("parsed_coding_style_view", "inherited_default_style")
+                 + r"\s*,\s*" + _coverage_call("quantization_view", r"&\s*inherited_default_quantization") + r"\s*\)"),
+                ("styles", _coverage_call("component_style_owner_view", r"&\s*inherited_component_styles")),
+                ("quantizations", _coverage_call("parsed_quantization_owner_view", r"&\s*inherited_component_quantizations")),
+                ("roi", _coverage_call("roi_shifts_view", r"&\s*inherited_roi_shifts")),
+                ("progression", _coverage_call("progression_changes_view", r"&\s*inherited_progression_changes")),
+                ("mct", _coverage_call("mct_parameters_view", r"&\s*inherited_mct_parameters")),
+                ("extensions", _coverage_call("owned_extensions_view", r"&\s*inherited_part2_extensions")),
+                ("components", r"image_size\.components"),
+                ("lengths", _coverage_call("packet_lengths_view", r"&\s*main_packet_lengths")),
+                ("headers", _coverage_call("packed_packet_headers_view", r"&\s*packed_packet_headers")),
+            )
+            input_snapshot = (
+                r"\s*#\[\s*cfg\s*\(\s*verus_keep_ghost\s*\)\s*\]\s*proof_decl!\s*\{\s*"
+                r"let\s+ghost\s+tile_input\s*=\s*crate::specs::Part1ColdTileInput\s*\{\s*"
+                + r"\s*,\s*".join(re.escape(name) + r"\s*:\s*" + pattern for name, pattern in input_fields)
+                + r"\s*,?\s*\}\s*;\s*\}\s*"
             )
             proof = (
                 r"\s*#\[\s*cfg\s*\(\s*verus_keep_ghost\s*\)\s*\]\s*proof!\s*\{\s*"
@@ -9670,7 +9865,7 @@ def validate_normative_coverage(
                 + r"\s*".join(checkpoints) + r"\s*\}\s*"
             )
             if handoff is None or handoff.start() < previous_end or re.fullmatch(
-                proof, body[previous_end:handoff.start()],
+                proof + input_snapshot, body[previous_end:handoff.start()],
             ) is None:
                 raise ValueError("owned inheritance requires four unconditional complete cloned-view checkpoints")
         if entry["id"] == "part1-complete-native-mct-parameter-clone":
@@ -10555,6 +10750,7 @@ def validate_normative_coverage(
                 ),
                 "empty_with_capacity": ("storage_capacity_result", r"\1"),
                 "none_values": ("storage_none_result", r"count\s*,\s*\1"),
+                "copy_values": ("storage_copy_result", r"source@\s*,\s*\1"),
                 "extend_bytes": (
                     "storage_extension_result",
                     r"old\(\s*values\s*\)@\s*,\s*bytes@\s*,\s*"
@@ -10593,6 +10789,16 @@ def validate_normative_coverage(
             if cold_contract is not None:
                 storage_contract = cold_contract
                 header_contract = arbitrary_contract = selection_contract = None
+                if (reference["path"], reference["symbol"]) == _MAIN_HEADER_LAYOUT:
+                    ordinary_header = (
+                        _coverage_call("complete_layout_outcome", r"\1")
+                        + r"\s*!=\s*Err\(\s*DecodeError::AllocationFailed\s*\)\s*==>\s*"
+                        + _coverage_call("crate::specs::part1_main_header_layout_relation",
+                            _coverage_call("crate::specs::part1_read_main_header", _coverage_call("parser_view", r"&\s*self")),
+                            _coverage_call("layout_main_header_outcome", r"\1"))
+                    )
+                    if re.search(named_prefix + r".*?" + ordinary_header, contract, re.S) is None:
+                        raise ValueError(f"linked function lacks executable Verus contract: {short}; missing checked ordinary main-header projection")
                 if not cold_foundation_checked:
                     cold_source = source_text((ROOT / "specs/raw_decode.rs").resolve())
                     for cold_name, expected_body in _COLD_FRAME_BODIES.items():
@@ -10614,13 +10820,12 @@ def validate_normative_coverage(
                     normal_refs = {("specs/jpip_transcode.rs", "part2_jpip_validate_precinct_cold_normal")}
                 if not normal_refs.issubset({(ref["path"], ref["symbol"]) for ref in entry["proof_refs"]}):
                     raise ValueError(f"linked function lacks executable Verus contract: {short}; missing checked cold normal projection")
+                required_models, _ = _coverage_cold_links({(reference["path"], reference["symbol"])})
+                if not required_models.issubset({(ref["path"], ref["symbol"]) for ref in entry["spec_refs"]}):
+                    raise ValueError(f"linked function lacks executable Verus contract: {short}; missing complete cold run links")
             if storage_contract:
                 model, arguments = storage_contract
                 relation_prefix = named_prefix
-                if (reference["path"], reference["symbol"]) == _MAIN_HEADER_LAYOUT:
-                    relation_prefix += _coverage_call("crate::specs::part1_main_header_layout_relation",
-                        _coverage_call("crate::specs::part1_read_main_header", _coverage_call("parser_view", r"&\s*self")),
-                        _coverage_call("layout_main_header_outcome", r"\1")) + r"\s*,\s*"
                 relation = re.search(
                     relation_prefix + r"crate::specs::(?P<model>" + re.escape(model)
                     + r")\s*\(\s*(?P<state>" + arguments + r")\s*,?\s*\)", contract,

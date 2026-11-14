@@ -177,24 +177,10 @@ pub(crate) open spec fn part1_cold_tile_storage(
 pub(crate) open spec fn part1_layout_with_cold_storage(
     reader: Part1CodestreamReader<'_>, events: Seq<Part1ColdStorageEvent>,
 ) -> Option<(Part1CompleteLayoutResult, Seq<Part1ColdStorageEvent>)> {
-    match part1_read_main_header(reader) {
-        Err(error) => Some((Err(error), events)),
-        Ok(header) => if header.tile_count > usize::MAX {
-            Some((Err(part1_codestream_malformed(
-                header.reader.position, crate::MalformedKind::ArithmeticOverflow)), events))
-        } else {
-            match part1_cold_tile_storage(header.tile_count as usize, 0, events) {
-                None => None,
-                Some((Err(error), rest)) => Some((Err(error), rest)),
-                Some((Ok(()), rest)) => Some((part1_layout_continuation(
-                    header.reader, header, 0,
-                    part1_empty_persistent_tile_state(header.tile_count as usize),
-                    part1_parse_layout_prologue(reader).1.input.len() as usize), rest)),
-            }
-        },
-    }
+    part1_quantized_layout_cold_run(reader, events)
 }
 
+#[verifier::opaque]
 pub(crate) open spec fn part1_cold_layout_result(
     reader: Part1CodestreamReader<'_>, result: Part1CompleteLayoutResult,
 ) -> bool {
@@ -242,14 +228,9 @@ pub(crate) proof fn part1_cold_storage_trace_runs(
 pub(crate) proof fn part1_cold_layout_normal(reader: Part1CodestreamReader<'_>)
     ensures part1_cold_layout_result(reader, part1_read_layout(reader)),
 {
-    reveal(part1_layout_from_main_result);
-    let events = match part1_read_main_header(reader) {
-        Ok(header) => if header.tile_count <= usize::MAX {
-            part1_cold_storage_trace_runs(header.tile_count as usize, 0, None);
-            part1_cold_storage_trace(header.tile_count as usize, 0, None)
-        } else { Seq::empty() },
-        Err(_) => Seq::empty(),
-    };
+    reveal(part1_cold_layout_result);
+    let events = part1_quantized_layout_cold_normal(reader);
+    assert(events + Seq::<Part1ColdStorageEvent>::empty() =~= events);
     assert(part1_layout_with_cold_storage(reader, events)
         == Some((part1_read_layout(reader), Seq::empty())));
 }
@@ -263,8 +244,12 @@ pub(crate) proof fn part1_cold_layout_refused(
         response == Err(crate::DecodeError::AllocationFailed),
     ensures part1_cold_layout_result(reader, Err(crate::DecodeError::AllocationFailed)),
 {
+    reveal(part1_cold_layout_result);
     part1_cold_storage_trace_runs(header.tile_count as usize, 0, Some(site));
-    let events = part1_cold_storage_trace(header.tile_count as usize, 0, Some(site));
+    let later = part1_cold_storage_trace(header.tile_count as usize, 0, Some(site));
+    let main_calls = part1_main_quantization_normal_calls(part1_prepare_main_quantization(reader));
+    part1_main_header_cold_normal(reader, later);
+    let events = main_calls + later;
     assert(part1_layout_with_cold_storage(reader, events)
         == Some((Err(crate::DecodeError::AllocationFailed), Seq::empty())));
 }
@@ -293,14 +278,20 @@ pub(crate) proof fn part1_cold_layout_normal_projection(
         result != Err(crate::DecodeError::AllocationFailed),
     ensures result == part1_read_layout(reader),
 {
+    reveal(part1_cold_layout_result);
     let events = choose|events: Seq<Part1ColdStorageEvent>|
         part1_layout_with_cold_storage(reader, events) == Some((result, Seq::empty()));
-    reveal(part1_layout_from_main_result);
-    if let Ok(header) = part1_read_main_header(reader) {
-        if header.tile_count <= usize::MAX {
-            part1_cold_tile_storage_errors(header.tile_count as usize, 0, events);
-        }
-    }
+    part1_quantized_layout_cold_projection(reader, events, result, Seq::empty());
+}
+
+pub(crate) proof fn part1_cold_layout_calls(
+    reader: Part1CodestreamReader<'_>, result: Part1CompleteLayoutResult,
+)
+    requires part1_cold_layout_result(reader, result),
+    ensures exists|events: Seq<Part1ColdStorageEvent>|
+        part1_layout_with_cold_storage(reader, events) == Some((result, Seq::empty())),
+{
+    reveal(part1_cold_layout_result);
 }
 
 pub(crate) proof fn part1_cold_tile_storage_frame(
@@ -331,21 +322,8 @@ pub(crate) proof fn part1_layout_with_cold_storage_frame(
     requires part1_layout_with_cold_storage(reader, events) == Some((result, Seq::empty())),
     ensures part1_layout_with_cold_storage(reader, events + tail) == Some((result, tail)),
 {
-    match part1_read_main_header(reader) {
-        Err(_) => { assert(events =~= Seq::empty()); },
-        Ok(header) => if header.tile_count > usize::MAX {
-            assert(events =~= Seq::empty());
-        } else {
-            let response = part1_cold_tile_storage(header.tile_count as usize, 0, events);
-            match response {
-                Some((value, rest)) => {
-                    assert(rest =~= Seq::empty());
-                    part1_cold_tile_storage_frame(header.tile_count as usize, 0, events, tail, value);
-                },
-                None => {},
-            }
-        },
-    }
+    part1_quantized_layout_cold_frame(reader, events, result, Seq::empty(), tail);
+    assert(Seq::<Part1ColdStorageEvent>::empty() + tail =~= tail);
 }
 
 pub(crate) open spec fn part1_parse_layout_with_cold_storage(
@@ -409,6 +387,7 @@ pub(crate) proof fn part1_parse_layout_cold_projection(
     ensures result == part1_parse_layout(input, limits),
 {
     reveal(part1_parse_layout_cold_result);
+    reveal(part1_cold_layout_result);
     let events = choose|events: Seq<Part1ColdStorageEvent>|
         part1_parse_layout_with_cold_storage(input, limits, events) == Some((result, Seq::empty()));
     part1_parse_layout_unfold(input, limits);
@@ -473,6 +452,7 @@ pub(crate) proof fn part1_parse_layout_cold_normal(
         },
         Ok(reader) => {
             part1_cold_layout_normal(reader);
+            part1_cold_layout_calls(reader, part1_read_layout(reader));
             let calls = choose|calls: Seq<Part1ColdStorageEvent>|
                 part1_layout_with_cold_storage(reader, calls)
                     == Some((part1_read_layout(reader), Seq::empty()));

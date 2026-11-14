@@ -25,15 +25,16 @@ use super::{
     mct_record_view, mct_records_view, multiple_component_transform_view,
     optional_capabilities_view, optional_profile_number_view, optional_roi_shifts_view,
     optional_segment_view, owned_extensions_view, packed_header_frames_view,
-    packed_packet_headers_view, packet_length_groups_view, parsed_coding_style_outcome,
-    parsed_coding_style_view, parsed_image_size_view, parsed_progression_outcome,
-    parsed_quantization_outcome, parsed_quantization_owner_outcome, parsed_quantization_owner_view,
-    parsed_style_owner_outcome, parser_initial_outcome, parser_view,
-    persistent_tile_configuration_view, persistent_tile_selection_view, persistent_tile_state_view,
-    profile_number_outcome, profile_number_view, profile_tile_inputs_view,
-    progression_changes_view, quantization_owner_view, quantization_view, roi_shifts_view,
-    segment_slots_view, segment_tail_outcome, segment_view, selection_geometry_view,
-    tile_part_header_view, tile_part_main_metadata_outcome, tile_part_payload_view,
+    packed_packet_headers_view, packet_length_groups_view, packet_lengths_view,
+    parsed_coding_style_outcome, parsed_coding_style_view, parsed_image_size_view,
+    parsed_progression_outcome, parsed_quantization_outcome, parsed_quantization_owner_outcome,
+    parsed_quantization_owner_view, parsed_style_owner_outcome, parser_initial_outcome,
+    parser_view, persistent_tile_configuration_view, persistent_tile_selection_view,
+    persistent_tile_state_view, profile_number_outcome, profile_number_view,
+    profile_tile_inputs_view, progression_changes_view, quantization_owner_view, quantization_view,
+    roi_shifts_view, segment_slots_view, segment_tail_outcome, segment_view,
+    selection_geometry_view, tile_part_header_view, tile_part_main_metadata_outcome,
+    tile_part_payload_view,
 };
 #[cfg(verus_keep_ghost)]
 use vstd::prelude::*;
@@ -93,6 +94,7 @@ pub fn parse_layout<'a>(
             let result = parser.parse_layout();
             #[cfg(verus_keep_ghost)]
             proof! {
+                crate::specs::part1_cold_layout_calls(reader, complete_layout_outcome(result));
                 let events = choose|events: Seq<crate::specs::Part1ColdStorageEvent>|
                     crate::specs::part1_layout_with_cold_storage(reader, events)
                         == Some((complete_layout_outcome(result), Seq::empty()));
@@ -279,17 +281,19 @@ impl<'a> Parser<'a> {
 
     #[cfg_attr(verus_keep_ghost, verifier::spinoff_prover)]
     #[cfg_attr(verus_keep_ghost, verus_spec(result =>
-        ensures crate::specs::part1_main_header_layout_relation(
-            crate::specs::part1_read_main_header(parser_view(&self)),
-            layout_main_header_outcome(result)),
-            crate::specs::part1_cold_layout_result(
+        ensures crate::specs::part1_cold_layout_result(
                 parser_view(&self), complete_layout_outcome(result)),
+            complete_layout_outcome(result) != Err(DecodeError::AllocationFailed) ==>
+                crate::specs::part1_main_header_layout_relation(
+                    crate::specs::part1_read_main_header(parser_view(&self)),
+                    layout_main_header_outcome(result)),
     ))]
     fn parse_layout(self) -> Result<CodestreamLayout<'a>, DecodeError> {
         #[cfg(verus_keep_ghost)]
         proof_decl! {
             let ghost initial_reader = parser_view(&self);
             let ghost main_goal = crate::specs::part1_read_main_header(initial_reader);
+            let ghost main_quantization_goal = crate::specs::part1_prepare_main_quantization(initial_reader);
         }
         #[cfg(verus_keep_ghost)]
         proof! {
@@ -376,6 +380,15 @@ impl<'a> Parser<'a> {
                     initial_reader == parser_view(&self),
                     crate::specs::part1_cold_layout_result(
                         initial_reader, crate::specs::part1_read_layout(initial_reader)),
+                    main_quantization_goal == crate::specs::part1_main_quantization_continuation(
+                        parser_view(&parser), main_header_accumulator_view(
+                            &image_size, r_siz, main_header_start, main_header_segments,
+                            coding_style, qcd_segment, coc_segments@, qcc_segments@, &roi_shifts, roi_seen@,
+                            plm_groups@, next_plm_index, plm_seen, ppm_bytes@, next_ppm_index, ppm_fragments,
+                            &progression_changes, poc_seen, mct_arrays@, mct_records@, &mct_order,
+                            pending_mct@, completed_mct@, pending_mcc@, completed_mcc@,
+                            &extended_capabilities, &profile, &corresponding_profile, &part2_extensions, next_tlm_index),
+                        input_length),
                     main_goal == crate::specs::part1_read_main_header(initial_reader),
                     main_goal == crate::specs::part1_main_header_continuation(
                         parser_view(&parser), main_header_accumulator_view(
@@ -388,6 +401,14 @@ impl<'a> Parser<'a> {
                         input_length),
                     input_length == crate::specs::part1_parse_layout_prologue(initial_reader).1.input.len() as usize,
                 ensures
+                    main_quantization_goal == crate::specs::part1_main_quantization_finish(
+                        parser_view(&parser), main_header_accumulator_view(
+                            &image_size, r_siz, main_header_start, main_header_segments,
+                            coding_style, qcd_segment, coc_segments@, qcc_segments@, &roi_shifts, roi_seen@,
+                            plm_groups@, next_plm_index, plm_seen, ppm_bytes@, next_ppm_index, ppm_fragments,
+                            &progression_changes, poc_seen, mct_arrays@, mct_records@, &mct_order,
+                            pending_mct@, completed_mct@, pending_mcc@, completed_mcc@,
+                            &extended_capabilities, &profile, &corresponding_profile, &part2_extensions, next_tlm_index)),
                     main_goal == crate::specs::part1_finish_main_header(
                         parser_view(&parser), main_header_accumulator_view(
                             &image_size, r_siz, main_header_start, main_header_segments,
@@ -403,6 +424,7 @@ impl<'a> Parser<'a> {
             #[cfg(verus_keep_ghost)]
             proof! {
                 reveal_with_fuel(crate::specs::part1_main_header_continuation, 1);
+                reveal_with_fuel(crate::specs::part1_main_quantization_continuation, 1);
                 reveal(main_header_accumulator_view);
                 reveal(parser_view);
                 reveal(super::main_header_segment_outcome);
@@ -617,6 +639,7 @@ impl<'a> Parser<'a> {
         proof! {
             assert(main_goal == crate::specs::part1_finish_main_header(main_reader, raw_main));
             reveal(crate::specs::part1_finish_main_header);
+            reveal(crate::specs::part1_main_quantization_finish);
             reveal(main_header_accumulator_view);
             reveal(owned_extensions_view);
             reveal(parser_view);
@@ -643,6 +666,7 @@ impl<'a> Parser<'a> {
         proof! {
             assert(main_goal == crate::specs::part1_main_header_after_depths(main_reader, depth_main));
             reveal(crate::specs::part1_main_header_after_depths);
+            reveal(crate::specs::part1_main_quantization_after_depths);
             reveal(super::packed_header_frames_outcome);
             reveal(packed_header_frames_view);
             reveal(parsed_coding_style_outcome);
@@ -686,12 +710,41 @@ impl<'a> Parser<'a> {
             &coc_segments,
             &part2_extensions,
         )?;
-        let component_quantizations = parser.finish_main_component_quantizations(
+        #[cfg(verus_keep_ghost)]
+        proof! {
+            assert(main_quantization_goal == Ok(crate::specs::Part1MainQuantizationInput {
+                reader: main_reader, raw: depth_main,
+                frames: packed_header_frames_view(ppm_frames@), header: main_header@,
+                style: parsed_coding_style_view(coding_style),
+                quantization: quantization_view(&quantization),
+                styles: component_style_owner_view(&component_coding_styles),
+            }));
+        }
+        let quantizations_result = parser.finish_main_component_quantizations(
             image_size.components,
             quantization,
             &component_coding_styles,
             &qcc_segments,
-        )?;
+        );
+        let component_quantizations = match quantizations_result {
+            Ok(values) => values,
+            Err(error) => {
+                #[cfg(verus_keep_ghost)]
+                proof! {
+                    if error == DecodeError::AllocationFailed {
+                        crate::specs::part1_cold_main_quantization_error(initial_reader,
+                            crate::specs::Part1MainQuantizationInput {
+                                reader: main_reader, raw: depth_main,
+                                frames: packed_header_frames_view(ppm_frames@), header: main_header@,
+                                style: parsed_coding_style_view(coding_style),
+                                quantization: quantization_view(&quantization),
+                                styles: component_style_owner_view(&component_coding_styles),
+                            }, error);
+                    }
+                }
+                return Err(error);
+            }
+        };
         #[cfg(verus_keep_ghost)]
         proof! {
             assert(main_goal == crate::specs::part1_main_header_after_components(
@@ -885,6 +938,7 @@ impl<'a> Parser<'a> {
             assert(complete_main.reader == parser_view(&parser));
             assert(layout_goal == crate::specs::part1_layout_continuation(
                 parser_view(&parser), complete_main, tile_parts, initial_persistent_state, input_length));
+            crate::specs::part1_cold_layout_start(initial_reader, complete_main);
         }
         #[cfg_attr(
             verus_keep_ghost,
@@ -927,6 +981,14 @@ impl<'a> Parser<'a> {
                         &roi_shifts, &progression_changes, &multiple_component_transform, &part2_extensions,
                         r_siz, &extended_capabilities, &profile, &corresponding_profile, main_header_segments),
                 invariant_except_break
+                    crate::specs::part1_cold_layout_prefix(crate::specs::Part1ColdLayoutRoot {
+                        initial: initial_reader, main: complete_main, reader: parser_view(&parser), parts: tile_parts,
+                        state: persistent_tile_state_view(
+                            tile_roi_shifts@, tile_coding_styles@, tile_quantizations@,
+                            tile_component_style_parts@, tile_component_quantizations@,
+                            tile_progression_changes@, tile_mct_parameters@, tile_part2_extensions@, tile_part_payloads@),
+                        input_length,
+                    }),
                     layout_goal == crate::specs::part1_layout_continuation(
                         parser_view(&parser), complete_main, tile_parts, persistent_tile_state_view(
                             tile_roi_shifts@, tile_coding_styles@, tile_quantizations@,
@@ -944,6 +1006,17 @@ impl<'a> Parser<'a> {
             )
         )]
         loop {
+            #[cfg(verus_keep_ghost)]
+            proof_decl! {
+                let ghost cold_root = crate::specs::Part1ColdLayoutRoot {
+                    initial: initial_reader, main: complete_main, reader: parser_view(&parser), parts: tile_parts,
+                    state: persistent_tile_state_view(
+                        tile_roi_shifts@, tile_coding_styles@, tile_quantizations@,
+                        tile_component_style_parts@, tile_component_quantizations@,
+                        tile_progression_changes@, tile_mct_parameters@, tile_part2_extensions@, tile_part_payloads@),
+                    input_length,
+                };
+            }
             #[cfg(verus_keep_ghost)]
             proof! {
                 reveal_with_fuel(crate::specs::part1_layout_continuation, 1);
@@ -1028,12 +1101,35 @@ impl<'a> Parser<'a> {
                         &tile_component_style_parts,
                         &tile_part_payloads,
                     )?;
-                    let inherited_component_quantizations = inherited_tile_owner(
+                    #[cfg(verus_keep_ghost)]
+                    proof_decl! {
+                        let ghost cold_sot = crate::specs::Part1ColdLayoutSot {
+                            root: cold_root, reader: parser_view(&parser), tile: tile_part_header_view(tile_part),
+                            lengths: packet_lengths_view(&main_packet_lengths),
+                            headers: packed_packet_headers_view(&packed_packet_headers),
+                            selected: (optional_roi_shifts_view(previous_roi_shifts), roi_shifts_view(&inherited_roi_shifts),
+                                parsed_coding_style_view(inherited_default_style), quantization_view(&inherited_default_quantization),
+                                component_style_owner_view(&inherited_component_styles)),
+                        };
+                    }
+                    #[cfg(verus_keep_ghost)]
+                    proof! { assert(crate::specs::part1_cold_layout_sot_known(cold_sot)); }
+                    let quantization_source = inherited_tile_owner(
                         tile_index,
                         &component_quantizations,
                         &tile_component_quantizations,
-                    )
-                    .clone();
+                    );
+                    let inherited_component_quantizations =
+                        match quantization_source.try_duplicate() {
+                            Ok(values) => values,
+                            Err(error) => {
+                                #[cfg(verus_keep_ghost)]
+                                proof! {
+                                    crate::specs::part1_cold_layout_sot_copy_error(cold_sot, error);
+                                }
+                                return Err(error);
+                            }
+                        };
                     let inherited_progression_changes = inherited_tile_owner(
                         tile_index,
                         &progression_changes,
@@ -1065,7 +1161,22 @@ impl<'a> Parser<'a> {
                             == owned_extensions_view(&crate::specs::part1_inherited_tile_owner(
                                 tile_index, part2_extensions, tile_part2_extensions@)));
                     }
-                    let (payload, tile_parameters, tile_extensions) = parser.read_tile_part(
+                    #[cfg(verus_keep_ghost)]
+                    proof_decl! {
+                        let ghost tile_input = crate::specs::Part1ColdTileInput {
+                            reader: parser_view(&parser), tile: tile_part_header_view(tile_part),
+                            defaults: (parsed_coding_style_view(inherited_default_style), quantization_view(&inherited_default_quantization)),
+                            styles: component_style_owner_view(&inherited_component_styles),
+                            quantizations: parsed_quantization_owner_view(&inherited_component_quantizations),
+                            roi: roi_shifts_view(&inherited_roi_shifts),
+                            progression: progression_changes_view(&inherited_progression_changes),
+                            mct: mct_parameters_view(&inherited_mct_parameters),
+                            extensions: owned_extensions_view(&inherited_part2_extensions),
+                            components: image_size.components, lengths: packet_lengths_view(&main_packet_lengths),
+                            headers: packed_packet_headers_view(&packed_packet_headers),
+                        };
+                    }
+                    let read_result = parser.read_tile_part(
                         tile_part,
                         (inherited_default_style, inherited_default_quantization),
                         inherited_component_styles,
@@ -1077,7 +1188,23 @@ impl<'a> Parser<'a> {
                         image_size.components,
                         main_packet_lengths,
                         packed_packet_headers,
-                    )?;
+                    );
+                    let (payload, tile_parameters, tile_extensions) = match read_result {
+                        Ok(values) => values,
+                        Err(error) => {
+                            #[cfg(verus_keep_ghost)]
+                            proof! {
+                                if error == DecodeError::AllocationFailed {
+                                    crate::specs::part1_cold_tile_part_calls(tile_input, (Err(error), parser_view(&parser)));
+                                    let read_calls = choose|calls: Seq<crate::specs::Part1ColdStorageEvent>|
+                                        crate::specs::part1_cold_tile_part_run(tile_input, calls)
+                                            == Some(((Err(error), parser_view(&parser)), Seq::empty()));
+                                    crate::specs::part1_cold_layout_sot_read_error(cold_sot, read_calls, parser_view(&parser), error);
+                                }
+                            }
+                            return Err(error);
+                        }
+                    };
                     #[cfg(verus_keep_ghost)]
                     proof_decl! {
                         let ghost previous_style_parts = tile_component_style_parts@;
@@ -1102,7 +1229,7 @@ impl<'a> Parser<'a> {
                             initial_persistent_state, previous_persistent_commits)
                             == (Ok(()), previous_persistent_state));
                     }
-                    parser.commit_persistent_tile_configuration(
+                    let configured = parser.commit_persistent_tile_configuration(
                         tile_part.start,
                         tile_index,
                         tile_part_payloads.len(),
@@ -1114,7 +1241,36 @@ impl<'a> Parser<'a> {
                         &mut tile_component_style_parts,
                         &mut tile_component_quantizations,
                         &mut tile_progression_changes,
-                    )?;
+                    );
+                    match configured {
+                        Ok(()) => (),
+                        Err(error) => {
+                            #[cfg(verus_keep_ghost)]
+                            proof! {
+                                if error == DecodeError::AllocationFailed {
+                                    reveal(crate::specs::part1_commit_quantization_cold_result);
+                                    crate::specs::part1_cold_tile_part_calls(tile_input,
+                                        (Ok((persistent_commit.payload, crate::specs::Part1MctParameters {
+                                            arrays: persistent_commit.parameters.0, records: persistent_commit.parameters.1,
+                                            order: persistent_commit.parameters.2 }, persistent_commit.extensions)), parser_view(&parser)));
+                                    let read_calls = choose|calls: Seq<crate::specs::Part1ColdStorageEvent>|
+                                        crate::specs::part1_cold_tile_part_run(tile_input, calls)
+                                            == Some(((Ok((persistent_commit.payload, crate::specs::Part1MctParameters {
+                                                arrays: persistent_commit.parameters.0, records: persistent_commit.parameters.1,
+                                                order: persistent_commit.parameters.2 }, persistent_commit.extensions)), parser_view(&parser)), Seq::empty()));
+                                    let commit_calls = choose|calls: Seq<crate::specs::Part1ColdStorageEvent>|
+                                        #[trigger] crate::specs::part1_commit_quantization_cold_run(persistent_commit.position,
+                                            persistent_commit.start, persistent_commit.index, previous_payloads.len() as usize,
+                                            persistent_commit.previous_roi, persistent_commit.payload, previous_persistent_state.0, calls)
+                                                == Some(((configured, super::persistent_tile_configuration_sequences_view(
+                                                    tile_roi_shifts@, tile_coding_styles@, tile_quantizations@,
+                                                    tile_component_style_parts@, tile_component_quantizations@, tile_progression_changes@)), Seq::empty()));
+                                    crate::specs::part1_cold_layout_sot_commit_error(cold_sot, read_calls, commit_calls, error);
+                                }
+                            }
+                            return Err(error);
+                        }
+                    }
                     *tile_mct_parameters
                         .get_mut(tile_index)
                         .ok_or_else(|| parser.malformed_here(MalformedKind::InvalidTilePart))? =
@@ -1193,6 +1349,12 @@ impl<'a> Parser<'a> {
                                     assert(tile_part_payloads@[previous_payloads.len() as int].tile_index as int == tile);
                                 }
                             }
+                        assert(crate::specs::part1_layout_tile_part(cold_root.reader, cold_root.main,
+                            cold_root.parts, cold_root.state)
+                                == (Ok(()), parser_view(&parser), tile_parts, persistent_tile_state_view(
+                                    tile_roi_shifts@, tile_coding_styles@, tile_quantizations@,
+                                    tile_component_style_parts@, tile_component_quantizations@,
+                                    tile_progression_changes@, tile_mct_parameters@, tile_part2_extensions@, tile_part_payloads@)));
                     }
                 }
                 EOC => {
@@ -1211,6 +1373,14 @@ impl<'a> Parser<'a> {
             if !crate::refinement::parser_progress(previous_position, parser.position, input_length)
             {
                 return Err(parser.malformed_here(MalformedKind::InvalidTilePart));
+            }
+            #[cfg(verus_keep_ghost)]
+            proof! {
+                crate::specs::part1_cold_layout_advance_normal(cold_root, parser_view(&parser),
+                    tile_parts, persistent_tile_state_view(
+                        tile_roi_shifts@, tile_coding_styles@, tile_quantizations@,
+                        tile_component_style_parts@, tile_component_quantizations@,
+                        tile_progression_changes@, tile_mct_parameters@, tile_part2_extensions@, tile_part_payloads@));
             }
         }
 
