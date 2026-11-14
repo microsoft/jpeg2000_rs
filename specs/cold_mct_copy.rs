@@ -22,6 +22,7 @@ pub(crate) open spec fn part1_mct_copy_site(path: MctCopyPath) -> u8 {
         MctCopyPath::FreshMarker(path) => part1_fresh_marker_site(path),
         MctCopyPath::FreshPart2(path) => part1_p2_fresh_site(path),
         MctCopyPath::ProfileWords(_, _, _) => 80,
+        MctCopyPath::ProgressionBitmap(_, _, _, _) => 81,
     }
 }
 

@@ -8124,6 +8124,184 @@ fn retains_bounded_profile_numbers_and_rejects_zero_most_significant_words() {
 }
 
 #[test]
+fn fresh_progression_bitmap_refusal_restores_false_fill_and_all_borrowed_frames() {
+    let limits = ResourceLimits::default();
+    let input = [0xa5, 0x5a];
+    let mut parser = new_parser(&input, &limits).unwrap();
+    parser.position = usize::MAX;
+    parser.work_units = u64::MAX;
+    parser.packet_length_bytes = 41;
+    parser.packet_lengths = 43;
+    let styles = raw_progression_styles(2, &[0, 1]);
+    let before = styles;
+    let record = ProgressionChange {
+        resolution_start: 0,
+        resolution_end: 2,
+        component_start: 0,
+        component_end: 2,
+        layer_end: 2,
+        progression_order: ProgressionOrder::Lrcp,
+    };
+    let changes = ProgressionChanges::from_records(vec![record]);
+    assert_eq!(
+        crate::allocation::with_refusal(0, || parser
+            .validate_progression_changes(&changes, 2, &styles, 17)),
+        Err(DecodeError::AllocationFailed)
+    );
+    assert_eq!(
+        (
+            parser.position,
+            parser.work_units,
+            parser.packet_length_bytes,
+            parser.packet_lengths
+        ),
+        (usize::MAX, u64::MAX, 41, 43)
+    );
+    assert!(core::ptr::eq(parser.input.as_ptr(), input.as_ptr()));
+    assert!(core::ptr::eq(parser.limits, &limits));
+    assert_eq!(styles, before);
+    assert_eq!(changes.records(), [record]);
+    assert_eq!(
+        parser.validate_progression_changes(&changes, 2, &styles, 17),
+        Ok(())
+    );
+    assert_eq!(
+        (
+            parser.position,
+            parser.work_units,
+            parser.packet_length_bytes,
+            parser.packet_lengths
+        ),
+        (usize::MAX, u64::MAX, 41, 43)
+    );
+    let redundant = ProgressionChanges::from_records(vec![record, record]);
+    assert!(matches!(
+        parser.validate_progression_changes(&redundant, 2, &styles, 17),
+        Err(DecodeError::MalformedInput {
+            kind: MalformedKind::InvalidProgressionOrderChange,
+            ..
+        })
+    ));
+}
+
+#[test]
+fn fresh_progression_bitmap_empty_geometry_work_zero_and_first_record_precedence() {
+    let limits = ResourceLimits::default();
+    let parser = new_parser(&[], &limits).unwrap();
+    let record = ProgressionChange {
+        resolution_start: 0,
+        resolution_end: 1,
+        component_start: 0,
+        component_end: 1,
+        layer_end: 1,
+        progression_order: ProgressionOrder::Lrcp,
+    };
+    let changes = ProgressionChanges::from_records(vec![record]);
+    let empty = ProgressionChanges::from_records(vec![]);
+    let bad_styles = raw_progression_styles(1, &[u8::MAX]);
+    let zero = raw_progression_styles(0, &[0]);
+    crate::allocation::with_refusal(0, || {
+        assert_eq!(
+            parser.validate_progression_changes(&empty, u16::MAX, &bad_styles, 19),
+            Ok(())
+        );
+        assert!(matches!(
+            parser.validate_progression_changes(&changes, 1, &bad_styles, 19),
+            Err(DecodeError::MalformedInput {
+                kind: MalformedKind::ArithmeticOverflow,
+                ..
+            })
+        ));
+        assert!(matches!(
+            parser.validate_progression_changes(&changes, 1, &zero, 19),
+            Err(DecodeError::MalformedInput {
+                kind: MalformedKind::InvalidProgressionOrderChange,
+                ..
+            })
+        ));
+        assert_eq!(
+            crate::allocation::copy_values(&[1_u8]),
+            Err(DecodeError::AllocationFailed)
+        );
+    });
+    let styles = raw_progression_styles(2, &[0, 1]);
+    let capped = limits.with_maximum_work_units(5).unwrap();
+    let capped_parser = new_parser(&[], &capped).unwrap();
+    crate::allocation::with_refusal(0, || {
+        assert_eq!(
+            capped_parser.validate_progression_changes(&changes, 2, &styles, 23),
+            Err(DecodeError::LimitExceeded {
+                resource: Resource::WorkUnits,
+                limit: 5,
+                actual: 6,
+            })
+        );
+        assert_eq!(
+            crate::allocation::copy_values(&[1_u8]),
+            Err(DecodeError::AllocationFailed)
+        );
+    });
+    let bad_record = ProgressionChanges::from_records(vec![ProgressionChange {
+        layer_end: 0,
+        ..record
+    }]);
+    assert_eq!(
+        crate::allocation::with_refusal(0, || parser.validate_progression_changes(
+            &bad_record,
+            2,
+            &styles,
+            29
+        )),
+        Err(DecodeError::AllocationFailed)
+    );
+    let ordinary = parser
+        .validate_progression_changes(&bad_record, 2, &styles, 29)
+        .unwrap_err();
+    crate::allocation::with_refusal(1, || {
+        assert_eq!(
+            parser
+                .validate_progression_changes(&bad_record, 2, &styles, 29)
+                .unwrap_err(),
+            ordinary
+        );
+        assert_eq!(
+            crate::allocation::copy_values(&[1_u8]),
+            Err(DecodeError::AllocationFailed)
+        );
+    });
+}
+
+#[test]
+fn fresh_progression_bitmap_main_and_later_tile_restore_persistent_and_raw_frames() {
+    let mut bytes = two_part_codestream(&[], &[]);
+    let at = bytes
+        .windows(2)
+        .position(|word| word == SOT.to_be_bytes())
+        .unwrap();
+    bytes.splice(at..at, poc(&[[0, 0, 0, 2, 1, 1, 0]]));
+    let limits = ResourceLimits::default();
+    let expected = parse_layout(&bytes, &limits).unwrap();
+    for after in [2, 20] {
+        assert!(matches!(
+            crate::allocation::with_refusal(after, || parse_layout(&bytes, &limits)),
+            Err(DecodeError::AllocationFailed)
+        ));
+        let restored = parse_layout(&bytes, &limits).unwrap();
+        assert_eq!(restored.info, expected.info);
+        assert_eq!(restored.tile_parts.len(), 2);
+        for (actual, original) in restored.tile_parts.iter().zip(&expected.tile_parts) {
+            assert_eq!(actual.tile_index, original.tile_index);
+            assert_eq!(
+                actual.progression_changes.records(),
+                original.progression_changes.records()
+            );
+            assert!(core::ptr::eq(actual.data.as_ptr(), original.data.as_ptr()));
+        }
+        assert_eq!(parse(&bytes, &limits).unwrap(), expected.info);
+    }
+}
+
+#[test]
 fn fresh_profile_words_original_frontier_empty_odd_and_restore() {
     let limits = ResourceLimits::default();
     let parser = new_parser(&[], &limits).unwrap();
@@ -9632,7 +9810,7 @@ fn progression_storage_raw_headers_copies_and_duplicate_precedence_restore() {
     main.splice(at..at, record.clone());
     let tile = two_part_codestream(core::slice::from_ref(&record), &[]);
     let limits = ResourceLimits::default();
-    for (bytes, refusals) in [(&main, &[0, 11][..]), (&tile, &[10, 12, 14][..])] {
+    for (bytes, refusals) in [(&main, &[0, 12][..]), (&tile, &[10, 13, 15][..])] {
         let expected = parse_layout(bytes, &limits).unwrap();
         for &after in refusals {
             assert!(matches!(

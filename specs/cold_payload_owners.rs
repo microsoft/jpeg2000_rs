@@ -54,15 +54,32 @@ pub(crate) open spec fn part1_main_resolved_finish<'a>(
     }
 }
 
+pub(crate) open spec fn part1_main_bitmap_run(input: Part1MainQuantizationInput<'_>, events: Seq<Part1ColdStorageEvent>)
+    -> Option<(Result<(), crate::DecodeError>, Seq<Part1ColdStorageEvent>)> {
+    match part1_finish_main_quantizations(input.raw.image_size.components, input.quantization, input.styles, input.raw.qcc) {
+        Err(error) => Some((Err(error), events)),
+        Ok(_) => part1_bitmap_run(0, input.raw.progression, input.style.layers,
+            &crate::codestream::tile_part_native_styles(input.styles), input.reader.limits, events),
+    }
+}
+pub(crate) open spec fn part1_main_bitmap_calls(input: Part1MainQuantizationInput<'_>) -> Seq<Part1ColdStorageEvent> {
+    if part1_finish_main_quantizations(input.raw.image_size.components, input.quantization, input.styles, input.raw.qcc).is_err() { Seq::empty() }
+    else { part1_bitmap_calls(0, input.raw.progression, input.style.layers,
+        &crate::codestream::tile_part_native_styles(input.styles), input.reader.limits) }
+}
+
 #[verifier::opaque]
 pub(crate) open spec fn part1_main_resolved_run<'a>(
     input: Part1MainQuantizationInput<'a>, events: Seq<Part1ColdStorageEvent>,
 ) -> Option<(Part1MainHeaderResult<'a>, Seq<Part1ColdStorageEvent>)> {
-    match part1_main_resolved_prepare(input) {
-        Err(error) => Some((Err(error), events)),
-        Ok(ctx) => match part1_resolved_graph_run(ResolvedCopyRole::Main, ctx.mct, events) {
+    match part1_main_bitmap_run(input, events) {
+        None => None, Some((Err(error), rest)) => Some((Err(error), rest)),
+        Some((Ok(()), rest)) => match part1_main_resolved_prepare(input) {
+        Err(error) => Some((Err(error), rest)),
+        Ok(ctx) => match part1_resolved_graph_run(ResolvedCopyRole::Main, ctx.mct, rest) {
             None => None, Some((Err(error), rest)) => Some((Err(error), rest)),
             Some((Ok(transform), rest)) => Some((part1_main_resolved_finish(ctx, transform), rest)),
+        },
         },
     }
 }
@@ -71,7 +88,7 @@ pub(crate) open spec fn part1_main_resolved_calls(prepared: Part1MainQuantizatio
     -> Seq<Part1ColdStorageEvent> {
     match prepared {
         Err(_) => Seq::empty(),
-        Ok(input) => match part1_main_resolved_prepare(input) {
+        Ok(input) => part1_main_bitmap_calls(input) + match part1_main_resolved_prepare(input) {
             Err(_) => Seq::empty(),
             Ok(ctx) => part1_mct_copy_normal_calls(part1_resolved_graph_requests(ResolvedCopyRole::Main, ctx.mct)),
         },
@@ -86,9 +103,16 @@ pub(crate) proof fn part1_main_resolved_normal<'a>(
 {
     reveal(part1_main_resolved_run);
     reveal(part1_main_header_after_components);
+    let graph = match part1_main_resolved_prepare(input) { Err(_) => Seq::empty(),
+        Ok(ctx) => part1_mct_copy_normal_calls(part1_resolved_graph_requests(ResolvedCopyRole::Main, ctx.mct)) };
+    if part1_finish_main_quantizations(input.raw.image_size.components, input.quantization, input.styles, input.raw.qcc).is_ok() {
+        part1_bitmap_normal(0, input.raw.progression, input.style.layers, &crate::codestream::tile_part_native_styles(input.styles), input.reader.limits, graph + tail);
+    }
+    assert((part1_main_bitmap_calls(input) + graph) + tail =~= part1_main_bitmap_calls(input) + (graph + tail));
     if let Ok(ctx) = part1_main_resolved_prepare(input) {
         part1_resolved_graph_normal(ResolvedCopyRole::Main, ctx.mct, tail);
-    } else { assert(Seq::<Part1ColdStorageEvent>::empty() + tail =~= tail); }
+    }
+    assert(Seq::<Part1ColdStorageEvent>::empty() + tail =~= tail);
 }
 
 pub(crate) proof fn part1_main_resolved_frame<'a>(
@@ -99,9 +123,14 @@ pub(crate) proof fn part1_main_resolved_frame<'a>(
     ensures part1_main_resolved_run(input, events + tail) == Some((result, rest + tail)),
 {
     reveal(part1_main_resolved_run);
-    if let Ok(ctx) = part1_main_resolved_prepare(input) {
-        if let Some((graph, after)) = part1_resolved_graph_run(ResolvedCopyRole::Main, ctx.mct, events) {
-            part1_resolved_graph_frame(ResolvedCopyRole::Main, ctx.mct, events, graph, after, tail);
+    if part1_finish_main_quantizations(input.raw.image_size.components, input.quantization, input.styles, input.raw.qcc).is_ok() {
+        if let Some((bitmap, after_bitmap)) = part1_main_bitmap_run(input, events) {
+            part1_bitmap_frame(0, input.raw.progression, input.style.layers, &crate::codestream::tile_part_native_styles(input.styles), input.reader.limits, events, bitmap, after_bitmap, tail);
+            if bitmap.is_ok() { if let Ok(ctx) = part1_main_resolved_prepare(input) {
+        if let Some((graph, after)) = part1_resolved_graph_run(ResolvedCopyRole::Main, ctx.mct, after_bitmap) {
+            part1_resolved_graph_frame(ResolvedCopyRole::Main, ctx.mct, after_bitmap, graph, after, tail);
+        }
+            }}
         }
     }
 }
@@ -116,9 +145,14 @@ pub(crate) proof fn part1_main_resolved_projection<'a>(
 {
     reveal(part1_main_resolved_run);
     reveal(part1_main_header_after_components);
-    if let Ok(ctx) = part1_main_resolved_prepare(input) {
-        if let Some((graph, after)) = part1_resolved_graph_run(ResolvedCopyRole::Main, ctx.mct, events) {
-            part1_resolved_graph_projection(ResolvedCopyRole::Main, ctx.mct, events, graph, after);
+    if part1_finish_main_quantizations(input.raw.image_size.components, input.quantization, input.styles, input.raw.qcc).is_ok() {
+        if let Some((bitmap, after_bitmap)) = part1_main_bitmap_run(input, events) {
+            part1_bitmap_projection(0, input.raw.progression, input.style.layers, &crate::codestream::tile_part_native_styles(input.styles), input.reader.limits, events, bitmap, after_bitmap);
+            if bitmap.is_ok() { if let Ok(ctx) = part1_main_resolved_prepare(input) {
+        if let Some((graph, after)) = part1_resolved_graph_run(ResolvedCopyRole::Main, ctx.mct, after_bitmap) {
+            part1_resolved_graph_projection(ResolvedCopyRole::Main, ctx.mct, after_bitmap, graph, after);
+        }
+            }}
         }
     }
 }
@@ -136,13 +170,16 @@ pub(crate) proof fn part1_main_resolved_error<'a>(
     reveal(part1_resolved_graph_result);
     let graph_calls = choose|calls: Seq<Part1ColdStorageEvent>|
         part1_resolved_graph_run(ResolvedCopyRole::Main, ctx.mct, calls) == Some((Err(error), Seq::empty()));
+    let bitmap = part1_main_bitmap_calls(input);
+    part1_bitmap_normal(0, input.raw.progression, input.style.layers, &crate::codestream::tile_part_native_styles(input.styles), input.reader.limits, graph_calls);
     let storage = part1_main_quantization_normal_calls(Ok(input));
     let before = part1_prepare_main_progression_normal(initial);
-    let calls = before + storage + graph_calls;
-    assert(calls =~= before + (storage + graph_calls));
-    assert(part1_prepare_main_progression_run(initial, calls) == Some((Ok(input), storage + graph_calls)));
-    if storage.len() > 0 { assert((storage + graph_calls).drop_first() =~= graph_calls); }
-    else { assert(storage + graph_calls =~= graph_calls); }
+    let last = bitmap + graph_calls;
+    let calls = before + storage + last;
+    assert(calls =~= before + (storage + last));
+    assert(part1_prepare_main_progression_run(initial, calls) == Some((Ok(input), storage + last)));
+    if storage.len() > 0 { assert((storage + last).drop_first() =~= last); }
+    else { assert(storage + last =~= last); }
     reveal(part1_cold_layout_result);
     assert(part1_layout_with_cold_storage(initial, calls) == Some((Err(error), Seq::empty())));
 }
@@ -225,9 +262,17 @@ pub(crate) open spec fn part1_tile_after_configuration_run<'a>(
     events: Seq<Part1ColdStorageEvent>,
 ) -> Option<((Part1TilePartResult, Part1CodestreamReader<'a>), Seq<Part1ColdStorageEvent>)> {
     let styles = crate::codestream::tile_part_native_styles(configuration.0);
-    match part1_validate_progression_changes(tile.0, raw.progression_changes, raw.tile_coding_style.layers, &styles, reader.limits) {
-        Err(error) => Some(((Err(error), reader), events)),
-        Ok(()) => match part1_resolved_graph_run(ResolvedCopyRole::Tile, raw.mct_parameters, events) {
+    match part1_bitmap_run(tile.0, raw.progression_changes, raw.tile_coding_style.layers, &styles, reader.limits, events) {
+        None => None, Some((Err(error), rest)) => Some(((Err(error), reader), rest)),
+        Some((Ok(()), rest)) => part1_tile_after_bitmap_run(reader, raw, tile, configuration, lengths, headers, rest),
+    }
+}
+pub(crate) open spec fn part1_tile_after_bitmap_run<'a>(
+    reader: Part1CodestreamReader<'a>, raw: Part1TileHeaderAccumulator, tile: (usize, u32, u16, u8, u8),
+    configuration: Part1TileComponentConfiguration, lengths: Part1PacketLengths, headers: Part1PackedHeaders,
+    events: Seq<Part1ColdStorageEvent>,
+) -> Option<((Part1TilePartResult, Part1CodestreamReader<'a>), Seq<Part1ColdStorageEvent>)> {
+    match part1_resolved_graph_run(ResolvedCopyRole::Tile, raw.mct_parameters, events) {
             None => None, Some((Err(error), rest)) => Some(((Err(error), reader), rest)),
             Some((Ok(transform), rest)) => {
                 let window = part1_tile_data_window(reader, reader.position, tile.0, tile.1);
@@ -237,7 +282,6 @@ pub(crate) open spec fn part1_tile_after_configuration_run<'a>(
                         transform, end, data, lengths, headers, rest),
                 }
             },
-        },
     }
 }
 
@@ -246,6 +290,7 @@ pub(crate) open spec fn part1_tile_after_configuration_calls(
     configuration: Part1TileComponentConfiguration, lengths: Part1PacketLengths, headers: Part1PackedHeaders,
 ) -> Seq<Part1ColdStorageEvent> {
     let styles = crate::codestream::tile_part_native_styles(configuration.0);
+    part1_bitmap_calls(tile.0, raw.progression_changes, raw.tile_coding_style.layers, &styles, reader.limits) +
     if part1_validate_progression_changes(tile.0, raw.progression_changes, raw.tile_coding_style.layers, &styles, reader.limits).is_err() {
         Seq::empty()
     } else {
@@ -267,6 +312,15 @@ pub(crate) proof fn part1_tile_after_configuration_normal<'a>(
 {
     reveal(part1_tile_part_after_configuration);
     let styles = crate::codestream::tile_part_native_styles(configuration.0);
+    let bitmap = part1_bitmap_calls(tile.0, raw.progression_changes, raw.tile_coding_style.layers, &styles, reader.limits);
+    let later = if part1_validate_progression_changes(tile.0, raw.progression_changes, raw.tile_coding_style.layers, &styles, reader.limits).is_ok() {
+        part1_mct_copy_normal_calls(part1_resolved_graph_requests(ResolvedCopyRole::Tile, raw.mct_parameters)) +
+        if part1_tile_part_after_configuration(reader, raw, tile, configuration, lengths, headers).0.is_ok() {
+            part1_mct_copy_normal_calls(part1_tile_payload_copy_requests(raw))
+        } else { Seq::empty() }
+    } else { Seq::empty() };
+    part1_bitmap_normal(tile.0, raw.progression_changes, raw.tile_coding_style.layers, &styles, reader.limits, later + tail);
+    assert((bitmap + later) + tail =~= bitmap + (later + tail));
     if part1_validate_progression_changes(tile.0, raw.progression_changes, raw.tile_coding_style.layers, &styles, reader.limits).is_ok() {
         let last = if part1_tile_part_after_configuration(reader, raw, tile, configuration, lengths, headers).0.is_ok() {
             part1_mct_copy_normal_calls(part1_tile_payload_copy_requests(raw))
@@ -280,7 +334,8 @@ pub(crate) proof fn part1_tile_after_configuration_normal<'a>(
                 part1_tile_after_window_normal(window.1, raw, tile, configuration, transform, end, data, lengths, headers, tail);
             }
         }
-    } else { assert(Seq::<Part1ColdStorageEvent>::empty() + tail =~= tail); }
+    }
+    assert(Seq::<Part1ColdStorageEvent>::empty() + tail =~= tail);
 }
 
 pub(crate) proof fn part1_tile_after_configuration_frame<'a>(
@@ -293,14 +348,17 @@ pub(crate) proof fn part1_tile_after_configuration_frame<'a>(
     ensures part1_tile_after_configuration_run(reader, raw, tile, configuration, lengths, headers, events + tail) == Some((result, rest + tail)),
 {
     let styles = crate::codestream::tile_part_native_styles(configuration.0);
-    if part1_validate_progression_changes(tile.0, raw.progression_changes, raw.tile_coding_style.layers, &styles, reader.limits).is_ok() {
-        if let Some((graph, after)) = part1_resolved_graph_run(ResolvedCopyRole::Tile, raw.mct_parameters, events) {
-            part1_resolved_graph_frame(ResolvedCopyRole::Tile, raw.mct_parameters, events, graph, after, tail);
+    if let Some((bitmap, after_bitmap)) = part1_bitmap_run(tile.0, raw.progression_changes, raw.tile_coding_style.layers, &styles, reader.limits, events) {
+        part1_bitmap_frame(tile.0, raw.progression_changes, raw.tile_coding_style.layers, &styles, reader.limits, events, bitmap, after_bitmap, tail);
+        if bitmap.is_ok() {
+        if let Some((graph, after)) = part1_resolved_graph_run(ResolvedCopyRole::Tile, raw.mct_parameters, after_bitmap) {
+            part1_resolved_graph_frame(ResolvedCopyRole::Tile, raw.mct_parameters, after_bitmap, graph, after, tail);
             if let Ok(transform) = graph {
                 let window = part1_tile_data_window(reader, reader.position, tile.0, tile.1);
                 if let Ok((end, data)) = window.0 {
                     part1_tile_after_window_frame(window.1, raw, tile, configuration, transform, end, data,
                         lengths, headers, after, result, rest, tail);
+                }
                 }
             }
         }
@@ -319,14 +377,17 @@ pub(crate) proof fn part1_tile_after_configuration_projection<'a>(
 {
     reveal(part1_tile_part_after_configuration);
     let styles = crate::codestream::tile_part_native_styles(configuration.0);
-    if part1_validate_progression_changes(tile.0, raw.progression_changes, raw.tile_coding_style.layers, &styles, reader.limits).is_ok() {
-        if let Some((graph, after)) = part1_resolved_graph_run(ResolvedCopyRole::Tile, raw.mct_parameters, events) {
-            part1_resolved_graph_projection(ResolvedCopyRole::Tile, raw.mct_parameters, events, graph, after);
+    if let Some((bitmap, after_bitmap)) = part1_bitmap_run(tile.0, raw.progression_changes, raw.tile_coding_style.layers, &styles, reader.limits, events) {
+        part1_bitmap_projection(tile.0, raw.progression_changes, raw.tile_coding_style.layers, &styles, reader.limits, events, bitmap, after_bitmap);
+        if bitmap.is_ok() {
+        if let Some((graph, after)) = part1_resolved_graph_run(ResolvedCopyRole::Tile, raw.mct_parameters, after_bitmap) {
+            part1_resolved_graph_projection(ResolvedCopyRole::Tile, raw.mct_parameters, after_bitmap, graph, after);
             if let Ok(transform) = graph {
                 let window = part1_tile_data_window(reader, reader.position, tile.0, tile.1);
                 if let Ok((end, data)) = window.0 {
                     part1_tile_after_window_projection(window.1, raw, tile, configuration, transform, end, data,
                         lengths, headers, after, result, rest);
+                }
                 }
             }
         }
@@ -367,8 +428,12 @@ pub(crate) proof fn part1_cold_tile_graph_error<'a>(
     part1_tile_components_cold_normal(input.components, raw.tile_coding_style, raw.tile_cod_seen, raw.coc_segments,
         raw.qcd_segment, input.defaults.1, raw.qcc_segments, input.styles, input.quantizations, raw.part2_extensions, reader.limits);
     let components = part1_cold_tile_configuration_calls(input);
-    let calls = header_calls + components + graph_calls;
-    assert(calls =~= header_calls + (components + graph_calls));
+    let configuration = part1_tile_graph_prepare(input, raw, reader)->Ok_0;
+    let styles = crate::codestream::tile_part_native_styles(configuration.0);
+    let bitmap = part1_bitmap_calls(input.tile.0, raw.progression_changes, raw.tile_coding_style.layers, &styles, reader.limits);
+    part1_bitmap_normal(input.tile.0, raw.progression_changes, raw.tile_coding_style.layers, &styles, reader.limits, graph_calls);
+    let calls = header_calls + components + bitmap + graph_calls;
+    assert(calls =~= header_calls + (components + (bitmap + graph_calls)));
     assert(part1_cold_tile_part_run(input, calls) == Some(((Err(error), reader), Seq::empty())));
 }
 
@@ -393,8 +458,12 @@ pub(crate) proof fn part1_cold_tile_payload_error<'a>(
         raw.qcd_segment, input.defaults.1, raw.qcc_segments, input.styles, input.quantizations, raw.part2_extensions, header.1.limits);
     let graph = part1_mct_copy_normal_calls(part1_resolved_graph_requests(ResolvedCopyRole::Tile, raw.mct_parameters));
     part1_resolved_graph_normal(ResolvedCopyRole::Tile, raw.mct_parameters, payload_calls);
-    let calls = before_header + components + graph + payload_calls;
-    assert(calls =~= before_header + (components + (graph + payload_calls)));
+    let configuration = part1_tile_graph_prepare(input, raw, header.1)->Ok_0;
+    let styles = crate::codestream::tile_part_native_styles(configuration.0);
+    let bitmap = part1_bitmap_calls(input.tile.0, raw.progression_changes, raw.tile_coding_style.layers, &styles, header.1.limits);
+    part1_bitmap_normal(input.tile.0, raw.progression_changes, raw.tile_coding_style.layers, &styles, header.1.limits, graph + payload_calls);
+    let calls = before_header + components + bitmap + graph + payload_calls;
+    assert(calls =~= before_header + (components + (bitmap + (graph + payload_calls))));
     assert(part1_cold_tile_part_run(input, calls) == Some(((Err(error), reader), Seq::empty())));
 }
 

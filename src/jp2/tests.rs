@@ -1129,6 +1129,32 @@ fn mct_owner_storage_container_inner_refusal_restores_original_source() {
 }
 
 #[test]
+fn fresh_progression_bitmap_container_main_and_tile_refusal_restore() {
+    let mut stream = valid_codestream(64, 32);
+    let at = stream
+        .windows(2)
+        .position(|word| word == [0xff, 0x90])
+        .unwrap();
+    stream.splice(at..at, marker_segment(0xff5f, &[0, 0, 0, 1, 1, 1, 0]));
+    let bytes = boxed_file(b"jp2 \0\0\0\0jp2 ", &stream);
+    let limits = ResourceLimits::default();
+    let expected = parse_and_inspect(&bytes, &limits).unwrap();
+    for after in [2, 14] {
+        assert!(matches!(
+            crate::allocation::with_refusal(after, || parse_and_inspect(&bytes, &limits)),
+            Err(DecodeError::AllocationFailed)
+        ));
+        let restored = parse_and_inspect(&bytes, &limits).unwrap();
+        assert_eq!(restored.codestreams(), expected.codestreams());
+        assert_eq!(restored.file().box_count, expected.file().box_count);
+        assert!(core::ptr::eq(
+            restored.file().codestream(0).unwrap().data(),
+            expected.file().codestream(0).unwrap().data()
+        ));
+    }
+}
+
+#[test]
 fn fresh_profile_container_first_later_refusal_and_restore() {
     let mut stream = valid_ht_codestream(64, 32, 0x40);
     let at = stream
@@ -1221,7 +1247,7 @@ fn progression_storage_container_first_and_commit_refusals_restore() {
     let bytes = boxed_file(b"jp2 \0\0\0\0jp2 ", &stream);
     let limits = ResourceLimits::default();
     let expected = parse_and_inspect(&bytes, &limits).unwrap();
-    for after in [0, 13] {
+    for after in [0, 15] {
         assert!(matches!(
             crate::allocation::with_refusal(after, || parse_and_inspect(&bytes, &limits)),
             Err(DecodeError::AllocationFailed)

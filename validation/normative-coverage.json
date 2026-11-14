@@ -3181,6 +3181,13 @@
         {"path": "src/decode/output.rs", "symbol": "decode_jpx_file"}
       ],
       "spec_refs": [
+        {"path": "specs/cold_bitmap.rs", "symbol": "part1_bitmap_count"},
+        {"path": "specs/cold_bitmap.rs", "symbol": "part1_bitmap_requests"},
+        {"path": "specs/cold_bitmap.rs", "symbol": "part1_bitmap_run"},
+        {"path": "specs/cold_bitmap.rs", "symbol": "part1_bitmap_result"},
+        {"path": "specs/cold_payload_owners.rs", "symbol": "part1_main_bitmap_run"},
+        {"path": "specs/cold_payload_owners.rs", "symbol": "part1_main_bitmap_calls"},
+        {"path": "specs/cold_payload_owners.rs", "symbol": "part1_tile_after_bitmap_run"},
         {"path": "specs/cold_profile.rs", "symbol": "ProfileFreshInput"},
         {"path": "specs/cold_profile.rs", "symbol": "ProfileFreshValue"},
         {"path": "specs/cold_profile.rs", "symbol": "part1_profile_main_input"},
@@ -3238,6 +3245,11 @@
         {"path": "src/codestream/layout.rs", "symbol": "parse"}
       ],
       "proof_refs": [
+        {"path": "specs/cold_bitmap.rs", "symbol": "part1_bitmap_normal"},
+        {"path": "specs/cold_bitmap.rs", "symbol": "part1_bitmap_frame"},
+        {"path": "specs/cold_bitmap.rs", "symbol": "part1_bitmap_projection"},
+        {"path": "specs/cold_bitmap.rs", "symbol": "part1_cold_main_bitmap_error"},
+        {"path": "specs/cold_bitmap.rs", "symbol": "part1_cold_tile_bitmap_error"},
         {"path": "specs/cold_profile.rs", "symbol": "part1_cold_main_profile_step"},
         {"path": "specs/cold_profile.rs", "symbol": "part1_profile_main_frame"},
         {"path": "specs/cold_profile.rs", "symbol": "part1_profile_main_normal"},
@@ -3298,6 +3310,8 @@
         {"path": "specs/cold_layout_continuations.rs", "symbol": "part1_cold_layout_sot_progression_error"}
       ],
       "test_refs": [
+        {"path": "src/codestream/tests.rs", "symbol": "fresh_progression_bitmap_main_and_later_tile_restore_persistent_and_raw_frames"},
+        {"path": "src/jp2/tests.rs", "symbol": "fresh_progression_bitmap_container_main_and_tile_refusal_restore"},
         {"path": "src/codestream/tests.rs", "symbol": "fresh_profile_raw_first_later_duplicate_and_tile_admission_restore"},
         {"path": "src/jp2/tests.rs", "symbol": "fresh_profile_container_first_later_refusal_and_restore"},
         {"path": "src/codestream/tests.rs", "symbol": "fresh_part2_charged_owner_and_raw_inspection_frames_restore"},
@@ -3325,6 +3339,12 @@
         {"path": "src/codestream/extensions.rs", "symbol": "new_part2_extensions"}
       ],
       "spec_refs": [
+        {"path": "specs/cold_bitmap.rs", "symbol": "part1_bitmap_count"},
+        {"path": "specs/cold_bitmap.rs", "symbol": "part1_bitmap_requests"},
+        {"path": "specs/cold_bitmap.rs", "symbol": "part1_bitmap_run"},
+        {"path": "specs/cold_bitmap.rs", "symbol": "part1_bitmap_result"},
+        {"path": "specs/cold_payload_owners.rs", "symbol": "part1_main_bitmap_run"},
+        {"path": "specs/cold_payload_owners.rs", "symbol": "part1_main_bitmap_calls"},
         {"path": "specs/cold_profile.rs", "symbol": "ProfileFreshInput"},
         {"path": "specs/cold_profile.rs", "symbol": "ProfileFreshValue"},
         {"path": "specs/cold_profile.rs", "symbol": "part1_profile_main_input"},
@@ -3382,6 +3402,10 @@
         {"path": "src/codestream/extensions.rs", "symbol": "new_part2_extensions"}
       ],
       "proof_refs": [
+        {"path": "specs/cold_bitmap.rs", "symbol": "part1_bitmap_normal"},
+        {"path": "specs/cold_bitmap.rs", "symbol": "part1_bitmap_frame"},
+        {"path": "specs/cold_bitmap.rs", "symbol": "part1_bitmap_projection"},
+        {"path": "specs/cold_bitmap.rs", "symbol": "part1_cold_main_bitmap_error"},
         {"path": "specs/cold_profile.rs", "symbol": "part1_cold_main_profile_step"},
         {"path": "specs/cold_profile.rs", "symbol": "part1_profile_main_frame"},
         {"path": "specs/cold_profile.rs", "symbol": "part1_profile_main_normal"},
@@ -4910,6 +4934,9 @@
         {"path": "src/codestream/coding_markers.rs", "symbol": "progression_owners_complete"}
       ],
       "spec_refs": [
+        {"path": "specs/cold_mct_copy.rs", "symbol": "part1_mct_copy_result"},
+        {"path": "specs/cold_bitmap.rs", "symbol": "part1_bitmap_result"},
+        {"path": "specs/cold_bitmap.rs", "symbol": "part1_bitmap_run"},
         {"path": "specs/mod.rs", "symbol": "part1_validate_progression_changes"},
         {"path": "specs/mod.rs", "symbol": "part1_poc_validation_shape"},
         {"path": "specs/mod.rs", "symbol": "part1_poc_admit_records"},
@@ -4923,6 +4950,7 @@
         {"path": "src/limits.rs", "symbol": "resource_work_limit"}
       ],
       "contract_refs": [
+        {"path": "src/codestream/mct_copy.rs", "symbol": "filled_values"},
         {"path": "src/codestream/coding_markers.rs", "symbol": "Parser::validate_progression_changes"},
         {"path": "src/codestream/coding_markers.rs", "symbol": "Parser::progression_validation_shape"},
         {"path": "src/codestream/coding_markers.rs", "symbol": "Parser::mark_progression_record"},
@@ -4931,6 +4959,8 @@
         {"path": "src/codestream/coding_markers.rs", "symbol": "progression_owners_complete"}
       ],
       "proof_refs": [
+        {"path": "specs/cold_bitmap.rs", "symbol": "part1_bitmap_normal"},
+        {"path": "src/codestream/mct_copy.rs", "symbol": "filled_values"},
         {"path": "src/codestream/proof_support.rs", "symbol": "component_coding_style_count"},
         {"path": "src/codestream/proof_support.rs", "symbol": "component_coding_style_result"},
         {"path": "src/codestream/proof_support.rs", "symbol": "progression_changes_view"},
@@ -4940,6 +4970,8 @@
         {"path": "src/limits.rs", "symbol": "ResourceLimits::maximum_work_units"}
       ],
       "test_refs": [
+        {"path": "src/codestream/tests.rs", "symbol": "fresh_progression_bitmap_refusal_restores_false_fill_and_all_borrowed_frames"},
+        {"path": "src/codestream/tests.rs", "symbol": "fresh_progression_bitmap_empty_geometry_work_zero_and_first_record_precedence"},
         {"path": "src/codestream/tests.rs", "symbol": "actual_progression_shape_preserves_raw_styles_empty_bypass_and_work_thresholds"},
         {"path": "src/codestream/tests.rs", "symbol": "actual_progression_marking_preserves_arbitrary_bitmaps_and_partial_failure_prefixes"},
         {"path": "src/codestream/tests.rs", "symbol": "actual_progression_admission_matches_independent_coordinate_sets_and_overlap_order"}

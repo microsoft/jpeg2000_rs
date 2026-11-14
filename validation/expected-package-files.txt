@@ -21,6 +21,7 @@ specs/AUDIT_REFERENCE.md
 specs/README.md
 specs/allocation.rs
 specs/codestream_profile.rs
+specs/cold_bitmap.rs
 specs/cold_extensions_copy.rs
 specs/cold_header_progression.rs
 specs/cold_layout.rs

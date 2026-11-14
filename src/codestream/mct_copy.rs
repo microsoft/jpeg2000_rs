@@ -35,6 +35,34 @@ pub(super) fn reserve_values<T>(count: usize, _path: MctCopyPath) -> Result<Vec<
 }
 
 #[cfg_attr(verus_keep_ghost, verus_spec(result =>
+    ensures crate::specs::part1_mct_copy_result(crate::specs::part1_mct_copy_leaf(_path, count), copy_outcome(result)),
+        match result { Ok(values) => values@ == Seq::new(count as nat, |_: int| value),
+            Err(error) => error == DecodeError::AllocationFailed },
+))]
+pub(super) fn filled_values<T: Copy>(
+    value: T,
+    count: usize,
+    _path: MctCopyPath,
+) -> Result<Vec<T>, DecodeError> {
+    let mut values = reserve_values(count, _path)?;
+    #[cfg(verus_keep_ghost)]
+    proof! { assert(values@ =~= Seq::<T>::empty()); }
+    let mut index = 0_usize;
+    #[cfg_attr(verus_keep_ghost, verus_spec(
+        invariant index <= count, values@ == Seq::new(index as nat, |_: int| value),
+            crate::specs::part1_mct_copy_result(crate::specs::part1_mct_copy_leaf(_path, count), Ok(())),
+        decreases count - index,
+    ))]
+    while index < count {
+        values.push(value);
+        #[cfg(verus_keep_ghost)]
+        proof! { assert(Seq::new(index as nat + 1, |_: int| value) =~= Seq::new(index as nat, |_: int| value).push(value)); }
+        index += 1;
+    }
+    Ok(values)
+}
+
+#[cfg_attr(verus_keep_ghost, verus_spec(result =>
     ensures crate::specs::part1_mct_copy_result(
         crate::specs::part1_mct_copy_leaf(_path, source.len()), copy_outcome(result)),
         match result { Ok(values) => values@ == source@, Err(error) => error == DecodeError::AllocationFailed },

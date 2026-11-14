@@ -67,6 +67,8 @@ mod cold_part2_header;
 pub use cold_part2_header::*;
 mod cold_profile;
 pub use cold_profile::*;
+mod cold_bitmap;
+pub use cold_bitmap::*;
 mod cold_header_progression;
 pub use cold_header_progression::*;
 mod decoder_input;

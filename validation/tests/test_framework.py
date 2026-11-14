@@ -7816,7 +7816,7 @@ class FrameworkTests(WorkingFiles):
     def test_inventory_binds_actual_progression_shape_bitmap_failure_frames_and_complete_admission(self):
         self._assert_complete_packet_contract_bindings(
             {"part1-complete-native-progression-admission"},
-            framework._PROGRESSION_ADMISSION_CONTRACTS, 6,
+            framework._PROGRESSION_ADMISSION_CONTRACTS, 7,
         )
 
     def test_inventory_binds_raw_mco_mcc_routes_membership_and_complete_failure_cursor(self):
@@ -8047,6 +8047,18 @@ class FrameworkTests(WorkingFiles):
         read_text = Path.read_text
         for relative, symbol, before, after in (
             ("specs/cold_mct_copy.rs", "part1_mct_copy_site",
+             "MctCopyPath::ProgressionBitmap(_, _, _, _) => 81", "MctCopyPath::ProgressionBitmap(_, _, _, _) => 80"),
+            ("specs/cold_bitmap.rs", "part1_bitmap_count",
+             "records.len() == 0", "records.len() == 1"),
+            ("specs/cold_bitmap.rs", "part1_bitmap_count",
+             "cost > crate::limits::resource_work_limit(limits)", "cost > u64::MAX"),
+            ("src/codestream/coding_markers.rs", "Parser::validate_progression_changes",
+             "filled_values(\n            false,", "filled_values(\n            true,"),
+            ("specs/cold_payload_owners.rs", "part1_main_resolved_run",
+             "Some((Err(error), rest)) => Some((Err(error), rest))", "Some((Err(error), rest)) => Some((Err(error), events))"),
+            ("specs/cold_payload_owners.rs", "part1_tile_after_configuration_run",
+             "part1_bitmap_run(tile.0,", "part1_bitmap_run(0,"),
+            ("specs/cold_mct_copy.rs", "part1_mct_copy_site",
              "MctCopyPath::ProfileWords(_, _, _) => 80", "MctCopyPath::ProfileWords(_, _, _) => 63"),
             ("specs/cold_profile.rs", "part1_profile_words_requests",
              "ProfileWords(segment.marker, segment.offset, start)", "ProfileWords(0xff50, segment.offset, start)"),
@@ -8178,6 +8190,31 @@ class FrameworkTests(WorkingFiles):
             with self.subTest(symbol=symbol, before=before), mock.patch.object(Path, "read_text", altered), \
                     self.assertRaisesRegex(ValueError, "ordered cold quantization storage"):
                 framework.validate_normative_coverage(dict(coverage, requirements=[entry]))
+
+    def test_inventory_copy_fill_requires_copy_and_exact_repeated_values(self):
+        coverage = json.loads((framework.VALIDATION / "normative-coverage.json").read_text())
+        entry = next(item for item in coverage["requirements"] if item["id"] == "part1-complete-native-progression-admission")
+        data = dict(coverage, requirements=[entry])
+        self.assertEqual(framework.validate_normative_coverage(data)["status"], "passed")
+        source = framework.ROOT / "src/codestream/mct_copy.rs"
+        original = source.read_text()
+        read_text = Path.read_text
+        header = framework._coverage_function_header(original, "filled_values")
+        contract = original[original.rfind("#[cfg_attr", 0, header.start()):original.index("{", header.end())]
+        for before, after in (
+            ("T: Copy", "T: Clone"),
+            ("Seq::new(count as nat", "Seq::new(0nat"),
+            ("|_: int| value", "|_: int| unrelated"),
+        ):
+            self.assertIn(before, contract)
+            changed = original.replace(contract, contract.replace(before, after, 1), 1)
+
+            def altered(path, *args, **kwargs):
+                return changed if path == source else read_text(path, *args, **kwargs)
+
+            with self.subTest(before=before), mock.patch.object(Path, "read_text", altered), \
+                    self.assertRaisesRegex(ValueError, "linked function lacks executable Verus contract"):
+                framework.validate_normative_coverage(data)
 
     def test_inventory_cold_relations_require_complete_result_bodies_and_checked_normal_links(self):
         coverage = json.loads((framework.VALIDATION / "normative-coverage.json").read_text())

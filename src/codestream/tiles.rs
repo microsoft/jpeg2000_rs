@@ -376,12 +376,19 @@ impl<'a> Parser<'a> {
             };
         #[cfg(verus_keep_ghost)]
         proof! { super::tile_part_native_styles_inverse(&component_coding_styles); }
-        self.validate_progression_changes(
+        let admitted_progression = self.validate_progression_changes(
             &progression_changes,
             tile_coding_style.layers,
             &component_coding_styles,
             tile_part.start,
-        )?;
+        );
+        #[cfg(verus_keep_ghost)]
+        proof! { if let Err(error) = admitted_progression {
+            if error == DecodeError::AllocationFailed {
+                crate::specs::part1_cold_tile_bitmap_error(cold_input, cold_raw, header_reader, error);
+            }
+        }}
+        admitted_progression?;
         #[cfg(verus_keep_ghost)]
         proof! { assert(crate::specs::part1_tile_graph_prepare(cold_input, cold_raw, header_reader).is_ok()); }
         let multiple_component_transform = match self

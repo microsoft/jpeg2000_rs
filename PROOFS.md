@@ -292,7 +292,7 @@ rejected without invoking a word constructor or consuming a storage event.
 The production constructor inventory at this boundary finds no other
 unqualified fresh known-count returned marker owner in `src/codestream`.
 The separate fresh POC **validation bitmap** (`coding_markers.rs`) is not a
-marker-owner constructor and remains a later cold-validation increment.
+marker-owner constructor; it is covered by the following cold-validation increment.
 Packed packet-header concatenation is a separate packet buffer. Registry/
 fragment/layout `Vec::new` accumulators still grow at their original pushes;
 no capacity or pre-validation reservation is invented for them. Fixed arrays,
@@ -301,6 +301,40 @@ These boundaries do not complete #287; capacity-dependent growth remains
 blocked, container/image/decode buffers and #289 remain separate, and #288
 budgeting is withdrawn. Standard reservation is not a sequence-derived
 physical-capacity or host-availability theorem.
+
+### Fresh progression-validation bitmap
+
+The scratch bitmap in `validate_progression_changes` now reserves its original
+known `active_coordinates` count fallibly at site 81. Its source path retains
+offset, layer/component counts and actual record count; styles and limits
+derive the exact geometry and request count. A checked `filled_values<T: Copy>`
+helper uses the existing reservation primitive and constructs exactly the
+requested repeated value without allocating generic Clone. The validator
+requests `false`, at the original bitmap frontier.
+
+Empty changes still bypass geometry completely. Shape/geometry, arithmetic
+and derived-work admission precede reservation; zero active coordinates
+consume no request. Record validity, marking, duplicate/redundancy and final
+coverage checks remain after the exact false fill. No reader/work counter,
+borrowed record/style owner, limit or seen/pending state is changed by
+validation or refusal.
+
+[`cold_bitmap.rs`](specs/cold_bitmap.rs) computes that reached frontier directly
+from records/styles/limits, with precise first-error/tail and ordinary
+projections. Main validation follows component quantization and precedes
+registration/graph validation. Tile validation follows component finalization
+and precedes graph/window/payload work. Their actual primitive responses bind
+through existing cold main/tile/public Result/cache/owner relations; graph and
+payload-copy failures now retain the successful bitmap prefix. Old normal
+models and every original requirement/reference are preserved, with an added
+checked helper contract and exact Copy-fill mutation bindings.
+
+Bounded managed controls cover refusal/restore, false initialization, empty/
+zero and geometry/early-work rejection, first-record precedence, redundancy,
+later tile validation after a prior persistent commit, and raw/container
+inspection. Packet buffers and capacity-dependent existing-owner growth remain
+separate; #289 remains separate and #288 is withdrawn. No physical-capacity or
+host-availability theorem is inferred from logical sequences.
 
 ### Ordered automatic main-header primitive calls
 

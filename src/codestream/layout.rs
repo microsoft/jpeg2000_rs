@@ -878,12 +878,28 @@ impl<'a> Parser<'a> {
             reveal(crate::specs::part1_main_header_after_components);
             super::tile_part_native_styles_inverse(&component_coding_styles);
         }
-        parser.validate_progression_changes(
+        #[cfg(verus_keep_ghost)]
+        proof_decl! {
+            let ghost graph_input = crate::specs::Part1MainQuantizationInput {
+                reader: main_reader, raw: depth_main,
+                frames: packed_header_frames_view(ppm_frames@), header: main_header@,
+                style: parsed_coding_style_view(coding_style), quantization: quantization_view(&quantization),
+                styles: component_style_owner_view(&component_coding_styles),
+            };
+        }
+        let admitted_progression = parser.validate_progression_changes(
             &progression_changes,
             coding_style.layers,
             &component_coding_styles,
             0,
-        )?;
+        );
+        #[cfg(verus_keep_ghost)]
+        proof! { if let Err(error) = admitted_progression {
+            if error == DecodeError::AllocationFailed {
+                crate::specs::part1_cold_main_bitmap_error(initial_reader, graph_input, error);
+            }
+        }}
+        admitted_progression?;
         if (!mct_arrays.is_empty() || !mct_records.is_empty()) && mct_order.is_none() {
             return Err(DecodeError::malformed(
                 0,
@@ -899,15 +915,6 @@ impl<'a> Parser<'a> {
             records: mct_records,
             order: mct_order.unwrap_or_default(),
         };
-        #[cfg(verus_keep_ghost)]
-        proof_decl! {
-            let ghost graph_input = crate::specs::Part1MainQuantizationInput {
-                reader: main_reader, raw: depth_main,
-                frames: packed_header_frames_view(ppm_frames@), header: main_header@,
-                style: parsed_coding_style_view(coding_style), quantization: quantization_view(&quantization),
-                styles: component_style_owner_view(&component_coding_styles),
-            };
-        }
         #[cfg(verus_keep_ghost)]
         proof! {
             reveal(mct_parameters_view);

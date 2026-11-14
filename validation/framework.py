@@ -1160,6 +1160,10 @@ _TRANSFORM_ROUTING_BYTES_CONTRACTS = {
 }
 
 _PROGRESSION_ADMISSION_CONTRACTS = {
+    ("src/codestream/mct_copy.rs", "filled_values"): (
+        "part1_mct_copy_result", _coverage_call("copy_outcome", r"\1"), None,
+        _coverage_call("crate::specs::part1_mct_copy_leaf", "_path", "count"),
+    ),
     ("src/codestream/coding_markers.rs", "Parser::progression_validation_shape"): (
         "part1_poc_validation_shape", r"\1", None,
         r"offset\s*,\s*layers\s*,\s*component_styles\s*,\s*0\s*,\s*0\s*,\s*0",
@@ -4770,6 +4774,7 @@ _SOURCE_OPACITY_CONTRACTS = {
 }
 
 _COLD_RESULT_MODELS = {
+    "part1_validate_progression_changes": ("part1_bitmap_result", "specs/cold_bitmap.rs", "part1_bitmap_normal"),
     "part1_marker_words": ("part1_profile_result", "specs/cold_profile.rs", "part1_profile_normal"),
     **{name: ("part1_profile_storage_result", "specs/cold_profile.rs", "part1_profile_storage_normal")
        for name in ("part1_parse_cap", "part1_parse_profile_number")},
@@ -4963,6 +4968,7 @@ _COLD_RESULT_CONTRACTS = {
         _TRANSFORM_COLLECTION_BYTES_CONTRACTS, _TRANSFORM_ROUTING_BYTES_CONTRACTS,
         _DECOMPOSITION_BYTES_CONTRACTS, _KERNEL_BYTES_CONTRACTS, _NONLINEAR_BYTES_CONTRACTS,
         _PROFILE_BYTES_CONTRACTS,
+        _PROGRESSION_ADMISSION_CONTRACTS,
         _PROGRESSION_BYTES_CONTRACTS, _RAW_TILE_HEADER_CONTRACTS,
     )
     for key, legacy in contracts.items()
@@ -5052,6 +5058,8 @@ def _coverage_cold_links(keys: set[tuple[str, str]]) -> tuple[set[tuple[str, str
         }.get(model, model.removesuffix("_result") + "_run")
         models.update(((path, model), (path, run)))
         proofs.add((path, normal))
+        if model == "part1_bitmap_result":
+            proofs.add(("src/codestream/mct_copy.rs", "filled_values"))
         if model == "part1_p2_marker_storage_result":
             models.add((path, "part1_p2_marker_result"))
             proofs.update((path, name) for name in (
@@ -5187,6 +5195,40 @@ _COLD_SOURCE_BODIES = {
 }
 
 _QUANTIZATION_COLD_GUARDS = {
+    ("specs/cold_bitmap.rs", "part1_bitmap_count"): (
+        "records.len() == 0 { None }",
+        "part1_poc_validation_shape(offset, layers, styles, 0, 0, 0)",
+        "let cost = (records.len() as u64) as int * (shape.0 as u64) as int",
+        "cost > u64::MAX || cost > crate::limits::resource_work_limit(limits)",
+        "else { Some(shape.0) }",
+    ),
+    ("specs/cold_bitmap.rs", "part1_bitmap_requests"): (
+        "None => Seq::empty()", "MctCopyPath::ProgressionBitmap(offset, layers,",
+        "crate::codestream::component_coding_style_count(styles), records.len() as usize), count)",
+    ),
+    ("specs/cold_payload_owners.rs", "part1_main_resolved_run"): (
+        "part1_main_bitmap_run(input, events)", "Some((Err(error), rest)) => Some((Err(error), rest))",
+        "Some((Ok(()), rest)) => match part1_main_resolved_prepare(input)",
+        "part1_resolved_graph_run(ResolvedCopyRole::Main, ctx.mct, rest)",
+    ),
+    ("specs/cold_payload_owners.rs", "part1_tile_after_configuration_run"): (
+        "part1_bitmap_run(tile.0, raw.progression_changes, raw.tile_coding_style.layers, &styles, reader.limits, events)",
+        "Some((Err(error), rest)) => Some(((Err(error), reader), rest))",
+        "Some((Ok(()), rest)) => part1_tile_after_bitmap_run(reader, raw, tile, configuration, lengths, headers, rest)",
+    ),
+    ("src/codestream/coding_markers.rs", "Parser::validate_progression_changes"): (
+        "if changes.is_empty()", "self.progression_validation_shape(layers, component_styles, offset)",
+        "(changes.records.len() as u64).checked_mul(active_coordinates as u64)",
+        "validation_work > self.limits.maximum_work_units()",
+        "filled_values(false, active_coordinates,",
+        "ProgressionBitmap(offset, layers, components, changes.records.len(),)",
+        "let mut owners = copied?", "while record_index < changes.records.len()",
+        "self.mark_progression_record(", "progression_owners_complete(&owners)",
+    ),
+    ("src/codestream/mct_copy.rs", "filled_values"): (
+        "reserve_values(count, _path)?", "let mut index = 0_usize",
+        "while index < count", "values.push(value)", "Ok(values)",
+    ),
     ("specs/cold_profile.rs", "part1_profile_words_requests"): (
         "start > segment.payload.len() { Seq::empty() }",
         "MctCopyPath::ProfileWords(segment.marker, segment.offset, start)",
@@ -5474,6 +5516,7 @@ _QUANTIZATION_COLD_GUARDS = {
         "MctCopyPath::Inputs(_, _) => 20", "MctCopyPath::Outputs(_, _) => 21", "MctCopyPath::Order => 22",
         "MctCopyPath::Extensions(path) => part1_part2_copy_site(path)",
         "MctCopyPath::ProfileWords(_, _, _) => 80",
+        "MctCopyPath::ProgressionBitmap(_, _, _, _) => 81",
     ),
     ("specs/cold_mct_copy.rs", "part1_mct_copy_run"): (
         "requests.len() == 0 { Some((Ok(()), events))",
@@ -5632,6 +5675,16 @@ _QUANTIZATION_ROOT_MODELS |= {("specs/cold_profile.rs", name) for name in (
 _QUANTIZATION_ROOT_PROOFS |= {("specs/cold_profile.rs", name) for name in (
     "part1_profile_main_normal", "part1_profile_main_frame", "part1_profile_main_projection",
     "part1_cold_main_profile_step", "part1_profile_storage_observed", "part1_profile_storage_equivalent",
+)}
+
+_QUANTIZATION_ROOT_MODELS |= {("specs/cold_bitmap.rs", name) for name in (
+    "part1_bitmap_count", "part1_bitmap_requests", "part1_bitmap_run", "part1_bitmap_result",
+)} | {("specs/cold_payload_owners.rs", name) for name in (
+    "part1_main_bitmap_run", "part1_main_bitmap_calls",
+)}
+_QUANTIZATION_ROOT_PROOFS |= {("specs/cold_bitmap.rs", name) for name in (
+    "part1_bitmap_normal", "part1_bitmap_frame", "part1_bitmap_projection",
+    "part1_cold_main_bitmap_error",
 )}
 
 _MCT_COPY_MODELS = {("specs/cold_mct_copy.rs", name) for name in (
@@ -5988,6 +6041,12 @@ def validate_normative_coverage(
                         "part1_p2_tile_normal", "part1_p2_tile_frame", "part1_p2_tile_projection", "part1_p2_tile_step",
                     )}.issubset({(r["path"], r["symbol"]) for r in entry["proof_refs"]})):
                 raise ValueError(diagnostic + " requires complete cold Part2 marker source and normal/frame proof links")
+            if entry["id"] == _RAW_LAYOUT_ENTRY and (
+                    ("specs/cold_payload_owners.rs", "part1_tile_after_bitmap_run")
+                    not in {(r["path"], r["symbol"]) for r in entry["spec_refs"]}
+                    or ("specs/cold_bitmap.rs", "part1_cold_tile_bitmap_error")
+                    not in {(r["path"], r["symbol"]) for r in entry["proof_refs"]}):
+                raise ValueError(diagnostic + " requires complete cold bitmap source and normal/frame proof links")
             for (relative, symbol), fragments in _QUANTIZATION_COLD_GUARDS.items():
                 guard_path = (ROOT / relative).resolve()
                 guard_source = source_text(guard_path)
@@ -11478,6 +11537,16 @@ def validate_normative_coverage(
             if entry["id"] == _JPIP_SEMANTIC_ENTRY:
                 storage_contract = _JPIP_SEMANTIC_RELATIONS.get(
                     (reference["path"], reference["symbol"]), storage_contract)
+            if (reference["path"], reference["symbol"]) == ("src/codestream/mct_copy.rs", "filled_values"):
+                header_contract = arbitrary_contract = None
+                storage_contract = (
+                    "part1_mct_copy_result",
+                    _coverage_call("crate::specs::part1_mct_copy_leaf", "_path", "count")
+                    + r"\s*,\s*" + _coverage_call("copy_outcome", r"\1"),
+                )
+                if (re.search(r"\bfn\s+filled_values\s*<\s*T\s*:\s*Copy\s*>", text) is None
+                        or re.search(r"Ok\(\s*values\s*\)\s*=>\s*values@\s*==\s*Seq::new\(\s*count\s+as\s+nat\s*,\s*\|_\s*:\s*int\|\s*value\s*\)", contract) is None):
+                    raise ValueError(f"linked function lacks executable Verus contract: {short}; invalid exact Copy-fill storage relation")
             cold_contract = _COLD_RESULT_CONTRACTS.get((reference["path"], reference["symbol"]))
             if cold_contract is not None:
                 storage_contract = cold_contract
@@ -11513,6 +11582,10 @@ def validate_normative_coverage(
                     normal_refs = {("specs/jpip_transcode.rs", "part2_jpip_validate_precinct_cold_normal")}
                 if not normal_refs.issubset({(ref["path"], ref["symbol"]) for ref in entry["proof_refs"]}):
                     raise ValueError(f"linked function lacks executable Verus contract: {short}; missing checked cold normal projection")
+                if cold_contract[0] == "part1_bitmap_result" and (
+                        "src/codestream/mct_copy.rs", "filled_values") not in {
+                            (ref["path"], ref["symbol"]) for ref in entry["proof_refs"]}:
+                    raise ValueError(f"linked function lacks executable Verus contract: {short}; missing checked Copy-fill producer")
                 required_models, _ = _coverage_cold_links({(reference["path"], reference["symbol"])})
                 if not required_models.issubset({(ref["path"], ref["symbol"]) for ref in entry["spec_refs"]}):
                     raise ValueError(f"linked function lacks executable Verus contract: {short}; missing complete cold run links")

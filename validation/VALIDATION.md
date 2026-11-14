@@ -1034,9 +1034,18 @@ branch-local equivalence and actual main/public consumers are linked; bounded
 controls cover first/later refusal, empty/odd/malformed paths and raw/container
 restoration. Mutations reject old-site aliases, lost source markers, changed
 word counts, duplicate admission and consumed events on early errors.
-The remaining fresh POC validation bitmap and packed packet-header buffer are
-explicitly separate, not returned marker-owner constructors. Existing-buffer
+The fresh POC validation bitmap and packed packet-header buffer are
+separate from returned marker-owner constructors. Existing-buffer
 registry/pending growth is unchanged and capacity-blocked.
+The bitmap frontier is now covered at site 81: empty, geometry/arithmetic and
+derived-work rejection precede the request; zero coordinates consume no event;
+record/duplicate/coverage validation follows an exactly false initialized
+owner. The new reusable helper requires Copy and an exact repeated-value
+contract, not allocating Clone. Native helper/validator bindings, actual main/
+tile continuation prefixes and complete normal/error/tail projections are
+registered. Mutations reject old-site aliases, lost empty/work admission,
+non-false fill, wrong tile offsets and lost failure tails. All original
+requirements/references and canonical diagnostics remain.
 Same-file links are checked inside another listed, formatted function body;
 the contract's own declaration, an unrelated function or an indirect caller
 does not qualify as a direct same-file call. Unsupported formatting can fail
