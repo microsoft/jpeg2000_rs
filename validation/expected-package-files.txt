@@ -43,9 +43,11 @@ specs/cold_packet_preparation.rs
 specs/cold_part2_fresh.rs
 specs/cold_part2_header.rs
 specs/cold_payload_owners.rs
+specs/cold_precinct_storage.rs
 specs/cold_profile.rs
 specs/cold_progression.rs
 specs/cold_quantization.rs
+specs/cold_resolution_plan.rs
 specs/cold_resolved_copy.rs
 specs/cold_tile_metadata.rs
 specs/cold_tile_part.rs

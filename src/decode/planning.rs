@@ -451,6 +451,13 @@ pub(crate) fn plan_tile_component(
     limits: &ResourceLimits,
 ) -> Result<PlannedComponent, DecodeError> {
     #[cfg(verus_keep_ghost)]
+    proof_decl! {
+        let ghost source_precincts=planning_precincts_view(precincts@);
+        let ghost root=|events:Seq<crate::specs::Part2JpipSnapshotEvent>|crate::specs::part2_planned_component_run(
+            size,coding_styles,codestream::quantization_owner_view(quantizations),roi_shifts,component,selection,policy,source_precincts,planned_code_blocks,limits,events);
+        let ghost mut prefix:Seq<crate::specs::Part2JpipSnapshotEvent>;
+    }
+    #[cfg(verus_keep_ghost)]
     proof! {crate::specs::part2_planned_component_normal(size,coding_styles,codestream::quantization_owner_view(quantizations),roi_shifts,component,selection,policy,
     planning_precincts_view(precincts@),planned_code_blocks,limits);}
     #[cfg(verus_keep_ghost)]
@@ -475,6 +482,9 @@ pub(crate) fn plan_tile_component(
     let metadata = metadata_result?;
     #[cfg(verus_keep_ghost)]
     proof_decl! { let ghost meta = component_plan_metadata_view(&metadata); }
+    #[cfg(verus_keep_ghost)]
+    proof! {prefix=crate::specs::part2_resolution_plan_start(size,coding_styles,codestream::quantization_owner_view(quantizations),roi_shifts,
+    component,selection,policy,source_precincts,planned_code_blocks,limits,meta);}
     let mut builder = ComponentPlanBuilder {
         precincts,
         placements: Vec::new(),
@@ -483,6 +493,11 @@ pub(crate) fn plan_tile_component(
     let mut resolution = 0_u8;
     #[cfg_attr(verus_keep_ghost, verus_spec(
         invariant resolution <= metadata.component_coding_style.decomposition_levels as int + 1,
+            source_precincts==planning_precincts_view(precincts@),
+            forall|events:Seq<crate::specs::Part2JpipSnapshotEvent>| #[trigger] root(events)==crate::specs::part2_planned_component_run(
+                size,coding_styles,codestream::quantization_owner_view(quantizations),roi_shifts,component,selection,policy,source_precincts,planned_code_blocks,limits,events),
+            crate::specs::part2_cold_phase(root,prefix,|events|crate::specs::part2_resolution_plan_run(size,component,selection.0,meta,policy,limits,
+                resolution as nat,component_plan_builder_view(&builder),events)),
             crate::specs::part2_planned_component_result(size,coding_styles,codestream::quantization_owner_view(quantizations),roi_shifts,component,selection,policy,
                 planning_precincts_view(precincts@),planned_code_blocks,limits,goal),
             meta == component_plan_metadata_view(&metadata),
@@ -511,9 +526,17 @@ pub(crate) fn plan_tile_component(
         )?;
         #[cfg(verus_keep_ghost)]
         proof_decl! { let ghost resolution_data = resolution_plan_metadata_view(&data); }
+        #[cfg(verus_keep_ghost)]
+        proof! {crate::specs::part2_resolution_plan_step(size,component,selection.0,meta,policy,limits,resolution as nat,component_plan_builder_view(&builder),resolution_data);}
         let mut precinct = 0_u32;
         #[cfg_attr(verus_keep_ghost, verus_spec(
             invariant precinct <= data.precincts_in_resolution,
+                source_precincts==planning_precincts_view(precincts@),
+                forall|events:Seq<crate::specs::Part2JpipSnapshotEvent>| #[trigger] root(events)==crate::specs::part2_planned_component_run(
+                    size,coding_styles,codestream::quantization_owner_view(quantizations),roi_shifts,component,selection,policy,source_precincts,planned_code_blocks,limits,events),
+                crate::specs::part2_cold_phase(root,prefix,|events|crate::specs::part2_jpip_snapshot_bind(
+                    crate::specs::part2_resolution_precincts_run(component,resolution,meta,resolution_data,policy,limits,precinct as nat,component_plan_builder_view(&builder),events),
+                    |after:crate::specs::Part2ComponentPlanBuffers,rest|crate::specs::part2_resolution_next(size,component,selection.0,meta,policy,limits,resolution as nat,after,rest))),
                 crate::specs::part2_planned_component_result(size,coding_styles,codestream::quantization_owner_view(quantizations),roi_shifts,component,selection,policy,
                     planning_precincts_view(precincts@),planned_code_blocks,limits,goal),
                 resolution <= metadata.component_coding_style.decomposition_levels,
@@ -549,7 +572,19 @@ pub(crate) fn plan_tile_component(
                 precinct,
                 data.band_size,
             )?;
-            let planned = plan_packet_precinct(
+            #[cfg(verus_keep_ghost)]
+            proof! {
+                crate::specs::part2_resolution_precinct_step(size,component,selection.0,meta,policy,limits,resolution as nat,resolution_data,precinct as nat,before,origin);
+                assert forall|events:Seq<crate::specs::Part2JpipSnapshotEvent>|
+                    #[trigger] root(prefix+events)==crate::specs::part2_jpip_snapshot_bind(
+                        crate::specs::part2_precinct_owner_run([origin[0],origin[1],data.band_size[0],data.band_size[1]],data.block_size,meta.subbands,
+                            (data.first_subband,data.subband_count),meta.tier1_style,(policy.0,policy.1),(component,resolution,precinct,before.precincts.len() as usize),
+                            before.placements,before.planned_code_blocks,resolution<=meta.output_resolution,limits,events),
+                        |row:crate::specs::Part2PlannedPrecinct,rest|crate::specs::part2_jpip_snapshot_bind(
+                            crate::specs::part2_resolution_precincts_run(component,resolution,meta,resolution_data,policy,limits,precinct as nat+1,crate::specs::part2_component_after_precinct(before,row),rest),
+                            |after:crate::specs::Part2ComponentPlanBuffers,tail|crate::specs::part2_resolution_next(size,component,selection.0,meta,policy,limits,resolution as nat,after,tail))) by {}
+            }
+            let planned_result = plan_packet_precinct(
                 [origin[0], origin[1], data.band_size[0], data.band_size[1]],
                 data.block_size,
                 &metadata.subbands,
@@ -561,7 +596,29 @@ pub(crate) fn plan_tile_component(
                 builder.planned_code_blocks,
                 resolution <= metadata.output_resolution,
                 limits,
-            )?;
+            );
+            #[cfg(verus_keep_ghost)]
+            proof! {
+                let band=[origin[0],origin[1],data.band_size[0],data.band_size[1]];
+                let range=(data.first_subband,data.subband_count);
+                let location=(component,resolution,precinct,before.precincts.len() as usize);
+                let child=|events|crate::specs::part2_precinct_owner_run(band,data.block_size,meta.subbands,range,meta.tier1_style,(policy.0,policy.1),location,
+                    before.placements,before.planned_code_blocks,resolution<=meta.output_resolution,limits,events);
+                let next=|row:crate::specs::Part2PlannedPrecinct,rest|crate::specs::part2_jpip_snapshot_bind(
+                    crate::specs::part2_resolution_precincts_run(component,resolution,meta,resolution_data,policy,limits,precinct as nat+1,crate::specs::part2_component_after_precinct(before,row),rest),
+                    |after:crate::specs::Part2ComponentPlanBuffers,tail|crate::specs::part2_resolution_next(size,component,selection.0,meta,policy,limits,resolution as nat,after,tail));
+                crate::specs::part2_precinct_owner_frames(band,data.block_size,meta.subbands,range,meta.tier1_style,(policy.0,policy.1),location,
+                    before.placements,before.planned_code_blocks,resolution<=meta.output_resolution,limits,planned_precinct_outcome(planned_result));
+                assert forall|events|root(prefix+events)==crate::specs::part2_jpip_snapshot_bind(child(events),next) by {}
+                match planned_precinct_outcome(planned_result) {
+                    Err(error)=>{
+                        crate::specs::part2_decode_prefix_error(root,child,next,prefix,error);
+                        crate::specs::part2_component_plan_join(size,coding_styles,codestream::quantization_owner_view(quantizations),roi_shifts,component,selection,policy,source_precincts,planned_code_blocks,limits,root,Err(error));
+                    },
+                    Ok(row)=>{prefix=crate::specs::part2_decode_prefix_advance(root,child,next,prefix,row);},
+                }
+            }
+            let planned = planned_result?;
             #[cfg(verus_keep_ghost)]
             proof_decl! { let ghost row = planned_precinct_view(&planned); }
             #[cfg(verus_keep_ghost)]
@@ -582,6 +639,7 @@ pub(crate) fn plan_tile_component(
         proof! {
             reveal(resolution_plan_metadata_view);
             reveal_with_fuel(crate::specs::part2_component_plan_precincts, 1);
+            crate::specs::part2_resolution_precinct_end(component,resolution,meta,resolution_data,policy,limits,precinct as nat,component_plan_builder_view(&builder));
         }
         resolution = resolution.checked_add(1).ok_or_else(arithmetic_overflow)?;
     }
@@ -736,7 +794,9 @@ pub(crate) fn prepare_resolution_plan_metadata(
 
 #[allow(clippy::too_many_arguments)]
 #[cfg_attr(verus_keep_ghost, verus_spec(result =>
-    ensures planned_precinct_outcome(result) == crate::specs::part2_planned_precinct(
+    ensures crate::specs::part2_precinct_owner_result(band,block_size,subbands@,range,style,policy,location,placements@,planned_code_blocks,selected,limits,planned_precinct_outcome(result)),
+        planned_precinct_outcome(result)!=Err(DecodeError::AllocationFailed) ==>
+        planned_precinct_outcome(result) == crate::specs::part2_planned_precinct(
         band, block_size, subbands@, range, style, policy, location, placements@, planned_code_blocks, selected, limits,
     ),
 ))]
@@ -754,11 +814,34 @@ pub(crate) fn plan_packet_precinct(
     limits: &ResourceLimits,
 ) -> Result<PlannedPrecinct, DecodeError> {
     #[cfg(verus_keep_ghost)]
+    proof_decl! {
+        let ghost source_placements=placements@;
+        let ghost root=|events:Seq<crate::specs::Part2JpipSnapshotEvent>|crate::specs::part2_precinct_owner_run(
+            band,block_size,subbands@,range,style,policy,location,source_placements,planned_code_blocks,selected,limits,events);
+        let ghost mut prefix:Seq<crate::specs::Part2JpipSnapshotEvent>;
+    }
+    #[cfg(verus_keep_ghost)]
+    proof! {crate::specs::part2_precinct_owner_normal(band,block_size,subbands@,range,style,policy,location,placements@,planned_code_blocks,selected,limits);}
+    #[cfg(verus_keep_ghost)]
     proof_decl! { let ghost goal = crate::specs::part2_planned_precinct(
         band, block_size, subbands@, range, style, policy, location, placements@, planned_code_blocks, selected, limits,
     ); }
     let mut builder = PrecinctPlanBuilder {
-        executions: Vec::with_capacity(range.1),
+        executions: {
+            let reserved = if range.1 == 0 {
+                Ok(Vec::new())
+            } else {
+                crate::allocation::empty_with_capacity(range.1)
+            };
+            #[cfg(verus_keep_ghost)]
+            proof! {
+                crate::specs::part2_planning_capacity_observed(crate::specs::part2_precinct_owner_context(band,block_size,subbands@,range,style,policy,location,placements@,planned_code_blocks,selected),
+                    match reserved {Ok(_)=>Ok(()),Err(error)=>Err(error)});
+                if reserved.is_err(){crate::specs::part2_precinct_owner_refused(band,block_size,subbands@,range,style,policy,location,placements@,planned_code_blocks,selected,limits);}
+                else{prefix=crate::specs::part2_precinct_owner_start(band,block_size,subbands@,range,style,policy,location,placements@,planned_code_blocks,selected,limits);}
+            }
+            reserved?
+        },
         placements,
         decoder_index: 0,
         planned_code_blocks,
@@ -771,6 +854,12 @@ pub(crate) fn plan_packet_precinct(
     let mut local_subband = 0_usize;
     #[cfg_attr(verus_keep_ghost, verus_spec(
         invariant local_subband <= range.1,
+            source_placements==placements@,
+            forall|events:Seq<crate::specs::Part2JpipSnapshotEvent>| #[trigger] root(events)==crate::specs::part2_precinct_owner_run(
+                band,block_size,subbands@,range,style,policy,location,source_placements,planned_code_blocks,selected,limits,events),
+            crate::specs::part2_cold_phase(root,prefix,|events|crate::specs::part2_precinct_rows_run(band,block_size,subbands@,range,style,policy,location,selected,limits,
+                local_subband as nat,precinct_plan_builder_view(&builder),events)),
+            crate::specs::part2_precinct_owner_result(band,block_size,subbands@,range,style,policy,location,placements@,planned_code_blocks,selected,limits,goal),
             goal == crate::specs::part2_planned_precinct(
                 band, block_size, subbands@, range, style, policy, location, placements@, planned_code_blocks, selected, limits,
             ),
@@ -790,7 +879,17 @@ pub(crate) fn plan_packet_precinct(
             .checked_add(local_subband)
             .ok_or_else(arithmetic_overflow)?;
         let subband = *subbands.get(subband_index).ok_or_else(invalid_decode)?;
-        let planned = plan_subband_execution(
+        #[cfg(verus_keep_ghost)]
+        proof! {
+            crate::specs::part2_precinct_rows_step(band,block_size,subbands@,range,style,policy,location,selected,limits,local_subband as nat,before);
+            assert forall|events:Seq<crate::specs::Part2JpipSnapshotEvent>| #[trigger] root(prefix+events)
+                ==crate::specs::part2_jpip_snapshot_bind(
+                    crate::specs::part2_subband_execution_run(band,block_size,subband,style,policy,(location.3,subband_index,before.decoder_index),
+                        before.placements,before.planned_code_blocks,selected,limits,events),
+                    |row:crate::specs::Part2PlannedSubbandExecution,rest|crate::specs::part2_precinct_rows_run(band,block_size,subbands@,range,style,policy,location,selected,limits,
+                        local_subband as nat+1,crate::specs::part2_precinct_after_subband(before,row),rest)) by {}
+        }
+        let planned_result = plan_subband_execution(
             band,
             block_size,
             subband,
@@ -801,7 +900,25 @@ pub(crate) fn plan_packet_precinct(
             builder.planned_code_blocks,
             selected,
             limits,
-        )?;
+        );
+        #[cfg(verus_keep_ghost)]
+        proof! {
+            let child=|events|crate::specs::part2_subband_execution_run(band,block_size,subband,style,policy,(location.3,subband_index,before.decoder_index),
+                before.placements,before.planned_code_blocks,selected,limits,events);
+            let next=|row:crate::specs::Part2PlannedSubbandExecution,rest|crate::specs::part2_precinct_rows_run(band,block_size,subbands@,range,style,policy,location,selected,limits,
+                local_subband as nat+1,crate::specs::part2_precinct_after_subband(before,row),rest);
+            crate::specs::part2_subband_execution_frames(band,block_size,subband,style,policy,(location.3,subband_index,before.decoder_index),
+                before.placements,before.planned_code_blocks,selected,limits,planned_subband_execution_outcome(planned_result));
+            assert forall|events|root(prefix+events)==crate::specs::part2_jpip_snapshot_bind(child(events),next) by {}
+            match planned_subband_execution_outcome(planned_result) {
+                Err(error)=>{
+                    crate::specs::part2_decode_prefix_error(root,child,next,prefix,error);
+                    crate::specs::part2_precinct_owner_join(band,block_size,subbands@,range,style,policy,location,source_placements,planned_code_blocks,selected,limits,root,Err(error));
+                },
+                Ok(row)=>{prefix=crate::specs::part2_decode_prefix_advance(root,child,next,prefix,row);},
+            }
+        }
+        let planned = planned_result?;
         #[cfg(verus_keep_ghost)]
         proof_decl! { let ghost row = planned_subband_execution_view(&planned); }
         #[cfg(verus_keep_ghost)]
@@ -911,7 +1028,9 @@ pub(crate) fn derive_planned_subband_lattice(
 
 #[allow(clippy::too_many_arguments)]
 #[cfg_attr(verus_keep_ghost, verus_spec(result =>
-    ensures planned_subband_execution_outcome(result) == crate::specs::part2_planned_subband_execution(
+    ensures crate::specs::part2_subband_execution_result(band,block_size,subband,style,policy,indices,placements@,planned_code_blocks,selected,limits,planned_subband_execution_outcome(result)),
+        planned_subband_execution_outcome(result)!=Err(DecodeError::AllocationFailed) ==>
+        planned_subband_execution_outcome(result) == crate::specs::part2_planned_subband_execution(
         band, block_size, subband, style, policy, indices, placements@, planned_code_blocks, selected, limits,
     ),
 ))]
@@ -927,6 +1046,10 @@ pub(crate) fn plan_subband_execution(
     selected: bool,
     limits: &ResourceLimits,
 ) -> Result<PlannedSubbandExecution, DecodeError> {
+    #[cfg(verus_keep_ghost)]
+    proof! {crate::specs::part2_subband_execution_normal(band,block_size,subband,style,policy,indices,placements@,planned_code_blocks,selected,limits);}
+    #[cfg(verus_keep_ghost)]
+    proof_decl! {let ghost source_placements=placements@;}
     let lattice = match derive_planned_subband_lattice(band, block_size, subband)? {
         None => {
             return Ok(PlannedSubbandExecution {
@@ -940,7 +1063,7 @@ pub(crate) fn plan_subband_execution(
     };
     #[cfg(verus_keep_ghost)]
     proof! { reveal(planned_subband_lattice_view); }
-    let planned = plan_codeblock_decoders(
+    let planned_result = plan_codeblock_decoders(
         lattice.grid,
         lattice.clip,
         lattice.blocks,
@@ -952,7 +1075,12 @@ pub(crate) fn plan_subband_execution(
         planned_code_blocks,
         selected,
         limits,
-    )?;
+    );
+    #[cfg(verus_keep_ghost)]
+    proof! {if let Err(error)=planned_result {
+        crate::specs::part2_subband_execution_error(band,block_size,subband,style,policy,indices,source_placements,planned_code_blocks,selected,limits,planned_subband_lattice_view(lattice),error);
+    }}
+    let planned = planned_result?;
     #[cfg(verus_keep_ghost)]
     proof! { reveal(planned_codeblocks_view); reveal(planned_subband_execution_view); }
     let execution = PacketSubbandExecution {
@@ -1025,7 +1153,9 @@ pub(crate) fn append_planned_codeblock(
 
 #[allow(clippy::too_many_arguments)]
 #[cfg_attr(verus_keep_ghost, verus_spec(result =>
-    ensures planned_codeblocks_outcome(result) == crate::specs::part2_planned_codeblocks(
+    ensures crate::specs::part2_codeblock_owner_result(grid,clip,blocks,subband,style,policy,indices,placements@,planned_code_blocks,selected,limits,planned_codeblocks_outcome(result)),
+        planned_codeblocks_outcome(result)!=Err(DecodeError::AllocationFailed) ==>
+        planned_codeblocks_outcome(result) == crate::specs::part2_planned_codeblocks(
         grid, clip, blocks, subband, style, policy, indices, placements@, planned_code_blocks, selected, limits,
     ),
 ))]
@@ -1042,6 +1172,8 @@ pub(crate) fn plan_codeblock_decoders(
     selected: bool,
     limits: &ResourceLimits,
 ) -> Result<PlannedCodeBlocks, DecodeError> {
+    #[cfg(verus_keep_ghost)]
+    proof! {crate::specs::part2_codeblock_owner_normal(grid,clip,blocks,subband,style,policy,indices,placements@,planned_code_blocks,selected,limits);}
     #[cfg(verus_keep_ghost)]
     proof_decl! { let ghost goal = crate::specs::part2_planned_codeblocks(
         grid, clip, blocks, subband, style, policy, indices, placements@, planned_code_blocks, selected, limits,
@@ -1072,7 +1204,20 @@ pub(crate) fn plan_codeblock_decoders(
         Err(_) => return Err(arithmetic_overflow()),
     };
     let mut state = PlannedCodeBlocks {
-        decoders: Vec::with_capacity(capacity),
+        decoders: {
+            let reserved = if capacity == 0 {
+                Ok(Vec::new())
+            } else {
+                crate::allocation::empty_with_capacity(capacity)
+            };
+            #[cfg(verus_keep_ghost)]
+            proof! {
+                crate::specs::part2_planning_capacity_observed(crate::specs::part2_codeblock_owner_context(grid,clip,blocks,subband,style,policy,indices,placements@,planned_code_blocks,selected),
+                    match reserved {Ok(_)=>Ok(()),Err(error)=>Err(error)});
+                if reserved.is_err(){crate::specs::part2_codeblock_owner_refused(grid,clip,blocks,subband,style,policy,indices,placements@,planned_code_blocks,selected,limits);}
+            }
+            reserved?
+        },
         placements,
         decoder_index: indices.2,
         planned_code_blocks: total,
@@ -1086,6 +1231,7 @@ pub(crate) fn plan_codeblock_decoders(
     let mut block_y = 0_u32;
     #[cfg_attr(verus_keep_ghost, verus_spec(
         invariant block_y <= blocks[1],
+            crate::specs::part2_codeblock_owner_result(grid,clip,blocks,subband,style,policy,indices,placements@,planned_code_blocks,selected,limits,goal),
             goal == crate::specs::part2_planned_codeblocks(
                 grid, clip, blocks, subband, style, policy, indices, placements@, planned_code_blocks, selected, limits,
             ),
@@ -1101,6 +1247,7 @@ pub(crate) fn plan_codeblock_decoders(
         let mut block_x = 0_u32;
         #[cfg_attr(verus_keep_ghost, verus_spec(
             invariant block_x <= blocks[0], block_y < blocks[1],
+                crate::specs::part2_codeblock_owner_result(grid,clip,blocks,subband,style,policy,indices,placements@,planned_code_blocks,selected,limits,goal),
                 goal == crate::specs::part2_planned_codeblocks(
                     grid, clip, blocks, subband, style, policy, indices, placements@, planned_code_blocks, selected, limits,
                 ),

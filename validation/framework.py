@@ -4800,6 +4800,9 @@ _RAW_RENDER_PROOFS |= {("specs/jpx_raw_frame.rs", "part2_render_raw_cold_metadat
 _RAW_COMPOSITION_RENDER_PROOFS |= {("specs/jpx_raw_frame.rs", "part2_render_raw_cold_metadata_error")}
 
 _COLD_RESULT_MODELS = {
+    "part2_planned_precinct": ("part2_precinct_owner_result", "specs/cold_precinct_storage.rs", "part2_precinct_owner_normal"),
+    "part2_planned_subband_execution": ("part2_subband_execution_result", "specs/cold_precinct_storage.rs", "part2_subband_execution_normal"),
+    "part2_planned_codeblocks": ("part2_codeblock_owner_result", "specs/cold_precinct_storage.rs", "part2_codeblock_owner_normal"),
     "part2_component_subbands": ("part1_subbands_cold_result", "specs/cold_component_storage.rs", "part2_subbands_normal"),
     "part2_component_plan_metadata": ("part2_component_metadata_result", "specs/cold_component_storage.rs", "part2_component_metadata_normal"),
     "part2_planned_component": ("part2_planned_component_result", "specs/cold_component_storage.rs", "part2_planned_component_normal"),
@@ -5047,6 +5050,7 @@ _COLD_RESULT_CONTRACTS = {
         _RAW_TILE_DECODING_CONTRACTS, _PACKET_RECONSTRUCTION_CONTRACTS, _TYPED_LAYOUT_CONTRACTS,
         _PACKET_GRID_PRODUCER_CONTRACTS, _COMPONENT_TILE_PLANNING_CONTRACTS,
         _TILE_METADATA_CONTRACTS, _SUBBAND_VECTOR_CONTRACTS, _COMPONENT_PLAN_METADATA_CONTRACTS,
+        _PRECINCT_PLANNING_CONTRACTS, _SUBBAND_EXECUTION_CONTRACTS, _CODEBLOCK_VECTOR_CONTRACTS,
     )
     for key, legacy in contracts.items()
     if legacy[0] in _COLD_RESULT_MODELS
@@ -5149,6 +5153,12 @@ def _coverage_cold_links(keys: set[tuple[str, str]]) -> tuple[set[tuple[str, str
         }.get(model, model.removesuffix("_result") + "_run")
         models.update(((path, model), (path, run)))
         proofs.add((path, normal))
+        if model in ("part2_planned_component_result", "part2_grid_plan_result", "part1_progression_plan_cold_result"):
+            models |= _RESOLUTION_PLAN_MODELS
+            proofs |= _RESOLUTION_PLAN_PROOFS
+        if model in ("part2_precinct_owner_result", "part2_subband_execution_result", "part2_codeblock_owner_result"):
+            models |= _PRECINCT_OWNER_MODELS
+            proofs |= _PRECINCT_OWNER_PROOFS
         if model in ("part1_subbands_cold_result", "part2_component_metadata_result", "part2_planned_component_result",
                      "part2_grid_plan_result", "part1_progression_plan_cold_result"):
             models |= _COMPONENT_STORAGE_MODELS
@@ -5365,6 +5375,80 @@ _COLD_SOURCE_BODIES = {
     """, "whole effective layer Result requires actual ordered decoder/registration/opacity models"),
 }
 
+_PRECINCT_OWNER_MODELS = {("specs/cold_precinct_storage.rs", name) for name in (
+    "part2_planning_capacity_count", "part2_planning_capacity_run", "part2_planning_capacity_result",
+    "part2_codeblock_owner_admit", "part2_codeblock_owner_context", "part2_codeblock_owner_run", "part2_codeblock_owner_result",
+    "part2_subband_execution_run", "part2_subband_execution_result", "part2_precinct_after_subband", "part2_precinct_rows_run",
+    "part2_precinct_owner_context", "part2_precinct_owner_run", "part2_precinct_owner_result", "part2_cold_phase",
+)}
+_PRECINCT_OWNER_PROOFS = {("specs/cold_precinct_storage.rs", name) for name in (
+    "part2_planning_capacity_observed", "part2_codeblock_owner_normal", "part2_codeblock_owner_refused",
+    "part2_subband_execution_normal", "part2_subband_execution_error", "part2_subband_execution_frames",
+    "part2_precinct_rows_normal", "part2_precinct_owner_normal", "part2_precinct_owner_refused",
+    "part2_precinct_owner_start", "part2_precinct_rows_step", "part2_precinct_owner_frames", "part2_precinct_owner_join",
+)}
+_RESOLUTION_PLAN_MODELS = _PRECINCT_OWNER_MODELS | {("specs/cold_resolution_plan.rs", name) for name in (
+    "part2_component_after_precinct", "part2_resolution_precincts_run", "part2_resolution_plan_run", "part2_resolution_next",
+)}
+_RESOLUTION_PLAN_PROOFS = _PRECINCT_OWNER_PROOFS | {("specs/cold_resolution_plan.rs", name) for name in (
+    "part2_cold_bind_associative", "part2_resolution_precincts_normal", "part2_resolution_plan_normal", "part2_resolution_plan_start",
+    "part2_resolution_plan_step", "part2_resolution_precinct_step", "part2_resolution_precinct_end", "part2_component_plan_join",
+)}
+_PRECINCT_OWNER_TESTS = {("src/decode/tests.rs", name) for name in (
+    "precinct_storage_execution_frontier_empty_and_later_range_error_restore",
+    "precinct_storage_decoder_admission_zero_overflow_and_later_geometry_restore",
+    "precinct_storage_ordered_component_fold_retains_source_and_restores_exact_owners",
+    "precinct_storage_raw_selected_container_roles_and_restore",
+)}
+_PRECINCT_OWNER_GUARDS = {
+    ("specs/cold_precinct_storage.rs", "part2_planning_capacity_count"): (
+        "Executions {range,..}=>range.1", "Decoders {blocks,..}=>(blocks[0] as nat*blocks[1] as nat) as usize",
+    ),
+    ("specs/cold_precinct_storage.rs", "part2_planning_capacity_run"): (
+        "if count==0 {Some((Ok(()),events))}", "Part2JpipSnapshotEvent::PlanningCapacity",
+        "actual!=context || elements!=count", "Err(crate::DecodeError::AllocationFailed)", "events.drop_first()", "_=>None",
+    ),
+    ("specs/cold_precinct_storage.rs", "part2_codeblock_owner_run"): (
+        "part2_codeblock_owner_admit(blocks,total,selected,limits)", "Err(error)=>Some((Err(error),events))",
+        "part2_planning_capacity_run(part2_codeblock_owner_context(", "part2_planned_codeblocks(",
+    ),
+    ("specs/cold_precinct_storage.rs", "part2_subband_execution_run"): (
+        "part2_planned_subband_lattice(", "Ok(Some(lattice))=>part2_jpip_snapshot_bind(part2_codeblock_owner_run(",
+        "_=>Some((part2_planned_subband_execution(", "limits),events))",
+    ),
+    ("specs/cold_precinct_storage.rs", "part2_precinct_owner_run"): (
+        "part2_planning_capacity_run(part2_precinct_owner_context(", "|_:(),rest|part2_precinct_rows_run(",
+        "Part2PrecinctPlanBuilder {executions:Seq::empty(),placements,decoder_index:0,planned_code_blocks:total},rest)",
+    ),
+    ("specs/cold_precinct_storage.rs", "part2_precinct_rows_run"): (
+        "if index>usize::MAX", "else if index>=subbands.len()", "part2_subband_execution_run(",
+        "before.placements,before.planned_code_blocks,selected,limits,events)",
+        "local+1,part2_precinct_after_subband(before,planned),rest)",
+    ),
+    ("specs/cold_resolution_plan.rs", "part2_resolution_precincts_run"): (
+        "part2_planned_precinct_origin(", "Err(error)=>Some((Err(error),events))", "part2_precinct_owner_run(",
+        "precinct+1,part2_component_after_precinct(before,planned),rest)",
+    ),
+    ("specs/cold_resolution_plan.rs", "part2_resolution_plan_run"): (
+        "part2_resolution_plan_metadata(", "Err(error)=>Some((Err(error),events))", "part2_resolution_precincts_run(",
+        "if resolution==u8::MAX", "resolution+1,after,rest)",
+    ),
+}
+_PRECINCT_OWNER_NATIVE_ORDER = {
+    "plan_packet_precinct": (
+        "executions: {", "if range.1 == 0", "empty_with_capacity(range.1)", "part2_planning_capacity_observed(",
+        "part2_precinct_owner_refused(", "part2_precinct_owner_start(", "reserved? }, placements,",
+        "while local_subband < range.1", ".checked_add(local_subband)", "subbands.get(subband_index)",
+        "part2_precinct_rows_step(", "plan_subband_execution(", "part2_decode_prefix_error(", "part2_decode_prefix_advance(",
+    ),
+    "plan_codeblock_decoders": (
+        "let mut total = planned_code_blocks", ".checked_mul(u64::from(blocks[1]))", "if selected",
+        "total.checked_add(count)", "limits.maximum_code_blocks()", "limits.maximum_work_units()",
+        "usize::try_from(count)", "decoders: {", "if capacity == 0", "empty_with_capacity(capacity)",
+        "part2_planning_capacity_observed(", "part2_codeblock_owner_refused(", "reserved?", "placements,",
+        "while block_y < blocks[1]", "append_planned_codeblock(",
+    ),
+}
 _COMPONENT_STORAGE_MODELS = {
     ("specs/cold_component_storage.rs", name) for name in (
         "part2_component_capacity_count", "part2_component_capacity_run", "part2_component_capacity_result",
@@ -5417,7 +5501,7 @@ _COMPONENT_STORAGE_GUARDS = {
         "part2_component_plan_metadata_owned(",
     ),
     ("specs/cold_component_storage.rs", "part2_planned_component_run"): (
-        "part2_component_metadata_run(", "part2_planned_component_owned(",
+        "part2_component_metadata_run(", "part2_resolution_plan_run(",
     ),
     ("specs/cold_component_plan.rs", "part2_plan_after_grid_run"): (
         "part2_component_capacity_run(part2_component_owner_context(size,style,styles,quantizations,roi,selection,policy),events)",
@@ -12859,6 +12943,26 @@ def validate_normative_coverage(
                     "part2_grid_plan_result", "part1_progression_plan_cold_result"} for ref in entry["contract_refs"]):
                 if not _COMPONENT_STORAGE_TESTS.issubset({(ref["path"], ref["symbol"]) for ref in entry["test_refs"]}):
                     raise ValueError("component/subband fresh storage requires bounded refusal/restore/empty/admission/work/owner/public controls")
+    if ids & {"part2-complete-native-component-tile-planning", "part2-complete-native-precinct-planning",
+              "part2-complete-native-subband-execution", "part2-complete-native-codeblock-vectors"}:
+        for (relative, symbol), fragments in _PRECINCT_OWNER_GUARDS.items():
+            body = _coverage_spec_function_body(source_text((ROOT / relative).resolve()), symbol)
+            compact = "".join(body.split()) if body is not None else ""
+            if any("".join(fragment.split()) not in compact for fragment in fragments):
+                raise ValueError("resolution/precinct fresh storage requires distinct actual source/count roles and exact admission/owner/counter/first-error/tail production")
+        planning_path = (ROOT / "src/decode/planning.rs").resolve()
+        for symbol, fragments in _PRECINCT_OWNER_NATIVE_ORDER.items():
+            body = _coverage_function_body(source_text(planning_path), function_header(planning_path, symbol))
+            compact = "".join(body.split()) if body is not None else ""
+            positions = [compact.find("".join(fragment.split())) for fragment in fragments]
+            if any(position < 0 for position in positions) or positions != sorted(positions):
+                raise ValueError("resolution/precinct fresh storage requires unchanged real constructor/field/admission/owner/counter/error order")
+        for entry in coverage["requirements"]:
+            if any(_COLD_RESULT_CONTRACTS.get((ref["path"], ref["symbol"]), ("",))[0] in {
+                    "part2_planned_component_result", "part2_grid_plan_result", "part1_progression_plan_cold_result",
+                    "part2_precinct_owner_result", "part2_subband_execution_result", "part2_codeblock_owner_result"} for ref in entry["contract_refs"]):
+                if not _PRECINCT_OWNER_TESTS.issubset({(ref["path"], ref["symbol"]) for ref in entry["test_refs"]}):
+                    raise ValueError("resolution/precinct fresh storage requires bounded refusal/restore/empty/range/overflow/work/owner/public controls")
     return {
         "status": "passed",
         "inventory_items": len(ids),
