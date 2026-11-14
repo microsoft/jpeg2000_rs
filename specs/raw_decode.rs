@@ -273,9 +273,9 @@ pub(crate) open spec fn part2_decode_raw_cold_run(
     input: Seq<u8>, limits: &crate::ResourceLimits, requested: Option<&crate::DecodeSelection>,
     events: Seq<Part2JpipSnapshotEvent>,
 ) -> Part2ColdRun<Part1DecodedTypedImage> {
-    part2_jpip_snapshot_bind(part2_cold_parse(input, limits, 2, 0, events),
-        |layout: Part1CompleteLayout, rest| Some((part2_decode_typed_layout_input(
-            input.len() as usize, part2_decoder_input_from_raw(layout), limits, requested), rest)))
+    part2_decode_raw_value_cold_run(input, limits, match requested {
+        None => None, Some(value) => Some(crate::options::decode_selection_view(value)),
+    }, events)
 }
 
 pub closed spec fn part2_decode_raw_cold_result(
@@ -300,8 +300,8 @@ pub(crate) open spec fn part2_decode_raw_value_cold_run(
     events: Seq<Part2JpipSnapshotEvent>,
 ) -> Part2ColdRun<Part1DecodedTypedImage> {
     part2_jpip_snapshot_bind(part2_cold_parse(input, limits, 2, 0, events),
-        |layout: Part1CompleteLayout, rest| Some((part2_decode_typed_layout_value_input(
-            input.len() as usize, part2_decoder_input_from_raw(layout), limits, requested), rest)))
+        |layout: Part1CompleteLayout, rest| part2_typed_decode_run(
+            input.len() as usize, part2_decoder_input_from_raw(layout), requested, limits, rest))
 }
 
 pub(crate) open spec fn part2_decode_raw_value_cold_result(
@@ -342,10 +342,18 @@ pub(crate) proof fn part2_decode_raw_value_cold_normal(
         part2_decode_raw_codestream_value(input, limits, requested)),
 {
     reveal(part2_decode_raw_codestream_value);
+    reveal(part2_typed_decode_result);
     part1_parse_layout_cold_normal(input, limits);
-    part2_cold_parse_then_actual(input, limits, 2, 0, part1_parse_layout(input, limits),
-        |layout: Part1CompleteLayout| part2_decode_typed_layout_value_input(
-            input.len() as usize, part2_decoder_input_from_raw(layout), limits, requested));
+    let parsed=part1_parse_layout(input,limits);
+    part2_cold_parse_actual(input,limits,2,0,parsed);
+    if let Ok(layout)=parsed {
+        part2_typed_decode_normal(input.len() as usize,part2_decoder_input_from_raw(layout),requested,limits);
+        part2_decode_eta(|events|part2_typed_decode_run(input.len() as usize,part2_decoder_input_from_raw(layout),requested,limits,events),
+            part2_decode_typed_layout_value_input(input.len() as usize,part2_decoder_input_from_raw(layout),limits,requested));
+    }
+    part2_cold_bind(|events|part2_cold_parse(input,limits,2,0,events),
+        |layout:Part1CompleteLayout,rest|part2_typed_decode_run(input.len() as usize,part2_decoder_input_from_raw(layout),requested,limits,rest),
+        parsed,part2_decode_raw_codestream_value(input,limits,requested));
 }
 
 pub(crate) proof fn part2_decode_raw_cold_normal(
@@ -355,19 +363,11 @@ pub(crate) proof fn part2_decode_raw_cold_normal(
         input, limits, requested, part2_decode_raw_codestream(input, limits, requested)),
 {
     reveal(part2_decode_raw_cold_result);
-    part1_parse_layout_cold_normal(input, limits);
-    let parsed = part1_parse_layout(input, limits);
-    part2_cold_parse_actual(input, limits, 2, 0, parsed);
-    if let Ok(layout) = parsed {
-        part2_cold_pure(part2_decode_typed_layout_input(
-            input.len() as usize, part2_decoder_input_from_raw(layout), limits, requested));
-    }
+    let selected=match requested {None=>None,Some(value)=>Some(crate::options::decode_selection_view(value))};
+    part2_decode_raw_value_cold_normal(input,limits,selected);
+    reveal(part2_decode_raw_codestream_value);
     part2_decode_raw_codestream_unfold(input, limits, requested);
-    part2_cold_bind(
-        |events| part2_cold_parse(input, limits, 2, 0, events),
-        |layout: Part1CompleteLayout, rest| Some((part2_decode_typed_layout_input(
-            input.len() as usize, part2_decoder_input_from_raw(layout), limits, requested), rest)),
-        parsed, part2_decode_raw_codestream(input, limits, requested));
+    part2_decode_eta(|events|part2_decode_raw_value_cold_run(input,limits,selected,events),part2_decode_raw_codestream_value(input,limits,selected));
 }
 
 pub(crate) proof fn part2_decode_raw_cold_parse_error(
@@ -378,11 +378,12 @@ pub(crate) proof fn part2_decode_raw_cold_parse_error(
     ensures part2_decode_raw_cold_result(input, limits, requested, Err(error)),
 {
     reveal(part2_decode_raw_cold_result);
+    let selected=match requested {None=>None,Some(value)=>Some(crate::options::decode_selection_view(value))};
     part2_cold_parse_actual(input, limits, 2, 0, Err(error));
     part2_cold_bind(
         |events| part2_cold_parse(input, limits, 2, 0, events),
-        |layout: Part1CompleteLayout, rest| Some((part2_decode_typed_layout_input(
-            input.len() as usize, part2_decoder_input_from_raw(layout), limits, requested), rest)),
+        |layout: Part1CompleteLayout, rest| part2_typed_decode_run(
+            input.len() as usize, part2_decoder_input_from_raw(layout), selected, limits, rest),
         Err(error), Err(error));
 }
 
@@ -390,8 +391,8 @@ pub(crate) open spec fn part2_decode_reconstructed_cold_run(
     input: Seq<u8>, limits: &crate::ResourceLimits, events: Seq<Part2JpipSnapshotEvent>,
 ) -> Part2ColdRun<Part1DecodedImageModel> {
     part2_jpip_snapshot_bind(part2_cold_parse(input, limits, 8, 0, events),
-        |layout: Part1CompleteLayout, rest| Some((part2_decode_reconstructed_layout_input(
-            input.len() as usize, part2_decoder_input_from_raw(layout), limits), rest)))
+        |layout: Part1CompleteLayout, rest| part2_reconstructed_decode_run(
+            input.len() as usize, part2_decoder_input_from_raw(layout), limits, rest))
 }
 
 pub closed spec fn part2_decode_reconstructed_cold_result(
@@ -417,18 +418,20 @@ pub(crate) proof fn part2_decode_reconstructed_cold_normal(
         input, limits, part2_decode_raw_reconstructed_codestream(input, limits)),
 {
     reveal(part2_decode_reconstructed_cold_result);
+    reveal(part2_reconstructed_decode_result);
     part1_parse_layout_cold_normal(input, limits);
     let parsed = part1_parse_layout(input, limits);
     part2_cold_parse_actual(input, limits, 8, 0, parsed);
     if let Ok(layout) = parsed {
-        part2_cold_pure(part2_decode_reconstructed_layout_input(
-            input.len() as usize, part2_decoder_input_from_raw(layout), limits));
+        part2_reconstructed_decode_normal(input.len() as usize, part2_decoder_input_from_raw(layout), limits);
+        part2_decode_eta(|events|part2_reconstructed_decode_run(input.len() as usize,part2_decoder_input_from_raw(layout),limits,events),
+            part2_decode_reconstructed_layout_input(input.len() as usize,part2_decoder_input_from_raw(layout),limits));
     }
     part2_decode_raw_reconstructed_codestream_unfold(input, limits);
     part2_cold_bind(
         |events| part2_cold_parse(input, limits, 8, 0, events),
-        |layout: Part1CompleteLayout, rest| Some((part2_decode_reconstructed_layout_input(
-            input.len() as usize, part2_decoder_input_from_raw(layout), limits), rest)),
+        |layout: Part1CompleteLayout, rest| part2_reconstructed_decode_run(
+            input.len() as usize, part2_decoder_input_from_raw(layout), limits, rest),
         parsed, part2_decode_raw_reconstructed_codestream(input, limits));
 }
 
@@ -442,9 +445,48 @@ pub(crate) proof fn part2_decode_reconstructed_cold_parse_error(
     part2_cold_parse_actual(input, limits, 8, 0, Err(error));
     part2_cold_bind(
         |events| part2_cold_parse(input, limits, 8, 0, events),
-        |layout: Part1CompleteLayout, rest| Some((part2_decode_reconstructed_layout_input(
-            input.len() as usize, part2_decoder_input_from_raw(layout), limits), rest)),
+        |layout: Part1CompleteLayout, rest| part2_reconstructed_decode_run(
+            input.len() as usize, part2_decoder_input_from_raw(layout), limits, rest),
         Err(error), Err(error));
+}
+
+pub(crate) proof fn part2_decode_raw_typed_actual(input: Seq<u8>, limits: &crate::ResourceLimits, requested: Option<&crate::DecodeSelection>,
+    result: Result<Part1DecodedTypedImage, crate::DecodeError>)
+    requires part1_parse_layout(input,limits).is_ok(),
+        part1_parse_layout_cold_result(input,limits,part1_parse_layout(input,limits)),
+        match part1_parse_layout(input,limits) {
+            Err(_) => false, Ok(layout) => part2_typed_decode_result(input.len() as usize,part2_decoder_input_from_raw(layout),
+                match requested {None=>None,Some(value)=>Some(crate::options::decode_selection_view(value))},limits,result),
+        },
+    ensures part2_decode_raw_cold_result(input,limits,requested,result),
+{
+    reveal(part2_decode_raw_cold_result); reveal(part2_typed_decode_result);
+    let selected=match requested {None=>None,Some(value)=>Some(crate::options::decode_selection_view(value))};
+    let parsed=part1_parse_layout(input,limits);
+    part2_cold_parse_actual(input,limits,2,0,parsed);
+    if let Ok(layout)=parsed {
+        part2_decode_eta(|events|part2_typed_decode_run(input.len() as usize,part2_decoder_input_from_raw(layout),selected,limits,events),result);
+    }
+    part2_cold_bind(|events|part2_cold_parse(input,limits,2,0,events),
+        |layout:Part1CompleteLayout,rest|part2_typed_decode_run(input.len() as usize,part2_decoder_input_from_raw(layout),selected,limits,rest),parsed,result);
+}
+pub(crate) proof fn part2_decode_raw_reconstruction_error(input: Seq<u8>, limits: &crate::ResourceLimits, error: crate::DecodeError)
+    requires part1_parse_layout(input,limits).is_ok(),
+        part1_parse_layout_cold_result(input,limits,part1_parse_layout(input,limits)),
+        match part1_parse_layout(input,limits) {
+            Err(_) => false, Ok(layout) => part2_layout_decode_result(part2_decoder_input_from_raw(layout),None,limits,Err(error)),
+        },
+    ensures part2_decode_reconstructed_cold_result(input,limits,Err(error)),
+{
+    reveal(part2_decode_reconstructed_cold_result); reveal(part2_reconstructed_decode_result);
+    let parsed=part1_parse_layout(input,limits);
+    if let Ok(layout)=parsed {
+        part2_reconstructed_decode_error(input.len() as usize,part2_decoder_input_from_raw(layout),limits,error);
+        part2_decode_eta(|events|part2_reconstructed_decode_run(input.len() as usize,part2_decoder_input_from_raw(layout),limits,events),Err(error));
+    }
+    part2_cold_parse_actual(input,limits,8,0,parsed);
+    part2_cold_bind(|events|part2_cold_parse(input,limits,8,0,events),
+        |layout:Part1CompleteLayout,rest|part2_reconstructed_decode_run(input.len() as usize,part2_decoder_input_from_raw(layout),limits,rest),parsed,Err(error));
 }
 
 pub open spec fn part1_validate_reconstructed_output_components(

@@ -480,9 +480,17 @@ pub(super) fn decode_jpx_file_selected<'a>(
     if let Some(header) = associated_header {
         jp2::validate_selected_header(header, &layout.info, selected.box_header().offset())?;
     }
+    let decoded_result = decode_layout_selected(&layout, selection, options.limits());
+    #[cfg(verus_keep_ghost)]
+    proof! {
+        if let Err(error)=decoded_result {
+            crate::specs::part2_jpx_selected_decode_error(jp2::jpx_file_decode_view(file),codestream_index,crate::options::decode_options_limits(options),
+                crate::options::decode_selection_view(selection),jp2::codestream_source_view(selected),jp2::associated_header_view(associated_header.unwrap()),error);
+        }
+    }
     let decoded = typed_layout(
         &layout,
-        decode_layout_selected(&layout, selection, options.limits())?,
+        decoded_result?,
         selection.discard_levels(),
         options.limits(),
     )?;

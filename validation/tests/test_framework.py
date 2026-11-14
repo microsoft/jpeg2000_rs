@@ -3491,7 +3491,7 @@ class FrameworkTests(WorkingFiles):
             ("src/decode/api.rs", "pub fn decode_jpx_codestream(", "decode_jpx_file_selected(&file, codestream_index, options, selection)", "decode_jpx_file_selected(&file, 0, options, selection)", "actual raw/index/selection/header/color/target handoffs"),
             ("src/decode/api.rs", "pub fn decode_jpx_codestream(", "convert_associated_selected_color(&decoded, header, target, options.limits())", "convert_associated_selected_color(&decoded, header, [0, 0, 1, 1], options.limits())", "actual raw/index/selection/header/color/target handoffs"),
             ("src/decode/output.rs", "pub(super) fn decode_jpx_file_selected(", "codestream::parse_layout(selected.data(), options.limits())", "codestream::parse_layout(&unrelated, options.limits())", "actual module-level selected producer"),
-            ("src/decode/output.rs", "pub(super) fn decode_jpx_file_selected(", "decode_layout_selected(&layout, selection, options.limits())?", "decode_layout_selected(&layout, &unrelated, options.limits())?", "actual module-level selected producer"),
+            ("src/decode/output.rs", "pub(super) fn decode_jpx_file_selected(", "decode_layout_selected(&layout, selection, options.limits())", "decode_layout_selected(&layout, &unrelated, options.limits())", "actual module-level selected producer"),
             ("src/decode/output.rs", "pub(super) fn decode_jpx_file_selected(", "codestream::decoder_layout_main_info_matches_raw(&layout)", "unrelated_layout_bridge()", "actual module-level selected producer"),
         ):
             source = framework.ROOT / name
@@ -6103,7 +6103,12 @@ class FrameworkTests(WorkingFiles):
             original = source.read_text()
             for before, after in changes:
                 self.assertIn(before, original)
-                changed = original.replace(before, after, 1)
+                if name == "specs/raw_decode.rs":
+                    body = framework._coverage_spec_function_body(original, "part2_decode_raw_codestream")
+                    self.assertIn(before, body)
+                    changed = original.replace(body, body.replace(before, after, 1), 1)
+                else:
+                    changed = original.replace(before, after, 1)
 
                 def altered(path, *args, **kwargs):
                     return changed if path == source else read_text(path, *args, **kwargs)
@@ -8191,6 +8196,36 @@ class FrameworkTests(WorkingFiles):
                     self.assertRaisesRegex(ValueError, "ordered cold quantization storage"):
                 framework.validate_normative_coverage(dict(coverage, requirements=[entry]))
 
+    def test_inventory_packed_storage_requires_actual_constructor_source_state_and_tail(self):
+        coverage = json.loads((framework.VALIDATION / "normative-coverage.json").read_text())
+        entry = next(item for item in coverage["requirements"] if item["id"] == "part1-complete-native-packed-header-length-inputs")
+        data = dict(coverage, requirements=[entry])
+        self.assertEqual(framework.validate_normative_coverage(data)["status"], "passed")
+        read_text = Path.read_text
+        for relative, symbol, before, after in (
+            ("specs/cold_packed_headers.rs", "part2_packed_requests", "source.length == 0", "source.length == 1"),
+            ("specs/cold_packed_headers.rs", "part2_packed_requests_run", "Part2JpipSnapshotEvent::PackedHeaderCapacity", "Part2JpipSnapshotEvent::Parse"),
+            ("specs/cold_packed_headers.rs", "part2_packed_requests_run", "source != requests[0]", "source != requests[1]"),
+            ("specs/cold_packed_headers.rs", "part2_packed_requests_run", "events.drop_first()", "events"),
+            ("specs/cold_packed_headers.rs", "part2_packet_run", "Some(((Err(error), precincts), rest))", "Some(((Err(error), Seq::empty()), rest))"),
+            ("specs/cold_decode_packets.rs", "part2_tile_decode_run", "part2_progression_tile_plan_owned(", "supplied_plan("),
+            ("specs/cold_decode_packets.rs", "part2_full_decode_run", "before.counters", "(0,0,0)"),
+            ("src/codestream/packet_headers.rs", "PackedPacketHeaders::reassemble", "empty_with_capacity(self.length)", "empty_with_capacity(1)"),
+        ):
+            source = framework.ROOT / relative
+            original = source.read_text()
+            body = (framework._coverage_function_body(original, framework._coverage_function_header(original, symbol))
+                    if relative.startswith("src/") else framework._coverage_spec_function_body(original, symbol))
+            self.assertIn(before, body)
+            changed = original.replace(body, body.replace(before, after, 1), 1)
+
+            def altered(path, *args, **kwargs):
+                return changed if path == source else read_text(path, *args, **kwargs)
+
+            with self.subTest(symbol=symbol, before=before), mock.patch.object(Path, "read_text", altered), \
+                    self.assertRaisesRegex(ValueError, "packed-header fresh storage"):
+                framework.validate_normative_coverage(data)
+
     def test_inventory_inspection_capacity_requires_outer_role_count_order_and_tail(self):
         coverage = json.loads((framework.VALIDATION / "normative-coverage.json").read_text())
         read_text = Path.read_text
@@ -8404,6 +8439,11 @@ class FrameworkTests(WorkingFiles):
                     {"path": path, "symbol": symbol} for path, symbol in sorted(cold_proofs)
                 ]
                 isolated["test_refs"] = entry["test_refs"][:1]
+                if key == ("src/codestream/packet_headers.rs", "PackedPacketHeaders::reassemble"):
+                    isolated["test_refs"] += [
+                        {"path": path, "symbol": symbol} for path, symbol in sorted(framework._PACKED_STORAGE_TESTS)
+                        if {"path": path, "symbol": symbol} not in isolated["test_refs"]
+                    ]
             self.assertEqual(framework.validate_normative_coverage(coverage)["status"], "passed")
             header = framework._coverage_function_header(
                 original, reference["symbol"],

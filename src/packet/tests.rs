@@ -2328,6 +2328,70 @@ fn full_progression_uses_real_ppt_reassembly_and_plt_iteration_without_tile_body
 }
 
 #[test]
+fn packed_storage_first_and_later_preparation_refusal_preserve_entire_precinct_state() {
+    let stream = literal_packed_progression_stream(1);
+    let limits = ResourceLimits::default();
+    let layout = crate::codestream::parse_layout(&stream, &limits).unwrap();
+    let grid = packet_grid_new_with_component_resolutions(1, 1, vec![1], vec![1], &limits).unwrap();
+    let mut parts = [layout.tile_parts[0].clone(), layout.tile_parts[0].clone()];
+    parts[0].tile_part_count = 2;
+    parts[1].tile_part_index = 1;
+    parts[1].tile_part_count = 2;
+    let source_before = format!("{parts:?}");
+    for after in [0, 1] {
+        let mut precincts = [literal_packet_precinct()];
+        let before = exact_packet_precinct_snapshot(&precincts[0]);
+        assert_eq!(
+            crate::allocation::with_refusal(after, || decode_progression_tile_packets(
+                &parts,
+                &grid,
+                &mut precincts,
+                &limits
+            )),
+            Err(DecodeError::AllocationFailed)
+        );
+        assert_eq!(exact_packet_precinct_snapshot(&precincts[0]), before);
+        assert_eq!(format!("{parts:?}"), source_before);
+    }
+    let mut precincts = [literal_packet_precinct()];
+    assert!(
+        decode_progression_tile_packets(&layout.tile_parts, &grid, &mut precincts, &limits).is_ok()
+    );
+}
+
+#[test]
+fn packed_storage_earlier_tile_error_and_selected_preparation_keep_refusal_frontier() {
+    let stream = literal_packed_progression_stream(1);
+    let limits = ResourceLimits::default();
+    let layout = crate::codestream::parse_layout(&stream, &limits).unwrap();
+    let grid = packet_grid_new_with_component_resolutions(1, 1, vec![1], vec![1], &limits).unwrap();
+    let mut invalid = layout.tile_parts[0].clone();
+    invalid.tile_part_index = 1;
+    let mut precincts = [literal_packet_precinct()];
+    let before = exact_packet_precinct_snapshot(&precincts[0]);
+    crate::allocation::with_refusal(0, || {
+        assert!(matches!(
+            decode_progression_tile_packets(&[invalid], &grid, &mut precincts, &limits),
+            Err(DecodeError::MalformedInput {
+                kind: MalformedKind::InvalidTilePart,
+                ..
+            })
+        ));
+        assert_eq!(
+            decode_progression_tile_packets_selected(
+                &layout.tile_parts,
+                &grid,
+                &mut precincts,
+                Some(&[1]),
+                &limits
+            ),
+            Err(DecodeError::AllocationFailed)
+        );
+    });
+    assert_eq!(exact_packet_precinct_snapshot(&precincts[0]), before);
+}
+
+#[test]
 fn retained_packet_prefixes_validate_poc_coverage_tile_parts_and_packed_lengths() {
     let limits = ResourceLimits::default();
     let grid = packet_grid_new_with_component_resolutions(2, 1, vec![1], vec![1], &limits).unwrap();

@@ -1522,6 +1522,8 @@
       ],
       "spec_refs": [
         {"path": "specs/jpx_public_images.rs", "symbol": "part2_decode_jpx_selected_layout"},
+        {"path": "specs/cold_decode_packets.rs", "symbol": "part2_layout_decode_result"},
+        {"path": "specs/cold_decode_packets.rs", "symbol": "part2_layout_decode_run"},
         {"path": "specs/jpx_public_images.rs", "symbol": "part2_decode_jpx_selected_source"},
         {"path": "specs/jpx_public_images.rs", "symbol": "part2_decode_jpx_selected_file"},
         {"path": "specs/jpx_public_images.rs", "symbol": "part2_decode_jpx_file_request"},
@@ -1558,6 +1560,7 @@
       ],
       "proof_refs": [
         {"path": "src/decode/api.rs", "symbol": "decode_jpx_codestream"},
+        {"path": "specs/cold_decode_packets.rs", "symbol": "part2_layout_decode_normal"},
         {"path": "src/decode/api.rs", "symbol": "decode_jpx_codestream_selected"},
         {"path": "src/decode/api.rs", "symbol": "decode_jpx_codestream_color"},
         {"path": "src/decode/api.rs", "symbol": "decode_jpx_codestream_color_selected"},
@@ -3093,6 +3096,8 @@
       ],
       "spec_refs": [
         {"path": "specs/raw_decode.rs", "symbol": "part2_decode_raw_codestream"},
+        {"path": "specs/cold_decode_finish.rs", "symbol": "part2_typed_decode_result"},
+        {"path": "specs/cold_decode_finish.rs", "symbol": "part2_typed_decode_run"},
         {"path": "specs/decoder_input.rs", "symbol": "part2_decoder_input_from_raw"},
         {"path": "specs/decoder_input.rs", "symbol": "part2_decoder_tile_from_raw"},
         {"path": "specs/decoder_input.rs", "symbol": "part2_decode_typed_layout_input"},
@@ -3133,6 +3138,7 @@
         {"path": "src/options.rs", "symbol": "DecodeOptions::limits"},
         {"path": "specs/raw_decode.rs", "symbol": "part2_decode_raw_codestream_unfold"},
         {"path": "specs/raw_decode.rs", "symbol": "part2_decode_raw_cold_normal"},
+        {"path": "specs/cold_decode_finish.rs", "symbol": "part2_typed_decode_normal"},
         {"path": "specs/raw_layout.rs", "symbol": "part1_parse_layout_cold_normal"}
       ],
       "test_refs": [
@@ -5780,6 +5786,8 @@
       ],
       "spec_refs": [
         {"path": "specs/mod.rs", "symbol": "part2_decode_typed_layout"},
+        {"path": "specs/cold_decode_finish.rs", "symbol": "part2_typed_decode_result"},
+        {"path": "specs/cold_decode_finish.rs", "symbol": "part2_typed_decode_run"},
         {"path": "specs/mod.rs", "symbol": "part2_typed_layout"},
         {"path": "specs/mod.rs", "symbol": "part2_decode_layout"},
         {"path": "specs/mod.rs", "symbol": "part2_decode_layout_selected"},
@@ -5799,6 +5807,7 @@
         {"path": "src/decode/api.rs", "symbol": "collect_nonlinear_regions"},
         {"path": "src/image/nonlinear.rs", "symbol": "TypedImage::apply_nonlinear_regions"},
         {"path": "src/decode/api.rs", "symbol": "validate_part1_output_shape"},
+        {"path": "specs/cold_decode_finish.rs", "symbol": "part2_typed_decode_normal"},
         {"path": "src/image/proof_support.rs", "symbol": "decoded_typed_image_outcome"}
       ],
       "test_refs": [
@@ -6092,6 +6101,8 @@
       ],
       "spec_refs": [
         {"path": "specs/mod.rs", "symbol": "part2_decode_layout"},
+        {"path": "specs/cold_decode_packets.rs", "symbol": "part2_layout_decode_result"},
+        {"path": "specs/cold_decode_packets.rs", "symbol": "part2_layout_decode_run"},
         {"path": "specs/mod.rs", "symbol": "part2_decode_layout_selected"},
         {"path": "specs/mod.rs", "symbol": "part2_layout_execution_admission"},
         {"path": "specs/mod.rs", "symbol": "part2_full_layout_tiles"},
@@ -6109,6 +6120,7 @@
       ],
       "proof_refs": [
         {"path": "src/decode/proof_support.rs", "symbol": "layout_accumulation_view"},
+        {"path": "specs/cold_decode_packets.rs", "symbol": "part2_layout_decode_normal"},
         {"path": "src/decode/execution.rs", "symbol": "validate_part2_execution"},
         {"path": "src/decode/selection.rs", "symbol": "validate_selection"},
         {"path": "src/decode/proof_support.rs", "symbol": "validated_selection_view"},
@@ -6130,6 +6142,8 @@
       ],
       "spec_refs": [
         {"path": "specs/mod.rs", "symbol": "part2_decode_tile_parts_at"},
+        {"path": "specs/cold_decode_packets.rs", "symbol": "part2_tile_decode_result"},
+        {"path": "specs/cold_decode_packets.rs", "symbol": "part2_tile_decode_run"},
         {"path": "specs/mod.rs", "symbol": "part2_decode_tile_parts_owned"},
         {"path": "specs/mod.rs", "symbol": "part2_tile_decode_metadata_owned"},
         {"path": "specs/mod.rs", "symbol": "part2_progression_tile_plan_owned"},
@@ -6144,6 +6158,7 @@
       ],
       "proof_refs": [
         {"path": "proofs/spec_properties/mod.rs", "symbol": "tile_metadata_ignores_owned_allocation_identity"},
+        {"path": "specs/cold_decode_packets.rs", "symbol": "part2_tile_decode_normal"},
         {"path": "proofs/spec_properties/mod.rs", "symbol": "tile_byte_execution_ignores_owned_allocation_identity"},
         {"path": "proofs/spec_properties/mod.rs", "symbol": "raw_tile_decoder_ignores_owned_allocation_identity"},
         {"path": "src/codestream/proof_support.rs", "symbol": "tile_part_owned_view"},
@@ -6204,6 +6219,8 @@
       ],
       "spec_refs": [
         {"path": "specs/mod.rs", "symbol": "part2_decode_tile_parts_at"},
+        {"path": "specs/cold_decode_packets.rs", "symbol": "part2_tile_decode_result"},
+        {"path": "specs/cold_decode_packets.rs", "symbol": "part2_tile_decode_run"},
         {"path": "specs/mod.rs", "symbol": "part2_tile_decode_metadata"},
         {"path": "specs/mod.rs", "symbol": "part2_progression_tile_plan"},
         {"path": "specs/mod.rs", "symbol": "part2_planned_tile_accounting"},
@@ -6217,6 +6234,7 @@
       ],
       "proof_refs": [
         {"path": "src/decode/proof_support.rs", "symbol": "decoded_layout_tile_view"},
+        {"path": "specs/cold_decode_packets.rs", "symbol": "part2_tile_decode_normal"},
         {"path": "src/decode/proof_support.rs", "symbol": "decoded_layout_tile_outcome"},
         {"path": "src/decode/execution.rs", "symbol": "prepare_tile_decode_metadata"},
         {"path": "src/decode/planning.rs", "symbol": "plan_progression_tile_at_selected"},
@@ -6377,6 +6395,8 @@
       ],
       "spec_refs": [
         {"path": "specs/mod.rs", "symbol": "part2_decode_planned_tile_components"},
+        {"path": "specs/cold_decode_packets.rs", "symbol": "part2_planned_decode_result"},
+        {"path": "specs/cold_decode_packets.rs", "symbol": "part2_planned_decode_run"},
         {"path": "specs/mod.rs", "symbol": "part2_precinct_decoder_planes"},
         {"path": "specs/mod.rs", "symbol": "part2_reconstruct_planned_tile"}
       ],
@@ -6385,6 +6405,7 @@
       ],
       "proof_refs": [
         {"path": "src/decode/proof_support.rs", "symbol": "decoded_tile_components_view"},
+        {"path": "specs/cold_decode_packets.rs", "symbol": "part2_planned_decode_normal"},
         {"path": "src/decode/proof_support.rs", "symbol": "decoded_tile_components_outcome"},
         {"path": "src/decode/proof_support.rs", "symbol": "planning_precinct_planes_known_fields"},
         {"path": "src/decode/proof_support.rs", "symbol": "progression_plan_view"},
@@ -7690,6 +7711,12 @@
           "path": "specs/packet_input.rs",
           "symbol": "part1_packet_input_limit"
         },
+        {"path": "specs/cold_packed_headers.rs", "symbol": "part2_packed_reassembly_result"},
+        {"path": "specs/cold_packed_headers.rs", "symbol": "part2_packed_reassembly_run"},
+        {"path": "specs/cold_packed_headers.rs", "symbol": "part2_packed_requests"},
+        {"path": "specs/cold_packed_headers.rs", "symbol": "part2_packed_requests_run"},
+        {"path": "specs/cold_packed_headers.rs", "symbol": "part2_packed_requests_result"},
+        {"path": "specs/cold_packed_headers.rs", "symbol": "part2_packed_normal_calls"},
         {
           "path": "specs/packet_input.rs",
           "symbol": "part1_packed_header_reassembly"
@@ -7711,6 +7738,13 @@
         {
           "path": "src/codestream/packet_headers.rs", "symbol": "packet_input_error"
         },
+        {"path": "specs/cold_packed_headers.rs", "symbol": "part2_packed_reassembly_normal"},
+        {"path": "specs/cold_packed_headers.rs", "symbol": "part2_packed_capacity_observed"},
+        {"path": "specs/cold_packed_headers.rs", "symbol": "part2_packed_requests_normal"},
+        {"path": "specs/cold_packed_headers.rs", "symbol": "part2_packed_requests_frame"},
+        {"path": "specs/cold_packed_headers.rs", "symbol": "part2_packed_reassembly_refused"},
+        {"path": "specs/cold_packed_headers.rs", "symbol": "part2_packed_requests_projection"},
+        {"path": "specs/cold_packed_headers.rs", "symbol": "part2_packed_reassembly_projection"},
         {
           "path": "src/codestream/packet_headers.rs", "symbol": "packet_input_limit"
         },
@@ -7755,6 +7789,11 @@
         }
       ],
       "test_refs": [
+        {"path": "src/codestream/packet_headers.rs", "symbol": "packed_storage_refusal_retains_sources_and_prior_bytes_then_restores"},
+        {"path": "src/codestream/packet_headers.rs", "symbol": "packed_storage_zero_admission_and_framing_keep_original_request_order"},
+        {"path": "src/packet/tests.rs", "symbol": "packed_storage_first_and_later_preparation_refusal_preserve_entire_precinct_state"},
+        {"path": "src/packet/tests.rs", "symbol": "packed_storage_earlier_tile_error_and_selected_preparation_keep_refusal_frontier"},
+        {"path": "src/decode/tests.rs", "symbol": "packed_storage_raw_container_selected_and_reconstruction_refuse_only_after_parse"},
         {
           "path": "src/codestream/tests.rs",
           "symbol": "packed_reassembly_literal_fragments_ranges_and_late_errors_have_exact_bytes"
@@ -8032,6 +8071,13 @@
       ],
       "spec_refs": [
         {"path": "specs/packet_tile.rs", "symbol": "part1_tile_packet_slot"},
+        {"path": "specs/cold_packed_headers.rs", "symbol": "part2_packet_input_result"},
+        {"path": "specs/cold_packed_headers.rs", "symbol": "part2_packet_input_run"},
+        {"path": "specs/cold_packed_headers.rs", "symbol": "part2_packet_prefix"},
+        {"path": "specs/cold_packed_headers.rs", "symbol": "part2_packet_result"},
+        {"path": "specs/cold_packed_headers.rs", "symbol": "part2_packet_run"},
+        {"path": "specs/cold_packed_headers.rs", "symbol": "part2_payloads_result"},
+        {"path": "specs/cold_packed_headers.rs", "symbol": "part2_payloads_run"},
         {"path": "specs/packet_tile.rs", "symbol": "part1_tile_omit_packet"},
         {"path": "specs/packet_tile.rs", "symbol": "part1_tile_all_seen"},
         {
@@ -8176,6 +8222,10 @@
         }
       ],
       "proof_refs": [
+        {"path": "specs/cold_packed_headers.rs", "symbol": "part2_packet_input_normal"},
+        {"path": "specs/cold_packed_headers.rs", "symbol": "part2_packet_normal"},
+        {"path": "specs/cold_packed_headers.rs", "symbol": "part2_packet_public_result_equivalent"},
+        {"path": "specs/cold_packed_headers.rs", "symbol": "part2_payloads_normal"},
         {
           "path": "src/packet/progression.rs", "symbol": "PacketGrid::total_precinct_count"
         },

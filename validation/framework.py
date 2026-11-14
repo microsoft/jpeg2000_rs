@@ -4796,6 +4796,16 @@ _RAW_RENDER_PROOFS |= {("specs/jpx_raw_frame.rs", "part2_render_raw_cold_metadat
 _RAW_COMPOSITION_RENDER_PROOFS |= {("specs/jpx_raw_frame.rs", "part2_render_raw_cold_metadata_error")}
 
 _COLD_RESULT_MODELS = {
+    "part1_packed_header_reassembly": ("part2_packed_reassembly_result", "specs/cold_packed_headers.rs", "part2_packed_reassembly_normal"),
+    "part1_progression_payloads": ("part2_payloads_result", "specs/cold_packed_headers.rs", "part2_payloads_normal"),
+    "part1_progression_tile_input": ("part2_packet_input_result", "specs/cold_packed_headers.rs", "part2_packet_input_normal"),
+    "part1_progression_tile_decode": ("part2_packet_result", "specs/cold_packed_headers.rs", "part2_packet_normal"),
+    "part1_progression_tile_public_cold": ("part1_progression_tile_cold_result", "specs/cold_packed_headers.rs", "part2_packet_normal"),
+    "part2_decode_planned_tile_components": ("part2_planned_decode_result", "specs/cold_decode_packets.rs", "part2_planned_decode_normal"),
+    "part2_decode_tile_parts_at": ("part2_tile_decode_result", "specs/cold_decode_packets.rs", "part2_tile_decode_normal"),
+    "part2_decode_layout": ("part2_layout_decode_result", "specs/cold_decode_packets.rs", "part2_layout_decode_normal"),
+    "part2_decode_layout_selected": ("part2_layout_decode_result", "specs/cold_decode_packets.rs", "part2_layout_decode_normal"),
+    "part2_decode_typed_layout": ("part2_typed_decode_result", "specs/cold_decode_finish.rs", "part2_typed_decode_normal"),
     "part2_inspection_capacity": ("part2_inspection_capacity_result", "specs/cold_inspection_storage.rs", "part2_inspection_capacity_normal"),
     "part2_inspect_jpx_file": ("part2_inspect_file_cold_result", "specs/cold_inspection_storage.rs", "part2_inspect_file_cold_normal"),
     "part1_validate_progression_changes": ("part1_bitmap_result", "specs/cold_bitmap.rs", "part1_bitmap_normal"),
@@ -4930,6 +4940,20 @@ def _coverage_cold_relation(
 ) -> tuple[str, str]:
     model, outcome, state, inputs = legacy
     cold_model = _COLD_RESULT_MODELS[model][0]
+    if model in ("part1_progression_payloads", "part1_progression_tile_input", "part1_progression_tile_decode"):
+        inputs = inputs.replace("tile_parts@", _coverage_call("crate::codestream::tile_parts_owned_view", "tile_parts@"))
+    elif model == "part2_decode_tile_parts_at":
+        inputs = inputs.replace("parts@", _coverage_call("codestream::tile_parts_owned_view", "parts@"))
+    elif model == "part2_decode_planned_tile_components":
+        inputs = inputs.replace("tile_parts@", _coverage_call("codestream::tile_parts_owned_view", "tile_parts@"))
+        inputs = inputs.replace(r"\s*,\s*first\s*,", r"\s*,\s*" + _coverage_call("codestream::tile_part_owned_view", "first") + r"\s*,")
+    elif model in ("part2_decode_layout", "part2_decode_layout_selected"):
+        selected = "None" if model == "part2_decode_layout" else _coverage_call("Some", _coverage_call("crate::options::decode_selection_view", "requested"))
+        inputs = _coverage_call("codestream::decoder_layout_input_view", "layout") + r"\s*,\s*" + selected + r"\s*,\s*limits"
+    elif model == "part2_decode_typed_layout":
+        inputs = r"input_bytes\s*,\s*" + _coverage_call("codestream::decoder_layout_input_view", "layout") \
+            + r"\s*,\s*match\s+requested\s*\{\s*None\s*=>\s*None\s*,\s*Some\(\s*value\s*\)\s*=>\s*" \
+            + _coverage_call("Some", _coverage_call("crate::options::decode_selection_view", "value")) + r"\s*,?\s*\}\s*,\s*limits"
     profile_kind = {"part1_marker_words": "Words", "part1_parse_cap": "Cap", "part1_parse_profile_number": "Number"}.get(model)
     if profile_kind is not None:
         inputs = _coverage_call("ProfileFreshInput::" + profile_kind, inputs)
@@ -4995,6 +5019,8 @@ _COLD_RESULT_CONTRACTS = {
         _JPX_INSPECTION_CONTRACTS,
         _PROGRESSION_ADMISSION_CONTRACTS,
         _PROGRESSION_BYTES_CONTRACTS, _RAW_TILE_HEADER_CONTRACTS,
+        _PACKET_PROGRESSION_CONTRACTS, _LAYOUT_DECODING_CONTRACTS,
+        _RAW_TILE_DECODING_CONTRACTS, _PACKET_RECONSTRUCTION_CONTRACTS, _TYPED_LAYOUT_CONTRACTS,
     )
     for key, legacy in contracts.items()
     if legacy[0] in _COLD_RESULT_MODELS
@@ -5003,6 +5029,10 @@ _COLD_RESULT_CONTRACTS = {
         "part2_jpip_validate_precinct_cold_result", r"bytes@\s*,\s*layers\s*,\s*limits\s*,\s*\1",
     ),
 }
+_packed_public_key = ("src/packet/tile.rs", "decode_progression_tile_packets")
+_packed_public_arguments = _COLD_RESULT_CONTRACTS[_packed_public_key][1].replace(
+    _coverage_call("crate::codestream::tile_parts_owned_view", "tile_parts@"), "tile_parts@")
+_COLD_RESULT_CONTRACTS[_packed_public_key] = ("part1_progression_tile_cold_result", _packed_public_arguments)
 
 _COLD_TILE_INPUT_FIELDS = (
     ("reader", _coverage_call("parser_view", _coverage_call("old", "self"))),
@@ -5056,6 +5086,7 @@ for _header_symbol, _header_model, _raw_pattern, _header_outcome in (
     )
 
 _COLD_INNER_RUNS = {
+    "part1_progression_tile_cold_result": "part2_packet_run",
     "part2_inspection_capacity_result": "part2_inspection_capacity",
     "part1_profile_storage_result": "part1_profile_run",
     "part1_p2_marker_storage_result": "part1_p2_marker_run",
@@ -5084,6 +5115,12 @@ def _coverage_cold_links(keys: set[tuple[str, str]]) -> tuple[set[tuple[str, str
         }.get(model, model.removesuffix("_result") + "_run")
         models.update(((path, model), (path, run)))
         proofs.add((path, normal))
+        if model == "part2_packed_reassembly_result":
+            models |= _PACKED_STORAGE_MODELS
+            proofs |= _PACKED_STORAGE_PROOFS
+        if model in ("part1_progression_tile_cold_result", "part2_packet_result"):
+            models.update((path, name) for name in ("part2_packet_prefix", "part2_packet_result", "part2_packet_run"))
+            proofs.add((path, "part2_packet_public_result_equivalent"))
         if model == "part1_bitmap_result":
             proofs.add(("src/codestream/mct_copy.rs", "filled_values"))
         if model == "part1_p2_marker_storage_result":
@@ -5114,7 +5151,11 @@ def _coverage_cold_result_body(text: str, model: str) -> bool:
         **_COLD_INNER_RUNS,
     }.get(model, model.removesuffix("_result") + "_run")
     call = run + "(" + ",".join(names[:-1] + ["events"]) + ")"
-    if model == "part1_tile_progression_payload_storage_result":
+    if model == "part1_progression_tile_cold_result":
+        expected = "part2_packet_result(crate::codestream::tile_parts_owned_view(parts), grid, precincts, selection, limits, result)"
+    elif model == "part2_packet_result":
+        expected = "exists|prefix: Seq<Part2JpipSnapshotEvent>| #[trigger] part2_packet_prefix(parts, grid, precincts, selection, limits, prefix, result)"
+    elif model == "part1_tile_progression_payload_storage_result":
         expected = """
             if segment.marker == 0xff5f && !raw.poc_seen && tile_part_index == 0 {
                 exists|reserved: bool| result == part1_tile_progression_payload_storage(
@@ -5187,9 +5228,9 @@ _COLD_LOCAL_FAMILIES = {
 
 _COLD_SOURCE_BODIES = {
     _RAW_TYPED_ENTRY: ("specs/raw_decode.rs", "part2_decode_raw_cold_run", """
-        part2_jpip_snapshot_bind(part2_cold_parse(input, limits, 2, 0, events),
-            |layout: Part1CompleteLayout, rest| Some((part2_decode_typed_layout_input(
-                input.len() as usize, part2_decoder_input_from_raw(layout), limits, requested), rest)))
+        part2_decode_raw_value_cold_run(input, limits, match requested {
+            None => None, Some(value) => Some(crate::options::decode_selection_view(value)),
+        }, events)
     """, "whole raw typed Result requires complete raw/physical projection, not a layout/image bank: part2_decode_raw_codestream"),
     _RAW_LAYOUT_ENTRY: ("specs/raw_layout.rs", "part1_parse_layout_with_cold_storage", """
         match part1_codestream_reader_new(input, limits) {
@@ -5218,6 +5259,107 @@ _COLD_SOURCE_BODIES = {
             }
         }
     """, "whole effective layer Result requires actual ordered decoder/registration/opacity models"),
+}
+
+_PACKED_STORAGE_GUARDS = {
+    ("specs/cold_packed_headers.rs", "part2_packed_requests"): (
+        "source.length as u64 > maximum || source.length == 0",
+        "Part1PackedHeaderSource::None => Seq::empty()",
+        "logical_start as int + source.length as int > usize::MAX",
+        "else { seq![source] }",
+    ),
+    ("specs/cold_packed_headers.rs", "part2_packed_requests_run"): (
+        "requests.len() == 0 { Some((Ok(()), events)) }",
+        "Part2JpipSnapshotEvent::PackedHeaderCapacity { source, succeeded }",
+        "source != requests[0]", "else if !succeeded",
+        "Some((Err(crate::DecodeError::AllocationFailed), events.drop_first()))",
+        "part2_packed_requests_run(requests.drop_first(), events.drop_first())", "_ => None",
+    ),
+    ("specs/cold_packed_headers.rs", "part2_packed_reassembly_run"): (
+        "part2_jpip_snapshot_bind(part2_packed_requests_run(part2_packed_requests(source, maximum), events)",
+        "|_: (), rest| Some((part1_packed_header_reassembly(source, maximum), rest))",
+    ),
+    ("specs/cold_packed_headers.rs", "part2_payloads_run"): (
+        "s.index >= parts.len() { Some((Ok(s), events)) }",
+        "match part2_payload_before(parts, s)", "Err(error) => Some((Err(error), events))",
+        "part2_packed_reassembly_run(parts[s.index as int].packed_packet_headers, maximum, events)",
+        "match part2_payload_after(parts, s, maximum, packed)",
+        "Ok(after) => part2_payloads_run(parts, after, maximum, rest)",
+    ),
+    ("specs/cold_packed_headers.rs", "part2_packet_run"): (
+        "part2_packet_input_run(parts, grid, precincts, selection, limits, events)",
+        "Some((Err(error), rest)) => Some(((Err(error), precincts), rest))",
+        "Some((Ok(_), rest)) => Some((part1_progression_tile_decode_owned(parts, grid, precincts, selection, limits), rest))",
+    ),
+    ("specs/cold_packed_headers.rs", "part2_packet_prefix"): (
+        "forall|tail: Seq<Part2JpipSnapshotEvent>| #[trigger]",
+        "part2_packet_run(parts, grid, precincts, selection, limits, prefix + tail) == Some((result, tail))",
+    ),
+    ("specs/cold_decode_packets.rs", "part2_planned_decode_run"): (
+        "part2_packet_value_run(parts, plan.grid, plan.precincts, selection, limits, events)",
+        "part2_decode_planned_tile_components_owned(plan, parts, first, size, standard, selection, limits, prepared, work)",
+    ),
+    ("specs/cold_decode_packets.rs", "part2_tile_decode_run"): (
+        "part2_tile_decode_metadata_owned(parts, crate::codestream::image_size_component_count(size), discard)",
+        "part2_progression_tile_plan_owned(", "part2_planned_tile_accounting(plan, maximum, initial, limits)",
+        "part2_planned_decode_run(plan, parts, metadata.first, size, metadata.standard, maximum",
+        "prepared: decoded.prepared, counters, mct_work: decoded.mct_work",
+    ),
+    ("specs/cold_decode_packets.rs", "part2_full_decode_run"): (
+        "part2_collect_tile_parts(parts, tile as u16)",
+        "part2_tile_decode_run(size, tile as u16, selected, caps, None, limits, before.prepared, before.counters, before.mct_work, events)",
+        "part2_full_decode_run(size, parts, caps, limits, count, (tile + 1) as u64, after, rest)",
+    ),
+    ("specs/cold_decode_packets.rs", "part2_selected_decode_run"): (
+        "part2_collect_tile_parts(parts, tiles[index as int])",
+        "part2_tile_decode_run(size, tiles[index as int], selected, caps, Some(discard), limits, before.prepared, before.counters, before.mct_work, events)",
+        "part2_selected_decode_run(size, parts, caps, tiles, region, discard, limits, index + 1, after, rest)",
+    ),
+    ("specs/cold_decode_finish.rs", "part2_typed_decode_run"): (
+        "part2_layout_decode_run(input, requested, limits, events)",
+        "part2_typed_decode_finish(bytes, input, requested, limits, decoded)",
+    ),
+    ("specs/raw_decode.rs", "part2_decode_raw_value_cold_run"): (
+        "part2_cold_parse(input, limits, 2, 0, events)",
+        "part2_typed_decode_run(input.len() as usize, part2_decoder_input_from_raw(layout), requested, limits, rest)",
+    ),
+    ("specs/raw_decode.rs", "part2_decode_reconstructed_cold_run"): (
+        "part2_cold_parse(input, limits, 8, 0, events)",
+        "part2_reconstructed_decode_run(input.len() as usize, part2_decoder_input_from_raw(layout), limits, rest)",
+    ),
+    ("specs/jpx_source.rs", "part2_jpx_selected_layout_run"): (
+        "part2_validate_selected_header(", "Err(error)=>Some((Err(error),events))",
+        "part2_layout_decode_run(part2_decoder_input_from_raw(layout),Some(requested),limits,events)",
+        "part2_jpx_selected_finish(part2_decoder_input_from_raw(layout),header,requested,limits,decoded)",
+    ),
+}
+_PACKED_STORAGE_MODELS = {("specs/cold_packed_headers.rs", name) for name in (
+    "part2_packed_requests", "part2_packed_requests_run", "part2_packed_requests_result", "part2_packed_normal_calls",
+)}
+_PACKED_STORAGE_PROOFS = {("specs/cold_packed_headers.rs", name) for name in (
+    "part2_packed_capacity_observed", "part2_packed_requests_normal", "part2_packed_requests_frame",
+    "part2_packed_reassembly_refused", "part2_packed_requests_projection", "part2_packed_reassembly_projection",
+)}
+_PACKED_STORAGE_TESTS = {
+    ("src/codestream/packet_headers.rs", "packed_storage_refusal_retains_sources_and_prior_bytes_then_restores"),
+    ("src/codestream/packet_headers.rs", "packed_storage_zero_admission_and_framing_keep_original_request_order"),
+    ("src/packet/tests.rs", "packed_storage_first_and_later_preparation_refusal_preserve_entire_precinct_state"),
+    ("src/packet/tests.rs", "packed_storage_earlier_tile_error_and_selected_preparation_keep_refusal_frontier"),
+    ("src/decode/tests.rs", "packed_storage_raw_container_selected_and_reconstruction_refuse_only_after_parse"),
+}
+_PACKED_STORAGE_NATIVE_ORDER = {
+    ("src/codestream/packet_headers.rs", "PackedPacketHeaders::reassemble"): (
+        "if self.length as u64 > limits.maximum_packet_header_bytes()",
+        "let PackedPacketHeaderSource::MarkerSegments", "logical_start.checked_add(self.length)",
+        "let reserved = if self.length == 0", "crate::allocation::empty_with_capacity(self.length)",
+        "part2_packed_capacity_observed(", "let mut output = reserved?", "while position < header.len()",
+    ),
+    ("src/packet/tile.rs", "prepare_progression_payloads"): (
+        "if part.tile_index != input.tile_index", "input.payload_bytes =",
+        "let packed_result = part.packed_packet_headers.reassemble(limits)",
+        "part2_payloads_error(", "let packed = packed_result?", "input.packed_payload_bytes =",
+        "input.packed.push(packed)", "part2_payloads_advance(",
+    ),
 }
 
 _INSPECTION_STORAGE_GUARDS = {
@@ -8310,7 +8452,9 @@ def validate_normative_coverage(
                 "association.box_header().offset()", "let parsed = codestream::parse_layout(selected.data(), options.limits())",
                 "let layout = parsed?",
                 "jp2::validate_selected_header(header, &layout.info, selected.box_header().offset())?",
-                "typed_layout(&layout, decode_layout_selected(&layout, selection, options.limits())?, selection.discard_levels(), options.limits(),)?",
+                "let decoded_result = decode_layout_selected(&layout, selection, options.limits())",
+                "part2_jpx_selected_decode_error(",
+                "typed_layout(&layout, decoded_result?, selection.discard_levels(), options.limits(),)?",
                 "apply_jp2_output(decoded, header, options.limits())?", "Ok((image, associated_header))",
                 "codestream::decoder_layout_main_info_matches_raw(&layout)",
                 "jp2::associated_header_reference_selectors(selected, jp2::jpx_file_header_reference(file))",
@@ -10089,6 +10233,25 @@ def validate_normative_coverage(
             }
             if not model_refs.issubset({(ref["path"], ref["symbol"]) for ref in entry["spec_refs"]}):
                 raise ValueError("whole raw typed Result model must bind the actual complete source/decoder/nonlinear chain")
+            raw_source = source_text((ROOT / "specs/raw_decode.rs").resolve())
+            expected_raw = {
+                "part2_decode_raw_value_cold_run": """
+                    part2_jpip_snapshot_bind(part2_cold_parse(input, limits, 2, 0, events),
+                        |layout: Part1CompleteLayout, rest| part2_typed_decode_run(
+                            input.len() as usize, part2_decoder_input_from_raw(layout), requested, limits, rest))
+                """,
+                "part2_decode_raw_codestream": """
+                    match part1_parse_layout(input, limits) {
+                        Err(error) => Err(error),
+                        Ok(layout) => part2_decode_typed_layout_input(
+                            input.len() as usize, part2_decoder_input_from_raw(layout), limits, requested),
+                    }
+                """,
+            }
+            for symbol, expected in expected_raw.items():
+                actual_body = _coverage_spec_function_body(raw_source, symbol)
+                if actual_body is None or "".join(actual_body.split()) != "".join(expected.split()):
+                    raise ValueError("whole raw typed Result requires complete raw/physical projection, not a layout/image bank: part2_decode_raw_codestream")
             path = (ROOT / "src/decode/api.rs").resolve()
             text = source_text(path)
             for name, requested in (("decode_codestream", "None"),
@@ -10115,8 +10278,12 @@ def validate_normative_coverage(
                     r"#\[\s*cfg\s*\(\s*verus_keep_ghost\s*\)\s*\]\s*proof!\s*\{\s*"
                     + _coverage_call("codestream::decoder_layout_input_matches_raw", r"&\s*layout") + r"\s*;\s*\}\s*"
                 )
-                decoded = _coverage_call("decode_typed_layout", _coverage_call("input.len"), r"&\s*layout",
-                                         _coverage_call("options.limits"), requested) + r"\s*"
+                decoded = r"let\s+result\s*=\s*" + _coverage_call("decode_typed_layout", _coverage_call("input.len"), r"&\s*layout",
+                    _coverage_call("options.limits"), requested) + r"\s*;\s*" \
+                    r"#\[\s*cfg\s*\(\s*verus_keep_ghost\s*\)\s*\]\s*proof!\s*\{\s*" \
+                    + _coverage_call("crate::specs::part2_decode_raw_typed_actual", "input@",
+                        _coverage_call("crate::options::decode_options_limits", "options"), requested,
+                        _coverage_call("crate::image::decoded_typed_image_outcome", "result")) + r"\s*;\s*\}\s*result\s*"
                 if body is None or re.fullmatch(prefix + parsed + bridge + decoded, body) is None:
                     raise ValueError("whole raw typed Result not used by claimed implementation: actual raw parser/projection/decoder handoff")
             options_path = (ROOT / "src/options.rs").resolve()
@@ -12142,6 +12309,25 @@ def validate_normative_coverage(
                 raise ValueError(f"linked function is not used by claimed implementation: {short}")
             if claimed_consumer:
                 contract_functions.add((reference["path"], reference["symbol"]))
+    if "part1-complete-native-packed-header-length-inputs" in ids:
+        packed_entry = next(item for item in coverage["requirements"] if item["id"] == "part1-complete-native-packed-header-length-inputs")
+        if ("src/codestream/packet_headers.rs", "PackedPacketHeaders::reassemble") in {
+                (ref["path"], ref["symbol"]) for ref in packed_entry["contract_refs"]}:
+            for field, required in (("spec_refs", _PACKED_STORAGE_MODELS), ("proof_refs", _PACKED_STORAGE_PROOFS), ("test_refs", _PACKED_STORAGE_TESTS)):
+                if not required.issubset({(ref["path"], ref["symbol"]) for ref in packed_entry[field]}):
+                    raise ValueError("packed-header fresh storage requires actual primitive, normal/frame and bounded refusal/state/public links")
+        for (relative, symbol), fragments in _PACKED_STORAGE_GUARDS.items():
+            body = _coverage_spec_function_body(source_text((ROOT / relative).resolve()), symbol)
+            compact = "".join(body.split()) if body is not None else ""
+            if any("".join(fragment.split()) not in compact for fragment in fragments):
+                raise ValueError("packed-header fresh storage requires actual distinct requests, byte-derived decode plans, first-error/state/tail composition")
+        for (relative, symbol), fragments in _PACKED_STORAGE_NATIVE_ORDER.items():
+            path = (ROOT / relative).resolve()
+            body = _coverage_function_body(source_text(path), function_header(path, symbol))
+            compact = "".join(body.split()) if body is not None else ""
+            positions = [compact.find("".join(fragment.split())) for fragment in fragments]
+            if any(position < 0 for position in positions) or positions != sorted(positions):
+                raise ValueError("packed-header fresh storage requires unchanged real constructor/admission/copy/owner/error order")
     return {
         "status": "passed",
         "inventory_items": len(ids),

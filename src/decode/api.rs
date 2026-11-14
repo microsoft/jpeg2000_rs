@@ -65,7 +65,14 @@ pub fn decode_codestream_reconstructed(
         codestream::decoder_layout_input_matches_raw(&layout);
         codestream::decoder_layout_input_fields(&layout);
     }
-    let image = decode_layout(&layout, options.limits())?;
+    let image_result = decode_layout(&layout, options.limits());
+    #[cfg(verus_keep_ghost)]
+    proof! {
+        if let Err(error)=image_result {
+            crate::specs::part2_decode_raw_reconstruction_error(input@,crate::options::decode_options_limits(options),error);
+        }
+    }
+    let image = image_result?;
     validate_reconstruction_transforms(&layout)?;
     validate_reconstructed_output_shape(input.len(), &layout, &image)?;
     Ok(image)
@@ -209,7 +216,10 @@ pub fn decode_codestream(input: &[u8], options: &DecodeOptions) -> Result<TypedI
     };
     #[cfg(verus_keep_ghost)]
     proof! { codestream::decoder_layout_input_matches_raw(&layout); }
-    decode_typed_layout(input.len(), &layout, options.limits(), None)
+    let result = decode_typed_layout(input.len(), &layout, options.limits(), None);
+    #[cfg(verus_keep_ghost)]
+    proof! {crate::specs::part2_decode_raw_typed_actual(input@,crate::options::decode_options_limits(options),None,crate::image::decoded_typed_image_outcome(result));}
+    result
 }
 
 #[cfg_attr(verus_keep_ghost, verus_spec(result =>
@@ -248,11 +258,18 @@ pub fn decode_codestream_selected(
     };
     #[cfg(verus_keep_ghost)]
     proof! { codestream::decoder_layout_input_matches_raw(&layout); }
-    decode_typed_layout(input.len(), &layout, options.limits(), Some(selection))
+    let result = decode_typed_layout(input.len(), &layout, options.limits(), Some(selection));
+    #[cfg(verus_keep_ghost)]
+    proof! {crate::specs::part2_decode_raw_typed_actual(input@,crate::options::decode_options_limits(options),Some(selection),crate::image::decoded_typed_image_outcome(result));}
+    result
 }
 
 #[cfg_attr(verus_keep_ghost, verus_spec(result =>
-    ensures crate::image::decoded_typed_image_outcome(result) == crate::specs::part2_decode_typed_layout(
+    ensures crate::specs::part2_typed_decode_result(input_bytes,codestream::decoder_layout_input_view(layout),
+            match requested {None=>None,Some(value)=>Some(crate::options::decode_selection_view(value))},limits,
+            crate::image::decoded_typed_image_outcome(result)),
+        crate::image::decoded_typed_image_outcome(result)!=Err(DecodeError::AllocationFailed) ==>
+        crate::image::decoded_typed_image_outcome(result) == crate::specs::part2_decode_typed_layout(
         input_bytes, layout, limits, requested,
     ),
 ))]
@@ -267,11 +284,21 @@ pub(super) fn decode_typed_layout(
         reveal(crate::specs::part2_decode_typed_layout);
         reveal(crate::specs::part2_typed_layout);
         codestream::decoder_layout_input_fields(layout);
+        crate::specs::part2_typed_decode_normal(input_bytes,codestream::decoder_layout_input_view(layout),
+            match requested {None=>None,Some(value)=>Some(crate::options::decode_selection_view(value))},limits);
     }
-    let decoded = match requested {
-        None => decode_layout(layout, limits)?,
-        Some(requested) => decode_layout_selected(layout, requested, limits)?,
+    let decoded_result = match requested {
+        None => decode_layout(layout, limits),
+        Some(requested) => decode_layout_selected(layout, requested, limits),
     };
+    #[cfg(verus_keep_ghost)]
+    proof! {
+        if let Err(error)=decoded_result {
+            crate::specs::part2_typed_decode_error(input_bytes,codestream::decoder_layout_input_view(layout),
+                match requested {None=>None,Some(value)=>Some(crate::options::decode_selection_view(value))},limits,error);
+        }
+    }
+    let decoded = decoded_result?;
     let discard_levels = match requested {
         None => 0,
         Some(selection) => selection.discard_levels(),

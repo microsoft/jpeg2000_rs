@@ -1055,6 +1055,24 @@ info-owner prefixes and JPX/render continuation conversions are registered.
 New mutations reject wrong roles/counts, zero-event changes, a Parse alias,
 premature response consumption and lost layer/source ordering. Existing
 vectors/source-index/timeline growth is unchanged and remains excluded.
+Fresh packed-header reassembly now reserves its exact known byte count at the
+original constructor frontier. Limit/no-source/logical-overflow admission stays
+before it; header framing and exact range copying stay after it. Zero bytes
+consume no response. A distinct `PackedHeaderCapacity` event carries the actual
+source bytes, marker, logical range, length and fragment metadata; it is not a
+parse, inspection or JPIP capacity response. Ordered per-part preparation and
+source-derived metadata/planning/accounting/full-selected decode folds carry
+the exact first error, tail, prior prepared owners and counters. Preparation
+failure preserves the entire initial mutable precinct state; ordinary packet
+errors retain their original partial decoder state. Raw typed/reconstructed,
+JPX-selected and dependent public/cache/transcode continuations bind this
+later decode-stage response after their actual parse phases. Checked normal
+projections, primitive-response/frame links and bounded refusal/restore/empty/
+malformed/earlier-admission/raw-container controls are registered.
+The packet preparation's outer collection and seen bitmap, entropy/image
+storage and existing-buffer growth are not covered by this byte-buffer
+increment. Successful reservation relies on the documented standard-library
+boundary, not a physical-capacity theorem inferred from sequence models.
 Same-file links are checked inside another listed, formatted function body;
 the contract's own declaration, an unrelated function or an indirect caller
 does not qualify as a direct same-file call. Unsupported formatting can fail
