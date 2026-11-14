@@ -574,7 +574,9 @@ pub(super) fn set_progression_context_layer(
 }
 
 #[cfg_attr(verus_keep_ghost,verus_spec(result =>
-    ensures (result,packet_precinct_view(final(precinct)))==crate::specs::part1_tile_precinct_packet(
+    ensures crate::specs::part2_plane_tile_precinct_result(progression_tile_parameters_view(params),crate::codestream::tile_part_owned_view(part),progression_tile_progress_view(p),coordinate,expected,
+        packet_precinct_view(old(precinct)),(result,packet_precinct_view(final(precinct)))),
+        result!=Err(DecodeError::AllocationFailed) ==> (result,packet_precinct_view(final(precinct)))==crate::specs::part1_tile_precinct_packet(
         progression_tile_parameters_view(params),*part,progression_tile_progress_view(p),coordinate,expected,
         packet_precinct_view(old(precinct))),
 ))]
@@ -586,6 +588,10 @@ fn decode_progression_precinct_packet(
     expected: Option<u32>,
     precinct: &mut PacketPrecinctDecoder,
 ) -> Result<(PacketBodyDecode, usize, usize), DecodeError> {
+    #[cfg(verus_keep_ghost)]
+    proof_decl! {let ghost initial=packet_precinct_view(precinct);}
+    #[cfg(verus_keep_ghost)]
+    proof! {crate::specs::part2_plane_tile_precinct_normal(progression_tile_parameters_view(params),crate::codestream::tile_part_owned_view(part),progression_tile_progress_view(p),coordinate,expected,initial);}
     set_progression_context_layer(&mut precinct.contexts, coordinate.layer)?;
     let packed = match params.input.packed.get(p.current_tile_part) {
         Some(packed) => packed,
@@ -608,7 +614,7 @@ fn decode_progression_precinct_packet(
         Ok(sequence) => sequence,
         Err(_) => return Err(packet_arithmetic_overflow()),
     };
-    decode_precinct_packet(
+    let decoded = decode_precinct_packet(
         part,
         p.offset,
         packed,
@@ -618,11 +624,17 @@ fn decode_progression_precinct_packet(
         precinct,
         decode,
         params.limits,
-    )
+    );
+    #[cfg(verus_keep_ghost)]
+    proof! {crate::specs::part2_plane_tile_precinct_observed(progression_tile_parameters_view(params),crate::codestream::tile_part_owned_view(part),progression_tile_progress_view(p),coordinate,expected,initial,decode,
+    (decoded,packet_precinct_view(precinct)));}
+    decoded
 }
 
 #[cfg_attr(verus_keep_ghost,verus_spec(result =>
-    ensures (result,progression_tile_execution_view(final(precincts),final(p)))==crate::specs::part1_tile_packet(
+    ensures crate::specs::part2_plane_tile_packet_result(progression_tile_parameters_view(params),progression_tile_execution_view(old(precincts),old(p)),coordinate,
+        (result,progression_tile_execution_view(final(precincts),final(p)))),
+        result!=Err(DecodeError::AllocationFailed) ==> (result,progression_tile_execution_view(final(precincts),final(p)))==crate::specs::part1_tile_packet(
         progression_tile_parameters_view(params),progression_tile_execution_view(old(precincts),old(p)),coordinate),
 ))]
 fn execute_progression_packet<'a, 'data>(
@@ -631,6 +643,10 @@ fn execute_progression_packet<'a, 'data>(
     p: &mut ProgressionTileProgress<'a>,
     coordinate: PacketCoordinate,
 ) -> Result<(), DecodeError> {
+    #[cfg(verus_keep_ghost)]
+    proof_decl! {let ghost initial=progression_tile_execution_view(precincts,p);}
+    #[cfg(verus_keep_ghost)]
+    proof! {crate::specs::part2_plane_tile_packet_normal(progression_tile_parameters_view(params),initial,coordinate);}
     let part = match params.tile_parts.get(p.current_tile_part) {
         Some(part) => part,
         None => {
@@ -695,6 +711,7 @@ fn execute_progression_packet<'a, 'data>(
         let ghost prior=packet_precinct_vector_view(precincts);
         let ghost packet_expected=crate::specs::part1_tile_precinct_packet(
             progression_tile_parameters_view(params),*part,progression_tile_progress_view(p),coordinate,expected,prior[index as int]);
+        let ghost before_packet=progression_tile_execution_view(precincts,p);
     }
     let result = {
         let precinct = &mut precincts[index];
@@ -703,8 +720,13 @@ fn execute_progression_packet<'a, 'data>(
     #[cfg(verus_keep_ghost)]
     proof! {
         assert forall|i:int|0<=i<precincts@.len() && i!=index as int implies precincts@[i]==prior_native[i] by {}
-        assert(packet_precinct_vector_view(precincts) =~= prior.update(index as int,packet_expected.1));
-        assert(result==packet_expected.0);
+        assert(packet_precinct_vector_view(precincts) =~= prior.update(index as int,packet_precinct_view(&precincts@[index as int])));
+        if result!=Err(DecodeError::AllocationFailed){
+            assert(packet_precinct_vector_view(precincts) =~= prior.update(index as int,packet_expected.1));
+            assert(result==packet_expected.0);
+        }
+        crate::specs::part2_plane_tile_packet_observed(progression_tile_parameters_view(params),initial,coordinate,before_packet,crate::codestream::tile_part_owned_view(part),index,seen_index,expected,
+            (result,packet_precinct_view(&precincts@[index as int])));
     }
     let (decoded, tile_bytes, packed_bytes) = result?;
     account_progression_packet(p, decoded, tile_bytes, packed_bytes, expected, seen_index)
@@ -1001,12 +1023,22 @@ pub(crate) fn decode_progression_tile_packets_selected(
             packet_selection_view(maximum_resolution_counts),limits,progression_tile_preparation_view(&input),error);
     }}
     let mut progress = progress_result?;
-    run_progression_tile_packets(&params, precincts, &mut progress)?;
+    #[cfg(verus_keep_ghost)]
+    proof_decl! {let ghost initial_progress=progression_tile_progress_view(&progress);}
+    let decoded = run_progression_tile_packets(&params, precincts, &mut progress);
+    #[cfg(verus_keep_ghost)]
+    proof! {
+        crate::specs::part2_packet_run_observed(crate::codestream::tile_parts_owned_view(tile_parts@),packet_grid_view(grid),initial,packet_selection_view(maximum_resolution_counts),limits,
+            progression_tile_preparation_view(&input),initial_progress,(decoded,progression_tile_execution_view(precincts,&progress)));
+    }
+    decoded?;
     finish_progression_tile_packets(&params, &mut progress)
 }
 
 #[cfg_attr(verus_keep_ghost,verus_spec(result =>
-    ensures (result,progression_tile_execution_view(final(precincts),final(p)))==crate::specs::part1_tile_run(
+    ensures crate::specs::part2_plane_tile_run_result(progression_tile_parameters_view(params),progression_tile_execution_view(old(precincts),old(p)),
+        (result,progression_tile_execution_view(final(precincts),final(p)))),
+        result!=Err(DecodeError::AllocationFailed) ==> (result,progression_tile_execution_view(final(precincts),final(p)))==crate::specs::part1_tile_run(
         progression_tile_parameters_view(params),progression_tile_execution_view(old(precincts),old(p))),
 ))]
 pub(super) fn run_progression_tile_packets<'a, 'data>(
@@ -1015,14 +1047,28 @@ pub(super) fn run_progression_tile_packets<'a, 'data>(
     p: &mut ProgressionTileProgress<'a>,
 ) -> Result<(), DecodeError> {
     #[cfg(verus_keep_ghost)]
+    proof_decl! {
+        let ghost initial=progression_tile_execution_view(precincts,p);
+        let ghost root=|calls:Seq<crate::specs::Part2Tier1StorageEvent>|crate::specs::part2_plane_tile_run(progression_tile_parameters_view(params),initial,calls);
+        let ghost mut prefix=Seq::<crate::specs::Part2Tier1StorageEvent>::empty();
+    }
+    #[cfg(verus_keep_ghost)]
+    proof! {crate::specs::part2_plane_tile_run_normal(progression_tile_parameters_view(params),initial);}
+    #[cfg(verus_keep_ghost)]
     proof! {reveal(crate::specs::part1_tile_run);}
     #[cfg_attr(verus_keep_ghost,verus_spec(
         invariant crate::specs::part1_tile_run(progression_tile_parameters_view(params),
             progression_tile_execution_view(old(precincts),old(p)))
             ==crate::specs::part1_tile_run(progression_tile_parameters_view(params),progression_tile_execution_view(precincts,p)),
+            initial==progression_tile_execution_view(old(precincts),old(p)),
+            forall|calls:Seq<crate::specs::Part2Tier1StorageEvent>| #[trigger] root(calls)==crate::specs::part2_plane_tile_run(progression_tile_parameters_view(params),initial,calls),
+            crate::specs::part2_tier1_phase(root,prefix,|calls|crate::specs::part2_plane_tile_run(progression_tile_parameters_view(params),progression_tile_execution_view(precincts,p),calls)),
+            crate::specs::part2_plane_tile_run_result(progression_tile_parameters_view(params),initial,crate::specs::part1_tile_run(progression_tile_parameters_view(params),initial)),
         decreases p.remaining_packets,
     ))]
     loop {
+        #[cfg(verus_keep_ghost)]
+        proof_decl! {let ghost prior=progression_tile_execution_view(precincts,p);}
         #[cfg(verus_keep_ghost)]
         proof! {reveal(crate::specs::part1_tile_run);}
         let coordinate = match p.iterator.next_packet()? {
@@ -1038,17 +1084,46 @@ pub(super) fn run_progression_tile_packets<'a, 'data>(
         p.remaining_packets -= 1;
         if p.current_tile_part == params.tile_parts.len() {
             omit_progression_packet(params, p, coordinate, precincts.len())?;
+            #[cfg(verus_keep_ghost)]
+            proof! {crate::specs::part2_plane_tile_run_continue(progression_tile_parameters_view(params),prior,progression_tile_execution_view(precincts,p));}
             continue;
         }
         let (changed, more) = advance_progression_tile_part(params, p)?;
         if changed {
             if more {
+                #[cfg(verus_keep_ghost)]
+                proof! {crate::specs::part2_plane_tile_run_continue(progression_tile_parameters_view(params),prior,progression_tile_execution_view(precincts,p));}
                 continue;
             } else {
                 omit_progression_packet(params, p, coordinate, precincts.len())?;
+                #[cfg(verus_keep_ghost)]
+                proof! {crate::specs::part2_plane_tile_run_continue(progression_tile_parameters_view(params),prior,progression_tile_execution_view(precincts,p));}
                 continue;
             }
         }
-        execute_progression_packet(params, precincts, p, coordinate)?;
+        #[cfg(verus_keep_ghost)]
+        proof_decl! {let ghost before_packet=progression_tile_execution_view(precincts,p);}
+        #[cfg(verus_keep_ghost)]
+        proof! {
+            crate::specs::part2_plane_tile_run_packet_step(progression_tile_parameters_view(params),prior,coordinate,before_packet);
+            assert forall|calls:Seq<crate::specs::Part2Tier1StorageEvent>| #[trigger] root(prefix+calls)
+                ==crate::specs::part2_tier1_storage_bind(crate::specs::part2_plane_tile_packet_run(progression_tile_parameters_view(params),before_packet,coordinate,calls),
+                    |packet:(Result<(),DecodeError>,crate::specs::Part1TilePacketExecution),rest|crate::specs::part2_plane_tile_after_packet(progression_tile_parameters_view(params),prior.progress.remaining_packets,packet,rest)) by {}
+        }
+        let decoded = execute_progression_packet(params, precincts, p, coordinate);
+        #[cfg(verus_keep_ghost)]
+        proof! {
+            let result=(decoded,progression_tile_execution_view(precincts,p));
+            let child=|calls|crate::specs::part2_plane_tile_packet_run(progression_tile_parameters_view(params),before_packet,coordinate,calls);
+            let next=|packet:(Result<(),DecodeError>,crate::specs::Part1TilePacketExecution),rest|crate::specs::part2_plane_tile_after_packet(progression_tile_parameters_view(params),prior.progress.remaining_packets,packet,rest);
+            crate::specs::part2_plane_tile_packet_frames(progression_tile_parameters_view(params),before_packet,coordinate,result);
+            assert forall|calls|root(prefix+calls)==crate::specs::part2_tier1_storage_bind(child(calls),next) by {}
+            prefix=crate::specs::part2_tier1_prefix_advance(root,child,next,prefix,result);
+            if decoded.is_err(){
+                crate::specs::part2_tier1_prefix_finish(root,prefix,Ok(result));
+                crate::specs::part2_plane_tile_run_join(progression_tile_parameters_view(params),initial,root,result);
+            }
+        }
+        decoded?;
     }
 }

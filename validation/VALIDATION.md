@@ -1186,8 +1186,47 @@ Old normal models and their checked projections remain. Bounded controls cover
 first/later subband/inclusion/zero refusal, zero and malformed admission,
 TagTree overflow/node limits, code-block/work priority, exact retained owners
 and raw/selected/container restoration. The separate public singleton execution
-wrapper, existing-capacity growth (including TagTree levels), tier1 nested
+wrapper, existing-capacity growth (including TagTree levels), later tier1
 entropy/sample storage, and later packet/image buffers remain separate.
+Initial Tier1 construction has one reached known-count owner: the coefficient
+plane's shallow Copy-filled vector, after original nonzero dimensions,
+checked product and 4096-sample admission. The initial bitplane/MQ/legacy/
+cleanup states are `None`, context/limb records are fixed arrays/scalars, and
+the initial refinement vector is allocation-free empty; no events are invented
+for them. The same unchanged shared leaf now makes its standalone, duplicate, HT cleanup
+output/copy and refinement output/discovery roles fallible too. The obsolete
+initial-only boolean is replaced by an allocation-free caller-role enum, not
+another storage request. Every role uses the one original Copy-fill frontier.
+No executing body moves and no public API or caller/domain premise is added.
+Distinct primitive coefficient responses retain actual width/height/count.
+The configured-caller envelope additionally binds real significant bits,
+orientation/style, policy, geometry/index and prior decoder/placement/counter
+owners. It consumes all child responses and is not another physical request.
+Significant-bit/shape errors remain before allocation; magnitude-bound policy
+remains after actual initial-plane construction, even when that later policy
+fails. Source-derived cell/column/row folds replace the old pure decoder tail
+through real execution/subband/precinct/resolution/component and public cold
+state programs, preserving first errors and unused tails. Checked original
+normal projections remain. Bounded controls cover first/later refusal,
+zero/malformed/maximum geometry, later policy rejection, row/column prior
+owners and raw/selected/container restore.
+The remaining-role programs derive actual cleanup metadata, initial copy,
+magnitude-reader state and discovery copy in original order. Copy length errors
+remain after construction; ordinary reader/entropy errors retain their original
+frontiers. Staged packet failures roll back actual decoders, while failures after
+the original refinement clear retain that cleared partial state. Precinct/header,
+segment offset/pass/byte, selected tile and public state folds carry these actual
+children, prior owners, first errors and unused response tails. `TilePlaneCalls`
+binds the actual tile-run inputs and initial state and consumes all nested raw
+coefficient responses. This is a caller response envelope, possibly containing
+an empty sequence, not an additional physical allocation or a zero-count request.
+All entrypoints still compute real outputs from their actual inputs; no successful
+plane, decoder, header, plan or image is supplied by the environment.
+Bounded controls exercise standalone and duplicate admission, cleanup output/copy,
+refinement output/discovery, retained replay rollback, cleared partial state, and
+real HT raw/selected/container cleanup refusal and restoration.
+Other fresh entropy/refinement buffers, cloning, contribution/image storage,
+existing-capacity growth and the public precinct singleton wrapper remain separate.
 Successful reservation relies on the documented standard-library boundary,
 not a physical-capacity theorem inferred from sequence models.
 Same-file links are checked inside another listed, formatted function body;

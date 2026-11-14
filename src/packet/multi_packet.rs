@@ -15,9 +15,10 @@ use super::{
 };
 #[cfg(verus_keep_ghost)]
 use super::{
-    code_block_contribution_option_view, code_block_packet_state_view, multi_admission_outcome,
-    multi_header_view, multi_packet_state_view, packet_body_contributions_view,
-    precinct_payload_reader_outcome, single_packet_state_view,
+    code_block_contribution_option_view, code_block_contribution_view,
+    code_block_packet_state_view, multi_admission_outcome, multi_header_view,
+    multi_packet_state_view, packet_body_contributions_view, precinct_payload_reader_outcome,
+    single_packet_state_view,
 };
 #[cfg(verus_keep_ghost)]
 use vstd::prelude::*;
@@ -404,7 +405,11 @@ fn multi_packet_body_start(
 }
 
 #[cfg_attr(verus_keep_ghost,verus_spec(result =>
-    ensures (result,final(decoders)@.map_values(|decoder:Tier1CodeBlockDecoder|crate::tier1::tier1_decoder_state(&decoder)))
+    ensures crate::specs::part2_plane_multi_body_result(old(decoders)@.map_values(|decoder:Tier1CodeBlockDecoder|crate::tier1::tier1_decoder_state(&decoder)),layout.blocks,data@,packet_body_contributions_view(contributions),
+        layout.present,layout.count,layout.header,layout.start,params.offset,crate::limits::resource_code_block_pass_limit(params.limits),crate::limits::resource_code_block_byte_limit(params.limits),
+        crate::limits::resource_input_byte_limit(params.limits),crate::limits::resource_work_limit(params.limits),
+        (result,final(decoders)@.map_values(|decoder:Tier1CodeBlockDecoder|crate::tier1::tier1_decoder_state(&decoder)))),
+        result!=Err(DecodeError::AllocationFailed) ==> (result,final(decoders)@.map_values(|decoder:Tier1CodeBlockDecoder|crate::tier1::tier1_decoder_state(&decoder)))
         ==crate::specs::part1_multi_body_data(
             old(decoders)@.map_values(|decoder:Tier1CodeBlockDecoder|crate::tier1::tier1_decoder_state(&decoder)),
             layout.blocks,data@,packet_body_contributions_view(contributions),layout.present,layout.count,layout.header,layout.start,params.offset,
@@ -418,6 +423,11 @@ fn decode_multi_packet_body(
     layout: MultiPacketLayout,
     decoders: &mut [Tier1CodeBlockDecoder],
 ) -> Result<PacketBodyDecode, DecodeError> {
+    #[cfg(verus_keep_ghost)]
+    proof_decl! {let ghost before=decoders@.map_values(|decoder:Tier1CodeBlockDecoder|crate::tier1::tier1_decoder_state(&decoder));}
+    #[cfg(verus_keep_ghost)]
+    proof! {crate::specs::part2_plane_multi_body_normal(before,layout.blocks,data@,packet_body_contributions_view(contributions),layout.present,layout.count,layout.header,layout.start,params.offset,
+    crate::limits::resource_code_block_pass_limit(params.limits),crate::limits::resource_code_block_byte_limit(params.limits),crate::limits::resource_input_byte_limit(params.limits),crate::limits::resource_work_limit(params.limits));}
     let offset = params.offset;
     let mut preflight = PacketBodyPreflight {
         index: 0,
@@ -430,7 +440,7 @@ fn decode_multi_packet_body(
         segments: 0,
         passes: 0,
     };
-    execute_packet_body_contributions(
+    let executed = execute_packet_body_contributions(
         decoders,
         contributions,
         data,
@@ -438,7 +448,12 @@ fn decode_multi_packet_body(
         (offset, offset),
         true,
         params.limits,
-    )?;
+    );
+    #[cfg(verus_keep_ghost)]
+    proof! {crate::specs::part2_plane_multi_body_observed(before,layout.blocks,data@,packet_body_contributions_view(contributions),layout.present,layout.count,layout.header,layout.start,params.offset,
+    crate::limits::resource_code_block_pass_limit(params.limits),crate::limits::resource_code_block_byte_limit(params.limits),crate::limits::resource_input_byte_limit(params.limits),crate::limits::resource_work_limit(params.limits),
+    preflight.end,(executed,super::packet_body_execution_view(decoders,&execution)));}
+    executed?;
     let bytes = match preflight.end.checked_sub(layout.start) {
         Some(bytes) => bytes,
         None => {
@@ -493,7 +508,11 @@ fn decode_multi_packet_body(
 }
 
 #[cfg_attr(verus_keep_ghost,verus_spec(result =>
-    ensures (result,multi_packet_state_view(final(states),final(inclusion),final(zero),contexts,final(decoders)))
+    ensures crate::specs::part2_plane_multi_payload_result(multi_packet_state_view(old(states),old(inclusion),old(zero),contexts,old(decoders)),data@,
+        crate::codestream::coding_style_packet_markers(&params.part.coding_style).0,crate::codestream::coding_style_packet_markers(&params.part.coding_style).1,params.offset,
+        crate::limits::resource_packet_header_byte_limit(params.limits),crate::limits::resource_code_block_pass_limit(params.limits),crate::limits::resource_code_block_byte_limit(params.limits),
+        crate::limits::resource_input_byte_limit(params.limits),crate::limits::resource_work_limit(params.limits),(result,multi_packet_state_view(final(states),final(inclusion),final(zero),contexts,final(decoders)))),
+        result!=Err(DecodeError::AllocationFailed) ==> (result,multi_packet_state_view(final(states),final(inclusion),final(zero),contexts,final(decoders)))
         ==crate::specs::part1_multi_payload(multi_packet_state_view(old(states),old(inclusion),old(zero),contexts,old(decoders)),
             data@,crate::codestream::coding_style_packet_markers(&params.part.coding_style).0,
             crate::codestream::coding_style_packet_markers(&params.part.coding_style).1,params.offset,
@@ -511,6 +530,12 @@ fn decode_multi_packet_payload(
     contexts: &[CodeBlockPacketContext],
     decoders: &mut [Tier1CodeBlockDecoder],
 ) -> Result<PacketBodyDecode, DecodeError> {
+    #[cfg(verus_keep_ghost)]
+    proof_decl! {let ghost initial=multi_packet_state_view(states,inclusion,zero,contexts,decoders);}
+    #[cfg(verus_keep_ghost)]
+    proof! {crate::specs::part2_plane_multi_payload_normal(initial,data@,crate::codestream::coding_style_packet_markers(&params.part.coding_style).0,
+    crate::codestream::coding_style_packet_markers(&params.part.coding_style).1,params.offset,crate::limits::resource_packet_header_byte_limit(params.limits),
+    crate::limits::resource_code_block_pass_limit(params.limits),crate::limits::resource_code_block_byte_limit(params.limits),crate::limits::resource_input_byte_limit(params.limits),crate::limits::resource_work_limit(params.limits));}
     #[cfg(verus_keep_ghost)]
     proof! {
         reveal(crate::specs::part1_multi_payload);reveal(crate::specs::part1_multi_body);
@@ -553,7 +578,12 @@ fn decode_multi_packet_payload(
         params.part.coding_style.eph_markers,
         params.offset,
     )?;
-    decode_multi_packet_body(
+    #[cfg(verus_keep_ghost)]
+    proof_decl! {
+        let ghost before_body=multi_packet_state_view(states,inclusion,zero,contexts,decoders);
+        let ghost h=crate::specs::Part2PlaneMultiHeader {contributions:contributions@.map_values(|v:Option<CodeBlockContribution>|code_block_contribution_option_view(v)),present,count:progress.count,header,start};
+    }
+    let decoded = decode_multi_packet_body(
         params,
         data,
         &contributions,
@@ -565,11 +595,19 @@ fn decode_multi_packet_payload(
             start,
         },
         decoders,
-    )
+    );
+    #[cfg(verus_keep_ghost)]
+    proof! {crate::specs::part2_plane_multi_payload_observed(initial,data@,crate::codestream::coding_style_packet_markers(&params.part.coding_style).0,
+    crate::codestream::coding_style_packet_markers(&params.part.coding_style).1,params.offset,crate::limits::resource_packet_header_byte_limit(params.limits),
+    crate::limits::resource_code_block_pass_limit(params.limits),crate::limits::resource_code_block_byte_limit(params.limits),crate::limits::resource_input_byte_limit(params.limits),crate::limits::resource_work_limit(params.limits),
+    before_body,h,(decoded,decoders@.map_values(|d:Tier1CodeBlockDecoder|crate::tier1::tier1_decoder_state(&d))));}
+    decoded
 }
 
 #[cfg_attr(verus_keep_ghost,verus_spec(result =>
-    ensures (result,multi_packet_state_view(final(execution.states),final(execution.inclusion_tree),final(execution.zero_bitplane_tree),
+    ensures crate::specs::part2_plane_multi_packet_result(multi_packet_state_view(old(execution.states),old(execution.inclusion_tree),old(execution.zero_bitplane_tree),execution.contexts,old(execution.decoders)),
+        tile_part,offset,limits,(result,multi_packet_state_view(final(execution.states),final(execution.inclusion_tree),final(execution.zero_bitplane_tree),execution.contexts,final(execution.decoders)))),
+        result!=Err(DecodeError::AllocationFailed) ==> (result,multi_packet_state_view(final(execution.states),final(execution.inclusion_tree),final(execution.zero_bitplane_tree),
         execution.contexts,final(execution.decoders)))==crate::specs::part1_multi_code_block_packet(
             multi_packet_state_view(old(execution.states),old(execution.inclusion_tree),old(execution.zero_bitplane_tree),
                 execution.contexts,old(execution.decoders)),tile_part,offset,limits),
@@ -580,6 +618,10 @@ pub fn decode_multi_code_block_packet(
     execution: PacketCodeBlockExecution<'_>,
     limits: &ResourceLimits,
 ) -> Result<PacketBodyDecode, DecodeError> {
+    #[cfg(verus_keep_ghost)]
+    proof_decl! {let ghost initial=multi_packet_state_view(execution.states,execution.inclusion_tree,execution.zero_bitplane_tree,execution.contexts,execution.decoders);}
+    #[cfg(verus_keep_ghost)]
+    proof! {crate::specs::part2_plane_multi_packet_normal(initial,tile_part,offset,limits);}
     let states = execution.states;
     let inclusion_tree = execution.inclusion_tree;
     let zero_bitplane_tree = execution.zero_bitplane_tree;
@@ -598,7 +640,7 @@ pub fn decode_multi_code_block_packet(
         contexts,
         decoders,
     )?;
-    decode_multi_packet_payload(
+    let decoded = decode_multi_packet_payload(
         &params,
         data,
         states,
@@ -606,11 +648,18 @@ pub fn decode_multi_code_block_packet(
         zero_bitplane_tree,
         contexts,
         decoders,
-    )
+    );
+    #[cfg(verus_keep_ghost)]
+    proof! {crate::specs::part2_plane_multi_packet_observed(initial,tile_part,offset,limits,data@,(decoded,multi_packet_state_view(states,inclusion_tree,zero_bitplane_tree,contexts,decoders)));}
+    decoded
 }
 
 #[cfg_attr(verus_keep_ghost,verus_spec(result =>
-    ensures (result,single_packet_state_view(final(state),final(inclusion_tree),final(zero_bitplane_tree),final(decoder)))
+    ensures crate::specs::part2_plane_single_result(single_packet_state_view(old(state),old(inclusion_tree),old(zero_bitplane_tree),old(decoder)),payload@,context,
+        crate::limits::resource_packet_header_byte_limit(limits),crate::limits::resource_code_block_pass_limit(limits),crate::limits::resource_code_block_byte_limit(limits),
+        crate::limits::resource_input_byte_limit(limits),crate::limits::resource_work_limit(limits),
+        (result,single_packet_state_view(final(state),final(inclusion_tree),final(zero_bitplane_tree),final(decoder)))),
+        result!=Err(DecodeError::AllocationFailed) ==> (result,single_packet_state_view(final(state),final(inclusion_tree),final(zero_bitplane_tree),final(decoder)))
         ==crate::specs::part1_single_code_block_packet(
             single_packet_state_view(old(state),old(inclusion_tree),old(zero_bitplane_tree),old(decoder)),
             payload@,context,crate::limits::resource_packet_header_byte_limit(limits),
@@ -626,6 +675,11 @@ pub fn decode_single_code_block_packet(
     decoder: &mut Tier1CodeBlockDecoder,
     limits: &ResourceLimits,
 ) -> Result<Option<CodeBlockBodyDecode>, DecodeError> {
+    #[cfg(verus_keep_ghost)]
+    proof_decl! {let ghost before=single_packet_state_view(state,inclusion_tree,zero_bitplane_tree,decoder);}
+    #[cfg(verus_keep_ghost)]
+    proof! {crate::specs::part2_plane_single_normal(before,payload@,context,crate::limits::resource_packet_header_byte_limit(limits),
+    crate::limits::resource_code_block_pass_limit(limits),crate::limits::resource_code_block_byte_limit(limits),crate::limits::resource_input_byte_limit(limits),crate::limits::resource_work_limit(limits));}
     let mut reader = packet_reader_new(payload, limits)?;
     if !reader.read_bit()? {
         reader.finish_packet_header()?;
@@ -658,10 +712,12 @@ pub fn decode_single_code_block_packet(
         Some(body) => body,
         None => return Err(packet_reader_error(body_offset, MalformedKind::Truncated)),
     };
-    Ok(Some(decode_code_block_contribution_body(
-        decoder,
-        &contribution,
-        body,
-        limits,
-    )?))
+    #[cfg(verus_keep_ghost)]
+    proof_decl! {let ghost header=single_packet_state_view(state,inclusion_tree,zero_bitplane_tree,decoder);}
+    let decoded = decode_code_block_contribution_body(decoder, &contribution, body, limits);
+    #[cfg(verus_keep_ghost)]
+    proof! {crate::specs::part2_plane_single_observed(before,payload@,context,crate::limits::resource_packet_header_byte_limit(limits),
+    crate::limits::resource_code_block_pass_limit(limits),crate::limits::resource_code_block_byte_limit(limits),crate::limits::resource_input_byte_limit(limits),crate::limits::resource_work_limit(limits),
+    header,code_block_contribution_view(&contribution),body_offset,(decoded,crate::tier1::tier1_decoder_state(decoder)));}
+    Ok(Some(decoded?))
 }

@@ -6811,6 +6811,25 @@
       ],
       "spec_refs": [
         {"path": "specs/mod.rs", "symbol": "part2_planned_codeblocks"},
+        {"path": "specs/cold_tier1_initial.rs", "symbol": "part2_tier1_phase"},
+        {"path": "specs/cold_tier1_initial.rs", "symbol": "part2_tier1_storage_resume"},
+        {"path": "specs/cold_codeblock_plan.rs", "symbol": "part2_tier1_cell_context"},
+        {"path": "specs/cold_codeblock_plan.rs", "symbol": "part2_codeblock_cell_run"},
+        {"path": "specs/cold_codeblock_plan.rs", "symbol": "part2_codeblock_cell_result"},
+        {"path": "specs/cold_codeblock_plan.rs", "symbol": "part2_codeblock_columns_run"},
+        {"path": "specs/cold_codeblock_plan.rs", "symbol": "part2_codeblock_rows_run"},
+        {"path": "specs/cold_tier1_initial.rs", "symbol": "part2_tier1_storage_prefix"},
+        {"path": "specs/cold_tier1_initial.rs", "symbol": "part2_tier1_storage_framed"},
+        {"path": "specs/cold_tier1_initial.rs", "symbol": "part2_tier1_storage_bind"},
+        {"path": "specs/cold_tier1_initial.rs", "symbol": "part2_tier1_plane_admit"},
+        {"path": "specs/cold_tier1_initial.rs", "symbol": "part2_tier1_plane_run"},
+        {"path": "specs/cold_tier1_initial.rs", "symbol": "part1_tier1_plane_storage_result"},
+        {"path": "specs/cold_tier1_initial.rs", "symbol": "part2_tier1_initial_run"},
+        {"path": "specs/cold_tier1_initial.rs", "symbol": "part1_tier1_initial_storage_result"},
+        {"path": "specs/cold_tier1_initial.rs", "symbol": "part2_tier1_configured_run"},
+        {"path": "specs/cold_tier1_initial.rs", "symbol": "part1_tier1_configured_storage_result"},
+        {"path": "specs/cold_tier1_initial.rs", "symbol": "part2_tier1_call_admit"},
+        {"path": "specs/cold_tier1_initial.rs", "symbol": "part2_tier1_call_run"},
         {"path": "specs/cold_precinct_storage.rs", "symbol": "part2_planning_capacity_count"},
         {"path": "specs/cold_precinct_storage.rs", "symbol": "part2_planning_capacity_run"},
         {"path": "specs/cold_precinct_storage.rs", "symbol": "part2_planning_capacity_result"},
@@ -6837,6 +6856,32 @@
       "proof_refs": [
         {"path": "src/decode/proof_support.rs", "symbol": "planned_codeblocks_view"},
         {"path": "src/decode/proof_support.rs", "symbol": "planned_codeblocks_outcome"},
+        {"path": "specs/cold_tier1_initial.rs", "symbol": "part2_tier1_plane_frames"},
+        {"path": "specs/cold_tier1_initial.rs", "symbol": "part2_tier1_prefix_advance"},
+        {"path": "specs/cold_tier1_initial.rs", "symbol": "part2_tier1_prefix_finish"},
+        {"path": "specs/cold_tier1_initial.rs", "symbol": "part2_tier1_resume_frame"},
+        {"path": "specs/cold_codeblock_plan.rs", "symbol": "part2_codeblock_cell_normal"},
+        {"path": "specs/cold_codeblock_plan.rs", "symbol": "part2_codeblock_cell_decoder_observed"},
+        {"path": "specs/cold_codeblock_plan.rs", "symbol": "part2_codeblock_cell_frames"},
+        {"path": "specs/cold_codeblock_plan.rs", "symbol": "part2_codeblock_columns_normal"},
+        {"path": "specs/cold_codeblock_plan.rs", "symbol": "part2_codeblock_rows_normal"},
+        {"path": "specs/cold_codeblock_plan.rs", "symbol": "part2_codeblock_owner_start"},
+        {"path": "specs/cold_codeblock_plan.rs", "symbol": "part2_codeblock_rows_step"},
+        {"path": "specs/cold_codeblock_plan.rs", "symbol": "part2_codeblock_columns_step"},
+        {"path": "specs/cold_codeblock_plan.rs", "symbol": "part2_codeblock_columns_end"},
+        {"path": "specs/cold_codeblock_plan.rs", "symbol": "part2_codeblock_owner_join"},
+        {"path": "specs/cold_tier1_initial.rs", "symbol": "part2_tier1_storage_at"},
+        {"path": "specs/cold_tier1_initial.rs", "symbol": "part2_tier1_storage_eta"},
+        {"path": "specs/cold_tier1_initial.rs", "symbol": "part2_tier1_storage_bind_frame"},
+        {"path": "specs/cold_tier1_initial.rs", "symbol": "part2_tier1_storage_pure"},
+        {"path": "specs/cold_tier1_initial.rs", "symbol": "part2_tier1_plane_normal"},
+        {"path": "specs/cold_tier1_initial.rs", "symbol": "part2_tier1_plane_observed"},
+        {"path": "specs/cold_tier1_initial.rs", "symbol": "part2_tier1_initial_normal"},
+        {"path": "specs/cold_tier1_initial.rs", "symbol": "part2_tier1_initial_plane_error"},
+        {"path": "specs/cold_tier1_initial.rs", "symbol": "part2_tier1_configured_normal"},
+        {"path": "specs/cold_tier1_initial.rs", "symbol": "part2_tier1_configured_initial_error"},
+        {"path": "specs/cold_tier1_initial.rs", "symbol": "part2_tier1_call_observed"},
+        {"path": "specs/cold_tier1_initial.rs", "symbol": "part2_tier1_call_normal"},
         {"path": "specs/cold_precinct_storage.rs", "symbol": "part2_planning_capacity_observed"},
         {"path": "specs/cold_precinct_storage.rs", "symbol": "part2_codeblock_owner_normal"},
         {"path": "specs/cold_precinct_storage.rs", "symbol": "part2_codeblock_owner_refused"},
@@ -6857,6 +6902,10 @@
       ],
       "test_refs": [
         {"path": "src/decode/tests.rs", "symbol": "actual_codeblock_vectors_bind_every_decoder_placement_prefix_policy_and_selected_limit"},
+        {"path": "src/tier1/tests.rs", "symbol": "tier1_initial_storage_admission_refusal_and_late_policy_order"},
+        {"path": "src/tier1/tests.rs", "symbol": "tier1_initial_storage_first_later_exact_coefficients_restore_and_separate_later_role"},
+        {"path": "src/decode/tests.rs", "symbol": "tier1_initial_storage_cell_columns_rows_retain_prior_owners_and_restore"},
+        {"path": "src/decode/tests.rs", "symbol": "tier1_initial_storage_public_raw_selected_container_roles_and_restore"},
         {"path": "src/decode/tests.rs", "symbol": "actual_codeblock_cell_retains_existing_owned_decoder_and_placement_buffers"},
         {"path": "src/decode/tests.rs", "symbol": "precinct_storage_execution_frontier_empty_and_later_range_error_restore"},
         {"path": "src/decode/tests.rs", "symbol": "precinct_storage_decoder_admission_zero_overflow_and_later_geometry_restore"},
@@ -7011,7 +7060,21 @@
       ],
       "spec_refs": [
         {"path": "specs/mod.rs", "symbol": "part2_planned_codeblock_geometry"},
-        {"path": "specs/mod.rs", "symbol": "part2_tier1_configured_decoder"}
+        {"path": "specs/mod.rs", "symbol": "part2_tier1_configured_decoder"},
+        {"path": "specs/cold_tier1_initial.rs", "symbol": "part2_tier1_phase"},
+        {"path": "specs/cold_tier1_initial.rs", "symbol": "part2_tier1_storage_resume"},
+        {"path": "specs/cold_tier1_initial.rs", "symbol": "part2_tier1_storage_prefix"},
+        {"path": "specs/cold_tier1_initial.rs", "symbol": "part2_tier1_storage_framed"},
+        {"path": "specs/cold_tier1_initial.rs", "symbol": "part2_tier1_storage_bind"},
+        {"path": "specs/cold_tier1_initial.rs", "symbol": "part2_tier1_plane_admit"},
+        {"path": "specs/cold_tier1_initial.rs", "symbol": "part2_tier1_plane_run"},
+        {"path": "specs/cold_tier1_initial.rs", "symbol": "part1_tier1_plane_storage_result"},
+        {"path": "specs/cold_tier1_initial.rs", "symbol": "part2_tier1_initial_run"},
+        {"path": "specs/cold_tier1_initial.rs", "symbol": "part1_tier1_initial_storage_result"},
+        {"path": "specs/cold_tier1_initial.rs", "symbol": "part2_tier1_configured_run"},
+        {"path": "specs/cold_tier1_initial.rs", "symbol": "part1_tier1_configured_storage_result"},
+        {"path": "specs/cold_tier1_initial.rs", "symbol": "part2_tier1_call_admit"},
+        {"path": "specs/cold_tier1_initial.rs", "symbol": "part2_tier1_call_run"}
       ],
       "contract_refs": [
         {"path": "src/decode/planning.rs", "symbol": "derive_planned_codeblock_geometry"},
@@ -7021,11 +7084,32 @@
         {"path": "src/tier1/proof_support.rs", "symbol": "tier1_initial_decoder_outcome"},
         {"path": "src/tier1/contributions.rs", "symbol": "tier1_decoder_from_dimensions"},
         {"path": "src/tier1/contributions.rs", "symbol": "Tier1CodeBlockDecoder::set_multiple_ht_sets_allowed"},
-        {"path": "src/tier1/contributions.rs", "symbol": "Tier1CodeBlockDecoder::set_ht_magnitude_bound"}
+        {"path": "src/tier1/contributions.rs", "symbol": "Tier1CodeBlockDecoder::set_ht_magnitude_bound"},
+        {"path": "specs/cold_tier1_initial.rs", "symbol": "part2_tier1_plane_frames"},
+        {"path": "specs/cold_tier1_initial.rs", "symbol": "part2_tier1_prefix_advance"},
+        {"path": "specs/cold_tier1_initial.rs", "symbol": "part2_tier1_prefix_finish"},
+        {"path": "specs/cold_tier1_initial.rs", "symbol": "part2_tier1_resume_frame"},
+        {"path": "specs/cold_tier1_initial.rs", "symbol": "part2_tier1_storage_at"},
+        {"path": "specs/cold_tier1_initial.rs", "symbol": "part2_tier1_storage_eta"},
+        {"path": "specs/cold_tier1_initial.rs", "symbol": "part2_tier1_storage_bind_frame"},
+        {"path": "specs/cold_tier1_initial.rs", "symbol": "part2_tier1_storage_pure"},
+        {"path": "specs/cold_tier1_initial.rs", "symbol": "part2_tier1_plane_normal"},
+        {"path": "specs/cold_tier1_initial.rs", "symbol": "part2_tier1_plane_observed"},
+        {"path": "specs/cold_tier1_initial.rs", "symbol": "part2_tier1_initial_normal"},
+        {"path": "specs/cold_tier1_initial.rs", "symbol": "part2_tier1_initial_plane_error"},
+        {"path": "specs/cold_tier1_initial.rs", "symbol": "part2_tier1_configured_normal"},
+        {"path": "specs/cold_tier1_initial.rs", "symbol": "part2_tier1_configured_initial_error"},
+        {"path": "specs/cold_tier1_initial.rs", "symbol": "part2_tier1_call_observed"},
+        {"path": "specs/cold_tier1_initial.rs", "symbol": "part2_tier1_call_normal"},
+        {"path": "src/allocation.rs", "symbol": "filled_values"}
       ],
       "test_refs": [
         {"path": "src/decode/tests.rs", "symbol": "actual_planned_block_geometry_preserves_raw_lattice_clipping_and_u16_frontiers"},
-        {"path": "src/tier1/tests.rs", "symbol": "configured_decoder_derives_initial_state_and_preserves_bound_admission_order"}
+        {"path": "src/tier1/tests.rs", "symbol": "configured_decoder_derives_initial_state_and_preserves_bound_admission_order"},
+        {"path": "src/tier1/tests.rs", "symbol": "tier1_initial_storage_admission_refusal_and_late_policy_order"},
+        {"path": "src/tier1/tests.rs", "symbol": "tier1_initial_storage_first_later_exact_coefficients_restore_and_separate_later_role"},
+        {"path": "src/decode/tests.rs", "symbol": "tier1_initial_storage_cell_columns_rows_retain_prior_owners_and_restore"},
+        {"path": "src/decode/tests.rs", "symbol": "tier1_initial_storage_public_raw_selected_container_roles_and_restore"}
       ]
     },
     {
@@ -7040,6 +7124,20 @@
       ],
       "spec_refs": [
         {"path": "specs/mod.rs", "symbol": "part2_tier1_initial_decoder"},
+        {"path": "specs/cold_tier1_initial.rs", "symbol": "part2_tier1_phase"},
+        {"path": "specs/cold_tier1_initial.rs", "symbol": "part2_tier1_storage_resume"},
+        {"path": "specs/cold_tier1_initial.rs", "symbol": "part2_tier1_storage_prefix"},
+        {"path": "specs/cold_tier1_initial.rs", "symbol": "part2_tier1_storage_framed"},
+        {"path": "specs/cold_tier1_initial.rs", "symbol": "part2_tier1_storage_bind"},
+        {"path": "specs/cold_tier1_initial.rs", "symbol": "part2_tier1_plane_admit"},
+        {"path": "specs/cold_tier1_initial.rs", "symbol": "part2_tier1_plane_run"},
+        {"path": "specs/cold_tier1_initial.rs", "symbol": "part1_tier1_plane_storage_result"},
+        {"path": "specs/cold_tier1_initial.rs", "symbol": "part2_tier1_initial_run"},
+        {"path": "specs/cold_tier1_initial.rs", "symbol": "part1_tier1_initial_storage_result"},
+        {"path": "specs/cold_tier1_initial.rs", "symbol": "part2_tier1_configured_run"},
+        {"path": "specs/cold_tier1_initial.rs", "symbol": "part1_tier1_configured_storage_result"},
+        {"path": "specs/cold_tier1_initial.rs", "symbol": "part2_tier1_call_admit"},
+        {"path": "specs/cold_tier1_initial.rs", "symbol": "part2_tier1_call_run"},
         {"path": "specs/mod.rs", "symbol": "part2_tier1_force_style"},
         {"path": "specs/mod.rs", "symbol": "part2_tier1_allow_sets"},
         {"path": "specs/mod.rs", "symbol": "part2_tier1_magnitude_bound"}
@@ -7054,11 +7152,32 @@
         {"path": "src/tier1/proof_support.rs", "symbol": "tier1_initial_decoder_outcome"},
         {"path": "src/tier1/proof_support.rs", "symbol": "tier1_decoder_state"},
         {"path": "src/tier1/proof_support.rs", "symbol": "tier1_max_ht_magnitude_bits"},
-        {"path": "src/tier1/state.rs", "symbol": "code_block_plane_from_dimensions"}
+        {"path": "src/tier1/state.rs", "symbol": "code_block_plane_from_dimensions"},
+        {"path": "specs/cold_tier1_initial.rs", "symbol": "part2_tier1_plane_frames"},
+        {"path": "specs/cold_tier1_initial.rs", "symbol": "part2_tier1_prefix_advance"},
+        {"path": "specs/cold_tier1_initial.rs", "symbol": "part2_tier1_prefix_finish"},
+        {"path": "specs/cold_tier1_initial.rs", "symbol": "part2_tier1_resume_frame"},
+        {"path": "specs/cold_tier1_initial.rs", "symbol": "part2_tier1_storage_at"},
+        {"path": "specs/cold_tier1_initial.rs", "symbol": "part2_tier1_storage_eta"},
+        {"path": "specs/cold_tier1_initial.rs", "symbol": "part2_tier1_storage_bind_frame"},
+        {"path": "specs/cold_tier1_initial.rs", "symbol": "part2_tier1_storage_pure"},
+        {"path": "specs/cold_tier1_initial.rs", "symbol": "part2_tier1_plane_normal"},
+        {"path": "specs/cold_tier1_initial.rs", "symbol": "part2_tier1_plane_observed"},
+        {"path": "specs/cold_tier1_initial.rs", "symbol": "part2_tier1_initial_normal"},
+        {"path": "specs/cold_tier1_initial.rs", "symbol": "part2_tier1_initial_plane_error"},
+        {"path": "specs/cold_tier1_initial.rs", "symbol": "part2_tier1_configured_normal"},
+        {"path": "specs/cold_tier1_initial.rs", "symbol": "part2_tier1_configured_initial_error"},
+        {"path": "specs/cold_tier1_initial.rs", "symbol": "part2_tier1_call_observed"},
+        {"path": "specs/cold_tier1_initial.rs", "symbol": "part2_tier1_call_normal"},
+        {"path": "src/allocation.rs", "symbol": "filled_values"}
       ],
       "test_refs": [
         {"path": "src/tier1/tests.rs", "symbol": "actual_decoder_initialization_derives_every_field_from_raw_dimensions_bits_and_style"},
-        {"path": "src/tier1/tests.rs", "symbol": "initialization_policy_setters_preserve_all_unrelated_raw_state_and_error_snapshots"}
+        {"path": "src/tier1/tests.rs", "symbol": "initialization_policy_setters_preserve_all_unrelated_raw_state_and_error_snapshots"},
+        {"path": "src/tier1/tests.rs", "symbol": "tier1_initial_storage_admission_refusal_and_late_policy_order"},
+        {"path": "src/tier1/tests.rs", "symbol": "tier1_initial_storage_first_later_exact_coefficients_restore_and_separate_later_role"},
+        {"path": "src/decode/tests.rs", "symbol": "tier1_initial_storage_cell_columns_rows_retain_prior_owners_and_restore"},
+        {"path": "src/decode/tests.rs", "symbol": "tier1_initial_storage_public_raw_selected_container_roles_and_restore"}
       ]
     },
     {
@@ -7878,7 +7997,17 @@
         {
           "path": "specs/packet_boundaries.rs",
           "symbol": "part1_multi_payload"
-        }
+        },
+        {"path": "specs/cold_packet_execute.rs", "symbol": "part2_plane_execute_run"},
+        {"path": "specs/cold_packet_execute.rs", "symbol": "part2_plane_execute_result"},
+        {"path": "specs/cold_packet_payload.rs", "symbol": "part2_plane_multi_body_run"},
+        {"path": "specs/cold_packet_payload.rs", "symbol": "part2_plane_multi_body_result"},
+        {"path": "specs/cold_packet_payload.rs", "symbol": "part2_plane_multi_payload_run"},
+        {"path": "specs/cold_packet_payload.rs", "symbol": "part2_plane_multi_payload_result"},
+        {"path": "specs/cold_packet_payload.rs", "symbol": "part2_plane_multi_packet_run"},
+        {"path": "specs/cold_packet_payload.rs", "symbol": "part2_plane_multi_packet_result"},
+        {"path": "specs/cold_single_packet.rs", "symbol": "part2_plane_single_run"},
+        {"path": "specs/cold_single_packet.rs", "symbol": "part2_plane_single_result"}
       ],
       "proof_refs": [
         {
@@ -7933,6 +8062,11 @@
         {
           "path": "proofs/spec_properties/mod.rs", "symbol": "multi_sop_omission_preserves_disabled_prefix_result"
         },
+        {"path": "specs/cold_packet_execute.rs", "symbol": "part2_plane_execute_normal"},
+        {"path": "specs/cold_packet_payload.rs", "symbol": "part2_plane_multi_body_normal"},
+        {"path": "specs/cold_packet_payload.rs", "symbol": "part2_plane_multi_payload_normal"},
+        {"path": "specs/cold_packet_payload.rs", "symbol": "part2_plane_multi_packet_normal"},
+        {"path": "specs/cold_single_packet.rs", "symbol": "part2_plane_single_normal"},
         {
           "path": "src/packet/bit_reader.rs", "symbol": "PacketBitReader::finish_packet_header"
         }
@@ -8665,7 +8799,16 @@
         {
           "path": "specs/packet_tile.rs",
           "symbol": "part1_progression_tile_decode"
-        }
+        },
+        {"path": "specs/cold_packet_tile_planes.rs", "symbol": "part2_plane_tile_precinct_run"},
+        {"path": "specs/cold_packet_tile_planes.rs", "symbol": "part2_plane_tile_precinct_result"},
+        {"path": "specs/cold_packet_tile_planes.rs", "symbol": "part2_plane_tile_packet_run"},
+        {"path": "specs/cold_packet_tile_planes.rs", "symbol": "part2_plane_tile_packet_result"},
+        {"path": "specs/cold_packet_tile_planes.rs", "symbol": "part2_plane_tile_run"},
+        {"path": "specs/cold_packet_tile_planes.rs", "symbol": "part2_plane_tile_run_result"},
+        {"path": "specs/cold_tile_plane_calls.rs", "symbol": "part2_tile_plane_calls_run"},
+        {"path": "specs/cold_tile_plane_calls.rs", "symbol": "part2_packet_plane_finish"},
+        {"path": "specs/cold_tile_plane_calls.rs", "symbol": "part2_packet_after_progress_run"}
       ],
       "proof_refs": [
         {"path": "specs/cold_packed_headers.rs", "symbol": "part2_packet_input_normal"},
@@ -8800,12 +8943,23 @@
         },
         {
           "path": "src/packet/tile.rs", "symbol": "decode_progression_tile_packets"
-        }
+        },
+        {"path": "specs/cold_packet_tile_planes.rs", "symbol": "part2_plane_tile_precinct_normal"},
+        {"path": "specs/cold_packet_tile_planes.rs", "symbol": "part2_plane_tile_packet_normal"},
+        {"path": "specs/cold_packet_tile_planes.rs", "symbol": "part2_plane_tile_run_normal"},
+        {"path": "specs/cold_tile_plane_calls.rs", "symbol": "part2_tile_plane_calls_observed"},
+        {"path": "specs/cold_tile_plane_calls.rs", "symbol": "part2_packet_after_progress_observed"},
+        {"path": "specs/cold_tile_plane_calls.rs", "symbol": "part2_packet_stage_values"},
+        {"path": "specs/cold_tile_plane_calls.rs", "symbol": "part2_packet_run_observed"}
       ],
       "test_refs": [
         {
           "path": "src/packet/tests.rs", "symbol": "actual_grid_factory_keeps_full_offsets_and_candidate_work_under_selected_caps"
         },
+        {"path": "src/tier1/tests.rs", "symbol": "tier1_plane_storage_standalone_duplicate_frontiers_and_exact_restore"},
+        {"path": "src/tier1/tests.rs", "symbol": "tier1_plane_storage_cleanup_output_copy_refusals_restore_state_and_output"},
+        {"path": "src/tier1/tests.rs", "symbol": "tier1_plane_storage_refinement_roles_preserve_rollback_and_cleared_partial_state"},
+        {"path": "src/decode/tests.rs", "symbol": "tier1_plane_storage_real_ht_raw_selected_container_cleanup_restore"},
         {"path": "src/packet/progression.rs", "symbol": "grid_storage_offset_empty_overflow_and_refusal_frontier_restore"},
         {"path": "src/packet/progression.rs", "symbol": "grid_storage_uniform_first_and_later_refusal_restore_exact_offsets"},
         {"path": "src/packet/progression.rs", "symbol": "grid_storage_admission_precedes_offsets_and_work_limit_follows"},
@@ -9457,7 +9611,13 @@
         {
           "path": "specs/packet_orchestration.rs",
           "symbol": "part1_precinct_payload_after_headers"
-        }
+        },
+        {"path": "specs/cold_packet_payload.rs", "symbol": "part2_plane_payload_after_run"},
+        {"path": "specs/cold_packet_payload.rs", "symbol": "part2_plane_payload_after_result"},
+        {"path": "specs/cold_packet_payload.rs", "symbol": "part2_plane_payload_run"},
+        {"path": "specs/cold_packet_payload.rs", "symbol": "part2_plane_payload_result"},
+        {"path": "specs/cold_packet_payload.rs", "symbol": "part2_plane_precinct_run"},
+        {"path": "specs/cold_packet_payload.rs", "symbol": "part2_plane_precinct_result"}
       ],
       "proof_refs": [
         {
@@ -9484,6 +9644,9 @@
         {
           "path": "proofs/spec_properties/mod.rs", "symbol": "precinct_sop_omission_preserves_disabled_prefix_result"
         },
+        {"path": "specs/cold_packet_payload.rs", "symbol": "part2_plane_payload_after_normal"},
+        {"path": "specs/cold_packet_payload.rs", "symbol": "part2_plane_payload_normal"},
+        {"path": "specs/cold_packet_payload.rs", "symbol": "part2_plane_precinct_normal"},
         {
           "path": "src/packet/bit_reader.rs", "symbol": "PacketBitReader::finish_packet_header"
         }
@@ -9642,6 +9805,18 @@
         {"path": "specs/mod.rs", "symbol": "ht_packet_segment_body"},
         {"path": "specs/mod.rs", "symbol": "ht_packet_body_run"},
         {"path": "specs/mod.rs", "symbol": "ht_packet_body_segments"},
+        {"path": "specs/cold_packet_planes.rs", "symbol": "part2_packet_ht_route_run"},
+        {"path": "specs/cold_packet_planes.rs", "symbol": "part2_packet_ht_route_result"},
+        {"path": "specs/cold_packet_planes.rs", "symbol": "part2_packet_ht_segment_run"},
+        {"path": "specs/cold_packet_planes.rs", "symbol": "part2_packet_ht_segment_result"},
+        {"path": "specs/cold_packet_planes.rs", "symbol": "part2_packet_ht_body_run"},
+        {"path": "specs/cold_packet_planes.rs", "symbol": "part2_packet_ht_body_result"},
+        {"path": "specs/cold_packet_planes.rs", "symbol": "part2_packet_ht_segments_run"},
+        {"path": "specs/cold_packet_planes.rs", "symbol": "part2_packet_ht_segments_result"},
+        {"path": "specs/cold_packet_planes.rs", "symbol": "part2_plane_body_staged_run"},
+        {"path": "specs/cold_packet_planes.rs", "symbol": "part2_plane_body_staged_result"},
+        {"path": "specs/cold_packet_planes.rs", "symbol": "part2_plane_body_transaction_run"},
+        {"path": "specs/cold_packet_planes.rs", "symbol": "part2_plane_body_transaction_result"},
         {"path": "specs/mod.rs", "symbol": "part1_tier1_segment"}
       ],
       "proof_refs": [
@@ -9654,7 +9829,13 @@
         {"path": "proofs/spec_properties/mod.rs", "symbol": "mixed_packet_dispatch_preserves_both_selected_profiles"},
         {"path": "proofs/spec_properties/mod.rs", "symbol": "mixed_packet_transaction_restores_every_decoder_field_on_error"},
         {"path": "proofs/spec_properties/mod.rs", "symbol": "mixed_packet_preparation_failure_precedes_both_actual_routes"},
-        {"path": "proofs/spec_properties/mod.rs", "symbol": "mixed_tier1_dispatch_retains_actual_native_route_order"}
+        {"path": "proofs/spec_properties/mod.rs", "symbol": "mixed_tier1_dispatch_retains_actual_native_route_order"},
+        {"path": "specs/cold_packet_planes.rs", "symbol": "part2_packet_ht_route_normal"},
+        {"path": "specs/cold_packet_planes.rs", "symbol": "part2_packet_ht_segment_normal"},
+        {"path": "specs/cold_packet_planes.rs", "symbol": "part2_packet_ht_body_normal"},
+        {"path": "specs/cold_packet_planes.rs", "symbol": "part2_packet_ht_segments_normal"},
+        {"path": "specs/cold_packet_planes.rs", "symbol": "part2_plane_body_staged_normal"},
+        {"path": "specs/cold_packet_planes.rs", "symbol": "part2_plane_body_transaction_normal"}
       ],
       "test_refs": [
         {"path": "src/packet/tests.rs", "symbol": "mixed_packet_union_routes_literal_bytes_and_keeps_empty_count_distinctions"},
@@ -9680,6 +9861,8 @@
       "spec_refs": [
         {"path": "specs/mod.rs", "symbol": "ht_placeholder_group_run"},
         {"path": "specs/mod.rs", "symbol": "ht_decode_staged_group"},
+        {"path": "specs/cold_ht_decoder.rs", "symbol": "part2_ht_staged_run"},
+        {"path": "specs/cold_ht_decoder.rs", "symbol": "part2_ht_staged_result"},
         {"path": "specs/mod.rs", "symbol": "ht_group_route"}
       ],
       "proof_refs": [
@@ -9688,7 +9871,8 @@
         {"path": "src/tier1/proof_support.rs", "symbol": "tier1_decoder_state"},
         {"path": "proofs/spec_properties/mod.rs", "symbol": "ht_staged_group_every_failure_preserves_complete_original_decoder"},
         {"path": "proofs/spec_properties/mod.rs", "symbol": "ht_staged_group_success_reports_original_packet_pass_count"},
-        {"path": "proofs/spec_properties/mod.rs", "symbol": "ht_group_route_uses_retained_option_not_current_cleanup_flag"}
+        {"path": "proofs/spec_properties/mod.rs", "symbol": "ht_group_route_uses_retained_option_not_current_cleanup_flag"},
+        {"path": "specs/cold_ht_decoder.rs", "symbol": "part2_ht_staged_normal"}
       ],
       "test_refs": [
         {"path": "src/tier1/tests.rs", "symbol": "ht_whole_decoder_clone_preserves_all_raw_malformed_fields_and_independent_storage"},
@@ -9715,7 +9899,9 @@
         {"path": "specs/mod.rs", "symbol": "ht_decode_refinement_contribution"},
         {"path": "specs/mod.rs", "symbol": "ht_finish_refinement_contribution"},
         {"path": "specs/mod.rs", "symbol": "ht_skip_segment"},
-        {"path": "specs/mod.rs", "symbol": "ht_clear_refinement_state"}
+        {"path": "specs/mod.rs", "symbol": "ht_clear_refinement_state"},
+        {"path": "specs/cold_ht_decoder.rs", "symbol": "part2_ht_replay_run"},
+        {"path": "specs/cold_ht_decoder.rs", "symbol": "part2_ht_replay_result"}
       ],
       "proof_refs": [
         {"path": "src/tier1/proof_support.rs", "symbol": "tier1_decoder_state"},
@@ -9723,10 +9909,15 @@
         {"path": "proofs/spec_properties/mod.rs", "symbol": "ht_continuation_first_accounting_overflow_preserves_already_prepared_state"},
         {"path": "proofs/spec_properties/mod.rs", "symbol": "ht_continuation_segment_overflow_keeps_pass_but_not_byte_update"},
         {"path": "proofs/spec_properties/mod.rs", "symbol": "ht_placeholder_preserves_output_and_retained_cleanup_on_every_return"},
-        {"path": "proofs/spec_properties/mod.rs", "symbol": "ht_refinement_reset_frames_all_unrelated_decoder_fields"}
+        {"path": "proofs/spec_properties/mod.rs", "symbol": "ht_refinement_reset_frames_all_unrelated_decoder_fields"},
+        {"path": "specs/cold_ht_decoder.rs", "symbol": "part2_ht_replay_normal"}
       ],
       "test_refs": [
         {"path": "src/tier1/tests.rs", "symbol": "ht_continuation_replays_real_concatenation_from_cleanup_not_current_output"},
+        {"path": "src/tier1/tests.rs", "symbol": "tier1_plane_storage_standalone_duplicate_frontiers_and_exact_restore"},
+        {"path": "src/tier1/tests.rs", "symbol": "tier1_plane_storage_cleanup_output_copy_refusals_restore_state_and_output"},
+        {"path": "src/tier1/tests.rs", "symbol": "tier1_plane_storage_refinement_roles_preserve_rollback_and_cleared_partial_state"},
+        {"path": "src/decode/tests.rs", "symbol": "tier1_plane_storage_real_ht_raw_selected_container_cleanup_restore"},
         {"path": "src/tier1/tests.rs", "symbol": "ht_continuation_empty_concatenation_preserves_output_and_skips_replay_only"},
         {"path": "src/tier1/tests.rs", "symbol": "ht_continuation_rejects_before_commit_but_keeps_exact_late_accounting_writes"},
         {"path": "src/tier1/tests.rs", "symbol": "ht_continuation_native_pass_domain_and_retained_size_boundaries_are_exact"},
@@ -9872,6 +10063,8 @@
       ],
       "spec_refs": [
         {"path": "specs/mod.rs", "symbol": "ht_refinement_plane"},
+        {"path": "specs/cold_tier1_planes.rs", "symbol": "part2_plane_refinement_run"},
+        {"path": "specs/cold_tier1_planes.rs", "symbol": "part2_plane_refinement_result"},
         {"path": "specs/mod.rs", "symbol": "ht_magref_sample"},
         {"path": "specs/mod.rs", "symbol": "ht_magref_rows"},
         {"path": "specs/mod.rs", "symbol": "ht_magref_columns"},
@@ -9904,10 +10097,15 @@
         {"path": "src/tier1/proof_support.rs", "symbol": "neighbor_kind_tag"},
         {"path": "proofs/spec_properties/mod.rs", "symbol": "ht_full_refinement_rejects_front_parameters_before_any_plane_or_stream"},
         {"path": "proofs/spec_properties/mod.rs", "symbol": "ht_delayed_signs_preserve_discovery_and_pending_on_every_return"},
-        {"path": "proofs/spec_properties/mod.rs", "symbol": "ht_neighbor_balance_overflow_keeps_the_prior_count_increment"}
+        {"path": "proofs/spec_properties/mod.rs", "symbol": "ht_neighbor_balance_overflow_keeps_the_prior_count_increment"},
+        {"path": "specs/cold_tier1_planes.rs", "symbol": "part2_plane_refinement_normal"}
       ],
       "test_refs": [
         {"path": "src/tier1/tests.rs", "symbol": "ht_full_refinement_both_passes_preserve_raw_flags_and_all_six_words"},
+        {"path": "src/tier1/tests.rs", "symbol": "tier1_plane_storage_standalone_duplicate_frontiers_and_exact_restore"},
+        {"path": "src/tier1/tests.rs", "symbol": "tier1_plane_storage_cleanup_output_copy_refusals_restore_state_and_output"},
+        {"path": "src/tier1/tests.rs", "symbol": "tier1_plane_storage_refinement_roles_preserve_rollback_and_cleared_partial_state"},
+        {"path": "src/decode/tests.rs", "symbol": "tier1_plane_storage_real_ht_raw_selected_container_cleanup_restore"},
         {"path": "src/tier1/tests.rs", "symbol": "ht_full_refinement_uses_wide_native_borrow_addition_and_no_midpoint_normalization"},
         {"path": "src/tier1/tests.rs", "symbol": "ht_full_refinement_delays_patch_signs_and_keeps_discovery_distinct"},
         {"path": "src/tier1/tests.rs", "symbol": "ht_full_refinement_vertical_causality_changes_only_actual_neighbor_admission"},
@@ -9940,15 +10138,25 @@
         {"path": "specs/mod.rs", "symbol": "ht_significant_bitplanes"},
         {"path": "specs/mod.rs", "symbol": "ht_block_coding_enabled"},
         {"path": "specs/mod.rs", "symbol": "ht_copy_refinement_bytes"},
+        {"path": "specs/cold_ht_decoder.rs", "symbol": "part2_ht_coeff_run"},
+        {"path": "specs/cold_ht_decoder.rs", "symbol": "part2_ht_coeff_result"},
+        {"path": "specs/cold_ht_decoder.rs", "symbol": "part2_ht_segments_run"},
+        {"path": "specs/cold_ht_decoder.rs", "symbol": "part2_ht_segments_result"},
         {"path": "specs/mod.rs", "symbol": "tier1_statistics_merge"}
       ],
       "proof_refs": [
         {"path": "src/tier1/proof_support.rs", "symbol": "tier1_decoder_state"},
         {"path": "src/tier1/proof_support.rs", "symbol": "ht_byte_vector_outcome"},
-        {"path": "proofs/spec_properties/mod.rs", "symbol": "ht_complete_symbol_model_preserves_the_frozen_cleanup_only_profile"}
+        {"path": "proofs/spec_properties/mod.rs", "symbol": "ht_complete_symbol_model_preserves_the_frozen_cleanup_only_profile"},
+        {"path": "specs/cold_ht_decoder.rs", "symbol": "part2_ht_coeff_normal"},
+        {"path": "specs/cold_ht_decoder.rs", "symbol": "part2_ht_segments_normal"}
       ],
       "test_refs": [
         {"path": "src/tier1/tests.rs", "symbol": "ht_full_symbol_caller_distinguishes_none_empty_refinement_and_pre_refinement_plane"},
+        {"path": "src/tier1/tests.rs", "symbol": "tier1_plane_storage_standalone_duplicate_frontiers_and_exact_restore"},
+        {"path": "src/tier1/tests.rs", "symbol": "tier1_plane_storage_cleanup_output_copy_refusals_restore_state_and_output"},
+        {"path": "src/tier1/tests.rs", "symbol": "tier1_plane_storage_refinement_roles_preserve_rollback_and_cleared_partial_state"},
+        {"path": "src/decode/tests.rs", "symbol": "tier1_plane_storage_real_ht_raw_selected_container_cleanup_restore"},
         {"path": "src/tier1/tests.rs", "symbol": "ht_public_segment_entry_binds_actual_pass_byte_work_admission_and_error_order"},
         {"path": "src/tier1/tests.rs", "symbol": "ht_public_segment_entry_keeps_none_and_some_empty_distinct_without_assumed_context"}
       ]
@@ -9969,7 +10177,11 @@
         {"path": "specs/mod.rs", "symbol": "ht_cleanup_prepare"},
         {"path": "specs/mod.rs", "symbol": "ht_store_coefficient_symbols"},
         {"path": "specs/mod.rs", "symbol": "ht_cleanup_symbols_only"},
-        {"path": "specs/mod.rs", "symbol": "tier1_duplicate_plane"}
+        {"path": "specs/mod.rs", "symbol": "tier1_duplicate_plane"},
+        {"path": "specs/cold_tier1_planes.rs", "symbol": "part2_plane_duplicate_run"},
+        {"path": "specs/cold_tier1_planes.rs", "symbol": "part1_plane_duplicate_storage_result"},
+        {"path": "specs/cold_tier1_planes.rs", "symbol": "part2_plane_prepare_run"},
+        {"path": "specs/cold_tier1_planes.rs", "symbol": "part2_plane_prepare_result"}
       ],
       "proof_refs": [
         {"path": "src/tier1/proof_support.rs", "symbol": "tier1_decoder_state"},
@@ -9977,10 +10189,16 @@
         {"path": "src/tier1/ht_contributions.rs", "symbol": "Tier1CodeBlockDecoder::decode_ht_coefficient_symbols"},
         {"path": "proofs/spec_properties/mod.rs", "symbol": "ht_cleanup_caller_preparation_error_preserves_complete_decoder"},
         {"path": "proofs/spec_properties/mod.rs", "symbol": "ht_cleanup_store_first_counter_overflow_retains_new_planes_and_all_other_fields"},
-        {"path": "proofs/spec_properties/mod.rs", "symbol": "ht_cleanup_store_final_byte_overflow_keeps_earlier_counter_updates"}
+        {"path": "proofs/spec_properties/mod.rs", "symbol": "ht_cleanup_store_final_byte_overflow_keeps_earlier_counter_updates"},
+        {"path": "specs/cold_tier1_planes.rs", "symbol": "part2_plane_duplicate_normal"},
+        {"path": "specs/cold_tier1_planes.rs", "symbol": "part2_plane_prepare_normal"}
       ],
       "test_refs": [
         {"path": "src/tier1/tests.rs", "symbol": "ht_cleanup_caller_composes_real_metadata_numeric_duplicate_and_complete_decoder_state"},
+        {"path": "src/tier1/tests.rs", "symbol": "tier1_plane_storage_standalone_duplicate_frontiers_and_exact_restore"},
+        {"path": "src/tier1/tests.rs", "symbol": "tier1_plane_storage_cleanup_output_copy_refusals_restore_state_and_output"},
+        {"path": "src/tier1/tests.rs", "symbol": "tier1_plane_storage_refinement_roles_preserve_rollback_and_cleared_partial_state"},
+        {"path": "src/decode/tests.rs", "symbol": "tier1_plane_storage_real_ht_raw_selected_container_cleanup_restore"},
         {"path": "src/tier1/tests.rs", "symbol": "ht_cleanup_caller_preserves_metadata_before_native_pass_error_order_and_full_failure_frame"},
         {"path": "src/tier1/tests.rs", "symbol": "ht_cleanup_caller_metadata_work_failure_retains_every_decoder_field"},
         {"path": "src/tier1/tests.rs", "symbol": "ht_cleanup_caller_accounting_failures_preserve_ordered_commits_not_rollback"},
@@ -10023,6 +10241,22 @@
         {"path": "specs/mod.rs", "symbol": "ht_plane_finish"},
         {"path": "specs/mod.rs", "symbol": "ht_complete_kappa"},
         {"path": "specs/mod.rs", "symbol": "tier1_empty_plane"},
+        {"path": "specs/cold_tier1_initial.rs", "symbol": "part2_tier1_phase"},
+        {"path": "specs/cold_tier1_initial.rs", "symbol": "part2_tier1_storage_resume"},
+        {"path": "specs/cold_tier1_planes.rs", "symbol": "part2_plane_cleanup_run"},
+        {"path": "specs/cold_tier1_planes.rs", "symbol": "part2_plane_cleanup_result"},
+        {"path": "specs/cold_tier1_initial.rs", "symbol": "part2_tier1_storage_prefix"},
+        {"path": "specs/cold_tier1_initial.rs", "symbol": "part2_tier1_storage_framed"},
+        {"path": "specs/cold_tier1_initial.rs", "symbol": "part2_tier1_storage_bind"},
+        {"path": "specs/cold_tier1_initial.rs", "symbol": "part2_tier1_plane_admit"},
+        {"path": "specs/cold_tier1_initial.rs", "symbol": "part2_tier1_plane_run"},
+        {"path": "specs/cold_tier1_initial.rs", "symbol": "part1_tier1_plane_storage_result"},
+        {"path": "specs/cold_tier1_initial.rs", "symbol": "part2_tier1_initial_run"},
+        {"path": "specs/cold_tier1_initial.rs", "symbol": "part1_tier1_initial_storage_result"},
+        {"path": "specs/cold_tier1_initial.rs", "symbol": "part2_tier1_configured_run"},
+        {"path": "specs/cold_tier1_initial.rs", "symbol": "part1_tier1_configured_storage_result"},
+        {"path": "specs/cold_tier1_initial.rs", "symbol": "part2_tier1_call_admit"},
+        {"path": "specs/cold_tier1_initial.rs", "symbol": "part2_tier1_call_run"},
         {"path": "specs/mod.rs", "symbol": "tier1_coefficient_new_outcome"},
         {"path": "specs/mod.rs", "symbol": "tier1_set_magnitude"},
         {"path": "specs/mod.rs", "symbol": "tier1_mark_coefficient"},
@@ -10037,15 +10271,41 @@
         {"path": "proofs/spec_properties/mod.rs", "symbol": "ht_plane_zero_metadata_width_precedes_all_other_rejections"},
         {"path": "proofs/spec_properties/mod.rs", "symbol": "ht_plane_coordinate_overflow_precedes_scanning_and_reader_errors"},
         {"path": "proofs/spec_properties/mod.rs", "symbol": "ht_plane_clipping_does_not_validate_numeric_inputs"},
-        {"path": "proofs/spec_properties/mod.rs", "symbol": "ht_kappa_conservative_overflow_applies_without_gamma"}
+        {"path": "proofs/spec_properties/mod.rs", "symbol": "ht_kappa_conservative_overflow_applies_without_gamma"},
+        {"path": "specs/cold_tier1_initial.rs", "symbol": "part2_tier1_plane_frames"},
+        {"path": "specs/cold_tier1_initial.rs", "symbol": "part2_tier1_prefix_advance"},
+        {"path": "specs/cold_tier1_initial.rs", "symbol": "part2_tier1_prefix_finish"},
+        {"path": "specs/cold_tier1_initial.rs", "symbol": "part2_tier1_resume_frame"},
+        {"path": "specs/cold_tier1_planes.rs", "symbol": "part2_plane_cleanup_normal"},
+        {"path": "specs/cold_tier1_initial.rs", "symbol": "part2_tier1_storage_at"},
+        {"path": "specs/cold_tier1_initial.rs", "symbol": "part2_tier1_storage_eta"},
+        {"path": "specs/cold_tier1_initial.rs", "symbol": "part2_tier1_storage_bind_frame"},
+        {"path": "specs/cold_tier1_initial.rs", "symbol": "part2_tier1_storage_pure"},
+        {"path": "specs/cold_tier1_initial.rs", "symbol": "part2_tier1_plane_normal"},
+        {"path": "specs/cold_tier1_initial.rs", "symbol": "part2_tier1_plane_observed"},
+        {"path": "specs/cold_tier1_initial.rs", "symbol": "part2_tier1_initial_normal"},
+        {"path": "specs/cold_tier1_initial.rs", "symbol": "part2_tier1_initial_plane_error"},
+        {"path": "specs/cold_tier1_initial.rs", "symbol": "part2_tier1_configured_normal"},
+        {"path": "specs/cold_tier1_initial.rs", "symbol": "part2_tier1_configured_initial_error"},
+        {"path": "specs/cold_tier1_initial.rs", "symbol": "part2_tier1_call_observed"},
+        {"path": "specs/cold_tier1_initial.rs", "symbol": "part2_tier1_call_normal"},
+        {"path": "src/allocation.rs", "symbol": "filled_values"}
       ],
       "test_refs": [
         {"path": "src/tier1/tests.rs", "symbol": "ht_cleanup_plane_places_literal_full_words_flags_and_ignores_old_coefficients"},
+        {"path": "src/tier1/tests.rs", "symbol": "tier1_plane_storage_standalone_duplicate_frontiers_and_exact_restore"},
+        {"path": "src/tier1/tests.rs", "symbol": "tier1_plane_storage_cleanup_output_copy_refusals_restore_state_and_output"},
+        {"path": "src/tier1/tests.rs", "symbol": "tier1_plane_storage_refinement_roles_preserve_rollback_and_cleared_partial_state"},
+        {"path": "src/decode/tests.rs", "symbol": "tier1_plane_storage_real_ht_raw_selected_container_cleanup_restore"},
         {"path": "src/tier1/tests.rs", "symbol": "ht_cleanup_plane_preserves_permissive_metadata_domains_and_coordinate_error_order"},
         {"path": "src/tier1/tests.rs", "symbol": "ht_cleanup_plane_placement_errors_follow_magsgn_consumption_and_scanning"},
         {"path": "src/tier1/tests.rs", "symbol": "ht_cleanup_plane_statistic_overflows_retain_each_ordered_partial_effect"},
         {"path": "src/tier1/tests.rs", "symbol": "ht_cleanup_plane_stencils_reset_max_overwrite_swap_and_drive_noninitial_u"},
-        {"path": "src/tier1/tests.rs", "symbol": "ht_cleanup_plane_finish_preserves_outputs_and_reports_physical_padding_stuffing_and_budget"}
+        {"path": "src/tier1/tests.rs", "symbol": "ht_cleanup_plane_finish_preserves_outputs_and_reports_physical_padding_stuffing_and_budget"},
+        {"path": "src/tier1/tests.rs", "symbol": "tier1_initial_storage_admission_refusal_and_late_policy_order"},
+        {"path": "src/tier1/tests.rs", "symbol": "tier1_initial_storage_first_later_exact_coefficients_restore_and_separate_later_role"},
+        {"path": "src/decode/tests.rs", "symbol": "tier1_initial_storage_cell_columns_rows_retain_prior_owners_and_restore"},
+        {"path": "src/decode/tests.rs", "symbol": "tier1_initial_storage_public_raw_selected_container_roles_and_restore"}
       ]
     },
     {

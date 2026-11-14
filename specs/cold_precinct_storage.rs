@@ -63,8 +63,9 @@ pub(crate) open spec fn part2_codeblock_owner_run(grid:[u32;4],clip:[u32;4],bloc
     total:u64,selected:bool,limits:&crate::ResourceLimits,events:Seq<Part2JpipSnapshotEvent>)->Part2ColdRun<Part2PlannedCodeBlocks> {
     match part2_codeblock_owner_admit(blocks,total,selected,limits) {
         Err(error)=>Some((Err(error),events)),
-        Ok(_)=>part2_jpip_snapshot_bind(part2_planning_capacity_run(part2_codeblock_owner_context(grid,clip,blocks,subband,style,policy,indices,placements,total,selected),events),
-            |_:(),rest|Some((part2_planned_codeblocks(grid,clip,blocks,subband,style,policy,indices,placements,total,selected,limits),rest))),
+        Ok(next)=>part2_jpip_snapshot_bind(part2_planning_capacity_run(part2_codeblock_owner_context(grid,clip,blocks,subband,style,policy,indices,placements,total,selected),events),
+            |_:(),rest|part2_codeblock_rows_run(grid,clip,blocks,subband,style,policy,(indices.0,indices.1),0,
+                Part2PlannedCodeBlocks {decoders:Seq::empty(),placements,decoder_index:indices.2,planned_code_blocks:next},rest)),
     }
 }
 #[verifier::opaque]
@@ -83,10 +84,14 @@ pub(crate) proof fn part2_codeblock_owner_normal(grid:[u32;4],clip:[u32;4],block
     let result=part2_planned_codeblocks(grid,clip,blocks,subband,style,policy,indices,placements,total,selected,limits);
     match part2_codeblock_owner_admit(blocks,total,selected,limits) {
         Err(_)=>{part2_cold_pure::<Part2PlannedCodeBlocks>(result);},
-        Ok(_)=>{
+        Ok(next)=>{
             let context=part2_codeblock_owner_context(grid,clip,blocks,subband,style,policy,indices,placements,total,selected);
-            part2_planning_capacity_observed(context,Ok(()));part2_cold_pure(result);
-            part2_cold_bind(|events|part2_planning_capacity_run(context,events),|_:(),rest|Some((result,rest)),Ok(()),result);
+            let initial=Part2PlannedCodeBlocks {decoders:Seq::empty(),placements,decoder_index:indices.2,planned_code_blocks:next};
+            part2_planning_capacity_observed(context,Ok(()));
+            part2_codeblock_rows_normal(grid,clip,blocks,subband,style,policy,(indices.0,indices.1),0,initial);
+            part2_decode_eta(|events|part2_codeblock_rows_run(grid,clip,blocks,subband,style,policy,(indices.0,indices.1),0,initial,events),result);
+            part2_cold_bind(|events|part2_planning_capacity_run(context,events),
+                |_:(),rest|part2_codeblock_rows_run(grid,clip,blocks,subband,style,policy,(indices.0,indices.1),0,initial,rest),Ok(()),result);
         },
     }
 }
@@ -99,7 +104,8 @@ pub(crate) proof fn part2_codeblock_owner_refused(grid:[u32;4],clip:[u32;4],bloc
 {
     reveal(part2_codeblock_owner_result);reveal(part2_planning_capacity_result);
     part2_cold_bind(|events|part2_planning_capacity_run(part2_codeblock_owner_context(grid,clip,blocks,subband,style,policy,indices,placements,total,selected),events),
-        |_:(),rest|Some((part2_planned_codeblocks(grid,clip,blocks,subband,style,policy,indices,placements,total,selected,limits),rest)),
+        |_:(),rest|part2_codeblock_rows_run(grid,clip,blocks,subband,style,policy,(indices.0,indices.1),0,
+            Part2PlannedCodeBlocks {decoders:Seq::empty(),placements,decoder_index:indices.2,planned_code_blocks:part2_codeblock_owner_admit(blocks,total,selected,limits).get_Ok_0()},rest),
         Err(crate::DecodeError::AllocationFailed),Err(crate::DecodeError::AllocationFailed));
 }
 pub(crate) open spec fn part2_subband_execution_run(band:[u32;4],block_size:[u32;2],subband:crate::decode::SubbandGeometry,

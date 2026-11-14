@@ -840,7 +840,10 @@ pub(super) fn decode_precinct_contribution_headers(
 
 #[allow(clippy::too_many_arguments)]
 #[cfg_attr(verus_keep_ghost, verus_spec(result =>
-    ensures (result, packet_precinct_view(final(precinct))) == crate::specs::part1_precinct_packet(
+    ensures crate::specs::part2_plane_precinct_result(packet_precinct_view(old(precinct)),crate::codestream::tile_part_owned_view(tile_part),offset,packed_headers@,packed_offset,expected_packet_length,expected_sop_sequence,decode_tier1,
+        crate::limits::resource_code_block_limit(limits),crate::limits::resource_packet_header_byte_limit(limits),crate::limits::resource_code_block_pass_limit(limits),
+        crate::limits::resource_code_block_byte_limit(limits),crate::limits::resource_input_byte_limit(limits),crate::limits::resource_work_limit(limits),(result,packet_precinct_view(final(precinct)))),
+        (!decode_tier1 || result!=Err(DecodeError::AllocationFailed)) ==> (result, packet_precinct_view(final(precinct))) == crate::specs::part1_precinct_packet(
         packet_precinct_view(old(precinct)), tile_part, offset, packed_headers@, packed_offset,
         expected_packet_length, expected_sop_sequence, decode_tier1,
         crate::limits::resource_code_block_limit(limits), crate::limits::resource_packet_header_byte_limit(limits),
@@ -861,6 +864,12 @@ pub(super) fn decode_precinct_packet(
     decode_tier1: bool,
     limits: &ResourceLimits,
 ) -> Result<(PacketBodyDecode, usize, usize), DecodeError> {
+    #[cfg(verus_keep_ghost)]
+    proof_decl! {let ghost initial=packet_precinct_view(precinct);}
+    #[cfg(verus_keep_ghost)]
+    proof! {crate::specs::part2_plane_precinct_normal(initial,crate::codestream::tile_part_owned_view(tile_part),offset,packed_headers@,packed_offset,expected_packet_length,expected_sop_sequence,decode_tier1,
+    crate::limits::resource_code_block_limit(limits),crate::limits::resource_packet_header_byte_limit(limits),crate::limits::resource_code_block_pass_limit(limits),
+    crate::limits::resource_code_block_byte_limit(limits),crate::limits::resource_input_byte_limit(limits),crate::limits::resource_work_limit(limits));}
     let component = precinct.component;
     if precinct.states.len() != precinct.contexts.len()
         || precinct.states.len() != precinct.decoders.len()
@@ -898,7 +907,7 @@ pub(super) fn decode_precinct_packet(
         .tier1_coding_style()?;
     #[cfg(verus_keep_ghost)]
     proof! { crate::codestream::coding_style_known_packet_markers(&tile_part.coding_style); }
-    decode_precinct_packet_payload(
+    let decoded = decode_precinct_packet_payload(
         data,
         packed_headers,
         PrecinctPayloadParameters {
@@ -914,7 +923,14 @@ pub(super) fn decode_precinct_packet(
         },
         precinct,
         limits,
-    )
+    );
+    #[cfg(verus_keep_ghost)]
+    proof! {crate::specs::part2_plane_precinct_observed(initial,crate::codestream::tile_part_owned_view(tile_part),offset,packed_headers@,packed_offset,expected_packet_length,expected_sop_sequence,decode_tier1,
+    crate::limits::resource_code_block_limit(limits),crate::limits::resource_packet_header_byte_limit(limits),crate::limits::resource_code_block_pass_limit(limits),
+    crate::limits::resource_code_block_byte_limit(limits),crate::limits::resource_input_byte_limit(limits),crate::limits::resource_work_limit(limits),
+    crate::specs::Part1PrecinctPayloadParameters {error_offset:offset,packed_offset,expected_packet_length,expected_sop_sequence,style:tier1_style,sop:tile_part.coding_style.sop_markers,
+        eph:tile_part.coding_style.eph_markers,packed:!matches!(crate::codestream::tile_part_owned_view(tile_part).packed_packet_headers.source,crate::specs::Part1PackedHeaderSource::None),decode_tier1},(decoded,packet_precinct_view(precinct)));}
+    decoded
 }
 
 #[cfg_attr(verus_keep_ghost, verus_spec(result =>
@@ -983,7 +999,10 @@ pub(super) fn decode_precinct_packet_payload_prefix<'a>(
 }
 
 #[cfg_attr(verus_keep_ghost, verus_spec(result =>
-    ensures (result, packet_precinct_view(final(precinct))) == crate::specs::part1_precinct_payload(
+    ensures crate::specs::part2_plane_payload_result(packet_precinct_view(old(precinct)),data@,packed_headers@,precinct_payload_parameters_view(parameters),
+        crate::limits::resource_packet_header_byte_limit(limits),crate::limits::resource_code_block_pass_limit(limits),crate::limits::resource_code_block_byte_limit(limits),
+        crate::limits::resource_input_byte_limit(limits),crate::limits::resource_work_limit(limits),(result,packet_precinct_view(final(precinct)))),
+        (!parameters.decode_tier1 || result!=Err(DecodeError::AllocationFailed)) ==> (result, packet_precinct_view(final(precinct))) == crate::specs::part1_precinct_payload(
         packet_precinct_view(old(precinct)), data@, packed_headers@, precinct_payload_parameters_view(parameters),
         crate::limits::resource_packet_header_byte_limit(limits),
         crate::limits::resource_code_block_pass_limit(limits), crate::limits::resource_code_block_byte_limit(limits),
@@ -1001,6 +1020,10 @@ pub(super) fn decode_precinct_packet_payload(
 ) -> Result<(PacketBodyDecode, usize, usize), DecodeError> {
     #[cfg(verus_keep_ghost)]
     proof_decl! { let ghost initial_precinct = packet_precinct_view(precinct); }
+    #[cfg(verus_keep_ghost)]
+    proof! {crate::specs::part2_plane_payload_normal(initial_precinct,data@,packed_headers@,precinct_payload_parameters_view(parameters),
+    crate::limits::resource_packet_header_byte_limit(limits),crate::limits::resource_code_block_pass_limit(limits),crate::limits::resource_code_block_byte_limit(limits),
+    crate::limits::resource_input_byte_limit(limits),crate::limits::resource_work_limit(limits));}
     #[cfg(verus_keep_ghost)]
     proof! {
         reveal(crate::specs::part1_precinct_payload_headers);
@@ -1068,7 +1091,13 @@ pub(super) fn decode_precinct_packet_payload(
         header_result?;
         contribution_count = progress.contribution_count;
     }
-    decode_precinct_packet_payload_after_headers(
+    #[cfg(verus_keep_ghost)]
+    proof_decl! {
+        let ghost before_body=packet_precinct_view(precinct);
+        let ghost h=crate::specs::Part2PlanePayloadHeader {packet:packet_data@,reader:packet_bit_reader_view(&reader),contributions:contributions@.map_values(|v:Option<CodeBlockContribution>|code_block_contribution_option_view(v)),
+            count:contribution_count,present:packet_present,sop:prefix.sop_bytes};
+    }
+    let decoded = decode_precinct_packet_payload_after_headers(
         data,
         parameters,
         PrecinctPayloadHeader {
@@ -1083,11 +1112,20 @@ pub(super) fn decode_precinct_packet_payload(
         },
         precinct,
         limits,
-    )
+    );
+    #[cfg(verus_keep_ghost)]
+    proof! {crate::specs::part2_plane_payload_observed(initial_precinct,data@,packed_headers@,precinct_payload_parameters_view(parameters),
+    crate::limits::resource_packet_header_byte_limit(limits),crate::limits::resource_code_block_pass_limit(limits),crate::limits::resource_code_block_byte_limit(limits),
+    crate::limits::resource_input_byte_limit(limits),crate::limits::resource_work_limit(limits),before_body,h,(decoded,packet_precinct_view(precinct)));}
+    decoded
 }
 
 #[cfg_attr(verus_keep_ghost, verus_spec(result =>
-    ensures (result, packet_precinct_view(final(precinct))) == crate::specs::part1_precinct_payload_after_headers(
+    ensures crate::specs::part2_plane_payload_after_result(packet_precinct_view(old(precinct)),precinct_payload_parameters_view(parameters),data@,precinct_payload_header_view(header).0.packet_data,
+        precinct_payload_header_view(header).0.reader,precinct_payload_header_view(header).1,precinct_payload_header_view(header).2,precinct_payload_header_view(header).0.present,precinct_payload_header_view(header).0.sop_bytes,
+        crate::limits::resource_code_block_pass_limit(limits),crate::limits::resource_code_block_byte_limit(limits),crate::limits::resource_input_byte_limit(limits),crate::limits::resource_work_limit(limits),
+        (result,packet_precinct_view(final(precinct)))),
+        (!parameters.decode_tier1 || result!=Err(DecodeError::AllocationFailed)) ==> (result, packet_precinct_view(final(precinct))) == crate::specs::part1_precinct_payload_after_headers(
         packet_precinct_view(old(precinct)), precinct_payload_parameters_view(parameters), data@,
         precinct_payload_header_view(header).0.packet_data, precinct_payload_header_view(header).0.reader,
         precinct_payload_header_view(header).1, precinct_payload_header_view(header).2,
@@ -1105,6 +1143,12 @@ fn decode_precinct_packet_payload_after_headers(
     precinct: &mut PacketPrecinctDecoder,
     limits: &ResourceLimits,
 ) -> Result<(PacketBodyDecode, usize, usize), DecodeError> {
+    #[cfg(verus_keep_ghost)]
+    proof_decl! {let ghost before=packet_precinct_view(precinct);let ghost original_header=precinct_payload_header_view(header);}
+    #[cfg(verus_keep_ghost)]
+    proof! {crate::specs::part2_plane_payload_after_normal(before,precinct_payload_parameters_view(parameters),data@,original_header.0.packet_data,original_header.0.reader,
+    original_header.1,original_header.2,original_header.0.present,original_header.0.sop_bytes,crate::limits::resource_code_block_pass_limit(limits),crate::limits::resource_code_block_byte_limit(limits),
+    crate::limits::resource_input_byte_limit(limits),crate::limits::resource_work_limit(limits));}
     #[cfg(verus_keep_ghost)]
     proof! {
         reveal(crate::specs::part1_precinct_payload_after_headers);
@@ -1167,7 +1211,7 @@ fn decode_precinct_packet_payload_after_headers(
         segments: 0,
         passes: 0,
     };
-    execute_packet_body_contributions(
+    let executed = execute_packet_body_contributions(
         &mut precinct.decoders,
         &contributions,
         data,
@@ -1175,7 +1219,16 @@ fn decode_precinct_packet_payload_after_headers(
         (offset, 0),
         decode_tier1,
         limits,
-    )?;
+    );
+    #[cfg(verus_keep_ghost)]
+    proof! {crate::specs::part2_plane_payload_after_observed(before,precinct_payload_parameters_view(parameters),data@,original_header.0.packet_data,original_header.0.reader,
+    original_header.1,original_header.2,original_header.0.present,original_header.0.sop_bytes,crate::limits::resource_code_block_pass_limit(limits),crate::limits::resource_code_block_byte_limit(limits),
+    crate::limits::resource_input_byte_limit(limits),crate::limits::resource_work_limit(limits),(header_bytes,body_start,packed_bytes_consumed,preflight.end),
+    (executed,crate::specs::Part1PacketBodyExecution {
+        decoders:precinct.decoders@.map_values(|decoder:Tier1CodeBlockDecoder|crate::tier1::tier1_decoder_state(&decoder)),
+        index:execution.index,offset:execution.offset,segments:execution.segments,passes:execution.passes,
+    }));}
+    executed?;
     let body_bytes = match tile_offset.checked_sub(body_start) {
         Some(bytes) => bytes,
         None => return Err(packet_arithmetic_overflow()),

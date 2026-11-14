@@ -22,6 +22,7 @@ specs/README.md
 specs/allocation.rs
 specs/codestream_profile.rs
 specs/cold_bitmap.rs
+specs/cold_codeblock_plan.rs
 specs/cold_component_plan.rs
 specs/cold_component_storage.rs
 specs/cold_decode_finish.rs
@@ -32,6 +33,7 @@ specs/cold_grid.rs
 specs/cold_grid_geometry.rs
 specs/cold_grid_plan.rs
 specs/cold_header_progression.rs
+specs/cold_ht_decoder.rs
 specs/cold_inspection_storage.rs
 specs/cold_layout.rs
 specs/cold_layout_continuations.rs
@@ -39,8 +41,12 @@ specs/cold_marker_header.rs
 specs/cold_marker_storage.rs
 specs/cold_mct_copy.rs
 specs/cold_packed_headers.rs
+specs/cold_packet_execute.rs
+specs/cold_packet_payload.rs
+specs/cold_packet_planes.rs
 specs/cold_packet_precinct.rs
 specs/cold_packet_preparation.rs
+specs/cold_packet_tile_planes.rs
 specs/cold_part2_fresh.rs
 specs/cold_part2_header.rs
 specs/cold_payload_owners.rs
@@ -50,9 +56,13 @@ specs/cold_progression.rs
 specs/cold_quantization.rs
 specs/cold_resolution_plan.rs
 specs/cold_resolved_copy.rs
+specs/cold_single_packet.rs
 specs/cold_tag_storage.rs
+specs/cold_tier1_initial.rs
+specs/cold_tier1_planes.rs
 specs/cold_tile_metadata.rs
 specs/cold_tile_part.rs
+specs/cold_tile_plane_calls.rs
 specs/cold_tile_quantization.rs
 specs/cold_uniform_geometry.rs
 specs/container_colors.rs

@@ -1123,7 +1123,8 @@ pub(crate) fn plan_subband_execution(
 
 #[allow(clippy::too_many_arguments)]
 #[cfg_attr(verus_keep_ghost, verus_spec(result =>
-    ensures planned_codeblocks_outcome(result) == crate::specs::part2_planned_codeblock_cell(
+    ensures crate::specs::part2_codeblock_cell_result(grid,clip,block,subband,style,policy,indices,planned_codeblocks_view(&state),planned_codeblocks_outcome(result)),
+        planned_codeblocks_outcome(result)!=Err(DecodeError::AllocationFailed) ==> planned_codeblocks_outcome(result) == crate::specs::part2_planned_codeblock_cell(
         grid, clip, block, subband, style, policy, indices, planned_codeblocks_view(&state),
     ),
 ))]
@@ -1139,8 +1140,10 @@ pub(crate) fn append_planned_codeblock(
 ) -> Result<PlannedCodeBlocks, DecodeError> {
     #[cfg(verus_keep_ghost)]
     proof_decl! { let ghost before = planned_codeblocks_view(&state); }
+    #[cfg(verus_keep_ghost)]
+    proof! {crate::specs::part2_codeblock_cell_normal(grid,clip,block,subband,style,policy,indices,before);}
     let (x, y, width, height) = derive_planned_codeblock_geometry(grid, clip, block)?;
-    let decoder = crate::tier1::tier1_configured_decoder(
+    let decoder_result = crate::tier1::tier1_configured_decoder(
         width,
         height,
         subband.significant_bitplanes,
@@ -1148,7 +1151,10 @@ pub(crate) fn append_planned_codeblock(
         style,
         policy.0,
         policy.1,
-    )?;
+    );
+    #[cfg(verus_keep_ghost)]
+    proof! {crate::specs::part2_codeblock_cell_decoder_observed(grid,clip,block,subband,style,policy,indices,before,(x,y,width,height),crate::tier1::tier1_initial_decoder_outcome(decoder_result));}
+    let decoder = decoder_result?;
     #[cfg(verus_keep_ghost)]
     proof_decl! { let ghost decoded = crate::tier1::tier1_decoder_state(&decoder); }
     state.decoders.push(decoder);
@@ -1194,6 +1200,12 @@ pub(crate) fn plan_codeblock_decoders(
     limits: &ResourceLimits,
 ) -> Result<PlannedCodeBlocks, DecodeError> {
     #[cfg(verus_keep_ghost)]
+    proof_decl! {
+        let ghost source_placements=placements@;
+        let ghost root=|events:Seq<crate::specs::Part2JpipSnapshotEvent>|crate::specs::part2_codeblock_owner_run(grid,clip,blocks,subband,style,policy,indices,source_placements,planned_code_blocks,selected,limits,events);
+        let ghost mut prefix:Seq<crate::specs::Part2JpipSnapshotEvent>;
+    }
+    #[cfg(verus_keep_ghost)]
     proof! {crate::specs::part2_codeblock_owner_normal(grid,clip,blocks,subband,style,policy,indices,placements@,planned_code_blocks,selected,limits);}
     #[cfg(verus_keep_ghost)]
     proof_decl! { let ghost goal = crate::specs::part2_planned_codeblocks(
@@ -1236,6 +1248,7 @@ pub(crate) fn plan_codeblock_decoders(
                 crate::specs::part2_planning_capacity_observed(crate::specs::part2_codeblock_owner_context(grid,clip,blocks,subband,style,policy,indices,placements@,planned_code_blocks,selected),
                     match reserved {Ok(_)=>Ok(()),Err(error)=>Err(error)});
                 if reserved.is_err(){crate::specs::part2_codeblock_owner_refused(grid,clip,blocks,subband,style,policy,indices,placements@,planned_code_blocks,selected,limits);}
+                else{prefix=crate::specs::part2_codeblock_owner_start(grid,clip,blocks,subband,style,policy,indices,placements@,planned_code_blocks,selected,limits,total);}
             }
             reserved?
         },
@@ -1252,6 +1265,9 @@ pub(crate) fn plan_codeblock_decoders(
     let mut block_y = 0_u32;
     #[cfg_attr(verus_keep_ghost, verus_spec(
         invariant block_y <= blocks[1],
+            source_placements==placements@,
+            forall|events:Seq<crate::specs::Part2JpipSnapshotEvent>| #[trigger] root(events)==crate::specs::part2_codeblock_owner_run(grid,clip,blocks,subband,style,policy,indices,source_placements,planned_code_blocks,selected,limits,events),
+            crate::specs::part2_cold_phase(root,prefix,|events|crate::specs::part2_codeblock_rows_run(grid,clip,blocks,subband,style,policy,(indices.0,indices.1),block_y as nat,planned_codeblocks_view(&state),events)),
             crate::specs::part2_codeblock_owner_result(grid,clip,blocks,subband,style,policy,indices,placements@,planned_code_blocks,selected,limits,goal),
             goal == crate::specs::part2_planned_codeblocks(
                 grid, clip, blocks, subband, style, policy, indices, placements@, planned_code_blocks, selected, limits,
@@ -1264,10 +1280,18 @@ pub(crate) fn plan_codeblock_decoders(
     ))]
     while block_y < blocks[1] {
         #[cfg(verus_keep_ghost)]
-        proof! { reveal_with_fuel(crate::specs::part2_planned_codeblock_rows, 1); }
+        proof! {
+            reveal_with_fuel(crate::specs::part2_planned_codeblock_rows, 1);
+            crate::specs::part2_codeblock_rows_step(grid,clip,blocks,subband,style,policy,(indices.0,indices.1),block_y as nat,planned_codeblocks_view(&state));
+        }
         let mut block_x = 0_u32;
         #[cfg_attr(verus_keep_ghost, verus_spec(
             invariant block_x <= blocks[0], block_y < blocks[1],
+                source_placements==placements@,
+                forall|events:Seq<crate::specs::Part2JpipSnapshotEvent>| #[trigger] root(events)==crate::specs::part2_codeblock_owner_run(grid,clip,blocks,subband,style,policy,indices,source_placements,planned_code_blocks,selected,limits,events),
+                crate::specs::part2_cold_phase(root,prefix,|events|crate::specs::part2_jpip_snapshot_bind(
+                    crate::specs::part2_codeblock_columns_run(grid,clip,blocks[0],subband,style,policy,(indices.0,indices.1),block_y,block_x as nat,planned_codeblocks_view(&state),events),
+                    |after:crate::specs::Part2PlannedCodeBlocks,rest|crate::specs::part2_codeblock_rows_run(grid,clip,blocks,subband,style,policy,(indices.0,indices.1),block_y as nat+1,after,rest))),
                 crate::specs::part2_codeblock_owner_result(grid,clip,blocks,subband,style,policy,indices,placements@,planned_code_blocks,selected,limits,goal),
                 goal == crate::specs::part2_planned_codeblocks(
                     grid, clip, blocks, subband, style, policy, indices, placements@, planned_code_blocks, selected, limits,
@@ -1287,7 +1311,18 @@ pub(crate) fn plan_codeblock_decoders(
         while block_x < blocks[0] {
             #[cfg(verus_keep_ghost)]
             proof! { reveal_with_fuel(crate::specs::part2_planned_codeblock_columns, 1); }
-            state = append_planned_codeblock(
+            #[cfg(verus_keep_ghost)]
+            proof_decl! {let ghost before=planned_codeblocks_view(&state);}
+            #[cfg(verus_keep_ghost)]
+            proof! {
+                crate::specs::part2_codeblock_columns_step(grid,clip,blocks,subband,style,policy,(indices.0,indices.1),block_y,block_x as nat,before);
+                assert forall|events:Seq<crate::specs::Part2JpipSnapshotEvent>| #[trigger] root(prefix+events)
+                    ==crate::specs::part2_jpip_snapshot_bind(crate::specs::part2_codeblock_cell_run(grid,clip,[block_x,block_y],subband,style,policy,(indices.0,indices.1),before,events),
+                        |after:crate::specs::Part2PlannedCodeBlocks,rest|crate::specs::part2_jpip_snapshot_bind(
+                            crate::specs::part2_codeblock_columns_run(grid,clip,blocks[0],subband,style,policy,(indices.0,indices.1),block_y,block_x as nat+1,after,rest),
+                            |last:crate::specs::Part2PlannedCodeBlocks,tail|crate::specs::part2_codeblock_rows_run(grid,clip,blocks,subband,style,policy,(indices.0,indices.1),block_y as nat+1,last,tail))) by {}
+            }
+            let appended_result = append_planned_codeblock(
                 grid,
                 clip,
                 [block_x, block_y],
@@ -1296,11 +1331,28 @@ pub(crate) fn plan_codeblock_decoders(
                 policy,
                 (indices.0, indices.1),
                 state,
-            )?;
+            );
+            #[cfg(verus_keep_ghost)]
+            proof! {
+                let child=|events|crate::specs::part2_codeblock_cell_run(grid,clip,[block_x,block_y],subband,style,policy,(indices.0,indices.1),before,events);
+                let next=|after:crate::specs::Part2PlannedCodeBlocks,rest|crate::specs::part2_jpip_snapshot_bind(
+                    crate::specs::part2_codeblock_columns_run(grid,clip,blocks[0],subband,style,policy,(indices.0,indices.1),block_y,block_x as nat+1,after,rest),
+                    |last:crate::specs::Part2PlannedCodeBlocks,tail|crate::specs::part2_codeblock_rows_run(grid,clip,blocks,subband,style,policy,(indices.0,indices.1),block_y as nat+1,last,tail));
+                crate::specs::part2_codeblock_cell_frames(grid,clip,[block_x,block_y],subband,style,policy,(indices.0,indices.1),before,planned_codeblocks_outcome(appended_result));
+                assert forall|events|root(prefix+events)==crate::specs::part2_jpip_snapshot_bind(child(events),next) by {}
+                match planned_codeblocks_outcome(appended_result){
+                    Err(error)=>{crate::specs::part2_decode_prefix_error(root,child,next,prefix,error);
+                        crate::specs::part2_codeblock_owner_join(grid,clip,blocks,subband,style,policy,indices,source_placements,planned_code_blocks,selected,limits,root,Err(error));},
+                    Ok(after)=>{prefix=crate::specs::part2_decode_prefix_advance(root,child,next,prefix,after);},
+                }
+            }
+            state = appended_result?;
             block_x = block_x.checked_add(1).ok_or_else(arithmetic_overflow)?;
         }
         #[cfg(verus_keep_ghost)]
         proof! { reveal_with_fuel(crate::specs::part2_planned_codeblock_columns, 1); }
+        #[cfg(verus_keep_ghost)]
+        proof! {crate::specs::part2_codeblock_columns_end(grid,clip,blocks[0],subband,style,policy,(indices.0,indices.1),block_y,block_x as nat,planned_codeblocks_view(&state));}
         block_y = block_y.checked_add(1).ok_or_else(arithmetic_overflow)?;
     }
     #[cfg(verus_keep_ghost)]

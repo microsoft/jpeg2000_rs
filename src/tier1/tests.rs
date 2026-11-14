@@ -1,6 +1,245 @@
 use super::*;
 
 #[test]
+fn tier1_plane_storage_standalone_duplicate_frontiers_and_exact_restore() {
+    let mut source = CodeBlockPlane::new(1, 1).unwrap();
+    source.coefficients[0] = CoefficientState {
+        magnitude: 17,
+        negative: true,
+        significant: true,
+        ..CoefficientState::default()
+    };
+    let before = source.coefficients.clone();
+    crate::allocation::with_refusal(0, || {
+        assert_eq!(CodeBlockPlane::new(0, 1), Err(invalid_code_block()));
+        assert_eq!(CodeBlockPlane::new(65, 64), Err(invalid_code_block()));
+        assert_eq!(
+            CodeBlockPlane::new(1, 1),
+            Err(DecodeError::AllocationFailed)
+        );
+    });
+    crate::allocation::with_refusal(0, || {
+        assert_eq!(
+            source.duplicate(CoefficientStorageRole::Duplicate),
+            Err(DecodeError::AllocationFailed)
+        )
+    });
+    let malformed = CodeBlockPlane {
+        width: 1,
+        height: 1,
+        coefficients: Vec::new(),
+    };
+    crate::allocation::with_refusal(0, || {
+        assert_eq!(
+            malformed.duplicate(CoefficientStorageRole::Duplicate),
+            Err(DecodeError::AllocationFailed)
+        )
+    });
+    crate::allocation::with_refusal(1, || {
+        assert_eq!(
+            malformed.duplicate(CoefficientStorageRole::Duplicate),
+            Err(invalid_code_block())
+        );
+        assert_eq!(
+            crate::allocation::empty_with_capacity::<u8>(1),
+            Err(DecodeError::AllocationFailed)
+        );
+    });
+    assert_eq!(source.coefficients, before);
+    assert_eq!(
+        source
+            .duplicate(CoefficientStorageRole::Duplicate)
+            .unwrap()
+            .coefficients,
+        before
+    );
+}
+
+fn tier1_plane_storage_ht_decoder() -> Tier1CodeBlockDecoder {
+    Tier1CodeBlockDecoder::new(
+        1,
+        1,
+        2,
+        SubbandOrientation::Hh,
+        Tier1CodingStyle::from_code_block_style(0x40).unwrap(),
+    )
+    .unwrap()
+}
+
+#[test]
+fn tier1_plane_storage_cleanup_output_copy_refusals_restore_state_and_output() {
+    let limits = ResourceLimits::default();
+    let base = tier1_plane_storage_ht_decoder();
+    let mut expected = base.clone();
+    let result = expected
+        .decode_high_throughput_segments(&[0, 0x63, 0], 1, None, 0, &limits)
+        .unwrap();
+    for after in [0, 1] {
+        let mut actual = base.clone();
+        let before = format!("{actual:?}");
+        assert_eq!(
+            crate::allocation::with_refusal(after, || actual.decode_high_throughput_segments(
+                &[0, 0x63, 0],
+                1,
+                None,
+                0,
+                &limits
+            )),
+            Err(DecodeError::AllocationFailed)
+        );
+        assert_eq!(format!("{actual:?}"), before);
+        assert_eq!(
+            actual
+                .decode_high_throughput_segments(&[0, 0x63, 0], 1, None, 0, &limits)
+                .unwrap(),
+            result
+        );
+        assert_eq!(format!("{actual:?}"), format!("{expected:?}"));
+    }
+    let mut actual = base.clone();
+    let ordinary = actual
+        .decode_high_throughput_segments(&[0], 1, None, 0, &limits)
+        .err()
+        .unwrap();
+    assert_ne!(ordinary, DecodeError::AllocationFailed);
+    crate::allocation::with_refusal(0, || {
+        assert_eq!(
+            base.clone()
+                .decode_high_throughput_segments(&[0], 1, None, 0, &limits)
+                .err(),
+            Some(ordinary)
+        )
+    });
+}
+
+#[test]
+fn tier1_plane_storage_refinement_roles_preserve_rollback_and_cleared_partial_state() {
+    let limits = ResourceLimits::default();
+    let mut base = tier1_plane_storage_ht_decoder();
+    base.decode_high_throughput_segments(&[0, 0x63, 0], 1, None, 0, &limits)
+        .unwrap();
+    let mut expected = base.clone();
+    expected
+        .decode_high_throughput_refinement(&[0], 1, &limits)
+        .unwrap();
+    for after in [0, 1] {
+        let mut actual = base.clone();
+        let before = format!("{actual:?}");
+        assert_eq!(
+            crate::allocation::with_refusal(after, || actual.decode_high_throughput_refinement(
+                &[0],
+                1,
+                &limits
+            )),
+            Err(DecodeError::AllocationFailed)
+        );
+        assert_eq!(format!("{actual:?}"), before);
+        actual
+            .decode_high_throughput_refinement(&[0], 1, &limits)
+            .unwrap();
+        assert_eq!(format!("{actual:?}"), format!("{expected:?}"));
+    }
+    for after in [2, 3] {
+        let mut actual = tier1_plane_storage_ht_decoder();
+        actual.ht_refinement_data = vec![7];
+        actual.ht_refinement_passes = 1;
+        let mut cleared = actual.clone();
+        cleared.ht_refinement_data.clear();
+        cleared.ht_refinement_passes = 0;
+        assert_eq!(
+            crate::allocation::with_refusal(after, || actual.decode_high_throughput_segments(
+                &[0, 0x63, 0],
+                1,
+                Some(&[0]),
+                1,
+                &limits
+            )),
+            Err(DecodeError::AllocationFailed)
+        );
+        assert_eq!(format!("{actual:?}"), format!("{cleared:?}"));
+    }
+}
+
+#[test]
+fn tier1_initial_storage_admission_refusal_and_late_policy_order() {
+    let style = Tier1CodingStyle::default();
+    crate::allocation::with_refusal(0, || {
+        for (width, height, bits) in [
+            (0, 1, 1),
+            (1, 0, 1),
+            (1, 1, 0),
+            (1, 1, u16::MAX),
+            (65, 64, 1),
+            (u16::MAX, u16::MAX, 1),
+        ] {
+            assert_eq!(
+                tier1_configured_decoder(
+                    width,
+                    height,
+                    bits,
+                    SubbandOrientation::Ll,
+                    style,
+                    false,
+                    74
+                )
+                .err(),
+                Some(invalid_code_block())
+            );
+        }
+        assert_eq!(
+            tier1_configured_decoder(1, 1, 1, SubbandOrientation::Ll, style, true, 0).err(),
+            Some(DecodeError::AllocationFailed)
+        );
+    });
+    crate::allocation::with_refusal(1, || {
+        assert_eq!(
+            tier1_configured_decoder(1, 1, 1, SubbandOrientation::Ll, style, true, 0).err(),
+            Some(invalid_code_block())
+        );
+        assert_eq!(
+            crate::allocation::empty_with_capacity::<u8>(1),
+            Err(DecodeError::AllocationFailed)
+        );
+    });
+    let actual =
+        tier1_configured_decoder(1, 1, 1, SubbandOrientation::Ll, style, true, 73).unwrap();
+    assert!(actual.allow_multiple_ht_sets);
+    assert_eq!(actual.ht_magnitude_bound, 73);
+}
+
+#[test]
+fn tier1_initial_storage_first_later_exact_coefficients_restore_and_separate_later_role() {
+    let style = Tier1CodingStyle::default();
+    let expected = tier1_decoder_from_dimensions(2, 2, 7, SubbandOrientation::Hh, style).unwrap();
+    crate::allocation::with_refusal(1, || {
+        let first = tier1_decoder_from_dimensions(2, 2, 7, SubbandOrientation::Hh, style).unwrap();
+        assert_eq!(format!("{first:?}"), format!("{expected:?}"));
+        assert_eq!(
+            tier1_decoder_from_dimensions(1, 1, 1, SubbandOrientation::Ll, style).err(),
+            Some(DecodeError::AllocationFailed)
+        );
+    });
+    crate::allocation::with_refusal(0, || {
+        assert_eq!(
+            CodeBlockPlane::new(1, 1),
+            Err(DecodeError::AllocationFailed)
+        );
+    });
+    crate::allocation::with_refusal(0, || {
+        assert_eq!(
+            tier1_decoder_from_dimensions(1, 1, 1, SubbandOrientation::Ll, style).err(),
+            Some(DecodeError::AllocationFailed)
+        );
+    });
+    let restored = tier1_decoder_from_dimensions(2, 2, 7, SubbandOrientation::Hh, style).unwrap();
+    assert_eq!(format!("{restored:?}"), format!("{expected:?}"));
+    assert_eq!(
+        restored.plane.coefficients,
+        vec![CoefficientState::default(); 4]
+    );
+}
+
+#[test]
 fn configured_decoder_derives_initial_state_and_preserves_bound_admission_order() {
     let invalid = DecodeError::MalformedInput {
         offset: 0,
@@ -3760,7 +3999,10 @@ fn ht_cleanup_caller_accounting_failures_preserve_ordered_commits_not_rollback()
 #[test]
 fn ht_cleanup_duplicate_preserves_full_raw_coefficients_and_rejects_bad_shapes() {
     let decoder = cleanup_caller_decoder();
-    let duplicate = decoder.plane.duplicate().unwrap();
+    let duplicate = decoder
+        .plane
+        .duplicate(CoefficientStorageRole::Duplicate)
+        .unwrap();
     assert_eq!(duplicate, decoder.plane);
     for plane in [
         CodeBlockPlane {
@@ -3780,7 +4022,10 @@ fn ht_cleanup_duplicate_preserves_full_raw_coefficients_and_rejects_bad_shapes()
         },
     ] {
         let before = plane.clone();
-        assert_eq!(plane.duplicate(), Err(invalid_code_block()));
+        assert_eq!(
+            plane.duplicate(CoefficientStorageRole::Duplicate),
+            Err(invalid_code_block())
+        );
         assert_eq!(plane, before);
     }
 }

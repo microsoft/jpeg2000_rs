@@ -3848,8 +3848,12 @@ fn packet_precinct_storage_subbands_and_ordered_tree_refusals_restore_every_owne
     };
     let expected = make().unwrap();
     for after in [0, 1, 2] {
+        let executions = vec![packet_precinct_storage_execution()];
         assert_eq!(
-            crate::allocation::with_refusal(after, make).err(),
+            crate::allocation::with_refusal(after, || packet_precinct_from_subbands(
+                2, 3, 4, style, executions, &limits
+            ))
+            .err(),
             Some(DecodeError::AllocationFailed)
         );
     }
@@ -3875,6 +3879,10 @@ fn packet_precinct_storage_subbands_and_ordered_tree_refusals_restore_every_owne
 fn packet_precinct_storage_empty_and_ordinary_priority_consume_no_later_request() {
     let limits = ResourceLimits::default();
     let style = Tier1CodingStyle::default();
+    let oversized = (0..4)
+        .map(|_| packet_precinct_storage_execution())
+        .collect();
+    let executions = vec![packet_precinct_storage_execution()];
     crate::allocation::with_refusal(0, || {
         let empty = packet_precinct_from_subbands(0, 0, 0, style, Vec::new(), &limits).unwrap();
         assert!(
@@ -3884,29 +3892,11 @@ fn packet_precinct_storage_empty_and_ordinary_priority_consume_no_later_request(
                 && empty.subbands.is_empty()
         );
         assert_eq!(
-            packet_precinct_from_subbands(
-                0,
-                0,
-                0,
-                style,
-                (0..4)
-                    .map(|_| packet_precinct_storage_execution())
-                    .collect(),
-                &limits
-            )
-            .err(),
+            packet_precinct_from_subbands(0, 0, 0, style, oversized, &limits).err(),
             Some(invalid_packet_header())
         );
         assert_eq!(
-            packet_precinct_from_subbands(
-                0,
-                0,
-                0,
-                style,
-                vec![packet_precinct_storage_execution()],
-                &limits
-            )
-            .err(),
+            packet_precinct_from_subbands(0, 0, 0, style, executions, &limits).err(),
             Some(DecodeError::AllocationFailed)
         );
     });
@@ -3916,11 +3906,11 @@ fn packet_precinct_storage_empty_and_ordinary_priority_consume_no_later_request(
         .with_maximum_work_units(0)
         .unwrap();
     for malformed in [true, false] {
+        let mut execution = packet_precinct_storage_execution();
+        if malformed {
+            execution.maximum_zero_bitplanes = 0;
+        }
         crate::allocation::with_refusal(1, || {
-            let mut execution = packet_precinct_storage_execution();
-            if malformed {
-                execution.maximum_zero_bitplanes = 0;
-            }
             let result = packet_precinct_from_subbands(
                 0,
                 0,

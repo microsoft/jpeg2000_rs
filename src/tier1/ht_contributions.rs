@@ -52,7 +52,9 @@ impl Tier1CodeBlockDecoder {
 
     #[inline]
     #[cfg_attr(verus_keep_ghost, verus_spec(result =>
-        ensures (result, tier1_decoder_state(final(self))) == crate::specs::ht_decode_staged_group(
+        ensures crate::specs::part2_ht_staged_result(tier1_decoder_state(old(self)),input@,passes,crate::limits::resource_code_block_pass_limit(limits),
+            crate::limits::resource_code_block_byte_limit(limits),crate::limits::resource_work_limit(limits),(result,tier1_decoder_state(final(self)))),
+            result!=Err(DecodeError::AllocationFailed) ==> (result, tier1_decoder_state(final(self))) == crate::specs::ht_decode_staged_group(
             tier1_decoder_state(old(self)), input@, passes, crate::limits::resource_code_block_pass_limit(limits),
             crate::limits::resource_code_block_byte_limit(limits), crate::limits::resource_work_limit(limits)),
     ))]
@@ -62,6 +64,11 @@ impl Tier1CodeBlockDecoder {
         passes: u8,
         limits: &ResourceLimits,
     ) -> Result<Tier1SegmentDecode, DecodeError> {
+        #[cfg(verus_keep_ghost)]
+        proof_decl! {let ghost before=tier1_decoder_state(self);}
+        #[cfg(verus_keep_ghost)]
+        proof! {crate::specs::part2_ht_staged_normal(before,input@,passes,crate::limits::resource_code_block_pass_limit(limits),
+        crate::limits::resource_code_block_byte_limit(limits),crate::limits::resource_work_limit(limits));}
         if passes == 0 || input.is_empty() {
             return Err(invalid_code_block());
         }
@@ -71,7 +78,13 @@ impl Tier1CodeBlockDecoder {
         }
         let mut staged = self.clone();
         staged.run_ht_placeholder_groups(grouping.placeholder_passes, limits)?;
-        let decoded = staged.decode_high_throughput_segments(input, 1, None, 0, limits)?;
+        #[cfg(verus_keep_ghost)]
+        proof_decl! {let ghost staged_before=tier1_decoder_state(&staged);}
+        let decoded_result = staged.decode_high_throughput_segments(input, 1, None, 0, limits);
+        #[cfg(verus_keep_ghost)]
+        proof! {crate::specs::part2_ht_staged_observed(before,input@,passes,crate::limits::resource_code_block_pass_limit(limits),
+        crate::limits::resource_code_block_byte_limit(limits),crate::limits::resource_work_limit(limits),staged_before,(decoded_result,tier1_decoder_state(&staged)));}
+        let decoded = decoded_result?;
         *self = staged;
         Ok(Tier1SegmentDecode {
             passes: u32::from(passes),
@@ -80,7 +93,9 @@ impl Tier1CodeBlockDecoder {
     }
 
     #[cfg_attr(verus_keep_ghost, verus_spec(result =>
-        ensures (result, tier1_decoder_state(final(self))) == crate::specs::ht_decode_segments(
+        ensures crate::specs::part2_ht_segments_result(tier1_decoder_state(old(self)),cleanup@,cleanup_passes,ht_optional_bytes_view(refinement),refinement_passes,
+            crate::limits::resource_code_block_pass_limit(limits),crate::limits::resource_code_block_byte_limit(limits),crate::limits::resource_work_limit(limits),(result,tier1_decoder_state(final(self)))),
+            result!=Err(DecodeError::AllocationFailed) ==> (result, tier1_decoder_state(final(self))) == crate::specs::ht_decode_segments(
             tier1_decoder_state(old(self)), cleanup@, cleanup_passes, ht_optional_bytes_view(refinement),
             refinement_passes, crate::limits::resource_code_block_pass_limit(limits),
             crate::limits::resource_code_block_byte_limit(limits), crate::limits::resource_work_limit(limits)),
@@ -93,6 +108,11 @@ impl Tier1CodeBlockDecoder {
         refinement_passes: u8,
         limits: &ResourceLimits,
     ) -> Result<Tier1SegmentDecode, DecodeError> {
+        #[cfg(verus_keep_ghost)]
+        proof_decl! {let ghost before=tier1_decoder_state(self);}
+        #[cfg(verus_keep_ghost)]
+        proof! {crate::specs::part2_ht_segments_normal(before,cleanup@,cleanup_passes,ht_optional_bytes_view(refinement),refinement_passes,crate::limits::resource_code_block_pass_limit(limits),
+        crate::limits::resource_code_block_byte_limit(limits),crate::limits::resource_work_limit(limits));}
         if !self.style.block_coding.uses_high_throughput()
             || !self.next_pass.is_multiple_of(3)
             || cleanup_passes != 1
@@ -167,17 +187,25 @@ impl Tier1CodeBlockDecoder {
             skipped_bitplanes,
             self.ht_magnitude_bound,
         );
-        self.decode_ht_coefficient_symbols(
+        #[cfg(verus_keep_ghost)]
+        proof_decl! {let ghost admitted=(ht_block_segments_view(&segments),pass_count,maximum_u,skipped_bitplanes);}
+        let decoded = self.decode_ht_coefficient_symbols(
             segments,
             pass_count,
             maximum_u,
             skipped_bitplanes,
             limits,
-        )
+        );
+        #[cfg(verus_keep_ghost)]
+        proof! {crate::specs::part2_ht_segments_observed(before,cleanup@,cleanup_passes,ht_optional_bytes_view(refinement),refinement_passes,crate::limits::resource_code_block_pass_limit(limits),
+        crate::limits::resource_code_block_byte_limit(limits),crate::limits::resource_work_limit(limits),admitted,(decoded,tier1_decoder_state(self)));}
+        decoded
     }
 
     #[cfg_attr(verus_keep_ghost, verus_spec(result =>
-        ensures (result, tier1_decoder_state(final(self))) == crate::specs::ht_coefficient_symbols(
+        ensures crate::specs::part2_ht_coeff_result(tier1_decoder_state(old(self)),ht_block_segments_view(&segments),pass_count,maximum_u,skipped_bitplanes,
+            crate::limits::resource_work_limit(limits),(result,tier1_decoder_state(final(self)))),
+            result!=Err(DecodeError::AllocationFailed) ==> (result, tier1_decoder_state(final(self))) == crate::specs::ht_coefficient_symbols(
                 tier1_decoder_state(old(self)), ht_block_segments_view(&segments),
                 pass_count, maximum_u, skipped_bitplanes, crate::limits::resource_work_limit(limits)),
     ))]
@@ -189,14 +217,23 @@ impl Tier1CodeBlockDecoder {
         skipped_bitplanes: u16,
         limits: &ResourceLimits,
     ) -> Result<Tier1SegmentDecode, DecodeError> {
-        let (plane, cleanup_plane, statistics, decoded_bitplanes) = prepare_ht_cleanup_symbols(
+        #[cfg(verus_keep_ghost)]
+        proof_decl! {let ghost before=tier1_decoder_state(self);}
+        #[cfg(verus_keep_ghost)]
+        proof! {crate::specs::part2_ht_coeff_normal(before,ht_block_segments_view(&segments),pass_count,maximum_u,skipped_bitplanes,crate::limits::resource_work_limit(limits));}
+        let prepared_result = prepare_ht_cleanup_symbols(
             &self.plane,
             segments.cleanup(),
             self.maximum_passes,
             maximum_u,
             skipped_bitplanes,
             limits,
-        )?;
+        );
+        #[cfg(verus_keep_ghost)]
+        proof! {if let Err(error)=prepared_result {crate::specs::part2_ht_coeff_prepare_error(before,ht_block_segments_view(&segments),pass_count,maximum_u,skipped_bitplanes,crate::limits::resource_work_limit(limits),error);}}
+        let (plane, cleanup_plane, statistics, decoded_bitplanes) = prepared_result?;
+        #[cfg(verus_keep_ghost)]
+        proof_decl! {let ghost prepared=(code_block_plane_view(&plane),code_block_plane_view(&cleanup_plane),statistics,decoded_bitplanes);}
         let mut output = plane;
         let mut statistics = statistics;
         self.clear_ht_refinement_state();
@@ -206,14 +243,18 @@ impl Tier1CodeBlockDecoder {
                 return Err(arithmetic_overflow());
             }
             let refinement_passes = following_passes as u8;
-            let (refined, refinement_statistics) = decode_ht_refinement_plane(
+            let refined_result = decode_ht_refinement_plane(
                 &cleanup_plane,
                 refinement,
                 refinement_passes,
                 decoded_bitplanes,
                 self.style.vertical_causal_context,
                 limits,
-            )?;
+            );
+            #[cfg(verus_keep_ghost)]
+            proof! {if let Err(error)=refined_result {crate::specs::part2_ht_coeff_refinement_error(before,ht_block_segments_view(&segments),pass_count,maximum_u,skipped_bitplanes,
+            crate::limits::resource_work_limit(limits),prepared,ht_refinement_segment_view(&refinement),error);}}
+            let (refined, refinement_statistics) = refined_result?;
             output = refined;
             statistics.merge(refinement_statistics)?;
             self.ht_refinement_data = copy_ht_refinement_bytes(refinement.encoded())?;
@@ -362,7 +403,9 @@ impl Tier1CodeBlockDecoder {
     }
 
     #[cfg_attr(verus_keep_ghost, verus_spec(result =>
-        ensures (result, tier1_decoder_state(final(self))) == crate::specs::ht_decode_refinement_contribution(
+        ensures crate::specs::part2_ht_replay_result(tier1_decoder_state(old(self)),input@,passes,crate::limits::resource_code_block_byte_limit(limits),crate::limits::resource_work_limit(limits),
+            (result,tier1_decoder_state(final(self)))),
+            result!=Err(DecodeError::AllocationFailed) ==> (result, tier1_decoder_state(final(self))) == crate::specs::ht_decode_refinement_contribution(
             tier1_decoder_state(old(self)), input@, passes,
             crate::limits::resource_code_block_byte_limit(limits), crate::limits::resource_work_limit(limits)),
     ))]
@@ -374,6 +417,8 @@ impl Tier1CodeBlockDecoder {
     ) -> Result<Tier1SegmentDecode, DecodeError> {
         #[cfg(verus_keep_ghost)]
         proof_decl! { let ghost start = tier1_decoder_state(self); }
+        #[cfg(verus_keep_ghost)]
+        proof! {crate::specs::part2_ht_replay_normal(start,input@,passes,crate::limits::resource_code_block_byte_limit(limits),crate::limits::resource_work_limit(limits));}
         if !self.style.block_coding.uses_high_throughput()
             || self.next_pass == 0
             || !self.ht_current_set_has_cleanup
@@ -451,14 +496,18 @@ impl Tier1CodeBlockDecoder {
                 magnitude_refinement: crate::specs::HtSubstreamState { bytes: refinement_data@, offset: 0, forward: false },
             });
         }
-        let (plane, statistics) = decode_ht_refinement_plane(
+        let replayed = decode_ht_refinement_plane(
             cleanup_plane,
             segment,
             refinement_passes,
             self.ht_decoded_bitplanes,
             self.style.vertical_causal_context,
             limits,
-        )?;
+        );
+        #[cfg(verus_keep_ghost)]
+        proof! {if let Err(error)=replayed {crate::specs::part2_ht_replay_error(start,input@,passes,crate::limits::resource_code_block_byte_limit(limits),crate::limits::resource_work_limit(limits),
+        (code_block_plane_view(cleanup_plane),ht_refinement_segment_view(&segment),refinement_passes),error);}}
+        let (plane, statistics) = replayed?;
         self.plane = plane;
         self.ht_refinement_data = refinement_data;
         self.ht_refinement_passes = refinement_passes;
