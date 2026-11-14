@@ -87,9 +87,17 @@ pub(crate) open spec fn part2_inspect_raw_jpx_cold_run(
     input: Seq<u8>, limits: &crate::ResourceLimits, events: Seq<Part2JpipSnapshotEvent>,
 ) -> Part2ColdRun<Part2JpxInspection> {
     part2_jpip_snapshot_bind(part2_inspection_cold_run(input, limits, false, events),
-        |inspected: Part2RawInspectedContainer, tail| Some((part2_inspect_raw_jpx_finish(inspected, limits), tail)))
+        |inspected: Part2RawInspectedContainer, tail| part2_inspect_raw_jpx_finish_cold(inspected, limits, tail))
 }
 
+pub(crate) open spec fn part2_inspect_raw_jpx_finish_cold(inspected: Part2RawInspectedContainer,
+    limits: &crate::ResourceLimits, events: Seq<Part2JpipSnapshotEvent>) -> Part2ColdRun<Part2JpxInspection> {
+    match part2_ensure_raw_jpx(inspected.0.file_type) {
+        Err(error) => Some((Err(error), events)),
+        Ok(()) => part2_inspect_file_cold_run(part2_raw_inspection_file(inspected.0),
+            part2_raw_inspection_geometries(inspected.1), crate::limits::resource_frame_limit(limits), events),
+    }
+}
 pub closed spec fn part2_inspect_raw_jpx_cold_result(
     input: Seq<u8>, limits: &crate::ResourceLimits, result: Result<Part2JpxInspection, crate::DecodeError>,
 ) -> bool {
@@ -117,11 +125,47 @@ pub(crate) proof fn part2_inspect_raw_jpx_cold_actual(
 {
     reveal(part2_inspect_raw_jpx_cold_result);
     part2_inspection_cold_frames(input, limits, false, inspected);
-    if let Ok(value) = inspected { part2_cold_pure(part2_inspect_raw_jpx_finish(value, limits)); }
+    if let Ok(value) = inspected {
+        match part2_ensure_raw_jpx(value.0.file_type) {
+            Err(error) => {
+                part2_cold_pure::<Part2JpxInspection>(Err(error));
+                part2_cold_framed_extensional(|events| Some((Err(error), events)),
+                    |events| part2_inspect_raw_jpx_finish_cold(value, limits, events), Err(error));
+            },
+            Ok(()) => {
+                part2_inspect_file_cold_normal(part2_raw_inspection_file(value.0),
+                    part2_raw_inspection_geometries(value.1), crate::limits::resource_frame_limit(limits));
+                part2_cold_framed_extensional(
+                    |events| part2_inspect_file_cold_run(part2_raw_inspection_file(value.0),
+                        part2_raw_inspection_geometries(value.1), crate::limits::resource_frame_limit(limits), events),
+                    |events| part2_inspect_raw_jpx_finish_cold(value, limits, events), part2_inspect_raw_jpx_finish(value, limits));
+            },
+        }
+    }
     part2_cold_bind(
         |events| part2_inspection_cold_run(input, limits, false, events),
-        |value: Part2RawInspectedContainer, tail| Some((part2_inspect_raw_jpx_finish(value, limits), tail)),
+        |value: Part2RawInspectedContainer, tail| part2_inspect_raw_jpx_finish_cold(value, limits, tail),
         inspected, match inspected { Err(error) => Err(error), Ok(value) => part2_inspect_raw_jpx_finish(value, limits) });
+}
+
+pub(crate) proof fn part2_inspect_raw_jpx_cold_metadata_actual(input: Seq<u8>, limits: &crate::ResourceLimits,
+    inspected: Part2RawInspectedContainer, result: Result<Part2JpxInspection, crate::DecodeError>)
+    requires part2_inspection_cold_result(input, limits, false, Ok(inspected)),
+        part2_ensure_raw_jpx(inspected.0.file_type) == Ok(()),
+        part2_inspect_file_cold_result(part2_raw_inspection_file(inspected.0),
+            part2_raw_inspection_geometries(inspected.1), crate::limits::resource_frame_limit(limits), result),
+    ensures part2_inspect_raw_jpx_cold_result(input, limits, result),
+{
+    reveal(part2_inspect_raw_jpx_cold_result);
+    part2_inspection_cold_frames(input, limits, false, Ok(inspected));
+    part2_inspect_file_cold_frames(part2_raw_inspection_file(inspected.0),
+        part2_raw_inspection_geometries(inspected.1), crate::limits::resource_frame_limit(limits), result);
+    part2_cold_framed_extensional(
+        |events| part2_inspect_file_cold_run(part2_raw_inspection_file(inspected.0),
+            part2_raw_inspection_geometries(inspected.1), crate::limits::resource_frame_limit(limits), events),
+        |events| part2_inspect_raw_jpx_finish_cold(inspected, limits, events), result);
+    part2_cold_bind(|events| part2_inspection_cold_run(input, limits, false, events),
+        |value: Part2RawInspectedContainer, tail| part2_inspect_raw_jpx_finish_cold(value, limits, tail), Ok(inspected), result);
 }
 
 }

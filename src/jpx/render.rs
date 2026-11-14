@@ -99,7 +99,13 @@ pub fn render_jpx_composition(
         raw_jpx_geometries_known(jp2::raw_inspected_native_infos(&inspected));
     }
     ensure_jpx(file)?;
-    let metadata = inspect_file(file, inspected.codestreams(), options.limits())?;
+    let metadata = inspect_file(file, inspected.codestreams(), options.limits());
+    #[cfg(verus_keep_ghost)]
+    proof! { if let Err(error) = metadata {
+        crate::specs::part2_render_raw_cold_metadata_error(input@, 2, 0, crate::options::decode_options_limits(options),
+            jp2::raw_inspected_container_view(&inspected), error);
+    }}
+    let metadata = metadata?;
     #[cfg(verus_keep_ghost)]
     proof! {
         inspection_value_known(&metadata);
@@ -270,7 +276,13 @@ pub fn render_jpx_frame(
         raw_jpx_geometries_known(jp2::raw_inspected_native_infos(&inspected));
     }
     ensure_jpx(file)?;
-    let metadata = inspect_file(file, inspected.codestreams(), options.limits())?;
+    let metadata = inspect_file(file, inspected.codestreams(), options.limits());
+    #[cfg(verus_keep_ghost)]
+    proof! { if let Err(error) = metadata {
+        crate::specs::part2_render_raw_cold_metadata_error(input@, 1, frame_index, crate::options::decode_options_limits(options),
+            jp2::raw_inspected_container_view(&inspected), error);
+    }}
+    let metadata = metadata?;
     #[cfg(verus_keep_ghost)]
     proof! { raw_jpx_render_metadata_known(&metadata); }
     let rendered = render_inspected_frame(file, &metadata, frame_index, options);

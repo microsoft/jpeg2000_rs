@@ -916,6 +916,27 @@ mod tests {
     }
 
     #[test]
+    fn fresh_inspection_layers_refuse_after_info_collection_and_preserve_render_order() {
+        let (bytes, _) = source_layer_bytes(&[0xcf, 0xb4, 0x04, 0x09], false);
+        let limits = ResourceLimits::default();
+        let inspected = jp2::parse_and_inspect(&bytes, &limits).unwrap();
+        let expected = super::inspection::inspect_file(inspected.file(), inspected.codestreams(), &limits).unwrap();
+        assert_eq!(crate::allocation::with_refusal(0, ||
+            super::inspection::inspect_file(inspected.file(), inspected.codestreams(), &limits)).err(), Some(DecodeError::AllocationFailed));
+        assert_eq!(super::inspection::inspect_file(inspected.file(), inspected.codestreams(), &limits).unwrap(), expected);
+        let ordinary = super::inspection::inspect_file(inspected.file(), &[], &limits).unwrap_err();
+        crate::allocation::with_refusal(1, || {
+            assert_eq!(super::inspection::inspect_file(inspected.file(), &[], &limits).unwrap_err(), ordinary);
+            assert_eq!(crate::allocation::copy_values(&[1_u8]), Err(DecodeError::AllocationFailed));
+        });
+        assert_eq!(crate::allocation::with_refusal(12, || inspect_jpx_layers(&bytes, &limits)).err(), Some(DecodeError::AllocationFailed));
+        assert_eq!(inspect_jpx_layers(&bytes, &limits).unwrap(), expected);
+        let options = DecodeOptions::default();
+        assert_eq!(crate::allocation::with_refusal(12, || render_jpx_frame(&bytes, usize::MAX, &options)).err(), Some(DecodeError::AllocationFailed));
+        assert_eq!(crate::allocation::with_refusal(12, || render_jpx_composition(&bytes, &options)).err(), Some(DecodeError::AllocationFailed));
+    }
+
+    #[test]
     fn actual_jpx_inspection_keeps_every_implicit_and_declared_layer_metadata_field() {
         let limits = ResourceLimits::default();
         let bytes = source_frame_codestream_bytes();

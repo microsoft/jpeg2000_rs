@@ -1778,6 +1778,7 @@
         {"path": "src/jpx/layer_decode.rs", "symbol": "decode_effective_layer"}
       ],
       "spec_refs": [
+        {"path": "specs/cold_inspection_storage.rs", "symbol": "part2_inspect_file_cold_run"},
         {"path": "specs/jpx_raw_composition.rs", "symbol": "part2_render_raw_jpx_composition"},
         {"path": "specs/jpx_raw_composition.rs", "symbol": "part2_render_source_composition"},
         {"path": "specs/jpx_raw_composition.rs", "symbol": "part2_composition_dimensions"},
@@ -1801,6 +1802,7 @@
         {"path": "specs/jpx_raw_frame.rs", "symbol": "part2_render_raw_jpx_cold_run"}
       ],
       "proof_refs": [
+        {"path": "specs/jpx_raw_frame.rs", "symbol": "part2_render_raw_cold_metadata_error"},
         {"path": "src/jpx/render.rs", "symbol": "render_jpx_composition"},
         {"path": "specs/jpx_raw_composition.rs", "symbol": "part2_render_raw_jpx_composition_unfold"},
         {"path": "specs/jpx_raw_composition.rs", "symbol": "part2_composition_extent_error"},
@@ -1847,6 +1849,7 @@
         {"path": "src/jpx/layer_decode.rs", "symbol": "OwnedLayer::into_image"}
       ],
       "spec_refs": [
+        {"path": "specs/cold_inspection_storage.rs", "symbol": "part2_inspect_file_cold_run"},
         {"path": "specs/jpx_raw_frame.rs", "symbol": "part2_render_raw_jpx_layer"},
         {"path": "specs/jpx_raw_frame.rs", "symbol": "part2_render_raw_jpx_frame"},
         {"path": "specs/jpx_raw_frame.rs", "symbol": "part2_raw_associated_header"},
@@ -1870,6 +1873,7 @@
         {"path": "specs/jpx_raw_frame.rs", "symbol": "part2_render_raw_jpx_cold_run"}
       ],
       "proof_refs": [
+        {"path": "specs/jpx_raw_frame.rs", "symbol": "part2_render_raw_cold_metadata_error"},
         {"path": "src/jpx/render.rs", "symbol": "render_jpx_layer"},
         {"path": "src/jpx/render.rs", "symbol": "render_jpx_frame"},
         {"path": "src/jp2/proof_support.rs", "symbol": "raw_render_header_known"},
@@ -1908,6 +1912,9 @@
         {"path": "src/jpx/inspection.rs", "symbol": "inspect_file"}
       ],
       "spec_refs": [
+        {"path": "specs/cold_inspection_storage.rs", "symbol": "part2_inspect_file_cold_result"},
+        {"path": "specs/cold_inspection_storage.rs", "symbol": "part2_inspect_file_cold_run"},
+        {"path": "specs/jpx_raw_inspection.rs", "symbol": "part2_inspect_raw_jpx_finish_cold"},
         {"path": "specs/jpx_raw_inspection.rs", "symbol": "part2_inspect_raw_jpx_layers"},
         {"path": "specs/jpx_raw_inspection.rs", "symbol": "part2_ensure_raw_jpx"},
         {"path": "specs/jpx_raw_inspection.rs", "symbol": "part2_raw_inspection_file"},
@@ -1922,6 +1929,8 @@
         {"path": "specs/jpx_raw_inspection.rs", "symbol": "part2_inspect_raw_jpx_cold_run"}
       ],
       "proof_refs": [
+        {"path": "specs/cold_inspection_storage.rs", "symbol": "part2_inspect_file_cold_normal"},
+        {"path": "specs/jpx_raw_inspection.rs", "symbol": "part2_inspect_raw_jpx_cold_metadata_actual"},
         {"path": "src/jpx/inspection.rs", "symbol": "inspect_jpx_layers"},
         {"path": "src/jpx/proof_support.rs", "symbol": "raw_jpx_inspection_outcome"},
         {"path": "src/jpx/proof_support.rs", "symbol": "raw_jpx_inspection_outcome_known"},
@@ -1964,6 +1973,7 @@
         {"path": "src/codestream/profile.rs", "symbol": "CodestreamProfile::is_part15"}
       ],
       "contract_refs": [
+        {"path": "src/allocation.rs", "symbol": "inspection_values"},
         {"path": "src/jp2/container.rs", "symbol": "parse_and_inspect_mode"},
         {"path": "src/jp2/container.rs", "symbol": "parse_and_inspect_for_display"},
         {"path": "src/jp2/container.rs", "symbol": "inspection_count"},
@@ -1972,6 +1982,8 @@
         {"path": "src/codestream/profile.rs", "symbol": "CodestreamProfile::is_part15"}
       ],
       "spec_refs": [
+        {"path": "specs/cold_inspection_storage.rs", "symbol": "part2_inspection_capacity"},
+        {"path": "specs/cold_inspection_storage.rs", "symbol": "part2_inspection_capacity_result"},
         {"path": "specs/jp2_inspection.rs", "symbol": "part2_parse_and_inspect_container_mode"},
         {"path": "specs/jp2_inspection.rs", "symbol": "part2_inspection_count"},
         {"path": "specs/jp2_inspection.rs", "symbol": "part2_parse_and_inspect_container"},
@@ -1987,6 +1999,9 @@
         {"path": "specs/jp2_inspection.rs", "symbol": "part2_inspection_cold_run"}
       ],
       "proof_refs": [
+        {"path": "specs/cold_inspection_storage.rs", "symbol": "part2_inspection_capacity_normal"},
+        {"path": "specs/jp2_inspection.rs", "symbol": "part2_inspection_cold_start"},
+        {"path": "specs/jp2_inspection.rs", "symbol": "part2_inspection_capacity_refused"},
         {"path": "src/jp2/proof_support.rs", "symbol": "raw_inspected_container_outcome"},
         {"path": "src/jp2/proof_support.rs", "symbol": "raw_inspected_container_view"},
         {"path": "src/jp2/proof_support.rs", "symbol": "raw_codestream_infos_view"},
@@ -2007,6 +2022,10 @@
         {"path": "specs/jp2_inspection.rs", "symbol": "part2_inspection_cold_normal"}
       ],
       "test_refs": [
+        {"path": "src/jp2/tests.rs", "symbol": "fresh_inspection_collection_precedes_child_parse_but_not_file_errors"},
+        {"path": "src/jp2/tests.rs", "symbol": "fresh_inspection_collection_and_later_stream_restore_prior_owner_order"},
+        {"path": "src/jp2/tests.rs", "symbol": "fresh_inspection_display_count_skips_unselected_stream_and_restores"},
+        {"path": "src/allocation.rs", "symbol": "fresh_inspection_empty_roles_do_not_consume_refusal_and_restore"},
         {"path": "src/jp2/tests.rs", "symbol": "sarah_dev_457acab2c3_raw_jp2_retains_resource_admitted_later_streams"},
         {"path": "src/jp2/tests.rs", "symbol": "actual_raw_inspection_retains_original_file_and_complete_source_derived_info_fields"},
         {"path": "src/jp2/tests.rs", "symbol": "actual_raw_inspection_keeps_complete_container_errors_before_relative_codestream_errors"},
@@ -2678,6 +2697,8 @@
         {"path": "src/jpx/timeline.rs", "symbol": "build_timeline"}
       ],
       "spec_refs": [
+        {"path": "specs/cold_inspection_storage.rs", "symbol": "part2_inspect_file_cold_result"},
+        {"path": "specs/cold_inspection_storage.rs", "symbol": "part2_inspect_file_cold_run"},
         {"path": "specs/mod.rs", "symbol": "effective_jpx_layer_count"},
         {"path": "specs/jpx_inspection.rs", "symbol": "part2_inspect_jpx_file"},
         {"path": "specs/jpx_inspection.rs", "symbol": "part2_inspection_layer_count"},
@@ -2694,6 +2715,8 @@
         {"path": "src/jpx/inspection.rs", "symbol": "effective_layer_count"}
       ],
       "proof_refs": [
+        {"path": "specs/cold_inspection_storage.rs", "symbol": "part2_inspect_file_cold_normal"},
+        {"path": "specs/cold_inspection_storage.rs", "symbol": "part2_inspect_file_cold_frames"},
         {"path": "specs/jpx_inspection.rs", "symbol": "part2_inspection_registrations_step"},
         {"path": "specs/jpx_inspection.rs", "symbol": "part2_inspection_registrations_error"},
         {"path": "specs/jpx_inspection.rs", "symbol": "part2_inspection_layers_step"},
@@ -2708,6 +2731,7 @@
         {"path": "src/jp2/proof_support.rs", "symbol": "source_layer_reference_known"}
       ],
       "test_refs": [
+        {"path": "src/jpx/tests.rs", "symbol": "fresh_inspection_layers_refuse_after_info_collection_and_preserve_render_order"},
         {"path": "src/jpx/tests.rs", "symbol": "actual_jpx_inspection_keeps_every_implicit_and_declared_layer_metadata_field"},
         {"path": "src/jpx/tests.rs", "symbol": "actual_jpx_inspection_derives_ordered_registered_sources_and_minimum_extents"},
         {"path": "src/jpx/tests.rs", "symbol": "actual_jpx_inspection_composes_real_timeline_duration_and_complete_composition_fields"},

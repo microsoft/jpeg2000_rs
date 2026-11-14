@@ -4100,7 +4100,7 @@ class FrameworkTests(WorkingFiles):
 
     def test_inventory_binds_actual_complete_raw_inspected_container_results(self):
         self._assert_complete_packet_contract_bindings(
-            {framework._RAW_INSPECTED_ENTRY}, framework._RAW_INSPECTED_CONTRACTS, 6, isolate=False,
+            {framework._RAW_INSPECTED_ENTRY}, framework._RAW_INSPECTED_CONTRACTS, 7, isolate=False,
         )
 
     def test_inventory_raw_inspected_requires_every_actual_complete_bridge(self):
@@ -8189,6 +8189,40 @@ class FrameworkTests(WorkingFiles):
 
             with self.subTest(symbol=symbol, before=before), mock.patch.object(Path, "read_text", altered), \
                     self.assertRaisesRegex(ValueError, "ordered cold quantization storage"):
+                framework.validate_normative_coverage(dict(coverage, requirements=[entry]))
+
+    def test_inventory_inspection_capacity_requires_outer_role_count_order_and_tail(self):
+        coverage = json.loads((framework.VALIDATION / "normative-coverage.json").read_text())
+        read_text = Path.read_text
+        for entry_id, relative, symbol, before, after in (
+            (framework._RAW_INSPECTED_ENTRY, "specs/cold_inspection_storage.rs", "part2_inspection_capacity",
+             "if count == 0", "if count == 1"),
+            (framework._RAW_INSPECTED_ENTRY, "specs/cold_inspection_storage.rs", "part2_inspection_capacity",
+             "actual != collection || elements != count", "actual != collection && elements != count"),
+            (framework._RAW_INSPECTED_ENTRY, "specs/cold_inspection_storage.rs", "part2_inspection_capacity",
+             "Part2JpipSnapshotEvent::InspectionCapacity", "Part2JpipSnapshotEvent::Parse"),
+            (framework._RAW_INSPECTED_ENTRY, "specs/jp2_inspection.rs", "part2_inspection_cold_run",
+             "InspectionCollection::Infos(display_first)", "InspectionCollection::Layers"),
+            (framework._RAW_INSPECTED_ENTRY, "specs/jp2_inspection.rs", "part2_inspection_cold_run",
+             "as usize, events)", "as usize, events.drop_first())"),
+            (framework._RAW_INSPECTED_ENTRY, "src/jp2/container.rs", "parse_and_inspect_mode",
+             "inspection_values(\n        codestream_count,", "inspection_values(\n        1,"),
+            (framework._JPX_INSPECTION_ENTRY, "src/jpx/inspection.rs", "inspect_file",
+             "InspectionCollection::Layers", "InspectionCollection::Infos(false)"),
+        ):
+            entry = next(item for item in coverage["requirements"] if item["id"] == entry_id)
+            source = framework.ROOT / relative
+            original = source.read_text()
+            body = (framework._coverage_function_body(original, framework._coverage_function_header(original, symbol))
+                    if relative.startswith("src/") else framework._coverage_spec_function_body(original, symbol))
+            self.assertIn(before, body)
+            changed = original.replace(body, body.replace(before, after, 1), 1)
+
+            def altered(path, *args, **kwargs):
+                return changed if path == source else read_text(path, *args, **kwargs)
+
+            with self.subTest(symbol=symbol, before=before), mock.patch.object(Path, "read_text", altered), \
+                    self.assertRaisesRegex(ValueError, "ordered outer (inspection|layer) capacity"):
                 framework.validate_normative_coverage(dict(coverage, requirements=[entry]))
 
     def test_inventory_copy_fill_requires_copy_and_exact_repeated_values(self):

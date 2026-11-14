@@ -336,6 +336,40 @@ inspection. Packet buffers and capacity-dependent existing-owner growth remain
 separate; #289 remains separate and #288 is withdrawn. No physical-capacity or
 host-availability theorem is inferred from logical sequences.
 
+### Fresh outer inspection collections
+
+Container `parse_and_inspect_mode` now reserves its original selected
+codestream-info count fallibly, after file/framing/count/mode admission and
+before the first child parse. The directly reached JPX `inspect_file` layer
+owner also reserves its original effective-layer count at the unchanged
+frontier. Both use `inspection_values`, with zero/no-request behavior and
+without requiring Clone for owned elements.
+
+These are **outer** `InspectionCapacity` events in the existing framed
+inspection environment, not codestream storage sites or child
+`Parse(phase=4,index,calls)` aliases. Context distinguishes
+`Infos(display_first)` from `Layers`; exact counts are derived from original
+file/selection/layer inputs. A refused collection consumes no child parse.
+File/admission errors consume neither collection nor parse responses, and the
+actual per-stream info/profile/header validation and owner-append prefix is
+preserved through later errors and exact arbitrary tails.
+
+[`cold_inspection_storage.rs`](specs/cold_inspection_storage.rs) composes both
+fresh frontiers through raw/container/JPX inspection, frame/composition render
+and semantic/public cold Results. Original ordinary models remain unchanged.
+Checked continuation identities prepend the layer capacity before rendering,
+rather than stripping it or relabelling it as a later source parse. No supplied
+successful result/layout/image bank or host-availability premise is used.
+
+Bounded controls cover collection-before-child versus file-error precedence,
+first/later stream refusal and restoration, display-first selection, empty
+helper contexts, raw/container paths and JPX/render order. Existing parsed-file
+vectors, JPX source-index lists and timeline/render accumulators still grow at
+their original operations; no guessed capacity or earlier reservation is
+introduced. Packet/image decode buffers remain separate, capacity-dependent
+growth remains blocked, #289 is separate and #288 is withdrawn. No logical
+sequence model is treated as a physical-capacity or general OOM theorem.
+
 ### Ordered automatic main-header primitive calls
 
 `normalize_main_header` additionally derives its complete byte/error Result

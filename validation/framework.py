@@ -2926,6 +2926,10 @@ _ASSOCIATION_CLONE_ENTRY = "part2-complete-native-owned-codestream-association-c
 _RAW_CONTAINER_ENTRY = "part2-complete-native-raw-container-result"
 _RAW_INSPECTED_ENTRY = "part2-complete-native-raw-inspected-container-results"
 _RAW_INSPECTED_CONTRACTS = {
+    ("src/allocation.rs", "inspection_values"): (
+        "part2_inspection_capacity", _coverage_call("inspection_capacity_outcome", r"\1"), None,
+        r"_collection\s*,\s*count",
+    ),
     ("src/jp2/container.rs", "parse_and_inspect"): (
         "part2_parse_and_inspect_container", _coverage_call("super::raw_inspected_container_outcome", r"\1"), None,
         r"input\s*@\s*,\s*limits",
@@ -2958,6 +2962,8 @@ _RAW_INSPECTED_MODELS = {
         "part2_inspected_codestreams", "part2_inspected_header",
     )
 } | {
+    ("specs/cold_inspection_storage.rs", "part2_inspection_capacity"),
+    ("specs/cold_inspection_storage.rs", "part2_inspection_capacity_result"),
     ("specs/jp2_container.rs", "part2_parse_container"),
     ("specs/raw_layout.rs", "part1_parse_info"),
     ("specs/codestream_profile.rs", "part1_profile_optional_advertises_ht"),
@@ -2969,6 +2975,9 @@ _RAW_INSPECTED_PROOFS = {
         "raw_jp2_file_view", "raw_codestream_view", "raw_codestream_association_view",
     )
 } | {
+    ("specs/cold_inspection_storage.rs", "part2_inspection_capacity_normal"),
+    ("specs/jp2_inspection.rs", "part2_inspection_cold_start"),
+    ("specs/jp2_inspection.rs", "part2_inspection_capacity_refused"),
     ("specs/jp2_inspection.rs", "part2_parse_and_inspect_container_unfold"),
     ("specs/jp2_inspection.rs", "part2_parse_and_inspect_container_mode_unfold"),
     ("specs/jp2_inspection.rs", "part2_inspect_jph_container_unfold"),
@@ -3337,7 +3346,7 @@ _RAW_JPX_INSPECTION_MODELS = {
     ("specs/jpx_raw_inspection.rs", name) for name in (
         "part2_inspect_raw_jpx_layers", "part2_ensure_raw_jpx", "part2_raw_inspection_file",
         "part2_raw_inspection_layer", "part2_raw_inspection_composition", "part2_raw_inspection_geometries",
-        "part2_raw_timeline_sets", "part2_raw_timeline_instruction",
+        "part2_raw_timeline_sets", "part2_raw_timeline_instruction", "part2_inspect_raw_jpx_finish_cold",
     )
 } | {
     ("specs/jp2_inspection.rs", "part2_parse_and_inspect_container"),
@@ -3351,6 +3360,7 @@ _RAW_JPX_INSPECTION_PROOFS = {
     )
 } | {
     ("specs/jpx_raw_inspection.rs", "part2_inspect_raw_jpx_layers_unfold"),
+    ("specs/jpx_raw_inspection.rs", "part2_inspect_raw_jpx_cold_metadata_actual"),
     ("src/jp2/proof_support.rs", "raw_jpx_inspection_parts_known"),
     ("src/jp2/proof_support.rs", "raw_jpx_inspection_layer_known"),
     ("src/jp2/proof_support.rs", "raw_inspected_file_reference"),
@@ -3363,7 +3373,10 @@ _JPX_INSPECTION_MODELS = {("specs/jpx_inspection.rs", name) for name in (
     "part2_inspect_jpx_file", "part2_inspection_layer_count", "part2_inspection_layer",
     "part2_inspection_layer_value", "part2_inspection_registration_prefix", "part2_inspection_registration_step",
     "part2_inspection_layers_prefix", "part2_inspection_duration_prefix", "part2_inspection_composition",
-)} | {("specs/mod.rs", "effective_jpx_layer_count")}
+)} | {("specs/mod.rs", "effective_jpx_layer_count")} | {
+    ("specs/cold_inspection_storage.rs", "part2_inspect_file_cold_run"),
+    ("specs/cold_inspection_storage.rs", "part2_inspect_file_cold_result"),
+}
 _JPX_INSPECTION_PROOFS = {("specs/jpx_inspection.rs", name) for name in (
     "part2_inspection_registrations_step", "part2_inspection_registrations_error",
     "part2_inspection_layers_step", "part2_inspection_layers_error",
@@ -3372,6 +3385,10 @@ _JPX_INSPECTION_PROOFS = {("specs/jpx_inspection.rs", name) for name in (
     "inspection_file_input", "inspection_source_geometries", "inspection_result",
     "inspected_layer_view", "inspected_composition_view",
 )} | {("src/jp2/proof_support.rs", "source_layer_reference_known")}
+_JPX_INSPECTION_PROOFS |= {
+    ("specs/cold_inspection_storage.rs", "part2_inspect_file_cold_normal"),
+    ("specs/cold_inspection_storage.rs", "part2_inspect_file_cold_frames"),
+}
 _SOURCE_FRAME_ENTRY = "part2-complete-native-source-frame-result"
 _SOURCE_FRAME_CONTRACTS = {
     ("src/jpx/render.rs", "render_inspected_frame"): (
@@ -4773,7 +4790,14 @@ _SOURCE_OPACITY_CONTRACTS = {
     ("src/jpx/chroma.rs", "apply_chroma_key_with_policy"): _LAYER_OPACITY_CONTRACTS[("src/jpx/chroma.rs", "apply_chroma_key_with_policy")],
 }
 
+_RAW_RENDER_MODELS |= {("specs/cold_inspection_storage.rs", "part2_inspect_file_cold_run")}
+_RAW_COMPOSITION_RENDER_MODELS |= {("specs/cold_inspection_storage.rs", "part2_inspect_file_cold_run")}
+_RAW_RENDER_PROOFS |= {("specs/jpx_raw_frame.rs", "part2_render_raw_cold_metadata_error")}
+_RAW_COMPOSITION_RENDER_PROOFS |= {("specs/jpx_raw_frame.rs", "part2_render_raw_cold_metadata_error")}
+
 _COLD_RESULT_MODELS = {
+    "part2_inspection_capacity": ("part2_inspection_capacity_result", "specs/cold_inspection_storage.rs", "part2_inspection_capacity_normal"),
+    "part2_inspect_jpx_file": ("part2_inspect_file_cold_result", "specs/cold_inspection_storage.rs", "part2_inspect_file_cold_normal"),
     "part1_validate_progression_changes": ("part1_bitmap_result", "specs/cold_bitmap.rs", "part1_bitmap_normal"),
     "part1_marker_words": ("part1_profile_result", "specs/cold_profile.rs", "part1_profile_normal"),
     **{name: ("part1_profile_storage_result", "specs/cold_profile.rs", "part1_profile_storage_normal")
@@ -4968,6 +4992,7 @@ _COLD_RESULT_CONTRACTS = {
         _TRANSFORM_COLLECTION_BYTES_CONTRACTS, _TRANSFORM_ROUTING_BYTES_CONTRACTS,
         _DECOMPOSITION_BYTES_CONTRACTS, _KERNEL_BYTES_CONTRACTS, _NONLINEAR_BYTES_CONTRACTS,
         _PROFILE_BYTES_CONTRACTS,
+        _JPX_INSPECTION_CONTRACTS,
         _PROGRESSION_ADMISSION_CONTRACTS,
         _PROGRESSION_BYTES_CONTRACTS, _RAW_TILE_HEADER_CONTRACTS,
     )
@@ -5031,6 +5056,7 @@ for _header_symbol, _header_model, _raw_pattern, _header_outcome in (
     )
 
 _COLD_INNER_RUNS = {
+    "part2_inspection_capacity_result": "part2_inspection_capacity",
     "part1_profile_storage_result": "part1_profile_run",
     "part1_p2_marker_storage_result": "part1_p2_marker_run",
     "part1_fresh_tile_result": "part1_fresh_tile_payload",
@@ -5192,6 +5218,46 @@ _COLD_SOURCE_BODIES = {
             }
         }
     """, "whole effective layer Result requires actual ordered decoder/registration/opacity models"),
+}
+
+_INSPECTION_STORAGE_GUARDS = {
+    ("specs/cold_inspection_storage.rs", "part2_inspection_capacity"): (
+        "if count == 0 { Some((Ok(()), events)) }",
+        "Part2JpipSnapshotEvent::InspectionCapacity { collection: actual, elements, succeeded }",
+        "actual != collection || elements != count",
+        "Err(crate::DecodeError::AllocationFailed)", "events.drop_first()", "_ => None",
+    ),
+    ("src/allocation.rs", "inspection_values"): (
+        "if count == 0 { Ok(Vec::new()) } else { empty_with_capacity(count) }",
+        "part2_inspection_capacity_observed(_collection, count, inspection_capacity_outcome(result))",
+    ),
+}
+_INSPECTION_CONTAINER_GUARDS = {
+    ("specs/jp2_inspection.rs", "part2_inspection_cold_run"): (
+        "part2_parse_container(input, *limits)", "Err(error) => Some((Err(error), events))",
+        "part2_inspection_capacity(crate::allocation::InspectionCollection::Infos(display_first)",
+        "part2_inspection_count(file, display_first) as usize, events)",
+        "part2_inspected_cold_streams(file, limits, 0, Seq::empty(), display_first, rest)",
+    ),
+    ("src/jp2/container.rs", "parse_and_inspect_mode"): (
+        "let file = parse(input, limits)?", "inspection_count(&file, display_first)",
+        "inspection_values(codestream_count,", "crate::allocation::InspectionCollection::Infos(display_first)",
+        "let mut inspected_codestreams = reserved?", "while index < codestream_count",
+        "codestream::parse(codestream_box.data, limits)", "validate_container_codestream(",
+        "inspected_codestreams.push(info)",
+    ),
+}
+_INSPECTION_LAYER_GUARDS = {
+    ("specs/cold_inspection_storage.rs", "part2_inspect_file_cold_run"): (
+        "part2_inspection_capacity(InspectionCollection::Layers",
+        "part2_inspection_layer_count(input) as usize, events)",
+        "part2_inspect_jpx_file(input, geometries, maximum_frames), rest",
+    ),
+    ("src/jpx/inspection.rs", "inspect_file"): (
+        "let layer_count = effective_layer_count(file)",
+        "inspection_values(layer_count,", "crate::allocation::InspectionCollection::Layers",
+        "let mut layers = reserved?", "while index < layer_count", "let mut codestream_indices = Vec::new()",
+    ),
 }
 
 _QUANTIZATION_COLD_GUARDS = {
@@ -8424,7 +8490,8 @@ def validate_normative_coverage(
             path = (ROOT / "src/jpx/render.rs").resolve()
             for name, required in {
                 "render_jpx_composition": ("let inspected = match jp2::parse_and_inspect(input, options.limits())", "ensure_jpx(file)?",
-                    "inspect_file(file, inspected.codestreams(), options.limits())?",
+                    "let metadata = inspect_file(file, inspected.codestreams(), options.limits())",
+                    "part2_render_raw_cold_metadata_error(", "let metadata = metadata?",
                     "if has_frames", "render_inspected_frame(file, &metadata, 0, options)",
                     "composition_dimensions(&metadata, options.limits())?",
                     "let owned = match decode_effective_layer(file, layer_index, options)", "return Err(error)",
@@ -8466,7 +8533,8 @@ def validate_normative_coverage(
                     "let owned = decode_effective_layer(inspected.file(), layer_index, options)", "owned?.into_image()"),
                 "render_jpx_frame": ("let inspected = match jp2::parse_and_inspect(input, options.limits())",
                     "return Err(error)", "ensure_jpx(file)?",
-                    "inspect_file(file, inspected.codestreams(), options.limits())?",
+                    "let metadata = inspect_file(file, inspected.codestreams(), options.limits())",
+                    "part2_render_raw_cold_metadata_error(", "let metadata = metadata?",
                     "render_inspected_frame(file, &metadata, frame_index, options)"),
             }.items():
                 body = _coverage_function_body(source_text(path), function_header(path, name))
@@ -8486,6 +8554,19 @@ def validate_normative_coverage(
                 actual = _coverage_spec_function_body(model, name)
                 if actual is None or any("".join(item.split()) not in "".join(actual.split()) for item in required):
                     raise ValueError("whole public raw rendering Results require complete byte-derived header/source/routing/render models")
+        if entry["id"] in (_RAW_JPX_INSPECTION_ENTRY, _JPX_INSPECTION_ENTRY):
+            for (relative, symbol), fragments in (_INSPECTION_STORAGE_GUARDS | _INSPECTION_LAYER_GUARDS).items():
+                guard_path = (ROOT / relative).resolve()
+                guard_source = source_text(guard_path)
+                guard_body = (_coverage_function_body(guard_source, function_header(guard_path, symbol))
+                              if relative.startswith("src/") else _coverage_spec_function_body(guard_source, symbol))
+                compact = "".join(guard_body.split()) if guard_body is not None else ""
+                cursor = 0
+                for fragment in fragments:
+                    position = compact.find("".join(fragment.split()), cursor)
+                    if position < 0:
+                        raise ValueError("whole JPX inspection Result requires ordered outer layer capacity and exact source/tail frames")
+                    cursor = position + len("".join(fragment.split()))
         if entry["id"] == _RAW_JPX_INSPECTION_ENTRY:
             if {(ref["path"], ref["symbol"]) for ref in entry["contract_refs"]} != set(_RAW_JPX_INSPECTION_CONTRACTS) - _RAW_JPX_INSPECTION_APIS:
                 raise ValueError("whole raw public JPX Result requires its actual checked inspector producer")
@@ -8513,6 +8594,20 @@ def validate_normative_coverage(
                 if actual is None or any("".join(item.split()) not in "".join(actual.split()) for item in required):
                     raise ValueError("whole raw public JPX Result requires full raw-source/metadata/instruction/timeline models")
         if entry["id"] == _RAW_INSPECTED_ENTRY:
+            for (relative, symbol), fragments in (_INSPECTION_STORAGE_GUARDS | {
+                    key: value for key, value in _INSPECTION_CONTAINER_GUARDS.items() if not key[0].startswith("src/")
+            }).items():
+                guard_path = (ROOT / relative).resolve()
+                guard_source = source_text(guard_path)
+                guard_body = (_coverage_function_body(guard_source, function_header(guard_path, symbol))
+                              if relative.startswith("src/") else _coverage_spec_function_body(guard_source, symbol))
+                compact = "".join(guard_body.split()) if guard_body is not None else ""
+                cursor = 0
+                for fragment in fragments:
+                    position = compact.find("".join(fragment.split()), cursor)
+                    if position < 0:
+                        raise ValueError("whole raw inspected Results require ordered outer inspection capacity and exact child/tail frames")
+                    cursor = position + len("".join(fragment.split()))
             if {(ref["path"], ref["symbol"]) for ref in entry["contract_refs"]} != set(_RAW_INSPECTED_CONTRACTS):
                 raise ValueError("whole raw inspected Results require actual parser/JPH/profile contracts")
             if not _RAW_INSPECTED_MODELS.issubset({(ref["path"], ref["symbol"]) for ref in entry["spec_refs"]}) \
@@ -8537,6 +8632,18 @@ def validate_normative_coverage(
                 body = _coverage_function_body(source_text(path), function_header(path, name))
                 if body is None or any("".join(item.split()) not in "".join(body.split()) for item in required):
                     raise ValueError("whole raw inspected Results require actual source/info/profile/header/default/output handoffs")
+            for (relative, symbol), fragments in _INSPECTION_CONTAINER_GUARDS.items():
+                if not relative.startswith("src/"):
+                    continue
+                guard_path = (ROOT / relative).resolve()
+                guard_body = _coverage_function_body(source_text(guard_path), function_header(guard_path, symbol))
+                compact = "".join(guard_body.split()) if guard_body is not None else ""
+                cursor = 0
+                for fragment in fragments:
+                    position = compact.find("".join(fragment.split()), cursor)
+                    if position < 0:
+                        raise ValueError("whole raw inspected Results require ordered outer inspection capacity and exact child/tail frames")
+                    cursor = position + len("".join(fragment.split()))
             model = source_text((ROOT / "specs/jp2_inspection.rs").resolve())
             for name, required in {
                 "part2_inspected_header": ("part1_profile_optional_advertises_ht(info.1.2)", "Some(association) => association.2",
@@ -11550,6 +11657,9 @@ def validate_normative_coverage(
             cold_contract = _COLD_RESULT_CONTRACTS.get((reference["path"], reference["symbol"]))
             if cold_contract is not None:
                 storage_contract = cold_contract
+                if (reference["path"], reference["symbol"]) == ("src/allocation.rs", "inspection_values"):
+                    if re.search(r"Ok\(\s*values\s*\)\s*=>\s*values@\s*\.len\(\)\s*==\s*0", contract) is None:
+                        raise ValueError(f"linked function lacks executable Verus contract: {short}; invalid fresh empty inspection owner")
                 header_contract = arbitrary_contract = selection_contract = None
                 if (reference["path"], reference["symbol"]) == _MAIN_HEADER_LAYOUT:
                     ordinary_header = (

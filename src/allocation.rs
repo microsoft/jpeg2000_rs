@@ -2,6 +2,40 @@ use crate::DecodeError;
 #[cfg(verus_keep_ghost)]
 use vstd::prelude::*;
 
+#[derive(Clone, Copy)]
+#[cfg_attr(not(verus_keep_ghost), derive(Debug, Eq, PartialEq))]
+pub(crate) enum InspectionCollection {
+    Infos(bool),
+    Layers,
+}
+
+#[cfg(verus_keep_ghost)]
+verus! {
+    pub(crate) open spec fn inspection_capacity_outcome<T>(result: Result<T, DecodeError>) -> Result<(), DecodeError> {
+        match result { Err(error) => Err(error), Ok(_) => Ok(()) }
+    }
+}
+
+#[cfg_attr(verus_keep_ghost, verus_spec(result =>
+    ensures crate::specs::part2_inspection_capacity_result(_collection, count, inspection_capacity_outcome(result)),
+        match result { Ok(values) => values@.len() == 0, Err(error) => error == DecodeError::AllocationFailed },
+))]
+pub(crate) fn inspection_values<T>(
+    count: usize,
+    _collection: InspectionCollection,
+) -> Result<Vec<T>, DecodeError> {
+    let result = if count == 0 {
+        Ok(Vec::new())
+    } else {
+        empty_with_capacity(count)
+    };
+    #[cfg(verus_keep_ghost)]
+    proof! {
+        crate::specs::part2_inspection_capacity_observed(_collection, count, inspection_capacity_outcome(result));
+    }
+    result
+}
+
 #[cfg_attr(verus_keep_ghost, verus_spec(result =>
     ensures crate::specs::storage_reservation_result(old(values)@, final(values)@, result),
 ))]
@@ -129,6 +163,39 @@ pub(crate) fn with_refusal<T>(after: usize, operation: impl FnOnce() -> T) -> T 
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn fresh_inspection_empty_roles_do_not_consume_refusal_and_restore() {
+        struct NonClone {
+            _byte: u8,
+        }
+        with_refusal(0, || {
+            assert!(
+                inspection_values::<NonClone>(0, InspectionCollection::Infos(false))
+                    .unwrap()
+                    .is_empty()
+            );
+            assert!(
+                inspection_values::<NonClone>(0, InspectionCollection::Infos(true))
+                    .unwrap()
+                    .is_empty()
+            );
+            assert!(
+                inspection_values::<NonClone>(0, InspectionCollection::Layers)
+                    .unwrap()
+                    .is_empty()
+            );
+            assert!(matches!(
+                inspection_values::<NonClone>(1, InspectionCollection::Layers),
+                Err(DecodeError::AllocationFailed)
+            ));
+        });
+        assert!(
+            inspection_values::<NonClone>(2, InspectionCollection::Infos(false))
+                .unwrap()
+                .is_empty()
+        );
+    }
 
     #[test]
     fn shallow_copy_refusal_preserves_source_and_restores_exact_values() {

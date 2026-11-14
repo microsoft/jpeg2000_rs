@@ -1046,6 +1046,15 @@ tile continuation prefixes and complete normal/error/tail projections are
 registered. Mutations reject old-site aliases, lost empty/work admission,
 non-false fill, wrong tile offsets and lost failure tails. All original
 requirements/references and canonical diagnostics remain.
+Fresh inspection collections use distinct outer `InspectionCapacity` responses:
+`Infos(display_first)` is derived from the parsed file and selected stream
+count, while `Layers` uses the actual JPX effective-layer count. Neither is a
+child `Parse(phase4,index,calls)` response. Native helper/empty-owner bindings,
+unchanged allocation frontiers, complete normal/error/tail relations, actual
+info-owner prefixes and JPX/render continuation conversions are registered.
+New mutations reject wrong roles/counts, zero-event changes, a Parse alias,
+premature response consumption and lost layer/source ordering. Existing
+vectors/source-index/timeline growth is unchanged and remains excluded.
 Same-file links are checked inside another listed, formatted function body;
 the contract's own declaration, an unrelated function or an indirect caller
 does not qualify as a direct same-file call. Unsupported formatting can fail

@@ -352,7 +352,15 @@ fn parse_and_inspect_mode<'a>(
     }
     let file = parse(input, limits)?;
     let codestream_count = inspection_count(&file, display_first);
-    let mut inspected_codestreams = Vec::with_capacity(codestream_count);
+    let reserved = crate::allocation::inspection_values(
+        codestream_count,
+        crate::allocation::InspectionCollection::Infos(display_first),
+    );
+    #[cfg(verus_keep_ghost)]
+    proof! { if let Err(error) = reserved {
+        crate::specs::part2_inspection_capacity_refused(input@, limits, display_first, super::raw_jp2_file_view(&file), error);
+    }}
+    let mut inspected_codestreams = reserved?;
     let mut index = 0_usize;
     #[cfg(verus_keep_ghost)]
     proof_decl! {
@@ -362,6 +370,8 @@ fn parse_and_inspect_mode<'a>(
     }
     #[cfg(verus_keep_ghost)]
     proof! {
+        parse_prefix = crate::specs::part2_inspection_cold_start(input@, limits, display_first, source);
+        assert(inspected_codestreams@ =~= Seq::<CodestreamInfo>::empty());
         assert(super::raw_codestream_infos_view(inspected_codestreams@) =~= Seq::<crate::specs::Part2RawCodestreamInfo>::empty());
     }
     #[cfg_attr(

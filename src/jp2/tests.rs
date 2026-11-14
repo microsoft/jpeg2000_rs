@@ -1040,6 +1040,117 @@ fn actual_raw_inspection_retains_original_file_and_complete_source_derived_info_
 }
 
 #[test]
+fn fresh_inspection_collection_precedes_child_parse_but_not_file_errors() {
+    let limits = ResourceLimits::default();
+    let mut stream = valid_codestream(64, 32);
+    stream[0] = 0;
+    let bytes = boxed_file(b"jp2 \0\0\0\0jp2 ", &stream);
+    let ordinary = parse_and_inspect(&bytes, &limits).unwrap_err();
+    assert_eq!(
+        crate::allocation::with_refusal(0, || parse_and_inspect(&bytes, &limits)).err(),
+        Some(DecodeError::AllocationFailed)
+    );
+    crate::allocation::with_refusal(1, || {
+        assert_eq!(parse_and_inspect(&bytes, &limits).unwrap_err(), ordinary);
+        assert_eq!(
+            crate::allocation::copy_values(&[1_u8]),
+            Err(DecodeError::AllocationFailed)
+        );
+    });
+    for malformed in [&[][..], &bytes[..12]] {
+        let expected = parse_and_inspect(malformed, &limits).unwrap_err();
+        crate::allocation::with_refusal(0, || {
+            assert_eq!(parse_and_inspect(malformed, &limits).unwrap_err(), expected);
+            assert_eq!(
+                crate::allocation::copy_values(&[1_u8]),
+                Err(DecodeError::AllocationFailed)
+            );
+        });
+    }
+    let raw_error = crate::codestream::parse(&stream, &limits).unwrap_err();
+    crate::allocation::with_refusal(0, || {
+        assert_eq!(
+            crate::codestream::parse(&stream, &limits).unwrap_err(),
+            raw_error
+        );
+        assert_eq!(
+            crate::allocation::copy_values(&[1_u8]),
+            Err(DecodeError::AllocationFailed)
+        );
+    });
+}
+
+#[test]
+fn fresh_inspection_collection_and_later_stream_restore_prior_owner_order() {
+    let first = valid_codestream(64, 32);
+    let second = valid_codestream(17, 9);
+    let bytes = jpx_with_codestreams(
+        b"jpx \0\0\0\0jpx ",
+        &[first.clone(), second.clone()],
+        &[image_header_box(64, 32), image_header_box(17, 9)],
+    );
+    let limits = ResourceLimits::default();
+    let expected = parse_and_inspect(&bytes, &limits).unwrap();
+    for after in [0, 12] {
+        assert_eq!(
+            crate::allocation::with_refusal(after, || parse_and_inspect(&bytes, &limits)).err(),
+            Some(DecodeError::AllocationFailed)
+        );
+        let restored = parse_and_inspect(&bytes, &limits).unwrap();
+        assert_eq!(restored.codestreams(), expected.codestreams());
+        assert_eq!(restored.file().box_count, expected.file().box_count);
+        for index in 0..2 {
+            assert!(core::ptr::eq(
+                restored.file().codestream(index).unwrap().data().as_ptr(),
+                expected.file().codestream(index).unwrap().data().as_ptr()
+            ));
+        }
+    }
+    let mut malformed = second;
+    malformed[0] = 0;
+    let later = jpx_with_codestreams(
+        b"jpx \0\0\0\0jpx ",
+        &[first, malformed],
+        &[image_header_box(64, 32), image_header_box(17, 9)],
+    );
+    let ordinary = parse_and_inspect(&later, &limits).unwrap_err();
+    crate::allocation::with_refusal(12, || {
+        assert_eq!(parse_and_inspect(&later, &limits).unwrap_err(), ordinary);
+        assert_eq!(
+            crate::allocation::copy_values(&[1_u8]),
+            Err(DecodeError::AllocationFailed)
+        );
+    });
+}
+
+#[test]
+fn fresh_inspection_display_count_skips_unselected_stream_and_restores() {
+    let first = valid_codestream(64, 32);
+    let mut bytes = boxed_file(b"jp2 \0\0\0\0jp2 ", &first);
+    bytes.extend(box32(*b"jp2c", &[0, 0]));
+    let limits = ResourceLimits::default();
+    let expected = super::container::parse_and_inspect_for_display(&bytes, &limits).unwrap();
+    assert_eq!(expected.codestreams().len(), 1);
+    assert!(parse_and_inspect(&bytes, &limits).is_err());
+    assert_eq!(
+        crate::allocation::with_refusal(0, || super::container::parse_and_inspect_for_display(
+            &bytes, &limits
+        ))
+        .err(),
+        Some(DecodeError::AllocationFailed)
+    );
+    crate::allocation::with_refusal(12, || {
+        let restored = super::container::parse_and_inspect_for_display(&bytes, &limits).unwrap();
+        assert_eq!(restored.codestreams(), expected.codestreams());
+        assert_eq!(restored.file().codestream_count(), 2);
+        assert_eq!(
+            crate::allocation::copy_values(&[1_u8]),
+            Err(DecodeError::AllocationFailed)
+        );
+    });
+}
+
+#[test]
 fn payload_owner_storage_container_late_nested_copy_restores() {
     let mut stream = valid_codestream(64, 32);
     let at = stream
@@ -1051,7 +1162,7 @@ fn payload_owner_storage_container_late_nested_copy_restores() {
     let limits = ResourceLimits::default();
     let expected = parse_and_inspect(&bytes, &limits).unwrap();
     assert!(matches!(
-        crate::allocation::with_refusal(14, || parse_and_inspect(&bytes, &limits)),
+        crate::allocation::with_refusal(15, || parse_and_inspect(&bytes, &limits)),
         Err(DecodeError::AllocationFailed)
     ));
     let restored = parse_and_inspect(&bytes, &limits).unwrap();
@@ -1081,7 +1192,7 @@ fn part2_owner_storage_container_nested_refusal_restores_owned_fields() {
     let limits = ResourceLimits::default();
     let expected = parse_and_inspect(&bytes, &limits).unwrap();
     assert!(matches!(
-        crate::allocation::with_refusal(12, || parse_and_inspect(&bytes, &limits)),
+        crate::allocation::with_refusal(13, || parse_and_inspect(&bytes, &limits)),
         Err(DecodeError::AllocationFailed)
     ));
     let restored = parse_and_inspect(&bytes, &limits).unwrap();
@@ -1113,7 +1224,7 @@ fn mct_owner_storage_container_inner_refusal_restores_original_source() {
     let limits = ResourceLimits::default();
     let expected = parse_and_inspect(&bytes, &limits).unwrap();
     assert!(matches!(
-        crate::allocation::with_refusal(14, || parse_and_inspect(&bytes, &limits)),
+        crate::allocation::with_refusal(15, || parse_and_inspect(&bytes, &limits)),
         Err(DecodeError::AllocationFailed)
     ));
     let restored = parse_and_inspect(&bytes, &limits).unwrap();
@@ -1139,7 +1250,7 @@ fn fresh_progression_bitmap_container_main_and_tile_refusal_restore() {
     let bytes = boxed_file(b"jp2 \0\0\0\0jp2 ", &stream);
     let limits = ResourceLimits::default();
     let expected = parse_and_inspect(&bytes, &limits).unwrap();
-    for after in [2, 14] {
+    for after in [3, 15] {
         assert!(matches!(
             crate::allocation::with_refusal(after, || parse_and_inspect(&bytes, &limits)),
             Err(DecodeError::AllocationFailed)
@@ -1167,7 +1278,7 @@ fn fresh_profile_container_first_later_refusal_and_restore() {
     let bytes = boxed_file(b"jph \0\0\0\0jph ", &stream);
     let limits = ResourceLimits::default();
     let expected = parse_and_inspect(&bytes, &limits).unwrap();
-    for after in [0, 2] {
+    for after in [1, 3] {
         assert!(matches!(
             crate::allocation::with_refusal(after, || parse_and_inspect(&bytes, &limits)),
             Err(DecodeError::AllocationFailed)
@@ -1193,7 +1304,7 @@ fn fresh_part2_container_first_later_construction_refusal_restore() {
     let bytes = boxed_file(b"jp2 \0\0\0\0jp2 ", &stream);
     let limits = ResourceLimits::default();
     let expected = parse_and_inspect(&bytes, &limits).unwrap();
-    for after in [0, 2] {
+    for after in [1, 3] {
         assert!(matches!(
             crate::allocation::with_refusal(after, || parse_and_inspect(&bytes, &limits)),
             Err(DecodeError::AllocationFailed)
@@ -1221,7 +1332,7 @@ fn fresh_marker_container_first_and_value_refusal_restore_public_inspection() {
     let bytes = boxed_file(b"jp2 \0\0\0\0jp2 ", &stream);
     let limits = ResourceLimits::default();
     let expected = parse_and_inspect(&bytes, &limits).unwrap();
-    for after in [0, 2] {
+    for after in [1, 3] {
         assert!(matches!(
             crate::allocation::with_refusal(after, || parse_and_inspect(&bytes, &limits)),
             Err(DecodeError::AllocationFailed)
@@ -1247,7 +1358,7 @@ fn progression_storage_container_first_and_commit_refusals_restore() {
     let bytes = boxed_file(b"jp2 \0\0\0\0jp2 ", &stream);
     let limits = ResourceLimits::default();
     let expected = parse_and_inspect(&bytes, &limits).unwrap();
-    for after in [0, 15] {
+    for after in [1, 16] {
         assert!(matches!(
             crate::allocation::with_refusal(after, || parse_and_inspect(&bytes, &limits)),
             Err(DecodeError::AllocationFailed)
@@ -1275,7 +1386,7 @@ fn cold_tile_storage_refusal_is_typed_and_restores_container_inspection() {
     let bytes = boxed_file(b"jp2 \0\0\0\0jp2 ", &stream);
     let limits = ResourceLimits::default();
     let expected = parse_and_inspect(&bytes, &limits).unwrap();
-    for after in [0, 1, 8, 9, 10] {
+    for after in [1, 2, 9, 10, 11] {
         assert_eq!(
             crate::allocation::with_refusal(after, || parse_and_inspect(&bytes, &limits)).err(),
             Some(DecodeError::AllocationFailed)

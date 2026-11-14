@@ -116,15 +116,13 @@ pub(crate) open spec fn part2_render_after_inspection_cold(
                 part2_jpip_snapshot_bind(part2_effective_layer_cold_run(file, layers, requested, limits, events),
                     |owned, tail| Some((part2_owned_layer_image(owned), tail)))
             } else {
-                match part2_inspect_jpx_file(part2_raw_inspection_file(inspected.0),
-                    part2_raw_inspection_geometries(inspected.1), crate::limits::resource_frame_limit(limits)) {
-                    Err(error) => Some((Err(error), events)),
-                    Ok(metadata) => if kind == 1 {
+                part2_jpip_snapshot_bind(part2_inspect_file_cold_run(part2_raw_inspection_file(inspected.0),
+                    part2_raw_inspection_geometries(inspected.1), crate::limits::resource_frame_limit(limits), events),
+                    |metadata: Part2JpxInspection, rest| if kind == 1 {
                         part2_render_inspected_cold_run(file, layers,
                             match metadata.composition { None => None, Some(value) => Some(value.source) },
-                            requested, limits, events)
-                    } else { part2_render_composition_cold_run(file, layers, metadata, limits, events) },
-                }
+                            requested, limits, rest)
+                    } else { part2_render_composition_cold_run(file, layers, metadata, limits, rest) })
             }
         },
     }
@@ -197,24 +195,39 @@ pub(crate) proof fn part2_render_after_inspection_cold_normal(
                     |value, tail| Some((part2_owned_layer_image(value), tail)),
                     owned, part2_render_after_inspection_normal(inspected, kind, requested, limits));
             } else {
-                match part2_inspect_jpx_file(part2_raw_inspection_file(inspected.0),
-                    part2_raw_inspection_geometries(inspected.1), crate::limits::resource_frame_limit(limits)) {
-                    Err(error) => { part2_cold_pure::<Part2ConvertedImage>(Err(error)); },
+                let metadata = part2_inspect_jpx_file(part2_raw_inspection_file(inspected.0),
+                    part2_raw_inspection_geometries(inspected.1), crate::limits::resource_frame_limit(limits));
+                part2_inspect_file_cold_normal(part2_raw_inspection_file(inspected.0),
+                    part2_raw_inspection_geometries(inspected.1), crate::limits::resource_frame_limit(limits));
+                match metadata {
+                    Err(_) => {},
                     Ok(metadata) => if kind == 1 {
                         let composition = match metadata.composition { None => None, Some(value) => Some(value.source) };
                         part2_render_inspected_cold_normal(file, layers, composition, requested, limits);
                         part2_cold_framed_extensional(
                             |events| part2_render_inspected_cold_run(file, layers, composition, requested, limits, events),
-                            |events| part2_render_after_inspection_cold(inspected, kind, requested, limits, events),
+                            |events| if kind == 1 { part2_render_inspected_cold_run(file, layers,
+                                match metadata.composition { None => None, Some(value) => Some(value.source) }, requested, limits, events) }
+                                else { part2_render_composition_cold_run(file, layers, metadata, limits, events) },
                             part2_render_after_inspection_normal(inspected, kind, requested, limits));
                     } else {
                         part2_render_composition_cold_normal(file, layers, metadata, limits);
                         part2_cold_framed_extensional(
                             |events| part2_render_composition_cold_run(file, layers, metadata, limits, events),
-                            |events| part2_render_after_inspection_cold(inspected, kind, requested, limits, events),
+                            |events| if kind == 1 { part2_render_inspected_cold_run(file, layers,
+                                match metadata.composition { None => None, Some(value) => Some(value.source) }, requested, limits, events) }
+                                else { part2_render_composition_cold_run(file, layers, metadata, limits, events) },
                             part2_render_after_inspection_normal(inspected, kind, requested, limits));
                     },
                 }
+                part2_cold_bind(
+                    |events| part2_inspect_file_cold_run(part2_raw_inspection_file(inspected.0),
+                        part2_raw_inspection_geometries(inspected.1), crate::limits::resource_frame_limit(limits), events),
+                    |metadata: Part2JpxInspection, rest| if kind == 1 {
+                        part2_render_inspected_cold_run(file, layers,
+                            match metadata.composition { None => None, Some(value) => Some(value.source) }, requested, limits, rest)
+                    } else { part2_render_composition_cold_run(file, layers, metadata, limits, rest) },
+                    metadata, part2_render_after_inspection_normal(inspected, kind, requested, limits));
             }
         },
     }
@@ -311,20 +324,60 @@ pub(crate) proof fn part2_render_raw_cold_final_actual(
     reveal(part2_render_raw_jpx_cold_run);
     let file = part2_raw_jpx_decode_input(inspected.0);
     let layers = part2_raw_layer_routings(inspected.0);
+    part2_inspect_file_cold_normal(part2_raw_inspection_file(inspected.0), part2_raw_inspection_geometries(inspected.1),
+        crate::limits::resource_frame_limit(limits));
     if kind == 1 {
         let composition = match metadata.composition { None => None, Some(value) => Some(value.source) };
+        assert(part2_render_inspected_cold_result(file, layers, composition, requested, limits, result));
+        reveal(part2_render_inspected_cold_result);
+        assert(part2_cold_framed(
+            |events| part2_render_inspected_cold_run(file, layers, composition, requested, limits, events), result));
         part2_cold_framed_extensional(
             |events| part2_render_inspected_cold_run(file, layers, composition, requested, limits, events),
-            |events| part2_render_after_inspection_cold(inspected, kind, requested, limits, events), result);
+            |events| if kind == 1 { part2_render_inspected_cold_run(file, layers,
+                match metadata.composition { None => None, Some(value) => Some(value.source) }, requested, limits, events) }
+                else { part2_render_composition_cold_run(file, layers, metadata, limits, events) }, result);
     } else {
         part2_cold_framed_extensional(
             |events| part2_render_composition_cold_run(file, layers, metadata, limits, events),
-            |events| part2_render_after_inspection_cold(inspected, kind, requested, limits, events), result);
+            |events| if kind == 1 { part2_render_inspected_cold_run(file, layers,
+                match metadata.composition { None => None, Some(value) => Some(value.source) }, requested, limits, events) }
+                else { part2_render_composition_cold_run(file, layers, metadata, limits, events) }, result);
     }
+    part2_cold_bind(
+        |events| part2_inspect_file_cold_run(part2_raw_inspection_file(inspected.0), part2_raw_inspection_geometries(inspected.1),
+            crate::limits::resource_frame_limit(limits), events),
+        |metadata: Part2JpxInspection, rest| if kind == 1 {
+            part2_render_inspected_cold_run(file, layers, match metadata.composition { None => None, Some(value) => Some(value.source) }, requested, limits, rest)
+        } else { part2_render_composition_cold_run(file, layers, metadata, limits, rest) },
+        Ok(metadata), result);
     part2_inspection_cold_frames(input, limits, false, Ok(inspected));
     part2_cold_bind(
         |events| part2_inspection_cold_run(input, limits, false, events),
         |value, tail| part2_render_after_inspection_cold(value, kind, requested, limits, tail), Ok(inspected), result);
+}
+
+pub(crate) proof fn part2_render_raw_cold_metadata_error(input: Seq<u8>, kind: u8, requested: usize,
+    limits: &crate::ResourceLimits, inspected: Part2RawInspectedContainer, error: crate::DecodeError)
+    requires kind != 0, part2_inspection_cold_result(input, limits, false, Ok(inspected)),
+        part2_ensure_raw_jpx(inspected.0.file_type) == Ok(()),
+        part2_inspect_file_cold_result(part2_raw_inspection_file(inspected.0), part2_raw_inspection_geometries(inspected.1),
+            crate::limits::resource_frame_limit(limits), Err(error)),
+    ensures part2_render_raw_jpx_cold_result(input, kind, requested, limits, Err(error)),
+{
+    reveal(part2_render_raw_jpx_cold_result); reveal(part2_render_raw_jpx_cold_run);
+    let file = part2_raw_jpx_decode_input(inspected.0); let layers = part2_raw_layer_routings(inspected.0);
+    part2_inspect_file_cold_frames(part2_raw_inspection_file(inspected.0), part2_raw_inspection_geometries(inspected.1),
+        crate::limits::resource_frame_limit(limits), Err(error));
+    part2_cold_bind(
+        |events| part2_inspect_file_cold_run(part2_raw_inspection_file(inspected.0), part2_raw_inspection_geometries(inspected.1),
+            crate::limits::resource_frame_limit(limits), events),
+        |metadata: Part2JpxInspection, rest| if kind == 1 {
+            part2_render_inspected_cold_run(file, layers, match metadata.composition { None => None, Some(value) => Some(value.source) }, requested, limits, rest)
+        } else { part2_render_composition_cold_run(file, layers, metadata, limits, rest) }, Err(error), Err(error));
+    part2_inspection_cold_frames(input, limits, false, Ok(inspected));
+    part2_cold_bind(|events| part2_inspection_cold_run(input, limits, false, events),
+        |value, rest| part2_render_after_inspection_cold(value, kind, requested, limits, rest), Ok(inspected), Err(error));
 }
 
 }

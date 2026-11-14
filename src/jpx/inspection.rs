@@ -237,13 +237,20 @@ pub fn inspect_jpx_layers(
         jp2::raw_jpx_inspection_parts_known(jp2::raw_inspected_file_reference(&inspected));
     }
     ensure_jpx(inspected.file())?;
-    inspect_file(inspected.file(), inspected.codestreams(), limits)
+    let metadata = inspect_file(inspected.file(), inspected.codestreams(), limits);
+    #[cfg(verus_keep_ghost)]
+    proof! { crate::specs::part2_inspect_raw_jpx_cold_metadata_actual(input@, limits,
+    jp2::raw_inspected_container_view(&inspected), inspection_result(metadata)); }
+    metadata
 }
 
 #[cfg_attr(verus_keep_ghost, verus_spec(result =>
-    ensures inspection_result(result) == crate::specs::part2_inspect_jpx_file(
-        inspection_file_input(file), inspection_source_geometries(codestreams@),
-        crate::limits::resource_frame_limit(limits)),
+    ensures crate::specs::part2_inspect_file_cold_result(inspection_file_input(file), inspection_source_geometries(codestreams@),
+            crate::limits::resource_frame_limit(limits), inspection_result(result)),
+        inspection_result(result) != Err(DecodeError::AllocationFailed) ==>
+            inspection_result(result) == crate::specs::part2_inspect_jpx_file(
+                inspection_file_input(file), inspection_source_geometries(codestreams@),
+                crate::limits::resource_frame_limit(limits)),
 ))]
 pub(super) fn inspect_file(
     file: &Jp2File<'_>,
@@ -258,18 +265,29 @@ pub(super) fn inspect_file(
     }
     #[cfg(verus_keep_ghost)]
     proof! {
+        crate::specs::part2_inspect_file_cold_normal(input, geometries, maximum_frames);
         reveal(crate::specs::part2_inspect_jpx_file);
         reveal(crate::specs::part2_inspection_layers_prefix);
     }
     let layer_count = effective_layer_count(file);
-    let mut layers = Vec::with_capacity(layer_count);
+    let reserved = crate::allocation::inspection_values(
+        layer_count,
+        crate::allocation::InspectionCollection::Layers,
+    );
+    #[cfg(verus_keep_ghost)]
+    proof! { if let Err(error) = reserved {
+        crate::specs::part2_inspect_file_capacity_refused(input, geometries, maximum_frames, error);
+    }}
+    let mut layers = reserved?;
     let mut index = 0_usize;
     #[cfg(verus_keep_ghost)]
-    proof! { assert(inspected_layers_view(layers@) =~= Seq::empty()); }
+    proof! { assert(layers@ =~= Seq::<JpxLayerInfo>::empty()); assert(inspected_layers_view(layers@) =~= Seq::empty()); }
     #[cfg_attr(
         verus_keep_ghost,
         verus_spec(
             invariant index <= layer_count,
+                crate::specs::part2_inspect_file_cold_result(input, geometries, maximum_frames,
+                    crate::specs::part2_inspect_jpx_file(input, geometries, maximum_frames)),
                 layers.len() == index,
                 layer_count == crate::specs::part2_inspection_layer_count(input),
                 input == inspection_file_input(file),
@@ -378,6 +396,8 @@ pub(super) fn inspect_file(
                 verus_keep_ghost,
                 verus_spec(
                     invariant registration_index <= registration_count,
+                        crate::specs::part2_inspect_file_cold_result(input, geometries, maximum_frames,
+                            crate::specs::part2_inspect_jpx_file(input, geometries, maximum_frames)),
                         registration_count == config.registrations.len(),
                         config == inspection_layer_config(layer),
                         index < input.layers.len(),
@@ -471,6 +491,8 @@ pub(super) fn inspect_file(
                 verus_keep_ghost,
                 verus_spec(
                     invariant frame_index <= frames.len(),
+                        crate::specs::part2_inspect_file_cold_result(input, geometries, maximum_frames,
+                            crate::specs::part2_inspect_jpx_file(input, geometries, maximum_frames)),
                         input == inspection_file_input(file),
                         geometries == inspection_source_geometries(codestreams@),
                         maximum_frames == crate::limits::resource_frame_limit(limits),

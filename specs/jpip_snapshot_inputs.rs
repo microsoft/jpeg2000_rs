@@ -5,6 +5,7 @@ use super::*;
 verus! {
 
 pub enum Part2JpipSnapshotEvent {
+    InspectionCapacity { collection: crate::allocation::InspectionCollection, elements: usize, succeeded: bool },
     Capacity { site: u8, tile: usize, elements: usize, succeeded: bool },
     Main { calls: Seq<Part2JpipStorageEvent> },
     Parse { phase: u8, index: usize, calls: Seq<Part1ColdStorageEvent> },
