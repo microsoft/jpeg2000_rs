@@ -4770,6 +4770,9 @@ _SOURCE_OPACITY_CONTRACTS = {
 }
 
 _COLD_RESULT_MODELS = {
+    "part1_marker_words": ("part1_profile_result", "specs/cold_profile.rs", "part1_profile_normal"),
+    **{name: ("part1_profile_storage_result", "specs/cold_profile.rs", "part1_profile_storage_normal")
+       for name in ("part1_parse_cap", "part1_parse_profile_number")},
     **{name: ("part1_p2_fresh_result", "specs/cold_part2_fresh.rs", "part1_p2_fresh_normal")
        for name in ("part1_dfs_payload", "part1_ads_payload", "part1_unpack_two_bit_values", "part1_atk_payload",
                     "part1_atk_step", "part1_nlt_payload", "part1_copy_segment_tail")},
@@ -4898,6 +4901,10 @@ def _coverage_cold_relation(
 ) -> tuple[str, str]:
     model, outcome, state, inputs = legacy
     cold_model = _COLD_RESULT_MODELS[model][0]
+    profile_kind = {"part1_marker_words": "Words", "part1_parse_cap": "Cap", "part1_parse_profile_number": "Number"}.get(model)
+    if profile_kind is not None:
+        inputs = _coverage_call("ProfileFreshInput::" + profile_kind, inputs)
+        outcome = _coverage_call("ProfileFreshValue::" + profile_kind, outcome)
     fresh_kind = {
         "part1_dfs_payload": "Dfs", "part1_ads_payload": "Ads", "part1_unpack_two_bit_values": "Unpack",
         "part1_atk_payload": "Atk", "part1_atk_step": "Step", "part1_nlt_payload": "Nlt",
@@ -4955,6 +4962,7 @@ _COLD_RESULT_CONTRACTS = {
         _TRANSFORM_ARRAY_BYTES_CONTRACTS, _TRANSFORM_FRAGMENT_CONTRACTS, _COLLECTION_FRAGMENT_CONTRACTS,
         _TRANSFORM_COLLECTION_BYTES_CONTRACTS, _TRANSFORM_ROUTING_BYTES_CONTRACTS,
         _DECOMPOSITION_BYTES_CONTRACTS, _KERNEL_BYTES_CONTRACTS, _NONLINEAR_BYTES_CONTRACTS,
+        _PROFILE_BYTES_CONTRACTS,
         _PROGRESSION_BYTES_CONTRACTS, _RAW_TILE_HEADER_CONTRACTS,
     )
     for key, legacy in contracts.items()
@@ -5017,6 +5025,7 @@ for _header_symbol, _header_model, _raw_pattern, _header_outcome in (
     )
 
 _COLD_INNER_RUNS = {
+    "part1_profile_storage_result": "part1_profile_run",
     "part1_p2_marker_storage_result": "part1_p2_marker_run",
     "part1_fresh_tile_result": "part1_fresh_tile_payload",
     "part1_parse_poc_storage_result": "part1_parse_poc_storage",
@@ -5048,6 +5057,11 @@ def _coverage_cold_links(keys: set[tuple[str, str]]) -> tuple[set[tuple[str, str
             proofs.update((path, name) for name in (
                 "part1_p2_marker_storage_observed", "part1_p2_marker_storage_equivalent", "part1_p2_marker_projection",
             ))
+        if model == "part1_profile_storage_result":
+            models.add((path, "part1_profile_result"))
+            proofs.update((path, name) for name in (
+                "part1_profile_storage_observed", "part1_profile_storage_equivalent", "part1_profile_projection",
+            ))
     return models, proofs
 
 
@@ -5076,6 +5090,11 @@ def _coverage_cold_result_body(text: str, model: str) -> bool:
             } else if part1_p2_marker(segment.marker) {
                 part1_p2_tile_result(reader, raw, segment, components, result)
             } else { result == part1_tile_header_payload(reader, raw, segment, components, tile_part_index, lengths, headers) }
+        """
+    elif model == "part1_profile_storage_result":
+        expected = """
+            if result == part1_profile_failure(input) { part1_profile_result(input, result) }
+            else { result == part1_profile_ordinary(input) }
         """
     elif model == "part1_p2_marker_storage_result":
         expected = """
@@ -5168,6 +5187,57 @@ _COLD_SOURCE_BODIES = {
 }
 
 _QUANTIZATION_COLD_GUARDS = {
+    ("specs/cold_profile.rs", "part1_profile_words_requests"): (
+        "start > segment.payload.len() { Seq::empty() }",
+        "MctCopyPath::ProfileWords(segment.marker, segment.offset, start)",
+        "((segment.payload.len() - start) / 2) as usize",
+    ),
+    ("specs/cold_profile.rs", "part1_profile_requests"): (
+        "ProfileFreshInput::Words(segment, start) => part1_profile_words_requests(segment, start)",
+        "ProfileFreshInput::Cap(segment) => if segment.payload.len() < 4",
+        "p == 0 || segment.payload.len() != part15_cap_payload_length",
+        "part1_profile_words_requests(segment, 4)",
+        "ProfileFreshInput::Number(segment) => if segment.payload.len() < 2 || segment.payload.len() % 2 != 0",
+        "part1_profile_words_requests(segment, 0)",
+    ),
+    ("specs/cold_profile.rs", "part1_profile_result"): (
+        "exists|events: Seq<Part1ColdStorageEvent>| part1_profile_run(input, events) == Some((result, Seq::empty()))",
+    ),
+    ("specs/cold_profile.rs", "part1_profile_ordinary"): (
+        "ProfileFreshValue::Words(part1_marker_words(segment, start))",
+        "ProfileFreshValue::Cap(part1_parse_cap(segment))",
+        "ProfileFreshValue::Number(part1_parse_profile_number(segment))",
+    ),
+    ("specs/cold_profile.rs", "part1_profile_main_input"): (
+        "segment.marker == 0xff50 && raw.capabilities.is_none()",
+        "segment.marker == 0xff56 && raw.profile.is_none()",
+        "segment.marker == 0xff59 && raw.corresponding_profile.is_none()",
+        "Some(ProfileFreshInput::Number(segment))", "else { None }",
+    ),
+    ("specs/cold_profile.rs", "part1_profile_main_run"): (
+        "part1_profile_main_input(raw, segment)",
+        "None => Some((part1_main_header_payload(reader, raw, segment), events))",
+        "Some(input) => match part1_profile_run(input, events)",
+        "Some((ProfileFreshValue::Cap(parsed), rest))",
+        "Err(error) => (Err(error), reader, raw)",
+        "capabilities: Some(capabilities)",
+        "Some((ProfileFreshValue::Number(parsed), rest))",
+        "Err(error) => (Err(error), reader, raw)",
+        "profile: Some(words)", "corresponding_profile: Some(words)",
+    ),
+    ("src/codestream/profile.rs", "Parser::read_marker_words"): (
+        "if start > segment.payload.len()", "reserve_values((segment.payload.len() - start) / 2,",
+        "MctCopyPath::ProfileWords(segment.marker, segment.offset, start)",
+        "while position < segment.payload.len()", "self.segment_byte(segment, position, 0)",
+        "self.segment_byte(segment, next, 0)", "words.push(read_u16([first, second]))",
+    ),
+    ("src/codestream/profile.rs", "Parser::parse_cap"): (
+        "if p_cap == 0", "segment.payload.len() != expected_length", "self.read_marker_words(segment, 4)",
+    ),
+    ("src/codestream/profile.rs", "Parser::parse_profile_number"): (
+        "segment.payload.len() < 2 || remainder != 0", "self.read_marker_words(segment, 0)",
+        "matches!(words.last(), Some(value) if *value == 0)",
+    ),
     ("specs/cold_part2_fresh.rs", "part1_p2_fresh_site"): (
         "FreshPart2Path::Dfs(_) => 72", "FreshPart2Path::AdsDepth(_, _) => 73",
         "FreshPart2Path::AdsSplit(_, _) => 74", "FreshPart2Path::AdsDirections(_) => 75",
@@ -5403,6 +5473,7 @@ _QUANTIZATION_COLD_GUARDS = {
         "MctCopyPath::Records => 18", "MctCopyPath::Collections(_) => 19",
         "MctCopyPath::Inputs(_, _) => 20", "MctCopyPath::Outputs(_, _) => 21", "MctCopyPath::Order => 22",
         "MctCopyPath::Extensions(path) => part1_part2_copy_site(path)",
+        "MctCopyPath::ProfileWords(_, _, _) => 80",
     ),
     ("specs/cold_mct_copy.rs", "part1_mct_copy_run"): (
         "requests.len() == 0 { Some((Ok(()), events))",
@@ -5552,6 +5623,15 @@ _QUANTIZATION_ROOT_PROOFS |= {
     )
 } | {("specs/cold_part2_header.rs", name) for name in (
     "part1_p2_main_normal", "part1_p2_main_frame", "part1_p2_main_projection", "part1_cold_main_p2_step",
+)}
+
+_QUANTIZATION_ROOT_MODELS |= {("specs/cold_profile.rs", name) for name in (
+    "ProfileFreshInput", "ProfileFreshValue", "part1_profile_requests", "part1_profile_ordinary",
+    "part1_profile_words_requests", "part1_profile_main_input", "part1_profile_main_run",
+)}
+_QUANTIZATION_ROOT_PROOFS |= {("specs/cold_profile.rs", name) for name in (
+    "part1_profile_main_normal", "part1_profile_main_frame", "part1_profile_main_projection",
+    "part1_cold_main_profile_step", "part1_profile_storage_observed", "part1_profile_storage_equivalent",
 )}
 
 _MCT_COPY_MODELS = {("specs/cold_mct_copy.rs", name) for name in (

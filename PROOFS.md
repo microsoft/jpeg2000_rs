@@ -268,6 +268,40 @@ payload/container/image growth and #289 deadlines remain separate; #288 is
 withdrawn. Fresh reservation uses the documented standard-library boundary,
 not a sequence-derived physical-capacity or host-availability theorem.
 
+### Fresh profile-word marker owner
+
+The remaining fresh known-count **marker-owner constructor** in `profile.rs`
+now reserves its existing word count fallibly at site 80. The actual shared
+constructor path retains marker, marker offset and start position; CAP/PRF/CPF
+are not relabelled as earlier copy roles. CAP admission and profile-number
+shape checks remain before the call. Standalone `read_marker_words` still
+reserves `floor((length-start)/2)` before its original element reads, including
+an odd-tail error; it does not gain an earlier parity check. Empty/one-byte
+tails consume no reservation request. Last-zero profile validation remains
+after word construction.
+
+[`cold_profile.rs`](specs/cold_profile.rs) derives all requests and outcomes
+from the original segment. Its branch-local producer relation is checked
+equivalent to the complete event run, with actual primitive-response linkage,
+normal/error projections and exact tails. Main-header duplicate checks remain
+before the producer; optional profile/capability owners commit only on success.
+Admitted reader/counter and earlier-owner frames compose through unchanged
+public cold Results and outer Parse phases. Tile profile markers remain
+rejected without invoking a word constructor or consuming a storage event.
+
+The production constructor inventory at this boundary finds no other
+unqualified fresh known-count returned marker owner in `src/codestream`.
+The separate fresh POC **validation bitmap** (`coding_markers.rs`) is not a
+marker-owner constructor and remains a later cold-validation increment.
+Packed packet-header concatenation is a separate packet buffer. Registry/
+fragment/layout `Vec::new` accumulators still grow at their original pushes;
+no capacity or pre-validation reservation is invented for them. Fixed arrays,
+already fallible constructors and test-only builders are not new sites.
+These boundaries do not complete #287; capacity-dependent growth remains
+blocked, container/image/decode buffers and #289 remain separate, and #288
+budgeting is withdrawn. Standard reservation is not a sequence-derived
+physical-capacity or host-availability theorem.
+
 ### Ordered automatic main-header primitive calls
 
 `normalize_main_header` additionally derives its complete byte/error Result

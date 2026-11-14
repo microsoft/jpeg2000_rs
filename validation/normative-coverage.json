@@ -3181,6 +3181,13 @@
         {"path": "src/decode/output.rs", "symbol": "decode_jpx_file"}
       ],
       "spec_refs": [
+        {"path": "specs/cold_profile.rs", "symbol": "ProfileFreshInput"},
+        {"path": "specs/cold_profile.rs", "symbol": "ProfileFreshValue"},
+        {"path": "specs/cold_profile.rs", "symbol": "part1_profile_main_input"},
+        {"path": "specs/cold_profile.rs", "symbol": "part1_profile_main_run"},
+        {"path": "specs/cold_profile.rs", "symbol": "part1_profile_ordinary"},
+        {"path": "specs/cold_profile.rs", "symbol": "part1_profile_requests"},
+        {"path": "specs/cold_profile.rs", "symbol": "part1_profile_words_requests"},
         {"path": "specs/cold_part2_fresh.rs", "symbol": "Part2FreshInput"},
         {"path": "specs/cold_part2_fresh.rs", "symbol": "Part2FreshValue"},
         {"path": "specs/cold_part2_fresh.rs", "symbol": "part1_p2_fresh_site"},
@@ -3231,6 +3238,13 @@
         {"path": "src/codestream/layout.rs", "symbol": "parse"}
       ],
       "proof_refs": [
+        {"path": "specs/cold_profile.rs", "symbol": "part1_cold_main_profile_step"},
+        {"path": "specs/cold_profile.rs", "symbol": "part1_profile_main_frame"},
+        {"path": "specs/cold_profile.rs", "symbol": "part1_profile_main_normal"},
+        {"path": "specs/cold_profile.rs", "symbol": "part1_profile_main_projection"},
+        {"path": "specs/cold_profile.rs", "symbol": "part1_profile_storage_equivalent"},
+        {"path": "specs/cold_profile.rs", "symbol": "part1_profile_storage_observed"},
+        {"path": "specs/cold_profile.rs", "symbol": "part1_profile_tile_no_events"},
         {"path": "specs/cold_part2_fresh.rs", "symbol": "part1_p2_marker_normal"},
         {"path": "specs/cold_part2_fresh.rs", "symbol": "part1_p2_marker_frame"},
         {"path": "specs/cold_part2_fresh.rs", "symbol": "part1_p2_marker_projection"},
@@ -3284,6 +3298,8 @@
         {"path": "specs/cold_layout_continuations.rs", "symbol": "part1_cold_layout_sot_progression_error"}
       ],
       "test_refs": [
+        {"path": "src/codestream/tests.rs", "symbol": "fresh_profile_raw_first_later_duplicate_and_tile_admission_restore"},
+        {"path": "src/jp2/tests.rs", "symbol": "fresh_profile_container_first_later_refusal_and_restore"},
         {"path": "src/codestream/tests.rs", "symbol": "fresh_part2_charged_owner_and_raw_inspection_frames_restore"},
         {"path": "src/jp2/tests.rs", "symbol": "fresh_part2_container_first_later_construction_refusal_restore"},
         {"path": "src/codestream/tests.rs", "symbol": "fresh_marker_raw_first_and_value_refusal_restore_public_inspection"},
@@ -3309,6 +3325,13 @@
         {"path": "src/codestream/extensions.rs", "symbol": "new_part2_extensions"}
       ],
       "spec_refs": [
+        {"path": "specs/cold_profile.rs", "symbol": "ProfileFreshInput"},
+        {"path": "specs/cold_profile.rs", "symbol": "ProfileFreshValue"},
+        {"path": "specs/cold_profile.rs", "symbol": "part1_profile_main_input"},
+        {"path": "specs/cold_profile.rs", "symbol": "part1_profile_main_run"},
+        {"path": "specs/cold_profile.rs", "symbol": "part1_profile_ordinary"},
+        {"path": "specs/cold_profile.rs", "symbol": "part1_profile_requests"},
+        {"path": "specs/cold_profile.rs", "symbol": "part1_profile_words_requests"},
         {"path": "specs/cold_part2_fresh.rs", "symbol": "Part2FreshInput"},
         {"path": "specs/cold_part2_fresh.rs", "symbol": "Part2FreshValue"},
         {"path": "specs/cold_part2_fresh.rs", "symbol": "part1_p2_fresh_site"},
@@ -3359,6 +3382,12 @@
         {"path": "src/codestream/extensions.rs", "symbol": "new_part2_extensions"}
       ],
       "proof_refs": [
+        {"path": "specs/cold_profile.rs", "symbol": "part1_cold_main_profile_step"},
+        {"path": "specs/cold_profile.rs", "symbol": "part1_profile_main_frame"},
+        {"path": "specs/cold_profile.rs", "symbol": "part1_profile_main_normal"},
+        {"path": "specs/cold_profile.rs", "symbol": "part1_profile_main_projection"},
+        {"path": "specs/cold_profile.rs", "symbol": "part1_profile_storage_equivalent"},
+        {"path": "specs/cold_profile.rs", "symbol": "part1_profile_storage_observed"},
         {"path": "specs/cold_part2_fresh.rs", "symbol": "part1_p2_marker_normal"},
         {"path": "specs/cold_part2_fresh.rs", "symbol": "part1_p2_marker_frame"},
         {"path": "specs/cold_part2_fresh.rs", "symbol": "part1_p2_marker_projection"},
@@ -5136,6 +5165,9 @@
         {"path": "src/codestream/profile.rs", "symbol": "count_set_bits"}
       ],
       "spec_refs": [
+        {"path": "specs/cold_profile.rs", "symbol": "part1_profile_result"},
+        {"path": "specs/cold_profile.rs", "symbol": "part1_profile_run"},
+        {"path": "specs/cold_profile.rs", "symbol": "part1_profile_storage_result"},
         {"path": "specs/mod.rs", "symbol": "part1_parse_cap"},
         {"path": "specs/mod.rs", "symbol": "part1_parse_profile_number"},
         {"path": "specs/mod.rs", "symbol": "part1_marker_words"},
@@ -5152,6 +5184,11 @@
         {"path": "src/codestream/profile.rs", "symbol": "count_set_bits"}
       ],
       "proof_refs": [
+        {"path": "specs/cold_profile.rs", "symbol": "part1_profile_normal"},
+        {"path": "specs/cold_profile.rs", "symbol": "part1_profile_projection"},
+        {"path": "specs/cold_profile.rs", "symbol": "part1_profile_storage_equivalent"},
+        {"path": "specs/cold_profile.rs", "symbol": "part1_profile_storage_normal"},
+        {"path": "specs/cold_profile.rs", "symbol": "part1_profile_storage_observed"},
         {"path": "src/codestream/proof_support.rs", "symbol": "cap_payload_outcome"},
         {"path": "src/codestream/proof_support.rs", "symbol": "profile_number_outcome"},
         {"path": "src/codestream/proof_support.rs", "symbol": "marker_words_outcome"},
@@ -5163,6 +5200,8 @@
         {"path": "src/refinement/headers.rs", "symbol": "part15_cap_payload_length"}
       ],
       "test_refs": [
+        {"path": "src/codestream/tests.rs", "symbol": "fresh_profile_words_original_frontier_empty_odd_and_restore"},
+        {"path": "src/codestream/tests.rs", "symbol": "fresh_profile_cap_number_order_last_zero_and_malformed_restore"},
         {"path": "src/codestream/tests.rs", "symbol": "actual_marker_word_reader_preserves_all_endian_pairs_and_odd_tail_offsets"},
         {"path": "src/codestream/tests.rs", "symbol": "actual_profile_numbers_preserve_word_order_and_last_zero_error_precedence"},
         {"path": "src/codestream/tests.rs", "symbol": "actual_cap_preserves_mask_halves_bit_counts_length_order_and_reader_join"}

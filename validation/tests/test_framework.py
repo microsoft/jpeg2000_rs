@@ -8046,6 +8046,20 @@ class FrameworkTests(WorkingFiles):
         entry = next(item for item in coverage["requirements"] if item["id"] == framework._RAW_LAYOUT_ENTRY)
         read_text = Path.read_text
         for relative, symbol, before, after in (
+            ("specs/cold_mct_copy.rs", "part1_mct_copy_site",
+             "MctCopyPath::ProfileWords(_, _, _) => 80", "MctCopyPath::ProfileWords(_, _, _) => 63"),
+            ("specs/cold_profile.rs", "part1_profile_words_requests",
+             "ProfileWords(segment.marker, segment.offset, start)", "ProfileWords(0xff50, segment.offset, start)"),
+            ("specs/cold_profile.rs", "part1_profile_requests",
+             "segment.payload.len() % 2 != 0", "segment.payload.len() % 2 == 0"),
+            ("specs/cold_profile.rs", "part1_profile_main_input",
+             "raw.profile.is_none()", "raw.profile.is_some()"),
+            ("specs/cold_profile.rs", "part1_profile_main_run",
+             "Some((part1_main_header_payload(reader, raw, segment), events))",
+             "Some((part1_main_header_payload(reader, raw, segment), events.drop_first()))"),
+            ("src/codestream/profile.rs", "Parser::read_marker_words",
+             "reserve_values(\n            (segment.payload.len() - start) / 2,",
+             "reserve_values(\n            (segment.payload.len() - start) / 3,"),
             ("specs/cold_part2_fresh.rs", "part1_p2_fresh_site",
              "FreshPart2Path::AdsDepth(_, _) => 73", "FreshPart2Path::AdsDepth(_, _) => 23"),
             ("src/codestream/decomposition.rs", "Parser::unpack_two_bit_values",

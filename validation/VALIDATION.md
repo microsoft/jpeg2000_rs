@@ -1025,6 +1025,18 @@ frames. Empty and fixed-array cases do not invent requests. Original requirement
 and references remain; additional mutations reject old-site aliases, wrong
 packed roles/step positions, consumed events on early errors and rolled-back
 charged state. Existing-owner extension-vector growth remains excluded.
+Fresh profile words use site 80 with the actual marker/offset/start descriptor
+at the original constructor frontier. CAP and number admission, last-zero
+validation, duplicate-before-construction and tile rejection remain ordered.
+Standalone odd-tail reads retain their reached reservation rather than gaining
+an earlier parity check. Complete input-derived Result/tail relations, checked
+branch-local equivalence and actual main/public consumers are linked; bounded
+controls cover first/later refusal, empty/odd/malformed paths and raw/container
+restoration. Mutations reject old-site aliases, lost source markers, changed
+word counts, duplicate admission and consumed events on early errors.
+The remaining fresh POC validation bitmap and packed packet-header buffer are
+explicitly separate, not returned marker-owner constructors. Existing-buffer
+registry/pending growth is unchanged and capacity-blocked.
 Same-file links are checked inside another listed, formatted function body;
 the contract's own declaration, an unrelated function or an indirect caller
 does not qualify as a direct same-file call. Unsupported formatting can fail

@@ -19,6 +19,7 @@ pub(crate) open spec fn part1_main_progression_payload<'a>(
     } else if segment.marker == 0xff74 || segment.marker == 0xff75 || segment.marker == 0xff77 {
         part1_fresh_main_payload(reader, raw, segment, events)
     } else if part1_p2_marker(segment.marker) { part1_p2_main_run(reader, raw, segment, events) }
+    else if segment.marker == 0xff50 || segment.marker == 0xff56 || segment.marker == 0xff59 { part1_profile_main_run(reader, raw, segment, events) }
     else { Some((part1_main_header_payload(reader, raw, segment), events)) }
 }
 
@@ -139,6 +140,7 @@ pub(crate) open spec fn part1_main_progression_payload_calls(
     if segment.marker == 0xff5f && !raw.poc_seen {
         part1_poc_normal_calls(12, segment, raw.image_size.components)
     } else if part1_p2_marker(segment.marker) { part1_p2_main_calls(reader, raw, segment) }
+    else if segment.marker == 0xff50 || segment.marker == 0xff56 || segment.marker == 0xff59 { part1_profile_main_calls(raw, segment) }
     else { part1_fresh_main_calls(reader, raw, segment) }
 }
 
@@ -157,6 +159,8 @@ pub(crate) proof fn part1_main_progression_payload_normal<'a>(
         part1_fresh_main_normal(reader, raw, segment, tail);
     } else if part1_p2_marker(segment.marker) {
         part1_p2_main_normal(reader, raw, segment, tail);
+    } else if segment.marker == 0xff50 || segment.marker == 0xff56 || segment.marker == 0xff59 {
+        part1_profile_main_normal(reader, raw, segment, tail);
     } else { assert(Seq::<Part1ColdStorageEvent>::empty() + tail =~= tail); }
 }
 
@@ -398,6 +402,8 @@ pub(crate) proof fn part1_main_progression_payload_frame<'a>(
         part1_fresh_main_frame(reader, raw, segment, events, result, rest, tail);
     } else if part1_p2_marker(segment.marker) {
         part1_p2_main_frame(reader, raw, segment, events, result, rest, tail);
+    } else if segment.marker == 0xff50 || segment.marker == 0xff56 || segment.marker == 0xff59 {
+        part1_profile_main_frame(reader, raw, segment, events, result, rest, tail);
     }
 }
 
@@ -420,6 +426,8 @@ pub(crate) proof fn part1_main_progression_payload_projection<'a>(
         part1_fresh_main_projection(reader, raw, segment, events, result, rest);
     } else if part1_p2_marker(segment.marker) {
         part1_p2_main_projection(reader, raw, segment, events, result, rest);
+    } else if segment.marker == 0xff50 || segment.marker == 0xff56 || segment.marker == 0xff59 {
+        part1_profile_main_projection(reader, raw, segment, events, result, rest);
     }
 }
 

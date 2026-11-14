@@ -503,6 +503,7 @@ pub(crate) enum MctCopyPath {
     PayloadExtensions(Part2CopyPath),
     FreshMarker(FreshMarkerPath),
     FreshPart2(FreshPart2Path),
+    ProfileWords(u16, usize, usize),
 }
 
 #[derive(Clone, Copy)]

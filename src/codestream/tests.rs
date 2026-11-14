@@ -8124,6 +8124,212 @@ fn retains_bounded_profile_numbers_and_rejects_zero_most_significant_words() {
 }
 
 #[test]
+fn fresh_profile_words_original_frontier_empty_odd_and_restore() {
+    let limits = ResourceLimits::default();
+    let parser = new_parser(&[], &limits).unwrap();
+    let bytes = [0x12, 0x34, 0x56, 0x78];
+    let marker = Segment {
+        marker: PRF,
+        offset: 13,
+        payload: &bytes,
+    };
+    assert_eq!(
+        crate::allocation::with_refusal(0, || parser.read_marker_words(marker, 0)),
+        Err(DecodeError::AllocationFailed)
+    );
+    assert_eq!(
+        parser.read_marker_words(marker, 0).unwrap(),
+        [0x1234, 0x5678]
+    );
+    assert_eq!(bytes, [0x12, 0x34, 0x56, 0x78]);
+    let odd = Segment {
+        marker: CPF,
+        offset: 17,
+        payload: &[0, 1, 7],
+    };
+    assert_eq!(
+        crate::allocation::with_refusal(0, || parser.read_marker_words(odd, 0)),
+        Err(DecodeError::AllocationFailed)
+    );
+    let ordinary = parser.read_marker_words(odd, 0).unwrap_err();
+    crate::allocation::with_refusal(1, || {
+        assert_eq!(parser.read_marker_words(odd, 0).unwrap_err(), ordinary);
+        assert_eq!(
+            crate::allocation::copy_values(&[1_u8]),
+            Err(DecodeError::AllocationFailed)
+        );
+    });
+    crate::allocation::with_refusal(0, || {
+        assert!(
+            parser
+                .read_marker_words(marker, bytes.len())
+                .unwrap()
+                .is_empty()
+        );
+        assert!(matches!(
+            parser.read_marker_words(
+                Segment {
+                    marker: CAP,
+                    offset: 19,
+                    payload: &[7]
+                },
+                0
+            ),
+            Err(DecodeError::MalformedInput {
+                kind: MalformedKind::InvalidMarkerLength,
+                ..
+            })
+        ));
+        assert!(matches!(
+            parser.read_marker_words(marker, bytes.len() + 1),
+            Err(DecodeError::MalformedInput {
+                kind: MalformedKind::InvalidMarkerLength,
+                ..
+            })
+        ));
+        assert_eq!(
+            crate::allocation::copy_values(&[1_u8]),
+            Err(DecodeError::AllocationFailed)
+        );
+    });
+}
+
+#[test]
+fn fresh_profile_cap_number_order_last_zero_and_malformed_restore() {
+    let limits = ResourceLimits::default();
+    let parser = new_parser(&[], &limits).unwrap();
+    let cap = Segment {
+        marker: CAP,
+        offset: 23,
+        payload: &[0, 2, 0, 0, 0, 8],
+    };
+    let number = Segment {
+        marker: PRF,
+        offset: 29,
+        payload: &[0, 1],
+    };
+    let expected_cap = parser.parse_cap(cap).unwrap();
+    assert!(matches!(
+        crate::allocation::with_refusal(0, || parser.parse_cap(cap)),
+        Err(DecodeError::AllocationFailed)
+    ));
+    crate::allocation::with_refusal(1, || {
+        assert_eq!(parser.parse_cap(cap).unwrap(), expected_cap);
+        assert!(matches!(
+            parser.parse_profile_number(number),
+            Err(DecodeError::AllocationFailed)
+        ));
+    });
+    assert_eq!(parser.parse_cap(cap).unwrap(), expected_cap);
+    assert_eq!(parser.parse_profile_number(number).unwrap().words(), [1]);
+    let zero = Segment {
+        marker: CPF,
+        offset: 31,
+        payload: &[0, 0],
+    };
+    assert!(matches!(
+        crate::allocation::with_refusal(0, || parser.parse_profile_number(zero)),
+        Err(DecodeError::AllocationFailed)
+    ));
+    assert!(matches!(
+        parser.parse_profile_number(zero),
+        Err(DecodeError::MalformedInput {
+            kind: MalformedKind::InvalidProfile,
+            ..
+        })
+    ));
+    crate::allocation::with_refusal(0, || {
+        assert!(matches!(
+            parser.parse_cap(Segment {
+                marker: CAP,
+                offset: 37,
+                payload: &[0, 0, 0, 0]
+            }),
+            Err(DecodeError::MalformedInput {
+                kind: MalformedKind::InvalidProfile,
+                ..
+            })
+        ));
+        assert!(matches!(
+            parser.parse_profile_number(Segment {
+                marker: PRF,
+                offset: 41,
+                payload: &[1]
+            }),
+            Err(DecodeError::MalformedInput {
+                kind: MalformedKind::InvalidMarkerLength,
+                ..
+            })
+        ));
+        assert_eq!(
+            crate::allocation::copy_values(&[1_u8]),
+            Err(DecodeError::AllocationFailed)
+        );
+    });
+}
+
+#[test]
+fn fresh_profile_raw_first_later_duplicate_and_tile_admission_restore() {
+    let limits = ResourceLimits::default();
+    let cap = segment(CAP, &[0, 2, 0, 0, 0, 8]);
+    let prf = segment(PRF, &[0, 1]);
+    let cpf = segment(CPF, &[0, 2]);
+    let cod = segment(COD, &[0, 0, 0, 1, 0, 0, 2, 2, 0x40, 1]);
+    let qcd = segment(QCD, &[0, 0x40]);
+    let mut bytes = codestream_with_headers(
+        1,
+        &[cap.clone(), prf.clone(), cpf, cod.clone(), qcd.clone()],
+        &[],
+        &[],
+    );
+    bytes[6..8].copy_from_slice(&HT_RSIZ_FLAG.to_be_bytes());
+    let expected = parse(&bytes, &limits).unwrap();
+    for after in [0, 2] {
+        assert!(matches!(
+            crate::allocation::with_refusal(after, || parse(&bytes, &limits)),
+            Err(DecodeError::AllocationFailed)
+        ));
+        assert_eq!(parse(&bytes, &limits).unwrap(), expected);
+    }
+    let mut duplicate = codestream_with_headers(1, &[cap, prf.clone(), prf, cod, qcd], &[], &[]);
+    duplicate[6..8].copy_from_slice(&HT_RSIZ_FLAG.to_be_bytes());
+    let ordinary = parse(&duplicate, &limits).unwrap_err();
+    crate::allocation::with_refusal(2, || {
+        assert_eq!(parse(&duplicate, &limits).unwrap_err(), ordinary);
+        assert_eq!(
+            crate::allocation::copy_values(&[1_u8]),
+            Err(DecodeError::AllocationFailed)
+        );
+    });
+    let tile = segment(CAP, &[0, 2, 0, 0, 0, 8]);
+    let mut normal = new_parser(&tile, &limits).unwrap();
+    let error = normal.read_tile_header_segment().unwrap_err();
+    let expected_frame = (
+        normal.position,
+        normal.work_units,
+        normal.packet_length_bytes,
+        normal.packet_lengths,
+    );
+    crate::allocation::with_refusal(0, || {
+        let mut reader = new_parser(&tile, &limits).unwrap();
+        assert_eq!(reader.read_tile_header_segment().unwrap_err(), error);
+        assert_eq!(
+            (
+                reader.position,
+                reader.work_units,
+                reader.packet_length_bytes,
+                reader.packet_lengths
+            ),
+            expected_frame
+        );
+        assert_eq!(
+            crate::allocation::copy_values(&[1_u8]),
+            Err(DecodeError::AllocationFailed)
+        );
+    });
+}
+
+#[test]
 fn fresh_part2_decomposition_first_later_empty_and_malformed_restore() {
     let limits = ResourceLimits::default();
     let parser = new_parser(&[], &limits).unwrap();

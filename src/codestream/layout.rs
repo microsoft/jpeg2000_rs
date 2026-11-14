@@ -495,21 +495,39 @@ impl<'a> Parser<'a> {
                         MalformedKind::InvalidMarkerOrder,
                     ));
                 }
-                CAP => extended_capabilities = Some(parser.parse_cap(segment)?),
+                CAP => {
+                    let copied = parser.parse_cap(segment);
+                    #[cfg(verus_keep_ghost)]
+                    proof! { crate::specs::part1_cold_main_profile_step(initial_reader, cold_main_reader, cold_main_raw, segment_view(segment),
+                    crate::specs::ProfileFreshValue::Cap(cap_payload_outcome(copied))); }
+                    extended_capabilities = Some(copied?);
+                }
                 PRF if profile.is_some() => {
                     return Err(DecodeError::malformed(
                         parser.offset(segment.offset),
                         MalformedKind::InvalidMarkerOrder,
                     ));
                 }
-                PRF => profile = Some(parser.parse_profile_number(segment)?),
+                PRF => {
+                    let copied = parser.parse_profile_number(segment);
+                    #[cfg(verus_keep_ghost)]
+                    proof! { crate::specs::part1_cold_main_profile_step(initial_reader, cold_main_reader, cold_main_raw, segment_view(segment),
+                    crate::specs::ProfileFreshValue::Number(profile_number_outcome(copied))); }
+                    profile = Some(copied?);
+                }
                 CPF if corresponding_profile.is_some() => {
                     return Err(DecodeError::malformed(
                         parser.offset(segment.offset),
                         MalformedKind::InvalidMarkerOrder,
                     ));
                 }
-                CPF => corresponding_profile = Some(parser.parse_profile_number(segment)?),
+                CPF => {
+                    let copied = parser.parse_profile_number(segment);
+                    #[cfg(verus_keep_ghost)]
+                    proof! { crate::specs::part1_cold_main_profile_step(initial_reader, cold_main_reader, cold_main_raw, segment_view(segment),
+                    crate::specs::ProfileFreshValue::Number(profile_number_outcome(copied))); }
+                    corresponding_profile = Some(copied?);
+                }
                 COD if coding_style.is_some() => {
                     return Err(DecodeError::malformed(
                         parser.offset(segment.offset),

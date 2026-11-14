@@ -21,6 +21,7 @@ pub(crate) open spec fn part1_mct_copy_site(path: MctCopyPath) -> u8 {
         MctCopyPath::PayloadExtensions(path) => (part1_part2_copy_site(path) + 26) as u8,
         MctCopyPath::FreshMarker(path) => part1_fresh_marker_site(path),
         MctCopyPath::FreshPart2(path) => part1_p2_fresh_site(path),
+        MctCopyPath::ProfileWords(_, _, _) => 80,
     }
 }
 

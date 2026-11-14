@@ -1129,6 +1129,34 @@ fn mct_owner_storage_container_inner_refusal_restores_original_source() {
 }
 
 #[test]
+fn fresh_profile_container_first_later_refusal_and_restore() {
+    let mut stream = valid_ht_codestream(64, 32, 0x40);
+    let at = stream
+        .windows(2)
+        .position(|word| word == [0xff, 0x90])
+        .unwrap();
+    let mut profiles = marker_segment(0xff56, &[0, 1]);
+    profiles.extend(marker_segment(0xff59, &[0, 2]));
+    stream.splice(at..at, profiles);
+    let bytes = boxed_file(b"jph \0\0\0\0jph ", &stream);
+    let limits = ResourceLimits::default();
+    let expected = parse_and_inspect(&bytes, &limits).unwrap();
+    for after in [0, 2] {
+        assert!(matches!(
+            crate::allocation::with_refusal(after, || parse_and_inspect(&bytes, &limits)),
+            Err(DecodeError::AllocationFailed)
+        ));
+        let restored = parse_and_inspect(&bytes, &limits).unwrap();
+        assert_eq!(restored.codestreams(), expected.codestreams());
+        assert_eq!(restored.file().box_count, expected.file().box_count);
+        assert!(core::ptr::eq(
+            restored.file().codestream(0).unwrap().data(),
+            expected.file().codestream(0).unwrap().data()
+        ));
+    }
+}
+
+#[test]
 fn fresh_part2_container_first_later_construction_refusal_restore() {
     let mut stream = valid_codestream(64, 32);
     let at = stream
