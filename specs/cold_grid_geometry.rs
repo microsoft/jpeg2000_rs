@@ -47,14 +47,11 @@ pub(crate) open spec fn part2_grid_resolutions_cold_run(size:&crate::codestream:
         }
     }
 }
+#[verifier::opaque]
 pub(crate) open spec fn part2_derived_grid_run(size:&crate::codestream::ImageSize,styles:&crate::codestream::ComponentCodingStyles,
     layers:u16,limits:&crate::ResourceLimits,tile:Option<u16>,discard:u8,events:Seq<Part2JpipSnapshotEvent>)->Part2ColdRun<Part1PacketGrid> {
-    match part2_component_resolution_counts(crate::codestream::image_size_component_count(size),styles,discard) {
-        Err(error)=>Some((Err(error),events)),
-        Ok(descriptors)=>if crate::codestream::image_size_component_count(size) as int*descriptors.0 as int>usize::MAX {
-            Some((Err(part1_block_placement_error(true)),events))
-        }else{part2_grid_components_cold_run(size,styles,layers,limits,tile,discard,descriptors,0,Seq::empty(),0,events)},
-    }
+    part2_jpip_snapshot_bind(part2_geometry_descriptors_run(crate::codestream::image_size_component_count(size),styles,discard,events),
+        |descriptors:Part2ComponentResolutionCounts,rest|part2_derived_geometry_after_descriptors(size,styles,layers,limits,tile,discard,descriptors,rest))
 }
 #[verifier::opaque]
 pub(crate) open spec fn part2_derived_grid_result(size:&crate::codestream::ImageSize,styles:&crate::codestream::ComponentCodingStyles,
@@ -188,16 +185,16 @@ pub(crate) proof fn part2_derived_grid_normal(size:&crate::codestream::ImageSize
     limits:&crate::ResourceLimits,tile:Option<u16>,discard:u8)
     ensures part2_derived_grid_result(size,styles,layers,limits,tile,discard,part2_packet_grid_from_components(size,styles,layers,limits,tile,discard)),
 {
-    reveal(part2_derived_grid_result);
-    match part2_component_resolution_counts(crate::codestream::image_size_component_count(size),styles,discard) {
-        Err(error)=>{part2_cold_pure::<Part1PacketGrid>(Err(error));},
-        Ok(descriptors)=>if crate::codestream::image_size_component_count(size) as int*descriptors.0 as int>usize::MAX {
-            part2_cold_pure::<Part1PacketGrid>(Err(part1_block_placement_error(true)));
-        }else{
-            part2_grid_components_cold_normal(size,styles,layers,limits,tile,discard,descriptors,0,Seq::empty(),0);
-            part2_decode_eta(|events|part2_grid_components_cold_run(size,styles,layers,limits,tile,discard,descriptors,0,Seq::empty(),0,events),
-                part2_packet_grid_components_run(size,styles,layers,limits,tile,discard,descriptors,0,Seq::empty(),0));
-        },
+    reveal(part2_derived_grid_result);reveal(part2_geometry_descriptors_result);reveal(part2_derived_grid_run);
+    crate::codestream::selection_geometry_known_fields(size);
+    part2_geometry_descriptors_normal(size.components,styles,discard);
+    let descriptors=part2_component_resolution_counts(size.components,styles,discard);
+    let result=part2_packet_grid_from_components(size,styles,layers,limits,tile,discard);
+    if let Ok(values)=descriptors {
+        part2_derived_geometry_after_normal(size,styles,layers,limits,tile,discard,values);
+        part2_decode_eta(|events|part2_derived_geometry_after_descriptors(size,styles,layers,limits,tile,discard,values,events),result);
     }
+    part2_cold_bind(|events|part2_geometry_descriptors_run(size.components,styles,discard,events),
+        |values:Part2ComponentResolutionCounts,rest|part2_derived_geometry_after_descriptors(size,styles,layers,limits,tile,discard,values,rest),descriptors,result);
 }
 }

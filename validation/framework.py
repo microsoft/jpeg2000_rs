@@ -2594,6 +2594,10 @@ _SUBBAND_ADMISSION_PROVED_BOUNDARY_APIS = frozenset({
 })
 
 _PACKET_GRID_PRODUCER_CONTRACTS = {
+    ("src/decode/geometry.rs", "derive_packet_grid_for"): (
+        "part1_uniform_geometry_model", _coverage_call("crate::packet::packet_grid_outcome", r"\1"), None,
+        r"size\s*,\s*coding_style\s*,\s*limits\s*,\s*tile_index",
+    ),
     ("src/decode/geometry.rs", "prepare_component_resolution_counts"): (
         "part2_component_resolution_counts",
         _coverage_call("resolution_counts_outcome", r"\1"), None,
@@ -4796,6 +4800,8 @@ _RAW_RENDER_PROOFS |= {("specs/jpx_raw_frame.rs", "part2_render_raw_cold_metadat
 _RAW_COMPOSITION_RENDER_PROOFS |= {("specs/jpx_raw_frame.rs", "part2_render_raw_cold_metadata_error")}
 
 _COLD_RESULT_MODELS = {
+    "part2_component_resolution_counts": ("part2_geometry_descriptors_result", "specs/cold_geometry_storage.rs", "part2_geometry_descriptors_normal"),
+    "part1_uniform_geometry_model": ("part1_uniform_geometry_cold_result", "specs/cold_uniform_geometry.rs", "part2_uniform_geometry_normal"),
     "part1_grid_count_summary": ("part2_grid_summary_result", "specs/cold_grid.rs", "part2_grid_summary_normal"),
     "part1_packet_grid_new": ("part2_grid_result", "specs/cold_grid.rs", "part2_grid_normal"),
     "part2_packet_grid_from_components": ("part2_derived_grid_result", "specs/cold_grid_geometry.rs", "part2_derived_grid_normal"),
@@ -5103,6 +5109,7 @@ for _header_symbol, _header_model, _raw_pattern, _header_outcome in (
     )
 
 _COLD_INNER_RUNS = {
+    "part1_uniform_geometry_cold_result": "part2_uniform_geometry_run",
     "part1_progression_plan_cold_result": "part2_grid_plan_run",
     "part1_progression_tile_cold_result": "part2_packet_run",
     "part2_inspection_capacity_result": "part2_inspection_capacity",
@@ -5133,6 +5140,30 @@ def _coverage_cold_links(keys: set[tuple[str, str]]) -> tuple[set[tuple[str, str
         }.get(model, model.removesuffix("_result") + "_run")
         models.update(((path, model), (path, run)))
         proofs.add((path, normal))
+        if model in ("part2_geometry_descriptors_result", "part2_derived_grid_result"):
+            models.update(("specs/cold_geometry_storage.rs", name) for name in (
+                "part2_geometry_capacity_count", "part2_geometry_capacity_run", "part2_geometry_capacity_result",
+                "part2_geometry_descriptors_run", "part2_geometry_descriptors_result", "part2_geometry_counts_step",
+                "part2_derived_geometry_after_descriptors",
+            ))
+            proofs.update(("specs/cold_geometry_storage.rs", name) for name in (
+                "part2_geometry_capacity_observed", "part2_geometry_descriptors_normal",
+                "part2_geometry_descriptors_second", "part2_geometry_descriptors_refused",
+                "part2_derived_geometry_after_normal", "part2_derived_geometry_prefix",
+                "part2_derived_geometry_descriptor_error", "part2_derived_geometry_capacity_error",
+                "part2_derived_geometry_step", "part2_derived_geometry_component_end", "part2_derived_geometry_end", "part2_cold_prefix_result",
+            ))
+        if model == "part1_uniform_geometry_cold_result":
+            models.update((path, name) for name in (
+                "part1_uniform_geometry_model", "part2_uniform_geometry_value", "part2_uniform_geometry_counts",
+                "part2_uniform_geometry_resolutions", "part2_uniform_geometry_after_capacity",
+            ))
+            proofs.update((path, name) for name in (
+                "part2_uniform_geometry_model_known", "part2_uniform_geometry_value_known", "part2_uniform_geometry_step",
+                "part2_uniform_geometry_refused", "part2_uniform_geometry_finish",
+            ))
+            proofs.add(("specs/cold_grid.rs", "part2_uniform_grid_frames"))
+            proofs.add(("src/decode/geometry.rs", "derive_packet_grid"))
         if model in ("part2_grid_result", "part2_grid_summary_result"):
             models.update(("specs/cold_grid.rs", name) for name in (
                 "part2_grid_admit", "part2_grid_capacity_count", "part2_grid_capacity_run", "part2_grid_capacity_result",
@@ -5194,7 +5225,9 @@ def _coverage_cold_result_body(text: str, model: str) -> bool:
         **_COLD_INNER_RUNS,
     }.get(model, model.removesuffix("_result") + "_run")
     call = run + "(" + ",".join(names[:-1] + ["events"]) + ")"
-    if model == "part1_progression_plan_cold_result":
+    if model == "part1_uniform_geometry_cold_result":
+        expected = "part2_cold_framed(|events|part2_uniform_geometry_run(size,style,limits,tile,events),result)"
+    elif model == "part1_progression_plan_cold_result":
         expected = "part2_grid_plan_result(size,style,styles,crate::codestream::quantization_owner_view(quantizations),roi,selection,policy,limits,result)"
     elif model == "part1_progression_tile_cold_result":
         expected = "part2_packet_result(crate::codestream::tile_parts_owned_view(parts), grid, precincts, selection, limits, result)"
@@ -5306,6 +5339,70 @@ _COLD_SOURCE_BODIES = {
     """, "whole effective layer Result requires actual ordered decoder/registration/opacity models"),
 }
 
+_GEOMETRY_STORAGE_TESTS = {
+    ("src/decode/tests.rs", "geometry_storage_descriptor_first_later_empty_selection_and_restore"),
+    ("src/decode/tests.rs", "geometry_storage_derived_count_refusal_precedes_geometry_and_restores_owners"),
+    ("src/decode/tests.rs", "geometry_storage_uniform_empty_overflow_limit_and_refusal_frontier"),
+    ("src/decode/tests.rs", "geometry_storage_public_raw_selected_container_roles_restore"),
+}
+_GEOMETRY_STORAGE_GUARDS = {
+    ("specs/cold_geometry_storage.rs", "part2_geometry_capacity_count"): (
+        "Part2GeometryCapacityContext::UniformCounts", "size.components as nat*(style.decomposition_levels as nat+1)",
+        "Part2GeometryCapacityContext::ComponentResolutions {components,..}=>components as usize",
+        "Part2GeometryCapacityContext::SelectedResolutions {components,..}=>components as usize",
+        "part2_component_resolution_counts(size.components,&styles,discard)", "size.components as nat*values.0 as nat",
+    ),
+    ("specs/cold_geometry_storage.rs", "part2_geometry_capacity_run"): (
+        "if count==0 {Some((Ok(()),events))}", "Part2JpipSnapshotEvent::GeometryCapacity",
+        "actual!=context || elements!=count", "Err(crate::DecodeError::AllocationFailed)", "events.drop_first()", "_=>None",
+    ),
+    ("specs/cold_geometry_storage.rs", "part2_geometry_descriptors_run"): (
+        "Part2GeometryCapacityContext::ComponentResolutions {components,styles:*styles,discard}",
+        "Part2GeometryCapacityContext::SelectedResolutions {components,styles:*styles,discard}",
+        "part2_component_resolution_counts(components,styles,discard),tail",
+    ),
+    ("specs/cold_geometry_storage.rs", "part2_derived_geometry_after_descriptors"): (
+        "size.components as nat*descriptors.0 as nat>usize::MAX", "Part2GeometryCapacityContext::DerivedCounts {size:*size,styles:*styles,layers,tile,discard}",
+        "part2_grid_components_cold_run(size,styles,layers,limits,tile,discard,descriptors,0,Seq::empty(),0,rest)",
+    ),
+    ("specs/cold_grid_geometry.rs", "part2_derived_grid_run"): (
+        "part2_geometry_descriptors_run(crate::codestream::image_size_component_count(size),styles,discard,events)",
+        "part2_derived_geometry_after_descriptors(size,styles,layers,limits,tile,discard,descriptors,rest)",
+    ),
+    ("specs/cold_uniform_geometry.rs", "part2_uniform_geometry_run"): (
+        "style.decomposition_levels==u8::MAX", "size.components as nat*(style.decomposition_levels as nat+1)>usize::MAX",
+        "Part2GeometryCapacityContext::UniformCounts {size:*size,style,tile}",
+        "part2_uniform_geometry_after_capacity(size,style,limits,tile,rest)",
+    ),
+    ("specs/cold_uniform_geometry.rs", "part2_uniform_geometry_after_capacity"): (
+        "part2_uniform_geometry_counts(size,style,(style.decomposition_levels+1) as u8,limits,tile,0,Seq::empty(),0)",
+        "Err(error)=>Some((Err(error),events))", "part2_uniform_grid_run(style.layers,size.components,(style.decomposition_levels+1) as u8,counts,limits,events)",
+    ),
+    ("specs/cold_geometry_storage.rs", "part2_geometry_counts_step"): (
+        "part2_resolution_geometry(", "part2_packet_grid_subband_delta(style,resolution)",
+        "part2_packet_grid_codeblocks(total,geometry.code_blocks,resolution<resolutions-discard,limits)",
+        "counts.push(if subbands==0{0u32}else{geometry.precincts as u32}),next",
+    ),
+}
+_GEOMETRY_STORAGE_NATIVE_ORDER = {
+    "prepare_component_resolution_counts": (
+        "let mut maximum_resolutions = 0", "let first = if components == 0", "empty_with_capacity(usize::from(components))",
+        "Part2GeometryCapacityContext::ComponentResolutions", "let mut component_resolutions = first?",
+        "let second = if components == 0", "Part2GeometryCapacityContext::SelectedResolutions",
+        "let mut selected_resolution_counts = second?", "while component < components",
+    ),
+    "derive_packet_grid_for_components": (
+        "prepare_component_resolution_counts(", "part2_derived_geometry_descriptor_error(", "= descriptor_result?",
+        "checked_mul(usize::from(maximum_resolutions))", "let reserved = if capacity == 0", "empty_with_capacity(capacity)",
+        "Part2GeometryCapacityContext::DerivedCounts", "part2_derived_geometry_capacity_error(", "let mut precinct_counts = reserved?",
+        "part2_derived_geometry_prefix(", "while component < size.components",
+    ),
+    "derive_packet_grid_for": (
+        "checked_add(1)", "checked_mul(usize::from(resolutions))", "let reserved = if capacity == 0", "empty_with_capacity(capacity)",
+        "Part2GeometryCapacityContext::UniformCounts", "part2_uniform_geometry_refused(", "let mut precinct_counts = reserved?",
+        "while component < size.components", "PacketGrid::new(", "part2_uniform_geometry_finish(",
+    ),
+}
 _GRID_STORAGE_TESTS = {
     ("src/packet/progression.rs", "grid_storage_offset_empty_overflow_and_refusal_frontier_restore"),
     ("src/packet/progression.rs", "grid_storage_uniform_first_and_later_refusal_restore_exact_offsets"),
@@ -12545,6 +12642,23 @@ def validate_normative_coverage(
                 ("src/packet/progression.rs", "packet_grid_new_with_selected_resolutions")} for ref in preparation_entry["contract_refs"]):
             if not _GRID_STORAGE_TESTS.issubset({(ref["path"], ref["symbol"]) for ref in preparation_entry["test_refs"]}):
                 raise ValueError("grid fresh storage requires bounded offset/uniform/refusal/restore/overflow/work/public controls")
+    if "part2-complete-native-component-packet-grid" in ids:
+        geometry_entry = next(item for item in coverage["requirements"] if item["id"] == "part2-complete-native-component-packet-grid")
+        for (relative, symbol), fragments in _GEOMETRY_STORAGE_GUARDS.items():
+            body = _coverage_spec_function_body(source_text((ROOT / relative).resolve()), symbol)
+            compact = "".join(body.split()) if body is not None else ""
+            if any("".join(fragment.split()) not in compact for fragment in fragments):
+                raise ValueError("geometry fresh storage requires actual distinct source/role/count and complete vector/counter/error/tail production")
+        geometry_path = (ROOT / "src/decode/geometry.rs").resolve()
+        for symbol, fragments in _GEOMETRY_STORAGE_NATIVE_ORDER.items():
+            body = _coverage_function_body(source_text(geometry_path), function_header(geometry_path, symbol))
+            compact = "".join(body.split()) if body is not None else ""
+            positions = [compact.find("".join(fragment.split())) for fragment in fragments]
+            if any(position < 0 for position in positions) or positions != sorted(positions):
+                raise ValueError("geometry fresh storage requires unchanged real constructor/selection/arithmetic/field/owner/error order")
+        if any((ref["path"], ref["symbol"]) in _PACKET_GRID_PRODUCER_CONTRACTS for ref in geometry_entry["contract_refs"]):
+            if not _GEOMETRY_STORAGE_TESTS.issubset({(ref["path"], ref["symbol"]) for ref in geometry_entry["test_refs"]}):
+                raise ValueError("geometry fresh storage requires bounded empty/overflow/refusal/restore/owner/public controls")
     return {
         "status": "passed",
         "inventory_items": len(ids),

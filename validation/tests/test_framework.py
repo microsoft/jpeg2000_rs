@@ -1760,7 +1760,7 @@ class FrameworkTests(WorkingFiles):
     def test_inventory_binds_complete_actual_component_packet_grid_producer_and_limits(self):
         self._assert_complete_packet_contract_bindings(
             {"part2-complete-native-component-packet-grid"},
-            framework._PACKET_GRID_PRODUCER_CONTRACTS, 2,
+            framework._PACKET_GRID_PRODUCER_CONTRACTS, 3,
         )
 
     def test_inventory_binds_complete_raw_subband_admission_and_quantization_boundaries(self):
@@ -8196,6 +8196,37 @@ class FrameworkTests(WorkingFiles):
                     self.assertRaisesRegex(ValueError, "ordered cold quantization storage"):
                 framework.validate_normative_coverage(dict(coverage, requirements=[entry]))
 
+    def test_inventory_geometry_storage_requires_actual_roles_vectors_and_frontiers(self):
+        coverage = json.loads((framework.VALIDATION / "normative-coverage.json").read_text())
+        entry = next(item for item in coverage["requirements"] if item["id"] == "part2-complete-native-component-packet-grid")
+        data = dict(coverage, requirements=[entry])
+        self.assertEqual(framework.validate_normative_coverage(data)["status"], "passed")
+        read_text = Path.read_text
+        for relative, symbol, before, after in (
+            ("specs/cold_geometry_storage.rs", "part2_geometry_capacity_count", "ComponentResolutions {components,..}=>components as usize", "ComponentResolutions {components,..}=>0usize"),
+            ("specs/cold_geometry_storage.rs", "part2_geometry_capacity_run", "count==0", "count==1"),
+            ("specs/cold_geometry_storage.rs", "part2_geometry_capacity_run", "Part2JpipSnapshotEvent::GeometryCapacity", "Part2JpipSnapshotEvent::GridCapacity"),
+            ("specs/cold_geometry_storage.rs", "part2_geometry_capacity_run", "events.drop_first()", "events"),
+            ("specs/cold_geometry_storage.rs", "part2_geometry_descriptors_run", "SelectedResolutions", "ComponentResolutions"),
+            ("specs/cold_uniform_geometry.rs", "part2_uniform_geometry_after_capacity", "part2_uniform_geometry_counts(", "supplied_counts("),
+            ("src/decode/geometry.rs", "prepare_component_resolution_counts", "empty_with_capacity(usize::from(components))", "empty_with_capacity(1)"),
+            ("src/decode/geometry.rs", "derive_packet_grid_for", "empty_with_capacity(capacity)", "empty_with_capacity(1)"),
+            ("src/decode/geometry.rs", "derive_packet_grid_for_components", "empty_with_capacity(capacity)", "empty_with_capacity(1)"),
+        ):
+            source = framework.ROOT / relative
+            original = source.read_text()
+            body = (framework._coverage_function_body(original, framework._coverage_function_header(original, symbol))
+                    if relative.startswith("src/") else framework._coverage_spec_function_body(original, symbol))
+            self.assertIn(before, body)
+            changed = original.replace(body, body.replace(before, after, 1), 1)
+
+            def altered(path, *args, **kwargs):
+                return changed if path == source else read_text(path, *args, **kwargs)
+
+            with self.subTest(symbol=symbol, before=before), mock.patch.object(Path, "read_text", altered), \
+                    self.assertRaisesRegex(ValueError, "geometry fresh storage"):
+                framework.validate_normative_coverage(data)
+
     def test_inventory_grid_storage_requires_actual_offset_uniform_counts_and_plan_phase(self):
         coverage = json.loads((framework.VALIDATION / "normative-coverage.json").read_text())
         entry = next(item for item in coverage["requirements"] if item["id"] == "part1-complete-native-grid-progression-composition")
@@ -8514,6 +8545,11 @@ class FrameworkTests(WorkingFiles):
                         "packet_grid_count_summary", "packet_grid_new_with_component_resolutions", "packet_grid_new_with_selected_resolutions")}:
                     isolated["test_refs"] += [
                         {"path": path, "symbol": symbol} for path, symbol in sorted(framework._GRID_STORAGE_TESTS)
+                        if {"path": path, "symbol": symbol} not in isolated["test_refs"]
+                    ]
+                if key in framework._PACKET_GRID_PRODUCER_CONTRACTS:
+                    isolated["test_refs"] += [
+                        {"path": path, "symbol": symbol} for path, symbol in sorted(framework._GEOMETRY_STORAGE_TESTS)
                         if {"path": path, "symbol": symbol} not in isolated["test_refs"]
                     ]
             self.assertEqual(framework.validate_normative_coverage(coverage)["status"], "passed")
