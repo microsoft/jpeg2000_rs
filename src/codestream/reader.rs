@@ -166,7 +166,10 @@ impl<'a> Parser<'a> {
 
     #[cfg_attr(verus_keep_ghost, verifier::spinoff_prover)]
     #[cfg_attr(verus_keep_ghost, verus_spec(result =>
-        ensures segment_tail_outcome(result) == crate::specs::part1_copy_segment_tail(segment_view(segment), start),
+        ensures crate::specs::part1_p2_fresh_result(crate::specs::Part2FreshInput::Tail(segment_view(segment), start),
+                crate::specs::Part2FreshValue::Tail(segment_tail_outcome(result))),
+            segment_tail_outcome(result) != Err(DecodeError::AllocationFailed) ==>
+                segment_tail_outcome(result) == crate::specs::part1_copy_segment_tail(segment_view(segment), start),
     ))]
     pub(super) fn copy_segment_tail(
         &self,
@@ -174,16 +177,32 @@ impl<'a> Parser<'a> {
         start: usize,
     ) -> Result<Vec<u8>, DecodeError> {
         #[cfg(verus_keep_ghost)]
-        proof! { reveal(crate::specs::part1_copy_segment_tail); }
+        proof! {
+            reveal(crate::specs::part1_copy_segment_tail);
+            crate::specs::part1_p2_fresh_normal(crate::specs::Part2FreshInput::Tail(segment_view(segment), start));
+        }
         if start > segment.payload.len() {
             return Err(self.malformed_at(segment.offset, MalformedKind::InvalidMarkerLength));
         }
-        let mut copied = Vec::with_capacity(segment.payload.len() - start);
+        let reserved = super::mct_copy::reserve_values(
+            segment.payload.len() - start,
+            super::MctCopyPath::FreshPart2(super::FreshPart2Path::NltParameters(
+                segment.offset,
+                start,
+            )),
+        );
+        #[cfg(verus_keep_ghost)]
+        proof! { if reserved.is_err() { crate::specs::part1_p2_fresh_refused(crate::specs::Part2FreshInput::Tail(segment_view(segment), start)); } }
+        let mut copied = reserved?;
+        #[cfg(verus_keep_ghost)]
+        proof! { assert(copied@ =~= Seq::<u8>::empty()); }
         let mut position = start;
         #[cfg_attr(
             verus_keep_ghost,
             verus_spec(
                 invariant start <= position <= segment.payload.len(),
+                    crate::specs::part1_p2_fresh_result(crate::specs::Part2FreshInput::Tail(segment_view(segment), start),
+                        crate::specs::part1_p2_fresh_ordinary(crate::specs::Part2FreshInput::Tail(segment_view(segment), start))),
                     copied@ == segment.payload@.subrange(start as int, position as int),
                 decreases segment.payload.len() - position,
             )

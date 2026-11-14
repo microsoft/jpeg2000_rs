@@ -3181,6 +3181,16 @@
         {"path": "src/decode/output.rs", "symbol": "decode_jpx_file"}
       ],
       "spec_refs": [
+        {"path": "specs/cold_part2_fresh.rs", "symbol": "Part2FreshInput"},
+        {"path": "specs/cold_part2_fresh.rs", "symbol": "Part2FreshValue"},
+        {"path": "specs/cold_part2_fresh.rs", "symbol": "part1_p2_fresh_site"},
+        {"path": "specs/cold_part2_fresh.rs", "symbol": "part1_p2_fresh_requests"},
+        {"path": "specs/cold_part2_fresh.rs", "symbol": "part1_p2_fresh_ordinary"},
+        {"path": "specs/cold_part2_fresh.rs", "symbol": "part1_p2_fresh_run"},
+        {"path": "specs/cold_part2_fresh.rs", "symbol": "part1_p2_marker_run"},
+        {"path": "specs/cold_part2_fresh.rs", "symbol": "part1_p2_marker_result"},
+        {"path": "specs/cold_part2_header.rs", "symbol": "part1_p2_main_run"},
+        {"path": "specs/cold_part2_header.rs", "symbol": "part1_p2_tile_run"},
         {"path": "specs/cold_marker_storage.rs", "symbol": "part1_fresh_marker_site"},
         {"path": "specs/cold_marker_storage.rs", "symbol": "part1_fresh_collection_requests"},
         {"path": "specs/cold_marker_storage.rs", "symbol": "part1_fresh_records_requests"},
@@ -3221,6 +3231,19 @@
         {"path": "src/codestream/layout.rs", "symbol": "parse"}
       ],
       "proof_refs": [
+        {"path": "specs/cold_part2_fresh.rs", "symbol": "part1_p2_marker_normal"},
+        {"path": "specs/cold_part2_fresh.rs", "symbol": "part1_p2_marker_frame"},
+        {"path": "specs/cold_part2_fresh.rs", "symbol": "part1_p2_marker_projection"},
+        {"path": "specs/cold_part2_fresh.rs", "symbol": "part1_p2_marker_storage_observed"},
+        {"path": "specs/cold_part2_fresh.rs", "symbol": "part1_p2_marker_storage_equivalent"},
+        {"path": "specs/cold_part2_header.rs", "symbol": "part1_cold_main_p2_step"},
+        {"path": "specs/cold_part2_header.rs", "symbol": "part1_p2_main_normal"},
+        {"path": "specs/cold_part2_header.rs", "symbol": "part1_p2_main_frame"},
+        {"path": "specs/cold_part2_header.rs", "symbol": "part1_p2_main_projection"},
+        {"path": "specs/cold_part2_header.rs", "symbol": "part1_p2_tile_normal"},
+        {"path": "specs/cold_part2_header.rs", "symbol": "part1_p2_tile_frame"},
+        {"path": "specs/cold_part2_header.rs", "symbol": "part1_p2_tile_projection"},
+        {"path": "specs/cold_part2_header.rs", "symbol": "part1_p2_tile_step"},
         {"path": "specs/cold_marker_header.rs", "symbol": "part1_cold_main_fresh_error"},
         {"path": "specs/cold_marker_header.rs", "symbol": "part1_fresh_main_normal"},
         {"path": "specs/cold_marker_header.rs", "symbol": "part1_fresh_main_projection"},
@@ -3261,6 +3284,8 @@
         {"path": "specs/cold_layout_continuations.rs", "symbol": "part1_cold_layout_sot_progression_error"}
       ],
       "test_refs": [
+        {"path": "src/codestream/tests.rs", "symbol": "fresh_part2_charged_owner_and_raw_inspection_frames_restore"},
+        {"path": "src/jp2/tests.rs", "symbol": "fresh_part2_container_first_later_construction_refusal_restore"},
         {"path": "src/codestream/tests.rs", "symbol": "fresh_marker_raw_first_and_value_refusal_restore_public_inspection"},
         {"path": "src/jp2/tests.rs", "symbol": "fresh_marker_container_first_and_value_refusal_restore_public_inspection"},
         {"path": "src/codestream/raw_layout_result_tests.rs", "symbol": "actual_complete_raw_layout_result_keeps_interleaved_source_parts_and_public_info"},
@@ -3284,6 +3309,15 @@
         {"path": "src/codestream/extensions.rs", "symbol": "new_part2_extensions"}
       ],
       "spec_refs": [
+        {"path": "specs/cold_part2_fresh.rs", "symbol": "Part2FreshInput"},
+        {"path": "specs/cold_part2_fresh.rs", "symbol": "Part2FreshValue"},
+        {"path": "specs/cold_part2_fresh.rs", "symbol": "part1_p2_fresh_site"},
+        {"path": "specs/cold_part2_fresh.rs", "symbol": "part1_p2_fresh_requests"},
+        {"path": "specs/cold_part2_fresh.rs", "symbol": "part1_p2_fresh_ordinary"},
+        {"path": "specs/cold_part2_fresh.rs", "symbol": "part1_p2_fresh_run"},
+        {"path": "specs/cold_part2_fresh.rs", "symbol": "part1_p2_marker_run"},
+        {"path": "specs/cold_part2_fresh.rs", "symbol": "part1_p2_marker_result"},
+        {"path": "specs/cold_part2_header.rs", "symbol": "part1_p2_main_run"},
         {"path": "specs/cold_marker_storage.rs", "symbol": "part1_fresh_marker_site"},
         {"path": "specs/cold_marker_storage.rs", "symbol": "part1_fresh_collection_requests"},
         {"path": "specs/cold_marker_storage.rs", "symbol": "part1_fresh_records_requests"},
@@ -3325,6 +3359,15 @@
         {"path": "src/codestream/extensions.rs", "symbol": "new_part2_extensions"}
       ],
       "proof_refs": [
+        {"path": "specs/cold_part2_fresh.rs", "symbol": "part1_p2_marker_normal"},
+        {"path": "specs/cold_part2_fresh.rs", "symbol": "part1_p2_marker_frame"},
+        {"path": "specs/cold_part2_fresh.rs", "symbol": "part1_p2_marker_projection"},
+        {"path": "specs/cold_part2_fresh.rs", "symbol": "part1_p2_marker_storage_observed"},
+        {"path": "specs/cold_part2_fresh.rs", "symbol": "part1_p2_marker_storage_equivalent"},
+        {"path": "specs/cold_part2_header.rs", "symbol": "part1_cold_main_p2_step"},
+        {"path": "specs/cold_part2_header.rs", "symbol": "part1_p2_main_normal"},
+        {"path": "specs/cold_part2_header.rs", "symbol": "part1_p2_main_frame"},
+        {"path": "specs/cold_part2_header.rs", "symbol": "part1_p2_main_projection"},
         {"path": "specs/cold_marker_header.rs", "symbol": "part1_cold_main_fresh_error"},
         {"path": "specs/cold_marker_header.rs", "symbol": "part1_fresh_main_normal"},
         {"path": "specs/cold_marker_header.rs", "symbol": "part1_fresh_main_projection"},
@@ -3814,6 +3857,8 @@
         {"path": "src/codestream/tile_header_traversal.rs", "symbol": "Parser::apply_tile_header_mct_segment"}
       ],
       "spec_refs": [
+        {"path": "specs/cold_part2_header.rs", "symbol": "part1_p2_tile_result"},
+        {"path": "specs/cold_part2_header.rs", "symbol": "part1_p2_tile_run"},
         {"path": "specs/cold_marker_header.rs", "symbol": "part1_fresh_tile_payload"},
         {"path": "specs/cold_marker_header.rs", "symbol": "part1_fresh_tile_result"},
         {"path": "specs/tile_header_traversal.rs", "symbol": "Part1TileHeaderAccumulator"},
@@ -3848,6 +3893,7 @@
         {"path": "src/codestream/tile_header_traversal.rs", "symbol": "Parser::apply_tile_header_mct_segment"}
       ],
       "proof_refs": [
+        {"path": "specs/cold_part2_header.rs", "symbol": "part1_p2_tile_normal_result"},
         {"path": "specs/cold_marker_header.rs", "symbol": "part1_fresh_tile_normal_result"},
         {"path": "src/codestream/tile_header_traversal_proof_support.rs", "symbol": "tile_header_accumulator_view"},
         {"path": "src/codestream/tile_header_traversal_proof_support.rs", "symbol": "tile_header_read_outcome"},
@@ -4924,6 +4970,11 @@
         {"path": "src/codestream/part2_transforms.rs", "symbol": "Parser::read_kernel_coefficient"}
       ],
       "spec_refs": [
+        {"path": "specs/cold_part2_fresh.rs", "symbol": "part1_p2_fresh_result"},
+        {"path": "specs/cold_part2_fresh.rs", "symbol": "part1_p2_fresh_run"},
+        {"path": "specs/cold_part2_fresh.rs", "symbol": "part1_p2_marker_result"},
+        {"path": "specs/cold_part2_fresh.rs", "symbol": "part1_p2_marker_run"},
+        {"path": "specs/cold_part2_fresh.rs", "symbol": "part1_p2_marker_storage_result"},
         {"path": "specs/mod.rs", "symbol": "part1_parse_atk"},
         {"path": "specs/mod.rs", "symbol": "part1_atk_payload"},
         {"path": "specs/mod.rs", "symbol": "part1_atk_header"},
@@ -4947,6 +4998,11 @@
         {"path": "src/codestream/part2_transforms.rs", "symbol": "Parser::parse_atk"}
       ],
       "proof_refs": [
+        {"path": "specs/cold_part2_fresh.rs", "symbol": "part1_p2_fresh_normal"},
+        {"path": "specs/cold_part2_fresh.rs", "symbol": "part1_p2_marker_projection"},
+        {"path": "specs/cold_part2_fresh.rs", "symbol": "part1_p2_marker_storage_equivalent"},
+        {"path": "specs/cold_part2_fresh.rs", "symbol": "part1_p2_marker_storage_normal"},
+        {"path": "specs/cold_part2_fresh.rs", "symbol": "part1_p2_marker_storage_observed"},
         {"path": "src/codestream/proof_support.rs", "symbol": "kernel_coefficient_outcome"},
         {"path": "src/codestream/proof_support.rs", "symbol": "kernel_step_outcome"},
         {"path": "src/codestream/proof_support.rs", "symbol": "atk_payload_outcome"},
@@ -4961,6 +5017,7 @@
         {"path": "src/codestream/reader.rs", "symbol": "Parser::segment_byte"}
       ],
       "test_refs": [
+        {"path": "src/codestream/tests.rs", "symbol": "fresh_part2_kernel_nested_indices_first_later_and_zero_restore"},
         {"path": "src/codestream/tests.rs", "symbol": "actual_atk_coefficients_preserve_all_raw_bytes_widths_signs_and_error_offsets"},
         {"path": "src/codestream/tests.rs", "symbol": "actual_atk_preserves_all_descriptors_steps_counts_and_terminal_order"},
         {"path": "src/codestream/tests.rs", "symbol": "actual_atk_preserves_first_duplicates_all_owner_fields_and_ordered_budget_failures"}
@@ -5014,6 +5071,11 @@
         {"path": "src/codestream/profile.rs", "symbol": "maximum_u32_for_bits"}
       ],
       "spec_refs": [
+        {"path": "specs/cold_part2_fresh.rs", "symbol": "part1_p2_fresh_result"},
+        {"path": "specs/cold_part2_fresh.rs", "symbol": "part1_p2_fresh_run"},
+        {"path": "specs/cold_part2_fresh.rs", "symbol": "part1_p2_marker_result"},
+        {"path": "specs/cold_part2_fresh.rs", "symbol": "part1_p2_marker_run"},
+        {"path": "specs/cold_part2_fresh.rs", "symbol": "part1_p2_marker_storage_result"},
         {"path": "specs/mod.rs", "symbol": "part1_parse_nlt"},
         {"path": "specs/mod.rs", "symbol": "part1_nlt_payload"},
         {"path": "specs/mod.rs", "symbol": "part1_nlt_header"},
@@ -5039,6 +5101,11 @@
         {"path": "src/codestream/profile.rs", "symbol": "maximum_u32_for_bits"}
       ],
       "proof_refs": [
+        {"path": "specs/cold_part2_fresh.rs", "symbol": "part1_p2_fresh_normal"},
+        {"path": "specs/cold_part2_fresh.rs", "symbol": "part1_p2_marker_projection"},
+        {"path": "specs/cold_part2_fresh.rs", "symbol": "part1_p2_marker_storage_equivalent"},
+        {"path": "specs/cold_part2_fresh.rs", "symbol": "part1_p2_marker_storage_normal"},
+        {"path": "specs/cold_part2_fresh.rs", "symbol": "part1_p2_marker_storage_observed"},
         {"path": "src/codestream/proof_support.rs", "symbol": "parser_view"},
         {"path": "src/codestream/proof_support.rs", "symbol": "owned_extensions_view"},
         {"path": "src/codestream/proof_support.rs", "symbol": "owned_nonlinear_view"},
@@ -5050,6 +5117,7 @@
         {"path": "src/refinement/headers.rs", "symbol": "cbd_signed"}
       ],
       "test_refs": [
+        {"path": "src/codestream/tests.rs", "symbol": "fresh_part2_nonlinear_points_parameters_and_no_request_restore"},
         {"path": "src/codestream/tests.rs", "symbol": "actual_nlt_preserves_all_component_selectors_precision_and_type_bytes"},
         {"path": "src/codestream/tests.rs", "symbol": "actual_nlt_preserves_gamma_words_point_widths_caps_and_tail_bytes"},
         {"path": "src/codestream/tests.rs", "symbol": "actual_nlt_preserves_first_duplicate_all_owner_fields_and_ordered_budget_failures"},
@@ -5246,6 +5314,11 @@
         {"path": "src/codestream/decomposition.rs", "symbol": "Parser::unpack_two_bit_values"}
       ],
       "spec_refs": [
+        {"path": "specs/cold_part2_fresh.rs", "symbol": "part1_p2_fresh_result"},
+        {"path": "specs/cold_part2_fresh.rs", "symbol": "part1_p2_fresh_run"},
+        {"path": "specs/cold_part2_fresh.rs", "symbol": "part1_p2_marker_result"},
+        {"path": "specs/cold_part2_fresh.rs", "symbol": "part1_p2_marker_run"},
+        {"path": "specs/cold_part2_fresh.rs", "symbol": "part1_p2_marker_storage_result"},
         {"path": "specs/mod.rs", "symbol": "part1_parse_dfs"},
         {"path": "specs/mod.rs", "symbol": "part1_parse_ads"},
         {"path": "specs/mod.rs", "symbol": "part1_dfs_payload"},
@@ -5272,6 +5345,11 @@
         {"path": "src/codestream/decomposition.rs", "symbol": "Parser::parse_ads"}
       ],
       "proof_refs": [
+        {"path": "specs/cold_part2_fresh.rs", "symbol": "part1_p2_fresh_normal"},
+        {"path": "specs/cold_part2_fresh.rs", "symbol": "part1_p2_marker_projection"},
+        {"path": "specs/cold_part2_fresh.rs", "symbol": "part1_p2_marker_storage_equivalent"},
+        {"path": "specs/cold_part2_fresh.rs", "symbol": "part1_p2_marker_storage_normal"},
+        {"path": "specs/cold_part2_fresh.rs", "symbol": "part1_p2_marker_storage_observed"},
         {"path": "src/codestream/proof_support.rs", "symbol": "dfs_payload_outcome"},
         {"path": "src/codestream/proof_support.rs", "symbol": "ads_payload_outcome"},
         {"path": "src/codestream/proof_support.rs", "symbol": "two_bit_values_outcome"},
@@ -5284,6 +5362,7 @@
         {"path": "src/refinement/headers.rs", "symbol": "dfs_direction_code"}
       ],
       "test_refs": [
+        {"path": "src/codestream/tests.rs", "symbol": "fresh_part2_decomposition_first_later_empty_and_malformed_restore"},
         {"path": "src/codestream/tests.rs", "symbol": "actual_two_bit_values_preserve_terminal_padding_and_error_order"},
         {"path": "src/codestream/tests.rs", "symbol": "actual_dfs_preserves_descriptor_bytes_unused_padding_and_first_registry_slot"},
         {"path": "src/codestream/tests.rs", "symbol": "actual_ads_preserves_all_raw_counts_padding_first_duplicates_and_owner_fields"}

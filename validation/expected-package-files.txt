@@ -28,6 +28,8 @@ specs/cold_layout_continuations.rs
 specs/cold_marker_header.rs
 specs/cold_marker_storage.rs
 specs/cold_mct_copy.rs
+specs/cold_part2_fresh.rs
+specs/cold_part2_header.rs
 specs/cold_payload_owners.rs
 specs/cold_progression.rs
 specs/cold_quantization.rs

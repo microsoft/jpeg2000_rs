@@ -290,7 +290,7 @@ impl<'a> Parser<'a> {
                 raw.progression_changes = parsed?;
             }
             DFS | ADS | NLT | ATK => {
-                self.apply_tile_header_extension_segment(raw, segment, components)?
+                return self.apply_tile_header_extension_segment(raw, segment, components);
             }
             CBD => {
                 return Err(DecodeError::malformed(
@@ -311,9 +311,12 @@ impl<'a> Parser<'a> {
 
     #[cfg_attr(verus_keep_ghost, verifier::spinoff_prover)]
     #[cfg_attr(verus_keep_ghost, verus_spec(result =>
-        ensures (result, parser_view(final(self)), tile_header_accumulator_view(final(raw)))
-            == crate::specs::part1_tile_header_extension_payload(
-                parser_view(old(self)), tile_header_accumulator_view(old(raw)), segment_view(segment), components),
+        ensures crate::specs::part1_p2_tile_result(parser_view(old(self)), tile_header_accumulator_view(old(raw)), segment_view(segment), components,
+                (result, parser_view(final(self)), tile_header_accumulator_view(final(raw)))),
+            result != Err(DecodeError::AllocationFailed) ==>
+                (result, parser_view(final(self)), tile_header_accumulator_view(final(raw)))
+                    == crate::specs::part1_tile_header_extension_payload(
+                        parser_view(old(self)), tile_header_accumulator_view(old(raw)), segment_view(segment), components),
     ))]
     pub(super) fn apply_tile_header_extension_segment(
         &mut self,
@@ -322,26 +325,48 @@ impl<'a> Parser<'a> {
         components: u16,
     ) -> Result<(), DecodeError> {
         #[cfg(verus_keep_ghost)]
+        proof_decl! {
+            let ghost cold_reader = parser_view(self);
+            let ghost cold_raw = tile_header_accumulator_view(raw);
+        }
+        #[cfg(verus_keep_ghost)]
         proof! {
+            crate::specs::part1_p2_tile_normal_result(cold_reader, cold_raw, segment_view(segment), components);
             reveal(crate::specs::part1_tile_header_extension_payload);
             reveal(tile_header_accumulator_view);
             reveal(segment_view);
         }
         match segment.marker {
             DFS => {
-                self.parse_dfs(segment, &mut raw.part2_extensions)?;
+                let copied = self.parse_dfs(segment, &mut raw.part2_extensions);
+                #[cfg(verus_keep_ghost)]
+                proof! { crate::specs::part1_p2_tile_step(cold_reader, cold_raw, segment_view(segment), components,
+                (copied, parser_view(self), owned_extensions_view(&raw.part2_extensions))); }
+                copied?;
             }
             ADS => {
-                self.parse_ads(segment, &mut raw.part2_extensions)?;
+                let copied = self.parse_ads(segment, &mut raw.part2_extensions);
+                #[cfg(verus_keep_ghost)]
+                proof! { crate::specs::part1_p2_tile_step(cold_reader, cold_raw, segment_view(segment), components,
+                (copied, parser_view(self), owned_extensions_view(&raw.part2_extensions))); }
+                copied?;
             }
             NLT => {
                 if raw.part2_extensions.nonlinear_local_count.is_none() {
                     raw.part2_extensions.nonlinear_local_count = Some(0);
                 }
-                self.parse_nlt(segment, components, &mut raw.part2_extensions)?;
+                let copied = self.parse_nlt(segment, components, &mut raw.part2_extensions);
+                #[cfg(verus_keep_ghost)]
+                proof! { crate::specs::part1_p2_tile_step(cold_reader, cold_raw, segment_view(segment), components,
+                (copied, parser_view(self), owned_extensions_view(&raw.part2_extensions))); }
+                copied?;
             }
             ATK => {
-                self.parse_atk(segment, &mut raw.part2_extensions)?;
+                let copied = self.parse_atk(segment, &mut raw.part2_extensions);
+                #[cfg(verus_keep_ghost)]
+                proof! { crate::specs::part1_p2_tile_step(cold_reader, cold_raw, segment_view(segment), components,
+                (copied, parser_view(self), owned_extensions_view(&raw.part2_extensions))); }
+                copied?;
             }
             _ => {
                 return Err(DecodeError::malformed(

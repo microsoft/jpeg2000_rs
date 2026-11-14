@@ -1,11 +1,13 @@
 //! Nonlinear point transforms and arbitrary wavelet-kernel markers.
 
+use super::mct_copy::reserve_values;
 use super::profile::maximum_u32_for_bits;
 use super::reader::{read_u16, read_u32};
 use super::{
     ArbitraryKernel, DecodeError, KernelCoefficient, KernelLiftingStep, MalformedKind,
     NonlinearPointTransform, Parser, Part2Extensions, Segment,
 };
+use super::{FreshPart2Path, MctCopyPath};
 #[cfg(verus_keep_ghost)]
 use super::{
     atk_payload_outcome, kernel_coefficient_outcome, kernel_step_outcome, nlt_payload_outcome,
@@ -15,14 +17,15 @@ use super::{
     segment_view,
 };
 #[cfg(verus_keep_ghost)]
+use crate::specs::{Part2FreshInput, Part2FreshKind, Part2FreshValue};
+#[cfg(verus_keep_ghost)]
 use vstd::prelude::*;
 
 impl<'a> Parser<'a> {
     #[cfg_attr(verus_keep_ghost, verifier::spinoff_prover)]
     #[cfg_attr(verus_keep_ghost, verus_spec(result =>
-        ensures (result, parser_view(final(self)), owned_extensions_view(final(extensions)))
-            == crate::specs::part1_parse_nlt(parser_view(old(self)), segment_view(segment),
-                components, owned_extensions_view(old(extensions))),
+        ensures crate::specs::part1_p2_marker_storage_result(Part2FreshKind::Nlt, parser_view(old(self)), segment_view(segment), components,
+                owned_extensions_view(old(extensions)), (result, parser_view(final(self)), owned_extensions_view(final(extensions)))),
     ))]
     pub(super) fn parse_nlt(
         &mut self,
@@ -37,9 +40,17 @@ impl<'a> Parser<'a> {
             let ghost goal = crate::specs::part1_parse_nlt(input, segment_view(segment), components, extension_input);
         }
         #[cfg(verus_keep_ghost)]
-        proof! { reveal(crate::specs::part1_parse_nlt); }
+        proof! {
+            reveal(crate::specs::part1_parse_nlt);
+            crate::specs::part1_p2_marker_normal(Part2FreshKind::Nlt, input, segment_view(segment), components, extension_input, Seq::empty());
+        }
         self.charge_extension_metadata(segment, extensions)?;
-        let replacement = self.decode_nlt_payload(segment, components)?;
+        let copied = self.decode_nlt_payload(segment, components);
+        #[cfg(verus_keep_ghost)]
+        proof! { if nlt_payload_outcome(copied) == Err(DecodeError::AllocationFailed) {
+            crate::specs::part1_p2_marker_refused(Part2FreshKind::Nlt, input, segment_view(segment), components, extension_input);
+        }}
+        let replacement = copied?;
         let local_count = extensions
             .nonlinear_local_count
             .unwrap_or(extensions.nonlinear_transforms.len());
@@ -63,6 +74,7 @@ impl<'a> Parser<'a> {
         let mut position = 0_usize;
         #[cfg_attr(verus_keep_ghost, verus_spec(
             invariant position <= local_count, local_count <= extensions.nonlinear_transforms.len(),
+                crate::specs::part1_p2_marker_result(Part2FreshKind::Nlt, input, segment_view(segment), components, extension_input, goal),
                 input == parser_view(old(self)),
                 extension_input == owned_extensions_view(old(extensions)),
                 parser_view(self) == charged_parser,
@@ -113,7 +125,9 @@ impl<'a> Parser<'a> {
 
     #[cfg_attr(verus_keep_ghost, verifier::spinoff_prover)]
     #[cfg_attr(verus_keep_ghost, verus_spec(result =>
-        ensures nlt_payload_outcome(result) == crate::specs::part1_nlt_payload(segment_view(segment), components),
+        ensures crate::specs::part1_p2_fresh_result(Part2FreshInput::Nlt(segment_view(segment), components), Part2FreshValue::Nlt(nlt_payload_outcome(result))),
+            nlt_payload_outcome(result) != Err(DecodeError::AllocationFailed) ==>
+                nlt_payload_outcome(result) == crate::specs::part1_nlt_payload(segment_view(segment), components),
     ))]
     pub(super) fn decode_nlt_payload(
         &self,
@@ -121,7 +135,14 @@ impl<'a> Parser<'a> {
         components: u16,
     ) -> Result<NonlinearPointTransform, DecodeError> {
         #[cfg(verus_keep_ghost)]
+        proof_decl! {
+            let ghost cold = Part2FreshInput::Nlt(segment_view(segment), components);
+            let ghost mut first = Seq::<crate::specs::Part1MctCopyRequest>::empty();
+        }
+        #[cfg(verus_keep_ghost)]
         proof! {
+            crate::specs::part1_p2_fresh_normal(cold);
+            crate::specs::part1_mct_copy_observed(MctCopyPath::Order, 0, Ok(()));
             reveal(crate::specs::part1_nlt_payload); reveal(crate::specs::part1_nlt_header);
             reveal(crate::specs::part1_nlt_points); reveal(crate::specs::part1_nlt_points_header);
             reveal(crate::specs::part1_copy_segment_tail); reveal(owned_nonlinear_view);
@@ -205,6 +226,25 @@ impl<'a> Parser<'a> {
                 return Err(self.malformed_at(segment.offset, MalformedKind::InvalidMarkerLength));
             }
             #[cfg(verus_keep_ghost)]
+            proof! {
+                first = crate::specs::part1_p2_fresh_leaf(FreshPart2Path::NltPoints(segment.offset), count as usize);
+            }
+            let copied = reserve_values(
+                usize::from(count),
+                MctCopyPath::FreshPart2(FreshPart2Path::NltPoints(segment.offset)),
+            );
+            #[cfg(verus_keep_ghost)]
+            proof! {
+                let tail = if crate::specs::part1_nlt_payload(segment_view(segment), components).is_ok() {
+                    crate::specs::part1_p2_fresh_requests(Part2FreshInput::Tail(segment_view(segment), 4))
+                } else { Seq::empty() };
+                crate::specs::part1_mct_copy_continue(Seq::empty(), first, tail, super::mct_copy::copy_outcome(copied));
+                if copied.is_err() { crate::specs::part1_p2_fresh_refused(cold); }
+            }
+            points = copied?;
+            #[cfg(verus_keep_ghost)]
+            proof! { assert(points@ =~= Seq::<u32>::empty()); }
+            #[cfg(verus_keep_ghost)]
             proof_decl! {
                 let ghost header = (count, minimum, maximum, bits, width);
                 let ghost values = Seq::new(count as nat, |index: int|
@@ -215,6 +255,10 @@ impl<'a> Parser<'a> {
                 verus_keep_ghost,
                 verus_spec(
                     invariant point <= count, 1 < count <= 8192,
+                        cold == Part2FreshInput::Nlt(segment_view(segment), components),
+                        first == crate::specs::part1_p2_fresh_leaf(FreshPart2Path::NltPoints(segment.offset), count as usize),
+                        crate::specs::part1_mct_copy_result(first, Ok(())),
+                        crate::specs::part1_p2_fresh_result(cold, crate::specs::part1_p2_fresh_ordinary(cold)),
                         0 < bits <= 32,
                         width == crate::specs::part1_nlt_point_width(bits),
                         segment.payload.len() == 15 + count as int * width as int,
@@ -299,7 +343,17 @@ impl<'a> Parser<'a> {
             precision,
             signed: crate::refinement::cbd_signed(segment.payload[2]),
             transform_type,
-            parameters: self.copy_segment_tail(segment, 4)?,
+            parameters: {
+                let copied = self.copy_segment_tail(segment, 4);
+                #[cfg(verus_keep_ghost)]
+                proof! {
+                    crate::specs::part1_p2_fresh_observed(Part2FreshInput::Tail(segment_view(segment), 4), Part2FreshValue::Tail(super::segment_tail_outcome(copied)));
+                    let status = if super::segment_tail_outcome(copied) == Err(DecodeError::AllocationFailed) { Err(DecodeError::AllocationFailed) } else { Ok(()) };
+                    crate::specs::part1_mct_copy_continue(first, crate::specs::part1_p2_fresh_requests(Part2FreshInput::Tail(segment_view(segment), 4)), Seq::empty(), status);
+                    if super::segment_tail_outcome(copied) == Err(DecodeError::AllocationFailed) { crate::specs::part1_p2_fresh_refused(cold); }
+                }
+                copied?
+            },
             d_min,
             d_max,
             point_bits,
@@ -310,8 +364,8 @@ impl<'a> Parser<'a> {
 
     #[cfg_attr(verus_keep_ghost, verifier::spinoff_prover)]
     #[cfg_attr(verus_keep_ghost, verus_spec(result =>
-        ensures (result, parser_view(final(self)), owned_extensions_view(final(extensions)))
-            == crate::specs::part1_parse_atk(parser_view(old(self)), segment_view(segment), owned_extensions_view(old(extensions))),
+        ensures crate::specs::part1_p2_marker_storage_result(Part2FreshKind::Atk, parser_view(old(self)), segment_view(segment), 0,
+                owned_extensions_view(old(extensions)), (result, parser_view(final(self)), owned_extensions_view(final(extensions)))),
     ))]
     pub(super) fn parse_atk(
         &mut self,
@@ -325,9 +379,17 @@ impl<'a> Parser<'a> {
             let ghost goal = crate::specs::part1_parse_atk(input, segment_view(segment), extension_input);
         }
         #[cfg(verus_keep_ghost)]
-        proof! { reveal(crate::specs::part1_parse_atk); }
+        proof! {
+            reveal(crate::specs::part1_parse_atk);
+            crate::specs::part1_p2_marker_normal(Part2FreshKind::Atk, input, segment_view(segment), 0, extension_input, Seq::empty());
+        }
         self.charge_extension_metadata(segment, extensions)?;
-        let replacement = self.decode_atk_payload(segment)?;
+        let copied = self.decode_atk_payload(segment);
+        #[cfg(verus_keep_ghost)]
+        proof! { if atk_payload_outcome(copied) == Err(DecodeError::AllocationFailed) {
+            crate::specs::part1_p2_marker_refused(Part2FreshKind::Atk, input, segment_view(segment), 0, extension_input);
+        }}
+        let replacement = copied?;
         #[cfg(verus_keep_ghost)]
         proof_decl! {
             let ghost charged_parser = parser_view(self);
@@ -343,6 +405,7 @@ impl<'a> Parser<'a> {
         let mut position = 0_usize;
         #[cfg_attr(verus_keep_ghost, verus_spec(
             invariant position <= extensions.arbitrary_kernels.len(),
+                crate::specs::part1_p2_marker_result(Part2FreshKind::Atk, input, segment_view(segment), 0, extension_input, goal),
                 input == parser_view(old(self)), extension_input == owned_extensions_view(old(extensions)),
                 parser_view(self) == charged_parser, owned_extensions_view(extensions) == charged_extensions,
                 owned_kernel_view(&replacement) == decoded,
@@ -372,16 +435,25 @@ impl<'a> Parser<'a> {
 
     #[cfg_attr(verus_keep_ghost, verifier::spinoff_prover)]
     #[cfg_attr(verus_keep_ghost, verus_spec(result =>
-        ensures atk_payload_outcome(result) == crate::specs::part1_atk_payload(self.position, segment_view(segment)),
+        ensures crate::specs::part1_p2_fresh_result(Part2FreshInput::Atk(self.position, segment_view(segment)), Part2FreshValue::Atk(atk_payload_outcome(result))),
+            atk_payload_outcome(result) != Err(DecodeError::AllocationFailed) ==>
+                atk_payload_outcome(result) == crate::specs::part1_atk_payload(self.position, segment_view(segment)),
     ))]
     pub(super) fn decode_atk_payload(
         &self,
         segment: Segment<'a>,
     ) -> Result<ArbitraryKernel, DecodeError> {
         #[cfg(verus_keep_ghost)]
-        proof_decl! { let ghost goal = crate::specs::part1_atk_payload(self.position, segment_view(segment)); }
+        proof_decl! {
+            let ghost cold = Part2FreshInput::Atk(self.position, segment_view(segment));
+            let ghost goal = crate::specs::part1_atk_payload(self.position, segment_view(segment));
+        }
         #[cfg(verus_keep_ghost)]
-        proof! { reveal(crate::specs::part1_atk_payload); reveal(crate::specs::part1_atk_header); }
+        proof! {
+            reveal(crate::specs::part1_atk_payload); reveal(crate::specs::part1_atk_header);
+            crate::specs::part1_p2_fresh_normal(cold);
+            crate::specs::part1_mct_copy_observed(MctCopyPath::Order, 0, Ok(()));
+        }
         if segment.payload.len() < 7 {
             return Err(self.malformed_at(segment.offset, MalformedKind::InvalidMarkerLength));
         }
@@ -436,14 +508,36 @@ impl<'a> Parser<'a> {
             let ghost target = crate::specs::part1_atk_steps(self.position, segment_view(segment), position,
                 width, coefficient_type, reversible, whole_sample_filter, step_count as nat, Seq::empty());
         }
-        let mut steps = Vec::with_capacity(step_count);
         #[cfg(verus_keep_ghost)]
-        proof! { assert(raw_kernel_steps_view(steps@) =~= Seq::empty()); }
+        proof_decl! {
+            let ghost all = crate::specs::part1_p2_fresh_requests(cold);
+            let ghost mut done = crate::specs::part1_p2_fresh_leaf(FreshPart2Path::AtkSteps(segment.offset, position), step_count);
+        }
+        let copied = reserve_values(
+            step_count,
+            MctCopyPath::FreshPart2(FreshPart2Path::AtkSteps(segment.offset, position)),
+        );
+        #[cfg(verus_keep_ghost)]
+        proof! {
+            crate::specs::part1_mct_copy_continue(Seq::empty(), done,
+                crate::specs::part1_p2_fresh_steps_requests(self.position, segment_view(segment), position, width, coefficient_type, reversible, whole_sample_filter, step_count as nat),
+                super::mct_copy::copy_outcome(copied));
+            if copied.is_err() { crate::specs::part1_p2_fresh_refused(cold); }
+        }
+        let mut steps = copied?;
+        #[cfg(verus_keep_ghost)]
+        proof! { assert(steps@ =~= Seq::<KernelLiftingStep>::empty()); assert(raw_kernel_steps_view(steps@) =~= Seq::empty()); }
         let mut step = 0_usize;
         #[cfg_attr(
             verus_keep_ghost,
             verus_spec(
                 invariant step <= step_count <= 255,
+                    cold == Part2FreshInput::Atk(self.position, segment_view(segment)),
+                    crate::specs::part1_p2_fresh_result(cold, crate::specs::part1_p2_fresh_ordinary(cold)),
+                    all == crate::specs::part1_p2_fresh_requests(cold),
+                    all == done + crate::specs::part1_p2_fresh_steps_requests(self.position, segment_view(segment), position,
+                        width, coefficient_type, reversible, whole_sample_filter, (step_count - step) as nat),
+                    crate::specs::part1_mct_copy_result(done, Ok(())),
                     header.index == index, header.descriptor == descriptor, header.coefficient_type == coefficient_type,
                     header.width == width, header.reversible == reversible, header.whole_sample_filter == whole_sample_filter,
                     header.initial_odd == initial_odd, header.whole_sample_extension == whole_sample_extension,
@@ -462,16 +556,38 @@ impl<'a> Parser<'a> {
         )]
         while step < step_count {
             #[cfg(verus_keep_ghost)]
-            proof! { reveal_with_fuel(crate::specs::part1_atk_steps, 1); }
-            let (decoded, next) = self.decode_atk_step(
+            proof! {
+                reveal_with_fuel(crate::specs::part1_atk_steps, 1);
+                reveal_with_fuel(crate::specs::part1_p2_fresh_steps_requests, 1);
+            }
+            #[cfg(verus_keep_ghost)]
+            proof_decl! { let ghost before_position = position; }
+            let copied = self.decode_atk_step(
                 segment,
                 position,
                 width,
                 coefficient_type,
                 reversible,
                 whole_sample_filter,
-            )?;
+            );
+            #[cfg(verus_keep_ghost)]
+            proof! {
+                let input = Part2FreshInput::Step(self.position, segment_view(segment), position, width, coefficient_type, reversible, whole_sample_filter);
+                crate::specs::part1_p2_fresh_observed(input, Part2FreshValue::Step(kernel_step_outcome(copied)));
+                let after = match crate::specs::part1_atk_step(self.position, segment_view(segment), position, width, coefficient_type, reversible, whole_sample_filter) {
+                    Err(_) => Seq::empty(), Ok((_, next)) => crate::specs::part1_p2_fresh_steps_requests(self.position, segment_view(segment), next, width, coefficient_type, reversible, whole_sample_filter, (step_count - step - 1) as nat),
+                };
+                let status = if kernel_step_outcome(copied) == Err(DecodeError::AllocationFailed) { Err(DecodeError::AllocationFailed) } else { Ok(()) };
+                crate::specs::part1_mct_copy_continue(done, crate::specs::part1_p2_fresh_requests(input), after, status);
+                assert(all =~= (done + crate::specs::part1_p2_fresh_requests(input)) + after);
+                if kernel_step_outcome(copied) == Err(DecodeError::AllocationFailed) { crate::specs::part1_p2_fresh_refused(cold); }
+            }
+            let (decoded, next) = copied?;
             position = next;
+            #[cfg(verus_keep_ghost)]
+            proof! {
+                done = done + crate::specs::part1_p2_fresh_step_requests(self.position, segment_view(segment), before_position, width, coefficient_type, reversible, whole_sample_filter);
+            }
             #[cfg(verus_keep_ghost)]
             proof_decl! { let ghost previous = raw_kernel_steps_view(steps@); let ghost value = raw_kernel_step_view(decoded); }
             steps.push(decoded);
@@ -505,8 +621,12 @@ impl<'a> Parser<'a> {
 
     #[cfg_attr(verus_keep_ghost, verifier::spinoff_prover)]
     #[cfg_attr(verus_keep_ghost, verus_spec(result =>
-        ensures kernel_step_outcome(result) == crate::specs::part1_atk_step(
-            self.position, segment_view(segment), start, width, coefficient_type, reversible, whole_sample_filter),
+        ensures crate::specs::part1_p2_fresh_result(
+                Part2FreshInput::Step(self.position, segment_view(segment), start, width, coefficient_type, reversible, whole_sample_filter),
+                Part2FreshValue::Step(kernel_step_outcome(result))),
+            kernel_step_outcome(result) != Err(DecodeError::AllocationFailed) ==>
+                kernel_step_outcome(result) == crate::specs::part1_atk_step(
+                    self.position, segment_view(segment), start, width, coefficient_type, reversible, whole_sample_filter),
     ))]
     pub(super) fn decode_atk_step(
         &self,
@@ -519,11 +639,15 @@ impl<'a> Parser<'a> {
     ) -> Result<(KernelLiftingStep, usize), DecodeError> {
         #[cfg(verus_keep_ghost)]
         proof_decl! {
+            let ghost cold = Part2FreshInput::Step(self.position, segment_view(segment), start, width, coefficient_type, reversible, whole_sample_filter);
             let ghost goal = crate::specs::part1_atk_step(
                 self.position, segment_view(segment), start, width, coefficient_type, reversible, whole_sample_filter);
         }
         #[cfg(verus_keep_ghost)]
-        proof! { reveal(crate::specs::part1_atk_step); reveal(crate::specs::part1_atk_step_header); }
+        proof! {
+            reveal(crate::specs::part1_atk_step); reveal(crate::specs::part1_atk_step_header);
+            crate::specs::part1_p2_fresh_normal(cold);
+        }
         let mut position = start;
         let offset = if whole_sample_filter {
             0
@@ -569,12 +693,24 @@ impl<'a> Parser<'a> {
             let ghost target = crate::specs::part1_atk_coefficients(
                 self.position, segment_view(segment), position, width, coefficient_type, coefficient_count as nat, Seq::empty());
         }
-        let mut coefficients = Vec::with_capacity(coefficient_count);
+        let copied = reserve_values(
+            coefficient_count,
+            MctCopyPath::FreshPart2(FreshPart2Path::AtkCoefficients(
+                segment.offset,
+                start,
+                position,
+            )),
+        );
         #[cfg(verus_keep_ghost)]
-        proof! { assert(raw_kernel_coefficients_view(coefficients@) =~= Seq::empty()); }
+        proof! { if copied.is_err() { crate::specs::part1_p2_fresh_refused(cold); } }
+        let mut coefficients = copied?;
+        #[cfg(verus_keep_ghost)]
+        proof! { assert(coefficients@ =~= Seq::<KernelCoefficient>::empty()); assert(raw_kernel_coefficients_view(coefficients@) =~= Seq::empty()); }
         let mut coefficient = 0_usize;
         #[cfg_attr(verus_keep_ghost, verus_spec(
             invariant coefficient <= coefficient_count <= 255,
+                cold == Part2FreshInput::Step(self.position, segment_view(segment), start, width, coefficient_type, reversible, whole_sample_filter),
+                crate::specs::part1_p2_fresh_result(cold, crate::specs::part1_p2_fresh_ordinary(cold)),
                 target == crate::specs::part1_atk_coefficients(self.position, segment_view(segment), position,
                     width, coefficient_type, (coefficient_count - coefficient) as nat,
                     raw_kernel_coefficients_view(coefficients@)),

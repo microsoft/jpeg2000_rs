@@ -233,6 +233,41 @@ from sequences. Other marker/Part 2 construction, container/image growth and
 uses the documented standard-library boundary, not a proof of physical
 capacity, allocator availability or general host OOM recovery.
 
+### Fresh Part 2 decomposition, kernel and nonlinear storage
+
+Fresh DFS directions (72), ADS packed depths/splits and mapped directions
+(73–75), ATK steps/coefficients (76/77), and NLT points/parameter bytes (78/79)
+now use the qualified fresh reservation helper. Paths retain actual marker
+offsets, packed starts and kernel step/reservation cursors. Fixed kernel
+coefficient bytes and gamma parameter arrays remain allocation-free.
+
+[`cold_part2_fresh.rs`](specs/cold_part2_fresh.rs) derives reached requests
+from original syntax, in actual read order: ADS allocation precedes packed-value
+validation; ATK scaling and step fields precede their reservations; NLT point
+geometry precedes point storage, and the parameter copy remains at its original
+record field after point/gamma validation. Empty owners consume no request.
+The tagged input has no result fields; tagged outcome views are computed from
+those original inputs, not supplied successful results.
+
+Metadata charging still precedes payload decoding. Refusal preserves the
+charged reader/work/metadata frame and all pre-existing registry owners, without
+running later replacement, duplicate or insertion work. The native producer's
+branch-local storage relation is checked equivalent to the complete event run:
+its allocation-error branch requires that precise input-derived run, never an
+arbitrary allocation-error alternative. Checked actual-consumer conversions
+keep the main/tile owning folds from expanding the nested environment.
+[`cold_part2_header.rs`](specs/cold_part2_header.rs) carries exact normal,
+first-error/tail and tile-local nonlinear-prefix frames through complete public
+cold Results without increasing proof limits or hoisting executing bodies.
+
+Managed controls cover first/later refusal, restoration, empty/malformed paths,
+later kernel-step positions, charged owners and raw/container inspection.
+Existing-owner extension-vector/pending growth remains unchanged and blocked
+on the pinned capacity-observation/reservation-effect interface. Other marker,
+payload/container/image growth and #289 deadlines remain separate; #288 is
+withdrawn. Fresh reservation uses the documented standard-library boundary,
+not a sequence-derived physical-capacity or host-availability theorem.
+
 ### Ordered automatic main-header primitive calls
 
 `normalize_main_header` additionally derives its complete byte/error Result

@@ -8046,6 +8046,18 @@ class FrameworkTests(WorkingFiles):
         entry = next(item for item in coverage["requirements"] if item["id"] == framework._RAW_LAYOUT_ENTRY)
         read_text = Path.read_text
         for relative, symbol, before, after in (
+            ("specs/cold_part2_fresh.rs", "part1_p2_fresh_site",
+             "FreshPart2Path::AdsDepth(_, _) => 73", "FreshPart2Path::AdsDepth(_, _) => 23"),
+            ("src/codestream/decomposition.rs", "Parser::unpack_two_bit_values",
+             "FreshPart2Path::AdsDepth(segment.offset, start)", "FreshPart2Path::AdsSplit(segment.offset, start)"),
+            ("specs/cold_part2_fresh.rs", "part1_p2_fresh_steps_requests",
+             "cursor, segment, next, width, kind", "cursor, segment, position, width, kind"),
+            ("specs/cold_part2_fresh.rs", "part1_p2_marker_run",
+             "Some((charged, events))", "Some((charged, events.drop_first()))"),
+            ("specs/cold_part2_fresh.rs", "part1_p2_marker_run",
+             "Some(((Err(error), charged.1, charged.2), rest))", "Some(((Err(error), reader, extensions), rest))"),
+            ("specs/cold_part2_header.rs", "part1_p2_tile_extensions",
+             "nonlinear_local_count: Some(0)", "nonlinear_local_count: None"),
             ("src/codestream/mct_markers.rs", "Parser::decode_mcc_collection",
              "segment.offset,\n            false,", "segment.offset,\n            true,"),
             ("src/codestream/mct_markers.rs", "Parser::consume_mct_fragment",

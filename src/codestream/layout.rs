@@ -462,7 +462,6 @@ impl<'a> Parser<'a> {
             proof! {
                 reveal(crate::specs::part1_main_header_payload);
                 reveal(crate::specs::part1_main_header_mct_payload);
-                reveal(crate::specs::part1_main_header_extension_payload);
                 reveal(segment_view);
                 reveal(optional_segment_view);
                 reveal(segment_slots_view);
@@ -586,18 +585,59 @@ impl<'a> Parser<'a> {
                         }
                     };
                 }
-                TLM => parser.parse_tlm(
-                    segment,
-                    &mut next_tlm_index,
-                    image_size.tile_count()?,
-                    &mut part2_extensions,
-                )?,
-                CRG => parser.parse_crg(segment, image_size.components, &mut part2_extensions)?,
-                DFS => parser.parse_dfs(segment, &mut part2_extensions)?,
-                ADS => parser.parse_ads(segment, &mut part2_extensions)?,
-                NLT => parser.parse_nlt(segment, image_size.components, &mut part2_extensions)?,
-                CBD => parser.parse_cbd(segment, image_size.components, &mut part2_extensions)?,
-                ATK => parser.parse_atk(segment, &mut part2_extensions)?,
+                TLM => {
+                    #[cfg(verus_keep_ghost)]
+                    proof! { reveal(crate::specs::part1_main_header_extension_payload); }
+                    parser.parse_tlm(
+                        segment,
+                        &mut next_tlm_index,
+                        image_size.tile_count()?,
+                        &mut part2_extensions,
+                    )?;
+                }
+                CRG => {
+                    #[cfg(verus_keep_ghost)]
+                    proof! { reveal(crate::specs::part1_main_header_extension_payload); }
+                    parser.parse_crg(segment, image_size.components, &mut part2_extensions)?;
+                }
+                DFS => {
+                    let copied = parser.parse_dfs(segment, &mut part2_extensions);
+                    #[cfg(verus_keep_ghost)]
+                    proof! { crate::specs::part1_cold_main_p2_step(
+                    initial_reader, cold_main_reader, cold_main_raw, segment_view(segment),
+                    (copied, parser_view(&parser), owned_extensions_view(&part2_extensions))); }
+                    copied?;
+                }
+                ADS => {
+                    let copied = parser.parse_ads(segment, &mut part2_extensions);
+                    #[cfg(verus_keep_ghost)]
+                    proof! { crate::specs::part1_cold_main_p2_step(
+                    initial_reader, cold_main_reader, cold_main_raw, segment_view(segment),
+                    (copied, parser_view(&parser), owned_extensions_view(&part2_extensions))); }
+                    copied?;
+                }
+                NLT => {
+                    let copied =
+                        parser.parse_nlt(segment, image_size.components, &mut part2_extensions);
+                    #[cfg(verus_keep_ghost)]
+                    proof! { crate::specs::part1_cold_main_p2_step(
+                    initial_reader, cold_main_reader, cold_main_raw, segment_view(segment),
+                    (copied, parser_view(&parser), owned_extensions_view(&part2_extensions))); }
+                    copied?;
+                }
+                CBD => {
+                    #[cfg(verus_keep_ghost)]
+                    proof! { reveal(crate::specs::part1_main_header_extension_payload); }
+                    parser.parse_cbd(segment, image_size.components, &mut part2_extensions)?;
+                }
+                ATK => {
+                    let copied = parser.parse_atk(segment, &mut part2_extensions);
+                    #[cfg(verus_keep_ghost)]
+                    proof! { crate::specs::part1_cold_main_p2_step(
+                    initial_reader, cold_main_reader, cold_main_raw, segment_view(segment),
+                    (copied, parser_view(&parser), owned_extensions_view(&part2_extensions))); }
+                    copied?;
+                }
                 MCT => {
                     let copied =
                         parser.consume_mct_fragment(segment, &mut pending_mct, &mut completed_mct);

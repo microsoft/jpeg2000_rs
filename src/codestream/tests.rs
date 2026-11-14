@@ -8124,6 +8124,233 @@ fn retains_bounded_profile_numbers_and_rejects_zero_most_significant_words() {
 }
 
 #[test]
+fn fresh_part2_decomposition_first_later_empty_and_malformed_restore() {
+    let limits = ResourceLimits::default();
+    let parser = new_parser(&[], &limits).unwrap();
+    let dfs = Segment {
+        marker: DFS,
+        offset: 13,
+        payload: &[0, 1, 1, 0x40],
+    };
+    let expected = parser.decode_dfs_payload(dfs).unwrap();
+    assert!(matches!(
+        crate::allocation::with_refusal(0, || parser.decode_dfs_payload(dfs)),
+        Err(DecodeError::AllocationFailed)
+    ));
+    assert_eq!(parser.decode_dfs_payload(dfs).unwrap(), expected);
+    let ads = Segment {
+        marker: ADS,
+        offset: 17,
+        payload: &[1, 1, 0x40, 1, 0x40],
+    };
+    let expected = parser.decode_ads_payload(ads).unwrap();
+    for after in [0, 2] {
+        assert!(matches!(
+            crate::allocation::with_refusal(after, || parser.decode_ads_payload(ads)),
+            Err(DecodeError::AllocationFailed)
+        ));
+        assert_eq!(parser.decode_ads_payload(ads).unwrap(), expected);
+    }
+    crate::allocation::with_refusal(0, || {
+        let empty = parser
+            .decode_ads_payload(Segment {
+                marker: ADS,
+                offset: 19,
+                payload: &[1, 0, 0],
+            })
+            .unwrap();
+        assert!(empty.sublevel_depths.is_empty() && empty.subband_splits.is_empty());
+        assert!(matches!(
+            parser.decode_dfs_payload(Segment {
+                marker: DFS,
+                offset: 23,
+                payload: &[0, 0, 1, 0x40]
+            }),
+            Err(DecodeError::MalformedInput {
+                kind: MalformedKind::InvalidCodingStyle,
+                ..
+            })
+        ));
+        assert_eq!(
+            crate::allocation::copy_values(&[1_u8]),
+            Err(DecodeError::AllocationFailed)
+        );
+    });
+    crate::allocation::with_refusal(1, || {
+        assert!(matches!(
+            parser.decode_ads_payload(Segment {
+                marker: ADS,
+                offset: 29,
+                payload: &[1, 1, 0, 1, 0x40]
+            }),
+            Err(DecodeError::MalformedInput {
+                kind: MalformedKind::InvalidCodingStyle,
+                ..
+            })
+        ));
+        assert_eq!(
+            crate::allocation::copy_values(&[1_u8]),
+            Err(DecodeError::AllocationFailed)
+        );
+    });
+}
+
+#[test]
+fn fresh_part2_kernel_nested_indices_first_later_and_zero_restore() {
+    let limits = ResourceLimits::default();
+    let parser = new_parser(&[], &limits).unwrap();
+    let payload = [0x18, 2, 2, 0, 0, 1, 1, 0, 0, 1, 1];
+    let marker = Segment {
+        marker: ATK,
+        offset: 31,
+        payload: &payload,
+    };
+    let expected = parser.decode_atk_payload(marker).unwrap();
+    for after in [0, 2] {
+        assert!(matches!(
+            crate::allocation::with_refusal(after, || parser.decode_atk_payload(marker)),
+            Err(DecodeError::AllocationFailed)
+        ));
+        assert_eq!(parser.decode_atk_payload(marker).unwrap(), expected);
+    }
+    crate::allocation::with_refusal(0, || {
+        let empty = parser
+            .decode_atk_payload(Segment {
+                marker: ATK,
+                offset: 37,
+                payload: &[2, 2, 0, 0, 0, 0, 0],
+            })
+            .unwrap();
+        assert!(empty.steps.is_empty());
+        assert_eq!(
+            crate::allocation::copy_values(&[1_u8]),
+            Err(DecodeError::AllocationFailed)
+        );
+    });
+    let mut malformed = payload;
+    malformed[9] = 0;
+    crate::allocation::with_refusal(2, || {
+        assert!(matches!(
+            parser.decode_atk_payload(Segment {
+                marker: ATK,
+                offset: 41,
+                payload: &malformed
+            }),
+            Err(DecodeError::MalformedInput {
+                kind: MalformedKind::InvalidTransform,
+                ..
+            })
+        ));
+        assert_eq!(
+            crate::allocation::copy_values(&[1_u8]),
+            Err(DecodeError::AllocationFailed)
+        );
+    });
+}
+
+#[test]
+fn fresh_part2_nonlinear_points_parameters_and_no_request_restore() {
+    let limits = ResourceLimits::default();
+    let parser = new_parser(&[], &limits).unwrap();
+    let payload = [0, 0, 7, 2, 0, 1, 0, 0, 0, 0, 0, 0, 0, 255, 8, 0, 255];
+    let marker = Segment {
+        marker: NLT,
+        offset: 43,
+        payload: &payload,
+    };
+    let expected = parser.decode_nlt_payload(marker, 1).unwrap();
+    for after in [0, 1] {
+        assert!(matches!(
+            crate::allocation::with_refusal(after, || parser.decode_nlt_payload(marker, 1)),
+            Err(DecodeError::AllocationFailed)
+        ));
+        assert_eq!(parser.decode_nlt_payload(marker, 1).unwrap(), expected);
+    }
+    crate::allocation::with_refusal(0, || {
+        let empty = parser
+            .decode_nlt_payload(
+                Segment {
+                    marker: NLT,
+                    offset: 47,
+                    payload: &[0, 0, 7, 0],
+                },
+                1,
+            )
+            .unwrap();
+        assert!(empty.points.is_empty() && empty.parameters.is_empty());
+        let mut malformed = payload;
+        malformed[13] = 0;
+        assert!(matches!(
+            parser.decode_nlt_payload(
+                Segment {
+                    marker: NLT,
+                    offset: 53,
+                    payload: &malformed
+                },
+                1
+            ),
+            Err(DecodeError::MalformedInput {
+                kind: MalformedKind::InvalidTransform,
+                ..
+            })
+        ));
+        assert_eq!(
+            crate::allocation::copy_values(&[1_u8]),
+            Err(DecodeError::AllocationFailed)
+        );
+    });
+}
+
+#[test]
+fn fresh_part2_charged_owner_and_raw_inspection_frames_restore() {
+    let limits = ResourceLimits::default();
+    let mut parser = new_parser(&[], &limits).unwrap();
+    let marker = Segment {
+        marker: DFS,
+        offset: 59,
+        payload: &[0, 1, 1, 0x40],
+    };
+    let mut extensions = Part2Extensions::default();
+    parser.parse_dfs(marker, &mut extensions).unwrap();
+    let mut expected = extensions.clone();
+    expected.metadata_bytes += 8;
+    let work = parser.work_units;
+    assert_eq!(
+        crate::allocation::with_refusal(0, || parser.parse_dfs(marker, &mut extensions)),
+        Err(DecodeError::AllocationFailed)
+    );
+    assert_eq!(extensions, expected);
+    assert_eq!(
+        (
+            parser.position,
+            parser.work_units,
+            parser.packet_length_bytes,
+            parser.packet_lengths
+        ),
+        (0, work + 8, 0, 0)
+    );
+    parser.parse_dfs(marker, &mut extensions).unwrap();
+    assert_eq!(
+        extensions.decomposition_structures,
+        expected.decomposition_structures
+    );
+    let mut bytes = two_part_codestream(&[], &[]);
+    let at = bytes
+        .windows(2)
+        .position(|word| word == SOT.to_be_bytes())
+        .unwrap();
+    bytes.splice(at..at, segment(ADS, &[1, 1, 0x40, 1, 0x40]));
+    let expected = parse(&bytes, &limits).unwrap();
+    for after in [0, 2] {
+        assert!(matches!(
+            crate::allocation::with_refusal(after, || parse(&bytes, &limits)),
+            Err(DecodeError::AllocationFailed)
+        ));
+        assert_eq!(parse(&bytes, &limits).unwrap(), expected);
+    }
+}
+
+#[test]
 fn fresh_marker_values_order_lists_shape_refusal_and_restore() {
     let limits = ResourceLimits::default();
     let parser = new_parser(&[], &limits).unwrap();
@@ -8471,7 +8698,7 @@ fn part2_owner_storage_raw_restores_main_and_persistent_nested_owners() {
     bytes.splice(at..at, segment(DFS, &[0, 1, 1, 0x40]));
     let limits = ResourceLimits::default();
     let expected = parse_layout(&bytes, &limits).unwrap();
-    for after in [10, 15] {
+    for after in [11, 16] {
         assert!(matches!(
             crate::allocation::with_refusal(after, || parse_layout(&bytes, &limits)),
             Err(DecodeError::AllocationFailed)

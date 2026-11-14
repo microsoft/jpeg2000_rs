@@ -1015,6 +1015,16 @@ controls cover first/later refusal, empty/no-request, duplicate precedence,
 partial owners and raw/container restoration. Existing-buffer growth remains
 blocked on the pinned capacity-observation/reservation-effect interface; fresh
 reservation models do not establish physical capacity or host availability.
+Fresh Part 2 schemas add sites 72–79 for DFS/ADS, ATK and NLT owners at their
+actual syntax/read frontiers. Tagged model inputs contain no result banks;
+the original input computes every outcome. The precise branch-local native
+storage interface is linked to its checked complete-event equivalence and
+actual main/tile response-to-event consumers. Metadata/work charging, old
+owners and the tile nonlinear-local-prefix flag retain their exact partial
+frames. Empty and fixed-array cases do not invent requests. Original requirements
+and references remain; additional mutations reject old-site aliases, wrong
+packed roles/step positions, consumed events on early errors and rolled-back
+charged state. Existing-owner extension-vector growth remains excluded.
 Same-file links are checked inside another listed, formatted function body;
 the contract's own declaration, an unrelated function or an indirect caller
 does not qualify as a direct same-file call. Unsupported formatting can fail

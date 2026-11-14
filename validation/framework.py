@@ -4770,6 +4770,12 @@ _SOURCE_OPACITY_CONTRACTS = {
 }
 
 _COLD_RESULT_MODELS = {
+    **{name: ("part1_p2_fresh_result", "specs/cold_part2_fresh.rs", "part1_p2_fresh_normal")
+       for name in ("part1_dfs_payload", "part1_ads_payload", "part1_unpack_two_bit_values", "part1_atk_payload",
+                    "part1_atk_step", "part1_nlt_payload", "part1_copy_segment_tail")},
+    **{name: ("part1_p2_marker_storage_result", "specs/cold_part2_fresh.rs", "part1_p2_marker_storage_normal")
+       for name in ("part1_parse_dfs", "part1_parse_ads", "part1_parse_nlt", "part1_parse_atk")},
+    "part1_tile_header_extension_payload": ("part1_p2_tile_result", "specs/cold_part2_header.rs", "part1_p2_tile_normal_result"),
     "part1_parse_mct": ("part1_fresh_mct_result", "specs/cold_marker_storage.rs", "part1_fresh_mct_normal"),
     "part1_parse_mco": ("part1_fresh_mco_result", "specs/cold_marker_storage.rs", "part1_fresh_mco_normal"),
     "part1_parse_mcc_component_list": ("part1_fresh_list_result", "specs/cold_marker_storage.rs", "part1_fresh_list_normal"),
@@ -4892,6 +4898,22 @@ def _coverage_cold_relation(
 ) -> tuple[str, str]:
     model, outcome, state, inputs = legacy
     cold_model = _COLD_RESULT_MODELS[model][0]
+    fresh_kind = {
+        "part1_dfs_payload": "Dfs", "part1_ads_payload": "Ads", "part1_unpack_two_bit_values": "Unpack",
+        "part1_atk_payload": "Atk", "part1_atk_step": "Step", "part1_nlt_payload": "Nlt",
+        "part1_copy_segment_tail": "Tail",
+    }.get(model)
+    if fresh_kind is not None:
+        inputs = r"(?:crate::specs::)?" + _coverage_call("Part2FreshInput::" + fresh_kind, inputs)
+        outcome = r"(?:crate::specs::)?" + _coverage_call("Part2FreshValue::" + fresh_kind, outcome)
+    marker_kind = {
+        "part1_parse_dfs": "Dfs", "part1_parse_ads": "Ads", "part1_parse_nlt": "Nlt", "part1_parse_atk": "Atk",
+    }.get(model)
+    if marker_kind is not None:
+        inputs = r"Part2FreshKind::" + marker_kind + r"\s*,\s*" + _coverage_call("parser_view", _coverage_call("old", "self")) \
+            + r"\s*,\s*" + _coverage_call("segment_view", "segment") + r"\s*,\s*" \
+            + ("components" if marker_kind == "Nlt" else "0") + r"\s*,\s*" \
+            + _coverage_call("owned_extensions_view", _coverage_call("old", "extensions"))
     if model == "part1_mct_graph_collection":
         inputs = r"_ctx\s*,\s*" + inputs
     elif model == "part1_mct_graph_stage":
@@ -4932,6 +4954,7 @@ _COLD_RESULT_CONTRACTS = {
         _TRANSFORM_GRAPH_CONTRACTS,
         _TRANSFORM_ARRAY_BYTES_CONTRACTS, _TRANSFORM_FRAGMENT_CONTRACTS, _COLLECTION_FRAGMENT_CONTRACTS,
         _TRANSFORM_COLLECTION_BYTES_CONTRACTS, _TRANSFORM_ROUTING_BYTES_CONTRACTS,
+        _DECOMPOSITION_BYTES_CONTRACTS, _KERNEL_BYTES_CONTRACTS, _NONLINEAR_BYTES_CONTRACTS,
         _PROGRESSION_BYTES_CONTRACTS, _RAW_TILE_HEADER_CONTRACTS,
     )
     for key, legacy in contracts.items()
@@ -4994,6 +5017,7 @@ for _header_symbol, _header_model, _raw_pattern, _header_outcome in (
     )
 
 _COLD_INNER_RUNS = {
+    "part1_p2_marker_storage_result": "part1_p2_marker_run",
     "part1_fresh_tile_result": "part1_fresh_tile_payload",
     "part1_parse_poc_storage_result": "part1_parse_poc_storage",
     "part1_tile_progression_payload_storage_result": "part1_tile_progression_payload_storage",
@@ -5019,6 +5043,11 @@ def _coverage_cold_links(keys: set[tuple[str, str]]) -> tuple[set[tuple[str, str
         }.get(model, model.removesuffix("_result") + "_run")
         models.update(((path, model), (path, run)))
         proofs.add((path, normal))
+        if model == "part1_p2_marker_storage_result":
+            models.add((path, "part1_p2_marker_result"))
+            proofs.update((path, name) for name in (
+                "part1_p2_marker_storage_observed", "part1_p2_marker_storage_equivalent", "part1_p2_marker_projection",
+            ))
     return models, proofs
 
 
@@ -5044,7 +5073,15 @@ def _coverage_cold_result_body(text: str, model: str) -> bool:
                     reader, raw, segment, components, tile_part_index, lengths, headers, reserved)
             } else if segment.marker == 0xff74 || segment.marker == 0xff75 || segment.marker == 0xff77 {
                 part1_fresh_tile_result(reader, raw, segment, components, result)
+            } else if part1_p2_marker(segment.marker) {
+                part1_p2_tile_result(reader, raw, segment, components, result)
             } else { result == part1_tile_header_payload(reader, raw, segment, components, tile_part_index, lengths, headers) }
+        """
+    elif model == "part1_p2_marker_storage_result":
+        expected = """
+            if result.0 == Err(crate::DecodeError::AllocationFailed) {
+                part1_p2_marker_result(kind, reader, segment, components, extensions, result)
+            } else { result == part1_p2_marker_ordinary(kind, reader, segment, components, extensions) }
         """
     elif model in ("part1_component_quantizations_storage_result", "part1_finish_main_quantizations_storage_result",
                    "part1_parse_poc_storage_result"):
@@ -5131,6 +5168,76 @@ _COLD_SOURCE_BODIES = {
 }
 
 _QUANTIZATION_COLD_GUARDS = {
+    ("specs/cold_part2_fresh.rs", "part1_p2_fresh_site"): (
+        "FreshPart2Path::Dfs(_) => 72", "FreshPart2Path::AdsDepth(_, _) => 73",
+        "FreshPart2Path::AdsSplit(_, _) => 74", "FreshPart2Path::AdsDirections(_) => 75",
+        "FreshPart2Path::AtkSteps(_, _) => 76", "FreshPart2Path::AtkCoefficients(_, _, _) => 77",
+        "FreshPart2Path::NltPoints(_) => 78", "FreshPart2Path::NltParameters(_, _) => 79",
+    ),
+    ("specs/cold_part2_fresh.rs", "part1_p2_fresh_steps_requests"): (
+        "remaining == 0 { Seq::empty() }", "part1_p2_fresh_step_requests(cursor, segment, position, width, kind, reversible, whole)",
+        "match part1_atk_step(cursor, segment, position, width, kind, reversible, whole)",
+        "Err(_) => Seq::empty()", "part1_p2_fresh_steps_requests(cursor, segment, next, width, kind, reversible, whole, (remaining - 1) as nat)",
+    ),
+    ("specs/cold_part2_fresh.rs", "part1_p2_marker_run"): (
+        "let charged = part1_charge_extension_metadata(reader, segment, extensions)",
+        "if charged.0.is_err() { Some((charged, events)) }",
+        "part1_p2_marker_input(kind, charged.1.position, segment, components)",
+        "part1_mct_copy_run(part1_p2_fresh_requests(input), events)",
+        "Some((Err(error), rest)) => Some(((Err(error), charged.1, charged.2), rest))",
+        "part1_p2_marker_ordinary(kind, reader, segment, components, extensions)",
+    ),
+    ("specs/cold_part2_fresh.rs", "part1_p2_marker_result"): (
+        "exists|events: Seq<Part1ColdStorageEvent>| part1_p2_marker_run(kind, reader, segment, components, extensions, events) == Some((result, Seq::empty()))",
+    ),
+    ("specs/cold_part2_fresh.rs", "part1_p2_fresh_ordinary"): (
+        "Part2FreshInput::Dfs(segment) => Part2FreshValue::Dfs(part1_dfs_payload(segment))",
+        "Part2FreshInput::Ads(cursor, segment) => Part2FreshValue::Ads(part1_ads_payload(cursor, segment))",
+        "Part2FreshValue::Unpack(part1_unpack_two_bit_values(cursor, segment, start, count, terminal))",
+        "Part2FreshValue::Atk(part1_atk_payload(cursor, segment))",
+        "Part2FreshValue::Step(part1_atk_step(cursor, segment, start, width, kind, reversible, whole))",
+        "Part2FreshValue::Nlt(part1_nlt_payload(segment, components))",
+        "Part2FreshValue::Tail(part1_copy_segment_tail(segment, start))",
+    ),
+    ("specs/cold_part2_header.rs", "part1_p2_tile_extensions"): (
+        "segment.marker == 0xff76 && raw.part2_extensions.nonlinear_local_count.is_none()",
+        "nonlinear_local_count: Some(0)", "else { raw.part2_extensions }",
+    ),
+    ("src/codestream/decomposition.rs", "Parser::decode_dfs_payload"): (
+        "segment.payload.len() != expected",
+        "reserve_values(usize::from(levels),", "MctCopyPath::FreshPart2(FreshPart2Path::Dfs(segment.offset))",
+        "directions.push(",
+    ),
+    ("src/codestream/decomposition.rs", "Parser::unpack_two_bit_values"): (
+        "let path = if allow_terminal", "FreshPart2Path::AdsSplit(segment.offset, start)",
+        "FreshPart2Path::AdsDepth(segment.offset, start)", "reserve_values(count, MctCopyPath::FreshPart2(path))",
+        "while index < count", "self.segment_byte(segment, start, index / 4)",
+    ),
+    ("src/codestream/decomposition.rs", "Parser::decode_ads_payload"): (
+        "segment.payload.len() != expected", "self.unpack_two_bit_values(segment, 2, depth_count, false)",
+        "self.unpack_two_bit_values(segment, split_count_position + 1, split_count, true)",
+        "reserve_values(split_values.len(),", "MctCopyPath::FreshPart2(FreshPart2Path::AdsDirections(segment.offset))",
+    ),
+    ("src/codestream/part2_transforms.rs", "Parser::decode_atk_payload"): (
+        "let step_count", "reserve_values(step_count,", "MctCopyPath::FreshPart2(FreshPart2Path::AtkSteps(segment.offset, position))",
+        "self.decode_atk_step(",
+    ),
+    ("src/codestream/part2_transforms.rs", "Parser::decode_atk_step"): (
+        "if coefficient_count == 0", "reserve_values(coefficient_count,",
+        "MctCopyPath::FreshPart2(FreshPart2Path::AtkCoefficients(segment.offset, start, position,))",
+        "while coefficient < coefficient_count", "self.read_kernel_coefficient(",
+    ),
+    ("src/codestream/part2_transforms.rs", "Parser::decode_nlt_payload"): (
+        "segment.payload.len() != expected",
+        "reserve_values(usize::from(count),", "MctCopyPath::FreshPart2(FreshPart2Path::NltPoints(segment.offset))",
+        "points = copied?", "points.push(value)", "Ok(NonlinearPointTransform",
+        "parameters: {", "self.copy_segment_tail(segment, 4)", "d_min,", "d_max,", "point_bits,", "points,",
+    ),
+    ("src/codestream/reader.rs", "Parser::copy_segment_tail"): (
+        "if start > segment.payload.len()", "reserve_values(segment.payload.len() - start,",
+        "FreshPart2Path::NltParameters(segment.offset, start,)", "while position < segment.payload.len()",
+        "copied.push(self.segment_byte(segment, position, 0)?)",
+    ),
     ("src/codestream/mct_markers.rs", "Parser::parse_mct"): (
         "let copied = reserve_values(element_count,",
         "MctCopyPath::FreshMarker(FreshMarkerPath::Values(segment.offset))",
@@ -5431,6 +5538,21 @@ _QUANTIZATION_ROOT_PROOFS |= {
         "part1_fresh_main_projection", "part1_fresh_main_frame",
     )
 }
+
+_QUANTIZATION_ROOT_MODELS |= {
+    ("specs/cold_part2_fresh.rs", name) for name in (
+        "Part2FreshInput", "Part2FreshValue", "part1_p2_fresh_site", "part1_p2_fresh_requests",
+        "part1_p2_fresh_ordinary", "part1_p2_fresh_run", "part1_p2_marker_run", "part1_p2_marker_result",
+    )
+} | {("specs/cold_part2_header.rs", "part1_p2_main_run")}
+_QUANTIZATION_ROOT_PROOFS |= {
+    ("specs/cold_part2_fresh.rs", name) for name in (
+        "part1_p2_marker_normal", "part1_p2_marker_frame", "part1_p2_marker_projection",
+        "part1_p2_marker_storage_observed", "part1_p2_marker_storage_equivalent",
+    )
+} | {("specs/cold_part2_header.rs", name) for name in (
+    "part1_p2_main_normal", "part1_p2_main_frame", "part1_p2_main_projection", "part1_cold_main_p2_step",
+)}
 
 _MCT_COPY_MODELS = {("specs/cold_mct_copy.rs", name) for name in (
     "Part1MctCopyRequest", "part1_mct_copy_site", "part1_mct_copy_leaf", "part1_mct_copy_run", "part1_mct_copy_result",
@@ -5780,6 +5902,12 @@ def validate_normative_coverage(
                         ("specs/cold_layout_continuations.rs", "part1_cold_layout_sot_read_result_error"),
                     }.issubset({(r["path"], r["symbol"]) for r in entry["proof_refs"]})):
                 raise ValueError(diagnostic + " requires complete cold marker source and normal/frame proof links")
+            if entry["id"] == _RAW_LAYOUT_ENTRY and (
+                    ("specs/cold_part2_header.rs", "part1_p2_tile_run") not in {(r["path"], r["symbol"]) for r in entry["spec_refs"]}
+                    or not {("specs/cold_part2_header.rs", name) for name in (
+                        "part1_p2_tile_normal", "part1_p2_tile_frame", "part1_p2_tile_projection", "part1_p2_tile_step",
+                    )}.issubset({(r["path"], r["symbol"]) for r in entry["proof_refs"]})):
+                raise ValueError(diagnostic + " requires complete cold Part2 marker source and normal/frame proof links")
             for (relative, symbol), fragments in _QUANTIZATION_COLD_GUARDS.items():
                 guard_path = (ROOT / relative).resolve()
                 guard_source = source_text(guard_path)

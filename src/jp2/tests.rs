@@ -1051,7 +1051,7 @@ fn payload_owner_storage_container_late_nested_copy_restores() {
     let limits = ResourceLimits::default();
     let expected = parse_and_inspect(&bytes, &limits).unwrap();
     assert!(matches!(
-        crate::allocation::with_refusal(13, || parse_and_inspect(&bytes, &limits)),
+        crate::allocation::with_refusal(14, || parse_and_inspect(&bytes, &limits)),
         Err(DecodeError::AllocationFailed)
     ));
     let restored = parse_and_inspect(&bytes, &limits).unwrap();
@@ -1081,7 +1081,7 @@ fn part2_owner_storage_container_nested_refusal_restores_owned_fields() {
     let limits = ResourceLimits::default();
     let expected = parse_and_inspect(&bytes, &limits).unwrap();
     assert!(matches!(
-        crate::allocation::with_refusal(11, || parse_and_inspect(&bytes, &limits)),
+        crate::allocation::with_refusal(12, || parse_and_inspect(&bytes, &limits)),
         Err(DecodeError::AllocationFailed)
     ));
     let restored = parse_and_inspect(&bytes, &limits).unwrap();
@@ -1126,6 +1126,32 @@ fn mct_owner_storage_container_inner_refusal_restores_original_source() {
         restored.file().codestream(0).unwrap().data(),
         expected.file().codestream(0).unwrap().data()
     ));
+}
+
+#[test]
+fn fresh_part2_container_first_later_construction_refusal_restore() {
+    let mut stream = valid_codestream(64, 32);
+    let at = stream
+        .windows(2)
+        .position(|word| word == [0xff, 0x90])
+        .unwrap();
+    stream.splice(at..at, marker_segment(0xff73, &[1, 1, 0x40, 1, 0x40]));
+    let bytes = boxed_file(b"jp2 \0\0\0\0jp2 ", &stream);
+    let limits = ResourceLimits::default();
+    let expected = parse_and_inspect(&bytes, &limits).unwrap();
+    for after in [0, 2] {
+        assert!(matches!(
+            crate::allocation::with_refusal(after, || parse_and_inspect(&bytes, &limits)),
+            Err(DecodeError::AllocationFailed)
+        ));
+        let restored = parse_and_inspect(&bytes, &limits).unwrap();
+        assert_eq!(restored.codestreams(), expected.codestreams());
+        assert_eq!(restored.file().box_count, expected.file().box_count);
+        assert!(core::ptr::eq(
+            restored.file().codestream(0).unwrap().data(),
+            expected.file().codestream(0).unwrap().data()
+        ));
+    }
 }
 
 #[test]

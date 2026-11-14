@@ -36,6 +36,8 @@ model-to-standard review remains outstanding.
   [payload-owner Result/reader binds](cold_payload_owners.rs),
   [fresh marker construction/fragment requests](cold_marker_storage.rs) and
   [actual main/tile marker binds](cold_marker_header.rs),
+  [fresh Part 2 constructor requests](cold_part2_fresh.rs) and
+  [charged Part 2 main/tile binds](cold_part2_header.rs),
   [tile reader frames](cold_tile_part.rs), [complete cold layout](cold_layout.rs)
   and [checked error continuations](cold_layout_continuations.rs).
   Trace entries contain primitive responses, not supplied layouts/images.

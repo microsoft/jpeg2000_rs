@@ -1,11 +1,13 @@
 //! Part 2 decomposition marker decoding and coding-style resolution.
 
+use super::mct_copy::reserve_values;
 use super::reader::read_u16;
 use super::{
     ArbitraryDecomposition, CodingStyle, ComponentCodingStyles, DecodeError,
     DecompositionDirection, DecompositionStructure, MalformedKind, Parser, Part2Extensions,
     Segment,
 };
+use super::{FreshPart2Path, MctCopyPath};
 #[cfg(verus_keep_ghost)]
 use super::{
     ads_payload_outcome, component_style_owner_view, dfs_payload_outcome,
@@ -13,6 +15,8 @@ use super::{
     parsed_coding_style_outcome, parsed_coding_style_view, parser_view, segment_view,
     two_bit_values_outcome,
 };
+#[cfg(verus_keep_ghost)]
+use crate::specs::{Part2FreshInput, Part2FreshKind, Part2FreshValue};
 #[cfg(verus_keep_ghost)]
 use vstd::prelude::*;
 
@@ -157,9 +161,8 @@ impl<'a> Parser<'a> {
 
     #[cfg_attr(verus_keep_ghost, verifier::spinoff_prover)]
     #[cfg_attr(verus_keep_ghost, verus_spec(result =>
-        ensures (result, parser_view(final(self)), owned_extensions_view(final(extensions)))
-            == crate::specs::part1_parse_dfs(parser_view(old(self)), segment_view(segment),
-                owned_extensions_view(old(extensions))),
+        ensures crate::specs::part1_p2_marker_storage_result(Part2FreshKind::Dfs, parser_view(old(self)), segment_view(segment), 0,
+                owned_extensions_view(old(extensions)), (result, parser_view(final(self)), owned_extensions_view(final(extensions)))),
     ))]
     pub(super) fn parse_dfs(
         &mut self,
@@ -173,9 +176,17 @@ impl<'a> Parser<'a> {
             let ghost goal = crate::specs::part1_parse_dfs(input, segment_view(segment), extension_input);
         }
         #[cfg(verus_keep_ghost)]
-        proof! { reveal(crate::specs::part1_parse_dfs); }
+        proof! {
+            reveal(crate::specs::part1_parse_dfs);
+            crate::specs::part1_p2_marker_normal(Part2FreshKind::Dfs, input, segment_view(segment), 0, extension_input, Seq::empty());
+        }
         self.charge_extension_metadata(segment, extensions)?;
-        let replacement = self.decode_dfs_payload(segment)?;
+        let copied = self.decode_dfs_payload(segment);
+        #[cfg(verus_keep_ghost)]
+        proof! { if dfs_payload_outcome(copied) == Err(DecodeError::AllocationFailed) {
+            crate::specs::part1_p2_marker_refused(Part2FreshKind::Dfs, input, segment_view(segment), 0, extension_input);
+        }}
+        let replacement = copied?;
         #[cfg(verus_keep_ghost)]
         proof_decl! {
             let ghost charged_parser = parser_view(self);
@@ -192,6 +203,7 @@ impl<'a> Parser<'a> {
         #[cfg_attr(verus_keep_ghost, verus_spec(
             invariant
                 position <= extensions.decomposition_structures.len(),
+                crate::specs::part1_p2_marker_result(Part2FreshKind::Dfs, input, segment_view(segment), 0, extension_input, goal),
                 input == parser_view(old(self)),
                 extension_input == owned_extensions_view(old(extensions)),
                 parser_view(self) == charged_parser,
@@ -230,9 +242,8 @@ impl<'a> Parser<'a> {
 
     #[cfg_attr(verus_keep_ghost, verifier::spinoff_prover)]
     #[cfg_attr(verus_keep_ghost, verus_spec(result =>
-        ensures (result, parser_view(final(self)), owned_extensions_view(final(extensions)))
-            == crate::specs::part1_parse_ads(parser_view(old(self)), segment_view(segment),
-                owned_extensions_view(old(extensions))),
+        ensures crate::specs::part1_p2_marker_storage_result(Part2FreshKind::Ads, parser_view(old(self)), segment_view(segment), 0,
+                owned_extensions_view(old(extensions)), (result, parser_view(final(self)), owned_extensions_view(final(extensions)))),
     ))]
     pub(super) fn parse_ads(
         &mut self,
@@ -246,9 +257,17 @@ impl<'a> Parser<'a> {
             let ghost goal = crate::specs::part1_parse_ads(input, segment_view(segment), extension_input);
         }
         #[cfg(verus_keep_ghost)]
-        proof! { reveal(crate::specs::part1_parse_ads); }
+        proof! {
+            reveal(crate::specs::part1_parse_ads);
+            crate::specs::part1_p2_marker_normal(Part2FreshKind::Ads, input, segment_view(segment), 0, extension_input, Seq::empty());
+        }
         self.charge_extension_metadata(segment, extensions)?;
-        let replacement = self.decode_ads_payload(segment)?;
+        let copied = self.decode_ads_payload(segment);
+        #[cfg(verus_keep_ghost)]
+        proof! { if ads_payload_outcome(copied) == Err(DecodeError::AllocationFailed) {
+            crate::specs::part1_p2_marker_refused(Part2FreshKind::Ads, input, segment_view(segment), 0, extension_input);
+        }}
+        let replacement = copied?;
         #[cfg(verus_keep_ghost)]
         proof_decl! {
             let ghost charged_parser = parser_view(self);
@@ -265,6 +284,7 @@ impl<'a> Parser<'a> {
         #[cfg_attr(verus_keep_ghost, verus_spec(
             invariant
                 position <= extensions.arbitrary_decompositions.len(),
+                crate::specs::part1_p2_marker_result(Part2FreshKind::Ads, input, segment_view(segment), 0, extension_input, goal),
                 input == parser_view(old(self)),
                 extension_input == owned_extensions_view(old(extensions)),
                 parser_view(self) == charged_parser,
@@ -303,14 +323,19 @@ impl<'a> Parser<'a> {
 
     #[cfg_attr(verus_keep_ghost, verifier::spinoff_prover)]
     #[cfg_attr(verus_keep_ghost, verus_spec(result =>
-        ensures dfs_payload_outcome(result) == crate::specs::part1_dfs_payload(segment_view(segment)),
+        ensures crate::specs::part1_p2_fresh_result(Part2FreshInput::Dfs(segment_view(segment)), Part2FreshValue::Dfs(dfs_payload_outcome(result))),
+            dfs_payload_outcome(result) != Err(DecodeError::AllocationFailed) ==>
+                dfs_payload_outcome(result) == crate::specs::part1_dfs_payload(segment_view(segment)),
     ))]
     pub(super) fn decode_dfs_payload(
         &self,
         segment: Segment<'a>,
     ) -> Result<DecompositionStructure, DecodeError> {
         #[cfg(verus_keep_ghost)]
-        proof! { reveal(crate::specs::part1_dfs_payload); }
+        proof! {
+            reveal(crate::specs::part1_dfs_payload);
+            crate::specs::part1_p2_fresh_normal(Part2FreshInput::Dfs(segment_view(segment)));
+        }
         if segment.payload.len() < 3 {
             return Err(self.malformed_at(segment.offset, MalformedKind::InvalidMarkerLength));
         }
@@ -352,15 +377,25 @@ impl<'a> Parser<'a> {
         }
         #[cfg(verus_keep_ghost)]
         proof! { assert(goal == Ok((index, target))); }
-        let mut directions = Vec::with_capacity(usize::from(levels));
+        let copied = reserve_values(
+            usize::from(levels),
+            MctCopyPath::FreshPart2(FreshPart2Path::Dfs(segment.offset)),
+        );
         #[cfg(verus_keep_ghost)]
-        proof! { assert(directions@ =~= target.subrange(0, 0)); }
+        proof! {
+            if copied.is_err() { crate::specs::part1_p2_fresh_refused(Part2FreshInput::Dfs(segment_view(segment))); }
+        }
+        let mut directions = copied?;
+        #[cfg(verus_keep_ghost)]
+        proof! { assert(directions@ =~= Seq::<DecompositionDirection>::empty()); assert(directions@ =~= target.subrange(0, 0)); }
         let mut level = 0_usize;
         #[cfg_attr(
             verus_keep_ghost,
             verus_spec(
                 invariant
                     level <= levels as usize,
+                    crate::specs::part1_p2_fresh_result(Part2FreshInput::Dfs(segment_view(segment)),
+                        crate::specs::part1_p2_fresh_ordinary(Part2FreshInput::Dfs(segment_view(segment)))),
                     0 < levels <= 32,
                     segment.payload.len() == 3int + (levels as int + 3) / 4,
                     goal == crate::specs::part1_dfs_payload(segment_view(segment)),
@@ -394,14 +429,20 @@ impl<'a> Parser<'a> {
 
     #[cfg_attr(verus_keep_ghost, verifier::spinoff_prover)]
     #[cfg_attr(verus_keep_ghost, verus_spec(result =>
-        ensures ads_payload_outcome(result) == crate::specs::part1_ads_payload(self.position, segment_view(segment)),
+        ensures crate::specs::part1_p2_fresh_result(Part2FreshInput::Ads(self.position, segment_view(segment)), Part2FreshValue::Ads(ads_payload_outcome(result))),
+            ads_payload_outcome(result) != Err(DecodeError::AllocationFailed) ==>
+                ads_payload_outcome(result) == crate::specs::part1_ads_payload(self.position, segment_view(segment)),
     ))]
     pub(super) fn decode_ads_payload(
         &self,
         segment: Segment<'a>,
     ) -> Result<ArbitraryDecomposition, DecodeError> {
         #[cfg(verus_keep_ghost)]
-        proof! { reveal(crate::specs::part1_ads_payload); }
+        proof! {
+            reveal(crate::specs::part1_ads_payload);
+            crate::specs::part1_p2_fresh_normal(Part2FreshInput::Ads(self.position, segment_view(segment)));
+            crate::specs::part1_mct_copy_observed(MctCopyPath::Order, 0, Ok(()));
+        }
         if segment.payload.len() < 3 {
             return Err(self.malformed_at(segment.offset, MalformedKind::InvalidMarkerLength));
         }
@@ -433,10 +474,47 @@ impl<'a> Parser<'a> {
         if segment.payload.len() != expected {
             return Err(self.malformed_at(segment.offset, MalformedKind::InvalidMarkerLength));
         }
-        let sublevel_depths = self.unpack_two_bit_values(segment, 2, depth_count, false)?;
-        let split_values =
-            self.unpack_two_bit_values(segment, split_count_position + 1, split_count, true)?;
-        let mut subband_splits = Vec::with_capacity(split_values.len());
+        #[cfg(verus_keep_ghost)]
+        proof_decl! {
+            let ghost cold = Part2FreshInput::Ads(self.position, segment_view(segment));
+            let ghost first = crate::specs::part1_p2_fresh_unpack(segment_view(segment), 2, depth_count, false);
+            let ghost second = crate::specs::part1_p2_fresh_unpack(segment_view(segment), (split_count_position + 1) as usize, split_count, true);
+            let ghost third = match crate::specs::part1_unpack_two_bit_values(self.position, segment_view(segment), (split_count_position + 1) as usize, split_count, true) {
+                Err(_) => Seq::empty(), Ok(values) => crate::specs::part1_p2_fresh_leaf(FreshPart2Path::AdsDirections(segment.offset), values.len() as usize),
+            };
+        }
+        let copied = self.unpack_two_bit_values(segment, 2, depth_count, false);
+        #[cfg(verus_keep_ghost)]
+        proof! {
+            crate::specs::part1_p2_fresh_observed(Part2FreshInput::Unpack(self.position, segment_view(segment), 2, depth_count, false), Part2FreshValue::Unpack(two_bit_values_outcome(copied)));
+            let status = if two_bit_values_outcome(copied) == Err(DecodeError::AllocationFailed) { Err(DecodeError::AllocationFailed) } else { Ok(()) };
+            let tail = if crate::specs::part1_unpack_two_bit_values(self.position, segment_view(segment), 2, depth_count, false).is_ok() { second + third } else { Seq::empty() };
+            crate::specs::part1_mct_copy_continue(Seq::empty(), first, tail, status);
+            if two_bit_values_outcome(copied) == Err(DecodeError::AllocationFailed) { crate::specs::part1_p2_fresh_refused(cold); }
+        }
+        let sublevel_depths = copied?;
+        let copied =
+            self.unpack_two_bit_values(segment, split_count_position + 1, split_count, true);
+        #[cfg(verus_keep_ghost)]
+        proof! {
+            crate::specs::part1_p2_fresh_observed(Part2FreshInput::Unpack(self.position, segment_view(segment), (split_count_position + 1) as usize, split_count, true), Part2FreshValue::Unpack(two_bit_values_outcome(copied)));
+            let status = if two_bit_values_outcome(copied) == Err(DecodeError::AllocationFailed) { Err(DecodeError::AllocationFailed) } else { Ok(()) };
+            crate::specs::part1_mct_copy_continue(first, second, third, status);
+            assert(crate::specs::part1_p2_fresh_requests(cold) =~= (first + second) + third);
+            if two_bit_values_outcome(copied) == Err(DecodeError::AllocationFailed) { crate::specs::part1_p2_fresh_refused(cold); }
+        }
+        let split_values = copied?;
+        let copied = reserve_values(
+            split_values.len(),
+            MctCopyPath::FreshPart2(FreshPart2Path::AdsDirections(segment.offset)),
+        );
+        #[cfg(verus_keep_ghost)]
+        proof! {
+            crate::specs::part1_mct_copy_continue(first + second, third, Seq::empty(), super::mct_copy::copy_outcome(copied));
+            assert(crate::specs::part1_p2_fresh_requests(cold) =~= ((first + second) + third) + Seq::<crate::specs::Part1MctCopyRequest>::empty());
+            if copied.is_err() { crate::specs::part1_p2_fresh_refused(cold); }
+        }
+        let mut subband_splits = copied?;
         #[cfg(verus_keep_ghost)]
         proof_decl! {
             let ghost target = split_values@.map_values(|code: u8| crate::specs::part1_decomposition_code(code));
@@ -445,6 +523,7 @@ impl<'a> Parser<'a> {
         #[cfg(verus_keep_ghost)]
         proof! {
             assert(goal == Ok((index, sublevel_depths@, target)));
+            assert(subband_splits@ =~= Seq::<DecompositionDirection>::empty());
             assert(subband_splits@ =~= target.subrange(0, 0));
         }
         let mut split = 0_usize;
@@ -453,6 +532,8 @@ impl<'a> Parser<'a> {
                 verus_spec(
                     invariant
                         split <= split_values.len(),
+                        crate::specs::part1_p2_fresh_result(Part2FreshInput::Ads(self.position, segment_view(segment)),
+                            crate::specs::part1_p2_fresh_ordinary(Part2FreshInput::Ads(self.position, segment_view(segment)))),
                         goal == crate::specs::part1_ads_payload(self.position, segment_view(segment)),
                         goal == Ok((index, sublevel_depths@, target)),
                         target == split_values@.map_values(|code: u8| crate::specs::part1_decomposition_code(code)),
@@ -482,8 +563,11 @@ impl<'a> Parser<'a> {
 
     #[cfg_attr(verus_keep_ghost, verifier::spinoff_prover)]
     #[cfg_attr(verus_keep_ghost, verus_spec(result =>
-        ensures two_bit_values_outcome(result) == crate::specs::part1_unpack_two_bit_values(
-            self.position, segment_view(segment), start, count, allow_terminal),
+        ensures crate::specs::part1_p2_fresh_result(Part2FreshInput::Unpack(self.position, segment_view(segment), start, count, allow_terminal),
+                Part2FreshValue::Unpack(two_bit_values_outcome(result))),
+            two_bit_values_outcome(result) != Err(DecodeError::AllocationFailed) ==>
+                two_bit_values_outcome(result) == crate::specs::part1_unpack_two_bit_values(
+                    self.position, segment_view(segment), start, count, allow_terminal),
     ))]
     pub(super) fn unpack_two_bit_values(
         &self,
@@ -497,15 +581,29 @@ impl<'a> Parser<'a> {
             let ghost goal = crate::specs::part1_unpack_two_bit_values(
                 self.position, segment_view(segment), start, count, allow_terminal);
         }
-        let mut values = Vec::with_capacity(count);
         #[cfg(verus_keep_ghost)]
-        proof! { assert(values@ =~= Seq::empty()); }
+        proof! { crate::specs::part1_p2_fresh_normal(Part2FreshInput::Unpack(self.position, segment_view(segment), start, count, allow_terminal)); }
+        let path = if allow_terminal {
+            FreshPart2Path::AdsSplit(segment.offset, start)
+        } else {
+            FreshPart2Path::AdsDepth(segment.offset, start)
+        };
+        let copied = reserve_values(count, MctCopyPath::FreshPart2(path));
+        #[cfg(verus_keep_ghost)]
+        proof! {
+            if copied.is_err() { crate::specs::part1_p2_fresh_refused(Part2FreshInput::Unpack(self.position, segment_view(segment), start, count, allow_terminal)); }
+        }
+        let mut values = copied?;
+        #[cfg(verus_keep_ghost)]
+        proof! { assert(values@ =~= Seq::<u8>::empty()); }
         let mut index = 0_usize;
         #[cfg_attr(
             verus_keep_ghost,
             verus_spec(
                 invariant
                     index <= count,
+                    crate::specs::part1_p2_fresh_result(Part2FreshInput::Unpack(self.position, segment_view(segment), start, count, allow_terminal),
+                        crate::specs::part1_p2_fresh_ordinary(Part2FreshInput::Unpack(self.position, segment_view(segment), start, count, allow_terminal))),
                     goal == crate::specs::part1_unpack_two_bit_values(
                         self.position, segment_view(segment), start, count, allow_terminal),
                     goal == crate::specs::part1_unpack_two_bit_run(
