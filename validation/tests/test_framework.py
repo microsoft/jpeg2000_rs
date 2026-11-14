@@ -8196,6 +8196,37 @@ class FrameworkTests(WorkingFiles):
                     self.assertRaisesRegex(ValueError, "ordered cold quantization storage"):
                 framework.validate_normative_coverage(dict(coverage, requirements=[entry]))
 
+    def test_inventory_preparation_storage_requires_outer_seen_source_order_and_zero_frames(self):
+        coverage = json.loads((framework.VALIDATION / "normative-coverage.json").read_text())
+        entry = next(item for item in coverage["requirements"] if item["id"] == "part1-complete-native-grid-progression-composition")
+        data = dict(coverage, requirements=[entry])
+        self.assertEqual(framework.validate_normative_coverage(data)["status"], "passed")
+        read_text = Path.read_text
+        for relative, symbol, before, after in (
+            ("specs/cold_packet_preparation.rs", "part2_preparation_count", "parts.len() as usize", "1usize"),
+            ("specs/cold_packet_preparation.rs", "part2_preparation_capacity_run", "count==0", "count==1"),
+            ("specs/cold_packet_preparation.rs", "part2_preparation_capacity_run", "Part2JpipSnapshotEvent::PacketPreparationCapacity", "Part2JpipSnapshotEvent::PackedHeaderCapacity"),
+            ("specs/cold_packet_preparation.rs", "part2_preparation_capacity_run", "events.drop_first()", "events"),
+            ("specs/cold_packet_preparation.rs", "part2_progress_context", "selection:params.selection", "selection:None"),
+            ("specs/cold_packet_preparation.rs", "part2_progress_initial_run", "Err(error)=>Some((Err(error),events))", "Err(error)=>Some((Err(error),events.drop_first()))"),
+            ("src/packet/tile.rs", "prepare_progression_payloads", "empty_with_capacity(tile_parts.len())", "empty_with_capacity(1)"),
+            ("src/packet/tile.rs", "progression_tile_progress_new", "filled_values(false, seen_length)", "filled_values(true, seen_length)"),
+            ("src/allocation.rs", "filled_values", "values.push(value)", "values.push(value.clone())"),
+        ):
+            source = framework.ROOT / relative
+            original = source.read_text()
+            body = (framework._coverage_function_body(original, framework._coverage_function_header(original, symbol))
+                    if relative.startswith("src/") else framework._coverage_spec_function_body(original, symbol))
+            self.assertIn(before, body)
+            changed = original.replace(body, body.replace(before, after, 1), 1)
+
+            def altered(path, *args, **kwargs):
+                return changed if path == source else read_text(path, *args, **kwargs)
+
+            with self.subTest(symbol=symbol, before=before), mock.patch.object(Path, "read_text", altered), \
+                    self.assertRaisesRegex(ValueError, "packet preparation storage"):
+                framework.validate_normative_coverage(data)
+
     def test_inventory_packed_storage_requires_actual_constructor_source_state_and_tail(self):
         coverage = json.loads((framework.VALIDATION / "normative-coverage.json").read_text())
         entry = next(item for item in coverage["requirements"] if item["id"] == "part1-complete-native-packed-header-length-inputs")
@@ -8442,6 +8473,11 @@ class FrameworkTests(WorkingFiles):
                 if key == ("src/codestream/packet_headers.rs", "PackedPacketHeaders::reassemble"):
                     isolated["test_refs"] += [
                         {"path": path, "symbol": symbol} for path, symbol in sorted(framework._PACKED_STORAGE_TESTS)
+                        if {"path": path, "symbol": symbol} not in isolated["test_refs"]
+                    ]
+                if key in {("src/packet/tile.rs", "prepare_progression_payloads"), ("src/packet/tile.rs", "progression_tile_progress_new")}:
+                    isolated["test_refs"] += [
+                        {"path": path, "symbol": symbol} for path, symbol in sorted(framework._PREPARATION_STORAGE_TESTS)
                         if {"path": path, "symbol": symbol} not in isolated["test_refs"]
                     ]
             self.assertEqual(framework.validate_normative_coverage(coverage)["status"], "passed")

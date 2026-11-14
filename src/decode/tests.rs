@@ -5346,26 +5346,70 @@ fn packed_storage_raw_container_selected_and_reconstruction_refuse_only_after_pa
     })
     .unwrap();
     assert!(matches!(
-        crate::allocation::with_refusal(11, || decode_codestream(&bytes, &options)),
+        crate::allocation::with_refusal(12, || decode_codestream(&bytes, &options)),
         Err(DecodeError::AllocationFailed)
     ));
     assert!(matches!(
-        crate::allocation::with_refusal(11, || decode_codestream_selected(
+        crate::allocation::with_refusal(12, || decode_codestream_selected(
             &bytes, &options, &selection
         )),
         Err(DecodeError::AllocationFailed)
     ));
     assert!(matches!(
-        crate::allocation::with_refusal(11, || decode_codestream_reconstructed(&bytes, &options)),
+        crate::allocation::with_refusal(12, || decode_codestream_reconstructed(&bytes, &options)),
         Err(DecodeError::AllocationFailed)
     ));
     assert!(matches!(
-        crate::allocation::with_refusal(23, || decode_jp2(&jp2, &options)),
+        crate::allocation::with_refusal(24, || decode_jp2(&jp2, &options)),
         Err(DecodeError::AllocationFailed)
     ));
     let raw = decode_codestream(&bytes, &options).unwrap();
     assert_eq!(decode_jp2(&jp2, &options).unwrap(), raw);
     assert_eq!(bytes, before);
+}
+
+#[test]
+fn preparation_storage_public_outer_and_bitmap_refusal_restore_raw_and_container() {
+    let options = DecodeOptions::default();
+    let selection = DecodeSelection::full_image();
+    let mut bytes = prepared_codestream(1, 1, 1, &[0, 0x40], &[0]);
+    let cod = bytes
+        .windows(2)
+        .position(|pair| pair == [0xff, 0x52])
+        .unwrap();
+    bytes[cod + 9] = 0;
+    let bytes = pack_packet_header(bytes, false, &[0]);
+    let jp2 = jp2_for_codestream(&bytes, 1, 1);
+    for after in [11, 13] {
+        assert!(matches!(
+            crate::allocation::with_refusal(after, || decode_codestream(&bytes, &options)),
+            Err(DecodeError::AllocationFailed)
+        ));
+        assert!(matches!(
+            crate::allocation::with_refusal(after, || decode_codestream_selected(
+                &bytes, &options, &selection
+            )),
+            Err(DecodeError::AllocationFailed)
+        ));
+        assert!(matches!(
+            crate::allocation::with_refusal(after, || decode_codestream_reconstructed(
+                &bytes, &options
+            )),
+            Err(DecodeError::AllocationFailed)
+        ));
+    }
+    for after in [23, 25] {
+        assert!(matches!(
+            crate::allocation::with_refusal(after, || decode_jp2(&jp2, &options)),
+            Err(DecodeError::AllocationFailed)
+        ));
+    }
+    let expected = decode_codestream(&bytes, &options).unwrap();
+    assert_eq!(
+        decode_codestream_selected(&bytes, &options, &selection).unwrap(),
+        expected
+    );
+    assert_eq!(decode_jp2(&jp2, &options).unwrap(), expected);
 }
 
 #[test]

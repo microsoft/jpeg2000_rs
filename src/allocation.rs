@@ -108,6 +108,33 @@ pub(crate) fn copy_values<T: Copy>(source: &[T]) -> Result<Vec<T>, DecodeError> 
 }
 
 #[cfg_attr(verus_keep_ghost, verus_spec(result =>
+    ensures crate::specs::storage_copy_result(Seq::new(count as nat, |_: int| value), result),
+        count == 0 ==> result.is_ok(),
+        match result { Ok(values) => values@ == Seq::new(count as nat, |_: int| value),
+            Err(error) => error == DecodeError::AllocationFailed },
+))]
+pub(crate) fn filled_values<T: Copy>(value: T, count: usize) -> Result<Vec<T>, DecodeError> {
+    if count == 0 {
+        #[cfg(verus_keep_ghost)]
+        proof! { assert(Seq::<T>::empty() =~= Seq::new(0nat, |_: int| value)); }
+        return Ok(Vec::new());
+    }
+    let mut values = empty_with_capacity(count)?;
+    let mut index = 0_usize;
+    #[cfg_attr(verus_keep_ghost, verus_spec(
+        invariant index <= count, values@ == Seq::new(index as nat, |_: int| value),
+        decreases count - index,
+    ))]
+    while index < count {
+        values.push(value);
+        #[cfg(verus_keep_ghost)]
+        proof! { assert(Seq::new(index as nat + 1, |_: int| value) =~= Seq::new(index as nat, |_: int| value).push(value)); }
+        index += 1;
+    }
+    Ok(values)
+}
+
+#[cfg_attr(verus_keep_ghost, verus_spec(result =>
     ensures crate::specs::storage_extension_result(
         old(values)@, bytes@, final(values)@, result),
 ))]
@@ -163,6 +190,15 @@ pub(crate) fn with_refusal<T>(after: usize, operation: impl FnOnce() -> T) -> T 
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn preparation_fill_zero_refusal_and_restore_keep_exact_values() {
+        with_refusal(0, || {
+            assert!(filled_values(false, 0).unwrap().is_empty());
+            assert_eq!(filled_values(false, 3), Err(DecodeError::AllocationFailed));
+        });
+        assert_eq!(filled_values(7_u8, 3).unwrap(), [7, 7, 7]);
+    }
 
     #[test]
     fn fresh_inspection_empty_roles_do_not_consume_refusal_and_restore() {

@@ -8072,6 +8072,14 @@
       "spec_refs": [
         {"path": "specs/packet_tile.rs", "symbol": "part1_tile_packet_slot"},
         {"path": "specs/cold_packed_headers.rs", "symbol": "part2_packet_input_result"},
+        {"path": "specs/cold_packet_preparation.rs", "symbol": "part2_preparation_capacity_result"},
+        {"path": "specs/cold_packet_preparation.rs", "symbol": "part2_preparation_capacity_run"},
+        {"path": "specs/cold_packet_preparation.rs", "symbol": "part2_preparation_count"},
+        {"path": "specs/cold_packet_preparation.rs", "symbol": "part2_prepare_payloads_result"},
+        {"path": "specs/cold_packet_preparation.rs", "symbol": "part2_prepare_payloads_run"},
+        {"path": "specs/cold_packet_preparation.rs", "symbol": "part2_progress_context"},
+        {"path": "specs/cold_packet_preparation.rs", "symbol": "part2_progress_initial_result"},
+        {"path": "specs/cold_packet_preparation.rs", "symbol": "part2_progress_initial_run"},
         {"path": "specs/cold_packed_headers.rs", "symbol": "part2_packet_input_run"},
         {"path": "specs/cold_packed_headers.rs", "symbol": "part2_packet_prefix"},
         {"path": "specs/cold_packed_headers.rs", "symbol": "part2_packet_result"},
@@ -8223,6 +8231,15 @@
       ],
       "proof_refs": [
         {"path": "specs/cold_packed_headers.rs", "symbol": "part2_packet_input_normal"},
+        {"path": "specs/cold_packet_preparation.rs", "symbol": "part2_preparation_observed"},
+        {"path": "specs/cold_packet_preparation.rs", "symbol": "part2_prepare_payloads_capacity_error"},
+        {"path": "specs/cold_packet_preparation.rs", "symbol": "part2_prepare_payloads_inner_error"},
+        {"path": "specs/cold_packet_preparation.rs", "symbol": "part2_prepare_payloads_normal"},
+        {"path": "specs/cold_packet_preparation.rs", "symbol": "part2_progress_initial_normal"},
+        {"path": "specs/cold_packet_preparation.rs", "symbol": "part2_progress_initial_refused"},
+        {"path": "specs/cold_packet_preparation.rs", "symbol": "part2_packet_stages_actual"},
+        {"path": "specs/cold_packet_preparation.rs", "symbol": "part2_packet_progress_error"},
+        {"path": "src/allocation.rs", "symbol": "filled_values"},
         {"path": "specs/cold_packed_headers.rs", "symbol": "part2_packet_normal"},
         {"path": "specs/cold_packed_headers.rs", "symbol": "part2_packet_public_result_equivalent"},
         {"path": "specs/cold_packed_headers.rs", "symbol": "part2_payloads_normal"},
@@ -8342,6 +8359,10 @@
         {
           "path": "src/packet/tests.rs", "symbol": "actual_grid_factory_keeps_full_offsets_and_candidate_work_under_selected_caps"
         },
+        {"path": "src/allocation.rs", "symbol": "preparation_fill_zero_refusal_and_restore_keep_exact_values"},
+        {"path": "src/packet/tests.rs", "symbol": "preparation_storage_outer_and_seen_refusals_preserve_precincts_and_restore"},
+        {"path": "src/packet/tests.rs", "symbol": "preparation_storage_empty_geometry_and_iterator_errors_consume_no_later_request"},
+        {"path": "src/decode/tests.rs", "symbol": "preparation_storage_public_outer_and_bitmap_refusal_restore_raw_and_container"},
         {
           "path": "src/packet/tests.rs", "symbol": "raw_grid_lookup_retains_physical_zero_and_offset_error_priority"
         },

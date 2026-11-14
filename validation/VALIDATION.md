@@ -1069,9 +1069,21 @@ JPX-selected and dependent public/cache/transcode continuations bind this
 later decode-stage response after their actual parse phases. Checked normal
 projections, primitive-response/frame links and bounded refusal/restore/empty/
 malformed/earlier-admission/raw-container controls are registered.
-The packet preparation's outer collection and seen bitmap, entropy/image
-storage and existing-buffer growth are not covered by this byte-buffer
-increment. Successful reservation relies on the documented standard-library
+The subsequent fresh preparation increment covers the outer packed-owner
+collection at its original struct-field frontier, before per-part admission,
+and the exactly false seen bitmap after iterator/work admission and the packet
+count conversion. A distinct `PacketPreparationCapacity` event has separate
+`Packed` and `Seen` contexts derived from the actual parts/tile or parts/grid/
+selection, with exact source-derived counts. Neither aliases inner packed-byte,
+parse, inspection or JPIP responses. Zero consumes no response; failed outer
+storage consumes no inner reassembly/bitmap response. Exact prefixes, prior
+owners/counters, initial precinct failure frames and ordinary partial packet
+states compose through all existing decode/public continuations. The reusable
+Copy-fill helper preserves exact values and empty success without invoking
+allocating Clone. Bounded controls include first/later refusal, empty grids,
+malformed/earlier-work rejection and raw/container restoration.
+Entropy/image buffers, grid/planning owners and existing-buffer growth remain
+separate. Successful reservation relies on the documented standard-library
 boundary, not a physical-capacity theorem inferred from sequence models.
 Same-file links are checked inside another listed, formatted function body;
 the contract's own declaration, an unrelated function or an indirect caller

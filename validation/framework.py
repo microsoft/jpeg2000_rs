@@ -4797,7 +4797,8 @@ _RAW_COMPOSITION_RENDER_PROOFS |= {("specs/jpx_raw_frame.rs", "part2_render_raw_
 
 _COLD_RESULT_MODELS = {
     "part1_packed_header_reassembly": ("part2_packed_reassembly_result", "specs/cold_packed_headers.rs", "part2_packed_reassembly_normal"),
-    "part1_progression_payloads": ("part2_payloads_result", "specs/cold_packed_headers.rs", "part2_payloads_normal"),
+    "part1_progression_payloads": ("part2_prepare_payloads_result", "specs/cold_packet_preparation.rs", "part2_prepare_payloads_normal"),
+    "part1_tile_progress_initial": ("part2_progress_initial_result", "specs/cold_packet_preparation.rs", "part2_progress_initial_normal"),
     "part1_progression_tile_input": ("part2_packet_input_result", "specs/cold_packed_headers.rs", "part2_packet_input_normal"),
     "part1_progression_tile_decode": ("part2_packet_result", "specs/cold_packed_headers.rs", "part2_packet_normal"),
     "part1_progression_tile_public_cold": ("part1_progression_tile_cold_result", "specs/cold_packed_headers.rs", "part2_packet_normal"),
@@ -4940,7 +4941,10 @@ def _coverage_cold_relation(
 ) -> tuple[str, str]:
     model, outcome, state, inputs = legacy
     cold_model = _COLD_RESULT_MODELS[model][0]
-    if model in ("part1_progression_payloads", "part1_progression_tile_input", "part1_progression_tile_decode"):
+    if model == "part1_progression_payloads":
+        inputs = _coverage_call("crate::codestream::tile_parts_owned_view", "tile_parts@") + r"\s*,\s*tile_index\s*,\s*" \
+            + _coverage_call("crate::limits::resource_packet_header_byte_limit", "limits")
+    elif model in ("part1_progression_tile_input", "part1_progression_tile_decode"):
         inputs = inputs.replace("tile_parts@", _coverage_call("crate::codestream::tile_parts_owned_view", "tile_parts@"))
     elif model == "part2_decode_tile_parts_at":
         inputs = inputs.replace("parts@", _coverage_call("codestream::tile_parts_owned_view", "parts@"))
@@ -5115,6 +5119,15 @@ def _coverage_cold_links(keys: set[tuple[str, str]]) -> tuple[set[tuple[str, str
         }.get(model, model.removesuffix("_result") + "_run")
         models.update(((path, model), (path, run)))
         proofs.add((path, normal))
+        if model in ("part2_prepare_payloads_result", "part2_progress_initial_result"):
+            models.update((path, name) for name in ("part2_preparation_count", "part2_preparation_capacity_run", "part2_preparation_capacity_result"))
+            proofs.add((path, "part2_preparation_observed"))
+        if model == "part2_prepare_payloads_result":
+            proofs.update((path, name) for name in ("part2_prepare_payloads_capacity_error", "part2_prepare_payloads_inner_error"))
+        if model == "part2_progress_initial_result":
+            models.add((path, "part2_progress_context"))
+            proofs.update((path, name) for name in ("part2_progress_initial_refused", "part2_packet_stages_actual", "part2_packet_progress_error"))
+            proofs.add(("src/allocation.rs", "filled_values"))
         if model == "part2_packed_reassembly_result":
             models |= _PACKED_STORAGE_MODELS
             proofs |= _PACKED_STORAGE_PROOFS
@@ -5261,6 +5274,57 @@ _COLD_SOURCE_BODIES = {
     """, "whole effective layer Result requires actual ordered decoder/registration/opacity models"),
 }
 
+_PREPARATION_STORAGE_TESTS = {
+    ("src/allocation.rs", "preparation_fill_zero_refusal_and_restore_keep_exact_values"),
+    ("src/packet/tests.rs", "preparation_storage_outer_and_seen_refusals_preserve_precincts_and_restore"),
+    ("src/packet/tests.rs", "preparation_storage_empty_geometry_and_iterator_errors_consume_no_later_request"),
+    ("src/decode/tests.rs", "preparation_storage_public_outer_and_bitmap_refusal_restore_raw_and_container"),
+}
+_PREPARATION_STORAGE_GUARDS = {
+    ("specs/cold_packet_preparation.rs", "part2_preparation_count"): (
+        "Part2PacketPreparationContext::Packed { parts, .. } => parts.len() as usize",
+        "Part2PacketPreparationContext::Seen { grid, .. } => grid.packet_count as usize",
+    ),
+    ("specs/cold_packet_preparation.rs", "part2_preparation_capacity_run"): (
+        "if count==0 {Some((Ok(()),events))}", "Part2JpipSnapshotEvent::PacketPreparationCapacity",
+        "actual!=context || elements!=count", "Err(crate::DecodeError::AllocationFailed)", "events.drop_first()", "_=>None",
+    ),
+    ("specs/cold_packet_preparation.rs", "part2_prepare_payloads_run"): (
+        "part2_preparation_capacity_run(Part2PacketPreparationContext::Packed {parts,tile},events)",
+        "|_:(),rest|part2_payloads_run(parts,part2_preparation_initial(tile),maximum,rest)",
+    ),
+    ("specs/cold_packet_preparation.rs", "part2_progress_initial_run"): (
+        "let initial=part1_tile_progress_initial(params)", "Err(error)=>Some((Err(error),events))",
+        "part2_preparation_capacity_run(part2_progress_context(params),events)", "|_:(),rest|Some((initial,rest))",
+    ),
+    ("specs/cold_packet_preparation.rs", "part2_progress_context"): (
+        "Part2PacketPreparationContext::Seen {parts:params.parts,grid:params.grid,selection:params.selection}",
+    ),
+    ("specs/cold_packed_headers.rs", "part2_packet_input_run"): (
+        "match part1_progression_layout_owned(parts, grid, selection, limits)",
+        "Err(error) => Some((Err(error), events))", "part2_prepare_payloads_run(parts, parts[0].tile_index,",
+    ),
+    ("src/allocation.rs", "filled_values"): (
+        "if count == 0 {", "return Ok(Vec::new())", "empty_with_capacity(count)?", "values.push(value)",
+    ),
+}
+_PREPARATION_NATIVE_ORDER = {
+    ("src/packet/tile.rs", "prepare_progression_payloads"): (
+        "packed: {", "if tile_parts.is_empty()", "empty_with_capacity(tile_parts.len())",
+        "Part2PacketPreparationContext::Packed {parts,tile:tile_index}",
+        "part2_preparation_observed(context,response)", "reserved?",
+        "while input.index < tile_parts.len()", "part.packed_packet_headers.reassemble(limits)",
+    ),
+    ("src/packet/tile.rs", "progression_tile_progress_new"): (
+        "params.tile_parts.first()", "progression_packet_iterator_new(", "first.packet_lengths.iter()",
+        "usize::try_from(params.grid.packet_count)", "crate::allocation::filled_values(false, seen_length)",
+        "part2_preparation_observed(context,response)", "let seen=reserved?", "Ok(ProgressionTileProgress",
+    ),
+    ("src/packet/tile.rs", "decode_progression_tile_packets_selected"): (
+        "prepare_progression_tile_input(", "let input = prepared?", "progression_tile_progress_new(&params)",
+        "part2_packet_progress_error(", "let mut progress = progress_result?", "run_progression_tile_packets(",
+    ),
+}
 _PACKED_STORAGE_GUARDS = {
     ("specs/cold_packed_headers.rs", "part2_packed_requests"): (
         "source.length as u64 > maximum || source.length == 0",
@@ -5289,7 +5353,9 @@ _PACKED_STORAGE_GUARDS = {
     ("specs/cold_packed_headers.rs", "part2_packet_run"): (
         "part2_packet_input_run(parts, grid, precincts, selection, limits, events)",
         "Some((Err(error), rest)) => Some(((Err(error), precincts), rest))",
-        "Some((Ok(_), rest)) => Some((part1_progression_tile_decode_owned(parts, grid, precincts, selection, limits), rest))",
+        "Some((Ok(input), rest)) => match part2_progress_initial_run(part2_packet_parameters(parts,grid,input,selection,limits),rest)",
+        "Some((Err(error),tail))=>Some(((Err(error),precincts),tail))",
+        "Some((Ok(_),tail))=>Some((part1_progression_tile_decode_owned(parts,grid,precincts,selection,limits),tail))",
     ),
     ("specs/cold_packed_headers.rs", "part2_packet_prefix"): (
         "forall|tail: Seq<Part2JpipSnapshotEvent>| #[trigger]",
@@ -11777,6 +11843,7 @@ def validate_normative_coverage(
                 "empty_with_capacity": ("storage_capacity_result", r"\1"),
                 "none_values": ("storage_none_result", r"count\s*,\s*\1"),
                 "copy_values": ("storage_copy_result", r"source@\s*,\s*\1"),
+                "filled_values": ("storage_copy_result", _coverage_call("Seq::new", r"count\s+as\s+nat", r"\|_\s*:\s*int\|\s*value") + r"\s*,\s*\1"),
                 "extend_bytes": (
                     "storage_extension_result",
                     r"old\(\s*values\s*\)@\s*,\s*bytes@\s*,\s*"
@@ -12328,6 +12395,29 @@ def validate_normative_coverage(
             positions = [compact.find("".join(fragment.split())) for fragment in fragments]
             if any(position < 0 for position in positions) or positions != sorted(positions):
                 raise ValueError("packed-header fresh storage requires unchanged real constructor/admission/copy/owner/error order")
+    if "part1-complete-native-grid-progression-composition" in ids:
+        preparation_entry = next(item for item in coverage["requirements"] if item["id"] == "part1-complete-native-grid-progression-composition")
+        for (relative, symbol), fragments in _PREPARATION_STORAGE_GUARDS.items():
+            path = (ROOT / relative).resolve()
+            body = (_coverage_function_body(source_text(path), function_header(path, symbol)) if relative.startswith("src/")
+                    else _coverage_spec_function_body(source_text(path), symbol))
+            compact = "".join(body.split()) if body is not None else ""
+            if any("".join(fragment.split()) not in compact for fragment in fragments):
+                raise ValueError("packet preparation storage requires distinct source/count roles, exact zero/admission/state/tail and shallow Copy fill")
+        if re.search(r"\bfn\s+filled_values\s*<\s*T\s*:\s*Copy\s*>", source_text((ROOT / "src/allocation.rs").resolve())) is None:
+            raise ValueError("packet preparation storage requires shallow Copy fill")
+        for (relative, symbol), fragments in _PREPARATION_NATIVE_ORDER.items():
+            path = (ROOT / relative).resolve()
+            body = _coverage_function_body(source_text(path), function_header(path, symbol))
+            compact = "".join(body.split()) if body is not None else ""
+            positions = [compact.find("".join(fragment.split())) for fragment in fragments]
+            if any(position < 0 for position in positions) or positions != sorted(positions):
+                raise ValueError("packet preparation storage requires original outer/seen frontier and actual producer/error/owner order")
+        if any((ref["path"], ref["symbol"]) in {
+                ("src/packet/tile.rs", "prepare_progression_payloads"), ("src/packet/tile.rs", "progression_tile_progress_new")}
+                for ref in preparation_entry["contract_refs"]):
+            if not _PREPARATION_STORAGE_TESTS.issubset({(ref["path"], ref["symbol"]) for ref in preparation_entry["test_refs"]}):
+                raise ValueError("packet preparation storage requires bounded refusal/restore/empty/state/public controls")
     return {
         "status": "passed",
         "inventory_items": len(ids),

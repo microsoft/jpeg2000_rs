@@ -73,6 +73,8 @@ mod cold_inspection_storage;
 pub use cold_inspection_storage::*;
 mod cold_packed_headers;
 pub use cold_packed_headers::*;
+mod cold_packet_preparation;
+pub use cold_packet_preparation::*;
 mod cold_decode_packets;
 pub use cold_decode_packets::*;
 mod cold_decode_finish;

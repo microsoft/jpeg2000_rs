@@ -5,6 +5,7 @@ use super::*;
 verus! {
 
 pub enum Part2JpipSnapshotEvent {
+    PacketPreparationCapacity { context: Part2PacketPreparationContext, elements: usize, succeeded: bool },
     PackedHeaderCapacity { source: Part1PackedHeaders, succeeded: bool },
     InspectionCapacity { collection: crate::allocation::InspectionCollection, elements: usize, succeeded: bool },
     Capacity { site: u8, tile: usize, elements: usize, succeeded: bool },
