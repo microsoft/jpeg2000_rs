@@ -3788,6 +3788,166 @@ fn one_bit_legacy_decoder(force_high_throughput: bool) -> Tier1CodeBlockDecoder 
     .unwrap()
 }
 
+fn packet_precinct_storage_execution() -> PacketSubbandExecution {
+    PacketSubbandExecution {
+        orientation: SubbandOrientation::Ll,
+        code_blocks_across: 1,
+        code_blocks_down: 1,
+        maximum_zero_bitplanes: 1,
+        decoders: vec![one_bit_legacy_decoder(false)],
+    }
+}
+
+#[test]
+fn packet_precinct_storage_tag_nodes_admission_refusal_and_exact_restore() {
+    let expected = tag_tree_from_dimensions(3, 2, 9).unwrap();
+    crate::allocation::with_refusal(0, || {
+        assert_eq!(
+            tag_tree_from_dimensions(0, 2, 9),
+            Err(packet_reader_error(0, MalformedKind::InvalidTagTree))
+        );
+        assert_eq!(
+            tag_tree_from_dimensions(3, 2, 8),
+            Err(packet_reader_limit(Resource::TagTreeNodes, 8, 9))
+        );
+        assert_eq!(
+            tag_tree_from_dimensions(u32::MAX, u32::MAX, u64::MAX),
+            Err(packet_reader_error(0, MalformedKind::ArithmeticOverflow))
+        );
+        assert_eq!(
+            tag_tree_from_dimensions(3, 2, 9),
+            Err(DecodeError::AllocationFailed)
+        );
+    });
+    assert_eq!(tag_tree_from_dimensions(3, 2, 9).unwrap(), expected);
+    assert_eq!(
+        expected.nodes,
+        vec![
+            TagTreeNode {
+                low: 0,
+                value: u32::MAX
+            };
+            9
+        ]
+    );
+}
+
+#[test]
+fn packet_precinct_storage_subbands_and_ordered_tree_refusals_restore_every_owner() {
+    let limits = ResourceLimits::default();
+    let style = Tier1CodingStyle::default();
+    let make = || {
+        packet_precinct_from_subbands(
+            2,
+            3,
+            4,
+            style,
+            vec![packet_precinct_storage_execution()],
+            &limits,
+        )
+    };
+    let expected = make().unwrap();
+    for after in [0, 1, 2] {
+        assert_eq!(
+            crate::allocation::with_refusal(after, make).err(),
+            Some(DecodeError::AllocationFailed)
+        );
+    }
+    let restored = make().unwrap();
+    assert_eq!(
+        exact_packet_precinct_snapshot(&restored),
+        exact_packet_precinct_snapshot(&expected)
+    );
+    assert_eq!(
+        restored.subbands[0].inclusion_tree.nodes,
+        vec![TagTreeNode {
+            low: 0,
+            value: u32::MAX
+        }]
+    );
+    assert_eq!(
+        restored.subbands[0].zero_bitplane_tree,
+        restored.subbands[0].inclusion_tree
+    );
+}
+
+#[test]
+fn packet_precinct_storage_empty_and_ordinary_priority_consume_no_later_request() {
+    let limits = ResourceLimits::default();
+    let style = Tier1CodingStyle::default();
+    crate::allocation::with_refusal(0, || {
+        let empty = packet_precinct_from_subbands(0, 0, 0, style, Vec::new(), &limits).unwrap();
+        assert!(
+            empty.states.is_empty()
+                && empty.contexts.is_empty()
+                && empty.decoders.is_empty()
+                && empty.subbands.is_empty()
+        );
+        assert_eq!(
+            packet_precinct_from_subbands(
+                0,
+                0,
+                0,
+                style,
+                (0..4)
+                    .map(|_| packet_precinct_storage_execution())
+                    .collect(),
+                &limits
+            )
+            .err(),
+            Some(invalid_packet_header())
+        );
+        assert_eq!(
+            packet_precinct_from_subbands(
+                0,
+                0,
+                0,
+                style,
+                vec![packet_precinct_storage_execution()],
+                &limits
+            )
+            .err(),
+            Some(DecodeError::AllocationFailed)
+        );
+    });
+    let code = limits
+        .with_maximum_code_blocks(0)
+        .unwrap()
+        .with_maximum_work_units(0)
+        .unwrap();
+    for malformed in [true, false] {
+        crate::allocation::with_refusal(1, || {
+            let mut execution = packet_precinct_storage_execution();
+            if malformed {
+                execution.maximum_zero_bitplanes = 0;
+            }
+            let result = packet_precinct_from_subbands(
+                0,
+                0,
+                0,
+                style,
+                vec![execution],
+                if malformed { &limits } else { &code },
+            );
+            if malformed {
+                assert_eq!(result.err(), Some(invalid_packet_header()));
+            } else {
+                assert!(matches!(
+                    result,
+                    Err(DecodeError::LimitExceeded {
+                        resource: Resource::CodeBlocks,
+                        ..
+                    })
+                ));
+            }
+            assert_eq!(
+                crate::allocation::empty_with_capacity::<u8>(1),
+                Err(DecodeError::AllocationFailed)
+            );
+        });
+    }
+}
+
 fn expected_one_ff_decoder(before: &Tier1CodeBlockDecoder, header_prepared: bool) -> String {
     let mut contexts = crate::mq::MqDecoder::new(&[], &ResourceLimits::default()).unwrap();
     for index in 0..19 {

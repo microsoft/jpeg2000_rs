@@ -39,6 +39,7 @@ specs/cold_marker_header.rs
 specs/cold_marker_storage.rs
 specs/cold_mct_copy.rs
 specs/cold_packed_headers.rs
+specs/cold_packet_precinct.rs
 specs/cold_packet_preparation.rs
 specs/cold_part2_fresh.rs
 specs/cold_part2_header.rs
@@ -49,6 +50,7 @@ specs/cold_progression.rs
 specs/cold_quantization.rs
 specs/cold_resolution_plan.rs
 specs/cold_resolved_copy.rs
+specs/cold_tag_storage.rs
 specs/cold_tile_metadata.rs
 specs/cold_tile_part.rs
 specs/cold_tile_quantization.rs

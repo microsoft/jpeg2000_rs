@@ -304,7 +304,8 @@ fn decode_tag_tree_node(
 }
 
 #[cfg_attr(verus_keep_ghost, verus_spec(result =>
-    ensures tag_tree_outcome(result) == crate::specs::part1_tag_initial(
+    ensures crate::specs::part1_tag_storage_result(width,height,crate::limits::resource_tag_tree_node_limit(limits),tag_tree_outcome(result)),
+        tag_tree_outcome(result)!=Err(DecodeError::AllocationFailed) ==> tag_tree_outcome(result) == crate::specs::part1_tag_initial(
         width, height, crate::limits::resource_tag_tree_node_limit(limits)),
 ))]
 pub(crate) fn tag_tree_new(
@@ -316,13 +317,16 @@ pub(crate) fn tag_tree_new(
 }
 
 #[cfg_attr(verus_keep_ghost, verus_spec(result =>
-    ensures tag_tree_outcome(result) == crate::specs::part1_tag_initial(width, height, maximum_nodes),
+    ensures crate::specs::part1_tag_storage_result(width,height,maximum_nodes,tag_tree_outcome(result)),
+        tag_tree_outcome(result)!=Err(DecodeError::AllocationFailed) ==> tag_tree_outcome(result) == crate::specs::part1_tag_initial(width, height, maximum_nodes),
 ))]
 pub(crate) fn tag_tree_from_dimensions(
     width: u32,
     height: u32,
     maximum_nodes: u64,
 ) -> Result<TagTree, DecodeError> {
+    #[cfg(verus_keep_ghost)]
+    proof! {crate::specs::part2_tag_storage_normal(width,height,maximum_nodes);}
     if width == 0 || height == 0 {
         return Err(packet_reader_error(0, MalformedKind::InvalidTagTree));
     }
@@ -337,6 +341,7 @@ pub(crate) fn tag_tree_from_dimensions(
     }
     #[cfg_attr(verus_keep_ghost, verus_spec(
         invariant remaining_levels <= 64, width != 0, height != 0,
+            crate::specs::part1_tag_storage_result(width,height,maximum_nodes,crate::specs::part1_tag_initial(width,height,maximum_nodes)),
         invariant_except_break
             crate::specs::part1_tag_build(width, height, crate::specs::Part1TagBuild { levels: Seq::empty(), total: 0 }, 64, maximum_nodes)
                 == crate::specs::part1_tag_build(level_width, level_height,
@@ -392,13 +397,20 @@ pub(crate) fn tag_tree_from_dimensions(
         level_width = ceil_div_two(level_width);
         level_height = ceil_div_two(level_height);
     }
-    let nodes = vec![
+    let filled = crate::allocation::filled_values(
         TagTreeNode {
             low: 0,
-            value: u32::MAX
-        };
-        total_nodes
-    ];
+            value: u32::MAX,
+        },
+        total_nodes,
+    );
+    #[cfg(verus_keep_ghost)]
+    proof! {
+        crate::specs::part2_tag_storage_observed(width,height,maximum_nodes,
+            crate::specs::Part1TagBuild {levels:levels@.map_values(|level:TagTreeLevel|tag_level_view(level)),total:total_nodes},
+            match filled {Ok(_)=>Ok(()),Err(error)=>Err(error)});
+    }
+    let nodes = filled?;
     #[cfg(verus_keep_ghost)]
     proof! {
         assert(nodes@.map_values(|node: TagTreeNode| tag_node_view(node)) =~=
