@@ -135,6 +135,14 @@ pub(crate) proof fn part2_packet_stages_actual(parts:Seq<Part2OwnedTilePart>,gri
         Err(error)=>(Err(error),precincts),Ok(_)=>part1_progression_tile_decode_owned(parts,grid,precincts,selection,limits),
     }),
 {
+   if let Ok(p)=progress {
+       part2_packet_stage_values(parts,grid,precincts,selection,limits,input,p);
+       let params=part2_packet_parameters(parts,grid,input,selection,limits);
+       let initial=Part1TilePacketExecution {progress:p,precincts};
+       part2_plane_tile_run_normal(params,initial);
+       let result=part1_tile_run(params,initial);
+       part2_packet_run_observed(parts,grid,precincts,selection,limits,input,p,result);
+   }else{
     reveal(part2_packet_result);reveal(part2_packet_input_result);reveal(part2_progress_initial_result);
     let before=|events|part2_packet_input_run(parts,grid,precincts,selection,limits,events);
     let after=|events|part2_progress_initial_run(part2_packet_parameters(parts,grid,input,selection,limits),events);
@@ -148,6 +156,7 @@ pub(crate) proof fn part2_packet_stages_actual(parts:Seq<Part2OwnedTilePart>,gri
         part2_cold_prefix_at(after,second,progress,tail);
     }
     assert(part2_packet_prefix(parts,grid,precincts,selection,limits,first+second,result));
+   }
 }
 pub(crate) proof fn part2_packet_progress_error(parts:Seq<Part2OwnedTilePart>,grid:Part1PacketGrid,
     precincts:Seq<Part1PacketPrecinctState>,selection:Option<Seq<u8>>,limits:&crate::ResourceLimits,input:Part1TilePacketPreparation,error:crate::DecodeError)

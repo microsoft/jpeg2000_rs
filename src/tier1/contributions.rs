@@ -111,7 +111,11 @@ pub(crate) fn tier1_decoder_from_dimensions(
         .ok_or_else(arithmetic_overflow)?;
     Ok(Tier1CodeBlockDecoder {
         plane: {
-            let result = code_block_plane_from_dimensions(width, height, true);
+            let result = code_block_plane_from_dimensions(
+                width,
+                height,
+                super::CoefficientStorageRole::InitialDecoder,
+            );
             #[cfg(verus_keep_ghost)]
             proof! {if let Err(error)=result{crate::specs::part2_tier1_initial_plane_error(width,height,significant_bitplanes,orientation,style,error);}}
             result?
@@ -459,11 +463,13 @@ impl Tier1CodeBlockDecoder {
     }
 
     #[cfg_attr(verus_keep_ghost, verus_spec(result =>
-        ensures (result, tier1_decoder_state(final(self))) == crate::specs::part1_tier1_segment(
+        ensures crate::specs::part2_plane_segment_result(tier1_decoder_state(old(self)),input@,passes,crate::limits::resource_code_block_pass_limit(limits),
+            crate::limits::resource_code_block_byte_limit(limits),crate::limits::resource_input_byte_limit(limits),crate::limits::resource_work_limit(limits),(result,tier1_decoder_state(final(self)))),
+            result!=Err(DecodeError::AllocationFailed) ==> (result, tier1_decoder_state(final(self))) == crate::specs::part1_tier1_segment(
                 tier1_decoder_state(old(self)), input@, passes, crate::limits::resource_code_block_pass_limit(limits),
                 crate::limits::resource_code_block_byte_limit(limits), crate::limits::resource_input_byte_limit(limits),
                 crate::limits::resource_work_limit(limits)),
-            (passes == 0 || crate::specs::ht_group_route(tier1_decoder_state(old(self)))) ==>
+            (result!=Err(DecodeError::AllocationFailed) && (passes == 0 || crate::specs::ht_group_route(tier1_decoder_state(old(self))))) ==>
             (result, tier1_decoder_state(final(self))) == crate::specs::ht_decode_staged_group(
                 tier1_decoder_state(old(self)), input@, passes, crate::limits::resource_code_block_pass_limit(limits),
                 crate::limits::resource_code_block_byte_limit(limits), crate::limits::resource_work_limit(limits)),
@@ -474,6 +480,11 @@ impl Tier1CodeBlockDecoder {
         passes: u8,
         limits: &ResourceLimits,
     ) -> Result<Tier1SegmentDecode, DecodeError> {
+        #[cfg(verus_keep_ghost)]
+        proof_decl! {let ghost before=tier1_decoder_state(self);}
+        #[cfg(verus_keep_ghost)]
+        proof! {crate::specs::part2_plane_segment_normal(before,input@,passes,crate::limits::resource_code_block_pass_limit(limits),
+        crate::limits::resource_code_block_byte_limit(limits),crate::limits::resource_input_byte_limit(limits),crate::limits::resource_work_limit(limits));}
         if passes == 0 {
             return Err(invalid_code_block());
         }
@@ -481,7 +492,11 @@ impl Tier1CodeBlockDecoder {
             || (matches!(self.style.block_coding, Tier1BlockCoding::Mixed)
                 && self.ht_cleanup_plane.is_some())
         {
-            return self.decode_ht_staged_group(input, passes, limits);
+            let decoded = self.decode_ht_staged_group(input, passes, limits);
+            #[cfg(verus_keep_ghost)]
+            proof! {crate::specs::part2_plane_segment_observed(before,input@,passes,crate::limits::resource_code_block_pass_limit(limits),
+            crate::limits::resource_code_block_byte_limit(limits),crate::limits::resource_input_byte_limit(limits),crate::limits::resource_work_limit(limits),(decoded,tier1_decoder_state(self)));}
+            return decoded;
         }
         self.decode_legacy_segment(input, u32::from(passes), limits)
     }

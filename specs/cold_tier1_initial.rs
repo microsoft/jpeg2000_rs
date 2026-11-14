@@ -1,7 +1,7 @@
-//! Initial-only coefficient storage and actual configured-decoder caller responses.
+//! Shared role-aware coefficient storage and actual configured-decoder caller responses.
 use super::*;
 verus! {
-pub struct Part2Tier1StorageEvent {pub width:u16,pub height:u16,pub samples:usize,pub succeeded:bool}
+pub struct Part2Tier1StorageEvent {pub width:u16,pub height:u16,pub role:crate::tier1::CoefficientStorageRole,pub samples:usize,pub succeeded:bool}
 pub type Part2Tier1Run<T> = Option<(Result<T,crate::DecodeError>,Seq<Part2Tier1StorageEvent>)>;
 pub(crate) open spec fn part2_tier1_storage_prefix<T>(run:spec_fn(Seq<Part2Tier1StorageEvent>)->Part2Tier1Run<T>,
     prefix:Seq<Part2Tier1StorageEvent>,result:Result<T,crate::DecodeError>)->bool {
@@ -66,50 +66,100 @@ pub(crate) open spec fn part2_tier1_plane_admit(width:u16,height:u16)->Result<us
     else if count>usize::MAX{Err(ht_reader_error(crate::MalformedKind::ArithmeticOverflow))}
     else if count>4096{Err(ht_reader_error(crate::MalformedKind::InvalidCodeBlock))}else{Ok(count as usize)}
 }
-pub(crate) open spec fn part2_tier1_plane_run(width:u16,height:u16,initial_tier1:bool,calls:Seq<Part2Tier1StorageEvent>)->Part2Tier1Run<Tier1RawPlane> {
-    if !initial_tier1{Some((tier1_empty_plane(width,height),calls))}else{
+pub(crate) open spec fn part2_tier1_plane_run(width:u16,height:u16,role:crate::tier1::CoefficientStorageRole,calls:Seq<Part2Tier1StorageEvent>)->Part2Tier1Run<Tier1RawPlane> {
         match part2_tier1_plane_admit(width,height) {
             Err(error)=>Some((Err(error),calls)),
             Ok(count)=>if count==0{Some((tier1_empty_plane(width,height),calls))}else if calls.len()==0{None}else{
                 let call=calls[0];
-                if call.width!=width || call.height!=height || call.samples!=count{None}
+                if call.width!=width || call.height!=height || call.role!=role || call.samples!=count{None}
                 else{Some((if call.succeeded{tier1_empty_plane(width,height)}else{Err(crate::DecodeError::AllocationFailed)},calls.drop_first()))}
             },
         }
-    }
 }
-pub closed spec fn part1_tier1_plane_storage_result(width:u16,height:u16,initial_tier1:bool,result:Result<Tier1RawPlane,crate::DecodeError>)->bool {
-    part2_tier1_storage_framed(|calls|part2_tier1_plane_run(width,height,initial_tier1,calls),result)
+pub closed spec fn part1_tier1_plane_storage_result(width:u16,height:u16,role:crate::tier1::CoefficientStorageRole,result:Result<Tier1RawPlane,crate::DecodeError>)->bool {
+    part2_tier1_storage_framed(|calls|part2_tier1_plane_run(width,height,role,calls),result)
 }
-pub(crate) proof fn part2_tier1_plane_normal(width:u16,height:u16,initial_tier1:bool)
-    ensures part1_tier1_plane_storage_result(width,height,initial_tier1,tier1_empty_plane(width,height)),
+pub(crate) proof fn part2_tier1_plane_normal(width:u16,height:u16,role:crate::tier1::CoefficientStorageRole)
+    ensures part1_tier1_plane_storage_result(width,height,role,tier1_empty_plane(width,height)),
 {
     let result=tier1_empty_plane(width,height);
-    let prefix=if !initial_tier1{Seq::empty()}else{match part2_tier1_plane_admit(width,height){
-        Err(_)=>Seq::empty(),Ok(count)=>if count==0{Seq::empty()}else{seq![Part2Tier1StorageEvent {width,height,samples:count,succeeded:true}]},
-    }};
-    assert forall|tail:Seq<Part2Tier1StorageEvent>|part2_tier1_plane_run(width,height,initial_tier1,prefix+tail)==Some((result,tail)) by{
-        if initial_tier1 && part2_tier1_plane_admit(width,height).is_ok() && part2_tier1_plane_admit(width,height).get_Ok_0()>0{
+    let prefix=match part2_tier1_plane_admit(width,height){
+        Err(_)=>Seq::empty(),Ok(count)=>if count==0{Seq::empty()}else{seq![Part2Tier1StorageEvent {width,height,role,samples:count,succeeded:true}]},
+    };
+    assert forall|tail:Seq<Part2Tier1StorageEvent>|part2_tier1_plane_run(width,height,role,prefix+tail)==Some((result,tail)) by{
+        if part2_tier1_plane_admit(width,height).is_ok() && part2_tier1_plane_admit(width,height).get_Ok_0()>0{
             assert((prefix+tail).drop_first() =~= tail);
         }else{assert(prefix+tail =~= tail);}
     }
-    assert(part2_tier1_storage_prefix(|calls|part2_tier1_plane_run(width,height,initial_tier1,calls),prefix,result));
+    assert(part2_tier1_storage_prefix(|calls|part2_tier1_plane_run(width,height,role,calls),prefix,result));
 }
-pub(crate) proof fn part2_tier1_plane_observed(width:u16,height:u16,count:usize,result:Result<(),crate::DecodeError>)
+pub(crate) proof fn part2_tier1_plane_observed(width:u16,height:u16,role:crate::tier1::CoefficientStorageRole,count:usize,result:Result<(),crate::DecodeError>)
     requires part2_tier1_plane_admit(width,height)==Ok(count),result==Ok(()) || (count>0 && result==Err(crate::DecodeError::AllocationFailed)),
-    ensures part1_tier1_plane_storage_result(width,height,true,if result.is_ok(){tier1_empty_plane(width,height)}else{Err(crate::DecodeError::AllocationFailed)}),
+    ensures part1_tier1_plane_storage_result(width,height,role,if result.is_ok(){tier1_empty_plane(width,height)}else{Err(crate::DecodeError::AllocationFailed)}),
 {
     let value=if result.is_ok(){tier1_empty_plane(width,height)}else{Err(crate::DecodeError::AllocationFailed)};
-    let prefix=if count==0{Seq::empty()}else{seq![Part2Tier1StorageEvent {width,height,samples:count,succeeded:result.is_ok()}]};
-    assert forall|tail:Seq<Part2Tier1StorageEvent>|part2_tier1_plane_run(width,height,true,prefix+tail)==Some((value,tail)) by{
+    let prefix=if count==0{Seq::empty()}else{seq![Part2Tier1StorageEvent {width,height,role,samples:count,succeeded:result.is_ok()}]};
+    assert forall|tail:Seq<Part2Tier1StorageEvent>|part2_tier1_plane_run(width,height,role,prefix+tail)==Some((value,tail)) by{
         if count==0{assert(prefix+tail =~= tail);}else{assert((prefix+tail).drop_first() =~= tail);}
     }
-    assert(part2_tier1_storage_prefix(|calls|part2_tier1_plane_run(width,height,true,calls),prefix,value));
+    assert(part2_tier1_storage_prefix(|calls|part2_tier1_plane_run(width,height,role,calls),prefix,value));
 }
+pub(crate) proof fn part2_tier1_plane_frames(width:u16,height:u16,role:crate::tier1::CoefficientStorageRole,result:Result<Tier1RawPlane,crate::DecodeError>)
+    requires part1_tier1_plane_storage_result(width,height,role,result),
+    ensures part2_tier1_storage_framed(|calls|part2_tier1_plane_run(width,height,role,calls),result),
+        forall|other:spec_fn(Seq<Part2Tier1StorageEvent>)->Part2Tier1Run<Tier1RawPlane>|
+            (forall|calls| #[trigger] other(calls)==part2_tier1_plane_run(width,height,role,calls)) ==> #[trigger] part2_tier1_storage_framed(other,result),
+{part2_tier1_storage_eta(|calls|part2_tier1_plane_run(width,height,role,calls),result);}
+pub(crate) open spec fn part2_tier1_storage_resume<A,B>(run:Part2Tier1Run<A>,next:spec_fn(Result<A,crate::DecodeError>,Seq<Part2Tier1StorageEvent>)->Part2Tier1Run<B>)->Part2Tier1Run<B> {
+    match run {None=>None,Some((result,rest))=>next(result,rest)}
+}
+pub(crate) proof fn part2_tier1_resume_frame<A,B>(run:spec_fn(Seq<Part2Tier1StorageEvent>)->Part2Tier1Run<A>,
+    next:spec_fn(Result<A,crate::DecodeError>,Seq<Part2Tier1StorageEvent>)->Part2Tier1Run<B>,
+    first:Result<A,crate::DecodeError>,result:Result<B,crate::DecodeError>)
+    requires part2_tier1_storage_framed(run,first),part2_tier1_storage_framed(|calls|next(first,calls),result),
+    ensures part2_tier1_storage_framed(|calls|part2_tier1_storage_resume(run(calls),next),result),
+        forall|other:spec_fn(Seq<Part2Tier1StorageEvent>)->Part2Tier1Run<B>|
+            (forall|calls| #[trigger] other(calls)==part2_tier1_storage_resume(run(calls),next)) ==> #[trigger] part2_tier1_storage_framed(other,result),
+{
+    let prefix=choose|prefix| #[trigger] part2_tier1_storage_prefix(run,prefix,first);
+    let child=|calls|next(first,calls);
+    let second=choose|prefix| #[trigger] part2_tier1_storage_prefix(child,prefix,result);
+    let joined=|calls|part2_tier1_storage_resume(run(calls),next);
+    assert forall|tail:Seq<Part2Tier1StorageEvent>|joined((prefix+second)+tail)==Some((result,tail)) by{
+        assert((prefix+second)+tail =~= prefix+(second+tail));
+        part2_tier1_storage_at(run,prefix,first,second+tail);part2_tier1_storage_at(child,second,result,tail);
+    }
+    assert(part2_tier1_storage_prefix(joined,prefix+second,result));
+    part2_tier1_storage_eta(joined,result);
+}
+pub(crate) open spec fn part2_tier1_phase<T>(root:spec_fn(Seq<Part2Tier1StorageEvent>)->Part2Tier1Run<T>,prefix:Seq<Part2Tier1StorageEvent>,
+    child:spec_fn(Seq<Part2Tier1StorageEvent>)->Part2Tier1Run<T>)->bool {
+    forall|tail:Seq<Part2Tier1StorageEvent>| #[trigger] root(prefix+tail)==child(tail)
+}
+pub(crate) proof fn part2_tier1_prefix_advance<A,B>(root:spec_fn(Seq<Part2Tier1StorageEvent>)->Part2Tier1Run<B>,
+    child:spec_fn(Seq<Part2Tier1StorageEvent>)->Part2Tier1Run<A>,next:spec_fn(A,Seq<Part2Tier1StorageEvent>)->Part2Tier1Run<B>,
+    prefix:Seq<Part2Tier1StorageEvent>,value:A)->(joined:Seq<Part2Tier1StorageEvent>)
+    requires forall|tail:Seq<Part2Tier1StorageEvent>| #[trigger] root(prefix+tail)==part2_tier1_storage_bind(child(tail),next),
+        part2_tier1_storage_framed(child,Ok(value)),
+    ensures part2_tier1_phase(root,joined,|tail|next(value,tail)),
+{
+    let calls=choose|calls| #[trigger] part2_tier1_storage_prefix(child,calls,Ok(value));
+    let joined=prefix+calls;
+    assert forall|tail:Seq<Part2Tier1StorageEvent>|root(joined+tail)==next(value,tail) by{
+        assert(joined+tail =~= prefix+(calls+tail));
+        part2_tier1_storage_at(child,calls,Ok(value),tail);
+    }
+    joined
+}
+pub(crate) proof fn part2_tier1_prefix_finish<T>(root:spec_fn(Seq<Part2Tier1StorageEvent>)->Part2Tier1Run<T>,
+    prefix:Seq<Part2Tier1StorageEvent>,result:Result<T,crate::DecodeError>)
+    requires part2_tier1_phase(root,prefix,|tail|Some((result,tail))),
+    ensures part2_tier1_storage_framed(root,result),
+{assert(part2_tier1_storage_prefix(root,prefix,result));part2_tier1_storage_eta(root,result);}
 pub(crate) open spec fn part2_tier1_initial_run(width:u16,height:u16,significant:u16,orientation:crate::tier1::SubbandOrientation,
     style:crate::tier1::Tier1CodingStyle,calls:Seq<Part2Tier1StorageEvent>)->Part2Tier1Run<Tier1DecoderState> {
     if significant==0 || significant>crate::tier1::MAX_TIER1_BITPLANES{Some((Err(ht_reader_error(crate::MalformedKind::InvalidCodeBlock)),calls))}
-    else{part2_tier1_storage_bind(part2_tier1_plane_run(width,height,true,calls),
+    else{part2_tier1_storage_bind(part2_tier1_plane_run(width,height,crate::tier1::CoefficientStorageRole::InitialDecoder,calls),
         |_:Tier1RawPlane,rest|Some((part2_tier1_initial_decoder(width,height,significant,orientation,style),rest)))}
 }
 pub closed spec fn part1_tier1_initial_storage_result(width:u16,height:u16,significant:u16,orientation:crate::tier1::SubbandOrientation,
@@ -121,17 +171,17 @@ pub(crate) proof fn part2_tier1_initial_normal(width:u16,height:u16,significant:
 {
     let result=part2_tier1_initial_decoder(width,height,significant,orientation,style);
     if significant==0 || significant>crate::tier1::MAX_TIER1_BITPLANES{part2_tier1_storage_pure(result);}else{
-        part2_tier1_plane_normal(width,height,true);
+        part2_tier1_plane_normal(width,height,crate::tier1::CoefficientStorageRole::InitialDecoder);
         let plane=tier1_empty_plane(width,height);if plane.is_ok(){part2_tier1_storage_pure(result);}
-        part2_tier1_storage_bind_frame(|calls|part2_tier1_plane_run(width,height,true,calls),
+        part2_tier1_storage_bind_frame(|calls|part2_tier1_plane_run(width,height,crate::tier1::CoefficientStorageRole::InitialDecoder,calls),
             |_:Tier1RawPlane,rest|Some((result,rest)),plane,result);
     }
 }
 pub(crate) proof fn part2_tier1_initial_plane_error(width:u16,height:u16,significant:u16,orientation:crate::tier1::SubbandOrientation,style:crate::tier1::Tier1CodingStyle,error:crate::DecodeError)
-    requires significant>0,significant<=crate::tier1::MAX_TIER1_BITPLANES,part1_tier1_plane_storage_result(width,height,true,Err(error)),
+    requires significant>0,significant<=crate::tier1::MAX_TIER1_BITPLANES,part1_tier1_plane_storage_result(width,height,crate::tier1::CoefficientStorageRole::InitialDecoder,Err(error)),
     ensures part1_tier1_initial_storage_result(width,height,significant,orientation,style,Err(error)),
 {
-    part2_tier1_storage_bind_frame(|calls|part2_tier1_plane_run(width,height,true,calls),
+    part2_tier1_storage_bind_frame(|calls|part2_tier1_plane_run(width,height,crate::tier1::CoefficientStorageRole::InitialDecoder,calls),
         |_:Tier1RawPlane,rest|Some((part2_tier1_initial_decoder(width,height,significant,orientation,style),rest)),Err(error),Err(error));
 }
 pub(crate) open spec fn part2_tier1_configured_run(width:u16,height:u16,significant:u16,orientation:crate::tier1::SubbandOrientation,style:crate::tier1::Tier1CodingStyle,

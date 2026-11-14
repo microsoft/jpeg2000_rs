@@ -316,7 +316,9 @@ pub(crate) open spec fn part2_packet_run(parts: Seq<Part2OwnedTilePart>, grid: P
         None => None, Some((Err(error), rest)) => Some(((Err(error), precincts), rest)),
         Some((Ok(input), rest)) => match part2_progress_initial_run(part2_packet_parameters(parts,grid,input,selection,limits),rest) {
             None=>None,Some((Err(error),tail))=>Some(((Err(error),precincts),tail)),
-            Some((Ok(_),tail))=>Some((part1_progression_tile_decode_owned(parts,grid,precincts,selection,limits),tail)),
+            Some((Ok(progress),tail))=>match part2_packet_after_progress_run(parts,grid,precincts,selection,limits,input,progress,tail) {
+                None=>None,Some((Err(error),rest))=>Some(((Err(error),precincts),rest)),Some((Ok(result),rest))=>Some((result,rest)),
+            },
         },
     }
 }

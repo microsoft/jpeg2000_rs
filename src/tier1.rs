@@ -492,6 +492,19 @@ pub struct CodeBlockPlane {
     coefficients: Vec<CoefficientState>,
 }
 
+#[derive(Clone, Copy)]
+#[cfg_attr(not(verus_keep_ghost), derive(Debug, Eq, PartialEq))]
+pub(crate) enum CoefficientStorageRole {
+    InitialDecoder,
+    Standalone,
+    #[cfg(test)]
+    Duplicate,
+    CleanupOutput,
+    CleanupCopy,
+    RefinementOutput,
+    RefinementDiscovery,
+}
+
 #[cfg(verus_keep_ghost)]
 include!("tier1/proof_support.rs");
 

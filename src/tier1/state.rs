@@ -348,17 +348,17 @@ impl Clone for CodeBlockPlane {
 }
 
 #[cfg_attr(verus_keep_ghost, verus_spec(result =>
-    ensures crate::specs::part1_tier1_plane_storage_result(width,height,initial_tier1,code_block_plane_outcome(result)),
-        (!initial_tier1 || code_block_plane_outcome(result)!=Err(DecodeError::AllocationFailed)) ==>
+    ensures crate::specs::part1_tier1_plane_storage_result(width,height,_role,code_block_plane_outcome(result)),
+        code_block_plane_outcome(result)!=Err(DecodeError::AllocationFailed) ==>
             code_block_plane_outcome(result) == crate::specs::tier1_empty_plane(width, height),
 ))]
 pub(super) fn code_block_plane_from_dimensions(
     width: u16,
     height: u16,
-    initial_tier1: bool,
+    _role: super::CoefficientStorageRole,
 ) -> Result<CodeBlockPlane, DecodeError> {
     #[cfg(verus_keep_ghost)]
-    proof! {crate::specs::part2_tier1_plane_normal(width,height,initial_tier1);}
+    proof! {crate::specs::part2_tier1_plane_normal(width,height,_role);}
     if width == 0 || height == 0 {
         return Err(invalid_code_block());
     }
@@ -376,15 +376,10 @@ pub(super) fn code_block_plane_from_dimensions(
         significant: false,
         refined: false,
     };
-    // Shared later duplicate/cleanup callers retain their separate storage boundary.
-    let coefficients = if initial_tier1 {
-        let filled = crate::allocation::filled_values(empty, samples);
-        #[cfg(verus_keep_ghost)]
-        proof! {crate::specs::part2_tier1_plane_observed(width,height,samples,match filled {Ok(_)=>Ok(()),Err(error)=>Err(error)});}
-        filled?
-    } else {
-        vec![empty; samples]
-    };
+    let filled = crate::allocation::filled_values(empty, samples);
+    #[cfg(verus_keep_ghost)]
+    proof! {crate::specs::part2_tier1_plane_observed(width,height,_role,samples,match filled {Ok(_)=>Ok(()),Err(error)=>Err(error)});}
+    let coefficients = filled?;
     #[cfg(verus_keep_ghost)]
     proof! {
         assert(coefficient_raw_view(empty).limbs =~= Seq::new(6, |i: int| 0u64));
@@ -415,14 +410,24 @@ pub(super) fn ht_statistics_zero() -> Tier1PassStatistics {
 
 impl CodeBlockPlane {
     pub fn new(width: u16, height: u16) -> Result<Self, DecodeError> {
-        code_block_plane_from_dimensions(width, height, false)
+        code_block_plane_from_dimensions(width, height, super::CoefficientStorageRole::Standalone)
     }
 
     #[cfg_attr(verus_keep_ghost, verus_spec(result =>
-        ensures code_block_plane_outcome(result) == crate::specs::tier1_duplicate_plane(code_block_plane_view(self)),
+        ensures crate::specs::part1_plane_duplicate_storage_result(code_block_plane_view(self),role,code_block_plane_outcome(result)),
+            code_block_plane_outcome(result)!=Err(DecodeError::AllocationFailed) ==>
+                code_block_plane_outcome(result) == crate::specs::tier1_duplicate_plane(code_block_plane_view(self)),
     ))]
-    pub(super) fn duplicate(&self) -> Result<Self, DecodeError> {
-        let mut output = code_block_plane_from_dimensions(self.width, self.height, false)?;
+    pub(super) fn duplicate(
+        &self,
+        role: super::CoefficientStorageRole,
+    ) -> Result<Self, DecodeError> {
+        #[cfg(verus_keep_ghost)]
+        proof! {crate::specs::part2_plane_duplicate_normal(code_block_plane_view(self),role);}
+        let output_result = code_block_plane_from_dimensions(self.width, self.height, role);
+        #[cfg(verus_keep_ghost)]
+        proof! {if let Err(error)=output_result {crate::specs::part2_plane_duplicate_error(code_block_plane_view(self),role,error);}}
+        let mut output = output_result?;
         if output.coefficients.len() != self.coefficients.len() {
             return Err(invalid_code_block());
         }
@@ -431,6 +436,7 @@ impl CodeBlockPlane {
             verus_keep_ghost,
             verus_spec(
                 invariant index <= self.coefficients.len(),
+                    crate::specs::part1_plane_duplicate_storage_result(code_block_plane_view(self),role,crate::specs::tier1_duplicate_plane(code_block_plane_view(self))),
                     output.width == self.width, output.height == self.height,
                     output.coefficients.len() == self.coefficients.len(),
                     forall |i: int| 0 <= i < index ==> coefficient_raw_view(output.coefficients@[i])

@@ -1193,10 +1193,10 @@ plane's shallow Copy-filled vector, after original nonzero dimensions,
 checked product and 4096-sample admission. The initial bitplane/MQ/legacy/
 cleanup states are `None`, context/limb records are fixed arrays/scalars, and
 the initial refinement vector is allocation-free empty; no events are invented
-for them. The shared plane body also serves duplicate and HT cleanup producers.
-A private initial-role argument selects fallible fill at the unchanged leaf
-frontier; initial construction passes true, and public standalone plane,
-duplicate and later cleanup callers retain the original false-role branch.
+for them. The same unchanged shared leaf now makes its standalone, duplicate, HT cleanup
+output/copy and refinement output/discovery roles fallible too. The obsolete
+initial-only boolean is replaced by an allocation-free caller-role enum, not
+another storage request. Every role uses the one original Copy-fill frontier.
 No executing body moves and no public API or caller/domain premise is added.
 Distinct primitive coefficient responses retain actual width/height/count.
 The configured-caller envelope additionally binds real significant bits,
@@ -1209,7 +1209,24 @@ through real execution/subband/precinct/resolution/component and public cold
 state programs, preserving first errors and unused tails. Checked original
 normal projections remain. Bounded controls cover first/later refusal,
 zero/malformed/maximum geometry, later policy rejection, row/column prior
-owners, unchanged separate later roles and raw/selected/container restore.
+owners and raw/selected/container restore.
+The remaining-role programs derive actual cleanup metadata, initial copy,
+magnitude-reader state and discovery copy in original order. Copy length errors
+remain after construction; ordinary reader/entropy errors retain their original
+frontiers. Staged packet failures roll back actual decoders, while failures after
+the original refinement clear retain that cleared partial state. Precinct/header,
+segment offset/pass/byte, selected tile and public state folds carry these actual
+children, prior owners, first errors and unused response tails. `TilePlaneCalls`
+binds the actual tile-run inputs and initial state and consumes all nested raw
+coefficient responses. This is a caller response envelope, possibly containing
+an empty sequence, not an additional physical allocation or a zero-count request.
+All entrypoints still compute real outputs from their actual inputs; no successful
+plane, decoder, header, plan or image is supplied by the environment.
+Bounded controls exercise standalone and duplicate admission, cleanup output/copy,
+refinement output/discovery, retained replay rollback, cleared partial state, and
+real HT raw/selected/container cleanup refusal and restoration.
+Other fresh entropy/refinement buffers, cloning, contribution/image storage,
+existing-capacity growth and the public precinct singleton wrapper remain separate.
 Successful reservation relies on the documented standard-library boundary,
 not a physical-capacity theorem inferred from sequence models.
 Same-file links are checked inside another listed, formatted function body;

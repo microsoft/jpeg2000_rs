@@ -4799,7 +4799,42 @@ _RAW_COMPOSITION_RENDER_MODELS |= {("specs/cold_inspection_storage.rs", "part2_i
 _RAW_RENDER_PROOFS |= {("specs/jpx_raw_frame.rs", "part2_render_raw_cold_metadata_error")}
 _RAW_COMPOSITION_RENDER_PROOFS |= {("specs/jpx_raw_frame.rs", "part2_render_raw_cold_metadata_error")}
 
+_PLANE_ROLE_MODEL_INFO = {
+    "tier1_duplicate_plane": ("part1_plane_duplicate_storage_result", "specs/cold_tier1_planes.rs", "part2_plane_duplicate_normal"),
+    "ht_cleanup_plane": ("part2_plane_cleanup_result", "specs/cold_tier1_planes.rs", "part2_plane_cleanup_normal"),
+    "ht_cleanup_prepare": ("part2_plane_prepare_result", "specs/cold_tier1_planes.rs", "part2_plane_prepare_normal"),
+    "ht_refinement_plane": ("part2_plane_refinement_result", "specs/cold_tier1_planes.rs", "part2_plane_refinement_normal"),
+    "ht_coefficient_symbols": ("part2_ht_coeff_result", "specs/cold_ht_decoder.rs", "part2_ht_coeff_normal"),
+    "ht_decode_segments": ("part2_ht_segments_result", "specs/cold_ht_decoder.rs", "part2_ht_segments_normal"),
+    "ht_decode_refinement_contribution": ("part2_ht_replay_result", "specs/cold_ht_decoder.rs", "part2_ht_replay_normal"),
+    "ht_decode_staged_group": ("part2_ht_staged_result", "specs/cold_ht_decoder.rs", "part2_ht_staged_normal"),
+    "part1_tier1_segment": ("part2_plane_segment_result", "specs/cold_ht_decoder.rs", "part2_plane_segment_normal"),
+    "ht_packet_segment_route": ("part2_packet_ht_route_result", "specs/cold_packet_planes.rs", "part2_packet_ht_route_normal"),
+    "ht_packet_segment_body": ("part2_packet_ht_segment_result", "specs/cold_packet_planes.rs", "part2_packet_ht_segment_normal"),
+    "ht_packet_body_run": ("part2_packet_ht_body_result", "specs/cold_packet_planes.rs", "part2_packet_ht_body_normal"),
+    "ht_packet_body_segments": ("part2_packet_ht_segments_result", "specs/cold_packet_planes.rs", "part2_packet_ht_segments_normal"),
+    "part1_code_block_body_staged": ("part2_plane_body_staged_result", "specs/cold_packet_planes.rs", "part2_plane_body_staged_normal"),
+    "part1_code_block_body_transaction": ("part2_plane_body_transaction_result", "specs/cold_packet_planes.rs", "part2_plane_body_transaction_normal"),
+    "part1_packet_body_execute_at": ("part2_plane_execute_result", "specs/cold_packet_execute.rs", "part2_plane_execute_normal"),
+    "part1_single_code_block_packet": ("part2_plane_single_result", "specs/cold_single_packet.rs", "part2_plane_single_normal"),
+    "part1_multi_body_data": ("part2_plane_multi_body_result", "specs/cold_packet_payload.rs", "part2_plane_multi_body_normal"),
+    "part1_multi_payload": ("part2_plane_multi_payload_result", "specs/cold_packet_payload.rs", "part2_plane_multi_payload_normal"),
+    "part1_multi_code_block_packet": ("part2_plane_multi_packet_result", "specs/cold_packet_payload.rs", "part2_plane_multi_packet_normal"),
+    "part1_precinct_payload_after_headers": ("part2_plane_payload_after_result", "specs/cold_packet_payload.rs", "part2_plane_payload_after_normal"),
+    "part1_precinct_payload": ("part2_plane_payload_result", "specs/cold_packet_payload.rs", "part2_plane_payload_normal"),
+    "part1_precinct_packet": ("part2_plane_precinct_result", "specs/cold_packet_payload.rs", "part2_plane_precinct_normal"),
+    "part1_tile_precinct_packet": ("part2_plane_tile_precinct_result", "specs/cold_packet_tile_planes.rs", "part2_plane_tile_precinct_normal"),
+    "part1_tile_packet": ("part2_plane_tile_packet_result", "specs/cold_packet_tile_planes.rs", "part2_plane_tile_packet_normal"),
+    "part1_tile_run": ("part2_plane_tile_run_result", "specs/cold_packet_tile_planes.rs", "part2_plane_tile_run_normal"),
+}
+_PLANE_ROLE_RESULT_RUNS = {
+    model: (("part2_plane_duplicate_run" if model == "part1_plane_duplicate_storage_result" else
+             "part2_plane_tile_run" if model == "part2_plane_tile_run_result" else model.removesuffix("_result") + "_run"),
+            old not in {"tier1_duplicate_plane", "ht_cleanup_plane", "ht_cleanup_prepare", "ht_refinement_plane"})
+    for old, (model, _, _) in _PLANE_ROLE_MODEL_INFO.items()
+}
 _COLD_RESULT_MODELS = {
+    **_PLANE_ROLE_MODEL_INFO,
     "tier1_empty_plane": ("part1_tier1_plane_storage_result", "specs/cold_tier1_initial.rs", "part2_tier1_plane_normal"),
     "part2_tier1_initial_decoder": ("part1_tier1_initial_storage_result", "specs/cold_tier1_initial.rs", "part2_tier1_initial_normal"),
     "part2_tier1_configured_decoder": ("part1_tier1_configured_storage_result", "specs/cold_tier1_initial.rs", "part2_tier1_configured_normal"),
@@ -4967,7 +5002,13 @@ def _coverage_cold_relation(
     model, outcome, state, inputs = legacy
     cold_model = _COLD_RESULT_MODELS[model][0]
     if model == "tier1_empty_plane":
-        inputs += r"\s*,\s*initial_tier1"
+        inputs += r"\s*,\s*_role"
+    if model == "tier1_duplicate_plane":
+        inputs += r"\s*,\s*role"
+    if model == "part1_precinct_packet":
+        inputs = inputs.replace("tile_part", _coverage_call("crate::codestream::tile_part_owned_view", "tile_part"))
+    if model == "part1_tile_precinct_packet":
+        inputs = inputs.replace(r"\*\s*part", _coverage_call("crate::codestream::tile_part_owned_view", "part"))
     if model == "part2_tile_decode_metadata":
         inputs = inputs.replace("parts@", _coverage_call("codestream::tile_parts_owned_view", "parts@"))
     if model in ("part2_progression_tile_plan", "part2_component_plan_metadata", "part2_planned_component"):
@@ -5035,6 +5076,68 @@ def _coverage_cold_relation(
     return cold_model, inputs + r"\s*,\s*" + outcome
 
 
+def _plane_role_special_contracts():
+    call = _coverage_call
+    args = lambda *values: r"\s*,\s*".join(values)
+    work = call("crate::limits::resource_work_limit", "limits")
+    byte_limit = call("crate::limits::resource_code_block_byte_limit", "limits")
+    pass_limit = call("crate::limits::resource_code_block_pass_limit", "limits")
+    input_limit = call("crate::limits::resource_input_byte_limit", "limits")
+    old_decoder = lambda owner: call("crate::tier1::tier1_decoder_state" if owner == "decoder" else "tier1_decoder_state", call("old", owner))
+    final_decoder = lambda owner: call("crate::tier1::tier1_decoder_state" if owner == "decoder" else "tier1_decoder_state", call("final", owner))
+    plane = lambda value: call("code_block_plane_view", value)
+    cleanup = call("ht_cleanup_segment_view", r"&\s*cleanup")
+    metadata = call("ht_cleanup_metadata_view", "metadata")
+    header = call("code_block_contribution_view", "contribution")
+    packet_inputs = args(old_decoder("decoder"), header, "body@", pass_limit, byte_limit)
+    return {
+        ("src/tier1/state.rs", "CodeBlockPlane::duplicate"): (
+            "tier1_duplicate_plane", call("code_block_plane_outcome", r"\1"), None, plane("self")),
+        ("src/tier1/ht_cleanup.rs", "reconstruct_ht_cleanup_plane"): (
+            "ht_cleanup_plane", call("ht_plane_outcome", r"\1"), None,
+            args(plane("plane"), cleanup, metadata, "maximum_u", "decoded_bitplanes", work)),
+        ("src/tier1/ht_cleanup.rs", "prepare_ht_cleanup_symbols"): (
+            "ht_cleanup_prepare", call("ht_cleanup_prepare_outcome", r"\1"), None,
+            args(plane("plane"), cleanup, "maximum_passes", "maximum_u", "skipped_bitplanes", work)),
+        ("src/tier1/ht_refinement.rs", "decode_ht_refinement_plane"): (
+            "ht_refinement_plane", call("ht_plane_outcome", r"\1"), None,
+            args(plane("cleanup_plane"), call("ht_refinement_segment_view", r"&\s*segment"),
+                 "refinement_passes", "decoded_bitplanes", "vertical_causal_context", work)),
+        ("src/tier1/ht_contributions.rs", "Tier1CodeBlockDecoder::decode_ht_coefficient_symbols"): (
+            "ht_coefficient_symbols", r"\1", final_decoder("self"),
+            args(old_decoder("self"), call("ht_block_segments_view", r"&\s*segments"), "pass_count", "maximum_u", "skipped_bitplanes", work)),
+        ("src/tier1/ht_contributions.rs", "Tier1CodeBlockDecoder::decode_high_throughput_segments"): (
+            "ht_decode_segments", r"\1", final_decoder("self"),
+            args(old_decoder("self"), "cleanup@", "cleanup_passes", call("ht_optional_bytes_view", "refinement"), "refinement_passes", pass_limit, byte_limit, work)),
+        ("src/tier1/ht_contributions.rs", "Tier1CodeBlockDecoder::decode_high_throughput_refinement"): (
+            "ht_decode_refinement_contribution", r"\1", final_decoder("self"),
+            args(old_decoder("self"), "input@", "passes", byte_limit, work)),
+        ("src/tier1/ht_contributions.rs", "Tier1CodeBlockDecoder::decode_ht_staged_group"): (
+            "ht_decode_staged_group", r"\1", final_decoder("self"),
+            args(old_decoder("self"), "input@", "passes", pass_limit, byte_limit, work)),
+        ("src/tier1/contributions.rs", "Tier1CodeBlockDecoder::decode_segment"): (
+            "part1_tier1_segment", r"\1", final_decoder("self"),
+            args(old_decoder("self"), "input@", "passes", pass_limit, byte_limit, input_limit, work)),
+        ("src/packet/body.rs", "decode_ht_segment_route"): (
+            "ht_packet_segment_route", r"\1", final_decoder("decoder"),
+            args(old_decoder("decoder"), "body@", "passes", pass_limit, byte_limit, work)),
+        ("src/packet/body.rs", "decode_ht_segment_body"): (
+            "ht_packet_segment_body", r"\1", args(final_decoder("decoder"), r"\*\s*" + call("final", "offset"), r"\*\s*" + call("final", "decoded_passes")),
+            args(old_decoder("decoder"), "segment", "body@", r"\*\s*" + call("old", "offset"),
+                 r"\*\s*" + call("old", "decoded_passes"), pass_limit, byte_limit, work)),
+        ("src/packet/body.rs", "run_ht_contribution_segments"): (
+            "ht_packet_body_run", r"\1", args(final_decoder("decoder"), call("ht_body_progress_view", call("final", "progress"))),
+            args(old_decoder("decoder"), header, "body@", call("ht_body_progress_view", call("old", "progress")), pass_limit, byte_limit, work)),
+        ("src/packet/body.rs", "decode_ht_contribution_segments"): (
+            "ht_packet_body_segments", r"\1", final_decoder("decoder"), args(packet_inputs, work)),
+        ("src/packet/body.rs", "decode_code_block_contribution_body_staged"): (
+            "part1_code_block_body_staged", r"\1", final_decoder("decoder"), args(packet_inputs, input_limit, work)),
+        ("src/packet/body.rs", "decode_code_block_contribution_body"): (
+            "part1_code_block_body_transaction", r"\1", final_decoder("decoder"), args(packet_inputs, input_limit, work)),
+    }
+
+
+_PLANE_ROLE_SPECIAL_CONTRACTS = _plane_role_special_contracts()
 _INITIAL_TIER1_PLANE_CONTRACTS = {
     ("src/tier1/state.rs", "code_block_plane_from_dimensions"): (
         "tier1_empty_plane", _coverage_call("code_block_plane_outcome", r"\1"), None, r"width\s*,\s*height",
@@ -5066,6 +5169,7 @@ _COLD_RESULT_CONTRACTS = {
         _PRECINCT_PLANNING_CONTRACTS, _SUBBAND_EXECUTION_CONTRACTS, _CODEBLOCK_VECTOR_CONTRACTS,
         _PACKET_HEADER_CONTRACTS, _PRECINCT_INITIALIZATION_CONTRACTS,
         _INITIAL_TIER1_PLANE_CONTRACTS, _DECODER_INITIALIZATION_CONTRACTS, _CODEBLOCK_PLANNING_CONTRACTS,
+        _PACKET_WRAPPER_CONTRACTS, _PLANE_ROLE_SPECIAL_CONTRACTS,
     )
     for key, legacy in contracts.items()
     if legacy[0] in _COLD_RESULT_MODELS
@@ -5158,6 +5262,7 @@ def _coverage_cold_links(keys: set[tuple[str, str]]) -> tuple[set[tuple[str, str
         model = _COLD_RESULT_CONTRACTS[key][0]
         path, normal = metadata.get(model, ("specs/jpip_transcode.rs", "part2_jpip_validate_precinct_cold_normal"))
         run = {
+            **{name: value[0] for name, value in _PLANE_ROLE_RESULT_RUNS.items()},
             "part1_tier1_plane_storage_result": "part2_tier1_plane_run",
             "part1_tier1_initial_storage_result": "part2_tier1_initial_run",
             "part1_tier1_configured_storage_result": "part2_tier1_configured_run",
@@ -5263,6 +5368,12 @@ def _coverage_cold_links(keys: set[tuple[str, str]]) -> tuple[set[tuple[str, str
         if model in ("part1_progression_tile_cold_result", "part2_packet_result"):
             models.update((path, name) for name in ("part2_packet_prefix", "part2_packet_result", "part2_packet_run"))
             proofs.add((path, "part2_packet_public_result_equivalent"))
+            models.update(("specs/cold_tile_plane_calls.rs", name) for name in (
+                "part2_tile_plane_calls_run", "part2_packet_plane_finish", "part2_packet_after_progress_run",
+            ))
+            proofs.update(("specs/cold_tile_plane_calls.rs", name) for name in (
+                "part2_tile_plane_calls_observed", "part2_packet_after_progress_observed", "part2_packet_stage_values", "part2_packet_run_observed",
+            ))
         if model == "part1_bitmap_result":
             proofs.add(("src/codestream/mct_copy.rs", "filled_values"))
         if model == "part1_p2_marker_storage_result":
@@ -5293,8 +5404,12 @@ def _coverage_cold_result_body(text: str, model: str) -> bool:
         **_COLD_INNER_RUNS,
     }.get(model, model.removesuffix("_result") + "_run")
     call = run + "(" + ",".join(names[:-1] + ["events"]) + ")"
-    if model == "part1_tier1_plane_storage_result":
-        expected = "part2_tier1_storage_framed(|calls|part2_tier1_plane_run(width,height,initial_tier1,calls),result)"
+    if model in _PLANE_ROLE_RESULT_RUNS:
+        run_name, wrapped = _PLANE_ROLE_RESULT_RUNS[model]
+        expected = "part2_tier1_storage_framed(|calls|" + run_name + "(" + ",".join(names[:-1] + ["calls"]) + ")," \
+            + ("Ok(result)" if wrapped else "result") + ")"
+    elif model == "part1_tier1_plane_storage_result":
+        expected = "part2_tier1_storage_framed(|calls|part2_tier1_plane_run(width,height,role,calls),result)"
     elif model == "part1_tier1_initial_storage_result":
         expected = "part2_tier1_storage_framed(|calls|part2_tier1_initial_run(width,height,significant,orientation,style,calls),result)"
     elif model == "part1_tier1_configured_storage_result":
@@ -5422,11 +5537,13 @@ _TIER1_INITIAL_MODELS = {("specs/cold_tier1_initial.rs", name) for name in (
     "part2_tier1_plane_admit", "part2_tier1_plane_run", "part1_tier1_plane_storage_result",
     "part2_tier1_initial_run", "part1_tier1_initial_storage_result", "part2_tier1_configured_run", "part1_tier1_configured_storage_result",
     "part2_tier1_call_admit", "part2_tier1_call_run",
+    "part2_tier1_storage_resume", "part2_tier1_phase",
 )}
 _TIER1_INITIAL_PROOFS = {("specs/cold_tier1_initial.rs", name) for name in (
     "part2_tier1_storage_at", "part2_tier1_storage_eta", "part2_tier1_storage_bind_frame", "part2_tier1_storage_pure",
     "part2_tier1_plane_normal", "part2_tier1_plane_observed", "part2_tier1_initial_normal", "part2_tier1_initial_plane_error",
     "part2_tier1_configured_normal", "part2_tier1_configured_initial_error", "part2_tier1_call_observed", "part2_tier1_call_normal",
+    "part2_tier1_plane_frames", "part2_tier1_resume_frame", "part2_tier1_prefix_advance", "part2_tier1_prefix_finish",
 )}
 _TIER1_PLAN_MODELS = _TIER1_INITIAL_MODELS | {("specs/cold_codeblock_plan.rs", name) for name in (
     "part2_tier1_cell_context", "part2_codeblock_cell_run", "part2_codeblock_cell_result", "part2_codeblock_columns_run", "part2_codeblock_rows_run",
@@ -5442,17 +5559,101 @@ _TIER1_INITIAL_TESTS = {
     ("src/decode/tests.rs", "tier1_initial_storage_cell_columns_rows_retain_prior_owners_and_restore"),
     ("src/decode/tests.rs", "tier1_initial_storage_public_raw_selected_container_roles_and_restore"),
 }
+_PLANE_ROLE_TESTS = {
+    ("src/tier1/tests.rs", "tier1_plane_storage_standalone_duplicate_frontiers_and_exact_restore"),
+    ("src/tier1/tests.rs", "tier1_plane_storage_cleanup_output_copy_refusals_restore_state_and_output"),
+    ("src/tier1/tests.rs", "tier1_plane_storage_refinement_roles_preserve_rollback_and_cleared_partial_state"),
+    ("src/decode/tests.rs", "tier1_plane_storage_real_ht_raw_selected_container_cleanup_restore"),
+}
+_PLANE_ROLE_GUARDS = {
+    ("specs/cold_tier1_initial.rs", "part2_tier1_plane_run"): (
+        "call.width!=width || call.height!=height || call.role!=role || call.samples!=count",
+        "calls.drop_first()",
+    ),
+    ("specs/cold_tier1_initial.rs", "part2_tier1_storage_prefix"): (
+        "run(prefix+tail)==Some((result,tail))",
+    ),
+    ("specs/cold_tier1_initial.rs", "part2_tier1_storage_resume"): (
+        "Some((result,rest))=>next(result,rest)",
+    ),
+    ("specs/cold_tier1_planes.rs", "part2_plane_duplicate_run"): (
+        "part2_tier1_plane_run(plane.width,plane.height,role,calls)", "tier1_duplicate_plane(plane)",
+    ),
+    ("specs/cold_tier1_planes.rs", "part2_plane_cleanup_run"): (
+        "if metadata.width==0", "part2_tier1_plane_run(", "CoefficientStorageRole::CleanupOutput",
+    ),
+    ("specs/cold_tier1_planes.rs", "part2_plane_prepare_run"): (
+        "part2_plane_prepare_admit(", "Err(error)=>Some((Err(error),calls))", "part2_plane_cleanup_run(", "part2_plane_prepare_tail(output,admitted.1,rest)",
+    ),
+    ("specs/cold_tier1_planes.rs", "part2_plane_prepare_tail"): (
+        "part2_plane_duplicate_run(output.0,crate::tier1::CoefficientStorageRole::CleanupCopy,calls)",
+        "Ok((output.0,duplicate,output.1,bits))",
+    ),
+    ("specs/cold_tier1_planes.rs", "part2_plane_refinement_run"): (
+        "if passes==0 || passes>2 || bits<2", "part2_plane_duplicate_run(cleanup,crate::tier1::CoefficientStorageRole::RefinementOutput,calls)",
+        "part2_plane_refinement_after_output(",
+    ),
+    ("specs/cold_tier1_planes.rs", "part2_plane_refinement_prepared"): (
+        "ht_refinement_readers_initial(", "ht_cleanup_significance(cleanup.coefficients)", "if passes==2", "ht_magref_stripes(",
+    ),
+    ("specs/cold_tier1_planes.rs", "part2_plane_significance_run"): (
+        "ht_significance_magnitude(bits)", "part2_plane_duplicate_run(state.output,crate::tier1::CoefficientStorageRole::RefinementDiscovery,calls)", "ht_sigprop_stripes(",
+    ),
+    ("specs/cold_ht_decoder.rs", "part2_ht_coeff_after_prepare"): (
+        "Err(error)=>Some((Ok((Err(error),before)),calls))", "let cleared=ht_clear_refinement_state(before)",
+        "part2_plane_refinement_run(output.1,refinement", "Err(error)=>(Err(error),cleared)",
+    ),
+    ("specs/cold_ht_decoder.rs", "part2_ht_staged_run"): (
+        "part2_ht_staged_admit(", "part2_ht_segments_run(staged", "Err(error)=>(Err(error),before)",
+    ),
+    ("specs/cold_packet_planes.rs", "part2_plane_body_transaction_run"): (
+        "part2_plane_body_staged_run(", "Err(error)=>(Err(error),before)",
+    ),
+    ("specs/cold_packet_execute.rs", "part2_plane_execute_finish"): (
+        "decoders:s.decoders.update(s.index as int,decoded.1)", "s.segments as nat+value.segments", "s.passes as nat+value.passes",
+    ),
+    ("specs/cold_packet_tile_planes.rs", "part2_plane_tile_packet_admit"): (
+        "if duplicate", "part1_tile_packet_length_owned(part,s.progress)", "Part2PlaneTileAdmission::Packet {state:after,part,index,seen,expected}",
+    ),
+    ("specs/cold_tile_plane_calls.rs", "part2_tile_plane_calls_run"): (
+        "TilePlaneCalls {params:actual,initial:before,calls}", "actual!=params || before!=initial",
+        "part2_plane_tile_run(params,initial,calls)", "rest.len()==0", "events.drop_first()",
+    ),
+    ("specs/cold_tile_plane_calls.rs", "part2_packet_after_progress_run"): (
+        "part2_tile_plane_calls_run(params,Part1TilePacketExecution {progress,precincts},events)", "part2_packet_plane_finish(params,result)",
+    ),
+}
+_PLANE_ROLE_NATIVE_ORDER = {
+    ("src/tier1/state.rs", "CodeBlockPlane::duplicate"): (
+        "code_block_plane_from_dimensions(self.width, self.height, role)", "let mut output = output_result?", "output.coefficients.len() != self.coefficients.len()", "while index < self.coefficients.len()",
+    ),
+    ("src/tier1/ht_cleanup.rs", "reconstruct_ht_cleanup_plane"): (
+        "if metadata.width == 0", "CoefficientStorageRole::CleanupOutput", "let output = output_result?", "ht_magsgn_from_input(", "previous_exponents:", "while quad_index",
+    ),
+    ("src/tier1/ht_cleanup.rs", "prepare_ht_cleanup_symbols"): (
+        "decode_ht_cleanup_segment_metadata(", "ht_significant_bitplanes(", ".checked_sub(skipped_bitplanes)",
+        "reconstruct_ht_cleanup_plane(", "let (output, statistics) = reconstructed?", "CoefficientStorageRole::CleanupCopy", "let duplicate = duplicated?",
+    ),
+    ("src/tier1/ht_refinement.rs", "decode_ht_refinement_plane"): (
+        "if refinement_passes == 0", "CoefficientStorageRole::RefinementOutput", "let output = copied?", "ht_refinement_readers_from_inputs(",
+        "state.magnitude_pass(", "ht_significance_magnitude(", "CoefficientStorageRole::RefinementDiscovery", "let significance_plane = discovered?",
+    ),
+    ("src/tier1/ht_contributions.rs", "Tier1CodeBlockDecoder::decode_ht_coefficient_symbols"): (
+        "prepare_ht_cleanup_symbols(", "let (plane, cleanup_plane, statistics, decoded_bitplanes) = prepared_result?",
+        "self.clear_ht_refinement_state()", "decode_ht_refinement_plane(", "store_ht_coefficient_symbols(",
+    ),
+}
 _TIER1_INITIAL_GUARDS = {
     ("specs/cold_tier1_initial.rs", "part2_tier1_storage_prefix"): (
         "forall|tail:Seq<Part2Tier1StorageEvent>| #[trigger] run(prefix+tail)==Some((result,tail))",
     ),
     ("specs/cold_tier1_initial.rs", "part2_tier1_plane_run"): (
-        "if !initial_tier1{Some((tier1_empty_plane(width,height),calls))}", "part2_tier1_plane_admit(width,height)",
-        "Err(error)=>Some((Err(error),calls))", "call.width!=width || call.height!=height || call.samples!=count",
+        "part2_tier1_plane_admit(width,height)",
+        "Err(error)=>Some((Err(error),calls))", "call.width!=width || call.height!=height || call.role!=role || call.samples!=count",
         "Err(crate::DecodeError::AllocationFailed)", "calls.drop_first()",
     ),
     ("specs/cold_tier1_initial.rs", "part2_tier1_initial_run"): (
-        "significant==0 || significant>crate::tier1::MAX_TIER1_BITPLANES", "part2_tier1_plane_run(width,height,true,calls)",
+        "significant==0 || significant>crate::tier1::MAX_TIER1_BITPLANES", "part2_tier1_plane_run(width,height,crate::tier1::CoefficientStorageRole::InitialDecoder,calls)",
     ),
     ("specs/cold_tier1_initial.rs", "part2_tier1_configured_run"): (
         "part2_tier1_initial_run(", "part2_tier1_configured_decoder(width,height,significant,orientation,style,allowed,bound)",
@@ -5487,20 +5688,20 @@ _TIER1_INITIAL_FIXED_BODIES = {
 _TIER1_INITIAL_NATIVE_ORDER = {
     ("src/tier1/state.rs", "code_block_plane_from_dimensions"): (
         "if width == 0 || height == 0", ".checked_mul(usize::from(height))", "if samples > 4096", "let empty = CoefficientState",
-        "if initial_tier1", "filled_values(empty, samples)", "part2_tier1_plane_observed(", "filled?", "vec![empty; samples]",
+        "filled_values(empty, samples)", "part2_tier1_plane_observed(", "let coefficients = filled?",
     ),
     ("src/tier1/contributions.rs", "tier1_decoder_from_dimensions"): (
         "if significant_bitplanes == 0", ".checked_sub(1)", ".checked_mul(3)", ".checked_sub(2)",
-        "plane: {", "code_block_plane_from_dimensions(width, height, true)", "part2_tier1_initial_plane_error(", "result?",
+        "plane: {", "code_block_plane_from_dimensions(", "super::CoefficientStorageRole::InitialDecoder", "part2_tier1_initial_plane_error(", "result?",
         "orientation, style, maximum_passes,", "ht_refinement_data: Vec::new()",
     ),
     ("src/tier1/contributions.rs", "tier1_configured_decoder"): (
         "tier1_decoder_from_dimensions(", "part2_tier1_configured_initial_error(", "let mut decoder = initial_result?",
         "decoder.set_multiple_ht_sets_allowed(", "decoder.set_ht_magnitude_bound(",
     ),
-    ("src/tier1/state.rs", "CodeBlockPlane::new"): ("code_block_plane_from_dimensions(width, height, false)",),
-    ("src/tier1/state.rs", "duplicate"): ("code_block_plane_from_dimensions(self.width, self.height, false)",),
-    ("src/tier1/ht_cleanup.rs", "reconstruct_ht_cleanup_plane"): ("code_block_plane_from_dimensions(plane.width(), plane.height(), false)",),
+    ("src/tier1/state.rs", "CodeBlockPlane::new"): ("code_block_plane_from_dimensions(", "super::CoefficientStorageRole::Standalone"),
+    ("src/tier1/state.rs", "duplicate"): ("code_block_plane_from_dimensions(self.width, self.height, role)",),
+    ("src/tier1/ht_cleanup.rs", "reconstruct_ht_cleanup_plane"): ("code_block_plane_from_dimensions(", "super::CoefficientStorageRole::CleanupOutput"),
 }
 _TAG_STORAGE_MODELS = {("specs/cold_tag_storage.rs", name) for name in (
     "part2_tag_storage_admit", "part2_tag_storage_run", "part2_tag_storage_prefix", "part1_tag_storage_result", "part2_precinct_tree_run",
@@ -5993,10 +6194,10 @@ _PACKED_STORAGE_GUARDS = {
     ),
     ("specs/cold_packed_headers.rs", "part2_packet_run"): (
         "part2_packet_input_run(parts, grid, precincts, selection, limits, events)",
-        "Some((Err(error), rest)) => Some(((Err(error), precincts), rest))",
+        "match part2_packet_input_run(parts, grid, precincts, selection, limits, events) { None => None, Some((Err(error), rest)) => Some(((Err(error), precincts), rest))",
         "Some((Ok(input), rest)) => match part2_progress_initial_run(part2_packet_parameters(parts,grid,input,selection,limits),rest)",
         "Some((Err(error),tail))=>Some(((Err(error),precincts),tail))",
-        "Some((Ok(_),tail))=>Some((part1_progression_tile_decode_owned(parts,grid,precincts,selection,limits),tail))",
+        "Some((Ok(progress),tail))=>match part2_packet_after_progress_run(parts,grid,precincts,selection,limits,input,progress,tail)",
     ),
     ("specs/cold_packed_headers.rs", "part2_packet_prefix"): (
         "forall|tail: Seq<Part2JpipSnapshotEvent>| #[trigger]",
@@ -12550,6 +12751,9 @@ def validate_normative_coverage(
                     if re.search(r"Ok\(\s*values\s*\)\s*=>\s*values@\s*\.len\(\)\s*==\s*0", contract) is None:
                         raise ValueError(f"linked function lacks executable Verus contract: {short}; invalid fresh empty inspection owner")
                 header_contract = arbitrary_contract = selection_contract = None
+                packet_contract = None
+                if cold_contract[0] in _PLANE_ROLE_RESULT_RUNS:
+                    reader_contract = None
                 if (reference["path"], reference["symbol"]) == _MAIN_HEADER_LAYOUT:
                     ordinary_header = (
                         _coverage_call("complete_layout_outcome", r"\1")
@@ -12699,7 +12903,8 @@ def validate_normative_coverage(
                 reference["path"] == "src/tier1.rs" or reference["path"].startswith("src/tier1/")
             ) else None
             cleanup_arguments_bound = (
-                cleanup_contract_arguments is None
+                (cold_contract is not None and cold_contract[0] in _PLANE_ROLE_RESULT_RUNS)
+                or cleanup_contract_arguments is None
                 or _coverage_result_arguments(
                     contract, named_result, cleanup_contract_arguments[0], cleanup_contract_arguments[1],
                 )
@@ -12844,7 +13049,8 @@ def validate_normative_coverage(
                 reference["path"] == "src/tier1.rs" or reference["path"].startswith("src/tier1/")
             ) else None
             refinement_arguments_bound = (
-                refinement_contract_arguments is None
+                (cold_contract is not None and cold_contract[0] in _PLANE_ROLE_RESULT_RUNS)
+                or refinement_contract_arguments is None
                 or _coverage_result_arguments(
                     contract, named_result, refinement_contract_arguments[0], refinement_contract_arguments[1],
                 )
@@ -13211,6 +13417,27 @@ def validate_normative_coverage(
                     "part2_codeblock_cell_result", "part2_codeblock_owner_result"} for ref in entry["contract_refs"]):
                 if not _TIER1_INITIAL_TESTS.issubset({(ref["path"], ref["symbol"]) for ref in entry["test_refs"]}):
                     raise ValueError("initial Tier1 storage requires bounded refusal/restore/zero/ordinary-policy/row-owner/real-public controls")
+    if ids & {"part15-complete-actual-cleanup-plane", "part15-cleanup-only-actual-symbol-caller",
+              "part15-complete-actual-refinement-plane", "part15-complete-substantive-segment-byte-entry",
+              "part15-complete-retained-refinement-and-placeholder-steps", "part1-complete-native-grid-progression-composition"}:
+        for (relative, symbol), fragments in _PLANE_ROLE_GUARDS.items():
+            body = _coverage_spec_function_body(source_text((ROOT / relative).resolve()), symbol)
+            compact = "".join(body.split()) if body is not None else ""
+            if any("".join(fragment.split()) not in compact for fragment in fragments):
+                raise ValueError("remaining plane storage requires distinct real roles, actual child/partial-owner production and exact first-error/rollback/tail composition")
+        for (relative, symbol), fragments in _PLANE_ROLE_NATIVE_ORDER.items():
+            path = (ROOT / relative).resolve()
+            body = _coverage_function_body(source_text(path), function_header(path, symbol))
+            compact = "".join(body.split()) if body is not None else ""
+            positions = [compact.find("".join(fragment.split())) for fragment in fragments]
+            if any(position < 0 for position in positions) or positions != sorted(positions):
+                raise ValueError("remaining plane storage requires unchanged real constructor/copy/entropy/field/owner order")
+        for entry in coverage["requirements"]:
+            if entry["id"] in {"part15-complete-actual-cleanup-plane", "part15-cleanup-only-actual-symbol-caller",
+                              "part15-complete-actual-refinement-plane", "part15-complete-substantive-segment-byte-entry",
+                              "part15-complete-retained-refinement-and-placeholder-steps", "part1-complete-native-grid-progression-composition"}:
+                if not _PLANE_ROLE_TESTS.issubset({(ref["path"], ref["symbol"]) for ref in entry["test_refs"]}):
+                    raise ValueError("remaining plane storage requires bounded standalone/copy/cleanup/refinement/public refusal/restore/state controls")
     return {
         "status": "passed",
         "inventory_items": len(ids),
