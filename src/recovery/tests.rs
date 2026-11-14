@@ -305,7 +305,7 @@ fn one_atomic_reservation_refusal_and_unwind_leave_exact_same_process_success() 
             Err(DecodeError::AllocationFailed)
         );
     });
-    allocation::with_refusal(18, || {
+    allocation::with_refusal(20, || {
         assert_eq!(decode(&bytes).unwrap(), expected);
         assert_eq!(
             allocation::empty_with_capacity::<u8>(1),
@@ -392,7 +392,7 @@ fn reconstructed_recovery_refusal_limits_and_genuine_errors_preserve_recovery() 
             expected
         );
     });
-    allocation::with_refusal(18, || {
+    allocation::with_refusal(20, || {
         assert_eq!(
             decode_codestream_reconstructed_recover_missing_eoc(&bytes, &options).unwrap(),
             expected

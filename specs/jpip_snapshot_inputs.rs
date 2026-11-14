@@ -5,6 +5,7 @@ use super::*;
 verus! {
 
 pub enum Part2JpipSnapshotEvent {
+    ComponentCapacity {context:Part2ComponentCapacityContext,elements:usize,succeeded:bool},
     TileMetadataCapacity {context:Part2TileMetadataCapacityContext,elements:usize,succeeded:bool},
     GeometryCapacity {context:Part2GeometryCapacityContext,elements:usize,succeeded:bool},
     GridCapacity { context: Part2GridCapacityContext, elements: usize, succeeded: bool },

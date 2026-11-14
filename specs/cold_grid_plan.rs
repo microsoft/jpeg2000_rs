@@ -1,13 +1,14 @@
 //! Source-derived planning with grid construction preceding packet preparation.
 use super::*;
 verus! {
+#[verifier::opaque]
 pub(crate) open spec fn part2_grid_plan_run(size:&crate::codestream::ImageSize,style:crate::codestream::CodingStyle,
     styles:&crate::codestream::ComponentCodingStyles,quantizations:(u16,Seq<crate::codestream::Quantization>),roi:&crate::codestream::RoiShifts,
     selection:(u16,u8),policy:(bool,u8,bool),limits:&crate::ResourceLimits,events:Seq<Part2JpipSnapshotEvent>)->Part2ColdRun<Part2ProgressionTilePlan> {
     match part2_selection_tile_bounds(crate::codestream::selection_geometry_view(size),selection.0) {
         Err(error)=>Some((Err(error),events)),
         Ok(_)=>part2_jpip_snapshot_bind(part2_derived_grid_run(size,styles,style.layers,limits,Some(selection.0),selection.1,events),
-            |_:Part1PacketGrid,rest|Some((part2_progression_tile_plan_owned(size,style,styles,quantizations,roi,selection,policy,limits),rest))),
+            |grid:Part1PacketGrid,rest|part2_plan_after_grid_run(size,style,styles,quantizations,roi,selection,policy,limits,grid,rest)),
     }
 }
 #[verifier::opaque]
@@ -45,16 +46,19 @@ pub(crate) proof fn part2_grid_plan_normal(size:&crate::codestream::ImageSize,st
     ensures part2_grid_plan_result(size,style,styles,quantizations,roi,selection,policy,limits,
         part2_progression_tile_plan_owned(size,style,styles,quantizations,roi,selection,policy,limits)),
 {
-    reveal(part2_grid_plan_result);reveal(part2_derived_grid_result);
+    reveal(part2_grid_plan_result);reveal(part2_derived_grid_result);reveal(part2_grid_plan_run);
     let result=part2_progression_tile_plan_owned(size,style,styles,quantizations,roi,selection,policy,limits);
     match part2_selection_tile_bounds(crate::codestream::selection_geometry_view(size),selection.0) {
         Err(_)=>{part2_cold_pure::<Part2ProgressionTilePlan>(result);},
         Ok(_)=>{
             part2_derived_grid_normal(size,styles,style.layers,limits,Some(selection.0),selection.1);
             let grid=part2_packet_grid_from_components(size,styles,style.layers,limits,Some(selection.0),selection.1);
-            if grid.is_ok(){part2_cold_pure(result);}
+            if let Ok(value)=grid {
+                part2_plan_after_grid_normal(size,style,styles,quantizations,roi,selection,policy,limits,value);
+                part2_decode_eta(|events|part2_plan_after_grid_run(size,style,styles,quantizations,roi,selection,policy,limits,value,events),result);
+            }
             part2_cold_bind(|events|part2_derived_grid_run(size,styles,style.layers,limits,Some(selection.0),selection.1,events),
-                |_:Part1PacketGrid,rest|Some((result,rest)),grid,result);
+                |grid:Part1PacketGrid,rest|part2_plan_after_grid_run(size,style,styles,quantizations,roi,selection,policy,limits,grid,rest),grid,result);
         },
     }
 }
@@ -65,9 +69,9 @@ pub(crate) proof fn part2_grid_plan_error(size:&crate::codestream::ImageSize,sty
         part2_derived_grid_result(size,styles,style.layers,limits,Some(selection.0),selection.1,Err(error)),
     ensures part2_grid_plan_result(size,style,styles,quantizations,roi,selection,policy,limits,Err(error)),
 {
-    reveal(part2_grid_plan_result);reveal(part2_derived_grid_result);
+    reveal(part2_grid_plan_result);reveal(part2_derived_grid_result);reveal(part2_grid_plan_run);
     part2_cold_bind(|events|part2_derived_grid_run(size,styles,style.layers,limits,Some(selection.0),selection.1,events),
-        |_:Part1PacketGrid,rest|Some((part2_progression_tile_plan_owned(size,style,styles,quantizations,roi,selection,policy,limits),rest)),Err(error),Err(error));
+        |grid:Part1PacketGrid,rest|part2_plan_after_grid_run(size,style,styles,quantizations,roi,selection,policy,limits,grid,rest),Err(error),Err(error));
 }
 pub(crate) open spec fn part2_tile_after_grid_plan(size:&crate::codestream::ImageSize,parts:Seq<Part2OwnedTilePart>,metadata:Part2TileDecodeMetadata,
     discard:Option<u8>,limits:&crate::ResourceLimits,prepared:Seq<Part1AssemblyTile>,initial:(u64,u64,u64),work:u64,

@@ -4800,6 +4800,9 @@ _RAW_RENDER_PROOFS |= {("specs/jpx_raw_frame.rs", "part2_render_raw_cold_metadat
 _RAW_COMPOSITION_RENDER_PROOFS |= {("specs/jpx_raw_frame.rs", "part2_render_raw_cold_metadata_error")}
 
 _COLD_RESULT_MODELS = {
+    "part2_component_subbands": ("part1_subbands_cold_result", "specs/cold_component_storage.rs", "part2_subbands_normal"),
+    "part2_component_plan_metadata": ("part2_component_metadata_result", "specs/cold_component_storage.rs", "part2_component_metadata_normal"),
+    "part2_planned_component": ("part2_planned_component_result", "specs/cold_component_storage.rs", "part2_planned_component_normal"),
     "part2_tile_component_resolutions": ("part2_tile_resolutions_result", "specs/cold_tile_metadata.rs", "part2_tile_resolutions_normal"),
     "part2_tile_decode_metadata": ("part2_tile_metadata_result", "specs/cold_tile_metadata.rs", "part2_tile_metadata_normal"),
     "part2_component_resolution_counts": ("part2_geometry_descriptors_result", "specs/cold_geometry_storage.rs", "part2_geometry_descriptors_normal"),
@@ -4956,7 +4959,7 @@ def _coverage_cold_relation(
     cold_model = _COLD_RESULT_MODELS[model][0]
     if model == "part2_tile_decode_metadata":
         inputs = inputs.replace("parts@", _coverage_call("codestream::tile_parts_owned_view", "parts@"))
-    if model == "part2_progression_tile_plan":
+    if model in ("part2_progression_tile_plan", "part2_component_plan_metadata", "part2_planned_component"):
         inputs = inputs.replace("quantizations", _coverage_call("codestream::quantization_owner_view", "quantizations"))
     if model == "part1_progression_payloads":
         inputs = _coverage_call("crate::codestream::tile_parts_owned_view", "tile_parts@") + r"\s*,\s*tile_index\s*,\s*" \
@@ -5043,7 +5046,7 @@ _COLD_RESULT_CONTRACTS = {
         _PACKET_PROGRESSION_CONTRACTS, _LAYOUT_DECODING_CONTRACTS,
         _RAW_TILE_DECODING_CONTRACTS, _PACKET_RECONSTRUCTION_CONTRACTS, _TYPED_LAYOUT_CONTRACTS,
         _PACKET_GRID_PRODUCER_CONTRACTS, _COMPONENT_TILE_PLANNING_CONTRACTS,
-        _TILE_METADATA_CONTRACTS,
+        _TILE_METADATA_CONTRACTS, _SUBBAND_VECTOR_CONTRACTS, _COMPONENT_PLAN_METADATA_CONTRACTS,
     )
     for key, legacy in contracts.items()
     if legacy[0] in _COLD_RESULT_MODELS
@@ -5136,6 +5139,7 @@ def _coverage_cold_links(keys: set[tuple[str, str]]) -> tuple[set[tuple[str, str
         model = _COLD_RESULT_CONTRACTS[key][0]
         path, normal = metadata.get(model, ("specs/jpip_transcode.rs", "part2_jpip_validate_precinct_cold_normal"))
         run = {
+            "part1_subbands_cold_result": "part2_subbands_run",
             "part1_component_quantizations_storage_result": "part1_component_quantizations_storage",
             "part1_finish_main_quantizations_storage_result": "part1_finish_main_quantizations_storage",
             "part1_cold_layout_result": "part1_layout_with_cold_storage",
@@ -5145,6 +5149,10 @@ def _coverage_cold_links(keys: set[tuple[str, str]]) -> tuple[set[tuple[str, str
         }.get(model, model.removesuffix("_result") + "_run")
         models.update(((path, model), (path, run)))
         proofs.add((path, normal))
+        if model in ("part1_subbands_cold_result", "part2_component_metadata_result", "part2_planned_component_result",
+                     "part2_grid_plan_result", "part1_progression_plan_cold_result"):
+            models |= _COMPONENT_STORAGE_MODELS
+            proofs |= _COMPONENT_STORAGE_PROOFS
         if model in ("part2_tile_resolutions_result", "part2_tile_metadata_result"):
             models.update((path, name) for name in (
                 "part2_tile_metadata_capacity_count", "part2_tile_metadata_capacity_run", "part2_tile_metadata_capacity_result",
@@ -5241,7 +5249,9 @@ def _coverage_cold_result_body(text: str, model: str) -> bool:
         **_COLD_INNER_RUNS,
     }.get(model, model.removesuffix("_result") + "_run")
     call = run + "(" + ",".join(names[:-1] + ["events"]) + ")"
-    if model == "part1_uniform_geometry_cold_result":
+    if model == "part1_subbands_cold_result":
+        expected = "part2_cold_framed(|events|part2_subbands_run(size,style,quantization,component,tile,roi,events),result)"
+    elif model == "part1_uniform_geometry_cold_result":
         expected = "part2_cold_framed(|events|part2_uniform_geometry_run(size,style,limits,tile,events),result)"
     elif model == "part1_progression_plan_cold_result":
         expected = "part2_grid_plan_result(size,style,styles,crate::codestream::quantization_owner_view(quantizations),roi,selection,policy,limits,result)"
@@ -5355,6 +5365,91 @@ _COLD_SOURCE_BODIES = {
     """, "whole effective layer Result requires actual ordered decoder/registration/opacity models"),
 }
 
+_COMPONENT_STORAGE_MODELS = {
+    ("specs/cold_component_storage.rs", name) for name in (
+        "part2_component_capacity_count", "part2_component_capacity_run", "part2_component_capacity_result",
+        "part2_subbands_admit", "part2_subbands_run", "part1_subbands_cold_result", "part2_component_subbands_prelude",
+        "part2_component_metadata_run", "part2_component_metadata_result", "part2_planned_component_run", "part2_planned_component_result",
+    )
+} | {("specs/cold_component_plan.rs", name) for name in (
+    "part2_component_owner_context", "part2_component_plan_fold", "part2_plan_after_grid_run",
+)}
+_COMPONENT_STORAGE_PROOFS = {
+    ("specs/cold_component_storage.rs", name) for name in (
+        "part2_component_capacity_observed", "part2_subbands_frames", "part2_subbands_normal", "part2_subbands_refused",
+        "part2_component_metadata_normal", "part2_component_metadata_subbands_error", "part2_planned_component_frames",
+        "part2_planned_component_normal", "part2_planned_component_metadata_error",
+    )
+} | {("specs/cold_component_plan.rs", name) for name in (
+    "part2_component_plan_fold_normal", "part2_plan_after_grid_normal", "part2_plan_component_owner_refused",
+    "part2_plan_component_prefix", "part2_component_fold_step",
+)}
+_COMPONENT_STORAGE_TESTS = {
+    ("src/decode/tests.rs", name) for name in (
+        "component_subband_storage_subband_admission_empty_late_error_and_restore",
+        "component_subband_storage_first_later_component_refusal_preserves_source_and_restores",
+        "component_subband_storage_component_admission_and_work_precede_requests",
+        "component_subband_storage_raw_selected_container_roles_restore",
+    )
+}
+_COMPONENT_STORAGE_GUARDS = {
+    ("specs/cold_component_storage.rs", "part2_component_capacity_count"): (
+        "Components {size,..}=>size.components as usize", "part2_subband_count(selector.0,selector.1) as usize",
+    ),
+    ("specs/cold_component_storage.rs", "part2_component_capacity_run"): (
+        "if count==0 {Some((Ok(()),events))}", "Part2JpipSnapshotEvent::ComponentCapacity",
+        "actual!=context || elements!=count", "Err(crate::DecodeError::AllocationFailed)", "events.drop_first()", "_=>None",
+    ),
+    ("specs/cold_component_storage.rs", "part2_subbands_run"): (
+        "match part2_subbands_admit(size,component,tile)", "Err(error)=>Some((Err(error),events))",
+        "Part2ComponentCapacityContext::Subbands", "size:*size,style,quantization:crate::codestream::quantization_view(quantization),component,tile,roi",
+        "part2_component_subbands(size,style,quantization,component,tile,roi)",
+    ),
+    ("specs/cold_component_storage.rs", "part2_component_subbands_prelude"): (
+        "component_coding_style_result(styles,component)", "selection.1>style.decomposition_levels",
+        "part2_component_quantization_owned(quantizations,component)", "coding_style_tier1_result(style)",
+        "part2_tile_component_bounds(", "part2_resolution_geometry(", "part2_resolution_downsampling(",
+        "part1_image_size_component(", "part2_selection_ceil(", "part1_image_checked_u32(",
+        "part2_roi_shift(crate::codestream::roi_shifts_view(roi),component)",
+    ),
+    ("specs/cold_component_storage.rs", "part2_component_metadata_run"): (
+        "part2_component_subbands_prelude(", "Err(error)=>Some((Err(error),events))", "part2_subbands_run(",
+        "part2_component_plan_metadata_owned(",
+    ),
+    ("specs/cold_component_storage.rs", "part2_planned_component_run"): (
+        "part2_component_metadata_run(", "part2_planned_component_owned(",
+    ),
+    ("specs/cold_component_plan.rs", "part2_plan_after_grid_run"): (
+        "part2_component_capacity_run(part2_component_owner_context(size,style,styles,quantizations,roi,selection,policy),events)",
+        "|_:(),rest|part2_component_plan_fold(", "Part2TilePlanBuffers {precincts:Seq::empty(),components:Seq::empty(),planned_code_blocks:0},rest)",
+    ),
+    ("specs/cold_component_plan.rs", "part2_component_plan_fold"): (
+        "part2_planned_component_run(", "before.precincts,before.planned_code_blocks,limits,events)",
+        "precincts:planned.precincts,components:before.components.push(planned.component),planned_code_blocks:planned.planned_code_blocks},rest)",
+    ),
+}
+_COMPONENT_STORAGE_NATIVE_ORDER = {
+    ("src/decode/geometry.rs", "derive_component_subbands_for"): (
+        "size.component(component)?", "component_coordinate_bounds(size, component, tile_index)?",
+        "coding_style.subband_count()", "if expected_count == 0", "empty_with_capacity(usize::from(expected_count))",
+        "part2_component_capacity_observed(", "Part2ComponentCapacityContext::Subbands", "part2_subbands_refused(",
+        "let mut subbands = reserved?", "while resolution <=",
+    ),
+    ("src/decode/planning.rs", "prepare_component_plan_metadata"): (
+        "coding_styles.style(component)?", "checked_sub(discard_levels)", "quantizations.quantization(component)?",
+        "component_coding_style.tier1_coding_style()?", "tile_component_bounds(", "derive_component_resolution_geometry_for(", "resolution_downsampling(",
+        "size.component(component)?", "roi_shifts.shift(component)?", "derive_component_subbands_for(",
+        "part2_component_metadata_subbands_error(", "let subbands = subbands_result?",
+    ),
+    ("src/decode/planning.rs", "plan_progression_tile_at_selected"): (
+        "derive_packet_grid_for_components(", "let mut precincts = Vec::new()", "if size.components == 0",
+        "empty_with_capacity(usize::from(size.components))",
+        "part2_component_capacity_observed(", "part2_component_owner_context(", "part2_plan_component_owner_refused(",
+        "let mut components = reserved?", "part2_plan_component_prefix(", "while component < size.components",
+        "plan_tile_component(", "part2_component_fold_step(", "part2_decode_prefix_error(", "part2_decode_prefix_advance(",
+        "let planned = planned_result?", "components.push(planned.component)",
+    ),
+}
 _TILE_METADATA_STORAGE_TESTS = {
     ("src/decode/tests.rs", "tile_metadata_storage_selected_first_later_empty_none_and_restore"),
     ("src/decode/tests.rs", "tile_metadata_storage_preserves_admission_owner_and_style_error_order"),
@@ -5506,7 +5601,7 @@ _GRID_STORAGE_GUARDS = {
     ),
     ("specs/cold_grid_plan.rs", "part2_grid_plan_run"): (
         "part2_selection_tile_bounds(", "part2_derived_grid_run(size,styles,style.layers,limits,Some(selection.0),selection.1,events)",
-        "part2_progression_tile_plan_owned(size,style,styles,quantizations,roi,selection,policy,limits)",
+        "part2_plan_after_grid_run(size,style,styles,quantizations,roi,selection,policy,limits,grid,rest)",
     ),
     ("specs/jpip_snapshot_inputs.rs", "part2_jpip_snapshot_tile"): (
         "part2_jpip_grid_plan(input,tile,layout,events)", "|_:Part2ProgressionTilePlan,rest|part2_jpip_snapshot_tile_normal_run(input,count,components,tile,layout,raw,headers,rest)",
@@ -12744,6 +12839,26 @@ def validate_normative_coverage(
                 ("src/decode/execution.rs", "prepare_tile_decode_metadata")} for ref in metadata_entry["contract_refs"]):
             if not _TILE_METADATA_STORAGE_TESTS.issubset({(ref["path"], ref["symbol"]) for ref in metadata_entry["test_refs"]}):
                 raise ValueError("tile metadata fresh storage requires bounded refusal/restore/empty/owner/work/public controls")
+    if ids & {"part2-complete-native-component-tile-planning", "part2-complete-native-component-plan-metadata",
+              "part2-complete-native-subband-vector"}:
+        for (relative, symbol), fragments in _COMPONENT_STORAGE_GUARDS.items():
+            body = _coverage_spec_function_body(source_text((ROOT / relative).resolve()), symbol)
+            compact = "".join(body.split()) if body is not None else ""
+            if any("".join(fragment.split()) not in compact for fragment in fragments):
+                raise ValueError("component/subband fresh storage requires distinct actual source/count, scalar admission and ordered owner/counter/error/tail production")
+        for (relative, symbol), fragments in _COMPONENT_STORAGE_NATIVE_ORDER.items():
+            path = (ROOT / relative).resolve()
+            body = _coverage_function_body(source_text(path), function_header(path, symbol))
+            compact = "".join(body.split()) if body is not None else ""
+            positions = [compact.find("".join(fragment.split())) for fragment in fragments]
+            if any(position < 0 for position in positions) or positions != sorted(positions):
+                raise ValueError("component/subband fresh storage requires unchanged real constructor/admission/owner/counter/first-error order")
+        for entry in coverage["requirements"]:
+            if any(_COLD_RESULT_CONTRACTS.get((ref["path"], ref["symbol"]), ("",))[0] in {
+                    "part1_subbands_cold_result", "part2_component_metadata_result", "part2_planned_component_result",
+                    "part2_grid_plan_result", "part1_progression_plan_cold_result"} for ref in entry["contract_refs"]):
+                if not _COMPONENT_STORAGE_TESTS.issubset({(ref["path"], ref["symbol"]) for ref in entry["test_refs"]}):
+                    raise ValueError("component/subband fresh storage requires bounded refusal/restore/empty/admission/work/owner/public controls")
     return {
         "status": "passed",
         "inventory_items": len(ids),
