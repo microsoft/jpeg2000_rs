@@ -210,7 +210,10 @@ impl JpxInspection {
 }
 
 #[cfg_attr(verus_keep_ghost, verus_spec(result =>
-    ensures super::raw_jpx_inspection_outcome(result) == crate::specs::part2_inspect_raw_jpx_layers(input@, limits),
+    ensures crate::specs::part2_inspect_raw_jpx_cold_result(
+        input@, limits, super::raw_jpx_inspection_outcome(result)),
+        super::raw_jpx_inspection_outcome(result) != Err(DecodeError::AllocationFailed) ==>
+            super::raw_jpx_inspection_outcome(result) == crate::specs::part2_inspect_raw_jpx_layers(input@, limits),
 ))]
 pub fn inspect_jpx_layers(
     input: &[u8],
@@ -221,7 +224,12 @@ pub fn inspect_jpx_layers(
         crate::specs::part2_inspect_raw_jpx_layers_unfold(input@, limits);
         raw_jpx_inspection_outcome_known();
     }
-    let inspected = jp2::parse_and_inspect(input, limits)?;
+    let parsed = jp2::parse_and_inspect(input, limits);
+    #[cfg(verus_keep_ghost)]
+    proof! {
+        crate::specs::part2_inspect_raw_jpx_cold_actual(input@, limits, jp2::raw_inspected_container_outcome(parsed));
+    }
+    let inspected = parsed?;
     #[cfg(verus_keep_ghost)]
     proof! {
         raw_jpx_file_known(jp2::raw_inspected_file_reference(&inspected));

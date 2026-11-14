@@ -286,15 +286,23 @@ impl DatabinCache {
             &mut needs,
         )?;
         #[cfg(verus_keep_ghost)]
-        proof! { reveal(crate::specs::part2_jpip_semantic_expand_result); }
+        proof! {
+            reveal(crate::specs::part2_jpip_semantic_expand_result);
+            reveal(crate::specs::part2_jpip_semantic_expand_trace);
+        }
         #[cfg(verus_keep_ghost)]
         proof_decl! {
             let ghost before = crate::specs::Part2JpipSemanticState {
                 active: Seq::empty(), output: Seq::empty(), missing: Seq::empty(), needs: Seq::empty() };
             let ghost after = semantic_state_view(active@, output@, missing@, needs@);
             let ghost events = choose|events: Seq<crate::specs::Part2JpipSemanticEvent>|
-                #[trigger] crate::specs::part2_jpip_semantic_expand(cache, metadata_codestream, 0, true, 0, u32::MAX,
-                    before, events) == Some((Ok(complete), after, Seq::empty()));
+                #[trigger] crate::specs::part2_jpip_semantic_expand_prefix(cache, metadata_codestream,
+                    0, true, 0, u32::MAX, before, Ok(complete), after, events);
+        }
+        #[cfg(verus_keep_ghost)]
+        proof! {
+            reveal(crate::specs::part2_jpip_semantic_expand_prefix);
+            assert(events + Seq::empty() =~= events);
         }
         if !complete {
             #[cfg(verus_keep_ghost)]
@@ -327,21 +335,14 @@ impl DatabinCache {
                 output.len() as u64,
             ));
         }
+        let inspected = crate::jp2::parse_and_inspect(&output, &self.limits);
         #[cfg(verus_keep_ghost)]
         proof! {
-            assert forall|error: DecodeError|
-                crate::specs::part2_parse_and_inspect_container(output@, &self.limits) == Err(error)
-                implies crate::specs::part2_jpip_semantic_assembly_result(cache, metadata_codestream, Err(error)) by {
-                crate::specs::part2_jpip_semantic_assembly_witness(cache, metadata_codestream, events, Err(error));
-            }
+            crate::specs::part2_jpip_semantic_inspection_actual(
+                cache, metadata_codestream, events, after,
+                crate::jp2::raw_inspected_container_outcome(inspected));
         }
-        crate::jp2::parse_and_inspect(&output, &self.limits)?;
-        #[cfg(verus_keep_ghost)]
-        proof! {
-            crate::specs::part2_jpip_semantic_assembly_witness(cache, metadata_codestream, events,
-                Ok((JpipAvailability::Available, super::jpip_missing_views(&missing),
-                    super::jpip_semantic_needs_view(&needs), Some(output@))));
-        }
+        inspected?;
         Ok(JpipContainerAssembly {
             status: JpipAvailability::Available,
             missing,

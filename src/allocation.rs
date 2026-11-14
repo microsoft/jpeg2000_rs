@@ -27,6 +27,26 @@ pub(crate) fn empty_with_capacity<T>(capacity: usize) -> Result<Vec<T>, DecodeEr
 }
 
 #[cfg_attr(verus_keep_ghost, verus_spec(result =>
+    ensures crate::specs::storage_none_result(count, result),
+))]
+pub(crate) fn none_values<T>(count: usize) -> Result<Vec<Option<T>>, DecodeError> {
+    let mut values = empty_with_capacity(count)?;
+    #[cfg_attr(verus_keep_ghost, verus_spec(
+        invariant values.len() <= count,
+            values@ == Seq::<Option<T>>::new(values.len() as nat, |_: int| None),
+        decreases count - values.len(),
+    ))]
+    while values.len() < count {
+        values.push(None);
+        #[cfg(verus_keep_ghost)]
+        proof! {
+            assert(values@ =~= Seq::<Option<T>>::new(values.len() as nat, |_: int| None));
+        }
+    }
+    Ok(values)
+}
+
+#[cfg_attr(verus_keep_ghost, verus_spec(result =>
     ensures crate::specs::storage_extension_result(
         old(values)@, bytes@, final(values)@, result),
 ))]
@@ -82,6 +102,26 @@ pub(crate) fn with_refusal<T>(after: usize, operation: impl FnOnce() -> T) -> T 
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn none_storage_refuses_once_without_requiring_clone_and_restores() {
+        struct NotClone;
+
+        with_refusal(0, || {
+            assert!(none_values::<NotClone>(0).unwrap().is_empty());
+            assert!(matches!(
+                none_values::<NotClone>(2),
+                Err(DecodeError::AllocationFailed)
+            ));
+        });
+        let restored = none_values::<NotClone>(2).unwrap();
+        assert_eq!(restored.len(), 2);
+        assert!(restored.iter().all(Option::is_none));
+        assert!(matches!(
+            none_values::<NotClone>(usize::MAX),
+            Err(DecodeError::AllocationFailed)
+        ));
+    }
 
     #[test]
     fn capacity_refusal_and_layout_overflow_return_typed_errors_and_recover() {

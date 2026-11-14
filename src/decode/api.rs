@@ -29,8 +29,13 @@ use vstd::prelude::*;
 /// color conversion, selection or recovery. It never retries a failed decode.
 /// Existing limits apply; complete fallible allocation remains tracked in #287.
 #[cfg_attr(verus_keep_ghost, verus_spec(result =>
-    ensures crate::image::decoded_image_outcome(result) == crate::specs::part2_decode_raw_reconstructed_codestream(
-        input@, crate::options::decode_options_limits(options)),
+    ensures crate::specs::part2_decode_reconstructed_cold_result(
+        input@, crate::options::decode_options_limits(options), crate::image::decoded_image_outcome(result)),
+        result.is_ok() ==> crate::image::decoded_image_outcome(result)
+            == crate::specs::part2_decode_raw_reconstructed_codestream(input@, crate::options::decode_options_limits(options)),
+        crate::image::decoded_image_outcome(result) != Err(DecodeError::AllocationFailed) ==>
+            crate::image::decoded_image_outcome(result) == crate::specs::part2_decode_raw_reconstructed_codestream(
+                input@, crate::options::decode_options_limits(options)),
 ))]
 pub fn decode_codestream_reconstructed(
     input: &[u8],
@@ -41,8 +46,20 @@ pub fn decode_codestream_reconstructed(
         codestream::decoder_layout_errors_known();
         crate::specs::part2_decode_raw_reconstructed_codestream_unfold(
             input@, crate::options::decode_options_limits(options));
+        crate::specs::part2_decode_reconstructed_cold_normal(
+            input@, crate::options::decode_options_limits(options));
     }
-    let layout = codestream::parse_layout(input, options.limits())?;
+    let layout = match codestream::parse_layout(input, options.limits()) {
+        Ok(layout) => layout,
+        Err(error) => {
+            #[cfg(verus_keep_ghost)]
+            proof! {
+                crate::specs::part2_decode_reconstructed_cold_parse_error(
+                    input@, crate::options::decode_options_limits(options), error);
+            }
+            return Err(error);
+        }
+    };
     #[cfg(verus_keep_ghost)]
     proof! {
         codestream::decoder_layout_input_matches_raw(&layout);
@@ -162,8 +179,13 @@ fn validate_reconstructed_output_shape(
 }
 
 #[cfg_attr(verus_keep_ghost, verus_spec(result =>
-    ensures crate::image::decoded_typed_image_outcome(result) == crate::specs::part2_decode_raw_codestream(
-        input@, crate::options::decode_options_limits(options), None),
+    ensures crate::specs::part2_decode_raw_cold_result(input@,
+        crate::options::decode_options_limits(options), None, crate::image::decoded_typed_image_outcome(result)),
+        result.is_ok() ==> crate::image::decoded_typed_image_outcome(result)
+            == crate::specs::part2_decode_raw_codestream(input@, crate::options::decode_options_limits(options), None),
+        crate::image::decoded_typed_image_outcome(result) != Err(DecodeError::AllocationFailed) ==>
+            crate::image::decoded_typed_image_outcome(result) == crate::specs::part2_decode_raw_codestream(
+                input@, crate::options::decode_options_limits(options), None),
 ))]
 pub fn decode_codestream(input: &[u8], options: &DecodeOptions) -> Result<TypedImage, DecodeError> {
     #[cfg(verus_keep_ghost)]
@@ -171,16 +193,33 @@ pub fn decode_codestream(input: &[u8], options: &DecodeOptions) -> Result<TypedI
         codestream::decoder_layout_errors_known();
         crate::specs::part2_decode_raw_codestream_unfold(input@, crate::options::decode_options_limits(options), None);
         reveal(crate::specs::part2_decode_typed_layout);
+        crate::specs::part2_decode_raw_cold_normal(
+            input@, crate::options::decode_options_limits(options), None);
     }
-    let layout = codestream::parse_layout(input, options.limits())?;
+    let layout = match codestream::parse_layout(input, options.limits()) {
+        Ok(layout) => layout,
+        Err(error) => {
+            #[cfg(verus_keep_ghost)]
+            proof! {
+                crate::specs::part2_decode_raw_cold_parse_error(
+                    input@, crate::options::decode_options_limits(options), None, error);
+            }
+            return Err(error);
+        }
+    };
     #[cfg(verus_keep_ghost)]
     proof! { codestream::decoder_layout_input_matches_raw(&layout); }
     decode_typed_layout(input.len(), &layout, options.limits(), None)
 }
 
 #[cfg_attr(verus_keep_ghost, verus_spec(result =>
-    ensures crate::image::decoded_typed_image_outcome(result) == crate::specs::part2_decode_raw_codestream(
-        input@, crate::options::decode_options_limits(options), Some(selection)),
+    ensures crate::specs::part2_decode_raw_cold_result(input@,
+        crate::options::decode_options_limits(options), Some(selection), crate::image::decoded_typed_image_outcome(result)),
+        result.is_ok() ==> crate::image::decoded_typed_image_outcome(result)
+            == crate::specs::part2_decode_raw_codestream(input@, crate::options::decode_options_limits(options), Some(selection)),
+        crate::image::decoded_typed_image_outcome(result) != Err(DecodeError::AllocationFailed) ==>
+            crate::image::decoded_typed_image_outcome(result) == crate::specs::part2_decode_raw_codestream(
+                input@, crate::options::decode_options_limits(options), Some(selection)),
 ))]
 pub fn decode_codestream_selected(
     input: &[u8],
@@ -193,8 +232,20 @@ pub fn decode_codestream_selected(
         crate::specs::part2_decode_raw_codestream_unfold(
             input@, crate::options::decode_options_limits(options), Some(selection));
         reveal(crate::specs::part2_decode_typed_layout);
+        crate::specs::part2_decode_raw_cold_normal(
+            input@, crate::options::decode_options_limits(options), Some(selection));
     }
-    let layout = codestream::parse_layout(input, options.limits())?;
+    let layout = match codestream::parse_layout(input, options.limits()) {
+        Ok(layout) => layout,
+        Err(error) => {
+            #[cfg(verus_keep_ghost)]
+            proof! {
+                crate::specs::part2_decode_raw_cold_parse_error(
+                    input@, crate::options::decode_options_limits(options), Some(selection), error);
+            }
+            return Err(error);
+        }
+    };
     #[cfg(verus_keep_ghost)]
     proof! { codestream::decoder_layout_input_matches_raw(&layout); }
     decode_typed_layout(input.len(), &layout, options.limits(), Some(selection))
@@ -530,25 +581,49 @@ fn validate_jp2_display_profile(file: &jp2::Jp2File<'_>) -> Result<(), DecodeErr
 }
 
 #[cfg_attr(verus_keep_ghost, verus_spec(result =>
-    ensures crate::image::decoded_typed_image_outcome(result) == crate::specs::part2_decode_raw_single_container(
-        input@, crate::options::decode_options_limits(options), None, false),
+    ensures crate::specs::part2_decode_single_cold_result(input@,
+        crate::options::decode_options_limits(options), None, false, crate::image::decoded_typed_image_outcome(result)),
+        crate::image::decoded_typed_image_outcome(result) != Err(DecodeError::AllocationFailed) ==>
+            crate::image::decoded_typed_image_outcome(result) == crate::specs::part2_decode_raw_single_container(
+                input@, crate::options::decode_options_limits(options), None, false),
 ))]
 pub fn decode_jp2(input: &[u8], options: &DecodeOptions) -> Result<TypedImage, DecodeError> {
     #[cfg(verus_keep_ghost)]
     proof! {
         crate::specs::part2_decode_raw_single_container_unfold(input@, crate::options::decode_options_limits(options), None, false);
+        crate::specs::part2_decode_single_cold_normal(input@, crate::options::decode_options_limits(options), None, false);
     }
-    let inspected = jp2::parse_and_inspect_for_display(input, options.limits())?;
+    let inspected = match jp2::parse_and_inspect_for_display(input, options.limits()) {
+        Ok(inspected) => inspected,
+        Err(error) => {
+            #[cfg(verus_keep_ghost)]
+            proof! {
+                crate::specs::part2_decode_single_inspection_error(
+                    input@, crate::options::decode_options_limits(options), None, false, error);
+            }
+            return Err(error);
+        }
+    };
     #[cfg(verus_keep_ghost)]
     proof! { jp2::raw_render_file_known(jp2::raw_inspected_file_reference(&inspected)); }
     validate_jp2_display_profile(inspected.file())?;
-    let decoded = decode_codestream(inspected.file().codestream(0)?.data(), options)?;
+    let decoded_result = decode_codestream(inspected.file().codestream(0)?.data(), options);
+    #[cfg(verus_keep_ghost)]
+    proof! {
+        crate::specs::part2_decode_single_image_actual(input@, crate::options::decode_options_limits(options),
+            None, false, jp2::raw_inspected_container_view(&inspected),
+            crate::image::decoded_typed_image_outcome(decoded_result));
+    }
+    let decoded = decoded_result?;
     apply_jp2_output(decoded, inspected.file().header(), options.limits())
 }
 
 #[cfg_attr(verus_keep_ghost, verus_spec(result =>
-    ensures crate::image::decoded_typed_image_outcome(result) == crate::specs::part2_decode_raw_single_container(
-        input@, crate::options::decode_options_limits(options), Some(selection), false),
+    ensures crate::specs::part2_decode_single_cold_result(input@,
+        crate::options::decode_options_limits(options), Some(selection), false, crate::image::decoded_typed_image_outcome(result)),
+        crate::image::decoded_typed_image_outcome(result) != Err(DecodeError::AllocationFailed) ==>
+            crate::image::decoded_typed_image_outcome(result) == crate::specs::part2_decode_raw_single_container(
+                input@, crate::options::decode_options_limits(options), Some(selection), false),
 ))]
 pub fn decode_jp2_selected(
     input: &[u8],
@@ -558,19 +633,40 @@ pub fn decode_jp2_selected(
     #[cfg(verus_keep_ghost)]
     proof! {
         crate::specs::part2_decode_raw_single_container_unfold(input@, crate::options::decode_options_limits(options), Some(selection), false);
+        crate::specs::part2_decode_single_cold_normal(input@, crate::options::decode_options_limits(options), Some(selection), false);
     }
-    let inspected = jp2::parse_and_inspect_for_display(input, options.limits())?;
+    let inspected = match jp2::parse_and_inspect_for_display(input, options.limits()) {
+        Ok(inspected) => inspected,
+        Err(error) => {
+            #[cfg(verus_keep_ghost)]
+            proof! {
+                crate::specs::part2_decode_single_inspection_error(
+                    input@, crate::options::decode_options_limits(options), Some(selection), false, error);
+            }
+            return Err(error);
+        }
+    };
     #[cfg(verus_keep_ghost)]
     proof! { jp2::raw_render_file_known(jp2::raw_inspected_file_reference(&inspected)); }
     validate_jp2_display_profile(inspected.file())?;
-    let decoded =
-        decode_codestream_selected(inspected.file().codestream(0)?.data(), options, selection)?;
+    let decoded_result =
+        decode_codestream_selected(inspected.file().codestream(0)?.data(), options, selection);
+    #[cfg(verus_keep_ghost)]
+    proof! {
+        crate::specs::part2_decode_single_image_actual(input@, crate::options::decode_options_limits(options),
+            Some(selection), false, jp2::raw_inspected_container_view(&inspected),
+            crate::image::decoded_typed_image_outcome(decoded_result));
+    }
+    let decoded = decoded_result?;
     apply_jp2_output(decoded, inspected.file().header(), options.limits())
 }
 
 #[cfg_attr(verus_keep_ghost, verus_spec(result =>
-    ensures crate::color::converted_image_result(result) == crate::specs::part2_decode_raw_color_container(
-        input@, crate::options::decode_options_limits(options), None, false),
+    ensures crate::specs::part2_decode_color_cold_result(input@,
+        crate::options::decode_options_limits(options), None, false, crate::color::converted_image_result(result)),
+        crate::color::converted_image_result(result) != Err(DecodeError::AllocationFailed) ==>
+            crate::color::converted_image_result(result) == crate::specs::part2_decode_raw_color_container(
+                input@, crate::options::decode_options_limits(options), None, false),
 ))]
 pub fn decode_jp2_color(
     input: &[u8],
@@ -579,19 +675,48 @@ pub fn decode_jp2_color(
     #[cfg(verus_keep_ghost)]
     proof! {
         crate::specs::part2_decode_raw_color_container_unfold(input@, crate::options::decode_options_limits(options), None, false);
+        crate::specs::part2_decode_color_cold_normal(input@, crate::options::decode_options_limits(options), None, false);
     }
-    let inspected = jp2::parse_and_inspect_for_display(input, options.limits())?;
+    let inspected = match jp2::parse_and_inspect_for_display(input, options.limits()) {
+        Ok(value) => value,
+        Err(error) => {
+            #[cfg(verus_keep_ghost)]
+            proof! {
+                crate::specs::part2_decode_color_inspection_error(
+                    input@, crate::options::decode_options_limits(options), None, false, error);
+            }
+            return Err(error);
+        }
+    };
     #[cfg(verus_keep_ghost)]
     proof! { jp2::raw_render_file_known(jp2::raw_inspected_file_reference(&inspected)); }
     validate_jp2_display_profile(inspected.file())?;
-    let decoded = decode_codestream(inspected.file().codestream(0)?.data(), options)?;
+    let codestream = inspected.file().codestream(0)?.data();
+    let decoded = match decode_codestream(codestream, options) {
+        Ok(value) => value,
+        Err(error) => {
+            #[cfg(verus_keep_ghost)]
+            proof! {
+                crate::specs::part2_decode_raw_cold_to_value(codestream@,
+                    crate::options::decode_options_limits(options), None, Err(error));
+                crate::specs::part2_decode_color_source_error(input@,
+                    crate::options::decode_options_limits(options), None, false,
+                    jp2::raw_inspected_container_view(&inspected), None, error);
+            }
+            return Err(error);
+        }
+    };
     let mapped = apply_jp2_output(decoded, inspected.file().header(), options.limits())?;
     crate::color::convert_jp2_color(&mapped, &inspected.file().header().color, options.limits())
 }
 
 #[cfg_attr(verus_keep_ghost, verus_spec(result =>
-    ensures crate::color::converted_image_result(result) == crate::specs::part2_decode_raw_color_container(
-        input@, crate::options::decode_options_limits(options), Some(crate::options::decode_selection_view(selection)), false),
+    ensures crate::specs::part2_decode_color_cold_result(input@,
+        crate::options::decode_options_limits(options), Some(crate::options::decode_selection_view(selection)),
+        false, crate::color::converted_image_result(result)),
+        crate::color::converted_image_result(result) != Err(DecodeError::AllocationFailed) ==>
+            crate::color::converted_image_result(result) == crate::specs::part2_decode_raw_color_container(
+                input@, crate::options::decode_options_limits(options), Some(crate::options::decode_selection_view(selection)), false),
 ))]
 pub fn decode_jp2_color_selected(
     input: &[u8],
@@ -602,19 +727,55 @@ pub fn decode_jp2_color_selected(
     proof! {
         crate::specs::part2_decode_raw_color_container_unfold(input@, crate::options::decode_options_limits(options),
             Some(crate::options::decode_selection_view(selection)), false);
+        crate::specs::part2_decode_color_cold_normal(input@, crate::options::decode_options_limits(options),
+            Some(crate::options::decode_selection_view(selection)), false);
     }
-    let inspected = jp2::parse_and_inspect_for_display(input, options.limits())?;
+    let inspected = match jp2::parse_and_inspect_for_display(input, options.limits()) {
+        Ok(value) => value,
+        Err(error) => {
+            #[cfg(verus_keep_ghost)]
+            proof! {
+                crate::specs::part2_decode_color_inspection_error(input@, crate::options::decode_options_limits(options),
+                    Some(crate::options::decode_selection_view(selection)), false, error);
+            }
+            return Err(error);
+        }
+    };
     #[cfg(verus_keep_ghost)]
     proof! { jp2::raw_render_file_known(jp2::raw_inspected_file_reference(&inspected)); }
     validate_jp2_display_profile(inspected.file())?;
     let codestream = inspected.file().codestream(0)?.data();
-    let (expanded, target) = color_selection(codestream, selection, options.limits())?;
+    let (expanded, target) = match color_selection(codestream, selection, options.limits()) {
+        Ok(value) => value,
+        Err(error) => {
+            #[cfg(verus_keep_ghost)]
+            proof! {
+                crate::specs::part2_decode_color_source_error(input@, crate::options::decode_options_limits(options),
+                    Some(crate::options::decode_selection_view(selection)), false,
+                    jp2::raw_inspected_container_view(&inspected), None, error);
+            }
+            return Err(error);
+        }
+    };
     #[cfg(verus_keep_ghost)]
     proof! {
         crate::specs::part2_decode_raw_codestream_selection_value(codestream@, crate::options::decode_options_limits(options), &expanded);
         assert(target == [target[0], target[1], target[2], target[3]]);
     }
-    let decoded = decode_codestream_selected(codestream, options, &expanded)?;
+    let decoded = match decode_codestream_selected(codestream, options, &expanded) {
+        Ok(value) => value,
+        Err(error) => {
+            #[cfg(verus_keep_ghost)]
+            proof! {
+                crate::specs::part2_decode_raw_cold_to_value(codestream@,
+                    crate::options::decode_options_limits(options), Some(&expanded), Err(error));
+                crate::specs::part2_decode_color_source_error(input@, crate::options::decode_options_limits(options),
+                    Some(crate::options::decode_selection_view(selection)), false, jp2::raw_inspected_container_view(&inspected),
+                    Some((crate::options::decode_selection_view(&expanded), target@)), error);
+            }
+            return Err(error);
+        }
+    };
     finish_associated_selected_output(
         decoded,
         Some(inspected.file().header()),
@@ -624,27 +785,51 @@ pub fn decode_jp2_color_selected(
 }
 
 #[cfg_attr(verus_keep_ghost, verus_spec(result =>
-    ensures crate::image::decoded_typed_image_outcome(result) == crate::specs::part2_decode_raw_single_container(
-        input@, crate::options::decode_options_limits(options), None, true),
+    ensures crate::specs::part2_decode_single_cold_result(input@,
+        crate::options::decode_options_limits(options), None, true, crate::image::decoded_typed_image_outcome(result)),
+        crate::image::decoded_typed_image_outcome(result) != Err(DecodeError::AllocationFailed) ==>
+            crate::image::decoded_typed_image_outcome(result) == crate::specs::part2_decode_raw_single_container(
+                input@, crate::options::decode_options_limits(options), None, true),
 ))]
 pub fn decode_jph(input: &[u8], options: &DecodeOptions) -> Result<TypedImage, DecodeError> {
     #[cfg(verus_keep_ghost)]
     proof! {
         crate::specs::part2_decode_raw_single_container_unfold(input@, crate::options::decode_options_limits(options), None, true);
+        crate::specs::part2_decode_single_cold_normal(input@, crate::options::decode_options_limits(options), None, true);
     }
-    let inspected = jp2::inspect_jph(input, options.limits())?;
+    let inspected = match jp2::inspect_jph(input, options.limits()) {
+        Ok(inspected) => inspected,
+        Err(error) => {
+            #[cfg(verus_keep_ghost)]
+            proof! {
+                crate::specs::part2_decode_single_inspection_error(
+                    input@, crate::options::decode_options_limits(options), None, true, error);
+            }
+            return Err(error);
+        }
+    };
     #[cfg(verus_keep_ghost)]
     proof! { jp2::raw_render_file_known(jp2::raw_inspected_file_reference(&inspected)); }
     if inspected.file().codestream_count() != 1 {
         return Err(DecodeError::malformed(0, MalformedKind::InvalidProfile));
     }
-    let decoded = decode_codestream(inspected.file().codestream(0)?.data(), options)?;
+    let decoded_result = decode_codestream(inspected.file().codestream(0)?.data(), options);
+    #[cfg(verus_keep_ghost)]
+    proof! {
+        crate::specs::part2_decode_single_image_actual(input@, crate::options::decode_options_limits(options),
+            None, true, jp2::raw_inspected_container_view(&inspected),
+            crate::image::decoded_typed_image_outcome(decoded_result));
+    }
+    let decoded = decoded_result?;
     apply_jp2_output(decoded, inspected.file().header(), options.limits())
 }
 
 #[cfg_attr(verus_keep_ghost, verus_spec(result =>
-    ensures crate::image::decoded_typed_image_outcome(result) == crate::specs::part2_decode_raw_single_container(
-        input@, crate::options::decode_options_limits(options), Some(selection), true),
+    ensures crate::specs::part2_decode_single_cold_result(input@,
+        crate::options::decode_options_limits(options), Some(selection), true, crate::image::decoded_typed_image_outcome(result)),
+        crate::image::decoded_typed_image_outcome(result) != Err(DecodeError::AllocationFailed) ==>
+            crate::image::decoded_typed_image_outcome(result) == crate::specs::part2_decode_raw_single_container(
+                input@, crate::options::decode_options_limits(options), Some(selection), true),
 ))]
 pub fn decode_jph_selected(
     input: &[u8],
@@ -654,21 +839,42 @@ pub fn decode_jph_selected(
     #[cfg(verus_keep_ghost)]
     proof! {
         crate::specs::part2_decode_raw_single_container_unfold(input@, crate::options::decode_options_limits(options), Some(selection), true);
+        crate::specs::part2_decode_single_cold_normal(input@, crate::options::decode_options_limits(options), Some(selection), true);
     }
-    let inspected = jp2::inspect_jph(input, options.limits())?;
+    let inspected = match jp2::inspect_jph(input, options.limits()) {
+        Ok(inspected) => inspected,
+        Err(error) => {
+            #[cfg(verus_keep_ghost)]
+            proof! {
+                crate::specs::part2_decode_single_inspection_error(
+                    input@, crate::options::decode_options_limits(options), Some(selection), true, error);
+            }
+            return Err(error);
+        }
+    };
     #[cfg(verus_keep_ghost)]
     proof! { jp2::raw_render_file_known(jp2::raw_inspected_file_reference(&inspected)); }
     if inspected.file().codestream_count() != 1 {
         return Err(DecodeError::malformed(0, MalformedKind::InvalidProfile));
     }
-    let decoded =
-        decode_codestream_selected(inspected.file().codestream(0)?.data(), options, selection)?;
+    let decoded_result =
+        decode_codestream_selected(inspected.file().codestream(0)?.data(), options, selection);
+    #[cfg(verus_keep_ghost)]
+    proof! {
+        crate::specs::part2_decode_single_image_actual(input@, crate::options::decode_options_limits(options),
+            Some(selection), true, jp2::raw_inspected_container_view(&inspected),
+            crate::image::decoded_typed_image_outcome(decoded_result));
+    }
+    let decoded = decoded_result?;
     apply_jp2_output(decoded, inspected.file().header(), options.limits())
 }
 
 #[cfg_attr(verus_keep_ghost, verus_spec(result =>
-    ensures crate::color::converted_image_result(result) == crate::specs::part2_decode_raw_color_container(
-        input@, crate::options::decode_options_limits(options), None, true),
+    ensures crate::specs::part2_decode_color_cold_result(input@,
+        crate::options::decode_options_limits(options), None, true, crate::color::converted_image_result(result)),
+        crate::color::converted_image_result(result) != Err(DecodeError::AllocationFailed) ==>
+            crate::color::converted_image_result(result) == crate::specs::part2_decode_raw_color_container(
+                input@, crate::options::decode_options_limits(options), None, true),
 ))]
 pub fn decode_jph_color(
     input: &[u8],
@@ -677,21 +883,50 @@ pub fn decode_jph_color(
     #[cfg(verus_keep_ghost)]
     proof! {
         crate::specs::part2_decode_raw_color_container_unfold(input@, crate::options::decode_options_limits(options), None, true);
+        crate::specs::part2_decode_color_cold_normal(input@, crate::options::decode_options_limits(options), None, true);
     }
-    let inspected = jp2::inspect_jph(input, options.limits())?;
+    let inspected = match jp2::inspect_jph(input, options.limits()) {
+        Ok(value) => value,
+        Err(error) => {
+            #[cfg(verus_keep_ghost)]
+            proof! {
+                crate::specs::part2_decode_color_inspection_error(
+                    input@, crate::options::decode_options_limits(options), None, true, error);
+            }
+            return Err(error);
+        }
+    };
     #[cfg(verus_keep_ghost)]
     proof! { jp2::raw_render_file_known(jp2::raw_inspected_file_reference(&inspected)); }
     if inspected.file().codestream_count() != 1 {
         return Err(DecodeError::malformed(0, MalformedKind::InvalidProfile));
     }
-    let decoded = decode_codestream(inspected.file().codestream(0)?.data(), options)?;
+    let codestream = inspected.file().codestream(0)?.data();
+    let decoded = match decode_codestream(codestream, options) {
+        Ok(value) => value,
+        Err(error) => {
+            #[cfg(verus_keep_ghost)]
+            proof! {
+                crate::specs::part2_decode_raw_cold_to_value(codestream@,
+                    crate::options::decode_options_limits(options), None, Err(error));
+                crate::specs::part2_decode_color_source_error(input@,
+                    crate::options::decode_options_limits(options), None, true,
+                    jp2::raw_inspected_container_view(&inspected), None, error);
+            }
+            return Err(error);
+        }
+    };
     let mapped = apply_jp2_output(decoded, inspected.file().header(), options.limits())?;
     crate::color::convert_jp2_color(&mapped, &inspected.file().header().color, options.limits())
 }
 
 #[cfg_attr(verus_keep_ghost, verus_spec(result =>
-    ensures crate::color::converted_image_result(result) == crate::specs::part2_decode_raw_color_container(
-        input@, crate::options::decode_options_limits(options), Some(crate::options::decode_selection_view(selection)), true),
+    ensures crate::specs::part2_decode_color_cold_result(input@,
+        crate::options::decode_options_limits(options), Some(crate::options::decode_selection_view(selection)),
+        true, crate::color::converted_image_result(result)),
+        crate::color::converted_image_result(result) != Err(DecodeError::AllocationFailed) ==>
+            crate::color::converted_image_result(result) == crate::specs::part2_decode_raw_color_container(
+                input@, crate::options::decode_options_limits(options), Some(crate::options::decode_selection_view(selection)), true),
 ))]
 pub fn decode_jph_color_selected(
     input: &[u8],
@@ -702,21 +937,57 @@ pub fn decode_jph_color_selected(
     proof! {
         crate::specs::part2_decode_raw_color_container_unfold(input@, crate::options::decode_options_limits(options),
             Some(crate::options::decode_selection_view(selection)), true);
+        crate::specs::part2_decode_color_cold_normal(input@, crate::options::decode_options_limits(options),
+            Some(crate::options::decode_selection_view(selection)), true);
     }
-    let inspected = jp2::inspect_jph(input, options.limits())?;
+    let inspected = match jp2::inspect_jph(input, options.limits()) {
+        Ok(value) => value,
+        Err(error) => {
+            #[cfg(verus_keep_ghost)]
+            proof! {
+                crate::specs::part2_decode_color_inspection_error(input@, crate::options::decode_options_limits(options),
+                    Some(crate::options::decode_selection_view(selection)), true, error);
+            }
+            return Err(error);
+        }
+    };
     #[cfg(verus_keep_ghost)]
     proof! { jp2::raw_render_file_known(jp2::raw_inspected_file_reference(&inspected)); }
     if inspected.file().codestream_count() != 1 {
         return Err(DecodeError::malformed(0, MalformedKind::InvalidProfile));
     }
     let codestream = inspected.file().codestream(0)?.data();
-    let (expanded, target) = color_selection(codestream, selection, options.limits())?;
+    let (expanded, target) = match color_selection(codestream, selection, options.limits()) {
+        Ok(value) => value,
+        Err(error) => {
+            #[cfg(verus_keep_ghost)]
+            proof! {
+                crate::specs::part2_decode_color_source_error(input@, crate::options::decode_options_limits(options),
+                    Some(crate::options::decode_selection_view(selection)), true,
+                    jp2::raw_inspected_container_view(&inspected), None, error);
+            }
+            return Err(error);
+        }
+    };
     #[cfg(verus_keep_ghost)]
     proof! {
         crate::specs::part2_decode_raw_codestream_selection_value(codestream@, crate::options::decode_options_limits(options), &expanded);
         assert(target == [target[0], target[1], target[2], target[3]]);
     }
-    let decoded = decode_codestream_selected(codestream, options, &expanded)?;
+    let decoded = match decode_codestream_selected(codestream, options, &expanded) {
+        Ok(value) => value,
+        Err(error) => {
+            #[cfg(verus_keep_ghost)]
+            proof! {
+                crate::specs::part2_decode_raw_cold_to_value(codestream@,
+                    crate::options::decode_options_limits(options), Some(&expanded), Err(error));
+                crate::specs::part2_decode_color_source_error(input@, crate::options::decode_options_limits(options),
+                    Some(crate::options::decode_selection_view(selection)), true, jp2::raw_inspected_container_view(&inspected),
+                    Some((crate::options::decode_selection_view(&expanded), target@)), error);
+            }
+            return Err(error);
+        }
+    };
     finish_associated_selected_output(
         decoded,
         Some(inspected.file().header()),
@@ -726,8 +997,11 @@ pub fn decode_jph_color_selected(
 }
 
 #[cfg_attr(verus_keep_ghost, verus_spec(result =>
-    ensures crate::image::decoded_typed_image_outcome(result) == crate::specs::part2_decode_raw_jpx_typed(
-        input@, codestream_index, crate::options::decode_options_limits(options), None),
+    ensures crate::specs::part2_decode_jpx_typed_cold_result(input@, codestream_index,
+        crate::options::decode_options_limits(options), None, crate::image::decoded_typed_image_outcome(result)),
+        crate::image::decoded_typed_image_outcome(result) != Err(DecodeError::AllocationFailed) ==>
+            crate::image::decoded_typed_image_outcome(result) == crate::specs::part2_decode_raw_jpx_typed(
+                input@, codestream_index, crate::options::decode_options_limits(options), None),
 ))]
 pub fn decode_jpx_codestream(
     input: &[u8],
@@ -738,18 +1012,31 @@ pub fn decode_jpx_codestream(
     proof! {
         crate::specs::part2_decode_raw_jpx_typed_unfold(input@, codestream_index,
             crate::options::decode_options_limits(options), None);
+        crate::specs::part2_decode_jpx_typed_cold_normal(input@, codestream_index,
+            crate::options::decode_options_limits(options), None);
         super::associated_typed_outcome_known();
     }
     let file = jp2::parse(input, options.limits())?;
     #[cfg(verus_keep_ghost)]
     proof! { jp2::raw_render_file_known(&file); }
-    let (decoded, _) = decode_jpx_file(&file, codestream_index, options)?;
+    let decoded_result = decode_jpx_file(&file, codestream_index, options);
+    #[cfg(verus_keep_ghost)]
+    proof! {
+        crate::specs::part2_decode_jpx_typed_cold_actual(input@, codestream_index,
+            crate::options::decode_options_limits(options), None, jp2::raw_jp2_file_view(&file),
+            super::associated_typed_outcome(decoded_result));
+    }
+    let (decoded, _) = decoded_result?;
     Ok(decoded)
 }
 
 #[cfg_attr(verus_keep_ghost, verus_spec(result =>
-    ensures crate::image::decoded_typed_image_outcome(result) == crate::specs::part2_decode_raw_jpx_typed(
-        input@, codestream_index, crate::options::decode_options_limits(options), Some(crate::options::decode_selection_view(selection))),
+    ensures crate::specs::part2_decode_jpx_typed_cold_result(input@, codestream_index,
+        crate::options::decode_options_limits(options), Some(crate::options::decode_selection_view(selection)),
+        crate::image::decoded_typed_image_outcome(result)),
+        crate::image::decoded_typed_image_outcome(result) != Err(DecodeError::AllocationFailed) ==>
+            crate::image::decoded_typed_image_outcome(result) == crate::specs::part2_decode_raw_jpx_typed(
+                input@, codestream_index, crate::options::decode_options_limits(options), Some(crate::options::decode_selection_view(selection))),
 ))]
 pub fn decode_jpx_codestream_selected(
     input: &[u8],
@@ -761,18 +1048,30 @@ pub fn decode_jpx_codestream_selected(
     proof! {
         crate::specs::part2_decode_raw_jpx_typed_unfold(input@, codestream_index,
             crate::options::decode_options_limits(options), Some(crate::options::decode_selection_view(selection)));
+        crate::specs::part2_decode_jpx_typed_cold_normal(input@, codestream_index,
+            crate::options::decode_options_limits(options), Some(crate::options::decode_selection_view(selection)));
         super::associated_typed_outcome_known();
     }
     let file = jp2::parse(input, options.limits())?;
     #[cfg(verus_keep_ghost)]
     proof! { jp2::raw_render_file_known(&file); }
-    let (decoded, _) = decode_jpx_file_selected(&file, codestream_index, options, selection)?;
+    let decoded_result = decode_jpx_file_selected(&file, codestream_index, options, selection);
+    #[cfg(verus_keep_ghost)]
+    proof! {
+        crate::specs::part2_decode_jpx_typed_cold_actual(input@, codestream_index,
+            crate::options::decode_options_limits(options), Some(crate::options::decode_selection_view(selection)),
+            jp2::raw_jp2_file_view(&file), super::associated_typed_outcome(decoded_result));
+    }
+    let (decoded, _) = decoded_result?;
     Ok(decoded)
 }
 
 #[cfg_attr(verus_keep_ghost, verus_spec(result =>
-    ensures crate::color::converted_image_result(result) == crate::specs::part2_decode_raw_jpx_color(
-        input@, codestream_index, crate::options::decode_options_limits(options), None),
+    ensures crate::specs::part2_decode_jpx_color_cold_result(input@, codestream_index,
+        crate::options::decode_options_limits(options), None, crate::color::converted_image_result(result)),
+        crate::color::converted_image_result(result) != Err(DecodeError::AllocationFailed) ==>
+            crate::color::converted_image_result(result) == crate::specs::part2_decode_raw_jpx_color(
+                input@, codestream_index, crate::options::decode_options_limits(options), None),
 ))]
 pub fn decode_jpx_codestream_color(
     input: &[u8],
@@ -783,18 +1082,34 @@ pub fn decode_jpx_codestream_color(
     proof! {
         crate::specs::part2_decode_raw_jpx_color_unfold(input@, codestream_index,
             crate::options::decode_options_limits(options), None);
+        crate::specs::part2_decode_jpx_color_cold_normal(input@, codestream_index,
+            crate::options::decode_options_limits(options), None);
         super::associated_typed_outcome_known();
     }
     let file = jp2::parse(input, options.limits())?;
     #[cfg(verus_keep_ghost)]
     proof! { jp2::raw_render_file_known(&file); }
-    let (decoded, header) = decode_jpx_file(&file, codestream_index, options)?;
+    let (decoded, header) = match decode_jpx_file(&file, codestream_index, options) {
+        Ok(value) => value,
+        Err(error) => {
+            #[cfg(verus_keep_ghost)]
+            proof! {
+                crate::specs::part2_decode_jpx_color_source_error(input@, codestream_index,
+                    crate::options::decode_options_limits(options), None, jp2::raw_jp2_file_view(&file), None, error);
+            }
+            return Err(error);
+        }
+    };
     convert_associated_color(&decoded, header, options.limits())
 }
 
 #[cfg_attr(verus_keep_ghost, verus_spec(result =>
-    ensures crate::color::converted_image_result(result) == crate::specs::part2_decode_raw_jpx_color(
-        input@, codestream_index, crate::options::decode_options_limits(options), Some(crate::options::decode_selection_view(selection))),
+    ensures crate::specs::part2_decode_jpx_color_cold_result(input@, codestream_index,
+        crate::options::decode_options_limits(options), Some(crate::options::decode_selection_view(selection)),
+        crate::color::converted_image_result(result)),
+        crate::color::converted_image_result(result) != Err(DecodeError::AllocationFailed) ==>
+            crate::color::converted_image_result(result) == crate::specs::part2_decode_raw_jpx_color(
+                input@, codestream_index, crate::options::decode_options_limits(options), Some(crate::options::decode_selection_view(selection))),
 ))]
 pub fn decode_jpx_codestream_color_selected(
     input: &[u8],
@@ -806,6 +1121,8 @@ pub fn decode_jpx_codestream_color_selected(
     proof! {
         crate::specs::part2_decode_raw_jpx_color_unfold(input@, codestream_index,
             crate::options::decode_options_limits(options), Some(crate::options::decode_selection_view(selection)));
+        crate::specs::part2_decode_jpx_color_cold_normal(input@, codestream_index,
+            crate::options::decode_options_limits(options), Some(crate::options::decode_selection_view(selection)));
         super::associated_typed_outcome_known();
     }
     let file = jp2::parse(input, options.limits())?;
@@ -814,13 +1131,40 @@ pub fn decode_jpx_codestream_color_selected(
     if !file.file_type().is_jpx_compatible() {
         return Err(DecodeError::malformed(0, MalformedKind::InvalidProfile));
     }
-    let (expanded, target) = color_selection(
+    let (expanded, target) = match color_selection(
         file.codestream(codestream_index)?.data(),
         selection,
         options.limits(),
-    )?;
+    ) {
+        Ok(value) => value,
+        Err(error) => {
+            #[cfg(verus_keep_ghost)]
+            proof! {
+                crate::specs::part2_decode_jpx_color_source_error(input@, codestream_index,
+                    crate::options::decode_options_limits(options), Some(crate::options::decode_selection_view(selection)),
+                    jp2::raw_jp2_file_view(&file), None, error);
+            }
+            return Err(error);
+        }
+    };
     #[cfg(verus_keep_ghost)]
     proof! { assert(target == [target[0], target[1], target[2], target[3]]); }
-    let (decoded, header) = decode_jpx_file_selected(&file, codestream_index, options, &expanded)?;
+    let (decoded, header) = match decode_jpx_file_selected(
+        &file,
+        codestream_index,
+        options,
+        &expanded,
+    ) {
+        Ok(value) => value,
+        Err(error) => {
+            #[cfg(verus_keep_ghost)]
+            proof! {
+                crate::specs::part2_decode_jpx_color_source_error(input@, codestream_index,
+                    crate::options::decode_options_limits(options), Some(crate::options::decode_selection_view(selection)),
+                    jp2::raw_jp2_file_view(&file), Some((crate::options::decode_selection_view(&expanded), target@)), error);
+            }
+            return Err(error);
+        }
+    };
     convert_associated_selected_color(&decoded, header, target, options.limits())
 }

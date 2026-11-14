@@ -2200,14 +2200,40 @@ _MAIN_HEADER_INITIALIZER_CONTRACTS = {
 }
 
 _MAIN_HEADER_LAYOUT = ("src/codestream/layout.rs", "Parser::parse_layout")
-_RAW_LAYOUT_WRAPPER_BODY = (
-    r"\s*(?:#\[\s*cfg\s*\(\s*verus_keep_ghost\s*\)\s*\]\s*proof!\s*\{\s*"
-    + _coverage_call("reveal", "complete_layout_outcome") + r"\s*;\s*"
-    + _coverage_call("reveal", "parser_initial_outcome") + r"\s*;\s*"
-    + _coverage_call("crate::specs::part1_parse_layout_unfold", "input@", "limits")
-    + r"\s*;\s*\}\s*)?" + _coverage_call("new_parser", "input", "limits")
-    + r"\s*\?\s*\.\s*" + _coverage_call("parse_layout") + r"\s*"
-)
+_RAW_LAYOUT_WRAPPER_BODY = """
+    #[cfg(verus_keep_ghost)] proof! {
+        reveal(complete_layout_outcome); reveal(parser_initial_outcome);
+    }
+    let result = match new_parser(input, limits) {
+        Err(error) => {
+            #[cfg(verus_keep_ghost)] proof! {
+                assert(crate::specs::part1_parse_layout_with_cold_storage(
+                    input@, limits, Seq::empty()) == Some((Err(error), Seq::empty())));
+                crate::specs::part1_parse_layout_cold_witness(input@, limits, Err(error), Seq::empty());
+            }
+            Err(error)
+        }
+        Ok(parser) => {
+            #[cfg(verus_keep_ghost)] proof_decl! { let ghost reader = parser_view(&parser); }
+            let result = parser.parse_layout();
+            #[cfg(verus_keep_ghost)] proof! {
+                let events = choose|events: Seq<crate::specs::Part1ColdStorageEvent>|
+                    crate::specs::part1_layout_with_cold_storage(reader, events)
+                        == Some((complete_layout_outcome(result), Seq::empty()));
+                assert(crate::specs::part1_parse_layout_with_cold_storage(input@, limits, events)
+                    == Some((complete_layout_outcome(result), Seq::empty())));
+                crate::specs::part1_parse_layout_cold_witness(input@, limits, complete_layout_outcome(result), events);
+            }
+            result
+        }
+    };
+    #[cfg(verus_keep_ghost)] proof! {
+        if complete_layout_outcome(result) != Err(DecodeError::AllocationFailed) {
+            crate::specs::part1_parse_layout_cold_projection(input@, limits, complete_layout_outcome(result));
+        }
+    }
+    result
+"""
 _RAW_LAYOUT_ENTRY = "part1-complete-native-raw-layout-result"
 _RAW_LAYOUT_CONTRACTS = {
     ("src/codestream/layout.rs", "parse"): (
@@ -4300,7 +4326,7 @@ _JPIP_TRANSCODE_FRAMES = {
         ("patch_cod_layers", "(result, final(header)@) == crate::specs::part2_jpip_patch_cod(old(header)@, start, layers, stop_at_sod)"),
         ("validate_and_patch_main_header", "(result, final(header)@) == crate::specs::part2_jpip_patch_main(old(header)@, layers)"),
         ("validate_and_patch_tile_header", "(result, final(header)@) == crate::specs::part2_jpip_patch_tile(old(header)@, layers)"),
-        ("validate_precinct_codestream", "result == crate::specs::part2_jpip_validate_precinct(bytes@, layers, limits)"),
+        ("validate_precinct_codestream", "crate::specs::part2_jpip_validate_precinct_cold_result(bytes@, layers, limits, result)"),
         ("JpipPrecinctTranscode::layers", "result == jpip_transcode_view(self).0"),
         ("JpipPrecinctTranscode::availability", "jpip_availability_view(result) == jpip_transcode_view(self).1"),
         ("JpipPrecinctTranscode::codestream", "jpip_optional_byte_view(result) == jpip_transcode_view(self).2"),
@@ -4665,7 +4691,8 @@ _GENERAL_LAYER_PROOFS = {
 _GENERAL_LAYER_HANDOFFS = (
     "let color = layer.color_group().first().unwrap_or(&file.header().color);",
     "let color_count = layer_color_count(color)?;",
-    "let (image, _) = crate::decode::decode_jpx_file(file, codestream_index, options)?;",
+    "let (image, _) = match crate::decode::decode_jpx_file(file, codestream_index, options)",
+    "return Err(error)",
     "width = width.min(registered_width);", "height = height.min(registered_height);",
     "crate::specs::part2_general_sources_prefix(input, config, layer_index, limits, source_index as nat)",
     "crate::specs::part2_general_components_prefix(source, config, width, height, component_index as nat, initial)",
@@ -4717,6 +4744,243 @@ _SOURCE_OPACITY_CONTRACTS = {
     ("src/jpx/chroma.rs", "apply_chroma_key_with_policy"): _LAYER_OPACITY_CONTRACTS[("src/jpx/chroma.rs", "apply_chroma_key_with_policy")],
 }
 
+_COLD_RESULT_MODELS = {
+    "part1_read_layout": ("part1_cold_layout_result", "specs/raw_layout.rs", "part1_cold_layout_normal"),
+    "part1_parse_info": ("part1_parse_info_cold_result", "specs/raw_layout.rs", "part1_parse_info_cold_normal"),
+    "part1_parse_layout": ("part1_parse_layout_cold_result", "specs/raw_layout.rs", "part1_parse_layout_cold_normal"),
+    "part2_decode_raw_codestream": ("part2_decode_raw_cold_result", "specs/raw_decode.rs", "part2_decode_raw_cold_normal"),
+    "part2_decode_raw_reconstructed_codestream": (
+        "part2_decode_reconstructed_cold_result", "specs/raw_decode.rs", "part2_decode_reconstructed_cold_normal",
+    ),
+    "part2_decode_jpx_codestream": ("part2_jpx_cold_result", "specs/jpx_source.rs", "part2_jpx_cold_normal"),
+    "part2_decode_jpx_selected_file": (
+        "part2_jpx_selected_cold_result", "specs/jpx_source.rs", "part2_jpx_selected_cold_normal",
+    ),
+    "part2_color_selection_raw": (
+        "part2_color_selection_cold_result", "specs/container_colors.rs", "part2_color_selection_cold_normal",
+    ),
+    "part2_decode_raw_jpx_typed": (
+        "part2_decode_jpx_typed_cold_result", "specs/jpx_public_images.rs", "part2_decode_jpx_typed_cold_normal",
+    ),
+    "part2_decode_raw_jpx_color": (
+        "part2_decode_jpx_color_cold_result", "specs/jpx_public_images.rs", "part2_decode_jpx_color_cold_normal",
+    ),
+    "part2_parse_and_inspect_container": (
+        "part2_inspection_cold_result", "specs/jp2_inspection.rs", "part2_inspection_cold_normal",
+    ),
+    "part2_parse_and_inspect_container_mode": (
+        "part2_inspection_cold_result", "specs/jp2_inspection.rs", "part2_inspection_cold_normal",
+    ),
+    "part2_inspect_jph_container": (
+        "part2_inspect_jph_cold_result", "specs/jp2_inspection.rs", "part2_inspect_jph_cold_normal",
+    ),
+    "part2_decode_raw_color_container": (
+        "part2_decode_color_cold_result", "specs/container_colors.rs", "part2_decode_color_cold_normal",
+    ),
+    "part2_decode_raw_single_container": (
+        "part2_decode_single_cold_result", "specs/container_images.rs", "part2_decode_single_cold_normal",
+    ),
+    "part2_render_inspected_source_frame": (
+        "part2_render_inspected_cold_result", "specs/jpx_frame.rs", "part2_render_inspected_cold_normal",
+    ),
+    "part2_decode_effective_layer": (
+        "part2_effective_layer_cold_result", "specs/jpx_dispatch.rs", "part2_effective_layer_cold_normal",
+    ),
+    **{model: (
+        "part2_render_raw_jpx_cold_result", "specs/jpx_raw_frame.rs", "part2_render_raw_jpx_cold_normal",
+    ) for model in ("part2_render_raw_jpx_layer", "part2_render_raw_jpx_frame", "part2_render_raw_jpx_composition")},
+    "part2_inspect_raw_jpx_layers": (
+        "part2_inspect_raw_jpx_cold_result", "specs/jpx_raw_inspection.rs", "part2_inspect_raw_jpx_cold_normal",
+    ),
+    "part2_decode_compositing_layer": (
+        "part2_compositing_layer_cold_result", "specs/jpx_dispatch.rs", "part2_compositing_layer_cold_normal",
+    ),
+    "part2_decode_general_layer": (
+        "part2_general_layer_cold_result", "specs/jpx_general.rs", "part2_general_layer_cold_normal",
+    ),
+    "part2_apply_source_layer_opacity": (
+        "part2_opacity_cold_result", "specs/jpx_opacity.rs", "part2_opacity_cold_normal",
+    ),
+    "part2_decode_jpx_layer": ("part2_jpx_layer_cold_result", "specs/jpx_source.rs", "part2_jpx_layer_cold_normal"),
+    "part2_jpip_progressive_update": (
+        "part2_jpip_planned_cold_result", "specs/jpip_progressive.rs", "part2_jpip_planned_cold_normal",
+    ),
+    "part2_jpip_transcode": (
+        "part2_jpip_transcode_cold_result", "specs/jpip_transcode.rs", "part2_jpip_transcode_cold_normal",
+    ),
+}
+
+
+def _coverage_cold_relation(
+    legacy: tuple[str, str, str | None, str],
+) -> tuple[str, str]:
+    model, outcome, state, inputs = legacy
+    cold_model = _COLD_RESULT_MODELS[model][0]
+    if model == "part2_parse_and_inspect_container":
+        inputs += r"\s*,\s*false"
+    if model in ("part2_render_raw_jpx_layer", "part2_render_raw_jpx_frame", "part2_render_raw_jpx_composition"):
+        kind, requested = {
+            "part2_render_raw_jpx_layer": ("0", "layer_index"),
+            "part2_render_raw_jpx_frame": ("1", "frame_index"),
+            "part2_render_raw_jpx_composition": ("2", "0"),
+        }[model]
+        inputs = r"input\s*@\s*,\s*" + kind + r"\s*,\s*" + requested + r"\s*,\s*" + _coverage_call(
+            "crate::options::decode_options_limits", "options")
+    if state is not None:
+        outcome = r"\(\s*" + outcome + r"\s*,\s*" + state
+        if model == "part2_jpip_progressive_update":
+            outcome += r"\s*,\s*" + _coverage_call("jpip_cache_view", "cache")
+        outcome += r"\s*\)"
+    return cold_model, inputs + r"\s*,\s*" + outcome
+
+
+_COLD_RESULT_CONTRACTS = {
+    key: _coverage_cold_relation(legacy)
+    for contracts in (
+        _RAW_LAYOUT_CONTRACTS, _RAW_TYPED_CONTRACTS, _RAW_RECONSTRUCTED_CONTRACTS,
+        _RAW_INSPECTED_CONTRACTS, _JPX_SOURCE_CONTRACTS, _RAW_JPX_PUBLIC_IMAGE_CONTRACTS,
+        _RAW_CONTAINER_IMAGE_CONTRACTS, _RAW_CONTAINER_COLOR_CONTRACTS,
+        _SOURCE_FRAME_CONTRACTS, _RAW_RENDER_CONTRACTS, _RAW_COMPOSITION_RENDER_CONTRACTS,
+        _RAW_JPX_INSPECTION_CONTRACTS, _EFFECTIVE_LAYER_CONTRACTS, _GENERAL_LAYER_CONTRACTS,
+        _SOURCE_OPACITY_CONTRACTS, _JPIP_PROGRESSIVE_CONTRACTS, _JPIP_TRANSCODE_CONTRACTS,
+    )
+    for key, legacy in contracts.items()
+    if legacy[0] in _COLD_RESULT_MODELS
+} | {
+    ("src/jpip/precinct.rs", "validate_precinct_codestream"): (
+        "part2_jpip_validate_precinct_cold_result", r"bytes@\s*,\s*layers\s*,\s*limits\s*,\s*\1",
+    ),
+}
+
+
+def _coverage_cold_links(keys: set[tuple[str, str]]) -> tuple[set[tuple[str, str]], set[tuple[str, str]]]:
+    models, proofs = set(), set()
+    metadata = {model: (path, normal) for model, path, normal in _COLD_RESULT_MODELS.values()}
+    for key in keys & _COLD_RESULT_CONTRACTS.keys():
+        model = _COLD_RESULT_CONTRACTS[key][0]
+        path, normal = metadata.get(model, ("specs/jpip_transcode.rs", "part2_jpip_validate_precinct_cold_normal"))
+        run = {
+            "part1_cold_layout_result": "part1_layout_with_cold_storage",
+            "part1_parse_info_cold_result": "part1_parse_info_with_cold_storage",
+            "part1_parse_layout_cold_result": "part1_parse_layout_with_cold_storage",
+        }.get(model, model.removesuffix("_result") + "_run")
+        models.update(((path, model), (path, run)))
+        proofs.add((path, normal))
+    return models, proofs
+
+
+def _coverage_cold_result_body(text: str, model: str) -> bool:
+    signature = re.search(r"\bspec\s+fn\s+" + re.escape(model) + r"\s*\((.*?)\)\s*->\s*bool\b", text, re.S)
+    if signature is None:
+        return False
+    names = re.findall(r"(?:^|,)\s*(\w+)\s*:(?!:)", signature[1])
+    if not names or names[-1] != "result":
+        return False
+    run = {
+        "part1_cold_layout_result": "part1_layout_with_cold_storage",
+        "part1_parse_info_cold_result": "part1_parse_info_with_cold_storage",
+        "part1_parse_layout_cold_result": "part1_parse_layout_with_cold_storage",
+    }.get(model, model.removesuffix("_result") + "_run")
+    call = run + "(" + ",".join(names[:-1] + ["events"]) + ")"
+    if model.startswith("part1_"):
+        expected = "exists|events: Seq<Part1ColdStorageEvent>|" + call + "== Some((result, Seq::empty()))"
+    elif model == "part2_jpip_planned_cold_result":
+        expected = "exists|events: Seq<Part2JpipAutomaticEvent>|" + call + "== Some((result, Seq::empty()))"
+    else:
+        expected = "part2_cold_framed(|events|" + call + "," + ("Ok(result)" if model == "part2_opacity_cold_result" else "result") + ")"
+    body = _coverage_spec_function_body(text, model)
+    return body is not None and "".join(body.split()) == "".join(expected.split())
+
+
+_COLD_FRAME_BODIES = {
+    "part2_cold_prefix": """
+        forall|tail: Seq<Part2JpipSnapshotEvent>|
+            #[trigger] run(prefix + tail) == Some((result, tail))
+    """,
+    "part2_cold_framed": """
+        exists|prefix: Seq<Part2JpipSnapshotEvent>| #[trigger] part2_cold_prefix(run, prefix, result)
+    """,
+    "part2_cold_parse": """
+        if events.len() == 0 { None } else {
+            match events[0] {
+                Part2JpipSnapshotEvent::Parse { phase: actual, index: at, calls } =>
+                    if actual != phase || at != index { None } else {
+                        match part1_parse_layout_with_cold_storage(input, limits, calls) {
+                            Some((result, rest)) => if rest.len() == 0 {
+                                Some((result, events.drop_first()))
+                            } else { None },
+                            None => None,
+                        }
+                    },
+                _ => None,
+            }
+        }
+    """,
+}
+
+_COLD_LOCAL_FAMILIES = {
+    _RAW_LAYOUT_ENTRY: (_RAW_LAYOUT_CONTRACTS, "whole raw layout"),
+    _RAW_TYPED_ENTRY: (_RAW_TYPED_CONTRACTS, "whole raw typed Result"),
+    _RAW_RECONSTRUCTED_ENTRY: (_RAW_RECONSTRUCTED_CONTRACTS, "whole raw reconstructed Result"),
+    _JPX_SOURCE_ENTRY: (_JPX_SOURCE_CONTRACTS, "whole JPX source Result"),
+    _JPX_LAYER_COLOR_ENTRY: (_JPX_LAYER_COLOR_CONTRACTS, "whole JPX layer color Result"),
+    _SOURCE_OPACITY_ENTRY: (_SOURCE_OPACITY_CONTRACTS, "whole source opacity Result"),
+}
+
+_COLD_SOURCE_BODIES = {
+    _RAW_TYPED_ENTRY: ("specs/raw_decode.rs", "part2_decode_raw_cold_run", """
+        part2_jpip_snapshot_bind(part2_cold_parse(input, limits, 2, 0, events),
+            |layout: Part1CompleteLayout, rest| Some((part2_decode_typed_layout_input(
+                input.len() as usize, part2_decoder_input_from_raw(layout), limits, requested), rest)))
+    """, "whole raw typed Result requires complete raw/physical projection, not a layout/image bank: part2_decode_raw_codestream"),
+    _RAW_LAYOUT_ENTRY: ("specs/raw_layout.rs", "part1_parse_layout_with_cold_storage", """
+        match part1_codestream_reader_new(input, limits) {
+            Err(error) => Some((Err(error), events)),
+            Ok(reader) => part1_layout_with_cold_storage(reader, events),
+        }
+    """, "whole raw layout requires raw byte/reader model, not a result bank: part1_parse_layout"),
+    _JPX_SOURCE_ENTRY: ("specs/jpx_source.rs", "part2_jpx_cold_image", """
+        part2_jpip_snapshot_bind(part2_decode_raw_cold_run(source.0, limits, None, events),
+            |image: Part1DecodedTypedImage, rest| Some((part2_apply_associated_output(image, Some(header),
+                crate::limits::resource_component_limit(limits),
+                crate::limits::resource_decoded_bytes_limit(limits)), rest)))
+    """, "whole JPX source Result requires complete physical/source models, not supplied banks or trimming"),
+    _EFFECTIVE_LAYER_ENTRY: ("specs/jpx_dispatch.rs", "part2_effective_layer_cold_run", """
+        if layers.len() == 0 {
+            if index >= file.1.len() {
+                Some((Err(crate::DecodeError::LayerIndexOutOfRange { index, layers: file.1.len() as usize }), events))
+            } else {
+                part2_jpip_snapshot_bind(part2_jpx_layer_cold_run(file, index, None, limits, events),
+                    |image: Part2ConvertedImage, tail| Some((part2_owned_layer_input(image.0, image.1, image.2, image.4), tail)))
+            }
+        } else {
+            match part2_layer_config_lookup(layers, index) {
+                Err(error) => Some((Err(error), events)),
+                Ok(config) => part2_compositing_layer_cold_run(file, config.0, config.1, config.2, index, limits, events),
+            }
+        }
+    """, "whole effective layer Result requires actual ordered decoder/registration/opacity models"),
+}
+
+
+for _contracts, _models, _proofs in (
+    (_RAW_INSPECTED_CONTRACTS, _RAW_INSPECTED_MODELS, _RAW_INSPECTED_PROOFS),
+    (_RAW_JPX_PUBLIC_IMAGE_CONTRACTS, _RAW_JPX_PUBLIC_IMAGE_MODELS, _RAW_JPX_PUBLIC_IMAGE_PROOFS),
+    (_RAW_CONTAINER_IMAGE_CONTRACTS, _RAW_CONTAINER_IMAGE_MODELS, _RAW_CONTAINER_IMAGE_PROOFS),
+    (_RAW_CONTAINER_COLOR_CONTRACTS, _RAW_CONTAINER_COLOR_MODELS, _RAW_CONTAINER_COLOR_PROOFS),
+    (_SOURCE_FRAME_CONTRACTS, _SOURCE_FRAME_MODELS, _SOURCE_FRAME_PROOFS),
+    (_RAW_RENDER_CONTRACTS, _RAW_RENDER_MODELS, _RAW_RENDER_PROOFS),
+    (_RAW_COMPOSITION_RENDER_CONTRACTS, _RAW_COMPOSITION_RENDER_MODELS, _RAW_COMPOSITION_RENDER_PROOFS),
+    (_RAW_JPX_INSPECTION_CONTRACTS, _RAW_JPX_INSPECTION_MODELS, _RAW_JPX_INSPECTION_PROOFS),
+    (_EFFECTIVE_LAYER_CONTRACTS, _EFFECTIVE_LAYER_MODELS, _EFFECTIVE_LAYER_PROOFS),
+    (_GENERAL_LAYER_CONTRACTS, _GENERAL_LAYER_MODELS, _GENERAL_LAYER_PROOFS),
+    (_JPIP_PROGRESSIVE_CONTRACTS, _JPIP_PROGRESSIVE_MODELS, _JPIP_PROGRESSIVE_PROOFS),
+    (_JPIP_TRANSCODE_CONTRACTS, _JPIP_TRANSCODE_MODELS, _JPIP_TRANSCODE_PROOFS),
+):
+    _cold_models, _cold_proofs = _coverage_cold_links(set(_contracts) | _proofs)
+    _models.update(_cold_models)
+    _proofs.update(_cold_proofs)
+
 
 def validate_normative_coverage(
     coverage: dict[str, Any] | None = None,
@@ -4731,6 +4995,7 @@ def validate_normative_coverage(
     bodies: dict[tuple[Path, str], str | None] = {}
     implementation_ranges: dict[tuple[str, str, str], list[tuple[int, int, str]] | None] = {}
     file_calls: dict[Path, set[str]] = {}
+    cold_foundation_checked = False
 
     def source_text(path: Path) -> str:
         if path not in texts:
@@ -4916,6 +5181,18 @@ def validate_normative_coverage(
     ids: set[str] = set()
     contract_functions: set[tuple[str, str]] = set()
     for entry in coverage["requirements"]:
+        cold_family = _COLD_LOCAL_FAMILIES.get(entry["id"])
+        if cold_family:
+            cold_models, cold_proofs = _coverage_cold_links(set(cold_family[0]))
+            if (not cold_models.issubset({(ref["path"], ref["symbol"]) for ref in entry["spec_refs"]})
+                    or not cold_proofs.issubset({(ref["path"], ref["symbol"]) for ref in entry["proof_refs"]})):
+                raise ValueError(cold_family[1] + " requires complete cold models and checked cold normal projections")
+        cold_source_body = _COLD_SOURCE_BODIES.get(entry["id"])
+        if cold_source_body:
+            relative, symbol, expected_body, diagnostic = cold_source_body
+            actual_body = _coverage_spec_function_body(source_text((ROOT / relative).resolve()), symbol)
+            if actual_body is None or "".join(actual_body.split()) != "".join(expected_body.split()):
+                raise ValueError(diagnostic)
         if entry["id"] == _JPIP_SEMANTIC_ENTRY:
             required = {
                 *_JPIP_SEMANTIC_RELATIONS,
@@ -4980,8 +5257,15 @@ def validate_normative_coverage(
                     "part2_jpip_semantic_expand(cache, metadata_stream, 0, true, 0, u32::MAX, initial, events)",
                     "Some((Err(error), _state, tail)) => Some((Err(error), tail))",
                     "if state.output.len() == 0", "state.missing, state.needs, None",
-                    "part2_parse_and_inspect_container(state.output, &cache.0)",
-                    "Some(state.output)",
+                    "part2_jpip_semantic_inspection(cache, state, tail)",
+                ),
+                "inspection": (
+                    "Part2JpipSemanticEvent::Inspect { calls }",
+                    "part2_inspection_cold_run(state.output, &cache.0, false, calls)",
+                    "if rest.len() != 0 { None }",
+                    "Err(error) => Err(error)",
+                    "state.missing, state.needs, Some(state.output)",
+                    "events.drop_first()",
                 ),
             }.items():
                 body = _coverage_spec_function_body(model, "part2_jpip_semantic_" + name)
@@ -5013,19 +5297,37 @@ def validate_normative_coverage(
                 if not _coverage_verified_body_clause(source_text(path), function_header(path, name), name, clause):
                     raise ValueError("complete automatic progressive requires exact checked constructor/getter temporary clauses")
             model = source_text((ROOT / "specs/jpip_progressive.rs").resolve())
-            body = _coverage_spec_function_body(model, "part2_jpip_automatic_progressive_run")
-            for fragment in (
-                "part2_jpip_snapshot_run(input, events)", "cache, stream: decoder.0",
-                "Some((Err(error), tail)) => Some(((Err(error), decoder, cache), tail))",
-                "Some((Ok((None, missing)), tail))",
-                "valid_jpip_progressive_update(previous as nat, available as nat, maximum as nat)",
-                "else if available <= previous",
-                "part2_decode_raw_codestream(snapshot.0, crate::options::decode_options_limits(options), selection)",
-                "Err(error) => Some(((Err(error), decoder, cache), tail))",
-                "Some(image))), (decoder.0, available), cache)",
-            ):
-                if body is None or "".join(fragment.split()) not in "".join(body.split()):
-                    raise ValueError("complete automatic progressive requires actual snapshot/raw image and exact error/no-advance/commit/cache model")
+            for name, fragments in {
+                "progressive_run": (
+                    "cache, stream: decoder.0", "part2_jpip_automatic_snapshot_call(input, events)",
+                    "Some((Err(error), rest)) => Some(((Err(error), decoder, cache), rest))",
+                    "part2_jpip_automatic_after_snapshot(cache, decoder, options, selection, snapshot, rest)",
+                ),
+                "snapshot_call": (
+                    "Part2JpipAutomaticEvent::Snapshot { calls }", "part2_jpip_snapshot_run(input, calls)",
+                    "if rest.len() == 0", "events.drop_first()",
+                ),
+                "image_call": (
+                    "Part2JpipAutomaticEvent::Image { calls }",
+                    "part2_decode_raw_cold_run(bytes, crate::options::decode_options_limits(options), selection, calls)",
+                    "if rest.len() == 0", "events.drop_first()",
+                ),
+                "after_snapshot": (
+                    "JpipProgressiveStatus::WaitingForData, decoder.1, 0, missing, None",
+                    "valid_jpip_progressive_update(decoder.1 as nat, snapshot.1 as nat, snapshot.2 as nat)",
+                    "else if snapshot.1 <= decoder.1",
+                    "part2_jpip_automatic_image_call(snapshot.0, options, selection, events)",
+                    "part2_jpip_automatic_image_frame(cache, decoder, snapshot, image)",
+                ),
+                "image_frame": (
+                    "Err(error) => (Err(error), decoder, cache)",
+                    "decoder.1, snapshot.1, snapshot.3, Some(image)",
+                    "(decoder.0, snapshot.1), cache",
+                ),
+            }.items():
+                body = _coverage_spec_function_body(model, "part2_jpip_automatic_" + name)
+                if body is None or any("".join(item.split()) not in "".join(body.split()) for item in fragments):
+                    raise ValueError("complete automatic progressive requires actual nested snapshot/raw image and exact error/no-advance/commit/cache model")
             source = source_text((ROOT / "src/jpip/progression.rs").resolve())
             native = _coverage_function_body(source, _coverage_function_header(source, "JpipAutomaticProgressiveDecoder::update_inner"))
             for fragment in (
@@ -5033,13 +5335,25 @@ def validate_normative_coverage(
                 "crate::specs::part2_jpip_automatic_progressive_run_unfold(input.cache, initial_decoder,",
                 "super::jpip_automatic_snapshot_first_error(",
                 "jpip_progressive_outcome(Err(error)), super::jpip_automatic_progressive_decoder_view(self), jpip_cache_view(cache)",
-                "crate::decode_codestream_selected(snapshot.codestream.as_ref(), options, selection)?",
-                "crate::decode_codestream(snapshot.codestream.as_ref(), options)?",
+                "crate::decode_codestream_selected(snapshot.codestream.as_ref(), options, selection)",
+                "crate::decode_codestream(snapshot.codestream.as_ref(), options)",
+                "Part2JpipAutomaticEvent::Snapshot { calls: snapshot_calls }",
+                "crate::specs::part2_jpip_automatic_image_actual(",
+                "let image = image_result?",
                 "self.decoded_layers = snapshot.available_layers",
                 "Some(crate::image::typed_image_value_view(image))",
             ):
                 if native is None or "".join(fragment.split()) not in "".join(native.split()):
                     raise ValueError("complete automatic progressive requires actual event/image/error/current-state forwarding at the sole caller")
+            ordered = (
+                "let image_result = match selection",
+                "crate::specs::part2_jpip_automatic_image_actual(",
+                "let image = image_result?",
+                "self.decoded_layers = snapshot.available_layers",
+            )
+            positions = [native.find(fragment) for fragment in ordered]
+            if -1 in positions or positions != sorted(positions):
+                raise ValueError("complete automatic progressive requires image errors before the sole decoder-state commit")
         if entry["id"] == _JPIP_FULL_SNAPSHOT_ENTRY:
             if {(ref["path"], ref["symbol"]) for ref in entry["contract_refs"]} != {
                     ("src/jpip/progression.rs", "DatabinCache::build_automatic_snapshot")}:
@@ -5089,11 +5403,28 @@ def validate_normative_coverage(
                 "assert(bytes@ =~= emitted_bytes + seq![0xffu8, 0xd9u8])",
                 "assert(crate::specs::part2_jpip_template_finish(emitted_bytes, limits) == Ok(bytes@))",
                 "super::jpip_snapshot_layout_success_known()",
-                "crate::codestream::parse_layout(&bytes, limits)?",
+                "match crate::codestream::parse_layout(&bytes, limits)",
+                "super::jpip_snapshot_root_ready_parse_error(tile_root, emitted_bytes, bytes@, error)",
+                "prefix = super::jpip_snapshot_template_layout_prefix(input, prefix, normalized_bytes,",
                 "Ok((Some((bytes@, available_layers, maximum_layers, missing_goal)), Seq::empty()))",
             ):
                 if native is None or "".join(fragment.split()) not in "".join(native.split()):
                     raise ValueError("complete automatic snapshot requires actual ordered event, complete folds and final byte/layout joins")
+            for relative, name, fragments in (
+                ("specs/jpip_snapshot_inputs.rs", "part2_jpip_snapshot_after_normalized", (
+                    "part2_cold_parse(template, input.limits, 0, 0, events)",
+                    "part2_jpip_snapshot_after_layout(",
+                )),
+                ("specs/jpip_snapshot.rs", "part2_jpip_snapshot_ready_cold", (
+                    "part2_jpip_snapshot_emit_tiles(tiles, available, 0, main)",
+                    "part2_jpip_template_finish(emitted, limits)",
+                    "part2_cold_parse(bytes, limits, 1, 0, events)",
+                    "Some((bytes, available, maximum, missing))",
+                )),
+            ):
+                body = _coverage_spec_function_body(source_text((ROOT / relative).resolve()), name)
+                if body is None or any("".join(item.split()) not in "".join(body.split()) for item in fragments):
+                    raise ValueError("complete automatic snapshot requires distinct actual template and final-validation parse responses")
         if entry["id"] == _JPIP_GLOBAL_ERROR_ENTRY:
             if {(ref["path"], ref["symbol"]) for ref in entry["contract_refs"]} != set(_JPIP_GLOBAL_ERROR_CONTRACTS):
                 raise ValueError("original resolution error requires complete actual mapping and resolution Results")
@@ -5237,9 +5568,9 @@ def validate_normative_coverage(
             clause = section.split("\n    {", 1)[0]
             for fragment in (
                 "part2_jpip_snapshot_run(input, prefix + tail)",
-                "part2_jpip_snapshot_after_normalized(input, main, raw, count, components, headers, tail)",
+                "part2_jpip_snapshot_after_layout(input, main, raw, count, components, headers,"
+                "crate::codestream::decoder_layout_input_view(layout), tail)",
                 "part2_jpip_transition_template(main, headers, input.limits) == Ok(template)",
-                "complete_layout_outcome(Ok(*layout)) == crate::specs::part1_parse_layout(template, input.limits)",
                 "ensures forall|tail: Seq<crate::specs::Part2JpipSnapshotEvent>|",
                 "site: 2, tile: 0, elements: headers.len() as usize, succeeded: true",
                 "crate::codestream::decoder_layout_input_view(layout), 0, Seq::empty(), 0, tail)",
@@ -5251,8 +5582,11 @@ def validate_normative_coverage(
             source = source_text((ROOT / "src/jpip/progression.rs").resolve())
             native = _coverage_function_body(source, _coverage_function_header(source, "DatabinCache::build_automatic_snapshot"))
             for fragment in (
-                "let layout = crate::codestream::parse_layout(&template, limits)?",
-                "let mut automatic_tiles = crate::allocation::empty_with_capacity(normalized_tiles.len())?",
+                "let parsed = crate::codestream::parse_layout(&template, limits)",
+                "let layout = match parsed",
+                "super::jpip_snapshot_template_parse_error(input, prefix, normalized_bytes, raw_tiles,",
+                "prefix = super::jpip_snapshot_template_layout_prefix(input, prefix, normalized_bytes,",
+                "let automatic_tiles = crate::allocation::empty_with_capacity(normalized_tiles.len())?",
                 "super::jpip_snapshot_layout_continuation(input, prefix, normalized_bytes, raw_tiles,"
                 "tile_count, components, headers, template@, &layout)",
                 "crate::specs::part2_progression_tile_plan(&layout.info.image_size,"
@@ -5263,6 +5597,29 @@ def validate_normative_coverage(
             ):
                 if native is None or "".join(fragment.split()) not in "".join(native.split()):
                     raise ValueError("actual layout prefix requires the reached native Results and actual planner identity")
+            source = source_text((ROOT / "src/jpip/snapshot_header_proof_support.rs").resolve())
+            header = re.search(
+                r"(?m)^([ \t]*)pub\(crate\)\s+proof\s+fn\s+jpip_snapshot_template_layout_prefix\b", source)
+            body = _coverage_function_body(source, header)
+            for fragment in (
+                "crate::specs::part2_cold_parse_actual(template, input.limits, 0, 0, parsed)",
+                "crate::codestream::decoder_layout_input_matches_raw(layout)",
+                "crate::specs::part2_cold_witness(run, parsed)",
+                "crate::specs::part2_cold_prefix_at(run, calls, parsed, tail)",
+                "prefix + calls",
+            ):
+                if body is None or "".join(fragment.split()) not in "".join(body.split()):
+                    raise ValueError("actual layout prefix requires the checked consumed parse-to-layout prefix bind")
+            model = source_text((ROOT / "specs/jpip_snapshot_inputs.rs").resolve())
+            body = _coverage_spec_function_body(model, "part2_jpip_snapshot_after_normalized")
+            for fragment in (
+                "part2_jpip_transition_template(main, headers, input.limits)",
+                "part2_cold_parse(template, input.limits, 0, 0, events)",
+                "part2_jpip_snapshot_after_layout(input, main, raw, count, components, headers,"
+                "part2_decoder_input_from_raw(layout), rest)",
+            ):
+                if body is None or "".join(fragment.split()) not in "".join(body.split()):
+                    raise ValueError("actual layout prefix requires a consumed input-derived parse response before capacity")
         if entry["id"] == _JPIP_ACQUISITION_ENTRY:
             if {(ref["path"], ref["symbol"]) for ref in entry["contract_refs"]} != set(_JPIP_RESOLUTION_EXIT_CONTRACTS):
                 raise ValueError("actual acquisition fold requires the complete enabled selection contracts")
@@ -5466,22 +5823,27 @@ def validate_normative_coverage(
                 "part2_jpip_snapshot_run(input, prefix + tail)",
                 "part2_jpip_snapshot_after_normalized(input, main, raw, count, components, headers, tail)",
                 "part2_jpip_transition_template(main, headers, input.limits) == Ok(template)",
-                "complete_layout_outcome(Err(error)) == crate::specs::part1_parse_layout(template, input.limits)",
+                "part1_parse_layout_cold_result(template, input.limits, Err(error))",
                 "part2_jpip_automatic_snapshot_result(input.cache, input.stream, input.selected, input.components, input.limits, Err(error))",
             ):
                 if "".join(fragment.split()) not in "".join(clause.split()):
                     raise ValueError("canonical template parse exit requires exact actual byte/event/error arguments")
-            if "crate::codestream::decoder_layout_errors_known();" not in body:
-                raise ValueError("canonical template parse exit requires the existing checked closed-error interface")
+            for fragment in (
+                "part2_cold_parse_actual(template, input.limits, 0, 0, Err(error))",
+                "jpip_snapshot_result_witness(input, prefix + calls, Err(error))",
+            ):
+                if "".join(fragment.split()) not in "".join(body.split()):
+                    raise ValueError("canonical template parse exit requires the actual checked parse response and consumed call prefix")
             snapshot_source = source_text((ROOT / "src/jpip/progression.rs").resolve())
             snapshot = _coverage_function_body(snapshot_source, _coverage_function_header(
                 snapshot_source, "DatabinCache::build_automatic_snapshot"))
             for fragment in (
                 "part2_jpip_transition_template(normalized_bytes, headers, input.limits) == Ok(template@)",
-                "complete_layout_outcome(Err(error)) == crate::specs::part1_parse_layout(template@, limits)",
+                "crate::codestream::decoder_layout_errors_known()",
                 "super::jpip_snapshot_template_parse_error(input, prefix, normalized_bytes, raw_tiles,"
                 "tile_count, components, headers, template@, error)",
-                "let layout = crate::codestream::parse_layout(&template, limits)?",
+                "let parsed = crate::codestream::parse_layout(&template, limits)",
+                "let layout = match parsed",
             ):
                 if snapshot is None or "".join(fragment.split()) not in "".join(snapshot.split()):
                     raise ValueError("canonical template parse exit requires its actual parser caller and input projection")
@@ -5829,6 +6191,24 @@ def validate_normative_coverage(
                 + re.escape(_RAW_RECOVERY_PUBLIC_ENTRIES[entry["id"]]) + r"\b[^}]*\}", lib,
             ):
                 raise ValueError("raw recovery requires its actual public root export")
+            recovery_model = source_text((ROOT / "specs/raw_recovery.rs").resolve())
+            for name, fragments in {
+                "raw_recovery_decode_call": (
+                    "RawRecoveryEvent::Decode { calls }", "strict(bytes, calls)", "rest.len() == 0",
+                    "Some((finish(original, frame, decoded), events.drop_first()))",
+                ),
+                "raw_recovery_cold_run": (
+                    "raw_recovery_framing(input, limits)", "Err(error) => Some((Err(error), events))",
+                    "raw_recovery_admit(input.len() as usize, frame.1, limits)",
+                    "RawRecoveryEvent::Repair { reserved }", "raw_repair_response(input, reserved)",
+                    "Err(error) => Some((Err(error), events.drop_first()))",
+                    "frame, strict, finish, events.drop_first())",
+                ),
+            }.items():
+                body = _coverage_spec_function_body(recovery_model, name)
+                if body is None or any("".join(fragment.split()) not in "".join(body.split())
+                                       for fragment in fragments):
+                    raise ValueError("raw recovery requires exact ordered repair/decode events and no-event first errors")
             if reconstructed:
                 if not expected.issubset({(ref["path"], ref["symbol"]) for ref in entry["implementation_refs"]}):
                     raise ValueError("reconstructed recovery not used by claimed implementation")
@@ -5843,12 +6223,15 @@ def validate_normative_coverage(
                     raise ValueError("reconstructed recovery requires actual framing, reservation, reconstruction and report models")
                 model = source_text((ROOT / "specs/raw_recovery.rs").resolve())
                 for name, fragments in {
-                    "raw_reconstructed_recovery_result_body": (
+                    "raw_reconstructed_recovery_normal_result_body": (
                         "match raw_recovery_framing(input, limits)",
                         "match raw_recovery_admit(input.len() as usize, frame.1, limits)",
                         "part2_decode_raw_reconstructed_codestream(input, limits)",
                         "raw_reconstructed_recovery_reserved_response(input, limits, frame, false)",
                         "raw_reconstructed_recovery_reserved_response(input, limits, frame, true)",
+                    ),
+                    "raw_reconstructed_recovery_result_body": (
+                        "raw_recovery_cold_reconstructed(input, limits, events) == Some((result, Seq::empty()))",
                     ),
                     "raw_reconstructed_recovery_reserved_response": (
                         "match raw_repair_response(input, reserved)",
@@ -6077,9 +6460,11 @@ def validate_normative_coverage(
                 ("src/jpip/progression.rs", "JpipProgressiveDecoder::update_inner", (
                     "let previous_layers = self.decoded_layers", "cache.progressive_availability(&self.plan)?",
                     "jpip_progressive_update_valid(", "jpip_quality_prefix_available(", "available_layers <= previous_layers",
-                    "cache.transcode_precinct_codestream(&self.plan, available_layers)?",
-                    "crate::decode_codestream_selected(view.as_ref(), options, selection)?",
-                    "crate::decode_codestream(view.as_ref(), options)?", "self.decoded_layers = available_layers",
+                    "let transcoded = match cache.transcode_precinct_codestream(&self.plan, available_layers)",
+                    "let image_result = match selection",
+                    "Some(selection) => crate::decode_codestream_selected(view.as_ref(), options, selection)",
+                    "None => crate::decode_codestream(view.as_ref(), options)",
+                    "let image = image_result?", "self.decoded_layers = available_layers",
                     "image: None", "image: Some(image)", "JpipProgressiveStatus::QualityAdvanced",
                 )),
                 ("src/jpip/ranges.rs", "DatabinCache::progressive_availability", (
@@ -6148,7 +6533,8 @@ def validate_normative_coverage(
                     "jpip_reconstruction_length(", "contracted_total != total as u128", "total as u64 > self.limits.maximum_input_bytes()",
                     "bytes.extend_from_slice(&main_header)", "bytes.extend_from_slice(&tile_header)",
                     "bytes.extend_from_slice(&packet_bytes)", "bytes.extend_from_slice(&EOC)",
-                    "validate_precinct_codestream(&bytes, layers, &self.limits)?", "Some(JpipByteView { bytes })",
+                    "let validated = validate_precinct_codestream(&bytes, layers, &self.limits)",
+                    "validated?", "Some(JpipByteView { bytes })",
                 )),
                 ("src/jpip/precinct.rs", "patch_cod_layers", (
                     "start > header.len()", "while position < header.len()", "marker == 0xff93",
@@ -6170,7 +6556,8 @@ def validate_normative_coverage(
                     "report.missing.push(header_report.missing[missing_index])",
                 )),
                 ("src/jpip/precinct.rs", "validate_precinct_codestream", (
-                    "crate::codestream::parse_layout(bytes, limits)?", "jpip_precinct_layout_fields(&layout)",
+                    "let parsed = crate::codestream::parse_layout(bytes, limits)",
+                    "let layout = parsed?", "jpip_precinct_layout_fields(&layout)",
                     "layout.info.image_size.tile_count()? != 1", "layout.tile_parts.len() != 1",
                     "layout.info.coding_style.layers != layers", "layout.tile_parts[0].coding_style.progression_order",
                     "layout.info.progression_changes.is_present()", "layout.tile_parts[0].progression_changes.is_present()",
@@ -6189,8 +6576,28 @@ def validate_normative_coverage(
                     "part2_jpip_append_complete_requirement(cache, plan.0, report)", "part2_jpip_append_complete_requirement(cache, plan.1, main.1)"),
                 "part2_jpip_patch_cod_loop": ("position as nat + 2 > header.len()", "marker == 0xff93", "length < 7",
                     "header.update(position as int + 6", ".update(position as int + 7", "part2_jpip_patch_cod_loop(patched, end as usize, layers, stop)"),
-                "part2_jpip_validate_precinct_raw": ("part1_parse_layout(bytes, limits)", "part2_selection_tile_count(layout.0.image_size.geometry)",
+                "part2_jpip_validate_precinct_raw": ("part1_parse_layout(bytes, limits)",
+                    "Err(error) => Err(error)", "Ok(layout) => part2_jpip_validate_precinct_layout(layout, layers)"),
+                "part2_jpip_validate_precinct_layout": ("part2_selection_tile_count(layout.0.image_size.geometry)",
                     "layout.0.coding_style.layers != layers", "tile.coding_style.progression_order", "tile.packet_lengths.source", "tile.packed_packet_headers.source"),
+                "part2_jpip_validate_precinct_cold_run": (
+                    "part2_cold_parse(bytes, limits, 7, 0, events)",
+                    "Some((part2_jpip_validate_precinct_layout(layout, layers), rest))"),
+                "part2_jpip_transcode_pre_bytes": (
+                    "length > usize::MAX as nat || length > u32::MAX as nat",
+                    "tile.update(6", ".update(9", "total > usize::MAX as nat",
+                    "crate::limits::resource_input_byte_limit(&cache.0)",
+                    "Ok(main + tile + packets + seq![0xffu8, 0xd9u8])"),
+                "part2_jpip_transcode_pre_payload": (
+                    "part2_jpip_cache_view(cache, plan.0)", "part2_jpip_cache_view(cache, plan.1)",
+                    "part2_jpip_patch_main(main, layers)", "part2_jpip_patch_tile(tile, layers)",
+                    "part2_jpip_read_packets(cache, plan.2.subrange(0, end as int))",
+                    "part2_jpip_transcode_pre_bytes(cache, patched_main.1, patched_tile.1, packets)"),
+                "part2_jpip_transcode_cold_run": (
+                    "part2_jpip_transcode_pre(cache, plan, layers)",
+                    "Err(error) => Some((Err(error), events))", "None => Some((Ok(value), events))",
+                    "part2_jpip_validate_precinct_cold_run(bytes, layers, &cache.0, events)",
+                    "|_: (), tail| Some((Ok(value), tail))"),
                 "part2_jpip_transcode_bytes": ("length > usize::MAX as nat || length > u32::MAX as nat", "tile.update(6",
                     ".update(9", "total > usize::MAX as nat", "resource_input_byte_limit", "seq![0xffu8, 0xd9u8]",
                     "part2_jpip_validate_precinct(bytes, layers, &cache.0)", "Ok(()) => Ok(bytes)"),
@@ -6946,11 +7353,14 @@ def validate_normative_coverage(
             ):
                 body = _coverage_function_body(source_text(path), function_header(path, name))
                 required = ["jp2::parse(input, options.limits())?", "jp2::raw_render_file_known(&file)"]
-                required.append(("decode_jpx_file_selected" if selected else "decode_jpx_file")
-                    + "(&file, codestream_index, options" + (", &expanded" if color and selected else ", selection" if selected else "") + ")?")
+                required.append(("let (decoded, header) = match " if color else "let decoded_result = ")
+                    + ("decode_jpx_file_selected" if selected else "decode_jpx_file")
+                    + "(&file, codestream_index, options"
+                    + (", &expanded," if color and selected else ", selection" if selected else "") + ")")
+                required.extend(("Ok(value) => value", "return Err(error)") if color else ("let (decoded, _) = decoded_result?",))
                 if color and selected:
                     required.extend(("!file.file_type().is_jpx_compatible()",
-                        "color_selection(file.codestream(codestream_index)?.data(), selection, options.limits(),)?",
+                        "let (expanded, target) = match color_selection(file.codestream(codestream_index)?.data(), selection, options.limits(),)",
                         "convert_associated_selected_color(&decoded, header, target, options.limits())"))
                 elif color:
                     required.append("convert_associated_color(&decoded, header, options.limits())")
@@ -6965,7 +7375,8 @@ def validate_normative_coverage(
             if header is None or header[1] or body is None or any("".join(item.split()) not in "".join(body.split()) for item in (
                 "!file.file_type().is_jpx_compatible()", "file.codestream(codestream_index)?",
                 "match selected.codestream_header()", "association.parsed_header()", "None => Some(file.header())",
-                "association.box_header().offset()", "codestream::parse_layout(selected.data(), options.limits())?",
+                "association.box_header().offset()", "let parsed = codestream::parse_layout(selected.data(), options.limits())",
+                "let layout = parsed?",
                 "jp2::validate_selected_header(header, &layout.info, selected.box_header().offset())?",
                 "typed_layout(&layout, decode_layout_selected(&layout, selection, options.limits())?, selection.discard_levels(), options.limits(),)?",
                 "apply_jp2_output(decoded, header, options.limits())?", "Ok((image, associated_header))",
@@ -7017,18 +7428,20 @@ def validate_normative_coverage(
             ):
                 body = _coverage_function_body(source_text(path), function_header(path, name))
                 required = [
-                    ("jp2::inspect_jph" if jph else "jp2::parse_and_inspect_for_display") + "(input, options.limits())?",
+                    "let inspected = match " + ("jp2::inspect_jph" if jph else "jp2::parse_and_inspect_for_display")
+                    + "(input, options.limits())",
                     "inspected.file().codestream_count() != 1" if jph else "validate_jp2_display_profile(inspected.file())?",
                     "jp2::raw_render_file_known(jp2::raw_inspected_file_reference(&inspected))",
+                    "Ok(value) => value", "return Err(error)",
+                    "let codestream = inspected.file().codestream(0)?.data()",
                 ]
                 required.extend((
-                    "let codestream = inspected.file().codestream(0)?.data()",
-                    "color_selection(codestream, selection, options.limits())?",
-                    "decode_codestream_selected(codestream, options, &expanded)?",
+                    "let (expanded, target) = match color_selection(codestream, selection, options.limits())",
+                    "let decoded = match decode_codestream_selected(codestream, options, &expanded)",
                     "finish_associated_selected_output(decoded, Some(inspected.file().header()), target, options.limits(),)",
                     "part2_decode_raw_codestream_selection_value(codestream@, crate::options::decode_options_limits(options), &expanded)",
                 ) if selected else (
-                    "decode_codestream(inspected.file().codestream(0)?.data(), options)?",
+                    "let decoded = match decode_codestream(codestream, options)",
                     "apply_jp2_output(decoded, inspected.file().header(), options.limits())?",
                     "crate::color::convert_jp2_color(&mapped, &inspected.file().header().color, options.limits())",
                 ))
@@ -7037,7 +7450,8 @@ def validate_normative_coverage(
             path = (ROOT / "src/decode/output.rs").resolve()
             body = _coverage_function_body(source_text(path), function_header(path, "color_selection"))
             if body is None or any("".join(item.split()) not in "".join(body.split()) for item in (
-                "codestream::parse_layout(input, limits)?", "let size = &layout.info.image_size",
+                "let parsed = codestream::parse_layout(input, limits)", "let layout = parsed?",
+                "let size = &layout.info.image_size",
                 "color_selection_for_size(size, requested)", "codestream::decoder_layout_input_matches_raw(&layout)",
                 "codestream::decoder_layout_input_fields(&layout)",
             )):
@@ -7111,10 +7525,12 @@ def validate_normative_coverage(
             ):
                 body = _coverage_function_body(source_text(path), function_header(path, name))
                 required = [
-                    ("jp2::inspect_jph" if jph else "jp2::parse_and_inspect_for_display") + "(input, options.limits())?",
+                    "let inspected = match " + ("jp2::inspect_jph" if jph else "jp2::parse_and_inspect_for_display")
+                    + "(input, options.limits())",
                     "inspected.file().codestream_count() != 1" if jph else "validate_jp2_display_profile(inspected.file())?",
-                    ("decode_codestream_selected" if selected else "decode_codestream")
-                    + "(inspected.file().codestream(0)?.data(), options" + (", selection" if selected else "") + ")?",
+                    "let decoded_result = " + ("decode_codestream_selected" if selected else "decode_codestream")
+                    + "(inspected.file().codestream(0)?.data(), options" + (", selection" if selected else "") + ")",
+                    "return Err(error)", "let decoded = decoded_result?",
                     "apply_jp2_output(decoded, inspected.file().header(), options.limits())",
                     "jp2::raw_render_file_known(jp2::raw_inspected_file_reference(&inspected))",
                 ]
@@ -7141,10 +7557,11 @@ def validate_normative_coverage(
                 raise ValueError("whole raw composition Result requires proved public boundary and complete extent/source/getter/canvas bridges")
             path = (ROOT / "src/jpx/render.rs").resolve()
             for name, required in {
-                "render_jpx_composition": ("jp2::parse_and_inspect(input, options.limits())?", "ensure_jpx(file)?",
+                "render_jpx_composition": ("let inspected = match jp2::parse_and_inspect(input, options.limits())", "ensure_jpx(file)?",
                     "inspect_file(file, inspected.codestreams(), options.limits())?",
                     "if has_frames", "render_inspected_frame(file, &metadata, 0, options)",
-                    "composition_dimensions(&metadata, options.limits())?", "decode_effective_layer(file, layer_index, options)?",
+                    "composition_dimensions(&metadata, options.limits())?",
+                    "let owned = match decode_effective_layer(file, layer_index, options)", "return Err(error)",
                     "target_width: metadata.layer(layer_index)?.width()", "target_height: metadata.layer(layer_index)?.height()",
                     "render_decoded_layers("),
                 "composition_dimensions": ("layer.horizontal_offset()", "layer.vertical_offset()", "width = width.max(",
@@ -7178,9 +7595,11 @@ def validate_normative_coverage(
                 raise ValueError("whole public raw rendering Results require both proved APIs and complete raw/source/render bridges")
             path = (ROOT / "src/jpx/render.rs").resolve()
             for name, required in {
-                "render_jpx_layer": ("jp2::parse_and_inspect(input, options.limits())?", "ensure_jpx(inspected.file())?",
-                    "decode_effective_layer(inspected.file(), layer_index, options)?.into_image()"),
-                "render_jpx_frame": ("jp2::parse_and_inspect(input, options.limits())?", "ensure_jpx(file)?",
+                "render_jpx_layer": ("let inspected = match jp2::parse_and_inspect(input, options.limits())",
+                    "return Err(error)", "ensure_jpx(inspected.file())?",
+                    "let owned = decode_effective_layer(inspected.file(), layer_index, options)", "owned?.into_image()"),
+                "render_jpx_frame": ("let inspected = match jp2::parse_and_inspect(input, options.limits())",
+                    "return Err(error)", "ensure_jpx(file)?",
                     "inspect_file(file, inspected.codestreams(), options.limits())?",
                     "render_inspected_frame(file, &metadata, frame_index, options)"),
             }.items():
@@ -7209,7 +7628,8 @@ def validate_normative_coverage(
                 raise ValueError("whole raw public JPX Result requires the proved public boundary and full raw/timeline/getter bridges")
             path = (ROOT / "src/jpx/inspection.rs").resolve()
             body = _coverage_function_body(source_text(path), function_header(path, "inspect_jpx_layers"))
-            required = ("jp2::parse_and_inspect(input, limits)?", "ensure_jpx(inspected.file())?",
+            required = ("let parsed = jp2::parse_and_inspect(input, limits)", "let inspected = parsed?",
+                "ensure_jpx(inspected.file())?",
                 "inspect_file(inspected.file(), inspected.codestreams(), limits)")
             if body is None or any("".join(item.split()) not in "".join(body.split()) for item in required):
                 raise ValueError("whole raw public JPX Result requires the actual raw/profile/inspector pipeline")
@@ -7240,11 +7660,13 @@ def validate_normative_coverage(
                     "file.file_type().is_compatible_with(BoxType::JP2_BRAND)",
                     "!file.file_type().is_jpx_compatible()", "!file.file_type().is_jph_compatible()", "count.min(1)"),
                 "parse_and_inspect_mode": ("parse(input, limits)?", "inspection_count(&file, display_first)",
-                    "codestream::parse(codestream_box.data, limits)?",
+                    "let parsed = codestream::parse(codestream_box.data, limits)",
+                    "let info = match parsed", "return Err(error)",
                     "jph != info.profile.is_part15()", "Some(association) => association.parsed.as_ref()",
                     "None if index == 0 => Some(&file.header)", "validate_container_codestream(header, &info, codestream_box.header.offset())?",
                     "inspected_codestreams.push(info)", "InspectedJp2 { file, codestreams: inspected_codestreams, }"),
-                "inspect_jph": ("parse_and_inspect(input, limits)?", "!inspected.file.file_type.is_jph_compatible()"),
+                "inspect_jph": ("let parsed = parse_and_inspect(input, limits)", "let inspected = parsed?",
+                    "!inspected.file.file_type.is_jph_compatible()"),
             }.items():
                 body = _coverage_function_body(source_text(path), function_header(path, name))
                 if body is None or any("".join(item.split()) not in "".join(body.split()) for item in required):
@@ -7982,8 +8404,10 @@ def validate_normative_coverage(
                 "let failed = outcome.is_err();",
                 "supplied.push((instruction.layer_index, Some(outcome)));",
                 "invariant_except_break", "if failed {",
-                "crate::specs::part2_frame_source_supplies_step(input, layers, selected, limits, index as nat);",
-                "crate::specs::part2_frame_source_supplies_stopped(input, layers, selected, limits, index as nat + 1, selected.len());",
+                "crate::specs::part2_frame_cold_next(input, layers, selected, limits, index as nat,"
+                "previous_supplied, owned_layer_outcome(outcome));",
+                "crate::specs::part2_frame_cold_stopped(input, layers, selected, limits,"
+                "index as nat + 1, selected.len(), supplied_views(supplied@));",
                 "render_normalized_frame(composition.width(), composition.height(), composition.frames(), composition.loop_count(), requested_frame, supplied, options.limits().maximum_decoded_bytes(), options.limits(),)",
             )
             if body is None or any("".join(item.split()) not in "".join(body.split()) for item in required):
@@ -8034,7 +8458,8 @@ def validate_normative_coverage(
             handoffs = {
                 "decode_effective_layer": (
                     "if file.compositing_layers().is_empty()", "if layer_index >= file.codestream_count()",
-                    "owned_layer_from_image(&decode_layer(file, layer_index, None, options)?)",
+                    "let decoded = decode_layer(file, layer_index, None, options)",
+                    "return owned_layer_from_image(&decoded?)",
                     "let layer = file.compositing_layer(layer_index)?;",
                     "decode_compositing_layer(file, layer, layer_index, options)",
                 ),
@@ -8043,7 +8468,8 @@ def validate_normative_coverage(
                     "matches!(layer.opacity(), Some(LayerOpacity::ChromaKey { .. }))",
                     "decode_general_compositing_layer(file, layer, layer_index, options)",
                     "let color_override = layer.color_group().first();",
-                    "let image = decode_layer(file, layer_index, color_override, options)?;",
+                    "let image = match decode_layer(file, layer_index, color_override, options)",
+                    "return Err(error)",
                     "usize::from(first.codestream_index)", "let alpha_registration = layer.registrations().get(1);",
                     "apply_layer_opacity(file, layer, layer_index, &mut owned, None, options)?;",
                 ),
@@ -8084,6 +8510,10 @@ def validate_normative_coverage(
             required_models = {
                 "part2_general_source_step": (
                     "part2_decode_jpx_codestream(file, selected.0, limits)",
+                    "Err(error) => Err(error)",
+                    "Ok(decoded) => part2_general_source_finish(config, selected, previous, decoded)",
+                ),
+                "part2_general_source_finish": (
                     "part2_native_registered_extent(decoded.0.0.0, selected.1 as u32, config.horizontal_grid as u32, selected.3)",
                     "part2_native_registered_extent(decoded.0.0.1, selected.2 as u32, config.vertical_grid as u32, selected.4)",
                 ),
@@ -8215,6 +8645,10 @@ def validate_normative_coverage(
                         color_codestream, owned_layer_view(owned),
                         match alpha_registration { None => None, Some(registration) => Some(layer_registration_view(registration)) },
                         crate::options::decode_options_limits(options));
+                    crate::specs::part2_opacity_cold_normal(jp2::jpx_file_decode_view(file), jp2::source_layer_opacity(layer),
+                        jp2::source_layer_geometry(layer), color_codestream, owned_layer_view(owned),
+                        match alpha_registration { None => None, Some(registration) => Some(layer_registration_view(registration)) },
+                        crate::options::decode_options_limits(options));
                 }
                 let Some(opacity) = layer.opacity() else { return Ok(()); };
                 #[cfg(verus_keep_ghost)] proof! { jp2::source_opacity_known(opacity); }
@@ -8222,7 +8656,18 @@ def validate_normative_coverage(
                     LayerOpacity::Straight | LayerOpacity::Premultiplied => {
                         let premultiplied = matches!(opacity, LayerOpacity::Premultiplied);
                         if let Some(registration) = alpha_registration {
-                            let image = decode_layer(file, usize::from(registration.codestream_index), None, options,)?;
+                            let image = match decode_layer(file, usize::from(registration.codestream_index), None, options,) {
+                                Ok(value) => value,
+                                Err(error) => {
+                                    #[cfg(verus_keep_ghost)] proof! {
+                                        crate::specs::part2_opacity_cold_decode_error(jp2::jpx_file_decode_view(file),
+                                            jp2::source_layer_opacity(layer), jp2::source_layer_geometry(layer), color_codestream,
+                                            owned_layer_view(owned), layer_registration_view(registration),
+                                            crate::options::decode_options_limits(options), error);
+                                    }
+                                    return Err(error);
+                                }
+                            };
                             let alpha_source = owned_layer_from_image(&image)?;
                             let alpha_registered = register_layer(
                                 &alpha_source, registration, layer.horizontal_grid_size(), layer.vertical_grid_size(),)?;
@@ -8291,12 +8736,15 @@ def validate_normative_coverage(
                 ("specs/jpx_opacity.rs", "part2_source_registered_opacity"): """
                     match part2_decode_jpx_layer(file, registration.0 as usize, None, limits) {
                         Err(error) => (Err(error), owned),
-                        Ok(image) => match part2_owned_layer_input(image.0, image.1, image.2, image.4) {
+                        Ok(image) => part2_registered_opacity_finish(image, registration, grid, owned, premultiplied),
+                    }
+                """,
+                ("specs/jpx_opacity.rs", "part2_registered_opacity_finish"): """
+                    match part2_owned_layer_input(image.0, image.1, image.2, image.4) {
+                        Err(error) => (Err(error), owned),
+                        Ok(source) => match part2_register_layer(source, registration, grid.0, grid.1) {
                             Err(error) => (Err(error), owned),
-                            Ok(source) => match part2_register_layer(source, registration, grid.0, grid.1) {
-                                Err(error) => (Err(error), owned),
-                                Ok(registered) => part2_copy_registered_opacity(owned, registered, premultiplied),
-                            },
+                            Ok(registered) => part2_copy_registered_opacity(owned, registered, premultiplied),
                         },
                     }
                 """,
@@ -8362,7 +8810,13 @@ def validate_normative_coverage(
                         jp2::jpx_file_decode_view(file), codestream_index,
                         jp2::optional_color_specification_method(color_override), crate::options::decode_options_limits(options));
                 }
-                let (decoded, header) = crate::decode::decode_jpx_file(file, codestream_index, options)?;
+                let decoded_result = crate::decode::decode_jpx_file(file, codestream_index, options);
+                #[cfg(verus_keep_ghost)] proof! {
+                    crate::specs::part2_jpx_layer_cold_actual(jp2::jpx_file_decode_view(file), codestream_index,
+                        jp2::optional_color_specification_method(color_override), crate::options::decode_options_limits(options),
+                        crate::decode::associated_typed_outcome(decoded_result));
+                }
+                let (decoded, header) = decoded_result?;
                 #[cfg(verus_keep_ghost)] proof! { crate::decode::associated_typed_success_known(&decoded, header); }
                 let header = header.unwrap_or(file.header());
                 crate::color::convert_jp2_color(
@@ -8391,6 +8845,13 @@ def validate_normative_coverage(
                 if actual is None or "".join(actual.split()) != "".join(expected.split()):
                     raise ValueError("whole JPX layer color Result requires actual complete source/override models, not decoded-image banks")
         if entry["id"] == _JPX_SOURCE_ENTRY:
+            cold_source = source_text((ROOT / "specs/jpx_source.rs").resolve())
+            cold_normal_header = re.search(r"(?m)^([ \t]*)pub\(crate\)\s+proof\s+fn\s+part2_jpx_cold_normal\b", cold_source)
+            cold_normal_body = _coverage_function_body(cold_source, cold_normal_header)
+            if cold_normal_body is None or any("".join(fragment.split()) not in "".join(cold_normal_body.split())
+                    for fragment in ("let parsed = part1_parse_info(source.0, limits)",
+                                     "let decoded = part2_decode_raw_codestream(source.0, limits, None)")):
+                raise ValueError("whole JPX source Result requires complete physical/source models, not supplied banks or trimming")
             if {(ref["path"], ref["symbol"]) for ref in entry["contract_refs"]} != set(_JPX_SOURCE_CONTRACTS):
                 raise ValueError("whole JPX source Result requires actual file, raw info/decoder, association/validation/output contracts")
             model_refs = {
@@ -8502,6 +8963,8 @@ def validate_normative_coverage(
                     jp2::jpx_file_associated_header_reference_unfold(file, codestream_index);
                     crate::specs::part2_decode_jpx_codestream_unfold(
                         jp2::jpx_file_decode_view(file), codestream_index, crate::options::decode_options_limits(options));
+                    crate::specs::part2_jpx_cold_normal(
+                        jp2::jpx_file_decode_view(file), codestream_index, crate::options::decode_options_limits(options));
                 }
                 if !file.file_type().is_jpx_compatible() {
                     return Err(DecodeError::malformed(0, MalformedKind::InvalidProfile));
@@ -8519,12 +8982,30 @@ def validate_normative_coverage(
                         jp2::codestream_source_view(selected), jp2::associated_header_view(associated_header.unwrap()),
                         crate::options::decode_options_limits(options));
                 }
-                let info = codestream::parse(selected.data(), options.limits())?;
+                let info = match codestream::parse(selected.data(), options.limits()) {
+                    Ok(info) => info,
+                    Err(error) => {
+                        #[cfg(verus_keep_ghost)] proof! {
+                            crate::specs::part2_jpx_cold_info_error(
+                                jp2::jpx_file_decode_view(file), codestream_index,
+                                crate::options::decode_options_limits(options), jp2::codestream_source_view(selected),
+                                jp2::associated_header_view(associated_header.unwrap()), error);
+                        }
+                        return Err(error);
+                    }
+                };
                 #[cfg(verus_keep_ghost)] proof! { codestream::complete_codestream_info_known_fields(&info); }
                 if let Some(header) = associated_header {
                     jp2::validate_selected_header(header, &info, selected.box_header().offset())?;
                 }
-                let decoded = decode_codestream(selected.data(), options)?;
+                let decoded_result = decode_codestream(selected.data(), options);
+                #[cfg(verus_keep_ghost)] proof! {
+                    crate::specs::part2_jpx_cold_image_actual(
+                        jp2::jpx_file_decode_view(file), codestream_index, crate::options::decode_options_limits(options),
+                        jp2::codestream_source_view(selected), jp2::associated_header_view(associated_header.unwrap()),
+                        codestream::complete_codestream_info_view(&info), crate::image::decoded_typed_image_outcome(decoded_result));
+                }
+                let decoded = decoded_result?;
                 apply_associated_output(decoded, associated_header, options.limits())
             """
             if "".join(body.split()) != "".join(expected.split()):
@@ -8645,11 +9126,18 @@ def validate_normative_coverage(
                     + _coverage_call("codestream::decoder_layout_errors_known") + r"\s*;\s*"
                     + _coverage_call("crate::specs::part2_decode_raw_codestream_unfold",
                                      "input@", _coverage_call("crate::options::decode_options_limits", "options"), requested)
-                    + r"\s*;\s*" + _coverage_call("reveal", "crate::specs::part2_decode_typed_layout") + r"\s*;\s*\}\s*"
+                    + r"\s*;\s*" + _coverage_call("reveal", "crate::specs::part2_decode_typed_layout") + r"\s*;\s*"
+                    + _coverage_call("crate::specs::part2_decode_raw_cold_normal",
+                                     "input@", _coverage_call("crate::options::decode_options_limits", "options"), requested)
+                    + r"\s*;\s*\}\s*"
                 )
-                parsed = r"let\s+layout\s*=\s*" + _coverage_call(
+                parsed = r"let\s+layout\s*=\s*match\s+" + _coverage_call(
                     "codestream::parse_layout", "input", _coverage_call("options.limits"),
-                ) + r"\s*\?\s*;\s*"
+                ) + r"\s*\{\s*Ok\(layout\)\s*=>\s*layout\s*,\s*Err\(error\)\s*=>\s*\{\s*" \
+                    r"#\[\s*cfg\s*\(\s*verus_keep_ghost\s*\)\s*\]\s*proof!\s*\{\s*" \
+                    + _coverage_call("crate::specs::part2_decode_raw_cold_parse_error", "input@",
+                                     _coverage_call("crate::options::decode_options_limits", "options"), requested, "error") \
+                    + r"\s*;\s*\}\s*return\s+Err\(error\)\s*;\s*\}\s*\}\s*;\s*"
                 bridge = (
                     r"#\[\s*cfg\s*\(\s*verus_keep_ghost\s*\)\s*\]\s*proof!\s*\{\s*"
                     + _coverage_call("codestream::decoder_layout_input_matches_raw", r"&\s*layout") + r"\s*;\s*\}\s*"
@@ -8739,7 +9227,7 @@ def validate_normative_coverage(
             path = (ROOT / "src/codestream/layout.rs").resolve()
             body = _coverage_function_body(source_text(path), function_header(path, "Parser::parse_layout"))
             public_body = _coverage_function_body(source_text(path), function_header(path, "parse_layout"))
-            if public_body is None or re.fullmatch(_RAW_LAYOUT_WRAPPER_BODY, public_body) is None:
+            if public_body is None or "".join(public_body.split()) != "".join(_RAW_LAYOUT_WRAPPER_BODY.split()):
                 raise ValueError("whole raw layout requires the actual byte/limits reader wrapper")
             state = _coverage_call("persistent_tile_state_view", *(name + r"\s*@" for name in _PERSISTENT_TILE_STATE_FIELDS))
             reader = _coverage_call("parser_view", r"&\s*parser")
@@ -8960,7 +9448,7 @@ def validate_normative_coverage(
             public = {"path": _MAIN_HEADER_LAYOUT[0], "symbol": "parse_layout"}
             public_body = (_coverage_function_body(source_text(path), function_header(path, public["symbol"]))
                            if public in entry["implementation_refs"] else None)
-            if public_body is None or re.fullmatch(_RAW_LAYOUT_WRAPPER_BODY, public_body) is None:
+            if public_body is None or "".join(public_body.split()) != "".join(_RAW_LAYOUT_WRAPPER_BODY.split()):
                 raise ValueError("whole raw main-header Result not used by claimed implementation: actual raw wrapper")
             raw_view = _coverage_call("main_header_accumulator_view", *_MAIN_HEADER_RAW_ARGUMENTS)
             continuation = _coverage_call("crate::specs::part1_main_header_continuation",
@@ -8975,6 +9463,8 @@ def validate_normative_coverage(
                 r"let\s+ghost\s+main_initial\s*=\s*" + raw_view + r"\s*;",
                 r"let\s+ghost\s+raw_main\s*=\s*" + raw_view + r"\s*;",
                 r"verus_spec\s*\(\s*invariant\s+initial_reader\s*==\s*" + initial_reader
+                + r"\s*,\s*" + _coverage_call("crate::specs::part1_cold_layout_result", "initial_reader",
+                    _coverage_call("crate::specs::part1_read_layout", "initial_reader"))
                 + r"\s*,\s*main_goal\s*==\s*" + root + r"\s*,\s*main_goal\s*==\s*" + continuation
                 + r"\s*,(?:\s*input_length\s*==\s*"
                 + _coverage_call("crate::specs::part1_parse_layout_prologue", "initial_reader")
@@ -10064,6 +10554,7 @@ def validate_normative_coverage(
                     r"old\(\s*values\s*\)@\s*,\s*final\(\s*values\s*\)@\s*,\s*\1",
                 ),
                 "empty_with_capacity": ("storage_capacity_result", r"\1"),
+                "none_values": ("storage_none_result", r"count\s*,\s*\1"),
                 "extend_bytes": (
                     "storage_extension_result",
                     r"old\(\s*values\s*\)@\s*,\s*bytes@\s*,\s*"
@@ -10098,10 +10589,40 @@ def validate_normative_coverage(
             if entry["id"] == _JPIP_SEMANTIC_ENTRY:
                 storage_contract = _JPIP_SEMANTIC_RELATIONS.get(
                     (reference["path"], reference["symbol"]), storage_contract)
+            cold_contract = _COLD_RESULT_CONTRACTS.get((reference["path"], reference["symbol"]))
+            if cold_contract is not None:
+                storage_contract = cold_contract
+                header_contract = arbitrary_contract = selection_contract = None
+                if not cold_foundation_checked:
+                    cold_source = source_text((ROOT / "specs/raw_decode.rs").resolve())
+                    for cold_name, expected_body in _COLD_FRAME_BODIES.items():
+                        cold_body = _coverage_spec_function_body(cold_source, cold_name)
+                        if cold_body is None or "".join(cold_body.split()) != "".join(expected_body.split()):
+                            raise ValueError(f"linked function lacks executable Verus contract: {short}; invalid exact cold event/tail frame")
+                    cold_foundation_checked = True
+                model_path = next(
+                    (path for model, path, _ in _COLD_RESULT_MODELS.values() if model == cold_contract[0]),
+                    "specs/jpip_transcode.rs",
+                )
+                if not _coverage_cold_result_body(source_text((ROOT / model_path).resolve()), cold_contract[0]):
+                    raise ValueError(f"linked function lacks executable Verus contract: {short}; invalid complete cold Result body")
+                normal_refs = {
+                    (path, normal) for model, path, normal in _COLD_RESULT_MODELS.values()
+                    if model == cold_contract[0]
+                }
+                if cold_contract[0] == "part2_jpip_validate_precinct_cold_result":
+                    normal_refs = {("specs/jpip_transcode.rs", "part2_jpip_validate_precinct_cold_normal")}
+                if not normal_refs.issubset({(ref["path"], ref["symbol"]) for ref in entry["proof_refs"]}):
+                    raise ValueError(f"linked function lacks executable Verus contract: {short}; missing checked cold normal projection")
             if storage_contract:
                 model, arguments = storage_contract
+                relation_prefix = named_prefix
+                if (reference["path"], reference["symbol"]) == _MAIN_HEADER_LAYOUT:
+                    relation_prefix += _coverage_call("crate::specs::part1_main_header_layout_relation",
+                        _coverage_call("crate::specs::part1_read_main_header", _coverage_call("parser_view", r"&\s*self")),
+                        _coverage_call("layout_main_header_outcome", r"\1")) + r"\s*,\s*"
                 relation = re.search(
-                    named_prefix + r"crate::specs::(?P<model>" + re.escape(model)
+                    relation_prefix + r"crate::specs::(?P<model>" + re.escape(model)
                     + r")\s*\(\s*(?P<state>" + arguments + r")\s*,?\s*\)", contract,
                 )
                 if relation is None or re.search(r"\brequires\b", contract):

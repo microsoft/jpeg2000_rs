@@ -955,6 +955,15 @@ model mentions do not qualify. Functions taking mutable references must still
 provide the complete final-state relation; a bare return equality cannot replace it.
 This is a conservative source-link check, not a
 replacement for Verus.
+The cold-parser Result schemas additionally recognize only registered,
+unconditional allocation-environment relations at their actual native
+consumers. They reuse the original exact input/result patterns, bind every
+mutable output (including decoder/cache and opacity-owner state), and require
+the corresponding checked normal-projection proof links. Fixed rendering
+kinds, selected/full inputs and ordered nested parser phases cannot substitute
+for one another. The inventory retains the original requirement objects and
+normal models; a generic `AllocationFailed` alternative, guarded cold relation,
+unrelated named result or missing final-state field does not qualify.
 Same-file links are checked inside another listed, formatted function body;
 the contract's own declaration, an unrelated function or an indirect caller
 does not qualify as a direct same-file call. Unsupported formatting can fail

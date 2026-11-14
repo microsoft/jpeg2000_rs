@@ -279,8 +279,13 @@ impl<'a> InspectedJp2<'a> {
 }
 
 #[cfg_attr(verus_keep_ghost, verus_spec(result =>
-    ensures super::raw_inspected_container_outcome(result)
-        == crate::specs::part2_parse_and_inspect_container(input@, limits),
+    ensures crate::specs::part2_inspection_cold_result(
+        input@, limits, false, super::raw_inspected_container_outcome(result)),
+        result.is_ok() ==> super::raw_inspected_container_outcome(result)
+            == crate::specs::part2_parse_and_inspect_container(input@, limits),
+        super::raw_inspected_container_outcome(result) != Err(DecodeError::AllocationFailed) ==>
+            super::raw_inspected_container_outcome(result)
+                == crate::specs::part2_parse_and_inspect_container(input@, limits),
 ))]
 pub fn parse_and_inspect<'a>(
     input: &'a [u8],
@@ -292,8 +297,13 @@ pub fn parse_and_inspect<'a>(
 }
 
 #[cfg_attr(verus_keep_ghost, verus_spec(result =>
-    ensures super::raw_inspected_container_outcome(result)
-        == crate::specs::part2_parse_and_inspect_container_mode(input@, limits, true),
+    ensures crate::specs::part2_inspection_cold_result(
+        input@, limits, true, super::raw_inspected_container_outcome(result)),
+        result.is_ok() ==> super::raw_inspected_container_outcome(result)
+            == crate::specs::part2_parse_and_inspect_container_mode(input@, limits, true),
+        super::raw_inspected_container_outcome(result) != Err(DecodeError::AllocationFailed) ==>
+            super::raw_inspected_container_outcome(result)
+                == crate::specs::part2_parse_and_inspect_container_mode(input@, limits, true),
 ))]
 pub(crate) fn parse_and_inspect_for_display<'a>(
     input: &'a [u8],
@@ -322,8 +332,13 @@ fn inspection_count(file: &Jp2File<'_>, display_first: bool) -> usize {
 }
 
 #[cfg_attr(verus_keep_ghost, verus_spec(result =>
-    ensures super::raw_inspected_container_outcome(result)
-        == crate::specs::part2_parse_and_inspect_container_mode(input@, limits, display_first),
+    ensures crate::specs::part2_inspection_cold_result(
+        input@, limits, display_first, super::raw_inspected_container_outcome(result)),
+        result.is_ok() ==> super::raw_inspected_container_outcome(result)
+            == crate::specs::part2_parse_and_inspect_container_mode(input@, limits, display_first),
+        super::raw_inspected_container_outcome(result) != Err(DecodeError::AllocationFailed) ==>
+            super::raw_inspected_container_outcome(result)
+                == crate::specs::part2_parse_and_inspect_container_mode(input@, limits, display_first),
 ))]
 fn parse_and_inspect_mode<'a>(
     input: &'a [u8],
@@ -331,7 +346,10 @@ fn parse_and_inspect_mode<'a>(
     display_first: bool,
 ) -> Result<InspectedJp2<'a>, DecodeError> {
     #[cfg(verus_keep_ghost)]
-    proof! { crate::specs::part2_parse_and_inspect_container_mode_unfold(input@, limits, display_first); }
+    proof! {
+        crate::specs::part2_parse_and_inspect_container_mode_unfold(input@, limits, display_first);
+        crate::specs::part2_inspection_cold_normal(input@, limits, display_first);
+    }
     let file = parse(input, limits)?;
     let codestream_count = inspection_count(&file, display_first);
     let mut inspected_codestreams = Vec::with_capacity(codestream_count);
@@ -340,6 +358,7 @@ fn parse_and_inspect_mode<'a>(
     proof_decl! {
         let ghost expected = crate::specs::part2_parse_and_inspect_container_mode(input@, limits, display_first);
         let ghost source = super::raw_jp2_file_view(&file);
+        let ghost mut parse_prefix: Seq<crate::specs::Part2JpipSnapshotEvent> = Seq::empty();
     }
     #[cfg(verus_keep_ghost)]
     proof! {
@@ -354,8 +373,13 @@ fn parse_and_inspect_mode<'a>(
                 source == super::raw_jp2_file_view(&file),
                 inspected_codestreams.len() == index,
                 expected == crate::specs::part2_parse_and_inspect_container_mode(input@, limits, display_first),
+                crate::specs::part2_inspection_cold_result(input@, limits, display_first, expected),
                 expected == crate::specs::part2_inspected_codestreams(source, limits, index,
                     super::raw_codestream_infos_view(inspected_codestreams@), display_first),
+                forall|tail: Seq<crate::specs::Part2JpipSnapshotEvent>|
+                    crate::specs::part2_inspection_cold_run(input@, limits, display_first, parse_prefix + tail)
+                        == crate::specs::part2_inspected_cold_streams(source, limits, index,
+                            super::raw_codestream_infos_view(inspected_codestreams@), display_first, tail),
             decreases codestream_count - index,
         )
     )]
@@ -363,12 +387,24 @@ fn parse_and_inspect_mode<'a>(
         #[cfg(verus_keep_ghost)]
         proof! {
             reveal(crate::specs::part2_inspected_codestreams);
+            reveal_with_fuel(crate::specs::part2_inspected_cold_streams, 1);
             reveal(crate::specs::part2_inspected_header);
             super::raw_inspection_file_fields_known(&file);
             codestream::complete_codestream_info_errors_known();
         }
         let codestream_box = file.codestream(index)?;
-        let info = codestream::parse(codestream_box.data, limits)?;
+        let parsed = codestream::parse(codestream_box.data, limits);
+        let info = match parsed {
+            Ok(info) => info,
+            Err(error) => {
+                #[cfg(verus_keep_ghost)]
+                proof! {
+                    crate::specs::part2_inspection_cold_parse_error(input@, limits, display_first,
+                        source, index, super::raw_codestream_infos_view(inspected_codestreams@), parse_prefix, error);
+                }
+                return Err(error);
+            }
+        };
         #[cfg(verus_keep_ghost)]
         proof! {
             codestream::complete_codestream_info_known_fields(&info);
@@ -395,6 +431,12 @@ fn parse_and_inspect_mode<'a>(
         if let Some(header) = associated_header {
             validate_container_codestream(header, &info, codestream_box.header.offset())?;
         }
+        #[cfg(verus_keep_ghost)]
+        proof! {
+            assert(crate::specs::part2_inspected_header(source, index, parsed_info) == Ok(()));
+            parse_prefix = crate::specs::part2_inspection_cold_advance(
+                input@, limits, display_first, source, index, previous_infos, parse_prefix, parsed_info);
+        }
         inspected_codestreams.push(info);
         #[cfg(verus_keep_ghost)]
         proof! {
@@ -418,8 +460,13 @@ fn parse_and_inspect_mode<'a>(
 }
 
 #[cfg_attr(verus_keep_ghost, verus_spec(result =>
-    ensures super::raw_inspected_container_outcome(result)
-        == crate::specs::part2_inspect_jph_container(input@, limits),
+    ensures crate::specs::part2_inspect_jph_cold_result(
+        input@, limits, super::raw_inspected_container_outcome(result)),
+        result.is_ok() ==> super::raw_inspected_container_outcome(result)
+            == crate::specs::part2_inspect_jph_container(input@, limits),
+        super::raw_inspected_container_outcome(result) != Err(DecodeError::AllocationFailed) ==>
+            super::raw_inspected_container_outcome(result)
+                == crate::specs::part2_inspect_jph_container(input@, limits),
 ))]
 pub fn inspect_jph<'a>(
     input: &'a [u8],
@@ -427,7 +474,13 @@ pub fn inspect_jph<'a>(
 ) -> Result<InspectedJp2<'a>, DecodeError> {
     #[cfg(verus_keep_ghost)]
     proof! { crate::specs::part2_inspect_jph_container_unfold(input@, limits); }
-    let inspected = parse_and_inspect(input, limits)?;
+    let parsed = parse_and_inspect(input, limits);
+    #[cfg(verus_keep_ghost)]
+    proof! {
+        crate::specs::part2_inspect_jph_cold_actual(
+            input@, limits, super::raw_inspected_container_outcome(parsed));
+    }
+    let inspected = parsed?;
     #[cfg(verus_keep_ghost)]
     proof! {
         reveal(super::raw_inspected_container_view);

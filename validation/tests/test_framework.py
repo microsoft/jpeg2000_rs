@@ -990,8 +990,8 @@ class FrameworkTests(WorkingFiles):
              "part2_jpip_append_reconstructed_box(payload, header, ready.0)"),
             ("streams", "missing: state.missing + ready.3", "missing: ready.3"),
             ("boxes", "active: state.active.drop_last()", "active: state.active"),
-            ("assembly_run", "part2_parse_and_inspect_container(state.output, &cache.0)",
-             "part2_parse_and_inspect_container(Seq::empty(), &cache.0)"),
+            ("inspection", "state.output, &cache.0, false, calls)",
+             "Seq::empty(), &cache.0, false, calls)"),
         ):
             name = "part2_jpip_semantic_" + function
             start = re.search(r"\bspec\s+fn\s+" + name + r"\b", original).start()
@@ -1072,16 +1072,18 @@ class FrameworkTests(WorkingFiles):
         read_text = Path.read_text
         source = framework.ROOT / "specs/jpip_progressive.rs"
         original = source.read_text()
-        start = re.search(r"\bspec\s+fn\s+part2_jpip_automatic_progressive_run\b", original).start()
-        for before, after in (
-            ("part2_jpip_snapshot_run(input, events)", "supplied_snapshot_result"),
-            ("Some((Err(error), tail)) => Some(((Err(error), decoder, cache), tail))",
-             "Some((Err(error), tail)) => Some(((Err(error), (decoder.0, 0), cache), tail))"),
-            ("else if available <= previous", "else if available < previous"),
-            ("part2_decode_raw_codestream(snapshot.0,", "part2_decode_raw_codestream(Seq::empty(),"),
-            ("(decoder.0, available), cache)", "(decoder.0, previous), cache)"),
+        for name, before, after in (
+            ("snapshot_call", "part2_jpip_snapshot_run(input, calls)", "supplied_snapshot_result"),
+            ("progressive_run", "Some((Err(error), rest)) => Some(((Err(error), decoder, cache), rest))",
+             "Some((Err(error), rest)) => Some(((Err(error), (decoder.0, 0), cache), rest))"),
+            ("after_snapshot", "else if snapshot.1 <= decoder.1", "else if snapshot.1 < decoder.1"),
+            ("image_call", "part2_decode_raw_cold_run(\n                bytes,", "part2_decode_raw_cold_run(\n                Seq::empty(),"),
+            ("image_call", "if rest.len() == 0", "if rest.len() != 0"),
+            ("image_frame", "(decoder.0, snapshot.1), cache)", "(decoder.0, decoder.1), cache)"),
         ):
-            self.assertIn(before, framework._coverage_spec_function_body(original, "part2_jpip_automatic_progressive_run"))
+            symbol = "part2_jpip_automatic_" + name
+            start = re.search(r"\bspec\s+fn\s+" + symbol + r"\b", original).start()
+            self.assertIn(before, framework._coverage_spec_function_body(original, symbol))
             modified = original[:start] + original[start:].replace(before, after, 1)
 
             def altered(path, *args, **kwargs):
@@ -1129,6 +1131,11 @@ class FrameworkTests(WorkingFiles):
             ("src/jpip/progression.rs", "super::jpip_missing_ref_projection", "unrelated_iterator_claim"),
             ("src/jpip/progression.rs", "emitted_bytes + seq![0xffu8, 0xd9u8]", "emitted_bytes"),
             ("src/jpip/progression.rs", "super::jpip_snapshot_layout_success_known()", "unrelated_layout_claim()"),
+            ("src/jpip/progression.rs", "super::jpip_snapshot_root_ready_parse_error", "unrelated_parse_error"),
+            ("src/jpip/progression.rs", "prefix = super::jpip_snapshot_template_layout_prefix",
+             "prefix = unrelated_prefix"),
+            ("specs/jpip_snapshot.rs", "part2_cold_parse(bytes, limits, 1, 0, events)",
+             "part2_cold_parse(bytes, limits, 0, 0, events)"),
         ):
             source = framework.ROOT / relative
             original = source.read_text()
@@ -1255,6 +1262,10 @@ class FrameworkTests(WorkingFiles):
             ("src/jpip/progression.rs",
              "tile_count, components, headers, template@, &layout);",
              "tile_count, components, headers, Seq::empty(), &layout);"),
+            ("src/jpip/progression.rs", "prefix = super::jpip_snapshot_template_layout_prefix",
+             "prefix = unrelated_prefix"),
+            ("specs/jpip_snapshot_inputs.rs", "part2_cold_parse(template, input.limits, 0, 0, events)",
+             "part2_cold_parse(template, input.limits, 2, 0, events)"),
         ):
             source = framework.ROOT / relative
             original = source.read_text()
@@ -1443,12 +1454,15 @@ class FrameworkTests(WorkingFiles):
         framework.validate_normative_coverage(coverage)
         read_text = Path.read_text
         for relative, before, after in (
-            ("src/jpip/snapshot_header_proof_support.rs", "crate::codestream::decoder_layout_errors_known();", ""),
+            ("src/jpip/snapshot_header_proof_support.rs",
+             "part2_cold_parse_actual(template, input.limits, 0, 0, Err(error))",
+             "part2_cold_parse_actual(template, input.limits, 2, 0, Err(error))"),
             ("src/jpip/snapshot_header_proof_support.rs",
              "part2_jpip_transition_template(main, headers, input.limits) == Ok(template)",
              "part2_jpip_transition_template(main, headers, input.limits) == Ok(unrelated)"),
             ("src/jpip/snapshot_header_proof_support.rs",
-             "complete_layout_outcome(Err(error))", "complete_layout_outcome(Err(unrelated))"),
+             "part1_parse_layout_cold_result(template, input.limits, Err(error))",
+             "part1_parse_layout_cold_result(template, input.limits, Err(unrelated))"),
             ("src/jpip/progression.rs", "headers, template@, error", "headers, unrelated@, error"),
             ("src/jpip/progression.rs",
              "part2_jpip_transition_template(normalized_bytes, headers, input.limits) == Ok(template@)",
@@ -2412,7 +2426,7 @@ class FrameworkTests(WorkingFiles):
             ("src/jpip/progression.rs", "JpipProgressiveDecoder::update", "self.update_inner(cache, options, None)", "self.update_inner(cache, options, Some(&crate::DecodeSelection::full_image()))"),
             ("src/jpip/progression.rs", "JpipProgressiveDecoder::update_inner", "cache.progressive_availability(&self.plan)?", "Ok::<_, DecodeError>((0, Vec::new()))?"),
             ("src/jpip/progression.rs", "JpipProgressiveDecoder::update_inner", "available_layers <= previous_layers", "false"),
-            ("src/jpip/progression.rs", "JpipProgressiveDecoder::update_inner", "cache.transcode_precinct_codestream(&self.plan, available_layers)?", "cache.transcode_precinct_codestream(&self.plan, 1)?"),
+            ("src/jpip/progression.rs", "JpipProgressiveDecoder::update_inner", "cache.transcode_precinct_codestream(&self.plan, available_layers)", "cache.transcode_precinct_codestream(&self.plan, 1)"),
             ("src/jpip/progression.rs", "JpipProgressiveDecoder::update_inner", "self.decoded_layers = available_layers", "self.decoded_layers = previous_layers"),
             ("src/jpip/progression.rs", "JpipProgressiveDecoder::update_inner", "image: Some(image)", "image: None"),
             ("src/jpip/ranges.rs", "DatabinCache::progressive_availability", "start = end", "start = 0"),
@@ -2485,7 +2499,7 @@ class FrameworkTests(WorkingFiles):
             ("src/jpip/precinct.rs", "DatabinCache::transcode_precinct_codestream", "self.precinct_availability(plan, packet_end)?", "self.availability(&[])?"),
             ("src/jpip/precinct.rs", "DatabinCache::transcode_precinct_codestream", "self.databin_view(plan.main_header)?.into_bytes()", "self.databin_view(plan.tile_header)?.into_bytes()"),
             ("src/jpip/precinct.rs", "DatabinCache::transcode_precinct_codestream", ".get_mut(6..10)", ".get_mut(2..6)"),
-            ("src/jpip/precinct.rs", "DatabinCache::transcode_precinct_codestream", "validate_precinct_codestream(&bytes, layers, &self.limits)?", "Ok::<(), DecodeError>(())?"),
+            ("src/jpip/precinct.rs", "DatabinCache::transcode_precinct_codestream", "validate_precinct_codestream(&bytes, layers, &self.limits)", "Ok::<(), DecodeError>(())"),
             ("src/jpip/precinct.rs", "patch_cod_layers", "segment_length < 7", "false"),
             ("src/jpip/ranges.rs", "DatabinCache::precinct_availability", "self.append_complete_databin_requirement(plan.main_header, &mut report)?", "self.append_complete_databin_requirement(plan.tile_header, &mut report)?"),
             ("src/jpip/ranges.rs", "DatabinCache::append_complete_databin_requirement", ".checked_add(header_report.required_bytes)", ".checked_add(0)"),
@@ -3441,14 +3455,15 @@ class FrameworkTests(WorkingFiles):
         read_text = Path.read_text
         for model, requested in (("typed", "None"), ("typed", "Some(crate::options::decode_selection_view(selection))"),
                                   ("color", "None"), ("color", "Some(crate::options::decode_selection_view(selection))")):
-            before = f"part2_decode_raw_jpx_{model}(\n        input@, codestream_index, crate::options::decode_options_limits(options), {requested})"
-            self.assertIn(before, original)
+            before = f"part2_decode_jpx_{model}_cold_result(input@, codestream_index, crate::options::decode_options_limits(options), {requested},"
+            matched = re.search(r"\s*".join(re.escape(c) for c in before if not c.isspace()), original)
+            self.assertIsNotNone(matched)
             for after in (
                 before.replace("input@", "seq![]"),
                 before.replace("codestream_index,", "0,"),
-                before.replace(requested + ")", ("None" if requested != "None" else "Some(unrelated)") + ")"),
+                before.replace(requested + ",", ("None" if requested != "None" else "Some(unrelated)") + ","),
             ):
-                changed = original.replace(before, after, 1)
+                changed = original[:matched.start()] + after + original[matched.end():]
 
                 def altered(path, *args, **kwargs):
                     return changed if path == source else read_text(path, *args, **kwargs)
@@ -3473,9 +3488,9 @@ class FrameworkTests(WorkingFiles):
         read_text = Path.read_text
         for name, anchor, before, after, expected in (
             ("src/decode/api.rs", "pub fn decode_jpx_codestream(", "jp2::parse(input, options.limits())?", "jp2::parse_and_inspect(input, options.limits())?", "actual raw/index/selection/header/color/target handoffs"),
-            ("src/decode/api.rs", "pub fn decode_jpx_codestream(", "decode_jpx_file_selected(&file, codestream_index, options, selection)?", "decode_jpx_file_selected(&file, 0, options, selection)?", "actual raw/index/selection/header/color/target handoffs"),
+            ("src/decode/api.rs", "pub fn decode_jpx_codestream(", "decode_jpx_file_selected(&file, codestream_index, options, selection)", "decode_jpx_file_selected(&file, 0, options, selection)", "actual raw/index/selection/header/color/target handoffs"),
             ("src/decode/api.rs", "pub fn decode_jpx_codestream(", "convert_associated_selected_color(&decoded, header, target, options.limits())", "convert_associated_selected_color(&decoded, header, [0, 0, 1, 1], options.limits())", "actual raw/index/selection/header/color/target handoffs"),
-            ("src/decode/output.rs", "pub(super) fn decode_jpx_file_selected(", "codestream::parse_layout(selected.data(), options.limits())?", "codestream::parse_layout(&unrelated, options.limits())?", "actual module-level selected producer"),
+            ("src/decode/output.rs", "pub(super) fn decode_jpx_file_selected(", "codestream::parse_layout(selected.data(), options.limits())", "codestream::parse_layout(&unrelated, options.limits())", "actual module-level selected producer"),
             ("src/decode/output.rs", "pub(super) fn decode_jpx_file_selected(", "decode_layout_selected(&layout, selection, options.limits())?", "decode_layout_selected(&layout, &unrelated, options.limits())?", "actual module-level selected producer"),
             ("src/decode/output.rs", "pub(super) fn decode_jpx_file_selected(", "codestream::decoder_layout_main_info_matches_raw(&layout)", "unrelated_layout_bridge()", "actual module-level selected producer"),
         ):
@@ -3497,16 +3512,17 @@ class FrameworkTests(WorkingFiles):
         source = framework.ROOT / "specs/jpx_public_images.rs"
         original = source.read_text()
         read_text = Path.read_text
-        for before, after in (
-            ("part2_parse_container(input, *limits)", "part2_parse_container(seq![], *limits)"),
-            ("part1_parse_layout(source.0, limits)", "part1_parse_layout(seq![], limits)"),
-            ("part2_typed_layout_input(input, decoded, requested.2, limits)", "part2_decode_typed_layout_value_input(0, input, limits, Some(requested))"),
-            ("part2_apply_output_header(image, header.0,", "part2_apply_output_header(image, unrelated,"),
-            ("part2_decode_jpx_selected_file(file, index, limits, expanded.0)", "part2_decode_jpx_selected_file(file, index, limits, requested)"),
-            ("expanded.1[2]", "expanded.1[0]"),
+        for symbol, before, after in (
+            ("part2_decode_raw_jpx_typed", "part2_parse_container(input, *limits)", "part2_parse_container(seq![], *limits)"),
+            ("part2_decode_jpx_selected_source", "part1_parse_layout(source.0, limits)", "part1_parse_layout(seq![], limits)"),
+            ("part2_decode_jpx_selected_layout", "part2_typed_layout_input(input, decoded, requested.2, limits)", "part2_decode_typed_layout_value_input(0, input, limits, Some(requested))"),
+            ("part2_decode_jpx_selected_layout", "part2_apply_output_header(image, header.0,", "part2_apply_output_header(image, unrelated,"),
+            ("part2_decode_jpx_selected_color", "part2_decode_jpx_selected_file(file, index, limits, expanded.0)", "part2_decode_jpx_selected_file(file, index, limits, requested)"),
+            ("part2_decode_jpx_selected_color", "expanded.1[2]", "expanded.1[0]"),
         ):
-            self.assertIn(before, original)
-            changed = original.replace(before, after, 1)
+            body = framework._coverage_spec_function_body(original, symbol)
+            self.assertIn(before, body)
+            changed = original.replace(body, body.replace(before, after, 1), 1)
 
             def altered(path, *args, **kwargs):
                 return changed if path == source else read_text(path, *args, **kwargs)
@@ -3566,14 +3582,15 @@ class FrameworkTests(WorkingFiles):
         read_text = Path.read_text
         for requested, jph in (("None", "false"), ("Some(crate::options::decode_selection_view(selection))", "false"),
                                ("None", "true"), ("Some(crate::options::decode_selection_view(selection))", "true")):
-            before = f"part2_decode_raw_color_container(\n        input@, crate::options::decode_options_limits(options), {requested}, {jph})"
-            self.assertIn(before, original)
+            before = f"part2_decode_color_cold_result(input@, crate::options::decode_options_limits(options), {requested}, {jph},"
+            matched = re.search(r"\s*".join(re.escape(c) for c in before if not c.isspace()), original)
+            self.assertIsNotNone(matched)
             for after in (
                 before.replace("input@", "seq![]"),
                 before.replace(requested + ",", ("None" if requested != "None" else "Some(unrelated)") + ","),
-                before[:-len(jph) - 1] + ("false" if jph == "true" else "true") + ")",
+                before[:-len(jph) - 1] + ("false" if jph == "true" else "true") + ",",
             ):
-                changed = original.replace(before, after, 1)
+                changed = original[:matched.start()] + after + original[matched.end():]
 
                 def altered(path, *args, **kwargs):
                     return changed if path == source else read_text(path, *args, **kwargs)
@@ -3597,12 +3614,12 @@ class FrameworkTests(WorkingFiles):
         entry = next(item for item in coverage["requirements"] if item["id"] == framework._RAW_CONTAINER_COLOR_ENTRY)
         read_text = Path.read_text
         for name, anchor, before, after in (
-            ("src/decode/api.rs", "pub fn decode_jp2_color(", "jp2::parse_and_inspect_for_display(input, options.limits())?", "jp2::parse_and_inspect_for_display(&unrelated, options.limits())?"),
-            ("src/decode/api.rs", "pub fn decode_jp2_color(", "color_selection(codestream, selection, options.limits())?", "color_selection(codestream, &unrelated, options.limits())?"),
-            ("src/decode/api.rs", "pub fn decode_jp2_color(", "decode_codestream_selected(codestream, options, &expanded)?", "decode_codestream_selected(codestream, options, selection)?"),
+            ("src/decode/api.rs", "pub fn decode_jp2_color(", "jp2::parse_and_inspect_for_display(input, options.limits())", "jp2::parse_and_inspect_for_display(&unrelated, options.limits())"),
+            ("src/decode/api.rs", "pub fn decode_jp2_color(", "color_selection(codestream, selection, options.limits())", "color_selection(codestream, &unrelated, options.limits())"),
+            ("src/decode/api.rs", "pub fn decode_jp2_color(", "decode_codestream_selected(codestream, options, &expanded)", "decode_codestream_selected(codestream, options, selection)"),
             ("src/decode/api.rs", "pub fn decode_jp2_color(", "apply_jp2_output(decoded, inspected.file().header(), options.limits())?", "decoded"),
             ("src/decode/api.rs", "pub fn decode_jp2_color(", "Some(inspected.file().header()),\n        target,", "Some(inspected.file().header()),\n        [0, 0, 1, 1],"),
-            ("src/decode/output.rs", "pub(super) fn color_selection(", "codestream::parse_layout(input, limits)?", "codestream::parse_layout(&unrelated, limits)?"),
+            ("src/decode/output.rs", "pub(super) fn color_selection(", "codestream::parse_layout(input, limits)", "codestream::parse_layout(&unrelated, limits)"),
         ):
             source = framework.ROOT / name
             original = source.read_text()
@@ -3621,19 +3638,20 @@ class FrameworkTests(WorkingFiles):
         coverage = json.loads((framework.VALIDATION / "normative-coverage.json").read_text())
         entry = next(item for item in coverage["requirements"] if item["id"] == framework._RAW_CONTAINER_COLOR_ENTRY)
         read_text = Path.read_text
-        for name, before, after in (
-            ("specs/container_colors.rs", "part2_color_selection_raw(file.streams[0].1, limits, requested)", "part2_color_selection_raw(seq![], limits, requested)"),
-            ("specs/container_colors.rs", "Some(expanded.0)", "Some(requested)"),
-            ("specs/container_colors.rs", "expanded.1[2]", "expanded.1[0]"),
-            ("specs/container_colors.rs", "part2_raw_associated_header(file.header)", "unrelated_header"),
-            ("specs/decoder_input.rs", "part2_decode_layout_selected_value_input(input, crate::options::decode_selection_view(requested), limits)", "part2_decode_layout_input(input, limits)"),
-            ("specs/decoder_input.rs", "Some(requested) => part2_decode_layout_selected_value_input(input, requested, limits)", "Some(requested) => part2_decode_layout_input(input, limits)"),
-            ("specs/raw_decode.rs", "part2_decode_typed_layout_value_input(", "unrelated_success_bank("),
+        for name, symbol, before, after in (
+            ("specs/container_colors.rs", "part2_decode_file_color", "part2_color_selection_raw(file.streams[0].1, limits, requested)", "part2_color_selection_raw(seq![], limits, requested)"),
+            ("specs/container_colors.rs", "part2_decode_file_color", "Some(expanded.0)", "Some(requested)"),
+            ("specs/container_colors.rs", "part2_decode_file_color", "expanded.1[2]", "expanded.1[0]"),
+            ("specs/container_colors.rs", "part2_decode_file_color", "part2_raw_associated_header(file.header)", "unrelated_header"),
+            ("specs/decoder_input.rs", "part2_decode_layout_selected_input", "part2_decode_layout_selected_value_input(input, crate::options::decode_selection_view(requested), limits)", "part2_decode_layout_input(input, limits)"),
+            ("specs/decoder_input.rs", "part2_decode_typed_layout_value_input", "Some(requested) => part2_decode_layout_selected_value_input(input, requested, limits)", "Some(requested) => part2_decode_layout_input(input, limits)"),
+            ("specs/raw_decode.rs", "part2_decode_raw_codestream_value", "part2_decode_typed_layout_value_input(", "unrelated_success_bank("),
         ):
             source = framework.ROOT / name
             original = source.read_text()
-            self.assertIn(before, original)
-            changed = original.replace(before, after, 1)
+            body = framework._coverage_spec_function_body(original, symbol)
+            self.assertIn(before, body)
+            changed = original.replace(body, body.replace(before, after, 1), 1)
 
             def altered(path, *args, **kwargs):
                 return changed if path == source else read_text(path, *args, **kwargs)
@@ -3670,14 +3688,15 @@ class FrameworkTests(WorkingFiles):
         original = source.read_text()
         read_text = Path.read_text
         for requested, jph in (("None", "false"), ("Some(selection)", "false"), ("None", "true"), ("Some(selection)", "true")):
-            before = f"input@, crate::options::decode_options_limits(options), {requested}, {jph})"
-            self.assertIn(before, original)
+            before = f"part2_decode_single_cold_result(input@, crate::options::decode_options_limits(options), {requested}, {jph},"
+            matched = re.search(r"\s*".join(re.escape(c) for c in before if not c.isspace()), original)
+            self.assertIsNotNone(matched)
             for after in (
                 before.replace("input@", "seq![]"),
                 before.replace(requested + ",", ("None" if requested != "None" else "Some(selection)") + ","),
-                before[:-len(jph) - 1] + ("false" if jph == "true" else "true") + ")",
+                before[:-len(jph) - 1] + ("false" if jph == "true" else "true") + ",",
             ):
-                changed = original.replace(before, after, 1)
+                changed = original[:matched.start()] + after + original[matched.end():]
 
                 def altered(path, *args, **kwargs):
                     return changed if path == source else read_text(path, *args, **kwargs)
@@ -3730,7 +3749,7 @@ class FrameworkTests(WorkingFiles):
         original = source.read_text()
         read_text = Path.read_text
         for before, after in (
-            ("jp2::parse_and_inspect_for_display(input, options.limits())?", "jp2::parse_and_inspect_for_display(&unrelated, options.limits())?"),
+            ("jp2::parse_and_inspect_for_display(input, options.limits())", "jp2::parse_and_inspect_for_display(&unrelated, options.limits())"),
             ("validate_jp2_display_profile(inspected.file())?", "Ok(())?"),
             ("inspected.file().codestream_count() != 1", "inspected.file().codestream_count() != 2"),
             ("inspected.file().codestream(0)?.data(), options, selection", "inspected.file().codestream(0)?.data(), options, &unrelated"),
@@ -3760,8 +3779,9 @@ class FrameworkTests(WorkingFiles):
             ("part2_raw_associated_header(file.header).0", "(None, seq![], seq![])"),
             ("crate::limits::resource_decoded_bytes_limit(limits)", "u64::MAX"),
         ):
-            self.assertIn(before, original)
-            changed = original.replace(before, after, 1)
+            body = framework._coverage_spec_function_body(original, "part2_decode_raw_single_container")
+            self.assertIn(before, body)
+            changed = original.replace(body, body.replace(before, after, 1), 1)
 
             def altered(path, *args, **kwargs):
                 return changed if path == source else read_text(path, *args, **kwargs)
@@ -3794,9 +3814,9 @@ class FrameworkTests(WorkingFiles):
         entry = next(item for item in coverage["requirements"] if item["id"] == framework._RAW_COMPOSITION_RENDER_ENTRY)
         source = framework.ROOT / "src/jpx/render.rs"
         original = source.read_text()
-        before = "part2_render_raw_jpx_composition(\n        input@,"
+        before = "part2_render_raw_jpx_cold_result(\n        input@, 2, 0,"
         self.assertIn(before, original)
-        changed = original.replace(before, "part2_render_raw_jpx_composition(\n        seq![],", 1)
+        changed = original.replace(before, "part2_render_raw_jpx_cold_result(\n        seq![], 2, 0,", 1)
         read_text = Path.read_text
 
         def altered(path, *args, **kwargs):
@@ -3885,10 +3905,10 @@ class FrameworkTests(WorkingFiles):
         original = source.read_text()
         read_text = Path.read_text
         for before, after in (
-            ("input@, layer_index, crate::options::decode_options_limits(options)",
-             "seq![], layer_index, crate::options::decode_options_limits(options)"),
-            ("input@, frame_index, crate::options::decode_options_limits(options)",
-             "input@, 0, crate::options::decode_options_limits(options)"),
+            ("input@, 0, layer_index, crate::options::decode_options_limits(options)",
+             "seq![], 0, layer_index, crate::options::decode_options_limits(options)"),
+            ("input@, 1, frame_index, crate::options::decode_options_limits(options)",
+             "input@, 1, 0, crate::options::decode_options_limits(options)"),
         ):
             self.assertIn(before, original)
             changed = original.replace(before, after, 1)
@@ -3918,7 +3938,7 @@ class FrameworkTests(WorkingFiles):
         original = source.read_text()
         read_text = Path.read_text
         for before, after in (
-            ("decode_effective_layer(inspected.file(), layer_index, options)?.into_image()", "arbitrary()"),
+            ("let owned = decode_effective_layer(inspected.file(), layer_index, options)", "let owned = arbitrary()"),
             ("render_inspected_frame(file, &metadata, frame_index, options)", "arbitrary()"),
         ):
             self.assertIn(before, original)
@@ -3981,7 +4001,7 @@ class FrameworkTests(WorkingFiles):
         read_text = Path.read_text
         for before, after in (
             ("super::raw_jpx_inspection_outcome(result)", "super::raw_jpx_inspection_outcome(arbitrary())"),
-            ("part2_inspect_raw_jpx_layers(input@, limits)", "part2_inspect_raw_jpx_layers(seq![], limits)"),
+            ("part2_inspect_raw_jpx_cold_result(\n        input@, limits,", "part2_inspect_raw_jpx_cold_result(\n        seq![], limits,"),
         ):
             self.assertIn(before, original)
             changed = original.replace(before, after, 1)
@@ -5739,7 +5759,7 @@ class FrameworkTests(WorkingFiles):
              "if false { crate::decode::associated_typed_errors_known(); }"),
             ("crate::decode::associated_typed_success_known(&decoded, header);",
              "if false { crate::decode::associated_typed_success_known(&decoded, header); }"),
-            ("crate::decode::decode_jpx_file(file, codestream_index, options)?", "supplied_successful_image?"),
+            ("crate::decode::decode_jpx_file(file, codestream_index, options)", "supplied_successful_image"),
         ):
             self.assertIn(before, original)
             changed = original.replace(before, after, 1)
@@ -6236,7 +6256,7 @@ class FrameworkTests(WorkingFiles):
             with self.subTest(before=before), mock.patch.object(Path, "read_text", altered), \
                     self.assertRaisesRegex(ValueError, "actual reader/counter/eight-state"):
                 framework.validate_normative_coverage(data)
-        changed = original.replace("new_parser(input, limits)?.parse_layout()", "new_parser(&unrelated, limits)?.parse_layout()", 1)
+        changed = original.replace("match new_parser(input, limits)", "match new_parser(&unrelated, limits)", 1)
 
         def altered(path, *args, **kwargs):
             return changed if path == source else read_text(path, *args, **kwargs)
@@ -6476,8 +6496,8 @@ class FrameworkTests(WorkingFiles):
              "Some(number) => if number.words.is_empty() { None } else { Some(profile_number_view(number)) }",
              "requires complete raw projection"),
             ("src/codestream/layout.rs",
-             "new_parser(input, limits)?.parse_layout()",
-             "new_parser(&unrelated, limits)?.parse_layout()",
+             "match new_parser(input, limits)",
+             "match new_parser(&unrelated, limits)",
              "not used by claimed implementation"),
         ):
             source = framework.ROOT / name
@@ -7960,6 +7980,59 @@ class FrameworkTests(WorkingFiles):
             framework._TRANSFORM_ARRAY_BYTES_CONTRACTS, 7,
         )
 
+    def test_inventory_cold_relations_require_complete_result_bodies_and_checked_normal_links(self):
+        coverage = json.loads((framework.VALIDATION / "normative-coverage.json").read_text())
+        read_text = Path.read_text
+        for entry_id, relative, symbol, before, after in (
+            (framework._RAW_TYPED_ENTRY, "specs/raw_decode.rs", "part2_decode_raw_cold_result",
+             "part2_cold_framed", "unrelated_frame"),
+            (framework._SOURCE_OPACITY_ENTRY, "specs/jpx_opacity.rs", "part2_opacity_cold_result",
+             "Ok(result)", "Ok((Ok(()), owned))"),
+            (framework._JPIP_PROGRESSIVE_ENTRY, "specs/jpip_progressive.rs", "part2_jpip_planned_cold_result",
+             "Seq::empty()", "events"),
+        ):
+            entry = next(item for item in coverage["requirements"] if item["id"] == entry_id)
+            source = framework.ROOT / relative
+            original = source.read_text()
+            body = framework._coverage_spec_function_body(original, symbol)
+            self.assertIn(before, body)
+            changed = original.replace(body, body.replace(before, after, 1), 1)
+
+            def altered(path, *args, **kwargs):
+                return changed if path == source else read_text(path, *args, **kwargs)
+
+            with self.subTest(symbol=symbol), mock.patch.object(Path, "read_text", altered), \
+                    self.assertRaisesRegex(ValueError, "invalid complete cold Result body"):
+                framework.validate_normative_coverage(dict(coverage, requirements=[entry]))
+        entry = copy.deepcopy(next(item for item in coverage["requirements"] if item["id"] == framework._RAW_TYPED_ENTRY))
+        entry["proof_refs"].remove({"path": "specs/raw_decode.rs", "symbol": "part2_decode_raw_cold_normal"})
+        with self.assertRaisesRegex(ValueError, "whole raw typed Result.*checked cold normal projections"):
+            framework.validate_normative_coverage(dict(coverage, requirements=[entry]))
+
+    def test_inventory_cold_frames_reject_phase_index_input_and_tail_substitution(self):
+        coverage = json.loads((framework.VALIDATION / "normative-coverage.json").read_text())
+        entry = next(item for item in coverage["requirements"] if item["id"] == framework._RAW_TYPED_ENTRY)
+        source = framework.ROOT / "specs/raw_decode.rs"
+        original, read_text = source.read_text(), Path.read_text
+        for symbol, before, after in (
+            ("part2_cold_prefix", "run(prefix + tail)", "run(prefix)"),
+            ("part2_cold_framed", "part2_cold_prefix(run, prefix, result)", "true"),
+            ("part2_cold_parse", "actual != phase || at != index", "false"),
+            ("part2_cold_parse", "rest.len() == 0", "true"),
+            ("part2_cold_parse", "part1_parse_layout_with_cold_storage(input, limits, calls)",
+             "part1_parse_layout_with_cold_storage(Seq::empty(), limits, calls)"),
+        ):
+            body = framework._coverage_spec_function_body(original, symbol)
+            self.assertIn(before, body)
+            changed = original.replace(body, body.replace(before, after, 1), 1)
+
+            def altered(path, *args, **kwargs):
+                return changed if path == source else read_text(path, *args, **kwargs)
+
+            with self.subTest(symbol=symbol, before=before), mock.patch.object(Path, "read_text", altered), \
+                    self.assertRaisesRegex(ValueError, "invalid exact cold event/tail frame"):
+                framework.validate_normative_coverage(dict(coverage, requirements=[entry]))
+
     def _assert_complete_packet_contract_bindings(self, entry_ids, recipes, expected_count, *, isolate=True):
         original_coverage = json.loads((framework.VALIDATION / "normative-coverage.json").read_text())
         self.assertEqual(framework.validate_normative_coverage(original_coverage)["status"], "passed")
@@ -7985,7 +8058,8 @@ class FrameworkTests(WorkingFiles):
 
         for reference in references:
             key = (reference["path"], reference["symbol"])
-            model = recipes[key][0]
+            cold_contract = framework._COLD_RESULT_CONTRACTS.get(key)
+            model = cold_contract[0] if cold_contract else recipes[key][0]
             entry = next(entry for entry in entries if reference in entry["contract_refs"] or reference in entry["proof_refs"])
             claimed_consumer = reference in entry["contract_refs"]
             coverage = copy.deepcopy(original_coverage)
@@ -8034,7 +8108,14 @@ class FrameworkTests(WorkingFiles):
                     isolated["implementation_refs"] = actual_callers[:1]
                     isolated["spec_refs"] = [item for item in entry["spec_refs"] if item["symbol"] == model]
             if isolate:
-                isolated["proof_refs"] = [reference]
+                cold_models, cold_proofs = framework._coverage_cold_links({key})
+                isolated["spec_refs"].extend(
+                    {"path": path, "symbol": symbol} for path, symbol in sorted(cold_models)
+                    if {"path": path, "symbol": symbol} not in isolated["spec_refs"]
+                )
+                isolated["proof_refs"] = [reference] + [
+                    {"path": path, "symbol": symbol} for path, symbol in sorted(cold_proofs)
+                ]
                 isolated["test_refs"] = entry["test_refs"][:1]
             self.assertEqual(framework.validate_normative_coverage(coverage)["status"], "passed")
             header = framework._coverage_function_header(
@@ -8081,6 +8162,10 @@ class FrameworkTests(WorkingFiles):
             for match in re.finditer(r"\bold\s*\(\s*(\w+(?:\.\w+)?)\s*\)", primary_arguments):
                 arguments = primary_arguments[:match.start()] + f"final({match[1]})" + primary_arguments[match.end():]
                 mutations.append(contract[:opening + 1] + arguments + contract[closing:])
+            if cold_contract:
+                for match in re.finditer(r"\bfinal\s*\(\s*(\w+)\s*\)", primary_arguments):
+                    arguments = primary_arguments[:match.start()] + f"old({match[1]})" + primary_arguments[match.end():]
+                    mutations.append(contract[:opening + 1] + arguments + contract[closing:])
             for match in re.finditer(r"\b(?:0|None|true|false)\b", primary_arguments):
                 replacement = {"0": "1", "None": "Some(unrelated)", "true": "false", "false": "true"}[match[0]]
                 arguments = primary_arguments[:match.start()] + replacement + primary_arguments[match.end():]

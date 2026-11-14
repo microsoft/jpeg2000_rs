@@ -43,8 +43,18 @@ fn decode(bytes: &[u8]) -> Result<RawRecoveredImage, DecodeError> {
 }
 
 fn refuses_without_reservation(bytes: &[u8]) {
-    allocation::with_refusal(0, || {
-        assert!(decode(bytes).is_err());
+    let expected = decode(bytes).unwrap_err();
+    let framing = crate::codestream::recovery_framing(bytes, &ResourceLimits::default());
+    let requests = match framing {
+        Err(_) => 0,
+        Ok(frame) => {
+            assert!(!frame.append_eoc);
+            // These complete-header fixtures delegate to one strict eight-vector parse, not a repair copy.
+            8
+        }
+    };
+    allocation::with_refusal(requests, || {
+        assert_eq!(decode(bytes).unwrap_err(), expected);
         assert_eq!(
             allocation::empty_with_capacity::<u8>(1),
             Err(DecodeError::AllocationFailed)
@@ -277,6 +287,16 @@ fn one_atomic_reservation_refusal_and_unwind_leave_exact_same_process_success() 
     let bytes = damaged(GRAY0);
     let expected = decode(&bytes).unwrap();
     allocation::with_refusal(1, || {
+        assert_eq!(
+            append_eoc(&bytes).unwrap(),
+            [bytes.as_slice(), &[0xff, 0xd9]].concat()
+        );
+        assert_eq!(
+            allocation::empty_with_capacity::<u8>(1),
+            Err(DecodeError::AllocationFailed)
+        );
+    });
+    allocation::with_refusal(9, || {
         assert_eq!(decode(&bytes).unwrap(), expected);
         assert_eq!(
             allocation::empty_with_capacity::<u8>(1),
@@ -330,10 +350,15 @@ fn reconstructed_recovery_retains_centered_planes_geometry_and_report() {
         assert_eq!(intact.report.repair_copy_bytes, 0);
         let mut finite = bytes;
         finite[SOT + 6..SOT + 10].copy_from_slice(&19u32.to_be_bytes());
-        allocation::with_refusal(0, || {
+        let strict_error = crate::decode_codestream_reconstructed(&finite, &options).unwrap_err();
+        assert_eq!(
+            decode_codestream_reconstructed_recover_missing_eoc(&finite, &options).unwrap_err(),
+            strict_error
+        );
+        allocation::with_refusal(8, || {
             assert_eq!(
                 decode_codestream_reconstructed_recover_missing_eoc(&finite, &options).unwrap_err(),
-                crate::decode_codestream_reconstructed(&finite, &options).unwrap_err()
+                strict_error
             );
             assert_eq!(
                 allocation::empty_with_capacity::<u8>(1),
@@ -358,7 +383,7 @@ fn reconstructed_recovery_refusal_limits_and_genuine_errors_preserve_recovery() 
             expected
         );
     });
-    allocation::with_refusal(1, || {
+    allocation::with_refusal(9, || {
         assert_eq!(
             decode_codestream_reconstructed_recover_missing_eoc(&bytes, &options).unwrap(),
             expected

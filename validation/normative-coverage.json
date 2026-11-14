@@ -18,7 +18,11 @@
         {"path": "specs/jpip_progressive.rs", "symbol": "part2_jpip_automatic_progressive_run"},
         {"path": "specs/jpip_progressive.rs", "symbol": "part2_jpip_automatic_progressive_update_result"},
         {"path": "specs/jpip_snapshot_inputs.rs", "symbol": "part2_jpip_automatic_snapshot_result"},
-        {"path": "specs/raw_decode.rs", "symbol": "part2_decode_raw_codestream"}
+        {"path": "specs/raw_decode.rs", "symbol": "part2_decode_raw_codestream"},
+        {"path": "specs/jpip_progressive.rs", "symbol": "part2_jpip_automatic_image_call"},
+        {"path": "specs/jpip_progressive.rs", "symbol": "part2_jpip_automatic_snapshot_call"},
+        {"path": "specs/raw_decode.rs", "symbol": "part2_decode_raw_cold_result"},
+        {"path": "specs/raw_decode.rs", "symbol": "part2_decode_raw_cold_run"}
       ],
       "proof_refs": [
         {"path": "src/jpip/progression.rs", "symbol": "JpipAutomaticProgressiveDecoder::update"},
@@ -34,7 +38,9 @@
         {"path": "src/jpip/progression_proof_support.rs", "symbol": "jpip_automatic_snapshot_errors_known"},
         {"path": "src/jpip/progression_proof_support.rs", "symbol": "jpip_automatic_update_errors_known"},
         {"path": "src/decode/api.rs", "symbol": "decode_codestream"},
-        {"path": "src/decode/api.rs", "symbol": "decode_codestream_selected"}
+        {"path": "src/decode/api.rs", "symbol": "decode_codestream_selected"},
+        {"path": "specs/jpip_progressive.rs", "symbol": "part2_jpip_automatic_image_actual"},
+        {"path": "specs/raw_decode.rs", "symbol": "part2_decode_raw_cold_normal"}
       ],
       "test_refs": [
         {"path": "src/jpip/tests.rs", "symbol": "automatic_progressive_actual_images_no_advance_and_errors_preserve_commit_state"},
@@ -59,7 +65,11 @@
         {"path": "specs/jpip_snapshot.rs", "symbol": "part2_jpip_snapshot_available"},
         {"path": "specs/jpip_snapshot.rs", "symbol": "part2_jpip_snapshot_missing"},
         {"path": "specs/jpip_snapshot.rs", "symbol": "part2_jpip_snapshot_emit_tiles"},
-        {"path": "specs/jpip_byte_writes.rs", "symbol": "part2_jpip_template_finish"}
+        {"path": "specs/jpip_byte_writes.rs", "symbol": "part2_jpip_template_finish"},
+        {"path": "specs/jpip_snapshot_inputs.rs", "symbol": "part2_jpip_snapshot_finish_prepared"},
+        {"path": "specs/jpip_snapshot_inputs.rs", "symbol": "part2_jpip_snapshot_hot_prefix"},
+        {"path": "specs/jpip_snapshot_inputs.rs", "symbol": "part2_jpip_snapshot_prepare_tiles"},
+        {"path": "specs/jpip_snapshot_inputs.rs", "symbol": "part2_jpip_snapshot_static_context"}
       ],
       "proof_refs": [
         {"path": "src/jpip/progression.rs", "symbol": "DatabinCache::build_automatic_snapshot"},
@@ -74,7 +84,13 @@
         {"path": "src/jpip/progression_proof_support.rs", "symbol": "jpip_snapshot_packet_capacity_error"},
         {"path": "src/jpip/progression_proof_support.rs", "symbol": "jpip_snapshot_plan_errors"},
         {"path": "src/jpip/progression_proof_support.rs", "symbol": "jpip_snapshot_iterator_errors"},
-        {"path": "src/jpip/progression_proof_support.rs", "symbol": "jpip_snapshot_order_errors"}
+        {"path": "src/jpip/progression_proof_support.rs", "symbol": "jpip_snapshot_order_errors"},
+        {"path": "specs/jpip_snapshot_inputs.rs", "symbol": "part2_jpip_snapshot_normal_fold_equivalent"},
+        {"path": "specs/jpip_snapshot_inputs.rs", "symbol": "part2_jpip_snapshot_root_join"},
+        {"path": "specs/jpip_snapshot_inputs.rs", "symbol": "part2_jpip_snapshot_root_start"},
+        {"path": "specs/jpip_snapshot_inputs.rs", "symbol": "part2_jpip_snapshot_tiles_equivalent"},
+        {"path": "src/jpip/progression_proof_support.rs", "symbol": "jpip_snapshot_collection_entry"},
+        {"path": "src/jpip/progression_proof_support.rs", "symbol": "jpip_snapshot_collection_outcome"}
       ],
       "test_refs": [
         {"path": "src/jpip/tests.rs", "symbol": "automatic_snapshot_complete_result_keeps_none_zero_prefix_and_final_bytes"},
@@ -99,7 +115,11 @@
         {"path": "specs/jpip_snapshot_inputs.rs", "symbol": "part2_jpip_snapshot_databins"},
         {"path": "specs/jpip_snapshot_inputs.rs", "symbol": "part2_jpip_snapshot_tile"},
         {"path": "specs/jpip_snapshot_inputs.rs", "symbol": "part2_jpip_snapshot_tile_root"},
-        {"path": "specs/jpip_snapshot_inputs.rs", "symbol": "part2_jpip_automatic_snapshot_result"}
+        {"path": "specs/jpip_snapshot_inputs.rs", "symbol": "part2_jpip_automatic_snapshot_result"},
+        {"path": "specs/jpip_snapshot_inputs.rs", "symbol": "part2_jpip_snapshot_finish_prepared"},
+        {"path": "specs/jpip_snapshot_inputs.rs", "symbol": "part2_jpip_snapshot_hot_prefix"},
+        {"path": "specs/jpip_snapshot_inputs.rs", "symbol": "part2_jpip_snapshot_prepare_tiles"},
+        {"path": "specs/jpip_snapshot_inputs.rs", "symbol": "part2_jpip_snapshot_static_context"}
       ],
       "proof_refs": [
         {"path": "src/packet/precinct.rs", "symbol": "PacketPrecinctDecoder::coordinate"},
@@ -108,7 +128,13 @@
         {"path": "src/jpip/progression_proof_support.rs", "symbol": "jpip_none_row_clone_law"},
         {"path": "src/jpip/progression_proof_support.rs", "symbol": "jpip_snapshot_tile_acquisition_prefix"},
         {"path": "src/jpip/progression_proof_support.rs", "symbol": "jpip_snapshot_tile_root_error"},
-        {"path": "src/jpip/progression_proof_support.rs", "symbol": "jpip_snapshot_tile_root_advance"}
+        {"path": "src/jpip/progression_proof_support.rs", "symbol": "jpip_snapshot_tile_root_advance"},
+        {"path": "specs/jpip_snapshot_inputs.rs", "symbol": "part2_jpip_snapshot_normal_fold_equivalent"},
+        {"path": "specs/jpip_snapshot_inputs.rs", "symbol": "part2_jpip_snapshot_root_join"},
+        {"path": "specs/jpip_snapshot_inputs.rs", "symbol": "part2_jpip_snapshot_root_start"},
+        {"path": "specs/jpip_snapshot_inputs.rs", "symbol": "part2_jpip_snapshot_tiles_equivalent"},
+        {"path": "src/jpip/progression_proof_support.rs", "symbol": "jpip_snapshot_collection_entry"},
+        {"path": "src/jpip/progression_proof_support.rs", "symbol": "jpip_snapshot_collection_outcome"}
       ],
       "test_refs": [
         {"path": "src/jpip/tests.rs", "symbol": "automatic_resolution_error_after_completed_tile_preserves_actual_cache_prefix"},
@@ -178,12 +204,22 @@
       "spec_refs": [
         {"path": "specs/jpip_byte_writes.rs", "symbol": "part2_jpip_transition_template"},
         {"path": "specs/jpip_snapshot_inputs.rs", "symbol": "part2_jpip_snapshot_after_normalized"},
-        {"path": "specs/jpip_snapshot_inputs.rs", "symbol": "part2_jpip_snapshot_tiles"}
+        {"path": "specs/jpip_snapshot_inputs.rs", "symbol": "part2_jpip_snapshot_tiles"},
+        {"path": "specs/jpip_snapshot_inputs.rs", "symbol": "part2_jpip_snapshot_finish_prepared"},
+        {"path": "specs/jpip_snapshot_inputs.rs", "symbol": "part2_jpip_snapshot_hot_prefix"},
+        {"path": "specs/jpip_snapshot_inputs.rs", "symbol": "part2_jpip_snapshot_prepare_tiles"},
+        {"path": "specs/jpip_snapshot_inputs.rs", "symbol": "part2_jpip_snapshot_static_context"}
       ],
       "proof_refs": [
         {"path": "src/jpip/snapshot_header_proof_support.rs", "symbol": "jpip_snapshot_layout_continuation"},
         {"path": "src/codestream/decoder_input_proof_support.rs", "symbol": "decoder_layout_input_matches_raw"},
-        {"path": "src/jpip/progression.rs", "symbol": "DatabinCache::build_automatic_snapshot"}
+        {"path": "src/jpip/progression.rs", "symbol": "DatabinCache::build_automatic_snapshot"},
+        {"path": "specs/jpip_snapshot_inputs.rs", "symbol": "part2_jpip_snapshot_normal_fold_equivalent"},
+        {"path": "specs/jpip_snapshot_inputs.rs", "symbol": "part2_jpip_snapshot_root_join"},
+        {"path": "specs/jpip_snapshot_inputs.rs", "symbol": "part2_jpip_snapshot_root_start"},
+        {"path": "specs/jpip_snapshot_inputs.rs", "symbol": "part2_jpip_snapshot_tiles_equivalent"},
+        {"path": "src/jpip/progression_proof_support.rs", "symbol": "jpip_snapshot_collection_entry"},
+        {"path": "src/jpip/progression_proof_support.rs", "symbol": "jpip_snapshot_collection_outcome"}
       ],
       "test_refs": [
         {"path": "src/jpip/tests.rs", "symbol": "automatic_resolution_selection_error_is_reachable_from_actual_cache_and_caller"},
@@ -538,28 +574,33 @@
         {"path": "src/allocation.rs", "symbol": "extend_bytes"},
         {"path": "src/jpip/automatic_headers.rs", "symbol": "normalize_main_header"},
         {"path": "src/jpip/progression.rs", "symbol": "DatabinCache::build_automatic_snapshot"},
-        {"path": "src/jpip/progression.rs", "symbol": "DatabinCache::automatic_headers"}
+        {"path": "src/jpip/progression.rs", "symbol": "DatabinCache::automatic_headers"},
+        {"path": "src/codestream/layout.rs", "symbol": "Parser::parse_layout"}
       ],
       "contract_refs": [
         {"path": "src/allocation.rs", "symbol": "reserve_additional"},
         {"path": "src/allocation.rs", "symbol": "empty_with_capacity"},
-        {"path": "src/allocation.rs", "symbol": "extend_bytes"}
+        {"path": "src/allocation.rs", "symbol": "extend_bytes"},
+        {"path": "src/allocation.rs", "symbol": "none_values"}
       ],
       "spec_refs": [
         {"path": "specs/allocation.rs", "symbol": "storage_reservation_result"},
         {"path": "specs/allocation.rs", "symbol": "storage_capacity_result"},
-        {"path": "specs/allocation.rs", "symbol": "storage_extension_result"}
+        {"path": "specs/allocation.rs", "symbol": "storage_extension_result"},
+        {"path": "specs/allocation.rs", "symbol": "storage_none_result"}
       ],
       "proof_refs": [
         {"path": "src/allocation.rs", "symbol": "reserve_additional"},
         {"path": "src/allocation.rs", "symbol": "empty_with_capacity"},
-        {"path": "src/allocation.rs", "symbol": "extend_bytes"}
+        {"path": "src/allocation.rs", "symbol": "extend_bytes"},
+        {"path": "src/allocation.rs", "symbol": "none_values"}
       ],
       "test_refs": [
         {"path": "src/allocation.rs", "symbol": "capacity_refusal_and_layout_overflow_return_typed_errors_and_recover"},
         {"path": "src/allocation.rs", "symbol": "byte_extension_refusal_preserves_values_and_owner_then_recovers"},
         {"path": "src/jpip/normalization_result_tests.rs", "symbol": "automatic_main_header_refusal_preserves_input_and_exact_recovery"},
-        {"path": "src/jpip/tests.rs", "symbol": "automatic_managed_allocation_refusals_preserve_state_and_recover_exact_images"}
+        {"path": "src/jpip/tests.rs", "symbol": "automatic_managed_allocation_refusals_preserve_state_and_recover_exact_images"},
+        {"path": "src/allocation.rs", "symbol": "none_storage_refuses_once_without_requiring_clone_and_restores"}
       ]
     },
     {
@@ -739,7 +780,13 @@
         {"path": "specs/jpip_transcode.rs", "symbol": "part2_jpip_append_complete_requirement"},
         {"path": "specs/jpip_transcode.rs", "symbol": "part2_jpip_transcode"},
         {"path": "specs/jpip_ranges.rs", "symbol": "part2_jpip_cache_availability"},
-        {"path": "specs/raw_decode.rs", "symbol": "part2_decode_raw_codestream"}
+        {"path": "specs/raw_decode.rs", "symbol": "part2_decode_raw_codestream"},
+        {"path": "specs/jpip_progressive.rs", "symbol": "part2_jpip_planned_cold_result"},
+        {"path": "specs/jpip_progressive.rs", "symbol": "part2_jpip_planned_cold_run"},
+        {"path": "specs/jpip_transcode.rs", "symbol": "part2_jpip_transcode_cold_result"},
+        {"path": "specs/jpip_transcode.rs", "symbol": "part2_jpip_transcode_cold_run"},
+        {"path": "specs/raw_decode.rs", "symbol": "part2_decode_raw_cold_result"},
+        {"path": "specs/raw_decode.rs", "symbol": "part2_decode_raw_cold_run"}
       ],
       "proof_refs": [
         {"path": "src/jpip/progression.rs", "symbol": "JpipProgressiveDecoder::update"},
@@ -773,7 +820,10 @@
         {"path": "src/image/proof_support.rs", "symbol": "decoded_typed_image_outcome"},
         {"path": "src/image/proof_support.rs", "symbol": "typed_image_value_view"},
         {"path": "src/refinement/jpip.rs", "symbol": "jpip_progressive_update_valid"},
-        {"path": "src/refinement/jpip.rs", "symbol": "jpip_quality_prefix_available"}
+        {"path": "src/refinement/jpip.rs", "symbol": "jpip_quality_prefix_available"},
+        {"path": "specs/jpip_progressive.rs", "symbol": "part2_jpip_planned_cold_normal"},
+        {"path": "specs/jpip_transcode.rs", "symbol": "part2_jpip_transcode_cold_normal"},
+        {"path": "specs/raw_decode.rs", "symbol": "part2_decode_raw_cold_normal"}
       ],
       "test_refs": [
         {"path": "src/jpip/progressive_result_tests.rs", "symbol": "actual_jpip_progressive_constructor_waiting_protocol_errors_and_plan_owner_are_exact"},
@@ -815,7 +865,13 @@
         {"path": "specs/jpip_ranges.rs", "symbol": "part2_jpip_read_packets"},
         {"path": "specs/jpip_cache_views.rs", "symbol": "part2_jpip_cache_status"},
         {"path": "specs/jpip_cache_views.rs", "symbol": "part2_jpip_cache_view"},
-        {"path": "specs/raw_layout.rs", "symbol": "part1_parse_layout"}
+        {"path": "specs/raw_layout.rs", "symbol": "part1_parse_layout"},
+        {"path": "specs/jpip_transcode.rs", "symbol": "part2_jpip_transcode_cold_result"},
+        {"path": "specs/jpip_transcode.rs", "symbol": "part2_jpip_transcode_cold_run"},
+        {"path": "specs/jpip_transcode.rs", "symbol": "part2_jpip_validate_precinct_cold_result"},
+        {"path": "specs/jpip_transcode.rs", "symbol": "part2_jpip_validate_precinct_cold_run"},
+        {"path": "specs/raw_layout.rs", "symbol": "part1_parse_layout_cold_result"},
+        {"path": "specs/raw_layout.rs", "symbol": "part1_parse_layout_with_cold_storage"}
       ],
       "proof_refs": [
         {"path": "src/jpip/precinct.rs", "symbol": "DatabinCache::transcode_precinct_codestream"},
@@ -841,7 +897,10 @@
         {"path": "src/codestream/layout.rs", "symbol": "parse_layout"},
         {"path": "src/codestream/geometry.rs", "symbol": "ImageSize::tile_count"},
         {"path": "src/jpip/cache.rs", "symbol": "DatabinCache::status"},
-        {"path": "src/jpip/precinct.rs", "symbol": "JpipPrecinctCodestreamPlan::packet_end_for_layers"}
+        {"path": "src/jpip/precinct.rs", "symbol": "JpipPrecinctCodestreamPlan::packet_end_for_layers"},
+        {"path": "specs/jpip_transcode.rs", "symbol": "part2_jpip_transcode_cold_normal"},
+        {"path": "specs/jpip_transcode.rs", "symbol": "part2_jpip_validate_precinct_cold_normal"},
+        {"path": "specs/raw_layout.rs", "symbol": "part1_parse_layout_cold_normal"}
       ],
       "test_refs": [
         {"path": "src/jpip/transcode_result_tests.rs", "symbol": "actual_jpip_cod_header_scans_preserve_exact_patches_and_partial_mutations_at_every_cut"},
@@ -1476,7 +1535,19 @@
         {"path": "specs/mod.rs", "symbol": "part2_convert_associated"},
         {"path": "specs/mod.rs", "symbol": "part2_convert_associated_selected"},
         {"path": "specs/mod.rs", "symbol": "part2_decode_layout_selected"},
-        {"path": "specs/mod.rs", "symbol": "part2_typed_layout"}
+        {"path": "specs/mod.rs", "symbol": "part2_typed_layout"},
+        {"path": "specs/container_colors.rs", "symbol": "part2_color_selection_cold_result"},
+        {"path": "specs/container_colors.rs", "symbol": "part2_color_selection_cold_run"},
+        {"path": "specs/jpx_public_images.rs", "symbol": "part2_decode_jpx_color_cold_result"},
+        {"path": "specs/jpx_public_images.rs", "symbol": "part2_decode_jpx_color_cold_run"},
+        {"path": "specs/jpx_public_images.rs", "symbol": "part2_decode_jpx_typed_cold_result"},
+        {"path": "specs/jpx_public_images.rs", "symbol": "part2_decode_jpx_typed_cold_run"},
+        {"path": "specs/jpx_source.rs", "symbol": "part2_jpx_cold_result"},
+        {"path": "specs/jpx_source.rs", "symbol": "part2_jpx_cold_run"},
+        {"path": "specs/jpx_source.rs", "symbol": "part2_jpx_selected_cold_result"},
+        {"path": "specs/jpx_source.rs", "symbol": "part2_jpx_selected_cold_run"},
+        {"path": "specs/raw_layout.rs", "symbol": "part1_parse_layout_cold_result"},
+        {"path": "specs/raw_layout.rs", "symbol": "part1_parse_layout_with_cold_storage"}
       ],
       "proof_refs": [
         {"path": "src/decode/api.rs", "symbol": "decode_jpx_codestream"},
@@ -1498,7 +1569,13 @@
         {"path": "src/decode/proof_support.rs", "symbol": "associated_typed_outcome_known"},
         {"path": "src/jp2/container.rs", "symbol": "CodestreamBox::codestream_header"},
         {"path": "src/jp2/container.rs", "symbol": "CodestreamHeaderAssociation::parsed_header"},
-        {"path": "src/jp2/container.rs", "symbol": "CodestreamHeaderAssociation::box_header"}
+        {"path": "src/jp2/container.rs", "symbol": "CodestreamHeaderAssociation::box_header"},
+        {"path": "specs/container_colors.rs", "symbol": "part2_color_selection_cold_normal"},
+        {"path": "specs/jpx_public_images.rs", "symbol": "part2_decode_jpx_color_cold_normal"},
+        {"path": "specs/jpx_public_images.rs", "symbol": "part2_decode_jpx_typed_cold_normal"},
+        {"path": "specs/jpx_source.rs", "symbol": "part2_jpx_cold_normal"},
+        {"path": "specs/jpx_source.rs", "symbol": "part2_jpx_selected_cold_normal"},
+        {"path": "specs/raw_layout.rs", "symbol": "part1_parse_layout_cold_normal"}
       ],
       "test_refs": [
         {"path": "src/decode/jpx_source_result_tests.rs", "symbol": "actual_raw_jpx_public_selects_real_nonzero_codestreams_and_complete_typed_planes"},
@@ -1561,7 +1638,17 @@
         {"path": "specs/mod.rs", "symbol": "part2_color_selection_requested"},
         {"path": "specs/mod.rs", "symbol": "part2_finish_associated_selected_output"},
         {"path": "specs/mod.rs", "symbol": "part2_apply_output_header"},
-        {"path": "specs/mod.rs", "symbol": "color_convert_jp2"}
+        {"path": "specs/mod.rs", "symbol": "color_convert_jp2"},
+        {"path": "specs/container_colors.rs", "symbol": "part2_color_selection_cold_result"},
+        {"path": "specs/container_colors.rs", "symbol": "part2_color_selection_cold_run"},
+        {"path": "specs/container_colors.rs", "symbol": "part2_decode_color_cold_result"},
+        {"path": "specs/container_colors.rs", "symbol": "part2_decode_color_cold_run"},
+        {"path": "specs/jp2_inspection.rs", "symbol": "part2_inspect_jph_cold_result"},
+        {"path": "specs/jp2_inspection.rs", "symbol": "part2_inspect_jph_cold_run"},
+        {"path": "specs/jp2_inspection.rs", "symbol": "part2_inspection_cold_result"},
+        {"path": "specs/jp2_inspection.rs", "symbol": "part2_inspection_cold_run"},
+        {"path": "specs/raw_decode.rs", "symbol": "part2_decode_raw_cold_result"},
+        {"path": "specs/raw_decode.rs", "symbol": "part2_decode_raw_cold_run"}
       ],
       "proof_refs": [
         {"path": "src/decode/api.rs", "symbol": "decode_jp2_color"},
@@ -1577,7 +1664,12 @@
         {"path": "src/codestream/decoder_input_proof_support.rs", "symbol": "decoder_layout_input_fields"},
         {"path": "src/codestream/proof_support.rs", "symbol": "selection_geometry_known_fields"},
         {"path": "src/decode/proof_support.rs", "symbol": "color_selection_outcome"},
-        {"path": "src/options.rs", "symbol": "decode_selection_view"}
+        {"path": "src/options.rs", "symbol": "decode_selection_view"},
+        {"path": "specs/container_colors.rs", "symbol": "part2_color_selection_cold_normal"},
+        {"path": "specs/container_colors.rs", "symbol": "part2_decode_color_cold_normal"},
+        {"path": "specs/jp2_inspection.rs", "symbol": "part2_inspect_jph_cold_normal"},
+        {"path": "specs/jp2_inspection.rs", "symbol": "part2_inspection_cold_normal"},
+        {"path": "specs/raw_decode.rs", "symbol": "part2_decode_raw_cold_normal"}
       ],
       "test_refs": [
         {"path": "src/decode/tests.rs", "symbol": "sarah_dev_457acab2c3_later_jp2_streams_do_not_change_first_display"},
@@ -1622,7 +1714,15 @@
         {"path": "specs/jp2_inspection.rs", "symbol": "part2_inspect_jph_container"},
         {"path": "specs/raw_decode.rs", "symbol": "part2_decode_raw_codestream"},
         {"path": "specs/jpx_raw_frame.rs", "symbol": "part2_raw_associated_header"},
-        {"path": "specs/mod.rs", "symbol": "part2_apply_output_header"}
+        {"path": "specs/mod.rs", "symbol": "part2_apply_output_header"},
+        {"path": "specs/container_images.rs", "symbol": "part2_decode_single_cold_result"},
+        {"path": "specs/container_images.rs", "symbol": "part2_decode_single_cold_run"},
+        {"path": "specs/jp2_inspection.rs", "symbol": "part2_inspect_jph_cold_result"},
+        {"path": "specs/jp2_inspection.rs", "symbol": "part2_inspect_jph_cold_run"},
+        {"path": "specs/jp2_inspection.rs", "symbol": "part2_inspection_cold_result"},
+        {"path": "specs/jp2_inspection.rs", "symbol": "part2_inspection_cold_run"},
+        {"path": "specs/raw_decode.rs", "symbol": "part2_decode_raw_cold_result"},
+        {"path": "specs/raw_decode.rs", "symbol": "part2_decode_raw_cold_run"}
       ],
       "proof_refs": [
         {"path": "src/decode/api.rs", "symbol": "decode_jp2"},
@@ -1638,7 +1738,11 @@
         {"path": "src/jp2/container.rs", "symbol": "Jp2File::codestream_count"},
         {"path": "src/jp2/container.rs", "symbol": "Jp2File::file_type"},
         {"path": "src/jp2/container.rs", "symbol": "CodestreamBox::data"},
-        {"path": "src/jp2/container.rs", "symbol": "FileType::is_compatible_with"}
+        {"path": "src/jp2/container.rs", "symbol": "FileType::is_compatible_with"},
+        {"path": "specs/container_images.rs", "symbol": "part2_decode_single_cold_normal"},
+        {"path": "specs/jp2_inspection.rs", "symbol": "part2_inspect_jph_cold_normal"},
+        {"path": "specs/jp2_inspection.rs", "symbol": "part2_inspection_cold_normal"},
+        {"path": "specs/raw_decode.rs", "symbol": "part2_decode_raw_cold_normal"}
       ],
       "test_refs": [
         {"path": "src/decode/tests.rs", "symbol": "sarah_dev_457acab2c3_later_jp2_streams_do_not_change_first_display"},
@@ -1681,7 +1785,13 @@
         {"path": "specs/jpx_inspection.rs", "symbol": "part2_inspect_jpx_file"},
         {"path": "specs/jpx_frame.rs", "symbol": "part2_render_inspected_source_frame"},
         {"path": "specs/jpx_dispatch.rs", "symbol": "part2_decode_effective_layer"},
-        {"path": "specs/mod.rs", "symbol": "part2_render_layers"}
+        {"path": "specs/mod.rs", "symbol": "part2_render_layers"},
+        {"path": "specs/jpx_dispatch.rs", "symbol": "part2_effective_layer_cold_result"},
+        {"path": "specs/jpx_dispatch.rs", "symbol": "part2_effective_layer_cold_run"},
+        {"path": "specs/jpx_frame.rs", "symbol": "part2_render_inspected_cold_result"},
+        {"path": "specs/jpx_frame.rs", "symbol": "part2_render_inspected_cold_run"},
+        {"path": "specs/jpx_raw_frame.rs", "symbol": "part2_render_raw_jpx_cold_result"},
+        {"path": "specs/jpx_raw_frame.rs", "symbol": "part2_render_raw_jpx_cold_run"}
       ],
       "proof_refs": [
         {"path": "src/jpx/render.rs", "symbol": "render_jpx_composition"},
@@ -1701,7 +1811,10 @@
         {"path": "src/jpx/inspection.rs", "symbol": "JpxLayerInfo::width"},
         {"path": "src/jpx/inspection.rs", "symbol": "JpxLayerInfo::height"},
         {"path": "src/jpx/inspection.rs", "symbol": "JpxInspection::layers"},
-        {"path": "src/jpx/inspection.rs", "symbol": "JpxInspection::layer"}
+        {"path": "src/jpx/inspection.rs", "symbol": "JpxInspection::layer"},
+        {"path": "specs/jpx_dispatch.rs", "symbol": "part2_effective_layer_cold_normal"},
+        {"path": "specs/jpx_frame.rs", "symbol": "part2_render_inspected_cold_normal"},
+        {"path": "specs/jpx_raw_frame.rs", "symbol": "part2_render_raw_jpx_cold_normal"}
       ],
       "test_refs": [
         {"path": "src/jpx/tests.rs", "symbol": "actual_raw_composition_fallback_decodes_all_implicit_sources_in_native_over_order"},
@@ -1741,7 +1854,13 @@
         {"path": "specs/jpx_inspection.rs", "symbol": "part2_inspect_jpx_file"},
         {"path": "specs/jpx_frame.rs", "symbol": "part2_render_inspected_source_frame"},
         {"path": "specs/jpx_frame.rs", "symbol": "part2_owned_layer_image"},
-        {"path": "specs/jpx_dispatch.rs", "symbol": "part2_decode_effective_layer"}
+        {"path": "specs/jpx_dispatch.rs", "symbol": "part2_decode_effective_layer"},
+        {"path": "specs/jpx_dispatch.rs", "symbol": "part2_effective_layer_cold_result"},
+        {"path": "specs/jpx_dispatch.rs", "symbol": "part2_effective_layer_cold_run"},
+        {"path": "specs/jpx_frame.rs", "symbol": "part2_render_inspected_cold_result"},
+        {"path": "specs/jpx_frame.rs", "symbol": "part2_render_inspected_cold_run"},
+        {"path": "specs/jpx_raw_frame.rs", "symbol": "part2_render_raw_jpx_cold_result"},
+        {"path": "specs/jpx_raw_frame.rs", "symbol": "part2_render_raw_jpx_cold_run"}
       ],
       "proof_refs": [
         {"path": "src/jpx/render.rs", "symbol": "render_jpx_layer"},
@@ -1757,7 +1876,10 @@
         {"path": "src/jpx/proof_support.rs", "symbol": "raw_jpx_geometries_known"},
         {"path": "src/jpx/proof_support.rs", "symbol": "raw_jpx_render_metadata_known"},
         {"path": "specs/jpx_raw_frame.rs", "symbol": "part2_render_raw_jpx_layer_unfold"},
-        {"path": "specs/jpx_raw_frame.rs", "symbol": "part2_render_raw_jpx_frame_unfold"}
+        {"path": "specs/jpx_raw_frame.rs", "symbol": "part2_render_raw_jpx_frame_unfold"},
+        {"path": "specs/jpx_dispatch.rs", "symbol": "part2_effective_layer_cold_normal"},
+        {"path": "specs/jpx_frame.rs", "symbol": "part2_render_inspected_cold_normal"},
+        {"path": "specs/jpx_raw_frame.rs", "symbol": "part2_render_raw_jpx_cold_normal"}
       ],
       "test_refs": [
         {"path": "src/jpx/tests.rs", "symbol": "actual_raw_render_layer_derives_literal_signed_and_unsigned_planes_and_alpha_metadata"},
@@ -1788,7 +1910,9 @@
         {"path": "specs/jpx_raw_inspection.rs", "symbol": "part2_raw_timeline_sets"},
         {"path": "specs/jpx_raw_inspection.rs", "symbol": "part2_raw_timeline_instruction"},
         {"path": "specs/jp2_inspection.rs", "symbol": "part2_parse_and_inspect_container"},
-        {"path": "specs/jpx_inspection.rs", "symbol": "part2_inspect_jpx_file"}
+        {"path": "specs/jpx_inspection.rs", "symbol": "part2_inspect_jpx_file"},
+        {"path": "specs/jpx_raw_inspection.rs", "symbol": "part2_inspect_raw_jpx_cold_result"},
+        {"path": "specs/jpx_raw_inspection.rs", "symbol": "part2_inspect_raw_jpx_cold_run"}
       ],
       "proof_refs": [
         {"path": "src/jpx/inspection.rs", "symbol": "inspect_jpx_layers"},
@@ -1806,7 +1930,8 @@
         {"path": "src/jp2/proof_support.rs", "symbol": "raw_inspected_file_reference"},
         {"path": "src/jp2/proof_support.rs", "symbol": "raw_inspected_native_infos"},
         {"path": "src/jp2/container.rs", "symbol": "InspectedJp2::file"},
-        {"path": "src/jp2/container.rs", "symbol": "InspectedJp2::codestreams"}
+        {"path": "src/jp2/container.rs", "symbol": "InspectedJp2::codestreams"},
+        {"path": "specs/jpx_raw_inspection.rs", "symbol": "part2_inspect_raw_jpx_cold_normal"}
       ],
       "test_refs": [
         {"path": "src/jpx/tests.rs", "symbol": "actual_raw_jpx_inspection_derives_every_implicit_and_declared_layer_field"},
@@ -1848,7 +1973,11 @@
         {"path": "specs/jp2_inspection.rs", "symbol": "part2_inspected_header"},
         {"path": "specs/jp2_container.rs", "symbol": "part2_parse_container"},
         {"path": "specs/raw_layout.rs", "symbol": "part1_parse_info"},
-        {"path": "specs/codestream_profile.rs", "symbol": "part1_profile_optional_advertises_ht"}
+        {"path": "specs/codestream_profile.rs", "symbol": "part1_profile_optional_advertises_ht"},
+        {"path": "specs/jp2_inspection.rs", "symbol": "part2_inspect_jph_cold_result"},
+        {"path": "specs/jp2_inspection.rs", "symbol": "part2_inspect_jph_cold_run"},
+        {"path": "specs/jp2_inspection.rs", "symbol": "part2_inspection_cold_result"},
+        {"path": "specs/jp2_inspection.rs", "symbol": "part2_inspection_cold_run"}
       ],
       "proof_refs": [
         {"path": "src/jp2/proof_support.rs", "symbol": "raw_inspected_container_outcome"},
@@ -1866,7 +1995,9 @@
         {"path": "src/codestream/proof_support.rs", "symbol": "complete_codestream_info_known_fields"},
         {"path": "src/jp2/container.rs", "symbol": "Jp2File::codestream_count"},
         {"path": "src/jp2/container.rs", "symbol": "Jp2File::codestream"},
-        {"path": "src/jp2/container.rs", "symbol": "CodestreamBox::codestream_header"}
+        {"path": "src/jp2/container.rs", "symbol": "CodestreamBox::codestream_header"},
+        {"path": "specs/jp2_inspection.rs", "symbol": "part2_inspect_jph_cold_normal"},
+        {"path": "specs/jp2_inspection.rs", "symbol": "part2_inspection_cold_normal"}
       ],
       "test_refs": [
         {"path": "src/jp2/tests.rs", "symbol": "sarah_dev_457acab2c3_raw_jp2_retains_resource_admitted_later_streams"},
@@ -1875,7 +2006,8 @@
         {"path": "src/jp2/tests.rs", "symbol": "actual_raw_inspection_keeps_profile_before_geometry_and_first_stream_before_later_errors"},
         {"path": "src/jp2/tests.rs", "symbol": "actual_raw_inspection_preserves_first_only_default_and_explicit_associated_header_choices"},
         {"path": "src/jp2/tests.rs", "symbol": "actual_raw_jph_inspection_checks_wrapper_profile_after_actual_inspection_and_all_prefixes"},
-        {"path": "src/jp2/tests.rs", "symbol": "actual_raw_jph_inspection_retains_capability_admission_independent_of_block_coding_mode"}
+        {"path": "src/jp2/tests.rs", "symbol": "actual_raw_jph_inspection_retains_capability_admission_independent_of_block_coding_mode"},
+        {"path": "src/jp2/tests.rs", "symbol": "cold_tile_storage_refusal_is_typed_and_restores_container_inspection"}
       ]
     },
     {
@@ -2591,7 +2723,9 @@
         {"path": "specs/jpx_frame.rs", "symbol": "part2_frame_source_supplies"},
         {"path": "specs/jpx_frame.rs", "symbol": "part2_owned_layer_image"},
         {"path": "specs/jpx_dispatch.rs", "symbol": "part2_decode_effective_layer"},
-        {"path": "specs/mod.rs", "symbol": "part2_render_normalized_frame"}
+        {"path": "specs/mod.rs", "symbol": "part2_render_normalized_frame"},
+        {"path": "specs/jpx_frame.rs", "symbol": "part2_render_inspected_cold_result"},
+        {"path": "specs/jpx_frame.rs", "symbol": "part2_render_inspected_cold_run"}
       ],
       "contract_refs": [
         {"path": "src/jpx/render.rs", "symbol": "render_inspected_frame"},
@@ -2605,7 +2739,8 @@
         {"path": "src/jpx/proof_support.rs", "symbol": "composition_source_frames"},
         {"path": "src/jpx/proof_support.rs", "symbol": "inspection_composition_reference"},
         {"path": "src/jpx/proof_support.rs", "symbol": "inspection_composition_view"},
-        {"path": "src/jpx/proof_support.rs", "symbol": "instruction_source_layer_index"}
+        {"path": "src/jpx/proof_support.rs", "symbol": "instruction_source_layer_index"},
+        {"path": "specs/jpx_frame.rs", "symbol": "part2_render_inspected_cold_normal"}
       ],
       "test_refs": [
         {"path": "src/jpx/tests.rs", "symbol": "actual_source_frame_composes_real_general_rgb_and_complete_straight_alpha_output"},
@@ -2633,7 +2768,11 @@
         {"path": "specs/jpx_dispatch.rs", "symbol": "part2_decode_compositing_layer"},
         {"path": "specs/jpx_dispatch.rs", "symbol": "part2_dispatch_owned_image"},
         {"path": "specs/jpx_dispatch.rs", "symbol": "part2_dispatch_opacity_result"},
-        {"path": "specs/jpx_dispatch.rs", "symbol": "part2_dispatch_registration"}
+        {"path": "specs/jpx_dispatch.rs", "symbol": "part2_dispatch_registration"},
+        {"path": "specs/jpx_dispatch.rs", "symbol": "part2_compositing_layer_cold_result"},
+        {"path": "specs/jpx_dispatch.rs", "symbol": "part2_compositing_layer_cold_run"},
+        {"path": "specs/jpx_dispatch.rs", "symbol": "part2_effective_layer_cold_result"},
+        {"path": "specs/jpx_dispatch.rs", "symbol": "part2_effective_layer_cold_run"}
       ],
       "contract_refs": [
         {"path": "src/jpx/layer_decode.rs", "symbol": "decode_effective_layer"},
@@ -2643,7 +2782,9 @@
         {"path": "src/jp2/proof_support.rs", "symbol": "source_file_layer_configs"},
         {"path": "src/jp2/proof_support.rs", "symbol": "source_layer_routing_config"},
         {"path": "src/jp2/proof_support.rs", "symbol": "source_layer_color_override"},
-        {"path": "src/jp2/proof_support.rs", "symbol": "jpx_file_layer_reference"}
+        {"path": "src/jp2/proof_support.rs", "symbol": "jpx_file_layer_reference"},
+        {"path": "specs/jpx_dispatch.rs", "symbol": "part2_compositing_layer_cold_normal"},
+        {"path": "specs/jpx_dispatch.rs", "symbol": "part2_effective_layer_cold_normal"}
       ],
       "test_refs": [
         {"path": "src/jpx/tests.rs", "symbol": "actual_effective_layer_default_codestream_retains_literal_planes_and_index_priority"},
@@ -2677,7 +2818,9 @@
         {"path": "specs/jpx_general.rs", "symbol": "part2_general_records_prefix"},
         {"path": "specs/jpx_general.rs", "symbol": "part2_general_default_colors"},
         {"path": "specs/jpx_general.rs", "symbol": "part2_general_after_assembly"},
-        {"path": "specs/jpx_general.rs", "symbol": "part2_general_finish"}
+        {"path": "specs/jpx_general.rs", "symbol": "part2_general_finish"},
+        {"path": "specs/jpx_general.rs", "symbol": "part2_general_layer_cold_result"},
+        {"path": "specs/jpx_general.rs", "symbol": "part2_general_layer_cold_run"}
       ],
       "contract_refs": [
         {"path": "src/jpx/layer_decode.rs", "symbol": "decode_general_compositing_layer"}
@@ -2693,7 +2836,8 @@
         {"path": "specs/jpx_general.rs", "symbol": "part2_general_records_error"},
         {"path": "src/decode/proof_support.rs", "symbol": "associated_typed_outcome_known"},
         {"path": "src/jpx/proof_support.rs", "symbol": "general_source_views_push"},
-        {"path": "src/jp2/proof_support.rs", "symbol": "general_layer_config"}
+        {"path": "src/jp2/proof_support.rs", "symbol": "general_layer_config"},
+        {"path": "specs/jpx_general.rs", "symbol": "part2_general_layer_cold_normal"}
       ],
       "test_refs": [
         {"path": "src/jpx/tests.rs", "symbol": "actual_general_layer_derives_literal_multisource_registered_planes"},
@@ -2754,7 +2898,11 @@
         {"path": "specs/mod.rs", "symbol": "part2_copy_registered_opacity"},
         {"path": "specs/mod.rs", "symbol": "part2_set_layer_alpha_mode"},
         {"path": "specs/mod.rs", "symbol": "part2_normalized_chroma_keys"},
-        {"path": "specs/mod.rs", "symbol": "part2_apply_chroma_key_policy"}
+        {"path": "specs/mod.rs", "symbol": "part2_apply_chroma_key_policy"},
+        {"path": "specs/jpx_opacity.rs", "symbol": "part2_opacity_cold_result"},
+        {"path": "specs/jpx_opacity.rs", "symbol": "part2_opacity_cold_run"},
+        {"path": "specs/jpx_source.rs", "symbol": "part2_jpx_layer_cold_result"},
+        {"path": "specs/jpx_source.rs", "symbol": "part2_jpx_layer_cold_run"}
       ],
       "contract_refs": [
         {"path": "src/jpx/opacity.rs", "symbol": "apply_layer_opacity"},
@@ -2774,7 +2922,9 @@
         {"path": "src/jp2/composition.rs", "symbol": "CompositingLayer::horizontal_grid_size"},
         {"path": "src/jp2/composition.rs", "symbol": "CompositingLayer::vertical_grid_size"},
         {"path": "src/jp2/container.rs", "symbol": "CodestreamBox::codestream_header"},
-        {"path": "src/jp2/container.rs", "symbol": "CodestreamHeaderAssociation::parsed_header"}
+        {"path": "src/jp2/container.rs", "symbol": "CodestreamHeaderAssociation::parsed_header"},
+        {"path": "specs/jpx_opacity.rs", "symbol": "part2_opacity_cold_normal"},
+        {"path": "specs/jpx_source.rs", "symbol": "part2_jpx_layer_cold_normal"}
       ],
       "test_refs": [
         {"path": "src/jpx/tests.rs", "symbol": "actual_source_opacity_keeps_no_op_and_existing_alpha_mode_frames"},
@@ -2796,7 +2946,11 @@
       "spec_refs": [
         {"path": "specs/jpx_source.rs", "symbol": "part2_decode_jpx_layer"},
         {"path": "specs/jpx_source.rs", "symbol": "part2_decode_jpx_codestream"},
-        {"path": "specs/mod.rs", "symbol": "color_convert_jp2"}
+        {"path": "specs/mod.rs", "symbol": "color_convert_jp2"},
+        {"path": "specs/jpx_source.rs", "symbol": "part2_jpx_cold_result"},
+        {"path": "specs/jpx_source.rs", "symbol": "part2_jpx_cold_run"},
+        {"path": "specs/jpx_source.rs", "symbol": "part2_jpx_layer_cold_result"},
+        {"path": "specs/jpx_source.rs", "symbol": "part2_jpx_layer_cold_run"}
       ],
       "contract_refs": [
         {"path": "src/jpx/layer_decode.rs", "symbol": "decode_layer"},
@@ -2809,7 +2963,9 @@
         {"path": "src/decode/proof_support.rs", "symbol": "associated_typed_success_known"},
         {"path": "src/jp2/proof_support.rs", "symbol": "optional_color_specification_method"},
         {"path": "src/jp2/container.rs", "symbol": "Jp2File::header"},
-        {"path": "src/options.rs", "symbol": "DecodeOptions::limits"}
+        {"path": "src/options.rs", "symbol": "DecodeOptions::limits"},
+        {"path": "specs/jpx_source.rs", "symbol": "part2_jpx_cold_normal"},
+        {"path": "specs/jpx_source.rs", "symbol": "part2_jpx_layer_cold_normal"}
       ],
       "test_refs": [
         {"path": "src/jpx/tests.rs", "symbol": "actual_jpx_layer_color_source_derives_literal_signed_and_unsigned_planes_from_bytes"},
@@ -2842,7 +2998,13 @@
         {"path": "specs/raw_decode.rs", "symbol": "part2_decode_raw_codestream"},
         {"path": "specs/mod.rs", "symbol": "part2_associated_codestream_header"},
         {"path": "specs/mod.rs", "symbol": "part2_validate_selected_header"},
-        {"path": "specs/mod.rs", "symbol": "part2_apply_associated_output"}
+        {"path": "specs/mod.rs", "symbol": "part2_apply_associated_output"},
+        {"path": "specs/jpx_source.rs", "symbol": "part2_jpx_cold_result"},
+        {"path": "specs/jpx_source.rs", "symbol": "part2_jpx_cold_run"},
+        {"path": "specs/raw_decode.rs", "symbol": "part2_decode_raw_cold_result"},
+        {"path": "specs/raw_decode.rs", "symbol": "part2_decode_raw_cold_run"},
+        {"path": "specs/raw_layout.rs", "symbol": "part1_parse_info_cold_result"},
+        {"path": "specs/raw_layout.rs", "symbol": "part1_parse_info_with_cold_storage"}
       ],
       "contract_refs": [
         {"path": "src/decode/output.rs", "symbol": "decode_jpx_file"},
@@ -2873,7 +3035,10 @@
         {"path": "src/jp2/container.rs", "symbol": "Jp2File::file_type"},
         {"path": "src/jp2/container.rs", "symbol": "Jp2File::header"},
         {"path": "src/jp2/container.rs", "symbol": "Jp2File::codestream"},
-        {"path": "src/options.rs", "symbol": "DecodeOptions::limits"}
+        {"path": "src/options.rs", "symbol": "DecodeOptions::limits"},
+        {"path": "specs/jpx_source.rs", "symbol": "part2_jpx_cold_normal"},
+        {"path": "specs/raw_decode.rs", "symbol": "part2_decode_raw_cold_normal"},
+        {"path": "specs/raw_layout.rs", "symbol": "part1_parse_info_cold_normal"}
       ],
       "test_refs": [
         {"path": "src/decode/jpx_source_result_tests.rs", "symbol": "actual_jpx_source_result_decodes_selected_real_bytes_and_retains_actual_header_reference"},
@@ -2910,7 +3075,11 @@
         {"path": "specs/decoder_input.rs", "symbol": "part2_decoder_execution_admission"},
         {"path": "specs/raw_layout.rs", "symbol": "part1_parse_layout"},
         {"path": "specs/mod.rs", "symbol": "part2_decode_typed_layout"},
-        {"path": "specs/mod.rs", "symbol": "part2_typed_layout"}
+        {"path": "specs/mod.rs", "symbol": "part2_typed_layout"},
+        {"path": "specs/raw_decode.rs", "symbol": "part2_decode_raw_cold_result"},
+        {"path": "specs/raw_decode.rs", "symbol": "part2_decode_raw_cold_run"},
+        {"path": "specs/raw_layout.rs", "symbol": "part1_parse_layout_cold_result"},
+        {"path": "specs/raw_layout.rs", "symbol": "part1_parse_layout_with_cold_storage"}
       ],
       "contract_refs": [
         {"path": "src/decode/api.rs", "symbol": "decode_codestream"},
@@ -2931,7 +3100,9 @@
         {"path": "src/codestream/decoder_input_proof_support.rs", "symbol": "decoder_layout_errors_known"},
         {"path": "src/decode/proof_support.rs", "symbol": "decoder_execution_inputs_known"},
         {"path": "src/options.rs", "symbol": "DecodeOptions::limits"},
-        {"path": "specs/raw_decode.rs", "symbol": "part2_decode_raw_codestream_unfold"}
+        {"path": "specs/raw_decode.rs", "symbol": "part2_decode_raw_codestream_unfold"},
+        {"path": "specs/raw_decode.rs", "symbol": "part2_decode_raw_cold_normal"},
+        {"path": "specs/raw_layout.rs", "symbol": "part1_parse_layout_cold_normal"}
       ],
       "test_refs": [
         {"path": "src/decode/raw_typed_result_tests.rs", "symbol": "actual_raw_typed_result_derives_full_and_reduced_signed_unsigned_planes_from_bytes"},
@@ -2963,7 +3134,9 @@
         {"path": "specs/decoder_input.rs", "symbol": "part2_decoder_input_from_raw"},
         {"path": "specs/decoder_input.rs", "symbol": "part2_decode_layout_input"},
         {"path": "specs/mod.rs", "symbol": "part1_decode_output_shape_valid"},
-        {"path": "specs/mod.rs", "symbol": "part1_component_output_shape_valid"}
+        {"path": "specs/mod.rs", "symbol": "part1_component_output_shape_valid"},
+        {"path": "specs/raw_decode.rs", "symbol": "part2_decode_reconstructed_cold_result"},
+        {"path": "specs/raw_decode.rs", "symbol": "part2_decode_reconstructed_cold_run"}
       ],
       "contract_refs": [
         {"path": "src/decode/api.rs", "symbol": "decode_codestream_reconstructed"},
@@ -2980,7 +3153,8 @@
         {"path": "src/image/samples.rs", "symbol": "DecodedImage::components"},
         {"path": "src/image/samples.rs", "symbol": "DecodedComponent::width"},
         {"path": "src/image/samples.rs", "symbol": "DecodedComponent::height"},
-        {"path": "src/image/samples.rs", "symbol": "DecodedComponent::samples"}
+        {"path": "src/image/samples.rs", "symbol": "DecodedComponent::samples"},
+        {"path": "specs/raw_decode.rs", "symbol": "part2_decode_reconstructed_cold_normal"}
       ],
       "test_refs": [
         {"path": "src/decode/raw_typed_result_tests.rs", "symbol": "reconstructed_output_roundtrips_independent_packets_and_retains_coded_geometry"},
@@ -3008,7 +3182,13 @@
         {"path": "specs/raw_layout.rs", "symbol": "part1_layout_tile_part"},
         {"path": "specs/raw_layout.rs", "symbol": "part1_layout_inherited_tile_part"},
         {"path": "specs/raw_layout.rs", "symbol": "part1_layout_after_tiles"},
-        {"path": "specs/raw_layout.rs", "symbol": "part1_layout_profile_tiles"}
+        {"path": "specs/raw_layout.rs", "symbol": "part1_layout_profile_tiles"},
+        {"path": "specs/raw_layout.rs", "symbol": "part1_parse_info_cold_result"},
+        {"path": "specs/raw_layout.rs", "symbol": "part1_parse_info_with_cold_storage"},
+        {"path": "specs/raw_layout.rs", "symbol": "part1_parse_layout_cold_result"},
+        {"path": "specs/raw_layout.rs", "symbol": "part1_parse_layout_with_cold_storage"},
+        {"path": "specs/raw_layout.rs", "symbol": "part1_cold_layout_result"},
+        {"path": "specs/raw_layout.rs", "symbol": "part1_layout_with_cold_storage"}
       ],
       "contract_refs": [
         {"path": "src/codestream/layout.rs", "symbol": "Parser::parse_layout"},
@@ -3023,13 +3203,17 @@
         {"path": "src/error.rs", "symbol": "DecodeError::limit"},
         {"path": "specs/raw_layout.rs", "symbol": "part1_parse_layout_unfold"},
         {"path": "specs/raw_layout.rs", "symbol": "part1_parse_info_unfold"},
-        {"path": "specs/codestream_profile.rs", "symbol": "part1_classification_preserves_metadata"}
+        {"path": "specs/codestream_profile.rs", "symbol": "part1_classification_preserves_metadata"},
+        {"path": "specs/raw_layout.rs", "symbol": "part1_parse_info_cold_normal"},
+        {"path": "specs/raw_layout.rs", "symbol": "part1_parse_layout_cold_normal"},
+        {"path": "specs/raw_layout.rs", "symbol": "part1_cold_layout_normal"}
       ],
       "test_refs": [
         {"path": "src/codestream/raw_layout_result_tests.rs", "symbol": "actual_complete_raw_layout_result_keeps_interleaved_source_parts_and_public_info"},
         {"path": "src/codestream/raw_layout_result_tests.rs", "symbol": "actual_complete_raw_layout_result_preserves_late_roi_end_and_profile_error_priority"},
         {"path": "src/codestream/raw_layout_result_tests.rs", "symbol": "actual_complete_raw_layout_result_keeps_input_work_and_tile_limit_first_errors"},
-        {"path": "src/codestream/raw_layout_result_tests.rs", "symbol": "actual_complete_raw_layout_result_retains_full_owned_profile_words_and_classes"}
+        {"path": "src/codestream/raw_layout_result_tests.rs", "symbol": "actual_complete_raw_layout_result_retains_full_owned_profile_words_and_classes"},
+        {"path": "src/codestream/tests.rs", "symbol": "cold_tile_storage_refusal_is_typed_and_restores_raw_inspection"}
       ]
     },
     {
@@ -3056,7 +3240,9 @@
         {"path": "specs/main_header.rs", "symbol": "part1_main_header_continuation"},
         {"path": "specs/main_header.rs", "symbol": "part1_read_main_header"},
         {"path": "specs/main_header.rs", "symbol": "part1_main_header_fields"},
-        {"path": "specs/main_header.rs", "symbol": "part1_main_header_layout_relation"}
+        {"path": "specs/main_header.rs", "symbol": "part1_main_header_layout_relation"},
+        {"path": "specs/raw_layout.rs", "symbol": "part1_cold_layout_result"},
+        {"path": "specs/raw_layout.rs", "symbol": "part1_layout_with_cold_storage"}
       ],
       "contract_refs": [
         {"path": "src/codestream/layout.rs", "symbol": "Parser::parse_layout"},
@@ -3070,7 +3256,8 @@
         {"path": "src/codestream/proof_support.rs", "symbol": "layout_main_header_outcome"},
         {"path": "src/codestream/proof_support.rs", "symbol": "optional_capabilities_view"},
         {"path": "src/codestream/proof_support.rs", "symbol": "optional_profile_number_view"},
-        {"path": "src/codestream/tile_part_proof_support.rs", "symbol": "tile_part_native_styles_inverse"}
+        {"path": "src/codestream/tile_part_proof_support.rs", "symbol": "tile_part_native_styles_inverse"},
+        {"path": "specs/raw_layout.rs", "symbol": "part1_cold_layout_normal"}
       ],
       "test_refs": [
         {"path": "src/codestream/main_header_result_tests.rs", "symbol": "actual_raw_main_header_initializers_preserve_all_physical_empty_owners"},
@@ -14814,7 +15001,9 @@
         {"path": "specs/raw_recovery.rs", "symbol": "raw_recovery_tile_headers"},
         {"path": "specs/raw_recovery.rs", "symbol": "raw_recovery_tile_loop"},
         {"path": "specs/raw_recovery.rs", "symbol": "raw_recovery_body"},
-        {"path": "specs/raw_recovery.rs", "symbol": "raw_recovery_body_loop"}
+        {"path": "specs/raw_recovery.rs", "symbol": "raw_recovery_body_loop"},
+        {"path": "specs/raw_recovery.rs", "symbol": "raw_recovery_cold_run"},
+        {"path": "specs/raw_recovery.rs", "symbol": "raw_recovery_decode_call"}
       ],
       "proof_refs": [
         {"path": "src/recovery.rs", "symbol": "decode_codestream_recover_missing_eoc"},
@@ -14827,7 +15016,9 @@
         {"path": "src/codestream/recovery_framing.rs", "symbol": "Parser::recovery_sot"},
         {"path": "src/codestream/recovery_framing.rs", "symbol": "Parser::recovery_tile_headers"},
         {"path": "src/codestream/recovery_framing.rs", "symbol": "Parser::recovery_body"},
-        {"path": "specs/raw_recovery.rs", "symbol": "raw_recovery_result_unfold"}
+        {"path": "specs/raw_recovery.rs", "symbol": "raw_recovery_result_unfold"},
+        {"path": "specs/raw_recovery.rs", "symbol": "raw_recovery_decode_actual"},
+        {"path": "specs/raw_recovery.rs", "symbol": "raw_recovery_normal_admitted"}
       ],
       "test_refs": [
         {"path": "src/recovery/tests.rs", "symbol": "only_open_ended_eoc_loss_is_repaired_and_strict_stays_strict"},
@@ -14882,7 +15073,11 @@
         {"path": "specs/raw_recovery.rs", "symbol": "raw_reconstructed_recovery_result_body"},
         {"path": "specs/raw_recovery.rs", "symbol": "raw_reconstructed_recovery_reserved_response"},
         {"path": "specs/raw_recovery.rs", "symbol": "raw_reconstructed_recovery_finish"},
-        {"path": "specs/raw_decode.rs", "symbol": "part2_decode_raw_reconstructed_codestream"}
+        {"path": "specs/raw_decode.rs", "symbol": "part2_decode_raw_reconstructed_codestream"},
+        {"path": "specs/raw_decode.rs", "symbol": "part2_decode_reconstructed_cold_result"},
+        {"path": "specs/raw_decode.rs", "symbol": "part2_decode_reconstructed_cold_run"},
+        {"path": "specs/raw_recovery.rs", "symbol": "raw_recovery_cold_run"},
+        {"path": "specs/raw_recovery.rs", "symbol": "raw_recovery_decode_call"}
       ],
       "proof_refs": [
         {"path": "src/recovery.rs", "symbol": "decode_codestream_reconstructed_recover_missing_eoc"},
@@ -14898,7 +15093,10 @@
         {"path": "src/decode/api.rs", "symbol": "decode_codestream_reconstructed"},
         {"path": "src/image/samples.rs", "symbol": "DecodedImage::x_origin"},
         {"path": "src/image/samples.rs", "symbol": "DecodedImage::y_origin"},
-        {"path": "specs/raw_recovery.rs", "symbol": "raw_reconstructed_recovery_result_unfold"}
+        {"path": "specs/raw_recovery.rs", "symbol": "raw_reconstructed_recovery_result_unfold"},
+        {"path": "specs/raw_decode.rs", "symbol": "part2_decode_reconstructed_cold_normal"},
+        {"path": "specs/raw_recovery.rs", "symbol": "raw_reconstructed_recovery_normal_admitted"},
+        {"path": "specs/raw_recovery.rs", "symbol": "raw_recovery_decode_actual"}
       ],
       "test_refs": [
         {"path": "src/recovery/tests.rs", "symbol": "reconstructed_recovery_retains_centered_planes_geometry_and_report"},
@@ -14935,7 +15133,10 @@
         {"path": "specs/jpip_layout.rs", "symbol": "part2_jpip_write_u64"},
         {"path": "specs/jpip_snapshot_inputs.rs", "symbol": "part2_jpip_automatic_snapshot_result"},
         {"path": "specs/jp2_box_reader.rs", "symbol": "part2_box_reader_from_input"},
-        {"path": "specs/jp2_box_reader.rs", "symbol": "part2_box_reader_next_ref"}
+        {"path": "specs/jp2_box_reader.rs", "symbol": "part2_box_reader_next_ref"},
+        {"path": "specs/jp2_inspection.rs", "symbol": "part2_inspection_cold_result"},
+        {"path": "specs/jp2_inspection.rs", "symbol": "part2_inspection_cold_run"},
+        {"path": "specs/jpip_layout.rs", "symbol": "part2_jpip_semantic_inspection"}
       ],
       "proof_refs": [
         {"path": "src/jpip/reconstruction.rs", "symbol": "DatabinCache::assemble_semantic_container"},
@@ -14969,7 +15170,9 @@
         {"path": "specs/jpip_layout.rs", "symbol": "part2_jpip_semantic_placeholder_append_error"},
         {"path": "specs/jpip_layout.rs", "symbol": "part2_jpip_semantic_expand_witness"},
         {"path": "specs/jpip_layout.rs", "symbol": "part2_jpip_semantic_assembly_witness"},
-        {"path": "specs/jpip_layout.rs", "symbol": "part2_jpip_semantic_assembly_first_error"}
+        {"path": "specs/jpip_layout.rs", "symbol": "part2_jpip_semantic_assembly_first_error"},
+        {"path": "specs/jp2_inspection.rs", "symbol": "part2_inspection_cold_normal"},
+        {"path": "specs/jpip_layout.rs", "symbol": "part2_jpip_semantic_inspection_actual"}
       ],
       "test_refs": [
         {"path": "src/jpip/tests.rs", "symbol": "semantic_metadata_assembly_places_nested_boxes_and_codestreams"},

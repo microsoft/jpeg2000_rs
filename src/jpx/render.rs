@@ -25,8 +25,8 @@ use vstd::prelude::*;
 /// Renders one layer while retaining its straight/premultiplied sample representation.
 /// The alpha channel records that representation; frame/composition output is straight alpha.
 #[cfg_attr(verus_keep_ghost, verus_spec(result =>
-    ensures crate::color::converted_image_result(result) == crate::specs::part2_render_raw_jpx_layer(
-        input@, layer_index, crate::options::decode_options_limits(options)),
+    ensures crate::specs::part2_render_raw_jpx_cold_result(
+        input@, 0, layer_index, crate::options::decode_options_limits(options), crate::color::converted_image_result(result)),
 ))]
 pub fn render_jpx_layer(
     input: &[u8],
@@ -36,20 +36,37 @@ pub fn render_jpx_layer(
     #[cfg(verus_keep_ghost)]
     proof! {
         crate::specs::part2_render_raw_jpx_layer_unfold(input@, layer_index, crate::options::decode_options_limits(options));
+        crate::specs::part2_render_raw_jpx_cold_normal(input@, 0, layer_index, crate::options::decode_options_limits(options));
     }
-    let inspected = jp2::parse_and_inspect(input, options.limits())?;
+    let inspected = match jp2::parse_and_inspect(input, options.limits()) {
+        Ok(value) => value,
+        Err(error) => {
+            #[cfg(verus_keep_ghost)]
+            proof! {
+                crate::specs::part2_render_raw_cold_inspection_error(
+                    input@, 0, layer_index, crate::options::decode_options_limits(options), error);
+            }
+            return Err(error);
+        }
+    };
     #[cfg(verus_keep_ghost)]
     proof! {
         jp2::raw_render_file_known(jp2::raw_inspected_file_reference(&inspected));
         jp2::raw_jpx_inspection_parts_known(jp2::raw_inspected_file_reference(&inspected));
     }
     ensure_jpx(inspected.file())?;
-    decode_effective_layer(inspected.file(), layer_index, options)?.into_image()
+    let owned = decode_effective_layer(inspected.file(), layer_index, options);
+    #[cfg(verus_keep_ghost)]
+    proof! {
+        crate::specs::part2_render_raw_cold_layer_actual(input@, layer_index,
+            crate::options::decode_options_limits(options), jp2::raw_inspected_container_view(&inspected), owned_layer_outcome(owned));
+    }
+    owned?.into_image()
 }
 
 #[cfg_attr(verus_keep_ghost, verus_spec(result =>
-    ensures crate::color::converted_image_result(result) == crate::specs::part2_render_raw_jpx_composition(
-        input@, crate::options::decode_options_limits(options)),
+    ensures crate::specs::part2_render_raw_jpx_cold_result(
+        input@, 2, 0, crate::options::decode_options_limits(options), crate::color::converted_image_result(result)),
 ))]
 pub fn render_jpx_composition(
     input: &[u8],
@@ -58,10 +75,21 @@ pub fn render_jpx_composition(
     #[cfg(verus_keep_ghost)]
     proof! {
         crate::specs::part2_render_raw_jpx_composition_unfold(input@, crate::options::decode_options_limits(options));
+        crate::specs::part2_render_raw_jpx_cold_normal(input@, 2, 0, crate::options::decode_options_limits(options));
         raw_jpx_inspection_outcome_known();
         reveal(crate::specs::part2_render_source_composition);
     }
-    let inspected = jp2::parse_and_inspect(input, options.limits())?;
+    let inspected = match jp2::parse_and_inspect(input, options.limits()) {
+        Ok(value) => value,
+        Err(error) => {
+            #[cfg(verus_keep_ghost)]
+            proof! {
+                crate::specs::part2_render_raw_cold_inspection_error(
+                    input@, 2, 0, crate::options::decode_options_limits(options), error);
+            }
+            return Err(error);
+        }
+    };
     let file = inspected.file();
     #[cfg(verus_keep_ghost)]
     proof! {
@@ -83,7 +111,17 @@ pub fn render_jpx_composition(
         None => false,
     };
     if has_frames {
-        return render_inspected_frame(file, &metadata, 0, options);
+        let rendered = render_inspected_frame(file, &metadata, 0, options);
+        #[cfg(verus_keep_ghost)]
+        proof! {
+            crate::specs::part2_render_composition_cold_frame_actual(jp2::jpx_file_decode_view(file),
+                jp2::source_file_layer_configs(file), inspection_value_view(&metadata),
+                crate::options::decode_options_limits(options), crate::color::converted_image_result(rendered));
+            crate::specs::part2_render_raw_cold_final_actual(input@, 2, 0, crate::options::decode_options_limits(options),
+                jp2::raw_inspected_container_view(&inspected), inspection_value_view(&metadata),
+                crate::color::converted_image_result(rendered));
+        }
+        return rendered;
     }
     let (width, height) = composition_dimensions(&metadata, options.limits())?;
     let mut layers = Vec::new();
@@ -109,10 +147,20 @@ pub fn render_jpx_composition(
                 layers.len() == layer_index,
                 source == jp2::jpx_file_decode_view(file),
                 configs == jp2::source_file_layer_configs(file),
+                source == crate::specs::part2_raw_jpx_decode_input(jp2::raw_inspected_container_view(&inspected).0),
+                configs == crate::specs::part2_raw_layer_routings(jp2::raw_inspected_container_view(&inspected).0),
                 meta == inspection_value_view(&metadata),
                 meta.layers == super::inspected_layers_view(super::inspection_native_layers(&metadata)),
                 limits == crate::options::decode_options_limits(options),
                 expected == crate::specs::part2_render_raw_jpx_composition(input@, limits),
+                crate::specs::part2_render_raw_jpx_cold_result(input@, 2, 0, limits, expected),
+                crate::specs::part2_inspection_cold_result(input@, limits, false,
+                    Ok(jp2::raw_inspected_container_view(&inspected))),
+                crate::specs::part2_ensure_raw_jpx(jp2::raw_inspected_container_view(&inspected).0.file_type) == Ok(()),
+                crate::specs::part2_inspect_jpx_file(
+                    crate::specs::part2_raw_inspection_file(jp2::raw_inspected_container_view(&inspected).0),
+                    crate::specs::part2_raw_inspection_geometries(jp2::raw_inspected_container_view(&inspected).1),
+                    crate::limits::resource_frame_limit(limits)) == Ok(meta),
                 expected == crate::specs::part2_render_source_composition(source, configs, meta, limits),
                 layer_count == crate::specs::effective_jpx_layer_count(configs.len(), source.1.len()),
                 crate::specs::part2_composition_dimensions(meta, limits) == Ok((width, height)),
@@ -135,8 +183,21 @@ pub fn render_jpx_composition(
             crate::specs::part2_composition_source_error(source, configs, meta,
                 layer_index as nat + 1, layer_count as nat, limits);
         }
+        let owned = match decode_effective_layer(file, layer_index, options) {
+            Ok(value) => value,
+            Err(error) => {
+                #[cfg(verus_keep_ghost)]
+                proof! {
+                    crate::specs::part2_render_composition_cold_source_error(source, configs, meta, limits,
+                        layer_index, placement_views(layers@), (width, height), error);
+                    crate::specs::part2_render_raw_cold_final_actual(input@, 2, 0, limits,
+                        jp2::raw_inspected_container_view(&inspected), meta, Err(error));
+                }
+                return Err(error);
+            }
+        };
         layers.push((
-            decode_effective_layer(file, layer_index, options)?,
+            owned,
             JpxInstructionInfo {
                 layer_index,
                 target_x: 0,
@@ -175,8 +236,8 @@ pub fn render_jpx_composition(
 }
 
 #[cfg_attr(verus_keep_ghost, verus_spec(result =>
-    ensures crate::color::converted_image_result(result) == crate::specs::part2_render_raw_jpx_frame(
-        input@, frame_index, crate::options::decode_options_limits(options)),
+    ensures crate::specs::part2_render_raw_jpx_cold_result(
+        input@, 1, frame_index, crate::options::decode_options_limits(options), crate::color::converted_image_result(result)),
 ))]
 pub fn render_jpx_frame(
     input: &[u8],
@@ -186,9 +247,20 @@ pub fn render_jpx_frame(
     #[cfg(verus_keep_ghost)]
     proof! {
         crate::specs::part2_render_raw_jpx_frame_unfold(input@, frame_index, crate::options::decode_options_limits(options));
+        crate::specs::part2_render_raw_jpx_cold_normal(input@, 1, frame_index, crate::options::decode_options_limits(options));
         raw_jpx_inspection_outcome_known();
     }
-    let inspected = jp2::parse_and_inspect(input, options.limits())?;
+    let inspected = match jp2::parse_and_inspect(input, options.limits()) {
+        Ok(value) => value,
+        Err(error) => {
+            #[cfg(verus_keep_ghost)]
+            proof! {
+                crate::specs::part2_render_raw_cold_inspection_error(
+                    input@, 1, frame_index, crate::options::decode_options_limits(options), error);
+            }
+            return Err(error);
+        }
+    };
     let file = inspected.file();
     #[cfg(verus_keep_ghost)]
     proof! {
@@ -201,13 +273,20 @@ pub fn render_jpx_frame(
     let metadata = inspect_file(file, inspected.codestreams(), options.limits())?;
     #[cfg(verus_keep_ghost)]
     proof! { raw_jpx_render_metadata_known(&metadata); }
-    render_inspected_frame(file, &metadata, frame_index, options)
+    let rendered = render_inspected_frame(file, &metadata, frame_index, options);
+    #[cfg(verus_keep_ghost)]
+    proof! {
+        crate::specs::part2_render_raw_cold_final_actual(input@, 1, frame_index,
+            crate::options::decode_options_limits(options), jp2::raw_inspected_container_view(&inspected),
+            inspection_value_view(&metadata), crate::color::converted_image_result(rendered));
+    }
+    rendered
 }
 
 #[cfg_attr(verus_keep_ghost, verus_spec(result =>
-    ensures crate::color::converted_image_result(result) == crate::specs::part2_render_inspected_source_frame(
-        jp2::jpx_file_decode_view(file), jp2::source_file_layer_configs(file), inspection_composition_view(metadata),
-        requested_frame, crate::options::decode_options_limits(options)),
+    ensures crate::specs::part2_render_inspected_cold_result(jp2::jpx_file_decode_view(file),
+        jp2::source_file_layer_configs(file), inspection_composition_view(metadata),
+        requested_frame, crate::options::decode_options_limits(options), crate::color::converted_image_result(result)),
 ))]
 pub(super) fn render_inspected_frame(
     file: &Jp2File<'_>,
@@ -224,6 +303,8 @@ pub(super) fn render_inspected_frame(
     #[cfg(verus_keep_ghost)]
     proof! {
         reveal(crate::specs::part2_render_inspected_source_frame);
+        crate::specs::part2_render_inspected_cold_normal(input, layers, inspection_composition_view(metadata),
+            requested_frame, limits);
     }
     let composition = metadata
         .composition()
@@ -242,8 +323,13 @@ pub(super) fn render_inspected_frame(
     proof_decl! { let ghost selected = instruction_views(instructions@); }
     #[cfg(verus_keep_ghost)]
     proof! {
-        reveal(crate::specs::part2_frame_source_supplies);
         assert(supplied_views(supplied@) =~= Seq::empty());
+        reveal_with_fuel(crate::specs::part2_frame_cold_prefix, 1);
+        crate::specs::part2_cold_pure(Ok((Seq::<crate::specs::Part2SuppliedLayer>::empty(), false)));
+        if instructions.len() == 0 {
+            crate::specs::part2_frame_cold_supplies_finish(input, layers, selected, limits,
+                supplied_views(supplied@), false);
+        }
     }
     #[cfg_attr(
         verus_keep_ghost,
@@ -253,41 +339,58 @@ pub(super) fn render_inspected_frame(
                 input == jp2::jpx_file_decode_view(file),
                 layers == jp2::source_file_layer_configs(file),
                 limits == crate::options::decode_options_limits(options),
+                index == instructions.len() ==> crate::specs::part2_frame_cold_supplies_result(
+                    input, layers, selected, limits, supplied_views(supplied@)),
             invariant_except_break
-                crate::specs::part2_frame_source_supplies(input, layers, selected, limits, index as nat)
-                    == (supplied_views(supplied@), false),
-            ensures supplied_views(supplied@)
-                == crate::specs::part2_frame_source_supplies(input, layers, selected, limits, selected.len()).0,
+                crate::specs::part2_cold_framed(
+                    |events| crate::specs::part2_frame_cold_prefix(input, layers, selected, limits, index as nat, events),
+                    Ok((supplied_views(supplied@), false))),
+            ensures crate::specs::part2_frame_cold_supplies_result(input, layers, selected, limits, supplied_views(supplied@)),
             decreases instructions.len() - index,
         )
     )]
     while index < instructions.len() {
         #[cfg(verus_keep_ghost)]
-        proof! {
-            crate::specs::part2_frame_source_supplies_step(input, layers, selected, limits, index as nat);
-        }
+        proof_decl! { let ghost previous_supplied = supplied_views(supplied@); }
         let instruction = instructions[index];
         let outcome = decode_effective_layer(file, instruction.layer_index(), options);
         let failed = outcome.is_err();
         #[cfg(verus_keep_ghost)]
         proof! {
+            crate::specs::part2_frame_cold_next(input, layers, selected, limits, index as nat,
+                previous_supplied, owned_layer_outcome(outcome));
             supplied_views_push(supplied@, (instruction.layer_index, Some(outcome)));
         }
         supplied.push((instruction.layer_index, Some(outcome)));
         #[cfg(verus_keep_ghost)]
         proof! {
-            assert(crate::specs::part2_frame_source_supplies(input, layers, selected, limits, index as nat + 1)
-                == (supplied_views(supplied@), failed));
+            assert(crate::specs::part2_cold_framed(
+                |events| crate::specs::part2_frame_cold_prefix(input, layers, selected, limits, index as nat + 1, events),
+                Ok((supplied_views(supplied@), failed))));
         }
         if failed {
             #[cfg(verus_keep_ghost)]
             proof! {
-                crate::specs::part2_frame_source_supplies_stopped(
-                    input, layers, selected, limits, index as nat + 1, selected.len());
+                crate::specs::part2_frame_cold_stopped(input, layers, selected, limits,
+                    index as nat + 1, selected.len(), supplied_views(supplied@));
+                crate::specs::part2_frame_cold_supplies_finish(input, layers, selected, limits,
+                    supplied_views(supplied@), true);
             }
             break;
         }
+        #[cfg(verus_keep_ghost)]
+        proof! {
+            if index as nat + 1 == selected.len() {
+                crate::specs::part2_frame_cold_supplies_finish(input, layers, selected, limits,
+                    supplied_views(supplied@), false);
+            }
+        }
         index = index.checked_add(1).ok_or_else(arithmetic_overflow)?;
+    }
+    #[cfg(verus_keep_ghost)]
+    proof! {
+        crate::specs::part2_render_inspected_cold_supplies_actual(input, layers,
+            composition_source_view(composition), requested_frame, limits, selected, supplied_views(supplied@));
     }
     render_normalized_frame(
         composition.width(),

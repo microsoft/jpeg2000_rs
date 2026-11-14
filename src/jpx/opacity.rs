@@ -173,11 +173,17 @@ pub(super) fn copy_registered_layer_opacity(
 }
 
 #[cfg_attr(verus_keep_ghost, verus_spec(result =>
-    ensures (result, owned_layer_view(final(owned))) == crate::specs::part2_apply_source_layer_opacity(
-        jp2::jpx_file_decode_view(file), jp2::source_layer_opacity(layer), jp2::source_layer_geometry(layer),
-        color_codestream, owned_layer_view(old(owned)),
+    ensures crate::specs::part2_opacity_cold_result(jp2::jpx_file_decode_view(file),
+        jp2::source_layer_opacity(layer), jp2::source_layer_geometry(layer), color_codestream,
+        owned_layer_view(old(owned)),
         match alpha_registration { None => None, Some(registration) => Some(layer_registration_view(registration)) },
-        crate::options::decode_options_limits(options)),
+        crate::options::decode_options_limits(options), (result, owned_layer_view(final(owned)))),
+        (alpha_registration.is_none() || result != Err(DecodeError::AllocationFailed)) ==>
+            (result, owned_layer_view(final(owned))) == crate::specs::part2_apply_source_layer_opacity(
+                jp2::jpx_file_decode_view(file), jp2::source_layer_opacity(layer), jp2::source_layer_geometry(layer),
+                color_codestream, owned_layer_view(old(owned)),
+                match alpha_registration { None => None, Some(registration) => Some(layer_registration_view(registration)) },
+                crate::options::decode_options_limits(options)),
 ))]
 pub(super) fn apply_layer_opacity(
     file: &Jp2File<'_>,
@@ -194,6 +200,10 @@ pub(super) fn apply_layer_opacity(
             color_codestream, owned_layer_view(owned),
             match alpha_registration { None => None, Some(registration) => Some(layer_registration_view(registration)) },
             crate::options::decode_options_limits(options));
+        crate::specs::part2_opacity_cold_normal(jp2::jpx_file_decode_view(file), jp2::source_layer_opacity(layer),
+            jp2::source_layer_geometry(layer), color_codestream, owned_layer_view(owned),
+            match alpha_registration { None => None, Some(registration) => Some(layer_registration_view(registration)) },
+            crate::options::decode_options_limits(options));
     }
     let Some(opacity) = layer.opacity() else {
         return Ok(());
@@ -204,12 +214,24 @@ pub(super) fn apply_layer_opacity(
         LayerOpacity::Straight | LayerOpacity::Premultiplied => {
             let premultiplied = matches!(opacity, LayerOpacity::Premultiplied);
             if let Some(registration) = alpha_registration {
-                let image = decode_layer(
+                let image = match decode_layer(
                     file,
                     usize::from(registration.codestream_index),
                     None,
                     options,
-                )?;
+                ) {
+                    Ok(value) => value,
+                    Err(error) => {
+                        #[cfg(verus_keep_ghost)]
+                        proof! {
+                            crate::specs::part2_opacity_cold_decode_error(jp2::jpx_file_decode_view(file),
+                                jp2::source_layer_opacity(layer), jp2::source_layer_geometry(layer), color_codestream,
+                                owned_layer_view(owned), layer_registration_view(registration),
+                                crate::options::decode_options_limits(options), error);
+                        }
+                        return Err(error);
+                    }
+                };
                 let alpha_source = owned_layer_from_image(&image)?;
                 let alpha_registered = register_layer(
                     &alpha_source,

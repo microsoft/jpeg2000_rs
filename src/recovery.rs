@@ -101,21 +101,39 @@ pub fn decode_codestream_recover_missing_eoc(
     #[cfg(verus_keep_ghost)]
     proof! {
         crate::specs::raw_recovery_result_unfold(input@, crate::options::decode_options_limits(options));
+        crate::specs::raw_recovery_preflight_lifts(input@, crate::options::decode_options_limits(options));
         reveal(crate::codestream::recovery_framing::framing_outcome);
     }
     let frame = crate::codestream::recovery_framing(input, options.limits())?;
     if !frame.append_eoc {
-        return finish_recovery(input.len(), frame, crate::decode_codestream(input, options));
+        let decoded = crate::decode_codestream(input, options);
+        #[cfg(verus_keep_ghost)]
+        proof! {
+            crate::specs::raw_recovery_typed_actual(input@, crate::options::decode_options_limits(options),
+                (frame.append_eoc, frame.work_units), input@, crate::image::decoded_typed_image_outcome(decoded));
+        }
+        return finish_recovery(input.len(), frame, decoded);
     }
     admit_repair(input.len(), frame.work_units, options.limits())?;
-    let repaired = append_eoc(input)?;
+    let copied = append_eoc(input);
+    #[cfg(verus_keep_ghost)]
+    proof! {
+        reveal(repair_outcome);
+        if let Err(error) = copied {
+            crate::specs::raw_recovery_copy_error(input@, crate::options::decode_options_limits(options),
+                (frame.append_eoc, frame.work_units), error);
+        }
+    }
+    let repaired = copied?;
     #[cfg(verus_keep_ghost)]
     proof! { reveal(crate::specs::raw_repair_result); reveal(repair_outcome); }
-    finish_recovery(
-        input.len(),
-        frame,
-        crate::decode_codestream(&repaired, options),
-    )
+    let decoded = crate::decode_codestream(&repaired, options);
+    #[cfg(verus_keep_ghost)]
+    proof! {
+        crate::specs::raw_recovery_typed_actual(input@, crate::options::decode_options_limits(options),
+            (frame.append_eoc, frame.work_units), repaired@, crate::image::decoded_typed_image_outcome(decoded));
+    }
+    finish_recovery(input.len(), frame, decoded)
 }
 
 /// Recover the same bounded missing-EOC case while retaining reconstruction samples.
@@ -141,25 +159,39 @@ pub fn decode_codestream_reconstructed_recover_missing_eoc(
     proof! {
         crate::specs::raw_reconstructed_recovery_result_unfold(
             input@, crate::options::decode_options_limits(options));
+        crate::specs::raw_recovery_preflight_lifts(input@, crate::options::decode_options_limits(options));
         reveal(crate::codestream::recovery_framing::framing_outcome);
     }
     let frame = crate::codestream::recovery_framing(input, options.limits())?;
     if !frame.append_eoc {
-        return finish_reconstructed_recovery(
-            input.len(),
-            frame,
-            crate::decode_codestream_reconstructed(input, options),
-        );
+        let decoded = crate::decode_codestream_reconstructed(input, options);
+        #[cfg(verus_keep_ghost)]
+        proof! {
+            crate::specs::raw_recovery_reconstructed_actual(input@, crate::options::decode_options_limits(options),
+                (frame.append_eoc, frame.work_units), input@, crate::image::decoded_image_outcome(decoded));
+        }
+        return finish_reconstructed_recovery(input.len(), frame, decoded);
     }
     admit_repair(input.len(), frame.work_units, options.limits())?;
-    let repaired = append_eoc(input)?;
+    let copied = append_eoc(input);
+    #[cfg(verus_keep_ghost)]
+    proof! {
+        reveal(repair_outcome);
+        if let Err(error) = copied {
+            crate::specs::raw_recovery_copy_error(input@, crate::options::decode_options_limits(options),
+                (frame.append_eoc, frame.work_units), error);
+        }
+    }
+    let repaired = copied?;
     #[cfg(verus_keep_ghost)]
     proof! { reveal(crate::specs::raw_repair_result); reveal(repair_outcome); }
-    finish_reconstructed_recovery(
-        input.len(),
-        frame,
-        crate::decode_codestream_reconstructed(&repaired, options),
-    )
+    let decoded = crate::decode_codestream_reconstructed(&repaired, options);
+    #[cfg(verus_keep_ghost)]
+    proof! {
+        crate::specs::raw_recovery_reconstructed_actual(input@, crate::options::decode_options_limits(options),
+            (frame.append_eoc, frame.work_units), repaired@, crate::image::decoded_image_outcome(decoded));
+    }
+    finish_reconstructed_recovery(input.len(), frame, decoded)
 }
 
 #[cfg_attr(verus_keep_ghost, verus_spec(result =>

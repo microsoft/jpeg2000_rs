@@ -7,6 +7,7 @@ verus! {
 pub enum Part2JpipSnapshotEvent {
     Capacity { site: u8, tile: usize, elements: usize, succeeded: bool },
     Main { calls: Seq<Part2JpipStorageEvent> },
+    Parse { phase: u8, index: usize, calls: Seq<Part1ColdStorageEvent> },
 }
 
 pub(crate) open spec fn part2_jpip_snapshot_normalized_events(
@@ -30,6 +31,7 @@ pub(crate) struct Part2JpipSnapshotInput<'a> {
 
 pub(crate) struct Part2JpipSnapshotTileRoot<'a> {
     pub input: Part2JpipSnapshotInput<'a>,
+    pub prefix: Seq<Part2JpipSnapshotEvent>,
     pub events: Seq<Part2JpipSnapshotEvent>,
     pub count: u64,
     pub components: u16,
@@ -42,10 +44,93 @@ pub(crate) struct Part2JpipSnapshotTileRoot<'a> {
     pub maximum: u16,
 }
 
+pub(crate) enum Part2JpipPreparedTiles {
+    Missing { ranges: Seq<Part2JpipMissing> },
+    Ready { tiles: Part2JpipAutomaticTiles, maximum: u16 },
+}
+
+#[verifier::opaque]
+pub(crate) open spec fn part2_jpip_snapshot_static_context(
+    input: Part2JpipSnapshotInput<'_>, prefix: Seq<Part2JpipSnapshotEvent>,
+    count: u64, components: u16, main: Seq<u8>, raw: Seq<Seq<u8>>,
+    headers: Seq<Seq<Seq<u8>>>, layout: Part2DecoderLayoutInput,
+) -> bool {
+    forall|events: Seq<Part2JpipSnapshotEvent>|
+        part2_jpip_snapshot_run(input, prefix + events)
+            == part2_jpip_snapshot_bind(
+                part2_jpip_snapshot_prepare_tiles(input, count, components, raw, headers,
+                    layout, 0, Seq::empty(), 0, events),
+                |prepared, tail| part2_jpip_snapshot_finish_prepared(input, main, prepared, tail))
+}
+
+#[verifier::opaque]
+pub(crate) open spec fn part2_jpip_snapshot_hot_prefix(root: Part2JpipSnapshotTileRoot<'_>) -> bool {
+    forall|tail: Seq<Part2JpipSnapshotEvent>|
+        part2_jpip_snapshot_prepare_tiles(root.input, root.count, root.components, root.raw,
+            root.headers, root.layout, 0, Seq::empty(), 0, root.events + tail)
+            == part2_jpip_snapshot_prepare_tiles(root.input, root.count, root.components, root.raw,
+                root.headers, root.layout, root.tile, root.before, root.maximum, tail)
+}
+
+#[verifier::opaque]
 pub(crate) open spec fn part2_jpip_snapshot_tile_root(root: Part2JpipSnapshotTileRoot<'_>) -> bool {
-    forall|tail: Seq<Part2JpipSnapshotEvent>| part2_jpip_snapshot_run(root.input, root.events + tail)
-        == part2_jpip_snapshot_tiles(root.input, root.count, root.components, root.main, root.raw,
-            root.headers, root.layout, root.tile, root.before, root.maximum, tail)
+    part2_jpip_snapshot_static_context(root.input, root.prefix, root.count, root.components,
+        root.main, root.raw, root.headers, root.layout)
+        && part2_jpip_snapshot_hot_prefix(root)
+}
+
+pub(crate) proof fn part2_jpip_snapshot_root_start(root: Part2JpipSnapshotTileRoot<'_>)
+    requires root.tile == 0, root.before.len() == 0, root.maximum == 0, root.events.len() == 0,
+        forall|tail: Seq<Part2JpipSnapshotEvent>|
+            part2_jpip_snapshot_run(root.input, root.prefix + tail)
+                == part2_jpip_snapshot_tiles(root.input, root.count, root.components, root.main,
+                    root.raw, root.headers, root.layout, 0, Seq::empty(), 0, tail),
+    ensures part2_jpip_snapshot_tile_root(root),
+{
+    reveal(part2_jpip_snapshot_tile_root);
+    reveal(part2_jpip_snapshot_static_context);
+    reveal(part2_jpip_snapshot_hot_prefix);
+    reveal(part2_jpip_snapshot_tiles);
+    assert(root.events =~= Seq::empty());
+    assert(root.before =~= Seq::empty());
+    assert forall|tail: Seq<Part2JpipSnapshotEvent>| root.events + tail == tail by {};
+    assert forall|events: Seq<Part2JpipSnapshotEvent>|
+        part2_jpip_snapshot_run(root.input, root.prefix + events)
+            == part2_jpip_snapshot_bind(
+                part2_jpip_snapshot_prepare_tiles(root.input, root.count, root.components, root.raw,
+                    root.headers, root.layout, 0, Seq::empty(), 0, events),
+                |prepared, tail| part2_jpip_snapshot_finish_prepared(root.input, root.main, prepared, tail)) by {
+        assert(part2_jpip_snapshot_run(root.input, root.prefix + events)
+            == part2_jpip_snapshot_tiles(root.input, root.count, root.components, root.main,
+                root.raw, root.headers, root.layout, 0, Seq::empty(), 0, events));
+    }
+    assert(part2_jpip_snapshot_static_context(root.input, root.prefix, root.count, root.components,
+        root.main, root.raw, root.headers, root.layout));
+    assert(part2_jpip_snapshot_hot_prefix(root));
+}
+
+pub(crate) proof fn part2_jpip_snapshot_root_join(
+    root: Part2JpipSnapshotTileRoot<'_>, events: Seq<Part2JpipSnapshotEvent>,
+)
+    requires part2_jpip_snapshot_tile_root(root),
+    ensures part2_jpip_snapshot_run(root.input, root.prefix + (root.events + events))
+        == part2_jpip_snapshot_bind(
+            part2_jpip_snapshot_prepare_tiles(root.input, root.count, root.components,
+                root.raw, root.headers, root.layout, root.tile, root.before, root.maximum, events),
+            |prepared, tail| part2_jpip_snapshot_finish_prepared(root.input, root.main, prepared, tail)),
+{
+    reveal(part2_jpip_snapshot_tile_root);
+    reveal(part2_jpip_snapshot_static_context);
+    reveal(part2_jpip_snapshot_hot_prefix);
+    assert(part2_jpip_snapshot_run(root.input, root.prefix + (root.events + events))
+        == part2_jpip_snapshot_bind(
+            part2_jpip_snapshot_prepare_tiles(root.input, root.count, root.components, root.raw,
+                root.headers, root.layout, 0, Seq::empty(), 0, root.events + events),
+            |prepared, tail| part2_jpip_snapshot_finish_prepared(root.input, root.main, prepared, tail)));
+    assert(part2_jpip_snapshot_prepare_tiles(root.input, root.count, root.components, root.raw,
+        root.headers, root.layout, 0, Seq::empty(), 0, root.events + events)
+        == part2_jpip_snapshot_prepare_tiles(root.input, root.count, root.components, root.raw,
+            root.headers, root.layout, root.tile, root.before, root.maximum, events));
 }
 
 pub(crate) open spec fn part2_jpip_snapshot_lift<T>(
@@ -528,20 +613,152 @@ pub(crate) open spec fn part2_jpip_snapshot_tiles(
     raw: Seq<Seq<u8>>, headers: Seq<Seq<Seq<u8>>>, layout: Part2DecoderLayoutInput,
     tile: nat, before: Part2JpipAutomaticTiles, maximum: u16, events: Seq<Part2JpipSnapshotEvent>,
 ) -> Part2JpipSnapshotRun<Part2JpipAutomaticSnapshotResult>
+{
+    part2_jpip_snapshot_bind(
+        part2_jpip_snapshot_prepare_tiles(input, count, components, raw, headers,
+            layout, tile, before, maximum, events),
+        |prepared, tail| part2_jpip_snapshot_finish_prepared(input, main, prepared, tail))
+}
+
+pub(crate) open spec fn part2_jpip_snapshot_finish_prepared(
+    input: Part2JpipSnapshotInput<'_>, main: Seq<u8>, prepared: Part2JpipPreparedTiles,
+    events: Seq<Part2JpipSnapshotEvent>,
+) -> Part2JpipSnapshotRun<Part2JpipAutomaticSnapshotResult> {
+    match prepared {
+        Part2JpipPreparedTiles::Missing { ranges } => Some((Ok((None, ranges)), events)),
+        Part2JpipPreparedTiles::Ready { tiles, maximum } =>
+            part2_jpip_snapshot_ready_cold(input.cache, tiles, main, maximum, input.limits, events),
+    }
+}
+
+#[verifier::opaque]
+pub(crate) open spec fn part2_jpip_snapshot_prepare_tiles(
+    input: Part2JpipSnapshotInput<'_>, count: u64, components: u16,
+    raw: Seq<Seq<u8>>, headers: Seq<Seq<Seq<u8>>>, layout: Part2DecoderLayoutInput,
+    tile: nat, before: Part2JpipAutomaticTiles, maximum: u16, events: Seq<Part2JpipSnapshotEvent>,
+) -> Part2JpipSnapshotRun<Part2JpipPreparedTiles>
     decreases if tile < headers.len() { headers.len() - tile } else { 0 },
 {
     if tile >= headers.len() {
-        part2_jpip_snapshot_lift(part2_jpip_snapshot_ready(input.cache, before, main, maximum, input.limits), events)
+        Some((Ok(Part2JpipPreparedTiles::Ready { tiles: before, maximum }), events))
+    } else {
+        part2_jpip_snapshot_bind(part2_jpip_snapshot_tile(input, count, components, tile as usize,
+            layout, raw, headers, events), |value: Part2JpipSnapshotTile, events| {
+            match value.0 {
+                None => Some((Ok(Part2JpipPreparedTiles::Missing {
+                    ranges: part2_jpip_snapshot_partition_missing(input.cache, value.1, 0, Seq::empty()) }), events)),
+                Some(parts) => part2_jpip_snapshot_prepare_tiles(input, count, components, raw, headers, layout,
+                    tile + 1, before.push(parts), if value.2 > maximum { value.2 } else { maximum }, events),
+            }
+        })
+    }
+}
+
+#[verifier::opaque]
+pub(crate) open spec fn part2_jpip_snapshot_tiles_direct(
+    input: Part2JpipSnapshotInput<'_>, count: u64, components: u16, main: Seq<u8>,
+    raw: Seq<Seq<u8>>, headers: Seq<Seq<Seq<u8>>>, layout: Part2DecoderLayoutInput,
+    tile: nat, before: Part2JpipAutomaticTiles, maximum: u16, events: Seq<Part2JpipSnapshotEvent>,
+) -> Part2JpipSnapshotRun<Part2JpipAutomaticSnapshotResult>
+    decreases if tile < headers.len() { headers.len() - tile } else { 0 },
+{
+    if tile >= headers.len() {
+        part2_jpip_snapshot_ready_cold(input.cache, before, main, maximum, input.limits, events)
     } else {
         part2_jpip_snapshot_bind(part2_jpip_snapshot_tile(input, count, components, tile as usize,
             layout, raw, headers, events), |value: Part2JpipSnapshotTile, events| {
             match value.0 {
                 None => part2_jpip_snapshot_lift(Ok((None,
                     part2_jpip_snapshot_partition_missing(input.cache, value.1, 0, Seq::empty()))), events),
-                Some(parts) => part2_jpip_snapshot_tiles(input, count, components, main, raw, headers, layout,
+                Some(parts) => part2_jpip_snapshot_tiles_direct(input, count, components, main, raw, headers, layout,
                     tile + 1, before.push(parts), if value.2 > maximum { value.2 } else { maximum }, events),
             }
         })
+    }
+}
+
+pub(crate) proof fn part2_jpip_snapshot_tiles_equivalent(
+    input: Part2JpipSnapshotInput<'_>, count: u64, components: u16, main: Seq<u8>,
+    raw: Seq<Seq<u8>>, headers: Seq<Seq<Seq<u8>>>, layout: Part2DecoderLayoutInput,
+    tile: nat, before: Part2JpipAutomaticTiles, maximum: u16, events: Seq<Part2JpipSnapshotEvent>,
+)
+    ensures part2_jpip_snapshot_tiles(input, count, components, main, raw, headers,
+        layout, tile, before, maximum, events)
+        == part2_jpip_snapshot_tiles_direct(input, count, components, main, raw, headers,
+            layout, tile, before, maximum, events),
+    decreases if tile < headers.len() { headers.len() - tile } else { 0 },
+{
+    reveal_with_fuel(part2_jpip_snapshot_tiles_direct, 1);
+    reveal(part2_jpip_snapshot_tiles);
+    reveal_with_fuel(part2_jpip_snapshot_prepare_tiles, 1);
+    if tile < headers.len() {
+        match part2_jpip_snapshot_tile(input, count, components, tile as usize, layout, raw, headers, events) {
+            Some((Ok((Some(parts), packets, layers)), tail)) => {
+                part2_jpip_snapshot_tiles_equivalent(input, count, components, main, raw, headers,
+                    layout, tile + 1, before.push(parts), if layers > maximum { layers } else { maximum }, tail);
+            },
+            _ => {},
+        }
+    }
+}
+
+pub(crate) open spec fn part2_jpip_snapshot_finish_normal(
+    input: Part2JpipSnapshotInput<'_>, main: Seq<u8>, prepared: Part2JpipPreparedTiles,
+    events: Seq<Part2JpipSnapshotEvent>,
+) -> Part2JpipSnapshotRun<Part2JpipAutomaticSnapshotResult> {
+    match prepared {
+        Part2JpipPreparedTiles::Missing { ranges } => Some((Ok((None, ranges)), events)),
+        Part2JpipPreparedTiles::Ready { tiles, maximum } =>
+            Some((part2_jpip_snapshot_ready(input.cache, tiles, main, maximum, input.limits), events)),
+    }
+}
+
+#[verifier::opaque]
+pub(crate) open spec fn part2_jpip_snapshot_tiles_normal_direct(
+    input: Part2JpipSnapshotInput<'_>, count: u64, components: u16, main: Seq<u8>,
+    raw: Seq<Seq<u8>>, headers: Seq<Seq<Seq<u8>>>, layout: Part2DecoderLayoutInput,
+    tile: nat, before: Part2JpipAutomaticTiles, maximum: u16, events: Seq<Part2JpipSnapshotEvent>,
+) -> Part2JpipSnapshotRun<Part2JpipAutomaticSnapshotResult>
+    decreases if tile < headers.len() { headers.len() - tile } else { 0 },
+{
+    if tile >= headers.len() {
+        Some((part2_jpip_snapshot_ready(input.cache, before, main, maximum, input.limits), events))
+    } else {
+        part2_jpip_snapshot_bind(part2_jpip_snapshot_tile(input, count, components, tile as usize,
+            layout, raw, headers, events), |value: Part2JpipSnapshotTile, events| {
+            match value.0 {
+                None => Some((Ok((None,
+                    part2_jpip_snapshot_partition_missing(input.cache, value.1, 0, Seq::empty()))), events)),
+                Some(parts) => part2_jpip_snapshot_tiles_normal_direct(input, count, components, main, raw, headers, layout,
+                    tile + 1, before.push(parts), if value.2 > maximum { value.2 } else { maximum }, events),
+            }
+        })
+    }
+}
+
+pub(crate) proof fn part2_jpip_snapshot_normal_fold_equivalent(
+    input: Part2JpipSnapshotInput<'_>, count: u64, components: u16, main: Seq<u8>,
+    raw: Seq<Seq<u8>>, headers: Seq<Seq<Seq<u8>>>, layout: Part2DecoderLayoutInput,
+    tile: nat, before: Part2JpipAutomaticTiles, maximum: u16, events: Seq<Part2JpipSnapshotEvent>,
+)
+    ensures part2_jpip_snapshot_tiles_normal_direct(input, count, components, main, raw, headers,
+        layout, tile, before, maximum, events)
+        == part2_jpip_snapshot_bind(
+            part2_jpip_snapshot_prepare_tiles(input, count, components, raw, headers,
+                layout, tile, before, maximum, events),
+            |prepared, tail| part2_jpip_snapshot_finish_normal(input, main, prepared, tail)),
+    decreases if tile < headers.len() { headers.len() - tile } else { 0 },
+{
+    reveal_with_fuel(part2_jpip_snapshot_tiles_normal_direct, 1);
+    reveal_with_fuel(part2_jpip_snapshot_prepare_tiles, 1);
+    if tile < headers.len() {
+        match part2_jpip_snapshot_tile(input, count, components, tile as usize, layout, raw, headers, events) {
+            Some((Ok((Some(parts), packets, layers)), tail)) => {
+                part2_jpip_snapshot_normal_fold_equivalent(input, count, components, main, raw, headers,
+                    layout, tile + 1, before.push(parts), if layers > maximum { layers } else { maximum }, tail);
+            },
+            _ => {},
+        }
     }
 }
 
@@ -620,16 +837,19 @@ pub(crate) open spec fn part2_jpip_snapshot_after_normalized(
 ) -> Part2JpipSnapshotRun<Part2JpipAutomaticSnapshotResult> {
     match part2_jpip_transition_template(main, headers, input.limits) {
         Err(error) => Some((Err(error), events)),
-        Ok(template) => match part1_parse_layout(template, input.limits) {
-            Err(error) => Some((Err(error), events)),
-            Ok(layout) => match part2_jpip_snapshot_capacity(events, 2, 0, headers.len() as usize) {
-                None => None,
-                Some((Err(error), tail)) => Some((Err(error), tail)),
-                Some((Ok(()), tail)) => part2_jpip_snapshot_tiles(input, count, components, main, raw, headers,
-                    part2_decoder_input_from_raw(layout), 0, Seq::empty(), 0, tail),
-            },
-        },
+        Ok(template) => part2_jpip_snapshot_bind(part2_cold_parse(template, input.limits, 0, 0, events),
+            |layout: Part1CompleteLayout, rest| part2_jpip_snapshot_after_layout(
+                input, main, raw, count, components, headers, part2_decoder_input_from_raw(layout), rest)),
     }
+}
+
+pub(crate) open spec fn part2_jpip_snapshot_after_layout(
+    input: Part2JpipSnapshotInput<'_>, main: Seq<u8>, raw: Seq<Seq<u8>>, count: u64, components: u16,
+    headers: Seq<Seq<Seq<u8>>>, layout: Part2DecoderLayoutInput, events: Seq<Part2JpipSnapshotEvent>,
+) -> Part2JpipSnapshotRun<Part2JpipAutomaticSnapshotResult> {
+    part2_jpip_snapshot_bind(part2_jpip_snapshot_capacity(events, 2, 0, headers.len() as usize),
+        |_: (), rest| part2_jpip_snapshot_tiles(
+            input, count, components, main, raw, headers, layout, 0, Seq::empty(), 0, rest))
 }
 
 pub(crate) open spec fn part2_jpip_snapshot_admit(input: Part2JpipSnapshotInput<'_>)
@@ -647,6 +867,7 @@ pub(crate) open spec fn part2_jpip_snapshot_admit(input: Part2JpipSnapshotInput<
     }
 }
 
+#[verifier::opaque]
 pub(crate) open spec fn part2_jpip_snapshot_run(
     input: Part2JpipSnapshotInput<'_>, events: Seq<Part2JpipSnapshotEvent>,
 ) -> Part2JpipSnapshotRun<Part2JpipAutomaticSnapshotResult> {

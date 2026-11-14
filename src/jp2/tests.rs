@@ -1040,6 +1040,48 @@ fn actual_raw_inspection_retains_original_file_and_complete_source_derived_info_
 }
 
 #[test]
+fn cold_tile_storage_refusal_is_typed_and_restores_container_inspection() {
+    let stream = valid_codestream(64, 32);
+    let bytes = boxed_file(b"jp2 \0\0\0\0jp2 ", &stream);
+    let limits = ResourceLimits::default();
+    let expected = parse_and_inspect(&bytes, &limits).unwrap();
+    for after in [0, 7] {
+        assert_eq!(
+            crate::allocation::with_refusal(after, || parse_and_inspect(&bytes, &limits)).err(),
+            Some(DecodeError::AllocationFailed)
+        );
+        let restored = parse_and_inspect(&bytes, &limits).unwrap();
+        assert_eq!(restored.file().box_count, expected.file().box_count);
+        assert_eq!(restored.codestreams().len(), expected.codestreams().len());
+        assert_eq!(
+            restored.codestreams()[0].consumed_bytes,
+            expected.codestreams()[0].consumed_bytes
+        );
+        assert!(std::ptr::eq(
+            restored.file().codestream(0).unwrap().data(),
+            expected.file().codestream(0).unwrap().data()
+        ));
+    }
+    let mut malformed = bytes.clone();
+    malformed[0] = 0;
+    malformed[1] = 0;
+    malformed[2] = 0;
+    malformed[3] = 1;
+    let ordinary_error = parse_and_inspect(&malformed, &limits).unwrap_err();
+    crate::allocation::with_refusal(0, || {
+        assert_eq!(
+            parse_and_inspect(&malformed, &limits).unwrap_err(),
+            ordinary_error
+        );
+        assert_eq!(
+            crate::allocation::none_values::<u8>(1),
+            Err(DecodeError::AllocationFailed)
+        );
+    });
+    assert!(parse_and_inspect(&bytes, &limits).is_ok());
+}
+
+#[test]
 fn actual_raw_inspection_keeps_complete_container_errors_before_relative_codestream_errors() {
     let mut bytes = boxed_file(b"jp2 \0\0\0\0jp2 ", &[0]);
     let offset = bytes.len() as u64;

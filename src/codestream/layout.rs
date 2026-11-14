@@ -39,19 +39,31 @@ use super::{
 use vstd::prelude::*;
 
 #[cfg_attr(verus_keep_ghost, verus_spec(result =>
-    ensures complete_codestream_info_outcome(result) == crate::specs::part1_parse_info(input@, limits),
+    ensures crate::specs::part1_parse_info_cold_result(
+        input@, limits, complete_codestream_info_outcome(result)),
+        result.is_ok() ==>
+            complete_codestream_info_outcome(result) == crate::specs::part1_parse_info(input@, limits),
+        complete_codestream_info_outcome(result) != Err(DecodeError::AllocationFailed) ==>
+            complete_codestream_info_outcome(result) == crate::specs::part1_parse_info(input@, limits),
 ))]
 pub fn parse(input: &[u8], limits: &ResourceLimits) -> Result<CodestreamInfo, DecodeError> {
+    let parsed = parse_layout(input, limits);
     #[cfg(verus_keep_ghost)]
     proof! {
         reveal(complete_codestream_info_outcome);
         reveal(complete_layout_outcome);
-        crate::specs::part1_parse_info_unfold(input@, limits);
+        crate::specs::part1_parse_info_cold_projection(
+            input@, limits, complete_layout_outcome(parsed));
     }
-    Ok(parse_layout(input, limits)?.info)
+    Ok(parsed?.info)
 }
 #[cfg_attr(verus_keep_ghost, verus_spec(result =>
-    ensures complete_layout_outcome(result) == crate::specs::part1_parse_layout(input@, limits),
+    ensures crate::specs::part1_parse_layout_cold_result(
+        input@, limits, complete_layout_outcome(result)),
+        result.is_ok() ==>
+            complete_layout_outcome(result) == crate::specs::part1_parse_layout(input@, limits),
+        complete_layout_outcome(result) != Err(DecodeError::AllocationFailed) ==>
+            complete_layout_outcome(result) == crate::specs::part1_parse_layout(input@, limits),
 ))]
 pub fn parse_layout<'a>(
     input: &'a [u8],
@@ -61,9 +73,45 @@ pub fn parse_layout<'a>(
     proof! {
         reveal(complete_layout_outcome);
         reveal(parser_initial_outcome);
-        crate::specs::part1_parse_layout_unfold(input@, limits);
     }
-    new_parser(input, limits)?.parse_layout()
+    let result = match new_parser(input, limits) {
+        Err(error) => {
+            #[cfg(verus_keep_ghost)]
+            proof! {
+                assert(crate::specs::part1_parse_layout_with_cold_storage(
+                    input@, limits, Seq::empty()) == Some((Err(error), Seq::empty())));
+                crate::specs::part1_parse_layout_cold_witness(
+                    input@, limits, Err(error), Seq::empty());
+            }
+            Err(error)
+        }
+        Ok(parser) => {
+            #[cfg(verus_keep_ghost)]
+            proof_decl! {
+                let ghost reader = parser_view(&parser);
+            }
+            let result = parser.parse_layout();
+            #[cfg(verus_keep_ghost)]
+            proof! {
+                let events = choose|events: Seq<crate::specs::Part1ColdStorageEvent>|
+                    crate::specs::part1_layout_with_cold_storage(reader, events)
+                        == Some((complete_layout_outcome(result), Seq::empty()));
+                assert(crate::specs::part1_parse_layout_with_cold_storage(input@, limits, events)
+                    == Some((complete_layout_outcome(result), Seq::empty())));
+                crate::specs::part1_parse_layout_cold_witness(
+                    input@, limits, complete_layout_outcome(result), events);
+            }
+            result
+        }
+    };
+    #[cfg(verus_keep_ghost)]
+    proof! {
+        if complete_layout_outcome(result) != Err(DecodeError::AllocationFailed) {
+            crate::specs::part1_parse_layout_cold_projection(
+                input@, limits, complete_layout_outcome(result));
+        }
+    }
+    result
 }
 impl<'a> Parser<'a> {
     #[cfg_attr(verus_keep_ghost, verus_spec(result =>
@@ -234,7 +282,8 @@ impl<'a> Parser<'a> {
         ensures crate::specs::part1_main_header_layout_relation(
             crate::specs::part1_read_main_header(parser_view(&self)),
             layout_main_header_outcome(result)),
-            complete_layout_outcome(result) == crate::specs::part1_read_layout(parser_view(&self)),
+            crate::specs::part1_cold_layout_result(
+                parser_view(&self), complete_layout_outcome(result)),
     ))]
     fn parse_layout(self) -> Result<CodestreamLayout<'a>, DecodeError> {
         #[cfg(verus_keep_ghost)]
@@ -244,6 +293,7 @@ impl<'a> Parser<'a> {
         }
         #[cfg(verus_keep_ghost)]
         proof! {
+            crate::specs::part1_cold_layout_normal(initial_reader);
             reveal(crate::specs::part1_read_main_header);
             reveal(layout_main_header_outcome);
             reveal(complete_layout_outcome);
@@ -324,6 +374,8 @@ impl<'a> Parser<'a> {
             verus_spec(
                 invariant
                     initial_reader == parser_view(&self),
+                    crate::specs::part1_cold_layout_result(
+                        initial_reader, crate::specs::part1_read_layout(initial_reader)),
                     main_goal == crate::specs::part1_read_main_header(initial_reader),
                     main_goal == crate::specs::part1_main_header_continuation(
                         parser_view(&parser), main_header_accumulator_view(
@@ -720,16 +772,99 @@ impl<'a> Parser<'a> {
                 ))]
             |_tile_state_conversion_error| parser.malformed_here(MalformedKind::ArithmeticOverflow),
         )?;
-        let mut tile_roi_shifts = vec![None; tile_state_count];
-        let mut tile_coding_styles = vec![None; tile_state_count];
-        let mut tile_quantizations = vec![None; tile_state_count];
-        let mut tile_component_style_parts: Vec<Option<usize>> = vec![None; tile_state_count];
+        let mut tile_roi_shifts = match crate::allocation::none_values(tile_state_count) {
+            Ok(values) => values,
+            Err(error) => {
+                #[cfg(verus_keep_ghost)]
+                proof! {
+                    crate::specs::part1_cold_layout_refused(
+                        initial_reader, complete_main, 0, Err(error));
+                }
+                return Err(error);
+            }
+        };
+        let mut tile_coding_styles = match crate::allocation::none_values(tile_state_count) {
+            Ok(values) => values,
+            Err(error) => {
+                #[cfg(verus_keep_ghost)]
+                proof! {
+                    crate::specs::part1_cold_layout_refused(
+                        initial_reader, complete_main, 1, Err(error));
+                }
+                return Err(error);
+            }
+        };
+        let mut tile_quantizations = match crate::allocation::none_values(tile_state_count) {
+            Ok(values) => values,
+            Err(error) => {
+                #[cfg(verus_keep_ghost)]
+                proof! {
+                    crate::specs::part1_cold_layout_refused(
+                        initial_reader, complete_main, 2, Err(error));
+                }
+                return Err(error);
+            }
+        };
+        let mut tile_component_style_parts: Vec<Option<usize>> =
+            match crate::allocation::none_values(tile_state_count) {
+                Ok(values) => values,
+                Err(error) => {
+                    #[cfg(verus_keep_ghost)]
+                    proof! {
+                        crate::specs::part1_cold_layout_refused(
+                            initial_reader, complete_main, 3, Err(error));
+                    }
+                    return Err(error);
+                }
+            };
         let mut tile_component_quantizations: Vec<Option<ComponentQuantizations>> =
-            vec![None; tile_state_count];
+            match crate::allocation::none_values(tile_state_count) {
+                Ok(values) => values,
+                Err(error) => {
+                    #[cfg(verus_keep_ghost)]
+                    proof! {
+                        crate::specs::part1_cold_layout_refused(
+                            initial_reader, complete_main, 4, Err(error));
+                    }
+                    return Err(error);
+                }
+            };
         let mut tile_progression_changes: Vec<Option<ProgressionChanges>> =
-            vec![None; tile_state_count];
-        let mut tile_mct_parameters: Vec<Option<MctParameters>> = vec![None; tile_state_count];
-        let mut tile_part2_extensions: Vec<Option<Part2Extensions>> = vec![None; tile_state_count];
+            match crate::allocation::none_values(tile_state_count) {
+                Ok(values) => values,
+                Err(error) => {
+                    #[cfg(verus_keep_ghost)]
+                    proof! {
+                        crate::specs::part1_cold_layout_refused(
+                            initial_reader, complete_main, 5, Err(error));
+                    }
+                    return Err(error);
+                }
+            };
+        let mut tile_mct_parameters: Vec<Option<MctParameters>> =
+            match crate::allocation::none_values(tile_state_count) {
+                Ok(values) => values,
+                Err(error) => {
+                    #[cfg(verus_keep_ghost)]
+                    proof! {
+                        crate::specs::part1_cold_layout_refused(
+                            initial_reader, complete_main, 6, Err(error));
+                    }
+                    return Err(error);
+                }
+            };
+        let mut tile_part2_extensions: Vec<Option<Part2Extensions>> =
+            match crate::allocation::none_values(tile_state_count) {
+                Ok(values) => values,
+                Err(error) => {
+                    #[cfg(verus_keep_ghost)]
+                    proof! {
+                        crate::specs::part1_cold_layout_refused(
+                            initial_reader, complete_main, 7, Err(error));
+                    }
+                    return Err(error);
+                }
+            };
 
         #[cfg(verus_keep_ghost)]
         proof_decl! {
@@ -778,6 +913,7 @@ impl<'a> Parser<'a> {
                     main_goal == crate::specs::part1_read_main_header(initial_reader),
                     main_goal == Ok(complete_main),
                     layout_goal == crate::specs::part1_read_layout(initial_reader),
+                    crate::specs::part1_cold_layout_result(initial_reader, layout_goal),
                     complete_main.tile_count == tile_count,
                     complete_main.raw.roi_seen == roi_seen@,
                     complete_main.raw.plm_seen == plm_seen,

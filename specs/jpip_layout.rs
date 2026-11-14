@@ -304,6 +304,7 @@ pub struct Part2JpipSemanticStreamPoint {
 
 pub enum Part2JpipSemanticEvent {
     Snapshot { stream: u64, events: Seq<Part2JpipSnapshotEvent> },
+    Inspect { calls: Seq<Part2JpipSnapshotEvent> },
 }
 
 pub type Part2JpipSemanticRun<T> =
@@ -335,6 +336,7 @@ pub(crate) open spec fn part2_jpip_semantic_snapshot(
                     None => None,
                 }
             },
+        _ => None,
     } }
 }
 
@@ -999,12 +1001,58 @@ pub(crate) open spec fn part2_jpip_semantic_assembly_run(
             Some((Err(crate::DecodeError::LimitExceeded { resource: crate::Resource::InputBytes,
                 limit: crate::limits::resource_input_byte_limit(&cache.0), actual: state.output.len() as u64 }), tail))
         } else {
-            match part2_parse_and_inspect_container(state.output, &cache.0) {
-                Err(error) => Some((Err(error), tail)),
-                Ok(_) => Some((Ok((crate::jpip::JpipAvailability::Available, state.missing, state.needs, Some(state.output))), tail)),
-            }
+            part2_jpip_semantic_inspection(cache, state, tail)
         },
     }
+}
+
+pub(crate) open spec fn part2_jpip_semantic_inspection(
+    cache: Part2JpipCache, state: Part2JpipSemanticState, events: Seq<Part2JpipSemanticEvent>,
+) -> Option<(Result<Part2JpipContainerAssembly, crate::DecodeError>, Seq<Part2JpipSemanticEvent>)> {
+    if events.len() == 0 { None } else {
+        match events[0] {
+            Part2JpipSemanticEvent::Inspect { calls } => match part2_inspection_cold_run(
+                state.output, &cache.0, false, calls) {
+                Some((result, rest)) => if rest.len() != 0 { None } else {
+                    Some((match result {
+                        Err(error) => Err(error),
+                        Ok(_) => Ok((crate::jpip::JpipAvailability::Available,
+                            state.missing, state.needs, Some(state.output))),
+                    }, events.drop_first()))
+                },
+                None => None,
+            },
+            _ => None,
+        }
+    }
+}
+
+pub(crate) proof fn part2_jpip_semantic_inspection_actual(
+    cache: Part2JpipCache, metadata_stream: u64,
+    prefix: Seq<Part2JpipSemanticEvent>, state: Part2JpipSemanticState,
+    inspected: Result<Part2RawInspectedContainer, crate::DecodeError>,
+)
+    requires part2_jpip_semantic_expand_prefix(cache, metadata_stream, 0, true, 0, u32::MAX,
+        Part2JpipSemanticState { active: Seq::empty(), output: Seq::empty(),
+            missing: Seq::empty(), needs: Seq::empty() }, Ok(true), state, prefix),
+        state.output.len() as u64 <= crate::limits::resource_input_byte_limit(&cache.0),
+        part2_inspection_cold_result(state.output, &cache.0, false, inspected),
+    ensures part2_jpip_semantic_assembly_result(cache, metadata_stream, match inspected {
+        Err(error) => Err(error),
+        Ok(_) => Ok((crate::jpip::JpipAvailability::Available, state.missing, state.needs, Some(state.output))),
+    }),
+{
+    reveal(part2_jpip_semantic_expand_prefix);
+    part2_inspection_cold_frames(state.output, &cache.0, false, inspected);
+    let calls = part2_cold_witness(
+        |events| part2_inspection_cold_run(state.output, &cache.0, false, events), inspected);
+    assert(calls + Seq::empty() =~= calls);
+    let final_call = seq![Part2JpipSemanticEvent::Inspect { calls }];
+    assert(final_call.drop_first() =~= Seq::empty());
+    part2_jpip_semantic_assembly_witness(cache, metadata_stream, prefix + final_call, match inspected {
+        Err(error) => Err(error),
+        Ok(_) => Ok((crate::jpip::JpipAvailability::Available, state.missing, state.needs, Some(state.output))),
+    });
 }
 
 pub closed spec fn part2_jpip_semantic_assembly_result(

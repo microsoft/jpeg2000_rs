@@ -8634,6 +8634,42 @@ fn parses_bounded_tile_part() {
 }
 
 #[test]
+fn cold_tile_storage_refusal_is_typed_and_restores_raw_inspection() {
+    let bytes = codestream(&[1, 2, 3], false);
+    let limits = ResourceLimits::default();
+    let expected = parse(&bytes, &limits).unwrap();
+    for after in [0, 7] {
+        assert_eq!(
+            crate::allocation::with_refusal(after, || parse(&bytes, &limits)).err(),
+            Some(DecodeError::AllocationFailed)
+        );
+        let restored = parse(&bytes, &limits).unwrap();
+        assert_eq!(restored.consumed_bytes, expected.consumed_bytes);
+        assert_eq!(restored.tile_parts, expected.tile_parts);
+        assert_eq!(restored.image_size, expected.image_size);
+    }
+
+    let malformed = &bytes[..1];
+    let ordinary_error = parse(malformed, &limits).unwrap_err();
+    crate::allocation::with_refusal(0, || {
+        assert_eq!(parse(malformed, &limits).unwrap_err(), ordinary_error);
+        assert_eq!(
+            crate::allocation::none_values::<u8>(1),
+            Err(DecodeError::AllocationFailed)
+        );
+    });
+
+    let late_malformed = &bytes[..bytes.len() - 2];
+    let ordinary_error = parse(late_malformed, &limits).unwrap_err();
+    assert_ne!(ordinary_error, DecodeError::AllocationFailed);
+    assert_eq!(
+        crate::allocation::with_refusal(7, || parse(late_malformed, &limits)).err(),
+        Some(DecodeError::AllocationFailed)
+    );
+    assert_eq!(parse(late_malformed, &limits).unwrap_err(), ordinary_error);
+}
+
+#[test]
 fn parses_retains_and_persists_progression_changes() {
     let first = poc(&[[0, 0, 0, 1, 1, 1, 1], [0, 0, 0, 2, 1, 1, 0]]);
     let bytes = two_part_codestream(&[first], &[]);

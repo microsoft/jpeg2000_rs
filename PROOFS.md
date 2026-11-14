@@ -35,15 +35,47 @@ one managed request without exhausting host memory or replacing an allocator.
 Tests retain original bytes/owners on refusal and exact subsequent success.
 It does not intercept every allocation in a public decode or inspection call.
 
-This is a bounded foundation, not complete allocation recovery: other
-creation, growth, nested vectors and clones remain infallible. Automatic
-snapshot/header/progressive public Results remain unfinished under
-[#130](https://github.com/microsoft/jpeg2000_rs/issues/130), and their
-allocation-inclusive composition remains explicit under
-[#300](https://github.com/microsoft/jpeg2000_rs/issues/300).
+This is bounded coverage, not complete allocation recovery: other creation,
+growth, nested vectors and clones remain infallible. The complete automatic,
+progressive and semantic public Results described below are retained through
+the allocation-aware composition; they are not reopened or replaced by
+success-only claims.
 [#287](https://github.com/microsoft/jpeg2000_rs/issues/287) stays open until
 the promised reached parse/decode/inspect surface and cold-call matrix are
-qualified. Existing complete deterministic contracts are not weakened.
+qualified.
+
+### Ordered cold parser construction and consumer frames
+
+`none_values` reserves fallibly, then constructs exactly the requested number
+of `None` entries without a `Clone` bound. The eight per-tile vectors in
+[`layout.rs`](src/codestream/layout.rs) use it in their original order.
+[`raw_layout.rs`](specs/raw_layout.rs) derives construction requests and codec
+Results from actual bytes, limits and ordered primitive responses. Early
+ordinary errors consume no later request; each refusal stops at its actual
+site. Normal projections preserve the original layout/info models.
+
+The directly reached raw/container inspection and decode consumers bind exact
+Results and unconsumed event tails. Nested `Parse` responses carry primitive
+calls, not supplied layouts, images or codec outcomes. Automatic snapshot
+phase 0 parses the initial template, phase 1 validates actual emitted bytes,
+and phase 2 occurs only for a genuine progressive image advance. Other
+inspection parses retain their actual stream indices and distinct phases.
+The shared parser-free tile preparation fold has checked equivalences with
+both direct cold and original normal folds; final validation stays outside
+the owning tile collection continuation.
+
+Progressive decoder/cache, semantic report/output and opacity-owner frames
+retain rollback and commit order. Frame prefetch stores a source error as
+data, stops further decoding, and still runs the original normalized renderer,
+preserving earlier canvas/instruction errors. Recovery distinguishes repair
+reservation from subsequent strict decode calls. Checked normal witnesses
+retain every original deterministic model.
+
+This increment does **not** make quantization construction, inherited/committed
+copies, payload/container/image growth or every remaining parse/decode/inspect
+allocation fallible. Managed refusal controls are bounded and thread-local;
+sequence models do not prove physical capacity, host allocator availability
+or general OOM recovery.
 
 ### Ordered automatic main-header primitive calls
 

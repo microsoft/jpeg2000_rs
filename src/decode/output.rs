@@ -10,8 +10,11 @@ use super::{associated_typed_outcome, color_selection_outcome, validated_selecti
 use vstd::prelude::*;
 
 #[cfg_attr(verus_keep_ghost, verus_spec(result =>
-    ensures color_selection_outcome(result) == crate::specs::part2_color_selection_raw(
-        input@, limits, crate::options::decode_selection_view(requested)),
+    ensures crate::specs::part2_color_selection_cold_result(
+        input@, limits, crate::options::decode_selection_view(requested), color_selection_outcome(result)),
+        color_selection_outcome(result) != Err(DecodeError::AllocationFailed) ==>
+            color_selection_outcome(result) == crate::specs::part2_color_selection_raw(
+                input@, limits, crate::options::decode_selection_view(requested)),
 ))]
 pub(super) fn color_selection(
     input: &[u8],
@@ -23,7 +26,13 @@ pub(super) fn color_selection(
         codestream::decoder_layout_errors_known();
         crate::specs::part2_color_selection_raw_unfold(input@, limits, crate::options::decode_selection_view(requested));
     }
-    let layout = codestream::parse_layout(input, limits)?;
+    let parsed = codestream::parse_layout(input, limits);
+    #[cfg(verus_keep_ghost)]
+    proof! {
+        crate::specs::part2_color_selection_cold_actual(
+            input@, limits, crate::options::decode_selection_view(requested), codestream::complete_layout_outcome(parsed));
+    }
+    let layout = parsed?;
     #[cfg(verus_keep_ghost)]
     proof! {
         codestream::decoder_layout_input_matches_raw(&layout);
@@ -288,8 +297,14 @@ pub(super) fn finish_associated_selected_output(
 }
 
 #[cfg_attr(verus_keep_ghost, verus_spec(result =>
-    ensures associated_typed_outcome(result) == crate::specs::part2_decode_jpx_codestream(
+    ensures crate::specs::part2_jpx_cold_result(
+        jp2::jpx_file_decode_view(file), codestream_index, crate::options::decode_options_limits(options),
+        associated_typed_outcome(result)),
+    result.is_ok() ==> associated_typed_outcome(result) == crate::specs::part2_decode_jpx_codestream(
         jp2::jpx_file_decode_view(file), codestream_index, crate::options::decode_options_limits(options)),
+    associated_typed_outcome(result) != Err(DecodeError::AllocationFailed) ==>
+        associated_typed_outcome(result) == crate::specs::part2_decode_jpx_codestream(
+            jp2::jpx_file_decode_view(file), codestream_index, crate::options::decode_options_limits(options)),
     match result {
         Err(_) => true,
         Ok(output) => output.1 == jp2::jpx_file_associated_header_reference(file, codestream_index),
@@ -306,6 +321,8 @@ pub(crate) fn decode_jpx_file<'a>(
         codestream::complete_codestream_info_errors_known();
         jp2::jpx_file_associated_header_reference_unfold(file, codestream_index);
         crate::specs::part2_decode_jpx_codestream_unfold(
+            jp2::jpx_file_decode_view(file), codestream_index, crate::options::decode_options_limits(options));
+        crate::specs::part2_jpx_cold_normal(
             jp2::jpx_file_decode_view(file), codestream_index, crate::options::decode_options_limits(options));
     }
     if !file.file_type().is_jpx_compatible() {
@@ -357,7 +374,19 @@ pub(crate) fn decode_jpx_file<'a>(
             jp2::codestream_source_view(selected), jp2::associated_header_view(associated_header.unwrap()),
             crate::options::decode_options_limits(options));
     }
-    let info = codestream::parse(selected.data(), options.limits())?;
+    let info = match codestream::parse(selected.data(), options.limits()) {
+        Ok(info) => info,
+        Err(error) => {
+            #[cfg(verus_keep_ghost)]
+            proof! {
+                crate::specs::part2_jpx_cold_info_error(
+                    jp2::jpx_file_decode_view(file), codestream_index,
+                    crate::options::decode_options_limits(options), jp2::codestream_source_view(selected),
+                    jp2::associated_header_view(associated_header.unwrap()), error);
+            }
+            return Err(error);
+        }
+    };
     #[cfg(verus_keep_ghost)]
     proof! {
         codestream::complete_codestream_info_known_fields(&info);
@@ -365,14 +394,29 @@ pub(crate) fn decode_jpx_file<'a>(
     if let Some(header) = associated_header {
         jp2::validate_selected_header(header, &info, selected.box_header().offset())?;
     }
-    let decoded = decode_codestream(selected.data(), options)?;
+    let decoded_result = decode_codestream(selected.data(), options);
+    #[cfg(verus_keep_ghost)]
+    proof! {
+        crate::specs::part2_jpx_cold_image_actual(
+            jp2::jpx_file_decode_view(file), codestream_index, crate::options::decode_options_limits(options),
+            jp2::codestream_source_view(selected), jp2::associated_header_view(associated_header.unwrap()),
+            codestream::complete_codestream_info_view(&info), crate::image::decoded_typed_image_outcome(decoded_result));
+    }
+    let decoded = decoded_result?;
     apply_associated_output(decoded, associated_header, options.limits())
 }
 
 #[cfg_attr(verus_keep_ghost, verus_spec(result =>
-    ensures associated_typed_outcome(result) == crate::specs::part2_decode_jpx_selected_file(
+    ensures crate::specs::part2_jpx_selected_cold_result(
+        jp2::jpx_file_decode_view(file), codestream_index, crate::options::decode_options_limits(options),
+        crate::options::decode_selection_view(selection), associated_typed_outcome(result)),
+    result.is_ok() ==> associated_typed_outcome(result) == crate::specs::part2_decode_jpx_selected_file(
         jp2::jpx_file_decode_view(file), codestream_index, crate::options::decode_options_limits(options),
         crate::options::decode_selection_view(selection)),
+    associated_typed_outcome(result) != Err(DecodeError::AllocationFailed) ==>
+        associated_typed_outcome(result) == crate::specs::part2_decode_jpx_selected_file(
+            jp2::jpx_file_decode_view(file), codestream_index, crate::options::decode_options_limits(options),
+            crate::options::decode_selection_view(selection)),
     match result {
         Err(_) => true,
         Ok(output) => output.1 == jp2::jpx_file_associated_header_reference(file, codestream_index),
@@ -390,6 +434,8 @@ pub(super) fn decode_jpx_file_selected<'a>(
         codestream::decoder_layout_errors_known();
         jp2::jpx_file_associated_header_reference_unfold(file, codestream_index);
         crate::specs::part2_decode_jpx_selected_file_unfold(jp2::jpx_file_decode_view(file), codestream_index,
+            crate::options::decode_options_limits(options), crate::options::decode_selection_view(selection));
+        crate::specs::part2_jpx_selected_cold_normal(jp2::jpx_file_decode_view(file), codestream_index,
             crate::options::decode_options_limits(options), crate::options::decode_selection_view(selection));
         reveal(crate::specs::part2_decode_layout_selected);
         reveal(crate::specs::part2_typed_layout);
@@ -415,7 +461,15 @@ pub(super) fn decode_jpx_file_selected<'a>(
         },
         None => Some(file.header()),
     };
-    let layout = codestream::parse_layout(selected.data(), options.limits())?;
+    let parsed = codestream::parse_layout(selected.data(), options.limits());
+    #[cfg(verus_keep_ghost)]
+    proof! {
+        crate::specs::part2_jpx_selected_cold_actual(
+            jp2::jpx_file_decode_view(file), codestream_index, crate::options::decode_options_limits(options),
+            crate::options::decode_selection_view(selection), jp2::codestream_source_view(selected),
+            jp2::associated_header_view(associated_header.unwrap()), codestream::complete_layout_outcome(parsed));
+    }
+    let layout = parsed?;
     #[cfg(verus_keep_ghost)]
     proof! {
         codestream::decoder_layout_input_matches_raw(&layout);
