@@ -28,8 +28,8 @@ specs/cold_layout_continuations.rs
 specs/cold_mct_copy.rs
 specs/cold_payload_owners.rs
 specs/cold_progression.rs
-specs/cold_resolved_copy.rs
 specs/cold_quantization.rs
+specs/cold_resolved_copy.rs
 specs/cold_tile_part.rs
 specs/cold_tile_quantization.rs
 specs/container_colors.rs
