@@ -4770,6 +4770,16 @@ _SOURCE_OPACITY_CONTRACTS = {
 }
 
 _COLD_RESULT_MODELS = {
+    "part1_parse_mct": ("part1_fresh_mct_result", "specs/cold_marker_storage.rs", "part1_fresh_mct_normal"),
+    "part1_parse_mco": ("part1_fresh_mco_result", "specs/cold_marker_storage.rs", "part1_fresh_mco_normal"),
+    "part1_parse_mcc_component_list": ("part1_fresh_list_result", "specs/cold_marker_storage.rs", "part1_fresh_list_normal"),
+    "part1_mcc_collection": ("part1_fresh_collection_result", "specs/cold_marker_storage.rs", "part1_fresh_collection_normal"),
+    "part1_parse_mcc": ("part1_fresh_mcc_result", "specs/cold_marker_storage.rs", "part1_fresh_mcc_normal"),
+    "part1_prepare_mct_fragment": ("part1_fresh_prepare_mct_result", "specs/cold_marker_storage.rs", "part1_fresh_prepare_mct_normal"),
+    "part1_prepare_mcc_fragment": ("part1_fresh_prepare_mcc_result", "specs/cold_marker_storage.rs", "part1_fresh_prepare_mcc_normal"),
+    "part1_consume_mct_fragment": ("part1_fresh_consume_mct_result", "specs/cold_marker_storage.rs", "part1_fresh_consume_mct_normal"),
+    "part1_consume_mcc_fragment": ("part1_fresh_consume_mcc_result", "specs/cold_marker_storage.rs", "part1_fresh_consume_mcc_normal"),
+    "part1_tile_header_mct_payload": ("part1_fresh_tile_result", "specs/cold_marker_header.rs", "part1_fresh_tile_normal_result"),
     "part1_mct_graph_collection": (
         "part1_resolved_collection_result", "specs/cold_resolved_copy.rs", "part1_resolved_collection_normal",
     ),
@@ -4888,6 +4898,8 @@ def _coverage_cold_relation(
         inputs = r"_role\s*,\s*_stage\s*,\s*_record_position\s*,\s*" + inputs
     elif model == "part1_mct_graph":
         inputs = r"_role\s*,\s*" + inputs
+    elif model == "part1_parse_mcc_component_list":
+        inputs += r"\s*,\s*_output"
     if model == "part2_parse_and_inspect_container":
         inputs += r"\s*,\s*false"
     if model in ("part2_render_raw_jpx_layer", "part2_render_raw_jpx_frame", "part2_render_raw_jpx_composition"):
@@ -4918,6 +4930,8 @@ _COLD_RESULT_CONTRACTS = {
         _MAIN_COMPONENT_FINALIZATION_CONTRACTS, _TILE_COMPONENT_FINALIZATION_CONTRACTS,
         _PERSISTENT_TILE_CONFIGURATION_CONTRACTS,
         _TRANSFORM_GRAPH_CONTRACTS,
+        _TRANSFORM_ARRAY_BYTES_CONTRACTS, _TRANSFORM_FRAGMENT_CONTRACTS, _COLLECTION_FRAGMENT_CONTRACTS,
+        _TRANSFORM_COLLECTION_BYTES_CONTRACTS, _TRANSFORM_ROUTING_BYTES_CONTRACTS,
         _PROGRESSION_BYTES_CONTRACTS, _RAW_TILE_HEADER_CONTRACTS,
     )
     for key, legacy in contracts.items()
@@ -4980,6 +4994,7 @@ for _header_symbol, _header_model, _raw_pattern, _header_outcome in (
     )
 
 _COLD_INNER_RUNS = {
+    "part1_fresh_tile_result": "part1_fresh_tile_payload",
     "part1_parse_poc_storage_result": "part1_parse_poc_storage",
     "part1_tile_progression_payload_storage_result": "part1_tile_progression_payload_storage",
     "part1_tile_progression_dispatch_result": "part1_tile_progression_dispatch",
@@ -5027,6 +5042,8 @@ def _coverage_cold_result_body(text: str, model: str) -> bool:
             if segment.marker == 0xff5f && !raw.poc_seen && tile_part_index == 0 {
                 exists|reserved: bool| result == part1_tile_progression_payload_storage(
                     reader, raw, segment, components, tile_part_index, lengths, headers, reserved)
+            } else if segment.marker == 0xff74 || segment.marker == 0xff75 || segment.marker == 0xff77 {
+                part1_fresh_tile_result(reader, raw, segment, components, result)
             } else { result == part1_tile_header_payload(reader, raw, segment, components, tile_part_index, lengths, headers) }
         """
     elif model in ("part1_component_quantizations_storage_result", "part1_finish_main_quantizations_storage_result",
@@ -5114,6 +5131,102 @@ _COLD_SOURCE_BODIES = {
 }
 
 _QUANTIZATION_COLD_GUARDS = {
+    ("src/codestream/mct_markers.rs", "Parser::parse_mct"): (
+        "let copied = reserve_values(element_count,",
+        "MctCopyPath::FreshMarker(FreshMarkerPath::Values(segment.offset))",
+        "values.push(value)",
+    ),
+    ("src/codestream/mct_markers.rs", "Parser::parse_mcc"): (
+        "let copied = reserve_values(usize::from(collection_count),",
+        "MctCopyPath::FreshMarker(FreshMarkerPath::Collections(segment.offset))",
+        "self.decode_mcc_collection(segment, components, position)",
+    ),
+    ("src/codestream/mct_markers.rs", "Parser::parse_mco"): (
+        "let copied = reserve_values(count,",
+        "MctCopyPath::FreshMarker(FreshMarkerPath::Order(segment.offset))",
+        "order.push(stage)",
+    ),
+    ("src/codestream/mct_markers.rs", "parse_mcc_component_list"): (
+        "let encoded_count = read_u16", "*position = match position.checked_add(2)",
+        "if count == 0 || count > components", "payload.len() - *position < required",
+        "let path = if _output", "FreshMarkerPath::Outputs(marker_offset, *position)",
+        "FreshMarkerPath::Inputs(marker_offset, *position)",
+        "reserve_values(usize::from(count), MctCopyPath::FreshMarker(path))",
+        "references.push(reference)",
+    ),
+    ("src/codestream/mct_markers.rs", "Parser::decode_mcc_collection"): (
+        "parse_mcc_component_list(segment.payload, &mut position, components, segment.offset, false,)",
+        "parse_mcc_component_list(segment.payload, &mut position, components, segment.offset, true,)",
+    ),
+    ("src/codestream/mct_markers.rs", "Parser::prepare_mct_fragment"): (
+        "copy_flat(&segment.payload[6..],",
+        "MctCopyPath::FreshMarker(FreshMarkerPath::MctInitial(segment.offset))",
+        "let data = copied?", "active_index = pending.len()", "pending.push(MctFragment",
+    ),
+    ("src/codestream/mct_markers.rs", "Parser::prepare_mcc_fragment"): (
+        "copy_flat(&segment.payload[7..],",
+        "MctCopyPath::FreshMarker(FreshMarkerPath::MccInitial(segment.offset))",
+        "let data = copied?", "active_index = pending.len()", "pending.push(MccFragment",
+    ),
+    ("src/codestream/mct_markers.rs", "Parser::consume_mct_fragment"): (
+        "let state = pending.swap_remove(active_index)", "state.data.len() as u64 > maximum_bytes",
+        "reserve_values(state.data.len().saturating_add(6),",
+        "MctCopyPath::FreshMarker(FreshMarkerPath::MctReassembly(state.offset))",
+        "let mut payload = copied?", "self.parse_mct(Segment", "completed.push(segment.payload[3])",
+    ),
+    ("src/codestream/mct_markers.rs", "Parser::consume_mcc_fragment"): (
+        "let state = pending.swap_remove(active_index)", "state.data.len() as u64 > maximum_bytes",
+        "reserve_values(state.data.len().saturating_add(7),",
+        "MctCopyPath::FreshMarker(FreshMarkerPath::MccReassembly(state.offset))",
+        "let mut payload = copied?", "self.parse_mcc(", "completed.push(segment.payload[2])",
+    ),
+    ("specs/cold_marker_storage.rs", "part1_fresh_prepare_mct_requests"): (
+        "segment.payload.len() >= 6", "part1_marker_value(segment.payload[0], segment.payload[1]) == 0",
+        "part1_prepare_mct_fragment(segment, limits, pending, completed).0.is_ok()",
+        "FreshMarkerPath::MctInitial(segment.offset)", "(segment.payload.len() - 6) as usize",
+        "else { Seq::empty() }",
+    ),
+    ("specs/cold_marker_storage.rs", "part1_fresh_prepare_mcc_requests"): (
+        "segment.payload.len() >= 7", "part1_marker_value(segment.payload[0], segment.payload[1]) == 0",
+        "part1_prepare_mcc_fragment(segment, components, pending, completed).0.is_ok()",
+        "FreshMarkerPath::MccInitial(segment.offset)", "(segment.payload.len() - 7) as usize",
+        "else { Seq::empty() }",
+    ),
+    ("specs/cold_marker_storage.rs", "part1_fresh_marker_site"): (
+        "FreshMarkerPath::Values(_) => 63", "FreshMarkerPath::Collections(_) => 64",
+        "FreshMarkerPath::Inputs(_, _) => 65", "FreshMarkerPath::Outputs(_, _) => 66",
+        "FreshMarkerPath::Order(_) => 67", "FreshMarkerPath::MctReassembly(_) => 68",
+        "FreshMarkerPath::MccReassembly(_) => 69", "FreshMarkerPath::MctInitial(_) => 70",
+        "FreshMarkerPath::MccInitial(_) => 71",
+    ),
+    ("specs/cold_marker_storage.rs", "part1_fresh_collection_requests"): (
+        "segment.payload[start as int] & 0xfc != 0", "segment.payload[start as int] & 3 == 2",
+        "part1_fresh_list_requests(segment.payload, (start + 1) as usize, components, segment.offset, false)",
+        "part1_parse_mcc_component_list(segment.payload, (start + 1) as usize, components, segment.offset)",
+        "first + if input.0.is_ok()", "part1_fresh_list_requests(segment.payload, input.1, components, segment.offset, true)",
+    ),
+    ("specs/cold_marker_storage.rs", "part1_fresh_consume_mct_run"): (
+        "part1_fresh_prepare_mct_run(segment, limits, pending, completed, events)",
+        "Some(((Err(error), changed), rest)) => Some(((Err(error), changed, completed), rest))",
+        "if !part2_fragment_complete(state.next_index, state.final_index)",
+        "let removed = part1_mct_fragment_swap_remove(changed, index)",
+        "if state.data.len() as u64 > maximum", "FreshMarkerPath::MctReassembly(state.offset)",
+        "Some((Err(error), tail)) => Some(((Err(error), removed, completed), tail))",
+        "part1_fresh_mct_run(part1_fresh_mct_reassembled(state), limits, tail)",
+        "Some((Err(error), last)) => Some(((Err(error), removed, completed), last))",
+        "completed.push(segment.payload[3])",
+    ),
+    ("specs/cold_marker_storage.rs", "part1_fresh_consume_mcc_run"): (
+        "part1_fresh_prepare_mcc_run(segment, components, pending, completed, events)",
+        "Some(((Err(error), changed), rest)) => Some(((Err(error), changed, completed), rest))",
+        "if !part2_fragment_complete(state.next_index, state.final_index)",
+        "let removed = part1_mcc_fragment_swap_remove(changed, index)",
+        "if state.data.len() as u64 > maximum", "FreshMarkerPath::MccReassembly(state.offset)",
+        "Some((Err(error), tail)) => Some(((Err(error), removed, completed), tail))",
+        "part1_fresh_mcc_run(part1_fresh_mcc_reassembled(state), components, limits, tail)",
+        "Some((Err(error), last)) => Some(((Err(error), removed, completed), last))",
+        "completed.push(segment.payload[2])",
+    ),
     ("specs/cold_extensions_copy.rs", "part1_part2_role_requests"): (
         "if !payload { requests } else",
         "MctCopyPath::Extensions(path) => MctCopyPath::PayloadExtensions(path)",
@@ -5305,6 +5418,19 @@ _QUANTIZATION_ROOT_PROOFS |= {
         "part1_read_tile_progression_normal", "part1_read_tile_progression_frame", "part1_read_tile_progression_projection",
     )
 } | {("specs/cold_layout_continuations.rs", "part1_cold_layout_sot_progression_error")}
+
+_QUANTIZATION_ROOT_MODELS |= {
+    ("specs/cold_marker_storage.rs", name) for name in (
+        "part1_fresh_marker_site", "part1_fresh_collection_requests", "part1_fresh_records_requests",
+        "part1_fresh_prepare_mct_requests", "part1_fresh_prepare_mcc_requests",
+    )
+} | {("specs/cold_marker_header.rs", "part1_fresh_main_payload")}
+_QUANTIZATION_ROOT_PROOFS |= {
+    ("specs/cold_marker_header.rs", name) for name in (
+        "part1_cold_main_fresh_error", "part1_fresh_main_normal",
+        "part1_fresh_main_projection", "part1_fresh_main_frame",
+    )
+}
 
 _MCT_COPY_MODELS = {("specs/cold_mct_copy.rs", name) for name in (
     "Part1MctCopyRequest", "part1_mct_copy_site", "part1_mct_copy_leaf", "part1_mct_copy_run", "part1_mct_copy_result",
@@ -5644,8 +5770,21 @@ def validate_normative_coverage(
                     not _QUANTIZATION_ROOT_MODELS.issubset({(r["path"], r["symbol"]) for r in entry["spec_refs"]})
                     or not _QUANTIZATION_ROOT_PROOFS.issubset({(r["path"], r["symbol"]) for r in entry["proof_refs"]})):
                 raise ValueError(diagnostic + " requires complete cold quantization source and normal/frame proof links")
+            if entry["id"] == _RAW_LAYOUT_ENTRY and (
+                    ("specs/cold_marker_header.rs", "part1_fresh_tile_payload")
+                    not in {(r["path"], r["symbol"]) for r in entry["spec_refs"]}
+                    or not {
+                        ("specs/cold_marker_header.rs", "part1_fresh_tile_normal"),
+                        ("specs/cold_marker_header.rs", "part1_fresh_tile_projection"),
+                        ("specs/cold_marker_header.rs", "part1_fresh_tile_frame"),
+                        ("specs/cold_layout_continuations.rs", "part1_cold_layout_sot_read_result_error"),
+                    }.issubset({(r["path"], r["symbol"]) for r in entry["proof_refs"]})):
+                raise ValueError(diagnostic + " requires complete cold marker source and normal/frame proof links")
             for (relative, symbol), fragments in _QUANTIZATION_COLD_GUARDS.items():
-                actual = _coverage_spec_function_body(source_text((ROOT / relative).resolve()), symbol)
+                guard_path = (ROOT / relative).resolve()
+                guard_source = source_text(guard_path)
+                actual = (_coverage_function_body(guard_source, function_header(guard_path, symbol))
+                          if relative.startswith("src/") else _coverage_spec_function_body(guard_source, symbol))
                 compact = "".join(actual.split()) if actual is not None else ""
                 cursor = 0
                 for fragment in fragments:

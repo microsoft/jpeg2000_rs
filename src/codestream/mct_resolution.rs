@@ -651,9 +651,9 @@ impl<'a> Parser<'a> {
         }
         let mut position = 8_usize;
         let input_components =
-            parse_mcc_component_list(mcc.payload, &mut position, components, mcc.offset)?;
+            parse_mcc_component_list(mcc.payload, &mut position, components, mcc.offset, false)?;
         let output_components =
-            parse_mcc_component_list(mcc.payload, &mut position, components, mcc.offset)?;
+            parse_mcc_component_list(mcc.payload, &mut position, components, mcc.offset, true)?;
         if mcc.payload.len().saturating_sub(position) != 3 {
             return Err(DecodeError::malformed(
                 self.offset(mcc.offset),

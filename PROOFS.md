@@ -198,6 +198,41 @@ unchanged. Payload-vector/container/image growth and #289 deadlines are outside
 this increment. #288 budgeting is withdrawn. Sequence models do not establish
 physical capacity, allocation availability or general OOM recovery.
 
+### Fresh MCT/MCC/MCO marker construction
+
+Fresh known-count owners now use the existing checked reservation/shallow-Copy
+helpers: MCT numeric values (site 63), MCC collections (64), input/output
+component references (65/66), MCO order (67), fresh MCT/MCC reassembly (68/69)
+and initial fragment bytes (70/71). Paths retain the actual marker offset and
+the post-count reference-list cursor. Empty byte/order owners consume no
+request. Public and standalone Clone APIs are unchanged.
+
+[`cold_marker_storage.rs`](specs/cold_marker_storage.rs) derives requests from
+the original input and ordinary parser's reached syntax frontier. Collection
+input, output and following-record requests remain ordered; earlier malformed,
+duplicate and limit errors cannot consume a later request. Initial-copy refusal
+preserves prior pending owners. Completion removes the fragment before
+reassembly/element reservations; those refusals retain precisely the removed
+pending state and unchanged completion list. Completion is recorded only after
+the actual parser succeeds.
+
+[`cold_marker_header.rs`](specs/cold_marker_header.rs) binds these runs into
+actual main/tile dispatch, including admitted reader/counter and seen-flag
+frames, through the existing complete public cold Results and checked ordinary
+projections. Private checked root steps isolate environment witnesses from the
+owning tile fold; no executing body is hoisted and no resource limit is raised.
+Managed controls cover first/later refusal, restoration, empty/malformed paths,
+prior pending owners and raw/container inspection.
+
+This does not complete #287. Existing-buffer/pending-fragment and layout
+accumulator/payload growth remain outside this increment: the pinned standard
+interface lacks the capacity observation/reservation-effect law needed for
+precise no-growth/refused-owner classification. No capacity fact is inferred
+from sequences. Other marker/Part 2 construction, container/image growth and
+#289 deadlines remain separate; #288 budgeting is withdrawn. Fresh reservation
+uses the documented standard-library boundary, not a proof of physical
+capacity, allocator availability or general host OOM recovery.
+
 ### Ordered automatic main-header primitive calls
 
 `normalize_main_header` additionally derives its complete byte/error Result

@@ -8124,6 +8124,259 @@ fn retains_bounded_profile_numbers_and_rejects_zero_most_significant_words() {
 }
 
 #[test]
+fn fresh_marker_values_order_lists_shape_refusal_and_restore() {
+    let limits = ResourceLimits::default();
+    let parser = new_parser(&[], &limits).unwrap();
+    let bytes = mct_i16(1, 1, &[1, 2]);
+    let segment = Segment {
+        marker: MCT,
+        offset: 17,
+        payload: &bytes[4..],
+    };
+    let expected = parser.parse_mct(segment).unwrap();
+    assert!(matches!(
+        crate::allocation::with_refusal(0, || parser.parse_mct(segment)),
+        Err(DecodeError::AllocationFailed)
+    ));
+    assert_eq!(parser.parse_mct(segment).unwrap(), expected);
+    let order = mco(&[7]);
+    let segment = Segment {
+        marker: MCO,
+        offset: 19,
+        payload: &order[4..],
+    };
+    assert!(matches!(
+        crate::allocation::with_refusal(0, || parser.parse_mco(segment)),
+        Err(DecodeError::AllocationFailed)
+    ));
+    assert_eq!(parser.parse_mco(segment).unwrap(), [7]);
+    let mut position = 0;
+    assert_eq!(
+        crate::allocation::with_refusal(0, || parse_mcc_component_list(
+            &[0, 2, 0, 1],
+            &mut position,
+            2,
+            23,
+            false
+        )),
+        Err(DecodeError::AllocationFailed)
+    );
+    assert_eq!(position, 2);
+    position = 0;
+    assert_eq!(
+        parse_mcc_component_list(&[0, 2, 0, 1], &mut position, 2, 23, false).unwrap(),
+        [0, 1]
+    );
+    assert_eq!(position, 4);
+    crate::allocation::with_refusal(0, || {
+        position = 0;
+        assert!(matches!(
+            parse_mcc_component_list(&[0, 3], &mut position, 2, 23, false),
+            Err(DecodeError::MalformedInput {
+                kind: MalformedKind::InvalidTransform,
+                ..
+            })
+        ));
+        assert_eq!(position, 2);
+        assert_eq!(
+            parser
+                .parse_mco(Segment {
+                    marker: MCO,
+                    offset: 29,
+                    payload: &[0]
+                })
+                .unwrap(),
+            []
+        );
+        assert!(matches!(
+            parser.parse_mct(Segment {
+                marker: MCT,
+                offset: 31,
+                payload: &[]
+            }),
+            Err(DecodeError::MalformedInput {
+                kind: MalformedKind::InvalidTransform,
+                ..
+            })
+        ));
+        assert_eq!(
+            crate::allocation::copy_values(&[1_u8]),
+            Err(DecodeError::AllocationFailed)
+        );
+    });
+}
+
+#[test]
+fn fresh_marker_collection_first_and_nested_output_refusal_restore() {
+    let limits = ResourceLimits::default();
+    let parser = new_parser(&[], &limits).unwrap();
+    let bytes = mcc(1, 2, false, 1, 0);
+    let segment = Segment {
+        marker: MCC,
+        offset: 41,
+        payload: &bytes[4..],
+    };
+    let expected = parser.parse_mcc(segment, 2).unwrap();
+    for after in [0, 2] {
+        assert!(matches!(
+            crate::allocation::with_refusal(after, || parser.parse_mcc(segment, 2)),
+            Err(DecodeError::AllocationFailed)
+        ));
+        assert_eq!(parser.parse_mcc(segment, 2).unwrap(), expected);
+    }
+    let malformed = Segment {
+        marker: MCC,
+        offset: 43,
+        payload: &[0, 0, 1, 0, 0, 0, 0],
+    };
+    crate::allocation::with_refusal(0, || {
+        assert!(matches!(
+            parser.parse_mcc(malformed, 2),
+            Err(DecodeError::MalformedInput {
+                kind: MalformedKind::InvalidTransform,
+                ..
+            })
+        ));
+        assert_eq!(
+            crate::allocation::copy_values(&[1_u8]),
+            Err(DecodeError::AllocationFailed)
+        );
+    });
+}
+
+#[test]
+fn fresh_marker_fragments_preserve_prior_pending_and_completion_on_refusal() {
+    let limits = ResourceLimits::default();
+    let parser = new_parser(&[], &limits).unwrap();
+    let prior = mct_i16_segmented(7, 1, &[3, 4], 2);
+    let prior_segment = Segment {
+        marker: MCT,
+        offset: 11,
+        payload: &prior[0][4..],
+    };
+    let mut pending = Vec::new();
+    let mut completed = vec![9];
+    assert_eq!(
+        parser
+            .consume_mct_fragment(prior_segment, &mut pending, &mut completed)
+            .unwrap(),
+        None
+    );
+    let before = pending.clone();
+    let bytes = mct_i16(1, 1, &[1, 2]);
+    let segment = Segment {
+        marker: MCT,
+        offset: 17,
+        payload: &bytes[4..],
+    };
+    for after in [0, 1, 2] {
+        pending = before.clone();
+        assert!(matches!(
+            crate::allocation::with_refusal(after, || parser.consume_mct_fragment(
+                segment,
+                &mut pending,
+                &mut completed
+            )),
+            Err(DecodeError::AllocationFailed)
+        ));
+        assert_eq!(pending, before);
+        assert_eq!(completed, [9]);
+        let value = parser
+            .consume_mct_fragment(segment, &mut pending, &mut completed)
+            .unwrap()
+            .unwrap();
+        assert_eq!(value, parser.parse_mct(segment).unwrap());
+        assert_eq!(pending, before);
+        assert_eq!(completed, [9, 1]);
+        completed.pop();
+    }
+    crate::allocation::with_refusal(0, || {
+        assert!(matches!(
+            parser.consume_mct_fragment(prior_segment, &mut pending, &mut completed),
+            Err(DecodeError::MalformedInput {
+                kind: MalformedKind::InvalidTransform,
+                ..
+            })
+        ));
+        assert_eq!(pending, before);
+        assert_eq!(
+            crate::allocation::copy_values(&[1_u8]),
+            Err(DecodeError::AllocationFailed)
+        );
+    });
+    let bytes = mcc(1, 2, false, 1, 0);
+    let segment = Segment {
+        marker: MCC,
+        offset: 23,
+        payload: &bytes[4..],
+    };
+    let mut records = Vec::new();
+    for after in [0, 4] {
+        assert!(matches!(
+            crate::allocation::with_refusal(after, || parser.consume_mcc_fragment(
+                segment,
+                2,
+                &mut records,
+                &mut completed
+            )),
+            Err(DecodeError::AllocationFailed)
+        ));
+        assert!(records.is_empty());
+        assert_eq!(completed, [9]);
+        assert_eq!(
+            parser
+                .consume_mcc_fragment(segment, 2, &mut records, &mut completed)
+                .unwrap()
+                .unwrap(),
+            parser.parse_mcc(segment, 2).unwrap()
+        );
+        assert!(records.is_empty());
+        assert_eq!(completed, [9, 1]);
+        completed.pop();
+    }
+    crate::allocation::with_refusal(0, || {
+        parser
+            .prepare_mcc_fragment(
+                Segment {
+                    marker: MCC,
+                    offset: 29,
+                    payload: &[0, 0, 2, 0, 1, 0, 1],
+                },
+                2,
+                &mut records,
+                &completed,
+            )
+            .unwrap();
+        assert_eq!(records.len(), 1);
+        assert!(records[0].data.is_empty());
+        assert_eq!(
+            crate::allocation::copy_values(&[1_u8]),
+            Err(DecodeError::AllocationFailed)
+        );
+    });
+    assert_eq!(parser.position, 0);
+}
+
+#[test]
+fn fresh_marker_raw_first_and_value_refusal_restore_public_inspection() {
+    let mut bytes = two_part_codestream(&[], &[]);
+    let at = bytes
+        .windows(2)
+        .position(|word| word == SOT.to_be_bytes())
+        .unwrap();
+    bytes.splice(at..at, mct_i16(1, 1, &[1]).into_iter().chain(mco(&[])));
+    let limits = ResourceLimits::default();
+    let expected = parse(&bytes, &limits).unwrap();
+    for after in [0, 2] {
+        assert!(matches!(
+            crate::allocation::with_refusal(after, || parse(&bytes, &limits)),
+            Err(DecodeError::AllocationFailed)
+        ));
+        assert_eq!(parse(&bytes, &limits).unwrap(), expected);
+    }
+}
+
+#[test]
 fn payload_owner_storage_raw_main_tile_graph_and_extension_roles_restore() {
     let matrix = codestream_with_headers(
         2,
@@ -8262,7 +8515,7 @@ fn mct_owner_storage_raw_inheritance_restores_after_prior_persistent_commit() {
     bytes.splice(at..at, array.iter().copied().chain(mco(&[])));
     let limits = ResourceLimits::default();
     let expected = parse_layout(&bytes, &limits).unwrap();
-    for after in [10, 15] {
+    for after in [13, 18] {
         assert!(matches!(
             crate::allocation::with_refusal(after, || parse_layout(&bytes, &limits)),
             Err(DecodeError::AllocationFailed)
@@ -8285,7 +8538,7 @@ fn mct_owner_storage_raw_inheritance_restores_after_prior_persistent_commit() {
         .unwrap();
     malformed.splice(at..at, array);
     let ordinary = parse_layout(&malformed, &limits).unwrap_err();
-    crate::allocation::with_refusal(1, || {
+    crate::allocation::with_refusal(4, || {
         assert_eq!(parse_layout(&malformed, &limits).unwrap_err(), ordinary);
         assert_eq!(
             crate::allocation::copy_values(&[1_u8]),
@@ -14792,7 +15045,7 @@ fn assert_mcc_reference_case(bytes: &[u8], start: usize, components: u16, offset
     let mut expected_position = start;
     let expected = reference_mcc_component_list(bytes, &mut expected_position, components, offset);
     assert_eq!(
-        parse_mcc_component_list(bytes, &mut actual_position, components, offset),
+        parse_mcc_component_list(bytes, &mut actual_position, components, offset, false),
         expected
     );
     assert_eq!(actual_position, expected_position);

@@ -599,11 +599,16 @@ impl<'a> Parser<'a> {
                 CBD => parser.parse_cbd(segment, image_size.components, &mut part2_extensions)?,
                 ATK => parser.parse_atk(segment, &mut part2_extensions)?,
                 MCT => {
-                    if let Some(array) = parser.consume_mct_fragment(
-                        segment,
-                        &mut pending_mct,
-                        &mut completed_mct,
-                    )? {
+                    let copied =
+                        parser.consume_mct_fragment(segment, &mut pending_mct, &mut completed_mct);
+                    #[cfg(verus_keep_ghost)]
+                    proof! {
+                        if let Err(error) = copied {
+                            crate::specs::part1_cold_main_fresh_error(initial_reader, cold_main_reader, cold_main_raw, segment_view(segment), error,
+                                mct_pending_view(pending_mct@), completed_mct@, mcc_pending_view(pending_mcc@), completed_mcc@);
+                        }
+                    }
+                    if let Some(array) = copied? {
                         #[cfg(verus_keep_ghost)]
                         proof_decl! {
                             let ghost appended = mct_arrays_view(mct_arrays@).push(mct_array_view(&array));
@@ -615,12 +620,20 @@ impl<'a> Parser<'a> {
                     }
                 }
                 MCC => {
-                    if let Some(record) = parser.consume_mcc_fragment(
+                    let copied = parser.consume_mcc_fragment(
                         segment,
                         image_size.components,
                         &mut pending_mcc,
                         &mut completed_mcc,
-                    )? {
+                    );
+                    #[cfg(verus_keep_ghost)]
+                    proof! {
+                        if let Err(error) = copied {
+                            crate::specs::part1_cold_main_fresh_error(initial_reader, cold_main_reader, cold_main_raw, segment_view(segment), error,
+                                mct_pending_view(pending_mct@), completed_mct@, mcc_pending_view(pending_mcc@), completed_mcc@);
+                        }
+                    }
+                    if let Some(record) = copied? {
                         #[cfg(verus_keep_ghost)]
                         proof_decl! {
                             let ghost appended = mct_records_view(mct_records@).push(mct_record_view(&record));
@@ -638,7 +651,17 @@ impl<'a> Parser<'a> {
                             MalformedKind::InvalidMarkerOrder,
                         ));
                     }
-                    mct_order = Some(parser.parse_mco(segment)?);
+                    mct_order = Some(match parser.parse_mco(segment) {
+                        Ok(order) => order,
+                        Err(error) => {
+                            #[cfg(verus_keep_ghost)]
+                            proof! {
+                                crate::specs::part1_cold_main_fresh_error(initial_reader, cold_main_reader, cold_main_raw, segment_view(segment), error,
+                                    mct_pending_view(pending_mct@), completed_mct@, mcc_pending_view(pending_mcc@), completed_mcc@);
+                            }
+                            return Err(error);
+                        }
+                    });
                 }
                 0xff64 => {}
                 marker => {
@@ -1285,11 +1308,7 @@ impl<'a> Parser<'a> {
                             #[cfg(verus_keep_ghost)]
                             proof! {
                                 if error == DecodeError::AllocationFailed {
-                                    crate::specs::part1_cold_tile_part_calls(tile_input, (Err(error), parser_view(&parser)));
-                                    let read_calls = choose|calls: Seq<crate::specs::Part1ColdStorageEvent>|
-                                        crate::specs::part1_cold_tile_part_run(tile_input, calls)
-                                            == Some(((Err(error), parser_view(&parser)), Seq::empty()));
-                                    crate::specs::part1_cold_layout_sot_read_error(cold_sot, read_calls, parser_view(&parser), error);
+                                    crate::specs::part1_cold_layout_sot_read_result_error(cold_sot, parser_view(&parser), error);
                                 }
                             }
                             return Err(error);

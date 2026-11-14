@@ -34,6 +34,8 @@ model-to-standard review remains outstanding.
   [nested Part 2 owner requests](cold_extensions_copy.rs),
   [main/tile resolved graph requests](cold_resolved_copy.rs) and
   [payload-owner Result/reader binds](cold_payload_owners.rs),
+  [fresh marker construction/fragment requests](cold_marker_storage.rs) and
+  [actual main/tile marker binds](cold_marker_header.rs),
   [tile reader frames](cold_tile_part.rs), [complete cold layout](cold_layout.rs)
   and [checked error continuations](cold_layout_continuations.rs).
   Trace entries contain primitive responses, not supplied layouts/images.

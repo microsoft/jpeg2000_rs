@@ -1,12 +1,16 @@
 //! MCT/MCC fragment assembly, numeric decoding and marker parsing.
 
 use super::mct::u16_lists_equal;
+#[cfg(verus_keep_ghost)]
+use super::mct_copy::copy_outcome;
+use super::mct_copy::{copy_flat, reserve_values};
 use super::mct_resolution::{u8_list_contains, validate_parallel_collections};
 use super::reader::{read_u16, read_u32, read_u64, signed_u16, signed_u32};
 use super::{
-    DecodeError, MCC, MCT, MCT_FIXED_BITS, MalformedKind, MccFragment, MctArray, MctArrayKind,
-    MctCollectionReference, MctCollectionReferenceTransform, MctFragment, MctNumericFormat,
-    MctRecord, MctWavelet, MctWaveletType, Parser, Resource, Segment,
+    DecodeError, FreshMarkerPath, MCC, MCT, MCT_FIXED_BITS, MalformedKind, MccFragment, MctArray,
+    MctArrayKind, MctCollectionReference, MctCollectionReferenceTransform, MctCopyPath,
+    MctFragment, MctNumericFormat, MctRecord, MctWavelet, MctWaveletType, Parser, Resource,
+    Segment,
 };
 #[cfg(verus_keep_ghost)]
 use super::{
@@ -72,9 +76,13 @@ pub(super) fn find_mcc_fragment(pending: &[MccFragment], index: u8) -> Option<us
 impl<'a> Parser<'a> {
     #[cfg_attr(verus_keep_ghost, verifier::spinoff_prover)]
     #[cfg_attr(verus_keep_ghost, verus_spec(result =>
-        ensures (mct_fragment_outcome(result), mct_pending_view(final(pending)@), final(completed)@)
-            == crate::specs::part1_consume_mct_fragment(segment_view(segment), self.limits,
-                mct_pending_view(old(pending)@), old(completed)@),
+        ensures crate::specs::part1_fresh_consume_mct_result(segment_view(segment), self.limits,
+                mct_pending_view(old(pending)@), old(completed)@,
+                (mct_fragment_outcome(result), mct_pending_view(final(pending)@), final(completed)@)),
+            mct_fragment_outcome(result) != Err(DecodeError::AllocationFailed) ==>
+                (mct_fragment_outcome(result), mct_pending_view(final(pending)@), final(completed)@)
+                    == crate::specs::part1_consume_mct_fragment(segment_view(segment), self.limits,
+                        mct_pending_view(old(pending)@), old(completed)@),
     ))]
     pub(super) fn consume_mct_fragment(
         &self,
@@ -90,9 +98,18 @@ impl<'a> Parser<'a> {
                 segment_view(segment), self.limits, input, completed_input);
         }
         #[cfg(verus_keep_ghost)]
-        proof! { reveal(crate::specs::part1_consume_mct_fragment); }
-        let (active_index, maximum_bytes) =
-            self.prepare_mct_fragment(segment, pending, completed)?;
+        proof! {
+            reveal(crate::specs::part1_consume_mct_fragment);
+            crate::specs::part1_fresh_consume_mct_normal(segment_view(segment), self.limits, input, completed_input, Seq::empty());
+        }
+        let copied = self.prepare_mct_fragment(segment, pending, completed);
+        #[cfg(verus_keep_ghost)]
+        proof! {
+            if let Err(error) = copied {
+                crate::specs::part1_fresh_consume_mct_prepare_error(segment_view(segment), self.limits, input, completed_input, error, mct_pending_view(pending@));
+            }
+        }
+        let (active_index, maximum_bytes) = copied?;
         let complete = {
             let state = &pending[active_index];
             crate::refinement::mct_fragment_complete(state.next_index, state.final_index)
@@ -115,7 +132,17 @@ impl<'a> Parser<'a> {
                 actual: state.data.len() as u64,
             });
         }
-        let mut payload = Vec::with_capacity(state.data.len().saturating_add(6));
+        let copied = reserve_values(
+            state.data.len().saturating_add(6),
+            MctCopyPath::FreshMarker(FreshMarkerPath::MctReassembly(state.offset)),
+        );
+        #[cfg(verus_keep_ghost)]
+        proof! {
+            if copied.is_err() { crate::specs::part1_fresh_consume_mct_reassembly_error(segment_view(segment), self.limits, input, completed_input); }
+        }
+        let mut payload = copied?;
+        #[cfg(verus_keep_ghost)]
+        proof! { assert(payload@ =~= Seq::<u8>::empty()); }
         payload.extend_from_slice(&[0, 0]);
         let descriptor = state.descriptor;
         #[cfg(verus_keep_ghost)]
@@ -129,19 +156,29 @@ impl<'a> Parser<'a> {
         payload.extend_from_slice(&state.data);
         #[cfg(verus_keep_ghost)]
         proof! { assert(payload@ =~= crate::specs::part1_mct_fragment_payload(mct_fragment_view(&state))); }
-        let array = self.parse_mct(Segment {
+        let copied = self.parse_mct(Segment {
             marker: MCT,
             offset: state.offset,
             payload: &payload,
-        })?;
+        });
+        #[cfg(verus_keep_ghost)]
+        proof! {
+            crate::specs::part1_fresh_consume_mct_parsed(segment_view(segment), self.limits, input, completed_input, mct_array_outcome(copied));
+            crate::specs::part1_fresh_mct_observed(crate::specs::part1_fresh_mct_reassembled(mct_fragment_view(&state)), self.limits, mct_array_outcome(copied));
+        }
+        let array = copied?;
         completed.push(segment.payload[3]);
         Ok(Some(array))
     }
 
     #[cfg_attr(verus_keep_ghost, verifier::spinoff_prover)]
     #[cfg_attr(verus_keep_ghost, verus_spec(result =>
-        ensures (result, mct_pending_view(final(pending)@)) == crate::specs::part1_prepare_mct_fragment(
-            segment_view(segment), self.limits, mct_pending_view(old(pending)@), completed@),
+        ensures crate::specs::part1_fresh_prepare_mct_result(
+            segment_view(segment), self.limits, mct_pending_view(old(pending)@), completed@,
+            (result, mct_pending_view(final(pending)@))),
+            result != Err(DecodeError::AllocationFailed) ==>
+                (result, mct_pending_view(final(pending)@)) == crate::specs::part1_prepare_mct_fragment(
+                    segment_view(segment), self.limits, mct_pending_view(old(pending)@), completed@),
         match result { Ok((index, maximum)) => segment.payload.len() >= 4 && index < final(pending).len()
             && maximum == crate::specs::part1_mct_fragment_maximum_bytes(self.limits), Err(_) => true },
     ))]
@@ -154,7 +191,11 @@ impl<'a> Parser<'a> {
         #[cfg(verus_keep_ghost)]
         proof_decl! { let ghost input = mct_pending_view(pending@); }
         #[cfg(verus_keep_ghost)]
-        proof! { reveal(crate::specs::part1_prepare_mct_fragment); reveal(mct_fragment_view); }
+        proof! {
+            reveal(crate::specs::part1_prepare_mct_fragment); reveal(mct_fragment_view);
+            crate::specs::part1_fresh_prepare_mct_normal(segment_view(segment), self.limits, input, completed@);
+            crate::specs::part1_fresh_prepare_mct_normal_rule(segment_view(segment), self.limits, input, completed@);
+        }
         if segment.payload.len() < 4 {
             return Err(self.malformed_at(segment.offset, MalformedKind::InvalidTransform));
         }
@@ -207,8 +248,15 @@ impl<'a> Parser<'a> {
                     actual: segment.payload[6..].len() as u64,
                 });
             }
-            let mut data = Vec::new();
-            data.extend_from_slice(&segment.payload[6..]);
+            let copied = copy_flat(
+                &segment.payload[6..],
+                MctCopyPath::FreshMarker(FreshMarkerPath::MctInitial(segment.offset)),
+            );
+            #[cfg(verus_keep_ghost)]
+            proof! {
+                if copied.is_err() { crate::specs::part1_fresh_prepare_mct_refused(segment_view(segment), self.limits, input, completed@); }
+            }
+            let data = copied?;
             #[cfg(verus_keep_ghost)]
             proof! { assert(data@ =~= segment.payload@.subrange(6, segment.payload.len() as int)); }
             active_index = pending.len();
@@ -243,7 +291,17 @@ impl<'a> Parser<'a> {
                 || fragment_index != state.next_index
                 || fragment_index > state.final_index
             {
-                return Err(self.malformed_at(segment.offset, MalformedKind::InvalidTransform));
+                let error = self.malformed_at(segment.offset, MalformedKind::InvalidTransform);
+                #[cfg(verus_keep_ghost)]
+                proof! {
+                    assert(mct_pending_view(pending@) =~= input);
+                    assert(crate::specs::part1_prepare_mct_fragment(segment_view(segment), self.limits, input, completed@)
+                        == (Err(error), input));
+                    crate::specs::part1_fresh_prepare_mct_normal(segment_view(segment), self.limits, input, completed@);
+                    assert(crate::specs::part1_fresh_prepare_mct_result(segment_view(segment), self.limits, input, completed@,
+                        (Err(error), mct_pending_view(pending@))));
+                }
+                return Err(error);
             }
             state.data.extend_from_slice(&segment.payload[4..]);
             #[cfg(verus_keep_ghost)]
@@ -283,9 +341,13 @@ impl<'a> Parser<'a> {
 
     #[cfg_attr(verus_keep_ghost, verifier::spinoff_prover)]
     #[cfg_attr(verus_keep_ghost, verus_spec(result =>
-        ensures (mcc_fragment_outcome(result), mcc_pending_view(final(pending)@), final(completed)@)
-            == crate::specs::part1_consume_mcc_fragment(segment_view(segment), components, self.limits,
-                mcc_pending_view(old(pending)@), old(completed)@),
+        ensures crate::specs::part1_fresh_consume_mcc_result(segment_view(segment), components, self.limits,
+                mcc_pending_view(old(pending)@), old(completed)@,
+                (mcc_fragment_outcome(result), mcc_pending_view(final(pending)@), final(completed)@)),
+            mcc_fragment_outcome(result) != Err(DecodeError::AllocationFailed) ==>
+                (mcc_fragment_outcome(result), mcc_pending_view(final(pending)@), final(completed)@)
+                    == crate::specs::part1_consume_mcc_fragment(segment_view(segment), components, self.limits,
+                        mcc_pending_view(old(pending)@), old(completed)@),
     ))]
     pub(super) fn consume_mcc_fragment(
         &self,
@@ -302,9 +364,18 @@ impl<'a> Parser<'a> {
                 segment_view(segment), components, self.limits, input, completed_input);
         }
         #[cfg(verus_keep_ghost)]
-        proof! { reveal(crate::specs::part1_consume_mcc_fragment); }
-        let (active_index, maximum_bytes) =
-            self.prepare_mcc_fragment(segment, components, pending, completed)?;
+        proof! {
+            reveal(crate::specs::part1_consume_mcc_fragment);
+            crate::specs::part1_fresh_consume_mcc_normal(segment_view(segment), components, self.limits, input, completed_input, Seq::empty());
+        }
+        let copied = self.prepare_mcc_fragment(segment, components, pending, completed);
+        #[cfg(verus_keep_ghost)]
+        proof! {
+            if let Err(error) = copied {
+                crate::specs::part1_fresh_consume_mcc_prepare_error(segment_view(segment), components, self.limits, input, completed_input, error, mcc_pending_view(pending@));
+            }
+        }
+        let (active_index, maximum_bytes) = copied?;
         let complete = {
             let state = &pending[active_index];
             crate::refinement::mct_fragment_complete(state.next_index, state.final_index)
@@ -327,7 +398,17 @@ impl<'a> Parser<'a> {
                 actual: state.data.len() as u64,
             });
         }
-        let mut payload = Vec::with_capacity(state.data.len().saturating_add(7));
+        let copied = reserve_values(
+            state.data.len().saturating_add(7),
+            MctCopyPath::FreshMarker(FreshMarkerPath::MccReassembly(state.offset)),
+        );
+        #[cfg(verus_keep_ghost)]
+        proof! {
+            if copied.is_err() { crate::specs::part1_fresh_consume_mcc_reassembly_error(segment_view(segment), components, self.limits, input, completed_input); }
+        }
+        let mut payload = copied?;
+        #[cfg(verus_keep_ghost)]
+        proof! { assert(payload@ =~= Seq::<u8>::empty()); }
         payload.extend_from_slice(&[0, 0]);
         payload.push(state.record_index);
         payload.extend_from_slice(&[0, 0]);
@@ -342,22 +423,32 @@ impl<'a> Parser<'a> {
         payload.extend_from_slice(&state.data);
         #[cfg(verus_keep_ghost)]
         proof! { assert(payload@ =~= crate::specs::part1_mcc_fragment_payload(mcc_fragment_view(&state))); }
-        let record = self.parse_mcc(
+        let copied = self.parse_mcc(
             Segment {
                 marker: MCC,
                 offset: state.offset,
                 payload: &payload,
             },
             components,
-        )?;
+        );
+        #[cfg(verus_keep_ghost)]
+        proof! {
+            crate::specs::part1_fresh_consume_mcc_parsed(segment_view(segment), components, self.limits, input, completed_input, mcc_record_outcome(copied));
+            crate::specs::part1_fresh_mcc_observed(crate::specs::part1_fresh_mcc_reassembled(mcc_fragment_view(&state)), components, self.limits, mcc_record_outcome(copied));
+        }
+        let record = copied?;
         completed.push(segment.payload[2]);
         Ok(Some(record))
     }
 
     #[cfg_attr(verus_keep_ghost, verifier::spinoff_prover)]
     #[cfg_attr(verus_keep_ghost, verus_spec(result =>
-        ensures (result, mcc_pending_view(final(pending)@)) == crate::specs::part1_prepare_mcc_fragment(
-            segment_view(segment), components, mcc_pending_view(old(pending)@), completed@),
+        ensures crate::specs::part1_fresh_prepare_mcc_result(
+            segment_view(segment), components, mcc_pending_view(old(pending)@), completed@,
+            (result, mcc_pending_view(final(pending)@))),
+            result != Err(DecodeError::AllocationFailed) ==>
+                (result, mcc_pending_view(final(pending)@)) == crate::specs::part1_prepare_mcc_fragment(
+                    segment_view(segment), components, mcc_pending_view(old(pending)@), completed@),
         match result { Ok((index, maximum)) => segment.payload.len() >= 3 && index < final(pending).len()
             && maximum == crate::specs::part1_mcc_fragment_maximum_bytes(components), Err(_) => true },
     ))]
@@ -371,7 +462,11 @@ impl<'a> Parser<'a> {
         #[cfg(verus_keep_ghost)]
         proof_decl! { let ghost input = mcc_pending_view(pending@); }
         #[cfg(verus_keep_ghost)]
-        proof! { reveal(crate::specs::part1_prepare_mcc_fragment); reveal(mcc_fragment_view); }
+        proof! {
+            reveal(crate::specs::part1_prepare_mcc_fragment); reveal(mcc_fragment_view);
+            crate::specs::part1_fresh_prepare_mcc_normal(segment_view(segment), components, input, completed@);
+            crate::specs::part1_fresh_prepare_mcc_normal_rule(segment_view(segment), components, input, completed@);
+        }
         if segment.payload.len() < 3 {
             return Err(self.malformed_at(segment.offset, MalformedKind::InvalidTransform));
         }
@@ -426,8 +521,15 @@ impl<'a> Parser<'a> {
                     actual: segment.payload[7..].len() as u64,
                 });
             }
-            let mut data = Vec::new();
-            data.extend_from_slice(&segment.payload[7..]);
+            let copied = copy_flat(
+                &segment.payload[7..],
+                MctCopyPath::FreshMarker(FreshMarkerPath::MccInitial(segment.offset)),
+            );
+            #[cfg(verus_keep_ghost)]
+            proof! {
+                if copied.is_err() { crate::specs::part1_fresh_prepare_mcc_refused(segment_view(segment), components, input, completed@); }
+            }
+            let data = copied?;
             #[cfg(verus_keep_ghost)]
             proof! { assert(data@ =~= segment.payload@.subrange(7, segment.payload.len() as int)); }
             active_index = pending.len();
@@ -460,7 +562,17 @@ impl<'a> Parser<'a> {
             }
             let state = &mut pending[index];
             if fragment_index != state.next_index || fragment_index > state.final_index {
-                return Err(self.malformed_at(segment.offset, MalformedKind::InvalidTransform));
+                let error = self.malformed_at(segment.offset, MalformedKind::InvalidTransform);
+                #[cfg(verus_keep_ghost)]
+                proof! {
+                    assert(mcc_pending_view(pending@) =~= input);
+                    assert(crate::specs::part1_prepare_mcc_fragment(segment_view(segment), components, input, completed@)
+                        == (Err(error), input));
+                    crate::specs::part1_fresh_prepare_mcc_normal(segment_view(segment), components, input, completed@);
+                    assert(crate::specs::part1_fresh_prepare_mcc_result(segment_view(segment), components, input, completed@,
+                        (Err(error), mcc_pending_view(pending@))));
+                }
+                return Err(error);
             }
             state.data.extend_from_slice(&segment.payload[3..]);
             #[cfg(verus_keep_ghost)]
@@ -500,12 +612,15 @@ impl<'a> Parser<'a> {
 
     #[cfg_attr(verus_keep_ghost, verifier::spinoff_prover)]
     #[cfg_attr(verus_keep_ghost, verus_spec(result =>
-        ensures mct_array_outcome(result) == crate::specs::part1_parse_mct(segment_view(segment), self.limits),
+        ensures crate::specs::part1_fresh_mct_result(segment_view(segment), self.limits, mct_array_outcome(result)),
+            mct_array_outcome(result) != Err(DecodeError::AllocationFailed) ==>
+                mct_array_outcome(result) == crate::specs::part1_parse_mct(segment_view(segment), self.limits),
     ))]
     pub(super) fn parse_mct(&self, segment: Segment<'a>) -> Result<MctArray, DecodeError> {
         #[cfg(verus_keep_ghost)]
         proof! {
             reveal(crate::specs::part1_parse_mct); reveal(crate::specs::part1_mct_header);
+            crate::specs::part1_fresh_mct_normal(segment_view(segment), self.limits);
             mct_fixed_precision_is_q32();
         }
         if segment.payload.len() < 8 {
@@ -570,7 +685,20 @@ impl<'a> Parser<'a> {
         } else {
             0
         };
-        let mut values = Vec::with_capacity(element_count);
+        let copied = reserve_values(
+            element_count,
+            MctCopyPath::FreshMarker(FreshMarkerPath::Values(segment.offset)),
+        );
+        let mut values = match copied {
+            Ok(values) => values,
+            Err(error) => {
+                #[cfg(verus_keep_ghost)]
+                proof! { crate::specs::part1_fresh_mct_refused(segment_view(segment), self.limits); }
+                return Err(error);
+            }
+        };
+        #[cfg(verus_keep_ghost)]
+        proof! { assert(values@ =~= Seq::<i64>::empty()); }
         let mut position = 0_usize;
         let mut remaining_elements = element_count;
         #[cfg(verus_keep_ghost)]
@@ -587,6 +715,8 @@ impl<'a> Parser<'a> {
             verus_keep_ghost,
             verus_spec(
                 invariant position <= data.len(), remaining_elements <= element_count,
+                    crate::specs::part1_fresh_mct_result(segment_view(segment), self.limits,
+                        crate::specs::part1_parse_mct(segment_view(segment), self.limits)),
                     element_bytes == crate::specs::part1_mct_element_width(numeric_format),
                     element_bytes == 2 || element_bytes == 4 || element_bytes == 8,
                     position + remaining_elements as int * element_bytes as int == data.len(),
@@ -721,7 +851,9 @@ impl<'a> Parser<'a> {
 
     #[cfg_attr(verus_keep_ghost, verifier::spinoff_prover)]
     #[cfg_attr(verus_keep_ghost, verus_spec(result =>
-        ensures mcc_record_outcome(result) == crate::specs::part1_parse_mcc(segment_view(segment), components, self.limits),
+        ensures crate::specs::part1_fresh_mcc_result(segment_view(segment), components, self.limits, mcc_record_outcome(result)),
+            mcc_record_outcome(result) != Err(DecodeError::AllocationFailed) ==>
+                mcc_record_outcome(result) == crate::specs::part1_parse_mcc(segment_view(segment), components, self.limits),
     ))]
     pub(super) fn parse_mcc(
         &self,
@@ -729,7 +861,11 @@ impl<'a> Parser<'a> {
         components: u16,
     ) -> Result<MctRecord, DecodeError> {
         #[cfg(verus_keep_ghost)]
-        proof! { reveal(crate::specs::part1_parse_mcc); }
+        proof! {
+            reveal(crate::specs::part1_parse_mcc);
+            crate::specs::part1_fresh_mcc_normal(segment_view(segment), components, self.limits);
+            crate::specs::part1_mct_copy_observed(MctCopyPath::Order, 0, Ok(()));
+        }
         if segment.payload.len() < 7 {
             return Err(self.malformed_at(segment.offset, MalformedKind::InvalidTransform));
         }
@@ -751,14 +887,39 @@ impl<'a> Parser<'a> {
             });
         }
         let mut position = 7_usize;
-        let mut collections = Vec::with_capacity(usize::from(collection_count));
         #[cfg(verus_keep_ghost)]
-        proof! { assert(mcc_collection_references_view(collections@) =~= Seq::empty()); }
+        proof_decl! {
+            let ghost all = crate::specs::part1_fresh_mcc_requests(segment_view(segment), components, self.limits);
+            let ghost mut done = crate::specs::part1_fresh_leaf(
+                FreshMarkerPath::Collections(segment.offset), collection_count as usize);
+        }
+        let copied = reserve_values(
+            usize::from(collection_count),
+            MctCopyPath::FreshMarker(FreshMarkerPath::Collections(segment.offset)),
+        );
+        #[cfg(verus_keep_ghost)]
+        proof! {
+            crate::specs::part1_mct_copy_continue(Seq::empty(), done,
+                crate::specs::part1_fresh_records_requests(segment_view(segment), components, 7, collection_count as nat), copy_outcome(copied));
+            if copied.is_err() { crate::specs::part1_fresh_mcc_refused(segment_view(segment), components, self.limits); }
+        }
+        let mut collections = copied?;
+        #[cfg(verus_keep_ghost)]
+        proof! {
+            assert(collections@ =~= Seq::<MctCollectionReference>::empty());
+            assert(mcc_collection_references_view(collections@) =~= Seq::empty());
+        }
         let mut collection = 0_u16;
         #[cfg_attr(
             verus_keep_ghost,
             verus_spec(
                 invariant collection <= collection_count,
+                    crate::specs::part1_fresh_mcc_result(segment_view(segment), components, self.limits,
+                        crate::specs::part1_parse_mcc(segment_view(segment), components, self.limits)),
+                    all == crate::specs::part1_fresh_mcc_requests(segment_view(segment), components, self.limits),
+                    all == done + crate::specs::part1_fresh_records_requests(
+                        segment_view(segment), components, position, (collection_count - collection) as nat),
+                    crate::specs::part1_mct_copy_result(done, Ok(())),
                     segment.payload.len() >= 7, index == segment.payload@[2],
                     crate::specs::part1_parse_mcc(segment_view(segment), components, self.limits)
                         == crate::specs::part1_mcc_records(segment_view(segment), components, position,
@@ -768,9 +929,34 @@ impl<'a> Parser<'a> {
         )]
         while collection < collection_count {
             #[cfg(verus_keep_ghost)]
-            proof! { reveal_with_fuel(crate::specs::part1_mcc_records, 1); }
-            let (decoded, next) = self.decode_mcc_collection(segment, components, position)?;
+            proof! {
+                reveal_with_fuel(crate::specs::part1_mcc_records, 1);
+                reveal_with_fuel(crate::specs::part1_fresh_records_requests, 1);
+            }
+            #[cfg(verus_keep_ghost)]
+            proof_decl! { let ghost previous_position = position; }
+            let copied = self.decode_mcc_collection(segment, components, position);
+            #[cfg(verus_keep_ghost)]
+            proof! {
+                let step = crate::specs::part1_fresh_collection_requests(segment_view(segment), components, position);
+                crate::specs::part1_fresh_collection_observed(segment_view(segment), components, position, mcc_collection_outcome(copied));
+                let tail = match crate::specs::part1_mcc_collection(segment_view(segment), components, position) {
+                    Err(_) => Seq::empty(), Ok((_, next)) => crate::specs::part1_fresh_records_requests(
+                        segment_view(segment), components, next, (collection_count - collection - 1) as nat),
+                };
+                let status = if mcc_collection_outcome(copied) == Err(DecodeError::AllocationFailed) {
+                    Err(DecodeError::AllocationFailed)
+                } else { Ok(()) };
+                crate::specs::part1_mct_copy_continue(done, step, tail, status);
+                assert(all =~= (done + step) + tail);
+                if mcc_collection_outcome(copied) == Err(DecodeError::AllocationFailed) {
+                    crate::specs::part1_fresh_mcc_refused(segment_view(segment), components, self.limits);
+                }
+            }
+            let (decoded, next) = copied?;
             position = next;
+            #[cfg(verus_keep_ghost)]
+            proof! { done = done + crate::specs::part1_fresh_collection_requests(segment_view(segment), components, previous_position); }
             #[cfg(verus_keep_ghost)]
             proof_decl! {
                 let ghost previous = mcc_collection_references_view(collections@);
@@ -799,7 +985,9 @@ impl<'a> Parser<'a> {
 
     #[cfg_attr(verus_keep_ghost, verifier::spinoff_prover)]
     #[cfg_attr(verus_keep_ghost, verus_spec(result =>
-        ensures mcc_collection_outcome(result) == crate::specs::part1_mcc_collection(segment_view(segment), components, start),
+        ensures crate::specs::part1_fresh_collection_result(segment_view(segment), components, start, mcc_collection_outcome(result)),
+            mcc_collection_outcome(result) != Err(DecodeError::AllocationFailed) ==>
+                mcc_collection_outcome(result) == crate::specs::part1_mcc_collection(segment_view(segment), components, start),
     ))]
     pub(super) fn decode_mcc_collection(
         &self,
@@ -809,6 +997,8 @@ impl<'a> Parser<'a> {
     ) -> Result<(MctCollectionReference, usize), DecodeError> {
         #[cfg(verus_keep_ghost)]
         proof! {
+            crate::specs::part1_fresh_collection_normal(segment_view(segment), components, start);
+            crate::specs::part1_mct_copy_observed(MctCopyPath::Order, 0, Ok(()));
             reveal(crate::specs::part1_mcc_collection); reveal(mcc_collection_reference_view);
             reveal(mcc_reference_transform_view); reveal(mct_wavelet_view);
         }
@@ -832,10 +1022,57 @@ impl<'a> Parser<'a> {
             assert(transform_kind_byte & 3 <= 3u8) by (bit_vector);
         }
         let transform_kind = transform_kind_byte & 3;
-        let input_components =
-            parse_mcc_component_list(segment.payload, &mut position, components, segment.offset)?;
-        let output_components =
-            parse_mcc_component_list(segment.payload, &mut position, components, segment.offset)?;
+        #[cfg(verus_keep_ghost)]
+        proof_decl! {
+            let ghost input_start = position;
+            let ghost all = crate::specs::part1_fresh_collection_requests(segment_view(segment), components, start);
+            let ghost first = crate::specs::part1_fresh_list_requests(segment.payload@, input_start, components, segment.offset, false);
+        }
+        let copied = parse_mcc_component_list(
+            segment.payload,
+            &mut position,
+            components,
+            segment.offset,
+            false,
+        );
+        #[cfg(verus_keep_ghost)]
+        proof! {
+            crate::specs::part1_fresh_list_observed(segment.payload@, input_start, components, segment.offset, false,
+                (marker_words_outcome(copied), position));
+            let before = crate::specs::part1_parse_mcc_component_list(segment.payload@, input_start, components, segment.offset);
+            let tail = if before.0.is_ok() {
+                crate::specs::part1_fresh_list_requests(segment.payload@, before.1, components, segment.offset, true)
+            } else { Seq::empty() };
+            let status = if marker_words_outcome(copied) == Err(DecodeError::AllocationFailed) { Err(DecodeError::AllocationFailed) } else { Ok(()) };
+            crate::specs::part1_mct_copy_continue(Seq::empty(), first, tail, status);
+            assert(all =~= first + tail);
+            if marker_words_outcome(copied) == Err(DecodeError::AllocationFailed) {
+                crate::specs::part1_fresh_collection_refused(segment_view(segment), components, start);
+            }
+        }
+        let input_components = copied?;
+        #[cfg(verus_keep_ghost)]
+        proof_decl! { let ghost output_start = position; }
+        let copied = parse_mcc_component_list(
+            segment.payload,
+            &mut position,
+            components,
+            segment.offset,
+            true,
+        );
+        #[cfg(verus_keep_ghost)]
+        proof! {
+            crate::specs::part1_fresh_list_observed(segment.payload@, output_start, components, segment.offset, true,
+                (marker_words_outcome(copied), position));
+            let last = crate::specs::part1_fresh_list_requests(segment.payload@, output_start, components, segment.offset, true);
+            let status = if marker_words_outcome(copied) == Err(DecodeError::AllocationFailed) { Err(DecodeError::AllocationFailed) } else { Ok(()) };
+            crate::specs::part1_mct_copy_continue(first, last, Seq::empty(), status);
+            assert(all =~= (first + last) + Seq::<crate::specs::Part1MctCopyRequest>::empty());
+            if marker_words_outcome(copied) == Err(DecodeError::AllocationFailed) {
+                crate::specs::part1_fresh_collection_refused(segment_view(segment), components, start);
+            }
+        }
+        let output_components = copied?;
         if input_components.is_empty()
             || position > segment.payload.len()
             || segment.payload.len() - position < 3
@@ -941,11 +1178,16 @@ impl<'a> Parser<'a> {
 
     #[cfg_attr(verus_keep_ghost, verifier::spinoff_prover)]
     #[cfg_attr(verus_keep_ghost, verus_spec(result =>
-        ensures segment_tail_outcome(result) == crate::specs::part1_parse_mco(segment_view(segment)),
+        ensures crate::specs::part1_fresh_mco_result(segment_view(segment), segment_tail_outcome(result)),
+            segment_tail_outcome(result) != Err(DecodeError::AllocationFailed) ==>
+                segment_tail_outcome(result) == crate::specs::part1_parse_mco(segment_view(segment)),
     ))]
     pub(super) fn parse_mco(&self, segment: Segment<'a>) -> Result<Vec<u8>, DecodeError> {
         #[cfg(verus_keep_ghost)]
-        proof! { reveal(crate::specs::part1_parse_mco); }
+        proof! {
+            reveal(crate::specs::part1_parse_mco);
+            crate::specs::part1_fresh_mco_normal(segment_view(segment));
+        }
         let count = match segment.payload.first() {
             Some(value) => usize::from(*value),
             None => return Err(self.malformed_at(segment.offset, MalformedKind::InvalidTransform)),
@@ -953,12 +1195,26 @@ impl<'a> Parser<'a> {
         if segment.payload.len() != count + 1 {
             return Err(self.malformed_at(segment.offset, MalformedKind::InvalidTransform));
         }
-        let mut order = Vec::with_capacity(count);
+        let copied = reserve_values(
+            count,
+            MctCopyPath::FreshMarker(FreshMarkerPath::Order(segment.offset)),
+        );
+        let mut order = match copied {
+            Ok(order) => order,
+            Err(error) => {
+                #[cfg(verus_keep_ghost)]
+                proof! { crate::specs::part1_fresh_mco_refused(segment_view(segment)); }
+                return Err(error);
+            }
+        };
+        #[cfg(verus_keep_ghost)]
+        proof! { assert(order@ =~= Seq::<u8>::empty()); }
         let mut index = 0_usize;
         #[cfg_attr(
             verus_keep_ghost,
             verus_spec(
                 invariant index <= count <= 255, order.len() == index,
+                    crate::specs::part1_fresh_mco_result(segment_view(segment), crate::specs::part1_parse_mco(segment_view(segment))),
                     segment.payload.len() == count + 1,
                     crate::specs::part1_parse_mco(segment_view(segment))
                         == crate::specs::part1_mco_run(segment_view(segment), index as nat, order@),
@@ -979,6 +1235,7 @@ impl<'a> Parser<'a> {
                 verus_keep_ghost,
                 verus_spec(
                     invariant previous <= order.len(), order.len() == index,
+                        crate::specs::part1_fresh_mco_result(segment_view(segment), crate::specs::part1_parse_mco(segment_view(segment))),
                         index < count <= 255, segment.payload.len() == count + 1,
                         stage == segment.payload@[index as int + 1],
                         forall|position: int| 0 <= position < previous ==> order@[position] != stage,
@@ -1026,14 +1283,18 @@ impl<'a> Parser<'a> {
 }
 #[cfg_attr(verus_keep_ghost, verifier::spinoff_prover)]
 #[cfg_attr(verus_keep_ghost, verus_spec(result =>
-    ensures (marker_words_outcome(result), *final(position)) == crate::specs::part1_parse_mcc_component_list(
-        payload@, *old(position), components, marker_offset),
+    ensures crate::specs::part1_fresh_list_result(payload@, *old(position), components, marker_offset, _output,
+            (marker_words_outcome(result), *final(position))),
+        marker_words_outcome(result) != Err(DecodeError::AllocationFailed) ==>
+            (marker_words_outcome(result), *final(position)) == crate::specs::part1_parse_mcc_component_list(
+                payload@, *old(position), components, marker_offset),
 ))]
 pub(super) fn parse_mcc_component_list(
     payload: &[u8],
     position: &mut usize,
     components: u16,
     marker_offset: usize,
+    _output: bool,
 ) -> Result<Vec<u16>, DecodeError> {
     #[cfg(verus_keep_ghost)]
     proof_decl! {
@@ -1041,7 +1302,10 @@ pub(super) fn parse_mcc_component_list(
         let ghost goal = crate::specs::part1_parse_mcc_component_list(payload@, start, components, marker_offset);
     }
     #[cfg(verus_keep_ghost)]
-    proof! { reveal(crate::specs::part1_parse_mcc_component_list); }
+    proof! {
+        reveal(crate::specs::part1_parse_mcc_component_list);
+        crate::specs::part1_fresh_list_normal(payload@, start, components, marker_offset, _output);
+    }
     if *position > payload.len() || payload.len() - *position < 2 {
         return Err(DecodeError::MalformedInput {
             offset: marker_offset as u64,
@@ -1093,12 +1357,29 @@ pub(super) fn parse_mcc_component_list(
         let ghost target = crate::specs::part1_mcc_reference_run(
             payload@, components, marker_offset, *position, reference_bytes, count as nat, Seq::empty());
     }
-    let mut references = Vec::with_capacity(usize::from(count));
+    let path = if _output {
+        FreshMarkerPath::Outputs(marker_offset, *position)
+    } else {
+        FreshMarkerPath::Inputs(marker_offset, *position)
+    };
+    let copied = reserve_values(usize::from(count), MctCopyPath::FreshMarker(path));
+    let mut references = match copied {
+        Ok(references) => references,
+        Err(error) => {
+            #[cfg(verus_keep_ghost)]
+            proof! { crate::specs::part1_fresh_list_refused(payload@, start, components, marker_offset, _output); }
+            return Err(error);
+        }
+    };
+    #[cfg(verus_keep_ghost)]
+    proof! { assert(references@ =~= Seq::<u16>::empty()); }
     let mut reference_index = 0_u16;
     #[cfg_attr(
         verus_keep_ghost,
         verus_spec(
             invariant reference_index <= count <= 32767, references.len() == reference_index,
+                crate::specs::part1_fresh_list_result(payload@, start, components, marker_offset, _output,
+                    crate::specs::part1_parse_mcc_component_list(payload@, start, components, marker_offset)),
                 reference_bytes == 1 || reference_bytes == 2,
                 start == *old(position),
                 *position as int + (count - reference_index) * reference_bytes as int == end,

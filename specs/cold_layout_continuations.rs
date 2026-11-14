@@ -175,6 +175,19 @@ pub(crate) proof fn part1_cold_layout_sot_read_error<'a>(
     part1_cold_layout_error(ctx.root, copied + calls, error);
 }
 
+pub(crate) proof fn part1_cold_layout_sot_read_result_error<'a>(
+    ctx: Part1ColdLayoutSot<'a>, reader: Part1CodestreamReader<'a>, error: crate::DecodeError,
+)
+    requires part1_cold_layout_prefix(ctx.root), part1_cold_layout_sot_known(ctx),
+        part1_cold_tile_part_result(part1_cold_layout_sot_input(ctx), (Err(error), reader)),
+    ensures part1_cold_layout_result(ctx.root.initial, Err(error)),
+{
+    part1_cold_tile_part_calls(part1_cold_layout_sot_input(ctx), (Err(error), reader));
+    let calls = choose|calls: Seq<Part1ColdStorageEvent>| part1_cold_tile_part_run(part1_cold_layout_sot_input(ctx), calls)
+        == Some(((Err(error), reader), Seq::empty()));
+    part1_cold_layout_sot_read_error(ctx, calls, reader, error);
+}
+
 pub(crate) open spec fn part1_cold_layout_sot_commit_rejected(
     ctx: Part1ColdLayoutSot<'_>, read_calls: Seq<Part1ColdStorageEvent>,
     commit_calls: Seq<Part1ColdStorageEvent>, error: crate::DecodeError,

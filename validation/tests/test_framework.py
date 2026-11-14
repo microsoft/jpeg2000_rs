@@ -8046,6 +8046,20 @@ class FrameworkTests(WorkingFiles):
         entry = next(item for item in coverage["requirements"] if item["id"] == framework._RAW_LAYOUT_ENTRY)
         read_text = Path.read_text
         for relative, symbol, before, after in (
+            ("src/codestream/mct_markers.rs", "Parser::decode_mcc_collection",
+             "segment.offset,\n            false,", "segment.offset,\n            true,"),
+            ("src/codestream/mct_markers.rs", "Parser::consume_mct_fragment",
+             "FreshMarkerPath::MctReassembly(state.offset)", "FreshMarkerPath::MctInitial(state.offset)"),
+            ("specs/cold_marker_storage.rs", "part1_fresh_marker_site",
+             "FreshMarkerPath::Values(_) => 63", "FreshMarkerPath::Values(_) => 16"),
+            ("specs/cold_marker_storage.rs", "part1_fresh_collection_requests",
+             "components, segment.offset, false)", "components, segment.offset, true)"),
+            ("specs/cold_marker_storage.rs", "part1_fresh_prepare_mct_requests",
+             "completed).0.is_ok()", "completed).0.is_err()"),
+            ("specs/cold_marker_storage.rs", "part1_fresh_consume_mct_run",
+             "Some(((Err(error), removed, completed), tail))", "Some(((Err(error), pending, completed), tail))"),
+            ("specs/cold_marker_storage.rs", "part1_fresh_consume_mcc_run",
+             "Some(((Err(error), changed, completed), rest))", "Some(((Err(error), pending, completed), rest))"),
             ("specs/cold_quantization.rs", "part1_main_quantization_cold_complete",
              "part1_quantization_storage_request(8,", "part1_quantization_storage_request(0,"),
             ("specs/cold_quantization.rs", "part1_main_quantization_cold_complete",
@@ -8127,7 +8141,8 @@ class FrameworkTests(WorkingFiles):
         ):
             source = framework.ROOT / relative
             original = source.read_text()
-            body = framework._coverage_spec_function_body(original, symbol)
+            body = (framework._coverage_function_body(original, framework._coverage_function_header(original, symbol))
+                    if relative.startswith("src/") else framework._coverage_spec_function_body(original, symbol))
             self.assertIn(before, body)
             changed = original.replace(body, body.replace(before, after, 1), 1)
 

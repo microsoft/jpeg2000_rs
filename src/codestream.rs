@@ -501,6 +501,21 @@ pub(crate) enum MctCopyPath {
     Extensions(Part2CopyPath),
     Resolved(ResolvedCopyPath),
     PayloadExtensions(Part2CopyPath),
+    FreshMarker(FreshMarkerPath),
+}
+
+#[derive(Clone, Copy)]
+#[cfg_attr(not(verus_keep_ghost), derive(Debug, Eq, PartialEq))]
+pub(crate) enum FreshMarkerPath {
+    Values(usize),
+    Collections(usize),
+    Inputs(usize, usize),
+    Outputs(usize, usize),
+    Order(usize),
+    MctReassembly(usize),
+    MccReassembly(usize),
+    MctInitial(usize),
+    MccInitial(usize),
 }
 
 #[derive(Clone, Copy)]

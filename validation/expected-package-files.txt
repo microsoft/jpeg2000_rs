@@ -25,6 +25,8 @@ specs/cold_extensions_copy.rs
 specs/cold_header_progression.rs
 specs/cold_layout.rs
 specs/cold_layout_continuations.rs
+specs/cold_marker_header.rs
+specs/cold_marker_storage.rs
 specs/cold_mct_copy.rs
 specs/cold_payload_owners.rs
 specs/cold_progression.rs

@@ -16,6 +16,8 @@ pub(crate) open spec fn part1_main_progression_payload<'a>(
             Some((Ok(progression), rest)) => Some(((Ok(()), reader,
                 Part1MainHeaderAccumulator { progression, ..changed }), rest)),
         }
+    } else if segment.marker == 0xff74 || segment.marker == 0xff75 || segment.marker == 0xff77 {
+        part1_fresh_main_payload(reader, raw, segment, events)
     } else { Some((part1_main_header_payload(reader, raw, segment), events)) }
 }
 
@@ -68,6 +70,8 @@ pub(crate) open spec fn part1_tile_progression_payload<'a>(
             Some((Ok(progression_changes), rest)) => Some(((Ok(()), reader,
                 Part1TileHeaderAccumulator { progression_changes, ..changed }), rest)),
         }
+    } else if segment.marker == 0xff74 || segment.marker == 0xff75 || segment.marker == 0xff77 {
+        part1_fresh_tile_payload(reader, raw, segment, components, events)
     } else { Some((part1_tile_header_payload(reader, raw, segment, components, tile_part_index, lengths, headers), events)) }
 }
 
@@ -128,11 +132,11 @@ pub(crate) open spec fn part1_read_tile_progression_run<'a>(
 }
 
 pub(crate) open spec fn part1_main_progression_payload_calls(
-    raw: Part1MainHeaderAccumulator, segment: Part1CodestreamSegment,
+    reader: Part1CodestreamReader<'_>, raw: Part1MainHeaderAccumulator, segment: Part1CodestreamSegment,
 ) -> Seq<Part1ColdStorageEvent> {
     if segment.marker == 0xff5f && !raw.poc_seen {
         part1_poc_normal_calls(12, segment, raw.image_size.components)
-    } else { Seq::empty() }
+    } else { part1_fresh_main_calls(reader, raw, segment) }
 }
 
 pub(crate) proof fn part1_main_progression_payload_normal<'a>(
@@ -140,12 +144,14 @@ pub(crate) proof fn part1_main_progression_payload_normal<'a>(
     segment: Part1CodestreamSegment, tail: Seq<Part1ColdStorageEvent>,
 )
     ensures part1_main_progression_payload(reader, raw, segment,
-        part1_main_progression_payload_calls(raw, segment) + tail)
+        part1_main_progression_payload_calls(reader, raw, segment) + tail)
             == Some((part1_main_header_payload(reader, raw, segment), tail)),
 {
     reveal(part1_main_header_payload);
     if segment.marker == 0xff5f && !raw.poc_seen {
         part1_poc_cold_normal(12, segment, raw.image_size.components, tail);
+    } else if segment.marker == 0xff74 || segment.marker == 0xff75 || segment.marker == 0xff77 {
+        part1_fresh_main_normal(reader, raw, segment, tail);
     } else { assert(Seq::<Part1ColdStorageEvent>::empty() + tail =~= tail); }
 }
 
@@ -167,7 +173,7 @@ pub(crate) proof fn part1_main_progression_continuation_normal<'a>(
         Err(_) => Seq::empty(),
         Ok(None) => Seq::empty(),
         Ok(Some(segment)) => {
-            let first = part1_main_progression_payload_calls(changed, segment);
+            let first = part1_main_progression_payload_calls(admitted.1, changed, segment);
             let step = part1_main_header_payload(admitted.1, changed, segment);
             let rest = if step.0.is_ok() && part1_parser_progress(reader.position, step.1.position, input_length) {
                 part1_main_progression_continuation_normal(step.1, step.2, input_length)
@@ -201,11 +207,11 @@ pub(crate) proof fn part1_prepare_main_progression_normal(reader: Part1Codestrea
 }
 
 pub(crate) open spec fn part1_tile_progression_payload_calls(
-    raw: Part1TileHeaderAccumulator, segment: Part1CodestreamSegment, components: u16, tile_part_index: u8,
+    reader: Part1CodestreamReader<'_>, raw: Part1TileHeaderAccumulator, segment: Part1CodestreamSegment, components: u16, tile_part_index: u8,
 ) -> Seq<Part1ColdStorageEvent> {
     if segment.marker == 0xff5f && !raw.poc_seen && tile_part_index == 0 {
         part1_poc_normal_calls(13, segment, components)
-    } else { Seq::empty() }
+    } else { part1_fresh_tile_calls(reader, raw, segment, components) }
 }
 
 pub(crate) proof fn part1_tile_progression_payload_normal<'a>(
@@ -214,12 +220,14 @@ pub(crate) proof fn part1_tile_progression_payload_normal<'a>(
     lengths: Part1PacketLengths, headers: Part1PackedHeaders, tail: Seq<Part1ColdStorageEvent>,
 )
     ensures part1_tile_progression_payload(reader, raw, segment, components, tile_part_index, lengths, headers,
-        part1_tile_progression_payload_calls(raw, segment, components, tile_part_index) + tail)
+        part1_tile_progression_payload_calls(reader, raw, segment, components, tile_part_index) + tail)
             == Some((part1_tile_header_payload(reader, raw, segment, components, tile_part_index, lengths, headers), tail)),
 {
     reveal(part1_tile_header_payload);
     if segment.marker == 0xff5f && !raw.poc_seen && tile_part_index == 0 {
         part1_poc_cold_normal(13, segment, components, tail);
+    } else if segment.marker == 0xff74 || segment.marker == 0xff75 || segment.marker == 0xff77 {
+        part1_fresh_tile_normal(reader, raw, segment, components, tail);
     } else { assert(Seq::<Part1ColdStorageEvent>::empty() + tail =~= tail); }
 }
 
@@ -229,7 +237,7 @@ pub(crate) proof fn part1_tile_progression_dispatch_normal<'a>(
     lengths: Part1PacketLengths, headers: Part1PackedHeaders, tail: Seq<Part1ColdStorageEvent>,
 )
     ensures part1_tile_progression_dispatch(reader, raw, segment, components, tile_part_index, lengths, headers,
-        part1_tile_progression_payload_calls(raw, segment, components, tile_part_index) + tail)
+        part1_tile_progression_payload_calls(reader, raw, segment, components, tile_part_index) + tail)
             == Some((part1_tile_header_dispatch(reader, raw, segment, components, tile_part_index, lengths, headers), tail)),
 {
     reveal(part1_tile_header_dispatch);
@@ -259,7 +267,7 @@ pub(crate) proof fn part1_tile_progression_traversal_normal<'a>(
         Err(_) => Seq::empty(),
         Ok(None) => Seq::empty(),
         Ok(Some(segment)) => {
-            let first = part1_tile_progression_payload_calls(raw, segment, components, tile_part_index);
+            let first = part1_tile_progression_payload_calls(admitted.1, raw, segment, components, tile_part_index);
             let step = part1_tile_header_dispatch(admitted.1, raw, segment, components, tile_part_index, lengths, headers);
             let rest = if step.0.is_ok() && part1_parser_progress(reader.position, step.1.position, input_length) {
                 part1_tile_progression_traversal_normal(
@@ -314,7 +322,7 @@ pub(crate) open spec fn part1_main_progression_continuation_calls(
         Ok(None) => Seq::empty(),
         Ok(Some(segment)) => {
             let step = part1_main_header_payload(admitted.1, changed, segment);
-            part1_main_progression_payload_calls(changed, segment) +
+            part1_main_progression_payload_calls(admitted.1, changed, segment) +
                 if step.0.is_ok() && part1_parser_progress(reader.position, step.1.position, input_length) {
                     part1_main_progression_continuation_calls(step.1, step.2, input_length)
                 } else { Seq::empty() }
@@ -345,7 +353,7 @@ pub(crate) open spec fn part1_tile_progression_traversal_calls(
         Ok(None) => Seq::empty(),
         Ok(Some(segment)) => {
             let step = part1_tile_header_dispatch(admitted.1, raw, segment, components, tile_part_index, lengths, headers);
-            part1_tile_progression_payload_calls(raw, segment, components, tile_part_index) +
+            part1_tile_progression_payload_calls(admitted.1, raw, segment, components, tile_part_index) +
                 if step.0.is_ok() && part1_parser_progress(reader.position, step.1.position, input_length) {
                     part1_tile_progression_traversal_calls(
                         step.1, step.2, components, tile_part_index, lengths, headers, input_length)
@@ -378,6 +386,8 @@ pub(crate) proof fn part1_main_progression_payload_frame<'a>(
         if let Some((parsed, after)) = part1_poc_cold_run(12, segment, raw.image_size.components, events) {
             part1_poc_cold_frame(12, segment, raw.image_size.components, events, parsed, after, tail);
         }
+    } else if segment.marker == 0xff74 || segment.marker == 0xff75 || segment.marker == 0xff77 {
+        part1_fresh_main_frame(reader, raw, segment, events, result, rest, tail);
     }
 }
 
@@ -396,6 +406,8 @@ pub(crate) proof fn part1_main_progression_payload_projection<'a>(
         if let Some((parsed, after)) = part1_poc_cold_run(12, segment, raw.image_size.components, events) {
             part1_poc_cold_projection(12, segment, raw.image_size.components, events, parsed, after);
         }
+    } else if segment.marker == 0xff74 || segment.marker == 0xff75 || segment.marker == 0xff77 {
+        part1_fresh_main_projection(reader, raw, segment, events, result, rest);
     }
 }
 
@@ -530,7 +542,7 @@ pub(crate) proof fn part1_cold_main_advance<'a>(
     let admitted = part1_read_main_header_segment(reader, raw.segments);
     if let Ok(Some(segment)) = admitted.0 {
         let before = Part1MainHeaderAccumulator { segments: admitted.2, ..raw };
-        let calls = part1_main_progression_payload_calls(before, segment);
+        let calls = part1_main_progression_payload_calls(admitted.1, before, segment);
         assert forall|tail: Seq<Part1ColdStorageEvent>|
             part1_prepare_main_progression_run(initial, (prefix + calls) + tail)
                 == part1_main_progression_continuation(
@@ -580,6 +592,8 @@ pub(crate) proof fn part1_tile_progression_payload_frame<'a>(
         if let Some((parsed, after)) = part1_poc_cold_run(13, segment, components, events) {
             part1_poc_cold_frame(13, segment, components, events, parsed, after, tail);
         }
+    } else if segment.marker == 0xff74 || segment.marker == 0xff75 || segment.marker == 0xff77 {
+        part1_fresh_tile_frame(reader, raw, segment, components, events, result, rest, tail);
     }
 }
 
@@ -599,6 +613,8 @@ pub(crate) proof fn part1_tile_progression_payload_projection<'a>(
         if let Some((parsed, after)) = part1_poc_cold_run(13, segment, components, events) {
             part1_poc_cold_projection(13, segment, components, events, parsed, after);
         }
+    } else if segment.marker == 0xff74 || segment.marker == 0xff75 || segment.marker == 0xff77 {
+        part1_fresh_tile_projection(reader, raw, segment, components, events, result, rest);
     }
 }
 
@@ -757,7 +773,7 @@ pub(crate) proof fn part1_tile_progression_payload_normal_result<'a>(
 {
     reveal(part1_tile_progression_payload_result);
     part1_tile_progression_payload_normal(reader, raw, segment, components, tile_part_index, lengths, headers, Seq::empty());
-    let calls = part1_tile_progression_payload_calls(raw, segment, components, tile_part_index);
+    let calls = part1_tile_progression_payload_calls(reader, raw, segment, components, tile_part_index);
     assert(calls + Seq::<Part1ColdStorageEvent>::empty() =~= calls);
 }
 
@@ -1001,6 +1017,8 @@ pub(crate) open spec fn part1_tile_progression_payload_storage_result<'a>(
     if segment.marker == 0xff5f && !raw.poc_seen && tile_part_index == 0 {
         exists|reserved: bool| result == part1_tile_progression_payload_storage(
             reader, raw, segment, components, tile_part_index, lengths, headers, reserved)
+    } else if segment.marker == 0xff74 || segment.marker == 0xff75 || segment.marker == 0xff77 {
+        part1_fresh_tile_result(reader, raw, segment, components, result)
     } else { result == part1_tile_header_payload(reader, raw, segment, components, tile_part_index, lengths, headers) }
 }
 
@@ -1013,6 +1031,9 @@ pub(crate) proof fn part1_tile_progression_payload_storage_normal<'a>(
         part1_tile_header_payload(reader, raw, segment, components, tile_part_index, lengths, headers)),
 {
     reveal(part1_tile_header_payload);
+    if segment.marker == 0xff74 || segment.marker == 0xff75 || segment.marker == 0xff77 {
+        part1_fresh_tile_normal_result(reader, raw, segment, components);
+    }
     assert(part1_tile_progression_payload_storage(reader, raw, segment, components, tile_part_index, lengths, headers, true)
         == part1_tile_header_payload(reader, raw, segment, components, tile_part_index, lengths, headers));
 }
@@ -1044,6 +1065,12 @@ pub(crate) proof fn part1_tile_progression_payload_storage_observed<'a>(
         reader, raw, segment, components, tile_part_index, lengths, headers, result),
 {
     reveal(part1_tile_progression_payload_result);
+    if segment.marker == 0xff74 || segment.marker == 0xff75 || segment.marker == 0xff77 {
+        reveal(part1_fresh_tile_result);
+        let calls = choose|calls: Seq<Part1ColdStorageEvent>| part1_fresh_tile_payload(reader, raw, segment, components, calls) == Some((result, Seq::empty()));
+        assert(part1_tile_progression_payload(reader, raw, segment, components, tile_part_index, lengths, headers, calls) == Some((result, Seq::empty())));
+        return;
+    }
     if !(segment.marker == 0xff5f && !raw.poc_seen && tile_part_index == 0) {
         assert(result == part1_tile_progression_payload_storage(
             reader, raw, segment, components, tile_part_index, lengths, headers, true));

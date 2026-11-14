@@ -1002,6 +1002,19 @@ Checked ordinary-error request prefixes and exact Result/frame/tail relations
 are linked alongside every retained original graph model. Bounded controls
 exercise first/later refusal, malformed/empty bypass and zero/nonzero reader
 frontiers; mutations reject old-site/role aliases and lost no-event/error frames.
+Fresh marker constructors extend the same exact inner event stream at sites
+63–71: values, collections, input/output lists, order, MCT/MCC reassembly and
+initial fragment bytes. Ten executing producer contracts retain complete
+input-derived cold Result/mutable-state relations and checked ordinary
+projections. Paths carry actual offsets/cursors; request prefixes stop at the
+original first ordinary error. Main/tile bind models preserve admitted readers,
+counters, seen flags, prior owners and removal-before-reassembly failures.
+Mutations additionally reject old-site aliases, swapped list roles, early
+error/event substitution and lost pending/removal frames. Bounded native
+controls cover first/later refusal, empty/no-request, duplicate precedence,
+partial owners and raw/container restoration. Existing-buffer growth remains
+blocked on the pinned capacity-observation/reservation-effect interface; fresh
+reservation models do not establish physical capacity or host availability.
 Same-file links are checked inside another listed, formatted function body;
 the contract's own declaration, an unrelated function or an indirect caller
 does not qualify as a direct same-file call. Unsupported formatting can fail

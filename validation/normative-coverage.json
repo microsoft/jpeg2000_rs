@@ -3181,6 +3181,13 @@
         {"path": "src/decode/output.rs", "symbol": "decode_jpx_file"}
       ],
       "spec_refs": [
+        {"path": "specs/cold_marker_storage.rs", "symbol": "part1_fresh_marker_site"},
+        {"path": "specs/cold_marker_storage.rs", "symbol": "part1_fresh_collection_requests"},
+        {"path": "specs/cold_marker_storage.rs", "symbol": "part1_fresh_records_requests"},
+        {"path": "specs/cold_marker_storage.rs", "symbol": "part1_fresh_prepare_mct_requests"},
+        {"path": "specs/cold_marker_storage.rs", "symbol": "part1_fresh_prepare_mcc_requests"},
+        {"path": "specs/cold_marker_header.rs", "symbol": "part1_fresh_main_payload"},
+        {"path": "specs/cold_marker_header.rs", "symbol": "part1_fresh_tile_payload"},
         {"path": "specs/raw_layout.rs", "symbol": "part1_parse_layout"},
         {"path": "specs/raw_layout.rs", "symbol": "part1_parse_info"},
         {"path": "specs/raw_layout.rs", "symbol": "part1_read_layout"},
@@ -3214,6 +3221,14 @@
         {"path": "src/codestream/layout.rs", "symbol": "parse"}
       ],
       "proof_refs": [
+        {"path": "specs/cold_marker_header.rs", "symbol": "part1_cold_main_fresh_error"},
+        {"path": "specs/cold_marker_header.rs", "symbol": "part1_fresh_main_normal"},
+        {"path": "specs/cold_marker_header.rs", "symbol": "part1_fresh_main_projection"},
+        {"path": "specs/cold_marker_header.rs", "symbol": "part1_fresh_main_frame"},
+        {"path": "specs/cold_marker_header.rs", "symbol": "part1_fresh_tile_normal"},
+        {"path": "specs/cold_marker_header.rs", "symbol": "part1_fresh_tile_projection"},
+        {"path": "specs/cold_marker_header.rs", "symbol": "part1_fresh_tile_frame"},
+        {"path": "specs/cold_layout_continuations.rs", "symbol": "part1_cold_layout_sot_read_result_error"},
         {"path": "src/codestream/proof_support.rs", "symbol": "complete_codestream_info_view"},
         {"path": "src/codestream/proof_support.rs", "symbol": "complete_codestream_info_outcome"},
         {"path": "src/codestream/proof_support.rs", "symbol": "complete_layout_outcome"},
@@ -3246,6 +3261,8 @@
         {"path": "specs/cold_layout_continuations.rs", "symbol": "part1_cold_layout_sot_progression_error"}
       ],
       "test_refs": [
+        {"path": "src/codestream/tests.rs", "symbol": "fresh_marker_raw_first_and_value_refusal_restore_public_inspection"},
+        {"path": "src/jp2/tests.rs", "symbol": "fresh_marker_container_first_and_value_refusal_restore_public_inspection"},
         {"path": "src/codestream/raw_layout_result_tests.rs", "symbol": "actual_complete_raw_layout_result_keeps_interleaved_source_parts_and_public_info"},
         {"path": "src/codestream/raw_layout_result_tests.rs", "symbol": "actual_complete_raw_layout_result_preserves_late_roi_end_and_profile_error_priority"},
         {"path": "src/codestream/raw_layout_result_tests.rs", "symbol": "actual_complete_raw_layout_result_keeps_input_work_and_tile_limit_first_errors"},
@@ -3267,6 +3284,12 @@
         {"path": "src/codestream/extensions.rs", "symbol": "new_part2_extensions"}
       ],
       "spec_refs": [
+        {"path": "specs/cold_marker_storage.rs", "symbol": "part1_fresh_marker_site"},
+        {"path": "specs/cold_marker_storage.rs", "symbol": "part1_fresh_collection_requests"},
+        {"path": "specs/cold_marker_storage.rs", "symbol": "part1_fresh_records_requests"},
+        {"path": "specs/cold_marker_storage.rs", "symbol": "part1_fresh_prepare_mct_requests"},
+        {"path": "specs/cold_marker_storage.rs", "symbol": "part1_fresh_prepare_mcc_requests"},
+        {"path": "specs/cold_marker_header.rs", "symbol": "part1_fresh_main_payload"},
         {"path": "specs/main_header.rs", "symbol": "part1_empty_extensions"},
         {"path": "specs/main_header.rs", "symbol": "part1_empty_roi_shifts"},
         {"path": "specs/main_header.rs", "symbol": "part1_empty_progression_changes"},
@@ -3302,6 +3325,10 @@
         {"path": "src/codestream/extensions.rs", "symbol": "new_part2_extensions"}
       ],
       "proof_refs": [
+        {"path": "specs/cold_marker_header.rs", "symbol": "part1_cold_main_fresh_error"},
+        {"path": "specs/cold_marker_header.rs", "symbol": "part1_fresh_main_normal"},
+        {"path": "specs/cold_marker_header.rs", "symbol": "part1_fresh_main_projection"},
+        {"path": "specs/cold_marker_header.rs", "symbol": "part1_fresh_main_frame"},
         {"path": "src/codestream/proof_support.rs", "symbol": "main_header_accumulator_view"},
         {"path": "src/codestream/proof_support.rs", "symbol": "main_header_fields_view"},
         {"path": "src/codestream/proof_support.rs", "symbol": "layout_main_header_outcome"},
@@ -3787,6 +3814,8 @@
         {"path": "src/codestream/tile_header_traversal.rs", "symbol": "Parser::apply_tile_header_mct_segment"}
       ],
       "spec_refs": [
+        {"path": "specs/cold_marker_header.rs", "symbol": "part1_fresh_tile_payload"},
+        {"path": "specs/cold_marker_header.rs", "symbol": "part1_fresh_tile_result"},
         {"path": "specs/tile_header_traversal.rs", "symbol": "Part1TileHeaderAccumulator"},
         {"path": "specs/tile_header_traversal.rs", "symbol": "part1_tile_header_initial"},
         {"path": "specs/tile_header_traversal.rs", "symbol": "part1_read_tile_header"},
@@ -3819,6 +3848,7 @@
         {"path": "src/codestream/tile_header_traversal.rs", "symbol": "Parser::apply_tile_header_mct_segment"}
       ],
       "proof_refs": [
+        {"path": "specs/cold_marker_header.rs", "symbol": "part1_fresh_tile_normal_result"},
         {"path": "src/codestream/tile_header_traversal_proof_support.rs", "symbol": "tile_header_accumulator_view"},
         {"path": "src/codestream/tile_header_traversal_proof_support.rs", "symbol": "tile_header_read_outcome"},
         {"path": "src/codestream/proof_support.rs", "symbol": "parser_view"},
@@ -4533,6 +4563,10 @@
         {"path": "src/codestream/mct_markers.rs", "symbol": "Parser::parse_mct"}
       ],
       "spec_refs": [
+        {"path": "specs/cold_marker_storage.rs", "symbol": "part1_fresh_consume_mct_result"},
+        {"path": "specs/cold_marker_storage.rs", "symbol": "part1_fresh_consume_mct_run"},
+        {"path": "specs/cold_marker_storage.rs", "symbol": "part1_fresh_prepare_mct_result"},
+        {"path": "specs/cold_marker_storage.rs", "symbol": "part1_fresh_prepare_mct_run"},
         {"path": "specs/mod.rs", "symbol": "Part1MctFragment"},
         {"path": "specs/mod.rs", "symbol": "part1_consume_mct_fragment"},
         {"path": "specs/mod.rs", "symbol": "part1_prepare_mct_fragment"},
@@ -4551,6 +4585,8 @@
         {"path": "src/codestream/mct_resolution.rs", "symbol": "u8_list_contains"}
       ],
       "proof_refs": [
+        {"path": "specs/cold_marker_storage.rs", "symbol": "part1_fresh_consume_mct_normal"},
+        {"path": "specs/cold_marker_storage.rs", "symbol": "part1_fresh_prepare_mct_normal"},
         {"path": "src/codestream/proof_support.rs", "symbol": "mct_fragment_view"},
         {"path": "src/codestream/proof_support.rs", "symbol": "mct_pending_view"},
         {"path": "src/codestream/proof_support.rs", "symbol": "mct_fragment_outcome"},
@@ -4561,6 +4597,7 @@
         {"path": "src/limits.rs", "symbol": "ResourceLimits::maximum_components"}
       ],
       "test_refs": [
+        {"path": "src/codestream/tests.rs", "symbol": "fresh_marker_fragments_preserve_prior_pending_and_completion_on_refusal"},
         {"path": "src/codestream/tests.rs", "symbol": "actual_mct_fragments_preserve_descriptors_first_matches_and_partial_commits"},
         {"path": "src/codestream/tests.rs", "symbol": "actual_mct_fragments_compose_numeric_arrays_swap_order_offsets_and_reader"},
         {"path": "src/codestream/tests.rs", "symbol": "actual_mct_fragment_lookup_caps_and_overflow_preserve_raw_prior_state"}
@@ -4582,6 +4619,8 @@
         {"path": "src/codestream/mct_markers.rs", "symbol": "fixed_from_binary"}
       ],
       "spec_refs": [
+        {"path": "specs/cold_marker_storage.rs", "symbol": "part1_fresh_mct_result"},
+        {"path": "specs/cold_marker_storage.rs", "symbol": "part1_fresh_mct_run"},
         {"path": "specs/mod.rs", "symbol": "part1_parse_mct"},
         {"path": "specs/mod.rs", "symbol": "part1_mct_header"},
         {"path": "specs/mod.rs", "symbol": "Part1MctHeader"},
@@ -4609,6 +4648,7 @@
         {"path": "src/codestream/reader.rs", "symbol": "signed_u16"}
       ],
       "proof_refs": [
+        {"path": "specs/cold_marker_storage.rs", "symbol": "part1_fresh_mct_normal"},
         {"path": "src/codestream/proof_support.rs", "symbol": "mct_array_outcome"},
         {"path": "src/codestream/proof_support.rs", "symbol": "mct_array_view"},
         {"path": "src/codestream/proof_support.rs", "symbol": "mct_fixed_precision_is_q32"},
@@ -4619,6 +4659,7 @@
         {"path": "src/limits.rs", "symbol": "ResourceLimits::maximum_components"}
       ],
       "test_refs": [
+        {"path": "src/codestream/tests.rs", "symbol": "fresh_marker_values_order_lists_shape_refusal_and_restore"},
         {"path": "src/codestream/tests.rs", "symbol": "actual_mct_numeric_scalars_preserve_ieee_fields_ties_underflow_and_full_word_bytes"},
         {"path": "src/codestream/tests.rs", "symbol": "actual_mct_arrays_preserve_all_descriptors_formats_limits_and_first_value_errors"},
         {"path": "src/codestream/tests.rs", "symbol": "actual_mct_element_bounds_and_real_reader_preserve_all_array_fields"}
@@ -4636,6 +4677,10 @@
         {"path": "src/codestream/mct_resolution.rs", "symbol": "u8_list_contains"}
       ],
       "spec_refs": [
+        {"path": "specs/cold_marker_storage.rs", "symbol": "part1_fresh_consume_mcc_result"},
+        {"path": "specs/cold_marker_storage.rs", "symbol": "part1_fresh_consume_mcc_run"},
+        {"path": "specs/cold_marker_storage.rs", "symbol": "part1_fresh_prepare_mcc_result"},
+        {"path": "specs/cold_marker_storage.rs", "symbol": "part1_fresh_prepare_mcc_run"},
         {"path": "specs/mod.rs", "symbol": "part1_consume_mcc_fragment"},
         {"path": "specs/mod.rs", "symbol": "part1_prepare_mcc_fragment"},
         {"path": "specs/mod.rs", "symbol": "Part1MccFragment"},
@@ -4656,6 +4701,8 @@
         {"path": "src/codestream/mct_resolution.rs", "symbol": "u8_list_contains"}
       ],
       "proof_refs": [
+        {"path": "specs/cold_marker_storage.rs", "symbol": "part1_fresh_consume_mcc_normal"},
+        {"path": "specs/cold_marker_storage.rs", "symbol": "part1_fresh_prepare_mcc_normal"},
         {"path": "src/codestream/proof_support.rs", "symbol": "mcc_fragment_outcome"},
         {"path": "src/codestream/proof_support.rs", "symbol": "mcc_fragment_view"},
         {"path": "src/codestream/proof_support.rs", "symbol": "mcc_pending_view"},
@@ -4665,6 +4712,7 @@
         {"path": "src/refinement/reconstruction.rs", "symbol": "mct_fragment_complete"}
       ],
       "test_refs": [
+        {"path": "src/codestream/tests.rs", "symbol": "fresh_marker_fragments_preserve_prior_pending_and_completion_on_refusal"},
         {"path": "src/codestream/tests.rs", "symbol": "actual_mcc_fragments_preserve_all_index_headers_first_matches_and_partial_failure_commits"},
         {"path": "src/codestream/tests.rs", "symbol": "actual_mcc_fragments_compose_real_records_swap_order_offsets_and_completed_policy"},
         {"path": "src/codestream/tests.rs", "symbol": "actual_mcc_fragment_lookup_and_component_byte_bounds_preserve_raw_prior_state"}
@@ -4684,6 +4732,10 @@
         {"path": "src/codestream/reader.rs", "symbol": "signed_u32"}
       ],
       "spec_refs": [
+        {"path": "specs/cold_marker_storage.rs", "symbol": "part1_fresh_collection_result"},
+        {"path": "specs/cold_marker_storage.rs", "symbol": "part1_fresh_collection_run"},
+        {"path": "specs/cold_marker_storage.rs", "symbol": "part1_fresh_mcc_result"},
+        {"path": "specs/cold_marker_storage.rs", "symbol": "part1_fresh_mcc_run"},
         {"path": "specs/mod.rs", "symbol": "part1_parse_mcc"},
         {"path": "specs/mod.rs", "symbol": "part1_mcc_records"},
         {"path": "specs/mod.rs", "symbol": "part1_mcc_collection"},
@@ -4705,6 +4757,8 @@
         {"path": "src/codestream/reader.rs", "symbol": "signed_u32"}
       ],
       "proof_refs": [
+        {"path": "specs/cold_marker_storage.rs", "symbol": "part1_fresh_collection_normal"},
+        {"path": "specs/cold_marker_storage.rs", "symbol": "part1_fresh_mcc_normal"},
         {"path": "src/codestream/proof_support.rs", "symbol": "mcc_record_outcome"},
         {"path": "src/codestream/proof_support.rs", "symbol": "mcc_collection_outcome"},
         {"path": "src/codestream/proof_support.rs", "symbol": "mcc_collection_references_view"},
@@ -4716,6 +4770,7 @@
         {"path": "src/limits.rs", "symbol": "ResourceLimits::maximum_components"}
       ],
       "test_refs": [
+        {"path": "src/codestream/tests.rs", "symbol": "fresh_marker_collection_first_and_nested_output_refusal_restore"},
         {"path": "src/codestream/tests.rs", "symbol": "actual_mcc_collections_preserve_all_kind_bytes_flags_routes_wavelets_and_offsets"},
         {"path": "src/codestream/tests.rs", "symbol": "actual_mcc_records_preserve_header_limits_terminal_parallel_order_and_all_fields"},
         {"path": "src/codestream/tests.rs", "symbol": "actual_mcc_parallel_and_signed_offsets_match_independent_sets_and_full_width_reference"}
@@ -4734,6 +4789,10 @@
         {"path": "src/codestream/mct_markers.rs", "symbol": "u16_list_contains"}
       ],
       "spec_refs": [
+        {"path": "specs/cold_marker_storage.rs", "symbol": "part1_fresh_list_result"},
+        {"path": "specs/cold_marker_storage.rs", "symbol": "part1_fresh_list_run"},
+        {"path": "specs/cold_marker_storage.rs", "symbol": "part1_fresh_mco_result"},
+        {"path": "specs/cold_marker_storage.rs", "symbol": "part1_fresh_mco_run"},
         {"path": "specs/mod.rs", "symbol": "part1_parse_mco"},
         {"path": "specs/mod.rs", "symbol": "part1_mco_run"},
         {"path": "specs/mod.rs", "symbol": "part1_parse_mcc_component_list"},
@@ -4748,12 +4807,15 @@
         {"path": "src/codestream/mct_markers.rs", "symbol": "u16_list_contains"}
       ],
       "proof_refs": [
+        {"path": "specs/cold_marker_storage.rs", "symbol": "part1_fresh_list_normal"},
+        {"path": "specs/cold_marker_storage.rs", "symbol": "part1_fresh_mco_normal"},
         {"path": "src/codestream/proof_support.rs", "symbol": "segment_tail_outcome"},
         {"path": "src/codestream/proof_support.rs", "symbol": "marker_words_outcome"},
         {"path": "src/codestream/proof_support.rs", "symbol": "segment_view"},
         {"path": "src/codestream/reader.rs", "symbol": "read_u16"}
       ],
       "test_refs": [
+        {"path": "src/codestream/tests.rs", "symbol": "fresh_marker_values_order_lists_shape_refusal_and_restore"},
         {"path": "src/codestream/tests.rs", "symbol": "actual_mco_preserves_zero_order_all_stage_pairs_and_count_frontiers"},
         {"path": "src/codestream/tests.rs", "symbol": "actual_mcc_component_lists_preserve_all_headers_words_and_partial_cursors"},
         {"path": "src/codestream/tests.rs", "symbol": "actual_transform_routing_membership_and_real_mcc_mco_callers_preserve_order"}

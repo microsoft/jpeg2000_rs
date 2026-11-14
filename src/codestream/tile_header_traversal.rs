@@ -265,7 +265,9 @@ impl<'a> Parser<'a> {
                 raw.tile_rgn_seen = true;
                 raw.tile_roi_shifts.set(component, shift)?;
             }
-            MCT | MCC | MCO => self.apply_tile_header_mct_segment(raw, segment, components)?,
+            MCT | MCC | MCO => {
+                return self.apply_tile_header_mct_segment(raw, segment, components);
+            }
             PLT | PPT => {
                 self.apply_tile_header_packet_segment(raw, segment, main_lengths, main_headers)?
             }
@@ -400,9 +402,13 @@ impl<'a> Parser<'a> {
 
     #[cfg_attr(verus_keep_ghost, verifier::spinoff_prover)]
     #[cfg_attr(verus_keep_ghost, verus_spec(result =>
-        ensures (result, parser_view(final(self)), tile_header_accumulator_view(final(raw)))
-            == crate::specs::part1_tile_header_mct_payload(
-                parser_view(old(self)), tile_header_accumulator_view(old(raw)), segment_view(segment), components),
+        ensures crate::specs::part1_fresh_tile_result(
+                parser_view(old(self)), tile_header_accumulator_view(old(raw)), segment_view(segment), components,
+                (result, parser_view(final(self)), tile_header_accumulator_view(final(raw)))),
+            result != Err(DecodeError::AllocationFailed) ==>
+                (result, parser_view(final(self)), tile_header_accumulator_view(final(raw)))
+                    == crate::specs::part1_tile_header_mct_payload(
+                        parser_view(old(self)), tile_header_accumulator_view(old(raw)), segment_view(segment), components),
     ))]
     pub(super) fn apply_tile_header_mct_segment(
         &mut self,
@@ -411,7 +417,13 @@ impl<'a> Parser<'a> {
         components: u16,
     ) -> Result<(), DecodeError> {
         #[cfg(verus_keep_ghost)]
+        proof_decl! {
+            let ghost cold_reader = parser_view(self);
+            let ghost cold_raw = tile_header_accumulator_view(raw);
+        }
+        #[cfg(verus_keep_ghost)]
         proof! {
+            crate::specs::part1_fresh_tile_normal_result(cold_reader, cold_raw, segment_view(segment), components);
             reveal(crate::specs::part1_tile_header_mct_payload);
             reveal(tile_header_accumulator_view);
             reveal(parser_view);
@@ -427,21 +439,37 @@ impl<'a> Parser<'a> {
         }
         match segment.marker {
             MCT => {
-                if let Some(array) = self.consume_mct_fragment(
+                let copied = self.consume_mct_fragment(
                     segment,
                     &mut raw.pending_mct,
                     &mut raw.completed_mct,
-                )? {
+                );
+                #[cfg(verus_keep_ghost)]
+                proof! {
+                    if let Err(error) = copied {
+                        crate::specs::part1_fresh_tile_error(cold_reader, cold_raw, segment_view(segment), components, error,
+                            mct_pending_view(raw.pending_mct@), raw.completed_mct@, mcc_pending_view(raw.pending_mcc@), raw.completed_mcc@);
+                    }
+                }
+                if let Some(array) = copied? {
                     replace_mct_array(&mut raw.mct_parameters.arrays, array);
                 }
             }
             MCC => {
-                if let Some(record) = self.consume_mcc_fragment(
+                let copied = self.consume_mcc_fragment(
                     segment,
                     components,
                     &mut raw.pending_mcc,
                     &mut raw.completed_mcc,
-                )? {
+                );
+                #[cfg(verus_keep_ghost)]
+                proof! {
+                    if let Err(error) = copied {
+                        crate::specs::part1_fresh_tile_error(cold_reader, cold_raw, segment_view(segment), components, error,
+                            mct_pending_view(raw.pending_mct@), raw.completed_mct@, mcc_pending_view(raw.pending_mcc@), raw.completed_mcc@);
+                    }
+                }
+                if let Some(record) = copied? {
                     replace_mct_record(&mut raw.mct_parameters.records, record);
                 }
             }
@@ -453,7 +481,15 @@ impl<'a> Parser<'a> {
                     ));
                 }
                 raw.tile_mco_seen = true;
-                raw.mct_parameters.order = self.parse_mco(segment)?;
+                let copied = self.parse_mco(segment);
+                #[cfg(verus_keep_ghost)]
+                proof! {
+                    if let Err(error) = copied {
+                        crate::specs::part1_fresh_tile_error(cold_reader, cold_raw, segment_view(segment), components, error,
+                            mct_pending_view(raw.pending_mct@), raw.completed_mct@, mcc_pending_view(raw.pending_mcc@), raw.completed_mcc@);
+                    }
+                }
+                raw.mct_parameters.order = copied?;
             }
             _ => {
                 return Err(DecodeError::malformed(
