@@ -43,6 +43,8 @@ mod cold_tile_quantization;
 pub use cold_tile_quantization::*;
 mod cold_tile_part;
 pub use cold_tile_part::*;
+mod cold_tile_metadata;
+pub use cold_tile_metadata::*;
 mod cold_layout;
 pub use cold_layout::*;
 mod cold_layout_continuations;

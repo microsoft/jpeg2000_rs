@@ -4800,6 +4800,8 @@ _RAW_RENDER_PROOFS |= {("specs/jpx_raw_frame.rs", "part2_render_raw_cold_metadat
 _RAW_COMPOSITION_RENDER_PROOFS |= {("specs/jpx_raw_frame.rs", "part2_render_raw_cold_metadata_error")}
 
 _COLD_RESULT_MODELS = {
+    "part2_tile_component_resolutions": ("part2_tile_resolutions_result", "specs/cold_tile_metadata.rs", "part2_tile_resolutions_normal"),
+    "part2_tile_decode_metadata": ("part2_tile_metadata_result", "specs/cold_tile_metadata.rs", "part2_tile_metadata_normal"),
     "part2_component_resolution_counts": ("part2_geometry_descriptors_result", "specs/cold_geometry_storage.rs", "part2_geometry_descriptors_normal"),
     "part1_uniform_geometry_model": ("part1_uniform_geometry_cold_result", "specs/cold_uniform_geometry.rs", "part2_uniform_geometry_normal"),
     "part1_grid_count_summary": ("part2_grid_summary_result", "specs/cold_grid.rs", "part2_grid_summary_normal"),
@@ -4952,6 +4954,8 @@ def _coverage_cold_relation(
 ) -> tuple[str, str]:
     model, outcome, state, inputs = legacy
     cold_model = _COLD_RESULT_MODELS[model][0]
+    if model == "part2_tile_decode_metadata":
+        inputs = inputs.replace("parts@", _coverage_call("codestream::tile_parts_owned_view", "parts@"))
     if model == "part2_progression_tile_plan":
         inputs = inputs.replace("quantizations", _coverage_call("codestream::quantization_owner_view", "quantizations"))
     if model == "part1_progression_payloads":
@@ -5039,6 +5043,7 @@ _COLD_RESULT_CONTRACTS = {
         _PACKET_PROGRESSION_CONTRACTS, _LAYOUT_DECODING_CONTRACTS,
         _RAW_TILE_DECODING_CONTRACTS, _PACKET_RECONSTRUCTION_CONTRACTS, _TYPED_LAYOUT_CONTRACTS,
         _PACKET_GRID_PRODUCER_CONTRACTS, _COMPONENT_TILE_PLANNING_CONTRACTS,
+        _TILE_METADATA_CONTRACTS,
     )
     for key, legacy in contracts.items()
     if legacy[0] in _COLD_RESULT_MODELS
@@ -5140,6 +5145,17 @@ def _coverage_cold_links(keys: set[tuple[str, str]]) -> tuple[set[tuple[str, str
         }.get(model, model.removesuffix("_result") + "_run")
         models.update(((path, model), (path, run)))
         proofs.add((path, normal))
+        if model in ("part2_tile_resolutions_result", "part2_tile_metadata_result"):
+            models.update((path, name) for name in (
+                "part2_tile_metadata_capacity_count", "part2_tile_metadata_capacity_run", "part2_tile_metadata_capacity_result",
+                "part2_tile_resolutions_run", "part2_tile_resolutions_result", "part2_tile_metadata_admit",
+                "part2_tile_metadata_run", "part2_tile_metadata_result", "part2_tile_after_metadata_run",
+            ))
+            proofs.update((path, name) for name in (
+                "part2_tile_metadata_capacity_observed", "part2_tile_resolutions_normal", "part2_tile_resolutions_refused",
+                "part2_tile_metadata_normal", "part2_tile_metadata_resolution_error", "part2_tile_metadata_frames",
+                "part2_tile_after_metadata_normal", "part2_tile_metadata_decode_error",
+            ))
         if model in ("part2_geometry_descriptors_result", "part2_derived_grid_result"):
             models.update(("specs/cold_geometry_storage.rs", name) for name in (
                 "part2_geometry_capacity_count", "part2_geometry_capacity_run", "part2_geometry_capacity_result",
@@ -5339,6 +5355,53 @@ _COLD_SOURCE_BODIES = {
     """, "whole effective layer Result requires actual ordered decoder/registration/opacity models"),
 }
 
+_TILE_METADATA_STORAGE_TESTS = {
+    ("src/decode/tests.rs", "tile_metadata_storage_selected_first_later_empty_none_and_restore"),
+    ("src/decode/tests.rs", "tile_metadata_storage_preserves_admission_owner_and_style_error_order"),
+    ("src/decode/tests.rs", "tile_metadata_storage_selected_work_error_retains_exact_prior_requests"),
+    ("src/decode/tests.rs", "tile_metadata_storage_raw_selected_container_refusal_and_restore"),
+}
+_TILE_METADATA_STORAGE_GUARDS = {
+    ("specs/cold_tile_metadata.rs", "part2_tile_metadata_capacity_count"): (
+        "Part2TileMetadataCapacityContext::SelectedResolutions {components,..}=>components as usize",
+    ),
+    ("specs/cold_tile_metadata.rs", "part2_tile_metadata_capacity_run"): (
+        "if count==0 {Some((Ok(()),events))}", "Part2JpipSnapshotEvent::TileMetadataCapacity",
+        "actual!=context || elements!=count", "Err(crate::DecodeError::AllocationFailed)", "events.drop_first()", "_=>None",
+    ),
+    ("specs/cold_tile_metadata.rs", "part2_tile_resolutions_run"): (
+        "part2_tile_component_resolutions(styles,main,components,discard)", "None=>Some((ordinary,events))",
+        "Part2TileMetadataCapacityContext::SelectedResolutions {styles:*styles,main,components,discard:levels}",
+        "|_:(),rest|Some((ordinary,rest))",
+    ),
+    ("specs/cold_tile_metadata.rs", "part2_tile_metadata_admit"): (
+        "parts.len()==0", "MalformedKind::InvalidTilePart", "parts[i].multiple_component_transform==parts[0].multiple_component_transform",
+        "MalformedKind::InvalidTransform", "part2_tile_decode_standard_owned(parts[0])", "Ok((parts[0],standard))",
+    ),
+    ("specs/cold_tile_metadata.rs", "part2_tile_metadata_run"): (
+        "part2_tile_metadata_admit(parts)", "Err(error)=>Some((Err(error),events))",
+        "part2_tile_resolutions_run(&first.component_coding_styles,first.coding_style,components,discard,events)",
+        "Ok(Part2TileDecodeMetadata {first,standard,resolution_counts})",
+    ),
+}
+_TILE_METADATA_NATIVE_ORDER = {
+    "prepare_tile_component_resolutions": (
+        "let discard_levels = match discard", "None =>", "return Ok(Vec::new())", "Some(levels) => levels",
+        "let reserved = if components == 0", "empty_with_capacity(usize::from(components))",
+        "part2_tile_metadata_capacity_observed(", "Part2TileMetadataCapacityContext::SelectedResolutions",
+        "let mut counts = reserved?", "while component < components",
+    ),
+    "prepare_tile_decode_metadata": (
+        "parts.first()", "while index < parts.len()", "optional_multiple_component_transforms_equal(",
+        "let main = first.coding_style", "first.part2_extensions.arbitrary_kernel(index)",
+        "let standard =", "prepare_tile_component_resolutions(", "part2_tile_metadata_resolution_error(",
+        "let resolution_counts = resolution_result?", "Ok(TileDecodeMetadata",
+    ),
+    "decode_tile_parts_at": (
+        "prepare_tile_decode_metadata(", "part2_tile_metadata_decode_error(", "let metadata = metadata_result?",
+        "plan_progression_tile_at_selected(", "part2_tile_grid_plan_error(", "account_planned_tile(",
+    ),
+}
 _GEOMETRY_STORAGE_TESTS = {
     ("src/decode/tests.rs", "geometry_storage_descriptor_first_later_empty_selection_and_restore"),
     ("src/decode/tests.rs", "geometry_storage_derived_count_refusal_precedes_geometry_and_restores_owners"),
@@ -5561,7 +5624,10 @@ _PACKED_STORAGE_GUARDS = {
         "part2_decode_planned_tile_components_owned(plan, parts, first, size, standard, selection, limits, prepared, work)",
     ),
     ("specs/cold_decode_packets.rs", "part2_tile_decode_run"): (
-        "part2_tile_decode_metadata_owned(parts, crate::codestream::image_size_component_count(size), discard)",
+        "part2_tile_metadata_run(parts,crate::codestream::image_size_component_count(size),discard,events)",
+        "part2_tile_after_metadata_run(size,tile,parts,caps,discard,limits,prepared,initial,work,metadata,rest)",
+    ),
+    ("specs/cold_tile_metadata.rs", "part2_tile_after_metadata_run"): (
         "part2_grid_plan_run(", "part2_tile_after_grid_plan(size,parts,metadata,discard,limits,prepared,initial,work,plan,rest)",
     ),
     ("specs/cold_grid_plan.rs", "part2_tile_after_grid_plan"): (
@@ -12659,6 +12725,25 @@ def validate_normative_coverage(
         if any((ref["path"], ref["symbol"]) in _PACKET_GRID_PRODUCER_CONTRACTS for ref in geometry_entry["contract_refs"]):
             if not _GEOMETRY_STORAGE_TESTS.issubset({(ref["path"], ref["symbol"]) for ref in geometry_entry["test_refs"]}):
                 raise ValueError("geometry fresh storage requires bounded empty/overflow/refusal/restore/owner/public controls")
+    if "part2-complete-native-tile-decode-metadata" in ids:
+        metadata_entry = next(item for item in coverage["requirements"] if item["id"] == "part2-complete-native-tile-decode-metadata")
+        for (relative, symbol), fragments in _TILE_METADATA_STORAGE_GUARDS.items():
+            body = _coverage_spec_function_body(source_text((ROOT / relative).resolve()), symbol)
+            compact = "".join(body.split()) if body is not None else ""
+            if any("".join(fragment.split()) not in compact for fragment in fragments):
+                raise ValueError("tile metadata fresh storage requires actual distinct source/role/count and empty/admission/error/tail production")
+        metadata_path = (ROOT / "src/decode/execution.rs").resolve()
+        for symbol, fragments in _TILE_METADATA_NATIVE_ORDER.items():
+            body = _coverage_function_body(source_text(metadata_path), function_header(metadata_path, symbol))
+            compact = "".join(body.split()) if body is not None else ""
+            positions = [compact.find("".join(fragment.split())) for fragment in fragments]
+            if any(position < 0 for position in positions) or positions != sorted(positions):
+                raise ValueError("tile metadata fresh storage requires unchanged real None/selected/field/owner/first-error order")
+        if any((ref["path"], ref["symbol"]) in {
+                ("src/decode/execution.rs", "prepare_tile_component_resolutions"),
+                ("src/decode/execution.rs", "prepare_tile_decode_metadata")} for ref in metadata_entry["contract_refs"]):
+            if not _TILE_METADATA_STORAGE_TESTS.issubset({(ref["path"], ref["symbol"]) for ref in metadata_entry["test_refs"]}):
+                raise ValueError("tile metadata fresh storage requires bounded refusal/restore/empty/owner/work/public controls")
     return {
         "status": "passed",
         "inventory_items": len(ids),
