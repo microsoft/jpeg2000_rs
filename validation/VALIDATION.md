@@ -1139,12 +1139,33 @@ owners and code-block counters, binding real metadata/subband producers to
 full/selected plans, snapshots, decode and public cold Result frames, with
 checked ordinary projections and exact first-error/tail consumption.
 `SubbandGeometry`, `ResolutionPlanMetadata` and `PlannedSubbandLattice` are
-scalar/fixed-array records, not additional allocation events. The later
-per-precinct execution collection, code-block decoders, entropy/sample/image
-storage and capacity-dependent existing-owner growth remain separate.
+scalar/fixed-array records, not additional allocation events.
 Bounded controls cover first/later component refusals, malformed/empty
 geometry, earlier component/tile/work admission, readonly owner preservation
 and raw/selected/container restoration.
+The per-precinct resolution-execution owner and aggregate code-block-decoder
+owner are now fallible at their original struct-field constructors, using
+`range.1` and the checked/narrowed block product respectively. Distinct
+`PlanningCapacity` events with `Executions`/`Decoders` contexts retain actual band/block/
+subband/range/style/policy/location or lattice/index inputs, prior placements,
+counter and selection. Execution reservation still precedes the original
+range/index/read admission; decoder reservation follows selected checked
+counter, code-block/work limits and capacity narrowing, but precedes nested
+code-block geometry and decoder construction. Zero requests consume no event;
+empty subband intersection skips decoder-owner creation without skipping an
+already reached execution request.
+Input-derived ordered subband, precinct and resolution runs carry actual
+partial executions, decoder indices, placements, precinct owners and counters
+into the existing component/plan, full/selected decode, snapshot and public
+cold Result/state programs. Checked phase/bind equations preserve exact
+earlier-error/no-event, first-refusal and unconsumed-tail behavior, including
+the original checked resolution increment. Ghost root definitions and
+original owner views remain explicit invariants through the owning loops.
+Bounded controls cover first/later refusal, zero range/count, malformed range,
+counter overflow, work/code-block priority, later geometry rejection,
+readonly source owners and raw/selected/container restore. Nested precinct/
+entropy/sample/image decoder storage and capacity-dependent existing-owner
+growth remain separate.
 Successful reservation relies on the documented standard-library boundary,
 not a physical-capacity theorem inferred from sequence models.
 Same-file links are checked inside another listed, formatted function body;

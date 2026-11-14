@@ -8196,6 +8196,39 @@ class FrameworkTests(WorkingFiles):
                     self.assertRaisesRegex(ValueError, "ordered cold quantization storage"):
                 framework.validate_normative_coverage(dict(coverage, requirements=[entry]))
 
+    def test_inventory_resolution_precinct_storage_requires_real_roles_precedence_and_fold_frames(self):
+        coverage = json.loads((framework.VALIDATION / "normative-coverage.json").read_text())
+        entry = next(item for item in coverage["requirements"] if item["id"] == "part2-complete-native-component-tile-planning")
+        data = dict(coverage, requirements=[entry])
+        self.assertEqual(framework.validate_normative_coverage(data)["status"], "passed")
+        read_text = Path.read_text
+        for relative, symbol, before, after in (
+            ("specs/cold_precinct_storage.rs", "part2_planning_capacity_count", "Executions {range,..}=>range.1", "Executions {range,..}=>1usize"),
+            ("specs/cold_precinct_storage.rs", "part2_planning_capacity_run", "count==0", "count==1"),
+            ("specs/cold_precinct_storage.rs", "part2_planning_capacity_run", "Part2JpipSnapshotEvent::PlanningCapacity", "Part2JpipSnapshotEvent::ComponentCapacity"),
+            ("specs/cold_precinct_storage.rs", "part2_planning_capacity_run", "events.drop_first()", "events"),
+            ("specs/cold_precinct_storage.rs", "part2_codeblock_owner_run", "Err(error)=>Some((Err(error),events))", "Err(error)=>Some((Err(error),events.drop_first()))"),
+            ("specs/cold_precinct_storage.rs", "part2_subband_execution_run", "part2_planned_subband_lattice(", "supplied_lattice("),
+            ("specs/cold_precinct_storage.rs", "part2_precinct_rows_run", "before.planned_code_blocks", "0u64"),
+            ("specs/cold_resolution_plan.rs", "part2_resolution_precincts_run", "part2_precinct_owner_run(", "supplied_precinct("),
+            ("specs/cold_resolution_plan.rs", "part2_resolution_plan_run", "part2_resolution_plan_metadata(", "supplied_resolution("),
+            ("src/decode/planning.rs", "plan_packet_precinct", "empty_with_capacity(range.1)", "empty_with_capacity(1)"),
+            ("src/decode/planning.rs", "plan_codeblock_decoders", "empty_with_capacity(capacity)", "empty_with_capacity(1)"),
+        ):
+            source = framework.ROOT / relative
+            original = source.read_text()
+            body = (framework._coverage_function_body(original, framework._coverage_function_header(original, symbol))
+                    if relative.startswith("src/") else framework._coverage_spec_function_body(original, symbol))
+            self.assertIn(before, body)
+            changed = original.replace(body, body.replace(before, after, 1), 1)
+
+            def altered(path, *args, **kwargs):
+                return changed if path == source else read_text(path, *args, **kwargs)
+
+            with self.subTest(symbol=symbol, before=before), mock.patch.object(Path, "read_text", altered), \
+                    self.assertRaisesRegex(ValueError, "resolution/precinct fresh storage"):
+                framework.validate_normative_coverage(data)
+
     def test_inventory_component_subband_storage_requires_actual_roles_prevalidation_and_owner_tail(self):
         coverage = json.loads((framework.VALIDATION / "normative-coverage.json").read_text())
         entry = next(item for item in coverage["requirements"] if item["id"] == "part2-complete-native-component-tile-planning")
@@ -8593,6 +8626,13 @@ class FrameworkTests(WorkingFiles):
                     {"path": path, "symbol": symbol} for path, symbol in sorted(cold_proofs)
                 ]
                 isolated["test_refs"] = entry["test_refs"][:1]
+                if framework._COLD_RESULT_CONTRACTS.get(key, ("",))[0] in {
+                        "part2_planned_component_result", "part2_grid_plan_result", "part1_progression_plan_cold_result",
+                        "part2_precinct_owner_result", "part2_subband_execution_result", "part2_codeblock_owner_result"}:
+                    isolated["test_refs"] += [
+                        {"path": path, "symbol": symbol} for path, symbol in sorted(framework._PRECINCT_OWNER_TESTS)
+                        if {"path": path, "symbol": symbol} not in isolated["test_refs"]
+                    ]
                 if framework._COLD_RESULT_CONTRACTS.get(key, ("",))[0] in {
                         "part1_subbands_cold_result", "part2_component_metadata_result", "part2_planned_component_result",
                         "part2_grid_plan_result", "part1_progression_plan_cold_result"}:

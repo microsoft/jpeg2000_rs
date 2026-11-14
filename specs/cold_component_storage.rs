@@ -196,7 +196,8 @@ pub(crate) open spec fn part2_planned_component_run(size:&crate::codestream::Ima
     quantizations:(u16,Seq<crate::codestream::Quantization>),roi:&crate::codestream::RoiShifts,component:u16,selection:(u16,u8),policy:(bool,u8,bool),
     precincts:Seq<Part1PacketPrecinctState>,total:u64,limits:&crate::ResourceLimits,events:Seq<Part2JpipSnapshotEvent>)->Part2ColdRun<Part2PlannedComponent> {
     part2_jpip_snapshot_bind(part2_component_metadata_run(size,styles,quantizations,roi,component,selection,policy.2,events),
-        |_:Part2ComponentPlanMetadata,rest|Some((part2_planned_component_owned(size,styles,quantizations,roi,component,selection,policy,precincts,total,limits),rest)))
+        |meta:Part2ComponentPlanMetadata,rest|part2_resolution_plan_run(size,component,selection.0,meta,policy,limits,0,
+            Part2ComponentPlanBuffers {precincts,placements:Seq::empty(),planned_code_blocks:total},rest))
 }
 #[verifier::opaque]
 pub(crate) open spec fn part2_planned_component_result(size:&crate::codestream::ImageSize,styles:&crate::codestream::ComponentCodingStyles,
@@ -226,9 +227,14 @@ pub(crate) proof fn part2_planned_component_normal(size:&crate::codestream::Imag
     part2_component_metadata_normal(size,styles,quantizations,roi,component,selection,policy.2);
     let meta=part2_component_plan_metadata_owned(size,styles,quantizations,roi,component,selection,policy.2);
     let result=part2_planned_component_owned(size,styles,quantizations,roi,component,selection,policy,precincts,total,limits);
-    if meta.is_ok(){part2_cold_pure(result);}
+    if let Ok(value)=meta {
+        let before=Part2ComponentPlanBuffers {precincts,placements:Seq::empty(),planned_code_blocks:total};
+        part2_resolution_plan_normal(size,component,selection.0,value,policy,limits,0,before);
+        part2_decode_eta(|events|part2_resolution_plan_run(size,component,selection.0,value,policy,limits,0,before,events),result);
+    }
     part2_cold_bind(|events|part2_component_metadata_run(size,styles,quantizations,roi,component,selection,policy.2,events),
-        |_:Part2ComponentPlanMetadata,rest|Some((result,rest)),meta,result);
+        |meta:Part2ComponentPlanMetadata,rest|part2_resolution_plan_run(size,component,selection.0,meta,policy,limits,0,
+            Part2ComponentPlanBuffers {precincts,placements:Seq::empty(),planned_code_blocks:total},rest),meta,result);
 }
 pub(crate) proof fn part2_planned_component_metadata_error(size:&crate::codestream::ImageSize,styles:&crate::codestream::ComponentCodingStyles,
     quantizations:(u16,Seq<crate::codestream::Quantization>),roi:&crate::codestream::RoiShifts,component:u16,selection:(u16,u8),policy:(bool,u8,bool),
@@ -238,6 +244,7 @@ pub(crate) proof fn part2_planned_component_metadata_error(size:&crate::codestre
 {
     reveal(part2_planned_component_result);reveal(part2_component_metadata_result);
     part2_cold_bind(|events|part2_component_metadata_run(size,styles,quantizations,roi,component,selection,policy.2,events),
-        |_:Part2ComponentPlanMetadata,rest|Some((part2_planned_component_owned(size,styles,quantizations,roi,component,selection,policy,precincts,total,limits),rest)),Err(error),Err(error));
+        |meta:Part2ComponentPlanMetadata,rest|part2_resolution_plan_run(size,component,selection.0,meta,policy,limits,0,
+            Part2ComponentPlanBuffers {precincts,placements:Seq::empty(),planned_code_blocks:total},rest),Err(error),Err(error));
 }
 }
