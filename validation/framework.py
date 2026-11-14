@@ -4800,6 +4800,10 @@ _RAW_RENDER_PROOFS |= {("specs/jpx_raw_frame.rs", "part2_render_raw_cold_metadat
 _RAW_COMPOSITION_RENDER_PROOFS |= {("specs/jpx_raw_frame.rs", "part2_render_raw_cold_metadata_error")}
 
 _COLD_RESULT_MODELS = {
+    "tier1_empty_plane": ("part1_tier1_plane_storage_result", "specs/cold_tier1_initial.rs", "part2_tier1_plane_normal"),
+    "part2_tier1_initial_decoder": ("part1_tier1_initial_storage_result", "specs/cold_tier1_initial.rs", "part2_tier1_initial_normal"),
+    "part2_tier1_configured_decoder": ("part1_tier1_configured_storage_result", "specs/cold_tier1_initial.rs", "part2_tier1_configured_normal"),
+    "part2_planned_codeblock_cell": ("part2_codeblock_cell_result", "specs/cold_codeblock_plan.rs", "part2_codeblock_cell_normal"),
     "part1_tag_initial": ("part1_tag_storage_result", "specs/cold_tag_storage.rs", "part2_tag_storage_normal"),
     "part2_precinct_from_executions": ("part2_precinct_state_result", "specs/cold_packet_precinct.rs", "part2_precinct_state_normal"),
     "part2_planned_precinct": ("part2_precinct_owner_result", "specs/cold_precinct_storage.rs", "part2_precinct_owner_normal"),
@@ -4962,6 +4966,8 @@ def _coverage_cold_relation(
 ) -> tuple[str, str]:
     model, outcome, state, inputs = legacy
     cold_model = _COLD_RESULT_MODELS[model][0]
+    if model == "tier1_empty_plane":
+        inputs += r"\s*,\s*initial_tier1"
     if model == "part2_tile_decode_metadata":
         inputs = inputs.replace("parts@", _coverage_call("codestream::tile_parts_owned_view", "parts@"))
     if model in ("part2_progression_tile_plan", "part2_component_plan_metadata", "part2_planned_component"):
@@ -5029,6 +5035,11 @@ def _coverage_cold_relation(
     return cold_model, inputs + r"\s*,\s*" + outcome
 
 
+_INITIAL_TIER1_PLANE_CONTRACTS = {
+    ("src/tier1/state.rs", "code_block_plane_from_dimensions"): (
+        "tier1_empty_plane", _coverage_call("code_block_plane_outcome", r"\1"), None, r"width\s*,\s*height",
+    ),
+}
 _COLD_RESULT_CONTRACTS = {
     key: _coverage_cold_relation(legacy)
     for contracts in (
@@ -5054,6 +5065,7 @@ _COLD_RESULT_CONTRACTS = {
         _TILE_METADATA_CONTRACTS, _SUBBAND_VECTOR_CONTRACTS, _COMPONENT_PLAN_METADATA_CONTRACTS,
         _PRECINCT_PLANNING_CONTRACTS, _SUBBAND_EXECUTION_CONTRACTS, _CODEBLOCK_VECTOR_CONTRACTS,
         _PACKET_HEADER_CONTRACTS, _PRECINCT_INITIALIZATION_CONTRACTS,
+        _INITIAL_TIER1_PLANE_CONTRACTS, _DECODER_INITIALIZATION_CONTRACTS, _CODEBLOCK_PLANNING_CONTRACTS,
     )
     for key, legacy in contracts.items()
     if legacy[0] in _COLD_RESULT_MODELS
@@ -5146,6 +5158,9 @@ def _coverage_cold_links(keys: set[tuple[str, str]]) -> tuple[set[tuple[str, str
         model = _COLD_RESULT_CONTRACTS[key][0]
         path, normal = metadata.get(model, ("specs/jpip_transcode.rs", "part2_jpip_validate_precinct_cold_normal"))
         run = {
+            "part1_tier1_plane_storage_result": "part2_tier1_plane_run",
+            "part1_tier1_initial_storage_result": "part2_tier1_initial_run",
+            "part1_tier1_configured_storage_result": "part2_tier1_configured_run",
             "part1_tag_storage_result": "part2_tag_storage_run",
             "part1_subbands_cold_result": "part2_subbands_run",
             "part1_component_quantizations_storage_result": "part1_component_quantizations_storage",
@@ -5157,6 +5172,13 @@ def _coverage_cold_links(keys: set[tuple[str, str]]) -> tuple[set[tuple[str, str
         }.get(model, model.removesuffix("_result") + "_run")
         models.update(((path, model), (path, run)))
         proofs.add((path, normal))
+        if model in ("part1_tier1_plane_storage_result", "part1_tier1_initial_storage_result", "part1_tier1_configured_storage_result"):
+            models |= _TIER1_INITIAL_MODELS
+            proofs |= _TIER1_INITIAL_PROOFS
+            proofs.add(("src/allocation.rs", "filled_values"))
+        if model in ("part2_codeblock_cell_result", "part2_codeblock_owner_result"):
+            models |= _TIER1_PLAN_MODELS
+            proofs |= _TIER1_PLAN_PROOFS
         if model == "part1_tag_storage_result":
             models |= _TAG_STORAGE_MODELS
             proofs |= _TAG_STORAGE_PROOFS
@@ -5271,7 +5293,13 @@ def _coverage_cold_result_body(text: str, model: str) -> bool:
         **_COLD_INNER_RUNS,
     }.get(model, model.removesuffix("_result") + "_run")
     call = run + "(" + ",".join(names[:-1] + ["events"]) + ")"
-    if model == "part1_tag_storage_result":
+    if model == "part1_tier1_plane_storage_result":
+        expected = "part2_tier1_storage_framed(|calls|part2_tier1_plane_run(width,height,initial_tier1,calls),result)"
+    elif model == "part1_tier1_initial_storage_result":
+        expected = "part2_tier1_storage_framed(|calls|part2_tier1_initial_run(width,height,significant,orientation,style,calls),result)"
+    elif model == "part1_tier1_configured_storage_result":
+        expected = "part2_tier1_storage_framed(|calls|part2_tier1_configured_run(width,height,significant,orientation,style,allowed,bound,calls),result)"
+    elif model == "part1_tag_storage_result":
         expected = "exists|prefix:Seq<Part2TagStorageEvent>| #[trigger] part2_tag_storage_prefix(width,height,maximum,prefix,result)"
     elif model == "part1_subbands_cold_result":
         expected = "part2_cold_framed(|events|part2_subbands_run(size,style,quantization,component,tile,roi,events),result)"
@@ -5389,6 +5417,91 @@ _COLD_SOURCE_BODIES = {
     """, "whole effective layer Result requires actual ordered decoder/registration/opacity models"),
 }
 
+_TIER1_INITIAL_MODELS = {("specs/cold_tier1_initial.rs", name) for name in (
+    "part2_tier1_storage_prefix", "part2_tier1_storage_framed", "part2_tier1_storage_bind",
+    "part2_tier1_plane_admit", "part2_tier1_plane_run", "part1_tier1_plane_storage_result",
+    "part2_tier1_initial_run", "part1_tier1_initial_storage_result", "part2_tier1_configured_run", "part1_tier1_configured_storage_result",
+    "part2_tier1_call_admit", "part2_tier1_call_run",
+)}
+_TIER1_INITIAL_PROOFS = {("specs/cold_tier1_initial.rs", name) for name in (
+    "part2_tier1_storage_at", "part2_tier1_storage_eta", "part2_tier1_storage_bind_frame", "part2_tier1_storage_pure",
+    "part2_tier1_plane_normal", "part2_tier1_plane_observed", "part2_tier1_initial_normal", "part2_tier1_initial_plane_error",
+    "part2_tier1_configured_normal", "part2_tier1_configured_initial_error", "part2_tier1_call_observed", "part2_tier1_call_normal",
+)}
+_TIER1_PLAN_MODELS = _TIER1_INITIAL_MODELS | {("specs/cold_codeblock_plan.rs", name) for name in (
+    "part2_tier1_cell_context", "part2_codeblock_cell_run", "part2_codeblock_cell_result", "part2_codeblock_columns_run", "part2_codeblock_rows_run",
+)}
+_TIER1_PLAN_PROOFS = _TIER1_INITIAL_PROOFS | {("specs/cold_codeblock_plan.rs", name) for name in (
+    "part2_codeblock_cell_normal", "part2_codeblock_cell_decoder_observed", "part2_codeblock_cell_frames", "part2_codeblock_columns_normal",
+    "part2_codeblock_rows_normal", "part2_codeblock_owner_start", "part2_codeblock_rows_step", "part2_codeblock_columns_step",
+    "part2_codeblock_columns_end", "part2_codeblock_owner_join",
+)}
+_TIER1_INITIAL_TESTS = {
+    ("src/tier1/tests.rs", "tier1_initial_storage_admission_refusal_and_late_policy_order"),
+    ("src/tier1/tests.rs", "tier1_initial_storage_first_later_exact_coefficients_restore_and_separate_later_role"),
+    ("src/decode/tests.rs", "tier1_initial_storage_cell_columns_rows_retain_prior_owners_and_restore"),
+    ("src/decode/tests.rs", "tier1_initial_storage_public_raw_selected_container_roles_and_restore"),
+}
+_TIER1_INITIAL_GUARDS = {
+    ("specs/cold_tier1_initial.rs", "part2_tier1_storage_prefix"): (
+        "forall|tail:Seq<Part2Tier1StorageEvent>| #[trigger] run(prefix+tail)==Some((result,tail))",
+    ),
+    ("specs/cold_tier1_initial.rs", "part2_tier1_plane_run"): (
+        "if !initial_tier1{Some((tier1_empty_plane(width,height),calls))}", "part2_tier1_plane_admit(width,height)",
+        "Err(error)=>Some((Err(error),calls))", "call.width!=width || call.height!=height || call.samples!=count",
+        "Err(crate::DecodeError::AllocationFailed)", "calls.drop_first()",
+    ),
+    ("specs/cold_tier1_initial.rs", "part2_tier1_initial_run"): (
+        "significant==0 || significant>crate::tier1::MAX_TIER1_BITPLANES", "part2_tier1_plane_run(width,height,true,calls)",
+    ),
+    ("specs/cold_tier1_initial.rs", "part2_tier1_configured_run"): (
+        "part2_tier1_initial_run(", "part2_tier1_configured_decoder(width,height,significant,orientation,style,allowed,bound)",
+    ),
+    ("specs/cold_tier1_initial.rs", "part2_tier1_call_run"): (
+        "part2_tier1_call_admit(context)", "Err(error)=>Some((Err(error),events))", "Tier1Initial {context:actual,calls}",
+        "actual!=context", "part2_tier1_configured_run(", "rest.len()==0", "events.drop_first()",
+    ),
+    ("specs/cold_codeblock_plan.rs", "part2_tier1_cell_context"): (
+        "width:geometry.2,height:geometry.3,significant:subband.significant_bitplanes,orientation:subband.orientation,style,",
+        "allowed:policy.0,bound:policy.1,grid,clip,block,indices,before",
+    ),
+    ("specs/cold_codeblock_plan.rs", "part2_codeblock_cell_run"): (
+        "part2_planned_codeblock_geometry(", "Err(error)=>Some((Err(error),events))", "part2_tier1_call_run(",
+    ),
+    ("specs/cold_codeblock_plan.rs", "part2_codeblock_columns_run"): (
+        "part2_codeblock_cell_run(", "column+1,after,rest)",
+    ),
+    ("specs/cold_codeblock_plan.rs", "part2_codeblock_rows_run"): (
+        "part2_codeblock_columns_run(", "row+1,after,rest)",
+    ),
+}
+_TIER1_INITIAL_FIXED_BODIES = {
+    "part2_tier1_storage_framed": "exists|prefix:Seq<Part2Tier1StorageEvent>| #[trigger] part2_tier1_storage_prefix(run,prefix,result)",
+    "part2_tier1_storage_bind": "match run {None=>None,Some((Err(error),rest))=>Some((Err(error),rest)),Some((Ok(value),rest))=>next(value,rest)}",
+    "part2_tier1_call_admit": """if context.significant==0 || context.significant>crate::tier1::MAX_TIER1_BITPLANES {
+        Err(ht_reader_error(crate::MalformedKind::InvalidCodeBlock))
+    }else{part2_tier1_plane_admit(context.width,context.height)}""",
+    "part2_tier1_configured_run": """part2_tier1_storage_bind(part2_tier1_initial_run(width,height,significant,orientation,style,calls),
+        |_:Tier1DecoderState,rest|Some((part2_tier1_configured_decoder(width,height,significant,orientation,style,allowed,bound),rest)))""",
+}
+_TIER1_INITIAL_NATIVE_ORDER = {
+    ("src/tier1/state.rs", "code_block_plane_from_dimensions"): (
+        "if width == 0 || height == 0", ".checked_mul(usize::from(height))", "if samples > 4096", "let empty = CoefficientState",
+        "if initial_tier1", "filled_values(empty, samples)", "part2_tier1_plane_observed(", "filled?", "vec![empty; samples]",
+    ),
+    ("src/tier1/contributions.rs", "tier1_decoder_from_dimensions"): (
+        "if significant_bitplanes == 0", ".checked_sub(1)", ".checked_mul(3)", ".checked_sub(2)",
+        "plane: {", "code_block_plane_from_dimensions(width, height, true)", "part2_tier1_initial_plane_error(", "result?",
+        "orientation, style, maximum_passes,", "ht_refinement_data: Vec::new()",
+    ),
+    ("src/tier1/contributions.rs", "tier1_configured_decoder"): (
+        "tier1_decoder_from_dimensions(", "part2_tier1_configured_initial_error(", "let mut decoder = initial_result?",
+        "decoder.set_multiple_ht_sets_allowed(", "decoder.set_ht_magnitude_bound(",
+    ),
+    ("src/tier1/state.rs", "CodeBlockPlane::new"): ("code_block_plane_from_dimensions(width, height, false)",),
+    ("src/tier1/state.rs", "duplicate"): ("code_block_plane_from_dimensions(self.width, self.height, false)",),
+    ("src/tier1/ht_cleanup.rs", "reconstruct_ht_cleanup_plane"): ("code_block_plane_from_dimensions(plane.width(), plane.height(), false)",),
+}
 _TAG_STORAGE_MODELS = {("specs/cold_tag_storage.rs", name) for name in (
     "part2_tag_storage_admit", "part2_tag_storage_run", "part2_tag_storage_prefix", "part1_tag_storage_result", "part2_precinct_tree_run",
 )}
@@ -5501,7 +5614,7 @@ _PRECINCT_OWNER_GUARDS = {
     ),
     ("specs/cold_precinct_storage.rs", "part2_codeblock_owner_run"): (
         "part2_codeblock_owner_admit(blocks,total,selected,limits)", "Err(error)=>Some((Err(error),events))",
-        "part2_planning_capacity_run(part2_codeblock_owner_context(", "part2_planned_codeblocks(",
+        "part2_planning_capacity_run(part2_codeblock_owner_context(", "part2_codeblock_rows_run(",
     ),
     ("specs/cold_precinct_storage.rs", "part2_subband_execution_run"): (
         "part2_planned_subband_lattice(", "Ok(Some(lattice))=>part2_jpip_snapshot_bind(part2_codeblock_owner_run(",
@@ -5536,7 +5649,7 @@ _PRECINCT_OWNER_NATIVE_ORDER = {
         "let mut total = planned_code_blocks", ".checked_mul(u64::from(blocks[1]))", "if selected",
         "total.checked_add(count)", "limits.maximum_code_blocks()", "limits.maximum_work_units()",
         "usize::try_from(count)", "decoders: {", "if capacity == 0", "empty_with_capacity(capacity)",
-        "part2_planning_capacity_observed(", "part2_codeblock_owner_refused(", "reserved?", "placements,",
+        "part2_planning_capacity_observed(", "part2_codeblock_owner_refused(", "reserved? }, placements,",
         "while block_y < blocks[1]", "append_planned_codeblock(",
     ),
 }
@@ -13074,6 +13187,30 @@ def validate_normative_coverage(
                     "part2_planned_component_result", "part2_grid_plan_result", "part1_progression_plan_cold_result"} for ref in entry["contract_refs"]):
                 if not _PACKET_PRECINCT_STORAGE_TESTS.issubset({(ref["path"], ref["symbol"]) for ref in entry["test_refs"]}):
                     raise ValueError("nested precinct fresh storage requires bounded refusal/restore/zero/ordinary-priority/real-public controls")
+    if ids & {"part2-complete-native-codeblock-vectors", "part2-complete-native-codeblock-planning",
+              "part2-complete-native-decoder-initialization", "part15-complete-actual-cleanup-plane"}:
+        for symbol, expected in _TIER1_INITIAL_FIXED_BODIES.items():
+            body = _coverage_spec_function_body(source_text((ROOT / "specs/cold_tier1_initial.rs").resolve()), symbol)
+            if body is None or "".join(body.split()) != "".join(expected.split()):
+                raise ValueError("initial Tier1 storage requires exact primitive prefix/bind and constructor-before-late-policy ordering")
+        for (relative, symbol), fragments in _TIER1_INITIAL_GUARDS.items():
+            body = _coverage_spec_function_body(source_text((ROOT / relative).resolve()), symbol)
+            compact = "".join(body.split()) if body is not None else ""
+            if any("".join(fragment.split()) not in compact for fragment in fragments):
+                raise ValueError("initial Tier1 storage requires actual initial-only role, primitive count/caller inputs and exact cell/owner/counter/error/tail production")
+        for (relative, symbol), fragments in _TIER1_INITIAL_NATIVE_ORDER.items():
+            path = (ROOT / relative).resolve()
+            body = _coverage_function_body(source_text(path), function_header(path, symbol))
+            compact = "".join(body.split()) if body is not None else ""
+            positions = [compact.find("".join(fragment.split())) for fragment in fragments]
+            if any(position < 0 for position in positions) or positions != sorted(positions):
+                raise ValueError("initial Tier1 storage requires unchanged real admission/field/policy/owner order and separate later roles")
+        for entry in coverage["requirements"]:
+            if any(_COLD_RESULT_CONTRACTS.get((ref["path"], ref["symbol"]), ("",))[0] in {
+                    "part1_tier1_plane_storage_result", "part1_tier1_initial_storage_result", "part1_tier1_configured_storage_result",
+                    "part2_codeblock_cell_result", "part2_codeblock_owner_result"} for ref in entry["contract_refs"]):
+                if not _TIER1_INITIAL_TESTS.issubset({(ref["path"], ref["symbol"]) for ref in entry["test_refs"]}):
+                    raise ValueError("initial Tier1 storage requires bounded refusal/restore/zero/ordinary-policy/row-owner/real-public controls")
     return {
         "status": "passed",
         "inventory_items": len(ids),

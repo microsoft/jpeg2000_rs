@@ -509,6 +509,9 @@ class FrameworkTests(WorkingFiles):
             }
             source = framework.ROOT / reference["path"]
             original = source.read_text()
+            cold_contract = framework._COLD_RESULT_CONTRACTS.get((reference["path"], symbol))
+            if cold_contract is not None:
+                model = cold_contract[0]
             coverage = copy.deepcopy(original_coverage)
             coverage["requirements"] = [
                 item for item in coverage["requirements"] if reference in item["contract_refs"]
@@ -531,7 +534,8 @@ class FrameworkTests(WorkingFiles):
                 ("unbound result", prefix + "ensures" + unbound),
                 ("partial result", prefix + "ensures" + partial),
                 ("unknown model", contract.replace(f"crate::specs::{model}(", "crate::specs::unlisted_model(")),
-                ("inequality", contract.replace("== crate::specs::", "<= crate::specs::", 1)),
+                ("inequality", contract.replace("ensures", "ensures result.is_ok() ==>", 1)
+                 if cold_contract else contract.replace("== crate::specs::", "<= crate::specs::", 1)),
             ]
             wrong_model = next(item["symbol"] for item in entry["spec_refs"] if item["symbol"] != model)
             mutations.append(("wrong listed model", contract.replace(
@@ -7908,6 +7912,10 @@ class FrameworkTests(WorkingFiles):
         self._assert_relocated_test_bindings(
             "part2-complete-native-decoder-initialization",
             "src/tier1.rs", "src/tier1/tests.rs",
+            additional_refs={
+                ("src/decode/tests.rs", "tier1_initial_storage_cell_columns_rows_retain_prior_owners_and_restore"),
+                ("src/decode/tests.rs", "tier1_initial_storage_public_raw_selected_container_roles_and_restore"),
+            },
         )
 
     def test_inventory_tracks_relocated_decoder_tests_and_retains_production_references(self):
@@ -7982,13 +7990,18 @@ class FrameworkTests(WorkingFiles):
         text = "fn same() {\n    same();\n}\n"
         self.assertFalse(framework._coverage_same_file_call(text, "same", "same"))
 
-    def _assert_relocated_test_bindings(self, entry_id, original_path, moved_path):
+    def _assert_relocated_test_bindings(self, entry_id, original_path, moved_path, *, additional_refs=()):
         coverage = json.loads((framework.VALIDATION / "normative-coverage.json").read_text())
         entry = next(item for item in coverage["requirements"]
                      if item["id"] == entry_id)
         coverage["requirements"] = [entry]
         self.assertTrue(entry["test_refs"])
-        self.assertTrue(all(ref["path"] == moved_path for ref in entry["test_refs"]))
+        additional_refs = set(additional_refs)
+        self.assertTrue(additional_refs.issubset({(ref["path"], ref["symbol"]) for ref in entry["test_refs"]}))
+        relocated = [ref for ref in entry["test_refs"] if (ref["path"], ref["symbol"]) not in additional_refs]
+        self.assertTrue(relocated)
+        self.assertTrue(all(ref["path"] == moved_path for ref in relocated))
+        self.assertEqual(entry["test_refs"][0]["path"], moved_path)
         self.assertEqual(framework.validate_normative_coverage(coverage)["status"], "passed")
 
         stale = copy.deepcopy(coverage)
@@ -8195,6 +8208,39 @@ class FrameworkTests(WorkingFiles):
             with self.subTest(symbol=symbol, before=before), mock.patch.object(Path, "read_text", altered), \
                     self.assertRaisesRegex(ValueError, "ordered cold quantization storage"):
                 framework.validate_normative_coverage(dict(coverage, requirements=[entry]))
+
+    def test_inventory_initial_tier1_storage_requires_real_role_count_policy_and_cell_frames(self):
+        coverage = json.loads((framework.VALIDATION / "normative-coverage.json").read_text())
+        entry = next(item for item in coverage["requirements"] if item["id"] == "part2-complete-native-codeblock-vectors")
+        data = dict(coverage, requirements=[entry])
+        self.assertEqual(framework.validate_normative_coverage(data)["status"], "passed")
+        read_text = Path.read_text
+        for relative, symbol, before, after in (
+            ("specs/cold_tier1_initial.rs", "part2_tier1_storage_framed", "part2_tier1_storage_prefix(run,prefix,result)", "true"),
+            ("specs/cold_tier1_initial.rs", "part2_tier1_storage_prefix", "Some((result,tail))", "Some((result,Seq::empty()))"),
+            ("specs/cold_tier1_initial.rs", "part2_tier1_plane_run", "call.samples!=count", "false"),
+            ("specs/cold_tier1_initial.rs", "part2_tier1_call_run", "rest.len()==0", "true"),
+            ("specs/cold_tier1_initial.rs", "part2_tier1_call_admit", "context.significant==0", "context.bound==0 || context.significant==0"),
+            ("specs/cold_codeblock_plan.rs", "part2_tier1_cell_context", "width:geometry.2,height:geometry.3", "width:geometry.3,height:geometry.2"),
+            ("specs/cold_codeblock_plan.rs", "part2_codeblock_cell_run", "part2_tier1_call_run(", "supplied_decoder("),
+            ("specs/cold_codeblock_plan.rs", "part2_codeblock_columns_run", "column+1,after,rest", "column+1,before,rest"),
+            ("src/tier1/contributions.rs", "tier1_decoder_from_dimensions", "code_block_plane_from_dimensions(width, height, true)", "code_block_plane_from_dimensions(width, height, false)"),
+            ("src/tier1/state.rs", "code_block_plane_from_dimensions", "filled_values(empty, samples)", "filled_values(empty, 1)"),
+            ("src/tier1/ht_cleanup.rs", "reconstruct_ht_cleanup_plane", "plane.height(), false", "plane.height(), true"),
+        ):
+            source = framework.ROOT / relative
+            original = source.read_text()
+            body = (framework._coverage_function_body(original, framework._coverage_function_header(original, symbol))
+                    if relative.startswith("src/") else framework._coverage_spec_function_body(original, symbol))
+            self.assertIn(before, body)
+            changed = original.replace(body, body.replace(before, after, 1), 1)
+
+            def altered(path, *args, **kwargs):
+                return changed if path == source else read_text(path, *args, **kwargs)
+
+            with self.subTest(symbol=symbol, before=before), mock.patch.object(Path, "read_text", altered), \
+                    self.assertRaisesRegex(ValueError, "initial Tier1 storage"):
+                framework.validate_normative_coverage(data)
 
     def test_inventory_nested_packet_precinct_storage_requires_primitive_calls_roles_and_prior_owners(self):
         coverage = json.loads((framework.VALIDATION / "normative-coverage.json").read_text())
@@ -8660,6 +8706,13 @@ class FrameworkTests(WorkingFiles):
                     {"path": path, "symbol": symbol} for path, symbol in sorted(cold_proofs)
                 ]
                 isolated["test_refs"] = entry["test_refs"][:1]
+                if framework._COLD_RESULT_CONTRACTS.get(key, ("",))[0] in {
+                        "part1_tier1_plane_storage_result", "part1_tier1_initial_storage_result", "part1_tier1_configured_storage_result",
+                        "part2_codeblock_cell_result", "part2_codeblock_owner_result"}:
+                    isolated["test_refs"] += [
+                        {"path": path, "symbol": symbol} for path, symbol in sorted(framework._TIER1_INITIAL_TESTS)
+                        if {"path": path, "symbol": symbol} not in isolated["test_refs"]
+                    ]
                 if framework._COLD_RESULT_CONTRACTS.get(key, ("",))[0] in {
                         "part1_tag_storage_result", "part2_precinct_state_result", "part2_precinct_owner_result",
                         "part2_planned_component_result", "part2_grid_plan_result", "part1_progression_plan_cold_result"}:

@@ -1,6 +1,83 @@
 use super::*;
 
 #[test]
+fn tier1_initial_storage_admission_refusal_and_late_policy_order() {
+    let style = Tier1CodingStyle::default();
+    crate::allocation::with_refusal(0, || {
+        for (width, height, bits) in [
+            (0, 1, 1),
+            (1, 0, 1),
+            (1, 1, 0),
+            (1, 1, u16::MAX),
+            (65, 64, 1),
+            (u16::MAX, u16::MAX, 1),
+        ] {
+            assert_eq!(
+                tier1_configured_decoder(
+                    width,
+                    height,
+                    bits,
+                    SubbandOrientation::Ll,
+                    style,
+                    false,
+                    74
+                )
+                .err(),
+                Some(invalid_code_block())
+            );
+        }
+        assert_eq!(
+            tier1_configured_decoder(1, 1, 1, SubbandOrientation::Ll, style, true, 0).err(),
+            Some(DecodeError::AllocationFailed)
+        );
+    });
+    crate::allocation::with_refusal(1, || {
+        assert_eq!(
+            tier1_configured_decoder(1, 1, 1, SubbandOrientation::Ll, style, true, 0).err(),
+            Some(invalid_code_block())
+        );
+        assert_eq!(
+            crate::allocation::empty_with_capacity::<u8>(1),
+            Err(DecodeError::AllocationFailed)
+        );
+    });
+    let actual =
+        tier1_configured_decoder(1, 1, 1, SubbandOrientation::Ll, style, true, 73).unwrap();
+    assert!(actual.allow_multiple_ht_sets);
+    assert_eq!(actual.ht_magnitude_bound, 73);
+}
+
+#[test]
+fn tier1_initial_storage_first_later_exact_coefficients_restore_and_separate_later_role() {
+    let style = Tier1CodingStyle::default();
+    let expected = tier1_decoder_from_dimensions(2, 2, 7, SubbandOrientation::Hh, style).unwrap();
+    crate::allocation::with_refusal(1, || {
+        let first = tier1_decoder_from_dimensions(2, 2, 7, SubbandOrientation::Hh, style).unwrap();
+        assert_eq!(format!("{first:?}"), format!("{expected:?}"));
+        assert_eq!(
+            tier1_decoder_from_dimensions(1, 1, 1, SubbandOrientation::Ll, style).err(),
+            Some(DecodeError::AllocationFailed)
+        );
+    });
+    crate::allocation::with_refusal(0, || {
+        let later = CodeBlockPlane::new(1, 1).unwrap();
+        assert_eq!(later.coefficients, vec![CoefficientState::default()]);
+        let copied = later.duplicate().unwrap();
+        assert_eq!(copied.coefficients, later.coefficients);
+        assert_eq!(
+            tier1_decoder_from_dimensions(1, 1, 1, SubbandOrientation::Ll, style).err(),
+            Some(DecodeError::AllocationFailed)
+        );
+    });
+    let restored = tier1_decoder_from_dimensions(2, 2, 7, SubbandOrientation::Hh, style).unwrap();
+    assert_eq!(format!("{restored:?}"), format!("{expected:?}"));
+    assert_eq!(
+        restored.plane.coefficients,
+        vec![CoefficientState::default(); 4]
+    );
+}
+
+#[test]
 fn configured_decoder_derives_initial_state_and_preserves_bound_admission_order() {
     let invalid = DecodeError::MalformedInput {
         offset: 0,

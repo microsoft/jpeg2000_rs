@@ -435,7 +435,7 @@ pub(super) fn reconstruct_ht_cleanup_plane(
     if metadata.width == 0 {
         return Err(invalid_code_block());
     }
-    let output = code_block_plane_from_dimensions(plane.width(), plane.height())?;
+    let output = code_block_plane_from_dimensions(plane.width(), plane.height(), false)?;
     let reader = ht_magsgn_from_input(cleanup.mag_sgn().bytes(), limits.maximum_work_units())?;
     let doubled_quads = usize::from(metadata.width)
         .checked_add(1)

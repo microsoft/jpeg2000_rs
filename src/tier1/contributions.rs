@@ -83,7 +83,8 @@ impl Clone for Tier1CodeBlockDecoder {
 }
 
 #[cfg_attr(verus_keep_ghost, verus_spec(result =>
-    ensures tier1_initial_decoder_outcome(result) == crate::specs::part2_tier1_initial_decoder(
+    ensures crate::specs::part1_tier1_initial_storage_result(width,height,significant_bitplanes,orientation,style,tier1_initial_decoder_outcome(result)),
+        tier1_initial_decoder_outcome(result)!=Err(DecodeError::AllocationFailed) ==> tier1_initial_decoder_outcome(result) == crate::specs::part2_tier1_initial_decoder(
         width, height, significant_bitplanes, orientation, style,
     ),
 ))]
@@ -94,6 +95,8 @@ pub(crate) fn tier1_decoder_from_dimensions(
     orientation: SubbandOrientation,
     style: Tier1CodingStyle,
 ) -> Result<Tier1CodeBlockDecoder, DecodeError> {
+    #[cfg(verus_keep_ghost)]
+    proof! {crate::specs::part2_tier1_initial_normal(width,height,significant_bitplanes,orientation,style);}
     if significant_bitplanes == 0 || significant_bitplanes > MAX_TIER1_BITPLANES {
         return Err(invalid_code_block());
     }
@@ -107,7 +110,12 @@ pub(crate) fn tier1_decoder_from_dimensions(
         .checked_sub(2)
         .ok_or_else(arithmetic_overflow)?;
     Ok(Tier1CodeBlockDecoder {
-        plane: code_block_plane_from_dimensions(width, height)?,
+        plane: {
+            let result = code_block_plane_from_dimensions(width, height, true);
+            #[cfg(verus_keep_ghost)]
+            proof! {if let Err(error)=result{crate::specs::part2_tier1_initial_plane_error(width,height,significant_bitplanes,orientation,style,error);}}
+            result?
+        },
         orientation,
         style,
         maximum_passes,
@@ -133,7 +141,8 @@ pub(crate) fn tier1_decoder_from_dimensions(
 }
 
 #[cfg_attr(verus_keep_ghost, verus_spec(result =>
-    ensures tier1_initial_decoder_outcome(result) == crate::specs::part2_tier1_configured_decoder(
+    ensures crate::specs::part1_tier1_configured_storage_result(width,height,significant_bitplanes,orientation,style,allow_multiple_ht_sets,ht_magnitude_bound,tier1_initial_decoder_outcome(result)),
+        tier1_initial_decoder_outcome(result)!=Err(DecodeError::AllocationFailed) ==> tier1_initial_decoder_outcome(result) == crate::specs::part2_tier1_configured_decoder(
         width, height, significant_bitplanes, orientation, style, allow_multiple_ht_sets, ht_magnitude_bound,
     ),
 ))]
@@ -146,8 +155,13 @@ pub(crate) fn tier1_configured_decoder(
     allow_multiple_ht_sets: bool,
     ht_magnitude_bound: u8,
 ) -> Result<Tier1CodeBlockDecoder, DecodeError> {
-    let mut decoder =
-        tier1_decoder_from_dimensions(width, height, significant_bitplanes, orientation, style)?;
+    #[cfg(verus_keep_ghost)]
+    proof! {crate::specs::part2_tier1_configured_normal(width,height,significant_bitplanes,orientation,style,allow_multiple_ht_sets,ht_magnitude_bound);}
+    let initial_result =
+        tier1_decoder_from_dimensions(width, height, significant_bitplanes, orientation, style);
+    #[cfg(verus_keep_ghost)]
+    proof! {if let Err(error)=initial_result {crate::specs::part2_tier1_configured_initial_error(width,height,significant_bitplanes,orientation,style,allow_multiple_ht_sets,ht_magnitude_bound,error);}}
+    let mut decoder = initial_result?;
     decoder.set_multiple_ht_sets_allowed(allow_multiple_ht_sets);
     decoder.set_ht_magnitude_bound(ht_magnitude_bound)?;
     Ok(decoder)

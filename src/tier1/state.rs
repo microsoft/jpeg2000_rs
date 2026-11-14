@@ -348,12 +348,17 @@ impl Clone for CodeBlockPlane {
 }
 
 #[cfg_attr(verus_keep_ghost, verus_spec(result =>
-    ensures code_block_plane_outcome(result) == crate::specs::tier1_empty_plane(width, height),
+    ensures crate::specs::part1_tier1_plane_storage_result(width,height,initial_tier1,code_block_plane_outcome(result)),
+        (!initial_tier1 || code_block_plane_outcome(result)!=Err(DecodeError::AllocationFailed)) ==>
+            code_block_plane_outcome(result) == crate::specs::tier1_empty_plane(width, height),
 ))]
 pub(super) fn code_block_plane_from_dimensions(
     width: u16,
     height: u16,
+    initial_tier1: bool,
 ) -> Result<CodeBlockPlane, DecodeError> {
+    #[cfg(verus_keep_ghost)]
+    proof! {crate::specs::part2_tier1_plane_normal(width,height,initial_tier1);}
     if width == 0 || height == 0 {
         return Err(invalid_code_block());
     }
@@ -371,7 +376,15 @@ pub(super) fn code_block_plane_from_dimensions(
         significant: false,
         refined: false,
     };
-    let coefficients = vec![empty; samples];
+    // Shared later duplicate/cleanup callers retain their separate storage boundary.
+    let coefficients = if initial_tier1 {
+        let filled = crate::allocation::filled_values(empty, samples);
+        #[cfg(verus_keep_ghost)]
+        proof! {crate::specs::part2_tier1_plane_observed(width,height,samples,match filled {Ok(_)=>Ok(()),Err(error)=>Err(error)});}
+        filled?
+    } else {
+        vec![empty; samples]
+    };
     #[cfg(verus_keep_ghost)]
     proof! {
         assert(coefficient_raw_view(empty).limbs =~= Seq::new(6, |i: int| 0u64));
@@ -402,14 +415,14 @@ pub(super) fn ht_statistics_zero() -> Tier1PassStatistics {
 
 impl CodeBlockPlane {
     pub fn new(width: u16, height: u16) -> Result<Self, DecodeError> {
-        code_block_plane_from_dimensions(width, height)
+        code_block_plane_from_dimensions(width, height, false)
     }
 
     #[cfg_attr(verus_keep_ghost, verus_spec(result =>
         ensures code_block_plane_outcome(result) == crate::specs::tier1_duplicate_plane(code_block_plane_view(self)),
     ))]
     pub(super) fn duplicate(&self) -> Result<Self, DecodeError> {
-        let mut output = code_block_plane_from_dimensions(self.width, self.height)?;
+        let mut output = code_block_plane_from_dimensions(self.width, self.height, false)?;
         if output.coefficients.len() != self.coefficients.len() {
             return Err(invalid_code_block());
         }

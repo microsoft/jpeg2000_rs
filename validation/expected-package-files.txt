@@ -22,6 +22,7 @@ specs/README.md
 specs/allocation.rs
 specs/codestream_profile.rs
 specs/cold_bitmap.rs
+specs/cold_codeblock_plan.rs
 specs/cold_component_plan.rs
 specs/cold_component_storage.rs
 specs/cold_decode_finish.rs
@@ -51,6 +52,7 @@ specs/cold_quantization.rs
 specs/cold_resolution_plan.rs
 specs/cold_resolved_copy.rs
 specs/cold_tag_storage.rs
+specs/cold_tier1_initial.rs
 specs/cold_tile_metadata.rs
 specs/cold_tile_part.rs
 specs/cold_tile_quantization.rs

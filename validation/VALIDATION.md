@@ -1186,8 +1186,30 @@ Old normal models and their checked projections remain. Bounded controls cover
 first/later subband/inclusion/zero refusal, zero and malformed admission,
 TagTree overflow/node limits, code-block/work priority, exact retained owners
 and raw/selected/container restoration. The separate public singleton execution
-wrapper, existing-capacity growth (including TagTree levels), tier1 nested
+wrapper, existing-capacity growth (including TagTree levels), later tier1
 entropy/sample storage, and later packet/image buffers remain separate.
+Initial Tier1 construction has one reached known-count owner: the coefficient
+plane's shallow Copy-filled vector, after original nonzero dimensions,
+checked product and 4096-sample admission. The initial bitplane/MQ/legacy/
+cleanup states are `None`, context/limb records are fixed arrays/scalars, and
+the initial refinement vector is allocation-free empty; no events are invented
+for them. The shared plane body also serves duplicate and HT cleanup producers.
+A private initial-role argument selects fallible fill at the unchanged leaf
+frontier; initial construction passes true, and public standalone plane,
+duplicate and later cleanup callers retain the original false-role branch.
+No executing body moves and no public API or caller/domain premise is added.
+Distinct primitive coefficient responses retain actual width/height/count.
+The configured-caller envelope additionally binds real significant bits,
+orientation/style, policy, geometry/index and prior decoder/placement/counter
+owners. It consumes all child responses and is not another physical request.
+Significant-bit/shape errors remain before allocation; magnitude-bound policy
+remains after actual initial-plane construction, even when that later policy
+fails. Source-derived cell/column/row folds replace the old pure decoder tail
+through real execution/subband/precinct/resolution/component and public cold
+state programs, preserving first errors and unused tails. Checked original
+normal projections remain. Bounded controls cover first/later refusal,
+zero/malformed/maximum geometry, later policy rejection, row/column prior
+owners, unchanged separate later roles and raw/selected/container restore.
 Successful reservation relies on the documented standard-library boundary,
 not a physical-capacity theorem inferred from sequence models.
 Same-file links are checked inside another listed, formatted function body;

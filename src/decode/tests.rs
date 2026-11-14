@@ -5346,21 +5346,21 @@ fn packed_storage_raw_container_selected_and_reconstruction_refuse_only_after_pa
     })
     .unwrap();
     assert!(matches!(
-        crate::allocation::with_refusal(23, || decode_codestream(&bytes, &options)),
+        crate::allocation::with_refusal(24, || decode_codestream(&bytes, &options)),
         Err(DecodeError::AllocationFailed)
     ));
     assert!(matches!(
-        crate::allocation::with_refusal(24, || decode_codestream_selected(
+        crate::allocation::with_refusal(25, || decode_codestream_selected(
             &bytes, &options, &selection
         )),
         Err(DecodeError::AllocationFailed)
     ));
     assert!(matches!(
-        crate::allocation::with_refusal(23, || decode_codestream_reconstructed(&bytes, &options)),
+        crate::allocation::with_refusal(24, || decode_codestream_reconstructed(&bytes, &options)),
         Err(DecodeError::AllocationFailed)
     ));
     assert!(matches!(
-        crate::allocation::with_refusal(35, || decode_jp2(&jp2, &options)),
+        crate::allocation::with_refusal(36, || decode_jp2(&jp2, &options)),
         Err(DecodeError::AllocationFailed)
     ));
     let raw = decode_codestream(&bytes, &options).unwrap();
@@ -5380,7 +5380,7 @@ fn preparation_storage_public_outer_and_bitmap_refusal_restore_raw_and_container
     bytes[cod + 9] = 0;
     let bytes = pack_packet_header(bytes, false, &[0]);
     let jp2 = jp2_for_codestream(&bytes, 1, 1);
-    for after in [22, 24] {
+    for after in [23, 25] {
         assert!(matches!(
             crate::allocation::with_refusal(after, || decode_codestream(&bytes, &options)),
             Err(DecodeError::AllocationFailed)
@@ -5398,7 +5398,7 @@ fn preparation_storage_public_outer_and_bitmap_refusal_restore_raw_and_container
             Err(DecodeError::AllocationFailed)
         ));
     }
-    for after in [34, 36] {
+    for after in [35, 37] {
         assert!(matches!(
             crate::allocation::with_refusal(after, || decode_jp2(&jp2, &options)),
             Err(DecodeError::AllocationFailed)
@@ -5919,7 +5919,7 @@ fn component_subband_storage_first_later_component_refusal_preserves_source_and_
             &limits,
         )
     };
-    for after in [4, 5, 11] {
+    for after in [4, 5, 12] {
         assert!(matches!(
             crate::allocation::with_refusal(after, plan),
             Err(DecodeError::AllocationFailed)
@@ -6182,7 +6182,7 @@ fn precinct_storage_ordered_component_fold_retains_source_and_restores_exact_own
         )
     };
     let expected = plan().unwrap();
-    for after in [6, 7, 12, 13] {
+    for after in [6, 7, 13, 14] {
         assert!(matches!(
             crate::allocation::with_refusal(after, plan),
             Err(DecodeError::AllocationFailed)
@@ -6229,7 +6229,7 @@ fn packet_precinct_storage_public_raw_selected_container_roles_and_restore() {
     let options = DecodeOptions::default();
     let selection = DecodeSelection::full_image();
     let jp2 = jp2_for_codestream(&bytes, 1, 1);
-    for after in [19, 20, 21] {
+    for after in [20, 21, 22] {
         assert!(matches!(
             crate::allocation::with_refusal(after, || decode_codestream(&bytes, &options)),
             Err(DecodeError::AllocationFailed)
@@ -6245,6 +6245,75 @@ fn packet_precinct_storage_public_raw_selected_container_roles_and_restore() {
             Err(DecodeError::AllocationFailed)
         ));
     }
+    let expected = decode_codestream(&bytes, &options).unwrap();
+    assert_eq!(
+        decode_codestream_selected(&bytes, &options, &selection).unwrap(),
+        expected
+    );
+    assert_eq!(decode_jp2(&jp2, &options).unwrap(), expected);
+}
+
+#[test]
+fn tier1_initial_storage_cell_columns_rows_retain_prior_owners_and_restore() {
+    let (mut subband, style) = precinct_storage_inputs();
+    subband.width = 2;
+    subband.height = 2;
+    let limits = ResourceLimits::default();
+    let make = || {
+        plan_codeblock_decoders(
+            [0, 0, 1, 1],
+            [0, 0, 2, 2],
+            [2, 2],
+            subband,
+            style,
+            (false, 74),
+            (0, 0, 0),
+            Vec::new(),
+            0,
+            true,
+            &limits,
+        )
+    };
+    for after in [1, 3] {
+        assert!(matches!(
+            crate::allocation::with_refusal(after, make),
+            Err(DecodeError::AllocationFailed)
+        ));
+    }
+    let actual = make().unwrap();
+    assert_eq!(actual.decoders.len(), 4);
+    assert_eq!(actual.decoder_index, 4);
+    assert_eq!(actual.planned_code_blocks, 4);
+    assert_eq!(
+        actual
+            .placements
+            .iter()
+            .map(|p| (p.x, p.y))
+            .collect::<Vec<_>>(),
+        vec![(0, 0), (1, 0), (0, 1), (1, 1)]
+    );
+}
+
+#[test]
+fn tier1_initial_storage_public_raw_selected_container_roles_and_restore() {
+    let bytes = component_subband_storage_fixture(1);
+    let options = DecodeOptions::default();
+    let selection = DecodeSelection::full_image();
+    let jp2 = jp2_for_codestream(&bytes, 1, 1);
+    assert!(matches!(
+        crate::allocation::with_refusal(19, || decode_codestream(&bytes, &options)),
+        Err(DecodeError::AllocationFailed)
+    ));
+    assert!(matches!(
+        crate::allocation::with_refusal(20, || decode_codestream_selected(
+            &bytes, &options, &selection
+        )),
+        Err(DecodeError::AllocationFailed)
+    ));
+    assert!(matches!(
+        crate::allocation::with_refusal(31, || decode_jp2(&jp2, &options)),
+        Err(DecodeError::AllocationFailed)
+    ));
     let expected = decode_codestream(&bytes, &options).unwrap();
     assert_eq!(
         decode_codestream_selected(&bytes, &options, &selection).unwrap(),
