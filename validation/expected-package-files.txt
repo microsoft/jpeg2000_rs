@@ -21,6 +21,11 @@ specs/AUDIT_REFERENCE.md
 specs/README.md
 specs/allocation.rs
 specs/codestream_profile.rs
+specs/cold_layout.rs
+specs/cold_layout_continuations.rs
+specs/cold_quantization.rs
+specs/cold_tile_part.rs
+specs/cold_tile_quantization.rs
 specs/container_colors.rs
 specs/container_images.rs
 specs/decoder_input.rs
