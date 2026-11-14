@@ -1095,8 +1095,23 @@ snapshot preparation has a checked grid-normal projection and actual refusal
 join, preserving the distinct template/final/image parse phases, prior
 owner/counter/decoder/cache frames and unconsumed tails. Native static
 constructors use the existing pinned inline-spec form without body hoisting.
-Fresh upstream geometry count/descriptor buffers, broader planning owners,
-entropy/image buffers and existing-buffer growth remain separate.
+Fresh upstream geometry count/descriptor owners are now covered at their four
+original constructor frontiers: uniform precinct counts, component-resolution
+descriptors, selected-resolution descriptors, and derived precinct counts.
+Their distinct `GeometryCapacity` contexts carry the actual source geometry/
+styles/tile/discard/role and source-derived count, never a later grid/packet or
+earlier parse/inspection/JPIP response. Original checked products precede count
+requests; both descriptor requests still precede the original style/selection
+loop. Zero consumes no response. A refused first/second descriptor consumes no
+later count/grid response. Source-derived count-step equations preserve
+ordered partial vectors/counters and first errors without hoisting executing
+bodies or changing rlimits. Uniform public grid derivation now has its own
+complete input-derived Result/normal model; actual component geometry, plans,
+snapshots and decode/public continuations bind precise allocation prefixes.
+Bounded controls retain empty/overflow/limit priority, first/later refusal,
+readonly owners and raw/selected/container restoration. Broader planning and
+selected tile-metadata owners, entropy/image buffers and existing-buffer
+growth remain separate.
 Successful reservation relies on the documented standard-library boundary,
 not a physical-capacity theorem inferred from sequence models.
 Same-file links are checked inside another listed, formatted function body;

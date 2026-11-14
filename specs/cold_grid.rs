@@ -140,6 +140,12 @@ pub closed spec fn part1_uniform_grid_cold_result(layers:u16,components:u16,reso
     result:Result<Part1PacketGrid,crate::DecodeError>)->bool {
     part2_cold_framed(|events|part2_uniform_grid_run(layers,components,resolutions,counts,limits,events),result)
 }
+pub(crate) proof fn part2_uniform_grid_frames(layers:u16,components:u16,resolutions:u8,counts:Seq<u32>,limits:&crate::ResourceLimits,result:Result<Part1PacketGrid,crate::DecodeError>)
+    requires part1_uniform_grid_cold_result(layers,components,resolutions,counts,limits,result),
+    ensures part2_cold_framed(|events|part2_uniform_grid_run(layers,components,resolutions,counts,limits,events),result),
+{
+    part2_decode_eta(|events|part2_uniform_grid_run(layers,components,resolutions,counts,limits,events),result);
+}
 pub(crate) proof fn part2_uniform_grid_normal(layers:u16,components:u16,resolutions:u8,counts:Seq<u32>,limits:&crate::ResourceLimits)
     ensures part1_uniform_grid_cold_result(layers,components,resolutions,counts,limits,
         part1_packet_grid_new(layers,components,Seq::new(components as nat,|_:int|resolutions),counts,None,limits)),

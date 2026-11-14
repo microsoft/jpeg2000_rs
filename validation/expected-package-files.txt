@@ -25,6 +25,7 @@ specs/cold_bitmap.rs
 specs/cold_decode_finish.rs
 specs/cold_decode_packets.rs
 specs/cold_extensions_copy.rs
+specs/cold_geometry_storage.rs
 specs/cold_grid.rs
 specs/cold_grid_geometry.rs
 specs/cold_grid_plan.rs
@@ -46,6 +47,7 @@ specs/cold_quantization.rs
 specs/cold_resolved_copy.rs
 specs/cold_tile_part.rs
 specs/cold_tile_quantization.rs
+specs/cold_uniform_geometry.rs
 specs/container_colors.rs
 specs/container_images.rs
 specs/decoder_input.rs

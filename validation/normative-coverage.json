@@ -6804,7 +6804,8 @@
       "topic": "Complete actual derive_packet_grid_for_components Result/full PacketGrid from original raw ImageSize/component-style owner/layers/limits/tile/discard metadata. Real ordered all-component resolution admission precedes capacity, geometry, subband deltas, selected-only code-block accounting, all-resolution precinct counts/zero padding and the sole proved constructor's full offset/count/resource result. Discarded finest geometry is still computed and raw unused owner fields remain unvalidated. No normalized counts/grid/geometry, supplied lookup/scaling/result bank, successful budget or allocation premise. Actual full/selected tile planner executes this producer; packet-plan precinct/codeblock/component construction and F2/F4/F8 remain separate.",
       "implementation_refs": [
         {"path": "src/decode/planning.rs", "symbol": "plan_progression_tile_at_selected"},
-        {"path": "src/decode/geometry.rs", "symbol": "derive_packet_grid_for_components"}
+        {"path": "src/decode/geometry.rs", "symbol": "derive_packet_grid_for_components"},
+        {"path": "src/decode/geometry.rs", "symbol": "derive_packet_grid"}
       ],
       "spec_refs": [
         {"path": "specs/mod.rs", "symbol": "part2_packet_grid_from_components"},
@@ -6812,6 +6813,20 @@
         {"path": "specs/cold_grid_geometry.rs", "symbol": "part2_derived_grid_run"},
         {"path": "specs/cold_grid_geometry.rs", "symbol": "part2_grid_components_cold_run"},
         {"path": "specs/cold_grid_geometry.rs", "symbol": "part2_grid_resolutions_cold_run"},
+        {"path": "specs/cold_geometry_storage.rs", "symbol": "part2_geometry_capacity_count"},
+        {"path": "specs/cold_geometry_storage.rs", "symbol": "part2_geometry_capacity_run"},
+        {"path": "specs/cold_geometry_storage.rs", "symbol": "part2_geometry_capacity_result"},
+        {"path": "specs/cold_geometry_storage.rs", "symbol": "part2_geometry_descriptors_run"},
+        {"path": "specs/cold_geometry_storage.rs", "symbol": "part2_geometry_descriptors_result"},
+        {"path": "specs/cold_geometry_storage.rs", "symbol": "part2_geometry_counts_step"},
+        {"path": "specs/cold_geometry_storage.rs", "symbol": "part2_derived_geometry_after_descriptors"},
+        {"path": "specs/cold_uniform_geometry.rs", "symbol": "part1_uniform_geometry_cold_result"},
+        {"path": "specs/cold_uniform_geometry.rs", "symbol": "part1_uniform_geometry_model"},
+        {"path": "specs/cold_uniform_geometry.rs", "symbol": "part2_uniform_geometry_value"},
+        {"path": "specs/cold_uniform_geometry.rs", "symbol": "part2_uniform_geometry_counts"},
+        {"path": "specs/cold_uniform_geometry.rs", "symbol": "part2_uniform_geometry_resolutions"},
+        {"path": "specs/cold_uniform_geometry.rs", "symbol": "part2_uniform_geometry_after_capacity"},
+        {"path": "specs/cold_uniform_geometry.rs", "symbol": "part2_uniform_geometry_run"},
         {"path": "specs/mod.rs", "symbol": "part2_component_resolution_counts"},
         {"path": "specs/mod.rs", "symbol": "part2_component_resolution_counts_run"},
         {"path": "specs/mod.rs", "symbol": "part2_packet_grid_components_run"},
@@ -6822,7 +6837,8 @@
       ],
       "contract_refs": [
         {"path": "src/decode/geometry.rs", "symbol": "prepare_component_resolution_counts"},
-        {"path": "src/decode/geometry.rs", "symbol": "derive_packet_grid_for_components"}
+        {"path": "src/decode/geometry.rs", "symbol": "derive_packet_grid_for_components"},
+        {"path": "src/decode/geometry.rs", "symbol": "derive_packet_grid_for"}
       ],
       "proof_refs": [
         {"path": "src/decode/proof_support.rs", "symbol": "resolution_counts_outcome"},
@@ -6830,6 +6846,26 @@
         {"path": "specs/cold_grid_geometry.rs", "symbol": "part2_grid_components_cold_normal"},
         {"path": "specs/cold_grid_geometry.rs", "symbol": "part2_grid_resolutions_cold_normal"},
         {"path": "specs/cold_grid_geometry.rs", "symbol": "part2_grid_component_cold_start"},
+        {"path": "specs/cold_geometry_storage.rs", "symbol": "part2_geometry_capacity_observed"},
+        {"path": "specs/cold_geometry_storage.rs", "symbol": "part2_geometry_descriptors_normal"},
+        {"path": "specs/cold_geometry_storage.rs", "symbol": "part2_geometry_descriptors_second"},
+        {"path": "specs/cold_geometry_storage.rs", "symbol": "part2_geometry_descriptors_refused"},
+        {"path": "specs/cold_geometry_storage.rs", "symbol": "part2_derived_geometry_after_normal"},
+        {"path": "specs/cold_geometry_storage.rs", "symbol": "part2_derived_geometry_prefix"},
+        {"path": "specs/cold_geometry_storage.rs", "symbol": "part2_derived_geometry_descriptor_error"},
+        {"path": "specs/cold_geometry_storage.rs", "symbol": "part2_derived_geometry_capacity_error"},
+        {"path": "specs/cold_geometry_storage.rs", "symbol": "part2_derived_geometry_step"},
+        {"path": "specs/cold_geometry_storage.rs", "symbol": "part2_derived_geometry_component_end"},
+        {"path": "specs/cold_geometry_storage.rs", "symbol": "part2_derived_geometry_end"},
+        {"path": "specs/cold_geometry_storage.rs", "symbol": "part2_cold_prefix_result"},
+        {"path": "specs/cold_uniform_geometry.rs", "symbol": "part2_uniform_geometry_normal"},
+        {"path": "specs/cold_uniform_geometry.rs", "symbol": "part2_uniform_geometry_model_known"},
+        {"path": "specs/cold_uniform_geometry.rs", "symbol": "part2_uniform_geometry_value_known"},
+        {"path": "specs/cold_uniform_geometry.rs", "symbol": "part2_uniform_geometry_step"},
+        {"path": "specs/cold_uniform_geometry.rs", "symbol": "part2_uniform_geometry_refused"},
+        {"path": "specs/cold_uniform_geometry.rs", "symbol": "part2_uniform_geometry_finish"},
+        {"path": "specs/cold_grid.rs", "symbol": "part2_uniform_grid_frames"},
+        {"path": "src/decode/geometry.rs", "symbol": "derive_packet_grid"},
         {"path": "src/decode/geometry.rs", "symbol": "derive_component_resolution_geometry_for"},
         {"path": "src/packet/progression.rs", "symbol": "packet_grid_new_with_selected_resolutions"},
         {"path": "src/packet/proof_support.rs", "symbol": "packet_grid_outcome"},
@@ -6841,6 +6877,10 @@
       ],
       "test_refs": [
         {"path": "src/codestream/tests.rs", "symbol": "component_resolution_preparation_retains_raw_owners_discard_and_first_errors"},
+        {"path": "src/decode/tests.rs", "symbol": "geometry_storage_descriptor_first_later_empty_selection_and_restore"},
+        {"path": "src/decode/tests.rs", "symbol": "geometry_storage_derived_count_refusal_precedes_geometry_and_restores_owners"},
+        {"path": "src/decode/tests.rs", "symbol": "geometry_storage_uniform_empty_overflow_limit_and_refusal_frontier"},
+        {"path": "src/decode/tests.rs", "symbol": "geometry_storage_public_raw_selected_container_roles_restore"},
         {"path": "src/codestream/tests.rs", "symbol": "component_packet_grid_matches_real_geometry_padding_selection_and_limit_order"}
       ]
     },

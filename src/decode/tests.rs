@@ -5346,21 +5346,21 @@ fn packed_storage_raw_container_selected_and_reconstruction_refuse_only_after_pa
     })
     .unwrap();
     assert!(matches!(
-        crate::allocation::with_refusal(13, || decode_codestream(&bytes, &options)),
+        crate::allocation::with_refusal(16, || decode_codestream(&bytes, &options)),
         Err(DecodeError::AllocationFailed)
     ));
     assert!(matches!(
-        crate::allocation::with_refusal(13, || decode_codestream_selected(
+        crate::allocation::with_refusal(16, || decode_codestream_selected(
             &bytes, &options, &selection
         )),
         Err(DecodeError::AllocationFailed)
     ));
     assert!(matches!(
-        crate::allocation::with_refusal(13, || decode_codestream_reconstructed(&bytes, &options)),
+        crate::allocation::with_refusal(16, || decode_codestream_reconstructed(&bytes, &options)),
         Err(DecodeError::AllocationFailed)
     ));
     assert!(matches!(
-        crate::allocation::with_refusal(25, || decode_jp2(&jp2, &options)),
+        crate::allocation::with_refusal(28, || decode_jp2(&jp2, &options)),
         Err(DecodeError::AllocationFailed)
     ));
     let raw = decode_codestream(&bytes, &options).unwrap();
@@ -5380,7 +5380,7 @@ fn preparation_storage_public_outer_and_bitmap_refusal_restore_raw_and_container
     bytes[cod + 9] = 0;
     let bytes = pack_packet_header(bytes, false, &[0]);
     let jp2 = jp2_for_codestream(&bytes, 1, 1);
-    for after in [12, 14] {
+    for after in [15, 17] {
         assert!(matches!(
             crate::allocation::with_refusal(after, || decode_codestream(&bytes, &options)),
             Err(DecodeError::AllocationFailed)
@@ -5398,7 +5398,7 @@ fn preparation_storage_public_outer_and_bitmap_refusal_restore_raw_and_container
             Err(DecodeError::AllocationFailed)
         ));
     }
-    for after in [24, 26] {
+    for after in [27, 29] {
         assert!(matches!(
             crate::allocation::with_refusal(after, || decode_jp2(&jp2, &options)),
             Err(DecodeError::AllocationFailed)
@@ -5429,17 +5429,17 @@ fn grid_storage_raw_selected_container_refusal_preserves_parse_and_restores() {
     })
     .unwrap();
     assert!(matches!(
-        crate::allocation::with_refusal(11, || decode_codestream(&bytes, &options)),
+        crate::allocation::with_refusal(14, || decode_codestream(&bytes, &options)),
         Err(DecodeError::AllocationFailed)
     ));
     assert!(matches!(
-        crate::allocation::with_refusal(11, || decode_codestream_selected(
+        crate::allocation::with_refusal(14, || decode_codestream_selected(
             &bytes, &options, &selection
         )),
         Err(DecodeError::AllocationFailed)
     ));
     assert!(matches!(
-        crate::allocation::with_refusal(23, || decode_jp2(&jp2, &options)),
+        crate::allocation::with_refusal(26, || decode_jp2(&jp2, &options)),
         Err(DecodeError::AllocationFailed)
     ));
     let expected = decode_codestream(&bytes, &options).unwrap();
@@ -5449,6 +5449,198 @@ fn grid_storage_raw_selected_container_refusal_preserves_parse_and_restores() {
     );
     assert_eq!(decode_jp2(&jp2, &options).unwrap(), expected);
     assert_eq!(bytes, before);
+}
+
+#[test]
+fn geometry_storage_descriptor_first_later_empty_selection_and_restore() {
+    let mut bytes = prepared_codestream(1, 1, 1, &[0, 0x40], &[0]);
+    let cod = bytes
+        .windows(2)
+        .position(|pair| pair == [0xff, 0x52])
+        .unwrap();
+    bytes[cod + 9] = 0;
+    let limits = ResourceLimits::default();
+    let layout = parse_layout(&bytes, &limits).unwrap();
+    let styles = &layout.info.component_coding_styles;
+    let source = format!("{styles:?}");
+    let expected = prepare_component_resolution_counts(1, styles, 0).unwrap();
+    for after in [0, 1] {
+        assert_eq!(
+            crate::allocation::with_refusal(after, || prepare_component_resolution_counts(
+                1, styles, 0
+            )),
+            Err(DecodeError::AllocationFailed)
+        );
+    }
+    crate::allocation::with_refusal(0, || {
+        assert_eq!(
+            prepare_component_resolution_counts(0, styles, u8::MAX).unwrap(),
+            (0, Vec::new(), Vec::new())
+        );
+        assert_eq!(
+            prepare_component_resolution_counts(1, styles, 0),
+            Err(DecodeError::AllocationFailed)
+        );
+    });
+    crate::allocation::with_refusal(2, || {
+        assert!(matches!(
+            prepare_component_resolution_counts(1, styles, u8::MAX),
+            Err(DecodeError::InvalidSelection {
+                reason: SelectionError::ReductionTooLarge
+            })
+        ));
+        assert_eq!(
+            crate::allocation::empty_with_capacity::<u8>(1),
+            Err(DecodeError::AllocationFailed)
+        );
+    });
+    assert_eq!(
+        prepare_component_resolution_counts(1, styles, 0).unwrap(),
+        expected
+    );
+    assert_eq!(format!("{styles:?}"), source);
+}
+
+#[test]
+fn geometry_storage_derived_count_refusal_precedes_geometry_and_restores_owners() {
+    let mut bytes = prepared_codestream(1, 1, 1, &[0, 0x40], &[0]);
+    let cod = bytes
+        .windows(2)
+        .position(|pair| pair == [0xff, 0x52])
+        .unwrap();
+    bytes[cod + 9] = 0;
+    let limits = ResourceLimits::default();
+    let layout = parse_layout(&bytes, &limits).unwrap();
+    let size = &layout.info.image_size;
+    let styles = &layout.info.component_coding_styles;
+    let layers = layout.info.coding_style.layers;
+    let source = format!("{size:?}{styles:?}");
+    let normal =
+        derive_packet_grid_for_components(size, styles, layers, &limits, Some(0), 0).unwrap();
+    assert!(matches!(
+        crate::allocation::with_refusal(2, || derive_packet_grid_for_components(
+            size,
+            styles,
+            layers,
+            &limits,
+            Some(0),
+            0
+        )),
+        Err(DecodeError::AllocationFailed)
+    ));
+    let invalid =
+        derive_packet_grid_for_components(size, styles, layers, &limits, Some(u16::MAX), 0)
+            .err()
+            .unwrap();
+    crate::allocation::with_refusal(3, || {
+        assert_eq!(
+            derive_packet_grid_for_components(size, styles, layers, &limits, Some(u16::MAX), 0)
+                .err(),
+            Some(invalid)
+        );
+        assert_eq!(
+            crate::allocation::empty_with_capacity::<u8>(1),
+            Err(DecodeError::AllocationFailed)
+        );
+    });
+    assert_eq!(
+        format!(
+            "{:?}",
+            derive_packet_grid_for_components(size, styles, layers, &limits, Some(0), 0).unwrap()
+        ),
+        format!("{normal:?}")
+    );
+    assert_eq!(format!("{size:?}{styles:?}"), source);
+}
+
+#[test]
+fn geometry_storage_uniform_empty_overflow_limit_and_refusal_frontier() {
+    let mut bytes = prepared_codestream(1, 1, 1, &[0, 0x40], &[0]);
+    let cod = bytes
+        .windows(2)
+        .position(|pair| pair == [0xff, 0x52])
+        .unwrap();
+    bytes[cod + 9] = 0;
+    let limits = ResourceLimits::default();
+    let layout = parse_layout(&bytes, &limits).unwrap();
+    let size = layout.info.image_size;
+    let style = layout.info.coding_style;
+    let mut empty = size;
+    empty.components = 0;
+    let mut overflow = style;
+    overflow.decomposition_levels = u8::MAX;
+    crate::allocation::with_refusal(0, || {
+        assert!(matches!(
+            derive_packet_grid(&empty, style, &limits),
+            Err(DecodeError::MalformedInput {
+                kind: MalformedKind::InvalidCodingStyle,
+                ..
+            })
+        ));
+        assert!(matches!(
+            derive_packet_grid(&size, overflow, &limits),
+            Err(DecodeError::MalformedInput {
+                kind: MalformedKind::ArithmeticOverflow,
+                ..
+            })
+        ));
+        assert!(matches!(
+            derive_packet_grid(&size, style, &limits),
+            Err(DecodeError::AllocationFailed)
+        ));
+    });
+    let tight = limits.with_maximum_code_blocks(0).unwrap();
+    crate::allocation::with_refusal(1, || {
+        assert!(matches!(
+            derive_packet_grid(&size, style, &tight),
+            Err(DecodeError::LimitExceeded {
+                resource: Resource::CodeBlocks,
+                ..
+            })
+        ));
+        assert_eq!(
+            crate::allocation::empty_with_capacity::<u8>(1),
+            Err(DecodeError::AllocationFailed)
+        );
+    });
+    assert!(derive_packet_grid(&size, style, &limits).is_ok());
+}
+
+#[test]
+fn geometry_storage_public_raw_selected_container_roles_restore() {
+    let options = DecodeOptions::default();
+    let selection = DecodeSelection::full_image();
+    let mut bytes = prepared_codestream(1, 1, 1, &[0, 0x40], &[0]);
+    let cod = bytes
+        .windows(2)
+        .position(|pair| pair == [0xff, 0x52])
+        .unwrap();
+    bytes[cod + 9] = 0;
+    let jp2 = jp2_for_codestream(&bytes, 1, 1);
+    let source = bytes.clone();
+    for after in [11, 12, 13] {
+        assert!(matches!(
+            crate::allocation::with_refusal(after, || decode_codestream(&bytes, &options)),
+            Err(DecodeError::AllocationFailed)
+        ));
+        assert!(matches!(
+            crate::allocation::with_refusal(after, || decode_codestream_selected(
+                &bytes, &options, &selection
+            )),
+            Err(DecodeError::AllocationFailed)
+        ));
+        assert!(matches!(
+            crate::allocation::with_refusal(after + 12, || decode_jp2(&jp2, &options)),
+            Err(DecodeError::AllocationFailed)
+        ));
+    }
+    let expected = decode_codestream(&bytes, &options).unwrap();
+    assert_eq!(
+        decode_codestream_selected(&bytes, &options, &selection).unwrap(),
+        expected
+    );
+    assert_eq!(decode_jp2(&jp2, &options).unwrap(), expected);
+    assert_eq!(bytes, source);
 }
 
 #[test]
