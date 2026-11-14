@@ -1124,7 +1124,27 @@ including partial prior owners/counters, first errors and tails. New bounded
 controls cover first/later refusal, None/empty/selection/overflow/style
 precedence, pointer/owner preservation, later work rejection and raw selected/
 container restore. Existing unselected projections remain allocation-free at
-this metadata frontier; broader subband/precinct/planning owners stay separate.
+this metadata frontier.
+Fresh aggregate component-plan and component subband descriptor owners are
+fallible at their original two constructors. Distinct `ComponentCapacity`
+contexts (`Components` and `Subbands`) carry actual input owners, selection/
+policy or component/tile/ROI, and source-derived counts; they cannot stand in
+for earlier geometry/grid/parse or later packet responses. Actual grid
+production precedes aggregate reservation. Per-component style, reduction,
+quantization, transform, geometry, origin arithmetic and ROI admission precede
+subband reservation. Earlier errors consume no later response; zero counts
+skip requests, while empty spatial subbands still retain their LL descriptor.
+The source-derived component fold carries actual prior precinct/component
+owners and code-block counters, binding real metadata/subband producers to
+full/selected plans, snapshots, decode and public cold Result frames, with
+checked ordinary projections and exact first-error/tail consumption.
+`SubbandGeometry`, `ResolutionPlanMetadata` and `PlannedSubbandLattice` are
+scalar/fixed-array records, not additional allocation events. The later
+per-precinct execution collection, code-block decoders, entropy/sample/image
+storage and capacity-dependent existing-owner growth remain separate.
+Bounded controls cover first/later component refusals, malformed/empty
+geometry, earlier component/tile/work admission, readonly owner preservation
+and raw/selected/container restoration.
 Successful reservation relies on the documented standard-library boundary,
 not a physical-capacity theorem inferred from sequence models.
 Same-file links are checked inside another listed, formatted function body;

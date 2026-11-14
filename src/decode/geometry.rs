@@ -678,7 +678,9 @@ pub fn quantization_step_for_subband(
 }
 
 #[cfg_attr(verus_keep_ghost, verus_spec(result =>
-    ensures subbands_outcome(result) == crate::specs::part2_component_subbands(
+    ensures crate::specs::part1_subbands_cold_result(size,coding_style,quantization,component,None,0,subbands_outcome(result)),
+        subbands_outcome(result)!=Err(DecodeError::AllocationFailed) ==>
+        subbands_outcome(result) == crate::specs::part2_component_subbands(
         size, coding_style, quantization, component, None, 0,
     ),
 ))]
@@ -692,7 +694,9 @@ pub fn derive_component_subbands(
 }
 
 #[cfg_attr(verus_keep_ghost, verus_spec(result =>
-    ensures subbands_outcome(result) == crate::specs::part2_component_subbands(
+    ensures crate::specs::part1_subbands_cold_result(size,coding_style,quantization,component,tile_index,roi_shift,subbands_outcome(result)),
+        subbands_outcome(result)!=Err(DecodeError::AllocationFailed) ==>
+        subbands_outcome(result) == crate::specs::part2_component_subbands(
         size, coding_style, quantization, component, tile_index, roi_shift,
     ),
 ))]
@@ -705,11 +709,26 @@ pub(crate) fn derive_component_subbands_for(
     roi_shift: u8,
 ) -> Result<Vec<SubbandGeometry>, DecodeError> {
     #[cfg(verus_keep_ghost)]
-    proof! { codestream::resolution_selectors_known_fields(coding_style); }
+    proof! {
+        codestream::resolution_selectors_known_fields(coding_style);
+        crate::specs::part2_subbands_normal(size,coding_style,quantization,component,tile_index,roi_shift);
+    }
     let info = size.component(component)?;
     let component_bounds = component_coordinate_bounds(size, component, tile_index)?;
     let expected_count = coding_style.subband_count();
-    let mut subbands = Vec::with_capacity(usize::from(expected_count));
+    let reserved = if expected_count == 0 {
+        Ok(Vec::new())
+    } else {
+        crate::allocation::empty_with_capacity(usize::from(expected_count))
+    };
+    #[cfg(verus_keep_ghost)]
+    proof! {
+        crate::specs::part2_component_capacity_observed(crate::specs::Part2ComponentCapacityContext::Subbands {size:*size,style:coding_style,
+            quantization:codestream::quantization_view(quantization),component,tile:tile_index,roi:roi_shift},
+            match reserved {Ok(_)=>Ok(()),Err(error)=>Err(error)});
+        if reserved.is_err(){crate::specs::part2_subbands_refused(size,coding_style,quantization,component,tile_index,roi_shift);}
+    }
+    let mut subbands = reserved?;
     let mut resolution = 0_u8;
     #[cfg(verus_keep_ghost)]
     proof! { reveal(crate::specs::part2_subband_vector_run); }
@@ -718,6 +737,8 @@ pub(crate) fn derive_component_subbands_for(
         verus_spec(
             invariant
                 resolution as int <= coding_style.decomposition_levels as int + 1,
+                crate::specs::part1_subbands_cold_result(size,coding_style,quantization,component,tile_index,roi_shift,
+                    crate::specs::part2_component_subbands(size,coding_style,quantization,component,tile_index,roi_shift)),
                 crate::specs::part2_component_subbands(size, coding_style, quantization, component, tile_index, roi_shift)
                     == crate::specs::part2_subband_vector_run(
                         coding_style, component_bounds, [info.precision, roi_shift],

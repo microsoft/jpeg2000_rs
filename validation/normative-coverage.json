@@ -6468,7 +6468,21 @@
         {"path": "specs/mod.rs", "symbol": "part2_planned_component"},
         {"path": "specs/mod.rs", "symbol": "part2_component_plan_resolutions"},
         {"path": "specs/mod.rs", "symbol": "part2_component_plan_precincts"},
-        {"path": "specs/mod.rs", "symbol": "part2_component_plan_precinct"}
+        {"path": "specs/mod.rs", "symbol": "part2_component_plan_precinct"},
+        {"path": "specs/cold_component_plan.rs", "symbol": "part2_component_owner_context"},
+        {"path": "specs/cold_component_plan.rs", "symbol": "part2_component_plan_fold"},
+        {"path": "specs/cold_component_plan.rs", "symbol": "part2_plan_after_grid_run"},
+        {"path": "specs/cold_component_storage.rs", "symbol": "part2_component_capacity_count"},
+        {"path": "specs/cold_component_storage.rs", "symbol": "part2_component_capacity_run"},
+        {"path": "specs/cold_component_storage.rs", "symbol": "part2_component_capacity_result"},
+        {"path": "specs/cold_component_storage.rs", "symbol": "part2_subbands_admit"},
+        {"path": "specs/cold_component_storage.rs", "symbol": "part2_subbands_run"},
+        {"path": "specs/cold_component_storage.rs", "symbol": "part1_subbands_cold_result"},
+        {"path": "specs/cold_component_storage.rs", "symbol": "part2_component_subbands_prelude"},
+        {"path": "specs/cold_component_storage.rs", "symbol": "part2_component_metadata_run"},
+        {"path": "specs/cold_component_storage.rs", "symbol": "part2_component_metadata_result"},
+        {"path": "specs/cold_component_storage.rs", "symbol": "part2_planned_component_run"},
+        {"path": "specs/cold_component_storage.rs", "symbol": "part2_planned_component_result"}
       ],
       "contract_refs": [
         {"path": "src/decode/planning.rs", "symbol": "plan_tile_component"},
@@ -6495,11 +6509,29 @@
         {"path": "src/decode/planning.rs", "symbol": "derive_planned_precinct_origin"},
         {"path": "src/decode/planning.rs", "symbol": "plan_packet_precinct"},
         {"path": "src/decode/geometry.rs", "symbol": "derive_packet_grid_for_components"},
-        {"path": "src/codestream/proof_support.rs", "symbol": "selection_geometry_known_fields"}
+        {"path": "src/codestream/proof_support.rs", "symbol": "selection_geometry_known_fields"},
+        {"path": "specs/cold_component_plan.rs", "symbol": "part2_component_plan_fold_normal"},
+        {"path": "specs/cold_component_plan.rs", "symbol": "part2_plan_after_grid_normal"},
+        {"path": "specs/cold_component_plan.rs", "symbol": "part2_plan_component_owner_refused"},
+        {"path": "specs/cold_component_plan.rs", "symbol": "part2_plan_component_prefix"},
+        {"path": "specs/cold_component_plan.rs", "symbol": "part2_component_fold_step"},
+        {"path": "specs/cold_component_storage.rs", "symbol": "part2_component_capacity_observed"},
+        {"path": "specs/cold_component_storage.rs", "symbol": "part2_subbands_frames"},
+        {"path": "specs/cold_component_storage.rs", "symbol": "part2_subbands_normal"},
+        {"path": "specs/cold_component_storage.rs", "symbol": "part2_subbands_refused"},
+        {"path": "specs/cold_component_storage.rs", "symbol": "part2_component_metadata_normal"},
+        {"path": "specs/cold_component_storage.rs", "symbol": "part2_component_metadata_subbands_error"},
+        {"path": "specs/cold_component_storage.rs", "symbol": "part2_planned_component_frames"},
+        {"path": "specs/cold_component_storage.rs", "symbol": "part2_planned_component_normal"},
+        {"path": "specs/cold_component_storage.rs", "symbol": "part2_planned_component_metadata_error"}
       ],
       "test_refs": [
         {"path": "src/decode/tests.rs", "symbol": "actual_component_plan_derives_full_component_and_precinct_vectors_from_real_raw_owners"},
-        {"path": "src/decode/tests.rs", "symbol": "actual_selected_tile_plan_and_public_owner_boundary_bind_every_field_and_first_error"}
+        {"path": "src/decode/tests.rs", "symbol": "actual_selected_tile_plan_and_public_owner_boundary_bind_every_field_and_first_error"},
+        {"path": "src/decode/tests.rs", "symbol": "component_subband_storage_subband_admission_empty_late_error_and_restore"},
+        {"path": "src/decode/tests.rs", "symbol": "component_subband_storage_first_later_component_refusal_preserves_source_and_restores"},
+        {"path": "src/decode/tests.rs", "symbol": "component_subband_storage_component_admission_and_work_precede_requests"},
+        {"path": "src/decode/tests.rs", "symbol": "component_subband_storage_raw_selected_container_roles_restore"}
       ]
     },
     {
@@ -6633,7 +6665,21 @@
       "spec_refs": [
         {"path": "specs/mod.rs", "symbol": "part2_component_plan_metadata"},
         {"path": "specs/mod.rs", "symbol": "part2_component_quantization"},
-        {"path": "specs/mod.rs", "symbol": "part2_roi_shift"}
+        {"path": "specs/mod.rs", "symbol": "part2_roi_shift"},
+        {"path": "specs/cold_component_plan.rs", "symbol": "part2_component_owner_context"},
+        {"path": "specs/cold_component_plan.rs", "symbol": "part2_component_plan_fold"},
+        {"path": "specs/cold_component_plan.rs", "symbol": "part2_plan_after_grid_run"},
+        {"path": "specs/cold_component_storage.rs", "symbol": "part2_component_capacity_count"},
+        {"path": "specs/cold_component_storage.rs", "symbol": "part2_component_capacity_run"},
+        {"path": "specs/cold_component_storage.rs", "symbol": "part2_component_capacity_result"},
+        {"path": "specs/cold_component_storage.rs", "symbol": "part2_subbands_admit"},
+        {"path": "specs/cold_component_storage.rs", "symbol": "part2_subbands_run"},
+        {"path": "specs/cold_component_storage.rs", "symbol": "part1_subbands_cold_result"},
+        {"path": "specs/cold_component_storage.rs", "symbol": "part2_component_subbands_prelude"},
+        {"path": "specs/cold_component_storage.rs", "symbol": "part2_component_metadata_run"},
+        {"path": "specs/cold_component_storage.rs", "symbol": "part2_component_metadata_result"},
+        {"path": "specs/cold_component_storage.rs", "symbol": "part2_planned_component_run"},
+        {"path": "specs/cold_component_storage.rs", "symbol": "part2_planned_component_result"}
       ],
       "contract_refs": [
         {"path": "src/codestream/quantization.rs", "symbol": "ComponentQuantizations::quantization"},
@@ -6650,11 +6696,29 @@
         {"path": "src/codestream/proof_support.rs", "symbol": "selection_geometry_known_fields"},
         {"path": "src/codestream/coding_style.rs", "symbol": "ComponentCodingStyles::style"},
         {"path": "src/codestream/coding_style.rs", "symbol": "CodingStyle::tier1_coding_style"},
-        {"path": "src/tier1/coding.rs", "symbol": "Tier1CodingStyle::set_force_high_throughput"}
+        {"path": "src/tier1/coding.rs", "symbol": "Tier1CodingStyle::set_force_high_throughput"},
+        {"path": "specs/cold_component_plan.rs", "symbol": "part2_component_plan_fold_normal"},
+        {"path": "specs/cold_component_plan.rs", "symbol": "part2_plan_after_grid_normal"},
+        {"path": "specs/cold_component_plan.rs", "symbol": "part2_plan_component_owner_refused"},
+        {"path": "specs/cold_component_plan.rs", "symbol": "part2_plan_component_prefix"},
+        {"path": "specs/cold_component_plan.rs", "symbol": "part2_component_fold_step"},
+        {"path": "specs/cold_component_storage.rs", "symbol": "part2_component_capacity_observed"},
+        {"path": "specs/cold_component_storage.rs", "symbol": "part2_subbands_frames"},
+        {"path": "specs/cold_component_storage.rs", "symbol": "part2_subbands_normal"},
+        {"path": "specs/cold_component_storage.rs", "symbol": "part2_subbands_refused"},
+        {"path": "specs/cold_component_storage.rs", "symbol": "part2_component_metadata_normal"},
+        {"path": "specs/cold_component_storage.rs", "symbol": "part2_component_metadata_subbands_error"},
+        {"path": "specs/cold_component_storage.rs", "symbol": "part2_planned_component_frames"},
+        {"path": "specs/cold_component_storage.rs", "symbol": "part2_planned_component_normal"},
+        {"path": "specs/cold_component_storage.rs", "symbol": "part2_planned_component_metadata_error"}
       ],
       "test_refs": [
         {"path": "src/codestream/tests.rs", "symbol": "raw_component_quantization_and_roi_getters_preserve_logical_physical_policy"},
-        {"path": "src/codestream/tests.rs", "symbol": "actual_component_plan_metadata_preserves_all_ordered_raw_admission_and_output_fields"}
+        {"path": "src/codestream/tests.rs", "symbol": "actual_component_plan_metadata_preserves_all_ordered_raw_admission_and_output_fields"},
+        {"path": "src/decode/tests.rs", "symbol": "component_subband_storage_subband_admission_empty_late_error_and_restore"},
+        {"path": "src/decode/tests.rs", "symbol": "component_subband_storage_first_later_component_refusal_preserves_source_and_restores"},
+        {"path": "src/decode/tests.rs", "symbol": "component_subband_storage_component_admission_and_work_precede_requests"},
+        {"path": "src/decode/tests.rs", "symbol": "component_subband_storage_raw_selected_container_roles_restore"}
       ]
     },
     {
@@ -6767,7 +6831,21 @@
         {"path": "specs/mod.rs", "symbol": "part2_subband_resolution_bands"},
         {"path": "specs/mod.rs", "symbol": "part2_subband_resolution"},
         {"path": "specs/mod.rs", "symbol": "part2_subband_vector_run"},
-        {"path": "specs/mod.rs", "symbol": "part2_component_subbands"}
+        {"path": "specs/mod.rs", "symbol": "part2_component_subbands"},
+        {"path": "specs/cold_component_plan.rs", "symbol": "part2_component_owner_context"},
+        {"path": "specs/cold_component_plan.rs", "symbol": "part2_component_plan_fold"},
+        {"path": "specs/cold_component_plan.rs", "symbol": "part2_plan_after_grid_run"},
+        {"path": "specs/cold_component_storage.rs", "symbol": "part2_component_capacity_count"},
+        {"path": "specs/cold_component_storage.rs", "symbol": "part2_component_capacity_run"},
+        {"path": "specs/cold_component_storage.rs", "symbol": "part2_component_capacity_result"},
+        {"path": "specs/cold_component_storage.rs", "symbol": "part2_subbands_admit"},
+        {"path": "specs/cold_component_storage.rs", "symbol": "part2_subbands_run"},
+        {"path": "specs/cold_component_storage.rs", "symbol": "part1_subbands_cold_result"},
+        {"path": "specs/cold_component_storage.rs", "symbol": "part2_component_subbands_prelude"},
+        {"path": "specs/cold_component_storage.rs", "symbol": "part2_component_metadata_run"},
+        {"path": "specs/cold_component_storage.rs", "symbol": "part2_component_metadata_result"},
+        {"path": "specs/cold_component_storage.rs", "symbol": "part2_planned_component_run"},
+        {"path": "specs/cold_component_storage.rs", "symbol": "part2_planned_component_result"}
       ],
       "contract_refs": [
         {"path": "src/codestream/coding_style.rs", "symbol": "CodingStyle::subband_count"},
@@ -6783,11 +6861,29 @@
         {"path": "src/codestream/coding_style.rs", "symbol": "CodingStyle::resolution_downsampling"},
         {"path": "src/codestream/coding_style.rs", "symbol": "CodingStyle::direction_for_resolution"},
         {"path": "src/codestream/proof_support.rs", "symbol": "resolution_selectors_known_fields"},
-        {"path": "src/codestream/proof_support.rs", "symbol": "quantization_view"}
+        {"path": "src/codestream/proof_support.rs", "symbol": "quantization_view"},
+        {"path": "specs/cold_component_plan.rs", "symbol": "part2_component_plan_fold_normal"},
+        {"path": "specs/cold_component_plan.rs", "symbol": "part2_plan_after_grid_normal"},
+        {"path": "specs/cold_component_plan.rs", "symbol": "part2_plan_component_owner_refused"},
+        {"path": "specs/cold_component_plan.rs", "symbol": "part2_plan_component_prefix"},
+        {"path": "specs/cold_component_plan.rs", "symbol": "part2_component_fold_step"},
+        {"path": "specs/cold_component_storage.rs", "symbol": "part2_component_capacity_observed"},
+        {"path": "specs/cold_component_storage.rs", "symbol": "part2_subbands_frames"},
+        {"path": "specs/cold_component_storage.rs", "symbol": "part2_subbands_normal"},
+        {"path": "specs/cold_component_storage.rs", "symbol": "part2_subbands_refused"},
+        {"path": "specs/cold_component_storage.rs", "symbol": "part2_component_metadata_normal"},
+        {"path": "specs/cold_component_storage.rs", "symbol": "part2_component_metadata_subbands_error"},
+        {"path": "specs/cold_component_storage.rs", "symbol": "part2_planned_component_frames"},
+        {"path": "specs/cold_component_storage.rs", "symbol": "part2_planned_component_normal"},
+        {"path": "specs/cold_component_storage.rs", "symbol": "part2_planned_component_metadata_error"}
       ],
       "test_refs": [
         {"path": "src/codestream/tests.rs", "symbol": "complete_subband_vectors_match_raw_coordinates_direction_order_and_every_field"},
-        {"path": "src/codestream/tests.rs", "symbol": "subband_vectors_preserve_component_admission_and_raw_prefix_index_boundaries"}
+        {"path": "src/codestream/tests.rs", "symbol": "subband_vectors_preserve_component_admission_and_raw_prefix_index_boundaries"},
+        {"path": "src/decode/tests.rs", "symbol": "component_subband_storage_subband_admission_empty_late_error_and_restore"},
+        {"path": "src/decode/tests.rs", "symbol": "component_subband_storage_first_later_component_refusal_preserves_source_and_restores"},
+        {"path": "src/decode/tests.rs", "symbol": "component_subband_storage_component_admission_and_work_precede_requests"},
+        {"path": "src/decode/tests.rs", "symbol": "component_subband_storage_raw_selected_container_roles_restore"}
       ]
     },
     {

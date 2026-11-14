@@ -22,6 +22,8 @@ specs/README.md
 specs/allocation.rs
 specs/codestream_profile.rs
 specs/cold_bitmap.rs
+specs/cold_component_plan.rs
+specs/cold_component_storage.rs
 specs/cold_decode_finish.rs
 specs/cold_decode_packets.rs
 specs/cold_extensions_copy.rs

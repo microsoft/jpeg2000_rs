@@ -5346,21 +5346,21 @@ fn packed_storage_raw_container_selected_and_reconstruction_refuse_only_after_pa
     })
     .unwrap();
     assert!(matches!(
-        crate::allocation::with_refusal(16, || decode_codestream(&bytes, &options)),
+        crate::allocation::with_refusal(18, || decode_codestream(&bytes, &options)),
         Err(DecodeError::AllocationFailed)
     ));
     assert!(matches!(
-        crate::allocation::with_refusal(17, || decode_codestream_selected(
+        crate::allocation::with_refusal(19, || decode_codestream_selected(
             &bytes, &options, &selection
         )),
         Err(DecodeError::AllocationFailed)
     ));
     assert!(matches!(
-        crate::allocation::with_refusal(16, || decode_codestream_reconstructed(&bytes, &options)),
+        crate::allocation::with_refusal(18, || decode_codestream_reconstructed(&bytes, &options)),
         Err(DecodeError::AllocationFailed)
     ));
     assert!(matches!(
-        crate::allocation::with_refusal(28, || decode_jp2(&jp2, &options)),
+        crate::allocation::with_refusal(30, || decode_jp2(&jp2, &options)),
         Err(DecodeError::AllocationFailed)
     ));
     let raw = decode_codestream(&bytes, &options).unwrap();
@@ -5380,7 +5380,7 @@ fn preparation_storage_public_outer_and_bitmap_refusal_restore_raw_and_container
     bytes[cod + 9] = 0;
     let bytes = pack_packet_header(bytes, false, &[0]);
     let jp2 = jp2_for_codestream(&bytes, 1, 1);
-    for after in [15, 17] {
+    for after in [17, 19] {
         assert!(matches!(
             crate::allocation::with_refusal(after, || decode_codestream(&bytes, &options)),
             Err(DecodeError::AllocationFailed)
@@ -5398,7 +5398,7 @@ fn preparation_storage_public_outer_and_bitmap_refusal_restore_raw_and_container
             Err(DecodeError::AllocationFailed)
         ));
     }
-    for after in [27, 29] {
+    for after in [29, 31] {
         assert!(matches!(
             crate::allocation::with_refusal(after, || decode_jp2(&jp2, &options)),
             Err(DecodeError::AllocationFailed)
@@ -5830,6 +5830,209 @@ fn tile_metadata_storage_raw_selected_container_refusal_and_restore() {
         decode_jp2_selected(&jp2, &options, &selection).unwrap(),
         expected
     );
+    assert_eq!(bytes, source);
+}
+
+fn component_subband_storage_fixture(components: u16) -> Vec<u8> {
+    let mut bytes = prepared_codestream(1, 1, 1, &[0, 0x40], &[0]);
+    let siz = bytes
+        .windows(2)
+        .position(|pair| pair == [0xff, 0x51])
+        .unwrap();
+    let length = u16::from_be_bytes([bytes[siz + 2], bytes[siz + 3]]) + 3 * (components - 1);
+    bytes[siz + 2..siz + 4].copy_from_slice(&length.to_be_bytes());
+    bytes[siz + 38..siz + 40].copy_from_slice(&components.to_be_bytes());
+    for _ in 1..components {
+        bytes.splice(siz + 43..siz + 43, [7, 1, 1]);
+    }
+    let cod = bytes
+        .windows(2)
+        .position(|pair| pair == [0xff, 0x52])
+        .unwrap();
+    bytes[cod + 9] = 0;
+    bytes
+}
+
+#[test]
+fn component_subband_storage_subband_admission_empty_late_error_and_restore() {
+    let bytes = component_subband_storage_fixture(1);
+    let limits = ResourceLimits::default();
+    let layout = parse_layout(&bytes, &limits).unwrap();
+    let size = layout.info.image_size;
+    let style = layout.info.coding_style;
+    let quant = &layout.info.quantization;
+    let expected = derive_component_subbands(&size, style, quant, 0).unwrap();
+    crate::allocation::with_refusal(0, || {
+        assert!(
+            matches!(derive_component_subbands(&size, style, quant, 1),Err(error) if error!=DecodeError::AllocationFailed)
+        );
+        assert!(
+            matches!(derive_component_subbands_for(&size, style, quant, 0, Some(u16::MAX), 0),Err(error) if error!=DecodeError::AllocationFailed)
+        );
+        assert_eq!(
+            derive_component_subbands(&size, style, quant, 0),
+            Err(DecodeError::AllocationFailed)
+        );
+    });
+    let mut empty = size;
+    empty.width = 0;
+    let bands = derive_component_subbands(&empty, style, quant, 0).unwrap();
+    assert_eq!(bands.len(), 1);
+    assert_eq!(bands[0].width, 0);
+    let mut malformed = style;
+    malformed.decomposition_levels = u8::MAX;
+    let error = derive_component_subbands(&size, malformed, quant, 0)
+        .err()
+        .unwrap();
+    assert_ne!(error, DecodeError::AllocationFailed);
+    crate::allocation::with_refusal(1, || {
+        assert_eq!(
+            derive_component_subbands(&size, malformed, quant, 0).err(),
+            Some(error)
+        );
+        assert_eq!(
+            crate::allocation::empty_with_capacity::<u8>(1),
+            Err(DecodeError::AllocationFailed)
+        );
+    });
+    assert_eq!(
+        derive_component_subbands(&size, style, quant, 0).unwrap(),
+        expected
+    );
+}
+
+#[test]
+fn component_subband_storage_first_later_component_refusal_preserves_source_and_restores() {
+    let bytes = component_subband_storage_fixture(2);
+    let limits = ResourceLimits::default();
+    let layout = parse_layout(&bytes, &limits).unwrap();
+    let part = &layout.tile_parts[0];
+    let before = format!("{:?}{part:?}", layout.info.image_size);
+    let plan = || {
+        plan_progression_tile_at_with_component_overrides(
+            &layout.info.image_size,
+            0,
+            part.coding_style,
+            &part.component_coding_styles,
+            &part.component_quantizations,
+            &part.roi_shifts,
+            &limits,
+        )
+    };
+    for after in [4, 5, 6] {
+        assert!(matches!(
+            crate::allocation::with_refusal(after, plan),
+            Err(DecodeError::AllocationFailed)
+        ));
+        assert_eq!(format!("{:?}{part:?}", layout.info.image_size), before);
+    }
+    let actual = plan().unwrap();
+    assert_eq!(actual.components.len(), 2);
+}
+
+#[test]
+fn component_subband_storage_component_admission_and_work_precede_requests() {
+    let bytes = component_subband_storage_fixture(1);
+    let limits = ResourceLimits::default();
+    let layout = parse_layout(&bytes, &limits).unwrap();
+    let part = &layout.tile_parts[0];
+    crate::allocation::with_refusal(0, || {
+        assert!(matches!(
+            prepare_component_plan_metadata(
+                &layout.info.image_size,
+                &part.component_coding_styles,
+                &part.component_quantizations,
+                &part.roi_shifts,
+                1,
+                (0, 0),
+                false
+            ),Err(error) if error!=DecodeError::AllocationFailed
+        ));
+        assert!(matches!(
+            prepare_component_plan_metadata(
+                &layout.info.image_size,
+                &part.component_coding_styles,
+                &part.component_quantizations,
+                &part.roi_shifts,
+                0,
+                (0, 0),
+                false
+            ),
+            Err(DecodeError::AllocationFailed)
+        ));
+    });
+    let tight = limits.with_maximum_work_units(0).unwrap();
+    crate::allocation::with_refusal(4, || {
+        assert!(matches!(
+            plan_progression_tile_at_with_component_overrides(
+                &layout.info.image_size,
+                0,
+                part.coding_style,
+                &part.component_coding_styles,
+                &part.component_quantizations,
+                &part.roi_shifts,
+                &tight
+            ),
+            Err(DecodeError::LimitExceeded {
+                resource: Resource::WorkUnits,
+                ..
+            })
+        ));
+        assert_eq!(
+            crate::allocation::empty_with_capacity::<u8>(1),
+            Err(DecodeError::AllocationFailed)
+        );
+    });
+    let mut empty = layout.info.image_size;
+    empty.components = 0;
+    crate::allocation::with_refusal(0, || {
+        assert!(matches!(
+            plan_progression_tile_at_with_component_overrides(
+                &empty,
+                0,
+                part.coding_style,
+                &part.component_coding_styles,
+                &part.component_quantizations,
+                &part.roi_shifts,
+                &limits
+            ),Err(error) if error!=DecodeError::AllocationFailed
+        ));
+        assert_eq!(
+            crate::allocation::empty_with_capacity::<u8>(1),
+            Err(DecodeError::AllocationFailed)
+        );
+    });
+}
+
+#[test]
+fn component_subband_storage_raw_selected_container_roles_restore() {
+    let bytes = component_subband_storage_fixture(1);
+    let options = DecodeOptions::default();
+    let selection = DecodeSelection::full_image();
+    let jp2 = jp2_for_codestream(&bytes, 1, 1);
+    let source = bytes.clone();
+    for after in [15, 16] {
+        assert!(matches!(
+            crate::allocation::with_refusal(after, || decode_codestream(&bytes, &options)),
+            Err(DecodeError::AllocationFailed)
+        ));
+        assert!(matches!(
+            crate::allocation::with_refusal(after + 1, || decode_codestream_selected(
+                &bytes, &options, &selection
+            )),
+            Err(DecodeError::AllocationFailed)
+        ));
+        assert!(matches!(
+            crate::allocation::with_refusal(after + 12, || decode_jp2(&jp2, &options)),
+            Err(DecodeError::AllocationFailed)
+        ));
+    }
+    let expected = decode_codestream(&bytes, &options).unwrap();
+    assert_eq!(
+        decode_codestream_selected(&bytes, &options, &selection).unwrap(),
+        expected
+    );
+    assert_eq!(decode_jp2(&jp2, &options).unwrap(), expected);
     assert_eq!(bytes, source);
 }
 

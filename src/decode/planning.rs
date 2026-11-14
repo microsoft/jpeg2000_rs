@@ -167,7 +167,10 @@ pub fn plan_progression_tile_at_with_component_overrides(
 }
 
 #[cfg_attr(verus_keep_ghost, verus_spec(result =>
-    ensures component_plan_metadata_outcome(result) == crate::specs::part2_component_plan_metadata(
+    ensures crate::specs::part2_component_metadata_result(size,coding_styles,codestream::quantization_owner_view(quantizations),roi_shifts,component,selection,force_high_throughput,
+            component_plan_metadata_outcome(result)),
+        component_plan_metadata_outcome(result)!=Err(DecodeError::AllocationFailed) ==>
+        component_plan_metadata_outcome(result) == crate::specs::part2_component_plan_metadata(
         size, coding_styles, quantizations, roi_shifts, component, selection, force_high_throughput,
     ),
 ))]
@@ -181,7 +184,10 @@ pub(crate) fn prepare_component_plan_metadata(
     force_high_throughput: bool,
 ) -> Result<PlannedComponentMetadata, DecodeError> {
     #[cfg(verus_keep_ghost)]
-    proof! { codestream::selection_geometry_known_fields(size); }
+    proof! {
+        codestream::selection_geometry_known_fields(size);
+        crate::specs::part2_component_metadata_normal(size,coding_styles,codestream::quantization_owner_view(quantizations),roi_shifts,component,selection,force_high_throughput);
+    }
     let (tile_index, discard_levels) = selection;
     let component_coding_style = coding_styles.style(component)?;
     let output_resolution = component_coding_style
@@ -215,14 +221,21 @@ pub(crate) fn prepare_component_plan_metadata(
     let component_y = ceil_div_u32(bounds.y0, scale_y)?
         .checked_sub(ceil_div_u32(component_image_y0, scale_y)?)
         .ok_or_else(arithmetic_overflow)?;
-    let subbands = derive_component_subbands_for(
+    let shift = roi_shifts.shift(component)?;
+    let subbands_result = derive_component_subbands_for(
         size,
         component_coding_style,
         &component_quantization,
         component,
         Some(tile_index),
-        roi_shifts.shift(component)?,
-    )?;
+        shift,
+    );
+    #[cfg(verus_keep_ghost)]
+    proof! {if let Err(error)=subbands_result {
+        crate::specs::part2_component_metadata_subbands_error(size,coding_styles,codestream::quantization_owner_view(quantizations),roi_shifts,component,selection,force_high_throughput,
+            component_coding_style,component_quantization,shift,error);
+    }}
+    let subbands = subbands_result?;
     Ok(PlannedComponentMetadata {
         component_coding_style,
         output_resolution,
@@ -288,7 +301,24 @@ pub(super) fn plan_progression_tile_at_selected(
     #[cfg(verus_keep_ghost)]
     proof_decl! { let ghost original_grid = crate::packet::packet_grid_view(&grid); }
     let mut precincts = Vec::new();
-    let mut components = Vec::with_capacity(usize::from(size.components));
+    let reserved = if size.components == 0 {
+        Ok(Vec::new())
+    } else {
+        crate::allocation::empty_with_capacity(usize::from(size.components))
+    };
+    #[cfg(verus_keep_ghost)]
+    proof! {
+        crate::specs::part2_component_capacity_observed(crate::specs::part2_component_owner_context(size,coding_style,coding_styles,codestream::quantization_owner_view(quantizations),roi_shifts,
+            (tile_index,discard_levels),(allow_multiple_ht_sets,ht_magnitude_bound,force_high_throughput)),match reserved {Ok(_)=>Ok(()),Err(error)=>Err(error)});
+        if reserved.is_err(){crate::specs::part2_plan_component_owner_refused(size,coding_style,coding_styles,codestream::quantization_owner_view(quantizations),roi_shifts,
+            (tile_index,discard_levels),(allow_multiple_ht_sets,ht_magnitude_bound,force_high_throughput),limits,original_grid);}
+    }
+    let mut components = reserved?;
+    #[cfg(verus_keep_ghost)]
+    proof_decl! {let ghost mut prefix:Seq<crate::specs::Part2JpipSnapshotEvent>;}
+    #[cfg(verus_keep_ghost)]
+    proof! {prefix=crate::specs::part2_plan_component_prefix(size,coding_style,coding_styles,codestream::quantization_owner_view(quantizations),roi_shifts,
+    (tile_index,discard_levels),(allow_multiple_ht_sets,ht_magnitude_bound,force_high_throughput),limits,original_grid);}
     let mut planned_code_blocks = 0_u64;
     let mut component = 0_u16;
     #[cfg(verus_keep_ghost)]
@@ -303,6 +333,12 @@ pub(super) fn plan_progression_tile_at_selected(
             invariant component <= size.components,
                 codestream::image_size_component_count(size) == size.components,
                 crate::packet::packet_grid_view(&grid) == original_grid,
+                forall|events:Seq<crate::specs::Part2JpipSnapshotEvent>|
+                    #[trigger] crate::specs::part2_grid_plan_run(size,coding_style,coding_styles,codestream::quantization_owner_view(quantizations),roi_shifts,
+                        (tile_index,discard_levels),(allow_multiple_ht_sets,ht_magnitude_bound,force_high_throughput),limits,prefix+events)
+                        ==crate::specs::part2_component_plan_fold(size,coding_style,coding_styles,codestream::quantization_owner_view(quantizations),roi_shifts,
+                            (tile_index,discard_levels),(allow_multiple_ht_sets,ht_magnitude_bound,force_high_throughput),limits,original_grid,component,
+                            tile_plan_buffers_view(precincts@,components@,planned_code_blocks),events),
                 crate::specs::part2_grid_plan_result(size,coding_style,coding_styles,codestream::quantization_owner_view(quantizations),roi_shifts,
                     (tile_index,discard_levels),(allow_multiple_ht_sets,ht_magnitude_bound,force_high_throughput),limits,goal),
                 goal == crate::specs::part2_progression_tile_plan(
@@ -322,7 +358,13 @@ pub(super) fn plan_progression_tile_at_selected(
         proof_decl! { let ghost before = tile_plan_buffers_view(precincts@, components@, planned_code_blocks); }
         #[cfg(verus_keep_ghost)]
         proof! { reveal_with_fuel(crate::specs::part2_tile_plan_components, 1); }
-        let planned = plan_tile_component(
+        #[cfg(verus_keep_ghost)]
+        proof! {assert forall|events:Seq<crate::specs::Part2JpipSnapshotEvent>|
+        #[trigger] crate::specs::part2_grid_plan_run(size,coding_style,coding_styles,codestream::quantization_owner_view(quantizations),roi_shifts,
+            (tile_index,discard_levels),(allow_multiple_ht_sets,ht_magnitude_bound,force_high_throughput),limits,prefix+events)
+            ==crate::specs::part2_component_plan_fold(size,coding_style,coding_styles,codestream::quantization_owner_view(quantizations),roi_shifts,
+                (tile_index,discard_levels),(allow_multiple_ht_sets,ht_magnitude_bound,force_high_throughput),limits,original_grid,component,before,events) by {}}
+        let planned_result = plan_tile_component(
             size,
             coding_styles,
             quantizations,
@@ -337,7 +379,26 @@ pub(super) fn plan_progression_tile_at_selected(
             precincts,
             planned_code_blocks,
             limits,
-        )?;
+        );
+        #[cfg(verus_keep_ghost)]
+        proof! {
+            let select=(tile_index,discard_levels);let policy=(allow_multiple_ht_sets,ht_magnitude_bound,force_high_throughput);
+            let root=|events|crate::specs::part2_grid_plan_run(size,coding_style,coding_styles,codestream::quantization_owner_view(quantizations),roi_shifts,select,policy,limits,events);
+            let child=|events|crate::specs::part2_planned_component_run(size,coding_styles,codestream::quantization_owner_view(quantizations),roi_shifts,component,select,policy,before.precincts,before.planned_code_blocks,limits,events);
+            let next=|row:crate::specs::Part2PlannedComponent,rest|crate::specs::part2_component_plan_fold(size,coding_style,coding_styles,codestream::quantization_owner_view(quantizations),roi_shifts,select,policy,limits,original_grid,(component+1) as u16,
+                crate::specs::Part2TilePlanBuffers {precincts:row.precincts,components:before.components.push(row.component),planned_code_blocks:row.planned_code_blocks},rest);
+            crate::specs::part2_component_fold_step(size,coding_style,coding_styles,codestream::quantization_owner_view(quantizations),roi_shifts,select,policy,limits,original_grid,component,before);
+            crate::specs::part2_planned_component_frames(size,coding_styles,codestream::quantization_owner_view(quantizations),roi_shifts,component,select,policy,before.precincts,before.planned_code_blocks,limits,planned_component_outcome(planned_result));
+            assert forall|events|root(prefix+events)==crate::specs::part2_jpip_snapshot_bind(child(events),next) by {}
+            match planned_component_outcome(planned_result) {
+                Err(error)=>{
+                    crate::specs::part2_decode_prefix_error(root,child,next,prefix,error);
+                    reveal(crate::specs::part2_grid_plan_result);
+                },
+                Ok(row)=>{prefix=crate::specs::part2_decode_prefix_advance(root,child,next,prefix,row);},
+            }
+        }
+        let planned = planned_result?;
         #[cfg(verus_keep_ghost)]
         proof_decl! { let ghost row = planned_component_view(&planned); }
         #[cfg(verus_keep_ghost)]
@@ -369,7 +430,10 @@ pub(super) fn plan_progression_tile_at_selected(
 
 #[allow(clippy::too_many_arguments)]
 #[cfg_attr(verus_keep_ghost, verus_spec(result =>
-    ensures planned_component_outcome(result) == crate::specs::part2_planned_component(
+    ensures crate::specs::part2_planned_component_result(size,coding_styles,codestream::quantization_owner_view(quantizations),roi_shifts,component,selection,policy,
+            planning_precincts_view(precincts@),planned_code_blocks,limits,planned_component_outcome(result)),
+        planned_component_outcome(result)!=Err(DecodeError::AllocationFailed) ==>
+        planned_component_outcome(result) == crate::specs::part2_planned_component(
         size, coding_styles, quantizations, roi_shifts, component, selection, policy,
         planning_precincts_view(precincts@), planned_code_blocks, limits,
     ),
@@ -387,11 +451,14 @@ pub(crate) fn plan_tile_component(
     limits: &ResourceLimits,
 ) -> Result<PlannedComponent, DecodeError> {
     #[cfg(verus_keep_ghost)]
+    proof! {crate::specs::part2_planned_component_normal(size,coding_styles,codestream::quantization_owner_view(quantizations),roi_shifts,component,selection,policy,
+    planning_precincts_view(precincts@),planned_code_blocks,limits);}
+    #[cfg(verus_keep_ghost)]
     proof_decl! { let ghost goal = crate::specs::part2_planned_component(
         size, coding_styles, quantizations, roi_shifts, component, selection, policy,
         planning_precincts_view(precincts@), planned_code_blocks, limits,
     ); }
-    let metadata = prepare_component_plan_metadata(
+    let metadata_result = prepare_component_plan_metadata(
         size,
         coding_styles,
         quantizations,
@@ -399,7 +466,13 @@ pub(crate) fn plan_tile_component(
         component,
         selection,
         policy.2,
-    )?;
+    );
+    #[cfg(verus_keep_ghost)]
+    proof! {if let Err(error)=metadata_result {
+        crate::specs::part2_planned_component_metadata_error(size,coding_styles,codestream::quantization_owner_view(quantizations),roi_shifts,component,selection,policy,
+            planning_precincts_view(precincts@),planned_code_blocks,limits,error);
+    }}
+    let metadata = metadata_result?;
     #[cfg(verus_keep_ghost)]
     proof_decl! { let ghost meta = component_plan_metadata_view(&metadata); }
     let mut builder = ComponentPlanBuilder {
@@ -410,6 +483,8 @@ pub(crate) fn plan_tile_component(
     let mut resolution = 0_u8;
     #[cfg_attr(verus_keep_ghost, verus_spec(
         invariant resolution <= metadata.component_coding_style.decomposition_levels as int + 1,
+            crate::specs::part2_planned_component_result(size,coding_styles,codestream::quantization_owner_view(quantizations),roi_shifts,component,selection,policy,
+                planning_precincts_view(precincts@),planned_code_blocks,limits,goal),
             meta == component_plan_metadata_view(&metadata),
             goal == crate::specs::part2_planned_component(
                 size, coding_styles, quantizations, roi_shifts, component, selection, policy,
@@ -439,6 +514,8 @@ pub(crate) fn plan_tile_component(
         let mut precinct = 0_u32;
         #[cfg_attr(verus_keep_ghost, verus_spec(
             invariant precinct <= data.precincts_in_resolution,
+                crate::specs::part2_planned_component_result(size,coding_styles,codestream::quantization_owner_view(quantizations),roi_shifts,component,selection,policy,
+                    planning_precincts_view(precincts@),planned_code_blocks,limits,goal),
                 resolution <= metadata.component_coding_style.decomposition_levels,
                 meta == component_plan_metadata_view(&metadata),
                 resolution_data == resolution_plan_metadata_view(&data),
