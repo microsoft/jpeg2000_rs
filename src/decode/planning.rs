@@ -133,7 +133,10 @@ pub fn plan_progression_tile_at_with_roi(
 }
 
 #[cfg_attr(verus_keep_ghost, verus_spec(result =>
-    ensures progression_plan_outcome(result) == crate::specs::part2_progression_tile_plan(
+    ensures crate::specs::part1_progression_plan_cold_result(size,coding_style,coding_styles,quantizations,roi_shifts,
+            (tile_index,0),(false,74,false),limits,progression_plan_outcome(result)),
+        progression_plan_outcome(result)!=Err(DecodeError::AllocationFailed) ==>
+        progression_plan_outcome(result) == crate::specs::part2_progression_tile_plan(
         size, coding_style, coding_styles, quantizations, roi_shifts, (tile_index, 0), (false, 74, false), limits,
     ),
 ))]
@@ -146,6 +149,8 @@ pub fn plan_progression_tile_at_with_component_overrides(
     roi_shifts: &RoiShifts,
     limits: &ResourceLimits,
 ) -> Result<ProgressionTilePlan, DecodeError> {
+    #[cfg(verus_keep_ghost)]
+    proof! {crate::specs::part2_grid_plan_public_equivalent(size,coding_style,coding_styles,quantizations,roi_shifts,(tile_index,0),(false,74,false),limits);}
     plan_progression_tile_at_selected(
         size,
         tile_index,
@@ -233,7 +238,10 @@ pub(crate) fn prepare_component_plan_metadata(
 
 #[allow(clippy::too_many_arguments)]
 #[cfg_attr(verus_keep_ghost, verus_spec(result =>
-    ensures progression_plan_outcome(result) == crate::specs::part2_progression_tile_plan(
+    ensures crate::specs::part2_grid_plan_result(size,coding_style,coding_styles,codestream::quantization_owner_view(quantizations),roi_shifts,
+            (tile_index,discard_levels),(allow_multiple_ht_sets,ht_magnitude_bound,force_high_throughput),limits,progression_plan_outcome(result)),
+        progression_plan_outcome(result)!=Err(DecodeError::AllocationFailed) ==>
+        progression_plan_outcome(result) == crate::specs::part2_progression_tile_plan(
         size, coding_style, coding_styles, quantizations, roi_shifts, (tile_index, discard_levels),
         (allow_multiple_ht_sets, ht_magnitude_bound, force_high_throughput), limits,
     ),
@@ -252,21 +260,31 @@ pub(super) fn plan_progression_tile_at_selected(
     limits: &ResourceLimits,
 ) -> Result<ProgressionTilePlan, DecodeError> {
     #[cfg(verus_keep_ghost)]
-    proof! { codestream::selection_geometry_known_fields(size); }
+    proof! {
+        codestream::selection_geometry_known_fields(size);
+        crate::specs::part2_grid_plan_normal(size,coding_style,coding_styles,codestream::quantization_owner_view(quantizations),roi_shifts,
+            (tile_index,discard_levels),(allow_multiple_ht_sets,ht_magnitude_bound,force_high_throughput),limits);
+    }
     #[cfg(verus_keep_ghost)]
     proof_decl! { let ghost goal = crate::specs::part2_progression_tile_plan(
         size, coding_style, coding_styles, quantizations, roi_shifts, (tile_index, discard_levels),
         (allow_multiple_ht_sets, ht_magnitude_bound, force_high_throughput), limits,
     ); }
     size.tile_bounds(tile_index)?;
-    let grid = derive_packet_grid_for_components(
+    let grid_result = derive_packet_grid_for_components(
         size,
         coding_styles,
         coding_style.layers,
         limits,
         Some(tile_index),
         discard_levels,
-    )?;
+    );
+    #[cfg(verus_keep_ghost)]
+    proof! {if let Err(error)=grid_result {
+        crate::specs::part2_grid_plan_error(size,coding_style,coding_styles,codestream::quantization_owner_view(quantizations),roi_shifts,
+            (tile_index,discard_levels),(allow_multiple_ht_sets,ht_magnitude_bound,force_high_throughput),limits,error);
+    }}
+    let grid = grid_result?;
     #[cfg(verus_keep_ghost)]
     proof_decl! { let ghost original_grid = crate::packet::packet_grid_view(&grid); }
     let mut precincts = Vec::new();
@@ -285,6 +303,8 @@ pub(super) fn plan_progression_tile_at_selected(
             invariant component <= size.components,
                 codestream::image_size_component_count(size) == size.components,
                 crate::packet::packet_grid_view(&grid) == original_grid,
+                crate::specs::part2_grid_plan_result(size,coding_style,coding_styles,codestream::quantization_owner_view(quantizations),roi_shifts,
+                    (tile_index,discard_levels),(allow_multiple_ht_sets,ht_magnitude_bound,force_high_throughput),limits,goal),
                 goal == crate::specs::part2_progression_tile_plan(
                     size, coding_style, coding_styles, quantizations, roi_shifts, (tile_index, discard_levels),
                     (allow_multiple_ht_sets, ht_magnitude_bound, force_high_throughput), limits,

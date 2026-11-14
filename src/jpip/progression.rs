@@ -27,6 +27,16 @@ use vstd::prelude::*;
 #[path = "progressive_result_tests.rs"]
 mod result_tests;
 
+pub(super) enum PreparedAutomaticTiles {
+    Missing {
+        ranges: Vec<JpipMissingRange>,
+    },
+    Ready {
+        tiles: Vec<AutomaticTile>,
+        maximum: u16,
+    },
+}
+
 impl JpipProgressiveUpdate {
     #[cfg_attr(verus_keep_ghost, verus_spec(result => ensures result == jpip_progressive_update_view(self).0,))]
     pub const fn status(&self) -> JpipProgressiveStatus {
@@ -124,9 +134,13 @@ impl JpipProgressiveDecoder {
 
 impl JpipProgressiveDecoder {
     #[cfg_attr(verus_keep_ghost, verus_spec(result =>
-        ensures (jpip_progressive_outcome(result), jpip_progressive_decoder_view(final(self)))
-            == crate::specs::part2_jpip_progressive_update(jpip_cache_view(cache),
-                jpip_progressive_decoder_view(old(self)), options, None),
+        ensures crate::specs::part2_jpip_planned_cold_result(jpip_cache_view(cache),
+            jpip_progressive_decoder_view(old(self)), options, None,
+            (jpip_progressive_outcome(result), jpip_progressive_decoder_view(final(self)), jpip_cache_view(cache))),
+            jpip_progressive_outcome(result) != Err(DecodeError::AllocationFailed) ==>
+                (jpip_progressive_outcome(result), jpip_progressive_decoder_view(final(self)))
+                    == crate::specs::part2_jpip_progressive_update(jpip_cache_view(cache),
+                        jpip_progressive_decoder_view(old(self)), options, None),
             jpip_progressive_plan_owner(final(self)) == jpip_progressive_plan_owner(old(self)),
     ))]
     pub fn update(
@@ -138,9 +152,13 @@ impl JpipProgressiveDecoder {
     }
 
     #[cfg_attr(verus_keep_ghost, verus_spec(result =>
-        ensures (jpip_progressive_outcome(result), jpip_progressive_decoder_view(final(self)))
-            == crate::specs::part2_jpip_progressive_update(jpip_cache_view(cache),
-                jpip_progressive_decoder_view(old(self)), options, Some(selection)),
+        ensures crate::specs::part2_jpip_planned_cold_result(jpip_cache_view(cache),
+            jpip_progressive_decoder_view(old(self)), options, Some(selection),
+            (jpip_progressive_outcome(result), jpip_progressive_decoder_view(final(self)), jpip_cache_view(cache))),
+            jpip_progressive_outcome(result) != Err(DecodeError::AllocationFailed) ==>
+                (jpip_progressive_outcome(result), jpip_progressive_decoder_view(final(self)))
+                    == crate::specs::part2_jpip_progressive_update(jpip_cache_view(cache),
+                        jpip_progressive_decoder_view(old(self)), options, Some(selection)),
             jpip_progressive_plan_owner(final(self)) == jpip_progressive_plan_owner(old(self)),
     ))]
     pub fn update_selected(
@@ -153,9 +171,13 @@ impl JpipProgressiveDecoder {
     }
 
     #[cfg_attr(verus_keep_ghost, verus_spec(result =>
-        ensures (jpip_progressive_outcome(result), jpip_progressive_decoder_view(final(self)))
-            == crate::specs::part2_jpip_progressive_update(jpip_cache_view(cache),
-                jpip_progressive_decoder_view(old(self)), options, selection),
+        ensures crate::specs::part2_jpip_planned_cold_result(jpip_cache_view(cache),
+            jpip_progressive_decoder_view(old(self)), options, selection,
+            (jpip_progressive_outcome(result), jpip_progressive_decoder_view(final(self)), jpip_cache_view(cache))),
+            jpip_progressive_outcome(result) != Err(DecodeError::AllocationFailed) ==>
+                (jpip_progressive_outcome(result), jpip_progressive_decoder_view(final(self)))
+                    == crate::specs::part2_jpip_progressive_update(jpip_cache_view(cache),
+                        jpip_progressive_decoder_view(old(self)), options, selection),
             jpip_progressive_plan_owner(final(self)) == jpip_progressive_plan_owner(old(self)),
     ))]
     fn update_inner(
@@ -168,7 +190,11 @@ impl JpipProgressiveDecoder {
         proof! {
             reveal(jpip_progressive_decoder_view); reveal(jpip_progressive_plan_owner);
             reveal(jpip_progressive_update_view); reveal(jpip_transcode_view);
+            crate::specs::part2_jpip_planned_cold_normal(jpip_cache_view(cache),
+                jpip_progressive_decoder_view(self), options, selection);
         }
+        #[cfg(verus_keep_ghost)]
+        proof_decl! { let ghost initial_decoder = jpip_progressive_decoder_view(self); }
         let previous_layers = self.decoded_layers;
         let (available_layers, missing) = cache.progressive_availability(&self.plan)?;
         if !crate::refinement::jpip_progressive_update_valid(
@@ -193,7 +219,19 @@ impl JpipProgressiveDecoder {
                 image: None,
             });
         }
-        let transcoded = cache.transcode_precinct_codestream(&self.plan, available_layers)?;
+        let transcoded = match cache.transcode_precinct_codestream(&self.plan, available_layers) {
+            Ok(value) => value,
+            Err(error) => {
+                #[cfg(verus_keep_ghost)]
+                proof! {
+                    crate::specs::part2_jpip_planned_transcode_error(jpip_cache_view(cache), initial_decoder,
+                        options, selection, available_layers, super::jpip_missing_views(&missing), error);
+                }
+                return Err(error);
+            }
+        };
+        #[cfg(verus_keep_ghost)]
+        proof_decl! { let ghost transcoded_value = jpip_transcode_view(&transcoded); }
         let view = transcoded
             .codestream
             .ok_or_else(
@@ -202,12 +240,17 @@ impl JpipProgressiveDecoder {
                 ))]
                 || DecodeError::malformed(0, MalformedKind::MissingRequiredStructure),
             )?;
-        let image = match selection {
-            Some(selection) => {
-                crate::decode_codestream_selected(view.as_ref(), options, selection)?
-            }
-            None => crate::decode_codestream(view.as_ref(), options)?,
+        let image_result = match selection {
+            Some(selection) => crate::decode_codestream_selected(view.as_ref(), options, selection),
+            None => crate::decode_codestream(view.as_ref(), options),
         };
+        #[cfg(verus_keep_ghost)]
+        proof! {
+            crate::specs::part2_jpip_planned_image_actual(jpip_cache_view(cache), initial_decoder,
+                options, selection, available_layers, super::jpip_missing_views(&missing),
+                transcoded_value, super::jpip_byte_view(&view), crate::image::decoded_typed_image_outcome(image_result));
+        }
+        let image = image_result?;
         self.decoded_layers = available_layers;
         Ok(JpipProgressiveUpdate {
             status: if available_layers == self.plan.layers() {
@@ -374,11 +417,13 @@ impl JpipAutomaticProgressiveDecoder {
         #[cfg(verus_keep_ghost)]
         proof_decl! {
             let ghost snapshot_value = super::jpip_automatic_snapshot_result_view(&result);
-            let ghost snapshot_events = choose|events: Seq<crate::specs::Part2JpipSnapshotEvent>|
+            let ghost snapshot_calls = choose|events: Seq<crate::specs::Part2JpipSnapshotEvent>|
                 crate::specs::part2_jpip_snapshot_run(input, events) == Some((Ok(snapshot_value), Seq::empty()));
+            let ghost snapshot_events = seq![crate::specs::Part2JpipAutomaticEvent::Snapshot { calls: snapshot_calls }];
         }
         #[cfg(verus_keep_ghost)]
         proof! {
+            assert(snapshot_events.drop_first() =~= Seq::empty());
             crate::specs::part2_jpip_automatic_progressive_run_unfold(input.cache, initial_decoder,
                 options, selection, input.components, snapshot_events);
         }
@@ -435,32 +480,30 @@ impl JpipAutomaticProgressiveDecoder {
                 image: None,
             });
         }
+        let image_result = match selection {
+            Some(selection) => {
+                crate::decode_codestream_selected(snapshot.codestream.as_ref(), options, selection)
+            }
+            None => crate::decode_codestream(snapshot.codestream.as_ref(), options),
+        };
         #[cfg(verus_keep_ghost)]
         proof! {
-            assert forall|error: DecodeError|
-                crate::specs::part2_decode_raw_codestream(super::jpip_byte_view(&snapshot.codestream),
-                    crate::options::decode_options_limits(options), selection) == Err(error)
-                implies crate::specs::part2_jpip_automatic_progressive_update_result(input.cache, initial_decoder,
-                    options, selection, input.components, (Err(error), initial_decoder, input.cache)) by {
-                super::jpip_automatic_progressive_witness(input.cache, initial_decoder, options, selection,
-                    input.components, snapshot_events, (Err(error), initial_decoder, input.cache));
-            }
+            assert(snapshot_events.drop_first() =~= Seq::empty());
+            crate::specs::part2_jpip_automatic_image_actual(
+                input.cache, initial_decoder, options, selection, input.components, snapshot_calls,
+                super::jpip_automatic_snapshot_view(&snapshot), snapshot_value.1,
+                crate::image::decoded_typed_image_outcome(image_result));
         }
-        let image = match selection {
-            Some(selection) => {
-                crate::decode_codestream_selected(snapshot.codestream.as_ref(), options, selection)?
-            }
-            None => crate::decode_codestream(snapshot.codestream.as_ref(), options)?,
-        };
+        let image = image_result?;
         self.decoded_layers = snapshot.available_layers;
         #[cfg(verus_keep_ghost)]
         proof! {
-            super::jpip_automatic_progressive_witness(input.cache, initial_decoder, options, selection,
-                input.components, snapshot_events, (Ok((
-                    if snapshot.available_layers == snapshot.layers { JpipProgressiveStatus::Complete }
-                    else { JpipProgressiveStatus::QualityAdvanced },
-                    previous_layers, snapshot.available_layers, super::jpip_missing_views(&snapshot.missing),
-                    Some(crate::image::typed_image_value_view(image)))), (self.codestream, self.decoded_layers), input.cache));
+            assert(crate::specs::part2_jpip_automatic_image_frame(input.cache, initial_decoder,
+                super::jpip_automatic_snapshot_view(&snapshot), Ok(crate::image::typed_image_value_view(image)))
+                == (Ok((if snapshot.available_layers == snapshot.layers { JpipProgressiveStatus::Complete }
+                    else { JpipProgressiveStatus::QualityAdvanced }, previous_layers, snapshot.available_layers,
+                    super::jpip_missing_views(&snapshot.missing), Some(crate::image::typed_image_value_view(image)))),
+                    (self.codestream, self.decoded_layers), input.cache));
         }
         Ok(JpipProgressiveUpdate {
             status: if snapshot.available_layers == snapshot.layers {
@@ -732,7 +775,7 @@ impl DatabinCache {
             let ghost headers = normalized_tiles@.map_values(|parts: Vec<Vec<u8>>|
                 parts@.map_values(|header: Vec<u8>| header@));
             let ghost normalized_bytes = normalized_main@;
-            let ghost prefix = crate::specs::part2_jpip_snapshot_normalized_events(
+            let ghost mut prefix = crate::specs::part2_jpip_snapshot_normalized_events(
                 tile_count, raw_tiles.len() as usize, main_calls);
         }
         #[cfg(verus_keep_ghost)]
@@ -763,35 +806,42 @@ impl DatabinCache {
                         input, normalized_bytes, raw_tiles, tile_count, components, headers, tail) by {
             }
             assert(super::jpip_snapshot_inputs_match(input, self, codestream, selection, packet_selection, limits));
-            assert forall|error: DecodeError|
-                crate::codestream::complete_layout_outcome(Err(error))
-                    == crate::specs::part1_parse_layout(template@, limits)
-                implies crate::specs::part2_jpip_automatic_snapshot_result(jpip_cache_view(self),
-                    codestream, super::jpip_snapshot_selection_view(selection),
-                    super::jpip_packet_selection_view(packet_selection), limits, Err(error)) by {
-                super::jpip_snapshot_template_parse_error(input, prefix, normalized_bytes, raw_tiles,
-                    tile_count, components, headers, template@, error);
-            }
         }
-        let layout = crate::codestream::parse_layout(&template, limits)?;
+        let parsed = crate::codestream::parse_layout(&template, limits);
+        let layout = match parsed {
+            Ok(layout) => layout,
+            Err(error) => {
+                #[cfg(verus_keep_ghost)]
+                proof! {
+                    crate::codestream::decoder_layout_errors_known();
+                    super::jpip_snapshot_template_parse_error(input, prefix, normalized_bytes, raw_tiles,
+                        tile_count, components, headers, template@, error);
+                }
+                return Err(error);
+            }
+        };
+        #[cfg(verus_keep_ghost)]
+        proof! {
+            prefix = super::jpip_snapshot_template_layout_prefix(input, prefix, normalized_bytes,
+                raw_tiles, tile_count, components, headers, template@, &layout);
+        }
         #[cfg(verus_keep_ghost)]
         proof! {
             super::jpip_snapshot_layout_capacity_error(input, prefix, normalized_bytes, raw_tiles,
                 tile_count, components, headers, template@, &layout);
         }
-        let mut automatic_tiles = crate::allocation::empty_with_capacity(normalized_tiles.len())?;
+        let automatic_tiles = crate::allocation::empty_with_capacity(normalized_tiles.len())?;
         #[cfg(verus_keep_ghost)]
         proof! {
             super::jpip_snapshot_layout_continuation(input, prefix, normalized_bytes, raw_tiles,
                 tile_count, components, headers, template@, &layout);
         }
-        let mut maximum_layers = 0_u16;
-        tile_index = 0;
         #[cfg(verus_keep_ghost)]
         proof_decl! {
             let ghost mut tile_root = crate::specs::Part2JpipSnapshotTileRoot {
-                input, events: prefix + seq![crate::specs::Part2JpipSnapshotEvent::Capacity {
+                input, prefix: prefix + seq![crate::specs::Part2JpipSnapshotEvent::Capacity {
                     site: 2, tile: 0, elements: normalized_tiles.len(), succeeded: true }],
+                events: Seq::empty(),
                 count: tile_count, components, main: normalized_main@, raw: raw_tiles, headers,
                 layout: crate::codestream::decoder_layout_input_view(&layout),
                 tile: 0, before: Seq::empty(), maximum: 0,
@@ -801,13 +851,40 @@ impl DatabinCache {
         proof! {
             reveal(super::jpip_automatic_tiles_view);
             assert(super::jpip_automatic_tiles_view(automatic_tiles@) =~= Seq::empty());
+            crate::specs::part2_jpip_snapshot_root_start(tile_root);
             assert(crate::specs::part2_jpip_snapshot_tile_root(tile_root));
         }
+        #[cfg(verus_keep_ghost)]
+        proof_decl! { let ghost initial_tile_root = tile_root; }
+        let collect_tiles = |mut automatic_tiles: Vec<AutomaticTile>| -> Result<PreparedAutomaticTiles, DecodeError> {
+        #[cfg(verus_keep_ghost)]
+        vstd::prelude::requires(super::jpip_snapshot_collection_entry(
+            initial_tile_root, self, codestream, selection, packet_selection, limits, &layout,
+            &tile_headers, &normalized_tiles, &normalized_main, &template, tile_count, components, raw_tiles, &automatic_tiles));
+        #[cfg(verus_keep_ghost)]
+        vstd::prelude::ensures(|result: Result<PreparedAutomaticTiles, DecodeError>| {
+            super::jpip_snapshot_collection_outcome(initial_tile_root, result)
+        });
+        #[cfg(verus_keep_ghost)]
+        proof! {
+            reveal(super::jpip_snapshot_collection_outcome);
+            assert forall|error: DecodeError|
+                crate::specs::part2_jpip_automatic_snapshot_result(jpip_cache_view(self), codestream,
+                    super::jpip_snapshot_selection_view(selection), super::jpip_packet_selection_view(packet_selection),
+                    limits, Err(error))
+                implies super::jpip_snapshot_collection_outcome(initial_tile_root, Err(error)) by {};
+        }
+        let mut maximum_layers = 0_u16;
+        let mut tile_index = 0_usize;
+        #[cfg(verus_keep_ghost)]
+        proof_decl! { let ghost mut tile_root = initial_tile_root; }
         #[cfg_attr(
             verus_keep_ghost,
             verus_spec(
                 invariant tile_index <= normalized_tiles.len(),
                     crate::specs::part2_jpip_snapshot_tile_root(tile_root),
+                    tile_root.input == initial_tile_root.input,
+                    tile_root.prefix == initial_tile_root.prefix,
                     super::jpip_snapshot_inputs_match(tile_root.input, self, codestream, selection, packet_selection, limits),
                     tile_root.count == tile_count, tile_root.components == components,
                     tile_root.main == normalized_main@,
@@ -905,7 +982,7 @@ impl DatabinCache {
                     |part: crate::specs::Part2OwnedTilePart| part.tile_index == current_root.tile as u16));
                 super::jpip_snapshot_plan_errors(current_root, native_parts);
             }
-            let mut plan = crate::decode::plan_progression_tile_at_with_component_overrides(
+            let plan_result = crate::decode::plan_progression_tile_at_with_component_overrides(
                 &layout.info.image_size,
                 tile_number,
                 tile_part.coding_style,
@@ -913,7 +990,14 @@ impl DatabinCache {
                 &tile_part.component_quantizations,
                 &tile_part.roi_shifts,
                 limits,
-            )?;
+            );
+            #[cfg(verus_keep_ghost)]
+            proof! {
+                crate::specs::part2_grid_plan_public_equivalent(&layout.info.image_size,tile_part.coding_style,&tile_part.component_coding_styles,
+                    &tile_part.component_quantizations,&tile_part.roi_shifts,(tile_number,0),(false,74,false),limits);
+                if let Err(error)=plan_result {super::jpip_snapshot_grid_plan_error(current_root,native_parts,error);}
+            }
+            let mut plan=plan_result?;
             #[cfg(verus_keep_ghost)]
             proof_decl! { let ghost initial_plan = crate::decode::progression_plan_view(&plan); }
             #[cfg(verus_keep_ghost)]
@@ -1071,6 +1155,8 @@ impl DatabinCache {
                         mapping_plan == crate::decode::progression_plan_view(&plan),
                         initial_plan == mapping_plan,
                         super::jpip_snapshot_inputs_match(current_root.input, self, codestream, selection, packet_selection, limits),
+                        current_root.input == initial_tile_root.input,
+                        current_root.prefix == initial_tile_root.prefix,
                         super::jpip_snapshot_root_frame(current_root, normalized_main@,
                             tile_headers@.map_values(|header: Vec<u8>| header@),
                             normalized_tiles@.map_values(|parts: Vec<Vec<u8>>| parts@.map_values(|header: Vec<u8>| header@)),
@@ -1247,6 +1333,8 @@ impl DatabinCache {
                 verus_spec(
                     invariant order_index <= order.len(),
                         super::jpip_snapshot_inputs_match(current_root.input, self, codestream, selection, packet_selection, limits),
+                        current_root.input == initial_tile_root.input,
+                        current_root.prefix == initial_tile_root.prefix,
                         super::jpip_snapshot_root_frame(current_root, normalized_main@,
                             tile_headers@.map_values(|header: Vec<u8>| header@),
                             normalized_tiles@.map_values(|parts: Vec<Vec<u8>>| parts@.map_values(|header: Vec<u8>| header@)),
@@ -1526,6 +1614,8 @@ impl DatabinCache {
                 verus_spec(
                     invariant order_index <= order.len(),
                         super::jpip_snapshot_inputs_match(current_root.input, self, codestream, selection, packet_selection, limits),
+                        current_root.input == initial_tile_root.input,
+                        current_root.prefix == initial_tile_root.prefix,
                         super::jpip_snapshot_root_frame(current_root, normalized_main@,
                             tile_headers@.map_values(|header: Vec<u8>| header@),
                             normalized_tiles@.map_values(|parts: Vec<Vec<u8>>| parts@.map_values(|header: Vec<u8>| header@)),
@@ -1610,7 +1700,7 @@ impl DatabinCache {
                             order_index as nat, packets@.map_values(
                                 |packet: AutomaticPacket| super::jpip_automatic_packet_view(&packet)),
                             packet_events, Seq::empty(), error);
-                        assert(crate::specs::part2_jpip_snapshot_tile(current_root.input, current_root.count,
+                        assert(crate::specs::part2_jpip_snapshot_tile_normal_run(current_root.input, current_root.count,
                             current_root.components, current_root.tile as usize, current_root.layout,
                             current_root.raw, current_root.headers, seq![tile_capacity] + packet_events)
                             == Some((Err(error), Seq::empty())));
@@ -1702,7 +1792,7 @@ impl DatabinCache {
                         super::jpip_snapshot_selection_view(selection), super::jpip_packet_selection_view(packet_selection),
                         limits, Err(error)) by {
                     assert(partition_events =~= seq![tile_capacity] + packet_events);
-                    assert(crate::specs::part2_jpip_snapshot_tile(current_root.input, current_root.count,
+                    assert(crate::specs::part2_jpip_snapshot_tile_normal_run(current_root.input, current_root.count,
                         current_root.components, current_root.tile as usize, current_root.layout,
                         current_root.raw, current_root.headers, partition_events) == Some((Err(error), Seq::empty())));
                     super::jpip_snapshot_tile_root_error(current_root, partition_events, error);
@@ -1724,7 +1814,7 @@ impl DatabinCache {
                 }
                 #[cfg(verus_keep_ghost)]
                 proof! {
-                    assert(crate::specs::part2_jpip_snapshot_tile(current_root.input, current_root.count,
+                    assert(crate::specs::part2_jpip_snapshot_tile_normal_run(current_root.input, current_root.count,
                         current_root.components, current_root.tile as usize, current_root.layout,
                         current_root.raw, current_root.headers, partition_events)
                         == Some((Ok((None, partition_packets, tile_part.coding_style.layers)), Seq::empty())));
@@ -1743,8 +1833,10 @@ impl DatabinCache {
                             partition_packets == packets@.map_values(
                                 |packet: AutomaticPacket| super::jpip_automatic_packet_view(&packet)),
                             super::jpip_snapshot_inputs_match(current_root.input, self, codestream, selection, packet_selection, limits),
+                            current_root.input == initial_tile_root.input,
+                            current_root.prefix == initial_tile_root.prefix,
                             crate::specs::part2_jpip_snapshot_tile_root(current_root), current_root.tile < current_root.headers.len(),
-                            crate::specs::part2_jpip_snapshot_tile(current_root.input, current_root.count,
+                            crate::specs::part2_jpip_snapshot_tile_normal_run(current_root.input, current_root.count,
                                 current_root.components, current_root.tile as usize, current_root.layout,
                                 current_root.raw, current_root.headers, partition_events)
                                 == Some((Ok((None, partition_packets, tile_part.coding_style.layers)), Seq::empty())),
@@ -1832,10 +1924,13 @@ impl DatabinCache {
                         tile_part.coding_style.layers, super::jpip_missing_views(&missing));
                     reveal(super::jpip_automatic_snapshot_result_view);
                 }
-                return Ok(AutomaticSnapshotResult {
-                    ready: None,
-                    missing,
-                });
+                let prepared = PreparedAutomaticTiles::Missing { ranges: missing };
+                #[cfg(verus_keep_ghost)]
+                proof! {
+                    super::jpip_snapshot_collection_fields(&prepared);
+                    assert(super::jpip_snapshot_collection_outcome(initial_tile_root, Ok(prepared)));
+                }
+                return Ok(prepared);
             };
             #[cfg(verus_keep_ghost)]
             proof_decl! {
@@ -1843,12 +1938,12 @@ impl DatabinCache {
                     |part: super::AutomaticTilePart| super::jpip_automatic_tile_part_view(&part));
                 let ghost completed_packets = packets@.map_values(
                     |packet: AutomaticPacket| super::jpip_automatic_packet_view(&packet));
-                let ghost completed_events = seq![tile_capacity] + packet_events;
+                let ghost mut completed_events = seq![tile_capacity] + packet_events;
             }
             #[cfg(verus_keep_ghost)]
             proof! {
                 assert forall|tail: Seq<crate::specs::Part2JpipSnapshotEvent>|
-                    crate::specs::part2_jpip_snapshot_tile(current_root.input, current_root.count,
+                    crate::specs::part2_jpip_snapshot_tile_normal_run(current_root.input, current_root.count,
                         current_root.components, current_root.tile as usize, current_root.layout,
                         current_root.raw, current_root.headers, completed_events + tail)
                         == Some((Ok((Some(completed_parts), completed_packets, tile_part.coding_style.layers)), tail)) by {
@@ -1864,6 +1959,7 @@ impl DatabinCache {
                 }
                 super::jpip_snapshot_tile_root_advance(current_root, completed_events,
                     completed_parts, completed_packets, tile_part.coding_style.layers);
+                completed_events=crate::specs::part2_jpip_grid_normal_calls(current_root.input,current_root.tile as usize,current_root.layout)+completed_events;
             }
             automatic_tiles.push(AutomaticTile { parts });
             #[cfg(verus_keep_ghost)]
@@ -1876,6 +1972,44 @@ impl DatabinCache {
                     before: current_root.before.push(completed_parts), maximum: maximum_layers, ..current_root };
             }
             tile_index += 1;
+        }
+        #[cfg(verus_keep_ghost)]
+        proof! {
+            assert(super::jpip_snapshot_collection_ready(initial_tile_root, tile_root,
+                super::jpip_automatic_tiles_view(automatic_tiles@), maximum_layers));
+        }
+        #[cfg(verus_keep_ghost)]
+        proof_decl! { let ghost collected_tiles = super::jpip_automatic_tiles_view(automatic_tiles@); }
+        let prepared = PreparedAutomaticTiles::Ready { tiles: automatic_tiles, maximum: maximum_layers };
+        #[cfg(verus_keep_ghost)]
+        proof! {
+            super::jpip_snapshot_collection_fields(&prepared);
+            assert(super::jpip_snapshot_collection_view(prepared)
+                == crate::specs::Part2JpipPreparedTiles::Ready { tiles: collected_tiles, maximum: maximum_layers });
+            super::jpip_snapshot_collection_ready_witness(initial_tile_root, tile_root, &prepared);
+        }
+        Ok(prepared)
+        };
+        #[cfg(verus_keep_ghost)]
+        proof! { reveal(super::jpip_snapshot_collection_outcome); }
+        let prepared = collect_tiles(automatic_tiles)?;
+        #[cfg(verus_keep_ghost)]
+        proof! { super::jpip_snapshot_collection_fields(&prepared); }
+        let (automatic_tiles, maximum_layers) = match prepared {
+            PreparedAutomaticTiles::Missing { ranges } => {
+                return Ok(AutomaticSnapshotResult {
+                    ready: None,
+                    missing: ranges,
+                });
+            }
+            PreparedAutomaticTiles::Ready { tiles, maximum } => (tiles, maximum),
+        };
+        #[cfg(verus_keep_ghost)]
+        proof! {
+            tile_root = choose|root: crate::specs::Part2JpipSnapshotTileRoot<'_>|
+                #[trigger] super::jpip_snapshot_collection_ready(initial_tile_root, root,
+                    super::jpip_automatic_tiles_view(automatic_tiles@), maximum_layers);
+            reveal(super::jpip_snapshot_collection_ready);
         }
 
         #[cfg(verus_keep_ghost)]
@@ -2328,7 +2462,23 @@ impl DatabinCache {
                 super::jpip_snapshot_root_ready_result(tile_root, Err(error));
             }
         }
-        crate::codestream::parse_layout(&bytes, limits)?;
+        match crate::codestream::parse_layout(&bytes, limits) {
+            Ok(_layout) => {
+                #[cfg(verus_keep_ghost)]
+                proof! {
+                    crate::codestream::decoder_layout_input_matches_raw(&_layout);
+                    assert(crate::specs::part1_parse_layout(bytes@, limits).is_ok());
+                }
+            }
+            Err(error) => {
+                #[cfg(verus_keep_ghost)]
+                proof! {
+                    super::jpip_snapshot_root_ready_parse_error(
+                        tile_root, emitted_bytes, bytes@, error);
+                }
+                return Err(error);
+            }
+        }
         #[cfg(verus_keep_ghost)]
         proof! {
             assert(crate::specs::part1_parse_layout(bytes@, limits).is_ok());

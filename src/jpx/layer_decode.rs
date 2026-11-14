@@ -21,9 +21,13 @@ use super::{
 use vstd::prelude::*;
 
 #[cfg_attr(verus_keep_ghost, verus_spec(result =>
-    ensures owned_layer_outcome(result) == crate::specs::part2_decode_effective_layer(
-        jp2::jpx_file_decode_view(file), jp2::source_file_layer_configs(file), layer_index,
-        crate::options::decode_options_limits(options)),
+    ensures crate::specs::part2_effective_layer_cold_result(jp2::jpx_file_decode_view(file),
+        jp2::source_file_layer_configs(file), layer_index, crate::options::decode_options_limits(options),
+        owned_layer_outcome(result)),
+        owned_layer_outcome(result) != Err(DecodeError::AllocationFailed) ==>
+            owned_layer_outcome(result) == crate::specs::part2_decode_effective_layer(
+                jp2::jpx_file_decode_view(file), jp2::source_file_layer_configs(file), layer_index,
+                crate::options::decode_options_limits(options)),
 ))]
 pub(super) fn decode_effective_layer(
     file: &Jp2File<'_>,
@@ -33,6 +37,8 @@ pub(super) fn decode_effective_layer(
     #[cfg(verus_keep_ghost)]
     proof! {
         reveal(crate::specs::part2_decode_effective_layer);
+        crate::specs::part2_effective_layer_cold_normal(jp2::jpx_file_decode_view(file),
+            jp2::source_file_layer_configs(file), layer_index, crate::options::decode_options_limits(options));
     }
     if file.compositing_layers().is_empty() {
         if layer_index >= file.codestream_count() {
@@ -41,16 +47,34 @@ pub(super) fn decode_effective_layer(
                 layers: file.codestream_count(),
             });
         }
-        return owned_layer_from_image(&decode_layer(file, layer_index, None, options)?);
+        let decoded = decode_layer(file, layer_index, None, options);
+        #[cfg(verus_keep_ghost)]
+        proof! {
+            assert(jp2::source_file_layer_configs(file) =~= Seq::empty());
+            crate::specs::part2_effective_layer_cold_bare_actual(jp2::jpx_file_decode_view(file), layer_index,
+                crate::options::decode_options_limits(options), crate::color::converted_image_result(decoded));
+        }
+        return owned_layer_from_image(&decoded?);
     }
     let layer = file.compositing_layer(layer_index)?;
-    decode_compositing_layer(file, layer, layer_index, options)
+    let decoded = decode_compositing_layer(file, layer, layer_index, options);
+    #[cfg(verus_keep_ghost)]
+    proof! {
+        crate::specs::part2_effective_layer_cold_routed_actual(jp2::jpx_file_decode_view(file),
+            jp2::source_file_layer_configs(file), layer_index, crate::options::decode_options_limits(options),
+            jp2::source_layer_routing_config(file, layer), owned_layer_outcome(decoded));
+    }
+    decoded
 }
 
 #[cfg_attr(verus_keep_ghost, verus_spec(result =>
-    ensures crate::color::converted_image_result(result) == crate::specs::part2_decode_jpx_layer(
-        jp2::jpx_file_decode_view(file), codestream_index,
-        jp2::optional_color_specification_method(color_override), crate::options::decode_options_limits(options)),
+    ensures crate::specs::part2_jpx_layer_cold_result(jp2::jpx_file_decode_view(file), codestream_index,
+        jp2::optional_color_specification_method(color_override), crate::options::decode_options_limits(options),
+        crate::color::converted_image_result(result)),
+        crate::color::converted_image_result(result) != Err(DecodeError::AllocationFailed) ==>
+            crate::color::converted_image_result(result) == crate::specs::part2_decode_jpx_layer(
+                jp2::jpx_file_decode_view(file), codestream_index,
+                jp2::optional_color_specification_method(color_override), crate::options::decode_options_limits(options)),
 ))]
 pub(super) fn decode_layer(
     file: &Jp2File<'_>,
@@ -65,7 +89,14 @@ pub(super) fn decode_layer(
             jp2::jpx_file_decode_view(file), codestream_index,
             jp2::optional_color_specification_method(color_override), crate::options::decode_options_limits(options));
     }
-    let (decoded, header) = crate::decode::decode_jpx_file(file, codestream_index, options)?;
+    let decoded_result = crate::decode::decode_jpx_file(file, codestream_index, options);
+    #[cfg(verus_keep_ghost)]
+    proof! {
+        crate::specs::part2_jpx_layer_cold_actual(jp2::jpx_file_decode_view(file), codestream_index,
+            jp2::optional_color_specification_method(color_override), crate::options::decode_options_limits(options),
+            crate::decode::associated_typed_outcome(decoded_result));
+    }
+    let (decoded, header) = decoded_result?;
     #[cfg(verus_keep_ghost)]
     proof! { crate::decode::associated_typed_success_known(&decoded, header); }
     let header = header.unwrap_or(file.header());
@@ -166,10 +197,14 @@ impl OwnedLayer {
 }
 
 #[cfg_attr(verus_keep_ghost, verus_spec(result =>
-    ensures owned_layer_outcome(result) == crate::specs::part2_decode_compositing_layer(
-        jp2::jpx_file_decode_view(file), jp2::general_layer_config(file, layer),
-        jp2::source_layer_color_override(layer), jp2::source_layer_geometry(layer), layer_index,
-        crate::options::decode_options_limits(options)),
+    ensures crate::specs::part2_compositing_layer_cold_result(jp2::jpx_file_decode_view(file),
+        jp2::general_layer_config(file, layer), jp2::source_layer_color_override(layer),
+        jp2::source_layer_geometry(layer), layer_index, crate::options::decode_options_limits(options), owned_layer_outcome(result)),
+        owned_layer_outcome(result) != Err(DecodeError::AllocationFailed) ==>
+            owned_layer_outcome(result) == crate::specs::part2_decode_compositing_layer(
+                jp2::jpx_file_decode_view(file), jp2::general_layer_config(file, layer),
+                jp2::source_layer_color_override(layer), jp2::source_layer_geometry(layer), layer_index,
+                crate::options::decode_options_limits(options)),
 ))]
 fn decode_compositing_layer(
     file: &Jp2File<'_>,
@@ -180,16 +215,38 @@ fn decode_compositing_layer(
     #[cfg(verus_keep_ghost)]
     proof! {
         reveal(crate::specs::part2_decode_compositing_layer);
+        crate::specs::part2_compositing_layer_cold_normal(jp2::jpx_file_decode_view(file),
+            jp2::general_layer_config(file, layer), jp2::source_layer_color_override(layer),
+            jp2::source_layer_geometry(layer), layer_index, crate::options::decode_options_limits(options));
     }
     if !layer.channel_definition_records().is_empty()
         || layer.registrations().len() > 1
         || matches!(layer.opacity(), Some(LayerOpacity::ChromaKey { .. }))
     {
-        return decode_general_compositing_layer(file, layer, layer_index, options);
+        let decoded = decode_general_compositing_layer(file, layer, layer_index, options);
+        #[cfg(verus_keep_ghost)]
+        proof! {
+            crate::specs::part2_compositing_layer_cold_general_actual(jp2::jpx_file_decode_view(file),
+                jp2::general_layer_config(file, layer), jp2::source_layer_color_override(layer),
+                jp2::source_layer_geometry(layer), layer_index, crate::options::decode_options_limits(options),
+                owned_layer_outcome(decoded));
+        }
+        return decoded;
     }
     let color_override = layer.color_group().first();
     if layer.registrations().is_empty() {
-        let image = decode_layer(file, layer_index, color_override, options)?;
+        let image = match decode_layer(file, layer_index, color_override, options) {
+            Ok(value) => value,
+            Err(error) => {
+                #[cfg(verus_keep_ghost)]
+                proof! {
+                    crate::specs::part2_compositing_layer_cold_source_error(jp2::jpx_file_decode_view(file),
+                        jp2::general_layer_config(file, layer), jp2::source_layer_color_override(layer),
+                        jp2::source_layer_geometry(layer), layer_index, crate::options::decode_options_limits(options), error);
+                }
+                return Err(error);
+            }
+        };
         let mut owned = owned_layer_from_image(&image)?;
         apply_layer_opacity(file, layer, layer_index, &mut owned, None, options)?;
         return Ok(owned);
@@ -198,12 +255,23 @@ fn decode_compositing_layer(
         .registrations()
         .first()
         .ok_or_else(arithmetic_overflow)?;
-    let image = decode_layer(
+    let image = match decode_layer(
         file,
         usize::from(first.codestream_index),
         color_override,
         options,
-    )?;
+    ) {
+        Ok(value) => value,
+        Err(error) => {
+            #[cfg(verus_keep_ghost)]
+            proof! {
+                crate::specs::part2_compositing_layer_cold_source_error(jp2::jpx_file_decode_view(file),
+                    jp2::general_layer_config(file, layer), jp2::source_layer_color_override(layer),
+                    jp2::source_layer_geometry(layer), layer_index, crate::options::decode_options_limits(options), error);
+            }
+            return Err(error);
+        }
+    };
     let owned = owned_layer_from_image(&image)?;
     let mut registered = register_layer(
         &owned,
@@ -224,9 +292,13 @@ fn decode_compositing_layer(
 }
 
 #[cfg_attr(verus_keep_ghost, verus_spec(result =>
-    ensures owned_layer_outcome(result) == crate::specs::part2_decode_general_layer(
-        jp2::jpx_file_decode_view(file), jp2::general_layer_config(file, layer), layer_index,
-        crate::options::decode_options_limits(options)),
+    ensures crate::specs::part2_general_layer_cold_result(jp2::jpx_file_decode_view(file),
+        jp2::general_layer_config(file, layer), layer_index, crate::options::decode_options_limits(options),
+        owned_layer_outcome(result)),
+        owned_layer_outcome(result) != Err(DecodeError::AllocationFailed) ==>
+            owned_layer_outcome(result) == crate::specs::part2_decode_general_layer(
+                jp2::jpx_file_decode_view(file), jp2::general_layer_config(file, layer), layer_index,
+                crate::options::decode_options_limits(options)),
 ))]
 fn decode_general_compositing_layer(
     file: &Jp2File<'_>,
@@ -245,6 +317,7 @@ fn decode_general_compositing_layer(
         crate::decode::associated_typed_outcome_known();
         reveal(crate::specs::part2_general_sources_prefix);
         reveal(crate::specs::part2_decode_general_layer);
+        crate::specs::part2_general_layer_cold_normal(input, config, layer_index, limits);
     }
     let color = layer.color_group().first().unwrap_or(&file.header().color);
     let color_count = layer_color_count(color)?;
@@ -277,6 +350,8 @@ fn decode_general_compositing_layer(
                 limits == crate::options::decode_options_limits(options),
                 crate::specs::part2_general_sources_prefix(input, config, layer_index, limits, source_index as nat)
                     == Ok((general_source_views(sources@), width, height)),
+                crate::specs::part2_general_layer_cold_result(input, config, layer_index, limits,
+                    crate::specs::part2_decode_general_layer(input, config, layer_index, limits)),
             decreases source_count - source_index,
         )
     )]
@@ -311,7 +386,17 @@ fn decode_general_compositing_layer(
                 registration.vertical_offset,
             )
         };
-        let (image, _) = crate::decode::decode_jpx_file(file, codestream_index, options)?;
+        let (image, _) = match crate::decode::decode_jpx_file(file, codestream_index, options) {
+            Ok(value) => value,
+            Err(error) => {
+                #[cfg(verus_keep_ghost)]
+                proof! {
+                    crate::specs::part2_general_layer_cold_source_error(input, config, layer_index, limits,
+                        source_index as nat, (general_source_views(sources@), width, height), color_count, error);
+                }
+                return Err(error);
+            }
+        };
         let registered_width = registered_extent(
             image.width(),
             u32::from(horizontal_subsampling),
@@ -373,6 +458,8 @@ fn decode_general_compositing_layer(
         verus_keep_ghost,
         verus_spec(
             invariant source_index <= sources.len(),
+                crate::specs::part2_general_layer_cold_result(input, config, layer_index, limits,
+                    crate::specs::part2_decode_general_layer(input, config, layer_index, limits)),
                 config == jp2::general_layer_config(file, layer),
                 input == jp2::jpx_file_decode_view(file),
                 limits == crate::options::decode_options_limits(options),
@@ -414,6 +501,8 @@ fn decode_general_compositing_layer(
             verus_keep_ghost,
             verus_spec(
                 invariant component_index <= component_count,
+                    crate::specs::part2_general_layer_cold_result(input, config, layer_index, limits,
+                        crate::specs::part2_decode_general_layer(input, config, layer_index, limits)),
                     source_index < sources.len(),
                     source == general_source_views(sources@)[source_index as int],
                     crate::specs::part2_general_assembled_sources_prefix(
@@ -513,6 +602,8 @@ fn decode_general_compositing_layer(
                 verus_keep_ghost,
                 verus_spec(
                     invariant definition_index <= definition_count,
+                        crate::specs::part2_general_layer_cold_result(input, config, layer_index, limits,
+                            crate::specs::part2_decode_general_layer(input, config, layer_index, limits)),
                         definition_count == crate::image::typed_component_definitions(component).len(),
                         crate::image::typed_component_output_view(&assembled).0 == assembled_value,
                         crate::image::typed_component_output_view(&assembled).1
@@ -596,6 +687,8 @@ fn decode_general_compositing_layer(
             verus_keep_ghost,
             verus_spec(
                 invariant record_index <= record_count,
+                    crate::specs::part2_general_layer_cold_result(input, config, layer_index, limits,
+                        crate::specs::part2_decode_general_layer(input, config, layer_index, limits)),
                     input == jp2::jpx_file_decode_view(file),
                     limits == crate::options::decode_options_limits(options),
                     crate::specs::part2_decode_general_layer(input, config, layer_index, limits)
@@ -659,6 +752,8 @@ fn decode_general_compositing_layer(
             verus_keep_ghost,
             verus_spec(
                 invariant color_index <= color_count,
+                    crate::specs::part2_general_layer_cold_result(input, config, layer_index, limits,
+                        crate::specs::part2_decode_general_layer(input, config, layer_index, limits)),
                 input == jp2::jpx_file_decode_view(file),
                 limits == crate::options::decode_options_limits(options),
                 config == jp2::general_layer_config(file, layer),

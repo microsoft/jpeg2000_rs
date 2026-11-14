@@ -205,7 +205,11 @@ pub(crate) fn prepare_tile_decode_metadata<'a, 'data>(
 
 #[allow(clippy::too_many_arguments)]
 #[cfg_attr(verus_keep_ghost, verus_spec(result =>
-    ensures decoded_layout_tile_outcome(result) == crate::specs::part2_decode_tile_parts_at(
+    ensures crate::specs::part2_tile_decode_result(size,tile,codestream::tile_parts_owned_view(parts@),
+            codestream::codestream_profile_capabilities(profile),discard,limits,prepared_components_view(prepared@),initial,mct_work,
+            decoded_layout_tile_outcome(result)),
+        decoded_layout_tile_outcome(result)!=Err(DecodeError::AllocationFailed) ==>
+        decoded_layout_tile_outcome(result) == crate::specs::part2_decode_tile_parts_at(
         size, tile, parts@, codestream::codestream_profile_capabilities(profile), discard, limits,
         prepared_components_view(prepared@), initial, mct_work,
     ),
@@ -222,7 +226,11 @@ pub(crate) fn decode_tile_parts_at(
     mct_work: u64,
 ) -> Result<DecodedLayoutTile, DecodeError> {
     #[cfg(verus_keep_ghost)]
-    proof! { codestream::selection_geometry_known_fields(size); reveal(codestream::tile_part_owned_view); }
+    proof! {
+        codestream::selection_geometry_known_fields(size); reveal(codestream::tile_part_owned_view);
+        crate::specs::part2_tile_decode_normal(size,tile,codestream::tile_parts_owned_view(parts@),
+            codestream::codestream_profile_capabilities(profile),discard,limits,prepared_components_view(prepared@),initial,mct_work);
+    }
     let metadata = prepare_tile_decode_metadata(parts, size.components, discard)?;
     #[cfg(verus_keep_ghost)]
     proof! { reveal(tile_decode_metadata_view); }
@@ -231,7 +239,7 @@ pub(crate) fn decode_tile_parts_at(
         None => None,
         Some(_) => Some(metadata.resolution_counts.as_slice()),
     };
-    let plan = plan_progression_tile_at_selected(
+    let plan_result = plan_progression_tile_at_selected(
         size,
         tile,
         first.coding_style,
@@ -243,9 +251,20 @@ pub(crate) fn decode_tile_parts_at(
         profile.part15_magnitude_bound(),
         profile.part15_requires_all_ht_blocks(),
         limits,
-    )?;
+    );
+    #[cfg(verus_keep_ghost)]
+    proof! {if let Err(error)=plan_result {
+        crate::specs::part2_tile_grid_plan_error(size,tile,codestream::tile_parts_owned_view(parts@),codestream::codestream_profile_capabilities(profile),
+            discard,limits,prepared_components_view(prepared@),initial,mct_work,tile_decode_metadata_view(&metadata),error);
+    }}
+    let plan = plan_result?;
     let counters = account_planned_tile(&plan, maximum_resolution_counts, initial, limits)?;
-    let decoded = decode_planned_tile_components(
+    #[cfg(verus_keep_ghost)]
+    proof_decl! {
+        let ghost initial_prepared=prepared_components_view(prepared@);
+        let ghost source_plan=progression_plan_view(&plan);
+    }
+    let decoded_result = decode_planned_tile_components(
         plan,
         parts,
         first,
@@ -255,7 +274,14 @@ pub(crate) fn decode_tile_parts_at(
         limits,
         prepared,
         mct_work,
-    )?;
+    );
+    #[cfg(verus_keep_ghost)]
+    proof! {
+        crate::specs::part2_tile_decode_components_actual(size,tile,codestream::tile_parts_owned_view(parts@),
+            codestream::codestream_profile_capabilities(profile),discard,limits,initial_prepared,initial,mct_work,
+            tile_decode_metadata_view(&metadata),source_plan,counters,decoded_tile_components_outcome(decoded_result));
+    }
+    let decoded = decoded_result?;
     #[cfg(verus_keep_ghost)]
     proof! { reveal(decoded_tile_components_view); reveal(decoded_layout_tile_view); }
     Ok(DecodedLayoutTile {
@@ -309,7 +335,10 @@ pub(crate) fn collect_tile_parts<'data>(
 }
 
 #[cfg_attr(verus_keep_ghost, verus_spec(result =>
-    ensures crate::image::decoded_image_outcome(result) == crate::specs::part2_decode_layout_selected(layout, requested, limits),
+    ensures crate::specs::part2_layout_decode_result(codestream::decoder_layout_input_view(layout),Some(crate::options::decode_selection_view(requested)),limits,
+            crate::image::decoded_image_outcome(result)),
+        crate::image::decoded_image_outcome(result)!=Err(DecodeError::AllocationFailed) ==>
+        crate::image::decoded_image_outcome(result) == crate::specs::part2_decode_layout_selected(layout, requested, limits),
 ))]
 pub(super) fn decode_layout_selected(
     layout: &CodestreamLayout<'_>,
@@ -317,11 +346,17 @@ pub(super) fn decode_layout_selected(
     limits: &ResourceLimits,
 ) -> Result<DecodedImage, DecodeError> {
     #[cfg(verus_keep_ghost)]
-    proof_decl! { let ghost goal = crate::specs::part2_decode_layout_selected(layout, requested, limits); }
+    proof_decl! {
+        let ghost goal = crate::specs::part2_decode_layout_selected(layout, requested, limits);
+        let ghost source = codestream::decoder_layout_input_view(layout);
+        let ghost requested_input=Some(crate::options::decode_selection_view(requested));
+        let ghost prefix: Seq<crate::specs::Part2JpipSnapshotEvent> = Seq::empty();
+    }
     #[cfg(verus_keep_ghost)]
     proof! {
         codestream::decoder_layout_input_fields(layout);
         super::decoder_execution_inputs_known(layout);
+        crate::specs::part2_layout_decode_normal(source,requested_input,limits);
     }
     validate_part2_execution(layout)?;
     let selection = validate_selection(&layout.info.image_size, requested)?;
@@ -347,6 +382,14 @@ pub(super) fn decode_layout_selected(
         verus_keep_ghost,
         verus_spec(
             invariant selected_tile <= selection.tiles.len(),
+                source==codestream::decoder_layout_input_view(layout),
+                requested_input==Some(crate::options::decode_selection_view(requested)),
+                crate::specs::part2_layout_decode_result(source,requested_input,limits,goal),
+                forall|tail:Seq<crate::specs::Part2JpipSnapshotEvent>|
+                    crate::specs::part2_layout_decode_run(source,requested_input,limits,prefix+tail)
+                        ==crate::specs::part2_selected_decode_run(&source.size,source.parts,source.capabilities,selection.tiles@,
+                            selection.region,selection.discard_levels,limits,selected_tile as nat,
+                            layout_accumulation_view(prepared@,(total_packets,total_precincts,total_code_blocks),total_mct_work),tail),
                 goal == crate::specs::part2_decode_layout_selected(layout, requested, limits),
                 goal == crate::specs::part2_selected_layout_tiles(
                     &layout.info.image_size, codestream::tile_parts_owned_view(layout.tile_parts@),
@@ -360,6 +403,7 @@ pub(super) fn decode_layout_selected(
     while selected_tile < selection.tiles.len() {
         #[cfg(verus_keep_ghost)]
         proof! {
+            codestream::decoder_layout_input_fields(layout);
             reveal(layout_accumulation_view);
             reveal_with_fuel(crate::specs::part2_selected_layout_tiles, 1);
         }
@@ -368,7 +412,14 @@ pub(super) fn decode_layout_selected(
             .get(selected_tile)
             .ok_or_else(invalid_decode)?;
         let tile_parts = collect_tile_parts(&layout.tile_parts, tile_index)?;
-        let decoded = decode_tile_parts_at(
+        #[cfg(verus_keep_ghost)]
+        proof_decl! {let ghost before=layout_accumulation_view(prepared@,(total_packets,total_precincts,total_code_blocks),total_mct_work);}
+        #[cfg(verus_keep_ghost)]
+        proof! {assert forall|tail:Seq<crate::specs::Part2JpipSnapshotEvent>|
+        crate::specs::part2_layout_decode_run(source,requested_input,limits,prefix+tail)
+            ==crate::specs::part2_selected_decode_run(&source.size,source.parts,source.capabilities,selection.tiles@,
+                selection.region,selection.discard_levels,limits,selected_tile as nat,before,tail) by {}}
+        let decoded_result = decode_tile_parts_at(
             &layout.info.image_size,
             tile_index,
             &tile_parts,
@@ -378,7 +429,30 @@ pub(super) fn decode_layout_selected(
             prepared,
             (total_packets, total_precincts, total_code_blocks),
             total_mct_work,
-        )?;
+        );
+        #[cfg(verus_keep_ghost)]
+        proof! {
+            reveal(crate::specs::part2_tile_decode_result);
+            let root=|events|crate::specs::part2_layout_decode_run(source,requested_input,limits,events);
+            let child=|events|crate::specs::part2_tile_decode_run(&source.size,tile_index,codestream::tile_parts_owned_view(tile_parts@),
+                source.capabilities,Some(selection.discard_levels),limits,before.prepared,before.counters,before.mct_work,events);
+            let next=|after:crate::specs::Part2DecodedLayoutTile,rest|crate::specs::part2_selected_decode_run(&source.size,source.parts,source.capabilities,
+                selection.tiles@,selection.region,selection.discard_levels,limits,selected_tile as nat+1,after,rest);
+            crate::specs::part2_selected_decode_step(&source.size,source.parts,source.capabilities,selection.tiles@,selection.region,selection.discard_levels,
+                limits,selected_tile as nat,before,codestream::tile_parts_owned_view(tile_parts@));
+            assert forall|tail|root(prefix+tail)==crate::specs::part2_jpip_snapshot_bind(child(tail),next) by {
+                assert(root(prefix+tail)==crate::specs::part2_selected_decode_run(&source.size,source.parts,source.capabilities,selection.tiles@,
+                    selection.region,selection.discard_levels,limits,selected_tile as nat,before,tail));
+            }
+            match decoded_layout_tile_outcome(decoded_result) {
+                Err(error)=>{
+                    crate::specs::part2_decode_prefix_error(root,child,next,prefix,error);
+                    reveal(crate::specs::part2_layout_decode_result);
+                },
+                Ok(after)=>{prefix=crate::specs::part2_decode_prefix_advance(root,child,next,prefix,after);},
+            }
+        }
+        let decoded = decoded_result?;
         prepared = decoded.prepared;
         total_packets = decoded.counters.0;
         total_precincts = decoded.counters.1;
@@ -960,7 +1034,11 @@ pub(crate) fn account_planned_tile(
 
 #[allow(clippy::too_many_arguments)]
 #[cfg_attr(verus_keep_ghost, verus_spec(result =>
-    ensures decoded_tile_components_outcome(result) == crate::specs::part2_decode_planned_tile_components(
+    ensures crate::specs::part2_planned_decode_result(progression_plan_view(&plan),codestream::tile_parts_owned_view(tile_parts@),
+            codestream::tile_part_owned_view(first),size,standard,crate::packet::packet_selection_view(maximum_resolution_counts),
+            limits,prepared_components_view(prepared@),mct_work,decoded_tile_components_outcome(result)),
+        decoded_tile_components_outcome(result)!=Err(DecodeError::AllocationFailed) ==>
+        decoded_tile_components_outcome(result) == crate::specs::part2_decode_planned_tile_components(
         progression_plan_view(&plan), tile_parts@, first, size, standard,
         crate::packet::packet_selection_view(maximum_resolution_counts), limits, prepared_components_view(prepared@), mct_work,
     ),
@@ -980,6 +1058,9 @@ pub(crate) fn decode_planned_tile_components(
     proof! {
         reveal(codestream::tile_part_owned_view);
         codestream::owned_extensions_registry_known(&first.part2_extensions);
+        crate::specs::part2_planned_decode_normal(progression_plan_view(&plan),codestream::tile_parts_owned_view(tile_parts@),
+            codestream::tile_part_owned_view(first),size,standard,crate::packet::packet_selection_view(maximum_resolution_counts),
+            limits,prepared_components_view(prepared@),mct_work);
     }
     #[cfg(verus_keep_ghost)]
     proof_decl! {
@@ -996,7 +1077,7 @@ pub(crate) fn decode_planned_tile_components(
         let precincts = active.precincts.as_mut_slice();
         #[cfg(verus_keep_ghost)]
         proof! { crate::packet::packet_precinct_vector_known_fields(precincts); }
-        match maximum_resolution_counts {
+        let packets = match maximum_resolution_counts {
             None => crate::packet::decode_progression_tile_packets(
                 tile_parts,
                 &active.grid,
@@ -1010,7 +1091,19 @@ pub(crate) fn decode_planned_tile_components(
                 Some(counts),
                 limits,
             ),
-        }?;
+        };
+        #[cfg(verus_keep_ghost)]
+        proof! {
+            if maximum_resolution_counts.is_none() {
+                crate::specs::part2_packet_public_result_equivalent(tile_parts@,before.grid,before.precincts,None,limits);
+            }
+            if let Err(error)=packets {
+                crate::specs::part2_planned_decode_packet_error(before,codestream::tile_parts_owned_view(tile_parts@),
+                    codestream::tile_part_owned_view(first),size,standard,crate::packet::packet_selection_view(maximum_resolution_counts),
+                    limits,prepared_components_view(prepared@),mct_work,error,crate::packet::packet_precinct_vector_view(precincts));
+            }
+        }
+        packets?;
         #[cfg(verus_keep_ghost)]
         proof! { crate::packet::packet_precinct_vector_known_fields(precincts); }
     }
@@ -1043,18 +1136,25 @@ pub(crate) fn decode_planned_tile_components(
 }
 
 #[cfg_attr(verus_keep_ghost, verus_spec(result =>
-    ensures crate::image::decoded_image_outcome(result) == crate::specs::part2_decode_layout(layout, limits),
+    ensures crate::specs::part2_layout_decode_result(codestream::decoder_layout_input_view(layout),None,limits,crate::image::decoded_image_outcome(result)),
+        crate::image::decoded_image_outcome(result)!=Err(DecodeError::AllocationFailed) ==>
+        crate::image::decoded_image_outcome(result) == crate::specs::part2_decode_layout(layout, limits),
 ))]
 pub(super) fn decode_layout(
     layout: &CodestreamLayout<'_>,
     limits: &ResourceLimits,
 ) -> Result<DecodedImage, DecodeError> {
     #[cfg(verus_keep_ghost)]
-    proof_decl! { let ghost goal = crate::specs::part2_decode_layout(layout, limits); }
+    proof_decl! {
+        let ghost goal = crate::specs::part2_decode_layout(layout, limits);
+        let ghost source = codestream::decoder_layout_input_view(layout);
+        let ghost prefix: Seq<crate::specs::Part2JpipSnapshotEvent> = Seq::empty();
+    }
     #[cfg(verus_keep_ghost)]
     proof! {
         codestream::decoder_layout_input_fields(layout);
         super::decoder_execution_inputs_known(layout);
+        crate::specs::part2_layout_decode_normal(source,None,limits);
     }
     validate_part2_execution(layout)?;
     let tile_count = layout.info.image_size.tile_count()?;
@@ -1080,6 +1180,12 @@ pub(super) fn decode_layout(
         verus_spec(
             invariant tile <= tile_count,
                 tile_count <= u16::MAX as u64 + 1,
+                source==codestream::decoder_layout_input_view(layout),
+                crate::specs::part2_layout_decode_result(source,None,limits,goal),
+                forall|tail:Seq<crate::specs::Part2JpipSnapshotEvent>|
+                    crate::specs::part2_layout_decode_run(source,None,limits,prefix+tail)
+                        ==crate::specs::part2_full_decode_run(&source.size,source.parts,source.capabilities,limits,tile_count,tile,
+                            layout_accumulation_view(prepared@,(total_packets,total_precincts,total_code_blocks),total_mct_work),tail),
                 goal == crate::specs::part2_decode_layout(layout, limits),
                 goal == crate::specs::part2_full_layout_tiles(
                     &layout.info.image_size, codestream::tile_parts_owned_view(layout.tile_parts@),
@@ -1091,13 +1197,19 @@ pub(super) fn decode_layout(
     )]
     while tile < tile_count {
         #[cfg(verus_keep_ghost)]
-        proof! { reveal_with_fuel(crate::specs::part2_full_layout_tiles, 1); reveal(layout_accumulation_view); }
+        proof! { codestream::decoder_layout_input_fields(layout); reveal_with_fuel(crate::specs::part2_full_layout_tiles, 1); reveal(layout_accumulation_view); }
         let tile_index = match u16::try_from(tile) {
             Ok(index) => index,
             Err(_) => return Err(arithmetic_overflow()),
         };
         let tile_parts = collect_tile_parts(&layout.tile_parts, tile_index)?;
-        let decoded = decode_tile_parts_at(
+        #[cfg(verus_keep_ghost)]
+        proof_decl! {let ghost before=layout_accumulation_view(prepared@,(total_packets,total_precincts,total_code_blocks),total_mct_work);}
+        #[cfg(verus_keep_ghost)]
+        proof! {assert forall|tail:Seq<crate::specs::Part2JpipSnapshotEvent>|
+        crate::specs::part2_layout_decode_run(source,None,limits,prefix+tail)
+            ==crate::specs::part2_full_decode_run(&source.size,source.parts,source.capabilities,limits,tile_count,tile,before,tail) by {}}
+        let decoded_result = decode_tile_parts_at(
             &layout.info.image_size,
             tile_index,
             &tile_parts,
@@ -1107,7 +1219,27 @@ pub(super) fn decode_layout(
             prepared,
             (total_packets, total_precincts, total_code_blocks),
             total_mct_work,
-        )?;
+        );
+        #[cfg(verus_keep_ghost)]
+        proof! {
+            reveal(crate::specs::part2_tile_decode_result);
+            let root=|events|crate::specs::part2_layout_decode_run(source,None,limits,events);
+            let child=|events|crate::specs::part2_tile_decode_run(&source.size,tile_index,codestream::tile_parts_owned_view(tile_parts@),
+                source.capabilities,None,limits,before.prepared,before.counters,before.mct_work,events);
+            let next=|after:crate::specs::Part2DecodedLayoutTile,rest|crate::specs::part2_full_decode_run(&source.size,source.parts,source.capabilities,limits,tile_count,(tile+1) as u64,after,rest);
+            crate::specs::part2_full_decode_step(&source.size,source.parts,source.capabilities,limits,tile_count,tile,before,codestream::tile_parts_owned_view(tile_parts@));
+            assert forall|tail|root(prefix+tail)==crate::specs::part2_jpip_snapshot_bind(child(tail),next) by {
+                assert(root(prefix+tail)==crate::specs::part2_full_decode_run(&source.size,source.parts,source.capabilities,limits,tile_count,tile,before,tail));
+            }
+            match decoded_layout_tile_outcome(decoded_result) {
+                Err(error)=>{
+                    crate::specs::part2_decode_prefix_error(root,child,next,prefix,error);
+                    reveal(crate::specs::part2_layout_decode_result);
+                },
+                Ok(after)=>{prefix=crate::specs::part2_decode_prefix_advance(root,child,next,prefix,after);},
+            }
+        }
+        let decoded = decoded_result?;
         prepared = decoded.prepared;
         total_packets = decoded.counters.0;
         total_precincts = decoded.counters.1;

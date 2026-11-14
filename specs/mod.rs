@@ -37,6 +37,56 @@ mod main_header;
 pub use main_header::*;
 mod raw_layout;
 pub use raw_layout::*;
+mod cold_quantization;
+pub use cold_quantization::*;
+mod cold_tile_quantization;
+pub use cold_tile_quantization::*;
+mod cold_tile_part;
+pub use cold_tile_part::*;
+mod cold_layout;
+pub use cold_layout::*;
+mod cold_layout_continuations;
+pub use cold_layout_continuations::*;
+mod cold_progression;
+pub use cold_progression::*;
+mod cold_mct_copy;
+pub use cold_mct_copy::*;
+mod cold_extensions_copy;
+pub use cold_extensions_copy::*;
+mod cold_resolved_copy;
+pub use cold_resolved_copy::*;
+mod cold_payload_owners;
+pub use cold_payload_owners::*;
+mod cold_marker_storage;
+pub use cold_marker_storage::*;
+mod cold_marker_header;
+pub use cold_marker_header::*;
+mod cold_part2_fresh;
+pub use cold_part2_fresh::*;
+mod cold_part2_header;
+pub use cold_part2_header::*;
+mod cold_profile;
+pub use cold_profile::*;
+mod cold_bitmap;
+pub use cold_bitmap::*;
+mod cold_inspection_storage;
+pub use cold_inspection_storage::*;
+mod cold_packed_headers;
+pub use cold_packed_headers::*;
+mod cold_packet_preparation;
+pub use cold_packet_preparation::*;
+mod cold_grid;
+pub use cold_grid::*;
+mod cold_grid_geometry;
+pub use cold_grid_geometry::*;
+mod cold_grid_plan;
+pub use cold_grid_plan::*;
+mod cold_decode_packets;
+pub use cold_decode_packets::*;
+mod cold_decode_finish;
+pub use cold_decode_finish::*;
+mod cold_header_progression;
+pub use cold_header_progression::*;
 mod decoder_input;
 pub use decoder_input::*;
 mod raw_decode;
@@ -13944,6 +13994,80 @@ pub open spec fn part1_component_quantizations_new(components: u16, default: Par
     if components == 0 || components > 64 {
         Err(part1_codestream_malformed(0, crate::MalformedKind::InvalidImageGeometry))
     } else { Ok((components, Seq::new(components as nat, |i: int| default))) }
+}
+
+pub open spec fn part1_component_quantizations_storage(
+    components: u16, default: Part2Quantization, reserved: bool,
+) -> Result<(u16, Seq<Part2Quantization>), crate::DecodeError> {
+    if components == 0 || components > 64 {
+        part1_component_quantizations_new(components, default)
+    } else if !reserved {
+        Err(crate::DecodeError::AllocationFailed)
+    } else { part1_component_quantizations_new(components, default) }
+}
+
+pub open spec fn part1_component_quantizations_storage_result(
+    components: u16, default: Part2Quantization,
+    result: Result<(u16, Seq<Part2Quantization>), crate::DecodeError>,
+) -> bool {
+    exists|reserved: bool| result == part1_component_quantizations_storage(components, default, reserved)
+}
+
+pub(crate) proof fn part1_component_quantizations_storage_observed(
+    components: u16, default: Part2Quantization, reserved: bool,
+    result: Result<(u16, Seq<Part2Quantization>), crate::DecodeError>,
+)
+    requires result == part1_component_quantizations_storage(components, default, reserved),
+    ensures part1_component_quantizations_storage_result(components, default, result),
+{
+    assert(exists|response: bool| result == part1_component_quantizations_storage(components, default, response));
+}
+
+pub(crate) proof fn part1_component_quantizations_storage_normal(components: u16, default: Part2Quantization)
+    ensures part1_component_quantizations_storage(components, default, true)
+        == part1_component_quantizations_new(components, default),
+{
+}
+
+pub open spec fn part1_finish_main_quantizations_storage(
+    components: u16, default: Part2Quantization, styles: (u16, Seq<Part1ParsedCodingStyle>),
+    segments: Seq<Option<Part1CodestreamSegment>>, reserved: bool,
+) -> Result<(u16, Seq<Part2Quantization>), crate::DecodeError> {
+    match part1_component_quantizations_storage(components, default, reserved) {
+        Err(error) => Err(error),
+        Ok(owner) => part1_main_quantizations_from(components, styles, segments, owner, 0),
+    }
+}
+
+pub open spec fn part1_finish_main_quantizations_storage_result(
+    components: u16, default: Part2Quantization, styles: (u16, Seq<Part1ParsedCodingStyle>),
+    segments: Seq<Option<Part1CodestreamSegment>>,
+    result: Result<(u16, Seq<Part2Quantization>), crate::DecodeError>,
+) -> bool {
+    exists|reserved: bool| result == part1_finish_main_quantizations_storage(
+        components, default, styles, segments, reserved)
+}
+
+pub(crate) proof fn part1_finish_main_quantizations_storage_observed(
+    components: u16, default: Part2Quantization, styles: (u16, Seq<Part1ParsedCodingStyle>),
+    segments: Seq<Option<Part1CodestreamSegment>>, reserved: bool,
+    result: Result<(u16, Seq<Part2Quantization>), crate::DecodeError>,
+)
+    requires result == part1_finish_main_quantizations_storage(components, default, styles, segments, reserved),
+    ensures part1_finish_main_quantizations_storage_result(components, default, styles, segments, result),
+{
+    assert(exists|response: bool| result == part1_finish_main_quantizations_storage(
+        components, default, styles, segments, response));
+}
+
+pub(crate) proof fn part1_finish_main_quantizations_storage_normal(
+    components: u16, default: Part2Quantization, styles: (u16, Seq<Part1ParsedCodingStyle>),
+    segments: Seq<Option<Part1CodestreamSegment>>,
+)
+    ensures part1_finish_main_quantizations_storage(components, default, styles, segments, true)
+        == part1_finish_main_quantizations(components, default, styles, segments),
+{
+    reveal(part1_finish_main_quantizations);
 }
 
 #[verifier::opaque]

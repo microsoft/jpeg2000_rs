@@ -1,5 +1,52 @@
 #[cfg(verus_keep_ghost)]
 verus! {
+    pub(crate) proof fn jpip_snapshot_template_layout_prefix(
+        input: crate::specs::Part2JpipSnapshotInput<'_>,
+        prefix: Seq<crate::specs::Part2JpipSnapshotEvent>, main: Seq<u8>, raw: Seq<Seq<u8>>,
+        count: u64, components: u16, headers: Seq<Seq<Seq<u8>>>, template: Seq<u8>,
+        layout: &crate::codestream::CodestreamLayout<'_>,
+    ) -> (after: Seq<crate::specs::Part2JpipSnapshotEvent>)
+        requires
+            forall|tail: Seq<crate::specs::Part2JpipSnapshotEvent>|
+                crate::specs::part2_jpip_snapshot_run(input, prefix + tail)
+                    == crate::specs::part2_jpip_snapshot_after_normalized(
+                        input, main, raw, count, components, headers, tail),
+            crate::specs::part2_jpip_transition_template(main, headers, input.limits) == Ok(template),
+            crate::specs::part1_parse_layout_cold_result(template, input.limits,
+                crate::codestream::complete_layout_outcome(Ok(*layout))),
+        ensures forall|tail: Seq<crate::specs::Part2JpipSnapshotEvent>|
+            crate::specs::part2_jpip_snapshot_run(input, after + tail)
+                == crate::specs::part2_jpip_snapshot_after_layout(
+                    input, main, raw, count, components, headers,
+                    crate::codestream::decoder_layout_input_view(layout), tail),
+    {
+        crate::codestream::decoder_layout_input_matches_raw(layout);
+        jpip_snapshot_layout_success_known();
+        let parsed = crate::codestream::complete_layout_outcome(Ok(*layout));
+        crate::specs::part2_cold_parse_actual(template, input.limits, 0, 0, parsed);
+        let run = |events| crate::specs::part2_cold_parse(template, input.limits, 0, 0, events);
+        let calls = crate::specs::part2_cold_witness(run, parsed);
+        assert forall|tail: Seq<crate::specs::Part2JpipSnapshotEvent>|
+            crate::specs::part2_jpip_snapshot_run(input, (prefix + calls) + tail)
+                == crate::specs::part2_jpip_snapshot_after_layout(
+                    input, main, raw, count, components, headers,
+                    crate::codestream::decoder_layout_input_view(layout), tail) by {
+            assert((prefix + calls) + tail =~= prefix + (calls + tail));
+            crate::specs::part2_cold_prefix_at(run, calls, parsed, tail);
+            assert(crate::specs::part2_cold_parse(template, input.limits, 0, 0, calls + tail)
+                == Some((parsed, tail)));
+            assert(crate::specs::part2_jpip_snapshot_run(input, prefix + (calls + tail))
+                == crate::specs::part2_jpip_snapshot_after_normalized(
+                    input, main, raw, count, components, headers, calls + tail));
+            reveal(crate::specs::part2_jpip_snapshot_bind);
+            if let Ok(raw_layout) = parsed {
+                assert(crate::specs::part2_decoder_input_from_raw(raw_layout)
+                    == crate::codestream::decoder_layout_input_view(layout));
+            }
+        }
+        prefix + calls
+    }
+
     pub(crate) proof fn jpip_snapshot_layout_capacity_error(
         input: crate::specs::Part2JpipSnapshotInput<'_>,
         prefix: Seq<crate::specs::Part2JpipSnapshotEvent>, main: Seq<u8>, raw: Seq<Seq<u8>>,
@@ -9,11 +56,10 @@ verus! {
         requires
             forall|tail: Seq<crate::specs::Part2JpipSnapshotEvent>|
                 crate::specs::part2_jpip_snapshot_run(input, prefix + tail)
-                    == crate::specs::part2_jpip_snapshot_after_normalized(
-                        input, main, raw, count, components, headers, tail),
+                    == crate::specs::part2_jpip_snapshot_after_layout(
+                        input, main, raw, count, components, headers,
+                        crate::codestream::decoder_layout_input_view(layout), tail),
             crate::specs::part2_jpip_transition_template(main, headers, input.limits) == Ok(template),
-            crate::codestream::complete_layout_outcome(Ok(*layout))
-                == crate::specs::part1_parse_layout(template, input.limits),
         ensures crate::specs::part2_jpip_automatic_snapshot_result(input.cache, input.stream,
             input.selected, input.components, input.limits, Err(DecodeError::AllocationFailed)),
     {
@@ -21,14 +67,13 @@ verus! {
         let event = crate::specs::Part2JpipSnapshotEvent::Capacity {
             site: 2, tile: 0, elements: headers.len() as usize, succeeded: false };
         assert(seq![event].drop_first() =~= Seq::empty());
-        if let Ok(parsed) = crate::codestream::complete_layout_outcome(Ok(*layout)) {
-            assert(crate::specs::part1_parse_layout(template, input.limits) == Ok(parsed));
-            assert(crate::specs::part2_jpip_snapshot_after_normalized(
-                input, main, raw, count, components, headers, seq![event])
-                == Some((Err(DecodeError::AllocationFailed), Seq::empty())));
-        }
+        assert(crate::specs::part2_jpip_snapshot_after_layout(
+            input, main, raw, count, components, headers,
+            crate::codestream::decoder_layout_input_view(layout), seq![event])
+            == Some((Err(DecodeError::AllocationFailed), Seq::empty())));
         assert(crate::specs::part2_jpip_snapshot_run(input, prefix + seq![event])
-            == crate::specs::part2_jpip_snapshot_after_normalized(input, main, raw, count, components, headers, seq![event]));
+            == crate::specs::part2_jpip_snapshot_after_layout(input, main, raw, count, components, headers,
+                crate::codestream::decoder_layout_input_view(layout), seq![event]));
         assert(crate::specs::part2_jpip_snapshot_run(input, prefix + seq![event])
             == Some((Err(DecodeError::AllocationFailed), Seq::empty())));
         jpip_snapshot_result_witness(input, prefix + seq![event], Err(DecodeError::AllocationFailed));
@@ -42,11 +87,10 @@ verus! {
         requires
             forall|tail: Seq<crate::specs::Part2JpipSnapshotEvent>|
                 crate::specs::part2_jpip_snapshot_run(input, prefix + tail)
-                    == crate::specs::part2_jpip_snapshot_after_normalized(
-                        input, main, raw, count, components, headers, tail),
+                    == crate::specs::part2_jpip_snapshot_after_layout(
+                        input, main, raw, count, components, headers,
+                        crate::codestream::decoder_layout_input_view(layout), tail),
             crate::specs::part2_jpip_transition_template(main, headers, input.limits) == Ok(template),
-            crate::codestream::complete_layout_outcome(Ok(*layout))
-                == crate::specs::part1_parse_layout(template, input.limits),
         ensures forall|tail: Seq<crate::specs::Part2JpipSnapshotEvent>|
             crate::specs::part2_jpip_snapshot_run(input,
                 (prefix + seq![crate::specs::Part2JpipSnapshotEvent::Capacity {
@@ -65,15 +109,11 @@ verus! {
             assert((seq![event] + tail).drop_first() =~= tail);
             assert(crate::specs::part2_jpip_snapshot_capacity(seq![event] + tail,
                 2, 0, headers.len() as usize) == Some((Ok(()), tail)));
-            if let Ok(parsed) = crate::codestream::complete_layout_outcome(Ok(*layout)) {
-                assert(crate::specs::part1_parse_layout(template, input.limits) == Ok(parsed));
-                assert(crate::specs::part2_decoder_input_from_raw(parsed)
-                    == crate::codestream::decoder_layout_input_view(layout));
-                assert(crate::specs::part2_jpip_snapshot_after_normalized(
-                    input, main, raw, count, components, headers, seq![event] + tail)
-                    == crate::specs::part2_jpip_snapshot_tiles(input, count, components, main, raw, headers,
-                        crate::codestream::decoder_layout_input_view(layout), 0, Seq::empty(), 0, tail));
-            }
+            assert(crate::specs::part2_jpip_snapshot_after_layout(
+                input, main, raw, count, components, headers,
+                crate::codestream::decoder_layout_input_view(layout), seq![event] + tail)
+                == crate::specs::part2_jpip_snapshot_tiles(input, count, components, main, raw, headers,
+                    crate::codestream::decoder_layout_input_view(layout), 0, Seq::empty(), 0, tail));
         }
     }
 
@@ -93,18 +133,18 @@ verus! {
                         == crate::specs::part2_jpip_snapshot_after_normalized(
                             input, main, raw, count, components, headers, tail),
                 crate::specs::part2_jpip_transition_template(main, headers, input.limits) == Ok(template),
-                crate::codestream::complete_layout_outcome(Err(error))
-                    == crate::specs::part1_parse_layout(template, input.limits),
+                crate::specs::part1_parse_layout_cold_result(template, input.limits, Err(error)),
             ensures crate::specs::part2_jpip_automatic_snapshot_result(input.cache,
                 input.stream, input.selected, input.components, input.limits, Err(error)),
         {
-            crate::codestream::decoder_layout_errors_known();
-            assert(crate::specs::part1_parse_layout(template, input.limits) == Err(error));
-            assert(prefix + Seq::empty() =~= prefix);
-            assert(crate::specs::part2_jpip_snapshot_run(input, prefix + Seq::empty())
+            crate::specs::part2_cold_parse_actual(template, input.limits, 0, 0, Err(error));
+            let calls = crate::specs::part2_cold_witness(
+                |events| crate::specs::part2_cold_parse(template, input.limits, 0, 0, events), Err(error));
+            assert(calls + Seq::empty() =~= calls);
+            assert(crate::specs::part2_jpip_snapshot_run(input, prefix + calls)
                 == crate::specs::part2_jpip_snapshot_after_normalized(
-                    input, main, raw, count, components, headers, Seq::empty()));
-            jpip_snapshot_result_witness(input, prefix, Err(error));
+                    input, main, raw, count, components, headers, calls));
+            jpip_snapshot_result_witness(input, prefix + calls, Err(error));
         }
 
     pub closed spec fn jpip_packet_selection_view(value: &JpipPacketSelection) -> Seq<u16> {
@@ -140,6 +180,7 @@ verus! {
             Ok((None, crate::specs::part2_jpip_complete_missing(input.cache,
                 (6u64, DatabinClass::MainHeader, input.stream, 0u64))))),
     {
+        reveal(crate::specs::part2_jpip_snapshot_run);
         jpip_snapshot_result_witness(input, Seq::empty(),
             Ok((None, crate::specs::part2_jpip_complete_missing(input.cache,
                 (6u64, DatabinClass::MainHeader, input.stream, 0u64)))));
@@ -154,6 +195,7 @@ verus! {
         ensures crate::specs::part2_jpip_automatic_snapshot_result(input.cache,
             input.stream, input.selected, input.components, input.limits, Err(error)),
     {
+        reveal(crate::specs::part2_jpip_snapshot_run);
         jpip_snapshot_result_witness(input, Seq::empty(), Err(error));
     }
 
@@ -167,6 +209,7 @@ verus! {
         ensures crate::specs::part2_jpip_automatic_snapshot_result(input.cache,
             input.stream, input.selected, input.components, input.limits, Err(DecodeError::AllocationFailed)),
     {
+        reveal(crate::specs::part2_jpip_snapshot_run);
         let events = seq![crate::specs::Part2JpipSnapshotEvent::Capacity {
             site: 0, tile: 0, elements: count as usize, succeeded: false }];
         assert(events.drop_first() =~= Seq::<crate::specs::Part2JpipSnapshotEvent>::empty());
@@ -185,6 +228,7 @@ verus! {
                 ==> crate::specs::part2_jpip_automatic_snapshot_result(input.cache,
                     input.stream, input.selected, input.components, input.limits, Err(error)),
     {
+        reveal(crate::specs::part2_jpip_snapshot_run);
         assert forall|error: DecodeError|
             crate::specs::part2_jpip_snapshot_gather(input, count, 0, Seq::empty(), Seq::empty()) == Err(error)
                 implies crate::specs::part2_jpip_automatic_snapshot_result(input.cache,
@@ -209,6 +253,7 @@ verus! {
         ensures crate::specs::part2_jpip_automatic_snapshot_result(input.cache,
             input.stream, input.selected, input.components, input.limits, Ok((None, missing))),
     {
+        reveal(crate::specs::part2_jpip_snapshot_run);
         let events = seq![crate::specs::Part2JpipSnapshotEvent::Capacity {
             site: 0, tile: 0, elements: count as usize, succeeded: true }];
         assert(events.drop_first() =~= Seq::<crate::specs::Part2JpipSnapshotEvent>::empty());
@@ -231,6 +276,7 @@ verus! {
                     site: 0, tile: 0, elements: count as usize, succeeded: true }] + events)
                 == crate::specs::part2_jpip_snapshot_after_gather(input, main, raw, count, components, events),
     {
+        reveal(crate::specs::part2_jpip_snapshot_run);
         let capacity = crate::specs::Part2JpipSnapshotEvent::Capacity {
             site: 0, tile: 0, elements: count as usize, succeeded: true };
         assert forall|events: Seq<crate::specs::Part2JpipSnapshotEvent>|
@@ -294,6 +340,8 @@ verus! {
         assert(seq![event, refused].drop_first() =~= seq![refused]);
         assert(seq![refused].drop_first() =~= Seq::<crate::specs::Part2JpipSnapshotEvent>::empty());
         assert((seq![capacity] + seq![event, refused]).drop_first() =~= seq![event, refused]);
+        assert(crate::specs::part2_jpip_snapshot_run(input, seq![capacity] + seq![event, refused])
+            == crate::specs::part2_jpip_snapshot_after_gather(input, main, raw, count, components, seq![event, refused]));
         jpip_snapshot_result_witness(input, seq![capacity] + seq![event, refused], Err(DecodeError::AllocationFailed));
         assert forall|error: DecodeError|
             crate::specs::part2_jpip_snapshot_normalize_tiles(raw, 0, Seq::empty()) == Err(error)
@@ -304,6 +352,8 @@ verus! {
             assert(seq![event, accepted].drop_first() =~= seq![accepted]);
             assert(seq![accepted].drop_first() =~= Seq::<crate::specs::Part2JpipSnapshotEvent>::empty());
             assert((seq![capacity] + seq![event, accepted]).drop_first() =~= seq![event, accepted]);
+            assert(crate::specs::part2_jpip_snapshot_run(input, seq![capacity] + seq![event, accepted])
+                == crate::specs::part2_jpip_snapshot_after_gather(input, main, raw, count, components, seq![event, accepted]));
             jpip_snapshot_result_witness(input, seq![capacity] + seq![event, accepted], Err(error));
         }
     }
@@ -328,6 +378,8 @@ verus! {
         {
             jpip_snapshot_headers_continuation(input, main, count, components, raw);
             let prefix = crate::specs::part2_jpip_snapshot_normalized_events(count, raw.len() as usize, calls);
+            let capacity = crate::specs::Part2JpipSnapshotEvent::Capacity {
+                site: 0, tile: 0, elements: count as usize, succeeded: true };
             assert forall|headers: Seq<Seq<Seq<u8>>>, tail: Seq<crate::specs::Part2JpipSnapshotEvent>|
                 crate::specs::part2_jpip_snapshot_normalize_tiles(raw, 0, Seq::empty()) == Ok(headers) implies
                     crate::specs::part2_jpip_snapshot_run(input, prefix + tail)
@@ -336,6 +388,10 @@ verus! {
                 assert((prefix + tail).drop_first() =~= seq![prefix[1], prefix[2]] + tail);
                 assert((seq![prefix[1], prefix[2]] + tail).drop_first() =~= seq![prefix[2]] + tail);
                 assert((seq![prefix[2]] + tail).drop_first() =~= tail);
+                assert(prefix + tail =~= seq![capacity] + (seq![prefix[1], prefix[2]] + tail));
+                assert(crate::specs::part2_jpip_snapshot_run(input, prefix + tail)
+                    == crate::specs::part2_jpip_snapshot_after_gather(input, main, raw, count, components,
+                        seq![prefix[1], prefix[2]] + tail));
             }
         }
 

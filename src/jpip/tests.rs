@@ -1146,7 +1146,8 @@ fn automatic_managed_allocation_refusals_preserve_state_and_recover_exact_images
     for selected in [false, true] {
         let mut refusals = 0;
         let mut reached_end = false;
-        for ordinal in 0..32 {
+        // Account for the eight new requests in each of template, final and image parsing.
+        for ordinal in 0..32 + 3 * 8 {
             let mut decoder = JpipAutomaticProgressiveDecoder::new(0);
             let result = crate::allocation::with_refusal(ordinal, || {
                 if selected {

@@ -955,6 +955,150 @@ model mentions do not qualify. Functions taking mutable references must still
 provide the complete final-state relation; a bare return equality cannot replace it.
 This is a conservative source-link check, not a
 replacement for Verus.
+The cold-parser Result schemas additionally recognize only registered,
+unconditional allocation-environment relations at their actual native
+consumers. They reuse the original exact input/result patterns, bind every
+mutable output (including decoder/cache and opacity-owner state), and require
+the corresponding checked normal-projection proof links. Fixed rendering
+kinds, selected/full inputs and ordered nested parser phases cannot substitute
+for one another. The inventory retains the original requirement objects and
+normal models; a generic `AllocationFailed` alternative, guarded cold relation,
+unrelated named result or missing final-state field does not qualify.
+Component-quantization constructor/finalizer schemas retain their exact
+observed reservation response and checked normal projections. The tile-reader
+schema binds every field of its input-derived context and its actual final
+reader. Commit-copy schemas bind all six mutable configuration owners,
+including the four already-stored fields on refusal. Source guards distinguish
+main creation, conditional tile creation, inheritance and commit request sites;
+moving a refusal to an older tile-vector site or losing a partial owner fails.
+POC schemas retain the exact reached reservation response inside main/tile
+traversal, not a later allocation-error alternative. Main/tile construction
+sites 12/13, inherited copy 14 and fifth-store commit copy 15 remain distinct.
+The actual reader/seen-flag frames, branch-local response-to-event conversion
+and checked normal projections are linked to their executing consumers.
+Bounded managed controls cover refusal/restore, empty copies, duplicate/shape
+precedence and RHS-before-destination partial commits. Deep MCT/Part 2 copies,
+payload/container/image growth and #289 deadlines are outside this increment;
+#288 cumulative budgeting is withdrawn, not remaining work.
+Nested MCT copy descriptors additionally bind actual source-owner array,
+record and collection positions, exact field order and sites 16–22. Empty
+fields consume no request. The executing fallible inheritance edge is linked
+without pretending that persistent MCT moves allocate. Existing Clone APIs
+and their normal contracts stay intact. Mutations reject old-site aliases,
+lost indices, changed zero/no-event behavior, swapped field sizes and lost
+failure tails.
+Part 2 inheritance extends the same checked request algebra at sites 23–36.
+Exact source owner, physical vector/kernel/step indices, field order, optional
+scalars and empty/no-request behavior remain bound. The inventory recognizes
+the actual fallible inheritance edge and retains old MCT Clone requirements
+through their checked normal-copy links, not an unrelated remaining `.clone`
+call. Mutations reject old-site aliases, lost indices, swapped lengths and
+lost failure frames. Its separate payload role is addressed below.
+Resolved graph and payload-copy schemas extend that boundary at sites 37–62:
+main/tile graph roles are distinct, and payload Part 2 paths are not aliases
+for inheritance. Source guards require the actual role-bearing producer calls,
+the original constructor field position and reader commit before late copying.
+Checked ordinary-error request prefixes and exact Result/frame/tail relations
+are linked alongside every retained original graph model. Bounded controls
+exercise first/later refusal, malformed/empty bypass and zero/nonzero reader
+frontiers; mutations reject old-site/role aliases and lost no-event/error frames.
+Fresh marker constructors extend the same exact inner event stream at sites
+63–71: values, collections, input/output lists, order, MCT/MCC reassembly and
+initial fragment bytes. Ten executing producer contracts retain complete
+input-derived cold Result/mutable-state relations and checked ordinary
+projections. Paths carry actual offsets/cursors; request prefixes stop at the
+original first ordinary error. Main/tile bind models preserve admitted readers,
+counters, seen flags, prior owners and removal-before-reassembly failures.
+Mutations additionally reject old-site aliases, swapped list roles, early
+error/event substitution and lost pending/removal frames. Bounded native
+controls cover first/later refusal, empty/no-request, duplicate precedence,
+partial owners and raw/container restoration. Existing-buffer growth remains
+blocked on the pinned capacity-observation/reservation-effect interface; fresh
+reservation models do not establish physical capacity or host availability.
+Fresh Part 2 schemas add sites 72–79 for DFS/ADS, ATK and NLT owners at their
+actual syntax/read frontiers. Tagged model inputs contain no result banks;
+the original input computes every outcome. The precise branch-local native
+storage interface is linked to its checked complete-event equivalence and
+actual main/tile response-to-event consumers. Metadata/work charging, old
+owners and the tile nonlinear-local-prefix flag retain their exact partial
+frames. Empty and fixed-array cases do not invent requests. Original requirements
+and references remain; additional mutations reject old-site aliases, wrong
+packed roles/step positions, consumed events on early errors and rolled-back
+charged state. Existing-owner extension-vector growth remains excluded.
+Fresh profile words use site 80 with the actual marker/offset/start descriptor
+at the original constructor frontier. CAP and number admission, last-zero
+validation, duplicate-before-construction and tile rejection remain ordered.
+Standalone odd-tail reads retain their reached reservation rather than gaining
+an earlier parity check. Complete input-derived Result/tail relations, checked
+branch-local equivalence and actual main/public consumers are linked; bounded
+controls cover first/later refusal, empty/odd/malformed paths and raw/container
+restoration. Mutations reject old-site aliases, lost source markers, changed
+word counts, duplicate admission and consumed events on early errors.
+The fresh POC validation bitmap and packed packet-header buffer are
+separate from returned marker-owner constructors. Existing-buffer
+registry/pending growth is unchanged and capacity-blocked.
+The bitmap frontier is now covered at site 81: empty, geometry/arithmetic and
+derived-work rejection precede the request; zero coordinates consume no event;
+record/duplicate/coverage validation follows an exactly false initialized
+owner. The new reusable helper requires Copy and an exact repeated-value
+contract, not allocating Clone. Native helper/validator bindings, actual main/
+tile continuation prefixes and complete normal/error/tail projections are
+registered. Mutations reject old-site aliases, lost empty/work admission,
+non-false fill, wrong tile offsets and lost failure tails. All original
+requirements/references and canonical diagnostics remain.
+Fresh inspection collections use distinct outer `InspectionCapacity` responses:
+`Infos(display_first)` is derived from the parsed file and selected stream
+count, while `Layers` uses the actual JPX effective-layer count. Neither is a
+child `Parse(phase4,index,calls)` response. Native helper/empty-owner bindings,
+unchanged allocation frontiers, complete normal/error/tail relations, actual
+info-owner prefixes and JPX/render continuation conversions are registered.
+New mutations reject wrong roles/counts, zero-event changes, a Parse alias,
+premature response consumption and lost layer/source ordering. Existing
+vectors/source-index/timeline growth is unchanged and remains excluded.
+Fresh packed-header reassembly now reserves its exact known byte count at the
+original constructor frontier. Limit/no-source/logical-overflow admission stays
+before it; header framing and exact range copying stay after it. Zero bytes
+consume no response. A distinct `PackedHeaderCapacity` event carries the actual
+source bytes, marker, logical range, length and fragment metadata; it is not a
+parse, inspection or JPIP capacity response. Ordered per-part preparation and
+source-derived metadata/planning/accounting/full-selected decode folds carry
+the exact first error, tail, prior prepared owners and counters. Preparation
+failure preserves the entire initial mutable precinct state; ordinary packet
+errors retain their original partial decoder state. Raw typed/reconstructed,
+JPX-selected and dependent public/cache/transcode continuations bind this
+later decode-stage response after their actual parse phases. Checked normal
+projections, primitive-response/frame links and bounded refusal/restore/empty/
+malformed/earlier-admission/raw-container controls are registered.
+The subsequent fresh preparation increment covers the outer packed-owner
+collection at its original struct-field frontier, before per-part admission,
+and the exactly false seen bitmap after iterator/work admission and the packet
+count conversion. A distinct `PacketPreparationCapacity` event has separate
+`Packed` and `Seen` contexts derived from the actual parts/tile or parts/grid/
+selection, with exact source-derived counts. Neither aliases inner packed-byte,
+parse, inspection or JPIP responses. Zero consumes no response; failed outer
+storage consumes no inner reassembly/bitmap response. Exact prefixes, prior
+owners/counters, initial precinct failure frames and ordinary partial packet
+states compose through all existing decode/public continuations. The reusable
+Copy-fill helper preserves exact values and empty success without invoking
+allocating Clone. Bounded controls include first/later refusal, empty grids,
+malformed/earlier-work rejection and raw/container restoration.
+Fresh PacketGrid offsets and the directly reached uniform-resolution vector
+now use distinct `GridCapacity` contexts. Offset capacity is checked
+`expected + 1`; even an empty summary requests its sentinel slot. Overflow
+precedes that request. Uniform component filling occurs at the original
+argument frontier, before the grid's own admission; zero components consumes
+no response. Geometry, cardinality and limit checks retain their original
+positions, including selected/work validation after offset construction.
+Actual source-derived geometry folds, plans and full/selected decode folds
+bind grid responses before packet/preparation/header responses. Automatic
+snapshot preparation has a checked grid-normal projection and actual refusal
+join, preserving the distinct template/final/image parse phases, prior
+owner/counter/decoder/cache frames and unconsumed tails. Native static
+constructors use the existing pinned inline-spec form without body hoisting.
+Fresh upstream geometry count/descriptor buffers, broader planning owners,
+entropy/image buffers and existing-buffer growth remain separate.
+Successful reservation relies on the documented standard-library boundary,
+not a physical-capacity theorem inferred from sequence models.
 Same-file links are checked inside another listed, formatted function body;
 the contract's own declaration, an unrelated function or an indirect caller
 does not qualify as a direct same-file call. Unsupported formatting can fail

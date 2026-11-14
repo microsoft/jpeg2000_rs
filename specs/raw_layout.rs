@@ -152,6 +152,325 @@ pub(crate) open spec fn part1_read_layout(reader: Part1CodestreamReader<'_>) -> 
         part1_parse_layout_prologue(reader).1.input.len() as usize)
 }
 
+pub(crate) struct Part1ColdStorageEvent {
+    pub site: u8,
+    pub elements: usize,
+    pub succeeded: bool,
+}
+
+pub(crate) open spec fn part1_cold_tile_storage(
+    count: usize, site: nat, events: Seq<Part1ColdStorageEvent>,
+) -> Option<(Result<(), crate::DecodeError>, Seq<Part1ColdStorageEvent>)>
+    decreases 8 - site,
+{
+    if site >= 8 { Some((Ok(()), events)) }
+    else if events.len() == 0 { None }
+    else {
+        let event = events[0];
+        if event.site != site || event.elements != count { None }
+        else if !event.succeeded {
+            Some((Err(crate::DecodeError::AllocationFailed), events.drop_first()))
+        } else { part1_cold_tile_storage(count, site + 1, events.drop_first()) }
+    }
+}
+
+pub(crate) open spec fn part1_layout_with_cold_storage(
+    reader: Part1CodestreamReader<'_>, events: Seq<Part1ColdStorageEvent>,
+) -> Option<(Part1CompleteLayoutResult, Seq<Part1ColdStorageEvent>)> {
+    part1_quantized_layout_cold_run(reader, events)
+}
+
+#[verifier::opaque]
+pub(crate) open spec fn part1_cold_layout_result(
+    reader: Part1CodestreamReader<'_>, result: Part1CompleteLayoutResult,
+) -> bool {
+    exists|events: Seq<Part1ColdStorageEvent>|
+        part1_layout_with_cold_storage(reader, events) == Some((result, Seq::empty()))
+}
+
+pub(crate) open spec fn part1_cold_storage_trace(
+    count: usize, site: nat, refusal: Option<u8>,
+) -> Seq<Part1ColdStorageEvent>
+    decreases 8 - site,
+{
+    if site >= 8 { Seq::empty() } else {
+        let succeeded = refusal != Some(site as u8);
+        seq![Part1ColdStorageEvent { site: site as u8, elements: count, succeeded }]
+            + if succeeded { part1_cold_storage_trace(count, site + 1, refusal) } else { Seq::empty() }
+    }
+}
+
+pub(crate) proof fn part1_cold_storage_trace_runs(
+    count: usize, site: nat, refusal: Option<u8>,
+)
+    requires site <= 8,
+        match refusal { None => true, Some(at) => site <= at < 8 },
+    ensures part1_cold_tile_storage(count, site, part1_cold_storage_trace(count, site, refusal))
+        == Some((match refusal { None => Ok(()), Some(_) => Err(crate::DecodeError::AllocationFailed) },
+            Seq::empty())),
+    decreases 8 - site,
+{
+    reveal_with_fuel(part1_cold_storage_trace, 2);
+    reveal_with_fuel(part1_cold_tile_storage, 2);
+    if site < 8 {
+        if refusal != Some(site as u8) {
+            part1_cold_storage_trace_runs(count, site + 1, refusal);
+        }
+        let event = Part1ColdStorageEvent {
+            site: site as u8, elements: count, succeeded: refusal != Some(site as u8) };
+        let rest = if event.succeeded {
+            part1_cold_storage_trace(count, site + 1, refusal)
+        } else { Seq::empty() };
+        assert((seq![event] + rest).drop_first() =~= rest);
+    }
+}
+
+pub(crate) proof fn part1_cold_layout_normal(reader: Part1CodestreamReader<'_>)
+    ensures part1_cold_layout_result(reader, part1_read_layout(reader)),
+{
+    reveal(part1_cold_layout_result);
+    let events = part1_quantized_layout_cold_normal(reader);
+    assert(events + Seq::<Part1ColdStorageEvent>::empty() =~= events);
+    assert(part1_layout_with_cold_storage(reader, events)
+        == Some((part1_read_layout(reader), Seq::empty())));
+}
+
+pub(crate) proof fn part1_cold_layout_refused(
+    reader: Part1CodestreamReader<'_>, header: Part1MainHeader<'_>, site: u8,
+    response: Result<(), crate::DecodeError>,
+)
+    requires part1_read_main_header(reader) == Ok(header),
+        header.tile_count <= usize::MAX, site < 8,
+        response == Err(crate::DecodeError::AllocationFailed),
+    ensures part1_cold_layout_result(reader, Err(crate::DecodeError::AllocationFailed)),
+{
+    reveal(part1_cold_layout_result);
+    part1_cold_storage_trace_runs(header.tile_count as usize, 0, Some(site));
+    let later = part1_cold_storage_trace(header.tile_count as usize, 0, Some(site));
+    let main_calls = part1_main_header_normal_calls(reader);
+    part1_main_header_cold_normal(reader, later);
+    let events = main_calls + later;
+    assert(part1_layout_with_cold_storage(reader, events)
+        == Some((Err(crate::DecodeError::AllocationFailed), Seq::empty())));
+}
+
+pub(crate) proof fn part1_cold_tile_storage_errors(
+    count: usize, site: nat, events: Seq<Part1ColdStorageEvent>,
+)
+    requires site <= 8,
+    ensures match part1_cold_tile_storage(count, site, events) {
+        Some((Err(error), _)) => error == crate::DecodeError::AllocationFailed,
+        _ => true,
+    },
+    decreases 8 - site,
+{
+    reveal_with_fuel(part1_cold_tile_storage, 2);
+    if site < 8 && events.len() > 0 && events[0].site == site
+        && events[0].elements == count && events[0].succeeded {
+        part1_cold_tile_storage_errors(count, site + 1, events.drop_first());
+    }
+}
+
+pub(crate) proof fn part1_cold_layout_normal_projection(
+    reader: Part1CodestreamReader<'_>, result: Part1CompleteLayoutResult,
+)
+    requires part1_cold_layout_result(reader, result),
+        result != Err(crate::DecodeError::AllocationFailed),
+    ensures result == part1_read_layout(reader),
+{
+    reveal(part1_cold_layout_result);
+    let events = choose|events: Seq<Part1ColdStorageEvent>|
+        part1_layout_with_cold_storage(reader, events) == Some((result, Seq::empty()));
+    part1_quantized_layout_cold_projection(reader, events, result, Seq::empty());
+}
+
+pub(crate) proof fn part1_cold_layout_calls(
+    reader: Part1CodestreamReader<'_>, result: Part1CompleteLayoutResult,
+)
+    requires part1_cold_layout_result(reader, result),
+    ensures exists|events: Seq<Part1ColdStorageEvent>|
+        part1_layout_with_cold_storage(reader, events) == Some((result, Seq::empty())),
+{
+    reveal(part1_cold_layout_result);
+}
+
+pub(crate) proof fn part1_cold_tile_storage_frame(
+    count: usize, site: nat, events: Seq<Part1ColdStorageEvent>,
+    tail: Seq<Part1ColdStorageEvent>, result: Result<(), crate::DecodeError>,
+)
+    requires site <= 8,
+        part1_cold_tile_storage(count, site, events) == Some((result, Seq::empty())),
+    ensures part1_cold_tile_storage(count, site, events + tail) == Some((result, tail)),
+    decreases 8 - site,
+{
+    reveal_with_fuel(part1_cold_tile_storage, 2);
+    if site < 8 {
+        assert(events.len() > 0);
+        assert((events + tail).drop_first() =~= events.drop_first() + tail);
+        if events[0].succeeded {
+            part1_cold_tile_storage_frame(count, site + 1, events.drop_first(), tail, result);
+        }
+    } else {
+        assert(events =~= Seq::empty());
+    }
+}
+
+pub(crate) proof fn part1_layout_with_cold_storage_frame(
+    reader: Part1CodestreamReader<'_>, events: Seq<Part1ColdStorageEvent>,
+    tail: Seq<Part1ColdStorageEvent>, result: Part1CompleteLayoutResult,
+)
+    requires part1_layout_with_cold_storage(reader, events) == Some((result, Seq::empty())),
+    ensures part1_layout_with_cold_storage(reader, events + tail) == Some((result, tail)),
+{
+    part1_quantized_layout_cold_frame(reader, events, result, Seq::empty(), tail);
+    assert(Seq::<Part1ColdStorageEvent>::empty() + tail =~= tail);
+}
+
+pub(crate) open spec fn part1_parse_layout_with_cold_storage(
+    input: Seq<u8>, limits: &crate::ResourceLimits, events: Seq<Part1ColdStorageEvent>,
+) -> Option<(Part1CompleteLayoutResult, Seq<Part1ColdStorageEvent>)> {
+    match part1_codestream_reader_new(input, limits) {
+        Err(error) => Some((Err(error), events)),
+        Ok(reader) => part1_layout_with_cold_storage(reader, events),
+    }
+}
+
+pub closed spec fn part1_parse_layout_cold_result(
+    input: Seq<u8>, limits: &crate::ResourceLimits, result: Part1CompleteLayoutResult,
+) -> bool {
+    exists|events: Seq<Part1ColdStorageEvent>|
+        part1_parse_layout_with_cold_storage(input, limits, events) == Some((result, Seq::empty()))
+}
+
+pub(crate) proof fn part1_parse_layout_cold_witness(
+    input: Seq<u8>, limits: &crate::ResourceLimits, result: Part1CompleteLayoutResult,
+    events: Seq<Part1ColdStorageEvent>,
+)
+    requires part1_parse_layout_with_cold_storage(input, limits, events)
+        == Some((result, Seq::empty())),
+    ensures part1_parse_layout_cold_result(input, limits, result),
+{
+    reveal(part1_parse_layout_cold_result);
+}
+
+pub(crate) open spec fn part1_layout_info(result: Part1CompleteLayoutResult)
+    -> Result<(Part1LayoutMainFields, Part1ProfileMetadata, u32, u64), crate::DecodeError> {
+    match result {
+        Err(error) => Err(error),
+        Ok(layout) => Ok((layout.0, layout.1, layout.2, layout.3)),
+    }
+}
+
+pub(crate) open spec fn part1_parse_info_with_cold_storage(
+    input: Seq<u8>, limits: &crate::ResourceLimits, events: Seq<Part1ColdStorageEvent>,
+) -> Option<(Result<(Part1LayoutMainFields, Part1ProfileMetadata, u32, u64), crate::DecodeError>,
+    Seq<Part1ColdStorageEvent>)> {
+    match part1_parse_layout_with_cold_storage(input, limits, events) {
+        None => None,
+        Some((result, rest)) => Some((part1_layout_info(result), rest)),
+    }
+}
+
+pub closed spec fn part1_parse_info_cold_result(
+    input: Seq<u8>, limits: &crate::ResourceLimits,
+    result: Result<(Part1LayoutMainFields, Part1ProfileMetadata, u32, u64), crate::DecodeError>,
+) -> bool {
+    exists|events: Seq<Part1ColdStorageEvent>|
+        part1_parse_info_with_cold_storage(input, limits, events) == Some((result, Seq::empty()))
+}
+
+pub(crate) proof fn part1_parse_layout_cold_projection(
+    input: Seq<u8>, limits: &crate::ResourceLimits, result: Part1CompleteLayoutResult,
+)
+    requires part1_parse_layout_cold_result(input, limits, result),
+        result != Err(crate::DecodeError::AllocationFailed),
+    ensures result == part1_parse_layout(input, limits),
+{
+    reveal(part1_parse_layout_cold_result);
+    reveal(part1_cold_layout_result);
+    let events = choose|events: Seq<Part1ColdStorageEvent>|
+        part1_parse_layout_with_cold_storage(input, limits, events) == Some((result, Seq::empty()));
+    part1_parse_layout_unfold(input, limits);
+    if let Ok(reader) = part1_codestream_reader_new(input, limits) {
+        assert(part1_layout_with_cold_storage(reader, events) == Some((result, Seq::empty())));
+        part1_cold_layout_normal_projection(reader, result);
+    }
+}
+
+pub(crate) proof fn part1_parse_info_cold_projection(
+    input: Seq<u8>, limits: &crate::ResourceLimits, result: Part1CompleteLayoutResult,
+)
+    requires part1_parse_layout_cold_result(input, limits, result),
+    ensures part1_parse_info_cold_result(input, limits, part1_layout_info(result)),
+        result != Err(crate::DecodeError::AllocationFailed) ==>
+            part1_layout_info(result) == part1_parse_info(input, limits),
+{
+    reveal(part1_parse_layout_cold_result);
+    reveal(part1_parse_info_cold_result);
+    let events = choose|events: Seq<Part1ColdStorageEvent>|
+        part1_parse_layout_with_cold_storage(input, limits, events) == Some((result, Seq::empty()));
+    assert(part1_parse_info_with_cold_storage(input, limits, events)
+        == Some((part1_layout_info(result), Seq::empty())));
+    if result != Err(crate::DecodeError::AllocationFailed) {
+        part1_parse_layout_cold_projection(input, limits, result);
+        part1_parse_info_unfold(input, limits);
+    }
+}
+
+pub(crate) proof fn part1_parse_layout_cold_calls(
+    input: Seq<u8>, limits: &crate::ResourceLimits, result: Part1CompleteLayoutResult,
+)
+    requires part1_parse_layout_cold_result(input, limits, result),
+    ensures exists|calls: Seq<Part1ColdStorageEvent>|
+        part1_parse_layout_with_cold_storage(input, limits, calls)
+            == Some((result, Seq::empty())),
+{
+    reveal(part1_parse_layout_cold_result);
+}
+
+pub(crate) proof fn part1_parse_info_cold_calls(
+    input: Seq<u8>, limits: &crate::ResourceLimits,
+    result: Result<(Part1LayoutMainFields, Part1ProfileMetadata, u32, u64), crate::DecodeError>,
+)
+    requires part1_parse_info_cold_result(input, limits, result),
+    ensures exists|calls: Seq<Part1ColdStorageEvent>|
+        part1_parse_info_with_cold_storage(input, limits, calls)
+            == Some((result, Seq::empty())),
+{
+    reveal(part1_parse_info_cold_result);
+}
+
+pub(crate) proof fn part1_parse_layout_cold_normal(
+    input: Seq<u8>, limits: &crate::ResourceLimits,
+)
+    ensures part1_parse_layout_cold_result(input, limits, part1_parse_layout(input, limits)),
+{
+    part1_parse_layout_unfold(input, limits);
+    match part1_codestream_reader_new(input, limits) {
+        Err(error) => {
+            part1_parse_layout_cold_witness(input, limits, Err(error), Seq::empty());
+        },
+        Ok(reader) => {
+            part1_cold_layout_normal(reader);
+            part1_cold_layout_calls(reader, part1_read_layout(reader));
+            let calls = choose|calls: Seq<Part1ColdStorageEvent>|
+                part1_layout_with_cold_storage(reader, calls)
+                    == Some((part1_read_layout(reader), Seq::empty()));
+            part1_parse_layout_cold_witness(input, limits, part1_read_layout(reader), calls);
+        },
+    }
+}
+
+pub(crate) proof fn part1_parse_info_cold_normal(
+    input: Seq<u8>, limits: &crate::ResourceLimits,
+)
+    ensures part1_parse_info_cold_result(input, limits, part1_parse_info(input, limits)),
+{
+    part1_parse_layout_cold_normal(input, limits);
+    part1_parse_info_cold_projection(input, limits, part1_parse_layout(input, limits));
+    part1_parse_info_unfold(input, limits);
+}
+
 pub closed spec fn part1_parse_layout(input: Seq<u8>, limits: &crate::ResourceLimits)
     -> Part1CompleteLayoutResult
 {

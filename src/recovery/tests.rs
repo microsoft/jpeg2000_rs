@@ -43,11 +43,30 @@ fn decode(bytes: &[u8]) -> Result<RawRecoveredImage, DecodeError> {
 }
 
 fn refuses_without_reservation(bytes: &[u8]) {
-    allocation::with_refusal(0, || {
-        assert!(decode(bytes).is_err());
+    refuses_without_reservation_after(bytes, 11);
+}
+
+fn refuses_without_reservation_after(bytes: &[u8], strict_requests: usize) {
+    let expected = decode(bytes).unwrap_err();
+    let framing = crate::codestream::recovery_framing(bytes, &ResourceLimits::default());
+    let requests = match framing {
+        Err(_) => 0,
+        Ok(frame) => {
+            assert!(!frame.append_eoc);
+            // Strict parsing may stop before the commit copy; neither fixture path reserves a repair.
+            strict_requests
+        }
+    };
+    allocation::with_refusal(requests, || {
+        assert_eq!(decode(bytes).unwrap_err(), expected);
         assert_eq!(
             allocation::empty_with_capacity::<u8>(1),
-            Err(DecodeError::AllocationFailed)
+            Err(DecodeError::AllocationFailed),
+            "strict no-repair frontier: bytes={}, requests={requests}, psot={:?}, part={:?}, size={:?}, error={expected:?}",
+            bytes.len(),
+            bytes.get(SOT + 6..SOT + 10),
+            bytes.get(SOT + 10..SOT + 12),
+            bytes.get(8..12)
         );
     });
 }
@@ -105,17 +124,17 @@ fn finite_other_tiles_parts_and_existing_eoc_trailers_never_reserve_a_repair() {
         let mut bytes = missing.clone();
         bytes[SOT + 10] = part;
         bytes[SOT + 11] = count;
-        refuses_without_reservation(&bytes);
+        refuses_without_reservation_after(&bytes, 10);
     }
     let mut tiles = missing.clone();
     tiles[8..12].copy_from_slice(&2u32.to_be_bytes());
-    refuses_without_reservation(&tiles);
+    refuses_without_reservation_after(&tiles, 10);
     let mut invalid_tile = missing.clone();
     invalid_tile[SOT + 5] = 1;
-    refuses_without_reservation(&invalid_tile);
+    refuses_without_reservation_after(&invalid_tile, 9);
     let mut another_part = missing.clone();
     another_part.extend_from_slice(&GRAY0[SOT..GRAY0.len() - 2]);
-    refuses_without_reservation(&another_part);
+    refuses_without_reservation_after(&another_part, 10);
     let mut trailer = GRAY0.to_vec();
     trailer.extend_from_slice(&[0x01, 0x02, 0xff]);
     refuses_without_reservation(&trailer);
@@ -277,6 +296,16 @@ fn one_atomic_reservation_refusal_and_unwind_leave_exact_same_process_success() 
     let bytes = damaged(GRAY0);
     let expected = decode(&bytes).unwrap();
     allocation::with_refusal(1, || {
+        assert_eq!(
+            append_eoc(&bytes).unwrap(),
+            [bytes.as_slice(), &[0xff, 0xd9]].concat()
+        );
+        assert_eq!(
+            allocation::empty_with_capacity::<u8>(1),
+            Err(DecodeError::AllocationFailed)
+        );
+    });
+    allocation::with_refusal(15, || {
         assert_eq!(decode(&bytes).unwrap(), expected);
         assert_eq!(
             allocation::empty_with_capacity::<u8>(1),
@@ -330,10 +359,15 @@ fn reconstructed_recovery_retains_centered_planes_geometry_and_report() {
         assert_eq!(intact.report.repair_copy_bytes, 0);
         let mut finite = bytes;
         finite[SOT + 6..SOT + 10].copy_from_slice(&19u32.to_be_bytes());
-        allocation::with_refusal(0, || {
+        let strict_error = crate::decode_codestream_reconstructed(&finite, &options).unwrap_err();
+        assert_eq!(
+            decode_codestream_reconstructed_recover_missing_eoc(&finite, &options).unwrap_err(),
+            strict_error
+        );
+        allocation::with_refusal(11, || {
             assert_eq!(
                 decode_codestream_reconstructed_recover_missing_eoc(&finite, &options).unwrap_err(),
-                crate::decode_codestream_reconstructed(&finite, &options).unwrap_err()
+                strict_error
             );
             assert_eq!(
                 allocation::empty_with_capacity::<u8>(1),
@@ -358,7 +392,7 @@ fn reconstructed_recovery_refusal_limits_and_genuine_errors_preserve_recovery() 
             expected
         );
     });
-    allocation::with_refusal(1, || {
+    allocation::with_refusal(15, || {
         assert_eq!(
             decode_codestream_reconstructed_recover_missing_eoc(&bytes, &options).unwrap(),
             expected

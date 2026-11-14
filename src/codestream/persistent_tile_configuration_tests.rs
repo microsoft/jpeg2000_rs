@@ -417,6 +417,128 @@ fn actual_roi_equality_compares_every_physical_shift() {
 }
 
 #[test]
+fn progression_storage_commit_keeps_fifth_store_and_earlier_error_precedence() {
+    let limits = ResourceLimits::default();
+    let parser = new_parser(&[], &limits).unwrap();
+    let payload = raw_owned_tile_part_fixture(3);
+    let mut owners = state([1; 6]);
+    let before = owners.clone();
+    assert_eq!(
+        crate::allocation::with_refusal(1, || commit(
+            &parser,
+            &mut owners,
+            17,
+            0,
+            97,
+            None,
+            &payload
+        )),
+        Err(DecodeError::AllocationFailed)
+    );
+    assert_eq!(owners.roi[0], Some(payload.roi_shifts));
+    assert_eq!(owners.styles[0], Some(payload.coding_style));
+    assert_eq!(owners.quantizations[0], Some(payload.quantization));
+    assert_eq!(owners.parts[0], Some(97));
+    assert_eq!(
+        owners.owners[0],
+        Some(payload.component_quantizations.clone())
+    );
+    assert_eq!(owners.progression, before.progression);
+    commit(&parser, &mut owners, 17, 0, 97, None, &payload).unwrap();
+    assert_eq!(
+        owners.progression[0],
+        Some(payload.progression_changes.clone())
+    );
+
+    let mut missing = state([1, 1, 1, 1, 1, 0]);
+    assert_eq!(
+        crate::allocation::with_refusal(1, || commit(
+            &parser,
+            &mut missing,
+            17,
+            0,
+            97,
+            None,
+            &payload
+        )),
+        Err(DecodeError::AllocationFailed)
+    );
+    assert!(matches!(
+        commit(&parser, &mut missing, 17, 0, 97, None, &payload),
+        Err(DecodeError::MalformedInput {
+            kind: MalformedKind::InvalidTilePart,
+            ..
+        })
+    ));
+    let mut missing = state([1, 1, 1, 1, 0, 1]);
+    crate::allocation::with_refusal(1, || {
+        assert!(matches!(
+            commit(&parser, &mut missing, 17, 0, 97, None, &payload),
+            Err(DecodeError::MalformedInput {
+                kind: MalformedKind::InvalidTilePart,
+                ..
+            })
+        ));
+        assert_eq!(
+            crate::allocation::copy_values(&[1_u8]),
+            Err(DecodeError::AllocationFailed)
+        );
+    });
+    let mut inconsistent = state([0; 6]);
+    crate::allocation::with_refusal(0, || {
+        assert!(matches!(
+            commit(
+                &parser,
+                &mut inconsistent,
+                17,
+                0,
+                97,
+                Some(RoiShifts::none()),
+                &payload
+            ),
+            Err(DecodeError::MalformedInput {
+                kind: MalformedKind::InvalidRegionOfInterest,
+                ..
+            })
+        ));
+        assert_eq!(
+            crate::allocation::copy_values(&[1_u8]),
+            Err(DecodeError::AllocationFailed)
+        );
+    });
+}
+
+#[test]
+fn refused_quantization_commit_keeps_exact_partial_owners_and_restores() {
+    let limits = ResourceLimits::default();
+    let parser = new_parser(&[], &limits).unwrap();
+    let payload = raw_owned_tile_part_fixture(3);
+    let mut owners = state([1; 6]);
+    let before = owners.clone();
+    crate::allocation::with_refusal(0, || {
+        assert_eq!(
+            commit(&parser, &mut owners, 17, 0, 97, None, &payload),
+            Err(DecodeError::AllocationFailed)
+        );
+    });
+    assert_eq!(owners.roi[0], Some(payload.roi_shifts));
+    assert_eq!(owners.styles[0], Some(payload.coding_style));
+    assert_eq!(owners.quantizations[0], Some(payload.quantization));
+    assert_eq!(owners.parts[0], Some(97));
+    assert_eq!(owners.owners, before.owners);
+    assert_eq!(owners.progression, before.progression);
+    commit(&parser, &mut owners, 17, 0, 97, None, &payload).unwrap();
+    assert_eq!(
+        owners.owners[0],
+        Some(payload.component_quantizations.clone())
+    );
+    assert_eq!(
+        owners.progression[0],
+        Some(payload.progression_changes.clone())
+    );
+}
+
+#[test]
 fn actual_persistent_configuration_raw_geometry_first_errors_and_partial_frames() {
     let input = [11, 13, 17];
     let limits = ResourceLimits::HARDENED;

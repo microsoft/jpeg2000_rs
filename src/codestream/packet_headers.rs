@@ -74,12 +74,18 @@ impl PackedPacketHeaders<'_> {
 
     #[cfg_attr(verus_keep_ghost, verifier::spinoff_prover)]
     #[cfg_attr(verus_keep_ghost, verus_spec(result =>
-        ensures packed_header_reassembly_outcome(result) == crate::specs::part1_packed_header_reassembly(
-            packed_packet_headers_view(self), crate::limits::resource_packet_header_byte_limit(limits)),
+        ensures crate::specs::part2_packed_reassembly_result(packed_packet_headers_view(self),
+                crate::limits::resource_packet_header_byte_limit(limits), packed_header_reassembly_outcome(result)),
+            packed_header_reassembly_outcome(result) != Err(DecodeError::AllocationFailed) ==>
+                packed_header_reassembly_outcome(result) == crate::specs::part1_packed_header_reassembly(
+                    packed_packet_headers_view(self), crate::limits::resource_packet_header_byte_limit(limits)),
     ))]
     pub(crate) fn reassemble(&self, limits: &ResourceLimits) -> Result<Vec<u8>, DecodeError> {
         #[cfg(verus_keep_ghost)]
-        proof! { reveal(crate::specs::part1_packed_header_reassembly); }
+        proof! {
+            reveal(crate::specs::part1_packed_header_reassembly);
+            crate::specs::part2_packed_reassembly_normal(packed_packet_headers_view(self), crate::limits::resource_packet_header_byte_limit(limits));
+        }
         if self.length as u64 > limits.maximum_packet_header_bytes() {
             return Err(packet_input_limit(
                 Resource::PacketHeaderBytes,
@@ -99,7 +105,20 @@ impl PackedPacketHeaders<'_> {
             Some(end) => end,
             None => return Err(packet_input_error(0, MalformedKind::ArithmeticOverflow)),
         };
-        let mut output = Vec::with_capacity(self.length);
+        let reserved = if self.length == 0 {
+            Ok(Vec::new())
+        } else {
+            crate::allocation::empty_with_capacity(self.length)
+        };
+        #[cfg(verus_keep_ghost)]
+        proof! {
+            let unit = match reserved { Err(error) => Err(error), Ok(_) => Ok(()) };
+            crate::specs::part2_packed_capacity_observed(packed_packet_headers_view(self), crate::limits::resource_packet_header_byte_limit(limits), unit);
+            if reserved.is_err() { crate::specs::part2_packed_reassembly_refused(packed_packet_headers_view(self), crate::limits::resource_packet_header_byte_limit(limits)); }
+        }
+        let mut output = reserved?;
+        #[cfg(verus_keep_ghost)]
+        proof! { assert(output@ =~= Seq::<u8>::empty()); }
         let mut position = 0_usize;
         let mut logical_position = 0_usize;
         let mut remaining_segments = header.len();
@@ -107,6 +126,9 @@ impl PackedPacketHeaders<'_> {
             verus_keep_ghost,
             verus_spec(
                 invariant position <= header.len(), logical_position <= position,
+                    crate::specs::part2_packed_reassembly_result(packed_packet_headers_view(self),
+                        crate::limits::resource_packet_header_byte_limit(limits),
+                        crate::specs::part1_packed_header_reassembly(packed_packet_headers_view(self), crate::limits::resource_packet_header_byte_limit(limits))),
                     remaining_segments <= header.len(),
                     logical_end as int == logical_start as int + self.length as int,
                     output@.len() == (if logical_position <= logical_start { 0int }
@@ -1325,6 +1347,131 @@ fn packet_length_sources_match(
 mod tests {
     use super::*;
     use crate::codestream::tests::reference_packet_sum;
+
+    #[test]
+    fn packed_storage_refusal_retains_sources_and_prior_bytes_then_restores() {
+        let limits = ResourceLimits::default();
+        let header = [0xff, 0x61, 0, 6, 0, 11, 22, 33, 0xff, 0x61, 0, 5, 1, 44, 55];
+        let source = PackedPacketHeaders {
+            source: PackedPacketHeaderSource::MarkerSegments {
+                header: &header,
+                marker: PPT,
+                logical_start: 1,
+            },
+            length: 3,
+            fragments: 2,
+        };
+        let before = format!("{source:?}");
+        assert_eq!(
+            crate::allocation::with_refusal(0, || source.reassemble(&limits)),
+            Err(DecodeError::AllocationFailed)
+        );
+        crate::allocation::with_refusal(1, || {
+            let first = source.reassemble(&limits).unwrap();
+            assert_eq!(
+                source.reassemble(&limits),
+                Err(DecodeError::AllocationFailed)
+            );
+            assert_eq!(first, [22, 33, 44]);
+        });
+        assert_eq!(source.reassemble(&limits).unwrap(), [22, 33, 44]);
+        assert_eq!(format!("{source:?}"), before);
+    }
+
+    #[test]
+    fn packed_storage_zero_admission_and_framing_keep_original_request_order() {
+        let limits = ResourceLimits::default();
+        let valid = [0xff, 0x61, 0, 4, 0, 9];
+        let source = PackedPacketHeaders {
+            source: PackedPacketHeaderSource::MarkerSegments {
+                header: &valid,
+                marker: PPT,
+                logical_start: 0,
+            },
+            length: 1,
+            fragments: 1,
+        };
+        let empty_header = [0xff, 0x61, 0, 3, 0];
+        let empty = PackedPacketHeaders {
+            source: PackedPacketHeaderSource::MarkerSegments {
+                header: &empty_header,
+                marker: PPT,
+                logical_start: 0,
+            },
+            length: 0,
+            fragments: 1,
+        };
+        let malformed = PackedPacketHeaders {
+            source: PackedPacketHeaderSource::MarkerSegments {
+                header: &[0xff],
+                marker: PPT,
+                logical_start: 0,
+            },
+            ..source
+        };
+        let overflow = PackedPacketHeaders {
+            source: PackedPacketHeaderSource::MarkerSegments {
+                header: &valid,
+                marker: PPT,
+                logical_start: usize::MAX,
+            },
+            ..source
+        };
+        let excessive = PackedPacketHeaders {
+            source: PackedPacketHeaderSource::None,
+            length: limits.maximum_packet_header_bytes() as usize + 1,
+            fragments: 0,
+        };
+        crate::allocation::with_refusal(0, || {
+            assert!(
+                PackedPacketHeaders::none()
+                    .reassemble(&limits)
+                    .unwrap()
+                    .is_empty()
+            );
+            assert!(empty.reassemble(&limits).unwrap().is_empty());
+            assert!(matches!(
+                PackedPacketHeaders {
+                    length: 0,
+                    ..malformed
+                }
+                .reassemble(&limits),
+                Err(DecodeError::MalformedInput {
+                    kind: MalformedKind::InvalidPackedPacketHeader,
+                    ..
+                })
+            ));
+            assert!(matches!(
+                overflow.reassemble(&limits),
+                Err(DecodeError::MalformedInput {
+                    kind: MalformedKind::ArithmeticOverflow,
+                    ..
+                })
+            ));
+            assert!(matches!(
+                excessive.reassemble(&limits),
+                Err(DecodeError::LimitExceeded {
+                    resource: Resource::PacketHeaderBytes,
+                    ..
+                })
+            ));
+            assert_eq!(
+                source.reassemble(&limits),
+                Err(DecodeError::AllocationFailed)
+            );
+        });
+        assert_eq!(
+            crate::allocation::with_refusal(0, || malformed.reassemble(&limits)),
+            Err(DecodeError::AllocationFailed)
+        );
+        assert!(matches!(
+            malformed.reassemble(&limits),
+            Err(DecodeError::MalformedInput {
+                kind: MalformedKind::InvalidPackedPacketHeader,
+                ..
+            })
+        ));
+    }
 
     #[test]
     fn actual_segmented_plm_sum_derives_raw_physical_fragments_and_failure_offsets() {

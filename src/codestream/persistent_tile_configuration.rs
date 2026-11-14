@@ -44,7 +44,16 @@ impl Parser<'_> {
     #[allow(clippy::too_many_arguments)]
     #[cfg_attr(verus_keep_ghost, verifier::spinoff_prover)]
     #[cfg_attr(verus_keep_ghost, verus_spec(result =>
-        ensures (result, persistent_tile_configuration_view(
+        ensures crate::specs::part1_commit_quantization_cold_result(
+            self.position, start, index, payload_index, optional_roi_shifts_view(previous_roi),
+            tile_part_payload_view(payload), persistent_tile_configuration_view(
+                old(roi), old(styles), old(quantizations), old(style_parts),
+                old(component_quantizations), old(progression)),
+            (result, persistent_tile_configuration_view(
+                final(roi), final(styles), final(quantizations), final(style_parts),
+                final(component_quantizations), final(progression)))),
+            result != Err(DecodeError::AllocationFailed) ==>
+            (result, persistent_tile_configuration_view(
             final(roi), final(styles), final(quantizations), final(style_parts),
             final(component_quantizations), final(progression)))
             == crate::specs::part1_commit_persistent_tile_configuration(
@@ -70,7 +79,14 @@ impl Parser<'_> {
         progression: &mut [Option<ProgressionChanges>],
     ) -> Result<(), DecodeError> {
         #[cfg(verus_keep_ghost)]
+        proof_decl! {
+            let ghost initial = persistent_tile_configuration_view(
+                roi, styles, quantizations, style_parts, component_quantizations, progression);
+        }
+        #[cfg(verus_keep_ghost)]
         proof! {
+            crate::specs::part1_commit_quantization_cold_normal(self.position, start, index, payload_index,
+                optional_roi_shifts_view(previous_roi), tile_part_payload_view(payload), initial);
             reveal(persistent_tile_configuration_view);
             reveal(super::persistent_tile_configuration_sequences_view);
             reveal(optional_roi_shifts_view);
@@ -99,6 +115,14 @@ impl Parser<'_> {
                 || self.malformed_here(MalformedKind::InvalidTilePart),
             )? =
             Some(payload.roi_shifts);
+        #[cfg(verus_keep_ghost)]
+        proof! {
+            assert(crate::specs::part1_persistent_tile_configuration_prefix(
+                self.position, start, index, payload_index, optional_roi_shifts_view(previous_roi),
+                tile_part_payload_view(payload), initial, 1)
+                == (Ok(()), persistent_tile_configuration_view(
+                    roi, styles, quantizations, style_parts, component_quantizations, progression)));
+        }
         *styles
             .get_mut(index)
             .ok_or_else(
@@ -108,6 +132,14 @@ impl Parser<'_> {
                 || self.malformed_here(MalformedKind::InvalidTilePart),
             )? =
             Some(payload.coding_style);
+        #[cfg(verus_keep_ghost)]
+        proof! {
+            assert(crate::specs::part1_persistent_tile_configuration_prefix(
+                self.position, start, index, payload_index, optional_roi_shifts_view(previous_roi),
+                tile_part_payload_view(payload), initial, 2)
+                == (Ok(()), persistent_tile_configuration_view(
+                    roi, styles, quantizations, style_parts, component_quantizations, progression)));
+        }
         *quantizations
             .get_mut(index)
             .ok_or_else(
@@ -117,6 +149,14 @@ impl Parser<'_> {
                 || self.malformed_here(MalformedKind::InvalidTilePart),
             )? =
             Some(payload.quantization);
+        #[cfg(verus_keep_ghost)]
+        proof! {
+            assert(crate::specs::part1_persistent_tile_configuration_prefix(
+                self.position, start, index, payload_index, optional_roi_shifts_view(previous_roi),
+                tile_part_payload_view(payload), initial, 3)
+                == (Ok(()), persistent_tile_configuration_view(
+                    roi, styles, quantizations, style_parts, component_quantizations, progression)));
+        }
         *style_parts
             .get_mut(index)
             .ok_or_else(
@@ -126,6 +166,36 @@ impl Parser<'_> {
                 || self.malformed_here(MalformedKind::InvalidTilePart),
             )? =
             Some(payload_index);
+        #[cfg(verus_keep_ghost)]
+        proof! {
+            assert(crate::specs::part1_persistent_tile_configuration_prefix(
+                self.position, start, index, payload_index, optional_roi_shifts_view(previous_roi),
+                tile_part_payload_view(payload), initial, 4)
+                == (Ok(()), persistent_tile_configuration_view(
+                    roi, styles, quantizations, style_parts, component_quantizations, progression)));
+        }
+        let copied_quantizations = match payload.component_quantizations.try_duplicate() {
+            Ok(values) => values,
+            Err(error) => {
+                #[cfg(verus_keep_ghost)]
+                proof! {
+                    reveal(quantization_owner_view);
+                    crate::specs::part1_commit_quantization_cold_refused(
+                        self.position, start, index, payload_index,
+                        optional_roi_shifts_view(previous_roi), tile_part_payload_view(payload), initial,
+                        persistent_tile_configuration_view(
+                            roi, styles, quantizations, style_parts, component_quantizations, progression), error);
+                }
+                return Err(error);
+            }
+        };
+        #[cfg(verus_keep_ghost)]
+        proof! {
+            reveal(quantization_owner_view);
+            reveal(parsed_quantization_owner_view);
+            assert(parsed_quantization_owner_view(&copied_quantizations)
+                == parsed_quantization_owner_view(&payload.component_quantizations));
+        }
         *component_quantizations
             .get_mut(index)
             .ok_or_else(
@@ -134,7 +204,28 @@ impl Parser<'_> {
                 ))]
                 || self.malformed_here(MalformedKind::InvalidTilePart),
             )? =
-            Some(payload.component_quantizations.clone());
+            Some(copied_quantizations);
+        #[cfg(verus_keep_ghost)]
+        proof! {
+            assert(crate::specs::part1_persistent_tile_configuration_prefix(
+                self.position, start, index, payload_index, optional_roi_shifts_view(previous_roi),
+                tile_part_payload_view(payload), initial, 5)
+                == (Ok(()), persistent_tile_configuration_view(
+                    roi, styles, quantizations, style_parts, component_quantizations, progression)));
+        }
+        let copied_progression = match payload.progression_changes.try_duplicate() {
+            Ok(values) => values,
+            Err(error) => {
+                #[cfg(verus_keep_ghost)]
+                proof! {
+                    crate::specs::part1_commit_progression_cold_refused(self.position, start, index, payload_index,
+                        optional_roi_shifts_view(previous_roi), tile_part_payload_view(payload), initial,
+                        persistent_tile_configuration_view(
+                            roi, styles, quantizations, style_parts, component_quantizations, progression), error);
+                }
+                return Err(error);
+            }
+        };
         *progression
             .get_mut(index)
             .ok_or_else(
@@ -143,7 +234,15 @@ impl Parser<'_> {
                 ))]
                 || self.malformed_here(MalformedKind::InvalidTilePart),
             )? =
-            Some(payload.progression_changes.clone());
+            Some(copied_progression);
+        #[cfg(verus_keep_ghost)]
+        proof! {
+            assert(crate::specs::part1_persistent_tile_configuration_prefix(
+                self.position, start, index, payload_index, optional_roi_shifts_view(previous_roi),
+                tile_part_payload_view(payload), initial, 6)
+                == (Ok(()), persistent_tile_configuration_view(
+                    roi, styles, quantizations, style_parts, component_quantizations, progression)));
+        }
         Ok(())
     }
 

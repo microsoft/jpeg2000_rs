@@ -198,4 +198,258 @@ pub(crate) open spec fn part1_commit_persistent_tile_configuration(
         position, start, index, payload_index, previous_roi, payload, state, 6)
 }
 
+pub(crate) open spec fn part1_commit_progression_cold_run(
+    position: usize, start: usize, index: usize, payload_index: usize,
+    previous_roi: Option<Seq<u8>>, payload: Part1TilePartPayload,
+    state: Part1PersistentTileConfiguration, events: Seq<Part1ColdStorageEvent>,
+) -> Option<((Result<(), crate::DecodeError>, Part1PersistentTileConfiguration), Seq<Part1ColdStorageEvent>)> {
+    let prefix = part1_persistent_tile_configuration_prefix(
+        position, start, index, payload_index, previous_roi, payload, state, 5);
+    match prefix.0 {
+        Err(_) => Some((prefix, events)),
+        Ok(()) => if payload.progression_changes.len() == 0 {
+            Some((part1_commit_persistent_tile_configuration(
+                position, start, index, payload_index, previous_roi, payload, state), events))
+        } else {
+            match part1_quantization_storage_request(15, payload.progression_changes.len() as usize, events) {
+                None => None,
+                Some((Err(error), rest)) => Some(((Err(error), prefix.1), rest)),
+                Some((Ok(()), rest)) => Some((part1_commit_persistent_tile_configuration(
+                    position, start, index, payload_index, previous_roi, payload, state), rest)),
+            }
+        },
+    }
+}
+
+pub(crate) open spec fn part1_commit_quantization_cold_run(
+    position: usize, start: usize, index: usize, payload_index: usize,
+    previous_roi: Option<Seq<u8>>, payload: Part1TilePartPayload,
+    state: Part1PersistentTileConfiguration, events: Seq<Part1ColdStorageEvent>,
+) -> Option<((Result<(), crate::DecodeError>, Part1PersistentTileConfiguration), Seq<Part1ColdStorageEvent>)> {
+    let prefix = part1_persistent_tile_configuration_prefix(
+        position, start, index, payload_index, previous_roi, payload, state, 4);
+    match prefix.0 {
+        Err(_) => Some((prefix, events)),
+        Ok(()) => if payload.component_quantizations.1.len() == 0 {
+            part1_commit_progression_cold_run(position, start, index, payload_index, previous_roi, payload, state, events)
+        } else {
+            match part1_quantization_storage_request(11, payload.component_quantizations.1.len() as usize, events) {
+                None => None,
+                Some((Err(error), rest)) => Some(((Err(error), prefix.1), rest)),
+                Some((Ok(()), rest)) => part1_commit_progression_cold_run(
+                    position, start, index, payload_index, previous_roi, payload, state, rest),
+            }
+        },
+    }
+}
+
+#[verifier::opaque]
+pub(crate) open spec fn part1_commit_quantization_cold_result(
+    position: usize, start: usize, index: usize, payload_index: usize,
+    previous_roi: Option<Seq<u8>>, payload: Part1TilePartPayload,
+    state: Part1PersistentTileConfiguration,
+    result: (Result<(), crate::DecodeError>, Part1PersistentTileConfiguration),
+) -> bool {
+    exists|events: Seq<Part1ColdStorageEvent>| part1_commit_quantization_cold_run(
+        position, start, index, payload_index, previous_roi, payload, state, events)
+            == Some((result, Seq::empty()))
+}
+
+pub(crate) open spec fn part1_commit_quantization_normal_calls(
+    position: usize, start: usize, index: usize, payload_index: usize,
+    previous_roi: Option<Seq<u8>>, payload: Part1TilePartPayload, state: Part1PersistentTileConfiguration,
+) -> Seq<Part1ColdStorageEvent> {
+    let prefix = part1_persistent_tile_configuration_prefix(
+        position, start, index, payload_index, previous_roi, payload, state, 4);
+    let quantization = if prefix.0.is_ok() && payload.component_quantizations.1.len() > 0 {
+        seq![Part1ColdStorageEvent {
+            site: 11, elements: payload.component_quantizations.1.len() as usize, succeeded: true }]
+    } else { Seq::empty() };
+    let before_progression = part1_persistent_tile_configuration_prefix(
+        position, start, index, payload_index, previous_roi, payload, state, 5);
+    quantization + if before_progression.0.is_ok() && payload.progression_changes.len() > 0 {
+        seq![Part1ColdStorageEvent {
+            site: 15, elements: payload.progression_changes.len() as usize, succeeded: true }]
+    } else { Seq::empty() }
+}
+
+pub(crate) proof fn part1_commit_quantization_cold_normal(
+    position: usize, start: usize, index: usize, payload_index: usize,
+    previous_roi: Option<Seq<u8>>, payload: Part1TilePartPayload, state: Part1PersistentTileConfiguration,
+)
+    ensures part1_commit_quantization_cold_result(position, start, index, payload_index,
+        previous_roi, payload, state, part1_commit_persistent_tile_configuration(
+            position, start, index, payload_index, previous_roi, payload, state)),
+        forall|tail: Seq<Part1ColdStorageEvent>| part1_commit_quantization_cold_run(
+            position, start, index, payload_index, previous_roi, payload, state,
+            part1_commit_quantization_normal_calls(
+                position, start, index, payload_index, previous_roi, payload, state) + tail)
+                == Some((part1_commit_persistent_tile_configuration(
+                    position, start, index, payload_index, previous_roi, payload, state), tail)),
+{
+    reveal(part1_commit_quantization_cold_result);
+    reveal(part1_commit_persistent_tile_configuration);
+    reveal_with_fuel(part1_persistent_tile_configuration_prefix, 7);
+    let prefix = part1_persistent_tile_configuration_prefix(
+        position, start, index, payload_index, previous_roi, payload, state, 4);
+    let quantization = if prefix.0.is_ok() && payload.component_quantizations.1.len() > 0 {
+        seq![Part1ColdStorageEvent {
+            site: 11, elements: payload.component_quantizations.1.len() as usize, succeeded: true }]
+    } else { Seq::empty() };
+    let before_progression = part1_persistent_tile_configuration_prefix(
+        position, start, index, payload_index, previous_roi, payload, state, 5);
+    let progression = if before_progression.0.is_ok() && payload.progression_changes.len() > 0 {
+        seq![Part1ColdStorageEvent {
+            site: 15, elements: payload.progression_changes.len() as usize, succeeded: true }]
+    } else { Seq::empty() };
+    let events = quantization + progression;
+    if quantization.len() > 0 { assert(events.drop_first() =~= progression); }
+    else { assert(events =~= progression); }
+    if progression.len() > 0 { assert(progression.drop_first() =~= Seq::<Part1ColdStorageEvent>::empty()); }
+    assert(part1_commit_quantization_cold_run(
+        position, start, index, payload_index, previous_roi, payload, state, events)
+        == Some((part1_commit_persistent_tile_configuration(
+            position, start, index, payload_index, previous_roi, payload, state), Seq::empty())));
+    assert forall|tail: Seq<Part1ColdStorageEvent>| part1_commit_quantization_cold_run(
+        position, start, index, payload_index, previous_roi, payload, state,
+        part1_commit_quantization_normal_calls(
+            position, start, index, payload_index, previous_roi, payload, state) + tail)
+            == Some((part1_commit_persistent_tile_configuration(
+                position, start, index, payload_index, previous_roi, payload, state), tail)) by {
+        part1_commit_quantization_cold_frame(position, start, index, payload_index, previous_roi, payload,
+            state, events, tail, part1_commit_persistent_tile_configuration(
+                position, start, index, payload_index, previous_roi, payload, state), Seq::empty());
+        assert(Seq::<Part1ColdStorageEvent>::empty() + tail =~= tail);
+    }
+}
+
+pub(crate) proof fn part1_commit_quantization_cold_refused(
+    position: usize, start: usize, index: usize, payload_index: usize,
+    previous_roi: Option<Seq<u8>>, payload: Part1TilePartPayload,
+    before: Part1PersistentTileConfiguration, after: Part1PersistentTileConfiguration, error: crate::DecodeError,
+)
+    requires part1_persistent_tile_configuration_prefix(
+        position, start, index, payload_index, previous_roi, payload, before, 4) == (Ok(()), after),
+        payload.component_quantizations.1.len() > 0,
+        error == crate::DecodeError::AllocationFailed,
+    ensures part1_commit_quantization_cold_result(
+        position, start, index, payload_index, previous_roi, payload, before, (Err(error), after)),
+{
+    reveal(part1_commit_quantization_cold_result);
+    let events = seq![Part1ColdStorageEvent {
+        site: 11, elements: payload.component_quantizations.1.len() as usize, succeeded: false }];
+    assert(events.drop_first() =~= Seq::<Part1ColdStorageEvent>::empty());
+    assert(part1_commit_quantization_cold_run(
+        position, start, index, payload_index, previous_roi, payload, before, events)
+            == Some(((Err(error), after), Seq::empty())));
+}
+
+pub(crate) proof fn part1_commit_quantization_cold_frame(
+    position: usize, start: usize, index: usize, payload_index: usize,
+    previous_roi: Option<Seq<u8>>, payload: Part1TilePartPayload, state: Part1PersistentTileConfiguration,
+    events: Seq<Part1ColdStorageEvent>, tail: Seq<Part1ColdStorageEvent>,
+    result: (Result<(), crate::DecodeError>, Part1PersistentTileConfiguration), rest: Seq<Part1ColdStorageEvent>,
+)
+    requires part1_commit_quantization_cold_run(position, start, index, payload_index,
+        previous_roi, payload, state, events) == Some((result, rest)),
+    ensures part1_commit_quantization_cold_run(position, start, index, payload_index,
+        previous_roi, payload, state, events + tail) == Some((result, rest + tail)),
+{
+    if events.len() > 0 { assert((events + tail).drop_first() =~= events.drop_first() + tail); }
+    let prefix = part1_persistent_tile_configuration_prefix(
+        position, start, index, payload_index, previous_roi, payload, state, 4);
+    if prefix.0.is_ok() {
+        if payload.component_quantizations.1.len() == 0 {
+            part1_commit_progression_cold_frame(position, start, index, payload_index, previous_roi,
+                payload, state, events, result, rest, tail);
+        } else if let Some((copied, after)) = part1_quantization_storage_request(
+            11, payload.component_quantizations.1.len() as usize, events) {
+            if copied.is_ok() {
+                part1_commit_progression_cold_frame(position, start, index, payload_index, previous_roi,
+                    payload, state, after, result, rest, tail);
+            }
+        }
+    }
+}
+
+pub(crate) proof fn part1_commit_quantization_cold_projection(
+    position: usize, start: usize, index: usize, payload_index: usize,
+    previous_roi: Option<Seq<u8>>, payload: Part1TilePartPayload, state: Part1PersistentTileConfiguration,
+    events: Seq<Part1ColdStorageEvent>,
+    result: (Result<(), crate::DecodeError>, Part1PersistentTileConfiguration), rest: Seq<Part1ColdStorageEvent>,
+)
+    requires part1_commit_quantization_cold_run(position, start, index, payload_index,
+        previous_roi, payload, state, events) == Some((result, rest)),
+        result.0 != Err(crate::DecodeError::AllocationFailed),
+    ensures result == part1_commit_persistent_tile_configuration(
+        position, start, index, payload_index, previous_roi, payload, state),
+{
+    reveal(part1_commit_persistent_tile_configuration);
+    reveal_with_fuel(part1_persistent_tile_configuration_prefix, 7);
+    let prefix = part1_persistent_tile_configuration_prefix(
+        position, start, index, payload_index, previous_roi, payload, state, 4);
+    if prefix.0.is_ok() {
+        let after = if payload.component_quantizations.1.len() == 0 { events } else { events.drop_first() };
+        part1_commit_progression_cold_projection(
+            position, start, index, payload_index, previous_roi, payload, state, after, result, rest);
+    }
+}
+
+pub(crate) proof fn part1_commit_progression_cold_frame(
+    position: usize, start: usize, index: usize, payload_index: usize,
+    previous_roi: Option<Seq<u8>>, payload: Part1TilePartPayload, state: Part1PersistentTileConfiguration,
+    events: Seq<Part1ColdStorageEvent>, result: (Result<(), crate::DecodeError>, Part1PersistentTileConfiguration),
+    rest: Seq<Part1ColdStorageEvent>, tail: Seq<Part1ColdStorageEvent>,
+)
+    requires part1_commit_progression_cold_run(
+        position, start, index, payload_index, previous_roi, payload, state, events) == Some((result, rest)),
+    ensures part1_commit_progression_cold_run(
+        position, start, index, payload_index, previous_roi, payload, state, events + tail) == Some((result, rest + tail)),
+{
+    if events.len() > 0 { assert((events + tail).drop_first() =~= events.drop_first() + tail); }
+}
+
+pub(crate) proof fn part1_commit_progression_cold_projection(
+    position: usize, start: usize, index: usize, payload_index: usize,
+    previous_roi: Option<Seq<u8>>, payload: Part1TilePartPayload, state: Part1PersistentTileConfiguration,
+    events: Seq<Part1ColdStorageEvent>, result: (Result<(), crate::DecodeError>, Part1PersistentTileConfiguration),
+    rest: Seq<Part1ColdStorageEvent>,
+)
+    requires part1_commit_progression_cold_run(
+        position, start, index, payload_index, previous_roi, payload, state, events) == Some((result, rest)),
+        result.0 != Err(crate::DecodeError::AllocationFailed),
+    ensures result == part1_commit_persistent_tile_configuration(
+        position, start, index, payload_index, previous_roi, payload, state),
+{
+    reveal(part1_commit_persistent_tile_configuration);
+    reveal_with_fuel(part1_persistent_tile_configuration_prefix, 7);
+}
+
+pub(crate) proof fn part1_commit_progression_cold_refused(
+    position: usize, start: usize, index: usize, payload_index: usize,
+    previous_roi: Option<Seq<u8>>, payload: Part1TilePartPayload,
+    before: Part1PersistentTileConfiguration, after: Part1PersistentTileConfiguration, error: crate::DecodeError,
+)
+    requires part1_persistent_tile_configuration_prefix(
+        position, start, index, payload_index, previous_roi, payload, before, 5) == (Ok(()), after),
+        payload.progression_changes.len() > 0, error == crate::DecodeError::AllocationFailed,
+    ensures part1_commit_quantization_cold_result(
+        position, start, index, payload_index, previous_roi, payload, before, (Err(error), after)),
+{
+    reveal(part1_commit_quantization_cold_result);
+    reveal_with_fuel(part1_persistent_tile_configuration_prefix, 7);
+    let progression = seq![Part1ColdStorageEvent {
+        site: 15, elements: payload.progression_changes.len() as usize, succeeded: false }];
+    let quantization = if payload.component_quantizations.1.len() > 0 {
+        seq![Part1ColdStorageEvent {
+            site: 11, elements: payload.component_quantizations.1.len() as usize, succeeded: true }]
+    } else { Seq::empty() };
+    let events = quantization + progression;
+    if quantization.len() > 0 { assert(events.drop_first() =~= progression); }
+    else { assert(events =~= progression); }
+    assert(progression.drop_first() =~= Seq::<Part1ColdStorageEvent>::empty());
+    assert(part1_commit_quantization_cold_run(position, start, index, payload_index,
+        previous_roi, payload, before, events) == Some(((Err(error), after), Seq::empty())));
+}
+
 }

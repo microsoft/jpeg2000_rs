@@ -138,11 +138,9 @@ pub open spec fn part2_jpip_patch_tile(header: Seq<u8>, layers: u16) -> Part2Jpi
     } else { part2_jpip_patch_cod(header, 0, layers, true) }
 }
 
-pub(crate) open spec fn part2_jpip_validate_precinct_raw(bytes: Seq<u8>, layers: u16, limits: &crate::ResourceLimits)
+pub(crate) open spec fn part2_jpip_validate_precinct_layout(layout: Part1CompleteLayout, layers: u16)
     -> Result<(), crate::DecodeError> {
-    match part1_parse_layout(bytes, limits) {
-        Err(error) => Err(error),
-        Ok(layout) => match part2_selection_tile_count(layout.0.image_size.geometry) {
+    match part2_selection_tile_count(layout.0.image_size.geometry) {
             Err(error) => Err(error),
             Ok(count) => if count != 1 || layout.4.len() != 1 {
                 Err(part2_jpip_plan_invalid(0))
@@ -157,8 +155,217 @@ pub(crate) open spec fn part2_jpip_validate_precinct_raw(bytes: Seq<u8>, layers:
                     Err(part2_jpip_plan_invalid(0))
                 } else { Ok(()) }
             },
+    }
+}
+
+pub(crate) open spec fn part2_jpip_validate_precinct_raw(bytes: Seq<u8>, layers: u16, limits: &crate::ResourceLimits)
+    -> Result<(), crate::DecodeError> {
+    match part1_parse_layout(bytes, limits) {
+        Err(error) => Err(error),
+        Ok(layout) => part2_jpip_validate_precinct_layout(layout, layers),
+    }
+}
+
+pub(crate) open spec fn part2_jpip_validate_precinct_cold_run(
+    bytes: Seq<u8>, layers: u16, limits: &crate::ResourceLimits, events: Seq<Part2JpipSnapshotEvent>,
+) -> Part2ColdRun<()> {
+    part2_jpip_snapshot_bind(part2_cold_parse(bytes, limits, 7, 0, events),
+        |layout: Part1CompleteLayout, rest| Some((part2_jpip_validate_precinct_layout(layout, layers), rest)))
+}
+
+pub(crate) open spec fn part2_jpip_validate_precinct_cold_result(
+    bytes: Seq<u8>, layers: u16, limits: &crate::ResourceLimits, result: Result<(), crate::DecodeError>,
+) -> bool {
+    part2_cold_framed(|events| part2_jpip_validate_precinct_cold_run(bytes, layers, limits, events), result)
+}
+
+pub(crate) proof fn part2_jpip_validate_precinct_cold_actual(
+    bytes: Seq<u8>, layers: u16, limits: &crate::ResourceLimits, parsed: Part1CompleteLayoutResult,
+)
+    requires part1_parse_layout_cold_result(bytes, limits, parsed),
+    ensures part2_jpip_validate_precinct_cold_result(bytes, layers, limits, match parsed {
+        Err(error) => Err(error), Ok(layout) => part2_jpip_validate_precinct_layout(layout, layers),
+    }),
+{
+    let result = match parsed {
+        Err(error) => Err(error), Ok(layout) => part2_jpip_validate_precinct_layout(layout, layers),
+    };
+    part2_cold_parse_then_actual(bytes, limits, 7, 0, parsed,
+        |layout: Part1CompleteLayout| part2_jpip_validate_precinct_layout(layout, layers));
+    part2_cold_framed_extensional(
+        |events| part2_jpip_snapshot_bind(part2_cold_parse(bytes, limits, 7, 0, events),
+            |layout: Part1CompleteLayout, rest| Some((part2_jpip_validate_precinct_layout(layout, layers), rest))),
+        |events| part2_jpip_validate_precinct_cold_run(bytes, layers, limits, events), result);
+}
+
+pub(crate) proof fn part2_jpip_validate_precinct_cold_normal(
+    bytes: Seq<u8>, layers: u16, limits: &crate::ResourceLimits,
+)
+    ensures part2_jpip_validate_precinct_cold_result(
+        bytes, layers, limits, part2_jpip_validate_precinct(bytes, layers, limits)),
+{
+    part1_parse_layout_cold_normal(bytes, limits);
+    part2_jpip_validate_precinct_cold_actual(bytes, layers, limits, part1_parse_layout(bytes, limits));
+    part2_jpip_validate_precinct_unfold(bytes, layers, limits);
+}
+
+pub(crate) open spec fn part2_jpip_transcode_pre_bytes(
+    cache: Part2JpipCache, main: Seq<u8>, tile: Seq<u8>, packets: Seq<u8>,
+) -> Result<Seq<u8>, crate::DecodeError> {
+    let length = tile.len() + packets.len();
+    if length > usize::MAX as nat || length > u32::MAX as nat { Err(part2_jpip_range_overflow(0)) }
+    else if tile.len() < 10 { Err(part2_jpip_cache_error(0, crate::MalformedKind::InvalidTilePart)) }
+    else {
+        let tile = tile.update(6, ((length as u32 >> 24) & 0xff) as u8)
+            .update(7, ((length as u32 >> 16) & 0xff) as u8)
+            .update(8, ((length as u32 >> 8) & 0xff) as u8)
+            .update(9, (length as u32 & 0xff) as u8);
+        let total = main.len() + tile.len() + packets.len() + 2;
+        if total > usize::MAX as nat { Err(part2_jpip_range_overflow(0)) }
+        else if total > crate::limits::resource_input_byte_limit(&cache.0) as nat {
+            Err(crate::DecodeError::LimitExceeded { resource: crate::Resource::InputBytes,
+                limit: crate::limits::resource_input_byte_limit(&cache.0), actual: total as u64 })
+        } else { Ok(main + tile + packets + seq![0xffu8, 0xd9u8]) }
+    }
+}
+
+pub(crate) open spec fn part2_jpip_transcode_pre_payload(
+    cache: Part2JpipCache, plan: Part2JpipPlan, end: usize, layers: u16,
+) -> Result<Seq<u8>, crate::DecodeError> {
+    match part2_jpip_cache_view(cache, plan.0) {
+        Err(error) => Err(error),
+        Ok(main) => match part2_jpip_cache_view(cache, plan.1) {
+            Err(error) => Err(error),
+            Ok(tile) => {
+                let patched_main = part2_jpip_patch_main(main, layers);
+                match patched_main.0 {
+                    Err(error) => Err(error),
+                    Ok(()) => {
+                        let patched_tile = part2_jpip_patch_tile(tile, layers);
+                        match patched_tile.0 {
+                            Err(error) => Err(error),
+                            Ok(()) => if end as nat > plan.2.len() { Err(part2_jpip_range_overflow(0)) }
+                            else {
+                                match part2_jpip_read_packets(cache, plan.2.subrange(0, end as int)) {
+                                    Err(error) => Err(error),
+                                    Ok(packets) => part2_jpip_transcode_pre_bytes(
+                                        cache, patched_main.1, patched_tile.1, packets),
+                                }
+                            },
+                        }
+                    },
+                }
+            },
         },
     }
+}
+
+pub(crate) open spec fn part2_jpip_transcode_pre(
+    cache: Part2JpipCache, plan: Part2JpipPlan, layers: u16,
+) -> Result<Part2JpipTranscode, crate::DecodeError> {
+    match part2_jpip_plan_packet_end(plan, layers) {
+        Err(error) => Err(error),
+        Ok(end) => match part2_jpip_precinct_availability(cache, plan, end) {
+            Err(error) => Err(error),
+            Ok(availability) => if availability.0 != crate::jpip::JpipAvailability::Available {
+                Ok((layers, availability, None))
+            } else {
+                match part2_jpip_transcode_pre_payload(cache, plan, end, layers) {
+                    Err(error) => Err(error), Ok(bytes) => Ok((layers, availability, Some(bytes))),
+                }
+            },
+        },
+    }
+}
+
+#[verifier::opaque]
+pub(crate) open spec fn part2_jpip_transcode_cold_run(
+    cache: Part2JpipCache, plan: Part2JpipPlan, layers: u16, events: Seq<Part2JpipSnapshotEvent>,
+) -> Part2ColdRun<Part2JpipTranscode> {
+    match part2_jpip_transcode_pre(cache, plan, layers) {
+        Err(error) => Some((Err(error), events)),
+        Ok(value) => match value.2 {
+            None => Some((Ok(value), events)),
+            Some(bytes) => part2_jpip_snapshot_bind(
+                part2_jpip_validate_precinct_cold_run(bytes, layers, &cache.0, events),
+                |_: (), tail| Some((Ok(value), tail))),
+        },
+    }
+}
+
+pub closed spec fn part2_jpip_transcode_cold_result(
+    cache: Part2JpipCache, plan: Part2JpipPlan, layers: u16,
+    result: Result<Part2JpipTranscode, crate::DecodeError>,
+) -> bool {
+    part2_cold_framed(|events| part2_jpip_transcode_cold_run(cache, plan, layers, events), result)
+}
+
+pub(crate) proof fn part2_jpip_transcode_cold_frames(
+    cache: Part2JpipCache, plan: Part2JpipPlan, layers: u16,
+    result: Result<Part2JpipTranscode, crate::DecodeError>,
+)
+    requires part2_jpip_transcode_cold_result(cache, plan, layers, result),
+    ensures part2_cold_framed(|events| part2_jpip_transcode_cold_run(cache, plan, layers, events), result),
+{
+    reveal(part2_jpip_transcode_cold_result);
+}
+
+pub(crate) proof fn part2_jpip_transcode_pre_equivalent(
+    cache: Part2JpipCache, plan: Part2JpipPlan, layers: u16,
+)
+    ensures part2_jpip_transcode(cache, plan, layers) == match part2_jpip_transcode_pre(cache, plan, layers) {
+        Err(error) => Err(error),
+        Ok(value) => match value.2 {
+            None => Ok(value),
+            Some(bytes) => match part2_jpip_validate_precinct(bytes, layers, &cache.0) {
+                Err(error) => Err(error), Ok(()) => Ok(value),
+            },
+        },
+    },
+{
+}
+
+pub(crate) proof fn part2_jpip_transcode_cold_normal(
+    cache: Part2JpipCache, plan: Part2JpipPlan, layers: u16,
+)
+    ensures part2_jpip_transcode_cold_result(cache, plan, layers, part2_jpip_transcode(cache, plan, layers)),
+{
+    reveal(part2_jpip_transcode_cold_result);
+    reveal(part2_jpip_transcode_cold_run);
+    part2_jpip_transcode_pre_equivalent(cache, plan, layers);
+    match part2_jpip_transcode_pre(cache, plan, layers) {
+        Err(error) => { part2_cold_pure::<Part2JpipTranscode>(Err(error)); },
+        Ok(value) => match value.2 {
+            None => { part2_cold_pure(Ok(value)); },
+            Some(bytes) => {
+                let validated = part2_jpip_validate_precinct(bytes, layers, &cache.0);
+                part2_jpip_validate_precinct_cold_normal(bytes, layers, &cache.0);
+                if validated.is_ok() { part2_cold_pure(Ok(value)); }
+                part2_cold_bind(
+                    |events| part2_jpip_validate_precinct_cold_run(bytes, layers, &cache.0, events),
+                    |_: (), tail| Some((Ok(value), tail)), validated, part2_jpip_transcode(cache, plan, layers));
+            },
+        },
+    }
+}
+
+pub(crate) proof fn part2_jpip_transcode_validation_actual(
+    cache: Part2JpipCache, plan: Part2JpipPlan, layers: u16,
+    availability: Part2JpipAvailabilityReport, bytes: Seq<u8>, validated: Result<(), crate::DecodeError>,
+)
+    requires part2_jpip_transcode_pre(cache, plan, layers) == Ok((layers, availability, Some(bytes))),
+        part2_jpip_validate_precinct_cold_result(bytes, layers, &cache.0, validated),
+    ensures part2_jpip_transcode_cold_result(cache, plan, layers, match validated {
+        Err(error) => Err(error), Ok(()) => Ok((layers, availability, Some(bytes))),
+    }),
+{
+    reveal(part2_jpip_transcode_cold_result);
+    reveal(part2_jpip_transcode_cold_run);
+    if validated.is_ok() { part2_cold_pure(Ok((layers, availability, Some(bytes)))); }
+    part2_cold_bind(
+        |events| part2_jpip_validate_precinct_cold_run(bytes, layers, &cache.0, events),
+        |_: (), tail| Some((Ok((layers, availability, Some(bytes))), tail)), validated,
+        match validated { Err(error) => Err(error), Ok(()) => Ok((layers, availability, Some(bytes))) });
 }
 
 pub closed spec fn part2_jpip_validate_precinct(bytes: Seq<u8>, layers: u16, limits: &crate::ResourceLimits)

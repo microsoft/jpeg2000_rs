@@ -1040,6 +1040,394 @@ fn actual_raw_inspection_retains_original_file_and_complete_source_derived_info_
 }
 
 #[test]
+fn fresh_inspection_collection_precedes_child_parse_but_not_file_errors() {
+    let limits = ResourceLimits::default();
+    let mut stream = valid_codestream(64, 32);
+    stream[0] = 0;
+    let bytes = boxed_file(b"jp2 \0\0\0\0jp2 ", &stream);
+    let ordinary = parse_and_inspect(&bytes, &limits).unwrap_err();
+    assert_eq!(
+        crate::allocation::with_refusal(0, || parse_and_inspect(&bytes, &limits)).err(),
+        Some(DecodeError::AllocationFailed)
+    );
+    crate::allocation::with_refusal(1, || {
+        assert_eq!(parse_and_inspect(&bytes, &limits).unwrap_err(), ordinary);
+        assert_eq!(
+            crate::allocation::copy_values(&[1_u8]),
+            Err(DecodeError::AllocationFailed)
+        );
+    });
+    for malformed in [&[][..], &bytes[..12]] {
+        let expected = parse_and_inspect(malformed, &limits).unwrap_err();
+        crate::allocation::with_refusal(0, || {
+            assert_eq!(parse_and_inspect(malformed, &limits).unwrap_err(), expected);
+            assert_eq!(
+                crate::allocation::copy_values(&[1_u8]),
+                Err(DecodeError::AllocationFailed)
+            );
+        });
+    }
+    let raw_error = crate::codestream::parse(&stream, &limits).unwrap_err();
+    crate::allocation::with_refusal(0, || {
+        assert_eq!(
+            crate::codestream::parse(&stream, &limits).unwrap_err(),
+            raw_error
+        );
+        assert_eq!(
+            crate::allocation::copy_values(&[1_u8]),
+            Err(DecodeError::AllocationFailed)
+        );
+    });
+}
+
+#[test]
+fn fresh_inspection_collection_and_later_stream_restore_prior_owner_order() {
+    let first = valid_codestream(64, 32);
+    let second = valid_codestream(17, 9);
+    let bytes = jpx_with_codestreams(
+        b"jpx \0\0\0\0jpx ",
+        &[first.clone(), second.clone()],
+        &[image_header_box(64, 32), image_header_box(17, 9)],
+    );
+    let limits = ResourceLimits::default();
+    let expected = parse_and_inspect(&bytes, &limits).unwrap();
+    for after in [0, 12] {
+        assert_eq!(
+            crate::allocation::with_refusal(after, || parse_and_inspect(&bytes, &limits)).err(),
+            Some(DecodeError::AllocationFailed)
+        );
+        let restored = parse_and_inspect(&bytes, &limits).unwrap();
+        assert_eq!(restored.codestreams(), expected.codestreams());
+        assert_eq!(restored.file().box_count, expected.file().box_count);
+        for index in 0..2 {
+            assert!(core::ptr::eq(
+                restored.file().codestream(index).unwrap().data().as_ptr(),
+                expected.file().codestream(index).unwrap().data().as_ptr()
+            ));
+        }
+    }
+    let mut malformed = second;
+    malformed[0] = 0;
+    let later = jpx_with_codestreams(
+        b"jpx \0\0\0\0jpx ",
+        &[first, malformed],
+        &[image_header_box(64, 32), image_header_box(17, 9)],
+    );
+    let ordinary = parse_and_inspect(&later, &limits).unwrap_err();
+    crate::allocation::with_refusal(12, || {
+        assert_eq!(parse_and_inspect(&later, &limits).unwrap_err(), ordinary);
+        assert_eq!(
+            crate::allocation::copy_values(&[1_u8]),
+            Err(DecodeError::AllocationFailed)
+        );
+    });
+}
+
+#[test]
+fn fresh_inspection_display_count_skips_unselected_stream_and_restores() {
+    let first = valid_codestream(64, 32);
+    let mut bytes = boxed_file(b"jp2 \0\0\0\0jp2 ", &first);
+    bytes.extend(box32(*b"jp2c", &[0, 0]));
+    let limits = ResourceLimits::default();
+    let expected = super::container::parse_and_inspect_for_display(&bytes, &limits).unwrap();
+    assert_eq!(expected.codestreams().len(), 1);
+    assert!(parse_and_inspect(&bytes, &limits).is_err());
+    assert_eq!(
+        crate::allocation::with_refusal(0, || super::container::parse_and_inspect_for_display(
+            &bytes, &limits
+        ))
+        .err(),
+        Some(DecodeError::AllocationFailed)
+    );
+    crate::allocation::with_refusal(12, || {
+        let restored = super::container::parse_and_inspect_for_display(&bytes, &limits).unwrap();
+        assert_eq!(restored.codestreams(), expected.codestreams());
+        assert_eq!(restored.file().codestream_count(), 2);
+        assert_eq!(
+            crate::allocation::copy_values(&[1_u8]),
+            Err(DecodeError::AllocationFailed)
+        );
+    });
+}
+
+#[test]
+fn payload_owner_storage_container_late_nested_copy_restores() {
+    let mut stream = valid_codestream(64, 32);
+    let at = stream
+        .windows(2)
+        .position(|word| word == [0xff, 0x90])
+        .unwrap();
+    stream.splice(at..at, marker_segment(0xff72, &[0, 1, 1, 0x40]));
+    let bytes = boxed_file(b"jp2 \0\0\0\0jp2 ", &stream);
+    let limits = ResourceLimits::default();
+    let expected = parse_and_inspect(&bytes, &limits).unwrap();
+    assert!(matches!(
+        crate::allocation::with_refusal(15, || parse_and_inspect(&bytes, &limits)),
+        Err(DecodeError::AllocationFailed)
+    ));
+    let restored = parse_and_inspect(&bytes, &limits).unwrap();
+    assert_eq!(
+        restored.codestreams()[0].part2_extensions,
+        expected.codestreams()[0].part2_extensions
+    );
+    assert_eq!(
+        restored.codestreams()[0].consumed_bytes,
+        expected.codestreams()[0].consumed_bytes
+    );
+    assert!(core::ptr::eq(
+        restored.file().codestream(0).unwrap().data(),
+        expected.file().codestream(0).unwrap().data()
+    ));
+}
+
+#[test]
+fn part2_owner_storage_container_nested_refusal_restores_owned_fields() {
+    let mut stream = valid_codestream(64, 32);
+    let at = stream
+        .windows(2)
+        .position(|word| word == [0xff, 0x90])
+        .unwrap();
+    stream.splice(at..at, marker_segment(0xff72, &[0, 1, 1, 0x40]));
+    let bytes = boxed_file(b"jp2 \0\0\0\0jp2 ", &stream);
+    let limits = ResourceLimits::default();
+    let expected = parse_and_inspect(&bytes, &limits).unwrap();
+    assert!(matches!(
+        crate::allocation::with_refusal(13, || parse_and_inspect(&bytes, &limits)),
+        Err(DecodeError::AllocationFailed)
+    ));
+    let restored = parse_and_inspect(&bytes, &limits).unwrap();
+    assert_eq!(
+        restored.codestreams()[0].part2_extensions,
+        expected.codestreams()[0].part2_extensions
+    );
+    assert_eq!(
+        restored.codestreams()[0].consumed_bytes,
+        expected.codestreams()[0].consumed_bytes
+    );
+    assert!(core::ptr::eq(
+        restored.file().codestream(0).unwrap().data(),
+        expected.file().codestream(0).unwrap().data()
+    ));
+}
+
+#[test]
+fn mct_owner_storage_container_inner_refusal_restores_original_source() {
+    let mut stream = valid_codestream(64, 32);
+    let at = stream
+        .windows(2)
+        .position(|word| word == [0xff, 0x90])
+        .unwrap();
+    let mut metadata = marker_segment(0xff74, &[0, 0, 1, 1, 0, 0, 0, 1]);
+    metadata.extend(marker_segment(0xff77, &[0]));
+    stream.splice(at..at, metadata);
+    let bytes = boxed_file(b"jp2 \0\0\0\0jp2 ", &stream);
+    let limits = ResourceLimits::default();
+    let expected = parse_and_inspect(&bytes, &limits).unwrap();
+    assert!(matches!(
+        crate::allocation::with_refusal(15, || parse_and_inspect(&bytes, &limits)),
+        Err(DecodeError::AllocationFailed)
+    ));
+    let restored = parse_and_inspect(&bytes, &limits).unwrap();
+    assert_eq!(
+        restored.codestreams()[0].consumed_bytes,
+        expected.codestreams()[0].consumed_bytes
+    );
+    assert_eq!(restored.file().box_count, expected.file().box_count);
+    assert!(core::ptr::eq(
+        restored.file().codestream(0).unwrap().data(),
+        expected.file().codestream(0).unwrap().data()
+    ));
+}
+
+#[test]
+fn fresh_progression_bitmap_container_main_and_tile_refusal_restore() {
+    let mut stream = valid_codestream(64, 32);
+    let at = stream
+        .windows(2)
+        .position(|word| word == [0xff, 0x90])
+        .unwrap();
+    stream.splice(at..at, marker_segment(0xff5f, &[0, 0, 0, 1, 1, 1, 0]));
+    let bytes = boxed_file(b"jp2 \0\0\0\0jp2 ", &stream);
+    let limits = ResourceLimits::default();
+    let expected = parse_and_inspect(&bytes, &limits).unwrap();
+    for after in [3, 15] {
+        assert!(matches!(
+            crate::allocation::with_refusal(after, || parse_and_inspect(&bytes, &limits)),
+            Err(DecodeError::AllocationFailed)
+        ));
+        let restored = parse_and_inspect(&bytes, &limits).unwrap();
+        assert_eq!(restored.codestreams(), expected.codestreams());
+        assert_eq!(restored.file().box_count, expected.file().box_count);
+        assert!(core::ptr::eq(
+            restored.file().codestream(0).unwrap().data(),
+            expected.file().codestream(0).unwrap().data()
+        ));
+    }
+}
+
+#[test]
+fn fresh_profile_container_first_later_refusal_and_restore() {
+    let mut stream = valid_ht_codestream(64, 32, 0x40);
+    let at = stream
+        .windows(2)
+        .position(|word| word == [0xff, 0x90])
+        .unwrap();
+    let mut profiles = marker_segment(0xff56, &[0, 1]);
+    profiles.extend(marker_segment(0xff59, &[0, 2]));
+    stream.splice(at..at, profiles);
+    let bytes = boxed_file(b"jph \0\0\0\0jph ", &stream);
+    let limits = ResourceLimits::default();
+    let expected = parse_and_inspect(&bytes, &limits).unwrap();
+    for after in [1, 3] {
+        assert!(matches!(
+            crate::allocation::with_refusal(after, || parse_and_inspect(&bytes, &limits)),
+            Err(DecodeError::AllocationFailed)
+        ));
+        let restored = parse_and_inspect(&bytes, &limits).unwrap();
+        assert_eq!(restored.codestreams(), expected.codestreams());
+        assert_eq!(restored.file().box_count, expected.file().box_count);
+        assert!(core::ptr::eq(
+            restored.file().codestream(0).unwrap().data(),
+            expected.file().codestream(0).unwrap().data()
+        ));
+    }
+}
+
+#[test]
+fn fresh_part2_container_first_later_construction_refusal_restore() {
+    let mut stream = valid_codestream(64, 32);
+    let at = stream
+        .windows(2)
+        .position(|word| word == [0xff, 0x90])
+        .unwrap();
+    stream.splice(at..at, marker_segment(0xff73, &[1, 1, 0x40, 1, 0x40]));
+    let bytes = boxed_file(b"jp2 \0\0\0\0jp2 ", &stream);
+    let limits = ResourceLimits::default();
+    let expected = parse_and_inspect(&bytes, &limits).unwrap();
+    for after in [1, 3] {
+        assert!(matches!(
+            crate::allocation::with_refusal(after, || parse_and_inspect(&bytes, &limits)),
+            Err(DecodeError::AllocationFailed)
+        ));
+        let restored = parse_and_inspect(&bytes, &limits).unwrap();
+        assert_eq!(restored.codestreams(), expected.codestreams());
+        assert_eq!(restored.file().box_count, expected.file().box_count);
+        assert!(core::ptr::eq(
+            restored.file().codestream(0).unwrap().data(),
+            expected.file().codestream(0).unwrap().data()
+        ));
+    }
+}
+
+#[test]
+fn fresh_marker_container_first_and_value_refusal_restore_public_inspection() {
+    let mut stream = valid_codestream(64, 32);
+    let at = stream
+        .windows(2)
+        .position(|word| word == [0xff, 0x90])
+        .unwrap();
+    let mut metadata = marker_segment(0xff74, &[0, 0, 1, 1, 0, 0, 0, 1]);
+    metadata.extend(marker_segment(0xff77, &[0]));
+    stream.splice(at..at, metadata);
+    let bytes = boxed_file(b"jp2 \0\0\0\0jp2 ", &stream);
+    let limits = ResourceLimits::default();
+    let expected = parse_and_inspect(&bytes, &limits).unwrap();
+    for after in [1, 3] {
+        assert!(matches!(
+            crate::allocation::with_refusal(after, || parse_and_inspect(&bytes, &limits)),
+            Err(DecodeError::AllocationFailed)
+        ));
+        let restored = parse_and_inspect(&bytes, &limits).unwrap();
+        assert_eq!(restored.codestreams(), expected.codestreams());
+        assert_eq!(restored.file().box_count, expected.file().box_count);
+        assert!(core::ptr::eq(
+            restored.file().codestream(0).unwrap().data(),
+            expected.file().codestream(0).unwrap().data()
+        ));
+    }
+}
+
+#[test]
+fn progression_storage_container_first_and_commit_refusals_restore() {
+    let mut stream = valid_codestream(64, 32);
+    let at = stream
+        .windows(2)
+        .position(|bytes| bytes == [0xff, 0x90])
+        .unwrap();
+    stream.splice(at..at, marker_segment(0xff5f, &[0, 0, 0, 1, 1, 1, 0]));
+    let bytes = boxed_file(b"jp2 \0\0\0\0jp2 ", &stream);
+    let limits = ResourceLimits::default();
+    let expected = parse_and_inspect(&bytes, &limits).unwrap();
+    for after in [1, 16] {
+        assert!(matches!(
+            crate::allocation::with_refusal(after, || parse_and_inspect(&bytes, &limits)),
+            Err(DecodeError::AllocationFailed)
+        ));
+        let restored = parse_and_inspect(&bytes, &limits).unwrap();
+        assert_eq!(
+            restored.codestreams()[0].progression_changes.records(),
+            expected.codestreams()[0].progression_changes.records()
+        );
+        assert_eq!(
+            restored.codestreams()[0].consumed_bytes,
+            expected.codestreams()[0].consumed_bytes
+        );
+        assert_eq!(restored.file().box_count, expected.file().box_count);
+        assert!(core::ptr::eq(
+            restored.file().codestream(0).unwrap().data(),
+            expected.file().codestream(0).unwrap().data()
+        ));
+    }
+}
+
+#[test]
+fn cold_tile_storage_refusal_is_typed_and_restores_container_inspection() {
+    let stream = valid_codestream(64, 32);
+    let bytes = boxed_file(b"jp2 \0\0\0\0jp2 ", &stream);
+    let limits = ResourceLimits::default();
+    let expected = parse_and_inspect(&bytes, &limits).unwrap();
+    for after in [1, 2, 9, 10, 11] {
+        assert_eq!(
+            crate::allocation::with_refusal(after, || parse_and_inspect(&bytes, &limits)).err(),
+            Some(DecodeError::AllocationFailed)
+        );
+        let restored = parse_and_inspect(&bytes, &limits).unwrap();
+        assert_eq!(restored.file().box_count, expected.file().box_count);
+        assert_eq!(restored.codestreams().len(), expected.codestreams().len());
+        assert_eq!(
+            restored.codestreams()[0].consumed_bytes,
+            expected.codestreams()[0].consumed_bytes
+        );
+        assert!(std::ptr::eq(
+            restored.file().codestream(0).unwrap().data(),
+            expected.file().codestream(0).unwrap().data()
+        ));
+        assert!(
+            restored.codestreams()[0]
+                .component_quantizations
+                .equals(&expected.codestreams()[0].component_quantizations)
+        );
+    }
+    let mut malformed = bytes.clone();
+    malformed[0] = 0;
+    malformed[1] = 0;
+    malformed[2] = 0;
+    malformed[3] = 1;
+    let ordinary_error = parse_and_inspect(&malformed, &limits).unwrap_err();
+    crate::allocation::with_refusal(0, || {
+        assert_eq!(
+            parse_and_inspect(&malformed, &limits).unwrap_err(),
+            ordinary_error
+        );
+        assert_eq!(
+            crate::allocation::none_values::<u8>(1),
+            Err(DecodeError::AllocationFailed)
+        );
+    });
+    assert!(parse_and_inspect(&bytes, &limits).is_ok());
+}
+
+#[test]
 fn actual_raw_inspection_keeps_complete_container_errors_before_relative_codestream_errors() {
     let mut bytes = boxed_file(b"jp2 \0\0\0\0jp2 ", &[0]);
     let offset = bytes.len() as u64;

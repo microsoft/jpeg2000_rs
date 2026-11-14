@@ -42,6 +42,20 @@ impl ProgressionChanges {
         new_progression_changes()
     }
 
+    #[cfg_attr(verus_keep_ghost, verus_spec(result =>
+        ensures crate::specs::part1_progression_owner_copy_result(progression_changes_view(self), result),
+        match result {
+            Err(error) => error == DecodeError::AllocationFailed && progression_changes_view(self).len() > 0,
+            Ok(owner) => progression_changes_view(&owner) == progression_changes_view(self),
+        },
+    ))]
+    pub(super) fn try_duplicate(&self) -> Result<Self, DecodeError> {
+        #[cfg(verus_keep_ghost)]
+        proof! { reveal(progression_changes_view); }
+        let records = crate::allocation::copy_values(&self.records)?;
+        Ok(Self { records })
+    }
+
     #[cfg_attr(verus_keep_ghost, verus_spec(result => ensures result@ == progression_changes_view(self),))]
     pub fn records(&self) -> &[ProgressionChange] {
         &self.records

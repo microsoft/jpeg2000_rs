@@ -386,8 +386,11 @@ impl JpipPrecinctTranscode {
 
 impl DatabinCache {
     #[cfg_attr(verus_keep_ghost, verus_spec(result =>
-        ensures jpip_transcode_outcome(result)
-            == crate::specs::part2_jpip_transcode(jpip_cache_view(self), jpip_plan_view(plan), layers),
+        ensures crate::specs::part2_jpip_transcode_cold_result(
+            jpip_cache_view(self), jpip_plan_view(plan), layers, jpip_transcode_outcome(result)),
+            jpip_transcode_outcome(result) != Err(DecodeError::AllocationFailed) ==>
+                jpip_transcode_outcome(result)
+                    == crate::specs::part2_jpip_transcode(jpip_cache_view(self), jpip_plan_view(plan), layers),
     ))]
     pub fn transcode_precinct_codestream(
         &self,
@@ -398,6 +401,7 @@ impl DatabinCache {
         proof! {
             jpip_plan_fields(plan); jpip_cache_fields(self);
             reveal(jpip_transcode_view); reveal(jpip_byte_view);
+            crate::specs::part2_jpip_transcode_cold_normal(jpip_cache_view(self), jpip_plan_view(plan), layers);
         }
         let packet_end = plan.packet_end_for_layers(layers)?;
         let availability = self.precinct_availability(plan, packet_end)?;
@@ -540,7 +544,15 @@ impl DatabinCache {
         proof! {
             assert(bytes@ =~= main_header@ + tile_header@ + packet_bytes@ + seq![0xffu8, 0xd9u8]);
         }
-        validate_precinct_codestream(&bytes, layers, &self.limits)?;
+        let validated = validate_precinct_codestream(&bytes, layers, &self.limits);
+        #[cfg(verus_keep_ghost)]
+        proof! {
+            assert(crate::specs::part2_jpip_transcode_pre(jpip_cache_view(self), jpip_plan_view(plan), layers)
+                == Ok((layers, jpip_availability_view(&availability), Some(bytes@))));
+            crate::specs::part2_jpip_transcode_validation_actual(jpip_cache_view(self), jpip_plan_view(plan),
+                layers, jpip_availability_view(&availability), bytes@, validated);
+        }
+        validated?;
         Ok(JpipPrecinctTranscode {
             layers,
             availability,
@@ -828,7 +840,9 @@ fn patch_cod_layers(
 }
 
 #[cfg_attr(verus_keep_ghost, verus_spec(result =>
-    ensures result == crate::specs::part2_jpip_validate_precinct(bytes@, layers, limits),
+    ensures crate::specs::part2_jpip_validate_precinct_cold_result(bytes@, layers, limits, result),
+        result != Err(DecodeError::AllocationFailed) ==>
+            result == crate::specs::part2_jpip_validate_precinct(bytes@, layers, limits),
 ))]
 fn validate_precinct_codestream(
     bytes: &[u8],
@@ -840,7 +854,13 @@ fn validate_precinct_codestream(
         crate::specs::part2_jpip_validate_precinct_unfold(bytes@, layers, limits);
         crate::codestream::decoder_layout_errors_known();
     }
-    let layout = crate::codestream::parse_layout(bytes, limits)?;
+    let parsed = crate::codestream::parse_layout(bytes, limits);
+    #[cfg(verus_keep_ghost)]
+    proof! {
+        crate::specs::part2_jpip_validate_precinct_cold_actual(
+            bytes@, layers, limits, crate::codestream::complete_layout_outcome(parsed));
+    }
+    let layout = parsed?;
     #[cfg(verus_keep_ghost)]
     proof! { crate::codestream::jpip_precinct_layout_fields(&layout); }
     if layout.info.image_size.tile_count()? != 1

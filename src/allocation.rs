@@ -2,6 +2,40 @@ use crate::DecodeError;
 #[cfg(verus_keep_ghost)]
 use vstd::prelude::*;
 
+#[derive(Clone, Copy)]
+#[cfg_attr(not(verus_keep_ghost), derive(Debug, Eq, PartialEq))]
+pub(crate) enum InspectionCollection {
+    Infos(bool),
+    Layers,
+}
+
+#[cfg(verus_keep_ghost)]
+verus! {
+    pub(crate) open spec fn inspection_capacity_outcome<T>(result: Result<T, DecodeError>) -> Result<(), DecodeError> {
+        match result { Err(error) => Err(error), Ok(_) => Ok(()) }
+    }
+}
+
+#[cfg_attr(verus_keep_ghost, verus_spec(result =>
+    ensures crate::specs::part2_inspection_capacity_result(_collection, count, inspection_capacity_outcome(result)),
+        match result { Ok(values) => values@.len() == 0, Err(error) => error == DecodeError::AllocationFailed },
+))]
+pub(crate) fn inspection_values<T>(
+    count: usize,
+    _collection: InspectionCollection,
+) -> Result<Vec<T>, DecodeError> {
+    let result = if count == 0 {
+        Ok(Vec::new())
+    } else {
+        empty_with_capacity(count)
+    };
+    #[cfg(verus_keep_ghost)]
+    proof! {
+        crate::specs::part2_inspection_capacity_observed(_collection, count, inspection_capacity_outcome(result));
+    }
+    result
+}
+
 #[cfg_attr(verus_keep_ghost, verus_spec(result =>
     ensures crate::specs::storage_reservation_result(old(values)@, final(values)@, result),
 ))]
@@ -23,6 +57,80 @@ fn reserve_additional<T>(values: &mut Vec<T>, additional: usize) -> Result<(), D
 pub(crate) fn empty_with_capacity<T>(capacity: usize) -> Result<Vec<T>, DecodeError> {
     let mut values = Vec::new();
     reserve_additional(&mut values, capacity)?;
+    Ok(values)
+}
+
+#[cfg_attr(verus_keep_ghost, verus_spec(result =>
+    ensures crate::specs::storage_none_result(count, result),
+))]
+pub(crate) fn none_values<T>(count: usize) -> Result<Vec<Option<T>>, DecodeError> {
+    let mut values = empty_with_capacity(count)?;
+    #[cfg_attr(verus_keep_ghost, verus_spec(
+        invariant values.len() <= count,
+            values@ == Seq::<Option<T>>::new(values.len() as nat, |_: int| None),
+        decreases count - values.len(),
+    ))]
+    while values.len() < count {
+        values.push(None);
+        #[cfg(verus_keep_ghost)]
+        proof! {
+            assert(values@ =~= Seq::<Option<T>>::new(values.len() as nat, |_: int| None));
+        }
+    }
+    Ok(values)
+}
+
+#[cfg_attr(verus_keep_ghost, verus_spec(result =>
+    ensures crate::specs::storage_copy_result(source@, result),
+))]
+pub(crate) fn copy_values<T: Copy>(source: &[T]) -> Result<Vec<T>, DecodeError> {
+    if source.is_empty() {
+        #[cfg(verus_keep_ghost)]
+        proof! { assert(source@ =~= Seq::<T>::empty()); }
+        return Ok(Vec::new());
+    }
+    let mut values = empty_with_capacity(source.len())?;
+    let mut index = 0_usize;
+    #[cfg_attr(verus_keep_ghost, verus_spec(
+        invariant index <= source.len(),
+            values@ == source@.take(index as int),
+        decreases source.len() - index,
+    ))]
+    while index < source.len() {
+        values.push(source[index]);
+        index += 1;
+        #[cfg(verus_keep_ghost)]
+        proof! { assert(values@ =~= source@.take(index as int)); }
+    }
+    #[cfg(verus_keep_ghost)]
+    proof! { assert(values@ =~= source@); }
+    Ok(values)
+}
+
+#[cfg_attr(verus_keep_ghost, verus_spec(result =>
+    ensures crate::specs::storage_copy_result(Seq::new(count as nat, |_: int| value), result),
+        count == 0 ==> result.is_ok(),
+        match result { Ok(values) => values@ == Seq::new(count as nat, |_: int| value),
+            Err(error) => error == DecodeError::AllocationFailed },
+))]
+pub(crate) fn filled_values<T: Copy>(value: T, count: usize) -> Result<Vec<T>, DecodeError> {
+    if count == 0 {
+        #[cfg(verus_keep_ghost)]
+        proof! { assert(Seq::<T>::empty() =~= Seq::new(0nat, |_: int| value)); }
+        return Ok(Vec::new());
+    }
+    let mut values = empty_with_capacity(count)?;
+    let mut index = 0_usize;
+    #[cfg_attr(verus_keep_ghost, verus_spec(
+        invariant index <= count, values@ == Seq::new(index as nat, |_: int| value),
+        decreases count - index,
+    ))]
+    while index < count {
+        values.push(value);
+        #[cfg(verus_keep_ghost)]
+        proof! { assert(Seq::new(index as nat + 1, |_: int| value) =~= Seq::new(index as nat, |_: int| value).push(value)); }
+        index += 1;
+    }
     Ok(values)
 }
 
@@ -82,6 +190,80 @@ pub(crate) fn with_refusal<T>(after: usize, operation: impl FnOnce() -> T) -> T 
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn preparation_fill_zero_refusal_and_restore_keep_exact_values() {
+        with_refusal(0, || {
+            assert!(filled_values(false, 0).unwrap().is_empty());
+            assert_eq!(filled_values(false, 3), Err(DecodeError::AllocationFailed));
+        });
+        assert_eq!(filled_values(7_u8, 3).unwrap(), [7, 7, 7]);
+    }
+
+    #[test]
+    fn fresh_inspection_empty_roles_do_not_consume_refusal_and_restore() {
+        struct NonClone {
+            _byte: u8,
+        }
+        with_refusal(0, || {
+            assert!(
+                inspection_values::<NonClone>(0, InspectionCollection::Infos(false))
+                    .unwrap()
+                    .is_empty()
+            );
+            assert!(
+                inspection_values::<NonClone>(0, InspectionCollection::Infos(true))
+                    .unwrap()
+                    .is_empty()
+            );
+            assert!(
+                inspection_values::<NonClone>(0, InspectionCollection::Layers)
+                    .unwrap()
+                    .is_empty()
+            );
+            assert!(matches!(
+                inspection_values::<NonClone>(1, InspectionCollection::Layers),
+                Err(DecodeError::AllocationFailed)
+            ));
+        });
+        assert!(
+            inspection_values::<NonClone>(2, InspectionCollection::Infos(false))
+                .unwrap()
+                .is_empty()
+        );
+    }
+
+    #[test]
+    fn shallow_copy_refusal_preserves_source_and_restores_exact_values() {
+        let source = [3_u16, 5, 8];
+        with_refusal(0, || {
+            assert!(copy_values::<u16>(&[]).unwrap().is_empty());
+            assert_eq!(copy_values(&source), Err(DecodeError::AllocationFailed));
+            assert_eq!(source, [3, 5, 8]);
+            assert_eq!(copy_values(&source).unwrap(), source);
+        });
+        assert_eq!(copy_values(&source).unwrap(), source);
+    }
+
+    #[test]
+    fn none_storage_refuses_once_without_requiring_clone_and_restores() {
+        struct NotClone;
+
+        with_refusal(0, || {
+            assert!(none_values::<NotClone>(0).unwrap().is_empty());
+            assert!(matches!(
+                none_values::<NotClone>(2),
+                Err(DecodeError::AllocationFailed)
+            ));
+        });
+        let restored = none_values::<NotClone>(2).unwrap();
+        assert_eq!(restored.len(), 2);
+        assert!(restored.iter().all(Option::is_none));
+        assert!(matches!(
+            none_values::<NotClone>(usize::MAX),
+            Err(DecodeError::AllocationFailed)
+        ));
+    }
 
     #[test]
     fn capacity_refusal_and_layout_overflow_return_typed_errors_and_recover() {

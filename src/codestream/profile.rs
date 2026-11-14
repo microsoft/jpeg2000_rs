@@ -1,5 +1,7 @@
 //! Profile markers, extended capabilities and block-coding compatibility.
 
+use super::MctCopyPath;
+use super::mct_copy::reserve_values;
 use super::reader::{read_u16, read_u32};
 use super::{
     CodestreamBlockCoding, CodestreamProfile, ComponentCodingStyles, DecodeError,
@@ -15,6 +17,8 @@ use super::{
     optional_profile_number_view, parsed_coding_style_view, profile_number_outcome,
     profile_number_view, profile_tile_inputs_view, roi_shifts_view, segment_view,
 };
+#[cfg(verus_keep_ghost)]
+use crate::specs::{ProfileFreshInput, ProfileFreshValue};
 #[cfg(verus_keep_ghost)]
 use vstd::prelude::*;
 
@@ -245,14 +249,17 @@ impl CodestreamProfile {
 impl<'a> Parser<'a> {
     #[cfg_attr(verus_keep_ghost, verifier::spinoff_prover)]
     #[cfg_attr(verus_keep_ghost, verus_spec(result =>
-        ensures cap_payload_outcome(result) == crate::specs::part1_parse_cap(segment_view(segment)),
+        ensures crate::specs::part1_profile_storage_result(ProfileFreshInput::Cap(segment_view(segment)), ProfileFreshValue::Cap(cap_payload_outcome(result))),
     ))]
     pub(super) fn parse_cap(
         &self,
         segment: Segment<'a>,
     ) -> Result<ExtendedCapabilities, DecodeError> {
         #[cfg(verus_keep_ghost)]
-        proof! { reveal(crate::specs::part1_parse_cap); reveal(extended_capabilities_view); }
+        proof! {
+            reveal(crate::specs::part1_parse_cap); reveal(extended_capabilities_view);
+            crate::specs::part1_profile_storage_normal(ProfileFreshInput::Cap(segment_view(segment)));
+        }
         if segment.payload.len() < 4 {
             return Err(self.malformed_at(segment.offset, MalformedKind::InvalidMarkerLength));
         }
@@ -270,7 +277,13 @@ impl<'a> Parser<'a> {
         if segment.payload.len() != expected_length {
             return Err(self.malformed_at(segment.offset, MalformedKind::InvalidMarkerLength));
         }
-        let c_capabilities = self.read_marker_words(segment, 4)?;
+        let copied = self.read_marker_words(segment, 4);
+        #[cfg(verus_keep_ghost)]
+        proof! {
+            crate::specs::part1_profile_observed(ProfileFreshInput::Words(segment_view(segment), 4), ProfileFreshValue::Words(marker_words_outcome(copied)));
+            if marker_words_outcome(copied) == Err(DecodeError::AllocationFailed) { crate::specs::part1_profile_refused(ProfileFreshInput::Cap(segment_view(segment))); }
+        }
+        let c_capabilities = copied?;
         Ok(ExtendedCapabilities {
             p_cap,
             c_capabilities,
@@ -279,19 +292,28 @@ impl<'a> Parser<'a> {
 
     #[cfg_attr(verus_keep_ghost, verifier::spinoff_prover)]
     #[cfg_attr(verus_keep_ghost, verus_spec(result =>
-        ensures profile_number_outcome(result) == crate::specs::part1_parse_profile_number(segment_view(segment)),
+        ensures crate::specs::part1_profile_storage_result(ProfileFreshInput::Number(segment_view(segment)), ProfileFreshValue::Number(profile_number_outcome(result))),
     ))]
     pub(super) fn parse_profile_number(
         &self,
         segment: Segment<'a>,
     ) -> Result<ProfileNumber, DecodeError> {
         #[cfg(verus_keep_ghost)]
-        proof! { reveal(crate::specs::part1_parse_profile_number); reveal(profile_number_view); }
+        proof! {
+            reveal(crate::specs::part1_parse_profile_number); reveal(profile_number_view);
+            crate::specs::part1_profile_storage_normal(ProfileFreshInput::Number(segment_view(segment)));
+        }
         let remainder = segment.payload.len() % 2;
         if segment.payload.len() < 2 || remainder != 0 {
             return Err(self.malformed_at(segment.offset, MalformedKind::InvalidMarkerLength));
         }
-        let words = self.read_marker_words(segment, 0)?;
+        let copied = self.read_marker_words(segment, 0);
+        #[cfg(verus_keep_ghost)]
+        proof! {
+            crate::specs::part1_profile_observed(ProfileFreshInput::Words(segment_view(segment), 0), ProfileFreshValue::Words(marker_words_outcome(copied)));
+            if marker_words_outcome(copied) == Err(DecodeError::AllocationFailed) { crate::specs::part1_profile_refused(ProfileFreshInput::Number(segment_view(segment))); }
+        }
+        let words = copied?;
         #[cfg(verus_keep_ghost)]
         proof! { reveal(crate::specs::part1_marker_words); }
         if matches!(words.last(), Some(value) if *value == 0) {
@@ -302,7 +324,9 @@ impl<'a> Parser<'a> {
 
     #[cfg_attr(verus_keep_ghost, verifier::spinoff_prover)]
     #[cfg_attr(verus_keep_ghost, verus_spec(result =>
-        ensures marker_words_outcome(result) == crate::specs::part1_marker_words(segment_view(segment), start),
+        ensures crate::specs::part1_profile_result(ProfileFreshInput::Words(segment_view(segment), start), ProfileFreshValue::Words(marker_words_outcome(result))),
+            marker_words_outcome(result) != Err(DecodeError::AllocationFailed) ==>
+                marker_words_outcome(result) == crate::specs::part1_marker_words(segment_view(segment), start),
     ))]
     pub(super) fn read_marker_words(
         &self,
@@ -310,17 +334,30 @@ impl<'a> Parser<'a> {
         start: usize,
     ) -> Result<Vec<u16>, DecodeError> {
         #[cfg(verus_keep_ghost)]
-        proof! { reveal(crate::specs::part1_marker_words); }
+        proof! {
+            reveal(crate::specs::part1_marker_words);
+            crate::specs::part1_profile_normal(ProfileFreshInput::Words(segment_view(segment), start));
+        }
         if start > segment.payload.len() {
             return Err(self.malformed_at(segment.offset, MalformedKind::InvalidMarkerLength));
         }
-        let mut words = Vec::with_capacity((segment.payload.len() - start) / 2);
+        let copied = reserve_values(
+            (segment.payload.len() - start) / 2,
+            MctCopyPath::ProfileWords(segment.marker, segment.offset, start),
+        );
+        #[cfg(verus_keep_ghost)]
+        proof! { if copied.is_err() { crate::specs::part1_profile_refused(ProfileFreshInput::Words(segment_view(segment), start)); } }
+        let mut words = copied?;
+        #[cfg(verus_keep_ghost)]
+        proof! { assert(words@ =~= Seq::<u16>::empty()); }
         let mut position = start;
         #[cfg_attr(
             verus_keep_ghost,
             verus_spec(
                 invariant
                     start <= position <= segment.payload.len(),
+                    crate::specs::part1_profile_result(ProfileFreshInput::Words(segment_view(segment), start),
+                        crate::specs::part1_profile_ordinary(ProfileFreshInput::Words(segment_view(segment), start))),
                     (position - start) % 2 == 0,
                     words@ == crate::specs::part1_marker_word_sequence(
                         segment.payload@.subrange(start as int, position as int)),

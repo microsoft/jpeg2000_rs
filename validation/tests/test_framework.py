@@ -990,8 +990,8 @@ class FrameworkTests(WorkingFiles):
              "part2_jpip_append_reconstructed_box(payload, header, ready.0)"),
             ("streams", "missing: state.missing + ready.3", "missing: ready.3"),
             ("boxes", "active: state.active.drop_last()", "active: state.active"),
-            ("assembly_run", "part2_parse_and_inspect_container(state.output, &cache.0)",
-             "part2_parse_and_inspect_container(Seq::empty(), &cache.0)"),
+            ("inspection", "state.output, &cache.0, false, calls)",
+             "Seq::empty(), &cache.0, false, calls)"),
         ):
             name = "part2_jpip_semantic_" + function
             start = re.search(r"\bspec\s+fn\s+" + name + r"\b", original).start()
@@ -1072,16 +1072,18 @@ class FrameworkTests(WorkingFiles):
         read_text = Path.read_text
         source = framework.ROOT / "specs/jpip_progressive.rs"
         original = source.read_text()
-        start = re.search(r"\bspec\s+fn\s+part2_jpip_automatic_progressive_run\b", original).start()
-        for before, after in (
-            ("part2_jpip_snapshot_run(input, events)", "supplied_snapshot_result"),
-            ("Some((Err(error), tail)) => Some(((Err(error), decoder, cache), tail))",
-             "Some((Err(error), tail)) => Some(((Err(error), (decoder.0, 0), cache), tail))"),
-            ("else if available <= previous", "else if available < previous"),
-            ("part2_decode_raw_codestream(snapshot.0,", "part2_decode_raw_codestream(Seq::empty(),"),
-            ("(decoder.0, available), cache)", "(decoder.0, previous), cache)"),
+        for name, before, after in (
+            ("snapshot_call", "part2_jpip_snapshot_run(input, calls)", "supplied_snapshot_result"),
+            ("progressive_run", "Some((Err(error), rest)) => Some(((Err(error), decoder, cache), rest))",
+             "Some((Err(error), rest)) => Some(((Err(error), (decoder.0, 0), cache), rest))"),
+            ("after_snapshot", "else if snapshot.1 <= decoder.1", "else if snapshot.1 < decoder.1"),
+            ("image_call", "part2_decode_raw_cold_run(\n                bytes,", "part2_decode_raw_cold_run(\n                Seq::empty(),"),
+            ("image_call", "if rest.len() == 0", "if rest.len() != 0"),
+            ("image_frame", "(decoder.0, snapshot.1), cache)", "(decoder.0, decoder.1), cache)"),
         ):
-            self.assertIn(before, framework._coverage_spec_function_body(original, "part2_jpip_automatic_progressive_run"))
+            symbol = "part2_jpip_automatic_" + name
+            start = re.search(r"\bspec\s+fn\s+" + symbol + r"\b", original).start()
+            self.assertIn(before, framework._coverage_spec_function_body(original, symbol))
             modified = original[:start] + original[start:].replace(before, after, 1)
 
             def altered(path, *args, **kwargs):
@@ -1129,6 +1131,11 @@ class FrameworkTests(WorkingFiles):
             ("src/jpip/progression.rs", "super::jpip_missing_ref_projection", "unrelated_iterator_claim"),
             ("src/jpip/progression.rs", "emitted_bytes + seq![0xffu8, 0xd9u8]", "emitted_bytes"),
             ("src/jpip/progression.rs", "super::jpip_snapshot_layout_success_known()", "unrelated_layout_claim()"),
+            ("src/jpip/progression.rs", "super::jpip_snapshot_root_ready_parse_error", "unrelated_parse_error"),
+            ("src/jpip/progression.rs", "prefix = super::jpip_snapshot_template_layout_prefix",
+             "prefix = unrelated_prefix"),
+            ("specs/jpip_snapshot.rs", "part2_cold_parse(bytes, limits, 1, 0, events)",
+             "part2_cold_parse(bytes, limits, 0, 0, events)"),
         ):
             source = framework.ROOT / relative
             original = source.read_text()
@@ -1255,6 +1262,10 @@ class FrameworkTests(WorkingFiles):
             ("src/jpip/progression.rs",
              "tile_count, components, headers, template@, &layout);",
              "tile_count, components, headers, Seq::empty(), &layout);"),
+            ("src/jpip/progression.rs", "prefix = super::jpip_snapshot_template_layout_prefix",
+             "prefix = unrelated_prefix"),
+            ("specs/jpip_snapshot_inputs.rs", "part2_cold_parse(template, input.limits, 0, 0, events)",
+             "part2_cold_parse(template, input.limits, 2, 0, events)"),
         ):
             source = framework.ROOT / relative
             original = source.read_text()
@@ -1443,12 +1454,15 @@ class FrameworkTests(WorkingFiles):
         framework.validate_normative_coverage(coverage)
         read_text = Path.read_text
         for relative, before, after in (
-            ("src/jpip/snapshot_header_proof_support.rs", "crate::codestream::decoder_layout_errors_known();", ""),
+            ("src/jpip/snapshot_header_proof_support.rs",
+             "part2_cold_parse_actual(template, input.limits, 0, 0, Err(error))",
+             "part2_cold_parse_actual(template, input.limits, 2, 0, Err(error))"),
             ("src/jpip/snapshot_header_proof_support.rs",
              "part2_jpip_transition_template(main, headers, input.limits) == Ok(template)",
              "part2_jpip_transition_template(main, headers, input.limits) == Ok(unrelated)"),
             ("src/jpip/snapshot_header_proof_support.rs",
-             "complete_layout_outcome(Err(error))", "complete_layout_outcome(Err(unrelated))"),
+             "part1_parse_layout_cold_result(template, input.limits, Err(error))",
+             "part1_parse_layout_cold_result(template, input.limits, Err(unrelated))"),
             ("src/jpip/progression.rs", "headers, template@, error", "headers, unrelated@, error"),
             ("src/jpip/progression.rs",
              "part2_jpip_transition_template(normalized_bytes, headers, input.limits) == Ok(template@)",
@@ -2412,7 +2426,7 @@ class FrameworkTests(WorkingFiles):
             ("src/jpip/progression.rs", "JpipProgressiveDecoder::update", "self.update_inner(cache, options, None)", "self.update_inner(cache, options, Some(&crate::DecodeSelection::full_image()))"),
             ("src/jpip/progression.rs", "JpipProgressiveDecoder::update_inner", "cache.progressive_availability(&self.plan)?", "Ok::<_, DecodeError>((0, Vec::new()))?"),
             ("src/jpip/progression.rs", "JpipProgressiveDecoder::update_inner", "available_layers <= previous_layers", "false"),
-            ("src/jpip/progression.rs", "JpipProgressiveDecoder::update_inner", "cache.transcode_precinct_codestream(&self.plan, available_layers)?", "cache.transcode_precinct_codestream(&self.plan, 1)?"),
+            ("src/jpip/progression.rs", "JpipProgressiveDecoder::update_inner", "cache.transcode_precinct_codestream(&self.plan, available_layers)", "cache.transcode_precinct_codestream(&self.plan, 1)"),
             ("src/jpip/progression.rs", "JpipProgressiveDecoder::update_inner", "self.decoded_layers = available_layers", "self.decoded_layers = previous_layers"),
             ("src/jpip/progression.rs", "JpipProgressiveDecoder::update_inner", "image: Some(image)", "image: None"),
             ("src/jpip/ranges.rs", "DatabinCache::progressive_availability", "start = end", "start = 0"),
@@ -2485,7 +2499,7 @@ class FrameworkTests(WorkingFiles):
             ("src/jpip/precinct.rs", "DatabinCache::transcode_precinct_codestream", "self.precinct_availability(plan, packet_end)?", "self.availability(&[])?"),
             ("src/jpip/precinct.rs", "DatabinCache::transcode_precinct_codestream", "self.databin_view(plan.main_header)?.into_bytes()", "self.databin_view(plan.tile_header)?.into_bytes()"),
             ("src/jpip/precinct.rs", "DatabinCache::transcode_precinct_codestream", ".get_mut(6..10)", ".get_mut(2..6)"),
-            ("src/jpip/precinct.rs", "DatabinCache::transcode_precinct_codestream", "validate_precinct_codestream(&bytes, layers, &self.limits)?", "Ok::<(), DecodeError>(())?"),
+            ("src/jpip/precinct.rs", "DatabinCache::transcode_precinct_codestream", "validate_precinct_codestream(&bytes, layers, &self.limits)", "Ok::<(), DecodeError>(())"),
             ("src/jpip/precinct.rs", "patch_cod_layers", "segment_length < 7", "false"),
             ("src/jpip/ranges.rs", "DatabinCache::precinct_availability", "self.append_complete_databin_requirement(plan.main_header, &mut report)?", "self.append_complete_databin_requirement(plan.tile_header, &mut report)?"),
             ("src/jpip/ranges.rs", "DatabinCache::append_complete_databin_requirement", ".checked_add(header_report.required_bytes)", ".checked_add(0)"),
@@ -3441,14 +3455,15 @@ class FrameworkTests(WorkingFiles):
         read_text = Path.read_text
         for model, requested in (("typed", "None"), ("typed", "Some(crate::options::decode_selection_view(selection))"),
                                   ("color", "None"), ("color", "Some(crate::options::decode_selection_view(selection))")):
-            before = f"part2_decode_raw_jpx_{model}(\n        input@, codestream_index, crate::options::decode_options_limits(options), {requested})"
-            self.assertIn(before, original)
+            before = f"part2_decode_jpx_{model}_cold_result(input@, codestream_index, crate::options::decode_options_limits(options), {requested},"
+            matched = re.search(r"\s*".join(re.escape(c) for c in before if not c.isspace()), original)
+            self.assertIsNotNone(matched)
             for after in (
                 before.replace("input@", "seq![]"),
                 before.replace("codestream_index,", "0,"),
-                before.replace(requested + ")", ("None" if requested != "None" else "Some(unrelated)") + ")"),
+                before.replace(requested + ",", ("None" if requested != "None" else "Some(unrelated)") + ","),
             ):
-                changed = original.replace(before, after, 1)
+                changed = original[:matched.start()] + after + original[matched.end():]
 
                 def altered(path, *args, **kwargs):
                     return changed if path == source else read_text(path, *args, **kwargs)
@@ -3473,10 +3488,10 @@ class FrameworkTests(WorkingFiles):
         read_text = Path.read_text
         for name, anchor, before, after, expected in (
             ("src/decode/api.rs", "pub fn decode_jpx_codestream(", "jp2::parse(input, options.limits())?", "jp2::parse_and_inspect(input, options.limits())?", "actual raw/index/selection/header/color/target handoffs"),
-            ("src/decode/api.rs", "pub fn decode_jpx_codestream(", "decode_jpx_file_selected(&file, codestream_index, options, selection)?", "decode_jpx_file_selected(&file, 0, options, selection)?", "actual raw/index/selection/header/color/target handoffs"),
+            ("src/decode/api.rs", "pub fn decode_jpx_codestream(", "decode_jpx_file_selected(&file, codestream_index, options, selection)", "decode_jpx_file_selected(&file, 0, options, selection)", "actual raw/index/selection/header/color/target handoffs"),
             ("src/decode/api.rs", "pub fn decode_jpx_codestream(", "convert_associated_selected_color(&decoded, header, target, options.limits())", "convert_associated_selected_color(&decoded, header, [0, 0, 1, 1], options.limits())", "actual raw/index/selection/header/color/target handoffs"),
-            ("src/decode/output.rs", "pub(super) fn decode_jpx_file_selected(", "codestream::parse_layout(selected.data(), options.limits())?", "codestream::parse_layout(&unrelated, options.limits())?", "actual module-level selected producer"),
-            ("src/decode/output.rs", "pub(super) fn decode_jpx_file_selected(", "decode_layout_selected(&layout, selection, options.limits())?", "decode_layout_selected(&layout, &unrelated, options.limits())?", "actual module-level selected producer"),
+            ("src/decode/output.rs", "pub(super) fn decode_jpx_file_selected(", "codestream::parse_layout(selected.data(), options.limits())", "codestream::parse_layout(&unrelated, options.limits())", "actual module-level selected producer"),
+            ("src/decode/output.rs", "pub(super) fn decode_jpx_file_selected(", "decode_layout_selected(&layout, selection, options.limits())", "decode_layout_selected(&layout, &unrelated, options.limits())", "actual module-level selected producer"),
             ("src/decode/output.rs", "pub(super) fn decode_jpx_file_selected(", "codestream::decoder_layout_main_info_matches_raw(&layout)", "unrelated_layout_bridge()", "actual module-level selected producer"),
         ):
             source = framework.ROOT / name
@@ -3497,16 +3512,17 @@ class FrameworkTests(WorkingFiles):
         source = framework.ROOT / "specs/jpx_public_images.rs"
         original = source.read_text()
         read_text = Path.read_text
-        for before, after in (
-            ("part2_parse_container(input, *limits)", "part2_parse_container(seq![], *limits)"),
-            ("part1_parse_layout(source.0, limits)", "part1_parse_layout(seq![], limits)"),
-            ("part2_typed_layout_input(input, decoded, requested.2, limits)", "part2_decode_typed_layout_value_input(0, input, limits, Some(requested))"),
-            ("part2_apply_output_header(image, header.0,", "part2_apply_output_header(image, unrelated,"),
-            ("part2_decode_jpx_selected_file(file, index, limits, expanded.0)", "part2_decode_jpx_selected_file(file, index, limits, requested)"),
-            ("expanded.1[2]", "expanded.1[0]"),
+        for symbol, before, after in (
+            ("part2_decode_raw_jpx_typed", "part2_parse_container(input, *limits)", "part2_parse_container(seq![], *limits)"),
+            ("part2_decode_jpx_selected_source", "part1_parse_layout(source.0, limits)", "part1_parse_layout(seq![], limits)"),
+            ("part2_decode_jpx_selected_layout", "part2_typed_layout_input(input, decoded, requested.2, limits)", "part2_decode_typed_layout_value_input(0, input, limits, Some(requested))"),
+            ("part2_decode_jpx_selected_layout", "part2_apply_output_header(image, header.0,", "part2_apply_output_header(image, unrelated,"),
+            ("part2_decode_jpx_selected_color", "part2_decode_jpx_selected_file(file, index, limits, expanded.0)", "part2_decode_jpx_selected_file(file, index, limits, requested)"),
+            ("part2_decode_jpx_selected_color", "expanded.1[2]", "expanded.1[0]"),
         ):
-            self.assertIn(before, original)
-            changed = original.replace(before, after, 1)
+            body = framework._coverage_spec_function_body(original, symbol)
+            self.assertIn(before, body)
+            changed = original.replace(body, body.replace(before, after, 1), 1)
 
             def altered(path, *args, **kwargs):
                 return changed if path == source else read_text(path, *args, **kwargs)
@@ -3566,14 +3582,15 @@ class FrameworkTests(WorkingFiles):
         read_text = Path.read_text
         for requested, jph in (("None", "false"), ("Some(crate::options::decode_selection_view(selection))", "false"),
                                ("None", "true"), ("Some(crate::options::decode_selection_view(selection))", "true")):
-            before = f"part2_decode_raw_color_container(\n        input@, crate::options::decode_options_limits(options), {requested}, {jph})"
-            self.assertIn(before, original)
+            before = f"part2_decode_color_cold_result(input@, crate::options::decode_options_limits(options), {requested}, {jph},"
+            matched = re.search(r"\s*".join(re.escape(c) for c in before if not c.isspace()), original)
+            self.assertIsNotNone(matched)
             for after in (
                 before.replace("input@", "seq![]"),
                 before.replace(requested + ",", ("None" if requested != "None" else "Some(unrelated)") + ","),
-                before[:-len(jph) - 1] + ("false" if jph == "true" else "true") + ")",
+                before[:-len(jph) - 1] + ("false" if jph == "true" else "true") + ",",
             ):
-                changed = original.replace(before, after, 1)
+                changed = original[:matched.start()] + after + original[matched.end():]
 
                 def altered(path, *args, **kwargs):
                     return changed if path == source else read_text(path, *args, **kwargs)
@@ -3597,12 +3614,12 @@ class FrameworkTests(WorkingFiles):
         entry = next(item for item in coverage["requirements"] if item["id"] == framework._RAW_CONTAINER_COLOR_ENTRY)
         read_text = Path.read_text
         for name, anchor, before, after in (
-            ("src/decode/api.rs", "pub fn decode_jp2_color(", "jp2::parse_and_inspect_for_display(input, options.limits())?", "jp2::parse_and_inspect_for_display(&unrelated, options.limits())?"),
-            ("src/decode/api.rs", "pub fn decode_jp2_color(", "color_selection(codestream, selection, options.limits())?", "color_selection(codestream, &unrelated, options.limits())?"),
-            ("src/decode/api.rs", "pub fn decode_jp2_color(", "decode_codestream_selected(codestream, options, &expanded)?", "decode_codestream_selected(codestream, options, selection)?"),
+            ("src/decode/api.rs", "pub fn decode_jp2_color(", "jp2::parse_and_inspect_for_display(input, options.limits())", "jp2::parse_and_inspect_for_display(&unrelated, options.limits())"),
+            ("src/decode/api.rs", "pub fn decode_jp2_color(", "color_selection(codestream, selection, options.limits())", "color_selection(codestream, &unrelated, options.limits())"),
+            ("src/decode/api.rs", "pub fn decode_jp2_color(", "decode_codestream_selected(codestream, options, &expanded)", "decode_codestream_selected(codestream, options, selection)"),
             ("src/decode/api.rs", "pub fn decode_jp2_color(", "apply_jp2_output(decoded, inspected.file().header(), options.limits())?", "decoded"),
             ("src/decode/api.rs", "pub fn decode_jp2_color(", "Some(inspected.file().header()),\n        target,", "Some(inspected.file().header()),\n        [0, 0, 1, 1],"),
-            ("src/decode/output.rs", "pub(super) fn color_selection(", "codestream::parse_layout(input, limits)?", "codestream::parse_layout(&unrelated, limits)?"),
+            ("src/decode/output.rs", "pub(super) fn color_selection(", "codestream::parse_layout(input, limits)", "codestream::parse_layout(&unrelated, limits)"),
         ):
             source = framework.ROOT / name
             original = source.read_text()
@@ -3621,19 +3638,20 @@ class FrameworkTests(WorkingFiles):
         coverage = json.loads((framework.VALIDATION / "normative-coverage.json").read_text())
         entry = next(item for item in coverage["requirements"] if item["id"] == framework._RAW_CONTAINER_COLOR_ENTRY)
         read_text = Path.read_text
-        for name, before, after in (
-            ("specs/container_colors.rs", "part2_color_selection_raw(file.streams[0].1, limits, requested)", "part2_color_selection_raw(seq![], limits, requested)"),
-            ("specs/container_colors.rs", "Some(expanded.0)", "Some(requested)"),
-            ("specs/container_colors.rs", "expanded.1[2]", "expanded.1[0]"),
-            ("specs/container_colors.rs", "part2_raw_associated_header(file.header)", "unrelated_header"),
-            ("specs/decoder_input.rs", "part2_decode_layout_selected_value_input(input, crate::options::decode_selection_view(requested), limits)", "part2_decode_layout_input(input, limits)"),
-            ("specs/decoder_input.rs", "Some(requested) => part2_decode_layout_selected_value_input(input, requested, limits)", "Some(requested) => part2_decode_layout_input(input, limits)"),
-            ("specs/raw_decode.rs", "part2_decode_typed_layout_value_input(", "unrelated_success_bank("),
+        for name, symbol, before, after in (
+            ("specs/container_colors.rs", "part2_decode_file_color", "part2_color_selection_raw(file.streams[0].1, limits, requested)", "part2_color_selection_raw(seq![], limits, requested)"),
+            ("specs/container_colors.rs", "part2_decode_file_color", "Some(expanded.0)", "Some(requested)"),
+            ("specs/container_colors.rs", "part2_decode_file_color", "expanded.1[2]", "expanded.1[0]"),
+            ("specs/container_colors.rs", "part2_decode_file_color", "part2_raw_associated_header(file.header)", "unrelated_header"),
+            ("specs/decoder_input.rs", "part2_decode_layout_selected_input", "part2_decode_layout_selected_value_input(input, crate::options::decode_selection_view(requested), limits)", "part2_decode_layout_input(input, limits)"),
+            ("specs/decoder_input.rs", "part2_decode_typed_layout_value_input", "Some(requested) => part2_decode_layout_selected_value_input(input, requested, limits)", "Some(requested) => part2_decode_layout_input(input, limits)"),
+            ("specs/raw_decode.rs", "part2_decode_raw_codestream_value", "part2_decode_typed_layout_value_input(", "unrelated_success_bank("),
         ):
             source = framework.ROOT / name
             original = source.read_text()
-            self.assertIn(before, original)
-            changed = original.replace(before, after, 1)
+            body = framework._coverage_spec_function_body(original, symbol)
+            self.assertIn(before, body)
+            changed = original.replace(body, body.replace(before, after, 1), 1)
 
             def altered(path, *args, **kwargs):
                 return changed if path == source else read_text(path, *args, **kwargs)
@@ -3670,14 +3688,15 @@ class FrameworkTests(WorkingFiles):
         original = source.read_text()
         read_text = Path.read_text
         for requested, jph in (("None", "false"), ("Some(selection)", "false"), ("None", "true"), ("Some(selection)", "true")):
-            before = f"input@, crate::options::decode_options_limits(options), {requested}, {jph})"
-            self.assertIn(before, original)
+            before = f"part2_decode_single_cold_result(input@, crate::options::decode_options_limits(options), {requested}, {jph},"
+            matched = re.search(r"\s*".join(re.escape(c) for c in before if not c.isspace()), original)
+            self.assertIsNotNone(matched)
             for after in (
                 before.replace("input@", "seq![]"),
                 before.replace(requested + ",", ("None" if requested != "None" else "Some(selection)") + ","),
-                before[:-len(jph) - 1] + ("false" if jph == "true" else "true") + ")",
+                before[:-len(jph) - 1] + ("false" if jph == "true" else "true") + ",",
             ):
-                changed = original.replace(before, after, 1)
+                changed = original[:matched.start()] + after + original[matched.end():]
 
                 def altered(path, *args, **kwargs):
                     return changed if path == source else read_text(path, *args, **kwargs)
@@ -3730,7 +3749,7 @@ class FrameworkTests(WorkingFiles):
         original = source.read_text()
         read_text = Path.read_text
         for before, after in (
-            ("jp2::parse_and_inspect_for_display(input, options.limits())?", "jp2::parse_and_inspect_for_display(&unrelated, options.limits())?"),
+            ("jp2::parse_and_inspect_for_display(input, options.limits())", "jp2::parse_and_inspect_for_display(&unrelated, options.limits())"),
             ("validate_jp2_display_profile(inspected.file())?", "Ok(())?"),
             ("inspected.file().codestream_count() != 1", "inspected.file().codestream_count() != 2"),
             ("inspected.file().codestream(0)?.data(), options, selection", "inspected.file().codestream(0)?.data(), options, &unrelated"),
@@ -3760,8 +3779,9 @@ class FrameworkTests(WorkingFiles):
             ("part2_raw_associated_header(file.header).0", "(None, seq![], seq![])"),
             ("crate::limits::resource_decoded_bytes_limit(limits)", "u64::MAX"),
         ):
-            self.assertIn(before, original)
-            changed = original.replace(before, after, 1)
+            body = framework._coverage_spec_function_body(original, "part2_decode_raw_single_container")
+            self.assertIn(before, body)
+            changed = original.replace(body, body.replace(before, after, 1), 1)
 
             def altered(path, *args, **kwargs):
                 return changed if path == source else read_text(path, *args, **kwargs)
@@ -3794,9 +3814,9 @@ class FrameworkTests(WorkingFiles):
         entry = next(item for item in coverage["requirements"] if item["id"] == framework._RAW_COMPOSITION_RENDER_ENTRY)
         source = framework.ROOT / "src/jpx/render.rs"
         original = source.read_text()
-        before = "part2_render_raw_jpx_composition(\n        input@,"
+        before = "part2_render_raw_jpx_cold_result(\n        input@, 2, 0,"
         self.assertIn(before, original)
-        changed = original.replace(before, "part2_render_raw_jpx_composition(\n        seq![],", 1)
+        changed = original.replace(before, "part2_render_raw_jpx_cold_result(\n        seq![], 2, 0,", 1)
         read_text = Path.read_text
 
         def altered(path, *args, **kwargs):
@@ -3885,10 +3905,10 @@ class FrameworkTests(WorkingFiles):
         original = source.read_text()
         read_text = Path.read_text
         for before, after in (
-            ("input@, layer_index, crate::options::decode_options_limits(options)",
-             "seq![], layer_index, crate::options::decode_options_limits(options)"),
-            ("input@, frame_index, crate::options::decode_options_limits(options)",
-             "input@, 0, crate::options::decode_options_limits(options)"),
+            ("input@, 0, layer_index, crate::options::decode_options_limits(options)",
+             "seq![], 0, layer_index, crate::options::decode_options_limits(options)"),
+            ("input@, 1, frame_index, crate::options::decode_options_limits(options)",
+             "input@, 1, 0, crate::options::decode_options_limits(options)"),
         ):
             self.assertIn(before, original)
             changed = original.replace(before, after, 1)
@@ -3918,7 +3938,7 @@ class FrameworkTests(WorkingFiles):
         original = source.read_text()
         read_text = Path.read_text
         for before, after in (
-            ("decode_effective_layer(inspected.file(), layer_index, options)?.into_image()", "arbitrary()"),
+            ("let owned = decode_effective_layer(inspected.file(), layer_index, options)", "let owned = arbitrary()"),
             ("render_inspected_frame(file, &metadata, frame_index, options)", "arbitrary()"),
         ):
             self.assertIn(before, original)
@@ -3981,7 +4001,7 @@ class FrameworkTests(WorkingFiles):
         read_text = Path.read_text
         for before, after in (
             ("super::raw_jpx_inspection_outcome(result)", "super::raw_jpx_inspection_outcome(arbitrary())"),
-            ("part2_inspect_raw_jpx_layers(input@, limits)", "part2_inspect_raw_jpx_layers(seq![], limits)"),
+            ("part2_inspect_raw_jpx_cold_result(\n        input@, limits,", "part2_inspect_raw_jpx_cold_result(\n        seq![], limits,"),
         ):
             self.assertIn(before, original)
             changed = original.replace(before, after, 1)
@@ -4080,7 +4100,7 @@ class FrameworkTests(WorkingFiles):
 
     def test_inventory_binds_actual_complete_raw_inspected_container_results(self):
         self._assert_complete_packet_contract_bindings(
-            {framework._RAW_INSPECTED_ENTRY}, framework._RAW_INSPECTED_CONTRACTS, 6, isolate=False,
+            {framework._RAW_INSPECTED_ENTRY}, framework._RAW_INSPECTED_CONTRACTS, 7, isolate=False,
         )
 
     def test_inventory_raw_inspected_requires_every_actual_complete_bridge(self):
@@ -5739,7 +5759,7 @@ class FrameworkTests(WorkingFiles):
              "if false { crate::decode::associated_typed_errors_known(); }"),
             ("crate::decode::associated_typed_success_known(&decoded, header);",
              "if false { crate::decode::associated_typed_success_known(&decoded, header); }"),
-            ("crate::decode::decode_jpx_file(file, codestream_index, options)?", "supplied_successful_image?"),
+            ("crate::decode::decode_jpx_file(file, codestream_index, options)", "supplied_successful_image"),
         ):
             self.assertIn(before, original)
             changed = original.replace(before, after, 1)
@@ -6083,7 +6103,12 @@ class FrameworkTests(WorkingFiles):
             original = source.read_text()
             for before, after in changes:
                 self.assertIn(before, original)
-                changed = original.replace(before, after, 1)
+                if name == "specs/raw_decode.rs":
+                    body = framework._coverage_spec_function_body(original, "part2_decode_raw_codestream")
+                    self.assertIn(before, body)
+                    changed = original.replace(body, body.replace(before, after, 1), 1)
+                else:
+                    changed = original.replace(before, after, 1)
 
                 def altered(path, *args, **kwargs):
                     return changed if path == source else read_text(path, *args, **kwargs)
@@ -6236,7 +6261,7 @@ class FrameworkTests(WorkingFiles):
             with self.subTest(before=before), mock.patch.object(Path, "read_text", altered), \
                     self.assertRaisesRegex(ValueError, "actual reader/counter/eight-state"):
                 framework.validate_normative_coverage(data)
-        changed = original.replace("new_parser(input, limits)?.parse_layout()", "new_parser(&unrelated, limits)?.parse_layout()", 1)
+        changed = original.replace("match new_parser(input, limits)", "match new_parser(&unrelated, limits)", 1)
 
         def altered(path, *args, **kwargs):
             return changed if path == source else read_text(path, *args, **kwargs)
@@ -6387,8 +6412,8 @@ class FrameworkTests(WorkingFiles):
             ("mct: mct_parameters_view(&main_mct_parameters),", "mct: unrelated,"),
             ("ppm_frames: packed_header_frames_view(ppm_frames@)", "ppm_frames: Seq::empty()"),
             ("assert(main_goal == Ok(complete_main));", "if false { assert(main_goal == Ok(complete_main)); }"),
-            ("ensures\n                    main_goal == crate::specs::part1_finish_main_header(",
-             "ensures\n                    true || main_goal == crate::specs::part1_finish_main_header("),
+            ("main_goal == crate::specs::part1_finish_main_header(",
+             "true || main_goal == crate::specs::part1_finish_main_header("),
         ):
             self.assertIn(before, original)
             changes.append(original.replace(before, after, 1))
@@ -6476,8 +6501,8 @@ class FrameworkTests(WorkingFiles):
              "Some(number) => if number.words.is_empty() { None } else { Some(profile_number_view(number)) }",
              "requires complete raw projection"),
             ("src/codestream/layout.rs",
-             "new_parser(input, limits)?.parse_layout()",
-             "new_parser(&unrelated, limits)?.parse_layout()",
+             "match new_parser(input, limits)",
+             "match new_parser(&unrelated, limits)",
              "not used by claimed implementation"),
         ):
             source = framework.ROOT / name
@@ -6881,7 +6906,7 @@ class FrameworkTests(WorkingFiles):
         source = framework.ROOT / "src/codestream/layout.rs"
         original = source.read_text()
         read_text = Path.read_text
-        start = original.index("let inherited_component_quantizations")
+        start = original.index("let quantization_source")
         handoff = re.search(
             r"\blet\s*\(\s*payload\s*,\s*tile_parameters\s*,\s*tile_extensions\s*\)",
             original[start:],
@@ -6897,7 +6922,8 @@ class FrameworkTests(WorkingFiles):
                 re.sub(framework._coverage_call(view, r"&\s*" + local),
                        view + "(&unrelated_result)", block, count=1),
             ))
-        mutations.append(block.replace("proof! {", "if false { proof! {", 1) + "}\n")
+        mutations.append(block.replace("reveal(crate::specs::part1_inherited_tile_owner);",
+                                       "if false { reveal(crate::specs::part1_inherited_tile_owner);", 1) + "}\n")
         for index, changed in enumerate(mutations):
             self.assertNotEqual(changed, block)
             modified = original[:start] + changed + original[end:]
@@ -6942,12 +6968,7 @@ class FrameworkTests(WorkingFiles):
         data = dict(coverage, requirements=[entry])
         source = framework.ROOT / "src/codestream/layout.rs"
         original = source.read_text()
-        pattern = (
-            r"\blet\s+inherited_mct_parameters\s*=\s*"
-            + framework._coverage_call("inherited_tile_owner", "tile_index",
-                                       r"&\s*main_mct_parameters", r"&\s*tile_mct_parameters\s*,?")
-            + r"\s*\.\s*" + framework._coverage_call("clone") + r"\s*;"
-        )
+        pattern = framework._MCT_FALLIBLE_INHERITANCE
         match = re.search(pattern, original)
         self.assertIsNotNone(match)
         legacy = (
@@ -6957,6 +6978,14 @@ class FrameworkTests(WorkingFiles):
         )
         read_text = Path.read_text
         self.assertEqual(framework.validate_normative_coverage(data)["status"], "passed")
+        for normal in (
+            {"path": "src/codestream/mct_copy.rs", "symbol": "MctParameters::try_duplicate"},
+            {"path": "specs/cold_mct_copy.rs", "symbol": "part1_mct_copy_normal"},
+        ):
+            missing = copy.deepcopy(entry)
+            missing["proof_refs"].remove(normal)
+            with self.subTest(missing_normal=normal), self.assertRaisesRegex(ValueError, "not used by claimed implementation"):
+                framework.validate_normative_coverage(dict(coverage, requirements=[missing]))
         for before, after in (("", ""), ("parameters.clone()", "parameters.unlisted()"),
                               ("main_mct_parameters.clone()", "main_mct_parameters.unlisted()")):
             block = legacy if not before else legacy.replace(before, after, 1)
@@ -7021,7 +7050,14 @@ class FrameworkTests(WorkingFiles):
             source = framework.ROOT / path
             original = source.read_text()
             self.assertIn(before, original)
-            changed = original.replace(before, after, 1)
+            if path == "src/codestream/layout.rs":
+                actual = re.search(framework._MCT_FALLIBLE_INHERITANCE, original)
+                self.assertIsNotNone(actual)
+                block = actual.group()
+                self.assertIn(before, block)
+                changed = original[:actual.start()] + block.replace(before, after, 1) + original[actual.end():]
+            else:
+                changed = original.replace(before, after, 1)
             changed += "\nfn unrelated() { unrelated.clone(); Clone::clone(&self.records); Clone::clone(&self.collections); }\n"
 
             def altered(file, *args, **kwargs):
@@ -7118,6 +7154,8 @@ class FrameworkTests(WorkingFiles):
         ]
         entry["contract_refs"] = entry["contract_refs"][:1]
         entry["proof_refs"] = entry["contract_refs"][:1]
+        _, cold_proofs = framework._coverage_cold_links({(ref["path"], ref["symbol"]) for ref in entry["contract_refs"]})
+        entry["proof_refs"].extend({"path": path, "symbol": symbol} for path, symbol in sorted(cold_proofs))
         data = dict(coverage, requirements=[entry])
         source = framework.ROOT / "src/codestream/layout.rs"
         original = source.read_text()
@@ -7166,6 +7204,8 @@ class FrameworkTests(WorkingFiles):
         ]
         reference = entry["contract_refs"][0]
         entry["proof_refs"] = [reference]
+        _, cold_proofs = framework._coverage_cold_links({(ref["path"], ref["symbol"]) for ref in entry["contract_refs"]})
+        entry["proof_refs"].extend({"path": path, "symbol": symbol} for path, symbol in sorted(cold_proofs))
         data = dict(coverage, requirements=[entry])
         self._assert_contract_text_mutations(data, (
             ("tile_part_read_outcome(result)", "tile_part_read_outcome(unrelated)"),
@@ -7205,7 +7245,10 @@ class FrameworkTests(WorkingFiles):
             {"path": "src/codestream/tiles.rs", "symbol": "Parser::read_tile_part"},
         ]
         entry["contract_refs"] = [reference]
-        entry["proof_refs"] = [reference]
+        _, cold_proofs = framework._coverage_cold_links({(reference["path"], reference["symbol"])})
+        entry["proof_refs"] = [reference] + [
+            {"path": path, "symbol": symbol} for path, symbol in sorted(cold_proofs)
+        ]
         data = dict(coverage, requirements=[entry])
         self.assertEqual(framework.validate_normative_coverage(data)["status"], "passed")
         source = framework.ROOT / "src/codestream/tiles.rs"
@@ -7279,9 +7322,9 @@ class FrameworkTests(WorkingFiles):
         source = framework.ROOT / "src/codestream/tile_header_traversal.rs"
         original = source.read_text()
         read_text = Path.read_text
-        call = "self.read_tile_header_segment()?"
+        call = "self.read_tile_header_segment()"
         self.assertEqual(original.count(call), 1)
-        changed = original.replace(call, "self.unlisted_tile_header_admission()?")
+        changed = original.replace(call, "self.unlisted_tile_header_admission()")
         for extra in ("", "\nfn unrelated() { self.read_tile_header_segment(); }\n"):
             modified = changed + extra
 
@@ -7427,6 +7470,8 @@ class FrameworkTests(WorkingFiles):
         ]
         reference = entry["contract_refs"][0]
         entry["proof_refs"] = [reference]
+        _, cold_proofs = framework._coverage_cold_links({(ref["path"], ref["symbol"]) for ref in entry["contract_refs"]})
+        entry["proof_refs"].extend({"path": path, "symbol": symbol} for path, symbol in sorted(cold_proofs))
         data = dict(coverage, requirements=[entry])
         self.assertEqual(framework.validate_normative_coverage(data)["status"], "passed")
         source = framework.ROOT / "src/codestream/tiles.rs"
@@ -7461,8 +7506,8 @@ class FrameworkTests(WorkingFiles):
         mutations = [
             (".finish_tile_component_configuration(", ".unlisted_configuration("),
             ("self.apply_component_quantization_overrides(", "self.unlisted_quantization("),
-            ("ensures tile_component_configuration_outcome(result)",
-             "requires false, ensures tile_component_configuration_outcome(result)"),
+            ("ensures crate::specs::part1_tile_components_cold_result(",
+             "requires false, ensures crate::specs::part1_tile_components_cold_result("),
             ("optional_segment_view(qcd_segment)", "optional_segment_view(unrelated)"),
             ("owned_extensions_view(part2_extensions)", "owned_extensions_view(unrelated)"),
         ]
@@ -7674,6 +7719,8 @@ class FrameworkTests(WorkingFiles):
                              if ref["symbol"] == f"Parser::{symbol}")
             isolated["contract_refs"] = [reference]
             isolated["proof_refs"] = [reference]
+            _, cold_proofs = framework._coverage_cold_links({(reference["path"], reference["symbol"])})
+            isolated["proof_refs"].extend({"path": path, "symbol": name} for path, name in sorted(cold_proofs))
             isolated["implementation_refs"] = [
                 {"path": "src/codestream/layout.rs", "symbol": "Parser::parse_layout"},
             ]
@@ -7774,7 +7821,7 @@ class FrameworkTests(WorkingFiles):
     def test_inventory_binds_actual_progression_shape_bitmap_failure_frames_and_complete_admission(self):
         self._assert_complete_packet_contract_bindings(
             {"part1-complete-native-progression-admission"},
-            framework._PROGRESSION_ADMISSION_CONTRACTS, 6,
+            framework._PROGRESSION_ADMISSION_CONTRACTS, 7,
         )
 
     def test_inventory_binds_raw_mco_mcc_routes_membership_and_complete_failure_cursor(self):
@@ -7812,6 +7859,26 @@ class FrameworkTests(WorkingFiles):
             {"part2-complete-native-mct-graph-production"},
             framework._TRANSFORM_GRAPH_CONTRACTS, 4,
         )
+        coverage = json.loads((framework.VALIDATION / "normative-coverage.json").read_text())
+        entry = next(item for item in coverage["requirements"] if item["id"] == "part2-complete-native-mct-graph-production")
+        read_text = Path.read_text
+        for relative, symbol, before, after in (
+            ("src/codestream/layout.rs", "Parser::parse_layout", "super::ResolvedCopyRole::Main", "super::ResolvedCopyRole::Tile"),
+            ("src/codestream/tiles.rs", "Parser::read_tile_part", "super::ResolvedCopyRole::Tile", "super::ResolvedCopyRole::Main"),
+            ("src/codestream/tiles.rs", "Parser::read_tile_part", "try_duplicate_with(true)", "try_duplicate_with(false)"),
+            ("src/codestream/tiles.rs", "Parser::read_tile_part", "self.position = end;", "self.position = data_start;"),
+        ):
+            source = framework.ROOT / relative
+            original = source.read_text()
+            header = framework._coverage_function_header(original, symbol)
+            body = framework._coverage_function_body(original, header)
+            self.assertIn(before, body)
+            changed = original.replace(body, body.replace(before, after, 1), 1)
+            def altered(path, *args, **kwargs):
+                return changed if path == source else read_text(path, *args, **kwargs)
+            with self.subTest(role=before), mock.patch.object(Path, "read_text", altered), \
+                    self.assertRaisesRegex(ValueError, "transform graph requires actual"):
+                framework.validate_normative_coverage(dict(coverage, requirements=[entry]))
 
     def test_inventory_binds_actual_packed_fragment_counters_bytes_work_and_ppm_frame_producers(self):
         self._assert_complete_packet_contract_bindings(
@@ -7960,6 +8027,378 @@ class FrameworkTests(WorkingFiles):
             framework._TRANSFORM_ARRAY_BYTES_CONTRACTS, 7,
         )
 
+    def test_inventory_fallible_copy_rejects_deep_clone_and_lost_empty_request_boundary(self):
+        coverage = json.loads((framework.VALIDATION / "normative-coverage.json").read_text())
+        entry = next(item for item in coverage["requirements"] if item["id"] == "implementation-fallible-storage-reservation")
+        source = framework.ROOT / "src/allocation.rs"
+        original, read_text = source.read_text(), Path.read_text
+        for before, after in (
+            ("copy_values<T: Copy>", "copy_values<T: Clone>"),
+            ("if source.is_empty()", "if false"),
+        ):
+            self.assertIn(before, original)
+            changed = original.replace(before, after, 1)
+
+            def altered(path, *args, **kwargs):
+                return changed if path == source else read_text(path, *args, **kwargs)
+
+            with self.subTest(before=before), mock.patch.object(Path, "read_text", altered), \
+                    self.assertRaisesRegex(ValueError, "fallible copy storage"):
+                framework.validate_normative_coverage(dict(coverage, requirements=[entry]))
+
+    def test_inventory_quantization_cold_order_rejects_relabelled_requests_and_lost_partial_owners(self):
+        coverage = json.loads((framework.VALIDATION / "normative-coverage.json").read_text())
+        entry = next(item for item in coverage["requirements"] if item["id"] == framework._RAW_LAYOUT_ENTRY)
+        read_text = Path.read_text
+        for relative, symbol, before, after in (
+            ("specs/cold_mct_copy.rs", "part1_mct_copy_site",
+             "MctCopyPath::ProgressionBitmap(_, _, _, _) => 81", "MctCopyPath::ProgressionBitmap(_, _, _, _) => 80"),
+            ("specs/cold_bitmap.rs", "part1_bitmap_count",
+             "records.len() == 0", "records.len() == 1"),
+            ("specs/cold_bitmap.rs", "part1_bitmap_count",
+             "cost > crate::limits::resource_work_limit(limits)", "cost > u64::MAX"),
+            ("src/codestream/coding_markers.rs", "Parser::validate_progression_changes",
+             "filled_values(\n            false,", "filled_values(\n            true,"),
+            ("specs/cold_payload_owners.rs", "part1_main_resolved_run",
+             "Some((Err(error), rest)) => Some((Err(error), rest))", "Some((Err(error), rest)) => Some((Err(error), events))"),
+            ("specs/cold_payload_owners.rs", "part1_tile_after_configuration_run",
+             "part1_bitmap_run(tile.0,", "part1_bitmap_run(0,"),
+            ("specs/cold_mct_copy.rs", "part1_mct_copy_site",
+             "MctCopyPath::ProfileWords(_, _, _) => 80", "MctCopyPath::ProfileWords(_, _, _) => 63"),
+            ("specs/cold_profile.rs", "part1_profile_words_requests",
+             "ProfileWords(segment.marker, segment.offset, start)", "ProfileWords(0xff50, segment.offset, start)"),
+            ("specs/cold_profile.rs", "part1_profile_requests",
+             "segment.payload.len() % 2 != 0", "segment.payload.len() % 2 == 0"),
+            ("specs/cold_profile.rs", "part1_profile_main_input",
+             "raw.profile.is_none()", "raw.profile.is_some()"),
+            ("specs/cold_profile.rs", "part1_profile_main_run",
+             "Some((part1_main_header_payload(reader, raw, segment), events))",
+             "Some((part1_main_header_payload(reader, raw, segment), events.drop_first()))"),
+            ("src/codestream/profile.rs", "Parser::read_marker_words",
+             "reserve_values(\n            (segment.payload.len() - start) / 2,",
+             "reserve_values(\n            (segment.payload.len() - start) / 3,"),
+            ("specs/cold_part2_fresh.rs", "part1_p2_fresh_site",
+             "FreshPart2Path::AdsDepth(_, _) => 73", "FreshPart2Path::AdsDepth(_, _) => 23"),
+            ("src/codestream/decomposition.rs", "Parser::unpack_two_bit_values",
+             "FreshPart2Path::AdsDepth(segment.offset, start)", "FreshPart2Path::AdsSplit(segment.offset, start)"),
+            ("specs/cold_part2_fresh.rs", "part1_p2_fresh_steps_requests",
+             "cursor, segment, next, width, kind", "cursor, segment, position, width, kind"),
+            ("specs/cold_part2_fresh.rs", "part1_p2_marker_run",
+             "Some((charged, events))", "Some((charged, events.drop_first()))"),
+            ("specs/cold_part2_fresh.rs", "part1_p2_marker_run",
+             "Some(((Err(error), charged.1, charged.2), rest))", "Some(((Err(error), reader, extensions), rest))"),
+            ("specs/cold_part2_header.rs", "part1_p2_tile_extensions",
+             "nonlinear_local_count: Some(0)", "nonlinear_local_count: None"),
+            ("src/codestream/mct_markers.rs", "Parser::decode_mcc_collection",
+             "segment.offset,\n            false,", "segment.offset,\n            true,"),
+            ("src/codestream/mct_markers.rs", "Parser::consume_mct_fragment",
+             "FreshMarkerPath::MctReassembly(state.offset)", "FreshMarkerPath::MctInitial(state.offset)"),
+            ("specs/cold_marker_storage.rs", "part1_fresh_marker_site",
+             "FreshMarkerPath::Values(_) => 63", "FreshMarkerPath::Values(_) => 16"),
+            ("specs/cold_marker_storage.rs", "part1_fresh_collection_requests",
+             "components, segment.offset, false)", "components, segment.offset, true)"),
+            ("specs/cold_marker_storage.rs", "part1_fresh_prepare_mct_requests",
+             "completed).0.is_ok()", "completed).0.is_err()"),
+            ("specs/cold_marker_storage.rs", "part1_fresh_consume_mct_run",
+             "Some(((Err(error), removed, completed), tail))", "Some(((Err(error), pending, completed), tail))"),
+            ("specs/cold_marker_storage.rs", "part1_fresh_consume_mcc_run",
+             "Some(((Err(error), changed, completed), rest))", "Some(((Err(error), pending, completed), rest))"),
+            ("specs/cold_quantization.rs", "part1_main_quantization_cold_complete",
+             "part1_quantization_storage_request(8,", "part1_quantization_storage_request(0,"),
+            ("specs/cold_quantization.rs", "part1_main_quantization_cold_complete",
+             "Err(error) => Some((Err(error), events))", "Err(error) => Some((Err(error), events.drop_first()))"),
+            ("specs/cold_layout.rs", "part1_quantized_layout_cold_run",
+             "part1_main_header_cold_run(reader, events)", "part1_main_header_cold_run(reader, events.drop_first())"),
+            ("specs/cold_layout.rs", "part1_cold_layout_inherited",
+             "part1_quantization_storage_request(10,", "part1_quantization_storage_request(1,"),
+            ("specs/cold_tile_quantization.rs", "part1_tile_components_cold_run",
+             "part1_quantization_storage_request(9,", "part1_quantization_storage_request(2,"),
+            ("specs/persistent_tile_configuration.rs", "part1_commit_quantization_cold_run",
+             "previous_roi, payload, state, 4)", "previous_roi, payload, state, 5)"),
+            ("specs/persistent_tile_configuration.rs", "part1_commit_quantization_cold_run",
+             "Some(((Err(error), prefix.1), rest))", "Some(((Err(error), state), rest))"),
+            ("specs/cold_header_progression.rs", "part1_main_progression_payload",
+             "part1_poc_cold_run(12,", "part1_poc_cold_run(8,"),
+            ("specs/cold_progression.rs", "part1_poc_cold_run",
+             "Some((part1_parse_poc(segment, components), events))",
+             "Some((part1_parse_poc(segment, components), events.drop_first()))"),
+            ("specs/cold_header_progression.rs", "part1_main_progression_payload",
+             "poc_seen: true", "poc_seen: false"),
+            ("specs/cold_header_progression.rs", "part1_tile_progression_payload",
+             "part1_poc_cold_run(13,", "part1_poc_cold_run(9,"),
+            ("specs/cold_header_progression.rs", "part1_tile_progression_payload",
+             "&& tile_part_index == 0", "&& tile_part_index == 1"),
+            ("specs/cold_layout.rs", "part1_cold_layout_after_inherited_copy",
+             "part1_quantization_storage_request(14,", "part1_quantization_storage_request(10,"),
+            ("specs/persistent_tile_configuration.rs", "part1_commit_progression_cold_run",
+             "previous_roi, payload, state, 5)", "previous_roi, payload, state, 4)"),
+            ("specs/persistent_tile_configuration.rs", "part1_commit_progression_cold_run",
+             "part1_quantization_storage_request(15,", "part1_quantization_storage_request(11,"),
+            ("specs/persistent_tile_configuration.rs", "part1_commit_progression_cold_run",
+             "Some(((Err(error), prefix.1), rest))", "Some(((Err(error), state), rest))"),
+            ("specs/cold_mct_copy.rs", "part1_mct_copy_site",
+             "MctCopyPath::Inputs(_, _) => 20", "MctCopyPath::Inputs(_, _) => 14"),
+            ("specs/cold_mct_copy.rs", "part1_mct_copy_leaf",
+             "count == 0 { Seq::empty() }", "count == 1 { Seq::empty() }"),
+            ("specs/cold_mct_copy.rs", "part1_mct_copy_run",
+             "Some((Err(error), rest)) => Some((Err(error), rest))",
+             "Some((Err(error), rest)) => Some((Err(error), events))"),
+            ("specs/cold_mct_copy.rs", "part1_mct_owner_copy_requests",
+             "part1_mct_copy_leaf(MctCopyPath::Records,", "part1_mct_copy_leaf(MctCopyPath::Order,"),
+            ("specs/cold_mct_copy.rs", "part1_mct_collections_copy_requests",
+             "collections[position as int], record, position as usize", "collections[0], record, 0usize"),
+            ("specs/cold_mct_copy.rs", "part1_mct_collection_copy_requests",
+             "collection.inputs.len()", "collection.outputs.len()"),
+            ("specs/cold_layout.rs", "part1_cold_layout_after_progression_copy",
+             "part1_cold_layout_mct_requests(main, state, tile.2 as usize)",
+             "part1_cold_layout_mct_requests(main, state, 0usize)"),
+            ("specs/cold_extensions_copy.rs", "part1_part2_copy_site",
+             "Part2CopyPath::Parameters(_) => 29", "Part2CopyPath::Parameters(_) => 20"),
+            ("specs/cold_extensions_copy.rs", "part1_part2_copy_leaf",
+             "MctCopyPath::Extensions(path)", "MctCopyPath::Order"),
+            ("specs/cold_extensions_copy.rs", "part1_part2_copy_requests",
+             "part1_part2_nlt_vector(value.nonlinear)", "part1_part2_nlt_vector(value.nonlinear).drop_first()"),
+            ("specs/cold_extensions_copy.rs", "part1_part2_nlt_requests",
+             "value.parameters.len()", "value.points.len()"),
+            ("specs/cold_extensions_copy.rs", "part1_part2_steps_tail",
+             "values[position as int], kernel, position as usize", "values[0], kernel, 0usize"),
+            ("specs/cold_layout.rs", "part1_cold_layout_extensions_requests",
+             "index, main.raw.extensions, state.2", "0usize, main.raw.extensions, state.2"),
+            ("specs/cold_layout.rs", "part1_cold_layout_after_mct_copy",
+             "Some(((Err(error), reader, tile_parts, state), rest))",
+             "Some(((Err(error), reader, (tile_parts + 1) as u32, state), rest))"),
+            ("specs/cold_resolved_copy.rs", "part1_resolved_copy_site",
+             "37int", "16int"),
+            ("specs/cold_resolved_copy.rs", "part1_resolved_copy_site",
+             "43int", "37int"),
+            ("specs/cold_resolved_copy.rs", "part1_resolved_stage_tail",
+             "collection: position as usize", "collection: 0usize"),
+            ("specs/cold_extensions_copy.rs", "part1_part2_role_requests",
+             "MctCopyPath::PayloadExtensions(path)", "MctCopyPath::Extensions(path)"),
+            ("specs/cold_payload_owners.rs", "part1_tile_payload_copy_requests",
+             "part1_part2_role_requests(true,", "part1_part2_role_requests(false,"),
+            ("specs/cold_payload_owners.rs", "part1_tile_after_window_run",
+             "Some(((Err(error), normal.1), rest))", "Some(((Err(error), reader), rest))"),
+            ("specs/cold_payload_owners.rs", "part1_tile_after_window_run",
+             "Some((normal, events))", "Some((normal, events.drop_first()))"),
+        ):
+            source = framework.ROOT / relative
+            original = source.read_text()
+            body = (framework._coverage_function_body(original, framework._coverage_function_header(original, symbol))
+                    if relative.startswith("src/") else framework._coverage_spec_function_body(original, symbol))
+            self.assertIn(before, body)
+            changed = original.replace(body, body.replace(before, after, 1), 1)
+
+            def altered(path, *args, **kwargs):
+                return changed if path == source else read_text(path, *args, **kwargs)
+
+            with self.subTest(symbol=symbol, before=before), mock.patch.object(Path, "read_text", altered), \
+                    self.assertRaisesRegex(ValueError, "ordered cold quantization storage"):
+                framework.validate_normative_coverage(dict(coverage, requirements=[entry]))
+
+    def test_inventory_grid_storage_requires_actual_offset_uniform_counts_and_plan_phase(self):
+        coverage = json.loads((framework.VALIDATION / "normative-coverage.json").read_text())
+        entry = next(item for item in coverage["requirements"] if item["id"] == "part1-complete-native-grid-progression-composition")
+        data = dict(coverage, requirements=[entry])
+        self.assertEqual(framework.validate_normative_coverage(data)["status"], "passed")
+        read_text = Path.read_text
+        for relative, symbol, before, after in (
+            ("specs/cold_grid.rs", "part2_grid_capacity_count", "(expected+1) as usize", "expected"),
+            ("specs/cold_grid.rs", "part2_grid_capacity_run", "Part2JpipSnapshotEvent::GridCapacity", "Part2JpipSnapshotEvent::PacketPreparationCapacity"),
+            ("specs/cold_grid.rs", "part2_grid_capacity_run", "actual!=context || elements!=count", "actual!=context && elements!=count"),
+            ("specs/cold_grid.rs", "part2_grid_capacity_run", "events.drop_first()", "events"),
+            ("specs/cold_grid.rs", "part2_grid_summary_run", "expected==usize::MAX", "expected==0"),
+            ("specs/jpip_snapshot_inputs.rs", "part2_jpip_snapshot_tile", "part2_jpip_grid_plan(input,tile,layout,events)", "supplied_plan(input,tile,layout,events)"),
+            ("src/packet/progression.rs", "packet_grid_count_summary", "empty_with_capacity(capacity)", "empty_with_capacity(expected)"),
+            ("src/packet/progression.rs", "PacketGrid::new", "filled_values(resolutions, usize::from(components))", "filled_values(0, usize::from(components))"),
+        ):
+            source = framework.ROOT / relative
+            original = source.read_text()
+            body = (framework._coverage_function_body(original, framework._coverage_function_header(original, symbol))
+                    if relative.startswith("src/") else framework._coverage_spec_function_body(original, symbol))
+            self.assertIn(before, body)
+            changed = original.replace(body, body.replace(before, after, 1), 1)
+
+            def altered(path, *args, **kwargs):
+                return changed if path == source else read_text(path, *args, **kwargs)
+
+            with self.subTest(symbol=symbol, before=before), mock.patch.object(Path, "read_text", altered), \
+                    self.assertRaisesRegex(ValueError, "grid fresh storage"):
+                framework.validate_normative_coverage(data)
+
+    def test_inventory_preparation_storage_requires_outer_seen_source_order_and_zero_frames(self):
+        coverage = json.loads((framework.VALIDATION / "normative-coverage.json").read_text())
+        entry = next(item for item in coverage["requirements"] if item["id"] == "part1-complete-native-grid-progression-composition")
+        data = dict(coverage, requirements=[entry])
+        self.assertEqual(framework.validate_normative_coverage(data)["status"], "passed")
+        read_text = Path.read_text
+        for relative, symbol, before, after in (
+            ("specs/cold_packet_preparation.rs", "part2_preparation_count", "parts.len() as usize", "1usize"),
+            ("specs/cold_packet_preparation.rs", "part2_preparation_capacity_run", "count==0", "count==1"),
+            ("specs/cold_packet_preparation.rs", "part2_preparation_capacity_run", "Part2JpipSnapshotEvent::PacketPreparationCapacity", "Part2JpipSnapshotEvent::PackedHeaderCapacity"),
+            ("specs/cold_packet_preparation.rs", "part2_preparation_capacity_run", "events.drop_first()", "events"),
+            ("specs/cold_packet_preparation.rs", "part2_progress_context", "selection:params.selection", "selection:None"),
+            ("specs/cold_packet_preparation.rs", "part2_progress_initial_run", "Err(error)=>Some((Err(error),events))", "Err(error)=>Some((Err(error),events.drop_first()))"),
+            ("src/packet/tile.rs", "prepare_progression_payloads", "empty_with_capacity(tile_parts.len())", "empty_with_capacity(1)"),
+            ("src/packet/tile.rs", "progression_tile_progress_new", "filled_values(false, seen_length)", "filled_values(true, seen_length)"),
+            ("src/allocation.rs", "filled_values", "values.push(value)", "values.push(value.clone())"),
+        ):
+            source = framework.ROOT / relative
+            original = source.read_text()
+            body = (framework._coverage_function_body(original, framework._coverage_function_header(original, symbol))
+                    if relative.startswith("src/") else framework._coverage_spec_function_body(original, symbol))
+            self.assertIn(before, body)
+            changed = original.replace(body, body.replace(before, after, 1), 1)
+
+            def altered(path, *args, **kwargs):
+                return changed if path == source else read_text(path, *args, **kwargs)
+
+            with self.subTest(symbol=symbol, before=before), mock.patch.object(Path, "read_text", altered), \
+                    self.assertRaisesRegex(ValueError, "packet preparation storage"):
+                framework.validate_normative_coverage(data)
+
+    def test_inventory_packed_storage_requires_actual_constructor_source_state_and_tail(self):
+        coverage = json.loads((framework.VALIDATION / "normative-coverage.json").read_text())
+        entry = next(item for item in coverage["requirements"] if item["id"] == "part1-complete-native-packed-header-length-inputs")
+        data = dict(coverage, requirements=[entry])
+        self.assertEqual(framework.validate_normative_coverage(data)["status"], "passed")
+        read_text = Path.read_text
+        for relative, symbol, before, after in (
+            ("specs/cold_packed_headers.rs", "part2_packed_requests", "source.length == 0", "source.length == 1"),
+            ("specs/cold_packed_headers.rs", "part2_packed_requests_run", "Part2JpipSnapshotEvent::PackedHeaderCapacity", "Part2JpipSnapshotEvent::Parse"),
+            ("specs/cold_packed_headers.rs", "part2_packed_requests_run", "source != requests[0]", "source != requests[1]"),
+            ("specs/cold_packed_headers.rs", "part2_packed_requests_run", "events.drop_first()", "events"),
+            ("specs/cold_packed_headers.rs", "part2_packet_run", "Some(((Err(error), precincts), rest))", "Some(((Err(error), Seq::empty()), rest))"),
+            ("specs/cold_decode_packets.rs", "part2_tile_decode_run", "part2_grid_plan_run(", "supplied_plan("),
+            ("specs/cold_decode_packets.rs", "part2_full_decode_run", "before.counters", "(0,0,0)"),
+            ("src/codestream/packet_headers.rs", "PackedPacketHeaders::reassemble", "empty_with_capacity(self.length)", "empty_with_capacity(1)"),
+        ):
+            source = framework.ROOT / relative
+            original = source.read_text()
+            body = (framework._coverage_function_body(original, framework._coverage_function_header(original, symbol))
+                    if relative.startswith("src/") else framework._coverage_spec_function_body(original, symbol))
+            self.assertIn(before, body)
+            changed = original.replace(body, body.replace(before, after, 1), 1)
+
+            def altered(path, *args, **kwargs):
+                return changed if path == source else read_text(path, *args, **kwargs)
+
+            with self.subTest(symbol=symbol, before=before), mock.patch.object(Path, "read_text", altered), \
+                    self.assertRaisesRegex(ValueError, "packed-header fresh storage"):
+                framework.validate_normative_coverage(data)
+
+    def test_inventory_inspection_capacity_requires_outer_role_count_order_and_tail(self):
+        coverage = json.loads((framework.VALIDATION / "normative-coverage.json").read_text())
+        read_text = Path.read_text
+        for entry_id, relative, symbol, before, after in (
+            (framework._RAW_INSPECTED_ENTRY, "specs/cold_inspection_storage.rs", "part2_inspection_capacity",
+             "if count == 0", "if count == 1"),
+            (framework._RAW_INSPECTED_ENTRY, "specs/cold_inspection_storage.rs", "part2_inspection_capacity",
+             "actual != collection || elements != count", "actual != collection && elements != count"),
+            (framework._RAW_INSPECTED_ENTRY, "specs/cold_inspection_storage.rs", "part2_inspection_capacity",
+             "Part2JpipSnapshotEvent::InspectionCapacity", "Part2JpipSnapshotEvent::Parse"),
+            (framework._RAW_INSPECTED_ENTRY, "specs/jp2_inspection.rs", "part2_inspection_cold_run",
+             "InspectionCollection::Infos(display_first)", "InspectionCollection::Layers"),
+            (framework._RAW_INSPECTED_ENTRY, "specs/jp2_inspection.rs", "part2_inspection_cold_run",
+             "as usize, events)", "as usize, events.drop_first())"),
+            (framework._RAW_INSPECTED_ENTRY, "src/jp2/container.rs", "parse_and_inspect_mode",
+             "inspection_values(\n        codestream_count,", "inspection_values(\n        1,"),
+            (framework._JPX_INSPECTION_ENTRY, "src/jpx/inspection.rs", "inspect_file",
+             "InspectionCollection::Layers", "InspectionCollection::Infos(false)"),
+        ):
+            entry = next(item for item in coverage["requirements"] if item["id"] == entry_id)
+            source = framework.ROOT / relative
+            original = source.read_text()
+            body = (framework._coverage_function_body(original, framework._coverage_function_header(original, symbol))
+                    if relative.startswith("src/") else framework._coverage_spec_function_body(original, symbol))
+            self.assertIn(before, body)
+            changed = original.replace(body, body.replace(before, after, 1), 1)
+
+            def altered(path, *args, **kwargs):
+                return changed if path == source else read_text(path, *args, **kwargs)
+
+            with self.subTest(symbol=symbol, before=before), mock.patch.object(Path, "read_text", altered), \
+                    self.assertRaisesRegex(ValueError, "ordered outer (inspection|layer) capacity"):
+                framework.validate_normative_coverage(dict(coverage, requirements=[entry]))
+
+    def test_inventory_copy_fill_requires_copy_and_exact_repeated_values(self):
+        coverage = json.loads((framework.VALIDATION / "normative-coverage.json").read_text())
+        entry = next(item for item in coverage["requirements"] if item["id"] == "part1-complete-native-progression-admission")
+        data = dict(coverage, requirements=[entry])
+        self.assertEqual(framework.validate_normative_coverage(data)["status"], "passed")
+        source = framework.ROOT / "src/codestream/mct_copy.rs"
+        original = source.read_text()
+        read_text = Path.read_text
+        header = framework._coverage_function_header(original, "filled_values")
+        contract = original[original.rfind("#[cfg_attr", 0, header.start()):original.index("{", header.end())]
+        for before, after in (
+            ("T: Copy", "T: Clone"),
+            ("Seq::new(count as nat", "Seq::new(0nat"),
+            ("|_: int| value", "|_: int| unrelated"),
+        ):
+            self.assertIn(before, contract)
+            changed = original.replace(contract, contract.replace(before, after, 1), 1)
+
+            def altered(path, *args, **kwargs):
+                return changed if path == source else read_text(path, *args, **kwargs)
+
+            with self.subTest(before=before), mock.patch.object(Path, "read_text", altered), \
+                    self.assertRaisesRegex(ValueError, "linked function lacks executable Verus contract"):
+                framework.validate_normative_coverage(data)
+
+    def test_inventory_cold_relations_require_complete_result_bodies_and_checked_normal_links(self):
+        coverage = json.loads((framework.VALIDATION / "normative-coverage.json").read_text())
+        read_text = Path.read_text
+        for entry_id, relative, symbol, before, after in (
+            (framework._RAW_TYPED_ENTRY, "specs/raw_decode.rs", "part2_decode_raw_cold_result",
+             "part2_cold_framed", "unrelated_frame"),
+            (framework._SOURCE_OPACITY_ENTRY, "specs/jpx_opacity.rs", "part2_opacity_cold_result",
+             "Ok(result)", "Ok((Ok(()), owned))"),
+            (framework._JPIP_PROGRESSIVE_ENTRY, "specs/jpip_progressive.rs", "part2_jpip_planned_cold_result",
+             "Seq::empty()", "events"),
+        ):
+            entry = next(item for item in coverage["requirements"] if item["id"] == entry_id)
+            source = framework.ROOT / relative
+            original = source.read_text()
+            body = framework._coverage_spec_function_body(original, symbol)
+            self.assertIn(before, body)
+            changed = original.replace(body, body.replace(before, after, 1), 1)
+
+            def altered(path, *args, **kwargs):
+                return changed if path == source else read_text(path, *args, **kwargs)
+
+            with self.subTest(symbol=symbol), mock.patch.object(Path, "read_text", altered), \
+                    self.assertRaisesRegex(ValueError, "invalid complete cold Result body"):
+                framework.validate_normative_coverage(dict(coverage, requirements=[entry]))
+        entry = copy.deepcopy(next(item for item in coverage["requirements"] if item["id"] == framework._RAW_TYPED_ENTRY))
+        entry["proof_refs"].remove({"path": "specs/raw_decode.rs", "symbol": "part2_decode_raw_cold_normal"})
+        with self.assertRaisesRegex(ValueError, "whole raw typed Result.*checked cold normal projections"):
+            framework.validate_normative_coverage(dict(coverage, requirements=[entry]))
+
+    def test_inventory_cold_frames_reject_phase_index_input_and_tail_substitution(self):
+        coverage = json.loads((framework.VALIDATION / "normative-coverage.json").read_text())
+        entry = next(item for item in coverage["requirements"] if item["id"] == framework._RAW_TYPED_ENTRY)
+        source = framework.ROOT / "specs/raw_decode.rs"
+        original, read_text = source.read_text(), Path.read_text
+        for symbol, before, after in (
+            ("part2_cold_prefix", "run(prefix + tail)", "run(prefix)"),
+            ("part2_cold_framed", "part2_cold_prefix(run, prefix, result)", "true"),
+            ("part2_cold_parse", "actual != phase || at != index", "false"),
+            ("part2_cold_parse", "rest.len() == 0", "true"),
+            ("part2_cold_parse", "part1_parse_layout_with_cold_storage(input, limits, calls)",
+             "part1_parse_layout_with_cold_storage(Seq::empty(), limits, calls)"),
+        ):
+            body = framework._coverage_spec_function_body(original, symbol)
+            self.assertIn(before, body)
+            changed = original.replace(body, body.replace(before, after, 1), 1)
+
+            def altered(path, *args, **kwargs):
+                return changed if path == source else read_text(path, *args, **kwargs)
+
+            with self.subTest(symbol=symbol, before=before), mock.patch.object(Path, "read_text", altered), \
+                    self.assertRaisesRegex(ValueError, "invalid exact cold event/tail frame"):
+                framework.validate_normative_coverage(dict(coverage, requirements=[entry]))
+
     def _assert_complete_packet_contract_bindings(self, entry_ids, recipes, expected_count, *, isolate=True):
         original_coverage = json.loads((framework.VALIDATION / "normative-coverage.json").read_text())
         self.assertEqual(framework.validate_normative_coverage(original_coverage)["status"], "passed")
@@ -7985,7 +8424,8 @@ class FrameworkTests(WorkingFiles):
 
         for reference in references:
             key = (reference["path"], reference["symbol"])
-            model = recipes[key][0]
+            cold_contract = framework._COLD_RESULT_CONTRACTS.get(key)
+            model = cold_contract[0] if cold_contract else recipes[key][0]
             entry = next(entry for entry in entries if reference in entry["contract_refs"] or reference in entry["proof_refs"])
             claimed_consumer = reference in entry["contract_refs"]
             coverage = copy.deepcopy(original_coverage)
@@ -7997,6 +8437,10 @@ class FrameworkTests(WorkingFiles):
             def actual_call(caller):
                 caller_source = (framework.ROOT / caller["path"]).read_text()
                 callee = reference["symbol"].rsplit("::", 1)[-1]
+                if (key in framework._MCT_PARAMETER_CLONE_CONTRACTS
+                        and caller == {"path": "src/codestream/layout.rs", "symbol": "Parser::parse_layout"}
+                        and re.search(framework._MCT_FALLIBLE_INHERITANCE, caller_source)):
+                    return True
                 if caller["path"] == reference["path"] or framework._coverage_named_caller_required(reference["path"]):
                     if framework._coverage_same_file_call(
                         caller_source, caller["symbol"], callee,
@@ -8034,8 +8478,44 @@ class FrameworkTests(WorkingFiles):
                     isolated["implementation_refs"] = actual_callers[:1]
                     isolated["spec_refs"] = [item for item in entry["spec_refs"] if item["symbol"] == model]
             if isolate:
-                isolated["proof_refs"] = [reference]
+                cold_models, cold_proofs = framework._coverage_cold_links({key})
+                if isolated["id"] == "part1-complete-native-owned-tile-inheritance":
+                    cold_models |= framework._MCT_COPY_MODELS | framework._PART2_COPY_MODELS
+                    cold_proofs |= framework._MCT_COPY_PROOFS | framework._PART2_COPY_PROOFS
+                if isolated["id"] == "part1-complete-native-mct-parameter-clone":
+                    cold_proofs |= {
+                        ("src/codestream/mct_copy.rs", "MctParameters::try_duplicate"),
+                        ("src/codestream/mct_copy.rs", "MctRecord::try_duplicate_at"),
+                        ("src/codestream/mct_copy.rs", "MctCollectionReference::try_duplicate_at"),
+                        ("specs/cold_mct_copy.rs", "part1_mct_copy_normal"),
+                    }
+                if isolated["id"] == "part2-complete-native-mct-graph-production":
+                    cold_models |= framework._RESOLVED_COPY_MODELS
+                    cold_proofs |= framework._RESOLVED_COPY_PROOFS
+                isolated["spec_refs"].extend(
+                    {"path": path, "symbol": symbol} for path, symbol in sorted(cold_models)
+                    if {"path": path, "symbol": symbol} not in isolated["spec_refs"]
+                )
+                isolated["proof_refs"] = [reference] + [
+                    {"path": path, "symbol": symbol} for path, symbol in sorted(cold_proofs)
+                ]
                 isolated["test_refs"] = entry["test_refs"][:1]
+                if key == ("src/codestream/packet_headers.rs", "PackedPacketHeaders::reassemble"):
+                    isolated["test_refs"] += [
+                        {"path": path, "symbol": symbol} for path, symbol in sorted(framework._PACKED_STORAGE_TESTS)
+                        if {"path": path, "symbol": symbol} not in isolated["test_refs"]
+                    ]
+                if key in {("src/packet/tile.rs", "prepare_progression_payloads"), ("src/packet/tile.rs", "progression_tile_progress_new")}:
+                    isolated["test_refs"] += [
+                        {"path": path, "symbol": symbol} for path, symbol in sorted(framework._PREPARATION_STORAGE_TESTS)
+                        if {"path": path, "symbol": symbol} not in isolated["test_refs"]
+                    ]
+                if key in {("src/packet/progression.rs", name) for name in (
+                        "packet_grid_count_summary", "packet_grid_new_with_component_resolutions", "packet_grid_new_with_selected_resolutions")}:
+                    isolated["test_refs"] += [
+                        {"path": path, "symbol": symbol} for path, symbol in sorted(framework._GRID_STORAGE_TESTS)
+                        if {"path": path, "symbol": symbol} not in isolated["test_refs"]
+                    ]
             self.assertEqual(framework.validate_normative_coverage(coverage)["status"], "passed")
             header = framework._coverage_function_header(
                 original, reference["symbol"],
@@ -8081,6 +8561,10 @@ class FrameworkTests(WorkingFiles):
             for match in re.finditer(r"\bold\s*\(\s*(\w+(?:\.\w+)?)\s*\)", primary_arguments):
                 arguments = primary_arguments[:match.start()] + f"final({match[1]})" + primary_arguments[match.end():]
                 mutations.append(contract[:opening + 1] + arguments + contract[closing:])
+            if cold_contract:
+                for match in re.finditer(r"\bfinal\s*\(\s*(\w+)\s*\)", primary_arguments):
+                    arguments = primary_arguments[:match.start()] + f"old({match[1]})" + primary_arguments[match.end():]
+                    mutations.append(contract[:opening + 1] + arguments + contract[closing:])
             for match in re.finditer(r"\b(?:0|None|true|false)\b", primary_arguments):
                 replacement = {"0": "1", "None": "Some(unrelated)", "true": "false", "false": "true"}[match[0]]
                 arguments = primary_arguments[:match.start()] + replacement + primary_arguments[match.end():]

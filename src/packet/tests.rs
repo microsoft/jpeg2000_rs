@@ -2328,6 +2328,189 @@ fn full_progression_uses_real_ppt_reassembly_and_plt_iteration_without_tile_body
 }
 
 #[test]
+fn packed_storage_first_and_later_preparation_refusal_preserve_entire_precinct_state() {
+    let stream = literal_packed_progression_stream(1);
+    let limits = ResourceLimits::default();
+    let layout = crate::codestream::parse_layout(&stream, &limits).unwrap();
+    let grid = packet_grid_new_with_component_resolutions(1, 1, vec![1], vec![1], &limits).unwrap();
+    let mut parts = [layout.tile_parts[0].clone(), layout.tile_parts[0].clone()];
+    parts[0].tile_part_count = 2;
+    parts[1].tile_part_index = 1;
+    parts[1].tile_part_count = 2;
+    let source_before = format!("{parts:?}");
+    for after in [1, 2] {
+        let mut precincts = [literal_packet_precinct()];
+        let before = exact_packet_precinct_snapshot(&precincts[0]);
+        assert_eq!(
+            crate::allocation::with_refusal(after, || decode_progression_tile_packets(
+                &parts,
+                &grid,
+                &mut precincts,
+                &limits
+            )),
+            Err(DecodeError::AllocationFailed)
+        );
+        assert_eq!(exact_packet_precinct_snapshot(&precincts[0]), before);
+        assert_eq!(format!("{parts:?}"), source_before);
+    }
+    let mut precincts = [literal_packet_precinct()];
+    assert!(
+        decode_progression_tile_packets(&layout.tile_parts, &grid, &mut precincts, &limits).is_ok()
+    );
+}
+
+#[test]
+fn packed_storage_earlier_tile_error_and_selected_preparation_keep_refusal_frontier() {
+    let stream = literal_packed_progression_stream(1);
+    let limits = ResourceLimits::default();
+    let layout = crate::codestream::parse_layout(&stream, &limits).unwrap();
+    let grid = packet_grid_new_with_component_resolutions(1, 1, vec![1], vec![1], &limits).unwrap();
+    let mut invalid = layout.tile_parts[0].clone();
+    invalid.tile_part_index = 1;
+    let mut precincts = [literal_packet_precinct()];
+    let before = exact_packet_precinct_snapshot(&precincts[0]);
+    crate::allocation::with_refusal(1, || {
+        assert!(matches!(
+            decode_progression_tile_packets(&[invalid], &grid, &mut precincts, &limits),
+            Err(DecodeError::MalformedInput {
+                kind: MalformedKind::InvalidTilePart,
+                ..
+            })
+        ));
+        assert_eq!(
+            layout.tile_parts[0]
+                .packed_packet_headers
+                .reassemble(&limits),
+            Err(DecodeError::AllocationFailed)
+        );
+    });
+    assert_eq!(
+        crate::allocation::with_refusal(1, || decode_progression_tile_packets_selected(
+            &layout.tile_parts,
+            &grid,
+            &mut precincts,
+            Some(&[1]),
+            &limits
+        )),
+        Err(DecodeError::AllocationFailed)
+    );
+    assert_eq!(exact_packet_precinct_snapshot(&precincts[0]), before);
+}
+
+#[test]
+fn preparation_storage_outer_and_seen_refusals_preserve_precincts_and_restore() {
+    let stream = literal_packed_progression_stream(1);
+    let limits = ResourceLimits::default();
+    let layout = crate::codestream::parse_layout(&stream, &limits).unwrap();
+    let grid = packet_grid_new_with_component_resolutions(1, 1, vec![1], vec![1], &limits).unwrap();
+    let source = format!("{:?}", layout.tile_parts);
+    for after in [0, 2] {
+        let mut precincts = [literal_packet_precinct()];
+        let before = exact_packet_precinct_snapshot(&precincts[0]);
+        assert_eq!(
+            crate::allocation::with_refusal(after, || decode_progression_tile_packets(
+                &layout.tile_parts,
+                &grid,
+                &mut precincts,
+                &limits
+            )),
+            Err(DecodeError::AllocationFailed)
+        );
+        assert_eq!(exact_packet_precinct_snapshot(&precincts[0]), before);
+        assert_eq!(
+            crate::allocation::with_refusal(after, || decode_progression_tile_packets_selected(
+                &layout.tile_parts,
+                &grid,
+                &mut precincts,
+                Some(&[1]),
+                &limits
+            )),
+            Err(DecodeError::AllocationFailed)
+        );
+        assert_eq!(exact_packet_precinct_snapshot(&precincts[0]), before);
+    }
+    let mut precincts = [literal_packet_precinct()];
+    assert!(
+        decode_progression_tile_packets(&layout.tile_parts, &grid, &mut precincts, &limits).is_ok()
+    );
+    assert_eq!(format!("{:?}", layout.tile_parts), source);
+}
+
+#[test]
+fn preparation_storage_empty_geometry_and_iterator_errors_consume_no_later_request() {
+    let limits = ResourceLimits::default();
+    let grid = packet_grid_new_with_component_resolutions(1, 1, vec![1], vec![0], &limits).unwrap();
+    let parts = [literal_progression_tile(&[], 1, 0, 0, 1)];
+    let input = prepare_progression_tile_input(&parts, &grid, &[], None, &limits).unwrap();
+    let params = ProgressionTileParameters {
+        tile_parts: &parts,
+        grid: &grid,
+        input: &input,
+        selection: None,
+        limits: &limits,
+    };
+    let positive =
+        packet_grid_new_with_component_resolutions(1, 1, vec![1], vec![1], &limits).unwrap();
+    let mut invalid = [literal_progression_tile(&[], 1, 0, 0, 1)];
+    invalid[0].progression_changes = ProgressionChanges::from_records(vec![ProgressionChange {
+        resolution_start: 2,
+        ..literal_progression_window()
+    }]);
+    let precincts = [literal_packet_precinct()];
+    let prepared =
+        prepare_progression_tile_input(&invalid, &positive, &precincts, None, &limits).unwrap();
+    let bad = ProgressionTileParameters {
+        tile_parts: &invalid,
+        grid: &positive,
+        input: &prepared,
+        selection: None,
+        limits: &limits,
+    };
+    let tight = limits.with_maximum_work_units(1).unwrap();
+    let mut costly = [literal_progression_tile(&[], 1, 0, 0, 1)];
+    costly[0].progression_changes = ProgressionChanges::from_records(vec![ProgressionChange {
+        layer_end: 2,
+        ..literal_progression_window()
+    }]);
+    let admitted =
+        prepare_progression_tile_input(&costly, &positive, &precincts, None, &tight).unwrap();
+    let limited = ProgressionTileParameters {
+        tile_parts: &costly,
+        grid: &positive,
+        input: &admitted,
+        selection: None,
+        limits: &tight,
+    };
+    crate::allocation::with_refusal(0, || {
+        assert!(prepare_progression_tile_input(&[], &positive, &precincts, None, &limits).is_err());
+        assert!(
+            progression_tile_progress_new(&params)
+                .unwrap()
+                .seen
+                .is_empty()
+        );
+        assert!(matches!(
+            progression_tile_progress_new(&bad),
+            Err(DecodeError::MalformedInput {
+                kind: MalformedKind::InvalidProgressionOrderChange,
+                ..
+            })
+        ));
+        assert!(matches!(
+            progression_tile_progress_new(&limited),
+            Err(DecodeError::LimitExceeded {
+                resource: Resource::WorkUnits,
+                ..
+            })
+        ));
+        assert_eq!(
+            crate::allocation::filled_values(false, 1),
+            Err(DecodeError::AllocationFailed)
+        );
+    });
+}
+
+#[test]
 fn retained_packet_prefixes_validate_poc_coverage_tile_parts_and_packed_lengths() {
     let limits = ResourceLimits::default();
     let grid = packet_grid_new_with_component_resolutions(2, 1, vec![1], vec![1], &limits).unwrap();

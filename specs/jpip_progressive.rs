@@ -17,7 +17,7 @@ pub type Part2JpipAutomaticProgressiveResult = (
     Result<Part2JpipProgressiveUpdate, crate::DecodeError>, Part2JpipAutomaticProgressiveDecoder, Part2JpipCache,
 );
 
-pub closed spec fn part2_jpip_automatic_progressive_run(
+pub closed spec fn part2_jpip_automatic_progressive_normal_run(
     cache: Part2JpipCache, decoder: Part2JpipAutomaticProgressiveDecoder,
     options: &crate::DecodeOptions, selection: Option<&crate::DecodeSelection>, components: Seq<u16>,
     events: Seq<Part2JpipSnapshotEvent>,
@@ -60,17 +60,17 @@ pub open spec fn part2_jpip_automatic_progressive_update_result(
     options: &crate::DecodeOptions, selection: Option<&crate::DecodeSelection>, components: Seq<u16>,
     result: Part2JpipAutomaticProgressiveResult,
 ) -> bool {
-    exists|events: Seq<Part2JpipSnapshotEvent>|
+    exists|events: Seq<Part2JpipAutomaticEvent>|
         part2_jpip_automatic_progressive_run(cache, decoder, options, selection, components, events)
             == Some((result, Seq::empty()))
 }
 
-pub(crate) proof fn part2_jpip_automatic_progressive_run_unfold(
+pub(crate) proof fn part2_jpip_automatic_progressive_normal_run_unfold(
     cache: Part2JpipCache, decoder: Part2JpipAutomaticProgressiveDecoder,
     options: &crate::DecodeOptions, selection: Option<&crate::DecodeSelection>, components: Seq<u16>,
     events: Seq<Part2JpipSnapshotEvent>,
 )
-    ensures part2_jpip_automatic_progressive_run(cache, decoder, options, selection, components, events)
+    ensures part2_jpip_automatic_progressive_normal_run(cache, decoder, options, selection, components, events)
         == {
             let input = Part2JpipSnapshotInput {
                 cache, stream: decoder.0,
@@ -105,7 +105,310 @@ pub(crate) proof fn part2_jpip_automatic_progressive_run_unfold(
             }
         },
 {
+    reveal(part2_jpip_automatic_progressive_normal_run);
+}
+
+pub enum Part2JpipAutomaticEvent {
+    Snapshot { calls: Seq<Part2JpipSnapshotEvent> },
+    Transcode { calls: Seq<Part2JpipSnapshotEvent> },
+    Image { calls: Seq<Part2JpipSnapshotEvent> },
+}
+
+pub(crate) type Part2JpipPlannedResult = (
+    Result<Part2JpipProgressiveUpdate, crate::DecodeError>, Part2JpipProgressiveDecoder, Part2JpipCache,
+);
+
+pub(crate) open spec fn part2_jpip_planned_transcode_call(
+    cache: Part2JpipCache, plan: Part2JpipPlan, available: u16, events: Seq<Part2JpipAutomaticEvent>,
+) -> Option<(Result<Part2JpipTranscode, crate::DecodeError>, Seq<Part2JpipAutomaticEvent>)> {
+    if events.len() == 0 { None } else {
+        match events[0] {
+            Part2JpipAutomaticEvent::Transcode { calls } =>
+                match part2_jpip_transcode_cold_run(cache, plan, available, calls) {
+                    Some((result, rest)) => if rest.len() == 0 { Some((result, events.drop_first())) } else { None },
+                    None => None,
+                },
+            _ => None,
+        }
+    }
+}
+
+pub(crate) open spec fn part2_jpip_planned_image_frame(
+    cache: Part2JpipCache, decoder: Part2JpipProgressiveDecoder, available: u16,
+    missing: Seq<Part2JpipMissing>, decoded: Result<Part1DecodedTypedImage, crate::DecodeError>,
+) -> Part2JpipPlannedResult {
+    match decoded {
+        Err(error) => (Err(error), decoder, cache),
+        Ok(image) => (Ok((
+            if available == decoder.0.3.len() as u16 { crate::jpip::JpipProgressiveStatus::Complete }
+            else { crate::jpip::JpipProgressiveStatus::QualityAdvanced },
+            decoder.1, available, missing, Some(image))), (decoder.0, available), cache),
+    }
+}
+
+pub(crate) open spec fn part2_jpip_planned_cold_run(
+    cache: Part2JpipCache, decoder: Part2JpipProgressiveDecoder,
+    options: &crate::DecodeOptions, selection: Option<&crate::DecodeSelection>,
+    events: Seq<Part2JpipAutomaticEvent>,
+) -> Option<(Part2JpipPlannedResult, Seq<Part2JpipAutomaticEvent>)> {
+    let planned = decoder.0.3.len() as u16;
+    match part2_jpip_progressive_availability(cache, decoder.0) {
+        Err(error) => Some(((Err(error), decoder, cache), events)),
+        Ok((available, missing)) => {
+            if !valid_jpip_progressive_update(decoder.1 as nat, available as nat, planned as nat) {
+                Some(((Err(part2_jpip_plan_invalid(0)), decoder, cache), events))
+            } else if available <= decoder.1 {
+                Some(((Ok((if available == planned { crate::jpip::JpipProgressiveStatus::Complete }
+                    else { crate::jpip::JpipProgressiveStatus::WaitingForData },
+                    decoder.1, available, missing, None)), decoder, cache), events))
+            } else {
+                match part2_jpip_planned_transcode_call(cache, decoder.0, available, events) {
+                    None => None,
+                    Some((Err(error), rest)) => Some(((Err(error), decoder, cache), rest)),
+                    Some((Ok(transcoded), rest)) => match transcoded.2 {
+                        None => Some(((Err(part2_jpip_cache_error(0, crate::MalformedKind::MissingRequiredStructure)), decoder, cache), rest)),
+                        Some(bytes) => match part2_jpip_automatic_image_call(bytes, options, selection, rest) {
+                            None => None,
+                            Some((decoded, tail)) => Some((
+                                part2_jpip_planned_image_frame(cache, decoder, available, missing, decoded), tail)),
+                        },
+                    },
+                }
+            }
+        },
+    }
+}
+
+pub closed spec fn part2_jpip_planned_cold_result(
+    cache: Part2JpipCache, decoder: Part2JpipProgressiveDecoder,
+    options: &crate::DecodeOptions, selection: Option<&crate::DecodeSelection>, result: Part2JpipPlannedResult,
+) -> bool {
+    exists|events: Seq<Part2JpipAutomaticEvent>|
+        part2_jpip_planned_cold_run(cache, decoder, options, selection, events)
+            == Some((result, Seq::empty()))
+}
+
+pub(crate) proof fn part2_jpip_planned_cold_normal(
+    cache: Part2JpipCache, decoder: Part2JpipProgressiveDecoder,
+    options: &crate::DecodeOptions, selection: Option<&crate::DecodeSelection>,
+)
+    ensures part2_jpip_planned_cold_result(cache, decoder, options, selection,
+        (part2_jpip_progressive_update(cache, decoder, options, selection).0,
+            part2_jpip_progressive_update(cache, decoder, options, selection).1, cache)),
+{
+    reveal(part2_jpip_planned_cold_result);
+    let result = part2_jpip_progressive_update(cache, decoder, options, selection);
+    let mut events: Seq<Part2JpipAutomaticEvent> = Seq::empty();
+    if let Ok((available, missing)) = part2_jpip_progressive_availability(cache, decoder.0) {
+        if valid_jpip_progressive_update(decoder.1 as nat, available as nat, (decoder.0.3.len() as u16) as nat)
+            && available > decoder.1 {
+            let transcoded = part2_jpip_transcode(cache, decoder.0, available);
+            part2_jpip_transcode_cold_normal(cache, decoder.0, available);
+            part2_jpip_transcode_cold_frames(cache, decoder.0, available, transcoded);
+            let calls = part2_cold_witness(
+                |events| part2_jpip_transcode_cold_run(cache, decoder.0, available, events), transcoded);
+            events = seq![Part2JpipAutomaticEvent::Transcode { calls }];
+            assert(events.drop_first() =~= Seq::empty());
+            if let Ok((_, _, Some(bytes))) = transcoded {
+                let decoded = part2_decode_raw_codestream(bytes, crate::options::decode_options_limits(options), selection);
+                part2_decode_raw_cold_normal(bytes, crate::options::decode_options_limits(options), selection);
+                part2_decode_raw_cold_frames(bytes, crate::options::decode_options_limits(options), selection, decoded);
+                let image_calls = part2_cold_witness(
+                    |events| part2_decode_raw_cold_run(bytes, crate::options::decode_options_limits(options), selection, events), decoded);
+                events = events + seq![Part2JpipAutomaticEvent::Image { calls: image_calls }];
+                assert(events.drop_first() =~= seq![Part2JpipAutomaticEvent::Image { calls: image_calls }]);
+                assert(events.drop_first().drop_first() =~= Seq::empty());
+            }
+        }
+    }
+    assert(part2_jpip_planned_cold_run(cache, decoder, options, selection, events)
+        == Some(((result.0, result.1, cache), Seq::empty())));
+}
+
+pub(crate) proof fn part2_jpip_planned_transcode_error(
+    cache: Part2JpipCache, decoder: Part2JpipProgressiveDecoder,
+    options: &crate::DecodeOptions, selection: Option<&crate::DecodeSelection>,
+    available: u16, missing: Seq<Part2JpipMissing>, error: crate::DecodeError,
+)
+    requires part2_jpip_progressive_availability(cache, decoder.0) == Ok((available, missing)),
+        valid_jpip_progressive_update(decoder.1 as nat, available as nat, (decoder.0.3.len() as u16) as nat),
+        available > decoder.1, part2_jpip_transcode_cold_result(cache, decoder.0, available, Err(error)),
+    ensures part2_jpip_planned_cold_result(cache, decoder, options, selection, (Err(error), decoder, cache)),
+{
+    reveal(part2_jpip_planned_cold_result);
+    part2_jpip_transcode_cold_frames(cache, decoder.0, available, Err(error));
+    let calls = part2_cold_witness(
+        |events| part2_jpip_transcode_cold_run(cache, decoder.0, available, events), Err(error));
+    let events = seq![Part2JpipAutomaticEvent::Transcode { calls }];
+    assert(events.drop_first() =~= Seq::empty());
+    assert(part2_jpip_planned_cold_run(cache, decoder, options, selection, events)
+        == Some(((Err(error), decoder, cache), Seq::empty())));
+}
+
+pub(crate) proof fn part2_jpip_planned_image_actual(
+    cache: Part2JpipCache, decoder: Part2JpipProgressiveDecoder,
+    options: &crate::DecodeOptions, selection: Option<&crate::DecodeSelection>,
+    available: u16, missing: Seq<Part2JpipMissing>, transcoded: Part2JpipTranscode,
+    bytes: Seq<u8>, decoded: Result<Part1DecodedTypedImage, crate::DecodeError>,
+)
+    requires part2_jpip_progressive_availability(cache, decoder.0) == Ok((available, missing)),
+        valid_jpip_progressive_update(decoder.1 as nat, available as nat, (decoder.0.3.len() as u16) as nat),
+        available > decoder.1,
+        part2_jpip_transcode_cold_result(cache, decoder.0, available, Ok(transcoded)), transcoded.2 == Some(bytes),
+        part2_decode_raw_cold_result(bytes, crate::options::decode_options_limits(options), selection, decoded),
+    ensures part2_jpip_planned_cold_result(cache, decoder, options, selection,
+        part2_jpip_planned_image_frame(cache, decoder, available, missing, decoded)),
+{
+    reveal(part2_jpip_planned_cold_result);
+    part2_jpip_transcode_cold_frames(cache, decoder.0, available, Ok(transcoded));
+    let calls = part2_cold_witness(
+        |events| part2_jpip_transcode_cold_run(cache, decoder.0, available, events), Ok(transcoded));
+    part2_decode_raw_cold_frames(bytes, crate::options::decode_options_limits(options), selection, decoded);
+    let image_calls = part2_cold_witness(
+        |events| part2_decode_raw_cold_run(bytes, crate::options::decode_options_limits(options), selection, events), decoded);
+    let events = seq![Part2JpipAutomaticEvent::Transcode { calls },
+        Part2JpipAutomaticEvent::Image { calls: image_calls }];
+    assert(events.drop_first() =~= seq![Part2JpipAutomaticEvent::Image { calls: image_calls }]);
+    assert(events.drop_first().drop_first() =~= Seq::empty());
+    assert(part2_jpip_planned_cold_run(cache, decoder, options, selection, events)
+        == Some((part2_jpip_planned_image_frame(cache, decoder, available, missing, decoded), Seq::empty())));
+}
+
+pub(crate) open spec fn part2_jpip_automatic_snapshot_call(
+    input: Part2JpipSnapshotInput<'_>, events: Seq<Part2JpipAutomaticEvent>,
+) -> Option<(Result<Part2JpipAutomaticSnapshotResult, crate::DecodeError>, Seq<Part2JpipAutomaticEvent>)> {
+    if events.len() == 0 { None } else {
+        match events[0] {
+            Part2JpipAutomaticEvent::Snapshot { calls } => match part2_jpip_snapshot_run(input, calls) {
+                Some((result, rest)) => if rest.len() == 0 { Some((result, events.drop_first())) } else { None },
+                None => None,
+            },
+            _ => None,
+        }
+    }
+}
+
+pub(crate) open spec fn part2_jpip_automatic_image_call(
+    bytes: Seq<u8>, options: &crate::DecodeOptions, selection: Option<&crate::DecodeSelection>,
+    events: Seq<Part2JpipAutomaticEvent>,
+) -> Option<(Result<Part1DecodedTypedImage, crate::DecodeError>, Seq<Part2JpipAutomaticEvent>)> {
+    if events.len() == 0 { None } else {
+        match events[0] {
+            Part2JpipAutomaticEvent::Image { calls } => match part2_decode_raw_cold_run(
+                bytes, crate::options::decode_options_limits(options), selection, calls) {
+                Some((result, rest)) => if rest.len() == 0 { Some((result, events.drop_first())) } else { None },
+                None => None,
+            },
+            _ => None,
+        }
+    }
+}
+
+pub(crate) open spec fn part2_jpip_automatic_image_frame(
+    cache: Part2JpipCache, decoder: Part2JpipAutomaticProgressiveDecoder,
+    snapshot: Part2JpipAutomaticSnapshot, image: Result<Part1DecodedTypedImage, crate::DecodeError>,
+) -> Part2JpipAutomaticProgressiveResult {
+    match image {
+        Err(error) => (Err(error), decoder, cache),
+        Ok(image) => (Ok((
+            if snapshot.1 == snapshot.2 { crate::jpip::JpipProgressiveStatus::Complete }
+            else { crate::jpip::JpipProgressiveStatus::QualityAdvanced },
+            decoder.1, snapshot.1, snapshot.3, Some(image))), (decoder.0, snapshot.1), cache),
+    }
+}
+
+pub(crate) open spec fn part2_jpip_automatic_after_snapshot(
+    cache: Part2JpipCache, decoder: Part2JpipAutomaticProgressiveDecoder,
+    options: &crate::DecodeOptions, selection: Option<&crate::DecodeSelection>,
+    snapshot: Part2JpipAutomaticSnapshotResult, events: Seq<Part2JpipAutomaticEvent>,
+) -> Option<(Part2JpipAutomaticProgressiveResult, Seq<Part2JpipAutomaticEvent>)> {
+    match snapshot {
+        (None, missing) => Some(((Ok((
+            crate::jpip::JpipProgressiveStatus::WaitingForData, decoder.1, 0, missing, None)), decoder, cache), events)),
+        (Some(snapshot), _) => {
+            if !valid_jpip_progressive_update(decoder.1 as nat, snapshot.1 as nat, snapshot.2 as nat) {
+                Some(((Err(part2_jpip_plan_invalid(0)), decoder, cache), events))
+            } else if snapshot.1 <= decoder.1 {
+                Some(((Ok((if snapshot.1 == snapshot.2 { crate::jpip::JpipProgressiveStatus::Complete }
+                    else { crate::jpip::JpipProgressiveStatus::WaitingForData },
+                    decoder.1, snapshot.1, snapshot.3, None)), decoder, cache), events))
+            } else {
+                match part2_jpip_automatic_image_call(snapshot.0, options, selection, events) {
+                    None => None,
+                    Some((image, rest)) => Some((part2_jpip_automatic_image_frame(cache, decoder, snapshot, image), rest)),
+                }
+            }
+        },
+    }
+}
+
+pub closed spec fn part2_jpip_automatic_progressive_run(
+    cache: Part2JpipCache, decoder: Part2JpipAutomaticProgressiveDecoder,
+    options: &crate::DecodeOptions, selection: Option<&crate::DecodeSelection>, components: Seq<u16>,
+    events: Seq<Part2JpipAutomaticEvent>,
+) -> Option<(Part2JpipAutomaticProgressiveResult, Seq<Part2JpipAutomaticEvent>)> {
+    let input = Part2JpipSnapshotInput {
+        cache, stream: decoder.0,
+        selected: match selection { None => None, Some(value) => Some(crate::options::decode_selection_view(value)) },
+        components, limits: crate::options::decode_options_limits(options),
+    };
+    match part2_jpip_automatic_snapshot_call(input, events) {
+        None => None,
+        Some((Err(error), rest)) => Some(((Err(error), decoder, cache), rest)),
+        Some((Ok(snapshot), rest)) => part2_jpip_automatic_after_snapshot(cache, decoder, options, selection, snapshot, rest),
+    }
+}
+
+pub(crate) proof fn part2_jpip_automatic_progressive_run_unfold(
+    cache: Part2JpipCache, decoder: Part2JpipAutomaticProgressiveDecoder,
+    options: &crate::DecodeOptions, selection: Option<&crate::DecodeSelection>, components: Seq<u16>,
+    events: Seq<Part2JpipAutomaticEvent>,
+)
+    ensures part2_jpip_automatic_progressive_run(cache, decoder, options, selection, components, events)
+        == {
+            let input = Part2JpipSnapshotInput {
+                cache, stream: decoder.0,
+                selected: match selection { None => None, Some(value) => Some(crate::options::decode_selection_view(value)) },
+                components, limits: crate::options::decode_options_limits(options),
+            };
+            match part2_jpip_automatic_snapshot_call(input, events) {
+                None => None,
+                Some((Err(error), rest)) => Some(((Err(error), decoder, cache), rest)),
+                Some((Ok(snapshot), rest)) => part2_jpip_automatic_after_snapshot(cache, decoder, options, selection, snapshot, rest),
+            }
+        },
+{
     reveal(part2_jpip_automatic_progressive_run);
+}
+
+pub(crate) proof fn part2_jpip_automatic_image_actual(
+    cache: Part2JpipCache, decoder: Part2JpipAutomaticProgressiveDecoder,
+    options: &crate::DecodeOptions, selection: Option<&crate::DecodeSelection>, components: Seq<u16>,
+    snapshot_calls: Seq<Part2JpipSnapshotEvent>, snapshot: Part2JpipAutomaticSnapshot,
+    outer_missing: Seq<Part2JpipMissing>, decoded: Result<Part1DecodedTypedImage, crate::DecodeError>,
+)
+    requires part2_jpip_snapshot_run(Part2JpipSnapshotInput {
+            cache, stream: decoder.0,
+            selected: match selection { None => None, Some(value) => Some(crate::options::decode_selection_view(value)) },
+            components, limits: crate::options::decode_options_limits(options),
+        }, snapshot_calls) == Some((Ok((Some(snapshot), outer_missing)), Seq::empty())),
+        valid_jpip_progressive_update(decoder.1 as nat, snapshot.1 as nat, snapshot.2 as nat),
+        snapshot.1 > decoder.1,
+        part2_decode_raw_cold_result(snapshot.0, crate::options::decode_options_limits(options), selection, decoded),
+    ensures part2_jpip_automatic_progressive_update_result(cache, decoder, options, selection, components,
+        part2_jpip_automatic_image_frame(cache, decoder, snapshot, decoded)),
+{
+    part2_decode_raw_cold_frames(snapshot.0, crate::options::decode_options_limits(options), selection, decoded);
+    let image_calls = part2_cold_witness(
+        |events| part2_decode_raw_cold_run(snapshot.0, crate::options::decode_options_limits(options), selection, events), decoded);
+    assert(image_calls + Seq::empty() =~= image_calls);
+    let events = seq![Part2JpipAutomaticEvent::Snapshot { calls: snapshot_calls },
+        Part2JpipAutomaticEvent::Image { calls: image_calls }];
+    assert(events.drop_first() =~= seq![Part2JpipAutomaticEvent::Image { calls: image_calls }]);
+    assert(events.drop_first().drop_first() =~= Seq::empty());
+    part2_jpip_automatic_progressive_run_unfold(cache, decoder, options, selection, components, events);
+    assert(part2_jpip_automatic_progressive_run(cache, decoder, options, selection, components, events)
+        == Some((part2_jpip_automatic_image_frame(cache, decoder, snapshot, decoded), Seq::empty())));
 }
 
 #[verifier::opaque]

@@ -19,7 +19,10 @@ use super::{
 use vstd::prelude::*;
 
 #[cfg_attr(verus_keep_ghost,verus_spec(result =>
-    ensures (result,packet_precinct_vector_view(final(precincts)))==crate::specs::part1_progression_tile_decode(
+    ensures crate::specs::part1_progression_tile_cold_result(tile_parts@,packet_grid_view(grid),
+            packet_precinct_vector_view(old(precincts)),None,limits,(result,packet_precinct_vector_view(final(precincts)))),
+        result!=Err(DecodeError::AllocationFailed) ==>
+        (result,packet_precinct_vector_view(final(precincts)))==crate::specs::part1_progression_tile_decode(
         tile_parts@,packet_grid_view(grid),packet_precinct_vector_view(old(precincts)),None,limits),
 ))]
 pub fn decode_progression_tile_packets(
@@ -28,6 +31,9 @@ pub fn decode_progression_tile_packets(
     precincts: &mut [PacketPrecinctDecoder],
     limits: &ResourceLimits,
 ) -> Result<TilePacketDecode, DecodeError> {
+    #[cfg(verus_keep_ghost)]
+    proof! {crate::specs::part2_packet_public_result_equivalent(tile_parts@,packet_grid_view(grid),
+    packet_precinct_vector_view(precincts),None,limits);}
     decode_progression_tile_packets_selected(tile_parts, grid, precincts, None, limits)
 }
 
@@ -144,7 +150,10 @@ fn validate_progression_layout(
 }
 
 #[cfg_attr(verus_keep_ghost,verus_spec(result =>
-    ensures progression_tile_preparation_outcome(result)==crate::specs::part1_progression_payloads(
+    ensures crate::specs::part2_prepare_payloads_result(crate::codestream::tile_parts_owned_view(tile_parts@),tile_index,
+        crate::limits::resource_packet_header_byte_limit(limits),progression_tile_preparation_outcome(result)),
+        progression_tile_preparation_outcome(result)!=Err(DecodeError::AllocationFailed) ==>
+        progression_tile_preparation_outcome(result)==crate::specs::part1_progression_payloads(
         tile_parts@,crate::specs::Part1TilePacketPreparation {
             tile_index,index:0,payload_bytes:0,packed_payload_bytes:0,declared_packets:0,all_lengths:true,packed:Seq::empty(),
         },crate::limits::resource_packet_header_byte_limit(limits)),
@@ -154,6 +163,23 @@ fn prepare_progression_payloads(
     tile_index: u16,
     limits: &ResourceLimits,
 ) -> Result<ProgressionTilePreparation, DecodeError> {
+    #[cfg(verus_keep_ghost)]
+    proof_decl! {
+        let ghost initial=crate::specs::Part1TilePacketPreparation {
+            tile_index,index:0,payload_bytes:0,packed_payload_bytes:0,declared_packets:0,all_lengths:true,packed:Seq::empty(),
+        };
+        let ghost parts=crate::codestream::tile_parts_owned_view(tile_parts@);
+        let ghost maximum=crate::limits::resource_packet_header_byte_limit(limits);
+        let ghost mut prefix=Seq::<crate::specs::Part2JpipSnapshotEvent>::empty();
+    }
+    #[cfg(verus_keep_ghost)]
+    proof! {
+        crate::specs::part2_payloads_normal(parts,initial,maximum);
+        crate::specs::part2_prepare_payloads_normal(parts,tile_index,maximum);
+        assert forall|tail:Seq<crate::specs::Part2JpipSnapshotEvent>|
+            crate::specs::part2_payloads_run(parts,initial,maximum,prefix+tail)==crate::specs::part2_payloads_run(parts,initial,maximum,tail)
+            by {assert(prefix+tail =~= tail);}
+    }
     let mut input = ProgressionTilePreparation {
         tile_index,
         index: 0,
@@ -161,7 +187,21 @@ fn prepare_progression_payloads(
         packed_payload_bytes: 0,
         declared_packets: 0,
         all_lengths: true,
-        packed: Vec::with_capacity(tile_parts.len()),
+        packed: {
+            let reserved = if tile_parts.is_empty() {
+                Ok(Vec::new())
+            } else {
+                crate::allocation::empty_with_capacity(tile_parts.len())
+            };
+            #[cfg(verus_keep_ghost)]
+            proof! {
+                let context=crate::specs::Part2PacketPreparationContext::Packed {parts,tile:tile_index};
+                let response=match reserved {Ok(_)=>Ok(()),Err(error)=>Err(error)};
+                crate::specs::part2_preparation_observed(context,response);
+                if reserved.is_err() {crate::specs::part2_prepare_payloads_capacity_error(parts,tile_index,maximum);}
+            }
+            reserved?
+        },
     };
     #[cfg(verus_keep_ghost)]
     proof! {
@@ -171,6 +211,17 @@ fn prepare_progression_payloads(
     }
     #[cfg_attr(verus_keep_ghost,verus_spec(
         invariant input.index<=tile_parts@.len(),
+            parts==crate::codestream::tile_parts_owned_view(tile_parts@),
+            maximum==crate::limits::resource_packet_header_byte_limit(limits),
+            initial==(crate::specs::Part1TilePacketPreparation {
+                tile_index,index:0,payload_bytes:0,packed_payload_bytes:0,declared_packets:0,all_lengths:true,packed:Seq::empty(),
+            }),
+            crate::specs::part2_payloads_result(parts,initial,maximum,crate::specs::part1_progression_payloads_owned(parts,initial,maximum)),
+            crate::specs::part2_prepare_payloads_result(parts,tile_index,maximum,crate::specs::part1_progression_payloads_owned(parts,initial,maximum)),
+            crate::specs::part2_preparation_capacity_result(crate::specs::Part2PacketPreparationContext::Packed {parts,tile:tile_index},Ok(())),
+            forall|tail:Seq<crate::specs::Part2JpipSnapshotEvent>|
+                crate::specs::part2_payloads_run(parts,initial,maximum,prefix+tail)
+                    ==crate::specs::part2_payloads_run(parts,progression_tile_preparation_view(&input),maximum,tail),
             input.tile_index==tile_index,
             crate::specs::part1_progression_payloads(tile_parts@,crate::specs::Part1TilePacketPreparation {
                 tile_index,index:0,payload_bytes:0,packed_payload_bytes:0,declared_packets:0,all_lengths:true,packed:Seq::empty(),
@@ -202,7 +253,13 @@ fn prepare_progression_payloads(
             Some(total) => total,
             None => return Err(packet_arithmetic_overflow()),
         };
-        let packed = part.packed_packet_headers.reassemble(limits)?;
+        let packed_result = part.packed_packet_headers.reassemble(limits);
+        #[cfg(verus_keep_ghost)]
+        proof! {if let Err(error)=packed_result {
+            crate::specs::part2_payloads_error(parts,initial,prior,maximum,prefix,error);
+            crate::specs::part2_prepare_payloads_inner_error(parts,tile_index,maximum,error);
+        }}
+        let packed = packed_result?;
         input.packed_payload_bytes =
             match input.packed_payload_bytes.checked_add(packed.len() as u64) {
                 Some(total) => total,
@@ -238,6 +295,10 @@ fn prepare_progression_payloads(
             Some(index) => index,
             None => return Err(packet_arithmetic_overflow()),
         };
+        #[cfg(verus_keep_ghost)]
+        proof! {
+            prefix=crate::specs::part2_payloads_advance(parts,initial,prior,progression_tile_preparation_view(&input),packed_bytes,maximum,prefix);
+        }
     }
     #[cfg(verus_keep_ghost)]
     proof! {reveal(crate::specs::part1_progression_payloads);reveal(crate::specs::part1_progression_payloads_owned);}
@@ -290,7 +351,10 @@ fn validate_progression_precinct_layout(
 }
 
 #[cfg_attr(verus_keep_ghost,verus_spec(result =>
-    ensures progression_tile_preparation_outcome(result)==crate::specs::part1_progression_tile_input(
+    ensures crate::specs::part2_packet_input_result(crate::codestream::tile_parts_owned_view(tile_parts@),packet_grid_view(grid),
+            packet_precinct_vector_view(precincts),packet_selection_view(selection),limits,progression_tile_preparation_outcome(result)),
+        progression_tile_preparation_outcome(result)!=Err(DecodeError::AllocationFailed) ==>
+        progression_tile_preparation_outcome(result)==crate::specs::part1_progression_tile_input(
         tile_parts@,packet_grid_view(grid),packet_precinct_vector_view(precincts),packet_selection_view(selection),limits),
         result.is_ok() ==> tile_parts@.len()>0,
 ))]
@@ -301,12 +365,21 @@ pub(super) fn prepare_progression_tile_input(
     selection: Option<&[u8]>,
     limits: &ResourceLimits,
 ) -> Result<ProgressionTilePreparation, DecodeError> {
+    #[cfg(verus_keep_ghost)]
+    proof! {crate::specs::part2_packet_input_normal(crate::codestream::tile_parts_owned_view(tile_parts@),packet_grid_view(grid),
+    packet_precinct_vector_view(precincts),packet_selection_view(selection),limits);}
     validate_progression_layout(tile_parts, grid, selection, limits)?;
     let first = match tile_parts.first() {
         Some(first) => first,
         None => return Err(packet_reader_error(0, MalformedKind::InvalidTilePart)),
     };
-    let input = prepare_progression_payloads(tile_parts, first.tile_index, limits)?;
+    let prepared = prepare_progression_payloads(tile_parts, first.tile_index, limits);
+    #[cfg(verus_keep_ghost)]
+    proof! {if let Err(error)=prepared {
+        crate::specs::part2_packet_input_payload_error(crate::codestream::tile_parts_owned_view(tile_parts@),packet_grid_view(grid),
+            packet_precinct_vector_view(precincts),packet_selection_view(selection),limits,error);
+    }}
+    let input = prepared?;
     if input.all_lengths && input.declared_packets > grid.packet_count {
         return Err(packet_reader_error(0, MalformedKind::InvalidPacketLength));
     }
@@ -315,11 +388,15 @@ pub(super) fn prepare_progression_tile_input(
 }
 
 #[cfg_attr(verus_keep_ghost,verus_spec(result =>
-    ensures progression_tile_progress_outcome(result)==crate::specs::part1_tile_progress_initial(progression_tile_parameters_view(params)),
+    ensures crate::specs::part2_progress_initial_result(progression_tile_parameters_view(params),progression_tile_progress_outcome(result)),
+        progression_tile_progress_outcome(result)!=Err(DecodeError::AllocationFailed) ==>
+        progression_tile_progress_outcome(result)==crate::specs::part1_tile_progress_initial(progression_tile_parameters_view(params)),
 ))]
 pub(super) fn progression_tile_progress_new<'a, 'data>(
     params: &ProgressionTileParameters<'a, 'data>,
 ) -> Result<ProgressionTileProgress<'a>, DecodeError> {
+    #[cfg(verus_keep_ghost)]
+    proof! {crate::specs::part2_progress_initial_normal(progression_tile_parameters_view(params));}
     let first = match params.tile_parts.first() {
         Some(first) => first,
         None => return Err(packet_reader_error(0, MalformedKind::InvalidTilePart)),
@@ -335,7 +412,15 @@ pub(super) fn progression_tile_progress_new<'a, 'data>(
         Ok(length) => length,
         Err(_) => return Err(packet_arithmetic_overflow()),
     };
-    let seen = vec![false; seen_length];
+    let reserved = crate::allocation::filled_values(false, seen_length);
+    #[cfg(verus_keep_ghost)]
+    proof! {
+        let context=crate::specs::part2_progress_context(progression_tile_parameters_view(params));
+        let response=match reserved {Ok(_)=>Ok(()),Err(error)=>Err(error)};
+        crate::specs::part2_preparation_observed(context,response);
+        if reserved.is_err() {crate::specs::part2_progress_initial_refused(progression_tile_parameters_view(params));}
+    }
+    let seen = reserved?;
     #[cfg(verus_keep_ghost)]
     proof! {assert(seen@ =~= Seq::new(params.grid.packet_count as nat,|i:int|false));}
     Ok(ProgressionTileProgress {
@@ -870,7 +955,11 @@ fn finish_progression_tile_packets(
 }
 
 #[cfg_attr(verus_keep_ghost,verus_spec(result =>
-    ensures (result,packet_precinct_vector_view(final(precincts)))==crate::specs::part1_progression_tile_decode(
+    ensures crate::specs::part2_packet_result(crate::codestream::tile_parts_owned_view(tile_parts@),packet_grid_view(grid),
+            packet_precinct_vector_view(old(precincts)),packet_selection_view(maximum_resolution_counts),limits,
+            (result,packet_precinct_vector_view(final(precincts)))),
+        result!=Err(DecodeError::AllocationFailed) ==>
+        (result,packet_precinct_vector_view(final(precincts)))==crate::specs::part1_progression_tile_decode(
         tile_parts@,packet_grid_view(grid),packet_precinct_vector_view(old(precincts)),packet_selection_view(maximum_resolution_counts),limits),
 ))]
 pub(crate) fn decode_progression_tile_packets_selected(
@@ -880,13 +969,24 @@ pub(crate) fn decode_progression_tile_packets_selected(
     maximum_resolution_counts: Option<&[u8]>,
     limits: &ResourceLimits,
 ) -> Result<TilePacketDecode, DecodeError> {
-    let input = prepare_progression_tile_input(
+    #[cfg(verus_keep_ghost)]
+    proof_decl! {let ghost initial=packet_precinct_vector_view(precincts);}
+    #[cfg(verus_keep_ghost)]
+    proof! {crate::specs::part2_packet_normal(crate::codestream::tile_parts_owned_view(tile_parts@),packet_grid_view(grid),initial,
+    packet_selection_view(maximum_resolution_counts),limits);}
+    let prepared = prepare_progression_tile_input(
         tile_parts,
         grid,
         precincts,
         maximum_resolution_counts,
         limits,
-    )?;
+    );
+    #[cfg(verus_keep_ghost)]
+    proof! {if let Err(error)=prepared {
+        crate::specs::part2_packet_input_error(crate::codestream::tile_parts_owned_view(tile_parts@),packet_grid_view(grid),initial,
+            packet_selection_view(maximum_resolution_counts),limits,error);
+    }}
+    let input = prepared?;
     let params = ProgressionTileParameters {
         tile_parts,
         grid,
@@ -894,7 +994,13 @@ pub(crate) fn decode_progression_tile_packets_selected(
         selection: maximum_resolution_counts,
         limits,
     };
-    let mut progress = progression_tile_progress_new(&params)?;
+    let progress_result = progression_tile_progress_new(&params);
+    #[cfg(verus_keep_ghost)]
+    proof! {if let Err(error)=progress_result {
+        crate::specs::part2_packet_progress_error(crate::codestream::tile_parts_owned_view(tile_parts@),packet_grid_view(grid),initial,
+            packet_selection_view(maximum_resolution_counts),limits,progression_tile_preparation_view(&input),error);
+    }}
+    let mut progress = progress_result?;
     run_progression_tile_packets(&params, precincts, &mut progress)?;
     finish_progression_tile_packets(&params, &mut progress)
 }

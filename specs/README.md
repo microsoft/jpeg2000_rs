@@ -26,6 +26,26 @@ model-to-standard review remains outstanding.
   provides the corresponding implementation, model, contract, proof and tests.
 - **For a standards audit:** choose a component and confirm the reference
   edition first. Compare its rules with the model before judging the proof.
+- **For cold-storage error review:** start at [allocation helpers](../src/allocation.rs)
+  and their [primitive relations](allocation.rs), then follow the
+  [main quantization cutpoint](cold_quantization.rs), [tile creation](cold_tile_quantization.rs),
+  [flat POC responses](cold_progression.rs), [ordered header frames](cold_header_progression.rs),
+  [nested MCT source/path requests](cold_mct_copy.rs),
+  [nested Part 2 owner requests](cold_extensions_copy.rs),
+  [main/tile resolved graph requests](cold_resolved_copy.rs) and
+  [payload-owner Result/reader binds](cold_payload_owners.rs),
+  [fresh marker construction/fragment requests](cold_marker_storage.rs) and
+  [actual main/tile marker binds](cold_marker_header.rs),
+  [fresh Part 2 constructor requests](cold_part2_fresh.rs) and
+  [charged Part 2 main/tile binds](cold_part2_header.rs),
+  [fresh profile-word requests and main/tile projections](cold_profile.rs),
+  [progression-validation bitmap frontiers and frames](cold_bitmap.rs),
+  [distinct outer inspection collection capacities](cold_inspection_storage.rs),
+  [tile reader frames](cold_tile_part.rs), [complete cold layout](cold_layout.rs)
+  and [checked error continuations](cold_layout_continuations.rs).
+  Trace entries contain primitive responses, not supplied layouts/images.
+  Normal projections and exact unconsumed tails are separate from physical
+  allocator availability.
 
 Here is the current document basis; none of these rows means "conformance
 certified."

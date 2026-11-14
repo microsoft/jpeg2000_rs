@@ -1160,6 +1160,10 @@ _TRANSFORM_ROUTING_BYTES_CONTRACTS = {
 }
 
 _PROGRESSION_ADMISSION_CONTRACTS = {
+    ("src/codestream/mct_copy.rs", "filled_values"): (
+        "part1_mct_copy_result", _coverage_call("copy_outcome", r"\1"), None,
+        _coverage_call("crate::specs::part1_mct_copy_leaf", "_path", "count"),
+    ),
     ("src/codestream/coding_markers.rs", "Parser::progression_validation_shape"): (
         "part1_poc_validation_shape", r"\1", None,
         r"offset\s*,\s*layers\s*,\s*component_styles\s*,\s*0\s*,\s*0\s*,\s*0",
@@ -1555,6 +1559,30 @@ _MCT_PARAMETER_CLONE_CONTRACTS = {
     ),
 }
 
+_MCT_FALLIBLE_INHERITANCE = (
+    r"let\s+mct_source\s*=\s*"
+    + _coverage_call("inherited_tile_owner", "tile_index", r"&\s*main_mct_parameters",
+                     r"&\s*tile_mct_parameters\s*,?")
+    + r"\s*;\s*let\s+inherited_mct_parameters\s*=\s*match\s+"
+    + _coverage_call("mct_source.try_duplicate")
+    + r"\s*\{\s*Ok\s*\(\s*values\s*\)\s*=>\s*values\s*,\s*Err\s*\(\s*error\s*\)\s*=>\s*\{"
+    + r"\s*#\[\s*cfg\s*\(\s*verus_keep_ghost\s*\)\s*\]\s*proof!\s*\{\s*"
+    + _coverage_call("crate::specs::part1_cold_layout_sot_mct_error", "cold_sot", "error")
+    + r"\s*;\s*\}\s*return\s+Err\s*\(\s*error\s*\)\s*;\s*\}\s*\}\s*;"
+)
+
+_PART2_FALLIBLE_INHERITANCE = (
+    r"let\s+extensions_source\s*=\s*"
+    + _coverage_call("inherited_tile_owner", "tile_index", r"&\s*part2_extensions",
+                     r"&\s*tile_part2_extensions\s*,?")
+    + r"\s*;\s*let\s+inherited_part2_extensions\s*=\s*match\s+"
+    + _coverage_call("extensions_source.try_duplicate")
+    + r"\s*\{\s*Ok\s*\(\s*values\s*\)\s*=>\s*values\s*,\s*Err\s*\(\s*error\s*\)\s*=>\s*\{"
+    + r"\s*#\[\s*cfg\s*\(\s*verus_keep_ghost\s*\)\s*\]\s*proof!\s*\{\s*"
+    + _coverage_call("crate::specs::part1_cold_layout_sot_extensions_error", "cold_sot", "error")
+    + r"\s*;\s*\}\s*return\s+Err\s*\(\s*error\s*\)\s*;\s*\}\s*\}\s*;"
+)
+
 _MCT_PARAMETER_CLONE_CONSUMERS = (
     ("src/codestream/layout.rs", "Parser::parse_layout",
      r"(?:let\s+inherited_mct_parameters\s*=\s*match\s+"
@@ -1565,7 +1593,7 @@ _MCT_PARAMETER_CLONE_CONSUMERS = (
      + r"|let\s+inherited_mct_parameters\s*=\s*"
      + _coverage_call("inherited_tile_owner", "tile_index",
                       r"&\s*main_mct_parameters", r"&\s*tile_mct_parameters\s*,?")
-     + r"\s*\.\s*" + _coverage_call("clone") + r"\s*;)"),
+     + r"\s*\.\s*" + _coverage_call("clone") + r"\s*;|" + _MCT_FALLIBLE_INHERITANCE + ")"),
     ("src/codestream/mct.rs", "MctParameters::clone",
      _coverage_call("Clone::clone", r"&\s*self\.records")),
     ("src/codestream/mct.rs", "MctRecord::clone",
@@ -2200,14 +2228,41 @@ _MAIN_HEADER_INITIALIZER_CONTRACTS = {
 }
 
 _MAIN_HEADER_LAYOUT = ("src/codestream/layout.rs", "Parser::parse_layout")
-_RAW_LAYOUT_WRAPPER_BODY = (
-    r"\s*(?:#\[\s*cfg\s*\(\s*verus_keep_ghost\s*\)\s*\]\s*proof!\s*\{\s*"
-    + _coverage_call("reveal", "complete_layout_outcome") + r"\s*;\s*"
-    + _coverage_call("reveal", "parser_initial_outcome") + r"\s*;\s*"
-    + _coverage_call("crate::specs::part1_parse_layout_unfold", "input@", "limits")
-    + r"\s*;\s*\}\s*)?" + _coverage_call("new_parser", "input", "limits")
-    + r"\s*\?\s*\.\s*" + _coverage_call("parse_layout") + r"\s*"
-)
+_RAW_LAYOUT_WRAPPER_BODY = """
+    #[cfg(verus_keep_ghost)] proof! {
+        reveal(complete_layout_outcome); reveal(parser_initial_outcome);
+    }
+    let result = match new_parser(input, limits) {
+        Err(error) => {
+            #[cfg(verus_keep_ghost)] proof! {
+                assert(crate::specs::part1_parse_layout_with_cold_storage(
+                    input@, limits, Seq::empty()) == Some((Err(error), Seq::empty())));
+                crate::specs::part1_parse_layout_cold_witness(input@, limits, Err(error), Seq::empty());
+            }
+            Err(error)
+        }
+        Ok(parser) => {
+            #[cfg(verus_keep_ghost)] proof_decl! { let ghost reader = parser_view(&parser); }
+            let result = parser.parse_layout();
+            #[cfg(verus_keep_ghost)] proof! {
+                crate::specs::part1_cold_layout_calls(reader, complete_layout_outcome(result));
+                let events = choose|events: Seq<crate::specs::Part1ColdStorageEvent>|
+                    crate::specs::part1_layout_with_cold_storage(reader, events)
+                        == Some((complete_layout_outcome(result), Seq::empty()));
+                assert(crate::specs::part1_parse_layout_with_cold_storage(input@, limits, events)
+                    == Some((complete_layout_outcome(result), Seq::empty())));
+                crate::specs::part1_parse_layout_cold_witness(input@, limits, complete_layout_outcome(result), events);
+            }
+            result
+        }
+    };
+    #[cfg(verus_keep_ghost)] proof! {
+        if complete_layout_outcome(result) != Err(DecodeError::AllocationFailed) {
+            crate::specs::part1_parse_layout_cold_projection(input@, limits, complete_layout_outcome(result));
+        }
+    }
+    result
+"""
 _RAW_LAYOUT_ENTRY = "part1-complete-native-raw-layout-result"
 _RAW_LAYOUT_CONTRACTS = {
     ("src/codestream/layout.rs", "parse"): (
@@ -2871,6 +2926,10 @@ _ASSOCIATION_CLONE_ENTRY = "part2-complete-native-owned-codestream-association-c
 _RAW_CONTAINER_ENTRY = "part2-complete-native-raw-container-result"
 _RAW_INSPECTED_ENTRY = "part2-complete-native-raw-inspected-container-results"
 _RAW_INSPECTED_CONTRACTS = {
+    ("src/allocation.rs", "inspection_values"): (
+        "part2_inspection_capacity", _coverage_call("inspection_capacity_outcome", r"\1"), None,
+        r"_collection\s*,\s*count",
+    ),
     ("src/jp2/container.rs", "parse_and_inspect"): (
         "part2_parse_and_inspect_container", _coverage_call("super::raw_inspected_container_outcome", r"\1"), None,
         r"input\s*@\s*,\s*limits",
@@ -2903,6 +2962,8 @@ _RAW_INSPECTED_MODELS = {
         "part2_inspected_codestreams", "part2_inspected_header",
     )
 } | {
+    ("specs/cold_inspection_storage.rs", "part2_inspection_capacity"),
+    ("specs/cold_inspection_storage.rs", "part2_inspection_capacity_result"),
     ("specs/jp2_container.rs", "part2_parse_container"),
     ("specs/raw_layout.rs", "part1_parse_info"),
     ("specs/codestream_profile.rs", "part1_profile_optional_advertises_ht"),
@@ -2914,6 +2975,9 @@ _RAW_INSPECTED_PROOFS = {
         "raw_jp2_file_view", "raw_codestream_view", "raw_codestream_association_view",
     )
 } | {
+    ("specs/cold_inspection_storage.rs", "part2_inspection_capacity_normal"),
+    ("specs/jp2_inspection.rs", "part2_inspection_cold_start"),
+    ("specs/jp2_inspection.rs", "part2_inspection_capacity_refused"),
     ("specs/jp2_inspection.rs", "part2_parse_and_inspect_container_unfold"),
     ("specs/jp2_inspection.rs", "part2_parse_and_inspect_container_mode_unfold"),
     ("specs/jp2_inspection.rs", "part2_inspect_jph_container_unfold"),
@@ -3282,7 +3346,7 @@ _RAW_JPX_INSPECTION_MODELS = {
     ("specs/jpx_raw_inspection.rs", name) for name in (
         "part2_inspect_raw_jpx_layers", "part2_ensure_raw_jpx", "part2_raw_inspection_file",
         "part2_raw_inspection_layer", "part2_raw_inspection_composition", "part2_raw_inspection_geometries",
-        "part2_raw_timeline_sets", "part2_raw_timeline_instruction",
+        "part2_raw_timeline_sets", "part2_raw_timeline_instruction", "part2_inspect_raw_jpx_finish_cold",
     )
 } | {
     ("specs/jp2_inspection.rs", "part2_parse_and_inspect_container"),
@@ -3296,6 +3360,7 @@ _RAW_JPX_INSPECTION_PROOFS = {
     )
 } | {
     ("specs/jpx_raw_inspection.rs", "part2_inspect_raw_jpx_layers_unfold"),
+    ("specs/jpx_raw_inspection.rs", "part2_inspect_raw_jpx_cold_metadata_actual"),
     ("src/jp2/proof_support.rs", "raw_jpx_inspection_parts_known"),
     ("src/jp2/proof_support.rs", "raw_jpx_inspection_layer_known"),
     ("src/jp2/proof_support.rs", "raw_inspected_file_reference"),
@@ -3308,7 +3373,10 @@ _JPX_INSPECTION_MODELS = {("specs/jpx_inspection.rs", name) for name in (
     "part2_inspect_jpx_file", "part2_inspection_layer_count", "part2_inspection_layer",
     "part2_inspection_layer_value", "part2_inspection_registration_prefix", "part2_inspection_registration_step",
     "part2_inspection_layers_prefix", "part2_inspection_duration_prefix", "part2_inspection_composition",
-)} | {("specs/mod.rs", "effective_jpx_layer_count")}
+)} | {("specs/mod.rs", "effective_jpx_layer_count")} | {
+    ("specs/cold_inspection_storage.rs", "part2_inspect_file_cold_run"),
+    ("specs/cold_inspection_storage.rs", "part2_inspect_file_cold_result"),
+}
 _JPX_INSPECTION_PROOFS = {("specs/jpx_inspection.rs", name) for name in (
     "part2_inspection_registrations_step", "part2_inspection_registrations_error",
     "part2_inspection_layers_step", "part2_inspection_layers_error",
@@ -3317,6 +3385,10 @@ _JPX_INSPECTION_PROOFS = {("specs/jpx_inspection.rs", name) for name in (
     "inspection_file_input", "inspection_source_geometries", "inspection_result",
     "inspected_layer_view", "inspected_composition_view",
 )} | {("src/jp2/proof_support.rs", "source_layer_reference_known")}
+_JPX_INSPECTION_PROOFS |= {
+    ("specs/cold_inspection_storage.rs", "part2_inspect_file_cold_normal"),
+    ("specs/cold_inspection_storage.rs", "part2_inspect_file_cold_frames"),
+}
 _SOURCE_FRAME_ENTRY = "part2-complete-native-source-frame-result"
 _SOURCE_FRAME_CONTRACTS = {
     ("src/jpx/render.rs", "render_inspected_frame"): (
@@ -4300,7 +4372,7 @@ _JPIP_TRANSCODE_FRAMES = {
         ("patch_cod_layers", "(result, final(header)@) == crate::specs::part2_jpip_patch_cod(old(header)@, start, layers, stop_at_sod)"),
         ("validate_and_patch_main_header", "(result, final(header)@) == crate::specs::part2_jpip_patch_main(old(header)@, layers)"),
         ("validate_and_patch_tile_header", "(result, final(header)@) == crate::specs::part2_jpip_patch_tile(old(header)@, layers)"),
-        ("validate_precinct_codestream", "result == crate::specs::part2_jpip_validate_precinct(bytes@, layers, limits)"),
+        ("validate_precinct_codestream", "crate::specs::part2_jpip_validate_precinct_cold_result(bytes@, layers, limits, result)"),
         ("JpipPrecinctTranscode::layers", "result == jpip_transcode_view(self).0"),
         ("JpipPrecinctTranscode::availability", "jpip_availability_view(result) == jpip_transcode_view(self).1"),
         ("JpipPrecinctTranscode::codestream", "jpip_optional_byte_view(result) == jpip_transcode_view(self).2"),
@@ -4665,7 +4737,8 @@ _GENERAL_LAYER_PROOFS = {
 _GENERAL_LAYER_HANDOFFS = (
     "let color = layer.color_group().first().unwrap_or(&file.header().color);",
     "let color_count = layer_color_count(color)?;",
-    "let (image, _) = crate::decode::decode_jpx_file(file, codestream_index, options)?;",
+    "let (image, _) = match crate::decode::decode_jpx_file(file, codestream_index, options)",
+    "return Err(error)",
     "width = width.min(registered_width);", "height = height.min(registered_height);",
     "crate::specs::part2_general_sources_prefix(input, config, layer_index, limits, source_index as nat)",
     "crate::specs::part2_general_components_prefix(source, config, width, height, component_index as nat, initial)",
@@ -4717,6 +4790,1345 @@ _SOURCE_OPACITY_CONTRACTS = {
     ("src/jpx/chroma.rs", "apply_chroma_key_with_policy"): _LAYER_OPACITY_CONTRACTS[("src/jpx/chroma.rs", "apply_chroma_key_with_policy")],
 }
 
+_RAW_RENDER_MODELS |= {("specs/cold_inspection_storage.rs", "part2_inspect_file_cold_run")}
+_RAW_COMPOSITION_RENDER_MODELS |= {("specs/cold_inspection_storage.rs", "part2_inspect_file_cold_run")}
+_RAW_RENDER_PROOFS |= {("specs/jpx_raw_frame.rs", "part2_render_raw_cold_metadata_error")}
+_RAW_COMPOSITION_RENDER_PROOFS |= {("specs/jpx_raw_frame.rs", "part2_render_raw_cold_metadata_error")}
+
+_COLD_RESULT_MODELS = {
+    "part1_grid_count_summary": ("part2_grid_summary_result", "specs/cold_grid.rs", "part2_grid_summary_normal"),
+    "part1_packet_grid_new": ("part2_grid_result", "specs/cold_grid.rs", "part2_grid_normal"),
+    "part2_packet_grid_from_components": ("part2_derived_grid_result", "specs/cold_grid_geometry.rs", "part2_derived_grid_normal"),
+    "part2_progression_tile_plan": ("part2_grid_plan_result", "specs/cold_grid_plan.rs", "part2_grid_plan_normal"),
+    "part1_progression_plan_cold_result": ("part1_progression_plan_cold_result", "specs/cold_grid_plan.rs", "part2_grid_plan_normal"),
+    "part1_packed_header_reassembly": ("part2_packed_reassembly_result", "specs/cold_packed_headers.rs", "part2_packed_reassembly_normal"),
+    "part1_progression_payloads": ("part2_prepare_payloads_result", "specs/cold_packet_preparation.rs", "part2_prepare_payloads_normal"),
+    "part1_tile_progress_initial": ("part2_progress_initial_result", "specs/cold_packet_preparation.rs", "part2_progress_initial_normal"),
+    "part1_progression_tile_input": ("part2_packet_input_result", "specs/cold_packed_headers.rs", "part2_packet_input_normal"),
+    "part1_progression_tile_decode": ("part2_packet_result", "specs/cold_packed_headers.rs", "part2_packet_normal"),
+    "part1_progression_tile_public_cold": ("part1_progression_tile_cold_result", "specs/cold_packed_headers.rs", "part2_packet_normal"),
+    "part2_decode_planned_tile_components": ("part2_planned_decode_result", "specs/cold_decode_packets.rs", "part2_planned_decode_normal"),
+    "part2_decode_tile_parts_at": ("part2_tile_decode_result", "specs/cold_decode_packets.rs", "part2_tile_decode_normal"),
+    "part2_decode_layout": ("part2_layout_decode_result", "specs/cold_decode_packets.rs", "part2_layout_decode_normal"),
+    "part2_decode_layout_selected": ("part2_layout_decode_result", "specs/cold_decode_packets.rs", "part2_layout_decode_normal"),
+    "part2_decode_typed_layout": ("part2_typed_decode_result", "specs/cold_decode_finish.rs", "part2_typed_decode_normal"),
+    "part2_inspection_capacity": ("part2_inspection_capacity_result", "specs/cold_inspection_storage.rs", "part2_inspection_capacity_normal"),
+    "part2_inspect_jpx_file": ("part2_inspect_file_cold_result", "specs/cold_inspection_storage.rs", "part2_inspect_file_cold_normal"),
+    "part1_validate_progression_changes": ("part1_bitmap_result", "specs/cold_bitmap.rs", "part1_bitmap_normal"),
+    "part1_marker_words": ("part1_profile_result", "specs/cold_profile.rs", "part1_profile_normal"),
+    **{name: ("part1_profile_storage_result", "specs/cold_profile.rs", "part1_profile_storage_normal")
+       for name in ("part1_parse_cap", "part1_parse_profile_number")},
+    **{name: ("part1_p2_fresh_result", "specs/cold_part2_fresh.rs", "part1_p2_fresh_normal")
+       for name in ("part1_dfs_payload", "part1_ads_payload", "part1_unpack_two_bit_values", "part1_atk_payload",
+                    "part1_atk_step", "part1_nlt_payload", "part1_copy_segment_tail")},
+    **{name: ("part1_p2_marker_storage_result", "specs/cold_part2_fresh.rs", "part1_p2_marker_storage_normal")
+       for name in ("part1_parse_dfs", "part1_parse_ads", "part1_parse_nlt", "part1_parse_atk")},
+    "part1_tile_header_extension_payload": ("part1_p2_tile_result", "specs/cold_part2_header.rs", "part1_p2_tile_normal_result"),
+    "part1_parse_mct": ("part1_fresh_mct_result", "specs/cold_marker_storage.rs", "part1_fresh_mct_normal"),
+    "part1_parse_mco": ("part1_fresh_mco_result", "specs/cold_marker_storage.rs", "part1_fresh_mco_normal"),
+    "part1_parse_mcc_component_list": ("part1_fresh_list_result", "specs/cold_marker_storage.rs", "part1_fresh_list_normal"),
+    "part1_mcc_collection": ("part1_fresh_collection_result", "specs/cold_marker_storage.rs", "part1_fresh_collection_normal"),
+    "part1_parse_mcc": ("part1_fresh_mcc_result", "specs/cold_marker_storage.rs", "part1_fresh_mcc_normal"),
+    "part1_prepare_mct_fragment": ("part1_fresh_prepare_mct_result", "specs/cold_marker_storage.rs", "part1_fresh_prepare_mct_normal"),
+    "part1_prepare_mcc_fragment": ("part1_fresh_prepare_mcc_result", "specs/cold_marker_storage.rs", "part1_fresh_prepare_mcc_normal"),
+    "part1_consume_mct_fragment": ("part1_fresh_consume_mct_result", "specs/cold_marker_storage.rs", "part1_fresh_consume_mct_normal"),
+    "part1_consume_mcc_fragment": ("part1_fresh_consume_mcc_result", "specs/cold_marker_storage.rs", "part1_fresh_consume_mcc_normal"),
+    "part1_tile_header_mct_payload": ("part1_fresh_tile_result", "specs/cold_marker_header.rs", "part1_fresh_tile_normal_result"),
+    "part1_mct_graph_collection": (
+        "part1_resolved_collection_result", "specs/cold_resolved_copy.rs", "part1_resolved_collection_normal",
+    ),
+    "part1_mct_graph_stage": (
+        "part1_resolved_stage_result", "specs/cold_resolved_copy.rs", "part1_resolved_stage_normal",
+    ),
+    "part1_mct_graph": (
+        "part1_resolved_graph_result", "specs/cold_resolved_copy.rs", "part1_resolved_graph_normal_result",
+    ),
+    "part1_parse_poc": (
+        "part1_parse_poc_storage_result", "specs/cold_progression.rs", "part1_parse_poc_storage_normal",
+    ),
+    "part1_tile_header_payload": (
+        "part1_tile_progression_payload_storage_result", "specs/cold_header_progression.rs",
+        "part1_tile_progression_payload_storage_normal",
+    ),
+    "part1_tile_header_dispatch": (
+        "part1_tile_progression_dispatch_result", "specs/cold_header_progression.rs",
+        "part1_tile_progression_dispatch_normal",
+    ),
+    "part1_traverse_tile_header": (
+        "part1_tile_progression_result", "specs/cold_header_progression.rs", "part1_tile_progression_traversal_normal",
+    ),
+    "part1_read_tile_header": (
+        "part1_read_tile_progression_result", "specs/cold_header_progression.rs", "part1_read_tile_progression_normal",
+    ),
+    "part1_component_quantizations_new": (
+        "part1_component_quantizations_storage_result", "specs/mod.rs", "part1_component_quantizations_storage_normal",
+    ),
+    "part1_finish_main_quantizations": (
+        "part1_finish_main_quantizations_storage_result", "specs/mod.rs", "part1_finish_main_quantizations_storage_normal",
+    ),
+    "part1_finish_tile_components": (
+        "part1_tile_components_cold_result", "specs/cold_tile_quantization.rs", "part1_tile_components_cold_normal",
+    ),
+    "part1_read_tile_part": (
+        "part1_cold_tile_part_result", "specs/cold_tile_part.rs", "part1_cold_tile_part_normal",
+    ),
+    "part1_commit_persistent_tile_configuration": (
+        "part1_commit_quantization_cold_result", "specs/persistent_tile_configuration.rs", "part1_commit_quantization_cold_normal",
+    ),
+    "part1_read_layout": ("part1_cold_layout_result", "specs/raw_layout.rs", "part1_cold_layout_normal"),
+    "part1_parse_info": ("part1_parse_info_cold_result", "specs/raw_layout.rs", "part1_parse_info_cold_normal"),
+    "part1_parse_layout": ("part1_parse_layout_cold_result", "specs/raw_layout.rs", "part1_parse_layout_cold_normal"),
+    "part2_decode_raw_codestream": ("part2_decode_raw_cold_result", "specs/raw_decode.rs", "part2_decode_raw_cold_normal"),
+    "part2_decode_raw_reconstructed_codestream": (
+        "part2_decode_reconstructed_cold_result", "specs/raw_decode.rs", "part2_decode_reconstructed_cold_normal",
+    ),
+    "part2_decode_jpx_codestream": ("part2_jpx_cold_result", "specs/jpx_source.rs", "part2_jpx_cold_normal"),
+    "part2_decode_jpx_selected_file": (
+        "part2_jpx_selected_cold_result", "specs/jpx_source.rs", "part2_jpx_selected_cold_normal",
+    ),
+    "part2_color_selection_raw": (
+        "part2_color_selection_cold_result", "specs/container_colors.rs", "part2_color_selection_cold_normal",
+    ),
+    "part2_decode_raw_jpx_typed": (
+        "part2_decode_jpx_typed_cold_result", "specs/jpx_public_images.rs", "part2_decode_jpx_typed_cold_normal",
+    ),
+    "part2_decode_raw_jpx_color": (
+        "part2_decode_jpx_color_cold_result", "specs/jpx_public_images.rs", "part2_decode_jpx_color_cold_normal",
+    ),
+    "part2_parse_and_inspect_container": (
+        "part2_inspection_cold_result", "specs/jp2_inspection.rs", "part2_inspection_cold_normal",
+    ),
+    "part2_parse_and_inspect_container_mode": (
+        "part2_inspection_cold_result", "specs/jp2_inspection.rs", "part2_inspection_cold_normal",
+    ),
+    "part2_inspect_jph_container": (
+        "part2_inspect_jph_cold_result", "specs/jp2_inspection.rs", "part2_inspect_jph_cold_normal",
+    ),
+    "part2_decode_raw_color_container": (
+        "part2_decode_color_cold_result", "specs/container_colors.rs", "part2_decode_color_cold_normal",
+    ),
+    "part2_decode_raw_single_container": (
+        "part2_decode_single_cold_result", "specs/container_images.rs", "part2_decode_single_cold_normal",
+    ),
+    "part2_render_inspected_source_frame": (
+        "part2_render_inspected_cold_result", "specs/jpx_frame.rs", "part2_render_inspected_cold_normal",
+    ),
+    "part2_decode_effective_layer": (
+        "part2_effective_layer_cold_result", "specs/jpx_dispatch.rs", "part2_effective_layer_cold_normal",
+    ),
+    **{model: (
+        "part2_render_raw_jpx_cold_result", "specs/jpx_raw_frame.rs", "part2_render_raw_jpx_cold_normal",
+    ) for model in ("part2_render_raw_jpx_layer", "part2_render_raw_jpx_frame", "part2_render_raw_jpx_composition")},
+    "part2_inspect_raw_jpx_layers": (
+        "part2_inspect_raw_jpx_cold_result", "specs/jpx_raw_inspection.rs", "part2_inspect_raw_jpx_cold_normal",
+    ),
+    "part2_decode_compositing_layer": (
+        "part2_compositing_layer_cold_result", "specs/jpx_dispatch.rs", "part2_compositing_layer_cold_normal",
+    ),
+    "part2_decode_general_layer": (
+        "part2_general_layer_cold_result", "specs/jpx_general.rs", "part2_general_layer_cold_normal",
+    ),
+    "part2_apply_source_layer_opacity": (
+        "part2_opacity_cold_result", "specs/jpx_opacity.rs", "part2_opacity_cold_normal",
+    ),
+    "part2_decode_jpx_layer": ("part2_jpx_layer_cold_result", "specs/jpx_source.rs", "part2_jpx_layer_cold_normal"),
+    "part2_jpip_progressive_update": (
+        "part2_jpip_planned_cold_result", "specs/jpip_progressive.rs", "part2_jpip_planned_cold_normal",
+    ),
+    "part2_jpip_transcode": (
+        "part2_jpip_transcode_cold_result", "specs/jpip_transcode.rs", "part2_jpip_transcode_cold_normal",
+    ),
+}
+
+
+def _coverage_cold_relation(
+    legacy: tuple[str, str, str | None, str],
+) -> tuple[str, str]:
+    model, outcome, state, inputs = legacy
+    cold_model = _COLD_RESULT_MODELS[model][0]
+    if model == "part2_progression_tile_plan":
+        inputs = inputs.replace("quantizations", _coverage_call("codestream::quantization_owner_view", "quantizations"))
+    if model == "part1_progression_payloads":
+        inputs = _coverage_call("crate::codestream::tile_parts_owned_view", "tile_parts@") + r"\s*,\s*tile_index\s*,\s*" \
+            + _coverage_call("crate::limits::resource_packet_header_byte_limit", "limits")
+    elif model in ("part1_progression_tile_input", "part1_progression_tile_decode"):
+        inputs = inputs.replace("tile_parts@", _coverage_call("crate::codestream::tile_parts_owned_view", "tile_parts@"))
+    elif model == "part2_decode_tile_parts_at":
+        inputs = inputs.replace("parts@", _coverage_call("codestream::tile_parts_owned_view", "parts@"))
+    elif model == "part2_decode_planned_tile_components":
+        inputs = inputs.replace("tile_parts@", _coverage_call("codestream::tile_parts_owned_view", "tile_parts@"))
+        inputs = inputs.replace(r"\s*,\s*first\s*,", r"\s*,\s*" + _coverage_call("codestream::tile_part_owned_view", "first") + r"\s*,")
+    elif model in ("part2_decode_layout", "part2_decode_layout_selected"):
+        selected = "None" if model == "part2_decode_layout" else _coverage_call("Some", _coverage_call("crate::options::decode_selection_view", "requested"))
+        inputs = _coverage_call("codestream::decoder_layout_input_view", "layout") + r"\s*,\s*" + selected + r"\s*,\s*limits"
+    elif model == "part2_decode_typed_layout":
+        inputs = r"input_bytes\s*,\s*" + _coverage_call("codestream::decoder_layout_input_view", "layout") \
+            + r"\s*,\s*match\s+requested\s*\{\s*None\s*=>\s*None\s*,\s*Some\(\s*value\s*\)\s*=>\s*" \
+            + _coverage_call("Some", _coverage_call("crate::options::decode_selection_view", "value")) + r"\s*,?\s*\}\s*,\s*limits"
+    profile_kind = {"part1_marker_words": "Words", "part1_parse_cap": "Cap", "part1_parse_profile_number": "Number"}.get(model)
+    if profile_kind is not None:
+        inputs = _coverage_call("ProfileFreshInput::" + profile_kind, inputs)
+        outcome = _coverage_call("ProfileFreshValue::" + profile_kind, outcome)
+    fresh_kind = {
+        "part1_dfs_payload": "Dfs", "part1_ads_payload": "Ads", "part1_unpack_two_bit_values": "Unpack",
+        "part1_atk_payload": "Atk", "part1_atk_step": "Step", "part1_nlt_payload": "Nlt",
+        "part1_copy_segment_tail": "Tail",
+    }.get(model)
+    if fresh_kind is not None:
+        inputs = r"(?:crate::specs::)?" + _coverage_call("Part2FreshInput::" + fresh_kind, inputs)
+        outcome = r"(?:crate::specs::)?" + _coverage_call("Part2FreshValue::" + fresh_kind, outcome)
+    marker_kind = {
+        "part1_parse_dfs": "Dfs", "part1_parse_ads": "Ads", "part1_parse_nlt": "Nlt", "part1_parse_atk": "Atk",
+    }.get(model)
+    if marker_kind is not None:
+        inputs = r"Part2FreshKind::" + marker_kind + r"\s*,\s*" + _coverage_call("parser_view", _coverage_call("old", "self")) \
+            + r"\s*,\s*" + _coverage_call("segment_view", "segment") + r"\s*,\s*" \
+            + ("components" if marker_kind == "Nlt" else "0") + r"\s*,\s*" \
+            + _coverage_call("owned_extensions_view", _coverage_call("old", "extensions"))
+    if model == "part1_mct_graph_collection":
+        inputs = r"_ctx\s*,\s*" + inputs
+    elif model == "part1_mct_graph_stage":
+        inputs = r"_role\s*,\s*_stage\s*,\s*_record_position\s*,\s*" + inputs
+    elif model == "part1_mct_graph":
+        inputs = r"_role\s*,\s*" + inputs
+    elif model == "part1_parse_mcc_component_list":
+        inputs += r"\s*,\s*_output"
+    if model == "part2_parse_and_inspect_container":
+        inputs += r"\s*,\s*false"
+    if model in ("part2_render_raw_jpx_layer", "part2_render_raw_jpx_frame", "part2_render_raw_jpx_composition"):
+        kind, requested = {
+            "part2_render_raw_jpx_layer": ("0", "layer_index"),
+            "part2_render_raw_jpx_frame": ("1", "frame_index"),
+            "part2_render_raw_jpx_composition": ("2", "0"),
+        }[model]
+        inputs = r"input\s*@\s*,\s*" + kind + r"\s*,\s*" + requested + r"\s*,\s*" + _coverage_call(
+            "crate::options::decode_options_limits", "options")
+    if state is not None:
+        outcome = r"\(\s*" + outcome + r"\s*,\s*" + state
+        if model == "part2_jpip_progressive_update":
+            outcome += r"\s*,\s*" + _coverage_call("jpip_cache_view", "cache")
+        outcome += r"\s*\)"
+    return cold_model, inputs + r"\s*,\s*" + outcome
+
+
+_COLD_RESULT_CONTRACTS = {
+    key: _coverage_cold_relation(legacy)
+    for contracts in (
+        _RAW_LAYOUT_CONTRACTS, _RAW_TYPED_CONTRACTS, _RAW_RECONSTRUCTED_CONTRACTS,
+        _RAW_INSPECTED_CONTRACTS, _JPX_SOURCE_CONTRACTS, _RAW_JPX_PUBLIC_IMAGE_CONTRACTS,
+        _RAW_CONTAINER_IMAGE_CONTRACTS, _RAW_CONTAINER_COLOR_CONTRACTS,
+        _SOURCE_FRAME_CONTRACTS, _RAW_RENDER_CONTRACTS, _RAW_COMPOSITION_RENDER_CONTRACTS,
+        _RAW_JPX_INSPECTION_CONTRACTS, _EFFECTIVE_LAYER_CONTRACTS, _GENERAL_LAYER_CONTRACTS,
+        _SOURCE_OPACITY_CONTRACTS, _JPIP_PROGRESSIVE_CONTRACTS, _JPIP_TRANSCODE_CONTRACTS,
+        _MAIN_COMPONENT_FINALIZATION_CONTRACTS, _TILE_COMPONENT_FINALIZATION_CONTRACTS,
+        _PERSISTENT_TILE_CONFIGURATION_CONTRACTS,
+        _TRANSFORM_GRAPH_CONTRACTS,
+        _TRANSFORM_ARRAY_BYTES_CONTRACTS, _TRANSFORM_FRAGMENT_CONTRACTS, _COLLECTION_FRAGMENT_CONTRACTS,
+        _TRANSFORM_COLLECTION_BYTES_CONTRACTS, _TRANSFORM_ROUTING_BYTES_CONTRACTS,
+        _DECOMPOSITION_BYTES_CONTRACTS, _KERNEL_BYTES_CONTRACTS, _NONLINEAR_BYTES_CONTRACTS,
+        _PROFILE_BYTES_CONTRACTS,
+        _JPX_INSPECTION_CONTRACTS,
+        _PROGRESSION_ADMISSION_CONTRACTS,
+        _PROGRESSION_BYTES_CONTRACTS, _RAW_TILE_HEADER_CONTRACTS,
+        _PACKET_PROGRESSION_CONTRACTS, _LAYOUT_DECODING_CONTRACTS,
+        _RAW_TILE_DECODING_CONTRACTS, _PACKET_RECONSTRUCTION_CONTRACTS, _TYPED_LAYOUT_CONTRACTS,
+        _PACKET_GRID_PRODUCER_CONTRACTS, _COMPONENT_TILE_PLANNING_CONTRACTS,
+    )
+    for key, legacy in contracts.items()
+    if legacy[0] in _COLD_RESULT_MODELS
+} | {
+    ("src/jpip/precinct.rs", "validate_precinct_codestream"): (
+        "part2_jpip_validate_precinct_cold_result", r"bytes@\s*,\s*layers\s*,\s*limits\s*,\s*\1",
+    ),
+}
+_packed_public_key = ("src/packet/tile.rs", "decode_progression_tile_packets")
+_packed_public_arguments = _COLD_RESULT_CONTRACTS[_packed_public_key][1].replace(
+    _coverage_call("crate::codestream::tile_parts_owned_view", "tile_parts@"), "tile_parts@")
+_COLD_RESULT_CONTRACTS[_packed_public_key] = ("part1_progression_tile_cold_result", _packed_public_arguments)
+_grid_plan_public_key = ("src/decode/planning.rs", "plan_progression_tile_at_with_component_overrides")
+_grid_plan_public_legacy = _COMPONENT_TILE_PLANNING_CONTRACTS[_grid_plan_public_key]
+_COLD_RESULT_CONTRACTS[_grid_plan_public_key] = (
+    "part1_progression_plan_cold_result", _grid_plan_public_legacy[3] + r"\s*,\s*" + _grid_plan_public_legacy[1],
+)
+
+_COLD_TILE_INPUT_FIELDS = (
+    ("reader", _coverage_call("parser_view", _coverage_call("old", "self"))),
+    ("tile", _coverage_call("tile_part_header_view", "tile_part")),
+    ("defaults", r"\(\s*" + _coverage_call("parsed_coding_style_view", r"default_parameters\.0")
+     + r"\s*,\s*" + _coverage_call("quantization_view", r"&\s*default_parameters\.1") + r"\s*\)"),
+    ("styles", _coverage_call("component_style_owner_view", r"&\s*inherited_coding_styles")),
+    ("quantizations", _coverage_call("parsed_quantization_owner_view", r"&\s*inherited_quantizations")),
+    ("roi", _coverage_call("roi_shifts_view", r"&\s*inherited_roi_shifts")),
+    ("progression", _coverage_call("progression_changes_view", r"&\s*inherited_progression_changes")),
+    ("mct", _coverage_call("mct_parameters_view", r"&\s*mct_parameters")),
+    ("extensions", _coverage_call("owned_extensions_view", r"&\s*part2_extensions")),
+    ("components", None),
+    ("lengths", _coverage_call("packet_lengths_view", r"&\s*main_packet_lengths")),
+    ("headers", _coverage_call("packed_packet_headers_view", r"&\s*main_packed_packet_headers")),
+)
+_COLD_RESULT_CONTRACTS[("src/codestream/tiles.rs", "Parser::read_tile_part")] = (
+    "part1_cold_tile_part_result",
+    r"crate::specs::Part1ColdTileInput\s*\{\s*" + r"\s*,\s*".join(
+        re.escape(name) + (r"\s*:\s*" + pattern if pattern is not None else "")
+        for name, pattern in _COLD_TILE_INPUT_FIELDS
+    ) + r"\s*,?\s*\}\s*,\s*\(\s*" + _coverage_call("tile_part_read_outcome", r"\1")
+    + r"\s*,\s*" + _coverage_call("parser_view", _coverage_call("final", "self")) + r"\s*\)",
+)
+
+_COLD_HEADER_FIELDS = (
+    ("reader", _coverage_call("parser_view", _coverage_call("old", "self"))),
+    ("raw", _coverage_call("tile_header_accumulator_view", _coverage_call("old", "raw"))),
+    ("components", None), ("index", "tile_part_index"),
+    ("lengths", _coverage_call("packet_lengths_view", r"&\s*main_lengths")),
+    ("headers", _coverage_call("packed_packet_headers_view", r"&\s*main_headers")),
+)
+for _header_symbol, _header_model, _raw_pattern, _header_outcome in (
+    ("traverse_tile_header", "part1_tile_progression_result", _COLD_HEADER_FIELDS[1][1],
+     r"\1\s*,\s*" + _coverage_call("parser_view", _coverage_call("final", "self"))
+     + r"\s*,\s*" + _coverage_call("tile_header_accumulator_view", _coverage_call("final", "raw"))),
+    ("read_tile_header", "part1_read_tile_progression_result",
+     _coverage_call("crate::specs::part1_tile_header_initial", _coverage_call("old", "self") + r"\.position",
+        _coverage_call("parsed_coding_style_view", "style"), _coverage_call("roi_shifts_view", r"&\s*roi"),
+        _coverage_call("progression_changes_view", r"&\s*progression"),
+        _coverage_call("mct_parameters_view", r"&\s*mct"), _coverage_call("owned_extensions_view", r"&\s*extensions")),
+     _coverage_call("tile_header_read_outcome", r"\1") + r"\s*,\s*"
+     + _coverage_call("parser_view", _coverage_call("final", "self"))),
+):
+    _COLD_RESULT_CONTRACTS[("src/codestream/tile_header_traversal.rs", "Parser::" + _header_symbol)] = (
+        _header_model, r"crate::specs::Part1ColdTileHeaderInput\s*\{\s*" + r"\s*,\s*".join(
+            re.escape(name) + (r"\s*:\s*" + (_raw_pattern if name == "raw" else pattern)
+                              if pattern is not None else "")
+            for name, pattern in _COLD_HEADER_FIELDS
+        ) + r"\s*,?\s*\}\s*,\s*\(\s*" + _header_outcome + r"\s*\)",
+    )
+
+_COLD_INNER_RUNS = {
+    "part1_progression_plan_cold_result": "part2_grid_plan_run",
+    "part1_progression_tile_cold_result": "part2_packet_run",
+    "part2_inspection_capacity_result": "part2_inspection_capacity",
+    "part1_profile_storage_result": "part1_profile_run",
+    "part1_p2_marker_storage_result": "part1_p2_marker_run",
+    "part1_fresh_tile_result": "part1_fresh_tile_payload",
+    "part1_parse_poc_storage_result": "part1_parse_poc_storage",
+    "part1_tile_progression_payload_storage_result": "part1_tile_progression_payload_storage",
+    "part1_tile_progression_dispatch_result": "part1_tile_progression_dispatch",
+    "part1_tile_progression_result": "part1_tile_progression_root_run",
+    "part1_read_tile_progression_result": "part1_read_tile_progression_root_run",
+}
+
+
+def _coverage_cold_links(keys: set[tuple[str, str]]) -> tuple[set[tuple[str, str]], set[tuple[str, str]]]:
+    models, proofs = set(), set()
+    metadata = {model: (path, normal) for model, path, normal in _COLD_RESULT_MODELS.values()}
+    for key in keys & _COLD_RESULT_CONTRACTS.keys():
+        model = _COLD_RESULT_CONTRACTS[key][0]
+        path, normal = metadata.get(model, ("specs/jpip_transcode.rs", "part2_jpip_validate_precinct_cold_normal"))
+        run = {
+            "part1_component_quantizations_storage_result": "part1_component_quantizations_storage",
+            "part1_finish_main_quantizations_storage_result": "part1_finish_main_quantizations_storage",
+            "part1_cold_layout_result": "part1_layout_with_cold_storage",
+            "part1_parse_info_cold_result": "part1_parse_info_with_cold_storage",
+            "part1_parse_layout_cold_result": "part1_parse_layout_with_cold_storage",
+            **_COLD_INNER_RUNS,
+        }.get(model, model.removesuffix("_result") + "_run")
+        models.update(((path, model), (path, run)))
+        proofs.add((path, normal))
+        if model in ("part2_grid_result", "part2_grid_summary_result"):
+            models.update(("specs/cold_grid.rs", name) for name in (
+                "part2_grid_admit", "part2_grid_capacity_count", "part2_grid_capacity_run", "part2_grid_capacity_result",
+                "part2_uniform_grid_run", "part1_uniform_grid_cold_result", "part1_uniform_grid_model",
+            ))
+            proofs.update(("specs/cold_grid.rs", name) for name in (
+                "part2_grid_capacity_observed", "part2_grid_summary_refused", "part2_grid_summary_error",
+                "part2_uniform_grid_normal", "part2_uniform_grid_actual",
+            ))
+            proofs.update(("src/packet/progression.rs", name) for name in ("PacketGrid::new", "PacketGrid::new_with_component_resolutions"))
+        if model == "part2_derived_grid_result":
+            models.update((path, name) for name in ("part2_grid_components_cold_run", "part2_grid_resolutions_cold_run"))
+            proofs.update((path, name) for name in ("part2_grid_components_cold_normal", "part2_grid_resolutions_cold_normal", "part2_grid_component_cold_start"))
+        if model in ("part2_grid_plan_result", "part1_progression_plan_cold_result"):
+            models.add((path, "part2_grid_plan_result"))
+            proofs.update((path, name) for name in ("part2_grid_plan_frames", "part2_grid_plan_error", "part2_grid_plan_public_equivalent"))
+        if model in ("part2_prepare_payloads_result", "part2_progress_initial_result"):
+            models.update((path, name) for name in ("part2_preparation_count", "part2_preparation_capacity_run", "part2_preparation_capacity_result"))
+            proofs.add((path, "part2_preparation_observed"))
+        if model == "part2_prepare_payloads_result":
+            proofs.update((path, name) for name in ("part2_prepare_payloads_capacity_error", "part2_prepare_payloads_inner_error"))
+        if model == "part2_progress_initial_result":
+            models.add((path, "part2_progress_context"))
+            proofs.update((path, name) for name in ("part2_progress_initial_refused", "part2_packet_stages_actual", "part2_packet_progress_error"))
+            proofs.add(("src/allocation.rs", "filled_values"))
+        if model == "part2_packed_reassembly_result":
+            models |= _PACKED_STORAGE_MODELS
+            proofs |= _PACKED_STORAGE_PROOFS
+        if model in ("part1_progression_tile_cold_result", "part2_packet_result"):
+            models.update((path, name) for name in ("part2_packet_prefix", "part2_packet_result", "part2_packet_run"))
+            proofs.add((path, "part2_packet_public_result_equivalent"))
+        if model == "part1_bitmap_result":
+            proofs.add(("src/codestream/mct_copy.rs", "filled_values"))
+        if model == "part1_p2_marker_storage_result":
+            models.add((path, "part1_p2_marker_result"))
+            proofs.update((path, name) for name in (
+                "part1_p2_marker_storage_observed", "part1_p2_marker_storage_equivalent", "part1_p2_marker_projection",
+            ))
+        if model == "part1_profile_storage_result":
+            models.add((path, "part1_profile_result"))
+            proofs.update((path, name) for name in (
+                "part1_profile_storage_observed", "part1_profile_storage_equivalent", "part1_profile_projection",
+            ))
+    return models, proofs
+
+
+def _coverage_cold_result_body(text: str, model: str) -> bool:
+    signature = re.search(r"\bspec\s+fn\s+" + re.escape(model)
+        + r"(?:\s*<\s*'\w+(?:\s*,\s*'\w+)*\s*>)?\s*\((.*?)\)\s*->\s*bool\b", text, re.S)
+    if signature is None:
+        return False
+    names = re.findall(r"(?:^|,)\s*(\w+)\s*:(?!:)", signature[1])
+    if not names or names[-1] != "result":
+        return False
+    run = {
+        "part1_cold_layout_result": "part1_layout_with_cold_storage",
+        "part1_parse_info_cold_result": "part1_parse_info_with_cold_storage",
+        "part1_parse_layout_cold_result": "part1_parse_layout_with_cold_storage",
+        **_COLD_INNER_RUNS,
+    }.get(model, model.removesuffix("_result") + "_run")
+    call = run + "(" + ",".join(names[:-1] + ["events"]) + ")"
+    if model == "part1_progression_plan_cold_result":
+        expected = "part2_grid_plan_result(size,style,styles,crate::codestream::quantization_owner_view(quantizations),roi,selection,policy,limits,result)"
+    elif model == "part1_progression_tile_cold_result":
+        expected = "part2_packet_result(crate::codestream::tile_parts_owned_view(parts), grid, precincts, selection, limits, result)"
+    elif model == "part2_packet_result":
+        expected = "exists|prefix: Seq<Part2JpipSnapshotEvent>| #[trigger] part2_packet_prefix(parts, grid, precincts, selection, limits, prefix, result)"
+    elif model == "part1_tile_progression_payload_storage_result":
+        expected = """
+            if segment.marker == 0xff5f && !raw.poc_seen && tile_part_index == 0 {
+                exists|reserved: bool| result == part1_tile_progression_payload_storage(
+                    reader, raw, segment, components, tile_part_index, lengths, headers, reserved)
+            } else if segment.marker == 0xff74 || segment.marker == 0xff75 || segment.marker == 0xff77 {
+                part1_fresh_tile_result(reader, raw, segment, components, result)
+            } else if part1_p2_marker(segment.marker) {
+                part1_p2_tile_result(reader, raw, segment, components, result)
+            } else { result == part1_tile_header_payload(reader, raw, segment, components, tile_part_index, lengths, headers) }
+        """
+    elif model == "part1_profile_storage_result":
+        expected = """
+            if result == part1_profile_failure(input) { part1_profile_result(input, result) }
+            else { result == part1_profile_ordinary(input) }
+        """
+    elif model == "part1_p2_marker_storage_result":
+        expected = """
+            if result.0 == Err(crate::DecodeError::AllocationFailed) {
+                part1_p2_marker_result(kind, reader, segment, components, extensions, result)
+            } else { result == part1_p2_marker_ordinary(kind, reader, segment, components, extensions) }
+        """
+    elif model in ("part1_component_quantizations_storage_result", "part1_finish_main_quantizations_storage_result",
+                   "part1_parse_poc_storage_result"):
+        expected = "exists|reserved: bool|result==" + model.removesuffix("_result") \
+            + "(" + ",".join(names[:-1] + ["reserved"]) + ")"
+    elif model.startswith("part1_"):
+        expected = "exists|events: Seq<Part1ColdStorageEvent>|" + call + "== Some((result, Seq::empty()))"
+    elif model == "part2_jpip_planned_cold_result":
+        expected = "exists|events: Seq<Part2JpipAutomaticEvent>|" + call + "== Some((result, Seq::empty()))"
+    else:
+        expected = "part2_cold_framed(|events|" + call + "," + ("Ok(result)" if model == "part2_opacity_cold_result" else "result") + ")"
+    body = _coverage_spec_function_body(text, model)
+    return body is not None and "".join(body.split()) == "".join(expected.split())
+
+
+_COLD_FRAME_BODIES = {
+    "part2_cold_prefix": """
+        forall|tail: Seq<Part2JpipSnapshotEvent>|
+            #[trigger] run(prefix + tail) == Some((result, tail))
+    """,
+    "part2_cold_framed": """
+        exists|prefix: Seq<Part2JpipSnapshotEvent>| #[trigger] part2_cold_prefix(run, prefix, result)
+    """,
+    "part2_cold_parse": """
+        if events.len() == 0 { None } else {
+            match events[0] {
+                Part2JpipSnapshotEvent::Parse { phase: actual, index: at, calls } =>
+                    if actual != phase || at != index { None } else {
+                        match part1_parse_layout_with_cold_storage(input, limits, calls) {
+                            Some((result, rest)) => if rest.len() == 0 {
+                                Some((result, events.drop_first()))
+                            } else { None },
+                            None => None,
+                        }
+                    },
+                _ => None,
+            }
+        }
+    """,
+}
+
+_COLD_LOCAL_FAMILIES = {
+    _RAW_LAYOUT_ENTRY: (_RAW_LAYOUT_CONTRACTS, "whole raw layout"),
+    _RAW_TYPED_ENTRY: (_RAW_TYPED_CONTRACTS, "whole raw typed Result"),
+    _RAW_RECONSTRUCTED_ENTRY: (_RAW_RECONSTRUCTED_CONTRACTS, "whole raw reconstructed Result"),
+    _JPX_SOURCE_ENTRY: (_JPX_SOURCE_CONTRACTS, "whole JPX source Result"),
+    _JPX_LAYER_COLOR_ENTRY: (_JPX_LAYER_COLOR_CONTRACTS, "whole JPX layer color Result"),
+    _SOURCE_OPACITY_ENTRY: (_SOURCE_OPACITY_CONTRACTS, "whole source opacity Result"),
+}
+
+_COLD_SOURCE_BODIES = {
+    _RAW_TYPED_ENTRY: ("specs/raw_decode.rs", "part2_decode_raw_cold_run", """
+        part2_decode_raw_value_cold_run(input, limits, match requested {
+            None => None, Some(value) => Some(crate::options::decode_selection_view(value)),
+        }, events)
+    """, "whole raw typed Result requires complete raw/physical projection, not a layout/image bank: part2_decode_raw_codestream"),
+    _RAW_LAYOUT_ENTRY: ("specs/raw_layout.rs", "part1_parse_layout_with_cold_storage", """
+        match part1_codestream_reader_new(input, limits) {
+            Err(error) => Some((Err(error), events)),
+            Ok(reader) => part1_layout_with_cold_storage(reader, events),
+        }
+    """, "whole raw layout requires raw byte/reader model, not a result bank: part1_parse_layout"),
+    _JPX_SOURCE_ENTRY: ("specs/jpx_source.rs", "part2_jpx_cold_image", """
+        part2_jpip_snapshot_bind(part2_decode_raw_cold_run(source.0, limits, None, events),
+            |image: Part1DecodedTypedImage, rest| Some((part2_apply_associated_output(image, Some(header),
+                crate::limits::resource_component_limit(limits),
+                crate::limits::resource_decoded_bytes_limit(limits)), rest)))
+    """, "whole JPX source Result requires complete physical/source models, not supplied banks or trimming"),
+    _EFFECTIVE_LAYER_ENTRY: ("specs/jpx_dispatch.rs", "part2_effective_layer_cold_run", """
+        if layers.len() == 0 {
+            if index >= file.1.len() {
+                Some((Err(crate::DecodeError::LayerIndexOutOfRange { index, layers: file.1.len() as usize }), events))
+            } else {
+                part2_jpip_snapshot_bind(part2_jpx_layer_cold_run(file, index, None, limits, events),
+                    |image: Part2ConvertedImage, tail| Some((part2_owned_layer_input(image.0, image.1, image.2, image.4), tail)))
+            }
+        } else {
+            match part2_layer_config_lookup(layers, index) {
+                Err(error) => Some((Err(error), events)),
+                Ok(config) => part2_compositing_layer_cold_run(file, config.0, config.1, config.2, index, limits, events),
+            }
+        }
+    """, "whole effective layer Result requires actual ordered decoder/registration/opacity models"),
+}
+
+_GRID_STORAGE_TESTS = {
+    ("src/packet/progression.rs", "grid_storage_offset_empty_overflow_and_refusal_frontier_restore"),
+    ("src/packet/progression.rs", "grid_storage_uniform_first_and_later_refusal_restore_exact_offsets"),
+    ("src/packet/progression.rs", "grid_storage_admission_precedes_offsets_and_work_limit_follows"),
+    ("src/decode/tests.rs", "grid_storage_raw_selected_container_refusal_preserves_parse_and_restores"),
+}
+_GRID_STORAGE_GUARDS = {
+    ("specs/cold_grid.rs", "part2_grid_capacity_count"): (
+        "Part2GridCapacityContext::Offsets {expected,..}=>(expected+1) as usize",
+        "Part2GridCapacityContext::Uniform {components,..}=>components as usize",
+    ),
+    ("specs/cold_grid.rs", "part2_grid_capacity_run"): (
+        "if count==0 {Some((Ok(()),events))}", "Part2JpipSnapshotEvent::GridCapacity",
+        "actual!=context || elements!=count", "Err(crate::DecodeError::AllocationFailed)", "events.drop_first()", "_=>None",
+    ),
+    ("specs/cold_grid.rs", "part2_grid_summary_run"): (
+        "if expected==usize::MAX {Some((part1_grid_count_summary(counts,resolutions,maximum,expected),events))}",
+        "Part2GridCapacityContext::Offsets {counts,resolutions,maximum,expected}",
+        "part1_grid_count_summary(counts,resolutions,maximum,expected)",
+    ),
+    ("specs/cold_grid.rs", "part2_grid_run"): (
+        "part2_grid_admit(layers,components,resolutions,counts,limits)", "Err(error)=>Some((Err(error),events))",
+        "part2_grid_summary_run(counts,resolutions,maximum,expected,events)",
+        "part1_packet_grid_new(layers,components,resolutions,counts,selected,limits)",
+    ),
+    ("specs/cold_grid.rs", "part2_uniform_grid_run"): (
+        "Part2GridCapacityContext::Uniform {layers,components,resolutions,counts}",
+        "part2_grid_run(layers,components,Seq::new(components as nat,|_:int|resolutions),counts,None,limits,rest)",
+    ),
+    ("specs/cold_grid_geometry.rs", "part2_grid_components_cold_run"): (
+        "part2_grid_run(layers,crate::codestream::image_size_component_count(size),descriptors.1,counts",
+        "component_coding_style_result(styles,component)", "part2_grid_resolutions_cold_run(",
+    ),
+    ("specs/cold_grid_geometry.rs", "part2_grid_resolutions_cold_run"): (
+        "part2_resolution_geometry(", "part2_packet_grid_subband_delta(style,resolution)",
+        "part2_packet_grid_codeblocks(total,geometry.code_blocks,resolution<resolutions-discard,limits)",
+        "counts.push(if subbands==0{0u32}else{geometry.precincts as u32}),next,events)",
+    ),
+    ("specs/cold_grid_plan.rs", "part2_grid_plan_run"): (
+        "part2_selection_tile_bounds(", "part2_derived_grid_run(size,styles,style.layers,limits,Some(selection.0),selection.1,events)",
+        "part2_progression_tile_plan_owned(size,style,styles,quantizations,roi,selection,policy,limits)",
+    ),
+    ("specs/jpip_snapshot_inputs.rs", "part2_jpip_snapshot_tile"): (
+        "part2_jpip_grid_plan(input,tile,layout,events)", "|_:Part2ProgressionTilePlan,rest|part2_jpip_snapshot_tile_normal_run(input,count,components,tile,layout,raw,headers,rest)",
+    ),
+    ("specs/jpip_snapshot_inputs.rs", "part2_jpip_grid_plan"): (
+        "layout.parts.filter(|part:Part2OwnedTilePart|part.tile_index==tile as u16)", "let first=parts[0]",
+        "part2_grid_plan_run(&layout.size,first.coding_style,&first.component_coding_styles,first.component_quantizations,&first.roi_shifts,",
+    ),
+}
+_GRID_STORAGE_NATIVE_ORDER = {
+    ("src/packet/progression.rs", "packet_grid_count_summary"): (
+        "expected.checked_add(1)", "offsets: {", "empty_with_capacity(capacity)", "part2_grid_capacity_observed(",
+        "reserved?", "while state.index < counts.len()", "state.offsets.push(offset)",
+    ),
+    ("src/packet/progression.rs", "PacketGrid::new"): (
+        "part1_uniform_grid_cold_result(", "filled_values(resolutions, usize::from(components))",
+        "part2_grid_capacity_observed(", "let component_resolutions = filled?", "Self::new_with_component_resolutions(",
+        "part2_uniform_grid_actual(layers,components,resolutions,source_counts,limits,Ok(())",
+    ),
+    ("src/packet/progression.rs", "packet_grid_new_with_selected_resolutions"): (
+        "packet_grid_resolution_summary(", "if layers == 0 || components == 0", "if precinct_counts.len() != expected_counts",
+        "packet_grid_count_summary(", "part2_grid_summary_error(", "let summary = summary_result?", "packet_grid_selected_precincts(",
+        "if candidate_count > limits.maximum_work_units()",
+    ),
+}
+_PREPARATION_STORAGE_TESTS = {
+    ("src/allocation.rs", "preparation_fill_zero_refusal_and_restore_keep_exact_values"),
+    ("src/packet/tests.rs", "preparation_storage_outer_and_seen_refusals_preserve_precincts_and_restore"),
+    ("src/packet/tests.rs", "preparation_storage_empty_geometry_and_iterator_errors_consume_no_later_request"),
+    ("src/decode/tests.rs", "preparation_storage_public_outer_and_bitmap_refusal_restore_raw_and_container"),
+}
+_PREPARATION_STORAGE_GUARDS = {
+    ("specs/cold_packet_preparation.rs", "part2_preparation_count"): (
+        "Part2PacketPreparationContext::Packed { parts, .. } => parts.len() as usize",
+        "Part2PacketPreparationContext::Seen { grid, .. } => grid.packet_count as usize",
+    ),
+    ("specs/cold_packet_preparation.rs", "part2_preparation_capacity_run"): (
+        "if count==0 {Some((Ok(()),events))}", "Part2JpipSnapshotEvent::PacketPreparationCapacity",
+        "actual!=context || elements!=count", "Err(crate::DecodeError::AllocationFailed)", "events.drop_first()", "_=>None",
+    ),
+    ("specs/cold_packet_preparation.rs", "part2_prepare_payloads_run"): (
+        "part2_preparation_capacity_run(Part2PacketPreparationContext::Packed {parts,tile},events)",
+        "|_:(),rest|part2_payloads_run(parts,part2_preparation_initial(tile),maximum,rest)",
+    ),
+    ("specs/cold_packet_preparation.rs", "part2_progress_initial_run"): (
+        "let initial=part1_tile_progress_initial(params)", "Err(error)=>Some((Err(error),events))",
+        "part2_preparation_capacity_run(part2_progress_context(params),events)", "|_:(),rest|Some((initial,rest))",
+    ),
+    ("specs/cold_packet_preparation.rs", "part2_progress_context"): (
+        "Part2PacketPreparationContext::Seen {parts:params.parts,grid:params.grid,selection:params.selection}",
+    ),
+    ("specs/cold_packed_headers.rs", "part2_packet_input_run"): (
+        "match part1_progression_layout_owned(parts, grid, selection, limits)",
+        "Err(error) => Some((Err(error), events))", "part2_prepare_payloads_run(parts, parts[0].tile_index,",
+    ),
+    ("src/allocation.rs", "filled_values"): (
+        "if count == 0 {", "return Ok(Vec::new())", "empty_with_capacity(count)?", "values.push(value)",
+    ),
+}
+_PREPARATION_NATIVE_ORDER = {
+    ("src/packet/tile.rs", "prepare_progression_payloads"): (
+        "packed: {", "if tile_parts.is_empty()", "empty_with_capacity(tile_parts.len())",
+        "Part2PacketPreparationContext::Packed {parts,tile:tile_index}",
+        "part2_preparation_observed(context,response)", "reserved?",
+        "while input.index < tile_parts.len()", "part.packed_packet_headers.reassemble(limits)",
+    ),
+    ("src/packet/tile.rs", "progression_tile_progress_new"): (
+        "params.tile_parts.first()", "progression_packet_iterator_new(", "first.packet_lengths.iter()",
+        "usize::try_from(params.grid.packet_count)", "crate::allocation::filled_values(false, seen_length)",
+        "part2_preparation_observed(context,response)", "let seen=reserved?", "Ok(ProgressionTileProgress",
+    ),
+    ("src/packet/tile.rs", "decode_progression_tile_packets_selected"): (
+        "prepare_progression_tile_input(", "let input = prepared?", "progression_tile_progress_new(&params)",
+        "part2_packet_progress_error(", "let mut progress = progress_result?", "run_progression_tile_packets(",
+    ),
+}
+_PACKED_STORAGE_GUARDS = {
+    ("specs/cold_packed_headers.rs", "part2_packed_requests"): (
+        "source.length as u64 > maximum || source.length == 0",
+        "Part1PackedHeaderSource::None => Seq::empty()",
+        "logical_start as int + source.length as int > usize::MAX",
+        "else { seq![source] }",
+    ),
+    ("specs/cold_packed_headers.rs", "part2_packed_requests_run"): (
+        "requests.len() == 0 { Some((Ok(()), events)) }",
+        "Part2JpipSnapshotEvent::PackedHeaderCapacity { source, succeeded }",
+        "source != requests[0]", "else if !succeeded",
+        "Some((Err(crate::DecodeError::AllocationFailed), events.drop_first()))",
+        "part2_packed_requests_run(requests.drop_first(), events.drop_first())", "_ => None",
+    ),
+    ("specs/cold_packed_headers.rs", "part2_packed_reassembly_run"): (
+        "part2_jpip_snapshot_bind(part2_packed_requests_run(part2_packed_requests(source, maximum), events)",
+        "|_: (), rest| Some((part1_packed_header_reassembly(source, maximum), rest))",
+    ),
+    ("specs/cold_packed_headers.rs", "part2_payloads_run"): (
+        "s.index >= parts.len() { Some((Ok(s), events)) }",
+        "match part2_payload_before(parts, s)", "Err(error) => Some((Err(error), events))",
+        "part2_packed_reassembly_run(parts[s.index as int].packed_packet_headers, maximum, events)",
+        "match part2_payload_after(parts, s, maximum, packed)",
+        "Ok(after) => part2_payloads_run(parts, after, maximum, rest)",
+    ),
+    ("specs/cold_packed_headers.rs", "part2_packet_run"): (
+        "part2_packet_input_run(parts, grid, precincts, selection, limits, events)",
+        "Some((Err(error), rest)) => Some(((Err(error), precincts), rest))",
+        "Some((Ok(input), rest)) => match part2_progress_initial_run(part2_packet_parameters(parts,grid,input,selection,limits),rest)",
+        "Some((Err(error),tail))=>Some(((Err(error),precincts),tail))",
+        "Some((Ok(_),tail))=>Some((part1_progression_tile_decode_owned(parts,grid,precincts,selection,limits),tail))",
+    ),
+    ("specs/cold_packed_headers.rs", "part2_packet_prefix"): (
+        "forall|tail: Seq<Part2JpipSnapshotEvent>| #[trigger]",
+        "part2_packet_run(parts, grid, precincts, selection, limits, prefix + tail) == Some((result, tail))",
+    ),
+    ("specs/cold_decode_packets.rs", "part2_planned_decode_run"): (
+        "part2_packet_value_run(parts, plan.grid, plan.precincts, selection, limits, events)",
+        "part2_decode_planned_tile_components_owned(plan, parts, first, size, standard, selection, limits, prepared, work)",
+    ),
+    ("specs/cold_decode_packets.rs", "part2_tile_decode_run"): (
+        "part2_tile_decode_metadata_owned(parts, crate::codestream::image_size_component_count(size), discard)",
+        "part2_grid_plan_run(", "part2_tile_after_grid_plan(size,parts,metadata,discard,limits,prepared,initial,work,plan,rest)",
+    ),
+    ("specs/cold_grid_plan.rs", "part2_tile_after_grid_plan"): (
+        "part2_planned_tile_accounting(plan,maximum,initial,limits)",
+        "part2_planned_decode_run(plan,parts,metadata.first,size,metadata.standard,maximum",
+        "prepared:decoded.prepared,counters,mct_work:decoded.mct_work",
+    ),
+    ("specs/cold_decode_packets.rs", "part2_full_decode_run"): (
+        "part2_collect_tile_parts(parts, tile as u16)",
+        "part2_tile_decode_run(size, tile as u16, selected, caps, None, limits, before.prepared, before.counters, before.mct_work, events)",
+        "part2_full_decode_run(size, parts, caps, limits, count, (tile + 1) as u64, after, rest)",
+    ),
+    ("specs/cold_decode_packets.rs", "part2_selected_decode_run"): (
+        "part2_collect_tile_parts(parts, tiles[index as int])",
+        "part2_tile_decode_run(size, tiles[index as int], selected, caps, Some(discard), limits, before.prepared, before.counters, before.mct_work, events)",
+        "part2_selected_decode_run(size, parts, caps, tiles, region, discard, limits, index + 1, after, rest)",
+    ),
+    ("specs/cold_decode_finish.rs", "part2_typed_decode_run"): (
+        "part2_layout_decode_run(input, requested, limits, events)",
+        "part2_typed_decode_finish(bytes, input, requested, limits, decoded)",
+    ),
+    ("specs/raw_decode.rs", "part2_decode_raw_value_cold_run"): (
+        "part2_cold_parse(input, limits, 2, 0, events)",
+        "part2_typed_decode_run(input.len() as usize, part2_decoder_input_from_raw(layout), requested, limits, rest)",
+    ),
+    ("specs/raw_decode.rs", "part2_decode_reconstructed_cold_run"): (
+        "part2_cold_parse(input, limits, 8, 0, events)",
+        "part2_reconstructed_decode_run(input.len() as usize, part2_decoder_input_from_raw(layout), limits, rest)",
+    ),
+    ("specs/jpx_source.rs", "part2_jpx_selected_layout_run"): (
+        "part2_validate_selected_header(", "Err(error)=>Some((Err(error),events))",
+        "part2_layout_decode_run(part2_decoder_input_from_raw(layout),Some(requested),limits,events)",
+        "part2_jpx_selected_finish(part2_decoder_input_from_raw(layout),header,requested,limits,decoded)",
+    ),
+}
+_PACKED_STORAGE_MODELS = {("specs/cold_packed_headers.rs", name) for name in (
+    "part2_packed_requests", "part2_packed_requests_run", "part2_packed_requests_result", "part2_packed_normal_calls",
+)}
+_PACKED_STORAGE_PROOFS = {("specs/cold_packed_headers.rs", name) for name in (
+    "part2_packed_capacity_observed", "part2_packed_requests_normal", "part2_packed_requests_frame",
+    "part2_packed_reassembly_refused", "part2_packed_requests_projection", "part2_packed_reassembly_projection",
+)}
+_PACKED_STORAGE_TESTS = {
+    ("src/codestream/packet_headers.rs", "packed_storage_refusal_retains_sources_and_prior_bytes_then_restores"),
+    ("src/codestream/packet_headers.rs", "packed_storage_zero_admission_and_framing_keep_original_request_order"),
+    ("src/packet/tests.rs", "packed_storage_first_and_later_preparation_refusal_preserve_entire_precinct_state"),
+    ("src/packet/tests.rs", "packed_storage_earlier_tile_error_and_selected_preparation_keep_refusal_frontier"),
+    ("src/decode/tests.rs", "packed_storage_raw_container_selected_and_reconstruction_refuse_only_after_parse"),
+}
+_PACKED_STORAGE_NATIVE_ORDER = {
+    ("src/codestream/packet_headers.rs", "PackedPacketHeaders::reassemble"): (
+        "if self.length as u64 > limits.maximum_packet_header_bytes()",
+        "let PackedPacketHeaderSource::MarkerSegments", "logical_start.checked_add(self.length)",
+        "let reserved = if self.length == 0", "crate::allocation::empty_with_capacity(self.length)",
+        "part2_packed_capacity_observed(", "let mut output = reserved?", "while position < header.len()",
+    ),
+    ("src/packet/tile.rs", "prepare_progression_payloads"): (
+        "if part.tile_index != input.tile_index", "input.payload_bytes =",
+        "let packed_result = part.packed_packet_headers.reassemble(limits)",
+        "part2_payloads_error(", "let packed = packed_result?", "input.packed_payload_bytes =",
+        "input.packed.push(packed)", "part2_payloads_advance(",
+    ),
+}
+
+_INSPECTION_STORAGE_GUARDS = {
+    ("specs/cold_inspection_storage.rs", "part2_inspection_capacity"): (
+        "if count == 0 { Some((Ok(()), events)) }",
+        "Part2JpipSnapshotEvent::InspectionCapacity { collection: actual, elements, succeeded }",
+        "actual != collection || elements != count",
+        "Err(crate::DecodeError::AllocationFailed)", "events.drop_first()", "_ => None",
+    ),
+    ("src/allocation.rs", "inspection_values"): (
+        "if count == 0 { Ok(Vec::new()) } else { empty_with_capacity(count) }",
+        "part2_inspection_capacity_observed(_collection, count, inspection_capacity_outcome(result))",
+    ),
+}
+_INSPECTION_CONTAINER_GUARDS = {
+    ("specs/jp2_inspection.rs", "part2_inspection_cold_run"): (
+        "part2_parse_container(input, *limits)", "Err(error) => Some((Err(error), events))",
+        "part2_inspection_capacity(crate::allocation::InspectionCollection::Infos(display_first)",
+        "part2_inspection_count(file, display_first) as usize, events)",
+        "part2_inspected_cold_streams(file, limits, 0, Seq::empty(), display_first, rest)",
+    ),
+    ("src/jp2/container.rs", "parse_and_inspect_mode"): (
+        "let file = parse(input, limits)?", "inspection_count(&file, display_first)",
+        "inspection_values(codestream_count,", "crate::allocation::InspectionCollection::Infos(display_first)",
+        "let mut inspected_codestreams = reserved?", "while index < codestream_count",
+        "codestream::parse(codestream_box.data, limits)", "validate_container_codestream(",
+        "inspected_codestreams.push(info)",
+    ),
+}
+_INSPECTION_LAYER_GUARDS = {
+    ("specs/cold_inspection_storage.rs", "part2_inspect_file_cold_run"): (
+        "part2_inspection_capacity(InspectionCollection::Layers",
+        "part2_inspection_layer_count(input) as usize, events)",
+        "part2_inspect_jpx_file(input, geometries, maximum_frames), rest",
+    ),
+    ("src/jpx/inspection.rs", "inspect_file"): (
+        "let layer_count = effective_layer_count(file)",
+        "inspection_values(layer_count,", "crate::allocation::InspectionCollection::Layers",
+        "let mut layers = reserved?", "while index < layer_count", "let mut codestream_indices = Vec::new()",
+    ),
+}
+
+_QUANTIZATION_COLD_GUARDS = {
+    ("specs/cold_bitmap.rs", "part1_bitmap_count"): (
+        "records.len() == 0 { None }",
+        "part1_poc_validation_shape(offset, layers, styles, 0, 0, 0)",
+        "let cost = (records.len() as u64) as int * (shape.0 as u64) as int",
+        "cost > u64::MAX || cost > crate::limits::resource_work_limit(limits)",
+        "else { Some(shape.0) }",
+    ),
+    ("specs/cold_bitmap.rs", "part1_bitmap_requests"): (
+        "None => Seq::empty()", "MctCopyPath::ProgressionBitmap(offset, layers,",
+        "crate::codestream::component_coding_style_count(styles), records.len() as usize), count)",
+    ),
+    ("specs/cold_payload_owners.rs", "part1_main_resolved_run"): (
+        "part1_main_bitmap_run(input, events)", "Some((Err(error), rest)) => Some((Err(error), rest))",
+        "Some((Ok(()), rest)) => match part1_main_resolved_prepare(input)",
+        "part1_resolved_graph_run(ResolvedCopyRole::Main, ctx.mct, rest)",
+    ),
+    ("specs/cold_payload_owners.rs", "part1_tile_after_configuration_run"): (
+        "part1_bitmap_run(tile.0, raw.progression_changes, raw.tile_coding_style.layers, &styles, reader.limits, events)",
+        "Some((Err(error), rest)) => Some(((Err(error), reader), rest))",
+        "Some((Ok(()), rest)) => part1_tile_after_bitmap_run(reader, raw, tile, configuration, lengths, headers, rest)",
+    ),
+    ("src/codestream/coding_markers.rs", "Parser::validate_progression_changes"): (
+        "if changes.is_empty()", "self.progression_validation_shape(layers, component_styles, offset)",
+        "(changes.records.len() as u64).checked_mul(active_coordinates as u64)",
+        "validation_work > self.limits.maximum_work_units()",
+        "filled_values(false, active_coordinates,",
+        "ProgressionBitmap(offset, layers, components, changes.records.len(),)",
+        "let mut owners = copied?", "while record_index < changes.records.len()",
+        "self.mark_progression_record(", "progression_owners_complete(&owners)",
+    ),
+    ("src/codestream/mct_copy.rs", "filled_values"): (
+        "reserve_values(count, _path)?", "let mut index = 0_usize",
+        "while index < count", "values.push(value)", "Ok(values)",
+    ),
+    ("specs/cold_profile.rs", "part1_profile_words_requests"): (
+        "start > segment.payload.len() { Seq::empty() }",
+        "MctCopyPath::ProfileWords(segment.marker, segment.offset, start)",
+        "((segment.payload.len() - start) / 2) as usize",
+    ),
+    ("specs/cold_profile.rs", "part1_profile_requests"): (
+        "ProfileFreshInput::Words(segment, start) => part1_profile_words_requests(segment, start)",
+        "ProfileFreshInput::Cap(segment) => if segment.payload.len() < 4",
+        "p == 0 || segment.payload.len() != part15_cap_payload_length",
+        "part1_profile_words_requests(segment, 4)",
+        "ProfileFreshInput::Number(segment) => if segment.payload.len() < 2 || segment.payload.len() % 2 != 0",
+        "part1_profile_words_requests(segment, 0)",
+    ),
+    ("specs/cold_profile.rs", "part1_profile_result"): (
+        "exists|events: Seq<Part1ColdStorageEvent>| part1_profile_run(input, events) == Some((result, Seq::empty()))",
+    ),
+    ("specs/cold_profile.rs", "part1_profile_ordinary"): (
+        "ProfileFreshValue::Words(part1_marker_words(segment, start))",
+        "ProfileFreshValue::Cap(part1_parse_cap(segment))",
+        "ProfileFreshValue::Number(part1_parse_profile_number(segment))",
+    ),
+    ("specs/cold_profile.rs", "part1_profile_main_input"): (
+        "segment.marker == 0xff50 && raw.capabilities.is_none()",
+        "segment.marker == 0xff56 && raw.profile.is_none()",
+        "segment.marker == 0xff59 && raw.corresponding_profile.is_none()",
+        "Some(ProfileFreshInput::Number(segment))", "else { None }",
+    ),
+    ("specs/cold_profile.rs", "part1_profile_main_run"): (
+        "part1_profile_main_input(raw, segment)",
+        "None => Some((part1_main_header_payload(reader, raw, segment), events))",
+        "Some(input) => match part1_profile_run(input, events)",
+        "Some((ProfileFreshValue::Cap(parsed), rest))",
+        "Err(error) => (Err(error), reader, raw)",
+        "capabilities: Some(capabilities)",
+        "Some((ProfileFreshValue::Number(parsed), rest))",
+        "Err(error) => (Err(error), reader, raw)",
+        "profile: Some(words)", "corresponding_profile: Some(words)",
+    ),
+    ("src/codestream/profile.rs", "Parser::read_marker_words"): (
+        "if start > segment.payload.len()", "reserve_values((segment.payload.len() - start) / 2,",
+        "MctCopyPath::ProfileWords(segment.marker, segment.offset, start)",
+        "while position < segment.payload.len()", "self.segment_byte(segment, position, 0)",
+        "self.segment_byte(segment, next, 0)", "words.push(read_u16([first, second]))",
+    ),
+    ("src/codestream/profile.rs", "Parser::parse_cap"): (
+        "if p_cap == 0", "segment.payload.len() != expected_length", "self.read_marker_words(segment, 4)",
+    ),
+    ("src/codestream/profile.rs", "Parser::parse_profile_number"): (
+        "segment.payload.len() < 2 || remainder != 0", "self.read_marker_words(segment, 0)",
+        "matches!(words.last(), Some(value) if *value == 0)",
+    ),
+    ("specs/cold_part2_fresh.rs", "part1_p2_fresh_site"): (
+        "FreshPart2Path::Dfs(_) => 72", "FreshPart2Path::AdsDepth(_, _) => 73",
+        "FreshPart2Path::AdsSplit(_, _) => 74", "FreshPart2Path::AdsDirections(_) => 75",
+        "FreshPart2Path::AtkSteps(_, _) => 76", "FreshPart2Path::AtkCoefficients(_, _, _) => 77",
+        "FreshPart2Path::NltPoints(_) => 78", "FreshPart2Path::NltParameters(_, _) => 79",
+    ),
+    ("specs/cold_part2_fresh.rs", "part1_p2_fresh_steps_requests"): (
+        "remaining == 0 { Seq::empty() }", "part1_p2_fresh_step_requests(cursor, segment, position, width, kind, reversible, whole)",
+        "match part1_atk_step(cursor, segment, position, width, kind, reversible, whole)",
+        "Err(_) => Seq::empty()", "part1_p2_fresh_steps_requests(cursor, segment, next, width, kind, reversible, whole, (remaining - 1) as nat)",
+    ),
+    ("specs/cold_part2_fresh.rs", "part1_p2_marker_run"): (
+        "let charged = part1_charge_extension_metadata(reader, segment, extensions)",
+        "if charged.0.is_err() { Some((charged, events)) }",
+        "part1_p2_marker_input(kind, charged.1.position, segment, components)",
+        "part1_mct_copy_run(part1_p2_fresh_requests(input), events)",
+        "Some((Err(error), rest)) => Some(((Err(error), charged.1, charged.2), rest))",
+        "part1_p2_marker_ordinary(kind, reader, segment, components, extensions)",
+    ),
+    ("specs/cold_part2_fresh.rs", "part1_p2_marker_result"): (
+        "exists|events: Seq<Part1ColdStorageEvent>| part1_p2_marker_run(kind, reader, segment, components, extensions, events) == Some((result, Seq::empty()))",
+    ),
+    ("specs/cold_part2_fresh.rs", "part1_p2_fresh_ordinary"): (
+        "Part2FreshInput::Dfs(segment) => Part2FreshValue::Dfs(part1_dfs_payload(segment))",
+        "Part2FreshInput::Ads(cursor, segment) => Part2FreshValue::Ads(part1_ads_payload(cursor, segment))",
+        "Part2FreshValue::Unpack(part1_unpack_two_bit_values(cursor, segment, start, count, terminal))",
+        "Part2FreshValue::Atk(part1_atk_payload(cursor, segment))",
+        "Part2FreshValue::Step(part1_atk_step(cursor, segment, start, width, kind, reversible, whole))",
+        "Part2FreshValue::Nlt(part1_nlt_payload(segment, components))",
+        "Part2FreshValue::Tail(part1_copy_segment_tail(segment, start))",
+    ),
+    ("specs/cold_part2_header.rs", "part1_p2_tile_extensions"): (
+        "segment.marker == 0xff76 && raw.part2_extensions.nonlinear_local_count.is_none()",
+        "nonlinear_local_count: Some(0)", "else { raw.part2_extensions }",
+    ),
+    ("src/codestream/decomposition.rs", "Parser::decode_dfs_payload"): (
+        "segment.payload.len() != expected",
+        "reserve_values(usize::from(levels),", "MctCopyPath::FreshPart2(FreshPart2Path::Dfs(segment.offset))",
+        "directions.push(",
+    ),
+    ("src/codestream/decomposition.rs", "Parser::unpack_two_bit_values"): (
+        "let path = if allow_terminal", "FreshPart2Path::AdsSplit(segment.offset, start)",
+        "FreshPart2Path::AdsDepth(segment.offset, start)", "reserve_values(count, MctCopyPath::FreshPart2(path))",
+        "while index < count", "self.segment_byte(segment, start, index / 4)",
+    ),
+    ("src/codestream/decomposition.rs", "Parser::decode_ads_payload"): (
+        "segment.payload.len() != expected", "self.unpack_two_bit_values(segment, 2, depth_count, false)",
+        "self.unpack_two_bit_values(segment, split_count_position + 1, split_count, true)",
+        "reserve_values(split_values.len(),", "MctCopyPath::FreshPart2(FreshPart2Path::AdsDirections(segment.offset))",
+    ),
+    ("src/codestream/part2_transforms.rs", "Parser::decode_atk_payload"): (
+        "let step_count", "reserve_values(step_count,", "MctCopyPath::FreshPart2(FreshPart2Path::AtkSteps(segment.offset, position))",
+        "self.decode_atk_step(",
+    ),
+    ("src/codestream/part2_transforms.rs", "Parser::decode_atk_step"): (
+        "if coefficient_count == 0", "reserve_values(coefficient_count,",
+        "MctCopyPath::FreshPart2(FreshPart2Path::AtkCoefficients(segment.offset, start, position,))",
+        "while coefficient < coefficient_count", "self.read_kernel_coefficient(",
+    ),
+    ("src/codestream/part2_transforms.rs", "Parser::decode_nlt_payload"): (
+        "segment.payload.len() != expected",
+        "reserve_values(usize::from(count),", "MctCopyPath::FreshPart2(FreshPart2Path::NltPoints(segment.offset))",
+        "points = copied?", "points.push(value)", "Ok(NonlinearPointTransform",
+        "parameters: {", "self.copy_segment_tail(segment, 4)", "d_min,", "d_max,", "point_bits,", "points,",
+    ),
+    ("src/codestream/reader.rs", "Parser::copy_segment_tail"): (
+        "if start > segment.payload.len()", "reserve_values(segment.payload.len() - start,",
+        "FreshPart2Path::NltParameters(segment.offset, start,)", "while position < segment.payload.len()",
+        "copied.push(self.segment_byte(segment, position, 0)?)",
+    ),
+    ("src/codestream/mct_markers.rs", "Parser::parse_mct"): (
+        "let copied = reserve_values(element_count,",
+        "MctCopyPath::FreshMarker(FreshMarkerPath::Values(segment.offset))",
+        "values.push(value)",
+    ),
+    ("src/codestream/mct_markers.rs", "Parser::parse_mcc"): (
+        "let copied = reserve_values(usize::from(collection_count),",
+        "MctCopyPath::FreshMarker(FreshMarkerPath::Collections(segment.offset))",
+        "self.decode_mcc_collection(segment, components, position)",
+    ),
+    ("src/codestream/mct_markers.rs", "Parser::parse_mco"): (
+        "let copied = reserve_values(count,",
+        "MctCopyPath::FreshMarker(FreshMarkerPath::Order(segment.offset))",
+        "order.push(stage)",
+    ),
+    ("src/codestream/mct_markers.rs", "parse_mcc_component_list"): (
+        "let encoded_count = read_u16", "*position = match position.checked_add(2)",
+        "if count == 0 || count > components", "payload.len() - *position < required",
+        "let path = if _output", "FreshMarkerPath::Outputs(marker_offset, *position)",
+        "FreshMarkerPath::Inputs(marker_offset, *position)",
+        "reserve_values(usize::from(count), MctCopyPath::FreshMarker(path))",
+        "references.push(reference)",
+    ),
+    ("src/codestream/mct_markers.rs", "Parser::decode_mcc_collection"): (
+        "parse_mcc_component_list(segment.payload, &mut position, components, segment.offset, false,)",
+        "parse_mcc_component_list(segment.payload, &mut position, components, segment.offset, true,)",
+    ),
+    ("src/codestream/mct_markers.rs", "Parser::prepare_mct_fragment"): (
+        "copy_flat(&segment.payload[6..],",
+        "MctCopyPath::FreshMarker(FreshMarkerPath::MctInitial(segment.offset))",
+        "let data = copied?", "active_index = pending.len()", "pending.push(MctFragment",
+    ),
+    ("src/codestream/mct_markers.rs", "Parser::prepare_mcc_fragment"): (
+        "copy_flat(&segment.payload[7..],",
+        "MctCopyPath::FreshMarker(FreshMarkerPath::MccInitial(segment.offset))",
+        "let data = copied?", "active_index = pending.len()", "pending.push(MccFragment",
+    ),
+    ("src/codestream/mct_markers.rs", "Parser::consume_mct_fragment"): (
+        "let state = pending.swap_remove(active_index)", "state.data.len() as u64 > maximum_bytes",
+        "reserve_values(state.data.len().saturating_add(6),",
+        "MctCopyPath::FreshMarker(FreshMarkerPath::MctReassembly(state.offset))",
+        "let mut payload = copied?", "self.parse_mct(Segment", "completed.push(segment.payload[3])",
+    ),
+    ("src/codestream/mct_markers.rs", "Parser::consume_mcc_fragment"): (
+        "let state = pending.swap_remove(active_index)", "state.data.len() as u64 > maximum_bytes",
+        "reserve_values(state.data.len().saturating_add(7),",
+        "MctCopyPath::FreshMarker(FreshMarkerPath::MccReassembly(state.offset))",
+        "let mut payload = copied?", "self.parse_mcc(", "completed.push(segment.payload[2])",
+    ),
+    ("specs/cold_marker_storage.rs", "part1_fresh_prepare_mct_requests"): (
+        "segment.payload.len() >= 6", "part1_marker_value(segment.payload[0], segment.payload[1]) == 0",
+        "part1_prepare_mct_fragment(segment, limits, pending, completed).0.is_ok()",
+        "FreshMarkerPath::MctInitial(segment.offset)", "(segment.payload.len() - 6) as usize",
+        "else { Seq::empty() }",
+    ),
+    ("specs/cold_marker_storage.rs", "part1_fresh_prepare_mcc_requests"): (
+        "segment.payload.len() >= 7", "part1_marker_value(segment.payload[0], segment.payload[1]) == 0",
+        "part1_prepare_mcc_fragment(segment, components, pending, completed).0.is_ok()",
+        "FreshMarkerPath::MccInitial(segment.offset)", "(segment.payload.len() - 7) as usize",
+        "else { Seq::empty() }",
+    ),
+    ("specs/cold_marker_storage.rs", "part1_fresh_marker_site"): (
+        "FreshMarkerPath::Values(_) => 63", "FreshMarkerPath::Collections(_) => 64",
+        "FreshMarkerPath::Inputs(_, _) => 65", "FreshMarkerPath::Outputs(_, _) => 66",
+        "FreshMarkerPath::Order(_) => 67", "FreshMarkerPath::MctReassembly(_) => 68",
+        "FreshMarkerPath::MccReassembly(_) => 69", "FreshMarkerPath::MctInitial(_) => 70",
+        "FreshMarkerPath::MccInitial(_) => 71",
+    ),
+    ("specs/cold_marker_storage.rs", "part1_fresh_collection_requests"): (
+        "segment.payload[start as int] & 0xfc != 0", "segment.payload[start as int] & 3 == 2",
+        "part1_fresh_list_requests(segment.payload, (start + 1) as usize, components, segment.offset, false)",
+        "part1_parse_mcc_component_list(segment.payload, (start + 1) as usize, components, segment.offset)",
+        "first + if input.0.is_ok()", "part1_fresh_list_requests(segment.payload, input.1, components, segment.offset, true)",
+    ),
+    ("specs/cold_marker_storage.rs", "part1_fresh_consume_mct_run"): (
+        "part1_fresh_prepare_mct_run(segment, limits, pending, completed, events)",
+        "Some(((Err(error), changed), rest)) => Some(((Err(error), changed, completed), rest))",
+        "if !part2_fragment_complete(state.next_index, state.final_index)",
+        "let removed = part1_mct_fragment_swap_remove(changed, index)",
+        "if state.data.len() as u64 > maximum", "FreshMarkerPath::MctReassembly(state.offset)",
+        "Some((Err(error), tail)) => Some(((Err(error), removed, completed), tail))",
+        "part1_fresh_mct_run(part1_fresh_mct_reassembled(state), limits, tail)",
+        "Some((Err(error), last)) => Some(((Err(error), removed, completed), last))",
+        "completed.push(segment.payload[3])",
+    ),
+    ("specs/cold_marker_storage.rs", "part1_fresh_consume_mcc_run"): (
+        "part1_fresh_prepare_mcc_run(segment, components, pending, completed, events)",
+        "Some(((Err(error), changed), rest)) => Some(((Err(error), changed, completed), rest))",
+        "if !part2_fragment_complete(state.next_index, state.final_index)",
+        "let removed = part1_mcc_fragment_swap_remove(changed, index)",
+        "if state.data.len() as u64 > maximum", "FreshMarkerPath::MccReassembly(state.offset)",
+        "Some((Err(error), tail)) => Some(((Err(error), removed, completed), tail))",
+        "part1_fresh_mcc_run(part1_fresh_mcc_reassembled(state), components, limits, tail)",
+        "Some((Err(error), last)) => Some(((Err(error), removed, completed), last))",
+        "completed.push(segment.payload[2])",
+    ),
+    ("specs/cold_extensions_copy.rs", "part1_part2_role_requests"): (
+        "if !payload { requests } else",
+        "MctCopyPath::Extensions(path) => MctCopyPath::PayloadExtensions(path)",
+        "elements: request.elements",
+    ),
+    ("specs/cold_resolved_copy.rs", "part1_resolved_copy_site"): (
+        "ResolvedCopyPath::Stages(role) => (role, 0u8)",
+        "ResolvedCopyPath::Collections(role, _, _) => (role, 1u8)",
+        "ResolvedCopyPath::Offsets(ctx, _) => (ctx.role, 2u8)",
+        "ResolvedCopyPath::Matrix(ctx, _) => (ctx.role, 3u8)",
+        "ResolvedCopyPath::Inputs(ctx) => (ctx.role, 4u8)",
+        "ResolvedCopyPath::Outputs(ctx) => (ctx.role, 5u8)",
+        "ResolvedCopyRole::Main { 37int } else { 43int }",
+    ),
+    ("specs/cold_payload_owners.rs", "part1_tile_after_window_run"): (
+        "part1_tile_part_after_window(reader, raw, tile, configuration, transform, end, data, lengths, headers)",
+        "normal.0.is_err() { Some((normal, events))",
+        "part1_mct_copy_run(part1_tile_payload_copy_requests(raw), events)",
+        "Some((Err(error), rest)) => Some(((Err(error), normal.1), rest))",
+    ),
+    ("specs/cold_payload_owners.rs", "part1_tile_payload_copy_requests"): (
+        "part1_part2_role_requests(true, part1_part2_copy_requests(raw.part2_extensions))",
+    ),
+    ("specs/cold_resolved_copy.rs", "part1_resolved_stage_tail"): (
+        "collection: position as usize", "part1_resolved_collection_requests(ctx, record.1[position as int], arrays)",
+        "part1_mct_graph_collection(record.1[position as int], arrays).is_ok()",
+        "part1_resolved_stage_tail(role, stage, record_index, record, arrays, position + 1)",
+    ),
+    ("specs/cold_extensions_copy.rs", "part1_part2_copy_leaf"): (
+        "part1_mct_copy_leaf(MctCopyPath::Extensions(path), count)",
+    ),
+    ("specs/cold_layout.rs", "part1_cold_layout_extensions_requests"): (
+        "part1_part2_copy_requests(part1_inherited_tile_owner(index, main.raw.extensions, state.2))",
+    ),
+    ("specs/cold_extensions_copy.rs", "part1_part2_copy_site"): (
+        "Part2CopyPath::Decompositions => 23", "Part2CopyPath::Directions(_) => 24",
+        "Part2CopyPath::Arbitrary => 25", "Part2CopyPath::Sublevels(_) => 26", "Part2CopyPath::Splits(_) => 27",
+        "Part2CopyPath::Nonlinear => 28", "Part2CopyPath::Parameters(_) => 29", "Part2CopyPath::Points(_) => 30",
+        "Part2CopyPath::Depths => 31", "Part2CopyPath::Kernels => 32", "Part2CopyPath::Steps(_) => 33",
+        "Part2CopyPath::Coefficients(_, _) => 34", "Part2CopyPath::Registrations => 35", "Part2CopyPath::Lengths => 36",
+    ),
+    ("specs/cold_extensions_copy.rs", "part1_part2_copy_requests"): (
+        "part1_part2_dfs_vector(value.decompositions)", "part1_part2_ads_vector(value.arbitrary)",
+        "part1_part2_nlt_vector(value.nonlinear) +",
+        "part1_part2_copy_leaf(Part2CopyPath::Depths, value.depths.len() as usize)",
+        "part1_part2_kernel_vector(value.kernels)",
+        "part1_part2_copy_leaf(Part2CopyPath::Registrations, value.registrations.len() as usize)",
+        "part1_part2_copy_leaf(Part2CopyPath::Lengths, value.lengths.len() as usize)",
+    ),
+    ("specs/cold_extensions_copy.rs", "part1_part2_nlt_requests"): (
+        "Part2CopyPath::Parameters(position), value.parameters.len()", "Part2CopyPath::Points(position), value.points.len()",
+    ),
+    ("specs/cold_extensions_copy.rs", "part1_part2_steps_tail"): (
+        "part1_part2_step_requests(values[position as int], kernel, position as usize)",
+        "part1_part2_steps_tail(values, kernel, position + 1)",
+    ),
+    ("specs/cold_layout.rs", "part1_cold_layout_after_mct_copy"): (
+        "part1_mct_copy_run(part1_cold_layout_extensions_requests(main, state, tile.2 as usize), events)",
+        "Some((Err(error), rest)) => Some(((Err(error), reader, tile_parts, state), rest))",
+        "Some((Ok(()), rest)) => part1_cold_layout_after_extensions_copy",
+    ),
+    ("specs/cold_mct_copy.rs", "part1_mct_copy_leaf"): (
+        "count == 0 { Seq::empty() }", "seq![Part1MctCopyRequest { path, elements: count }]",
+    ),
+    ("specs/cold_mct_copy.rs", "part1_mct_copy_site"): (
+        "MctCopyPath::Arrays => 16", "MctCopyPath::ArrayValues(_) => 17",
+        "MctCopyPath::Records => 18", "MctCopyPath::Collections(_) => 19",
+        "MctCopyPath::Inputs(_, _) => 20", "MctCopyPath::Outputs(_, _) => 21", "MctCopyPath::Order => 22",
+        "MctCopyPath::Extensions(path) => part1_part2_copy_site(path)",
+        "MctCopyPath::ProfileWords(_, _, _) => 80",
+        "MctCopyPath::ProgressionBitmap(_, _, _, _) => 81",
+    ),
+    ("specs/cold_mct_copy.rs", "part1_mct_copy_run"): (
+        "requests.len() == 0 { Some((Ok(()), events))",
+        "part1_quantization_storage_request(part1_mct_copy_site(requests[0].path), requests[0].elements, events)",
+        "Some((Err(error), rest)) => Some((Err(error), rest))",
+        "Some((Ok(()), rest)) => part1_mct_copy_run(requests.drop_first(), rest)",
+    ),
+    ("specs/cold_mct_copy.rs", "part1_mct_owner_copy_requests"): (
+        "part1_mct_copy_leaf(MctCopyPath::Arrays, owner.0.len() as usize)",
+        "part1_mct_arrays_copy_requests(owner.0, 0)",
+        "part1_mct_copy_leaf(MctCopyPath::Records, owner.1.len() as usize)",
+        "part1_mct_records_copy_requests(owner.1, 0)",
+        "part1_mct_copy_leaf(MctCopyPath::Order, owner.2.len() as usize)",
+    ),
+    ("specs/cold_mct_copy.rs", "part1_mct_collections_copy_requests"): (
+        "part1_mct_collection_copy_requests(collections[position as int], record, position as usize)",
+        "part1_mct_collections_copy_requests(collections, record, position + 1)",
+    ),
+    ("specs/cold_mct_copy.rs", "part1_mct_collection_copy_requests"): (
+        "part1_mct_copy_leaf(MctCopyPath::Inputs(record, position), collection.inputs.len() as usize)",
+        "part1_mct_copy_leaf(MctCopyPath::Outputs(record, position), collection.outputs.len() as usize)",
+    ),
+    ("specs/cold_layout.rs", "part1_cold_layout_after_progression_copy"): (
+        "part1_mct_copy_run(part1_cold_layout_mct_requests(main, state, tile.2 as usize), events)",
+        "Some((Err(error), rest)) => Some(((Err(error), reader, tile_parts, state), rest))",
+        "Some((Ok(()), rest)) => part1_cold_layout_after_mct_copy",
+    ),
+    ("specs/cold_progression.rs", "part1_poc_cold_run"): (
+        "!part1_poc_storage_shape(segment, components)",
+        "Some((part1_parse_poc(segment, components), events))",
+        "part1_quantization_storage_request(site, part1_poc_storage_elements(segment, components), events)",
+        "Some((Err(error), rest)) => Some((Err(error), rest))",
+    ),
+    ("specs/cold_header_progression.rs", "part1_main_progression_payload"): (
+        "segment.marker == 0xff5f && !raw.poc_seen",
+        "Part1MainHeaderAccumulator { poc_seen: true, ..raw }",
+        "part1_poc_cold_run(12, segment, raw.image_size.components, events)",
+        "Some((Err(error), rest)) => Some(((Err(error), reader, changed), rest))",
+    ),
+    ("specs/cold_header_progression.rs", "part1_tile_progression_payload"): (
+        "segment.marker == 0xff5f && !raw.poc_seen && tile_part_index == 0",
+        "Part1TileHeaderAccumulator { poc_seen: true, ..raw }",
+        "part1_poc_cold_run(13, segment, components, events)",
+        "Some((Err(error), rest)) => Some(((Err(error), reader, changed), rest))",
+    ),
+    ("specs/cold_layout.rs", "part1_cold_layout_after_inherited_copy"): (
+        "part1_inherited_tile_owner(tile.2 as usize, main.raw.progression, state.0.5)",
+        "progression.len() == 0", "part1_quantization_storage_request(14, progression.len() as usize, events)",
+        "Some((Err(error), rest)) => Some(((Err(error), reader, tile_parts, state), rest))",
+    ),
+    ("specs/persistent_tile_configuration.rs", "part1_commit_progression_cold_run"): (
+        "previous_roi, payload, state, 5)", "Err(_) => Some((prefix, events))",
+        "payload.progression_changes.len() == 0",
+        "part1_quantization_storage_request(15, payload.progression_changes.len() as usize, events)",
+        "Some((Err(error), rest)) => Some(((Err(error), prefix.1), rest))",
+    ),
+    ("specs/cold_quantization.rs", "part1_main_quantization_cold_complete"): (
+        "Err(error) => Some((Err(error), events))",
+        "part1_quantization_storage_request(8, input.raw.image_size.components as usize, events)",
+        "Some((Err(error), rest)) => Some((Err(error), rest))",
+        "Some((Ok(()), rest)) => part1_main_resolved_run(input, rest)",
+    ),
+    ("specs/cold_layout.rs", "part1_quantized_layout_cold_run"): (
+        "part1_main_header_cold_run(reader, events)",
+        "Some((Err(error), rest)) => Some((Err(error), rest))",
+        "Some((Ok(header), rest)) => part1_cold_layout_after_main(reader, header, rest)",
+    ),
+    ("specs/cold_layout.rs", "part1_cold_layout_after_main"): (
+        "part1_cold_tile_storage(header.tile_count as usize, 0, events)",
+        "Some((Err(error), rest)) => Some((Err(error), rest))",
+        "Some((Ok(()), rest)) => part1_cold_layout_continuation",
+    ),
+    ("specs/cold_layout.rs", "part1_cold_layout_inherited"): (
+        "part1_select_inherited_tile_configuration(reader.position, index,",
+        "part1_inherited_tile_owner(index, main.quantizations, state.0.4)",
+        "part1_quantization_storage_request(10, quantizations.1.len() as usize, events)",
+        "Some((Err(error), rest)) => Some(((Err(error), reader, tile_parts, state), rest))",
+    ),
+    ("specs/cold_tile_quantization.rs", "part1_tile_components_cold_run"): (
+        "part1_prepare_tile_quantization(",
+        "Err(error) => Some((Err(error), events))",
+        "qcd.is_none() || components == 0 || components > 64",
+        "part1_quantization_storage_request(9, components as usize, events)",
+        "Some((Err(error), rest)) => Some((Err(error), rest))",
+    ),
+    ("specs/persistent_tile_configuration.rs", "part1_commit_quantization_cold_run"): (
+        "previous_roi, payload, state, 4)",
+        "Err(_) => Some((prefix, events))",
+        "payload.component_quantizations.1.len() == 0",
+        "part1_quantization_storage_request(11, payload.component_quantizations.1.len() as usize, events)",
+        "Some((Err(error), rest)) => Some(((Err(error), prefix.1), rest))",
+    ),
+}
+
+_QUANTIZATION_ROOT_MODELS = {
+    ("specs/cold_layout.rs", name) for name in (
+        "part1_cold_layout_continuation", "part1_cold_layout_prefix", "part1_quantized_layout_cold_run",
+    )
+} | {("specs/cold_quantization.rs", name) for name in (
+    "part1_main_header_cold_run", "part1_prepare_main_quantization",
+)} | {("specs/cold_header_progression.rs", name) for name in (
+    "part1_prepare_main_progression_run", "part1_main_progression_continuation",
+    "part1_tile_progression_traversal", "part1_read_tile_progression_run",
+)} | {("specs/cold_progression.rs", name) for name in (
+    "part1_poc_cold_run", "part1_parse_poc_storage",
+)}
+_QUANTIZATION_ROOT_PROOFS = {
+    ("specs/cold_layout.rs", name) for name in (
+        "part1_cold_layout_advance_normal", "part1_quantized_layout_cold_frame",
+        "part1_quantized_layout_cold_normal", "part1_quantized_layout_cold_projection",
+    )
+} | {("specs/cold_layout_continuations.rs", name) for name in (
+    "part1_cold_layout_sot_commit_error", "part1_cold_layout_sot_copy_error", "part1_cold_layout_sot_read_error",
+)} | {("specs/cold_quantization.rs", "part1_main_quantization_normal")}
+_QUANTIZATION_ROOT_PROOFS |= {
+    ("specs/cold_header_progression.rs", name) for name in (
+        "part1_prepare_main_progression_normal", "part1_prepare_main_progression_frame",
+        "part1_prepare_main_progression_projection", "part1_cold_main_advance", "part1_cold_main_poc_error",
+        "part1_tile_progression_payload_storage_observed", "part1_tile_progression_step",
+        "part1_read_tile_progression_normal", "part1_read_tile_progression_frame", "part1_read_tile_progression_projection",
+    )
+} | {("specs/cold_layout_continuations.rs", "part1_cold_layout_sot_progression_error")}
+
+_QUANTIZATION_ROOT_MODELS |= {
+    ("specs/cold_marker_storage.rs", name) for name in (
+        "part1_fresh_marker_site", "part1_fresh_collection_requests", "part1_fresh_records_requests",
+        "part1_fresh_prepare_mct_requests", "part1_fresh_prepare_mcc_requests",
+    )
+} | {("specs/cold_marker_header.rs", "part1_fresh_main_payload")}
+_QUANTIZATION_ROOT_PROOFS |= {
+    ("specs/cold_marker_header.rs", name) for name in (
+        "part1_cold_main_fresh_error", "part1_fresh_main_normal",
+        "part1_fresh_main_projection", "part1_fresh_main_frame",
+    )
+}
+
+_QUANTIZATION_ROOT_MODELS |= {
+    ("specs/cold_part2_fresh.rs", name) for name in (
+        "Part2FreshInput", "Part2FreshValue", "part1_p2_fresh_site", "part1_p2_fresh_requests",
+        "part1_p2_fresh_ordinary", "part1_p2_fresh_run", "part1_p2_marker_run", "part1_p2_marker_result",
+    )
+} | {("specs/cold_part2_header.rs", "part1_p2_main_run")}
+_QUANTIZATION_ROOT_PROOFS |= {
+    ("specs/cold_part2_fresh.rs", name) for name in (
+        "part1_p2_marker_normal", "part1_p2_marker_frame", "part1_p2_marker_projection",
+        "part1_p2_marker_storage_observed", "part1_p2_marker_storage_equivalent",
+    )
+} | {("specs/cold_part2_header.rs", name) for name in (
+    "part1_p2_main_normal", "part1_p2_main_frame", "part1_p2_main_projection", "part1_cold_main_p2_step",
+)}
+
+_QUANTIZATION_ROOT_MODELS |= {("specs/cold_profile.rs", name) for name in (
+    "ProfileFreshInput", "ProfileFreshValue", "part1_profile_requests", "part1_profile_ordinary",
+    "part1_profile_words_requests", "part1_profile_main_input", "part1_profile_main_run",
+)}
+_QUANTIZATION_ROOT_PROOFS |= {("specs/cold_profile.rs", name) for name in (
+    "part1_profile_main_normal", "part1_profile_main_frame", "part1_profile_main_projection",
+    "part1_cold_main_profile_step", "part1_profile_storage_observed", "part1_profile_storage_equivalent",
+)}
+
+_QUANTIZATION_ROOT_MODELS |= {("specs/cold_bitmap.rs", name) for name in (
+    "part1_bitmap_count", "part1_bitmap_requests", "part1_bitmap_run", "part1_bitmap_result",
+)} | {("specs/cold_payload_owners.rs", name) for name in (
+    "part1_main_bitmap_run", "part1_main_bitmap_calls",
+)}
+_QUANTIZATION_ROOT_PROOFS |= {("specs/cold_bitmap.rs", name) for name in (
+    "part1_bitmap_normal", "part1_bitmap_frame", "part1_bitmap_projection",
+    "part1_cold_main_bitmap_error",
+)}
+
+_MCT_COPY_MODELS = {("specs/cold_mct_copy.rs", name) for name in (
+    "Part1MctCopyRequest", "part1_mct_copy_site", "part1_mct_copy_leaf", "part1_mct_copy_run", "part1_mct_copy_result",
+    "part1_mct_array_copy_requests", "part1_mct_arrays_copy_requests", "part1_mct_collection_copy_requests",
+    "part1_mct_collections_copy_requests", "part1_mct_record_copy_requests", "part1_mct_records_copy_requests",
+    "part1_mct_owner_copy_requests",
+)} | {("specs/cold_layout.rs", name) for name in (
+    "part1_cold_layout_mct_requests", "part1_cold_layout_after_progression_copy", "part1_cold_layout_after_mct_copy",
+)}
+_MCT_COPY_PROOFS = {("specs/cold_mct_copy.rs", name) for name in (
+    "part1_mct_copy_observed", "part1_mct_copy_normal", "part1_mct_copy_projection", "part1_mct_copy_bind",
+    "part1_mct_copy_frame", "part1_mct_copy_continue",
+)} | {("specs/cold_layout.rs", name) for name in (
+    "part1_cold_layout_after_mct_normal", "part1_cold_layout_mct_normal_bind", "part1_cold_layout_after_progression_frame",
+)} | {("specs/cold_layout_continuations.rs", "part1_cold_layout_sot_mct_error")}
+
+_PART2_COPY_MODELS = {("specs/cold_extensions_copy.rs", name) for name in (
+    "part1_part2_copy_site", "part1_part2_copy_leaf", "part1_part2_copy_requests",
+    "part1_part2_dfs_requests", "part1_part2_dfs_tail", "part1_part2_ads_requests", "part1_part2_ads_tail",
+    "part1_part2_nlt_requests", "part1_part2_nlt_tail", "part1_part2_step_requests", "part1_part2_steps_tail",
+    "part1_part2_kernel_requests", "part1_part2_kernels_tail", "part1_part2_copy_stage", "part1_part2_copy_tail",
+)} | {("specs/cold_layout.rs", name) for name in (
+    "part1_cold_layout_extensions_requests", "part1_cold_layout_after_extensions_copy",
+)}
+_PART2_COPY_PROOFS = {("specs/cold_extensions_copy.rs", name) for name in (
+    "part1_part2_copy_start", "part1_part2_copy_advance",
+)} | {("specs/cold_layout.rs", name) for name in (
+    "part1_cold_layout_after_extensions_normal", "part1_cold_layout_after_extensions_frame",
+)} | {("specs/cold_layout_continuations.rs", "part1_cold_layout_sot_extensions_error")}
+
+_RESOLVED_COPY_MODELS = {("specs/cold_resolved_copy.rs", name) for name in (
+    "part1_resolved_copy_site", "part1_resolved_collection_requests", "part1_resolved_stage_requests",
+    "part1_resolved_graph_requests", "part1_resolved_stage_tail", "part1_resolved_graph_tail",
+    "part1_resolved_collection_result", "part1_resolved_collection_run", "part1_resolved_stage_result",
+    "part1_resolved_stage_run", "part1_resolved_graph_result", "part1_resolved_graph_run",
+)} | {("specs/cold_payload_owners.rs", name) for name in (
+    "part1_main_resolved_prepare", "part1_main_resolved_run", "part1_tile_after_configuration_run",
+    "part1_tile_after_window_run", "part1_tile_payload_copy_requests",
+)}
+_RESOLVED_COPY_PROOFS = {("specs/cold_resolved_copy.rs", name) for name in (
+    "part1_resolved_collection_normal", "part1_resolved_stage_normal", "part1_resolved_graph_normal_result",
+    "part1_resolved_collection_observed", "part1_resolved_stage_observed", "part1_resolved_graph_projection",
+    "part1_resolved_graph_frame",
+)} | {("specs/cold_payload_owners.rs", name) for name in (
+    "part1_main_resolved_normal", "part1_main_resolved_projection", "part1_main_resolved_frame",
+    "part1_tile_after_configuration_normal", "part1_tile_after_configuration_projection", "part1_tile_after_configuration_frame",
+    "part1_cold_tile_payload_error",
+)}
+
+
+for _contracts, _models, _proofs in (
+    (_RAW_INSPECTED_CONTRACTS, _RAW_INSPECTED_MODELS, _RAW_INSPECTED_PROOFS),
+    (_RAW_JPX_PUBLIC_IMAGE_CONTRACTS, _RAW_JPX_PUBLIC_IMAGE_MODELS, _RAW_JPX_PUBLIC_IMAGE_PROOFS),
+    (_RAW_CONTAINER_IMAGE_CONTRACTS, _RAW_CONTAINER_IMAGE_MODELS, _RAW_CONTAINER_IMAGE_PROOFS),
+    (_RAW_CONTAINER_COLOR_CONTRACTS, _RAW_CONTAINER_COLOR_MODELS, _RAW_CONTAINER_COLOR_PROOFS),
+    (_SOURCE_FRAME_CONTRACTS, _SOURCE_FRAME_MODELS, _SOURCE_FRAME_PROOFS),
+    (_RAW_RENDER_CONTRACTS, _RAW_RENDER_MODELS, _RAW_RENDER_PROOFS),
+    (_RAW_COMPOSITION_RENDER_CONTRACTS, _RAW_COMPOSITION_RENDER_MODELS, _RAW_COMPOSITION_RENDER_PROOFS),
+    (_RAW_JPX_INSPECTION_CONTRACTS, _RAW_JPX_INSPECTION_MODELS, _RAW_JPX_INSPECTION_PROOFS),
+    (_EFFECTIVE_LAYER_CONTRACTS, _EFFECTIVE_LAYER_MODELS, _EFFECTIVE_LAYER_PROOFS),
+    (_GENERAL_LAYER_CONTRACTS, _GENERAL_LAYER_MODELS, _GENERAL_LAYER_PROOFS),
+    (_JPIP_PROGRESSIVE_CONTRACTS, _JPIP_PROGRESSIVE_MODELS, _JPIP_PROGRESSIVE_PROOFS),
+    (_JPIP_TRANSCODE_CONTRACTS, _JPIP_TRANSCODE_MODELS, _JPIP_TRANSCODE_PROOFS),
+):
+    _cold_models, _cold_proofs = _coverage_cold_links(set(_contracts) | _proofs)
+    _models.update(_cold_models)
+    _proofs.update(_cold_proofs)
+
 
 def validate_normative_coverage(
     coverage: dict[str, Any] | None = None,
@@ -4731,6 +6143,7 @@ def validate_normative_coverage(
     bodies: dict[tuple[Path, str], str | None] = {}
     implementation_ranges: dict[tuple[str, str, str], list[tuple[int, int, str]] | None] = {}
     file_calls: dict[Path, set[str]] = {}
+    cold_foundation_checked = False
 
     def source_text(path: Path) -> str:
         if path not in texts:
@@ -4790,6 +6203,14 @@ def validate_normative_coverage(
                         + r"\s*==\s*crate::specs::(?P<model>" + re.escape(model) + r")\s*\(",
                         contract,
                     )
+                    cold_binding = _COLD_RESULT_CONTRACTS.get((relay_path, relay))
+                    if cold_binding:
+                        cold_model, cold_arguments = cold_binding
+                        match = re.search(
+                            r"\bverus_spec\(\s*(\w+)\s*=>\s*ensures\s+crate::specs::(?P<model>"
+                            + re.escape(cold_model) + r")\s*\(\s*(?P<state>" + cold_arguments + r")\s*,?\s*\)",
+                            contract,
+                        )
                     signature = text[header.start():text.find("{", header.end())]
                     mutable = set(re.findall(r"\b(\w+)\s*:\s*&\s*mut\b", signature))
                     if re.search(r"&\s*mut\s+self\b", signature):
@@ -4797,7 +6218,8 @@ def validate_normative_coverage(
                     framed = set(re.findall(
                         r"\bfinal\(\s*(\w+)\s*\)", match.group() if match is not None else ""))
                     if (re.search(r"\brequires\b", contract) is None and mutable == framed
-                            and _coverage_result_arguments(contract, match, model, arguments)
+                            and (match is not None if cold_binding else
+                                 _coverage_result_arguments(contract, match, model, arguments))
                             and through_style_producer(resolved, relay, visited | {key})):
                         return True
                 return False
@@ -4916,6 +6338,102 @@ def validate_normative_coverage(
     ids: set[str] = set()
     contract_functions: set[tuple[str, str]] = set()
     for entry in coverage["requirements"]:
+        if entry["id"] == "part2-complete-native-mct-graph-production":
+            if (not _RESOLVED_COPY_MODELS.issubset({(r["path"], r["symbol"]) for r in entry["spec_refs"]})
+                    or not _RESOLVED_COPY_PROOFS.issubset({(r["path"], r["symbol"]) for r in entry["proof_refs"]})):
+                raise ValueError("transform graph requires complete resolved/payload cold Result and normal/frame links")
+            tile_path = (ROOT / "src/codestream/tiles.rs").resolve()
+            tile_body = _coverage_function_body(source_text(tile_path), function_header(tile_path, "Parser::read_tile_part"))
+            field = """
+                multiple_component_transform,
+                part2_extensions: {
+                    let copied = part2_extensions.try_duplicate_with(true);
+                    #[cfg(verus_keep_ghost)] proof! {
+                        if let Err(error) = copied {
+                            crate::specs::part1_cold_tile_payload_error(cold_input, cold_raw, parser_view(self), error);
+                        }
+                    }
+                    copied?
+                },
+                packet_lengths,
+            """
+            compact = "".join(tile_body.split()) if tile_body is not None else ""
+            copy_positions = [match.start() for match in re.finditer(r"part2_extensions\.try_duplicate_with\(true\)", compact)]
+            reader_commit = compact.find("self.position=end;")
+            if (compact.count("".join(field.split())) != 2
+                    or ".resolve_multiple_component_transform(&mct_parameters,super::ResolvedCopyRole::Tile)" not in compact
+                    or len(copy_positions) != 2 or not copy_positions[0] < reader_commit < copy_positions[1]):
+                raise ValueError("transform graph requires actual payload copy role and original field/reader order")
+            main_path = (ROOT / "src/codestream/layout.rs").resolve()
+            main_body = _coverage_function_body(source_text(main_path), function_header(main_path, "Parser::parse_layout"))
+            if main_body is None or ".resolve_multiple_component_transform(&main_mct_parameters,super::ResolvedCopyRole::Main,)" not in "".join(main_body.split()):
+                raise ValueError("transform graph requires actual main graph copy role")
+        if entry["id"] == "implementation-fallible-storage-reservation":
+            copy_path = (ROOT / "src/allocation.rs").resolve()
+            copy_source = source_text(copy_path)
+            copy_body = _coverage_function_body(copy_source, function_header(copy_path, "copy_values"))
+            if (re.search(r"\bfn\s+copy_values\s*<\s*T\s*:\s*Copy\s*>", copy_source) is None
+                    or copy_body is None
+                    or any("".join(fragment.split()) not in "".join(copy_body.split()) for fragment in (
+                        "if source.is_empty() {", "return Ok(Vec::new())",
+                        "empty_with_capacity(source.len())?", "values.push(source[index])",
+                    )) or ".clone(" in "".join(copy_body.split())):
+                raise ValueError("fallible copy storage requires shallow Copy values and exact empty/no-request construction")
+        cold_family = _COLD_LOCAL_FAMILIES.get(entry["id"])
+        if cold_family:
+            cold_models, cold_proofs = _coverage_cold_links(set(cold_family[0]))
+            if (not cold_models.issubset({(ref["path"], ref["symbol"]) for ref in entry["spec_refs"]})
+                    or not cold_proofs.issubset({(ref["path"], ref["symbol"]) for ref in entry["proof_refs"]})):
+                raise ValueError(cold_family[1] + " requires complete cold models and checked cold normal projections")
+        cold_source_body = _COLD_SOURCE_BODIES.get(entry["id"])
+        if cold_source_body:
+            relative, symbol, expected_body, diagnostic = cold_source_body
+            actual_body = _coverage_spec_function_body(source_text((ROOT / relative).resolve()), symbol)
+            if actual_body is None or "".join(actual_body.split()) != "".join(expected_body.split()):
+                raise ValueError(diagnostic)
+        if entry["id"] in (_RAW_LAYOUT_ENTRY, "part1-complete-native-raw-main-header-result",
+                            "part1-complete-native-persistent-tile-configuration-commit"):
+            diagnostic = ("whole raw layout" if entry["id"] == _RAW_LAYOUT_ENTRY
+                          else "whole raw main-header Result" if entry["id"] == "part1-complete-native-raw-main-header-result"
+                          else "persistent configuration")
+            if entry["id"] != "part1-complete-native-persistent-tile-configuration-commit" and (
+                    not _QUANTIZATION_ROOT_MODELS.issubset({(r["path"], r["symbol"]) for r in entry["spec_refs"]})
+                    or not _QUANTIZATION_ROOT_PROOFS.issubset({(r["path"], r["symbol"]) for r in entry["proof_refs"]})):
+                raise ValueError(diagnostic + " requires complete cold quantization source and normal/frame proof links")
+            if entry["id"] == _RAW_LAYOUT_ENTRY and (
+                    ("specs/cold_marker_header.rs", "part1_fresh_tile_payload")
+                    not in {(r["path"], r["symbol"]) for r in entry["spec_refs"]}
+                    or not {
+                        ("specs/cold_marker_header.rs", "part1_fresh_tile_normal"),
+                        ("specs/cold_marker_header.rs", "part1_fresh_tile_projection"),
+                        ("specs/cold_marker_header.rs", "part1_fresh_tile_frame"),
+                        ("specs/cold_layout_continuations.rs", "part1_cold_layout_sot_read_result_error"),
+                    }.issubset({(r["path"], r["symbol"]) for r in entry["proof_refs"]})):
+                raise ValueError(diagnostic + " requires complete cold marker source and normal/frame proof links")
+            if entry["id"] == _RAW_LAYOUT_ENTRY and (
+                    ("specs/cold_part2_header.rs", "part1_p2_tile_run") not in {(r["path"], r["symbol"]) for r in entry["spec_refs"]}
+                    or not {("specs/cold_part2_header.rs", name) for name in (
+                        "part1_p2_tile_normal", "part1_p2_tile_frame", "part1_p2_tile_projection", "part1_p2_tile_step",
+                    )}.issubset({(r["path"], r["symbol"]) for r in entry["proof_refs"]})):
+                raise ValueError(diagnostic + " requires complete cold Part2 marker source and normal/frame proof links")
+            if entry["id"] == _RAW_LAYOUT_ENTRY and (
+                    ("specs/cold_payload_owners.rs", "part1_tile_after_bitmap_run")
+                    not in {(r["path"], r["symbol"]) for r in entry["spec_refs"]}
+                    or ("specs/cold_bitmap.rs", "part1_cold_tile_bitmap_error")
+                    not in {(r["path"], r["symbol"]) for r in entry["proof_refs"]}):
+                raise ValueError(diagnostic + " requires complete cold bitmap source and normal/frame proof links")
+            for (relative, symbol), fragments in _QUANTIZATION_COLD_GUARDS.items():
+                guard_path = (ROOT / relative).resolve()
+                guard_source = source_text(guard_path)
+                actual = (_coverage_function_body(guard_source, function_header(guard_path, symbol))
+                          if relative.startswith("src/") else _coverage_spec_function_body(guard_source, symbol))
+                compact = "".join(actual.split()) if actual is not None else ""
+                cursor = 0
+                for fragment in fragments:
+                    position = compact.find("".join(fragment.split()), cursor)
+                    if position < 0:
+                        raise ValueError(diagnostic + " requires ordered cold quantization storage and exact partial-owner frames")
+                    cursor = position + len("".join(fragment.split()))
         if entry["id"] == _JPIP_SEMANTIC_ENTRY:
             required = {
                 *_JPIP_SEMANTIC_RELATIONS,
@@ -4980,8 +6498,15 @@ def validate_normative_coverage(
                     "part2_jpip_semantic_expand(cache, metadata_stream, 0, true, 0, u32::MAX, initial, events)",
                     "Some((Err(error), _state, tail)) => Some((Err(error), tail))",
                     "if state.output.len() == 0", "state.missing, state.needs, None",
-                    "part2_parse_and_inspect_container(state.output, &cache.0)",
-                    "Some(state.output)",
+                    "part2_jpip_semantic_inspection(cache, state, tail)",
+                ),
+                "inspection": (
+                    "Part2JpipSemanticEvent::Inspect { calls }",
+                    "part2_inspection_cold_run(state.output, &cache.0, false, calls)",
+                    "if rest.len() != 0 { None }",
+                    "Err(error) => Err(error)",
+                    "state.missing, state.needs, Some(state.output)",
+                    "events.drop_first()",
                 ),
             }.items():
                 body = _coverage_spec_function_body(model, "part2_jpip_semantic_" + name)
@@ -5013,19 +6538,37 @@ def validate_normative_coverage(
                 if not _coverage_verified_body_clause(source_text(path), function_header(path, name), name, clause):
                     raise ValueError("complete automatic progressive requires exact checked constructor/getter temporary clauses")
             model = source_text((ROOT / "specs/jpip_progressive.rs").resolve())
-            body = _coverage_spec_function_body(model, "part2_jpip_automatic_progressive_run")
-            for fragment in (
-                "part2_jpip_snapshot_run(input, events)", "cache, stream: decoder.0",
-                "Some((Err(error), tail)) => Some(((Err(error), decoder, cache), tail))",
-                "Some((Ok((None, missing)), tail))",
-                "valid_jpip_progressive_update(previous as nat, available as nat, maximum as nat)",
-                "else if available <= previous",
-                "part2_decode_raw_codestream(snapshot.0, crate::options::decode_options_limits(options), selection)",
-                "Err(error) => Some(((Err(error), decoder, cache), tail))",
-                "Some(image))), (decoder.0, available), cache)",
-            ):
-                if body is None or "".join(fragment.split()) not in "".join(body.split()):
-                    raise ValueError("complete automatic progressive requires actual snapshot/raw image and exact error/no-advance/commit/cache model")
+            for name, fragments in {
+                "progressive_run": (
+                    "cache, stream: decoder.0", "part2_jpip_automatic_snapshot_call(input, events)",
+                    "Some((Err(error), rest)) => Some(((Err(error), decoder, cache), rest))",
+                    "part2_jpip_automatic_after_snapshot(cache, decoder, options, selection, snapshot, rest)",
+                ),
+                "snapshot_call": (
+                    "Part2JpipAutomaticEvent::Snapshot { calls }", "part2_jpip_snapshot_run(input, calls)",
+                    "if rest.len() == 0", "events.drop_first()",
+                ),
+                "image_call": (
+                    "Part2JpipAutomaticEvent::Image { calls }",
+                    "part2_decode_raw_cold_run(bytes, crate::options::decode_options_limits(options), selection, calls)",
+                    "if rest.len() == 0", "events.drop_first()",
+                ),
+                "after_snapshot": (
+                    "JpipProgressiveStatus::WaitingForData, decoder.1, 0, missing, None",
+                    "valid_jpip_progressive_update(decoder.1 as nat, snapshot.1 as nat, snapshot.2 as nat)",
+                    "else if snapshot.1 <= decoder.1",
+                    "part2_jpip_automatic_image_call(snapshot.0, options, selection, events)",
+                    "part2_jpip_automatic_image_frame(cache, decoder, snapshot, image)",
+                ),
+                "image_frame": (
+                    "Err(error) => (Err(error), decoder, cache)",
+                    "decoder.1, snapshot.1, snapshot.3, Some(image)",
+                    "(decoder.0, snapshot.1), cache",
+                ),
+            }.items():
+                body = _coverage_spec_function_body(model, "part2_jpip_automatic_" + name)
+                if body is None or any("".join(item.split()) not in "".join(body.split()) for item in fragments):
+                    raise ValueError("complete automatic progressive requires actual nested snapshot/raw image and exact error/no-advance/commit/cache model")
             source = source_text((ROOT / "src/jpip/progression.rs").resolve())
             native = _coverage_function_body(source, _coverage_function_header(source, "JpipAutomaticProgressiveDecoder::update_inner"))
             for fragment in (
@@ -5033,13 +6576,25 @@ def validate_normative_coverage(
                 "crate::specs::part2_jpip_automatic_progressive_run_unfold(input.cache, initial_decoder,",
                 "super::jpip_automatic_snapshot_first_error(",
                 "jpip_progressive_outcome(Err(error)), super::jpip_automatic_progressive_decoder_view(self), jpip_cache_view(cache)",
-                "crate::decode_codestream_selected(snapshot.codestream.as_ref(), options, selection)?",
-                "crate::decode_codestream(snapshot.codestream.as_ref(), options)?",
+                "crate::decode_codestream_selected(snapshot.codestream.as_ref(), options, selection)",
+                "crate::decode_codestream(snapshot.codestream.as_ref(), options)",
+                "Part2JpipAutomaticEvent::Snapshot { calls: snapshot_calls }",
+                "crate::specs::part2_jpip_automatic_image_actual(",
+                "let image = image_result?",
                 "self.decoded_layers = snapshot.available_layers",
                 "Some(crate::image::typed_image_value_view(image))",
             ):
                 if native is None or "".join(fragment.split()) not in "".join(native.split()):
                     raise ValueError("complete automatic progressive requires actual event/image/error/current-state forwarding at the sole caller")
+            ordered = (
+                "let image_result = match selection",
+                "crate::specs::part2_jpip_automatic_image_actual(",
+                "let image = image_result?",
+                "self.decoded_layers = snapshot.available_layers",
+            )
+            positions = [native.find(fragment) for fragment in ordered]
+            if -1 in positions or positions != sorted(positions):
+                raise ValueError("complete automatic progressive requires image errors before the sole decoder-state commit")
         if entry["id"] == _JPIP_FULL_SNAPSHOT_ENTRY:
             if {(ref["path"], ref["symbol"]) for ref in entry["contract_refs"]} != {
                     ("src/jpip/progression.rs", "DatabinCache::build_automatic_snapshot")}:
@@ -5054,9 +6609,17 @@ def validate_normative_coverage(
                     "jpip_snapshot_mapping_capacity_error", "jpip_snapshot_packet_capacity_error",
                     "jpip_snapshot_plan_errors", "jpip_snapshot_iterator_errors", "jpip_snapshot_order_errors",
                 )},
+                ("specs/jpip_snapshot_inputs.rs", "part2_jpip_grid_normal_frame"),
+                ("src/jpip/progression_proof_support.rs", "jpip_snapshot_grid_plan_error"),
+                ("src/jpip/progression_proof_support.rs", "jpip_snapshot_tile_actual_error"),
             }
             if not required.issubset({(ref["path"], ref["symbol"]) for ref in entry["proof_refs"]}):
                 raise ValueError("complete automatic snapshot requires checked actual error/None/ready/emission/layout joins")
+            if not {("specs/jpip_snapshot_inputs.rs", name) for name in (
+                    "part2_jpip_snapshot_tile_normal_run", "part2_jpip_grid_plan",
+                    "part2_jpip_grid_plan_value", "part2_jpip_grid_normal_calls",
+            )}.issubset({(ref["path"], ref["symbol"]) for ref in entry["spec_refs"]}):
+                raise ValueError("complete automatic snapshot requires actual grid plan phase and checked normal-prefix links")
             source = source_text((ROOT / "src/jpip/progression_proof_support.rs").resolve())
             for name, fragments in {
                 "jpip_automatic_snapshot_view": (
@@ -5089,11 +6652,28 @@ def validate_normative_coverage(
                 "assert(bytes@ =~= emitted_bytes + seq![0xffu8, 0xd9u8])",
                 "assert(crate::specs::part2_jpip_template_finish(emitted_bytes, limits) == Ok(bytes@))",
                 "super::jpip_snapshot_layout_success_known()",
-                "crate::codestream::parse_layout(&bytes, limits)?",
+                "match crate::codestream::parse_layout(&bytes, limits)",
+                "super::jpip_snapshot_root_ready_parse_error(tile_root, emitted_bytes, bytes@, error)",
+                "prefix = super::jpip_snapshot_template_layout_prefix(input, prefix, normalized_bytes,",
                 "Ok((Some((bytes@, available_layers, maximum_layers, missing_goal)), Seq::empty()))",
             ):
                 if native is None or "".join(fragment.split()) not in "".join(native.split()):
                     raise ValueError("complete automatic snapshot requires actual ordered event, complete folds and final byte/layout joins")
+            for relative, name, fragments in (
+                ("specs/jpip_snapshot_inputs.rs", "part2_jpip_snapshot_after_normalized", (
+                    "part2_cold_parse(template, input.limits, 0, 0, events)",
+                    "part2_jpip_snapshot_after_layout(",
+                )),
+                ("specs/jpip_snapshot.rs", "part2_jpip_snapshot_ready_cold", (
+                    "part2_jpip_snapshot_emit_tiles(tiles, available, 0, main)",
+                    "part2_jpip_template_finish(emitted, limits)",
+                    "part2_cold_parse(bytes, limits, 1, 0, events)",
+                    "Some((bytes, available, maximum, missing))",
+                )),
+            ):
+                body = _coverage_spec_function_body(source_text((ROOT / relative).resolve()), name)
+                if body is None or any("".join(item.split()) not in "".join(body.split()) for item in fragments):
+                    raise ValueError("complete automatic snapshot requires distinct actual template and final-validation parse responses")
         if entry["id"] == _JPIP_GLOBAL_ERROR_ENTRY:
             if {(ref["path"], ref["symbol"]) for ref in entry["contract_refs"]} != set(_JPIP_GLOBAL_ERROR_CONTRACTS):
                 raise ValueError("original resolution error requires complete actual mapping and resolution Results")
@@ -5237,9 +6817,9 @@ def validate_normative_coverage(
             clause = section.split("\n    {", 1)[0]
             for fragment in (
                 "part2_jpip_snapshot_run(input, prefix + tail)",
-                "part2_jpip_snapshot_after_normalized(input, main, raw, count, components, headers, tail)",
+                "part2_jpip_snapshot_after_layout(input, main, raw, count, components, headers,"
+                "crate::codestream::decoder_layout_input_view(layout), tail)",
                 "part2_jpip_transition_template(main, headers, input.limits) == Ok(template)",
-                "complete_layout_outcome(Ok(*layout)) == crate::specs::part1_parse_layout(template, input.limits)",
                 "ensures forall|tail: Seq<crate::specs::Part2JpipSnapshotEvent>|",
                 "site: 2, tile: 0, elements: headers.len() as usize, succeeded: true",
                 "crate::codestream::decoder_layout_input_view(layout), 0, Seq::empty(), 0, tail)",
@@ -5251,8 +6831,11 @@ def validate_normative_coverage(
             source = source_text((ROOT / "src/jpip/progression.rs").resolve())
             native = _coverage_function_body(source, _coverage_function_header(source, "DatabinCache::build_automatic_snapshot"))
             for fragment in (
-                "let layout = crate::codestream::parse_layout(&template, limits)?",
-                "let mut automatic_tiles = crate::allocation::empty_with_capacity(normalized_tiles.len())?",
+                "let parsed = crate::codestream::parse_layout(&template, limits)",
+                "let layout = match parsed",
+                "super::jpip_snapshot_template_parse_error(input, prefix, normalized_bytes, raw_tiles,",
+                "prefix = super::jpip_snapshot_template_layout_prefix(input, prefix, normalized_bytes,",
+                "let automatic_tiles = crate::allocation::empty_with_capacity(normalized_tiles.len())?",
                 "super::jpip_snapshot_layout_continuation(input, prefix, normalized_bytes, raw_tiles,"
                 "tile_count, components, headers, template@, &layout)",
                 "crate::specs::part2_progression_tile_plan(&layout.info.image_size,"
@@ -5263,6 +6846,29 @@ def validate_normative_coverage(
             ):
                 if native is None or "".join(fragment.split()) not in "".join(native.split()):
                     raise ValueError("actual layout prefix requires the reached native Results and actual planner identity")
+            source = source_text((ROOT / "src/jpip/snapshot_header_proof_support.rs").resolve())
+            header = re.search(
+                r"(?m)^([ \t]*)pub\(crate\)\s+proof\s+fn\s+jpip_snapshot_template_layout_prefix\b", source)
+            body = _coverage_function_body(source, header)
+            for fragment in (
+                "crate::specs::part2_cold_parse_actual(template, input.limits, 0, 0, parsed)",
+                "crate::codestream::decoder_layout_input_matches_raw(layout)",
+                "crate::specs::part2_cold_witness(run, parsed)",
+                "crate::specs::part2_cold_prefix_at(run, calls, parsed, tail)",
+                "prefix + calls",
+            ):
+                if body is None or "".join(fragment.split()) not in "".join(body.split()):
+                    raise ValueError("actual layout prefix requires the checked consumed parse-to-layout prefix bind")
+            model = source_text((ROOT / "specs/jpip_snapshot_inputs.rs").resolve())
+            body = _coverage_spec_function_body(model, "part2_jpip_snapshot_after_normalized")
+            for fragment in (
+                "part2_jpip_transition_template(main, headers, input.limits)",
+                "part2_cold_parse(template, input.limits, 0, 0, events)",
+                "part2_jpip_snapshot_after_layout(input, main, raw, count, components, headers,"
+                "part2_decoder_input_from_raw(layout), rest)",
+            ):
+                if body is None or "".join(fragment.split()) not in "".join(body.split()):
+                    raise ValueError("actual layout prefix requires a consumed input-derived parse response before capacity")
         if entry["id"] == _JPIP_ACQUISITION_ENTRY:
             if {(ref["path"], ref["symbol"]) for ref in entry["contract_refs"]} != set(_JPIP_RESOLUTION_EXIT_CONTRACTS):
                 raise ValueError("actual acquisition fold requires the complete enabled selection contracts")
@@ -5466,22 +7072,27 @@ def validate_normative_coverage(
                 "part2_jpip_snapshot_run(input, prefix + tail)",
                 "part2_jpip_snapshot_after_normalized(input, main, raw, count, components, headers, tail)",
                 "part2_jpip_transition_template(main, headers, input.limits) == Ok(template)",
-                "complete_layout_outcome(Err(error)) == crate::specs::part1_parse_layout(template, input.limits)",
+                "part1_parse_layout_cold_result(template, input.limits, Err(error))",
                 "part2_jpip_automatic_snapshot_result(input.cache, input.stream, input.selected, input.components, input.limits, Err(error))",
             ):
                 if "".join(fragment.split()) not in "".join(clause.split()):
                     raise ValueError("canonical template parse exit requires exact actual byte/event/error arguments")
-            if "crate::codestream::decoder_layout_errors_known();" not in body:
-                raise ValueError("canonical template parse exit requires the existing checked closed-error interface")
+            for fragment in (
+                "part2_cold_parse_actual(template, input.limits, 0, 0, Err(error))",
+                "jpip_snapshot_result_witness(input, prefix + calls, Err(error))",
+            ):
+                if "".join(fragment.split()) not in "".join(body.split()):
+                    raise ValueError("canonical template parse exit requires the actual checked parse response and consumed call prefix")
             snapshot_source = source_text((ROOT / "src/jpip/progression.rs").resolve())
             snapshot = _coverage_function_body(snapshot_source, _coverage_function_header(
                 snapshot_source, "DatabinCache::build_automatic_snapshot"))
             for fragment in (
                 "part2_jpip_transition_template(normalized_bytes, headers, input.limits) == Ok(template@)",
-                "complete_layout_outcome(Err(error)) == crate::specs::part1_parse_layout(template@, limits)",
+                "crate::codestream::decoder_layout_errors_known()",
                 "super::jpip_snapshot_template_parse_error(input, prefix, normalized_bytes, raw_tiles,"
                 "tile_count, components, headers, template@, error)",
-                "let layout = crate::codestream::parse_layout(&template, limits)?",
+                "let parsed = crate::codestream::parse_layout(&template, limits)",
+                "let layout = match parsed",
             ):
                 if snapshot is None or "".join(fragment.split()) not in "".join(snapshot.split()):
                     raise ValueError("canonical template parse exit requires its actual parser caller and input projection")
@@ -5829,6 +7440,24 @@ def validate_normative_coverage(
                 + re.escape(_RAW_RECOVERY_PUBLIC_ENTRIES[entry["id"]]) + r"\b[^}]*\}", lib,
             ):
                 raise ValueError("raw recovery requires its actual public root export")
+            recovery_model = source_text((ROOT / "specs/raw_recovery.rs").resolve())
+            for name, fragments in {
+                "raw_recovery_decode_call": (
+                    "RawRecoveryEvent::Decode { calls }", "strict(bytes, calls)", "rest.len() == 0",
+                    "Some((finish(original, frame, decoded), events.drop_first()))",
+                ),
+                "raw_recovery_cold_run": (
+                    "raw_recovery_framing(input, limits)", "Err(error) => Some((Err(error), events))",
+                    "raw_recovery_admit(input.len() as usize, frame.1, limits)",
+                    "RawRecoveryEvent::Repair { reserved }", "raw_repair_response(input, reserved)",
+                    "Err(error) => Some((Err(error), events.drop_first()))",
+                    "frame, strict, finish, events.drop_first())",
+                ),
+            }.items():
+                body = _coverage_spec_function_body(recovery_model, name)
+                if body is None or any("".join(fragment.split()) not in "".join(body.split())
+                                       for fragment in fragments):
+                    raise ValueError("raw recovery requires exact ordered repair/decode events and no-event first errors")
             if reconstructed:
                 if not expected.issubset({(ref["path"], ref["symbol"]) for ref in entry["implementation_refs"]}):
                     raise ValueError("reconstructed recovery not used by claimed implementation")
@@ -5843,12 +7472,15 @@ def validate_normative_coverage(
                     raise ValueError("reconstructed recovery requires actual framing, reservation, reconstruction and report models")
                 model = source_text((ROOT / "specs/raw_recovery.rs").resolve())
                 for name, fragments in {
-                    "raw_reconstructed_recovery_result_body": (
+                    "raw_reconstructed_recovery_normal_result_body": (
                         "match raw_recovery_framing(input, limits)",
                         "match raw_recovery_admit(input.len() as usize, frame.1, limits)",
                         "part2_decode_raw_reconstructed_codestream(input, limits)",
                         "raw_reconstructed_recovery_reserved_response(input, limits, frame, false)",
                         "raw_reconstructed_recovery_reserved_response(input, limits, frame, true)",
+                    ),
+                    "raw_reconstructed_recovery_result_body": (
+                        "raw_recovery_cold_reconstructed(input, limits, events) == Some((result, Seq::empty()))",
                     ),
                     "raw_reconstructed_recovery_reserved_response": (
                         "match raw_repair_response(input, reserved)",
@@ -6077,9 +7709,11 @@ def validate_normative_coverage(
                 ("src/jpip/progression.rs", "JpipProgressiveDecoder::update_inner", (
                     "let previous_layers = self.decoded_layers", "cache.progressive_availability(&self.plan)?",
                     "jpip_progressive_update_valid(", "jpip_quality_prefix_available(", "available_layers <= previous_layers",
-                    "cache.transcode_precinct_codestream(&self.plan, available_layers)?",
-                    "crate::decode_codestream_selected(view.as_ref(), options, selection)?",
-                    "crate::decode_codestream(view.as_ref(), options)?", "self.decoded_layers = available_layers",
+                    "let transcoded = match cache.transcode_precinct_codestream(&self.plan, available_layers)",
+                    "let image_result = match selection",
+                    "Some(selection) => crate::decode_codestream_selected(view.as_ref(), options, selection)",
+                    "None => crate::decode_codestream(view.as_ref(), options)",
+                    "let image = image_result?", "self.decoded_layers = available_layers",
                     "image: None", "image: Some(image)", "JpipProgressiveStatus::QualityAdvanced",
                 )),
                 ("src/jpip/ranges.rs", "DatabinCache::progressive_availability", (
@@ -6148,7 +7782,8 @@ def validate_normative_coverage(
                     "jpip_reconstruction_length(", "contracted_total != total as u128", "total as u64 > self.limits.maximum_input_bytes()",
                     "bytes.extend_from_slice(&main_header)", "bytes.extend_from_slice(&tile_header)",
                     "bytes.extend_from_slice(&packet_bytes)", "bytes.extend_from_slice(&EOC)",
-                    "validate_precinct_codestream(&bytes, layers, &self.limits)?", "Some(JpipByteView { bytes })",
+                    "let validated = validate_precinct_codestream(&bytes, layers, &self.limits)",
+                    "validated?", "Some(JpipByteView { bytes })",
                 )),
                 ("src/jpip/precinct.rs", "patch_cod_layers", (
                     "start > header.len()", "while position < header.len()", "marker == 0xff93",
@@ -6170,7 +7805,8 @@ def validate_normative_coverage(
                     "report.missing.push(header_report.missing[missing_index])",
                 )),
                 ("src/jpip/precinct.rs", "validate_precinct_codestream", (
-                    "crate::codestream::parse_layout(bytes, limits)?", "jpip_precinct_layout_fields(&layout)",
+                    "let parsed = crate::codestream::parse_layout(bytes, limits)",
+                    "let layout = parsed?", "jpip_precinct_layout_fields(&layout)",
                     "layout.info.image_size.tile_count()? != 1", "layout.tile_parts.len() != 1",
                     "layout.info.coding_style.layers != layers", "layout.tile_parts[0].coding_style.progression_order",
                     "layout.info.progression_changes.is_present()", "layout.tile_parts[0].progression_changes.is_present()",
@@ -6189,8 +7825,28 @@ def validate_normative_coverage(
                     "part2_jpip_append_complete_requirement(cache, plan.0, report)", "part2_jpip_append_complete_requirement(cache, plan.1, main.1)"),
                 "part2_jpip_patch_cod_loop": ("position as nat + 2 > header.len()", "marker == 0xff93", "length < 7",
                     "header.update(position as int + 6", ".update(position as int + 7", "part2_jpip_patch_cod_loop(patched, end as usize, layers, stop)"),
-                "part2_jpip_validate_precinct_raw": ("part1_parse_layout(bytes, limits)", "part2_selection_tile_count(layout.0.image_size.geometry)",
+                "part2_jpip_validate_precinct_raw": ("part1_parse_layout(bytes, limits)",
+                    "Err(error) => Err(error)", "Ok(layout) => part2_jpip_validate_precinct_layout(layout, layers)"),
+                "part2_jpip_validate_precinct_layout": ("part2_selection_tile_count(layout.0.image_size.geometry)",
                     "layout.0.coding_style.layers != layers", "tile.coding_style.progression_order", "tile.packet_lengths.source", "tile.packed_packet_headers.source"),
+                "part2_jpip_validate_precinct_cold_run": (
+                    "part2_cold_parse(bytes, limits, 7, 0, events)",
+                    "Some((part2_jpip_validate_precinct_layout(layout, layers), rest))"),
+                "part2_jpip_transcode_pre_bytes": (
+                    "length > usize::MAX as nat || length > u32::MAX as nat",
+                    "tile.update(6", ".update(9", "total > usize::MAX as nat",
+                    "crate::limits::resource_input_byte_limit(&cache.0)",
+                    "Ok(main + tile + packets + seq![0xffu8, 0xd9u8])"),
+                "part2_jpip_transcode_pre_payload": (
+                    "part2_jpip_cache_view(cache, plan.0)", "part2_jpip_cache_view(cache, plan.1)",
+                    "part2_jpip_patch_main(main, layers)", "part2_jpip_patch_tile(tile, layers)",
+                    "part2_jpip_read_packets(cache, plan.2.subrange(0, end as int))",
+                    "part2_jpip_transcode_pre_bytes(cache, patched_main.1, patched_tile.1, packets)"),
+                "part2_jpip_transcode_cold_run": (
+                    "part2_jpip_transcode_pre(cache, plan, layers)",
+                    "Err(error) => Some((Err(error), events))", "None => Some((Ok(value), events))",
+                    "part2_jpip_validate_precinct_cold_run(bytes, layers, &cache.0, events)",
+                    "|_: (), tail| Some((Ok(value), tail))"),
                 "part2_jpip_transcode_bytes": ("length > usize::MAX as nat || length > u32::MAX as nat", "tile.update(6",
                     ".update(9", "total > usize::MAX as nat", "resource_input_byte_limit", "seq![0xffu8, 0xd9u8]",
                     "part2_jpip_validate_precinct(bytes, layers, &cache.0)", "Ok(()) => Ok(bytes)"),
@@ -6946,11 +8602,14 @@ def validate_normative_coverage(
             ):
                 body = _coverage_function_body(source_text(path), function_header(path, name))
                 required = ["jp2::parse(input, options.limits())?", "jp2::raw_render_file_known(&file)"]
-                required.append(("decode_jpx_file_selected" if selected else "decode_jpx_file")
-                    + "(&file, codestream_index, options" + (", &expanded" if color and selected else ", selection" if selected else "") + ")?")
+                required.append(("let (decoded, header) = match " if color else "let decoded_result = ")
+                    + ("decode_jpx_file_selected" if selected else "decode_jpx_file")
+                    + "(&file, codestream_index, options"
+                    + (", &expanded," if color and selected else ", selection" if selected else "") + ")")
+                required.extend(("Ok(value) => value", "return Err(error)") if color else ("let (decoded, _) = decoded_result?",))
                 if color and selected:
                     required.extend(("!file.file_type().is_jpx_compatible()",
-                        "color_selection(file.codestream(codestream_index)?.data(), selection, options.limits(),)?",
+                        "let (expanded, target) = match color_selection(file.codestream(codestream_index)?.data(), selection, options.limits(),)",
                         "convert_associated_selected_color(&decoded, header, target, options.limits())"))
                 elif color:
                     required.append("convert_associated_color(&decoded, header, options.limits())")
@@ -6965,9 +8624,12 @@ def validate_normative_coverage(
             if header is None or header[1] or body is None or any("".join(item.split()) not in "".join(body.split()) for item in (
                 "!file.file_type().is_jpx_compatible()", "file.codestream(codestream_index)?",
                 "match selected.codestream_header()", "association.parsed_header()", "None => Some(file.header())",
-                "association.box_header().offset()", "codestream::parse_layout(selected.data(), options.limits())?",
+                "association.box_header().offset()", "let parsed = codestream::parse_layout(selected.data(), options.limits())",
+                "let layout = parsed?",
                 "jp2::validate_selected_header(header, &layout.info, selected.box_header().offset())?",
-                "typed_layout(&layout, decode_layout_selected(&layout, selection, options.limits())?, selection.discard_levels(), options.limits(),)?",
+                "let decoded_result = decode_layout_selected(&layout, selection, options.limits())",
+                "part2_jpx_selected_decode_error(",
+                "typed_layout(&layout, decoded_result?, selection.discard_levels(), options.limits(),)?",
                 "apply_jp2_output(decoded, header, options.limits())?", "Ok((image, associated_header))",
                 "codestream::decoder_layout_main_info_matches_raw(&layout)",
                 "jp2::associated_header_reference_selectors(selected, jp2::jpx_file_header_reference(file))",
@@ -7017,18 +8679,20 @@ def validate_normative_coverage(
             ):
                 body = _coverage_function_body(source_text(path), function_header(path, name))
                 required = [
-                    ("jp2::inspect_jph" if jph else "jp2::parse_and_inspect_for_display") + "(input, options.limits())?",
+                    "let inspected = match " + ("jp2::inspect_jph" if jph else "jp2::parse_and_inspect_for_display")
+                    + "(input, options.limits())",
                     "inspected.file().codestream_count() != 1" if jph else "validate_jp2_display_profile(inspected.file())?",
                     "jp2::raw_render_file_known(jp2::raw_inspected_file_reference(&inspected))",
+                    "Ok(value) => value", "return Err(error)",
+                    "let codestream = inspected.file().codestream(0)?.data()",
                 ]
                 required.extend((
-                    "let codestream = inspected.file().codestream(0)?.data()",
-                    "color_selection(codestream, selection, options.limits())?",
-                    "decode_codestream_selected(codestream, options, &expanded)?",
+                    "let (expanded, target) = match color_selection(codestream, selection, options.limits())",
+                    "let decoded = match decode_codestream_selected(codestream, options, &expanded)",
                     "finish_associated_selected_output(decoded, Some(inspected.file().header()), target, options.limits(),)",
                     "part2_decode_raw_codestream_selection_value(codestream@, crate::options::decode_options_limits(options), &expanded)",
                 ) if selected else (
-                    "decode_codestream(inspected.file().codestream(0)?.data(), options)?",
+                    "let decoded = match decode_codestream(codestream, options)",
                     "apply_jp2_output(decoded, inspected.file().header(), options.limits())?",
                     "crate::color::convert_jp2_color(&mapped, &inspected.file().header().color, options.limits())",
                 ))
@@ -7037,7 +8701,8 @@ def validate_normative_coverage(
             path = (ROOT / "src/decode/output.rs").resolve()
             body = _coverage_function_body(source_text(path), function_header(path, "color_selection"))
             if body is None or any("".join(item.split()) not in "".join(body.split()) for item in (
-                "codestream::parse_layout(input, limits)?", "let size = &layout.info.image_size",
+                "let parsed = codestream::parse_layout(input, limits)", "let layout = parsed?",
+                "let size = &layout.info.image_size",
                 "color_selection_for_size(size, requested)", "codestream::decoder_layout_input_matches_raw(&layout)",
                 "codestream::decoder_layout_input_fields(&layout)",
             )):
@@ -7111,10 +8776,12 @@ def validate_normative_coverage(
             ):
                 body = _coverage_function_body(source_text(path), function_header(path, name))
                 required = [
-                    ("jp2::inspect_jph" if jph else "jp2::parse_and_inspect_for_display") + "(input, options.limits())?",
+                    "let inspected = match " + ("jp2::inspect_jph" if jph else "jp2::parse_and_inspect_for_display")
+                    + "(input, options.limits())",
                     "inspected.file().codestream_count() != 1" if jph else "validate_jp2_display_profile(inspected.file())?",
-                    ("decode_codestream_selected" if selected else "decode_codestream")
-                    + "(inspected.file().codestream(0)?.data(), options" + (", selection" if selected else "") + ")?",
+                    "let decoded_result = " + ("decode_codestream_selected" if selected else "decode_codestream")
+                    + "(inspected.file().codestream(0)?.data(), options" + (", selection" if selected else "") + ")",
+                    "return Err(error)", "let decoded = decoded_result?",
                     "apply_jp2_output(decoded, inspected.file().header(), options.limits())",
                     "jp2::raw_render_file_known(jp2::raw_inspected_file_reference(&inspected))",
                 ]
@@ -7141,10 +8808,12 @@ def validate_normative_coverage(
                 raise ValueError("whole raw composition Result requires proved public boundary and complete extent/source/getter/canvas bridges")
             path = (ROOT / "src/jpx/render.rs").resolve()
             for name, required in {
-                "render_jpx_composition": ("jp2::parse_and_inspect(input, options.limits())?", "ensure_jpx(file)?",
-                    "inspect_file(file, inspected.codestreams(), options.limits())?",
+                "render_jpx_composition": ("let inspected = match jp2::parse_and_inspect(input, options.limits())", "ensure_jpx(file)?",
+                    "let metadata = inspect_file(file, inspected.codestreams(), options.limits())",
+                    "part2_render_raw_cold_metadata_error(", "let metadata = metadata?",
                     "if has_frames", "render_inspected_frame(file, &metadata, 0, options)",
-                    "composition_dimensions(&metadata, options.limits())?", "decode_effective_layer(file, layer_index, options)?",
+                    "composition_dimensions(&metadata, options.limits())?",
+                    "let owned = match decode_effective_layer(file, layer_index, options)", "return Err(error)",
                     "target_width: metadata.layer(layer_index)?.width()", "target_height: metadata.layer(layer_index)?.height()",
                     "render_decoded_layers("),
                 "composition_dimensions": ("layer.horizontal_offset()", "layer.vertical_offset()", "width = width.max(",
@@ -7178,10 +8847,13 @@ def validate_normative_coverage(
                 raise ValueError("whole public raw rendering Results require both proved APIs and complete raw/source/render bridges")
             path = (ROOT / "src/jpx/render.rs").resolve()
             for name, required in {
-                "render_jpx_layer": ("jp2::parse_and_inspect(input, options.limits())?", "ensure_jpx(inspected.file())?",
-                    "decode_effective_layer(inspected.file(), layer_index, options)?.into_image()"),
-                "render_jpx_frame": ("jp2::parse_and_inspect(input, options.limits())?", "ensure_jpx(file)?",
-                    "inspect_file(file, inspected.codestreams(), options.limits())?",
+                "render_jpx_layer": ("let inspected = match jp2::parse_and_inspect(input, options.limits())",
+                    "return Err(error)", "ensure_jpx(inspected.file())?",
+                    "let owned = decode_effective_layer(inspected.file(), layer_index, options)", "owned?.into_image()"),
+                "render_jpx_frame": ("let inspected = match jp2::parse_and_inspect(input, options.limits())",
+                    "return Err(error)", "ensure_jpx(file)?",
+                    "let metadata = inspect_file(file, inspected.codestreams(), options.limits())",
+                    "part2_render_raw_cold_metadata_error(", "let metadata = metadata?",
                     "render_inspected_frame(file, &metadata, frame_index, options)"),
             }.items():
                 body = _coverage_function_body(source_text(path), function_header(path, name))
@@ -7201,6 +8873,19 @@ def validate_normative_coverage(
                 actual = _coverage_spec_function_body(model, name)
                 if actual is None or any("".join(item.split()) not in "".join(actual.split()) for item in required):
                     raise ValueError("whole public raw rendering Results require complete byte-derived header/source/routing/render models")
+        if entry["id"] in (_RAW_JPX_INSPECTION_ENTRY, _JPX_INSPECTION_ENTRY):
+            for (relative, symbol), fragments in (_INSPECTION_STORAGE_GUARDS | _INSPECTION_LAYER_GUARDS).items():
+                guard_path = (ROOT / relative).resolve()
+                guard_source = source_text(guard_path)
+                guard_body = (_coverage_function_body(guard_source, function_header(guard_path, symbol))
+                              if relative.startswith("src/") else _coverage_spec_function_body(guard_source, symbol))
+                compact = "".join(guard_body.split()) if guard_body is not None else ""
+                cursor = 0
+                for fragment in fragments:
+                    position = compact.find("".join(fragment.split()), cursor)
+                    if position < 0:
+                        raise ValueError("whole JPX inspection Result requires ordered outer layer capacity and exact source/tail frames")
+                    cursor = position + len("".join(fragment.split()))
         if entry["id"] == _RAW_JPX_INSPECTION_ENTRY:
             if {(ref["path"], ref["symbol"]) for ref in entry["contract_refs"]} != set(_RAW_JPX_INSPECTION_CONTRACTS) - _RAW_JPX_INSPECTION_APIS:
                 raise ValueError("whole raw public JPX Result requires its actual checked inspector producer")
@@ -7209,7 +8894,8 @@ def validate_normative_coverage(
                 raise ValueError("whole raw public JPX Result requires the proved public boundary and full raw/timeline/getter bridges")
             path = (ROOT / "src/jpx/inspection.rs").resolve()
             body = _coverage_function_body(source_text(path), function_header(path, "inspect_jpx_layers"))
-            required = ("jp2::parse_and_inspect(input, limits)?", "ensure_jpx(inspected.file())?",
+            required = ("let parsed = jp2::parse_and_inspect(input, limits)", "let inspected = parsed?",
+                "ensure_jpx(inspected.file())?",
                 "inspect_file(inspected.file(), inspected.codestreams(), limits)")
             if body is None or any("".join(item.split()) not in "".join(body.split()) for item in required):
                 raise ValueError("whole raw public JPX Result requires the actual raw/profile/inspector pipeline")
@@ -7227,6 +8913,20 @@ def validate_normative_coverage(
                 if actual is None or any("".join(item.split()) not in "".join(actual.split()) for item in required):
                     raise ValueError("whole raw public JPX Result requires full raw-source/metadata/instruction/timeline models")
         if entry["id"] == _RAW_INSPECTED_ENTRY:
+            for (relative, symbol), fragments in (_INSPECTION_STORAGE_GUARDS | {
+                    key: value for key, value in _INSPECTION_CONTAINER_GUARDS.items() if not key[0].startswith("src/")
+            }).items():
+                guard_path = (ROOT / relative).resolve()
+                guard_source = source_text(guard_path)
+                guard_body = (_coverage_function_body(guard_source, function_header(guard_path, symbol))
+                              if relative.startswith("src/") else _coverage_spec_function_body(guard_source, symbol))
+                compact = "".join(guard_body.split()) if guard_body is not None else ""
+                cursor = 0
+                for fragment in fragments:
+                    position = compact.find("".join(fragment.split()), cursor)
+                    if position < 0:
+                        raise ValueError("whole raw inspected Results require ordered outer inspection capacity and exact child/tail frames")
+                    cursor = position + len("".join(fragment.split()))
             if {(ref["path"], ref["symbol"]) for ref in entry["contract_refs"]} != set(_RAW_INSPECTED_CONTRACTS):
                 raise ValueError("whole raw inspected Results require actual parser/JPH/profile contracts")
             if not _RAW_INSPECTED_MODELS.issubset({(ref["path"], ref["symbol"]) for ref in entry["spec_refs"]}) \
@@ -7240,15 +8940,29 @@ def validate_normative_coverage(
                     "file.file_type().is_compatible_with(BoxType::JP2_BRAND)",
                     "!file.file_type().is_jpx_compatible()", "!file.file_type().is_jph_compatible()", "count.min(1)"),
                 "parse_and_inspect_mode": ("parse(input, limits)?", "inspection_count(&file, display_first)",
-                    "codestream::parse(codestream_box.data, limits)?",
+                    "let parsed = codestream::parse(codestream_box.data, limits)",
+                    "let info = match parsed", "return Err(error)",
                     "jph != info.profile.is_part15()", "Some(association) => association.parsed.as_ref()",
                     "None if index == 0 => Some(&file.header)", "validate_container_codestream(header, &info, codestream_box.header.offset())?",
                     "inspected_codestreams.push(info)", "InspectedJp2 { file, codestreams: inspected_codestreams, }"),
-                "inspect_jph": ("parse_and_inspect(input, limits)?", "!inspected.file.file_type.is_jph_compatible()"),
+                "inspect_jph": ("let parsed = parse_and_inspect(input, limits)", "let inspected = parsed?",
+                    "!inspected.file.file_type.is_jph_compatible()"),
             }.items():
                 body = _coverage_function_body(source_text(path), function_header(path, name))
                 if body is None or any("".join(item.split()) not in "".join(body.split()) for item in required):
                     raise ValueError("whole raw inspected Results require actual source/info/profile/header/default/output handoffs")
+            for (relative, symbol), fragments in _INSPECTION_CONTAINER_GUARDS.items():
+                if not relative.startswith("src/"):
+                    continue
+                guard_path = (ROOT / relative).resolve()
+                guard_body = _coverage_function_body(source_text(guard_path), function_header(guard_path, symbol))
+                compact = "".join(guard_body.split()) if guard_body is not None else ""
+                cursor = 0
+                for fragment in fragments:
+                    position = compact.find("".join(fragment.split()), cursor)
+                    if position < 0:
+                        raise ValueError("whole raw inspected Results require ordered outer inspection capacity and exact child/tail frames")
+                    cursor = position + len("".join(fragment.split()))
             model = source_text((ROOT / "specs/jp2_inspection.rs").resolve())
             for name, required in {
                 "part2_inspected_header": ("part1_profile_optional_advertises_ht(info.1.2)", "Some(association) => association.2",
@@ -7982,8 +9696,10 @@ def validate_normative_coverage(
                 "let failed = outcome.is_err();",
                 "supplied.push((instruction.layer_index, Some(outcome)));",
                 "invariant_except_break", "if failed {",
-                "crate::specs::part2_frame_source_supplies_step(input, layers, selected, limits, index as nat);",
-                "crate::specs::part2_frame_source_supplies_stopped(input, layers, selected, limits, index as nat + 1, selected.len());",
+                "crate::specs::part2_frame_cold_next(input, layers, selected, limits, index as nat,"
+                "previous_supplied, owned_layer_outcome(outcome));",
+                "crate::specs::part2_frame_cold_stopped(input, layers, selected, limits,"
+                "index as nat + 1, selected.len(), supplied_views(supplied@));",
                 "render_normalized_frame(composition.width(), composition.height(), composition.frames(), composition.loop_count(), requested_frame, supplied, options.limits().maximum_decoded_bytes(), options.limits(),)",
             )
             if body is None or any("".join(item.split()) not in "".join(body.split()) for item in required):
@@ -8034,7 +9750,8 @@ def validate_normative_coverage(
             handoffs = {
                 "decode_effective_layer": (
                     "if file.compositing_layers().is_empty()", "if layer_index >= file.codestream_count()",
-                    "owned_layer_from_image(&decode_layer(file, layer_index, None, options)?)",
+                    "let decoded = decode_layer(file, layer_index, None, options)",
+                    "return owned_layer_from_image(&decoded?)",
                     "let layer = file.compositing_layer(layer_index)?;",
                     "decode_compositing_layer(file, layer, layer_index, options)",
                 ),
@@ -8043,7 +9760,8 @@ def validate_normative_coverage(
                     "matches!(layer.opacity(), Some(LayerOpacity::ChromaKey { .. }))",
                     "decode_general_compositing_layer(file, layer, layer_index, options)",
                     "let color_override = layer.color_group().first();",
-                    "let image = decode_layer(file, layer_index, color_override, options)?;",
+                    "let image = match decode_layer(file, layer_index, color_override, options)",
+                    "return Err(error)",
                     "usize::from(first.codestream_index)", "let alpha_registration = layer.registrations().get(1);",
                     "apply_layer_opacity(file, layer, layer_index, &mut owned, None, options)?;",
                 ),
@@ -8084,6 +9802,10 @@ def validate_normative_coverage(
             required_models = {
                 "part2_general_source_step": (
                     "part2_decode_jpx_codestream(file, selected.0, limits)",
+                    "Err(error) => Err(error)",
+                    "Ok(decoded) => part2_general_source_finish(config, selected, previous, decoded)",
+                ),
+                "part2_general_source_finish": (
                     "part2_native_registered_extent(decoded.0.0.0, selected.1 as u32, config.horizontal_grid as u32, selected.3)",
                     "part2_native_registered_extent(decoded.0.0.1, selected.2 as u32, config.vertical_grid as u32, selected.4)",
                 ),
@@ -8215,6 +9937,10 @@ def validate_normative_coverage(
                         color_codestream, owned_layer_view(owned),
                         match alpha_registration { None => None, Some(registration) => Some(layer_registration_view(registration)) },
                         crate::options::decode_options_limits(options));
+                    crate::specs::part2_opacity_cold_normal(jp2::jpx_file_decode_view(file), jp2::source_layer_opacity(layer),
+                        jp2::source_layer_geometry(layer), color_codestream, owned_layer_view(owned),
+                        match alpha_registration { None => None, Some(registration) => Some(layer_registration_view(registration)) },
+                        crate::options::decode_options_limits(options));
                 }
                 let Some(opacity) = layer.opacity() else { return Ok(()); };
                 #[cfg(verus_keep_ghost)] proof! { jp2::source_opacity_known(opacity); }
@@ -8222,7 +9948,18 @@ def validate_normative_coverage(
                     LayerOpacity::Straight | LayerOpacity::Premultiplied => {
                         let premultiplied = matches!(opacity, LayerOpacity::Premultiplied);
                         if let Some(registration) = alpha_registration {
-                            let image = decode_layer(file, usize::from(registration.codestream_index), None, options,)?;
+                            let image = match decode_layer(file, usize::from(registration.codestream_index), None, options,) {
+                                Ok(value) => value,
+                                Err(error) => {
+                                    #[cfg(verus_keep_ghost)] proof! {
+                                        crate::specs::part2_opacity_cold_decode_error(jp2::jpx_file_decode_view(file),
+                                            jp2::source_layer_opacity(layer), jp2::source_layer_geometry(layer), color_codestream,
+                                            owned_layer_view(owned), layer_registration_view(registration),
+                                            crate::options::decode_options_limits(options), error);
+                                    }
+                                    return Err(error);
+                                }
+                            };
                             let alpha_source = owned_layer_from_image(&image)?;
                             let alpha_registered = register_layer(
                                 &alpha_source, registration, layer.horizontal_grid_size(), layer.vertical_grid_size(),)?;
@@ -8291,12 +10028,15 @@ def validate_normative_coverage(
                 ("specs/jpx_opacity.rs", "part2_source_registered_opacity"): """
                     match part2_decode_jpx_layer(file, registration.0 as usize, None, limits) {
                         Err(error) => (Err(error), owned),
-                        Ok(image) => match part2_owned_layer_input(image.0, image.1, image.2, image.4) {
+                        Ok(image) => part2_registered_opacity_finish(image, registration, grid, owned, premultiplied),
+                    }
+                """,
+                ("specs/jpx_opacity.rs", "part2_registered_opacity_finish"): """
+                    match part2_owned_layer_input(image.0, image.1, image.2, image.4) {
+                        Err(error) => (Err(error), owned),
+                        Ok(source) => match part2_register_layer(source, registration, grid.0, grid.1) {
                             Err(error) => (Err(error), owned),
-                            Ok(source) => match part2_register_layer(source, registration, grid.0, grid.1) {
-                                Err(error) => (Err(error), owned),
-                                Ok(registered) => part2_copy_registered_opacity(owned, registered, premultiplied),
-                            },
+                            Ok(registered) => part2_copy_registered_opacity(owned, registered, premultiplied),
                         },
                     }
                 """,
@@ -8362,7 +10102,13 @@ def validate_normative_coverage(
                         jp2::jpx_file_decode_view(file), codestream_index,
                         jp2::optional_color_specification_method(color_override), crate::options::decode_options_limits(options));
                 }
-                let (decoded, header) = crate::decode::decode_jpx_file(file, codestream_index, options)?;
+                let decoded_result = crate::decode::decode_jpx_file(file, codestream_index, options);
+                #[cfg(verus_keep_ghost)] proof! {
+                    crate::specs::part2_jpx_layer_cold_actual(jp2::jpx_file_decode_view(file), codestream_index,
+                        jp2::optional_color_specification_method(color_override), crate::options::decode_options_limits(options),
+                        crate::decode::associated_typed_outcome(decoded_result));
+                }
+                let (decoded, header) = decoded_result?;
                 #[cfg(verus_keep_ghost)] proof! { crate::decode::associated_typed_success_known(&decoded, header); }
                 let header = header.unwrap_or(file.header());
                 crate::color::convert_jp2_color(
@@ -8391,6 +10137,13 @@ def validate_normative_coverage(
                 if actual is None or "".join(actual.split()) != "".join(expected.split()):
                     raise ValueError("whole JPX layer color Result requires actual complete source/override models, not decoded-image banks")
         if entry["id"] == _JPX_SOURCE_ENTRY:
+            cold_source = source_text((ROOT / "specs/jpx_source.rs").resolve())
+            cold_normal_header = re.search(r"(?m)^([ \t]*)pub\(crate\)\s+proof\s+fn\s+part2_jpx_cold_normal\b", cold_source)
+            cold_normal_body = _coverage_function_body(cold_source, cold_normal_header)
+            if cold_normal_body is None or any("".join(fragment.split()) not in "".join(cold_normal_body.split())
+                    for fragment in ("let parsed = part1_parse_info(source.0, limits)",
+                                     "let decoded = part2_decode_raw_codestream(source.0, limits, None)")):
+                raise ValueError("whole JPX source Result requires complete physical/source models, not supplied banks or trimming")
             if {(ref["path"], ref["symbol"]) for ref in entry["contract_refs"]} != set(_JPX_SOURCE_CONTRACTS):
                 raise ValueError("whole JPX source Result requires actual file, raw info/decoder, association/validation/output contracts")
             model_refs = {
@@ -8502,6 +10255,8 @@ def validate_normative_coverage(
                     jp2::jpx_file_associated_header_reference_unfold(file, codestream_index);
                     crate::specs::part2_decode_jpx_codestream_unfold(
                         jp2::jpx_file_decode_view(file), codestream_index, crate::options::decode_options_limits(options));
+                    crate::specs::part2_jpx_cold_normal(
+                        jp2::jpx_file_decode_view(file), codestream_index, crate::options::decode_options_limits(options));
                 }
                 if !file.file_type().is_jpx_compatible() {
                     return Err(DecodeError::malformed(0, MalformedKind::InvalidProfile));
@@ -8519,12 +10274,30 @@ def validate_normative_coverage(
                         jp2::codestream_source_view(selected), jp2::associated_header_view(associated_header.unwrap()),
                         crate::options::decode_options_limits(options));
                 }
-                let info = codestream::parse(selected.data(), options.limits())?;
+                let info = match codestream::parse(selected.data(), options.limits()) {
+                    Ok(info) => info,
+                    Err(error) => {
+                        #[cfg(verus_keep_ghost)] proof! {
+                            crate::specs::part2_jpx_cold_info_error(
+                                jp2::jpx_file_decode_view(file), codestream_index,
+                                crate::options::decode_options_limits(options), jp2::codestream_source_view(selected),
+                                jp2::associated_header_view(associated_header.unwrap()), error);
+                        }
+                        return Err(error);
+                    }
+                };
                 #[cfg(verus_keep_ghost)] proof! { codestream::complete_codestream_info_known_fields(&info); }
                 if let Some(header) = associated_header {
                     jp2::validate_selected_header(header, &info, selected.box_header().offset())?;
                 }
-                let decoded = decode_codestream(selected.data(), options)?;
+                let decoded_result = decode_codestream(selected.data(), options);
+                #[cfg(verus_keep_ghost)] proof! {
+                    crate::specs::part2_jpx_cold_image_actual(
+                        jp2::jpx_file_decode_view(file), codestream_index, crate::options::decode_options_limits(options),
+                        jp2::codestream_source_view(selected), jp2::associated_header_view(associated_header.unwrap()),
+                        codestream::complete_codestream_info_view(&info), crate::image::decoded_typed_image_outcome(decoded_result));
+                }
+                let decoded = decoded_result?;
                 apply_associated_output(decoded, associated_header, options.limits())
             """
             if "".join(body.split()) != "".join(expected.split()):
@@ -8635,6 +10408,25 @@ def validate_normative_coverage(
             }
             if not model_refs.issubset({(ref["path"], ref["symbol"]) for ref in entry["spec_refs"]}):
                 raise ValueError("whole raw typed Result model must bind the actual complete source/decoder/nonlinear chain")
+            raw_source = source_text((ROOT / "specs/raw_decode.rs").resolve())
+            expected_raw = {
+                "part2_decode_raw_value_cold_run": """
+                    part2_jpip_snapshot_bind(part2_cold_parse(input, limits, 2, 0, events),
+                        |layout: Part1CompleteLayout, rest| part2_typed_decode_run(
+                            input.len() as usize, part2_decoder_input_from_raw(layout), requested, limits, rest))
+                """,
+                "part2_decode_raw_codestream": """
+                    match part1_parse_layout(input, limits) {
+                        Err(error) => Err(error),
+                        Ok(layout) => part2_decode_typed_layout_input(
+                            input.len() as usize, part2_decoder_input_from_raw(layout), limits, requested),
+                    }
+                """,
+            }
+            for symbol, expected in expected_raw.items():
+                actual_body = _coverage_spec_function_body(raw_source, symbol)
+                if actual_body is None or "".join(actual_body.split()) != "".join(expected.split()):
+                    raise ValueError("whole raw typed Result requires complete raw/physical projection, not a layout/image bank: part2_decode_raw_codestream")
             path = (ROOT / "src/decode/api.rs").resolve()
             text = source_text(path)
             for name, requested in (("decode_codestream", "None"),
@@ -8645,17 +10437,28 @@ def validate_normative_coverage(
                     + _coverage_call("codestream::decoder_layout_errors_known") + r"\s*;\s*"
                     + _coverage_call("crate::specs::part2_decode_raw_codestream_unfold",
                                      "input@", _coverage_call("crate::options::decode_options_limits", "options"), requested)
-                    + r"\s*;\s*" + _coverage_call("reveal", "crate::specs::part2_decode_typed_layout") + r"\s*;\s*\}\s*"
+                    + r"\s*;\s*" + _coverage_call("reveal", "crate::specs::part2_decode_typed_layout") + r"\s*;\s*"
+                    + _coverage_call("crate::specs::part2_decode_raw_cold_normal",
+                                     "input@", _coverage_call("crate::options::decode_options_limits", "options"), requested)
+                    + r"\s*;\s*\}\s*"
                 )
-                parsed = r"let\s+layout\s*=\s*" + _coverage_call(
+                parsed = r"let\s+layout\s*=\s*match\s+" + _coverage_call(
                     "codestream::parse_layout", "input", _coverage_call("options.limits"),
-                ) + r"\s*\?\s*;\s*"
+                ) + r"\s*\{\s*Ok\(layout\)\s*=>\s*layout\s*,\s*Err\(error\)\s*=>\s*\{\s*" \
+                    r"#\[\s*cfg\s*\(\s*verus_keep_ghost\s*\)\s*\]\s*proof!\s*\{\s*" \
+                    + _coverage_call("crate::specs::part2_decode_raw_cold_parse_error", "input@",
+                                     _coverage_call("crate::options::decode_options_limits", "options"), requested, "error") \
+                    + r"\s*;\s*\}\s*return\s+Err\(error\)\s*;\s*\}\s*\}\s*;\s*"
                 bridge = (
                     r"#\[\s*cfg\s*\(\s*verus_keep_ghost\s*\)\s*\]\s*proof!\s*\{\s*"
                     + _coverage_call("codestream::decoder_layout_input_matches_raw", r"&\s*layout") + r"\s*;\s*\}\s*"
                 )
-                decoded = _coverage_call("decode_typed_layout", _coverage_call("input.len"), r"&\s*layout",
-                                         _coverage_call("options.limits"), requested) + r"\s*"
+                decoded = r"let\s+result\s*=\s*" + _coverage_call("decode_typed_layout", _coverage_call("input.len"), r"&\s*layout",
+                    _coverage_call("options.limits"), requested) + r"\s*;\s*" \
+                    r"#\[\s*cfg\s*\(\s*verus_keep_ghost\s*\)\s*\]\s*proof!\s*\{\s*" \
+                    + _coverage_call("crate::specs::part2_decode_raw_typed_actual", "input@",
+                        _coverage_call("crate::options::decode_options_limits", "options"), requested,
+                        _coverage_call("crate::image::decoded_typed_image_outcome", "result")) + r"\s*;\s*\}\s*result\s*"
                 if body is None or re.fullmatch(prefix + parsed + bridge + decoded, body) is None:
                     raise ValueError("whole raw typed Result not used by claimed implementation: actual raw parser/projection/decoder handoff")
             options_path = (ROOT / "src/options.rs").resolve()
@@ -8739,16 +10542,23 @@ def validate_normative_coverage(
             path = (ROOT / "src/codestream/layout.rs").resolve()
             body = _coverage_function_body(source_text(path), function_header(path, "Parser::parse_layout"))
             public_body = _coverage_function_body(source_text(path), function_header(path, "parse_layout"))
-            if public_body is None or re.fullmatch(_RAW_LAYOUT_WRAPPER_BODY, public_body) is None:
+            if public_body is None or "".join(public_body.split()) != "".join(_RAW_LAYOUT_WRAPPER_BODY.split()):
                 raise ValueError("whole raw layout requires the actual byte/limits reader wrapper")
             state = _coverage_call("persistent_tile_state_view", *(name + r"\s*@" for name in _PERSISTENT_TILE_STATE_FIELDS))
             reader = _coverage_call("parser_view", r"&\s*parser")
+            cold_root = (
+                r"crate::specs::Part1ColdLayoutRoot\s*\{\s*initial\s*:\s*initial_reader\s*,\s*"
+                r"main\s*:\s*complete_main\s*,\s*reader\s*:\s*" + reader
+                + r"\s*,\s*parts\s*:\s*tile_parts\s*,\s*state\s*:\s*" + state
+                + r"\s*,\s*input_length\s*,?\s*\}"
+            )
             if body is None or any(re.search(pattern, body) is None for pattern in (
                 r"let\s+ghost\s+initial_reader\s*=\s*" + _coverage_call("parser_view", r"&\s*self"),
                 r"let\s+ghost\s+layout_goal\s*=\s*" + _coverage_call("crate::specs::part1_read_layout", "initial_reader"),
                 r"input_length\s*==\s*" + _coverage_call("crate::specs::part1_parse_layout_prologue", "initial_reader")
                 + r"\.1\.input\.len\s*\(\s*\)\s+as\s+usize",
-                r"invariant_except_break\s+layout_goal\s*==\s*"
+                r"invariant_except_break\s+" + _coverage_call("crate::specs::part1_cold_layout_prefix", cold_root)
+                + r"\s*,\s*layout_goal\s*==\s*"
                 + _coverage_call("crate::specs::part1_layout_continuation", reader, "complete_main", "tile_parts", state, "input_length"),
                 r"ensures\s+layout_goal\s*==\s*"
                 + _coverage_call("crate::specs::part1_layout_after_tiles", reader, "complete_main", "tile_parts", state),
@@ -8960,26 +10770,38 @@ def validate_normative_coverage(
             public = {"path": _MAIN_HEADER_LAYOUT[0], "symbol": "parse_layout"}
             public_body = (_coverage_function_body(source_text(path), function_header(path, public["symbol"]))
                            if public in entry["implementation_refs"] else None)
-            if public_body is None or re.fullmatch(_RAW_LAYOUT_WRAPPER_BODY, public_body) is None:
+            if public_body is None or "".join(public_body.split()) != "".join(_RAW_LAYOUT_WRAPPER_BODY.split()):
                 raise ValueError("whole raw main-header Result not used by claimed implementation: actual raw wrapper")
             raw_view = _coverage_call("main_header_accumulator_view", *_MAIN_HEADER_RAW_ARGUMENTS)
             continuation = _coverage_call("crate::specs::part1_main_header_continuation",
                                          _coverage_call("parser_view", r"&\s*parser"), raw_view, "input_length")
             finish = _coverage_call("crate::specs::part1_finish_main_header",
                                    _coverage_call("parser_view", r"&\s*parser"), raw_view)
+            prepared_continuation = _coverage_call("crate::specs::part1_main_quantization_continuation",
+                _coverage_call("parser_view", r"&\s*parser"), raw_view, "input_length")
+            prepared_finish = _coverage_call("crate::specs::part1_main_quantization_finish",
+                _coverage_call("parser_view", r"&\s*parser"), raw_view)
             initial_reader = _coverage_call("parser_view", r"&\s*self")
             root = _coverage_call("crate::specs::part1_read_main_header", "initial_reader")
             if body is None or any(re.search(pattern, body) is None for pattern in (
                 r"let\s+ghost\s+initial_reader\s*=\s*" + initial_reader + r"\s*;",
                 r"let\s+ghost\s+main_goal\s*=\s*" + root + r"\s*;",
+                r"let\s+ghost\s+main_quantization_goal\s*=\s*"
+                + _coverage_call("crate::specs::part1_prepare_main_quantization", "initial_reader") + r"\s*;",
                 r"let\s+ghost\s+main_initial\s*=\s*" + raw_view + r"\s*;",
                 r"let\s+ghost\s+raw_main\s*=\s*" + raw_view + r"\s*;",
                 r"verus_spec\s*\(\s*invariant\s+initial_reader\s*==\s*" + initial_reader
+                + r"\s*,\s*" + _coverage_call("crate::specs::part1_cold_main_prefix",
+                    "initial_reader", _coverage_call("parser_view", r"&\s*parser"), raw_view)
+                + r"\s*,\s*" + _coverage_call("crate::specs::part1_cold_layout_result", "initial_reader",
+                    _coverage_call("crate::specs::part1_read_layout", "initial_reader"))
+                + r"\s*,\s*main_quantization_goal\s*==\s*" + prepared_continuation
                 + r"\s*,\s*main_goal\s*==\s*" + root + r"\s*,\s*main_goal\s*==\s*" + continuation
                 + r"\s*,(?:\s*input_length\s*==\s*"
                 + _coverage_call("crate::specs::part1_parse_layout_prologue", "initial_reader")
                 + r"\s*\.\s*1\s*\.\s*input\s*\.\s*len\s*\(\s*\)\s+as\s+usize\s*,)?"
-                + r"\s*ensures\s+main_goal\s*==\s*" + finish,
+                + r"\s*ensures\s+main_quantization_goal\s*==\s*" + prepared_finish
+                + r"\s*,\s*main_goal\s*==\s*" + finish,
             )):
                 raise ValueError("whole raw main-header Result requires actual raw initialization, traversal and finalization state")
             completed = """
@@ -9058,12 +10880,15 @@ def validate_normative_coverage(
             )
             captured = re.search(snapshot, body)
             handoff = re.search(
+                r"\blet\s+read_result\s*=\s*parser\s*\.\s*read_tile_part\s*\(", body,
+            )
+            unpacked = re.search(
                 r"\blet\s*\(\s*payload\s*,\s*tile_parameters\s*,\s*tile_extensions\s*\)\s*=\s*"
-                r"parser\s*\.\s*read_tile_part\s*\(", body,
+                r"match\s+read_result\s*\{", body,
             )
             six_commit = re.search(r"\bparser\s*\.\s*commit_persistent_tile_configuration\s*\(", body)
-            if (captured is None or handoff is None or six_commit is None
-                    or not handoff.start() < captured.start() < six_commit.start()):
+            if (captured is None or handoff is None or unpacked is None or six_commit is None
+                    or not handoff.start() < unpacked.start() < captured.start() < six_commit.start()):
                 raise ValueError("persistent fold requires actual reader-derived complete commit snapshot")
             stores = []
             for states, owner in (("tile_mct_parameters", "tile_parameters"),
@@ -9143,6 +10968,22 @@ def validate_normative_coverage(
                 if projection is None or re.sub(r"\s+", "", projection) != re.sub(r"\s+", "", expected):
                     raise ValueError(f"persistent fold requires complete physical projection: {name}")
         if entry["id"] == "part1-complete-native-owned-tile-inheritance":
+            if (not _MCT_COPY_MODELS.issubset({(r["path"], r["symbol"]) for r in entry["spec_refs"]})
+                    or not _MCT_COPY_PROOFS.issubset({(r["path"], r["symbol"]) for r in entry["proof_refs"]})):
+                raise ValueError("owned inheritance requires complete fallible MCT request/frame links")
+            if (not _PART2_COPY_MODELS.issubset({(r["path"], r["symbol"]) for r in entry["spec_refs"]})
+                    or not _PART2_COPY_PROOFS.issubset({(r["path"], r["symbol"]) for r in entry["proof_refs"]})):
+                raise ValueError("owned inheritance requires complete fallible Part2 request/frame links")
+            copy_path = (ROOT / "src/codestream/mct_copy.rs").resolve()
+            copy_source = source_text(copy_path)
+            if (re.search(r"\bfn\s+copy_flat\s*<\s*T\s*:\s*Copy\s*>", copy_source) is None
+                    or "crate::allocation::copy_values(source)" not in copy_source
+                    or re.search(r"\.\s*clone\s*\(|Clone\s*::\s*clone", copy_source)):
+                raise ValueError("owned inheritance requires explicit fallible nested MCT copies, not generic Clone")
+            extensions_copy_source = source_text((ROOT / "src/codestream/extensions_copy.rs").resolve())
+            if (re.search(r"\.\s*clone\s*\(|Clone\s*::\s*clone", extensions_copy_source)
+                    or "use super::mct_copy::{copy_flat, reserve_values};" not in extensions_copy_source):
+                raise ValueError("owned inheritance requires explicit fallible nested Part2 copies, not generic Clone")
             layout = {"path": "src/codestream/layout.rs", "symbol": "Parser::parse_layout"}
             if layout not in entry["implementation_refs"]:
                 raise ValueError("owned inheritance not used by claimed implementation: actual layout required")
@@ -9159,10 +11000,35 @@ def validate_normative_coverage(
                                      r"&\s*" + main, r"&\s*" + states + r"\s*,?")
                     + r"\s*\.\s*" + _coverage_call("clone") + r"\s*;"
                 )
+                fallible = {
+                    "inherited_component_quantizations": ("quantization_source", "inherited_progression_changes", "part1_cold_layout_sot_copy_error"),
+                    "inherited_progression_changes": ("progression_source", "inherited_mct_parameters", "part1_cold_layout_sot_progression_error"),
+                    "inherited_mct_parameters": ("mct_source", "inherited_part2_extensions", "part1_cold_layout_sot_mct_error"),
+                }
+                if local in fallible:
+                    source = fallible[local][0]
+                    pattern = (
+                        r"\blet\s+" + source + r"\s*=\s*"
+                        + _coverage_call("inherited_tile_owner", "tile_index", r"&\s*" + main,
+                                         r"&\s*" + states + r"\s*,?")
+                        + r"\s*;\s*let\s+" + local + r"\s*=\s*match\s+"
+                        + _coverage_call(source + ".try_duplicate") + r"\s*\{"
+                    )
+                if local == "inherited_part2_extensions":
+                    pattern = _PART2_FALLIBLE_INHERITANCE
                 match = re.search(pattern, body)
                 if match is None or match.start() < previous_end:
                     raise ValueError(f"owned inheritance clone/source/order mismatch: {local}")
                 previous_end = match.end()
+                if local in fallible:
+                    _, next_local, refusal = fallible[local]
+                    following = re.search(r"\blet\s+" + next_local + r"\b", body[match.end():])
+                    phase = body[match.end():match.end() + following.start()] if following else ""
+                    if any("".join(item.split()) not in "".join(phase.split()) for item in (
+                        "Ok(values) => values", "Err(error) =>",
+                        "crate::specs::" + refusal + "(cold_sot, error)", "return Err(error)",
+                    )):
+                        raise ValueError(f"owned inheritance clone/source/order mismatch: {local}")
                 checkpoints.append(_coverage_call(
                     "assert",
                     _coverage_call(view, r"&\s*" + local) + r"\s*==\s*"
@@ -9171,8 +11037,28 @@ def validate_normative_coverage(
                     )),
                 ) + r"\s*;")
             handoff = re.search(
-                r"\blet\s*\(\s*payload\s*,\s*tile_parameters\s*,\s*tile_extensions\s*\)\s*=\s*"
-                r"parser\s*\.\s*read_tile_part\s*\(", body,
+                r"\blet\s+read_result\s*=\s*parser\s*\.\s*read_tile_part\s*\(", body,
+            )
+            input_fields = (
+                ("reader", _coverage_call("parser_view", r"&\s*parser")),
+                ("tile", _coverage_call("tile_part_header_view", "tile_part")),
+                ("defaults", r"\(\s*" + _coverage_call("parsed_coding_style_view", "inherited_default_style")
+                 + r"\s*,\s*" + _coverage_call("quantization_view", r"&\s*inherited_default_quantization") + r"\s*\)"),
+                ("styles", _coverage_call("component_style_owner_view", r"&\s*inherited_component_styles")),
+                ("quantizations", _coverage_call("parsed_quantization_owner_view", r"&\s*inherited_component_quantizations")),
+                ("roi", _coverage_call("roi_shifts_view", r"&\s*inherited_roi_shifts")),
+                ("progression", _coverage_call("progression_changes_view", r"&\s*inherited_progression_changes")),
+                ("mct", _coverage_call("mct_parameters_view", r"&\s*inherited_mct_parameters")),
+                ("extensions", _coverage_call("owned_extensions_view", r"&\s*inherited_part2_extensions")),
+                ("components", r"image_size\.components"),
+                ("lengths", _coverage_call("packet_lengths_view", r"&\s*main_packet_lengths")),
+                ("headers", _coverage_call("packed_packet_headers_view", r"&\s*packed_packet_headers")),
+            )
+            input_snapshot = (
+                r"\s*#\[\s*cfg\s*\(\s*verus_keep_ghost\s*\)\s*\]\s*proof_decl!\s*\{\s*"
+                r"let\s+ghost\s+tile_input\s*=\s*crate::specs::Part1ColdTileInput\s*\{\s*"
+                + r"\s*,\s*".join(re.escape(name) + r"\s*:\s*" + pattern for name, pattern in input_fields)
+                + r"\s*,?\s*\}\s*;\s*\}\s*"
             )
             proof = (
                 r"\s*#\[\s*cfg\s*\(\s*verus_keep_ghost\s*\)\s*\]\s*proof!\s*\{\s*"
@@ -9180,7 +11066,7 @@ def validate_normative_coverage(
                 + r"\s*".join(checkpoints) + r"\s*\}\s*"
             )
             if handoff is None or handoff.start() < previous_end or re.fullmatch(
-                proof, body[previous_end:handoff.start()],
+                proof + input_snapshot, body[previous_end:handoff.start()],
             ) is None:
                 raise ValueError("owned inheritance requires four unconditional complete cloned-view checkpoints")
         if entry["id"] == "part1-complete-native-mct-parameter-clone":
@@ -10064,6 +11950,9 @@ def validate_normative_coverage(
                     r"old\(\s*values\s*\)@\s*,\s*final\(\s*values\s*\)@\s*,\s*\1",
                 ),
                 "empty_with_capacity": ("storage_capacity_result", r"\1"),
+                "none_values": ("storage_none_result", r"count\s*,\s*\1"),
+                "copy_values": ("storage_copy_result", r"source@\s*,\s*\1"),
+                "filled_values": ("storage_copy_result", _coverage_call("Seq::new", r"count\s+as\s+nat", r"\|_\s*:\s*int\|\s*value") + r"\s*,\s*\1"),
                 "extend_bytes": (
                     "storage_extension_result",
                     r"old\(\s*values\s*\)@\s*,\s*bytes@\s*,\s*"
@@ -10098,10 +11987,66 @@ def validate_normative_coverage(
             if entry["id"] == _JPIP_SEMANTIC_ENTRY:
                 storage_contract = _JPIP_SEMANTIC_RELATIONS.get(
                     (reference["path"], reference["symbol"]), storage_contract)
+            if (reference["path"], reference["symbol"]) == ("src/codestream/mct_copy.rs", "filled_values"):
+                header_contract = arbitrary_contract = None
+                storage_contract = (
+                    "part1_mct_copy_result",
+                    _coverage_call("crate::specs::part1_mct_copy_leaf", "_path", "count")
+                    + r"\s*,\s*" + _coverage_call("copy_outcome", r"\1"),
+                )
+                if (re.search(r"\bfn\s+filled_values\s*<\s*T\s*:\s*Copy\s*>", text) is None
+                        or re.search(r"Ok\(\s*values\s*\)\s*=>\s*values@\s*==\s*Seq::new\(\s*count\s+as\s+nat\s*,\s*\|_\s*:\s*int\|\s*value\s*\)", contract) is None):
+                    raise ValueError(f"linked function lacks executable Verus contract: {short}; invalid exact Copy-fill storage relation")
+            cold_contract = _COLD_RESULT_CONTRACTS.get((reference["path"], reference["symbol"]))
+            if cold_contract is not None:
+                storage_contract = cold_contract
+                if (reference["path"], reference["symbol"]) == ("src/allocation.rs", "inspection_values"):
+                    if re.search(r"Ok\(\s*values\s*\)\s*=>\s*values@\s*\.len\(\)\s*==\s*0", contract) is None:
+                        raise ValueError(f"linked function lacks executable Verus contract: {short}; invalid fresh empty inspection owner")
+                header_contract = arbitrary_contract = selection_contract = None
+                if (reference["path"], reference["symbol"]) == _MAIN_HEADER_LAYOUT:
+                    ordinary_header = (
+                        _coverage_call("complete_layout_outcome", r"\1")
+                        + r"\s*!=\s*Err\(\s*DecodeError::AllocationFailed\s*\)\s*==>\s*"
+                        + _coverage_call("crate::specs::part1_main_header_layout_relation",
+                            _coverage_call("crate::specs::part1_read_main_header", _coverage_call("parser_view", r"&\s*self")),
+                            _coverage_call("layout_main_header_outcome", r"\1"))
+                    )
+                    if re.search(named_prefix + r".*?" + ordinary_header, contract, re.S) is None:
+                        raise ValueError(f"linked function lacks executable Verus contract: {short}; missing checked ordinary main-header projection")
+                if not cold_foundation_checked:
+                    cold_source = source_text((ROOT / "specs/raw_decode.rs").resolve())
+                    for cold_name, expected_body in _COLD_FRAME_BODIES.items():
+                        cold_body = _coverage_spec_function_body(cold_source, cold_name)
+                        if cold_body is None or "".join(cold_body.split()) != "".join(expected_body.split()):
+                            raise ValueError(f"linked function lacks executable Verus contract: {short}; invalid exact cold event/tail frame")
+                    cold_foundation_checked = True
+                model_path = next(
+                    (path for model, path, _ in _COLD_RESULT_MODELS.values() if model == cold_contract[0]),
+                    "specs/jpip_transcode.rs",
+                )
+                if not _coverage_cold_result_body(source_text((ROOT / model_path).resolve()), cold_contract[0]):
+                    raise ValueError(f"linked function lacks executable Verus contract: {short}; invalid complete cold Result body")
+                normal_refs = {
+                    (path, normal) for model, path, normal in _COLD_RESULT_MODELS.values()
+                    if model == cold_contract[0]
+                }
+                if cold_contract[0] == "part2_jpip_validate_precinct_cold_result":
+                    normal_refs = {("specs/jpip_transcode.rs", "part2_jpip_validate_precinct_cold_normal")}
+                if not normal_refs.issubset({(ref["path"], ref["symbol"]) for ref in entry["proof_refs"]}):
+                    raise ValueError(f"linked function lacks executable Verus contract: {short}; missing checked cold normal projection")
+                if cold_contract[0] == "part1_bitmap_result" and (
+                        "src/codestream/mct_copy.rs", "filled_values") not in {
+                            (ref["path"], ref["symbol"]) for ref in entry["proof_refs"]}:
+                    raise ValueError(f"linked function lacks executable Verus contract: {short}; missing checked Copy-fill producer")
+                required_models, _ = _coverage_cold_links({(reference["path"], reference["symbol"])})
+                if not required_models.issubset({(ref["path"], ref["symbol"]) for ref in entry["spec_refs"]}):
+                    raise ValueError(f"linked function lacks executable Verus contract: {short}; missing complete cold run links")
             if storage_contract:
                 model, arguments = storage_contract
+                relation_prefix = named_prefix
                 relation = re.search(
-                    named_prefix + r"crate::specs::(?P<model>" + re.escape(model)
+                    relation_prefix + r"crate::specs::(?P<model>" + re.escape(model)
                     + r")\s*\(\s*(?P<state>" + arguments + r")\s*,?\s*\)", contract,
                 )
                 if relation is None or re.search(r"\brequires\b", contract):
@@ -10509,7 +12454,25 @@ def validate_normative_coverage(
                     signature_match.group(),
                 )
             )
-            if claimed_consumer and not main_header_caller and not exported_recovery_entry and not any(
+            normal_mct_copy_consumer = False
+            normal_mct_methods = {
+                "MctParameters::clone": "MctParameters::try_duplicate",
+                "MctRecord::clone": "MctRecord::try_duplicate_at",
+                "MctCollectionReference::clone": "MctCollectionReference::try_duplicate_at",
+            }
+            if (entry["id"] == "part1-complete-native-mct-parameter-clone"
+                    and reference["path"] == "src/codestream/mct.rs" and reference["symbol"] in normal_mct_methods):
+                layout_path = (ROOT / "src/codestream/layout.rs").resolve()
+                layout_body = _coverage_function_body(source_text(layout_path),
+                    function_header(layout_path, "Parser::parse_layout"))
+                normal_mct_copy_consumer = (
+                    {("src/codestream/mct_copy.rs", normal_mct_methods[reference["symbol"]]),
+                     ("specs/cold_mct_copy.rs", "part1_mct_copy_normal")}.issubset(
+                        {(r["path"], r["symbol"]) for r in entry["proof_refs"]})
+                    and layout_body is not None
+                    and re.search(_MCT_FALLIBLE_INHERITANCE, layout_body) is not None
+                )
+            if claimed_consumer and not main_header_caller and not exported_recovery_entry and not normal_mct_copy_consumer and not any(
                 ref != reference
                 and (cross_file_call(
                     (ROOT / ref["path"]).resolve(), ref["symbol"], short,
@@ -10522,6 +12485,66 @@ def validate_normative_coverage(
                 raise ValueError(f"linked function is not used by claimed implementation: {short}")
             if claimed_consumer:
                 contract_functions.add((reference["path"], reference["symbol"]))
+    if "part1-complete-native-packed-header-length-inputs" in ids:
+        packed_entry = next(item for item in coverage["requirements"] if item["id"] == "part1-complete-native-packed-header-length-inputs")
+        if ("src/codestream/packet_headers.rs", "PackedPacketHeaders::reassemble") in {
+                (ref["path"], ref["symbol"]) for ref in packed_entry["contract_refs"]}:
+            for field, required in (("spec_refs", _PACKED_STORAGE_MODELS), ("proof_refs", _PACKED_STORAGE_PROOFS), ("test_refs", _PACKED_STORAGE_TESTS)):
+                if not required.issubset({(ref["path"], ref["symbol"]) for ref in packed_entry[field]}):
+                    raise ValueError("packed-header fresh storage requires actual primitive, normal/frame and bounded refusal/state/public links")
+        for (relative, symbol), fragments in _PACKED_STORAGE_GUARDS.items():
+            body = _coverage_spec_function_body(source_text((ROOT / relative).resolve()), symbol)
+            compact = "".join(body.split()) if body is not None else ""
+            if any("".join(fragment.split()) not in compact for fragment in fragments):
+                raise ValueError("packed-header fresh storage requires actual distinct requests, byte-derived decode plans, first-error/state/tail composition")
+        for (relative, symbol), fragments in _PACKED_STORAGE_NATIVE_ORDER.items():
+            path = (ROOT / relative).resolve()
+            body = _coverage_function_body(source_text(path), function_header(path, symbol))
+            compact = "".join(body.split()) if body is not None else ""
+            positions = [compact.find("".join(fragment.split())) for fragment in fragments]
+            if any(position < 0 for position in positions) or positions != sorted(positions):
+                raise ValueError("packed-header fresh storage requires unchanged real constructor/admission/copy/owner/error order")
+    if "part1-complete-native-grid-progression-composition" in ids:
+        preparation_entry = next(item for item in coverage["requirements"] if item["id"] == "part1-complete-native-grid-progression-composition")
+        for (relative, symbol), fragments in _PREPARATION_STORAGE_GUARDS.items():
+            path = (ROOT / relative).resolve()
+            body = (_coverage_function_body(source_text(path), function_header(path, symbol)) if relative.startswith("src/")
+                    else _coverage_spec_function_body(source_text(path), symbol))
+            compact = "".join(body.split()) if body is not None else ""
+            if any("".join(fragment.split()) not in compact for fragment in fragments):
+                raise ValueError("packet preparation storage requires distinct source/count roles, exact zero/admission/state/tail and shallow Copy fill")
+        if re.search(r"\bfn\s+filled_values\s*<\s*T\s*:\s*Copy\s*>", source_text((ROOT / "src/allocation.rs").resolve())) is None:
+            raise ValueError("packet preparation storage requires shallow Copy fill")
+        for (relative, symbol), fragments in _PREPARATION_NATIVE_ORDER.items():
+            path = (ROOT / relative).resolve()
+            body = _coverage_function_body(source_text(path), function_header(path, symbol))
+            compact = "".join(body.split()) if body is not None else ""
+            positions = [compact.find("".join(fragment.split())) for fragment in fragments]
+            if any(position < 0 for position in positions) or positions != sorted(positions):
+                raise ValueError("packet preparation storage requires original outer/seen frontier and actual producer/error/owner order")
+        if any((ref["path"], ref["symbol"]) in {
+                ("src/packet/tile.rs", "prepare_progression_payloads"), ("src/packet/tile.rs", "progression_tile_progress_new")}
+                for ref in preparation_entry["contract_refs"]):
+            if not _PREPARATION_STORAGE_TESTS.issubset({(ref["path"], ref["symbol"]) for ref in preparation_entry["test_refs"]}):
+                raise ValueError("packet preparation storage requires bounded refusal/restore/empty/state/public controls")
+        for (relative, symbol), fragments in _GRID_STORAGE_GUARDS.items():
+            body = _coverage_spec_function_body(source_text((ROOT / relative).resolve()), symbol)
+            compact = "".join(body.split()) if body is not None else ""
+            if any("".join(fragment.split()) not in compact for fragment in fragments):
+                raise ValueError("grid fresh storage requires actual distinct source/count, arithmetic/admission, plan and snapshot event/tail composition")
+        for (relative, symbol), fragments in _GRID_STORAGE_NATIVE_ORDER.items():
+            path = (ROOT / relative).resolve()
+            body = _coverage_function_body(source_text(path), function_header(path, symbol))
+            compact = "".join(body.split()) if body is not None else ""
+            positions = [compact.find("".join(fragment.split())) for fragment in fragments]
+            if any(position < 0 for position in positions) or positions != sorted(positions):
+                raise ValueError("grid fresh storage requires original actual constructor/field/admission/owner/error order")
+        if any((ref["path"], ref["symbol"]) in {
+                ("src/packet/progression.rs", "packet_grid_count_summary"),
+                ("src/packet/progression.rs", "packet_grid_new_with_component_resolutions"),
+                ("src/packet/progression.rs", "packet_grid_new_with_selected_resolutions")} for ref in preparation_entry["contract_refs"]):
+            if not _GRID_STORAGE_TESTS.issubset({(ref["path"], ref["symbol"]) for ref in preparation_entry["test_refs"]}):
+                raise ValueError("grid fresh storage requires bounded offset/uniform/refusal/restore/overflow/work/public controls")
     return {
         "status": "passed",
         "inventory_items": len(ids),

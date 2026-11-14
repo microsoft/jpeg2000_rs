@@ -97,7 +97,7 @@ pub(crate) proof fn raw_reconstructed_recovery_result_unfold(input: Seq<u8>, lim
 {
 }
 
-pub(crate) open spec fn raw_reconstructed_recovery_result_body(
+pub(crate) open spec fn raw_reconstructed_recovery_normal_result_body(
     input: Seq<u8>, limits: &crate::ResourceLimits,
     result: Result<(Part1DecodedImageModel, crate::RawRecoveryReport), crate::DecodeError>,
 ) -> bool {
@@ -139,7 +139,7 @@ pub(crate) proof fn raw_recovery_result_unfold(input: Seq<u8>, limits: &crate::R
 {
 }
 
-pub(crate) open spec fn raw_recovery_result_body(
+pub(crate) open spec fn raw_recovery_normal_result_body(
     input: Seq<u8>, limits: &crate::ResourceLimits,
     result: Result<(Part1DecodedTypedImage, crate::RawRecoveryReport), crate::DecodeError>,
 ) -> bool {
@@ -165,6 +165,277 @@ pub(crate) open spec fn raw_recovery_reserved_response(
         Err(error) => Err(error),
         Ok(bytes) => raw_recovery_finish(input.len() as usize, frame,
             part2_decode_raw_codestream(bytes, limits, None)),
+    }
+}
+
+pub(crate) enum RawRecoveryEvent {
+    Repair { reserved: bool },
+    Decode { calls: Seq<Part2JpipSnapshotEvent> },
+}
+
+pub(crate) type RawRecoveryRun<T> =
+    Option<(Result<(T, crate::RawRecoveryReport), crate::DecodeError>, Seq<RawRecoveryEvent>)>;
+
+pub(crate) open spec fn raw_recovery_decode_call<T>(
+    bytes: Seq<u8>, original: usize, frame: (bool, u64),
+    strict: spec_fn(Seq<u8>, Seq<Part2JpipSnapshotEvent>) -> Part2ColdRun<T>,
+    finish: spec_fn(usize, (bool, u64), Result<T, crate::DecodeError>)
+        -> Result<(T, crate::RawRecoveryReport), crate::DecodeError>,
+    events: Seq<RawRecoveryEvent>,
+) -> RawRecoveryRun<T> {
+    if events.len() == 0 { None } else {
+        match events[0] {
+            RawRecoveryEvent::Decode { calls } => match strict(bytes, calls) {
+                Some((decoded, rest)) => if rest.len() == 0 {
+                    Some((finish(original, frame, decoded), events.drop_first()))
+                } else { None },
+                None => None,
+            },
+            _ => None,
+        }
+    }
+}
+
+pub(crate) open spec fn raw_recovery_cold_run<T>(
+    input: Seq<u8>, limits: &crate::ResourceLimits,
+    strict: spec_fn(Seq<u8>, Seq<Part2JpipSnapshotEvent>) -> Part2ColdRun<T>,
+    finish: spec_fn(usize, (bool, u64), Result<T, crate::DecodeError>)
+        -> Result<(T, crate::RawRecoveryReport), crate::DecodeError>,
+    events: Seq<RawRecoveryEvent>,
+) -> RawRecoveryRun<T> {
+    match raw_recovery_framing(input, limits) {
+        Err(error) => Some((Err(error), events)),
+        Ok(frame) => if !frame.0 {
+            raw_recovery_decode_call(input, input.len() as usize, frame, strict, finish, events)
+        } else {
+            match raw_recovery_admit(input.len() as usize, frame.1, limits) {
+                Err(error) => Some((Err(error), events)),
+                Ok(()) => if events.len() == 0 { None } else {
+                    match events[0] {
+                        RawRecoveryEvent::Repair { reserved } => match raw_repair_response(input, reserved) {
+                            Err(error) => Some((Err(error), events.drop_first())),
+                            Ok(bytes) => raw_recovery_decode_call(bytes, input.len() as usize,
+                                frame, strict, finish, events.drop_first()),
+                        },
+                        _ => None,
+                    }
+                },
+            }
+        },
+    }
+}
+
+pub(crate) open spec fn raw_recovery_cold_typed(
+    input: Seq<u8>, limits: &crate::ResourceLimits, events: Seq<RawRecoveryEvent>,
+) -> RawRecoveryRun<Part1DecodedTypedImage> {
+    raw_recovery_cold_run(input, limits,
+        |bytes, calls| part2_decode_raw_cold_run(bytes, limits, None, calls),
+        |original, frame, decoded| raw_recovery_finish(original, frame, decoded), events)
+}
+
+pub(crate) open spec fn raw_recovery_cold_reconstructed(
+    input: Seq<u8>, limits: &crate::ResourceLimits, events: Seq<RawRecoveryEvent>,
+) -> RawRecoveryRun<Part1DecodedImageModel> {
+    raw_recovery_cold_run(input, limits,
+        |bytes, calls| part2_decode_reconstructed_cold_run(bytes, limits, calls),
+        |original, frame, decoded| raw_reconstructed_recovery_finish(original, frame, decoded), events)
+}
+
+pub(crate) open spec fn raw_recovery_result_body(
+    input: Seq<u8>, limits: &crate::ResourceLimits,
+    result: Result<(Part1DecodedTypedImage, crate::RawRecoveryReport), crate::DecodeError>,
+) -> bool {
+    exists|events: Seq<RawRecoveryEvent>|
+        #[trigger] raw_recovery_cold_typed(input, limits, events) == Some((result, Seq::empty()))
+}
+
+pub(crate) open spec fn raw_reconstructed_recovery_result_body(
+    input: Seq<u8>, limits: &crate::ResourceLimits,
+    result: Result<(Part1DecodedImageModel, crate::RawRecoveryReport), crate::DecodeError>,
+) -> bool {
+    exists|events: Seq<RawRecoveryEvent>|
+        #[trigger] raw_recovery_cold_reconstructed(input, limits, events) == Some((result, Seq::empty()))
+}
+
+pub(crate) proof fn raw_recovery_preflight_lifts(input: Seq<u8>, limits: &crate::ResourceLimits)
+    ensures match raw_recovery_framing(input, limits) {
+        Err(error) => raw_recovery_result(input, limits, Err(error))
+            && raw_reconstructed_recovery_result(input, limits, Err(error)),
+        Ok(frame) => match raw_recovery_admit(input.len() as usize, frame.1, limits) {
+            Err(error) => frame.0 ==> (raw_recovery_result(input, limits, Err(error))
+                && raw_reconstructed_recovery_result(input, limits, Err(error))),
+            Ok(()) => true,
+        },
+    },
+{
+    reveal(raw_recovery_result);
+    reveal(raw_reconstructed_recovery_result);
+    match raw_recovery_framing(input, limits) {
+        Err(error) => {
+            assert(raw_recovery_cold_typed(input, limits, Seq::empty()) == Some((Err(error), Seq::empty())));
+            assert(raw_recovery_cold_reconstructed(input, limits, Seq::empty()) == Some((Err(error), Seq::empty())));
+        },
+        Ok(frame) => if frame.0 {
+            if let Err(error) = raw_recovery_admit(input.len() as usize, frame.1, limits) {
+                assert(raw_recovery_cold_typed(input, limits, Seq::empty()) == Some((Err(error), Seq::empty())));
+                assert(raw_recovery_cold_reconstructed(input, limits, Seq::empty()) == Some((Err(error), Seq::empty())));
+            }
+        },
+    }
+}
+
+pub(crate) proof fn raw_recovery_copy_error(
+    input: Seq<u8>, limits: &crate::ResourceLimits, frame: (bool, u64), error: crate::DecodeError,
+)
+    requires raw_recovery_framing(input, limits) == Ok(frame), frame.0,
+        raw_recovery_admit(input.len() as usize, frame.1, limits) == Ok(()),
+        raw_repair_result(input, Err(error)),
+    ensures raw_recovery_result(input, limits, Err(error))
+        && raw_reconstructed_recovery_result(input, limits, Err(error)),
+{
+    reveal(raw_recovery_result);
+    reveal(raw_reconstructed_recovery_result);
+    let events = seq![RawRecoveryEvent::Repair { reserved: false }];
+    assert(events.drop_first() =~= Seq::empty());
+    assert(raw_repair_response(input, false) == Err(error));
+    assert(raw_recovery_cold_typed(input, limits, events) == Some((Err(error), Seq::empty())));
+    assert(raw_recovery_cold_reconstructed(input, limits, events) == Some((Err(error), Seq::empty())));
+}
+
+pub(crate) proof fn raw_recovery_decode_actual<T>(
+    input: Seq<u8>, limits: &crate::ResourceLimits, frame: (bool, u64), bytes: Seq<u8>,
+    strict: spec_fn(Seq<u8>, Seq<Part2JpipSnapshotEvent>) -> Part2ColdRun<T>,
+    current: spec_fn(Seq<Part2JpipSnapshotEvent>) -> Part2ColdRun<T>,
+    finish: spec_fn(usize, (bool, u64), Result<T, crate::DecodeError>)
+        -> Result<(T, crate::RawRecoveryReport), crate::DecodeError>,
+    decoded: Result<T, crate::DecodeError>,
+) -> (events: Seq<RawRecoveryEvent>)
+    requires raw_recovery_framing(input, limits) == Ok(frame),
+        if frame.0 {
+            raw_recovery_admit(input.len() as usize, frame.1, limits) == Ok(())
+                && raw_repair_result(input, Ok(bytes))
+        } else { bytes == input },
+        part2_cold_framed(current, decoded),
+        forall|calls: Seq<Part2JpipSnapshotEvent>| #[trigger] current(calls) == strict(bytes, calls),
+    ensures raw_recovery_cold_run(input, limits, strict, finish, events)
+        == Some((finish(input.len() as usize, frame, decoded), Seq::empty())),
+{
+    let calls = part2_cold_witness(current, decoded);
+    assert(strict(bytes, calls) == Some((decoded, Seq::empty())));
+    let decode = RawRecoveryEvent::Decode { calls };
+    let events = if frame.0 {
+        assert(raw_repair_response(input, true) == Ok(bytes));
+        seq![RawRecoveryEvent::Repair { reserved: true }, decode]
+    } else { seq![decode] };
+    if frame.0 {
+        assert(events.drop_first() =~= seq![decode]);
+        assert(events.drop_first().drop_first() =~= Seq::empty());
+    } else { assert(events.drop_first() =~= Seq::empty()); }
+    events
+}
+
+pub(crate) proof fn raw_recovery_typed_actual(
+    input: Seq<u8>, limits: &crate::ResourceLimits, frame: (bool, u64), bytes: Seq<u8>,
+    decoded: Result<Part1DecodedTypedImage, crate::DecodeError>,
+)
+    requires raw_recovery_framing(input, limits) == Ok(frame),
+        if frame.0 {
+            raw_recovery_admit(input.len() as usize, frame.1, limits) == Ok(())
+                && raw_repair_result(input, Ok(bytes))
+        } else { bytes == input },
+        part2_decode_raw_cold_result(bytes, limits, None, decoded),
+    ensures raw_recovery_result(input, limits, raw_recovery_finish(input.len() as usize, frame, decoded)),
+{
+    reveal(raw_recovery_result);
+    part2_decode_raw_cold_frames(bytes, limits, None, decoded);
+    let events = raw_recovery_decode_actual(input, limits, frame, bytes,
+        |data, calls| part2_decode_raw_cold_run(data, limits, None, calls),
+        |calls| part2_decode_raw_cold_run(bytes, limits, None, calls),
+        |original, frame, decoded| raw_recovery_finish(original, frame, decoded), decoded);
+    assert(raw_recovery_cold_typed(input, limits, events)
+        == Some((raw_recovery_finish(input.len() as usize, frame, decoded), Seq::empty())));
+}
+
+pub(crate) proof fn raw_recovery_reconstructed_actual(
+    input: Seq<u8>, limits: &crate::ResourceLimits, frame: (bool, u64), bytes: Seq<u8>,
+    decoded: Result<Part1DecodedImageModel, crate::DecodeError>,
+)
+    requires raw_recovery_framing(input, limits) == Ok(frame),
+        if frame.0 {
+            raw_recovery_admit(input.len() as usize, frame.1, limits) == Ok(())
+                && raw_repair_result(input, Ok(bytes))
+        } else { bytes == input },
+        part2_decode_reconstructed_cold_result(bytes, limits, decoded),
+    ensures raw_reconstructed_recovery_result(input, limits,
+        raw_reconstructed_recovery_finish(input.len() as usize, frame, decoded)),
+{
+    reveal(raw_reconstructed_recovery_result);
+    part2_decode_reconstructed_cold_frames(bytes, limits, decoded);
+    let events = raw_recovery_decode_actual(input, limits, frame, bytes,
+        |data, calls| part2_decode_reconstructed_cold_run(data, limits, calls),
+        |calls| part2_decode_reconstructed_cold_run(bytes, limits, calls),
+        |original, frame, decoded| raw_reconstructed_recovery_finish(original, frame, decoded), decoded);
+    assert(raw_recovery_cold_reconstructed(input, limits, events)
+        == Some((raw_reconstructed_recovery_finish(input.len() as usize, frame, decoded), Seq::empty())));
+}
+
+pub(crate) proof fn raw_recovery_normal_admitted(
+    input: Seq<u8>, limits: &crate::ResourceLimits,
+    result: Result<(Part1DecodedTypedImage, crate::RawRecoveryReport), crate::DecodeError>,
+)
+    requires raw_recovery_normal_result_body(input, limits, result),
+    ensures raw_recovery_result(input, limits, result),
+{
+    raw_recovery_preflight_lifts(input, limits);
+    if let Ok(frame) = raw_recovery_framing(input, limits) {
+        if !frame.0 {
+            let decoded = part2_decode_raw_codestream(input, limits, None);
+            part2_decode_raw_cold_normal(input, limits, None);
+            raw_recovery_typed_actual(input, limits, frame, input, decoded);
+        } else if raw_recovery_admit(input.len() as usize, frame.1, limits).is_ok() {
+            match raw_repair_response(input, false) {
+                Err(error) => if result == Err(error) {
+                    raw_recovery_copy_error(input, limits, frame, error);
+                } else {
+                    if let Ok(bytes) = raw_repair_response(input, true) {
+                        let decoded = part2_decode_raw_codestream(bytes, limits, None);
+                        part2_decode_raw_cold_normal(bytes, limits, None);
+                        raw_recovery_typed_actual(input, limits, frame, bytes, decoded);
+                    }
+                },
+                Ok(_) => {},
+            }
+        }
+    }
+}
+
+pub(crate) proof fn raw_reconstructed_recovery_normal_admitted(
+    input: Seq<u8>, limits: &crate::ResourceLimits,
+    result: Result<(Part1DecodedImageModel, crate::RawRecoveryReport), crate::DecodeError>,
+)
+    requires raw_reconstructed_recovery_normal_result_body(input, limits, result),
+    ensures raw_reconstructed_recovery_result(input, limits, result),
+{
+    raw_recovery_preflight_lifts(input, limits);
+    if let Ok(frame) = raw_recovery_framing(input, limits) {
+        if !frame.0 {
+            let decoded = part2_decode_raw_reconstructed_codestream(input, limits);
+            part2_decode_reconstructed_cold_normal(input, limits);
+            raw_recovery_reconstructed_actual(input, limits, frame, input, decoded);
+        } else if raw_recovery_admit(input.len() as usize, frame.1, limits).is_ok() {
+            match raw_repair_response(input, false) {
+                Err(error) => if result == Err(error) {
+                    raw_recovery_copy_error(input, limits, frame, error);
+                } else {
+                    if let Ok(bytes) = raw_repair_response(input, true) {
+                        let decoded = part2_decode_raw_reconstructed_codestream(bytes, limits);
+                        part2_decode_reconstructed_cold_normal(bytes, limits);
+                        raw_recovery_reconstructed_actual(input, limits, frame, bytes, decoded);
+                    }
+                },
+                Ok(_) => {},
+            }
+        }
     }
 }
 

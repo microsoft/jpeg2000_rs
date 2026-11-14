@@ -68,7 +68,15 @@ pub open spec fn part2_general_source_step(
     let selected = part2_general_source_selection(config, layer_index, index);
     match part2_decode_jpx_codestream(file, selected.0, limits) {
         Err(error) => Err(error),
-        Ok(decoded) => match part2_native_registered_extent(decoded.0.0.0, selected.1 as u32, config.horizontal_grid as u32, selected.3) {
+        Ok(decoded) => part2_general_source_finish(config, selected, previous, decoded),
+    }
+}
+
+pub open spec fn part2_general_source_finish(
+    config: Part2GeneralLayerConfig, selected: (usize, u8, u8, u32, u32), previous: Part2GeneralSources,
+    decoded: (Part1DecodedTypedImage, Option<Part2AssociatedHeader>),
+) -> Result<Part2GeneralSources, crate::DecodeError> {
+    match part2_native_registered_extent(decoded.0.0.0, selected.1 as u32, config.horizontal_grid as u32, selected.3) {
             Err(error) => Err(error),
             Ok(width) => match part2_native_registered_extent(decoded.0.0.1, selected.2 as u32, config.vertical_grid as u32, selected.4) {
                 Err(error) => Err(error),
@@ -76,8 +84,188 @@ pub open spec fn part2_general_source_step(
                     if previous.1 < width { previous.1 } else { width },
                     if previous.2 < height { previous.2 } else { height })),
             },
+    }
+}
+
+pub(crate) open spec fn part2_general_source_cold_step(
+    file: Part2JpxDecodeInput, config: Part2GeneralLayerConfig, layer_index: usize,
+    limits: &crate::ResourceLimits, index: nat, previous: Part2GeneralSources, events: Seq<Part2JpipSnapshotEvent>,
+) -> Part2ColdRun<Part2GeneralSources> {
+    let selected = part2_general_source_selection(config, layer_index, index);
+    part2_jpip_snapshot_bind(part2_jpx_cold_run(file, selected.0, limits, events),
+        |decoded, tail| Some((part2_general_source_finish(config, selected, previous, decoded), tail)))
+}
+
+#[verifier::opaque]
+pub(crate) open spec fn part2_general_sources_cold_prefix(
+    file: Part2JpxDecodeInput, config: Part2GeneralLayerConfig, layer_index: usize,
+    limits: &crate::ResourceLimits, count: nat, events: Seq<Part2JpipSnapshotEvent>,
+) -> Part2ColdRun<Part2GeneralSources>
+    decreases count,
+{
+    if count == 0 { Some((Ok((Seq::empty(), u32::MAX, u32::MAX)), events)) }
+    else {
+        part2_jpip_snapshot_bind(part2_general_sources_cold_prefix(file, config, layer_index, limits,
+            (count - 1) as nat, events), |previous, tail|
+                part2_general_source_cold_step(file, config, layer_index, limits, (count - 1) as nat, previous, tail))
+    }
+}
+
+pub(crate) open spec fn part2_general_after_cold_sources(
+    config: Part2GeneralLayerConfig, colors: usize, sources: Part2GeneralSources, limits: &crate::ResourceLimits,
+) -> Part2OwnedLayerResult {
+    let width = sources.1;
+    let height = sources.2;
+    if width == 0 || height == 0 || width == u32::MAX || height == u32::MAX {
+        Err(part2_composition_error(false))
+    } else if width as nat * height as nat > crate::limits::resource_pixel_limit(limits) {
+        Err(crate::DecodeError::LimitExceeded { resource: crate::Resource::Pixels,
+            limit: crate::limits::resource_pixel_limit(limits), actual: (width as nat * height as nat) as u64 })
+    } else {
+        part2_general_after_assembly(config, colors, width, height,
+            part2_general_assembled_sources_prefix(sources.0, config, width, height, sources.0.len()), limits)
+    }
+}
+
+pub(crate) open spec fn part2_general_layer_cold_run(
+    file: Part2JpxDecodeInput, config: Part2GeneralLayerConfig, layer_index: usize,
+    limits: &crate::ResourceLimits, events: Seq<Part2JpipSnapshotEvent>,
+) -> Part2ColdRun<Part2OwnedLayer> {
+    match part2_general_color_count(config.color) {
+        Err(error) => Some((Err(error), events)),
+        Ok(colors) => part2_jpip_snapshot_bind(
+            part2_general_sources_cold_prefix(file, config, layer_index, limits, part2_general_source_count(config), events),
+            |sources, tail| Some((part2_general_after_cold_sources(config, colors, sources, limits), tail))),
+    }
+}
+
+pub(crate) open spec fn part2_general_layer_cold_result(
+    file: Part2JpxDecodeInput, config: Part2GeneralLayerConfig, layer_index: usize,
+    limits: &crate::ResourceLimits, result: Part2OwnedLayerResult,
+) -> bool {
+    part2_cold_framed(|events| part2_general_layer_cold_run(file, config, layer_index, limits, events), result)
+}
+
+pub(crate) proof fn part2_general_source_cold_normal(
+    file: Part2JpxDecodeInput, config: Part2GeneralLayerConfig, layer_index: usize,
+    limits: &crate::ResourceLimits, index: nat, previous: Part2GeneralSources,
+)
+    ensures part2_cold_framed(
+        |events| part2_general_source_cold_step(file, config, layer_index, limits, index, previous, events),
+        part2_general_source_step(file, config, layer_index, limits, index, previous)),
+        forall|run: spec_fn(Seq<Part2JpipSnapshotEvent>) -> Part2ColdRun<Part2GeneralSources>|
+            (forall|events: Seq<Part2JpipSnapshotEvent>| #[trigger] run(events)
+                == part2_general_source_cold_step(file, config, layer_index, limits, index, previous, events))
+                ==> #[trigger] part2_cold_framed(run,
+                    part2_general_source_step(file, config, layer_index, limits, index, previous)),
+{
+    reveal(part2_general_source_step);
+    let selected = part2_general_source_selection(config, layer_index, index);
+    let decoded = part2_decode_jpx_codestream(file, selected.0, limits);
+    part2_jpx_cold_normal(file, selected.0, limits);
+    if let Ok(value) = decoded { part2_cold_pure(part2_general_source_finish(config, selected, previous, value)); }
+    part2_cold_bind(
+        |events| part2_jpx_cold_run(file, selected.0, limits, events),
+        |value, tail| Some((part2_general_source_finish(config, selected, previous, value), tail)),
+        decoded, part2_general_source_step(file, config, layer_index, limits, index, previous));
+}
+
+pub(crate) proof fn part2_general_sources_cold_normal(
+    file: Part2JpxDecodeInput, config: Part2GeneralLayerConfig, layer_index: usize,
+    limits: &crate::ResourceLimits, count: nat,
+)
+    ensures part2_cold_framed(
+        |events| part2_general_sources_cold_prefix(file, config, layer_index, limits, count, events),
+        part2_general_sources_prefix(file, config, layer_index, limits, count)),
+        forall|run: spec_fn(Seq<Part2JpipSnapshotEvent>) -> Part2ColdRun<Part2GeneralSources>|
+            (forall|events: Seq<Part2JpipSnapshotEvent>| #[trigger] run(events)
+                == part2_general_sources_cold_prefix(file, config, layer_index, limits, count, events))
+                ==> #[trigger] part2_cold_framed(run,
+                    part2_general_sources_prefix(file, config, layer_index, limits, count)),
+    decreases count,
+{
+    reveal_with_fuel(part2_general_sources_cold_prefix, 1);
+    reveal_with_fuel(part2_general_sources_prefix, 1);
+    if count == 0 { part2_cold_pure(Ok((Seq::<Part2GeneralSource>::empty(), u32::MAX, u32::MAX))); }
+    else {
+        let prior = part2_general_sources_prefix(file, config, layer_index, limits, (count - 1) as nat);
+        part2_general_sources_cold_normal(file, config, layer_index, limits, (count - 1) as nat);
+        if let Ok(previous) = prior {
+            part2_general_source_cold_normal(file, config, layer_index, limits, (count - 1) as nat, previous);
+        }
+        part2_cold_bind(
+            |events| part2_general_sources_cold_prefix(file, config, layer_index, limits, (count - 1) as nat, events),
+            |previous, tail| part2_general_source_cold_step(file, config, layer_index, limits, (count - 1) as nat, previous, tail),
+            prior, part2_general_sources_prefix(file, config, layer_index, limits, count));
+    }
+}
+
+pub(crate) proof fn part2_general_layer_cold_normal(
+    file: Part2JpxDecodeInput, config: Part2GeneralLayerConfig, layer_index: usize, limits: &crate::ResourceLimits,
+)
+    ensures part2_general_layer_cold_result(file, config, layer_index, limits,
+        part2_decode_general_layer(file, config, layer_index, limits)),
+{
+    reveal(part2_decode_general_layer);
+    match part2_general_color_count(config.color) {
+        Err(error) => { part2_cold_pure::<Part2OwnedLayer>(Err(error)); },
+        Ok(colors) => {
+            let sources = part2_general_sources_prefix(file, config, layer_index, limits, part2_general_source_count(config));
+            part2_general_sources_cold_normal(file, config, layer_index, limits, part2_general_source_count(config));
+            if let Ok(value) = sources { part2_cold_pure(part2_general_after_cold_sources(config, colors, value, limits)); }
+            part2_cold_bind(
+                |events| part2_general_sources_cold_prefix(file, config, layer_index, limits, part2_general_source_count(config), events),
+                |value, tail| Some((part2_general_after_cold_sources(config, colors, value, limits), tail)),
+                sources, part2_decode_general_layer(file, config, layer_index, limits));
         },
     }
+}
+
+pub(crate) proof fn part2_general_cold_error_extend(
+    file: Part2JpxDecodeInput, config: Part2GeneralLayerConfig, layer_index: usize, limits: &crate::ResourceLimits,
+    count: nat, total: nat, error: crate::DecodeError,
+)
+    requires count <= total, part2_cold_framed(
+        |events| part2_general_sources_cold_prefix(file, config, layer_index, limits, count, events), Err(error)),
+    ensures part2_cold_framed(
+        |events| part2_general_sources_cold_prefix(file, config, layer_index, limits, total, events), Err(error)),
+    decreases total - count,
+{
+    if count < total {
+        part2_general_cold_error_extend(file, config, layer_index, limits, count, (total - 1) as nat, error);
+        reveal_with_fuel(part2_general_sources_cold_prefix, 1);
+        part2_cold_bind(
+            |events| part2_general_sources_cold_prefix(file, config, layer_index, limits, (total - 1) as nat, events),
+            |previous, tail| part2_general_source_cold_step(file, config, layer_index, limits, (total - 1) as nat, previous, tail),
+            Err(error), Err(error));
+    }
+}
+
+pub(crate) proof fn part2_general_layer_cold_source_error(
+    file: Part2JpxDecodeInput, config: Part2GeneralLayerConfig, layer_index: usize, limits: &crate::ResourceLimits,
+    index: nat, previous: Part2GeneralSources, colors: usize, error: crate::DecodeError,
+)
+    requires part2_general_color_count(config.color) == Ok(colors), index < part2_general_source_count(config),
+        part2_general_sources_prefix(file, config, layer_index, limits, index) == Ok(previous),
+        part2_jpx_cold_result(file, part2_general_source_selection(config, layer_index, index).0, limits, Err(error)),
+    ensures part2_general_layer_cold_result(file, config, layer_index, limits, Err(error)),
+{
+    let selected = part2_general_source_selection(config, layer_index, index);
+    part2_general_sources_cold_normal(file, config, layer_index, limits, index);
+    part2_cold_bind(
+        |events| part2_jpx_cold_run(file, selected.0, limits, events),
+        |decoded, tail| Some((part2_general_source_finish(config, selected, previous, decoded), tail)),
+        Err(error), Err(error));
+    reveal_with_fuel(part2_general_sources_cold_prefix, 1);
+    part2_cold_bind(
+        |events| part2_general_sources_cold_prefix(file, config, layer_index, limits, index, events),
+        |previous, tail| part2_general_source_cold_step(file, config, layer_index, limits, index, previous, tail),
+        Ok(previous), Err(error));
+    part2_general_cold_error_extend(file, config, layer_index, limits, index + 1, part2_general_source_count(config), error);
+    part2_cold_bind(
+        |events| part2_general_sources_cold_prefix(file, config, layer_index, limits, part2_general_source_count(config), events),
+        |sources, tail| Some((part2_general_after_cold_sources(config, colors, sources, limits), tail)),
+        Err(error), Err(error));
 }
 
 #[verifier::opaque]

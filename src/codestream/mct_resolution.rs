@@ -1,10 +1,14 @@
 //! MCT registry validation and executable transform resolution.
 
 use super::mct::mct_array_kinds_equal;
+#[cfg(verus_keep_ghost)]
+use super::mct_copy::copy_outcome;
+use super::mct_copy::{copy_flat, reserve_values};
 use super::{
     DecodeError, MalformedKind, MctArray, MctArrayKind, MctCollection, MctCollectionKind,
-    MctCollectionReference, MctCollectionReferenceTransform, MctParameters, MctRecord, MctStage,
-    MctWaveletType, MultipleComponentTransform, Parser,
+    MctCollectionReference, MctCollectionReferenceTransform, MctCopyPath, MctParameters, MctRecord,
+    MctStage, MctWaveletType, MultipleComponentTransform, Parser, ResolvedCopyContext,
+    ResolvedCopyPath, ResolvedCopyRole,
 };
 #[cfg(verus_keep_ghost)]
 use super::{
@@ -140,20 +144,44 @@ pub(super) fn u8_list_contains(values: &[u8], value: u8) -> bool {
 impl<'a> Parser<'a> {
     #[cfg_attr(verus_keep_ghost, verifier::spinoff_prover)]
     #[cfg_attr(verus_keep_ghost, verus_spec(result =>
-        ensures mct_graph_outcome(result) == crate::specs::part1_mct_graph(mct_parameters_view(parameters)),
+        ensures crate::specs::part1_resolved_graph_result(_role, mct_parameters_view(parameters), mct_graph_outcome(result)),
+            mct_graph_outcome(result) != Err(DecodeError::AllocationFailed) ==>
+                mct_graph_outcome(result) == crate::specs::part1_mct_graph(mct_parameters_view(parameters)),
     ))]
     pub(super) fn resolve_multiple_component_transform(
         &self,
         parameters: &MctParameters,
+        _role: ResolvedCopyRole,
     ) -> Result<Option<MultipleComponentTransform>, DecodeError> {
         #[cfg(verus_keep_ghost)]
-        proof_decl! { let ghost goal = crate::specs::part1_mct_graph(mct_parameters_view(parameters)); }
+        proof_decl! {
+            let ghost raw = mct_parameters_view(parameters);
+            let ghost goal = crate::specs::part1_mct_graph(raw);
+            let ghost all = crate::specs::part1_resolved_graph_requests(_role, raw);
+            let ghost mut done = Seq::<crate::specs::Part1MctCopyRequest>::empty();
+        }
         #[cfg(verus_keep_ghost)]
-        proof! { reveal(crate::specs::part1_mct_graph); reveal(mct_parameters_view); }
+        proof! {
+            reveal(crate::specs::part1_mct_graph); reveal(mct_parameters_view);
+            crate::specs::part1_resolved_graph_normal_result(_role, raw);
+            crate::specs::part1_mct_copy_observed(MctCopyPath::Order, 0, Ok(()));
+        }
         if parameters.order.is_empty() {
             return Ok(None);
         }
-        let mut stages = Vec::with_capacity(parameters.order.len());
+        let copied = reserve_values(
+            parameters.order.len(),
+            MctCopyPath::Resolved(ResolvedCopyPath::Stages(_role)),
+        );
+        #[cfg(verus_keep_ghost)]
+        proof! {
+            let first = crate::specs::part1_resolved_leaf(ResolvedCopyPath::Stages(_role), parameters.order.len());
+            crate::specs::part1_mct_copy_continue(done, first,
+                crate::specs::part1_resolved_graph_tail(_role, raw, 0), copy_outcome(copied));
+            if copied.is_err() { crate::specs::part1_resolved_graph_refused(_role, raw); }
+            done = first;
+        }
+        let mut stages: Vec<MctStage> = copied?;
         #[cfg(verus_keep_ghost)]
         proof! { assert(mct_stages_view(stages@) =~= Seq::empty()); }
         let mut order_index = 0_usize;
@@ -161,6 +189,11 @@ impl<'a> Parser<'a> {
             verus_keep_ghost,
             verus_spec(
                 invariant order_index <= parameters.order.len(),
+                    crate::specs::part1_resolved_graph_result(_role, raw, goal),
+                    raw == mct_parameters_view(parameters),
+                    all == crate::specs::part1_resolved_graph_requests(_role, raw),
+                    all == done + crate::specs::part1_resolved_graph_tail(_role, raw, order_index as nat),
+                    crate::specs::part1_mct_copy_result(done, Ok(())),
                     goal == crate::specs::part1_mct_graph(mct_parameters_view(parameters)),
                     goal == crate::specs::part1_mct_graph_from(
                         mct_parameters_view(parameters), order_index as nat, mct_stages_view(stages@)),
@@ -169,14 +202,45 @@ impl<'a> Parser<'a> {
         )]
         while order_index < parameters.order.len() {
             #[cfg(verus_keep_ghost)]
-            proof! { reveal_with_fuel(crate::specs::part1_mct_graph_from, 1); reveal(mct_parameters_view); }
+            proof! {
+                reveal_with_fuel(crate::specs::part1_mct_graph_from, 1); reveal(mct_parameters_view);
+                reveal_with_fuel(crate::specs::part1_resolved_graph_tail, 1);
+            }
             let record_index = parameters.order[order_index];
             let position = match find_mct_record_index(&parameters.records, record_index) {
                 Some(position) => position,
                 None => return Err(self.malformed_at(0, MalformedKind::InvalidTransform)),
             };
-            let stage =
-                self.resolve_mct_stage(&parameters.records[position], &parameters.arrays)?;
+            let copied = self.resolve_mct_stage(
+                &parameters.records[position],
+                &parameters.arrays,
+                _role,
+                order_index,
+                position,
+            );
+            #[cfg(verus_keep_ghost)]
+            proof! {
+                let record = mct_record_view(&parameters.records@[position as int]);
+                let step = crate::specs::part1_resolved_stage_requests(_role, order_index, position, record, raw.arrays);
+                crate::specs::part1_resolved_stage_observed(_role, order_index, position, record, raw.arrays, mct_stage_outcome(copied));
+                let tail = if crate::specs::part1_mct_graph_stage(record, raw.arrays).is_ok() {
+                    crate::specs::part1_resolved_graph_tail(_role, raw, order_index as nat + 1)
+                } else { Seq::empty() };
+                let status = if mct_stage_outcome(copied) == Err(DecodeError::AllocationFailed) {
+                    Err(DecodeError::AllocationFailed)
+                } else { Ok(()) };
+                crate::specs::part1_mct_copy_continue(done, step, tail, status);
+                assert(all =~= (done + step) + tail);
+                if mct_stage_outcome(copied) == Err(DecodeError::AllocationFailed) {
+                    crate::specs::part1_resolved_graph_refused(_role, raw);
+                }
+            }
+            let stage = copied?;
+            #[cfg(verus_keep_ghost)]
+            proof! {
+                done = done + crate::specs::part1_resolved_stage_requests(
+                    _role, order_index, position, mct_record_view(&parameters.records@[position as int]), raw.arrays);
+            }
             #[cfg(verus_keep_ghost)]
             proof_decl! { let ghost before = mct_stages_view(stages@); let ghost value = mct_stage_view(&stage); }
             stages.push(stage);
@@ -194,24 +258,62 @@ impl<'a> Parser<'a> {
 
     #[cfg_attr(verus_keep_ghost, verifier::spinoff_prover)]
     #[cfg_attr(verus_keep_ghost, verus_spec(result =>
-        ensures mct_stage_outcome(result) == crate::specs::part1_mct_graph_stage(
+        ensures crate::specs::part1_resolved_stage_result(_role, _stage, _record_position,
+                mct_record_view(record), mct_arrays_view(arrays@), mct_stage_outcome(result)),
+            mct_stage_outcome(result) != Err(DecodeError::AllocationFailed) ==>
+            mct_stage_outcome(result) == crate::specs::part1_mct_graph_stage(
             mct_record_view(record), mct_arrays_view(arrays@)),
     ))]
     pub(super) fn resolve_mct_stage(
         &self,
         record: &MctRecord,
         arrays: &[MctArray],
+        _role: ResolvedCopyRole,
+        _stage: usize,
+        _record_position: usize,
     ) -> Result<MctStage, DecodeError> {
         #[cfg(verus_keep_ghost)]
-        proof_decl! { let ghost goal = crate::specs::part1_mct_graph_stage(mct_record_view(record), mct_arrays_view(arrays@)); }
+        proof_decl! {
+            let ghost raw_record = mct_record_view(record);
+            let ghost raw_arrays = mct_arrays_view(arrays@);
+            let ghost goal = crate::specs::part1_mct_graph_stage(raw_record, raw_arrays);
+            let ghost all = crate::specs::part1_resolved_stage_requests(_role, _stage, _record_position, raw_record, raw_arrays);
+            let ghost mut done = Seq::<crate::specs::Part1MctCopyRequest>::empty();
+        }
         #[cfg(verus_keep_ghost)]
-        proof! { reveal(crate::specs::part1_mct_graph_stage); reveal(mct_record_view); }
-        let mut collections = Vec::with_capacity(record.collections.len());
+        proof! {
+            reveal(crate::specs::part1_mct_graph_stage); reveal(mct_record_view);
+            crate::specs::part1_resolved_stage_normal(_role, _stage, _record_position, raw_record, raw_arrays);
+            crate::specs::part1_mct_copy_observed(MctCopyPath::Order, 0, Ok(()));
+        }
+        let copied = reserve_values(
+            record.collections.len(),
+            MctCopyPath::Resolved(ResolvedCopyPath::Collections(
+                _role,
+                _stage,
+                _record_position,
+            )),
+        );
+        #[cfg(verus_keep_ghost)]
+        proof! {
+            let first = crate::specs::part1_resolved_leaf(
+                ResolvedCopyPath::Collections(_role, _stage, _record_position), record.collections.len());
+            crate::specs::part1_mct_copy_continue(done, first,
+                crate::specs::part1_resolved_stage_tail(_role, _stage, _record_position, raw_record, raw_arrays, 0), copy_outcome(copied));
+            if copied.is_err() { crate::specs::part1_resolved_stage_refused(_role, _stage, _record_position, raw_record, raw_arrays); }
+            done = first;
+        }
+        let mut collections: Vec<MctCollection> = copied?;
         #[cfg(verus_keep_ghost)]
         proof! { assert(mct_collections_view(collections@) =~= Seq::empty()); }
         let mut position = 0_usize;
         #[cfg_attr(verus_keep_ghost, verus_spec(
             invariant position <= record.collections.len(),
+                crate::specs::part1_resolved_stage_result(_role, _stage, _record_position, raw_record, raw_arrays, goal),
+                raw_record == mct_record_view(record), raw_arrays == mct_arrays_view(arrays@),
+                all == crate::specs::part1_resolved_stage_requests(_role, _stage, _record_position, raw_record, raw_arrays),
+                all == done + crate::specs::part1_resolved_stage_tail(_role, _stage, _record_position, raw_record, raw_arrays, position as nat),
+                crate::specs::part1_mct_copy_result(done, Ok(())),
                 goal == crate::specs::part1_mct_graph_stage(mct_record_view(record), mct_arrays_view(arrays@)),
                 goal == crate::specs::part1_mct_graph_stage_from(
                     mct_record_view(record), mct_arrays_view(arrays@), position as nat, mct_collections_view(collections@)),
@@ -219,8 +321,40 @@ impl<'a> Parser<'a> {
         ))]
         while position < record.collections.len() {
             #[cfg(verus_keep_ghost)]
-            proof! { reveal_with_fuel(crate::specs::part1_mct_graph_stage_from, 1); reveal(mct_record_view); }
-            let collection = self.resolve_mct_collection(&record.collections[position], arrays)?;
+            proof! {
+                reveal_with_fuel(crate::specs::part1_mct_graph_stage_from, 1); reveal(mct_record_view);
+                reveal_with_fuel(crate::specs::part1_resolved_stage_tail, 1);
+            }
+            let ctx = ResolvedCopyContext {
+                role: _role,
+                stage: _stage,
+                record: _record_position,
+                collection: position,
+            };
+            let copied = self.resolve_mct_collection(&record.collections[position], arrays, ctx);
+            #[cfg(verus_keep_ghost)]
+            proof! {
+                let reference = mcc_collection_reference_view(&record.collections@[position as int]);
+                let step = crate::specs::part1_resolved_collection_requests(ctx, reference, raw_arrays);
+                crate::specs::part1_resolved_collection_observed(ctx, reference, raw_arrays, mct_collection_outcome(copied));
+                let tail = if crate::specs::part1_mct_graph_collection(reference, raw_arrays).is_ok() {
+                    crate::specs::part1_resolved_stage_tail(_role, _stage, _record_position, raw_record, raw_arrays, position as nat + 1)
+                } else { Seq::empty() };
+                let status = if mct_collection_outcome(copied) == Err(DecodeError::AllocationFailed) {
+                    Err(DecodeError::AllocationFailed)
+                } else { Ok(()) };
+                crate::specs::part1_mct_copy_continue(done, step, tail, status);
+                assert(all =~= (done + step) + tail);
+                if mct_collection_outcome(copied) == Err(DecodeError::AllocationFailed) {
+                    crate::specs::part1_resolved_stage_refused(_role, _stage, _record_position, raw_record, raw_arrays);
+                }
+            }
+            let collection = copied?;
+            #[cfg(verus_keep_ghost)]
+            proof! {
+                done = done + crate::specs::part1_resolved_collection_requests(
+                    ctx, mcc_collection_reference_view(&record.collections@[position as int]), raw_arrays);
+            }
             #[cfg(verus_keep_ghost)]
             proof_decl! { let ghost before = mct_collections_view(collections@); let ghost value = mct_collection_view(&collection); }
             collections.push(collection);
@@ -241,19 +375,33 @@ impl<'a> Parser<'a> {
 
     #[cfg_attr(verus_keep_ghost, verifier::spinoff_prover)]
     #[cfg_attr(verus_keep_ghost, verus_spec(result =>
-        ensures mct_collection_outcome(result) == crate::specs::part1_mct_graph_collection(
+        ensures crate::specs::part1_resolved_collection_result(_ctx,
+                mcc_collection_reference_view(reference), mct_arrays_view(arrays@), mct_collection_outcome(result)),
+            mct_collection_outcome(result) != Err(DecodeError::AllocationFailed) ==>
+            mct_collection_outcome(result) == crate::specs::part1_mct_graph_collection(
             mcc_collection_reference_view(reference), mct_arrays_view(arrays@)),
     ))]
     pub(super) fn resolve_mct_collection(
         &self,
         reference: &MctCollectionReference,
         arrays: &[MctArray],
+        _ctx: ResolvedCopyContext,
     ) -> Result<MctCollection, DecodeError> {
         #[cfg(verus_keep_ghost)]
+        proof_decl! {
+            let ghost raw_reference = mcc_collection_reference_view(reference);
+            let ghost raw_arrays = mct_arrays_view(arrays@);
+            let ghost all = crate::specs::part1_resolved_collection_requests(_ctx, raw_reference, raw_arrays);
+            let ghost mut done = Seq::<crate::specs::Part1MctCopyRequest>::empty();
+        }
+        #[cfg(verus_keep_ghost)]
         proof! {
+            crate::specs::part1_resolved_collection_normal(_ctx, raw_reference, raw_arrays);
+            crate::specs::part1_mct_copy_observed(MctCopyPath::Order, 0, Ok(()));
             reveal(crate::specs::part1_mct_graph_collection);
             reveal(mcc_collection_reference_view); reveal(mcc_reference_transform_view);
             reveal(mct_array_view); reveal(mct_wavelet_view);
+            reveal(mct_array_reference_outcome);
         }
         let rows = reference.input_components.len();
         let columns = reference.output_components.len();
@@ -270,7 +418,22 @@ impl<'a> Parser<'a> {
                 let offsets = if offset_index == 0 {
                     None
                 } else {
-                    Some(referenced_mct_array(arrays, offset_index, MctArrayKind::Offset)?.clone())
+                    let array = referenced_mct_array(arrays, offset_index, MctArrayKind::Offset)?;
+                    let copied = array.try_duplicate_for(MctCopyPath::Resolved(
+                        ResolvedCopyPath::Offsets(_ctx, array.index),
+                    ));
+                    #[cfg(verus_keep_ghost)]
+                    proof! {
+                        reveal(mct_array_view);
+                        reveal(mct_array_reference_outcome);
+                        crate::specs::part1_resolved_offset_prefix(_ctx, raw_reference, raw_arrays, mct_array_view(array));
+                        let step = crate::specs::part1_resolved_leaf(
+                            ResolvedCopyPath::Offsets(_ctx, array.index), array.values.len());
+                        crate::specs::part1_resolved_copy_prefix_step(all, done, step, copy_outcome(copied));
+                        if copied.is_err() { crate::specs::part1_resolved_collection_refused(_ctx, raw_reference, raw_arrays); }
+                        done = done + step;
+                    }
+                    Some(copied?)
                 };
                 let invalid_offset_dimensions = match &offsets {
                     Some(array) => array.values.len() != rows,
@@ -283,7 +446,22 @@ impl<'a> Parser<'a> {
                 let matrix = if transform_index == 0 {
                     None
                 } else {
-                    Some(referenced_mct_array(arrays, transform_index, kind)?.clone())
+                    let array = referenced_mct_array(arrays, transform_index, kind)?;
+                    let copied = array.try_duplicate_for(MctCopyPath::Resolved(
+                        ResolvedCopyPath::Matrix(_ctx, array.index),
+                    ));
+                    #[cfg(verus_keep_ghost)]
+                    proof! {
+                        reveal(mct_array_view);
+                        reveal(mct_array_reference_outcome);
+                        crate::specs::part1_resolved_matrix_prefix(_ctx, raw_reference, raw_arrays, mct_array_view(array), done);
+                        let step = crate::specs::part1_resolved_leaf(
+                            ResolvedCopyPath::Matrix(_ctx, array.index), array.values.len());
+                        crate::specs::part1_resolved_copy_prefix_step(all, done, step, copy_outcome(copied));
+                        if copied.is_err() { crate::specs::part1_resolved_collection_refused(_ctx, raw_reference, raw_arrays); }
+                        done = done + step;
+                    }
+                    Some(copied?)
                 };
                 let expected_elements =
                     self.expected_mct_elements(rows, columns, kind, reversible)?;
@@ -307,10 +485,35 @@ impl<'a> Parser<'a> {
                 ) {
                     validate_reversible_mct_coefficients(&matrix.values, rows)?;
                 }
+                let copied = copy_flat(
+                    &reference.input_components,
+                    MctCopyPath::Resolved(ResolvedCopyPath::Inputs(_ctx)),
+                );
+                #[cfg(verus_keep_ghost)]
+                proof! {
+                    crate::specs::part1_resolved_components_prefix(_ctx, raw_reference, raw_arrays, done);
+                    let step = crate::specs::part1_resolved_leaf(ResolvedCopyPath::Inputs(_ctx), reference.input_components.len());
+                    crate::specs::part1_resolved_copy_prefix_step(all, done, step, copy_outcome(copied));
+                    if copied.is_err() { crate::specs::part1_resolved_collection_refused(_ctx, raw_reference, raw_arrays); }
+                    done = done + step;
+                }
+                let input_components = copied?;
+                let copied = copy_flat(
+                    &reference.output_components,
+                    MctCopyPath::Resolved(ResolvedCopyPath::Outputs(_ctx)),
+                );
+                #[cfg(verus_keep_ghost)]
+                proof! {
+                    let step = crate::specs::part1_resolved_leaf(ResolvedCopyPath::Outputs(_ctx), reference.output_components.len());
+                    assert(all.take((done.len() + step.len()) as int) =~= done + step);
+                    crate::specs::part1_resolved_copy_prefix_step(all, done, step, copy_outcome(copied));
+                    if copied.is_err() { crate::specs::part1_resolved_collection_refused(_ctx, raw_reference, raw_arrays); }
+                }
+                let output_components = copied?;
                 MctCollection {
                     reversible,
-                    input_components: reference.input_components.clone(),
-                    output_components: reference.output_components.clone(),
+                    input_components,
+                    output_components,
                     kind: if mct_array_kinds_equal(kind, MctArrayKind::Dependency) {
                         MctCollectionKind::Dependency
                     } else {
@@ -321,15 +524,44 @@ impl<'a> Parser<'a> {
                     wavelet: None,
                 }
             }
-            MctCollectionReferenceTransform::Wavelet(wavelet) => MctCollection {
-                reversible: matches!(wavelet.transform, MctWaveletType::Reversible5x3),
-                input_components: reference.input_components.clone(),
-                output_components: reference.output_components.clone(),
-                kind: MctCollectionKind::Wavelet,
-                matrix: None,
-                offsets: None,
-                wavelet: Some(wavelet),
-            },
+            MctCollectionReferenceTransform::Wavelet(wavelet) => {
+                let reversible = matches!(wavelet.transform, MctWaveletType::Reversible5x3);
+                let copied = copy_flat(
+                    &reference.input_components,
+                    MctCopyPath::Resolved(ResolvedCopyPath::Inputs(_ctx)),
+                );
+                #[cfg(verus_keep_ghost)]
+                proof! {
+                    crate::specs::part1_resolved_components_prefix(_ctx, raw_reference, raw_arrays, done);
+                    let step = crate::specs::part1_resolved_leaf(ResolvedCopyPath::Inputs(_ctx), reference.input_components.len());
+                    crate::specs::part1_resolved_copy_prefix_step(all, done, step, copy_outcome(copied));
+                    if copied.is_err() { crate::specs::part1_resolved_collection_refused(_ctx, raw_reference, raw_arrays); }
+                    done = done + step;
+                }
+                let input_components = copied?;
+                let copied = copy_flat(
+                    &reference.output_components,
+                    MctCopyPath::Resolved(ResolvedCopyPath::Outputs(_ctx)),
+                );
+                #[cfg(verus_keep_ghost)]
+                proof! {
+                    let step = crate::specs::part1_resolved_leaf(ResolvedCopyPath::Outputs(_ctx), reference.output_components.len());
+                    assert(all =~= done + step);
+                    assert(all.take((done.len() + step.len()) as int) =~= done + step);
+                    crate::specs::part1_resolved_copy_prefix_step(all, done, step, copy_outcome(copied));
+                    if copied.is_err() { crate::specs::part1_resolved_collection_refused(_ctx, raw_reference, raw_arrays); }
+                }
+                let output_components = copied?;
+                MctCollection {
+                    reversible,
+                    input_components,
+                    output_components,
+                    kind: MctCollectionKind::Wavelet,
+                    matrix: None,
+                    offsets: None,
+                    wavelet: Some(wavelet),
+                }
+            }
         };
         Ok(collection)
     }
@@ -419,9 +651,9 @@ impl<'a> Parser<'a> {
         }
         let mut position = 8_usize;
         let input_components =
-            parse_mcc_component_list(mcc.payload, &mut position, components, mcc.offset)?;
+            parse_mcc_component_list(mcc.payload, &mut position, components, mcc.offset, false)?;
         let output_components =
-            parse_mcc_component_list(mcc.payload, &mut position, components, mcc.offset)?;
+            parse_mcc_component_list(mcc.payload, &mut position, components, mcc.offset, true)?;
         if mcc.payload.len().saturating_sub(position) != 3 {
             return Err(DecodeError::malformed(
                 self.offset(mcc.offset),

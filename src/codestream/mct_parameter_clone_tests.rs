@@ -1,5 +1,146 @@
 use super::*;
 
+#[test]
+fn resolved_owner_storage_first_later_empty_and_validation_frontier() {
+    let limits = ResourceLimits::default();
+    let parser = new_parser(&[], &limits).unwrap();
+    let mut parameters = MctParameters {
+        arrays: vec![
+            MctArray::from_values(
+                1,
+                MctArrayKind::Decorrelation,
+                MctNumericFormat::Int16,
+                0,
+                vec![1, 1],
+            ),
+            MctArray::from_values(2, MctArrayKind::Offset, MctNumericFormat::Int16, 0, vec![0]),
+        ],
+        records: vec![MctRecord {
+            index: 7,
+            collections: vec![MctCollectionReference {
+                input_components: vec![0],
+                output_components: vec![0],
+                transform: MctCollectionReferenceTransform::Array {
+                    kind: MctArrayKind::Decorrelation,
+                    reversible: true,
+                    transform_index: 1,
+                    offset_index: 2,
+                },
+            }],
+        }],
+        order: vec![7],
+    };
+    let expected = parser
+        .resolve_multiple_component_transform(&parameters, ResolvedCopyRole::Tile)
+        .unwrap();
+    for after in [0, 2, 5] {
+        assert!(matches!(
+            crate::allocation::with_refusal(after, || parser
+                .resolve_multiple_component_transform(&parameters, ResolvedCopyRole::Tile)),
+            Err(DecodeError::AllocationFailed)
+        ));
+        assert_eq!(
+            parser
+                .resolve_multiple_component_transform(&parameters, ResolvedCopyRole::Tile)
+                .unwrap(),
+            expected
+        );
+    }
+    parameters.arrays[0].values.pop();
+    let ordinary = parser
+        .resolve_multiple_component_transform(&parameters, ResolvedCopyRole::Main)
+        .unwrap_err();
+    crate::allocation::with_refusal(4, || {
+        assert_eq!(
+            parser
+                .resolve_multiple_component_transform(&parameters, ResolvedCopyRole::Main)
+                .unwrap_err(),
+            ordinary
+        );
+        assert_eq!(
+            crate::allocation::copy_values(&[1_u8]),
+            Err(DecodeError::AllocationFailed)
+        );
+    });
+    parameters.order.clear();
+    crate::allocation::with_refusal(0, || {
+        assert!(
+            parser
+                .resolve_multiple_component_transform(&parameters, ResolvedCopyRole::Tile)
+                .unwrap()
+                .is_none()
+        );
+        assert_eq!(
+            crate::allocation::copy_values(&[1_u8]),
+            Err(DecodeError::AllocationFailed)
+        );
+    });
+}
+
+#[test]
+fn mct_owner_storage_nested_refusal_restore_and_empty_preserve_every_owner() {
+    let original = MctParameters {
+        arrays: vec![
+            MctArray::from_values(
+                0,
+                MctArrayKind::Decorrelation,
+                MctNumericFormat::Int32,
+                0,
+                vec![1, 2, 3],
+            ),
+            MctArray::from_values(
+                7,
+                MctArrayKind::Offset,
+                MctNumericFormat::Int32,
+                0,
+                Vec::new(),
+            ),
+        ],
+        records: vec![
+            MctRecord {
+                index: 3,
+                collections: vec![reference(0, 1, 2), reference(24, 0, 1)],
+            },
+            MctRecord {
+                index: 19,
+                collections: Vec::new(),
+            },
+        ],
+        order: vec![3, 19],
+    };
+    let before = original.clone();
+    for after in [0, 4, 6, 7] {
+        assert!(matches!(
+            crate::allocation::with_refusal(after, || original.try_duplicate()),
+            Err(DecodeError::AllocationFailed)
+        ));
+        assert_eq!(original, before);
+        let copied = original.try_duplicate().unwrap();
+        assert_eq!(copied, original);
+        separate(&original.arrays, &copied.arrays);
+        for (left, right) in original.arrays.iter().zip(&copied.arrays) {
+            separate(&left.values, &right.values);
+        }
+        separate(&original.records, &copied.records);
+        for (left, right) in original.records.iter().zip(&copied.records) {
+            separate_record(left, right);
+        }
+        separate(&original.order, &copied.order);
+    }
+    let empty = MctParameters {
+        arrays: Vec::new(),
+        records: Vec::new(),
+        order: Vec::new(),
+    };
+    crate::allocation::with_refusal(0, || {
+        assert_eq!(empty.try_duplicate().unwrap(), empty);
+        assert_eq!(
+            crate::allocation::copy_values(&[1_u8]),
+            Err(DecodeError::AllocationFailed)
+        );
+    });
+}
+
 fn reference(variant: usize, inputs: usize, outputs: usize) -> MctCollectionReference {
     let transform = if variant < 24 {
         MctCollectionReferenceTransform::Array {

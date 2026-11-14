@@ -488,6 +488,98 @@ struct MctParameters {
     order: Vec<u8>,
 }
 
+#[derive(Clone, Copy)]
+#[cfg_attr(not(verus_keep_ghost), derive(Debug, Eq, PartialEq))]
+pub(crate) enum MctCopyPath {
+    Arrays,
+    ArrayValues(usize),
+    Records,
+    Collections(usize),
+    Inputs(usize, usize),
+    Outputs(usize, usize),
+    Order,
+    Extensions(Part2CopyPath),
+    Resolved(ResolvedCopyPath),
+    PayloadExtensions(Part2CopyPath),
+    FreshMarker(FreshMarkerPath),
+    FreshPart2(FreshPart2Path),
+    ProfileWords(u16, usize, usize),
+    ProgressionBitmap(usize, u16, u16, usize),
+}
+
+#[derive(Clone, Copy)]
+#[cfg_attr(not(verus_keep_ghost), derive(Debug, Eq, PartialEq))]
+pub(crate) enum FreshPart2Path {
+    Dfs(usize),
+    AdsDepth(usize, usize),
+    AdsSplit(usize, usize),
+    AdsDirections(usize),
+    AtkSteps(usize, usize),
+    AtkCoefficients(usize, usize, usize),
+    NltPoints(usize),
+    NltParameters(usize, usize),
+}
+
+#[derive(Clone, Copy)]
+#[cfg_attr(not(verus_keep_ghost), derive(Debug, Eq, PartialEq))]
+pub(crate) enum FreshMarkerPath {
+    Values(usize),
+    Collections(usize),
+    Inputs(usize, usize),
+    Outputs(usize, usize),
+    Order(usize),
+    MctReassembly(usize),
+    MccReassembly(usize),
+    MctInitial(usize),
+    MccInitial(usize),
+}
+
+#[derive(Clone, Copy)]
+#[cfg_attr(not(verus_keep_ghost), derive(Debug, Eq, PartialEq))]
+pub(crate) enum ResolvedCopyRole {
+    Main,
+    Tile,
+}
+
+#[derive(Clone, Copy)]
+#[cfg_attr(not(verus_keep_ghost), derive(Debug, Eq, PartialEq))]
+pub(crate) struct ResolvedCopyContext {
+    pub role: ResolvedCopyRole,
+    pub stage: usize,
+    pub record: usize,
+    pub collection: usize,
+}
+
+#[derive(Clone, Copy)]
+#[cfg_attr(not(verus_keep_ghost), derive(Debug, Eq, PartialEq))]
+pub(crate) enum ResolvedCopyPath {
+    Stages(ResolvedCopyRole),
+    Collections(ResolvedCopyRole, usize, usize),
+    Offsets(ResolvedCopyContext, u8),
+    Matrix(ResolvedCopyContext, u8),
+    Inputs(ResolvedCopyContext),
+    Outputs(ResolvedCopyContext),
+}
+
+#[derive(Clone, Copy)]
+#[cfg_attr(not(verus_keep_ghost), derive(Debug, Eq, PartialEq))]
+pub(crate) enum Part2CopyPath {
+    Decompositions,
+    Directions(usize),
+    Arbitrary,
+    Sublevels(usize),
+    Splits(usize),
+    Nonlinear,
+    Parameters(usize),
+    Points(usize),
+    Depths,
+    Kernels,
+    Steps(usize),
+    Coefficients(usize, usize),
+    Registrations,
+    Lengths,
+}
+
 #[cfg_attr(not(verus_keep_ghost), derive(Debug, Eq, PartialEq))]
 struct MctRecord {
     index: u8,
@@ -606,6 +698,7 @@ mod coding_style;
 mod decomposition;
 #[cfg_attr(verus_keep_ghost, verifier::verify)]
 mod extensions;
+mod extensions_copy;
 #[cfg_attr(verus_keep_ghost, verifier::verify)]
 mod geometry;
 #[cfg(test)]
@@ -618,6 +711,7 @@ mod layout;
 pub use layout::{parse, parse_layout};
 #[cfg_attr(verus_keep_ghost, verifier::verify)]
 mod mct;
+mod mct_copy;
 #[cfg_attr(verus_keep_ghost, verifier::verify)]
 mod mct_markers;
 #[cfg(test)]

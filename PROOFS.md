@@ -35,15 +35,340 @@ one managed request without exhausting host memory or replacing an allocator.
 Tests retain original bytes/owners on refusal and exact subsequent success.
 It does not intercept every allocation in a public decode or inspection call.
 
-This is a bounded foundation, not complete allocation recovery: other
-creation, growth, nested vectors and clones remain infallible. Automatic
-snapshot/header/progressive public Results remain unfinished under
-[#130](https://github.com/microsoft/jpeg2000_rs/issues/130), and their
-allocation-inclusive composition remains explicit under
-[#300](https://github.com/microsoft/jpeg2000_rs/issues/300).
+This is bounded coverage, not complete allocation recovery: other creation,
+growth, nested vectors and clones remain infallible. The complete automatic,
+progressive and semantic public Results described below are retained through
+the allocation-aware composition; they are not reopened or replaced by
+success-only claims.
 [#287](https://github.com/microsoft/jpeg2000_rs/issues/287) stays open until
 the promised reached parse/decode/inspect surface and cold-call matrix are
-qualified. Existing complete deterministic contracts are not weakened.
+qualified.
+
+### Ordered cold parser construction and consumer frames
+
+`none_values` reserves fallibly, then constructs exactly the requested number
+of `None` entries without a `Clone` bound. The eight per-tile vectors in
+[`layout.rs`](src/codestream/layout.rs) use it in their original order.
+[`raw_layout.rs`](specs/raw_layout.rs) derives construction requests and codec
+Results from actual bytes, limits and ordered primitive responses. Early
+ordinary errors consume no later request; each refusal stops at its actual
+site. Normal projections preserve the original layout/info models.
+
+The directly reached raw/container inspection and decode consumers bind exact
+Results and unconsumed event tails. Nested `Parse` responses carry primitive
+calls, not supplied layouts, images or codec outcomes. Automatic snapshot
+phase 0 parses the initial template, phase 1 validates actual emitted bytes,
+and phase 2 occurs only for a genuine progressive image advance. Other
+inspection parses retain their actual stream indices and distinct phases.
+The shared parser-free tile preparation fold has checked equivalences with
+both direct cold and original normal folds; final validation stays outside
+the owning tile collection continuation.
+
+Progressive decoder/cache, semantic report/output and opacity-owner frames
+retain rollback and commit order. Frame prefetch stores a source error as
+data, stops further decoding, and still runs the original normalized renderer,
+preserving earlier canvas/instruction errors. Recovery distinguishes repair
+reservation from subsequent strict decode calls. Checked normal witnesses
+retain every original deterministic model.
+
+The eight-vector boundary is extended by the quantization/copy increment below,
+not by a claim about all remaining parse/decode/inspect allocation. Managed
+refusal controls are bounded and thread-local; sequence models do not prove
+physical capacity, host allocator availability or general OOM recovery.
+
+### Component quantization creation and reached owner copies
+
+`ComponentQuantizations` construction validates geometry before reserving,
+then fills its component-sized vector. `copy_values<T: Copy>` reserves once
+and copies shallow values; it never invokes a potentially allocating `Clone`.
+Empty copies succeed without consuming a reservation. The actual cold parser
+uses the checked component-owner wrapper for inherited and committed copies,
+while unrelated `Clone` APIs retain their existing boundary.
+
+The inner trace retains the eight original tile-vector sites 0–7. Distinct
+sites identify main component creation (8), conditional tile-QCD creation (9),
+inherited owner copying (10) and persistent owner copying (11). Their executing
+order is derived from bytes and current parser/owner state, not numeric tag
+order. In particular, main creation precedes the eight vectors; inheritance
+precedes a reached tile-QCD reset; commit copying occurs after the first four
+configuration stores, before the quantization-owner slot lookup. A refused
+commit retains that exact partial owner frame.
+
+[`cold_quantization.rs`](specs/cold_quantization.rs) provides the checked
+input-derived pre-reservation main-header fold. The tile and complete layout
+models in [`cold_tile_quantization.rs`](specs/cold_tile_quantization.rs),
+[`cold_tile_part.rs`](specs/cold_tile_part.rs) and
+[`cold_layout.rs`](specs/cold_layout.rs) retain complete reader/counter/owner
+Results, ordinary projections and arbitrary-tail frames. Checked non-owning
+error continuations isolate this cold environment from the original live
+normal tile induction without increasing proof resources.
+
+This still does **not** complete #287. Other deep owner copies,
+payload/container/image growth and remaining nested construction stay
+outside these increments, as do global allocation availability and #289
+deadline APIs. Cumulative budgeting #288 is withdrawn, not remaining work.
+The original normal models and public
+automatic/progressive/semantic Result/frame contracts remain checked.
+
+### Flat progression construction and persistent owner copies
+
+POC shape/alignment rejection precedes reservation; record syntax checks
+follow it, in their original order. `ProgressionChange` is flat `Copy`, so
+the reached inherited/committed owners reuse `copy_values`, never deep
+`Clone`. Empty owners consume no request. Sites 12/13 are actual main/tile
+POC construction, 14 is inheritance after quantization copying, and 15 is
+commit after the fifth store but before progression-slot lookup.
+
+[`cold_progression.rs`](specs/cold_progression.rs) links actual primitive
+responses to flat records. [`cold_header_progression.rs`](specs/cold_header_progression.rs)
+binds those responses inside the executing header traversals, retaining seen
+flags, reader/counter state, earlier errors and exact tails. Checked private
+continuations preserve normal projections without unfolding the cold
+environment throughout the existing hot folds. Persistent refusal retains
+precisely the earlier stores; earlier ROI/slot errors still win.
+
+### Nested MCT parameter owner copies
+
+The reached cold `MctParameters` inheritance copy is also fallible. Its
+explicit arrays/values, records/collections, input/output component lists and
+order copies use reservations and shallow `Copy` helpers, never generic deep
+`Clone`. Existing public Clone APIs retain their original behavior. Main
+parameter construction and persistent MCT commit are moves, not allocations;
+no fictitious commit-copy event is introduced.
+
+[`cold_mct_copy.rs`](specs/cold_mct_copy.rs) derives request descriptors from
+the actual source owner and physical array/record/collection indices. Sites
+16–22 identify arrays, array values, records, collections, inputs, outputs and
+order. Execution follows actual field/nested iteration order, not numeric
+sorting; zero-sized fields consume no response. Checked native prefix joins
+link every actual primitive result, copied field and first failure to the
+complete cold parser and existing public Result/frame models. Persistent
+owners before a refused inheritance copy remain unchanged; all existing
+partial configuration stores and later move/destination error order remain.
+
+MCT marker construction,
+payload/container/image growth and #289
+deadlines remain outside this bounded increment. #288 budgeting is withdrawn.
+These sequence/response proofs do not establish physical capacity or host
+allocation availability.
+
+### Part 2 extension inheritance copies
+
+The reached `Part2Extensions` inheritance copy is explicitly fallible through
+decomposition directions, arbitrary sublevels/splits, nonlinear parameter/
+point vectors, depths, kernels/steps/coefficients, registrations and lengths.
+Scalar optional fields, full coefficient bytes, metadata counters and physical
+tails remain exact and unvalidated by copying. Main construction and persistent
+commit remain moves. Public Clone APIs remain unchanged. The separate
+tile-payload copy role is covered by the following increment; payload-vector
+growth is not covered here.
+
+[`cold_extensions_copy.rs`](specs/cold_extensions_copy.rs) extends the existing
+checked owner-request algebra with source/path/index descriptors at sites
+23–36, in actual field/nested order. Empty fields consume no response, and
+first refusal retains its exact tail/source/reader/counter/persistent frame.
+Checked private normal/frame continuations compose the real copy through
+existing public cold Results without supplied successful owners or allocation
+availability assumptions. No proof-resource, limit, pin, lifetime or MSRV
+change is involved.
+
+### Resolved graph and payload owner copies
+
+Resolved MCT construction now reserves its stage/collection owners fallibly
+and copies referenced offset/matrix values and input/output component lists
+with checked shallow helpers. Source order is unchanged: offset lookup/copy,
+matrix lookup/copy, dimension/scale validation, then component copies.
+Empty order still bypasses all unused graph data. Main roles use sites 37–42;
+tile roles use 43–48, carrying actual order/record/collection/source-array paths.
+[`cold_resolved_copy.rs`](specs/cold_resolved_copy.rs) derives reached request
+prefixes from original inputs, including ordinary-error frontiers.
+
+The separate Part 2 payload copy reuses the same checked deep-copy body with
+actual payload paths at sites 49–62. Inheritance remains at 23–36; no observed
+response event is relabelled. Native payload copies remain at the original
+struct field, after earlier field moves and packet/header work. Nonzero-length
+reader-position commit still precedes this field, so refusal reports the exact
+committed reader/counter frame; zero-length scanning retains its original frame.
+[`cold_payload_owners.rs`](specs/cold_payload_owners.rs) binds both new graph
+phases and the final payload copy through complete public cold Results and
+ordinary/no-refusal projections without supplied outcomes.
+
+Standalone Clone APIs, actual persistent moves and marker construction remain
+unchanged. Payload-vector/container/image growth and #289 deadlines are outside
+this increment. #288 budgeting is withdrawn. Sequence models do not establish
+physical capacity, allocation availability or general OOM recovery.
+
+### Fresh MCT/MCC/MCO marker construction
+
+Fresh known-count owners now use the existing checked reservation/shallow-Copy
+helpers: MCT numeric values (site 63), MCC collections (64), input/output
+component references (65/66), MCO order (67), fresh MCT/MCC reassembly (68/69)
+and initial fragment bytes (70/71). Paths retain the actual marker offset and
+the post-count reference-list cursor. Empty byte/order owners consume no
+request. Public and standalone Clone APIs are unchanged.
+
+[`cold_marker_storage.rs`](specs/cold_marker_storage.rs) derives requests from
+the original input and ordinary parser's reached syntax frontier. Collection
+input, output and following-record requests remain ordered; earlier malformed,
+duplicate and limit errors cannot consume a later request. Initial-copy refusal
+preserves prior pending owners. Completion removes the fragment before
+reassembly/element reservations; those refusals retain precisely the removed
+pending state and unchanged completion list. Completion is recorded only after
+the actual parser succeeds.
+
+[`cold_marker_header.rs`](specs/cold_marker_header.rs) binds these runs into
+actual main/tile dispatch, including admitted reader/counter and seen-flag
+frames, through the existing complete public cold Results and checked ordinary
+projections. Private checked root steps isolate environment witnesses from the
+owning tile fold; no executing body is hoisted and no resource limit is raised.
+Managed controls cover first/later refusal, restoration, empty/malformed paths,
+prior pending owners and raw/container inspection.
+
+This does not complete #287. Existing-buffer/pending-fragment and layout
+accumulator/payload growth remain outside this increment: the pinned standard
+interface lacks the capacity observation/reservation-effect law needed for
+precise no-growth/refused-owner classification. No capacity fact is inferred
+from sequences. Other marker/Part 2 construction, container/image growth and
+#289 deadlines remain separate; #288 budgeting is withdrawn. Fresh reservation
+uses the documented standard-library boundary, not a proof of physical
+capacity, allocator availability or general host OOM recovery.
+
+### Fresh Part 2 decomposition, kernel and nonlinear storage
+
+Fresh DFS directions (72), ADS packed depths/splits and mapped directions
+(73–75), ATK steps/coefficients (76/77), and NLT points/parameter bytes (78/79)
+now use the qualified fresh reservation helper. Paths retain actual marker
+offsets, packed starts and kernel step/reservation cursors. Fixed kernel
+coefficient bytes and gamma parameter arrays remain allocation-free.
+
+[`cold_part2_fresh.rs`](specs/cold_part2_fresh.rs) derives reached requests
+from original syntax, in actual read order: ADS allocation precedes packed-value
+validation; ATK scaling and step fields precede their reservations; NLT point
+geometry precedes point storage, and the parameter copy remains at its original
+record field after point/gamma validation. Empty owners consume no request.
+The tagged input has no result fields; tagged outcome views are computed from
+those original inputs, not supplied successful results.
+
+Metadata charging still precedes payload decoding. Refusal preserves the
+charged reader/work/metadata frame and all pre-existing registry owners, without
+running later replacement, duplicate or insertion work. The native producer's
+branch-local storage relation is checked equivalent to the complete event run:
+its allocation-error branch requires that precise input-derived run, never an
+arbitrary allocation-error alternative. Checked actual-consumer conversions
+keep the main/tile owning folds from expanding the nested environment.
+[`cold_part2_header.rs`](specs/cold_part2_header.rs) carries exact normal,
+first-error/tail and tile-local nonlinear-prefix frames through complete public
+cold Results without increasing proof limits or hoisting executing bodies.
+
+Managed controls cover first/later refusal, restoration, empty/malformed paths,
+later kernel-step positions, charged owners and raw/container inspection.
+Existing-owner extension-vector/pending growth remains unchanged and blocked
+on the pinned capacity-observation/reservation-effect interface. Other marker,
+payload/container/image growth and #289 deadlines remain separate; #288 is
+withdrawn. Fresh reservation uses the documented standard-library boundary,
+not a sequence-derived physical-capacity or host-availability theorem.
+
+### Fresh profile-word marker owner
+
+The remaining fresh known-count **marker-owner constructor** in `profile.rs`
+now reserves its existing word count fallibly at site 80. The actual shared
+constructor path retains marker, marker offset and start position; CAP/PRF/CPF
+are not relabelled as earlier copy roles. CAP admission and profile-number
+shape checks remain before the call. Standalone `read_marker_words` still
+reserves `floor((length-start)/2)` before its original element reads, including
+an odd-tail error; it does not gain an earlier parity check. Empty/one-byte
+tails consume no reservation request. Last-zero profile validation remains
+after word construction.
+
+[`cold_profile.rs`](specs/cold_profile.rs) derives all requests and outcomes
+from the original segment. Its branch-local producer relation is checked
+equivalent to the complete event run, with actual primitive-response linkage,
+normal/error projections and exact tails. Main-header duplicate checks remain
+before the producer; optional profile/capability owners commit only on success.
+Admitted reader/counter and earlier-owner frames compose through unchanged
+public cold Results and outer Parse phases. Tile profile markers remain
+rejected without invoking a word constructor or consuming a storage event.
+
+The production constructor inventory at this boundary finds no other
+unqualified fresh known-count returned marker owner in `src/codestream`.
+The separate fresh POC **validation bitmap** (`coding_markers.rs`) is not a
+marker-owner constructor; it is covered by the following cold-validation increment.
+Packed packet-header concatenation is a separate packet buffer. Registry/
+fragment/layout `Vec::new` accumulators still grow at their original pushes;
+no capacity or pre-validation reservation is invented for them. Fixed arrays,
+already fallible constructors and test-only builders are not new sites.
+These boundaries do not complete #287; capacity-dependent growth remains
+blocked, container/image/decode buffers and #289 remain separate, and #288
+budgeting is withdrawn. Standard reservation is not a sequence-derived
+physical-capacity or host-availability theorem.
+
+### Fresh progression-validation bitmap
+
+The scratch bitmap in `validate_progression_changes` now reserves its original
+known `active_coordinates` count fallibly at site 81. Its source path retains
+offset, layer/component counts and actual record count; styles and limits
+derive the exact geometry and request count. A checked `filled_values<T: Copy>`
+helper uses the existing reservation primitive and constructs exactly the
+requested repeated value without allocating generic Clone. The validator
+requests `false`, at the original bitmap frontier.
+
+Empty changes still bypass geometry completely. Shape/geometry, arithmetic
+and derived-work admission precede reservation; zero active coordinates
+consume no request. Record validity, marking, duplicate/redundancy and final
+coverage checks remain after the exact false fill. No reader/work counter,
+borrowed record/style owner, limit or seen/pending state is changed by
+validation or refusal.
+
+[`cold_bitmap.rs`](specs/cold_bitmap.rs) computes that reached frontier directly
+from records/styles/limits, with precise first-error/tail and ordinary
+projections. Main validation follows component quantization and precedes
+registration/graph validation. Tile validation follows component finalization
+and precedes graph/window/payload work. Their actual primitive responses bind
+through existing cold main/tile/public Result/cache/owner relations; graph and
+payload-copy failures now retain the successful bitmap prefix. Old normal
+models and every original requirement/reference are preserved, with an added
+checked helper contract and exact Copy-fill mutation bindings.
+
+Bounded managed controls cover refusal/restore, false initialization, empty/
+zero and geometry/early-work rejection, first-record precedence, redundancy,
+later tile validation after a prior persistent commit, and raw/container
+inspection. Packet buffers and capacity-dependent existing-owner growth remain
+separate; #289 remains separate and #288 is withdrawn. No physical-capacity or
+host-availability theorem is inferred from logical sequences.
+
+### Fresh outer inspection collections
+
+Container `parse_and_inspect_mode` now reserves its original selected
+codestream-info count fallibly, after file/framing/count/mode admission and
+before the first child parse. The directly reached JPX `inspect_file` layer
+owner also reserves its original effective-layer count at the unchanged
+frontier. Both use `inspection_values`, with zero/no-request behavior and
+without requiring Clone for owned elements.
+
+These are **outer** `InspectionCapacity` events in the existing framed
+inspection environment, not codestream storage sites or child
+`Parse(phase=4,index,calls)` aliases. Context distinguishes
+`Infos(display_first)` from `Layers`; exact counts are derived from original
+file/selection/layer inputs. A refused collection consumes no child parse.
+File/admission errors consume neither collection nor parse responses, and the
+actual per-stream info/profile/header validation and owner-append prefix is
+preserved through later errors and exact arbitrary tails.
+
+[`cold_inspection_storage.rs`](specs/cold_inspection_storage.rs) composes both
+fresh frontiers through raw/container/JPX inspection, frame/composition render
+and semantic/public cold Results. Original ordinary models remain unchanged.
+Checked continuation identities prepend the layer capacity before rendering,
+rather than stripping it or relabelling it as a later source parse. No supplied
+successful result/layout/image bank or host-availability premise is used.
+
+Bounded controls cover collection-before-child versus file-error precedence,
+first/later stream refusal and restoration, display-first selection, empty
+helper contexts, raw/container paths and JPX/render order. Existing parsed-file
+vectors, JPX source-index lists and timeline/render accumulators still grow at
+their original operations; no guessed capacity or earlier reservation is
+introduced. Packet/image decode buffers remain separate, capacity-dependent
+growth remains blocked, #289 is separate and #288 is withdrawn. No logical
+sequence model is treated as a physical-capacity or general OOM theorem.
 
 ### Ordered automatic main-header primitive calls
 

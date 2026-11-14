@@ -163,4 +163,55 @@ pub open spec fn part2_jpip_snapshot_ready(
     }
 }
 
+#[verifier::opaque]
+pub(crate) open spec fn part2_jpip_snapshot_ready_cold(
+    cache: Part2JpipCache, tiles: Part2JpipAutomaticTiles, main: Seq<u8>, maximum: u16,
+    limits: &crate::ResourceLimits, events: Seq<Part2JpipSnapshotEvent>,
+) -> Part2ColdRun<Part2JpipAutomaticSnapshotResult> {
+    let available = part2_jpip_snapshot_available(tiles, 0, 0, 0, maximum);
+    let missing = part2_jpip_snapshot_missing(cache, tiles, available, 0, 0, 0, Seq::empty());
+    if available == 0 { Some((Ok((Some((Seq::empty(), 0, maximum, missing)), Seq::empty())), events)) }
+    else {
+        match part2_jpip_snapshot_emit_tiles(tiles, available, 0, main) {
+            Err(error) => Some((Err(error), events)),
+            Ok(emitted) => match part2_jpip_template_finish(emitted, limits) {
+                Err(error) => Some((Err(error), events)),
+                Ok(bytes) => part2_jpip_snapshot_bind(part2_cold_parse(bytes, limits, 1, 0, events),
+                    |_: Part1CompleteLayout, rest|
+                        Some((Ok((Some((bytes, available, maximum, missing)), Seq::empty())), rest))),
+            },
+        }
+    }
+}
+
+pub(crate) proof fn part2_jpip_snapshot_ready_cold_normal(
+    cache: Part2JpipCache, tiles: Part2JpipAutomaticTiles, main: Seq<u8>, maximum: u16,
+    limits: &crate::ResourceLimits,
+)
+    ensures part2_cold_framed(
+        |events| part2_jpip_snapshot_ready_cold(cache, tiles, main, maximum, limits, events),
+        part2_jpip_snapshot_ready(cache, tiles, main, maximum, limits)),
+{
+    reveal(part2_jpip_snapshot_ready_cold);
+    let available = part2_jpip_snapshot_available(tiles, 0, 0, 0, maximum);
+    let missing = part2_jpip_snapshot_missing(cache, tiles, available, 0, 0, 0, Seq::empty());
+    if available == 0 {
+        part2_cold_pure::<Part2JpipAutomaticSnapshotResult>(
+            Ok((Some((Seq::empty(), 0, maximum, missing)), Seq::empty())));
+    } else {
+        match part2_jpip_snapshot_emit_tiles(tiles, available, 0, main) {
+            Err(error) => { part2_cold_pure::<Part2JpipAutomaticSnapshotResult>(Err(error)); },
+            Ok(emitted) => match part2_jpip_template_finish(emitted, limits) {
+                Err(error) => { part2_cold_pure::<Part2JpipAutomaticSnapshotResult>(Err(error)); },
+                Ok(bytes) => {
+                    part1_parse_layout_cold_normal(bytes, limits);
+                    part2_cold_parse_then_actual(bytes, limits, 1, 0, part1_parse_layout(bytes, limits),
+                        |_: Part1CompleteLayout|
+                            Ok((Some((bytes, available, maximum, missing)), Seq::<Part2JpipMissing>::empty())));
+                },
+            },
+        }
+    }
+}
+
 }
