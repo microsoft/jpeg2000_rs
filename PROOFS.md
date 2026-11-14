@@ -63,9 +63,9 @@ allocation: the initial SOC extension normally reuses the successful initial
 reservation. No extra physical allocation, global recovery or lifetime fact is
 claimed. The event interface can be composed by later producer models without
 passing successful codec outcomes, but currently covers byte vectors only.
-Complete automatic snapshot/progressive image creation and recursive semantic
-container assembly remain unfinished; this prerequisite does not complete
-either group of issue130.
+This prerequisite alone did not complete automatic snapshot/progressive image
+creation or recursive semantic container assembly. Their complete actual-input
+compositions are described in the dedicated sections below.
 
 The automatic packet-order loop uses a callback-free nested ordinal lookup.
 Its checked `part2_jpip_ordinal_matrix_write` cutpoint binds the actual old
@@ -439,9 +439,60 @@ error rollback, no-advance suppression of an otherwise failing selected image,
 snapshot-first errors, regressed availability and cache bytes. Caller-planned
 `JpipProgressiveDecoder`/#279 contracts and implementations are unchanged.
 
-This completes the remaining automatic-JPIP public update/image Result group
-under the unchanged verifier mode. Semantic-container/placeholder expansion and
-public assembly are the remaining #130 follow-on, not worked or certified here.
+This completes the automatic-JPIP public update/image Result group under the
+unchanged verifier mode. Its recursive semantic-container follow-on is described
+next.
+
+## Complete actual recursive semantic-container public Result
+
+`DatabinCache::assemble_semantic_container` now has a complete actual-input public
+Result contract. Its sole recursive `expand_metadata_bin` producer frames all
+four mutable vectors: active bins, output bytes, missing ranges and semantic
+needs, on both success and every reached error. Assembly status/missing/needs,
+container borrowing and consuming ownership have checked forwarding contracts.
+The existing raw nine-field placeholder parser, flat reconstruction, raw box and
+container producers and complete automatic snapshot producer are reused.
+
+The recursive model reads physical cache bytes and actual raw box-reader state.
+Depth errors precede cycles, incomplete metadata produces the exact missing/need
+suffix without pushing an active bin, and boxed metadata pushes before reader
+construction. Each real next-box operation precedes the remaining-box guard and
+decrement, preserving metadata/work charges and sticky reader failure. Normal
+termination pops once. Errors retain the actual active stack and partial state,
+not a rollback. Original/equivalent recursion uses the real local payload; its
+error frame restores the parent's global output while retaining the child's
+active/missing/needs changes. Successful child calls restore the prior active
+stack. Checked per-phase continuations compose these frames without new caller
+or domain premises.
+
+Codestream events contain only the actual requested stream and the accepted
+snapshot primitive-call trace, never a supplied snapshot/layout/image Result.
+The snapshot model computes each response from the actual cache and all-component
+request. Stream-index overflow precedes that call; snapshot errors retain the
+preceding stream prefix. A full single-stream response fills local payload,
+whereas each full response in a multi-stream placeholder is appended immediately
+to global output. Later missing/error responses retain those earlier boxes.
+Availability uses the original equality of available/maximum layers, without a
+new positive-layer assumption. Original 8/16-byte headers are patched by checked
+word writers. Final availability checks the actual assembled length and invokes
+the accepted raw container inspection on those exact bytes.
+
+Native operations, guards, copy/drop/evaluation order and owners are unchanged;
+the only non-erased normalizations bind recursive boolean results before
+returning the same scalar. Semantic vector construction, copying, header cloning
+and appending retain their existing standard-library allocation/abort boundary.
+Only already-managed automatic snapshot allocation calls admit their declared,
+request/response-linked primitive failures; there is no blanket allocation-error
+alternative or new allocator/lifetime claim. Pins, limits, numerical policies,
+Rust 1.88 support and the existing `--no-lifetime` verification mode are unchanged.
+
+Focused controls cover nested original/equivalent expansion, borrowed/owned byte
+identity, missing versus immediately-emitted partial output, reached stream
+overflow, cycle/depth precedence, and raw-reader work/metadata/parse errors with
+immutable cache bytes. Together with the preceding automatic public group this
+discharges the two bounded #130 Result/state composition groups locally. It does
+not perform issue/release operations, normative-source processing, standards
+certification, metadata-CSn/NCS adjudication or broaden allocation policies.
 
 ## Trailing whole-packet engineering admission
 

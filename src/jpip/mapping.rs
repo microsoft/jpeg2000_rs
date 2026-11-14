@@ -136,23 +136,50 @@ impl JpipTilePartTransitionReport {
 }
 
 impl JpipContainerAssembly {
+    #[cfg_attr(verus_keep_ghost, verus_spec(result => ensures result == super::jpip_container_assembly_view(self).0,))]
     pub const fn status(&self) -> JpipAvailability {
+        #[cfg(verus_keep_ghost)]
+        proof! { reveal(super::jpip_container_assembly_view); }
         self.status
     }
 
+    #[cfg_attr(verus_keep_ghost, verus_spec(result =>
+        ensures result@.map_values(|range: JpipMissingRange| super::jpip_missing_view(range))
+            == super::jpip_container_assembly_view(self).1,
+    ))]
     pub fn missing_ranges(&self) -> &[JpipMissingRange] {
+        #[cfg(verus_keep_ghost)]
+        proof! { reveal(super::jpip_container_assembly_view); }
         &self.missing
     }
 
+    #[cfg_attr(verus_keep_ghost, verus_spec(result =>
+        ensures result@.map_values(|need: JpipSemanticNeed| super::jpip_semantic_need_view(need))
+            == super::jpip_container_assembly_view(self).2,
+    ))]
     pub fn semantic_needs(&self) -> &[JpipSemanticNeed] {
+        #[cfg(verus_keep_ghost)]
+        proof! { reveal(super::jpip_container_assembly_view); }
         &self.needs
     }
 
+    #[cfg_attr(verus_keep_ghost, verus_spec(result =>
+        ensures super::jpip_optional_byte_borrow_view(result) == super::jpip_container_assembly_view(self).3,
+            result == super::jpip_container_borrow(self),
+    ))]
     pub const fn container(&self) -> Option<&JpipByteView> {
+        #[cfg(verus_keep_ghost)]
+        proof! { reveal(super::jpip_container_assembly_view); reveal(super::jpip_container_borrow); }
         self.container.as_ref()
     }
 
+    #[cfg_attr(verus_keep_ghost, verus_spec(result =>
+        ensures super::jpip_optional_container_value_view(result) == super::jpip_container_assembly_view(&self).3,
+            result == *super::jpip_container_owner(&self),
+    ))]
     pub fn into_container(self) -> Option<JpipByteView> {
+        #[cfg(verus_keep_ghost)]
+        proof! { reveal(super::jpip_container_assembly_view); reveal(super::jpip_container_owner); }
         self.container
     }
 }

@@ -3562,6 +3562,28 @@ _JPIP_MAPPING_PREFIX_CONTRACTS = {
 _JPIP_GLOBAL_ERROR_ENTRY = "part9-original-actual-resolution-error-prefix"
 _JPIP_FULL_SNAPSHOT_ENTRY = "part9-complete-original-automatic-snapshot-result"
 _JPIP_AUTOMATIC_PROGRESSIVE_ENTRY = "part9-complete-actual-automatic-progressive-public-result"
+_JPIP_SEMANTIC_ENTRY = "part9-complete-actual-recursive-semantic-container-result"
+_JPIP_SEMANTIC_APIS = frozenset({
+    ("src/jpip/reconstruction.rs", "DatabinCache::assemble_semantic_container"),
+})
+_JPIP_SEMANTIC_RELATIONS = {
+    ("src/jpip/reconstruction.rs", "DatabinCache::assemble_semantic_container"): (
+        "part2_jpip_semantic_assembly_result",
+        r"jpip_cache_view\(\s*self\s*\)\s*,\s*metadata_codestream\s*,\s*"
+        r"super::jpip_container_assembly_outcome\(\s*\1\s*\)",
+    ),
+    ("src/jpip/reconstruction.rs", "DatabinCache::expand_metadata_bin"): (
+        "part2_jpip_semantic_expand_result",
+        r"jpip_cache_view\(\s*self\s*\)\s*,\s*metadata_codestream\s*,\s*bin\s*,\s*boxes\s*,\s*"
+        r"depth\s*,\s*remaining_depth\s*,\s*"
+        + _coverage_call("semantic_state_view", *(
+            _coverage_call("old", name) + "@" for name in ("active", "output", "missing", "needs")
+        )) + r"\s*,\s*\1\s*,\s*"
+        + _coverage_call("semantic_state_view", *(
+            _coverage_call("final", name) + "@" for name in ("active", "output", "missing", "needs")
+        )),
+    ),
+}
 _JPIP_AUTOMATIC_PROGRESSIVE_APIS = frozenset({
     ("src/jpip/progression.rs", "JpipAutomaticProgressiveDecoder::update"),
     ("src/jpip/progression.rs", "JpipAutomaticProgressiveDecoder::update_selected"),
@@ -4894,6 +4916,92 @@ def validate_normative_coverage(
     ids: set[str] = set()
     contract_functions: set[tuple[str, str]] = set()
     for entry in coverage["requirements"]:
+        if entry["id"] == _JPIP_SEMANTIC_ENTRY:
+            required = {
+                *_JPIP_SEMANTIC_RELATIONS,
+                ("src/jpip/reconstruction.rs", "parse_jpip_placeholder"),
+                ("src/jpip/reconstruction.rs", "append_reconstructed_box"),
+                ("src/jpip/reconstruction.rs", "jpip_superbox"),
+                ("src/jpip/byte_io.rs", "write_u64_be"),
+                ("src/jp2/box_reader.rs", "BoxReader::new"),
+                ("src/jp2/box_reader.rs", "BoxReader::next_box_ref"),
+                ("src/jpip/progression.rs", "DatabinCache::build_automatic_snapshot"),
+                ("src/jp2/container.rs", "parse_and_inspect"),
+                *(("src/jpip/mapping.rs", "JpipContainerAssembly::" + name) for name in (
+                    "status", "missing_ranges", "semantic_needs", "container", "into_container",
+                )),
+                *(("specs/jpip_layout.rs", "part2_jpip_semantic_" + name) for name in (
+                    "boxes_prefix", "box_bounds", "reader_frame", "placeholder_box_step",
+                    "original_error_prefix", "original_success_prefix", "equivalent_prefix",
+                    "metadata_error_lift", "stream_continuation", "stream_error_lift",
+                    "placeholder_advance", "placeholder_append_error", "expand_witness",
+                    "assembly_witness", "assembly_first_error",
+                )),
+            }
+            if ({(ref["path"], ref["symbol"]) for ref in entry["contract_refs"]} != set(_JPIP_SEMANTIC_RELATIONS) - _JPIP_SEMANTIC_APIS
+                    or not required.issubset({(ref["path"], ref["symbol"]) for ref in entry["proof_refs"]})):
+                raise ValueError("complete semantic container requires actual public/recursive Results and all producer/frame joins")
+            model = source_text((ROOT / "specs/jpip_layout.rs").resolve())
+            for name, fragments in {
+                "snapshot": (
+                    "if actual != stream", "part2_jpip_snapshot_run(Part2JpipSnapshotInput",
+                    "cache, stream, selected: None, components: Seq::empty(), limits: &cache.0",
+                    "if tail.len() == 0",
+                ),
+                "streams": (
+                    "first as nat + index as nat > u64::MAX as nat",
+                    "part2_jpip_semantic_snapshot(cache, stream, state, events)",
+                    "ready.1 == ready.2", "if count == 1",
+                    "part2_jpip_append_reconstructed_box(state.output, header, ready.0)",
+                    "missing: state.missing + ready.3", "missing: state.missing + snapshot.1",
+                    "state.needs.push((crate::jpip::JpipSemanticNeedKind::Codestream, stream))",
+                ),
+                "placeholder": (
+                    "part2_jpip_parse_placeholder(payload)", "part2_jpip_placeholder_reconstruction(",
+                    "source == 0 || source == 1", "depth == u32::MAX || remaining_depth == 0",
+                    "Part2JpipSemanticState { output: Seq::empty(), ..state }",
+                    "Part2JpipSemanticState { output: original_output, ..child }",
+                    "Some((Err(error), state, tail)) => part2_jpip_semantic_lift(Err(error), state, tail)",
+                ),
+                "boxes": (
+                    "let next = part2_box_reader_next_ref(reader)", "remaining_boxes == 0",
+                    "Err(error) => part2_jpip_semantic_lift(Err(error), state, events)",
+                    "Part2JpipSemanticState { active: state.active.drop_last(), ..state }",
+                    "part2_jpip_semantic_placeholder(cache, metadata_stream, reference.1",
+                    "output: state.output + reader.input.subrange(",
+                ),
+                "expand": (
+                    "if depth > crate::limits::resource_box_depth_limit(&cache.0)",
+                    "else if state.active.contains(bin)", "if !part2_jpip_cache_complete(cache, id)",
+                    "part2_jpip_cache_view(cache, id)", "output: state.output + bytes",
+                    "active: state.active.push(bin)", "part2_box_reader_from_input(bytes, cache.0)",
+                ),
+                "assembly_run": (
+                    "part2_jpip_semantic_expand(cache, metadata_stream, 0, true, 0, u32::MAX, initial, events)",
+                    "Some((Err(error), _state, tail)) => Some((Err(error), tail))",
+                    "if state.output.len() == 0", "state.missing, state.needs, None",
+                    "part2_parse_and_inspect_container(state.output, &cache.0)",
+                    "Some(state.output)",
+                ),
+            }.items():
+                body = _coverage_spec_function_body(model, "part2_jpip_semantic_" + name)
+                if body is None or any("".join(fragment.split()) not in "".join(body.split()) for fragment in fragments):
+                    raise ValueError("complete semantic container requires actual physical/raw/snapshot inputs and exact partial-state/error/output model: " + name)
+            source = source_text((ROOT / "src/jpip/reconstruction.rs").resolve())
+            native = _coverage_function_body(source, _coverage_function_header(source, "DatabinCache::expand_metadata_bin"))
+            ordered = (
+                "while let Some(box_result) = reader.next_box_ref()", "if remaining_boxes == 0",
+                "remaining_boxes -= 1", "let box_ref = box_result?",
+            )
+            positions = [native.find(fragment) for fragment in ordered] if native is not None else []
+            if (not positions or -1 in positions or positions != sorted(positions)
+                    or "parse_jpip_placeholder(box_ref.payload)?" not in native
+                    or re.search(_coverage_call(
+                        "self.build_automatic_snapshot", "stream", "None",
+                        r"&\s*JpipPacketSelection::all_components\(\s*\)", r"&\s*self\.limits\s*,?",
+                    ), native) is None
+                    or "part2_jpip_semantic_placeholder_advance(" not in native):
+                raise ValueError("complete semantic container requires actual ordered raw-reader, placeholder and snapshot callers")
         if entry["id"] == _JPIP_AUTOMATIC_PROGRESSIVE_ENTRY:
             if ({(ref["path"], ref["symbol"]) for ref in entry["contract_refs"]}
                     != set(_JPIP_AUTOMATIC_PROGRESSIVE_RELATIONS) - _JPIP_AUTOMATIC_PROGRESSIVE_APIS
@@ -9160,6 +9268,8 @@ def validate_normative_coverage(
                   and (reference["path"], reference["symbol"]) in _JPIP_PROGRESSIVE_APIS)
               or (entry["id"] == _JPIP_AUTOMATIC_PROGRESSIVE_ENTRY
                   and (reference["path"], reference["symbol"]) in _JPIP_AUTOMATIC_PROGRESSIVE_APIS)
+              or (entry["id"] == _JPIP_SEMANTIC_ENTRY
+                  and (reference["path"], reference["symbol"]) in _JPIP_SEMANTIC_APIS)
               or (entry["id"] == _JPIP_TRANSITION_ENTRY
                   and (reference["path"], reference["symbol"]) in _JPIP_TRANSITION_APIS))
             and reference not in entry["contract_refs"]
@@ -9984,6 +10094,9 @@ def validate_normative_coverage(
                 )
             if entry["id"] == _JPIP_AUTOMATIC_PROGRESSIVE_ENTRY:
                 storage_contract = _JPIP_AUTOMATIC_PROGRESSIVE_RELATIONS.get(
+                    (reference["path"], reference["symbol"]), storage_contract)
+            if entry["id"] == _JPIP_SEMANTIC_ENTRY:
+                storage_contract = _JPIP_SEMANTIC_RELATIONS.get(
                     (reference["path"], reference["symbol"]), storage_contract)
             if storage_contract:
                 model, arguments = storage_contract

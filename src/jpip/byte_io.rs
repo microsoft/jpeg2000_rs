@@ -4,11 +4,18 @@ use super::{DecodeError, MalformedKind};
 #[cfg(verus_keep_ghost)]
 use vstd::prelude::*;
 
+#[cfg_attr(verus_keep_ghost, verus_spec(result =>
+    ensures (result, final(output)@) == crate::specs::part2_jpip_write_u64(old(output)@, position, value),
+))]
 pub(super) fn write_u64_be(
     output: &mut [u8],
     position: usize,
     value: u64,
 ) -> Result<(), DecodeError> {
+    #[cfg(verus_keep_ghost)]
+    proof! {
+        assert((value >> 32) <= u32::MAX as u64 && (value & 0xffffffffu64) <= u32::MAX as u64) by(bit_vector);
+    }
     let high = u32::try_from(value >> 32)
         .map_err(|_| DecodeError::malformed(0, MalformedKind::ArithmeticOverflow))?;
     let low = u32::try_from(value & u64::from(u32::MAX))
@@ -16,9 +23,12 @@ pub(super) fn write_u64_be(
     write_u32_be(output, position, high)?;
     write_u32_be(
         output,
-        position
-            .checked_add(4)
-            .ok_or_else(|| DecodeError::malformed(0, MalformedKind::ArithmeticOverflow))?,
+        position.checked_add(4).ok_or_else(
+            #[cfg_attr(verus_keep_ghost, verus_spec(result: DecodeError =>
+                    ensures result == crate::specs::part2_jpip_range_overflow(0),
+                ))]
+            || DecodeError::malformed(0, MalformedKind::ArithmeticOverflow),
+        )?,
         low,
     )
 }

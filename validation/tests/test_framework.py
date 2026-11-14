@@ -934,6 +934,101 @@ class FrameworkTests(WorkingFiles):
                     self.assertRaisesRegex(ValueError, "executable Verus contract"):
                 framework.validate_normative_coverage(coverage)
 
+    def test_inventory_semantic_container_binds_actual_inputs_errors_and_all_mutable_state(self):
+        coverage = json.loads((framework.VALIDATION / "normative-coverage.json").read_text())
+        coverage["requirements"] = [
+            item for item in coverage["requirements"] if item["id"] == framework._JPIP_SEMANTIC_ENTRY
+        ]
+        self.assertEqual(len(coverage["requirements"]), 1)
+        framework.validate_normative_coverage(coverage)
+        source = framework.ROOT / "src/jpip/reconstruction.rs"
+        original = source.read_text()
+        read_text = Path.read_text
+        for method, mutations in (
+            ("assemble_semantic_container", (
+                ("ensures crate::specs::", "ensures result.is_ok() ==> crate::specs::"),
+                ("jpip_cache_view(self)", "jpip_cache_view(other_cache)"),
+                ("metadata_codestream,", "other_codestream,"),
+                ("jpip_container_assembly_outcome(result)", "jpip_container_assembly_outcome(other_result)"),
+            )),
+            ("expand_metadata_bin", (
+                ("bin, boxes, depth, remaining_depth,", "other_bin, boxes, depth, remaining_depth,"),
+                ("old(output)@", "output@"),
+                ("final(active)@", "old(active)@"),
+                ("final(missing)@", "old(missing)@"),
+                ("final(needs)@", "old(needs)@"),
+            )),
+        ):
+            header = framework._coverage_function_header(original, "DatabinCache::" + method)
+            start = original.rfind("#[cfg_attr", 0, header.start())
+            contract = original[start:header.start()]
+            for before, after in mutations:
+                self.assertIn(before, contract)
+                modified = original[:start] + contract.replace(before, after, 1) + original[header.start():]
+
+                def altered(path, *args, **kwargs):
+                    return modified if path == source else read_text(path, *args, **kwargs)
+
+                with self.subTest(method=method, before=before), mock.patch.object(Path, "read_text", altered), \
+                        self.assertRaisesRegex(ValueError, "executable Verus contract"):
+                    framework.validate_normative_coverage(coverage)
+
+    def test_inventory_semantic_container_rejects_outcome_banks_and_lost_partial_state(self):
+        coverage = json.loads((framework.VALIDATION / "normative-coverage.json").read_text())
+        coverage["requirements"] = [
+            item for item in coverage["requirements"] if item["id"] == framework._JPIP_SEMANTIC_ENTRY
+        ]
+        framework.validate_normative_coverage(coverage)
+        source = framework.ROOT / "specs/jpip_layout.rs"
+        original = source.read_text()
+        read_text = Path.read_text
+        for function, before, after in (
+            ("snapshot", "part2_jpip_snapshot_run(Part2JpipSnapshotInput", "supplied_snapshot(Part2JpipSnapshotInput"),
+            ("placeholder", "part2_jpip_parse_placeholder(payload)", "supplied_placeholder"),
+            ("placeholder", "output: original_output, ..child", "output: child.output, ..child"),
+            ("streams", "part2_jpip_append_reconstructed_box(state.output, header, ready.0)",
+             "part2_jpip_append_reconstructed_box(payload, header, ready.0)"),
+            ("streams", "missing: state.missing + ready.3", "missing: ready.3"),
+            ("boxes", "active: state.active.drop_last()", "active: state.active"),
+            ("assembly_run", "part2_parse_and_inspect_container(state.output, &cache.0)",
+             "part2_parse_and_inspect_container(Seq::empty(), &cache.0)"),
+        ):
+            name = "part2_jpip_semantic_" + function
+            start = re.search(r"\bspec\s+fn\s+" + name + r"\b", original).start()
+            self.assertIn(before, framework._coverage_spec_function_body(original, name))
+            modified = original[:start] + original[start:].replace(before, after, 1)
+
+            def altered(path, *args, **kwargs):
+                return modified if path == source else read_text(path, *args, **kwargs)
+
+            with self.subTest(function=function, before=before), mock.patch.object(Path, "read_text", altered), \
+                    self.assertRaisesRegex(ValueError, "complete semantic container"):
+                framework.validate_normative_coverage(coverage)
+
+    def test_inventory_semantic_container_preserves_missing_consumer_and_actual_reader_call_checks(self):
+        coverage = json.loads((framework.VALIDATION / "normative-coverage.json").read_text())
+        coverage["requirements"] = [
+            item for item in coverage["requirements"] if item["id"] == framework._JPIP_SEMANTIC_ENTRY
+        ]
+        source = framework.ROOT / "src/jpip/reconstruction.rs"
+        original = source.read_text()
+        read_text = Path.read_text
+        for before, after, diagnostic in (
+            ("let complete = self.expand_metadata_bin(", "let complete = self.unrelated_expansion(",
+             "linked function is not used by claimed implementation"),
+            ("while let Some(box_result) = reader.next_box_ref()", "while let Some(box_result) = other_reader()",
+             "actual ordered raw-reader"),
+        ):
+            self.assertIn(before, original)
+            modified = original.replace(before, after, 1)
+
+            def altered(path, *args, **kwargs):
+                return modified if path == source else read_text(path, *args, **kwargs)
+
+            with self.subTest(before=before), mock.patch.object(Path, "read_text", altered), \
+                    self.assertRaisesRegex(ValueError, diagnostic):
+                framework.validate_normative_coverage(coverage)
+
     def test_inventory_automatic_progressive_binds_all_actual_public_inputs_and_final_state(self):
         coverage = json.loads((framework.VALIDATION / "normative-coverage.json").read_text())
         coverage["requirements"] = [
