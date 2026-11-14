@@ -964,14 +964,35 @@ pub(crate) fn plan_packet_precinct(
         reveal(precinct_plan_builder_view);
         reveal(planned_precinct_view);
     }
-    let precinct = crate::packet::packet_precinct_from_subbands(
+    #[cfg(verus_keep_ghost)]
+    proof_decl! {let ghost finished=precinct_plan_builder_view(&builder);}
+    #[cfg(verus_keep_ghost)]
+    proof! {
+        crate::specs::part2_precinct_rows_end(band,block_size,subbands@,range,style,policy,location,selected,limits,local_subband as nat,finished);
+        assert forall|events:Seq<crate::specs::Part2JpipSnapshotEvent>| #[trigger] root(prefix+events)
+            ==crate::specs::part2_jpip_snapshot_bind(crate::specs::part2_precinct_state_run(location.0,location.1,location.2,style,finished.executions,limits,events),
+                |precinct:crate::specs::Part1PacketPrecinctState,rest|Some((Ok(crate::specs::part2_precinct_plan_finish(finished,precinct)),rest))) by {}
+    }
+    let precinct_result = crate::packet::packet_precinct_from_subbands(
         location.0,
         location.1,
         location.2,
         style,
         builder.executions,
         limits,
-    )?;
+    );
+    #[cfg(verus_keep_ghost)]
+    proof! {
+        let child=|events|crate::specs::part2_precinct_state_run(location.0,location.1,location.2,style,finished.executions,limits,events);
+        let next=|precinct:crate::specs::Part1PacketPrecinctState,rest|Some((Ok(crate::specs::part2_precinct_plan_finish(finished,precinct)),rest));
+        crate::specs::part2_precinct_state_frames(location.0,location.1,location.2,style,finished.executions,limits,crate::packet::packet_precinct_outcome(precinct_result));
+        assert forall|events|root(prefix+events)==crate::specs::part2_jpip_snapshot_bind(child(events),next) by {}
+        if let Err(error)=precinct_result {
+            crate::specs::part2_decode_prefix_error(root,child,next,prefix,error);
+            crate::specs::part2_precinct_owner_join(band,block_size,subbands@,range,style,policy,location,source_placements,planned_code_blocks,selected,limits,root,Err(error));
+        }
+    }
+    let precinct = precinct_result?;
     Ok(PlannedPrecinct {
         precinct,
         placements: builder.placements,

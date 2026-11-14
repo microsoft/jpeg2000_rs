@@ -1163,9 +1163,31 @@ the original checked resolution increment. Ghost root definitions and
 original owner views remain explicit invariants through the owning loops.
 Bounded controls cover first/later refusal, zero range/count, malformed range,
 counter overflow, work/code-block priority, later geometry rejection,
-readonly source owners and raw/selected/container restore. Nested precinct/
-entropy/sample/image decoder storage and capacity-dependent existing-owner
-growth remain separate.
+readonly source owners and raw/selected/container restore.
+The nested precinct subband-state owner and the shared TagTree node owner are
+fallible at their original constructors. The former follows the original
+three-execution admission and uses exactly the execution count. The latter
+uses the original shallow Copy value and completed TagTree level-build total,
+after every original dimension/arithmetic/level/node-limit/narrowing check.
+Levels, packet states/contexts and decoder append owners are not given guessed
+or hoisted capacity.
+Distinct `PrecinctCapacity` events carry the actual source location/style/
+executions. Input-derived node requests retain dimensions, limit, completed
+levels/count and actual primitive response. `PrecinctTagTree` is an ordered
+caller envelope over those primitive calls, not another physical allocation:
+its context identifies the real execution index, inclusion/zero role, prior
+packet owners/counter and actual first-tree owner. The child run must consume
+all supplied primitive calls; ordinary pre-node errors consume no envelope.
+No successful tree/result is supplied by the environment.
+Actual nested state folds replace the old pure terminal precinct construction
+in real planning, retaining previous owners, first errors and exact unused
+tails through resolution/component/decode/snapshot/public state programs.
+Old normal models and their checked projections remain. Bounded controls cover
+first/later subband/inclusion/zero refusal, zero and malformed admission,
+TagTree overflow/node limits, code-block/work priority, exact retained owners
+and raw/selected/container restoration. The separate public singleton execution
+wrapper, existing-capacity growth (including TagTree levels), tier1 nested
+entropy/sample storage, and later packet/image buffers remain separate.
 Successful reservation relies on the documented standard-library boundary,
 not a physical-capacity theorem inferred from sequence models.
 Same-file links are checked inside another listed, formatted function body;

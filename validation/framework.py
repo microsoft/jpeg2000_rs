@@ -4800,6 +4800,8 @@ _RAW_RENDER_PROOFS |= {("specs/jpx_raw_frame.rs", "part2_render_raw_cold_metadat
 _RAW_COMPOSITION_RENDER_PROOFS |= {("specs/jpx_raw_frame.rs", "part2_render_raw_cold_metadata_error")}
 
 _COLD_RESULT_MODELS = {
+    "part1_tag_initial": ("part1_tag_storage_result", "specs/cold_tag_storage.rs", "part2_tag_storage_normal"),
+    "part2_precinct_from_executions": ("part2_precinct_state_result", "specs/cold_packet_precinct.rs", "part2_precinct_state_normal"),
     "part2_planned_precinct": ("part2_precinct_owner_result", "specs/cold_precinct_storage.rs", "part2_precinct_owner_normal"),
     "part2_planned_subband_execution": ("part2_subband_execution_result", "specs/cold_precinct_storage.rs", "part2_subband_execution_normal"),
     "part2_planned_codeblocks": ("part2_codeblock_owner_result", "specs/cold_precinct_storage.rs", "part2_codeblock_owner_normal"),
@@ -5051,6 +5053,7 @@ _COLD_RESULT_CONTRACTS = {
         _PACKET_GRID_PRODUCER_CONTRACTS, _COMPONENT_TILE_PLANNING_CONTRACTS,
         _TILE_METADATA_CONTRACTS, _SUBBAND_VECTOR_CONTRACTS, _COMPONENT_PLAN_METADATA_CONTRACTS,
         _PRECINCT_PLANNING_CONTRACTS, _SUBBAND_EXECUTION_CONTRACTS, _CODEBLOCK_VECTOR_CONTRACTS,
+        _PACKET_HEADER_CONTRACTS, _PRECINCT_INITIALIZATION_CONTRACTS,
     )
     for key, legacy in contracts.items()
     if legacy[0] in _COLD_RESULT_MODELS
@@ -5143,6 +5146,7 @@ def _coverage_cold_links(keys: set[tuple[str, str]]) -> tuple[set[tuple[str, str
         model = _COLD_RESULT_CONTRACTS[key][0]
         path, normal = metadata.get(model, ("specs/jpip_transcode.rs", "part2_jpip_validate_precinct_cold_normal"))
         run = {
+            "part1_tag_storage_result": "part2_tag_storage_run",
             "part1_subbands_cold_result": "part2_subbands_run",
             "part1_component_quantizations_storage_result": "part1_component_quantizations_storage",
             "part1_finish_main_quantizations_storage_result": "part1_finish_main_quantizations_storage",
@@ -5153,6 +5157,14 @@ def _coverage_cold_links(keys: set[tuple[str, str]]) -> tuple[set[tuple[str, str
         }.get(model, model.removesuffix("_result") + "_run")
         models.update(((path, model), (path, run)))
         proofs.add((path, normal))
+        if model == "part1_tag_storage_result":
+            models |= _TAG_STORAGE_MODELS
+            proofs |= _TAG_STORAGE_PROOFS
+            proofs.add(("src/allocation.rs", "filled_values"))
+        if model in ("part2_precinct_state_result", "part2_precinct_owner_result", "part2_planned_component_result",
+                     "part2_grid_plan_result", "part1_progression_plan_cold_result"):
+            models |= _PACKET_PRECINCT_STORAGE_MODELS
+            proofs |= _PACKET_PRECINCT_STORAGE_PROOFS
         if model in ("part2_planned_component_result", "part2_grid_plan_result", "part1_progression_plan_cold_result"):
             models |= _RESOLUTION_PLAN_MODELS
             proofs |= _RESOLUTION_PLAN_PROOFS
@@ -5259,7 +5271,9 @@ def _coverage_cold_result_body(text: str, model: str) -> bool:
         **_COLD_INNER_RUNS,
     }.get(model, model.removesuffix("_result") + "_run")
     call = run + "(" + ",".join(names[:-1] + ["events"]) + ")"
-    if model == "part1_subbands_cold_result":
+    if model == "part1_tag_storage_result":
+        expected = "exists|prefix:Seq<Part2TagStorageEvent>| #[trigger] part2_tag_storage_prefix(width,height,maximum,prefix,result)"
+    elif model == "part1_subbands_cold_result":
         expected = "part2_cold_framed(|events|part2_subbands_run(size,style,quantization,component,tile,roi,events),result)"
     elif model == "part1_uniform_geometry_cold_result":
         expected = "part2_cold_framed(|events|part2_uniform_geometry_run(size,style,limits,tile,events),result)"
@@ -5375,6 +5389,83 @@ _COLD_SOURCE_BODIES = {
     """, "whole effective layer Result requires actual ordered decoder/registration/opacity models"),
 }
 
+_TAG_STORAGE_MODELS = {("specs/cold_tag_storage.rs", name) for name in (
+    "part2_tag_storage_admit", "part2_tag_storage_run", "part2_tag_storage_prefix", "part1_tag_storage_result", "part2_precinct_tree_run",
+)}
+_TAG_STORAGE_PROOFS = {("specs/cold_tag_storage.rs", name) for name in (
+    "part2_tag_storage_normal", "part2_tag_storage_observed", "part2_precinct_tree_observed", "part2_precinct_tree_normal",
+)}
+_PACKET_PRECINCT_STORAGE_MODELS = _TAG_STORAGE_MODELS | {("specs/cold_packet_precinct.rs", name) for name in (
+    "part2_precinct_capacity_run", "part2_precinct_capacity_result", "part2_precinct_tree_prelude", "part2_precinct_tree_context",
+    "part2_precinct_finish_trees", "part2_precinct_state_rows", "part2_precinct_state_after_inclusion",
+    "part2_precinct_initial", "part2_precinct_state_run", "part2_precinct_state_result",
+)} | {("specs/cold_precinct_storage.rs", "part2_precinct_plan_finish")}
+_PACKET_PRECINCT_STORAGE_PROOFS = _TAG_STORAGE_PROOFS | {("specs/cold_packet_precinct.rs", name) for name in (
+    "part2_precinct_capacity_observed", "part2_precinct_state_rows_normal", "part2_precinct_after_inclusion_normal",
+    "part2_precinct_state_normal", "part2_precinct_state_refused", "part2_precinct_state_start",
+    "part2_precinct_state_inclusion_step", "part2_precinct_state_zero_step", "part2_precinct_state_join", "part2_precinct_state_frames",
+)} | {("specs/cold_precinct_storage.rs", "part2_precinct_rows_end")}
+_PACKET_PRECINCT_STORAGE_TESTS = {
+    ("src/packet/tests.rs", "packet_precinct_storage_tag_nodes_admission_refusal_and_exact_restore"),
+    ("src/packet/tests.rs", "packet_precinct_storage_subbands_and_ordered_tree_refusals_restore_every_owner"),
+    ("src/packet/tests.rs", "packet_precinct_storage_empty_and_ordinary_priority_consume_no_later_request"),
+    ("src/decode/tests.rs", "packet_precinct_storage_public_raw_selected_container_roles_and_restore"),
+}
+_PACKET_PRECINCT_STORAGE_GUARDS = {
+    ("specs/cold_tag_storage.rs", "part2_tag_storage_run"): (
+        "part2_tag_storage_admit(width,height,maximum)", "Err(error)=>Some((Err(error),calls))",
+        "if built.total==0", "call.width!=width || call.height!=height || call.maximum!=maximum || call.built!=built",
+        "Err(crate::DecodeError::AllocationFailed)", "calls.drop_first()",
+    ),
+    ("specs/cold_tag_storage.rs", "part2_tag_storage_prefix"): (
+        "forall|tail:Seq<Part2TagStorageEvent>| #[trigger] part2_tag_storage_run(width,height,maximum,prefix+tail)==Some((result,tail))",
+    ),
+    ("specs/cold_tag_storage.rs", "part2_precinct_tree_run"): (
+        "Err(error)=>Some((Err(error),events))", "PrecinctTagTree {context:actual,calls}", "actual!=context",
+        "part2_tag_storage_run(width,height,maximum,calls)", "rest.len()==0", "events.drop_first()", "_=>None",
+    ),
+    ("specs/cold_packet_precinct.rs", "part2_precinct_capacity_run"): (
+        "context.executions.len() as usize", "if count==0", "Part2JpipSnapshotEvent::PrecinctCapacity",
+        "actual!=context || elements!=count", "Err(crate::DecodeError::AllocationFailed)", "events.drop_first()",
+    ),
+    ("specs/cold_packet_precinct.rs", "part2_precinct_state_run"): (
+        "if executions.len()>3", "Err(part1_packet_header_error()),events", "part2_precinct_capacity_run(",
+        "part2_precinct_state_rows(executions,style,limits,0,part2_precinct_initial((component,resolution,precinct)),0,rest)",
+    ),
+    ("specs/cold_packet_precinct.rs", "part2_precinct_tree_prelude"): (
+        "row.across==0 || row.down==0", "resource_code_block_limit(limits)", "resource_work_limit(limits)",
+        "row.decoders.len()!=count", "part2_precinct_contexts(", "decoders:before.decoders+row.decoders",
+    ),
+    ("specs/cold_packet_precinct.rs", "part2_precinct_tree_context"): (
+        "before:prepared.0,total:prepared.1,execution:row,index:index as usize,zero,inclusion,maximum:",
+    ),
+    ("specs/cold_packet_precinct.rs", "part2_precinct_state_rows"): (
+        "part2_precinct_tree_prelude(", "Err(error)=>Some((Err(error),events))",
+        "part2_precinct_tree_context(prepared,row,index,false,None,limits)", "part2_precinct_state_after_inclusion(",
+    ),
+    ("specs/cold_packet_precinct.rs", "part2_precinct_state_after_inclusion"): (
+        "part2_precinct_tree_context(prepared,row,index,true,Some(inclusion),limits)",
+        "index+1,", "part2_precinct_finish_trees(before,prepared.0,row,inclusion,zero),prepared.1,rest)",
+    ),
+    ("specs/cold_precinct_storage.rs", "part2_precinct_rows_run"): (
+        "if local>=range.1 {part2_jpip_snapshot_bind(part2_precinct_state_run(",
+        "Ok(part2_precinct_plan_finish(before,precinct))",
+    ),
+}
+_PACKET_PRECINCT_NATIVE_ORDER = {
+    ("src/packet/tag_tree.rs", "tag_tree_from_dimensions"): (
+        "if width == 0 || height == 0", "let mut levels = Vec::new()", "loop {", "levels.push(",
+        "usize::try_from(next_total)", "let filled = crate::allocation::filled_values(", "TagTreeNode {",
+        "}, total_nodes,", "part2_tag_storage_observed(", "let nodes = filled?",
+    ),
+    ("src/packet/precinct.rs", "packet_precinct_from_subbands"): (
+        "if executions.len() > 3", "let mut states = Vec::new()", "let mut contexts = Vec::new()", "let mut decoders = Vec::new()",
+        "empty_with_capacity(executions.len())", "part2_precinct_capacity_observed(", "let mut subbands = reserved?",
+        "while execution_index < executions.len()", "prepare_precinct_contexts(", "decoders.append(",
+        "let inclusion_result = tag_tree_new(", "let inclusion_tree = inclusion_result?", "let zero_result = tag_tree_new(",
+        "let zero_bitplane_tree = zero_result?", "subbands.push(subband)",
+    ),
+}
 _PRECINCT_OWNER_MODELS = {("specs/cold_precinct_storage.rs", name) for name in (
     "part2_planning_capacity_count", "part2_planning_capacity_run", "part2_planning_capacity_result",
     "part2_codeblock_owner_admit", "part2_codeblock_owner_context", "part2_codeblock_owner_run", "part2_codeblock_owner_result",
@@ -12963,6 +13054,26 @@ def validate_normative_coverage(
                     "part2_precinct_owner_result", "part2_subband_execution_result", "part2_codeblock_owner_result"} for ref in entry["contract_refs"]):
                 if not _PRECINCT_OWNER_TESTS.issubset({(ref["path"], ref["symbol"]) for ref in entry["test_refs"]}):
                     raise ValueError("resolution/precinct fresh storage requires bounded refusal/restore/empty/range/overflow/work/owner/public controls")
+    if ids & {"part2-complete-native-component-tile-planning", "part2-complete-native-precinct-planning",
+              "part2-complete-native-precinct-initialization", "part1-complete-native-header-tree-producers"}:
+        for (relative, symbol), fragments in _PACKET_PRECINCT_STORAGE_GUARDS.items():
+            body = _coverage_spec_function_body(source_text((ROOT / relative).resolve()), symbol)
+            compact = "".join(body.split()) if body is not None else ""
+            if any("".join(fragment.split()) not in compact for fragment in fragments):
+                raise ValueError("nested precinct fresh storage requires actual distinct owner/tree roles, primitive child calls and exact no-event/first-error/owner/tail composition")
+        for (relative, symbol), fragments in _PACKET_PRECINCT_NATIVE_ORDER.items():
+            path = (ROOT / relative).resolve()
+            body = _coverage_function_body(source_text(path), function_header(path, symbol))
+            compact = "".join(body.split()) if body is not None else ""
+            positions = [compact.find("".join(fragment.split())) for fragment in fragments]
+            if any(position < 0 for position in positions) or positions != sorted(positions):
+                raise ValueError("nested precinct fresh storage requires unchanged real constructor/admission/append/TagTree/owner/field order")
+        for entry in coverage["requirements"]:
+            if any(_COLD_RESULT_CONTRACTS.get((ref["path"], ref["symbol"]), ("",))[0] in {
+                    "part1_tag_storage_result", "part2_precinct_state_result", "part2_precinct_owner_result",
+                    "part2_planned_component_result", "part2_grid_plan_result", "part1_progression_plan_cold_result"} for ref in entry["contract_refs"]):
+                if not _PACKET_PRECINCT_STORAGE_TESTS.issubset({(ref["path"], ref["symbol"]) for ref in entry["test_refs"]}):
+                    raise ValueError("nested precinct fresh storage requires bounded refusal/restore/zero/ordinary-priority/real-public controls")
     return {
         "status": "passed",
         "inventory_items": len(ids),

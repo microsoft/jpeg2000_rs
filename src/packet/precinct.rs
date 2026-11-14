@@ -24,7 +24,7 @@ use super::{
     packet_precinct_outcome, packet_precinct_view, packet_states_view, packet_subband_view,
     precinct_contexts_outcome, precinct_header_view, precinct_initialization_view,
     precinct_payload_header_view, precinct_payload_parameters_view,
-    precinct_payload_reader_outcome, precinct_payload_reader_view,
+    precinct_payload_reader_outcome, precinct_payload_reader_view, tag_tree_outcome, tag_tree_view,
 };
 #[cfg(verus_keep_ghost)]
 use vstd::prelude::*;
@@ -260,7 +260,8 @@ impl PacketPrecinctDecoder {
 }
 
 #[cfg_attr(verus_keep_ghost, verus_spec(result =>
-    ensures packet_precinct_outcome(result) == crate::specs::part2_precinct_from_executions(
+    ensures crate::specs::part2_precinct_state_result(component,resolution,precinct,tier1_style,packet_executions_view(before@),limits,packet_precinct_outcome(result)),
+        packet_precinct_outcome(result)!=Err(DecodeError::AllocationFailed) ==> packet_precinct_outcome(result) == crate::specs::part2_precinct_from_executions(
         component, resolution, precinct, tier1_style, packet_executions_view(before@), limits,
     ),
 ))]
@@ -273,7 +274,13 @@ pub(crate) fn packet_precinct_from_subbands(
     limits: &ResourceLimits,
 ) -> Result<PacketPrecinctDecoder, DecodeError> {
     #[cfg(verus_keep_ghost)]
-    proof_decl! { let ghost original = packet_executions_view(before@); }
+    proof_decl! {
+        let ghost original = packet_executions_view(before@);
+        let ghost root=|events:Seq<crate::specs::Part2JpipSnapshotEvent>|crate::specs::part2_precinct_state_run(component,resolution,precinct,tier1_style,original,limits,events);
+        let ghost mut prefix:Seq<crate::specs::Part2JpipSnapshotEvent>;
+    }
+    #[cfg(verus_keep_ghost)]
+    proof! {crate::specs::part2_precinct_state_normal(component,resolution,precinct,tier1_style,original,limits);}
     let mut executions = before;
     if executions.len() > 3 {
         return Err(invalid_packet_header());
@@ -281,7 +288,19 @@ pub(crate) fn packet_precinct_from_subbands(
     let mut states = Vec::new();
     let mut contexts = Vec::new();
     let mut decoders = Vec::new();
-    let mut subbands = Vec::with_capacity(executions.len());
+    let reserved = if executions.is_empty() {
+        Ok(Vec::new())
+    } else {
+        crate::allocation::empty_with_capacity(executions.len())
+    };
+    #[cfg(verus_keep_ghost)]
+    proof! {
+        crate::specs::part2_precinct_capacity_observed(crate::specs::Part2PrecinctCapacityContext {location:(component,resolution,precinct),style:tier1_style,executions:original},
+            match reserved {Ok(_)=>Ok(()),Err(error)=>Err(error)});
+        if reserved.is_err(){crate::specs::part2_precinct_state_refused(component,resolution,precinct,tier1_style,original,limits);}
+        else{prefix=crate::specs::part2_precinct_state_start(component,resolution,precinct,tier1_style,original,limits);}
+    }
+    let mut subbands = reserved?;
     let mut execution_index = 0_usize;
     let mut total_code_blocks = 0_u64;
     #[cfg(verus_keep_ghost)]
@@ -307,6 +326,11 @@ pub(crate) fn packet_precinct_from_subbands(
                     executions@.len() == original.len(),
                     original == packet_executions_view(before@),
                     original.len() <= 3,
+                    forall|events:Seq<crate::specs::Part2JpipSnapshotEvent>| #[trigger] root(events)==crate::specs::part2_precinct_state_run(component,resolution,precinct,tier1_style,original,limits,events),
+                    crate::specs::part2_cold_phase(root,prefix,|events|crate::specs::part2_precinct_state_rows(original,tier1_style,limits,execution_index as nat,
+                        precinct_initialization_view((component,resolution,precinct),states@,contexts@,decoders@,subbands@),total_code_blocks,events)),
+                    crate::specs::part2_precinct_state_result(component,resolution,precinct,tier1_style,original,limits,
+                        crate::specs::part2_precinct_from_executions(component,resolution,precinct,tier1_style,original,limits)),
                     forall |index: int| execution_index <= index < original.len()
                         ==> #[trigger] packet_execution_view(&executions@[index]) == original[index],
                     crate::specs::part2_precinct_from_executions(component, resolution, precinct, tier1_style, original, limits)
@@ -400,16 +424,65 @@ pub(crate) fn packet_precinct_from_subbands(
                 =~= previous_decoders.map_values(|decoder: Tier1CodeBlockDecoder| crate::tier1::tier1_decoder_state(&decoder))
                     + row_decoders.map_values(|decoder: Tier1CodeBlockDecoder| crate::tier1::tier1_decoder_state(&decoder)));
         }
-        let inclusion_tree = tag_tree_new(
+        #[cfg(verus_keep_ghost)]
+        proof_decl! {let ghost tree_prepared=(precinct_initialization_view((component,resolution,precinct),states@,contexts@,decoders@,subbands@),total_code_blocks);}
+        #[cfg(verus_keep_ghost)]
+        proof! {
+            assert(crate::specs::part2_precinct_tree_prelude(previous_state,previous_total,row,tier1_style,limits)==Ok(tree_prepared));
+            crate::specs::part2_precinct_state_inclusion_step(original,tier1_style,limits,execution_index as nat,previous_state,previous_total,tree_prepared);
+            assert forall|events:Seq<crate::specs::Part2JpipSnapshotEvent>| #[trigger] root(prefix+events)
+                ==crate::specs::part2_jpip_snapshot_bind(crate::specs::part2_precinct_tree_run(crate::specs::part2_precinct_tree_context(tree_prepared,row,execution_index as nat,false,None,limits),events),
+                    |inclusion:crate::specs::Part1TagTree,rest|crate::specs::part2_precinct_state_after_inclusion(original,tier1_style,limits,execution_index as nat,previous_state,previous_total,tree_prepared,inclusion,rest)) by {}
+        }
+        let inclusion_result = tag_tree_new(
             execution.code_blocks_across,
             execution.code_blocks_down,
             limits,
-        )?;
-        let zero_bitplane_tree = tag_tree_new(
+        );
+        #[cfg(verus_keep_ghost)]
+        proof! {
+            let context=crate::specs::part2_precinct_tree_context(tree_prepared,row,execution_index as nat,false,None,limits);
+            let child=|events|crate::specs::part2_precinct_tree_run(context,events);
+            let next=|inclusion:crate::specs::Part1TagTree,rest|crate::specs::part2_precinct_state_after_inclusion(original,tier1_style,limits,execution_index as nat,previous_state,previous_total,tree_prepared,inclusion,rest);
+            crate::specs::part2_precinct_tree_observed(context,tag_tree_outcome(inclusion_result));
+            assert forall|events|root(prefix+events)==crate::specs::part2_jpip_snapshot_bind(child(events),next) by {}
+            match tag_tree_outcome(inclusion_result) {
+                Err(error)=>{crate::specs::part2_decode_prefix_error(root,child,next,prefix,error);
+                    crate::specs::part2_precinct_state_join(component,resolution,precinct,tier1_style,original,limits,root,Err(error));},
+                Ok(value)=>{prefix=crate::specs::part2_decode_prefix_advance(root,child,next,prefix,value);},
+            }
+        }
+        let inclusion_tree = inclusion_result?;
+        #[cfg(verus_keep_ghost)]
+        proof_decl! {let ghost inclusion=tag_tree_view(&inclusion_tree);}
+        #[cfg(verus_keep_ghost)]
+        proof! {
+            crate::specs::part2_precinct_state_zero_step(original,tier1_style,limits,execution_index as nat,previous_state,previous_total,tree_prepared,inclusion);
+            assert forall|events:Seq<crate::specs::Part2JpipSnapshotEvent>| #[trigger] root(prefix+events)
+                ==crate::specs::part2_jpip_snapshot_bind(crate::specs::part2_precinct_tree_run(crate::specs::part2_precinct_tree_context(tree_prepared,row,execution_index as nat,true,Some(inclusion),limits),events),
+                    |zero:crate::specs::Part1TagTree,rest|crate::specs::part2_precinct_state_rows(original,tier1_style,limits,execution_index as nat+1,
+                        crate::specs::part2_precinct_finish_trees(previous_state,tree_prepared.0,row,inclusion,zero),tree_prepared.1,rest)) by {}
+        }
+        let zero_result = tag_tree_new(
             execution.code_blocks_across,
             execution.code_blocks_down,
             limits,
-        )?;
+        );
+        #[cfg(verus_keep_ghost)]
+        proof! {
+            let context=crate::specs::part2_precinct_tree_context(tree_prepared,row,execution_index as nat,true,Some(inclusion),limits);
+            let child=|events|crate::specs::part2_precinct_tree_run(context,events);
+            let next=|zero:crate::specs::Part1TagTree,rest|crate::specs::part2_precinct_state_rows(original,tier1_style,limits,execution_index as nat+1,
+                crate::specs::part2_precinct_finish_trees(previous_state,tree_prepared.0,row,inclusion,zero),tree_prepared.1,rest);
+            crate::specs::part2_precinct_tree_observed(context,tag_tree_outcome(zero_result));
+            assert forall|events|root(prefix+events)==crate::specs::part2_jpip_snapshot_bind(child(events),next) by {}
+            match tag_tree_outcome(zero_result) {
+                Err(error)=>{crate::specs::part2_decode_prefix_error(root,child,next,prefix,error);
+                    crate::specs::part2_precinct_state_join(component,resolution,precinct,tier1_style,original,limits,root,Err(error));},
+                Ok(value)=>{prefix=crate::specs::part2_decode_prefix_advance(root,child,next,prefix,value);},
+            }
+        }
+        let zero_bitplane_tree = zero_result?;
         let subband = PacketSubbandState {
             orientation: execution.orientation,
             first_decoder,

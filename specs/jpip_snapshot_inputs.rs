@@ -5,6 +5,8 @@ use super::*;
 verus! {
 
 pub enum Part2JpipSnapshotEvent {
+    PrecinctCapacity {context:Part2PrecinctCapacityContext,elements:usize,succeeded:bool},
+    PrecinctTagTree {context:Part2PrecinctTreeContext,calls:Seq<Part2TagStorageEvent>},
     PlanningCapacity {context:Part2PlanningCapacityContext,elements:usize,succeeded:bool},
     ComponentCapacity {context:Part2ComponentCapacityContext,elements:usize,succeeded:bool},
     TileMetadataCapacity {context:Part2TileMetadataCapacityContext,elements:usize,succeeded:bool},

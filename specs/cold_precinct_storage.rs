@@ -166,7 +166,8 @@ pub(crate) open spec fn part2_precinct_rows_run(band:[u32;4],block_size:[u32;2],
     local:nat,before:Part2PrecinctPlanBuilder,events:Seq<Part2JpipSnapshotEvent>)->Part2ColdRun<Part2PlannedPrecinct>
     decreases if local<range.1 {(range.1 as int-local) as nat}else{0nat},
 {
-    if local>=range.1 {Some((part2_planned_precinct_rows(band,block_size,subbands,range,style,policy,location,selected,limits,local,before),events))}
+    if local>=range.1 {part2_jpip_snapshot_bind(part2_precinct_state_run(location.0,location.1,location.2,style,before.executions,limits,events),
+        |precinct:Part1PacketPrecinctState,rest|Some((Ok(part2_precinct_plan_finish(before,precinct)),rest)))}
     else {
         let index=range.0 as nat+local;
         if index>usize::MAX {Some((Err(part1_block_placement_error(true)),events))}
@@ -187,7 +188,14 @@ pub(crate) proof fn part2_precinct_rows_normal(band:[u32;4],block_size:[u32;2],s
     reveal_with_fuel(part2_precinct_rows_run,1);reveal_with_fuel(part2_planned_precinct_rows,1);reveal(part2_subband_execution_result);
     let result=part2_planned_precinct_rows(band,block_size,subbands,range,style,policy,location,selected,limits,local,before);
     let index=range.0 as nat+local;
-    if local>=range.1 || index>usize::MAX || index>=subbands.len(){part2_cold_pure::<Part2PlannedPrecinct>(result);}else{
+    if local>=range.1 {
+        reveal(part2_precinct_state_result);
+        part2_precinct_state_normal(location.0,location.1,location.2,style,before.executions,limits);
+        let precinct=part2_precinct_from_executions(location.0,location.1,location.2,style,before.executions,limits);
+        if precinct.is_ok(){part2_cold_pure::<Part2PlannedPrecinct>(result);}
+        part2_cold_bind(|events|part2_precinct_state_run(location.0,location.1,location.2,style,before.executions,limits,events),
+            |precinct:Part1PacketPrecinctState,rest|Some((Ok(part2_precinct_plan_finish(before,precinct)),rest)),precinct,result);
+    }else if index>usize::MAX || index>=subbands.len(){part2_cold_pure::<Part2PlannedPrecinct>(result);}else{
         let indices=(location.3,index as usize,before.decoder_index);
         part2_subband_execution_normal(band,block_size,subbands[index as int],style,policy,indices,before.placements,before.planned_code_blocks,selected,limits);
         let planned=part2_planned_subband_execution(band,block_size,subbands[index as int],style,policy,indices,before.placements,before.planned_code_blocks,selected,limits);
@@ -295,4 +303,14 @@ pub(crate) proof fn part2_precinct_owner_join(band:[u32;4],block_size:[u32;2],su
     reveal(part2_precinct_owner_result);
     part2_cold_framed_extensional(root,|events|part2_precinct_owner_run(band,block_size,subbands,range,style,policy,location,placements,total,selected,limits,events),result);
 }
+pub(crate) open spec fn part2_precinct_plan_finish(before:Part2PrecinctPlanBuilder,precinct:Part1PacketPrecinctState)->Part2PlannedPrecinct {
+    Part2PlannedPrecinct {precinct,placements:before.placements,planned_code_blocks:before.planned_code_blocks}
+}
+pub(crate) proof fn part2_precinct_rows_end(band:[u32;4],block_size:[u32;2],subbands:Seq<crate::decode::SubbandGeometry>,range:(usize,usize),
+    style:crate::tier1::Tier1CodingStyle,policy:(bool,u8),location:(u16,u8,u32,usize),selected:bool,limits:&crate::ResourceLimits,local:nat,before:Part2PrecinctPlanBuilder)
+    requires local>=range.1,
+    ensures forall|events:Seq<Part2JpipSnapshotEvent>| #[trigger] part2_precinct_rows_run(band,block_size,subbands,range,style,policy,location,selected,limits,local,before,events)
+        ==part2_jpip_snapshot_bind(part2_precinct_state_run(location.0,location.1,location.2,style,before.executions,limits,events),
+            |precinct:Part1PacketPrecinctState,rest|Some((Ok(part2_precinct_plan_finish(before,precinct)),rest))),
+{reveal_with_fuel(part2_precinct_rows_run,1);}
 }
