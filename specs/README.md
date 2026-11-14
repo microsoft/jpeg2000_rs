@@ -30,6 +30,7 @@ model-to-standard review remains outstanding.
   and their [primitive relations](allocation.rs), then follow the
   [main quantization cutpoint](cold_quantization.rs), [tile creation](cold_tile_quantization.rs),
   [flat POC responses](cold_progression.rs), [ordered header frames](cold_header_progression.rs),
+  [nested MCT source/path requests](cold_mct_copy.rs),
   [tile reader frames](cold_tile_part.rs), [complete cold layout](cold_layout.rs)
   and [checked error continuations](cold_layout_continuations.rs).
   Trace entries contain primitive responses, not supplied layouts/images.

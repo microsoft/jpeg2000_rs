@@ -1,5 +1,69 @@
 use super::*;
 
+#[test]
+fn mct_owner_storage_nested_refusal_restore_and_empty_preserve_every_owner() {
+    let original = MctParameters {
+        arrays: vec![
+            MctArray::from_values(
+                0,
+                MctArrayKind::Decorrelation,
+                MctNumericFormat::Int32,
+                0,
+                vec![1, 2, 3],
+            ),
+            MctArray::from_values(
+                7,
+                MctArrayKind::Offset,
+                MctNumericFormat::Int32,
+                0,
+                Vec::new(),
+            ),
+        ],
+        records: vec![
+            MctRecord {
+                index: 3,
+                collections: vec![reference(0, 1, 2), reference(24, 0, 1)],
+            },
+            MctRecord {
+                index: 19,
+                collections: Vec::new(),
+            },
+        ],
+        order: vec![3, 19],
+    };
+    let before = original.clone();
+    for after in [0, 4, 6, 7] {
+        assert!(matches!(
+            crate::allocation::with_refusal(after, || original.try_duplicate()),
+            Err(DecodeError::AllocationFailed)
+        ));
+        assert_eq!(original, before);
+        let copied = original.try_duplicate().unwrap();
+        assert_eq!(copied, original);
+        separate(&original.arrays, &copied.arrays);
+        for (left, right) in original.arrays.iter().zip(&copied.arrays) {
+            separate(&left.values, &right.values);
+        }
+        separate(&original.records, &copied.records);
+        for (left, right) in original.records.iter().zip(&copied.records) {
+            separate_record(left, right);
+        }
+        separate(&original.order, &copied.order);
+    }
+    let empty = MctParameters {
+        arrays: Vec::new(),
+        records: Vec::new(),
+        order: Vec::new(),
+    };
+    crate::allocation::with_refusal(0, || {
+        assert_eq!(empty.try_duplicate().unwrap(), empty);
+        assert_eq!(
+            crate::allocation::copy_values(&[1_u8]),
+            Err(DecodeError::AllocationFailed)
+        );
+    });
+}
+
 fn reference(variant: usize, inputs: usize, outputs: usize) -> MctCollectionReference {
     let transform = if variant < 24 {
         MctCollectionReferenceTransform::Array {

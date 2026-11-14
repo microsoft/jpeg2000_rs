@@ -84,6 +84,35 @@ pub(crate) proof fn part1_cold_layout_sot_copy_error(
     part1_cold_layout_error(ctx.root, calls, error);
 }
 
+pub(crate) proof fn part1_cold_layout_sot_mct_error(
+    ctx: Part1ColdLayoutSot<'_>, error: crate::DecodeError,
+)
+    requires part1_cold_layout_prefix(ctx.root), part1_cold_layout_sot_known(ctx),
+        part1_mct_copy_result(part1_cold_layout_mct_requests(ctx.root.main, ctx.root.state, ctx.tile.2 as usize), Err(error)),
+    ensures part1_cold_layout_result(ctx.root.initial, Err(error)),
+{
+    reveal(part1_cold_layout_after_progression_copy);
+    reveal(part1_mct_copy_result);
+    reveal_with_fuel(part1_cold_layout_continuation, 1);
+    reveal(part1_cold_layout_tile_part);
+    let requests = part1_cold_layout_mct_requests(ctx.root.main, ctx.root.state, ctx.tile.2 as usize);
+    let mct_calls = choose|calls: Seq<Part1ColdStorageEvent>| part1_mct_copy_run(requests, calls)
+        == Some((Err(error), Seq::empty()));
+    let quantization = part1_cold_layout_sot_copy(ctx, true);
+    let progression = part1_cold_layout_sot_progression_copy(ctx, true);
+    let calls = quantization + progression + mct_calls;
+    assert(calls =~= quantization + (progression + mct_calls));
+    if quantization.len() > 0 { assert(calls.drop_first() =~= progression + mct_calls); }
+    else { assert(calls =~= progression + mct_calls); }
+    if progression.len() > 0 { assert((progression + mct_calls).drop_first() =~= mct_calls); }
+    else { assert(progression + mct_calls =~= mct_calls); }
+    part1_cold_layout_error(ctx.root, calls, error);
+}
+
+pub(crate) open spec fn part1_cold_layout_sot_mct_calls(ctx: Part1ColdLayoutSot<'_>) -> Seq<Part1ColdStorageEvent> {
+    part1_mct_copy_normal_calls(part1_cold_layout_mct_requests(ctx.root.main, ctx.root.state, ctx.tile.2 as usize))
+}
+
 pub(crate) proof fn part1_cold_layout_sot_read_error<'a>(
     ctx: Part1ColdLayoutSot<'a>, calls: Seq<Part1ColdStorageEvent>,
     reader: Part1CodestreamReader<'a>, error: crate::DecodeError,
@@ -93,16 +122,19 @@ pub(crate) proof fn part1_cold_layout_sot_read_error<'a>(
             == Some(((Err(error), reader), Seq::empty())),
     ensures part1_cold_layout_result(ctx.root.initial, Err(error)),
 {
+    reveal(part1_cold_layout_after_progression_copy);
     reveal_with_fuel(part1_cold_layout_continuation, 1);
     reveal(part1_cold_layout_tile_part);
     let quantization = part1_cold_layout_sot_copy(ctx, true);
     let progression = part1_cold_layout_sot_progression_copy(ctx, true);
-    let copied = quantization + progression;
-    assert(copied + calls =~= quantization + (progression + calls));
-    if quantization.len() > 0 { assert((copied + calls).drop_first() =~= progression + calls); }
-    else { assert(copied + calls =~= progression + calls); }
-    if progression.len() > 0 { assert((progression + calls).drop_first() =~= calls); }
-    else { assert(progression + calls =~= calls); }
+    let mct_calls = part1_cold_layout_sot_mct_calls(ctx);
+    part1_mct_copy_normal(part1_cold_layout_mct_requests(ctx.root.main, ctx.root.state, ctx.tile.2 as usize), calls);
+    let copied = quantization + progression + mct_calls;
+    assert(copied + calls =~= quantization + (progression + (mct_calls + calls)));
+    if quantization.len() > 0 { assert((copied + calls).drop_first() =~= progression + (mct_calls + calls)); }
+    else { assert(copied + calls =~= progression + (mct_calls + calls)); }
+    if progression.len() > 0 { assert((progression + (mct_calls + calls)).drop_first() =~= mct_calls + calls); }
+    else { assert(progression + (mct_calls + calls) =~= mct_calls + calls); }
     part1_cold_layout_error(ctx.root, copied + calls, error);
 }
 
@@ -129,6 +161,7 @@ pub(crate) proof fn part1_cold_layout_sot_commit_error(
         part1_cold_layout_sot_commit_rejected(ctx, read_calls, commit_calls, error),
     ensures part1_cold_layout_result(ctx.root.initial, Err(error)),
 {
+    reveal(part1_cold_layout_after_progression_copy);
     reveal_with_fuel(part1_cold_layout_continuation, 1);
     reveal(part1_cold_layout_tile_part);
     reveal(part1_cold_layout_inherited);
@@ -137,14 +170,17 @@ pub(crate) proof fn part1_cold_layout_sot_commit_error(
     reveal(part1_cold_commit_finish);
     let quantization = part1_cold_layout_sot_copy(ctx, true);
     let progression = part1_cold_layout_sot_progression_copy(ctx, true);
-    let copied = quantization + progression;
+    let mct_calls = part1_cold_layout_sot_mct_calls(ctx);
+    part1_mct_copy_normal(part1_cold_layout_mct_requests(ctx.root.main, ctx.root.state, ctx.tile.2 as usize),
+        read_calls + commit_calls);
+    let copied = quantization + progression + mct_calls;
     let calls = copied + read_calls + commit_calls;
     assert(calls =~= copied + (read_calls + commit_calls));
-    assert(calls =~= quantization + (progression + (read_calls + commit_calls)));
-    if quantization.len() > 0 { assert(calls.drop_first() =~= progression + (read_calls + commit_calls)); }
-    else { assert(calls =~= progression + (read_calls + commit_calls)); }
-    if progression.len() > 0 { assert((progression + (read_calls + commit_calls)).drop_first() =~= read_calls + commit_calls); }
-    else { assert(progression + (read_calls + commit_calls) =~= read_calls + commit_calls); }
+    assert(calls =~= quantization + (progression + (mct_calls + (read_calls + commit_calls))));
+    if quantization.len() > 0 { assert(calls.drop_first() =~= progression + (mct_calls + (read_calls + commit_calls))); }
+    else { assert(calls =~= progression + (mct_calls + (read_calls + commit_calls))); }
+    if progression.len() > 0 { assert((progression + (mct_calls + (read_calls + commit_calls))).drop_first() =~= mct_calls + (read_calls + commit_calls)); }
+    else { assert(progression + (mct_calls + (read_calls + commit_calls)) =~= mct_calls + (read_calls + commit_calls)); }
     if let Some(((Ok((payload, parameters, extensions)), reader), rest)) =
         part1_cold_tile_part_run(part1_cold_layout_sot_input(ctx), read_calls) {
         let result = (Ok((payload, parameters, extensions)), reader);
@@ -164,7 +200,7 @@ pub(crate) proof fn part1_cold_layout_sot_commit_error(
         assert(after =~= Seq::<Part1ColdStorageEvent>::empty());
         assert(part1_cold_commit_state(ctx.root.state, commit, commit_calls)
             == Some(((Err(error), (updated.1, ctx.root.state.1, ctx.root.state.2, ctx.root.state.3)), Seq::empty())));
-        assert(part1_cold_layout_after_progression_copy(ctx.reader, ctx.root.main, (ctx.root.parts + 1) as u32,
+        assert(part1_cold_layout_after_mct_copy(ctx.reader, ctx.root.main, (ctx.root.parts + 1) as u32,
             ctx.root.state, ctx.tile, ctx.lengths, ctx.headers, ctx.selected, read_calls + commit_calls)
                 == Some(((Err(error), result.1, (ctx.root.parts + 1) as u32,
                     (updated.1, ctx.root.state.1, ctx.root.state.2, ctx.root.state.3)), Seq::empty())));

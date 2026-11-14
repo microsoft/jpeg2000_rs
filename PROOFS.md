@@ -103,7 +103,7 @@ Results, ordinary projections and arbitrary-tail frames. Checked non-owning
 error continuations isolate this cold environment from the original live
 normal tile induction without increasing proof resources.
 
-This still does **not** complete #287. MCT/Part 2 deep owner copies,
+This still does **not** complete #287. Other MCT/Part 2 deep owner copies,
 payload/container/image growth and remaining nested construction stay
 outside these increments, as do global allocation availability and #289
 deadline APIs. Cumulative budgeting #288 is withdrawn, not remaining work.
@@ -126,6 +126,31 @@ flags, reader/counter state, earlier errors and exact tails. Checked private
 continuations preserve normal projections without unfolding the cold
 environment throughout the existing hot folds. Persistent refusal retains
 precisely the earlier stores; earlier ROI/slot errors still win.
+
+### Nested MCT parameter owner copies
+
+The reached cold `MctParameters` inheritance copy is also fallible. Its
+explicit arrays/values, records/collections, input/output component lists and
+order copies use reservations and shallow `Copy` helpers, never generic deep
+`Clone`. Existing public Clone APIs retain their original behavior. Main
+parameter construction and persistent MCT commit are moves, not allocations;
+no fictitious commit-copy event is introduced.
+
+[`cold_mct_copy.rs`](specs/cold_mct_copy.rs) derives request descriptors from
+the actual source owner and physical array/record/collection indices. Sites
+16–22 identify arrays, array values, records, collections, inputs, outputs and
+order. Execution follows actual field/nested iteration order, not numeric
+sorting; zero-sized fields consume no response. Checked native prefix joins
+link every actual primitive result, copied field and first failure to the
+complete cold parser and existing public Result/frame models. Persistent
+owners before a refused inheritance copy remain unchanged; all existing
+partial configuration stores and later move/destination error order remain.
+
+MCT marker construction and separate resolved-transform owner copies,
+Part 2 extension deep copies, payload/container/image growth and #289
+deadlines remain outside this bounded increment. #288 budgeting is withdrawn.
+These sequence/response proofs do not establish physical capacity or host
+allocation availability.
 
 ### Ordered automatic main-header primitive calls
 

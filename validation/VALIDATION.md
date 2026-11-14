@@ -980,6 +980,13 @@ Bounded managed controls cover refusal/restore, empty copies, duplicate/shape
 precedence and RHS-before-destination partial commits. Deep MCT/Part 2 copies,
 payload/container/image growth and #289 deadlines are outside this increment;
 #288 cumulative budgeting is withdrawn, not remaining work.
+Nested MCT copy descriptors additionally bind actual source-owner array,
+record and collection positions, exact field order and sites 16–22. Empty
+fields consume no request. The executing fallible inheritance edge is linked
+without pretending that persistent MCT moves allocate. Existing Clone APIs
+and their normal contracts stay intact. Mutations reject old-site aliases,
+lost indices, changed zero/no-event behavior, swapped field sizes and lost
+failure tails.
 Same-file links are checked inside another listed, formatted function body;
 the contract's own declaration, an unrelated function or an indirect caller
 does not qualify as a direct same-file call. Unsupported formatting can fail

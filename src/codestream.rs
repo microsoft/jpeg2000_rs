@@ -488,6 +488,18 @@ struct MctParameters {
     order: Vec<u8>,
 }
 
+#[derive(Clone, Copy)]
+#[cfg_attr(not(verus_keep_ghost), derive(Debug, Eq, PartialEq))]
+pub(crate) enum MctCopyPath {
+    Arrays,
+    ArrayValues(usize),
+    Records,
+    Collections(usize),
+    Inputs(usize, usize),
+    Outputs(usize, usize),
+    Order,
+}
+
 #[cfg_attr(not(verus_keep_ghost), derive(Debug, Eq, PartialEq))]
 struct MctRecord {
     index: u8,
@@ -618,6 +630,7 @@ mod layout;
 pub use layout::{parse, parse_layout};
 #[cfg_attr(verus_keep_ghost, verifier::verify)]
 mod mct;
+mod mct_copy;
 #[cfg_attr(verus_keep_ghost, verifier::verify)]
 mod mct_markers;
 #[cfg(test)]

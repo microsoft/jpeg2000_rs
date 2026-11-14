@@ -6963,12 +6963,7 @@ class FrameworkTests(WorkingFiles):
         data = dict(coverage, requirements=[entry])
         source = framework.ROOT / "src/codestream/layout.rs"
         original = source.read_text()
-        pattern = (
-            r"\blet\s+inherited_mct_parameters\s*=\s*"
-            + framework._coverage_call("inherited_tile_owner", "tile_index",
-                                       r"&\s*main_mct_parameters", r"&\s*tile_mct_parameters\s*,?")
-            + r"\s*\.\s*" + framework._coverage_call("clone") + r"\s*;"
-        )
+        pattern = framework._MCT_FALLIBLE_INHERITANCE
         match = re.search(pattern, original)
         self.assertIsNotNone(match)
         legacy = (
@@ -8049,6 +8044,22 @@ class FrameworkTests(WorkingFiles):
              "part1_quantization_storage_request(15,", "part1_quantization_storage_request(11,"),
             ("specs/persistent_tile_configuration.rs", "part1_commit_progression_cold_run",
              "Some(((Err(error), prefix.1), rest))", "Some(((Err(error), state), rest))"),
+            ("specs/cold_mct_copy.rs", "part1_mct_copy_site",
+             "MctCopyPath::Inputs(_, _) => 20", "MctCopyPath::Inputs(_, _) => 14"),
+            ("specs/cold_mct_copy.rs", "part1_mct_copy_leaf",
+             "count == 0 { Seq::empty() }", "count == 1 { Seq::empty() }"),
+            ("specs/cold_mct_copy.rs", "part1_mct_copy_run",
+             "Some((Err(error), rest)) => Some((Err(error), rest))",
+             "Some((Err(error), rest)) => Some((Err(error), events))"),
+            ("specs/cold_mct_copy.rs", "part1_mct_owner_copy_requests",
+             "part1_mct_copy_leaf(MctCopyPath::Records,", "part1_mct_copy_leaf(MctCopyPath::Order,"),
+            ("specs/cold_mct_copy.rs", "part1_mct_collections_copy_requests",
+             "collections[position as int], record, position as usize", "collections[0], record, 0usize"),
+            ("specs/cold_mct_copy.rs", "part1_mct_collection_copy_requests",
+             "collection.inputs.len()", "collection.outputs.len()"),
+            ("specs/cold_layout.rs", "part1_cold_layout_after_progression_copy",
+             "part1_cold_layout_mct_requests(main, state, tile.2 as usize)",
+             "part1_cold_layout_mct_requests(main, state, 0usize)"),
         ):
             source = framework.ROOT / relative
             original = source.read_text()
@@ -8192,6 +8203,9 @@ class FrameworkTests(WorkingFiles):
                     isolated["spec_refs"] = [item for item in entry["spec_refs"] if item["symbol"] == model]
             if isolate:
                 cold_models, cold_proofs = framework._coverage_cold_links({key})
+                if isolated["id"] == "part1-complete-native-owned-tile-inheritance":
+                    cold_models |= framework._MCT_COPY_MODELS
+                    cold_proofs |= framework._MCT_COPY_PROOFS
                 isolated["spec_refs"].extend(
                     {"path": path, "symbol": symbol} for path, symbol in sorted(cold_models)
                     if {"path": path, "symbol": symbol} not in isolated["spec_refs"]

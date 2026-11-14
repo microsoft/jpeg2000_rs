@@ -1555,6 +1555,18 @@ _MCT_PARAMETER_CLONE_CONTRACTS = {
     ),
 }
 
+_MCT_FALLIBLE_INHERITANCE = (
+    r"let\s+mct_source\s*=\s*"
+    + _coverage_call("inherited_tile_owner", "tile_index", r"&\s*main_mct_parameters",
+                     r"&\s*tile_mct_parameters\s*,?")
+    + r"\s*;\s*let\s+inherited_mct_parameters\s*=\s*match\s+"
+    + _coverage_call("mct_source.try_duplicate")
+    + r"\s*\{\s*Ok\s*\(\s*values\s*\)\s*=>\s*values\s*,\s*Err\s*\(\s*error\s*\)\s*=>\s*\{"
+    + r"\s*#\[\s*cfg\s*\(\s*verus_keep_ghost\s*\)\s*\]\s*proof!\s*\{\s*"
+    + _coverage_call("crate::specs::part1_cold_layout_sot_mct_error", "cold_sot", "error")
+    + r"\s*;\s*\}\s*return\s+Err\s*\(\s*error\s*\)\s*;\s*\}\s*\}\s*;"
+)
+
 _MCT_PARAMETER_CLONE_CONSUMERS = (
     ("src/codestream/layout.rs", "Parser::parse_layout",
      r"(?:let\s+inherited_mct_parameters\s*=\s*match\s+"
@@ -1565,7 +1577,7 @@ _MCT_PARAMETER_CLONE_CONSUMERS = (
      + r"|let\s+inherited_mct_parameters\s*=\s*"
      + _coverage_call("inherited_tile_owner", "tile_index",
                       r"&\s*main_mct_parameters", r"&\s*tile_mct_parameters\s*,?")
-     + r"\s*\.\s*" + _coverage_call("clone") + r"\s*;)"),
+     + r"\s*\.\s*" + _coverage_call("clone") + r"\s*;|" + _MCT_FALLIBLE_INHERITANCE + ")"),
     ("src/codestream/mct.rs", "MctParameters::clone",
      _coverage_call("Clone::clone", r"&\s*self\.records")),
     ("src/codestream/mct.rs", "MctRecord::clone",
@@ -5074,6 +5086,40 @@ _COLD_SOURCE_BODIES = {
 }
 
 _QUANTIZATION_COLD_GUARDS = {
+    ("specs/cold_mct_copy.rs", "part1_mct_copy_leaf"): (
+        "count == 0 { Seq::empty() }", "seq![Part1MctCopyRequest { path, elements: count }]",
+    ),
+    ("specs/cold_mct_copy.rs", "part1_mct_copy_site"): (
+        "MctCopyPath::Arrays => 16", "MctCopyPath::ArrayValues(_) => 17",
+        "MctCopyPath::Records => 18", "MctCopyPath::Collections(_) => 19",
+        "MctCopyPath::Inputs(_, _) => 20", "MctCopyPath::Outputs(_, _) => 21", "MctCopyPath::Order => 22",
+    ),
+    ("specs/cold_mct_copy.rs", "part1_mct_copy_run"): (
+        "requests.len() == 0 { Some((Ok(()), events))",
+        "part1_quantization_storage_request(part1_mct_copy_site(requests[0].path), requests[0].elements, events)",
+        "Some((Err(error), rest)) => Some((Err(error), rest))",
+        "Some((Ok(()), rest)) => part1_mct_copy_run(requests.drop_first(), rest)",
+    ),
+    ("specs/cold_mct_copy.rs", "part1_mct_owner_copy_requests"): (
+        "part1_mct_copy_leaf(MctCopyPath::Arrays, owner.0.len() as usize)",
+        "part1_mct_arrays_copy_requests(owner.0, 0)",
+        "part1_mct_copy_leaf(MctCopyPath::Records, owner.1.len() as usize)",
+        "part1_mct_records_copy_requests(owner.1, 0)",
+        "part1_mct_copy_leaf(MctCopyPath::Order, owner.2.len() as usize)",
+    ),
+    ("specs/cold_mct_copy.rs", "part1_mct_collections_copy_requests"): (
+        "part1_mct_collection_copy_requests(collections[position as int], record, position as usize)",
+        "part1_mct_collections_copy_requests(collections, record, position + 1)",
+    ),
+    ("specs/cold_mct_copy.rs", "part1_mct_collection_copy_requests"): (
+        "part1_mct_copy_leaf(MctCopyPath::Inputs(record, position), collection.inputs.len() as usize)",
+        "part1_mct_copy_leaf(MctCopyPath::Outputs(record, position), collection.outputs.len() as usize)",
+    ),
+    ("specs/cold_layout.rs", "part1_cold_layout_after_progression_copy"): (
+        "part1_mct_copy_run(part1_cold_layout_mct_requests(main, state, tile.2 as usize), events)",
+        "Some((Err(error), rest)) => Some(((Err(error), reader, tile_parts, state), rest))",
+        "Some((Ok(()), rest)) => part1_cold_layout_after_mct_copy",
+    ),
     ("specs/cold_progression.rs", "part1_poc_cold_run"): (
         "!part1_poc_storage_shape(segment, components)",
         "Some((part1_parse_poc(segment, components), events))",
@@ -5169,6 +5215,21 @@ _QUANTIZATION_ROOT_PROOFS |= {
         "part1_read_tile_progression_normal", "part1_read_tile_progression_frame", "part1_read_tile_progression_projection",
     )
 } | {("specs/cold_layout_continuations.rs", "part1_cold_layout_sot_progression_error")}
+
+_MCT_COPY_MODELS = {("specs/cold_mct_copy.rs", name) for name in (
+    "Part1MctCopyRequest", "part1_mct_copy_site", "part1_mct_copy_leaf", "part1_mct_copy_run", "part1_mct_copy_result",
+    "part1_mct_array_copy_requests", "part1_mct_arrays_copy_requests", "part1_mct_collection_copy_requests",
+    "part1_mct_collections_copy_requests", "part1_mct_record_copy_requests", "part1_mct_records_copy_requests",
+    "part1_mct_owner_copy_requests",
+)} | {("specs/cold_layout.rs", name) for name in (
+    "part1_cold_layout_mct_requests", "part1_cold_layout_after_progression_copy", "part1_cold_layout_after_mct_copy",
+)}
+_MCT_COPY_PROOFS = {("specs/cold_mct_copy.rs", name) for name in (
+    "part1_mct_copy_observed", "part1_mct_copy_normal", "part1_mct_copy_projection", "part1_mct_copy_bind",
+    "part1_mct_copy_frame", "part1_mct_copy_continue",
+)} | {("specs/cold_layout.rs", name) for name in (
+    "part1_cold_layout_after_mct_normal", "part1_cold_layout_mct_normal_bind", "part1_cold_layout_after_progression_frame",
+)} | {("specs/cold_layout_continuations.rs", "part1_cold_layout_sot_mct_error")}
 
 
 for _contracts, _models, _proofs in (
@@ -9899,6 +9960,15 @@ def validate_normative_coverage(
                 if projection is None or re.sub(r"\s+", "", projection) != re.sub(r"\s+", "", expected):
                     raise ValueError(f"persistent fold requires complete physical projection: {name}")
         if entry["id"] == "part1-complete-native-owned-tile-inheritance":
+            if (not _MCT_COPY_MODELS.issubset({(r["path"], r["symbol"]) for r in entry["spec_refs"]})
+                    or not _MCT_COPY_PROOFS.issubset({(r["path"], r["symbol"]) for r in entry["proof_refs"]})):
+                raise ValueError("owned inheritance requires complete fallible MCT request/frame links")
+            copy_path = (ROOT / "src/codestream/mct_copy.rs").resolve()
+            copy_source = source_text(copy_path)
+            if (re.search(r"\bfn\s+copy_flat\s*<\s*T\s*:\s*Copy\s*>", copy_source) is None
+                    or "crate::allocation::copy_values(source)" not in copy_source
+                    or re.search(r"\.\s*clone\s*\(|Clone\s*::\s*clone", copy_source)):
+                raise ValueError("owned inheritance requires explicit fallible nested MCT copies, not generic Clone")
             layout = {"path": "src/codestream/layout.rs", "symbol": "Parser::parse_layout"}
             if layout not in entry["implementation_refs"]:
                 raise ValueError("owned inheritance not used by claimed implementation: actual layout required")
@@ -9915,9 +9985,13 @@ def validate_normative_coverage(
                                      r"&\s*" + main, r"&\s*" + states + r"\s*,?")
                     + r"\s*\.\s*" + _coverage_call("clone") + r"\s*;"
                 )
-                if local in ("inherited_component_quantizations", "inherited_progression_changes"):
-                    source = ("quantization_source" if local == "inherited_component_quantizations"
-                              else "progression_source")
+                fallible = {
+                    "inherited_component_quantizations": ("quantization_source", "inherited_progression_changes", "part1_cold_layout_sot_copy_error"),
+                    "inherited_progression_changes": ("progression_source", "inherited_mct_parameters", "part1_cold_layout_sot_progression_error"),
+                    "inherited_mct_parameters": ("mct_source", "inherited_part2_extensions", "part1_cold_layout_sot_mct_error"),
+                }
+                if local in fallible:
+                    source = fallible[local][0]
                     pattern = (
                         r"\blet\s+" + source + r"\s*=\s*"
                         + _coverage_call("inherited_tile_owner", "tile_index", r"&\s*" + main,
@@ -9929,12 +10003,8 @@ def validate_normative_coverage(
                 if match is None or match.start() < previous_end:
                     raise ValueError(f"owned inheritance clone/source/order mismatch: {local}")
                 previous_end = match.end()
-                if local in ("inherited_component_quantizations", "inherited_progression_changes"):
-                    next_local, refusal = (
-                        ("inherited_progression_changes", "part1_cold_layout_sot_copy_error")
-                        if local == "inherited_component_quantizations" else
-                        ("inherited_mct_parameters", "part1_cold_layout_sot_progression_error")
-                    )
+                if local in fallible:
+                    _, next_local, refusal = fallible[local]
                     following = re.search(r"\blet\s+" + next_local + r"\b", body[match.end():])
                     phase = body[match.end():match.end() + following.start()] if following else ""
                     if any("".join(item.split()) not in "".join(phase.split()) for item in (

@@ -8124,6 +8124,49 @@ fn retains_bounded_profile_numbers_and_rejects_zero_most_significant_words() {
 }
 
 #[test]
+fn mct_owner_storage_raw_inheritance_restores_after_prior_persistent_commit() {
+    let array = mct_i16(1, 1, &[1]);
+    let mut bytes = two_part_codestream(&[], &[]);
+    let at = bytes
+        .windows(2)
+        .position(|word| word == SOT.to_be_bytes())
+        .unwrap();
+    bytes.splice(at..at, array.iter().copied().chain(mco(&[])));
+    let limits = ResourceLimits::default();
+    let expected = parse_layout(&bytes, &limits).unwrap();
+    for after in [10, 15] {
+        assert!(matches!(
+            crate::allocation::with_refusal(after, || parse_layout(&bytes, &limits)),
+            Err(DecodeError::AllocationFailed)
+        ));
+        let restored = parse_layout(&bytes, &limits).unwrap();
+        assert_eq!(restored.info.consumed_bytes, expected.info.consumed_bytes);
+        assert_eq!(restored.info.tile_parts, 2);
+        for (actual, original) in restored.tile_parts.iter().zip(&expected.tile_parts) {
+            assert!(core::ptr::eq(actual.data.as_ptr(), original.data.as_ptr()));
+            assert_eq!(
+                actual.multiple_component_transform,
+                original.multiple_component_transform
+            );
+        }
+    }
+    let mut malformed = two_part_codestream(&[], &[]);
+    let at = malformed
+        .windows(2)
+        .position(|word| word == SOT.to_be_bytes())
+        .unwrap();
+    malformed.splice(at..at, array);
+    let ordinary = parse_layout(&malformed, &limits).unwrap_err();
+    crate::allocation::with_refusal(1, || {
+        assert_eq!(parse_layout(&malformed, &limits).unwrap_err(), ordinary);
+        assert_eq!(
+            crate::allocation::copy_values(&[1_u8]),
+            Err(DecodeError::AllocationFailed)
+        );
+    });
+}
+
+#[test]
 fn parses_and_retains_bounded_part2_matrix_and_offset_transform() {
     let cod = segment(COD, &[0, 0, 0, 1, 0, 0, 2, 2, 0, 1]);
     let qcd = segment(QCD, &[0, 0]);

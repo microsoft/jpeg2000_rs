@@ -24,6 +24,7 @@ specs/codestream_profile.rs
 specs/cold_header_progression.rs
 specs/cold_layout.rs
 specs/cold_layout_continuations.rs
+specs/cold_mct_copy.rs
 specs/cold_progression.rs
 specs/cold_quantization.rs
 specs/cold_tile_part.rs
@@ -102,6 +103,7 @@ src/codestream/image_header.rs
 src/codestream/layout.rs
 src/codestream/main_header_result_tests.rs
 src/codestream/mct.rs
+src/codestream/mct_copy.rs
 src/codestream/mct_markers.rs
 src/codestream/mct_parameter_clone_tests.rs
 src/codestream/mct_resolution.rs

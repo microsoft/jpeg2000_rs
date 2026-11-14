@@ -1185,12 +1185,19 @@ impl<'a> Parser<'a> {
                             return Err(error);
                         }
                     };
-                    let inherited_mct_parameters = inherited_tile_owner(
+                    let mct_source = inherited_tile_owner(
                         tile_index,
                         &main_mct_parameters,
                         &tile_mct_parameters,
-                    )
-                    .clone();
+                    );
+                    let inherited_mct_parameters = match mct_source.try_duplicate() {
+                        Ok(values) => values,
+                        Err(error) => {
+                            #[cfg(verus_keep_ghost)]
+                            proof! { crate::specs::part1_cold_layout_sot_mct_error(cold_sot, error); }
+                            return Err(error);
+                        }
+                    };
                     let inherited_part2_extensions =
                         inherited_tile_owner(tile_index, &part2_extensions, &tile_part2_extensions)
                             .clone();

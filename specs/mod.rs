@@ -49,6 +49,8 @@ mod cold_layout_continuations;
 pub use cold_layout_continuations::*;
 mod cold_progression;
 pub use cold_progression::*;
+mod cold_mct_copy;
+pub use cold_mct_copy::*;
 mod cold_header_progression;
 pub use cold_header_progression::*;
 mod decoder_input;
