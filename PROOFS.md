@@ -146,7 +146,7 @@ complete cold parser and existing public Result/frame models. Persistent
 owners before a refused inheritance copy remain unchanged; all existing
 partial configuration stores and later move/destination error order remain.
 
-MCT marker construction and separate resolved-transform owner copies,
+MCT marker construction,
 payload/container/image growth and #289
 deadlines remain outside this bounded increment. #288 budgeting is withdrawn.
 These sequence/response proofs do not establish physical capacity or host
@@ -159,8 +159,9 @@ decomposition directions, arbitrary sublevels/splits, nonlinear parameter/
 point vectors, depths, kernels/steps/coefficients, registrations and lengths.
 Scalar optional fields, full coefficient bytes, metadata counters and physical
 tails remain exact and unvalidated by copying. Main construction and persistent
-commit remain moves. Public Clone APIs and the separate tile-payload extension
-Clone remain unchanged; payload construction/growth is not covered here.
+commit remain moves. Public Clone APIs remain unchanged. The separate
+tile-payload copy role is covered by the following increment; payload-vector
+growth is not covered here.
 
 [`cold_extensions_copy.rs`](specs/cold_extensions_copy.rs) extends the existing
 checked owner-request algebra with source/path/index descriptors at sites
@@ -170,6 +171,32 @@ Checked private normal/frame continuations compose the real copy through
 existing public cold Results without supplied successful owners or allocation
 availability assumptions. No proof-resource, limit, pin, lifetime or MSRV
 change is involved.
+
+### Resolved graph and payload owner copies
+
+Resolved MCT construction now reserves its stage/collection owners fallibly
+and copies referenced offset/matrix values and input/output component lists
+with checked shallow helpers. Source order is unchanged: offset lookup/copy,
+matrix lookup/copy, dimension/scale validation, then component copies.
+Empty order still bypasses all unused graph data. Main roles use sites 37–42;
+tile roles use 43–48, carrying actual order/record/collection/source-array paths.
+[`cold_resolved_copy.rs`](specs/cold_resolved_copy.rs) derives reached request
+prefixes from original inputs, including ordinary-error frontiers.
+
+The separate Part 2 payload copy reuses the same checked deep-copy body with
+actual payload paths at sites 49–62. Inheritance remains at 23–36; no observed
+response event is relabelled. Native payload copies remain at the original
+struct field, after earlier field moves and packet/header work. Nonzero-length
+reader-position commit still precedes this field, so refusal reports the exact
+committed reader/counter frame; zero-length scanning retains its original frame.
+[`cold_payload_owners.rs`](specs/cold_payload_owners.rs) binds both new graph
+phases and the final payload copy through complete public cold Results and
+ordinary/no-refusal projections without supplied outcomes.
+
+Standalone Clone APIs, actual persistent moves and marker construction remain
+unchanged. Payload-vector/container/image growth and #289 deadlines are outside
+this increment. #288 budgeting is withdrawn. Sequence models do not establish
+physical capacity, allocation availability or general OOM recovery.
 
 ### Ordered automatic main-header primitive calls
 

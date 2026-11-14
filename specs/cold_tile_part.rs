@@ -77,8 +77,8 @@ pub(crate) open spec fn part1_cold_tile_part_after_header<'a>(
             match part1_cold_tile_components(input, raw, events) {
                 None => None,
                 Some((Err(error), rest)) => Some(((Err(error), header.1), rest)),
-                Some((Ok(configuration), rest)) => Some((part1_tile_part_after_configuration(
-                    header.1, raw, input.tile, configuration, input.lengths, input.headers), rest)),
+                Some((Ok(configuration), rest)) => part1_tile_after_configuration_run(
+                    header.1, raw, input.tile, configuration, input.lengths, input.headers, rest),
             }
         },
     }
@@ -97,6 +97,23 @@ pub(crate) open spec fn part1_cold_tile_part_normal_calls(input: Part1ColdTileIn
     part1_read_tile_progression_calls(input.reader, input.defaults.0, input.roi, input.progression,
         input.mct, input.extensions, input.components, input.tile.3, input.lengths, input.headers)
         + part1_cold_tile_configuration_calls(input)
+        + part1_cold_tile_after_configuration_calls(input)
+}
+
+pub(crate) open spec fn part1_cold_tile_after_configuration_calls(input: Part1ColdTileInput<'_>)
+    -> Seq<Part1ColdStorageEvent> {
+    let header = part1_cold_tile_header(input);
+    match header.0 {
+        Err(_) => Seq::empty(),
+        Ok(raw) => if raw.pending_mct.len() != 0 || raw.pending_mcc.len() != 0 { Seq::empty() } else {
+            match part1_finish_tile_components(input.components, raw.tile_coding_style, raw.tile_cod_seen,
+                raw.coc_segments, raw.qcd_segment, input.defaults.1, raw.qcc_segments, input.styles,
+                input.quantizations, raw.part2_extensions, header.1.limits) {
+                Err(_) => Seq::empty(),
+                Ok(configuration) => part1_tile_after_configuration_calls(header.1, raw, input.tile, configuration, input.lengths, input.headers),
+            }
+        },
+    }
 }
 
 pub(crate) open spec fn part1_cold_tile_configuration_calls(input: Part1ColdTileInput<'_>)
@@ -137,13 +154,23 @@ pub(crate) proof fn part1_cold_tile_part_normal(input: Part1ColdTileInput<'_>)
                 raw.part2_extensions, header.1.limits)
         },
     };
-    assert(events + Seq::<Part1ColdStorageEvent>::empty() =~= events);
-    assert(part1_cold_tile_header_run(input, first + events) == Some((header, events)));
-    assert(part1_cold_tile_part_run(input, first + events) == Some((part1_cold_tile_normal(input), Seq::empty())));
+    let extra = part1_cold_tile_after_configuration_calls(input);
+    if let Ok(raw) = header.0 {
+        if raw.pending_mct.len() == 0 && raw.pending_mcc.len() == 0 {
+            if let Ok(configuration) = part1_finish_tile_components(input.components, raw.tile_coding_style, raw.tile_cod_seen,
+                raw.coc_segments, raw.qcd_segment, input.defaults.1, raw.qcc_segments, input.styles,
+                input.quantizations, raw.part2_extensions, header.1.limits) {
+                part1_tile_after_configuration_normal(header.1, raw, input.tile, configuration, input.lengths, input.headers, Seq::empty());
+            }
+        }
+    }
+    assert((first + events) + extra =~= first + (events + extra));
+    assert(part1_cold_tile_header_run(input, first + (events + extra)) == Some((header, events + extra)));
+    assert(part1_cold_tile_part_run(input, (first + events) + extra) == Some((part1_cold_tile_normal(input), Seq::empty())));
     assert forall|tail: Seq<Part1ColdStorageEvent>|
         part1_cold_tile_part_run(input, part1_cold_tile_part_normal_calls(input) + tail)
             == Some((part1_cold_tile_normal(input), tail)) by {
-        part1_cold_tile_part_frame(input, first + events, tail, part1_cold_tile_normal(input), Seq::empty());
+        part1_cold_tile_part_frame(input, (first + events) + extra, tail, part1_cold_tile_normal(input), Seq::empty());
         assert(Seq::<Part1ColdStorageEvent>::empty() + tail =~= tail);
     }
 }
@@ -206,6 +233,10 @@ pub(crate) proof fn part1_cold_tile_part_frame<'a>(
                     raw.coc_segments, raw.qcd_segment, input.defaults.1, raw.qcc_segments,
                     input.styles, input.quantizations, raw.part2_extensions, header.1.limits,
                     after_header, tail, configuration, after);
+                    if let Ok(configuration) = configuration {
+                        part1_tile_after_configuration_frame(header.1, raw, input.tile, configuration,
+                            input.lengths, input.headers, after, result, rest, tail);
+                    }
                 }
             }
         }
@@ -232,6 +263,10 @@ pub(crate) proof fn part1_cold_tile_part_projection<'a>(
                 part1_tile_components_cold_projection(input.components, raw.tile_coding_style, raw.tile_cod_seen,
                     raw.coc_segments, raw.qcd_segment, input.defaults.1, raw.qcc_segments,
                     input.styles, input.quantizations,                     raw.part2_extensions, header.1.limits, after_header, configuration, after);
+                    if let Ok(configuration) = configuration {
+                        part1_tile_after_configuration_projection(header.1, raw, input.tile, configuration,
+                            input.lengths, input.headers, after, result, rest);
+                    }
                 }
             }
         }

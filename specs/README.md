@@ -32,6 +32,8 @@ model-to-standard review remains outstanding.
   [flat POC responses](cold_progression.rs), [ordered header frames](cold_header_progression.rs),
   [nested MCT source/path requests](cold_mct_copy.rs),
   [nested Part 2 owner requests](cold_extensions_copy.rs),
+  [main/tile resolved graph requests](cold_resolved_copy.rs) and
+  [payload-owner Result/reader binds](cold_payload_owners.rs),
   [tile reader frames](cold_tile_part.rs), [complete cold layout](cold_layout.rs)
   and [checked error continuations](cold_layout_continuations.rs).
   Trace entries contain primitive responses, not supplied layouts/images.

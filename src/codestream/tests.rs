@@ -8124,6 +8124,50 @@ fn retains_bounded_profile_numbers_and_rejects_zero_most_significant_words() {
 }
 
 #[test]
+fn payload_owner_storage_raw_main_tile_graph_and_extension_roles_restore() {
+    let matrix = codestream_with_headers(
+        2,
+        &[
+            segment(COD, &[0, 0, 0, 1, 0, 0, 2, 2, 0, 1]),
+            segment(QCD, &[0, 0]),
+            mct_i16(1, 1, &[1, 2, 4, 3, 5, -8]),
+            mct_i16(2, 2, &[5, 6]),
+            mcc(7, 2, true, 1, 2),
+            mco(&[7]),
+        ],
+        &[],
+        &[],
+    );
+    let mut extensions = two_part_codestream(&[], &[]);
+    let at = extensions
+        .windows(2)
+        .position(|word| word == SOT.to_be_bytes())
+        .unwrap();
+    extensions.splice(at..at, segment(DFS, &[0, 1, 1, 0x40]));
+    let limits = ResourceLimits::default();
+    for (bytes, afters) in [(&matrix, &[1, 27][..]), (&extensions, &[13, 19][..])] {
+        let expected = parse_layout(bytes, &limits).unwrap();
+        for &after in afters {
+            assert!(matches!(
+                crate::allocation::with_refusal(after, || parse_layout(bytes, &limits)),
+                Err(DecodeError::AllocationFailed)
+            ));
+            let restored = parse_layout(bytes, &limits).unwrap();
+            assert_eq!(
+                restored.info.multiple_component_transform,
+                expected.info.multiple_component_transform
+            );
+            assert_eq!(
+                restored.info.part2_extensions,
+                expected.info.part2_extensions
+            );
+            assert_eq!(restored.info.consumed_bytes, expected.info.consumed_bytes);
+            assert_eq!(restored.tile_parts, expected.tile_parts);
+        }
+    }
+}
+
+#[test]
 fn part2_owner_storage_nested_refusal_restore_empty_and_source_independence() {
     let original = raw_owned_tile_part_fixture(3).part2_extensions;
     let before = original.clone();
@@ -12682,7 +12726,16 @@ fn actual_mct_graph_collections_preserve_lookup_shape_flags_and_all_fields() {
                                         _ => arrays.clear(),
                                     }
                                     assert_eq!(
-                                        parser.resolve_mct_collection(&reference, &arrays),
+                                        parser.resolve_mct_collection(
+                                            &reference,
+                                            &arrays,
+                                            ResolvedCopyContext {
+                                                role: ResolvedCopyRole::Main,
+                                                stage: 0,
+                                                record: 0,
+                                                collection: 0
+                                            }
+                                        ),
                                         reference_mct_graph_collection(&reference, &arrays)
                                     );
                                     arrays_checked += 1;
@@ -12714,7 +12767,16 @@ fn actual_mct_graph_collections_preserve_lookup_shape_flags_and_all_fields() {
                             }),
                         };
                         assert_eq!(
-                            parser.resolve_mct_collection(&reference, &[]),
+                            parser.resolve_mct_collection(
+                                &reference,
+                                &[],
+                                ResolvedCopyContext {
+                                    role: ResolvedCopyRole::Main,
+                                    stage: 0,
+                                    record: 0,
+                                    collection: 0
+                                }
+                            ),
                             reference_mct_graph_collection(&reference, &[])
                         );
                         wavelets += 1;
@@ -12839,7 +12901,7 @@ fn actual_mct_graph_complete_parameters_preserve_order_first_records_and_empty_b
                 vec![bad, record.clone()],
             ] {
                 assert_eq!(
-                    parser.resolve_mct_stage(&record, &arrays),
+                    parser.resolve_mct_stage(&record, &arrays, ResolvedCopyRole::Main, 0, 0),
                     reference_mct_graph_stage(&record, &arrays)
                 );
                 for order in [
@@ -12858,7 +12920,10 @@ fn actual_mct_graph_complete_parameters_preserve_order_first_records_and_empty_b
                         order,
                     };
                     assert_eq!(
-                        parser.resolve_multiple_component_transform(&parameters),
+                        parser.resolve_multiple_component_transform(
+                            &parameters,
+                            ResolvedCopyRole::Main
+                        ),
                         reference_mct_graph(&parameters)
                     );
                     cases += 1;

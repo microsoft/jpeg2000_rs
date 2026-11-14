@@ -52,6 +52,29 @@ pub(super) fn copy_flat<T: Copy>(source: &[T], _path: MctCopyPath) -> Result<Vec
 impl MctArray {
     #[cfg_attr(verus_keep_ghost, verus_spec(result =>
         ensures crate::specs::part1_mct_copy_result(
+            crate::specs::part1_mct_copy_leaf(_path, mct_array_view(self).4.len() as usize), copy_outcome(result)),
+            match result { Ok(value) => mct_array_view(&value) == mct_array_view(self),
+                Err(error) => error == DecodeError::AllocationFailed },
+    ))]
+    pub(super) fn try_duplicate_for(&self, _path: MctCopyPath) -> Result<Self, DecodeError> {
+        #[cfg(verus_keep_ghost)]
+        proof! { reveal(mct_array_view); }
+        let index = self.index;
+        let kind = self.kind;
+        let numeric_format = self.numeric_format;
+        let fraction_bits = self.fraction_bits;
+        let values = copy_flat(&self.values, _path)?;
+        Ok(Self {
+            index,
+            kind,
+            numeric_format,
+            fraction_bits,
+            values,
+        })
+    }
+
+    #[cfg_attr(verus_keep_ghost, verus_spec(result =>
+        ensures crate::specs::part1_mct_copy_result(
             crate::specs::part1_mct_array_copy_requests(mct_array_view(self), _position), copy_outcome(result)),
             match result { Ok(value) => mct_array_view(&value) == mct_array_view(self),
                 Err(error) => error == DecodeError::AllocationFailed },

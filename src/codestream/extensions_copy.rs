@@ -16,6 +16,28 @@ use super::{
 #[cfg(verus_keep_ghost)]
 use vstd::prelude::*;
 
+#[cfg_attr(verus_keep_ghost, verus_spec(result =>
+    ensures result == if _payload { MctCopyPath::PayloadExtensions(path) } else { MctCopyPath::Extensions(path) },
+        forall|count: usize| #[trigger] crate::specs::part1_part2_role_requests(
+            _payload, crate::specs::part1_part2_copy_leaf(path, count)) == crate::specs::part1_mct_copy_leaf(result, count),
+))]
+fn part2_copy_path(_payload: bool, path: Part2CopyPath) -> MctCopyPath {
+    #[cfg(verus_keep_ghost)]
+    proof! {
+        assert forall|count: usize| #[trigger] crate::specs::part1_part2_role_requests(
+            _payload, crate::specs::part1_part2_copy_leaf(path, count))
+                == crate::specs::part1_mct_copy_leaf(
+                    if _payload { MctCopyPath::PayloadExtensions(path) } else { MctCopyPath::Extensions(path) }, count) by {
+            crate::specs::part1_part2_role_leaf(_payload, path, count);
+        }
+    }
+    if _payload {
+        MctCopyPath::PayloadExtensions(path)
+    } else {
+        MctCopyPath::Extensions(path)
+    }
+}
+
 #[cfg(verus_keep_ghost)]
 verus! {
     pub(super) open spec fn dfs_values(values: Seq<DecompositionStructure>) -> Seq<(u8, Seq<super::DecompositionDirection>)> {
@@ -35,17 +57,17 @@ verus! {
 impl DecompositionStructure {
     #[cfg_attr(verus_keep_ghost, verus_spec(result =>
         ensures crate::specs::part1_mct_copy_result(
-            crate::specs::part1_part2_dfs_requests(owned_decomposition_view(self), _position), copy_outcome(result)),
+            crate::specs::part1_part2_role_requests(_payload, crate::specs::part1_part2_dfs_requests(owned_decomposition_view(self), _position)), copy_outcome(result)),
             match result { Ok(value) => owned_decomposition_view(&value) == owned_decomposition_view(self),
                 Err(error) => error == DecodeError::AllocationFailed },
     ))]
-    fn try_duplicate_at(&self, _position: usize) -> Result<Self, DecodeError> {
+    fn try_duplicate_at(&self, _payload: bool, _position: usize) -> Result<Self, DecodeError> {
         #[cfg(verus_keep_ghost)]
         proof! { reveal(owned_decomposition_view); }
         let index = self.index;
         let directions = copy_flat(
             &self.directions,
-            MctCopyPath::Extensions(Part2CopyPath::Directions(_position)),
+            part2_copy_path(_payload, Part2CopyPath::Directions(_position)),
         )?;
         Ok(Self { index, directions })
     }
@@ -54,29 +76,32 @@ impl DecompositionStructure {
 impl ArbitraryDecomposition {
     #[cfg_attr(verus_keep_ghost, verus_spec(result =>
         ensures crate::specs::part1_mct_copy_result(
-            crate::specs::part1_part2_ads_requests(owned_arbitrary_decomposition_view(self), _position), copy_outcome(result)),
+            crate::specs::part1_part2_role_requests(_payload, crate::specs::part1_part2_ads_requests(owned_arbitrary_decomposition_view(self), _position)), copy_outcome(result)),
             match result { Ok(value) => owned_arbitrary_decomposition_view(&value) == owned_arbitrary_decomposition_view(self),
                 Err(error) => error == DecodeError::AllocationFailed },
     ))]
-    fn try_duplicate_at(&self, _position: usize) -> Result<Self, DecodeError> {
+    fn try_duplicate_at(&self, _payload: bool, _position: usize) -> Result<Self, DecodeError> {
         #[cfg(verus_keep_ghost)]
         proof_decl! {
-            let ghost first = crate::specs::part1_part2_copy_leaf(Part2CopyPath::Sublevels(_position), self.sublevel_depths.len());
-            let ghost last = crate::specs::part1_part2_copy_leaf(Part2CopyPath::Splits(_position), self.subband_splits.len());
+            let ghost first = crate::specs::part1_part2_role_requests(_payload, crate::specs::part1_part2_copy_leaf(Part2CopyPath::Sublevels(_position), self.sublevel_depths.len()));
+            let ghost last = crate::specs::part1_part2_role_requests(_payload, crate::specs::part1_part2_copy_leaf(Part2CopyPath::Splits(_position), self.subband_splits.len()));
         }
         #[cfg(verus_keep_ghost)]
-        proof! { reveal(owned_arbitrary_decomposition_view); crate::specs::part1_mct_copy_observed(MctCopyPath::Order, 0, Ok(())); }
+        proof! {
+            reveal(owned_arbitrary_decomposition_view); crate::specs::part1_mct_copy_observed(MctCopyPath::Order, 0, Ok(()));
+            crate::specs::part1_part2_role_laws(_payload);
+        }
         let index = self.index;
         let copied = copy_flat(
             &self.sublevel_depths,
-            MctCopyPath::Extensions(Part2CopyPath::Sublevels(_position)),
+            part2_copy_path(_payload, Part2CopyPath::Sublevels(_position)),
         );
         #[cfg(verus_keep_ghost)]
         proof! { crate::specs::part1_mct_copy_continue(Seq::empty(), first, last, copy_outcome(copied)); }
         let sublevel_depths = copied?;
         let copied = copy_flat(
             &self.subband_splits,
-            MctCopyPath::Extensions(Part2CopyPath::Splits(_position)),
+            part2_copy_path(_payload, Part2CopyPath::Splits(_position)),
         );
         #[cfg(verus_keep_ghost)]
         proof! {
@@ -95,25 +120,28 @@ impl ArbitraryDecomposition {
 impl NonlinearPointTransform {
     #[cfg_attr(verus_keep_ghost, verus_spec(result =>
         ensures crate::specs::part1_mct_copy_result(
-            crate::specs::part1_part2_nlt_requests(owned_nonlinear_view(self), _position), copy_outcome(result)),
+            crate::specs::part1_part2_role_requests(_payload, crate::specs::part1_part2_nlt_requests(owned_nonlinear_view(self), _position)), copy_outcome(result)),
             match result { Ok(value) => owned_nonlinear_view(&value) == owned_nonlinear_view(self),
                 Err(error) => error == DecodeError::AllocationFailed },
     ))]
-    fn try_duplicate_at(&self, _position: usize) -> Result<Self, DecodeError> {
+    fn try_duplicate_at(&self, _payload: bool, _position: usize) -> Result<Self, DecodeError> {
         #[cfg(verus_keep_ghost)]
         proof_decl! {
-            let ghost first = crate::specs::part1_part2_copy_leaf(Part2CopyPath::Parameters(_position), self.parameters.len());
-            let ghost last = crate::specs::part1_part2_copy_leaf(Part2CopyPath::Points(_position), self.points.len());
+            let ghost first = crate::specs::part1_part2_role_requests(_payload, crate::specs::part1_part2_copy_leaf(Part2CopyPath::Parameters(_position), self.parameters.len()));
+            let ghost last = crate::specs::part1_part2_role_requests(_payload, crate::specs::part1_part2_copy_leaf(Part2CopyPath::Points(_position), self.points.len()));
         }
         #[cfg(verus_keep_ghost)]
-        proof! { reveal(owned_nonlinear_view); crate::specs::part1_mct_copy_observed(MctCopyPath::Order, 0, Ok(())); }
+        proof! {
+            reveal(owned_nonlinear_view); crate::specs::part1_mct_copy_observed(MctCopyPath::Order, 0, Ok(()));
+            crate::specs::part1_part2_role_laws(_payload);
+        }
         let component = self.component;
         let precision = self.precision;
         let signed = self.signed;
         let transform_type = self.transform_type;
         let copied = copy_flat(
             &self.parameters,
-            MctCopyPath::Extensions(Part2CopyPath::Parameters(_position)),
+            part2_copy_path(_payload, Part2CopyPath::Parameters(_position)),
         );
         #[cfg(verus_keep_ghost)]
         proof! { crate::specs::part1_mct_copy_continue(Seq::empty(), first, last, copy_outcome(copied)); }
@@ -123,7 +151,7 @@ impl NonlinearPointTransform {
         let point_bits = self.point_bits;
         let copied = copy_flat(
             &self.points,
-            MctCopyPath::Extensions(Part2CopyPath::Points(_position)),
+            part2_copy_path(_payload, Part2CopyPath::Points(_position)),
         );
         #[cfg(verus_keep_ghost)]
         proof! {
@@ -149,11 +177,16 @@ impl NonlinearPointTransform {
 impl KernelLiftingStep {
     #[cfg_attr(verus_keep_ghost, verus_spec(result =>
         ensures crate::specs::part1_mct_copy_result(
-            crate::specs::part1_part2_step_requests(raw_kernel_step_view(*self), _kernel, _position), copy_outcome(result)),
+            crate::specs::part1_part2_role_requests(_payload, crate::specs::part1_part2_step_requests(raw_kernel_step_view(*self), _kernel, _position)), copy_outcome(result)),
             match result { Ok(value) => raw_kernel_step_view(value) == raw_kernel_step_view(*self),
                 Err(error) => error == DecodeError::AllocationFailed },
     ))]
-    fn try_duplicate_at(&self, _kernel: usize, _position: usize) -> Result<Self, DecodeError> {
+    fn try_duplicate_at(
+        &self,
+        _payload: bool,
+        _kernel: usize,
+        _position: usize,
+    ) -> Result<Self, DecodeError> {
         #[cfg(verus_keep_ghost)]
         proof! { reveal(raw_kernel_step_view); reveal(super::raw_kernel_coefficients_view); }
         let offset = self.offset;
@@ -161,7 +194,7 @@ impl KernelLiftingStep {
         let residue = self.residue;
         let coefficients = copy_flat(
             &self.coefficients,
-            MctCopyPath::Extensions(Part2CopyPath::Coefficients(_kernel, _position)),
+            part2_copy_path(_payload, Part2CopyPath::Coefficients(_kernel, _position)),
         )?;
         Ok(Self {
             offset,
@@ -175,50 +208,55 @@ impl KernelLiftingStep {
 #[cfg_attr(verus_keep_ghost, verifier::spinoff_prover)]
 #[cfg_attr(verus_keep_ghost, verus_spec(result =>
     ensures crate::specs::part1_mct_copy_result(
-        crate::specs::part1_part2_copy_leaf(Part2CopyPath::Steps(_kernel), source.len())
-            + crate::specs::part1_part2_steps_tail(raw_kernel_steps_view(source@), _kernel, 0), copy_outcome(result)),
+        crate::specs::part1_part2_role_requests(_payload, crate::specs::part1_part2_copy_leaf(Part2CopyPath::Steps(_kernel), source.len()))
+            + crate::specs::part1_part2_role_requests(_payload, crate::specs::part1_part2_steps_tail(raw_kernel_steps_view(source@), _kernel, 0)), copy_outcome(result)),
         match result { Ok(values) => raw_kernel_steps_view(values@) == raw_kernel_steps_view(source@),
             Err(error) => error == DecodeError::AllocationFailed },
 ))]
 fn copy_steps(
+    _payload: bool,
     source: &[KernelLiftingStep],
     _kernel: usize,
 ) -> Result<Vec<KernelLiftingStep>, DecodeError> {
     #[cfg(verus_keep_ghost)]
     proof_decl! {
         let ghost view = raw_kernel_steps_view(source@);
-        let ghost mut done = crate::specs::part1_part2_copy_leaf(Part2CopyPath::Steps(_kernel), source.len());
-        let ghost all = done + crate::specs::part1_part2_steps_tail(view, _kernel, 0);
+        let ghost mut done = crate::specs::part1_part2_role_requests(_payload, crate::specs::part1_part2_copy_leaf(Part2CopyPath::Steps(_kernel), source.len()));
+        let ghost all = done + crate::specs::part1_part2_role_requests(_payload, crate::specs::part1_part2_steps_tail(view, _kernel, 0));
     }
     let copied = reserve_values(
         source.len(),
-        MctCopyPath::Extensions(Part2CopyPath::Steps(_kernel)),
+        part2_copy_path(_payload, Part2CopyPath::Steps(_kernel)),
     );
     #[cfg(verus_keep_ghost)]
     proof! {
+        crate::specs::part1_part2_role_laws(_payload);
         crate::specs::part1_mct_copy_observed(MctCopyPath::Order, 0, Ok(()));
         crate::specs::part1_mct_copy_continue(Seq::empty(), done,
-            crate::specs::part1_part2_steps_tail(view, _kernel, 0), copy_outcome(copied));
+            crate::specs::part1_part2_role_requests(_payload, crate::specs::part1_part2_steps_tail(view, _kernel, 0)), copy_outcome(copied));
     }
     let mut values: Vec<KernelLiftingStep> = copied?;
     let mut position = 0_usize;
     #[cfg_attr(verus_keep_ghost, verus_spec(
         invariant position <= source.len(), view == raw_kernel_steps_view(source@),
             raw_kernel_steps_view(values@) == view.take(position as int),
-            all == crate::specs::part1_part2_copy_leaf(Part2CopyPath::Steps(_kernel), source.len())
-                + crate::specs::part1_part2_steps_tail(view, _kernel, 0),
-            all == done + crate::specs::part1_part2_steps_tail(view, _kernel, position as nat),
+            all == crate::specs::part1_part2_role_requests(_payload, crate::specs::part1_part2_copy_leaf(Part2CopyPath::Steps(_kernel), source.len()))
+                + crate::specs::part1_part2_role_requests(_payload, crate::specs::part1_part2_steps_tail(view, _kernel, 0)),
+            all == done + crate::specs::part1_part2_role_requests(_payload, crate::specs::part1_part2_steps_tail(view, _kernel, position as nat)),
             crate::specs::part1_mct_copy_result(done, Ok(())),
         decreases source.len() - position,
     ))]
     while position < source.len() {
         #[cfg(verus_keep_ghost)]
-        proof! { reveal_with_fuel(crate::specs::part1_part2_steps_tail, 1); reveal(raw_kernel_steps_view); }
-        let copied = source[position].try_duplicate_at(_kernel, position);
+        proof! {
+            reveal_with_fuel(crate::specs::part1_part2_steps_tail, 1); reveal(raw_kernel_steps_view);
+            crate::specs::part1_part2_role_laws(_payload);
+        }
+        let copied = source[position].try_duplicate_at(_payload, _kernel, position);
         #[cfg(verus_keep_ghost)]
         proof! {
-            let step = crate::specs::part1_part2_step_requests(view[position as int], _kernel, position);
-            let suffix = crate::specs::part1_part2_steps_tail(view, _kernel, position as nat + 1);
+            let step = crate::specs::part1_part2_role_requests(_payload, crate::specs::part1_part2_step_requests(view[position as int], _kernel, position));
+            let suffix = crate::specs::part1_part2_role_requests(_payload, crate::specs::part1_part2_steps_tail(view, _kernel, position as nat + 1));
             crate::specs::part1_mct_copy_continue(done, step, suffix, copy_outcome(copied));
             assert(all =~= (done + step) + suffix);
         }
@@ -231,7 +269,7 @@ fn copy_steps(
             reveal(raw_kernel_steps_view);
             assert(raw_kernel_steps_view(values@) =~= raw_kernel_steps_view(previous).push(copied_view));
             assert(view.take(position as int + 1) =~= view.take(position as int).push(view[position as int]));
-            done = done + crate::specs::part1_part2_step_requests(view[position as int], _kernel, position);
+            done = done + crate::specs::part1_part2_role_requests(_payload, crate::specs::part1_part2_step_requests(view[position as int], _kernel, position));
         }
         position += 1;
     }
@@ -243,13 +281,16 @@ fn copy_steps(
 impl ArbitraryKernel {
     #[cfg_attr(verus_keep_ghost, verus_spec(result =>
         ensures crate::specs::part1_mct_copy_result(
-            crate::specs::part1_part2_kernel_requests(owned_kernel_view(self), _position), copy_outcome(result)),
+            crate::specs::part1_part2_role_requests(_payload, crate::specs::part1_part2_kernel_requests(owned_kernel_view(self), _position)), copy_outcome(result)),
             match result { Ok(value) => owned_kernel_view(&value) == owned_kernel_view(self),
                 Err(error) => error == DecodeError::AllocationFailed },
     ))]
-    fn try_duplicate_at(&self, _position: usize) -> Result<Self, DecodeError> {
+    fn try_duplicate_at(&self, _payload: bool, _position: usize) -> Result<Self, DecodeError> {
         #[cfg(verus_keep_ghost)]
-        proof! { reveal(owned_kernel_view); reveal(raw_kernel_view); }
+        proof! {
+            reveal(owned_kernel_view); reveal(raw_kernel_view);
+            crate::specs::part1_part2_role_laws(_payload);
+        }
         let index = self.index;
         let reversible = self.reversible;
         let descriptor = self.descriptor;
@@ -258,7 +299,7 @@ impl ArbitraryKernel {
         let initial_odd = self.initial_odd;
         let whole_sample_extension = self.whole_sample_extension;
         let scaling = self.scaling;
-        let steps = copy_steps(&self.steps, _position)?;
+        let steps = copy_steps(_payload, &self.steps, _position)?;
         Ok(Self {
             index,
             reversible,
@@ -275,44 +316,49 @@ impl ArbitraryKernel {
 
 #[cfg_attr(verus_keep_ghost, verifier::spinoff_prover)]
 #[cfg_attr(verus_keep_ghost, verus_spec(result =>
-        ensures crate::specs::part1_mct_copy_result(crate::specs::part1_part2_dfs_vector(dfs_values(source@)), copy_outcome(result)),
+        ensures crate::specs::part1_mct_copy_result(crate::specs::part1_part2_role_requests(_payload, crate::specs::part1_part2_dfs_vector(dfs_values(source@))), copy_outcome(result)),
             match result { Ok(values) => dfs_values(values@) == dfs_values(source@), Err(error) => error == DecodeError::AllocationFailed },
     ))]
 fn copy_decompositions(
+    _payload: bool,
     source: &[DecompositionStructure],
 ) -> Result<Vec<DecompositionStructure>, DecodeError> {
     #[cfg(verus_keep_ghost)]
     proof_decl! {
         let ghost view = dfs_values(source@);
-        let ghost mut done = crate::specs::part1_part2_copy_leaf(Part2CopyPath::Decompositions, source.len());
-        let ghost all = crate::specs::part1_part2_dfs_vector(view);
+        let ghost mut done = crate::specs::part1_part2_role_requests(_payload, crate::specs::part1_part2_copy_leaf(Part2CopyPath::Decompositions, source.len()));
+        let ghost all = crate::specs::part1_part2_role_requests(_payload, crate::specs::part1_part2_dfs_vector(view));
     }
     let copied = reserve_values(
         source.len(),
-        MctCopyPath::Extensions(Part2CopyPath::Decompositions),
+        part2_copy_path(_payload, Part2CopyPath::Decompositions),
     );
     #[cfg(verus_keep_ghost)]
     proof! {
+        crate::specs::part1_part2_role_laws(_payload);
         crate::specs::part1_mct_copy_observed(MctCopyPath::Order, 0, Ok(()));
-        crate::specs::part1_mct_copy_continue(Seq::empty(), done, crate::specs::part1_part2_dfs_tail(view, 0), copy_outcome(copied));
+        crate::specs::part1_mct_copy_continue(Seq::empty(), done, crate::specs::part1_part2_role_requests(_payload, crate::specs::part1_part2_dfs_tail(view, 0)), copy_outcome(copied));
     }
     let mut values: Vec<DecompositionStructure> = copied?;
     let mut position = 0_usize;
     #[cfg_attr(verus_keep_ghost, verus_spec(
             invariant position <= source.len(), view == dfs_values(source@),
-                dfs_values(values@) == view.take(position as int), all == crate::specs::part1_part2_dfs_vector(view),
-                all == done + crate::specs::part1_part2_dfs_tail(view, position as nat),
+                dfs_values(values@) == view.take(position as int), all == crate::specs::part1_part2_role_requests(_payload, crate::specs::part1_part2_dfs_vector(view)),
+                all == done + crate::specs::part1_part2_role_requests(_payload, crate::specs::part1_part2_dfs_tail(view, position as nat)),
                 crate::specs::part1_mct_copy_result(done, Ok(())),
             decreases source.len() - position,
         ))]
     while position < source.len() {
         #[cfg(verus_keep_ghost)]
-        proof! { reveal_with_fuel(crate::specs::part1_part2_dfs_tail, 1); }
-        let copied = source[position].try_duplicate_at(position);
+        proof! {
+            reveal_with_fuel(crate::specs::part1_part2_dfs_tail, 1);
+            crate::specs::part1_part2_role_laws(_payload);
+        }
+        let copied = source[position].try_duplicate_at(_payload, position);
         #[cfg(verus_keep_ghost)]
         proof! {
-            let step = crate::specs::part1_part2_dfs_requests(view[position as int], position);
-            let suffix = crate::specs::part1_part2_dfs_tail(view, position as nat + 1);
+            let step = crate::specs::part1_part2_role_requests(_payload, crate::specs::part1_part2_dfs_requests(view[position as int], position));
+            let suffix = crate::specs::part1_part2_role_requests(_payload, crate::specs::part1_part2_dfs_tail(view, position as nat + 1));
             crate::specs::part1_mct_copy_continue(done, step, suffix, copy_outcome(copied));
             assert(all =~= (done + step) + suffix);
         }
@@ -324,7 +370,7 @@ fn copy_decompositions(
         proof! {
             assert(dfs_values(values@) =~= dfs_values(previous).push(copied_view));
             assert(view.take(position as int + 1) =~= view.take(position as int).push(view[position as int]));
-            done = done + crate::specs::part1_part2_dfs_requests(view[position as int], position);
+            done = done + crate::specs::part1_part2_role_requests(_payload, crate::specs::part1_part2_dfs_requests(view[position as int], position));
         }
         position += 1;
     }
@@ -335,44 +381,49 @@ fn copy_decompositions(
 
 #[cfg_attr(verus_keep_ghost, verifier::spinoff_prover)]
 #[cfg_attr(verus_keep_ghost, verus_spec(result =>
-        ensures crate::specs::part1_mct_copy_result(crate::specs::part1_part2_ads_vector(ads_values(source@)), copy_outcome(result)),
+        ensures crate::specs::part1_mct_copy_result(crate::specs::part1_part2_role_requests(_payload, crate::specs::part1_part2_ads_vector(ads_values(source@))), copy_outcome(result)),
             match result { Ok(values) => ads_values(values@) == ads_values(source@), Err(error) => error == DecodeError::AllocationFailed },
     ))]
 fn copy_arbitrary(
+    _payload: bool,
     source: &[ArbitraryDecomposition],
 ) -> Result<Vec<ArbitraryDecomposition>, DecodeError> {
     #[cfg(verus_keep_ghost)]
     proof_decl! {
         let ghost view = ads_values(source@);
-        let ghost mut done = crate::specs::part1_part2_copy_leaf(Part2CopyPath::Arbitrary, source.len());
-        let ghost all = crate::specs::part1_part2_ads_vector(view);
+        let ghost mut done = crate::specs::part1_part2_role_requests(_payload, crate::specs::part1_part2_copy_leaf(Part2CopyPath::Arbitrary, source.len()));
+        let ghost all = crate::specs::part1_part2_role_requests(_payload, crate::specs::part1_part2_ads_vector(view));
     }
     let copied = reserve_values(
         source.len(),
-        MctCopyPath::Extensions(Part2CopyPath::Arbitrary),
+        part2_copy_path(_payload, Part2CopyPath::Arbitrary),
     );
     #[cfg(verus_keep_ghost)]
     proof! {
+        crate::specs::part1_part2_role_laws(_payload);
         crate::specs::part1_mct_copy_observed(MctCopyPath::Order, 0, Ok(()));
-        crate::specs::part1_mct_copy_continue(Seq::empty(), done, crate::specs::part1_part2_ads_tail(view, 0), copy_outcome(copied));
+        crate::specs::part1_mct_copy_continue(Seq::empty(), done, crate::specs::part1_part2_role_requests(_payload, crate::specs::part1_part2_ads_tail(view, 0)), copy_outcome(copied));
     }
     let mut values: Vec<ArbitraryDecomposition> = copied?;
     let mut position = 0_usize;
     #[cfg_attr(verus_keep_ghost, verus_spec(
             invariant position <= source.len(), view == ads_values(source@),
-                ads_values(values@) == view.take(position as int), all == crate::specs::part1_part2_ads_vector(view),
-                all == done + crate::specs::part1_part2_ads_tail(view, position as nat),
+                ads_values(values@) == view.take(position as int), all == crate::specs::part1_part2_role_requests(_payload, crate::specs::part1_part2_ads_vector(view)),
+                all == done + crate::specs::part1_part2_role_requests(_payload, crate::specs::part1_part2_ads_tail(view, position as nat)),
                 crate::specs::part1_mct_copy_result(done, Ok(())),
             decreases source.len() - position,
         ))]
     while position < source.len() {
         #[cfg(verus_keep_ghost)]
-        proof! { reveal_with_fuel(crate::specs::part1_part2_ads_tail, 1); }
-        let copied = source[position].try_duplicate_at(position);
+        proof! {
+            reveal_with_fuel(crate::specs::part1_part2_ads_tail, 1);
+            crate::specs::part1_part2_role_laws(_payload);
+        }
+        let copied = source[position].try_duplicate_at(_payload, position);
         #[cfg(verus_keep_ghost)]
         proof! {
-            let step = crate::specs::part1_part2_ads_requests(view[position as int], position);
-            let suffix = crate::specs::part1_part2_ads_tail(view, position as nat + 1);
+            let step = crate::specs::part1_part2_role_requests(_payload, crate::specs::part1_part2_ads_requests(view[position as int], position));
+            let suffix = crate::specs::part1_part2_role_requests(_payload, crate::specs::part1_part2_ads_tail(view, position as nat + 1));
             crate::specs::part1_mct_copy_continue(done, step, suffix, copy_outcome(copied));
             assert(all =~= (done + step) + suffix);
         }
@@ -384,7 +435,7 @@ fn copy_arbitrary(
         proof! {
             assert(ads_values(values@) =~= ads_values(previous).push(copied_view));
             assert(view.take(position as int + 1) =~= view.take(position as int).push(view[position as int]));
-            done = done + crate::specs::part1_part2_ads_requests(view[position as int], position);
+            done = done + crate::specs::part1_part2_role_requests(_payload, crate::specs::part1_part2_ads_requests(view[position as int], position));
         }
         position += 1;
     }
@@ -395,44 +446,49 @@ fn copy_arbitrary(
 
 #[cfg_attr(verus_keep_ghost, verifier::spinoff_prover)]
 #[cfg_attr(verus_keep_ghost, verus_spec(result =>
-        ensures crate::specs::part1_mct_copy_result(crate::specs::part1_part2_nlt_vector(nlt_values(source@)), copy_outcome(result)),
+        ensures crate::specs::part1_mct_copy_result(crate::specs::part1_part2_role_requests(_payload, crate::specs::part1_part2_nlt_vector(nlt_values(source@))), copy_outcome(result)),
             match result { Ok(values) => nlt_values(values@) == nlt_values(source@), Err(error) => error == DecodeError::AllocationFailed },
     ))]
 fn copy_nonlinear(
+    _payload: bool,
     source: &[NonlinearPointTransform],
 ) -> Result<Vec<NonlinearPointTransform>, DecodeError> {
     #[cfg(verus_keep_ghost)]
     proof_decl! {
         let ghost view = nlt_values(source@);
-        let ghost mut done = crate::specs::part1_part2_copy_leaf(Part2CopyPath::Nonlinear, source.len());
-        let ghost all = crate::specs::part1_part2_nlt_vector(view);
+        let ghost mut done = crate::specs::part1_part2_role_requests(_payload, crate::specs::part1_part2_copy_leaf(Part2CopyPath::Nonlinear, source.len()));
+        let ghost all = crate::specs::part1_part2_role_requests(_payload, crate::specs::part1_part2_nlt_vector(view));
     }
     let copied = reserve_values(
         source.len(),
-        MctCopyPath::Extensions(Part2CopyPath::Nonlinear),
+        part2_copy_path(_payload, Part2CopyPath::Nonlinear),
     );
     #[cfg(verus_keep_ghost)]
     proof! {
+        crate::specs::part1_part2_role_laws(_payload);
         crate::specs::part1_mct_copy_observed(MctCopyPath::Order, 0, Ok(()));
-        crate::specs::part1_mct_copy_continue(Seq::empty(), done, crate::specs::part1_part2_nlt_tail(view, 0), copy_outcome(copied));
+        crate::specs::part1_mct_copy_continue(Seq::empty(), done, crate::specs::part1_part2_role_requests(_payload, crate::specs::part1_part2_nlt_tail(view, 0)), copy_outcome(copied));
     }
     let mut values: Vec<NonlinearPointTransform> = copied?;
     let mut position = 0_usize;
     #[cfg_attr(verus_keep_ghost, verus_spec(
             invariant position <= source.len(), view == nlt_values(source@),
-                nlt_values(values@) == view.take(position as int), all == crate::specs::part1_part2_nlt_vector(view),
-                all == done + crate::specs::part1_part2_nlt_tail(view, position as nat),
+                nlt_values(values@) == view.take(position as int), all == crate::specs::part1_part2_role_requests(_payload, crate::specs::part1_part2_nlt_vector(view)),
+                all == done + crate::specs::part1_part2_role_requests(_payload, crate::specs::part1_part2_nlt_tail(view, position as nat)),
                 crate::specs::part1_mct_copy_result(done, Ok(())),
             decreases source.len() - position,
         ))]
     while position < source.len() {
         #[cfg(verus_keep_ghost)]
-        proof! { reveal_with_fuel(crate::specs::part1_part2_nlt_tail, 1); }
-        let copied = source[position].try_duplicate_at(position);
+        proof! {
+            reveal_with_fuel(crate::specs::part1_part2_nlt_tail, 1);
+            crate::specs::part1_part2_role_laws(_payload);
+        }
+        let copied = source[position].try_duplicate_at(_payload, position);
         #[cfg(verus_keep_ghost)]
         proof! {
-            let step = crate::specs::part1_part2_nlt_requests(view[position as int], position);
-            let suffix = crate::specs::part1_part2_nlt_tail(view, position as nat + 1);
+            let step = crate::specs::part1_part2_role_requests(_payload, crate::specs::part1_part2_nlt_requests(view[position as int], position));
+            let suffix = crate::specs::part1_part2_role_requests(_payload, crate::specs::part1_part2_nlt_tail(view, position as nat + 1));
             crate::specs::part1_mct_copy_continue(done, step, suffix, copy_outcome(copied));
             assert(all =~= (done + step) + suffix);
         }
@@ -444,7 +500,7 @@ fn copy_nonlinear(
         proof! {
             assert(nlt_values(values@) =~= nlt_values(previous).push(copied_view));
             assert(view.take(position as int + 1) =~= view.take(position as int).push(view[position as int]));
-            done = done + crate::specs::part1_part2_nlt_requests(view[position as int], position);
+            done = done + crate::specs::part1_part2_role_requests(_payload, crate::specs::part1_part2_nlt_requests(view[position as int], position));
         }
         position += 1;
     }
@@ -455,42 +511,49 @@ fn copy_nonlinear(
 
 #[cfg_attr(verus_keep_ghost, verifier::spinoff_prover)]
 #[cfg_attr(verus_keep_ghost, verus_spec(result =>
-        ensures crate::specs::part1_mct_copy_result(crate::specs::part1_part2_kernel_vector(kernel_values(source@)), copy_outcome(result)),
+        ensures crate::specs::part1_mct_copy_result(crate::specs::part1_part2_role_requests(_payload, crate::specs::part1_part2_kernel_vector(kernel_values(source@))), copy_outcome(result)),
             match result { Ok(values) => kernel_values(values@) == kernel_values(source@), Err(error) => error == DecodeError::AllocationFailed },
     ))]
-fn copy_kernels(source: &[ArbitraryKernel]) -> Result<Vec<ArbitraryKernel>, DecodeError> {
+fn copy_kernels(
+    _payload: bool,
+    source: &[ArbitraryKernel],
+) -> Result<Vec<ArbitraryKernel>, DecodeError> {
     #[cfg(verus_keep_ghost)]
     proof_decl! {
         let ghost view = kernel_values(source@);
-        let ghost mut done = crate::specs::part1_part2_copy_leaf(Part2CopyPath::Kernels, source.len());
-        let ghost all = crate::specs::part1_part2_kernel_vector(view);
+        let ghost mut done = crate::specs::part1_part2_role_requests(_payload, crate::specs::part1_part2_copy_leaf(Part2CopyPath::Kernels, source.len()));
+        let ghost all = crate::specs::part1_part2_role_requests(_payload, crate::specs::part1_part2_kernel_vector(view));
     }
     let copied = reserve_values(
         source.len(),
-        MctCopyPath::Extensions(Part2CopyPath::Kernels),
+        part2_copy_path(_payload, Part2CopyPath::Kernels),
     );
     #[cfg(verus_keep_ghost)]
     proof! {
+        crate::specs::part1_part2_role_laws(_payload);
         crate::specs::part1_mct_copy_observed(MctCopyPath::Order, 0, Ok(()));
-        crate::specs::part1_mct_copy_continue(Seq::empty(), done, crate::specs::part1_part2_kernels_tail(view, 0), copy_outcome(copied));
+        crate::specs::part1_mct_copy_continue(Seq::empty(), done, crate::specs::part1_part2_role_requests(_payload, crate::specs::part1_part2_kernels_tail(view, 0)), copy_outcome(copied));
     }
     let mut values: Vec<ArbitraryKernel> = copied?;
     let mut position = 0_usize;
     #[cfg_attr(verus_keep_ghost, verus_spec(
             invariant position <= source.len(), view == kernel_values(source@),
-                kernel_values(values@) == view.take(position as int), all == crate::specs::part1_part2_kernel_vector(view),
-                all == done + crate::specs::part1_part2_kernels_tail(view, position as nat),
+                kernel_values(values@) == view.take(position as int), all == crate::specs::part1_part2_role_requests(_payload, crate::specs::part1_part2_kernel_vector(view)),
+                all == done + crate::specs::part1_part2_role_requests(_payload, crate::specs::part1_part2_kernels_tail(view, position as nat)),
                 crate::specs::part1_mct_copy_result(done, Ok(())),
             decreases source.len() - position,
         ))]
     while position < source.len() {
         #[cfg(verus_keep_ghost)]
-        proof! { reveal_with_fuel(crate::specs::part1_part2_kernels_tail, 1); }
-        let copied = source[position].try_duplicate_at(position);
+        proof! {
+            reveal_with_fuel(crate::specs::part1_part2_kernels_tail, 1);
+            crate::specs::part1_part2_role_laws(_payload);
+        }
+        let copied = source[position].try_duplicate_at(_payload, position);
         #[cfg(verus_keep_ghost)]
         proof! {
-            let step = crate::specs::part1_part2_kernel_requests(view[position as int], position);
-            let suffix = crate::specs::part1_part2_kernels_tail(view, position as nat + 1);
+            let step = crate::specs::part1_part2_role_requests(_payload, crate::specs::part1_part2_kernel_requests(view[position as int], position));
+            let suffix = crate::specs::part1_part2_role_requests(_payload, crate::specs::part1_part2_kernels_tail(view, position as nat + 1));
             crate::specs::part1_mct_copy_continue(done, step, suffix, copy_outcome(copied));
             assert(all =~= (done + step) + suffix);
         }
@@ -502,7 +565,7 @@ fn copy_kernels(source: &[ArbitraryKernel]) -> Result<Vec<ArbitraryKernel>, Deco
         proof! {
             assert(kernel_values(values@) =~= kernel_values(previous).push(copied_view));
             assert(view.take(position as int + 1) =~= view.take(position as int).push(view[position as int]));
-            done = done + crate::specs::part1_part2_kernel_requests(view[position as int], position);
+            done = done + crate::specs::part1_part2_role_requests(_payload, crate::specs::part1_part2_kernel_requests(view[position as int], position));
         }
         position += 1;
     }
@@ -512,14 +575,24 @@ fn copy_kernels(source: &[ArbitraryKernel]) -> Result<Vec<ArbitraryKernel>, Deco
 }
 
 impl Part2Extensions {
+    #[cfg_attr(verus_keep_ghost, verus_spec(result =>
+        ensures crate::specs::part1_mct_copy_result(
+            crate::specs::part1_part2_copy_requests(owned_extensions_view(self)), copy_outcome(result)),
+            match result { Ok(value) => owned_extensions_view(&value) == owned_extensions_view(self),
+                Err(error) => error == DecodeError::AllocationFailed },
+    ))]
+    pub(super) fn try_duplicate(&self) -> Result<Self, DecodeError> {
+        self.try_duplicate_with(false)
+    }
+
     #[cfg_attr(verus_keep_ghost, verifier::spinoff_prover)]
     #[cfg_attr(verus_keep_ghost, verus_spec(result =>
             ensures crate::specs::part1_mct_copy_result(
-                crate::specs::part1_part2_copy_requests(owned_extensions_view(self)), copy_outcome(result)),
+                crate::specs::part1_part2_role_requests(_payload, crate::specs::part1_part2_copy_requests(owned_extensions_view(self))), copy_outcome(result)),
                 match result { Ok(value) => owned_extensions_view(&value) == owned_extensions_view(self),
                     Err(error) => error == DecodeError::AllocationFailed },
         ))]
-    pub(super) fn try_duplicate(&self) -> Result<Self, DecodeError> {
+    pub(super) fn try_duplicate_with(&self, _payload: bool) -> Result<Self, DecodeError> {
         #[cfg(verus_keep_ghost)]
         proof_decl! {
             let ghost source = owned_extensions_view(self);
@@ -528,49 +601,50 @@ impl Part2Extensions {
         #[cfg(verus_keep_ghost)]
         proof! {
             reveal(owned_extensions_view);
-            crate::specs::part1_part2_copy_start(source);
-            assert(crate::specs::part1_part2_copy_requests(source) =~= done + crate::specs::part1_part2_copy_tail(source, 0));
+            crate::specs::part1_part2_copy_role_start(_payload, source);
+            assert(crate::specs::part1_part2_role_requests(_payload, crate::specs::part1_part2_copy_requests(source)) =~=
+                done + crate::specs::part1_part2_role_requests(_payload, crate::specs::part1_part2_copy_tail(source, 0)));
         }
-        let copied = copy_decompositions(&self.decomposition_structures);
+        let copied = copy_decompositions(_payload, &self.decomposition_structures);
         #[cfg(verus_keep_ghost)]
-        proof! { done = crate::specs::part1_part2_copy_advance(source, 0, done, copy_outcome(copied)); }
+        proof! { done = crate::specs::part1_part2_copy_role_advance(_payload, source, 0, done, copy_outcome(copied)); }
         let decomposition_structures = copied?;
-        let copied = copy_arbitrary(&self.arbitrary_decompositions);
+        let copied = copy_arbitrary(_payload, &self.arbitrary_decompositions);
         #[cfg(verus_keep_ghost)]
-        proof! { done = crate::specs::part1_part2_copy_advance(source, 1, done, copy_outcome(copied)); }
+        proof! { done = crate::specs::part1_part2_copy_role_advance(_payload, source, 1, done, copy_outcome(copied)); }
         let arbitrary_decompositions = copied?;
-        let copied = copy_nonlinear(&self.nonlinear_transforms);
+        let copied = copy_nonlinear(_payload, &self.nonlinear_transforms);
         #[cfg(verus_keep_ghost)]
-        proof! { done = crate::specs::part1_part2_copy_advance(source, 2, done, copy_outcome(copied)); }
+        proof! { done = crate::specs::part1_part2_copy_role_advance(_payload, source, 2, done, copy_outcome(copied)); }
         let nonlinear_transforms = copied?;
         let nonlinear_local_count = self.nonlinear_local_count;
         let copied = copy_flat(
             &self.component_bit_depths,
-            MctCopyPath::Extensions(Part2CopyPath::Depths),
+            part2_copy_path(_payload, Part2CopyPath::Depths),
         );
         #[cfg(verus_keep_ghost)]
-        proof! { done = crate::specs::part1_part2_copy_advance(source, 3, done, copy_outcome(copied)); }
+        proof! { done = crate::specs::part1_part2_copy_role_advance(_payload, source, 3, done, copy_outcome(copied)); }
         let component_bit_depths = copied?;
-        let copied = copy_kernels(&self.arbitrary_kernels);
+        let copied = copy_kernels(_payload, &self.arbitrary_kernels);
         #[cfg(verus_keep_ghost)]
-        proof! { done = crate::specs::part1_part2_copy_advance(source, 4, done, copy_outcome(copied)); }
+        proof! { done = crate::specs::part1_part2_copy_role_advance(_payload, source, 4, done, copy_outcome(copied)); }
         let arbitrary_kernels = copied?;
         let copied = copy_flat(
             &self.component_registrations,
-            MctCopyPath::Extensions(Part2CopyPath::Registrations),
+            part2_copy_path(_payload, Part2CopyPath::Registrations),
         );
         #[cfg(verus_keep_ghost)]
-        proof! { done = crate::specs::part1_part2_copy_advance(source, 5, done, copy_outcome(copied)); }
+        proof! { done = crate::specs::part1_part2_copy_role_advance(_payload, source, 5, done, copy_outcome(copied)); }
         let component_registrations = copied?;
         let copied = copy_flat(
             &self.tile_part_lengths,
-            MctCopyPath::Extensions(Part2CopyPath::Lengths),
+            part2_copy_path(_payload, Part2CopyPath::Lengths),
         );
         #[cfg(verus_keep_ghost)]
         proof! {
-            done = crate::specs::part1_part2_copy_advance(source, 6, done, copy_outcome(copied));
-            assert(crate::specs::part1_part2_copy_tail(source, 7) =~= Seq::<crate::specs::Part1MctCopyRequest>::empty());
-            assert(crate::specs::part1_part2_copy_requests(source) =~= done);
+            done = crate::specs::part1_part2_copy_role_advance(_payload, source, 6, done, copy_outcome(copied));
+            assert(crate::specs::part1_part2_role_requests(_payload, crate::specs::part1_part2_copy_tail(source, 7)) =~= Seq::<crate::specs::Part1MctCopyRequest>::empty());
+            assert(crate::specs::part1_part2_role_requests(_payload, crate::specs::part1_part2_copy_requests(source)) =~= done);
         }
         let tile_part_lengths = copied?;
         let copied = Self {

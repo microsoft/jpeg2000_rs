@@ -7045,7 +7045,14 @@ class FrameworkTests(WorkingFiles):
             source = framework.ROOT / path
             original = source.read_text()
             self.assertIn(before, original)
-            changed = original.replace(before, after, 1)
+            if path == "src/codestream/layout.rs":
+                actual = re.search(framework._MCT_FALLIBLE_INHERITANCE, original)
+                self.assertIsNotNone(actual)
+                block = actual.group()
+                self.assertIn(before, block)
+                changed = original[:actual.start()] + block.replace(before, after, 1) + original[actual.end():]
+            else:
+                changed = original.replace(before, after, 1)
             changed += "\nfn unrelated() { unrelated.clone(); Clone::clone(&self.records); Clone::clone(&self.collections); }\n"
 
             def altered(file, *args, **kwargs):
@@ -7847,6 +7854,26 @@ class FrameworkTests(WorkingFiles):
             {"part2-complete-native-mct-graph-production"},
             framework._TRANSFORM_GRAPH_CONTRACTS, 4,
         )
+        coverage = json.loads((framework.VALIDATION / "normative-coverage.json").read_text())
+        entry = next(item for item in coverage["requirements"] if item["id"] == "part2-complete-native-mct-graph-production")
+        read_text = Path.read_text
+        for relative, symbol, before, after in (
+            ("src/codestream/layout.rs", "Parser::parse_layout", "super::ResolvedCopyRole::Main", "super::ResolvedCopyRole::Tile"),
+            ("src/codestream/tiles.rs", "Parser::read_tile_part", "super::ResolvedCopyRole::Tile", "super::ResolvedCopyRole::Main"),
+            ("src/codestream/tiles.rs", "Parser::read_tile_part", "try_duplicate_with(true)", "try_duplicate_with(false)"),
+            ("src/codestream/tiles.rs", "Parser::read_tile_part", "self.position = end;", "self.position = data_start;"),
+        ):
+            source = framework.ROOT / relative
+            original = source.read_text()
+            header = framework._coverage_function_header(original, symbol)
+            body = framework._coverage_function_body(original, header)
+            self.assertIn(before, body)
+            changed = original.replace(body, body.replace(before, after, 1), 1)
+            def altered(path, *args, **kwargs):
+                return changed if path == source else read_text(path, *args, **kwargs)
+            with self.subTest(role=before), mock.patch.object(Path, "read_text", altered), \
+                    self.assertRaisesRegex(ValueError, "transform graph requires actual"):
+                framework.validate_normative_coverage(dict(coverage, requirements=[entry]))
 
     def test_inventory_binds_actual_packed_fragment_counters_bytes_work_and_ppm_frame_producers(self):
         self._assert_complete_packet_contract_bindings(
@@ -8083,6 +8110,20 @@ class FrameworkTests(WorkingFiles):
             ("specs/cold_layout.rs", "part1_cold_layout_after_mct_copy",
              "Some(((Err(error), reader, tile_parts, state), rest))",
              "Some(((Err(error), reader, (tile_parts + 1) as u32, state), rest))"),
+            ("specs/cold_resolved_copy.rs", "part1_resolved_copy_site",
+             "37int", "16int"),
+            ("specs/cold_resolved_copy.rs", "part1_resolved_copy_site",
+             "43int", "37int"),
+            ("specs/cold_resolved_copy.rs", "part1_resolved_stage_tail",
+             "collection: position as usize", "collection: 0usize"),
+            ("specs/cold_extensions_copy.rs", "part1_part2_role_requests",
+             "MctCopyPath::PayloadExtensions(path)", "MctCopyPath::Extensions(path)"),
+            ("specs/cold_payload_owners.rs", "part1_tile_payload_copy_requests",
+             "part1_part2_role_requests(true,", "part1_part2_role_requests(false,"),
+            ("specs/cold_payload_owners.rs", "part1_tile_after_window_run",
+             "Some(((Err(error), normal.1), rest))", "Some(((Err(error), reader), rest))"),
+            ("specs/cold_payload_owners.rs", "part1_tile_after_window_run",
+             "Some((normal, events))", "Some((normal, events.drop_first()))"),
         ):
             source = framework.ROOT / relative
             original = source.read_text()
@@ -8240,6 +8281,9 @@ class FrameworkTests(WorkingFiles):
                         ("src/codestream/mct_copy.rs", "MctCollectionReference::try_duplicate_at"),
                         ("specs/cold_mct_copy.rs", "part1_mct_copy_normal"),
                     }
+                if isolated["id"] == "part2-complete-native-mct-graph-production":
+                    cold_models |= framework._RESOLVED_COPY_MODELS
+                    cold_proofs |= framework._RESOLVED_COPY_PROOFS
                 isolated["spec_refs"].extend(
                     {"path": path, "symbol": symbol} for path, symbol in sorted(cold_models)
                     if {"path": path, "symbol": symbol} not in isolated["spec_refs"]

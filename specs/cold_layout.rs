@@ -923,6 +923,7 @@ pub(crate) proof fn part1_cold_main_quantization_error(
             input.styles, input.raw.qcc, Err(error)),
     ensures part1_cold_layout_result(reader, Err(error)),
 {
+    part1_main_resolved_normal(input, Seq::empty());
     reveal(part1_cold_layout_result);
     reveal(part1_finish_main_quantizations);
     let reserved = choose|reserved: bool|

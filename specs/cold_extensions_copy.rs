@@ -165,4 +165,75 @@ pub(crate) proof fn part1_part2_copy_start(source: Part2OwnedExtensions)
     part1_mct_copy_observed(MctCopyPath::Order, 0, Ok(()));
 }
 
+pub(crate) open spec fn part1_part2_role_requests(payload: bool, requests: Seq<Part1MctCopyRequest>)
+    -> Seq<Part1MctCopyRequest> {
+    if !payload { requests } else {
+        requests.map_values(|request: Part1MctCopyRequest| Part1MctCopyRequest {
+            path: match request.path {
+                MctCopyPath::Extensions(path) => MctCopyPath::PayloadExtensions(path),
+                other => other,
+            }, elements: request.elements,
+        })
+    }
+}
+
+pub(crate) proof fn part1_part2_role_concat(
+    payload: bool, first: Seq<Part1MctCopyRequest>, next: Seq<Part1MctCopyRequest>,
+)
+    ensures part1_part2_role_requests(payload, first + next)
+        == part1_part2_role_requests(payload, first) + part1_part2_role_requests(payload, next),
+{
+    assert(part1_part2_role_requests(payload, first + next)
+        =~= part1_part2_role_requests(payload, first) + part1_part2_role_requests(payload, next));
+}
+
+pub(crate) proof fn part1_part2_role_leaf(payload: bool, path: Part2CopyPath, count: usize)
+    ensures part1_part2_role_requests(payload, part1_part2_copy_leaf(path, count))
+        == part1_mct_copy_leaf(if payload { MctCopyPath::PayloadExtensions(path) } else { MctCopyPath::Extensions(path) }, count),
+{
+    assert(part1_part2_role_requests(payload, part1_part2_copy_leaf(path, count))
+        =~= part1_mct_copy_leaf(if payload { MctCopyPath::PayloadExtensions(path) } else { MctCopyPath::Extensions(path) }, count));
+}
+
+pub(crate) proof fn part1_part2_role_laws(payload: bool)
+    ensures forall|first: Seq<Part1MctCopyRequest>, next: Seq<Part1MctCopyRequest>|
+        #[trigger] part1_part2_role_requests(payload, first + next)
+            == part1_part2_role_requests(payload, first) + part1_part2_role_requests(payload, next),
+{
+    assert forall|first: Seq<Part1MctCopyRequest>, next: Seq<Part1MctCopyRequest>|
+        #[trigger] part1_part2_role_requests(payload, first + next)
+            == part1_part2_role_requests(payload, first) + part1_part2_role_requests(payload, next) by {
+        part1_part2_role_concat(payload, first, next);
+    }
+}
+
+pub(crate) proof fn part1_part2_copy_role_start(payload: bool, source: Part2OwnedExtensions)
+    ensures part1_part2_role_requests(payload, part1_part2_copy_requests(source))
+        == part1_part2_role_requests(payload, part1_part2_copy_tail(source, 0)),
+        part1_mct_copy_result(Seq::empty(), Ok(())),
+{
+    part1_part2_copy_start(source);
+}
+
+pub(crate) proof fn part1_part2_copy_role_advance(
+    payload: bool, source: Part2OwnedExtensions, stage: nat, done: Seq<Part1MctCopyRequest>, result: Result<(), crate::DecodeError>,
+) -> (next: Seq<Part1MctCopyRequest>)
+    requires stage < 7, part1_mct_copy_result(done, Ok(())),
+        part1_mct_copy_result(part1_part2_role_requests(payload, part1_part2_copy_stage(source, stage)), result),
+        part1_part2_role_requests(payload, part1_part2_copy_requests(source))
+            == done + part1_part2_role_requests(payload, part1_part2_copy_tail(source, stage)),
+    ensures next == done + part1_part2_role_requests(payload, part1_part2_copy_stage(source, stage)),
+        part1_part2_role_requests(payload, part1_part2_copy_requests(source))
+            == next + part1_part2_role_requests(payload, part1_part2_copy_tail(source, stage + 1)),
+        if result.is_ok() { part1_mct_copy_result(next, Ok(())) }
+            else { part1_mct_copy_result(part1_part2_role_requests(payload, part1_part2_copy_requests(source)), result) },
+{
+    let step = part1_part2_role_requests(payload, part1_part2_copy_stage(source, stage));
+    let tail = part1_part2_role_requests(payload, part1_part2_copy_tail(source, stage + 1));
+    part1_part2_role_concat(payload, part1_part2_copy_stage(source, stage), part1_part2_copy_tail(source, stage + 1));
+    assert((done + step) + tail =~= done + (step + tail));
+    part1_mct_copy_continue(done, step, tail, result);
+    done + step
+}
+
 }

@@ -818,8 +818,35 @@ impl<'a> Parser<'a> {
             records: mct_records,
             order: mct_order.unwrap_or_default(),
         };
-        let multiple_component_transform =
-            parser.resolve_multiple_component_transform(&main_mct_parameters)?;
+        #[cfg(verus_keep_ghost)]
+        proof_decl! {
+            let ghost graph_input = crate::specs::Part1MainQuantizationInput {
+                reader: main_reader, raw: depth_main,
+                frames: packed_header_frames_view(ppm_frames@), header: main_header@,
+                style: parsed_coding_style_view(coding_style), quantization: quantization_view(&quantization),
+                styles: component_style_owner_view(&component_coding_styles),
+            };
+        }
+        #[cfg(verus_keep_ghost)]
+        proof! {
+            reveal(mct_parameters_view);
+            assert(crate::specs::part1_main_resolved_prepare(graph_input).is_ok());
+        }
+        #[cfg(verus_keep_ghost)]
+        proof_decl! { let ghost graph_ctx = crate::specs::part1_main_resolved_prepare(graph_input)->Ok_0; }
+        let multiple_component_transform = match parser.resolve_multiple_component_transform(
+            &main_mct_parameters,
+            super::ResolvedCopyRole::Main,
+        ) {
+            Ok(value) => value,
+            Err(error) => {
+                #[cfg(verus_keep_ghost)]
+                proof! {
+                    crate::specs::part1_main_resolved_error(initial_reader, graph_input, graph_ctx, error);
+                }
+                return Err(error);
+            }
+        };
         let tile_count = image_size.tile_count()?;
         #[cfg(verus_keep_ghost)]
         proof_decl! {

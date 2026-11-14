@@ -4770,6 +4770,15 @@ _SOURCE_OPACITY_CONTRACTS = {
 }
 
 _COLD_RESULT_MODELS = {
+    "part1_mct_graph_collection": (
+        "part1_resolved_collection_result", "specs/cold_resolved_copy.rs", "part1_resolved_collection_normal",
+    ),
+    "part1_mct_graph_stage": (
+        "part1_resolved_stage_result", "specs/cold_resolved_copy.rs", "part1_resolved_stage_normal",
+    ),
+    "part1_mct_graph": (
+        "part1_resolved_graph_result", "specs/cold_resolved_copy.rs", "part1_resolved_graph_normal_result",
+    ),
     "part1_parse_poc": (
         "part1_parse_poc_storage_result", "specs/cold_progression.rs", "part1_parse_poc_storage_normal",
     ),
@@ -4873,6 +4882,12 @@ def _coverage_cold_relation(
 ) -> tuple[str, str]:
     model, outcome, state, inputs = legacy
     cold_model = _COLD_RESULT_MODELS[model][0]
+    if model == "part1_mct_graph_collection":
+        inputs = r"_ctx\s*,\s*" + inputs
+    elif model == "part1_mct_graph_stage":
+        inputs = r"_role\s*,\s*_stage\s*,\s*_record_position\s*,\s*" + inputs
+    elif model == "part1_mct_graph":
+        inputs = r"_role\s*,\s*" + inputs
     if model == "part2_parse_and_inspect_container":
         inputs += r"\s*,\s*false"
     if model in ("part2_render_raw_jpx_layer", "part2_render_raw_jpx_frame", "part2_render_raw_jpx_composition"):
@@ -4902,6 +4917,7 @@ _COLD_RESULT_CONTRACTS = {
         _SOURCE_OPACITY_CONTRACTS, _JPIP_PROGRESSIVE_CONTRACTS, _JPIP_TRANSCODE_CONTRACTS,
         _MAIN_COMPONENT_FINALIZATION_CONTRACTS, _TILE_COMPONENT_FINALIZATION_CONTRACTS,
         _PERSISTENT_TILE_CONFIGURATION_CONTRACTS,
+        _TRANSFORM_GRAPH_CONTRACTS,
         _PROGRESSION_BYTES_CONTRACTS, _RAW_TILE_HEADER_CONTRACTS,
     )
     for key, legacy in contracts.items()
@@ -5098,6 +5114,34 @@ _COLD_SOURCE_BODIES = {
 }
 
 _QUANTIZATION_COLD_GUARDS = {
+    ("specs/cold_extensions_copy.rs", "part1_part2_role_requests"): (
+        "if !payload { requests } else",
+        "MctCopyPath::Extensions(path) => MctCopyPath::PayloadExtensions(path)",
+        "elements: request.elements",
+    ),
+    ("specs/cold_resolved_copy.rs", "part1_resolved_copy_site"): (
+        "ResolvedCopyPath::Stages(role) => (role, 0u8)",
+        "ResolvedCopyPath::Collections(role, _, _) => (role, 1u8)",
+        "ResolvedCopyPath::Offsets(ctx, _) => (ctx.role, 2u8)",
+        "ResolvedCopyPath::Matrix(ctx, _) => (ctx.role, 3u8)",
+        "ResolvedCopyPath::Inputs(ctx) => (ctx.role, 4u8)",
+        "ResolvedCopyPath::Outputs(ctx) => (ctx.role, 5u8)",
+        "ResolvedCopyRole::Main { 37int } else { 43int }",
+    ),
+    ("specs/cold_payload_owners.rs", "part1_tile_after_window_run"): (
+        "part1_tile_part_after_window(reader, raw, tile, configuration, transform, end, data, lengths, headers)",
+        "normal.0.is_err() { Some((normal, events))",
+        "part1_mct_copy_run(part1_tile_payload_copy_requests(raw), events)",
+        "Some((Err(error), rest)) => Some(((Err(error), normal.1), rest))",
+    ),
+    ("specs/cold_payload_owners.rs", "part1_tile_payload_copy_requests"): (
+        "part1_part2_role_requests(true, part1_part2_copy_requests(raw.part2_extensions))",
+    ),
+    ("specs/cold_resolved_copy.rs", "part1_resolved_stage_tail"): (
+        "collection: position as usize", "part1_resolved_collection_requests(ctx, record.1[position as int], arrays)",
+        "part1_mct_graph_collection(record.1[position as int], arrays).is_ok()",
+        "part1_resolved_stage_tail(role, stage, record_index, record, arrays, position + 1)",
+    ),
     ("specs/cold_extensions_copy.rs", "part1_part2_copy_leaf"): (
         "part1_mct_copy_leaf(MctCopyPath::Extensions(path), count)",
     ),
@@ -5199,7 +5243,7 @@ _QUANTIZATION_COLD_GUARDS = {
         "Err(error) => Some((Err(error), events))",
         "part1_quantization_storage_request(8, input.raw.image_size.components as usize, events)",
         "Some((Err(error), rest)) => Some((Err(error), rest))",
-        "Some((Ok(()), rest)) => Some((part1_main_quantization_reserved(input), rest))",
+        "Some((Ok(()), rest)) => part1_main_resolved_run(input, rest)",
     ),
     ("specs/cold_layout.rs", "part1_quantized_layout_cold_run"): (
         "part1_main_header_cold_run(reader, events)",
@@ -5290,6 +5334,25 @@ _PART2_COPY_PROOFS = {("specs/cold_extensions_copy.rs", name) for name in (
 )} | {("specs/cold_layout.rs", name) for name in (
     "part1_cold_layout_after_extensions_normal", "part1_cold_layout_after_extensions_frame",
 )} | {("specs/cold_layout_continuations.rs", "part1_cold_layout_sot_extensions_error")}
+
+_RESOLVED_COPY_MODELS = {("specs/cold_resolved_copy.rs", name) for name in (
+    "part1_resolved_copy_site", "part1_resolved_collection_requests", "part1_resolved_stage_requests",
+    "part1_resolved_graph_requests", "part1_resolved_stage_tail", "part1_resolved_graph_tail",
+    "part1_resolved_collection_result", "part1_resolved_collection_run", "part1_resolved_stage_result",
+    "part1_resolved_stage_run", "part1_resolved_graph_result", "part1_resolved_graph_run",
+)} | {("specs/cold_payload_owners.rs", name) for name in (
+    "part1_main_resolved_prepare", "part1_main_resolved_run", "part1_tile_after_configuration_run",
+    "part1_tile_after_window_run", "part1_tile_payload_copy_requests",
+)}
+_RESOLVED_COPY_PROOFS = {("specs/cold_resolved_copy.rs", name) for name in (
+    "part1_resolved_collection_normal", "part1_resolved_stage_normal", "part1_resolved_graph_normal_result",
+    "part1_resolved_collection_observed", "part1_resolved_stage_observed", "part1_resolved_graph_projection",
+    "part1_resolved_graph_frame",
+)} | {("specs/cold_payload_owners.rs", name) for name in (
+    "part1_main_resolved_normal", "part1_main_resolved_projection", "part1_main_resolved_frame",
+    "part1_tile_after_configuration_normal", "part1_tile_after_configuration_projection", "part1_tile_after_configuration_frame",
+    "part1_cold_tile_payload_error",
+)}
 
 
 for _contracts, _models, _proofs in (
@@ -5519,6 +5582,36 @@ def validate_normative_coverage(
     ids: set[str] = set()
     contract_functions: set[tuple[str, str]] = set()
     for entry in coverage["requirements"]:
+        if entry["id"] == "part2-complete-native-mct-graph-production":
+            if (not _RESOLVED_COPY_MODELS.issubset({(r["path"], r["symbol"]) for r in entry["spec_refs"]})
+                    or not _RESOLVED_COPY_PROOFS.issubset({(r["path"], r["symbol"]) for r in entry["proof_refs"]})):
+                raise ValueError("transform graph requires complete resolved/payload cold Result and normal/frame links")
+            tile_path = (ROOT / "src/codestream/tiles.rs").resolve()
+            tile_body = _coverage_function_body(source_text(tile_path), function_header(tile_path, "Parser::read_tile_part"))
+            field = """
+                multiple_component_transform,
+                part2_extensions: {
+                    let copied = part2_extensions.try_duplicate_with(true);
+                    #[cfg(verus_keep_ghost)] proof! {
+                        if let Err(error) = copied {
+                            crate::specs::part1_cold_tile_payload_error(cold_input, cold_raw, parser_view(self), error);
+                        }
+                    }
+                    copied?
+                },
+                packet_lengths,
+            """
+            compact = "".join(tile_body.split()) if tile_body is not None else ""
+            copy_positions = [match.start() for match in re.finditer(r"part2_extensions\.try_duplicate_with\(true\)", compact)]
+            reader_commit = compact.find("self.position=end;")
+            if (compact.count("".join(field.split())) != 2
+                    or ".resolve_multiple_component_transform(&mct_parameters,super::ResolvedCopyRole::Tile)" not in compact
+                    or len(copy_positions) != 2 or not copy_positions[0] < reader_commit < copy_positions[1]):
+                raise ValueError("transform graph requires actual payload copy role and original field/reader order")
+            main_path = (ROOT / "src/codestream/layout.rs").resolve()
+            main_body = _coverage_function_body(source_text(main_path), function_header(main_path, "Parser::parse_layout"))
+            if main_body is None or ".resolve_multiple_component_transform(&main_mct_parameters,super::ResolvedCopyRole::Main,)" not in "".join(main_body.split()):
+                raise ValueError("transform graph requires actual main graph copy role")
         if entry["id"] == "implementation-fallible-storage-reservation":
             copy_path = (ROOT / "src/allocation.rs").resolve()
             copy_source = source_text(copy_path)

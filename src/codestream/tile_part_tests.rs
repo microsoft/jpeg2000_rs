@@ -376,6 +376,113 @@ fn empty_mct() -> MctParameters {
 }
 
 #[test]
+fn payload_owner_refusal_preserves_zero_and_nonzero_reader_commit_frontiers() {
+    let limits = ResourceLimits::default();
+    let input = [0xff, 0x93, 5, 7, 0xff, 0xd9, 11];
+    let mut extensions = Part2Extensions::default();
+    extensions
+        .decomposition_structures
+        .push(DecompositionStructure {
+            index: 255,
+            directions: vec![
+                DecompositionDirection::Horizontal,
+                DecompositionDirection::Vertical,
+            ],
+        });
+    extensions.metadata_bytes = u64::MAX;
+    let before = extensions.clone();
+    let attempt = |length: u32, after: Option<usize>| {
+        let mut parser = new_parser(&input, &limits).unwrap();
+        parser.work_units = 41;
+        parser.packet_length_bytes = 43;
+        parser.packet_lengths = 47;
+        let parameters = defaults();
+        let owned_extensions = extensions.clone();
+        let styles = ComponentCodingStyles {
+            components: 0,
+            styles: [parameters.0; 64],
+        };
+        let quantizations = ComponentQuantizations {
+            components: 0,
+            quantizations: Vec::new(),
+        };
+        let call = || {
+            let result = parser.read_tile_part(
+                tile(length),
+                parameters,
+                styles,
+                quantizations,
+                RoiShifts::none(),
+                ProgressionChanges::none(),
+                empty_mct(),
+                owned_extensions,
+                0,
+                PacketLengths::none(),
+                PackedPacketHeaders::none(),
+            );
+            if length == 1 {
+                assert_eq!(
+                    crate::allocation::copy_values(&[1_u8]),
+                    Err(DecodeError::AllocationFailed)
+                );
+            }
+            result
+        };
+        let result = match after {
+            Some(after) => crate::allocation::with_refusal(after, call),
+            None => call(),
+        };
+        (result, frame(&parser))
+    };
+    for (length, work) in [(0, 45), (4, 42)] {
+        for after in [0, 1] {
+            let (result, observed) = attempt(length, Some(after));
+            assert!(matches!(result, Err(DecodeError::AllocationFailed)));
+            assert_eq!(
+                observed,
+                (
+                    input.as_ptr() as usize,
+                    input.len(),
+                    limits,
+                    4,
+                    work,
+                    43,
+                    47
+                )
+            );
+            assert_eq!(extensions, before);
+        }
+        let ((payload, _, returned), observed) = {
+            let (result, observed) = attempt(length, None);
+            (result.unwrap(), observed)
+        };
+        assert_eq!(payload.part2_extensions, extensions);
+        assert_eq!(returned, extensions);
+        assert_eq!(
+            observed,
+            (
+                input.as_ptr() as usize,
+                input.len(),
+                limits,
+                4,
+                work,
+                43,
+                47
+            )
+        );
+    }
+    let (result, observed) = attempt(1, Some(0));
+    assert!(matches!(
+        result,
+        Err(DecodeError::MalformedInput {
+            kind: MalformedKind::InvalidTilePart,
+            ..
+        })
+    ));
+    assert_eq!(observed.3, 2);
+}
+
+#[test]
 fn actual_tile_part_raw_counts_full_physical_tails_metadata_and_returned_tuple() {
     let limits = ResourceLimits::default();
     let input = [0xff, 0x93, 5, 7, 0xff, 0xd9, 11];

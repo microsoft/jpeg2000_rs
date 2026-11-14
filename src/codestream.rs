@@ -499,6 +499,35 @@ pub(crate) enum MctCopyPath {
     Outputs(usize, usize),
     Order,
     Extensions(Part2CopyPath),
+    Resolved(ResolvedCopyPath),
+    PayloadExtensions(Part2CopyPath),
+}
+
+#[derive(Clone, Copy)]
+#[cfg_attr(not(verus_keep_ghost), derive(Debug, Eq, PartialEq))]
+pub(crate) enum ResolvedCopyRole {
+    Main,
+    Tile,
+}
+
+#[derive(Clone, Copy)]
+#[cfg_attr(not(verus_keep_ghost), derive(Debug, Eq, PartialEq))]
+pub(crate) struct ResolvedCopyContext {
+    pub role: ResolvedCopyRole,
+    pub stage: usize,
+    pub record: usize,
+    pub collection: usize,
+}
+
+#[derive(Clone, Copy)]
+#[cfg_attr(not(verus_keep_ghost), derive(Debug, Eq, PartialEq))]
+pub(crate) enum ResolvedCopyPath {
+    Stages(ResolvedCopyRole),
+    Collections(ResolvedCopyRole, usize, usize),
+    Offsets(ResolvedCopyContext, u8),
+    Matrix(ResolvedCopyContext, u8),
+    Inputs(ResolvedCopyContext),
+    Outputs(ResolvedCopyContext),
 }
 
 #[derive(Clone, Copy)]

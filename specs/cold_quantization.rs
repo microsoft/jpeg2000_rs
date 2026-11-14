@@ -198,12 +198,12 @@ pub(crate) open spec fn part1_main_quantization_cold_complete<'a>(
     match prepared {
         Err(error) => Some((Err(error), events)),
         Ok(input) => if input.raw.image_size.components == 0 || input.raw.image_size.components > 64 {
-            Some((part1_main_quantization_reserved(input), events))
+            part1_main_resolved_run(input, events)
         } else {
             match part1_quantization_storage_request(8, input.raw.image_size.components as usize, events) {
                 None => None,
                 Some((Err(error), rest)) => Some((Err(error), rest)),
-                Some((Ok(()), rest)) => Some((part1_main_quantization_reserved(input), rest)),
+                Some((Ok(()), rest)) => part1_main_resolved_run(input, rest),
             }
         },
     }
@@ -241,16 +241,20 @@ pub(crate) proof fn part1_main_header_cold_normal<'a>(
 {
     part1_main_quantization_normal(reader);
     let first = part1_prepare_main_progression_normal(reader);
-    let last = part1_main_quantization_normal_calls(part1_prepare_main_quantization(reader));
+    let quantization = part1_main_quantization_normal_calls(part1_prepare_main_quantization(reader));
+    let graph = part1_main_resolved_calls(part1_prepare_main_quantization(reader));
+    let last = quantization + graph;
+    assert(part1_main_header_normal_calls(reader) =~= first + last);
     assert((first + last) + tail =~= first + (last + tail));
+    assert(part1_prepare_main_progression_run(reader, first + (last + tail))
+        == Some((part1_prepare_main_quantization(reader), last + tail)));
     match part1_prepare_main_quantization(reader) {
         Err(_) => { assert(Seq::<Part1ColdStorageEvent>::empty() + tail =~= tail); },
-        Ok(input) => if input.raw.image_size.components == 0 || input.raw.image_size.components > 64 {
-            assert(Seq::<Part1ColdStorageEvent>::empty() + tail =~= tail);
-        } else {
-            let response = Part1ColdStorageEvent {
-                site: 8, elements: input.raw.image_size.components as usize, succeeded: true };
-            assert((seq![response] + tail).drop_first() =~= tail);
+        Ok(input) => {
+            part1_main_resolved_normal(input, tail);
+            assert((quantization + graph) + tail =~= quantization + (graph + tail));
+            if quantization.len() == 0 { assert(quantization + (graph + tail) =~= graph + tail); }
+            else { assert((quantization + (graph + tail)).drop_first() =~= graph + tail); }
         },
     }
 }
@@ -266,6 +270,15 @@ pub(crate) proof fn part1_main_header_cold_projection<'a>(
     part1_main_quantization_normal(reader);
     if let Some((prepared, after)) = part1_prepare_main_progression_run(reader, events) {
         part1_prepare_main_progression_projection(reader, events, prepared, after);
+        if let Ok(input) = prepared {
+            if input.raw.image_size.components == 0 || input.raw.image_size.components > 64 {
+                part1_main_resolved_projection(input, after, result, rest);
+            } else if let Some((copied, after_quantization)) = part1_quantization_storage_request(
+                8, input.raw.image_size.components as usize, after) {
+                assert(copied == Ok(()));
+                part1_main_resolved_projection(input, after_quantization, result, rest);
+            }
+        }
     }
 }
 
@@ -279,6 +292,14 @@ pub(crate) proof fn part1_main_header_cold_frame<'a>(
     if let Some((prepared, after)) = part1_prepare_main_progression_run(reader, events) {
         part1_prepare_main_progression_frame(reader, events, prepared, after, tail);
         if after.len() > 0 { assert((after + tail).drop_first() =~= after.drop_first() + tail); }
+        if let Ok(input) = prepared {
+            if input.raw.image_size.components == 0 || input.raw.image_size.components > 64 {
+                part1_main_resolved_frame(input, after, result, rest, tail);
+            } else if let Some((copied, after_quantization)) = part1_quantization_storage_request(
+                8, input.raw.image_size.components as usize, after) {
+                if copied.is_ok() { part1_main_resolved_frame(input, after_quantization, result, rest, tail); }
+            }
+        }
     }
 }
 
@@ -286,6 +307,7 @@ pub(crate) open spec fn part1_main_header_normal_calls(reader: Part1CodestreamRe
     -> Seq<Part1ColdStorageEvent> {
     part1_prepare_main_progression_calls(reader)
         + part1_main_quantization_normal_calls(part1_prepare_main_quantization(reader))
+        + part1_main_resolved_calls(part1_prepare_main_quantization(reader))
 }
 
 }

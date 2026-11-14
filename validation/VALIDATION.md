@@ -993,7 +993,15 @@ scalars and empty/no-request behavior remain bound. The inventory recognizes
 the actual fallible inheritance edge and retains old MCT Clone requirements
 through their checked normal-copy links, not an unrelated remaining `.clone`
 call. Mutations reject old-site aliases, lost indices, swapped lengths and
-lost failure frames. Payload extension cloning remains a separate boundary.
+lost failure frames. Its separate payload role is addressed below.
+Resolved graph and payload-copy schemas extend that boundary at sites 37–62:
+main/tile graph roles are distinct, and payload Part 2 paths are not aliases
+for inheritance. Source guards require the actual role-bearing producer calls,
+the original constructor field position and reader commit before late copying.
+Checked ordinary-error request prefixes and exact Result/frame/tail relations
+are linked alongside every retained original graph model. Bounded controls
+exercise first/later refusal, malformed/empty bypass and zero/nonzero reader
+frontiers; mutations reject old-site/role aliases and lost no-event/error frames.
 Same-file links are checked inside another listed, formatted function body;
 the contract's own declaration, an unrelated function or an indirect caller
 does not qualify as a direct same-file call. Unsupported formatting can fail

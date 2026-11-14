@@ -4332,7 +4332,24 @@
         {"path": "specs/mod.rs", "symbol": "part1_mct_graph_collection"},
         {"path": "specs/mod.rs", "symbol": "part1_mct_graph_element_count"},
         {"path": "specs/mod.rs", "symbol": "part1_mct_registry_record_find"},
-        {"path": "specs/mod.rs", "symbol": "part1_mct_registry_reference"}
+        {"path": "specs/mod.rs", "symbol": "part1_mct_registry_reference"},
+        {"path": "specs/cold_resolved_copy.rs", "symbol": "part1_resolved_copy_site"},
+        {"path": "specs/cold_resolved_copy.rs", "symbol": "part1_resolved_collection_requests"},
+        {"path": "specs/cold_resolved_copy.rs", "symbol": "part1_resolved_stage_requests"},
+        {"path": "specs/cold_resolved_copy.rs", "symbol": "part1_resolved_graph_requests"},
+        {"path": "specs/cold_resolved_copy.rs", "symbol": "part1_resolved_stage_tail"},
+        {"path": "specs/cold_resolved_copy.rs", "symbol": "part1_resolved_graph_tail"},
+        {"path": "specs/cold_resolved_copy.rs", "symbol": "part1_resolved_collection_result"},
+        {"path": "specs/cold_resolved_copy.rs", "symbol": "part1_resolved_collection_run"},
+        {"path": "specs/cold_resolved_copy.rs", "symbol": "part1_resolved_stage_result"},
+        {"path": "specs/cold_resolved_copy.rs", "symbol": "part1_resolved_stage_run"},
+        {"path": "specs/cold_resolved_copy.rs", "symbol": "part1_resolved_graph_result"},
+        {"path": "specs/cold_resolved_copy.rs", "symbol": "part1_resolved_graph_run"},
+        {"path": "specs/cold_payload_owners.rs", "symbol": "part1_main_resolved_prepare"},
+        {"path": "specs/cold_payload_owners.rs", "symbol": "part1_main_resolved_run"},
+        {"path": "specs/cold_payload_owners.rs", "symbol": "part1_tile_after_configuration_run"},
+        {"path": "specs/cold_payload_owners.rs", "symbol": "part1_tile_after_window_run"},
+        {"path": "specs/cold_payload_owners.rs", "symbol": "part1_tile_payload_copy_requests"}
       ],
       "contract_refs": [
         {"path": "src/codestream/mct_resolution.rs", "symbol": "Parser::resolve_multiple_component_transform"},
@@ -4348,12 +4365,32 @@
         {"path": "src/codestream/proof_support.rs", "symbol": "mct_stages_view"},
         {"path": "src/codestream/proof_support.rs", "symbol": "mct_collections_view"},
         {"path": "src/codestream/mct.rs", "symbol": "mct_array_kinds_equal"},
-        {"path": "src/codestream/mct.rs", "symbol": "MctArray::clone"}
+        {"path": "src/codestream/mct.rs", "symbol": "MctArray::clone"},
+        {"path": "src/codestream/mct_copy.rs", "symbol": "MctArray::try_duplicate_for"},
+        {"path": "src/codestream/extensions_copy.rs", "symbol": "Part2Extensions::try_duplicate_with"},
+        {"path": "specs/cold_resolved_copy.rs", "symbol": "part1_resolved_collection_normal"},
+        {"path": "specs/cold_resolved_copy.rs", "symbol": "part1_resolved_stage_normal"},
+        {"path": "specs/cold_resolved_copy.rs", "symbol": "part1_resolved_graph_normal_result"},
+        {"path": "specs/cold_resolved_copy.rs", "symbol": "part1_resolved_collection_observed"},
+        {"path": "specs/cold_resolved_copy.rs", "symbol": "part1_resolved_stage_observed"},
+        {"path": "specs/cold_resolved_copy.rs", "symbol": "part1_resolved_graph_projection"},
+        {"path": "specs/cold_resolved_copy.rs", "symbol": "part1_resolved_graph_frame"},
+        {"path": "specs/cold_payload_owners.rs", "symbol": "part1_main_resolved_normal"},
+        {"path": "specs/cold_payload_owners.rs", "symbol": "part1_main_resolved_projection"},
+        {"path": "specs/cold_payload_owners.rs", "symbol": "part1_main_resolved_frame"},
+        {"path": "specs/cold_payload_owners.rs", "symbol": "part1_tile_after_configuration_normal"},
+        {"path": "specs/cold_payload_owners.rs", "symbol": "part1_tile_after_configuration_projection"},
+        {"path": "specs/cold_payload_owners.rs", "symbol": "part1_tile_after_configuration_frame"},
+        {"path": "specs/cold_payload_owners.rs", "symbol": "part1_cold_tile_payload_error"}
       ],
       "test_refs": [
         {"path": "src/codestream/tests.rs", "symbol": "actual_mct_graph_element_counts_preserve_checked_intermediate_overflow"},
         {"path": "src/codestream/tests.rs", "symbol": "actual_mct_graph_collections_preserve_lookup_shape_flags_and_all_fields"},
-        {"path": "src/codestream/tests.rs", "symbol": "actual_mct_graph_complete_parameters_preserve_order_first_records_and_empty_bypass"}
+        {"path": "src/codestream/tests.rs", "symbol": "actual_mct_graph_complete_parameters_preserve_order_first_records_and_empty_bypass"},
+        {"path": "src/codestream/mct_parameter_clone_tests.rs", "symbol": "resolved_owner_storage_first_later_empty_and_validation_frontier"},
+        {"path": "src/codestream/tile_part_tests.rs", "symbol": "payload_owner_refusal_preserves_zero_and_nonzero_reader_commit_frontiers"},
+        {"path": "src/codestream/tests.rs", "symbol": "payload_owner_storage_raw_main_tile_graph_and_extension_roles_restore"},
+        {"path": "src/jp2/tests.rs", "symbol": "payload_owner_storage_container_late_nested_copy_restores"}
       ]
     },
     {

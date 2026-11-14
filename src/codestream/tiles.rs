@@ -382,8 +382,18 @@ impl<'a> Parser<'a> {
             &component_coding_styles,
             tile_part.start,
         )?;
-        let multiple_component_transform =
-            self.resolve_multiple_component_transform(&mct_parameters)?;
+        #[cfg(verus_keep_ghost)]
+        proof! { assert(crate::specs::part1_tile_graph_prepare(cold_input, cold_raw, header_reader).is_ok()); }
+        let multiple_component_transform = match self
+            .resolve_multiple_component_transform(&mct_parameters, super::ResolvedCopyRole::Tile)
+        {
+            Ok(value) => value,
+            Err(error) => {
+                #[cfg(verus_keep_ghost)]
+                proof! { crate::specs::part1_cold_tile_graph_error(cold_input, cold_raw, header_reader, error); }
+                return Err(error);
+            }
+        };
 
         let data_start = self.position;
         if tile_part.length == 0 {
@@ -424,7 +434,16 @@ impl<'a> Parser<'a> {
                     roi_shifts: tile_roi_shifts,
                     progression_changes,
                     multiple_component_transform,
-                    part2_extensions: part2_extensions.clone(),
+                    part2_extensions: {
+                        let copied = part2_extensions.try_duplicate_with(true);
+                        #[cfg(verus_keep_ghost)]
+                        proof! {
+                            if let Err(error) = copied {
+                                crate::specs::part1_cold_tile_payload_error(cold_input, cold_raw, parser_view(self), error);
+                            }
+                        }
+                        copied?
+                    },
                     packet_lengths,
                     packed_packet_headers,
                     has_functional_header_marker,
@@ -474,7 +493,16 @@ impl<'a> Parser<'a> {
                 roi_shifts: tile_roi_shifts,
                 progression_changes,
                 multiple_component_transform,
-                part2_extensions: part2_extensions.clone(),
+                part2_extensions: {
+                    let copied = part2_extensions.try_duplicate_with(true);
+                    #[cfg(verus_keep_ghost)]
+                    proof! {
+                        if let Err(error) = copied {
+                            crate::specs::part1_cold_tile_payload_error(cold_input, cold_raw, parser_view(self), error);
+                        }
+                    }
+                    copied?
+                },
                 packet_lengths,
                 packed_packet_headers,
                 has_functional_header_marker,
