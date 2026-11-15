@@ -107,7 +107,7 @@ fn ht_cleanup_scratch_storage_real_decoder_refusal_keeps_prior_refinement_before
     let result = expected
         .decode_high_throughput_segments(&[0, 0x63, 0], 1, Some(&[0]), 1, &limits)
         .unwrap();
-    for after in [1, 2] {
+    for after in [4, 5] {
         let mut decoder = base.clone();
         assert_eq!(
             crate::allocation::with_refusal(after, || decoder.decode_high_throughput_segments(
@@ -787,7 +787,7 @@ fn ht_refinement_storage_retention_refusal_keeps_cleared_state_and_staging_rolls
     cleared.ht_refinement_data.clear();
     cleared.ht_refinement_passes = 0;
     assert_eq!(
-        crate::allocation::with_refusal(4, || actual.decode_high_throughput_segments(
+        crate::allocation::with_refusal(7, || actual.decode_high_throughput_segments(
             &[0, 0x63, 0],
             1,
             Some(&[0]),
@@ -895,7 +895,7 @@ fn tier1_plane_storage_cleanup_output_copy_refusals_restore_state_and_output() {
     let result = expected
         .decode_high_throughput_segments(&[0, 0x63, 0], 1, None, 0, &limits)
         .unwrap();
-    for after in [0, 3] {
+    for after in [3, 6] {
         let mut actual = base.clone();
         let before = format!("{actual:?}");
         assert_eq!(
@@ -960,7 +960,7 @@ fn tier1_plane_storage_refinement_roles_preserve_rollback_and_cleared_partial_st
             .unwrap();
         assert_eq!(format!("{actual:?}"), format!("{expected:?}"));
     }
-    for after in [4, 5] {
+    for after in [7, 8] {
         let mut actual = tier1_plane_storage_ht_decoder();
         actual.ht_refinement_data = vec![7];
         actual.ht_refinement_passes = 1;
@@ -8240,5 +8240,187 @@ fn supports_sample_and_roi_adjusted_coefficient_bitplanes() {
     assert_eq!(
         plane.coefficient(0, 0).unwrap().magnitude_limb(3),
         Some(1_u64 << 63)
+    );
+}
+#[test]
+fn ht_metadata_storage_quad_previous_and_fresh_first_later_rows_restore_actual_metadata() {
+    let limits = ResourceLimits::default()
+        .with_maximum_work_units(24)
+        .unwrap();
+    let bytes = [0xff, 3, 0];
+    let expected = decode_ht_cleanup_metadata(&bytes, 5, 5, 1, &limits).unwrap();
+    for after in [0, 1, 2, 4] {
+        assert_eq!(
+            crate::allocation::with_refusal(after, || decode_ht_cleanup_metadata(
+                &bytes, 5, 5, 1, &limits
+            )),
+            Err(DecodeError::AllocationFailed)
+        );
+        assert_eq!(
+            decode_ht_cleanup_metadata(&bytes, 5, 5, 1, &limits).unwrap(),
+            expected
+        );
+    }
+    assert_eq!(expected.quads.len(), 9);
+}
+
+#[test]
+fn ht_metadata_storage_current_row_refusal_preserves_actual_prior_rows_and_empty_skips_request() {
+    let limits = ResourceLimits::default();
+    let segments = parse_ht_block_segments(&[0xff, 3, 0], None, &limits).unwrap();
+    let cleanup = segments.cleanup();
+    let mut readers = ht_cleanup_readers_from_inputs(
+        cleanup.mel().bytes(),
+        cleanup.vlc().bytes(),
+        limits.maximum_work_units(),
+    )
+    .unwrap();
+    let mut quads = Vec::new();
+    let mut previous = vec![0; 3];
+    let mut significant = 0;
+    decode_ht_metadata_row(
+        &mut readers,
+        &mut quads,
+        &mut previous,
+        &mut significant,
+        3,
+        0,
+        5,
+        5,
+        1,
+    )
+    .unwrap();
+    let observe = |r: &HtCleanupReaders<'_>| {
+        format!(
+            "{:?}",
+            (
+                r.mel,
+                r.vlc,
+                (
+                    r.mel_last_byte,
+                    r.vlc_last_byte,
+                    r.terminal_byte,
+                    r.mel_state,
+                    r.mel_zero_events,
+                    r.mel_terminating_one,
+                    r.mel_events,
+                    r.work_units,
+                    r.maximum_work_units,
+                ),
+            )
+        )
+    };
+    let before = format!(
+        "{:?} {quads:?} {previous:?} {significant}",
+        observe(&readers)
+    );
+    let owner = previous.as_ptr();
+    assert_eq!(
+        crate::allocation::with_refusal(0, || decode_ht_metadata_row(
+            &mut readers,
+            &mut quads,
+            &mut previous,
+            &mut significant,
+            3,
+            1,
+            5,
+            5,
+            1
+        )),
+        Err(DecodeError::AllocationFailed)
+    );
+    assert_eq!(
+        format!(
+            "{:?} {quads:?} {previous:?} {significant}",
+            observe(&readers)
+        ),
+        before
+    );
+    assert_eq!(previous.as_ptr(), owner);
+    decode_ht_metadata_row(
+        &mut readers,
+        &mut quads,
+        &mut previous,
+        &mut significant,
+        3,
+        1,
+        5,
+        5,
+        1,
+    )
+    .unwrap();
+    assert_eq!(quads.len(), 6);
+    let mut empty = Vec::new();
+    crate::allocation::with_refusal(0, || {
+        decode_ht_metadata_row(
+            &mut readers,
+            &mut quads,
+            &mut empty,
+            &mut significant,
+            0,
+            2,
+            5,
+            5,
+            1,
+        )
+        .unwrap();
+        assert!(empty.is_empty());
+        assert_eq!(
+            decode_ht_cleanup_metadata(&[0xff, 3, 0], 5, 5, 1, &limits),
+            Err(DecodeError::AllocationFailed)
+        );
+    });
+}
+
+#[test]
+fn ht_metadata_storage_original_parse_header_reader_and_late_work_error_order() {
+    let limits = ResourceLimits::default();
+    let small = limits.with_maximum_code_block_bytes(2).unwrap();
+    let segments = parse_ht_block_segments(&[0xff, 3, 0], None, &limits).unwrap();
+    let mut empty = segments.cleanup();
+    empty.mel.bytes = &[];
+    crate::allocation::with_refusal(0, || {
+        assert!(matches!(
+            decode_ht_cleanup_metadata(&[0xff, 3, 0], 0, 0, 0, &small),
+            Err(DecodeError::LimitExceeded {
+                resource: Resource::CodeBlockBytes,
+                ..
+            })
+        ));
+        assert_eq!(
+            decode_ht_cleanup_segment_metadata(segments.cleanup(), 0, 1, 1, &limits),
+            Err(DecodeError::malformed(0, MalformedKind::InvalidCodeBlock))
+        );
+        assert_eq!(
+            decode_ht_cleanup_segment_metadata(empty, 1, 1, 1, &limits),
+            Err(DecodeError::malformed(0, MalformedKind::InvalidCodeBlock))
+        );
+        assert_eq!(
+            decode_ht_cleanup_metadata(&[0xff, 3, 0], 5, 5, 1, &limits),
+            Err(DecodeError::AllocationFailed)
+        );
+    });
+    let work = limits.with_maximum_work_units(1).unwrap();
+    let expected = decode_ht_cleanup_metadata(&[0xff, 3, 0], 5, 5, 1, &work);
+    assert!(matches!(
+        expected,
+        Err(DecodeError::LimitExceeded {
+            resource: Resource::WorkUnits,
+            ..
+        })
+    ));
+    assert_eq!(
+        crate::allocation::with_refusal(0, || decode_ht_cleanup_metadata(
+            &[0xff, 3, 0],
+            5,
+            5,
+            1,
+            &work
+        )),
+        Err(DecodeError::AllocationFailed)
+    );
+    assert_eq!(
+        decode_ht_cleanup_metadata(&[0xff, 3, 0], 5, 5, 1, &work),
+        expected
     );
 }

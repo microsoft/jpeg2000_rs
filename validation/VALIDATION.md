@@ -1397,6 +1397,27 @@ The separate metadata quad and previous/current pattern constructors, refinement
 reader buffers, unrelated collection copies and existing growth remain outside
 this increment. Sequence contracts make no host-availability or physical-capacity
 claim; public Clone behavior and proof/runtime boundaries remain unchanged.
+The metadata producer now fallibly reserves its fresh quad owner from the real
+ceiling-half width times ceiling-half height count, fills the previous-pattern
+owner from ceiling-half width, and fills a genuinely fresh current-pattern owner
+at each reached row's original frontier. Per-row construction is not existing
+growth. Geometry/maximum-u/sample-count and checked arithmetic still precede the
+actual MEL/VLC reader, which precedes quad/previous storage; each current row is
+constructed before its original pair/entropy work. Fixed word/context arrays,
+quad pushes into the originally reserved owner, pattern overwrites and the final
+current-to-previous owner transfer introduce no new requests.
+Disjoint `HtMetadataCapacity` roles use real source/count/row/prior-owner and
+reader/counter descriptors; enclosing binds retain complete actual producer
+inputs and state. First/later/per-row refusal preserves previous rows, readers,
+stored quads and counters. Earlier errors leave unused response tails unchanged,
+and failure skips every later row. Public metadata, cleanup preparation and all
+dependent HT/packet/public/automatic results compose the actual ordered child
+responses while retaining checked original normal projections. Bounded controls
+cover quad/previous/first/later rows, empty/no-request behavior, original error
+precedence, exact partial row state, packet rollback and restored real public
+images. Refinement-reader scratch, extraction outputs, unrelated collections,
+growth and later buffers remain separate. No physical-capacity/availability
+theorem or new runtime/proof boundary is claimed.
 Replay copying remains after original route/pass/cleanup/byte admission but
 before the unchanged append and later concatenation-size checks. Retention
 copying remains after actual refinement and statistics merge, preserving

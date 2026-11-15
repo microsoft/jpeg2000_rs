@@ -572,13 +572,17 @@ pub(super) fn prepare_ht_cleanup_symbols(
 ) -> Result<(CodeBlockPlane, CodeBlockPlane, Tier1PassStatistics, u16), DecodeError> {
     #[cfg(verus_keep_ghost)]
     proof! {crate::specs::part2_plane_prepare_normal(code_block_plane_view(plane),ht_cleanup_segment_view(&cleanup),maximum_passes,maximum_u,skipped_bitplanes,crate::limits::resource_work_limit(limits));}
-    let metadata = decode_ht_cleanup_segment_metadata(
+    let metadata_result = decode_ht_cleanup_segment_metadata(
         cleanup,
         plane.width(),
         plane.height(),
         maximum_u,
         limits,
-    )?;
+    );
+    #[cfg(verus_keep_ghost)]
+    proof! {if let Err(error)=metadata_result{crate::specs::part2_plane_prepare_metadata_error(code_block_plane_view(plane),ht_cleanup_segment_view(&cleanup),
+    maximum_passes,maximum_u,skipped_bitplanes,crate::limits::resource_work_limit(limits),error);}}
+    let metadata = metadata_result?;
     let significant_bitplanes = ht_significant_bitplanes(maximum_passes)?;
     let decoded_bitplanes = significant_bitplanes
         .checked_sub(skipped_bitplanes)

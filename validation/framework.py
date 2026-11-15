@@ -4800,6 +4800,7 @@ _RAW_RENDER_PROOFS |= {("specs/jpx_raw_frame.rs", "part2_render_raw_cold_metadat
 _RAW_COMPOSITION_RENDER_PROOFS |= {("specs/jpx_raw_frame.rs", "part2_render_raw_cold_metadata_error")}
 
 _PLANE_ROLE_MODEL_INFO = {
+    "ht_cleanup_segment_metadata": ("part2_ht_metadata_result", "specs/cold_ht_metadata.rs", "part2_ht_metadata_normal"),
     "part1_legacy_code_block_segment": ("part2_legacy_packet_step_result", "specs/cold_legacy_packets.rs", "part2_legacy_packet_step_normal"),
     "part1_legacy_code_block_body": ("part2_legacy_packet_body_result", "specs/cold_legacy_packets.rs", "part2_legacy_packet_body_normal"),
     "ht_copy_refinement_bytes": ("part2_ht_bytes_result", "specs/cold_ht_bytes.rs", "part2_ht_bytes_normal"),
@@ -4833,7 +4834,7 @@ _PLANE_ROLE_MODEL_INFO = {
 _PLANE_ROLE_RESULT_RUNS = {
     model: (("part2_plane_duplicate_run" if model == "part1_plane_duplicate_storage_result" else
              "part2_plane_tile_run" if model == "part2_plane_tile_run_result" else model.removesuffix("_result") + "_run"),
-            old not in {"tier1_duplicate_plane", "ht_cleanup_plane", "ht_cleanup_prepare", "ht_refinement_plane", "ht_copy_refinement_bytes"})
+            old not in {"tier1_duplicate_plane", "ht_cleanup_plane", "ht_cleanup_prepare", "ht_refinement_plane", "ht_copy_refinement_bytes", "ht_cleanup_segment_metadata"})
     for old, (model, _, _) in _PLANE_ROLE_MODEL_INFO.items()
 }
 _COLD_RESULT_MODELS = {
@@ -5104,6 +5105,9 @@ def _plane_role_special_contracts():
     header = call("code_block_contribution_view", "contribution")
     packet_inputs = args(old_decoder("decoder"), header, "body@", pass_limit, byte_limit)
     return {
+        ("src/tier1/ht_metadata.rs", "decode_ht_cleanup_segment_metadata"): (
+            "ht_cleanup_segment_metadata", call("ht_cleanup_metadata_outcome", r"\1"), None,
+            args(cleanup, "width", "height", "maximum_u", work)),
         ("src/tier1/state.rs", "CodeBlockPlane::duplicate"): (
             "tier1_duplicate_plane", call("code_block_plane_outcome", r"\1"), None, plane("self")),
         ("src/tier1/ht_cleanup.rs", "reconstruct_ht_cleanup_plane"): (
@@ -6174,6 +6178,70 @@ _PLANE_ROLE_TESTS = {
     ("src/tier1/tests.rs", "tier1_plane_storage_refinement_roles_preserve_rollback_and_cleared_partial_state"),
     ("src/decode/tests.rs", "tier1_plane_storage_real_ht_raw_selected_container_cleanup_restore"),
 }
+_HT_METADATA_TESTS = {
+    ("src/tier1/tests.rs", "ht_metadata_storage_quad_previous_and_fresh_first_later_rows_restore_actual_metadata"),
+    ("src/tier1/tests.rs", "ht_metadata_storage_current_row_refusal_preserves_actual_prior_rows_and_empty_skips_request"),
+    ("src/tier1/tests.rs", "ht_metadata_storage_original_parse_header_reader_and_late_work_error_order"),
+    ("src/packet/tests.rs", "ht_metadata_storage_actual_packet_quad_previous_current_refusals_roll_back_and_restore"),
+    ("src/decode/tests.rs", "ht_metadata_storage_raw_selected_jph_and_automatic_restore_actual_image"),
+}
+_HT_METADATA_GUARDS = {
+    "part2_ht_metadata_context": (
+        "width,height,maximum_u,work,mel:cleanup.mel.bytes,vlc:cleanup.vlc.bytes",
+        "row:0,quads:0,previous:None,significant:0,mel_bits:0,vlc_bits:0",
+    ),
+    "part2_ht_metadata_admit": (
+        "width==0 || height==0 || maximum_u==0 || maximum_u>75",
+        "width as nat*height as nat>u32::MAX", "width as nat*height as nat>4096",
+        "ht_cleanup_readers_initial(cleanup.mel.bytes,cleanup.vlc.bytes,work)",
+    ),
+    "part2_ht_metadata_count": (
+        "Quads=>((context.width as nat+1)/2)*((context.height as nat+1)/2)",
+        "Previous=>(context.width as nat+1)/2",
+        "Current=>match context.previous{Some(previous)=>previous.len(),None=>0nat}",
+    ),
+    "part2_ht_metadata_row_context": (
+        "work:state.readers.maximum_work_units", "mel:state.readers.mel.input,vlc:state.readers.vlc.input,row,quads:state.quads.len()",
+        "previous:Some(state.previous),significant:state.significant",
+        "mel_bits:state.readers.mel.bits_read as nat,vlc_bits:state.readers.vlc.bits_read as nat",
+    ),
+    "part2_ht_metadata_capacity_run": (
+        "if count==0{Some((Ok(()),calls))}else if calls.len()==0{None}",
+        "HtMetadataCapacity {context:actual,role:field,elements,succeeded}",
+        "actual!=context || field!=role || elements!=count",
+        "if succeeded{Ok(())}else{Err(crate::DecodeError::AllocationFailed)}", "calls.drop_first()",
+    ),
+    "part2_ht_metadata_row_run": (
+        "part2_ht_metadata_row_context(state,row,width,height,maximum_u),Part2HtMetadataRole::Current,calls)",
+        "Err(error)=>(Err(error),state),Ok(())=>ht_metadata_row(state,row,width,height,maximum_u)",
+    ),
+    "part2_ht_metadata_rows_next": (
+        "Err(_)=>Some((Ok(step),calls))", "part2_ht_metadata_row_run(step.1,row,width,height,maximum_u,calls)",
+    ),
+    "part2_ht_metadata_rows_run": (
+        "if count==0{Some((Ok((Ok(()),state)),calls))}",
+        "part2_ht_metadata_rows_run(state,width,height,maximum_u,(count-1) as nat,calls)",
+        "part2_ht_metadata_rows_next(step,(count-1) as nat,width,height,maximum_u,rest)",
+    ),
+    "part2_ht_metadata_after_previous": (
+        "part2_ht_metadata_rows_run(part2_ht_metadata_start(readers,width),width,height,maximum_u,(height as nat+1)/2,calls)",
+        "Some((ht_metadata_finish(step,width,height),rest))",
+    ),
+    "part2_ht_metadata_after_quads": (
+        "part2_ht_metadata_context(cleanup,width,height,maximum_u,work),Part2HtMetadataRole::Previous,calls)",
+        "part2_ht_metadata_after_previous(readers,width,height,maximum_u,rest)",
+    ),
+    "part2_ht_metadata_run": (
+        "match part2_ht_metadata_admit(cleanup,width,height,maximum_u,work)",
+        "Err(error)=>Some((Err(error),calls))",
+        "part2_ht_metadata_context(cleanup,width,height,maximum_u,work),Part2HtMetadataRole::Quads,calls)",
+        "part2_ht_metadata_after_quads(cleanup,width,height,maximum_u,work,readers,rest)",
+    ),
+    "part2_ht_decode_metadata_run": (
+        "ht_parse_block_segments(input,None,bytes)", "Err(error)=>Some((Err(error),calls))",
+        "part2_ht_metadata_run(segments.cleanup,width,height,maximum_u,work,calls)",
+    ),
+}
 _HT_EXPONENT_TESTS = {
     ("src/tier1/tests.rs", "ht_cleanup_scratch_storage_raw_metadata_rows_first_later_and_exact_output_restore"),
     ("src/tier1/tests.rs", "ht_cleanup_scratch_storage_original_width_plane_admission_and_empty_quad_order"),
@@ -6232,7 +6300,12 @@ _PLANE_ROLE_GUARDS = {
         "part2_ht_exponent_after_plane(plane,cleanup,metadata,maximum_u,bitplanes,maximum_work,rest)",
     ),
     ("specs/cold_tier1_planes.rs", "part2_plane_prepare_run"): (
-        "part2_plane_prepare_admit(", "Err(error)=>Some((Err(error),calls))", "part2_plane_cleanup_run(", "part2_plane_prepare_tail(output,admitted.1,rest)",
+        "part2_ht_metadata_run(cleanup,plane.width,plane.height,maximum_u,work,calls)",
+        "part2_plane_prepare_after_metadata(plane,cleanup,passes,maximum_u,skipped,work,metadata,rest)",
+    ),
+    ("specs/cold_tier1_planes.rs", "part2_plane_prepare_after_metadata"): (
+        "ht_significant_bitplanes(passes)", "if bits<skipped", "Err(error)=>Some((Err(error),calls))",
+        "part2_plane_cleanup_run(", "part2_plane_prepare_tail(output,admitted.1,rest)",
     ),
     ("specs/cold_tier1_planes.rs", "part2_plane_prepare_tail"): (
         "part2_plane_duplicate_run(output.0,crate::tier1::CoefficientStorageRole::CleanupCopy,calls)",
@@ -13538,6 +13611,7 @@ def validate_normative_coverage(
                     )
             metadata_arguments_bound = (
                 (reference["path"], short) != ("src/tier1/ht_metadata.rs", "decode_ht_cleanup_segment_metadata")
+                or (cold_contract is not None and cold_contract[0] == "part2_ht_metadata_result")
                 or _coverage_result_arguments(
                     contract, named_result, "ht_cleanup_segment_metadata",
                     r"ht_cleanup_segment_view\s*\(\s*&\s*cleanup\s*\)\s*,\s*"
@@ -13545,6 +13619,21 @@ def validate_normative_coverage(
                     r"crate::limits::resource_work_limit\s*\(\s*limits\s*\)",
                 )
             )
+            if (reference["path"], short) == ("src/tier1/ht_metadata.rs", "decode_ht_cleanup_segment_metadata") and cold_contract is not None:
+                ordinary = re.search(
+                    r"ht_cleanup_metadata_outcome\s*\(\s*(?P<name>\w+)\s*\)\s*!=\s*"
+                    r"Err\s*\(\s*DecodeError::AllocationFailed\s*\)\s*==>",
+                    contract,
+                )
+                metadata_arguments_bound = ordinary is not None and re.match(
+                    r"\s*" + _coverage_call("ht_cleanup_metadata_outcome", re.escape(ordinary["name"]))
+                    + r"\s*==\s*" + _coverage_call(
+                        "crate::specs::ht_cleanup_segment_metadata",
+                        _coverage_call("ht_cleanup_segment_view", r"&\s*cleanup"),
+                        "width", "height", "maximum_u",
+                        _coverage_call("crate::limits::resource_work_limit", "limits"),
+                    ).removesuffix(r"\s*\)") + r"\s*,?\s*\)", contract[ordinary.end():],
+                ) is not None
             palette_arguments_bound = (
                 (reference["path"], reference["symbol"]) != ("src/jp2/color.rs", "Palette::value")
                 or _coverage_result_arguments(
@@ -14384,6 +14473,40 @@ def validate_normative_coverage(
                               "part15-complete-retained-refinement-and-placeholder-steps", "part1-complete-native-grid-progression-composition"}:
                 if not _PLANE_ROLE_TESTS.issubset({(ref["path"], ref["symbol"]) for ref in entry["test_refs"]}):
                     raise ValueError("remaining plane storage requires bounded standalone/copy/cleanup/refinement/public refusal/restore/state controls")
+    if "part15-complete-cleanup-metadata" in ids:
+        for symbol, fragments in _HT_METADATA_GUARDS.items():
+            body = _coverage_spec_function_body(source_text((ROOT / "specs/cold_ht_metadata.rs").resolve()), symbol)
+            compact = "".join((body or "").split())
+            if any("".join(fragment.split()) not in compact for fragment in fragments):
+                raise ValueError("HT metadata storage requires actual source/count/role/reader/prior-owner and exact row/result/first-error/tail composition")
+        for symbol, fragments in {
+            "decode_ht_cleanup_segment_metadata": (
+                "if width==0 || height==0 || maximum_u==0", "if samples>4_096",
+                "let quads_per_row=usize::from(width)", "let quad_rows=usize::from(height)",
+                "let quad_count=quads_per_row", "ht_cleanup_readers_from_inputs(",
+                "empty_with_capacity::<HtQuadMetadata>(quad_count)", "Part2HtMetadataRole::Quads",
+                "let mut quads=allocated?", "filled_values(0_u8,quads_per_row)", "Part2HtMetadataRole::Previous",
+                "let mut previous_patterns=allocated?", "while quad_row", "decode_ht_metadata_row(", "readers.finish()?",
+            ),
+            "decode_ht_metadata_row": (
+                "let initial=quad_row==0", "filled_values(0_u8,quads_per_row)", "Part2HtMetadataRole::Current",
+                "part2_ht_metadata_row_refused(", "let mut current_patterns=allocated?",
+                "let mut left_context=0_u8", "while pair", "*previous_patterns=current_patterns",
+            ),
+            "decode_ht_cleanup_metadata": (
+                "parse_ht_block_segments(cleanup,None,limits)?", "decode_ht_cleanup_segment_metadata(segments.cleanup()",
+                "part2_ht_decode_metadata_observed(",
+            ),
+        }.items():
+            path = (ROOT / "src/tier1/ht_metadata.rs").resolve()
+            body = _coverage_function_body(source_text(path), function_header(path, symbol))
+            compact = "".join((body or "").split())
+            positions = [compact.find("".join(fragment.split())) for fragment in fragments]
+            if any(p < 0 for p in positions) or positions != sorted(positions):
+                raise ValueError("HT metadata storage requires unchanged real admission/reader/reservation/field/per-row/entropy/owner order")
+        entry = next(e for e in coverage["requirements"] if e["id"] == "part15-complete-cleanup-metadata")
+        if not _HT_METADATA_TESTS.issubset({(r["path"], r["symbol"]) for r in entry["test_refs"]}):
+            raise ValueError("HT metadata storage requires bounded quad/previous/per-row/empty/error/packet/public refusal and restore controls")
     return {
         "status": "passed",
         "inventory_items": len(ids),

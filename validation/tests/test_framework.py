@@ -8487,6 +8487,75 @@ class FrameworkTests(WorkingFiles):
         with self.assertRaisesRegex(ValueError, "initial bitplane storage requires bounded"):
             framework.validate_normative_coverage(missing)
 
+    def test_inventory_ht_metadata_storage_requires_actual_count_prior_rows_and_precise_error_tail(self):
+        coverage = json.loads((framework.VALIDATION / "normative-coverage.json").read_text())
+        entry = next(e for e in coverage["requirements"] if e["id"] == "part15-complete-cleanup-metadata")
+        data = dict(coverage, requirements=[entry])
+        self.assertEqual(framework.validate_normative_coverage(data)["status"], "passed")
+        read_text = Path.read_text
+        cases = (
+            ("specs/cold_ht_metadata.rs", "part2_ht_metadata_context", "mel:cleanup.mel.bytes", "mel:Seq::empty()"),
+            ("specs/cold_ht_metadata.rs", "part2_ht_metadata_count", "context.height", "context.width"),
+            ("specs/cold_ht_metadata.rs", "part2_ht_metadata_count", "previous.len()", "1"),
+            ("specs/cold_ht_metadata.rs", "part2_ht_metadata_row_context", "quads:state.quads.len()", "quads:0"),
+            ("specs/cold_ht_metadata.rs", "part2_ht_metadata_row_context", "previous:Some(state.previous)", "previous:None"),
+            ("specs/cold_ht_metadata.rs", "part2_ht_metadata_row_context", "significant:state.significant", "significant:0"),
+            ("specs/cold_ht_metadata.rs", "part2_ht_metadata_capacity_run", "count==0", "count==1"),
+            ("specs/cold_ht_metadata.rs", "part2_ht_metadata_capacity_run", "HtMetadataCapacity", "HtExponentCapacity"),
+            ("specs/cold_ht_metadata.rs", "part2_ht_metadata_capacity_run", "actual!=context", "false"),
+            ("specs/cold_ht_metadata.rs", "part2_ht_metadata_capacity_run", "field!=role", "false"),
+            ("specs/cold_ht_metadata.rs", "part2_ht_metadata_capacity_run", "elements!=count", "false"),
+            ("specs/cold_ht_metadata.rs", "part2_ht_metadata_capacity_run", "calls.drop_first()", "calls"),
+            ("specs/cold_ht_metadata.rs", "part2_ht_metadata_row_run", "Err(error)=>(Err(error),state)", "Err(error)=>(Ok(()),state)"),
+            ("specs/cold_ht_metadata.rs", "part2_ht_metadata_rows_next", "Some((Ok(step),calls))", "Some((Ok(step),Seq::empty()))"),
+            ("specs/cold_ht_metadata.rs", "part2_ht_metadata_admit", "maximum_u>75", "maximum_u>255"),
+            ("specs/cold_ht_metadata.rs", "part2_ht_metadata_run", "Part2HtMetadataRole::Quads", "Part2HtMetadataRole::Previous"),
+            ("src/tier1/ht_metadata.rs", "decode_ht_cleanup_segment_metadata", "empty_with_capacity::<HtQuadMetadata>(quad_count)", "empty_with_capacity::<HtQuadMetadata>(1)"),
+            ("src/tier1/ht_metadata.rs", "decode_ht_cleanup_segment_metadata", "filled_values(0_u8, quads_per_row)", "filled_values(1_u8, quads_per_row)"),
+            ("src/tier1/ht_metadata.rs", "decode_ht_metadata_row", "filled_values(0_u8, quads_per_row)", "filled_values(0_u8, 1)"),
+        )
+        for relative, symbol, before, after in cases:
+            source = framework.ROOT / relative
+            original = source.read_text()
+            body = (framework._coverage_function_body(original, framework._coverage_function_header(original, symbol))
+                    if relative.startswith("src/") else framework._coverage_spec_function_body(original, symbol))
+            pattern = re.escape(before).replace(r"\ ", r"\s*")
+            changed_body, count = re.subn(pattern, lambda _: after, body, count=1)
+            self.assertEqual(count, 1, (symbol, before))
+            changed = original.replace(body, changed_body, 1)
+
+            def altered(path, *args, **kwargs):
+                return changed if path == source else read_text(path, *args, **kwargs)
+
+            with self.subTest(symbol=symbol, before=before), mock.patch.object(Path, "read_text", altered), \
+                    self.assertRaisesRegex(ValueError, "HT metadata storage"):
+                framework.validate_normative_coverage(data)
+        missing = copy.deepcopy(data)
+        missing["requirements"][0]["test_refs"] = [
+            r for r in entry["test_refs"] if (r["path"], r["symbol"]) not in framework._HT_METADATA_TESTS
+        ]
+        with self.assertRaisesRegex(ValueError, "HT metadata storage requires bounded"):
+            framework.validate_normative_coverage(missing)
+        source = framework.ROOT / "src/tier1/ht_metadata.rs"
+        original = source.read_text()
+        header = framework._coverage_function_header(original, "decode_ht_cleanup_segment_metadata")
+        start = original.rfind("#[cfg_attr", 0, header.start())
+        contract = original[start:header.start()]
+        changed_contract = contract.replace("== crate::specs::ht_cleanup_segment_metadata(", "<= crate::specs::ht_cleanup_segment_metadata(", 1)
+        closing = contract.rfind("\n    )")
+        self.assertGreater(closing, 0)
+        changed_contract = (changed_contract[:closing]
+                            + contract[contract.index("ht_cleanup_metadata_outcome(result) != Err"):closing]
+                            + changed_contract[closing:])
+        self.assertEqual(changed_contract.count("ht_cleanup_segment_metadata("), 2)
+        changed = original[:start] + changed_contract + original[header.start():]
+
+        def altered(path, *args, **kwargs):
+            return changed if path == source else read_text(path, *args, **kwargs)
+
+        with mock.patch.object(Path, "read_text", altered), self.assertRaisesRegex(ValueError, "lacks executable Verus contract"):
+            framework.validate_normative_coverage(data)
+
     def test_inventory_ht_exponent_storage_requires_actual_row_count_response_and_field_order(self):
         coverage = json.loads((framework.VALIDATION / "normative-coverage.json").read_text())
         entry = next(item for item in coverage["requirements"] if item["id"] == "part15-complete-actual-cleanup-plane")
@@ -10473,10 +10542,10 @@ class FrameworkTests(WorkingFiles):
         start = original.rfind("#[cfg_attr", 0, end)
         contract = original[start:end]
         for before, after in (
-            ("ensures ht_cleanup_metadata_outcome(result)", "ensures ht_cleanup_metadata_outcome(unrelated)"),
-            ("ensures ht_cleanup_metadata_outcome(result)", "ensures unlisted_projection(result)"),
-            ("ensures ht_cleanup_metadata_outcome(result)", "ensures ht_block_segments_outcome(result)"),
-            ("ensures ht_cleanup_metadata_outcome(result)", "ensures result.is_ok()"),
+            ("ht_cleanup_metadata_outcome(result)),", "ht_cleanup_metadata_outcome(unrelated)),"),
+            ("ht_cleanup_metadata_outcome(result)),", "unlisted_projection(result)),"),
+            ("ht_cleanup_metadata_outcome(result)),", "ht_block_segments_outcome(result)),"),
+            ("ht_cleanup_metadata_outcome(result)),", "result.is_ok()),"),
             ("== crate::specs::ht_cleanup_segment_metadata(", "== crate::specs::ht_decode_cleanup_metadata("),
             ("== crate::specs::ht_cleanup_segment_metadata(", "== crate::specs::ht_cleanup_quad_word("),
             ("== crate::specs::ht_cleanup_segment_metadata(", "<= crate::specs::ht_cleanup_segment_metadata("),

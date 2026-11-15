@@ -372,7 +372,11 @@ fn decode_ht_metadata_pair(
     verus_spec(result =>
         requires 0 < quads_per_row <= 32768, quad_row < 32768,
             old(previous_patterns).len() == quads_per_row,
-        ensures (result, ht_metadata_row_view(final(readers), final(quads), final(previous_patterns), *final(significant_samples)))
+        ensures crate::specs::part2_ht_metadata_row_result(
+                ht_metadata_row_view(old(readers), old(quads), old(previous_patterns), *old(significant_samples)),
+                quad_row as nat, width, height, maximum_u,
+                (result, ht_metadata_row_view(final(readers), final(quads), final(previous_patterns), *final(significant_samples)))),
+            result != Err(DecodeError::AllocationFailed) ==> (result, ht_metadata_row_view(final(readers), final(quads), final(previous_patterns), *final(significant_samples)))
             == crate::specs::ht_metadata_row(
                 ht_metadata_row_view(old(readers), old(quads), old(previous_patterns), *old(significant_samples)),
                 quad_row as nat, width, height, maximum_u),
@@ -401,8 +405,18 @@ pub(super) fn decode_ht_metadata_row(
         let ghost start = ht_metadata_row_view(readers, quads, previous_patterns, *significant_samples);
         let ghost start_pair = crate::specs::ht_metadata_row_initial(start);
     }
+    #[cfg(verus_keep_ghost)]
+    proof! {crate::specs::part2_ht_metadata_row_normal(start,quad_row as nat,width,height,maximum_u);}
     let initial = quad_row == 0;
-    let mut current_patterns = vec![0_u8; quads_per_row];
+    let allocated = crate::allocation::filled_values(0_u8, quads_per_row);
+    #[cfg(verus_keep_ghost)]
+    proof! {
+        let result=match allocated{Err(error)=>Err(error),Ok(_)=>Ok(())};
+        crate::specs::part2_ht_metadata_capacity_observed(crate::specs::part2_ht_metadata_row_context(start,quad_row as nat,width,height,maximum_u),
+            crate::specs::Part2HtMetadataRole::Current,result);
+        if let Err(error)=allocated{crate::specs::part2_ht_metadata_row_refused(start,quad_row as nat,width,height,maximum_u,error);}
+    }
+    let mut current_patterns = allocated?;
     let mut left_context = 0_u8;
     let mut pair = 0_usize;
     let mut pair_passes = quads_per_row
@@ -428,6 +442,8 @@ pub(super) fn decode_ht_metadata_row(
                 start == ht_metadata_row_view(old(readers), old(quads), old(previous_patterns), *old(significant_samples)),
                 start.previous == previous_patterns@, start.previous.len() == quads_per_row,
                 start_pair == crate::specs::ht_metadata_row_initial(start),
+                crate::specs::part2_ht_metadata_row_result(start,quad_row as nat,width,height,maximum_u,
+                    crate::specs::ht_metadata_row(start,quad_row as nat,width,height,maximum_u)),
                 initial == (quad_row == 0),
                 quads.len() == start.quads.len() + if pair <= quads_per_row { pair as int } else { quads_per_row as int },
                 crate::specs::ht_metadata_pairs(start_pair, start.previous, quad_row as nat,
@@ -496,7 +512,9 @@ pub(super) fn decode_ht_metadata_row(
 #[cfg_attr(
     verus_keep_ghost,
     verus_spec(result =>
-        ensures ht_cleanup_metadata_outcome(result) == crate::specs::ht_decode_cleanup_metadata(
+        ensures crate::specs::part1_ht_decode_metadata_storage_result(cleanup@,width,height,maximum_u,
+                crate::limits::resource_code_block_byte_limit(limits),crate::limits::resource_work_limit(limits),ht_cleanup_metadata_outcome(result)),
+            ht_cleanup_metadata_outcome(result) != Err(DecodeError::AllocationFailed) ==> ht_cleanup_metadata_outcome(result) == crate::specs::ht_decode_cleanup_metadata(
             cleanup@, width, height, maximum_u, crate::limits::resource_code_block_byte_limit(limits),
             crate::limits::resource_work_limit(limits),
         ),
@@ -509,14 +527,23 @@ pub fn decode_ht_cleanup_metadata(
     maximum_u: u8,
     limits: &ResourceLimits,
 ) -> Result<HtCleanupMetadata, DecodeError> {
+    #[cfg(verus_keep_ghost)]
+    proof! {crate::specs::part2_ht_decode_metadata_normal(cleanup@,width,height,maximum_u,crate::limits::resource_code_block_byte_limit(limits),crate::limits::resource_work_limit(limits));}
     let segments = parse_ht_block_segments(cleanup, None, limits)?;
-    decode_ht_cleanup_segment_metadata(segments.cleanup(), width, height, maximum_u, limits)
+    let result =
+        decode_ht_cleanup_segment_metadata(segments.cleanup(), width, height, maximum_u, limits);
+    #[cfg(verus_keep_ghost)]
+    proof! {crate::specs::part2_ht_decode_metadata_observed(cleanup@,width,height,maximum_u,crate::limits::resource_code_block_byte_limit(limits),
+    crate::limits::resource_work_limit(limits),super::ht_block_segments_view(&segments),ht_cleanup_metadata_outcome(result));}
+    result
 }
 
 #[cfg_attr(
     verus_keep_ghost,
     verus_spec(result =>
-        ensures ht_cleanup_metadata_outcome(result) == crate::specs::ht_cleanup_segment_metadata(
+        ensures crate::specs::part2_ht_metadata_result(ht_cleanup_segment_view(&cleanup),width,height,maximum_u,
+                crate::limits::resource_work_limit(limits),ht_cleanup_metadata_outcome(result)),
+            ht_cleanup_metadata_outcome(result) != Err(DecodeError::AllocationFailed) ==> ht_cleanup_metadata_outcome(result) == crate::specs::ht_cleanup_segment_metadata(
             ht_cleanup_segment_view(&cleanup), width, height, maximum_u, crate::limits::resource_work_limit(limits),
         ),
     )
@@ -528,6 +555,8 @@ pub(super) fn decode_ht_cleanup_segment_metadata(
     maximum_u: u8,
     limits: &ResourceLimits,
 ) -> Result<HtCleanupMetadata, DecodeError> {
+    #[cfg(verus_keep_ghost)]
+    proof! {crate::specs::part2_ht_metadata_normal(ht_cleanup_segment_view(&cleanup),width,height,maximum_u,crate::limits::resource_work_limit(limits));}
     if width == 0 || height == 0 || maximum_u == 0 || maximum_u > MAX_HT_MAGSGN_BITS {
         return Err(invalid_code_block());
     }
@@ -558,8 +587,32 @@ pub(super) fn decode_ht_cleanup_segment_metadata(
         cleanup.vlc().bytes(),
         limits.maximum_work_units(),
     )?;
-    let mut quads = Vec::with_capacity(quad_count);
-    let mut previous_patterns = vec![0_u8; quads_per_row];
+    #[cfg(verus_keep_ghost)]
+    proof_decl! {let ghost input=ht_cleanup_segment_view(&cleanup);let ghost work=crate::limits::resource_work_limit(limits);let ghost initial_readers=ht_cleanup_readers_view(&readers);}
+    #[cfg(verus_keep_ghost)]
+    proof! {
+        assert(crate::specs::part2_ht_metadata_admit(input,width,height,maximum_u,work)==Ok(initial_readers));
+        assert(quads_per_row>0 && quad_rows>0);
+        assert(quad_count>0) by(nonlinear_arith) requires
+            quads_per_row>0,quad_rows>0,
+            quad_count as nat==quads_per_row as nat*quad_rows as nat;
+    }
+    let allocated = crate::allocation::empty_with_capacity::<HtQuadMetadata>(quad_count);
+    #[cfg(verus_keep_ghost)]
+    proof! {
+        let result=match allocated{Err(error)=>Err(error),Ok(_)=>Ok(())};
+        crate::specs::part2_ht_metadata_capacity_observed(crate::specs::part2_ht_metadata_context(input,width,height,maximum_u,work),crate::specs::Part2HtMetadataRole::Quads,result);
+        if let Err(error)=allocated{crate::specs::part2_ht_metadata_initial_error(input,width,height,maximum_u,work,initial_readers,false,error);}
+    }
+    let mut quads = allocated?;
+    let allocated = crate::allocation::filled_values(0_u8, quads_per_row);
+    #[cfg(verus_keep_ghost)]
+    proof! {
+        let result=match allocated{Err(error)=>Err(error),Ok(_)=>Ok(())};
+        crate::specs::part2_ht_metadata_capacity_observed(crate::specs::part2_ht_metadata_context(input,width,height,maximum_u,work),crate::specs::Part2HtMetadataRole::Previous,result);
+        if let Err(error)=allocated{crate::specs::part2_ht_metadata_initial_error(input,width,height,maximum_u,work,initial_readers,true,error);}
+    }
+    let mut previous_patterns = allocated?;
     let mut significant_samples = 0_u16;
     let mut quad_row = 0_usize;
     #[cfg(verus_keep_ghost)]
@@ -586,6 +639,12 @@ pub(super) fn decode_ht_cleanup_segment_metadata(
                 crate::specs::ht_cleanup_readers_initial(segment.mel.bytes,
                     segment.vlc.bytes, crate::limits::resource_work_limit(limits)) == Ok(start.readers),
                 start.quads == Seq::<HtQuadMetadata>::empty(), start.significant == 0,
+                start.readers==initial_readers,
+                input==ht_cleanup_segment_view(&cleanup),
+                work==crate::limits::resource_work_limit(limits),
+                crate::specs::part2_ht_metadata_admit(input,width,height,maximum_u,work)==Ok(initial_readers),
+                crate::specs::part2_ht_metadata_result(input,width,height,maximum_u,work,
+                    crate::specs::ht_cleanup_segment_metadata(input,width,height,maximum_u,work)),
                 start.previous == Seq::new(quads_per_row as nat, |i: int| 0u8),
                 crate::specs::ht_metadata_rows(start, width, height, maximum_u, quad_row as nat)
                     == (Ok(()), ht_metadata_row_view(&readers, &quads, &previous_patterns, significant_samples)),
@@ -612,7 +671,7 @@ pub(super) fn decode_ht_cleanup_segment_metadata(
         );
         #[cfg(verus_keep_ghost)]
         proof! {
-            assert(crate::specs::ht_metadata_row(before, quad_row as nat, width, height, maximum_u)
+            assert(result!=Err(DecodeError::AllocationFailed) ==> crate::specs::ht_metadata_row(before, quad_row as nat, width, height, maximum_u)
                 == (result, ht_metadata_row_view(&readers, &quads, &previous_patterns, significant_samples)));
         }
         match result {
@@ -620,8 +679,10 @@ pub(super) fn decode_ht_cleanup_segment_metadata(
             Err(error) => {
                 #[cfg(verus_keep_ghost)]
                 proof! {
-                    crate::proofs::production_impl::production_ht_metadata_rows_error(start, width, height, maximum_u,
-                        (quad_row + 1) as nat, quad_rows as nat);
+                    crate::specs::part2_ht_metadata_row_error(input,width,height,maximum_u,work,initial_readers,quad_row as nat,before,
+                        (result,ht_metadata_row_view(&readers,&quads,&previous_patterns,significant_samples)));
+                    if error!=DecodeError::AllocationFailed{crate::proofs::production_impl::production_ht_metadata_rows_error(start, width, height, maximum_u,
+                        (quad_row + 1) as nat, quad_rows as nat);}
                 }
                 return Err(error);
             }
