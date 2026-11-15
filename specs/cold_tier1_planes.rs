@@ -206,7 +206,20 @@ pub(crate) open spec fn part2_plane_refinement_after_output(cleanup:Tier1RawPlan
 }
 pub(crate) open spec fn part2_plane_refinement_after_readers(cleanup:Tier1RawPlane,output:Tier1RawPlane,segment:HtRefinementSegmentState,readers:HtRefinementReadersState,passes:u8,bits:u16,causal:bool,
     calls:Seq<Part2Tier1StorageEvent>)->Part2Tier1Run<(Tier1RawPlane,crate::tier1::Tier1PassStatistics)> {
-    match part2_plane_refinement_prepared_readers(cleanup,output,readers,passes,bits){
+    part2_tier1_storage_bind(part2_cleanup_significance_run(cleanup.coefficients,calls),
+        |flags:Seq<bool>,rest|part2_plane_refinement_after_flags(output,segment,readers,flags,passes,bits,causal,rest))
+}
+pub(crate) open spec fn part2_plane_refinement_prepared_flags(output:Tier1RawPlane,readers:HtRefinementReadersState,flags:Seq<bool>,passes:u8,bits:u16)->Result<HtRefinementCoreState,crate::DecodeError> {
+    let state=HtRefinementCoreState {output,readers,cleanup_significant:flags,statistics:tier1_statistics_zero()};
+    if passes==2{match ht_refinement_delta(bits){
+        Err(error)=>Err(error),Ok(delta)=>{let refined=ht_magref_stripes(state,output.width,output.height,0,delta.1,bits);
+            match refined.0 {Err(error)=>Err(error),Ok(())=>Ok(refined.1)}},
+    }}else{Ok(state)}
+}
+#[verifier::opaque]
+pub(crate) open spec fn part2_plane_refinement_after_flags(output:Tier1RawPlane,segment:HtRefinementSegmentState,readers:HtRefinementReadersState,flags:Seq<bool>,passes:u8,bits:u16,causal:bool,
+    calls:Seq<Part2Tier1StorageEvent>)->Part2Tier1Run<(Tier1RawPlane,crate::tier1::Tier1PassStatistics)> {
+    match part2_plane_refinement_prepared_flags(output,readers,flags,passes,bits){
         Err(error)=>Some((Err(error),calls)),Ok(state)=>part2_plane_significance_run(state,segment.encoded,bits,causal,calls),
     }
 }
@@ -287,10 +300,8 @@ pub(crate) proof fn part2_plane_refinement_after_output_normal(cleanup:Tier1RawP
     part2_ht_scratch_normal(segment.significance_propagation.bytes,segment.magnitude_refinement.bytes,segment.encoded.len() as usize,passes==2,work);
     part2_ht_scratch_frames(segment.significance_propagation.bytes,segment.magnitude_refinement.bytes,segment.encoded.len() as usize,passes==2,work,readers);
     if let Ok(value)=readers{
-        match part2_plane_refinement_prepared_readers(cleanup,output,value,passes,bits){
-            Err(_)=>{part2_tier1_storage_pure(result);},
-            Ok(state)=>{part2_plane_significance_normal(state,segment.encoded,bits,causal);part2_tier1_storage_eta(|calls|part2_plane_significance_run(state,segment.encoded,bits,causal,calls),result);},
-        }
+        part2_plane_refinement_after_readers_normal(cleanup,output,segment,value,passes,bits,causal);
+        part2_tier1_storage_eta(|calls|part2_plane_refinement_after_readers(cleanup,output,segment,value,passes,bits,causal,calls),result);
     }
     part2_tier1_storage_bind_frame(|calls|part2_ht_scratch_run(segment.significance_propagation.bytes,segment.magnitude_refinement.bytes,segment.encoded.len() as usize,passes==2,work,calls),
         |value:HtRefinementReadersState,rest|part2_plane_refinement_after_readers(cleanup,output,segment,value,passes,bits,causal,rest),readers,result);
@@ -304,7 +315,8 @@ pub(crate) proof fn part2_plane_refinement_after_output_observed(cleanup:Tier1Ra
     let readers=ht_refinement_readers_initial(segment.significance_propagation.bytes,segment.magnitude_refinement.bytes,segment.encoded.len() as usize,passes==2,work);
     part2_ht_scratch_normal(segment.significance_propagation.bytes,segment.magnitude_refinement.bytes,segment.encoded.len() as usize,passes==2,work);
     part2_ht_scratch_frames(segment.significance_propagation.bytes,segment.magnitude_refinement.bytes,segment.encoded.len() as usize,passes==2,work,readers);
-    part2_tier1_storage_eta(|calls|part2_plane_significance_run(state,segment.encoded,bits,causal,calls),result);
+    part2_plane_refinement_after_readers_observed(cleanup,output,segment,readers.get_Ok_0(),passes,bits,causal,state,result);
+    part2_tier1_storage_eta(|calls|part2_plane_refinement_after_readers(cleanup,output,segment,readers.get_Ok_0(),passes,bits,causal,calls),result);
     part2_tier1_storage_bind_frame(|calls|part2_ht_scratch_run(segment.significance_propagation.bytes,segment.magnitude_refinement.bytes,segment.encoded.len() as usize,passes==2,work,calls),
         |value:HtRefinementReadersState,rest|part2_plane_refinement_after_readers(cleanup,output,segment,value,passes,bits,causal,rest),readers,result);
 }
@@ -320,5 +332,56 @@ pub(crate) proof fn part2_plane_refinement_readers_error(cleanup:Tier1RawPlane,o
     part2_tier1_storage_eta(|calls|part2_plane_refinement_after_output(cleanup,output,segment,passes,bits,causal,work,calls),Err(error));
     part2_tier1_storage_bind_frame(|calls|part2_plane_duplicate_run(cleanup,crate::tier1::CoefficientStorageRole::RefinementOutput,calls),
         |value:Tier1RawPlane,rest|part2_plane_refinement_after_output(cleanup,value,segment,passes,bits,causal,work,rest),Ok(output),Err(error));
+}
+pub(crate) proof fn part2_plane_refinement_after_readers_normal(cleanup:Tier1RawPlane,output:Tier1RawPlane,segment:HtRefinementSegmentState,readers:HtRefinementReadersState,passes:u8,bits:u16,causal:bool)
+    ensures part2_tier1_storage_framed(|calls|part2_plane_refinement_after_readers(cleanup,output,segment,readers,passes,bits,causal,calls),
+        match part2_plane_refinement_prepared_readers(cleanup,output,readers,passes,bits){Err(error)=>Err(error),Ok(state)=>ht_refinement_significance(state,segment.encoded,bits,causal)}),
+{
+    reveal(part2_plane_refinement_after_flags);
+    let flags=ht_cleanup_significance(cleanup.coefficients);
+    let prepared=part2_plane_refinement_prepared_readers(cleanup,output,readers,passes,bits);
+    let result=match prepared{Err(error)=>Err(error),Ok(state)=>ht_refinement_significance(state,segment.encoded,bits,causal)};
+    part2_cleanup_significance_normal(cleanup.coefficients);
+    part2_cleanup_significance_frames(cleanup.coefficients,Ok(flags));
+    match prepared{
+        Err(_)=>{part2_tier1_storage_pure(result);},Ok(state)=>{
+            part2_plane_significance_normal(state,segment.encoded,bits,causal);
+            part2_tier1_storage_eta(|calls|part2_plane_significance_run(state,segment.encoded,bits,causal,calls),result);
+        },
+    }
+    part2_tier1_storage_bind_frame(|calls|part2_cleanup_significance_run(cleanup.coefficients,calls),
+        |flags:Seq<bool>,rest|part2_plane_refinement_after_flags(output,segment,readers,flags,passes,bits,causal,rest),Ok(flags),result);
+}
+pub(crate) proof fn part2_plane_refinement_after_readers_observed(cleanup:Tier1RawPlane,output:Tier1RawPlane,segment:HtRefinementSegmentState,readers:HtRefinementReadersState,passes:u8,bits:u16,causal:bool,
+    state:HtRefinementCoreState,result:Result<(Tier1RawPlane,crate::tier1::Tier1PassStatistics),crate::DecodeError>)
+    requires part2_plane_refinement_prepared_readers(cleanup,output,readers,passes,bits)==Ok(state),
+        part2_tier1_storage_framed(|calls|part2_plane_significance_run(state,segment.encoded,bits,causal,calls),result),
+    ensures part2_tier1_storage_framed(|calls|part2_plane_refinement_after_readers(cleanup,output,segment,readers,passes,bits,causal,calls),result),
+{
+    reveal(part2_plane_refinement_after_flags);
+    part2_cleanup_significance_normal(cleanup.coefficients);
+    part2_cleanup_significance_frames(cleanup.coefficients,Ok(ht_cleanup_significance(cleanup.coefficients)));
+    part2_tier1_storage_eta(|calls|part2_plane_significance_run(state,segment.encoded,bits,causal,calls),result);
+    part2_tier1_storage_bind_frame(|calls|part2_cleanup_significance_run(cleanup.coefficients,calls),
+        |flags:Seq<bool>,rest|part2_plane_refinement_after_flags(output,segment,readers,flags,passes,bits,causal,rest),
+        Ok(ht_cleanup_significance(cleanup.coefficients)),result);
+}
+pub(crate) proof fn part2_plane_refinement_flags_error(cleanup:Tier1RawPlane,output:Tier1RawPlane,segment:HtRefinementSegmentState,readers:HtRefinementReadersState,passes:u8,bits:u16,causal:bool,work:u64,error:crate::DecodeError)
+    requires passes>0,passes<=2,bits>=2,
+        part1_plane_duplicate_storage_result(cleanup,crate::tier1::CoefficientStorageRole::RefinementOutput,Ok(output)),
+        part2_ht_scratch_result(segment.significance_propagation.bytes,segment.magnitude_refinement.bytes,segment.encoded.len() as usize,passes==2,work,Ok(readers)),
+        part2_cleanup_significance_result(cleanup.coefficients,Err(error)),
+    ensures part2_plane_refinement_result(cleanup,segment,passes,bits,causal,work,Err(error)),
+{
+    part2_cleanup_significance_frames(cleanup.coefficients,Err(error));
+    part2_tier1_storage_bind_frame(|calls|part2_cleanup_significance_run(cleanup.coefficients,calls),
+        |flags:Seq<bool>,rest|part2_plane_refinement_after_flags(output,segment,readers,flags,passes,bits,causal,rest),Err(error),Err(error));
+    part2_tier1_storage_eta(|calls|part2_plane_refinement_after_readers(cleanup,output,segment,readers,passes,bits,causal,calls),Err(error));
+    part2_ht_scratch_frames(segment.significance_propagation.bytes,segment.magnitude_refinement.bytes,segment.encoded.len() as usize,passes==2,work,Ok(readers));
+    part2_tier1_storage_bind_frame(|calls|part2_ht_scratch_run(segment.significance_propagation.bytes,segment.magnitude_refinement.bytes,segment.encoded.len() as usize,passes==2,work,calls),
+        |readers:HtRefinementReadersState,rest|part2_plane_refinement_after_readers(cleanup,output,segment,readers,passes,bits,causal,rest),Ok(readers),Err(error));
+    part2_tier1_storage_eta(|calls|part2_plane_refinement_after_output(cleanup,output,segment,passes,bits,causal,work,calls),Err(error));
+    part2_tier1_storage_bind_frame(|calls|part2_plane_duplicate_run(cleanup,crate::tier1::CoefficientStorageRole::RefinementOutput,calls),
+        |output:Tier1RawPlane,rest|part2_plane_refinement_after_output(cleanup,output,segment,passes,bits,causal,work,rest),Ok(output),Err(error));
 }
 }

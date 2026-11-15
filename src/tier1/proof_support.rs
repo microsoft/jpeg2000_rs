@@ -304,6 +304,9 @@ verus! {
 #[cfg(verus_keep_ghost)]
 verus! {
     spec fn ht_boolean_vector_view(value: Vec<bool>) -> Seq<bool> { value@ }
+    spec fn ht_cleanup_flags_outcome(value: Result<Vec<bool>, DecodeError>) -> Result<Seq<bool>, DecodeError> {
+        match value { Ok(flags) => Ok(flags@), Err(error) => Err(error) }
+    }
 
     spec fn ht_refinement_magnitude_outcome(result: Result<Magnitude, DecodeError>) -> Result<(Seq<u64>, nat), DecodeError> {
         match result { Err(error) => Err(error), Ok(value) => Ok((

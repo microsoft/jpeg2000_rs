@@ -206,6 +206,31 @@ pub(crate) proof fn part2_legacy_raw_prepared_equation(before:Tier1DecoderState,
         },
     },
 {reveal(part2_legacy_pass_prepared);}
+pub(crate) proof fn part2_legacy_raw_ready_contract(before:Tier1DecoderState,reader:Part1RawReaderState,kind:crate::tier1::Tier1PassKind,ready:Part2LegacyResult)
+    requires part2_legacy_ensure_result(before,ready),
+        ready.0!=Err(crate::DecodeError::AllocationFailed) ==> ready==part1_legacy_ensure_bitplane(before),
+    ensures part2_legacy_pass_result(before,Part1LegacySymbols::Raw(reader),kind,part2_legacy_pass_after_ready(Part1LegacySymbols::Raw(reader),kind,ready)),
+        part2_legacy_pass_after_ready(Part1LegacySymbols::Raw(reader),kind,ready).0!=Err(crate::DecodeError::AllocationFailed) ==>
+            part2_legacy_pass_after_ready(Part1LegacySymbols::Raw(reader),kind,ready)==part1_legacy_decode_pass(before,Part1LegacySymbols::Raw(reader),kind),
+        part2_legacy_pass_after_ready(Part1LegacySymbols::Raw(reader),kind,ready)==match ready.0{
+            Err(error)=>(Err(error),ready.1,Part1LegacySymbols::Raw(reader)),Ok(())=>match ready.1.bitplane_state{
+                None=>(Err(ht_reader_error(crate::MalformedKind::InvalidCodeBlock)),ready.1,Part1LegacySymbols::Raw(reader)),
+                Some(state)=>if kind is Cleanup{(Err(ht_reader_error(crate::MalformedKind::InvalidCodeBlock)),ready.1,Part1LegacySymbols::Raw(reader))}
+                else{
+                    let pass=part1_legacy_pass(ready.1.plane,state,Part1LegacySymbols::Raw(reader),
+                        if kind is MagnitudeRefinement{crate::tier1::SubbandOrientation::Ll}else{ready.1.orientation},
+                        ready.1.style.vertical_causal_context,if kind is MagnitudeRefinement{1u8}else{0u8});
+                    (pass.0,Tier1DecoderState {plane:pass.1,bitplane_state:Some(pass.2),..ready.1},pass.3)
+                },
+            },
+        },
+{
+    let symbols=Part1LegacySymbols::Raw(reader);
+    part2_legacy_pass_observed(before,symbols,kind,ready);
+    part2_legacy_pass_after_ready_equation(symbols,kind,ready);
+    part2_legacy_raw_prepared_equation(ready.1,reader,kind);
+    part2_legacy_pass_primary_consequence(before,symbols,kind,part2_legacy_pass_after_ready(symbols,kind,ready));
+}
 pub(crate) proof fn part2_legacy_pass_frames(before:Tier1DecoderState,symbols:Part1LegacySymbols,kind:crate::tier1::Tier1PassKind,result:Part1LegacySegmentPassEffect)
     requires part2_legacy_pass_result(before,symbols,kind,result),
     ensures part2_tier1_storage_framed(|calls|part2_legacy_pass_run(before,symbols,kind,calls),Ok(result)),

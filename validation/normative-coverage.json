@@ -10091,6 +10091,7 @@
         ,{"path": "specs/cold_bitplane_initial.rs", "symbol": "part2_legacy_pass_after_ready_equation"}
         ,{"path": "specs/cold_bitplane_initial.rs", "symbol": "part2_legacy_pass_prepared_equation"}
         ,{"path": "specs/cold_bitplane_initial.rs", "symbol": "part2_legacy_raw_prepared_equation"}
+        ,{"path": "specs/cold_bitplane_initial.rs", "symbol": "part2_legacy_raw_ready_contract"}
         ,{"path": "specs/cold_bitplane_initial.rs", "symbol": "part2_legacy_pass_primary_consequence"}
         ,{"path": "specs/cold_bitplane_initial.rs", "symbol": "part2_legacy_pass_frames"}
         ,{"path": "specs/cold_legacy_bitplanes.rs", "symbol": "part2_legacy_inner_step_observed"}
@@ -10380,6 +10381,12 @@
         {"path": "specs/cold_tier1_planes.rs", "symbol": "part2_plane_refinement_run"},
         {"path": "specs/cold_tier1_planes.rs", "symbol": "part2_plane_refinement_prepared_readers"},
         {"path": "specs/cold_tier1_planes.rs", "symbol": "part2_plane_refinement_after_readers"},
+        {"path": "specs/cold_tier1_planes.rs", "symbol": "part2_plane_refinement_after_flags"},
+        {"path": "specs/cold_tier1_planes.rs", "symbol": "part2_plane_refinement_prepared_flags"},
+        {"path": "specs/cold_ht_significance.rs", "symbol": "part2_cleanup_significance_capacity_run"},
+        {"path": "specs/cold_ht_significance.rs", "symbol": "part2_cleanup_significance_capacity_result"},
+        {"path": "specs/cold_ht_significance.rs", "symbol": "part2_cleanup_significance_run"},
+        {"path": "specs/cold_ht_significance.rs", "symbol": "part2_cleanup_significance_result"},
         {"path": "specs/cold_tier1_planes.rs", "symbol": "part2_plane_refinement_result"},
         {"path": "specs/mod.rs", "symbol": "ht_magref_sample"},
         {"path": "specs/mod.rs", "symbol": "ht_magref_rows"},
@@ -10410,6 +10417,14 @@
         {"path": "src/tier1/proof_support.rs", "symbol": "ht_refinement_magnitude_outcome"},
         {"path": "src/tier1/proof_support.rs", "symbol": "ht_refinement_magnitude_view"},
         {"path": "src/tier1/proof_support.rs", "symbol": "ht_boolean_vector_view"},
+        {"path": "src/tier1/proof_support.rs", "symbol": "ht_cleanup_flags_outcome"},
+        {"path": "specs/cold_ht_significance.rs", "symbol": "part2_cleanup_significance_capacity_observed"},
+        {"path": "specs/cold_ht_significance.rs", "symbol": "part2_cleanup_significance_normal"},
+        {"path": "specs/cold_ht_significance.rs", "symbol": "part2_cleanup_significance_refused"},
+        {"path": "specs/cold_ht_significance.rs", "symbol": "part2_cleanup_significance_frames"},
+        {"path": "specs/cold_tier1_planes.rs", "symbol": "part2_plane_refinement_after_readers_normal"},
+        {"path": "specs/cold_tier1_planes.rs", "symbol": "part2_plane_refinement_after_readers_observed"},
+        {"path": "specs/cold_tier1_planes.rs", "symbol": "part2_plane_refinement_flags_error"},
         {"path": "src/tier1/proof_support.rs", "symbol": "neighbor_kind_tag"},
         {"path": "proofs/spec_properties/mod.rs", "symbol": "ht_full_refinement_rejects_front_parameters_before_any_plane_or_stream"},
         {"path": "proofs/spec_properties/mod.rs", "symbol": "ht_delayed_signs_preserve_discovery_and_pending_on_every_return"},
@@ -10430,7 +10445,13 @@
         {"path": "src/tier1/tests.rs", "symbol": "ht_full_refinement_vertical_causality_changes_only_actual_neighbor_admission"},
         {"path": "src/tier1/tests.rs", "symbol": "ht_full_refinement_first_errors_keep_real_reader_claim_and_counter_order"},
         {"path": "src/tier1/tests.rs", "symbol": "ht_full_refinement_native_rejections_overflow_underflow_and_zero_are_exact"},
-        {"path": "src/tier1/tests.rs", "symbol": "ht_refinement_neighbor_overflows_and_malformed_shapes_have_ordered_effects"}
+        {"path": "src/tier1/tests.rs", "symbol": "ht_refinement_neighbor_overflows_and_malformed_shapes_have_ordered_effects"},
+        {"path": "src/tier1/tests.rs", "symbol": "ht_refinement_snapshot_preserves_original_collection_capacity_and_raw_order"},
+        {"path": "src/tier1/tests.rs", "symbol": "ht_cleanup_significance_storage_raw_flags_empty_first_later_refusal_and_restore"},
+        {"path": "src/tier1/tests.rs", "symbol": "ht_cleanup_significance_storage_output_readers_admission_and_numeric_error_order"},
+        {"path": "src/tier1/tests.rs", "symbol": "ht_cleanup_significance_storage_actual_replay_prior_decoder_and_exact_restore"},
+        {"path": "src/packet/tests.rs", "symbol": "ht_cleanup_significance_storage_actual_packet_flag_refusal_rollback_and_restore"},
+        {"path": "src/decode/tests.rs", "symbol": "ht_cleanup_significance_storage_actual_raw_selected_jph_reconstruction_and_automatic_restore"}
       ]
     },
     {

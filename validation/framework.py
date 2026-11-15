@@ -4813,6 +4813,7 @@ _RAW_RENDER_PROOFS |= {("specs/jpx_raw_frame.rs", "part2_render_raw_cold_metadat
 _RAW_COMPOSITION_RENDER_PROOFS |= {("specs/jpx_raw_frame.rs", "part2_render_raw_cold_metadata_error")}
 
 _PLANE_ROLE_MODEL_INFO = {
+    "ht_cleanup_significance": ("part2_cleanup_significance_result", "specs/cold_ht_significance.rs", "part2_cleanup_significance_normal"),
     "part1_prepare_collect_coefficients": ("part2_coefficient_collect_result", "specs/cold_coefficient_extraction.rs", "part2_coefficient_collect_normal"),
     "part1_prepare_placement": ("part2_extraction_place_result", "specs/cold_extraction_reconstruction.rs", "part2_extraction_place_normal"),
     "part2_prepare_component": ("part2_extraction_component_result", "specs/cold_extraction_reconstruction.rs", "part2_extraction_component_normal"),
@@ -4858,6 +4859,7 @@ _PLANE_ROLE_RESULT_RUNS = {
     for old, (model, _, _) in _PLANE_ROLE_MODEL_INFO.items()
 }
 _PLANE_ROLE_RESULT_RUNS.update({
+    "part2_cleanup_significance_result": ("part2_cleanup_significance_run", False),
     "part2_coefficient_collect_result": ("part2_coefficient_collect_run", False),
     "part2_extraction_place_result": ("part2_extraction_place_run", True),
     "part2_extraction_component_result": ("part2_extraction_component_run", False),
@@ -5262,6 +5264,10 @@ _COLD_RESULT_CONTRACTS.update({
     if legacy[0] in {"part2_reconstruct_planned_tile", "part1_progression_prepared_image"}
 })
 _COLD_RESULT_CONTRACTS.update({
+    ("src/tier1/ht_refinement.rs", "ht_collect_cleanup_significance"): (
+        "part2_cleanup_significance_result",
+        _coverage_call("coefficient_raw_views", "coefficients@") + r"\s*,\s*" + _coverage_call("ht_cleanup_flags_outcome", r"\1"),
+    ),
     ("src/decode/reconstruction.rs", "collect_prepare_coefficients"): (
         "part2_coefficient_collect_result",
         _coverage_call("crate::tier1::code_block_plane_view", "plane") + r"\s*,\s*" + _coverage_call("crate::transform::quantized_coefficients_outcome", r"\1"),
@@ -6996,6 +7002,51 @@ _PREPARATION_NATIVE_ORDER = {
         "part2_packet_progress_error(", "let mut progress = progress_result?", "run_progression_tile_packets(",
     ),
 }
+_CLEANUP_SIGNIFICANCE_GUARDS = {
+    ("specs/cold_ht_significance.rs", "part2_cleanup_significance_capacity_run"): (
+        "if count==0{Some((Ok(()),calls))}", "CleanupSignificanceCapacity",
+        "if elements!=count{None}", "if succeeded{Ok(())}else{Err(crate::DecodeError::AllocationFailed)}",
+        "calls.drop_first()",
+    ),
+    ("specs/cold_ht_significance.rs", "part2_cleanup_significance_run"): (
+        "part2_cleanup_significance_capacity_run(coefficients.len(),calls)",
+        "Some((Ok(ht_cleanup_significance(coefficients)),rest))",
+    ),
+    ("specs/cold_tier1_planes.rs", "part2_plane_refinement_after_readers"): (
+        "part2_cleanup_significance_run(cleanup.coefficients,calls)",
+        "|flags:Seq<bool>,rest|part2_plane_refinement_after_flags(output,segment,readers,flags,passes,bits,causal,rest)",
+    ),
+    ("specs/cold_tier1_planes.rs", "part2_plane_refinement_prepared_flags"): (
+        "HtRefinementCoreState {output,readers,cleanup_significant:flags,statistics:tier1_statistics_zero()}",
+        "if passes==2", "ht_magref_stripes(state,output.width,output.height,0,delta.1,bits)",
+    ),
+    ("specs/cold_tier1_planes.rs", "part2_plane_refinement_after_flags"): (
+        "part2_plane_refinement_prepared_flags(output,readers,flags,passes,bits)",
+        "Err(error)=>Some((Err(error),calls))", "part2_plane_significance_run(state,segment.encoded,bits,causal,calls)",
+    ),
+}
+_CLEANUP_SIGNIFICANCE_NATIVE_ORDER = {
+    ("src/tier1/ht_refinement.rs", "ht_collect_cleanup_significance"): (
+        "let count = coefficients.len()", "if count == 0", "crate::allocation::empty_with_capacity(count)",
+        "let mut output = allocated?", "output.push(coefficients[index].significant)", "index += 1",
+    ),
+    ("src/tier1/ht_refinement.rs", "decode_ht_refinement_plane"): (
+        "if refinement_passes == 0 || refinement_passes > 2 || decoded_bitplanes < 2",
+        "let copied = cleanup_plane.duplicate(super::CoefficientStorageRole::RefinementOutput)",
+        "let output = copied?", "let reader_result = ht_refinement_readers_from_inputs",
+        "let readers = reader_result?", "let flags = ht_collect_cleanup_significance(cleanup_plane.coefficients())",
+        "let cleanup_significant = flags?", "let mut state = HtRefinementPlaneState",
+        "state.magnitude_pass", "let significance_magnitude = ht_significance_magnitude",
+    ),
+}
+_CLEANUP_SIGNIFICANCE_TESTS = {
+    ("src/tier1/tests.rs", "ht_cleanup_significance_storage_raw_flags_empty_first_later_refusal_and_restore"),
+    ("src/tier1/tests.rs", "ht_cleanup_significance_storage_output_readers_admission_and_numeric_error_order"),
+    ("src/tier1/tests.rs", "ht_cleanup_significance_storage_actual_replay_prior_decoder_and_exact_restore"),
+    ("src/packet/tests.rs", "ht_cleanup_significance_storage_actual_packet_flag_refusal_rollback_and_restore"),
+    ("src/decode/tests.rs", "ht_cleanup_significance_storage_actual_raw_selected_jph_reconstruction_and_automatic_restore"),
+}
+
 _COEFFICIENT_EXTRACTION_GUARDS = {
     ("specs/cold_coefficient_extraction.rs", "part2_extraction_context"): (
         "width:plane.width,height:plane.height,coefficients:plane.coefficients.len(),coordinate",
@@ -13985,6 +14036,20 @@ def validate_normative_coverage(
                     contract, named_result, refinement_contract_arguments[0], refinement_contract_arguments[1],
                 )
             )
+            if short == "ht_collect_cleanup_significance" and cold_contract is not None:
+                ordinary = re.search(
+                    _coverage_call("ht_cleanup_flags_outcome", r"(?P<name>\w+)")
+                    + r"\s*!=\s*Err\s*\(\s*DecodeError::AllocationFailed\s*\)\s*==>", contract,
+                )
+                refinement_arguments_bound = (
+                    ordinary is not None and named_result is not None and ordinary["name"] == named_result[1]
+                    and re.match(
+                        r"\s*" + _coverage_call("ht_cleanup_flags_outcome", re.escape(ordinary["name"]))
+                        + r"\s*==\s*" + _coverage_call("Ok", _coverage_call(
+                            "crate::specs::ht_cleanup_significance", _coverage_call("coefficient_raw_views", "coefficients@"),
+                        )), contract[ordinary.end():],
+                    ) is not None
+                )
             prepare_contract_arguments = {
                 "prepare_tile_component": (
                     "part1_prepare_standard_component",
@@ -14180,6 +14245,23 @@ def validate_normative_coverage(
                 raise ValueError(f"linked function is not used by claimed implementation: {short}")
             if claimed_consumer:
                 contract_functions.add((reference["path"], reference["symbol"]))
+    if "part15-complete-actual-refinement-plane" in ids:
+        significance_entry = next(e for e in coverage["requirements"] if e["id"] == "part15-complete-actual-refinement-plane")
+        if not _CLEANUP_SIGNIFICANCE_TESTS.issubset({
+                (ref["path"], ref["symbol"]) for ref in significance_entry["test_refs"]}):
+            raise ValueError("cleanup significance requires bounded real raw/empty/refusal/restore/public controls")
+        for (relative, symbol), fragments in _CLEANUP_SIGNIFICANCE_GUARDS.items():
+            body = _coverage_spec_function_body(source_text((ROOT / relative).resolve()), symbol)
+            compact = "".join(body.split()) if body is not None else ""
+            if any("".join(fragment.split()) not in compact for fragment in fragments):
+                raise ValueError("cleanup significance requires real source count/flags, actual reader/output child, first-error/tail composition")
+        for (relative, symbol), fragments in _CLEANUP_SIGNIFICANCE_NATIVE_ORDER.items():
+            path = (ROOT / relative).resolve()
+            body = _coverage_function_body(source_text(path), function_header(path, symbol))
+            compact = "".join(body.split()) if body is not None else ""
+            positions = [compact.find("".join(fragment.split())) for fragment in fragments]
+            if any(position < 0 for position in positions) or positions != sorted(positions):
+                raise ValueError("cleanup significance requires original real admission/output/readers/flag/magnitude order")
     if "part1-complete-standard-plan-coordinator" in ids:
         coefficient_entry = next(e for e in coverage["requirements"] if e["id"] == "part1-complete-standard-plan-coordinator")
         if not _COEFFICIENT_EXTRACTION_TESTS.issubset({

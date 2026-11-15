@@ -132,6 +132,8 @@ mod cold_ht_metadata;
 pub use cold_ht_metadata::*;
 mod cold_ht_refinement_scratch;
 pub use cold_ht_refinement_scratch::*;
+mod cold_ht_significance;
+pub use cold_ht_significance::*;
 mod cold_coefficient_extraction;
 pub use cold_coefficient_extraction::*;
 mod cold_extraction_reconstruction;

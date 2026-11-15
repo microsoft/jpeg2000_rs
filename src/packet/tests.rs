@@ -1,6 +1,62 @@
 use super::*;
 
 #[test]
+fn ht_cleanup_significance_storage_actual_packet_flag_refusal_rollback_and_restore() {
+    let limits = ResourceLimits::default();
+    let style = Tier1CodingStyle::from_code_block_style(0x40).unwrap();
+    let mut source = Tier1CodeBlockDecoder::new(1, 1, 2, SubbandOrientation::Ll, style).unwrap();
+    let mut passes = [0; MAX_CODE_BLOCK_SEGMENTS_PER_CONTRIBUTION];
+    let mut lengths = [0; MAX_CODE_BLOCK_SEGMENTS_PER_CONTRIBUTION];
+    passes[0] = 1;
+    lengths[0] = 3;
+    let cleanup = CodeBlockContribution {
+        first_inclusion: true,
+        zero_bitplanes: 0,
+        new_passes: 1,
+        data_length: 3,
+        high_throughput: true,
+        segment_count: 1,
+        segment_passes: passes,
+        segment_lengths: lengths,
+    };
+    decode_code_block_contribution_body(&mut source, &cleanup, &[0, 0x63, 0], &limits).unwrap();
+    let significance = CodeBlockContribution {
+        first_inclusion: false,
+        data_length: 0,
+        segment_lengths: [0; MAX_CODE_BLOCK_SEGMENTS_PER_CONTRIBUTION],
+        ..cleanup
+    };
+    decode_code_block_contribution_body(&mut source, &significance, &[], &limits).unwrap();
+    let mut lengths = [0; MAX_CODE_BLOCK_SEGMENTS_PER_CONTRIBUTION];
+    lengths[0] = 1;
+    let magnitude = CodeBlockContribution {
+        data_length: 1,
+        segment_lengths: lengths,
+        ..significance
+    };
+    let before = format!("{source:?}");
+    let mut expected = source.clone();
+    let result =
+        decode_code_block_contribution_body(&mut expected, &magnitude, &[1], &limits).unwrap();
+    let mut actual = source.clone();
+    assert_eq!(
+        crate::allocation::with_refusal(5, || decode_code_block_contribution_body(
+            &mut actual,
+            &magnitude,
+            &[1],
+            &limits
+        )),
+        Err(DecodeError::AllocationFailed)
+    );
+    assert_eq!(format!("{actual:?}"), before);
+    assert_eq!(
+        decode_code_block_contribution_body(&mut actual, &magnitude, &[1], &limits).unwrap(),
+        result
+    );
+    assert_eq!(format!("{actual:?}"), format!("{expected:?}"));
+}
+
+#[test]
 fn ht_refinement_scratch_storage_actual_packet_masks_rollback_and_restore() {
     let limits = ResourceLimits::default();
     let style = Tier1CodingStyle::from_code_block_style(0x40).unwrap();

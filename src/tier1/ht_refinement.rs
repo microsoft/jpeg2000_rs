@@ -8,7 +8,7 @@ use super::{
 };
 #[cfg(verus_keep_ghost)]
 use super::{
-    code_block_plane_view, coefficient_raw_views, ht_boolean_vector_view, ht_byte_vector_outcome,
+    code_block_plane_view, coefficient_raw_views, ht_byte_vector_outcome, ht_cleanup_flags_outcome,
     ht_plane_outcome, ht_refinement_core_view, ht_refinement_magnitude_outcome,
     ht_refinement_magnitude_view, ht_refinement_segment_view, ht_sigprop_patch_view,
     ht_sigprop_plane_outcome, ht_sigprop_plane_view,
@@ -46,15 +46,33 @@ fn ht_refinement_delta(decoded_bitplanes: u16) -> Result<Magnitude, DecodeError>
 }
 
 #[cfg_attr(verus_keep_ghost, verus_spec(result =>
-    ensures ht_boolean_vector_view(result) == crate::specs::ht_cleanup_significance(coefficient_raw_views(coefficients@)),
-        result@ == crate::specs::ht_cleanup_significance(coefficient_raw_views(coefficients@)),
+    ensures crate::specs::part2_cleanup_significance_result(coefficient_raw_views(coefficients@),ht_cleanup_flags_outcome(result)),
+        ht_cleanup_flags_outcome(result)!=Err(DecodeError::AllocationFailed) ==> ht_cleanup_flags_outcome(result) == Ok(crate::specs::ht_cleanup_significance(coefficient_raw_views(coefficients@))),
 ))]
-pub(super) fn ht_collect_cleanup_significance(coefficients: &[CoefficientState]) -> Vec<bool> {
-    let mut output = Vec::with_capacity(coefficients.len());
+pub(super) fn ht_collect_cleanup_significance(
+    coefficients: &[CoefficientState],
+) -> Result<Vec<bool>, DecodeError> {
+    #[cfg(verus_keep_ghost)]
+    proof! {crate::specs::part2_cleanup_significance_normal(coefficient_raw_views(coefficients@));}
+    let count = coefficients.len();
+    let allocated = if count == 0 {
+        Ok(Vec::new())
+    } else {
+        crate::allocation::empty_with_capacity(count)
+    };
+    #[cfg(verus_keep_ghost)]
+    proof! {
+        let unit=match allocated{Err(error)=>Err(error),Ok(_)=>Ok(())};
+        crate::specs::part2_cleanup_significance_capacity_observed(count as nat,unit);
+        if let Err(error)=allocated{crate::specs::part2_cleanup_significance_refused(coefficient_raw_views(coefficients@),error);}
+    }
+    let mut output = allocated?;
     let mut index = 0_usize;
     #[cfg_attr(verus_keep_ghost, verus_spec(
         invariant index <= coefficients.len(), output.len() == index,
             forall |i: int| 0 <= i < index ==> output@[i] == coefficients@[i].significant,
+            crate::specs::part2_cleanup_significance_result(coefficient_raw_views(coefficients@),
+                Ok(crate::specs::ht_cleanup_significance(coefficient_raw_views(coefficients@)))),
         decreases coefficients.len() - index,
     ))]
     while index < coefficients.len() {
@@ -63,7 +81,7 @@ pub(super) fn ht_collect_cleanup_significance(coefficients: &[CoefficientState])
     }
     #[cfg(verus_keep_ghost)]
     proof! { assert(output@ =~= crate::specs::ht_cleanup_significance(coefficient_raw_views(coefficients@))); }
-    output
+    Ok(output)
 }
 
 #[cfg_attr(verus_keep_ghost, verus_spec(result =>
@@ -614,7 +632,12 @@ pub(super) fn decode_ht_refinement_plane(
     proof! {if let Err(error)=reader_result{crate::specs::part2_plane_refinement_readers_error(code_block_plane_view(cleanup_plane),initial_output,ht_refinement_segment_view(&segment),
     refinement_passes,decoded_bitplanes,vertical_causal_context,crate::limits::resource_work_limit(limits),error);}}
     let readers = reader_result?;
-    let cleanup_significant = ht_collect_cleanup_significance(cleanup_plane.coefficients());
+    let flags = ht_collect_cleanup_significance(cleanup_plane.coefficients());
+    #[cfg(verus_keep_ghost)]
+    proof! {if let Err(error)=flags{crate::specs::part2_plane_refinement_flags_error(code_block_plane_view(cleanup_plane),initial_output,
+    ht_refinement_segment_view(&segment),crate::tier1::ht_refinement_readers_view(&readers),refinement_passes,decoded_bitplanes,vertical_causal_context,
+    crate::limits::resource_work_limit(limits),error);}}
+    let cleanup_significant = flags?;
     let mut state = HtRefinementPlaneState {
         output,
         readers,

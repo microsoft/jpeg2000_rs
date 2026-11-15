@@ -8558,6 +8558,73 @@ class FrameworkTests(WorkingFiles):
                     self.assertRaisesRegex(ValueError, "executable Verus contract"):
                 framework.validate_normative_coverage(data)
 
+    def test_inventory_cleanup_significance_requires_real_source_child_tail_and_first_normal(self):
+        coverage = json.loads((framework.VALIDATION / "normative-coverage.json").read_text())
+        data = dict(coverage, requirements=[
+            e for e in coverage["requirements"] if e["id"] == "part15-complete-actual-refinement-plane"
+        ])
+        self.assertEqual(framework.validate_normative_coverage(data)["status"], "passed")
+        read_text = Path.read_text
+        for relative, symbol, before, after in (
+            ("specs/cold_ht_significance.rs", "part2_cleanup_significance_capacity_run", "count==0", "count==1"),
+            ("specs/cold_ht_significance.rs", "part2_cleanup_significance_capacity_run", "CleanupSignificanceCapacity", "RefinementScratchCapacity"),
+            ("specs/cold_ht_significance.rs", "part2_cleanup_significance_capacity_run", "elements!=count", "false"),
+            ("specs/cold_ht_significance.rs", "part2_cleanup_significance_capacity_run", "calls.drop_first()", "calls"),
+            ("specs/cold_ht_significance.rs", "part2_cleanup_significance_run", "coefficients.len()", "0"),
+            ("specs/cold_ht_significance.rs", "part2_cleanup_significance_run", "ht_cleanup_significance(coefficients)", "Seq::empty()"),
+            ("specs/cold_tier1_planes.rs", "part2_plane_refinement_after_readers", "cleanup.coefficients,calls", "output.coefficients,calls"),
+            ("specs/cold_tier1_planes.rs", "part2_plane_refinement_after_readers", "readers,flags,passes", "readers,Seq::empty(),passes"),
+            ("specs/cold_tier1_planes.rs", "part2_plane_refinement_prepared_flags", "cleanup_significant:flags", "cleanup_significant:Seq::empty()"),
+            ("specs/cold_tier1_planes.rs", "part2_plane_refinement_after_flags", "Err(error)=>Some((Err(error),calls))", "Err(error)=>Some((Err(error),Seq::empty()))"),
+            ("src/tier1/ht_refinement.rs", "ht_collect_cleanup_significance", "empty_with_capacity(count)", "empty_with_capacity(1)"),
+            ("src/tier1/ht_refinement.rs", "ht_collect_cleanup_significance", "coefficients[index].significant", "coefficients[index].negative"),
+            ("src/tier1/ht_refinement.rs", "decode_ht_refinement_plane", "ht_collect_cleanup_significance(cleanup_plane.coefficients())", "ht_collect_cleanup_significance(output.coefficients())"),
+        ):
+            source = framework.ROOT / relative
+            original = source.read_text()
+            body = (framework._coverage_function_body(original, framework._coverage_function_header(original, symbol))
+                    if relative.startswith("src/") else framework._coverage_spec_function_body(original, symbol))
+            changed_body, count = re.subn(re.escape(before).replace(r"\ ", r"\s*"), lambda _: after, body, count=1)
+            self.assertEqual(count, 1, (symbol, before))
+            changed = original.replace(body, changed_body, 1)
+
+            def altered(path, *args, **kwargs):
+                return changed if path == source else read_text(path, *args, **kwargs)
+
+            with self.subTest(symbol=symbol, before=before), mock.patch.object(Path, "read_text", altered), \
+                    self.assertRaisesRegex(ValueError, "cleanup significance"):
+                framework.validate_normative_coverage(data)
+        missing = copy.deepcopy(data)
+        missing["requirements"][0]["test_refs"] = [
+            r for r in missing["requirements"][0]["test_refs"]
+            if (r["path"], r["symbol"]) not in framework._CLEANUP_SIGNIFICANCE_TESTS
+        ]
+        with self.assertRaisesRegex(ValueError, "cleanup significance requires bounded"):
+            framework.validate_normative_coverage(missing)
+        source = framework.ROOT / "src/tier1/ht_refinement.rs"
+        original = source.read_text()
+        header = framework._coverage_function_header(original, "ht_collect_cleanup_significance")
+        start = original.rfind("#[cfg_attr", 0, header.start())
+        contract = original[start:header.start()]
+        closing = contract.rfind("))]")
+        first = contract.index("ht_cleanup_flags_outcome(result)!=Err")
+        good = contract[first:closing]
+        for before, after in (
+            ("== Ok(crate::specs::ht_cleanup_significance", "<= Ok(crate::specs::ht_cleanup_significance"),
+            ("coefficient_raw_views(coefficients@)", "coefficient_raw_views(other@)"),
+            ("ht_cleanup_flags_outcome(result)", "ht_cleanup_flags_outcome(other_result)"),
+        ):
+            bad = good.replace(before, after, 1)
+            self.assertNotEqual(bad, good)
+            changed = original[:start] + contract[:first] + bad + good + contract[closing:] + original[header.start():]
+
+            def altered(path, *args, **kwargs):
+                return changed if path == source else read_text(path, *args, **kwargs)
+
+            with self.subTest(before=before), mock.patch.object(Path, "read_text", altered), \
+                    self.assertRaisesRegex(ValueError, "executable Verus contract"):
+                framework.validate_normative_coverage(data)
+
     def test_inventory_refinement_scratch_requires_actual_count_mask_role_and_reader_order(self):
         coverage = json.loads((framework.VALIDATION / "normative-coverage.json").read_text())
         entry = next(e for e in coverage["requirements"] if e["id"] == "part15-directional-word-event-state")
@@ -10260,7 +10327,7 @@ class FrameworkTests(WorkingFiles):
              ((r"\bdecoded_bitplanes\b", "0"),)),
             ("ht_refinement_delta", "ht_refinement_delta", "ht_refinement_magnitude_outcome", None,
              ((r"\bdecoded_bitplanes\b", "0"),)),
-            ("ht_collect_cleanup_significance", "ht_cleanup_significance", "ht_boolean_vector_view", None,
+            ("ht_collect_cleanup_significance", "ht_cleanup_significance", "ht_cleanup_flags_outcome", None,
              ((r"coefficient_raw_views\(coefficients@\)", "coefficient_slice_view(coefficients@)"),)),
             ("CodeBlockPlane::apply_ht_refinement_decision", "ht_apply_refinement", None, "code_block_plane_view",
              ((r"\brefinement_bit\b", "false"),)),
@@ -10314,8 +10381,9 @@ class FrameworkTests(WorkingFiles):
             signature = original.find("fn", header.start())
             start = original.rfind("#[cfg_attr", 0, signature)
             contract = original[start:signature]
+            value_wrapper = r"Ok\s*\(\s*" if symbol == "ht_collect_cleanup_significance" else ""
             whole = re.search(
-                r"\bensures\s+([\s\S]*?)\s*==\s*crate::specs::" + re.escape(model) + r"\(",
+                r"\bensures\s+([\s\S]*?)\s*==\s*" + value_wrapper + r"crate::specs::" + re.escape(model) + r"\(",
                 contract,
             )
             self.assertIsNotNone(whole, symbol)

@@ -1464,6 +1464,29 @@ transform/image collections, existing-owner growth and later buffers remain
 outside this numerical group. Existing-owner moves add no request. No host
 availability or general physical-capacity theorem is asserted.
 
+The refinement producer now fallibly reserves its fresh cleanup-significance
+bool vector from the actual raw coefficient-source length. It keeps each source
+`significant` value, including raw magnitude/sign/refined/legacy-bitplane states,
+without adding dimension or bitplane admission. The executing frontier remains
+after the qualified output duplication and real reader/mask construction, before
+refinement-state/statistic initialization and magnitude/significance work.
+Empty source makes no request. The compact `CleanupSignificanceCapacity` response
+contains only the real count and primitive result; complete source coefficients,
+actual prior output/readers, ordered entropy/statistics and final Result/state
+remain in the enclosing checked producers.
+
+The actual flag Result binds into magnitude/discovery/refinement, replay,
+decoder/packet rollback and raw/selected/container/reconstructed/automatic public
+paths with exact first errors and unused tails. Checked old normal projections
+remain input-derived. Existing later discovery/retention refusal controls move
+by one at this new frontier; earlier output/mask requests do not move.
+The private producer uses the established fresh `try_reserve` capacity profile;
+its strict capacity comparison is against that helper, not the old infallible
+`Vec::with_capacity` profile. Public Clone and its capacity controls are unchanged.
+This does not assert host availability or a general physical-capacity theorem.
+Inverse quantization/sample copies, transforms/images, unrelated owners and
+existing growth remain separate.
+
 Replay copying remains after original route/pass/cleanup/byte admission but
 before the unchanged append and later concatenation-size checks. Retention
 copying remains after actual refinement and statistics merge, preserving
