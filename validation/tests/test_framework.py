@@ -8487,6 +8487,77 @@ class FrameworkTests(WorkingFiles):
         with self.assertRaisesRegex(ValueError, "initial bitplane storage requires bounded"):
             framework.validate_normative_coverage(missing)
 
+    def test_inventory_coefficient_extraction_requires_actual_raw_role_error_tail_and_first_normal(self):
+        coverage = json.loads((framework.VALIDATION / "normative-coverage.json").read_text())
+        data = dict(coverage, requirements=[
+            e for e in coverage["requirements"] if e["id"] == "part1-complete-standard-plan-coordinator"
+        ])
+        self.assertEqual(framework.validate_normative_coverage(data)["status"], "passed")
+        read_text = Path.read_text
+        cases = (
+            ("specs/cold_coefficient_extraction.rs", "part2_extraction_context", "coefficients:plane.coefficients.len()", "coefficients:0"),
+            ("specs/cold_coefficient_extraction.rs", "part2_extraction_count", "context.width as nat*context.height as nat", "context.coefficients"),
+            ("specs/cold_coefficient_extraction.rs", "part2_extraction_capacity_run", "count==0", "count==1"),
+            ("specs/cold_coefficient_extraction.rs", "part2_extraction_capacity_run", "CoefficientExtractionCapacity", "RefinementScratchCapacity"),
+            ("specs/cold_coefficient_extraction.rs", "part2_extraction_capacity_run", "actual!=context", "false"),
+            ("specs/cold_coefficient_extraction.rs", "part2_extraction_capacity_run", "elements!=count", "false"),
+            ("specs/cold_coefficient_extraction.rs", "part2_extraction_capacity_run", "calls.drop_first()", "calls"),
+            ("specs/cold_coefficient_extraction.rs", "part2_linear_coefficients_prefix", "value.0,value.2", "value.0,false"),
+            ("specs/cold_extraction_reconstruction.rs", "part2_extraction_place_run", "part2_extraction_run(plane,true,calls)", "part2_extraction_run(plane,false,calls)"),
+            ("specs/cold_extraction_reconstruction.rs", "part2_extraction_placements_next", "Some((Ok(effect),calls))", "Some((Ok(effect),Seq::empty()))"),
+            ("specs/cold_decode_packets.rs", "part2_planned_decode_run", "work,decoded.1,rest", "work,plan.precincts,rest"),
+            ("src/decode/code_blocks.rs", "collect_code_block_coefficients", "empty_with_capacity(count)", "empty_with_capacity(1)"),
+            ("src/decode/reconstruction.rs", "collect_prepare_coefficients", "empty_with_capacity(count)", "empty_with_capacity(1)"),
+        )
+        for relative, symbol, before, after in cases:
+            source = framework.ROOT / relative
+            original = source.read_text()
+            body = (framework._coverage_function_body(original, framework._coverage_function_header(original, symbol))
+                    if relative.startswith("src/") else framework._coverage_spec_function_body(original, symbol))
+            changed_body, count = re.subn(re.escape(before).replace(r"\ ", r"\s*"), lambda _: after, body, count=1)
+            self.assertEqual(count, 1, (symbol, before))
+            changed = original.replace(body, changed_body, 1)
+
+            def altered(path, *args, **kwargs):
+                return changed if path == source else read_text(path, *args, **kwargs)
+
+            with self.subTest(symbol=symbol, before=before), mock.patch.object(Path, "read_text", altered), \
+                    self.assertRaisesRegex(ValueError, "coefficient extraction"):
+                framework.validate_normative_coverage(data)
+        missing = copy.deepcopy(data)
+        missing["requirements"][0]["test_refs"] = [
+            r for r in missing["requirements"][0]["test_refs"]
+            if (r["path"], r["symbol"]) not in framework._COEFFICIENT_EXTRACTION_TESTS
+        ]
+        with self.assertRaisesRegex(ValueError, "coefficient extraction requires bounded"):
+            framework.validate_normative_coverage(missing)
+        source = framework.ROOT / "src/decode/reconstruction.rs"
+        original = source.read_text()
+        header = framework._coverage_function_header(original, "prepare_tile_component")
+        start = original.rfind("#[cfg_attr", 0, header.start())
+        contract = original[start:header.start()]
+        closing = contract.rfind("))]")
+        self.assertGreater(closing, 0)
+        first = contract.index("prepared_component_outcome(result)!=Err")
+        end = contract.index("prepared_component_outcome(result)!=Err", first + 1)
+        good = contract[first:end]
+        for before, after in (
+            ("== crate::specs::part1_prepare_standard_component", "<= crate::specs::part1_prepare_standard_component"),
+            ("prepare_plan_view(plan)", "prepare_plan_view(other_plan)"),
+            ("prepared_component_outcome(result) ==", "prepared_component_outcome(other_result) =="),
+        ):
+            self.assertIn(before, good)
+            bad = good.replace(before, after, 1)
+            changed_contract = contract[:first] + bad + contract[end:closing] + good + contract[closing:]
+            changed = original[:start] + changed_contract + original[header.start():]
+
+            def altered(path, *args, **kwargs):
+                return changed if path == source else read_text(path, *args, **kwargs)
+
+            with self.subTest(before=before), mock.patch.object(Path, "read_text", altered), \
+                    self.assertRaisesRegex(ValueError, "executable Verus contract"):
+                framework.validate_normative_coverage(data)
+
     def test_inventory_refinement_scratch_requires_actual_count_mask_role_and_reader_order(self):
         coverage = json.loads((framework.VALIDATION / "normative-coverage.json").read_text())
         entry = next(e for e in coverage["requirements"] if e["id"] == "part15-directional-word-event-state")
@@ -9569,10 +9640,12 @@ class FrameworkTests(WorkingFiles):
             contract = original[start:signature]
             mutable = symbol in ("apply_arbitrary_steps", "apply_arbitrary_step")
             expression = "(result, final(output)@)" if mutable else f"{projection}(result)" if projection else "result"
+            cold_contract = framework._COLD_RESULT_CONTRACTS.get((relative, symbol))
+            primary = f"crate::specs::{cold_contract[0]}" if cold_contract else expression
             mutations = [
-                (f"ensures {expression}", "ensures result.is_ok()"),
-                (f"ensures {expression}", f"ensures result.is_ok() ==> {expression}"),
-                (f"ensures {expression}", "ensures unrelated"),
+                (f"ensures {primary}", "ensures result.is_ok()"),
+                (f"ensures {primary}", f"ensures result.is_ok() ==> {primary}"),
+                (f"ensures {primary}", "ensures unrelated"),
                 (f"crate::specs::{model}(", "crate::specs::part2_atk_fixed_mul(" if model != "part2_atk_fixed_mul" else "crate::specs::part2_atk_fixed_div("),
                 (f"crate::specs::{model}(", "crate::specs::unlisted_model("),
                 *arguments,
@@ -10132,11 +10205,13 @@ class FrameworkTests(WorkingFiles):
                 "part1_prepare_finish" if model == "part1_prepare_standard_component"
                 else "part1_prepare_standard_component"
             )
+            cold_contract = framework._COLD_RESULT_CONTRACTS.get(("src/decode/reconstruction.rs", symbol))
+            primary = f"crate::specs::{cold_contract[0]}" if cold_contract else f"{projection}(result)"
             for before, after in (
                 (f"{projection}(result)", f"{projection}(unrelated)"),
                 (f"{projection}(result)", "unlisted_projection(result)"),
                 (f"{projection}(result)", "result.is_ok()"),
-                (f"ensures {projection}(result)", f"ensures result.is_ok() ==> {projection}(result)"),
+                (f"ensures {primary}", f"ensures result.is_ok() ==> {primary}"),
                 (f"crate::specs::{model}(", f"crate::specs::{wrong_model}("),
                 (f"crate::specs::{model}(", "crate::specs::unlisted_model("),
                 *arguments,

@@ -10,6 +10,7 @@ pub enum Part2Tier1StorageEvent {
     HtExponentCapacity {context:Part2HtExponentContext,current:bool,elements:nat,succeeded:bool},
     HtMetadataCapacity {context:Part2HtMetadataContext,role:Part2HtMetadataRole,elements:nat,succeeded:bool},
     RefinementScratchCapacity {context:Part2HtRefinementScratchContext,stuffed:bool,elements:usize,succeeded:bool},
+    CoefficientExtractionCapacity {context:Part2CoefficientExtractionContext,elements:nat,succeeded:bool},
 }
 pub type Part2Tier1Run<T> = Option<(Result<T,crate::DecodeError>,Seq<Part2Tier1StorageEvent>)>;
 pub(crate) open spec fn part2_tier1_storage_prefix<T>(run:spec_fn(Seq<Part2Tier1StorageEvent>)->Part2Tier1Run<T>,

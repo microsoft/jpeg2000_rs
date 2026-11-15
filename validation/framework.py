@@ -344,6 +344,19 @@ def _coverage_result_arguments(
 def _coverage_call(name: str, *arguments: str) -> str:
     return re.escape(name) + r"\s*\(\s*" + r"\s*,\s*".join(arguments) + r"\s*\)"
 
+def _coverage_extraction_normal_arguments(
+    contract: str, projection: str, model: str, arguments: str,
+) -> bool:
+    ordinary = re.search(
+        _coverage_call(projection, r"(?P<name>\w+)")
+        + r"\s*!=\s*Err\s*\(\s*DecodeError::AllocationFailed\s*\)\s*==>", contract,
+    )
+    return ordinary is not None and re.match(
+        r"\s*" + _coverage_call(projection, re.escape(ordinary["name"]))
+        + r"\s*==\s*crate::specs::" + re.escape(model)
+        + r"\s*\(\s*" + arguments + r"\s*,?\s*\)", contract[ordinary.end():],
+    ) is not None
+
 def _coverage_body_clause(text: str) -> str:
     statement = text.split(";", 1)[0] + ";"
     normalized = re.sub(r",(?=\))", "", "".join(statement.split()))
@@ -4800,6 +4813,12 @@ _RAW_RENDER_PROOFS |= {("specs/jpx_raw_frame.rs", "part2_render_raw_cold_metadat
 _RAW_COMPOSITION_RENDER_PROOFS |= {("specs/jpx_raw_frame.rs", "part2_render_raw_cold_metadata_error")}
 
 _PLANE_ROLE_MODEL_INFO = {
+    "part1_prepare_collect_coefficients": ("part2_coefficient_collect_result", "specs/cold_coefficient_extraction.rs", "part2_coefficient_collect_normal"),
+    "part1_prepare_placement": ("part2_extraction_place_result", "specs/cold_extraction_reconstruction.rs", "part2_extraction_place_normal"),
+    "part2_prepare_component": ("part2_extraction_component_result", "specs/cold_extraction_reconstruction.rs", "part2_extraction_component_normal"),
+    "part1_prepare_standard_component": ("part2_coefficient_component_result", "specs/cold_extraction_reconstruction.rs", "part2_coefficient_component_normal"),
+    "part2_reconstruct_planned_tile": ("part2_extraction_tile_result", "specs/cold_extraction_tile.rs", "part2_extraction_tile_normal"),
+    "part1_progression_prepared_image": ("part2_coefficient_progression_result", "specs/cold_extraction_tile.rs", "part2_coefficient_progression_normal"),
     "ht_refinement_readers_initial": ("part2_ht_scratch_result", "specs/cold_ht_refinement_scratch.rs", "part2_ht_scratch_normal"),
     "ht_cleanup_segment_metadata": ("part2_ht_metadata_result", "specs/cold_ht_metadata.rs", "part2_ht_metadata_normal"),
     "part1_legacy_code_block_segment": ("part2_legacy_packet_step_result", "specs/cold_legacy_packets.rs", "part2_legacy_packet_step_normal"),
@@ -4838,6 +4857,14 @@ _PLANE_ROLE_RESULT_RUNS = {
             old not in {"tier1_duplicate_plane", "ht_cleanup_plane", "ht_cleanup_prepare", "ht_refinement_plane", "ht_copy_refinement_bytes", "ht_cleanup_segment_metadata", "ht_refinement_readers_initial"})
     for old, (model, _, _) in _PLANE_ROLE_MODEL_INFO.items()
 }
+_PLANE_ROLE_RESULT_RUNS.update({
+    "part2_coefficient_collect_result": ("part2_coefficient_collect_run", False),
+    "part2_extraction_place_result": ("part2_extraction_place_run", True),
+    "part2_extraction_component_result": ("part2_extraction_component_run", False),
+    "part2_coefficient_component_result": ("part2_coefficient_component_run", False),
+    "part2_extraction_tile_result": ("part2_extraction_tile_run", True),
+    "part2_coefficient_progression_result": ("part2_extraction_progression_run", False),
+})
 _COLD_RESULT_MODELS = {
     "part1_jpip_precinct_packet": (
         "part2_jpip_packet_copy_result", "specs/cold_packet_copy.rs", "part2_jpip_packet_copy_normal",
@@ -5229,6 +5256,33 @@ _COLD_RESULT_CONTRACTS = {
     ),
 }
 _COLD_RESULT_CONTRACTS.update(_LEGACY_PACKET_STORAGE_CONTRACTS)
+_COLD_RESULT_CONTRACTS.update({
+    key: _coverage_cold_relation(legacy)
+    for key, legacy in _RECONSTRUCTION_CONTRACTS.items()
+    if legacy[0] in {"part2_reconstruct_planned_tile", "part1_progression_prepared_image"}
+})
+_COLD_RESULT_CONTRACTS.update({
+    ("src/decode/reconstruction.rs", "collect_prepare_coefficients"): (
+        "part2_coefficient_collect_result",
+        _coverage_call("crate::tier1::code_block_plane_view", "plane") + r"\s*,\s*" + _coverage_call("crate::transform::quantized_coefficients_outcome", r"\1"),
+    ),
+    ("src/decode/reconstruction.rs", "prepare_tile_component"): (
+        "part2_coefficient_component_result",
+        r"prepare_plan_view\s*\(\s*plan\s*\)\s*,\s*prepare_precincts_view\s*\(\s*precincts@\s*\)\s*,\s*prepare_style_view\s*\(\s*coding_style\s*\)\s*,\s*"
+        + _coverage_call("crate::limits::resource_decoded_bytes_limit", "limits") + r"\s*,\s*" + _coverage_call("prepared_component_outcome", r"\1"),
+    ),
+    ("src/decode/reconstruction.rs", "prepare_tile_component_with_kernel"): (
+        "part2_extraction_component_result",
+        r"prepare_plan_view\s*\(\s*plan\s*\)\s*,\s*prepare_precincts_view\s*\(\s*precincts@\s*\)\s*,\s*prepare_style_view\s*\(\s*coding_style\s*\)\s*,\s*"
+        + _coverage_call("crate::transform::arbitrary_kernel_option", "kernel") + r"\s*,\s*"
+        + _coverage_call("crate::limits::resource_decoded_bytes_limit", "limits") + r"\s*,\s*" + _coverage_call("prepared_component_outcome", r"\1"),
+    ),
+    ("src/decode/reconstruction.rs", "place_prepare_block"): (
+        "part2_extraction_place_result",
+        r"old\s*\(\s*working\s*\)\s*@\s*,\s*bands@\s*,\s*prepare_precincts_view\s*\(\s*precincts@\s*\)\s*,\s*placement\s*,\s*reversible\s*,\s*"
+        + _coverage_call("crate::limits::resource_decoded_bytes_limit", "limits") + r"\s*,\s*\(\s*\1\s*,\s*final\s*\(\s*working\s*\)\s*@\s*\)",
+    ),
+})
 _packed_public_key = ("src/packet/tile.rs", "decode_progression_tile_packets")
 _packed_public_arguments = _COLD_RESULT_CONTRACTS[_packed_public_key][1].replace(
     _coverage_call("crate::codestream::tile_parts_owned_view", "tile_parts@"), "tile_parts@")
@@ -6942,6 +6996,59 @@ _PREPARATION_NATIVE_ORDER = {
         "part2_packet_progress_error(", "let mut progress = progress_result?", "run_progression_tile_packets(",
     ),
 }
+_COEFFICIENT_EXTRACTION_GUARDS = {
+    ("specs/cold_coefficient_extraction.rs", "part2_extraction_context"): (
+        "width:plane.width,height:plane.height,coefficients:plane.coefficients.len(),coordinate",
+    ),
+    ("specs/cold_coefficient_extraction.rs", "part2_extraction_count"): (
+        "if context.coordinate{context.width as nat*context.height as nat}else{context.coefficients}",
+    ),
+    ("specs/cold_coefficient_extraction.rs", "part2_extraction_capacity_run"): (
+        "if count==0{Some((Ok(()),calls))}", "CoefficientExtractionCapacity",
+        "actual!=context || elements!=count", "if succeeded{Ok(())}else{Err(crate::DecodeError::AllocationFailed)}",
+        "calls.drop_first()",
+    ),
+    ("specs/cold_coefficient_extraction.rs", "part2_linear_coefficients_prefix"): (
+        "Err(error)=>Err(error)", "tier1_raw_signed_coefficient(coefficients[count-1])",
+        "Ok(values.push((value.0,value.2)))",
+    ),
+    ("specs/cold_extraction_reconstruction.rs", "part2_extraction_place_run"): (
+        "Err(error)=>Some((Ok((Err(error),working)),calls))",
+        "Ok(None)=>Some((Ok((Ok(()),working)),calls))",
+        "part2_tier1_storage_resume(part2_extraction_run(plane,true,calls)",
+        "part2_extraction_place_after(working,geometry,placement,plane,reversible,maximum,result)",
+    ),
+    ("specs/cold_extraction_reconstruction.rs", "part2_extraction_placements_next"): (
+        "if effect.0.is_err(){Some((Ok(effect),calls))}",
+        "part2_extraction_place_run(effect.1,plan.subbands,precincts,plan.placements[index as int],reversible,maximum,calls)",
+    ),
+    ("specs/cold_decode_packets.rs", "part2_planned_decode_run"): (
+        "part2_packet_value_run(parts, plan.grid, plan.precincts, selection, limits, events)",
+        "part2_planned_extraction_run(plan,first,size,standard,limits,prepared,work,decoded.1,rest)",
+    ),
+}
+_COEFFICIENT_EXTRACTION_NATIVE_ORDER = {
+    ("src/decode/code_blocks.rs", "collect_code_block_coefficients"): (
+        "let coefficients = plane.coefficients()", "let count = coefficients.len()",
+        "if count == 0", "crate::allocation::empty_with_capacity(count)", "let mut signed = allocated?",
+        "let coefficient = coefficients[coefficient_index]", "let value = match coefficient.signed_magnitude()", "signed.push(value)",
+    ),
+    ("src/decode/reconstruction.rs", "collect_prepare_coefficients"): (
+        "checked_mul(usize::from(plane.height()))", "if count == 0",
+        "crate::allocation::empty_with_capacity(count)", "let mut coefficients = allocated?",
+        "let value = match collect_prepare_cell(plane, x, y)", "coefficients.push(value)",
+    ),
+}
+_COEFFICIENT_EXTRACTION_TESTS = {
+    ("src/decode/tests.rs", "coefficient_extraction_storage_" + suffix) for suffix in (
+        "distinct_linear_coordinate_raw_values_and_restore",
+        "zero_raw_shape_and_ordinary_cell_error_order",
+        "first_later_prepared_placements_preserve_real_sources",
+        "actual_legacy_ht_code_block_packet_and_quantization_order",
+        "real_ht_raw_selected_jph_reconstruction_and_automatic_restore",
+    )
+}
+
 _PACKED_STORAGE_GUARDS = {
     ("specs/cold_packed_headers.rs", "part2_packed_requests"): (
         "source.length as u64 > maximum || source.length == 0",
@@ -6980,7 +7087,11 @@ _PACKED_STORAGE_GUARDS = {
     ),
     ("specs/cold_decode_packets.rs", "part2_planned_decode_run"): (
         "part2_packet_value_run(parts, plan.grid, plan.precincts, selection, limits, events)",
-        "part2_decode_planned_tile_components_owned(plan, parts, first, size, standard, selection, limits, prepared, work)",
+        "|decoded: (crate::packet::TilePacketDecode, Seq<Part1PacketPrecinctState>), rest| part2_planned_extraction_run(plan,first,size,standard,limits,prepared,work,decoded.1,rest)",
+    ),
+    ("specs/cold_decode_packets.rs", "part2_planned_extraction_run"): (
+        "part2_extraction_tile_calls_run(prepared,plan.components,part2_precinct_decoder_planes(precincts),first.component_coding_styles",
+        "|effect:Part2ExtractionTileEffect,rest|Some((match effect.0{Err(error)=>Err(error),Ok(())=>Ok(Part2DecodedTileComponents {prepared:effect.1,mct_work:effect.2})},rest))",
     ),
     ("specs/cold_decode_packets.rs", "part2_tile_decode_run"): (
         "part2_tile_metadata_run(parts,crate::codestream::image_size_component_count(size),discard,events)",
@@ -12968,6 +13079,7 @@ def validate_normative_coverage(
             }.get((reference["path"], reference["symbol"]))
             if arbitrary_contract:
                 result_projection, expected_result_model = arbitrary_contract[:2]
+            normal_arbitrary_contract = arbitrary_contract
             packet_decoder_old = r"crate::tier1::tier1_decoder_state\s*\(\s*old\(\s*decoder\s*\)\s*\)"
             packet_decoder_final = r"crate::tier1::tier1_decoder_state\s*\(\s*final\(\s*decoder\s*\)\s*\)"
             packet_contribution = r"code_block_contribution_view\s*\(\s*contribution\s*\)"
@@ -13913,6 +14025,12 @@ def validate_normative_coverage(
                     contract, named_result, prepare_contract_arguments[0], prepare_contract_arguments[1],
                 )
             )
+            if cold_contract is not None and short in ("prepare_tile_component", "collect_prepare_coefficients"):
+                prepare_arguments_bound = _coverage_extraction_normal_arguments(
+                    contract,
+                    "prepared_component_outcome" if short == "prepare_tile_component" else "crate::transform::quantized_coefficients_outcome",
+                    prepare_contract_arguments[0], prepare_contract_arguments[1],
+                )
             component_contract_arguments = {
                 ("src/decode/output.rs", "copy_typed_component"): (
                     "part2_typed_component_copy",
@@ -13958,6 +14076,13 @@ def validate_normative_coverage(
                 arbitrary_contract is None
                 or _coverage_result_arguments(contract, named_result, arbitrary_contract[1], arbitrary_contract[2])
             )
+            if (entry["id"] == "part1-complete-standard-plan-coordinator"
+                    and short == "prepare_tile_component_with_kernel" and claimed_consumer):
+                raise ValueError(f"linked function lacks executable Verus contract: {short}; arbitrary-kernel support is not a standard-only consumer")
+            if cold_contract is not None and normal_arbitrary_contract is not None and short == "prepare_tile_component_with_kernel":
+                arbitrary_arguments_bound = _coverage_extraction_normal_arguments(
+                    contract, normal_arbitrary_contract[0], normal_arbitrary_contract[1], normal_arbitrary_contract[2],
+                )
             packet_arguments_bound = (
                 packet_contract is None
                 or _coverage_result_arguments(contract, named_result, packet_contract[0], packet_contract[2])
@@ -14055,6 +14180,23 @@ def validate_normative_coverage(
                 raise ValueError(f"linked function is not used by claimed implementation: {short}")
             if claimed_consumer:
                 contract_functions.add((reference["path"], reference["symbol"]))
+    if "part1-complete-standard-plan-coordinator" in ids:
+        coefficient_entry = next(e for e in coverage["requirements"] if e["id"] == "part1-complete-standard-plan-coordinator")
+        if not _COEFFICIENT_EXTRACTION_TESTS.issubset({
+                (ref["path"], ref["symbol"]) for ref in coefficient_entry["test_refs"]}):
+            raise ValueError("coefficient extraction requires bounded real raw/empty/refusal/restore/public controls")
+        for (relative, symbol), fragments in _COEFFICIENT_EXTRACTION_GUARDS.items():
+            body = _coverage_spec_function_body(source_text((ROOT / relative).resolve()), symbol)
+            compact = "".join(body.split()) if body is not None else ""
+            if any("".join(fragment.split()) not in compact for fragment in fragments):
+                raise ValueError("coefficient extraction requires actual raw count/role, numerical child, owner/error/tail composition")
+        for (relative, symbol), fragments in _COEFFICIENT_EXTRACTION_NATIVE_ORDER.items():
+            path = (ROOT / relative).resolve()
+            body = _coverage_function_body(source_text(path), function_header(path, symbol))
+            compact = "".join(body.split()) if body is not None else ""
+            positions = [compact.find("".join(fragment.split())) for fragment in fragments]
+            if any(position < 0 for position in positions) or positions != sorted(positions):
+                raise ValueError("coefficient extraction requires original real fresh reserve/admission/numerical error order")
     if "part1-complete-native-packed-header-length-inputs" in ids:
         packed_entry = next(item for item in coverage["requirements"] if item["id"] == "part1-complete-native-packed-header-length-inputs")
         if ("src/codestream/packet_headers.rs", "PackedPacketHeaders::reassemble") in {

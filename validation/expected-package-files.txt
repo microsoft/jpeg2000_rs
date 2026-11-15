@@ -24,6 +24,7 @@ specs/codestream_profile.rs
 specs/cold_bitmap.rs
 specs/cold_bitplane_initial.rs
 specs/cold_codeblock_plan.rs
+specs/cold_coefficient_extraction.rs
 specs/cold_component_plan.rs
 specs/cold_component_storage.rs
 specs/cold_decode_finish.rs
@@ -31,6 +32,8 @@ specs/cold_decode_packets.rs
 specs/cold_decoder_nested.rs
 specs/cold_decoder_planes.rs
 specs/cold_extensions_copy.rs
+specs/cold_extraction_reconstruction.rs
+specs/cold_extraction_tile.rs
 specs/cold_geometry_storage.rs
 specs/cold_grid.rs
 specs/cold_grid_geometry.rs

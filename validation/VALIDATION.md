@@ -1434,8 +1434,36 @@ entropy work, through replay, decoder, packet and public state programs.
 Bounded controls cover both masks, raw/empty/admission/work order, real collision
 and stuffing masks, replay/packet rollback and restored raw/selected/JPH/automatic
 images. Public Clone and all previous owner contracts remain unchanged.
-Extraction outputs, unrelated collections, existing growth and later buffers
+Other extraction outputs, unrelated collections, existing growth and later buffers
 remain separate. No physical-capacity or availability theorem is claimed.
+
+The numerical coefficient-extraction increment covers two fresh signed-magnitude
+vectors: the linear extraction inside `decode_code_block` reserves the actual
+raw coefficient-source length after the original completion/geometry admission;
+`collect_prepare_coefficients` reserves the original checked width-times-height
+count before its unchanged y/x cell lookup, sign and midpoint conversion.
+The private linear helper also preserves raw mismatched dimensions and empty
+source states without adding admission. Both zero counts make no request.
+Public infallible borrowed/scalar conveniences and Clone are unchanged.
+The existing fallible `decode_code_block` façade forwards the private checked
+extraction at its original frontier; its whole convenience pipeline is not
+newly claimed as a complete semantic contract.
+
+Distinct `CoefficientExtractionCapacity` responses bind actual roles/counts;
+complete raw coefficient words, signs, fractions and source planes remain in
+the enclosing numerical producers. Placement preserves prior mutable working
+owners on refusal. Ordered component folds retain earlier prepared owners and
+work; the caller's `CoefficientReconstructionCalls` envelope carries the actual
+nested leaf tape, not an additional physical request. The exact postpacket
+precincts, first errors and unused tails compose through tile reconstruction,
+raw/selected/container and automatic/public paths with checked old normal
+projections. Bounded controls exercise raw/empty states, first/later refusals,
+scalar/quantization precedence, real legacy/HT packets and restored images.
+The HT cleanup-significance bool output, inverse-quantization sample vectors,
+transform/image collections, existing-owner growth and later buffers remain
+outside this numerical group. Existing-owner moves add no request. No host
+availability or general physical-capacity theorem is asserted.
+
 Replay copying remains after original route/pass/cleanup/byte admission but
 before the unchanged append and later concatenation-size checks. Retention
 copying remains after actual refinement and statistics merge, preserving
