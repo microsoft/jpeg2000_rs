@@ -344,6 +344,20 @@ def _coverage_result_arguments(
 def _coverage_call(name: str, *arguments: str) -> str:
     return re.escape(name) + r"\s*\(\s*" + r"\s*,\s*".join(arguments) + r"\s*\)"
 
+def _coverage_extraction_normal_arguments(
+    contract: str, projection: str, model: str, arguments: str,
+) -> bool:
+    ordinary = re.search(
+        _coverage_call(projection, r"(?P<name>\w+)")
+        + r"\s*!=\s*Err\s*\(\s*DecodeError::AllocationFailed\s*\)\s*==>", contract,
+    )
+    bound_name = re.search(r"\bverus_spec\(\s*(\w+)\s*=>", contract)
+    return ordinary is not None and bound_name is not None and ordinary["name"] == bound_name[1] and re.match(
+        r"\s*" + _coverage_call(projection, re.escape(ordinary["name"]))
+        + r"\s*==\s*crate::specs::" + re.escape(model)
+        + r"\s*\(\s*" + arguments + r"\s*,?\s*\)", contract[ordinary.end():],
+    ) is not None
+
 def _coverage_body_clause(text: str) -> str:
     statement = text.split(";", 1)[0] + ";"
     normalized = re.sub(r",(?=\))", "", "".join(statement.split()))
@@ -4800,6 +4814,41 @@ _RAW_RENDER_PROOFS |= {("specs/jpx_raw_frame.rs", "part2_render_raw_cold_metadat
 _RAW_COMPOSITION_RENDER_PROOFS |= {("specs/jpx_raw_frame.rs", "part2_render_raw_cold_metadata_error")}
 
 _PLANE_ROLE_MODEL_INFO = {
+    "part1_prepare_copy_plane": ("part2_prepare_plane_copy_result", "specs/cold_prepare_copies.rs", "part2_prepare_plane_copy_normal"),
+    "part1_collect_column": ("part2_wavelet_gather_result", "specs/cold_wavelet_lines.rs", "part2_wavelet_gather_normal"),
+    "part1_interleaved": ("part2_wavelet_interleave_result", "specs/cold_wavelet_lines.rs", "part2_wavelet_interleave_normal"),
+    "part1_inverse_five_three": ("part2_wavelet_sequence_result", "specs/cold_wavelet_lines.rs", "part2_wavelet_sequence_normal"),
+    "part1_inverse_nine_seven": ("part2_wavelet_sequence_result", "specs/cold_wavelet_lines.rs", "part2_wavelet_sequence_normal"),
+    "part2_inverse_arbitrary": ("part2_wavelet_sequence_result", "specs/cold_wavelet_lines.rs", "part2_wavelet_sequence_normal"),
+    "part2_mct_wavelet": ("part2_mct_line_wavelet_result", "specs/cold_mct_line_pixels.rs", "part2_mct_line_wavelet_normal"),
+    "part2_mct_collection": ("part2_mct_line_collection_result", "specs/cold_mct_line_composition.rs", "part2_mct_line_collection_normal"),
+    "part2_mct_stage_prefix": ("part2_mct_line_stage_result", "specs/cold_mct_line_composition.rs", "part2_mct_line_stage_normal"),
+    "part2_mct_transform": ("part2_mct_line_transform_result", "specs/cold_mct_line_composition.rs", "part2_mct_line_transform_normal"),
+    "part2_mct_decoded_image": ("part2_mct_line_decoded_result", "specs/cold_mct_line_composition.rs", "part2_mct_line_decoded_normal"),
+    "part2_mct_prepared_tiles": ("part2_mct_line_prepared_result", "specs/cold_mct_line_composition.rs", "part2_mct_line_prepared_normal"),
+    "part2_finish_prepared_tile": ("part2_mct_line_finish_result", "specs/cold_mct_line_composition.rs", "part2_mct_line_finish_normal"),
+    "part1_inverse_horizontal": ("part2_wavelet_horizontal_result", "specs/cold_wavelet_planes.rs", "part2_wavelet_horizontal_normal"),
+    "part2_atk_inverse_horizontal": ("part2_wavelet_horizontal_result", "specs/cold_wavelet_planes.rs", "part2_wavelet_horizontal_normal"),
+    "part1_inverse_vertical": ("part2_wavelet_vertical_result", "specs/cold_wavelet_planes.rs", "part2_wavelet_vertical_normal"),
+    "part2_atk_inverse_vertical": ("part2_wavelet_vertical_result", "specs/cold_wavelet_planes.rs", "part2_wavelet_vertical_normal"),
+    "part1_inverse_level": ("part2_wavelet_level_result", "specs/cold_wavelet_planes.rs", "part2_wavelet_level_normal"),
+    "part2_atk_inverse_level": ("part2_wavelet_level_result", "specs/cold_wavelet_planes.rs", "part2_wavelet_level_normal"),
+    "part2_prepare_reconstruct": ("part2_wavelet_reconstruct_result", "specs/cold_wavelet_prepare.rs", "part2_wavelet_reconstruct_normal"),
+    "part2_prepare_resolution": ("part2_wavelet_resolution_result", "specs/cold_wavelet_prepare.rs", "part2_wavelet_resolution_normal"),
+    "part1_inverse_integer_quantization": ("part2_integer_quantization_result", "specs/cold_quantization_outputs.rs", "part2_integer_quantization_normal"),
+    "part1_inverse_quantization": ("part2_quantization_plane_result", "specs/cold_quantization_outputs.rs", "part2_quantization_plane_normal"),
+    "ht_cleanup_significance": ("part2_cleanup_significance_result", "specs/cold_ht_significance.rs", "part2_cleanup_significance_normal"),
+    "part1_prepare_collect_coefficients": ("part2_coefficient_collect_result", "specs/cold_coefficient_extraction.rs", "part2_coefficient_collect_normal"),
+    "part1_prepare_placement": ("part2_extraction_place_result", "specs/cold_extraction_reconstruction.rs", "part2_extraction_place_normal"),
+    "part2_prepare_component": ("part2_extraction_component_result", "specs/cold_extraction_reconstruction.rs", "part2_extraction_component_normal"),
+    "part1_prepare_standard_component": ("part2_coefficient_component_result", "specs/cold_extraction_reconstruction.rs", "part2_coefficient_component_normal"),
+    "part2_reconstruct_planned_tile": ("part2_extraction_tile_result", "specs/cold_extraction_tile.rs", "part2_extraction_tile_normal"),
+    "part1_progression_prepared_image": ("part2_coefficient_progression_result", "specs/cold_extraction_tile.rs", "part2_coefficient_progression_normal"),
+    "ht_refinement_readers_initial": ("part2_ht_scratch_result", "specs/cold_ht_refinement_scratch.rs", "part2_ht_scratch_normal"),
+    "ht_cleanup_segment_metadata": ("part2_ht_metadata_result", "specs/cold_ht_metadata.rs", "part2_ht_metadata_normal"),
+    "part1_legacy_code_block_segment": ("part2_legacy_packet_step_result", "specs/cold_legacy_packets.rs", "part2_legacy_packet_step_normal"),
+    "part1_legacy_code_block_body": ("part2_legacy_packet_body_result", "specs/cold_legacy_packets.rs", "part2_legacy_packet_body_normal"),
+    "ht_copy_refinement_bytes": ("part2_ht_bytes_result", "specs/cold_ht_bytes.rs", "part2_ht_bytes_normal"),
     "tier1_duplicate_plane": ("part1_plane_duplicate_storage_result", "specs/cold_tier1_planes.rs", "part2_plane_duplicate_normal"),
     "ht_cleanup_plane": ("part2_plane_cleanup_result", "specs/cold_tier1_planes.rs", "part2_plane_cleanup_normal"),
     "ht_cleanup_prepare": ("part2_plane_prepare_result", "specs/cold_tier1_planes.rs", "part2_plane_prepare_normal"),
@@ -4830,9 +4879,29 @@ _PLANE_ROLE_MODEL_INFO = {
 _PLANE_ROLE_RESULT_RUNS = {
     model: (("part2_plane_duplicate_run" if model == "part1_plane_duplicate_storage_result" else
              "part2_plane_tile_run" if model == "part2_plane_tile_run_result" else model.removesuffix("_result") + "_run"),
-            old not in {"tier1_duplicate_plane", "ht_cleanup_plane", "ht_cleanup_prepare", "ht_refinement_plane"})
+            old not in {"tier1_duplicate_plane", "ht_cleanup_plane", "ht_cleanup_prepare", "ht_refinement_plane", "ht_copy_refinement_bytes", "ht_cleanup_segment_metadata", "ht_refinement_readers_initial"})
     for old, (model, _, _) in _PLANE_ROLE_MODEL_INFO.items()
 }
+_PLANE_ROLE_RESULT_RUNS.update({
+    "part2_prepare_plane_copy_result": ("part2_prepare_plane_copy_run", False),
+    "part2_wavelet_gather_result": ("part2_wavelet_gather_run", False),
+    "part2_wavelet_interleave_result": ("part2_wavelet_interleave_run", False),
+    "part2_wavelet_sequence_result": ("part2_wavelet_sequence_run", False),
+    "part2_wavelet_horizontal_result": ("part2_wavelet_horizontal_run", False),
+    "part2_wavelet_vertical_result": ("part2_wavelet_vertical_run", False),
+    "part2_wavelet_level_result": ("part2_wavelet_level_run", False),
+    "part2_wavelet_reconstruct_result": ("part2_wavelet_reconstruct_run", False),
+    "part2_wavelet_resolution_result": ("part2_wavelet_resolution_run", False),
+    "part2_integer_quantization_result": ("part2_integer_quantization_run", False),
+    "part2_quantization_plane_result": ("part2_quantization_plane_run", False),
+    "part2_cleanup_significance_result": ("part2_cleanup_significance_run", False),
+    "part2_coefficient_collect_result": ("part2_coefficient_collect_run", False),
+    "part2_extraction_place_result": ("part2_extraction_place_run", True),
+    "part2_extraction_component_result": ("part2_extraction_component_run", False),
+    "part2_coefficient_component_result": ("part2_coefficient_component_run", False),
+    "part2_extraction_tile_result": ("part2_extraction_tile_run", True),
+    "part2_coefficient_progression_result": ("part2_extraction_progression_run", False),
+})
 _COLD_RESULT_MODELS = {
     "part1_jpip_precinct_packet": (
         "part2_jpip_packet_copy_result", "specs/cold_packet_copy.rs", "part2_jpip_packet_copy_normal",
@@ -5009,6 +5078,8 @@ def _coverage_cold_relation(
     cold_model = _COLD_RESULT_MODELS[model][0]
     if model == "tier1_empty_plane":
         inputs += r"\s*,\s*_role"
+    if model == "ht_copy_refinement_bytes":
+        inputs += r"\s*,\s*_role"
     if model == "tier1_duplicate_plane":
         inputs += r"\s*,\s*role"
     if model == "part1_precinct_packet":
@@ -5099,6 +5170,12 @@ def _plane_role_special_contracts():
     header = call("code_block_contribution_view", "contribution")
     packet_inputs = args(old_decoder("decoder"), header, "body@", pass_limit, byte_limit)
     return {
+        ("src/tier1/ht_refinement_readers.rs", "ht_refinement_readers_from_inputs"): (
+            "ht_refinement_readers_initial", call("ht_refinement_readers_outcome", r"\1"), None,
+            args("forward_input@", "reverse_input@", "bytes", "has_reverse", "maximum_work_units")),
+        ("src/tier1/ht_metadata.rs", "decode_ht_cleanup_segment_metadata"): (
+            "ht_cleanup_segment_metadata", call("ht_cleanup_metadata_outcome", r"\1"), None,
+            args(cleanup, "width", "height", "maximum_u", work)),
         ("src/tier1/state.rs", "CodeBlockPlane::duplicate"): (
             "tier1_duplicate_plane", call("code_block_plane_outcome", r"\1"), None, plane("self")),
         ("src/tier1/ht_cleanup.rs", "reconstruct_ht_cleanup_plane"): (
@@ -5151,6 +5228,35 @@ _INITIAL_TIER1_PLANE_CONTRACTS = {
         "tier1_empty_plane", _coverage_call("code_block_plane_outcome", r"\1"), None, r"width\s*,\s*height",
     ),
 }
+_HT_BYTE_COPY_CONTRACTS = {
+    ("src/tier1/ht_refinement.rs", "copy_ht_refinement_bytes"): (
+        "ht_copy_refinement_bytes", _coverage_call("ht_byte_vector_outcome", r"\1"), None, r"input@",
+    ),
+}
+def _legacy_storage_contracts() -> dict[tuple[str, str], tuple[str, str]]:
+    call = _coverage_call
+    caps = call("crate::tier1::legacy_storage_limits", "limits")
+    header = call("code_block_contribution_view", "contribution")
+    old_progress = call("legacy_packet_progress_view", call("old", "decoder"),
+                        r"\*\s*" + call("old", "segment_index"), r"\*\s*" + call("old", "offset"),
+                        r"\*\s*" + call("old", "decoded_passes"))
+    final_progress = call("legacy_packet_progress_view", call("final", "decoder"),
+                          r"\*\s*" + call("final", "segment_index"), r"\*\s*" + call("final", "offset"),
+                          r"\*\s*" + call("final", "decoded_passes"))
+    return {
+        ("src/packet/body.rs", "decode_legacy_code_block_segment"): (
+            "part2_legacy_packet_step_result",
+            r"\s*,\s*".join((old_progress, header, "body@", caps, r"\(\s*\1\s*,\s*" + final_progress + r"\s*\)")),
+        ),
+        ("src/packet/body.rs", "decode_legacy_code_block_contribution_body"): (
+            "part2_legacy_packet_body_result",
+            r"\s*,\s*".join((call("crate::tier1::tier1_decoder_state", call("old", "decoder")), header, "body@", caps,
+                            r"\(\s*\1\s*,\s*" + call("crate::tier1::tier1_decoder_state", call("final", "decoder")) + r"\s*\)")),
+        ),
+    }
+
+_LEGACY_PACKET_STORAGE_CONTRACTS = _legacy_storage_contracts()
+
 _COLD_RESULT_CONTRACTS = {
     key: _coverage_cold_relation(legacy)
     for contracts in (
@@ -5177,7 +5283,7 @@ _COLD_RESULT_CONTRACTS = {
         _PRECINCT_PLANNING_CONTRACTS, _SUBBAND_EXECUTION_CONTRACTS, _CODEBLOCK_VECTOR_CONTRACTS,
         _PACKET_HEADER_CONTRACTS, _PRECINCT_INITIALIZATION_CONTRACTS,
         _INITIAL_TIER1_PLANE_CONTRACTS, _DECODER_INITIALIZATION_CONTRACTS, _CODEBLOCK_PLANNING_CONTRACTS,
-        _PACKET_WRAPPER_CONTRACTS, _PLANE_ROLE_SPECIAL_CONTRACTS, _JPIP_PHASE_CONTRACTS,
+        _PACKET_WRAPPER_CONTRACTS, _PLANE_ROLE_SPECIAL_CONTRACTS, _JPIP_PHASE_CONTRACTS, _HT_BYTE_COPY_CONTRACTS,
     )
     for key, legacy in contracts.items()
     if legacy[0] in _COLD_RESULT_MODELS
@@ -5186,6 +5292,121 @@ _COLD_RESULT_CONTRACTS = {
         "part2_jpip_validate_precinct_cold_result", r"bytes@\s*,\s*layers\s*,\s*limits\s*,\s*\1",
     ),
 }
+_COLD_RESULT_CONTRACTS.update(_LEGACY_PACKET_STORAGE_CONTRACTS)
+for _axis, _extent in (("horizontal", "output_width"), ("vertical", "output_height"), ("level", None)):
+    for _suffix, _irreversible in (("5_3", "false"), ("9_7", "true"), ("arbitrary", r"!\s*" + _coverage_call("crate::codestream::raw_kernel_view", r"\*\s*kernel") + r"\.0")):
+        _wavelet_inputs = (_coverage_call("wavelet_level_view", "level") if _extent is None else
+            _coverage_call("wavelet_band_view", "low") + r"\s*,\s*" + _coverage_call("wavelet_band_view", "high")
+            + r"\s*,\s*" + _extent + r"\s*,\s*low_pass_first")
+        _wavelet_kernel = ("None" if _suffix != "arbitrary" else
+            _coverage_call("Some", _coverage_call("crate::codestream::raw_kernel_view", r"\*\s*kernel")))
+        _COLD_RESULT_CONTRACTS[("src/transform/levels.rs", "inverse_" + _axis + "_" + _suffix)] = (
+            "part2_wavelet_" + _axis + "_result", _wavelet_inputs + r"\s*,\s*" + _irreversible
+            + r"\s*,\s*" + _wavelet_kernel + r"\s*,\s*" + _coverage_call("crate::limits::resource_decoded_bytes_limit", "limits")
+            + r"\s*,\s*" + _coverage_call("reconstruction_outcome", r"\1"),
+        )
+_COLD_RESULT_CONTRACTS.update({
+    ("src/decode/reconstruction.rs", "copy_prepare_plane"): (
+        "part2_prepare_plane_copy_result",
+        _coverage_call("crate::transform::reconstructed_plane_view", "plane") + r"\s*,\s*first_detail\s*,\s*"
+        + _coverage_call("prepare_fold_outcome", r"\1"),
+    ),
+    ("src/decode/reconstruction.rs", "reconstruct_prepare_working"): (
+        "part2_wavelet_reconstruct_result",
+        _coverage_call("working_bands_view", "working@") + r"\s*,\s*" + _coverage_call("prepare_plan_view", "plan") + r"\s*,\s*"
+        + _coverage_call("prepare_style_view", "coding_style") + r"\s*,\s*reversible\s*,\s*"
+        + _coverage_call("crate::transform::arbitrary_kernel_option", "kernel") + r"\s*,\s*"
+        + _coverage_call("crate::limits::resource_decoded_bytes_limit", "limits") + r"\s*,\s*" + _coverage_call("prepare_fold_outcome", r"\1"),
+    ),
+    ("src/decode/reconstruction.rs", "reconstruct_prepare_resolution"): (
+        "part2_wavelet_resolution_result",
+        r"before@\s*,\s*" + _coverage_call("working_bands_view", "working@") + r"\s*,\s*plan\.subbands@\s*,\s*direction\s*,\s*reversible\s*,\s*"
+        + _coverage_call("crate::transform::arbitrary_kernel_option", "kernel") + r"\s*,\s*"
+        + _coverage_call("crate::limits::resource_decoded_bytes_limit", "limits") + r"\s*,\s*" + _coverage_call("prepare_fold_outcome", r"\1"),
+    ),
+})
+_COLD_RESULT_CONTRACTS.update({
+    ("src/transform/quantization.rs", "inverse_quantize"): (
+        "part2_integer_quantization_result",
+        r"coefficients@\s*,\s*step\.exponent\s*,\s*step\.mantissa\s*,\s*dynamic_range\s*,\s*reversible\s*,\s*roi_shift\s*,\s*"
+        + _coverage_call("crate::limits::resource_decoded_bytes_limit", "limits") + r"\s*,\s*" + _coverage_call("reconstruction_outcome", r"\1"),
+    ),
+    ("src/transform/quantization.rs", "inverse_quantize_values"): (
+        "part2_integer_quantization_result",
+        r"coefficients@\s*,\s*step\.exponent\s*,\s*step\.mantissa\s*,\s*dynamic_range\s*,\s*reversible\s*,\s*roi_shift\s*,\s*maximum_decoded_bytes\s*,\s*"
+        + _coverage_call("reconstruction_outcome", r"\1"),
+    ),
+    ("src/transform/quantization.rs", "inverse_quantize_magnitudes"): (
+        "part2_quantization_plane_result",
+        _coverage_call("quantized_coefficients_view", "coefficients@") + r"\s*,\s*step\.exponent\s*,\s*step\.mantissa\s*,\s*dynamic_range\s*,\s*reversible\s*,\s*roi_shift\s*,\s*"
+        + _coverage_call("crate::limits::resource_decoded_bytes_limit", "limits") + r"\s*,\s*" + _coverage_call("reconstruction_outcome", r"\1"),
+    ),
+    ("src/transform/quantization.rs", "inverse_quantize_plane"): (
+        "part2_quantization_plane_result",
+        _coverage_call("quantized_coefficients_view", "coefficients@") + r"\s*,\s*step\.exponent\s*,\s*step\.mantissa\s*,\s*dynamic_range\s*,\s*reversible\s*,\s*roi_shift\s*,\s*maximum_decoded_bytes\s*,\s*"
+        + _coverage_call("reconstruction_outcome", r"\1"),
+    ),
+})
+_COLD_RESULT_CONTRACTS.update({
+    key: _coverage_cold_relation(legacy)
+    for key, legacy in _RECONSTRUCTION_CONTRACTS.items()
+    if legacy[0] in _PLANE_ROLE_MODEL_INFO
+})
+_stage_key = ("src/image/mct.rs", "apply_mct_stage")
+_stage_legacy = _RECONSTRUCTION_CONTRACTS[_stage_key]
+_stage_view = _coverage_call("crate::codestream::mct_stage_view", "stage") + r"\s*\.1"
+_COLD_RESULT_CONTRACTS[_stage_key] = _coverage_cold_relation((
+    *_stage_legacy[:3],
+    _stage_legacy[3].removesuffix(r"\s*,\s*" + _stage_view + r"\s*\.len\s*\(\s*\)"),
+))
+_COLD_RESULT_CONTRACTS.update({
+    ("src/transform/geometry.rs", "collect_column"): (
+        "part2_wavelet_gather_result",
+        r"\(\s*width\s*,\s*height\s*,\s*samples@\s*\)\s*,\s*x\s*,\s*" + _coverage_call("sequence_outcome", r"\1"),
+    ),
+    ("src/transform/wavelets.rs", "interleave"): (
+        "part2_wavelet_interleave_result", r"low@\s*,\s*high@\s*,\s*low_pass_first\s*,\s*" + _coverage_call("sequence_outcome", r"\1"),
+    ),
+    **{
+        ("src/transform/wavelets.rs", name): (
+            "part2_wavelet_sequence_result",
+            r"low@\s*,\s*high@\s*,\s*low_pass_first\s*,\s*" + mode + r"\s*,\s*None\s*,\s*" + _coverage_call("sequence_outcome", r"\1"),
+        )
+        for name, mode in (("inverse_5_3", "false"), ("inverse_9_7", "true"))
+    },
+    ("src/transform/arbitrary.rs", "inverse_arbitrary"): (
+        "part2_wavelet_sequence_result", r"low@\s*,\s*high@\s*,\s*low_pass_first\s*,\s*!\s*"
+        + _coverage_call("crate::codestream::raw_kernel_view", r"\*\s*kernel") + r"\.0\s*,\s*"
+        + _coverage_call("Some", _coverage_call("crate::codestream::raw_kernel_view", r"\*\s*kernel")) + r"\s*,\s*"
+        + _coverage_call("sequence_outcome", r"\1"),
+    ),
+})
+_COLD_RESULT_CONTRACTS.update({
+    ("src/tier1/ht_refinement.rs", "ht_collect_cleanup_significance"): (
+        "part2_cleanup_significance_result",
+        _coverage_call("coefficient_raw_views", "coefficients@") + r"\s*,\s*" + _coverage_call("ht_cleanup_flags_outcome", r"\1"),
+    ),
+    ("src/decode/reconstruction.rs", "collect_prepare_coefficients"): (
+        "part2_coefficient_collect_result",
+        _coverage_call("crate::tier1::code_block_plane_view", "plane") + r"\s*,\s*" + _coverage_call("crate::transform::quantized_coefficients_outcome", r"\1"),
+    ),
+    ("src/decode/reconstruction.rs", "prepare_tile_component"): (
+        "part2_coefficient_component_result",
+        r"prepare_plan_view\s*\(\s*plan\s*\)\s*,\s*prepare_precincts_view\s*\(\s*precincts@\s*\)\s*,\s*prepare_style_view\s*\(\s*coding_style\s*\)\s*,\s*"
+        + _coverage_call("crate::limits::resource_decoded_bytes_limit", "limits") + r"\s*,\s*" + _coverage_call("prepared_component_outcome", r"\1"),
+    ),
+    ("src/decode/reconstruction.rs", "prepare_tile_component_with_kernel"): (
+        "part2_extraction_component_result",
+        r"prepare_plan_view\s*\(\s*plan\s*\)\s*,\s*prepare_precincts_view\s*\(\s*precincts@\s*\)\s*,\s*prepare_style_view\s*\(\s*coding_style\s*\)\s*,\s*"
+        + _coverage_call("crate::transform::arbitrary_kernel_option", "kernel") + r"\s*,\s*"
+        + _coverage_call("crate::limits::resource_decoded_bytes_limit", "limits") + r"\s*,\s*" + _coverage_call("prepared_component_outcome", r"\1"),
+    ),
+    ("src/decode/reconstruction.rs", "place_prepare_block"): (
+        "part2_extraction_place_result",
+        r"old\s*\(\s*working\s*\)\s*@\s*,\s*bands@\s*,\s*prepare_precincts_view\s*\(\s*precincts@\s*\)\s*,\s*placement\s*,\s*reversible\s*,\s*"
+        + _coverage_call("crate::limits::resource_decoded_bytes_limit", "limits") + r"\s*,\s*\(\s*\1\s*,\s*final\s*\(\s*working\s*\)\s*@\s*\)",
+    ),
+})
 _packed_public_key = ("src/packet/tile.rs", "decode_progression_tile_packets")
 _packed_public_arguments = _COLD_RESULT_CONTRACTS[_packed_public_key][1].replace(
     _coverage_call("crate::codestream::tile_parts_owned_view", "tile_parts@"), "tile_parts@")
@@ -5287,6 +5508,17 @@ def _coverage_cold_links(keys: set[tuple[str, str]]) -> tuple[set[tuple[str, str
         }.get(model, model.removesuffix("_result") + "_run")
         models.update(((path, model), (path, run)))
         proofs.add((path, normal))
+        if key == ("src/tier1/ht_cleanup.rs", "reconstruct_ht_cleanup_plane"):
+            models.update(("specs/cold_ht_exponents.rs", symbol) for symbol in (
+                "Part2HtExponentContext", "part2_ht_exponent_count", "part2_ht_exponent_context",
+                "part2_ht_exponent_capacity_run", "part2_ht_exponent_capacity_result",
+                "part2_ht_exponent_ready", "part2_ht_exponent_current", "part2_ht_exponent_after_plane",
+            ))
+            proofs.update(("specs/cold_ht_exponents.rs", symbol) for symbol in (
+                "part2_ht_exponent_capacity_observed", "part2_ht_exponent_capacity_frames",
+                "part2_ht_exponent_after_normal", "part2_ht_exponent_join",
+                "part2_ht_exponent_first_error", "part2_ht_exponent_current_observed",
+            ))
         if model in ("part1_tier1_plane_storage_result", "part1_tier1_initial_storage_result", "part1_tier1_configured_storage_result"):
             models |= _TIER1_INITIAL_MODELS
             proofs |= _TIER1_INITIAL_PROOFS
@@ -5417,8 +5649,12 @@ def _coverage_cold_result_body(text: str, model: str) -> bool:
     call = run + "(" + ",".join(names[:-1] + ["events"]) + ")"
     if model in _PLANE_ROLE_RESULT_RUNS:
         run_name, wrapped = _PLANE_ROLE_RESULT_RUNS[model]
-        expected = "part2_tier1_storage_framed(|calls|" + run_name + "(" + ",".join(names[:-1] + ["calls"]) + ")," \
+        count = (["collections.len()"] if model == "part2_mct_line_stage_result" else
+                 ["stages.len()"] if model == "part2_mct_line_transform_result" else [])
+        expected = "part2_tier1_storage_framed(|calls|" + run_name + "(" + ",".join(names[:-1] + count + ["calls"]) + ")," \
             + ("Ok(result)" if wrapped else "result") + ")"
+        if model == "part2_ht_replay_result":
+            expected += "&&(result.0!=Err(crate::DecodeError::AllocationFailed)==>result==ht_decode_refinement_contribution(before,input,passes,maximum_bytes,work))"
     elif model in ("part2_jpip_packet_copy_result", "part2_jpip_phase_copy_result"):
         expected = "part2_cold_framed(|events|" + call + ",Ok(result))"
     elif model == "part1_tier1_plane_storage_result":
@@ -5571,6 +5807,321 @@ _TIER1_INITIAL_TESTS = {
     ("src/tier1/tests.rs", "tier1_initial_storage_first_later_exact_coefficients_restore_and_separate_later_role"),
     ("src/decode/tests.rs", "tier1_initial_storage_cell_columns_rows_retain_prior_owners_and_restore"),
     ("src/decode/tests.rs", "tier1_initial_storage_public_raw_selected_container_roles_and_restore"),
+}
+_HT_BYTE_COPY_ENTRY = "part15-complete-substantive-segment-byte-entry"
+_HT_BYTE_COPY_ENTRIES = {
+    _HT_BYTE_COPY_ENTRY, "part15-complete-retained-refinement-and-placeholder-steps",
+    "part1-complete-native-mixed-code-block-body",
+}
+_HT_BYTE_COPY_TESTS = {
+    ("src/tier1/tests.rs", "ht_refinement_storage_checked_staging_copy_keeps_clone_fields_and_empty_frontier"),
+    ("src/tier1/tests.rs", "ht_refinement_storage_replay_copy_preserves_earlier_limits_later_length_and_state"),
+    ("src/tier1/tests.rs", "ht_refinement_storage_retention_refusal_keeps_cleared_state_and_staging_rolls_back"),
+    ("src/packet/tests.rs", "ht_refinement_storage_packet_staging_copy_precedes_route_error_and_restores_decoder"),
+    ("src/decode/tests.rs", "ht_refinement_storage_raw_selected_jph_retention_refusal_and_exact_restore"),
+}
+_HT_BYTE_COPY_GUARDS = {
+    ("specs/cold_ht_bytes.rs", "part2_ht_bytes_run"): (
+        "if source.len()==0{Some((Ok(source),calls))}", "Part2Tier1StorageEvent::RefinementBytes",
+        "actual!=role || before!=source || elements!=source.len()",
+        "if succeeded{Ok(source)}else{Err(crate::DecodeError::AllocationFailed)}", "calls.drop_first()",
+    ),
+    ("specs/cold_ht_bytes.rs", "part2_ht_duplicate_run"): (
+        "part2_decoder_plane_run(before.plane,role,false,calls)", "part2_ht_duplicate_after_primary(before,role,rest)",
+    ),
+    ("specs/cold_ht_bytes.rs", "part2_ht_duplicate_after_primary"): (
+        "part2_nested_bitplane_option_run(before.bitplane_state,role,false,calls)", "part2_ht_duplicate_after_bitplane(before,role,rest)",
+    ),
+    ("specs/cold_ht_bytes.rs", "part2_ht_duplicate_after_bitplane"): (
+        "part2_nested_legacy_option_run(before.legacy_segment,role,calls)", "part2_ht_duplicate_after_legacy(before,role,rest)",
+    ),
+    ("specs/cold_ht_bytes.rs", "part2_ht_duplicate_after_legacy"): (
+        "part2_decoder_cleanup_run(before.ht_cleanup_plane,role,calls)", "part2_ht_duplicate_after_cleanup(before,role,rest)",
+    ),
+    ("specs/cold_ht_bytes.rs", "part2_ht_duplicate_after_cleanup"): (
+        "part2_ht_bytes_run(before.ht_refinement_data,role,calls)", "Some((Ok(before),rest))",
+    ),
+    ("specs/cold_ht_decoder.rs", "part2_ht_coeff_after_refinement"): (
+        "let cleared=ht_clear_refinement_state(before)", "Err(error)=>Some((Ok((Err(error),cleared)),calls))",
+        "tier1_statistics_merge(output.2,value.1).0.is_err()",
+        "part2_ht_bytes_run(refinement.encoded,crate::tier1::HtRefinementCopyRole::CleanupRetention,calls)",
+        "Err(error)=>(Err(error),cleared)",
+    ),
+    ("specs/cold_ht_decoder.rs", "part2_ht_replay_run"): (
+        "!part2_ht_replay_copy_admitted(", "part2_ht_bytes_run(before.ht_refinement_data,crate::tier1::HtRefinementCopyRole::RetainedReplay,calls)",
+        "Err(error)=>Some((Ok((Err(error),before)),rest))", "part2_ht_replay_after_copy(",
+    ),
+    ("specs/cold_ht_decoder.rs", "part2_ht_staged_run"): (
+        "!part2_ht_staged_copy_admitted(", "part2_ht_duplicate_run(before,crate::tier1::HtRefinementCopyRole::HtStaging,calls)",
+        "Err(error)=>Some((Ok((Err(error),before)),rest))", "part2_ht_staged_after_duplicate(",
+    ),
+    ("specs/cold_packet_planes.rs", "part2_plane_body_transaction_run"): (
+        "part2_ht_duplicate_run(before,crate::tier1::HtRefinementCopyRole::PacketStaging,calls)",
+        "Err(error)=>Some((Ok((Err(error),before)),rest))", "part2_plane_body_after_duplicate(",
+    ),
+}
+_HT_BYTE_COPY_NATIVE_ORDER = {
+    ("src/tier1/contributions.rs", "Tier1CodeBlockDecoder::try_duplicate"): (
+        "plane:", "self.plane.try_duplicate_raw(role,false,false)", "part2_ht_duplicate_primary_error(", "copied?",
+        "bitplane_state:", "try_duplicate_bitplane(&self.bitplane_state,role,false)", "part2_ht_duplicate_bitplane_error(", "copied?",
+        "mq_context_state:self.mq_context_state", "legacy_segment:", "try_duplicate_legacy_segment(&self.legacy_segment,role)", "part2_ht_duplicate_legacy_error(", "copied?",
+        "ht_cleanup_plane:match self.ht_cleanup_plane.as_ref()", "None=>", "part2_decoder_cleanup_none(role)", "Some(source)=>",
+        "source.try_duplicate_raw(role,true,false)", "part2_decoder_cleanup_observed(", "part2_ht_duplicate_cleanup_error(", "Some(copied?)",
+        "ht_refinement_data:", "copy_ht_refinement_bytes(&self.ht_refinement_data,role)",
+        "part2_ht_duplicate_observed(", "copied?", "ht_refinement_passes:self.ht_refinement_passes",
+    ),
+    ("src/tier1/ht_refinement.rs", "copy_ht_refinement_bytes"): (
+        "let copied = crate::allocation::copy_values(input)", "part2_ht_bytes_observed(input@,_role,match copied{Err(error)=>Err(error),Ok(_)=>Ok(())})", "copied",
+    ),
+    ("src/tier1/ht_contributions.rs", "Tier1CodeBlockDecoder::decode_high_throughput_refinement"): (
+        "let cleanup_plane =", "if next_bytes > limits.maximum_code_block_bytes()",
+        "copy_ht_refinement_bytes(", "HtRefinementCopyRole::RetainedReplay", "let mut refinement_data = copied?",
+        "refinement_data.extend_from_slice(input)", "if refinement_data.len() > MAX_HT_REFINEMENT_BYTES", "decode_ht_refinement_plane(",
+    ),
+    ("src/tier1/ht_contributions.rs", "Tier1CodeBlockDecoder::decode_ht_staged_group"): (
+        "if passes == 0 || input.is_empty()", "ht_pass_group_from_packet(", "if grouping.refinement_passes != 0",
+        "self.try_duplicate(super::HtRefinementCopyRole::HtStaging)", "let mut staged = duplicated?", "staged.run_ht_placeholder_groups(",
+    ),
+    ("src/tier1/ht_contributions.rs", "Tier1CodeBlockDecoder::decode_ht_coefficient_symbols"): (
+        "self.clear_ht_refinement_state()", "decode_ht_refinement_plane(", "statistics.merge(refinement_statistics)?",
+        "copy_ht_refinement_bytes(", "HtRefinementCopyRole::CleanupRetention", "self.ht_refinement_data = copied?",
+        "self.ht_refinement_passes = refinement_passes",
+    ),
+    ("src/packet/body.rs", "decode_code_block_contribution_body"): (
+        "decoder.try_duplicate(crate::tier1::HtRefinementCopyRole::PacketStaging)", "let mut staged = duplicated?",
+        "decode_code_block_contribution_body_staged(", "let decoded = decoded_result?", "*decoder = staged",
+    ),
+}
+_DECODER_PLANE_COPY_TESTS = {
+    ("src/tier1/tests.rs", "decoder_plane_storage_raw_sources_copy_without_dimension_admission_or_false_empty_event"),
+    ("src/tier1/tests.rs", "decoder_plane_storage_primary_optional_cleanup_and_byte_order_restore_all_fields"),
+    ("src/packet/tests.rs", "decoder_plane_storage_real_legacy_packet_transaction_refusal_keeps_decoder_then_recovers"),
+    ("src/decode/tests.rs", "decoder_plane_storage_real_ht_raw_selected_jph_staging_refusals_restore_exact_images"),
+}
+_DECODER_PLANE_COPY_GUARDS = {
+    ("specs/cold_decoder_planes.rs", "part2_decoder_plane_run"): (
+        "let count=source.coefficients.len()", "if count==0{Some((Ok(source),calls))}",
+        "Part2Tier1StorageEvent::DecoderPlaneCopy", "actual!=source || path!=role || optional!=cleanup || elements!=count",
+        "if succeeded{Ok(source)}else{Err(crate::DecodeError::AllocationFailed)}", "calls.drop_first()",
+    ),
+    ("specs/cold_decoder_planes.rs", "part2_decoder_cleanup_run"): (
+        "None=>Some((Ok(None),calls))", "part2_decoder_plane_run(plane,role,true,calls)", "Some((Ok(Some(copied)),rest))",
+    ),
+    ("specs/cold_ht_bytes.rs", "part2_ht_duplicate_observed"): (
+        "part2_ht_bytes_frames(before.ht_refinement_data,role,result)",
+        "part2_decoder_cleanup_frames(before.ht_cleanup_plane,role,Ok(before.ht_cleanup_plane))",
+        "part2_ht_duplicate_nested_join(before,role,value)",
+    ),
+    ("specs/cold_ht_bytes.rs", "part2_ht_duplicate_nested_join"): (
+        "part2_nested_option_frames(before.legacy_segment,", "part2_nested_option_frames(before.bitplane_state,",
+        "part2_decoder_plane_frames(before.plane,role,false,Ok(before.plane))",
+    ),
+    ("specs/cold_ht_bytes.rs", "part2_ht_duplicate_primary_error"): (
+        "part2_decoder_plane_frames(before.plane,role,false,Err(error))",
+        "part2_ht_duplicate_after_primary(before,role,rest),Err(error),Err(error)",
+    ),
+    ("specs/cold_ht_bytes.rs", "part2_ht_duplicate_cleanup_error"): (
+        "part2_decoder_cleanup_frames(before.ht_cleanup_plane,role,Err(error))",
+        "part2_ht_duplicate_after_cleanup(before,role,rest),Err(error),Err(error)",
+        "part2_ht_duplicate_nested_join(before,role,Err(error))",
+    ),
+}
+_DECODER_NESTED_COPY_TESTS = {
+    ("src/tier1/tests.rs", "decoder_nested_storage_raw_flags_first_later_empty_and_clone_preserve_every_field"),
+    ("src/tier1/tests.rs", "decoder_nested_storage_primary_flags_legacy_plane_flags_input_cleanup_byte_order_restore"),
+    ("src/packet/tests.rs", "decoder_nested_storage_real_legacy_retention_refusals_precede_body_error_and_restore"),
+    ("src/recovery/tests.rs", "decoder_nested_storage_real_two_layer_raw_selected_recovery_and_automatic_restore"),
+}
+_DECODER_NESTED_COPY_GUARDS = {
+    ("specs/cold_decoder_nested.rs", "part2_nested_owner_count"): (
+        "Plane {source,..}=>source.coefficients.len()",
+        "if visited{source.significance_visited.len()}else{source.significant_before.len()}",
+        "Input {source,..}=>source.input.len()",
+    ),
+    ("specs/cold_decoder_nested.rs", "part2_nested_owner_run"): (
+        "if count==0{Some((Ok(()),calls))}", "Part2Tier1StorageEvent::NestedCopy",
+        "actual!=owner || elements!=count", "if succeeded{Ok(())}else{Err(crate::DecodeError::AllocationFailed)}", "calls.drop_first()",
+    ),
+    ("specs/cold_decoder_nested.rs", "part2_nested_flags"): (
+        "source,role,legacy,visited,prior:if visited{Some(source.significant_before)}else{None}",
+    ),
+    ("specs/cold_decoder_nested.rs", "part2_nested_bitplane_run"): (
+        "part2_nested_flags(source,role,legacy,false),calls", "part2_nested_flags(source,role,legacy,true),rest", "Some((Ok(source),tail))",
+    ),
+    ("specs/cold_decoder_nested.rs", "part2_nested_option_run"): (
+        "None=>Some((Ok(None),calls))", "child(value,calls)", "Some((Ok(Some(copied)),rest))",
+    ),
+    ("specs/cold_decoder_nested.rs", "part2_nested_plane_run"): (
+        "Part2NestedCopyOwner::Plane {source,role}", "Some((Ok(source),rest))",
+    ),
+    ("specs/cold_decoder_nested.rs", "part2_nested_legacy_run"): (
+        "part2_nested_plane_run(source.plane,role,calls)", "part2_nested_legacy_after_plane(source,role,rest)",
+    ),
+    ("specs/cold_decoder_nested.rs", "part2_nested_legacy_after_plane"): (
+        "part2_nested_bitplane_option_run(source.bitplane_state,role,true,calls)", "Part2NestedCopyOwner::Input {source,role},rest", "Some((Ok(source),tail))",
+    ),
+}
+_DECODER_NESTED_COPY_NATIVE_ORDER = {
+    ("src/tier1/legacy_passes.rs", "Tier1BitplaneState::try_duplicate"): (
+        "width:self.width", "height:self.height", "bitplane:self.bitplane", "significant_before:",
+        "copy_values(&self.significant_before)", "part2_nested_flags(before,_role,_legacy,false)", "part2_nested_bitplane_first_error(", "copied?",
+        "significance_visited:", "copy_values(&self.significance_visited)", "part2_nested_flags(before,_role,_legacy,true)", "part2_nested_bitplane_observed(", "copied?",
+        "significance_propagation_complete:self.significance_propagation_complete", "magnitude_refinement_complete:self.magnitude_refinement_complete", "cleanup_complete:self.cleanup_complete",
+    ),
+    ("src/tier1/contributions.rs", "LegacySegmentState::try_duplicate"): (
+        "plane:", "self.plane.try_duplicate_raw(role,false,true)", "part2_nested_legacy_plane_error(", "copied?",
+        "next_pass:self.next_pass", "bitplane:self.bitplane", "bitplane_state:", "try_duplicate_bitplane(&self.bitplane_state,role,true)",
+        "part2_nested_legacy_flags_error(", "copied?", "mq_context_state:self.mq_context_state", "decoded_bytes:self.decoded_bytes",
+        "input:", "copy_values(&self.input)", "Part2NestedCopyOwner::Input {source:before,role}", "part2_nested_legacy_observed(", "copied?", "passes:self.passes",
+    ),
+}
+_LEGACY_SNAPSHOT_ENTRY = "part1-complete-native-mixed-code-block-body"
+_LEGACY_SNAPSHOT_TESTS = {
+    ("src/tier1/tests.rs", "legacy_snapshot_storage_raw_snapshot_first_later_empty_and_exact_source_restore"),
+    ("src/tier1/tests.rs", "legacy_snapshot_storage_restore_refusal_exposes_exact_partial_fields_without_consuming_source"),
+    ("src/tier1/tests.rs", "legacy_snapshot_storage_real_replay_refusal_retains_admission_and_partial_restore_frames"),
+    ("src/packet/tests.rs", "legacy_snapshot_storage_packet_restore_refusal_preserves_full_outer_decoder_then_recovers"),
+    ("src/recovery/tests.rs", "legacy_snapshot_storage_two_layer_raw_selected_recovery_snapshot_restore_roles_and_automatic"),
+}
+_LEGACY_SNAPSHOT_GUARDS = {
+    ("specs/cold_legacy_replay.rs", "part2_legacy_snapshot_run"): (
+        "part2_nested_plane_run(before.plane,crate::tier1::HtRefinementCopyRole::LegacySnapshot,calls)", "part2_legacy_snapshot_flags(before,rest)",
+    ),
+    ("specs/cold_legacy_replay.rs", "part2_legacy_snapshot_flags"): (
+        "part2_nested_bitplane_option_run(before.bitplane_state,crate::tier1::HtRefinementCopyRole::LegacySnapshot,true,calls)", "Ok(part1_legacy_snapshot(before))",
+    ),
+    ("specs/cold_legacy_replay.rs", "part2_legacy_restore_after_plane"): (
+        "Err(error)=>Some((Ok((Err(error),before)),calls))", "Ok(_)=>part2_legacy_restore_flags(before,source,calls)",
+    ),
+    ("specs/cold_legacy_replay.rs", "part2_legacy_restore_flags"): (
+        "part2_nested_bitplane_option_run(source.bitplane_state,crate::tier1::HtRefinementCopyRole::LegacyRestore,true,calls)",
+        "Err(error)=>(Err(error),part2_legacy_restore_partial(before,source))", "Ok(_)=>(Ok(()),part1_legacy_restore(before,source))",
+    ),
+    ("specs/cold_legacy_replay.rs", "part2_legacy_replay_run"): (
+        "Some(source)=>part2_legacy_replay_after_source(before,input,replay,caps,source,calls)",
+        "part2_legacy_snapshot_run(part2_legacy_replay_clear(before),calls)",
+        "Err(error)=>Some((Ok((Err(error),part2_legacy_replay_clear(before))),rest))",
+    ),
+    ("specs/cold_legacy_replay.rs", "part2_legacy_replay_after_source"): (
+        "let appended=part1_legacy_append(source,input,replay)", "part2_legacy_restore_run(part2_legacy_replay_clear(before),appended,calls)",
+        "part2_legacy_replay_after_restored(appended,caps,restored,rest)",
+    ),
+    ("specs/cold_legacy_replay.rs", "part2_legacy_replay_after_restored"): (
+        "Err(_)=>Some((Ok(restored),calls))", "part2_legacy_segment_run(restored.1,source.input,source.passes,caps,calls)",
+        "part1_legacy_contribution_finish(decoded,source)",
+    ),
+    ("specs/cold_legacy_replay.rs", "part2_legacy_replay_finish"): (
+        "Err(_)=>restored", "part1_legacy_segment(restored.1,source.input,source.passes,caps.passes,caps.bytes,caps.input,caps.work)", "source)",
+    ),
+    ("specs/cold_legacy_replay.rs", "part2_legacy_contribution_run"): (
+        "part1_legacy_contribution_admission(before,input,passes,caps.bytes,caps.work)", "part2_legacy_contribution_after_admission(",
+    ),
+    ("specs/cold_legacy_packets.rs", "part2_legacy_packet_step_run"): (
+        "part2_legacy_packet_admit(before,header,body)", "part2_legacy_contribution_run(before.decoder,body.subrange(before.offset as int,end as int),segment.passes,caps,calls)",
+        "part2_legacy_packet_after_decode(before,segment,end,decoded)",
+    ),
+    ("specs/cold_legacy_packets.rs", "part2_legacy_packet_fold"): (
+        "remaining==0", "part2_legacy_packet_step_run(before,header,body,caps,calls)",
+        "Err(_)=>Some((Ok(step),rest))", "part2_legacy_packet_fold(step.1,header,body,(remaining-1) as nat,caps,rest)",
+    ),
+}
+_LEGACY_SNAPSHOT_NATIVE_ORDER = {
+    ("src/tier1/contributions.rs", "Tier1CodeBlockDecoder::legacy_segment_snapshot"): (
+        "Ok(LegacySegmentState", "self.plane.try_duplicate_raw(", "HtRefinementCopyRole::LegacySnapshot,false,true", "part2_legacy_snapshot_plane_error(", "copied?",
+        "next_pass:self.next_pass", "bitplane:self.bitplane", "try_duplicate_bitplane(", "&self.bitplane_state", "HtRefinementCopyRole::LegacySnapshot,true",
+        "part2_legacy_snapshot_observed(", "copied?", "mq_context_state:self.mq_context_state", "decoded_bytes:self.decoded_bytes", "input:Vec::new()", "passes:0",
+    ),
+    ("src/tier1/contributions.rs", "Tier1CodeBlockDecoder::restore_legacy_segment"): (
+        "segment.plane.try_duplicate_raw(", "HtRefinementCopyRole::LegacyRestore,false,true", "part2_legacy_restore_plane_error(", "self.plane=copied?",
+        "self.next_pass=segment.next_pass", "self.bitplane=segment.bitplane", "try_duplicate_bitplane(", "&segment.bitplane_state", "HtRefinementCopyRole::LegacyRestore,true",
+        "part2_legacy_restore_partial(before,source)", "part2_legacy_restore_observed(", "self.bitplane_state=copied?",
+        "self.mq_context_state=segment.mq_context_state", "self.reset_contexts_before_mq=segment.reset_contexts_before_mq",
+        "self.decoded_segments=segment.decoded_segments", "self.decoded_bytes=segment.decoded_bytes", "Ok(())",
+    ),
+    ("src/tier1/contributions.rs", "Tier1CodeBlockDecoder::decode_legacy_replay"): (
+        "match self.legacy_segment.take()", "Some(segment)=>segment", "self.legacy_segment_snapshot()", "part2_legacy_replay_snapshot_error(", "copied?",
+        "segment.append(input,replay_passes)", "self.restore_legacy_segment(&segment)", "part2_legacy_replay_restored(", "restored?",
+        "self.decode_legacy_segment(&segment.input,segment.passes,limits)", "part2_legacy_replay_segment_observed(", "decoded?", "self.commit_legacy_replay(segment)",
+    ),
+    ("src/packet/body.rs", "decode_legacy_code_block_segment"): (
+        "contribution.segment(*segment_index)?", "usize::try_from(segment.data_length)", "checked_add(segment_length)", "if end>body.len()",
+        "decoder.decode_legacy_contribution(&body[*offset..end],segment.passes,limits)", "part2_legacy_packet_step_observed(", "decoded?",
+        "*decoded_passes=decoded_passes.checked_add", "*offset=end", "*segment_index=segment_index.checked_add",
+    ),
+}
+_BITPLANE_INITIAL_TESTS = {
+    ("src/tier1/tests.rs", "bitplane_initial_storage_raw_values_first_later_restore_empty_and_original_admission"),
+    ("src/tier1/tests.rs", "bitplane_initial_storage_real_mq_setup_refusal_keeps_prior_reset_and_present_state_skips_requests"),
+    ("src/packet/tests.rs", "bitplane_initial_storage_packet_legacy_first_later_refusal_keeps_decoder_then_recovers"),
+    ("src/decode/tests.rs", "bitplane_initial_storage_real_raw_selected_jp2_first_later_refusals_restore_images"),
+    ("src/recovery/tests.rs", "bitplane_initial_storage_replayed_first_later_flags_raw_selected_recovery_and_automatic_restore"),
+}
+_BITPLANE_INITIAL_GUARDS = {
+    ("specs/cold_bitplane_initial.rs", "part2_bitplane_capacity_run"): (
+        "if visited{match prior{Some(values)=>values.len(),None=>0nat}}else{plane.coefficients.len()}",
+        "if count==0{Some((Ok(()),calls))}", "BitplaneInitialCapacity",
+        "source!=plane || actual!=bitplane || field!=visited || before!=prior || elements!=count",
+        "if succeeded{Ok(())}else{Err(crate::DecodeError::AllocationFailed)}", "calls.drop_first()",
+    ),
+    ("specs/cold_bitplane_initial.rs", "part2_bitplane_initial_run"): (
+        "bitplane>=crate::tier1::MAX_TIER1_BITPLANES", "part1_legacy_bitplane_initial(plane,bitplane)",
+        "part2_bitplane_capacity_run(plane,bitplane,false,None,calls)", "part2_bitplane_initial_visited(plane,bitplane,rest)",
+    ),
+    ("specs/cold_bitplane_initial.rs", "part2_bitplane_initial_visited"): (
+        "part2_bitplane_capacity_run(plane,bitplane,true,Some(part2_bitplane_significant(plane)),calls)",
+        "part1_legacy_bitplane_initial(plane,bitplane)",
+    ),
+    ("specs/cold_bitplane_initial.rs", "part2_bitplane_significant"): (
+        "plane.coefficients.map_values(|value:Tier1RawCoefficient|value.significant)",
+    ),
+    ("specs/cold_bitplane_initial.rs", "part2_legacy_ensure_run"): (
+        "before.bitplane_state.is_some()", "Some((Ok((Ok(()),before)),calls))",
+        "part2_bitplane_initial_run(before.plane,before.bitplane,calls)", "Err(error)=>(Err(error),before)",
+        "bitplane_state:Some(state),..before",
+    ),
+    ("specs/cold_bitplane_initial.rs", "part2_legacy_pass_run"): (
+        "part2_legacy_ensure_run(before,calls)", "part2_legacy_pass_after_ready(symbols,kind,ready)",
+    ),
+    ("specs/cold_legacy_bitplanes.rs", "part2_legacy_inner_step_run"): (
+        "(plan.coding_mode is Raw)!=(before.symbols is Raw)", "part2_legacy_pass_run(before.decoder,before.symbols,plan.kind,calls)",
+        "part2_legacy_step_after_pass(before,plan.kind,decoded)",
+    ),
+    ("specs/cold_legacy_bitplanes.rs", "part2_legacy_inner_fold"): (
+        "remaining==0", "part2_legacy_inner_step_run(before,calls)", "Err(_)=>Some((Ok(step),rest))",
+        "part2_legacy_inner_fold(step.1,(remaining-1) as nat,rest)",
+    ),
+    ("specs/cold_legacy_bitplanes.rs", "part2_legacy_segment_run"): (
+        "part2_legacy_segment_prepared(before,input,count,caps)", "Err(error)=>Some((Ok((Err(error),before)),calls))",
+        "part2_legacy_inner_body_run(initial,count,calls)", "part2_legacy_segment_finish(before,input,count,inner)",
+    ),
+    ("specs/cold_legacy_replay.rs", "part2_legacy_replay_after_restored"): (
+        "Err(_)=>Some((Ok(restored),calls))", "part2_legacy_segment_run(restored.1,source.input,source.passes,caps,calls)",
+        "part1_legacy_contribution_finish(decoded,source)",
+    ),
+}
+_BITPLANE_INITIAL_NATIVE_ORDER = {
+    ("src/tier1/legacy_passes.rs", "legacy_bitplane_from_plane"): (
+        "if bitplane>=MAX_TIER1_BITPLANES", "let count=plane.coefficients.len()", "if count==0{Ok(Vec::new())}",
+        "crate::allocation::empty_with_capacity(count)", "part2_bitplane_capacity_observed(before,bitplane,false,None,result)",
+        "part2_bitplane_initial_first_error(", "let mut significant_before=reserved?", "while index<plane.coefficients.len()",
+        "significant_before.push(plane.coefficients[index].significant)", "index.checked_add(1)",
+        "crate::allocation::filled_values(false,significant_before.len())",
+        "part2_bitplane_capacity_observed(before,bitplane,true,Some(significant_before@),result)",
+        "part2_bitplane_initial_observed(", "let significance_visited=filled?", "width:plane.width", "height:plane.height",
+        "bitplane", "significance_visited", "significant_before", "significance_propagation_complete:false", "magnitude_refinement_complete:false", "cleanup_complete:false",
+    ),
+    ("src/tier1/legacy_segments.rs", "Tier1CodeBlockDecoder::ensure_bitplane_state"): (
+        "if self.bitplane_state.is_none()", "legacy_bitplane_from_plane(&self.plane,self.bitplane)", "part2_legacy_ensure_observed(",
+        "self.bitplane_state=Some(constructed?)", "part2_legacy_ensure_present(",
+    ),
+    ("src/tier1/legacy_segments.rs", "Tier1CodeBlockDecoder::decode_legacy_segment"): (
+        "self.validate_legacy_segment(input,pass_count,limits)", "admitted?", "self.style.pass_plan(self.next_pass).coding_mode",
+        "crate::mq::mq_from_input(", "constructed?", "initialize_tier1_contexts(", "self.reset_contexts_before_mq=false",
+        "self.decode_mq_segment_passes(", "part2_legacy_segment_observed(", "part2_legacy_segment_finish_equation(",
+        "part2_legacy_segment_primary_consequence(", "statistics=decoded?", "decoder.validate_predictable_termination()?",
+        "self.mq_context_state=Some(decoder.context_state())", "raw_reader_from_input(", "self.decode_raw_segment_passes(",
+        "reader.validate_predictable_termination()?", "self.commit_legacy_segment(input.len(),pass_count,statistics)",
+    ),
 }
 _ROLLBACK_OWNER_TESTS = {
     ("src/packet/tests.rs", "rollback_snapshot_storage_outer_roles_precede_children_and_restore_exact_packet"),
@@ -5811,9 +6362,144 @@ _PLANE_ROLE_TESTS = {
     ("src/tier1/tests.rs", "tier1_plane_storage_refinement_roles_preserve_rollback_and_cleared_partial_state"),
     ("src/decode/tests.rs", "tier1_plane_storage_real_ht_raw_selected_container_cleanup_restore"),
 }
+_HT_SCRATCH_TESTS = {
+    ("src/tier1/tests.rs", "ht_refinement_scratch_storage_first_later_masks_restore_real_readers_and_stuffing"),
+    ("src/tier1/tests.rs", "ht_refinement_scratch_storage_raw_counts_empty_reverse_and_prior_admission_order"),
+    ("src/tier1/tests.rs", "ht_refinement_scratch_storage_actual_replay_refusals_preserve_decoder_then_restore"),
+    ("src/packet/tests.rs", "ht_refinement_scratch_storage_actual_packet_masks_rollback_and_restore"),
+    ("src/decode/tests.rs", "ht_refinement_scratch_storage_actual_raw_selected_jph_masks_and_automatic_restore"),
+}
+_HT_SCRATCH_GUARDS = {
+    "part2_ht_scratch_context": (
+        "forward_length:forward.len(),reverse_length:reverse.len(),bytes,has_reverse,work",
+        "claimed:if stuffed{Some(Seq::new(bytes as nat,|_:int|0u8))}else{None}",
+    ),
+    "part2_ht_scratch_admit": (
+        "ht_forward_refinement_initial(forward,work)", "Ok(first)=>if has_reverse",
+        "ht_reverse_refinement_initial(reverse,work)", "Ok((first,None))",
+    ),
+    "part2_ht_scratch_capacity_run": (
+        "if context.bytes==0{Some((Ok(()),calls))}else if calls.len()==0{None}",
+        "RefinementScratchCapacity {context:actual,stuffed:field,elements,succeeded}",
+        "actual!=context || field!=stuffed || elements!=context.bytes",
+        "if succeeded{Ok(())}else{Err(crate::DecodeError::AllocationFailed)}", "calls.drop_first()",
+    ),
+    "part2_ht_scratch_run": (
+        "part2_ht_scratch_admit(forward,reverse,has_reverse,work)", "Err(error)=>Some((Err(error),calls))",
+        "part2_ht_scratch_context(forward,reverse,bytes,has_reverse,work,false),false,calls)",
+        "part2_ht_scratch_stuffed(forward,reverse,bytes,has_reverse,work,rest)",
+    ),
+    "part2_ht_scratch_stuffed": (
+        "part2_ht_scratch_context(forward,reverse,bytes,has_reverse,work,true),true,calls)",
+        "Some((ht_refinement_readers_initial(forward,reverse,bytes,has_reverse,work),rest))",
+    ),
+}
+_HT_METADATA_TESTS = {
+    ("src/tier1/tests.rs", "ht_metadata_storage_quad_previous_and_fresh_first_later_rows_restore_actual_metadata"),
+    ("src/tier1/tests.rs", "ht_metadata_storage_current_row_refusal_preserves_actual_prior_rows_and_empty_skips_request"),
+    ("src/tier1/tests.rs", "ht_metadata_storage_original_parse_header_reader_and_late_work_error_order"),
+    ("src/packet/tests.rs", "ht_metadata_storage_actual_packet_quad_previous_current_refusals_roll_back_and_restore"),
+    ("src/decode/tests.rs", "ht_metadata_storage_raw_selected_jph_and_automatic_restore_actual_image"),
+}
+_HT_METADATA_GUARDS = {
+    "part2_ht_metadata_context": (
+        "width,height,maximum_u,work,mel:cleanup.mel.bytes,vlc:cleanup.vlc.bytes",
+        "row:0,quads:0,previous:None,significant:0,mel_bits:0,vlc_bits:0",
+    ),
+    "part2_ht_metadata_admit": (
+        "width==0 || height==0 || maximum_u==0 || maximum_u>75",
+        "width as nat*height as nat>u32::MAX", "width as nat*height as nat>4096",
+        "ht_cleanup_readers_initial(cleanup.mel.bytes,cleanup.vlc.bytes,work)",
+    ),
+    "part2_ht_metadata_count": (
+        "Quads=>((context.width as nat+1)/2)*((context.height as nat+1)/2)",
+        "Previous=>(context.width as nat+1)/2",
+        "Current=>match context.previous{Some(previous)=>previous.len(),None=>0nat}",
+    ),
+    "part2_ht_metadata_row_context": (
+        "work:state.readers.maximum_work_units", "mel:state.readers.mel.input,vlc:state.readers.vlc.input,row,quads:state.quads.len()",
+        "previous:Some(state.previous),significant:state.significant",
+        "mel_bits:state.readers.mel.bits_read as nat,vlc_bits:state.readers.vlc.bits_read as nat",
+    ),
+    "part2_ht_metadata_capacity_run": (
+        "if count==0{Some((Ok(()),calls))}else if calls.len()==0{None}",
+        "HtMetadataCapacity {context:actual,role:field,elements,succeeded}",
+        "actual!=context || field!=role || elements!=count",
+        "if succeeded{Ok(())}else{Err(crate::DecodeError::AllocationFailed)}", "calls.drop_first()",
+    ),
+    "part2_ht_metadata_row_run": (
+        "part2_ht_metadata_row_context(state,row,width,height,maximum_u),Part2HtMetadataRole::Current,calls)",
+        "Err(error)=>(Err(error),state),Ok(())=>ht_metadata_row(state,row,width,height,maximum_u)",
+    ),
+    "part2_ht_metadata_rows_next": (
+        "Err(_)=>Some((Ok(step),calls))", "part2_ht_metadata_row_run(step.1,row,width,height,maximum_u,calls)",
+    ),
+    "part2_ht_metadata_rows_run": (
+        "if count==0{Some((Ok((Ok(()),state)),calls))}",
+        "part2_ht_metadata_rows_run(state,width,height,maximum_u,(count-1) as nat,calls)",
+        "part2_ht_metadata_rows_next(step,(count-1) as nat,width,height,maximum_u,rest)",
+    ),
+    "part2_ht_metadata_after_previous": (
+        "part2_ht_metadata_rows_run(part2_ht_metadata_start(readers,width),width,height,maximum_u,(height as nat+1)/2,calls)",
+        "Some((ht_metadata_finish(step,width,height),rest))",
+    ),
+    "part2_ht_metadata_after_quads": (
+        "part2_ht_metadata_context(cleanup,width,height,maximum_u,work),Part2HtMetadataRole::Previous,calls)",
+        "part2_ht_metadata_after_previous(readers,width,height,maximum_u,rest)",
+    ),
+    "part2_ht_metadata_run": (
+        "match part2_ht_metadata_admit(cleanup,width,height,maximum_u,work)",
+        "Err(error)=>Some((Err(error),calls))",
+        "part2_ht_metadata_context(cleanup,width,height,maximum_u,work),Part2HtMetadataRole::Quads,calls)",
+        "part2_ht_metadata_after_quads(cleanup,width,height,maximum_u,work,readers,rest)",
+    ),
+    "part2_ht_decode_metadata_run": (
+        "ht_parse_block_segments(input,None,bytes)", "Err(error)=>Some((Err(error),calls))",
+        "part2_ht_metadata_run(segments.cleanup,width,height,maximum_u,work,calls)",
+    ),
+}
+_HT_EXPONENT_TESTS = {
+    ("src/tier1/tests.rs", "ht_cleanup_scratch_storage_raw_metadata_rows_first_later_and_exact_output_restore"),
+    ("src/tier1/tests.rs", "ht_cleanup_scratch_storage_original_width_plane_admission_and_empty_quad_order"),
+    ("src/tier1/tests.rs", "ht_cleanup_scratch_storage_real_decoder_refusal_keeps_prior_refinement_before_clear"),
+    ("src/packet/tests.rs", "ht_cleanup_scratch_storage_packet_first_later_rows_roll_back_full_decoder_and_restore"),
+    ("src/decode/tests.rs", "ht_cleanup_scratch_storage_raw_selected_jph_rows_and_automatic_restore_real_image"),
+}
 _PLANE_ROLE_GUARDS = {
+    ("specs/cold_ht_exponents.rs", "part2_ht_exponent_count"): (
+        "(metadata.width as nat+1)/2+1",
+    ),
+    ("specs/cold_ht_exponents.rs", "part2_ht_exponent_context"): (
+        "plane_width:plane.width,plane_height:plane.height,metadata_width:metadata.width,metadata_height:metadata.height",
+        "input:cleanup.mag_sgn.bytes,maximum_u,bitplanes,work",
+        "previous:if current{Some(Seq::new(part2_ht_exponent_count(metadata),|_:int|0u8))}else{None}",
+    ),
+    ("specs/cold_ht_exponents.rs", "part2_ht_exponent_capacity_run"): (
+        "let count=(context.metadata_width as nat+1)/2+1",
+        "if count==0{Some((Ok(()),calls))}else if calls.len()==0{None}",
+        "Part2Tier1StorageEvent::HtExponentCapacity {context:actual,current:field,elements,succeeded}",
+        "actual!=context || field!=current || elements!=count",
+        "Some((if succeeded{Ok(())}else{Err(crate::DecodeError::AllocationFailed)},calls.drop_first()))",
+    ),
+    ("specs/cold_ht_exponents.rs", "part2_ht_exponent_ready"): (
+        "match ht_magsgn_initial(cleanup.mag_sgn.bytes,work)",
+        "Err(error)=>Err(error)", "let quads=(metadata.width as nat+1)/2",
+        "metadata.width as nat+1>usize::MAX || quads+1>usize::MAX",
+        "else if quads==0", "else{Ok(quads+1)}",
+    ),
+    ("specs/cold_ht_exponents.rs", "part2_ht_exponent_after_plane"): (
+        "match part2_ht_exponent_ready(cleanup,metadata,work)",
+        "Err(_)=>Some((ht_cleanup_plane(plane,cleanup,metadata,maximum_u,bitplanes,work),calls))",
+        "part2_ht_exponent_context(plane,cleanup,metadata,maximum_u,bitplanes,work,false),false,calls)",
+        "|_:(),rest|part2_ht_exponent_current(plane,cleanup,metadata,maximum_u,bitplanes,work,rest)",
+    ),
+    ("specs/cold_ht_exponents.rs", "part2_ht_exponent_current"): (
+        "part2_ht_exponent_context(plane,cleanup,metadata,maximum_u,bitplanes,work,true),true,calls)",
+        "|_:(),rest|Some((ht_cleanup_plane(plane,cleanup,metadata,maximum_u,bitplanes,work),rest))",
+    ),
     ("specs/cold_tier1_initial.rs", "part2_tier1_plane_run"): (
-        "call.width!=width || call.height!=height || call.role!=role || call.samples!=count",
+        "Part2Tier1StorageEvent::Coefficient",
+        "actual_width!=width || actual_height!=height || actual_role!=role || samples!=count",
         "calls.drop_first()",
     ),
     ("specs/cold_tier1_initial.rs", "part2_tier1_storage_prefix"): (
@@ -5827,9 +6513,15 @@ _PLANE_ROLE_GUARDS = {
     ),
     ("specs/cold_tier1_planes.rs", "part2_plane_cleanup_run"): (
         "if metadata.width==0", "part2_tier1_plane_run(", "CoefficientStorageRole::CleanupOutput",
+        "part2_ht_exponent_after_plane(plane,cleanup,metadata,maximum_u,bitplanes,maximum_work,rest)",
     ),
     ("specs/cold_tier1_planes.rs", "part2_plane_prepare_run"): (
-        "part2_plane_prepare_admit(", "Err(error)=>Some((Err(error),calls))", "part2_plane_cleanup_run(", "part2_plane_prepare_tail(output,admitted.1,rest)",
+        "part2_ht_metadata_run(cleanup,plane.width,plane.height,maximum_u,work,calls)",
+        "part2_plane_prepare_after_metadata(plane,cleanup,passes,maximum_u,skipped,work,metadata,rest)",
+    ),
+    ("specs/cold_tier1_planes.rs", "part2_plane_prepare_after_metadata"): (
+        "ht_significant_bitplanes(passes)", "if bits<skipped", "Err(error)=>Some((Err(error),calls))",
+        "part2_plane_cleanup_run(", "part2_plane_prepare_tail(output,admitted.1,rest)",
     ),
     ("specs/cold_tier1_planes.rs", "part2_plane_prepare_tail"): (
         "part2_plane_duplicate_run(output.0,crate::tier1::CoefficientStorageRole::CleanupCopy,calls)",
@@ -5840,20 +6532,27 @@ _PLANE_ROLE_GUARDS = {
         "part2_plane_refinement_after_output(",
     ),
     ("specs/cold_tier1_planes.rs", "part2_plane_refinement_prepared"): (
-        "ht_refinement_readers_initial(", "ht_cleanup_significance(cleanup.coefficients)", "if passes==2", "ht_magref_stripes(",
+        "ht_refinement_readers_initial(", "part2_plane_refinement_prepared_readers(cleanup,output,readers,passes,bits)",
+    ),
+    ("specs/cold_tier1_planes.rs", "part2_plane_refinement_prepared_readers"): (
+        "ht_cleanup_significance(cleanup.coefficients)", "if passes==2", "ht_magref_stripes(",
+    ),
+    ("specs/cold_tier1_planes.rs", "part2_plane_refinement_after_output"): (
+        "part2_ht_scratch_run(segment.significance_propagation.bytes,segment.magnitude_refinement.bytes,segment.encoded.len() as usize,passes==2,work,calls)",
+        "part2_plane_refinement_after_readers(cleanup,output,segment,readers,passes,bits,causal,rest)",
     ),
     ("specs/cold_tier1_planes.rs", "part2_plane_significance_run"): (
         "ht_significance_magnitude(bits)", "part2_plane_duplicate_run(state.output,crate::tier1::CoefficientStorageRole::RefinementDiscovery,calls)", "ht_sigprop_stripes(",
     ),
     ("specs/cold_ht_decoder.rs", "part2_ht_coeff_after_prepare"): (
         "Err(error)=>Some((Ok((Err(error),before)),calls))", "let cleared=ht_clear_refinement_state(before)",
-        "part2_plane_refinement_run(output.1,refinement", "Err(error)=>(Err(error),cleared)",
+        "part2_plane_refinement_run(output.1,refinement", "part2_ht_coeff_after_refinement(",
     ),
     ("specs/cold_ht_decoder.rs", "part2_ht_staged_run"): (
-        "part2_ht_staged_admit(", "part2_ht_segments_run(staged", "Err(error)=>(Err(error),before)",
+        "part2_ht_staged_copy_admitted(", "HtRefinementCopyRole::HtStaging", "part2_ht_staged_after_duplicate(",
     ),
     ("specs/cold_packet_planes.rs", "part2_plane_body_transaction_run"): (
-        "part2_plane_body_staged_run(", "Err(error)=>(Err(error),before)",
+        "part2_ht_duplicate_run(", "HtRefinementCopyRole::PacketStaging", "part2_plane_body_after_duplicate(",
     ),
     ("specs/cold_packet_execute.rs", "part2_plane_execute_finish"): (
         "decoders:s.decoders.update(s.index as int,decoded.1)", "s.segments as nat+value.segments", "s.passes as nat+value.passes",
@@ -5874,7 +6573,15 @@ _PLANE_ROLE_NATIVE_ORDER = {
         "code_block_plane_from_dimensions(self.width, self.height, role)", "let mut output = output_result?", "output.coefficients.len() != self.coefficients.len()", "while index < self.coefficients.len()",
     ),
     ("src/tier1/ht_cleanup.rs", "reconstruct_ht_cleanup_plane"): (
-        "if metadata.width == 0", "CoefficientStorageRole::CleanupOutput", "let output = output_result?", "ht_magsgn_from_input(", "previous_exponents:", "while quad_index",
+        "if metadata.width == 0", "CoefficientStorageRole::CleanupOutput", "let output = output_result?", "ht_magsgn_from_input(",
+        "let doubled_quads = usize::from(metadata.width)", "let quads_per_row = doubled_quads", "if quads_per_row == 0",
+        "let exponent_count = quads_per_row", "previous_exponents:",
+        "part2_ht_exponent_context(source,segment,rows,maximum_u,decoded_bitplanes,work,false),false,result)",
+        "part2_ht_exponent_first_error(source,segment,rows,maximum_u,decoded_bitplanes,work,error)",
+        "current_exponents:",
+        "part2_ht_exponent_context(source,segment,rows,maximum_u,decoded_bitplanes,work,true),true,result)",
+        "part2_ht_exponent_current_observed(source,segment,rows,maximum_u,decoded_bitplanes,work,result)",
+        "statistics: ht_statistics_zero()", "while quad_index",
     ),
     ("src/tier1/ht_cleanup.rs", "prepare_ht_cleanup_symbols"): (
         "decode_ht_cleanup_segment_metadata(", "ht_significant_bitplanes(", ".checked_sub(skipped_bitplanes)",
@@ -5882,6 +6589,7 @@ _PLANE_ROLE_NATIVE_ORDER = {
     ),
     ("src/tier1/ht_refinement.rs", "decode_ht_refinement_plane"): (
         "if refinement_passes == 0", "CoefficientStorageRole::RefinementOutput", "let output = copied?", "ht_refinement_readers_from_inputs(",
+        "part2_plane_refinement_readers_error(", "let readers=reader_result?",
         "state.magnitude_pass(", "ht_significance_magnitude(", "CoefficientStorageRole::RefinementDiscovery", "let significance_plane = discovered?",
     ),
     ("src/tier1/ht_contributions.rs", "Tier1CodeBlockDecoder::decode_ht_coefficient_symbols"): (
@@ -5895,7 +6603,8 @@ _TIER1_INITIAL_GUARDS = {
     ),
     ("specs/cold_tier1_initial.rs", "part2_tier1_plane_run"): (
         "part2_tier1_plane_admit(width,height)",
-        "Err(error)=>Some((Err(error),calls))", "call.width!=width || call.height!=height || call.role!=role || call.samples!=count",
+        "Err(error)=>Some((Err(error),calls))", "Part2Tier1StorageEvent::Coefficient",
+        "actual_width!=width || actual_height!=height || actual_role!=role || samples!=count",
         "Err(crate::DecodeError::AllocationFailed)", "calls.drop_first()",
     ),
     ("specs/cold_tier1_initial.rs", "part2_tier1_initial_run"): (
@@ -6413,6 +7122,341 @@ _PREPARATION_NATIVE_ORDER = {
         "part2_packet_progress_error(", "let mut progress = progress_result?", "run_progression_tile_packets(",
     ),
 }
+_WAVELET_PLANE_GUARDS = {
+    ("specs/cold_wavelet_planes.rs", "part2_wavelet_capacity_run"): (
+        "if count==0{Some((Ok(()),calls))}", "WaveletPlaneCapacity", "actual!=owner || elements!=count",
+        "if succeeded{Ok(())}else{Err(crate::DecodeError::AllocationFailed)}", "calls.drop_first()",
+    ),
+    ("specs/cold_wavelet_planes.rs", "part2_wavelet_rows_run"): (
+        "Part2WaveletPlaneOwner::Rows,capacity as nat,calls",
+        "part2_wavelet_horizontal_lines_run(low,high,first,irreversible,kernel,low.1 as nat,rest)",
+    ),
+    ("specs/cold_wavelet_planes.rs", "part2_wavelet_columns_run"): (
+        "Part2WaveletPlaneOwner::Columns,length as nat,calls",
+        "part2_wavelet_vertical_lines_run(low,high,height,first,irreversible,kernel,length,low.0 as nat,rest)",
+    ),
+    ("specs/cold_wavelet_planes.rs", "part2_wavelet_level_rows_run"): (
+        "part1_transform_area(level.4,level.0.1)", "part2_wavelet_rows_run(level.0,level.1,level.6,irreversible,kernel,capacity,calls)",
+        "part2_wavelet_level_after_low(level,irreversible,kernel,length,low,rest)",
+    ),
+    ("specs/cold_wavelet_planes.rs", "part2_wavelet_level_after_low"): (
+        "part1_transform_area(level.4,level.2.1)", "part2_wavelet_rows_run(level.2,level.3,level.6,irreversible,kernel,capacity,calls)",
+        "part2_wavelet_level_after_high(level,irreversible,kernel,length,low,high,rest)",
+    ),
+    ("specs/cold_wavelet_planes.rs", "part2_wavelet_level_after_high"): (
+        "part2_wavelet_columns_run((level.4,level.0.1,low),(level.4,level.2.1,high),level.5,level.7,irreversible,kernel,length,calls)",
+        "Some((Ok(part2_wavelet_wrap(level.4,level.5,irreversible,samples)),rest))",
+    ),
+    ("specs/cold_extraction_reconstruction.rs", "part2_extraction_component_finish_run"): (
+        "part2_extraction_component_fold_admit(placed)", "Err(error)=>Some((Err(error),calls))",
+        "part2_wavelet_reconstruct_run(placed.1.0,plan,style,reversible,kernel,maximum,calls)",
+        "part1_prepare_finish(plan,part1_prepare_fraction(reversible),folded)",
+    ),
+}
+_WAVELET_PLANE_NATIVE_ORDER = {
+    ("src/allocation.rs", "zero_i64_values"): (
+        "if count == 0", "return Ok(Vec::new())", "empty_with_capacity(count)?", "values.resize(count, 0_i64)",
+    ),
+    ("src/transform/levels.rs", "inverse_rows"): (
+        "if capacity == 0", "crate::allocation::empty_with_capacity(capacity)", "let mut samples = allocated?",
+        "inverse_row_pair(", "samples.extend_from_slice(&row)",
+    ),
+    ("src/transform/levels.rs", "inverse_columns"): (
+        "crate::allocation::zero_i64_values(output_len)", "let mut samples = allocated?",
+        "inverse_column_pair(", "store_column(&mut samples",
+    ),
+    ("src/transform/levels.rs", "inverse_level"): (
+        "validate_level(level)?", "validate_output_size(output_len, limits)?", "let low_capacity = checked_area(",
+        "let low_result = inverse_rows(", "let low_rows = low_result?", "let high_capacity = checked_area(",
+        "let high_result = inverse_rows(", "let high_rows = high_result?", "let columns = inverse_columns(", "let output = columns?",
+    ),
+}
+_WAVELET_PLANE_TESTS = {
+    ("src/transform/tests.rs", "wavelet_plane_storage_standard_level_first_later_owners_exact_reference_and_restore"),
+    ("src/transform/tests.rs", "wavelet_plane_storage_empty_no_request_geometry_budget_and_numerical_error_order"),
+    ("src/transform/tests.rs", "wavelet_plane_storage_actual_custom_kernel_level_rows_columns_and_restore"),
+    ("src/decode/tests.rs", "wavelet_plane_storage_actual_standard_component_first_later_planes_and_restore"),
+    ("src/decode/tests.rs", "wavelet_plane_storage_actual_raw_selected_container_reconstruction_and_automatic_restore"),
+}
+_WAVELET_LINE_GUARDS = {
+    ("specs/cold_wavelet_lines.rs", "part2_wavelet_line_capacity_run"): (
+        "if count==0{Some((Ok(()),calls))}", "actual!=context || elements!=count", "calls.drop_first()",
+        "if succeeded{Ok(())}else{Err(crate::DecodeError::AllocationFailed)}", "_=>None",
+    ),
+    ("specs/cold_wavelet_lines.rs", "part2_wavelet_interleave_run"): (
+        "part2_wavelet_interleave_admit(low.len(),high.len(),first)", "Err(error)=>Some((Err(error),calls))",
+        "Part2WaveletLineContext::Interleave {low:low.len(),high:high.len(),first}", "Some((part1_interleaved(low,high,first),rest))",
+    ),
+    ("specs/cold_wavelet_lines.rs", "part2_wavelet_gather_run"): (
+        "column>=band.0 || band.1>usize::MAX", "Some((part1_collect_column(band,column),calls))",
+        "Part2WaveletLineContext::Gather {width:band.0,height:band.1,column}", "Some((part1_collect_column(band,column),rest))",
+    ),
+    ("specs/cold_wavelet_lines.rs", "part2_wavelet_sequence_run"): (
+        "part2_wavelet_interleave_run(low,high,first,calls)", "part2_wavelet_sequence_value(low,high,first,irreversible,kernel)",
+    ),
+    ("specs/cold_wavelet_line_planes.rs", "part2_wavelet_column_run"): (
+        "part2_wavelet_gather_run(low,x,calls)", "part2_wavelet_column_after_low(a,high,x,first,irreversible,kernel,rest)",
+    ),
+    ("specs/cold_wavelet_line_planes.rs", "part2_wavelet_column_after_low"): (
+        "part2_wavelet_gather_run(high,x,calls)", "part2_wavelet_sequence_run(low,b,first,irreversible,kernel,rest)",
+    ),
+    ("specs/cold_mct_wavelet_lines.rs", "part2_mct_line_step_run"): (
+        "part2_mct_line_step_admit(previous,source,high,first,index)", "Err(error)=>Some((Err(error),calls))",
+        "part2_wavelet_sequence_run(previous.1,input,parity,!reversible,None,calls)", "Some((Ok((end,values)),rest))",
+    ),
+    ("specs/cold_mct_line_composition.rs", "part2_mct_line_decoded_run"): (
+        "before.4.len()>u16::MAX", "part2_mct_line_transform_run(part2_mct_decoded_inputs(before.4),stages,0,maximum_work,maximum_bytes,stages.len(),calls)",
+        "part2_mct_decoded_result(before,effect.1)",
+    ),
+    ("specs/cold_mct_line_composition.rs", "part2_mct_line_prepared_run"): (
+        "part2_mct_prepared_inputs(before,component_count,infos)", "Err(error)=>Some((Ok((Err(error),before,work)),calls))",
+        "part2_mct_line_transform_run(input.1,stages,work,maximum_work,maximum_bytes,stages.len(),calls)", "part2_mct_prepared_result(before,effect.1),effect.2",
+    ),
+    ("specs/cold_extraction_tile.rs", "part2_extraction_tile_finish_run"): (
+        "Err(error)=>Some((Ok((Err(error),effect.1,work)),calls))",
+        "part2_mct_line_finish_run(effect.1.skip(initial.len() as int)", "finished.0,initial+finished.1,finished.2",
+    ),
+}
+_WAVELET_LINE_NATIVE_ORDER = {
+    ("src/transform/geometry.rs", "collect_column"): (
+        "if x >= width", "transform_dimension(height)?", "empty_with_capacity(count)", "let mut column = allocated?",
+        "column_sample(", "column.push(",
+    ),
+    ("src/transform/wavelets.rs", "interleave"): (
+        "checked_add(high.len())", "low.len() != expected_low", "empty_with_capacity(length)", "let mut output = allocated?",
+        "while index < length",
+    ),
+    ("src/image/mct_wavelet.rs", "reconstruct_mct_wavelet"): (
+        "Vec::with_capacity(low_length)", "source.get(..low_length)", "high_lengths.len()", "source.get(cursor..high_end)",
+        "let transformed =", "part2_mct_line_child_error", "reconstructed = transformed?",
+    ),
+}
+_WAVELET_LINE_TESTS = {
+    ("src/allocation.rs", "bulk_zero_i64_empty_first_later_refusal_and_restore_keep_exact_values"),
+    ("src/transform/tests.rs", "wavelet_line_storage_raw_gather_interleave_empty_first_later_and_restore"),
+    ("src/transform/tests.rs", "wavelet_line_storage_actual_standard_custom_planes_prior_lines_and_numerical_restore"),
+    ("src/image/mct_wavelet.rs", "wavelet_line_storage_actual_spectral_prior_owner_and_exact_refusal_restore"),
+    ("src/image/tests.rs", "wavelet_line_storage_public_mct_retains_actual_prior_pixel_and_restores"),
+}
+_PREPARE_COPY_GUARDS = {
+    ("specs/cold_prepare_copies.rs", "part2_prepare_copy_capacity_run"): (
+        "if count==0{Some((Ok(()),calls))}", "actual!=role || elements!=count",
+        "if succeeded{Ok(())}else{Err(crate::DecodeError::AllocationFailed)}", "calls.drop_first()", "_=>None",
+    ),
+    ("specs/cold_prepare_copies.rs", "part2_prepare_samples_run"): (
+        "part2_prepare_copy_capacity_run(role,source.len(),calls)", "Some((Ok(source),rest))",
+    ),
+    ("specs/cold_prepare_copies.rs", "part2_prepare_initial_run"): (
+        "Part2PrepareCopyRole::InitialLl,ll.3,calls", "Some((Ok((ll.0,ll.1,values,1usize)),rest))",
+    ),
+    ("specs/cold_prepare_copies.rs", "part2_prepare_plane_copy_run"): (
+        "Part2PrepareCopyRole::PreparedPlane,plane.3,calls", "Some((Ok((plane.0,plane.1,values,first_detail)),rest))",
+    ),
+    ("specs/cold_wavelet_prepare.rs", "part2_wavelet_reconstruct_run"): (
+        "if bands.len()==0{Some((Err(part1_block_placement_error(false)),calls))}",
+        "part2_prepare_initial_run(bands[0],calls)",
+        "part2_wavelet_fold_run(initial,bands,plan.subbands,style,reversible,kernel,maximum,plan.resolution as nat,rest)",
+    ),
+    ("specs/cold_wavelet_prepare.rs", "part2_wavelet_resolution_finish_run"): (
+        "if plane.2!=part1_prepare_fraction(reversible){Some((Err(part1_block_placement_error(false)),calls))}",
+        "part2_prepare_plane_copy_run(plane,next,calls)",
+    ),
+    ("specs/cold_wavelet_prepare.rs", "part2_wavelet_resolution_run"): (
+        "part2_wavelet_resolution_admit(before,bands,geometry,direction,reversible)",
+        "part2_wavelet_request_run(request,reversible,kernel,maximum,calls)",
+        "part2_wavelet_resolution_finish_run(reversible,next,plane,rest)",
+    ),
+}
+_PREPARE_COPY_NATIVE_ORDER = {
+    ("src/allocation.rs", "copy_i64_values"): (
+        "if source.is_empty()", "return Ok(Vec::new())", "empty_with_capacity(source.len())?", "values.extend_from_slice(source)",
+    ),
+    ("src/decode/reconstruction.rs", "reconstruct_prepare_working"): (
+        "working.first().ok_or_else(invalid_decode)?", "width: ll.width", "height: ll.height",
+        "crate::allocation::copy_i64_values(&ll.samples)", "Part2PrepareCopyRole::InitialLl",
+        "part2_prepare_initial_observed(", "part2_wavelet_reconstruct_initial_error(", "copied?",
+        "first_detail: 1", "while resolution <= plan.output_resolution",
+    ),
+    ("src/decode/reconstruction.rs", "copy_prepare_plane"): (
+        "plane.width()", "plane.height()", "crate::allocation::copy_i64_values(plane.samples())",
+        "Part2PrepareCopyRole::PreparedPlane", "part2_prepare_plane_copy_observed(", "let next_samples = copied?",
+        "Ok(PrepareFold", "width: reconstructed_width", "height: reconstructed_height", "samples: next_samples, first_detail",
+    ),
+    ("src/decode/reconstruction.rs", "reconstruct_prepare_resolution"): (
+        "working.get(first_detail)", "detail.fraction_bits != expected_fraction_bits", "plan.subbands.get(first_detail)",
+        "let plane_result = match direction", "part2_wavelet_request_observed(", "let plane = plane_result?",
+        "plane.fraction_bits() != expected_fraction_bits", "let copied = copy_prepare_plane(plane, first_detail)",
+        "part2_wavelet_resolution_copy_observed(",
+    ),
+}
+_PREPARE_COPY_TESTS = {
+    ("src/allocation.rs", "bulk_i64_copy_preserves_raw_empty_prior_owner_first_later_and_restore"),
+    ("src/decode/tests.rs", "prepare_copy_storage_raw_ll_plane_empty_prior_owner_and_error_order"),
+    ("src/decode/tests.rs", "prepare_copy_storage_actual_standard_custom_component_ll_later_copy_and_restore"),
+    ("src/decode/tests.rs", "wavelet_plane_storage_actual_raw_selected_container_reconstruction_and_automatic_restore"),
+    ("src/recovery/tests.rs", "one_atomic_reservation_refusal_and_unwind_leave_exact_same_process_success"),
+    ("src/recovery/tests.rs", "reconstructed_recovery_refusal_limits_and_genuine_errors_preserve_recovery"),
+}
+
+_QUANTIZATION_OUTPUT_GUARDS = {
+    ("specs/cold_quantization_outputs.rs", "part2_quantization_capacity_run"): (
+        "if count==0{Some((Ok(()),calls))}", "QuantizationCapacity",
+        "actual!=owner || elements!=count", "if succeeded{Ok(())}else{Err(crate::DecodeError::AllocationFailed)}", "calls.drop_first()",
+    ),
+    ("specs/cold_quantization_outputs.rs", "part2_quantization_admit"): (
+        "dynamic_range==0 || dynamic_range>38 || mantissa>2047", "exponent>31",
+        "part1_quantization_budget(count,maximum)", "part1_quantization_step(exponent,mantissa,dynamic_range)",
+    ),
+    ("specs/cold_quantization_outputs.rs", "part2_quantization_plane_run"): (
+        "part2_quantization_admit(coefficients.len(),exponent,mantissa,dynamic_range,reversible,maximum)",
+        "Err(error)=>Some((Err(error),calls))", "Part2QuantizationOwner::Samples,coefficients.len(),calls",
+        "part1_inverse_quantization(coefficients,exponent,mantissa,dynamic_range,reversible,shift,maximum)",
+    ),
+    ("specs/cold_quantization_outputs.rs", "part2_integer_quantization_run"): (
+        "Part2QuantizationOwner::Wide,coefficients.len(),calls",
+        "part2_integer_quantization_after_wide(coefficients,exponent,mantissa,dynamic_range,reversible,shift,maximum,rest)",
+    ),
+    ("specs/cold_quantization_outputs.rs", "part2_integer_quantization_after_wide"): (
+        "coefficients[i]==i64::MIN", "Some((Err(part1_transform_error(true)),calls))",
+        "part2_quantization_plane_run(part1_integer_coefficients(coefficients)",
+    ),
+    ("specs/cold_quantization_outputs.rs", "part2_quantized_samples_copy_run"): (
+        "Part2QuantizationOwner::CodeBlockCopy,source.len(),calls", "Some((Ok(source),rest))",
+    ),
+    ("specs/cold_extraction_reconstruction.rs", "part2_extraction_place_after_coefficients_run"): (
+        "Err(error)=>Some((Ok((Err(error),working)),calls))",
+        "part2_quantization_plane_run(values,geometry.quantization_step.exponent,geometry.quantization_step.mantissa,geometry.dynamic_range,reversible,geometry.roi_shift,maximum,calls)",
+        "part2_extraction_place_after_quantization(working,geometry,placement,plane,reversible,quantized)",
+    ),
+}
+_QUANTIZATION_OUTPUT_NATIVE_ORDER = {
+    ("src/transform/quantization.rs", "inverse_quantize_values"): (
+        "let count = coefficients.len()", "if count == 0", "crate::allocation::empty_with_capacity(count)",
+        "let mut wide = allocated?", "if value == i64::MIN", "let magnitude = checked_magnitude(value)?",
+        "wide.push", "let quantized = inverse_quantize_plane",
+    ),
+    ("src/transform/quantization.rs", "inverse_quantize_plane"): (
+        "dynamic_range == 0 || dynamic_range > 38 || step.mantissa > 0x07ff", "step.exponent > 31",
+        "validate_quantization_size(coefficients.len(), maximum_decoded_bytes)?",
+        "quantization_step_q16(step, dynamic_range)?", "if count == 0", "crate::allocation::empty_with_capacity(count)",
+        "let mut samples = allocated?", "quantize_magnitude_sample(", "samples.push(sample)", "coefficients.len() > u32::MAX",
+    ),
+    ("src/decode/code_blocks.rs", "decode_code_block"): (
+        "collect_code_block_coefficients(decoder.plane())?", "inverse_quantize_magnitudes(", "copy_code_block_samples(&quantized)?",
+    ),
+    ("src/decode/code_blocks.rs", "copy_code_block_samples"): ("let source = plane.samples()", "crate::allocation::copy_values(source)"),
+    ("src/decode/reconstruction.rs", "place_prepare_block"): (
+        "let coefficients = collected?", "let quantized_result = inverse_quantize_magnitudes(", "let quantized = quantized_result?",
+        "quantized.fraction_bits()", "write_quantized_block(",
+    ),
+}
+_QUANTIZATION_OUTPUT_TESTS = {
+    ("src/transform/tests.rs", "quantization_output_storage_wide_samples_first_later_refusal_exact_values_and_restore"),
+    ("src/transform/tests.rs", "quantization_output_storage_zero_admission_and_actual_scalar_error_precedence"),
+    ("src/decode/tests.rs", "quantization_output_storage_final_copy_preserves_exact_source_fraction_and_empty"),
+    ("src/decode/tests.rs", "quantization_output_storage_first_later_real_preparation_owners_and_restore"),
+    ("src/decode/tests.rs", "quantization_output_storage_actual_legacy_ht_code_block_sample_and_copy_refusals"),
+    ("src/decode/tests.rs", "quantization_output_storage_actual_ht_raw_selected_jph_reconstructed_and_automatic_restore"),
+}
+
+_CLEANUP_SIGNIFICANCE_GUARDS = {
+    ("specs/cold_ht_significance.rs", "part2_cleanup_significance_capacity_run"): (
+        "if count==0{Some((Ok(()),calls))}", "CleanupSignificanceCapacity",
+        "if elements!=count{None}", "if succeeded{Ok(())}else{Err(crate::DecodeError::AllocationFailed)}",
+        "calls.drop_first()",
+    ),
+    ("specs/cold_ht_significance.rs", "part2_cleanup_significance_run"): (
+        "part2_cleanup_significance_capacity_run(coefficients.len(),calls)",
+        "Some((Ok(ht_cleanup_significance(coefficients)),rest))",
+    ),
+    ("specs/cold_tier1_planes.rs", "part2_plane_refinement_after_readers"): (
+        "part2_cleanup_significance_run(cleanup.coefficients,calls)",
+        "|flags:Seq<bool>,rest|part2_plane_refinement_after_flags(output,segment,readers,flags,passes,bits,causal,rest)",
+    ),
+    ("specs/cold_tier1_planes.rs", "part2_plane_refinement_prepared_flags"): (
+        "HtRefinementCoreState {output,readers,cleanup_significant:flags,statistics:tier1_statistics_zero()}",
+        "if passes==2", "ht_magref_stripes(state,output.width,output.height,0,delta.1,bits)",
+    ),
+    ("specs/cold_tier1_planes.rs", "part2_plane_refinement_after_flags"): (
+        "part2_plane_refinement_prepared_flags(output,readers,flags,passes,bits)",
+        "Err(error)=>Some((Err(error),calls))", "part2_plane_significance_run(state,segment.encoded,bits,causal,calls)",
+    ),
+}
+_CLEANUP_SIGNIFICANCE_NATIVE_ORDER = {
+    ("src/tier1/ht_refinement.rs", "ht_collect_cleanup_significance"): (
+        "let count = coefficients.len()", "if count == 0", "crate::allocation::empty_with_capacity(count)",
+        "let mut output = allocated?", "output.push(coefficients[index].significant)", "index += 1",
+    ),
+    ("src/tier1/ht_refinement.rs", "decode_ht_refinement_plane"): (
+        "if refinement_passes == 0 || refinement_passes > 2 || decoded_bitplanes < 2",
+        "let copied = cleanup_plane.duplicate(super::CoefficientStorageRole::RefinementOutput)",
+        "let output = copied?", "let reader_result = ht_refinement_readers_from_inputs",
+        "let readers = reader_result?", "let flags = ht_collect_cleanup_significance(cleanup_plane.coefficients())",
+        "let cleanup_significant = flags?", "let mut state = HtRefinementPlaneState",
+        "state.magnitude_pass", "let significance_magnitude = ht_significance_magnitude",
+    ),
+}
+_CLEANUP_SIGNIFICANCE_TESTS = {
+    ("src/tier1/tests.rs", "ht_cleanup_significance_storage_raw_flags_empty_first_later_refusal_and_restore"),
+    ("src/tier1/tests.rs", "ht_cleanup_significance_storage_output_readers_admission_and_numeric_error_order"),
+    ("src/tier1/tests.rs", "ht_cleanup_significance_storage_actual_replay_prior_decoder_and_exact_restore"),
+    ("src/packet/tests.rs", "ht_cleanup_significance_storage_actual_packet_flag_refusal_rollback_and_restore"),
+    ("src/decode/tests.rs", "ht_cleanup_significance_storage_actual_raw_selected_jph_reconstruction_and_automatic_restore"),
+}
+
+_COEFFICIENT_EXTRACTION_GUARDS = {
+    ("specs/cold_coefficient_extraction.rs", "part2_extraction_context"): (
+        "width:plane.width,height:plane.height,coefficients:plane.coefficients.len(),coordinate",
+    ),
+    ("specs/cold_coefficient_extraction.rs", "part2_extraction_count"): (
+        "if context.coordinate{context.width as nat*context.height as nat}else{context.coefficients}",
+    ),
+    ("specs/cold_coefficient_extraction.rs", "part2_extraction_capacity_run"): (
+        "if count==0{Some((Ok(()),calls))}", "CoefficientExtractionCapacity",
+        "actual!=context || elements!=count", "if succeeded{Ok(())}else{Err(crate::DecodeError::AllocationFailed)}",
+        "calls.drop_first()",
+    ),
+    ("specs/cold_coefficient_extraction.rs", "part2_linear_coefficients_prefix"): (
+        "Err(error)=>Err(error)", "tier1_raw_signed_coefficient(coefficients[count-1])",
+        "Ok(values.push((value.0,value.2)))",
+    ),
+    ("specs/cold_extraction_reconstruction.rs", "part2_extraction_place_run"): (
+        "Err(error)=>Some((Ok((Err(error),working)),calls))",
+        "Ok(None)=>Some((Ok((Ok(()),working)),calls))",
+        "part2_tier1_storage_resume(part2_extraction_run(plane,true,calls)",
+        "part2_extraction_place_after_coefficients_run(working,geometry,placement,plane,reversible,maximum,result,rest)",
+    ),
+    ("specs/cold_extraction_reconstruction.rs", "part2_extraction_placements_next"): (
+        "if effect.0.is_err(){Some((Ok(effect),calls))}",
+        "part2_extraction_place_run(effect.1,plan.subbands,precincts,plan.placements[index as int],reversible,maximum,calls)",
+    ),
+    ("specs/cold_decode_packets.rs", "part2_planned_decode_run"): (
+        "part2_packet_value_run(parts, plan.grid, plan.precincts, selection, limits, events)",
+        "part2_planned_extraction_run(plan,first,size,standard,limits,prepared,work,decoded.1,rest)",
+    ),
+}
+_COEFFICIENT_EXTRACTION_NATIVE_ORDER = {
+    ("src/decode/code_blocks.rs", "collect_code_block_coefficients"): (
+        "let coefficients = plane.coefficients()", "let count = coefficients.len()",
+        "if count == 0", "crate::allocation::empty_with_capacity(count)", "let mut signed = allocated?",
+        "let coefficient = coefficients[coefficient_index]", "let value = match coefficient.signed_magnitude()", "signed.push(value)",
+    ),
+    ("src/decode/reconstruction.rs", "collect_prepare_coefficients"): (
+        "checked_mul(usize::from(plane.height()))", "if count == 0",
+        "crate::allocation::empty_with_capacity(count)", "let mut coefficients = allocated?",
+        "let value = match collect_prepare_cell(plane, x, y)", "coefficients.push(value)",
+    ),
+}
+_COEFFICIENT_EXTRACTION_TESTS = {
+    ("src/decode/tests.rs", "coefficient_extraction_storage_" + suffix) for suffix in (
+        "distinct_linear_coordinate_raw_values_and_restore",
+        "zero_raw_shape_and_ordinary_cell_error_order",
+        "first_later_prepared_placements_preserve_real_sources",
+        "actual_legacy_ht_code_block_packet_and_quantization_order",
+        "real_ht_raw_selected_jph_reconstruction_and_automatic_restore",
+    )
+}
+
 _PACKED_STORAGE_GUARDS = {
     ("specs/cold_packed_headers.rs", "part2_packed_requests"): (
         "source.length as u64 > maximum || source.length == 0",
@@ -6451,7 +7495,11 @@ _PACKED_STORAGE_GUARDS = {
     ),
     ("specs/cold_decode_packets.rs", "part2_planned_decode_run"): (
         "part2_packet_value_run(parts, plan.grid, plan.precincts, selection, limits, events)",
-        "part2_decode_planned_tile_components_owned(plan, parts, first, size, standard, selection, limits, prepared, work)",
+        "|decoded: (crate::packet::TilePacketDecode, Seq<Part1PacketPrecinctState>), rest| part2_planned_extraction_run(plan,first,size,standard,limits,prepared,work,decoded.1,rest)",
+    ),
+    ("specs/cold_decode_packets.rs", "part2_planned_extraction_run"): (
+        "part2_extraction_tile_calls_run(prepared,plan.components,part2_precinct_decoder_planes(precincts),first.component_coding_styles",
+        "|effect:Part2ExtractionTileEffect,rest|Some((match effect.0{Err(error)=>Err(error),Ok(())=>Ok(Part2DecodedTileComponents {prepared:effect.1,mct_work:effect.2})},rest))",
     ),
     ("specs/cold_decode_packets.rs", "part2_tile_decode_run"): (
         "part2_tile_metadata_run(parts,crate::codestream::image_size_component_count(size),discard,events)",
@@ -12439,6 +13487,7 @@ def validate_normative_coverage(
             }.get((reference["path"], reference["symbol"]))
             if arbitrary_contract:
                 result_projection, expected_result_model = arbitrary_contract[:2]
+            normal_arbitrary_contract = arbitrary_contract
             packet_decoder_old = r"crate::tier1::tier1_decoder_state\s*\(\s*old\(\s*decoder\s*\)\s*\)"
             packet_decoder_final = r"crate::tier1::tier1_decoder_state\s*\(\s*final\(\s*decoder\s*\)\s*\)"
             packet_contribution = r"code_block_contribution_view\s*\(\s*contribution\s*\)"
@@ -12944,7 +13993,9 @@ def validate_normative_coverage(
                 "empty_with_capacity": ("storage_capacity_result", r"\1"),
                 "none_values": ("storage_none_result", r"count\s*,\s*\1"),
                 "copy_values": ("storage_copy_result", r"source@\s*,\s*\1"),
+                "copy_i64_values": ("storage_copy_result", r"source@\s*,\s*\1"),
                 "filled_values": ("storage_copy_result", _coverage_call("Seq::new", r"count\s+as\s+nat", r"\|_\s*:\s*int\|\s*value") + r"\s*,\s*\1"),
+                "zero_i64_values": ("storage_copy_result", _coverage_call("Seq::new", r"count\s+as\s+nat", r"\|_\s*:\s*int\|\s*0i64") + r"\s*,\s*\1"),
                 "extend_bytes": (
                     "storage_extension_result",
                     r"old\(\s*values\s*\)@\s*,\s*bytes@\s*,\s*"
@@ -12991,6 +14042,28 @@ def validate_normative_coverage(
                     raise ValueError(f"linked function lacks executable Verus contract: {short}; invalid exact Copy-fill storage relation")
             cold_contract = _COLD_RESULT_CONTRACTS.get((reference["path"], reference["symbol"]))
             if cold_contract is not None:
+                old_mct = _RECONSTRUCTION_CONTRACTS.get((reference["path"], reference["symbol"]))
+                if old_mct is not None and old_mct[0].startswith(("part2_mct_", "part2_finish_prepared")):
+                    guard = re.search(
+                        r"\b(?P<name>\w+)\s*!=\s*Err\(\s*DecodeError::AllocationFailed\s*\)\s*==>\s*", contract,
+                    )
+                    normal = None if guard is None else re.match(
+                        r"\(\s*" + re.escape(guard["name"]) + r"\s*,\s*" + old_mct[2] + r"\s*\)\s*==\s*"
+                        r"crate::specs::" + old_mct[0] + r"\s*\(\s*" + old_mct[3] + r"\s*,?\s*\)",
+                        contract[guard.end():],
+                    )
+                    bound_name = re.search(named_prefix, contract)
+                    if normal is None or bound_name is None or guard["name"] != bound_name[1]:
+                        raise ValueError(f"linked function lacks executable Verus contract: {short}; missing exact first ordinary MCT state/work projection")
+                if (reference["path"], reference["symbol"]) in _LEGACY_PACKET_STORAGE_CONTRACTS:
+                    guard = re.search(named_prefix + r".*?\1\s*!=\s*Err\(\s*DecodeError::AllocationFailed\s*\)\s*==>\s*", contract, re.S)
+                    ordinary = None if guard is None else re.match(
+                        r"\(\s*" + re.escape(guard[1]) + r"\s*,\s*" + packet_contract[1] + r"\s*\)\s*==\s*"
+                        r"crate::specs::" + packet_contract[0] + r"\s*\(\s*" + packet_contract[2] + r"\s*,?\s*\)",
+                        contract[guard.end():],
+                    )
+                    if ordinary is None:
+                        raise ValueError(f"linked function lacks executable Verus contract: {short}; missing exact checked ordinary legacy Result/state projection")
                 storage_contract = cold_contract
                 if (reference["path"], reference["symbol"]) == ("src/allocation.rs", "inspection_values"):
                     if re.search(r"Ok\(\s*values\s*\)\s*=>\s*values@\s*\.len\(\)\s*==\s*0", contract) is None:
@@ -13089,6 +14162,20 @@ def validate_normative_coverage(
             }.get(short) if (
                 reference["path"] == "src/tier1.rs" or reference["path"].startswith("src/tier1/")
             ) else None
+            if short == "ht_refinement_readers_from_inputs" and cold_contract is not None:
+                ordinary = re.search(
+                    r"ht_refinement_readers_outcome\s*\(\s*(?P<name>\w+)\s*\)\s*!=\s*"
+                    r"Err\s*\(\s*DecodeError::AllocationFailed\s*\)\s*==>", contract,
+                )
+                exact_normal = ordinary is not None and re.match(
+                    r"\s*" + _coverage_call("ht_refinement_readers_outcome", re.escape(ordinary["name"]))
+                    + r"\s*==\s*" + _coverage_call("crate::specs::ht_refinement_readers_initial",
+                        "forward_input@", "reverse_input@", "bytes", "has_reverse", "maximum_work_units"
+                    ).removesuffix(r"\s*\)") + r"\s*,?\s*\)", contract[ordinary.end():],
+                ) is not None
+                if not exact_normal:
+                    raise ValueError(f"linked function lacks executable Verus contract: {short}; wrong constructor model")
+                expected_constructor = "part2_ht_scratch_result"
             if expected_constructor and (named_result is None or named_result["model"] != expected_constructor):
                 raise ValueError(f"linked function lacks executable Verus contract: {short}; wrong constructor model")
             if (reference["path"], reference["symbol"]) == ("src/tier1/ht_cleanup_readers.rs", "HtCleanupReaders::can_claim_byte"):
@@ -13117,6 +14204,7 @@ def validate_normative_coverage(
                     )
             metadata_arguments_bound = (
                 (reference["path"], short) != ("src/tier1/ht_metadata.rs", "decode_ht_cleanup_segment_metadata")
+                or (cold_contract is not None and cold_contract[0] == "part2_ht_metadata_result")
                 or _coverage_result_arguments(
                     contract, named_result, "ht_cleanup_segment_metadata",
                     r"ht_cleanup_segment_view\s*\(\s*&\s*cleanup\s*\)\s*,\s*"
@@ -13124,6 +14212,21 @@ def validate_normative_coverage(
                     r"crate::limits::resource_work_limit\s*\(\s*limits\s*\)",
                 )
             )
+            if (reference["path"], short) == ("src/tier1/ht_metadata.rs", "decode_ht_cleanup_segment_metadata") and cold_contract is not None:
+                ordinary = re.search(
+                    r"ht_cleanup_metadata_outcome\s*\(\s*(?P<name>\w+)\s*\)\s*!=\s*"
+                    r"Err\s*\(\s*DecodeError::AllocationFailed\s*\)\s*==>",
+                    contract,
+                )
+                metadata_arguments_bound = ordinary is not None and re.match(
+                    r"\s*" + _coverage_call("ht_cleanup_metadata_outcome", re.escape(ordinary["name"]))
+                    + r"\s*==\s*" + _coverage_call(
+                        "crate::specs::ht_cleanup_segment_metadata",
+                        _coverage_call("ht_cleanup_segment_view", r"&\s*cleanup"),
+                        "width", "height", "maximum_u",
+                        _coverage_call("crate::limits::resource_work_limit", "limits"),
+                    ).removesuffix(r"\s*\)") + r"\s*,?\s*\)", contract[ordinary.end():],
+                ) is not None
             palette_arguments_bound = (
                 (reference["path"], reference["symbol"]) != ("src/jp2/color.rs", "Palette::value")
                 or _coverage_result_arguments(
@@ -13305,6 +14408,36 @@ def validate_normative_coverage(
                     contract, named_result, refinement_contract_arguments[0], refinement_contract_arguments[1],
                 )
             )
+            if short == "ht_collect_cleanup_significance" and cold_contract is not None:
+                ordinary = re.search(
+                    _coverage_call("ht_cleanup_flags_outcome", r"(?P<name>\w+)")
+                    + r"\s*!=\s*Err\s*\(\s*DecodeError::AllocationFailed\s*\)\s*==>", contract,
+                )
+                refinement_arguments_bound = (
+                    ordinary is not None and named_result is not None and ordinary["name"] == named_result[1]
+                    and re.match(
+                        r"\s*" + _coverage_call("ht_cleanup_flags_outcome", re.escape(ordinary["name"]))
+                        + r"\s*==\s*" + _coverage_call("Ok", _coverage_call(
+                            "crate::specs::ht_cleanup_significance", _coverage_call("coefficient_raw_views", "coefficients@"),
+                        )), contract[ordinary.end():],
+                    ) is not None
+                )
+            if (reference["path"] == "src/transform/quantization.rs" and short in (
+                    "inverse_quantize", "inverse_quantize_values", "inverse_quantize_magnitudes", "inverse_quantize_plane")
+                    and cold_contract is not None):
+                integer = short in ("inverse_quantize", "inverse_quantize_values")
+                inputs = ("coefficients@" if integer else _coverage_call("quantized_coefficients_view", "coefficients@"))
+                maximum = ("maximum_decoded_bytes" if short in ("inverse_quantize_values", "inverse_quantize_plane")
+                           else _coverage_call("crate::limits::resource_decoded_bytes_limit", "limits"))
+                args = inputs + r"\s*,\s*step\.exponent\s*,\s*step\.mantissa\s*,\s*dynamic_range\s*,\s*reversible\s*,\s*roi_shift\s*,\s*" + maximum
+                ordinary = re.search(
+                    _coverage_call("reconstruction_outcome", r"(?P<name>\w+)")
+                    + r"\s*!=\s*Err\s*\(\s*DecodeError::AllocationFailed\s*\)\s*==>", contract,
+                )
+                if (ordinary is None or named_result is None or ordinary["name"] != named_result[1]
+                        or not _coverage_extraction_normal_arguments(contract, "reconstruction_outcome",
+                            "part1_inverse_integer_quantization" if integer else "part1_inverse_quantization", args)):
+                    raise ValueError(f"linked function lacks executable Verus contract: {short}; missing exact first ordinary quantization projection")
             prepare_contract_arguments = {
                 "prepare_tile_component": (
                     "part1_prepare_standard_component",
@@ -13345,6 +14478,14 @@ def validate_normative_coverage(
                     contract, named_result, prepare_contract_arguments[0], prepare_contract_arguments[1],
                 )
             )
+            if cold_contract is not None and short in ("prepare_tile_component", "collect_prepare_coefficients", "copy_prepare_plane"):
+                prepare_arguments_bound = _coverage_extraction_normal_arguments(
+                    contract,
+                    {"prepare_tile_component": "prepared_component_outcome",
+                     "collect_prepare_coefficients": "crate::transform::quantized_coefficients_outcome",
+                     "copy_prepare_plane": "prepare_fold_outcome"}[short],
+                    prepare_contract_arguments[0], prepare_contract_arguments[1],
+                )
             component_contract_arguments = {
                 ("src/decode/output.rs", "copy_typed_component"): (
                     "part2_typed_component_copy",
@@ -13390,6 +14531,35 @@ def validate_normative_coverage(
                 arbitrary_contract is None
                 or _coverage_result_arguments(contract, named_result, arbitrary_contract[1], arbitrary_contract[2])
             )
+            if (entry["id"] == "part1-complete-standard-plan-coordinator"
+                    and short == "prepare_tile_component_with_kernel" and claimed_consumer):
+                raise ValueError(f"linked function lacks executable Verus contract: {short}; arbitrary-kernel support is not a standard-only consumer")
+            if cold_contract is not None and normal_arbitrary_contract is not None and (
+                    short in ("prepare_tile_component_with_kernel", "reconstruct_prepare_working", "reconstruct_prepare_resolution")
+                    or (reference["path"] == "src/transform/arbitrary.rs" and short == "inverse_arbitrary")
+                    or (reference["path"] == "src/transform/levels.rs" and short.endswith("_arbitrary"))):
+                arbitrary_arguments_bound = _coverage_extraction_normal_arguments(
+                    contract, normal_arbitrary_contract[0], normal_arbitrary_contract[1], normal_arbitrary_contract[2],
+                )
+            if (reference["path"] == "src/transform/levels.rs" and cold_contract is not None
+                    and short.endswith(("_5_3", "_9_7"))):
+                axis = short.removeprefix("inverse_").rsplit("_", 2)[0]
+                irreversible = "true" if short.endswith("_9_7") else "false"
+                inputs = (_coverage_call("wavelet_level_view", "level") if axis == "level" else
+                    _coverage_call("wavelet_band_view", "low") + r"\s*,\s*" + _coverage_call("wavelet_band_view", "high")
+                    + r"\s*,\s*" + ("output_width" if axis == "horizontal" else "output_height") + r"\s*,\s*low_pass_first")
+                if not _coverage_extraction_normal_arguments(contract, "reconstruction_outcome", "part1_inverse_" + axis,
+                        inputs + r"\s*,\s*" + irreversible + r"\s*,\s*" + _coverage_call("crate::limits::resource_decoded_bytes_limit", "limits")):
+                    raise ValueError(f"linked function lacks executable Verus contract: {short}; missing exact first standard wavelet projection")
+            if cold_contract is not None and reference["path"] in ("src/transform/wavelets.rs", "src/transform/geometry.rs"):
+                old_line = {
+                    "inverse_5_3": ("part1_inverse_five_three", r"low@\s*,\s*high@\s*,\s*low_pass_first"),
+                    "inverse_9_7": ("part1_inverse_nine_seven", r"low@\s*,\s*high@\s*,\s*low_pass_first"),
+                    "interleave": ("part1_interleaved", r"low@\s*,\s*high@\s*,\s*low_pass_first"),
+                    "collect_column": ("part1_collect_column", r"\(\s*width\s*,\s*height\s*,\s*samples@\s*\)\s*,\s*x"),
+                }.get(short)
+                if old_line and not _coverage_extraction_normal_arguments(contract, "sequence_outcome", *old_line):
+                    raise ValueError(f"linked function lacks executable Verus contract: {short}; missing exact first ordinary wavelet line projection")
             packet_arguments_bound = (
                 packet_contract is None
                 or _coverage_result_arguments(contract, named_result, packet_contract[0], packet_contract[2])
@@ -13487,6 +14657,113 @@ def validate_normative_coverage(
                 raise ValueError(f"linked function is not used by claimed implementation: {short}")
             if claimed_consumer:
                 contract_functions.add((reference["path"], reference["symbol"]))
+    if "part1-complete-standard-wavelet-planes" in ids:
+        wavelet_entry = next(e for e in coverage["requirements"] if e["id"] == "part1-complete-standard-wavelet-planes")
+        if not _WAVELET_PLANE_TESTS.issubset({(r["path"],r["symbol"]) for r in wavelet_entry["test_refs"]}):
+            raise ValueError("wavelet planes require bounded matrix/numerical/empty/refusal/restore/public controls")
+        for (relative,symbol),fragments in _WAVELET_PLANE_GUARDS.items():
+            body = _coverage_spec_function_body(source_text((ROOT / relative).resolve()),symbol)
+            compact = "".join(body.split()) if body is not None else ""
+            if any("".join(f.split()) not in compact for f in fragments):
+                raise ValueError("wavelet planes require actual owner/count, prior rows/matrix, child/error/unused-tail linkage")
+        for (relative,symbol),fragments in _WAVELET_PLANE_NATIVE_ORDER.items():
+            path = (ROOT / relative).resolve()
+            body = _coverage_function_body(source_text(path),function_header(path,symbol))
+            compact = "".join(body.split()) if body is not None else ""
+            positions = [compact.find("".join(f.split())) for f in fragments]
+            if any(p < 0 for p in positions) or positions != sorted(positions):
+                raise ValueError("wavelet planes require original validation/work/limit/row/column owner order")
+        if not _WAVELET_LINE_TESTS.issubset({(r["path"],r["symbol"]) for r in wavelet_entry["test_refs"]}):
+            raise ValueError("wavelet lines require bounded raw/empty/first/later/restore/partial-public controls")
+        for (relative,symbol),fragments in _WAVELET_LINE_GUARDS.items():
+            body = _coverage_spec_function_body(source_text((ROOT / relative).resolve()),symbol)
+            compact = "".join(body.split()) if body is not None else ""
+            if any("".join(f.split()) not in compact for f in fragments):
+                raise ValueError("wavelet lines require real source/count/role, actual child/owner/state and first-error/tail linkage")
+        for (relative,symbol),fragments in _WAVELET_LINE_NATIVE_ORDER.items():
+            path = (ROOT / relative).resolve()
+            body = _coverage_function_body(source_text(path),function_header(path,symbol))
+            compact = "".join(body.split()) if body is not None else ""
+            positions = [compact.find("".join(f.split())) for f in fragments]
+            if any(p < 0 for p in positions) or positions != sorted(positions):
+                raise ValueError("wavelet lines require original admission/gather/interleave/reader/output order")
+        zero_source = source_text((ROOT / "src/allocation.rs").resolve())
+        zero_header = function_header((ROOT / "src/allocation.rs").resolve(),"zero_i64_values")
+        zero_contract = zero_source[zero_source.rfind("#[cfg_attr",0,zero_header.start()):zero_header.start()]
+        zero_compact = "".join(zero_contract.split()) if zero_contract is not None else ""
+        if ("storage_copy_result(Seq::new(countasnat,|_:int|0i64),result)" not in zero_compact
+                or "count==0==>result.is_ok()" not in zero_compact):
+            raise ValueError("wavelet lines require exact checked zero-i64 resize values and empty no-refusal projection")
+    if "part1-complete-supplied-coefficient-quantization" in ids:
+        quantization_entry = next(e for e in coverage["requirements"] if e["id"] == "part1-complete-supplied-coefficient-quantization")
+        if not _QUANTIZATION_OUTPUT_TESTS.issubset({
+                (ref["path"], ref["symbol"]) for ref in quantization_entry["test_refs"]}):
+            raise ValueError("quantization output requires bounded numerical/raw/empty/refusal/restore/public controls")
+        for (relative, symbol), fragments in _QUANTIZATION_OUTPUT_GUARDS.items():
+            body = _coverage_spec_function_body(source_text((ROOT / relative).resolve()), symbol)
+            compact = "".join(body.split()) if body is not None else ""
+            if any("".join(fragment.split()) not in compact for fragment in fragments):
+                raise ValueError("quantization output requires actual numerical source, distinct owner/count, child/error/unused-tail composition")
+        for (relative, symbol), fragments in _QUANTIZATION_OUTPUT_NATIVE_ORDER.items():
+            path = (ROOT / relative).resolve()
+            body = _coverage_function_body(source_text(path), function_header(path, symbol))
+            compact = "".join(body.split()) if body is not None else ""
+            positions = [compact.find("".join(fragment.split())) for fragment in fragments]
+            if any(position < 0 for position in positions) or positions != sorted(positions):
+                raise ValueError("quantization output requires original real conversion/admission/step/reserve/sample/copy order")
+    if "part15-complete-actual-refinement-plane" in ids:
+        significance_entry = next(e for e in coverage["requirements"] if e["id"] == "part15-complete-actual-refinement-plane")
+        if not _CLEANUP_SIGNIFICANCE_TESTS.issubset({
+                (ref["path"], ref["symbol"]) for ref in significance_entry["test_refs"]}):
+            raise ValueError("cleanup significance requires bounded real raw/empty/refusal/restore/public controls")
+        for (relative, symbol), fragments in _CLEANUP_SIGNIFICANCE_GUARDS.items():
+            body = _coverage_spec_function_body(source_text((ROOT / relative).resolve()), symbol)
+            compact = "".join(body.split()) if body is not None else ""
+            if any("".join(fragment.split()) not in compact for fragment in fragments):
+                raise ValueError("cleanup significance requires real source count/flags, actual reader/output child, first-error/tail composition")
+        for (relative, symbol), fragments in _CLEANUP_SIGNIFICANCE_NATIVE_ORDER.items():
+            path = (ROOT / relative).resolve()
+            body = _coverage_function_body(source_text(path), function_header(path, symbol))
+            compact = "".join(body.split()) if body is not None else ""
+            positions = [compact.find("".join(fragment.split())) for fragment in fragments]
+            if any(position < 0 for position in positions) or positions != sorted(positions):
+                raise ValueError("cleanup significance requires original real admission/output/readers/flag/magnitude order")
+    if "part1-complete-standard-plan-coordinator" in ids:
+        coefficient_entry = next(e for e in coverage["requirements"] if e["id"] == "part1-complete-standard-plan-coordinator")
+        if not _COEFFICIENT_EXTRACTION_TESTS.issubset({
+                (ref["path"], ref["symbol"]) for ref in coefficient_entry["test_refs"]}):
+            raise ValueError("coefficient extraction requires bounded real raw/empty/refusal/restore/public controls")
+        for (relative, symbol), fragments in _COEFFICIENT_EXTRACTION_GUARDS.items():
+            body = _coverage_spec_function_body(source_text((ROOT / relative).resolve()), symbol)
+            compact = "".join(body.split()) if body is not None else ""
+            if any("".join(fragment.split()) not in compact for fragment in fragments):
+                raise ValueError("coefficient extraction requires actual raw count/role, numerical child, owner/error/tail composition")
+        for (relative, symbol), fragments in _COEFFICIENT_EXTRACTION_NATIVE_ORDER.items():
+            path = (ROOT / relative).resolve()
+            body = _coverage_function_body(source_text(path), function_header(path, symbol))
+            compact = "".join(body.split()) if body is not None else ""
+            positions = [compact.find("".join(fragment.split())) for fragment in fragments]
+            if any(position < 0 for position in positions) or positions != sorted(positions):
+                raise ValueError("coefficient extraction requires original real fresh reserve/admission/numerical error order")
+        if not _PREPARE_COPY_TESTS.issubset({(r["path"],r["symbol"]) for r in coefficient_entry["test_refs"]}):
+            raise ValueError("prepare copies require bounded raw/empty/first/later/restore/error/component/public controls")
+        for (relative,symbol),fragments in _PREPARE_COPY_GUARDS.items():
+            body = _coverage_spec_function_body(source_text((ROOT / relative).resolve()),symbol)
+            compact = "".join(body.split()) if body is not None else ""
+            if any("".join(f.split()) not in compact for f in fragments):
+                raise ValueError("prepare copies require actual raw source/count/role, prior owner, child/error and unused-tail linkage")
+        for (relative,symbol),fragments in _PREPARE_COPY_NATIVE_ORDER.items():
+            path = (ROOT / relative).resolve()
+            body = _coverage_function_body(source_text(path),function_header(path,symbol))
+            compact = "".join(body.split()) if body is not None else ""
+            positions = [compact.find("".join(f.split())) for f in fragments]
+            if any(p < 0 for p in positions) or positions != sorted(positions):
+                raise ValueError("prepare copies require original input-length/field/admission/copy/owner/error order")
+        copy_source = source_text((ROOT / "src/allocation.rs").resolve())
+        copy_header = function_header((ROOT / "src/allocation.rs").resolve(),"copy_i64_values")
+        copy_contract = copy_source[copy_source.rfind("#[cfg_attr",0,copy_header.start()):copy_header.start()]
+        if "ensurescrate::specs::storage_copy_result(source@,result)" not in "".join(copy_contract.split()):
+            raise ValueError("prepare copies require exact checked bulk-i64 slice values/error/empty contract")
     if "part1-complete-native-packed-header-length-inputs" in ids:
         packed_entry = next(item for item in coverage["requirements"] if item["id"] == "part1-complete-native-packed-header-length-inputs")
         if ("src/codestream/packet_headers.rs", "PackedPacketHeaders::reassemble") in {
@@ -13667,6 +14944,172 @@ def validate_normative_coverage(
                     "part2_codeblock_cell_result", "part2_codeblock_owner_result"} for ref in entry["contract_refs"]):
                 if not _TIER1_INITIAL_TESTS.issubset({(ref["path"], ref["symbol"]) for ref in entry["test_refs"]}):
                     raise ValueError("initial Tier1 storage requires bounded refusal/restore/zero/ordinary-policy/row-owner/real-public controls")
+    if ids & _HT_BYTE_COPY_ENTRIES:
+        for (relative, symbol), fragments in {**_DECODER_PLANE_COPY_GUARDS, **_DECODER_NESTED_COPY_GUARDS}.items():
+            path = (ROOT / relative).resolve()
+            text = source_text(path)
+            body = _coverage_spec_function_body(text, symbol)
+            if body is None:
+                header = re.search(r"(?m)^([ \t]*)pub\(crate\) proof fn " + re.escape(symbol) + r"\b", text)
+                body = _coverage_function_body(text, header)
+            compact = "".join(body.split()) if body is not None else ""
+            if any("".join(fragment.split()) not in compact for fragment in fragments):
+                raise ValueError("decoder plane copies require raw source length, distinct primary/cleanup paths and exact child/error/tail binds")
+        raw_path = (ROOT / "src/tier1/state.rs").resolve()
+        raw_copy = _coverage_function_body(source_text(raw_path), function_header(raw_path, "CodeBlockPlane::try_duplicate_raw"))
+        raw_body = """Ok(Self {width:self.width,height:self.height,coefficients:{
+            let copied=crate::allocation::copy_values(&self.coefficients);
+            #[cfg(verus_keep_ghost)] proof!{
+                let result=match copied{Err(error)=>Err(error),Ok(_)=>Ok(())};
+                if _legacy{crate::specs::part2_nested_plane_observed(code_block_plane_view(self),_role,result);}
+                else{crate::specs::part2_decoder_plane_observed(code_block_plane_view(self),_role,_cleanup,result);}
+            }
+            copied?
+        },})"""
+        if raw_copy is None or "".join(raw_copy.split()) != "".join(raw_body.split()):
+            raise ValueError("decoder plane copies require unchanged raw width/height/coefficients and actual Copy response without dimension admission")
+        raw_clone = _coverage_function_body(source_text(raw_path), function_header(raw_path, "CodeBlockPlane::clone"))
+        if raw_clone is None or "".join(raw_clone.split()) != "".join(
+                "Self {width:self.width,height:self.height,coefficients:self.coefficients.clone(),}".split()):
+            raise ValueError("decoder plane copies must preserve the original public infallible raw Clone")
+        for relative, symbol, original in (
+            ("src/tier1/legacy_passes.rs", "Tier1BitplaneState::clone", """Self {
+                width:self.width,height:self.height,bitplane:self.bitplane,significant_before:self.significant_before.clone(),
+                significance_visited:self.significance_visited.clone(),significance_propagation_complete:self.significance_propagation_complete,
+                magnitude_refinement_complete:self.magnitude_refinement_complete,cleanup_complete:self.cleanup_complete,}"""),
+            ("src/tier1/contributions.rs", "LegacySegmentState::clone", """Self {
+                plane:self.plane.clone(),next_pass:self.next_pass,bitplane:self.bitplane,bitplane_state:self.bitplane_state.clone(),
+                mq_context_state:self.mq_context_state,reset_contexts_before_mq:self.reset_contexts_before_mq,
+                decoded_segments:self.decoded_segments,decoded_bytes:self.decoded_bytes,input:self.input.clone(),passes:self.passes,}"""),
+        ):
+            path = (ROOT / relative).resolve()
+            body = _coverage_function_body(source_text(path), function_header(path, symbol))
+            if body is None or "".join(body.split()) != "".join(original.split()):
+                raise ValueError("decoder nested copies must preserve the original infallible Clone fields")
+        for (relative, symbol), fragments in _HT_BYTE_COPY_GUARDS.items():
+            body = _coverage_spec_function_body(source_text((ROOT / relative).resolve()), symbol)
+            compact = "".join(body.split()) if body is not None else ""
+            if any("".join(fragment.split()) not in compact for fragment in fragments):
+                raise ValueError("HT byte-copy storage requires distinct real roles/sources/counts, exact cleared/rollback state and ordered response/tail binds")
+        for (relative, symbol), fragments in {**_HT_BYTE_COPY_NATIVE_ORDER, **_DECODER_NESTED_COPY_NATIVE_ORDER}.items():
+            path = (ROOT / relative).resolve()
+            body = _coverage_function_body(source_text(path), function_header(path, symbol))
+            compact = "".join(body.split()) if body is not None else ""
+            position = 0
+            for fragment in fragments:
+                token = "".join(fragment.split())
+                found = compact.find(token, position)
+                if found < 0:
+                    raise ValueError("HT byte-copy storage requires original field/admission/copy/append/child/error/commit order")
+                position = found + len(token)
+        replay = _coverage_spec_function_body(source_text((ROOT / "specs/cold_ht_decoder.rs").resolve()), "part2_ht_replay_copy_admitted")
+        if replay is None or any(token in replay for token in ("2046", "data.len()")):
+            raise ValueError("HT byte-copy storage cannot hoist later concatenation admission before the actual copy")
+        clone_path = (ROOT / "src/tier1/contributions.rs").resolve()
+        clone = _coverage_function_body(source_text(clone_path), function_header(clone_path, "Tier1CodeBlockDecoder::clone"))
+        original_clone = """Self {
+            plane:self.plane.clone(),orientation:self.orientation,style:self.style,maximum_passes:self.maximum_passes,
+            next_pass:self.next_pass,bitplane:self.bitplane,zero_bitplanes:self.zero_bitplanes,bitplane_state:self.bitplane_state.clone(),
+            mq_context_state:self.mq_context_state,reset_contexts_before_mq:self.reset_contexts_before_mq,
+            decoded_segments:self.decoded_segments,decoded_bytes:self.decoded_bytes,legacy_segment:self.legacy_segment.clone(),
+            legacy_decode_work:self.legacy_decode_work,ht_cleanup_plane:self.ht_cleanup_plane.clone(),
+            ht_refinement_data:self.ht_refinement_data.clone(),ht_refinement_passes:self.ht_refinement_passes,
+            ht_decoded_bitplanes:self.ht_decoded_bitplanes,ht_current_set_has_cleanup:self.ht_current_set_has_cleanup,
+            ht_sets_seen:self.ht_sets_seen,allow_multiple_ht_sets:self.allow_multiple_ht_sets,ht_magnitude_bound:self.ht_magnitude_bound,
+        }"""
+        if clone is None or "".join(clone.split()) != "".join(original_clone.split()):
+            raise ValueError("HT byte-copy storage must preserve the original public infallible Clone")
+        if _HT_BYTE_COPY_ENTRY in ids:
+            entry = next(item for item in coverage["requirements"] if item["id"] == _HT_BYTE_COPY_ENTRY)
+            if not _HT_BYTE_COPY_TESTS.issubset({(ref["path"], ref["symbol"]) for ref in entry["test_refs"]}):
+                raise ValueError("HT byte-copy storage requires bounded staging/replay/retention/empty/error/real-public restoration controls")
+            if not _DECODER_PLANE_COPY_TESTS.issubset({(ref["path"], ref["symbol"]) for ref in entry["test_refs"]}):
+                raise ValueError("decoder plane copies require bounded raw/empty/first-later/byte-order/legacy/real-public restoration controls")
+            if not _DECODER_NESTED_COPY_TESTS.issubset({(ref["path"], ref["symbol"]) for ref in entry["test_refs"]}):
+                raise ValueError("decoder nested copies require bounded raw/empty/first-later/legacy/public/automatic restoration controls")
+    if _LEGACY_SNAPSHOT_ENTRY in ids:
+        for (relative, symbol), fragments in _LEGACY_SNAPSHOT_GUARDS.items():
+            body = _coverage_spec_function_body(source_text((ROOT / relative).resolve()), symbol)
+            compact = "".join(body.split()) if body is not None else ""
+            if any("".join(fragment.split()) not in compact for fragment in fragments):
+                raise ValueError("legacy snapshot/restore storage requires exact actual roles, source production, first-error and unused-tail binds")
+        partial = _coverage_spec_function_body(source_text((ROOT / "specs/cold_legacy_replay.rs").resolve()), "part2_legacy_restore_partial")
+        if partial is None or "".join(partial.split()) != "Tier1DecoderState{plane:source.plane,next_pass:source.next_pass,bitplane:source.bitplane,..before}":
+            raise ValueError("legacy snapshot/restore storage requires exact earlier plane/pass/bitplane writes and untouched later fields on refusal")
+        for symbol, arguments, value in (
+            ("part2_legacy_snapshot_result", "before", "result"),
+            ("part2_legacy_restore_result", "before,source", "Ok(result)"),
+            ("part2_legacy_replay_result", "before,input,replay,caps", "Ok(result)"),
+            ("part2_legacy_contribution_result", "before,input,passes,caps", "Ok(result)"),
+        ):
+            body = _coverage_spec_function_body(source_text((ROOT / "specs/cold_legacy_replay.rs").resolve()), symbol)
+            expected = "part2_tier1_storage_framed(|calls|" + symbol.removesuffix("_result") + "_run(" + arguments + ",calls)," + value + ")"
+            if body is None or "".join(body.split()) != expected:
+                raise ValueError("legacy snapshot/restore storage requires exact actual response-prefix Result/state frames, not an error allowance")
+        for (relative, symbol), fragments in _LEGACY_SNAPSHOT_NATIVE_ORDER.items():
+            path = (ROOT / relative).resolve()
+            header = function_header(path, symbol)
+            text = source_text(path)
+            body = _coverage_function_body(text, header)
+            compact = "".join(body.split()) if body is not None else ""
+            position = 0
+            for fragment in fragments:
+                token = "".join(fragment.split())
+                found = compact.find(token, position)
+                if found < 0:
+                    raise ValueError("legacy snapshot/restore storage requires original admission/take/copy/write/append/decode/commit order and actual partial state")
+                position = found + len(token)
+            if symbol.endswith("restore_legacy_segment") and re.search(
+                    r"segment\s*:\s*&\s*LegacySegmentState", text[header.start():text.find("{", header.end())]) is None:
+                raise ValueError("legacy snapshot/restore storage must retain the borrowed source needed after working-plane mutation")
+        for relative, symbol in (
+            ("src/tier1/contributions.rs", "Tier1CodeBlockDecoder::decode_legacy_contribution"),
+            ("src/tier1/contributions.rs", "Tier1CodeBlockDecoder::decode_legacy_replay"),
+            ("src/packet/body.rs", "decode_legacy_code_block_segment"),
+            ("src/packet/body.rs", "decode_legacy_code_block_contribution_body"),
+        ):
+            path = (ROOT / relative).resolve()
+            text = source_text(path)
+            header = function_header(path, symbol)
+            start = text.rfind("#[cfg_attr(verus_keep_ghost, verus_spec", 0, header.start())
+            attrs = "".join(text[start:header.start()].split())
+            if "result!=Err(DecodeError::AllocationFailed)==>(result," not in attrs:
+                raise ValueError("legacy snapshot/restore storage requires the checked original ordinary-result/state projection")
+        entry = next(item for item in coverage["requirements"] if item["id"] == _LEGACY_SNAPSHOT_ENTRY)
+        if not _LEGACY_SNAPSHOT_TESTS.issubset({(ref["path"], ref["symbol"]) for ref in entry["test_refs"]}):
+            raise ValueError("legacy snapshot/restore storage requires bounded raw/empty/partial/packet/public restoration controls")
+        for (relative, symbol), fragments in _BITPLANE_INITIAL_GUARDS.items():
+            body = _coverage_spec_function_body(source_text((ROOT / relative).resolve()), symbol)
+            compact = "".join(body.split()) if body is not None else ""
+            if any("".join(fragment.split()) not in compact for fragment in fragments):
+                raise ValueError("initial bitplane storage requires actual input-derived counts/values, distinct constructed-owner responses and exact first-error/tail binds")
+        for relative, symbol, arguments, value, projection in (
+            ("specs/cold_bitplane_initial.rs", "part2_bitplane_initial_result", "plane,bitplane", "result", ""),
+            ("specs/cold_bitplane_initial.rs", "part2_legacy_ensure_result", "before", "Ok(result)", ""),
+            ("specs/cold_bitplane_initial.rs", "part2_legacy_pass_result", "before,symbols,kind", "Ok(result)",
+             "&&(result.0!=Err(crate::DecodeError::AllocationFailed)==>result==part1_legacy_decode_pass(before,symbols,kind))"),
+            ("specs/cold_legacy_bitplanes.rs", "part2_legacy_inner_step_result", "before", "Ok(result)", ""),
+            ("specs/cold_legacy_bitplanes.rs", "part2_legacy_inner_body_result", "before,count", "Ok(result)", ""),
+            ("specs/cold_legacy_bitplanes.rs", "part2_legacy_segment_result", "before,input,count,caps", "Ok(result)",
+             "&&(result.0!=Err(crate::DecodeError::AllocationFailed)==>result==part1_legacy_segment(before,input,count,caps.passes,caps.bytes,caps.input,caps.work))"),
+        ):
+            body = _coverage_spec_function_body(source_text((ROOT / relative).resolve()), symbol)
+            expected = "part2_tier1_storage_framed(|calls|" + symbol.removesuffix("_result") + "_run(" + arguments + ",calls)," + value + ")" + projection
+            if body is None or "".join(body.split()) != expected:
+                raise ValueError("initial bitplane storage requires exact actual-prefix primary Result/state contracts and checked original normal consequences")
+        for (relative, symbol), fragments in _BITPLANE_INITIAL_NATIVE_ORDER.items():
+            path = (ROOT / relative).resolve()
+            body = _coverage_function_body(source_text(path), function_header(path, symbol))
+            compact = "".join(body.split()) if body is not None else ""
+            position = 0
+            for fragment in fragments:
+                token = "".join(fragment.split())
+                found = compact.find(token, position)
+                if found < 0:
+                    raise ValueError("initial bitplane storage requires original admission/reservation/value-fill/ensure/decoder/work/field order")
+                position = found + len(token)
+        if not _BITPLANE_INITIAL_TESTS.issubset({(ref["path"], ref["symbol"]) for ref in entry["test_refs"]}):
+            raise ValueError("initial bitplane storage requires bounded raw/empty/first-later/error/present-state/real-public restoration controls")
     if ids & _TAG_COPY_ENTRIES:
         owner_source = source_text((ROOT / "specs/cold_rollback_snapshot.rs").resolve())
         for symbol, fragments in _ROLLBACK_OWNER_GUARDS.items():
@@ -13782,12 +15225,77 @@ def validate_normative_coverage(
             positions = [compact.find("".join(fragment.split())) for fragment in fragments]
             if any(position < 0 for position in positions) or positions != sorted(positions):
                 raise ValueError("remaining plane storage requires unchanged real constructor/copy/entropy/field/owner order")
+            if symbol == "reconstruct_ht_cleanup_plane":
+                for field in ("previous_exponents", "current_exponents"):
+                    if f"{field}:{{letfilled=crate::allocation::filled_values(0_u8,exponent_count);" not in compact:
+                        raise ValueError("HT exponent storage requires actual zero-filled metadata-count owners at the original field frontiers")
+                if compact.count("crate::allocation::filled_values(0_u8,exponent_count)") != 2:
+                    raise ValueError("HT exponent storage cannot duplicate or hoist a scratch-owner request")
         for entry in coverage["requirements"]:
+            if entry["id"] == "part15-complete-actual-cleanup-plane":
+                if not _HT_EXPONENT_TESTS.issubset({(ref["path"], ref["symbol"]) for ref in entry["test_refs"]}):
+                    raise ValueError("HT exponent storage requires bounded raw/decoder/packet/public refusal/restore controls")
             if entry["id"] in {"part15-complete-actual-cleanup-plane", "part15-cleanup-only-actual-symbol-caller",
                               "part15-complete-actual-refinement-plane", "part15-complete-substantive-segment-byte-entry",
                               "part15-complete-retained-refinement-and-placeholder-steps", "part1-complete-native-grid-progression-composition"}:
                 if not _PLANE_ROLE_TESTS.issubset({(ref["path"], ref["symbol"]) for ref in entry["test_refs"]}):
                     raise ValueError("remaining plane storage requires bounded standalone/copy/cleanup/refinement/public refusal/restore/state controls")
+    if "part15-directional-word-event-state" in ids:
+        for symbol, fragments in _HT_SCRATCH_GUARDS.items():
+            body = _coverage_spec_function_body(source_text((ROOT / "specs/cold_ht_refinement_scratch.rs").resolve()), symbol)
+            compact = "".join((body or "").split())
+            if any("".join(fragment.split()) not in compact for fragment in fragments):
+                raise ValueError("HT refinement scratch requires actual source/count/role/prior mask and exact reader/result/first-error/tail composition")
+        path = (ROOT / "src/tier1/ht_refinement_readers.rs").resolve()
+        body = _coverage_function_body(source_text(path), function_header(path, "ht_refinement_readers_from_inputs"))
+        compact = "".join((body or "").split())
+        fragments = (
+            "let forward=ht_forward_refinement_from_input(forward_input,maximum_work_units)?",
+            "let reverse=if has_reverse", "ht_reverse_refinement_from_input(", "let allocated=crate::allocation::filled_values(0_u8,bytes)",
+            "maximum_work_units,false),false,result)", "part2_ht_scratch_first_error(", "let claimed=allocated?",
+            "maximum_work_units,true)", "assert(context.claimed==Some(claimed@))",
+            "part2_ht_scratch_second_observed(", "let stuffed=allocated?", "Ok(HtRefinementReaders",
+        )
+        positions = [compact.find("".join(fragment.split())) for fragment in fragments]
+        if any(p < 0 for p in positions) or positions != sorted(positions) or compact.count("crate::allocation::filled_values(0_u8,bytes)") != 2:
+            raise ValueError("HT refinement scratch requires exactly two original reader/claimed/stuffed/field reservation frontiers without hoisting")
+        entry = next(e for e in coverage["requirements"] if e["id"] == "part15-directional-word-event-state")
+        if not _HT_SCRATCH_TESTS.issubset({(r["path"], r["symbol"]) for r in entry["test_refs"]}):
+            raise ValueError("HT refinement scratch requires bounded first/later/empty/raw/error/replay/packet/public refusal and restoration controls")
+    if "part15-complete-cleanup-metadata" in ids:
+        for symbol, fragments in _HT_METADATA_GUARDS.items():
+            body = _coverage_spec_function_body(source_text((ROOT / "specs/cold_ht_metadata.rs").resolve()), symbol)
+            compact = "".join((body or "").split())
+            if any("".join(fragment.split()) not in compact for fragment in fragments):
+                raise ValueError("HT metadata storage requires actual source/count/role/reader/prior-owner and exact row/result/first-error/tail composition")
+        for symbol, fragments in {
+            "decode_ht_cleanup_segment_metadata": (
+                "if width==0 || height==0 || maximum_u==0", "if samples>4_096",
+                "let quads_per_row=usize::from(width)", "let quad_rows=usize::from(height)",
+                "let quad_count=quads_per_row", "ht_cleanup_readers_from_inputs(",
+                "empty_with_capacity::<HtQuadMetadata>(quad_count)", "Part2HtMetadataRole::Quads",
+                "let mut quads=allocated?", "filled_values(0_u8,quads_per_row)", "Part2HtMetadataRole::Previous",
+                "let mut previous_patterns=allocated?", "while quad_row", "decode_ht_metadata_row(", "readers.finish()?",
+            ),
+            "decode_ht_metadata_row": (
+                "let initial=quad_row==0", "filled_values(0_u8,quads_per_row)", "Part2HtMetadataRole::Current",
+                "part2_ht_metadata_row_refused(", "let mut current_patterns=allocated?",
+                "let mut left_context=0_u8", "while pair", "*previous_patterns=current_patterns",
+            ),
+            "decode_ht_cleanup_metadata": (
+                "parse_ht_block_segments(cleanup,None,limits)?", "decode_ht_cleanup_segment_metadata(segments.cleanup()",
+                "part2_ht_decode_metadata_observed(",
+            ),
+        }.items():
+            path = (ROOT / "src/tier1/ht_metadata.rs").resolve()
+            body = _coverage_function_body(source_text(path), function_header(path, symbol))
+            compact = "".join((body or "").split())
+            positions = [compact.find("".join(fragment.split())) for fragment in fragments]
+            if any(p < 0 for p in positions) or positions != sorted(positions):
+                raise ValueError("HT metadata storage requires unchanged real admission/reader/reservation/field/per-row/entropy/owner order")
+        entry = next(e for e in coverage["requirements"] if e["id"] == "part15-complete-cleanup-metadata")
+        if not _HT_METADATA_TESTS.issubset({(r["path"], r["symbol"]) for r in entry["test_refs"]}):
+            raise ValueError("HT metadata storage requires bounded quad/previous/per-row/empty/error/packet/public refusal and restore controls")
     return {
         "status": "passed",
         "inventory_items": len(ids),

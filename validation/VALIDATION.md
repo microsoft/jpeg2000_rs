@@ -1281,6 +1281,335 @@ paths that do not execute packet rollback acquire no invented copy requests.
 Bounded controls exercise level/node and later subband refusal, empty/raw tree
 copies, unchanged Clone behavior, precise rollback/restoration, real automatic
 packet consumption and original earlier lookup/ordinary-error precedence.
+Fresh `ht_refinement_data` byte copies now use the qualified Copy helper at
+their original field/staging, retained-replay and cleanup-retention frontiers.
+The existing Tier1 storage response type is a disjoint sum: coefficient
+responses retain their own width/height/role/count, while refinement-byte
+responses bind actual source bytes, count and distinct HT-stage/packet-stage/
+replay/retention roles. They cannot alias each other. Empty bytes consume no
+request. Public infallible decoder Clone remains unchanged; private checked
+duplication retains every original field evaluation, including fixed context
+records and later scalar fields.
+Its primary plane and optional cleanup plane now copy their coefficient owners
+fallibly at their original fields, before the existing checked HT byte copy.
+These are raw copies: width, height and every coefficient field are preserved,
+and counts come from actual source vector lengths, not dimensions or a
+dimension-validating constructor. Empty/raw states remain admitted. A distinct
+`DecoderPlaneCopy` response carries the actual source, staging role,
+primary/cleanup field and count; `None` and empty coefficients consume no
+request. Exact checked primitive/prefix/bind laws carry earlier successful
+copies, first errors and unused tails through the real staging/packet/tile and
+public programs. Public plane and decoder `Clone` remain unchanged. Bounded
+controls cover raw/empty owners, both staging roles, primary/optional/byte
+ordering, legacy packet rollback and real HT raw/selected/JPH restoration;
+existing two-layer automatic HT controls still produce the actual images.
+The remaining nested owners in that same private checked duplicate are now
+fallible as well: current bitplane `significant_before` then
+`significance_visited`, followed at the original legacy field by its raw plane,
+optional bitplane's two flag owners, then retained input bytes. These flag
+elements are allocation-free Copy bools; raw coefficients and bytes reuse the
+qualified raw-plane/Copy helpers. Width, height, bitplane, flags, raw vectors,
+scalar counters, MQ context and completion records remain exact. No geometry,
+route, bitplane or shape admission is added to a copy, including malformed raw
+states or unequal flag lengths.
+Distinct `NestedCopy` owner contexts bind actual source records, staging role,
+current-versus-legacy flags, before-versus-visited owner, prior copied before
+flags and actual native lengths/responses. Legacy plane and input contexts
+cannot alias primary/cleanup/HT-byte responses. None and empty owners consume no
+request; arrays, scalar/MQ records and borrowed slices add none. Actual child
+Results, earlier copied owners, first errors and unused tails bind through the
+existing checked decoder/packet/tile/automatic/public state programs and checked
+normal projections, without supplied successful results or new caller premises.
+All public infallible Clone implementations remain unchanged. Bounded controls
+cover raw/unequal/empty/None states, all nested first/later refusal frontiers,
+restoration and original ordinary-error priority, real retained legacy packet
+rollback, two-layer raw/selected/recovery/automatic output and existing HT paths.
+The legacy replay snapshot and restoration now use the same qualified raw
+plane/optional-flag copies at their original fields, with distinct
+`LegacySnapshot` and `LegacyRestore` copy roles. Snapshot input is originally
+`Vec::new()` and restore only borrows retained input; neither adds a byte request.
+No dimension, shape or route admission is added to these raw copies.
+Replay still admits and charges existing work before its original take/snapshot,
+append, restore, decode and commit order. The retained segment must preserve its
+original plane/flags while the decoder mutates a separate working plane, then
+remains available to commit. Its borrowed restore input therefore does not
+support a generic allocation-free owner transfer without changing retention.
+The checked fallible restoration explicitly exposes both earlier errors:
+refused plane copy leaves all restore fields unchanged; refused optional flags
+leave the copied plane and pass/bitplane writes visible while flags, MQ/reset
+and decoded counters retain their prior values. Neither case is reported as
+success or hidden as a fully restored decoder. Replay carries the actual
+consumed-snapshot/charged-work state, and packet transactions retain exact
+outer rollback.
+Actual child Results and unused response tails compose through input-derived
+legacy contribution/segment/body folds and all dependent full/selected,
+automatic/progressive/semantic/recovery programs. Checked normal projections
+preserve every ordinary result and first error. The native loop carries actual
+root/caps identities and uses a separately checked phase-eta consequence;
+there is no source/result bank, new caller premise or availability axiom.
+Bounded controls cover raw/empty copies, first/later partial restoration,
+real replay and packet rollback, and two-layer raw/selected/recovery/automatic
+restoration. Public Clone and the existing HT finishing interface are unchanged.
+Unrelated decoder/precinct collection clones, existing growth/appending and later buffers remain
+separate. As for bytes, fresh Copy reserve amortization need not match public
+Clone capacity; sequence models establish no physical-capacity theorem.
+The actual fresh legacy bitplane setup now reserves `significant_before` from
+the native coefficient-vector length, fills it in the original checked-index
+loop from each coefficient's real significant flag, then fallibly fills
+`significance_visited` with false using the actual prior constructed length.
+The original bitplane-range rejection precedes both requests; no geometry,
+shape or style admission is invented for raw planes. Empty inputs consume no
+request, and fixed MQ/scalar records and already-present bitplane states add
+none. Distinct `BitplaneInitialCapacity` responses carry actual plane/bitplane,
+before-versus-visited role, actual prior constructed flags and counts; they
+cannot alias owner-copy, constructor-plane, parser or planning responses.
+Actual child Results compose through ensure/pass and MQ/raw segment loops,
+statistics/advance/context-reset frames, termination/accounting, replay and all
+dependent packet/public state programs. A refused construction leaves the
+bitplane option absent, retaining earlier real MQ/reset writes; later errors,
+previous passes and unused tails remain exact. No executing work is hoisted.
+Small checked opaque preparation/pass/finish interfaces and primary-contract
+normal consequences expose local native facts without repeatedly unfolding
+whole old and event-aware programs. There is no new caller premise, result bank,
+allocator-availability law, tool budget or runtime-boundary change.
+Public `new_at_bitplane` has the actual factory Result/frame contract; the
+original mask façade still validates/converts the real mask then calls it.
+Bounded controls cover both fresh frontiers, truthful mixed flag values,
+raw/empty/present cases, original admission/input/work error precedence and
+real MQ/legacy packet/raw/full-selected/container/recovery/automatic restoration.
+HT execution does not call this legacy setup; existing real HT controls remain
+positive without invented initial-flag requests. Other later buffers,
+collection copies and existing-capacity growth remain separate.
+HT cleanup reconstruction now fallibly fills its two fresh previous/current
+exponent-row owners at their original struct-field frontiers, after the single
+qualified output-plane construction, actual MagSgn reader and checked count
+arithmetic. Each count is `(metadata.width + 1) / 2 + 1`, not the plane width
+or sample count. Metadata-width-zero, plane admission and reader errors still
+precede these requests. Empty quad sequences still reach both positive-length
+row owners; later overwrites and row swaps add no requests.
+Distinct `HtExponentCapacity` responses retain actual input/source descriptors,
+field role, count and the previous zero-filled owner. Checked first/later binds
+preserve the earlier output/reader owners, exact entropy/statistics result,
+partial/cleared/staged state and unused response tails through the existing
+decoder/packet/tile/public composition. Bounded raw-metadata, decoder, packet,
+raw/selected/JPH and automatic controls exercise refusal and exact restoration.
+The separate metadata quad and previous/current pattern constructors, refinement
+reader buffers, unrelated collection copies and existing growth remain outside
+this increment. Sequence contracts make no host-availability or physical-capacity
+claim; public Clone behavior and proof/runtime boundaries remain unchanged.
+The metadata producer now fallibly reserves its fresh quad owner from the real
+ceiling-half width times ceiling-half height count, fills the previous-pattern
+owner from ceiling-half width, and fills a genuinely fresh current-pattern owner
+at each reached row's original frontier. Per-row construction is not existing
+growth. Geometry/maximum-u/sample-count and checked arithmetic still precede the
+actual MEL/VLC reader, which precedes quad/previous storage; each current row is
+constructed before its original pair/entropy work. Fixed word/context arrays,
+quad pushes into the originally reserved owner, pattern overwrites and the final
+current-to-previous owner transfer introduce no new requests.
+Disjoint `HtMetadataCapacity` roles use real source/count/row/prior-owner and
+reader/counter descriptors; enclosing binds retain complete actual producer
+inputs and state. First/later/per-row refusal preserves previous rows, readers,
+stored quads and counters. Earlier errors leave unused response tails unchanged,
+and failure skips every later row. Public metadata, cleanup preparation and all
+dependent HT/packet/public/automatic results compose the actual ordered child
+responses while retaining checked original normal projections. Bounded controls
+cover quad/previous/first/later rows, empty/no-request behavior, original error
+precedence, exact partial row state, packet rollback and restored real public
+images. Refinement-reader scratch, extraction outputs, unrelated collections,
+growth and later buffers remain separate. No physical-capacity/availability
+theorem or new runtime/proof boundary is claimed.
+The refinement-reader producer now fallibly fills its two fresh claimed/stuffed
+byte-mask owners from the original `bytes` argument, after the real forward and
+optional reverse reader construction. The count remains independent of borrowed
+span lengths; raw empty/mismatched counts and absent reverse behavior are not
+normalized or newly admitted. Zero count consumes no managed request. Borrowed
+byte spans, scalar reader records and later in-place claim/stuffing writes add
+no storage event.
+Disjoint `RefinementScratchCapacity` responses carry compact actual source-length,
+byte-count, reverse/work and prior claimed-mask descriptors. Full input bytes,
+real initial readers and ordinary result/state are retained in enclosing checked
+producer binds. Exact first/later errors and unused tails compose after the
+qualified refinement output copy and before original significance/magnitude/
+entropy work, through replay, decoder, packet and public state programs.
+Bounded controls cover both masks, raw/empty/admission/work order, real collision
+and stuffing masks, replay/packet rollback and restored raw/selected/JPH/automatic
+images. Public Clone and all previous owner contracts remain unchanged.
+Other extraction outputs, unrelated collections, existing growth and later buffers
+remain separate. No physical-capacity or availability theorem is claimed.
+
+The numerical coefficient-extraction increment covers two fresh signed-magnitude
+vectors: the linear extraction inside `decode_code_block` reserves the actual
+raw coefficient-source length after the original completion/geometry admission;
+`collect_prepare_coefficients` reserves the original checked width-times-height
+count before its unchanged y/x cell lookup, sign and midpoint conversion.
+The private linear helper also preserves raw mismatched dimensions and empty
+source states without adding admission. Both zero counts make no request.
+Public infallible borrowed/scalar conveniences and Clone are unchanged.
+The existing fallible `decode_code_block` façade forwards the private checked
+extraction at its original frontier; its whole convenience pipeline is not
+newly claimed as a complete semantic contract.
+
+Distinct `CoefficientExtractionCapacity` responses bind actual roles/counts;
+complete raw coefficient words, signs, fractions and source planes remain in
+the enclosing numerical producers. Placement preserves prior mutable working
+owners on refusal. Ordered component folds retain earlier prepared owners and
+work; the caller's `CoefficientReconstructionCalls` envelope carries the actual
+nested leaf tape, not an additional physical request. The exact postpacket
+precincts, first errors and unused tails compose through tile reconstruction,
+raw/selected/container and automatic/public paths with checked old normal
+projections. Bounded controls exercise raw/empty states, first/later refusals,
+scalar/quantization precedence, real legacy/HT packets and restored images.
+The HT cleanup-significance bool output, inverse-quantization sample vectors,
+transform/image collections, existing-owner growth and later buffers remain
+outside this numerical group. Existing-owner moves add no request. No host
+availability or general physical-capacity theorem is asserted.
+
+The refinement producer now fallibly reserves its fresh cleanup-significance
+bool vector from the actual raw coefficient-source length. It keeps each source
+`significant` value, including raw magnitude/sign/refined/legacy-bitplane states,
+without adding dimension or bitplane admission. The executing frontier remains
+after the qualified output duplication and real reader/mask construction, before
+refinement-state/statistic initialization and magnitude/significance work.
+Empty source makes no request. The compact `CleanupSignificanceCapacity` response
+contains only the real count and primitive result; complete source coefficients,
+actual prior output/readers, ordered entropy/statistics and final Result/state
+remain in the enclosing checked producers.
+
+The actual flag Result binds into magnitude/discovery/refinement, replay,
+decoder/packet rollback and raw/selected/container/reconstructed/automatic public
+paths with exact first errors and unused tails. Checked old normal projections
+remain input-derived. Existing later discovery/retention refusal controls move
+by one at this new frontier; earlier output/mask requests do not move.
+The private producer uses the established fresh `try_reserve` capacity profile;
+its strict capacity comparison is against that helper, not the old infallible
+`Vec::with_capacity` profile. Public Clone and its capacity controls are unchanged.
+This does not assert host availability or a general physical-capacity theorem.
+Inverse quantization/sample copies, transforms/images, unrelated owners and
+existing growth remain separate.
+
+The numerical quantization-output increment covers the fresh integer-to-wide
+`inverse_quantize_values` vector, the fresh `inverse_quantize_plane` sample
+vector and the final `decode_code_block` sample-owner copy. Counts remain the
+actual source lengths. Wide reservation stays before the original ordered
+`i64::MIN`/magnitude conversion and later quantization admission. Sample
+reservation stays after original range/mantissa/exponent, decoded-byte budget
+and step-size checks, but before unchanged ROI/sample/rounding and final width
+narrowing. The last copy stays after actual quantization; it copies the real
+borrowed sample span through the qualified Copy helper, not geometry validation
+or owner transfer. Zero-length owners make no request while retaining original
+admission, dimensions and fraction behavior.
+
+Disjoint `QuantizationCapacity` roles carry only real owner/count/primitive
+responses. Complete signs/limbs/steps/fractions/samples remain input-derived in
+the enclosing quantization and placement binds. The actual coefficient child
+binds into quantization before placement writes; typed refusal retains prior
+working/prepared owners and unused tails through tile, reconstruction and
+automatic/public consumers. All original normal numerical projections and
+independent rounding/bit references remain checked. Public convenience APIs
+keep their established scope; the whole `decode_code_block` pipeline is not
+newly advertised as a complete theorem. Existing-owner moves add no request,
+and transform/image collections, unrelated owners and growth remain separate.
+Private fresh reserve profiles are not general physical-capacity or host
+availability theorems. No cumulative budget is introduced.
+
+The inverse-wavelet plane increment converts the fresh horizontal row-assembly
+reserve in `inverse_rows` and vertical zero-filled sample plane in
+`inverse_columns`. Counts are the original actual native capacity/output-length
+arguments, derived by each caller's checked geometry. No geometry admission is
+added to the private factories. Existing row appends and column stores remain
+at their original frontiers; zero count makes no request. These are fresh
+matrix owners, not an invented request for owner transfers or in-place updates.
+
+Disjoint `WaveletPlaneCapacity` roles retain compact count/response descriptors.
+Complete low/high source samples, standard/custom kernel and actual prior low/
+high row outputs stay in the enclosing checked producers. The original level
+validation/work/limit order precedes low rows, checked high-row capacity, high
+rows and zero-filled columns. Actual child Results compose through resolution,
+ordered folds, component/tile and automatic/public reconstruction while old
+normal numerical projections stay checked. Bounded controls retain exact
+5/3, Q16 9/7 and custom-kernel values, raw/empty/error behavior, first/later
+refusals and restored source bands/images. No matrix/image success bank, domain
+premise, numerical tolerance change or conversion shortcut is introduced.
+
+The subsequent line increment converts fresh `collect_column` and `interleave`
+owners using their original height and checked low-plus-high counts. Column
+admission precedes the request and original sample/index errors follow it;
+interleave overflow/parity admission precedes its request. Empty lines consume
+no response. Compact `WaveletLineCapacity` roles distinguish gather geometry/
+column from interleave lengths/parity; enclosing producers retain the complete
+raw source samples and actual ordered child results. Rows, low/high gathers,
+interleave, standard/custom lifting, prior line owners and column stores retain
+their original order and exact numerical/error projections.
+
+The same actual sequence child is also reached by spectral MCT. Its reverse
+levels, source scratch, pixel stores, collection/stage folds and decoded/
+prepared owner rejoins now preserve exact partial state/work and unused tails
+on refusal, including a previously stored pixel before a later line refusal.
+Tile finishing binds this actual child before the unchanged standard transform
+and rejoins the actual suffix to its retained prefix. No successful matrix,
+image or result is supplied by the caller. Existing Result-returning wavelet
+APIs retain checked ordinary projections; no convenience façade is changed.
+
+At the existing vertical zero-plane frontier, private `zero_i64_values` uses
+the same fallible reserve followed by supported `Vec<i64>::resize`. Its checked
+contract fixes every element to zero and forbids an empty-count refusal.
+Generic `filled_values<T: Copy>` and its shallow-copy contract are unchanged.
+This surgical bulk fill is not resource qualification; the unchanged canonical
+resource command/budgets must still qualify the exact committed source.
+
+The subsequent preparation-copy increment converts the actual initial LL clone
+and later `copy_prepare_plane` sample owner, not a transfer of either owner.
+Distinct `PrepareCopyCapacity` roles use actual raw sample lengths, never
+width-times-height as a substitute. Raw dimensions, fractional tags, empty and
+malformed source shapes remain in the enclosing input-derived producers.
+The initial copy follows the original first-band read and width/height fields;
+later copies follow the actual inverse-wavelet child and original fraction
+check. Exact errors bind through the resolution fold, actual component and
+tile/public programs with previous owners and unused tails retained. No new
+validation or numerical conversion is introduced in either copying factory.
+
+Private `copy_i64_values` uses the same checked reserve and supported
+`Vec<i64>::extend_from_slice`, with existing signed-integer clone facts proving
+the exact copied sequence. Empty input makes no request. Generic
+`copy_values<T: Copy>` and its exact behavior remain unchanged. Bounded controls
+include raw malformed/empty owners, source non-aliasing, first/later refusal,
+actual standard/custom component copies and restored recovery/public results.
+This bulk-copy implementation is not canonical resource qualification.
+
+Spectral initial/source scratch copies and component collections, output/image/
+container collections, unrelated owners and growth remain separate. Existing
+appends and sequence models are not general physical-capacity or
+host-allocation-availability theorems.
+
+Replay copying remains after original route/pass/cleanup/byte admission but
+before the unchanged append and later concatenation-size checks. Retention
+copying remains after actual refinement and statistics merge, preserving
+cleared partial state on refusal; staging failures preserve original rollback.
+Actual child responses bind through existing decoder/packet/tile/public state
+programs, with original normal projections and exact first-error/unused-tail
+laws. Successful copies, planes, decoder states and images still derive from
+real producers, not supplied result banks. Later growth/appending and unrelated
+owners remain separate. The checked fresh helper may use standard Vec reserve
+amortization rather than the infallible Clone allocator's capacity profile;
+native replay controls compare the actual qualified fresh producer and verify
+fresh ownership, without claiming physical capacity from sequence models.
+Bounded controls exercise all roles, empty/ordinary-error order, cleared and
+staged states, two-layer retained-byte raw/selected/JPH refusals/restoration,
+and actual full/selected automatic HT images.
+Replay finishing uses an opaque continuation certificate created only from the
+actual input-derived refinement producer's certified Result and real copied
+bytes. Native ghost checkpoints consume local plane/data/pass-write and checked
+counter phase facts; they do not unfold the complete raw tape or original
+normal program at each write. Separately checked field-projection equations and
+primitive counter algebra transport that certificate, preserving every earlier
+partial error state and final narrowing order. The primary replay predicate is
+the exact conjunction of the original event-aware and non-allocation normal
+native obligations; a separately checked primary-contract consequence exposes
+the normal projection at exits. This is proof factoring only: no executing body,
+field order, owner/child link, caller premise, tool budget or runtime boundary
+changes. Public Clone's capacity check remains explicit; the private qualified
+copy's different fresh-capacity profile is documented rather than inferred from
+sequence models.
 Same-file links are checked inside another listed, formatted function body;
 the contract's own declaration, an unrelated function or an indirect caller
 does not qualify as a direct same-file call. Unsupported formatting can fail

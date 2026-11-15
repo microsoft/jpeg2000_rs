@@ -7,6 +7,16 @@ use crate::{DecodeError, ResourceLimits};
 use vstd::prelude::*;
 
 impl ReconstructedPlane {
+    #[cfg(test)]
+    pub(crate) fn for_test(width: u32, height: u32, fraction_bits: u8, samples: Vec<i64>) -> Self {
+        Self {
+            width,
+            height,
+            fraction_bits,
+            samples,
+        }
+    }
+
     #[cfg_attr(verus_keep_ghost, verus_spec(result =>
         ensures result == reconstructed_plane_view(*self).0,
     ))]

@@ -492,6 +492,34 @@ pub struct CodeBlockPlane {
     coefficients: Vec<CoefficientState>,
 }
 
+#[cfg(test)]
+pub(crate) type ExtractionTestCoefficient = (u64, [u64; 5], bool, bool, Option<u16>);
+
+#[cfg(test)]
+pub(crate) fn extraction_test_plane(
+    width: u16,
+    height: u16,
+    input: &[ExtractionTestCoefficient],
+) -> CodeBlockPlane {
+    CodeBlockPlane {
+        width,
+        height,
+        coefficients: input
+            .iter()
+            .map(
+                |(magnitude, high, negative, significant, bitplane)| CoefficientState {
+                    magnitude: *magnitude,
+                    magnitude_high: *high,
+                    legacy_bitplane: *bitplane,
+                    negative: *negative,
+                    significant: *significant,
+                    refined: false,
+                },
+            )
+            .collect(),
+    }
+}
+
 #[derive(Clone, Copy)]
 #[cfg_attr(not(verus_keep_ghost), derive(Debug, Eq, PartialEq))]
 pub(crate) enum CoefficientStorageRole {
@@ -503,6 +531,17 @@ pub(crate) enum CoefficientStorageRole {
     CleanupCopy,
     RefinementOutput,
     RefinementDiscovery,
+}
+
+#[derive(Clone, Copy)]
+#[cfg_attr(not(verus_keep_ghost), derive(Debug, Eq, PartialEq))]
+pub(crate) enum HtRefinementCopyRole {
+    HtStaging,
+    PacketStaging,
+    RetainedReplay,
+    CleanupRetention,
+    LegacySnapshot,
+    LegacyRestore,
 }
 
 #[cfg(verus_keep_ghost)]

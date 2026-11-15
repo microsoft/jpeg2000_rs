@@ -124,8 +124,15 @@ pub(crate) open spec fn part2_planned_decode_run(plan: Part2ProgressionTilePlan,
     first: Part2OwnedTilePart, size: &crate::codestream::ImageSize, standard: (bool, bool), selection: Option<Seq<u8>>,
     limits: &crate::ResourceLimits, prepared: Seq<Part1AssemblyTile>, work: u64, events: Seq<Part2JpipSnapshotEvent>) -> Part2ColdRun<Part2DecodedTileComponents> {
     part2_jpip_snapshot_bind(part2_packet_value_run(parts, plan.grid, plan.precincts, selection, limits, events),
-        |_: (crate::packet::TilePacketDecode, Seq<Part1PacketPrecinctState>), rest|
-            Some((part2_decode_planned_tile_components_owned(plan, parts, first, size, standard, selection, limits, prepared, work), rest)))
+        |decoded: (crate::packet::TilePacketDecode, Seq<Part1PacketPrecinctState>), rest|
+            part2_planned_extraction_run(plan,first,size,standard,limits,prepared,work,decoded.1,rest))
+}
+pub(crate) open spec fn part2_planned_extraction_run(plan:Part2ProgressionTilePlan,first:Part2OwnedTilePart,size:&crate::codestream::ImageSize,standard:(bool,bool),
+    limits:&crate::ResourceLimits,prepared:Seq<Part1AssemblyTile>,work:u64,precincts:Seq<Part1PacketPrecinctState>,events:Seq<Part2JpipSnapshotEvent>)->Part2ColdRun<Part2DecodedTileComponents> {
+    part2_jpip_snapshot_bind(part2_extraction_tile_calls_run(prepared,plan.components,part2_precinct_decoder_planes(precincts),first.component_coding_styles,
+        part2_owned_kernel_registry(first.part2_extensions),crate::codestream::image_size_component_count(size),crate::codestream::image_size_component_infos(size),first.multiple_component_transform,
+        standard,work,crate::limits::resource_work_limit(limits),crate::limits::resource_decoded_bytes_limit(limits),events),
+        |effect:Part2ExtractionTileEffect,rest|Some((match effect.0{Err(error)=>Err(error),Ok(())=>Ok(Part2DecodedTileComponents {prepared:effect.1,mct_work:effect.2})},rest)))
 }
 #[verifier::opaque]
 pub(crate) open spec fn part2_planned_decode_result(plan: Part2ProgressionTilePlan, parts: Seq<Part2OwnedTilePart>,
@@ -144,9 +151,12 @@ pub(crate) proof fn part2_planned_decode_normal(plan: Part2ProgressionTilePlan, 
     let execution = part1_progression_tile_decode_owned(parts, plan.grid, plan.precincts, selection, limits);
     part2_packet_value_actual(parts, plan.grid, plan.precincts, selection, limits, execution);
     let result = part2_decode_planned_tile_components_owned(plan, parts, first, size, standard, selection, limits, prepared, work);
-    if execution.0.is_ok() { part2_cold_pure(result); }
+    if let Ok(value)=execution.0 {
+        part2_planned_extraction_normal(plan,first,size,standard,limits,prepared,work,execution.1);
+        part2_decode_eta(|events|part2_planned_extraction_run(plan,first,size,standard,limits,prepared,work,execution.1,events),result);
+    }
     part2_cold_bind(|events| part2_packet_value_run(parts, plan.grid, plan.precincts, selection, limits, events),
-        |_: (crate::packet::TilePacketDecode, Seq<Part1PacketPrecinctState>), rest| Some((result, rest)),
+        |decoded: (crate::packet::TilePacketDecode, Seq<Part1PacketPrecinctState>), rest| part2_planned_extraction_run(plan,first,size,standard,limits,prepared,work,decoded.1,rest),
         match execution.0 { Err(error) => Err(error), Ok(value) => Ok((value, execution.1)) }, result);
 }
 pub(crate) proof fn part2_planned_decode_packet_error(plan: Part2ProgressionTilePlan, parts: Seq<Part2OwnedTilePart>,
@@ -158,8 +168,52 @@ pub(crate) proof fn part2_planned_decode_packet_error(plan: Part2ProgressionTile
     reveal(part2_planned_decode_result);
     part2_packet_value_actual(parts, plan.grid, plan.precincts, selection, limits, (Err(error), after));
     part2_cold_bind(|events| part2_packet_value_run(parts, plan.grid, plan.precincts, selection, limits, events),
-        |_: (crate::packet::TilePacketDecode, Seq<Part1PacketPrecinctState>), rest|
-            Some((part2_decode_planned_tile_components_owned(plan, parts, first, size, standard, selection, limits, prepared, work), rest)), Err(error), Err(error));
+        |decoded: (crate::packet::TilePacketDecode, Seq<Part1PacketPrecinctState>), rest|
+            part2_planned_extraction_run(plan,first,size,standard,limits,prepared,work,decoded.1,rest), Err(error), Err(error));
+}
+pub(crate) proof fn part2_planned_extraction_normal(plan:Part2ProgressionTilePlan,first:Part2OwnedTilePart,size:&crate::codestream::ImageSize,standard:(bool,bool),
+    limits:&crate::ResourceLimits,prepared:Seq<Part1AssemblyTile>,work:u64,precincts:Seq<Part1PacketPrecinctState>)
+    ensures part2_cold_framed(|events|part2_planned_extraction_run(plan,first,size,standard,limits,prepared,work,precincts,events),
+        match part2_reconstruct_planned_tile(prepared,plan.components,part2_precinct_decoder_planes(precincts),first.component_coding_styles,
+            part2_owned_kernel_registry(first.part2_extensions),crate::codestream::image_size_component_count(size),crate::codestream::image_size_component_infos(size),
+            first.multiple_component_transform,standard,work,crate::limits::resource_work_limit(limits),crate::limits::resource_decoded_bytes_limit(limits)){
+                (Err(error),_,_)=>Err(error),(Ok(()),tiles,after_work)=>Ok(Part2DecodedTileComponents {prepared:tiles,mct_work:after_work}),
+        }),
+{
+    let planes=part2_precinct_decoder_planes(precincts);let kernels=part2_owned_kernel_registry(first.part2_extensions);
+    let effect=part2_reconstruct_planned_tile(prepared,plan.components,planes,first.component_coding_styles,kernels,
+        crate::codestream::image_size_component_count(size),crate::codestream::image_size_component_infos(size),first.multiple_component_transform,standard,work,
+        crate::limits::resource_work_limit(limits),crate::limits::resource_decoded_bytes_limit(limits));
+    let result=match effect.0{Err(error)=>Err(error),Ok(())=>Ok(Part2DecodedTileComponents {prepared:effect.1,mct_work:effect.2})};
+    part2_extraction_tile_normal(prepared,plan.components,planes,first.component_coding_styles,kernels,crate::codestream::image_size_component_count(size),crate::codestream::image_size_component_infos(size),
+        first.multiple_component_transform,standard,work,crate::limits::resource_work_limit(limits),crate::limits::resource_decoded_bytes_limit(limits));
+    part2_extraction_tile_calls_observed(prepared,plan.components,planes,first.component_coding_styles,kernels,crate::codestream::image_size_component_count(size),crate::codestream::image_size_component_infos(size),
+        first.multiple_component_transform,standard,work,crate::limits::resource_work_limit(limits),crate::limits::resource_decoded_bytes_limit(limits),effect);
+    part2_cold_pure(result);
+    part2_cold_bind(|events|part2_extraction_tile_calls_run(prepared,plan.components,planes,first.component_coding_styles,kernels,crate::codestream::image_size_component_count(size),crate::codestream::image_size_component_infos(size),
+        first.multiple_component_transform,standard,work,crate::limits::resource_work_limit(limits),crate::limits::resource_decoded_bytes_limit(limits),events),
+        |effect:Part2ExtractionTileEffect,rest|Some((match effect.0{Err(error)=>Err(error),Ok(())=>Ok(Part2DecodedTileComponents {prepared:effect.1,mct_work:effect.2})},rest)),Ok(effect),result);
+}
+pub(crate) proof fn part2_planned_extraction_error(plan:Part2ProgressionTilePlan,parts:Seq<Part2OwnedTilePart>,first:Part2OwnedTilePart,size:&crate::codestream::ImageSize,standard:(bool,bool),
+    selection:Option<Seq<u8>>,limits:&crate::ResourceLimits,prepared:Seq<Part1AssemblyTile>,work:u64,decoded:crate::packet::TilePacketDecode,precincts:Seq<Part1PacketPrecinctState>,after:Seq<Part1AssemblyTile>,after_work:u64,error:crate::DecodeError)
+    requires part2_packet_result(parts,plan.grid,plan.precincts,selection,limits,(Ok(decoded),precincts)),
+        part2_extraction_tile_result(prepared,plan.components,part2_precinct_decoder_planes(precincts),first.component_coding_styles,part2_owned_kernel_registry(first.part2_extensions),
+            crate::codestream::image_size_component_count(size),crate::codestream::image_size_component_infos(size),first.multiple_component_transform,standard,work,
+            crate::limits::resource_work_limit(limits),crate::limits::resource_decoded_bytes_limit(limits),(Err(error),after,after_work)),
+    ensures part2_planned_decode_result(plan,parts,first,size,standard,selection,limits,prepared,work,Err(error)),
+{
+    reveal(part2_planned_decode_result);
+    let effect=(Err(error),after,after_work);let planes=part2_precinct_decoder_planes(precincts);let kernels=part2_owned_kernel_registry(first.part2_extensions);
+    part2_packet_value_actual(parts,plan.grid,plan.precincts,selection,limits,(Ok(decoded),precincts));
+    part2_extraction_tile_calls_observed(prepared,plan.components,planes,first.component_coding_styles,kernels,crate::codestream::image_size_component_count(size),crate::codestream::image_size_component_infos(size),
+        first.multiple_component_transform,standard,work,crate::limits::resource_work_limit(limits),crate::limits::resource_decoded_bytes_limit(limits),effect);
+    part2_cold_pure(Err::<Part2DecodedTileComponents,crate::DecodeError>(error));
+    part2_cold_bind(|events|part2_extraction_tile_calls_run(prepared,plan.components,planes,first.component_coding_styles,kernels,crate::codestream::image_size_component_count(size),crate::codestream::image_size_component_infos(size),
+        first.multiple_component_transform,standard,work,crate::limits::resource_work_limit(limits),crate::limits::resource_decoded_bytes_limit(limits),events),
+        |effect:Part2ExtractionTileEffect,rest|Some((match effect.0{Err(error)=>Err(error),Ok(())=>Ok(Part2DecodedTileComponents {prepared:effect.1,mct_work:effect.2})},rest)),Ok(effect),Err(error));
+    part2_decode_eta(|events|part2_planned_extraction_run(plan,first,size,standard,limits,prepared,work,precincts,events),Err(error));
+    part2_cold_bind(|events|part2_packet_value_run(parts,plan.grid,plan.precincts,selection,limits,events),
+        |decoded:(crate::packet::TilePacketDecode,Seq<Part1PacketPrecinctState>),rest|part2_planned_extraction_run(plan,first,size,standard,limits,prepared,work,decoded.1,rest),Ok((decoded,precincts)),Err(error));
 }
 
 pub(crate) open spec fn part2_tile_decode_run(size: &crate::codestream::ImageSize, tile: u16, parts: Seq<Part2OwnedTilePart>,

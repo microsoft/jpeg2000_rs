@@ -3,6 +3,8 @@ use vstd::prelude::*;
 
 mod allocation;
 pub use allocation::*;
+mod cold_prepare_copies;
+pub use cold_prepare_copies::*;
 mod mq;
 pub use mq::*;
 mod legacy;
@@ -113,8 +115,54 @@ mod cold_tier1_initial;
 pub use cold_tier1_initial::*;
 mod cold_tier1_planes;
 pub use cold_tier1_planes::*;
+mod cold_ht_bytes;
 mod cold_ht_decoder;
+pub use cold_ht_bytes::*;
+mod cold_decoder_planes;
+pub use cold_decoder_planes::*;
+mod cold_decoder_nested;
+pub use cold_decoder_nested::*;
+mod cold_legacy_replay;
+pub use cold_legacy_replay::*;
+mod cold_legacy_packets;
+pub use cold_legacy_packets::*;
+mod cold_bitplane_initial;
+pub use cold_bitplane_initial::*;
+mod cold_ht_exponents;
+pub use cold_ht_exponents::*;
+mod cold_ht_metadata;
+pub use cold_ht_metadata::*;
+mod cold_ht_refinement_scratch;
+pub use cold_ht_refinement_scratch::*;
+mod cold_ht_significance;
+pub use cold_ht_significance::*;
+mod cold_quantization_outputs;
+pub use cold_quantization_outputs::*;
+mod cold_wavelet_planes;
+pub use cold_wavelet_planes::*;
+mod cold_wavelet_prepare;
+pub use cold_wavelet_prepare::*;
+mod cold_wavelet_lines;
+pub use cold_wavelet_lines::*;
+mod cold_wavelet_line_planes;
+pub use cold_wavelet_line_planes::*;
+mod cold_mct_wavelet_lines;
+pub use cold_mct_wavelet_lines::*;
+mod cold_mct_line_pixels;
+pub use cold_mct_line_pixels::*;
+mod cold_mct_line_composition;
+pub use cold_mct_line_composition::*;
+mod cold_coefficient_extraction;
+pub use cold_coefficient_extraction::*;
+mod cold_extraction_reconstruction;
+pub use cold_extraction_reconstruction::*;
+mod cold_extraction_tile;
+pub use cold_extraction_tile::*;
+mod cold_legacy_bitplanes;
+pub use cold_legacy_bitplanes::*;
+mod replay_finish;
 pub use cold_ht_decoder::*;
+pub use replay_finish::*;
 mod cold_packet_planes;
 pub use cold_packet_planes::*;
 mod cold_packet_execute;
@@ -10886,6 +10934,7 @@ pub open spec fn ht_decode_segments(
     }
 }
 
+#[verifier::opaque]
 pub open spec fn ht_finish_refinement_contribution(
     state: Tier1DecoderState, passes: u8, bytes: nat, next_bytes: u64,
     statistics: crate::tier1::Tier1PassStatistics, replayed: bool,
@@ -10905,6 +10954,7 @@ pub open spec fn ht_finish_refinement_contribution(
     }
 }
 
+#[verifier::opaque]
 pub open spec fn ht_decode_refinement_contribution(
     state: Tier1DecoderState, input: Seq<u8>, passes: u8, maximum_bytes: u64, maximum_work: u64,
 ) -> HtDecoderResult {

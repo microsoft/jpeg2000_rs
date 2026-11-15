@@ -282,7 +282,8 @@ pub(super) fn begin_mct_wavelet_pixel(
 }
 
 #[cfg_attr(verus_keep_ghost, verus_spec(result =>
-    ensures crate::transform::sequence_outcome(result) == crate::specs::part2_mct_wavelet_reconstruction(
+    ensures crate::specs::part2_mct_line_reconstruction_result(source@,high_lengths@,low_first@,reversible,low_length,count,crate::transform::sequence_outcome(result)),
+        crate::transform::sequence_outcome(result)!=Err(DecodeError::AllocationFailed) ==> crate::transform::sequence_outcome(result) == crate::specs::part2_mct_wavelet_reconstruction(
         source@, high_lengths@, low_first@, reversible, low_length, count),
 ))]
 fn reconstruct_mct_wavelet(
@@ -293,6 +294,8 @@ fn reconstruct_mct_wavelet(
     low_length: usize,
     count: usize,
 ) -> Result<Vec<i64>, DecodeError> {
+    #[cfg(verus_keep_ghost)]
+    proof! {crate::specs::part2_mct_line_reconstruction_normal(source@,high_lengths@,low_first@,reversible,low_length,count);}
     let mut cursor = low_length;
     let mut reconstructed = Vec::with_capacity(low_length);
     #[cfg(verus_keep_ghost)]
@@ -306,6 +309,8 @@ fn reconstruct_mct_wavelet(
     let mut level_index = high_lengths.len();
     #[cfg_attr(verus_keep_ghost, verus_spec(
         invariant level_index <= high_lengths.len(),
+        crate::specs::part2_mct_line_reconstruction_result(source@,high_lengths@,low_first@,reversible,low_length,count,
+            crate::specs::part2_mct_wavelet_reconstruction(source@,high_lengths@,low_first@,reversible,low_length,count)),
         crate::specs::part2_mct_wavelet_reconstruction_steps(source@, high_lengths@, low_first@, reversible, low_length,
             (high_lengths.len() - level_index) as nat) == Ok((cursor, reconstructed@)),
         decreases level_index,
@@ -326,19 +331,18 @@ fn reconstruct_mct_wavelet(
             .checked_add(high_length)
             .ok_or_else(arithmetic_overflow)?;
         let high = source.get(cursor..high_end).ok_or_else(invalid_transform)?;
-        reconstructed = if reversible {
-            inverse_5_3(
-                &reconstructed,
-                high,
-                *low_first.get(level_index).ok_or_else(invalid_transform)?,
-            )?
+        #[cfg(verus_keep_ghost)]
+        proof_decl! {let ghost previous=(cursor,reconstructed@);}
+        let parity = *low_first.get(level_index).ok_or_else(invalid_transform)?;
+        let transformed = if reversible {
+            inverse_5_3(&reconstructed, high, parity)
         } else {
-            inverse_9_7(
-                &reconstructed,
-                high,
-                *low_first.get(level_index).ok_or_else(invalid_transform)?,
-            )?
+            inverse_9_7(&reconstructed, high, parity)
         };
+        #[cfg(verus_keep_ghost)]
+        proof! {if let Err(error)=transformed{crate::specs::part2_mct_line_child_error(source@,high_lengths@,low_first@,reversible,low_length,count,
+        (high_lengths.len()-level_index-1) as nat,previous,high_end,high@,parity,error);}}
+        reconstructed = transformed?;
         cursor = high_end;
     }
     if cursor != count || reconstructed.len() != count {
@@ -348,7 +352,9 @@ fn reconstruct_mct_wavelet(
 }
 
 #[cfg_attr(verus_keep_ghost, verus_spec(result =>
-    ensures (result, transform_components_view(final(components)), final(source)@) == crate::specs::part2_mct_wavelet_pixel(
+    ensures crate::specs::part2_mct_line_pixel_result(transform_components_view(old(components)),mct_wavelet_preparation_view(prepared),sample_index,
+        (result,transform_components_view(final(components)),final(source)@)),
+        result!=Err(DecodeError::AllocationFailed) ==> (result, transform_components_view(final(components)), final(source)@) == crate::specs::part2_mct_wavelet_pixel(
         transform_components_view(old(components)), mct_wavelet_preparation_view(prepared), sample_index),
     transform_components_borrow_frame(old(components)@, final(components)@),
 ))]
@@ -358,6 +364,10 @@ fn apply_mct_wavelet_pixel(
     sample_index: usize,
     source: &mut Vec<i64>,
 ) -> Result<(), DecodeError> {
+    #[cfg(verus_keep_ghost)]
+    proof_decl! {let ghost before=transform_components_view(components);}
+    #[cfg(verus_keep_ghost)]
+    proof! {crate::specs::part2_mct_line_pixel_normal(before,mct_wavelet_preparation_view(prepared),sample_index);}
     let reversible = matches!(prepared.wavelet.transform(), MctWaveletType::Reversible5x3);
     begin_mct_wavelet_pixel(
         source,
@@ -368,14 +378,17 @@ fn apply_mct_wavelet_pixel(
         prepared.count,
         reversible,
     )?;
-    let reconstructed = reconstruct_mct_wavelet(
+    let reconstructed_result = reconstruct_mct_wavelet(
         source,
         &prepared.high_lengths,
         &prepared.low_first,
         reversible,
         prepared.low_length,
         prepared.count,
-    )?;
+    );
+    #[cfg(verus_keep_ghost)]
+    proof! {if let Err(error)=reconstructed_result{crate::specs::part2_mct_line_pixel_child_error(before,mct_wavelet_preparation_view(prepared),sample_index,source@,error);}}
+    let reconstructed = reconstructed_result?;
     store_mct_output_rows(
         components,
         &prepared.destination_indexes,
@@ -386,7 +399,9 @@ fn apply_mct_wavelet_pixel(
 }
 
 #[cfg_attr(verus_keep_ghost, verus_spec(result =>
-    ensures (result, transform_components_view(final(components)), *final(work)) == crate::specs::part2_mct_wavelet(
+    ensures crate::specs::part2_mct_line_wavelet_result(transform_components_view(old(components)),crate::codestream::mct_collection_view(collection),*old(work),
+        crate::limits::resource_work_limit(limits),crate::limits::resource_decoded_bytes_limit(limits),(result,transform_components_view(final(components)),*final(work))),
+        result!=Err(DecodeError::AllocationFailed) ==> (result, transform_components_view(final(components)), *final(work)) == crate::specs::part2_mct_wavelet(
         transform_components_view(old(components)), crate::codestream::mct_collection_view(collection), *old(work),
         crate::limits::resource_work_limit(limits), crate::limits::resource_decoded_bytes_limit(limits)),
     transform_components_borrow_frame(old(components)@, final(components)@),
@@ -405,6 +420,8 @@ pub(super) fn apply_mct_wavelet(
     }
     #[cfg(verus_keep_ghost)]
     proof! { crate::codestream::mct_fixed_precision_is_q32(); }
+    #[cfg(verus_keep_ghost)]
+    proof! {crate::specs::part2_mct_line_wavelet_normal(before,style,initial_work,crate::limits::resource_work_limit(limits),crate::limits::resource_decoded_bytes_limit(limits));}
     let prepared = prepare_mct_wavelet(components, collection, limits, work)?;
     #[cfg(verus_keep_ghost)]
     proof_decl! { let ghost plan = mct_wavelet_preparation_view(&prepared); }
@@ -419,6 +436,8 @@ pub(super) fn apply_mct_wavelet(
         style == crate::codestream::mct_collection_view(collection),
         plan == mct_wavelet_preparation_view(&prepared),
         initial_work == *old(work),
+        crate::specs::part2_mct_line_wavelet_result(before,style,initial_work,crate::limits::resource_work_limit(limits),crate::limits::resource_decoded_bytes_limit(limits),
+            crate::specs::part2_mct_wavelet(before,style,initial_work,crate::limits::resource_work_limit(limits),crate::limits::resource_decoded_bytes_limit(limits))),
         (Ok(plan), *work) == crate::specs::part2_mct_prepare_wavelet(
             before, style, initial_work, crate::limits::resource_work_limit(limits), crate::limits::resource_decoded_bytes_limit(limits)),
         crate::specs::part2_mct_wavelet_pixels(before, plan, sample_index as nat) == (Ok(()), transform_components_view(components)),
@@ -430,7 +449,13 @@ pub(super) fn apply_mct_wavelet(
             crate::proofs::production_impl::production_mct_wavelet_pixels_step(before, plan, sample_index as nat);
             crate::proofs::production_impl::production_mct_wavelet_pixels_error(before, plan, sample_index as nat + 1, plan.5 as nat);
         }
-        apply_mct_wavelet_pixel(components, &prepared, sample_index, &mut source)?;
+        #[cfg(verus_keep_ghost)]
+        proof_decl! {let ghost before_pixel=transform_components_view(components);}
+        let pixel = apply_mct_wavelet_pixel(components, &prepared, sample_index, &mut source);
+        #[cfg(verus_keep_ghost)]
+        proof! {if let Err(error)=pixel{crate::specs::part2_mct_line_wavelet_pixel_error(before,style,initial_work,crate::limits::resource_work_limit(limits),crate::limits::resource_decoded_bytes_limit(limits),
+        plan,*work,sample_index as nat,before_pixel,(pixel,transform_components_view(components),source@));}}
+        pixel?;
         sample_index = sample_index
             .checked_add(1)
             .ok_or_else(arithmetic_overflow)?;
@@ -449,6 +474,30 @@ pub(super) fn apply_mct_wavelet(
 #[cfg(test)]
 mod singleton_tests {
     use super::reconstruct_mct_wavelet;
+
+    #[test]
+    fn wavelet_line_storage_actual_spectral_prior_owner_and_exact_refusal_restore() {
+        for reversible in [false, true] {
+            let source = [7, 3, -2, 5];
+            let expected =
+                reconstruct_mct_wavelet(&source, &[2], &[true], reversible, 2, 4).unwrap();
+            assert_eq!(
+                crate::allocation::with_refusal(0, || reconstruct_mct_wavelet(
+                    &source,
+                    &[2],
+                    &[true],
+                    reversible,
+                    2,
+                    4
+                )),
+                Err(crate::DecodeError::AllocationFailed)
+            );
+            assert_eq!(
+                reconstruct_mct_wavelet(&source, &[2], &[true], reversible, 2, 4).unwrap(),
+                expected
+            );
+        }
+    }
 
     #[test]
     fn sarah_engineering_nine_seven_spectral_consumer_retains_raw_operator_units() {

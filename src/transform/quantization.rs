@@ -7,7 +7,9 @@ use crate::{DecodeError, ResourceLimits};
 use vstd::prelude::*;
 
 #[cfg_attr(verus_keep_ghost, verus_spec(result =>
-    ensures reconstruction_outcome(result) == crate::specs::part1_inverse_integer_quantization(
+    ensures crate::specs::part2_integer_quantization_result(coefficients@,step.exponent,step.mantissa,dynamic_range,reversible,roi_shift,
+        crate::limits::resource_decoded_bytes_limit(limits),reconstruction_outcome(result)),
+        reconstruction_outcome(result)!=Err(DecodeError::AllocationFailed) ==> reconstruction_outcome(result) == crate::specs::part1_inverse_integer_quantization(
         coefficients@, step.exponent, step.mantissa, dynamic_range, reversible, roi_shift,
         crate::limits::resource_decoded_bytes_limit(limits),
     ),
@@ -31,7 +33,8 @@ pub fn inverse_quantize(
 }
 
 #[cfg_attr(verus_keep_ghost, verus_spec(result =>
-    ensures reconstruction_outcome(result) == crate::specs::part1_inverse_integer_quantization(
+    ensures crate::specs::part2_integer_quantization_result(coefficients@,step.exponent,step.mantissa,dynamic_range,reversible,roi_shift,maximum_decoded_bytes,reconstruction_outcome(result)),
+        reconstruction_outcome(result)!=Err(DecodeError::AllocationFailed) ==> reconstruction_outcome(result) == crate::specs::part1_inverse_integer_quantization(
         coefficients@, step.exponent, step.mantissa, dynamic_range, reversible, roi_shift, maximum_decoded_bytes,
     ),
 ))]
@@ -43,7 +46,21 @@ fn inverse_quantize_values(
     roi_shift: u8,
     maximum_decoded_bytes: u64,
 ) -> Result<ReconstructedPlane, DecodeError> {
-    let mut wide = Vec::with_capacity(coefficients.len());
+    #[cfg(verus_keep_ghost)]
+    proof! {crate::specs::part2_integer_quantization_normal(coefficients@,step.exponent,step.mantissa,dynamic_range,reversible,roi_shift,maximum_decoded_bytes);}
+    let count = coefficients.len();
+    let allocated = if count == 0 {
+        Ok(Vec::new())
+    } else {
+        crate::allocation::empty_with_capacity(count)
+    };
+    #[cfg(verus_keep_ghost)]
+    proof! {
+        let unit=match allocated{Err(error)=>Err(error),Ok(_)=>Ok(())};
+        crate::specs::part2_quantization_capacity_observed(crate::specs::Part2QuantizationOwner::Wide,count as nat,unit);
+        if let Err(error)=allocated{crate::specs::part2_integer_quantization_refused(coefficients@,step.exponent,step.mantissa,dynamic_range,reversible,roi_shift,maximum_decoded_bytes,error);}
+    }
+    let mut wide = allocated?;
     let mut index = 0;
     #[cfg_attr(
         verus_keep_ghost,
@@ -53,6 +70,8 @@ fn inverse_quantize_values(
             forall |i: int| 0 <= i < index ==> coefficients[i] != i64::MIN,
             forall |i: int| 0 <= i < index ==>
                 quantized_coefficients_view(wide@)[i] == crate::specs::part1_integer_coefficients(coefficients@)[i],
+            crate::specs::part2_integer_quantization_result(coefficients@,step.exponent,step.mantissa,dynamic_range,reversible,roi_shift,maximum_decoded_bytes,
+                crate::specs::part1_inverse_integer_quantization(coefficients@,step.exponent,step.mantissa,dynamic_range,reversible,roi_shift,maximum_decoded_bytes)),
             decreases coefficients.len() - index,
         )
     )]
@@ -76,18 +95,23 @@ fn inverse_quantize_values(
     proof! {
         assert(quantized_coefficients_view(wide@) =~= crate::specs::part1_integer_coefficients(coefficients@));
     }
-    inverse_quantize_plane(
+    let quantized = inverse_quantize_plane(
         &wide,
         step,
         dynamic_range,
         reversible,
         roi_shift,
         maximum_decoded_bytes,
-    )
+    );
+    #[cfg(verus_keep_ghost)]
+    proof! {crate::specs::part2_integer_quantization_child_observed(coefficients@,step.exponent,step.mantissa,dynamic_range,reversible,roi_shift,maximum_decoded_bytes,reconstruction_outcome(quantized));}
+    quantized
 }
 
 #[cfg_attr(verus_keep_ghost, verus_spec(result =>
-    ensures reconstruction_outcome(result) == crate::specs::part1_inverse_quantization(
+    ensures crate::specs::part2_quantization_plane_result(quantized_coefficients_view(coefficients@),step.exponent,step.mantissa,dynamic_range,reversible,roi_shift,
+        crate::limits::resource_decoded_bytes_limit(limits),reconstruction_outcome(result)),
+        reconstruction_outcome(result)!=Err(DecodeError::AllocationFailed) ==> reconstruction_outcome(result) == crate::specs::part1_inverse_quantization(
         quantized_coefficients_view(coefficients@), step.exponent, step.mantissa,
         dynamic_range, reversible, roi_shift, crate::limits::resource_decoded_bytes_limit(limits),
     ),
@@ -111,7 +135,8 @@ pub(crate) fn inverse_quantize_magnitudes(
 }
 
 #[cfg_attr(verus_keep_ghost, verus_spec(result =>
-    ensures reconstruction_outcome(result) == crate::specs::part1_inverse_quantization(
+    ensures crate::specs::part2_quantization_plane_result(quantized_coefficients_view(coefficients@),step.exponent,step.mantissa,dynamic_range,reversible,roi_shift,maximum_decoded_bytes,reconstruction_outcome(result)),
+        reconstruction_outcome(result)!=Err(DecodeError::AllocationFailed) ==> reconstruction_outcome(result) == crate::specs::part1_inverse_quantization(
         quantized_coefficients_view(coefficients@), step.exponent, step.mantissa,
         dynamic_range, reversible, roi_shift, maximum_decoded_bytes,
     ),
@@ -124,6 +149,8 @@ pub(super) fn inverse_quantize_plane(
     roi_shift: u8,
     maximum_decoded_bytes: u64,
 ) -> Result<ReconstructedPlane, DecodeError> {
+    #[cfg(verus_keep_ghost)]
+    proof! {crate::specs::part2_quantization_plane_normal(quantized_coefficients_view(coefficients@),step.exponent,step.mantissa,dynamic_range,reversible,roi_shift,maximum_decoded_bytes);}
     if dynamic_range == 0 || dynamic_range > 38 || step.mantissa > 0x07ff {
         return Err(invalid_transform());
     }
@@ -136,7 +163,19 @@ pub(super) fn inverse_quantize_plane(
     } else {
         quantization_step_q16(step, dynamic_range)?
     };
-    let mut samples = Vec::with_capacity(coefficients.len());
+    let count = coefficients.len();
+    let allocated = if count == 0 {
+        Ok(Vec::new())
+    } else {
+        crate::allocation::empty_with_capacity(count)
+    };
+    #[cfg(verus_keep_ghost)]
+    proof! {
+        let unit=match allocated{Err(error)=>Err(error),Ok(_)=>Ok(())};
+        crate::specs::part2_quantization_capacity_observed(crate::specs::Part2QuantizationOwner::Samples,count as nat,unit);
+        if let Err(error)=allocated{crate::specs::part2_quantization_plane_refused(quantized_coefficients_view(coefficients@),step.exponent,step.mantissa,dynamic_range,reversible,roi_shift,maximum_decoded_bytes,error);}
+    }
+    let mut samples = allocated?;
     let mut index = 0;
     #[cfg_attr(
         verus_keep_ghost,
@@ -153,6 +192,8 @@ pub(super) fn inverse_quantize_plane(
             crate::specs::part1_quantized_prefix(
                 quantized_coefficients_view(coefficients@), roi_shift, step_size, reversible, index as nat,
             ) == Ok(samples@),
+            crate::specs::part2_quantization_plane_result(quantized_coefficients_view(coefficients@),step.exponent,step.mantissa,dynamic_range,reversible,roi_shift,maximum_decoded_bytes,
+                crate::specs::part1_inverse_quantization(quantized_coefficients_view(coefficients@),step.exponent,step.mantissa,dynamic_range,reversible,roi_shift,maximum_decoded_bytes)),
             decreases coefficients.len() - index,
         )
     )]

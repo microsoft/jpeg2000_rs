@@ -328,7 +328,7 @@ pub(super) fn execute_packet_body_contributions(
             crate::tier1::tier1_decoder_state(old(decoder)), code_block_contribution_view(contribution), body@,
             crate::limits::resource_code_block_pass_limit(limits), crate::limits::resource_code_block_byte_limit(limits),
             crate::limits::resource_work_limit(limits)),
-        !code_block_contribution_view(contribution).high_throughput ==>
+        (result!=Err(DecodeError::AllocationFailed) && !code_block_contribution_view(contribution).high_throughput) ==>
         (result, crate::tier1::tier1_decoder_state(final(decoder))) == crate::specs::part1_legacy_code_block_transaction(
             crate::tier1::tier1_decoder_state(old(decoder)), code_block_contribution_view(contribution), body@,
             crate::limits::resource_code_block_pass_limit(limits), crate::limits::resource_code_block_byte_limit(limits),
@@ -345,7 +345,11 @@ pub fn decode_code_block_contribution_body(
     #[cfg(verus_keep_ghost)]
     proof! {crate::specs::part2_plane_body_transaction_normal(before,code_block_contribution_view(contribution),body@,crate::limits::resource_code_block_pass_limit(limits),
     crate::limits::resource_code_block_byte_limit(limits),crate::limits::resource_input_byte_limit(limits),crate::limits::resource_work_limit(limits));}
-    let mut staged = decoder.clone();
+    let duplicated = decoder.try_duplicate(crate::tier1::HtRefinementCopyRole::PacketStaging);
+    #[cfg(verus_keep_ghost)]
+    proof! {if let Err(error)=duplicated{crate::specs::part2_plane_body_duplicate_error(before,code_block_contribution_view(contribution),body@,crate::limits::resource_code_block_pass_limit(limits),
+    crate::limits::resource_code_block_byte_limit(limits),crate::limits::resource_input_byte_limit(limits),crate::limits::resource_work_limit(limits),error);}}
+    let mut staged = duplicated?;
     let decoded_result =
         decode_code_block_contribution_body_staged(&mut staged, contribution, body, limits);
     #[cfg(verus_keep_ghost)]
@@ -392,7 +396,7 @@ pub(super) fn prepare_code_block_contribution_body(
             crate::tier1::tier1_decoder_state(old(decoder)), code_block_contribution_view(contribution), body@,
             crate::limits::resource_code_block_pass_limit(limits), crate::limits::resource_code_block_byte_limit(limits),
             crate::limits::resource_work_limit(limits)),
-        !code_block_contribution_view(contribution).high_throughput ==>
+        (result!=Err(DecodeError::AllocationFailed) && !code_block_contribution_view(contribution).high_throughput) ==>
         (result, crate::tier1::tier1_decoder_state(final(decoder))) == crate::specs::part1_legacy_code_block_staged(
             crate::tier1::tier1_decoder_state(old(decoder)), code_block_contribution_view(contribution), body@,
             crate::limits::resource_code_block_pass_limit(limits), crate::limits::resource_code_block_byte_limit(limits),
@@ -419,11 +423,17 @@ pub(super) fn decode_code_block_contribution_body_staged(
         crate::limits::resource_code_block_byte_limit(limits),crate::limits::resource_input_byte_limit(limits),crate::limits::resource_work_limit(limits),(decoded,crate::tier1::tier1_decoder_state(decoder)));}
         return decoded;
     }
-    decode_legacy_code_block_contribution_body(decoder, contribution, body, limits)
+    let decoded = decode_legacy_code_block_contribution_body(decoder, contribution, body, limits);
+    #[cfg(verus_keep_ghost)]
+    proof! {crate::specs::part2_plane_body_staged_legacy_observed(before,code_block_contribution_view(contribution),body@,crate::limits::resource_code_block_pass_limit(limits),
+    crate::limits::resource_code_block_byte_limit(limits),crate::limits::resource_input_byte_limit(limits),crate::limits::resource_work_limit(limits),(decoded,crate::tier1::tier1_decoder_state(decoder)));}
+    decoded
 }
 
 #[cfg_attr(verus_keep_ghost, verus_spec(result =>
-    ensures (result, crate::tier1::tier1_decoder_state(final(decoder))) == crate::specs::part1_legacy_code_block_body(
+    ensures crate::specs::part2_legacy_packet_body_result(crate::tier1::tier1_decoder_state(old(decoder)),code_block_contribution_view(contribution),body@,
+        crate::tier1::legacy_storage_limits(limits),(result,crate::tier1::tier1_decoder_state(final(decoder)))),
+        result!=Err(DecodeError::AllocationFailed) ==> (result, crate::tier1::tier1_decoder_state(final(decoder))) == crate::specs::part1_legacy_code_block_body(
         crate::tier1::tier1_decoder_state(old(decoder)), code_block_contribution_view(contribution), body@,
         crate::limits::resource_code_block_pass_limit(limits), crate::limits::resource_code_block_byte_limit(limits),
         crate::limits::resource_input_byte_limit(limits), crate::limits::resource_work_limit(limits)),
@@ -443,15 +453,26 @@ pub(super) fn decode_legacy_code_block_contribution_body(
     #[cfg(verus_keep_ghost)]
     proof_decl! {
         let ghost initial = legacy_packet_progress_view(decoder, 0, 0, 0);
+        let ghost caps=crate::tier1::legacy_storage_limits(limits);
+        let ghost root=|calls|crate::specs::part2_legacy_packet_body_run(initial.decoder,code_block_contribution_view(contribution),body@,caps,calls);
+        let ghost mut prefix=Seq::<crate::specs::Part2Tier1StorageEvent>::empty();
         let ghost goal = crate::specs::part1_legacy_code_block_run(initial, code_block_contribution_view(contribution), body@,
             segment_count as nat, crate::limits::resource_code_block_pass_limit(limits),
             crate::limits::resource_code_block_byte_limit(limits), crate::limits::resource_input_byte_limit(limits),
             crate::limits::resource_work_limit(limits));
     }
+    #[cfg(verus_keep_ghost)]
+    proof! {crate::specs::part2_legacy_packet_body_start(initial.decoder,code_block_contribution_view(contribution),body@,caps);}
     #[cfg_attr(
         verus_keep_ghost,
         verus_spec(
             invariant segment_index <= segment_count,
+                caps==crate::tier1::legacy_storage_limits(limits),
+                forall|calls:Seq<crate::specs::Part2Tier1StorageEvent>| #[trigger] root(calls)==crate::specs::part2_legacy_packet_body_run(initial.decoder,code_block_contribution_view(contribution),body@,caps,calls),
+                crate::specs::part2_tier1_phase(root,prefix,|calls|crate::specs::part2_tier1_storage_bind(
+                    crate::specs::part2_legacy_packet_fold(legacy_packet_progress_view(decoder,segment_index,offset,decoded_passes),code_block_contribution_view(contribution),body@,
+                        (segment_count-segment_index) as nat,caps,calls),
+                    |run:crate::specs::Part1LegacyPacketEffect,rest|Some((Ok(crate::specs::part1_legacy_code_block_finish(run,code_block_contribution_view(contribution),body@)),rest)))),
                 segment_count == code_block_contribution_view(contribution).segment_count,
                 initial == legacy_packet_progress_view(old(decoder), 0, 0, 0),
                 goal == crate::specs::part1_legacy_code_block_run(initial, code_block_contribution_view(contribution), body@,
@@ -472,7 +493,16 @@ pub(super) fn decode_legacy_code_block_contribution_body(
             reveal(crate::specs::part1_legacy_code_block_body);
             reveal(crate::specs::part1_legacy_code_block_run);
         }
-        decode_legacy_code_block_segment(
+        #[cfg(verus_keep_ghost)]
+        proof_decl! {let ghost before_step=legacy_packet_progress_view(decoder,segment_index,offset,decoded_passes);let ghost remaining=(segment_count-segment_index) as nat;}
+        #[cfg(verus_keep_ghost)]
+        proof! {
+            let source_root=|calls|crate::specs::part2_legacy_packet_body_run(initial.decoder,code_block_contribution_view(contribution),body@,caps,calls);
+            crate::specs::part2_tier1_phase_eta(root,source_root,prefix,
+                |calls|crate::specs::part2_tier1_storage_bind(crate::specs::part2_legacy_packet_fold(before_step,code_block_contribution_view(contribution),body@,remaining,caps,calls),
+                    |run:crate::specs::Part1LegacyPacketEffect,rest|Some((Ok(crate::specs::part1_legacy_code_block_finish(run,code_block_contribution_view(contribution),body@)),rest))));
+        }
+        let step = decode_legacy_code_block_segment(
             decoder,
             contribution,
             body,
@@ -480,10 +510,27 @@ pub(super) fn decode_legacy_code_block_contribution_body(
             &mut segment_index,
             &mut offset,
             &mut decoded_passes,
-        )?;
+        );
+        #[cfg(verus_keep_ghost)]
+        proof! {
+            let effect=(step,legacy_packet_progress_view(decoder,segment_index,offset,decoded_passes));
+            assert(crate::specs::part2_legacy_packet_step_result(before_step,code_block_contribution_view(contribution),body@,caps,effect));
+            prefix=crate::specs::part2_legacy_packet_body_step(initial.decoder,code_block_contribution_view(contribution),body@,caps,before_step,remaining,prefix,effect);
+            if step.is_err(){crate::specs::part2_legacy_packet_body_finish(initial.decoder,code_block_contribution_view(contribution),body@,caps,prefix,effect);}
+            else{
+                let source_root=|calls|crate::specs::part2_legacy_packet_body_run(initial.decoder,code_block_contribution_view(contribution),body@,caps,calls);
+                crate::specs::part2_tier1_phase_eta(source_root,root,prefix,
+                    |calls|crate::specs::part2_tier1_storage_bind(crate::specs::part2_legacy_packet_fold(effect.1,code_block_contribution_view(contribution),body@,(remaining-1) as nat,caps,calls),
+                        |run:crate::specs::Part1LegacyPacketEffect,rest|Some((Ok(crate::specs::part1_legacy_code_block_finish(run,code_block_contribution_view(contribution),body@)),rest))));
+            }
+        }
+        step?;
     }
     #[cfg(verus_keep_ghost)]
-    proof! { reveal(crate::specs::part1_legacy_code_block_run); }
+    proof! {
+        reveal(crate::specs::part1_legacy_code_block_run);
+        crate::specs::part2_legacy_packet_body_end(initial.decoder,code_block_contribution_view(contribution),body@,caps,legacy_packet_progress_view(decoder,segment_index,offset,decoded_passes),prefix);
+    }
     if !crate::refinement::exact_consumption(offset, body.len())
         || decoded_passes != u32::from(contribution.new_passes)
     {
@@ -750,7 +797,10 @@ fn decode_ht_segment_route(
 }
 
 #[cfg_attr(verus_keep_ghost, verus_spec(result =>
-    ensures (result, legacy_packet_progress_view(final(decoder), *final(segment_index), *final(offset), *final(decoded_passes)))
+    ensures crate::specs::part2_legacy_packet_step_result(legacy_packet_progress_view(old(decoder),*old(segment_index),*old(offset),*old(decoded_passes)),
+        code_block_contribution_view(contribution),body@,crate::tier1::legacy_storage_limits(limits),
+        (result,legacy_packet_progress_view(final(decoder),*final(segment_index),*final(offset),*final(decoded_passes)))),
+        result!=Err(DecodeError::AllocationFailed) ==> (result, legacy_packet_progress_view(final(decoder), *final(segment_index), *final(offset), *final(decoded_passes)))
         == crate::specs::part1_legacy_code_block_segment(
             legacy_packet_progress_view(old(decoder), *old(segment_index), *old(offset), *old(decoded_passes)),
             code_block_contribution_view(contribution), body@,
@@ -770,6 +820,10 @@ pub(super) fn decode_legacy_code_block_segment(
 ) -> Result<(), DecodeError> {
     #[cfg(verus_keep_ghost)]
     proof! { reveal(crate::specs::part1_legacy_code_block_segment); }
+    #[cfg(verus_keep_ghost)]
+    proof_decl! {let ghost before=legacy_packet_progress_view(decoder,*segment_index,*offset,*decoded_passes);}
+    #[cfg(verus_keep_ghost)]
+    proof! {crate::specs::part2_legacy_packet_step_normal(before,code_block_contribution_view(contribution),body@,crate::tier1::legacy_storage_limits(limits));}
     let segment = contribution.segment(*segment_index)?;
     let segment_length = match usize::try_from(segment.data_length) {
         Ok(length) => length,
@@ -781,7 +835,11 @@ pub(super) fn decode_legacy_code_block_segment(
     if end > body.len() {
         return Err(packet_invalid_code_block());
     }
-    decoder.decode_legacy_contribution(&body[*offset..end], segment.passes, limits)?;
+    let decoded = decoder.decode_legacy_contribution(&body[*offset..end], segment.passes, limits);
+    #[cfg(verus_keep_ghost)]
+    proof! {crate::specs::part2_legacy_packet_step_observed(before,code_block_contribution_view(contribution),body@,crate::tier1::legacy_storage_limits(limits),
+    segment,end,(decoded,crate::tier1::tier1_decoder_state(decoder)));}
+    decoded?;
     *decoded_passes = decoded_passes
         .checked_add(u32::from(segment.passes))
         .ok_or_else(packet_arithmetic_overflow)?;

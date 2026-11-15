@@ -36,6 +36,76 @@ impl Clone for Tier1BitplaneState {
     }
 }
 
+impl Tier1BitplaneState {
+    #[cfg_attr(verus_keep_ghost, verus_spec(result =>
+        ensures crate::specs::part2_nested_bitplane_result(legacy_bitplane_view(self),_role,_legacy,legacy_bitplane_outcome(result)),
+            match result{Err(error)=>error==DecodeError::AllocationFailed,Ok(value)=>legacy_bitplane_view(&value)==legacy_bitplane_view(self)},
+    ))]
+    pub(super) fn try_duplicate(
+        &self,
+        _role: super::HtRefinementCopyRole,
+        _legacy: bool,
+    ) -> Result<Self, DecodeError> {
+        #[cfg(verus_keep_ghost)]
+        proof_decl! {let ghost before=legacy_bitplane_view(self);}
+        Ok(Self {
+            width: self.width,
+            height: self.height,
+            bitplane: self.bitplane,
+            significant_before: {
+                let copied = crate::allocation::copy_values(&self.significant_before);
+                #[cfg(verus_keep_ghost)]
+                proof! {
+                    crate::specs::part2_nested_owner_observed(crate::specs::part2_nested_flags(before,_role,_legacy,false),
+                        match copied{Err(error)=>Err(error),Ok(_)=>Ok(())});
+                    if let Err(error)=copied{crate::specs::part2_nested_bitplane_first_error(before,_role,_legacy,error);}
+                }
+                copied?
+            },
+            significance_visited: {
+                let copied = crate::allocation::copy_values(&self.significance_visited);
+                #[cfg(verus_keep_ghost)]
+                proof! {
+                    let result=match copied{Err(error)=>Err(error),Ok(_)=>Ok(())};
+                    crate::specs::part2_nested_owner_observed(crate::specs::part2_nested_flags(before,_role,_legacy,true),result);
+                    crate::specs::part2_nested_bitplane_observed(before,_role,_legacy,result);
+                }
+                copied?
+            },
+            significance_propagation_complete: self.significance_propagation_complete,
+            magnitude_refinement_complete: self.magnitude_refinement_complete,
+            cleanup_complete: self.cleanup_complete,
+        })
+    }
+}
+
+#[cfg_attr(verus_keep_ghost, verus_spec(result =>
+    ensures crate::specs::part2_nested_bitplane_option_result(super::legacy_bitplane_option_view(source),role,legacy,super::legacy_bitplane_option_outcome(result)),
+        match result{Err(error)=>error==DecodeError::AllocationFailed,Ok(value)=>super::legacy_bitplane_option_view(&value)==super::legacy_bitplane_option_view(source)},
+))]
+pub(super) fn try_duplicate_bitplane(
+    source: &Option<Tier1BitplaneState>,
+    role: super::HtRefinementCopyRole,
+    legacy: bool,
+) -> Result<Option<Tier1BitplaneState>, DecodeError> {
+    match source.as_ref() {
+        None => {
+            #[cfg(verus_keep_ghost)]
+            proof! {crate::specs::part2_nested_option_none(|value,rest|crate::specs::part2_nested_bitplane_run(value,role,legacy,rest));}
+            Ok(None)
+        }
+        Some(value) => {
+            let copied = value.try_duplicate(role, legacy);
+            #[cfg(verus_keep_ghost)]
+            proof! {
+                crate::specs::part2_nested_bitplane_frames(legacy_bitplane_view(value),role,legacy,legacy_bitplane_outcome(copied));
+                crate::specs::part2_nested_option_observed(legacy_bitplane_view(value),|source,rest|crate::specs::part2_nested_bitplane_run(source,role,legacy,rest),legacy_bitplane_outcome(copied));
+            }
+            Ok(Some(copied?))
+        }
+    }
+}
+
 impl Tier1PassStatistics {
     #[cfg_attr(verus_keep_ghost, verus_spec(result =>
         ensures (result, *final(self)) == crate::specs::tier1_statistics_increment(*old(self), 0, count),
@@ -114,6 +184,7 @@ impl Tier1PassStatistics {
     }
 }
 
+#[cfg_attr(verus_keep_ghost, verus_verify)]
 impl Tier1BitplaneState {
     pub fn new(plane: &CodeBlockPlane, bitplane_mask: u64) -> Result<Self, DecodeError> {
         if !is_bitplane_mask(bitplane_mask) {
@@ -125,9 +196,19 @@ impl Tier1BitplaneState {
     }
 
     pub fn new_at_bitplane(plane: &CodeBlockPlane, bitplane: u16) -> Result<Self, DecodeError> {
+        #[cfg(verus_keep_ghost)]
+        vstd::prelude::ensures(|result: Result<Self, DecodeError>| {
+            crate::specs::part2_bitplane_initial_result(
+                code_block_plane_view(plane),
+                bitplane,
+                legacy_bitplane_outcome(result),
+            )
+        });
         legacy_bitplane_from_plane(plane, bitplane)
     }
+}
 
+impl Tier1BitplaneState {
     pub const fn bitplane_mask(&self) -> u64 {
         if self.bitplane < 64 {
             1_u64 << self.bitplane
@@ -166,21 +247,40 @@ impl Tier1BitplaneState {
 }
 
 #[cfg_attr(verus_keep_ghost, verus_spec(result =>
-        ensures legacy_bitplane_outcome(result) == crate::specs::part1_legacy_bitplane_initial(
+        ensures crate::specs::part2_bitplane_initial_result(code_block_plane_view(plane),bitplane,legacy_bitplane_outcome(result)),
+            legacy_bitplane_outcome(result)!=Err(DecodeError::AllocationFailed) ==> legacy_bitplane_outcome(result) == crate::specs::part1_legacy_bitplane_initial(
             code_block_plane_view(plane), bitplane),
     ))]
 pub(super) fn legacy_bitplane_from_plane(
     plane: &CodeBlockPlane,
     bitplane: u16,
 ) -> Result<Tier1BitplaneState, DecodeError> {
+    #[cfg(verus_keep_ghost)]
+    proof_decl! {let ghost before=code_block_plane_view(plane);}
+    #[cfg(verus_keep_ghost)]
+    proof! {crate::specs::part2_bitplane_initial_normal(before,bitplane);}
     if bitplane >= MAX_TIER1_BITPLANES {
         return Err(invalid_code_block());
     }
-    let mut significant_before = Vec::with_capacity(plane.coefficients.len());
+    let count = plane.coefficients.len();
+    let reserved = if count == 0 {
+        Ok(Vec::new())
+    } else {
+        crate::allocation::empty_with_capacity(count)
+    };
+    #[cfg(verus_keep_ghost)]
+    proof! {
+        let result=match reserved{Err(error)=>Err(error),Ok(_)=>Ok(())};
+        crate::specs::part2_bitplane_capacity_observed(before,bitplane,false,None,result);
+        if let Err(error)=reserved{crate::specs::part2_bitplane_initial_first_error(before,bitplane,error);}
+    }
+    let mut significant_before = reserved?;
     let mut index = 0;
     #[cfg_attr(verus_keep_ghost, verus_spec(
             invariant index <= plane.coefficients.len(), significant_before.len() == index,
                 bitplane < MAX_TIER1_BITPLANES,
+                crate::specs::part2_bitplane_capacity_result(before,bitplane,false,None,Ok(())),
+                before==code_block_plane_view(plane),
                 forall |i: int| 0 <= i < index ==> significant_before@[i] == plane.coefficients@[i].significant,
             decreases plane.coefficients.len() - index,
         ))]
@@ -193,7 +293,14 @@ pub(super) fn legacy_bitplane_from_plane(
         assert(significant_before@ =~= code_block_plane_view(plane).coefficients.map_values(
             |c: crate::specs::Tier1RawCoefficient| c.significant));
     }
-    let significance_visited = vec![false; significant_before.len()];
+    let filled = crate::allocation::filled_values(false, significant_before.len());
+    #[cfg(verus_keep_ghost)]
+    proof! {
+        let result=match filled{Err(error)=>Err(error),Ok(_)=>Ok(())};
+        crate::specs::part2_bitplane_capacity_observed(before,bitplane,true,Some(significant_before@),result);
+        crate::specs::part2_bitplane_initial_observed(before,bitplane,result);
+    }
+    let significance_visited = filled?;
     #[cfg(verus_keep_ghost)]
     proof! {
         assert(significance_visited@ =~= Seq::new(code_block_plane_view(plane).coefficients.len(), |i: int| false));

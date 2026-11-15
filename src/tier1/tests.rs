@@ -1,6 +1,827 @@
 use super::*;
 
 #[test]
+fn ht_cleanup_scratch_storage_raw_metadata_rows_first_later_and_exact_output_restore() {
+    let limits = ResourceLimits::default();
+    let mut plane = CodeBlockPlane::new(1, 2).unwrap();
+    plane.coefficients[0] = CoefficientState {
+        magnitude: 17,
+        magnitude_high: [1, 2, 3, 4, 5],
+        significant: true,
+        ..CoefficientState::default()
+    };
+    let before = plane.clone();
+    let cleanup = parse_ht_block_segments(&[0xfa, 2, 0], None, &limits)
+        .unwrap()
+        .cleanup();
+    let metadata = plane_metadata(1, 2, vec![plane_quad(0, 0, 3, 2)]);
+    let expected = reconstruct_ht_cleanup_plane(&plane, cleanup, &metadata, 2, 3, &limits).unwrap();
+    for after in [1, 2] {
+        assert_eq!(
+            crate::allocation::with_refusal(after, || reconstruct_ht_cleanup_plane(
+                &plane, cleanup, &metadata, 2, 3, &limits
+            )),
+            Err(DecodeError::AllocationFailed)
+        );
+        assert_eq!(plane, before);
+        assert_eq!(
+            reconstruct_ht_cleanup_plane(&plane, cleanup, &metadata, 2, 3, &limits).unwrap(),
+            expected
+        );
+    }
+    let malformed = plane_metadata(3, 0, Vec::new());
+    let ordinary = reconstruct_ht_cleanup_plane(&plane, cleanup, &malformed, 255, 0, &limits);
+    assert_ne!(ordinary, Err(DecodeError::AllocationFailed));
+    for after in [1, 2] {
+        assert_eq!(
+            crate::allocation::with_refusal(after, || reconstruct_ht_cleanup_plane(
+                &plane, cleanup, &malformed, 255, 0, &limits
+            )),
+            Err(DecodeError::AllocationFailed)
+        );
+        assert_eq!(
+            reconstruct_ht_cleanup_plane(&plane, cleanup, &malformed, 255, 0, &limits),
+            ordinary
+        );
+    }
+}
+
+#[test]
+fn ht_cleanup_scratch_storage_original_width_plane_admission_and_empty_quad_order() {
+    let limits = ResourceLimits::default();
+    let plane = CodeBlockPlane::new(1, 1).unwrap();
+    let cleanup = parse_ht_block_segments(&[0, 0x63, 0], None, &limits)
+        .unwrap()
+        .cleanup();
+    let empty = plane_metadata(1, 1, Vec::new());
+    let expected = reconstruct_ht_cleanup_plane(&plane, cleanup, &empty, 255, 0, &limits);
+    assert_ne!(expected, Err(DecodeError::AllocationFailed));
+    for after in [1, 2] {
+        assert_eq!(
+            crate::allocation::with_refusal(after, || reconstruct_ht_cleanup_plane(
+                &plane, cleanup, &empty, 255, 0, &limits
+            )),
+            Err(DecodeError::AllocationFailed)
+        );
+        assert_eq!(
+            reconstruct_ht_cleanup_plane(&plane, cleanup, &empty, 255, 0, &limits),
+            expected
+        );
+    }
+    crate::allocation::with_refusal(0, || {
+        assert_eq!(
+            reconstruct_ht_cleanup_plane(
+                &plane,
+                cleanup,
+                &plane_metadata(0, 1, Vec::new()),
+                0,
+                0,
+                &limits
+            ),
+            Err(invalid_code_block())
+        );
+        let raw = CodeBlockPlane {
+            width: 0,
+            height: 1,
+            coefficients: Vec::new(),
+        };
+        assert_eq!(
+            reconstruct_ht_cleanup_plane(&raw, cleanup, &empty, 0, 0, &limits),
+            Err(invalid_code_block())
+        );
+        assert_eq!(
+            crate::allocation::copy_values(&[1_u8]),
+            Err(DecodeError::AllocationFailed)
+        );
+    });
+}
+
+#[test]
+fn ht_cleanup_scratch_storage_real_decoder_refusal_keeps_prior_refinement_before_clear() {
+    let limits = ResourceLimits::default();
+    let mut base = tier1_plane_storage_ht_decoder();
+    base.ht_refinement_data = vec![7];
+    base.ht_refinement_passes = 1;
+    let before = format!("{base:?}");
+    let mut expected = base.clone();
+    let result = expected
+        .decode_high_throughput_segments(&[0, 0x63, 0], 1, Some(&[0]), 1, &limits)
+        .unwrap();
+    for after in [4, 5] {
+        let mut decoder = base.clone();
+        assert_eq!(
+            crate::allocation::with_refusal(after, || decoder.decode_high_throughput_segments(
+                &[0, 0x63, 0],
+                1,
+                Some(&[0]),
+                1,
+                &limits
+            )),
+            Err(DecodeError::AllocationFailed)
+        );
+        assert_eq!(format!("{decoder:?}"), before);
+        assert_eq!(
+            decoder
+                .decode_high_throughput_segments(&[0, 0x63, 0], 1, Some(&[0]), 1, &limits)
+                .unwrap(),
+            result
+        );
+        assert_eq!(format!("{decoder:?}"), format!("{expected:?}"));
+    }
+}
+
+#[test]
+fn bitplane_initial_storage_raw_values_first_later_restore_empty_and_original_admission() {
+    let mut plane = CodeBlockPlane {
+        width: 0,
+        height: u16::MAX,
+        coefficients: vec![
+            CoefficientState {
+                significant: true,
+                negative: true,
+                magnitude: 17,
+                ..CoefficientState::default()
+            },
+            CoefficientState::default(),
+            CoefficientState {
+                significant: true,
+                magnitude_high: [1, 2, 3, 4, 5],
+                ..CoefficientState::default()
+            },
+        ],
+    };
+    let before = plane.clone();
+    for bitplane in [0, MAX_TIER1_BITPLANES - 1] {
+        for after in [0, 1] {
+            assert_eq!(
+                crate::allocation::with_refusal(after, || Tier1BitplaneState::new_at_bitplane(
+                    &plane, bitplane
+                )),
+                Err(DecodeError::AllocationFailed)
+            );
+            assert_eq!(plane, before);
+            let restored = Tier1BitplaneState::new_at_bitplane(&plane, bitplane).unwrap();
+            assert_eq!(
+                (restored.width, restored.height, restored.bitplane),
+                (0, u16::MAX, bitplane)
+            );
+            assert_eq!(restored.significant_before, &[true, false, true]);
+            assert_eq!(restored.significance_visited, &[false, false, false]);
+            assert!(
+                !restored.significance_propagation_complete
+                    && !restored.magnitude_refinement_complete
+                    && !restored.cleanup_complete
+            );
+        }
+    }
+    crate::allocation::with_refusal(0, || {
+        assert_eq!(
+            Tier1BitplaneState::new_at_bitplane(&plane, MAX_TIER1_BITPLANES),
+            Err(invalid_code_block())
+        );
+        assert_eq!(
+            Tier1BitplaneState::new(&plane, 0),
+            Err(invalid_code_block())
+        );
+        assert_eq!(
+            Tier1BitplaneState::new(&plane, 3),
+            Err(invalid_code_block())
+        );
+        assert_eq!(
+            crate::allocation::copy_values(&[1_u8]),
+            Err(DecodeError::AllocationFailed)
+        );
+    });
+    plane.coefficients.clear();
+    crate::allocation::with_refusal(0, || {
+        assert!(
+            Tier1BitplaneState::new_at_bitplane(&plane, MAX_TIER1_BITPLANES - 1)
+                .unwrap()
+                .significant_before
+                .is_empty()
+        );
+        assert!(
+            Tier1BitplaneState::new(&plane, 4)
+                .unwrap()
+                .significance_visited
+                .is_empty()
+        );
+        assert_eq!(
+            crate::allocation::copy_values(&[1_u8]),
+            Err(DecodeError::AllocationFailed)
+        );
+    });
+}
+
+#[test]
+fn bitplane_initial_storage_real_mq_setup_refusal_keeps_prior_reset_and_present_state_skips_requests()
+ {
+    let mut source =
+        Tier1CodeBlockDecoder::new(1, 1, 1, SubbandOrientation::Ll, Tier1CodingStyle::default())
+            .unwrap();
+    source.reset_contexts_before_mq = true;
+    let mut reset = source.clone();
+    reset.reset_contexts_before_mq = false;
+    let limits = ResourceLimits::default();
+    let mut expected = source.clone();
+    let decoded = expected.decode_segment(&[0xff], 1, &limits).unwrap();
+    for after in [0, 1] {
+        let mut current = source.clone();
+        assert_eq!(
+            crate::allocation::with_refusal(after, || current.decode_segment(&[0xff], 1, &limits)),
+            Err(DecodeError::AllocationFailed)
+        );
+        assert_eq!(format!("{current:?}"), format!("{reset:?}"));
+        assert_eq!(
+            current.decode_segment(&[0xff], 1, &limits).unwrap(),
+            decoded
+        );
+        assert_eq!(format!("{current:?}"), format!("{expected:?}"));
+    }
+    let limited = ResourceLimits::default()
+        .with_maximum_input_bytes(0)
+        .unwrap();
+    crate::allocation::with_refusal(0, || {
+        let mut current = source.clone();
+        assert!(matches!(
+            current.decode_segment(&[0xff], 1, &limited),
+            Err(DecodeError::LimitExceeded {
+                resource: Resource::InputBytes,
+                ..
+            })
+        ));
+        assert_eq!(format!("{current:?}"), format!("{source:?}"));
+        assert_eq!(
+            crate::allocation::copy_values(&[1_u8]),
+            Err(DecodeError::AllocationFailed)
+        );
+    });
+    source.bitplane_state =
+        Some(Tier1BitplaneState::new_at_bitplane(&source.plane, source.bitplane).unwrap());
+    let work = ResourceLimits::default()
+        .with_maximum_work_units(0)
+        .unwrap();
+    let mut normal = source.clone();
+    let expected_error = normal.decode_segment(&[0xff], 1, &work);
+    assert!(matches!(
+        expected_error,
+        Err(DecodeError::LimitExceeded {
+            resource: Resource::WorkUnits,
+            ..
+        })
+    ));
+    crate::allocation::with_refusal(0, || {
+        let mut current = source.clone();
+        assert_eq!(current.decode_segment(&[0xff], 1, &work), expected_error);
+        assert_eq!(format!("{current:?}"), format!("{normal:?}"));
+        assert_eq!(
+            crate::allocation::copy_values(&[1_u8]),
+            Err(DecodeError::AllocationFailed)
+        );
+    });
+}
+
+#[test]
+fn legacy_snapshot_storage_raw_snapshot_first_later_empty_and_exact_source_restore() {
+    let mut source = retained_refinement_decoder();
+    source.plane.width = 0;
+    source.bitplane_state = Some(nested_copy_raw_flags());
+    let before = format!("{source:?}");
+    let expected = format!("{:?}", source.legacy_segment_snapshot().unwrap());
+    for after in [0, 1, 2] {
+        assert!(matches!(
+            crate::allocation::with_refusal(after, || source.legacy_segment_snapshot()),
+            Err(DecodeError::AllocationFailed)
+        ));
+        assert_eq!(format!("{source:?}"), before);
+        let copied = source.legacy_segment_snapshot().unwrap();
+        assert_eq!(format!("{copied:?}"), expected);
+        assert_eq!(copied.plane, source.plane);
+        assert_eq!(copied.bitplane_state, source.bitplane_state);
+        assert!(copied.input.is_empty());
+        assert_eq!(copied.passes, 0);
+    }
+    source.plane.coefficients.clear();
+    let flags = source.bitplane_state.as_mut().unwrap();
+    flags.significant_before.clear();
+    flags.significance_visited.clear();
+    crate::allocation::with_refusal(0, || {
+        assert!(source.legacy_segment_snapshot().unwrap().input.is_empty());
+        source.bitplane_state = None;
+        assert!(
+            source
+                .legacy_segment_snapshot()
+                .unwrap()
+                .bitplane_state
+                .is_none()
+        );
+        assert_eq!(
+            crate::allocation::copy_values(&[1_u8]),
+            Err(DecodeError::AllocationFailed)
+        );
+    });
+}
+
+#[test]
+fn legacy_snapshot_storage_restore_refusal_exposes_exact_partial_fields_without_consuming_source() {
+    let mut original = retained_refinement_decoder();
+    original.plane.width = 0;
+    original.bitplane_state = Some(nested_copy_raw_flags());
+    let mut source = original.legacy_segment_snapshot().unwrap();
+    source.next_pass = u32::MAX;
+    source.bitplane = u16::MAX;
+    source.input = vec![7, 8];
+    source.passes = 19;
+    let source_before = format!("{source:?}");
+    let mut target = legacy_raw_pair_decoder(1);
+    target.next_pass = 3;
+    target.bitplane = 1;
+    target.decoded_segments = 29;
+    target.decoded_bytes = 31;
+    target.reset_contexts_before_mq = !source.reset_contexts_before_mq;
+    let before = format!("{target:?}");
+    let mut partial = target.clone();
+    partial.plane = source.plane.clone();
+    partial.next_pass = source.next_pass;
+    partial.bitplane = source.bitplane;
+    let mut complete = target.clone();
+    complete.restore_legacy_segment(&source).unwrap();
+    for after in [0, 1, 2] {
+        let mut current = target.clone();
+        assert_eq!(
+            crate::allocation::with_refusal(after, || current.restore_legacy_segment(&source)),
+            Err(DecodeError::AllocationFailed)
+        );
+        assert_eq!(
+            format!("{current:?}"),
+            if after == 0 {
+                before.clone()
+            } else {
+                format!("{partial:?}")
+            }
+        );
+        assert_eq!(format!("{source:?}"), source_before);
+        current.restore_legacy_segment(&source).unwrap();
+        assert_eq!(format!("{current:?}"), format!("{complete:?}"));
+    }
+    source.plane.coefficients.clear();
+    let flags = source.bitplane_state.as_mut().unwrap();
+    flags.significant_before.clear();
+    flags.significance_visited.clear();
+    crate::allocation::with_refusal(0, || {
+        target.restore_legacy_segment(&source).unwrap();
+        assert_eq!(
+            crate::allocation::copy_values(&[1_u8]),
+            Err(DecodeError::AllocationFailed)
+        );
+    });
+    assert_eq!(source.input, &[7, 8]);
+}
+
+#[test]
+fn legacy_snapshot_storage_real_replay_refusal_retains_admission_and_partial_restore_frames() {
+    let limits = ResourceLimits::default();
+    let mut source = legacy_raw_pair_decoder(1);
+    source.bitplane_state = Some(legacy_bitplane_from_plane(&source.plane, 2).unwrap());
+    let mut admitted = source.clone();
+    admitted.legacy_decode_work = 2;
+    for after in [0, 1, 2, 3, 4, 5] {
+        let mut current = source.clone();
+        assert_eq!(
+            crate::allocation::with_refusal(after, || current.decode_legacy_contribution(
+                &[0xaa],
+                1,
+                &limits
+            )),
+            Err(DecodeError::AllocationFailed)
+        );
+        assert_eq!(format!("{current:?}"), format!("{admitted:?}"));
+    }
+    source
+        .decode_legacy_contribution(&[0xaa], 1, &limits)
+        .unwrap();
+    let retained = source.legacy_segment.as_ref().unwrap().clone();
+    let mut cleared = source.clone();
+    cleared.legacy_decode_work = 5;
+    cleared.legacy_segment = None;
+    let mut partial = cleared.clone();
+    partial.plane = retained.plane.clone();
+    partial.next_pass = retained.next_pass;
+    partial.bitplane = retained.bitplane;
+    for after in [0, 1, 2] {
+        let mut current = source.clone();
+        assert_eq!(
+            crate::allocation::with_refusal(after, || current.decode_legacy_contribution(
+                &[],
+                1,
+                &limits
+            )),
+            Err(DecodeError::AllocationFailed)
+        );
+        assert_eq!(
+            format!("{current:?}"),
+            if after == 0 {
+                format!("{cleared:?}")
+            } else {
+                format!("{partial:?}")
+            }
+        );
+    }
+    let mut recovered = source.clone();
+    recovered
+        .decode_legacy_contribution(&[], 1, &limits)
+        .unwrap();
+    let mut whole = legacy_raw_pair_decoder(1);
+    whole.bitplane_state = Some(legacy_bitplane_from_plane(&whole.plane, 2).unwrap());
+    whole
+        .decode_legacy_contribution(&[0xaa], 2, &limits)
+        .unwrap();
+    assert_eq!(recovered.plane, whole.plane);
+    assert_eq!(recovered.next_pass, whole.next_pass);
+}
+
+fn nested_copy_raw_flags() -> Tier1BitplaneState {
+    Tier1BitplaneState {
+        width: 0,
+        height: u16::MAX,
+        bitplane: u16::MAX,
+        significant_before: vec![true, false, true],
+        significance_visited: vec![false],
+        significance_propagation_complete: true,
+        magnitude_refinement_complete: false,
+        cleanup_complete: true,
+    }
+}
+
+#[test]
+fn decoder_nested_storage_raw_flags_first_later_empty_and_clone_preserve_every_field() {
+    let mut source = nested_copy_raw_flags();
+    let before = source.clone();
+    for role in [
+        HtRefinementCopyRole::HtStaging,
+        HtRefinementCopyRole::PacketStaging,
+    ] {
+        for legacy in [false, true] {
+            for after in [0, 1] {
+                assert_eq!(
+                    crate::allocation::with_refusal(after, || source.try_duplicate(role, legacy)),
+                    Err(DecodeError::AllocationFailed)
+                );
+                assert_eq!(source, before);
+                assert_eq!(source.try_duplicate(role, legacy).unwrap(), before);
+            }
+        }
+    }
+    source.significant_before.clear();
+    assert_eq!(
+        crate::allocation::with_refusal(0, || source
+            .try_duplicate(HtRefinementCopyRole::PacketStaging, true)),
+        Err(DecodeError::AllocationFailed)
+    );
+    source.significance_visited.clear();
+    crate::allocation::with_refusal(0, || {
+        assert_eq!(source.clone(), source);
+        assert_eq!(
+            source
+                .try_duplicate(HtRefinementCopyRole::HtStaging, false)
+                .unwrap(),
+            source
+        );
+        assert_eq!(
+            crate::allocation::copy_values(&[1_u8]),
+            Err(DecodeError::AllocationFailed)
+        );
+    });
+}
+
+#[test]
+fn decoder_nested_storage_primary_flags_legacy_plane_flags_input_cleanup_byte_order_restore() {
+    let mut source = retained_refinement_decoder();
+    source.bitplane_state = Some(nested_copy_raw_flags());
+    let legacy = source.legacy_segment.as_mut().unwrap();
+    legacy.plane.width = 0;
+    legacy.plane.height = u16::MAX;
+    legacy.bitplane_state = Some(nested_copy_raw_flags());
+    source.ht_refinement_data = vec![7];
+    let before = format!("{source:?}");
+    for role in [
+        HtRefinementCopyRole::HtStaging,
+        HtRefinementCopyRole::PacketStaging,
+    ] {
+        for after in [0, 1, 2, 3, 4, 5, 6, 7, 8] {
+            assert!(matches!(
+                crate::allocation::with_refusal(after, || source.try_duplicate(role)),
+                Err(DecodeError::AllocationFailed)
+            ));
+            assert_eq!(format!("{source:?}"), before);
+            assert_eq!(format!("{:?}", source.try_duplicate(role).unwrap()), before);
+        }
+    }
+    source.plane.coefficients.clear();
+    source
+        .ht_cleanup_plane
+        .as_mut()
+        .unwrap()
+        .coefficients
+        .clear();
+    source.ht_refinement_data.clear();
+    for flags in [
+        &mut source.bitplane_state,
+        &mut source.legacy_segment.as_mut().unwrap().bitplane_state,
+    ] {
+        let flags = flags.as_mut().unwrap();
+        flags.significant_before.clear();
+        flags.significance_visited.clear();
+    }
+    let legacy = source.legacy_segment.as_mut().unwrap();
+    legacy.plane.coefficients.clear();
+    legacy.input.clear();
+    crate::allocation::with_refusal(0, || {
+        assert_eq!(
+            format!(
+                "{:?}",
+                source
+                    .try_duplicate(HtRefinementCopyRole::PacketStaging)
+                    .unwrap()
+            ),
+            format!("{source:?}")
+        );
+        source.bitplane_state = None;
+        source.legacy_segment = None;
+        assert_eq!(
+            format!(
+                "{:?}",
+                source
+                    .try_duplicate(HtRefinementCopyRole::HtStaging)
+                    .unwrap()
+            ),
+            format!("{source:?}")
+        );
+        assert_eq!(
+            crate::allocation::copy_values(&[1_u8]),
+            Err(DecodeError::AllocationFailed)
+        );
+    });
+}
+
+#[test]
+fn decoder_plane_storage_raw_sources_copy_without_dimension_admission_or_false_empty_event() {
+    let source = CodeBlockPlane {
+        width: 0,
+        height: u16::MAX,
+        coefficients: vec![CoefficientState {
+            magnitude: 17,
+            magnitude_high: [1, 2, 3, 4, 5],
+            negative: true,
+            significant: false,
+            refined: true,
+            legacy_bitplane: Some(u16::MAX),
+        }],
+    };
+    let before = source.clone();
+    for cleanup in [false, true] {
+        assert_eq!(
+            crate::allocation::with_refusal(0, || source.try_duplicate_raw(
+                HtRefinementCopyRole::PacketStaging,
+                cleanup,
+                false
+            )),
+            Err(DecodeError::AllocationFailed)
+        );
+        assert_eq!(source, before);
+        assert_eq!(
+            source
+                .try_duplicate_raw(HtRefinementCopyRole::PacketStaging, cleanup, false)
+                .unwrap(),
+            before
+        );
+    }
+    let empty = CodeBlockPlane {
+        width: u16::MAX,
+        height: 0,
+        coefficients: Vec::new(),
+    };
+    crate::allocation::with_refusal(0, || {
+        assert_eq!(
+            empty
+                .try_duplicate_raw(HtRefinementCopyRole::HtStaging, false, false)
+                .unwrap(),
+            empty
+        );
+        assert_eq!(source.clone(), before);
+        assert_eq!(
+            source.try_duplicate_raw(HtRefinementCopyRole::HtStaging, false, false),
+            Err(DecodeError::AllocationFailed)
+        );
+    });
+}
+
+#[test]
+fn decoder_plane_storage_primary_optional_cleanup_and_byte_order_restore_all_fields() {
+    let mut source = retained_refinement_decoder();
+    source.plane.width = 0;
+    source.ht_cleanup_plane.as_mut().unwrap().height = 0;
+    source.ht_refinement_data = vec![7];
+    let before = format!("{source:?}");
+    for role in [
+        HtRefinementCopyRole::HtStaging,
+        HtRefinementCopyRole::PacketStaging,
+    ] {
+        for after in [0, 3, 4] {
+            assert!(matches!(
+                crate::allocation::with_refusal(after, || source.try_duplicate(role)),
+                Err(DecodeError::AllocationFailed)
+            ));
+            assert_eq!(format!("{source:?}"), before);
+            assert_eq!(format!("{:?}", source.try_duplicate(role).unwrap()), before);
+        }
+    }
+    source.plane.coefficients.clear();
+    source
+        .ht_cleanup_plane
+        .as_mut()
+        .unwrap()
+        .coefficients
+        .clear();
+    source.ht_refinement_data.clear();
+    crate::allocation::with_refusal(4, || {
+        assert_eq!(
+            format!(
+                "{:?}",
+                source
+                    .try_duplicate(HtRefinementCopyRole::PacketStaging)
+                    .unwrap()
+            ),
+            format!("{source:?}")
+        );
+        source.ht_cleanup_plane = None;
+        assert_eq!(
+            format!(
+                "{:?}",
+                source
+                    .try_duplicate(HtRefinementCopyRole::HtStaging)
+                    .unwrap()
+            ),
+            format!("{source:?}")
+        );
+        assert_eq!(
+            crate::allocation::copy_values(&[1_u8]),
+            Err(DecodeError::AllocationFailed)
+        );
+    });
+}
+
+#[test]
+fn ht_refinement_storage_checked_staging_copy_keeps_clone_fields_and_empty_frontier() {
+    let mut source = retained_refinement_decoder();
+    source.ht_refinement_data = vec![1, 7, 0xff];
+    let before = format!("{source:?}");
+    for role in [
+        HtRefinementCopyRole::HtStaging,
+        HtRefinementCopyRole::PacketStaging,
+    ] {
+        assert!(matches!(
+            crate::allocation::with_refusal(4, || source.try_duplicate(role)),
+            Err(DecodeError::AllocationFailed)
+        ));
+        assert_eq!(format!("{source:?}"), before);
+        assert_eq!(format!("{:?}", source.try_duplicate(role).unwrap()), before);
+    }
+    crate::allocation::with_refusal(4, || {
+        assert_eq!(format!("{:?}", source.clone()), before);
+        assert!(matches!(
+            source.try_duplicate(HtRefinementCopyRole::HtStaging),
+            Err(DecodeError::AllocationFailed)
+        ));
+    });
+    source.ht_refinement_data.clear();
+    crate::allocation::with_refusal(4, || {
+        assert_eq!(
+            format!(
+                "{:?}",
+                source
+                    .try_duplicate(HtRefinementCopyRole::PacketStaging)
+                    .unwrap()
+            ),
+            format!("{source:?}")
+        );
+        assert_eq!(
+            super::ht_refinement::copy_ht_refinement_bytes(
+                &[],
+                HtRefinementCopyRole::CleanupRetention
+            ),
+            Ok(Vec::new())
+        );
+        assert_eq!(
+            super::ht_refinement::copy_ht_refinement_bytes(
+                &[1],
+                HtRefinementCopyRole::CleanupRetention
+            ),
+            Err(DecodeError::AllocationFailed)
+        );
+    });
+}
+
+#[test]
+fn ht_refinement_storage_replay_copy_preserves_earlier_limits_later_length_and_state() {
+    let limits = ResourceLimits::default();
+    let mut base = retained_refinement_decoder();
+    base.next_pass = 2;
+    base.ht_refinement_passes = 1;
+    base.ht_refinement_data = vec![1];
+    let before = format!("{base:?}");
+    let mut expected = base.clone();
+    let expected_result = expected
+        .decode_high_throughput_refinement(&[1], 1, &limits)
+        .unwrap();
+    for after in [0, 1, 5] {
+        let mut actual = base.clone();
+        assert_eq!(
+            crate::allocation::with_refusal(after, || actual.decode_high_throughput_refinement(
+                &[1],
+                1,
+                &limits
+            )),
+            Err(DecodeError::AllocationFailed)
+        );
+        assert_eq!(format!("{actual:?}"), before);
+        assert_eq!(
+            actual
+                .decode_high_throughput_refinement(&[1], 1, &limits)
+                .unwrap(),
+            expected_result
+        );
+        assert_eq!(format!("{actual:?}"), format!("{expected:?}"));
+    }
+    let oversized = vec![0; MAX_HT_REFINEMENT_BYTES];
+    let mut actual = base.clone();
+    assert_eq!(
+        crate::allocation::with_refusal(0, || actual
+            .decode_high_throughput_refinement(&oversized, 1, &limits)),
+        Err(DecodeError::AllocationFailed)
+    );
+    assert_eq!(
+        actual.decode_high_throughput_refinement(&oversized, 1, &limits),
+        Err(invalid_code_block())
+    );
+    assert_eq!(format!("{actual:?}"), before);
+    crate::allocation::with_refusal(0, || {
+        assert_eq!(
+            actual.decode_high_throughput_refinement(&[1], 0, &limits),
+            Err(invalid_code_block())
+        );
+        assert_eq!(
+            actual.decode_high_throughput_refinement(&[1], 1, &limits),
+            Err(DecodeError::AllocationFailed)
+        );
+    });
+}
+
+#[test]
+fn ht_refinement_storage_retention_refusal_keeps_cleared_state_and_staging_rolls_back() {
+    let limits = ResourceLimits::default();
+    let mut actual = tier1_plane_storage_ht_decoder();
+    actual.ht_refinement_data = vec![9];
+    actual.ht_refinement_passes = 1;
+    let mut cleared = actual.clone();
+    cleared.ht_refinement_data.clear();
+    cleared.ht_refinement_passes = 0;
+    assert_eq!(
+        crate::allocation::with_refusal(7, || actual.decode_high_throughput_segments(
+            &[0, 0x63, 0],
+            1,
+            Some(&[0]),
+            1,
+            &limits
+        )),
+        Err(DecodeError::AllocationFailed)
+    );
+    assert_eq!(format!("{actual:?}"), format!("{cleared:?}"));
+    assert!(
+        actual
+            .decode_high_throughput_segments(&[0, 0x63, 0], 1, Some(&[0]), 1, &limits)
+            .is_ok()
+    );
+    let mut staged = tier1_plane_storage_ht_decoder();
+    staged.ht_refinement_data = vec![9];
+    let before = format!("{staged:?}");
+    assert_eq!(
+        crate::allocation::with_refusal(1, || staged.decode_ht_staged_group(
+            &[0, 0x63, 0],
+            1,
+            &limits
+        )),
+        Err(DecodeError::AllocationFailed)
+    );
+    assert_eq!(format!("{staged:?}"), before);
+    assert!(
+        staged
+            .decode_ht_staged_group(&[0, 0x63, 0], 1, &limits)
+            .is_ok()
+    );
+}
+
+#[test]
 fn tier1_plane_storage_standalone_duplicate_frontiers_and_exact_restore() {
     let mut source = CodeBlockPlane::new(1, 1).unwrap();
     source.coefficients[0] = CoefficientState {
@@ -74,7 +895,7 @@ fn tier1_plane_storage_cleanup_output_copy_refusals_restore_state_and_output() {
     let result = expected
         .decode_high_throughput_segments(&[0, 0x63, 0], 1, None, 0, &limits)
         .unwrap();
-    for after in [0, 1] {
+    for after in [3, 6] {
         let mut actual = base.clone();
         let before = format!("{actual:?}");
         assert_eq!(
@@ -122,7 +943,7 @@ fn tier1_plane_storage_refinement_roles_preserve_rollback_and_cleared_partial_st
     expected
         .decode_high_throughput_refinement(&[0], 1, &limits)
         .unwrap();
-    for after in [0, 1] {
+    for after in [0, 4] {
         let mut actual = base.clone();
         let before = format!("{actual:?}");
         assert_eq!(
@@ -139,7 +960,7 @@ fn tier1_plane_storage_refinement_roles_preserve_rollback_and_cleared_partial_st
             .unwrap();
         assert_eq!(format!("{actual:?}"), format!("{expected:?}"));
     }
-    for after in [2, 3] {
+    for after in [7, 11] {
         let mut actual = tier1_plane_storage_ht_decoder();
         actual.ht_refinement_data = vec![7];
         actual.ht_refinement_passes = 1;
@@ -521,7 +1342,7 @@ fn initialization_policy_setters_preserve_all_unrelated_raw_state_and_error_snap
     decoder.ht_decoded_bitplanes = u16::MAX;
     decoder.ht_current_set_has_cleanup = true;
     decoder.ht_sets_seen = u16::MAX;
-    decoder.legacy_segment = Some(decoder.legacy_segment_snapshot());
+    decoder.legacy_segment = Some(decoder.legacy_segment_snapshot().unwrap());
     for allowed in [false, true] {
         let mut expected = decoder.clone();
         expected.allow_multiple_ht_sets = allowed;
@@ -757,7 +1578,7 @@ fn actual_legacy_contribution_replays_retained_bytes_and_accounts_extra_work_exa
         let mut state = legacy_bitplane_from_plane(&before.plane, 2).unwrap();
         state.significance_propagation_complete = true;
         expected_prefix.bitplane_state = Some(state);
-        let mut retained = before.legacy_segment_snapshot();
+        let mut retained = before.legacy_segment_snapshot().unwrap();
         retained.input = vec![0xaa];
         retained.passes = 1;
         expected_prefix.legacy_segment = Some(retained);
@@ -2194,8 +3015,11 @@ fn ht_refinement_snapshot_preserves_original_collection_capacity_and_raw_order()
             })
             .collect();
         let original: Vec<bool> = input.iter().map(|c| c.significant).collect();
-        let actual = ht_collect_cleanup_significance(&input);
-        assert_eq!(actual.capacity(), original.capacity());
+        let actual = ht_collect_cleanup_significance(&input).unwrap();
+        // The private fallible producer uses the qualified fresh-reserve profile.
+        let reserved = crate::allocation::empty_with_capacity::<bool>(length).unwrap();
+        assert_eq!(actual.capacity(), reserved.capacity());
+        assert_eq!(actual, original);
         assert_eq!(actual, (0..length).map(|i| i % 3 == 1).collect::<Vec<_>>());
     }
 }
@@ -3025,7 +3849,17 @@ fn ht_continuation_replays_real_concatenation_from_cleanup_not_current_output() 
     let mut decoder = retained_refinement_decoder();
     decoder.ht_refinement_data = Vec::with_capacity(64);
     decoder.ht_refinement_data.push(1);
-    let clone_capacity = decoder.ht_refinement_data.clone().capacity();
+    let source_pointer = decoder.ht_refinement_data.as_ptr();
+    assert_eq!(
+        decoder.clone().ht_refinement_data.capacity(),
+        decoder.ht_refinement_data.clone().capacity()
+    );
+    let copy_capacity = super::ht_refinement::copy_ht_refinement_bytes(
+        &decoder.ht_refinement_data,
+        HtRefinementCopyRole::RetainedReplay,
+    )
+    .unwrap()
+    .capacity();
     let mut expected = decoder.clone();
     expected.plane = literal_replayed_plane(3, false);
     expected.ht_refinement_passes = 1;
@@ -3042,7 +3876,8 @@ fn ht_continuation_replays_real_concatenation_from_cleanup_not_current_output() 
         ),
         (0, 2, 2)
     );
-    assert_eq!(decoder.ht_refinement_data.capacity(), clone_capacity);
+    assert_eq!(decoder.ht_refinement_data.capacity(), copy_capacity);
+    assert_ne!(decoder.ht_refinement_data.as_ptr(), source_pointer);
     assert_eq!(format!("{decoder:?}"), format!("{expected:?}"));
 }
 
@@ -7409,4 +8244,437 @@ fn supports_sample_and_roi_adjusted_coefficient_bitplanes() {
         plane.coefficient(0, 0).unwrap().magnitude_limb(3),
         Some(1_u64 << 63)
     );
+}
+#[test]
+fn ht_metadata_storage_quad_previous_and_fresh_first_later_rows_restore_actual_metadata() {
+    let limits = ResourceLimits::default()
+        .with_maximum_work_units(24)
+        .unwrap();
+    let bytes = [0xff, 3, 0];
+    let expected = decode_ht_cleanup_metadata(&bytes, 5, 5, 1, &limits).unwrap();
+    for after in [0, 1, 2, 4] {
+        assert_eq!(
+            crate::allocation::with_refusal(after, || decode_ht_cleanup_metadata(
+                &bytes, 5, 5, 1, &limits
+            )),
+            Err(DecodeError::AllocationFailed)
+        );
+        assert_eq!(
+            decode_ht_cleanup_metadata(&bytes, 5, 5, 1, &limits).unwrap(),
+            expected
+        );
+    }
+    assert_eq!(expected.quads.len(), 9);
+}
+
+#[test]
+fn ht_metadata_storage_current_row_refusal_preserves_actual_prior_rows_and_empty_skips_request() {
+    let limits = ResourceLimits::default();
+    let segments = parse_ht_block_segments(&[0xff, 3, 0], None, &limits).unwrap();
+    let cleanup = segments.cleanup();
+    let mut readers = ht_cleanup_readers_from_inputs(
+        cleanup.mel().bytes(),
+        cleanup.vlc().bytes(),
+        limits.maximum_work_units(),
+    )
+    .unwrap();
+    let mut quads = Vec::new();
+    let mut previous = vec![0; 3];
+    let mut significant = 0;
+    decode_ht_metadata_row(
+        &mut readers,
+        &mut quads,
+        &mut previous,
+        &mut significant,
+        3,
+        0,
+        5,
+        5,
+        1,
+    )
+    .unwrap();
+    let observe = |r: &HtCleanupReaders<'_>| {
+        format!(
+            "{:?}",
+            (
+                r.mel,
+                r.vlc,
+                (
+                    r.mel_last_byte,
+                    r.vlc_last_byte,
+                    r.terminal_byte,
+                    r.mel_state,
+                    r.mel_zero_events,
+                    r.mel_terminating_one,
+                    r.mel_events,
+                    r.work_units,
+                    r.maximum_work_units,
+                ),
+            )
+        )
+    };
+    let before = format!(
+        "{:?} {quads:?} {previous:?} {significant}",
+        observe(&readers)
+    );
+    let owner = previous.as_ptr();
+    assert_eq!(
+        crate::allocation::with_refusal(0, || decode_ht_metadata_row(
+            &mut readers,
+            &mut quads,
+            &mut previous,
+            &mut significant,
+            3,
+            1,
+            5,
+            5,
+            1
+        )),
+        Err(DecodeError::AllocationFailed)
+    );
+    assert_eq!(
+        format!(
+            "{:?} {quads:?} {previous:?} {significant}",
+            observe(&readers)
+        ),
+        before
+    );
+    assert_eq!(previous.as_ptr(), owner);
+    decode_ht_metadata_row(
+        &mut readers,
+        &mut quads,
+        &mut previous,
+        &mut significant,
+        3,
+        1,
+        5,
+        5,
+        1,
+    )
+    .unwrap();
+    assert_eq!(quads.len(), 6);
+    let mut empty = Vec::new();
+    crate::allocation::with_refusal(0, || {
+        decode_ht_metadata_row(
+            &mut readers,
+            &mut quads,
+            &mut empty,
+            &mut significant,
+            0,
+            2,
+            5,
+            5,
+            1,
+        )
+        .unwrap();
+        assert!(empty.is_empty());
+        assert_eq!(
+            decode_ht_cleanup_metadata(&[0xff, 3, 0], 5, 5, 1, &limits),
+            Err(DecodeError::AllocationFailed)
+        );
+    });
+}
+
+#[test]
+fn ht_metadata_storage_original_parse_header_reader_and_late_work_error_order() {
+    let limits = ResourceLimits::default();
+    let small = limits.with_maximum_code_block_bytes(2).unwrap();
+    let segments = parse_ht_block_segments(&[0xff, 3, 0], None, &limits).unwrap();
+    let mut empty = segments.cleanup();
+    empty.mel.bytes = &[];
+    crate::allocation::with_refusal(0, || {
+        assert!(matches!(
+            decode_ht_cleanup_metadata(&[0xff, 3, 0], 0, 0, 0, &small),
+            Err(DecodeError::LimitExceeded {
+                resource: Resource::CodeBlockBytes,
+                ..
+            })
+        ));
+        assert_eq!(
+            decode_ht_cleanup_segment_metadata(segments.cleanup(), 0, 1, 1, &limits),
+            Err(DecodeError::malformed(0, MalformedKind::InvalidCodeBlock))
+        );
+        assert_eq!(
+            decode_ht_cleanup_segment_metadata(empty, 1, 1, 1, &limits),
+            Err(DecodeError::malformed(0, MalformedKind::InvalidCodeBlock))
+        );
+        assert_eq!(
+            decode_ht_cleanup_metadata(&[0xff, 3, 0], 5, 5, 1, &limits),
+            Err(DecodeError::AllocationFailed)
+        );
+    });
+    let work = limits.with_maximum_work_units(1).unwrap();
+    let expected = decode_ht_cleanup_metadata(&[0xff, 3, 0], 5, 5, 1, &work);
+    assert!(matches!(
+        expected,
+        Err(DecodeError::LimitExceeded {
+            resource: Resource::WorkUnits,
+            ..
+        })
+    ));
+    assert_eq!(
+        crate::allocation::with_refusal(0, || decode_ht_cleanup_metadata(
+            &[0xff, 3, 0],
+            5,
+            5,
+            1,
+            &work
+        )),
+        Err(DecodeError::AllocationFailed)
+    );
+    assert_eq!(
+        decode_ht_cleanup_metadata(&[0xff, 3, 0], 5, 5, 1, &work),
+        expected
+    );
+}
+#[test]
+fn ht_refinement_scratch_storage_first_later_masks_restore_real_readers_and_stuffing() {
+    let observe = |r: &HtRefinementReaders<'_>| {
+        format!(
+            "{:?} {:?} {:?} {:?}",
+            r.forward, r.reverse, r.claimed, r.stuffed
+        )
+    };
+    let expected = ht_refinement_readers_from_inputs(&[0xff], &[0xff], 1, true, 100).unwrap();
+    let before = observe(&expected);
+    for after in [0, 1] {
+        assert_eq!(
+            crate::allocation::with_refusal(after, || ht_refinement_readers_from_inputs(
+                &[0xff],
+                &[0xff],
+                1,
+                true,
+                100
+            ))
+            .err(),
+            Some(DecodeError::AllocationFailed)
+        );
+        let mut actual = ht_refinement_readers_from_inputs(&[0xff], &[0xff], 1, true, 100).unwrap();
+        assert_eq!(observe(&actual), before);
+        assert_eq!(actual.read_forward(), Ok(true));
+        assert_eq!(actual.read_reverse(), Err(invalid_code_block()));
+        assert_eq!(actual.claimed, [1]);
+        assert_eq!(actual.stuffed, [0x80]);
+        for _ in 0..6 {
+            assert_eq!(actual.read_reverse(), Ok(true));
+        }
+        assert_eq!(actual.finish(&[0xff]), Ok(()));
+    }
+}
+
+#[test]
+fn ht_refinement_scratch_storage_raw_counts_empty_reverse_and_prior_admission_order() {
+    let oversized = vec![0; MAX_HT_REFINEMENT_BYTES + 1];
+    crate::allocation::with_refusal(0, || {
+        assert_eq!(
+            ht_refinement_readers_from_inputs(&oversized, &oversized, 1, true, 100).err(),
+            Some(invalid_code_block())
+        );
+        assert_eq!(
+            ht_refinement_readers_from_inputs(&[], &oversized, 1, true, 100).err(),
+            Some(invalid_code_block())
+        );
+        let empty = ht_refinement_readers_from_inputs(&[1], &oversized, 0, false, 100).unwrap();
+        assert!(empty.reverse.is_none() && empty.claimed.is_empty() && empty.stuffed.is_empty());
+        assert_eq!(
+            ht_refinement_readers_from_inputs(&[], &[], 3, false, 100).err(),
+            Some(DecodeError::AllocationFailed)
+        );
+    });
+    for after in [0, 1] {
+        assert_eq!(
+            crate::allocation::with_refusal(after, || ht_refinement_readers_from_inputs(
+                &[],
+                &[],
+                3,
+                true,
+                100
+            ))
+            .err(),
+            Some(DecodeError::AllocationFailed)
+        );
+    }
+    let actual = ht_refinement_readers_from_inputs(&[], &[], 3, true, 100).unwrap();
+    assert_eq!(actual.claimed, [0, 0, 0]);
+    assert_eq!(actual.stuffed, [0, 0, 0]);
+    assert!(actual.reverse.is_some());
+    let mut work = ht_refinement_readers_from_inputs(&[0], &[], 1, false, 0).unwrap();
+    assert!(matches!(
+        work.read_forward(),
+        Err(DecodeError::LimitExceeded {
+            resource: Resource::WorkUnits,
+            ..
+        })
+    ));
+    assert_eq!(work.forward.physical_bits_read, 1);
+    assert_eq!(work.claimed, [0]);
+}
+
+#[test]
+fn ht_refinement_scratch_storage_actual_replay_refusals_preserve_decoder_then_restore() {
+    let limits = ResourceLimits::default();
+    let mut base = retained_refinement_decoder();
+    base.next_pass = 2;
+    base.ht_refinement_passes = 1;
+    base.ht_refinement_data = vec![1];
+    let before = format!("{base:?}");
+    let mut expected = base.clone();
+    let result = expected
+        .decode_high_throughput_refinement(&[1], 1, &limits)
+        .unwrap();
+    for after in [2, 3] {
+        let mut actual = base.clone();
+        assert_eq!(
+            crate::allocation::with_refusal(after, || actual.decode_high_throughput_refinement(
+                &[1],
+                1,
+                &limits
+            )),
+            Err(DecodeError::AllocationFailed)
+        );
+        assert_eq!(format!("{actual:?}"), before);
+        assert_eq!(
+            actual
+                .decode_high_throughput_refinement(&[1], 1, &limits)
+                .unwrap(),
+            result
+        );
+        assert_eq!(format!("{actual:?}"), format!("{expected:?}"));
+    }
+}
+
+#[test]
+fn ht_cleanup_significance_storage_raw_flags_empty_first_later_refusal_and_restore() {
+    let input = [
+        raw_refinement_coefficient(u64::MAX, [7, 11, 13, 17, 19], true, true, true),
+        raw_refinement_coefficient(0, [0; 5], false, false, false),
+        raw_refinement_coefficient(31, [2, 3, 5, 7, 11], true, false, false),
+    ];
+    let expected = vec![true, false, true];
+    crate::allocation::with_refusal(0, || {
+        assert!(ht_collect_cleanup_significance(&[]).unwrap().is_empty());
+        assert_eq!(
+            ht_collect_cleanup_significance(&input),
+            Err(DecodeError::AllocationFailed)
+        );
+        assert_eq!(ht_collect_cleanup_significance(&input).unwrap(), expected);
+    });
+    crate::allocation::with_refusal(1, || {
+        let prior = ht_collect_cleanup_significance(&input).unwrap();
+        assert_eq!(
+            ht_collect_cleanup_significance(&input),
+            Err(DecodeError::AllocationFailed)
+        );
+        assert_eq!(prior, expected);
+        assert_eq!(ht_collect_cleanup_significance(&input).unwrap(), expected);
+    });
+    assert_eq!(
+        input[0],
+        raw_refinement_coefficient(u64::MAX, [7, 11, 13, 17, 19], true, true, true)
+    );
+}
+
+#[test]
+fn ht_cleanup_significance_storage_output_readers_admission_and_numeric_error_order() {
+    let limits = ResourceLimits::default();
+    let source = CodeBlockPlane {
+        width: 2,
+        height: 1,
+        coefficients: vec![
+            raw_refinement_coefficient(3, [0; 5], true, true, false),
+            raw_refinement_coefficient(17, [2, 3, 5, 7, 11], false, true, true),
+        ],
+    };
+    let before = format!("{source:?}");
+    let decode = |bits, cap: &ResourceLimits| {
+        decode_ht_refinement_plane(&source, refinement_segment(&[1]), 1, bits, false, cap)
+    };
+    let expected = decode(2, &limits).unwrap();
+    for after in [0, 3] {
+        assert_eq!(
+            crate::allocation::with_refusal(after, || decode(2, &limits)),
+            Err(DecodeError::AllocationFailed)
+        );
+        let restored = decode(2, &limits).unwrap();
+        assert_eq!(restored.0.coefficients(), expected.0.coefficients());
+        assert_eq!(restored.1, expected.1);
+        assert_eq!(format!("{source:?}"), before);
+    }
+    let ordinary = decode(MAX_TIER1_BITPLANES + 1, &limits).unwrap_err();
+    assert_eq!(ordinary, invalid_code_block());
+    assert_eq!(
+        crate::allocation::with_refusal(3, || decode(MAX_TIER1_BITPLANES + 1, &limits)),
+        Err(DecodeError::AllocationFailed)
+    );
+    assert_eq!(
+        decode(MAX_TIER1_BITPLANES + 1, &limits).unwrap_err(),
+        ordinary
+    );
+    crate::allocation::with_refusal(0, || {
+        assert_eq!(
+            decode_ht_refinement_plane(&source, refinement_segment(&[1]), 0, 2, false, &limits),
+            Err(invalid_code_block())
+        );
+        assert_eq!(
+            crate::allocation::empty_with_capacity::<u8>(1),
+            Err(DecodeError::AllocationFailed)
+        );
+    });
+    let zero_work = limits.with_maximum_work_units(0).unwrap();
+    let work_error = decode(2, &zero_work).unwrap_err();
+    assert_eq!(
+        crate::allocation::with_refusal(3, || decode(2, &zero_work)),
+        Err(DecodeError::AllocationFailed)
+    );
+    assert_eq!(decode(2, &zero_work).unwrap_err(), work_error);
+    let oversized = vec![0; MAX_HT_REFINEMENT_BYTES + 1];
+    let rejected_reader = || {
+        decode_ht_refinement_plane(
+            &source,
+            refinement_segment(&oversized),
+            1,
+            2,
+            false,
+            &limits,
+        )
+    };
+    let reader_error = rejected_reader().unwrap_err();
+    crate::allocation::with_refusal(1, || {
+        assert_eq!(rejected_reader().unwrap_err(), reader_error);
+        assert_eq!(
+            crate::allocation::empty_with_capacity::<u8>(1),
+            Err(DecodeError::AllocationFailed)
+        );
+    });
+}
+
+#[test]
+fn ht_cleanup_significance_storage_actual_replay_prior_decoder_and_exact_restore() {
+    let limits = ResourceLimits::default();
+    let mut source = retained_refinement_decoder();
+    source.next_pass = 2;
+    source.ht_refinement_passes = 1;
+    source.ht_refinement_data = vec![1];
+    let before = format!("{source:?}");
+    let mut expected = source.clone();
+    let result = expected
+        .decode_high_throughput_refinement(&[1], 1, &limits)
+        .unwrap();
+    let mut actual = source.clone();
+    assert_eq!(
+        crate::allocation::with_refusal(4, || actual.decode_high_throughput_refinement(
+            &[1],
+            1,
+            &limits
+        )),
+        Err(DecodeError::AllocationFailed)
+    );
+    assert_eq!(format!("{actual:?}"), before);
+    assert_eq!(
+        actual
+            .decode_high_throughput_refinement(&[1], 1, &limits)
+            .unwrap(),
+        result
+    );
+    assert_eq!(format!("{actual:?}"), format!("{expected:?}"));
 }

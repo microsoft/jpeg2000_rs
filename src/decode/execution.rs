@@ -589,7 +589,11 @@ pub(super) fn apply_prepared_standard_pixel(
 }
 
 #[cfg_attr(verus_keep_ghost, verus_spec(result =>
-    ensures (result, prepared_components_view(final(prepared)@), *final(work)) == crate::specs::part2_finish_prepared_tile(
+    ensures crate::specs::part2_mct_line_finish_result(prepared_components_view(old(prepared)@),
+        codestream::image_size_component_count(size),codestream::image_size_component_infos(size),tile_mct_option(mct),standard,*old(work),
+        crate::limits::resource_work_limit(limits),crate::limits::resource_decoded_bytes_limit(limits),
+        (result,prepared_components_view(final(prepared)@),*final(work))),
+        result!=Err(DecodeError::AllocationFailed) ==> (result, prepared_components_view(final(prepared)@), *final(work)) == crate::specs::part2_finish_prepared_tile(
         prepared_components_view(old(prepared)@), codestream::image_size_component_count(size), codestream::image_size_component_infos(size),
         tile_mct_option(mct), standard, *old(work), crate::limits::resource_work_limit(limits),
         crate::limits::resource_decoded_bytes_limit(limits)),
@@ -602,14 +606,30 @@ pub(super) fn finish_prepared_tile(
     limits: &ResourceLimits,
     work: &mut u64,
 ) -> Result<(), DecodeError> {
+    #[cfg(verus_keep_ghost)]
+    proof_decl! {let ghost before=prepared_components_view(prepared@);let ghost initial_work=*work;}
+    #[cfg(verus_keep_ghost)]
+    proof! {crate::specs::part2_mct_line_finish_normal(before,codestream::image_size_component_count(size),codestream::image_size_component_infos(size),
+    tile_mct_option(mct),standard,initial_work,crate::limits::resource_work_limit(limits),crate::limits::resource_decoded_bytes_limit(limits));}
     if let Some(transform) = mct {
-        apply_tile_multiple_component_transform(prepared, size, transform, limits, work)?;
+        let transformed =
+            apply_tile_multiple_component_transform(prepared, size, transform, limits, work);
+        #[cfg(verus_keep_ghost)]
+        proof! {crate::specs::part2_mct_line_finish_observed(before,codestream::image_size_component_count(size),codestream::image_size_component_infos(size),
+        codestream::multiple_component_transform_view(transform),standard,initial_work,crate::limits::resource_work_limit(limits),
+        crate::limits::resource_decoded_bytes_limit(limits),(transformed,prepared_components_view(prepared@),*work));}
+        transformed?;
     }
     apply_prepared_component_transform(prepared, standard)
 }
 
 #[cfg_attr(verus_keep_ghost, verus_spec(result =>
-    ensures (result, prepared_components_view(final(prepared)@), *final(work)) == crate::specs::part2_reconstruct_planned_tile(
+    ensures crate::specs::part2_extraction_tile_result(
+            prepared_components_view(old(prepared)@),planned_components_view(plan),prepare_precincts_view(plan.precincts@),first.component_coding_styles,
+            codestream::part2_kernel_registry(&first.part2_extensions),codestream::image_size_component_count(size),codestream::image_size_component_infos(size),
+            tile_part_mct_view(first),standard,*old(work),crate::limits::resource_work_limit(limits),crate::limits::resource_decoded_bytes_limit(limits),
+            (result,prepared_components_view(final(prepared)@),*final(work))),
+        result!=Err(DecodeError::AllocationFailed) ==> (result, prepared_components_view(final(prepared)@), *final(work)) == crate::specs::part2_reconstruct_planned_tile(
         prepared_components_view(old(prepared)@), planned_components_view(plan), prepare_precincts_view(plan.precincts@),
         first.component_coding_styles, codestream::part2_kernel_registry(&first.part2_extensions),
         codestream::image_size_component_count(size), codestream::image_size_component_infos(size),
@@ -633,6 +653,10 @@ pub(super) fn reconstruct_planned_tile(
         let ghost kernels = codestream::part2_kernel_registry(&first.part2_extensions);
         let ghost initial_work = *work;
     }
+    #[cfg(verus_keep_ghost)]
+    proof! {crate::specs::part2_extraction_tile_normal(initial,plans,precincts,first.component_coding_styles,kernels,
+    codestream::image_size_component_count(size),codestream::image_size_component_infos(size),tile_part_mct_view(first),standard,initial_work,
+    crate::limits::resource_work_limit(limits),crate::limits::resource_decoded_bytes_limit(limits));}
     let start = prepared.len();
     #[cfg(verus_keep_ghost)]
     proof! {
@@ -645,6 +669,12 @@ pub(super) fn reconstruct_planned_tile(
         precincts == prepare_precincts_view(plan.precincts@),
         kernels == codestream::part2_kernel_registry(&first.part2_extensions),
         initial == prepared_components_view(old(prepared)@), initial_work == *old(work), *work == initial_work,
+        crate::specs::part2_extraction_tile_result(initial,plans,precincts,first.component_coding_styles,kernels,
+            codestream::image_size_component_count(size),codestream::image_size_component_infos(size),tile_part_mct_view(first),standard,initial_work,
+            crate::limits::resource_work_limit(limits),crate::limits::resource_decoded_bytes_limit(limits),
+            crate::specs::part2_reconstruct_planned_tile(initial,plans,precincts,first.component_coding_styles,kernels,
+                codestream::image_size_component_count(size),codestream::image_size_component_infos(size),tile_part_mct_view(first),standard,initial_work,
+                crate::limits::resource_work_limit(limits),crate::limits::resource_decoded_bytes_limit(limits))),
         start == initial.len(), start <= prepared.len(),
         prepared_components_view(prepared@).take(start as int) == initial,
         crate::specs::part2_reconstruct_components_prefix(initial, plans, precincts, first.component_coding_styles,
@@ -669,13 +699,15 @@ pub(super) fn reconstruct_planned_tile(
             WaveletTransform::Arbitrary(index) => first.part2_extensions.arbitrary_kernel(index),
             _ => None,
         };
-        prepared.push(prepare_tile_component_with_kernel(
-            planned,
-            &plan.precincts,
-            style,
-            kernel,
-            limits,
-        )?);
+        let component_result =
+            prepare_tile_component_with_kernel(planned, &plan.precincts, style, kernel, limits);
+        #[cfg(verus_keep_ghost)]
+        proof! {crate::specs::part2_extraction_reconstruct_component_observed(plans[component_index as int],precincts,first.component_coding_styles,kernels,
+        crate::limits::resource_decoded_bytes_limit(limits),style,crate::decode::prepared_component_outcome(component_result));
+        if let Err(error)=component_result{crate::specs::part2_extraction_tile_component_error(initial,plans,precincts,first.component_coding_styles,kernels,
+            codestream::image_size_component_count(size),codestream::image_size_component_infos(size),tile_part_mct_view(first),standard,initial_work,
+            crate::limits::resource_work_limit(limits),crate::limits::resource_decoded_bytes_limit(limits),component_index as nat,prepared_components_view(prepared@),error);}}
+        prepared.push(component_result?);
         component_index = component_index
             .checked_add(1)
             .ok_or_else(arithmetic_overflow)?;
@@ -697,10 +729,11 @@ pub(super) fn reconstruct_planned_tile(
     proof! {
         let suffix_values = prepared_components_view(suffix@);
         assert(prepared_components_view(prepared@).skip(start as int) =~= suffix_values);
-        let finished = crate::specs::part2_finish_prepared_tile(folded.skip(start as int),
+        let finished = (result,suffix_values,*work);
+        crate::specs::part2_extraction_tile_finish_observed(initial,plans,precincts,first.component_coding_styles,kernels,
             codestream::image_size_component_count(size), codestream::image_size_component_infos(size),
             tile_part_mct_view(first), standard, initial_work,
-            crate::limits::resource_work_limit(limits), crate::limits::resource_decoded_bytes_limit(limits));
+            crate::limits::resource_work_limit(limits), crate::limits::resource_decoded_bytes_limit(limits),folded,finished);
         assert((result, prepared_components_view(prepared@).skip(start as int), *work) == finished);
         assert(prepared_components_view(prepared@) =~= initial + finished.1);
     }
@@ -1100,12 +1133,14 @@ pub(crate) fn decode_planned_tile_components(
     #[cfg(verus_keep_ghost)]
     proof_decl! {
         let ghost before = progression_plan_view(&plan);
+        let ghost initial_prepared=prepared_components_view(prepared@);
         let ghost execution = crate::specs::part1_progression_tile_decode(
             tile_parts@, before.grid, before.precincts,
             crate::packet::packet_selection_view(maximum_resolution_counts), limits,
         );
     }
     let mut active = plan;
+    let _decoded_packets;
     #[cfg(verus_keep_ghost)]
     proof! { reveal(progression_plan_view); }
     {
@@ -1138,7 +1173,7 @@ pub(crate) fn decode_planned_tile_components(
                     limits,prepared_components_view(prepared@),mct_work,error,crate::packet::packet_precinct_vector_view(precincts));
             }
         }
-        packets?;
+        _decoded_packets = packets?;
         #[cfg(verus_keep_ghost)]
         proof! { crate::packet::packet_precinct_vector_known_fields(precincts); }
     }
@@ -1153,7 +1188,7 @@ pub(crate) fn decode_planned_tile_components(
     }
     let mut components = prepared;
     let mut work = mct_work;
-    reconstruct_planned_tile(
+    let reconstructed = reconstruct_planned_tile(
         &active,
         first,
         size,
@@ -1161,7 +1196,12 @@ pub(crate) fn decode_planned_tile_components(
         limits,
         &mut components,
         &mut work,
-    )?;
+    );
+    #[cfg(verus_keep_ghost)]
+    proof! {if let Err(error)=reconstructed{crate::specs::part2_planned_extraction_error(before,codestream::tile_parts_owned_view(tile_parts@),codestream::tile_part_owned_view(first),
+    size,standard,crate::packet::packet_selection_view(maximum_resolution_counts),limits,initial_prepared,mct_work,_decoded_packets,
+    planning_precincts_view(active.precincts@),prepared_components_view(components@),work,error);}}
+    reconstructed?;
     #[cfg(verus_keep_ghost)]
     proof! { reveal(decoded_tile_components_view); }
     Ok(DecodedTileComponents {

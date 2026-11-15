@@ -304,6 +304,9 @@ verus! {
 #[cfg(verus_keep_ghost)]
 verus! {
     spec fn ht_boolean_vector_view(value: Vec<bool>) -> Seq<bool> { value@ }
+    spec fn ht_cleanup_flags_outcome(value: Result<Vec<bool>, DecodeError>) -> Result<Seq<bool>, DecodeError> {
+        match value { Ok(flags) => Ok(flags@), Err(error) => Err(error) }
+    }
 
     spec fn ht_refinement_magnitude_outcome(result: Result<Magnitude, DecodeError>) -> Result<(Seq<u64>, nat), DecodeError> {
         match result { Err(error) => Err(error), Ok(value) => Ok((
@@ -419,10 +422,21 @@ verus! {
     {
         match result { Err(error) => Err(error), Ok(state) => Ok(legacy_bitplane_view(&state)) }
     }
+
+    pub closed spec fn legacy_bitplane_option_view(source:&Option<Tier1BitplaneState>)->Option<crate::specs::Part1LegacyBitplane> {
+        match source{None=>None,Some(value)=>Some(legacy_bitplane_view(value))}
+    }
+    pub open spec fn legacy_bitplane_option_outcome(result:Result<Option<Tier1BitplaneState>,DecodeError>)->Result<Option<crate::specs::Part1LegacyBitplane>,DecodeError> {
+        match result{Err(error)=>Err(error),Ok(value)=>Ok(legacy_bitplane_option_view(&value))}
+    }
 }
 
 #[cfg(verus_keep_ghost)]
 verus! {
+    pub(crate) open spec fn legacy_storage_limits(limits:&ResourceLimits)->crate::specs::Part2LegacyCaps {
+        crate::specs::part2_legacy_caps(crate::limits::resource_code_block_pass_limit(limits),crate::limits::resource_code_block_byte_limit(limits),
+            crate::limits::resource_input_byte_limit(limits),crate::limits::resource_work_limit(limits))
+    }
     pub closed spec fn legacy_segment_view(legacy: &LegacySegmentState) -> crate::specs::Tier1LegacyFrame {
         crate::specs::Tier1LegacyFrame {
             plane: code_block_plane_view(&legacy.plane), next_pass: legacy.next_pass, bitplane: legacy.bitplane,
@@ -436,6 +450,16 @@ verus! {
             decoded_segments: legacy.decoded_segments, decoded_bytes: legacy.decoded_bytes,
             input: legacy.input@, passes: legacy.passes,
         }
+    }
+
+    pub open spec fn legacy_segment_outcome(result:Result<LegacySegmentState,DecodeError>)->Result<crate::specs::Tier1LegacyFrame,DecodeError> {
+        match result{Err(error)=>Err(error),Ok(value)=>Ok(legacy_segment_view(&value))}
+    }
+    pub closed spec fn legacy_segment_option_view(source:&Option<LegacySegmentState>)->Option<crate::specs::Tier1LegacyFrame> {
+        match source{None=>None,Some(value)=>Some(legacy_segment_view(value))}
+    }
+    pub open spec fn legacy_segment_option_outcome(result:Result<Option<LegacySegmentState>,DecodeError>)->Result<Option<crate::specs::Tier1LegacyFrame>,DecodeError> {
+        match result{Err(error)=>Err(error),Ok(value)=>Ok(legacy_segment_option_view(&value))}
     }
 
     pub closed spec fn tier1_decoder_state(decoder: &Tier1CodeBlockDecoder) -> crate::specs::Tier1DecoderState {

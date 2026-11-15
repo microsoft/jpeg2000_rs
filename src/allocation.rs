@@ -61,6 +61,49 @@ pub(crate) fn empty_with_capacity<T>(capacity: usize) -> Result<Vec<T>, DecodeEr
 }
 
 #[cfg_attr(verus_keep_ghost, verus_spec(result =>
+    ensures crate::specs::storage_copy_result(Seq::new(count as nat, |_: int| 0i64), result),
+        count == 0 ==> result.is_ok(),
+))]
+pub(crate) fn zero_i64_values(count: usize) -> Result<Vec<i64>, DecodeError> {
+    if count == 0 {
+        #[cfg(verus_keep_ghost)]
+        proof! {assert(Seq::<i64>::empty() =~= Seq::new(0nat,|_:int|0i64));}
+        return Ok(Vec::new());
+    }
+    let mut values = empty_with_capacity(count)?;
+    values.resize(count, 0_i64);
+    #[cfg(verus_keep_ghost)]
+    proof! {
+        assert forall|i:int|0<=i<count implies values@[i]==0i64 by {
+            assert(vstd::pervasive::cloned::<i64>(0i64,values@[i]));
+        }
+        assert(values@ =~= Seq::new(count as nat,|_:int|0i64));
+    }
+    Ok(values)
+}
+
+#[cfg_attr(verus_keep_ghost, verus_spec(result =>
+    ensures crate::specs::storage_copy_result(source@, result),
+))]
+pub(crate) fn copy_i64_values(source: &[i64]) -> Result<Vec<i64>, DecodeError> {
+    if source.is_empty() {
+        #[cfg(verus_keep_ghost)]
+        proof! {assert(source@ =~= Seq::<i64>::empty());}
+        return Ok(Vec::new());
+    }
+    let mut values = empty_with_capacity(source.len())?;
+    values.extend_from_slice(source);
+    #[cfg(verus_keep_ghost)]
+    proof! {
+        assert forall|i:int|0<=i<source.len() implies values@[i]==source@[i] by {
+            assert(vstd::pervasive::cloned::<i64>(source@[i],values@[i]));
+        }
+        assert(values@ =~= source@);
+    }
+    Ok(values)
+}
+
+#[cfg_attr(verus_keep_ghost, verus_spec(result =>
     ensures crate::specs::storage_none_result(count, result),
 ))]
 pub(crate) fn none_values<T>(count: usize) -> Result<Vec<Option<T>>, DecodeError> {
@@ -189,7 +232,41 @@ pub(crate) fn with_refusal<T>(after: usize, operation: impl FnOnce() -> T) -> T 
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn bulk_i64_copy_preserves_raw_empty_prior_owner_first_later_and_restore() {
+        use super::{copy_i64_values, with_refusal};
+        use crate::DecodeError;
+        let source = [i64::MIN, 7, -1, 0, i64::MAX];
+        with_refusal(0, || {
+            assert_eq!(copy_i64_values(&[]).unwrap(), []);
+            assert_eq!(copy_i64_values(&source), Err(DecodeError::AllocationFailed));
+            assert_eq!(copy_i64_values(&source).unwrap(), source);
+        });
+        with_refusal(1, || {
+            let prior = copy_i64_values(&source).unwrap();
+            assert_eq!(copy_i64_values(&source), Err(DecodeError::AllocationFailed));
+            assert_eq!(prior, source);
+            assert_eq!(copy_i64_values(&source).unwrap(), source);
+        });
+        assert_eq!(source, [i64::MIN, 7, -1, 0, i64::MAX]);
+    }
+
     use super::*;
+
+    #[test]
+    fn bulk_zero_i64_empty_first_later_refusal_and_restore_keep_exact_values() {
+        with_refusal(0, || {
+            assert!(zero_i64_values(0).unwrap().is_empty());
+            assert_eq!(zero_i64_values(3), Err(DecodeError::AllocationFailed));
+            assert_eq!(zero_i64_values(3).unwrap(), [0; 3]);
+        });
+        with_refusal(1, || {
+            let prior = zero_i64_values(17).unwrap();
+            assert_eq!(zero_i64_values(3), Err(DecodeError::AllocationFailed));
+            assert_eq!(prior, [0; 17]);
+            assert_eq!(zero_i64_values(3).unwrap(), [0; 3]);
+        });
+    }
 
     #[test]
     fn preparation_fill_zero_refusal_and_restore_keep_exact_values() {

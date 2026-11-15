@@ -382,14 +382,23 @@ class FrameworkTests(WorkingFiles):
         self.assertEqual(framework.validate_normative_coverage(coverage)["status"], "passed")
         mutations = []
         for projection in ("reconstruction_outcome", "sequence_outcome"):
+            prefix = f"{projection}(result)!=Err(DecodeError::AllocationFailed) ==> {projection}(result)"
             mutations.extend((
-                (f"ensures {projection}(result)", f"ensures {projection}(unrelated)"),
-                (f"ensures {projection}(result)", "ensures unlisted_projection(result)"),
-                (f"ensures {projection}(result)", "ensures owned_layer_outcome(result)"),
+                (prefix, prefix.replace(f"{projection}(result)", f"{projection}(unrelated)")),
+                (prefix, prefix.rsplit(f"{projection}(result)", 1)[0] + "unlisted_projection(result)"),
+                (prefix, prefix.rsplit(f"{projection}(result)", 1)[0] + "owned_layer_outcome(result)"),
             ))
         for model in ("part1_inverse_integer_quantization", "part1_inverse_quantization",
                       "part1_inverse_five_three", "part1_interleaved"):
             mutations.append((f"== crate::specs::{model}(", "== crate::specs::unlisted_model("))
+        for model in ("part2_integer_quantization_result", "part2_quantization_plane_result",
+                      "part2_wavelet_sequence_result", "part2_wavelet_interleave_result"):
+            primary = f"ensures crate::specs::{model}"
+            mutations.extend((
+                (primary, f"ensures result.is_ok() ==> crate::specs::{model}"),
+                (primary, "ensures unlisted_projection"),
+                (primary, "ensures owned_layer_outcome"),
+            ))
         self._assert_contract_text_mutations(coverage, mutations)
 
     def test_inventory_checks_standard_profile_bound_return_projections(self):
@@ -428,12 +437,15 @@ class FrameworkTests(WorkingFiles):
                 "sequence_outcome" if projection == "reconstruction_outcome"
                 else "reconstruction_outcome"
             )
+            cold = framework._COLD_RESULT_CONTRACTS.get((reference["path"], function))
+            primary = f"crate::specs::{cold[0]}" if cold else f"{projection}(result)"
+            projected = (f"{projection}(result)!=Err(DecodeError::AllocationFailed) ==> {projection}(result)" if cold else f"ensures {projection}(result)")
             for before, after in (
-                (f"ensures {projection}(result)", f"ensures {projection}(unrelated)"),
-                (f"ensures {projection}(result)", "ensures unlisted_projection(result)"),
-                (f"ensures {projection}(result)", f"ensures {wrong_projection}(result)"),
+                (projected, projected.rsplit(f"{projection}(result)",1)[0]+f"{projection}(unrelated)"),
+                (projected, projected.rsplit(f"{projection}(result)",1)[0]+"unlisted_projection(result)"),
+                (projected, projected.rsplit(f"{projection}(result)",1)[0]+f"{wrong_projection}(result)"),
                 ("verus_spec(result =>", "verus_spec(unrelated =>"),
-                (f"ensures {projection}(result)", "ensures result.is_ok()"),
+                (f"ensures {primary}", "ensures result.is_ok()"),
                 (f"== crate::specs::{model}(", "== crate::specs::unlisted_model("),
             ):
                 self.assertIn(before, contract)
@@ -8045,12 +8057,16 @@ class FrameworkTests(WorkingFiles):
         entry = next(item for item in coverage["requirements"] if item["id"] == "implementation-fallible-storage-reservation")
         source = framework.ROOT / "src/allocation.rs"
         original, read_text = source.read_text(), Path.read_text
+        header = framework._coverage_function_header(original, "copy_values")
+        body = framework._coverage_function_body(original, header)
+        end = original.index(body, header.start()) + len(body)
+        factory = original[header.start():end]
         for before, after in (
             ("copy_values<T: Copy>", "copy_values<T: Clone>"),
             ("if source.is_empty()", "if false"),
         ):
-            self.assertIn(before, original)
-            changed = original.replace(before, after, 1)
+            self.assertIn(before, factory)
+            changed = original[:header.start()] + factory.replace(before, after, 1) + original[end:]
 
             def altered(path, *args, **kwargs):
                 return changed if path == source else read_text(path, *args, **kwargs)
@@ -8218,7 +8234,7 @@ class FrameworkTests(WorkingFiles):
         for relative, symbol, before, after in (
             ("specs/cold_tier1_initial.rs", "part2_tier1_storage_framed", "part2_tier1_storage_prefix(run,prefix,result)", "true"),
             ("specs/cold_tier1_initial.rs", "part2_tier1_storage_prefix", "Some((result,tail))", "Some((result,Seq::empty()))"),
-            ("specs/cold_tier1_initial.rs", "part2_tier1_plane_run", "call.samples!=count", "false"),
+            ("specs/cold_tier1_initial.rs", "part2_tier1_plane_run", "samples!=count", "false"),
             ("specs/cold_tier1_initial.rs", "part2_tier1_call_run", "rest.len()==0", "true"),
             ("specs/cold_tier1_initial.rs", "part2_tier1_call_admit", "context.significant==0", "context.bound==0 || context.significant==0"),
             ("specs/cold_codeblock_plan.rs", "part2_tier1_cell_context", "width:geometry.2,height:geometry.3", "width:geometry.3,height:geometry.2"),
@@ -8241,6 +8257,811 @@ class FrameworkTests(WorkingFiles):
             with self.subTest(symbol=symbol, before=before), mock.patch.object(Path, "read_text", altered), \
                     self.assertRaisesRegex(ValueError, "initial Tier1 storage"):
                 framework.validate_normative_coverage(data)
+
+    def test_inventory_ht_refinement_bytes_require_real_roles_sources_frontiers_and_rollback(self):
+        coverage = json.loads((framework.VALIDATION / "normative-coverage.json").read_text())
+        entry = next(item for item in coverage["requirements"] if item["id"] == framework._HT_BYTE_COPY_ENTRY)
+        data = dict(coverage, requirements=[entry])
+        self.assertEqual(framework.validate_normative_coverage(data)["status"], "passed")
+        read_text = Path.read_text
+        cases = (
+            ("specs/cold_ht_bytes.rs", "part2_ht_bytes_run", "source.len()==0", "source.len()==1"),
+            ("specs/cold_ht_bytes.rs", "part2_ht_bytes_run", "RefinementBytes", "Coefficient"),
+            ("specs/cold_ht_bytes.rs", "part2_ht_bytes_run", "before!=source", "false"),
+            ("specs/cold_ht_bytes.rs", "part2_ht_bytes_run", "elements!=source.len()", "elements!=1"),
+            ("specs/cold_ht_bytes.rs", "part2_ht_bytes_run", "calls.drop_first()", "calls"),
+            ("specs/cold_ht_bytes.rs", "part2_ht_duplicate_after_cleanup", "before.ht_refinement_data", "Seq::empty()"),
+            ("specs/cold_ht_decoder.rs", "part2_ht_coeff_after_refinement", "Err(error),cleared", "Err(error),before"),
+            ("specs/cold_ht_decoder.rs", "part2_ht_replay_run", "HtRefinementCopyRole::RetainedReplay", "HtRefinementCopyRole::PacketStaging"),
+            ("specs/cold_ht_decoder.rs", "part2_ht_staged_run", "part2_ht_duplicate_run(", "supplied_decoder("),
+            ("specs/cold_packet_planes.rs", "part2_plane_body_transaction_run", "HtRefinementCopyRole::PacketStaging", "HtRefinementCopyRole::HtStaging"),
+            ("src/tier1/contributions.rs", "Tier1CodeBlockDecoder::clone", "self.ht_refinement_data.clone()", "Vec::new()"),
+            ("src/tier1/contributions.rs", "Tier1CodeBlockDecoder::try_duplicate", "copy_ht_refinement_bytes(&self.ht_refinement_data, role)", "copy_ht_refinement_bytes(&[], role)"),
+            ("src/tier1/ht_refinement.rs", "copy_ht_refinement_bytes", "match copied", "match supplied_response"),
+            ("src/tier1/ht_contributions.rs", "Tier1CodeBlockDecoder::decode_high_throughput_refinement", "refinement_data.extend_from_slice(input)", "refinement_data.clear()"),
+            ("src/tier1/ht_contributions.rs", "Tier1CodeBlockDecoder::decode_ht_staged_group", "HtRefinementCopyRole::HtStaging", "HtRefinementCopyRole::PacketStaging"),
+        )
+        for relative, symbol, before, after in cases:
+            source = framework.ROOT / relative
+            original = source.read_text()
+            body = (framework._coverage_function_body(original, framework._coverage_function_header(original, symbol))
+                    if relative.startswith("src/") else framework._coverage_spec_function_body(original, symbol))
+            pattern = re.escape(before).replace(r"\ ", r"\s*")
+            changed_body, count = re.subn(pattern, lambda _: after, body, count=1)
+            self.assertEqual(count, 1, (symbol, before))
+            changed = original.replace(body, changed_body, 1)
+
+            def altered(path, *args, **kwargs):
+                return changed if path == source else read_text(path, *args, **kwargs)
+
+            with self.subTest(symbol=symbol, before=before), mock.patch.object(Path, "read_text", altered), \
+                    self.assertRaisesRegex(ValueError, "HT byte-copy storage|remaining plane storage"):
+                framework.validate_normative_coverage(data)
+        missing = copy.deepcopy(data)
+        missing["requirements"][0]["test_refs"] = [
+            ref for ref in entry["test_refs"] if (ref["path"], ref["symbol"]) not in framework._HT_BYTE_COPY_TESTS
+        ]
+        with self.assertRaisesRegex(ValueError, "HT byte-copy storage requires bounded"):
+            framework.validate_normative_coverage(missing)
+
+    def test_inventory_decoder_plane_copies_require_raw_sources_optional_order_and_actual_responses(self):
+        coverage = json.loads((framework.VALIDATION / "normative-coverage.json").read_text())
+        entry = next(item for item in coverage["requirements"] if item["id"] == framework._HT_BYTE_COPY_ENTRY)
+        data = dict(coverage, requirements=[entry])
+        self.assertEqual(framework.validate_normative_coverage(data)["status"], "passed")
+        read_text = Path.read_text
+        cases = (
+            ("specs/cold_decoder_planes.rs", "part2_decoder_plane_run", "source.coefficients.len()", "source.width as nat * source.height as nat"),
+            ("specs/cold_decoder_planes.rs", "part2_decoder_plane_run", "count==0", "count==1"),
+            ("specs/cold_decoder_planes.rs", "part2_decoder_plane_run", "DecoderPlaneCopy", "Coefficient"),
+            ("specs/cold_decoder_planes.rs", "part2_decoder_plane_run", "actual!=source", "false"),
+            ("specs/cold_decoder_planes.rs", "part2_decoder_plane_run", "path!=role", "false"),
+            ("specs/cold_decoder_planes.rs", "part2_decoder_plane_run", "optional!=cleanup", "false"),
+            ("specs/cold_decoder_planes.rs", "part2_decoder_plane_run", "elements!=count", "elements!=1"),
+            ("specs/cold_decoder_planes.rs", "part2_decoder_plane_run", "calls.drop_first()", "calls"),
+            ("specs/cold_decoder_planes.rs", "part2_decoder_cleanup_run", "Ok(None),calls", "Ok(None),calls.drop_first()"),
+            ("specs/cold_ht_bytes.rs", "part2_ht_duplicate_run", "before.plane,role,false", "before.plane,role,true"),
+            ("specs/cold_ht_bytes.rs", "part2_ht_duplicate_after_legacy", "before.ht_cleanup_plane", "None"),
+            ("src/tier1/state.rs", "CodeBlockPlane::try_duplicate_raw", "copy_values(&self.coefficients)", "copy_values(&[])"),
+            ("src/tier1/state.rs", "CodeBlockPlane::try_duplicate_raw", "width: self.width", "width: 1"),
+            ("src/tier1/state.rs", "CodeBlockPlane::clone", "self.coefficients.clone()", "Vec::new()"),
+            ("src/tier1/contributions.rs", "Tier1CodeBlockDecoder::try_duplicate", "self.plane.try_duplicate_raw(role, false, false)", "self.plane.try_duplicate_raw(role, true, false)"),
+            ("src/tier1/contributions.rs", "Tier1CodeBlockDecoder::try_duplicate", "source.try_duplicate_raw(role, true, false)", "source.try_duplicate_raw(role, false, false)"),
+        )
+        for relative, symbol, before, after in cases:
+            source = framework.ROOT / relative
+            original = source.read_text()
+            body = (framework._coverage_function_body(original, framework._coverage_function_header(original, symbol))
+                    if relative.startswith("src/") else framework._coverage_spec_function_body(original, symbol))
+            pattern = re.escape(before).replace(r"\ ", r"\s*")
+            changed_body, count = re.subn(pattern, lambda _: after, body, count=1)
+            self.assertEqual(count, 1, (symbol, before))
+            changed = original.replace(body, changed_body, 1)
+
+            def altered(path, *args, **kwargs):
+                return changed if path == source else read_text(path, *args, **kwargs)
+
+            with self.subTest(symbol=symbol, before=before), mock.patch.object(Path, "read_text", altered), \
+                    self.assertRaisesRegex(ValueError, "decoder plane copies|HT byte-copy storage"):
+                framework.validate_normative_coverage(data)
+        missing = copy.deepcopy(data)
+        missing["requirements"][0]["test_refs"] = [
+            ref for ref in entry["test_refs"] if (ref["path"], ref["symbol"]) not in framework._DECODER_PLANE_COPY_TESTS
+        ]
+        with self.assertRaisesRegex(ValueError, "decoder plane copies require bounded"):
+            framework.validate_normative_coverage(missing)
+
+    def test_inventory_decoder_nested_copies_require_raw_owner_counts_paths_sources_and_field_order(self):
+        coverage = json.loads((framework.VALIDATION / "normative-coverage.json").read_text())
+        entry = next(item for item in coverage["requirements"] if item["id"] == framework._HT_BYTE_COPY_ENTRY)
+        data = dict(coverage, requirements=[entry])
+        self.assertEqual(framework.validate_normative_coverage(data)["status"], "passed")
+        read_text = Path.read_text
+        cases = (
+            ("specs/cold_decoder_nested.rs", "part2_nested_owner_count", "source.coefficients.len()", "source.width as nat * source.height as nat"),
+            ("specs/cold_decoder_nested.rs", "part2_nested_owner_count", "source.significance_visited.len()", "source.significant_before.len()"),
+            ("specs/cold_decoder_nested.rs", "part2_nested_owner_count", "source.input.len()", "1"),
+            ("specs/cold_decoder_nested.rs", "part2_nested_owner_run", "count==0", "count==1"),
+            ("specs/cold_decoder_nested.rs", "part2_nested_owner_run", "NestedCopy", "RefinementBytes"),
+            ("specs/cold_decoder_nested.rs", "part2_nested_owner_run", "actual!=owner", "false"),
+            ("specs/cold_decoder_nested.rs", "part2_nested_owner_run", "elements!=count", "elements!=1"),
+            ("specs/cold_decoder_nested.rs", "part2_nested_owner_run", "calls.drop_first()", "calls"),
+            ("specs/cold_decoder_nested.rs", "part2_nested_flags", "Some(source.significant_before)", "None"),
+            ("specs/cold_decoder_nested.rs", "part2_nested_bitplane_run", "legacy,false),calls", "legacy,true),calls"),
+            ("specs/cold_decoder_nested.rs", "part2_nested_option_run", "Ok(None),calls", "Ok(None),calls.drop_first()"),
+            ("specs/cold_decoder_nested.rs", "part2_nested_legacy_run", "source.plane", "supplied_plane"),
+            ("specs/cold_decoder_nested.rs", "part2_nested_legacy_after_plane", "source.bitplane_state,role,true", "source.bitplane_state,role,false"),
+            ("specs/cold_ht_bytes.rs", "part2_ht_duplicate_after_primary", "before.bitplane_state", "None"),
+            ("specs/cold_ht_bytes.rs", "part2_ht_duplicate_after_bitplane", "before.legacy_segment", "None"),
+            ("src/tier1/legacy_passes.rs", "Tier1BitplaneState::try_duplicate", "copy_values(&self.significance_visited)", "copy_values(&self.significant_before)"),
+            ("src/tier1/contributions.rs", "LegacySegmentState::try_duplicate", "try_duplicate_raw(role, false, true)", "try_duplicate_raw(role, false, false)"),
+            ("src/tier1/contributions.rs", "LegacySegmentState::try_duplicate", "copy_values(&self.input)", "copy_values(&[])"),
+            ("src/tier1/legacy_passes.rs", "Tier1BitplaneState::clone", "self.significant_before.clone()", "Vec::new()"),
+            ("src/tier1/contributions.rs", "LegacySegmentState::clone", "self.input.clone()", "Vec::new()"),
+        )
+        for relative, symbol, before, after in cases:
+            source = framework.ROOT / relative
+            original = source.read_text()
+            body = (framework._coverage_function_body(original, framework._coverage_function_header(original, symbol))
+                    if relative.startswith("src/") else framework._coverage_spec_function_body(original, symbol))
+            pattern = re.escape(before).replace(r"\ ", r"\s*")
+            changed_body, count = re.subn(pattern, lambda _: after, body, count=1)
+            self.assertEqual(count, 1, (symbol, before))
+            changed = original.replace(body, changed_body, 1)
+
+            def altered(path, *args, **kwargs):
+                return changed if path == source else read_text(path, *args, **kwargs)
+
+            with self.subTest(symbol=symbol, before=before), mock.patch.object(Path, "read_text", altered), \
+                    self.assertRaisesRegex(ValueError, "decoder plane copies|decoder nested copies|HT byte-copy storage"):
+                framework.validate_normative_coverage(data)
+        missing = copy.deepcopy(data)
+        missing["requirements"][0]["test_refs"] = [
+            ref for ref in entry["test_refs"] if (ref["path"], ref["symbol"]) not in framework._DECODER_NESTED_COPY_TESTS
+        ]
+        with self.assertRaisesRegex(ValueError, "decoder nested copies require bounded"):
+            framework.validate_normative_coverage(missing)
+
+    def test_inventory_legacy_snapshot_restore_requires_actual_roles_partial_state_and_consumed_tails(self):
+        coverage = json.loads((framework.VALIDATION / "normative-coverage.json").read_text())
+        entry = next(item for item in coverage["requirements"] if item["id"] == framework._LEGACY_SNAPSHOT_ENTRY)
+        data = dict(coverage, requirements=[entry])
+        self.assertEqual(framework.validate_normative_coverage(data)["status"], "passed")
+        read_text = Path.read_text
+        cases = (
+            ("specs/cold_legacy_replay.rs", "part2_legacy_snapshot_run", "LegacySnapshot", "PacketStaging"),
+            ("specs/cold_legacy_replay.rs", "part2_legacy_snapshot_flags", "before.bitplane_state", "None"),
+            ("specs/cold_legacy_replay.rs", "part2_legacy_snapshot_result", "part2_tier1_storage_framed", "supplied_successful_snapshot"),
+            ("specs/cold_legacy_replay.rs", "part2_legacy_restore_partial", "next_pass:source.next_pass", "next_pass:before.next_pass"),
+            ("specs/cold_legacy_replay.rs", "part2_legacy_restore_after_plane", "Err(error),before", "Err(error),part1_legacy_restore(before,source)"),
+            ("specs/cold_legacy_replay.rs", "part2_legacy_restore_flags", "LegacyRestore", "LegacySnapshot"),
+            ("specs/cold_legacy_replay.rs", "part2_legacy_restore_flags", "Err(error),part2_legacy_restore_partial", "Ok(()),part2_legacy_restore_partial"),
+            ("specs/cold_legacy_replay.rs", "part2_legacy_replay_run", "Err(error),part2_legacy_replay_clear(before)", "Err(error),before"),
+            ("specs/cold_legacy_replay.rs", "part2_legacy_replay_after_source", "part1_legacy_append(source,input,replay)", "part1_legacy_append(source,input,1)"),
+            ("specs/cold_legacy_replay.rs", "part2_legacy_replay_finish", "Err(_)=>restored", "Err(_)=>(Ok(()),restored.1)"),
+            ("specs/cold_legacy_packets.rs", "part2_legacy_packet_step_run", "body.subrange(before.offset as int,end as int)", "body.subrange(0,end as int)"),
+            ("specs/cold_legacy_packets.rs", "part2_legacy_packet_fold", "Ok(step),rest", "Ok(step),Seq::empty()"),
+            ("src/tier1/contributions.rs", "Tier1CodeBlockDecoder::legacy_segment_snapshot", "HtRefinementCopyRole::LegacySnapshot", "HtRefinementCopyRole::HtStaging"),
+            ("src/tier1/contributions.rs", "Tier1CodeBlockDecoder::legacy_segment_snapshot", "input: Vec::new()", "input: Vec::with_capacity(1)"),
+            ("src/tier1/contributions.rs", "Tier1CodeBlockDecoder::restore_legacy_segment", "HtRefinementCopyRole::LegacyRestore", "HtRefinementCopyRole::LegacySnapshot"),
+            ("src/tier1/contributions.rs", "Tier1CodeBlockDecoder::restore_legacy_segment", "self.plane = copied?", "self.plane = segment.plane.clone()"),
+            ("src/tier1/contributions.rs", "Tier1CodeBlockDecoder::restore_legacy_segment", "self.bitplane_state = copied?", "self.bitplane_state = None"),
+            ("src/tier1/contributions.rs", "Tier1CodeBlockDecoder::decode_legacy_replay", "self.legacy_segment.take()", "self.legacy_segment.clone()"),
+            ("src/tier1/contributions.rs", "Tier1CodeBlockDecoder::decode_legacy_replay", "restored?", "let ignored = restored"),
+            ("src/packet/body.rs", "decode_legacy_code_block_segment", "decoded?", "let ignored = decoded"),
+        )
+        for relative, symbol, before, after in cases:
+            source = framework.ROOT / relative
+            original = source.read_text()
+            body = (framework._coverage_function_body(original, framework._coverage_function_header(original, symbol))
+                    if relative.startswith("src/") else framework._coverage_spec_function_body(original, symbol))
+            pattern = re.escape(before).replace(r"\ ", r"\s*")
+            changed_body, count = re.subn(pattern, lambda _: after, body, count=1)
+            self.assertEqual(count, 1, (symbol, before))
+            changed = original.replace(body, changed_body, 1)
+
+            def altered(path, *args, **kwargs):
+                return changed if path == source else read_text(path, *args, **kwargs)
+
+            with self.subTest(symbol=symbol, before=before), mock.patch.object(Path, "read_text", altered), \
+                    self.assertRaisesRegex(ValueError, "legacy snapshot/restore storage|linked function lacks executable Verus contract"):
+                framework.validate_normative_coverage(data)
+        missing = copy.deepcopy(data)
+        missing["requirements"][0]["test_refs"] = [
+            ref for ref in entry["test_refs"] if (ref["path"], ref["symbol"]) not in framework._LEGACY_SNAPSHOT_TESTS
+        ]
+        with self.assertRaisesRegex(ValueError, "legacy snapshot/restore storage requires bounded"):
+            framework.validate_normative_coverage(missing)
+
+    def test_inventory_initial_bitplane_storage_requires_actual_flag_values_count_and_early_error_order(self):
+        coverage = json.loads((framework.VALIDATION / "normative-coverage.json").read_text())
+        entry = next(item for item in coverage["requirements"] if item["id"] == framework._LEGACY_SNAPSHOT_ENTRY)
+        data = dict(coverage, requirements=[entry])
+        self.assertEqual(framework.validate_normative_coverage(data)["status"], "passed")
+        read_text = Path.read_text
+        cases = (
+            ("specs/cold_bitplane_initial.rs", "part2_bitplane_significant", "value.significant", "value.refined"),
+            ("specs/cold_bitplane_initial.rs", "part2_bitplane_capacity_run", "plane.coefficients.len()", "plane.width as nat * plane.height as nat"),
+            ("specs/cold_bitplane_initial.rs", "part2_bitplane_capacity_run", "values.len()", "1"),
+            ("specs/cold_bitplane_initial.rs", "part2_bitplane_capacity_run", "count==0", "count==1"),
+            ("specs/cold_bitplane_initial.rs", "part2_bitplane_capacity_run", "BitplaneInitialCapacity", "NestedCopy"),
+            ("specs/cold_bitplane_initial.rs", "part2_bitplane_capacity_run", "source!=plane", "false"),
+            ("specs/cold_bitplane_initial.rs", "part2_bitplane_capacity_run", "field!=visited", "false"),
+            ("specs/cold_bitplane_initial.rs", "part2_bitplane_capacity_run", "before!=prior", "false"),
+            ("specs/cold_bitplane_initial.rs", "part2_bitplane_capacity_run", "elements!=count", "elements!=1"),
+            ("specs/cold_bitplane_initial.rs", "part2_bitplane_capacity_run", "calls.drop_first()", "calls"),
+            ("specs/cold_bitplane_initial.rs", "part2_bitplane_initial_visited", "Some(part2_bitplane_significant(plane))", "Some(Seq::empty())"),
+            ("specs/cold_bitplane_initial.rs", "part2_bitplane_initial_result", "part2_tier1_storage_framed", "supplied_success"),
+            ("specs/cold_bitplane_initial.rs", "part2_legacy_ensure_run", "before.bitplane_state.is_some()", "before.bitplane_state.is_none()"),
+            ("specs/cold_legacy_bitplanes.rs", "part2_legacy_inner_fold", "Ok(step),rest", "Ok(step),Seq::empty()"),
+            ("src/tier1/legacy_passes.rs", "legacy_bitplane_from_plane", "empty_with_capacity(count)", "empty_with_capacity(1)"),
+            ("src/tier1/legacy_passes.rs", "legacy_bitplane_from_plane", "plane.coefficients[index].significant", "false"),
+            ("src/tier1/legacy_passes.rs", "legacy_bitplane_from_plane", "filled_values(false, significant_before.len())", "filled_values(true, significant_before.len())"),
+            ("src/tier1/legacy_passes.rs", "legacy_bitplane_from_plane", "Some(significant_before@)", "Some(Seq::empty())"),
+            ("src/tier1/legacy_segments.rs", "Tier1CodeBlockDecoder::ensure_bitplane_state", "self.bitplane_state = Some(constructed?)", "self.bitplane_state = None"),
+        )
+        for relative, symbol, before, after in cases:
+            source = framework.ROOT / relative
+            original = source.read_text()
+            body = (framework._coverage_function_body(original, framework._coverage_function_header(original, symbol))
+                    if relative.startswith("src/") else framework._coverage_spec_function_body(original, symbol))
+            pattern = re.escape(before).replace(r"\ ", r"\s*")
+            changed_body, count = re.subn(pattern, lambda _: after, body, count=1)
+            self.assertEqual(count, 1, (symbol, before))
+            changed = original.replace(body, changed_body, 1)
+
+            def altered(path, *args, **kwargs):
+                return changed if path == source else read_text(path, *args, **kwargs)
+
+            with self.subTest(symbol=symbol, before=before), mock.patch.object(Path, "read_text", altered), \
+                    self.assertRaisesRegex(ValueError, "initial bitplane storage"):
+                framework.validate_normative_coverage(data)
+        missing = copy.deepcopy(data)
+        missing["requirements"][0]["test_refs"] = [
+            ref for ref in entry["test_refs"] if (ref["path"], ref["symbol"]) not in framework._BITPLANE_INITIAL_TESTS
+        ]
+        with self.assertRaisesRegex(ValueError, "initial bitplane storage requires bounded"):
+            framework.validate_normative_coverage(missing)
+
+    def test_inventory_coefficient_extraction_requires_actual_raw_role_error_tail_and_first_normal(self):
+        coverage = json.loads((framework.VALIDATION / "normative-coverage.json").read_text())
+        data = dict(coverage, requirements=[
+            e for e in coverage["requirements"] if e["id"] == "part1-complete-standard-plan-coordinator"
+        ])
+        self.assertEqual(framework.validate_normative_coverage(data)["status"], "passed")
+        read_text = Path.read_text
+        cases = (
+            ("specs/cold_coefficient_extraction.rs", "part2_extraction_context", "coefficients:plane.coefficients.len()", "coefficients:0"),
+            ("specs/cold_coefficient_extraction.rs", "part2_extraction_count", "context.width as nat*context.height as nat", "context.coefficients"),
+            ("specs/cold_coefficient_extraction.rs", "part2_extraction_capacity_run", "count==0", "count==1"),
+            ("specs/cold_coefficient_extraction.rs", "part2_extraction_capacity_run", "CoefficientExtractionCapacity", "RefinementScratchCapacity"),
+            ("specs/cold_coefficient_extraction.rs", "part2_extraction_capacity_run", "actual!=context", "false"),
+            ("specs/cold_coefficient_extraction.rs", "part2_extraction_capacity_run", "elements!=count", "false"),
+            ("specs/cold_coefficient_extraction.rs", "part2_extraction_capacity_run", "calls.drop_first()", "calls"),
+            ("specs/cold_coefficient_extraction.rs", "part2_linear_coefficients_prefix", "value.0,value.2", "value.0,false"),
+            ("specs/cold_extraction_reconstruction.rs", "part2_extraction_place_run", "part2_extraction_run(plane,true,calls)", "part2_extraction_run(plane,false,calls)"),
+            ("specs/cold_extraction_reconstruction.rs", "part2_extraction_placements_next", "Some((Ok(effect),calls))", "Some((Ok(effect),Seq::empty()))"),
+            ("specs/cold_decode_packets.rs", "part2_planned_decode_run", "work,decoded.1,rest", "work,plan.precincts,rest"),
+            ("src/decode/code_blocks.rs", "collect_code_block_coefficients", "empty_with_capacity(count)", "empty_with_capacity(1)"),
+            ("src/decode/reconstruction.rs", "collect_prepare_coefficients", "empty_with_capacity(count)", "empty_with_capacity(1)"),
+        )
+        for relative, symbol, before, after in cases:
+            source = framework.ROOT / relative
+            original = source.read_text()
+            body = (framework._coverage_function_body(original, framework._coverage_function_header(original, symbol))
+                    if relative.startswith("src/") else framework._coverage_spec_function_body(original, symbol))
+            changed_body, count = re.subn(re.escape(before).replace(r"\ ", r"\s*"), lambda _: after, body, count=1)
+            self.assertEqual(count, 1, (symbol, before))
+            changed = original.replace(body, changed_body, 1)
+
+            def altered(path, *args, **kwargs):
+                return changed if path == source else read_text(path, *args, **kwargs)
+
+            with self.subTest(symbol=symbol, before=before), mock.patch.object(Path, "read_text", altered), \
+                    self.assertRaisesRegex(ValueError, "coefficient extraction"):
+                framework.validate_normative_coverage(data)
+        missing = copy.deepcopy(data)
+        missing["requirements"][0]["test_refs"] = [
+            r for r in missing["requirements"][0]["test_refs"]
+            if (r["path"], r["symbol"]) not in framework._COEFFICIENT_EXTRACTION_TESTS
+        ]
+        with self.assertRaisesRegex(ValueError, "coefficient extraction requires bounded"):
+            framework.validate_normative_coverage(missing)
+        source = framework.ROOT / "src/decode/reconstruction.rs"
+        original = source.read_text()
+        header = framework._coverage_function_header(original, "prepare_tile_component")
+        start = original.rfind("#[cfg_attr", 0, header.start())
+        contract = original[start:header.start()]
+        closing = contract.rfind("))]")
+        self.assertGreater(closing, 0)
+        first = contract.index("prepared_component_outcome(result)!=Err")
+        end = contract.index("prepared_component_outcome(result)!=Err", first + 1)
+        good = contract[first:end]
+        for before, after in (
+            ("== crate::specs::part1_prepare_standard_component", "<= crate::specs::part1_prepare_standard_component"),
+            ("prepare_plan_view(plan)", "prepare_plan_view(other_plan)"),
+            ("prepared_component_outcome(result) ==", "prepared_component_outcome(other_result) =="),
+        ):
+            self.assertIn(before, good)
+            bad = good.replace(before, after, 1)
+            changed_contract = contract[:first] + bad + contract[end:closing] + good + contract[closing:]
+            changed = original[:start] + changed_contract + original[header.start():]
+
+            def altered(path, *args, **kwargs):
+                return changed if path == source else read_text(path, *args, **kwargs)
+
+            with self.subTest(before=before), mock.patch.object(Path, "read_text", altered), \
+                    self.assertRaisesRegex(ValueError, "executable Verus contract"):
+                framework.validate_normative_coverage(data)
+
+    def test_inventory_wavelet_planes_require_actual_prior_rows_matrix_tail_and_first_normal(self):
+        coverage=json.loads((framework.VALIDATION / "normative-coverage.json").read_text())
+        data=dict(coverage,requirements=[e for e in coverage["requirements"] if e["id"]=="part1-complete-standard-wavelet-planes"])
+        self.assertEqual(framework.validate_normative_coverage(data)["status"],"passed")
+        read_text=Path.read_text
+        for relative,symbol,before,after in (
+            ("specs/cold_wavelet_planes.rs","part2_wavelet_capacity_run","count==0","count==1"),
+            ("specs/cold_wavelet_planes.rs","part2_wavelet_capacity_run","actual!=owner","false"),
+            ("specs/cold_wavelet_planes.rs","part2_wavelet_capacity_run","elements!=count","false"),
+            ("specs/cold_wavelet_planes.rs","part2_wavelet_capacity_run","calls.drop_first()","calls"),
+            ("specs/cold_wavelet_planes.rs","part2_wavelet_rows_run","Part2WaveletPlaneOwner::Rows","Part2WaveletPlaneOwner::Columns"),
+            ("specs/cold_wavelet_planes.rs","part2_wavelet_columns_run","Part2WaveletPlaneOwner::Columns","Part2WaveletPlaneOwner::Rows"),
+            ("specs/cold_wavelet_planes.rs","part2_wavelet_level_after_low","length,low,high,rest","length,Seq::empty(),high,rest"),
+            ("specs/cold_wavelet_planes.rs","part2_wavelet_level_after_high","level.2.1,high","level.2.1,low"),
+            ("specs/cold_extraction_reconstruction.rs","part2_extraction_component_finish_run","part2_wavelet_reconstruct_run(placed.1.0,plan","part2_wavelet_reconstruct_run(Seq::empty(),plan"),
+            ("src/transform/levels.rs","inverse_rows","empty_with_capacity(capacity)","empty_with_capacity(1)"),
+            ("src/allocation.rs","zero_i64_values","values.resize(count, 0_i64)","values.resize(count, 1_i64)"),
+        ):
+            source=framework.ROOT / relative;original=source.read_text()
+            body=(framework._coverage_function_body(original,framework._coverage_function_header(original,symbol)) if relative.startswith("src/") else framework._coverage_spec_function_body(original,symbol))
+            changed_body,count=re.subn(re.escape(before).replace(r"\ ",r"\s*"),lambda _:after,body,count=1)
+            self.assertEqual(count,1,(symbol,before));changed=original.replace(body,changed_body,1)
+            def altered(path,*args,**kwargs):
+                return changed if path==source else read_text(path,*args,**kwargs)
+            with self.subTest(symbol=symbol,before=before),mock.patch.object(Path,"read_text",altered),self.assertRaisesRegex(ValueError,"wavelet planes"):
+                framework.validate_normative_coverage(data)
+        missing=copy.deepcopy(data)
+        missing["requirements"][0]["test_refs"]=[r for r in missing["requirements"][0]["test_refs"] if (r["path"],r["symbol"]) not in framework._WAVELET_PLANE_TESTS]
+        with self.assertRaisesRegex(ValueError,"wavelet planes require bounded"):
+            framework.validate_normative_coverage(missing)
+        source=framework.ROOT / "src/transform/levels.rs";original=source.read_text()
+        header=framework._coverage_function_header(original,"inverse_horizontal_5_3")
+        start=original.rfind("#[cfg_attr",0,header.start());contract=original[start:header.start()]
+        first=contract.index("reconstruction_outcome(result)!=Err");closing=contract.rfind("))]");good=contract[first:closing]
+        for before,after in (
+            ("== crate::specs::part1_inverse_horizontal","<= crate::specs::part1_inverse_horizontal"),
+            ("wavelet_band_view(low)","wavelet_band_view(high)"),
+            ("reconstruction_outcome(result)","reconstruction_outcome(other_result)"),
+        ):
+            bad=good.replace(before,after,1);self.assertNotEqual(bad,good)
+            changed=original[:start]+contract[:first]+bad+good+contract[closing:]+original[header.start():]
+            def altered(path,*args,**kwargs):
+                return changed if path==source else read_text(path,*args,**kwargs)
+            with self.subTest(before=before),mock.patch.object(Path,"read_text",altered),self.assertRaisesRegex(ValueError,"executable Verus contract"):
+                framework.validate_normative_coverage(data)
+
+    def test_inventory_prepare_copies_require_actual_raw_owners_frontiers_tail_and_bulk_values(self):
+        coverage = json.loads((framework.VALIDATION / "normative-coverage.json").read_text())
+        data = dict(coverage, requirements=[
+            e for e in coverage["requirements"] if e["id"] == "part1-complete-standard-plan-coordinator"
+        ])
+        self.assertEqual(framework.validate_normative_coverage(data)["status"], "passed")
+        read_text = Path.read_text
+        for relative, symbol, before, after in (
+            ("specs/cold_prepare_copies.rs", "part2_prepare_copy_capacity_run", "count==0", "count==1"),
+            ("specs/cold_prepare_copies.rs", "part2_prepare_copy_capacity_run", "actual!=role", "false"),
+            ("specs/cold_prepare_copies.rs", "part2_prepare_copy_capacity_run", "elements!=count", "false"),
+            ("specs/cold_prepare_copies.rs", "part2_prepare_copy_capacity_run", "calls.drop_first()", "calls"),
+            ("specs/cold_prepare_copies.rs", "part2_prepare_samples_run", "source.len()", "1"),
+            ("specs/cold_prepare_copies.rs", "part2_prepare_initial_run", "InitialLl,ll.3", "InitialLl,Seq::empty()"),
+            ("specs/cold_prepare_copies.rs", "part2_prepare_initial_run", "ll.0,ll.1,values", "ll.1,ll.0,values"),
+            ("specs/cold_prepare_copies.rs", "part2_prepare_plane_copy_run", "PreparedPlane,plane.3", "InitialLl,plane.3"),
+            ("specs/cold_prepare_copies.rs", "part2_prepare_plane_copy_run", "values,first_detail", "values,0usize"),
+            ("specs/cold_wavelet_prepare.rs", "part2_wavelet_reconstruct_run", "part2_prepare_initial_run(bands[0]", "part2_prepare_initial_run(bands[1]"),
+            ("specs/cold_wavelet_prepare.rs", "part2_wavelet_resolution_finish_run", "plane.2!=part1_prepare_fraction(reversible)", "false"),
+            ("specs/cold_wavelet_prepare.rs", "part2_wavelet_resolution_run", "reversible,next,plane,rest", "reversible,0usize,plane,rest"),
+            ("src/allocation.rs", "copy_i64_values", "if source.is_empty()", "if false"),
+            ("src/allocation.rs", "copy_i64_values", "empty_with_capacity(source.len())?", "empty_with_capacity(1)?"),
+            ("src/allocation.rs", "copy_i64_values", "values.extend_from_slice(source)", "values.extend_from_slice(&[])"),
+            ("src/decode/reconstruction.rs", "reconstruct_prepare_working", "copy_i64_values(&ll.samples)", "copy_i64_values(&[])"),
+            ("src/decode/reconstruction.rs", "copy_prepare_plane", "copy_i64_values(plane.samples())", "copy_i64_values(&[])"),
+            ("src/decode/reconstruction.rs", "copy_prepare_plane", "width: reconstructed_width", "width: reconstructed_height"),
+        ):
+            source = framework.ROOT / relative
+            original = source.read_text()
+            body = (framework._coverage_function_body(original, framework._coverage_function_header(original, symbol))
+                    if relative.startswith("src/") else framework._coverage_spec_function_body(original, symbol))
+            changed_body, count = re.subn(re.escape(before).replace(r"\ ", r"\s*"), lambda _: after, body, count=1)
+            self.assertEqual(count, 1, (symbol, before))
+            changed = original.replace(body, changed_body, 1)
+
+            def altered(path, *args, **kwargs):
+                return changed if path == source else read_text(path, *args, **kwargs)
+
+            with self.subTest(symbol=symbol, before=before), mock.patch.object(Path, "read_text", altered), \
+                    self.assertRaisesRegex(ValueError, "prepare copies"):
+                framework.validate_normative_coverage(data)
+        missing = copy.deepcopy(data)
+        missing["requirements"][0]["test_refs"] = [
+            r for r in missing["requirements"][0]["test_refs"] if (r["path"], r["symbol"]) not in framework._PREPARE_COPY_TESTS
+        ]
+        with self.assertRaisesRegex(ValueError, "prepare copies require bounded"):
+            framework.validate_normative_coverage(missing)
+        source = framework.ROOT / "src/decode/reconstruction.rs"
+        original = source.read_text()
+        header = framework._coverage_function_header(original, "copy_prepare_plane")
+        start = original.rfind("#[cfg_attr", 0, header.start())
+        contract = original[start:header.start()]
+        first = contract.index("prepare_fold_outcome(result)!=Err")
+        closing = contract.rfind("))]")
+        good = contract[first:closing]
+        for before, after in (("== crate::specs::part1_prepare_copy_plane", "<= crate::specs::part1_prepare_copy_plane"),
+                              ("reconstructed_plane_view(plane)", "reconstructed_plane_view(other_plane)"),
+                              ("prepare_fold_outcome(result)", "prepare_fold_outcome(other_result)")):
+            bad = good.replace(before, after, 1)
+            self.assertNotEqual(bad, good)
+            changed = original[:start] + contract[:first] + bad + good + contract[closing:] + original[header.start():]
+
+            def altered(path, *args, **kwargs):
+                return changed if path == source else read_text(path, *args, **kwargs)
+
+            with self.subTest(before=before), mock.patch.object(Path, "read_text", altered), \
+                    self.assertRaisesRegex(ValueError, "executable Verus contract"):
+                framework.validate_normative_coverage(data)
+
+    def test_inventory_wavelet_lines_require_actual_sources_order_tail_partial_owners_and_bulk_zero(self):
+        coverage = json.loads((framework.VALIDATION / "normative-coverage.json").read_text())
+        data = dict(coverage, requirements=[
+            e for e in coverage["requirements"] if e["id"] == "part1-complete-standard-wavelet-planes"
+        ])
+        self.assertEqual(framework.validate_normative_coverage(data)["status"], "passed")
+        read_text = Path.read_text
+        for relative, symbol, before, after in (
+            ("specs/cold_wavelet_lines.rs", "part2_wavelet_line_capacity_run", "count==0", "count==1"),
+            ("specs/cold_wavelet_lines.rs", "part2_wavelet_line_capacity_run", "actual!=context", "false"),
+            ("specs/cold_wavelet_lines.rs", "part2_wavelet_line_capacity_run", "elements!=count", "false"),
+            ("specs/cold_wavelet_lines.rs", "part2_wavelet_line_capacity_run", "calls.drop_first()", "calls"),
+            ("specs/cold_wavelet_lines.rs", "part2_wavelet_interleave_run", "low:low.len()", "low:high.len()"),
+            ("specs/cold_wavelet_lines.rs", "part2_wavelet_gather_run", "column>=band.0", "false"),
+            ("specs/cold_wavelet_lines.rs", "part2_wavelet_gather_run", "height:band.1", "height:1"),
+            ("specs/cold_wavelet_lines.rs", "part2_wavelet_sequence_run", "low,high,first,calls", "high,low,first,calls"),
+            ("specs/cold_wavelet_line_planes.rs", "part2_wavelet_column_run", "a,high,x", "Seq::empty(),high,x"),
+            ("specs/cold_wavelet_line_planes.rs", "part2_wavelet_column_after_low", "low,b,first", "b,low,first"),
+            ("specs/cold_mct_wavelet_lines.rs", "part2_mct_line_step_run", "previous.1,input", "input,previous.1"),
+            ("specs/cold_mct_line_composition.rs", "part2_mct_line_decoded_run", "part2_mct_decoded_inputs(before.4)", "Seq::empty()"),
+            ("specs/cold_mct_line_composition.rs", "part2_mct_line_prepared_run", "before,effect.1", "before,input.1"),
+            ("specs/cold_extraction_tile.rs", "part2_extraction_tile_finish_run", "initial+finished.1", "finished.1"),
+            ("src/transform/geometry.rs", "collect_column", "empty_with_capacity(count)", "empty_with_capacity(1)"),
+            ("src/transform/wavelets.rs", "interleave", "empty_with_capacity(length)", "empty_with_capacity(1)"),
+            ("src/transform/levels.rs", "inverse_columns", "zero_i64_values(output_len)", "zero_i64_values(1)"),
+            ("src/allocation.rs", "zero_i64_values", "empty_with_capacity(count)?", "empty_with_capacity(1)?"),
+        ):
+            source = framework.ROOT / relative
+            original = source.read_text()
+            body = (framework._coverage_function_body(original, framework._coverage_function_header(original, symbol))
+                    if relative.startswith("src/") else framework._coverage_spec_function_body(original, symbol))
+            changed_body, count = re.subn(re.escape(before).replace(r"\ ", r"\s*"), lambda _: after, body, count=1)
+            self.assertEqual(count, 1, (symbol, before))
+            changed = original.replace(body, changed_body, 1)
+
+            def altered(path, *args, **kwargs):
+                return changed if path == source else read_text(path, *args, **kwargs)
+
+            with self.subTest(symbol=symbol, before=before), mock.patch.object(Path, "read_text", altered), \
+                    self.assertRaisesRegex(ValueError, "wavelet (planes|lines)"):
+                framework.validate_normative_coverage(data)
+        missing = copy.deepcopy(data)
+        missing["requirements"][0]["test_refs"] = [
+            r for r in missing["requirements"][0]["test_refs"] if (r["path"], r["symbol"]) not in framework._WAVELET_LINE_TESTS
+        ]
+        with self.assertRaisesRegex(ValueError, "wavelet lines require bounded"):
+            framework.validate_normative_coverage(missing)
+        source = framework.ROOT / "src/allocation.rs"
+        original = source.read_text()
+        for before, after in (("|_: int| 0i64", "|_: int| 1i64"), ("count == 0 ==> result.is_ok()", "true")):
+            changed, count = re.subn(re.escape(before).replace(r"\ ", r"\s*"), lambda _: after, original, count=1)
+            self.assertEqual(count, 1)
+
+            def altered(path, *args, **kwargs):
+                return changed if path == source else read_text(path, *args, **kwargs)
+
+            with self.subTest(before=before), mock.patch.object(Path, "read_text", altered), \
+                    self.assertRaisesRegex(ValueError, "wavelet lines require exact checked zero"):
+                framework.validate_normative_coverage(data)
+
+    def test_inventory_quantization_output_requires_actual_roles_sources_tail_and_first_normal(self):
+        coverage = json.loads((framework.VALIDATION / "normative-coverage.json").read_text())
+        data = dict(coverage, requirements=[
+            e for e in coverage["requirements"] if e["id"] == "part1-complete-supplied-coefficient-quantization"
+        ])
+        self.assertEqual(framework.validate_normative_coverage(data)["status"], "passed")
+        read_text = Path.read_text
+        for relative, symbol, before, after in (
+            ("specs/cold_quantization_outputs.rs", "part2_quantization_capacity_run", "count==0", "count==1"),
+            ("specs/cold_quantization_outputs.rs", "part2_quantization_capacity_run", "actual!=owner", "false"),
+            ("specs/cold_quantization_outputs.rs", "part2_quantization_capacity_run", "elements!=count", "false"),
+            ("specs/cold_quantization_outputs.rs", "part2_quantization_capacity_run", "calls.drop_first()", "calls"),
+            ("specs/cold_quantization_outputs.rs", "part2_integer_quantization_run", "Part2QuantizationOwner::Wide", "Part2QuantizationOwner::Samples"),
+            ("specs/cold_quantization_outputs.rs", "part2_integer_quantization_after_wide", "coefficients[i]==i64::MIN", "false"),
+            ("specs/cold_quantization_outputs.rs", "part2_quantization_plane_run", "Part2QuantizationOwner::Samples", "Part2QuantizationOwner::Wide"),
+            ("specs/cold_quantization_outputs.rs", "part2_quantized_samples_copy_run", "Some((Ok(source),rest))", "Some((Ok(Seq::empty()),rest))"),
+            ("specs/cold_extraction_reconstruction.rs", "part2_extraction_place_after_coefficients_run", "part2_quantization_plane_run(values,", "part2_quantization_plane_run(Seq::empty(),"),
+            ("src/transform/quantization.rs", "inverse_quantize_values", "empty_with_capacity(count)", "empty_with_capacity(1)"),
+            ("src/transform/quantization.rs", "inverse_quantize_plane", "empty_with_capacity(count)", "empty_with_capacity(1)"),
+            ("src/decode/code_blocks.rs", "copy_code_block_samples", "copy_values(source)", "copy_values(&[])"),
+        ):
+            source = framework.ROOT / relative
+            original = source.read_text()
+            body = (framework._coverage_function_body(original, framework._coverage_function_header(original, symbol))
+                    if relative.startswith("src/") else framework._coverage_spec_function_body(original, symbol))
+            changed_body, count = re.subn(re.escape(before).replace(r"\ ", r"\s*"), lambda _: after, body, count=1)
+            self.assertEqual(count, 1, (symbol, before))
+            changed = original.replace(body, changed_body, 1)
+
+            def altered(path, *args, **kwargs):
+                return changed if path == source else read_text(path, *args, **kwargs)
+
+            with self.subTest(symbol=symbol, before=before), mock.patch.object(Path, "read_text", altered), \
+                    self.assertRaisesRegex(ValueError, "quantization output"):
+                framework.validate_normative_coverage(data)
+        missing = copy.deepcopy(data)
+        missing["requirements"][0]["test_refs"] = [
+            r for r in missing["requirements"][0]["test_refs"]
+            if (r["path"], r["symbol"]) not in framework._QUANTIZATION_OUTPUT_TESTS
+        ]
+        with self.assertRaisesRegex(ValueError, "quantization output requires bounded"):
+            framework.validate_normative_coverage(missing)
+        source = framework.ROOT / "src/transform/quantization.rs"
+        original = source.read_text()
+        header = framework._coverage_function_header(original, "inverse_quantize_plane")
+        start = original.rfind("#[cfg_attr", 0, header.start())
+        contract = original[start:header.start()]
+        closing = contract.rfind("))]")
+        first = contract.index("reconstruction_outcome(result)!=Err")
+        good = contract[first:closing]
+        for before, after in (
+            ("== crate::specs::part1_inverse_quantization", "<= crate::specs::part1_inverse_quantization"),
+            ("quantized_coefficients_view(coefficients@)", "quantized_coefficients_view(other@)"),
+            ("reconstruction_outcome(result)", "reconstruction_outcome(other_result)"),
+        ):
+            bad = good.replace(before, after, 1)
+            self.assertNotEqual(bad, good)
+            changed = original[:start] + contract[:first] + bad + good + contract[closing:] + original[header.start():]
+
+            def altered(path, *args, **kwargs):
+                return changed if path == source else read_text(path, *args, **kwargs)
+
+            with self.subTest(before=before), mock.patch.object(Path, "read_text", altered), \
+                    self.assertRaisesRegex(ValueError, "executable Verus contract"):
+                framework.validate_normative_coverage(data)
+
+    def test_inventory_cleanup_significance_requires_real_source_child_tail_and_first_normal(self):
+        coverage = json.loads((framework.VALIDATION / "normative-coverage.json").read_text())
+        data = dict(coverage, requirements=[
+            e for e in coverage["requirements"] if e["id"] == "part15-complete-actual-refinement-plane"
+        ])
+        self.assertEqual(framework.validate_normative_coverage(data)["status"], "passed")
+        read_text = Path.read_text
+        for relative, symbol, before, after in (
+            ("specs/cold_ht_significance.rs", "part2_cleanup_significance_capacity_run", "count==0", "count==1"),
+            ("specs/cold_ht_significance.rs", "part2_cleanup_significance_capacity_run", "CleanupSignificanceCapacity", "RefinementScratchCapacity"),
+            ("specs/cold_ht_significance.rs", "part2_cleanup_significance_capacity_run", "elements!=count", "false"),
+            ("specs/cold_ht_significance.rs", "part2_cleanup_significance_capacity_run", "calls.drop_first()", "calls"),
+            ("specs/cold_ht_significance.rs", "part2_cleanup_significance_run", "coefficients.len()", "0"),
+            ("specs/cold_ht_significance.rs", "part2_cleanup_significance_run", "ht_cleanup_significance(coefficients)", "Seq::empty()"),
+            ("specs/cold_tier1_planes.rs", "part2_plane_refinement_after_readers", "cleanup.coefficients,calls", "output.coefficients,calls"),
+            ("specs/cold_tier1_planes.rs", "part2_plane_refinement_after_readers", "readers,flags,passes", "readers,Seq::empty(),passes"),
+            ("specs/cold_tier1_planes.rs", "part2_plane_refinement_prepared_flags", "cleanup_significant:flags", "cleanup_significant:Seq::empty()"),
+            ("specs/cold_tier1_planes.rs", "part2_plane_refinement_after_flags", "Err(error)=>Some((Err(error),calls))", "Err(error)=>Some((Err(error),Seq::empty()))"),
+            ("src/tier1/ht_refinement.rs", "ht_collect_cleanup_significance", "empty_with_capacity(count)", "empty_with_capacity(1)"),
+            ("src/tier1/ht_refinement.rs", "ht_collect_cleanup_significance", "coefficients[index].significant", "coefficients[index].negative"),
+            ("src/tier1/ht_refinement.rs", "decode_ht_refinement_plane", "ht_collect_cleanup_significance(cleanup_plane.coefficients())", "ht_collect_cleanup_significance(output.coefficients())"),
+        ):
+            source = framework.ROOT / relative
+            original = source.read_text()
+            body = (framework._coverage_function_body(original, framework._coverage_function_header(original, symbol))
+                    if relative.startswith("src/") else framework._coverage_spec_function_body(original, symbol))
+            changed_body, count = re.subn(re.escape(before).replace(r"\ ", r"\s*"), lambda _: after, body, count=1)
+            self.assertEqual(count, 1, (symbol, before))
+            changed = original.replace(body, changed_body, 1)
+
+            def altered(path, *args, **kwargs):
+                return changed if path == source else read_text(path, *args, **kwargs)
+
+            with self.subTest(symbol=symbol, before=before), mock.patch.object(Path, "read_text", altered), \
+                    self.assertRaisesRegex(ValueError, "cleanup significance"):
+                framework.validate_normative_coverage(data)
+        missing = copy.deepcopy(data)
+        missing["requirements"][0]["test_refs"] = [
+            r for r in missing["requirements"][0]["test_refs"]
+            if (r["path"], r["symbol"]) not in framework._CLEANUP_SIGNIFICANCE_TESTS
+        ]
+        with self.assertRaisesRegex(ValueError, "cleanup significance requires bounded"):
+            framework.validate_normative_coverage(missing)
+        source = framework.ROOT / "src/tier1/ht_refinement.rs"
+        original = source.read_text()
+        header = framework._coverage_function_header(original, "ht_collect_cleanup_significance")
+        start = original.rfind("#[cfg_attr", 0, header.start())
+        contract = original[start:header.start()]
+        closing = contract.rfind("))]")
+        first = contract.index("ht_cleanup_flags_outcome(result)!=Err")
+        good = contract[first:closing]
+        for before, after in (
+            ("== Ok(crate::specs::ht_cleanup_significance", "<= Ok(crate::specs::ht_cleanup_significance"),
+            ("coefficient_raw_views(coefficients@)", "coefficient_raw_views(other@)"),
+            ("ht_cleanup_flags_outcome(result)", "ht_cleanup_flags_outcome(other_result)"),
+        ):
+            bad = good.replace(before, after, 1)
+            self.assertNotEqual(bad, good)
+            changed = original[:start] + contract[:first] + bad + good + contract[closing:] + original[header.start():]
+
+            def altered(path, *args, **kwargs):
+                return changed if path == source else read_text(path, *args, **kwargs)
+
+            with self.subTest(before=before), mock.patch.object(Path, "read_text", altered), \
+                    self.assertRaisesRegex(ValueError, "executable Verus contract"):
+                framework.validate_normative_coverage(data)
+
+    def test_inventory_refinement_scratch_requires_actual_count_mask_role_and_reader_order(self):
+        coverage = json.loads((framework.VALIDATION / "normative-coverage.json").read_text())
+        entry = next(e for e in coverage["requirements"] if e["id"] == "part15-directional-word-event-state")
+        data = dict(coverage, requirements=[entry])
+        self.assertEqual(framework.validate_normative_coverage(data)["status"], "passed")
+        read_text = Path.read_text
+        cases = (
+            ("specs/cold_ht_refinement_scratch.rs", "part2_ht_scratch_context", "forward_length:forward.len()", "forward_length:0"),
+            ("specs/cold_ht_refinement_scratch.rs", "part2_ht_scratch_context", "reverse_length:reverse.len()", "reverse_length:0"),
+            ("specs/cold_ht_refinement_scratch.rs", "part2_ht_scratch_context", "Some(Seq::new(bytes as nat,|_:int|0u8))", "Some(Seq::empty())"),
+            ("specs/cold_ht_refinement_scratch.rs", "part2_ht_scratch_admit", "if has_reverse", "if true"),
+            ("specs/cold_ht_refinement_scratch.rs", "part2_ht_scratch_capacity_run", "context.bytes==0", "context.bytes==1"),
+            ("specs/cold_ht_refinement_scratch.rs", "part2_ht_scratch_capacity_run", "RefinementScratchCapacity", "HtExponentCapacity"),
+            ("specs/cold_ht_refinement_scratch.rs", "part2_ht_scratch_capacity_run", "actual!=context", "false"),
+            ("specs/cold_ht_refinement_scratch.rs", "part2_ht_scratch_capacity_run", "field!=stuffed", "false"),
+            ("specs/cold_ht_refinement_scratch.rs", "part2_ht_scratch_capacity_run", "elements!=context.bytes", "false"),
+            ("specs/cold_ht_refinement_scratch.rs", "part2_ht_scratch_capacity_run", "calls.drop_first()", "calls"),
+            ("specs/cold_ht_refinement_scratch.rs", "part2_ht_scratch_run", "Err(error)=>Some((Err(error),calls))", "Err(error)=>Some((Err(error),Seq::empty()))"),
+            ("specs/cold_ht_refinement_scratch.rs", "part2_ht_scratch_stuffed", "work,true),true,calls", "work,false),false,calls"),
+            ("src/tier1/ht_refinement_readers.rs", "ht_refinement_readers_from_inputs", "filled_values(0_u8, bytes)", "filled_values(1_u8, bytes)"),
+            ("src/tier1/ht_refinement_readers.rs", "ht_refinement_readers_from_inputs", "let claimed = allocated?", "let stuffed = allocated?"),
+            ("src/tier1/ht_refinement_readers.rs", "ht_refinement_readers_from_inputs", "Some(claimed@)", "Some(Seq::empty())"),
+        )
+        for relative, symbol, before, after in cases:
+            source = framework.ROOT / relative
+            original = source.read_text()
+            body = (framework._coverage_function_body(original, framework._coverage_function_header(original, symbol))
+                    if relative.startswith("src/") else framework._coverage_spec_function_body(original, symbol))
+            pattern = re.escape(before).replace(r"\ ", r"\s*")
+            changed_body, count = re.subn(pattern, lambda _: after, body, count=1)
+            self.assertEqual(count, 1, (symbol, before))
+            changed = original.replace(body, changed_body, 1)
+
+            def altered(path, *args, **kwargs):
+                return changed if path == source else read_text(path, *args, **kwargs)
+
+            with self.subTest(symbol=symbol, before=before), mock.patch.object(Path, "read_text", altered), \
+                    self.assertRaisesRegex(ValueError, "HT refinement scratch"):
+                framework.validate_normative_coverage(data)
+        missing = copy.deepcopy(data)
+        missing["requirements"][0]["test_refs"] = [
+            r for r in entry["test_refs"] if (r["path"], r["symbol"]) not in framework._HT_SCRATCH_TESTS
+        ]
+        with self.assertRaisesRegex(ValueError, "HT refinement scratch requires bounded"):
+            framework.validate_normative_coverage(missing)
+        source = framework.ROOT / "src/tier1/ht_refinement_readers.rs"
+        original = source.read_text()
+        header = framework._coverage_function_header(original, "ht_refinement_readers_from_inputs")
+        start = original.rfind("#[cfg_attr", 0, header.start())
+        contract = original[start:header.start()]
+        closing = contract.rfind("\n    )")
+        self.assertGreater(closing, 0)
+        bad = contract.replace("== crate::specs::ht_refinement_readers_initial(", "<= crate::specs::ht_refinement_readers_initial(", 1)
+        good = contract[contract.index("ht_refinement_readers_outcome(result)!=Err"):closing]
+        changed = original[:start] + bad[:closing] + good + bad[closing:] + original[header.start():]
+
+        def altered(path, *args, **kwargs):
+            return changed if path == source else read_text(path, *args, **kwargs)
+
+        with mock.patch.object(Path, "read_text", altered), self.assertRaisesRegex(ValueError, "lacks executable Verus contract"):
+            framework.validate_normative_coverage(data)
+
+    def test_inventory_ht_metadata_storage_requires_actual_count_prior_rows_and_precise_error_tail(self):
+        coverage = json.loads((framework.VALIDATION / "normative-coverage.json").read_text())
+        entry = next(e for e in coverage["requirements"] if e["id"] == "part15-complete-cleanup-metadata")
+        data = dict(coverage, requirements=[entry])
+        self.assertEqual(framework.validate_normative_coverage(data)["status"], "passed")
+        read_text = Path.read_text
+        cases = (
+            ("specs/cold_ht_metadata.rs", "part2_ht_metadata_context", "mel:cleanup.mel.bytes", "mel:Seq::empty()"),
+            ("specs/cold_ht_metadata.rs", "part2_ht_metadata_count", "context.height", "context.width"),
+            ("specs/cold_ht_metadata.rs", "part2_ht_metadata_count", "previous.len()", "1"),
+            ("specs/cold_ht_metadata.rs", "part2_ht_metadata_row_context", "quads:state.quads.len()", "quads:0"),
+            ("specs/cold_ht_metadata.rs", "part2_ht_metadata_row_context", "previous:Some(state.previous)", "previous:None"),
+            ("specs/cold_ht_metadata.rs", "part2_ht_metadata_row_context", "significant:state.significant", "significant:0"),
+            ("specs/cold_ht_metadata.rs", "part2_ht_metadata_capacity_run", "count==0", "count==1"),
+            ("specs/cold_ht_metadata.rs", "part2_ht_metadata_capacity_run", "HtMetadataCapacity", "HtExponentCapacity"),
+            ("specs/cold_ht_metadata.rs", "part2_ht_metadata_capacity_run", "actual!=context", "false"),
+            ("specs/cold_ht_metadata.rs", "part2_ht_metadata_capacity_run", "field!=role", "false"),
+            ("specs/cold_ht_metadata.rs", "part2_ht_metadata_capacity_run", "elements!=count", "false"),
+            ("specs/cold_ht_metadata.rs", "part2_ht_metadata_capacity_run", "calls.drop_first()", "calls"),
+            ("specs/cold_ht_metadata.rs", "part2_ht_metadata_row_run", "Err(error)=>(Err(error),state)", "Err(error)=>(Ok(()),state)"),
+            ("specs/cold_ht_metadata.rs", "part2_ht_metadata_rows_next", "Some((Ok(step),calls))", "Some((Ok(step),Seq::empty()))"),
+            ("specs/cold_ht_metadata.rs", "part2_ht_metadata_admit", "maximum_u>75", "maximum_u>255"),
+            ("specs/cold_ht_metadata.rs", "part2_ht_metadata_run", "Part2HtMetadataRole::Quads", "Part2HtMetadataRole::Previous"),
+            ("src/tier1/ht_metadata.rs", "decode_ht_cleanup_segment_metadata", "empty_with_capacity::<HtQuadMetadata>(quad_count)", "empty_with_capacity::<HtQuadMetadata>(1)"),
+            ("src/tier1/ht_metadata.rs", "decode_ht_cleanup_segment_metadata", "filled_values(0_u8, quads_per_row)", "filled_values(1_u8, quads_per_row)"),
+            ("src/tier1/ht_metadata.rs", "decode_ht_metadata_row", "filled_values(0_u8, quads_per_row)", "filled_values(0_u8, 1)"),
+        )
+        for relative, symbol, before, after in cases:
+            source = framework.ROOT / relative
+            original = source.read_text()
+            body = (framework._coverage_function_body(original, framework._coverage_function_header(original, symbol))
+                    if relative.startswith("src/") else framework._coverage_spec_function_body(original, symbol))
+            pattern = re.escape(before).replace(r"\ ", r"\s*")
+            changed_body, count = re.subn(pattern, lambda _: after, body, count=1)
+            self.assertEqual(count, 1, (symbol, before))
+            changed = original.replace(body, changed_body, 1)
+
+            def altered(path, *args, **kwargs):
+                return changed if path == source else read_text(path, *args, **kwargs)
+
+            with self.subTest(symbol=symbol, before=before), mock.patch.object(Path, "read_text", altered), \
+                    self.assertRaisesRegex(ValueError, "HT metadata storage"):
+                framework.validate_normative_coverage(data)
+        missing = copy.deepcopy(data)
+        missing["requirements"][0]["test_refs"] = [
+            r for r in entry["test_refs"] if (r["path"], r["symbol"]) not in framework._HT_METADATA_TESTS
+        ]
+        with self.assertRaisesRegex(ValueError, "HT metadata storage requires bounded"):
+            framework.validate_normative_coverage(missing)
+        source = framework.ROOT / "src/tier1/ht_metadata.rs"
+        original = source.read_text()
+        header = framework._coverage_function_header(original, "decode_ht_cleanup_segment_metadata")
+        start = original.rfind("#[cfg_attr", 0, header.start())
+        contract = original[start:header.start()]
+        changed_contract = contract.replace("== crate::specs::ht_cleanup_segment_metadata(", "<= crate::specs::ht_cleanup_segment_metadata(", 1)
+        closing = contract.rfind("\n    )")
+        self.assertGreater(closing, 0)
+        changed_contract = (changed_contract[:closing]
+                            + contract[contract.index("ht_cleanup_metadata_outcome(result) != Err"):closing]
+                            + changed_contract[closing:])
+        self.assertEqual(changed_contract.count("ht_cleanup_segment_metadata("), 2)
+        changed = original[:start] + changed_contract + original[header.start():]
+
+        def altered(path, *args, **kwargs):
+            return changed if path == source else read_text(path, *args, **kwargs)
+
+        with mock.patch.object(Path, "read_text", altered), self.assertRaisesRegex(ValueError, "lacks executable Verus contract"):
+            framework.validate_normative_coverage(data)
+
+    def test_inventory_ht_exponent_storage_requires_actual_row_count_response_and_field_order(self):
+        coverage = json.loads((framework.VALIDATION / "normative-coverage.json").read_text())
+        entry = next(item for item in coverage["requirements"] if item["id"] == "part15-complete-actual-cleanup-plane")
+        data = dict(coverage, requirements=[entry])
+        self.assertEqual(framework.validate_normative_coverage(data)["status"], "passed")
+        read_text = Path.read_text
+        cases = (
+            ("specs/cold_ht_exponents.rs", "part2_ht_exponent_count", "metadata.width", "metadata.height"),
+            ("specs/cold_ht_exponents.rs", "part2_ht_exponent_context", "input:cleanup.mag_sgn.bytes", "input:Seq::empty()"),
+            ("specs/cold_ht_exponents.rs", "part2_ht_exponent_context", "part2_ht_exponent_count(metadata)", "0"),
+            ("specs/cold_ht_exponents.rs", "part2_ht_exponent_context", "else{None}", "else{Some(Seq::empty())}"),
+            ("specs/cold_ht_exponents.rs", "part2_ht_exponent_capacity_run", "context.metadata_width", "context.plane_width"),
+            ("specs/cold_ht_exponents.rs", "part2_ht_exponent_capacity_run", "HtExponentCapacity", "BitplaneInitialCapacity"),
+            ("specs/cold_ht_exponents.rs", "part2_ht_exponent_capacity_run", "actual!=context", "false"),
+            ("specs/cold_ht_exponents.rs", "part2_ht_exponent_capacity_run", "field!=current", "false"),
+            ("specs/cold_ht_exponents.rs", "part2_ht_exponent_capacity_run", "elements!=count", "elements!=1"),
+            ("specs/cold_ht_exponents.rs", "part2_ht_exponent_capacity_run", "calls.drop_first()", "calls"),
+            ("specs/cold_ht_exponents.rs", "part2_ht_exponent_ready", "ht_magsgn_initial(cleanup.mag_sgn.bytes,work)", "Ok(())"),
+            ("specs/cold_ht_exponents.rs", "part2_ht_exponent_after_plane", "work,false),false,calls", "work,true),true,calls"),
+            ("specs/cold_ht_exponents.rs", "part2_ht_exponent_after_plane", "work),calls))", "work),Seq::empty()))"),
+            ("specs/cold_ht_exponents.rs", "part2_ht_exponent_current", "work),rest))", "work),Seq::empty()))"),
+            ("src/tier1/ht_cleanup.rs", "reconstruct_ht_cleanup_plane", "usize::from(metadata.width)", "usize::from(plane.width())"),
+            ("src/tier1/ht_cleanup.rs", "reconstruct_ht_cleanup_plane", "filled_values(0_u8, exponent_count)", "filled_values(1_u8, exponent_count)"),
+            ("src/tier1/ht_cleanup.rs", "reconstruct_ht_cleanup_plane", "previous_exponents: {", "current_exponents: {"),
+            ("src/tier1/ht_cleanup.rs", "reconstruct_ht_cleanup_plane", "let output = output_result?", "let output = supplied_success?"),
+        )
+        for relative, symbol, before, after in cases:
+            source = framework.ROOT / relative
+            original = source.read_text()
+            body = (framework._coverage_function_body(original, framework._coverage_function_header(original, symbol))
+                    if relative.startswith("src/") else framework._coverage_spec_function_body(original, symbol))
+            pattern = re.escape(before).replace(r"\ ", r"\s*")
+            changed_body, count = re.subn(pattern, lambda _: after, body, count=1)
+            self.assertEqual(count, 1, (symbol, before))
+            changed = original.replace(body, changed_body, 1)
+
+            def altered(path, *args, **kwargs):
+                return changed if path == source else read_text(path, *args, **kwargs)
+
+            with self.subTest(symbol=symbol, before=before), mock.patch.object(Path, "read_text", altered), \
+                    self.assertRaisesRegex(ValueError, "remaining plane storage|HT exponent storage"):
+                framework.validate_normative_coverage(data)
+
+        missing = copy.deepcopy(data)
+        missing["requirements"][0]["test_refs"] = [
+            ref for ref in entry["test_refs"] if (ref["path"], ref["symbol"]) not in framework._HT_EXPONENT_TESTS
+        ]
+        with self.assertRaisesRegex(ValueError, "HT exponent storage requires bounded"):
+            framework.validate_normative_coverage(missing)
 
     def test_inventory_rollback_snapshot_owners_require_real_roles_counts_and_partial_owner_order(self):
         coverage = json.loads((framework.VALIDATION / "normative-coverage.json").read_text())
@@ -8891,6 +9712,23 @@ class FrameworkTests(WorkingFiles):
                     {"path": path, "symbol": symbol} for path, symbol in sorted(cold_proofs)
                 ]
                 isolated["test_refs"] = entry["test_refs"][:1]
+                if isolated["id"] == framework._LEGACY_SNAPSHOT_ENTRY:
+                    isolated["test_refs"] += [
+                        {"path": path, "symbol": symbol} for path, symbol in sorted(framework._LEGACY_SNAPSHOT_TESTS)
+                    ]
+                    isolated["test_refs"] += [
+                        {"path": path, "symbol": symbol} for path, symbol in sorted(framework._BITPLANE_INITIAL_TESTS)
+                    ]
+                if isolated["id"] == framework._HT_BYTE_COPY_ENTRY:
+                    isolated["test_refs"] += [
+                        {"path": path, "symbol": symbol} for path, symbol in sorted(framework._HT_BYTE_COPY_TESTS)
+                    ]
+                    isolated["test_refs"] += [
+                        {"path": path, "symbol": symbol} for path, symbol in sorted(framework._DECODER_PLANE_COPY_TESTS)
+                    ]
+                    isolated["test_refs"] += [
+                        {"path": path, "symbol": symbol} for path, symbol in sorted(framework._DECODER_NESTED_COPY_TESTS)
+                    ]
                 if isolated["id"] in framework._TAG_COPY_ENTRIES:
                     isolated["test_refs"] += [
                         {"path": path, "symbol": symbol} for path, symbol in sorted(framework._TAG_COPY_TESTS)
@@ -8907,6 +9745,10 @@ class FrameworkTests(WorkingFiles):
                     if {"path": path, "symbol": symbol} in entry["test_refs"]
                     and {"path": path, "symbol": symbol} not in isolated["test_refs"]
                 ]
+                if isolated["id"] == "part15-complete-actual-cleanup-plane":
+                    isolated["test_refs"] += [
+                        {"path": path, "symbol": symbol} for path, symbol in sorted(framework._HT_EXPONENT_TESTS)
+                    ]
                 if framework._COLD_RESULT_CONTRACTS.get(key, ("",))[0] in {
                         "part1_tier1_plane_storage_result", "part1_tier1_initial_storage_result", "part1_tier1_configured_storage_result",
                         "part2_codeblock_cell_result", "part2_codeblock_owner_result"}:
@@ -9122,10 +9964,12 @@ class FrameworkTests(WorkingFiles):
             contract = original[start:signature]
             mutable = symbol in ("apply_arbitrary_steps", "apply_arbitrary_step")
             expression = "(result, final(output)@)" if mutable else f"{projection}(result)" if projection else "result"
+            cold_contract = framework._COLD_RESULT_CONTRACTS.get((relative, symbol))
+            primary = f"crate::specs::{cold_contract[0]}" if cold_contract else expression
             mutations = [
-                (f"ensures {expression}", "ensures result.is_ok()"),
-                (f"ensures {expression}", f"ensures result.is_ok() ==> {expression}"),
-                (f"ensures {expression}", "ensures unrelated"),
+                (f"ensures {primary}", "ensures result.is_ok()"),
+                (f"ensures {primary}", f"ensures result.is_ok() ==> {primary}"),
+                (f"ensures {primary}", "ensures unrelated"),
                 (f"crate::specs::{model}(", "crate::specs::part2_atk_fixed_mul(" if model != "part2_atk_fixed_mul" else "crate::specs::part2_atk_fixed_div("),
                 (f"crate::specs::{model}(", "crate::specs::unlisted_model("),
                 *arguments,
@@ -9685,11 +10529,13 @@ class FrameworkTests(WorkingFiles):
                 "part1_prepare_finish" if model == "part1_prepare_standard_component"
                 else "part1_prepare_standard_component"
             )
+            cold_contract = framework._COLD_RESULT_CONTRACTS.get(("src/decode/reconstruction.rs", symbol))
+            primary = f"crate::specs::{cold_contract[0]}" if cold_contract else f"{projection}(result)"
             for before, after in (
                 (f"{projection}(result)", f"{projection}(unrelated)"),
                 (f"{projection}(result)", "unlisted_projection(result)"),
                 (f"{projection}(result)", "result.is_ok()"),
-                (f"ensures {projection}(result)", f"ensures result.is_ok() ==> {projection}(result)"),
+                (f"ensures {primary}", f"ensures result.is_ok() ==> {primary}"),
                 (f"crate::specs::{model}(", f"crate::specs::{wrong_model}("),
                 (f"crate::specs::{model}(", "crate::specs::unlisted_model("),
                 *arguments,
@@ -9738,7 +10584,7 @@ class FrameworkTests(WorkingFiles):
              ((r"\bdecoded_bitplanes\b", "0"),)),
             ("ht_refinement_delta", "ht_refinement_delta", "ht_refinement_magnitude_outcome", None,
              ((r"\bdecoded_bitplanes\b", "0"),)),
-            ("ht_collect_cleanup_significance", "ht_cleanup_significance", "ht_boolean_vector_view", None,
+            ("ht_collect_cleanup_significance", "ht_cleanup_significance", "ht_cleanup_flags_outcome", None,
              ((r"coefficient_raw_views\(coefficients@\)", "coefficient_slice_view(coefficients@)"),)),
             ("CodeBlockPlane::apply_ht_refinement_decision", "ht_apply_refinement", None, "code_block_plane_view",
              ((r"\brefinement_bit\b", "false"),)),
@@ -9792,8 +10638,9 @@ class FrameworkTests(WorkingFiles):
             signature = original.find("fn", header.start())
             start = original.rfind("#[cfg_attr", 0, signature)
             contract = original[start:signature]
+            value_wrapper = r"Ok\s*\(\s*" if symbol == "ht_collect_cleanup_significance" else ""
             whole = re.search(
-                r"\bensures\s+([\s\S]*?)\s*==\s*crate::specs::" + re.escape(model) + r"\(",
+                r"\bensures\s+([\s\S]*?)\s*==\s*" + value_wrapper + r"crate::specs::" + re.escape(model) + r"\(",
                 contract,
             )
             self.assertIsNotNone(whole, symbol)
@@ -10157,10 +11004,10 @@ class FrameworkTests(WorkingFiles):
         start = original.rfind("#[cfg_attr", 0, end)
         contract = original[start:end]
         for before, after in (
-            ("ensures ht_cleanup_metadata_outcome(result)", "ensures ht_cleanup_metadata_outcome(unrelated)"),
-            ("ensures ht_cleanup_metadata_outcome(result)", "ensures unlisted_projection(result)"),
-            ("ensures ht_cleanup_metadata_outcome(result)", "ensures ht_block_segments_outcome(result)"),
-            ("ensures ht_cleanup_metadata_outcome(result)", "ensures result.is_ok()"),
+            ("ht_cleanup_metadata_outcome(result)),", "ht_cleanup_metadata_outcome(unrelated)),"),
+            ("ht_cleanup_metadata_outcome(result)),", "unlisted_projection(result)),"),
+            ("ht_cleanup_metadata_outcome(result)),", "ht_block_segments_outcome(result)),"),
+            ("ht_cleanup_metadata_outcome(result)),", "result.is_ok()),"),
             ("== crate::specs::ht_cleanup_segment_metadata(", "== crate::specs::ht_decode_cleanup_metadata("),
             ("== crate::specs::ht_cleanup_segment_metadata(", "== crate::specs::ht_cleanup_quad_word("),
             ("== crate::specs::ht_cleanup_segment_metadata(", "<= crate::specs::ht_cleanup_segment_metadata("),

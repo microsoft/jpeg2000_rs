@@ -11,7 +11,8 @@ use crate::codestream::{ArbitraryKernel, KernelLiftingStep};
 use vstd::prelude::*;
 
 #[cfg_attr(verus_keep_ghost, verus_spec(result =>
-    ensures sequence_outcome(result)
+    ensures crate::specs::part2_wavelet_sequence_result(low@,high@,low_pass_first,!crate::codestream::raw_kernel_view(*kernel).0,Some(crate::codestream::raw_kernel_view(*kernel)),sequence_outcome(result)),
+        sequence_outcome(result)!=Err(DecodeError::AllocationFailed) ==> sequence_outcome(result)
         == crate::specs::part2_inverse_arbitrary(low@, high@, low_pass_first, crate::codestream::raw_kernel_view(*kernel)),
 ))]
 pub fn inverse_arbitrary(
@@ -20,7 +21,12 @@ pub fn inverse_arbitrary(
     low_pass_first: bool,
     kernel: &ArbitraryKernel,
 ) -> Result<Vec<i64>, DecodeError> {
-    let mut output = interleave(low, high, low_pass_first)?;
+    #[cfg(verus_keep_ghost)]
+    proof! {crate::specs::part2_wavelet_sequence_normal(low@,high@,low_pass_first,!crate::codestream::raw_kernel_view(*kernel).0,Some(crate::codestream::raw_kernel_view(*kernel)));}
+    let interleaved = interleave(low, high, low_pass_first);
+    #[cfg(verus_keep_ghost)]
+    proof! {if let Err(error)=interleaved{crate::specs::part2_wavelet_sequence_interleave_error(low@,high@,low_pass_first,!crate::codestream::raw_kernel_view(*kernel).0,Some(crate::codestream::raw_kernel_view(*kernel)),error);}}
+    let mut output = interleaved?;
     if output.len() == 1 {
         if !low_pass_first {
             output[0] = output[0].checked_div(2).ok_or_else(arithmetic_overflow)?;
@@ -46,6 +52,8 @@ pub fn inverse_arbitrary(
             verus_keep_ghost,
             verus_spec(
                 invariant index <= output.len(),
+                crate::specs::part2_wavelet_sequence_result(low@,high@,low_pass_first,!crate::codestream::raw_kernel_view(*kernel).0,Some(crate::codestream::raw_kernel_view(*kernel)),
+                    crate::specs::part2_inverse_arbitrary(low@,high@,low_pass_first,crate::codestream::raw_kernel_view(*kernel))),
                 initial.len() == output.len(),
                 initial.len() != 1,
                 crate::specs::part1_interleaved(low@, high@, low_pass_first) == Ok(initial),

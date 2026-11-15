@@ -136,7 +136,13 @@ pub(super) fn collect_prepared_transform_components<'a>(
 }
 
 #[cfg_attr(verus_keep_ghost, verus_spec(result =>
-    ensures (result,
+    ensures crate::specs::part2_mct_line_prepared_result(
+        Seq::new(old(prepared)@.len(),|index:int|prepared_component_view(old(prepared)@[index])),
+        codestream::image_size_component_count(size),codestream::image_size_component_infos(size),
+        codestream::multiple_component_transform_view(transform),*old(work),crate::limits::resource_work_limit(limits),
+        crate::limits::resource_decoded_bytes_limit(limits),
+        (result,Seq::new(final(prepared)@.len(),|index:int|prepared_component_view(final(prepared)@[index])),*final(work))),
+        result!=Err(DecodeError::AllocationFailed) ==> (result,
         Seq::new(final(prepared)@.len(), |index: int| prepared_component_view(final(prepared)@[index])),
         *final(work)) == crate::specs::part2_mct_prepared_tiles(
             Seq::new(old(prepared)@.len(), |index: int| prepared_component_view(old(prepared)@[index])),
@@ -156,6 +162,9 @@ pub(super) fn apply_tile_multiple_component_transform(
         let ghost before = Seq::new(prepared@.len(), |index: int| prepared_component_view(prepared@[index]));
         let ghost initial_work = *work;
     }
+    #[cfg(verus_keep_ghost)]
+    proof! {crate::specs::part2_mct_line_prepared_normal(before,codestream::image_size_component_count(size),codestream::image_size_component_infos(size),
+    codestream::multiple_component_transform_view(transform),initial_work,crate::limits::resource_work_limit(limits),crate::limits::resource_decoded_bytes_limit(limits));}
     let mut components = Vec::with_capacity(prepared.len());
     let collected_result = collect_prepared_transform_components(prepared, size, &mut components);
     #[cfg(verus_keep_ghost)]
@@ -200,7 +209,7 @@ pub(super) fn apply_tile_multiple_component_transform(
         apply_multiple_component_transform_components(&mut components, transform, limits, work);
     #[cfg(verus_keep_ghost)]
     proof! {
-        assert((result, Seq::new(components@.len(), |index: int| crate::image::transform_component_mut_view(&components@[index])), *work)
+        assert(result!=Err(DecodeError::AllocationFailed) ==> (result, Seq::new(components@.len(), |index: int| crate::image::transform_component_mut_view(&components@[index])), *work)
             == crate::specs::part2_mct_transform(input, codestream::multiple_component_transform_view(transform),
                 initial_work, crate::limits::resource_work_limit(limits), crate::limits::resource_decoded_bytes_limit(limits)));
         assert forall |index: int| 0 <= index < components@.len() implies
@@ -211,6 +220,10 @@ pub(super) fn apply_tile_multiple_component_transform(
         assert(Seq::new(final(prepared)@.len(), |index: int| prepared_component_view(final(prepared)@[index]))
             =~= crate::specs::part2_mct_prepared_result(before,
                 Seq::new(components@.len(), |index: int| crate::image::transform_component_mut_view(&components@[index]))));
+        crate::specs::part2_mct_line_prepared_observed(before,codestream::image_size_component_count(size),codestream::image_size_component_infos(size),
+            codestream::multiple_component_transform_view(transform),initial_work,crate::limits::resource_work_limit(limits),
+            crate::limits::resource_decoded_bytes_limit(limits),
+            (result,Seq::new(components@.len(),|index:int|crate::image::transform_component_mut_view(&components@[index])),*work));
     }
     result
 }
@@ -350,11 +363,13 @@ pub(super) fn write_quantized_block(
 }
 
 #[cfg_attr(verus_keep_ghost, verus_spec(result =>
-    ensures prepared_component_outcome(result) == crate::specs::part1_prepare_standard_component(
+    ensures crate::specs::part2_coefficient_component_result(prepare_plan_view(plan),prepare_precincts_view(precincts@),prepare_style_view(coding_style),
+                crate::limits::resource_decoded_bytes_limit(limits),prepared_component_outcome(result)),
+        prepared_component_outcome(result)!=Err(DecodeError::AllocationFailed) ==> prepared_component_outcome(result) == crate::specs::part1_prepare_standard_component(
         prepare_plan_view(plan), prepare_precincts_view(precincts@), prepare_style_view(coding_style),
         crate::limits::resource_decoded_bytes_limit(limits),
     ),
-    prepared_component_outcome(result) == crate::specs::part2_prepare_component(
+    prepared_component_outcome(result)!=Err(DecodeError::AllocationFailed) ==> prepared_component_outcome(result) == crate::specs::part2_prepare_component(
         prepare_plan_view(plan), prepare_precincts_view(precincts@), prepare_style_view(coding_style), None,
         crate::limits::resource_decoded_bytes_limit(limits)),
 ))]
@@ -364,7 +379,11 @@ pub fn prepare_tile_component(
     coding_style: CodingStyle,
     limits: &ResourceLimits,
 ) -> Result<PreparedTileComponent, DecodeError> {
-    prepare_tile_component_with_kernel(plan, precincts, coding_style, None, limits)
+    let result = prepare_tile_component_with_kernel(plan, precincts, coding_style, None, limits);
+    #[cfg(verus_keep_ghost)]
+    proof! {crate::specs::part2_coefficient_component_observed(prepare_plan_view(plan),prepare_precincts_view(precincts@),prepare_style_view(coding_style),
+    crate::limits::resource_decoded_bytes_limit(limits),prepared_component_outcome(result));}
+    result
 }
 
 #[cfg_attr(verus_keep_ghost, verus_spec(result =>
@@ -464,15 +483,35 @@ pub(super) fn append_prepare_subband(
 }
 
 #[cfg_attr(verus_keep_ghost, verus_spec(result =>
-    ensures crate::transform::quantized_coefficients_outcome(result) == crate::specs::part1_prepare_collect_coefficients(crate::tier1::code_block_plane_view(plane)),
+    ensures crate::specs::part2_coefficient_collect_result(crate::tier1::code_block_plane_view(plane),crate::transform::quantized_coefficients_outcome(result)),
+        crate::transform::quantized_coefficients_outcome(result)!=Err(DecodeError::AllocationFailed) ==> crate::transform::quantized_coefficients_outcome(result) == crate::specs::part1_prepare_collect_coefficients(crate::tier1::code_block_plane_view(plane)),
 ))]
 pub(super) fn collect_prepare_coefficients(
     plane: &CodeBlockPlane,
 ) -> Result<Vec<SignedMagnitude>, DecodeError> {
+    #[cfg(verus_keep_ghost)]
+    proof! {
+        crate::specs::part2_extraction_normal(crate::tier1::code_block_plane_view(plane),true);
+        crate::specs::part2_coefficient_collect_normal(crate::tier1::code_block_plane_view(plane));
+    }
     let count = usize::from(plane.width())
         .checked_mul(usize::from(plane.height()))
         .ok_or_else(arithmetic_overflow)?;
-    let mut coefficients = Vec::with_capacity(count);
+    let allocated = if count == 0 {
+        Ok(Vec::new())
+    } else {
+        crate::allocation::empty_with_capacity(count)
+    };
+    #[cfg(verus_keep_ghost)]
+    proof! {
+        let unit=match allocated{Err(error)=>Err(error),Ok(_)=>Ok(())};
+        crate::specs::part2_extraction_capacity_observed(crate::specs::part2_extraction_context(crate::tier1::code_block_plane_view(plane),true),unit);
+        if let Err(error)=allocated{
+            crate::specs::part2_extraction_refused(crate::tier1::code_block_plane_view(plane),true,error);
+            crate::specs::part2_coefficient_collect_observed(crate::tier1::code_block_plane_view(plane),Err(error));
+        }
+    }
+    let mut coefficients = allocated?;
     let height = plane.height();
     let width = plane.width();
     let mut y = 0_u16;
@@ -487,6 +526,10 @@ pub(super) fn collect_prepare_coefficients(
         width == crate::tier1::code_block_plane_view(plane).width,
         height == crate::tier1::code_block_plane_view(plane).height,
         count as nat == width as nat * height as nat,
+        crate::specs::part2_extraction_result(crate::tier1::code_block_plane_view(plane),true,
+            crate::specs::part1_prepare_collect_coefficients(crate::tier1::code_block_plane_view(plane))),
+        crate::specs::part2_coefficient_collect_result(crate::tier1::code_block_plane_view(plane),
+            crate::specs::part1_prepare_collect_coefficients(crate::tier1::code_block_plane_view(plane))),
         coefficients.len() as nat == y as nat * width as nat,
         crate::specs::part1_prepare_coefficient_rows(crate::tier1::code_block_plane_view(plane), y as nat) == Ok(crate::transform::quantized_coefficients_view(coefficients@)),
         decreases height - y,
@@ -504,6 +547,10 @@ pub(super) fn collect_prepare_coefficients(
             width == crate::tier1::code_block_plane_view(plane).width,
             height == crate::tier1::code_block_plane_view(plane).height,
             count as nat == width as nat * height as nat,
+            crate::specs::part2_extraction_result(crate::tier1::code_block_plane_view(plane),true,
+                crate::specs::part1_prepare_collect_coefficients(crate::tier1::code_block_plane_view(plane))),
+            crate::specs::part2_coefficient_collect_result(crate::tier1::code_block_plane_view(plane),
+                crate::specs::part1_prepare_collect_coefficients(crate::tier1::code_block_plane_view(plane))),
             row_start.len() == y as nat * width as nat,
             coefficients.len() as nat == y as nat * width as nat + x as nat,
             crate::specs::part1_prepare_coefficient_rows(crate::tier1::code_block_plane_view(plane), y as nat) == Ok(row_start),
@@ -558,7 +605,9 @@ pub(super) fn collect_prepare_cell(
 }
 
 #[cfg_attr(verus_keep_ghost, verus_spec(result =>
-    ensures (result, final(working)@) == crate::specs::part1_prepare_placement(
+    ensures crate::specs::part2_extraction_place_result(old(working)@,bands@,prepare_precincts_view(precincts@),placement,reversible,
+                crate::limits::resource_decoded_bytes_limit(limits),(result,final(working)@)),
+        result!=Err(DecodeError::AllocationFailed) ==> (result, final(working)@) == crate::specs::part1_prepare_placement(
         old(working)@, bands@, prepare_precincts_view(precincts@), placement, reversible, crate::limits::resource_decoded_bytes_limit(limits),
     ),
     final(working).bands.len() == old(working).bands.len(),
@@ -571,6 +620,10 @@ pub(super) fn place_prepare_block(
     reversible: bool,
     limits: &ResourceLimits,
 ) -> Result<(), DecodeError> {
+    #[cfg(verus_keep_ghost)]
+    proof_decl! {let ghost initial=working@;}
+    #[cfg(verus_keep_ghost)]
+    proof! {crate::specs::part2_extraction_place_normal(initial,bands@,prepare_precincts_view(precincts@),placement,reversible,crate::limits::resource_decoded_bytes_limit(limits));}
     #[cfg(verus_keep_ghost)]
     proof! { reveal(crate::specs::part1_prepare_placement); }
     if placement.subband_index >= working.bands.len() {
@@ -599,15 +652,24 @@ pub(super) fn place_prepare_block(
     {
         return Err(invalid_decode());
     }
-    let coefficients = collect_prepare_coefficients(plane)?;
-    let quantized = inverse_quantize_magnitudes(
+    let collected = collect_prepare_coefficients(plane);
+    #[cfg(verus_keep_ghost)]
+    proof! {crate::specs::part2_coefficient_collect_frames(crate::tier1::code_block_plane_view(plane),crate::transform::quantized_coefficients_outcome(collected));
+        if let Err(error)=collected{crate::specs::part2_extraction_place_error(initial,bands@,prepare_precincts_view(precincts@),placement,reversible,
+    crate::limits::resource_decoded_bytes_limit(limits),geometry,crate::tier1::code_block_plane_view(plane),error);}}
+    let coefficients = collected?;
+    let quantized_result = inverse_quantize_magnitudes(
         &coefficients,
         geometry.quantization_step,
         geometry.dynamic_range,
         reversible,
         geometry.roi_shift,
         limits,
-    )?;
+    );
+    #[cfg(verus_keep_ghost)]
+    proof! {if let Err(error)=quantized_result{crate::specs::part2_extraction_place_quantization_error(initial,bands@,prepare_precincts_view(precincts@),placement,reversible,
+    crate::limits::resource_decoded_bytes_limit(limits),geometry,crate::tier1::code_block_plane_view(plane),crate::transform::quantized_coefficients_view(coefficients@),error);}}
+    let quantized = quantized_result?;
     if quantized.fraction_bits() != if reversible { 0 } else { 16 } {
         return Err(invalid_decode());
     }
@@ -670,11 +732,13 @@ pub(super) fn validate_prepare_coverage(bands: &[WorkingSubband]) -> Result<(), 
 }
 
 #[cfg_attr(verus_keep_ghost, verus_spec(result =>
-    ensures prepared_component_outcome(result) == crate::specs::part2_prepare_component(
+    ensures crate::specs::part2_extraction_component_result(prepare_plan_view(plan),prepare_precincts_view(precincts@),prepare_style_view(coding_style),
+                crate::transform::arbitrary_kernel_option(kernel),crate::limits::resource_decoded_bytes_limit(limits),prepared_component_outcome(result)),
+        prepared_component_outcome(result)!=Err(DecodeError::AllocationFailed) ==> prepared_component_outcome(result) == crate::specs::part2_prepare_component(
         prepare_plan_view(plan), prepare_precincts_view(precincts@), prepare_style_view(coding_style),
         crate::transform::arbitrary_kernel_option(kernel), crate::limits::resource_decoded_bytes_limit(limits),
     ),
-    kernel.is_none() ==> prepared_component_outcome(result) == crate::specs::part1_prepare_standard_component(
+    kernel.is_none() && prepared_component_outcome(result)!=Err(DecodeError::AllocationFailed) ==> prepared_component_outcome(result) == crate::specs::part1_prepare_standard_component(
         prepare_plan_view(plan), prepare_precincts_view(precincts@), prepare_style_view(coding_style),
         crate::limits::resource_decoded_bytes_limit(limits),
     ),
@@ -688,6 +752,8 @@ pub(super) fn prepare_tile_component_with_kernel(
 ) -> Result<PreparedTileComponent, DecodeError> {
     #[cfg(verus_keep_ghost)]
     proof! {
+        crate::specs::part2_extraction_component_normal(prepare_plan_view(plan),prepare_precincts_view(precincts@),prepare_style_view(coding_style),
+            crate::transform::arbitrary_kernel_option(kernel),crate::limits::resource_decoded_bytes_limit(limits));
         reveal(crate::specs::part1_prepare_standard_component);
         reveal(crate::specs::part2_prepare_component);
     }
@@ -737,6 +803,12 @@ pub(super) fn prepare_tile_component_with_kernel(
             kernel.is_none() ==> !matches!(coding_style.transform, WaveletTransform::Arbitrary(_)),
             kernel.is_none() ==> reversible == matches!(coding_style.transform, WaveletTransform::Reversible5x3),
             crate::specs::part2_prepare_reversible(prepare_style_view(coding_style), crate::transform::arbitrary_kernel_option(kernel)) == Ok(reversible),
+            crate::specs::part2_extraction_component_admit(prepare_plan_view(plan),prepare_style_view(coding_style),crate::transform::arbitrary_kernel_option(kernel),
+                crate::limits::resource_decoded_bytes_limit(limits))==Ok((reversible,initial_working)),
+            crate::specs::part2_extraction_component_result(prepare_plan_view(plan),prepare_precincts_view(precincts@),prepare_style_view(coding_style),
+                crate::transform::arbitrary_kernel_option(kernel),crate::limits::resource_decoded_bytes_limit(limits),
+                crate::specs::part2_prepare_component(prepare_plan_view(plan),prepare_precincts_view(precincts@),prepare_style_view(coding_style),crate::transform::arbitrary_kernel_option(kernel),
+                    crate::limits::resource_decoded_bytes_limit(limits))),
             crate::specs::part1_prepare_placements(
                 initial_working, prepare_plan_view(plan), prepare_precincts_view(precincts@), reversible,
                 crate::limits::resource_decoded_bytes_limit(limits), placement_index as nat,
@@ -745,6 +817,8 @@ pub(super) fn prepare_tile_component_with_kernel(
         )
     )]
     while placement_index < plan.placements.len() {
+        #[cfg(verus_keep_ghost)]
+        proof_decl! {let ghost before_placement=working@;}
         let placement = *plan
             .placements
             .get(placement_index)
@@ -776,6 +850,10 @@ pub(super) fn prepare_tile_component_with_kernel(
             Err(error) => {
                 #[cfg(verus_keep_ghost)]
                 proof! {
+                    crate::specs::part2_extraction_component_error(prepare_plan_view(plan),prepare_precincts_view(precincts@),prepare_style_view(coding_style),
+                        crate::transform::arbitrary_kernel_option(kernel),crate::limits::resource_decoded_bytes_limit(limits),reversible,initial_working,placement_index as nat,
+                        before_placement,(operation,working@));
+                    if error!=DecodeError::AllocationFailed{
                     crate::proofs::production_impl::production_prepare_placements_error(
                         initial_working, prepare_plan_view(plan), prepare_precincts_view(precincts@), reversible,
                         crate::limits::resource_decoded_bytes_limit(limits), placement_index as nat + 1, plan.placements.len() as nat,
@@ -794,6 +872,7 @@ pub(super) fn prepare_tile_component_with_kernel(
                         prepare_plan_view(plan), prepare_precincts_view(precincts@), prepare_style_view(coding_style),
                         crate::limits::resource_decoded_bytes_limit(limits),
                     ) == Err(error));
+                    }
                 }
                 return Err(error);
             }
@@ -804,19 +883,25 @@ pub(super) fn prepare_tile_component_with_kernel(
     }
     validate_prepare_coverage(&working.bands)?;
 
-    let folded = reconstruct_prepare_working(
+    let reconstructed = reconstruct_prepare_working(
         &working.bands,
         plan,
         coding_style,
         reversible,
         kernel,
         limits,
-    )?;
+    );
+    #[cfg(verus_keep_ghost)]
+    proof! {if let Err(error)=reconstructed{crate::specs::part2_extraction_component_wavelet_error(prepare_plan_view(plan),prepare_precincts_view(precincts@),prepare_style_view(coding_style),
+    crate::transform::arbitrary_kernel_option(kernel),crate::limits::resource_decoded_bytes_limit(limits),reversible,initial_working,working@,error);}}
+    let folded = reconstructed?;
     finish_prepared_component(plan, folded, expected_fraction_bits)
 }
 
 #[cfg_attr(verus_keep_ghost, verus_spec(result =>
-    ensures prepare_fold_outcome(result) == crate::specs::part2_prepare_reconstruct(
+    ensures crate::specs::part2_wavelet_reconstruct_result(working_bands_view(working@),prepare_plan_view(plan),prepare_style_view(coding_style),reversible,
+        crate::transform::arbitrary_kernel_option(kernel),crate::limits::resource_decoded_bytes_limit(limits),prepare_fold_outcome(result)),
+        prepare_fold_outcome(result)!=Err(DecodeError::AllocationFailed) ==> prepare_fold_outcome(result) == crate::specs::part2_prepare_reconstruct(
         working_bands_view(working@), prepare_plan_view(plan), prepare_style_view(coding_style), reversible,
         crate::transform::arbitrary_kernel_option(kernel), crate::limits::resource_decoded_bytes_limit(limits),
     ),
@@ -829,11 +914,26 @@ pub(super) fn reconstruct_prepare_working(
     kernel: Option<&ArbitraryKernel>,
     limits: &ResourceLimits,
 ) -> Result<PrepareFold, DecodeError> {
+    #[cfg(verus_keep_ghost)]
+    proof! {crate::specs::part2_wavelet_reconstruct_normal(working_bands_view(working@),prepare_plan_view(plan),prepare_style_view(coding_style),reversible,
+    crate::transform::arbitrary_kernel_option(kernel),crate::limits::resource_decoded_bytes_limit(limits));}
     let ll = working.first().ok_or_else(invalid_decode)?;
     let mut folded = PrepareFold {
         width: ll.width,
         height: ll.height,
-        samples: ll.samples.clone(),
+        samples: {
+            let copied = crate::allocation::copy_i64_values(&ll.samples);
+            #[cfg(verus_keep_ghost)]
+            proof! {
+                let result=crate::transform::sequence_outcome(copied);
+                crate::specs::part2_prepare_samples_observed(crate::specs::Part2PrepareCopyRole::InitialLl,ll.samples@,result);
+                crate::specs::part2_prepare_initial_observed(working_subband_view(*ll),result);
+                if let Err(error)=copied{crate::specs::part2_wavelet_reconstruct_initial_error(
+                    working_bands_view(working@),prepare_plan_view(plan),prepare_style_view(coding_style),reversible,
+                    crate::transform::arbitrary_kernel_option(kernel),crate::limits::resource_decoded_bytes_limit(limits),error);}
+            }
+            copied?
+        },
         first_detail: 1,
     };
     #[cfg(verus_keep_ghost)]
@@ -845,6 +945,11 @@ pub(super) fn reconstruct_prepare_working(
         invariant 1 <= resolution as int <= plan.output_resolution as int + 1,
         working.len() > 0, ll == &working@[0],
         initial == (ll.width, ll.height, ll.samples@, 1usize),
+        crate::specs::part2_prepare_initial_result(working_subband_view(*ll),Ok(initial)),
+        crate::specs::part2_wavelet_reconstruct_result(working_bands_view(working@),prepare_plan_view(plan),prepare_style_view(coding_style),reversible,
+            crate::transform::arbitrary_kernel_option(kernel),crate::limits::resource_decoded_bytes_limit(limits),
+            crate::specs::part2_prepare_reconstruct(working_bands_view(working@),prepare_plan_view(plan),prepare_style_view(coding_style),reversible,
+                crate::transform::arbitrary_kernel_option(kernel),crate::limits::resource_decoded_bytes_limit(limits))),
         crate::specs::part2_prepare_fold(
             initial, working_bands_view(working@), plan.subbands@, prepare_style_view(coding_style), reversible,
             crate::transform::arbitrary_kernel_option(kernel), crate::limits::resource_decoded_bytes_limit(limits), (resolution - 1) as nat,
@@ -862,9 +967,15 @@ pub(super) fn reconstruct_prepare_working(
             resolution = resolution.checked_add(1).ok_or_else(arithmetic_overflow)?;
             continue;
         }
-        folded = reconstruct_prepare_resolution(
+        #[cfg(verus_keep_ghost)]
+        proof_decl! {let ghost before_resolution=folded@;}
+        let transformed = reconstruct_prepare_resolution(
             working, plan, folded, direction, reversible, kernel, limits,
-        )?;
+        );
+        #[cfg(verus_keep_ghost)]
+        proof! {if let Err(error)=transformed{crate::specs::part2_wavelet_reconstruct_error(working_bands_view(working@),prepare_plan_view(plan),prepare_style_view(coding_style),reversible,
+        crate::transform::arbitrary_kernel_option(kernel),crate::limits::resource_decoded_bytes_limit(limits),resolution as nat,before_resolution,direction,error);}}
+        folded = transformed?;
         if resolution == u8::MAX {
             return Err(arithmetic_overflow());
         }
@@ -878,7 +989,9 @@ pub(super) fn reconstruct_prepare_working(
 }
 
 #[cfg_attr(verus_keep_ghost, verus_spec(result =>
-    ensures prepare_fold_outcome(result) == crate::specs::part2_prepare_resolution(
+    ensures crate::specs::part2_wavelet_resolution_result(before@,working_bands_view(working@),plan.subbands@,direction,reversible,
+        crate::transform::arbitrary_kernel_option(kernel),crate::limits::resource_decoded_bytes_limit(limits),prepare_fold_outcome(result)),
+        prepare_fold_outcome(result)!=Err(DecodeError::AllocationFailed) ==> prepare_fold_outcome(result) == crate::specs::part2_prepare_resolution(
         before@, working_bands_view(working@), plan.subbands@, direction, reversible,
         crate::transform::arbitrary_kernel_option(kernel), crate::limits::resource_decoded_bytes_limit(limits),
     ),
@@ -892,6 +1005,10 @@ pub(super) fn reconstruct_prepare_resolution(
     kernel: Option<&ArbitraryKernel>,
     limits: &ResourceLimits,
 ) -> Result<PrepareFold, DecodeError> {
+    #[cfg(verus_keep_ghost)]
+    proof_decl! {let ghost initial=before@;}
+    #[cfg(verus_keep_ghost)]
+    proof! {crate::specs::part2_wavelet_resolution_normal(initial,working_bands_view(working@),plan.subbands@,direction,reversible,crate::transform::arbitrary_kernel_option(kernel),crate::limits::resource_decoded_bytes_limit(limits));}
     #[cfg(verus_keep_ghost)]
     proof! {
         reveal(crate::specs::part2_prepare_resolution);
@@ -914,7 +1031,7 @@ pub(super) fn reconstruct_prepare_resolution(
         height: reconstructed_height,
         samples: &reconstructed,
     };
-    let plane = match direction {
+    let plane_result = match direction {
         crate::codestream::DecompositionDirection::Horizontal => {
             first_detail = first_detail
                 .checked_add(crate::refinement::wavelet_detail_advance(1))
@@ -932,7 +1049,7 @@ pub(super) fn reconstruct_prepare_resolution(
                     geometry.low_pass_first_x,
                     kernel,
                     limits,
-                )?
+                )
             } else if reversible {
                 inverse_horizontal_5_3(
                     low,
@@ -940,7 +1057,7 @@ pub(super) fn reconstruct_prepare_resolution(
                     geometry.resolution_width,
                     geometry.low_pass_first_x,
                     limits,
-                )?
+                )
             } else {
                 inverse_horizontal_9_7(
                     low,
@@ -948,7 +1065,7 @@ pub(super) fn reconstruct_prepare_resolution(
                     geometry.resolution_width,
                     geometry.low_pass_first_x,
                     limits,
-                )?
+                )
             }
         }
         crate::codestream::DecompositionDirection::Vertical => {
@@ -968,7 +1085,7 @@ pub(super) fn reconstruct_prepare_resolution(
                     geometry.low_pass_first_y,
                     kernel,
                     limits,
-                )?
+                )
             } else if reversible {
                 inverse_vertical_5_3(
                     low,
@@ -976,7 +1093,7 @@ pub(super) fn reconstruct_prepare_resolution(
                     geometry.resolution_height,
                     geometry.low_pass_first_y,
                     limits,
-                )?
+                )
             } else {
                 inverse_vertical_9_7(
                     low,
@@ -984,7 +1101,7 @@ pub(super) fn reconstruct_prepare_resolution(
                     geometry.resolution_height,
                     geometry.low_pass_first_y,
                     limits,
-                )?
+                )
             }
         }
         crate::codestream::DecompositionDirection::TwoDimensional => {
@@ -1033,25 +1150,43 @@ pub(super) fn reconstruct_prepare_resolution(
                 low_pass_first_y: geometry.low_pass_first_y,
             };
             if let Some(kernel) = kernel {
-                inverse_level_arbitrary(level, kernel, limits)?
+                inverse_level_arbitrary(level, kernel, limits)
             } else if reversible {
-                inverse_level_5_3(level, limits)?
+                inverse_level_5_3(level, limits)
             } else {
-                inverse_level_9_7(level, limits)?
+                inverse_level_9_7(level, limits)
             }
         }
         crate::codestream::DecompositionDirection::None => {
             return Err(invalid_decode());
         }
     };
+    #[cfg(verus_keep_ghost)]
+    proof! {
+        let admitted=crate::specs::part2_wavelet_resolution_admit(initial,working_bands_view(working@),plan.subbands@,direction,reversible).get_Ok_0();
+        crate::specs::part2_wavelet_request_observed(admitted.0,reversible,crate::transform::arbitrary_kernel_option(kernel),crate::limits::resource_decoded_bytes_limit(limits),crate::transform::reconstruction_outcome(plane_result));
+        if let Err(error)=plane_result{
+        crate::specs::part2_wavelet_resolution_child_error(initial,working_bands_view(working@),plan.subbands@,direction,reversible,crate::transform::arbitrary_kernel_option(kernel),crate::limits::resource_decoded_bytes_limit(limits),admitted.0,admitted.1,error);
+    }}
+    let plane = plane_result?;
     if plane.fraction_bits() != expected_fraction_bits {
         return Err(invalid_decode());
     }
-    copy_prepare_plane(plane, first_detail)
+    #[cfg(verus_keep_ghost)]
+    proof_decl! {let ghost produced=crate::transform::reconstructed_plane_view(plane);}
+    let copied = copy_prepare_plane(plane, first_detail);
+    #[cfg(verus_keep_ghost)]
+    proof! {
+        let admitted=crate::specs::part2_wavelet_resolution_admit(initial,working_bands_view(working@),plan.subbands@,direction,reversible).get_Ok_0();
+        crate::specs::part2_wavelet_resolution_copy_observed(initial,working_bands_view(working@),plan.subbands@,direction,reversible,
+            crate::transform::arbitrary_kernel_option(kernel),crate::limits::resource_decoded_bytes_limit(limits),admitted.0,admitted.1,produced,prepare_fold_outcome(copied));
+    }
+    copied
 }
 
 #[cfg_attr(verus_keep_ghost, verus_spec(result =>
-    ensures prepare_fold_outcome(result) == crate::specs::part1_prepare_copy_plane(crate::transform::reconstructed_plane_view(plane), first_detail),
+    ensures crate::specs::part2_prepare_plane_copy_result(crate::transform::reconstructed_plane_view(plane),first_detail,prepare_fold_outcome(result)),
+        prepare_fold_outcome(result)!=Err(DecodeError::AllocationFailed) ==> prepare_fold_outcome(result) == crate::specs::part1_prepare_copy_plane(crate::transform::reconstructed_plane_view(plane), first_detail),
 ))]
 pub(super) fn copy_prepare_plane(
     plane: crate::transform::ReconstructedPlane,
@@ -1059,33 +1194,15 @@ pub(super) fn copy_prepare_plane(
 ) -> Result<PrepareFold, DecodeError> {
     let reconstructed_width = plane.width();
     let reconstructed_height = plane.height();
-    let plane_sample_count = plane.samples().len();
-    let mut next_samples = Vec::with_capacity(plane_sample_count);
-    let mut sample_index = 0_usize;
-    #[cfg_attr(
-            verus_keep_ghost,
-            verus_spec(
-                invariant sample_index <= plane_sample_count,
-                    plane_sample_count == crate::transform::reconstructed_plane_view(plane).3.len(),
-                    reconstructed_width == crate::transform::reconstructed_plane_view(plane).0,
-                    reconstructed_height == crate::transform::reconstructed_plane_view(plane).1,
-                    next_samples@ == crate::transform::reconstructed_plane_view(plane).3.subrange(0, sample_index as int),
-                decreases plane_sample_count - sample_index,
-            )
-        )]
-    while sample_index < plane_sample_count {
-        next_samples.push(
-            *plane
-                .samples()
-                .get(sample_index)
-                .ok_or_else(invalid_decode)?,
-        );
-        sample_index = sample_index
-            .checked_add(1)
-            .ok_or_else(arithmetic_overflow)?;
-    }
+    let copied = crate::allocation::copy_i64_values(plane.samples());
     #[cfg(verus_keep_ghost)]
-    proof! { assert(next_samples@ =~= crate::transform::reconstructed_plane_view(plane).3); }
+    proof! {
+        let source=crate::transform::reconstructed_plane_view(plane);
+        let result=crate::transform::sequence_outcome(copied);
+        crate::specs::part2_prepare_samples_observed(crate::specs::Part2PrepareCopyRole::PreparedPlane,source.3,result);
+        crate::specs::part2_prepare_plane_copy_observed(source,first_detail,result);
+    }
+    let next_samples = copied?;
     Ok(PrepareFold {
         width: reconstructed_width,
         height: reconstructed_height,
@@ -1171,7 +1288,9 @@ pub(super) fn assemble_prepared_components(
 }
 
 #[cfg_attr(verus_keep_ghost, verus_spec(result =>
-    ensures crate::image::decoded_image_outcome(result) == crate::specs::part1_progression_prepared_image(
+    ensures crate::specs::part2_coefficient_progression_result(crate::image::assembly_size_view(size),progression_reconstruction_view(plan).0,progression_reconstruction_view(plan).1,
+        progression_reconstruction_view(plan).2,progression_reconstruction_view(plan).3,crate::limits::resource_decoded_bytes_limit(limits),crate::image::decoded_image_outcome(result)),
+        crate::image::decoded_image_outcome(result)!=Err(DecodeError::AllocationFailed) ==> crate::image::decoded_image_outcome(result) == crate::specs::part1_progression_prepared_image(
         crate::image::assembly_size_view(size), progression_reconstruction_view(plan).0, progression_reconstruction_view(plan).1,
         progression_reconstruction_view(plan).2, progression_reconstruction_view(plan).3, crate::limits::resource_decoded_bytes_limit(limits)),
 ))]
@@ -1182,6 +1301,9 @@ pub fn decode_progression_prepared_image(
 ) -> Result<DecodedImage, DecodeError> {
     #[cfg(verus_keep_ghost)]
     proof_decl! { let ghost plans = planned_components_view(plan); let ghost precincts = prepare_precincts_view(plan.precincts@); }
+    #[cfg(verus_keep_ghost)]
+    proof! {crate::specs::part2_coefficient_progression_normal(crate::image::assembly_size_view(size),plans,precincts,plan.component_coding_styles,plan.coding_style,
+    crate::limits::resource_decoded_bytes_limit(limits));}
     let mut prepared = Vec::with_capacity(plan.components.len());
     #[cfg(verus_keep_ghost)]
     proof! {
@@ -1194,6 +1316,9 @@ pub fn decode_progression_prepared_image(
         verus_spec(
             invariant component_index <= plan.components.len(),
             plans == planned_components_view(plan), precincts == prepare_precincts_view(plan.precincts@),
+            crate::specs::part2_coefficient_progression_result(crate::image::assembly_size_view(size),plans,precincts,plan.component_coding_styles,plan.coding_style,
+                crate::limits::resource_decoded_bytes_limit(limits),crate::specs::part1_progression_prepared_image(crate::image::assembly_size_view(size),plans,precincts,
+                    plan.component_coding_styles,plan.coding_style,crate::limits::resource_decoded_bytes_limit(limits))),
             crate::specs::part2_reconstruct_components_prefix(Seq::empty(), plans, precincts, plan.component_coding_styles,
                 Seq::empty(), crate::limits::resource_decoded_bytes_limit(limits), component_index as nat)
                     == (Ok(()), prepared_components_view(prepared@)),
@@ -1219,12 +1344,16 @@ pub fn decode_progression_prepared_image(
                 crate::proofs::production_impl::production_kernel_registry_empty(Seq::empty(), index);
             }
         }
-        prepared.push(prepare_tile_component(
-            component,
-            &plan.precincts,
-            style,
-            limits,
-        )?);
+        let component_result = prepare_tile_component(component, &plan.precincts, style, limits);
+        #[cfg(verus_keep_ghost)]
+        proof! {
+            crate::specs::part2_coefficient_component_frames(prepare_plan_view(component),precincts,prepare_style_view(style),crate::limits::resource_decoded_bytes_limit(limits),prepared_component_outcome(component_result));
+            crate::specs::part2_extraction_reconstruct_component_observed(plans[component_index as int],precincts,plan.component_coding_styles,Seq::empty(),
+                crate::limits::resource_decoded_bytes_limit(limits),style,prepared_component_outcome(component_result));
+            if let Err(error)=component_result{crate::specs::part2_coefficient_progression_error(crate::image::assembly_size_view(size),plans,precincts,plan.component_coding_styles,plan.coding_style,
+                crate::limits::resource_decoded_bytes_limit(limits),component_index as nat,prepared_components_view(prepared@),error);}
+        }
+        prepared.push(component_result?);
         component_index = component_index
             .checked_add(1)
             .ok_or_else(arithmetic_overflow)?;

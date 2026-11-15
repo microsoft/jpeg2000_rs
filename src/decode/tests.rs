@@ -5,6 +5,7 @@ use super::api::{
     decode_jpx_codestream_selected, decode_typed_layout, validate_part1_output_shape,
 };
 use super::arithmetic::{arithmetic_overflow, invalid_decode};
+use super::code_blocks::collect_code_block_coefficients;
 use super::code_blocks::{decode_code_block, decode_subband};
 use super::execution::{
     account_planned_tile, apply_prepared_component_transform, collect_tile_parts,
@@ -28,6 +29,7 @@ use super::planning::{
     plan_subband_execution, plan_tile_component, prepare_component_plan_metadata,
     prepare_resolution_plan_metadata,
 };
+use super::reconstruction::collect_prepare_coefficients;
 use super::reconstruction::{
     assemble_prepared_components, decode_progression_prepared_image, prepare_tile_component,
     prepare_tile_component_with_kernel, write_quantized_block,
@@ -47,17 +49,55 @@ mod jpx_source_result;
 #[path = "raw_typed_result_tests.rs"]
 mod raw_typed_result;
 
-#[test]
-fn raw_packet_boundary_prefixes_preserve_reference_pixels_and_reject_partial_packets() {
+fn bitplane_initial_storage_raw_reference() -> [u8; 86] {
     // Independent OpenJPEG 2.5.4 lossless 1x1 gray0: two layers, no DWT.
-    let reference = [
+    [
         0xff, 0x4f, 0xff, 0x51, 0x00, 0x29, 0x00, 0x00, 0x00, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00,
         0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x01, 0x00, 0x00,
         0x00, 0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x01, 0x07, 0x01, 0x01,
         0xff, 0x52, 0x00, 0x0c, 0x00, 0x00, 0x00, 0x02, 0x00, 0x00, 0x04, 0x04, 0x00, 0x01, 0xff,
         0x5c, 0x00, 0x04, 0x40, 0x40, 0xff, 0x90, 0x00, 0x0a, 0x00, 0x00, 0x00, 0x00, 0x00, 0x13,
         0x00, 0x01, 0xff, 0x93, 0xdf, 0x80, 0x08, 0x07, 0x80, 0xff, 0xd9,
-    ];
+    ]
+}
+
+#[test]
+fn bitplane_initial_storage_real_raw_selected_jp2_first_later_refusals_restore_images() {
+    let reference = bitplane_initial_storage_raw_reference();
+    let options = DecodeOptions::default();
+    let selection = DecodeSelection::full_image();
+    let container = jp2_for_codestream(&reference, 1, 1);
+    let expected = decode_codestream(&reference, &options).unwrap();
+    for after in [26, 27] {
+        assert_eq!(
+            crate::allocation::with_refusal(after, || decode_codestream(&reference, &options))
+                .unwrap_err(),
+            DecodeError::AllocationFailed
+        );
+        assert_eq!(
+            crate::allocation::with_refusal(after + 1, || decode_codestream_selected(
+                &reference, &options, &selection
+            ))
+            .unwrap_err(),
+            DecodeError::AllocationFailed
+        );
+        assert_eq!(
+            crate::allocation::with_refusal(after + 12, || decode_jp2(&container, &options))
+                .unwrap_err(),
+            DecodeError::AllocationFailed
+        );
+    }
+    assert_eq!(decode_codestream(&reference, &options).unwrap(), expected);
+    assert_eq!(
+        decode_codestream_selected(&reference, &options, &selection).unwrap(),
+        expected
+    );
+    assert_eq!(decode_jp2(&container, &options).unwrap(), expected);
+}
+
+#[test]
+fn raw_packet_boundary_prefixes_preserve_reference_pixels_and_reject_partial_packets() {
+    let reference = bitplane_initial_storage_raw_reference();
     let options = DecodeOptions::default();
     for order in 0..5 {
         for retained in 0..=5 {
@@ -6339,7 +6379,7 @@ fn tier1_plane_storage_real_ht_raw_selected_container_cleanup_restore() {
     let ftyp = container.windows(4).position(|p| p == b"ftyp").unwrap();
     container[ftyp + 4..ftyp + 8].copy_from_slice(b"jph ");
     container[ftyp + 12..ftyp + 16].copy_from_slice(b"jph ");
-    for after in [26, 27] {
+    for after in [30, 33] {
         assert!(matches!(
             crate::allocation::with_refusal(after, || decode_codestream(&bytes, &options)),
             Err(DecodeError::AllocationFailed)
@@ -6355,6 +6395,187 @@ fn tier1_plane_storage_real_ht_raw_selected_container_cleanup_restore() {
             Err(DecodeError::AllocationFailed)
         ));
     }
+    assert_eq!(decode_codestream(&bytes, &options).unwrap(), expected);
+    assert_eq!(
+        decode_codestream_selected(&bytes, &options, &selected).unwrap(),
+        expected
+    );
+    assert_eq!(decode_jph(&container, &options).unwrap(), expected);
+}
+
+#[test]
+fn ht_metadata_storage_raw_selected_jph_and_automatic_restore_actual_image() {
+    let mut bytes = prepared_codestream(1, 1, 1, &[0, 0x10], &[0xe4, 0xfe, 0, 0x63, 0]);
+    let siz = bytes.windows(2).position(|p| p == [0xff, 0x51]).unwrap();
+    bytes[siz + 4..siz + 6].copy_from_slice(&0x4000_u16.to_be_bytes());
+    let cod = bytes.windows(2).position(|p| p == [0xff, 0x52]).unwrap();
+    bytes.splice(cod..cod, segment(0xff50, &[0, 2, 0, 0, 0, 8]));
+    let cod = bytes.windows(2).position(|p| p == [0xff, 0x52]).unwrap();
+    bytes[cod + 9] = 0;
+    bytes[cod + 12] = 0x40;
+    let options = DecodeOptions::default();
+    let selection = DecodeSelection::full_image();
+    let expected = decode_codestream(&bytes, &options).unwrap();
+    let mut jph = jp2_for_codestream(&bytes, 1, 1);
+    jph[20..24].copy_from_slice(b"jph ");
+    jph[28..32].copy_from_slice(b"jph ");
+    for after in [27, 28, 29] {
+        assert_eq!(
+            crate::allocation::with_refusal(after, || decode_codestream(&bytes, &options))
+                .unwrap_err(),
+            DecodeError::AllocationFailed
+        );
+        assert_eq!(
+            crate::allocation::with_refusal(after + 1, || decode_codestream_selected(
+                &bytes, &options, &selection
+            ))
+            .unwrap_err(),
+            DecodeError::AllocationFailed
+        );
+        assert_eq!(
+            crate::allocation::with_refusal(after + 12, || decode_jph(&jph, &options)).unwrap_err(),
+            DecodeError::AllocationFailed
+        );
+    }
+    assert_eq!(decode_codestream(&bytes, &options).unwrap(), expected);
+    assert_eq!(
+        decode_codestream_selected(&bytes, &options, &selection).unwrap(),
+        expected
+    );
+    assert_eq!(decode_jph(&jph, &options).unwrap(), expected);
+    let limits = ResourceLimits::default();
+    let tile = bytes.windows(2).position(|p| p == [0xff, 0x90]).unwrap();
+    let packet = tile + 14;
+    let mut cache = crate::jpip::DatabinCache::new(limits);
+    for (class, source) in [
+        (6, &bytes[..tile]),
+        (2, &bytes[tile..packet]),
+        (0, &bytes[packet..bytes.len() - 2]),
+    ] {
+        let id = crate::jpip::DatabinId::new(class, 0, 0).unwrap();
+        cache
+            .insert(
+                crate::jpip::JpipFragment::new(id, 0, source.to_vec(), true, None, &limits)
+                    .unwrap(),
+            )
+            .unwrap();
+    }
+    let packets = crate::jpip::JpipPacketSelection::all_components();
+    for selected in [false, true] {
+        let mut decoder = crate::jpip::JpipAutomaticProgressiveDecoder::new(0);
+        let update = if selected {
+            decoder.update_selected(&cache, &options, &selection, &packets)
+        } else {
+            decoder.update(&cache, &options)
+        }
+        .unwrap();
+        assert_eq!(update.image(), Some(&expected));
+        assert_eq!(decoder.decoded_layers(), 1);
+    }
+}
+
+#[test]
+fn ht_cleanup_scratch_storage_raw_selected_jph_rows_and_automatic_restore_real_image() {
+    let mut bytes = prepared_codestream(1, 1, 1, &[0, 0x10], &[0xe4, 0xfe, 0, 0x63, 0]);
+    let siz = bytes.windows(2).position(|p| p == [0xff, 0x51]).unwrap();
+    bytes[siz + 4..siz + 6].copy_from_slice(&0x4000_u16.to_be_bytes());
+    let cod = bytes.windows(2).position(|p| p == [0xff, 0x52]).unwrap();
+    bytes.splice(cod..cod, segment(0xff50, &[0, 2, 0, 0, 0, 8]));
+    let cod = bytes.windows(2).position(|p| p == [0xff, 0x52]).unwrap();
+    bytes[cod + 9] = 0;
+    bytes[cod + 12] = 0x40;
+    let options = DecodeOptions::default();
+    let selection = DecodeSelection::full_image();
+    let expected = decode_codestream(&bytes, &options).unwrap();
+    let mut jph = jp2_for_codestream(&bytes, 1, 1);
+    jph[20..24].copy_from_slice(b"jph ");
+    jph[28..32].copy_from_slice(b"jph ");
+    for after in [31, 32] {
+        assert_eq!(
+            crate::allocation::with_refusal(after, || decode_codestream(&bytes, &options))
+                .unwrap_err(),
+            DecodeError::AllocationFailed
+        );
+        assert_eq!(
+            crate::allocation::with_refusal(after + 1, || decode_codestream_selected(
+                &bytes, &options, &selection
+            ))
+            .unwrap_err(),
+            DecodeError::AllocationFailed
+        );
+        assert_eq!(
+            crate::allocation::with_refusal(after + 12, || decode_jph(&jph, &options)).unwrap_err(),
+            DecodeError::AllocationFailed
+        );
+    }
+    assert_eq!(decode_codestream(&bytes, &options).unwrap(), expected);
+    assert_eq!(
+        decode_codestream_selected(&bytes, &options, &selection).unwrap(),
+        expected
+    );
+    assert_eq!(decode_jph(&jph, &options).unwrap(), expected);
+    let limits = ResourceLimits::default();
+    let tile = bytes.windows(2).position(|p| p == [0xff, 0x90]).unwrap();
+    let packet = tile + 14;
+    let mut cache = crate::jpip::DatabinCache::new(limits);
+    for (class, source) in [
+        (6, &bytes[..tile]),
+        (2, &bytes[tile..packet]),
+        (0, &bytes[packet..bytes.len() - 2]),
+    ] {
+        let id = crate::jpip::DatabinId::new(class, 0, 0).unwrap();
+        cache
+            .insert(
+                crate::jpip::JpipFragment::new(id, 0, source.to_vec(), true, None, &limits)
+                    .unwrap(),
+            )
+            .unwrap();
+    }
+    let packets = crate::jpip::JpipPacketSelection::all_components();
+    for selected in [false, true] {
+        let mut decoder = crate::jpip::JpipAutomaticProgressiveDecoder::new(0);
+        let update = if selected {
+            decoder.update_selected(&cache, &options, &selection, &packets)
+        } else {
+            decoder.update(&cache, &options)
+        }
+        .unwrap();
+        assert_eq!(update.image(), Some(&expected));
+        assert_eq!(decoder.decoded_layers(), 1);
+    }
+}
+
+#[test]
+fn decoder_plane_storage_real_ht_raw_selected_jph_staging_refusals_restore_exact_images() {
+    let mut bytes = prepared_codestream(1, 1, 1, &[0, 0x10], &[0xe4, 0xfe, 0, 0x63, 0]);
+    let siz = bytes.windows(2).position(|p| p == [0xff, 0x51]).unwrap();
+    bytes[siz + 4..siz + 6].copy_from_slice(&0x4000_u16.to_be_bytes());
+    let cod = bytes.windows(2).position(|p| p == [0xff, 0x52]).unwrap();
+    bytes.splice(cod..cod, segment(0xff50, &[0, 2, 0, 0, 0, 8]));
+    let cod = bytes.windows(2).position(|p| p == [0xff, 0x52]).unwrap();
+    bytes[cod + 9] = 0;
+    bytes[cod + 12] = 0x40;
+    let options = DecodeOptions::default();
+    let selected = DecodeSelection::full_image();
+    let expected = decode_codestream(&bytes, &options).unwrap();
+    let mut container = jp2_for_codestream(&bytes, 1, 1);
+    container[20..24].copy_from_slice(b"jph ");
+    container[28..32].copy_from_slice(b"jph ");
+    let after = 26;
+    assert!(matches!(
+        crate::allocation::with_refusal(after, || decode_codestream(&bytes, &options)),
+        Err(DecodeError::AllocationFailed)
+    ));
+    assert!(matches!(
+        crate::allocation::with_refusal(after + 1, || decode_codestream_selected(
+            &bytes, &options, &selected
+        )),
+        Err(DecodeError::AllocationFailed)
+    ));
+    assert!(matches!(
+        crate::allocation::with_refusal(after + 12, || decode_jph(&container, &options)),
+        Err(DecodeError::AllocationFailed)
+    ));
     assert_eq!(decode_codestream(&bytes, &options).unwrap(), expected);
     assert_eq!(
         decode_codestream_selected(&bytes, &options, &selected).unwrap(),
@@ -6879,6 +7100,144 @@ fn top_level_raw_and_jph_decode_ht_refinement() {
         wrapped.component(0).unwrap().samples(),
         &crate::image::TypedSamples::Unsigned(vec![125])
     );
+}
+
+#[test]
+fn ht_refinement_scratch_storage_actual_raw_selected_jph_masks_and_automatic_restore() {
+    let mut bytes = prepared_codestream(1, 1, 1, &[0, 0x18], &[0xf1, 0x90, 0, 0x63, 0, 0, 0xc2, 0]);
+    let siz = bytes.windows(2).position(|p| p == [0xff, 0x51]).unwrap();
+    bytes[siz + 4..siz + 6].copy_from_slice(&0x4000_u16.to_be_bytes());
+    let cod = bytes.windows(2).position(|p| p == [0xff, 0x52]).unwrap();
+    bytes.splice(cod..cod, segment(0xff50, &[0, 2, 0, 0, 0, 8]));
+    let cod = bytes.windows(2).position(|p| p == [0xff, 0x52]).unwrap();
+    bytes[cod + 9] = 0;
+    bytes[cod + 12] = 0x40;
+    bytes[cod + 6..cod + 8].copy_from_slice(&2_u16.to_be_bytes());
+    let options = DecodeOptions::default();
+    let selection = DecodeSelection::full_image();
+    let expected = decode_codestream(&bytes, &options).unwrap();
+    let mut jph = jp2_for_codestream(&bytes, 1, 1);
+    jph[20..24].copy_from_slice(b"jph ");
+    jph[28..32].copy_from_slice(b"jph ");
+    for after in [39, 40] {
+        assert_eq!(
+            crate::allocation::with_refusal(after, || decode_codestream(&bytes, &options))
+                .unwrap_err(),
+            DecodeError::AllocationFailed
+        );
+        assert_eq!(
+            crate::allocation::with_refusal(after + 1, || decode_codestream_selected(
+                &bytes, &options, &selection
+            ))
+            .unwrap_err(),
+            DecodeError::AllocationFailed
+        );
+        assert_eq!(
+            crate::allocation::with_refusal(after + 12, || decode_jph(&jph, &options)).unwrap_err(),
+            DecodeError::AllocationFailed
+        );
+    }
+    assert_eq!(decode_codestream(&bytes, &options).unwrap(), expected);
+    assert_eq!(
+        decode_codestream_selected(&bytes, &options, &selection).unwrap(),
+        expected
+    );
+    assert_eq!(decode_jph(&jph, &options).unwrap(), expected);
+    let limits = ResourceLimits::default();
+    let tile = bytes.windows(2).position(|p| p == [0xff, 0x90]).unwrap();
+    let packet = tile + 14;
+    let mut cache = crate::jpip::DatabinCache::new(limits);
+    for (class, data) in [
+        (6, &bytes[..tile]),
+        (2, &bytes[tile..packet]),
+        (0, &bytes[packet..bytes.len() - 2]),
+    ] {
+        let id = crate::jpip::DatabinId::new(class, 0, 0).unwrap();
+        cache
+            .insert(
+                crate::jpip::JpipFragment::new(id, 0, data.to_vec(), true, None, &limits).unwrap(),
+            )
+            .unwrap();
+    }
+    let packets = crate::jpip::JpipPacketSelection::all_components();
+    for selected in [false, true] {
+        let mut decoder = crate::jpip::JpipAutomaticProgressiveDecoder::new(0);
+        let update = if selected {
+            decoder.update_selected(&cache, &options, &selection, &packets)
+        } else {
+            decoder.update(&cache, &options)
+        }
+        .unwrap();
+        assert_eq!(update.image(), Some(&expected));
+        assert_eq!(decoder.decoded_layers(), 2);
+    }
+}
+
+#[test]
+fn ht_refinement_storage_raw_selected_jph_retention_refusal_and_exact_restore() {
+    let mut bytes = prepared_codestream(1, 1, 1, &[0, 0x18], &[0xf1, 0x90, 0, 0x63, 0, 0, 0xc2, 0]);
+    let siz = bytes.windows(2).position(|p| p == [0xff, 0x51]).unwrap();
+    bytes[siz + 4..siz + 6].copy_from_slice(&0x4000_u16.to_be_bytes());
+    let cod = bytes.windows(2).position(|p| p == [0xff, 0x52]).unwrap();
+    bytes.splice(cod..cod, segment(0xff50, &[0, 2, 0, 0, 0, 8]));
+    let cod = bytes.windows(2).position(|p| p == [0xff, 0x52]).unwrap();
+    bytes[cod + 9] = 0;
+    bytes[cod + 12] = 0x40;
+    bytes[cod + 6..cod + 8].copy_from_slice(&2_u16.to_be_bytes());
+    let options = DecodeOptions::default();
+    let selection = DecodeSelection::full_image();
+    let expected = decode_codestream(&bytes, &options).unwrap();
+    let mut jph = jp2_for_codestream(&bytes, 1, 1);
+    jph[20..24].copy_from_slice(b"jph ");
+    jph[28..32].copy_from_slice(b"jph ");
+    for after in [42, 43] {
+        assert!(matches!(
+            crate::allocation::with_refusal(after, || decode_codestream(&bytes, &options)),
+            Err(DecodeError::AllocationFailed)
+        ));
+        assert!(matches!(
+            crate::allocation::with_refusal(after + 1, || decode_codestream_selected(
+                &bytes, &options, &selection
+            )),
+            Err(DecodeError::AllocationFailed)
+        ));
+        assert!(matches!(
+            crate::allocation::with_refusal(after + 12, || decode_jph(&jph, &options)),
+            Err(DecodeError::AllocationFailed)
+        ));
+    }
+    assert_eq!(decode_codestream(&bytes, &options).unwrap(), expected);
+    assert_eq!(
+        decode_codestream_selected(&bytes, &options, &selection).unwrap(),
+        expected
+    );
+    assert_eq!(decode_jph(&jph, &options).unwrap(), expected);
+    let limits = ResourceLimits::default();
+    let tile = bytes.windows(2).position(|p| p == [0xff, 0x90]).unwrap();
+    let packet = tile + 14;
+    let mut cache = crate::jpip::DatabinCache::new(limits);
+    for (class, source) in [
+        (6, &bytes[..tile]),
+        (2, &bytes[tile..packet]),
+        (0, &bytes[packet..bytes.len() - 2]),
+    ] {
+        let id = crate::jpip::DatabinId::new(class, 0, 0).unwrap();
+        let fragment =
+            crate::jpip::JpipFragment::new(id, 0, source.to_vec(), true, None, &limits).unwrap();
+        cache.insert(fragment).unwrap();
+    }
+    let packets = crate::jpip::JpipPacketSelection::all_components();
+    for selected in [false, true] {
+        let mut decoder = crate::jpip::JpipAutomaticProgressiveDecoder::new(0);
+        let update = if selected {
+            decoder.update_selected(&cache, &options, &selection, &packets)
+        } else {
+            decoder.update(&cache, &options)
+        }
+        .unwrap();
+        assert_eq!(update.image(), Some(&expected));
+        assert_eq!(decoder.decoded_layers(), 2);
+    }
 }
 
 #[test]
@@ -8006,4 +8365,959 @@ fn box32(box_type: [u8; 4], payload: &[u8]) -> Vec<u8> {
     bytes.extend_from_slice(&box_type);
     bytes.extend_from_slice(payload);
     bytes
+}
+#[test]
+fn coefficient_extraction_storage_distinct_linear_coordinate_raw_values_and_restore() {
+    use crate::magnitude::Magnitude;
+    use crate::transform::SignedMagnitude;
+    let plane = crate::tier1::extraction_test_plane(
+        2,
+        1,
+        &[
+            (7, [0; 5], true, true, Some(65)),
+            (11, [2, 3, 4, 5, 6], true, true, None),
+            (u64::MAX, [u64::MAX; 5], true, false, Some(u16::MAX)),
+        ],
+    );
+    let expected = vec![
+        SignedMagnitude {
+            magnitude: Magnitude::from_limbs([7, 1, 0, 0, 0, 0]),
+            negative: true,
+        },
+        SignedMagnitude {
+            magnitude: Magnitude::from_limbs([11, 2, 3, 4, 5, 6]),
+            negative: true,
+        },
+        SignedMagnitude {
+            magnitude: Magnitude::from_u64(0),
+            negative: false,
+        },
+    ];
+    let before = format!("{plane:?}");
+    assert_eq!(collect_code_block_coefficients(&plane).unwrap(), expected);
+    assert_eq!(collect_prepare_coefficients(&plane).unwrap(), expected[..2]);
+    for coordinate in [false, true] {
+        let error = crate::allocation::with_refusal(0, || {
+            if coordinate {
+                collect_prepare_coefficients(&plane)
+            } else {
+                collect_code_block_coefficients(&plane)
+            }
+        });
+        assert_eq!(error, Err(DecodeError::AllocationFailed));
+        assert_eq!(format!("{plane:?}"), before);
+    }
+    crate::allocation::with_refusal(1, || {
+        assert_eq!(collect_code_block_coefficients(&plane).unwrap(), expected);
+        assert_eq!(
+            collect_prepare_coefficients(&plane),
+            Err(DecodeError::AllocationFailed)
+        );
+    });
+    assert_eq!(collect_prepare_coefficients(&plane).unwrap(), expected[..2]);
+}
+
+#[test]
+fn coefficient_extraction_storage_zero_raw_shape_and_ordinary_cell_error_order() {
+    let empty = crate::tier1::extraction_test_plane(0, 0, &[]);
+    let short = crate::tier1::extraction_test_plane(2, 1, &[(3, [0; 5], false, true, None)]);
+    let bad = crate::tier1::extraction_test_plane(2, 1, &[(3, [0; 5], true, true, Some(u16::MAX))]);
+    let cell_error = collect_prepare_coefficients(&short).unwrap_err();
+    let numeric_error = collect_prepare_coefficients(&bad).unwrap_err();
+    assert_eq!(
+        cell_error,
+        DecodeError::malformed(0, MalformedKind::InvalidCodeBlock)
+    );
+    assert_eq!(
+        numeric_error,
+        DecodeError::malformed(0, MalformedKind::ArithmeticOverflow)
+    );
+    crate::allocation::with_refusal(0, || {
+        assert!(collect_prepare_coefficients(&empty).unwrap().is_empty());
+        assert!(collect_code_block_coefficients(&empty).unwrap().is_empty());
+        assert_eq!(
+            collect_prepare_coefficients(&bad),
+            Err(DecodeError::AllocationFailed)
+        );
+    });
+    assert_eq!(collect_prepare_coefficients(&bad), Err(numeric_error));
+    assert_eq!(collect_prepare_coefficients(&short), Err(cell_error));
+    assert_eq!(collect_code_block_coefficients(&short).unwrap().len(), 1);
+    let zero_width = crate::tier1::extraction_test_plane(0, 3, &[(1, [0; 5], true, true, None)]);
+    crate::allocation::with_refusal(0, || {
+        assert!(
+            collect_prepare_coefficients(&zero_width)
+                .unwrap()
+                .is_empty()
+        );
+        assert_eq!(
+            collect_code_block_coefficients(&zero_width),
+            Err(DecodeError::AllocationFailed)
+        );
+    });
+}
+
+#[test]
+fn coefficient_extraction_storage_first_later_prepared_placements_preserve_real_sources() {
+    let (plan, precincts, style) = standard_prepare_fixture(
+        &[codestream::DecompositionDirection::Horizontal],
+        true,
+        false,
+        1,
+    );
+    let limits = ResourceLimits::default();
+    let expected = prepare_tile_component(&plan, &precincts, style, &limits).unwrap();
+    let before = precincts
+        .iter()
+        .map(crate::packet::exact_packet_precinct_snapshot)
+        .collect::<Vec<_>>();
+    for after in [0, 2] {
+        assert_eq!(
+            crate::allocation::with_refusal(after, || prepare_tile_component(
+                &plan, &precincts, style, &limits
+            ))
+            .unwrap_err(),
+            DecodeError::AllocationFailed
+        );
+        assert_eq!(
+            precincts
+                .iter()
+                .map(crate::packet::exact_packet_precinct_snapshot)
+                .collect::<Vec<_>>(),
+            before
+        );
+        let restored = prepare_tile_component(&plan, &precincts, style, &limits).unwrap();
+        assert_eq!(
+            (
+                restored.width(),
+                restored.height(),
+                restored.fraction_bits(),
+                restored.samples()
+            ),
+            (
+                expected.width(),
+                expected.height(),
+                expected.fraction_bits(),
+                expected.samples()
+            )
+        );
+    }
+}
+
+#[test]
+fn coefficient_extraction_storage_actual_legacy_ht_code_block_packet_and_quantization_order() {
+    let limits = ResourceLimits::default();
+    for ht in [false, true] {
+        let style = Tier1CodingStyle::from_code_block_style(if ht { 0x40 } else { 0 }).unwrap();
+        let mut inclusion = TagTree::new(1, 1, &limits).unwrap();
+        let mut zero = TagTree::new(1, 1, &limits).unwrap();
+        let mut state = CodeBlockPacketState::new();
+        let packet = [if ht { 0xc8 } else { 0xca }];
+        let mut reader = PacketBitReader::new(&packet, &limits).unwrap();
+        let contribution = decode_code_block_contribution(
+            &mut state,
+            &mut inclusion,
+            &mut zero,
+            CodeBlockPacketContext {
+                leaf_x: 0,
+                leaf_y: 0,
+                layer: 0,
+                maximum_zero_bitplanes: 1,
+                tier1_style: style,
+            },
+            &mut reader,
+        )
+        .unwrap()
+        .unwrap();
+        let body = if ht {
+            &[0xfe, 0, 0x63, 0][..]
+        } else {
+            &[0; 5][..]
+        };
+        let layers = [CodeBlockLayer {
+            contribution: &contribution,
+            body,
+        }];
+        let request = CodeBlockDecodeRequest {
+            width: 1,
+            height: 1,
+            significant_bitplanes: 1,
+            orientation: SubbandOrientation::Ll,
+            style,
+            layers: &layers,
+            quantization_step: QuantizationStep {
+                exponent: 0,
+                mantissa: 0,
+            },
+            dynamic_range: 8,
+            reversible: true,
+            roi_shift: 0,
+        };
+        let expected = decode_code_block(request, &limits).unwrap();
+        let after = if ht { 9 } else { 4 };
+        assert_eq!(
+            crate::allocation::with_refusal(after, || decode_code_block(request, &limits))
+                .unwrap_err(),
+            DecodeError::AllocationFailed
+        );
+        let restored = decode_code_block(request, &limits).unwrap();
+        assert_eq!(
+            (
+                restored.width(),
+                restored.height(),
+                restored.fraction_bits(),
+                restored.samples()
+            ),
+            (
+                expected.width(),
+                expected.height(),
+                expected.fraction_bits(),
+                expected.samples()
+            )
+        );
+        let bad_step = CodeBlockDecodeRequest {
+            quantization_step: QuantizationStep {
+                exponent: 0,
+                mantissa: 2048,
+            },
+            ..request
+        };
+        let ordinary = decode_code_block(bad_step, &limits).unwrap_err();
+        assert_ne!(ordinary, DecodeError::AllocationFailed);
+        assert_eq!(
+            crate::allocation::with_refusal(after, || decode_code_block(bad_step, &limits))
+                .unwrap_err(),
+            DecodeError::AllocationFailed
+        );
+        assert_eq!(decode_code_block(bad_step, &limits).unwrap_err(), ordinary);
+    }
+}
+
+#[test]
+fn wavelet_plane_storage_actual_standard_component_first_later_planes_and_restore() {
+    let limits = ResourceLimits::default();
+    for reversible in [false, true] {
+        let (plan, precincts, style) = standard_prepare_fixture(
+            &[codestream::DecompositionDirection::TwoDimensional],
+            reversible,
+            false,
+            1,
+        );
+        let expected = prepare_tile_component(&plan, &precincts, style, &limits).unwrap();
+        let sources: Vec<_> = precincts
+            .iter()
+            .map(crate::packet::exact_packet_precinct_snapshot)
+            .collect();
+        for after in [9, 11, 13, 10, 15, 19] {
+            assert_eq!(
+                crate::allocation::with_refusal(after, || prepare_tile_component(
+                    &plan, &precincts, style, &limits
+                )),
+                Err(DecodeError::AllocationFailed)
+            );
+            let restored = prepare_tile_component(&plan, &precincts, style, &limits).unwrap();
+            assert_eq!(
+                (
+                    restored.width(),
+                    restored.height(),
+                    restored.fraction_bits(),
+                    restored.samples()
+                ),
+                (
+                    expected.width(),
+                    expected.height(),
+                    expected.fraction_bits(),
+                    expected.samples()
+                )
+            );
+            assert_eq!(
+                precincts
+                    .iter()
+                    .map(crate::packet::exact_packet_precinct_snapshot)
+                    .collect::<Vec<_>>(),
+                sources
+            );
+        }
+    }
+    let (plan, precincts, mut style) = standard_prepare_fixture(
+        &[codestream::DecompositionDirection::TwoDimensional],
+        true,
+        false,
+        1,
+    );
+    style.transform = WaveletTransform::Arbitrary(0);
+    let kernel = ArbitraryKernel::for_test(true, 0, false, false, false, None, vec![]);
+    let expected =
+        prepare_tile_component_with_kernel(&plan, &precincts, style, Some(&kernel), &limits)
+            .unwrap();
+    for after in [9, 11, 13, 10, 15, 19] {
+        assert_eq!(
+            crate::allocation::with_refusal(after, || prepare_tile_component_with_kernel(
+                &plan,
+                &precincts,
+                style,
+                Some(&kernel),
+                &limits
+            )),
+            Err(DecodeError::AllocationFailed)
+        );
+        let actual =
+            prepare_tile_component_with_kernel(&plan, &precincts, style, Some(&kernel), &limits)
+                .unwrap();
+        assert_eq!(
+            (
+                actual.width(),
+                actual.height(),
+                actual.fraction_bits(),
+                actual.samples()
+            ),
+            (
+                expected.width(),
+                expected.height(),
+                expected.fraction_bits(),
+                expected.samples()
+            )
+        );
+    }
+}
+
+#[test]
+fn prepare_copy_storage_raw_ll_plane_empty_prior_owner_and_error_order() {
+    use super::reconstruction::{copy_prepare_plane, reconstruct_prepare_working};
+    let limits = ResourceLimits::default();
+    let (plan, _, style) = standard_prepare_fixture(&[], true, false, 1);
+    for samples in [vec![], vec![i64::MIN, 7, -1, 0, i64::MAX]] {
+        let working = [WorkingSubband {
+            width: u32::MAX,
+            height: 0,
+            fraction_bits: u8::MAX,
+            samples: samples.clone(),
+            visited: vec![true, false],
+        }];
+        let restored =
+            reconstruct_prepare_working(&working, &plan, style, true, None, &limits).unwrap();
+        assert_eq!(
+            (restored.width, restored.height, restored.first_detail),
+            (u32::MAX, 0, 1)
+        );
+        assert_eq!(restored.samples, samples);
+        if !samples.is_empty() {
+            assert_ne!(restored.samples.as_ptr(), working[0].samples.as_ptr());
+        }
+        crate::allocation::with_refusal(0, || {
+            let result = reconstruct_prepare_working(&working, &plan, style, true, None, &limits);
+            if samples.is_empty() {
+                assert!(result.unwrap().samples.is_empty());
+                let plane =
+                    crate::transform::ReconstructedPlane::for_test(0, u32::MAX, u8::MAX, vec![]);
+                let copied = copy_prepare_plane(plane, usize::MAX).unwrap();
+                assert_eq!(
+                    (copied.width, copied.height, copied.first_detail),
+                    (0, u32::MAX, usize::MAX)
+                );
+                assert!(copied.samples.is_empty());
+                assert_eq!(
+                    crate::allocation::copy_i64_values(&[1]),
+                    Err(DecodeError::AllocationFailed)
+                );
+            } else {
+                assert_eq!(result.err(), Some(DecodeError::AllocationFailed));
+            }
+        });
+        if !samples.is_empty() {
+            assert_eq!(
+                crate::allocation::with_refusal(0, || copy_prepare_plane(
+                    crate::transform::ReconstructedPlane::for_test(
+                        0,
+                        u32::MAX,
+                        u8::MAX,
+                        samples.clone()
+                    ),
+                    usize::MAX
+                ))
+                .err(),
+                Some(DecodeError::AllocationFailed)
+            );
+            crate::allocation::with_refusal(1, || {
+                let prior =
+                    reconstruct_prepare_working(&working, &plan, style, true, None, &limits)
+                        .unwrap();
+                let plane = crate::transform::ReconstructedPlane::for_test(
+                    0,
+                    u32::MAX,
+                    u8::MAX,
+                    samples.clone(),
+                );
+                assert_eq!(
+                    copy_prepare_plane(plane, usize::MAX).err(),
+                    Some(DecodeError::AllocationFailed)
+                );
+                assert_eq!(prior.samples, samples);
+                let plane = crate::transform::ReconstructedPlane::for_test(
+                    0,
+                    u32::MAX,
+                    u8::MAX,
+                    samples.clone(),
+                );
+                let pointer = plane.samples().as_ptr();
+                let copied = copy_prepare_plane(plane, usize::MAX).unwrap();
+                assert_eq!(
+                    (copied.width, copied.height, copied.first_detail),
+                    (0, u32::MAX, usize::MAX)
+                );
+                assert_eq!(copied.samples, samples);
+                assert_ne!(copied.samples.as_ptr(), pointer);
+            });
+        }
+        assert_eq!(working[0].samples, samples);
+        assert_eq!(working[0].fraction_bits, u8::MAX);
+        assert_eq!(working[0].visited, [true, false]);
+    }
+    let ordinary = DecodeError::MalformedInput {
+        offset: 0,
+        kind: MalformedKind::InvalidCodeBlock,
+    };
+    crate::allocation::with_refusal(0, || {
+        assert_eq!(
+            reconstruct_prepare_working(&[], &plan, style, true, None, &limits).err(),
+            Some(ordinary)
+        );
+        assert_eq!(
+            crate::allocation::copy_i64_values(&[1]),
+            Err(DecodeError::AllocationFailed)
+        );
+    });
+    let (full, _, full_style) = standard_prepare_fixture(
+        &[codestream::DecompositionDirection::Horizontal],
+        true,
+        false,
+        1,
+    );
+    let working = [WorkingSubband {
+        width: 1,
+        height: 1,
+        fraction_bits: 0,
+        samples: vec![7],
+        visited: vec![true],
+    }];
+    crate::allocation::with_refusal(0, || {
+        assert_eq!(
+            reconstruct_prepare_working(&working, &full, full_style, true, None, &limits).err(),
+            Some(DecodeError::AllocationFailed)
+        );
+    });
+    crate::allocation::with_refusal(1, || {
+        assert_eq!(
+            reconstruct_prepare_working(&working, &full, full_style, true, None, &limits).err(),
+            Some(ordinary)
+        );
+        assert_eq!(
+            crate::allocation::copy_i64_values(&[1]),
+            Err(DecodeError::AllocationFailed)
+        );
+    });
+}
+
+#[test]
+fn prepare_copy_storage_actual_standard_custom_component_ll_later_copy_and_restore() {
+    let limits = ResourceLimits::default();
+    for (reversible, custom) in [(true, false), (false, false), (true, true)] {
+        let (plan, precincts, mut style) = standard_prepare_fixture(
+            &[codestream::DecompositionDirection::TwoDimensional],
+            reversible,
+            false,
+            1,
+        );
+        if custom {
+            style.transform = WaveletTransform::Arbitrary(0);
+        }
+        let kernel = ArbitraryKernel::for_test(true, 0, false, false, false, None, vec![]);
+        let selected = custom.then_some(&kernel);
+        let expected =
+            prepare_tile_component_with_kernel(&plan, &precincts, style, selected, &limits)
+                .unwrap();
+        let snapshots: Vec<_> = precincts
+            .iter()
+            .map(crate::packet::exact_packet_precinct_snapshot)
+            .collect();
+        for after in [8, 20] {
+            assert_eq!(
+                crate::allocation::with_refusal(after, || prepare_tile_component_with_kernel(
+                    &plan, &precincts, style, selected, &limits
+                )),
+                Err(DecodeError::AllocationFailed)
+            );
+            let restored =
+                prepare_tile_component_with_kernel(&plan, &precincts, style, selected, &limits)
+                    .unwrap();
+            assert_eq!(
+                (
+                    restored.width(),
+                    restored.height(),
+                    restored.fraction_bits(),
+                    restored.samples()
+                ),
+                (
+                    expected.width(),
+                    expected.height(),
+                    expected.fraction_bits(),
+                    expected.samples()
+                )
+            );
+            assert_eq!(
+                precincts
+                    .iter()
+                    .map(crate::packet::exact_packet_precinct_snapshot)
+                    .collect::<Vec<_>>(),
+                snapshots
+            );
+        }
+    }
+}
+
+#[test]
+fn wavelet_plane_storage_actual_raw_selected_container_reconstruction_and_automatic_restore() {
+    let bytes = prepared_codestream(
+        1,
+        1,
+        1,
+        &[0, 0x10, 0x10, 0x10, 0x10, 0x10, 0x10, 0x10],
+        &[0, 0, 0],
+    );
+    let options = DecodeOptions::default();
+    let selection = DecodeSelection::full_image();
+    let expected = decode_codestream(&bytes, &options).unwrap();
+    let raw = decode_codestream_reconstructed(&bytes, &options).unwrap();
+    let jp2 = jp2_for_codestream(&bytes, 1, 1);
+    assert_eq!(
+        decode_codestream_selected(&bytes, &options, &selection).unwrap(),
+        expected
+    );
+    assert_eq!(decode_jp2(&jp2, &options).unwrap(), expected);
+    assert_eq!(
+        decode_codestream_reconstructed(&bytes, &options).unwrap(),
+        raw
+    );
+    let limits = ResourceLimits::default();
+    let tile = bytes.windows(2).position(|p| p == [0xff, 0x90]).unwrap();
+    let packet = tile + 14;
+    let mut cache = crate::jpip::DatabinCache::new(limits);
+    for (class, data) in [(6, &bytes[..tile]), (2, &bytes[tile..packet])] {
+        let id = crate::jpip::DatabinId::new(class, 0, 0).unwrap();
+        cache
+            .insert(
+                crate::jpip::JpipFragment::new(id, 0, data.to_vec(), true, None, &limits).unwrap(),
+            )
+            .unwrap();
+    }
+    for precinct in 0..3 {
+        let id = crate::jpip::DatabinId::new(0, 0, precinct).unwrap();
+        cache
+            .insert(crate::jpip::JpipFragment::new(id, 0, vec![0], true, None, &limits).unwrap())
+            .unwrap();
+    }
+    let packets = crate::jpip::JpipPacketSelection::all_components();
+    for selected in [false, true] {
+        let mut decoder = crate::jpip::JpipAutomaticProgressiveDecoder::new(0);
+        let update = if selected {
+            decoder.update_selected(&cache, &options, &selection, &packets)
+        } else {
+            decoder.update(&cache, &options)
+        }
+        .unwrap();
+        assert_eq!(update.image(), Some(&expected));
+        assert_eq!(decoder.decoded_layers(), 1);
+    }
+}
+
+#[test]
+fn quantization_output_storage_final_copy_preserves_exact_source_fraction_and_empty() {
+    use super::code_blocks::copy_code_block_samples;
+    let limits = ResourceLimits::default();
+    let step = QuantizationStep {
+        exponent: 8,
+        mantissa: 1,
+    };
+    let plane =
+        crate::transform::inverse_quantize(&[-7, 0, 11], step, 8, false, 0, &limits).unwrap();
+    let expected = plane.samples().to_vec();
+    let metadata = (plane.width(), plane.height(), plane.fraction_bits());
+    assert_eq!(
+        crate::allocation::with_refusal(0, || copy_code_block_samples(&plane)),
+        Err(DecodeError::AllocationFailed)
+    );
+    assert_eq!(copy_code_block_samples(&plane).unwrap(), expected);
+    assert_eq!(
+        (plane.width(), plane.height(), plane.fraction_bits()),
+        metadata
+    );
+    crate::allocation::with_refusal(1, || {
+        assert_eq!(copy_code_block_samples(&plane).unwrap(), expected);
+        assert_eq!(
+            copy_code_block_samples(&plane),
+            Err(DecodeError::AllocationFailed)
+        );
+        assert_eq!(copy_code_block_samples(&plane).unwrap(), expected);
+    });
+    let empty = crate::transform::inverse_quantize(&[], step, 8, false, 0, &limits).unwrap();
+    crate::allocation::with_refusal(0, || {
+        assert!(copy_code_block_samples(&empty).unwrap().is_empty());
+        assert_eq!(
+            copy_code_block_samples(&plane),
+            Err(DecodeError::AllocationFailed)
+        );
+    });
+}
+
+#[test]
+fn quantization_output_storage_first_later_real_preparation_owners_and_restore() {
+    let (plan, precincts, style) = standard_prepare_fixture(
+        &[codestream::DecompositionDirection::Horizontal],
+        true,
+        false,
+        1,
+    );
+    let limits = ResourceLimits::default();
+    let expected = prepare_tile_component(&plan, &precincts, style, &limits).unwrap();
+    let source: Vec<_> = precincts
+        .iter()
+        .map(crate::packet::exact_packet_precinct_snapshot)
+        .collect();
+    for after in [1, 3] {
+        assert_eq!(
+            crate::allocation::with_refusal(after, || prepare_tile_component(
+                &plan, &precincts, style, &limits
+            )),
+            Err(DecodeError::AllocationFailed)
+        );
+        let actual = prepare_tile_component(&plan, &precincts, style, &limits).unwrap();
+        assert_eq!(
+            (
+                actual.width(),
+                actual.height(),
+                actual.fraction_bits(),
+                actual.samples()
+            ),
+            (
+                expected.width(),
+                expected.height(),
+                expected.fraction_bits(),
+                expected.samples()
+            )
+        );
+        assert_eq!(
+            precincts
+                .iter()
+                .map(crate::packet::exact_packet_precinct_snapshot)
+                .collect::<Vec<_>>(),
+            source
+        );
+    }
+}
+
+#[test]
+fn quantization_output_storage_actual_legacy_ht_code_block_sample_and_copy_refusals() {
+    let limits = ResourceLimits::default();
+    for ht in [false, true] {
+        let style = Tier1CodingStyle::from_code_block_style(if ht { 0x40 } else { 0 }).unwrap();
+        let mut inclusion = TagTree::new(1, 1, &limits).unwrap();
+        let mut zero = TagTree::new(1, 1, &limits).unwrap();
+        let mut state = CodeBlockPacketState::new();
+        let packet = [if ht { 0xc8 } else { 0xca }];
+        let mut reader = PacketBitReader::new(&packet, &limits).unwrap();
+        let contribution = decode_code_block_contribution(
+            &mut state,
+            &mut inclusion,
+            &mut zero,
+            CodeBlockPacketContext {
+                leaf_x: 0,
+                leaf_y: 0,
+                layer: 0,
+                maximum_zero_bitplanes: 1,
+                tier1_style: style,
+            },
+            &mut reader,
+        )
+        .unwrap()
+        .unwrap();
+        let body = if ht {
+            &[0xfe, 0, 0x63, 0][..]
+        } else {
+            &[0; 5][..]
+        };
+        let layers = [CodeBlockLayer {
+            contribution: &contribution,
+            body,
+        }];
+        let request = CodeBlockDecodeRequest {
+            width: 1,
+            height: 1,
+            significant_bitplanes: 1,
+            orientation: SubbandOrientation::Ll,
+            style,
+            layers: &layers,
+            quantization_step: QuantizationStep {
+                exponent: 0,
+                mantissa: 0,
+            },
+            dynamic_range: 8,
+            reversible: true,
+            roi_shift: 0,
+        };
+        let expected = decode_code_block(request, &limits).unwrap();
+        for after in if ht { [10, 11] } else { [5, 6] } {
+            assert_eq!(
+                crate::allocation::with_refusal(after, || decode_code_block(request, &limits))
+                    .unwrap_err(),
+                DecodeError::AllocationFailed
+            );
+            let actual = decode_code_block(request, &limits).unwrap();
+            assert_eq!(
+                (
+                    actual.width(),
+                    actual.height(),
+                    actual.fraction_bits(),
+                    actual.samples()
+                ),
+                (
+                    expected.width(),
+                    expected.height(),
+                    expected.fraction_bits(),
+                    expected.samples()
+                )
+            );
+        }
+    }
+}
+
+#[test]
+fn quantization_output_storage_actual_ht_raw_selected_jph_reconstructed_and_automatic_restore() {
+    let mut bytes = prepared_codestream(1, 1, 1, &[0, 0x10], &[0xe4, 0xfe, 0, 0x63, 0]);
+    let siz = bytes.windows(2).position(|p| p == [0xff, 0x51]).unwrap();
+    bytes[siz + 4..siz + 6].copy_from_slice(&0x4000_u16.to_be_bytes());
+    let cod = bytes.windows(2).position(|p| p == [0xff, 0x52]).unwrap();
+    bytes.splice(cod..cod, segment(0xff50, &[0, 2, 0, 0, 0, 8]));
+    let cod = bytes.windows(2).position(|p| p == [0xff, 0x52]).unwrap();
+    bytes[cod + 9] = 0;
+    bytes[cod + 12] = 0x40;
+    let options = DecodeOptions::default();
+    let selection = DecodeSelection::full_image();
+    let expected = decode_codestream(&bytes, &options).unwrap();
+    let expected_raw = decode_codestream_reconstructed(&bytes, &options).unwrap();
+    let mut jph = jp2_for_codestream(&bytes, 1, 1);
+    jph[20..24].copy_from_slice(b"jph ");
+    jph[28..32].copy_from_slice(b"jph ");
+    assert_eq!(
+        crate::allocation::with_refusal(35, || decode_codestream(&bytes, &options)).unwrap_err(),
+        DecodeError::AllocationFailed
+    );
+    assert_eq!(
+        crate::allocation::with_refusal(36, || decode_codestream_selected(
+            &bytes, &options, &selection
+        ))
+        .unwrap_err(),
+        DecodeError::AllocationFailed
+    );
+    assert_eq!(
+        crate::allocation::with_refusal(47, || decode_jph(&jph, &options)).unwrap_err(),
+        DecodeError::AllocationFailed
+    );
+    assert_eq!(
+        crate::allocation::with_refusal(35, || decode_codestream_reconstructed(&bytes, &options))
+            .unwrap_err(),
+        DecodeError::AllocationFailed
+    );
+    assert_eq!(decode_codestream(&bytes, &options).unwrap(), expected);
+    assert_eq!(
+        decode_codestream_selected(&bytes, &options, &selection).unwrap(),
+        expected
+    );
+    assert_eq!(decode_jph(&jph, &options).unwrap(), expected);
+    assert_eq!(
+        decode_codestream_reconstructed(&bytes, &options).unwrap(),
+        expected_raw
+    );
+    let limits = ResourceLimits::default();
+    let tile = bytes.windows(2).position(|p| p == [0xff, 0x90]).unwrap();
+    let packet = tile + 14;
+    let mut cache = crate::jpip::DatabinCache::new(limits);
+    for (class, data) in [
+        (6, &bytes[..tile]),
+        (2, &bytes[tile..packet]),
+        (0, &bytes[packet..bytes.len() - 2]),
+    ] {
+        let id = crate::jpip::DatabinId::new(class, 0, 0).unwrap();
+        cache
+            .insert(
+                crate::jpip::JpipFragment::new(id, 0, data.to_vec(), true, None, &limits).unwrap(),
+            )
+            .unwrap();
+    }
+    let packets = crate::jpip::JpipPacketSelection::all_components();
+    for selected in [false, true] {
+        let mut decoder = crate::jpip::JpipAutomaticProgressiveDecoder::new(0);
+        let update = if selected {
+            decoder.update_selected(&cache, &options, &selection, &packets)
+        } else {
+            decoder.update(&cache, &options)
+        }
+        .unwrap();
+        assert_eq!(update.image(), Some(&expected));
+        assert_eq!(decoder.decoded_layers(), 1);
+    }
+}
+
+#[test]
+fn ht_cleanup_significance_storage_actual_raw_selected_jph_reconstruction_and_automatic_restore() {
+    let mut bytes = prepared_codestream(1, 1, 1, &[0, 0x18], &[0xf1, 0x90, 0, 0x63, 0, 0, 0xc2, 0]);
+    let siz = bytes.windows(2).position(|p| p == [0xff, 0x51]).unwrap();
+    bytes[siz + 4..siz + 6].copy_from_slice(&0x4000_u16.to_be_bytes());
+    let cod = bytes.windows(2).position(|p| p == [0xff, 0x52]).unwrap();
+    bytes.splice(cod..cod, segment(0xff50, &[0, 2, 0, 0, 0, 8]));
+    let cod = bytes.windows(2).position(|p| p == [0xff, 0x52]).unwrap();
+    bytes[cod + 9] = 0;
+    bytes[cod + 12] = 0x40;
+    bytes[cod + 6..cod + 8].copy_from_slice(&2_u16.to_be_bytes());
+    let options = DecodeOptions::default();
+    let selection = DecodeSelection::full_image();
+    let expected = decode_codestream(&bytes, &options).unwrap();
+    let expected_reconstructed = decode_codestream_reconstructed(&bytes, &options).unwrap();
+    let mut jph = jp2_for_codestream(&bytes, 1, 1);
+    jph[20..24].copy_from_slice(b"jph ");
+    jph[28..32].copy_from_slice(b"jph ");
+    assert_eq!(
+        crate::allocation::with_refusal(41, || decode_codestream(&bytes, &options)).unwrap_err(),
+        DecodeError::AllocationFailed
+    );
+    assert_eq!(
+        crate::allocation::with_refusal(42, || decode_codestream_selected(
+            &bytes, &options, &selection
+        ))
+        .unwrap_err(),
+        DecodeError::AllocationFailed
+    );
+    assert_eq!(
+        crate::allocation::with_refusal(53, || decode_jph(&jph, &options)).unwrap_err(),
+        DecodeError::AllocationFailed
+    );
+    assert_eq!(
+        crate::allocation::with_refusal(41, || decode_codestream_reconstructed(&bytes, &options))
+            .unwrap_err(),
+        DecodeError::AllocationFailed
+    );
+    assert_eq!(decode_codestream(&bytes, &options).unwrap(), expected);
+    assert_eq!(
+        decode_codestream_selected(&bytes, &options, &selection).unwrap(),
+        expected
+    );
+    assert_eq!(decode_jph(&jph, &options).unwrap(), expected);
+    assert_eq!(
+        decode_codestream_reconstructed(&bytes, &options).unwrap(),
+        expected_reconstructed
+    );
+    let limits = ResourceLimits::default();
+    let tile = bytes.windows(2).position(|p| p == [0xff, 0x90]).unwrap();
+    let packet = tile + 14;
+    let mut cache = crate::jpip::DatabinCache::new(limits);
+    for (class, data) in [
+        (6, &bytes[..tile]),
+        (2, &bytes[tile..packet]),
+        (0, &bytes[packet..bytes.len() - 2]),
+    ] {
+        let id = crate::jpip::DatabinId::new(class, 0, 0).unwrap();
+        cache
+            .insert(
+                crate::jpip::JpipFragment::new(id, 0, data.to_vec(), true, None, &limits).unwrap(),
+            )
+            .unwrap();
+    }
+    let packets = crate::jpip::JpipPacketSelection::all_components();
+    for selected in [false, true] {
+        let mut decoder = crate::jpip::JpipAutomaticProgressiveDecoder::new(0);
+        let update = if selected {
+            decoder.update_selected(&cache, &options, &selection, &packets)
+        } else {
+            decoder.update(&cache, &options)
+        }
+        .unwrap();
+        assert_eq!(update.image(), Some(&expected));
+        assert_eq!(decoder.decoded_layers(), 2);
+    }
+}
+
+#[test]
+fn coefficient_extraction_storage_real_ht_raw_selected_jph_reconstruction_and_automatic_restore() {
+    let mut bytes = prepared_codestream(1, 1, 1, &[0, 0x10], &[0xe4, 0xfe, 0, 0x63, 0]);
+    let siz = bytes.windows(2).position(|p| p == [0xff, 0x51]).unwrap();
+    bytes[siz + 4..siz + 6].copy_from_slice(&0x4000_u16.to_be_bytes());
+    let cod = bytes.windows(2).position(|p| p == [0xff, 0x52]).unwrap();
+    bytes.splice(cod..cod, segment(0xff50, &[0, 2, 0, 0, 0, 8]));
+    let cod = bytes.windows(2).position(|p| p == [0xff, 0x52]).unwrap();
+    bytes[cod + 9] = 0;
+    bytes[cod + 12] = 0x40;
+    let options = DecodeOptions::default();
+    let selection = DecodeSelection::full_image();
+    let expected = decode_codestream(&bytes, &options).unwrap();
+    let expected_reconstructed = decode_codestream_reconstructed(&bytes, &options).unwrap();
+    let mut jph = jp2_for_codestream(&bytes, 1, 1);
+    jph[20..24].copy_from_slice(b"jph ");
+    jph[28..32].copy_from_slice(b"jph ");
+    assert_eq!(
+        crate::allocation::with_refusal(34, || decode_codestream(&bytes, &options)).unwrap_err(),
+        DecodeError::AllocationFailed
+    );
+    assert_eq!(
+        crate::allocation::with_refusal(35, || decode_codestream_selected(
+            &bytes, &options, &selection
+        ))
+        .unwrap_err(),
+        DecodeError::AllocationFailed
+    );
+    assert_eq!(
+        crate::allocation::with_refusal(46, || decode_jph(&jph, &options)).unwrap_err(),
+        DecodeError::AllocationFailed
+    );
+    assert_eq!(
+        crate::allocation::with_refusal(34, || decode_codestream_reconstructed(&bytes, &options))
+            .unwrap_err(),
+        DecodeError::AllocationFailed
+    );
+    assert_eq!(decode_codestream(&bytes, &options).unwrap(), expected);
+    assert_eq!(
+        decode_codestream_selected(&bytes, &options, &selection).unwrap(),
+        expected
+    );
+    assert_eq!(decode_jph(&jph, &options).unwrap(), expected);
+    assert_eq!(
+        decode_codestream_reconstructed(&bytes, &options).unwrap(),
+        expected_reconstructed
+    );
+    let limits = ResourceLimits::default();
+    let tile = bytes.windows(2).position(|p| p == [0xff, 0x90]).unwrap();
+    let packet = tile + 14;
+    let mut cache = crate::jpip::DatabinCache::new(limits);
+    for (class, data) in [
+        (6, &bytes[..tile]),
+        (2, &bytes[tile..packet]),
+        (0, &bytes[packet..bytes.len() - 2]),
+    ] {
+        let id = crate::jpip::DatabinId::new(class, 0, 0).unwrap();
+        cache
+            .insert(
+                crate::jpip::JpipFragment::new(id, 0, data.to_vec(), true, None, &limits).unwrap(),
+            )
+            .unwrap();
+    }
+    let packets = crate::jpip::JpipPacketSelection::all_components();
+    for selected in [false, true] {
+        let mut decoder = crate::jpip::JpipAutomaticProgressiveDecoder::new(0);
+        let update = if selected {
+            decoder.update_selected(&cache, &options, &selection, &packets)
+        } else {
+            decoder.update(&cache, &options)
+        }
+        .unwrap();
+        assert_eq!(update.image(), Some(&expected));
+        assert_eq!(decoder.decoded_layers(), 1);
+    }
 }

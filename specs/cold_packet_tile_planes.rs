@@ -161,6 +161,7 @@ pub(crate) open spec fn part2_plane_tile_run(params:Part1TilePacketParameters,s:
             |packet:(Result<(),crate::DecodeError>,Part1TilePacketExecution),rest|part2_plane_tile_after_packet(params,s.progress.remaining_packets,packet,rest)),
     }
 }
+#[verifier::opaque]
 pub(crate) open spec fn part2_plane_tile_after_packet(params:Part1TilePacketParameters,budget:u64,packet:(Result<(),crate::DecodeError>,Part1TilePacketExecution),calls:Seq<Part2Tier1StorageEvent>)
     ->Part2Tier1Run<(Result<(),crate::DecodeError>,Part1TilePacketExecution)>
     decreases budget*2,
@@ -228,14 +229,24 @@ pub(crate) proof fn part2_plane_tile_prefix_observed(params:Part1TilePacketParam
             |packet:(Result<(),crate::DecodeError>,Part1TilePacketExecution),rest|part2_plane_tile_after_packet(params,budget,packet,rest)),
     ensures forall|calls| #[trigger] root(extended+calls)==part2_plane_tile_after_packet(params,budget,result,calls),
         result.0.is_err() ==> part2_plane_tile_run_result(params,initial,result),
+        (result.0.is_ok() && result.1.progress.remaining_packets<budget) ==>
+            part2_tier1_phase(root,extended,|calls|part2_plane_tile_run(params,result.1,calls)),
 {
+    reveal(part2_plane_tile_after_packet);
     let child=|calls|part2_plane_tile_packet_run(params,before,coordinate,calls);
     let next=|packet:(Result<(),crate::DecodeError>,Part1TilePacketExecution),rest|part2_plane_tile_after_packet(params,budget,packet,rest);
     part2_plane_tile_packet_frames(params,before,coordinate,result);
     let extended=part2_tier1_prefix_advance(root,child,next,prefix,result);
+    assert forall|calls:Seq<Part2Tier1StorageEvent>|root(extended+calls)==part2_plane_tile_after_packet(params,budget,result,calls) by {}
     if result.0.is_err(){
         part2_tier1_prefix_finish(root,extended,Ok(result));
         part2_plane_tile_run_join(params,initial,root,result);
+    }else if result.1.progress.remaining_packets<budget {
+        assert forall|calls:Seq<Part2Tier1StorageEvent>|root(extended+calls)==part2_plane_tile_run(params,result.1,calls) by{
+            reveal_with_fuel(part2_plane_tile_after_packet,2);
+            reveal_with_fuel(part2_plane_tile_run,1);
+            assert(root(extended+calls)==part2_plane_tile_after_packet(params,budget,result,calls));
+        }
     }
     extended
 }

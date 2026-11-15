@@ -229,22 +229,7 @@ pub fn decode_code_block(
     if coefficients.len() != expected {
         return Err(invalid_decode());
     }
-    let mut signed = Vec::with_capacity(coefficients.len());
-    let mut coefficient_index = 0_usize;
-    #[cfg_attr(
-        verus_keep_ghost,
-        verus_spec(
-            invariant coefficient_index <= coefficients.len(),
-            decreases coefficients.len() - coefficient_index,
-        )
-    )]
-    while coefficient_index < coefficients.len() {
-        let coefficient = coefficients[coefficient_index];
-        signed.push(coefficient.signed_magnitude()?);
-        coefficient_index = coefficient_index
-            .checked_add(1)
-            .ok_or_else(arithmetic_overflow)?;
-    }
+    let signed = collect_code_block_coefficients(decoder.plane())?;
     let quantized = inverse_quantize_magnitudes(
         &signed,
         request.quantization_step,
@@ -253,30 +238,101 @@ pub fn decode_code_block(
         request.roi_shift,
         limits,
     )?;
-    let quantized_count = quantized.samples().len();
-    let mut samples = Vec::with_capacity(quantized_count);
-    let mut sample_index = 0_usize;
-    #[cfg_attr(
-        verus_keep_ghost,
-        verus_spec(
-            invariant sample_index <= quantized_count,
-            decreases quantized_count - sample_index,
-        )
-    )]
-    while sample_index < quantized_count {
-        let sample = quantized
-            .samples()
-            .get(sample_index)
-            .ok_or_else(invalid_decode)?;
-        samples.push(*sample);
-        sample_index = sample_index
-            .checked_add(1)
-            .ok_or_else(arithmetic_overflow)?;
-    }
+    let samples = copy_code_block_samples(&quantized)?;
     Ok(DecodedCodeBlock {
         width: request.width,
         height: request.height,
         fraction_bits: quantized.fraction_bits(),
         samples,
     })
+}
+
+#[cfg_attr(verus_keep_ghost, verus_spec(result =>
+    ensures crate::specs::part2_extraction_result(crate::tier1::code_block_plane_view(plane),false,crate::transform::quantized_coefficients_outcome(result)),
+        crate::transform::quantized_coefficients_outcome(result)!=Err(DecodeError::AllocationFailed) ==>
+            crate::transform::quantized_coefficients_outcome(result)==crate::specs::part2_extraction_value(crate::tier1::code_block_plane_view(plane),false),
+))]
+pub(super) fn collect_code_block_coefficients(
+    plane: &crate::tier1::CodeBlockPlane,
+) -> Result<Vec<crate::transform::SignedMagnitude>, DecodeError> {
+    let coefficients = plane.coefficients();
+    let count = coefficients.len();
+    #[cfg(verus_keep_ghost)]
+    proof_decl! {let ghost source=crate::tier1::code_block_plane_view(plane);}
+    #[cfg(verus_keep_ghost)]
+    proof! {crate::specs::part2_extraction_normal(source,false);}
+    let allocated = if count == 0 {
+        Ok(Vec::new())
+    } else {
+        crate::allocation::empty_with_capacity(count)
+    };
+    #[cfg(verus_keep_ghost)]
+    proof! {
+        let unit=match allocated{Err(error)=>Err(error),Ok(_)=>Ok(())};
+        crate::specs::part2_extraction_capacity_observed(crate::specs::part2_extraction_context(source,false),unit);
+        if let Err(error)=allocated{crate::specs::part2_extraction_refused(source,false,error);}
+    }
+
+    let mut signed = allocated?;
+    let mut coefficient_index = 0_usize;
+    #[cfg(verus_keep_ghost)]
+    proof! {
+        reveal_with_fuel(crate::specs::part2_linear_coefficients_prefix,1);
+        crate::transform::representation_proofs::quantized_coefficients_fields(signed@);
+        assert(crate::transform::quantized_coefficients_view(signed@) =~= Seq::empty());
+    }
+    #[cfg_attr(verus_keep_ghost, verus_spec(
+        invariant coefficient_index<=coefficients.len(), signed.len()==coefficient_index,
+            crate::tier1::coefficient_raw_views(coefficients@)==source.coefficients,
+            source==crate::tier1::code_block_plane_view(plane),
+            crate::specs::part2_linear_coefficients_prefix(source.coefficients,coefficient_index as nat)==Ok(crate::transform::quantized_coefficients_view(signed@)),
+            crate::specs::part2_extraction_result(source,false,crate::specs::part2_extraction_value(source,false)),
+        decreases coefficients.len()-coefficient_index,
+    ))]
+    while coefficient_index < coefficients.len() {
+        #[cfg(verus_keep_ghost)]
+        proof! {reveal_with_fuel(crate::specs::part2_linear_coefficients_prefix,1);}
+        let coefficient = coefficients[coefficient_index];
+        #[cfg(verus_keep_ghost)]
+        proof! {assert(crate::tier1::coefficient_raw_view(coefficient)==source.coefficients[coefficient_index as int]);}
+        let value = match coefficient.signed_magnitude() {
+            Ok(value) => value,
+            Err(error) => {
+                #[cfg(verus_keep_ghost)]
+                proof! {crate::specs::part2_linear_coefficients_error(source.coefficients,coefficient_index as nat+1,coefficients.len() as nat,error);}
+                return Err(error);
+            }
+        };
+        #[cfg(verus_keep_ghost)]
+        proof_decl! {let ghost prior_values=signed@;let ghost prior_index=coefficient_index;}
+        signed.push(value);
+        coefficient_index = coefficient_index
+            .checked_add(1)
+            .ok_or_else(arithmetic_overflow)?;
+        #[cfg(verus_keep_ghost)]
+        proof! {
+            crate::transform::representation_proofs::quantized_coefficients_push(prior_values,value);
+            reveal_with_fuel(crate::specs::part2_linear_coefficients_prefix,1);
+            assert(crate::specs::part2_linear_coefficients_prefix(source.coefficients,coefficient_index as nat)==Ok(crate::transform::quantized_coefficients_view(signed@)));
+        }
+    }
+    Ok(signed)
+}
+
+#[cfg_attr(verus_keep_ghost, verus_spec(result =>
+    ensures crate::specs::part2_quantized_samples_copy_result(crate::transform::reconstructed_plane_view(*plane).3,crate::transform::sequence_outcome(result)),
+        crate::transform::sequence_outcome(result)!=Err(DecodeError::AllocationFailed) ==> crate::transform::sequence_outcome(result) == Ok(crate::transform::reconstructed_plane_view(*plane).3),
+))]
+pub(super) fn copy_code_block_samples(
+    plane: &crate::transform::ReconstructedPlane,
+) -> Result<Vec<i64>, DecodeError> {
+    let source = plane.samples();
+    let copied = crate::allocation::copy_values(source);
+    #[cfg(verus_keep_ghost)]
+    proof! {
+        let unit=match copied{Err(error)=>Err(error),Ok(_)=>Ok(())};
+        crate::specs::part2_quantization_capacity_observed(crate::specs::Part2QuantizationOwner::CodeBlockCopy,source@.len(),unit);
+        crate::specs::part2_quantized_samples_copy_observed(source@,unit);
+    }
+    copied
 }

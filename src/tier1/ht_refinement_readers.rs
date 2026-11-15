@@ -317,7 +317,8 @@ impl<'a> HtReverseRefinementReader<'a> {
 #[cfg_attr(
     verus_keep_ghost,
     verus_spec(result =>
-        ensures ht_refinement_readers_outcome(result) == crate::specs::ht_refinement_readers_initial(
+        ensures crate::specs::part2_ht_scratch_result(forward_input@,reverse_input@,bytes,has_reverse,maximum_work_units,ht_refinement_readers_outcome(result)),
+            ht_refinement_readers_outcome(result)!=Err(DecodeError::AllocationFailed) ==> ht_refinement_readers_outcome(result) == crate::specs::ht_refinement_readers_initial(
             forward_input@, reverse_input@, bytes, has_reverse, maximum_work_units,
         ),
     )
@@ -329,6 +330,8 @@ pub(super) fn ht_refinement_readers_from_inputs<'a>(
     has_reverse: bool,
     maximum_work_units: u64,
 ) -> Result<HtRefinementReaders<'a>, DecodeError> {
+    #[cfg(verus_keep_ghost)]
+    proof! {crate::specs::part2_ht_scratch_normal(forward_input@,reverse_input@,bytes,has_reverse,maximum_work_units);}
     let forward = ht_forward_refinement_from_input(forward_input, maximum_work_units)?;
     let reverse = if has_reverse {
         Some(ht_reverse_refinement_from_input(
@@ -338,8 +341,24 @@ pub(super) fn ht_refinement_readers_from_inputs<'a>(
     } else {
         None
     };
-    let claimed = vec![0; bytes];
-    let stuffed = vec![0; bytes];
+    let allocated = crate::allocation::filled_values(0_u8, bytes);
+    #[cfg(verus_keep_ghost)]
+    proof! {
+        let result=match allocated{Err(error)=>Err(error),Ok(_)=>Ok(())};
+        crate::specs::part2_ht_scratch_capacity_observed(crate::specs::part2_ht_scratch_context(forward_input@,reverse_input@,bytes,has_reverse,maximum_work_units,false),false,result);
+        if let Err(error)=allocated{crate::specs::part2_ht_scratch_first_error(forward_input@,reverse_input@,bytes,has_reverse,maximum_work_units,error);}
+    }
+    let claimed = allocated?;
+    let allocated = crate::allocation::filled_values(0_u8, bytes);
+    #[cfg(verus_keep_ghost)]
+    proof! {
+        let context=crate::specs::part2_ht_scratch_context(forward_input@,reverse_input@,bytes,has_reverse,maximum_work_units,true);
+        assert(context.claimed==Some(claimed@));
+        let result=match allocated{Err(error)=>Err(error),Ok(_)=>Ok(())};
+        crate::specs::part2_ht_scratch_capacity_observed(context,true,result);
+        crate::specs::part2_ht_scratch_second_observed(forward_input@,reverse_input@,bytes,has_reverse,maximum_work_units,result);
+    }
+    let stuffed = allocated?;
     #[cfg(verus_keep_ghost)]
     proof! {
         assert(claimed@ =~= Seq::new(bytes as nat, |i: int| 0u8));

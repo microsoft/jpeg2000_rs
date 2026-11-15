@@ -1,6 +1,332 @@
 use super::*;
 
 #[test]
+fn ht_cleanup_significance_storage_actual_packet_flag_refusal_rollback_and_restore() {
+    let limits = ResourceLimits::default();
+    let style = Tier1CodingStyle::from_code_block_style(0x40).unwrap();
+    let mut source = Tier1CodeBlockDecoder::new(1, 1, 2, SubbandOrientation::Ll, style).unwrap();
+    let mut passes = [0; MAX_CODE_BLOCK_SEGMENTS_PER_CONTRIBUTION];
+    let mut lengths = [0; MAX_CODE_BLOCK_SEGMENTS_PER_CONTRIBUTION];
+    passes[0] = 1;
+    lengths[0] = 3;
+    let cleanup = CodeBlockContribution {
+        first_inclusion: true,
+        zero_bitplanes: 0,
+        new_passes: 1,
+        data_length: 3,
+        high_throughput: true,
+        segment_count: 1,
+        segment_passes: passes,
+        segment_lengths: lengths,
+    };
+    decode_code_block_contribution_body(&mut source, &cleanup, &[0, 0x63, 0], &limits).unwrap();
+    let significance = CodeBlockContribution {
+        first_inclusion: false,
+        data_length: 0,
+        segment_lengths: [0; MAX_CODE_BLOCK_SEGMENTS_PER_CONTRIBUTION],
+        ..cleanup
+    };
+    decode_code_block_contribution_body(&mut source, &significance, &[], &limits).unwrap();
+    let mut lengths = [0; MAX_CODE_BLOCK_SEGMENTS_PER_CONTRIBUTION];
+    lengths[0] = 1;
+    let magnitude = CodeBlockContribution {
+        data_length: 1,
+        segment_lengths: lengths,
+        ..significance
+    };
+    let before = format!("{source:?}");
+    let mut expected = source.clone();
+    let result =
+        decode_code_block_contribution_body(&mut expected, &magnitude, &[1], &limits).unwrap();
+    let mut actual = source.clone();
+    assert_eq!(
+        crate::allocation::with_refusal(5, || decode_code_block_contribution_body(
+            &mut actual,
+            &magnitude,
+            &[1],
+            &limits
+        )),
+        Err(DecodeError::AllocationFailed)
+    );
+    assert_eq!(format!("{actual:?}"), before);
+    assert_eq!(
+        decode_code_block_contribution_body(&mut actual, &magnitude, &[1], &limits).unwrap(),
+        result
+    );
+    assert_eq!(format!("{actual:?}"), format!("{expected:?}"));
+}
+
+#[test]
+fn ht_refinement_scratch_storage_actual_packet_masks_rollback_and_restore() {
+    let limits = ResourceLimits::default();
+    let style = Tier1CodingStyle::from_code_block_style(0x40).unwrap();
+    let mut source = Tier1CodeBlockDecoder::new(1, 1, 2, SubbandOrientation::Ll, style).unwrap();
+    let mut passes = [0; MAX_CODE_BLOCK_SEGMENTS_PER_CONTRIBUTION];
+    let mut lengths = [0; MAX_CODE_BLOCK_SEGMENTS_PER_CONTRIBUTION];
+    passes[0] = 1;
+    lengths[0] = 3;
+    let cleanup = CodeBlockContribution {
+        first_inclusion: true,
+        zero_bitplanes: 0,
+        new_passes: 1,
+        data_length: 3,
+        high_throughput: true,
+        segment_count: 1,
+        segment_passes: passes,
+        segment_lengths: lengths,
+    };
+    decode_code_block_contribution_body(&mut source, &cleanup, &[0, 0x63, 0], &limits).unwrap();
+    let significance = CodeBlockContribution {
+        first_inclusion: false,
+        data_length: 0,
+        segment_lengths: [0; MAX_CODE_BLOCK_SEGMENTS_PER_CONTRIBUTION],
+        ..cleanup
+    };
+    decode_code_block_contribution_body(&mut source, &significance, &[], &limits).unwrap();
+    let mut lengths = [0; MAX_CODE_BLOCK_SEGMENTS_PER_CONTRIBUTION];
+    lengths[0] = 1;
+    let magnitude = CodeBlockContribution {
+        data_length: 1,
+        segment_lengths: lengths,
+        ..significance
+    };
+    let before = format!("{source:?}");
+    let mut expected = source.clone();
+    let result =
+        decode_code_block_contribution_body(&mut expected, &magnitude, &[1], &limits).unwrap();
+    for after in [3, 4] {
+        let mut actual = source.clone();
+        assert_eq!(
+            crate::allocation::with_refusal(after, || decode_code_block_contribution_body(
+                &mut actual,
+                &magnitude,
+                &[1],
+                &limits
+            )),
+            Err(DecodeError::AllocationFailed)
+        );
+        assert_eq!(format!("{actual:?}"), before);
+        assert_eq!(
+            decode_code_block_contribution_body(&mut actual, &magnitude, &[1], &limits).unwrap(),
+            result
+        );
+        assert_eq!(format!("{actual:?}"), format!("{expected:?}"));
+    }
+}
+
+#[test]
+fn ht_metadata_storage_actual_packet_quad_previous_current_refusals_roll_back_and_restore() {
+    let limits = ResourceLimits::default();
+    let mut header = literal_empty_ht_contribution(1, 1);
+    header.data_length = 3;
+    header.segment_lengths[0] = 3;
+    let source = literal_ht_decoder(1);
+    let before = format!("{source:?}");
+    let mut expected = source.clone();
+    let result =
+        decode_code_block_contribution_body(&mut expected, &header, &[0, 0x63, 0], &limits)
+            .unwrap();
+    for after in [1, 2, 3] {
+        let mut decoder = source.clone();
+        assert_eq!(
+            crate::allocation::with_refusal(after, || decode_code_block_contribution_body(
+                &mut decoder,
+                &header,
+                &[0, 0x63, 0],
+                &limits
+            )),
+            Err(DecodeError::AllocationFailed)
+        );
+        assert_eq!(format!("{decoder:?}"), before);
+        assert_eq!(
+            decode_code_block_contribution_body(&mut decoder, &header, &[0, 0x63, 0], &limits)
+                .unwrap(),
+            result
+        );
+        assert_eq!(format!("{decoder:?}"), format!("{expected:?}"));
+    }
+}
+
+#[test]
+fn ht_cleanup_scratch_storage_packet_first_later_rows_roll_back_full_decoder_and_restore() {
+    let limits = ResourceLimits::default();
+    let mut header = literal_empty_ht_contribution(1, 1);
+    header.data_length = 3;
+    header.segment_lengths[0] = 3;
+    let source = literal_ht_decoder(1);
+    let before = format!("{source:?}");
+    let mut expected = source.clone();
+    let result =
+        decode_code_block_contribution_body(&mut expected, &header, &[0, 0x63, 0], &limits)
+            .unwrap();
+    for after in [5, 6] {
+        let mut decoder = source.clone();
+        assert_eq!(
+            crate::allocation::with_refusal(after, || decode_code_block_contribution_body(
+                &mut decoder,
+                &header,
+                &[0, 0x63, 0],
+                &limits
+            )),
+            Err(DecodeError::AllocationFailed)
+        );
+        assert_eq!(format!("{decoder:?}"), before);
+        assert_eq!(
+            decode_code_block_contribution_body(&mut decoder, &header, &[0, 0x63, 0], &limits)
+                .unwrap(),
+            result
+        );
+        assert_eq!(format!("{decoder:?}"), format!("{expected:?}"));
+    }
+}
+
+#[test]
+fn bitplane_initial_storage_packet_legacy_first_later_refusal_keeps_decoder_then_recovers() {
+    let limits = ResourceLimits::default();
+    let header = one_ff_legacy_contribution();
+    let source = one_bit_legacy_decoder(false);
+    let before = format!("{source:?}");
+    let mut expected = source.clone();
+    let result =
+        decode_code_block_contribution_body(&mut expected, &header, &[0xff], &limits).unwrap();
+    for after in [1, 2] {
+        let mut decoder = source.clone();
+        assert_eq!(
+            crate::allocation::with_refusal(after, || decode_code_block_contribution_body(
+                &mut decoder,
+                &header,
+                &[0xff],
+                &limits
+            )),
+            Err(DecodeError::AllocationFailed)
+        );
+        assert_eq!(format!("{decoder:?}"), before);
+        assert_eq!(
+            decode_code_block_contribution_body(&mut decoder, &header, &[0xff], &limits).unwrap(),
+            result
+        );
+        assert_eq!(format!("{decoder:?}"), format!("{expected:?}"));
+    }
+}
+
+#[test]
+fn legacy_snapshot_storage_packet_restore_refusal_preserves_full_outer_decoder_then_recovers() {
+    let limits = ResourceLimits::default();
+    let mut decoder =
+        Tier1CodeBlockDecoder::new(1, 1, 2, SubbandOrientation::Ll, Tier1CodingStyle::default())
+            .unwrap();
+    let header = one_ff_legacy_contribution();
+    decode_code_block_contribution_body(&mut decoder, &header, &[0xff], &limits).unwrap();
+    let before = format!("{decoder:?}");
+    let mut expected = decoder.clone();
+    let result = decode_code_block_contribution_body(&mut expected, &header, &[0xff], &limits);
+    assert_ne!(result, Err(DecodeError::AllocationFailed));
+    assert_eq!(
+        crate::allocation::with_refusal(3, || decode_code_block_contribution_body(
+            &mut decoder,
+            &header,
+            &[0xff],
+            &limits
+        )),
+        Err(DecodeError::AllocationFailed)
+    );
+    assert_eq!(format!("{decoder:?}"), before);
+    assert_eq!(
+        decode_code_block_contribution_body(&mut decoder, &header, &[0xff], &limits),
+        result
+    );
+    assert_eq!(format!("{decoder:?}"), format!("{expected:?}"));
+}
+
+#[test]
+fn decoder_nested_storage_real_legacy_retention_refusals_precede_body_error_and_restore() {
+    let limits = ResourceLimits::default();
+    let mut decoder =
+        Tier1CodeBlockDecoder::new(1, 1, 2, SubbandOrientation::Ll, Tier1CodingStyle::default())
+            .unwrap();
+    let header = one_ff_legacy_contribution();
+    decode_code_block_contribution_body(&mut decoder, &header, &[0xff], &limits).unwrap();
+    let before = format!("{decoder:?}");
+    let expected = decode_code_block_contribution_body(&mut decoder, &header, &[], &limits);
+    assert!(matches!(expected, Err(DecodeError::MalformedInput { .. })));
+    assert_eq!(format!("{decoder:?}"), before);
+    // This completed cleanup retains the legacy plane/input, not a current bitplane state.
+    for after in [1, 2] {
+        assert_eq!(
+            crate::allocation::with_refusal(after, || decode_code_block_contribution_body(
+                &mut decoder,
+                &header,
+                &[],
+                &limits
+            )),
+            Err(DecodeError::AllocationFailed)
+        );
+        assert_eq!(format!("{decoder:?}"), before);
+        assert_eq!(
+            decode_code_block_contribution_body(&mut decoder, &header, &[], &limits),
+            expected
+        );
+        assert_eq!(format!("{decoder:?}"), before);
+    }
+}
+
+#[test]
+fn decoder_plane_storage_real_legacy_packet_transaction_refusal_keeps_decoder_then_recovers() {
+    let limits = ResourceLimits::default();
+    let header = one_ff_legacy_contribution();
+    let mut decoder = one_bit_legacy_decoder(false);
+    let before = format!("{decoder:?}");
+    let mut expected = decoder.clone();
+    let decoded =
+        decode_code_block_contribution_body(&mut expected, &header, &[0xff], &limits).unwrap();
+    assert_eq!(
+        crate::allocation::with_refusal(0, || decode_code_block_contribution_body(
+            &mut decoder,
+            &header,
+            &[0xff],
+            &limits
+        )),
+        Err(DecodeError::AllocationFailed)
+    );
+    assert_eq!(format!("{decoder:?}"), before);
+    assert_eq!(
+        decode_code_block_contribution_body(&mut decoder, &header, &[0xff], &limits).unwrap(),
+        decoded
+    );
+    assert_eq!(format!("{decoder:?}"), format!("{expected:?}"));
+}
+
+#[test]
+fn ht_refinement_storage_packet_staging_copy_precedes_route_error_and_restores_decoder() {
+    let limits = ResourceLimits::default();
+    let mut decoder = literal_ht_decoder(3);
+    decoder
+        .decode_high_throughput_segments(&[0, 0x63, 0], 1, Some(&[0]), 1, &limits)
+        .unwrap();
+    let before = format!("{decoder:?}");
+    let header = one_ff_legacy_contribution();
+    let expected = decode_code_block_contribution_body(&mut decoder, &header, &[0xff], &limits);
+    assert!(expected.is_err());
+    assert_ne!(expected, Err(DecodeError::AllocationFailed));
+    assert_eq!(format!("{decoder:?}"), before);
+    assert_eq!(
+        crate::allocation::with_refusal(2, || decode_code_block_contribution_body(
+            &mut decoder,
+            &header,
+            &[0xff],
+            &limits
+        )),
+        Err(DecodeError::AllocationFailed)
+    );
+    assert_eq!(format!("{decoder:?}"), before);
+    assert_eq!(
+        decode_code_block_contribution_body(&mut decoder, &header, &[0xff], &limits),
+        expected
+    );
+    assert_eq!(format!("{decoder:?}"), before);
+}
+
+#[test]
 fn rollback_snapshot_storage_outer_roles_precede_children_and_restore_exact_packet() {
     let limits = ResourceLimits::default();
     let template = literal_progression_tile(&[], 1, 0, 0, 1);

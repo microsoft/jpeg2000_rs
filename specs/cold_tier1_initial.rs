@@ -1,7 +1,22 @@
 //! Shared role-aware coefficient storage and actual configured-decoder caller responses.
 use super::*;
 verus! {
-pub struct Part2Tier1StorageEvent {pub width:u16,pub height:u16,pub role:crate::tier1::CoefficientStorageRole,pub samples:usize,pub succeeded:bool}
+pub enum Part2Tier1StorageEvent {
+    Coefficient {width:u16,height:u16,role:crate::tier1::CoefficientStorageRole,samples:usize,succeeded:bool},
+    RefinementBytes {role:crate::tier1::HtRefinementCopyRole,source:Seq<u8>,elements:nat,succeeded:bool},
+    DecoderPlaneCopy {source:Tier1RawPlane,role:crate::tier1::HtRefinementCopyRole,cleanup:bool,elements:nat,succeeded:bool},
+    NestedCopy {owner:Part2NestedCopyOwner,elements:nat,succeeded:bool},
+    BitplaneInitialCapacity {plane:Tier1RawPlane,bitplane:u16,visited:bool,prior:Option<Seq<bool>>,elements:nat,succeeded:bool},
+    HtExponentCapacity {context:Part2HtExponentContext,current:bool,elements:nat,succeeded:bool},
+    HtMetadataCapacity {context:Part2HtMetadataContext,role:Part2HtMetadataRole,elements:nat,succeeded:bool},
+    RefinementScratchCapacity {context:Part2HtRefinementScratchContext,stuffed:bool,elements:usize,succeeded:bool},
+    CoefficientExtractionCapacity {context:Part2CoefficientExtractionContext,elements:nat,succeeded:bool},
+    CleanupSignificanceCapacity {elements:nat,succeeded:bool},
+    QuantizationCapacity {owner:Part2QuantizationOwner,elements:nat,succeeded:bool},
+    WaveletPlaneCapacity {owner:Part2WaveletPlaneOwner,elements:nat,succeeded:bool},
+    WaveletLineCapacity {context:Part2WaveletLineContext,elements:nat,succeeded:bool},
+    PrepareCopyCapacity {role:Part2PrepareCopyRole,elements:nat,succeeded:bool},
+}
 pub type Part2Tier1Run<T> = Option<(Result<T,crate::DecodeError>,Seq<Part2Tier1StorageEvent>)>;
 pub(crate) open spec fn part2_tier1_storage_prefix<T>(run:spec_fn(Seq<Part2Tier1StorageEvent>)->Part2Tier1Run<T>,
     prefix:Seq<Part2Tier1StorageEvent>,result:Result<T,crate::DecodeError>)->bool {
@@ -70,9 +85,12 @@ pub(crate) open spec fn part2_tier1_plane_run(width:u16,height:u16,role:crate::t
         match part2_tier1_plane_admit(width,height) {
             Err(error)=>Some((Err(error),calls)),
             Ok(count)=>if count==0{Some((tier1_empty_plane(width,height),calls))}else if calls.len()==0{None}else{
-                let call=calls[0];
-                if call.width!=width || call.height!=height || call.role!=role || call.samples!=count{None}
-                else{Some((if call.succeeded{tier1_empty_plane(width,height)}else{Err(crate::DecodeError::AllocationFailed)},calls.drop_first()))}
+                match calls[0] {
+                    Part2Tier1StorageEvent::Coefficient {width:actual_width,height:actual_height,role:actual_role,samples,succeeded}=>
+                        if actual_width!=width || actual_height!=height || actual_role!=role || samples!=count{None}
+                        else{Some((if succeeded{tier1_empty_plane(width,height)}else{Err(crate::DecodeError::AllocationFailed)},calls.drop_first()))},
+                    _=>None,
+                }
             },
         }
 }
@@ -84,7 +102,7 @@ pub(crate) proof fn part2_tier1_plane_normal(width:u16,height:u16,role:crate::ti
 {
     let result=tier1_empty_plane(width,height);
     let prefix=match part2_tier1_plane_admit(width,height){
-        Err(_)=>Seq::empty(),Ok(count)=>if count==0{Seq::empty()}else{seq![Part2Tier1StorageEvent {width,height,role,samples:count,succeeded:true}]},
+        Err(_)=>Seq::empty(),Ok(count)=>if count==0{Seq::empty()}else{seq![Part2Tier1StorageEvent::Coefficient {width,height,role,samples:count,succeeded:true}]},
     };
     assert forall|tail:Seq<Part2Tier1StorageEvent>|part2_tier1_plane_run(width,height,role,prefix+tail)==Some((result,tail)) by{
         if part2_tier1_plane_admit(width,height).is_ok() && part2_tier1_plane_admit(width,height).get_Ok_0()>0{
@@ -98,7 +116,7 @@ pub(crate) proof fn part2_tier1_plane_observed(width:u16,height:u16,role:crate::
     ensures part1_tier1_plane_storage_result(width,height,role,if result.is_ok(){tier1_empty_plane(width,height)}else{Err(crate::DecodeError::AllocationFailed)}),
 {
     let value=if result.is_ok(){tier1_empty_plane(width,height)}else{Err(crate::DecodeError::AllocationFailed)};
-    let prefix=if count==0{Seq::empty()}else{seq![Part2Tier1StorageEvent {width,height,role,samples:count,succeeded:result.is_ok()}]};
+    let prefix=if count==0{Seq::empty()}else{seq![Part2Tier1StorageEvent::Coefficient {width,height,role,samples:count,succeeded:result.is_ok()}]};
     assert forall|tail:Seq<Part2Tier1StorageEvent>|part2_tier1_plane_run(width,height,role,prefix+tail)==Some((value,tail)) by{
         if count==0{assert(prefix+tail =~= tail);}else{assert((prefix+tail).drop_first() =~= tail);}
     }
@@ -135,6 +153,17 @@ pub(crate) proof fn part2_tier1_resume_frame<A,B>(run:spec_fn(Seq<Part2Tier1Stor
 pub(crate) open spec fn part2_tier1_phase<T>(root:spec_fn(Seq<Part2Tier1StorageEvent>)->Part2Tier1Run<T>,prefix:Seq<Part2Tier1StorageEvent>,
     child:spec_fn(Seq<Part2Tier1StorageEvent>)->Part2Tier1Run<T>)->bool {
     forall|tail:Seq<Part2Tier1StorageEvent>| #[trigger] root(prefix+tail)==child(tail)
+}
+pub(crate) proof fn part2_tier1_phase_eta<T>(root:spec_fn(Seq<Part2Tier1StorageEvent>)->Part2Tier1Run<T>,
+    other:spec_fn(Seq<Part2Tier1StorageEvent>)->Part2Tier1Run<T>,prefix:Seq<Part2Tier1StorageEvent>,
+    child:spec_fn(Seq<Part2Tier1StorageEvent>)->Part2Tier1Run<T>)
+    requires part2_tier1_phase(root,prefix,child),
+        forall|calls:Seq<Part2Tier1StorageEvent>| #[trigger] root(calls)==other(calls),
+    ensures part2_tier1_phase(other,prefix,child),
+{
+    assert forall|tail:Seq<Part2Tier1StorageEvent>|other(prefix+tail)==child(tail) by{
+        assert(root(prefix+tail)==child(tail));
+    }
 }
 pub(crate) proof fn part2_tier1_prefix_advance<A,B>(root:spec_fn(Seq<Part2Tier1StorageEvent>)->Part2Tier1Run<B>,
     child:spec_fn(Seq<Part2Tier1StorageEvent>)->Part2Tier1Run<A>,next:spec_fn(A,Seq<Part2Tier1StorageEvent>)->Part2Tier1Run<B>,

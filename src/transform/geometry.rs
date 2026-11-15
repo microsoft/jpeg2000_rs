@@ -72,7 +72,8 @@ pub(super) fn band_row(band: WaveletBand<'_>, y: u32) -> Result<&[i64], DecodeEr
 }
 
 #[cfg_attr(verus_keep_ghost, verus_spec(result =>
-    ensures sequence_outcome(result) == crate::specs::part1_collect_column((width, height, samples@), x),
+    ensures crate::specs::part2_wavelet_gather_result((width,height,samples@),x,sequence_outcome(result)),
+        sequence_outcome(result)!=Err(DecodeError::AllocationFailed) ==> sequence_outcome(result) == crate::specs::part1_collect_column((width, height, samples@), x),
 ))]
 pub(super) fn collect_column(
     samples: &[i64],
@@ -80,10 +81,24 @@ pub(super) fn collect_column(
     height: u32,
     x: u32,
 ) -> Result<Vec<i64>, DecodeError> {
+    #[cfg(verus_keep_ghost)]
+    proof! {crate::specs::part2_wavelet_gather_normal((width,height,samples@),x);}
     if x >= width {
         return Err(invalid_transform());
     }
-    let mut column = Vec::with_capacity(transform_dimension(height)?);
+    let count = transform_dimension(height)?;
+    let allocated = if count == 0 {
+        Ok(Vec::new())
+    } else {
+        crate::allocation::empty_with_capacity(count)
+    };
+    #[cfg(verus_keep_ghost)]
+    proof! {
+        let unit=match allocated{Err(error)=>Err(error),Ok(_)=>Ok(())};
+        crate::specs::part2_wavelet_line_capacity_observed(crate::specs::Part2WaveletLineContext::Gather {width,height,column:x},unit);
+        if let Err(error)=allocated{crate::specs::part2_wavelet_gather_refused((width,height,samples@),x,error);}
+    }
+    let mut column = allocated?;
     let mut y = 0_u32;
     #[cfg_attr(
         verus_keep_ghost,
@@ -91,6 +106,7 @@ pub(super) fn collect_column(
             invariant y <= height,
             x < width,
             height <= usize::MAX,
+            crate::specs::part2_wavelet_gather_result((width,height,samples@),x,crate::specs::part1_collect_column((width,height,samples@),x)),
             crate::specs::part1_column_prefix(samples@, width, x, y as nat) == Ok(column@),
             decreases height - y,
         )
