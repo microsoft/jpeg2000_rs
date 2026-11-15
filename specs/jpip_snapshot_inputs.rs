@@ -22,6 +22,7 @@ pub enum Part2JpipSnapshotEvent {
     Parse { phase: u8, index: usize, calls: Seq<Part1ColdStorageEvent> },
     PrecinctSingletonCapacity {execution:Part2PacketSubbandExecution,elements:usize,succeeded:bool},
     TagCopyCapacity {context:Part2TagCopyContext,nodes:bool,elements:nat,succeeded:bool},
+    RollbackOwnerCapacity {context:Part2RollbackOwnerContext,elements:nat,succeeded:bool},
 }
 
 pub(crate) open spec fn part2_jpip_snapshot_normalized_events(

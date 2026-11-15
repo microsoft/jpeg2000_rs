@@ -47,11 +47,35 @@ pub(crate) fn decode_jpip_precinct_packet(
 ) -> Result<usize, DecodeError> {
     #[cfg(verus_keep_ghost)]
     proof_decl! {let ghost initial=packet_precinct_view(precinct);}
-    let states = precinct.states.clone();
-    let contexts = precinct.contexts.clone();
+    let copied_states = crate::allocation::copy_values(&precinct.states);
+    #[cfg(verus_keep_ghost)]
+    proof! {
+        crate::specs::part2_rollback_owner_observed(crate::specs::Part2RollbackOwnerContext::States {source:initial.states},
+            match copied_states{Err(error)=>Err(error),Ok(_)=>Ok(())});
+        if let Err(error)=copied_states{
+            crate::specs::part2_rollback_snapshot_states_error(initial,error);
+            crate::specs::part2_jpip_packet_copy_observed(initial,crate::codestream::tile_part_owned_view(template),data@,expected_sop_sequence,layer,limits,Err(error),(Err(error),initial));
+        }
+    }
+    let states = copied_states?;
+    let copied_contexts = crate::allocation::copy_values(&precinct.contexts);
+    #[cfg(verus_keep_ghost)]
+    proof! {
+        assert(states@.map_values(|state:CodeBlockPacketState|code_block_packet_state_view(&state))==initial.states);
+        crate::specs::part2_rollback_owner_observed(crate::specs::Part2RollbackOwnerContext::Contexts {
+            states:states@.map_values(|state:CodeBlockPacketState|code_block_packet_state_view(&state)),source:initial.contexts},
+            match copied_contexts{Err(error)=>Err(error),Ok(_)=>Ok(())});
+        if let Err(error)=copied_contexts{
+            crate::specs::part2_rollback_snapshot_contexts_error(initial,error);
+            crate::specs::part2_jpip_packet_copy_observed(initial,crate::codestream::tile_part_owned_view(template),data@,expected_sop_sequence,layer,limits,Err(error),(Err(error),initial));
+        }
+    }
+    let contexts = copied_contexts?;
     let copied_subbands = try_duplicate_packet_subbands(&precinct.subbands);
     #[cfg(verus_keep_ghost)]
     proof! {
+        crate::specs::part2_rollback_snapshot_subbands(initial,match copied_subbands{
+            Err(error)=>Err(error),Ok(values)=>Ok(values@.map_values(|value:PacketSubbandState|packet_subband_view(&value)))});
         if let Err(error)=copied_subbands{
             crate::specs::part2_jpip_packet_copy_observed(initial,crate::codestream::tile_part_owned_view(template),data@,expected_sop_sequence,layer,limits,Err(error),(Err(error),initial));
         }
@@ -96,23 +120,34 @@ fn try_duplicate_packet_subbands(
     #[cfg(verus_keep_ghost)]
     proof_decl! {
         let ghost source=before@.map_values(|value:PacketSubbandState|packet_subband_view(&value));
-        let ghost root=|events:Seq<crate::specs::Part2JpipSnapshotEvent>|crate::specs::part2_subbands_copy_run(source,0,Seq::empty(),events);
-        let ghost mut prefix=Seq::<crate::specs::Part2JpipSnapshotEvent>::empty();
+        let ghost root=|events:Seq<crate::specs::Part2JpipSnapshotEvent>|crate::specs::part2_subbands_owner_run(source,events);
+        let ghost mut prefix:Seq<crate::specs::Part2JpipSnapshotEvent>;
     }
-    // The outer Vec clone reservation remains its original, separate infallible boundary.
-    let mut values = Vec::with_capacity(before.len());
+    let reserved = if before.is_empty() {
+        Ok(Vec::new())
+    } else {
+        crate::allocation::empty_with_capacity(before.len())
+    };
+    #[cfg(verus_keep_ghost)]
+    proof! {
+        crate::specs::part2_rollback_owner_observed(crate::specs::Part2RollbackOwnerContext::Subbands {source},
+            match reserved{Err(error)=>Err(error),Ok(_)=>Ok(())});
+        if let Err(error)=reserved{crate::specs::part2_subbands_owner_error(source,error);}
+        else{prefix=crate::specs::part2_subbands_owner_start(source);}
+    }
+    let mut values = reserved?;
     let mut index = 0;
     #[cfg(verus_keep_ghost)]
     proof! {
         assert(source.take(0) =~= Seq::empty());
         assert forall|events:Seq<crate::specs::Part2JpipSnapshotEvent>|root(prefix+events)
-            ==crate::specs::part2_subbands_copy_run(source,0,source.take(0),events) by {assert(prefix+events =~= events);}
+            ==crate::specs::part2_subbands_copy_run(source,0,source.take(0),events) by {}
     }
     #[cfg_attr(verus_keep_ghost,verus_spec(
         invariant index<=before.len(),values@.len()==index,
             values@.map_values(|value:PacketSubbandState|packet_subband_view(&value))==source.take(index as int),
             source==before@.map_values(|value:PacketSubbandState|packet_subband_view(&value)),
-            forall|events:Seq<crate::specs::Part2JpipSnapshotEvent>| #[trigger] root(events)==crate::specs::part2_subbands_copy_run(source,0,Seq::empty(),events),
+            forall|events:Seq<crate::specs::Part2JpipSnapshotEvent>| #[trigger] root(events)==crate::specs::part2_subbands_owner_run(source,events),
             crate::specs::part2_cold_phase(root,prefix,|events|crate::specs::part2_subbands_copy_run(source,index as nat,source.take(index as int),events)),
         decreases before.len()-index,
     ))]

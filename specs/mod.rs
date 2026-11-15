@@ -104,6 +104,8 @@ mod cold_tag_storage;
 pub use cold_tag_copy::*;
 mod cold_packet_copy;
 pub use cold_packet_copy::*;
+mod cold_rollback_snapshot;
+pub use cold_rollback_snapshot::*;
 mod jpip_copy_packets;
 pub use cold_tag_storage::*;
 pub use jpip_copy_packets::*;

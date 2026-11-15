@@ -58,6 +58,7 @@ specs/cold_progression.rs
 specs/cold_quantization.rs
 specs/cold_resolution_plan.rs
 specs/cold_resolved_copy.rs
+specs/cold_rollback_snapshot.rs
 specs/cold_single_packet.rs
 specs/cold_tag_copy.rs
 specs/cold_tag_storage.rs
