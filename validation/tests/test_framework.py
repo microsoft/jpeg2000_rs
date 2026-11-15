@@ -6039,6 +6039,36 @@ class FrameworkTests(WorkingFiles):
             8, isolate=False,
         )
 
+    def test_inventory_binds_selected_reconstruction_to_real_input_selection(self):
+        self._assert_complete_packet_contract_bindings(
+            {framework._SELECTED_RECONSTRUCTION_ENTRY},
+            framework._SELECTED_RECONSTRUCTION_CONTRACTS, 1, isolate=False,
+        )
+
+    def test_inventory_binds_present_tile_results_and_report_arithmetic(self):
+        self._assert_complete_packet_contract_bindings(
+            {framework._PRESENT_TILE_ENTRY}, framework._PRESENT_TILE_CONTRACTS, 9, isolate=False,
+        )
+
+    def test_inventory_present_tile_requires_all_program_runs_and_normal_projections(self):
+        coverage = json.loads((framework.VALIDATION / "normative-coverage.json").read_text())
+        entry = next(item for item in coverage["requirements"]
+                     if item["id"] == framework._PRESENT_TILE_ENTRY)
+        for field, symbol in (
+            ("spec_refs", "part2_present_raw_typed_run"),
+            ("spec_refs", "part2_present_raw_reconstructed_run"),
+            ("spec_refs", "part2_present_jp2_typed_run"),
+            ("spec_refs", "part2_present_jp2_reconstructed_run"),
+            ("proof_refs", "part2_present_raw_normal"),
+            ("proof_refs", "part2_present_jp2_normal"),
+        ):
+            changed = copy.deepcopy(entry)
+            changed[field] = [ref for ref in changed[field] if ref["symbol"] != symbol]
+            with self.subTest(field=field, symbol=symbol), self.assertRaisesRegex(
+                ValueError, "sole present tile Result|checked cold normal|complete cold run",
+            ):
+                framework.validate_normative_coverage(dict(coverage, requirements=[changed]))
+
     def test_inventory_jp2_dimension_authority_requires_all_cold_normal_boundaries(self):
         coverage = json.loads((framework.VALIDATION / "normative-coverage.json").read_text())
         entry = next(item for item in coverage["requirements"]

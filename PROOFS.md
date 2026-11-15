@@ -1534,6 +1534,29 @@ is not entropy success and never fabricates absent pixels. Default APIs and
 limits remain unchanged; this is not EOC/MQ/trailer/tile recovery, a cooperative
 deadline, complete allocation coverage or independent conformance qualification.
 
+## Selected reconstruction and sole-present-tile recovery
+
+`decode_codestream_reconstructed_selected` composes actual raw parsing,
+selection/layout reconstruction, NLT rejection and output-shape checks without
+passing through typed/clipped samples. Its value/run programs and checked
+ordinary projection are in `specs/selected_reconstruction.rs`.
+
+The four raw/JP2 typed/centered present-tile recovery APIs use real preflight
+parts to select a sole tile only for an unbounded full-image request. Actual
+selection constructors, child decoder results, JP2 metadata processing/guards
+and final mapped component counts determine output and resource/report errors.
+`specs/pdf_present_tile.rs` gives complete ordered cold and ordinary programs;
+all early parse/selection/inspection/profile/child errors keep the unused tape.
+No result bank, fake canvas, decoded missing pixel or new validity premise is
+introduced.
+
+Reports distinguish original canvas from returned crop, retaining genuine
+placement and native reduction. Checked integer scaling and multiplication
+enforce a conservative full intended-canvas eight-byte component-plane bound
+when automatic recovery is chosen. It is not global live/peak accounting or
+withdrawn allocation budgeting. Explicit tile/region requests stay ordinary;
+strict defaults and all unrelated recovery policies remain unchanged.
+
 ## Actual public raw composition and fallback Result
 
 The public `render_jpx_composition` now derives its complete image/error Result

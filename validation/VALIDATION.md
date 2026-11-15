@@ -28,6 +28,15 @@ The original bundle's four public JP2 controls are replayed separately; no
 private PDF/native renderer is needed. Passing controls are bounded evidence,
 not global allocator, deadline or normative qualification.
 
+### Present-tile geometry and selected reconstruction
+
+The `pdf_present_tile` and `selected_reconstruction` native controls use real
+entropy/empty-packet fixtures to retain sole-tile extent, absent explicit-tile
+errors, original canvas metadata, nonzero placement/origin, reductions and
+fractional overshoot. They distinguish actual crop admission from the full
+intended-canvas sample limit and account mapped JP2 output components. Strict
+header/NLT/entropy errors and managed-refusal restoration remain separate.
+
 ### Review-policy administration audit
 
 Technical CI and manual solo-owner review are separate responsibilities.
