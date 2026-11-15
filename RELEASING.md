@@ -1,5 +1,86 @@
 # Publishing and releasing
 
+## Request publication from a release branch
+
+The manually dispatched [Publish crate workflow](.github/workflows/release.yml)
+follows the release process in
+[`microsoft/jbig2_rs`](https://github.com/microsoft/jbig2_rs/blob/7b2f21ca82e595bc4353da6cd5fc5b5d571b4220/.github/workflows/release.yml).
+Unlike its automatic release-event path, this workflow accepts **manual requests
+only**: no push, tag, GitHub Release, or cron event uploads a crate.
+
+The definition must be registered on the default branch for GitHub's Actions
+UI, but **publication from `main` is forbidden**. In Actions, select
+**Publish crate → Run workflow → Use workflow from `release/0.1`**
+(or the matching `release/MAJOR.MINOR` branch). A request from `main`, a tag,
+a fork, or a release line inconsistent with the version tag fails before
+registry authentication. Both validation and publication retain that check.
+
+Before using the workflow:
+
+1. Review and deploy the same workflow, validation helpers and CI/proof push
+   triggers to the intended release branch. The workflow-definition PR on
+   `main` alone is not enough. Keep release-ref updates owner-controlled;
+   this workflow never edits protections or promotes a source candidate.
+2. Prepare and merge a separately authorized publication candidate on that
+   release line. Its manifest must have the intended version and
+   `publish = ["crates-io"]`; development and maintenance-source manifests
+   remain disabled. No workflow patches `publish = false` in a dirty checkout.
+3. Qualify both the reviewed PR head and exact integrated release commit.
+   The core CI and Verus workflows now also run on `release/*` pushes.
+   Their required native/MSRV, numerical, resource, package and proof gates
+   must pass. Preserve the `packaged-verus-validation` artifact.
+4. Create an explicitly approved immutable `vMAJOR.MINOR.PATCH` tag at that
+   exact merged release-branch head, not a development tip, an older reachable
+   tag, or an unmerged PR head. The dispatch SHA, reviewed integration and tag
+   commit must be identical.
+   This initial publisher accepts stable version tags, not prereleases.
+5. A crate owner must configure crates.io Trusted Publishing for
+   `microsoft/jpeg2000_rs`, workflow filename `release.yml`, environment
+   `crates-io`. First configure that GitHub environment with release-owner
+   approval and deployment branches restricted to the approved `release/*`
+   lines. Merely naming an environment in YAML does **not** configure its
+   protection rules. Use the repository's owner-review model without
+   pretending that self-review is independent review.
+
+After that setup and tag approval, request a credential-free rehearsal:
+
+```sh
+gh workflow run release.yml --repo microsoft/jpeg2000_rs --ref release/0.1 \
+  -f tag=v0.1.1 -F dry_run=true
+```
+
+First request the tag with **`dry_run: true`** (the default).
+No OIDC credentials are requested or registry uploads performed. Review the
+source commit, CI producer identities and archive SHA256 in the validation
+artifact. The action pins Python 3.13 (the release checker requires Python
+3.11+; general validation retains its older supported Python profile).
+Packaging uses Rust/Cargo **1.98.1**, matching the existing Verus
+archive producer; it does not lower the runtime MSRV or change verifier pins.
+The rebuilt archive must match the actual archive and input binding downloaded
+from the successful, exact integrated-source Verus run—not merely similar
+source files or an older preparation receipt. Expired/missing artifacts fail
+closed and require requalification.
+
+For a live request on the same release branch, explicitly set `dry_run: false`
+and supply the owner-approved full `approved_commit` and `approved_sha256`
+from that receipt. The protected publish job rechecks merged qualification,
+the remote tag and exact rebuilt archive after approval, serializes uploads,
+then obtains a short-lived crates.io OIDC token using a pinned action. The
+token is scoped to the upload step and revoked by the authentication action.
+No registry credentials belong in source, chat, logs, or workflow inputs.
+
+An existing version is accepted only as an explicitly reported
+`verified_existing_identical` registry result with matching checksum and
+non-yanked state; it is not uploaded again. Any mismatch fails. After upload,
+the workflow verifies the downloaded registry bytes and builds/runs a fresh
+exact-version registry consumer under an isolated Cargo home.
+
+Adding or merging this workflow does not authorize or perform a tag, upload,
+release-branch update, or protection change. Publication remains an explicit
+owner action for one version/source/archive. The experimental, non-certified
+claims, disabled lifetime analysis, and source-function coverage limitations
+are unchanged.
+
 Publishing source, claiming standards conformance, and publishing a versioned
 crate are different decisions. The development branch retains
 `publish = false`; a versioned release candidate enables publication only
