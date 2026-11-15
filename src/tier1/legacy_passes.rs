@@ -184,6 +184,7 @@ impl Tier1PassStatistics {
     }
 }
 
+#[cfg_attr(verus_keep_ghost, verus_verify)]
 impl Tier1BitplaneState {
     pub fn new(plane: &CodeBlockPlane, bitplane_mask: u64) -> Result<Self, DecodeError> {
         if !is_bitplane_mask(bitplane_mask) {
@@ -195,9 +196,19 @@ impl Tier1BitplaneState {
     }
 
     pub fn new_at_bitplane(plane: &CodeBlockPlane, bitplane: u16) -> Result<Self, DecodeError> {
+        #[cfg(verus_keep_ghost)]
+        vstd::prelude::ensures(|result: Result<Self, DecodeError>| {
+            crate::specs::part2_bitplane_initial_result(
+                code_block_plane_view(plane),
+                bitplane,
+                legacy_bitplane_outcome(result),
+            )
+        });
         legacy_bitplane_from_plane(plane, bitplane)
     }
+}
 
+impl Tier1BitplaneState {
     pub const fn bitplane_mask(&self) -> u64 {
         if self.bitplane < 64 {
             1_u64 << self.bitplane
@@ -236,21 +247,40 @@ impl Tier1BitplaneState {
 }
 
 #[cfg_attr(verus_keep_ghost, verus_spec(result =>
-        ensures legacy_bitplane_outcome(result) == crate::specs::part1_legacy_bitplane_initial(
+        ensures crate::specs::part2_bitplane_initial_result(code_block_plane_view(plane),bitplane,legacy_bitplane_outcome(result)),
+            legacy_bitplane_outcome(result)!=Err(DecodeError::AllocationFailed) ==> legacy_bitplane_outcome(result) == crate::specs::part1_legacy_bitplane_initial(
             code_block_plane_view(plane), bitplane),
     ))]
 pub(super) fn legacy_bitplane_from_plane(
     plane: &CodeBlockPlane,
     bitplane: u16,
 ) -> Result<Tier1BitplaneState, DecodeError> {
+    #[cfg(verus_keep_ghost)]
+    proof_decl! {let ghost before=code_block_plane_view(plane);}
+    #[cfg(verus_keep_ghost)]
+    proof! {crate::specs::part2_bitplane_initial_normal(before,bitplane);}
     if bitplane >= MAX_TIER1_BITPLANES {
         return Err(invalid_code_block());
     }
-    let mut significant_before = Vec::with_capacity(plane.coefficients.len());
+    let count = plane.coefficients.len();
+    let reserved = if count == 0 {
+        Ok(Vec::new())
+    } else {
+        crate::allocation::empty_with_capacity(count)
+    };
+    #[cfg(verus_keep_ghost)]
+    proof! {
+        let result=match reserved{Err(error)=>Err(error),Ok(_)=>Ok(())};
+        crate::specs::part2_bitplane_capacity_observed(before,bitplane,false,None,result);
+        if let Err(error)=reserved{crate::specs::part2_bitplane_initial_first_error(before,bitplane,error);}
+    }
+    let mut significant_before = reserved?;
     let mut index = 0;
     #[cfg_attr(verus_keep_ghost, verus_spec(
             invariant index <= plane.coefficients.len(), significant_before.len() == index,
                 bitplane < MAX_TIER1_BITPLANES,
+                crate::specs::part2_bitplane_capacity_result(before,bitplane,false,None,Ok(())),
+                before==code_block_plane_view(plane),
                 forall |i: int| 0 <= i < index ==> significant_before@[i] == plane.coefficients@[i].significant,
             decreases plane.coefficients.len() - index,
         ))]
@@ -263,7 +293,14 @@ pub(super) fn legacy_bitplane_from_plane(
         assert(significant_before@ =~= code_block_plane_view(plane).coefficients.map_values(
             |c: crate::specs::Tier1RawCoefficient| c.significant));
     }
-    let significance_visited = vec![false; significant_before.len()];
+    let filled = crate::allocation::filled_values(false, significant_before.len());
+    #[cfg(verus_keep_ghost)]
+    proof! {
+        let result=match filled{Err(error)=>Err(error),Ok(_)=>Ok(())};
+        crate::specs::part2_bitplane_capacity_observed(before,bitplane,true,Some(significant_before@),result);
+        crate::specs::part2_bitplane_initial_observed(before,bitplane,result);
+    }
+    let significance_visited = filled?;
     #[cfg(verus_keep_ghost)]
     proof! {
         assert(significance_visited@ =~= Seq::new(code_block_plane_view(plane).coefficients.len(), |i: int| false));

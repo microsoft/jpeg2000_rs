@@ -31,12 +31,72 @@ const SOT: usize = 104;
 const BODY: usize = SOT + 14;
 
 #[test]
+fn bitplane_initial_storage_replayed_first_later_flags_raw_selected_recovery_and_automatic_restore()
+{
+    let options = DecodeOptions::default();
+    let selection = crate::DecodeSelection::full_image();
+    let expected = crate::decode_codestream(GRAY0, &options).unwrap();
+    let damaged = damaged(GRAY0);
+    for after in [28, 29, 50, 51] {
+        assert_eq!(
+            allocation::with_refusal(after, || crate::decode_codestream(GRAY0, &options))
+                .unwrap_err(),
+            DecodeError::AllocationFailed
+        );
+        assert_eq!(
+            allocation::with_refusal(after + 1, || crate::decode_codestream_selected(
+                GRAY0, &options, &selection
+            ))
+            .unwrap_err(),
+            DecodeError::AllocationFailed
+        );
+        assert_eq!(
+            allocation::with_refusal(after + 1, || decode(&damaged)).unwrap_err(),
+            DecodeError::AllocationFailed
+        );
+    }
+    assert_eq!(crate::decode_codestream(GRAY0, &options).unwrap(), expected);
+    assert_eq!(
+        crate::decode_codestream_selected(GRAY0, &options, &selection).unwrap(),
+        expected
+    );
+    assert_eq!(decode(&damaged).unwrap().image, expected);
+    let limits = ResourceLimits::default();
+    let mut cache = crate::jpip::DatabinCache::new(limits);
+    for (class, source) in [
+        (6, &GRAY0[..SOT]),
+        (2, &GRAY0[SOT..BODY]),
+        (0, &GRAY0[BODY..GRAY0.len() - 2]),
+    ] {
+        let id = crate::jpip::DatabinId::new(class, 0, 0).unwrap();
+        cache
+            .insert(
+                crate::jpip::JpipFragment::new(id, 0, source.to_vec(), true, None, &limits)
+                    .unwrap(),
+            )
+            .unwrap();
+    }
+    let packets = crate::jpip::JpipPacketSelection::all_components();
+    for selected in [false, true] {
+        let mut decoder = crate::jpip::JpipAutomaticProgressiveDecoder::new(0);
+        let update = if selected {
+            decoder.update_selected(&cache, &options, &selection, &packets)
+        } else {
+            decoder.update(&cache, &options)
+        }
+        .unwrap();
+        assert_eq!(update.image(), Some(&expected));
+        assert_eq!(decoder.decoded_layers(), 2);
+    }
+}
+
+#[test]
 fn legacy_snapshot_storage_two_layer_raw_selected_recovery_snapshot_restore_roles_and_automatic() {
     let options = DecodeOptions::default();
     let selection = crate::DecodeSelection::full_image();
     let expected = crate::decode_codestream(GRAY0, &options).unwrap();
     let damaged = damaged(GRAY0);
-    for after in [26, 27, 33] {
+    for after in [26, 27, 49] {
         assert_eq!(
             allocation::with_refusal(after, || crate::decode_codestream(GRAY0, &options))
                 .unwrap_err(),
@@ -88,7 +148,7 @@ fn decoder_nested_storage_real_two_layer_raw_selected_recovery_and_automatic_res
     let options = DecodeOptions::default();
     let selection = crate::DecodeSelection::full_image();
     let expected = crate::decode_codestream(GRAY0, &options).unwrap();
-    for after in [29, 32] {
+    for after in [45, 48] {
         assert_eq!(
             allocation::with_refusal(after, || crate::decode_codestream(GRAY0, &options))
                 .unwrap_err(),
@@ -409,8 +469,8 @@ fn one_atomic_reservation_refusal_and_unwind_leave_exact_same_process_success() 
             Err(DecodeError::AllocationFailed)
         );
     });
-    // Snapshot and both retained-prefix restorations add three raw plane copies.
-    allocation::with_refusal(35, || {
+    // Both retained-prefix decodes construct eight bitplanes, with two fresh flags each.
+    allocation::with_refusal(67, || {
         assert_eq!(decode(&bytes).unwrap(), expected);
         assert_eq!(
             allocation::empty_with_capacity::<u8>(1),
@@ -497,7 +557,7 @@ fn reconstructed_recovery_refusal_limits_and_genuine_errors_preserve_recovery() 
             expected
         );
     });
-    allocation::with_refusal(35, || {
+    allocation::with_refusal(67, || {
         assert_eq!(
             decode_codestream_reconstructed_recover_missing_eoc(&bytes, &options).unwrap(),
             expected

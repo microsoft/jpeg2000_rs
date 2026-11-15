@@ -9957,6 +9957,29 @@
         {"path": "specs/cold_legacy_packets.rs", "symbol": "part2_legacy_packet_fold"},
         {"path": "specs/cold_legacy_packets.rs", "symbol": "part2_legacy_packet_body_run"},
         {"path": "specs/cold_legacy_packets.rs", "symbol": "part2_legacy_packet_body_result"}
+        ,{"path": "specs/cold_bitplane_initial.rs", "symbol": "part2_bitplane_significant"}
+        ,{"path": "specs/cold_bitplane_initial.rs", "symbol": "part2_bitplane_capacity_run"}
+        ,{"path": "specs/cold_bitplane_initial.rs", "symbol": "part2_bitplane_capacity_result"}
+        ,{"path": "specs/cold_bitplane_initial.rs", "symbol": "part2_bitplane_initial_visited"}
+        ,{"path": "specs/cold_bitplane_initial.rs", "symbol": "part2_bitplane_initial_run"}
+        ,{"path": "specs/cold_bitplane_initial.rs", "symbol": "part2_bitplane_initial_result"}
+        ,{"path": "specs/cold_bitplane_initial.rs", "symbol": "part2_legacy_ensure_run"}
+        ,{"path": "specs/cold_bitplane_initial.rs", "symbol": "part2_legacy_ensure_result"}
+        ,{"path": "specs/cold_bitplane_initial.rs", "symbol": "part2_legacy_pass_prepared"}
+        ,{"path": "specs/cold_bitplane_initial.rs", "symbol": "part2_legacy_pass_after_ready"}
+        ,{"path": "specs/cold_bitplane_initial.rs", "symbol": "part2_legacy_pass_run"}
+        ,{"path": "specs/cold_bitplane_initial.rs", "symbol": "part2_legacy_pass_result"}
+        ,{"path": "specs/cold_legacy_bitplanes.rs", "symbol": "part2_legacy_step_after_pass"}
+        ,{"path": "specs/cold_legacy_bitplanes.rs", "symbol": "part2_legacy_inner_step_run"}
+        ,{"path": "specs/cold_legacy_bitplanes.rs", "symbol": "part2_legacy_inner_step_result"}
+        ,{"path": "specs/cold_legacy_bitplanes.rs", "symbol": "part2_legacy_inner_fold"}
+        ,{"path": "specs/cold_legacy_bitplanes.rs", "symbol": "part2_legacy_inner_body_run"}
+        ,{"path": "specs/cold_legacy_bitplanes.rs", "symbol": "part2_legacy_inner_body_result"}
+        ,{"path": "specs/cold_legacy_bitplanes.rs", "symbol": "part2_legacy_segment_prepared"}
+        ,{"path": "specs/cold_legacy_bitplanes.rs", "symbol": "part2_legacy_segment_finish"}
+        ,{"path": "specs/cold_legacy_bitplanes.rs", "symbol": "part2_legacy_segment_run"}
+        ,{"path": "specs/cold_legacy_bitplanes.rs", "symbol": "part2_legacy_segment_result"}
+        ,{"path": "specs/cold_legacy_replay.rs", "symbol": "part2_legacy_replay_after_restored"}
       ],
       "proof_refs": [
         {"path": "src/packet/proof_support.rs", "symbol": "code_block_contribution_view"},
@@ -10015,6 +10038,50 @@
         {"path": "specs/cold_legacy_packets.rs", "symbol": "part2_legacy_packet_body_step"},
         {"path": "specs/cold_legacy_packets.rs", "symbol": "part2_legacy_packet_body_finish"},
         {"path": "specs/cold_legacy_packets.rs", "symbol": "part2_legacy_packet_body_end"}
+        ,{"path": "src/tier1/legacy_passes.rs", "symbol": "legacy_bitplane_from_plane"}
+        ,{"path": "src/tier1/legacy_passes.rs", "symbol": "Tier1BitplaneState::new_at_bitplane"}
+        ,{"path": "src/tier1/legacy_segments.rs", "symbol": "Tier1CodeBlockDecoder::ensure_bitplane_state"}
+        ,{"path": "src/tier1/legacy_segments.rs", "symbol": "Tier1CodeBlockDecoder::decode_mq_pass"}
+        ,{"path": "src/tier1/legacy_segments.rs", "symbol": "Tier1CodeBlockDecoder::decode_raw_pass"}
+        ,{"path": "src/tier1/legacy_segments.rs", "symbol": "Tier1CodeBlockDecoder::decode_mq_segment_passes"}
+        ,{"path": "src/tier1/legacy_segments.rs", "symbol": "Tier1CodeBlockDecoder::decode_raw_segment_passes"}
+        ,{"path": "src/tier1/legacy_segments.rs", "symbol": "Tier1CodeBlockDecoder::decode_legacy_segment"}
+        ,{"path": "specs/cold_bitplane_initial.rs", "symbol": "part2_bitplane_capacity_observed"}
+        ,{"path": "specs/cold_bitplane_initial.rs", "symbol": "part2_bitplane_capacity_frames"}
+        ,{"path": "specs/cold_bitplane_initial.rs", "symbol": "part2_bitplane_initial_first_error"}
+        ,{"path": "specs/cold_bitplane_initial.rs", "symbol": "part2_bitplane_initial_observed"}
+        ,{"path": "specs/cold_bitplane_initial.rs", "symbol": "part2_bitplane_initial_normal"}
+        ,{"path": "specs/cold_bitplane_initial.rs", "symbol": "part2_bitplane_initial_frames"}
+        ,{"path": "specs/cold_bitplane_initial.rs", "symbol": "part2_legacy_ensure_observed"}
+        ,{"path": "specs/cold_bitplane_initial.rs", "symbol": "part2_legacy_ensure_present"}
+        ,{"path": "specs/cold_bitplane_initial.rs", "symbol": "part2_legacy_ensure_normal"}
+        ,{"path": "specs/cold_bitplane_initial.rs", "symbol": "part2_legacy_ensure_frames"}
+        ,{"path": "specs/cold_bitplane_initial.rs", "symbol": "part2_legacy_pass_observed"}
+        ,{"path": "specs/cold_bitplane_initial.rs", "symbol": "part2_legacy_pass_normal"}
+        ,{"path": "specs/cold_bitplane_initial.rs", "symbol": "part2_legacy_pass_after_ready_equation"}
+        ,{"path": "specs/cold_bitplane_initial.rs", "symbol": "part2_legacy_pass_prepared_equation"}
+        ,{"path": "specs/cold_bitplane_initial.rs", "symbol": "part2_legacy_pass_primary_consequence"}
+        ,{"path": "specs/cold_bitplane_initial.rs", "symbol": "part2_legacy_pass_frames"}
+        ,{"path": "specs/cold_legacy_bitplanes.rs", "symbol": "part2_legacy_inner_step_observed"}
+        ,{"path": "specs/cold_legacy_bitplanes.rs", "symbol": "part2_legacy_inner_step_normal"}
+        ,{"path": "specs/cold_legacy_bitplanes.rs", "symbol": "part2_legacy_inner_step_frames"}
+        ,{"path": "specs/cold_legacy_bitplanes.rs", "symbol": "part2_legacy_inner_fold_normal"}
+        ,{"path": "specs/cold_legacy_bitplanes.rs", "symbol": "part2_legacy_inner_body_normal"}
+        ,{"path": "specs/cold_legacy_bitplanes.rs", "symbol": "part2_legacy_inner_body_frames"}
+        ,{"path": "specs/cold_legacy_bitplanes.rs", "symbol": "part2_legacy_inner_body_start"}
+        ,{"path": "specs/cold_legacy_bitplanes.rs", "symbol": "part2_legacy_inner_body_step"}
+        ,{"path": "specs/cold_legacy_bitplanes.rs", "symbol": "part2_legacy_inner_body_finish"}
+        ,{"path": "specs/cold_legacy_bitplanes.rs", "symbol": "part2_legacy_inner_body_end"}
+        ,{"path": "specs/cold_legacy_bitplanes.rs", "symbol": "part2_legacy_segment_observed"}
+        ,{"path": "specs/cold_legacy_bitplanes.rs", "symbol": "part2_legacy_segment_normal"}
+        ,{"path": "specs/cold_legacy_bitplanes.rs", "symbol": "part2_legacy_segment_prepared_equation"}
+        ,{"path": "specs/cold_legacy_bitplanes.rs", "symbol": "part2_legacy_segment_prepared_error"}
+        ,{"path": "specs/cold_legacy_bitplanes.rs", "symbol": "part2_legacy_segment_finish_equation"}
+        ,{"path": "specs/cold_legacy_bitplanes.rs", "symbol": "part2_legacy_segment_primary_consequence"}
+        ,{"path": "specs/cold_legacy_bitplanes.rs", "symbol": "part2_legacy_segment_frames"}
+        ,{"path": "specs/cold_legacy_replay.rs", "symbol": "part2_legacy_replay_segment_observed"}
+        ,{"path": "specs/cold_legacy_replay.rs", "symbol": "part2_legacy_contribution_segment_observed"}
+        ,{"path": "specs/cold_ht_decoder.rs", "symbol": "part2_plane_segment_legacy_observed"}
       ],
       "test_refs": [
         {"path": "src/packet/tests.rs", "symbol": "mixed_packet_union_routes_literal_bytes_and_keeps_empty_count_distinctions"},
@@ -10029,6 +10096,11 @@
         {"path": "src/tier1/tests.rs", "symbol": "legacy_snapshot_storage_real_replay_refusal_retains_admission_and_partial_restore_frames"},
         {"path": "src/packet/tests.rs", "symbol": "legacy_snapshot_storage_packet_restore_refusal_preserves_full_outer_decoder_then_recovers"},
         {"path": "src/recovery/tests.rs", "symbol": "legacy_snapshot_storage_two_layer_raw_selected_recovery_snapshot_restore_roles_and_automatic"}
+        ,{"path": "src/tier1/tests.rs", "symbol": "bitplane_initial_storage_raw_values_first_later_restore_empty_and_original_admission"}
+        ,{"path": "src/tier1/tests.rs", "symbol": "bitplane_initial_storage_real_mq_setup_refusal_keeps_prior_reset_and_present_state_skips_requests"}
+        ,{"path": "src/packet/tests.rs", "symbol": "bitplane_initial_storage_packet_legacy_first_later_refusal_keeps_decoder_then_recovers"}
+        ,{"path": "src/decode/tests.rs", "symbol": "bitplane_initial_storage_real_raw_selected_jp2_first_later_refusals_restore_images"}
+        ,{"path": "src/recovery/tests.rs", "symbol": "bitplane_initial_storage_replayed_first_later_flags_raw_selected_recovery_and_automatic_restore"}
       ]
     },
     {

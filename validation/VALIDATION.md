@@ -1353,6 +1353,33 @@ restoration. Public Clone and the existing HT finishing interface are unchanged.
 Unrelated decoder/precinct collection clones, existing growth/appending and later buffers remain
 separate. As for bytes, fresh Copy reserve amortization need not match public
 Clone capacity; sequence models establish no physical-capacity theorem.
+The actual fresh legacy bitplane setup now reserves `significant_before` from
+the native coefficient-vector length, fills it in the original checked-index
+loop from each coefficient's real significant flag, then fallibly fills
+`significance_visited` with false using the actual prior constructed length.
+The original bitplane-range rejection precedes both requests; no geometry,
+shape or style admission is invented for raw planes. Empty inputs consume no
+request, and fixed MQ/scalar records and already-present bitplane states add
+none. Distinct `BitplaneInitialCapacity` responses carry actual plane/bitplane,
+before-versus-visited role, actual prior constructed flags and counts; they
+cannot alias owner-copy, constructor-plane, parser or planning responses.
+Actual child Results compose through ensure/pass and MQ/raw segment loops,
+statistics/advance/context-reset frames, termination/accounting, replay and all
+dependent packet/public state programs. A refused construction leaves the
+bitplane option absent, retaining earlier real MQ/reset writes; later errors,
+previous passes and unused tails remain exact. No executing work is hoisted.
+Small checked opaque preparation/pass/finish interfaces and primary-contract
+normal consequences expose local native facts without repeatedly unfolding
+whole old and event-aware programs. There is no new caller premise, result bank,
+allocator-availability law, tool budget or runtime-boundary change.
+Public `new_at_bitplane` has the actual factory Result/frame contract; the
+original mask façade still validates/converts the real mask then calls it.
+Bounded controls cover both fresh frontiers, truthful mixed flag values,
+raw/empty/present cases, original admission/input/work error precedence and
+real MQ/legacy packet/raw/full-selected/container/recovery/automatic restoration.
+HT execution does not call this legacy setup; existing real HT controls remain
+positive without invented initial-flag requests. Other later buffers,
+collection copies and existing-capacity growth remain separate.
 Replay copying remains after original route/pass/cleanup/byte admission but
 before the unchanged append and later concatenation-size checks. Retention
 copying remains after actual refinement and statistics merge, preserving

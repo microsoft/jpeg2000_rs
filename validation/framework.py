@@ -5805,7 +5805,11 @@ _LEGACY_SNAPSHOT_GUARDS = {
     ),
     ("specs/cold_legacy_replay.rs", "part2_legacy_replay_after_source"): (
         "let appended=part1_legacy_append(source,input,replay)", "part2_legacy_restore_run(part2_legacy_replay_clear(before),appended,calls)",
-        "part2_legacy_replay_finish(appended,caps,restored)",
+        "part2_legacy_replay_after_restored(appended,caps,restored,rest)",
+    ),
+    ("specs/cold_legacy_replay.rs", "part2_legacy_replay_after_restored"): (
+        "Err(_)=>Some((Ok(restored),calls))", "part2_legacy_segment_run(restored.1,source.input,source.passes,caps,calls)",
+        "part1_legacy_contribution_finish(decoded,source)",
     ),
     ("specs/cold_legacy_replay.rs", "part2_legacy_replay_finish"): (
         "Err(_)=>restored", "part1_legacy_segment(restored.1,source.input,source.passes,caps.passes,caps.bytes,caps.input,caps.work)", "source)",
@@ -5838,12 +5842,86 @@ _LEGACY_SNAPSHOT_NATIVE_ORDER = {
     ("src/tier1/contributions.rs", "Tier1CodeBlockDecoder::decode_legacy_replay"): (
         "match self.legacy_segment.take()", "Some(segment)=>segment", "self.legacy_segment_snapshot()", "part2_legacy_replay_snapshot_error(", "copied?",
         "segment.append(input,replay_passes)", "self.restore_legacy_segment(&segment)", "part2_legacy_replay_restored(", "restored?",
-        "self.decode_legacy_segment(&segment.input,segment.passes,limits)?", "self.commit_legacy_replay(segment)",
+        "self.decode_legacy_segment(&segment.input,segment.passes,limits)", "part2_legacy_replay_segment_observed(", "decoded?", "self.commit_legacy_replay(segment)",
     ),
     ("src/packet/body.rs", "decode_legacy_code_block_segment"): (
         "contribution.segment(*segment_index)?", "usize::try_from(segment.data_length)", "checked_add(segment_length)", "if end>body.len()",
         "decoder.decode_legacy_contribution(&body[*offset..end],segment.passes,limits)", "part2_legacy_packet_step_observed(", "decoded?",
         "*decoded_passes=decoded_passes.checked_add", "*offset=end", "*segment_index=segment_index.checked_add",
+    ),
+}
+_BITPLANE_INITIAL_TESTS = {
+    ("src/tier1/tests.rs", "bitplane_initial_storage_raw_values_first_later_restore_empty_and_original_admission"),
+    ("src/tier1/tests.rs", "bitplane_initial_storage_real_mq_setup_refusal_keeps_prior_reset_and_present_state_skips_requests"),
+    ("src/packet/tests.rs", "bitplane_initial_storage_packet_legacy_first_later_refusal_keeps_decoder_then_recovers"),
+    ("src/decode/tests.rs", "bitplane_initial_storage_real_raw_selected_jp2_first_later_refusals_restore_images"),
+    ("src/recovery/tests.rs", "bitplane_initial_storage_replayed_first_later_flags_raw_selected_recovery_and_automatic_restore"),
+}
+_BITPLANE_INITIAL_GUARDS = {
+    ("specs/cold_bitplane_initial.rs", "part2_bitplane_capacity_run"): (
+        "if visited{match prior{Some(values)=>values.len(),None=>0nat}}else{plane.coefficients.len()}",
+        "if count==0{Some((Ok(()),calls))}", "BitplaneInitialCapacity",
+        "source!=plane || actual!=bitplane || field!=visited || before!=prior || elements!=count",
+        "if succeeded{Ok(())}else{Err(crate::DecodeError::AllocationFailed)}", "calls.drop_first()",
+    ),
+    ("specs/cold_bitplane_initial.rs", "part2_bitplane_initial_run"): (
+        "bitplane>=crate::tier1::MAX_TIER1_BITPLANES", "part1_legacy_bitplane_initial(plane,bitplane)",
+        "part2_bitplane_capacity_run(plane,bitplane,false,None,calls)", "part2_bitplane_initial_visited(plane,bitplane,rest)",
+    ),
+    ("specs/cold_bitplane_initial.rs", "part2_bitplane_initial_visited"): (
+        "part2_bitplane_capacity_run(plane,bitplane,true,Some(part2_bitplane_significant(plane)),calls)",
+        "part1_legacy_bitplane_initial(plane,bitplane)",
+    ),
+    ("specs/cold_bitplane_initial.rs", "part2_bitplane_significant"): (
+        "plane.coefficients.map_values(|value:Tier1RawCoefficient|value.significant)",
+    ),
+    ("specs/cold_bitplane_initial.rs", "part2_legacy_ensure_run"): (
+        "before.bitplane_state.is_some()", "Some((Ok((Ok(()),before)),calls))",
+        "part2_bitplane_initial_run(before.plane,before.bitplane,calls)", "Err(error)=>(Err(error),before)",
+        "bitplane_state:Some(state),..before",
+    ),
+    ("specs/cold_bitplane_initial.rs", "part2_legacy_pass_run"): (
+        "part2_legacy_ensure_run(before,calls)", "part2_legacy_pass_after_ready(symbols,kind,ready)",
+    ),
+    ("specs/cold_legacy_bitplanes.rs", "part2_legacy_inner_step_run"): (
+        "(plan.coding_mode is Raw)!=(before.symbols is Raw)", "part2_legacy_pass_run(before.decoder,before.symbols,plan.kind,calls)",
+        "part2_legacy_step_after_pass(before,plan.kind,decoded)",
+    ),
+    ("specs/cold_legacy_bitplanes.rs", "part2_legacy_inner_fold"): (
+        "remaining==0", "part2_legacy_inner_step_run(before,calls)", "Err(_)=>Some((Ok(step),rest))",
+        "part2_legacy_inner_fold(step.1,(remaining-1) as nat,rest)",
+    ),
+    ("specs/cold_legacy_bitplanes.rs", "part2_legacy_segment_run"): (
+        "part2_legacy_segment_prepared(before,input,count,caps)", "Err(error)=>Some((Ok((Err(error),before)),calls))",
+        "part2_legacy_inner_body_run(initial,count,calls)", "part2_legacy_segment_finish(before,input,count,inner)",
+    ),
+    ("specs/cold_legacy_replay.rs", "part2_legacy_replay_after_restored"): (
+        "Err(_)=>Some((Ok(restored),calls))", "part2_legacy_segment_run(restored.1,source.input,source.passes,caps,calls)",
+        "part1_legacy_contribution_finish(decoded,source)",
+    ),
+}
+_BITPLANE_INITIAL_NATIVE_ORDER = {
+    ("src/tier1/legacy_passes.rs", "legacy_bitplane_from_plane"): (
+        "if bitplane>=MAX_TIER1_BITPLANES", "let count=plane.coefficients.len()", "if count==0{Ok(Vec::new())}",
+        "crate::allocation::empty_with_capacity(count)", "part2_bitplane_capacity_observed(before,bitplane,false,None,result)",
+        "part2_bitplane_initial_first_error(", "let mut significant_before=reserved?", "while index<plane.coefficients.len()",
+        "significant_before.push(plane.coefficients[index].significant)", "index.checked_add(1)",
+        "crate::allocation::filled_values(false,significant_before.len())",
+        "part2_bitplane_capacity_observed(before,bitplane,true,Some(significant_before@),result)",
+        "part2_bitplane_initial_observed(", "let significance_visited=filled?", "width:plane.width", "height:plane.height",
+        "bitplane", "significance_visited", "significant_before", "significance_propagation_complete:false", "magnitude_refinement_complete:false", "cleanup_complete:false",
+    ),
+    ("src/tier1/legacy_segments.rs", "Tier1CodeBlockDecoder::ensure_bitplane_state"): (
+        "if self.bitplane_state.is_none()", "legacy_bitplane_from_plane(&self.plane,self.bitplane)", "part2_legacy_ensure_observed(",
+        "self.bitplane_state=Some(constructed?)", "part2_legacy_ensure_present(",
+    ),
+    ("src/tier1/legacy_segments.rs", "Tier1CodeBlockDecoder::decode_legacy_segment"): (
+        "self.validate_legacy_segment(input,pass_count,limits)", "admitted?", "self.style.pass_plan(self.next_pass).coding_mode",
+        "crate::mq::mq_from_input(", "constructed?", "initialize_tier1_contexts(", "self.reset_contexts_before_mq=false",
+        "self.decode_mq_segment_passes(", "part2_legacy_segment_observed(", "part2_legacy_segment_finish_equation(",
+        "part2_legacy_segment_primary_consequence(", "statistics=decoded?", "decoder.validate_predictable_termination()?",
+        "self.mq_context_state=Some(decoder.context_state())", "raw_reader_from_input(", "self.decode_raw_segment_passes(",
+        "reader.validate_predictable_termination()?", "self.commit_legacy_segment(input.len(),pass_count,statistics)",
     ),
 }
 _ROLLBACK_OWNER_TESTS = {
@@ -14086,6 +14164,38 @@ def validate_normative_coverage(
         entry = next(item for item in coverage["requirements"] if item["id"] == _LEGACY_SNAPSHOT_ENTRY)
         if not _LEGACY_SNAPSHOT_TESTS.issubset({(ref["path"], ref["symbol"]) for ref in entry["test_refs"]}):
             raise ValueError("legacy snapshot/restore storage requires bounded raw/empty/partial/packet/public restoration controls")
+        for (relative, symbol), fragments in _BITPLANE_INITIAL_GUARDS.items():
+            body = _coverage_spec_function_body(source_text((ROOT / relative).resolve()), symbol)
+            compact = "".join(body.split()) if body is not None else ""
+            if any("".join(fragment.split()) not in compact for fragment in fragments):
+                raise ValueError("initial bitplane storage requires actual input-derived counts/values, distinct constructed-owner responses and exact first-error/tail binds")
+        for relative, symbol, arguments, value, projection in (
+            ("specs/cold_bitplane_initial.rs", "part2_bitplane_initial_result", "plane,bitplane", "result", ""),
+            ("specs/cold_bitplane_initial.rs", "part2_legacy_ensure_result", "before", "Ok(result)", ""),
+            ("specs/cold_bitplane_initial.rs", "part2_legacy_pass_result", "before,symbols,kind", "Ok(result)",
+             "&&(result.0!=Err(crate::DecodeError::AllocationFailed)==>result==part1_legacy_decode_pass(before,symbols,kind))"),
+            ("specs/cold_legacy_bitplanes.rs", "part2_legacy_inner_step_result", "before", "Ok(result)", ""),
+            ("specs/cold_legacy_bitplanes.rs", "part2_legacy_inner_body_result", "before,count", "Ok(result)", ""),
+            ("specs/cold_legacy_bitplanes.rs", "part2_legacy_segment_result", "before,input,count,caps", "Ok(result)",
+             "&&(result.0!=Err(crate::DecodeError::AllocationFailed)==>result==part1_legacy_segment(before,input,count,caps.passes,caps.bytes,caps.input,caps.work))"),
+        ):
+            body = _coverage_spec_function_body(source_text((ROOT / relative).resolve()), symbol)
+            expected = "part2_tier1_storage_framed(|calls|" + symbol.removesuffix("_result") + "_run(" + arguments + ",calls)," + value + ")" + projection
+            if body is None or "".join(body.split()) != expected:
+                raise ValueError("initial bitplane storage requires exact actual-prefix primary Result/state contracts and checked original normal consequences")
+        for (relative, symbol), fragments in _BITPLANE_INITIAL_NATIVE_ORDER.items():
+            path = (ROOT / relative).resolve()
+            body = _coverage_function_body(source_text(path), function_header(path, symbol))
+            compact = "".join(body.split()) if body is not None else ""
+            position = 0
+            for fragment in fragments:
+                token = "".join(fragment.split())
+                found = compact.find(token, position)
+                if found < 0:
+                    raise ValueError("initial bitplane storage requires original admission/reservation/value-fill/ensure/decoder/work/field order")
+                position = found + len(token)
+        if not _BITPLANE_INITIAL_TESTS.issubset({(ref["path"], ref["symbol"]) for ref in entry["test_refs"]}):
+            raise ValueError("initial bitplane storage requires bounded raw/empty/first-later/error/present-state/real-public restoration controls")
     if ids & _TAG_COPY_ENTRIES:
         owner_source = source_text((ROOT / "specs/cold_rollback_snapshot.rs").resolve())
         for symbol, fragments in _ROLLBACK_OWNER_GUARDS.items():

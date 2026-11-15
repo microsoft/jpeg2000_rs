@@ -1,6 +1,35 @@
 use super::*;
 
 #[test]
+fn bitplane_initial_storage_packet_legacy_first_later_refusal_keeps_decoder_then_recovers() {
+    let limits = ResourceLimits::default();
+    let header = one_ff_legacy_contribution();
+    let source = one_bit_legacy_decoder(false);
+    let before = format!("{source:?}");
+    let mut expected = source.clone();
+    let result =
+        decode_code_block_contribution_body(&mut expected, &header, &[0xff], &limits).unwrap();
+    for after in [1, 2] {
+        let mut decoder = source.clone();
+        assert_eq!(
+            crate::allocation::with_refusal(after, || decode_code_block_contribution_body(
+                &mut decoder,
+                &header,
+                &[0xff],
+                &limits
+            )),
+            Err(DecodeError::AllocationFailed)
+        );
+        assert_eq!(format!("{decoder:?}"), before);
+        assert_eq!(
+            decode_code_block_contribution_body(&mut decoder, &header, &[0xff], &limits).unwrap(),
+            result
+        );
+        assert_eq!(format!("{decoder:?}"), format!("{expected:?}"));
+    }
+}
+
+#[test]
 fn legacy_snapshot_storage_packet_restore_refusal_preserves_full_outer_decoder_then_recovers() {
     let limits = ResourceLimits::default();
     let mut decoder =

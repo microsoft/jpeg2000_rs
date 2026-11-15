@@ -47,17 +47,55 @@ mod jpx_source_result;
 #[path = "raw_typed_result_tests.rs"]
 mod raw_typed_result;
 
-#[test]
-fn raw_packet_boundary_prefixes_preserve_reference_pixels_and_reject_partial_packets() {
+fn bitplane_initial_storage_raw_reference() -> [u8; 86] {
     // Independent OpenJPEG 2.5.4 lossless 1x1 gray0: two layers, no DWT.
-    let reference = [
+    [
         0xff, 0x4f, 0xff, 0x51, 0x00, 0x29, 0x00, 0x00, 0x00, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00,
         0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x01, 0x00, 0x00,
         0x00, 0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x01, 0x07, 0x01, 0x01,
         0xff, 0x52, 0x00, 0x0c, 0x00, 0x00, 0x00, 0x02, 0x00, 0x00, 0x04, 0x04, 0x00, 0x01, 0xff,
         0x5c, 0x00, 0x04, 0x40, 0x40, 0xff, 0x90, 0x00, 0x0a, 0x00, 0x00, 0x00, 0x00, 0x00, 0x13,
         0x00, 0x01, 0xff, 0x93, 0xdf, 0x80, 0x08, 0x07, 0x80, 0xff, 0xd9,
-    ];
+    ]
+}
+
+#[test]
+fn bitplane_initial_storage_real_raw_selected_jp2_first_later_refusals_restore_images() {
+    let reference = bitplane_initial_storage_raw_reference();
+    let options = DecodeOptions::default();
+    let selection = DecodeSelection::full_image();
+    let container = jp2_for_codestream(&reference, 1, 1);
+    let expected = decode_codestream(&reference, &options).unwrap();
+    for after in [26, 27] {
+        assert_eq!(
+            crate::allocation::with_refusal(after, || decode_codestream(&reference, &options))
+                .unwrap_err(),
+            DecodeError::AllocationFailed
+        );
+        assert_eq!(
+            crate::allocation::with_refusal(after + 1, || decode_codestream_selected(
+                &reference, &options, &selection
+            ))
+            .unwrap_err(),
+            DecodeError::AllocationFailed
+        );
+        assert_eq!(
+            crate::allocation::with_refusal(after + 12, || decode_jp2(&container, &options))
+                .unwrap_err(),
+            DecodeError::AllocationFailed
+        );
+    }
+    assert_eq!(decode_codestream(&reference, &options).unwrap(), expected);
+    assert_eq!(
+        decode_codestream_selected(&reference, &options, &selection).unwrap(),
+        expected
+    );
+    assert_eq!(decode_jp2(&container, &options).unwrap(), expected);
+}
+
+#[test]
+fn raw_packet_boundary_prefixes_preserve_reference_pixels_and_reject_partial_packets() {
+    let reference = bitplane_initial_storage_raw_reference();
     let options = DecodeOptions::default();
     for order in 0..5 {
         for retained in 0..=5 {

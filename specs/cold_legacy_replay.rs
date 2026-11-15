@@ -126,10 +126,17 @@ pub(crate) open spec fn part2_legacy_replay_finish(source:Tier1LegacyFrame,caps:
     match restored.0{Err(_)=>restored,Ok(())=>part1_legacy_contribution_finish(
         part1_legacy_segment(restored.1,source.input,source.passes,caps.passes,caps.bytes,caps.input,caps.work),source)}
 }
+pub(crate) open spec fn part2_legacy_replay_after_restored(source:Tier1LegacyFrame,caps:Part2LegacyCaps,restored:Part2LegacyResult,calls:Seq<Part2Tier1StorageEvent>)->Part2Tier1Run<Part2LegacyResult> {
+    match restored.0{
+        Err(_)=>Some((Ok(restored),calls)),
+        Ok(())=>part2_tier1_storage_bind(part2_legacy_segment_run(restored.1,source.input,source.passes,caps,calls),
+            |decoded:HtDecoderResult,rest|Some((Ok(part1_legacy_contribution_finish(decoded,source)),rest))),
+    }
+}
 pub(crate) open spec fn part2_legacy_replay_after_source(before:Tier1DecoderState,input:Seq<u8>,replay:u32,caps:Part2LegacyCaps,source:Tier1LegacyFrame,calls:Seq<Part2Tier1StorageEvent>)->Part2Tier1Run<Part2LegacyResult> {
     let appended=part1_legacy_append(source,input,replay);
     part2_tier1_storage_bind(part2_legacy_restore_run(part2_legacy_replay_clear(before),appended,calls),
-        |restored:Part2LegacyResult,rest|Some((Ok(part2_legacy_replay_finish(appended,caps,restored)),rest)))
+        |restored:Part2LegacyResult,rest|part2_legacy_replay_after_restored(appended,caps,restored,rest))
 }
 pub(crate) open spec fn part2_legacy_replay_run(before:Tier1DecoderState,input:Seq<u8>,replay:u32,caps:Part2LegacyCaps,calls:Seq<Part2Tier1StorageEvent>)->Part2Tier1Run<Part2LegacyResult> {
     match before.legacy_segment{
@@ -183,9 +190,37 @@ pub(crate) proof fn part2_legacy_replay_restored(before:Tier1DecoderState,input:
     let source=part1_legacy_append(part2_legacy_replay_source(before),input,replay);
     let result=part2_legacy_replay_finish(source,caps,restored);
     part2_legacy_restore_frames(part2_legacy_replay_clear(before),source,restored);
-    part2_tier1_storage_pure(Ok(result));
+    if restored.0.is_err(){part2_tier1_storage_pure(Ok(result));}
+    else{
+        let decoded=part1_legacy_segment(restored.1,source.input,source.passes,caps.passes,caps.bytes,caps.input,caps.work);
+        part2_legacy_segment_normal(restored.1,source.input,source.passes,caps);
+        part2_legacy_segment_frames(restored.1,source.input,source.passes,caps,decoded);
+        part2_tier1_storage_pure(Ok(result));
+        part2_tier1_storage_bind_frame(|calls|part2_legacy_segment_run(restored.1,source.input,source.passes,caps,calls),
+            |decoded:HtDecoderResult,rest|Some((Ok(part1_legacy_contribution_finish(decoded,source)),rest)),Ok(decoded),Ok(result));
+    }
+    part2_tier1_storage_eta(|calls|part2_legacy_replay_after_restored(source,caps,restored,calls),Ok(result));
     part2_tier1_storage_bind_frame(|calls|part2_legacy_restore_run(part2_legacy_replay_clear(before),source,calls),
-        |restored:Part2LegacyResult,rest|Some((Ok(part2_legacy_replay_finish(source,caps,restored)),rest)),Ok(restored),Ok(result));
+        |restored:Part2LegacyResult,rest|part2_legacy_replay_after_restored(source,caps,restored,rest),Ok(restored),Ok(result));
+    part2_legacy_replay_bind(before,input,replay,caps,result);
+}
+pub(crate) proof fn part2_legacy_replay_segment_observed(before:Tier1DecoderState,input:Seq<u8>,replay:u32,caps:Part2LegacyCaps,restored:Part2LegacyResult,decoded:HtDecoderResult)
+    requires restored.0==Ok(()),
+        part2_legacy_snapshot_result(part2_legacy_replay_clear(before),Ok(part2_legacy_replay_source(before))) || before.legacy_segment.is_some(),
+        part2_legacy_restore_result(part2_legacy_replay_clear(before),part1_legacy_append(part2_legacy_replay_source(before),input,replay),restored),
+        part2_legacy_segment_result(restored.1,part1_legacy_append(part2_legacy_replay_source(before),input,replay).input,replay,caps,decoded),
+    ensures part2_legacy_replay_result(before,input,replay,caps,part1_legacy_contribution_finish(decoded,part1_legacy_append(part2_legacy_replay_source(before),input,replay))),
+{
+    let source=part1_legacy_append(part2_legacy_replay_source(before),input,replay);
+    let result=part1_legacy_contribution_finish(decoded,source);
+    part2_legacy_segment_frames(restored.1,source.input,source.passes,caps,decoded);
+    part2_tier1_storage_pure(Ok(result));
+    part2_tier1_storage_bind_frame(|calls|part2_legacy_segment_run(restored.1,source.input,source.passes,caps,calls),
+        |decoded:HtDecoderResult,rest|Some((Ok(part1_legacy_contribution_finish(decoded,source)),rest)),Ok(decoded),Ok(result));
+    part2_tier1_storage_eta(|calls|part2_legacy_replay_after_restored(source,caps,restored,calls),Ok(result));
+    part2_legacy_restore_frames(part2_legacy_replay_clear(before),source,restored);
+    part2_tier1_storage_bind_frame(|calls|part2_legacy_restore_run(part2_legacy_replay_clear(before),source,calls),
+        |restored:Part2LegacyResult,rest|part2_legacy_replay_after_restored(source,caps,restored,rest),Ok(restored),Ok(result));
     part2_legacy_replay_bind(before,input,replay,caps,result);
 }
 pub(crate) proof fn part2_legacy_replay_normal(before:Tier1DecoderState,input:Seq<u8>,replay:u32,caps:Part2LegacyCaps)
@@ -208,7 +243,8 @@ pub(crate) open spec fn part2_legacy_contribution_after_admission(before:Tier1De
     match admitted.0{
         Err(error)=>Some((Ok((Err(error),admitted.1)),calls)),
         Ok((replay,next,last))=>if admitted.1.legacy_segment.is_none() && (next==admitted.1.maximum_passes || part1_legacy_plan(admitted.1.style,last).terminates_segment){
-            Some((Ok(part1_legacy_contribution(before,input,passes,caps.passes,caps.bytes,caps.input,caps.work)),calls))
+            part2_tier1_storage_bind(part2_legacy_segment_run(admitted.1,input,passes as u32,caps,calls),
+                |decoded:HtDecoderResult,rest|Some((Ok((match decoded.0{Err(error)=>Err(error),Ok(_)=>Ok(())},decoded.1)),rest)))
         }else{part2_legacy_replay_run(admitted.1,input,replay,caps,calls)},
     }
 }
@@ -225,7 +261,35 @@ pub(crate) proof fn part2_legacy_contribution_pure(before:Tier1DecoderState,inpu
         _=>true,
     },
     ensures part2_legacy_contribution_result(before,input,passes,caps,part1_legacy_contribution(before,input,passes,caps.passes,caps.bytes,caps.input,caps.work)),
-{reveal(part2_legacy_contribution_result);reveal(part1_legacy_contribution);part2_tier1_storage_pure(Ok(part1_legacy_contribution(before,input,passes,caps.passes,caps.bytes,caps.input,caps.work)));}
+{
+    reveal(part2_legacy_contribution_result);reveal(part1_legacy_contribution);
+    let result=part1_legacy_contribution(before,input,passes,caps.passes,caps.bytes,caps.input,caps.work);
+    let admitted=part1_legacy_contribution_admission(before,input,passes,caps.bytes,caps.work);
+    if admitted.0.is_err(){part2_tier1_storage_pure(Ok(result));}
+    else{
+        let decoded=part1_legacy_segment(admitted.1,input,passes as u32,caps.passes,caps.bytes,caps.input,caps.work);
+        part2_legacy_segment_normal(admitted.1,input,passes as u32,caps);
+        part2_legacy_segment_frames(admitted.1,input,passes as u32,caps,decoded);
+        part2_tier1_storage_pure(Ok(result));
+        part2_tier1_storage_bind_frame(|calls|part2_legacy_segment_run(admitted.1,input,passes as u32,caps,calls),
+            |decoded:HtDecoderResult,rest|Some((Ok((match decoded.0{Err(error)=>Err(error),Ok(_)=>Ok(())},decoded.1)),rest)),Ok(decoded),Ok(result));
+    }
+}
+pub(crate) proof fn part2_legacy_contribution_segment_observed(before:Tier1DecoderState,input:Seq<u8>,passes:u8,caps:Part2LegacyCaps,replay:u32,next:u32,last:u32,decoded:HtDecoderResult)
+    requires part1_legacy_contribution_admission(before,input,passes,caps.bytes,caps.work).0==Ok((replay,next,last)),
+        part1_legacy_contribution_admission(before,input,passes,caps.bytes,caps.work).1.legacy_segment.is_none()
+            && (next==part1_legacy_contribution_admission(before,input,passes,caps.bytes,caps.work).1.maximum_passes
+                || part1_legacy_plan(part1_legacy_contribution_admission(before,input,passes,caps.bytes,caps.work).1.style,last).terminates_segment),
+        part2_legacy_segment_result(part1_legacy_contribution_admission(before,input,passes,caps.bytes,caps.work).1,input,passes as u32,caps,decoded),
+    ensures part2_legacy_contribution_result(before,input,passes,caps,(match decoded.0{Err(error)=>Err(error),Ok(_)=>Ok(())},decoded.1)),
+{
+    reveal(part2_legacy_contribution_result);
+    let state=part1_legacy_contribution_admission(before,input,passes,caps.bytes,caps.work).1;
+    let result=(match decoded.0{Err(error)=>Err(error),Ok(_)=>Ok(())},decoded.1);
+    part2_legacy_segment_frames(state,input,passes as u32,caps,decoded);part2_tier1_storage_pure(Ok(result));
+    part2_tier1_storage_bind_frame(|calls|part2_legacy_segment_run(state,input,passes as u32,caps,calls),
+        |decoded:HtDecoderResult,rest|Some((Ok((match decoded.0{Err(error)=>Err(error),Ok(_)=>Ok(())},decoded.1)),rest)),Ok(decoded),Ok(result));
+}
 pub(crate) proof fn part2_legacy_contribution_observed(before:Tier1DecoderState,input:Seq<u8>,passes:u8,caps:Part2LegacyCaps,replay:u32,next:u32,last:u32,result:Part2LegacyResult)
     requires part1_legacy_contribution_admission(before,input,passes,caps.bytes,caps.work).0==Ok((replay,next,last)),
         ! (part1_legacy_contribution_admission(before,input,passes,caps.bytes,caps.work).1.legacy_segment.is_none()

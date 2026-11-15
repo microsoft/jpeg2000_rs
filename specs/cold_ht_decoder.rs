@@ -521,7 +521,8 @@ pub(crate) proof fn part2_ht_staged_observed(before:Tier1DecoderState,input:Seq<
 pub(crate) open spec fn part2_plane_segment_run(before:Tier1DecoderState,input:Seq<u8>,passes:u8,maximum_passes:u32,maximum_bytes:u64,maximum_input:u64,work:u64,
     calls:Seq<Part2Tier1StorageEvent>)->Part2Tier1Run<HtDecoderResult> {
     if passes!=0 && ht_group_route(before){part2_ht_staged_run(before,input,passes,maximum_passes,maximum_bytes,work,calls)}
-    else{Some((Ok(part1_tier1_segment(before,input,passes,maximum_passes,maximum_bytes,maximum_input,work)),calls))}
+    else if passes==0{Some((Ok(part1_tier1_segment(before,input,passes,maximum_passes,maximum_bytes,maximum_input,work)),calls))}
+    else{part2_legacy_segment_run(before,input,passes as u32,part2_legacy_caps(maximum_passes,maximum_bytes,maximum_input,work),calls)}
 }
 pub closed spec fn part2_plane_segment_result(before:Tier1DecoderState,input:Seq<u8>,passes:u8,maximum_passes:u32,maximum_bytes:u64,maximum_input:u64,work:u64,result:HtDecoderResult)->bool {
     part2_tier1_storage_framed(|calls|part2_plane_segment_run(before,input,passes,maximum_passes,maximum_bytes,maximum_input,work,calls),Ok(result))
@@ -532,12 +533,27 @@ pub(crate) proof fn part2_plane_segment_normal(before:Tier1DecoderState,input:Se
     let result=part1_tier1_segment(before,input,passes,maximum_passes,maximum_bytes,maximum_input,work);
     if passes!=0 && ht_group_route(before){part2_ht_staged_normal(before,input,passes,maximum_passes,maximum_bytes,work);
         part2_tier1_storage_eta(|calls|part2_ht_staged_run(before,input,passes,maximum_passes,maximum_bytes,work,calls),Ok(result));}
-    else{part2_tier1_storage_pure(Ok(result));}
+    else if passes==0{part2_tier1_storage_pure(Ok(result));}
+    else{
+        let caps=part2_legacy_caps(maximum_passes,maximum_bytes,maximum_input,work);
+        part2_legacy_segment_normal(before,input,passes as u32,caps);
+        part2_legacy_segment_frames(before,input,passes as u32,caps,result);
+        part2_tier1_storage_eta(|calls|part2_legacy_segment_run(before,input,passes as u32,caps,calls),Ok(result));
+    }
 }
 pub(crate) proof fn part2_plane_segment_observed(before:Tier1DecoderState,input:Seq<u8>,passes:u8,maximum_passes:u32,maximum_bytes:u64,maximum_input:u64,work:u64,result:HtDecoderResult)
     requires passes!=0,ht_group_route(before),part2_ht_staged_result(before,input,passes,maximum_passes,maximum_bytes,work,result),
     ensures part2_plane_segment_result(before,input,passes,maximum_passes,maximum_bytes,maximum_input,work,result),
 {part2_tier1_storage_eta(|calls|part2_ht_staged_run(before,input,passes,maximum_passes,maximum_bytes,work,calls),Ok(result));}
+pub(crate) proof fn part2_plane_segment_legacy_observed(before:Tier1DecoderState,input:Seq<u8>,passes:u8,maximum_passes:u32,maximum_bytes:u64,maximum_input:u64,work:u64,result:HtDecoderResult)
+    requires passes!=0,!ht_group_route(before),
+        part2_legacy_segment_result(before,input,passes as u32,part2_legacy_caps(maximum_passes,maximum_bytes,maximum_input,work),result),
+    ensures part2_plane_segment_result(before,input,passes,maximum_passes,maximum_bytes,maximum_input,work,result),
+{
+    let caps=part2_legacy_caps(maximum_passes,maximum_bytes,maximum_input,work);
+    part2_legacy_segment_frames(before,input,passes as u32,caps,result);
+    part2_tier1_storage_eta(|calls|part2_legacy_segment_run(before,input,passes as u32,caps,calls),Ok(result));
+}
 pub(crate) proof fn part2_ht_replay_frames(before:Tier1DecoderState,input:Seq<u8>,passes:u8,maximum_bytes:u64,work:u64,result:HtDecoderResult)
     requires part2_ht_replay_result(before,input,passes,maximum_bytes,work,result),
     ensures part2_tier1_storage_framed(|calls|part2_ht_replay_run(before,input,passes,maximum_bytes,work,calls),Ok(result)),

@@ -8437,6 +8437,56 @@ class FrameworkTests(WorkingFiles):
         with self.assertRaisesRegex(ValueError, "legacy snapshot/restore storage requires bounded"):
             framework.validate_normative_coverage(missing)
 
+    def test_inventory_initial_bitplane_storage_requires_actual_flag_values_count_and_early_error_order(self):
+        coverage = json.loads((framework.VALIDATION / "normative-coverage.json").read_text())
+        entry = next(item for item in coverage["requirements"] if item["id"] == framework._LEGACY_SNAPSHOT_ENTRY)
+        data = dict(coverage, requirements=[entry])
+        self.assertEqual(framework.validate_normative_coverage(data)["status"], "passed")
+        read_text = Path.read_text
+        cases = (
+            ("specs/cold_bitplane_initial.rs", "part2_bitplane_significant", "value.significant", "value.refined"),
+            ("specs/cold_bitplane_initial.rs", "part2_bitplane_capacity_run", "plane.coefficients.len()", "plane.width as nat * plane.height as nat"),
+            ("specs/cold_bitplane_initial.rs", "part2_bitplane_capacity_run", "values.len()", "1"),
+            ("specs/cold_bitplane_initial.rs", "part2_bitplane_capacity_run", "count==0", "count==1"),
+            ("specs/cold_bitplane_initial.rs", "part2_bitplane_capacity_run", "BitplaneInitialCapacity", "NestedCopy"),
+            ("specs/cold_bitplane_initial.rs", "part2_bitplane_capacity_run", "source!=plane", "false"),
+            ("specs/cold_bitplane_initial.rs", "part2_bitplane_capacity_run", "field!=visited", "false"),
+            ("specs/cold_bitplane_initial.rs", "part2_bitplane_capacity_run", "before!=prior", "false"),
+            ("specs/cold_bitplane_initial.rs", "part2_bitplane_capacity_run", "elements!=count", "elements!=1"),
+            ("specs/cold_bitplane_initial.rs", "part2_bitplane_capacity_run", "calls.drop_first()", "calls"),
+            ("specs/cold_bitplane_initial.rs", "part2_bitplane_initial_visited", "Some(part2_bitplane_significant(plane))", "Some(Seq::empty())"),
+            ("specs/cold_bitplane_initial.rs", "part2_bitplane_initial_result", "part2_tier1_storage_framed", "supplied_success"),
+            ("specs/cold_bitplane_initial.rs", "part2_legacy_ensure_run", "before.bitplane_state.is_some()", "before.bitplane_state.is_none()"),
+            ("specs/cold_legacy_bitplanes.rs", "part2_legacy_inner_fold", "Ok(step),rest", "Ok(step),Seq::empty()"),
+            ("src/tier1/legacy_passes.rs", "legacy_bitplane_from_plane", "empty_with_capacity(count)", "empty_with_capacity(1)"),
+            ("src/tier1/legacy_passes.rs", "legacy_bitplane_from_plane", "plane.coefficients[index].significant", "false"),
+            ("src/tier1/legacy_passes.rs", "legacy_bitplane_from_plane", "filled_values(false, significant_before.len())", "filled_values(true, significant_before.len())"),
+            ("src/tier1/legacy_passes.rs", "legacy_bitplane_from_plane", "Some(significant_before@)", "Some(Seq::empty())"),
+            ("src/tier1/legacy_segments.rs", "Tier1CodeBlockDecoder::ensure_bitplane_state", "self.bitplane_state = Some(constructed?)", "self.bitplane_state = None"),
+        )
+        for relative, symbol, before, after in cases:
+            source = framework.ROOT / relative
+            original = source.read_text()
+            body = (framework._coverage_function_body(original, framework._coverage_function_header(original, symbol))
+                    if relative.startswith("src/") else framework._coverage_spec_function_body(original, symbol))
+            pattern = re.escape(before).replace(r"\ ", r"\s*")
+            changed_body, count = re.subn(pattern, lambda _: after, body, count=1)
+            self.assertEqual(count, 1, (symbol, before))
+            changed = original.replace(body, changed_body, 1)
+
+            def altered(path, *args, **kwargs):
+                return changed if path == source else read_text(path, *args, **kwargs)
+
+            with self.subTest(symbol=symbol, before=before), mock.patch.object(Path, "read_text", altered), \
+                    self.assertRaisesRegex(ValueError, "initial bitplane storage"):
+                framework.validate_normative_coverage(data)
+        missing = copy.deepcopy(data)
+        missing["requirements"][0]["test_refs"] = [
+            ref for ref in entry["test_refs"] if (ref["path"], ref["symbol"]) not in framework._BITPLANE_INITIAL_TESTS
+        ]
+        with self.assertRaisesRegex(ValueError, "initial bitplane storage requires bounded"):
+            framework.validate_normative_coverage(missing)
+
     def test_inventory_rollback_snapshot_owners_require_real_roles_counts_and_partial_owner_order(self):
         coverage = json.loads((framework.VALIDATION / "normative-coverage.json").read_text())
         entry = next(item for item in coverage["requirements"] if item["id"] == "part1-complete-native-public-packet-boundaries")
@@ -9089,6 +9139,9 @@ class FrameworkTests(WorkingFiles):
                 if isolated["id"] == framework._LEGACY_SNAPSHOT_ENTRY:
                     isolated["test_refs"] += [
                         {"path": path, "symbol": symbol} for path, symbol in sorted(framework._LEGACY_SNAPSHOT_TESTS)
+                    ]
+                    isolated["test_refs"] += [
+                        {"path": path, "symbol": symbol} for path, symbol in sorted(framework._BITPLANE_INITIAL_TESTS)
                     ]
                 if isolated["id"] == framework._HT_BYTE_COPY_ENTRY:
                     isolated["test_refs"] += [

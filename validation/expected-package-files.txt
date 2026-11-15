@@ -22,6 +22,7 @@ specs/README.md
 specs/allocation.rs
 specs/codestream_profile.rs
 specs/cold_bitmap.rs
+specs/cold_bitplane_initial.rs
 specs/cold_codeblock_plan.rs
 specs/cold_component_plan.rs
 specs/cold_component_storage.rs
@@ -40,6 +41,7 @@ specs/cold_ht_decoder.rs
 specs/cold_inspection_storage.rs
 specs/cold_layout.rs
 specs/cold_layout_continuations.rs
+specs/cold_legacy_bitplanes.rs
 specs/cold_legacy_packets.rs
 specs/cold_legacy_replay.rs
 specs/cold_marker_header.rs

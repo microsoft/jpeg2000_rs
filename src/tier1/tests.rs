@@ -1,6 +1,157 @@
 use super::*;
 
 #[test]
+fn bitplane_initial_storage_raw_values_first_later_restore_empty_and_original_admission() {
+    let mut plane = CodeBlockPlane {
+        width: 0,
+        height: u16::MAX,
+        coefficients: vec![
+            CoefficientState {
+                significant: true,
+                negative: true,
+                magnitude: 17,
+                ..CoefficientState::default()
+            },
+            CoefficientState::default(),
+            CoefficientState {
+                significant: true,
+                magnitude_high: [1, 2, 3, 4, 5],
+                ..CoefficientState::default()
+            },
+        ],
+    };
+    let before = plane.clone();
+    for bitplane in [0, MAX_TIER1_BITPLANES - 1] {
+        for after in [0, 1] {
+            assert_eq!(
+                crate::allocation::with_refusal(after, || Tier1BitplaneState::new_at_bitplane(
+                    &plane, bitplane
+                )),
+                Err(DecodeError::AllocationFailed)
+            );
+            assert_eq!(plane, before);
+            let restored = Tier1BitplaneState::new_at_bitplane(&plane, bitplane).unwrap();
+            assert_eq!(
+                (restored.width, restored.height, restored.bitplane),
+                (0, u16::MAX, bitplane)
+            );
+            assert_eq!(restored.significant_before, &[true, false, true]);
+            assert_eq!(restored.significance_visited, &[false, false, false]);
+            assert!(
+                !restored.significance_propagation_complete
+                    && !restored.magnitude_refinement_complete
+                    && !restored.cleanup_complete
+            );
+        }
+    }
+    crate::allocation::with_refusal(0, || {
+        assert_eq!(
+            Tier1BitplaneState::new_at_bitplane(&plane, MAX_TIER1_BITPLANES),
+            Err(invalid_code_block())
+        );
+        assert_eq!(
+            Tier1BitplaneState::new(&plane, 0),
+            Err(invalid_code_block())
+        );
+        assert_eq!(
+            Tier1BitplaneState::new(&plane, 3),
+            Err(invalid_code_block())
+        );
+        assert_eq!(
+            crate::allocation::copy_values(&[1_u8]),
+            Err(DecodeError::AllocationFailed)
+        );
+    });
+    plane.coefficients.clear();
+    crate::allocation::with_refusal(0, || {
+        assert!(
+            Tier1BitplaneState::new_at_bitplane(&plane, MAX_TIER1_BITPLANES - 1)
+                .unwrap()
+                .significant_before
+                .is_empty()
+        );
+        assert!(
+            Tier1BitplaneState::new(&plane, 4)
+                .unwrap()
+                .significance_visited
+                .is_empty()
+        );
+        assert_eq!(
+            crate::allocation::copy_values(&[1_u8]),
+            Err(DecodeError::AllocationFailed)
+        );
+    });
+}
+
+#[test]
+fn bitplane_initial_storage_real_mq_setup_refusal_keeps_prior_reset_and_present_state_skips_requests()
+ {
+    let mut source =
+        Tier1CodeBlockDecoder::new(1, 1, 1, SubbandOrientation::Ll, Tier1CodingStyle::default())
+            .unwrap();
+    source.reset_contexts_before_mq = true;
+    let mut reset = source.clone();
+    reset.reset_contexts_before_mq = false;
+    let limits = ResourceLimits::default();
+    let mut expected = source.clone();
+    let decoded = expected.decode_segment(&[0xff], 1, &limits).unwrap();
+    for after in [0, 1] {
+        let mut current = source.clone();
+        assert_eq!(
+            crate::allocation::with_refusal(after, || current.decode_segment(&[0xff], 1, &limits)),
+            Err(DecodeError::AllocationFailed)
+        );
+        assert_eq!(format!("{current:?}"), format!("{reset:?}"));
+        assert_eq!(
+            current.decode_segment(&[0xff], 1, &limits).unwrap(),
+            decoded
+        );
+        assert_eq!(format!("{current:?}"), format!("{expected:?}"));
+    }
+    let limited = ResourceLimits::default()
+        .with_maximum_input_bytes(0)
+        .unwrap();
+    crate::allocation::with_refusal(0, || {
+        let mut current = source.clone();
+        assert!(matches!(
+            current.decode_segment(&[0xff], 1, &limited),
+            Err(DecodeError::LimitExceeded {
+                resource: Resource::InputBytes,
+                ..
+            })
+        ));
+        assert_eq!(format!("{current:?}"), format!("{source:?}"));
+        assert_eq!(
+            crate::allocation::copy_values(&[1_u8]),
+            Err(DecodeError::AllocationFailed)
+        );
+    });
+    source.bitplane_state =
+        Some(Tier1BitplaneState::new_at_bitplane(&source.plane, source.bitplane).unwrap());
+    let work = ResourceLimits::default()
+        .with_maximum_work_units(0)
+        .unwrap();
+    let mut normal = source.clone();
+    let expected_error = normal.decode_segment(&[0xff], 1, &work);
+    assert!(matches!(
+        expected_error,
+        Err(DecodeError::LimitExceeded {
+            resource: Resource::WorkUnits,
+            ..
+        })
+    ));
+    crate::allocation::with_refusal(0, || {
+        let mut current = source.clone();
+        assert_eq!(current.decode_segment(&[0xff], 1, &work), expected_error);
+        assert_eq!(format!("{current:?}"), format!("{normal:?}"));
+        assert_eq!(
+            crate::allocation::copy_values(&[1_u8]),
+            Err(DecodeError::AllocationFailed)
+        );
+    });
+}
+
+#[test]
 fn legacy_snapshot_storage_raw_snapshot_first_later_empty_and_exact_source_restore() {
     let mut source = retained_refinement_decoder();
     source.plane.width = 0;

@@ -506,9 +506,10 @@ impl Tier1CodeBlockDecoder {
             && (next_pass == self.maximum_passes
                 || self.style.pass_plan(last_pass).terminates_segment)
         {
+            let decoded = self.decode_legacy_segment(input, u32::from(passes), limits);
             #[cfg(verus_keep_ghost)]
-            proof! {crate::specs::part2_legacy_contribution_pure(before,input@,passes,super::legacy_storage_limits(limits));}
-            self.decode_legacy_segment(input, u32::from(passes), limits)?;
+            proof! {crate::specs::part2_legacy_contribution_segment_observed(before,input@,passes,super::legacy_storage_limits(limits),replay_passes,next_pass,last_pass,(decoded,tier1_decoder_state(self)));}
+            decoded?;
             return Ok(());
         }
         let decoded = self.decode_legacy_replay(input, replay_passes, limits);
@@ -563,11 +564,16 @@ impl Tier1CodeBlockDecoder {
         }
         let restored = self.restore_legacy_segment(&segment);
         #[cfg(verus_keep_ghost)]
-        proof! {crate::specs::part2_legacy_replay_restored(before_replay,input@,replay_passes,super::legacy_storage_limits(limits),(restored,tier1_decoder_state(self)));}
+        proof! {if restored.is_err(){crate::specs::part2_legacy_replay_restored(before_replay,input@,replay_passes,super::legacy_storage_limits(limits),(restored,tier1_decoder_state(self)));}}
         restored?;
+        #[cfg(verus_keep_ghost)]
+        proof_decl! {let ghost restore_state=tier1_decoder_state(self);}
         // Layer boundaries can truncate an unterminated arithmetic segment.
         // Replay its bounded prefix so virtual end-fill is never resumed as real input.
-        self.decode_legacy_segment(&segment.input, segment.passes, limits)?;
+        let decoded = self.decode_legacy_segment(&segment.input, segment.passes, limits);
+        #[cfg(verus_keep_ghost)]
+        proof! {crate::specs::part2_legacy_replay_segment_observed(before_replay,input@,replay_passes,super::legacy_storage_limits(limits),(Ok(()),restore_state),(decoded,tier1_decoder_state(self)));}
+        decoded?;
         self.commit_legacy_replay(segment)
     }
 
@@ -705,7 +711,11 @@ impl Tier1CodeBlockDecoder {
             crate::limits::resource_code_block_byte_limit(limits),crate::limits::resource_input_byte_limit(limits),crate::limits::resource_work_limit(limits),(decoded,tier1_decoder_state(self)));}
             return decoded;
         }
-        self.decode_legacy_segment(input, u32::from(passes), limits)
+        let decoded = self.decode_legacy_segment(input, u32::from(passes), limits);
+        #[cfg(verus_keep_ghost)]
+        proof! {crate::specs::part2_plane_segment_legacy_observed(before,input@,passes,crate::limits::resource_code_block_pass_limit(limits),
+        crate::limits::resource_code_block_byte_limit(limits),crate::limits::resource_input_byte_limit(limits),crate::limits::resource_work_limit(limits),(decoded,tier1_decoder_state(self)));}
+        decoded
     }
 }
 
