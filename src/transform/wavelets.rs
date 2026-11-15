@@ -7,14 +7,20 @@ use crate::DecodeError;
 use vstd::prelude::*;
 
 #[cfg_attr(verus_keep_ghost, verus_spec(result =>
-    ensures sequence_outcome(result) == crate::specs::part1_inverse_five_three(low@, high@, low_pass_first),
+    ensures crate::specs::part2_wavelet_sequence_result(low@,high@,low_pass_first,false,None,sequence_outcome(result)),
+        sequence_outcome(result)!=Err(DecodeError::AllocationFailed) ==> sequence_outcome(result) == crate::specs::part1_inverse_five_three(low@, high@, low_pass_first),
 ))]
 pub fn inverse_5_3(
     low: &[i64],
     high: &[i64],
     low_pass_first: bool,
 ) -> Result<Vec<i64>, DecodeError> {
-    let mut output = interleave(low, high, low_pass_first)?;
+    #[cfg(verus_keep_ghost)]
+    proof! {crate::specs::part2_wavelet_sequence_normal(low@,high@,low_pass_first,false,None);}
+    let interleaved = interleave(low, high, low_pass_first);
+    #[cfg(verus_keep_ghost)]
+    proof! {if let Err(error)=interleaved{crate::specs::part2_wavelet_sequence_interleave_error(low@,high@,low_pass_first,false,None,error);}}
+    let mut output = interleaved?;
     if output.len() == 1 && !low_pass_first {
         output[0] >>= 1;
         return Ok(output);
@@ -33,14 +39,20 @@ pub fn inverse_5_3(
 }
 
 #[cfg_attr(verus_keep_ghost, verus_spec(result =>
-    ensures sequence_outcome(result) == crate::specs::part1_inverse_nine_seven(low@, high@, low_pass_first),
+    ensures crate::specs::part2_wavelet_sequence_result(low@,high@,low_pass_first,true,None,sequence_outcome(result)),
+        sequence_outcome(result)!=Err(DecodeError::AllocationFailed) ==> sequence_outcome(result) == crate::specs::part1_inverse_nine_seven(low@, high@, low_pass_first),
 ))]
 pub fn inverse_9_7(
     low: &[i64],
     high: &[i64],
     low_pass_first: bool,
 ) -> Result<Vec<i64>, DecodeError> {
-    let mut output = interleave(low, high, low_pass_first)?;
+    #[cfg(verus_keep_ghost)]
+    proof! {crate::specs::part2_wavelet_sequence_normal(low@,high@,low_pass_first,true,None);}
+    let interleaved = interleave(low, high, low_pass_first);
+    #[cfg(verus_keep_ghost)]
+    proof! {if let Err(error)=interleaved{crate::specs::part2_wavelet_sequence_interleave_error(low@,high@,low_pass_first,true,None,error);}}
+    let mut output = interleaved?;
     if output.len() == 1 && !low_pass_first {
         output[0] >>= 1;
         return Ok(output);
@@ -103,13 +115,16 @@ pub(super) fn inverse_nine_seven_lifts(
 }
 
 #[cfg_attr(verus_keep_ghost, verus_spec(result =>
-    ensures sequence_outcome(result) == crate::specs::part1_interleaved(low@, high@, low_pass_first),
+    ensures crate::specs::part2_wavelet_interleave_result(low@,high@,low_pass_first,sequence_outcome(result)),
+        sequence_outcome(result)!=Err(DecodeError::AllocationFailed) ==> sequence_outcome(result) == crate::specs::part1_interleaved(low@, high@, low_pass_first),
 ))]
 pub(super) fn interleave(
     low: &[i64],
     high: &[i64],
     low_pass_first: bool,
 ) -> Result<Vec<i64>, DecodeError> {
+    #[cfg(verus_keep_ghost)]
+    proof! {crate::specs::part2_wavelet_interleave_normal(low@,high@,low_pass_first);}
     let length = low
         .len()
         .checked_add(high.len())
@@ -122,12 +137,24 @@ pub(super) fn interleave(
     if low.len() != expected_low || high.len() != length - expected_low {
         return Err(invalid_transform());
     }
-    let mut output = Vec::with_capacity(length);
+    let allocated = if length == 0 {
+        Ok(Vec::new())
+    } else {
+        crate::allocation::empty_with_capacity(length)
+    };
+    #[cfg(verus_keep_ghost)]
+    proof! {
+        let unit=match allocated{Err(error)=>Err(error),Ok(_)=>Ok(())};
+        crate::specs::part2_wavelet_line_capacity_observed(crate::specs::Part2WaveletLineContext::Interleave {low:low@.len(),high:high@.len(),first:low_pass_first},unit);
+        if let Err(error)=allocated{crate::specs::part2_wavelet_interleave_refused(low@,high@,low_pass_first,error);}
+    }
+    let mut output = allocated?;
     let mut index = 0_usize;
     #[cfg_attr(
         verus_keep_ghost,
         verus_spec(
             invariant index <= length,
+            crate::specs::part2_wavelet_interleave_result(low@,high@,low_pass_first,crate::specs::part1_interleaved(low@,high@,low_pass_first)),
             length == low.len() + high.len(),
             low.len() == if low_pass_first { length as int / 2 + length as int % 2 } else { length as int / 2 },
             high.len() == length - low.len(),

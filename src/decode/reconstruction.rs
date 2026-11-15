@@ -136,7 +136,13 @@ pub(super) fn collect_prepared_transform_components<'a>(
 }
 
 #[cfg_attr(verus_keep_ghost, verus_spec(result =>
-    ensures (result,
+    ensures crate::specs::part2_mct_line_prepared_result(
+        Seq::new(old(prepared)@.len(),|index:int|prepared_component_view(old(prepared)@[index])),
+        codestream::image_size_component_count(size),codestream::image_size_component_infos(size),
+        codestream::multiple_component_transform_view(transform),*old(work),crate::limits::resource_work_limit(limits),
+        crate::limits::resource_decoded_bytes_limit(limits),
+        (result,Seq::new(final(prepared)@.len(),|index:int|prepared_component_view(final(prepared)@[index])),*final(work))),
+        result!=Err(DecodeError::AllocationFailed) ==> (result,
         Seq::new(final(prepared)@.len(), |index: int| prepared_component_view(final(prepared)@[index])),
         *final(work)) == crate::specs::part2_mct_prepared_tiles(
             Seq::new(old(prepared)@.len(), |index: int| prepared_component_view(old(prepared)@[index])),
@@ -156,6 +162,9 @@ pub(super) fn apply_tile_multiple_component_transform(
         let ghost before = Seq::new(prepared@.len(), |index: int| prepared_component_view(prepared@[index]));
         let ghost initial_work = *work;
     }
+    #[cfg(verus_keep_ghost)]
+    proof! {crate::specs::part2_mct_line_prepared_normal(before,codestream::image_size_component_count(size),codestream::image_size_component_infos(size),
+    codestream::multiple_component_transform_view(transform),initial_work,crate::limits::resource_work_limit(limits),crate::limits::resource_decoded_bytes_limit(limits));}
     let mut components = Vec::with_capacity(prepared.len());
     let collected_result = collect_prepared_transform_components(prepared, size, &mut components);
     #[cfg(verus_keep_ghost)]
@@ -200,7 +209,7 @@ pub(super) fn apply_tile_multiple_component_transform(
         apply_multiple_component_transform_components(&mut components, transform, limits, work);
     #[cfg(verus_keep_ghost)]
     proof! {
-        assert((result, Seq::new(components@.len(), |index: int| crate::image::transform_component_mut_view(&components@[index])), *work)
+        assert(result!=Err(DecodeError::AllocationFailed) ==> (result, Seq::new(components@.len(), |index: int| crate::image::transform_component_mut_view(&components@[index])), *work)
             == crate::specs::part2_mct_transform(input, codestream::multiple_component_transform_view(transform),
                 initial_work, crate::limits::resource_work_limit(limits), crate::limits::resource_decoded_bytes_limit(limits)));
         assert forall |index: int| 0 <= index < components@.len() implies
@@ -211,6 +220,10 @@ pub(super) fn apply_tile_multiple_component_transform(
         assert(Seq::new(final(prepared)@.len(), |index: int| prepared_component_view(final(prepared)@[index]))
             =~= crate::specs::part2_mct_prepared_result(before,
                 Seq::new(components@.len(), |index: int| crate::image::transform_component_mut_view(&components@[index]))));
+        crate::specs::part2_mct_line_prepared_observed(before,codestream::image_size_component_count(size),codestream::image_size_component_infos(size),
+            codestream::multiple_component_transform_view(transform),initial_work,crate::limits::resource_work_limit(limits),
+            crate::limits::resource_decoded_bytes_limit(limits),
+            (result,Seq::new(components@.len(),|index:int|crate::image::transform_component_mut_view(&components@[index])),*work));
     }
     result
 }

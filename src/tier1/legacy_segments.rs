@@ -472,10 +472,7 @@ impl Tier1CodeBlockDecoder {
         #[cfg(verus_keep_ghost)]
         proof! {
             let ready=(ensured,tier1_decoder_state(self));
-            crate::specs::part2_legacy_pass_observed(before,symbols,kind,ready);
-            crate::specs::part2_legacy_pass_after_ready_equation(symbols,kind,ready);
-            crate::specs::part2_legacy_pass_prepared_equation(ready.1,symbols,kind);
-            crate::specs::part2_legacy_pass_primary_consequence(before,symbols,kind,crate::specs::part2_legacy_pass_after_ready(symbols,kind,ready));
+            crate::specs::part2_legacy_mq_ready_contract(before,crate::mq::mq_decoder_view(decoder),kind,ready);
         }
         ensured?;
         let state = self

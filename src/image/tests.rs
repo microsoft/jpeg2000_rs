@@ -4796,6 +4796,84 @@ fn synthesizes_reversible_component_wavelet_with_canvas_parity() {
 }
 
 #[test]
+fn wavelet_line_storage_public_mct_retains_actual_prior_pixel_and_restores() {
+    let limits = ResourceLimits::default();
+    let info = ComponentInfo {
+        precision: 8,
+        signed: true,
+        x_subsampling: 1,
+        y_subsampling: 1,
+        x_registration: 0,
+        y_registration: 0,
+    };
+    let source = [[3, -3], [7, 11], [2, -2]];
+    let tiles: Vec<_> = source
+        .iter()
+        .enumerate()
+        .map(|(component, samples)| TileComponent {
+            component: component as u16,
+            x: 0,
+            y: 0,
+            width: 2,
+            height: 1,
+            fraction_bits: 0,
+            samples,
+        })
+        .collect();
+    let fresh = || assemble_image(&image_size(&[info; 3], 2, 1), &tiles, &limits).unwrap();
+    for (kind, reversible) in [
+        (MctWaveletType::Reversible5x3, true),
+        (MctWaveletType::Irreversible9x7, false),
+    ] {
+        let transform = MultipleComponentTransform::from_stages(vec![MctStage::from_collections(
+            1,
+            vec![MctCollection::from_wavelet(
+                vec![0, 1, 2],
+                vec![0, 1, 2],
+                kind,
+                1,
+                0,
+            )],
+        )]);
+        let shift = if reversible { 0 } else { MCT_FIXED_BITS };
+        let first = if reversible {
+            crate::transform::inverse_5_3(&[source[0][0], source[1][0]], &[source[2][0]], true)
+                .unwrap()
+        } else {
+            inverse_9_7(
+                &[source[0][0] << shift, source[1][0] << shift],
+                &[source[2][0] << shift],
+                true,
+            )
+            .unwrap()
+        };
+        let mut expected = fresh();
+        apply_multiple_component_transform(&mut expected, &transform, &limits).unwrap();
+        for after in [0, 1] {
+            let mut partial = fresh();
+            assert_eq!(
+                crate::allocation::with_refusal(after, || apply_multiple_component_transform(
+                    &mut partial,
+                    &transform,
+                    &limits
+                )),
+                Err(DecodeError::AllocationFailed)
+            );
+            for (index, values) in source.iter().enumerate() {
+                assert_eq!(
+                    partial.component(index as u16).unwrap().samples(),
+                    &[if after == 0 { values[0] } else { first[index] }, values[1]]
+                );
+                assert_eq!(partial.component(index as u16).unwrap().fraction_bits(), 0);
+            }
+            let mut restored = fresh();
+            apply_multiple_component_transform(&mut restored, &transform, &limits).unwrap();
+            assert_eq!(restored, expected);
+        }
+    }
+}
+
+#[test]
 fn synthesizes_irreversible_component_wavelet_in_q32() {
     let info = ComponentInfo {
         precision: 8,

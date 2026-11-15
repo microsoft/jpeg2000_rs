@@ -214,6 +214,8 @@ fn inverse_rows(
             Err(error) => {
                 #[cfg(verus_keep_ghost)]
                 proof! {
+                    crate::specs::part2_wavelet_rows_child_error(wavelet_band_view(low),wavelet_band_view(high),low_pass_first,irreversible,arbitrary_kernel_option(kernel),capacity,y as nat,samples@,error);
+                    if error!=DecodeError::AllocationFailed{
                     if kernel.is_none() {
                         crate::proofs::production_impl::production_horizontal_error_persists(
                             wavelet_band_view(low), wavelet_band_view(high), low_pass_first, irreversible,
@@ -224,6 +226,7 @@ fn inverse_rows(
                             wavelet_band_view(low), wavelet_band_view(high), low_pass_first, arbitrary_kernel_option(kernel).unwrap(),
                             y as nat + 1, low.height as nat, error,
                         );
+                    }
                     }
                 }
                 return Err(error);
@@ -253,10 +256,11 @@ fn inverse_rows(
 }
 
 #[cfg_attr(verus_keep_ghost, verus_spec(result =>
-    ensures kernel.is_none() ==> sequence_outcome(result) == crate::specs::part1_horizontal_row(
+    ensures crate::specs::part2_wavelet_row_result(wavelet_band_view(low),wavelet_band_view(high),y,low_first,irreversible,arbitrary_kernel_option(kernel),sequence_outcome(result)),
+        kernel.is_none() && sequence_outcome(result)!=Err(DecodeError::AllocationFailed) ==> sequence_outcome(result) == crate::specs::part1_horizontal_row(
         wavelet_band_view(low), wavelet_band_view(high), y, low_first, irreversible,
     ),
-    arbitrary_kernel_supplied(kernel) ==> sequence_outcome(result) == crate::specs::part2_atk_horizontal_row(
+    arbitrary_kernel_supplied(kernel) && sequence_outcome(result)!=Err(DecodeError::AllocationFailed) ==> sequence_outcome(result) == crate::specs::part2_atk_horizontal_row(
         wavelet_band_view(low), wavelet_band_view(high), y, low_first, arbitrary_kernel_option(kernel).unwrap(),
     ),
 ))]
@@ -268,15 +272,23 @@ fn inverse_row_pair(
     irreversible: bool,
     kernel: Option<&ArbitraryKernel>,
 ) -> Result<Vec<i64>, DecodeError> {
+    #[cfg(verus_keep_ghost)]
+    proof! {crate::specs::part2_wavelet_row_normal(wavelet_band_view(low),wavelet_band_view(high),y,low_first,irreversible,arbitrary_kernel_option(kernel));}
     let low_row = band_row(low, y)?;
     let high_row = band_row(high, y)?;
-    if let Some(kernel) = kernel {
+    let result = if let Some(kernel) = kernel {
         inverse_arbitrary(low_row, high_row, low_first, kernel)
     } else if irreversible {
         inverse_9_7(low_row, high_row, low_first)
     } else {
         inverse_5_3(low_row, high_row, low_first)
+    };
+    #[cfg(verus_keep_ghost)]
+    proof! {
+        if let Some(kernel)=kernel{crate::specs::part2_wavelet_sequence_kernel_observed(low_row@,high_row@,low_first,irreversible,crate::codestream::raw_kernel_view(*kernel),sequence_outcome(result));}
+        crate::specs::part2_wavelet_row_child_observed(wavelet_band_view(low),wavelet_band_view(high),y,low_first,irreversible,arbitrary_kernel_option(kernel),low_row@,high_row@,sequence_outcome(result));
     }
+    result
 }
 
 #[cfg_attr(verus_keep_ghost, verus_spec(result =>
@@ -423,7 +435,7 @@ fn inverse_columns(
 ) -> Result<Vec<i64>, DecodeError> {
     #[cfg(verus_keep_ghost)]
     proof! {crate::specs::part2_wavelet_columns_normal(wavelet_band_view(low),wavelet_band_view(high),output_height,low_pass_first,irreversible,arbitrary_kernel_option(kernel),output_len);}
-    let allocated = crate::allocation::filled_values(0_i64, output_len);
+    let allocated = crate::allocation::zero_i64_values(output_len);
     #[cfg(verus_keep_ghost)]
     proof! {
         let unit=match allocated{Err(error)=>Err(error),Ok(_)=>Ok(())};
@@ -457,6 +469,8 @@ fn inverse_columns(
             Err(error) => {
                 #[cfg(verus_keep_ghost)]
                 proof! {
+                    crate::specs::part2_wavelet_columns_child_error(wavelet_band_view(low),wavelet_band_view(high),output_height,low_pass_first,irreversible,arbitrary_kernel_option(kernel),output_len,x as nat,samples@,error);
+                    if error!=DecodeError::AllocationFailed{
                     if kernel.is_none() {
                         crate::proofs::production_impl::production_vertical_error_persists(
                             wavelet_band_view(low), wavelet_band_view(high), output_height, low_pass_first,
@@ -467,6 +481,7 @@ fn inverse_columns(
                             wavelet_band_view(low), wavelet_band_view(high), output_height, low_pass_first,
                             arbitrary_kernel_option(kernel).unwrap(), output_len, x as nat + 1, low.width as nat, error,
                         );
+                    }
                     }
                 }
                 return Err(error);
@@ -512,10 +527,11 @@ fn inverse_columns(
 }
 
 #[cfg_attr(verus_keep_ghost, verus_spec(result =>
-    ensures kernel.is_none() ==> sequence_outcome(result) == crate::specs::part1_vertical_column(
+    ensures crate::specs::part2_wavelet_column_result(wavelet_band_view(low),wavelet_band_view(high),x,low_pass_first,irreversible,arbitrary_kernel_option(kernel),sequence_outcome(result)),
+        kernel.is_none() && sequence_outcome(result)!=Err(DecodeError::AllocationFailed) ==> sequence_outcome(result) == crate::specs::part1_vertical_column(
         wavelet_band_view(low), wavelet_band_view(high), x, low_pass_first, irreversible,
     ),
-    arbitrary_kernel_supplied(kernel) ==> sequence_outcome(result) == crate::specs::part2_atk_vertical_column(
+    arbitrary_kernel_supplied(kernel) && sequence_outcome(result)!=Err(DecodeError::AllocationFailed) ==> sequence_outcome(result) == crate::specs::part2_atk_vertical_column(
         wavelet_band_view(low), wavelet_band_view(high), x, low_pass_first, arbitrary_kernel_option(kernel).unwrap(),
     ),
 ))]
@@ -527,15 +543,29 @@ fn inverse_column_pair(
     irreversible: bool,
     kernel: Option<&ArbitraryKernel>,
 ) -> Result<Vec<i64>, DecodeError> {
-    let low_column = collect_column(low.samples, low.width, low.height, x)?;
-    let high_column = collect_column(high.samples, high.width, high.height, x)?;
-    if let Some(kernel) = kernel {
+    #[cfg(verus_keep_ghost)]
+    proof! {crate::specs::part2_wavelet_column_normal(wavelet_band_view(low),wavelet_band_view(high),x,low_pass_first,irreversible,arbitrary_kernel_option(kernel));}
+    let low_result = collect_column(low.samples, low.width, low.height, x);
+    #[cfg(verus_keep_ghost)]
+    proof! {if let Err(error)=low_result{crate::specs::part2_wavelet_column_low_error(wavelet_band_view(low),wavelet_band_view(high),x,low_pass_first,irreversible,arbitrary_kernel_option(kernel),error);}}
+    let low_column = low_result?;
+    let high_result = collect_column(high.samples, high.width, high.height, x);
+    #[cfg(verus_keep_ghost)]
+    proof! {if let Err(error)=high_result{crate::specs::part2_wavelet_column_high_error(wavelet_band_view(low),wavelet_band_view(high),x,low_pass_first,irreversible,arbitrary_kernel_option(kernel),low_column@,error);}}
+    let high_column = high_result?;
+    let result = if let Some(kernel) = kernel {
         inverse_arbitrary(&low_column, &high_column, low_pass_first, kernel)
     } else if irreversible {
         inverse_9_7(&low_column, &high_column, low_pass_first)
     } else {
         inverse_5_3(&low_column, &high_column, low_pass_first)
+    };
+    #[cfg(verus_keep_ghost)]
+    proof! {
+        if let Some(kernel)=kernel{crate::specs::part2_wavelet_sequence_kernel_observed(low_column@,high_column@,low_pass_first,irreversible,crate::codestream::raw_kernel_view(*kernel),sequence_outcome(result));}
+        crate::specs::part2_wavelet_column_sequence_observed(wavelet_band_view(low),wavelet_band_view(high),x,low_pass_first,irreversible,arbitrary_kernel_option(kernel),low_column@,high_column@,sequence_outcome(result));
     }
+    result
 }
 
 #[cfg_attr(verus_keep_ghost, verus_spec(result =>

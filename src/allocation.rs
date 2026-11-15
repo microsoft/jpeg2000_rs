@@ -61,6 +61,28 @@ pub(crate) fn empty_with_capacity<T>(capacity: usize) -> Result<Vec<T>, DecodeEr
 }
 
 #[cfg_attr(verus_keep_ghost, verus_spec(result =>
+    ensures crate::specs::storage_copy_result(Seq::new(count as nat, |_: int| 0i64), result),
+        count == 0 ==> result.is_ok(),
+))]
+pub(crate) fn zero_i64_values(count: usize) -> Result<Vec<i64>, DecodeError> {
+    if count == 0 {
+        #[cfg(verus_keep_ghost)]
+        proof! {assert(Seq::<i64>::empty() =~= Seq::new(0nat,|_:int|0i64));}
+        return Ok(Vec::new());
+    }
+    let mut values = empty_with_capacity(count)?;
+    values.resize(count, 0_i64);
+    #[cfg(verus_keep_ghost)]
+    proof! {
+        assert forall|i:int|0<=i<count implies values@[i]==0i64 by {
+            assert(vstd::pervasive::cloned::<i64>(0i64,values@[i]));
+        }
+        assert(values@ =~= Seq::new(count as nat,|_:int|0i64));
+    }
+    Ok(values)
+}
+
+#[cfg_attr(verus_keep_ghost, verus_spec(result =>
     ensures crate::specs::storage_none_result(count, result),
 ))]
 pub(crate) fn none_values<T>(count: usize) -> Result<Vec<Option<T>>, DecodeError> {
@@ -190,6 +212,21 @@ pub(crate) fn with_refusal<T>(after: usize, operation: impl FnOnce() -> T) -> T 
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn bulk_zero_i64_empty_first_later_refusal_and_restore_keep_exact_values() {
+        with_refusal(0, || {
+            assert!(zero_i64_values(0).unwrap().is_empty());
+            assert_eq!(zero_i64_values(3), Err(DecodeError::AllocationFailed));
+            assert_eq!(zero_i64_values(3).unwrap(), [0; 3]);
+        });
+        with_refusal(1, || {
+            let prior = zero_i64_values(17).unwrap();
+            assert_eq!(zero_i64_values(3), Err(DecodeError::AllocationFailed));
+            assert_eq!(prior, [0; 17]);
+            assert_eq!(zero_i64_values(3).unwrap(), [0; 3]);
+        });
+    }
 
     #[test]
     fn preparation_fill_zero_refusal_and_restore_keep_exact_values() {

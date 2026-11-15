@@ -137,7 +137,10 @@ pub(super) fn apply_mct_destination_precisions(
 }
 
 #[cfg_attr(verus_keep_ghost, verus_spec(result =>
-    ensures (result, decoded_image_view(*final(image))) == crate::specs::part2_mct_decoded_image(
+    ensures crate::specs::part2_mct_line_decoded_result(decoded_image_view(*old(image)),
+        crate::codestream::multiple_component_transform_view(transform),crate::limits::resource_work_limit(limits),
+        crate::limits::resource_decoded_bytes_limit(limits),(result,decoded_image_view(*final(image)))),
+        result!=Err(DecodeError::AllocationFailed) ==> (result, decoded_image_view(*final(image))) == crate::specs::part2_mct_decoded_image(
         decoded_image_view(*old(image)), crate::codestream::multiple_component_transform_view(transform),
         crate::limits::resource_work_limit(limits), crate::limits::resource_decoded_bytes_limit(limits)),
 ))]
@@ -148,37 +151,61 @@ pub fn apply_multiple_component_transform(
 ) -> Result<(), DecodeError> {
     #[cfg(verus_keep_ghost)]
     proof_decl! { let ghost before = decoded_image_view(*image); }
+    #[cfg(verus_keep_ghost)]
+    proof! {crate::specs::part2_mct_line_decoded_normal(before,crate::codestream::multiple_component_transform_view(transform),
+    crate::limits::resource_work_limit(limits),crate::limits::resource_decoded_bytes_limit(limits));}
     let mut components = Vec::with_capacity(image.components.len());
-    collect_decoded_transform_components(&mut image.components, 0, &mut components)?;
-    #[cfg(verus_keep_ghost)]
-    proof! {
-        assert(Seq::new(components@.len(), |index: int| transform_component_mut_view(&components@[index]))
-            =~= crate::specs::part2_mct_decoded_inputs(before.4));
+    let collected_result =
+        collect_decoded_transform_components(&mut image.components, 0, &mut components);
+    match collected_result {
+        Err(error) => {
+            #[cfg(verus_keep_ghost)]
+            proof! {
+            assert forall|index:int|0<=index<components@.len() implies
+                transform_component_final_samples(&components@[index])==transform_component_mut_view(&components@[index]).3
+                && transform_component_final_precision(&components@[index])==transform_component_mut_view(&components@[index]).2 by {}
+            assert(decoded_image_view(*final(image)).4 =~= before.4);
+            assert(decoded_image_view(*final(image))==before);
+            }
+            Err(error)
+        }
+        Ok(()) => {
+            #[cfg(verus_keep_ghost)]
+            proof! {
+                assert(Seq::new(components@.len(), |index: int| transform_component_mut_view(&components@[index]))
+                    =~= crate::specs::part2_mct_decoded_inputs(before.4));
+            }
+            #[cfg(verus_keep_ghost)]
+            proof_decl! { let ghost collected = components@; }
+            let mut work = 0_u64;
+            let result = apply_multiple_component_transform_components(
+                &mut components,
+                transform,
+                limits,
+                &mut work,
+            );
+            #[cfg(verus_keep_ghost)]
+            proof! {
+                assert forall |index: int| 0 <= index < components@.len() implies
+                    transform_component_final_samples(&components@[index]) == transform_component_mut_view(&components@[index]).3
+                        && transform_component_final_precision(&components@[index]) == transform_component_mut_view(&components@[index]).2 by {}
+                assert forall |index: int| 0 <= index < components@.len() implies
+                    transform_component_final_samples(&collected[index]) == transform_component_final_samples(&components@[index])
+                        && transform_component_final_precision(&collected[index]) == transform_component_final_precision(&components@[index]) by {}
+                assert(decoded_image_view(*final(image)).4.len() == before.4.len());
+                assert(decoded_image_view(*final(image)).4 =~= Seq::new(before.4.len(), |index: int|
+                    (before.4[index].0, before.4[index].1, before.4[index].2,
+                        transform_component_mut_view(&components@[index]).2,
+                        transform_component_mut_view(&components@[index]).3)));
+                crate::specs::part2_mct_line_decoded_observed(before,crate::codestream::multiple_component_transform_view(transform),
+                    crate::limits::resource_work_limit(limits),crate::limits::resource_decoded_bytes_limit(limits),
+                    (result,Seq::new(components@.len(),|index:int|transform_component_mut_view(&components@[index])),work));
+                assert(decoded_image_view(*final(image))==crate::specs::part2_mct_decoded_result(before,
+                    Seq::new(components@.len(),|index:int|transform_component_mut_view(&components@[index]))));
+            }
+            result
+        }
     }
-    #[cfg(verus_keep_ghost)]
-    proof_decl! { let ghost collected = components@; }
-    let mut work = 0_u64;
-    let result = apply_multiple_component_transform_components(
-        &mut components,
-        transform,
-        limits,
-        &mut work,
-    );
-    #[cfg(verus_keep_ghost)]
-    proof! {
-        assert forall |index: int| 0 <= index < components@.len() implies
-            transform_component_final_samples(&components@[index]) == transform_component_mut_view(&components@[index]).3
-                && transform_component_final_precision(&components@[index]) == transform_component_mut_view(&components@[index]).2 by {}
-        assert forall |index: int| 0 <= index < components@.len() implies
-            transform_component_final_samples(&collected[index]) == transform_component_final_samples(&components@[index])
-                && transform_component_final_precision(&collected[index]) == transform_component_final_precision(&components@[index]) by {}
-        assert(decoded_image_view(*final(image)).4.len() == before.4.len());
-        assert(decoded_image_view(*final(image)).4 =~= Seq::new(before.4.len(), |index: int|
-            (before.4[index].0, before.4[index].1, before.4[index].2,
-                transform_component_mut_view(&components@[index]).2,
-                transform_component_mut_view(&components@[index]).3)));
-    }
-    result
 }
 
 #[cfg_attr(verus_keep_ghost, verus_spec(result =>
@@ -265,7 +292,9 @@ fn collect_decoded_transform_components<'a>(
 }
 
 #[cfg_attr(verus_keep_ghost, verus_spec(result =>
-    ensures (result, transform_components_view(final(components)), *final(work)) == crate::specs::part2_mct_transform(
+    ensures crate::specs::part2_mct_line_transform_result(transform_components_view(old(components)),crate::codestream::multiple_component_transform_view(transform),*old(work),
+        crate::limits::resource_work_limit(limits),crate::limits::resource_decoded_bytes_limit(limits),(result,transform_components_view(final(components)),*final(work))),
+        result!=Err(DecodeError::AllocationFailed) ==> (result, transform_components_view(final(components)), *final(work)) == crate::specs::part2_mct_transform(
         transform_components_view(old(components)), crate::codestream::multiple_component_transform_view(transform), *old(work),
         crate::limits::resource_work_limit(limits), crate::limits::resource_decoded_bytes_limit(limits)),
     transform_components_borrow_frame(old(components)@, final(components)@),
@@ -285,12 +314,16 @@ pub(crate) fn apply_multiple_component_transform_components(
     #[cfg(verus_keep_ghost)]
     proof! { crate::proofs::production_impl::production_mct_transform_empty(before, stages, initial_work,
     crate::limits::resource_work_limit(limits), crate::limits::resource_decoded_bytes_limit(limits)); }
+    #[cfg(verus_keep_ghost)]
+    proof! {crate::specs::part2_mct_line_transform_normal(before,stages,initial_work,crate::limits::resource_work_limit(limits),crate::limits::resource_decoded_bytes_limit(limits),stages.len());}
     let mut stage_index = transform.stages().len();
     #[cfg_attr(verus_keep_ghost, verus_spec(
         invariant stage_index <= stages.len(),
         stages == crate::codestream::multiple_component_transform_view(transform),
         before == transform_components_view(old(components)),
         initial_work == *old(work),
+        crate::specs::part2_mct_line_transform_result(before,stages,initial_work,crate::limits::resource_work_limit(limits),crate::limits::resource_decoded_bytes_limit(limits),
+            crate::specs::part2_mct_transform(before,stages,initial_work,crate::limits::resource_work_limit(limits),crate::limits::resource_decoded_bytes_limit(limits))),
         transform_components_borrow_frame(old(components)@, components@),
         crate::specs::part2_mct_transform_prefix(before, stages, initial_work,
             crate::limits::resource_work_limit(limits), crate::limits::resource_decoded_bytes_limit(limits),
@@ -312,13 +345,21 @@ pub(crate) fn apply_multiple_component_transform_components(
             .stages()
             .get(stage_index)
             .ok_or_else(invalid_transform)?;
-        apply_mct_stage(components, stage, limits, work)?;
+        #[cfg(verus_keep_ghost)]
+        proof_decl! {let ghost current=transform_components_view(components);let ghost current_work=*work;}
+        let operation = apply_mct_stage(components, stage, limits, work);
+        #[cfg(verus_keep_ghost)]
+        proof! {if let Err(error)=operation{crate::specs::part2_mct_line_transform_child_error(before,stages,initial_work,crate::limits::resource_work_limit(limits),crate::limits::resource_decoded_bytes_limit(limits),
+        (stages.len()-stage_index-1) as nat,current,current_work,(operation,transform_components_view(components),*work));}}
+        operation?;
     }
     Ok(())
 }
 
 #[cfg_attr(verus_keep_ghost, verus_spec(result =>
-    ensures (result, transform_components_view(final(components)), *final(work)) == crate::specs::part2_mct_stage_prefix(
+    ensures crate::specs::part2_mct_line_stage_result(transform_components_view(old(components)),crate::codestream::mct_stage_view(stage).1,*old(work),
+        crate::limits::resource_work_limit(limits),crate::limits::resource_decoded_bytes_limit(limits),(result,transform_components_view(final(components)),*final(work))),
+        result!=Err(DecodeError::AllocationFailed) ==> (result, transform_components_view(final(components)), *final(work)) == crate::specs::part2_mct_stage_prefix(
         transform_components_view(old(components)), crate::codestream::mct_stage_view(stage).1, *old(work),
         crate::limits::resource_work_limit(limits), crate::limits::resource_decoded_bytes_limit(limits),
         crate::codestream::mct_stage_view(stage).1.len()),
@@ -340,11 +381,15 @@ fn apply_mct_stage(
     #[cfg(verus_keep_ghost)]
     proof! { crate::proofs::production_impl::production_mct_stage_empty(before, collections, initial_work,
     crate::limits::resource_work_limit(limits), crate::limits::resource_decoded_bytes_limit(limits)); }
+    #[cfg(verus_keep_ghost)]
+    proof! {crate::specs::part2_mct_line_stage_normal(before,collections,initial_work,crate::limits::resource_work_limit(limits),crate::limits::resource_decoded_bytes_limit(limits),collections.len());}
     let mut collection_index = 0_usize;
     #[cfg_attr(verus_keep_ghost, verus_spec(
         invariant collection_index <= collection_count, collection_count == collections.len(),
         collections == crate::codestream::mct_stage_view(stage).1,
         before == transform_components_view(old(components)), initial_work == *old(work),
+        crate::specs::part2_mct_line_stage_result(before,collections,initial_work,crate::limits::resource_work_limit(limits),crate::limits::resource_decoded_bytes_limit(limits),
+            crate::specs::part2_mct_stage_prefix(before,collections,initial_work,crate::limits::resource_work_limit(limits),crate::limits::resource_decoded_bytes_limit(limits),collections.len())),
         transform_components_borrow_frame(old(components)@, components@),
         crate::specs::part2_mct_stage_prefix(before, collections, initial_work,
             crate::limits::resource_work_limit(limits), crate::limits::resource_decoded_bytes_limit(limits),
@@ -360,7 +405,9 @@ fn apply_mct_stage(
                 crate::limits::resource_work_limit(limits), crate::limits::resource_decoded_bytes_limit(limits),
                 collection_index as nat + 1, collections.len());
         }
-        apply_mct_collection(
+        #[cfg(verus_keep_ghost)]
+        proof_decl! {let ghost current=transform_components_view(components);let ghost current_work=*work;}
+        let operation = apply_mct_collection(
             components,
             stage
                 .collections()
@@ -368,7 +415,11 @@ fn apply_mct_stage(
                 .ok_or_else(invalid_transform)?,
             limits,
             work,
-        )?;
+        );
+        #[cfg(verus_keep_ghost)]
+        proof! {if let Err(error)=operation{crate::specs::part2_mct_line_stage_child_error(before,collections,initial_work,crate::limits::resource_work_limit(limits),crate::limits::resource_decoded_bytes_limit(limits),
+        collection_index as nat,current,current_work,(operation,transform_components_view(components),*work));}}
+        operation?;
         collection_index = collection_index
             .checked_add(1)
             .ok_or_else(arithmetic_overflow)?;
@@ -377,7 +428,9 @@ fn apply_mct_stage(
 }
 
 #[cfg_attr(verus_keep_ghost, verus_spec(result =>
-    ensures (result, transform_components_view(final(components)), *final(work)) == crate::specs::part2_mct_collection(
+    ensures crate::specs::part2_mct_line_collection_result(transform_components_view(old(components)),crate::codestream::mct_collection_view(collection),*old(work),
+        crate::limits::resource_work_limit(limits),crate::limits::resource_decoded_bytes_limit(limits),(result,transform_components_view(final(components)),*final(work))),
+        result!=Err(DecodeError::AllocationFailed) ==> (result, transform_components_view(final(components)), *final(work)) == crate::specs::part2_mct_collection(
         transform_components_view(old(components)), crate::codestream::mct_collection_view(collection), *old(work),
         crate::limits::resource_work_limit(limits), crate::limits::resource_decoded_bytes_limit(limits)),
     transform_components_borrow_frame(old(components)@, final(components)@),
@@ -388,13 +441,20 @@ fn apply_mct_collection(
     limits: &ResourceLimits,
     work: &mut u64,
 ) -> Result<(), DecodeError> {
-    match collection.kind() {
+    #[cfg(verus_keep_ghost)]
+    proof_decl! {let ghost before=transform_components_view(components);let ghost before_work=*work;let ghost style=crate::codestream::mct_collection_view(collection);}
+    #[cfg(verus_keep_ghost)]
+    proof! {crate::specs::part2_mct_line_collection_normal(before,style,before_work,crate::limits::resource_work_limit(limits),crate::limits::resource_decoded_bytes_limit(limits));}
+    let result = match collection.kind() {
         MctCollectionKind::Dependency => apply_mct_dependency(components, collection, limits, work),
         MctCollectionKind::Decorrelation => {
             apply_mct_decorrelation(components, collection, limits, work)
         }
         MctCollectionKind::Wavelet => apply_mct_wavelet(components, collection, limits, work),
-    }
+    };
+    #[cfg(verus_keep_ghost)]
+    proof! {if matches!(style.3,MctCollectionKind::Wavelet){crate::specs::part2_mct_line_collection_wavelet_observed(before,style,before_work,crate::limits::resource_work_limit(limits),crate::limits::resource_decoded_bytes_limit(limits),(result,transform_components_view(components),*work));}}
+    result
 }
 
 #[cfg_attr(verus_keep_ghost, verus_spec(result =>

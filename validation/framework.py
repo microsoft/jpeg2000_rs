@@ -351,7 +351,8 @@ def _coverage_extraction_normal_arguments(
         _coverage_call(projection, r"(?P<name>\w+)")
         + r"\s*!=\s*Err\s*\(\s*DecodeError::AllocationFailed\s*\)\s*==>", contract,
     )
-    return ordinary is not None and re.match(
+    bound_name = re.search(r"\bverus_spec\(\s*(\w+)\s*=>", contract)
+    return ordinary is not None and bound_name is not None and ordinary["name"] == bound_name[1] and re.match(
         r"\s*" + _coverage_call(projection, re.escape(ordinary["name"]))
         + r"\s*==\s*crate::specs::" + re.escape(model)
         + r"\s*\(\s*" + arguments + r"\s*,?\s*\)", contract[ordinary.end():],
@@ -4813,6 +4814,18 @@ _RAW_RENDER_PROOFS |= {("specs/jpx_raw_frame.rs", "part2_render_raw_cold_metadat
 _RAW_COMPOSITION_RENDER_PROOFS |= {("specs/jpx_raw_frame.rs", "part2_render_raw_cold_metadata_error")}
 
 _PLANE_ROLE_MODEL_INFO = {
+    "part1_collect_column": ("part2_wavelet_gather_result", "specs/cold_wavelet_lines.rs", "part2_wavelet_gather_normal"),
+    "part1_interleaved": ("part2_wavelet_interleave_result", "specs/cold_wavelet_lines.rs", "part2_wavelet_interleave_normal"),
+    "part1_inverse_five_three": ("part2_wavelet_sequence_result", "specs/cold_wavelet_lines.rs", "part2_wavelet_sequence_normal"),
+    "part1_inverse_nine_seven": ("part2_wavelet_sequence_result", "specs/cold_wavelet_lines.rs", "part2_wavelet_sequence_normal"),
+    "part2_inverse_arbitrary": ("part2_wavelet_sequence_result", "specs/cold_wavelet_lines.rs", "part2_wavelet_sequence_normal"),
+    "part2_mct_wavelet": ("part2_mct_line_wavelet_result", "specs/cold_mct_line_pixels.rs", "part2_mct_line_wavelet_normal"),
+    "part2_mct_collection": ("part2_mct_line_collection_result", "specs/cold_mct_line_composition.rs", "part2_mct_line_collection_normal"),
+    "part2_mct_stage_prefix": ("part2_mct_line_stage_result", "specs/cold_mct_line_composition.rs", "part2_mct_line_stage_normal"),
+    "part2_mct_transform": ("part2_mct_line_transform_result", "specs/cold_mct_line_composition.rs", "part2_mct_line_transform_normal"),
+    "part2_mct_decoded_image": ("part2_mct_line_decoded_result", "specs/cold_mct_line_composition.rs", "part2_mct_line_decoded_normal"),
+    "part2_mct_prepared_tiles": ("part2_mct_line_prepared_result", "specs/cold_mct_line_composition.rs", "part2_mct_line_prepared_normal"),
+    "part2_finish_prepared_tile": ("part2_mct_line_finish_result", "specs/cold_mct_line_composition.rs", "part2_mct_line_finish_normal"),
     "part1_inverse_horizontal": ("part2_wavelet_horizontal_result", "specs/cold_wavelet_planes.rs", "part2_wavelet_horizontal_normal"),
     "part2_atk_inverse_horizontal": ("part2_wavelet_horizontal_result", "specs/cold_wavelet_planes.rs", "part2_wavelet_horizontal_normal"),
     "part1_inverse_vertical": ("part2_wavelet_vertical_result", "specs/cold_wavelet_planes.rs", "part2_wavelet_vertical_normal"),
@@ -4869,6 +4882,9 @@ _PLANE_ROLE_RESULT_RUNS = {
     for old, (model, _, _) in _PLANE_ROLE_MODEL_INFO.items()
 }
 _PLANE_ROLE_RESULT_RUNS.update({
+    "part2_wavelet_gather_result": ("part2_wavelet_gather_run", False),
+    "part2_wavelet_interleave_result": ("part2_wavelet_interleave_run", False),
+    "part2_wavelet_sequence_result": ("part2_wavelet_sequence_run", False),
     "part2_wavelet_horizontal_result": ("part2_wavelet_horizontal_run", False),
     "part2_wavelet_vertical_result": ("part2_wavelet_vertical_run", False),
     "part2_wavelet_level_result": ("part2_wavelet_level_run", False),
@@ -5327,7 +5343,36 @@ _COLD_RESULT_CONTRACTS.update({
 _COLD_RESULT_CONTRACTS.update({
     key: _coverage_cold_relation(legacy)
     for key, legacy in _RECONSTRUCTION_CONTRACTS.items()
-    if legacy[0] in {"part2_reconstruct_planned_tile", "part1_progression_prepared_image"}
+    if legacy[0] in _PLANE_ROLE_MODEL_INFO
+})
+_stage_key = ("src/image/mct.rs", "apply_mct_stage")
+_stage_legacy = _RECONSTRUCTION_CONTRACTS[_stage_key]
+_stage_view = _coverage_call("crate::codestream::mct_stage_view", "stage") + r"\s*\.1"
+_COLD_RESULT_CONTRACTS[_stage_key] = _coverage_cold_relation((
+    *_stage_legacy[:3],
+    _stage_legacy[3].removesuffix(r"\s*,\s*" + _stage_view + r"\s*\.len\s*\(\s*\)"),
+))
+_COLD_RESULT_CONTRACTS.update({
+    ("src/transform/geometry.rs", "collect_column"): (
+        "part2_wavelet_gather_result",
+        r"\(\s*width\s*,\s*height\s*,\s*samples@\s*\)\s*,\s*x\s*,\s*" + _coverage_call("sequence_outcome", r"\1"),
+    ),
+    ("src/transform/wavelets.rs", "interleave"): (
+        "part2_wavelet_interleave_result", r"low@\s*,\s*high@\s*,\s*low_pass_first\s*,\s*" + _coverage_call("sequence_outcome", r"\1"),
+    ),
+    **{
+        ("src/transform/wavelets.rs", name): (
+            "part2_wavelet_sequence_result",
+            r"low@\s*,\s*high@\s*,\s*low_pass_first\s*,\s*" + mode + r"\s*,\s*None\s*,\s*" + _coverage_call("sequence_outcome", r"\1"),
+        )
+        for name, mode in (("inverse_5_3", "false"), ("inverse_9_7", "true"))
+    },
+    ("src/transform/arbitrary.rs", "inverse_arbitrary"): (
+        "part2_wavelet_sequence_result", r"low@\s*,\s*high@\s*,\s*low_pass_first\s*,\s*!\s*"
+        + _coverage_call("crate::codestream::raw_kernel_view", r"\*\s*kernel") + r"\.0\s*,\s*"
+        + _coverage_call("Some", _coverage_call("crate::codestream::raw_kernel_view", r"\*\s*kernel")) + r"\s*,\s*"
+        + _coverage_call("sequence_outcome", r"\1"),
+    ),
 })
 _COLD_RESULT_CONTRACTS.update({
     ("src/tier1/ht_refinement.rs", "ht_collect_cleanup_significance"): (
@@ -5597,7 +5642,9 @@ def _coverage_cold_result_body(text: str, model: str) -> bool:
     call = run + "(" + ",".join(names[:-1] + ["events"]) + ")"
     if model in _PLANE_ROLE_RESULT_RUNS:
         run_name, wrapped = _PLANE_ROLE_RESULT_RUNS[model]
-        expected = "part2_tier1_storage_framed(|calls|" + run_name + "(" + ",".join(names[:-1] + ["calls"]) + ")," \
+        count = (["collections.len()"] if model == "part2_mct_line_stage_result" else
+                 ["stages.len()"] if model == "part2_mct_line_transform_result" else [])
+        expected = "part2_tier1_storage_framed(|calls|" + run_name + "(" + ",".join(names[:-1] + count + ["calls"]) + ")," \
             + ("Ok(result)" if wrapped else "result") + ")"
         if model == "part2_ht_replay_result":
             expected += "&&(result.0!=Err(crate::DecodeError::AllocationFailed)==>result==ht_decode_refinement_contribution(before,input,passes,maximum_bytes,work))"
@@ -7075,11 +7122,11 @@ _WAVELET_PLANE_GUARDS = {
     ),
     ("specs/cold_wavelet_planes.rs", "part2_wavelet_rows_run"): (
         "Part2WaveletPlaneOwner::Rows,capacity as nat,calls",
-        "Some((part2_wavelet_rows_value(low,high,first,irreversible,kernel),rest))",
+        "part2_wavelet_horizontal_lines_run(low,high,first,irreversible,kernel,low.1 as nat,rest)",
     ),
     ("specs/cold_wavelet_planes.rs", "part2_wavelet_columns_run"): (
         "Part2WaveletPlaneOwner::Columns,length as nat,calls",
-        "Some((part2_wavelet_columns_value(low,high,height,first,irreversible,kernel,length),rest))",
+        "part2_wavelet_vertical_lines_run(low,high,height,first,irreversible,kernel,length,low.0 as nat,rest)",
     ),
     ("specs/cold_wavelet_planes.rs", "part2_wavelet_level_rows_run"): (
         "part1_transform_area(level.4,level.0.1)", "part2_wavelet_rows_run(level.0,level.1,level.6,irreversible,kernel,capacity,calls)",
@@ -7100,12 +7147,15 @@ _WAVELET_PLANE_GUARDS = {
     ),
 }
 _WAVELET_PLANE_NATIVE_ORDER = {
+    ("src/allocation.rs", "zero_i64_values"): (
+        "if count == 0", "return Ok(Vec::new())", "empty_with_capacity(count)?", "values.resize(count, 0_i64)",
+    ),
     ("src/transform/levels.rs", "inverse_rows"): (
         "if capacity == 0", "crate::allocation::empty_with_capacity(capacity)", "let mut samples = allocated?",
         "inverse_row_pair(", "samples.extend_from_slice(&row)",
     ),
     ("src/transform/levels.rs", "inverse_columns"): (
-        "crate::allocation::filled_values(0_i64, output_len)", "let mut samples = allocated?",
+        "crate::allocation::zero_i64_values(output_len)", "let mut samples = allocated?",
         "inverse_column_pair(", "store_column(&mut samples",
     ),
     ("src/transform/levels.rs", "inverse_level"): (
@@ -7120,6 +7170,66 @@ _WAVELET_PLANE_TESTS = {
     ("src/transform/tests.rs", "wavelet_plane_storage_actual_custom_kernel_level_rows_columns_and_restore"),
     ("src/decode/tests.rs", "wavelet_plane_storage_actual_standard_component_first_later_planes_and_restore"),
     ("src/decode/tests.rs", "wavelet_plane_storage_actual_raw_selected_container_reconstruction_and_automatic_restore"),
+}
+_WAVELET_LINE_GUARDS = {
+    ("specs/cold_wavelet_lines.rs", "part2_wavelet_line_capacity_run"): (
+        "if count==0{Some((Ok(()),calls))}", "actual!=context || elements!=count", "calls.drop_first()",
+        "if succeeded{Ok(())}else{Err(crate::DecodeError::AllocationFailed)}", "_=>None",
+    ),
+    ("specs/cold_wavelet_lines.rs", "part2_wavelet_interleave_run"): (
+        "part2_wavelet_interleave_admit(low.len(),high.len(),first)", "Err(error)=>Some((Err(error),calls))",
+        "Part2WaveletLineContext::Interleave {low:low.len(),high:high.len(),first}", "Some((part1_interleaved(low,high,first),rest))",
+    ),
+    ("specs/cold_wavelet_lines.rs", "part2_wavelet_gather_run"): (
+        "column>=band.0 || band.1>usize::MAX", "Some((part1_collect_column(band,column),calls))",
+        "Part2WaveletLineContext::Gather {width:band.0,height:band.1,column}", "Some((part1_collect_column(band,column),rest))",
+    ),
+    ("specs/cold_wavelet_lines.rs", "part2_wavelet_sequence_run"): (
+        "part2_wavelet_interleave_run(low,high,first,calls)", "part2_wavelet_sequence_value(low,high,first,irreversible,kernel)",
+    ),
+    ("specs/cold_wavelet_line_planes.rs", "part2_wavelet_column_run"): (
+        "part2_wavelet_gather_run(low,x,calls)", "part2_wavelet_column_after_low(a,high,x,first,irreversible,kernel,rest)",
+    ),
+    ("specs/cold_wavelet_line_planes.rs", "part2_wavelet_column_after_low"): (
+        "part2_wavelet_gather_run(high,x,calls)", "part2_wavelet_sequence_run(low,b,first,irreversible,kernel,rest)",
+    ),
+    ("specs/cold_mct_wavelet_lines.rs", "part2_mct_line_step_run"): (
+        "part2_mct_line_step_admit(previous,source,high,first,index)", "Err(error)=>Some((Err(error),calls))",
+        "part2_wavelet_sequence_run(previous.1,input,parity,!reversible,None,calls)", "Some((Ok((end,values)),rest))",
+    ),
+    ("specs/cold_mct_line_composition.rs", "part2_mct_line_decoded_run"): (
+        "before.4.len()>u16::MAX", "part2_mct_line_transform_run(part2_mct_decoded_inputs(before.4),stages,0,maximum_work,maximum_bytes,stages.len(),calls)",
+        "part2_mct_decoded_result(before,effect.1)",
+    ),
+    ("specs/cold_mct_line_composition.rs", "part2_mct_line_prepared_run"): (
+        "part2_mct_prepared_inputs(before,component_count,infos)", "Err(error)=>Some((Ok((Err(error),before,work)),calls))",
+        "part2_mct_line_transform_run(input.1,stages,work,maximum_work,maximum_bytes,stages.len(),calls)", "part2_mct_prepared_result(before,effect.1),effect.2",
+    ),
+    ("specs/cold_extraction_tile.rs", "part2_extraction_tile_finish_run"): (
+        "Err(error)=>Some((Ok((Err(error),effect.1,work)),calls))",
+        "part2_mct_line_finish_run(effect.1.skip(initial.len() as int)", "finished.0,initial+finished.1,finished.2",
+    ),
+}
+_WAVELET_LINE_NATIVE_ORDER = {
+    ("src/transform/geometry.rs", "collect_column"): (
+        "if x >= width", "transform_dimension(height)?", "empty_with_capacity(count)", "let mut column = allocated?",
+        "column_sample(", "column.push(",
+    ),
+    ("src/transform/wavelets.rs", "interleave"): (
+        "checked_add(high.len())", "low.len() != expected_low", "empty_with_capacity(length)", "let mut output = allocated?",
+        "while index < length",
+    ),
+    ("src/image/mct_wavelet.rs", "reconstruct_mct_wavelet"): (
+        "Vec::with_capacity(low_length)", "source.get(..low_length)", "high_lengths.len()", "source.get(cursor..high_end)",
+        "let transformed =", "part2_mct_line_child_error", "reconstructed = transformed?",
+    ),
+}
+_WAVELET_LINE_TESTS = {
+    ("src/allocation.rs", "bulk_zero_i64_empty_first_later_refusal_and_restore_keep_exact_values"),
+    ("src/transform/tests.rs", "wavelet_line_storage_raw_gather_interleave_empty_first_later_and_restore"),
+    ("src/transform/tests.rs", "wavelet_line_storage_actual_standard_custom_planes_prior_lines_and_numerical_restore"),
+    ("src/image/mct_wavelet.rs", "wavelet_line_storage_actual_spectral_prior_owner_and_exact_refusal_restore"),
+    ("src/image/tests.rs", "wavelet_line_storage_public_mct_retains_actual_prior_pixel_and_restores"),
 }
 
 _QUANTIZATION_OUTPUT_GUARDS = {
@@ -13818,6 +13928,7 @@ def validate_normative_coverage(
                 "none_values": ("storage_none_result", r"count\s*,\s*\1"),
                 "copy_values": ("storage_copy_result", r"source@\s*,\s*\1"),
                 "filled_values": ("storage_copy_result", _coverage_call("Seq::new", r"count\s+as\s+nat", r"\|_\s*:\s*int\|\s*value") + r"\s*,\s*\1"),
+                "zero_i64_values": ("storage_copy_result", _coverage_call("Seq::new", r"count\s+as\s+nat", r"\|_\s*:\s*int\|\s*0i64") + r"\s*,\s*\1"),
                 "extend_bytes": (
                     "storage_extension_result",
                     r"old\(\s*values\s*\)@\s*,\s*bytes@\s*,\s*"
@@ -13864,6 +13975,19 @@ def validate_normative_coverage(
                     raise ValueError(f"linked function lacks executable Verus contract: {short}; invalid exact Copy-fill storage relation")
             cold_contract = _COLD_RESULT_CONTRACTS.get((reference["path"], reference["symbol"]))
             if cold_contract is not None:
+                old_mct = _RECONSTRUCTION_CONTRACTS.get((reference["path"], reference["symbol"]))
+                if old_mct is not None and old_mct[0].startswith(("part2_mct_", "part2_finish_prepared")):
+                    guard = re.search(
+                        r"\b(?P<name>\w+)\s*!=\s*Err\(\s*DecodeError::AllocationFailed\s*\)\s*==>\s*", contract,
+                    )
+                    normal = None if guard is None else re.match(
+                        r"\(\s*" + re.escape(guard["name"]) + r"\s*,\s*" + old_mct[2] + r"\s*\)\s*==\s*"
+                        r"crate::specs::" + old_mct[0] + r"\s*\(\s*" + old_mct[3] + r"\s*,?\s*\)",
+                        contract[guard.end():],
+                    )
+                    bound_name = re.search(named_prefix, contract)
+                    if normal is None or bound_name is None or guard["name"] != bound_name[1]:
+                        raise ValueError(f"linked function lacks executable Verus contract: {short}; missing exact first ordinary MCT state/work projection")
                 if (reference["path"], reference["symbol"]) in _LEGACY_PACKET_STORAGE_CONTRACTS:
                     guard = re.search(named_prefix + r".*?\1\s*!=\s*Err\(\s*DecodeError::AllocationFailed\s*\)\s*==>\s*", contract, re.S)
                     ordinary = None if guard is None else re.match(
@@ -14343,6 +14467,7 @@ def validate_normative_coverage(
                 raise ValueError(f"linked function lacks executable Verus contract: {short}; arbitrary-kernel support is not a standard-only consumer")
             if cold_contract is not None and normal_arbitrary_contract is not None and (
                     short in ("prepare_tile_component_with_kernel", "reconstruct_prepare_working", "reconstruct_prepare_resolution")
+                    or (reference["path"] == "src/transform/arbitrary.rs" and short == "inverse_arbitrary")
                     or (reference["path"] == "src/transform/levels.rs" and short.endswith("_arbitrary"))):
                 arbitrary_arguments_bound = _coverage_extraction_normal_arguments(
                     contract, normal_arbitrary_contract[0], normal_arbitrary_contract[1], normal_arbitrary_contract[2],
@@ -14357,6 +14482,15 @@ def validate_normative_coverage(
                 if not _coverage_extraction_normal_arguments(contract, "reconstruction_outcome", "part1_inverse_" + axis,
                         inputs + r"\s*,\s*" + irreversible + r"\s*,\s*" + _coverage_call("crate::limits::resource_decoded_bytes_limit", "limits")):
                     raise ValueError(f"linked function lacks executable Verus contract: {short}; missing exact first standard wavelet projection")
+            if cold_contract is not None and reference["path"] in ("src/transform/wavelets.rs", "src/transform/geometry.rs"):
+                old_line = {
+                    "inverse_5_3": ("part1_inverse_five_three", r"low@\s*,\s*high@\s*,\s*low_pass_first"),
+                    "inverse_9_7": ("part1_inverse_nine_seven", r"low@\s*,\s*high@\s*,\s*low_pass_first"),
+                    "interleave": ("part1_interleaved", r"low@\s*,\s*high@\s*,\s*low_pass_first"),
+                    "collect_column": ("part1_collect_column", r"\(\s*width\s*,\s*height\s*,\s*samples@\s*\)\s*,\s*x"),
+                }.get(short)
+                if old_line and not _coverage_extraction_normal_arguments(contract, "sequence_outcome", *old_line):
+                    raise ValueError(f"linked function lacks executable Verus contract: {short}; missing exact first ordinary wavelet line projection")
             packet_arguments_bound = (
                 packet_contract is None
                 or _coverage_result_arguments(contract, named_result, packet_contract[0], packet_contract[2])
@@ -14470,6 +14604,27 @@ def validate_normative_coverage(
             positions = [compact.find("".join(f.split())) for f in fragments]
             if any(p < 0 for p in positions) or positions != sorted(positions):
                 raise ValueError("wavelet planes require original validation/work/limit/row/column owner order")
+        if not _WAVELET_LINE_TESTS.issubset({(r["path"],r["symbol"]) for r in wavelet_entry["test_refs"]}):
+            raise ValueError("wavelet lines require bounded raw/empty/first/later/restore/partial-public controls")
+        for (relative,symbol),fragments in _WAVELET_LINE_GUARDS.items():
+            body = _coverage_spec_function_body(source_text((ROOT / relative).resolve()),symbol)
+            compact = "".join(body.split()) if body is not None else ""
+            if any("".join(f.split()) not in compact for f in fragments):
+                raise ValueError("wavelet lines require real source/count/role, actual child/owner/state and first-error/tail linkage")
+        for (relative,symbol),fragments in _WAVELET_LINE_NATIVE_ORDER.items():
+            path = (ROOT / relative).resolve()
+            body = _coverage_function_body(source_text(path),function_header(path,symbol))
+            compact = "".join(body.split()) if body is not None else ""
+            positions = [compact.find("".join(f.split())) for f in fragments]
+            if any(p < 0 for p in positions) or positions != sorted(positions):
+                raise ValueError("wavelet lines require original admission/gather/interleave/reader/output order")
+        zero_source = source_text((ROOT / "src/allocation.rs").resolve())
+        zero_header = function_header((ROOT / "src/allocation.rs").resolve(),"zero_i64_values")
+        zero_contract = zero_source[zero_source.rfind("#[cfg_attr",0,zero_header.start()):zero_header.start()]
+        zero_compact = "".join(zero_contract.split()) if zero_contract is not None else ""
+        if ("storage_copy_result(Seq::new(countasnat,|_:int|0i64),result)" not in zero_compact
+                or "count==0==>result.is_ok()" not in zero_compact):
+            raise ValueError("wavelet lines require exact checked zero-i64 resize values and empty no-refusal projection")
     if "part1-complete-supplied-coefficient-quantization" in ids:
         quantization_entry = next(e for e in coverage["requirements"] if e["id"] == "part1-complete-supplied-coefficient-quantization")
         if not _QUANTIZATION_OUTPUT_TESTS.issubset({

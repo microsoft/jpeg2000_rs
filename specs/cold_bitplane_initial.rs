@@ -237,4 +237,26 @@ pub(crate) proof fn part2_legacy_pass_frames(before:Tier1DecoderState,symbols:Pa
         forall|other:spec_fn(Seq<Part2Tier1StorageEvent>)->Part2Tier1Run<Part1LegacySegmentPassEffect>|
             (forall|calls| #[trigger] other(calls)==part2_legacy_pass_run(before,symbols,kind,calls)) ==> #[trigger] part2_tier1_storage_framed(other,Ok(result)),
 {reveal(part2_legacy_pass_result);part2_tier1_storage_eta(|calls|part2_legacy_pass_run(before,symbols,kind,calls),Ok(result));}
+pub(crate) proof fn part2_legacy_mq_ready_contract(before:Tier1DecoderState,reader:Part1MqState,kind:crate::tier1::Tier1PassKind,ready:Part2LegacyResult)
+    requires part2_legacy_ensure_result(before,ready),
+        ready.0!=Err(crate::DecodeError::AllocationFailed) ==> ready==part1_legacy_ensure_bitplane(before),
+    ensures part2_legacy_pass_result(before,Part1LegacySymbols::Mq(reader),kind,part2_legacy_pass_after_ready(Part1LegacySymbols::Mq(reader),kind,ready)),
+        part2_legacy_pass_after_ready(Part1LegacySymbols::Mq(reader),kind,ready).0!=Err(crate::DecodeError::AllocationFailed) ==>
+            part2_legacy_pass_after_ready(Part1LegacySymbols::Mq(reader),kind,ready)==part1_legacy_decode_pass(before,Part1LegacySymbols::Mq(reader),kind),
+        part2_legacy_pass_after_ready(Part1LegacySymbols::Mq(reader),kind,ready)==match ready.0{
+            Err(error)=>(Err(error),ready.1,Part1LegacySymbols::Mq(reader)),Ok(())=>match ready.1.bitplane_state{
+                None=>(Err(ht_reader_error(crate::MalformedKind::InvalidCodeBlock)),ready.1,Part1LegacySymbols::Mq(reader)),Some(state)=>{
+                    let pass=if kind is Cleanup{part1_legacy_cleanup_pass(ready.1.plane,state,Part1LegacySymbols::Mq(reader),ready.1.orientation,ready.1.style.vertical_causal_context,ready.1.style.segmentation_symbols)}
+                        else{part1_legacy_pass(ready.1.plane,state,Part1LegacySymbols::Mq(reader),if kind is MagnitudeRefinement{crate::tier1::SubbandOrientation::Ll}else{ready.1.orientation},ready.1.style.vertical_causal_context,if kind is MagnitudeRefinement{1u8}else{0u8})};
+                    (pass.0,Tier1DecoderState {plane:pass.1,bitplane_state:Some(pass.2),..ready.1},pass.3)
+                },
+            },
+        },
+{
+    let symbols=Part1LegacySymbols::Mq(reader);
+    part2_legacy_pass_observed(before,symbols,kind,ready);
+    part2_legacy_pass_after_ready_equation(symbols,kind,ready);
+    part2_legacy_pass_prepared_equation(ready.1,symbols,kind);
+    part2_legacy_pass_primary_consequence(before,symbols,kind,part2_legacy_pass_after_ready(symbols,kind,ready));
+}
 }

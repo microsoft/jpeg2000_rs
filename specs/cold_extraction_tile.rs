@@ -36,11 +36,18 @@ pub(crate) open spec fn part2_extraction_tile_finish(initial:Seq<Part1AssemblyTi
         (finished.0,initial+finished.1,finished.2)
     }}
 }
+pub(crate) open spec fn part2_extraction_tile_finish_run(initial:Seq<Part1AssemblyTile>,component_count:u16,infos:Seq<crate::codestream::ComponentInfo>,
+    mct:Option<Seq<Part2MctStage>>,standard:(bool,bool),work:u64,maximum_work:u64,maximum:u64,effect:Part2ExtractionComponentsEffect,calls:Seq<Part2Tier1StorageEvent>)->Part2Tier1Run<Part2ExtractionTileEffect> {
+    match effect.0{Err(error)=>Some((Ok((Err(error),effect.1,work)),calls)),Ok(())=>{
+        part2_tier1_storage_bind(part2_mct_line_finish_run(effect.1.skip(initial.len() as int),component_count,infos,mct,standard,work,maximum_work,maximum,calls),
+            |finished:Part2ExtractionTileEffect,rest|Some((Ok((finished.0,initial+finished.1,finished.2)),rest)))
+    }}
+}
 pub(crate) open spec fn part2_extraction_tile_run(initial:Seq<Part1AssemblyTile>,plans:Seq<Part1PreparePlan>,precincts:Seq<Seq<Tier1RawPlane>>,
     styles:crate::codestream::ComponentCodingStyles,kernels:Seq<(u8,Part2RawKernel)>,component_count:u16,infos:Seq<crate::codestream::ComponentInfo>,
     mct:Option<Seq<Part2MctStage>>,standard:(bool,bool),work:u64,maximum_work:u64,maximum:u64,calls:Seq<Part2Tier1StorageEvent>)->Part2Tier1Run<Part2ExtractionTileEffect> {
     part2_tier1_storage_bind(part2_extraction_components_run(initial,plans,precincts,styles,kernels,maximum,plans.len(),calls),
-        |effect:Part2ExtractionComponentsEffect,rest|Some((Ok(part2_extraction_tile_finish(initial,component_count,infos,mct,standard,work,maximum_work,maximum,effect)),rest)))
+        |effect:Part2ExtractionComponentsEffect,rest|part2_extraction_tile_finish_run(initial,component_count,infos,mct,standard,work,maximum_work,maximum,effect,rest))
 }
 pub(crate) open spec fn part2_extraction_tile_result(initial:Seq<Part1AssemblyTile>,plans:Seq<Part1PreparePlan>,precincts:Seq<Seq<Tier1RawPlane>>,
     styles:crate::codestream::ComponentCodingStyles,kernels:Seq<(u8,Part2RawKernel)>,component_count:u16,infos:Seq<crate::codestream::ComponentInfo>,
@@ -143,8 +150,14 @@ pub(crate) proof fn part2_extraction_tile_normal(initial:Seq<Part1AssemblyTile>,
     let before=part2_reconstruct_components_prefix(initial,plans,precincts,styles,kernels,maximum,plans.len());
     let result=part2_reconstruct_planned_tile(initial,plans,precincts,styles,kernels,component_count,infos,mct,standard,work,maximum_work,maximum);
     part2_extraction_components_normal(initial,plans,precincts,styles,kernels,maximum,plans.len());part2_tier1_storage_pure(Ok(result));
+    if before.0.is_ok(){
+        let finished=part2_finish_prepared_tile(before.1.skip(initial.len() as int),component_count,infos,mct,standard,work,maximum_work,maximum);
+        part2_mct_line_finish_normal(before.1.skip(initial.len() as int),component_count,infos,mct,standard,work,maximum_work,maximum);
+        part2_tier1_storage_bind_frame(|calls|part2_mct_line_finish_run(before.1.skip(initial.len() as int),component_count,infos,mct,standard,work,maximum_work,maximum,calls),
+            |finished:Part2ExtractionTileEffect,rest|Some((Ok((finished.0,initial+finished.1,finished.2)),rest)),Ok(finished),Ok(result));
+    }
     part2_tier1_storage_bind_frame(|calls|part2_extraction_components_run(initial,plans,precincts,styles,kernels,maximum,plans.len(),calls),
-        |value:Part2ExtractionComponentsEffect,rest|Some((Ok(part2_extraction_tile_finish(initial,component_count,infos,mct,standard,work,maximum_work,maximum,value)),rest)),Ok(before),Ok(result));
+        |value:Part2ExtractionComponentsEffect,rest|part2_extraction_tile_finish_run(initial,component_count,infos,mct,standard,work,maximum_work,maximum,value,rest),Ok(before),Ok(result));
 }
 pub(crate) proof fn part2_extraction_tile_component_error(initial:Seq<Part1AssemblyTile>,plans:Seq<Part1PreparePlan>,precincts:Seq<Seq<Tier1RawPlane>>,
     styles:crate::codestream::ComponentCodingStyles,kernels:Seq<(u8,Part2RawKernel)>,component_count:u16,infos:Seq<crate::codestream::ComponentInfo>,
@@ -158,7 +171,22 @@ pub(crate) proof fn part2_extraction_tile_component_error(initial:Seq<Part1Assem
     part2_extraction_components_error(initial,plans,precincts,styles,kernels,maximum,index+1,plans.len(),effect);
     part2_tier1_storage_pure(Ok::<Part2ExtractionTileEffect,crate::DecodeError>((Err(error),before,work)));
     part2_tier1_storage_bind_frame(|calls|part2_extraction_components_run(initial,plans,precincts,styles,kernels,maximum,plans.len(),calls),
-        |value:Part2ExtractionComponentsEffect,rest|Some((Ok(part2_extraction_tile_finish(initial,component_count,infos,mct,standard,work,maximum_work,maximum,value)),rest)),Ok(effect),Ok((Err(error),before,work)));
+        |value:Part2ExtractionComponentsEffect,rest|part2_extraction_tile_finish_run(initial,component_count,infos,mct,standard,work,maximum_work,maximum,value,rest),Ok(effect),Ok((Err(error),before,work)));
+}
+pub(crate) proof fn part2_extraction_tile_finish_observed(initial:Seq<Part1AssemblyTile>,plans:Seq<Part1PreparePlan>,precincts:Seq<Seq<Tier1RawPlane>>,
+    styles:crate::codestream::ComponentCodingStyles,kernels:Seq<(u8,Part2RawKernel)>,component_count:u16,infos:Seq<crate::codestream::ComponentInfo>,
+    mct:Option<Seq<Part2MctStage>>,standard:(bool,bool),work:u64,maximum_work:u64,maximum:u64,before:Seq<Part1AssemblyTile>,finished:Part2ExtractionTileEffect)
+    requires part2_reconstruct_components_prefix(initial,plans,precincts,styles,kernels,maximum,plans.len())==(Ok(()),before),
+        part2_mct_line_finish_result(before.skip(initial.len() as int),component_count,infos,mct,standard,work,maximum_work,maximum,finished),
+    ensures part2_extraction_tile_result(initial,plans,precincts,styles,kernels,component_count,infos,mct,standard,work,maximum_work,maximum,(finished.0,initial+finished.1,finished.2)),
+{
+    let result=(finished.0,initial+finished.1,finished.2);
+    part2_extraction_components_normal(initial,plans,precincts,styles,kernels,maximum,plans.len());
+    part2_tier1_storage_pure(Ok(result));
+    part2_tier1_storage_bind_frame(|calls|part2_mct_line_finish_run(before.skip(initial.len() as int),component_count,infos,mct,standard,work,maximum_work,maximum,calls),
+        |finished:Part2ExtractionTileEffect,rest|Some((Ok((finished.0,initial+finished.1,finished.2)),rest)),Ok(finished),Ok(result));
+    part2_tier1_storage_bind_frame(|calls|part2_extraction_components_run(initial,plans,precincts,styles,kernels,maximum,plans.len(),calls),
+        |value:Part2ExtractionComponentsEffect,rest|part2_extraction_tile_finish_run(initial,component_count,infos,mct,standard,work,maximum_work,maximum,value,rest),Ok((Ok(()),before)),Ok(result));
 }
 pub(crate) proof fn part2_extraction_tile_calls_observed(initial:Seq<Part1AssemblyTile>,plans:Seq<Part1PreparePlan>,precincts:Seq<Seq<Tier1RawPlane>>,
     styles:crate::codestream::ComponentCodingStyles,kernels:Seq<(u8,Part2RawKernel)>,component_count:u16,infos:Seq<crate::codestream::ComponentInfo>,

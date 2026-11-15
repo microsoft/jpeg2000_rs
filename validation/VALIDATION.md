@@ -1531,10 +1531,36 @@ normal numerical projections stay checked. Bounded controls retain exact
 refusals and restored source bands/images. No matrix/image success bank, domain
 premise, numerical tolerance change or conversion shortcut is introduced.
 
-Line-gather `collect_column`, sequence `interleave`, the initial LL clone,
-later `copy_prepare_plane`, output conversions, unrelated image/container
-collections and growth remain separate. Existing appends are not a general
-physical-capacity or allocation-availability theorem.
+The subsequent line increment converts fresh `collect_column` and `interleave`
+owners using their original height and checked low-plus-high counts. Column
+admission precedes the request and original sample/index errors follow it;
+interleave overflow/parity admission precedes its request. Empty lines consume
+no response. Compact `WaveletLineCapacity` roles distinguish gather geometry/
+column from interleave lengths/parity; enclosing producers retain the complete
+raw source samples and actual ordered child results. Rows, low/high gathers,
+interleave, standard/custom lifting, prior line owners and column stores retain
+their original order and exact numerical/error projections.
+
+The same actual sequence child is also reached by spectral MCT. Its reverse
+levels, source scratch, pixel stores, collection/stage folds and decoded/
+prepared owner rejoins now preserve exact partial state/work and unused tails
+on refusal, including a previously stored pixel before a later line refusal.
+Tile finishing binds this actual child before the unchanged standard transform
+and rejoins the actual suffix to its retained prefix. No successful matrix,
+image or result is supplied by the caller. Existing Result-returning wavelet
+APIs retain checked ordinary projections; no convenience façade is changed.
+
+At the existing vertical zero-plane frontier, private `zero_i64_values` uses
+the same fallible reserve followed by supported `Vec<i64>::resize`. Its checked
+contract fixes every element to zero and forbids an empty-count refusal.
+Generic `filled_values<T: Copy>` and its shallow-copy contract are unchanged.
+This surgical bulk fill is not resource qualification; the unchanged canonical
+resource command/budgets must still qualify the exact committed source.
+
+The initial LL clone, later `copy_prepare_plane`, spectral initial/source
+scratch copies, output conversions, unrelated image/container collections
+and growth remain separate. Existing appends and sequence models are not
+general physical-capacity or host-allocation-availability theorems.
 
 Replay copying remains after original route/pass/cleanup/byte admission but
 before the unchanged append and later concatenation-size checks. Retention

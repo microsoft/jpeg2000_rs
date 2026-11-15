@@ -8608,7 +8608,7 @@ fn wavelet_plane_storage_actual_standard_component_first_later_planes_and_restor
             .iter()
             .map(crate::packet::exact_packet_precinct_snapshot)
             .collect();
-        for after in [8, 9, 10] {
+        for after in [8, 10, 12, 9, 14, 18] {
             assert_eq!(
                 crate::allocation::with_refusal(after, || prepare_tile_component(
                     &plan, &precincts, style, &limits
@@ -8650,7 +8650,7 @@ fn wavelet_plane_storage_actual_standard_component_first_later_planes_and_restor
     let expected =
         prepare_tile_component_with_kernel(&plan, &precincts, style, Some(&kernel), &limits)
             .unwrap();
-    for after in [8, 9, 10] {
+    for after in [8, 10, 12, 9, 14, 18] {
         assert_eq!(
             crate::allocation::with_refusal(after, || prepare_tile_component_with_kernel(
                 &plan,

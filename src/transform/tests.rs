@@ -1029,6 +1029,103 @@ fn complete_nine_seven_sequences_match_independent_wide_reference() {
 }
 
 #[test]
+fn wavelet_line_storage_raw_gather_interleave_empty_first_later_and_restore() {
+    use super::{geometry::collect_column, wavelets::interleave};
+    let matrix = [i64::MIN, 7, -3, i64::MAX, 11, -17];
+    crate::allocation::with_refusal(0, || {
+        assert!(collect_column(&[], 1, 0, 0).unwrap().is_empty());
+        assert!(interleave(&[], &[], false).unwrap().is_empty());
+        assert_eq!(
+            collect_column(&matrix, 2, 3, 1),
+            Err(DecodeError::AllocationFailed)
+        );
+        assert_eq!(
+            collect_column(&matrix, 2, 3, 1).unwrap(),
+            [7, i64::MAX, -17]
+        );
+    });
+    crate::allocation::with_refusal(1, || {
+        let prior = collect_column(&matrix, 2, 3, 0).unwrap();
+        assert_eq!(
+            interleave(&[7, -3], &[11], true),
+            Err(DecodeError::AllocationFailed)
+        );
+        assert_eq!(prior, [i64::MIN, -3, 11]);
+        assert_eq!(interleave(&[7, -3], &[11], true).unwrap(), [7, 11, -3]);
+    });
+    crate::allocation::with_refusal(0, || {
+        assert_eq!(collect_column(&matrix, 2, 3, 2), Err(invalid_transform()));
+        assert_eq!(interleave(&[1, 2], &[], true), Err(invalid_transform()));
+        assert_eq!(
+            crate::allocation::empty_with_capacity::<u8>(1),
+            Err(DecodeError::AllocationFailed)
+        );
+    });
+    let ordinary = collect_column(&matrix[..3], 2, 3, 1).unwrap_err();
+    assert_eq!(
+        crate::allocation::with_refusal(0, || collect_column(&matrix[..3], 2, 3, 1)),
+        Err(DecodeError::AllocationFailed)
+    );
+    assert_eq!(collect_column(&matrix[..3], 2, 3, 1).unwrap_err(), ordinary);
+}
+
+#[test]
+fn wavelet_line_storage_actual_standard_custom_planes_prior_lines_and_numerical_restore() {
+    let limits = ResourceLimits::default();
+    let kernel = ArbitraryKernel::for_test(true, 0, false, false, false, None, vec![]);
+    let low = WaveletBand {
+        width: 1,
+        height: 1,
+        samples: &[7],
+    };
+    let high = WaveletBand {
+        width: 1,
+        height: 1,
+        samples: &[-2],
+    };
+    for irreversible in [false, true] {
+        let expected = reference_vertical(low, high, 2, true, irreversible, u64::MAX);
+        for after in [1, 2, 3] {
+            let run = || {
+                if irreversible {
+                    inverse_vertical_9_7(low, high, 2, true, &limits)
+                } else {
+                    inverse_vertical_5_3(low, high, 2, true, &limits)
+                }
+            };
+            assert_eq!(
+                crate::allocation::with_refusal(after, run),
+                Err(DecodeError::AllocationFailed)
+            );
+            assert_eq!(observed_reconstruction(run()), expected);
+        }
+    }
+    for after in [1, 2, 3] {
+        assert_eq!(
+            crate::allocation::with_refusal(after, || inverse_vertical_arbitrary(
+                low, high, 2, true, &kernel, &limits
+            )),
+            Err(DecodeError::AllocationFailed)
+        );
+        assert_eq!(
+            observed_reconstruction(inverse_vertical_arbitrary(
+                low, high, 2, true, &kernel, &limits
+            )),
+            Ok((1, 2, 0, vec![7, -2]))
+        );
+    }
+    let ordinary = inverse_5_3(&[i64::MAX], &[i64::MAX], true).unwrap_err();
+    assert_eq!(
+        crate::allocation::with_refusal(0, || inverse_5_3(&[i64::MAX], &[i64::MAX], true)),
+        Err(DecodeError::AllocationFailed)
+    );
+    assert_eq!(
+        inverse_5_3(&[i64::MAX], &[i64::MAX], true).unwrap_err(),
+        ordinary
+    );
+}
+
+#[test]
 fn wavelet_plane_storage_standard_level_first_later_owners_exact_reference_and_restore() {
     let limits = ResourceLimits::default();
     for irreversible in [false, true] {
@@ -1071,7 +1168,7 @@ fn wavelet_plane_storage_standard_level_first_later_owners_exact_reference_and_r
             }
         };
         let expected = reference_level(level, irreversible, u64::MAX);
-        for after in [0, 1, 2] {
+        for after in [0, 2, 4] {
             assert_eq!(
                 crate::allocation::with_refusal(after, decode),
                 Err(DecodeError::AllocationFailed)
@@ -1189,7 +1286,7 @@ fn wavelet_plane_storage_actual_custom_kernel_level_rows_columns_and_restore() {
         observed_reconstruction(inverse_level_arbitrary(level, &kernel, &limits)),
         Ok((2, 2, 0, vec![2, 3, 5, 7]))
     );
-    for after in [0, 1, 2] {
+    for after in [0, 2, 4] {
         assert_eq!(
             crate::allocation::with_refusal(after, || inverse_level_arbitrary(
                 level, &kernel, &limits

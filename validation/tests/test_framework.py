@@ -382,8 +382,7 @@ class FrameworkTests(WorkingFiles):
         self.assertEqual(framework.validate_normative_coverage(coverage)["status"], "passed")
         mutations = []
         for projection in ("reconstruction_outcome", "sequence_outcome"):
-            prefix = (f"ensures {projection}(result)" if projection == "sequence_outcome"
-                      else f"{projection}(result)!=Err(DecodeError::AllocationFailed) ==> {projection}(result)")
+            prefix = f"{projection}(result)!=Err(DecodeError::AllocationFailed) ==> {projection}(result)"
             mutations.extend((
                 (prefix, prefix.replace(f"{projection}(result)", f"{projection}(unrelated)")),
                 (prefix, prefix.rsplit(f"{projection}(result)", 1)[0] + "unlisted_projection(result)"),
@@ -392,7 +391,8 @@ class FrameworkTests(WorkingFiles):
         for model in ("part1_inverse_integer_quantization", "part1_inverse_quantization",
                       "part1_inverse_five_three", "part1_interleaved"):
             mutations.append((f"== crate::specs::{model}(", "== crate::specs::unlisted_model("))
-        for model in ("part2_integer_quantization_result", "part2_quantization_plane_result"):
+        for model in ("part2_integer_quantization_result", "part2_quantization_plane_result",
+                      "part2_wavelet_sequence_result", "part2_wavelet_interleave_result"):
             primary = f"ensures crate::specs::{model}"
             mutations.extend((
                 (primary, f"ensures result.is_ok() ==> crate::specs::{model}"),
@@ -8586,7 +8586,7 @@ class FrameworkTests(WorkingFiles):
             ("specs/cold_wavelet_planes.rs","part2_wavelet_level_after_high","level.2.1,high","level.2.1,low"),
             ("specs/cold_extraction_reconstruction.rs","part2_extraction_component_finish_run","initial,placed.1.0,plan.subbands","initial,Seq::empty(),plan.subbands"),
             ("src/transform/levels.rs","inverse_rows","empty_with_capacity(capacity)","empty_with_capacity(1)"),
-            ("src/transform/levels.rs","inverse_columns","filled_values(0_i64, output_len)","filled_values(1_i64, output_len)"),
+            ("src/allocation.rs","zero_i64_values","values.resize(count, 0_i64)","values.resize(count, 1_i64)"),
         ):
             source=framework.ROOT / relative;original=source.read_text()
             body=(framework._coverage_function_body(original,framework._coverage_function_header(original,symbol)) if relative.startswith("src/") else framework._coverage_spec_function_body(original,symbol))
@@ -8614,6 +8614,66 @@ class FrameworkTests(WorkingFiles):
             def altered(path,*args,**kwargs):
                 return changed if path==source else read_text(path,*args,**kwargs)
             with self.subTest(before=before),mock.patch.object(Path,"read_text",altered),self.assertRaisesRegex(ValueError,"executable Verus contract"):
+                framework.validate_normative_coverage(data)
+
+    def test_inventory_wavelet_lines_require_actual_sources_order_tail_partial_owners_and_bulk_zero(self):
+        coverage = json.loads((framework.VALIDATION / "normative-coverage.json").read_text())
+        data = dict(coverage, requirements=[
+            e for e in coverage["requirements"] if e["id"] == "part1-complete-standard-wavelet-planes"
+        ])
+        self.assertEqual(framework.validate_normative_coverage(data)["status"], "passed")
+        read_text = Path.read_text
+        for relative, symbol, before, after in (
+            ("specs/cold_wavelet_lines.rs", "part2_wavelet_line_capacity_run", "count==0", "count==1"),
+            ("specs/cold_wavelet_lines.rs", "part2_wavelet_line_capacity_run", "actual!=context", "false"),
+            ("specs/cold_wavelet_lines.rs", "part2_wavelet_line_capacity_run", "elements!=count", "false"),
+            ("specs/cold_wavelet_lines.rs", "part2_wavelet_line_capacity_run", "calls.drop_first()", "calls"),
+            ("specs/cold_wavelet_lines.rs", "part2_wavelet_interleave_run", "low:low.len()", "low:high.len()"),
+            ("specs/cold_wavelet_lines.rs", "part2_wavelet_gather_run", "column>=band.0", "false"),
+            ("specs/cold_wavelet_lines.rs", "part2_wavelet_gather_run", "height:band.1", "height:1"),
+            ("specs/cold_wavelet_lines.rs", "part2_wavelet_sequence_run", "low,high,first,calls", "high,low,first,calls"),
+            ("specs/cold_wavelet_line_planes.rs", "part2_wavelet_column_run", "a,high,x", "Seq::empty(),high,x"),
+            ("specs/cold_wavelet_line_planes.rs", "part2_wavelet_column_after_low", "low,b,first", "b,low,first"),
+            ("specs/cold_mct_wavelet_lines.rs", "part2_mct_line_step_run", "previous.1,input", "input,previous.1"),
+            ("specs/cold_mct_line_composition.rs", "part2_mct_line_decoded_run", "part2_mct_decoded_inputs(before.4)", "Seq::empty()"),
+            ("specs/cold_mct_line_composition.rs", "part2_mct_line_prepared_run", "before,effect.1", "before,input.1"),
+            ("specs/cold_extraction_tile.rs", "part2_extraction_tile_finish_run", "initial+finished.1", "finished.1"),
+            ("src/transform/geometry.rs", "collect_column", "empty_with_capacity(count)", "empty_with_capacity(1)"),
+            ("src/transform/wavelets.rs", "interleave", "empty_with_capacity(length)", "empty_with_capacity(1)"),
+            ("src/transform/levels.rs", "inverse_columns", "zero_i64_values(output_len)", "zero_i64_values(1)"),
+            ("src/allocation.rs", "zero_i64_values", "empty_with_capacity(count)?", "empty_with_capacity(1)?"),
+        ):
+            source = framework.ROOT / relative
+            original = source.read_text()
+            body = (framework._coverage_function_body(original, framework._coverage_function_header(original, symbol))
+                    if relative.startswith("src/") else framework._coverage_spec_function_body(original, symbol))
+            changed_body, count = re.subn(re.escape(before).replace(r"\ ", r"\s*"), lambda _: after, body, count=1)
+            self.assertEqual(count, 1, (symbol, before))
+            changed = original.replace(body, changed_body, 1)
+
+            def altered(path, *args, **kwargs):
+                return changed if path == source else read_text(path, *args, **kwargs)
+
+            with self.subTest(symbol=symbol, before=before), mock.patch.object(Path, "read_text", altered), \
+                    self.assertRaisesRegex(ValueError, "wavelet (planes|lines)"):
+                framework.validate_normative_coverage(data)
+        missing = copy.deepcopy(data)
+        missing["requirements"][0]["test_refs"] = [
+            r for r in missing["requirements"][0]["test_refs"] if (r["path"], r["symbol"]) not in framework._WAVELET_LINE_TESTS
+        ]
+        with self.assertRaisesRegex(ValueError, "wavelet lines require bounded"):
+            framework.validate_normative_coverage(missing)
+        source = framework.ROOT / "src/allocation.rs"
+        original = source.read_text()
+        for before, after in (("|_: int| 0i64", "|_: int| 1i64"), ("count == 0 ==> result.is_ok()", "true")):
+            changed, count = re.subn(re.escape(before).replace(r"\ ", r"\s*"), lambda _: after, original, count=1)
+            self.assertEqual(count, 1)
+
+            def altered(path, *args, **kwargs):
+                return changed if path == source else read_text(path, *args, **kwargs)
+
+            with self.subTest(before=before), mock.patch.object(Path, "read_text", altered), \
+                    self.assertRaisesRegex(ValueError, "wavelet lines require exact checked zero"):
                 framework.validate_normative_coverage(data)
 
     def test_inventory_quantization_output_requires_actual_roles_sources_tail_and_first_normal(self):

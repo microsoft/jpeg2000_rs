@@ -7877,7 +7877,38 @@
         {"path": "specs/cold_extraction_tile.rs", "symbol": "part2_extraction_progression_finish"},
         {"path": "specs/cold_extraction_tile.rs", "symbol": "part2_extraction_progression_run"},
         {"path": "specs/cold_extraction_tile.rs", "symbol": "part2_coefficient_progression_result"},
-        {"path": "specs/cold_decode_packets.rs", "symbol": "part2_planned_extraction_run"}
+        {"path": "specs/cold_decode_packets.rs", "symbol": "part2_planned_extraction_run"},
+        {"path": "specs/cold_mct_wavelet_lines.rs", "symbol": "part2_mct_line_step_admit"},
+        {"path": "specs/cold_mct_wavelet_lines.rs", "symbol": "part2_mct_line_step_run"},
+        {"path": "specs/cold_mct_wavelet_lines.rs", "symbol": "part2_mct_line_steps_run"},
+        {"path": "specs/cold_mct_wavelet_lines.rs", "symbol": "part2_mct_line_finish"},
+        {"path": "specs/cold_mct_wavelet_lines.rs", "symbol": "part2_mct_line_reconstruction_run"},
+        {"path": "specs/cold_mct_wavelet_lines.rs", "symbol": "part2_mct_line_reconstruction_result"},
+        {"path": "specs/cold_mct_wavelet_lines.rs", "symbol": "part2_mct_line_pixel_after"},
+        {"path": "specs/cold_mct_wavelet_lines.rs", "symbol": "part2_mct_line_pixel_run"},
+        {"path": "specs/cold_mct_wavelet_lines.rs", "symbol": "part2_mct_line_pixel_result"},
+        {"path": "specs/cold_mct_line_pixels.rs", "symbol": "Part2MctLineEffect"},
+        {"path": "specs/cold_mct_line_pixels.rs", "symbol": "part2_mct_line_pixels_next"},
+        {"path": "specs/cold_mct_line_pixels.rs", "symbol": "part2_mct_line_pixels_run"},
+        {"path": "specs/cold_mct_line_pixels.rs", "symbol": "part2_mct_line_wavelet_finish"},
+        {"path": "specs/cold_mct_line_pixels.rs", "symbol": "part2_mct_line_wavelet_run"},
+        {"path": "specs/cold_mct_line_pixels.rs", "symbol": "part2_mct_line_wavelet_result"},
+        {"path": "specs/cold_mct_line_composition.rs", "symbol": "part2_mct_line_collection_run"},
+        {"path": "specs/cold_mct_line_composition.rs", "symbol": "part2_mct_line_collection_result"},
+        {"path": "specs/cold_mct_line_composition.rs", "symbol": "part2_mct_line_stage_next"},
+        {"path": "specs/cold_mct_line_composition.rs", "symbol": "part2_mct_line_stage_run"},
+        {"path": "specs/cold_mct_line_composition.rs", "symbol": "part2_mct_line_stage_result"},
+        {"path": "specs/cold_mct_line_composition.rs", "symbol": "part2_mct_line_transform_next"},
+        {"path": "specs/cold_mct_line_composition.rs", "symbol": "part2_mct_line_transform_run"},
+        {"path": "specs/cold_mct_line_composition.rs", "symbol": "part2_mct_line_transform_result"},
+        {"path": "specs/cold_mct_line_composition.rs", "symbol": "part2_mct_line_decoded_run"},
+        {"path": "specs/cold_mct_line_composition.rs", "symbol": "part2_mct_line_decoded_result"},
+        {"path": "specs/cold_mct_line_composition.rs", "symbol": "part2_mct_line_prepared_run"},
+        {"path": "specs/cold_mct_line_composition.rs", "symbol": "part2_mct_line_prepared_result"},
+        {"path": "specs/cold_mct_line_composition.rs", "symbol": "part2_mct_line_finish_after"},
+        {"path": "specs/cold_mct_line_composition.rs", "symbol": "part2_mct_line_finish_run"},
+        {"path": "specs/cold_mct_line_composition.rs", "symbol": "part2_mct_line_finish_result"},
+        {"path": "specs/cold_extraction_tile.rs", "symbol": "part2_extraction_tile_finish_run"}
       ],
       "contract_refs": [
         {"path": "src/image/mct.rs", "symbol": "inverse_reversible_mct"},
@@ -7918,7 +7949,33 @@
         {"path": "specs/cold_extraction_tile.rs", "symbol": "part2_coefficient_progression_normal"},
         {"path": "specs/cold_extraction_tile.rs", "symbol": "part2_coefficient_progression_error"},
         {"path": "specs/cold_decode_packets.rs", "symbol": "part2_planned_extraction_normal"},
-        {"path": "specs/cold_decode_packets.rs", "symbol": "part2_planned_extraction_error"}
+        {"path": "specs/cold_decode_packets.rs", "symbol": "part2_planned_extraction_error"},
+        {"path": "specs/cold_mct_wavelet_lines.rs", "symbol": "part2_mct_line_step_normal"},
+        {"path": "specs/cold_mct_wavelet_lines.rs", "symbol": "part2_mct_line_steps_normal"},
+        {"path": "specs/cold_mct_wavelet_lines.rs", "symbol": "part2_mct_line_reconstruction_normal"},
+        {"path": "specs/cold_mct_wavelet_lines.rs", "symbol": "part2_mct_line_prefix_error"},
+        {"path": "specs/cold_mct_wavelet_lines.rs", "symbol": "part2_mct_line_child_error"},
+        {"path": "specs/cold_mct_wavelet_lines.rs", "symbol": "part2_mct_line_pixel_normal"},
+        {"path": "specs/cold_mct_wavelet_lines.rs", "symbol": "part2_mct_line_pixel_child_error"},
+        {"path": "specs/cold_mct_line_pixels.rs", "symbol": "part2_mct_line_pixels_normal"},
+        {"path": "specs/cold_mct_line_pixels.rs", "symbol": "part2_mct_line_wavelet_normal"},
+        {"path": "specs/cold_mct_line_pixels.rs", "symbol": "part2_mct_line_pixels_error"},
+        {"path": "specs/cold_mct_line_pixels.rs", "symbol": "part2_mct_line_wavelet_pixel_error"},
+        {"path": "specs/cold_mct_line_composition.rs", "symbol": "part2_mct_line_collection_normal"},
+        {"path": "specs/cold_mct_line_composition.rs", "symbol": "part2_mct_line_stage_normal"},
+        {"path": "specs/cold_mct_line_composition.rs", "symbol": "part2_mct_line_transform_normal"},
+        {"path": "specs/cold_mct_line_composition.rs", "symbol": "part2_mct_line_stage_prefix_error"},
+        {"path": "specs/cold_mct_line_composition.rs", "symbol": "part2_mct_line_stage_child_error"},
+        {"path": "specs/cold_mct_line_composition.rs", "symbol": "part2_mct_line_transform_prefix_error"},
+        {"path": "specs/cold_mct_line_composition.rs", "symbol": "part2_mct_line_transform_child_error"},
+        {"path": "specs/cold_mct_line_composition.rs", "symbol": "part2_mct_line_collection_wavelet_observed"},
+        {"path": "specs/cold_mct_line_composition.rs", "symbol": "part2_mct_line_decoded_normal"},
+        {"path": "specs/cold_mct_line_composition.rs", "symbol": "part2_mct_line_decoded_observed"},
+        {"path": "specs/cold_mct_line_composition.rs", "symbol": "part2_mct_line_prepared_normal"},
+        {"path": "specs/cold_mct_line_composition.rs", "symbol": "part2_mct_line_prepared_observed"},
+        {"path": "specs/cold_mct_line_composition.rs", "symbol": "part2_mct_line_finish_normal"},
+        {"path": "specs/cold_mct_line_composition.rs", "symbol": "part2_mct_line_finish_observed"},
+        {"path": "specs/cold_extraction_tile.rs", "symbol": "part2_extraction_tile_finish_observed"}
       ],
       "test_refs": [
         {"path": "src/decode/tests.rs", "symbol": "complete_coefficient_reconstruction_preserves_prefix_mct_and_error_frontiers"},
@@ -7934,7 +7991,9 @@
         {"path": "src/image/tests.rs", "symbol": "native_mct_dependency_collection_matches_floor_and_q32_composition"},
         {"path": "src/image/tests.rs", "symbol": "native_mct_dependency_pixel_uses_exact_count_and_preserves_duplicate_store_errors"},
         {"path": "src/image/tests.rs", "symbol": "native_mct_pixel_transition_preserves_raw_snapshot_and_store_error_frontiers"},
-        {"path": "src/image/tests.rs", "symbol": "native_mct_destination_precision_preserves_all_tags_and_partial_error_order"}
+        {"path": "src/image/tests.rs", "symbol": "native_mct_destination_precision_preserves_all_tags_and_partial_error_order"},
+        {"path": "src/image/tests.rs", "symbol": "wavelet_line_storage_public_mct_retains_actual_prior_pixel_and_restores"},
+        {"path": "src/image/mct_wavelet.rs", "symbol": "wavelet_line_storage_actual_spectral_prior_owner_and_exact_refusal_restore"}
       ]
     },
     {
@@ -9898,7 +9957,9 @@
         {"path": "specs/cold_extraction_reconstruction.rs", "symbol": "part2_extraction_component_result"},
         {"path": "specs/cold_extraction_reconstruction.rs", "symbol": "part2_extraction_component_run"},
         {"path": "specs/mod.rs", "symbol": "part2_prepare_reconstruct"},
-        {"path": "specs/mod.rs", "symbol": "part2_prepare_resolution"}
+        {"path": "specs/mod.rs", "symbol": "part2_prepare_resolution"},
+        {"path": "specs/cold_wavelet_lines.rs", "symbol": "part2_wavelet_sequence_result"},
+        {"path": "specs/cold_wavelet_lines.rs", "symbol": "part2_wavelet_sequence_run"}
       ],
       "proof_refs": [
         {"path": "proofs/production_impl/mod.rs", "symbol": "production_atk_scale_empty"},
@@ -9927,7 +9988,8 @@
         {"path": "specs/cold_wavelet_prepare.rs", "symbol": "part2_wavelet_fold_resolution_error"},
         {"path": "specs/cold_wavelet_prepare.rs", "symbol": "part2_wavelet_reconstruct_normal"},
         {"path": "specs/cold_wavelet_prepare.rs", "symbol": "part2_wavelet_reconstruct_error"},
-        {"path": "specs/cold_wavelet_prepare.rs", "symbol": "part2_wavelet_reconstruct_frames"}
+        {"path": "specs/cold_wavelet_prepare.rs", "symbol": "part2_wavelet_reconstruct_frames"},
+        {"path": "specs/cold_wavelet_lines.rs", "symbol": "part2_wavelet_sequence_normal"}
       ],
       "test_refs": [
         {"path": "src/transform/tests.rs", "symbol": "arbitrary_q32_arithmetic_preserves_full_signed_edges_and_errors"},
@@ -10124,6 +10186,7 @@
         ,{"path": "specs/cold_bitplane_initial.rs", "symbol": "part2_legacy_pass_prepared_equation"}
         ,{"path": "specs/cold_bitplane_initial.rs", "symbol": "part2_legacy_raw_prepared_equation"}
         ,{"path": "specs/cold_bitplane_initial.rs", "symbol": "part2_legacy_raw_ready_contract"}
+        ,{"path": "specs/cold_bitplane_initial.rs", "symbol": "part2_legacy_mq_ready_contract"}
         ,{"path": "specs/cold_bitplane_initial.rs", "symbol": "part2_legacy_pass_primary_consequence"}
         ,{"path": "specs/cold_bitplane_initial.rs", "symbol": "part2_legacy_pass_frames"}
         ,{"path": "specs/cold_legacy_bitplanes.rs", "symbol": "part2_legacy_inner_step_observed"}
@@ -16179,7 +16242,9 @@
         {
           "path": "proofs/spec_properties/mod.rs",
           "symbol": "inverse_five_three_preserves_complete_sequence_length"
-        }
+        },
+        {"path": "specs/cold_wavelet_lines.rs", "symbol": "part2_wavelet_interleave_normal"},
+        {"path": "specs/cold_wavelet_lines.rs", "symbol": "part2_wavelet_sequence_normal"}
       ],
       "spec_refs": [
         {
@@ -16201,7 +16266,11 @@
         {
           "path": "specs/mod.rs",
           "symbol": "part1_fixed_product"
-        }
+        },
+        {"path": "specs/cold_wavelet_lines.rs", "symbol": "part2_wavelet_interleave_result"},
+        {"path": "specs/cold_wavelet_lines.rs", "symbol": "part2_wavelet_interleave_run"},
+        {"path": "specs/cold_wavelet_lines.rs", "symbol": "part2_wavelet_sequence_result"},
+        {"path": "specs/cold_wavelet_lines.rs", "symbol": "part2_wavelet_sequence_run"}
       ],
       "test_refs": [
         {
@@ -16257,7 +16326,8 @@
         {
           "path": "proofs/spec_properties/mod.rs",
           "symbol": "inverse_nine_seven_preserves_complete_sequence_length"
-        }
+        },
+        {"path": "specs/cold_wavelet_lines.rs", "symbol": "part2_wavelet_sequence_normal"}
       ],
       "spec_refs": [
         {
@@ -16271,7 +16341,9 @@
         {
           "path": "specs/mod.rs",
           "symbol": "part1_nine_seven_lifting_prefix"
-        }
+        },
+        {"path": "specs/cold_wavelet_lines.rs", "symbol": "part2_wavelet_sequence_result"},
+        {"path": "specs/cold_wavelet_lines.rs", "symbol": "part2_wavelet_sequence_run"}
       ],
       "test_refs": [
         {
@@ -16414,7 +16486,32 @@
         {"path": "specs/cold_wavelet_planes.rs", "symbol": "part2_wavelet_level_after_high_normal"},
         {"path": "specs/cold_wavelet_planes.rs", "symbol": "part2_wavelet_horizontal_frames"},
         {"path": "specs/cold_wavelet_planes.rs", "symbol": "part2_wavelet_vertical_frames"},
-        {"path": "specs/cold_wavelet_planes.rs", "symbol": "part2_wavelet_level_frames"}
+        {"path": "specs/cold_wavelet_planes.rs", "symbol": "part2_wavelet_level_frames"},
+        {"path": "src/allocation.rs", "symbol": "zero_i64_values"},
+        {"path": "specs/cold_wavelet_lines.rs", "symbol": "part2_wavelet_line_capacity_observed"},
+        {"path": "specs/cold_wavelet_lines.rs", "symbol": "part2_wavelet_interleave_normal"},
+        {"path": "specs/cold_wavelet_lines.rs", "symbol": "part2_wavelet_gather_normal"},
+        {"path": "specs/cold_wavelet_lines.rs", "symbol": "part2_wavelet_interleave_refused"},
+        {"path": "specs/cold_wavelet_lines.rs", "symbol": "part2_wavelet_gather_refused"},
+        {"path": "specs/cold_wavelet_lines.rs", "symbol": "part2_wavelet_sequence_normal"},
+        {"path": "specs/cold_wavelet_lines.rs", "symbol": "part2_wavelet_sequence_interleave_error"},
+        {"path": "specs/cold_wavelet_lines.rs", "symbol": "part2_wavelet_sequence_frames"},
+        {"path": "specs/cold_wavelet_lines.rs", "symbol": "part2_wavelet_sequence_kernel_observed"},
+        {"path": "specs/cold_wavelet_lines.rs", "symbol": "part2_wavelet_interleave_frames"},
+        {"path": "specs/cold_wavelet_lines.rs", "symbol": "part2_wavelet_gather_frames"},
+        {"path": "specs/cold_wavelet_line_planes.rs", "symbol": "part2_wavelet_row_normal"},
+        {"path": "specs/cold_wavelet_line_planes.rs", "symbol": "part2_wavelet_column_normal"},
+        {"path": "specs/cold_wavelet_line_planes.rs", "symbol": "part2_wavelet_row_child_observed"},
+        {"path": "specs/cold_wavelet_line_planes.rs", "symbol": "part2_wavelet_column_low_error"},
+        {"path": "specs/cold_wavelet_line_planes.rs", "symbol": "part2_wavelet_column_low_join"},
+        {"path": "specs/cold_wavelet_line_planes.rs", "symbol": "part2_wavelet_column_high_error"},
+        {"path": "specs/cold_wavelet_line_planes.rs", "symbol": "part2_wavelet_column_sequence_observed"},
+        {"path": "specs/cold_wavelet_line_planes.rs", "symbol": "part2_wavelet_horizontal_lines_normal"},
+        {"path": "specs/cold_wavelet_line_planes.rs", "symbol": "part2_wavelet_vertical_lines_normal"},
+        {"path": "specs/cold_wavelet_line_planes.rs", "symbol": "part2_wavelet_horizontal_prefix_error"},
+        {"path": "specs/cold_wavelet_line_planes.rs", "symbol": "part2_wavelet_vertical_prefix_error"},
+        {"path": "specs/cold_wavelet_line_planes.rs", "symbol": "part2_wavelet_rows_child_error"},
+        {"path": "specs/cold_wavelet_line_planes.rs", "symbol": "part2_wavelet_columns_child_error"}
       ],
       "spec_refs": [
         {
@@ -16474,7 +16571,30 @@
         {
           "path": "specs/mod.rs",
           "symbol": "part1_store_column_sample"
-        }
+        },
+        {"path": "specs/cold_wavelet_lines.rs", "symbol": "Part2WaveletLineContext"},
+        {"path": "specs/cold_wavelet_lines.rs", "symbol": "part2_wavelet_line_count"},
+        {"path": "specs/cold_wavelet_lines.rs", "symbol": "part2_wavelet_line_capacity_run"},
+        {"path": "specs/cold_wavelet_lines.rs", "symbol": "part2_wavelet_line_capacity_result"},
+        {"path": "specs/cold_wavelet_lines.rs", "symbol": "part2_wavelet_interleave_admit"},
+        {"path": "specs/cold_wavelet_lines.rs", "symbol": "part2_wavelet_interleave_run"},
+        {"path": "specs/cold_wavelet_lines.rs", "symbol": "part2_wavelet_interleave_result"},
+        {"path": "specs/cold_wavelet_lines.rs", "symbol": "part2_wavelet_gather_run"},
+        {"path": "specs/cold_wavelet_lines.rs", "symbol": "part2_wavelet_gather_result"},
+        {"path": "specs/cold_wavelet_lines.rs", "symbol": "part2_wavelet_sequence_value"},
+        {"path": "specs/cold_wavelet_lines.rs", "symbol": "part2_wavelet_sequence_run"},
+        {"path": "specs/cold_wavelet_lines.rs", "symbol": "part2_wavelet_sequence_result"},
+        {"path": "specs/cold_wavelet_line_planes.rs", "symbol": "part2_wavelet_row_run"},
+        {"path": "specs/cold_wavelet_line_planes.rs", "symbol": "part2_wavelet_row_value"},
+        {"path": "specs/cold_wavelet_line_planes.rs", "symbol": "part2_wavelet_row_result"},
+        {"path": "specs/cold_wavelet_line_planes.rs", "symbol": "part2_wavelet_column_after_low"},
+        {"path": "specs/cold_wavelet_line_planes.rs", "symbol": "part2_wavelet_column_run"},
+        {"path": "specs/cold_wavelet_line_planes.rs", "symbol": "part2_wavelet_column_value"},
+        {"path": "specs/cold_wavelet_line_planes.rs", "symbol": "part2_wavelet_column_result"},
+        {"path": "specs/cold_wavelet_line_planes.rs", "symbol": "part2_wavelet_horizontal_lines_next"},
+        {"path": "specs/cold_wavelet_line_planes.rs", "symbol": "part2_wavelet_horizontal_lines_run"},
+        {"path": "specs/cold_wavelet_line_planes.rs", "symbol": "part2_wavelet_vertical_lines_next"},
+        {"path": "specs/cold_wavelet_line_planes.rs", "symbol": "part2_wavelet_vertical_lines_run"}
       ],
       "test_refs": [
         {
@@ -16486,6 +16606,11 @@
         {"path": "src/transform/tests.rs", "symbol": "wavelet_plane_storage_actual_custom_kernel_level_rows_columns_and_restore"},
         {"path": "src/decode/tests.rs", "symbol": "wavelet_plane_storage_actual_standard_component_first_later_planes_and_restore"},
         {"path": "src/decode/tests.rs", "symbol": "wavelet_plane_storage_actual_raw_selected_container_reconstruction_and_automatic_restore"},
+        {"path": "src/allocation.rs", "symbol": "bulk_zero_i64_empty_first_later_refusal_and_restore_keep_exact_values"},
+        {"path": "src/transform/tests.rs", "symbol": "wavelet_line_storage_raw_gather_interleave_empty_first_later_and_restore"},
+        {"path": "src/transform/tests.rs", "symbol": "wavelet_line_storage_actual_standard_custom_planes_prior_lines_and_numerical_restore"},
+        {"path": "src/image/mct_wavelet.rs", "symbol": "wavelet_line_storage_actual_spectral_prior_owner_and_exact_refusal_restore"},
+        {"path": "src/image/tests.rs", "symbol": "wavelet_line_storage_public_mct_retains_actual_prior_pixel_and_restores"},
         {
           "path": "src/transform/tests.rs",
           "symbol": "complete_plane_rejections_preserve_late_band_checks_and_resource_order"
