@@ -146,6 +146,32 @@ profile and resource checks remain, including limits on declared metadata.
 These APIs have no global recovery toggle, copy, retry or automatic EOC repair.
 They do not supply the separate deadline, absent-tile, MQ or trailer policies.
 
+### Explicit sole-present-tile recovery
+
+The `*_recover_present_tile_selected(input, options, selection)` APIs are
+available for raw/JP2 input and typed/centered reconstruction output. For a
+full-image request without a region, they may select one tile only when all
+supplied tile parts belong to it and more tiles are advertised. Explicit tiles,
+tile sets and regions retain normal selection behavior; an absent requested
+tile still fails.
+
+The result reports `selected_present_tile`, the full original SIZ canvas,
+requested reduction and `full_canvas_sample_bytes`. The returned image keeps its
+actual crop/origin/grid, never a padded or relabeled canvas. Inspection remains
+metadata, not entropy success. New nonzero tile/origin placement controls and
+native reduction tests qualify the implemented placement behavior.
+
+Automatic recovery additionally checks a conservative full intended-canvas
+sample bound at the requested reduction using eight bytes per final output
+component, after JP2 mapping. This is not a peak/live-memory budget or permission
+for an embedding to allocate arbitrary renderer buffers. Missing pixels are
+never allocated by the recovery API. The centered path preserves fractions and
+overshoot, using `decode_codestream_reconstructed_selected` rather than a
+clipped typed image; NLT/palette/channel restrictions remain explicit.
+
+Strict defaults are unchanged. This policy does not repair EOC, dimensions, MQ
+damage or trailers, and does not add a deadline or general feed/resume state.
+
 ### Route a single-image JPX input
 
 Select the route from the input's declared profile and the embedding's required

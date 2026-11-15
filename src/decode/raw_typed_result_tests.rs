@@ -1,5 +1,366 @@
 use super::*;
 
+fn sole_present_tile_codestream() -> Vec<u8> {
+    let mut bytes = dimension_recovery_codestream();
+    bytes[8..12].copy_from_slice(&2_u32.to_be_bytes());
+    bytes
+}
+
+#[test]
+fn pdf_present_tile_keeps_actual_extent_canvas_and_explicit_selection() {
+    let options = DecodeOptions::default();
+    let bytes = sole_present_tile_codestream();
+    let full = DecodeSelection::full_image();
+    assert!(decode_codestream(&bytes, &options).is_err());
+    let info = codestream::parse(&bytes, options.limits()).unwrap();
+    assert_eq!((info.image_size.width, info.image_size.height), (2, 1));
+    let recovered =
+        crate::decode_codestream_recover_present_tile_selected(&bytes, &options, &full).unwrap();
+    assert_eq!(recovered.report.selected_present_tile, Some(0));
+    assert_eq!(recovered.report.canvas_width, 2);
+    assert_eq!(recovered.report.full_canvas_sample_bytes, Some(16));
+    assert_eq!(
+        (
+            recovered.image.width(),
+            recovered.image.height(),
+            recovered.image.x_origin()
+        ),
+        (1, 1, 0)
+    );
+    assert_eq!(
+        recovered.image.component(0).unwrap().samples(),
+        &TypedSamples::Unsigned(vec![1])
+    );
+    let requested = DecodeSelection::tile(1);
+    let expected = decode_codestream_selected(&bytes, &options, &requested).unwrap_err();
+    assert_eq!(
+        crate::decode_codestream_recover_present_tile_selected(&bytes, &options, &requested).err(),
+        Some(expected)
+    );
+    let region = full
+        .clone()
+        .with_region(crate::ImageRegion::new(0, 0, 1, 1));
+    let explicit =
+        crate::decode_codestream_recover_present_tile_selected(&bytes, &options, &region).unwrap();
+    assert_eq!(explicit.report.selected_present_tile, None);
+    assert_eq!(explicit.image, recovered.image);
+    assert!(decode_codestream(&bytes, &options).is_err());
+
+    let container = jp2_for_codestream(&bytes, 2, 1);
+    let jp2 = crate::decode_jp2_recover_present_tile_selected(&container, &options, &full).unwrap();
+    assert_eq!(jp2.image, recovered.image);
+    assert_eq!(jp2.report, recovered.report);
+    let contradictory = jp2_for_codestream(&bytes, 99, 1);
+    assert!(matches!(
+        crate::decode_jp2_recover_present_tile_selected(&contradictory, &options, &full),
+        Err(DecodeError::MalformedInput {
+            kind: MalformedKind::ContainerCodestreamMismatch,
+            ..
+        })
+    ));
+}
+
+#[test]
+fn pdf_present_tile_preserves_nonzero_placement_reduction_and_fractional_headroom() {
+    let options = DecodeOptions::default();
+    let full = DecodeSelection::full_image();
+    let mut tile_one = sole_present_tile_codestream();
+    let sot = tile_one
+        .windows(2)
+        .position(|pair| pair == [255, 144])
+        .unwrap();
+    tile_one[sot + 4..sot + 6].copy_from_slice(&1_u16.to_be_bytes());
+    let recovered =
+        crate::decode_codestream_recover_present_tile_selected(&tile_one, &options, &full).unwrap();
+    assert_eq!(recovered.report.selected_present_tile, Some(1));
+    assert_eq!(
+        (recovered.image.width(), recovered.image.x_origin()),
+        (1, 1)
+    );
+    let mut shifted = sole_present_tile_codestream();
+    shifted[8..12].copy_from_slice(&3_u32.to_be_bytes());
+    shifted[16..20].copy_from_slice(&1_u32.to_be_bytes());
+    shifted[32..36].copy_from_slice(&1_u32.to_be_bytes());
+    let recovered =
+        crate::decode_codestream_recover_present_tile_selected(&shifted, &options, &full).unwrap();
+    assert_eq!(
+        (
+            recovered.report.canvas_width,
+            recovered.report.canvas_x_origin
+        ),
+        (2, 1)
+    );
+    assert_eq!(
+        (recovered.image.width(), recovered.image.x_origin()),
+        (1, 1)
+    );
+
+    let mut reduced = prepared_codestream(
+        8,
+        8,
+        1,
+        &[0x40, 0x40, 0x48, 0x48, 0x50, 0x48, 0x48, 0x50],
+        &[0, 0, 0],
+    );
+    reduced[8..12].copy_from_slice(&16_u32.to_be_bytes());
+    for (discard, actual, full_bytes) in [(1, 4, 256), (2, 2, 64)] {
+        let selection = DecodeSelection::full_image().with_discard_levels(discard);
+        let result =
+            crate::decode_codestream_recover_present_tile_selected(&reduced, &options, &selection)
+                .unwrap();
+        assert_eq!(
+            (result.image.width(), result.image.height()),
+            (actual, actual)
+        );
+        assert_eq!(result.report.discard_levels, discard);
+        assert_eq!(result.report.full_canvas_sample_bytes, Some(full_bytes));
+    }
+
+    let mut fractional = prepared_codestream(1, 1, 0, &[0x42, 0x44, 0], &[0xcf, 0xb4, 0x04, 0x09]);
+    let cod = fractional
+        .windows(2)
+        .position(|pair| pair == [255, 82])
+        .unwrap();
+    fractional[cod + 9] = 0;
+    fractional[8..12].copy_from_slice(&2_u32.to_be_bytes());
+    let container = jp2_for_codestream(&fractional, 2, 1);
+    let result =
+        crate::decode_jp2_reconstructed_recover_present_tile_selected(&container, &options, &full)
+            .unwrap();
+    assert_eq!(result.report.selected_present_tile, Some(0));
+    assert_eq!(result.image.component(0).unwrap().fraction_bits(), 16);
+    assert_eq!(
+        result.image.component(0).unwrap().samples(),
+        &[-765 * (1 << 14)]
+    );
+}
+
+#[test]
+fn pdf_present_tile_retains_full_intended_canvas_limit_and_real_errors() {
+    let options = DecodeOptions::default();
+    let bytes = sole_present_tile_codestream();
+    let selection = DecodeSelection::full_image();
+    let limited = DecodeOptions::new(
+        ResourceLimits::HARDENED
+            .with_maximum_decoded_bytes(15)
+            .unwrap(),
+    );
+    assert!(decode_codestream_selected(&bytes, &limited, &DecodeSelection::tile(0)).is_ok());
+    assert_eq!(
+        crate::decode_codestream_recover_present_tile_selected(&bytes, &limited, &selection).err(),
+        Some(DecodeError::LimitExceeded {
+            resource: Resource::DecodedBytes,
+            limit: 15,
+            actual: 16
+        })
+    );
+    let mut damaged = bytes.clone();
+    let sod = damaged
+        .windows(2)
+        .position(|pair| pair == [255, 147])
+        .unwrap();
+    damaged[sod + 2] = 0xff;
+    assert!(codestream::parse(&damaged, options.limits()).is_ok());
+    let expected =
+        decode_codestream_selected(&damaged, &options, &DecodeSelection::tile(0)).unwrap_err();
+    assert_eq!(
+        crate::decode_codestream_recover_present_tile_selected(&damaged, &options, &selection)
+            .err(),
+        Some(expected)
+    );
+    let expected =
+        crate::decode_codestream_recover_present_tile_selected(&bytes, &options, &selection)
+            .unwrap();
+    let mut completed = false;
+    for after in 0..512 {
+        match crate::allocation::with_refusal(after, || {
+            crate::decode_codestream_recover_present_tile_selected(&bytes, &options, &selection)
+        }) {
+            Err(DecodeError::AllocationFailed) => assert_eq!(
+                crate::decode_codestream_recover_present_tile_selected(
+                    &bytes, &options, &selection
+                )
+                .unwrap(),
+                expected
+            ),
+            Ok(actual) => {
+                assert_eq!(actual, expected);
+                completed = true;
+                break;
+            }
+            Err(error) => panic!("unexpected present-tile refusal at {after}: {error:?}"),
+        }
+    }
+    assert!(completed);
+
+    let mut palette = jp2_with_palette(&bytes, 256, true);
+    let ihdr = palette.windows(4).position(|part| part == b"ihdr").unwrap() + 4;
+    palette[ihdr + 4..ihdr + 8].copy_from_slice(&2_u32.to_be_bytes());
+    let mapped =
+        crate::decode_jp2_recover_present_tile_selected(&palette, &options, &selection).unwrap();
+    assert_eq!(mapped.image.components().len(), 3);
+    assert_eq!(mapped.report.full_canvas_sample_bytes, Some(48));
+    let limited = DecodeOptions::new(
+        ResourceLimits::HARDENED
+            .with_maximum_decoded_bytes(47)
+            .unwrap(),
+    );
+    assert_eq!(
+        crate::decode_jp2_recover_present_tile_selected(&palette, &limited, &selection).err(),
+        Some(DecodeError::LimitExceeded {
+            resource: Resource::DecodedBytes,
+            limit: 47,
+            actual: 48
+        })
+    );
+    assert_eq!(
+        crate::decode_jp2_reconstructed_recover_present_tile_selected(
+            &palette, &options, &selection
+        )
+        .err(),
+        Some(DecodeError::UnsupportedFeature {
+            feature: "JP2 output transforms on reconstruction samples",
+        })
+    );
+    let mut nlt = bytes.clone();
+    let sot = nlt.windows(2).position(|part| part == [255, 144]).unwrap();
+    nlt.splice(sot..sot, segment(0xff76, &[255, 255, 7, 0]));
+    assert!(
+        crate::decode_codestream_recover_present_tile_selected(&nlt, &options, &selection).is_ok()
+    );
+    assert_eq!(
+        crate::decode_codestream_reconstructed_recover_present_tile_selected(
+            &nlt, &options, &selection
+        )
+        .err(),
+        Some(DecodeError::UnsupportedFeature {
+            feature: "nonlinear transforms on reconstruction samples",
+        })
+    );
+}
+
+#[test]
+fn selected_reconstruction_preserves_fractional_headroom_tile_region_and_reduction() {
+    let options = DecodeOptions::default();
+    for (packet, numerator) in [
+        (&[0xcf, 0xb4, 0x04, 0x09][..], -765_i64),
+        (&[0xc0, 0x21, 0x03][..], 9),
+    ] {
+        let mut bytes = prepared_codestream(1, 1, 0, &[0x42, 0x44, 0], packet);
+        let cod = bytes.windows(2).position(|pair| pair == [255, 82]).unwrap();
+        bytes[cod + 9] = 0;
+        let selection = DecodeSelection::tile(0).with_region(crate::ImageRegion::new(0, 0, 1, 1));
+        let image =
+            crate::decode_codestream_reconstructed_selected(&bytes, &options, &selection).unwrap();
+        assert_eq!(image.component(0).unwrap().fraction_bits(), 16);
+        assert_eq!(
+            image.component(0).unwrap().samples(),
+            &[numerator * (1 << 14)]
+        );
+        assert_eq!(
+            image.typed(options.limits()),
+            decode_codestream_selected(&bytes, &options, &selection)
+        );
+    }
+    let bytes = two_tile_codestream();
+    for tile in [0, 1] {
+        let selection = DecodeSelection::tile(tile);
+        let image =
+            crate::decode_codestream_reconstructed_selected(&bytes, &options, &selection).unwrap();
+        assert_eq!(
+            image.typed(options.limits()),
+            decode_codestream_selected(&bytes, &options, &selection)
+        );
+    }
+    let bytes = prepared_codestream(
+        8,
+        8,
+        1,
+        &[0x40, 0x40, 0x48, 0x48, 0x50, 0x48, 0x48, 0x50],
+        &[0, 0, 0],
+    );
+    for discard in [0, 1, 2] {
+        let selection = DecodeSelection::full_image().with_discard_levels(discard);
+        let image =
+            crate::decode_codestream_reconstructed_selected(&bytes, &options, &selection).unwrap();
+        assert_eq!(
+            (image.width(), image.height()),
+            (8 >> discard, 8 >> discard)
+        );
+        assert_eq!(
+            image.typed(options.limits()),
+            decode_codestream_selected(&bytes, &options, &selection)
+        );
+    }
+}
+
+#[test]
+fn selected_reconstruction_keeps_invalid_selection_nlt_limits_and_refusal_errors() {
+    let options = DecodeOptions::default();
+    let bytes = dimension_recovery_codestream();
+    for selection in [
+        DecodeSelection::tile(99),
+        DecodeSelection::full_image().with_discard_levels(1),
+        DecodeSelection::full_image().with_region(crate::ImageRegion::new(99, 99, 1, 1)),
+    ] {
+        let error = decode_codestream_selected(&bytes, &options, &selection).unwrap_err();
+        assert_eq!(
+            crate::decode_codestream_reconstructed_selected(&bytes, &options, &selection),
+            Err(error)
+        );
+    }
+    let selection = DecodeSelection::tile(0);
+    for limits in [
+        ResourceLimits::HARDENED
+            .with_maximum_input_bytes(0)
+            .unwrap(),
+        ResourceLimits::HARDENED.with_maximum_packets(0).unwrap(),
+        ResourceLimits::HARDENED
+            .with_maximum_decoded_bytes(0)
+            .unwrap(),
+    ] {
+        let limited = DecodeOptions::new(limits);
+        let error = decode_codestream_selected(&bytes, &limited, &selection).unwrap_err();
+        assert_eq!(
+            crate::decode_codestream_reconstructed_selected(&bytes, &limited, &selection),
+            Err(error)
+        );
+    }
+    let expected =
+        crate::decode_codestream_reconstructed_selected(&bytes, &options, &selection).unwrap();
+    let mut completed = false;
+    for after in 0..256 {
+        match crate::allocation::with_refusal(after, || {
+            crate::decode_codestream_reconstructed_selected(&bytes, &options, &selection)
+        }) {
+            Err(DecodeError::AllocationFailed) => assert_eq!(
+                crate::decode_codestream_reconstructed_selected(&bytes, &options, &selection)
+                    .unwrap(),
+                expected
+            ),
+            Ok(image) => {
+                assert_eq!(image, expected);
+                completed = true;
+                break;
+            }
+            Err(error) => {
+                panic!("unexpected selected reconstruction refusal at {after}: {error:?}")
+            }
+        }
+    }
+    assert!(completed);
+    let mut nlt = bytes.clone();
+    let sot = nlt.windows(2).position(|pair| pair == [255, 144]).unwrap();
+    nlt.splice(sot..sot, segment(0xff76, &[255, 255, 7, 0]));
+    assert!(decode_codestream_selected(&nlt, &options, &selection).is_ok());
+    assert_eq!(
+        crate::decode_codestream_reconstructed_selected(&nlt, &options, &selection),
+        Err(DecodeError::UnsupportedFeature {
+            feature: "nonlinear transforms on reconstruction samples",
+        })
+    );
+}
+
 fn dimension_recovery_codestream() -> Vec<u8> {
     let mut bytes = prepared_codestream(1, 1, 1, &[0x40, 0x40], &[0xcf, 0xb4, 0x04, 0x09]);
     let cod = bytes.windows(2).position(|pair| pair == [255, 82]).unwrap();
