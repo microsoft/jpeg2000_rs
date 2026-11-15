@@ -529,7 +529,7 @@ impl Tier1CodeBlockDecoder {
             let ready=(ensured,tier1_decoder_state(self));
             crate::specs::part2_legacy_pass_observed(before,symbols,kind,ready);
             crate::specs::part2_legacy_pass_after_ready_equation(symbols,kind,ready);
-            crate::specs::part2_legacy_pass_prepared_equation(ready.1,symbols,kind);
+            crate::specs::part2_legacy_raw_prepared_equation(ready.1,raw_bit_reader_view(reader),kind);
             crate::specs::part2_legacy_pass_primary_consequence(before,symbols,kind,crate::specs::part2_legacy_pass_after_ready(symbols,kind,ready));
         }
         ensured?;

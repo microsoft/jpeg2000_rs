@@ -194,6 +194,18 @@ pub(crate) proof fn part2_legacy_pass_primary_consequence(before:Tier1DecoderSta
     requires part2_legacy_pass_result(before,symbols,kind,result),
     ensures result.0!=Err(crate::DecodeError::AllocationFailed) ==> result==part1_legacy_decode_pass(before,symbols,kind),
 {reveal(part2_legacy_pass_result);}
+pub(crate) proof fn part2_legacy_raw_prepared_equation(before:Tier1DecoderState,reader:Part1RawReaderState,kind:crate::tier1::Tier1PassKind)
+    ensures part2_legacy_pass_prepared(before,Part1LegacySymbols::Raw(reader),kind)==match before.bitplane_state{
+        None=>(Err(ht_reader_error(crate::MalformedKind::InvalidCodeBlock)),before,Part1LegacySymbols::Raw(reader)),
+        Some(state)=>if kind is Cleanup{(Err(ht_reader_error(crate::MalformedKind::InvalidCodeBlock)),before,Part1LegacySymbols::Raw(reader))}
+        else{
+            let pass=part1_legacy_pass(before.plane,state,Part1LegacySymbols::Raw(reader),
+                if kind is MagnitudeRefinement{crate::tier1::SubbandOrientation::Ll}else{before.orientation},
+                before.style.vertical_causal_context,if kind is MagnitudeRefinement{1u8}else{0u8});
+            (pass.0,Tier1DecoderState {plane:pass.1,bitplane_state:Some(pass.2),..before},pass.3)
+        },
+    },
+{reveal(part2_legacy_pass_prepared);}
 pub(crate) proof fn part2_legacy_pass_frames(before:Tier1DecoderState,symbols:Part1LegacySymbols,kind:crate::tier1::Tier1PassKind,result:Part1LegacySegmentPassEffect)
     requires part2_legacy_pass_result(before,symbols,kind,result),
     ensures part2_tier1_storage_framed(|calls|part2_legacy_pass_run(before,symbols,kind,calls),Ok(result)),

@@ -40,6 +40,7 @@ specs/cold_ht_bytes.rs
 specs/cold_ht_decoder.rs
 specs/cold_ht_exponents.rs
 specs/cold_ht_metadata.rs
+specs/cold_ht_refinement_scratch.rs
 specs/cold_inspection_storage.rs
 specs/cold_layout.rs
 specs/cold_layout_continuations.rs

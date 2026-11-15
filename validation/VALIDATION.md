@@ -1418,6 +1418,24 @@ precedence, exact partial row state, packet rollback and restored real public
 images. Refinement-reader scratch, extraction outputs, unrelated collections,
 growth and later buffers remain separate. No physical-capacity/availability
 theorem or new runtime/proof boundary is claimed.
+The refinement-reader producer now fallibly fills its two fresh claimed/stuffed
+byte-mask owners from the original `bytes` argument, after the real forward and
+optional reverse reader construction. The count remains independent of borrowed
+span lengths; raw empty/mismatched counts and absent reverse behavior are not
+normalized or newly admitted. Zero count consumes no managed request. Borrowed
+byte spans, scalar reader records and later in-place claim/stuffing writes add
+no storage event.
+Disjoint `RefinementScratchCapacity` responses carry compact actual source-length,
+byte-count, reverse/work and prior claimed-mask descriptors. Full input bytes,
+real initial readers and ordinary result/state are retained in enclosing checked
+producer binds. Exact first/later errors and unused tails compose after the
+qualified refinement output copy and before original significance/magnitude/
+entropy work, through replay, decoder, packet and public state programs.
+Bounded controls cover both masks, raw/empty/admission/work order, real collision
+and stuffing masks, replay/packet rollback and restored raw/selected/JPH/automatic
+images. Public Clone and all previous owner contracts remain unchanged.
+Extraction outputs, unrelated collections, existing growth and later buffers
+remain separate. No physical-capacity or availability theorem is claimed.
 Replay copying remains after original route/pass/cleanup/byte admission but
 before the unchanged append and later concatenation-size checks. Retention
 copying remains after actual refinement and statistics merge, preserving

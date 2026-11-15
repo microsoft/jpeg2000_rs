@@ -603,13 +603,17 @@ pub(super) fn decode_ht_refinement_plane(
     let output = copied?;
     #[cfg(verus_keep_ghost)]
     proof_decl! {let ghost initial_output=code_block_plane_view(&output);}
-    let readers = ht_refinement_readers_from_inputs(
+    let reader_result = ht_refinement_readers_from_inputs(
         segment.significance_propagation().bytes(),
         segment.magnitude_refinement().bytes(),
         segment.encoded().len(),
         refinement_passes == 2,
         limits.maximum_work_units(),
-    )?;
+    );
+    #[cfg(verus_keep_ghost)]
+    proof! {if let Err(error)=reader_result{crate::specs::part2_plane_refinement_readers_error(code_block_plane_view(cleanup_plane),initial_output,ht_refinement_segment_view(&segment),
+    refinement_passes,decoded_bitplanes,vertical_causal_context,crate::limits::resource_work_limit(limits),error);}}
+    let readers = reader_result?;
     let cleanup_significant = ht_collect_cleanup_significance(cleanup_plane.coefficients());
     let mut state = HtRefinementPlaneState {
         output,

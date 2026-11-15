@@ -8487,6 +8487,68 @@ class FrameworkTests(WorkingFiles):
         with self.assertRaisesRegex(ValueError, "initial bitplane storage requires bounded"):
             framework.validate_normative_coverage(missing)
 
+    def test_inventory_refinement_scratch_requires_actual_count_mask_role_and_reader_order(self):
+        coverage = json.loads((framework.VALIDATION / "normative-coverage.json").read_text())
+        entry = next(e for e in coverage["requirements"] if e["id"] == "part15-directional-word-event-state")
+        data = dict(coverage, requirements=[entry])
+        self.assertEqual(framework.validate_normative_coverage(data)["status"], "passed")
+        read_text = Path.read_text
+        cases = (
+            ("specs/cold_ht_refinement_scratch.rs", "part2_ht_scratch_context", "forward_length:forward.len()", "forward_length:0"),
+            ("specs/cold_ht_refinement_scratch.rs", "part2_ht_scratch_context", "reverse_length:reverse.len()", "reverse_length:0"),
+            ("specs/cold_ht_refinement_scratch.rs", "part2_ht_scratch_context", "Some(Seq::new(bytes as nat,|_:int|0u8))", "Some(Seq::empty())"),
+            ("specs/cold_ht_refinement_scratch.rs", "part2_ht_scratch_admit", "if has_reverse", "if true"),
+            ("specs/cold_ht_refinement_scratch.rs", "part2_ht_scratch_capacity_run", "context.bytes==0", "context.bytes==1"),
+            ("specs/cold_ht_refinement_scratch.rs", "part2_ht_scratch_capacity_run", "RefinementScratchCapacity", "HtExponentCapacity"),
+            ("specs/cold_ht_refinement_scratch.rs", "part2_ht_scratch_capacity_run", "actual!=context", "false"),
+            ("specs/cold_ht_refinement_scratch.rs", "part2_ht_scratch_capacity_run", "field!=stuffed", "false"),
+            ("specs/cold_ht_refinement_scratch.rs", "part2_ht_scratch_capacity_run", "elements!=context.bytes", "false"),
+            ("specs/cold_ht_refinement_scratch.rs", "part2_ht_scratch_capacity_run", "calls.drop_first()", "calls"),
+            ("specs/cold_ht_refinement_scratch.rs", "part2_ht_scratch_run", "Err(error)=>Some((Err(error),calls))", "Err(error)=>Some((Err(error),Seq::empty()))"),
+            ("specs/cold_ht_refinement_scratch.rs", "part2_ht_scratch_stuffed", "work,true),true,calls", "work,false),false,calls"),
+            ("src/tier1/ht_refinement_readers.rs", "ht_refinement_readers_from_inputs", "filled_values(0_u8, bytes)", "filled_values(1_u8, bytes)"),
+            ("src/tier1/ht_refinement_readers.rs", "ht_refinement_readers_from_inputs", "let claimed = allocated?", "let stuffed = allocated?"),
+            ("src/tier1/ht_refinement_readers.rs", "ht_refinement_readers_from_inputs", "Some(claimed@)", "Some(Seq::empty())"),
+        )
+        for relative, symbol, before, after in cases:
+            source = framework.ROOT / relative
+            original = source.read_text()
+            body = (framework._coverage_function_body(original, framework._coverage_function_header(original, symbol))
+                    if relative.startswith("src/") else framework._coverage_spec_function_body(original, symbol))
+            pattern = re.escape(before).replace(r"\ ", r"\s*")
+            changed_body, count = re.subn(pattern, lambda _: after, body, count=1)
+            self.assertEqual(count, 1, (symbol, before))
+            changed = original.replace(body, changed_body, 1)
+
+            def altered(path, *args, **kwargs):
+                return changed if path == source else read_text(path, *args, **kwargs)
+
+            with self.subTest(symbol=symbol, before=before), mock.patch.object(Path, "read_text", altered), \
+                    self.assertRaisesRegex(ValueError, "HT refinement scratch"):
+                framework.validate_normative_coverage(data)
+        missing = copy.deepcopy(data)
+        missing["requirements"][0]["test_refs"] = [
+            r for r in entry["test_refs"] if (r["path"], r["symbol"]) not in framework._HT_SCRATCH_TESTS
+        ]
+        with self.assertRaisesRegex(ValueError, "HT refinement scratch requires bounded"):
+            framework.validate_normative_coverage(missing)
+        source = framework.ROOT / "src/tier1/ht_refinement_readers.rs"
+        original = source.read_text()
+        header = framework._coverage_function_header(original, "ht_refinement_readers_from_inputs")
+        start = original.rfind("#[cfg_attr", 0, header.start())
+        contract = original[start:header.start()]
+        closing = contract.rfind("\n    )")
+        self.assertGreater(closing, 0)
+        bad = contract.replace("== crate::specs::ht_refinement_readers_initial(", "<= crate::specs::ht_refinement_readers_initial(", 1)
+        good = contract[contract.index("ht_refinement_readers_outcome(result)!=Err"):closing]
+        changed = original[:start] + bad[:closing] + good + bad[closing:] + original[header.start():]
+
+        def altered(path, *args, **kwargs):
+            return changed if path == source else read_text(path, *args, **kwargs)
+
+        with mock.patch.object(Path, "read_text", altered), self.assertRaisesRegex(ValueError, "lacks executable Verus contract"):
+            framework.validate_normative_coverage(data)
+
     def test_inventory_ht_metadata_storage_requires_actual_count_prior_rows_and_precise_error_tail(self):
         coverage = json.loads((framework.VALIDATION / "normative-coverage.json").read_text())
         entry = next(e for e in coverage["requirements"] if e["id"] == "part15-complete-cleanup-metadata")

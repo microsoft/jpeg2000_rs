@@ -4800,6 +4800,7 @@ _RAW_RENDER_PROOFS |= {("specs/jpx_raw_frame.rs", "part2_render_raw_cold_metadat
 _RAW_COMPOSITION_RENDER_PROOFS |= {("specs/jpx_raw_frame.rs", "part2_render_raw_cold_metadata_error")}
 
 _PLANE_ROLE_MODEL_INFO = {
+    "ht_refinement_readers_initial": ("part2_ht_scratch_result", "specs/cold_ht_refinement_scratch.rs", "part2_ht_scratch_normal"),
     "ht_cleanup_segment_metadata": ("part2_ht_metadata_result", "specs/cold_ht_metadata.rs", "part2_ht_metadata_normal"),
     "part1_legacy_code_block_segment": ("part2_legacy_packet_step_result", "specs/cold_legacy_packets.rs", "part2_legacy_packet_step_normal"),
     "part1_legacy_code_block_body": ("part2_legacy_packet_body_result", "specs/cold_legacy_packets.rs", "part2_legacy_packet_body_normal"),
@@ -4834,7 +4835,7 @@ _PLANE_ROLE_MODEL_INFO = {
 _PLANE_ROLE_RESULT_RUNS = {
     model: (("part2_plane_duplicate_run" if model == "part1_plane_duplicate_storage_result" else
              "part2_plane_tile_run" if model == "part2_plane_tile_run_result" else model.removesuffix("_result") + "_run"),
-            old not in {"tier1_duplicate_plane", "ht_cleanup_plane", "ht_cleanup_prepare", "ht_refinement_plane", "ht_copy_refinement_bytes", "ht_cleanup_segment_metadata"})
+            old not in {"tier1_duplicate_plane", "ht_cleanup_plane", "ht_cleanup_prepare", "ht_refinement_plane", "ht_copy_refinement_bytes", "ht_cleanup_segment_metadata", "ht_refinement_readers_initial"})
     for old, (model, _, _) in _PLANE_ROLE_MODEL_INFO.items()
 }
 _COLD_RESULT_MODELS = {
@@ -5105,6 +5106,9 @@ def _plane_role_special_contracts():
     header = call("code_block_contribution_view", "contribution")
     packet_inputs = args(old_decoder("decoder"), header, "body@", pass_limit, byte_limit)
     return {
+        ("src/tier1/ht_refinement_readers.rs", "ht_refinement_readers_from_inputs"): (
+            "ht_refinement_readers_initial", call("ht_refinement_readers_outcome", r"\1"), None,
+            args("forward_input@", "reverse_input@", "bytes", "has_reverse", "maximum_work_units")),
         ("src/tier1/ht_metadata.rs", "decode_ht_cleanup_segment_metadata"): (
             "ht_cleanup_segment_metadata", call("ht_cleanup_metadata_outcome", r"\1"), None,
             args(cleanup, "width", "height", "maximum_u", work)),
@@ -6178,6 +6182,38 @@ _PLANE_ROLE_TESTS = {
     ("src/tier1/tests.rs", "tier1_plane_storage_refinement_roles_preserve_rollback_and_cleared_partial_state"),
     ("src/decode/tests.rs", "tier1_plane_storage_real_ht_raw_selected_container_cleanup_restore"),
 }
+_HT_SCRATCH_TESTS = {
+    ("src/tier1/tests.rs", "ht_refinement_scratch_storage_first_later_masks_restore_real_readers_and_stuffing"),
+    ("src/tier1/tests.rs", "ht_refinement_scratch_storage_raw_counts_empty_reverse_and_prior_admission_order"),
+    ("src/tier1/tests.rs", "ht_refinement_scratch_storage_actual_replay_refusals_preserve_decoder_then_restore"),
+    ("src/packet/tests.rs", "ht_refinement_scratch_storage_actual_packet_masks_rollback_and_restore"),
+    ("src/decode/tests.rs", "ht_refinement_scratch_storage_actual_raw_selected_jph_masks_and_automatic_restore"),
+}
+_HT_SCRATCH_GUARDS = {
+    "part2_ht_scratch_context": (
+        "forward_length:forward.len(),reverse_length:reverse.len(),bytes,has_reverse,work",
+        "claimed:if stuffed{Some(Seq::new(bytes as nat,|_:int|0u8))}else{None}",
+    ),
+    "part2_ht_scratch_admit": (
+        "ht_forward_refinement_initial(forward,work)", "Ok(first)=>if has_reverse",
+        "ht_reverse_refinement_initial(reverse,work)", "Ok((first,None))",
+    ),
+    "part2_ht_scratch_capacity_run": (
+        "if context.bytes==0{Some((Ok(()),calls))}else if calls.len()==0{None}",
+        "RefinementScratchCapacity {context:actual,stuffed:field,elements,succeeded}",
+        "actual!=context || field!=stuffed || elements!=context.bytes",
+        "if succeeded{Ok(())}else{Err(crate::DecodeError::AllocationFailed)}", "calls.drop_first()",
+    ),
+    "part2_ht_scratch_run": (
+        "part2_ht_scratch_admit(forward,reverse,has_reverse,work)", "Err(error)=>Some((Err(error),calls))",
+        "part2_ht_scratch_context(forward,reverse,bytes,has_reverse,work,false),false,calls)",
+        "part2_ht_scratch_stuffed(forward,reverse,bytes,has_reverse,work,rest)",
+    ),
+    "part2_ht_scratch_stuffed": (
+        "part2_ht_scratch_context(forward,reverse,bytes,has_reverse,work,true),true,calls)",
+        "Some((ht_refinement_readers_initial(forward,reverse,bytes,has_reverse,work),rest))",
+    ),
+}
 _HT_METADATA_TESTS = {
     ("src/tier1/tests.rs", "ht_metadata_storage_quad_previous_and_fresh_first_later_rows_restore_actual_metadata"),
     ("src/tier1/tests.rs", "ht_metadata_storage_current_row_refusal_preserves_actual_prior_rows_and_empty_skips_request"),
@@ -6316,7 +6352,14 @@ _PLANE_ROLE_GUARDS = {
         "part2_plane_refinement_after_output(",
     ),
     ("specs/cold_tier1_planes.rs", "part2_plane_refinement_prepared"): (
-        "ht_refinement_readers_initial(", "ht_cleanup_significance(cleanup.coefficients)", "if passes==2", "ht_magref_stripes(",
+        "ht_refinement_readers_initial(", "part2_plane_refinement_prepared_readers(cleanup,output,readers,passes,bits)",
+    ),
+    ("specs/cold_tier1_planes.rs", "part2_plane_refinement_prepared_readers"): (
+        "ht_cleanup_significance(cleanup.coefficients)", "if passes==2", "ht_magref_stripes(",
+    ),
+    ("specs/cold_tier1_planes.rs", "part2_plane_refinement_after_output"): (
+        "part2_ht_scratch_run(segment.significance_propagation.bytes,segment.magnitude_refinement.bytes,segment.encoded.len() as usize,passes==2,work,calls)",
+        "part2_plane_refinement_after_readers(cleanup,output,segment,readers,passes,bits,causal,rest)",
     ),
     ("specs/cold_tier1_planes.rs", "part2_plane_significance_run"): (
         "ht_significance_magnitude(bits)", "part2_plane_duplicate_run(state.output,crate::tier1::CoefficientStorageRole::RefinementDiscovery,calls)", "ht_sigprop_stripes(",
@@ -6366,6 +6409,7 @@ _PLANE_ROLE_NATIVE_ORDER = {
     ),
     ("src/tier1/ht_refinement.rs", "decode_ht_refinement_plane"): (
         "if refinement_passes == 0", "CoefficientStorageRole::RefinementOutput", "let output = copied?", "ht_refinement_readers_from_inputs(",
+        "part2_plane_refinement_readers_error(", "let readers=reader_result?",
         "state.magnitude_pass(", "ht_significance_magnitude(", "CoefficientStorageRole::RefinementDiscovery", "let significance_plane = discovered?",
     ),
     ("src/tier1/ht_contributions.rs", "Tier1CodeBlockDecoder::decode_ht_coefficient_symbols"): (
@@ -13583,6 +13627,20 @@ def validate_normative_coverage(
             }.get(short) if (
                 reference["path"] == "src/tier1.rs" or reference["path"].startswith("src/tier1/")
             ) else None
+            if short == "ht_refinement_readers_from_inputs" and cold_contract is not None:
+                ordinary = re.search(
+                    r"ht_refinement_readers_outcome\s*\(\s*(?P<name>\w+)\s*\)\s*!=\s*"
+                    r"Err\s*\(\s*DecodeError::AllocationFailed\s*\)\s*==>", contract,
+                )
+                exact_normal = ordinary is not None and re.match(
+                    r"\s*" + _coverage_call("ht_refinement_readers_outcome", re.escape(ordinary["name"]))
+                    + r"\s*==\s*" + _coverage_call("crate::specs::ht_refinement_readers_initial",
+                        "forward_input@", "reverse_input@", "bytes", "has_reverse", "maximum_work_units"
+                    ).removesuffix(r"\s*\)") + r"\s*,?\s*\)", contract[ordinary.end():],
+                ) is not None
+                if not exact_normal:
+                    raise ValueError(f"linked function lacks executable Verus contract: {short}; wrong constructor model")
+                expected_constructor = "part2_ht_scratch_result"
             if expected_constructor and (named_result is None or named_result["model"] != expected_constructor):
                 raise ValueError(f"linked function lacks executable Verus contract: {short}; wrong constructor model")
             if (reference["path"], reference["symbol"]) == ("src/tier1/ht_cleanup_readers.rs", "HtCleanupReaders::can_claim_byte"):
@@ -14473,6 +14531,28 @@ def validate_normative_coverage(
                               "part15-complete-retained-refinement-and-placeholder-steps", "part1-complete-native-grid-progression-composition"}:
                 if not _PLANE_ROLE_TESTS.issubset({(ref["path"], ref["symbol"]) for ref in entry["test_refs"]}):
                     raise ValueError("remaining plane storage requires bounded standalone/copy/cleanup/refinement/public refusal/restore/state controls")
+    if "part15-directional-word-event-state" in ids:
+        for symbol, fragments in _HT_SCRATCH_GUARDS.items():
+            body = _coverage_spec_function_body(source_text((ROOT / "specs/cold_ht_refinement_scratch.rs").resolve()), symbol)
+            compact = "".join((body or "").split())
+            if any("".join(fragment.split()) not in compact for fragment in fragments):
+                raise ValueError("HT refinement scratch requires actual source/count/role/prior mask and exact reader/result/first-error/tail composition")
+        path = (ROOT / "src/tier1/ht_refinement_readers.rs").resolve()
+        body = _coverage_function_body(source_text(path), function_header(path, "ht_refinement_readers_from_inputs"))
+        compact = "".join((body or "").split())
+        fragments = (
+            "let forward=ht_forward_refinement_from_input(forward_input,maximum_work_units)?",
+            "let reverse=if has_reverse", "ht_reverse_refinement_from_input(", "let allocated=crate::allocation::filled_values(0_u8,bytes)",
+            "maximum_work_units,false),false,result)", "part2_ht_scratch_first_error(", "let claimed=allocated?",
+            "maximum_work_units,true)", "assert(context.claimed==Some(claimed@))",
+            "part2_ht_scratch_second_observed(", "let stuffed=allocated?", "Ok(HtRefinementReaders",
+        )
+        positions = [compact.find("".join(fragment.split())) for fragment in fragments]
+        if any(p < 0 for p in positions) or positions != sorted(positions) or compact.count("crate::allocation::filled_values(0_u8,bytes)") != 2:
+            raise ValueError("HT refinement scratch requires exactly two original reader/claimed/stuffed/field reservation frontiers without hoisting")
+        entry = next(e for e in coverage["requirements"] if e["id"] == "part15-directional-word-event-state")
+        if not _HT_SCRATCH_TESTS.issubset({(r["path"], r["symbol"]) for r in entry["test_refs"]}):
+            raise ValueError("HT refinement scratch requires bounded first/later/empty/raw/error/replay/packet/public refusal and restoration controls")
     if "part15-complete-cleanup-metadata" in ids:
         for symbol, fragments in _HT_METADATA_GUARDS.items():
             body = _coverage_spec_function_body(source_text((ROOT / "specs/cold_ht_metadata.rs").resolve()), symbol)

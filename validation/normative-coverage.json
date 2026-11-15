@@ -10060,6 +10060,7 @@
         ,{"path": "specs/cold_bitplane_initial.rs", "symbol": "part2_legacy_pass_normal"}
         ,{"path": "specs/cold_bitplane_initial.rs", "symbol": "part2_legacy_pass_after_ready_equation"}
         ,{"path": "specs/cold_bitplane_initial.rs", "symbol": "part2_legacy_pass_prepared_equation"}
+        ,{"path": "specs/cold_bitplane_initial.rs", "symbol": "part2_legacy_raw_prepared_equation"}
         ,{"path": "specs/cold_bitplane_initial.rs", "symbol": "part2_legacy_pass_primary_consequence"}
         ,{"path": "specs/cold_bitplane_initial.rs", "symbol": "part2_legacy_pass_frames"}
         ,{"path": "specs/cold_legacy_bitplanes.rs", "symbol": "part2_legacy_inner_step_observed"}
@@ -10347,6 +10348,8 @@
       "spec_refs": [
         {"path": "specs/mod.rs", "symbol": "ht_refinement_plane"},
         {"path": "specs/cold_tier1_planes.rs", "symbol": "part2_plane_refinement_run"},
+        {"path": "specs/cold_tier1_planes.rs", "symbol": "part2_plane_refinement_prepared_readers"},
+        {"path": "specs/cold_tier1_planes.rs", "symbol": "part2_plane_refinement_after_readers"},
         {"path": "specs/cold_tier1_planes.rs", "symbol": "part2_plane_refinement_result"},
         {"path": "specs/mod.rs", "symbol": "ht_magref_sample"},
         {"path": "specs/mod.rs", "symbol": "ht_magref_rows"},
@@ -10381,7 +10384,10 @@
         {"path": "proofs/spec_properties/mod.rs", "symbol": "ht_full_refinement_rejects_front_parameters_before_any_plane_or_stream"},
         {"path": "proofs/spec_properties/mod.rs", "symbol": "ht_delayed_signs_preserve_discovery_and_pending_on_every_return"},
         {"path": "proofs/spec_properties/mod.rs", "symbol": "ht_neighbor_balance_overflow_keeps_the_prior_count_increment"},
-        {"path": "specs/cold_tier1_planes.rs", "symbol": "part2_plane_refinement_normal"}
+        {"path": "specs/cold_tier1_planes.rs", "symbol": "part2_plane_refinement_normal"},
+        {"path": "specs/cold_tier1_planes.rs", "symbol": "part2_plane_refinement_after_output_normal"},
+        {"path": "specs/cold_tier1_planes.rs", "symbol": "part2_plane_refinement_after_output_observed"},
+        {"path": "specs/cold_tier1_planes.rs", "symbol": "part2_plane_refinement_readers_error"}
       ],
       "test_refs": [
         {"path": "src/tier1/tests.rs", "symbol": "ht_full_refinement_both_passes_preserve_raw_flags_and_all_six_words"},
@@ -15255,7 +15261,12 @@
         {"path": "proofs/spec_properties/mod.rs", "symbol": "ht_refinement_duplicate_claim_preserves_both_vectors_and_readers"},
         {"path": "proofs/spec_properties/mod.rs", "symbol": "ht_forward_refinement_sum_overflow_retains_physical_consumption"},
         {"path": "proofs/spec_properties/mod.rs", "symbol": "ht_cleanup_cached_zero_event_precedes_invalid_state_and_counter_overflow"},
-        {"path": "proofs/spec_properties/mod.rs", "symbol": "ht_cleanup_invalid_uncached_mel_state_does_not_consume"}
+        {"path": "proofs/spec_properties/mod.rs", "symbol": "ht_cleanup_invalid_uncached_mel_state_does_not_consume"},
+        {"path": "specs/cold_ht_refinement_scratch.rs", "symbol": "part2_ht_scratch_capacity_observed"},
+        {"path": "specs/cold_ht_refinement_scratch.rs", "symbol": "part2_ht_scratch_normal"},
+        {"path": "specs/cold_ht_refinement_scratch.rs", "symbol": "part2_ht_scratch_first_error"},
+        {"path": "specs/cold_ht_refinement_scratch.rs", "symbol": "part2_ht_scratch_second_observed"},
+        {"path": "specs/cold_ht_refinement_scratch.rs", "symbol": "part2_ht_scratch_frames"}
       ],
       "spec_refs": [
         {"path": "specs/mod.rs", "symbol": "ht_magsgn_initial"},
@@ -15275,6 +15286,14 @@
         {"path": "specs/mod.rs", "symbol": "ht_reverse_refinement_positioned"},
         {"path": "specs/mod.rs", "symbol": "ht_reverse_refinement_read"},
         {"path": "specs/mod.rs", "symbol": "ht_refinement_readers_initial"},
+        {"path": "specs/cold_ht_refinement_scratch.rs", "symbol": "Part2HtRefinementScratchContext"},
+        {"path": "specs/cold_ht_refinement_scratch.rs", "symbol": "part2_ht_scratch_context"},
+        {"path": "specs/cold_ht_refinement_scratch.rs", "symbol": "part2_ht_scratch_admit"},
+        {"path": "specs/cold_ht_refinement_scratch.rs", "symbol": "part2_ht_scratch_capacity_run"},
+        {"path": "specs/cold_ht_refinement_scratch.rs", "symbol": "part2_ht_scratch_capacity_result"},
+        {"path": "specs/cold_ht_refinement_scratch.rs", "symbol": "part2_ht_scratch_stuffed"},
+        {"path": "specs/cold_ht_refinement_scratch.rs", "symbol": "part2_ht_scratch_run"},
+        {"path": "specs/cold_ht_refinement_scratch.rs", "symbol": "part2_ht_scratch_result"},
         {"path": "specs/mod.rs", "symbol": "ht_refinement_claim"},
         {"path": "specs/mod.rs", "symbol": "ht_refinement_read_forward"},
         {"path": "specs/mod.rs", "symbol": "ht_refinement_read_reverse"},
@@ -15292,6 +15311,11 @@
         {"path": "src/tier1/tests.rs", "symbol": "ht_refinement_counter_and_sum_overflow_preserve_ordered_cursor_updates"},
         {"path": "src/tier1/tests.rs", "symbol": "ht_refinement_budget_boundaries_and_constructor_capacities_are_exact"},
         {"path": "src/tier1/tests.rs", "symbol": "ht_refinement_collision_retains_consumption_and_reverse_stuffed_mask"},
+        {"path": "src/tier1/tests.rs", "symbol": "ht_refinement_scratch_storage_first_later_masks_restore_real_readers_and_stuffing"},
+        {"path": "src/tier1/tests.rs", "symbol": "ht_refinement_scratch_storage_raw_counts_empty_reverse_and_prior_admission_order"},
+        {"path": "src/tier1/tests.rs", "symbol": "ht_refinement_scratch_storage_actual_replay_refusals_preserve_decoder_then_restore"},
+        {"path": "src/packet/tests.rs", "symbol": "ht_refinement_scratch_storage_actual_packet_masks_rollback_and_restore"},
+        {"path": "src/decode/tests.rs", "symbol": "ht_refinement_scratch_storage_actual_raw_selected_jph_masks_and_automatic_restore"},
         {"path": "src/tier1/tests.rs", "symbol": "ht_refinement_missing_claim_storage_and_reverse_absence_have_exact_effects"},
         {"path": "src/tier1/tests.rs", "symbol": "ht_cleanup_vlc_words_peek_without_mutation_and_advance_to_first_error"},
         {"path": "src/tier1/tests.rs", "symbol": "ht_cleanup_mel_events_have_exact_run_suffix_and_cache_transitions"},
