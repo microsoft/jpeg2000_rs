@@ -84,6 +84,8 @@ specs/cold_tile_part.rs
 specs/cold_tile_plane_calls.rs
 specs/cold_tile_quantization.rs
 specs/cold_uniform_geometry.rs
+specs/cold_wavelet_planes.rs
+specs/cold_wavelet_prepare.rs
 specs/container_colors.rs
 specs/container_images.rs
 specs/decoder_input.rs

@@ -1512,6 +1512,30 @@ and transform/image collections, unrelated owners and growth remain separate.
 Private fresh reserve profiles are not general physical-capacity or host
 availability theorems. No cumulative budget is introduced.
 
+The inverse-wavelet plane increment converts the fresh horizontal row-assembly
+reserve in `inverse_rows` and vertical zero-filled sample plane in
+`inverse_columns`. Counts are the original actual native capacity/output-length
+arguments, derived by each caller's checked geometry. No geometry admission is
+added to the private factories. Existing row appends and column stores remain
+at their original frontiers; zero count makes no request. These are fresh
+matrix owners, not an invented request for owner transfers or in-place updates.
+
+Disjoint `WaveletPlaneCapacity` roles retain compact count/response descriptors.
+Complete low/high source samples, standard/custom kernel and actual prior low/
+high row outputs stay in the enclosing checked producers. The original level
+validation/work/limit order precedes low rows, checked high-row capacity, high
+rows and zero-filled columns. Actual child Results compose through resolution,
+ordered folds, component/tile and automatic/public reconstruction while old
+normal numerical projections stay checked. Bounded controls retain exact
+5/3, Q16 9/7 and custom-kernel values, raw/empty/error behavior, first/later
+refusals and restored source bands/images. No matrix/image success bank, domain
+premise, numerical tolerance change or conversion shortcut is introduced.
+
+Line-gather `collect_column`, sequence `interleave`, the initial LL clone,
+later `copy_prepare_plane`, output conversions, unrelated image/container
+collections and growth remain separate. Existing appends are not a general
+physical-capacity or allocation-availability theorem.
+
 Replay copying remains after original route/pass/cleanup/byte admission but
 before the unchanged append and later concatenation-size checks. Retention
 copying remains after actual refinement and statistics merge, preserving

@@ -1029,6 +1029,181 @@ fn complete_nine_seven_sequences_match_independent_wide_reference() {
 }
 
 #[test]
+fn wavelet_plane_storage_standard_level_first_later_owners_exact_reference_and_restore() {
+    let limits = ResourceLimits::default();
+    for irreversible in [false, true] {
+        let unit = if irreversible { 1 << 16 } else { 1 };
+        let a = [7 * unit];
+        let b = [-2 * unit];
+        let c = [3 * unit];
+        let d = [unit];
+        let level = WaveletLevel {
+            ll: WaveletBand {
+                width: 1,
+                height: 1,
+                samples: &a,
+            },
+            hl: WaveletBand {
+                width: 1,
+                height: 1,
+                samples: &b,
+            },
+            lh: WaveletBand {
+                width: 1,
+                height: 1,
+                samples: &c,
+            },
+            hh: WaveletBand {
+                width: 1,
+                height: 1,
+                samples: &d,
+            },
+            output_width: 2,
+            output_height: 2,
+            low_pass_first_x: true,
+            low_pass_first_y: true,
+        };
+        let decode = || {
+            if irreversible {
+                inverse_level_9_7(level, &limits)
+            } else {
+                inverse_level_5_3(level, &limits)
+            }
+        };
+        let expected = reference_level(level, irreversible, u64::MAX);
+        for after in [0, 1, 2] {
+            assert_eq!(
+                crate::allocation::with_refusal(after, decode),
+                Err(DecodeError::AllocationFailed)
+            );
+            assert_eq!(observed_reconstruction(decode()), expected);
+        }
+    }
+}
+
+#[test]
+fn wavelet_plane_storage_empty_no_request_geometry_budget_and_numerical_error_order() {
+    let limits = ResourceLimits::default();
+    let empty_h = WaveletBand {
+        width: 0,
+        height: 1,
+        samples: &[],
+    };
+    let empty_v = WaveletBand {
+        width: 1,
+        height: 0,
+        samples: &[],
+    };
+    crate::allocation::with_refusal(0, || {
+        assert_eq!(
+            observed_reconstruction(inverse_horizontal_5_3(empty_h, empty_h, 0, true, &limits)),
+            Ok((0, 1, 0, vec![]))
+        );
+        assert_eq!(
+            observed_reconstruction(inverse_vertical_9_7(empty_v, empty_v, 0, true, &limits)),
+            Ok((1, 0, 16, vec![]))
+        );
+        assert_eq!(
+            crate::allocation::empty_with_capacity::<u8>(1),
+            Err(DecodeError::AllocationFailed)
+        );
+    });
+    let low = WaveletBand {
+        width: 1,
+        height: 1,
+        samples: &[i64::MAX],
+    };
+    let high = WaveletBand {
+        width: 1,
+        height: 1,
+        samples: &[i64::MAX],
+    };
+    let ordinary = inverse_horizontal_5_3(low, high, 2, true, &limits).unwrap_err();
+    assert_eq!(
+        crate::allocation::with_refusal(0, || inverse_horizontal_5_3(low, high, 2, true, &limits)),
+        Err(DecodeError::AllocationFailed)
+    );
+    assert_eq!(
+        inverse_horizontal_5_3(low, high, 2, true, &limits).unwrap_err(),
+        ordinary
+    );
+    crate::allocation::with_refusal(0, || {
+        assert_eq!(
+            inverse_horizontal_5_3(low, high, 3, true, &limits),
+            Err(invalid_transform())
+        );
+        assert_eq!(
+            crate::allocation::empty_with_capacity::<u8>(1),
+            Err(DecodeError::AllocationFailed)
+        );
+    });
+    let capped = limits.with_maximum_decoded_bytes(0).unwrap();
+    let budget = inverse_vertical_5_3(low, high, 2, true, &capped).unwrap_err();
+    crate::allocation::with_refusal(0, || {
+        assert_eq!(
+            inverse_vertical_5_3(low, high, 2, true, &capped).unwrap_err(),
+            budget
+        );
+        assert_eq!(
+            crate::allocation::empty_with_capacity::<u8>(1),
+            Err(DecodeError::AllocationFailed)
+        );
+    });
+}
+
+#[test]
+fn wavelet_plane_storage_actual_custom_kernel_level_rows_columns_and_restore() {
+    let limits = ResourceLimits::default();
+    let kernel = ArbitraryKernel::for_test(true, 0, false, false, false, None, vec![]);
+    let a = [2];
+    let b = [3];
+    let c = [5];
+    let d = [7];
+    let level = WaveletLevel {
+        ll: WaveletBand {
+            width: 1,
+            height: 1,
+            samples: &a,
+        },
+        hl: WaveletBand {
+            width: 1,
+            height: 1,
+            samples: &b,
+        },
+        lh: WaveletBand {
+            width: 1,
+            height: 1,
+            samples: &c,
+        },
+        hh: WaveletBand {
+            width: 1,
+            height: 1,
+            samples: &d,
+        },
+        output_width: 2,
+        output_height: 2,
+        low_pass_first_x: true,
+        low_pass_first_y: true,
+    };
+    assert_eq!(
+        observed_reconstruction(inverse_level_arbitrary(level, &kernel, &limits)),
+        Ok((2, 2, 0, vec![2, 3, 5, 7]))
+    );
+    for after in [0, 1, 2] {
+        assert_eq!(
+            crate::allocation::with_refusal(after, || inverse_level_arbitrary(
+                level, &kernel, &limits
+            )),
+            Err(DecodeError::AllocationFailed)
+        );
+        assert_eq!(
+            observed_reconstruction(inverse_level_arbitrary(level, &kernel, &limits)),
+            Ok((2, 2, 0, vec![2, 3, 5, 7]))
+        );
+    }
+}
+
+#[test]
 fn complete_standard_planes_match_independent_reference_for_all_small_geometries() {
     for width in 0..=7_u32 {
         for height in 0..=6_u32 {

@@ -4813,6 +4813,14 @@ _RAW_RENDER_PROOFS |= {("specs/jpx_raw_frame.rs", "part2_render_raw_cold_metadat
 _RAW_COMPOSITION_RENDER_PROOFS |= {("specs/jpx_raw_frame.rs", "part2_render_raw_cold_metadata_error")}
 
 _PLANE_ROLE_MODEL_INFO = {
+    "part1_inverse_horizontal": ("part2_wavelet_horizontal_result", "specs/cold_wavelet_planes.rs", "part2_wavelet_horizontal_normal"),
+    "part2_atk_inverse_horizontal": ("part2_wavelet_horizontal_result", "specs/cold_wavelet_planes.rs", "part2_wavelet_horizontal_normal"),
+    "part1_inverse_vertical": ("part2_wavelet_vertical_result", "specs/cold_wavelet_planes.rs", "part2_wavelet_vertical_normal"),
+    "part2_atk_inverse_vertical": ("part2_wavelet_vertical_result", "specs/cold_wavelet_planes.rs", "part2_wavelet_vertical_normal"),
+    "part1_inverse_level": ("part2_wavelet_level_result", "specs/cold_wavelet_planes.rs", "part2_wavelet_level_normal"),
+    "part2_atk_inverse_level": ("part2_wavelet_level_result", "specs/cold_wavelet_planes.rs", "part2_wavelet_level_normal"),
+    "part2_prepare_reconstruct": ("part2_wavelet_reconstruct_result", "specs/cold_wavelet_prepare.rs", "part2_wavelet_reconstruct_normal"),
+    "part2_prepare_resolution": ("part2_wavelet_resolution_result", "specs/cold_wavelet_prepare.rs", "part2_wavelet_resolution_normal"),
     "part1_inverse_integer_quantization": ("part2_integer_quantization_result", "specs/cold_quantization_outputs.rs", "part2_integer_quantization_normal"),
     "part1_inverse_quantization": ("part2_quantization_plane_result", "specs/cold_quantization_outputs.rs", "part2_quantization_plane_normal"),
     "ht_cleanup_significance": ("part2_cleanup_significance_result", "specs/cold_ht_significance.rs", "part2_cleanup_significance_normal"),
@@ -4861,6 +4869,11 @@ _PLANE_ROLE_RESULT_RUNS = {
     for old, (model, _, _) in _PLANE_ROLE_MODEL_INFO.items()
 }
 _PLANE_ROLE_RESULT_RUNS.update({
+    "part2_wavelet_horizontal_result": ("part2_wavelet_horizontal_run", False),
+    "part2_wavelet_vertical_result": ("part2_wavelet_vertical_run", False),
+    "part2_wavelet_level_result": ("part2_wavelet_level_run", False),
+    "part2_wavelet_reconstruct_result": ("part2_wavelet_reconstruct_run", False),
+    "part2_wavelet_resolution_result": ("part2_wavelet_resolution_run", False),
     "part2_integer_quantization_result": ("part2_integer_quantization_run", False),
     "part2_quantization_plane_result": ("part2_quantization_plane_run", False),
     "part2_cleanup_significance_result": ("part2_cleanup_significance_run", False),
@@ -5262,6 +5275,33 @@ _COLD_RESULT_CONTRACTS = {
     ),
 }
 _COLD_RESULT_CONTRACTS.update(_LEGACY_PACKET_STORAGE_CONTRACTS)
+for _axis, _extent in (("horizontal", "output_width"), ("vertical", "output_height"), ("level", None)):
+    for _suffix, _irreversible in (("5_3", "false"), ("9_7", "true"), ("arbitrary", r"!\s*" + _coverage_call("crate::codestream::raw_kernel_view", r"\*\s*kernel") + r"\.0")):
+        _wavelet_inputs = (_coverage_call("wavelet_level_view", "level") if _extent is None else
+            _coverage_call("wavelet_band_view", "low") + r"\s*,\s*" + _coverage_call("wavelet_band_view", "high")
+            + r"\s*,\s*" + _extent + r"\s*,\s*low_pass_first")
+        _wavelet_kernel = ("None" if _suffix != "arbitrary" else
+            _coverage_call("Some", _coverage_call("crate::codestream::raw_kernel_view", r"\*\s*kernel")))
+        _COLD_RESULT_CONTRACTS[("src/transform/levels.rs", "inverse_" + _axis + "_" + _suffix)] = (
+            "part2_wavelet_" + _axis + "_result", _wavelet_inputs + r"\s*,\s*" + _irreversible
+            + r"\s*,\s*" + _wavelet_kernel + r"\s*,\s*" + _coverage_call("crate::limits::resource_decoded_bytes_limit", "limits")
+            + r"\s*,\s*" + _coverage_call("reconstruction_outcome", r"\1"),
+        )
+_COLD_RESULT_CONTRACTS.update({
+    ("src/decode/reconstruction.rs", "reconstruct_prepare_working"): (
+        "part2_wavelet_reconstruct_result",
+        _coverage_call("working_bands_view", "working@") + r"\s*,\s*" + _coverage_call("prepare_plan_view", "plan") + r"\s*,\s*"
+        + _coverage_call("prepare_style_view", "coding_style") + r"\s*,\s*reversible\s*,\s*"
+        + _coverage_call("crate::transform::arbitrary_kernel_option", "kernel") + r"\s*,\s*"
+        + _coverage_call("crate::limits::resource_decoded_bytes_limit", "limits") + r"\s*,\s*" + _coverage_call("prepare_fold_outcome", r"\1"),
+    ),
+    ("src/decode/reconstruction.rs", "reconstruct_prepare_resolution"): (
+        "part2_wavelet_resolution_result",
+        r"before@\s*,\s*" + _coverage_call("working_bands_view", "working@") + r"\s*,\s*plan\.subbands@\s*,\s*direction\s*,\s*reversible\s*,\s*"
+        + _coverage_call("crate::transform::arbitrary_kernel_option", "kernel") + r"\s*,\s*"
+        + _coverage_call("crate::limits::resource_decoded_bytes_limit", "limits") + r"\s*,\s*" + _coverage_call("prepare_fold_outcome", r"\1"),
+    ),
+})
 _COLD_RESULT_CONTRACTS.update({
     ("src/transform/quantization.rs", "inverse_quantize"): (
         "part2_integer_quantization_result",
@@ -7028,6 +7068,60 @@ _PREPARATION_NATIVE_ORDER = {
         "part2_packet_progress_error(", "let mut progress = progress_result?", "run_progression_tile_packets(",
     ),
 }
+_WAVELET_PLANE_GUARDS = {
+    ("specs/cold_wavelet_planes.rs", "part2_wavelet_capacity_run"): (
+        "if count==0{Some((Ok(()),calls))}", "WaveletPlaneCapacity", "actual!=owner || elements!=count",
+        "if succeeded{Ok(())}else{Err(crate::DecodeError::AllocationFailed)}", "calls.drop_first()",
+    ),
+    ("specs/cold_wavelet_planes.rs", "part2_wavelet_rows_run"): (
+        "Part2WaveletPlaneOwner::Rows,capacity as nat,calls",
+        "Some((part2_wavelet_rows_value(low,high,first,irreversible,kernel),rest))",
+    ),
+    ("specs/cold_wavelet_planes.rs", "part2_wavelet_columns_run"): (
+        "Part2WaveletPlaneOwner::Columns,length as nat,calls",
+        "Some((part2_wavelet_columns_value(low,high,height,first,irreversible,kernel,length),rest))",
+    ),
+    ("specs/cold_wavelet_planes.rs", "part2_wavelet_level_rows_run"): (
+        "part1_transform_area(level.4,level.0.1)", "part2_wavelet_rows_run(level.0,level.1,level.6,irreversible,kernel,capacity,calls)",
+        "part2_wavelet_level_after_low(level,irreversible,kernel,length,low,rest)",
+    ),
+    ("specs/cold_wavelet_planes.rs", "part2_wavelet_level_after_low"): (
+        "part1_transform_area(level.4,level.2.1)", "part2_wavelet_rows_run(level.2,level.3,level.6,irreversible,kernel,capacity,calls)",
+        "part2_wavelet_level_after_high(level,irreversible,kernel,length,low,high,rest)",
+    ),
+    ("specs/cold_wavelet_planes.rs", "part2_wavelet_level_after_high"): (
+        "part2_wavelet_columns_run((level.4,level.0.1,low),(level.4,level.2.1,high),level.5,level.7,irreversible,kernel,length,calls)",
+        "Some((Ok(part2_wavelet_wrap(level.4,level.5,irreversible,samples)),rest))",
+    ),
+    ("specs/cold_extraction_reconstruction.rs", "part2_extraction_component_finish_run"): (
+        "part2_extraction_component_fold_admit(placed)", "Err(error)=>Some((Err(error),calls))",
+        "part2_wavelet_fold_run(initial,placed.1.0,plan.subbands,style,reversible,kernel,maximum,plan.resolution as nat,calls)",
+        "part1_prepare_finish(plan,part1_prepare_fraction(reversible),folded)",
+    ),
+}
+_WAVELET_PLANE_NATIVE_ORDER = {
+    ("src/transform/levels.rs", "inverse_rows"): (
+        "if capacity == 0", "crate::allocation::empty_with_capacity(capacity)", "let mut samples = allocated?",
+        "inverse_row_pair(", "samples.extend_from_slice(&row)",
+    ),
+    ("src/transform/levels.rs", "inverse_columns"): (
+        "crate::allocation::filled_values(0_i64, output_len)", "let mut samples = allocated?",
+        "inverse_column_pair(", "store_column(&mut samples",
+    ),
+    ("src/transform/levels.rs", "inverse_level"): (
+        "validate_level(level)?", "validate_output_size(output_len, limits)?", "let low_capacity = checked_area(",
+        "let low_result = inverse_rows(", "let low_rows = low_result?", "let high_capacity = checked_area(",
+        "let high_result = inverse_rows(", "let high_rows = high_result?", "let columns = inverse_columns(", "let output = columns?",
+    ),
+}
+_WAVELET_PLANE_TESTS = {
+    ("src/transform/tests.rs", "wavelet_plane_storage_standard_level_first_later_owners_exact_reference_and_restore"),
+    ("src/transform/tests.rs", "wavelet_plane_storage_empty_no_request_geometry_budget_and_numerical_error_order"),
+    ("src/transform/tests.rs", "wavelet_plane_storage_actual_custom_kernel_level_rows_columns_and_restore"),
+    ("src/decode/tests.rs", "wavelet_plane_storage_actual_standard_component_first_later_planes_and_restore"),
+    ("src/decode/tests.rs", "wavelet_plane_storage_actual_raw_selected_container_reconstruction_and_automatic_restore"),
+}
+
 _QUANTIZATION_OUTPUT_GUARDS = {
     ("specs/cold_quantization_outputs.rs", "part2_quantization_capacity_run"): (
         "if count==0{Some((Ok(()),calls))}", "QuantizationCapacity",
@@ -14247,10 +14341,22 @@ def validate_normative_coverage(
             if (entry["id"] == "part1-complete-standard-plan-coordinator"
                     and short == "prepare_tile_component_with_kernel" and claimed_consumer):
                 raise ValueError(f"linked function lacks executable Verus contract: {short}; arbitrary-kernel support is not a standard-only consumer")
-            if cold_contract is not None and normal_arbitrary_contract is not None and short == "prepare_tile_component_with_kernel":
+            if cold_contract is not None and normal_arbitrary_contract is not None and (
+                    short in ("prepare_tile_component_with_kernel", "reconstruct_prepare_working", "reconstruct_prepare_resolution")
+                    or (reference["path"] == "src/transform/levels.rs" and short.endswith("_arbitrary"))):
                 arbitrary_arguments_bound = _coverage_extraction_normal_arguments(
                     contract, normal_arbitrary_contract[0], normal_arbitrary_contract[1], normal_arbitrary_contract[2],
                 )
+            if (reference["path"] == "src/transform/levels.rs" and cold_contract is not None
+                    and short.endswith(("_5_3", "_9_7"))):
+                axis = short.removeprefix("inverse_").rsplit("_", 2)[0]
+                irreversible = "true" if short.endswith("_9_7") else "false"
+                inputs = (_coverage_call("wavelet_level_view", "level") if axis == "level" else
+                    _coverage_call("wavelet_band_view", "low") + r"\s*,\s*" + _coverage_call("wavelet_band_view", "high")
+                    + r"\s*,\s*" + ("output_width" if axis == "horizontal" else "output_height") + r"\s*,\s*low_pass_first")
+                if not _coverage_extraction_normal_arguments(contract, "reconstruction_outcome", "part1_inverse_" + axis,
+                        inputs + r"\s*,\s*" + irreversible + r"\s*,\s*" + _coverage_call("crate::limits::resource_decoded_bytes_limit", "limits")):
+                    raise ValueError(f"linked function lacks executable Verus contract: {short}; missing exact first standard wavelet projection")
             packet_arguments_bound = (
                 packet_contract is None
                 or _coverage_result_arguments(contract, named_result, packet_contract[0], packet_contract[2])
@@ -14348,6 +14454,22 @@ def validate_normative_coverage(
                 raise ValueError(f"linked function is not used by claimed implementation: {short}")
             if claimed_consumer:
                 contract_functions.add((reference["path"], reference["symbol"]))
+    if "part1-complete-standard-wavelet-planes" in ids:
+        wavelet_entry = next(e for e in coverage["requirements"] if e["id"] == "part1-complete-standard-wavelet-planes")
+        if not _WAVELET_PLANE_TESTS.issubset({(r["path"],r["symbol"]) for r in wavelet_entry["test_refs"]}):
+            raise ValueError("wavelet planes require bounded matrix/numerical/empty/refusal/restore/public controls")
+        for (relative,symbol),fragments in _WAVELET_PLANE_GUARDS.items():
+            body = _coverage_spec_function_body(source_text((ROOT / relative).resolve()),symbol)
+            compact = "".join(body.split()) if body is not None else ""
+            if any("".join(f.split()) not in compact for f in fragments):
+                raise ValueError("wavelet planes require actual owner/count, prior rows/matrix, child/error/unused-tail linkage")
+        for (relative,symbol),fragments in _WAVELET_PLANE_NATIVE_ORDER.items():
+            path = (ROOT / relative).resolve()
+            body = _coverage_function_body(source_text(path),function_header(path,symbol))
+            compact = "".join(body.split()) if body is not None else ""
+            positions = [compact.find("".join(f.split())) for f in fragments]
+            if any(p < 0 for p in positions) or positions != sorted(positions):
+                raise ValueError("wavelet planes require original validation/work/limit/row/column owner order")
     if "part1-complete-supplied-coefficient-quantization" in ids:
         quantization_entry = next(e for e in coverage["requirements"] if e["id"] == "part1-complete-supplied-coefficient-quantization")
         if not _QUANTIZATION_OUTPUT_TESTS.issubset({

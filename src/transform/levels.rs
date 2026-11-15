@@ -16,7 +16,8 @@ use crate::{DecodeError, ResourceLimits};
 use vstd::prelude::*;
 
 #[cfg_attr(verus_keep_ghost, verus_spec(result =>
-    ensures reconstruction_outcome(result) == crate::specs::part1_inverse_level(
+    ensures crate::specs::part2_wavelet_level_result(wavelet_level_view(level),false,None,crate::limits::resource_decoded_bytes_limit(limits),reconstruction_outcome(result)),
+        reconstruction_outcome(result)!=Err(DecodeError::AllocationFailed) ==> reconstruction_outcome(result) == crate::specs::part1_inverse_level(
         wavelet_level_view(level), false, crate::limits::resource_decoded_bytes_limit(limits),
     ),
 ))]
@@ -28,7 +29,8 @@ pub fn inverse_level_5_3(
 }
 
 #[cfg_attr(verus_keep_ghost, verus_spec(result =>
-    ensures reconstruction_outcome(result) == crate::specs::part1_inverse_level(
+    ensures crate::specs::part2_wavelet_level_result(wavelet_level_view(level),true,None,crate::limits::resource_decoded_bytes_limit(limits),reconstruction_outcome(result)),
+        reconstruction_outcome(result)!=Err(DecodeError::AllocationFailed) ==> reconstruction_outcome(result) == crate::specs::part1_inverse_level(
         wavelet_level_view(level), true, crate::limits::resource_decoded_bytes_limit(limits),
     ),
 ))]
@@ -40,7 +42,8 @@ pub fn inverse_level_9_7(
 }
 
 #[cfg_attr(verus_keep_ghost, verus_spec(result =>
-    ensures reconstruction_outcome(result)
+    ensures crate::specs::part2_wavelet_level_result(wavelet_level_view(level),!crate::codestream::raw_kernel_view(*kernel).0,Some(crate::codestream::raw_kernel_view(*kernel)),crate::limits::resource_decoded_bytes_limit(limits),reconstruction_outcome(result)),
+        reconstruction_outcome(result)!=Err(DecodeError::AllocationFailed) ==> reconstruction_outcome(result)
         == crate::specs::part2_atk_inverse_level(wavelet_level_view(level), !crate::codestream::raw_kernel_view(*kernel).0,
             crate::codestream::raw_kernel_view(*kernel), crate::limits::resource_decoded_bytes_limit(limits)),
 ))]
@@ -53,7 +56,8 @@ pub fn inverse_level_arbitrary(
 }
 
 #[cfg_attr(verus_keep_ghost, verus_spec(result =>
-    ensures reconstruction_outcome(result) == crate::specs::part1_inverse_horizontal(
+    ensures crate::specs::part2_wavelet_horizontal_result(wavelet_band_view(low),wavelet_band_view(high),output_width,low_pass_first,false,None,crate::limits::resource_decoded_bytes_limit(limits),reconstruction_outcome(result)),
+        reconstruction_outcome(result)!=Err(DecodeError::AllocationFailed) ==> reconstruction_outcome(result) == crate::specs::part1_inverse_horizontal(
         wavelet_band_view(low), wavelet_band_view(high), output_width, low_pass_first, false,
         crate::limits::resource_decoded_bytes_limit(limits),
     ),
@@ -69,7 +73,8 @@ pub fn inverse_horizontal_5_3(
 }
 
 #[cfg_attr(verus_keep_ghost, verus_spec(result =>
-    ensures reconstruction_outcome(result) == crate::specs::part1_inverse_horizontal(
+    ensures crate::specs::part2_wavelet_horizontal_result(wavelet_band_view(low),wavelet_band_view(high),output_width,low_pass_first,true,None,crate::limits::resource_decoded_bytes_limit(limits),reconstruction_outcome(result)),
+        reconstruction_outcome(result)!=Err(DecodeError::AllocationFailed) ==> reconstruction_outcome(result) == crate::specs::part1_inverse_horizontal(
         wavelet_band_view(low), wavelet_band_view(high), output_width, low_pass_first, true,
         crate::limits::resource_decoded_bytes_limit(limits),
     ),
@@ -85,7 +90,8 @@ pub fn inverse_horizontal_9_7(
 }
 
 #[cfg_attr(verus_keep_ghost, verus_spec(result =>
-    ensures reconstruction_outcome(result)
+    ensures crate::specs::part2_wavelet_horizontal_result(wavelet_band_view(low),wavelet_band_view(high),output_width,low_pass_first,!crate::codestream::raw_kernel_view(*kernel).0,Some(crate::codestream::raw_kernel_view(*kernel)),crate::limits::resource_decoded_bytes_limit(limits),reconstruction_outcome(result)),
+        reconstruction_outcome(result)!=Err(DecodeError::AllocationFailed) ==> reconstruction_outcome(result)
         == crate::specs::part2_atk_inverse_horizontal(wavelet_band_view(low), wavelet_band_view(high),
             output_width, low_pass_first, !crate::codestream::raw_kernel_view(*kernel).0, crate::codestream::raw_kernel_view(*kernel),
             crate::limits::resource_decoded_bytes_limit(limits)),
@@ -110,11 +116,12 @@ pub fn inverse_horizontal_arbitrary(
 }
 
 #[cfg_attr(verus_keep_ghost, verus_spec(result =>
-    ensures kernel.is_none() ==> reconstruction_outcome(result) == crate::specs::part1_inverse_horizontal(
+    ensures crate::specs::part2_wavelet_horizontal_result(wavelet_band_view(low),wavelet_band_view(high),output_width,low_pass_first,irreversible,arbitrary_kernel_option(kernel),crate::limits::resource_decoded_bytes_limit(limits),reconstruction_outcome(result)),
+        kernel.is_none() && reconstruction_outcome(result)!=Err(DecodeError::AllocationFailed) ==> reconstruction_outcome(result) == crate::specs::part1_inverse_horizontal(
         wavelet_band_view(low), wavelet_band_view(high), output_width, low_pass_first, irreversible,
         crate::limits::resource_decoded_bytes_limit(limits),
     ),
-    arbitrary_kernel_supplied(kernel) ==> reconstruction_outcome(result) == crate::specs::part2_atk_inverse_horizontal(
+    arbitrary_kernel_supplied(kernel) && reconstruction_outcome(result)!=Err(DecodeError::AllocationFailed) ==> reconstruction_outcome(result) == crate::specs::part2_atk_inverse_horizontal(
         wavelet_band_view(low), wavelet_band_view(high), output_width, low_pass_first, irreversible,
         arbitrary_kernel_option(kernel).unwrap(), crate::limits::resource_decoded_bytes_limit(limits),
     ),
@@ -128,6 +135,8 @@ fn inverse_horizontal(
     irreversible: bool,
     kernel: Option<&ArbitraryKernel>,
 ) -> Result<ReconstructedPlane, DecodeError> {
+    #[cfg(verus_keep_ghost)]
+    proof! {crate::specs::part2_wavelet_horizontal_normal(wavelet_band_view(low),wavelet_band_view(high),output_width,low_pass_first,irreversible,arbitrary_kernel_option(kernel),crate::limits::resource_decoded_bytes_limit(limits));}
     if low.height == 0
         || low.height != high.height
         || low.width != low_count(output_width, low_pass_first)
@@ -140,7 +149,10 @@ fn inverse_horizontal(
     }
     let output_len = checked_area(output_width, low.height)?;
     validate_output_size(output_len, limits)?;
-    let samples = inverse_rows(low, high, low_pass_first, irreversible, kernel, output_len)?;
+    let rows = inverse_rows(low, high, low_pass_first, irreversible, kernel, output_len);
+    #[cfg(verus_keep_ghost)]
+    proof! {crate::specs::part2_wavelet_horizontal_observed(wavelet_band_view(low),wavelet_band_view(high),output_width,low_pass_first,irreversible,arbitrary_kernel_option(kernel),crate::limits::resource_decoded_bytes_limit(limits),output_len,sequence_outcome(rows));}
+    let samples = rows?;
     Ok(ReconstructedPlane {
         width: output_width,
         height: low.height,
@@ -150,10 +162,11 @@ fn inverse_horizontal(
 }
 
 #[cfg_attr(verus_keep_ghost, verus_spec(result =>
-    ensures kernel.is_none() ==> sequence_outcome(result) == crate::specs::part1_horizontal_prefix(
+    ensures crate::specs::part2_wavelet_rows_result(wavelet_band_view(low),wavelet_band_view(high),low_pass_first,irreversible,arbitrary_kernel_option(kernel),capacity,sequence_outcome(result)),
+        kernel.is_none() && sequence_outcome(result)!=Err(DecodeError::AllocationFailed) ==> sequence_outcome(result) == crate::specs::part1_horizontal_prefix(
         wavelet_band_view(low), wavelet_band_view(high), low_pass_first, irreversible, low.height as nat,
     ),
-    arbitrary_kernel_supplied(kernel) ==> sequence_outcome(result) == crate::specs::part2_atk_horizontal_prefix(
+    arbitrary_kernel_supplied(kernel) && sequence_outcome(result)!=Err(DecodeError::AllocationFailed) ==> sequence_outcome(result) == crate::specs::part2_atk_horizontal_prefix(
         wavelet_band_view(low), wavelet_band_view(high), low_pass_first, arbitrary_kernel_option(kernel).unwrap(), low.height as nat,
     ),
 ))]
@@ -165,12 +178,27 @@ fn inverse_rows(
     kernel: Option<&ArbitraryKernel>,
     capacity: usize,
 ) -> Result<Vec<i64>, DecodeError> {
-    let mut samples = Vec::with_capacity(capacity);
+    #[cfg(verus_keep_ghost)]
+    proof! {crate::specs::part2_wavelet_rows_normal(wavelet_band_view(low),wavelet_band_view(high),low_pass_first,irreversible,arbitrary_kernel_option(kernel),capacity);}
+    let allocated = if capacity == 0 {
+        Ok(Vec::new())
+    } else {
+        crate::allocation::empty_with_capacity(capacity)
+    };
+    #[cfg(verus_keep_ghost)]
+    proof! {
+        let unit=match allocated{Err(error)=>Err(error),Ok(_)=>Ok(())};
+        crate::specs::part2_wavelet_capacity_observed(crate::specs::Part2WaveletPlaneOwner::Rows,capacity as nat,unit);
+        if let Err(error)=allocated{crate::specs::part2_wavelet_rows_refused(wavelet_band_view(low),wavelet_band_view(high),low_pass_first,irreversible,arbitrary_kernel_option(kernel),capacity,error);}
+    }
+    let mut samples = allocated?;
     let mut y = 0_u32;
     #[cfg_attr(
         verus_keep_ghost,
         verus_spec(
             invariant y <= low.height,
+            crate::specs::part2_wavelet_rows_result(wavelet_band_view(low),wavelet_band_view(high),low_pass_first,irreversible,arbitrary_kernel_option(kernel),capacity,
+                crate::specs::part2_wavelet_rows_value(wavelet_band_view(low),wavelet_band_view(high),low_pass_first,irreversible,arbitrary_kernel_option(kernel))),
             kernel.is_none() ==> crate::specs::part1_horizontal_prefix(
                 wavelet_band_view(low), wavelet_band_view(high), low_pass_first, irreversible, y as nat,
             ) == Ok(samples@),
@@ -252,7 +280,8 @@ fn inverse_row_pair(
 }
 
 #[cfg_attr(verus_keep_ghost, verus_spec(result =>
-    ensures reconstruction_outcome(result) == crate::specs::part1_inverse_vertical(
+    ensures crate::specs::part2_wavelet_vertical_result(wavelet_band_view(low),wavelet_band_view(high),output_height,low_pass_first,false,None,crate::limits::resource_decoded_bytes_limit(limits),reconstruction_outcome(result)),
+        reconstruction_outcome(result)!=Err(DecodeError::AllocationFailed) ==> reconstruction_outcome(result) == crate::specs::part1_inverse_vertical(
         wavelet_band_view(low), wavelet_band_view(high), output_height, low_pass_first, false,
         crate::limits::resource_decoded_bytes_limit(limits),
     ),
@@ -276,7 +305,8 @@ pub fn inverse_vertical_5_3(
 }
 
 #[cfg_attr(verus_keep_ghost, verus_spec(result =>
-    ensures reconstruction_outcome(result) == crate::specs::part1_inverse_vertical(
+    ensures crate::specs::part2_wavelet_vertical_result(wavelet_band_view(low),wavelet_band_view(high),output_height,low_pass_first,true,None,crate::limits::resource_decoded_bytes_limit(limits),reconstruction_outcome(result)),
+        reconstruction_outcome(result)!=Err(DecodeError::AllocationFailed) ==> reconstruction_outcome(result) == crate::specs::part1_inverse_vertical(
         wavelet_band_view(low), wavelet_band_view(high), output_height, low_pass_first, true,
         crate::limits::resource_decoded_bytes_limit(limits),
     ),
@@ -292,7 +322,8 @@ pub fn inverse_vertical_9_7(
 }
 
 #[cfg_attr(verus_keep_ghost, verus_spec(result =>
-    ensures reconstruction_outcome(result)
+    ensures crate::specs::part2_wavelet_vertical_result(wavelet_band_view(low),wavelet_band_view(high),output_height,low_pass_first,!crate::codestream::raw_kernel_view(*kernel).0,Some(crate::codestream::raw_kernel_view(*kernel)),crate::limits::resource_decoded_bytes_limit(limits),reconstruction_outcome(result)),
+        reconstruction_outcome(result)!=Err(DecodeError::AllocationFailed) ==> reconstruction_outcome(result)
         == crate::specs::part2_atk_inverse_vertical(wavelet_band_view(low), wavelet_band_view(high),
             output_height, low_pass_first, !crate::codestream::raw_kernel_view(*kernel).0, crate::codestream::raw_kernel_view(*kernel),
             crate::limits::resource_decoded_bytes_limit(limits)),
@@ -317,11 +348,12 @@ pub fn inverse_vertical_arbitrary(
 }
 
 #[cfg_attr(verus_keep_ghost, verus_spec(result =>
-    ensures kernel.is_none() ==> reconstruction_outcome(result) == crate::specs::part1_inverse_vertical(
+    ensures crate::specs::part2_wavelet_vertical_result(wavelet_band_view(low),wavelet_band_view(high),output_height,low_pass_first,irreversible,arbitrary_kernel_option(kernel),crate::limits::resource_decoded_bytes_limit(limits),reconstruction_outcome(result)),
+        kernel.is_none() && reconstruction_outcome(result)!=Err(DecodeError::AllocationFailed) ==> reconstruction_outcome(result) == crate::specs::part1_inverse_vertical(
         wavelet_band_view(low), wavelet_band_view(high), output_height, low_pass_first, irreversible,
         crate::limits::resource_decoded_bytes_limit(limits),
     ),
-    arbitrary_kernel_supplied(kernel) ==> reconstruction_outcome(result) == crate::specs::part2_atk_inverse_vertical(
+    arbitrary_kernel_supplied(kernel) && reconstruction_outcome(result)!=Err(DecodeError::AllocationFailed) ==> reconstruction_outcome(result) == crate::specs::part2_atk_inverse_vertical(
         wavelet_band_view(low), wavelet_band_view(high), output_height, low_pass_first, irreversible,
         arbitrary_kernel_option(kernel).unwrap(), crate::limits::resource_decoded_bytes_limit(limits),
     ),
@@ -335,6 +367,8 @@ fn inverse_vertical(
     irreversible: bool,
     kernel: Option<&ArbitraryKernel>,
 ) -> Result<ReconstructedPlane, DecodeError> {
+    #[cfg(verus_keep_ghost)]
+    proof! {crate::specs::part2_wavelet_vertical_normal(wavelet_band_view(low),wavelet_band_view(high),output_height,low_pass_first,irreversible,arbitrary_kernel_option(kernel),crate::limits::resource_decoded_bytes_limit(limits));}
     if low.width == 0
         || low.width != high.width
         || low.height != low_count(output_height, low_pass_first)
@@ -347,7 +381,7 @@ fn inverse_vertical(
     }
     let output_len = checked_area(low.width, output_height)?;
     validate_output_size(output_len, limits)?;
-    let samples = inverse_columns(
+    let columns = inverse_columns(
         low,
         high,
         output_height,
@@ -355,7 +389,10 @@ fn inverse_vertical(
         irreversible,
         kernel,
         output_len,
-    )?;
+    );
+    #[cfg(verus_keep_ghost)]
+    proof! {crate::specs::part2_wavelet_vertical_observed(wavelet_band_view(low),wavelet_band_view(high),output_height,low_pass_first,irreversible,arbitrary_kernel_option(kernel),crate::limits::resource_decoded_bytes_limit(limits),output_len,sequence_outcome(columns));}
+    let samples = columns?;
     Ok(ReconstructedPlane {
         width: low.width,
         height: output_height,
@@ -365,11 +402,12 @@ fn inverse_vertical(
 }
 
 #[cfg_attr(verus_keep_ghost, verus_spec(result =>
-    ensures kernel.is_none() ==> sequence_outcome(result) == crate::specs::part1_vertical_prefix(
+    ensures crate::specs::part2_wavelet_columns_result(wavelet_band_view(low),wavelet_band_view(high),output_height,low_pass_first,irreversible,arbitrary_kernel_option(kernel),output_len,sequence_outcome(result)),
+        kernel.is_none() && sequence_outcome(result)!=Err(DecodeError::AllocationFailed) ==> sequence_outcome(result) == crate::specs::part1_vertical_prefix(
         wavelet_band_view(low), wavelet_band_view(high), output_height, low_pass_first, irreversible,
         output_len, low.width as nat,
     ),
-    arbitrary_kernel_supplied(kernel) ==> sequence_outcome(result) == crate::specs::part2_atk_vertical_prefix(
+    arbitrary_kernel_supplied(kernel) && sequence_outcome(result)!=Err(DecodeError::AllocationFailed) ==> sequence_outcome(result) == crate::specs::part2_atk_vertical_prefix(
         wavelet_band_view(low), wavelet_band_view(high), output_height, low_pass_first,
         arbitrary_kernel_option(kernel).unwrap(), output_len, low.width as nat,
     ),
@@ -383,7 +421,16 @@ fn inverse_columns(
     kernel: Option<&ArbitraryKernel>,
     output_len: usize,
 ) -> Result<Vec<i64>, DecodeError> {
-    let mut samples = vec![0_i64; output_len];
+    #[cfg(verus_keep_ghost)]
+    proof! {crate::specs::part2_wavelet_columns_normal(wavelet_band_view(low),wavelet_band_view(high),output_height,low_pass_first,irreversible,arbitrary_kernel_option(kernel),output_len);}
+    let allocated = crate::allocation::filled_values(0_i64, output_len);
+    #[cfg(verus_keep_ghost)]
+    proof! {
+        let unit=match allocated{Err(error)=>Err(error),Ok(_)=>Ok(())};
+        crate::specs::part2_wavelet_capacity_observed(crate::specs::Part2WaveletPlaneOwner::Columns,output_len as nat,unit);
+        if let Err(error)=allocated{crate::specs::part2_wavelet_columns_refused(wavelet_band_view(low),wavelet_band_view(high),output_height,low_pass_first,irreversible,arbitrary_kernel_option(kernel),output_len,error);}
+    }
+    let mut samples = allocated?;
     #[cfg(verus_keep_ghost)]
     proof! { assert(samples@ =~= Seq::new(output_len as nat, |i: int| 0i64)); }
     let mut x = 0_u32;
@@ -391,6 +438,8 @@ fn inverse_columns(
         verus_keep_ghost,
         verus_spec(
             invariant x <= low.width,
+            crate::specs::part2_wavelet_columns_result(wavelet_band_view(low),wavelet_band_view(high),output_height,low_pass_first,irreversible,arbitrary_kernel_option(kernel),output_len,
+                crate::specs::part2_wavelet_columns_value(wavelet_band_view(low),wavelet_band_view(high),output_height,low_pass_first,irreversible,arbitrary_kernel_option(kernel),output_len)),
             kernel.is_none() ==> crate::specs::part1_vertical_prefix(
                 wavelet_band_view(low), wavelet_band_view(high), output_height, low_pass_first, irreversible,
                 output_len, x as nat,
@@ -490,10 +539,11 @@ fn inverse_column_pair(
 }
 
 #[cfg_attr(verus_keep_ghost, verus_spec(result =>
-    ensures kernel.is_none() ==> reconstruction_outcome(result) == crate::specs::part1_inverse_level(
+    ensures crate::specs::part2_wavelet_level_result(wavelet_level_view(level),irreversible,arbitrary_kernel_option(kernel),crate::limits::resource_decoded_bytes_limit(limits),reconstruction_outcome(result)),
+        kernel.is_none() && reconstruction_outcome(result)!=Err(DecodeError::AllocationFailed) ==> reconstruction_outcome(result) == crate::specs::part1_inverse_level(
         wavelet_level_view(level), irreversible, crate::limits::resource_decoded_bytes_limit(limits),
     ),
-    arbitrary_kernel_supplied(kernel) ==> reconstruction_outcome(result) == crate::specs::part2_atk_inverse_level(
+    arbitrary_kernel_supplied(kernel) && reconstruction_outcome(result)!=Err(DecodeError::AllocationFailed) ==> reconstruction_outcome(result) == crate::specs::part2_atk_inverse_level(
         wavelet_level_view(level), irreversible, arbitrary_kernel_option(kernel).unwrap(), crate::limits::resource_decoded_bytes_limit(limits),
     ),
 ))]
@@ -503,6 +553,8 @@ fn inverse_level(
     irreversible: bool,
     kernel: Option<&ArbitraryKernel>,
 ) -> Result<ReconstructedPlane, DecodeError> {
+    #[cfg(verus_keep_ghost)]
+    proof! {crate::specs::part2_wavelet_level_normal(wavelet_level_view(level),irreversible,arbitrary_kernel_option(kernel),crate::limits::resource_decoded_bytes_limit(limits));}
     validate_level(level)?;
     let output_len = checked_area(level.output_width, level.output_height)?;
     if !crate::refinement::wavelet_sample_count(level.output_width, level.output_height, output_len)
@@ -513,24 +565,30 @@ fn inverse_level(
     let low_height = level.ll.height;
     let high_height = level.lh.height;
     let low_capacity = checked_area(level.output_width, low_height)?;
-    let low_rows = inverse_rows(
+    let low_result = inverse_rows(
         level.ll,
         level.hl,
         level.low_pass_first_x,
         irreversible,
         kernel,
         low_capacity,
-    )?;
+    );
+    #[cfg(verus_keep_ghost)]
+    proof! {if let Err(error)=low_result{crate::specs::part2_wavelet_level_low_error(wavelet_level_view(level),irreversible,arbitrary_kernel_option(kernel),crate::limits::resource_decoded_bytes_limit(limits),output_len,low_capacity,error);}}
+    let low_rows = low_result?;
     let high_capacity = checked_area(level.output_width, high_height)?;
-    let high_rows = inverse_rows(
+    let high_result = inverse_rows(
         level.lh,
         level.hh,
         level.low_pass_first_x,
         irreversible,
         kernel,
         high_capacity,
-    )?;
-    let output = inverse_columns(
+    );
+    #[cfg(verus_keep_ghost)]
+    proof! {if let Err(error)=high_result{crate::specs::part2_wavelet_level_high_error(wavelet_level_view(level),irreversible,arbitrary_kernel_option(kernel),crate::limits::resource_decoded_bytes_limit(limits),output_len,low_rows@,low_capacity,high_capacity,error);}}
+    let high_rows = high_result?;
+    let columns = inverse_columns(
         WaveletBand {
             width: level.output_width,
             height: low_height,
@@ -546,7 +604,10 @@ fn inverse_level(
         irreversible,
         kernel,
         output_len,
-    )?;
+    );
+    #[cfg(verus_keep_ghost)]
+    proof! {if let Err(error)=columns{crate::specs::part2_wavelet_level_columns_error(wavelet_level_view(level),irreversible,arbitrary_kernel_option(kernel),crate::limits::resource_decoded_bytes_limit(limits),output_len,low_rows@,high_rows@,low_capacity,high_capacity,error);}}
+    let output = columns?;
     Ok(ReconstructedPlane {
         width: level.output_width,
         height: level.output_height,

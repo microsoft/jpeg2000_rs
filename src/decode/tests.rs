@@ -8594,6 +8594,149 @@ fn coefficient_extraction_storage_actual_legacy_ht_code_block_packet_and_quantiz
 }
 
 #[test]
+fn wavelet_plane_storage_actual_standard_component_first_later_planes_and_restore() {
+    let limits = ResourceLimits::default();
+    for reversible in [false, true] {
+        let (plan, precincts, style) = standard_prepare_fixture(
+            &[codestream::DecompositionDirection::TwoDimensional],
+            reversible,
+            false,
+            1,
+        );
+        let expected = prepare_tile_component(&plan, &precincts, style, &limits).unwrap();
+        let sources: Vec<_> = precincts
+            .iter()
+            .map(crate::packet::exact_packet_precinct_snapshot)
+            .collect();
+        for after in [8, 9, 10] {
+            assert_eq!(
+                crate::allocation::with_refusal(after, || prepare_tile_component(
+                    &plan, &precincts, style, &limits
+                )),
+                Err(DecodeError::AllocationFailed)
+            );
+            let restored = prepare_tile_component(&plan, &precincts, style, &limits).unwrap();
+            assert_eq!(
+                (
+                    restored.width(),
+                    restored.height(),
+                    restored.fraction_bits(),
+                    restored.samples()
+                ),
+                (
+                    expected.width(),
+                    expected.height(),
+                    expected.fraction_bits(),
+                    expected.samples()
+                )
+            );
+            assert_eq!(
+                precincts
+                    .iter()
+                    .map(crate::packet::exact_packet_precinct_snapshot)
+                    .collect::<Vec<_>>(),
+                sources
+            );
+        }
+    }
+    let (plan, precincts, mut style) = standard_prepare_fixture(
+        &[codestream::DecompositionDirection::TwoDimensional],
+        true,
+        false,
+        1,
+    );
+    style.transform = WaveletTransform::Arbitrary(0);
+    let kernel = ArbitraryKernel::for_test(true, 0, false, false, false, None, vec![]);
+    let expected =
+        prepare_tile_component_with_kernel(&plan, &precincts, style, Some(&kernel), &limits)
+            .unwrap();
+    for after in [8, 9, 10] {
+        assert_eq!(
+            crate::allocation::with_refusal(after, || prepare_tile_component_with_kernel(
+                &plan,
+                &precincts,
+                style,
+                Some(&kernel),
+                &limits
+            )),
+            Err(DecodeError::AllocationFailed)
+        );
+        let actual =
+            prepare_tile_component_with_kernel(&plan, &precincts, style, Some(&kernel), &limits)
+                .unwrap();
+        assert_eq!(
+            (
+                actual.width(),
+                actual.height(),
+                actual.fraction_bits(),
+                actual.samples()
+            ),
+            (
+                expected.width(),
+                expected.height(),
+                expected.fraction_bits(),
+                expected.samples()
+            )
+        );
+    }
+}
+
+#[test]
+fn wavelet_plane_storage_actual_raw_selected_container_reconstruction_and_automatic_restore() {
+    let bytes = prepared_codestream(
+        1,
+        1,
+        1,
+        &[0, 0x10, 0x10, 0x10, 0x10, 0x10, 0x10, 0x10],
+        &[0, 0, 0],
+    );
+    let options = DecodeOptions::default();
+    let selection = DecodeSelection::full_image();
+    let expected = decode_codestream(&bytes, &options).unwrap();
+    let raw = decode_codestream_reconstructed(&bytes, &options).unwrap();
+    let jp2 = jp2_for_codestream(&bytes, 1, 1);
+    assert_eq!(
+        decode_codestream_selected(&bytes, &options, &selection).unwrap(),
+        expected
+    );
+    assert_eq!(decode_jp2(&jp2, &options).unwrap(), expected);
+    assert_eq!(
+        decode_codestream_reconstructed(&bytes, &options).unwrap(),
+        raw
+    );
+    let limits = ResourceLimits::default();
+    let tile = bytes.windows(2).position(|p| p == [0xff, 0x90]).unwrap();
+    let packet = tile + 14;
+    let mut cache = crate::jpip::DatabinCache::new(limits);
+    for (class, data) in [(6, &bytes[..tile]), (2, &bytes[tile..packet])] {
+        let id = crate::jpip::DatabinId::new(class, 0, 0).unwrap();
+        cache
+            .insert(
+                crate::jpip::JpipFragment::new(id, 0, data.to_vec(), true, None, &limits).unwrap(),
+            )
+            .unwrap();
+    }
+    for precinct in 0..3 {
+        let id = crate::jpip::DatabinId::new(0, 0, precinct).unwrap();
+        cache
+            .insert(crate::jpip::JpipFragment::new(id, 0, vec![0], true, None, &limits).unwrap())
+            .unwrap();
+    }
+    let packets = crate::jpip::JpipPacketSelection::all_components();
+    for selected in [false, true] {
+        let mut decoder = crate::jpip::JpipAutomaticProgressiveDecoder::new(0);
+        let update = if selected {
+            decoder.update_selected(&cache, &options, &selection, &packets)
+        } else {
+            decoder.update(&cache, &options)
+        }
+        .unwrap();
+        assert_eq!(update.image(), Some(&expected));
+        assert_eq!(decoder.decoded_layers(), 1);
+    }
+}
+
+#[test]
 fn quantization_output_storage_final_copy_preserves_exact_source_fraction_and_empty() {
     use super::code_blocks::copy_code_block_samples;
     let limits = ResourceLimits::default();

@@ -870,19 +870,25 @@ pub(super) fn prepare_tile_component_with_kernel(
     }
     validate_prepare_coverage(&working.bands)?;
 
-    let folded = reconstruct_prepare_working(
+    let reconstructed = reconstruct_prepare_working(
         &working.bands,
         plan,
         coding_style,
         reversible,
         kernel,
         limits,
-    )?;
+    );
+    #[cfg(verus_keep_ghost)]
+    proof! {if let Err(error)=reconstructed{crate::specs::part2_extraction_component_wavelet_error(prepare_plan_view(plan),prepare_precincts_view(precincts@),prepare_style_view(coding_style),
+    crate::transform::arbitrary_kernel_option(kernel),crate::limits::resource_decoded_bytes_limit(limits),reversible,initial_working,working@,error);}}
+    let folded = reconstructed?;
     finish_prepared_component(plan, folded, expected_fraction_bits)
 }
 
 #[cfg_attr(verus_keep_ghost, verus_spec(result =>
-    ensures prepare_fold_outcome(result) == crate::specs::part2_prepare_reconstruct(
+    ensures crate::specs::part2_wavelet_reconstruct_result(working_bands_view(working@),prepare_plan_view(plan),prepare_style_view(coding_style),reversible,
+        crate::transform::arbitrary_kernel_option(kernel),crate::limits::resource_decoded_bytes_limit(limits),prepare_fold_outcome(result)),
+        prepare_fold_outcome(result)!=Err(DecodeError::AllocationFailed) ==> prepare_fold_outcome(result) == crate::specs::part2_prepare_reconstruct(
         working_bands_view(working@), prepare_plan_view(plan), prepare_style_view(coding_style), reversible,
         crate::transform::arbitrary_kernel_option(kernel), crate::limits::resource_decoded_bytes_limit(limits),
     ),
@@ -895,6 +901,9 @@ pub(super) fn reconstruct_prepare_working(
     kernel: Option<&ArbitraryKernel>,
     limits: &ResourceLimits,
 ) -> Result<PrepareFold, DecodeError> {
+    #[cfg(verus_keep_ghost)]
+    proof! {crate::specs::part2_wavelet_reconstruct_normal(working_bands_view(working@),prepare_plan_view(plan),prepare_style_view(coding_style),reversible,
+    crate::transform::arbitrary_kernel_option(kernel),crate::limits::resource_decoded_bytes_limit(limits));}
     let ll = working.first().ok_or_else(invalid_decode)?;
     let mut folded = PrepareFold {
         width: ll.width,
@@ -911,6 +920,10 @@ pub(super) fn reconstruct_prepare_working(
         invariant 1 <= resolution as int <= plan.output_resolution as int + 1,
         working.len() > 0, ll == &working@[0],
         initial == (ll.width, ll.height, ll.samples@, 1usize),
+        crate::specs::part2_wavelet_reconstruct_result(working_bands_view(working@),prepare_plan_view(plan),prepare_style_view(coding_style),reversible,
+            crate::transform::arbitrary_kernel_option(kernel),crate::limits::resource_decoded_bytes_limit(limits),
+            crate::specs::part2_prepare_reconstruct(working_bands_view(working@),prepare_plan_view(plan),prepare_style_view(coding_style),reversible,
+                crate::transform::arbitrary_kernel_option(kernel),crate::limits::resource_decoded_bytes_limit(limits))),
         crate::specs::part2_prepare_fold(
             initial, working_bands_view(working@), plan.subbands@, prepare_style_view(coding_style), reversible,
             crate::transform::arbitrary_kernel_option(kernel), crate::limits::resource_decoded_bytes_limit(limits), (resolution - 1) as nat,
@@ -928,9 +941,15 @@ pub(super) fn reconstruct_prepare_working(
             resolution = resolution.checked_add(1).ok_or_else(arithmetic_overflow)?;
             continue;
         }
-        folded = reconstruct_prepare_resolution(
+        #[cfg(verus_keep_ghost)]
+        proof_decl! {let ghost before_resolution=folded@;}
+        let transformed = reconstruct_prepare_resolution(
             working, plan, folded, direction, reversible, kernel, limits,
-        )?;
+        );
+        #[cfg(verus_keep_ghost)]
+        proof! {if let Err(error)=transformed{crate::specs::part2_wavelet_reconstruct_error(working_bands_view(working@),prepare_plan_view(plan),prepare_style_view(coding_style),reversible,
+        crate::transform::arbitrary_kernel_option(kernel),crate::limits::resource_decoded_bytes_limit(limits),resolution as nat,before_resolution,direction,error);}}
+        folded = transformed?;
         if resolution == u8::MAX {
             return Err(arithmetic_overflow());
         }
@@ -944,7 +963,9 @@ pub(super) fn reconstruct_prepare_working(
 }
 
 #[cfg_attr(verus_keep_ghost, verus_spec(result =>
-    ensures prepare_fold_outcome(result) == crate::specs::part2_prepare_resolution(
+    ensures crate::specs::part2_wavelet_resolution_result(before@,working_bands_view(working@),plan.subbands@,direction,reversible,
+        crate::transform::arbitrary_kernel_option(kernel),crate::limits::resource_decoded_bytes_limit(limits),prepare_fold_outcome(result)),
+        prepare_fold_outcome(result)!=Err(DecodeError::AllocationFailed) ==> prepare_fold_outcome(result) == crate::specs::part2_prepare_resolution(
         before@, working_bands_view(working@), plan.subbands@, direction, reversible,
         crate::transform::arbitrary_kernel_option(kernel), crate::limits::resource_decoded_bytes_limit(limits),
     ),
@@ -958,6 +979,10 @@ pub(super) fn reconstruct_prepare_resolution(
     kernel: Option<&ArbitraryKernel>,
     limits: &ResourceLimits,
 ) -> Result<PrepareFold, DecodeError> {
+    #[cfg(verus_keep_ghost)]
+    proof_decl! {let ghost initial=before@;}
+    #[cfg(verus_keep_ghost)]
+    proof! {crate::specs::part2_wavelet_resolution_normal(initial,working_bands_view(working@),plan.subbands@,direction,reversible,crate::transform::arbitrary_kernel_option(kernel),crate::limits::resource_decoded_bytes_limit(limits));}
     #[cfg(verus_keep_ghost)]
     proof! {
         reveal(crate::specs::part2_prepare_resolution);
@@ -980,7 +1005,7 @@ pub(super) fn reconstruct_prepare_resolution(
         height: reconstructed_height,
         samples: &reconstructed,
     };
-    let plane = match direction {
+    let plane_result = match direction {
         crate::codestream::DecompositionDirection::Horizontal => {
             first_detail = first_detail
                 .checked_add(crate::refinement::wavelet_detail_advance(1))
@@ -998,7 +1023,7 @@ pub(super) fn reconstruct_prepare_resolution(
                     geometry.low_pass_first_x,
                     kernel,
                     limits,
-                )?
+                )
             } else if reversible {
                 inverse_horizontal_5_3(
                     low,
@@ -1006,7 +1031,7 @@ pub(super) fn reconstruct_prepare_resolution(
                     geometry.resolution_width,
                     geometry.low_pass_first_x,
                     limits,
-                )?
+                )
             } else {
                 inverse_horizontal_9_7(
                     low,
@@ -1014,7 +1039,7 @@ pub(super) fn reconstruct_prepare_resolution(
                     geometry.resolution_width,
                     geometry.low_pass_first_x,
                     limits,
-                )?
+                )
             }
         }
         crate::codestream::DecompositionDirection::Vertical => {
@@ -1034,7 +1059,7 @@ pub(super) fn reconstruct_prepare_resolution(
                     geometry.low_pass_first_y,
                     kernel,
                     limits,
-                )?
+                )
             } else if reversible {
                 inverse_vertical_5_3(
                     low,
@@ -1042,7 +1067,7 @@ pub(super) fn reconstruct_prepare_resolution(
                     geometry.resolution_height,
                     geometry.low_pass_first_y,
                     limits,
-                )?
+                )
             } else {
                 inverse_vertical_9_7(
                     low,
@@ -1050,7 +1075,7 @@ pub(super) fn reconstruct_prepare_resolution(
                     geometry.resolution_height,
                     geometry.low_pass_first_y,
                     limits,
-                )?
+                )
             }
         }
         crate::codestream::DecompositionDirection::TwoDimensional => {
@@ -1099,17 +1124,24 @@ pub(super) fn reconstruct_prepare_resolution(
                 low_pass_first_y: geometry.low_pass_first_y,
             };
             if let Some(kernel) = kernel {
-                inverse_level_arbitrary(level, kernel, limits)?
+                inverse_level_arbitrary(level, kernel, limits)
             } else if reversible {
-                inverse_level_5_3(level, limits)?
+                inverse_level_5_3(level, limits)
             } else {
-                inverse_level_9_7(level, limits)?
+                inverse_level_9_7(level, limits)
             }
         }
         crate::codestream::DecompositionDirection::None => {
             return Err(invalid_decode());
         }
     };
+    #[cfg(verus_keep_ghost)]
+    proof! {if let Err(error)=plane_result{
+        let admitted=crate::specs::part2_wavelet_resolution_admit(initial,working_bands_view(working@),plan.subbands@,direction,reversible).get_Ok_0();
+        crate::specs::part2_wavelet_request_observed(admitted.0,reversible,crate::transform::arbitrary_kernel_option(kernel),crate::limits::resource_decoded_bytes_limit(limits),Err(error));
+        crate::specs::part2_wavelet_resolution_child_error(initial,working_bands_view(working@),plan.subbands@,direction,reversible,crate::transform::arbitrary_kernel_option(kernel),crate::limits::resource_decoded_bytes_limit(limits),admitted.0,admitted.1,error);
+    }}
+    let plane = plane_result?;
     if plane.fraction_bits() != expected_fraction_bits {
         return Err(invalid_decode());
     }

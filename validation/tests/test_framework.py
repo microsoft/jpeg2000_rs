@@ -437,12 +437,15 @@ class FrameworkTests(WorkingFiles):
                 "sequence_outcome" if projection == "reconstruction_outcome"
                 else "reconstruction_outcome"
             )
+            cold = framework._COLD_RESULT_CONTRACTS.get((reference["path"], function))
+            primary = f"crate::specs::{cold[0]}" if cold else f"{projection}(result)"
+            projected = (f"{projection}(result)!=Err(DecodeError::AllocationFailed) ==> {projection}(result)" if cold else f"ensures {projection}(result)")
             for before, after in (
-                (f"ensures {projection}(result)", f"ensures {projection}(unrelated)"),
-                (f"ensures {projection}(result)", "ensures unlisted_projection(result)"),
-                (f"ensures {projection}(result)", f"ensures {wrong_projection}(result)"),
+                (projected, projected.rsplit(f"{projection}(result)",1)[0]+f"{projection}(unrelated)"),
+                (projected, projected.rsplit(f"{projection}(result)",1)[0]+"unlisted_projection(result)"),
+                (projected, projected.rsplit(f"{projection}(result)",1)[0]+f"{wrong_projection}(result)"),
                 ("verus_spec(result =>", "verus_spec(unrelated =>"),
-                (f"ensures {projection}(result)", "ensures result.is_ok()"),
+                (f"ensures {primary}", "ensures result.is_ok()"),
                 (f"== crate::specs::{model}(", "== crate::specs::unlisted_model("),
             ):
                 self.assertIn(before, contract)
@@ -8565,6 +8568,52 @@ class FrameworkTests(WorkingFiles):
 
             with self.subTest(before=before), mock.patch.object(Path, "read_text", altered), \
                     self.assertRaisesRegex(ValueError, "executable Verus contract"):
+                framework.validate_normative_coverage(data)
+
+    def test_inventory_wavelet_planes_require_actual_prior_rows_matrix_tail_and_first_normal(self):
+        coverage=json.loads((framework.VALIDATION / "normative-coverage.json").read_text())
+        data=dict(coverage,requirements=[e for e in coverage["requirements"] if e["id"]=="part1-complete-standard-wavelet-planes"])
+        self.assertEqual(framework.validate_normative_coverage(data)["status"],"passed")
+        read_text=Path.read_text
+        for relative,symbol,before,after in (
+            ("specs/cold_wavelet_planes.rs","part2_wavelet_capacity_run","count==0","count==1"),
+            ("specs/cold_wavelet_planes.rs","part2_wavelet_capacity_run","actual!=owner","false"),
+            ("specs/cold_wavelet_planes.rs","part2_wavelet_capacity_run","elements!=count","false"),
+            ("specs/cold_wavelet_planes.rs","part2_wavelet_capacity_run","calls.drop_first()","calls"),
+            ("specs/cold_wavelet_planes.rs","part2_wavelet_rows_run","Part2WaveletPlaneOwner::Rows","Part2WaveletPlaneOwner::Columns"),
+            ("specs/cold_wavelet_planes.rs","part2_wavelet_columns_run","Part2WaveletPlaneOwner::Columns","Part2WaveletPlaneOwner::Rows"),
+            ("specs/cold_wavelet_planes.rs","part2_wavelet_level_after_low","length,low,high,rest","length,Seq::empty(),high,rest"),
+            ("specs/cold_wavelet_planes.rs","part2_wavelet_level_after_high","level.2.1,high","level.2.1,low"),
+            ("specs/cold_extraction_reconstruction.rs","part2_extraction_component_finish_run","initial,placed.1.0,plan.subbands","initial,Seq::empty(),plan.subbands"),
+            ("src/transform/levels.rs","inverse_rows","empty_with_capacity(capacity)","empty_with_capacity(1)"),
+            ("src/transform/levels.rs","inverse_columns","filled_values(0_i64, output_len)","filled_values(1_i64, output_len)"),
+        ):
+            source=framework.ROOT / relative;original=source.read_text()
+            body=(framework._coverage_function_body(original,framework._coverage_function_header(original,symbol)) if relative.startswith("src/") else framework._coverage_spec_function_body(original,symbol))
+            changed_body,count=re.subn(re.escape(before).replace(r"\ ",r"\s*"),lambda _:after,body,count=1)
+            self.assertEqual(count,1,(symbol,before));changed=original.replace(body,changed_body,1)
+            def altered(path,*args,**kwargs):
+                return changed if path==source else read_text(path,*args,**kwargs)
+            with self.subTest(symbol=symbol,before=before),mock.patch.object(Path,"read_text",altered),self.assertRaisesRegex(ValueError,"wavelet planes"):
+                framework.validate_normative_coverage(data)
+        missing=copy.deepcopy(data)
+        missing["requirements"][0]["test_refs"]=[r for r in missing["requirements"][0]["test_refs"] if (r["path"],r["symbol"]) not in framework._WAVELET_PLANE_TESTS]
+        with self.assertRaisesRegex(ValueError,"wavelet planes require bounded"):
+            framework.validate_normative_coverage(missing)
+        source=framework.ROOT / "src/transform/levels.rs";original=source.read_text()
+        header=framework._coverage_function_header(original,"inverse_horizontal_5_3")
+        start=original.rfind("#[cfg_attr",0,header.start());contract=original[start:header.start()]
+        first=contract.index("reconstruction_outcome(result)!=Err");closing=contract.rfind("))]");good=contract[first:closing]
+        for before,after in (
+            ("== crate::specs::part1_inverse_horizontal","<= crate::specs::part1_inverse_horizontal"),
+            ("wavelet_band_view(low)","wavelet_band_view(high)"),
+            ("reconstruction_outcome(result)","reconstruction_outcome(other_result)"),
+        ):
+            bad=good.replace(before,after,1);self.assertNotEqual(bad,good)
+            changed=original[:start]+contract[:first]+bad+good+contract[closing:]+original[header.start():]
+            def altered(path,*args,**kwargs):
+                return changed if path==source else read_text(path,*args,**kwargs)
+            with self.subTest(before=before),mock.patch.object(Path,"read_text",altered),self.assertRaisesRegex(ValueError,"executable Verus contract"):
                 framework.validate_normative_coverage(data)
 
     def test_inventory_quantization_output_requires_actual_roles_sources_tail_and_first_normal(self):
