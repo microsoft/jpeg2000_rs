@@ -3282,6 +3282,71 @@
       ]
     },
     {
+      "id": "implementation-jp2-dimension-authority",
+      "topic": "Explicit per-call dimension-only JP2 recovery for PDF delegates. Actual container parse and codestream-info child retain profile/framing/component/precision/sign/resource errors, then only IHDR dimensions are ignored for consistency checking. Every variable BPCC component is compared with actual SIZ metadata, including inherited/overridden associated headers. Reports retain the declaration and actual parsed canvas extent/origins; inspection is not pixel success. Actual typed or centered child and real metadata output guards determine pixels and first errors, without copies, retries, byte repair, fake absent pixels or a global mode. Strict defaults are unchanged. Deadlines, missing EOC, sole-present-tile/MQ/trailer policies and general incremental input remain separate capabilities; no normative, coverage, lifetime or physical allocator theorem is claimed.",
+      "implementation_refs": [
+        {"path": "src/decode/pdf_dimensions.rs", "symbol": "inspect_jp2_recover_dimensions"},
+        {"path": "src/decode/pdf_dimensions.rs", "symbol": "decode_jp2_recover_dimensions"},
+        {"path": "src/decode/pdf_dimensions.rs", "symbol": "decode_jp2_reconstructed_recover_dimensions"},
+        {"path": "src/decode/pdf_dimensions.rs", "symbol": "find_box"},
+        {"path": "src/decode/pdf_dimensions.rs", "symbol": "validate_header"},
+        {"path": "src/decode/pdf_dimensions.rs", "symbol": "validate_variable_precision"},
+        {"path": "src/decode/pdf_dimensions.rs", "symbol": "mismatch"},
+        {"path": "src/jp2/container.rs", "symbol": "validate_container_image_header"},
+        {"path": "src/decode/raw_typed_result_tests.rs", "symbol": "pdf_dimensions_recover_only_declared_sizes_and_preserve_strict_defaults"},
+        {"path": "src/decode/raw_typed_result_tests.rs", "symbol": "pdf_dimensions_preserve_component_and_uniform_or_variable_precision_checks"}
+      ],
+      "spec_refs": [
+        {"path": "specs/pdf_dimensions.rs", "symbol": "part2_dimension_find_box"},
+        {"path": "specs/pdf_dimensions.rs", "symbol": "part2_dimension_find_box_from"},
+        {"path": "specs/pdf_dimensions.rs", "symbol": "part2_dimension_mismatch"},
+        {"path": "specs/pdf_dimensions.rs", "symbol": "part2_dimension_precision"},
+        {"path": "specs/pdf_dimensions.rs", "symbol": "part2_dimension_precision_from"},
+        {"path": "specs/pdf_dimensions.rs", "symbol": "part2_dimension_validate_header"},
+        {"path": "specs/pdf_dimensions.rs", "symbol": "part2_dimension_inspection_value"},
+        {"path": "specs/pdf_dimensions.rs", "symbol": "part2_dimension_inspection_result"},
+        {"path": "specs/pdf_dimensions.rs", "symbol": "part2_dimension_inspection_run"},
+        {"path": "specs/pdf_dimensions.rs", "symbol": "part2_dimension_typed_value"},
+        {"path": "specs/pdf_dimensions.rs", "symbol": "part2_dimension_typed_result"},
+        {"path": "specs/pdf_dimensions.rs", "symbol": "part2_dimension_typed_run"},
+        {"path": "specs/pdf_dimensions.rs", "symbol": "part2_dimension_reconstructed_value"},
+        {"path": "specs/pdf_dimensions.rs", "symbol": "part2_dimension_reconstructed_result"},
+        {"path": "specs/pdf_dimensions.rs", "symbol": "part2_dimension_reconstructed_run"},
+        {"path": "specs/mod.rs", "symbol": "part2_validate_selected_header"}
+      ],
+      "contract_refs": [
+        {"path": "src/decode/pdf_dimensions.rs", "symbol": "inspect_jp2_recover_dimensions"},
+        {"path": "src/decode/pdf_dimensions.rs", "symbol": "decode_jp2_recover_dimensions"},
+        {"path": "src/decode/pdf_dimensions.rs", "symbol": "decode_jp2_reconstructed_recover_dimensions"},
+        {"path": "src/decode/pdf_dimensions.rs", "symbol": "find_box"},
+        {"path": "src/decode/pdf_dimensions.rs", "symbol": "validate_header"},
+        {"path": "src/decode/pdf_dimensions.rs", "symbol": "validate_variable_precision"},
+        {"path": "src/decode/pdf_dimensions.rs", "symbol": "mismatch"},
+        {"path": "src/jp2/container.rs", "symbol": "validate_container_image_header"}
+      ],
+      "proof_refs": [
+        {"path": "specs/pdf_dimensions.rs", "symbol": "part2_dimension_box_progress"},
+        {"path": "specs/pdf_dimensions.rs", "symbol": "part2_dimension_inspection_info_actual"},
+        {"path": "specs/pdf_dimensions.rs", "symbol": "part2_dimension_inspection_info_join"},
+        {"path": "specs/pdf_dimensions.rs", "symbol": "part2_dimension_inspection_pure_error"},
+        {"path": "specs/pdf_dimensions.rs", "symbol": "part2_dimension_inspection_value_unfold"},
+        {"path": "specs/pdf_dimensions.rs", "symbol": "part2_dimension_inspection_normal"},
+        {"path": "specs/pdf_dimensions.rs", "symbol": "part2_dimension_typed_actual"},
+        {"path": "specs/pdf_dimensions.rs", "symbol": "part2_dimension_reconstructed_actual"},
+        {"path": "specs/pdf_dimensions.rs", "symbol": "part2_dimension_decode_value_unfold"},
+        {"path": "specs/pdf_dimensions.rs", "symbol": "part2_dimension_decode_normal"},
+        {"path": "src/codestream/proof_support.rs", "symbol": "parsed_image_size_known_fields"},
+        {"path": "src/codestream/proof_support.rs", "symbol": "complete_codestream_info_known_fields"},
+        {"path": "src/jp2/proof_support.rs", "symbol": "raw_association_payload_known"}
+      ],
+      "test_refs": [
+        {"path": "src/decode/raw_typed_result_tests.rs", "symbol": "pdf_dimensions_recover_only_declared_sizes_and_preserve_strict_defaults"},
+        {"path": "src/decode/raw_typed_result_tests.rs", "symbol": "pdf_dimensions_preserve_component_and_uniform_or_variable_precision_checks"},
+        {"path": "src/decode/raw_typed_result_tests.rs", "symbol": "pdf_dimensions_keep_real_nonzero_origin_and_never_promote_inspection_to_pixels"},
+        {"path": "src/decode/raw_typed_result_tests.rs", "symbol": "pdf_dimensions_keep_limits_metadata_processing_and_refusal_restoration"}
+      ]
+    },
+    {
       "id": "part1-complete-native-raw-layout-result",
       "topic": "Complete actual raw-byte CodestreamLayout and CodestreamInfo Results, not parsed-header/layout admission: raw parser creation/input limit, actual main-header traversal/final reader, checked global tile count and limit, SOT, TLM/PLM/PPM selection, all inherited physical owners and original clones, real complete tile reader, ordered partial persistent commits/payload append, EOC/count/trailing errors, actual physical ROI iterator and full profile classification. Every Result error and all returned image/style/quantization/ROI/progression/MCT/extensions/profile/counters/consumed/source-payload fields compose from real input. Main traversal uses the actual pre-loop input length derived from the real prologue; no silent frame assumption. Public closed ghost models use checked unfolding lemmas, not external axioms. The real limit-error constructor has its complete typed return contract. A ghost-only shared sequence projection supports native selection without executing Vec-to-slice dereference in proof. All original native owners/scopes/clone/move/drop order remain; only an unused Copy-error closure argument is named for the specification frontend. Strict inventory binds all three actual complete contracts, raw model roots, full returned projections, real reader/counter/eight-state/payload suffix and terminal Results, primitive error constructor and actual decode consumers. Prior inventory meanings, producer relays and four unconditional owned handoff checks remain; exact guards recognize stronger ghost-only wrapper/ROI/length proofs. This is as-implemented raw layout, not independent selected-edition normative correspondence, full normalization/public pixels, general production cfg/erasure/lifetimes/coverage, official conformance or release qualification.",
       "implementation_refs": [

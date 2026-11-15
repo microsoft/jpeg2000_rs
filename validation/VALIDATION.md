@@ -17,6 +17,17 @@ resource-limit and managed-reservation controls preserve the genuine first
 error and exact successful recovery. The managed sweep is a bounded fixture
 control, not a global allocator or host-availability theorem.
 
+### JP2 dimension-authority recovery
+
+The `pdf_dimensions` native controls exercise typed and centered dimension-only
+recovery, independent packet output, genuine nonzero-origin geometry,
+heterogeneous 8/12-bit BPCC declarations and wrong second-component
+precision/sign. They also retain framing, inspection-versus-entropy,
+resource-limit, metadata-processing and managed-refusal restoration boundaries.
+The original bundle's four public JP2 controls are replayed separately; no
+private PDF/native renderer is needed. Passing controls are bounded evidence,
+not global allocator, deadline or normative qualification.
+
 ### Review-policy administration audit
 
 Technical CI and manual solo-owner review are separate responsibilities.

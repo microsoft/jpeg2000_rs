@@ -594,7 +594,7 @@ pub(super) fn collect_nonlinear_regions<'a>(
     ensures result == crate::specs::part2_validate_jp2_display_profile(
         jp2::raw_jp2_file_view(file)),
 ))]
-fn validate_jp2_display_profile(file: &jp2::Jp2File<'_>) -> Result<(), DecodeError> {
+pub(super) fn validate_jp2_display_profile(file: &jp2::Jp2File<'_>) -> Result<(), DecodeError> {
     #[cfg(verus_keep_ghost)]
     proof! { jp2::raw_render_file_known(file); }
     let count = file.codestream_count();
@@ -769,7 +769,9 @@ pub fn decode_jp2_reconstructed(
     ensures result == crate::specs::part2_validate_jp2_reconstruction_output(
         jp2::raw_jp2_header_view(header)),
 ))]
-fn validate_jp2_reconstruction_output(header: &jp2::Jp2Header) -> Result<(), DecodeError> {
+pub(super) fn validate_jp2_reconstruction_output(
+    header: &jp2::Jp2Header,
+) -> Result<(), DecodeError> {
     #[cfg(verus_keep_ghost)]
     proof! {
         reveal(jp2::raw_jp2_header_view);

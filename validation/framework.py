@@ -1992,6 +1992,41 @@ _JP2_RECONSTRUCTED_CONTRACTS = {
         _coverage_call("jp2::raw_jp2_header_view", "header"),
     ),
 }
+_PDF_DIMENSIONS_ENTRY = "implementation-jp2-dimension-authority"
+_PDF_DIMENSIONS_CONTRACTS = {
+    **{
+        ("src/decode/pdf_dimensions.rs", name): (
+            model, _coverage_call(projection, r"\1"), None,
+            r"input@\s*,\s*" + _coverage_call("crate::options::decode_options_limits", "options"),
+        ) for name, model, projection in (
+            ("inspect_jp2_recover_dimensions", "part2_dimension_inspection_value", "dimension_inspection_outcome"),
+            ("decode_jp2_recover_dimensions", "part2_dimension_typed_value", "dimension_typed_outcome"),
+            ("decode_jp2_reconstructed_recover_dimensions", "part2_dimension_reconstructed_value", "dimension_reconstructed_outcome"),
+        )
+    },
+    ("src/decode/pdf_dimensions.rs", "mismatch"): (
+        "part2_dimension_mismatch", r"\1", None, "offset",
+    ),
+    ("src/decode/pdf_dimensions.rs", "find_box"): (
+        "part2_dimension_find_box", _coverage_call("jp2::box_read_outcome", r"\1"), None,
+        r"input@\s*,\s*wanted\s*,\s*limits",
+    ),
+    ("src/decode/pdf_dimensions.rs", "validate_variable_precision"): (
+        "part2_dimension_precision", r"\1", None,
+        r"bytes@\s*,\s*" + _coverage_call("codestream::parsed_image_size_view", "size") + r"\s*,\s*offset",
+    ),
+    ("src/decode/pdf_dimensions.rs", "validate_header"): (
+        "part2_dimension_validate_header", r"\1", None,
+        r"input@\s*,\s*" + _coverage_call("jp2::raw_jp2_file_view", "file") + r"\s*,\s*"
+        + _coverage_call("codestream::complete_codestream_info_view", "info") + r"\s*,\s*limits",
+    ),
+    ("src/jp2/container.rs", "validate_container_image_header"): (
+        "part2_validate_selected_header", r"\1", None,
+        r"image\s*,\s*codestream\.image_size\.width\s*,\s*codestream\.image_size\.height\s*,\s*"
+        r"codestream\.image_size\.components\s*,\s*codestream\.image_size\.uniform_bit_depth\s*,\s*"
+        r"codestream\.image_size\.uniform_signed\s*,\s*offset",
+    ),
+}
 _RECONSTRUCTED_RECOVERY_ENTRY = "implementation-raw-reconstructed-missing-eoc-recovery"
 _RECONSTRUCTED_RECOVERY_CONTRACTS = {
     reference: recipe for reference, recipe in _RAW_RECOVERY_CONTRACTS.items()
@@ -5028,6 +5063,15 @@ _COLD_RESULT_MODELS = {
         "part2_decode_jp2_reconstructed_result", "specs/container_reconstruction.rs",
         "part2_decode_jp2_reconstructed_normal",
     ),
+    "part2_dimension_inspection_value": (
+        "part2_dimension_inspection_result", "specs/pdf_dimensions.rs", "part2_dimension_inspection_normal",
+    ),
+    "part2_dimension_typed_value": (
+        "part2_dimension_typed_result", "specs/pdf_dimensions.rs", "part2_dimension_decode_normal",
+    ),
+    "part2_dimension_reconstructed_value": (
+        "part2_dimension_reconstructed_result", "specs/pdf_dimensions.rs", "part2_dimension_decode_normal",
+    ),
     "part2_decode_jpx_codestream": ("part2_jpx_cold_result", "specs/jpx_source.rs", "part2_jpx_cold_normal"),
     "part2_decode_jpx_selected_file": (
         "part2_jpx_selected_cold_result", "specs/jpx_source.rs", "part2_jpx_selected_cold_normal",
@@ -5278,6 +5322,7 @@ _COLD_RESULT_CONTRACTS = {
     for contracts in (
         _RAW_LAYOUT_CONTRACTS, _RAW_TYPED_CONTRACTS, _RAW_RECONSTRUCTED_CONTRACTS,
         _JP2_RECONSTRUCTED_CONTRACTS,
+        _PDF_DIMENSIONS_CONTRACTS,
         _RAW_INSPECTED_CONTRACTS, _JPX_SOURCE_CONTRACTS, _RAW_JPX_PUBLIC_IMAGE_CONTRACTS,
         _RAW_CONTAINER_IMAGE_CONTRACTS, _RAW_CONTAINER_COLOR_CONTRACTS,
         _SOURCE_FRAME_CONTRACTS, _RAW_RENDER_CONTRACTS, _RAW_COMPOSITION_RENDER_CONTRACTS,
@@ -5759,6 +5804,7 @@ _COLD_LOCAL_FAMILIES = {
     _RAW_TYPED_ENTRY: (_RAW_TYPED_CONTRACTS, "whole raw typed Result"),
     _RAW_RECONSTRUCTED_ENTRY: (_RAW_RECONSTRUCTED_CONTRACTS, "whole raw reconstructed Result"),
     _JP2_RECONSTRUCTED_ENTRY: (_JP2_RECONSTRUCTED_CONTRACTS, "whole JP2 reconstructed Result"),
+    _PDF_DIMENSIONS_ENTRY: (_PDF_DIMENSIONS_CONTRACTS, "JP2 dimension authority Result"),
     _JPX_SOURCE_ENTRY: (_JPX_SOURCE_CONTRACTS, "whole JPX source Result"),
     _JPX_LAYER_COLOR_ENTRY: (_JPX_LAYER_COLOR_CONTRACTS, "whole JPX layer color Result"),
     _SOURCE_OPACITY_ENTRY: (_SOURCE_OPACITY_CONTRACTS, "whole source opacity Result"),
@@ -13705,6 +13751,8 @@ def validate_normative_coverage(
                     if entry["id"] == _RAW_RECONSTRUCTED_ENTRY else None)
                 or (_JP2_RECONSTRUCTED_CONTRACTS.get((reference["path"], reference["symbol"]))
                     if entry["id"] == _JP2_RECONSTRUCTED_ENTRY else None)
+                or (_PDF_DIMENSIONS_CONTRACTS.get((reference["path"], reference["symbol"]))
+                    if entry["id"] == _PDF_DIMENSIONS_ENTRY else None)
                 or (_JPX_SOURCE_CONTRACTS.get((reference["path"], reference["symbol"]))
                     if entry["id"] == _JPX_SOURCE_ENTRY else None)
                 or (_JPX_LAYER_COLOR_CONTRACTS.get((reference["path"], reference["symbol"]))

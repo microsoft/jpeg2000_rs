@@ -124,7 +124,12 @@ impl CodestreamHeaderAssociation<'_> {
         self.header
     }
 
+    #[cfg_attr(verus_keep_ghost, verus_spec(result =>
+        ensures result@ == super::raw_codestream_association_view(self).1,
+    ))]
     pub fn payload(&self) -> &[u8] {
+        #[cfg(verus_keep_ghost)]
+        proof! { super::raw_association_payload_known(self); }
         self.payload
     }
 
@@ -519,9 +524,24 @@ fn validate_container_codestream(
     codestream: &CodestreamInfo,
     offset: u64,
 ) -> Result<(), DecodeError> {
-    if header.image.width != codestream.image_size.width
-        || header.image.height != codestream.image_size.height
-        || header.image.components != codestream.image_size.components
+    validate_container_image_header(header.image, codestream, offset)
+}
+
+#[cfg_attr(verus_keep_ghost, verus_spec(result =>
+    ensures result == crate::specs::part2_validate_selected_header(
+        image, codestream.image_size.width, codestream.image_size.height,
+        codestream.image_size.components, codestream.image_size.uniform_bit_depth,
+        codestream.image_size.uniform_signed, offset,
+    ),
+))]
+pub(crate) fn validate_container_image_header(
+    image: super::ImageHeader,
+    codestream: &CodestreamInfo,
+    offset: u64,
+) -> Result<(), DecodeError> {
+    if image.width != codestream.image_size.width
+        || image.height != codestream.image_size.height
+        || image.components != codestream.image_size.components
     {
         return Err(DecodeError::MalformedInput {
             offset,
@@ -529,7 +549,7 @@ fn validate_container_codestream(
         });
     }
 
-    if let ComponentBitDepth::Uniform { bits, signed } = header.image.bit_depth {
+    if let ComponentBitDepth::Uniform { bits, signed } = image.bit_depth {
         let matches_depth = match (
             codestream.image_size.uniform_bit_depth,
             codestream.image_size.uniform_signed,

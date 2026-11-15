@@ -282,6 +282,8 @@ struct ValidatedSelection {
 
 #[cfg_attr(verus_keep_ghost, verifier::verify)]
 mod api;
+#[cfg_attr(verus_keep_ghost, verifier::verify)]
+mod pdf_dimensions;
 use api::typed_layout;
 pub use api::{
     decode_codestream, decode_codestream_reconstructed, decode_codestream_selected, decode_jp2,
@@ -289,6 +291,16 @@ pub use api::{
     decode_jph, decode_jph_color, decode_jph_color_selected, decode_jph_selected,
     decode_jpx_codestream, decode_jpx_codestream_color, decode_jpx_codestream_color_selected,
     decode_jpx_codestream_selected,
+};
+pub use pdf_dimensions::{
+    Jp2DimensionInspection, Jp2DimensionRecoveredImage, Jp2DimensionRecoveredReconstructedImage,
+    Jp2DimensionRecoveryReport, decode_jp2_reconstructed_recover_dimensions,
+    decode_jp2_recover_dimensions, inspect_jp2_recover_dimensions,
+};
+#[cfg(verus_keep_ghost)]
+pub use pdf_dimensions::{
+    dimension_inspection_outcome, dimension_inspection_view, dimension_reconstructed_outcome,
+    dimension_typed_outcome,
 };
 #[cfg_attr(verus_keep_ghost, verifier::verify)]
 mod arithmetic;

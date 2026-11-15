@@ -27,8 +27,11 @@ verus! {
 
     pub(crate) proof fn complete_codestream_info_known_fields(info: &CodestreamInfo)
         ensures
+            complete_codestream_info_view(info).0.image_size == parsed_image_size_view(&info.image_size),
             complete_codestream_info_view(info).0.image_size.geometry.0 == info.image_size.width,
             complete_codestream_info_view(info).0.image_size.geometry.1 == info.image_size.height,
+            complete_codestream_info_view(info).0.image_size.geometry.2 == info.image_size.x_origin,
+            complete_codestream_info_view(info).0.image_size.geometry.3 == info.image_size.y_origin,
             complete_codestream_info_view(info).0.image_size.components == info.image_size.components,
             complete_codestream_info_view(info).0.image_size.uniform_bit_depth == info.image_size.uniform_bit_depth,
             complete_codestream_info_view(info).0.image_size.uniform_signed == info.image_size.uniform_signed,
@@ -152,6 +155,15 @@ verus! {
             image_size_component_count(size) == size.components,
     {
         reveal(selection_geometry_view);
+    }
+
+    pub(crate) proof fn parsed_image_size_known_fields(size: &ImageSize)
+        ensures parsed_image_size_view(size).components == size.components,
+            parsed_image_size_view(size).infos == image_size_component_infos(size),
+            image_size_component_count(size) == size.components,
+            parsed_image_size_view(size).geometry == selection_geometry_view(size),
+    {
+        reveal(parsed_image_size_view);
     }
 
     pub closed spec fn decomposition_selector_view(style: CodingStyle) -> (u8, Seq<DecompositionDirection>) {

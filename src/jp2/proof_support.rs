@@ -630,6 +630,11 @@ verus! {
     {
     }
 
+    proof fn raw_association_payload_known(association: &CodestreamHeaderAssociation)
+        ensures raw_codestream_association_view(association).1 == association.payload@,
+    {
+    }
+
     pub(crate) proof fn raw_association_parsed_header_known(association: &CodestreamHeaderAssociation)
         ensures raw_header_option(source_association_parsed_reference(association))
             == raw_codestream_association_view(association).2,

@@ -1,5 +1,243 @@
 use super::*;
 
+fn dimension_recovery_codestream() -> Vec<u8> {
+    let mut bytes = prepared_codestream(1, 1, 1, &[0x40, 0x40], &[0xcf, 0xb4, 0x04, 0x09]);
+    let cod = bytes.windows(2).position(|pair| pair == [255, 82]).unwrap();
+    bytes[cod + 9] = 0;
+    bytes
+}
+
+#[test]
+fn pdf_dimensions_recover_only_declared_sizes_and_preserve_strict_defaults() {
+    let bytes = dimension_recovery_codestream();
+    let options = DecodeOptions::default();
+    let expected = decode_codestream(&bytes, &options).unwrap();
+    for width in [1, 2] {
+        let container = jp2_for_codestream(&bytes, width, 1);
+        let inspected = crate::inspect_jp2_recover_dimensions(&container, &options).unwrap();
+        assert_eq!(inspected.report.header_width, width);
+        assert_eq!(inspected.report.ignored_container_dimensions, width != 1);
+        assert_eq!((inspected.report.width, inspected.report.height), (1, 1));
+        let recovered = crate::decode_jp2_recover_dimensions(&container, &options).unwrap();
+        assert_eq!(recovered.report, inspected.report);
+        assert_eq!(recovered.image, expected);
+        assert_eq!(
+            recovered.image.component(0).unwrap().samples(),
+            &TypedSamples::Unsigned(vec![1])
+        );
+        let centered =
+            crate::decode_jp2_reconstructed_recover_dimensions(&container, &options).unwrap();
+        assert_eq!(centered.report, inspected.report);
+        assert_eq!(centered.image.component(0).unwrap().samples(), &[-127]);
+        assert_eq!(centered.image.typed(options.limits()).unwrap(), expected);
+        if width == 2 {
+            assert!(matches!(
+                decode_jp2(&container, &options),
+                Err(DecodeError::MalformedInput {
+                    kind: MalformedKind::ContainerCodestreamMismatch,
+                    ..
+                })
+            ));
+        }
+    }
+}
+
+#[test]
+fn pdf_dimensions_preserve_component_and_uniform_or_variable_precision_checks() {
+    let bytes = dimension_recovery_codestream();
+    let options = DecodeOptions::default();
+    for (count, depth) in [(2_u16, 7_u8), (1, 6), (1, 0x87)] {
+        let mut container = jp2_for_codestream(&bytes, 2, 1);
+        let ihdr = container
+            .windows(4)
+            .position(|part| part == b"ihdr")
+            .unwrap()
+            + 4;
+        container[ihdr + 8..ihdr + 10].copy_from_slice(&count.to_be_bytes());
+        container[ihdr + 10] = depth;
+        assert!(matches!(
+            crate::decode_jp2_recover_dimensions(&container, &options),
+            Err(DecodeError::MalformedInput {
+                kind: MalformedKind::ContainerCodestreamMismatch,
+                ..
+            })
+        ));
+    }
+    let mut two = prepared_codestream(1, 1, 1, &[0x40, 0x40], &[0, 0]);
+    two[4..6].copy_from_slice(&44_u16.to_be_bytes());
+    two[40..42].copy_from_slice(&2_u16.to_be_bytes());
+    two.splice(45..45, [11, 1, 1]);
+    let cod = two.windows(2).position(|pair| pair == [255, 82]).unwrap();
+    two[cod + 9] = 0;
+    let sot = two.windows(2).position(|pair| pair == [255, 144]).unwrap();
+    two.splice(sot..sot, segment(0xff5d, &[1, 0x40, 0x60]));
+    let expected = decode_codestream(&two, &options).unwrap();
+    assert_eq!(expected.components().len(), 2);
+    for depths in [[7_u8, 11], [7, 10], [7, 0x8b]] {
+        let mut container = jp2_reconstruction_with_metadata(&two, &box32(*b"bpcc", &depths));
+        let ihdr = container
+            .windows(4)
+            .position(|part| part == b"ihdr")
+            .unwrap()
+            + 4;
+        container[ihdr + 4..ihdr + 8].copy_from_slice(&2_u32.to_be_bytes());
+        container[ihdr + 8..ihdr + 10].copy_from_slice(&2_u16.to_be_bytes());
+        container[ihdr + 10] = 255;
+        if depths == [7, 11] {
+            assert_eq!(
+                crate::decode_jp2_recover_dimensions(&container, &options)
+                    .unwrap()
+                    .image,
+                expected
+            );
+            for override_depths in [None, Some([7_u8, 11]), Some([7, 10])] {
+                let mut associated = container.clone();
+                associated.splice(12..32, box32(*b"ftyp", b"jpx \0\0\0\0jp2 jpx "));
+                let mut header = box32(*b"colr", &[1, 0, 0, 0, 0, 0, 17]);
+                if let Some(depths) = override_depths {
+                    header.extend(box32(*b"bpcc", &depths));
+                }
+                let stream = associated
+                    .windows(4)
+                    .position(|part| part == b"jp2c")
+                    .unwrap()
+                    - 4;
+                associated.splice(stream..stream, box32(*b"jpch", &header));
+                let result = crate::decode_jp2_recover_dimensions(&associated, &options);
+                if override_depths == Some([7, 10]) {
+                    assert!(matches!(
+                        result,
+                        Err(DecodeError::MalformedInput {
+                            kind: MalformedKind::ContainerCodestreamMismatch,
+                            ..
+                        })
+                    ));
+                } else {
+                    assert_eq!(result.unwrap().image, expected);
+                }
+            }
+        } else {
+            assert!(matches!(
+                crate::decode_jp2_recover_dimensions(&container, &options),
+                Err(DecodeError::MalformedInput {
+                    kind: MalformedKind::ContainerCodestreamMismatch,
+                    ..
+                })
+            ));
+        }
+    }
+}
+
+#[test]
+fn pdf_dimensions_keep_real_nonzero_origin_and_never_promote_inspection_to_pixels() {
+    let options = DecodeOptions::default();
+    let bytes = two_tile_codestream();
+    let container = jp2_for_codestream(&bytes, 99, 1);
+    let recovered = crate::decode_jp2_recover_dimensions(&container, &options).unwrap();
+    assert_eq!(
+        (
+            recovered.image.width(),
+            recovered.image.height(),
+            recovered.image.x_origin()
+        ),
+        (5, 1, 1)
+    );
+    assert_eq!(
+        (
+            recovered.report.width,
+            recovered.report.height,
+            recovered.report.x_origin
+        ),
+        (5, 1, 1)
+    );
+    assert_eq!(recovered.report.header_width, 99);
+    assert_eq!(
+        recovered.image,
+        decode_codestream(&bytes, &options).unwrap()
+    );
+
+    let mut damaged = dimension_recovery_codestream();
+    let sod = damaged
+        .windows(2)
+        .position(|pair| pair == [255, 147])
+        .unwrap();
+    damaged[sod + 2] = 0xff;
+    let container = jp2_for_codestream(&damaged, 2, 1);
+    assert!(crate::inspect_jp2_recover_dimensions(&container, &options).is_ok());
+    let expected = decode_codestream(&damaged, &options).unwrap_err();
+    assert_eq!(
+        crate::decode_jp2_recover_dimensions(&container, &options).err(),
+        Some(expected)
+    );
+}
+
+#[test]
+fn pdf_dimensions_keep_limits_metadata_processing_and_refusal_restoration() {
+    let options = DecodeOptions::default();
+    let bytes = dimension_recovery_codestream();
+    let container = jp2_for_codestream(&bytes, 2, 1);
+    let expected = crate::decode_jp2_recover_dimensions(&container, &options).unwrap();
+    for limits in [
+        ResourceLimits::HARDENED
+            .with_maximum_input_bytes(0)
+            .unwrap(),
+        ResourceLimits::HARDENED.with_maximum_work_units(0).unwrap(),
+        ResourceLimits::HARDENED.with_maximum_packets(0).unwrap(),
+        ResourceLimits::HARDENED
+            .with_maximum_decoded_bytes(0)
+            .unwrap(),
+    ] {
+        assert!(matches!(
+            crate::decode_jp2_recover_dimensions(&container, &DecodeOptions::new(limits)),
+            Err(DecodeError::LimitExceeded { .. })
+        ));
+    }
+    let mut oversized = container.clone();
+    let ihdr = oversized
+        .windows(4)
+        .position(|part| part == b"ihdr")
+        .unwrap()
+        + 4;
+    oversized[ihdr + 4..ihdr + 8]
+        .copy_from_slice(&(ResourceLimits::HARDENED.maximum_width() + 1).to_be_bytes());
+    assert!(matches!(
+        crate::decode_jp2_recover_dimensions(&oversized, &options),
+        Err(DecodeError::LimitExceeded {
+            resource: Resource::Width,
+            ..
+        })
+    ));
+    let mut completed = false;
+    for after in 0..256 {
+        match crate::allocation::with_refusal(after, || {
+            crate::decode_jp2_recover_dimensions(&container, &options)
+        }) {
+            Err(DecodeError::AllocationFailed) => assert_eq!(
+                crate::decode_jp2_recover_dimensions(&container, &options).unwrap(),
+                expected
+            ),
+            Ok(actual) => {
+                assert_eq!(actual, expected);
+                completed = true;
+                break;
+            }
+            Err(error) => panic!("unexpected dimension recovery refusal at {after}: {error:?}"),
+        }
+    }
+    assert!(completed);
+    let mut mapped = jp2_reconstruction_with_metadata(&bytes, &box32(*b"cmap", &[0, 0, 0, 0]));
+    let ihdr = mapped.windows(4).position(|part| part == b"ihdr").unwrap() + 4;
+    mapped[ihdr + 4..ihdr + 8].copy_from_slice(&2_u32.to_be_bytes());
+    assert!(crate::decode_jp2_recover_dimensions(&mapped, &options).is_ok());
+    assert_eq!(
+        crate::decode_jp2_reconstructed_recover_dimensions(&mapped, &options).err(),
+        Some(DecodeError::UnsupportedFeature {
+            feature: "JP2 output transforms on reconstruction samples",
+        })
+    );
+    assert!(decode_jp2(&container, &options).is_err());
+}
+
 #[test]
 fn jp2_reconstructed_output_retains_fractional_headroom_and_coded_geometry() {
     let options = DecodeOptions::default();

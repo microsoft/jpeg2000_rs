@@ -6033,6 +6033,30 @@ class FrameworkTests(WorkingFiles):
             2, isolate=False,
         )
 
+    def test_inventory_binds_jp2_dimension_authority_to_actual_sources_and_checks(self):
+        self._assert_complete_packet_contract_bindings(
+            {framework._PDF_DIMENSIONS_ENTRY}, framework._PDF_DIMENSIONS_CONTRACTS,
+            8, isolate=False,
+        )
+
+    def test_inventory_jp2_dimension_authority_requires_all_cold_normal_boundaries(self):
+        coverage = json.loads((framework.VALIDATION / "normative-coverage.json").read_text())
+        entry = next(item for item in coverage["requirements"]
+                     if item["id"] == framework._PDF_DIMENSIONS_ENTRY)
+        for field, symbol in (
+            ("spec_refs", "part2_dimension_inspection_run"),
+            ("spec_refs", "part2_dimension_typed_run"),
+            ("spec_refs", "part2_dimension_reconstructed_run"),
+            ("proof_refs", "part2_dimension_inspection_normal"),
+            ("proof_refs", "part2_dimension_decode_normal"),
+        ):
+            changed = copy.deepcopy(entry)
+            changed[field] = [ref for ref in changed[field] if ref["symbol"] != symbol]
+            with self.subTest(field=field, symbol=symbol), self.assertRaisesRegex(
+                ValueError, "JP2 dimension authority Result|checked cold normal|complete cold run",
+            ):
+                framework.validate_normative_coverage(dict(coverage, requirements=[changed]))
+
     def test_inventory_jp2_reconstruction_requires_cold_run_and_checked_normal_projection(self):
         coverage = json.loads((framework.VALIDATION / "normative-coverage.json").read_text())
         entry = next(item for item in coverage["requirements"]

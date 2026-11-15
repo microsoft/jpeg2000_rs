@@ -1511,6 +1511,29 @@ This is the strict container headroom capability for #296, not the remaining
 PDF recovery/deadline facade, selected reconstruction, general incremental input,
 complete allocation coverage or independent conformance/lifetime qualification.
 
+## Explicit JP2 dimension authority
+
+`inspect_jp2_recover_dimensions` composes actual container parsing and a reached
+codestream-info cold run. Only dimension consistency is ignored; the shared
+strict image-header validator retains component count and uniform precision.
+Borrowed BPCC scans additionally bind every actual component precision/sign,
+including effective associated-header overrides and inheritance. Box iteration
+has checked progress/error/resource behavior, and scans make no owned byte copy.
+
+`decode_jp2_recover_dimensions` binds the actual inspected source to the ordinary
+typed raw decoder and actual output mapping. The reconstructed counterpart binds
+the actual centered child and the strict main/associated output-domain guards.
+Complete cold Result/report programs, checked normal projections and real child
+witnesses live in `specs/pdf_dimensions.rs`; no decoded-result banks or new
+caller/availability premises are used. The existing strict validator delegates
+to the same scalar checks with its unchanged full consistency contract.
+
+Reports retain source declarations and actual SIZ extents/origins. ImageSize
+already stores extents, so origins are not subtracted a second time. Inspection
+is not entropy success and never fabricates absent pixels. Default APIs and
+limits remain unchanged; this is not EOC/MQ/trailer/tile recovery, a cooperative
+deadline, complete allocation coverage or independent conformance qualification.
+
 ## Actual public raw composition and fallback Result
 
 The public `render_jpx_composition` now derives its complete image/error Result
