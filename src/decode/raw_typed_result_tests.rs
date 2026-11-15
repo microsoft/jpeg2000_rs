@@ -1,6 +1,251 @@
 use super::*;
 
 #[test]
+fn jp2_reconstructed_output_retains_fractional_headroom_and_coded_geometry() {
+    let options = DecodeOptions::default();
+    for (packet, numerator) in [
+        (&[0xcf, 0xb4, 0x04, 0x09][..], -765_i64),
+        (&[0xc0, 0x21, 0x03][..], 9),
+    ] {
+        let mut bytes = prepared_codestream(1, 1, 0, &[0x42, 0x44, 0], packet);
+        let cod = bytes.windows(2).position(|pair| pair == [255, 82]).unwrap();
+        bytes[cod + 9] = 0;
+        let container = jp2_for_codestream(&bytes, 1, 1);
+        let image = crate::decode_jp2_reconstructed(&container, &options).unwrap();
+        let component = image.component(0).unwrap();
+        assert_eq!(component.fraction_bits(), 16);
+        assert_eq!(component.samples(), &[numerator * (1 << 14)]);
+        assert_eq!(
+            image,
+            crate::decode_codestream_reconstructed(&bytes, &options).unwrap()
+        );
+        assert_eq!(
+            image.typed(options.limits()),
+            decode_jp2(&container, &options)
+        );
+    }
+
+    let bytes = two_tile_codestream();
+    let info = codestream::parse(&bytes, options.limits()).unwrap();
+    let container = jp2_for_codestream(&bytes, info.image_size.width, info.image_size.height);
+    let image = crate::decode_jp2_reconstructed(&container, &options).unwrap();
+    assert_eq!(
+        (
+            image.width(),
+            image.height(),
+            image.x_origin(),
+            image.y_origin()
+        ),
+        (5, 1, 1, 0)
+    );
+    assert_eq!(
+        image,
+        crate::decode_codestream_reconstructed(&bytes, &options).unwrap()
+    );
+    assert_eq!(
+        image.typed(options.limits()),
+        decode_jp2(&container, &options)
+    );
+}
+
+fn jp2_reconstruction_with_metadata(bytes: &[u8], metadata: &[u8]) -> Vec<u8> {
+    let mut container = jp2_for_codestream(bytes, 1, 1);
+    let start = container
+        .windows(4)
+        .position(|part| part == b"jp2h")
+        .unwrap()
+        - 4;
+    let length = u32::from_be_bytes(container[start..start + 4].try_into().unwrap());
+    let end = start + length as usize;
+    container.splice(end..end, metadata.iter().copied());
+    container[start..start + 4].copy_from_slice(&(length + metadata.len() as u32).to_be_bytes());
+    container
+}
+
+#[test]
+fn jp2_reconstructed_output_rejects_typed_mappings_without_masking_decode_errors() {
+    let options = DecodeOptions::default();
+    let mut bytes = prepared_codestream(1, 1, 1, &[0x40, 0x40], &[0]);
+    let cod = bytes.windows(2).position(|pair| pair == [255, 82]).unwrap();
+    bytes[cod + 9] = 0;
+    let mapped = jp2_reconstruction_with_metadata(&bytes, &box32(*b"cmap", &[0, 0, 0, 0]));
+    let start = mapped.windows(4).position(|part| part == b"jp2h").unwrap() - 4;
+    let length = u32::from_be_bytes(mapped[start..start + 4].try_into().unwrap()) as usize;
+    let mut associated = jp2_for_codestream(&bytes, 1, 1);
+    associated.splice(12..32, box32(*b"ftyp", b"jpx \0\0\0\0jp2 jpx "));
+    let codestream = associated
+        .windows(4)
+        .position(|part| part == b"jp2c")
+        .unwrap()
+        - 4;
+    associated.splice(
+        codestream..codestream,
+        box32(*b"jpch", &mapped[start + 8..start + length]),
+    );
+    for container in [
+        jp2_reconstruction_with_metadata(&bytes, &box32(*b"cmap", &[0, 0, 0, 0])),
+        jp2_reconstruction_with_metadata(&bytes, &box32(*b"cdef", &[0, 1, 0, 0, 0, 0, 0, 1])),
+        jp2_with_palette(&bytes, 256, true),
+        associated,
+    ] {
+        assert!(decode_jp2(&container, &options).is_ok());
+        assert_eq!(
+            crate::decode_jp2_reconstructed(&container, &options),
+            Err(DecodeError::UnsupportedFeature {
+                feature: "JP2 output transforms on reconstruction samples",
+            })
+        );
+        let limited = DecodeOptions::new(ResourceLimits::HARDENED.with_maximum_packets(0).unwrap());
+        let expected = decode_jp2(&container, &limited).unwrap_err();
+        assert!(matches!(expected, DecodeError::LimitExceeded { .. }));
+        assert_eq!(
+            crate::decode_jp2_reconstructed(&container, &limited),
+            Err(expected)
+        );
+        let mut damaged = container;
+        let sod = damaged
+            .windows(2)
+            .position(|pair| pair == [255, 147])
+            .unwrap();
+        damaged[sod + 2] = 0xff;
+        let expected = decode_jp2(&damaged, &options).unwrap_err();
+        assert_eq!(
+            crate::decode_jp2_reconstructed(&damaged, &options),
+            Err(expected)
+        );
+    }
+}
+
+#[test]
+fn jp2_reconstructed_output_keeps_header_profile_and_nlt_validation() {
+    let options = DecodeOptions::default();
+    let mut bytes = prepared_codestream(1, 1, 1, &[0x40, 0x40], &[0]);
+    let cod = bytes.windows(2).position(|pair| pair == [255, 82]).unwrap();
+    bytes[cod + 9] = 0;
+    let good = jp2_for_codestream(&bytes, 1, 1);
+    for end in 0..good.len() {
+        let expected = decode_jp2(&good[..end], &options).unwrap_err();
+        assert_eq!(
+            crate::decode_jp2_reconstructed(&good[..end], &options),
+            Err(expected)
+        );
+    }
+    let mut precision = good.clone();
+    let ihdr = precision
+        .windows(4)
+        .position(|part| part == b"ihdr")
+        .unwrap()
+        + 4;
+    precision[ihdr + 10] = 6;
+    let mut components = good.clone();
+    components[ihdr + 8..ihdr + 10].copy_from_slice(&2_u16.to_be_bytes());
+    for bad in [jp2_for_codestream(&bytes, 2, 1), precision, components] {
+        let expected = decode_jp2(&bad, &options).unwrap_err();
+        assert_eq!(
+            crate::decode_jp2_reconstructed(&bad, &options),
+            Err(expected)
+        );
+    }
+    let start = good.windows(4).position(|part| part == b"jp2h").unwrap() - 4;
+    let length = u32::from_be_bytes(good[start..start + 4].try_into().unwrap()) as usize;
+    let mut associated = good.clone();
+    associated.splice(12..32, box32(*b"ftyp", b"jpx \0\0\0\0jp2 jpx "));
+    let stream = associated
+        .windows(4)
+        .position(|part| part == b"jp2c")
+        .unwrap()
+        - 4;
+    associated.splice(
+        stream..stream,
+        box32(*b"jpch", &good[start + 8..start + length]),
+    );
+    assert_eq!(
+        crate::decode_jp2_reconstructed(&associated, &options),
+        crate::decode_codestream_reconstructed(&bytes, &options)
+    );
+    let jpch = associated
+        .windows(4)
+        .position(|part| part == b"jpch")
+        .unwrap()
+        + 4;
+    let local_ihdr = associated[jpch..]
+        .windows(4)
+        .position(|part| part == b"ihdr")
+        .unwrap()
+        + jpch;
+    associated[local_ihdr..local_ihdr + 4].copy_from_slice(b"skip");
+    assert!(decode_jp2(&associated, &options).is_ok());
+    assert_eq!(
+        crate::decode_jp2_reconstructed(&associated, &options),
+        crate::decode_codestream_reconstructed(&bytes, &options)
+    );
+    let sot = bytes
+        .windows(2)
+        .position(|pair| pair == [255, 144])
+        .unwrap();
+    bytes.splice(sot..sot, segment(0xff76, &[255, 255, 7, 0]));
+    let container = jp2_for_codestream(&bytes, 1, 1);
+    assert!(decode_jp2(&container, &options).is_ok());
+    assert_eq!(
+        crate::decode_jp2_reconstructed(&container, &options),
+        Err(DecodeError::UnsupportedFeature {
+            feature: "nonlinear transforms on reconstruction samples",
+        })
+    );
+}
+
+#[test]
+fn jp2_reconstructed_output_propagates_refused_storage_and_limits_then_recovers() {
+    let options = DecodeOptions::default();
+    let mut bytes = prepared_codestream(1, 1, 1, &[0x40, 0x40], &[0xcf, 0xb4, 0x04, 0x09]);
+    let cod = bytes.windows(2).position(|pair| pair == [255, 82]).unwrap();
+    bytes[cod + 9] = 0;
+    let container = jp2_for_codestream(&bytes, 1, 1);
+    let expected = crate::decode_jp2_reconstructed(&container, &options).unwrap();
+    let mut completed = false;
+    for after in 0..256 {
+        let result = crate::allocation::with_refusal(after, || {
+            crate::decode_jp2_reconstructed(&container, &options)
+        });
+        match result {
+            Err(DecodeError::AllocationFailed) => assert_eq!(
+                crate::decode_jp2_reconstructed(&container, &options).unwrap(),
+                expected
+            ),
+            Ok(image) => {
+                assert_eq!(image, expected);
+                completed = true;
+                break;
+            }
+            Err(error) => panic!("unexpected managed refusal result at {after}: {error:?}"),
+        }
+    }
+    assert!(completed);
+    for limits in [
+        ResourceLimits::HARDENED
+            .with_maximum_input_bytes(0)
+            .unwrap(),
+        ResourceLimits::HARDENED.with_maximum_work_units(0).unwrap(),
+        ResourceLimits::HARDENED.with_maximum_packets(0).unwrap(),
+        ResourceLimits::HARDENED
+            .with_maximum_decoded_bytes(0)
+            .unwrap(),
+    ] {
+        let limited = DecodeOptions::new(limits);
+        let error = decode_jp2(&container, &limited).unwrap_err();
+        assert!(matches!(error, DecodeError::LimitExceeded { .. }));
+        assert_eq!(
+            crate::decode_jp2_reconstructed(&container, &limited),
+            Err(error)
+        );
+    }
+    assert_eq!(
+        crate::decode_jp2_reconstructed(&container, &options).unwrap(),
+        expected
+    );
+}
+
+#[test]
 fn reconstructed_output_roundtrips_independent_packets_and_retains_coded_geometry() {
     let options = DecodeOptions::default();
     for (sample, packet) in [

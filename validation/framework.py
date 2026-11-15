@@ -1980,6 +1980,18 @@ _RAW_RECONSTRUCTED_CONTRACTS = {
         + _coverage_call("crate::image::decoded_image_view", r"\*\s*image"),
     ),
 }
+_JP2_RECONSTRUCTED_ENTRY = "part2-strict-jp2-reconstruction-result"
+_JP2_RECONSTRUCTED_CONTRACTS = {
+    ("src/decode/api.rs", "decode_jp2_reconstructed"): (
+        "part2_decode_jp2_reconstructed_value",
+        _coverage_call("crate::image::decoded_image_outcome", r"\1"), None,
+        r"input@\s*,\s*" + _coverage_call("crate::options::decode_options_limits", "options"),
+    ),
+    ("src/decode/api.rs", "validate_jp2_reconstruction_output"): (
+        "part2_validate_jp2_reconstruction_output", r"\1", None,
+        _coverage_call("jp2::raw_jp2_header_view", "header"),
+    ),
+}
 _RECONSTRUCTED_RECOVERY_ENTRY = "implementation-raw-reconstructed-missing-eoc-recovery"
 _RECONSTRUCTED_RECOVERY_CONTRACTS = {
     reference: recipe for reference, recipe in _RAW_RECOVERY_CONTRACTS.items()
@@ -5012,6 +5024,10 @@ _COLD_RESULT_MODELS = {
     "part2_decode_raw_reconstructed_codestream": (
         "part2_decode_reconstructed_cold_result", "specs/raw_decode.rs", "part2_decode_reconstructed_cold_normal",
     ),
+    "part2_decode_jp2_reconstructed_value": (
+        "part2_decode_jp2_reconstructed_result", "specs/container_reconstruction.rs",
+        "part2_decode_jp2_reconstructed_normal",
+    ),
     "part2_decode_jpx_codestream": ("part2_jpx_cold_result", "specs/jpx_source.rs", "part2_jpx_cold_normal"),
     "part2_decode_jpx_selected_file": (
         "part2_jpx_selected_cold_result", "specs/jpx_source.rs", "part2_jpx_selected_cold_normal",
@@ -5261,6 +5277,7 @@ _COLD_RESULT_CONTRACTS = {
     key: _coverage_cold_relation(legacy)
     for contracts in (
         _RAW_LAYOUT_CONTRACTS, _RAW_TYPED_CONTRACTS, _RAW_RECONSTRUCTED_CONTRACTS,
+        _JP2_RECONSTRUCTED_CONTRACTS,
         _RAW_INSPECTED_CONTRACTS, _JPX_SOURCE_CONTRACTS, _RAW_JPX_PUBLIC_IMAGE_CONTRACTS,
         _RAW_CONTAINER_IMAGE_CONTRACTS, _RAW_CONTAINER_COLOR_CONTRACTS,
         _SOURCE_FRAME_CONTRACTS, _RAW_RENDER_CONTRACTS, _RAW_COMPOSITION_RENDER_CONTRACTS,
@@ -5741,6 +5758,7 @@ _COLD_LOCAL_FAMILIES = {
     _RAW_LAYOUT_ENTRY: (_RAW_LAYOUT_CONTRACTS, "whole raw layout"),
     _RAW_TYPED_ENTRY: (_RAW_TYPED_CONTRACTS, "whole raw typed Result"),
     _RAW_RECONSTRUCTED_ENTRY: (_RAW_RECONSTRUCTED_CONTRACTS, "whole raw reconstructed Result"),
+    _JP2_RECONSTRUCTED_ENTRY: (_JP2_RECONSTRUCTED_CONTRACTS, "whole JP2 reconstructed Result"),
     _JPX_SOURCE_ENTRY: (_JPX_SOURCE_CONTRACTS, "whole JPX source Result"),
     _JPX_LAYER_COLOR_ENTRY: (_JPX_LAYER_COLOR_CONTRACTS, "whole JPX layer color Result"),
     _SOURCE_OPACITY_ENTRY: (_SOURCE_OPACITY_CONTRACTS, "whole source opacity Result"),
@@ -13685,6 +13703,8 @@ def validate_normative_coverage(
                     if entry["id"] == _RAW_TYPED_ENTRY else None)
                 or (_RAW_RECONSTRUCTED_CONTRACTS.get((reference["path"], reference["symbol"]))
                     if entry["id"] == _RAW_RECONSTRUCTED_ENTRY else None)
+                or (_JP2_RECONSTRUCTED_CONTRACTS.get((reference["path"], reference["symbol"]))
+                    if entry["id"] == _JP2_RECONSTRUCTED_ENTRY else None)
                 or (_JPX_SOURCE_CONTRACTS.get((reference["path"], reference["symbol"]))
                     if entry["id"] == _JPX_SOURCE_ENTRY else None)
                 or (_JPX_LAYER_COLOR_CONTRACTS.get((reference["path"], reference["symbol"]))

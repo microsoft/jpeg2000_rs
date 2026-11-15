@@ -630,6 +630,12 @@ verus! {
     {
     }
 
+    pub(crate) proof fn raw_association_parsed_header_known(association: &CodestreamHeaderAssociation)
+        ensures raw_header_option(source_association_parsed_reference(association))
+            == raw_codestream_association_view(association).2,
+    {
+    }
+
     pub(crate) proof fn raw_render_header_known(header: &Jp2Header)
         ensures associated_header_view(header) == crate::specs::part2_raw_associated_header(raw_jp2_header_view(header)),
     {

@@ -3245,6 +3245,43 @@
       ]
     },
     {
+      "id": "part2-strict-jp2-reconstruction-result",
+      "topic": "Strict JP2 container reconstruction before typed rounding/clipping for PDF interpolation. The actual container inspection/profile child precedes the actual raw reconstruction child; NLT, parser, resource and allocation errors are retained before explicit rejection of main/associated palettes, component mappings and channel definitions, including identity mappings. Unparsed associated JPX headers are rejected rather than bypassed. Returned centered i64 planes, fractions and genuine component geometry are the actual raw child, without copies, retries, color conversion or a supplied image bank. Existing strict typed APIs are unchanged. This supplies container headroom, not the remaining shared PDF recovery/deadline facade, selected reconstruction, general incremental input, physical allocator availability, lifetime or independent conformance qualification.",
+      "implementation_refs": [
+        {"path": "src/decode/api.rs", "symbol": "decode_jp2_reconstructed"},
+        {"path": "src/decode/api.rs", "symbol": "validate_jp2_reconstruction_output"},
+        {"path": "src/decode/api.rs", "symbol": "decode_codestream_reconstructed"},
+        {"path": "src/decode/raw_typed_result_tests.rs", "symbol": "jp2_reconstructed_output_retains_fractional_headroom_and_coded_geometry"}
+      ],
+      "spec_refs": [
+        {"path": "specs/container_reconstruction.rs", "symbol": "part2_decode_jp2_reconstructed_result"},
+        {"path": "specs/container_reconstruction.rs", "symbol": "part2_decode_jp2_reconstructed_value"},
+        {"path": "specs/container_reconstruction.rs", "symbol": "part2_decode_jp2_reconstructed_run"},
+        {"path": "specs/container_reconstruction.rs", "symbol": "part2_jp2_reconstructed_after_inspection"},
+        {"path": "specs/container_reconstruction.rs", "symbol": "part2_jp2_reconstructed_output"},
+        {"path": "specs/container_reconstruction.rs", "symbol": "part2_validate_jp2_reconstruction_output"},
+        {"path": "specs/raw_decode.rs", "symbol": "part2_decode_reconstructed_cold_run"}
+      ],
+      "contract_refs": [
+        {"path": "src/decode/api.rs", "symbol": "decode_jp2_reconstructed"},
+        {"path": "src/decode/api.rs", "symbol": "validate_jp2_reconstruction_output"}
+      ],
+      "proof_refs": [
+        {"path": "specs/container_reconstruction.rs", "symbol": "part2_jp2_reconstructed_inspection_error"},
+        {"path": "specs/container_reconstruction.rs", "symbol": "part2_jp2_reconstructed_profile_error"},
+        {"path": "specs/container_reconstruction.rs", "symbol": "part2_jp2_reconstructed_image_actual"},
+        {"path": "specs/container_reconstruction.rs", "symbol": "part2_decode_jp2_reconstructed_normal"},
+        {"path": "specs/container_reconstruction.rs", "symbol": "part2_decode_jp2_reconstructed_value_unfold"},
+        {"path": "src/jp2/proof_support.rs", "symbol": "raw_association_parsed_header_known"}
+      ],
+      "test_refs": [
+        {"path": "src/decode/raw_typed_result_tests.rs", "symbol": "jp2_reconstructed_output_retains_fractional_headroom_and_coded_geometry"},
+        {"path": "src/decode/raw_typed_result_tests.rs", "symbol": "jp2_reconstructed_output_rejects_typed_mappings_without_masking_decode_errors"},
+        {"path": "src/decode/raw_typed_result_tests.rs", "symbol": "jp2_reconstructed_output_keeps_header_profile_and_nlt_validation"},
+        {"path": "src/decode/raw_typed_result_tests.rs", "symbol": "jp2_reconstructed_output_propagates_refused_storage_and_limits_then_recovers"}
+      ]
+    },
+    {
       "id": "part1-complete-native-raw-layout-result",
       "topic": "Complete actual raw-byte CodestreamLayout and CodestreamInfo Results, not parsed-header/layout admission: raw parser creation/input limit, actual main-header traversal/final reader, checked global tile count and limit, SOT, TLM/PLM/PPM selection, all inherited physical owners and original clones, real complete tile reader, ordered partial persistent commits/payload append, EOC/count/trailing errors, actual physical ROI iterator and full profile classification. Every Result error and all returned image/style/quantization/ROI/progression/MCT/extensions/profile/counters/consumed/source-payload fields compose from real input. Main traversal uses the actual pre-loop input length derived from the real prologue; no silent frame assumption. Public closed ghost models use checked unfolding lemmas, not external axioms. The real limit-error constructor has its complete typed return contract. A ghost-only shared sequence projection supports native selection without executing Vec-to-slice dereference in proof. All original native owners/scopes/clone/move/drop order remain; only an unused Copy-error closure argument is named for the specification frontend. Strict inventory binds all three actual complete contracts, raw model roots, full returned projections, real reader/counter/eight-state/payload suffix and terminal Results, primitive error constructor and actual decode consumers. Prior inventory meanings, producer relays and four unconditional owned handoff checks remain; exact guards recognize stronger ghost-only wrapper/ROI/length proofs. This is as-implemented raw layout, not independent selected-edition normative correspondence, full normalization/public pixels, general production cfg/erasure/lifetimes/coverage, official conformance or release qualification.",
       "implementation_refs": [

@@ -131,8 +131,11 @@ impl CodestreamHeaderAssociation<'_> {
     #[cfg_attr(verus_keep_ghost, verus_spec(result =>
         ensures super::associated_header_option(result) == super::source_association_header_view(self).1,
             result == super::source_association_parsed_reference(self),
+            super::raw_header_option(result) == super::raw_codestream_association_view(self).2,
     ))]
     pub fn parsed_header(&self) -> Option<&Jp2Header> {
+        #[cfg(verus_keep_ghost)]
+        proof! { super::raw_association_parsed_header_known(self); }
         self.parsed.as_ref()
     }
 }
@@ -148,8 +151,11 @@ impl<'a> Jp2File<'a> {
     #[cfg_attr(verus_keep_ghost, verus_spec(result =>
         ensures super::associated_header_view(result) == super::jpx_file_decode_view(self).2,
             result == super::jpx_file_header_reference(self),
+            super::raw_jp2_header_view(result) == super::raw_jp2_file_view(self).header,
     ))]
     pub fn header(&self) -> &Jp2Header {
+        #[cfg(verus_keep_ghost)]
+        proof! { super::raw_inspection_file_fields_known(self); }
         &self.header
     }
 
