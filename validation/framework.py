@@ -4814,6 +4814,7 @@ _RAW_RENDER_PROOFS |= {("specs/jpx_raw_frame.rs", "part2_render_raw_cold_metadat
 _RAW_COMPOSITION_RENDER_PROOFS |= {("specs/jpx_raw_frame.rs", "part2_render_raw_cold_metadata_error")}
 
 _PLANE_ROLE_MODEL_INFO = {
+    "part1_prepare_copy_plane": ("part2_prepare_plane_copy_result", "specs/cold_prepare_copies.rs", "part2_prepare_plane_copy_normal"),
     "part1_collect_column": ("part2_wavelet_gather_result", "specs/cold_wavelet_lines.rs", "part2_wavelet_gather_normal"),
     "part1_interleaved": ("part2_wavelet_interleave_result", "specs/cold_wavelet_lines.rs", "part2_wavelet_interleave_normal"),
     "part1_inverse_five_three": ("part2_wavelet_sequence_result", "specs/cold_wavelet_lines.rs", "part2_wavelet_sequence_normal"),
@@ -4882,6 +4883,7 @@ _PLANE_ROLE_RESULT_RUNS = {
     for old, (model, _, _) in _PLANE_ROLE_MODEL_INFO.items()
 }
 _PLANE_ROLE_RESULT_RUNS.update({
+    "part2_prepare_plane_copy_result": ("part2_prepare_plane_copy_run", False),
     "part2_wavelet_gather_result": ("part2_wavelet_gather_run", False),
     "part2_wavelet_interleave_result": ("part2_wavelet_interleave_run", False),
     "part2_wavelet_sequence_result": ("part2_wavelet_sequence_run", False),
@@ -5304,6 +5306,11 @@ for _axis, _extent in (("horizontal", "output_width"), ("vertical", "output_heig
             + r"\s*,\s*" + _coverage_call("reconstruction_outcome", r"\1"),
         )
 _COLD_RESULT_CONTRACTS.update({
+    ("src/decode/reconstruction.rs", "copy_prepare_plane"): (
+        "part2_prepare_plane_copy_result",
+        _coverage_call("crate::transform::reconstructed_plane_view", "plane") + r"\s*,\s*first_detail\s*,\s*"
+        + _coverage_call("prepare_fold_outcome", r"\1"),
+    ),
     ("src/decode/reconstruction.rs", "reconstruct_prepare_working"): (
         "part2_wavelet_reconstruct_result",
         _coverage_call("working_bands_view", "working@") + r"\s*,\s*" + _coverage_call("prepare_plan_view", "plan") + r"\s*,\s*"
@@ -7142,7 +7149,7 @@ _WAVELET_PLANE_GUARDS = {
     ),
     ("specs/cold_extraction_reconstruction.rs", "part2_extraction_component_finish_run"): (
         "part2_extraction_component_fold_admit(placed)", "Err(error)=>Some((Err(error),calls))",
-        "part2_wavelet_fold_run(initial,placed.1.0,plan.subbands,style,reversible,kernel,maximum,plan.resolution as nat,calls)",
+        "part2_wavelet_reconstruct_run(placed.1.0,plan,style,reversible,kernel,maximum,calls)",
         "part1_prepare_finish(plan,part1_prepare_fraction(reversible),folded)",
     ),
 }
@@ -7230,6 +7237,65 @@ _WAVELET_LINE_TESTS = {
     ("src/transform/tests.rs", "wavelet_line_storage_actual_standard_custom_planes_prior_lines_and_numerical_restore"),
     ("src/image/mct_wavelet.rs", "wavelet_line_storage_actual_spectral_prior_owner_and_exact_refusal_restore"),
     ("src/image/tests.rs", "wavelet_line_storage_public_mct_retains_actual_prior_pixel_and_restores"),
+}
+_PREPARE_COPY_GUARDS = {
+    ("specs/cold_prepare_copies.rs", "part2_prepare_copy_capacity_run"): (
+        "if count==0{Some((Ok(()),calls))}", "actual!=role || elements!=count",
+        "if succeeded{Ok(())}else{Err(crate::DecodeError::AllocationFailed)}", "calls.drop_first()", "_=>None",
+    ),
+    ("specs/cold_prepare_copies.rs", "part2_prepare_samples_run"): (
+        "part2_prepare_copy_capacity_run(role,source.len(),calls)", "Some((Ok(source),rest))",
+    ),
+    ("specs/cold_prepare_copies.rs", "part2_prepare_initial_run"): (
+        "Part2PrepareCopyRole::InitialLl,ll.3,calls", "Some((Ok((ll.0,ll.1,values,1usize)),rest))",
+    ),
+    ("specs/cold_prepare_copies.rs", "part2_prepare_plane_copy_run"): (
+        "Part2PrepareCopyRole::PreparedPlane,plane.3,calls", "Some((Ok((plane.0,plane.1,values,first_detail)),rest))",
+    ),
+    ("specs/cold_wavelet_prepare.rs", "part2_wavelet_reconstruct_run"): (
+        "if bands.len()==0{Some((Err(part1_block_placement_error(false)),calls))}",
+        "part2_prepare_initial_run(bands[0],calls)",
+        "part2_wavelet_fold_run(initial,bands,plan.subbands,style,reversible,kernel,maximum,plan.resolution as nat,rest)",
+    ),
+    ("specs/cold_wavelet_prepare.rs", "part2_wavelet_resolution_finish_run"): (
+        "if plane.2!=part1_prepare_fraction(reversible){Some((Err(part1_block_placement_error(false)),calls))}",
+        "part2_prepare_plane_copy_run(plane,next,calls)",
+    ),
+    ("specs/cold_wavelet_prepare.rs", "part2_wavelet_resolution_run"): (
+        "part2_wavelet_resolution_admit(before,bands,geometry,direction,reversible)",
+        "part2_wavelet_request_run(request,reversible,kernel,maximum,calls)",
+        "part2_wavelet_resolution_finish_run(reversible,next,plane,rest)",
+    ),
+}
+_PREPARE_COPY_NATIVE_ORDER = {
+    ("src/allocation.rs", "copy_i64_values"): (
+        "if source.is_empty()", "return Ok(Vec::new())", "empty_with_capacity(source.len())?", "values.extend_from_slice(source)",
+    ),
+    ("src/decode/reconstruction.rs", "reconstruct_prepare_working"): (
+        "working.first().ok_or_else(invalid_decode)?", "width: ll.width", "height: ll.height",
+        "crate::allocation::copy_i64_values(&ll.samples)", "Part2PrepareCopyRole::InitialLl",
+        "part2_prepare_initial_observed(", "part2_wavelet_reconstruct_initial_error(", "copied?",
+        "first_detail: 1", "while resolution <= plan.output_resolution",
+    ),
+    ("src/decode/reconstruction.rs", "copy_prepare_plane"): (
+        "plane.width()", "plane.height()", "crate::allocation::copy_i64_values(plane.samples())",
+        "Part2PrepareCopyRole::PreparedPlane", "part2_prepare_plane_copy_observed(", "let next_samples = copied?",
+        "Ok(PrepareFold", "width: reconstructed_width", "height: reconstructed_height", "samples: next_samples, first_detail",
+    ),
+    ("src/decode/reconstruction.rs", "reconstruct_prepare_resolution"): (
+        "working.get(first_detail)", "detail.fraction_bits != expected_fraction_bits", "plan.subbands.get(first_detail)",
+        "let plane_result = match direction", "part2_wavelet_request_observed(", "let plane = plane_result?",
+        "plane.fraction_bits() != expected_fraction_bits", "let copied = copy_prepare_plane(plane, first_detail)",
+        "part2_wavelet_resolution_copy_observed(",
+    ),
+}
+_PREPARE_COPY_TESTS = {
+    ("src/allocation.rs", "bulk_i64_copy_preserves_raw_empty_prior_owner_first_later_and_restore"),
+    ("src/decode/tests.rs", "prepare_copy_storage_raw_ll_plane_empty_prior_owner_and_error_order"),
+    ("src/decode/tests.rs", "prepare_copy_storage_actual_standard_custom_component_ll_later_copy_and_restore"),
+    ("src/decode/tests.rs", "wavelet_plane_storage_actual_raw_selected_container_reconstruction_and_automatic_restore"),
+    ("src/recovery/tests.rs", "one_atomic_reservation_refusal_and_unwind_leave_exact_same_process_success"),
+    ("src/recovery/tests.rs", "reconstructed_recovery_refusal_limits_and_genuine_errors_preserve_recovery"),
 }
 
 _QUANTIZATION_OUTPUT_GUARDS = {
@@ -13927,6 +13993,7 @@ def validate_normative_coverage(
                 "empty_with_capacity": ("storage_capacity_result", r"\1"),
                 "none_values": ("storage_none_result", r"count\s*,\s*\1"),
                 "copy_values": ("storage_copy_result", r"source@\s*,\s*\1"),
+                "copy_i64_values": ("storage_copy_result", r"source@\s*,\s*\1"),
                 "filled_values": ("storage_copy_result", _coverage_call("Seq::new", r"count\s+as\s+nat", r"\|_\s*:\s*int\|\s*value") + r"\s*,\s*\1"),
                 "zero_i64_values": ("storage_copy_result", _coverage_call("Seq::new", r"count\s+as\s+nat", r"\|_\s*:\s*int\|\s*0i64") + r"\s*,\s*\1"),
                 "extend_bytes": (
@@ -14411,10 +14478,12 @@ def validate_normative_coverage(
                     contract, named_result, prepare_contract_arguments[0], prepare_contract_arguments[1],
                 )
             )
-            if cold_contract is not None and short in ("prepare_tile_component", "collect_prepare_coefficients"):
+            if cold_contract is not None and short in ("prepare_tile_component", "collect_prepare_coefficients", "copy_prepare_plane"):
                 prepare_arguments_bound = _coverage_extraction_normal_arguments(
                     contract,
-                    "prepared_component_outcome" if short == "prepare_tile_component" else "crate::transform::quantized_coefficients_outcome",
+                    {"prepare_tile_component": "prepared_component_outcome",
+                     "collect_prepare_coefficients": "crate::transform::quantized_coefficients_outcome",
+                     "copy_prepare_plane": "prepare_fold_outcome"}[short],
                     prepare_contract_arguments[0], prepare_contract_arguments[1],
                 )
             component_contract_arguments = {
@@ -14676,6 +14745,25 @@ def validate_normative_coverage(
             positions = [compact.find("".join(fragment.split())) for fragment in fragments]
             if any(position < 0 for position in positions) or positions != sorted(positions):
                 raise ValueError("coefficient extraction requires original real fresh reserve/admission/numerical error order")
+        if not _PREPARE_COPY_TESTS.issubset({(r["path"],r["symbol"]) for r in coefficient_entry["test_refs"]}):
+            raise ValueError("prepare copies require bounded raw/empty/first/later/restore/error/component/public controls")
+        for (relative,symbol),fragments in _PREPARE_COPY_GUARDS.items():
+            body = _coverage_spec_function_body(source_text((ROOT / relative).resolve()),symbol)
+            compact = "".join(body.split()) if body is not None else ""
+            if any("".join(f.split()) not in compact for f in fragments):
+                raise ValueError("prepare copies require actual raw source/count/role, prior owner, child/error and unused-tail linkage")
+        for (relative,symbol),fragments in _PREPARE_COPY_NATIVE_ORDER.items():
+            path = (ROOT / relative).resolve()
+            body = _coverage_function_body(source_text(path),function_header(path,symbol))
+            compact = "".join(body.split()) if body is not None else ""
+            positions = [compact.find("".join(f.split())) for f in fragments]
+            if any(p < 0 for p in positions) or positions != sorted(positions):
+                raise ValueError("prepare copies require original input-length/field/admission/copy/owner/error order")
+        copy_source = source_text((ROOT / "src/allocation.rs").resolve())
+        copy_header = function_header((ROOT / "src/allocation.rs").resolve(),"copy_i64_values")
+        copy_contract = copy_source[copy_source.rfind("#[cfg_attr",0,copy_header.start()):copy_header.start()]
+        if "ensurescrate::specs::storage_copy_result(source@,result)" not in "".join(copy_contract.split()):
+            raise ValueError("prepare copies require exact checked bulk-i64 slice values/error/empty contract")
     if "part1-complete-native-packed-header-length-inputs" in ids:
         packed_entry = next(item for item in coverage["requirements"] if item["id"] == "part1-complete-native-packed-header-length-inputs")
         if ("src/codestream/packet_headers.rs", "PackedPacketHeaders::reassemble") in {

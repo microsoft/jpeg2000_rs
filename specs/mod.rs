@@ -3,6 +3,8 @@ use vstd::prelude::*;
 
 mod allocation;
 pub use allocation::*;
+mod cold_prepare_copies;
+pub use cold_prepare_copies::*;
 mod mq;
 pub use mq::*;
 mod legacy;

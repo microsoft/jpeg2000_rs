@@ -16821,7 +16821,16 @@
         {"path": "specs/cold_extraction_reconstruction.rs", "symbol": "part2_extraction_component_normal"},
         {"path": "specs/cold_extraction_reconstruction.rs", "symbol": "part2_extraction_component_error"},
         {"path": "specs/cold_extraction_reconstruction.rs", "symbol": "part2_extraction_component_finish_normal"},
-        {"path": "specs/cold_extraction_reconstruction.rs", "symbol": "part2_extraction_component_wavelet_error"}
+        {"path": "specs/cold_extraction_reconstruction.rs", "symbol": "part2_extraction_component_wavelet_error"},
+        {"path": "src/allocation.rs", "symbol": "copy_i64_values"},
+        {"path": "specs/cold_prepare_copies.rs", "symbol": "part2_prepare_samples_observed"},
+        {"path": "specs/cold_prepare_copies.rs", "symbol": "part2_prepare_initial_observed"},
+        {"path": "specs/cold_prepare_copies.rs", "symbol": "part2_prepare_initial_normal"},
+        {"path": "specs/cold_prepare_copies.rs", "symbol": "part2_prepare_plane_copy_observed"},
+        {"path": "specs/cold_prepare_copies.rs", "symbol": "part2_prepare_plane_copy_normal"},
+        {"path": "specs/cold_wavelet_prepare.rs", "symbol": "part2_wavelet_resolution_copy_observed"},
+        {"path": "specs/cold_wavelet_prepare.rs", "symbol": "part2_wavelet_reconstruct_after_initial_observed"},
+        {"path": "specs/cold_wavelet_prepare.rs", "symbol": "part2_wavelet_reconstruct_initial_error"}
       ],
       "spec_refs": [
         {"path": "specs/mod.rs", "symbol": "part1_prepare_standard_component"},
@@ -16871,7 +16880,16 @@
         {"path": "specs/mod.rs", "symbol": "part1_prepare_copy_plane"},
         {"path": "specs/mod.rs", "symbol": "part1_prepare_finish"},
         {"path": "specs/mod.rs", "symbol": "part1_prepared_as_tile"},
-        {"path": "specs/mod.rs", "symbol": "part1_transform_area"}
+        {"path": "specs/mod.rs", "symbol": "part1_transform_area"},
+        {"path": "specs/cold_prepare_copies.rs", "symbol": "Part2PrepareCopyRole"},
+        {"path": "specs/cold_prepare_copies.rs", "symbol": "part2_prepare_copy_capacity_run"},
+        {"path": "specs/cold_prepare_copies.rs", "symbol": "part2_prepare_samples_run"},
+        {"path": "specs/cold_prepare_copies.rs", "symbol": "part2_prepare_samples_result"},
+        {"path": "specs/cold_prepare_copies.rs", "symbol": "part2_prepare_initial_run"},
+        {"path": "specs/cold_prepare_copies.rs", "symbol": "part2_prepare_initial_result"},
+        {"path": "specs/cold_prepare_copies.rs", "symbol": "part2_prepare_plane_copy_run"},
+        {"path": "specs/cold_prepare_copies.rs", "symbol": "part2_prepare_plane_copy_result"},
+        {"path": "specs/cold_wavelet_prepare.rs", "symbol": "part2_wavelet_resolution_finish_run"}
       ],
       "test_refs": [
         {"path": "src/decode/tests.rs", "symbol": "complete_standard_prepare_matches_independent_wide_multilevel_reference"},
@@ -16881,7 +16899,13 @@
         {"path": "src/decode/tests.rs", "symbol": "coefficient_extraction_storage_zero_raw_shape_and_ordinary_cell_error_order"},
         {"path": "src/decode/tests.rs", "symbol": "coefficient_extraction_storage_first_later_prepared_placements_preserve_real_sources"},
         {"path": "src/decode/tests.rs", "symbol": "coefficient_extraction_storage_actual_legacy_ht_code_block_packet_and_quantization_order"},
-        {"path": "src/decode/tests.rs", "symbol": "coefficient_extraction_storage_real_ht_raw_selected_jph_reconstruction_and_automatic_restore"}
+        {"path": "src/decode/tests.rs", "symbol": "coefficient_extraction_storage_real_ht_raw_selected_jph_reconstruction_and_automatic_restore"},
+        {"path": "src/allocation.rs", "symbol": "bulk_i64_copy_preserves_raw_empty_prior_owner_first_later_and_restore"},
+        {"path": "src/decode/tests.rs", "symbol": "prepare_copy_storage_raw_ll_plane_empty_prior_owner_and_error_order"},
+        {"path": "src/decode/tests.rs", "symbol": "prepare_copy_storage_actual_standard_custom_component_ll_later_copy_and_restore"},
+        {"path": "src/decode/tests.rs", "symbol": "wavelet_plane_storage_actual_raw_selected_container_reconstruction_and_automatic_restore"},
+        {"path": "src/recovery/tests.rs", "symbol": "one_atomic_reservation_refusal_and_unwind_leave_exact_same_process_success"},
+        {"path": "src/recovery/tests.rs", "symbol": "reconstructed_recovery_refusal_limits_and_genuine_errors_preserve_recovery"}
       ],
       "topic": "Complete actual public prepare_tile_component Result over all native raw plans, precinct decoder/plane/coefficient fields, styles and caps for the None-kernel profile: initialization, raw six-limb signed/midpoint collection, quantization, placement/coverage/fraction checks, entire mixed-direction/multilevel 5/3 or Q16 9/7 fold, metadata and first errors. Missing Arbitrary kernel rejects exactly. Private Some-kernel/arbitrary, general MCT and whole decoder composition remain outside this result; no valid-header/normalized-coefficient/coverage/sufficient-budget/trace entry premise"
     },

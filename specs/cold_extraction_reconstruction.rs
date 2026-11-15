@@ -105,7 +105,7 @@ pub(crate) open spec fn part2_extraction_component_fold_admit(placed:Part2Extrac
 pub(crate) open spec fn part2_extraction_component_finish_run(plan:Part1PreparePlan,style:Part1PrepareStyle,kernel:Option<Part2RawKernel>,reversible:bool,maximum:u64,placed:Part2ExtractionWorkingEffect,
     calls:Seq<Part2Tier1StorageEvent>)->Part2Tier1Run<Part1AssemblyTile> {
     match part2_extraction_component_fold_admit(placed){
-        Err(error)=>Some((Err(error),calls)),Ok(initial)=>part2_tier1_storage_bind(part2_wavelet_fold_run(initial,placed.1.0,plan.subbands,style,reversible,kernel,maximum,plan.resolution as nat,calls),
+        Err(error)=>Some((Err(error),calls)),Ok(_)=>part2_tier1_storage_bind(part2_wavelet_reconstruct_run(placed.1.0,plan,style,reversible,kernel,maximum,calls),
             |folded:Part1PrepareFold,rest|Some((part1_prepare_finish(plan,part1_prepare_fraction(reversible),folded),rest))),
     }
 }
@@ -280,9 +280,10 @@ pub(crate) proof fn part2_extraction_component_finish_normal(plan:Part1PreparePl
     match part2_extraction_component_fold_admit(placed){
         Err(_)=>{part2_tier1_storage_pure(result);},Ok(initial)=>{
             let folded=part2_prepare_fold(initial,placed.1.0,plan.subbands,style,reversible,kernel,maximum,plan.resolution as nat);
-            part2_wavelet_fold_normal(initial,placed.1.0,plan.subbands,style,reversible,kernel,maximum,plan.resolution as nat);
+            part2_wavelet_reconstruct_normal(placed.1.0,plan,style,reversible,kernel,maximum);
+            part2_wavelet_reconstruct_frames(placed.1.0,plan,style,reversible,kernel,maximum,folded);
             if folded.is_ok(){part2_tier1_storage_pure(result);}
-            part2_tier1_storage_bind_frame(|calls|part2_wavelet_fold_run(initial,placed.1.0,plan.subbands,style,reversible,kernel,maximum,plan.resolution as nat,calls),
+            part2_tier1_storage_bind_frame(|calls|part2_wavelet_reconstruct_run(placed.1.0,plan,style,reversible,kernel,maximum,calls),
                 |folded:Part1PrepareFold,rest|Some((part1_prepare_finish(plan,part1_prepare_fraction(reversible),folded),rest)),folded,result);
         },
     }
@@ -296,10 +297,9 @@ pub(crate) proof fn part2_extraction_component_wavelet_error(plan:Part1PreparePl
     ensures part2_extraction_component_result(plan,precincts,style,kernel,maximum,Err(error)),
 {
     if working.0.len()>0{
-        let ll=working.0[0];let folded=(ll.0,ll.1,ll.3,1usize);
         part2_wavelet_reconstruct_frames(working.0,plan,style,reversible,kernel,maximum,Err(error));
-        part2_tier1_storage_eta(|calls|part2_wavelet_fold_run(folded,working.0,plan.subbands,style,reversible,kernel,maximum,plan.resolution as nat,calls),Err(error));
-        part2_tier1_storage_bind_frame(|calls|part2_wavelet_fold_run(folded,working.0,plan.subbands,style,reversible,kernel,maximum,plan.resolution as nat,calls),
+        part2_tier1_storage_eta(|calls|part2_wavelet_reconstruct_run(working.0,plan,style,reversible,kernel,maximum,calls),Err(error));
+        part2_tier1_storage_bind_frame(|calls|part2_wavelet_reconstruct_run(working.0,plan,style,reversible,kernel,maximum,calls),
             |folded:Part1PrepareFold,rest|Some((part1_prepare_finish(plan,part1_prepare_fraction(reversible),folded),rest)),Err(error),Err(error));
     }else{
         part2_wavelet_reconstruct_empty_error(working.0,plan,style,reversible,kernel,maximum,error);

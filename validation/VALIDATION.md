@@ -1557,10 +1557,29 @@ Generic `filled_values<T: Copy>` and its shallow-copy contract are unchanged.
 This surgical bulk fill is not resource qualification; the unchanged canonical
 resource command/budgets must still qualify the exact committed source.
 
-The initial LL clone, later `copy_prepare_plane`, spectral initial/source
-scratch copies, output conversions, unrelated image/container collections
-and growth remain separate. Existing appends and sequence models are not
-general physical-capacity or host-allocation-availability theorems.
+The subsequent preparation-copy increment converts the actual initial LL clone
+and later `copy_prepare_plane` sample owner, not a transfer of either owner.
+Distinct `PrepareCopyCapacity` roles use actual raw sample lengths, never
+width-times-height as a substitute. Raw dimensions, fractional tags, empty and
+malformed source shapes remain in the enclosing input-derived producers.
+The initial copy follows the original first-band read and width/height fields;
+later copies follow the actual inverse-wavelet child and original fraction
+check. Exact errors bind through the resolution fold, actual component and
+tile/public programs with previous owners and unused tails retained. No new
+validation or numerical conversion is introduced in either copying factory.
+
+Private `copy_i64_values` uses the same checked reserve and supported
+`Vec<i64>::extend_from_slice`, with existing signed-integer clone facts proving
+the exact copied sequence. Empty input makes no request. Generic
+`copy_values<T: Copy>` and its exact behavior remain unchanged. Bounded controls
+include raw malformed/empty owners, source non-aliasing, first/later refusal,
+actual standard/custom component copies and restored recovery/public results.
+This bulk-copy implementation is not canonical resource qualification.
+
+Spectral initial/source scratch copies and component collections, output/image/
+container collections, unrelated owners and growth remain separate. Existing
+appends and sequence models are not general physical-capacity or
+host-allocation-availability theorems.
 
 Replay copying remains after original route/pass/cleanup/byte admission but
 before the unchanged append and later concatenation-size checks. Retention

@@ -51,12 +51,16 @@ pub(crate) open spec fn part2_wavelet_resolution_finish(reversible:bool,next:usi
     if plane.2!=part1_prepare_fraction(reversible){Err(part1_block_placement_error(false))}
     else{Ok((plane.0,plane.1,plane.3,next))}
 }
+pub(crate) open spec fn part2_wavelet_resolution_finish_run(reversible:bool,next:usize,plane:Part1ReconstructedPlane,calls:Seq<Part2Tier1StorageEvent>)->Part2Tier1Run<Part1PrepareFold> {
+    if plane.2!=part1_prepare_fraction(reversible){Some((Err(part1_block_placement_error(false)),calls))}
+    else{part2_prepare_plane_copy_run(plane,next,calls)}
+}
 #[verifier::opaque]
 pub(crate) open spec fn part2_wavelet_resolution_run(before:Part1PrepareFold,bands:Seq<Part1WorkingSubbandModel>,geometry:Seq<crate::decode::SubbandGeometry>,
     direction:crate::codestream::DecompositionDirection,reversible:bool,kernel:Option<Part2RawKernel>,maximum:u64,calls:Seq<Part2Tier1StorageEvent>)->Part2Tier1Run<Part1PrepareFold> {
     match part2_wavelet_resolution_admit(before,bands,geometry,direction,reversible){
         Err(error)=>Some((Err(error),calls)),Ok((request,next))=>part2_tier1_storage_bind(part2_wavelet_request_run(request,reversible,kernel,maximum,calls),
-            |plane:Part1ReconstructedPlane,rest|Some((part2_wavelet_resolution_finish(reversible,next,plane),rest))),
+            |plane:Part1ReconstructedPlane,rest|part2_wavelet_resolution_finish_run(reversible,next,plane,rest)),
     }
 }
 pub(crate) open spec fn part2_wavelet_resolution_result(before:Part1PrepareFold,bands:Seq<Part1WorkingSubbandModel>,geometry:Seq<crate::decode::SubbandGeometry>,
@@ -86,7 +90,8 @@ pub(crate) open spec fn part2_wavelet_fold_run(initial:Part1PrepareFold,bands:Se
 pub(crate) open spec fn part2_wavelet_reconstruct_run(bands:Seq<Part1WorkingSubbandModel>,plan:Part1PreparePlan,style:Part1PrepareStyle,reversible:bool,kernel:Option<Part2RawKernel>,maximum:u64,
     calls:Seq<Part2Tier1StorageEvent>)->Part2Tier1Run<Part1PrepareFold> {
     if bands.len()==0{Some((Err(part1_block_placement_error(false)),calls))}
-    else{let ll=bands[0];part2_wavelet_fold_run((ll.0,ll.1,ll.3,1usize),bands,plan.subbands,style,reversible,kernel,maximum,plan.resolution as nat,calls)}
+    else{part2_tier1_storage_bind(part2_prepare_initial_run(bands[0],calls),
+        |initial:Part1PrepareFold,rest|part2_wavelet_fold_run(initial,bands,plan.subbands,style,reversible,kernel,maximum,plan.resolution as nat,rest))}
 }
 pub(crate) open spec fn part2_wavelet_reconstruct_result(bands:Seq<Part1WorkingSubbandModel>,plan:Part1PreparePlan,style:Part1PrepareStyle,reversible:bool,kernel:Option<Part2RawKernel>,maximum:u64,
     result:Result<Part1PrepareFold,crate::DecodeError>)->bool {
@@ -131,9 +136,13 @@ pub(crate) proof fn part2_wavelet_resolution_normal(before:Part1PrepareFold,band
             let plane=part2_wavelet_request_value(request,reversible,kernel,maximum);
             part2_wavelet_request_normal(request,reversible,kernel,maximum);
             part2_tier1_storage_eta(|calls|part2_wavelet_request_run(request,reversible,kernel,maximum,calls),plane);
-            if plane.is_ok(){part2_tier1_storage_pure(result);}
+            if let Ok(value)=plane{
+                if value.2!=part1_prepare_fraction(reversible){part2_tier1_storage_pure(result);}
+                else{part2_prepare_plane_copy_normal(value,next);
+                    part2_tier1_storage_eta(|calls|part2_prepare_plane_copy_run(value,next,calls),result);}
+            }
             part2_tier1_storage_bind_frame(|calls|part2_wavelet_request_run(request,reversible,kernel,maximum,calls),
-                |plane:Part1ReconstructedPlane,rest|Some((part2_wavelet_resolution_finish(reversible,next,plane),rest)),plane,result);
+                |plane:Part1ReconstructedPlane,rest|part2_wavelet_resolution_finish_run(reversible,next,plane,rest),plane,result);
         },
     }
 }
@@ -162,7 +171,19 @@ pub(crate) proof fn part2_wavelet_resolution_child_error(before:Part1PrepareFold
 {
     reveal(part2_wavelet_resolution_run);
     part2_tier1_storage_bind_frame(|calls|part2_wavelet_request_run(request,reversible,kernel,maximum,calls),
-        |plane:Part1ReconstructedPlane,rest|Some((part2_wavelet_resolution_finish(reversible,next,plane),rest)),Err(error),Err(error));
+        |plane:Part1ReconstructedPlane,rest|part2_wavelet_resolution_finish_run(reversible,next,plane,rest),Err(error),Err(error));
+}
+pub(crate) proof fn part2_wavelet_resolution_copy_observed(before:Part1PrepareFold,bands:Seq<Part1WorkingSubbandModel>,geometry:Seq<crate::decode::SubbandGeometry>,
+    direction:crate::codestream::DecompositionDirection,reversible:bool,kernel:Option<Part2RawKernel>,maximum:u64,request:Part2WaveletRequest,next:usize,plane:Part1ReconstructedPlane,result:Result<Part1PrepareFold,crate::DecodeError>)
+    requires part2_wavelet_resolution_admit(before,bands,geometry,direction,reversible)==Ok((request,next)),
+        part2_tier1_storage_framed(|calls|part2_wavelet_request_run(request,reversible,kernel,maximum,calls),Ok(plane)),
+        plane.2==part1_prepare_fraction(reversible),part2_prepare_plane_copy_result(plane,next,result),
+    ensures part2_wavelet_resolution_result(before,bands,geometry,direction,reversible,kernel,maximum,result),
+{
+    reveal(part2_wavelet_resolution_run);
+    part2_tier1_storage_eta(|calls|part2_prepare_plane_copy_run(plane,next,calls),result);
+    part2_tier1_storage_bind_frame(|calls|part2_wavelet_request_run(request,reversible,kernel,maximum,calls),
+        |plane:Part1ReconstructedPlane,rest|part2_wavelet_resolution_finish_run(reversible,next,plane,rest),Ok(plane),result);
 }
 pub(crate) proof fn part2_wavelet_fold_normal(initial:Part1PrepareFold,bands:Seq<Part1WorkingSubbandModel>,geometry:Seq<crate::decode::SubbandGeometry>,style:Part1PrepareStyle,
     reversible:bool,kernel:Option<Part2RawKernel>,maximum:u64,count:nat)
@@ -196,9 +217,28 @@ pub(crate) proof fn part2_wavelet_reconstruct_normal(bands:Seq<Part1WorkingSubba
 {
     if bands.len()==0{part2_tier1_storage_pure(part2_prepare_reconstruct(bands,plan,style,reversible,kernel,maximum));}
     else{let ll=bands[0];
+        part2_prepare_initial_normal(ll);
         part2_wavelet_fold_normal((ll.0,ll.1,ll.3,1usize),bands,plan.subbands,style,reversible,kernel,maximum,plan.resolution as nat);
         part2_tier1_storage_eta(|calls|part2_wavelet_fold_run((ll.0,ll.1,ll.3,1usize),bands,plan.subbands,style,reversible,kernel,maximum,plan.resolution as nat,calls),
-            part2_prepare_reconstruct(bands,plan,style,reversible,kernel,maximum));}
+            part2_prepare_reconstruct(bands,plan,style,reversible,kernel,maximum));
+        part2_wavelet_reconstruct_after_initial_observed(bands,plan,style,reversible,kernel,maximum,part2_prepare_reconstruct(bands,plan,style,reversible,kernel,maximum));}
+}
+pub(crate) proof fn part2_wavelet_reconstruct_after_initial_observed(bands:Seq<Part1WorkingSubbandModel>,plan:Part1PreparePlan,style:Part1PrepareStyle,reversible:bool,kernel:Option<Part2RawKernel>,maximum:u64,result:Result<Part1PrepareFold,crate::DecodeError>)
+    requires bands.len()>0,part2_prepare_initial_result(bands[0],Ok((bands[0].0,bands[0].1,bands[0].3,1usize))),
+        part2_tier1_storage_framed(|calls|part2_wavelet_fold_run((bands[0].0,bands[0].1,bands[0].3,1usize),bands,plan.subbands,style,reversible,kernel,maximum,plan.resolution as nat,calls),result),
+    ensures part2_wavelet_reconstruct_result(bands,plan,style,reversible,kernel,maximum,result),
+{
+    part2_tier1_storage_eta(|calls|part2_wavelet_fold_run((bands[0].0,bands[0].1,bands[0].3,1usize),bands,plan.subbands,style,reversible,kernel,maximum,plan.resolution as nat,calls),result);
+    part2_tier1_storage_bind_frame(|calls|part2_prepare_initial_run(bands[0],calls),
+        |initial:Part1PrepareFold,rest|part2_wavelet_fold_run(initial,bands,plan.subbands,style,reversible,kernel,maximum,plan.resolution as nat,rest),
+        Ok((bands[0].0,bands[0].1,bands[0].3,1usize)),result);
+}
+pub(crate) proof fn part2_wavelet_reconstruct_initial_error(bands:Seq<Part1WorkingSubbandModel>,plan:Part1PreparePlan,style:Part1PrepareStyle,reversible:bool,kernel:Option<Part2RawKernel>,maximum:u64,error:crate::DecodeError)
+    requires bands.len()>0,part2_prepare_initial_result(bands[0],Err(error)),
+    ensures part2_wavelet_reconstruct_result(bands,plan,style,reversible,kernel,maximum,Err(error)),
+{
+    part2_tier1_storage_bind_frame(|calls|part2_prepare_initial_run(bands[0],calls),
+        |initial:Part1PrepareFold,rest|part2_wavelet_fold_run(initial,bands,plan.subbands,style,reversible,kernel,maximum,plan.resolution as nat,rest),Err(error),Err(error));
 }
 pub(crate) proof fn part2_wavelet_fold_prefix_error(initial:Part1PrepareFold,bands:Seq<Part1WorkingSubbandModel>,geometry:Seq<crate::decode::SubbandGeometry>,style:Part1PrepareStyle,
     reversible:bool,kernel:Option<Part2RawKernel>,maximum:u64,prefix:nat,count:nat,error:crate::DecodeError)
@@ -231,6 +271,7 @@ pub(crate) proof fn part2_wavelet_fold_resolution_error(initial:Part1PrepareFold
 pub(crate) proof fn part2_wavelet_reconstruct_error(bands:Seq<Part1WorkingSubbandModel>,plan:Part1PreparePlan,style:Part1PrepareStyle,reversible:bool,kernel:Option<Part2RawKernel>,maximum:u64,
     index:nat,before:Part1PrepareFold,direction:crate::codestream::DecompositionDirection,error:crate::DecodeError)
     requires bands.len()>0,index>0,index<=plan.resolution as nat,
+        part2_prepare_initial_result(bands[0],Ok((bands[0].0,bands[0].1,bands[0].3,1usize))),
         part2_prepare_fold((bands[0].0,bands[0].1,bands[0].3,1usize),bands,plan.subbands,style,reversible,kernel,maximum,(index-1) as nat)==Ok(before),
         part1_direction_for_resolution(style.1,style.2,index as u8)==Ok(direction),!matches!(direction,crate::codestream::DecompositionDirection::None),
         part2_wavelet_resolution_result(before,bands,plan.subbands,direction,reversible,kernel,maximum,Err(error)),
@@ -240,6 +281,7 @@ pub(crate) proof fn part2_wavelet_reconstruct_error(bands:Seq<Part1WorkingSubban
     part2_wavelet_fold_resolution_error(initial,bands,plan.subbands,style,reversible,kernel,maximum,index,before,direction,error);
     part2_wavelet_fold_prefix_error(initial,bands,plan.subbands,style,reversible,kernel,maximum,index,plan.resolution as nat,error);
     part2_tier1_storage_eta(|calls|part2_wavelet_fold_run(initial,bands,plan.subbands,style,reversible,kernel,maximum,plan.resolution as nat,calls),Err(error));
+    part2_wavelet_reconstruct_after_initial_observed(bands,plan,style,reversible,kernel,maximum,Err(error));
 }
 pub(crate) proof fn part2_wavelet_reconstruct_frames(bands:Seq<Part1WorkingSubbandModel>,plan:Part1PreparePlan,style:Part1PrepareStyle,reversible:bool,kernel:Option<Part2RawKernel>,maximum:u64,result:Result<Part1PrepareFold,crate::DecodeError>)
     requires part2_wavelet_reconstruct_result(bands,plan,style,reversible,kernel,maximum,result),

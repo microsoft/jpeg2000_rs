@@ -921,7 +921,19 @@ pub(super) fn reconstruct_prepare_working(
     let mut folded = PrepareFold {
         width: ll.width,
         height: ll.height,
-        samples: ll.samples.clone(),
+        samples: {
+            let copied = crate::allocation::copy_i64_values(&ll.samples);
+            #[cfg(verus_keep_ghost)]
+            proof! {
+                let result=crate::transform::sequence_outcome(copied);
+                crate::specs::part2_prepare_samples_observed(crate::specs::Part2PrepareCopyRole::InitialLl,ll.samples@,result);
+                crate::specs::part2_prepare_initial_observed(working_subband_view(*ll),result);
+                if let Err(error)=copied{crate::specs::part2_wavelet_reconstruct_initial_error(
+                    working_bands_view(working@),prepare_plan_view(plan),prepare_style_view(coding_style),reversible,
+                    crate::transform::arbitrary_kernel_option(kernel),crate::limits::resource_decoded_bytes_limit(limits),error);}
+            }
+            copied?
+        },
         first_detail: 1,
     };
     #[cfg(verus_keep_ghost)]
@@ -933,6 +945,7 @@ pub(super) fn reconstruct_prepare_working(
         invariant 1 <= resolution as int <= plan.output_resolution as int + 1,
         working.len() > 0, ll == &working@[0],
         initial == (ll.width, ll.height, ll.samples@, 1usize),
+        crate::specs::part2_prepare_initial_result(working_subband_view(*ll),Ok(initial)),
         crate::specs::part2_wavelet_reconstruct_result(working_bands_view(working@),prepare_plan_view(plan),prepare_style_view(coding_style),reversible,
             crate::transform::arbitrary_kernel_option(kernel),crate::limits::resource_decoded_bytes_limit(limits),
             crate::specs::part2_prepare_reconstruct(working_bands_view(working@),prepare_plan_view(plan),prepare_style_view(coding_style),reversible,
@@ -1149,20 +1162,31 @@ pub(super) fn reconstruct_prepare_resolution(
         }
     };
     #[cfg(verus_keep_ghost)]
-    proof! {if let Err(error)=plane_result{
+    proof! {
         let admitted=crate::specs::part2_wavelet_resolution_admit(initial,working_bands_view(working@),plan.subbands@,direction,reversible).get_Ok_0();
-        crate::specs::part2_wavelet_request_observed(admitted.0,reversible,crate::transform::arbitrary_kernel_option(kernel),crate::limits::resource_decoded_bytes_limit(limits),Err(error));
+        crate::specs::part2_wavelet_request_observed(admitted.0,reversible,crate::transform::arbitrary_kernel_option(kernel),crate::limits::resource_decoded_bytes_limit(limits),crate::transform::reconstruction_outcome(plane_result));
+        if let Err(error)=plane_result{
         crate::specs::part2_wavelet_resolution_child_error(initial,working_bands_view(working@),plan.subbands@,direction,reversible,crate::transform::arbitrary_kernel_option(kernel),crate::limits::resource_decoded_bytes_limit(limits),admitted.0,admitted.1,error);
     }}
     let plane = plane_result?;
     if plane.fraction_bits() != expected_fraction_bits {
         return Err(invalid_decode());
     }
-    copy_prepare_plane(plane, first_detail)
+    #[cfg(verus_keep_ghost)]
+    proof_decl! {let ghost produced=crate::transform::reconstructed_plane_view(plane);}
+    let copied = copy_prepare_plane(plane, first_detail);
+    #[cfg(verus_keep_ghost)]
+    proof! {
+        let admitted=crate::specs::part2_wavelet_resolution_admit(initial,working_bands_view(working@),plan.subbands@,direction,reversible).get_Ok_0();
+        crate::specs::part2_wavelet_resolution_copy_observed(initial,working_bands_view(working@),plan.subbands@,direction,reversible,
+            crate::transform::arbitrary_kernel_option(kernel),crate::limits::resource_decoded_bytes_limit(limits),admitted.0,admitted.1,produced,prepare_fold_outcome(copied));
+    }
+    copied
 }
 
 #[cfg_attr(verus_keep_ghost, verus_spec(result =>
-    ensures prepare_fold_outcome(result) == crate::specs::part1_prepare_copy_plane(crate::transform::reconstructed_plane_view(plane), first_detail),
+    ensures crate::specs::part2_prepare_plane_copy_result(crate::transform::reconstructed_plane_view(plane),first_detail,prepare_fold_outcome(result)),
+        prepare_fold_outcome(result)!=Err(DecodeError::AllocationFailed) ==> prepare_fold_outcome(result) == crate::specs::part1_prepare_copy_plane(crate::transform::reconstructed_plane_view(plane), first_detail),
 ))]
 pub(super) fn copy_prepare_plane(
     plane: crate::transform::ReconstructedPlane,
@@ -1170,33 +1194,15 @@ pub(super) fn copy_prepare_plane(
 ) -> Result<PrepareFold, DecodeError> {
     let reconstructed_width = plane.width();
     let reconstructed_height = plane.height();
-    let plane_sample_count = plane.samples().len();
-    let mut next_samples = Vec::with_capacity(plane_sample_count);
-    let mut sample_index = 0_usize;
-    #[cfg_attr(
-            verus_keep_ghost,
-            verus_spec(
-                invariant sample_index <= plane_sample_count,
-                    plane_sample_count == crate::transform::reconstructed_plane_view(plane).3.len(),
-                    reconstructed_width == crate::transform::reconstructed_plane_view(plane).0,
-                    reconstructed_height == crate::transform::reconstructed_plane_view(plane).1,
-                    next_samples@ == crate::transform::reconstructed_plane_view(plane).3.subrange(0, sample_index as int),
-                decreases plane_sample_count - sample_index,
-            )
-        )]
-    while sample_index < plane_sample_count {
-        next_samples.push(
-            *plane
-                .samples()
-                .get(sample_index)
-                .ok_or_else(invalid_decode)?,
-        );
-        sample_index = sample_index
-            .checked_add(1)
-            .ok_or_else(arithmetic_overflow)?;
-    }
+    let copied = crate::allocation::copy_i64_values(plane.samples());
     #[cfg(verus_keep_ghost)]
-    proof! { assert(next_samples@ =~= crate::transform::reconstructed_plane_view(plane).3); }
+    proof! {
+        let source=crate::transform::reconstructed_plane_view(plane);
+        let result=crate::transform::sequence_outcome(copied);
+        crate::specs::part2_prepare_samples_observed(crate::specs::Part2PrepareCopyRole::PreparedPlane,source.3,result);
+        crate::specs::part2_prepare_plane_copy_observed(source,first_detail,result);
+    }
+    let next_samples = copied?;
     Ok(PrepareFold {
         width: reconstructed_width,
         height: reconstructed_height,

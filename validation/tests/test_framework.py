@@ -8057,12 +8057,16 @@ class FrameworkTests(WorkingFiles):
         entry = next(item for item in coverage["requirements"] if item["id"] == "implementation-fallible-storage-reservation")
         source = framework.ROOT / "src/allocation.rs"
         original, read_text = source.read_text(), Path.read_text
+        header = framework._coverage_function_header(original, "copy_values")
+        body = framework._coverage_function_body(original, header)
+        end = original.index(body, header.start()) + len(body)
+        factory = original[header.start():end]
         for before, after in (
             ("copy_values<T: Copy>", "copy_values<T: Clone>"),
             ("if source.is_empty()", "if false"),
         ):
-            self.assertIn(before, original)
-            changed = original.replace(before, after, 1)
+            self.assertIn(before, factory)
+            changed = original[:header.start()] + factory.replace(before, after, 1) + original[end:]
 
             def altered(path, *args, **kwargs):
                 return changed if path == source else read_text(path, *args, **kwargs)
@@ -8584,7 +8588,7 @@ class FrameworkTests(WorkingFiles):
             ("specs/cold_wavelet_planes.rs","part2_wavelet_columns_run","Part2WaveletPlaneOwner::Columns","Part2WaveletPlaneOwner::Rows"),
             ("specs/cold_wavelet_planes.rs","part2_wavelet_level_after_low","length,low,high,rest","length,Seq::empty(),high,rest"),
             ("specs/cold_wavelet_planes.rs","part2_wavelet_level_after_high","level.2.1,high","level.2.1,low"),
-            ("specs/cold_extraction_reconstruction.rs","part2_extraction_component_finish_run","initial,placed.1.0,plan.subbands","initial,Seq::empty(),plan.subbands"),
+            ("specs/cold_extraction_reconstruction.rs","part2_extraction_component_finish_run","part2_wavelet_reconstruct_run(placed.1.0,plan","part2_wavelet_reconstruct_run(Seq::empty(),plan"),
             ("src/transform/levels.rs","inverse_rows","empty_with_capacity(capacity)","empty_with_capacity(1)"),
             ("src/allocation.rs","zero_i64_values","values.resize(count, 0_i64)","values.resize(count, 1_i64)"),
         ):
@@ -8614,6 +8618,75 @@ class FrameworkTests(WorkingFiles):
             def altered(path,*args,**kwargs):
                 return changed if path==source else read_text(path,*args,**kwargs)
             with self.subTest(before=before),mock.patch.object(Path,"read_text",altered),self.assertRaisesRegex(ValueError,"executable Verus contract"):
+                framework.validate_normative_coverage(data)
+
+    def test_inventory_prepare_copies_require_actual_raw_owners_frontiers_tail_and_bulk_values(self):
+        coverage = json.loads((framework.VALIDATION / "normative-coverage.json").read_text())
+        data = dict(coverage, requirements=[
+            e for e in coverage["requirements"] if e["id"] == "part1-complete-standard-plan-coordinator"
+        ])
+        self.assertEqual(framework.validate_normative_coverage(data)["status"], "passed")
+        read_text = Path.read_text
+        for relative, symbol, before, after in (
+            ("specs/cold_prepare_copies.rs", "part2_prepare_copy_capacity_run", "count==0", "count==1"),
+            ("specs/cold_prepare_copies.rs", "part2_prepare_copy_capacity_run", "actual!=role", "false"),
+            ("specs/cold_prepare_copies.rs", "part2_prepare_copy_capacity_run", "elements!=count", "false"),
+            ("specs/cold_prepare_copies.rs", "part2_prepare_copy_capacity_run", "calls.drop_first()", "calls"),
+            ("specs/cold_prepare_copies.rs", "part2_prepare_samples_run", "source.len()", "1"),
+            ("specs/cold_prepare_copies.rs", "part2_prepare_initial_run", "InitialLl,ll.3", "InitialLl,Seq::empty()"),
+            ("specs/cold_prepare_copies.rs", "part2_prepare_initial_run", "ll.0,ll.1,values", "ll.1,ll.0,values"),
+            ("specs/cold_prepare_copies.rs", "part2_prepare_plane_copy_run", "PreparedPlane,plane.3", "InitialLl,plane.3"),
+            ("specs/cold_prepare_copies.rs", "part2_prepare_plane_copy_run", "values,first_detail", "values,0usize"),
+            ("specs/cold_wavelet_prepare.rs", "part2_wavelet_reconstruct_run", "part2_prepare_initial_run(bands[0]", "part2_prepare_initial_run(bands[1]"),
+            ("specs/cold_wavelet_prepare.rs", "part2_wavelet_resolution_finish_run", "plane.2!=part1_prepare_fraction(reversible)", "false"),
+            ("specs/cold_wavelet_prepare.rs", "part2_wavelet_resolution_run", "reversible,next,plane,rest", "reversible,0usize,plane,rest"),
+            ("src/allocation.rs", "copy_i64_values", "if source.is_empty()", "if false"),
+            ("src/allocation.rs", "copy_i64_values", "empty_with_capacity(source.len())?", "empty_with_capacity(1)?"),
+            ("src/allocation.rs", "copy_i64_values", "values.extend_from_slice(source)", "values.extend_from_slice(&[])"),
+            ("src/decode/reconstruction.rs", "reconstruct_prepare_working", "copy_i64_values(&ll.samples)", "copy_i64_values(&[])"),
+            ("src/decode/reconstruction.rs", "copy_prepare_plane", "copy_i64_values(plane.samples())", "copy_i64_values(&[])"),
+            ("src/decode/reconstruction.rs", "copy_prepare_plane", "width: reconstructed_width", "width: reconstructed_height"),
+        ):
+            source = framework.ROOT / relative
+            original = source.read_text()
+            body = (framework._coverage_function_body(original, framework._coverage_function_header(original, symbol))
+                    if relative.startswith("src/") else framework._coverage_spec_function_body(original, symbol))
+            changed_body, count = re.subn(re.escape(before).replace(r"\ ", r"\s*"), lambda _: after, body, count=1)
+            self.assertEqual(count, 1, (symbol, before))
+            changed = original.replace(body, changed_body, 1)
+
+            def altered(path, *args, **kwargs):
+                return changed if path == source else read_text(path, *args, **kwargs)
+
+            with self.subTest(symbol=symbol, before=before), mock.patch.object(Path, "read_text", altered), \
+                    self.assertRaisesRegex(ValueError, "prepare copies"):
+                framework.validate_normative_coverage(data)
+        missing = copy.deepcopy(data)
+        missing["requirements"][0]["test_refs"] = [
+            r for r in missing["requirements"][0]["test_refs"] if (r["path"], r["symbol"]) not in framework._PREPARE_COPY_TESTS
+        ]
+        with self.assertRaisesRegex(ValueError, "prepare copies require bounded"):
+            framework.validate_normative_coverage(missing)
+        source = framework.ROOT / "src/decode/reconstruction.rs"
+        original = source.read_text()
+        header = framework._coverage_function_header(original, "copy_prepare_plane")
+        start = original.rfind("#[cfg_attr", 0, header.start())
+        contract = original[start:header.start()]
+        first = contract.index("prepare_fold_outcome(result)!=Err")
+        closing = contract.rfind("))]")
+        good = contract[first:closing]
+        for before, after in (("== crate::specs::part1_prepare_copy_plane", "<= crate::specs::part1_prepare_copy_plane"),
+                              ("reconstructed_plane_view(plane)", "reconstructed_plane_view(other_plane)"),
+                              ("prepare_fold_outcome(result)", "prepare_fold_outcome(other_result)")):
+            bad = good.replace(before, after, 1)
+            self.assertNotEqual(bad, good)
+            changed = original[:start] + contract[:first] + bad + good + contract[closing:] + original[header.start():]
+
+            def altered(path, *args, **kwargs):
+                return changed if path == source else read_text(path, *args, **kwargs)
+
+            with self.subTest(before=before), mock.patch.object(Path, "read_text", altered), \
+                    self.assertRaisesRegex(ValueError, "executable Verus contract"):
                 framework.validate_normative_coverage(data)
 
     def test_inventory_wavelet_lines_require_actual_sources_order_tail_partial_owners_and_bulk_zero(self):

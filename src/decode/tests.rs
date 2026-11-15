@@ -8608,7 +8608,7 @@ fn wavelet_plane_storage_actual_standard_component_first_later_planes_and_restor
             .iter()
             .map(crate::packet::exact_packet_precinct_snapshot)
             .collect();
-        for after in [8, 10, 12, 9, 14, 18] {
+        for after in [9, 11, 13, 10, 15, 19] {
             assert_eq!(
                 crate::allocation::with_refusal(after, || prepare_tile_component(
                     &plan, &precincts, style, &limits
@@ -8650,7 +8650,7 @@ fn wavelet_plane_storage_actual_standard_component_first_later_planes_and_restor
     let expected =
         prepare_tile_component_with_kernel(&plan, &precincts, style, Some(&kernel), &limits)
             .unwrap();
-    for after in [8, 10, 12, 9, 14, 18] {
+    for after in [9, 11, 13, 10, 15, 19] {
         assert_eq!(
             crate::allocation::with_refusal(after, || prepare_tile_component_with_kernel(
                 &plan,
@@ -8678,6 +8678,200 @@ fn wavelet_plane_storage_actual_standard_component_first_later_planes_and_restor
                 expected.samples()
             )
         );
+    }
+}
+
+#[test]
+fn prepare_copy_storage_raw_ll_plane_empty_prior_owner_and_error_order() {
+    use super::reconstruction::{copy_prepare_plane, reconstruct_prepare_working};
+    let limits = ResourceLimits::default();
+    let (plan, _, style) = standard_prepare_fixture(&[], true, false, 1);
+    for samples in [vec![], vec![i64::MIN, 7, -1, 0, i64::MAX]] {
+        let working = [WorkingSubband {
+            width: u32::MAX,
+            height: 0,
+            fraction_bits: u8::MAX,
+            samples: samples.clone(),
+            visited: vec![true, false],
+        }];
+        let restored =
+            reconstruct_prepare_working(&working, &plan, style, true, None, &limits).unwrap();
+        assert_eq!(
+            (restored.width, restored.height, restored.first_detail),
+            (u32::MAX, 0, 1)
+        );
+        assert_eq!(restored.samples, samples);
+        if !samples.is_empty() {
+            assert_ne!(restored.samples.as_ptr(), working[0].samples.as_ptr());
+        }
+        crate::allocation::with_refusal(0, || {
+            let result = reconstruct_prepare_working(&working, &plan, style, true, None, &limits);
+            if samples.is_empty() {
+                assert!(result.unwrap().samples.is_empty());
+                let plane =
+                    crate::transform::ReconstructedPlane::for_test(0, u32::MAX, u8::MAX, vec![]);
+                let copied = copy_prepare_plane(plane, usize::MAX).unwrap();
+                assert_eq!(
+                    (copied.width, copied.height, copied.first_detail),
+                    (0, u32::MAX, usize::MAX)
+                );
+                assert!(copied.samples.is_empty());
+                assert_eq!(
+                    crate::allocation::copy_i64_values(&[1]),
+                    Err(DecodeError::AllocationFailed)
+                );
+            } else {
+                assert_eq!(result.err(), Some(DecodeError::AllocationFailed));
+            }
+        });
+        if !samples.is_empty() {
+            assert_eq!(
+                crate::allocation::with_refusal(0, || copy_prepare_plane(
+                    crate::transform::ReconstructedPlane::for_test(
+                        0,
+                        u32::MAX,
+                        u8::MAX,
+                        samples.clone()
+                    ),
+                    usize::MAX
+                ))
+                .err(),
+                Some(DecodeError::AllocationFailed)
+            );
+            crate::allocation::with_refusal(1, || {
+                let prior =
+                    reconstruct_prepare_working(&working, &plan, style, true, None, &limits)
+                        .unwrap();
+                let plane = crate::transform::ReconstructedPlane::for_test(
+                    0,
+                    u32::MAX,
+                    u8::MAX,
+                    samples.clone(),
+                );
+                assert_eq!(
+                    copy_prepare_plane(plane, usize::MAX).err(),
+                    Some(DecodeError::AllocationFailed)
+                );
+                assert_eq!(prior.samples, samples);
+                let plane = crate::transform::ReconstructedPlane::for_test(
+                    0,
+                    u32::MAX,
+                    u8::MAX,
+                    samples.clone(),
+                );
+                let pointer = plane.samples().as_ptr();
+                let copied = copy_prepare_plane(plane, usize::MAX).unwrap();
+                assert_eq!(
+                    (copied.width, copied.height, copied.first_detail),
+                    (0, u32::MAX, usize::MAX)
+                );
+                assert_eq!(copied.samples, samples);
+                assert_ne!(copied.samples.as_ptr(), pointer);
+            });
+        }
+        assert_eq!(working[0].samples, samples);
+        assert_eq!(working[0].fraction_bits, u8::MAX);
+        assert_eq!(working[0].visited, [true, false]);
+    }
+    let ordinary = DecodeError::MalformedInput {
+        offset: 0,
+        kind: MalformedKind::InvalidCodeBlock,
+    };
+    crate::allocation::with_refusal(0, || {
+        assert_eq!(
+            reconstruct_prepare_working(&[], &plan, style, true, None, &limits).err(),
+            Some(ordinary)
+        );
+        assert_eq!(
+            crate::allocation::copy_i64_values(&[1]),
+            Err(DecodeError::AllocationFailed)
+        );
+    });
+    let (full, _, full_style) = standard_prepare_fixture(
+        &[codestream::DecompositionDirection::Horizontal],
+        true,
+        false,
+        1,
+    );
+    let working = [WorkingSubband {
+        width: 1,
+        height: 1,
+        fraction_bits: 0,
+        samples: vec![7],
+        visited: vec![true],
+    }];
+    crate::allocation::with_refusal(0, || {
+        assert_eq!(
+            reconstruct_prepare_working(&working, &full, full_style, true, None, &limits).err(),
+            Some(DecodeError::AllocationFailed)
+        );
+    });
+    crate::allocation::with_refusal(1, || {
+        assert_eq!(
+            reconstruct_prepare_working(&working, &full, full_style, true, None, &limits).err(),
+            Some(ordinary)
+        );
+        assert_eq!(
+            crate::allocation::copy_i64_values(&[1]),
+            Err(DecodeError::AllocationFailed)
+        );
+    });
+}
+
+#[test]
+fn prepare_copy_storage_actual_standard_custom_component_ll_later_copy_and_restore() {
+    let limits = ResourceLimits::default();
+    for (reversible, custom) in [(true, false), (false, false), (true, true)] {
+        let (plan, precincts, mut style) = standard_prepare_fixture(
+            &[codestream::DecompositionDirection::TwoDimensional],
+            reversible,
+            false,
+            1,
+        );
+        if custom {
+            style.transform = WaveletTransform::Arbitrary(0);
+        }
+        let kernel = ArbitraryKernel::for_test(true, 0, false, false, false, None, vec![]);
+        let selected = custom.then_some(&kernel);
+        let expected =
+            prepare_tile_component_with_kernel(&plan, &precincts, style, selected, &limits)
+                .unwrap();
+        let snapshots: Vec<_> = precincts
+            .iter()
+            .map(crate::packet::exact_packet_precinct_snapshot)
+            .collect();
+        for after in [8, 20] {
+            assert_eq!(
+                crate::allocation::with_refusal(after, || prepare_tile_component_with_kernel(
+                    &plan, &precincts, style, selected, &limits
+                )),
+                Err(DecodeError::AllocationFailed)
+            );
+            let restored =
+                prepare_tile_component_with_kernel(&plan, &precincts, style, selected, &limits)
+                    .unwrap();
+            assert_eq!(
+                (
+                    restored.width(),
+                    restored.height(),
+                    restored.fraction_bits(),
+                    restored.samples()
+                ),
+                (
+                    expected.width(),
+                    expected.height(),
+                    expected.fraction_bits(),
+                    expected.samples()
+                )
+            );
+            assert_eq!(
+                precincts
+                    .iter()
+                    .map(crate::packet::exact_packet_precinct_snapshot)
+                    .collect::<Vec<_>>(),
+                snapshots
+            );
+        }
     }
 }
 
