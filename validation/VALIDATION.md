@@ -1324,8 +1324,33 @@ All public infallible Clone implementations remain unchanged. Bounded controls
 cover raw/unequal/empty/None states, all nested first/later refusal frontiers,
 restoration and original ordinary-error priority, real retained legacy packet
 rollback, two-layer raw/selected/recovery/automatic output and existing HT paths.
-Other callers' clones (including legacy snapshot/restore), unrelated
-decoder/precinct collections, existing growth/appending and later buffers remain
+The legacy replay snapshot and restoration now use the same qualified raw
+plane/optional-flag copies at their original fields, with distinct
+`LegacySnapshot` and `LegacyRestore` copy roles. Snapshot input is originally
+`Vec::new()` and restore only borrows retained input; neither adds a byte request.
+No dimension, shape or route admission is added to these raw copies.
+Replay still admits and charges existing work before its original take/snapshot,
+append, restore, decode and commit order. The retained segment must preserve its
+original plane/flags while the decoder mutates a separate working plane, then
+remains available to commit. Its borrowed restore input therefore does not
+support a generic allocation-free owner transfer without changing retention.
+The checked fallible restoration explicitly exposes both earlier errors:
+refused plane copy leaves all restore fields unchanged; refused optional flags
+leave the copied plane and pass/bitplane writes visible while flags, MQ/reset
+and decoded counters retain their prior values. Neither case is reported as
+success or hidden as a fully restored decoder. Replay carries the actual
+consumed-snapshot/charged-work state, and packet transactions retain exact
+outer rollback.
+Actual child Results and unused response tails compose through input-derived
+legacy contribution/segment/body folds and all dependent full/selected,
+automatic/progressive/semantic/recovery programs. Checked normal projections
+preserve every ordinary result and first error. The native loop carries actual
+root/caps identities and uses a separately checked phase-eta consequence;
+there is no source/result bank, new caller premise or availability axiom.
+Bounded controls cover raw/empty copies, first/later partial restoration,
+real replay and packet rollback, and two-layer raw/selected/recovery/automatic
+restoration. Public Clone and the existing HT finishing interface are unchanged.
+Unrelated decoder/precinct collection clones, existing growth/appending and later buffers remain
 separate. As for bytes, fresh Copy reserve amortization need not match public
 Clone capacity; sequence models establish no physical-capacity theorem.
 Replay copying remains after original route/pass/cleanup/byte admission but

@@ -512,6 +512,8 @@ pub(crate) enum HtRefinementCopyRole {
     PacketStaging,
     RetainedReplay,
     CleanupRetention,
+    LegacySnapshot,
+    LegacyRestore,
 }
 
 #[cfg(verus_keep_ghost)]

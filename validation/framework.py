@@ -4800,6 +4800,8 @@ _RAW_RENDER_PROOFS |= {("specs/jpx_raw_frame.rs", "part2_render_raw_cold_metadat
 _RAW_COMPOSITION_RENDER_PROOFS |= {("specs/jpx_raw_frame.rs", "part2_render_raw_cold_metadata_error")}
 
 _PLANE_ROLE_MODEL_INFO = {
+    "part1_legacy_code_block_segment": ("part2_legacy_packet_step_result", "specs/cold_legacy_packets.rs", "part2_legacy_packet_step_normal"),
+    "part1_legacy_code_block_body": ("part2_legacy_packet_body_result", "specs/cold_legacy_packets.rs", "part2_legacy_packet_body_normal"),
     "ht_copy_refinement_bytes": ("part2_ht_bytes_result", "specs/cold_ht_bytes.rs", "part2_ht_bytes_normal"),
     "tier1_duplicate_plane": ("part1_plane_duplicate_storage_result", "specs/cold_tier1_planes.rs", "part2_plane_duplicate_normal"),
     "ht_cleanup_plane": ("part2_plane_cleanup_result", "specs/cold_tier1_planes.rs", "part2_plane_cleanup_normal"),
@@ -5159,6 +5161,30 @@ _HT_BYTE_COPY_CONTRACTS = {
         "ht_copy_refinement_bytes", _coverage_call("ht_byte_vector_outcome", r"\1"), None, r"input@",
     ),
 }
+def _legacy_storage_contracts() -> dict[tuple[str, str], tuple[str, str]]:
+    call = _coverage_call
+    caps = call("crate::tier1::legacy_storage_limits", "limits")
+    header = call("code_block_contribution_view", "contribution")
+    old_progress = call("legacy_packet_progress_view", call("old", "decoder"),
+                        r"\*\s*" + call("old", "segment_index"), r"\*\s*" + call("old", "offset"),
+                        r"\*\s*" + call("old", "decoded_passes"))
+    final_progress = call("legacy_packet_progress_view", call("final", "decoder"),
+                          r"\*\s*" + call("final", "segment_index"), r"\*\s*" + call("final", "offset"),
+                          r"\*\s*" + call("final", "decoded_passes"))
+    return {
+        ("src/packet/body.rs", "decode_legacy_code_block_segment"): (
+            "part2_legacy_packet_step_result",
+            r"\s*,\s*".join((old_progress, header, "body@", caps, r"\(\s*\1\s*,\s*" + final_progress + r"\s*\)")),
+        ),
+        ("src/packet/body.rs", "decode_legacy_code_block_contribution_body"): (
+            "part2_legacy_packet_body_result",
+            r"\s*,\s*".join((call("crate::tier1::tier1_decoder_state", call("old", "decoder")), header, "body@", caps,
+                            r"\(\s*\1\s*,\s*" + call("crate::tier1::tier1_decoder_state", call("final", "decoder")) + r"\s*\)")),
+        ),
+    }
+
+_LEGACY_PACKET_STORAGE_CONTRACTS = _legacy_storage_contracts()
+
 _COLD_RESULT_CONTRACTS = {
     key: _coverage_cold_relation(legacy)
     for contracts in (
@@ -5194,6 +5220,7 @@ _COLD_RESULT_CONTRACTS = {
         "part2_jpip_validate_precinct_cold_result", r"bytes@\s*,\s*layers\s*,\s*limits\s*,\s*\1",
     ),
 }
+_COLD_RESULT_CONTRACTS.update(_LEGACY_PACKET_STORAGE_CONTRACTS)
 _packed_public_key = ("src/packet/tile.rs", "decode_progression_tile_packets")
 _packed_public_arguments = _COLD_RESULT_CONTRACTS[_packed_public_key][1].replace(
     _coverage_call("crate::codestream::tile_parts_owned_view", "tile_parts@"), "tile_parts@")
@@ -5747,6 +5774,76 @@ _DECODER_NESTED_COPY_NATIVE_ORDER = {
         "next_pass:self.next_pass", "bitplane:self.bitplane", "bitplane_state:", "try_duplicate_bitplane(&self.bitplane_state,role,true)",
         "part2_nested_legacy_flags_error(", "copied?", "mq_context_state:self.mq_context_state", "decoded_bytes:self.decoded_bytes",
         "input:", "copy_values(&self.input)", "Part2NestedCopyOwner::Input {source:before,role}", "part2_nested_legacy_observed(", "copied?", "passes:self.passes",
+    ),
+}
+_LEGACY_SNAPSHOT_ENTRY = "part1-complete-native-mixed-code-block-body"
+_LEGACY_SNAPSHOT_TESTS = {
+    ("src/tier1/tests.rs", "legacy_snapshot_storage_raw_snapshot_first_later_empty_and_exact_source_restore"),
+    ("src/tier1/tests.rs", "legacy_snapshot_storage_restore_refusal_exposes_exact_partial_fields_without_consuming_source"),
+    ("src/tier1/tests.rs", "legacy_snapshot_storage_real_replay_refusal_retains_admission_and_partial_restore_frames"),
+    ("src/packet/tests.rs", "legacy_snapshot_storage_packet_restore_refusal_preserves_full_outer_decoder_then_recovers"),
+    ("src/recovery/tests.rs", "legacy_snapshot_storage_two_layer_raw_selected_recovery_snapshot_restore_roles_and_automatic"),
+}
+_LEGACY_SNAPSHOT_GUARDS = {
+    ("specs/cold_legacy_replay.rs", "part2_legacy_snapshot_run"): (
+        "part2_nested_plane_run(before.plane,crate::tier1::HtRefinementCopyRole::LegacySnapshot,calls)", "part2_legacy_snapshot_flags(before,rest)",
+    ),
+    ("specs/cold_legacy_replay.rs", "part2_legacy_snapshot_flags"): (
+        "part2_nested_bitplane_option_run(before.bitplane_state,crate::tier1::HtRefinementCopyRole::LegacySnapshot,true,calls)", "Ok(part1_legacy_snapshot(before))",
+    ),
+    ("specs/cold_legacy_replay.rs", "part2_legacy_restore_after_plane"): (
+        "Err(error)=>Some((Ok((Err(error),before)),calls))", "Ok(_)=>part2_legacy_restore_flags(before,source,calls)",
+    ),
+    ("specs/cold_legacy_replay.rs", "part2_legacy_restore_flags"): (
+        "part2_nested_bitplane_option_run(source.bitplane_state,crate::tier1::HtRefinementCopyRole::LegacyRestore,true,calls)",
+        "Err(error)=>(Err(error),part2_legacy_restore_partial(before,source))", "Ok(_)=>(Ok(()),part1_legacy_restore(before,source))",
+    ),
+    ("specs/cold_legacy_replay.rs", "part2_legacy_replay_run"): (
+        "Some(source)=>part2_legacy_replay_after_source(before,input,replay,caps,source,calls)",
+        "part2_legacy_snapshot_run(part2_legacy_replay_clear(before),calls)",
+        "Err(error)=>Some((Ok((Err(error),part2_legacy_replay_clear(before))),rest))",
+    ),
+    ("specs/cold_legacy_replay.rs", "part2_legacy_replay_after_source"): (
+        "let appended=part1_legacy_append(source,input,replay)", "part2_legacy_restore_run(part2_legacy_replay_clear(before),appended,calls)",
+        "part2_legacy_replay_finish(appended,caps,restored)",
+    ),
+    ("specs/cold_legacy_replay.rs", "part2_legacy_replay_finish"): (
+        "Err(_)=>restored", "part1_legacy_segment(restored.1,source.input,source.passes,caps.passes,caps.bytes,caps.input,caps.work)", "source)",
+    ),
+    ("specs/cold_legacy_replay.rs", "part2_legacy_contribution_run"): (
+        "part1_legacy_contribution_admission(before,input,passes,caps.bytes,caps.work)", "part2_legacy_contribution_after_admission(",
+    ),
+    ("specs/cold_legacy_packets.rs", "part2_legacy_packet_step_run"): (
+        "part2_legacy_packet_admit(before,header,body)", "part2_legacy_contribution_run(before.decoder,body.subrange(before.offset as int,end as int),segment.passes,caps,calls)",
+        "part2_legacy_packet_after_decode(before,segment,end,decoded)",
+    ),
+    ("specs/cold_legacy_packets.rs", "part2_legacy_packet_fold"): (
+        "remaining==0", "part2_legacy_packet_step_run(before,header,body,caps,calls)",
+        "Err(_)=>Some((Ok(step),rest))", "part2_legacy_packet_fold(step.1,header,body,(remaining-1) as nat,caps,rest)",
+    ),
+}
+_LEGACY_SNAPSHOT_NATIVE_ORDER = {
+    ("src/tier1/contributions.rs", "Tier1CodeBlockDecoder::legacy_segment_snapshot"): (
+        "Ok(LegacySegmentState", "self.plane.try_duplicate_raw(", "HtRefinementCopyRole::LegacySnapshot,false,true", "part2_legacy_snapshot_plane_error(", "copied?",
+        "next_pass:self.next_pass", "bitplane:self.bitplane", "try_duplicate_bitplane(", "&self.bitplane_state", "HtRefinementCopyRole::LegacySnapshot,true",
+        "part2_legacy_snapshot_observed(", "copied?", "mq_context_state:self.mq_context_state", "decoded_bytes:self.decoded_bytes", "input:Vec::new()", "passes:0",
+    ),
+    ("src/tier1/contributions.rs", "Tier1CodeBlockDecoder::restore_legacy_segment"): (
+        "segment.plane.try_duplicate_raw(", "HtRefinementCopyRole::LegacyRestore,false,true", "part2_legacy_restore_plane_error(", "self.plane=copied?",
+        "self.next_pass=segment.next_pass", "self.bitplane=segment.bitplane", "try_duplicate_bitplane(", "&segment.bitplane_state", "HtRefinementCopyRole::LegacyRestore,true",
+        "part2_legacy_restore_partial(before,source)", "part2_legacy_restore_observed(", "self.bitplane_state=copied?",
+        "self.mq_context_state=segment.mq_context_state", "self.reset_contexts_before_mq=segment.reset_contexts_before_mq",
+        "self.decoded_segments=segment.decoded_segments", "self.decoded_bytes=segment.decoded_bytes", "Ok(())",
+    ),
+    ("src/tier1/contributions.rs", "Tier1CodeBlockDecoder::decode_legacy_replay"): (
+        "match self.legacy_segment.take()", "Some(segment)=>segment", "self.legacy_segment_snapshot()", "part2_legacy_replay_snapshot_error(", "copied?",
+        "segment.append(input,replay_passes)", "self.restore_legacy_segment(&segment)", "part2_legacy_replay_restored(", "restored?",
+        "self.decode_legacy_segment(&segment.input,segment.passes,limits)?", "self.commit_legacy_replay(segment)",
+    ),
+    ("src/packet/body.rs", "decode_legacy_code_block_segment"): (
+        "contribution.segment(*segment_index)?", "usize::try_from(segment.data_length)", "checked_add(segment_length)", "if end>body.len()",
+        "decoder.decode_legacy_contribution(&body[*offset..end],segment.passes,limits)", "part2_legacy_packet_step_observed(", "decoded?",
+        "*decoded_passes=decoded_passes.checked_add", "*offset=end", "*segment_index=segment_index.checked_add",
     ),
 }
 _ROLLBACK_OWNER_TESTS = {
@@ -13170,6 +13267,15 @@ def validate_normative_coverage(
                     raise ValueError(f"linked function lacks executable Verus contract: {short}; invalid exact Copy-fill storage relation")
             cold_contract = _COLD_RESULT_CONTRACTS.get((reference["path"], reference["symbol"]))
             if cold_contract is not None:
+                if (reference["path"], reference["symbol"]) in _LEGACY_PACKET_STORAGE_CONTRACTS:
+                    guard = re.search(named_prefix + r".*?\1\s*!=\s*Err\(\s*DecodeError::AllocationFailed\s*\)\s*==>\s*", contract, re.S)
+                    ordinary = None if guard is None else re.match(
+                        r"\(\s*" + re.escape(guard[1]) + r"\s*,\s*" + packet_contract[1] + r"\s*\)\s*==\s*"
+                        r"crate::specs::" + packet_contract[0] + r"\s*\(\s*" + packet_contract[2] + r"\s*,?\s*\)",
+                        contract[guard.end():],
+                    )
+                    if ordinary is None:
+                        raise ValueError(f"linked function lacks executable Verus contract: {short}; missing exact checked ordinary legacy Result/state projection")
                 storage_contract = cold_contract
                 if (reference["path"], reference["symbol"]) == ("src/allocation.rs", "inspection_values"):
                     if re.search(r"Ok\(\s*values\s*\)\s*=>\s*values@\s*\.len\(\)\s*==\s*0", contract) is None:
@@ -13929,6 +14035,57 @@ def validate_normative_coverage(
                 raise ValueError("decoder plane copies require bounded raw/empty/first-later/byte-order/legacy/real-public restoration controls")
             if not _DECODER_NESTED_COPY_TESTS.issubset({(ref["path"], ref["symbol"]) for ref in entry["test_refs"]}):
                 raise ValueError("decoder nested copies require bounded raw/empty/first-later/legacy/public/automatic restoration controls")
+    if _LEGACY_SNAPSHOT_ENTRY in ids:
+        for (relative, symbol), fragments in _LEGACY_SNAPSHOT_GUARDS.items():
+            body = _coverage_spec_function_body(source_text((ROOT / relative).resolve()), symbol)
+            compact = "".join(body.split()) if body is not None else ""
+            if any("".join(fragment.split()) not in compact for fragment in fragments):
+                raise ValueError("legacy snapshot/restore storage requires exact actual roles, source production, first-error and unused-tail binds")
+        partial = _coverage_spec_function_body(source_text((ROOT / "specs/cold_legacy_replay.rs").resolve()), "part2_legacy_restore_partial")
+        if partial is None or "".join(partial.split()) != "Tier1DecoderState{plane:source.plane,next_pass:source.next_pass,bitplane:source.bitplane,..before}":
+            raise ValueError("legacy snapshot/restore storage requires exact earlier plane/pass/bitplane writes and untouched later fields on refusal")
+        for symbol, arguments, value in (
+            ("part2_legacy_snapshot_result", "before", "result"),
+            ("part2_legacy_restore_result", "before,source", "Ok(result)"),
+            ("part2_legacy_replay_result", "before,input,replay,caps", "Ok(result)"),
+            ("part2_legacy_contribution_result", "before,input,passes,caps", "Ok(result)"),
+        ):
+            body = _coverage_spec_function_body(source_text((ROOT / "specs/cold_legacy_replay.rs").resolve()), symbol)
+            expected = "part2_tier1_storage_framed(|calls|" + symbol.removesuffix("_result") + "_run(" + arguments + ",calls)," + value + ")"
+            if body is None or "".join(body.split()) != expected:
+                raise ValueError("legacy snapshot/restore storage requires exact actual response-prefix Result/state frames, not an error allowance")
+        for (relative, symbol), fragments in _LEGACY_SNAPSHOT_NATIVE_ORDER.items():
+            path = (ROOT / relative).resolve()
+            header = function_header(path, symbol)
+            text = source_text(path)
+            body = _coverage_function_body(text, header)
+            compact = "".join(body.split()) if body is not None else ""
+            position = 0
+            for fragment in fragments:
+                token = "".join(fragment.split())
+                found = compact.find(token, position)
+                if found < 0:
+                    raise ValueError("legacy snapshot/restore storage requires original admission/take/copy/write/append/decode/commit order and actual partial state")
+                position = found + len(token)
+            if symbol.endswith("restore_legacy_segment") and re.search(
+                    r"segment\s*:\s*&\s*LegacySegmentState", text[header.start():text.find("{", header.end())]) is None:
+                raise ValueError("legacy snapshot/restore storage must retain the borrowed source needed after working-plane mutation")
+        for relative, symbol in (
+            ("src/tier1/contributions.rs", "Tier1CodeBlockDecoder::decode_legacy_contribution"),
+            ("src/tier1/contributions.rs", "Tier1CodeBlockDecoder::decode_legacy_replay"),
+            ("src/packet/body.rs", "decode_legacy_code_block_segment"),
+            ("src/packet/body.rs", "decode_legacy_code_block_contribution_body"),
+        ):
+            path = (ROOT / relative).resolve()
+            text = source_text(path)
+            header = function_header(path, symbol)
+            start = text.rfind("#[cfg_attr(verus_keep_ghost, verus_spec", 0, header.start())
+            attrs = "".join(text[start:header.start()].split())
+            if "result!=Err(DecodeError::AllocationFailed)==>(result," not in attrs:
+                raise ValueError("legacy snapshot/restore storage requires the checked original ordinary-result/state projection")
+        entry = next(item for item in coverage["requirements"] if item["id"] == _LEGACY_SNAPSHOT_ENTRY)
+        if not _LEGACY_SNAPSHOT_TESTS.issubset({(ref["path"], ref["symbol"]) for ref in entry["test_refs"]}):
+            raise ValueError("legacy snapshot/restore storage requires bounded raw/empty/partial/packet/public restoration controls")
     if ids & _TAG_COPY_ENTRIES:
         owner_source = source_text((ROOT / "specs/cold_rollback_snapshot.rs").resolve())
         for symbol, fragments in _ROLLBACK_OWNER_GUARDS.items():

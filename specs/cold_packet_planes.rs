@@ -225,7 +225,7 @@ pub(crate) proof fn part2_packet_ht_body_normal(state:Tier1DecoderState,header:P
         match prepared.0{
             Err(error)=>Some((Ok((Err(error),prepared.1)),calls)),
             Ok(())=>if header.high_throughput{part2_packet_ht_segments_run(prepared.1,header,body,pass_limit,byte_limit,work,calls)}
-                else{Some((Ok(part1_legacy_code_block_body(prepared.1,header,body,pass_limit,byte_limit,input_limit,work)),calls))},
+                else{part2_legacy_packet_body_run(prepared.1,header,body,part2_legacy_caps(pass_limit,byte_limit,input_limit,work),calls)},
         }
     }
     pub(crate) open spec fn part2_plane_body_staged_result(before:Tier1DecoderState,header:Part1CodeBlockContribution,body:Seq<u8>,pass_limit:u32,byte_limit:u64,input_limit:u64,work:u64,result:HtCodeBlockBodyResult)->bool {
@@ -239,6 +239,10 @@ pub(crate) proof fn part2_packet_ht_body_normal(state:Tier1DecoderState,header:P
         if prepared.0.is_ok() && header.high_throughput{
             part2_packet_ht_segments_normal(prepared.1,header,body,pass_limit,byte_limit,work);
             part2_tier1_storage_eta(|calls|part2_packet_ht_segments_run(prepared.1,header,body,pass_limit,byte_limit,work,calls),Ok(result));
+        }else if prepared.0.is_ok(){
+            part2_legacy_packet_body_normal(prepared.1,header,body,part2_legacy_caps(pass_limit,byte_limit,input_limit,work));
+            part2_legacy_packet_body_frames(prepared.1,header,body,part2_legacy_caps(pass_limit,byte_limit,input_limit,work),result);
+            part2_tier1_storage_eta(|calls|part2_legacy_packet_body_run(prepared.1,header,body,part2_legacy_caps(pass_limit,byte_limit,input_limit,work),calls),Ok(result));
         }else{part2_tier1_storage_pure(Ok(result));}
     }
     pub(crate) proof fn part2_plane_body_staged_observed(before:Tier1DecoderState,header:Part1CodeBlockContribution,body:Seq<u8>,pass_limit:u32,byte_limit:u64,input_limit:u64,work:u64,result:HtCodeBlockBodyResult)
@@ -246,6 +250,11 @@ pub(crate) proof fn part2_packet_ht_body_normal(state:Tier1DecoderState,header:P
             part2_packet_ht_segments_result(part1_code_block_body_prepare(before,header,body).1,header,body,pass_limit,byte_limit,work,result),
         ensures part2_plane_body_staged_result(before,header,body,pass_limit,byte_limit,input_limit,work,result),
     {part2_tier1_storage_eta(|calls|part2_packet_ht_segments_run(part1_code_block_body_prepare(before,header,body).1,header,body,pass_limit,byte_limit,work,calls),Ok(result));}
+    pub(crate) proof fn part2_plane_body_staged_legacy_observed(before:Tier1DecoderState,header:Part1CodeBlockContribution,body:Seq<u8>,pass_limit:u32,byte_limit:u64,input_limit:u64,work:u64,result:HtCodeBlockBodyResult)
+        requires part1_code_block_body_prepare(before,header,body).0==Ok(()),!header.high_throughput,
+            part2_legacy_packet_body_result(part1_code_block_body_prepare(before,header,body).1,header,body,part2_legacy_caps(pass_limit,byte_limit,input_limit,work),result),
+        ensures part2_plane_body_staged_result(before,header,body,pass_limit,byte_limit,input_limit,work,result),
+    {reveal(part2_legacy_packet_body_result);part2_tier1_storage_eta(|calls|part2_legacy_packet_body_run(part1_code_block_body_prepare(before,header,body).1,header,body,part2_legacy_caps(pass_limit,byte_limit,input_limit,work),calls),Ok(result));}
     pub(crate) open spec fn part2_plane_body_after_duplicate(before:Tier1DecoderState,header:Part1CodeBlockContribution,body:Seq<u8>,pass_limit:u32,byte_limit:u64,input_limit:u64,work:u64,
         calls:Seq<Part2Tier1StorageEvent>)->Part2Tier1Run<HtCodeBlockBodyResult> {
         part2_tier1_storage_bind(part2_plane_body_staged_run(before,header,body,pass_limit,byte_limit,input_limit,work,calls),

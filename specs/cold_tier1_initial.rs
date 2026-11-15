@@ -144,6 +144,17 @@ pub(crate) open spec fn part2_tier1_phase<T>(root:spec_fn(Seq<Part2Tier1StorageE
     child:spec_fn(Seq<Part2Tier1StorageEvent>)->Part2Tier1Run<T>)->bool {
     forall|tail:Seq<Part2Tier1StorageEvent>| #[trigger] root(prefix+tail)==child(tail)
 }
+pub(crate) proof fn part2_tier1_phase_eta<T>(root:spec_fn(Seq<Part2Tier1StorageEvent>)->Part2Tier1Run<T>,
+    other:spec_fn(Seq<Part2Tier1StorageEvent>)->Part2Tier1Run<T>,prefix:Seq<Part2Tier1StorageEvent>,
+    child:spec_fn(Seq<Part2Tier1StorageEvent>)->Part2Tier1Run<T>)
+    requires part2_tier1_phase(root,prefix,child),
+        forall|calls:Seq<Part2Tier1StorageEvent>| #[trigger] root(calls)==other(calls),
+    ensures part2_tier1_phase(other,prefix,child),
+{
+    assert forall|tail:Seq<Part2Tier1StorageEvent>|other(prefix+tail)==child(tail) by{
+        assert(root(prefix+tail)==child(tail));
+    }
+}
 pub(crate) proof fn part2_tier1_prefix_advance<A,B>(root:spec_fn(Seq<Part2Tier1StorageEvent>)->Part2Tier1Run<B>,
     child:spec_fn(Seq<Part2Tier1StorageEvent>)->Part2Tier1Run<A>,next:spec_fn(A,Seq<Part2Tier1StorageEvent>)->Part2Tier1Run<B>,
     prefix:Seq<Part2Tier1StorageEvent>,value:A)->(joined:Seq<Part2Tier1StorageEvent>)

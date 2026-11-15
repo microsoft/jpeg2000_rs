@@ -40,6 +40,8 @@ specs/cold_ht_decoder.rs
 specs/cold_inspection_storage.rs
 specs/cold_layout.rs
 specs/cold_layout_continuations.rs
+specs/cold_legacy_packets.rs
+specs/cold_legacy_replay.rs
 specs/cold_marker_header.rs
 specs/cold_marker_storage.rs
 specs/cold_mct_copy.rs

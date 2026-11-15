@@ -1,6 +1,35 @@
 use super::*;
 
 #[test]
+fn legacy_snapshot_storage_packet_restore_refusal_preserves_full_outer_decoder_then_recovers() {
+    let limits = ResourceLimits::default();
+    let mut decoder =
+        Tier1CodeBlockDecoder::new(1, 1, 2, SubbandOrientation::Ll, Tier1CodingStyle::default())
+            .unwrap();
+    let header = one_ff_legacy_contribution();
+    decode_code_block_contribution_body(&mut decoder, &header, &[0xff], &limits).unwrap();
+    let before = format!("{decoder:?}");
+    let mut expected = decoder.clone();
+    let result = decode_code_block_contribution_body(&mut expected, &header, &[0xff], &limits);
+    assert_ne!(result, Err(DecodeError::AllocationFailed));
+    assert_eq!(
+        crate::allocation::with_refusal(3, || decode_code_block_contribution_body(
+            &mut decoder,
+            &header,
+            &[0xff],
+            &limits
+        )),
+        Err(DecodeError::AllocationFailed)
+    );
+    assert_eq!(format!("{decoder:?}"), before);
+    assert_eq!(
+        decode_code_block_contribution_body(&mut decoder, &header, &[0xff], &limits),
+        result
+    );
+    assert_eq!(format!("{decoder:?}"), format!("{expected:?}"));
+}
+
+#[test]
 fn decoder_nested_storage_real_legacy_retention_refusals_precede_body_error_and_restore() {
     let limits = ResourceLimits::default();
     let mut decoder =

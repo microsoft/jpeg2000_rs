@@ -1,5 +1,164 @@
 use super::*;
 
+#[test]
+fn legacy_snapshot_storage_raw_snapshot_first_later_empty_and_exact_source_restore() {
+    let mut source = retained_refinement_decoder();
+    source.plane.width = 0;
+    source.bitplane_state = Some(nested_copy_raw_flags());
+    let before = format!("{source:?}");
+    let expected = format!("{:?}", source.legacy_segment_snapshot().unwrap());
+    for after in [0, 1, 2] {
+        assert!(matches!(
+            crate::allocation::with_refusal(after, || source.legacy_segment_snapshot()),
+            Err(DecodeError::AllocationFailed)
+        ));
+        assert_eq!(format!("{source:?}"), before);
+        let copied = source.legacy_segment_snapshot().unwrap();
+        assert_eq!(format!("{copied:?}"), expected);
+        assert_eq!(copied.plane, source.plane);
+        assert_eq!(copied.bitplane_state, source.bitplane_state);
+        assert!(copied.input.is_empty());
+        assert_eq!(copied.passes, 0);
+    }
+    source.plane.coefficients.clear();
+    let flags = source.bitplane_state.as_mut().unwrap();
+    flags.significant_before.clear();
+    flags.significance_visited.clear();
+    crate::allocation::with_refusal(0, || {
+        assert!(source.legacy_segment_snapshot().unwrap().input.is_empty());
+        source.bitplane_state = None;
+        assert!(
+            source
+                .legacy_segment_snapshot()
+                .unwrap()
+                .bitplane_state
+                .is_none()
+        );
+        assert_eq!(
+            crate::allocation::copy_values(&[1_u8]),
+            Err(DecodeError::AllocationFailed)
+        );
+    });
+}
+
+#[test]
+fn legacy_snapshot_storage_restore_refusal_exposes_exact_partial_fields_without_consuming_source() {
+    let mut original = retained_refinement_decoder();
+    original.plane.width = 0;
+    original.bitplane_state = Some(nested_copy_raw_flags());
+    let mut source = original.legacy_segment_snapshot().unwrap();
+    source.next_pass = u32::MAX;
+    source.bitplane = u16::MAX;
+    source.input = vec![7, 8];
+    source.passes = 19;
+    let source_before = format!("{source:?}");
+    let mut target = legacy_raw_pair_decoder(1);
+    target.next_pass = 3;
+    target.bitplane = 1;
+    target.decoded_segments = 29;
+    target.decoded_bytes = 31;
+    target.reset_contexts_before_mq = !source.reset_contexts_before_mq;
+    let before = format!("{target:?}");
+    let mut partial = target.clone();
+    partial.plane = source.plane.clone();
+    partial.next_pass = source.next_pass;
+    partial.bitplane = source.bitplane;
+    let mut complete = target.clone();
+    complete.restore_legacy_segment(&source).unwrap();
+    for after in [0, 1, 2] {
+        let mut current = target.clone();
+        assert_eq!(
+            crate::allocation::with_refusal(after, || current.restore_legacy_segment(&source)),
+            Err(DecodeError::AllocationFailed)
+        );
+        assert_eq!(
+            format!("{current:?}"),
+            if after == 0 {
+                before.clone()
+            } else {
+                format!("{partial:?}")
+            }
+        );
+        assert_eq!(format!("{source:?}"), source_before);
+        current.restore_legacy_segment(&source).unwrap();
+        assert_eq!(format!("{current:?}"), format!("{complete:?}"));
+    }
+    source.plane.coefficients.clear();
+    let flags = source.bitplane_state.as_mut().unwrap();
+    flags.significant_before.clear();
+    flags.significance_visited.clear();
+    crate::allocation::with_refusal(0, || {
+        target.restore_legacy_segment(&source).unwrap();
+        assert_eq!(
+            crate::allocation::copy_values(&[1_u8]),
+            Err(DecodeError::AllocationFailed)
+        );
+    });
+    assert_eq!(source.input, &[7, 8]);
+}
+
+#[test]
+fn legacy_snapshot_storage_real_replay_refusal_retains_admission_and_partial_restore_frames() {
+    let limits = ResourceLimits::default();
+    let mut source = legacy_raw_pair_decoder(1);
+    source.bitplane_state = Some(legacy_bitplane_from_plane(&source.plane, 2).unwrap());
+    let mut admitted = source.clone();
+    admitted.legacy_decode_work = 2;
+    for after in [0, 1, 2, 3, 4, 5] {
+        let mut current = source.clone();
+        assert_eq!(
+            crate::allocation::with_refusal(after, || current.decode_legacy_contribution(
+                &[0xaa],
+                1,
+                &limits
+            )),
+            Err(DecodeError::AllocationFailed)
+        );
+        assert_eq!(format!("{current:?}"), format!("{admitted:?}"));
+    }
+    source
+        .decode_legacy_contribution(&[0xaa], 1, &limits)
+        .unwrap();
+    let retained = source.legacy_segment.as_ref().unwrap().clone();
+    let mut cleared = source.clone();
+    cleared.legacy_decode_work = 5;
+    cleared.legacy_segment = None;
+    let mut partial = cleared.clone();
+    partial.plane = retained.plane.clone();
+    partial.next_pass = retained.next_pass;
+    partial.bitplane = retained.bitplane;
+    for after in [0, 1, 2] {
+        let mut current = source.clone();
+        assert_eq!(
+            crate::allocation::with_refusal(after, || current.decode_legacy_contribution(
+                &[],
+                1,
+                &limits
+            )),
+            Err(DecodeError::AllocationFailed)
+        );
+        assert_eq!(
+            format!("{current:?}"),
+            if after == 0 {
+                format!("{cleared:?}")
+            } else {
+                format!("{partial:?}")
+            }
+        );
+    }
+    let mut recovered = source.clone();
+    recovered
+        .decode_legacy_contribution(&[], 1, &limits)
+        .unwrap();
+    let mut whole = legacy_raw_pair_decoder(1);
+    whole.bitplane_state = Some(legacy_bitplane_from_plane(&whole.plane, 2).unwrap());
+    whole
+        .decode_legacy_contribution(&[0xaa], 2, &limits)
+        .unwrap();
+    assert_eq!(recovered.plane, whole.plane);
+    assert_eq!(recovered.next_pass, whole.next_pass);
+}
+
 fn nested_copy_raw_flags() -> Tier1BitplaneState {
     Tier1BitplaneState {
         width: 0,
@@ -902,7 +1061,7 @@ fn initialization_policy_setters_preserve_all_unrelated_raw_state_and_error_snap
     decoder.ht_decoded_bitplanes = u16::MAX;
     decoder.ht_current_set_has_cleanup = true;
     decoder.ht_sets_seen = u16::MAX;
-    decoder.legacy_segment = Some(decoder.legacy_segment_snapshot());
+    decoder.legacy_segment = Some(decoder.legacy_segment_snapshot().unwrap());
     for allowed in [false, true] {
         let mut expected = decoder.clone();
         expected.allow_multiple_ht_sets = allowed;
@@ -1138,7 +1297,7 @@ fn actual_legacy_contribution_replays_retained_bytes_and_accounts_extra_work_exa
         let mut state = legacy_bitplane_from_plane(&before.plane, 2).unwrap();
         state.significance_propagation_complete = true;
         expected_prefix.bitplane_state = Some(state);
-        let mut retained = before.legacy_segment_snapshot();
+        let mut retained = before.legacy_segment_snapshot().unwrap();
         retained.input = vec![0xaa];
         retained.passes = 1;
         expected_prefix.legacy_segment = Some(retained);

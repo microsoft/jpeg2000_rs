@@ -8386,6 +8386,57 @@ class FrameworkTests(WorkingFiles):
         with self.assertRaisesRegex(ValueError, "decoder nested copies require bounded"):
             framework.validate_normative_coverage(missing)
 
+    def test_inventory_legacy_snapshot_restore_requires_actual_roles_partial_state_and_consumed_tails(self):
+        coverage = json.loads((framework.VALIDATION / "normative-coverage.json").read_text())
+        entry = next(item for item in coverage["requirements"] if item["id"] == framework._LEGACY_SNAPSHOT_ENTRY)
+        data = dict(coverage, requirements=[entry])
+        self.assertEqual(framework.validate_normative_coverage(data)["status"], "passed")
+        read_text = Path.read_text
+        cases = (
+            ("specs/cold_legacy_replay.rs", "part2_legacy_snapshot_run", "LegacySnapshot", "PacketStaging"),
+            ("specs/cold_legacy_replay.rs", "part2_legacy_snapshot_flags", "before.bitplane_state", "None"),
+            ("specs/cold_legacy_replay.rs", "part2_legacy_snapshot_result", "part2_tier1_storage_framed", "supplied_successful_snapshot"),
+            ("specs/cold_legacy_replay.rs", "part2_legacy_restore_partial", "next_pass:source.next_pass", "next_pass:before.next_pass"),
+            ("specs/cold_legacy_replay.rs", "part2_legacy_restore_after_plane", "Err(error),before", "Err(error),part1_legacy_restore(before,source)"),
+            ("specs/cold_legacy_replay.rs", "part2_legacy_restore_flags", "LegacyRestore", "LegacySnapshot"),
+            ("specs/cold_legacy_replay.rs", "part2_legacy_restore_flags", "Err(error),part2_legacy_restore_partial", "Ok(()),part2_legacy_restore_partial"),
+            ("specs/cold_legacy_replay.rs", "part2_legacy_replay_run", "Err(error),part2_legacy_replay_clear(before)", "Err(error),before"),
+            ("specs/cold_legacy_replay.rs", "part2_legacy_replay_after_source", "part1_legacy_append(source,input,replay)", "part1_legacy_append(source,input,1)"),
+            ("specs/cold_legacy_replay.rs", "part2_legacy_replay_finish", "Err(_)=>restored", "Err(_)=>(Ok(()),restored.1)"),
+            ("specs/cold_legacy_packets.rs", "part2_legacy_packet_step_run", "body.subrange(before.offset as int,end as int)", "body.subrange(0,end as int)"),
+            ("specs/cold_legacy_packets.rs", "part2_legacy_packet_fold", "Ok(step),rest", "Ok(step),Seq::empty()"),
+            ("src/tier1/contributions.rs", "Tier1CodeBlockDecoder::legacy_segment_snapshot", "HtRefinementCopyRole::LegacySnapshot", "HtRefinementCopyRole::HtStaging"),
+            ("src/tier1/contributions.rs", "Tier1CodeBlockDecoder::legacy_segment_snapshot", "input: Vec::new()", "input: Vec::with_capacity(1)"),
+            ("src/tier1/contributions.rs", "Tier1CodeBlockDecoder::restore_legacy_segment", "HtRefinementCopyRole::LegacyRestore", "HtRefinementCopyRole::LegacySnapshot"),
+            ("src/tier1/contributions.rs", "Tier1CodeBlockDecoder::restore_legacy_segment", "self.plane = copied?", "self.plane = segment.plane.clone()"),
+            ("src/tier1/contributions.rs", "Tier1CodeBlockDecoder::restore_legacy_segment", "self.bitplane_state = copied?", "self.bitplane_state = None"),
+            ("src/tier1/contributions.rs", "Tier1CodeBlockDecoder::decode_legacy_replay", "self.legacy_segment.take()", "self.legacy_segment.clone()"),
+            ("src/tier1/contributions.rs", "Tier1CodeBlockDecoder::decode_legacy_replay", "restored?", "let ignored = restored"),
+            ("src/packet/body.rs", "decode_legacy_code_block_segment", "decoded?", "let ignored = decoded"),
+        )
+        for relative, symbol, before, after in cases:
+            source = framework.ROOT / relative
+            original = source.read_text()
+            body = (framework._coverage_function_body(original, framework._coverage_function_header(original, symbol))
+                    if relative.startswith("src/") else framework._coverage_spec_function_body(original, symbol))
+            pattern = re.escape(before).replace(r"\ ", r"\s*")
+            changed_body, count = re.subn(pattern, lambda _: after, body, count=1)
+            self.assertEqual(count, 1, (symbol, before))
+            changed = original.replace(body, changed_body, 1)
+
+            def altered(path, *args, **kwargs):
+                return changed if path == source else read_text(path, *args, **kwargs)
+
+            with self.subTest(symbol=symbol, before=before), mock.patch.object(Path, "read_text", altered), \
+                    self.assertRaisesRegex(ValueError, "legacy snapshot/restore storage|linked function lacks executable Verus contract"):
+                framework.validate_normative_coverage(data)
+        missing = copy.deepcopy(data)
+        missing["requirements"][0]["test_refs"] = [
+            ref for ref in entry["test_refs"] if (ref["path"], ref["symbol"]) not in framework._LEGACY_SNAPSHOT_TESTS
+        ]
+        with self.assertRaisesRegex(ValueError, "legacy snapshot/restore storage requires bounded"):
+            framework.validate_normative_coverage(missing)
+
     def test_inventory_rollback_snapshot_owners_require_real_roles_counts_and_partial_owner_order(self):
         coverage = json.loads((framework.VALIDATION / "normative-coverage.json").read_text())
         entry = next(item for item in coverage["requirements"] if item["id"] == "part1-complete-native-public-packet-boundaries")
@@ -9035,6 +9086,10 @@ class FrameworkTests(WorkingFiles):
                     {"path": path, "symbol": symbol} for path, symbol in sorted(cold_proofs)
                 ]
                 isolated["test_refs"] = entry["test_refs"][:1]
+                if isolated["id"] == framework._LEGACY_SNAPSHOT_ENTRY:
+                    isolated["test_refs"] += [
+                        {"path": path, "symbol": symbol} for path, symbol in sorted(framework._LEGACY_SNAPSHOT_TESTS)
+                    ]
                 if isolated["id"] == framework._HT_BYTE_COPY_ENTRY:
                     isolated["test_refs"] += [
                         {"path": path, "symbol": symbol} for path, symbol in sorted(framework._HT_BYTE_COPY_TESTS)
