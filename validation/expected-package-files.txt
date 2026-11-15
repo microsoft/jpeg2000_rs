@@ -50,6 +50,7 @@ specs/cold_packet_tile_planes.rs
 specs/cold_part2_fresh.rs
 specs/cold_part2_header.rs
 specs/cold_payload_owners.rs
+specs/cold_precinct_singleton.rs
 specs/cold_precinct_storage.rs
 specs/cold_profile.rs
 specs/cold_progression.rs

@@ -1185,8 +1185,8 @@ tails through resolution/component/decode/snapshot/public state programs.
 Old normal models and their checked projections remain. Bounded controls cover
 first/later subband/inclusion/zero refusal, zero and malformed admission,
 TagTree overflow/node limits, code-block/work priority, exact retained owners
-and raw/selected/container restoration. The separate public singleton execution
-wrapper, existing-capacity growth (including TagTree levels), later tier1
+and raw/selected/container restoration. Existing-capacity growth
+(including TagTree levels), later tier1
 entropy/sample storage, and later packet/image buffers remain separate.
 Initial Tier1 construction has one reached known-count owner: the coefficient
 plane's shallow Copy-filled vector, after original nonzero dimensions,
@@ -1226,7 +1226,24 @@ Bounded controls exercise standalone and duplicate admission, cleanup output/cop
 refinement output/discovery, retained replay rollback, cleared partial state, and
 real HT raw/selected/container cleanup refusal and restoration.
 Other fresh entropy/refinement buffers, cloning, contribution/image storage,
-existing-capacity growth and the public precinct singleton wrapper remain separate.
+and existing-capacity growth remain separate.
+The public `PacketPrecinctDecoder::new` singleton execution wrapper is now also
+fallible at its original argument frontier. Its real LL execution record still
+evaluates in the original field/move order before the one-element reservation;
+the real `new_subbands` child follows it. A distinct `PrecinctSingletonCapacity`
+response binds the actual execution input and count one. There is no zero/geometry
+admission before this unconditional singleton, even when child admission later
+fails. The shared `new_subbands` facade adds no wrapper or extra allocation;
+an empty execution list retains its original no-request behavior.
+Exact primitive/child prefix binds retain the original ordinary error/owner/tree
+results and unused tails. Public inline contracts use the pinned constructor
+prior art and checked original normal projections, without new caller premises.
+Current library planning calls `packet_precinct_from_subbands` directly, not this
+singleton facade. There is therefore no singleton event to invent in raw/container/
+snapshot/progressive/semantic/recovery programs that do not call it. Bounded
+controls cover first/later singleton/subband/two-tree refusals, restoration with
+actual moved coefficient owners, ordinary geometry/decoder-count/work priority,
+empty shared-facade behavior and real full/selected HT packet consumption.
 Successful reservation relies on the documented standard-library boundary,
 not a physical-capacity theorem inferred from sequence models.
 Same-file links are checked inside another listed, formatted function body;

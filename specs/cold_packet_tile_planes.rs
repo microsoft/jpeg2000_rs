@@ -164,6 +164,7 @@ pub(crate) open spec fn part2_plane_tile_after_packet(params:Part1TilePacketPara
 {
     match packet.0{Err(_)=>Some((Ok(packet),calls)),Ok(())=>if packet.1.progress.remaining_packets<budget{part2_plane_tile_run(params,packet.1,calls)}else{None}}
 }
+#[verifier::opaque]
 pub(crate) open spec fn part2_plane_tile_run_result(params:Part1TilePacketParameters,s:Part1TilePacketExecution,result:(Result<(),crate::DecodeError>,Part1TilePacketExecution))->bool {
     part2_tier1_storage_framed(|calls|part2_plane_tile_run(params,s,calls),Ok(result))
 }
@@ -171,6 +172,7 @@ pub(crate) proof fn part2_plane_tile_run_normal(params:Part1TilePacketParameters
     ensures part2_plane_tile_run_result(params,s,part1_tile_run(params,s)),
     decreases s.progress.remaining_packets*2+1,
 {
+    reveal(part2_plane_tile_run_result);
     reveal_with_fuel(part2_plane_tile_run,2);reveal_with_fuel(part2_plane_tile_after_packet,1);reveal_with_fuel(part1_tile_run,1);
     let result=part1_tile_run(params,s);
     match part2_plane_tile_run_admit(params,s){
@@ -210,5 +212,5 @@ pub(crate) proof fn part2_plane_tile_run_join(params:Part1TilePacketParameters,s
     root:spec_fn(Seq<Part2Tier1StorageEvent>)->Part2Tier1Run<(Result<(),crate::DecodeError>,Part1TilePacketExecution)>,result:(Result<(),crate::DecodeError>,Part1TilePacketExecution))
     requires part2_tier1_storage_framed(root,Ok(result)),forall|calls| #[trigger] root(calls)==part2_plane_tile_run(params,s,calls),
     ensures part2_plane_tile_run_result(params,s,result),
-{part2_tier1_storage_eta(root,Ok(result));}
+{reveal(part2_plane_tile_run_result);part2_tier1_storage_eta(root,Ok(result));}
 }

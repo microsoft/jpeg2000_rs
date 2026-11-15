@@ -8242,6 +8242,58 @@ class FrameworkTests(WorkingFiles):
                     self.assertRaisesRegex(ValueError, "initial Tier1 storage"):
                 framework.validate_normative_coverage(data)
 
+    def test_inventory_precinct_singleton_requires_actual_input_primitive_child_and_argument_frontier(self):
+        coverage = json.loads((framework.VALIDATION / "normative-coverage.json").read_text())
+        entry = next(item for item in coverage["requirements"] if item["id"] == framework._PRECINCT_SINGLETON_ENTRY)
+        data = dict(coverage, requirements=[entry])
+        self.assertEqual(framework.validate_normative_coverage(data)["status"], "passed")
+        read_text = Path.read_text
+        cases = (
+            ("specs/cold_precinct_singleton.rs", "part2_precinct_singleton_execution", "across:geometry.code_blocks_across", "across:geometry.code_blocks_down"),
+            ("specs/cold_precinct_singleton.rs", "part2_singleton_capacity_run", "PrecinctSingletonCapacity", "PrecinctCapacity"),
+            ("specs/cold_precinct_singleton.rs", "part2_singleton_capacity_run", "elements!=1", "elements!=0"),
+            ("specs/cold_precinct_singleton.rs", "part2_singleton_capacity_run", "actual!=execution", "false"),
+            ("specs/cold_precinct_singleton.rs", "part2_singleton_capacity_run", "events.drop_first()", "events"),
+            ("specs/cold_precinct_singleton.rs", "part2_singleton_capacity_run", "Err(crate::DecodeError::AllocationFailed)", "Ok(())"),
+            ("specs/cold_precinct_singleton.rs", "part2_singleton_values_run", "Ok(seq![execution])", "Ok(supplied_wrapper)"),
+            ("specs/cold_precinct_singleton.rs", "part2_precinct_singleton_run", "part2_precinct_state_run(", "supplied_precinct("),
+            ("specs/cold_precinct_singleton.rs", "part1_precinct_singleton_storage_result", "part2_cold_framed(", "blanket_error_allowance("),
+            ("specs/cold_precinct_singleton.rs", "part1_precinct_subbands_storage_result", "limits,result", "limits,unrelated"),
+            ("src/packet/precinct.rs", "packet_singleton_execution", "empty_with_capacity(1)", "empty_with_capacity(0)"),
+            ("src/packet/precinct.rs", "packet_singleton_execution", "match reserved", "match supplied_response"),
+            ("src/packet/precinct.rs", "PacketPrecinctDecoder::new", "geometry, tier1_style,", "unrelated, tier1_style,"),
+            ("src/packet/precinct.rs", "PacketPrecinctDecoder::new", "maximum_zero_bitplanes: geometry.maximum_zero_bitplanes", "maximum_zero_bitplanes: 1"),
+            ("src/packet/precinct.rs", "PacketPrecinctDecoder::new", "executions?", "executions.unwrap()"),
+            ("src/packet/precinct.rs", "PacketPrecinctDecoder::new", "packet_precinct_outcome(result)", "packet_precinct_outcome(unrelated)"),
+            ("src/packet/precinct.rs", "PacketPrecinctDecoder::new_subbands", "packet_precinct_outcome(result)", "packet_precinct_outcome(unrelated)"),
+            ("src/packet/precinct.rs", "PacketPrecinctDecoder::new_subbands", "let result = packet_precinct_from_subbands(", "packet_singleton_execution(); let result = packet_precinct_from_subbands("),
+        )
+        for relative, symbol, before, after in cases:
+            source = framework.ROOT / relative
+            original = source.read_text()
+            body = (framework._coverage_function_body(original, framework._coverage_function_header(original, symbol))
+                    if relative.startswith("src/") else framework._coverage_spec_function_body(original, symbol))
+            pattern = re.escape(before).replace(r"\ ", r"\s*")
+            changed_body, count = re.subn(pattern, lambda _: after, body, count=1)
+            self.assertEqual(count, 1, (symbol, before))
+            changed = original.replace(body, changed_body, 1)
+
+            def altered(path, *args, **kwargs):
+                return changed if path == source else read_text(path, *args, **kwargs)
+
+            with self.subTest(symbol=symbol, before=before), mock.patch.object(Path, "read_text", altered), \
+                    self.assertRaisesRegex(ValueError, "precinct singleton storage"):
+                framework.validate_normative_coverage(data)
+        for field, required in (("spec_refs", framework._PRECINCT_SINGLETON_MODELS),
+                                ("proof_refs", framework._PRECINCT_SINGLETON_PROOFS),
+                                ("test_refs", framework._PRECINCT_SINGLETON_TESTS)):
+            missing = copy.deepcopy(data)
+            missing["requirements"][0][field] = [
+                ref for ref in entry[field] if (ref["path"], ref["symbol"]) not in required
+            ]
+            with self.subTest(field=field), self.assertRaisesRegex(ValueError, "precinct singleton storage requires"):
+                framework.validate_normative_coverage(missing)
+
     def test_inventory_remaining_plane_roles_require_real_children_partial_state_and_exact_tail(self):
         coverage = json.loads((framework.VALIDATION / "normative-coverage.json").read_text())
         entry = next(item for item in coverage["requirements"] if item["id"] == "part15-complete-actual-cleanup-plane")
@@ -8716,6 +8768,9 @@ class FrameworkTests(WorkingFiles):
                     isolated["spec_refs"] = [item for item in entry["spec_refs"] if item["symbol"] == model]
             if isolate:
                 cold_models, cold_proofs = framework._coverage_cold_links({key})
+                if isolated["id"] == framework._PRECINCT_SINGLETON_ENTRY:
+                    cold_models |= framework._PRECINCT_SINGLETON_MODELS
+                    cold_proofs |= framework._PRECINCT_SINGLETON_PROOFS
                 if isolated["id"] == "part1-complete-native-owned-tile-inheritance":
                     cold_models |= framework._MCT_COPY_MODELS | framework._PART2_COPY_MODELS
                     cold_proofs |= framework._MCT_COPY_PROOFS | framework._PART2_COPY_PROOFS
@@ -8737,6 +8792,10 @@ class FrameworkTests(WorkingFiles):
                     {"path": path, "symbol": symbol} for path, symbol in sorted(cold_proofs)
                 ]
                 isolated["test_refs"] = entry["test_refs"][:1]
+                if isolated["id"] == framework._PRECINCT_SINGLETON_ENTRY:
+                    isolated["test_refs"] += [
+                        {"path": path, "symbol": symbol} for path, symbol in sorted(framework._PRECINCT_SINGLETON_TESTS)
+                    ]
                 isolated["test_refs"] += [
                     {"path": path, "symbol": symbol} for path, symbol in sorted(framework._PLANE_ROLE_TESTS)
                     if {"path": path, "symbol": symbol} in entry["test_refs"]

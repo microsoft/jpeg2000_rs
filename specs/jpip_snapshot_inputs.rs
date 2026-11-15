@@ -20,6 +20,7 @@ pub enum Part2JpipSnapshotEvent {
     Capacity { site: u8, tile: usize, elements: usize, succeeded: bool },
     Main { calls: Seq<Part2JpipStorageEvent> },
     Parse { phase: u8, index: usize, calls: Seq<Part1ColdStorageEvent> },
+    PrecinctSingletonCapacity {execution:Part2PacketSubbandExecution,elements:usize,succeeded:bool},
 }
 
 pub(crate) open spec fn part2_jpip_snapshot_normalized_events(
