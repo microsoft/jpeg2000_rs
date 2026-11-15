@@ -112,6 +112,26 @@ the remaining #300 integration obligations are still open. No deadline exists
 in this API. Container dimensions, absent tiles, MQ damage, trailers and
 reconstruction output remain separate W10/W11/W15/W18/W19 work.
 
+### Explicit JP2 dimension recovery
+
+`decode_jp2_recover_dimensions(input, options)` accepts contradictory container
+width/height only, using the genuine SIZ canvas and component grid. Its result
+contains the typed image and a report with `ignored_container_dimensions`,
+original header dimensions and actual canvas dimensions/origins. No pixels are
+added to fill the contradictory declaration; ordinary `decode_jp2` stays strict.
+
+`inspect_jp2_recover_dimensions` returns parsed file/codestream metadata and the
+same report, not a decoded-image promise. Entropy errors and missing tiles can
+still make decoding fail. `decode_jp2_reconstructed_recover_dimensions` preserves
+centered fractional samples for interpolation, with the same explicit NLT and
+palette/channel restrictions as strict reconstruction output.
+
+Component counts and precision/sign must still match, including every variable
+BPCC declaration and inherited/overridden associated headers. Existing framing,
+profile and resource checks remain, including limits on declared metadata.
+These APIs have no global recovery toggle, copy, retry or automatic EOC repair.
+They do not supply the separate deadline, absent-tile, MQ or trailer policies.
+
 ### Route a single-image JPX input
 
 Select the route from the input's declared profile and the embedding's required
