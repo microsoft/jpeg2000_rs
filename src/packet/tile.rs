@@ -1114,15 +1114,8 @@ pub(super) fn run_progression_tile_packets<'a, 'data>(
         #[cfg(verus_keep_ghost)]
         proof! {
             let result=(decoded,progression_tile_execution_view(precincts,p));
-            let child=|calls|crate::specs::part2_plane_tile_packet_run(progression_tile_parameters_view(params),before_packet,coordinate,calls);
-            let next=|packet:(Result<(),DecodeError>,crate::specs::Part1TilePacketExecution),rest|crate::specs::part2_plane_tile_after_packet(progression_tile_parameters_view(params),prior.progress.remaining_packets,packet,rest);
-            crate::specs::part2_plane_tile_packet_frames(progression_tile_parameters_view(params),before_packet,coordinate,result);
-            assert forall|calls|root(prefix+calls)==crate::specs::part2_tier1_storage_bind(child(calls),next) by {}
-            prefix=crate::specs::part2_tier1_prefix_advance(root,child,next,prefix,result);
-            if decoded.is_err(){
-                crate::specs::part2_tier1_prefix_finish(root,prefix,Ok(result));
-                crate::specs::part2_plane_tile_run_join(progression_tile_parameters_view(params),initial,root,result);
-            }
+            prefix=crate::specs::part2_plane_tile_prefix_observed(progression_tile_parameters_view(params),initial,before_packet,coordinate,
+                prior.progress.remaining_packets,root,prefix,result);
         }
         decoded?;
     }

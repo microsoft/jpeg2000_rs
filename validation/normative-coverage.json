@@ -122,7 +122,10 @@
         {"path": "src/jpip/tests.rs", "symbol": "automatic_acquisition_precedes_resolution_errors_and_incomplete_truncation_continues"},
         {"path": "src/packet/tests.rs", "symbol": "tagtree_copy_storage_levels_nodes_empty_raw_sources_and_clone_restore"},
         {"path": "src/packet/tests.rs", "symbol": "tagtree_copy_storage_packet_rollback_keeps_prior_copies_and_source_then_restores"},
-        {"path": "src/jpip/tests.rs", "symbol": "tagtree_copy_storage_automatic_phase_refusal_keeps_plan_then_decodes_real_packet"}
+        {"path": "src/jpip/tests.rs", "symbol": "tagtree_copy_storage_automatic_phase_refusal_keeps_plan_then_decodes_real_packet"},
+        {"path": "src/packet/tests.rs", "symbol": "rollback_snapshot_storage_outer_roles_precede_children_and_restore_exact_packet"},
+        {"path": "src/packet/tests.rs", "symbol": "rollback_snapshot_storage_empty_and_independent_raw_owners_keep_error_frontiers"},
+        {"path": "src/jpip/tests.rs", "symbol": "rollback_snapshot_storage_automatic_phase_keeps_plan_then_recovers_real_packet"}
       ]
     },
     {
@@ -457,6 +460,9 @@
       "test_refs": [
         {"path": "src/jpip/tests.rs", "symbol": "automatic_order_phase_preserves_exact_partial_error_states_and_next_call_order"},
         {"path": "src/jpip/tests.rs", "symbol": "automatic_precinct_phase_preserves_lookup_and_truncation_error_frames_then_recovers"},
+        {"path": "src/packet/tests.rs", "symbol": "rollback_snapshot_storage_outer_roles_precede_children_and_restore_exact_packet"},
+        {"path": "src/packet/tests.rs", "symbol": "rollback_snapshot_storage_empty_and_independent_raw_owners_keep_error_frontiers"},
+        {"path": "src/jpip/tests.rs", "symbol": "rollback_snapshot_storage_automatic_phase_keeps_plan_then_recovers_real_packet"},
         {"path": "src/packet/tests.rs", "symbol": "tagtree_copy_storage_levels_nodes_empty_raw_sources_and_clone_restore"},
         {"path": "src/packet/tests.rs", "symbol": "tagtree_copy_storage_packet_rollback_keeps_prior_copies_and_source_then_restores"},
         {"path": "src/jpip/tests.rs", "symbol": "tagtree_copy_storage_automatic_phase_refusal_keeps_plan_then_decodes_real_packet"},
@@ -6473,7 +6479,8 @@
         {"path": "src/packet/tile.rs", "symbol": "decode_progression_tile_packets_selected"},
         {"path": "src/packet/proof_support.rs", "symbol": "packet_precinct_vector_known_fields"},
         {"path": "src/packet/proof_support.rs", "symbol": "packet_precinct_decoder_states"},
-        {"path": "src/tier1/proof_support.rs", "symbol": "tier1_decoder_plane_matches_state"}
+        {"path": "src/tier1/proof_support.rs", "symbol": "tier1_decoder_plane_matches_state"},
+        {"path": "specs/cold_packet_tile_planes.rs", "symbol": "part2_plane_tile_prefix_observed"}
       ],
       "test_refs": [
         {"path": "src/decode/tests.rs", "symbol": "actual_packet_reconstruction_uses_real_bytes_complete_decoder_planes_and_owned_prepared_prefixes"}
@@ -8068,6 +8075,13 @@
         {"path": "specs/cold_packet_copy.rs", "symbol": "part2_subband_copy_result"},
         {"path": "specs/cold_packet_copy.rs", "symbol": "part2_subbands_copy_run"},
         {"path": "specs/cold_packet_copy.rs", "symbol": "part2_subbands_copy_result"},
+        {"path": "specs/cold_rollback_snapshot.rs", "symbol": "Part2RollbackOwnerContext"},
+        {"path": "specs/cold_rollback_snapshot.rs", "symbol": "part2_rollback_owner_count"},
+        {"path": "specs/cold_rollback_snapshot.rs", "symbol": "part2_rollback_owner_run"},
+        {"path": "specs/cold_rollback_snapshot.rs", "symbol": "part2_rollback_owner_result"},
+        {"path": "specs/cold_rollback_snapshot.rs", "symbol": "part2_subbands_owner_run"},
+        {"path": "specs/cold_rollback_snapshot.rs", "symbol": "part2_rollback_snapshot_run"},
+        {"path": "specs/cold_rollback_snapshot.rs", "symbol": "part2_rollback_snapshot_result"},
         {"path": "specs/cold_packet_copy.rs", "symbol": "part2_jpip_packet_copy_run"},
         {"path": "specs/cold_packet_copy.rs", "symbol": "part2_jpip_packet_copy_result"}
       ],
@@ -8151,12 +8165,24 @@
         {"path": "src/packet/tag_tree.rs", "symbol": "TagTree::try_duplicate"},
         {"path": "src/packet/precinct.rs", "symbol": "PacketSubbandState::try_duplicate"},
         {"path": "src/packet/precinct.rs", "symbol": "try_duplicate_packet_subbands"},
-        {"path": "src/allocation.rs", "symbol": "copy_values"}
+        {"path": "src/allocation.rs", "symbol": "copy_values"},
+        {"path": "src/allocation.rs", "symbol": "empty_with_capacity"},
+        {"path": "specs/cold_rollback_snapshot.rs", "symbol": "part2_rollback_owner_observed"},
+        {"path": "specs/cold_rollback_snapshot.rs", "symbol": "part2_subbands_owner_error"},
+        {"path": "specs/cold_rollback_snapshot.rs", "symbol": "part2_subbands_owner_start"},
+        {"path": "specs/cold_rollback_snapshot.rs", "symbol": "part2_subbands_owner_normal"},
+        {"path": "specs/cold_rollback_snapshot.rs", "symbol": "part2_rollback_snapshot_states_error"},
+        {"path": "specs/cold_rollback_snapshot.rs", "symbol": "part2_rollback_snapshot_contexts_error"},
+        {"path": "specs/cold_rollback_snapshot.rs", "symbol": "part2_rollback_snapshot_subbands"},
+        {"path": "specs/cold_rollback_snapshot.rs", "symbol": "part2_rollback_snapshot_normal"}
       ],
       "test_refs": [
         {
           "path": "src/packet/tests.rs", "symbol": "actual_jpip_outer_restores_all_raw_fields_and_clone_preserves_unused_tree_words"
         },
+        {"path": "src/packet/tests.rs", "symbol": "rollback_snapshot_storage_outer_roles_precede_children_and_restore_exact_packet"},
+        {"path": "src/packet/tests.rs", "symbol": "rollback_snapshot_storage_empty_and_independent_raw_owners_keep_error_frontiers"},
+        {"path": "src/jpip/tests.rs", "symbol": "rollback_snapshot_storage_automatic_phase_keeps_plan_then_recovers_real_packet"},
         {"path": "src/packet/tests.rs", "symbol": "tagtree_copy_storage_levels_nodes_empty_raw_sources_and_clone_restore"},
         {"path": "src/packet/tests.rs", "symbol": "tagtree_copy_storage_packet_rollback_keeps_prior_copies_and_source_then_restores"},
         {"path": "src/jpip/tests.rs", "symbol": "tagtree_copy_storage_automatic_phase_refusal_keeps_plan_then_decodes_real_packet"},
@@ -9035,7 +9061,8 @@
         {"path": "specs/cold_tile_plane_calls.rs", "symbol": "part2_tile_plane_calls_observed"},
         {"path": "specs/cold_tile_plane_calls.rs", "symbol": "part2_packet_after_progress_observed"},
         {"path": "specs/cold_tile_plane_calls.rs", "symbol": "part2_packet_stage_values"},
-        {"path": "specs/cold_tile_plane_calls.rs", "symbol": "part2_packet_run_observed"}
+        {"path": "specs/cold_tile_plane_calls.rs", "symbol": "part2_packet_run_observed"},
+        {"path": "specs/cold_packet_tile_planes.rs", "symbol": "part2_plane_tile_prefix_observed"}
       ],
       "test_refs": [
         {

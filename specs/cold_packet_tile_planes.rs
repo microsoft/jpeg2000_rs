@@ -217,4 +217,26 @@ pub(crate) proof fn part2_plane_tile_run_join(params:Part1TilePacketParameters,s
     requires part2_tier1_storage_framed(root,Ok(result)),forall|calls| #[trigger] root(calls)==part2_plane_tile_run(params,s,calls),
     ensures part2_plane_tile_run_result(params,s,result),
 {reveal(part2_plane_tile_run_result);part2_tier1_storage_eta(root,Ok(result));}
+pub(crate) proof fn part2_plane_tile_prefix_observed(params:Part1TilePacketParameters,initial:Part1TilePacketExecution,
+    before:Part1TilePacketExecution,coordinate:crate::packet::PacketCoordinate,budget:u64,
+    root:spec_fn(Seq<Part2Tier1StorageEvent>)->Part2Tier1Run<(Result<(),crate::DecodeError>,Part1TilePacketExecution)>,
+    prefix:Seq<Part2Tier1StorageEvent>,result:(Result<(),crate::DecodeError>,Part1TilePacketExecution))
+    ->(extended:Seq<Part2Tier1StorageEvent>)
+    requires part2_plane_tile_packet_result(params,before,coordinate,result),
+        forall|calls| #[trigger] root(calls)==part2_plane_tile_run(params,initial,calls),
+        forall|calls| #[trigger] root(prefix+calls)==part2_tier1_storage_bind(part2_plane_tile_packet_run(params,before,coordinate,calls),
+            |packet:(Result<(),crate::DecodeError>,Part1TilePacketExecution),rest|part2_plane_tile_after_packet(params,budget,packet,rest)),
+    ensures forall|calls| #[trigger] root(extended+calls)==part2_plane_tile_after_packet(params,budget,result,calls),
+        result.0.is_err() ==> part2_plane_tile_run_result(params,initial,result),
+{
+    let child=|calls|part2_plane_tile_packet_run(params,before,coordinate,calls);
+    let next=|packet:(Result<(),crate::DecodeError>,Part1TilePacketExecution),rest|part2_plane_tile_after_packet(params,budget,packet,rest);
+    part2_plane_tile_packet_frames(params,before,coordinate,result);
+    let extended=part2_tier1_prefix_advance(root,child,next,prefix,result);
+    if result.0.is_err(){
+        part2_tier1_prefix_finish(root,extended,Ok(result));
+        part2_plane_tile_run_join(params,initial,root,result);
+    }
+    extended
+}
 }

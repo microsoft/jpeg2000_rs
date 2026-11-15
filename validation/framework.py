@@ -5384,6 +5384,7 @@ def _coverage_cold_links(keys: set[tuple[str, str]]) -> tuple[set[tuple[str, str
             proofs.update(("specs/cold_tile_plane_calls.rs", name) for name in (
                 "part2_tile_plane_calls_observed", "part2_packet_after_progress_observed", "part2_packet_stage_values", "part2_packet_run_observed",
             ))
+            proofs.add(("specs/cold_packet_tile_planes.rs", "part2_plane_tile_prefix_observed"))
         if model == "part1_bitmap_result":
             proofs.add(("src/codestream/mct_copy.rs", "filled_values"))
         if model == "part1_p2_marker_storage_result":
@@ -5571,6 +5572,48 @@ _TIER1_INITIAL_TESTS = {
     ("src/decode/tests.rs", "tier1_initial_storage_cell_columns_rows_retain_prior_owners_and_restore"),
     ("src/decode/tests.rs", "tier1_initial_storage_public_raw_selected_container_roles_and_restore"),
 }
+_ROLLBACK_OWNER_TESTS = {
+    ("src/packet/tests.rs", "rollback_snapshot_storage_outer_roles_precede_children_and_restore_exact_packet"),
+    ("src/packet/tests.rs", "rollback_snapshot_storage_empty_and_independent_raw_owners_keep_error_frontiers"),
+    ("src/jpip/tests.rs", "rollback_snapshot_storage_automatic_phase_keeps_plan_then_recovers_real_packet"),
+}
+_ROLLBACK_OWNER_GUARDS = {
+    "part2_rollback_owner_count": (
+        "States {source}=>source.len()", "Contexts {source,..}=>source.len()", "Subbands {source}=>source.len()",
+    ),
+    "part2_rollback_owner_run": (
+        "let count=part2_rollback_owner_count(context)", "if count==0{Some((Ok(()),events))}",
+        "RollbackOwnerCapacity {context:actual,elements,succeeded}", "actual!=context || elements!=count",
+        "if succeeded{Ok(())}else{Err(crate::DecodeError::AllocationFailed)}", "events.drop_first()",
+    ),
+    "part2_subbands_owner_run": (
+        "part2_rollback_owner_run(Part2RollbackOwnerContext::Subbands {source},events)",
+        "part2_subbands_copy_run(source,0,Seq::empty(),rest)",
+    ),
+    "part2_rollback_snapshot_run": (
+        "Part2RollbackOwnerContext::States {source:initial.states},events",
+        "Part2RollbackOwnerContext::Contexts {states:initial.states,source:initial.contexts},rest",
+        "part2_subbands_owner_run(initial.subbands,tail)",
+    ),
+    "part2_rollback_snapshot_result": (
+        "part2_cold_framed(|events|part2_rollback_snapshot_run(initial,events),result)",
+    ),
+}
+_ROLLBACK_OWNER_NATIVE_ORDER = {
+    "decode_jpip_precinct_packet": (
+        "let copied_states = crate::allocation::copy_values(&precinct.states)",
+        "Part2RollbackOwnerContext::States {source:initial.states}", "match copied_states",
+        "let states = copied_states?", "let copied_contexts = crate::allocation::copy_values(&precinct.contexts)",
+        "Part2RollbackOwnerContext::Contexts {states:states@.map_values(|state:CodeBlockPacketState|code_block_packet_state_view(&state)),source:initial.contexts}",
+        "match copied_contexts", "let contexts = copied_contexts?", "try_duplicate_packet_subbands(&precinct.subbands)",
+        "part2_rollback_snapshot_subbands(", "let subbands = copied_subbands?", "decode_jpip_precinct_packet_inner(",
+    ),
+    "try_duplicate_packet_subbands": (
+        "if before.is_empty()", "Ok(Vec::new())", "empty_with_capacity(before.len())",
+        "Part2RollbackOwnerContext::Subbands {source}", "match reserved", "part2_subbands_owner_start(source)",
+        "let mut values = reserved?", "while index < before.len()", "before[index].try_duplicate(index)",
+    ),
+}
 _TAG_COPY_TESTS = {
     ("src/packet/tests.rs", "tagtree_copy_storage_levels_nodes_empty_raw_sources_and_clone_restore"),
     ("src/packet/tests.rs", "tagtree_copy_storage_packet_rollback_keeps_prior_copies_and_source_then_restores"),
@@ -5604,7 +5647,7 @@ _TAG_COPY_GUARDS = {
         "part2_subbands_copy_run(source,index+1,before.push(copied),rest)",
     ),
     ("specs/cold_packet_copy.rs", "part2_jpip_packet_copy_run"): (
-        "part2_subbands_copy_run(initial.subbands,0,Seq::empty(),events)",
+        "part2_rollback_snapshot_run(initial,events)",
         "Some((Err(error),rest))=>Some((Ok((Err(error),initial)),rest))",
         "part2_jpip_snapshot_decode_packet(initial,part,data,sequence,layer,limits)",
     ),
@@ -5647,11 +5690,12 @@ _TAG_COPY_NATIVE_ORDER = {
         "inclusion_tree:", "subband: index, zero: false", "result?", "zero_bitplane_tree:", "subband: index, zero: true", "result?",
     ),
     ("src/packet/precinct.rs", "try_duplicate_packet_subbands"): (
-        "Vec::with_capacity(before.len())", "while index < before.len()", "before[index].try_duplicate(index)",
+        "empty_with_capacity(before.len())", "let mut values = reserved?", "while index < before.len()", "before[index].try_duplicate(index)",
         "part2_decode_prefix_error(", "part2_decode_prefix_advance(", "values.push(copied?)", "index += 1",
     ),
     ("src/packet/precinct.rs", "decode_jpip_precinct_packet"): (
-        "precinct.states.clone()", "precinct.contexts.clone()", "try_duplicate_packet_subbands(&precinct.subbands)",
+        "copy_values(&precinct.states)", "let states = copied_states?",
+        "copy_values(&precinct.contexts)", "let contexts = copied_contexts?", "try_duplicate_packet_subbands(&precinct.subbands)",
         "let subbands = copied_subbands?", "decode_jpip_precinct_packet_inner(", "if result.is_err()",
         "precinct.states = states", "precinct.contexts = contexts", "precinct.subbands = subbands",
     ),
@@ -13624,6 +13668,31 @@ def validate_normative_coverage(
                 if not _TIER1_INITIAL_TESTS.issubset({(ref["path"], ref["symbol"]) for ref in entry["test_refs"]}):
                     raise ValueError("initial Tier1 storage requires bounded refusal/restore/zero/ordinary-policy/row-owner/real-public controls")
     if ids & _TAG_COPY_ENTRIES:
+        owner_source = source_text((ROOT / "specs/cold_rollback_snapshot.rs").resolve())
+        for symbol, fragments in _ROLLBACK_OWNER_GUARDS.items():
+            body = _coverage_spec_function_body(owner_source, symbol)
+            compact = "".join(body.split()) if body is not None else ""
+            if any("".join(fragment.split()) not in compact for fragment in fragments):
+                raise ValueError("rollback snapshot owners require distinct actual source/count/prior-owner requests and exact ordered Result/tail binds")
+        path = (ROOT / "src/packet/precinct.rs").resolve()
+        for symbol, fragments in _ROLLBACK_OWNER_NATIVE_ORDER.items():
+            body = _coverage_function_body(source_text(path), function_header(path, symbol))
+            compact = "".join(body.split()) if body is not None else ""
+            position = 0
+            for fragment in fragments:
+                token = "".join(fragment.split())
+                found = compact.find(token, position)
+                if found < 0:
+                    if symbol == "try_duplicate_packet_subbands" and token == "empty_with_capacity(before.len())":
+                        raise ValueError("TagTree copy storage requires original collection/field/owner/request order and actual reached refusal/rollback/public frames")
+                    raise ValueError("rollback snapshot owners require unchanged actual copy/reserve/child/error order and primitive-response linkage")
+                position = found + len(token)
+            if "Vec::with_capacity(" in compact or "precinct.states.clone()" in compact or "precinct.contexts.clone()" in compact:
+                raise ValueError("rollback snapshot owners cannot retain unmanaged named owner frontiers")
+        for entry in coverage["requirements"]:
+            if entry["id"] in _TAG_COPY_ENTRIES and not _ROLLBACK_OWNER_TESTS.issubset(
+                    {(ref["path"], ref["symbol"]) for ref in entry["test_refs"]}):
+                raise ValueError("rollback snapshot owners require bounded refusal/restore/empty/ordinary-error/actual-automatic controls")
         for (relative, symbol), fragments in _TAG_COPY_GUARDS.items():
             body = _coverage_spec_function_body(source_text((ROOT / relative).resolve()), symbol)
             compact = "".join(body.split()) if body is not None else ""

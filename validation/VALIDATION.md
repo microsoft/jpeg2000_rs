@@ -1248,10 +1248,21 @@ Successful reservation relies on the documented standard-library boundary,
 not a physical-capacity theorem inferred from sequence models.
 The reached packet rollback path now copies TagTree level and node owners
 fallibly, in their original field order, through private checked duplication.
-Public infallible `Clone` implementations remain unchanged. The earlier packet
-state/context clones and outer subband-vector clone reservation retain their
-separate infallible boundaries; the outer reservation remains at the original
-frontier while only its nested TagTree copies use qualified Copy helpers.
+Public infallible `Clone` implementations remain unchanged. The surrounding
+fresh rollback packet-state and context owners now use the qualified Copy helper,
+and the outer subband-vector reservation is fallible at its original frontier.
+Both element types are allocation-free Copy records; subbands retain their
+existing checked ordered TagTree children rather than copying/cloning a supplied
+successful collection. Distinct states/contexts/subbands capacity roles bind
+actual sources, source-derived counts and the already copied packet states.
+Zero sources consume no requests. The precise state-copy → context-copy →
+subband-reserve → inclusion/zero level/node order, partial owners, first errors
+and unused tails bind through the existing actual packet/acquisition/public
+programs without new caller premises or changed normal projections. Refusal
+still returns before packet mutation; ordinary packet errors retain exact
+rollback. Bounded controls cover every new role, independently empty/raw owners,
+unchanged later child frontiers and real automatic/public recovery. Other
+decoder clones, existing-owner growth and later buffers remain separate.
 Actual source tree, subband/inclusion/zero path, level/node field, source-derived
 count and previously copied levels distinguish these primitive responses from
 fresh-tree, plane, planning and parser requests. Empty owners consume none.

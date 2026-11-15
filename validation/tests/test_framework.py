@@ -8242,6 +8242,52 @@ class FrameworkTests(WorkingFiles):
                     self.assertRaisesRegex(ValueError, "initial Tier1 storage"):
                 framework.validate_normative_coverage(data)
 
+    def test_inventory_rollback_snapshot_owners_require_real_roles_counts_and_partial_owner_order(self):
+        coverage = json.loads((framework.VALIDATION / "normative-coverage.json").read_text())
+        entry = next(item for item in coverage["requirements"] if item["id"] == "part1-complete-native-public-packet-boundaries")
+        data = dict(coverage, requirements=[entry])
+        self.assertEqual(framework.validate_normative_coverage(data)["status"], "passed")
+        read_text = Path.read_text
+        cases = (
+            ("specs/cold_rollback_snapshot.rs", "part2_rollback_owner_count", "States {source}=>source.len()", "States {source}=>1"),
+            ("specs/cold_rollback_snapshot.rs", "part2_rollback_owner_run", "count==0", "count==1"),
+            ("specs/cold_rollback_snapshot.rs", "part2_rollback_owner_run", "RollbackOwnerCapacity", "TagCopyCapacity"),
+            ("specs/cold_rollback_snapshot.rs", "part2_rollback_owner_run", "actual!=context", "false"),
+            ("specs/cold_rollback_snapshot.rs", "part2_rollback_owner_run", "elements!=count", "elements!=1"),
+            ("specs/cold_rollback_snapshot.rs", "part2_rollback_owner_run", "events.drop_first()", "events"),
+            ("specs/cold_rollback_snapshot.rs", "part2_subbands_owner_run", "Part2RollbackOwnerContext::Subbands {source}", "Part2RollbackOwnerContext::States {source}"),
+            ("specs/cold_rollback_snapshot.rs", "part2_rollback_snapshot_run", "states:initial.states,source:initial.contexts", "states:Seq::empty(),source:initial.contexts"),
+            ("specs/cold_rollback_snapshot.rs", "part2_rollback_snapshot_run", "part2_subbands_owner_run(initial.subbands,tail)", "supplied_snapshot_result(tail)"),
+            ("src/packet/precinct.rs", "decode_jpip_precinct_packet", "copy_values(&precinct.states)", "copy_values(&precinct.contexts)"),
+            ("src/packet/precinct.rs", "decode_jpip_precinct_packet", "match copied_contexts", "match supplied_response"),
+            ("src/packet/precinct.rs", "decode_jpip_precinct_packet", "let states = copied_states?", "let states = copied_states.unwrap()"),
+            ("src/packet/precinct.rs", "try_duplicate_packet_subbands", "if before.is_empty()", "if false"),
+            ("src/packet/precinct.rs", "try_duplicate_packet_subbands", "empty_with_capacity(before.len())", "empty_with_capacity(1)"),
+            ("src/packet/precinct.rs", "try_duplicate_packet_subbands", "match reserved", "match supplied_response"),
+        )
+        for relative, symbol, before, after in cases:
+            source = framework.ROOT / relative
+            original = source.read_text()
+            body = (framework._coverage_function_body(original, framework._coverage_function_header(original, symbol))
+                    if relative.startswith("src/") else framework._coverage_spec_function_body(original, symbol))
+            pattern = re.escape(before).replace(r"\ ", r"\s*")
+            changed_body, count = re.subn(pattern, lambda _: after, body, count=1)
+            self.assertEqual(count, 1, (symbol, before))
+            changed = original.replace(body, changed_body, 1)
+
+            def altered(path, *args, **kwargs):
+                return changed if path == source else read_text(path, *args, **kwargs)
+
+            with self.subTest(symbol=symbol, before=before), mock.patch.object(Path, "read_text", altered), \
+                    self.assertRaisesRegex(ValueError, "rollback snapshot owners|TagTree copy storage"):
+                framework.validate_normative_coverage(data)
+        missing = copy.deepcopy(data)
+        missing["requirements"][0]["test_refs"] = [
+            ref for ref in entry["test_refs"] if (ref["path"], ref["symbol"]) not in framework._ROLLBACK_OWNER_TESTS
+        ]
+        with self.assertRaisesRegex(ValueError, "rollback snapshot owners require bounded"):
+            framework.validate_normative_coverage(missing)
+
     def test_inventory_tagtree_copy_requires_actual_roles_owners_rollback_and_acquisition_prefix(self):
         coverage = json.loads((framework.VALIDATION / "normative-coverage.json").read_text())
         entry = next(item for item in coverage["requirements"] if item["id"] == "part1-complete-native-public-packet-boundaries")
@@ -8266,7 +8312,7 @@ class FrameworkTests(WorkingFiles):
             ("src/packet/tag_tree.rs", "TagTree::try_duplicate", "copy_values(&self.levels)", "copy_values(&self.nodes)"),
             ("src/packet/tag_tree.rs", "TagTree::try_duplicate", "match copied_nodes", "match supplied_response"),
             ("src/packet/tag_tree.rs", "TagTree::clone", "self.levels.clone()", "self.levels.try_duplicate()?"),
-            ("src/packet/precinct.rs", "try_duplicate_packet_subbands", "Vec::with_capacity(before.len())", "Vec::new()"),
+            ("src/packet/precinct.rs", "try_duplicate_packet_subbands", "empty_with_capacity(before.len())", "empty_with_capacity(1)"),
             ("src/packet/precinct.rs", "PacketSubbandState::try_duplicate", "zero: true", "zero: false"),
             ("src/packet/precinct.rs", "decode_jpip_precinct_packet", "precinct.subbands = subbands", "precinct.subbands = Vec::new()"),
             ("src/jpip/automatic_phases.rs", "decode_automatic_precinct", "&prefix[start..]", "&prefix[..]"),
@@ -8848,6 +8894,9 @@ class FrameworkTests(WorkingFiles):
                 if isolated["id"] in framework._TAG_COPY_ENTRIES:
                     isolated["test_refs"] += [
                         {"path": path, "symbol": symbol} for path, symbol in sorted(framework._TAG_COPY_TESTS)
+                    ]
+                    isolated["test_refs"] += [
+                        {"path": path, "symbol": symbol} for path, symbol in sorted(framework._ROLLBACK_OWNER_TESTS)
                     ]
                 if isolated["id"] == framework._PRECINCT_SINGLETON_ENTRY:
                     isolated["test_refs"] += [

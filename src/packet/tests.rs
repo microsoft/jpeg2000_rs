@@ -1,6 +1,98 @@
 use super::*;
 
 #[test]
+fn rollback_snapshot_storage_outer_roles_precede_children_and_restore_exact_packet() {
+    let limits = ResourceLimits::default();
+    let template = literal_progression_tile(&[], 1, 0, 0, 1);
+    let mut expected = literal_packet_precinct();
+    let decoded =
+        decode_jpip_precinct_packet(&template, &[0], 0, 0, &mut expected, &limits).unwrap();
+    let expected = exact_packet_precinct_snapshot(&expected);
+    for after in [0, 1, 2, 3] {
+        let mut precinct = literal_packet_precinct();
+        let before = exact_packet_precinct_snapshot(&precinct);
+        assert_eq!(
+            crate::allocation::with_refusal(after, || decode_jpip_precinct_packet(
+                &template,
+                &[0],
+                0,
+                0,
+                &mut precinct,
+                &limits
+            )),
+            Err(DecodeError::AllocationFailed)
+        );
+        assert_eq!(exact_packet_precinct_snapshot(&precinct), before);
+        assert_eq!(
+            decode_jpip_precinct_packet(&template, &[0], 0, 0, &mut precinct, &limits),
+            Ok(decoded)
+        );
+        assert_eq!(exact_packet_precinct_snapshot(&precinct), expected);
+    }
+}
+
+#[test]
+fn rollback_snapshot_storage_empty_and_independent_raw_owners_keep_error_frontiers() {
+    let limits = ResourceLimits::default();
+    let template = literal_progression_tile(&[], 1, 0, 0, 1);
+    let empty = || PacketPrecinctDecoder {
+        component: 7,
+        resolution: 2,
+        precinct: 19,
+        states: Vec::new(),
+        contexts: Vec::new(),
+        decoders: Vec::new(),
+        subbands: Vec::new(),
+    };
+    let ordinary = decode_jpip_precinct_packet(&template, &[], 0, 0, &mut empty(), &limits);
+    assert!(ordinary.is_err());
+    assert_ne!(ordinary, Err(DecodeError::AllocationFailed));
+    crate::allocation::with_refusal(0, || {
+        let mut precinct = empty();
+        let before = exact_packet_precinct_snapshot(&precinct);
+        assert_eq!(
+            decode_jpip_precinct_packet(&template, &[], 0, 0, &mut precinct, &limits),
+            ordinary
+        );
+        assert_eq!(exact_packet_precinct_snapshot(&precinct), before);
+        assert_eq!(
+            crate::allocation::copy_values(&[1_u8]),
+            Err(DecodeError::AllocationFailed)
+        );
+    });
+    for role in 0..3 {
+        let mut precinct = literal_packet_precinct();
+        if role != 0 {
+            precinct.states.clear();
+        }
+        if role != 1 {
+            precinct.contexts.clear();
+        }
+        if role != 2 {
+            precinct.subbands.clear();
+        }
+        let before = exact_packet_precinct_snapshot(&precinct);
+        assert_eq!(
+            crate::allocation::with_refusal(0, || decode_jpip_precinct_packet(
+                &template,
+                &[],
+                0,
+                0,
+                &mut precinct,
+                &limits
+            )),
+            Err(DecodeError::AllocationFailed)
+        );
+        assert_eq!(exact_packet_precinct_snapshot(&precinct), before);
+        assert_ne!(
+            decode_jpip_precinct_packet(&template, &[], 0, 0, &mut precinct, &limits),
+            Err(DecodeError::AllocationFailed)
+        );
+        assert_eq!(exact_packet_precinct_snapshot(&precinct), before);
+    }
+}
+
+#[test]
 fn tagtree_copy_storage_levels_nodes_empty_raw_sources_and_clone_restore() {
     let limits = ResourceLimits::default();
     let mut source = tag_tree_new(3, 2, &limits).unwrap();
@@ -59,7 +151,7 @@ fn tagtree_copy_storage_packet_rollback_keeps_prior_copies_and_source_then_resto
         let mut precinct = make();
         let before = exact_packet_precinct_snapshot(&precinct);
         assert_eq!(
-            crate::allocation::with_refusal(after, || decode_jpip_precinct_packet(
+            crate::allocation::with_refusal(after + 3, || decode_jpip_precinct_packet(
                 &template,
                 &[],
                 0,
