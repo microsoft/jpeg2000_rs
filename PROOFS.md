@@ -1489,6 +1489,28 @@ boundaries use the existing inventory recipe. Color-selected expansion,
 progressive/JPIP/automatic dispatch and independent full-plan gates remain
 separate; fresh native observations and complete qualification remain required.
 
+## Strict JP2 reconstruction output for interpolation
+
+`decode_jp2_reconstructed` composes actual JP2 inspection/profile admission with
+the existing actual raw reconstruction producer. Its ordered cold run in
+`specs/container_reconstruction.rs` retains reached storage responses, exact
+parser/profile/reconstruction/NLT errors, and the actual centered planes,
+fractions and coded grid. No supplied successful image or extra sample copy is
+introduced. The existing header getter additionally exposes its exact raw-header
+projection so the output guard is tied to the actual parsed container.
+
+Palette, component-mapping and channel-definition processing in both main and
+associated headers is rejected explicitly, even for identity mappings, after
+genuine reconstruction errors. Unparsed associated JPX headers are rejected.
+Enumerated/ICC color metadata does not convert the returned components.
+Independent packet controls retain fractional overshoot and compare final typed
+conversion; error controls retain strict framing/header/NLT/resource failures and
+managed reservation recovery. The existing typed APIs are unchanged.
+
+This is the strict container headroom capability for #296, not the remaining
+PDF recovery/deadline facade, selected reconstruction, general incremental input,
+complete allocation coverage or independent conformance/lifetime qualification.
+
 ## Actual public raw composition and fallback Result
 
 The public `render_jpx_composition` now derives its complete image/error Result

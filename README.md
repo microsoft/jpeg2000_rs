@@ -79,6 +79,15 @@ Use `decode_codestream` for a raw codestream, `decode_jph` for JPH, and
 JPX layer/frame APIs are separate from component sample decoding; see the
 [public exports](src/lib.rs).
 
+For interpolation before final rounding/clipping, use
+`decode_codestream_reconstructed` for raw input or `decode_jp2_reconstructed`
+for a JP2 container. Both return centered `i64` component planes with
+`fraction_bits` and the genuine component grid. JP2 framing, profile and
+header consistency remain checked. NLT and JP2 palette/channel processing are
+explicitly rejected rather than silently bypassed; color metadata does not
+convert these samples. These are strict APIs, not incremental-input or
+damage-recovery modes.
+
 ### Explicit raw missing-EOC recovery
 
 `decode_codestream_recover_missing_eoc(input, options)` is a separate opt-in

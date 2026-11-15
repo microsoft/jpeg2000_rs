@@ -94,6 +94,7 @@ specs/cold_wavelet_planes.rs
 specs/cold_wavelet_prepare.rs
 specs/container_colors.rs
 specs/container_images.rs
+specs/container_reconstruction.rs
 specs/decoder_input.rs
 specs/header.rs
 specs/jp2_associated_header.rs

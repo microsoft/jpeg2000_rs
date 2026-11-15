@@ -191,6 +191,8 @@ mod raw_recovery;
 pub use raw_recovery::*;
 mod container_images;
 pub use container_images::*;
+mod container_reconstruction;
+pub use container_reconstruction::*;
 mod container_colors;
 pub use container_colors::*;
 mod jpx_public_images;

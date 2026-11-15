@@ -6,6 +6,17 @@ restricted, or standards-derived vectors.
 
 ## Running the checks
 
+### JP2 reconstruction-domain output
+
+`cargo test --lib -- reconstructed_output` includes the strict raw and JP2
+reconstruction controls in `src/decode/raw_typed_result_tests.rs`. The JP2 cases
+use actual independently encoded packet bytes to retain centered fractional
+overshoot and nonzero origins, round-trip through the existing typed output, and
+reject palette/channel/NLT processing explicitly. Prefix, header mismatch,
+resource-limit and managed-reservation controls preserve the genuine first
+error and exact successful recovery. The managed sweep is a bounded fixture
+control, not a global allocator or host-availability theorem.
+
 ### Review-policy administration audit
 
 Technical CI and manual solo-owner review are separate responsibilities.

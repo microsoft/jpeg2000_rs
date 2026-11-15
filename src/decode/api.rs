@@ -688,6 +688,103 @@ pub fn decode_jp2_selected(
     apply_jp2_output(decoded, inspected.file().header(), options.limits())
 }
 
+/// Decode a strict JP2 image to centered fixed-point reconstruction planes.
+///
+/// Samples and component geometry have the same meaning as in
+/// [`decode_codestream_reconstructed`]. Container framing, profile and
+/// codestream/header consistency are validated before reconstruction. No color
+/// conversion, rounding, level shift or clipping is performed.
+///
+/// Palettes, component mappings and channel definitions in the main or associated
+/// codestream header are explicitly unsupported, including identity mappings.
+/// Unparsed associated JPX headers are also rejected, not silently bypassed.
+/// Reconstruction and NLT errors take precedence over this output capability
+/// rejection. This API never retries, repairs input or changes strict defaults.
+#[cfg_attr(verus_keep_ghost, verus_spec(result =>
+    ensures crate::specs::part2_decode_jp2_reconstructed_result(
+        input@, crate::options::decode_options_limits(options),
+        crate::image::decoded_image_outcome(result)),
+        crate::image::decoded_image_outcome(result) != Err(DecodeError::AllocationFailed) ==>
+            crate::image::decoded_image_outcome(result)
+                == crate::specs::part2_decode_jp2_reconstructed_value(
+                    input@, crate::options::decode_options_limits(options)),
+))]
+pub fn decode_jp2_reconstructed(
+    input: &[u8],
+    options: &DecodeOptions,
+) -> Result<DecodedImage, DecodeError> {
+    #[cfg(verus_keep_ghost)]
+    proof! {
+        crate::specs::part2_decode_jp2_reconstructed_value_unfold(
+            input@, crate::options::decode_options_limits(options));
+        crate::specs::part2_decode_jp2_reconstructed_normal(
+            input@, crate::options::decode_options_limits(options));
+    }
+    let inspected = match jp2::parse_and_inspect_for_display(input, options.limits()) {
+        Ok(inspected) => inspected,
+        Err(error) => {
+            #[cfg(verus_keep_ghost)]
+            proof! {
+                crate::specs::part2_jp2_reconstructed_inspection_error(
+                    input@, crate::options::decode_options_limits(options), error);
+            }
+            return Err(error);
+        }
+    };
+    #[cfg(verus_keep_ghost)]
+    proof! { jp2::raw_render_file_known(jp2::raw_inspected_file_reference(&inspected)); }
+    let profile = validate_jp2_display_profile(inspected.file());
+    #[cfg(verus_keep_ghost)]
+    proof! {
+        if let Err(error) = profile {
+            crate::specs::part2_jp2_reconstructed_profile_error(
+                input@, crate::options::decode_options_limits(options),
+                jp2::raw_inspected_container_view(&inspected), error);
+        }
+    }
+    profile?;
+    let codestream = inspected.file().codestream(0)?;
+    let decoded = decode_codestream_reconstructed(codestream.data(), options);
+    #[cfg(verus_keep_ghost)]
+    proof! {
+        crate::specs::part2_jp2_reconstructed_image_actual(
+            input@, crate::options::decode_options_limits(options),
+            jp2::raw_inspected_container_view(&inspected),
+            crate::image::decoded_image_outcome(decoded));
+    }
+    let image = decoded?;
+    validate_jp2_reconstruction_output(inspected.file().header())?;
+    if let Some(association) = codestream.codestream_header() {
+        let header = association
+            .parsed_header()
+            .ok_or(DecodeError::UnsupportedFeature {
+                feature: "unparsed JPX header on reconstruction samples",
+            })?;
+        validate_jp2_reconstruction_output(header)?;
+    }
+    Ok(image)
+}
+
+#[cfg_attr(verus_keep_ghost, verus_spec(result =>
+    ensures result == crate::specs::part2_validate_jp2_reconstruction_output(
+        jp2::raw_jp2_header_view(header)),
+))]
+fn validate_jp2_reconstruction_output(header: &jp2::Jp2Header) -> Result<(), DecodeError> {
+    #[cfg(verus_keep_ghost)]
+    proof! {
+        reveal(jp2::raw_jp2_header_view);
+    }
+    if header.palette.is_some()
+        || !header.component_mappings.is_empty()
+        || !header.channel_definition_records.is_empty()
+    {
+        return Err(DecodeError::UnsupportedFeature {
+            feature: "JP2 output transforms on reconstruction samples",
+        });
+    }
+    Ok(())
+}
+
 #[cfg_attr(verus_keep_ghost, verus_spec(result =>
     ensures crate::specs::part2_decode_color_cold_result(input@,
         crate::options::decode_options_limits(options), None, false, crate::color::converted_image_result(result)),

@@ -6027,6 +6027,29 @@ class FrameworkTests(WorkingFiles):
             {framework._RAW_RECONSTRUCTED_ENTRY}, framework._RAW_RECONSTRUCTED_CONTRACTS, 3, isolate=False,
         )
 
+    def test_inventory_binds_strict_jp2_reconstruction_results_to_actual_input_and_header(self):
+        self._assert_complete_packet_contract_bindings(
+            {framework._JP2_RECONSTRUCTED_ENTRY}, framework._JP2_RECONSTRUCTED_CONTRACTS,
+            2, isolate=False,
+        )
+
+    def test_inventory_jp2_reconstruction_requires_cold_run_and_checked_normal_projection(self):
+        coverage = json.loads((framework.VALIDATION / "normative-coverage.json").read_text())
+        entry = next(item for item in coverage["requirements"]
+                     if item["id"] == framework._JP2_RECONSTRUCTED_ENTRY)
+        for field in ("spec_refs", "proof_refs"):
+            for removed in entry[field]:
+                changed = copy.deepcopy(entry)
+                changed[field].remove(removed)
+                if removed["symbol"] not in (
+                    "part2_decode_jp2_reconstructed_run", "part2_decode_jp2_reconstructed_normal",
+                ):
+                    continue
+                with self.subTest(field=field, removed=removed), self.assertRaisesRegex(
+                    ValueError, "whole JP2 reconstructed Result|checked cold normal|complete cold run",
+                ):
+                    framework.validate_normative_coverage(dict(coverage, requirements=[changed]))
+
     def test_inventory_strict_raw_reconstruction_requires_public_and_admission_contracts(self):
         coverage = json.loads((framework.VALIDATION / "normative-coverage.json").read_text())
         entry = next(item for item in coverage["requirements"]
