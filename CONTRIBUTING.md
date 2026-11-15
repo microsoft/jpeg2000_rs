@@ -36,6 +36,30 @@ cargo +1.88.0 check --no-default-features --release --all-targets --locked
 The optional `verus` feature and verification tools use their separately pinned
 toolchain, not the runtime minimum. Do not lower their pins to run these checks.
 
+### Image companion
+
+The workspace defaults to the decoder only, preserving the root verification
+commands and dependency-free default build. The separate
+[`jpeg2000-image`](adapters/image/README.md) package uses the workspace decoder
+without default features. Run its focused checks explicitly:
+
+```sh
+cargo +1.88.0 test -p jpeg2000-image --all-targets --locked
+cargo +1.88.0 test -p jpeg2000-image --doc --locked
+cargo +1.88.0 check -p jpeg2000-image --release --all-targets --locked
+cargo fmt -p jpeg2000-image -- --check
+cargo clippy -p jpeg2000-image --all-targets --locked -- -D warnings
+RUSTDOCFLAGS="-D warnings" cargo doc -p jpeg2000-image --no-deps --locked
+cargo package -p jpeg2000-image --locked
+```
+
+Its package verification resolves the declared registry decoder; the
+[adapter CI](.github/workflows/image-adapter.yml) also runs the packaged adapter
+tests to cover that source boundary. Keep the existing standalone
+`validation/image-consumer-probe` pointed at the actual unpacked decoder: it
+serves a different packaging check and must not silently become a workspace
+consumer. Neither adapter adds `image` to the decoder's default dependency graph.
+
 ### Full development checks
 
 External numerical checks require OpenJPEG's `opj_compress` and

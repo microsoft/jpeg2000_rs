@@ -1,0 +1,48 @@
+name: Image adapter
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    name: Image adapter MSRV (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os:
+          - ubuntu-latest
+          - ubuntu-24.04-arm
+          - macos-latest
+          - windows-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+      - run: rustup toolchain install 1.88.0 --profile minimal
+      - run: cargo +1.88.0 test -p jpeg2000-image --all-targets --locked
+      - run: cargo +1.88.0 test -p jpeg2000-image --doc --locked
+      - run: cargo +1.88.0 check -p jpeg2000-image --release --all-targets --locked
+
+  quality:
+    name: Image adapter quality and package
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+      - run: cargo fmt -p jpeg2000-image -- --check
+      - run: cargo clippy -p jpeg2000-image --all-targets --locked -- -D warnings
+      - run: cargo doc -p jpeg2000-image --no-deps --locked
+        env:
+          RUSTDOCFLAGS: -D warnings
+      - run: cargo package -p jpeg2000-image --locked
+      - name: Test packaged adapter against the registry decoder
+        run: |
+          rustup toolchain install 1.88.0 --profile minimal
+          cargo +1.88.0 test --all-targets --locked --manifest-path target/package/jpeg2000-image-0.1.0/Cargo.toml
+          cargo +1.88.0 test --doc --locked --manifest-path target/package/jpeg2000-image-0.1.0/Cargo.toml
+          git diff --exit-code

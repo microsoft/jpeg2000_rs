@@ -1,3 +1,9 @@
+[workspace]
+members = [".", "adapters/image"]
+default-members = ["."]
+exclude = ["fuzz", "validation/image-consumer-probe"]
+resolver = "3"
+
 [package]
 name = "jpeg2000-decoder"
 version = "0.1.0"
