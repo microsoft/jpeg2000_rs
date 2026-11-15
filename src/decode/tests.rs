@@ -8471,7 +8471,7 @@ fn coefficient_extraction_storage_first_later_prepared_placements_preserve_real_
         .iter()
         .map(crate::packet::exact_packet_precinct_snapshot)
         .collect::<Vec<_>>();
-    for after in [0, 1] {
+    for after in [0, 2] {
         assert_eq!(
             crate::allocation::with_refusal(after, || prepare_tile_component(
                 &plan, &precincts, style, &limits
@@ -8590,6 +8590,243 @@ fn coefficient_extraction_storage_actual_legacy_ht_code_block_packet_and_quantiz
             DecodeError::AllocationFailed
         );
         assert_eq!(decode_code_block(bad_step, &limits).unwrap_err(), ordinary);
+    }
+}
+
+#[test]
+fn quantization_output_storage_final_copy_preserves_exact_source_fraction_and_empty() {
+    use super::code_blocks::copy_code_block_samples;
+    let limits = ResourceLimits::default();
+    let step = QuantizationStep {
+        exponent: 8,
+        mantissa: 1,
+    };
+    let plane =
+        crate::transform::inverse_quantize(&[-7, 0, 11], step, 8, false, 0, &limits).unwrap();
+    let expected = plane.samples().to_vec();
+    let metadata = (plane.width(), plane.height(), plane.fraction_bits());
+    assert_eq!(
+        crate::allocation::with_refusal(0, || copy_code_block_samples(&plane)),
+        Err(DecodeError::AllocationFailed)
+    );
+    assert_eq!(copy_code_block_samples(&plane).unwrap(), expected);
+    assert_eq!(
+        (plane.width(), plane.height(), plane.fraction_bits()),
+        metadata
+    );
+    crate::allocation::with_refusal(1, || {
+        assert_eq!(copy_code_block_samples(&plane).unwrap(), expected);
+        assert_eq!(
+            copy_code_block_samples(&plane),
+            Err(DecodeError::AllocationFailed)
+        );
+        assert_eq!(copy_code_block_samples(&plane).unwrap(), expected);
+    });
+    let empty = crate::transform::inverse_quantize(&[], step, 8, false, 0, &limits).unwrap();
+    crate::allocation::with_refusal(0, || {
+        assert!(copy_code_block_samples(&empty).unwrap().is_empty());
+        assert_eq!(
+            copy_code_block_samples(&plane),
+            Err(DecodeError::AllocationFailed)
+        );
+    });
+}
+
+#[test]
+fn quantization_output_storage_first_later_real_preparation_owners_and_restore() {
+    let (plan, precincts, style) = standard_prepare_fixture(
+        &[codestream::DecompositionDirection::Horizontal],
+        true,
+        false,
+        1,
+    );
+    let limits = ResourceLimits::default();
+    let expected = prepare_tile_component(&plan, &precincts, style, &limits).unwrap();
+    let source: Vec<_> = precincts
+        .iter()
+        .map(crate::packet::exact_packet_precinct_snapshot)
+        .collect();
+    for after in [1, 3] {
+        assert_eq!(
+            crate::allocation::with_refusal(after, || prepare_tile_component(
+                &plan, &precincts, style, &limits
+            )),
+            Err(DecodeError::AllocationFailed)
+        );
+        let actual = prepare_tile_component(&plan, &precincts, style, &limits).unwrap();
+        assert_eq!(
+            (
+                actual.width(),
+                actual.height(),
+                actual.fraction_bits(),
+                actual.samples()
+            ),
+            (
+                expected.width(),
+                expected.height(),
+                expected.fraction_bits(),
+                expected.samples()
+            )
+        );
+        assert_eq!(
+            precincts
+                .iter()
+                .map(crate::packet::exact_packet_precinct_snapshot)
+                .collect::<Vec<_>>(),
+            source
+        );
+    }
+}
+
+#[test]
+fn quantization_output_storage_actual_legacy_ht_code_block_sample_and_copy_refusals() {
+    let limits = ResourceLimits::default();
+    for ht in [false, true] {
+        let style = Tier1CodingStyle::from_code_block_style(if ht { 0x40 } else { 0 }).unwrap();
+        let mut inclusion = TagTree::new(1, 1, &limits).unwrap();
+        let mut zero = TagTree::new(1, 1, &limits).unwrap();
+        let mut state = CodeBlockPacketState::new();
+        let packet = [if ht { 0xc8 } else { 0xca }];
+        let mut reader = PacketBitReader::new(&packet, &limits).unwrap();
+        let contribution = decode_code_block_contribution(
+            &mut state,
+            &mut inclusion,
+            &mut zero,
+            CodeBlockPacketContext {
+                leaf_x: 0,
+                leaf_y: 0,
+                layer: 0,
+                maximum_zero_bitplanes: 1,
+                tier1_style: style,
+            },
+            &mut reader,
+        )
+        .unwrap()
+        .unwrap();
+        let body = if ht {
+            &[0xfe, 0, 0x63, 0][..]
+        } else {
+            &[0; 5][..]
+        };
+        let layers = [CodeBlockLayer {
+            contribution: &contribution,
+            body,
+        }];
+        let request = CodeBlockDecodeRequest {
+            width: 1,
+            height: 1,
+            significant_bitplanes: 1,
+            orientation: SubbandOrientation::Ll,
+            style,
+            layers: &layers,
+            quantization_step: QuantizationStep {
+                exponent: 0,
+                mantissa: 0,
+            },
+            dynamic_range: 8,
+            reversible: true,
+            roi_shift: 0,
+        };
+        let expected = decode_code_block(request, &limits).unwrap();
+        for after in if ht { [10, 11] } else { [5, 6] } {
+            assert_eq!(
+                crate::allocation::with_refusal(after, || decode_code_block(request, &limits))
+                    .unwrap_err(),
+                DecodeError::AllocationFailed
+            );
+            let actual = decode_code_block(request, &limits).unwrap();
+            assert_eq!(
+                (
+                    actual.width(),
+                    actual.height(),
+                    actual.fraction_bits(),
+                    actual.samples()
+                ),
+                (
+                    expected.width(),
+                    expected.height(),
+                    expected.fraction_bits(),
+                    expected.samples()
+                )
+            );
+        }
+    }
+}
+
+#[test]
+fn quantization_output_storage_actual_ht_raw_selected_jph_reconstructed_and_automatic_restore() {
+    let mut bytes = prepared_codestream(1, 1, 1, &[0, 0x10], &[0xe4, 0xfe, 0, 0x63, 0]);
+    let siz = bytes.windows(2).position(|p| p == [0xff, 0x51]).unwrap();
+    bytes[siz + 4..siz + 6].copy_from_slice(&0x4000_u16.to_be_bytes());
+    let cod = bytes.windows(2).position(|p| p == [0xff, 0x52]).unwrap();
+    bytes.splice(cod..cod, segment(0xff50, &[0, 2, 0, 0, 0, 8]));
+    let cod = bytes.windows(2).position(|p| p == [0xff, 0x52]).unwrap();
+    bytes[cod + 9] = 0;
+    bytes[cod + 12] = 0x40;
+    let options = DecodeOptions::default();
+    let selection = DecodeSelection::full_image();
+    let expected = decode_codestream(&bytes, &options).unwrap();
+    let expected_raw = decode_codestream_reconstructed(&bytes, &options).unwrap();
+    let mut jph = jp2_for_codestream(&bytes, 1, 1);
+    jph[20..24].copy_from_slice(b"jph ");
+    jph[28..32].copy_from_slice(b"jph ");
+    assert_eq!(
+        crate::allocation::with_refusal(35, || decode_codestream(&bytes, &options)).unwrap_err(),
+        DecodeError::AllocationFailed
+    );
+    assert_eq!(
+        crate::allocation::with_refusal(36, || decode_codestream_selected(
+            &bytes, &options, &selection
+        ))
+        .unwrap_err(),
+        DecodeError::AllocationFailed
+    );
+    assert_eq!(
+        crate::allocation::with_refusal(47, || decode_jph(&jph, &options)).unwrap_err(),
+        DecodeError::AllocationFailed
+    );
+    assert_eq!(
+        crate::allocation::with_refusal(35, || decode_codestream_reconstructed(&bytes, &options))
+            .unwrap_err(),
+        DecodeError::AllocationFailed
+    );
+    assert_eq!(decode_codestream(&bytes, &options).unwrap(), expected);
+    assert_eq!(
+        decode_codestream_selected(&bytes, &options, &selection).unwrap(),
+        expected
+    );
+    assert_eq!(decode_jph(&jph, &options).unwrap(), expected);
+    assert_eq!(
+        decode_codestream_reconstructed(&bytes, &options).unwrap(),
+        expected_raw
+    );
+    let limits = ResourceLimits::default();
+    let tile = bytes.windows(2).position(|p| p == [0xff, 0x90]).unwrap();
+    let packet = tile + 14;
+    let mut cache = crate::jpip::DatabinCache::new(limits);
+    for (class, data) in [
+        (6, &bytes[..tile]),
+        (2, &bytes[tile..packet]),
+        (0, &bytes[packet..bytes.len() - 2]),
+    ] {
+        let id = crate::jpip::DatabinId::new(class, 0, 0).unwrap();
+        cache
+            .insert(
+                crate::jpip::JpipFragment::new(id, 0, data.to_vec(), true, None, &limits).unwrap(),
+            )
+            .unwrap();
+    }
+    let packets = crate::jpip::JpipPacketSelection::all_components();
+    for selected in [false, true] {
+        let mut decoder = crate::jpip::JpipAutomaticProgressiveDecoder::new(0);
+        let update = if selected {
+            decoder.update_selected(&cache, &options, &selection, &packets)
+        } else {
+            decoder.update(&cache, &options)
+        }
+        .unwrap();
+        assert_eq!(update.image(), Some(&expected));
+        assert_eq!(decoder.decoded_layers(), 1);
     }
 }
 

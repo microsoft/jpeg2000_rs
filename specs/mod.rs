@@ -134,6 +134,8 @@ mod cold_ht_refinement_scratch;
 pub use cold_ht_refinement_scratch::*;
 mod cold_ht_significance;
 pub use cold_ht_significance::*;
+mod cold_quantization_outputs;
+pub use cold_quantization_outputs::*;
 mod cold_coefficient_extraction;
 pub use cold_coefficient_extraction::*;
 mod cold_extraction_reconstruction;

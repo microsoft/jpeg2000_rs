@@ -15989,6 +15989,8 @@
       ],
       "id": "part1-complete-supplied-coefficient-quantization",
       "implementation_refs": [
+        {"path": "src/decode/code_blocks.rs", "symbol": "decode_code_block"},
+        {"path": "src/decode/code_blocks.rs", "symbol": "copy_code_block_samples"},
         {
           "path": "src/decode/reconstruction.rs",
           "symbol": "prepare_tile_component_with_kernel"
@@ -16026,13 +16028,32 @@
         {
           "path": "proofs/spec_properties/mod.rs",
           "symbol": "inverse_quantization_has_complete_plane_metadata"
-        }
+        },
+        {"path": "specs/cold_quantization_outputs.rs", "symbol": "part2_quantization_capacity_observed"},
+        {"path": "specs/cold_quantization_outputs.rs", "symbol": "part2_quantization_plane_normal"},
+        {"path": "specs/cold_quantization_outputs.rs", "symbol": "part2_quantization_plane_refused"},
+        {"path": "specs/cold_quantization_outputs.rs", "symbol": "part2_quantization_plane_frames"},
+        {"path": "specs/cold_quantization_outputs.rs", "symbol": "part2_integer_quantization_normal"},
+        {"path": "specs/cold_quantization_outputs.rs", "symbol": "part2_integer_quantization_refused"},
+        {"path": "specs/cold_quantization_outputs.rs", "symbol": "part2_integer_quantization_child_observed"},
+        {"path": "specs/cold_quantization_outputs.rs", "symbol": "part2_quantized_samples_copy_observed"}
       ],
       "spec_refs": [
         {
           "path": "specs/mod.rs",
           "symbol": "part1_inverse_integer_quantization"
         },
+        {"path": "specs/cold_quantization_outputs.rs", "symbol": "Part2QuantizationOwner"},
+        {"path": "specs/cold_quantization_outputs.rs", "symbol": "part2_quantization_capacity_run"},
+        {"path": "specs/cold_quantization_outputs.rs", "symbol": "part2_quantization_capacity_result"},
+        {"path": "specs/cold_quantization_outputs.rs", "symbol": "part2_quantization_admit"},
+        {"path": "specs/cold_quantization_outputs.rs", "symbol": "part2_quantization_plane_run"},
+        {"path": "specs/cold_quantization_outputs.rs", "symbol": "part2_quantization_plane_result"},
+        {"path": "specs/cold_quantization_outputs.rs", "symbol": "part2_integer_quantization_after_wide"},
+        {"path": "specs/cold_quantization_outputs.rs", "symbol": "part2_integer_quantization_run"},
+        {"path": "specs/cold_quantization_outputs.rs", "symbol": "part2_integer_quantization_result"},
+        {"path": "specs/cold_quantization_outputs.rs", "symbol": "part2_quantized_samples_copy_run"},
+        {"path": "specs/cold_quantization_outputs.rs", "symbol": "part2_quantized_samples_copy_result"},
         {
           "path": "specs/mod.rs",
           "symbol": "part1_inverse_quantization"
@@ -16058,7 +16079,13 @@
         {
           "path": "src/transform/tests.rs",
           "symbol": "quantization_rejects_in_production_order_and_preserves_public_adapters"
-        }
+        },
+        {"path": "src/transform/tests.rs", "symbol": "quantization_output_storage_wide_samples_first_later_refusal_exact_values_and_restore"},
+        {"path": "src/transform/tests.rs", "symbol": "quantization_output_storage_zero_admission_and_actual_scalar_error_precedence"},
+        {"path": "src/decode/tests.rs", "symbol": "quantization_output_storage_final_copy_preserves_exact_source_fraction_and_empty"},
+        {"path": "src/decode/tests.rs", "symbol": "quantization_output_storage_first_later_real_preparation_owners_and_restore"},
+        {"path": "src/decode/tests.rs", "symbol": "quantization_output_storage_actual_legacy_ht_code_block_sample_and_copy_refusals"},
+        {"path": "src/decode/tests.rs", "symbol": "quantization_output_storage_actual_ht_raw_selected_jph_reconstructed_and_automatic_restore"}
       ],
       "topic": "Complete supplied-coefficient ROI and reversible/Q16 inverse quantization planes, including actual configured budgets and typed first failures; the public integer API's concrete consumer is its independent adapter test, while decode directly uses the wide adapter; not entropy-decoder meaning or irreversible conformance"
     },
@@ -16575,6 +16602,8 @@
         {"path": "specs/cold_extraction_reconstruction.rs", "symbol": "part2_coefficient_component_normal"},
         {"path": "specs/cold_extraction_reconstruction.rs", "symbol": "part2_extraction_place_normal"},
         {"path": "specs/cold_extraction_reconstruction.rs", "symbol": "part2_extraction_place_error"},
+        {"path": "specs/cold_extraction_reconstruction.rs", "symbol": "part2_extraction_place_after_coefficients_normal"},
+        {"path": "specs/cold_extraction_reconstruction.rs", "symbol": "part2_extraction_place_quantization_error"},
         {"path": "specs/cold_extraction_reconstruction.rs", "symbol": "part2_extraction_placements_normal"},
         {"path": "specs/cold_extraction_reconstruction.rs", "symbol": "part2_extraction_placements_step"},
         {"path": "specs/cold_extraction_reconstruction.rs", "symbol": "part2_extraction_placements_error"},
@@ -16606,6 +16635,8 @@
         {"path": "specs/cold_extraction_reconstruction.rs", "symbol": "part2_extraction_place_after"},
         {"path": "specs/cold_extraction_reconstruction.rs", "symbol": "part2_extraction_place_run"},
         {"path": "specs/cold_extraction_reconstruction.rs", "symbol": "part2_extraction_place_result"},
+        {"path": "specs/cold_extraction_reconstruction.rs", "symbol": "part2_extraction_place_after_quantization"},
+        {"path": "specs/cold_extraction_reconstruction.rs", "symbol": "part2_extraction_place_after_coefficients_run"},
         {"path": "specs/cold_extraction_reconstruction.rs", "symbol": "part2_extraction_placements_run"},
         {"path": "specs/cold_extraction_reconstruction.rs", "symbol": "part2_extraction_placements_next"},
         {"path": "specs/cold_extraction_reconstruction.rs", "symbol": "part2_extraction_component_admit"},

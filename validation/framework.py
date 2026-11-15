@@ -4813,6 +4813,8 @@ _RAW_RENDER_PROOFS |= {("specs/jpx_raw_frame.rs", "part2_render_raw_cold_metadat
 _RAW_COMPOSITION_RENDER_PROOFS |= {("specs/jpx_raw_frame.rs", "part2_render_raw_cold_metadata_error")}
 
 _PLANE_ROLE_MODEL_INFO = {
+    "part1_inverse_integer_quantization": ("part2_integer_quantization_result", "specs/cold_quantization_outputs.rs", "part2_integer_quantization_normal"),
+    "part1_inverse_quantization": ("part2_quantization_plane_result", "specs/cold_quantization_outputs.rs", "part2_quantization_plane_normal"),
     "ht_cleanup_significance": ("part2_cleanup_significance_result", "specs/cold_ht_significance.rs", "part2_cleanup_significance_normal"),
     "part1_prepare_collect_coefficients": ("part2_coefficient_collect_result", "specs/cold_coefficient_extraction.rs", "part2_coefficient_collect_normal"),
     "part1_prepare_placement": ("part2_extraction_place_result", "specs/cold_extraction_reconstruction.rs", "part2_extraction_place_normal"),
@@ -4859,6 +4861,8 @@ _PLANE_ROLE_RESULT_RUNS = {
     for old, (model, _, _) in _PLANE_ROLE_MODEL_INFO.items()
 }
 _PLANE_ROLE_RESULT_RUNS.update({
+    "part2_integer_quantization_result": ("part2_integer_quantization_run", False),
+    "part2_quantization_plane_result": ("part2_quantization_plane_run", False),
     "part2_cleanup_significance_result": ("part2_cleanup_significance_run", False),
     "part2_coefficient_collect_result": ("part2_coefficient_collect_run", False),
     "part2_extraction_place_result": ("part2_extraction_place_run", True),
@@ -5258,6 +5262,28 @@ _COLD_RESULT_CONTRACTS = {
     ),
 }
 _COLD_RESULT_CONTRACTS.update(_LEGACY_PACKET_STORAGE_CONTRACTS)
+_COLD_RESULT_CONTRACTS.update({
+    ("src/transform/quantization.rs", "inverse_quantize"): (
+        "part2_integer_quantization_result",
+        r"coefficients@\s*,\s*step\.exponent\s*,\s*step\.mantissa\s*,\s*dynamic_range\s*,\s*reversible\s*,\s*roi_shift\s*,\s*"
+        + _coverage_call("crate::limits::resource_decoded_bytes_limit", "limits") + r"\s*,\s*" + _coverage_call("reconstruction_outcome", r"\1"),
+    ),
+    ("src/transform/quantization.rs", "inverse_quantize_values"): (
+        "part2_integer_quantization_result",
+        r"coefficients@\s*,\s*step\.exponent\s*,\s*step\.mantissa\s*,\s*dynamic_range\s*,\s*reversible\s*,\s*roi_shift\s*,\s*maximum_decoded_bytes\s*,\s*"
+        + _coverage_call("reconstruction_outcome", r"\1"),
+    ),
+    ("src/transform/quantization.rs", "inverse_quantize_magnitudes"): (
+        "part2_quantization_plane_result",
+        _coverage_call("quantized_coefficients_view", "coefficients@") + r"\s*,\s*step\.exponent\s*,\s*step\.mantissa\s*,\s*dynamic_range\s*,\s*reversible\s*,\s*roi_shift\s*,\s*"
+        + _coverage_call("crate::limits::resource_decoded_bytes_limit", "limits") + r"\s*,\s*" + _coverage_call("reconstruction_outcome", r"\1"),
+    ),
+    ("src/transform/quantization.rs", "inverse_quantize_plane"): (
+        "part2_quantization_plane_result",
+        _coverage_call("quantized_coefficients_view", "coefficients@") + r"\s*,\s*step\.exponent\s*,\s*step\.mantissa\s*,\s*dynamic_range\s*,\s*reversible\s*,\s*roi_shift\s*,\s*maximum_decoded_bytes\s*,\s*"
+        + _coverage_call("reconstruction_outcome", r"\1"),
+    ),
+})
 _COLD_RESULT_CONTRACTS.update({
     key: _coverage_cold_relation(legacy)
     for key, legacy in _RECONSTRUCTION_CONTRACTS.items()
@@ -7002,6 +7028,67 @@ _PREPARATION_NATIVE_ORDER = {
         "part2_packet_progress_error(", "let mut progress = progress_result?", "run_progression_tile_packets(",
     ),
 }
+_QUANTIZATION_OUTPUT_GUARDS = {
+    ("specs/cold_quantization_outputs.rs", "part2_quantization_capacity_run"): (
+        "if count==0{Some((Ok(()),calls))}", "QuantizationCapacity",
+        "actual!=owner || elements!=count", "if succeeded{Ok(())}else{Err(crate::DecodeError::AllocationFailed)}", "calls.drop_first()",
+    ),
+    ("specs/cold_quantization_outputs.rs", "part2_quantization_admit"): (
+        "dynamic_range==0 || dynamic_range>38 || mantissa>2047", "exponent>31",
+        "part1_quantization_budget(count,maximum)", "part1_quantization_step(exponent,mantissa,dynamic_range)",
+    ),
+    ("specs/cold_quantization_outputs.rs", "part2_quantization_plane_run"): (
+        "part2_quantization_admit(coefficients.len(),exponent,mantissa,dynamic_range,reversible,maximum)",
+        "Err(error)=>Some((Err(error),calls))", "Part2QuantizationOwner::Samples,coefficients.len(),calls",
+        "part1_inverse_quantization(coefficients,exponent,mantissa,dynamic_range,reversible,shift,maximum)",
+    ),
+    ("specs/cold_quantization_outputs.rs", "part2_integer_quantization_run"): (
+        "Part2QuantizationOwner::Wide,coefficients.len(),calls",
+        "part2_integer_quantization_after_wide(coefficients,exponent,mantissa,dynamic_range,reversible,shift,maximum,rest)",
+    ),
+    ("specs/cold_quantization_outputs.rs", "part2_integer_quantization_after_wide"): (
+        "coefficients[i]==i64::MIN", "Some((Err(part1_transform_error(true)),calls))",
+        "part2_quantization_plane_run(part1_integer_coefficients(coefficients)",
+    ),
+    ("specs/cold_quantization_outputs.rs", "part2_quantized_samples_copy_run"): (
+        "Part2QuantizationOwner::CodeBlockCopy,source.len(),calls", "Some((Ok(source),rest))",
+    ),
+    ("specs/cold_extraction_reconstruction.rs", "part2_extraction_place_after_coefficients_run"): (
+        "Err(error)=>Some((Ok((Err(error),working)),calls))",
+        "part2_quantization_plane_run(values,geometry.quantization_step.exponent,geometry.quantization_step.mantissa,geometry.dynamic_range,reversible,geometry.roi_shift,maximum,calls)",
+        "part2_extraction_place_after_quantization(working,geometry,placement,plane,reversible,quantized)",
+    ),
+}
+_QUANTIZATION_OUTPUT_NATIVE_ORDER = {
+    ("src/transform/quantization.rs", "inverse_quantize_values"): (
+        "let count = coefficients.len()", "if count == 0", "crate::allocation::empty_with_capacity(count)",
+        "let mut wide = allocated?", "if value == i64::MIN", "let magnitude = checked_magnitude(value)?",
+        "wide.push", "let quantized = inverse_quantize_plane",
+    ),
+    ("src/transform/quantization.rs", "inverse_quantize_plane"): (
+        "dynamic_range == 0 || dynamic_range > 38 || step.mantissa > 0x07ff", "step.exponent > 31",
+        "validate_quantization_size(coefficients.len(), maximum_decoded_bytes)?",
+        "quantization_step_q16(step, dynamic_range)?", "if count == 0", "crate::allocation::empty_with_capacity(count)",
+        "let mut samples = allocated?", "quantize_magnitude_sample(", "samples.push(sample)", "coefficients.len() > u32::MAX",
+    ),
+    ("src/decode/code_blocks.rs", "decode_code_block"): (
+        "collect_code_block_coefficients(decoder.plane())?", "inverse_quantize_magnitudes(", "copy_code_block_samples(&quantized)?",
+    ),
+    ("src/decode/code_blocks.rs", "copy_code_block_samples"): ("let source = plane.samples()", "crate::allocation::copy_values(source)"),
+    ("src/decode/reconstruction.rs", "place_prepare_block"): (
+        "let coefficients = collected?", "let quantized_result = inverse_quantize_magnitudes(", "let quantized = quantized_result?",
+        "quantized.fraction_bits()", "write_quantized_block(",
+    ),
+}
+_QUANTIZATION_OUTPUT_TESTS = {
+    ("src/transform/tests.rs", "quantization_output_storage_wide_samples_first_later_refusal_exact_values_and_restore"),
+    ("src/transform/tests.rs", "quantization_output_storage_zero_admission_and_actual_scalar_error_precedence"),
+    ("src/decode/tests.rs", "quantization_output_storage_final_copy_preserves_exact_source_fraction_and_empty"),
+    ("src/decode/tests.rs", "quantization_output_storage_first_later_real_preparation_owners_and_restore"),
+    ("src/decode/tests.rs", "quantization_output_storage_actual_legacy_ht_code_block_sample_and_copy_refusals"),
+    ("src/decode/tests.rs", "quantization_output_storage_actual_ht_raw_selected_jph_reconstructed_and_automatic_restore"),
+}
+
 _CLEANUP_SIGNIFICANCE_GUARDS = {
     ("specs/cold_ht_significance.rs", "part2_cleanup_significance_capacity_run"): (
         "if count==0{Some((Ok(()),calls))}", "CleanupSignificanceCapacity",
@@ -7067,7 +7154,7 @@ _COEFFICIENT_EXTRACTION_GUARDS = {
         "Err(error)=>Some((Ok((Err(error),working)),calls))",
         "Ok(None)=>Some((Ok((Ok(()),working)),calls))",
         "part2_tier1_storage_resume(part2_extraction_run(plane,true,calls)",
-        "part2_extraction_place_after(working,geometry,placement,plane,reversible,maximum,result)",
+        "part2_extraction_place_after_coefficients_run(working,geometry,placement,plane,reversible,maximum,result,rest)",
     ),
     ("specs/cold_extraction_reconstruction.rs", "part2_extraction_placements_next"): (
         "if effect.0.is_err(){Some((Ok(effect),calls))}",
@@ -14050,6 +14137,22 @@ def validate_normative_coverage(
                         )), contract[ordinary.end():],
                     ) is not None
                 )
+            if (reference["path"] == "src/transform/quantization.rs" and short in (
+                    "inverse_quantize", "inverse_quantize_values", "inverse_quantize_magnitudes", "inverse_quantize_plane")
+                    and cold_contract is not None):
+                integer = short in ("inverse_quantize", "inverse_quantize_values")
+                inputs = ("coefficients@" if integer else _coverage_call("quantized_coefficients_view", "coefficients@"))
+                maximum = ("maximum_decoded_bytes" if short in ("inverse_quantize_values", "inverse_quantize_plane")
+                           else _coverage_call("crate::limits::resource_decoded_bytes_limit", "limits"))
+                args = inputs + r"\s*,\s*step\.exponent\s*,\s*step\.mantissa\s*,\s*dynamic_range\s*,\s*reversible\s*,\s*roi_shift\s*,\s*" + maximum
+                ordinary = re.search(
+                    _coverage_call("reconstruction_outcome", r"(?P<name>\w+)")
+                    + r"\s*!=\s*Err\s*\(\s*DecodeError::AllocationFailed\s*\)\s*==>", contract,
+                )
+                if (ordinary is None or named_result is None or ordinary["name"] != named_result[1]
+                        or not _coverage_extraction_normal_arguments(contract, "reconstruction_outcome",
+                            "part1_inverse_integer_quantization" if integer else "part1_inverse_quantization", args)):
+                    raise ValueError(f"linked function lacks executable Verus contract: {short}; missing exact first ordinary quantization projection")
             prepare_contract_arguments = {
                 "prepare_tile_component": (
                     "part1_prepare_standard_component",
@@ -14245,6 +14348,23 @@ def validate_normative_coverage(
                 raise ValueError(f"linked function is not used by claimed implementation: {short}")
             if claimed_consumer:
                 contract_functions.add((reference["path"], reference["symbol"]))
+    if "part1-complete-supplied-coefficient-quantization" in ids:
+        quantization_entry = next(e for e in coverage["requirements"] if e["id"] == "part1-complete-supplied-coefficient-quantization")
+        if not _QUANTIZATION_OUTPUT_TESTS.issubset({
+                (ref["path"], ref["symbol"]) for ref in quantization_entry["test_refs"]}):
+            raise ValueError("quantization output requires bounded numerical/raw/empty/refusal/restore/public controls")
+        for (relative, symbol), fragments in _QUANTIZATION_OUTPUT_GUARDS.items():
+            body = _coverage_spec_function_body(source_text((ROOT / relative).resolve()), symbol)
+            compact = "".join(body.split()) if body is not None else ""
+            if any("".join(fragment.split()) not in compact for fragment in fragments):
+                raise ValueError("quantization output requires actual numerical source, distinct owner/count, child/error/unused-tail composition")
+        for (relative, symbol), fragments in _QUANTIZATION_OUTPUT_NATIVE_ORDER.items():
+            path = (ROOT / relative).resolve()
+            body = _coverage_function_body(source_text(path), function_header(path, symbol))
+            compact = "".join(body.split()) if body is not None else ""
+            positions = [compact.find("".join(fragment.split())) for fragment in fragments]
+            if any(position < 0 for position in positions) or positions != sorted(positions):
+                raise ValueError("quantization output requires original real conversion/admission/step/reserve/sample/copy order")
     if "part15-complete-actual-refinement-plane" in ids:
         significance_entry = next(e for e in coverage["requirements"] if e["id"] == "part15-complete-actual-refinement-plane")
         if not _CLEANUP_SIGNIFICANCE_TESTS.issubset({

@@ -382,14 +382,23 @@ class FrameworkTests(WorkingFiles):
         self.assertEqual(framework.validate_normative_coverage(coverage)["status"], "passed")
         mutations = []
         for projection in ("reconstruction_outcome", "sequence_outcome"):
+            prefix = (f"ensures {projection}(result)" if projection == "sequence_outcome"
+                      else f"{projection}(result)!=Err(DecodeError::AllocationFailed) ==> {projection}(result)")
             mutations.extend((
-                (f"ensures {projection}(result)", f"ensures {projection}(unrelated)"),
-                (f"ensures {projection}(result)", "ensures unlisted_projection(result)"),
-                (f"ensures {projection}(result)", "ensures owned_layer_outcome(result)"),
+                (prefix, prefix.replace(f"{projection}(result)", f"{projection}(unrelated)")),
+                (prefix, prefix.rsplit(f"{projection}(result)", 1)[0] + "unlisted_projection(result)"),
+                (prefix, prefix.rsplit(f"{projection}(result)", 1)[0] + "owned_layer_outcome(result)"),
             ))
         for model in ("part1_inverse_integer_quantization", "part1_inverse_quantization",
                       "part1_inverse_five_three", "part1_interleaved"):
             mutations.append((f"== crate::specs::{model}(", "== crate::specs::unlisted_model("))
+        for model in ("part2_integer_quantization_result", "part2_quantization_plane_result"):
+            primary = f"ensures crate::specs::{model}"
+            mutations.extend((
+                (primary, f"ensures result.is_ok() ==> crate::specs::{model}"),
+                (primary, "ensures unlisted_projection"),
+                (primary, "ensures owned_layer_outcome"),
+            ))
         self._assert_contract_text_mutations(coverage, mutations)
 
     def test_inventory_checks_standard_profile_bound_return_projections(self):
@@ -8550,6 +8559,72 @@ class FrameworkTests(WorkingFiles):
             bad = good.replace(before, after, 1)
             changed_contract = contract[:first] + bad + contract[end:closing] + good + contract[closing:]
             changed = original[:start] + changed_contract + original[header.start():]
+
+            def altered(path, *args, **kwargs):
+                return changed if path == source else read_text(path, *args, **kwargs)
+
+            with self.subTest(before=before), mock.patch.object(Path, "read_text", altered), \
+                    self.assertRaisesRegex(ValueError, "executable Verus contract"):
+                framework.validate_normative_coverage(data)
+
+    def test_inventory_quantization_output_requires_actual_roles_sources_tail_and_first_normal(self):
+        coverage = json.loads((framework.VALIDATION / "normative-coverage.json").read_text())
+        data = dict(coverage, requirements=[
+            e for e in coverage["requirements"] if e["id"] == "part1-complete-supplied-coefficient-quantization"
+        ])
+        self.assertEqual(framework.validate_normative_coverage(data)["status"], "passed")
+        read_text = Path.read_text
+        for relative, symbol, before, after in (
+            ("specs/cold_quantization_outputs.rs", "part2_quantization_capacity_run", "count==0", "count==1"),
+            ("specs/cold_quantization_outputs.rs", "part2_quantization_capacity_run", "actual!=owner", "false"),
+            ("specs/cold_quantization_outputs.rs", "part2_quantization_capacity_run", "elements!=count", "false"),
+            ("specs/cold_quantization_outputs.rs", "part2_quantization_capacity_run", "calls.drop_first()", "calls"),
+            ("specs/cold_quantization_outputs.rs", "part2_integer_quantization_run", "Part2QuantizationOwner::Wide", "Part2QuantizationOwner::Samples"),
+            ("specs/cold_quantization_outputs.rs", "part2_integer_quantization_after_wide", "coefficients[i]==i64::MIN", "false"),
+            ("specs/cold_quantization_outputs.rs", "part2_quantization_plane_run", "Part2QuantizationOwner::Samples", "Part2QuantizationOwner::Wide"),
+            ("specs/cold_quantization_outputs.rs", "part2_quantized_samples_copy_run", "Some((Ok(source),rest))", "Some((Ok(Seq::empty()),rest))"),
+            ("specs/cold_extraction_reconstruction.rs", "part2_extraction_place_after_coefficients_run", "part2_quantization_plane_run(values,", "part2_quantization_plane_run(Seq::empty(),"),
+            ("src/transform/quantization.rs", "inverse_quantize_values", "empty_with_capacity(count)", "empty_with_capacity(1)"),
+            ("src/transform/quantization.rs", "inverse_quantize_plane", "empty_with_capacity(count)", "empty_with_capacity(1)"),
+            ("src/decode/code_blocks.rs", "copy_code_block_samples", "copy_values(source)", "copy_values(&[])"),
+        ):
+            source = framework.ROOT / relative
+            original = source.read_text()
+            body = (framework._coverage_function_body(original, framework._coverage_function_header(original, symbol))
+                    if relative.startswith("src/") else framework._coverage_spec_function_body(original, symbol))
+            changed_body, count = re.subn(re.escape(before).replace(r"\ ", r"\s*"), lambda _: after, body, count=1)
+            self.assertEqual(count, 1, (symbol, before))
+            changed = original.replace(body, changed_body, 1)
+
+            def altered(path, *args, **kwargs):
+                return changed if path == source else read_text(path, *args, **kwargs)
+
+            with self.subTest(symbol=symbol, before=before), mock.patch.object(Path, "read_text", altered), \
+                    self.assertRaisesRegex(ValueError, "quantization output"):
+                framework.validate_normative_coverage(data)
+        missing = copy.deepcopy(data)
+        missing["requirements"][0]["test_refs"] = [
+            r for r in missing["requirements"][0]["test_refs"]
+            if (r["path"], r["symbol"]) not in framework._QUANTIZATION_OUTPUT_TESTS
+        ]
+        with self.assertRaisesRegex(ValueError, "quantization output requires bounded"):
+            framework.validate_normative_coverage(missing)
+        source = framework.ROOT / "src/transform/quantization.rs"
+        original = source.read_text()
+        header = framework._coverage_function_header(original, "inverse_quantize_plane")
+        start = original.rfind("#[cfg_attr", 0, header.start())
+        contract = original[start:header.start()]
+        closing = contract.rfind("))]")
+        first = contract.index("reconstruction_outcome(result)!=Err")
+        good = contract[first:closing]
+        for before, after in (
+            ("== crate::specs::part1_inverse_quantization", "<= crate::specs::part1_inverse_quantization"),
+            ("quantized_coefficients_view(coefficients@)", "quantized_coefficients_view(other@)"),
+            ("reconstruction_outcome(result)", "reconstruction_outcome(other_result)"),
+        ):
+            bad = good.replace(before, after, 1)
+            self.assertNotEqual(bad, good)
+            changed = original[:start] + contract[:first] + bad + good + contract[closing:] + original[header.start():]
 
             def altered(path, *args, **kwargs):
                 return changed if path == source else read_text(path, *args, **kwargs)

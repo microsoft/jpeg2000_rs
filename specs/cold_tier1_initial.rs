@@ -12,6 +12,7 @@ pub enum Part2Tier1StorageEvent {
     RefinementScratchCapacity {context:Part2HtRefinementScratchContext,stuffed:bool,elements:usize,succeeded:bool},
     CoefficientExtractionCapacity {context:Part2CoefficientExtractionContext,elements:nat,succeeded:bool},
     CleanupSignificanceCapacity {elements:nat,succeeded:bool},
+    QuantizationCapacity {owner:Part2QuantizationOwner,elements:nat,succeeded:bool},
 }
 pub type Part2Tier1Run<T> = Option<(Result<T,crate::DecodeError>,Seq<Part2Tier1StorageEvent>)>;
 pub(crate) open spec fn part2_tier1_storage_prefix<T>(run:spec_fn(Seq<Part2Tier1StorageEvent>)->Part2Tier1Run<T>,

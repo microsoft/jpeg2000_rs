@@ -70,6 +70,7 @@ specs/cold_precinct_storage.rs
 specs/cold_profile.rs
 specs/cold_progression.rs
 specs/cold_quantization.rs
+specs/cold_quantization_outputs.rs
 specs/cold_resolution_plan.rs
 specs/cold_resolved_copy.rs
 specs/cold_rollback_snapshot.rs

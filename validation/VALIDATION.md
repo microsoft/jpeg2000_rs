@@ -1487,6 +1487,31 @@ This does not assert host availability or a general physical-capacity theorem.
 Inverse quantization/sample copies, transforms/images, unrelated owners and
 existing growth remain separate.
 
+The numerical quantization-output increment covers the fresh integer-to-wide
+`inverse_quantize_values` vector, the fresh `inverse_quantize_plane` sample
+vector and the final `decode_code_block` sample-owner copy. Counts remain the
+actual source lengths. Wide reservation stays before the original ordered
+`i64::MIN`/magnitude conversion and later quantization admission. Sample
+reservation stays after original range/mantissa/exponent, decoded-byte budget
+and step-size checks, but before unchanged ROI/sample/rounding and final width
+narrowing. The last copy stays after actual quantization; it copies the real
+borrowed sample span through the qualified Copy helper, not geometry validation
+or owner transfer. Zero-length owners make no request while retaining original
+admission, dimensions and fraction behavior.
+
+Disjoint `QuantizationCapacity` roles carry only real owner/count/primitive
+responses. Complete signs/limbs/steps/fractions/samples remain input-derived in
+the enclosing quantization and placement binds. The actual coefficient child
+binds into quantization before placement writes; typed refusal retains prior
+working/prepared owners and unused tails through tile, reconstruction and
+automatic/public consumers. All original normal numerical projections and
+independent rounding/bit references remain checked. Public convenience APIs
+keep their established scope; the whole `decode_code_block` pipeline is not
+newly advertised as a complete theorem. Existing-owner moves add no request,
+and transform/image collections, unrelated owners and growth remain separate.
+Private fresh reserve profiles are not general physical-capacity or host
+availability theorems. No cumulative budget is introduced.
+
 Replay copying remains after original route/pass/cleanup/byte admission but
 before the unchanged append and later concatenation-size checks. Retention
 copying remains after actual refinement and statistics merge, preserving

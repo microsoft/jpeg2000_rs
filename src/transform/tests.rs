@@ -1553,6 +1553,136 @@ fn complete_lifting_buffers_preserve_first_error_state_and_opposite_parity() {
 }
 
 #[test]
+fn quantization_output_storage_wide_samples_first_later_refusal_exact_values_and_restore() {
+    let limits = ResourceLimits::default();
+    let input = [-17, 0, 3, 127];
+    let limbs: Vec<_> = input
+        .iter()
+        .map(|v: &i64| ([v.unsigned_abs(), 0, 0, 0, 0, 0], *v < 0))
+        .collect();
+    for (step, reversible, shift) in [
+        (
+            QuantizationStep {
+                exponent: 0,
+                mantissa: 0,
+            },
+            true,
+            0,
+        ),
+        (
+            QuantizationStep {
+                exponent: 8,
+                mantissa: 1,
+            },
+            false,
+            1,
+        ),
+    ] {
+        let expected = reference_reconstruction(&limbs, step, 8, reversible, shift, u64::MAX);
+        for after in [0, 1] {
+            assert_eq!(
+                crate::allocation::with_refusal(after, || inverse_quantize(
+                    &input, step, 8, reversible, shift, &limits
+                )),
+                Err(DecodeError::AllocationFailed)
+            );
+            assert_eq!(
+                observed_reconstruction(inverse_quantize(
+                    &input, step, 8, reversible, shift, &limits
+                )),
+                expected
+            );
+        }
+    }
+}
+
+#[test]
+fn quantization_output_storage_zero_admission_and_actual_scalar_error_precedence() {
+    let limits = ResourceLimits::default();
+    let step = QuantizationStep {
+        exponent: 0,
+        mantissa: 0,
+    };
+    crate::allocation::with_refusal(0, || {
+        let zero = inverse_quantize(&[], step, 8, true, 0, &limits).unwrap();
+        assert_eq!(
+            (
+                zero.width(),
+                zero.height(),
+                zero.fraction_bits(),
+                zero.samples()
+            ),
+            (0, 1, 0, &[][..])
+        );
+        assert_eq!(
+            crate::allocation::empty_with_capacity::<u8>(1),
+            Err(DecodeError::AllocationFailed)
+        );
+    });
+    let min = [0, i64::MIN, 7];
+    assert_eq!(
+        inverse_quantize(&min, step, 0, true, 0, &limits),
+        Err(arithmetic_overflow())
+    );
+    assert_eq!(
+        crate::allocation::with_refusal(0, || inverse_quantize(&min, step, 0, true, 0, &limits)),
+        Err(DecodeError::AllocationFailed)
+    );
+    crate::allocation::with_refusal(1, || {
+        assert_eq!(
+            inverse_quantize(&min, step, 0, true, 0, &limits),
+            Err(arithmetic_overflow())
+        );
+        assert_eq!(
+            crate::allocation::empty_with_capacity::<u8>(1),
+            Err(DecodeError::AllocationFailed)
+        );
+    });
+    let bad = [SignedMagnitude {
+        magnitude: Magnitude::from_limbs([u64::MAX, 1, 2, 3, 4, 5]),
+        negative: true,
+    }];
+    let scalar = inverse_quantize_magnitudes(&bad, step, 8, true, 0, &limits).unwrap_err();
+    assert_eq!(scalar, arithmetic_overflow());
+    assert_eq!(
+        crate::allocation::with_refusal(0, || inverse_quantize_magnitudes(
+            &bad, step, 8, true, 0, &limits
+        )),
+        Err(DecodeError::AllocationFailed)
+    );
+    assert_eq!(
+        inverse_quantize_magnitudes(&bad, step, 8, true, 0, &limits).unwrap_err(),
+        scalar
+    );
+    crate::allocation::with_refusal(0, || {
+        assert_eq!(
+            inverse_quantize_magnitudes(&bad, step, 0, true, 0, &limits),
+            Err(invalid_transform())
+        );
+        assert_eq!(
+            crate::allocation::empty_with_capacity::<u8>(1),
+            Err(DecodeError::AllocationFailed)
+        );
+    });
+    let narrow = [SignedMagnitude {
+        magnitude: Magnitude::from_u64(1),
+        negative: false,
+    }];
+    let capped = limits.with_maximum_decoded_bytes(0).unwrap();
+    let budget = inverse_quantize_magnitudes(&narrow, step, 8, false, 0, &capped).unwrap_err();
+    crate::allocation::with_refusal(0, || {
+        assert_eq!(
+            inverse_quantize_magnitudes(&narrow, step, 8, false, 0, &capped).unwrap_err(),
+            budget
+        );
+        assert_eq!(
+            crate::allocation::empty_with_capacity::<u8>(1),
+            Err(DecodeError::AllocationFailed)
+        );
+    });
+}
+
+#[test]
 fn complete_quantization_planes_match_independent_bit_and_rational_reference() {
     let inputs = [
         vec![],

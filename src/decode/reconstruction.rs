@@ -645,14 +645,18 @@ pub(super) fn place_prepare_block(
         if let Err(error)=collected{crate::specs::part2_extraction_place_error(initial,bands@,prepare_precincts_view(precincts@),placement,reversible,
     crate::limits::resource_decoded_bytes_limit(limits),geometry,crate::tier1::code_block_plane_view(plane),error);}}
     let coefficients = collected?;
-    let quantized = inverse_quantize_magnitudes(
+    let quantized_result = inverse_quantize_magnitudes(
         &coefficients,
         geometry.quantization_step,
         geometry.dynamic_range,
         reversible,
         geometry.roi_shift,
         limits,
-    )?;
+    );
+    #[cfg(verus_keep_ghost)]
+    proof! {if let Err(error)=quantized_result{crate::specs::part2_extraction_place_quantization_error(initial,bands@,prepare_precincts_view(precincts@),placement,reversible,
+    crate::limits::resource_decoded_bytes_limit(limits),geometry,crate::tier1::code_block_plane_view(plane),crate::transform::quantized_coefficients_view(coefficients@),error);}}
+    let quantized = quantized_result?;
     if quantized.fraction_bits() != if reversible { 0 } else { 16 } {
         return Err(invalid_decode());
     }

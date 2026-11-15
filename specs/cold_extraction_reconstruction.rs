@@ -28,13 +28,31 @@ pub(crate) open spec fn part2_extraction_place_after(working:Part1PrepareWorking
         },
     }
 }
+pub(crate) open spec fn part2_extraction_place_after_quantization(working:Part1PrepareWorking,geometry:crate::decode::SubbandGeometry,placement:crate::decode::ProgressionCodeBlockPlacement,
+    plane:Tier1RawPlane,reversible:bool,quantized:Part1ReconstructionResult)->Part2ExtractionWorkingEffect {
+    match quantized{
+        Err(error)=>(Err(error),working),Ok(quantized)=>{
+            if quantized.2!=part1_prepare_fraction(reversible) || placement.subband_index>=working.0.len(){(Err(part1_block_placement_error(false)),working)}
+            else{let written=part1_quantized_block_rows(working.0[placement.subband_index as int],quantized.3,plane.width as u32,placement.x,placement.y,plane.height as nat);
+                (written.0,(working.0.update(placement.subband_index as int,written.1),working.1))}
+        },
+    }
+}
+pub(crate) open spec fn part2_extraction_place_after_coefficients_run(working:Part1PrepareWorking,geometry:crate::decode::SubbandGeometry,placement:crate::decode::ProgressionCodeBlockPlacement,
+    plane:Tier1RawPlane,reversible:bool,maximum:u64,coefficients:Result<Seq<Part1QuantizedCoefficient>,crate::DecodeError>,calls:Seq<Part2Tier1StorageEvent>)->Part2Tier1Run<Part2ExtractionWorkingEffect> {
+    match coefficients{
+        Err(error)=>Some((Ok((Err(error),working)),calls)),Ok(values)=>part2_tier1_storage_resume(
+            part2_quantization_plane_run(values,geometry.quantization_step.exponent,geometry.quantization_step.mantissa,geometry.dynamic_range,reversible,geometry.roi_shift,maximum,calls),
+            |quantized:Part1ReconstructionResult,rest|Some((Ok(part2_extraction_place_after_quantization(working,geometry,placement,plane,reversible,quantized)),rest))),
+    }
+}
 #[verifier::opaque]
 pub(crate) open spec fn part2_extraction_place_run(working:Part1PrepareWorking,bands:Seq<crate::decode::SubbandGeometry>,precincts:Seq<Seq<Tier1RawPlane>>,
     placement:crate::decode::ProgressionCodeBlockPlacement,reversible:bool,maximum:u64,calls:Seq<Part2Tier1StorageEvent>)->Part2Tier1Run<Part2ExtractionWorkingEffect> {
     match part2_extraction_place_admit(working,bands,precincts,placement){
         Err(error)=>Some((Ok((Err(error),working)),calls)),Ok(None)=>Some((Ok((Ok(()),working)),calls)),
         Ok(Some((geometry,plane)))=>part2_tier1_storage_resume(part2_extraction_run(plane,true,calls),
-            |result:Result<Seq<Part1QuantizedCoefficient>,crate::DecodeError>,rest|Some((Ok(part2_extraction_place_after(working,geometry,placement,plane,reversible,maximum,result)),rest))),
+            |result:Result<Seq<Part1QuantizedCoefficient>,crate::DecodeError>,rest|part2_extraction_place_after_coefficients_run(working,geometry,placement,plane,reversible,maximum,result,rest)),
     }
 }
 pub(crate) open spec fn part2_extraction_place_result(working:Part1PrepareWorking,bands:Seq<crate::decode::SubbandGeometry>,precincts:Seq<Seq<Tier1RawPlane>>,
@@ -119,9 +137,11 @@ pub(crate) proof fn part2_extraction_place_normal(working:Part1PrepareWorking,ba
         Err(_)=>{part2_tier1_storage_pure(Ok(result));},Ok(None)=>{part2_tier1_storage_pure(Ok(result));},
         Ok(Some((geometry,plane)))=>{
             let coefficients=part1_prepare_collect_coefficients(plane);
-            part2_extraction_normal(plane,true);part2_tier1_storage_pure(Ok(result));
+            part2_extraction_normal(plane,true);
+            part2_extraction_place_after_coefficients_normal(working,geometry,placement,plane,reversible,maximum,coefficients);
+            part2_tier1_storage_eta(|calls|part2_extraction_place_after_coefficients_run(working,geometry,placement,plane,reversible,maximum,coefficients,calls),Ok(result));
             part2_tier1_resume_frame(|calls|part2_extraction_run(plane,true,calls),
-                |value:Result<Seq<Part1QuantizedCoefficient>,crate::DecodeError>,rest|Some((Ok(part2_extraction_place_after(working,geometry,placement,plane,reversible,maximum,value)),rest)),coefficients,Ok(result));
+                |value:Result<Seq<Part1QuantizedCoefficient>,crate::DecodeError>,rest|part2_extraction_place_after_coefficients_run(working,geometry,placement,plane,reversible,maximum,value,rest),coefficients,Ok(result));
         },
     }
 }
@@ -132,7 +152,41 @@ pub(crate) proof fn part2_extraction_place_error(working:Part1PrepareWorking,ban
 {
     reveal(part2_extraction_place_run);part2_tier1_storage_pure(Ok::<Part2ExtractionWorkingEffect,crate::DecodeError>((Err(error),working)));
     part2_tier1_resume_frame(|calls|part2_extraction_run(plane,true,calls),
-        |value:Result<Seq<Part1QuantizedCoefficient>,crate::DecodeError>,rest|Some((Ok(part2_extraction_place_after(working,geometry,placement,plane,reversible,maximum,value)),rest)),Err(error),Ok((Err(error),working)));
+        |value:Result<Seq<Part1QuantizedCoefficient>,crate::DecodeError>,rest|part2_extraction_place_after_coefficients_run(working,geometry,placement,plane,reversible,maximum,value,rest),Err(error),Ok((Err(error),working)));
+}
+pub(crate) proof fn part2_extraction_place_after_coefficients_normal(working:Part1PrepareWorking,geometry:crate::decode::SubbandGeometry,placement:crate::decode::ProgressionCodeBlockPlacement,
+    plane:Tier1RawPlane,reversible:bool,maximum:u64,coefficients:Result<Seq<Part1QuantizedCoefficient>,crate::DecodeError>)
+    ensures part2_tier1_storage_framed(|calls|part2_extraction_place_after_coefficients_run(working,geometry,placement,plane,reversible,maximum,coefficients,calls),
+        Ok(part2_extraction_place_after(working,geometry,placement,plane,reversible,maximum,coefficients))),
+{
+    let result=part2_extraction_place_after(working,geometry,placement,plane,reversible,maximum,coefficients);
+    match coefficients{
+        Err(_)=>{part2_tier1_storage_pure(Ok(result));},Ok(values)=>{
+            let quantized=part1_inverse_quantization(values,geometry.quantization_step.exponent,geometry.quantization_step.mantissa,geometry.dynamic_range,reversible,geometry.roi_shift,maximum);
+            part2_quantization_plane_normal(values,geometry.quantization_step.exponent,geometry.quantization_step.mantissa,geometry.dynamic_range,reversible,geometry.roi_shift,maximum);
+            part2_quantization_plane_frames(values,geometry.quantization_step.exponent,geometry.quantization_step.mantissa,geometry.dynamic_range,reversible,geometry.roi_shift,maximum,quantized);
+            part2_tier1_storage_pure(Ok(result));
+            part2_tier1_resume_frame(|calls|part2_quantization_plane_run(values,geometry.quantization_step.exponent,geometry.quantization_step.mantissa,geometry.dynamic_range,reversible,geometry.roi_shift,maximum,calls),
+                |quantized:Part1ReconstructionResult,rest|Some((Ok(part2_extraction_place_after_quantization(working,geometry,placement,plane,reversible,quantized)),rest)),quantized,Ok(result));
+        },
+    }
+}
+pub(crate) proof fn part2_extraction_place_quantization_error(working:Part1PrepareWorking,bands:Seq<crate::decode::SubbandGeometry>,precincts:Seq<Seq<Tier1RawPlane>>,
+    placement:crate::decode::ProgressionCodeBlockPlacement,reversible:bool,maximum:u64,geometry:crate::decode::SubbandGeometry,plane:Tier1RawPlane,values:Seq<Part1QuantizedCoefficient>,error:crate::DecodeError)
+    requires part2_extraction_place_admit(working,bands,precincts,placement)==Ok(Some((geometry,plane))),
+        part2_extraction_result(plane,true,Ok(values)),
+        part2_quantization_plane_result(values,geometry.quantization_step.exponent,geometry.quantization_step.mantissa,geometry.dynamic_range,reversible,geometry.roi_shift,maximum,Err(error)),
+    ensures part2_extraction_place_result(working,bands,precincts,placement,reversible,maximum,(Err(error),working)),
+{
+    reveal(part2_extraction_place_run);
+    let result=Ok::<Part2ExtractionWorkingEffect,crate::DecodeError>((Err(error),working));
+    part2_quantization_plane_frames(values,geometry.quantization_step.exponent,geometry.quantization_step.mantissa,geometry.dynamic_range,reversible,geometry.roi_shift,maximum,Err(error));
+    part2_tier1_storage_pure(result);
+    part2_tier1_resume_frame(|calls|part2_quantization_plane_run(values,geometry.quantization_step.exponent,geometry.quantization_step.mantissa,geometry.dynamic_range,reversible,geometry.roi_shift,maximum,calls),
+        |quantized:Part1ReconstructionResult,rest|Some((Ok(part2_extraction_place_after_quantization(working,geometry,placement,plane,reversible,quantized)),rest)),Err(error),result);
+    part2_tier1_storage_eta(|calls|part2_extraction_place_after_coefficients_run(working,geometry,placement,plane,reversible,maximum,Ok(values),calls),result);
+    part2_tier1_resume_frame(|calls|part2_extraction_run(plane,true,calls),
+        |coefficients:Result<Seq<Part1QuantizedCoefficient>,crate::DecodeError>,rest|part2_extraction_place_after_coefficients_run(working,geometry,placement,plane,reversible,maximum,coefficients,rest),Ok(values),result);
 }
 pub(crate) proof fn part2_extraction_placements_normal(initial:Part1PrepareWorking,plan:Part1PreparePlan,precincts:Seq<Seq<Tier1RawPlane>>,reversible:bool,maximum:u64,count:nat)
     ensures part2_tier1_storage_framed(|calls|part2_extraction_placements_run(initial,plan,precincts,reversible,maximum,count,calls),Ok(part1_prepare_placements(initial,plan,precincts,reversible,maximum,count))),
