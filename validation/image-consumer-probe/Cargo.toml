@@ -10,7 +10,7 @@ publish = false
 
 [dependencies]
 image = { version = "=0.25.10", default-features = false }
-jpeg2000-decoder = { path = "../../target/package/jpeg2000-decoder-0.1.0", default-features = false }
+jpeg2000-decoder = { path = "../../target/package/jpeg2000-decoder-0.1.1", default-features = false }
 
 [lints.rust]
 unsafe_code = "forbid"

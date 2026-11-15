@@ -307,7 +307,7 @@ pub(super) fn prepare_progression_tile_input(
         None => return Err(packet_reader_error(0, MalformedKind::InvalidTilePart)),
     };
     let input = prepare_progression_payloads(tile_parts, first.tile_index, limits)?;
-    if input.all_lengths && input.declared_packets != grid.packet_count {
+    if input.all_lengths && input.declared_packets > grid.packet_count {
         return Err(packet_reader_error(0, MalformedKind::InvalidPacketLength));
     }
     validate_progression_precinct_layout(grid, precincts)?;
@@ -555,6 +555,19 @@ fn execute_progression_packet<'a, 'data>(
             });
         }
     };
+    let slot = progression_packet_slot(params.grid, coordinate);
+    let duplicate = match slot {
+        Ok((_, seen)) => match p.seen.get(seen) {
+            Some(seen) => *seen,
+            None => false,
+        },
+        Err(_) => false,
+    };
+    // Restarted iterators must not consume physical lengths for prior packets.
+    // Invalid new slots still retain metadata-first error ordering below.
+    if duplicate {
+        return Ok(());
+    }
     if p.length_tile_part != p.current_tile_part {
         p.length_iterator = part.packet_lengths.iter();
         p.length_tile_part = p.current_tile_part;
@@ -572,19 +585,7 @@ fn execute_progression_packet<'a, 'data>(
     } else {
         None
     };
-    let index = params.grid.precinct_index(
-        coordinate.component,
-        coordinate.resolution,
-        coordinate.precinct,
-    )?;
-    let product = match index.checked_mul(usize::from(params.grid.layers)) {
-        Some(product) => product,
-        None => return Err(packet_arithmetic_overflow()),
-    };
-    let seen_index = match product.checked_add(usize::from(coordinate.layer)) {
-        Some(index) => index,
-        None => return Err(packet_arithmetic_overflow()),
-    };
+    let (index, seen_index) = slot?;
     let seen = match p.seen.get(seen_index) {
         Some(seen) => *seen,
         None => {
@@ -622,6 +623,74 @@ fn execute_progression_packet<'a, 'data>(
     }
     let (decoded, tile_bytes, packed_bytes) = result?;
     account_progression_packet(p, decoded, tile_bytes, packed_bytes, expected, seen_index)
+}
+
+#[cfg_attr(verus_keep_ghost, verus_spec(result =>
+    ensures result == crate::specs::part1_tile_packet_slot(packet_grid_view(grid), coordinate),
+))]
+fn progression_packet_slot(
+    grid: &PacketGrid,
+    coordinate: PacketCoordinate,
+) -> Result<(usize, usize), DecodeError> {
+    let index = grid.precinct_index(
+        coordinate.component,
+        coordinate.resolution,
+        coordinate.precinct,
+    )?;
+    let product = match index.checked_mul(usize::from(grid.layers)) {
+        Some(product) => product,
+        None => return Err(packet_arithmetic_overflow()),
+    };
+    let seen = match product.checked_add(usize::from(coordinate.layer)) {
+        Some(seen) => seen,
+        None => return Err(packet_arithmetic_overflow()),
+    };
+    Ok((index, seen))
+}
+
+#[cfg_attr(verus_keep_ghost, verus_spec(result =>
+    ensures (result, progression_tile_progress_view(final(p))) == crate::specs::part1_tile_omit_packet(
+        progression_tile_parameters_view(params), progression_tile_progress_view(old(p)),
+        coordinate, precinct_count),
+))]
+fn omit_progression_packet(
+    params: &ProgressionTileParameters<'_, '_>,
+    p: &mut ProgressionTileProgress<'_>,
+    coordinate: PacketCoordinate,
+    precinct_count: usize,
+) -> Result<(), DecodeError> {
+    let (index, seen) = progression_packet_slot(params.grid, coordinate)?;
+    if index >= precinct_count || seen >= p.seen.len() {
+        return Err(packet_reader_error(
+            p.offset,
+            MalformedKind::InvalidPacketHeader,
+        ));
+    }
+    #[cfg(verus_keep_ghost)]
+    proof_decl! { let ghost previous = p.seen@; }
+    p.seen[seen] = true;
+    #[cfg(verus_keep_ghost)]
+    proof! { assert(p.seen@ =~= previous.update(seen as int, true)); }
+    Ok(())
+}
+
+#[cfg_attr(verus_keep_ghost, verus_spec(result =>
+    ensures result == crate::specs::part1_tile_all_seen(seen@),
+))]
+fn all_progression_packets_seen(seen: &[bool]) -> bool {
+    let mut index = 0_usize;
+    #[cfg_attr(verus_keep_ghost, verus_spec(
+        invariant index <= seen@.len(),
+            forall |i: int| 0 <= i < index ==> seen@[i],
+        decreases seen@.len() - index,
+    ))]
+    while index < seen.len() {
+        if !seen[index] {
+            return false;
+        }
+        index += 1;
+    }
+    true
 }
 
 #[cfg_attr(verus_keep_ghost,verus_spec(result =>
@@ -768,11 +837,19 @@ fn finish_progression_tile_packets(
     }
     #[cfg(verus_keep_ghost)]
     proof! {reveal(crate::specs::part1_tile_finish_scan);}
-    if p.packets != params.grid.packet_count {
+    if p.packets != params.grid.packet_count
+        && (p.packets > params.grid.packet_count
+            || p.packets == 0
+            || p.seen.len() as u128 != u128::from(params.grid.packet_count)
+            || !all_progression_packets_seen(&p.seen))
+    {
         return Err(DecodeError::MalformedInput {
             offset: params.input.payload_bytes,
             kind: MalformedKind::Truncated,
         });
+    }
+    if params.input.all_lengths && p.packets != params.input.declared_packets {
+        return Err(packet_reader_error(0, MalformedKind::InvalidPacketLength));
     }
     let tile_parts = match u32::try_from(params.tile_parts.len()) {
         Ok(count) => count,
@@ -853,12 +930,17 @@ pub(super) fn run_progression_tile_packets<'a, 'data>(
             ));
         }
         p.remaining_packets -= 1;
+        if p.current_tile_part == params.tile_parts.len() {
+            omit_progression_packet(params, p, coordinate, precincts.len())?;
+            continue;
+        }
         let (changed, more) = advance_progression_tile_part(params, p)?;
         if changed {
             if more {
                 continue;
             } else {
-                return Ok(());
+                omit_progression_packet(params, p, coordinate, precincts.len())?;
+                continue;
             }
         }
         execute_progression_packet(params, precincts, p, coordinate)?;

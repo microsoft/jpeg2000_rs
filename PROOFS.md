@@ -15,6 +15,32 @@ contracts and models. Exact run counts and source/tool hashes belong in fresh
 CI artifacts, not committed result snapshots. Independent model-to-standard
 review and official conformance testing remain separate.
 
+## Trailing whole-packet engineering admission
+
+The actual packet traversal accepts a retained prefix of complete packets
+after at least one physical packet, with correct outer tile lengths and EOC.
+It does not catch truncated packet headers or bodies. Physical packet bytes,
+packed headers and declared length lists must still be consumed consistently.
+Empty nonzero packet schedules remain rejected.
+
+After physical tile-part input ends at a packet boundary, the actual bounded
+progression iterator still derives the omitted coordinates. Their checked
+slots are marked visited without decoding invented headers, bodies or samples.
+The final complete-grid check therefore retains rejection of POC holes;
+physical packet/contribution/byte counters do not count omitted packets.
+PLM/PLT declarations may describe the retained packet count, but may neither
+exceed the grid nor disagree with the packets actually consumed.
+Restarted tile-part iterators skip previously consumed coordinates before
+reading another physical packet-length entry. This preserves metadata-first
+errors for new/invalid coordinates without charging duplicate coordinates.
+
+The source-derived models retain exact Result, reader/iterator, visited-slot,
+work and decoder-state frames. Native controls include the independently
+encoded two-layer gray0 stream, incomplete headers/bodies, all five progression
+orders, POC coverage, multiple tile parts and packed headers with packet lengths.
+This is bounded engineering admission and code-to-model correspondence, not
+independent selected-2024-edition or official conformance qualification.
+
 ## Conditional main-header admission profile decision
 
 The [exact profile decision](validation/main-header-admission-profile-decision.md)
