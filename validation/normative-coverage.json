@@ -9947,7 +9947,10 @@
         {"path": "specs/cold_packet_planes.rs", "symbol": "part2_packet_ht_body_normal"},
         {"path": "specs/cold_packet_planes.rs", "symbol": "part2_packet_ht_segments_normal"},
         {"path": "specs/cold_packet_planes.rs", "symbol": "part2_plane_body_staged_normal"},
-        {"path": "specs/cold_packet_planes.rs", "symbol": "part2_plane_body_transaction_normal"}
+        {"path": "specs/cold_packet_planes.rs", "symbol": "part2_plane_body_transaction_normal"},
+        {"path": "specs/cold_packet_planes.rs", "symbol": "part2_plane_body_duplicate_error"},
+        {"path": "specs/cold_ht_bytes.rs", "symbol": "part2_ht_duplicate_normal"},
+        {"path": "src/tier1/contributions.rs", "symbol": "Tier1CodeBlockDecoder::try_duplicate"}
       ],
       "test_refs": [
         {"path": "src/packet/tests.rs", "symbol": "mixed_packet_union_routes_literal_bytes_and_keeps_empty_count_distinctions"},
@@ -10013,7 +10016,16 @@
         {"path": "specs/mod.rs", "symbol": "ht_skip_segment"},
         {"path": "specs/mod.rs", "symbol": "ht_clear_refinement_state"},
         {"path": "specs/cold_ht_decoder.rs", "symbol": "part2_ht_replay_run"},
-        {"path": "specs/cold_ht_decoder.rs", "symbol": "part2_ht_replay_result"}
+        {"path": "specs/cold_ht_decoder.rs", "symbol": "part2_ht_replay_result"},
+        {"path": "specs/cold_ht_decoder.rs", "symbol": "part2_ht_replay_copy_admitted"},
+        {"path": "specs/cold_ht_decoder.rs", "symbol": "part2_ht_replay_after_copy"},
+        {"path": "specs/cold_ht_bytes.rs", "symbol": "part2_ht_bytes_run"},
+        {"path": "specs/cold_ht_bytes.rs", "symbol": "part2_ht_bytes_result"},
+        {"path": "specs/replay_finish.rs", "symbol": "Part2ReplayFinish"},
+        {"path": "specs/replay_finish.rs", "symbol": "part2_replay_prepared"},
+        {"path": "specs/replay_finish.rs", "symbol": "part2_replay_remaining"},
+        {"path": "specs/replay_finish.rs", "symbol": "part2_replay_phase"},
+        {"path": "specs/replay_finish.rs", "symbol": "part2_replay_step"}
       ],
       "proof_refs": [
         {"path": "src/tier1/proof_support.rs", "symbol": "tier1_decoder_state"},
@@ -10022,7 +10034,25 @@
         {"path": "proofs/spec_properties/mod.rs", "symbol": "ht_continuation_segment_overflow_keeps_pass_but_not_byte_update"},
         {"path": "proofs/spec_properties/mod.rs", "symbol": "ht_placeholder_preserves_output_and_retained_cleanup_on_every_return"},
         {"path": "proofs/spec_properties/mod.rs", "symbol": "ht_refinement_reset_frames_all_unrelated_decoder_fields"},
-        {"path": "specs/cold_ht_decoder.rs", "symbol": "part2_ht_replay_normal"}
+        {"path": "specs/cold_ht_decoder.rs", "symbol": "part2_ht_replay_normal"},
+        {"path": "specs/cold_ht_decoder.rs", "symbol": "part2_ht_replay_after_normal"},
+        {"path": "specs/cold_ht_decoder.rs", "symbol": "part2_ht_replay_copy_error"},
+        {"path": "specs/cold_ht_decoder.rs", "symbol": "part2_ht_replay_original_projection"},
+        {"path": "specs/cold_ht_decoder.rs", "symbol": "part2_ht_replay_committed"},
+        {"path": "specs/cold_ht_bytes.rs", "symbol": "part2_ht_bytes_normal"},
+        {"path": "specs/cold_ht_bytes.rs", "symbol": "part2_ht_bytes_observed"},
+        {"path": "specs/cold_ht_decoder.rs", "symbol": "part2_ht_replay_primary_consequence"},
+        {"path": "specs/replay_finish.rs", "symbol": "part2_replay_finish_from_child"},
+        {"path": "specs/replay_finish.rs", "symbol": "part2_replay_finish_empty"},
+        {"path": "specs/replay_finish.rs", "symbol": "part2_replay_owner_equation"},
+        {"path": "specs/replay_finish.rs", "symbol": "part2_replay_pass_equation"},
+        {"path": "specs/replay_finish.rs", "symbol": "part2_replay_segment_equation"},
+        {"path": "specs/replay_finish.rs", "symbol": "part2_replay_bytes_equation"},
+        {"path": "specs/replay_finish.rs", "symbol": "part2_replay_advance"},
+        {"path": "specs/replay_finish.rs", "symbol": "part2_replay_counter_error"},
+        {"path": "specs/replay_finish.rs", "symbol": "part2_replay_return"},
+        {"path": "specs/replay_finish.rs", "symbol": "part2_replay_entry"},
+        {"path": "specs/replay_finish.rs", "symbol": "part2_replay_late_error"}
       ],
       "test_refs": [
         {"path": "src/tier1/tests.rs", "symbol": "ht_continuation_replays_real_concatenation_from_cleanup_not_current_output"},
@@ -10254,14 +10284,33 @@
         {"path": "specs/cold_ht_decoder.rs", "symbol": "part2_ht_coeff_result"},
         {"path": "specs/cold_ht_decoder.rs", "symbol": "part2_ht_segments_run"},
         {"path": "specs/cold_ht_decoder.rs", "symbol": "part2_ht_segments_result"},
-        {"path": "specs/mod.rs", "symbol": "tier1_statistics_merge"}
+        {"path": "specs/mod.rs", "symbol": "tier1_statistics_merge"},
+        {"path": "specs/cold_ht_bytes.rs", "symbol": "part2_ht_bytes_run"},
+        {"path": "specs/cold_ht_bytes.rs", "symbol": "part2_ht_bytes_result"},
+        {"path": "specs/cold_ht_bytes.rs", "symbol": "part2_ht_duplicate_run"},
+        {"path": "specs/cold_ht_bytes.rs", "symbol": "part2_ht_duplicate_result"},
+        {"path": "specs/cold_ht_decoder.rs", "symbol": "part2_ht_coeff_after_refinement"},
+        {"path": "specs/cold_ht_decoder.rs", "symbol": "part2_ht_staged_copy_admitted"},
+        {"path": "specs/cold_ht_decoder.rs", "symbol": "part2_ht_staged_after_duplicate"}
       ],
       "proof_refs": [
         {"path": "src/tier1/proof_support.rs", "symbol": "tier1_decoder_state"},
         {"path": "src/tier1/proof_support.rs", "symbol": "ht_byte_vector_outcome"},
         {"path": "proofs/spec_properties/mod.rs", "symbol": "ht_complete_symbol_model_preserves_the_frozen_cleanup_only_profile"},
         {"path": "specs/cold_ht_decoder.rs", "symbol": "part2_ht_coeff_normal"},
-        {"path": "specs/cold_ht_decoder.rs", "symbol": "part2_ht_segments_normal"}
+        {"path": "specs/cold_ht_decoder.rs", "symbol": "part2_ht_segments_normal"},
+        {"path": "specs/cold_ht_bytes.rs", "symbol": "part2_ht_bytes_observed"},
+        {"path": "specs/cold_ht_bytes.rs", "symbol": "part2_ht_bytes_normal"},
+        {"path": "specs/cold_ht_bytes.rs", "symbol": "part2_ht_bytes_frames"},
+        {"path": "specs/cold_ht_bytes.rs", "symbol": "part2_ht_duplicate_observed"},
+        {"path": "specs/cold_ht_bytes.rs", "symbol": "part2_ht_duplicate_normal"},
+        {"path": "specs/cold_ht_bytes.rs", "symbol": "part2_ht_duplicate_frames"},
+        {"path": "specs/cold_ht_decoder.rs", "symbol": "part2_ht_coeff_after_refinement_normal"},
+        {"path": "specs/cold_ht_decoder.rs", "symbol": "part2_ht_coeff_bytes_error"},
+        {"path": "specs/cold_ht_decoder.rs", "symbol": "part2_ht_staged_after_normal"},
+        {"path": "specs/cold_ht_decoder.rs", "symbol": "part2_ht_staged_duplicate_error"},
+        {"path": "src/tier1/contributions.rs", "symbol": "Tier1CodeBlockDecoder::try_duplicate"},
+        {"path": "src/allocation.rs", "symbol": "copy_values"}
       ],
       "test_refs": [
         {"path": "src/tier1/tests.rs", "symbol": "ht_full_symbol_caller_distinguishes_none_empty_refinement_and_pre_refinement_plane"},
@@ -10270,7 +10319,12 @@
         {"path": "src/tier1/tests.rs", "symbol": "tier1_plane_storage_refinement_roles_preserve_rollback_and_cleared_partial_state"},
         {"path": "src/decode/tests.rs", "symbol": "tier1_plane_storage_real_ht_raw_selected_container_cleanup_restore"},
         {"path": "src/tier1/tests.rs", "symbol": "ht_public_segment_entry_binds_actual_pass_byte_work_admission_and_error_order"},
-        {"path": "src/tier1/tests.rs", "symbol": "ht_public_segment_entry_keeps_none_and_some_empty_distinct_without_assumed_context"}
+        {"path": "src/tier1/tests.rs", "symbol": "ht_public_segment_entry_keeps_none_and_some_empty_distinct_without_assumed_context"},
+        {"path": "src/tier1/tests.rs", "symbol": "ht_refinement_storage_checked_staging_copy_keeps_clone_fields_and_empty_frontier"},
+        {"path": "src/tier1/tests.rs", "symbol": "ht_refinement_storage_replay_copy_preserves_earlier_limits_later_length_and_state"},
+        {"path": "src/tier1/tests.rs", "symbol": "ht_refinement_storage_retention_refusal_keeps_cleared_state_and_staging_rolls_back"},
+        {"path": "src/packet/tests.rs", "symbol": "ht_refinement_storage_packet_staging_copy_precedes_route_error_and_restores_decoder"},
+        {"path": "src/decode/tests.rs", "symbol": "ht_refinement_storage_raw_selected_jph_retention_refusal_and_exact_restore"}
       ]
     },
     {

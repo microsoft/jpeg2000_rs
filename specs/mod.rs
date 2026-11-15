@@ -113,8 +113,12 @@ mod cold_tier1_initial;
 pub use cold_tier1_initial::*;
 mod cold_tier1_planes;
 pub use cold_tier1_planes::*;
+mod cold_ht_bytes;
 mod cold_ht_decoder;
+pub use cold_ht_bytes::*;
+mod replay_finish;
 pub use cold_ht_decoder::*;
+pub use replay_finish::*;
 mod cold_packet_planes;
 pub use cold_packet_planes::*;
 mod cold_packet_execute;
@@ -10886,6 +10890,7 @@ pub open spec fn ht_decode_segments(
     }
 }
 
+#[verifier::opaque]
 pub open spec fn ht_finish_refinement_contribution(
     state: Tier1DecoderState, passes: u8, bytes: nat, next_bytes: u64,
     statistics: crate::tier1::Tier1PassStatistics, replayed: bool,
@@ -10905,6 +10910,7 @@ pub open spec fn ht_finish_refinement_contribution(
     }
 }
 
+#[verifier::opaque]
 pub open spec fn ht_decode_refinement_contribution(
     state: Tier1DecoderState, input: Seq<u8>, passes: u8, maximum_bytes: u64, maximum_work: u64,
 ) -> HtDecoderResult {

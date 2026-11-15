@@ -505,6 +505,15 @@ pub(crate) enum CoefficientStorageRole {
     RefinementDiscovery,
 }
 
+#[derive(Clone, Copy)]
+#[cfg_attr(not(verus_keep_ghost), derive(Debug, Eq, PartialEq))]
+pub(crate) enum HtRefinementCopyRole {
+    HtStaging,
+    PacketStaging,
+    RetainedReplay,
+    CleanupRetention,
+}
+
 #[cfg(verus_keep_ghost)]
 include!("tier1/proof_support.rs");
 

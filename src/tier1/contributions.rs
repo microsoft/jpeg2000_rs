@@ -82,6 +82,50 @@ impl Clone for Tier1CodeBlockDecoder {
     }
 }
 
+impl Tier1CodeBlockDecoder {
+    #[cfg_attr(verus_keep_ghost, verus_spec(result =>
+        ensures crate::specs::part2_ht_duplicate_result(tier1_decoder_state(self),role,tier1_initial_decoder_outcome(result)),
+            match result{Err(error)=>error==DecodeError::AllocationFailed,Ok(value)=>tier1_decoder_state(&value)==tier1_decoder_state(self)},
+    ))]
+    pub(crate) fn try_duplicate(
+        &self,
+        role: super::HtRefinementCopyRole,
+    ) -> Result<Self, DecodeError> {
+        #[cfg(verus_keep_ghost)]
+        proof_decl! {let ghost before=tier1_decoder_state(self);}
+        Ok(Self {
+            plane: self.plane.clone(),
+            orientation: self.orientation,
+            style: self.style,
+            maximum_passes: self.maximum_passes,
+            next_pass: self.next_pass,
+            bitplane: self.bitplane,
+            zero_bitplanes: self.zero_bitplanes,
+            bitplane_state: self.bitplane_state.clone(),
+            mq_context_state: self.mq_context_state,
+            reset_contexts_before_mq: self.reset_contexts_before_mq,
+            decoded_segments: self.decoded_segments,
+            decoded_bytes: self.decoded_bytes,
+            legacy_segment: self.legacy_segment.clone(),
+            legacy_decode_work: self.legacy_decode_work,
+            ht_cleanup_plane: self.ht_cleanup_plane.clone(),
+            ht_refinement_data: {
+                let copied =
+                    super::ht_refinement::copy_ht_refinement_bytes(&self.ht_refinement_data, role);
+                #[cfg(verus_keep_ghost)]
+                proof! {crate::specs::part2_ht_duplicate_observed(before,role,super::ht_byte_vector_outcome(copied));}
+                copied?
+            },
+            ht_refinement_passes: self.ht_refinement_passes,
+            ht_decoded_bitplanes: self.ht_decoded_bitplanes,
+            ht_current_set_has_cleanup: self.ht_current_set_has_cleanup,
+            ht_sets_seen: self.ht_sets_seen,
+            allow_multiple_ht_sets: self.allow_multiple_ht_sets,
+            ht_magnitude_bound: self.ht_magnitude_bound,
+        })
+    }
+}
+
 #[cfg_attr(verus_keep_ghost, verus_spec(result =>
     ensures crate::specs::part1_tier1_initial_storage_result(width,height,significant_bitplanes,orientation,style,tier1_initial_decoder_outcome(result)),
         tier1_initial_decoder_outcome(result)!=Err(DecodeError::AllocationFailed) ==> tier1_initial_decoder_outcome(result) == crate::specs::part2_tier1_initial_decoder(

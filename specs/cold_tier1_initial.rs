@@ -1,7 +1,10 @@
 //! Shared role-aware coefficient storage and actual configured-decoder caller responses.
 use super::*;
 verus! {
-pub struct Part2Tier1StorageEvent {pub width:u16,pub height:u16,pub role:crate::tier1::CoefficientStorageRole,pub samples:usize,pub succeeded:bool}
+pub enum Part2Tier1StorageEvent {
+    Coefficient {width:u16,height:u16,role:crate::tier1::CoefficientStorageRole,samples:usize,succeeded:bool},
+    RefinementBytes {role:crate::tier1::HtRefinementCopyRole,source:Seq<u8>,elements:nat,succeeded:bool},
+}
 pub type Part2Tier1Run<T> = Option<(Result<T,crate::DecodeError>,Seq<Part2Tier1StorageEvent>)>;
 pub(crate) open spec fn part2_tier1_storage_prefix<T>(run:spec_fn(Seq<Part2Tier1StorageEvent>)->Part2Tier1Run<T>,
     prefix:Seq<Part2Tier1StorageEvent>,result:Result<T,crate::DecodeError>)->bool {
@@ -70,9 +73,12 @@ pub(crate) open spec fn part2_tier1_plane_run(width:u16,height:u16,role:crate::t
         match part2_tier1_plane_admit(width,height) {
             Err(error)=>Some((Err(error),calls)),
             Ok(count)=>if count==0{Some((tier1_empty_plane(width,height),calls))}else if calls.len()==0{None}else{
-                let call=calls[0];
-                if call.width!=width || call.height!=height || call.role!=role || call.samples!=count{None}
-                else{Some((if call.succeeded{tier1_empty_plane(width,height)}else{Err(crate::DecodeError::AllocationFailed)},calls.drop_first()))}
+                match calls[0] {
+                    Part2Tier1StorageEvent::Coefficient {width:actual_width,height:actual_height,role:actual_role,samples,succeeded}=>
+                        if actual_width!=width || actual_height!=height || actual_role!=role || samples!=count{None}
+                        else{Some((if succeeded{tier1_empty_plane(width,height)}else{Err(crate::DecodeError::AllocationFailed)},calls.drop_first()))},
+                    _=>None,
+                }
             },
         }
 }
@@ -84,7 +90,7 @@ pub(crate) proof fn part2_tier1_plane_normal(width:u16,height:u16,role:crate::ti
 {
     let result=tier1_empty_plane(width,height);
     let prefix=match part2_tier1_plane_admit(width,height){
-        Err(_)=>Seq::empty(),Ok(count)=>if count==0{Seq::empty()}else{seq![Part2Tier1StorageEvent {width,height,role,samples:count,succeeded:true}]},
+        Err(_)=>Seq::empty(),Ok(count)=>if count==0{Seq::empty()}else{seq![Part2Tier1StorageEvent::Coefficient {width,height,role,samples:count,succeeded:true}]},
     };
     assert forall|tail:Seq<Part2Tier1StorageEvent>|part2_tier1_plane_run(width,height,role,prefix+tail)==Some((result,tail)) by{
         if part2_tier1_plane_admit(width,height).is_ok() && part2_tier1_plane_admit(width,height).get_Ok_0()>0{
@@ -98,7 +104,7 @@ pub(crate) proof fn part2_tier1_plane_observed(width:u16,height:u16,role:crate::
     ensures part1_tier1_plane_storage_result(width,height,role,if result.is_ok(){tier1_empty_plane(width,height)}else{Err(crate::DecodeError::AllocationFailed)}),
 {
     let value=if result.is_ok(){tier1_empty_plane(width,height)}else{Err(crate::DecodeError::AllocationFailed)};
-    let prefix=if count==0{Seq::empty()}else{seq![Part2Tier1StorageEvent {width,height,role,samples:count,succeeded:result.is_ok()}]};
+    let prefix=if count==0{Seq::empty()}else{seq![Part2Tier1StorageEvent::Coefficient {width,height,role,samples:count,succeeded:result.is_ok()}]};
     assert forall|tail:Seq<Part2Tier1StorageEvent>|part2_tier1_plane_run(width,height,role,prefix+tail)==Some((value,tail)) by{
         if count==0{assert(prefix+tail =~= tail);}else{assert((prefix+tail).drop_first() =~= tail);}
     }

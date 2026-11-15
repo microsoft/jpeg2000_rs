@@ -1,6 +1,156 @@
 use super::*;
 
 #[test]
+fn ht_refinement_storage_checked_staging_copy_keeps_clone_fields_and_empty_frontier() {
+    let mut source = retained_refinement_decoder();
+    source.ht_refinement_data = vec![1, 7, 0xff];
+    let before = format!("{source:?}");
+    for role in [
+        HtRefinementCopyRole::HtStaging,
+        HtRefinementCopyRole::PacketStaging,
+    ] {
+        assert!(matches!(
+            crate::allocation::with_refusal(0, || source.try_duplicate(role)),
+            Err(DecodeError::AllocationFailed)
+        ));
+        assert_eq!(format!("{source:?}"), before);
+        assert_eq!(format!("{:?}", source.try_duplicate(role).unwrap()), before);
+    }
+    crate::allocation::with_refusal(0, || {
+        assert_eq!(format!("{:?}", source.clone()), before);
+        assert!(matches!(
+            source.try_duplicate(HtRefinementCopyRole::HtStaging),
+            Err(DecodeError::AllocationFailed)
+        ));
+    });
+    source.ht_refinement_data.clear();
+    crate::allocation::with_refusal(0, || {
+        assert_eq!(
+            format!(
+                "{:?}",
+                source
+                    .try_duplicate(HtRefinementCopyRole::PacketStaging)
+                    .unwrap()
+            ),
+            format!("{source:?}")
+        );
+        assert_eq!(
+            super::ht_refinement::copy_ht_refinement_bytes(
+                &[],
+                HtRefinementCopyRole::CleanupRetention
+            ),
+            Ok(Vec::new())
+        );
+        assert_eq!(
+            super::ht_refinement::copy_ht_refinement_bytes(
+                &[1],
+                HtRefinementCopyRole::CleanupRetention
+            ),
+            Err(DecodeError::AllocationFailed)
+        );
+    });
+}
+
+#[test]
+fn ht_refinement_storage_replay_copy_preserves_earlier_limits_later_length_and_state() {
+    let limits = ResourceLimits::default();
+    let mut base = retained_refinement_decoder();
+    base.next_pass = 2;
+    base.ht_refinement_passes = 1;
+    base.ht_refinement_data = vec![1];
+    let before = format!("{base:?}");
+    let mut expected = base.clone();
+    let expected_result = expected
+        .decode_high_throughput_refinement(&[1], 1, &limits)
+        .unwrap();
+    for after in [0, 1, 2] {
+        let mut actual = base.clone();
+        assert_eq!(
+            crate::allocation::with_refusal(after, || actual.decode_high_throughput_refinement(
+                &[1],
+                1,
+                &limits
+            )),
+            Err(DecodeError::AllocationFailed)
+        );
+        assert_eq!(format!("{actual:?}"), before);
+        assert_eq!(
+            actual
+                .decode_high_throughput_refinement(&[1], 1, &limits)
+                .unwrap(),
+            expected_result
+        );
+        assert_eq!(format!("{actual:?}"), format!("{expected:?}"));
+    }
+    let oversized = vec![0; MAX_HT_REFINEMENT_BYTES];
+    let mut actual = base.clone();
+    assert_eq!(
+        crate::allocation::with_refusal(0, || actual
+            .decode_high_throughput_refinement(&oversized, 1, &limits)),
+        Err(DecodeError::AllocationFailed)
+    );
+    assert_eq!(
+        actual.decode_high_throughput_refinement(&oversized, 1, &limits),
+        Err(invalid_code_block())
+    );
+    assert_eq!(format!("{actual:?}"), before);
+    crate::allocation::with_refusal(0, || {
+        assert_eq!(
+            actual.decode_high_throughput_refinement(&[1], 0, &limits),
+            Err(invalid_code_block())
+        );
+        assert_eq!(
+            actual.decode_high_throughput_refinement(&[1], 1, &limits),
+            Err(DecodeError::AllocationFailed)
+        );
+    });
+}
+
+#[test]
+fn ht_refinement_storage_retention_refusal_keeps_cleared_state_and_staging_rolls_back() {
+    let limits = ResourceLimits::default();
+    let mut actual = tier1_plane_storage_ht_decoder();
+    actual.ht_refinement_data = vec![9];
+    actual.ht_refinement_passes = 1;
+    let mut cleared = actual.clone();
+    cleared.ht_refinement_data.clear();
+    cleared.ht_refinement_passes = 0;
+    assert_eq!(
+        crate::allocation::with_refusal(4, || actual.decode_high_throughput_segments(
+            &[0, 0x63, 0],
+            1,
+            Some(&[0]),
+            1,
+            &limits
+        )),
+        Err(DecodeError::AllocationFailed)
+    );
+    assert_eq!(format!("{actual:?}"), format!("{cleared:?}"));
+    assert!(
+        actual
+            .decode_high_throughput_segments(&[0, 0x63, 0], 1, Some(&[0]), 1, &limits)
+            .is_ok()
+    );
+    let mut staged = tier1_plane_storage_ht_decoder();
+    staged.ht_refinement_data = vec![9];
+    let before = format!("{staged:?}");
+    assert_eq!(
+        crate::allocation::with_refusal(0, || staged.decode_ht_staged_group(
+            &[0, 0x63, 0],
+            1,
+            &limits
+        )),
+        Err(DecodeError::AllocationFailed)
+    );
+    assert_eq!(format!("{staged:?}"), before);
+    assert!(
+        staged
+            .decode_ht_staged_group(&[0, 0x63, 0], 1, &limits)
+            .is_ok()
+    );
+}
+
+#[test]
 fn tier1_plane_storage_standalone_duplicate_frontiers_and_exact_restore() {
     let mut source = CodeBlockPlane::new(1, 1).unwrap();
     source.coefficients[0] = CoefficientState {
@@ -3025,7 +3175,17 @@ fn ht_continuation_replays_real_concatenation_from_cleanup_not_current_output() 
     let mut decoder = retained_refinement_decoder();
     decoder.ht_refinement_data = Vec::with_capacity(64);
     decoder.ht_refinement_data.push(1);
-    let clone_capacity = decoder.ht_refinement_data.clone().capacity();
+    let source_pointer = decoder.ht_refinement_data.as_ptr();
+    assert_eq!(
+        decoder.clone().ht_refinement_data.capacity(),
+        decoder.ht_refinement_data.clone().capacity()
+    );
+    let copy_capacity = super::ht_refinement::copy_ht_refinement_bytes(
+        &decoder.ht_refinement_data,
+        HtRefinementCopyRole::RetainedReplay,
+    )
+    .unwrap()
+    .capacity();
     let mut expected = decoder.clone();
     expected.plane = literal_replayed_plane(3, false);
     expected.ht_refinement_passes = 1;
@@ -3042,7 +3202,8 @@ fn ht_continuation_replays_real_concatenation_from_cleanup_not_current_output() 
         ),
         (0, 2, 2)
     );
-    assert_eq!(decoder.ht_refinement_data.capacity(), clone_capacity);
+    assert_eq!(decoder.ht_refinement_data.capacity(), copy_capacity);
+    assert_ne!(decoder.ht_refinement_data.as_ptr(), source_pointer);
     assert_eq!(format!("{decoder:?}"), format!("{expected:?}"));
 }
 

@@ -4800,6 +4800,7 @@ _RAW_RENDER_PROOFS |= {("specs/jpx_raw_frame.rs", "part2_render_raw_cold_metadat
 _RAW_COMPOSITION_RENDER_PROOFS |= {("specs/jpx_raw_frame.rs", "part2_render_raw_cold_metadata_error")}
 
 _PLANE_ROLE_MODEL_INFO = {
+    "ht_copy_refinement_bytes": ("part2_ht_bytes_result", "specs/cold_ht_bytes.rs", "part2_ht_bytes_normal"),
     "tier1_duplicate_plane": ("part1_plane_duplicate_storage_result", "specs/cold_tier1_planes.rs", "part2_plane_duplicate_normal"),
     "ht_cleanup_plane": ("part2_plane_cleanup_result", "specs/cold_tier1_planes.rs", "part2_plane_cleanup_normal"),
     "ht_cleanup_prepare": ("part2_plane_prepare_result", "specs/cold_tier1_planes.rs", "part2_plane_prepare_normal"),
@@ -4830,7 +4831,7 @@ _PLANE_ROLE_MODEL_INFO = {
 _PLANE_ROLE_RESULT_RUNS = {
     model: (("part2_plane_duplicate_run" if model == "part1_plane_duplicate_storage_result" else
              "part2_plane_tile_run" if model == "part2_plane_tile_run_result" else model.removesuffix("_result") + "_run"),
-            old not in {"tier1_duplicate_plane", "ht_cleanup_plane", "ht_cleanup_prepare", "ht_refinement_plane"})
+            old not in {"tier1_duplicate_plane", "ht_cleanup_plane", "ht_cleanup_prepare", "ht_refinement_plane", "ht_copy_refinement_bytes"})
     for old, (model, _, _) in _PLANE_ROLE_MODEL_INFO.items()
 }
 _COLD_RESULT_MODELS = {
@@ -5009,6 +5010,8 @@ def _coverage_cold_relation(
     cold_model = _COLD_RESULT_MODELS[model][0]
     if model == "tier1_empty_plane":
         inputs += r"\s*,\s*_role"
+    if model == "ht_copy_refinement_bytes":
+        inputs += r"\s*,\s*_role"
     if model == "tier1_duplicate_plane":
         inputs += r"\s*,\s*role"
     if model == "part1_precinct_packet":
@@ -5151,6 +5154,11 @@ _INITIAL_TIER1_PLANE_CONTRACTS = {
         "tier1_empty_plane", _coverage_call("code_block_plane_outcome", r"\1"), None, r"width\s*,\s*height",
     ),
 }
+_HT_BYTE_COPY_CONTRACTS = {
+    ("src/tier1/ht_refinement.rs", "copy_ht_refinement_bytes"): (
+        "ht_copy_refinement_bytes", _coverage_call("ht_byte_vector_outcome", r"\1"), None, r"input@",
+    ),
+}
 _COLD_RESULT_CONTRACTS = {
     key: _coverage_cold_relation(legacy)
     for contracts in (
@@ -5177,7 +5185,7 @@ _COLD_RESULT_CONTRACTS = {
         _PRECINCT_PLANNING_CONTRACTS, _SUBBAND_EXECUTION_CONTRACTS, _CODEBLOCK_VECTOR_CONTRACTS,
         _PACKET_HEADER_CONTRACTS, _PRECINCT_INITIALIZATION_CONTRACTS,
         _INITIAL_TIER1_PLANE_CONTRACTS, _DECODER_INITIALIZATION_CONTRACTS, _CODEBLOCK_PLANNING_CONTRACTS,
-        _PACKET_WRAPPER_CONTRACTS, _PLANE_ROLE_SPECIAL_CONTRACTS, _JPIP_PHASE_CONTRACTS,
+        _PACKET_WRAPPER_CONTRACTS, _PLANE_ROLE_SPECIAL_CONTRACTS, _JPIP_PHASE_CONTRACTS, _HT_BYTE_COPY_CONTRACTS,
     )
     for key, legacy in contracts.items()
     if legacy[0] in _COLD_RESULT_MODELS
@@ -5419,6 +5427,8 @@ def _coverage_cold_result_body(text: str, model: str) -> bool:
         run_name, wrapped = _PLANE_ROLE_RESULT_RUNS[model]
         expected = "part2_tier1_storage_framed(|calls|" + run_name + "(" + ",".join(names[:-1] + ["calls"]) + ")," \
             + ("Ok(result)" if wrapped else "result") + ")"
+        if model == "part2_ht_replay_result":
+            expected += "&&(result.0!=Err(crate::DecodeError::AllocationFailed)==>result==ht_decode_refinement_contribution(before,input,passes,maximum_bytes,work))"
     elif model in ("part2_jpip_packet_copy_result", "part2_jpip_phase_copy_result"):
         expected = "part2_cold_framed(|events|" + call + ",Ok(result))"
     elif model == "part1_tier1_plane_storage_result":
@@ -5571,6 +5581,74 @@ _TIER1_INITIAL_TESTS = {
     ("src/tier1/tests.rs", "tier1_initial_storage_first_later_exact_coefficients_restore_and_separate_later_role"),
     ("src/decode/tests.rs", "tier1_initial_storage_cell_columns_rows_retain_prior_owners_and_restore"),
     ("src/decode/tests.rs", "tier1_initial_storage_public_raw_selected_container_roles_and_restore"),
+}
+_HT_BYTE_COPY_ENTRY = "part15-complete-substantive-segment-byte-entry"
+_HT_BYTE_COPY_ENTRIES = {
+    _HT_BYTE_COPY_ENTRY, "part15-complete-retained-refinement-and-placeholder-steps",
+    "part1-complete-native-mixed-code-block-body",
+}
+_HT_BYTE_COPY_TESTS = {
+    ("src/tier1/tests.rs", "ht_refinement_storage_checked_staging_copy_keeps_clone_fields_and_empty_frontier"),
+    ("src/tier1/tests.rs", "ht_refinement_storage_replay_copy_preserves_earlier_limits_later_length_and_state"),
+    ("src/tier1/tests.rs", "ht_refinement_storage_retention_refusal_keeps_cleared_state_and_staging_rolls_back"),
+    ("src/packet/tests.rs", "ht_refinement_storage_packet_staging_copy_precedes_route_error_and_restores_decoder"),
+    ("src/decode/tests.rs", "ht_refinement_storage_raw_selected_jph_retention_refusal_and_exact_restore"),
+}
+_HT_BYTE_COPY_GUARDS = {
+    ("specs/cold_ht_bytes.rs", "part2_ht_bytes_run"): (
+        "if source.len()==0{Some((Ok(source),calls))}", "Part2Tier1StorageEvent::RefinementBytes",
+        "actual!=role || before!=source || elements!=source.len()",
+        "if succeeded{Ok(source)}else{Err(crate::DecodeError::AllocationFailed)}", "calls.drop_first()",
+    ),
+    ("specs/cold_ht_bytes.rs", "part2_ht_duplicate_run"): (
+        "part2_ht_bytes_run(before.ht_refinement_data,role,calls)", "Some((Ok(before),rest))",
+    ),
+    ("specs/cold_ht_decoder.rs", "part2_ht_coeff_after_refinement"): (
+        "let cleared=ht_clear_refinement_state(before)", "Err(error)=>Some((Ok((Err(error),cleared)),calls))",
+        "tier1_statistics_merge(output.2,value.1).0.is_err()",
+        "part2_ht_bytes_run(refinement.encoded,crate::tier1::HtRefinementCopyRole::CleanupRetention,calls)",
+        "Err(error)=>(Err(error),cleared)",
+    ),
+    ("specs/cold_ht_decoder.rs", "part2_ht_replay_run"): (
+        "!part2_ht_replay_copy_admitted(", "part2_ht_bytes_run(before.ht_refinement_data,crate::tier1::HtRefinementCopyRole::RetainedReplay,calls)",
+        "Err(error)=>Some((Ok((Err(error),before)),rest))", "part2_ht_replay_after_copy(",
+    ),
+    ("specs/cold_ht_decoder.rs", "part2_ht_staged_run"): (
+        "!part2_ht_staged_copy_admitted(", "part2_ht_duplicate_run(before,crate::tier1::HtRefinementCopyRole::HtStaging,calls)",
+        "Err(error)=>Some((Ok((Err(error),before)),rest))", "part2_ht_staged_after_duplicate(",
+    ),
+    ("specs/cold_packet_planes.rs", "part2_plane_body_transaction_run"): (
+        "part2_ht_duplicate_run(before,crate::tier1::HtRefinementCopyRole::PacketStaging,calls)",
+        "Err(error)=>Some((Ok((Err(error),before)),rest))", "part2_plane_body_after_duplicate(",
+    ),
+}
+_HT_BYTE_COPY_NATIVE_ORDER = {
+    ("src/tier1/contributions.rs", "Tier1CodeBlockDecoder::try_duplicate"): (
+        "plane:self.plane.clone()", "bitplane_state:self.bitplane_state.clone()", "legacy_segment:self.legacy_segment.clone()",
+        "ht_cleanup_plane:self.ht_cleanup_plane.clone()", "ht_refinement_data:", "copy_ht_refinement_bytes(&self.ht_refinement_data,role)",
+        "part2_ht_duplicate_observed(", "copied?", "ht_refinement_passes:self.ht_refinement_passes",
+    ),
+    ("src/tier1/ht_refinement.rs", "copy_ht_refinement_bytes"): (
+        "let copied = crate::allocation::copy_values(input)", "part2_ht_bytes_observed(input@,_role,match copied{Err(error)=>Err(error),Ok(_)=>Ok(())})", "copied",
+    ),
+    ("src/tier1/ht_contributions.rs", "Tier1CodeBlockDecoder::decode_high_throughput_refinement"): (
+        "let cleanup_plane =", "if next_bytes > limits.maximum_code_block_bytes()",
+        "copy_ht_refinement_bytes(", "HtRefinementCopyRole::RetainedReplay", "let mut refinement_data = copied?",
+        "refinement_data.extend_from_slice(input)", "if refinement_data.len() > MAX_HT_REFINEMENT_BYTES", "decode_ht_refinement_plane(",
+    ),
+    ("src/tier1/ht_contributions.rs", "Tier1CodeBlockDecoder::decode_ht_staged_group"): (
+        "if passes == 0 || input.is_empty()", "ht_pass_group_from_packet(", "if grouping.refinement_passes != 0",
+        "self.try_duplicate(super::HtRefinementCopyRole::HtStaging)", "let mut staged = duplicated?", "staged.run_ht_placeholder_groups(",
+    ),
+    ("src/tier1/ht_contributions.rs", "Tier1CodeBlockDecoder::decode_ht_coefficient_symbols"): (
+        "self.clear_ht_refinement_state()", "decode_ht_refinement_plane(", "statistics.merge(refinement_statistics)?",
+        "copy_ht_refinement_bytes(", "HtRefinementCopyRole::CleanupRetention", "self.ht_refinement_data = copied?",
+        "self.ht_refinement_passes = refinement_passes",
+    ),
+    ("src/packet/body.rs", "decode_code_block_contribution_body"): (
+        "decoder.try_duplicate(crate::tier1::HtRefinementCopyRole::PacketStaging)", "let mut staged = duplicated?",
+        "decode_code_block_contribution_body_staged(", "let decoded = decoded_result?", "*decoder = staged",
+    ),
 }
 _ROLLBACK_OWNER_TESTS = {
     ("src/packet/tests.rs", "rollback_snapshot_storage_outer_roles_precede_children_and_restore_exact_packet"),
@@ -5813,7 +5891,8 @@ _PLANE_ROLE_TESTS = {
 }
 _PLANE_ROLE_GUARDS = {
     ("specs/cold_tier1_initial.rs", "part2_tier1_plane_run"): (
-        "call.width!=width || call.height!=height || call.role!=role || call.samples!=count",
+        "Part2Tier1StorageEvent::Coefficient",
+        "actual_width!=width || actual_height!=height || actual_role!=role || samples!=count",
         "calls.drop_first()",
     ),
     ("specs/cold_tier1_initial.rs", "part2_tier1_storage_prefix"): (
@@ -5847,13 +5926,13 @@ _PLANE_ROLE_GUARDS = {
     ),
     ("specs/cold_ht_decoder.rs", "part2_ht_coeff_after_prepare"): (
         "Err(error)=>Some((Ok((Err(error),before)),calls))", "let cleared=ht_clear_refinement_state(before)",
-        "part2_plane_refinement_run(output.1,refinement", "Err(error)=>(Err(error),cleared)",
+        "part2_plane_refinement_run(output.1,refinement", "part2_ht_coeff_after_refinement(",
     ),
     ("specs/cold_ht_decoder.rs", "part2_ht_staged_run"): (
-        "part2_ht_staged_admit(", "part2_ht_segments_run(staged", "Err(error)=>(Err(error),before)",
+        "part2_ht_staged_copy_admitted(", "HtRefinementCopyRole::HtStaging", "part2_ht_staged_after_duplicate(",
     ),
     ("specs/cold_packet_planes.rs", "part2_plane_body_transaction_run"): (
-        "part2_plane_body_staged_run(", "Err(error)=>(Err(error),before)",
+        "part2_ht_duplicate_run(", "HtRefinementCopyRole::PacketStaging", "part2_plane_body_after_duplicate(",
     ),
     ("specs/cold_packet_execute.rs", "part2_plane_execute_finish"): (
         "decoders:s.decoders.update(s.index as int,decoded.1)", "s.segments as nat+value.segments", "s.passes as nat+value.passes",
@@ -5895,7 +5974,8 @@ _TIER1_INITIAL_GUARDS = {
     ),
     ("specs/cold_tier1_initial.rs", "part2_tier1_plane_run"): (
         "part2_tier1_plane_admit(width,height)",
-        "Err(error)=>Some((Err(error),calls))", "call.width!=width || call.height!=height || call.role!=role || call.samples!=count",
+        "Err(error)=>Some((Err(error),calls))", "Part2Tier1StorageEvent::Coefficient",
+        "actual_width!=width || actual_height!=height || actual_role!=role || samples!=count",
         "Err(crate::DecodeError::AllocationFailed)", "calls.drop_first()",
     ),
     ("specs/cold_tier1_initial.rs", "part2_tier1_initial_run"): (
@@ -13667,6 +13747,44 @@ def validate_normative_coverage(
                     "part2_codeblock_cell_result", "part2_codeblock_owner_result"} for ref in entry["contract_refs"]):
                 if not _TIER1_INITIAL_TESTS.issubset({(ref["path"], ref["symbol"]) for ref in entry["test_refs"]}):
                     raise ValueError("initial Tier1 storage requires bounded refusal/restore/zero/ordinary-policy/row-owner/real-public controls")
+    if ids & _HT_BYTE_COPY_ENTRIES:
+        for (relative, symbol), fragments in _HT_BYTE_COPY_GUARDS.items():
+            body = _coverage_spec_function_body(source_text((ROOT / relative).resolve()), symbol)
+            compact = "".join(body.split()) if body is not None else ""
+            if any("".join(fragment.split()) not in compact for fragment in fragments):
+                raise ValueError("HT byte-copy storage requires distinct real roles/sources/counts, exact cleared/rollback state and ordered response/tail binds")
+        for (relative, symbol), fragments in _HT_BYTE_COPY_NATIVE_ORDER.items():
+            path = (ROOT / relative).resolve()
+            body = _coverage_function_body(source_text(path), function_header(path, symbol))
+            compact = "".join(body.split()) if body is not None else ""
+            position = 0
+            for fragment in fragments:
+                token = "".join(fragment.split())
+                found = compact.find(token, position)
+                if found < 0:
+                    raise ValueError("HT byte-copy storage requires original field/admission/copy/append/child/error/commit order")
+                position = found + len(token)
+        replay = _coverage_spec_function_body(source_text((ROOT / "specs/cold_ht_decoder.rs").resolve()), "part2_ht_replay_copy_admitted")
+        if replay is None or any(token in replay for token in ("2046", "data.len()")):
+            raise ValueError("HT byte-copy storage cannot hoist later concatenation admission before the actual copy")
+        clone_path = (ROOT / "src/tier1/contributions.rs").resolve()
+        clone = _coverage_function_body(source_text(clone_path), function_header(clone_path, "Tier1CodeBlockDecoder::clone"))
+        original_clone = """Self {
+            plane:self.plane.clone(),orientation:self.orientation,style:self.style,maximum_passes:self.maximum_passes,
+            next_pass:self.next_pass,bitplane:self.bitplane,zero_bitplanes:self.zero_bitplanes,bitplane_state:self.bitplane_state.clone(),
+            mq_context_state:self.mq_context_state,reset_contexts_before_mq:self.reset_contexts_before_mq,
+            decoded_segments:self.decoded_segments,decoded_bytes:self.decoded_bytes,legacy_segment:self.legacy_segment.clone(),
+            legacy_decode_work:self.legacy_decode_work,ht_cleanup_plane:self.ht_cleanup_plane.clone(),
+            ht_refinement_data:self.ht_refinement_data.clone(),ht_refinement_passes:self.ht_refinement_passes,
+            ht_decoded_bitplanes:self.ht_decoded_bitplanes,ht_current_set_has_cleanup:self.ht_current_set_has_cleanup,
+            ht_sets_seen:self.ht_sets_seen,allow_multiple_ht_sets:self.allow_multiple_ht_sets,ht_magnitude_bound:self.ht_magnitude_bound,
+        }"""
+        if clone is None or "".join(clone.split()) != "".join(original_clone.split()):
+            raise ValueError("HT byte-copy storage must preserve the original public infallible Clone")
+        if _HT_BYTE_COPY_ENTRY in ids:
+            entry = next(item for item in coverage["requirements"] if item["id"] == _HT_BYTE_COPY_ENTRY)
+            if not _HT_BYTE_COPY_TESTS.issubset({(ref["path"], ref["symbol"]) for ref in entry["test_refs"]}):
+                raise ValueError("HT byte-copy storage requires bounded staging/replay/retention/empty/error/real-public restoration controls")
     if ids & _TAG_COPY_ENTRIES:
         owner_source = source_text((ROOT / "specs/cold_rollback_snapshot.rs").resolve())
         for symbol, fragments in _ROLLBACK_OWNER_GUARDS.items():

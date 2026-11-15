@@ -67,26 +67,17 @@ pub(super) fn ht_collect_cleanup_significance(coefficients: &[CoefficientState])
 }
 
 #[cfg_attr(verus_keep_ghost, verus_spec(result =>
-    ensures ht_byte_vector_outcome(result) == crate::specs::ht_copy_refinement_bytes(input@),
+    ensures crate::specs::part2_ht_bytes_result(input@,_role,ht_byte_vector_outcome(result)),
+        ht_byte_vector_outcome(result)!=Err(DecodeError::AllocationFailed) ==> ht_byte_vector_outcome(result) == crate::specs::ht_copy_refinement_bytes(input@),
 ))]
-pub(super) fn copy_ht_refinement_bytes(input: &[u8]) -> Result<Vec<u8>, DecodeError> {
-    let mut output = Vec::with_capacity(input.len());
-    let mut index = 0_usize;
-    #[cfg_attr(
-        verus_keep_ghost,
-        verus_spec(
-            invariant index <= input.len(), output.len() == index,
-                forall |i: int| 0 <= i < index ==> output@[i] == input@[i],
-            decreases input.len() - index,
-        )
-    )]
-    while index < input.len() {
-        output.push(*input.get(index).ok_or_else(invalid_code_block)?);
-        index = index.checked_add(1).ok_or_else(arithmetic_overflow)?;
-    }
+pub(super) fn copy_ht_refinement_bytes(
+    input: &[u8],
+    _role: super::HtRefinementCopyRole,
+) -> Result<Vec<u8>, DecodeError> {
+    let copied = crate::allocation::copy_values(input);
     #[cfg(verus_keep_ghost)]
-    proof! { assert(output@ =~= input@); }
-    Ok(output)
+    proof! {crate::specs::part2_ht_bytes_observed(input@,_role,match copied{Err(error)=>Err(error),Ok(_)=>Ok(())});}
+    copied
 }
 
 impl HtRefinementPlaneState<'_> {

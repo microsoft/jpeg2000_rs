@@ -328,7 +328,7 @@ pub(super) fn execute_packet_body_contributions(
             crate::tier1::tier1_decoder_state(old(decoder)), code_block_contribution_view(contribution), body@,
             crate::limits::resource_code_block_pass_limit(limits), crate::limits::resource_code_block_byte_limit(limits),
             crate::limits::resource_work_limit(limits)),
-        !code_block_contribution_view(contribution).high_throughput ==>
+        (result!=Err(DecodeError::AllocationFailed) && !code_block_contribution_view(contribution).high_throughput) ==>
         (result, crate::tier1::tier1_decoder_state(final(decoder))) == crate::specs::part1_legacy_code_block_transaction(
             crate::tier1::tier1_decoder_state(old(decoder)), code_block_contribution_view(contribution), body@,
             crate::limits::resource_code_block_pass_limit(limits), crate::limits::resource_code_block_byte_limit(limits),
@@ -345,7 +345,11 @@ pub fn decode_code_block_contribution_body(
     #[cfg(verus_keep_ghost)]
     proof! {crate::specs::part2_plane_body_transaction_normal(before,code_block_contribution_view(contribution),body@,crate::limits::resource_code_block_pass_limit(limits),
     crate::limits::resource_code_block_byte_limit(limits),crate::limits::resource_input_byte_limit(limits),crate::limits::resource_work_limit(limits));}
-    let mut staged = decoder.clone();
+    let duplicated = decoder.try_duplicate(crate::tier1::HtRefinementCopyRole::PacketStaging);
+    #[cfg(verus_keep_ghost)]
+    proof! {if let Err(error)=duplicated{crate::specs::part2_plane_body_duplicate_error(before,code_block_contribution_view(contribution),body@,crate::limits::resource_code_block_pass_limit(limits),
+    crate::limits::resource_code_block_byte_limit(limits),crate::limits::resource_input_byte_limit(limits),crate::limits::resource_work_limit(limits),error);}}
+    let mut staged = duplicated?;
     let decoded_result =
         decode_code_block_contribution_body_staged(&mut staged, contribution, body, limits);
     #[cfg(verus_keep_ghost)]

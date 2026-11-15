@@ -76,7 +76,11 @@ impl Tier1CodeBlockDecoder {
         if grouping.refinement_passes != 0 {
             return Err(invalid_code_block());
         }
-        let mut staged = self.clone();
+        let duplicated = self.try_duplicate(super::HtRefinementCopyRole::HtStaging);
+        #[cfg(verus_keep_ghost)]
+        proof! {if let Err(error)=duplicated{crate::specs::part2_ht_staged_duplicate_error(before,input@,passes,crate::limits::resource_code_block_pass_limit(limits),
+        crate::limits::resource_code_block_byte_limit(limits),crate::limits::resource_work_limit(limits),error);}}
+        let mut staged = duplicated?;
         staged.run_ht_placeholder_groups(grouping.placeholder_passes, limits)?;
         #[cfg(verus_keep_ghost)]
         proof_decl! {let ghost staged_before=tier1_decoder_state(&staged);}
@@ -255,9 +259,19 @@ impl Tier1CodeBlockDecoder {
             proof! {if let Err(error)=refined_result {crate::specs::part2_ht_coeff_refinement_error(before,ht_block_segments_view(&segments),pass_count,maximum_u,skipped_bitplanes,
             crate::limits::resource_work_limit(limits),prepared,ht_refinement_segment_view(&refinement),error);}}
             let (refined, refinement_statistics) = refined_result?;
+            #[cfg(verus_keep_ghost)]
+            proof_decl! {let ghost refinement_output=(code_block_plane_view(&refined),refinement_statistics);}
             output = refined;
             statistics.merge(refinement_statistics)?;
-            self.ht_refinement_data = copy_ht_refinement_bytes(refinement.encoded())?;
+            let copied = copy_ht_refinement_bytes(
+                refinement.encoded(),
+                super::HtRefinementCopyRole::CleanupRetention,
+            );
+            #[cfg(verus_keep_ghost)]
+            proof! {if let Err(error)=copied{crate::specs::part2_ht_coeff_bytes_error(before,ht_block_segments_view(&segments),pass_count,maximum_u,skipped_bitplanes,
+            crate::limits::resource_work_limit(limits),prepared,ht_refinement_segment_view(&refinement),
+            refinement_output,error);}}
+            self.ht_refinement_data = copied?;
             self.ht_refinement_passes = refinement_passes;
         }
         self.store_ht_coefficient_symbols(
@@ -418,7 +432,7 @@ impl Tier1CodeBlockDecoder {
         #[cfg(verus_keep_ghost)]
         proof_decl! { let ghost start = tier1_decoder_state(self); }
         #[cfg(verus_keep_ghost)]
-        proof! {crate::specs::part2_ht_replay_normal(start,input@,passes,crate::limits::resource_code_block_byte_limit(limits),crate::limits::resource_work_limit(limits));}
+        proof! {crate::specs::part2_replay_entry(start,input@,passes,crate::limits::resource_code_block_byte_limit(limits),crate::limits::resource_work_limit(limits));}
         if !self.style.block_coding.uses_high_throughput()
             || self.next_pass == 0
             || !self.ht_current_set_has_cleanup
@@ -429,7 +443,19 @@ impl Tier1CodeBlockDecoder {
                 None => true,
             }
         {
+            #[cfg(verus_keep_ghost)]
+            proof! {crate::specs::part2_ht_replay_primary_consequence(start,input@,passes,crate::limits::resource_code_block_byte_limit(limits),crate::limits::resource_work_limit(limits),
+            (Err(crate::specs::ht_reader_error(crate::MalformedKind::InvalidCodeBlock)),start));}
             return Err(invalid_code_block());
+        }
+        #[cfg(verus_keep_ghost)]
+        proof! {
+            if start.ht_cleanup_plane.is_none(){crate::specs::part2_ht_replay_primary_consequence(start,input@,passes,crate::limits::resource_code_block_byte_limit(limits),crate::limits::resource_work_limit(limits),
+                (Err(crate::specs::ht_reader_error(crate::MalformedKind::InvalidCodeBlock)),start));}
+            if start.ht_cleanup_plane.is_some() && start.decoded_bytes as nat+(input@.len() as u64) as nat>u64::MAX{
+                crate::specs::part2_ht_replay_primary_consequence(start,input@,passes,crate::limits::resource_code_block_byte_limit(limits),crate::limits::resource_work_limit(limits),
+                    (Err(crate::specs::ht_reader_error(crate::MalformedKind::ArithmeticOverflow)),start));
+            }
         }
         let cleanup_plane = self
             .ht_cleanup_plane
@@ -440,33 +466,72 @@ impl Tier1CodeBlockDecoder {
             .checked_add(input.len() as u64)
             .ok_or_else(arithmetic_overflow)?;
         if next_bytes > limits.maximum_code_block_bytes() {
+            #[cfg(verus_keep_ghost)]
+            proof! {crate::specs::part2_ht_replay_primary_consequence(start,input@,passes,crate::limits::resource_code_block_byte_limit(limits),crate::limits::resource_work_limit(limits),
+            (Err(DecodeError::LimitExceeded {resource:Resource::CodeBlockBytes,limit:crate::limits::resource_code_block_byte_limit(limits),actual:next_bytes}),start));}
             return Err(DecodeError::LimitExceeded {
                 resource: Resource::CodeBlockBytes,
                 limit: limits.maximum_code_block_bytes(),
                 actual: next_bytes,
             });
         }
-        let mut refinement_data = self.ht_refinement_data.clone();
+        let copied = copy_ht_refinement_bytes(
+            &self.ht_refinement_data,
+            super::HtRefinementCopyRole::RetainedReplay,
+        );
+        #[cfg(verus_keep_ghost)]
+        proof! {if let Err(error)=copied{crate::specs::part2_ht_replay_copy_error(start,input@,passes,crate::limits::resource_code_block_byte_limit(limits),
+        crate::limits::resource_work_limit(limits),error);
+        crate::specs::part2_ht_replay_primary_consequence(start,input@,passes,crate::limits::resource_code_block_byte_limit(limits),crate::limits::resource_work_limit(limits),(Err(error),start));}}
+        let mut refinement_data = copied?;
         #[cfg(verus_keep_ghost)]
         proof! { assert(refinement_data@ == start.ht_refinement_data); }
         refinement_data.extend_from_slice(input);
         #[cfg(verus_keep_ghost)]
         proof! { assert(refinement_data@ == start.ht_refinement_data + input@); }
         if refinement_data.len() > MAX_HT_REFINEMENT_BYTES {
+            #[cfg(verus_keep_ghost)]
+            proof! {crate::specs::part2_replay_late_error(start,input@,passes,crate::limits::resource_code_block_byte_limit(limits),crate::limits::resource_work_limit(limits));}
             return Err(invalid_code_block());
         }
         let refinement_passes =
             crate::refinement::ht_refinement_pass_total(self.ht_refinement_passes, passes);
         if refinement_data.is_empty() {
+            #[cfg(verus_keep_ghost)]
+            proof_decl! {
+                let ghost t:crate::specs::Part2ReplayFinish;
+                let ghost mut prior=tier1_decoder_state(self);
+            }
+            #[cfg(verus_keep_ghost)]
+            proof! {
+                crate::specs::part2_ht_replay_admission_fields(start,input@,passes,crate::limits::resource_code_block_byte_limit(limits));
+                t=crate::specs::part2_replay_finish_empty(start,input@,passes,crate::limits::resource_code_block_byte_limit(limits),crate::limits::resource_work_limit(limits));
+            }
             self.ht_refinement_passes = refinement_passes;
+            #[cfg(verus_keep_ghost)]
+            proof! {
+                crate::specs::part2_replay_advance(t,2,prior,tier1_decoder_state(self));prior=tier1_decoder_state(self);
+                if self.next_pass as nat+passes as nat>u32::MAX{crate::specs::part2_replay_counter_error(t,3,prior);}
+            }
             self.next_pass = self
                 .next_pass
                 .checked_add(u32::from(passes))
                 .ok_or_else(arithmetic_overflow)?;
+            #[cfg(verus_keep_ghost)]
+            proof! {
+                crate::specs::part2_replay_advance(t,3,prior,tier1_decoder_state(self));prior=tier1_decoder_state(self);
+                if self.decoded_segments==u32::MAX{crate::specs::part2_replay_counter_error(t,4,prior);}
+            }
             self.decoded_segments = self
                 .decoded_segments
                 .checked_add(1)
                 .ok_or_else(arithmetic_overflow)?;
+            #[cfg(verus_keep_ghost)]
+            proof! {
+                crate::specs::part2_replay_advance(t,4,prior,tier1_decoder_state(self));prior=tier1_decoder_state(self);
+                crate::specs::part2_replay_advance(t,5,prior,prior);
+                crate::specs::part2_replay_return(t,prior);
+            }
             return Ok(Tier1SegmentDecode {
                 passes: u32::from(passes),
                 bytes: 0,
@@ -505,21 +570,59 @@ impl Tier1CodeBlockDecoder {
             limits,
         );
         #[cfg(verus_keep_ghost)]
-        proof! {if let Err(error)=replayed {crate::specs::part2_ht_replay_error(start,input@,passes,crate::limits::resource_code_block_byte_limit(limits),crate::limits::resource_work_limit(limits),
-        (code_block_plane_view(cleanup_plane),ht_refinement_segment_view(&segment),refinement_passes),error);}}
+        proof! {
+            crate::specs::part2_ht_replay_admission_fields(start,input@,passes,crate::limits::resource_code_block_byte_limit(limits));
+            if let Err(error)=replayed {
+                crate::specs::part2_ht_replay_error(start,input@,passes,crate::limits::resource_code_block_byte_limit(limits),crate::limits::resource_work_limit(limits),
+                    (code_block_plane_view(cleanup_plane),ht_refinement_segment_view(&segment),refinement_passes),error);
+                crate::specs::part2_ht_replay_primary_consequence(start,input@,passes,crate::limits::resource_code_block_byte_limit(limits),crate::limits::resource_work_limit(limits),(Err(error),start));
+            }
+        }
         let (plane, statistics) = replayed?;
+        #[cfg(verus_keep_ghost)]
+        proof_decl! {
+            let ghost t:crate::specs::Part2ReplayFinish;
+            let ghost mut prior=tier1_decoder_state(self);
+        }
+        #[cfg(verus_keep_ghost)]
+        proof! {
+            t=crate::specs::part2_replay_finish_from_child(start,input@,passes,crate::limits::resource_code_block_byte_limit(limits),crate::limits::resource_work_limit(limits),
+                (code_block_plane_view(cleanup_plane),ht_refinement_segment_view(&segment),refinement_passes),code_block_plane_view(&plane),statistics);
+        }
         self.plane = plane;
+        #[cfg(verus_keep_ghost)]
+        proof! {crate::specs::part2_replay_advance(t,0,prior,tier1_decoder_state(self));prior=tier1_decoder_state(self);}
         self.ht_refinement_data = refinement_data;
+        #[cfg(verus_keep_ghost)]
+        proof! {crate::specs::part2_replay_advance(t,1,prior,tier1_decoder_state(self));prior=tier1_decoder_state(self);}
         self.ht_refinement_passes = refinement_passes;
+        #[cfg(verus_keep_ghost)]
+        proof! {
+            crate::specs::part2_replay_advance(t,2,prior,tier1_decoder_state(self));prior=tier1_decoder_state(self);
+            if self.next_pass as nat+passes as nat>u32::MAX{crate::specs::part2_replay_counter_error(t,3,prior);}
+        }
         self.next_pass = self
             .next_pass
             .checked_add(u32::from(passes))
             .ok_or_else(arithmetic_overflow)?;
+        #[cfg(verus_keep_ghost)]
+        proof! {
+            crate::specs::part2_replay_advance(t,3,prior,tier1_decoder_state(self));prior=tier1_decoder_state(self);
+            if self.decoded_segments==u32::MAX{crate::specs::part2_replay_counter_error(t,4,prior);}
+        }
         self.decoded_segments = self
             .decoded_segments
             .checked_add(1)
             .ok_or_else(arithmetic_overflow)?;
+        #[cfg(verus_keep_ghost)]
+        proof! {crate::specs::part2_replay_advance(t,4,prior,tier1_decoder_state(self));prior=tier1_decoder_state(self);}
         self.decoded_bytes = next_bytes;
+        #[cfg(verus_keep_ghost)]
+        proof! {
+            crate::specs::part2_replay_advance(t,5,prior,tier1_decoder_state(self));prior=tier1_decoder_state(self);
+            if input@.len()>u32::MAX{crate::specs::part2_replay_counter_error(t,6,prior);}
+            else{crate::specs::part2_replay_return(t,prior);}
+        }
         Ok(Tier1SegmentDecode {
             passes: u32::from(passes),
             bytes: u32::try_from(input.len()).map_err(|_| arithmetic_overflow())?,

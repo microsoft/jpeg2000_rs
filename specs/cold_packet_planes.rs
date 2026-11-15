@@ -246,10 +246,18 @@ pub(crate) proof fn part2_packet_ht_body_normal(state:Tier1DecoderState,header:P
             part2_packet_ht_segments_result(part1_code_block_body_prepare(before,header,body).1,header,body,pass_limit,byte_limit,work,result),
         ensures part2_plane_body_staged_result(before,header,body,pass_limit,byte_limit,input_limit,work,result),
     {part2_tier1_storage_eta(|calls|part2_packet_ht_segments_run(part1_code_block_body_prepare(before,header,body).1,header,body,pass_limit,byte_limit,work,calls),Ok(result));}
-    pub(crate) open spec fn part2_plane_body_transaction_run(before:Tier1DecoderState,header:Part1CodeBlockContribution,body:Seq<u8>,pass_limit:u32,byte_limit:u64,input_limit:u64,work:u64,
+    pub(crate) open spec fn part2_plane_body_after_duplicate(before:Tier1DecoderState,header:Part1CodeBlockContribution,body:Seq<u8>,pass_limit:u32,byte_limit:u64,input_limit:u64,work:u64,
         calls:Seq<Part2Tier1StorageEvent>)->Part2Tier1Run<HtCodeBlockBodyResult> {
         part2_tier1_storage_bind(part2_plane_body_staged_run(before,header,body,pass_limit,byte_limit,input_limit,work,calls),
             |staged:HtCodeBlockBodyResult,rest|Some((Ok(match staged.0{Err(error)=>(Err(error),before),Ok(_)=>staged}),rest)))
+    }
+    pub(crate) open spec fn part2_plane_body_transaction_run(before:Tier1DecoderState,header:Part1CodeBlockContribution,body:Seq<u8>,pass_limit:u32,byte_limit:u64,input_limit:u64,work:u64,
+        calls:Seq<Part2Tier1StorageEvent>)->Part2Tier1Run<HtCodeBlockBodyResult> {
+        part2_tier1_storage_resume(part2_ht_duplicate_run(before,crate::tier1::HtRefinementCopyRole::PacketStaging,calls),
+            |copied:Result<Tier1DecoderState,crate::DecodeError>,rest|match copied{
+                Err(error)=>Some((Ok((Err(error),before)),rest)),
+                Ok(_)=>part2_plane_body_after_duplicate(before,header,body,pass_limit,byte_limit,input_limit,work,rest),
+            })
     }
     pub closed spec fn part2_plane_body_transaction_result(before:Tier1DecoderState,header:Part1CodeBlockContribution,body:Seq<u8>,pass_limit:u32,byte_limit:u64,input_limit:u64,work:u64,result:HtCodeBlockBodyResult)->bool {
         part2_tier1_storage_framed(|calls|part2_plane_body_transaction_run(before,header,body,pass_limit,byte_limit,input_limit,work,calls),Ok(result))
@@ -258,19 +266,45 @@ pub(crate) proof fn part2_packet_ht_body_normal(state:Tier1DecoderState,header:P
         ensures part2_plane_body_transaction_result(before,header,body,pass_limit,byte_limit,input_limit,work,part1_code_block_body_transaction(before,header,body,pass_limit,byte_limit,input_limit,work)),
     {
         let result=part1_code_block_body_transaction(before,header,body,pass_limit,byte_limit,input_limit,work);
+        part2_ht_duplicate_normal(before,crate::tier1::HtRefinementCopyRole::PacketStaging);
         part2_plane_body_staged_normal(before,header,body,pass_limit,byte_limit,input_limit,work);
         let staged=part1_code_block_body_staged(before,header,body,pass_limit,byte_limit,input_limit,work);
         part2_tier1_storage_pure(Ok(result));
         part2_tier1_storage_bind_frame(|calls|part2_plane_body_staged_run(before,header,body,pass_limit,byte_limit,input_limit,work,calls),
             |staged:HtCodeBlockBodyResult,rest|Some((Ok(match staged.0{Err(error)=>(Err(error),before),Ok(_)=>staged}),rest)),Ok(staged),Ok(result));
+        part2_tier1_storage_eta(|calls|part2_plane_body_after_duplicate(before,header,body,pass_limit,byte_limit,input_limit,work,calls),Ok(result));
+        part2_ht_duplicate_frames(before,crate::tier1::HtRefinementCopyRole::PacketStaging,Ok(before));
+        part2_tier1_resume_frame(|calls|part2_ht_duplicate_run(before,crate::tier1::HtRefinementCopyRole::PacketStaging,calls),
+            |copied:Result<Tier1DecoderState,crate::DecodeError>,rest|match copied{
+                Err(error)=>Some((Ok((Err(error),before)),rest)),Ok(_)=>part2_plane_body_after_duplicate(before,header,body,pass_limit,byte_limit,input_limit,work,rest),
+            },Ok(before),Ok(result));
     }
     pub(crate) proof fn part2_plane_body_transaction_observed(before:Tier1DecoderState,header:Part1CodeBlockContribution,body:Seq<u8>,pass_limit:u32,byte_limit:u64,input_limit:u64,work:u64,staged:HtCodeBlockBodyResult)
         requires part2_plane_body_staged_result(before,header,body,pass_limit,byte_limit,input_limit,work,staged),
+            part2_ht_duplicate_result(before,crate::tier1::HtRefinementCopyRole::PacketStaging,Ok(before)),
         ensures part2_plane_body_transaction_result(before,header,body,pass_limit,byte_limit,input_limit,work,match staged.0{Err(error)=>(Err(error),before),Ok(_)=>staged}),
     {
         let result=match staged.0{Err(error)=>(Err(error),before),Ok(_)=>staged};part2_tier1_storage_pure(Ok(result));
         part2_tier1_storage_bind_frame(|calls|part2_plane_body_staged_run(before,header,body,pass_limit,byte_limit,input_limit,work,calls),
             |staged:HtCodeBlockBodyResult,rest|Some((Ok(match staged.0{Err(error)=>(Err(error),before),Ok(_)=>staged}),rest)),Ok(staged),Ok(result));
+        part2_tier1_storage_eta(|calls|part2_plane_body_after_duplicate(before,header,body,pass_limit,byte_limit,input_limit,work,calls),Ok(result));
+        part2_ht_duplicate_frames(before,crate::tier1::HtRefinementCopyRole::PacketStaging,Ok(before));
+        part2_tier1_resume_frame(|calls|part2_ht_duplicate_run(before,crate::tier1::HtRefinementCopyRole::PacketStaging,calls),
+            |copied:Result<Tier1DecoderState,crate::DecodeError>,rest|match copied{
+                Err(error)=>Some((Ok((Err(error),before)),rest)),Ok(_)=>part2_plane_body_after_duplicate(before,header,body,pass_limit,byte_limit,input_limit,work,rest),
+            },Ok(before),Ok(result));
+    }
+    pub(crate) proof fn part2_plane_body_duplicate_error(before:Tier1DecoderState,header:Part1CodeBlockContribution,body:Seq<u8>,pass_limit:u32,byte_limit:u64,input_limit:u64,work:u64,error:crate::DecodeError)
+        requires part2_ht_duplicate_result(before,crate::tier1::HtRefinementCopyRole::PacketStaging,Err(error)),
+        ensures part2_plane_body_transaction_result(before,header,body,pass_limit,byte_limit,input_limit,work,(Err(error),before)),
+    {
+        let result=(Err(error),before);
+        part2_ht_duplicate_frames(before,crate::tier1::HtRefinementCopyRole::PacketStaging,Err(error));
+        part2_tier1_storage_pure(Ok(result));
+        part2_tier1_resume_frame(|calls|part2_ht_duplicate_run(before,crate::tier1::HtRefinementCopyRole::PacketStaging,calls),
+            |copied:Result<Tier1DecoderState,crate::DecodeError>,rest|match copied{
+                Err(error)=>Some((Ok((Err(error),before)),rest)),Ok(_)=>part2_plane_body_after_duplicate(before,header,body,pass_limit,byte_limit,input_limit,work,rest),
+            },Err(error),Ok(result));
     }
     pub(crate) proof fn part2_plane_body_transaction_frames(before:Tier1DecoderState,header:Part1CodeBlockContribution,body:Seq<u8>,pass_limit:u32,byte_limit:u64,input_limit:u64,work:u64,result:HtCodeBlockBodyResult)
         requires part2_plane_body_transaction_result(before,header,body,pass_limit,byte_limit,input_limit,work,result),

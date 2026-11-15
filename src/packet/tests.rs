@@ -1,6 +1,36 @@
 use super::*;
 
 #[test]
+fn ht_refinement_storage_packet_staging_copy_precedes_route_error_and_restores_decoder() {
+    let limits = ResourceLimits::default();
+    let mut decoder = literal_ht_decoder(3);
+    decoder
+        .decode_high_throughput_segments(&[0, 0x63, 0], 1, Some(&[0]), 1, &limits)
+        .unwrap();
+    let before = format!("{decoder:?}");
+    let header = one_ff_legacy_contribution();
+    let expected = decode_code_block_contribution_body(&mut decoder, &header, &[0xff], &limits);
+    assert!(expected.is_err());
+    assert_ne!(expected, Err(DecodeError::AllocationFailed));
+    assert_eq!(format!("{decoder:?}"), before);
+    assert_eq!(
+        crate::allocation::with_refusal(0, || decode_code_block_contribution_body(
+            &mut decoder,
+            &header,
+            &[0xff],
+            &limits
+        )),
+        Err(DecodeError::AllocationFailed)
+    );
+    assert_eq!(format!("{decoder:?}"), before);
+    assert_eq!(
+        decode_code_block_contribution_body(&mut decoder, &header, &[0xff], &limits),
+        expected
+    );
+    assert_eq!(format!("{decoder:?}"), before);
+}
+
+#[test]
 fn rollback_snapshot_storage_outer_roles_precede_children_and_restore_exact_packet() {
     let limits = ResourceLimits::default();
     let template = literal_progression_tile(&[], 1, 0, 0, 1);

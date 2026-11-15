@@ -1281,6 +1281,44 @@ paths that do not execute packet rollback acquire no invented copy requests.
 Bounded controls exercise level/node and later subband refusal, empty/raw tree
 copies, unchanged Clone behavior, precise rollback/restoration, real automatic
 packet consumption and original earlier lookup/ordinary-error precedence.
+Fresh `ht_refinement_data` byte copies now use the qualified Copy helper at
+their original field/staging, retained-replay and cleanup-retention frontiers.
+The existing Tier1 storage response type is a disjoint sum: coefficient
+responses retain their own width/height/role/count, while refinement-byte
+responses bind actual source bytes, count and distinct HT-stage/packet-stage/
+replay/retention roles. They cannot alias each other. Empty bytes consume no
+request. Public infallible decoder Clone remains unchanged; private checked
+duplication retains every original field evaluation, including earlier
+unrelated plane/entropy/legacy clones and later scalar records.
+Replay copying remains after original route/pass/cleanup/byte admission but
+before the unchanged append and later concatenation-size checks. Retention
+copying remains after actual refinement and statistics merge, preserving
+cleared partial state on refusal; staging failures preserve original rollback.
+Actual child responses bind through existing decoder/packet/tile/public state
+programs, with original normal projections and exact first-error/unused-tail
+laws. Successful copies, planes, decoder states and images still derive from
+real producers, not supplied result banks. Later growth/appending and unrelated
+owners remain separate. The checked fresh helper may use standard Vec reserve
+amortization rather than the infallible Clone allocator's capacity profile;
+native replay controls compare the actual qualified fresh producer and verify
+fresh ownership, without claiming physical capacity from sequence models.
+Bounded controls exercise all roles, empty/ordinary-error order, cleared and
+staged states, two-layer retained-byte raw/selected/JPH refusals/restoration,
+and actual full/selected automatic HT images.
+Replay finishing uses an opaque continuation certificate created only from the
+actual input-derived refinement producer's certified Result and real copied
+bytes. Native ghost checkpoints consume local plane/data/pass-write and checked
+counter phase facts; they do not unfold the complete raw tape or original
+normal program at each write. Separately checked field-projection equations and
+primitive counter algebra transport that certificate, preserving every earlier
+partial error state and final narrowing order. The primary replay predicate is
+the exact conjunction of the original event-aware and non-allocation normal
+native obligations; a separately checked primary-contract consequence exposes
+the normal projection at exits. This is proof factoring only: no executing body,
+field order, owner/child link, caller premise, tool budget or runtime boundary
+changes. Public Clone's capacity check remains explicit; the private qualified
+copy's different fresh-capacity profile is documented rather than inferred from
+sequence models.
 Same-file links are checked inside another listed, formatted function body;
 the contract's own declaration, an unrelated function or an indirect caller
 does not qualify as a direct same-file call. Unsupported formatting can fail

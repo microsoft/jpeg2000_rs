@@ -33,6 +33,7 @@ specs/cold_grid.rs
 specs/cold_grid_geometry.rs
 specs/cold_grid_plan.rs
 specs/cold_header_progression.rs
+specs/cold_ht_bytes.rs
 specs/cold_ht_decoder.rs
 specs/cold_inspection_storage.rs
 specs/cold_layout.rs
@@ -130,6 +131,7 @@ specs/persistent_tile_configuration.rs
 specs/raw_decode.rs
 specs/raw_layout.rs
 specs/raw_recovery.rs
+specs/replay_finish.rs
 specs/tag_tree.rs
 specs/tile_header_traversal.rs
 specs/tile_part.rs

@@ -69,6 +69,7 @@ pub proof fn ht_continuation_first_accounting_overflow_preserves_already_prepare
     ensures crate::specs::ht_finish_refinement_contribution(state, passes, bytes, next_bytes, statistics, replayed)
         == (Err(crate::specs::ht_reader_error(crate::MalformedKind::ArithmeticOverflow)), state),
 {
+    reveal(crate::specs::ht_finish_refinement_contribution);
 }
 
 #[verifier::spinoff_prover]
@@ -81,6 +82,7 @@ pub proof fn ht_continuation_segment_overflow_keeps_pass_but_not_byte_update(
         == (Err(crate::specs::ht_reader_error(crate::MalformedKind::ArithmeticOverflow)),
             crate::specs::Tier1DecoderState { next_pass: (state.next_pass + passes) as u32, ..state }),
 {
+    reveal(crate::specs::ht_finish_refinement_contribution);
 }
 
 #[verifier::spinoff_prover]

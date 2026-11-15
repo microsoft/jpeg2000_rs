@@ -8218,7 +8218,7 @@ class FrameworkTests(WorkingFiles):
         for relative, symbol, before, after in (
             ("specs/cold_tier1_initial.rs", "part2_tier1_storage_framed", "part2_tier1_storage_prefix(run,prefix,result)", "true"),
             ("specs/cold_tier1_initial.rs", "part2_tier1_storage_prefix", "Some((result,tail))", "Some((result,Seq::empty()))"),
-            ("specs/cold_tier1_initial.rs", "part2_tier1_plane_run", "call.samples!=count", "false"),
+            ("specs/cold_tier1_initial.rs", "part2_tier1_plane_run", "samples!=count", "false"),
             ("specs/cold_tier1_initial.rs", "part2_tier1_call_run", "rest.len()==0", "true"),
             ("specs/cold_tier1_initial.rs", "part2_tier1_call_admit", "context.significant==0", "context.bound==0 || context.significant==0"),
             ("specs/cold_codeblock_plan.rs", "part2_tier1_cell_context", "width:geometry.2,height:geometry.3", "width:geometry.3,height:geometry.2"),
@@ -8241,6 +8241,52 @@ class FrameworkTests(WorkingFiles):
             with self.subTest(symbol=symbol, before=before), mock.patch.object(Path, "read_text", altered), \
                     self.assertRaisesRegex(ValueError, "initial Tier1 storage"):
                 framework.validate_normative_coverage(data)
+
+    def test_inventory_ht_refinement_bytes_require_real_roles_sources_frontiers_and_rollback(self):
+        coverage = json.loads((framework.VALIDATION / "normative-coverage.json").read_text())
+        entry = next(item for item in coverage["requirements"] if item["id"] == framework._HT_BYTE_COPY_ENTRY)
+        data = dict(coverage, requirements=[entry])
+        self.assertEqual(framework.validate_normative_coverage(data)["status"], "passed")
+        read_text = Path.read_text
+        cases = (
+            ("specs/cold_ht_bytes.rs", "part2_ht_bytes_run", "source.len()==0", "source.len()==1"),
+            ("specs/cold_ht_bytes.rs", "part2_ht_bytes_run", "RefinementBytes", "Coefficient"),
+            ("specs/cold_ht_bytes.rs", "part2_ht_bytes_run", "before!=source", "false"),
+            ("specs/cold_ht_bytes.rs", "part2_ht_bytes_run", "elements!=source.len()", "elements!=1"),
+            ("specs/cold_ht_bytes.rs", "part2_ht_bytes_run", "calls.drop_first()", "calls"),
+            ("specs/cold_ht_bytes.rs", "part2_ht_duplicate_run", "before.ht_refinement_data", "Seq::empty()"),
+            ("specs/cold_ht_decoder.rs", "part2_ht_coeff_after_refinement", "Err(error),cleared", "Err(error),before"),
+            ("specs/cold_ht_decoder.rs", "part2_ht_replay_run", "HtRefinementCopyRole::RetainedReplay", "HtRefinementCopyRole::PacketStaging"),
+            ("specs/cold_ht_decoder.rs", "part2_ht_staged_run", "part2_ht_duplicate_run(", "supplied_decoder("),
+            ("specs/cold_packet_planes.rs", "part2_plane_body_transaction_run", "HtRefinementCopyRole::PacketStaging", "HtRefinementCopyRole::HtStaging"),
+            ("src/tier1/contributions.rs", "Tier1CodeBlockDecoder::clone", "self.ht_refinement_data.clone()", "Vec::new()"),
+            ("src/tier1/contributions.rs", "Tier1CodeBlockDecoder::try_duplicate", "copy_ht_refinement_bytes(&self.ht_refinement_data, role)", "copy_ht_refinement_bytes(&[], role)"),
+            ("src/tier1/ht_refinement.rs", "copy_ht_refinement_bytes", "match copied", "match supplied_response"),
+            ("src/tier1/ht_contributions.rs", "Tier1CodeBlockDecoder::decode_high_throughput_refinement", "refinement_data.extend_from_slice(input)", "refinement_data.clear()"),
+            ("src/tier1/ht_contributions.rs", "Tier1CodeBlockDecoder::decode_ht_staged_group", "HtRefinementCopyRole::HtStaging", "HtRefinementCopyRole::PacketStaging"),
+        )
+        for relative, symbol, before, after in cases:
+            source = framework.ROOT / relative
+            original = source.read_text()
+            body = (framework._coverage_function_body(original, framework._coverage_function_header(original, symbol))
+                    if relative.startswith("src/") else framework._coverage_spec_function_body(original, symbol))
+            pattern = re.escape(before).replace(r"\ ", r"\s*")
+            changed_body, count = re.subn(pattern, lambda _: after, body, count=1)
+            self.assertEqual(count, 1, (symbol, before))
+            changed = original.replace(body, changed_body, 1)
+
+            def altered(path, *args, **kwargs):
+                return changed if path == source else read_text(path, *args, **kwargs)
+
+            with self.subTest(symbol=symbol, before=before), mock.patch.object(Path, "read_text", altered), \
+                    self.assertRaisesRegex(ValueError, "HT byte-copy storage|remaining plane storage"):
+                framework.validate_normative_coverage(data)
+        missing = copy.deepcopy(data)
+        missing["requirements"][0]["test_refs"] = [
+            ref for ref in entry["test_refs"] if (ref["path"], ref["symbol"]) not in framework._HT_BYTE_COPY_TESTS
+        ]
+        with self.assertRaisesRegex(ValueError, "HT byte-copy storage requires bounded"):
+            framework.validate_normative_coverage(missing)
 
     def test_inventory_rollback_snapshot_owners_require_real_roles_counts_and_partial_owner_order(self):
         coverage = json.loads((framework.VALIDATION / "normative-coverage.json").read_text())
@@ -8891,6 +8937,10 @@ class FrameworkTests(WorkingFiles):
                     {"path": path, "symbol": symbol} for path, symbol in sorted(cold_proofs)
                 ]
                 isolated["test_refs"] = entry["test_refs"][:1]
+                if isolated["id"] == framework._HT_BYTE_COPY_ENTRY:
+                    isolated["test_refs"] += [
+                        {"path": path, "symbol": symbol} for path, symbol in sorted(framework._HT_BYTE_COPY_TESTS)
+                    ]
                 if isolated["id"] in framework._TAG_COPY_ENTRIES:
                     isolated["test_refs"] += [
                         {"path": path, "symbol": symbol} for path, symbol in sorted(framework._TAG_COPY_TESTS)
