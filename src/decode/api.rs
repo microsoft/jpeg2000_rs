@@ -78,6 +78,61 @@ pub fn decode_codestream_reconstructed(
     Ok(image)
 }
 
+/// Decode selected raw codestream samples before rounding, level shift or clipping.
+///
+/// Tile/region/reduction semantics and genuine geometry are the same as
+/// [`decode_codestream_selected`]. NLT declarations remain explicitly unsupported,
+/// after genuine parsing, selection and reconstruction errors. No retry or
+/// missing-pixel synthesis is performed.
+#[cfg_attr(verus_keep_ghost, verus_spec(result =>
+    ensures crate::specs::part2_selected_reconstruction_result(
+        input@, crate::options::decode_options_limits(options), selection,
+        crate::image::decoded_image_outcome(result)),
+        crate::image::decoded_image_outcome(result) != Err(DecodeError::AllocationFailed) ==>
+            crate::image::decoded_image_outcome(result) == crate::specs::part2_selected_reconstruction_value(
+                input@, crate::options::decode_options_limits(options), selection),
+))]
+pub fn decode_codestream_reconstructed_selected(
+    input: &[u8],
+    options: &DecodeOptions,
+    selection: &DecodeSelection,
+) -> Result<DecodedImage, DecodeError> {
+    #[cfg(verus_keep_ghost)]
+    proof! {
+        codestream::decoder_layout_errors_known();
+        crate::specs::part2_selected_reconstruction_value_unfold(
+            input@, crate::options::decode_options_limits(options), selection);
+        crate::specs::part2_selected_reconstruction_normal(
+            input@, crate::options::decode_options_limits(options), selection);
+    }
+    let parsed = codestream::parse_layout(input, options.limits());
+    #[cfg(verus_keep_ghost)]
+    proof! {
+        if let Err(error) = parsed {
+            crate::specs::part2_selected_reconstruction_parse_error(
+                input@, crate::options::decode_options_limits(options), selection, error);
+        }
+    }
+    let layout = parsed?;
+    #[cfg(verus_keep_ghost)]
+    proof! {
+        codestream::decoder_layout_input_matches_raw(&layout);
+        codestream::decoder_layout_input_fields(&layout);
+    }
+    let decoded = decode_layout_selected(&layout, selection, options.limits());
+    #[cfg(verus_keep_ghost)]
+    proof! {
+        if let Err(error) = decoded {
+            crate::specs::part2_selected_reconstruction_layout_error(
+                input@, crate::options::decode_options_limits(options), selection, error);
+        }
+    }
+    let image = decoded?;
+    validate_reconstruction_transforms(&layout)?;
+    validate_reconstructed_output_shape(input.len(), &layout, &image)?;
+    Ok(image)
+}
+
 #[cfg_attr(verus_keep_ghost, verus_spec(result =>
     ensures result == crate::specs::part2_validate_reconstruction_transforms(
         codestream::decoder_layout_input_view(layout)),

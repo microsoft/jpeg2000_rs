@@ -2027,6 +2027,51 @@ _PDF_DIMENSIONS_CONTRACTS = {
         r"codestream\.image_size\.uniform_signed\s*,\s*offset",
     ),
 }
+_SELECTED_RECONSTRUCTION_ENTRY = "implementation-selected-raw-reconstruction"
+_SELECTED_RECONSTRUCTION_CONTRACTS = {
+    ("src/decode/api.rs", "decode_codestream_reconstructed_selected"): (
+        "part2_selected_reconstruction_value",
+        _coverage_call("crate::image::decoded_image_outcome", r"\1"), None,
+        r"input@\s*,\s*" + _coverage_call("crate::options::decode_options_limits", "options") + r"\s*,\s*selection",
+    ),
+}
+_PRESENT_TILE_ENTRY = "implementation-pdf-sole-present-tile"
+_PRESENT_TILE_CONTRACTS = {
+    **{
+        ("src/decode/pdf_present_tile.rs", name): (
+            model, _coverage_call(projection, r"\1"), None,
+            r"input@\s*,\s*" + _coverage_call("crate::options::decode_selection_view", "requested")
+            + r"\s*,\s*" + _coverage_call("crate::options::decode_options_limits", "options"),
+        ) for name, model, projection in (
+            ("decode_codestream_recover_present_tile_selected", "part2_present_raw_typed_value", "present_typed_outcome"),
+            ("decode_codestream_reconstructed_recover_present_tile_selected", "part2_present_raw_reconstructed_value", "present_reconstructed_outcome"),
+            ("decode_jp2_recover_present_tile_selected", "part2_present_jp2_typed_value", "present_typed_outcome"),
+            ("decode_jp2_reconstructed_recover_present_tile_selected", "part2_present_jp2_reconstructed_value", "present_reconstructed_outcome"),
+        )
+    },
+    ("src/decode/pdf_present_tile.rs", "automatic_tile"): (
+        "part2_present_tile_index", r"\1", None,
+        _coverage_call("codestream::decoder_layout_input_view", "layout") + r"\s*,\s*"
+        + _coverage_call("crate::options::decode_selection_view", "requested"),
+    ),
+    ("src/decode/pdf_present_tile.rs", "effective_selection"): (
+        "part2_present_tile_effective", _coverage_call("present_optional_selection_view", r"\1"), None,
+        r"tile\s*,\s*" + _coverage_call("crate::options::decode_selection_view", "requested"),
+    ),
+    ("src/decode/pdf_present_tile.rs", "ceil_scale"): (
+        "part2_present_ceil_scale", r"\1", None, r"value\s*,\s*divisor",
+    ),
+    ("src/decode/pdf_present_tile.rs", "canvas_sample_bytes"): (
+        "part2_present_canvas_bytes", r"\1", None,
+        _coverage_call("codestream::selection_geometry_view", "size") + r"\s*,\s*discard\s*,\s*components",
+    ),
+    ("src/decode/pdf_present_tile.rs", "finish_report"): (
+        "part2_present_tile_report", r"\1", None,
+        _coverage_call("codestream::selection_geometry_view", "size") + r"\s*,\s*"
+        + _coverage_call("crate::options::decode_selection_view", "requested")
+        + r"\s*,\s*selected_present_tile\s*,\s*components\s*,\s*limits",
+    ),
+}
 _RECONSTRUCTED_RECOVERY_ENTRY = "implementation-raw-reconstructed-missing-eoc-recovery"
 _RECONSTRUCTED_RECOVERY_CONTRACTS = {
     reference: recipe for reference, recipe in _RAW_RECOVERY_CONTRACTS.items()
@@ -5072,6 +5117,22 @@ _COLD_RESULT_MODELS = {
     "part2_dimension_reconstructed_value": (
         "part2_dimension_reconstructed_result", "specs/pdf_dimensions.rs", "part2_dimension_decode_normal",
     ),
+    "part2_selected_reconstruction_value": (
+        "part2_selected_reconstruction_result", "specs/selected_reconstruction.rs",
+        "part2_selected_reconstruction_normal",
+    ),
+    "part2_present_raw_typed_value": (
+        "part2_present_raw_typed_result", "specs/pdf_present_tile.rs", "part2_present_raw_normal",
+    ),
+    "part2_present_raw_reconstructed_value": (
+        "part2_present_raw_reconstructed_result", "specs/pdf_present_tile.rs", "part2_present_raw_normal",
+    ),
+    "part2_present_jp2_typed_value": (
+        "part2_present_jp2_typed_result", "specs/pdf_present_tile.rs", "part2_present_jp2_normal",
+    ),
+    "part2_present_jp2_reconstructed_value": (
+        "part2_present_jp2_reconstructed_result", "specs/pdf_present_tile.rs", "part2_present_jp2_normal",
+    ),
     "part2_decode_jpx_codestream": ("part2_jpx_cold_result", "specs/jpx_source.rs", "part2_jpx_cold_normal"),
     "part2_decode_jpx_selected_file": (
         "part2_jpx_selected_cold_result", "specs/jpx_source.rs", "part2_jpx_selected_cold_normal",
@@ -5323,6 +5384,7 @@ _COLD_RESULT_CONTRACTS = {
         _RAW_LAYOUT_CONTRACTS, _RAW_TYPED_CONTRACTS, _RAW_RECONSTRUCTED_CONTRACTS,
         _JP2_RECONSTRUCTED_CONTRACTS,
         _PDF_DIMENSIONS_CONTRACTS,
+        _SELECTED_RECONSTRUCTION_CONTRACTS, _PRESENT_TILE_CONTRACTS,
         _RAW_INSPECTED_CONTRACTS, _JPX_SOURCE_CONTRACTS, _RAW_JPX_PUBLIC_IMAGE_CONTRACTS,
         _RAW_CONTAINER_IMAGE_CONTRACTS, _RAW_CONTAINER_COLOR_CONTRACTS,
         _SOURCE_FRAME_CONTRACTS, _RAW_RENDER_CONTRACTS, _RAW_COMPOSITION_RENDER_CONTRACTS,
@@ -5805,6 +5867,8 @@ _COLD_LOCAL_FAMILIES = {
     _RAW_RECONSTRUCTED_ENTRY: (_RAW_RECONSTRUCTED_CONTRACTS, "whole raw reconstructed Result"),
     _JP2_RECONSTRUCTED_ENTRY: (_JP2_RECONSTRUCTED_CONTRACTS, "whole JP2 reconstructed Result"),
     _PDF_DIMENSIONS_ENTRY: (_PDF_DIMENSIONS_CONTRACTS, "JP2 dimension authority Result"),
+    _SELECTED_RECONSTRUCTION_ENTRY: (_SELECTED_RECONSTRUCTION_CONTRACTS, "selected raw reconstruction Result"),
+    _PRESENT_TILE_ENTRY: (_PRESENT_TILE_CONTRACTS, "sole present tile Result"),
     _JPX_SOURCE_ENTRY: (_JPX_SOURCE_CONTRACTS, "whole JPX source Result"),
     _JPX_LAYER_COLOR_ENTRY: (_JPX_LAYER_COLOR_CONTRACTS, "whole JPX layer color Result"),
     _SOURCE_OPACITY_ENTRY: (_SOURCE_OPACITY_CONTRACTS, "whole source opacity Result"),
@@ -13753,6 +13817,10 @@ def validate_normative_coverage(
                     if entry["id"] == _JP2_RECONSTRUCTED_ENTRY else None)
                 or (_PDF_DIMENSIONS_CONTRACTS.get((reference["path"], reference["symbol"]))
                     if entry["id"] == _PDF_DIMENSIONS_ENTRY else None)
+                or (_SELECTED_RECONSTRUCTION_CONTRACTS.get((reference["path"], reference["symbol"]))
+                    if entry["id"] == _SELECTED_RECONSTRUCTION_ENTRY else None)
+                or (_PRESENT_TILE_CONTRACTS.get((reference["path"], reference["symbol"]))
+                    if entry["id"] == _PRESENT_TILE_ENTRY else None)
                 or (_JPX_SOURCE_CONTRACTS.get((reference["path"], reference["symbol"]))
                     if entry["id"] == _JPX_SOURCE_ENTRY else None)
                 or (_JPX_LAYER_COLOR_CONTRACTS.get((reference["path"], reference["symbol"]))

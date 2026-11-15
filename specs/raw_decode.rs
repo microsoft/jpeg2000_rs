@@ -335,6 +335,17 @@ pub(crate) proof fn part2_decode_raw_cold_to_value(
         |events| part2_decode_raw_value_cold_run(input, limits, selected, events), prefix, result));
 }
 
+pub(crate) proof fn part2_decode_raw_value_matches_reference(
+    input: Seq<u8>, limits: &crate::ResourceLimits, requested: Option<&crate::DecodeSelection>,
+)
+    ensures part2_decode_raw_codestream(input, limits, requested)
+        == part2_decode_raw_codestream_value(input, limits, match requested {
+            None => None, Some(selection) => Some(crate::options::decode_selection_view(selection)),
+        }),
+{
+    reveal(part2_decode_raw_codestream);
+}
+
 pub(crate) proof fn part2_decode_raw_value_cold_normal(
     input: Seq<u8>, limits: &crate::ResourceLimits, requested: Option<Part2DecodeSelection>,
 )
