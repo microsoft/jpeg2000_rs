@@ -3381,6 +3381,39 @@
       ]
     },
     {
+      "id": "implementation-selected-jp2-reconstruction",
+      "topic": "Strict selected JP2 reconstruction composes actual container/profile inspection, selected raw reconstruction and main/associated output-metadata guards. Centered i64 fractions, overshoot, actual tile/region/reduction geometry and first errors are retained without typed intermediates, automatic present-tile recovery, retries or changed strict defaults. Complete cold and ordinary programs bind actual child results. This is not lifetime, source-function coverage, independent conformance or unrelated PDF recovery/deadline qualification.",
+      "implementation_refs": [
+        {"path": "src/decode/api.rs", "symbol": "decode_jp2_reconstructed_selected"},
+        {"path": "src/decode/api.rs", "symbol": "decode_codestream_reconstructed_selected"},
+        {"path": "src/decode/api.rs", "symbol": "validate_jp2_reconstruction_output"},
+        {"path": "src/decode/raw_typed_result_tests.rs", "symbol": "selected_jp2_reconstruction_preserves_headroom_geometry_and_strict_coverage"},
+        {"path": "src/decode/raw_typed_result_tests.rs", "symbol": "selected_jp2_reconstruction_retains_metadata_errors_limits_and_refusal_recovery"}
+      ],
+      "spec_refs": [
+        {"path": "specs/selected_reconstruction.rs", "symbol": "part2_selected_jp2_reconstruction_result"},
+        {"path": "specs/selected_reconstruction.rs", "symbol": "part2_selected_jp2_reconstruction_run"},
+        {"path": "specs/selected_reconstruction.rs", "symbol": "part2_selected_jp2_reconstruction_after_inspection"},
+        {"path": "specs/selected_reconstruction.rs", "symbol": "part2_selected_jp2_reconstruction_value"},
+        {"path": "specs/container_reconstruction.rs", "symbol": "part2_jp2_reconstructed_output"}
+      ],
+      "contract_refs": [
+        {"path": "src/decode/api.rs", "symbol": "decode_jp2_reconstructed_selected"}
+      ],
+      "proof_refs": [
+        {"path": "specs/selected_reconstruction.rs", "symbol": "part2_selected_jp2_reconstruction_value_unfold"},
+        {"path": "specs/selected_reconstruction.rs", "symbol": "part2_selected_jp2_reconstruction_normal"},
+        {"path": "specs/selected_reconstruction.rs", "symbol": "part2_selected_jp2_reconstruction_inspection_error"},
+        {"path": "specs/selected_reconstruction.rs", "symbol": "part2_selected_jp2_reconstruction_profile_error"},
+        {"path": "specs/selected_reconstruction.rs", "symbol": "part2_selected_jp2_reconstruction_image_actual"}
+      ],
+      "test_refs": [
+        {"path": "src/decode/raw_typed_result_tests.rs", "symbol": "selected_jp2_reconstruction_preserves_headroom_geometry_and_strict_coverage"},
+        {"path": "src/decode/raw_typed_result_tests.rs", "symbol": "selected_jp2_reconstruction_retains_metadata_errors_limits_and_refusal_recovery"},
+        {"path": "src/decode/raw_typed_result_tests.rs", "symbol": "jp2_reconstructed_output_rejects_typed_mappings_without_masking_decode_errors"}
+      ]
+    },
+    {
       "id": "implementation-pdf-sole-present-tile",
       "topic": "Explicit sole-present-tile damaged-coverage recovery for full unbounded requests only. Actual preflight parts determine a sole tile; explicit tiles/regions keep ordinary selection semantics and absent tiles still fail. Actual raw/JP2 typed or centered child and real metadata guards determine samples, placement, reduction and first errors. Reports retain full source canvas metadata distinct from the genuine returned crop. Checked full intended-canvas wide-sample accounting uses actual final mapped component count, is conservative for subsampling and not a global live/peak allocation budget. No fabricated pixels, byte repair, native fallback, decoder retry, result bank or relaxed strict default; other policies and broad coverage/lifetime/normative qualification remain separate.",
       "implementation_refs": [

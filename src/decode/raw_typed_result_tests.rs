@@ -1,5 +1,112 @@
 use super::*;
 
+#[test]
+fn selected_jp2_reconstruction_preserves_headroom_geometry_and_strict_coverage() {
+    let options = DecodeOptions::default();
+    let mut fractional = prepared_codestream(1, 1, 0, &[0x42, 0x44, 0], &[0xcf, 0xb4, 0x04, 0x09]);
+    let cod = fractional
+        .windows(2)
+        .position(|pair| pair == [255, 82])
+        .unwrap();
+    fractional[cod + 9] = 0;
+    let container = jp2_for_codestream(&fractional, 1, 1);
+    let selected = DecodeSelection::tile(0);
+    let image = crate::decode_jp2_reconstructed_selected(&container, &options, &selected).unwrap();
+    assert_eq!(
+        image,
+        decode_codestream_reconstructed_selected(&fractional, &options, &selected).unwrap()
+    );
+    assert_eq!(image.component(0).unwrap().samples(), &[-765 * (1 << 14)]);
+    assert_eq!(image.component(0).unwrap().fraction_bits(), 16);
+    assert_eq!(
+        image.typed(options.limits()).unwrap(),
+        crate::decode_jp2_selected(&container, &options, &selected).unwrap()
+    );
+
+    let bytes = prepared_codestream(
+        8,
+        8,
+        1,
+        &[0x40, 0x40, 0x48, 0x48, 0x50, 0x48, 0x48, 0x50],
+        &[0, 0, 0],
+    );
+    let container = jp2_for_codestream(&bytes, 8, 8);
+    for selection in [
+        DecodeSelection::full_image().with_region(crate::ImageRegion::new(1, 1, 5, 5)),
+        DecodeSelection::tile(0).with_discard_levels(1),
+        DecodeSelection::tile(0).with_discard_levels(2),
+    ] {
+        assert_eq!(
+            crate::decode_jp2_reconstructed_selected(&container, &options, &selection).unwrap(),
+            decode_codestream_reconstructed_selected(&bytes, &options, &selection).unwrap(),
+        );
+    }
+    let sole = sole_present_tile_codestream();
+    let container = jp2_for_codestream(&sole, 2, 1);
+    assert!(
+        crate::decode_jp2_reconstructed_selected(
+            &container,
+            &options,
+            &DecodeSelection::full_image()
+        )
+        .is_err()
+    );
+    assert!(
+        crate::decode_jp2_reconstructed_selected(&container, &options, &DecodeSelection::tile(1))
+            .is_err()
+    );
+    assert_eq!(
+        crate::decode_jp2_reconstructed_selected(&container, &options, &selected).unwrap(),
+        decode_codestream_reconstructed_selected(&sole, &options, &selected).unwrap(),
+    );
+}
+
+#[test]
+fn selected_jp2_reconstruction_retains_metadata_errors_limits_and_refusal_recovery() {
+    let options = DecodeOptions::default();
+    let selection = DecodeSelection::tile(0);
+    let bytes = dimension_recovery_codestream();
+    let good = jp2_for_codestream(&bytes, 1, 1);
+    let mapping = box32(*b"cmap", &[0, 0, 0, 0]);
+    let mapped = jp2_reconstruction_with_metadata(&bytes, &mapping);
+    assert!(matches!(
+        crate::decode_jp2_reconstructed_selected(&mapped, &options, &selection),
+        Err(DecodeError::UnsupportedFeature {
+            feature: "JP2 output transforms on reconstruction samples"
+        })
+    ));
+    let mismatch = jp2_for_codestream(&bytes, 2, 1);
+    assert!(matches!(
+        crate::decode_jp2_reconstructed_selected(&mismatch, &options, &selection),
+        Err(DecodeError::MalformedInput {
+            kind: MalformedKind::ContainerCodestreamMismatch,
+            ..
+        })
+    ));
+    let bad_selection = DecodeSelection::tile(1);
+    assert_eq!(
+        crate::decode_jp2_reconstructed_selected(&mapped, &options, &bad_selection).unwrap_err(),
+        decode_codestream_reconstructed_selected(&bytes, &options, &bad_selection).unwrap_err(),
+    );
+    let limited = DecodeOptions::new(
+        ResourceLimits::HARDENED
+            .with_maximum_decoded_bytes(1)
+            .unwrap(),
+    );
+    assert!(matches!(
+        crate::decode_jp2_reconstructed_selected(&good, &limited, &selection),
+        Err(DecodeError::LimitExceeded {
+            resource: Resource::DecodedBytes,
+            ..
+        })
+    ));
+    let refused = crate::allocation::with_refusal(0, || {
+        crate::decode_jp2_reconstructed_selected(&good, &options, &selection)
+    });
+    assert_eq!(refused.unwrap_err(), DecodeError::AllocationFailed);
+    assert!(crate::decode_jp2_reconstructed_selected(&good, &options, &selection).is_ok());
+}
+
 fn sole_present_tile_codestream() -> Vec<u8> {
     let mut bytes = dimension_recovery_codestream();
     bytes[8..12].copy_from_slice(&2_u32.to_be_bytes());
@@ -694,12 +801,28 @@ fn jp2_reconstructed_output_rejects_typed_mappings_without_masking_decode_errors
                 feature: "JP2 output transforms on reconstruction samples",
             })
         );
+        assert_eq!(
+            crate::decode_jp2_reconstructed_selected(
+                &container,
+                &options,
+                &DecodeSelection::tile(0)
+            ),
+            crate::decode_jp2_reconstructed(&container, &options)
+        );
         let limited = DecodeOptions::new(ResourceLimits::HARDENED.with_maximum_packets(0).unwrap());
         let expected = decode_jp2(&container, &limited).unwrap_err();
         assert!(matches!(expected, DecodeError::LimitExceeded { .. }));
         assert_eq!(
             crate::decode_jp2_reconstructed(&container, &limited),
             Err(expected)
+        );
+        assert_eq!(
+            crate::decode_jp2_reconstructed_selected(
+                &container,
+                &limited,
+                &DecodeSelection::tile(0)
+            ),
+            crate::decode_jp2_reconstructed(&container, &limited)
         );
         let mut damaged = container;
         let sod = damaged
@@ -711,6 +834,10 @@ fn jp2_reconstructed_output_rejects_typed_mappings_without_masking_decode_errors
         assert_eq!(
             crate::decode_jp2_reconstructed(&damaged, &options),
             Err(expected)
+        );
+        assert_eq!(
+            crate::decode_jp2_reconstructed_selected(&damaged, &options, &DecodeSelection::tile(0)),
+            crate::decode_jp2_reconstructed(&damaged, &options)
         );
     }
 }
