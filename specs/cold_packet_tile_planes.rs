@@ -84,6 +84,7 @@ pub(crate) open spec fn part2_plane_tile_packet_run(params:Part1TilePacketParame
             |packet:Part1PrecinctPayloadResult,rest|Some((Ok(part2_plane_tile_packet_finish(state,index,seen,expected,packet)),rest))),
     }
 }
+#[verifier::opaque]
 pub(crate) open spec fn part2_plane_tile_packet_result(params:Part1TilePacketParameters,s:Part1TilePacketExecution,coordinate:crate::packet::PacketCoordinate,
     result:(Result<(),crate::DecodeError>,Part1TilePacketExecution))->bool {
     part2_tier1_storage_framed(|calls|part2_plane_tile_packet_run(params,s,coordinate,calls),Ok(result))
@@ -91,6 +92,7 @@ pub(crate) open spec fn part2_plane_tile_packet_result(params:Part1TilePacketPar
 pub(crate) proof fn part2_plane_tile_packet_normal(params:Part1TilePacketParameters,s:Part1TilePacketExecution,coordinate:crate::packet::PacketCoordinate)
     ensures part2_plane_tile_packet_result(params,s,coordinate,part1_tile_packet(params,s,coordinate)),
 {
+    reveal(part2_plane_tile_packet_result);
     let result=part1_tile_packet(params,s,coordinate);
     match part2_plane_tile_packet_admit(params,s,coordinate){
         Part2PlaneTileAdmission::Return(_)=>{part2_tier1_storage_pure(Ok(result));},
@@ -108,6 +110,7 @@ pub(crate) proof fn part2_plane_tile_packet_observed(params:Part1TilePacketParam
         part2_plane_tile_precinct_result(params,part,state.progress,coordinate,expected,state.precincts[index as int],packet),
     ensures part2_plane_tile_packet_result(params,s,coordinate,part2_plane_tile_packet_finish(state,index,seen,expected,packet)),
 {
+    reveal(part2_plane_tile_packet_result);
     let result=part2_plane_tile_packet_finish(state,index,seen,expected,packet);part2_tier1_storage_pure(Ok(result));
     part2_tier1_storage_bind_frame(|calls|part2_plane_tile_precinct_run(params,part,state.progress,coordinate,expected,state.precincts[index as int],calls),
         |packet:Part1PrecinctPayloadResult,rest|Some((Ok(part2_plane_tile_packet_finish(state,index,seen,expected,packet)),rest)),Ok(packet),Ok(result));
@@ -173,6 +176,7 @@ pub(crate) proof fn part2_plane_tile_run_normal(params:Part1TilePacketParameters
     decreases s.progress.remaining_packets*2+1,
 {
     reveal(part2_plane_tile_run_result);
+    reveal(part2_plane_tile_packet_result);
     reveal_with_fuel(part2_plane_tile_run,2);reveal_with_fuel(part2_plane_tile_after_packet,1);reveal_with_fuel(part1_tile_run,1);
     let result=part1_tile_run(params,s);
     match part2_plane_tile_run_admit(params,s){
@@ -198,7 +202,7 @@ pub(crate) proof fn part2_plane_tile_packet_frames(params:Part1TilePacketParamet
     ensures part2_tier1_storage_framed(|calls|part2_plane_tile_packet_run(params,s,coordinate,calls),Ok(result)),
         forall|other:spec_fn(Seq<Part2Tier1StorageEvent>)->Part2Tier1Run<(Result<(),crate::DecodeError>,Part1TilePacketExecution)>|
             (forall|calls| #[trigger] other(calls)==part2_plane_tile_packet_run(params,s,coordinate,calls)) ==> #[trigger] part2_tier1_storage_framed(other,Ok(result)),
-{part2_tier1_storage_eta(|calls|part2_plane_tile_packet_run(params,s,coordinate,calls),Ok(result));}
+{reveal(part2_plane_tile_packet_result);part2_tier1_storage_eta(|calls|part2_plane_tile_packet_run(params,s,coordinate,calls),Ok(result));}
 pub(crate) proof fn part2_plane_tile_run_packet_step(params:Part1TilePacketParameters,s:Part1TilePacketExecution,coordinate:crate::packet::PacketCoordinate,after:Part1TilePacketExecution)
     requires part2_plane_tile_run_admit(params,s)==Part2PlaneTileStep::Packet(coordinate,after),
     ensures forall|calls:Seq<Part2Tier1StorageEvent>| #[trigger] part2_plane_tile_run(params,s,calls)==part2_tier1_storage_bind(part2_plane_tile_packet_run(params,after,coordinate,calls),

@@ -376,6 +376,13 @@ pub struct TagTree {
 }
 
 #[derive(Clone, Copy)]
+#[cfg_attr(not(verus_keep_ghost), derive(Debug, Eq, PartialEq))]
+pub(crate) struct TagTreeCopyPath {
+    pub subband: usize,
+    pub zero: bool,
+}
+
+#[derive(Clone, Copy)]
 struct TagTreePath {
     nodes: [usize; 64],
     length: usize,

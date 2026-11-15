@@ -24,6 +24,35 @@ impl Clone for TagTree {
 }
 
 impl TagTree {
+    #[cfg_attr(verus_keep_ghost, verus_spec(result =>
+        ensures crate::specs::part2_tag_copy_result(tag_tree_view(self),_path,tag_tree_outcome(result)),
+            match result{Ok(value)=>tag_tree_view(&value)==tag_tree_view(self),Err(error)=>error==DecodeError::AllocationFailed},
+    ))]
+    pub(super) fn try_duplicate(&self, _path: super::TagTreeCopyPath) -> Result<Self, DecodeError> {
+        #[cfg(verus_keep_ghost)]
+        proof_decl! {let ghost source=tag_tree_view(self);let ghost path=_path;}
+        #[cfg(verus_keep_ghost)]
+        proof! {reveal(tag_tree_view);}
+        let copied_levels = crate::allocation::copy_values(&self.levels);
+        #[cfg(verus_keep_ghost)]
+        proof! {
+            crate::specs::part2_tag_copy_capacity_observed(crate::specs::Part2TagCopyContext {path,source,levels:None},false,
+                match copied_levels{Err(error)=>Err(error),Ok(_)=>Ok(())});
+            if let Err(error)=copied_levels{crate::specs::part2_tag_copy_levels_error(source,path,error);}
+        }
+        let levels = copied_levels?;
+        let copied_nodes = crate::allocation::copy_values(&self.nodes);
+        #[cfg(verus_keep_ghost)]
+        proof! {
+            assert(levels@.map_values(|level:TagTreeLevel|tag_level_view(level))==source.levels);
+            crate::specs::part2_tag_copy_capacity_observed(crate::specs::Part2TagCopyContext {path,source,levels:Some(levels@.map_values(|level:TagTreeLevel|tag_level_view(level)))},true,
+                match copied_nodes{Err(error)=>Err(error),Ok(_)=>Ok(())});
+            crate::specs::part2_tag_copy_after_levels(source,path,match copied_nodes{Err(error)=>Err(error),Ok(_)=>Ok(())});
+        }
+        let nodes = copied_nodes?;
+        Ok(Self { levels, nodes })
+    }
+
     pub fn new(width: u32, height: u32, limits: &ResourceLimits) -> Result<Self, DecodeError> {
         tag_tree_new(width, height, limits)
     }

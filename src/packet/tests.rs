@@ -1,6 +1,84 @@
 use super::*;
 
 #[test]
+fn tagtree_copy_storage_levels_nodes_empty_raw_sources_and_clone_restore() {
+    let limits = ResourceLimits::default();
+    let mut source = tag_tree_new(3, 2, &limits).unwrap();
+    source.nodes[0].low = 19;
+    source.nodes[1].value = 7;
+    let path = TagTreeCopyPath {
+        subband: 2,
+        zero: false,
+    };
+    for after in [0, 1] {
+        assert_eq!(
+            crate::allocation::with_refusal(after, || source.try_duplicate(path)),
+            Err(DecodeError::AllocationFailed)
+        );
+        assert_eq!(source.try_duplicate(path).unwrap(), source);
+    }
+    crate::allocation::with_refusal(0, || {
+        assert_eq!(source.clone(), source);
+        assert_eq!(
+            source.try_duplicate(path),
+            Err(DecodeError::AllocationFailed)
+        );
+    });
+    let empty = TagTree {
+        levels: Vec::new(),
+        nodes: Vec::new(),
+    };
+    crate::allocation::with_refusal(0, || {
+        assert_eq!(empty.try_duplicate(path).unwrap(), empty);
+        assert_eq!(
+            source.try_duplicate(path),
+            Err(DecodeError::AllocationFailed)
+        );
+    });
+    let raw = TagTree {
+        levels: Vec::new(),
+        nodes: vec![TagTreeNode { low: 31, value: 2 }],
+    };
+    assert_eq!(
+        crate::allocation::with_refusal(0, || raw.try_duplicate(path)),
+        Err(DecodeError::AllocationFailed)
+    );
+    assert_eq!(raw.try_duplicate(path).unwrap(), raw);
+}
+
+#[test]
+fn tagtree_copy_storage_packet_rollback_keeps_prior_copies_and_source_then_restores() {
+    let limits = ResourceLimits::default();
+    let template = literal_progression_tile(&[], 1, 0, 0, 1);
+    let make = || {
+        let mut precinct = literal_packet_precinct();
+        precinct.subbands.push(precinct.subbands[0].clone());
+        precinct
+    };
+    for after in [0, 1, 2, 3, 4, 7] {
+        let mut precinct = make();
+        let before = exact_packet_precinct_snapshot(&precinct);
+        assert_eq!(
+            crate::allocation::with_refusal(after, || decode_jpip_precinct_packet(
+                &template,
+                &[],
+                0,
+                0,
+                &mut precinct,
+                &limits
+            )),
+            Err(DecodeError::AllocationFailed)
+        );
+        assert_eq!(exact_packet_precinct_snapshot(&precinct), before);
+        assert_eq!(
+            decode_jpip_precinct_packet(&template, &[], 0, 0, &mut precinct, &limits),
+            Err(DecodeError::malformed(0, MalformedKind::Truncated))
+        );
+        assert_eq!(exact_packet_precinct_snapshot(&precinct), before);
+    }
+}
+
+#[test]
 fn precinct_singleton_storage_first_later_refusals_restore_exact_owners() {
     let limits = ResourceLimits::default();
     let geometry = PacketPrecinctGeometry {

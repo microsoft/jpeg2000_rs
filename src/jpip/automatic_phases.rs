@@ -22,9 +22,16 @@ fn write_automatic_ordinal(slot: &mut Option<u16>, sequence: u16) -> Result<(), 
 #[allow(clippy::ptr_arg, clippy::too_many_arguments)]
 #[cfg_attr(verus_keep_ghost, verus_spec(result =>
     requires start <= prefix.len(),
-    ensures (result, crate::decode::progression_plan_view(final(plan)))
+    ensures crate::specs::part2_jpip_phase_copy_result(crate::decode::progression_plan_view(old(plan)),execution,crate::codestream::tile_part_owned_view(template),
+            prefix@,start,sequence,layer,limits,(result,crate::decode::progression_plan_view(final(plan)))),
+        (execution as nat)<crate::decode::progression_plan_view(old(plan)).precincts.len() ==>
+            crate::specs::part2_jpip_packet_copy_result(crate::decode::progression_plan_view(old(plan)).precincts[execution as int],
+                crate::codestream::tile_part_owned_view(template),prefix@.subrange(start as int,prefix@.len() as int),sequence,layer,limits,
+                (result,crate::decode::progression_plan_view(final(plan)).precincts[execution as int])),
+        result!=Err(DecodeError::AllocationFailed) ==> (result, crate::decode::progression_plan_view(final(plan)))
         == crate::specs::part2_jpip_precinct_phase(crate::decode::progression_plan_view(old(plan)),
             execution, template, prefix@, start, sequence, layer, limits),
+        crate::decode::progression_plan_view(final(plan)).precincts.len()==crate::decode::progression_plan_view(old(plan)).precincts.len(),
 ))]
 pub(super) fn decode_automatic_precinct(
     plan: &mut crate::decode::ProgressionTilePlan,
@@ -38,6 +45,8 @@ pub(super) fn decode_automatic_precinct(
 ) -> Result<usize, DecodeError> {
     #[cfg(verus_keep_ghost)]
     proof_decl! { let ghost before_plan = crate::decode::progression_plan_view(plan); }
+    #[cfg(verus_keep_ghost)]
+    proof! {if execution>=before_plan.precincts.len(){crate::specs::part2_jpip_phase_copy_lookup_error(before_plan,execution,crate::codestream::tile_part_owned_view(template),prefix@,start,sequence,layer,limits);}}
     let precincts = plan.precincts_mut();
     #[cfg(verus_keep_ghost)]
     proof_decl! { let ghost before_precincts = precincts@; }
@@ -56,14 +65,20 @@ pub(super) fn decode_automatic_precinct(
             =~= before_plan.precincts.update(execution as int,
                 crate::packet::packet_precinct_view(final(precinct_decoder))));
     }
-    crate::packet::decode_jpip_precinct_packet(
+    let result = crate::packet::decode_jpip_precinct_packet(
         template,
         &prefix[start..],
         sequence,
         layer,
         precinct_decoder,
         limits,
-    )
+    );
+    #[cfg(verus_keep_ghost)]
+    proof! {
+        crate::specs::part2_jpip_phase_copy_observed(before_plan,execution,crate::codestream::tile_part_owned_view(template),prefix@,start,sequence,layer,limits,
+            (result,crate::packet::packet_precinct_view(precinct_decoder)));
+    }
+    result
 }
 
 #[cfg_attr(verus_keep_ghost, verus_spec(result =>

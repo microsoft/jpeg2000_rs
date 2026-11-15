@@ -41,6 +41,7 @@ specs/cold_marker_header.rs
 specs/cold_marker_storage.rs
 specs/cold_mct_copy.rs
 specs/cold_packed_headers.rs
+specs/cold_packet_copy.rs
 specs/cold_packet_execute.rs
 specs/cold_packet_payload.rs
 specs/cold_packet_planes.rs
@@ -58,6 +59,7 @@ specs/cold_quantization.rs
 specs/cold_resolution_plan.rs
 specs/cold_resolved_copy.rs
 specs/cold_single_packet.rs
+specs/cold_tag_copy.rs
 specs/cold_tag_storage.rs
 specs/cold_tier1_initial.rs
 specs/cold_tier1_planes.rs
@@ -87,6 +89,7 @@ specs/jp2_resolution.rs
 specs/jpip_byte_writes.rs
 specs/jpip_cache_insert.rs
 specs/jpip_cache_views.rs
+specs/jpip_copy_packets.rs
 specs/jpip_fragment.rs
 specs/jpip_layout.rs
 specs/jpip_message.rs

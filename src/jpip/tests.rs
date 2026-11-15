@@ -1146,8 +1146,8 @@ fn automatic_managed_allocation_refusals_preserve_state_and_recover_exact_images
     for selected in [false, true] {
         let mut refusals = 0;
         let mut reached_end = false;
-        // Parsing has three eight-request prefixes; both planning passes add eight owners.
-        for ordinal in 0..32 + 3 * 8 + 2 * 8 {
+        // Two packet rollbacks each copy the two owners of both TagTrees.
+        for ordinal in 0..32 + 3 * 8 + 2 * 8 + 2 * 2 * 2 {
             let mut decoder = JpipAutomaticProgressiveDecoder::new(0);
             let result = crate::allocation::with_refusal(ordinal, || {
                 if selected {
@@ -1823,6 +1823,58 @@ fn automatic_precinct_phase_preserves_lookup_and_truncation_error_frames_then_re
         Ok(1)
     );
     assert_eq!(plan.precincts()[0].states(), fresh.precincts()[0].states());
+}
+
+#[test]
+fn tagtree_copy_storage_automatic_phase_refusal_keeps_plan_then_decodes_real_packet() {
+    let bytes = decodable_codestream();
+    let limits = ResourceLimits::default();
+    let layout = crate::codestream::parse_layout(&bytes, &limits).unwrap();
+    let part = &layout.tile_parts[0];
+    let make_plan = || {
+        crate::decode::plan_progression_tile_at_with_component_overrides(
+            &layout.info.image_size,
+            0,
+            part.coding_style,
+            &part.component_coding_styles,
+            &part.component_quantizations,
+            &part.roi_shifts,
+            &limits,
+        )
+        .unwrap()
+    };
+    let prefix = vec![0];
+    for after in [0, 1, 2, 3] {
+        let mut plan = make_plan();
+        let owner = plan.precincts().as_ptr();
+        let before = crate::packet::exact_packet_precinct_snapshot(&plan.precincts()[0]);
+        assert_eq!(
+            crate::allocation::with_refusal(after, || decode_automatic_precinct(
+                &mut plan, 0, part, &prefix, 0, 0, 0, &limits
+            )),
+            Err(DecodeError::AllocationFailed)
+        );
+        assert_eq!(plan.precincts().as_ptr(), owner);
+        assert_eq!(
+            crate::packet::exact_packet_precinct_snapshot(&plan.precincts()[0]),
+            before
+        );
+        assert_eq!(
+            decode_automatic_precinct(&mut plan, 0, part, &prefix, 0, 0, 0, &limits),
+            Ok(1)
+        );
+    }
+    let mut plan = make_plan();
+    crate::allocation::with_refusal(0, || {
+        assert_eq!(
+            decode_automatic_precinct(&mut plan, usize::MAX, part, &prefix, 0, 0, 0, &limits),
+            Err(DecodeError::malformed(0, MalformedKind::ArithmeticOverflow))
+        );
+        assert_eq!(
+            decode_automatic_precinct(&mut plan, 0, part, &prefix, 0, 0, 0, &limits),
+            Err(DecodeError::AllocationFailed)
+        );
+    });
 }
 
 #[test]

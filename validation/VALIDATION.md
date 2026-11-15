@@ -1246,6 +1246,30 @@ actual moved coefficient owners, ordinary geometry/decoder-count/work priority,
 empty shared-facade behavior and real full/selected HT packet consumption.
 Successful reservation relies on the documented standard-library boundary,
 not a physical-capacity theorem inferred from sequence models.
+The reached packet rollback path now copies TagTree level and node owners
+fallibly, in their original field order, through private checked duplication.
+Public infallible `Clone` implementations remain unchanged. The earlier packet
+state/context clones and outer subband-vector clone reservation retain their
+separate infallible boundaries; the outer reservation remains at the original
+frontier while only its nested TagTree copies use qualified Copy helpers.
+Actual source tree, subband/inclusion/zero path, level/node field, source-derived
+count and previously copied levels distinguish these primitive responses from
+fresh-tree, plane, planning and parser requests. Empty owners consume none.
+Ordered subband folds carry prior copies; refused copies return before packet
+invocation and leave the actual precinct unchanged. Ordinary packet failures
+still roll back the original complete snapshot. Automatic precinct phases and
+the input-derived acquisition loop bind the actual nested responses, packet
+state, parsed rows, offsets, blocked flags and transition counters before later
+packet-collection capacity/selection/partition phases. The real consumed copy
+prefix is retained in later success/error/missing tails; a copy refusal is not
+relabelled as later collection capacity failure. Original deterministic models
+remain checked normal projections. Existing automatic/progressive/semantic/
+recovery programs consume the changed actual acquisition producer without
+supplied successful tree, plan, decoder, image or result banks. Raw/container
+paths that do not execute packet rollback acquire no invented copy requests.
+Bounded controls exercise level/node and later subband refusal, empty/raw tree
+copies, unchanged Clone behavior, precise rollback/restoration, real automatic
+packet consumption and original earlier lookup/ordinary-error precedence.
 Same-file links are checked inside another listed, formatted function body;
 the contract's own declaration, an unrelated function or an indirect caller
 does not qualify as a direct same-file call. Unsupported formatting can fail

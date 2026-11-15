@@ -31,7 +31,9 @@ use super::{
 use vstd::prelude::*;
 
 #[cfg_attr(verus_keep_ghost,verus_spec(result =>
-    ensures (result,packet_precinct_view(final(precinct)))==crate::specs::part1_jpip_precinct_packet(
+    ensures crate::specs::part2_jpip_packet_copy_result(packet_precinct_view(old(precinct)),crate::codestream::tile_part_owned_view(template),data@,expected_sop_sequence,layer,limits,
+            (result,packet_precinct_view(final(precinct)))),
+        result!=Err(DecodeError::AllocationFailed) ==> (result,packet_precinct_view(final(precinct)))==crate::specs::part1_jpip_precinct_packet(
         packet_precinct_view(old(precinct)),template,data@,expected_sop_sequence,layer,limits),
         result.is_err() ==> packet_precinct_view(final(precinct))==packet_precinct_view(old(precinct)),
 ))]
@@ -47,7 +49,14 @@ pub(crate) fn decode_jpip_precinct_packet(
     proof_decl! {let ghost initial=packet_precinct_view(precinct);}
     let states = precinct.states.clone();
     let contexts = precinct.contexts.clone();
-    let subbands = precinct.subbands.clone();
+    let copied_subbands = try_duplicate_packet_subbands(&precinct.subbands);
+    #[cfg(verus_keep_ghost)]
+    proof! {
+        if let Err(error)=copied_subbands{
+            crate::specs::part2_jpip_packet_copy_observed(initial,crate::codestream::tile_part_owned_view(template),data@,expected_sop_sequence,layer,limits,Err(error),(Err(error),initial));
+        }
+    }
+    let subbands = copied_subbands?;
     #[cfg(verus_keep_ghost)]
     proof! {
         assert(states@.map_values(|state:CodeBlockPacketState|code_block_packet_state_view(&state))==initial.states);
@@ -67,7 +76,73 @@ pub(crate) fn decode_jpip_precinct_packet(
         precinct.contexts = contexts;
         precinct.subbands = subbands;
     }
+    #[cfg(verus_keep_ghost)]
+    proof! {
+        super::super::jpip::jpip_snapshot_decode_packet_known(initial,template,data@,expected_sop_sequence,layer,limits);
+        crate::specs::part2_jpip_packet_copy_observed(initial,crate::codestream::tile_part_owned_view(template),data@,expected_sop_sequence,layer,limits,
+            Ok(initial.subbands),(result,packet_precinct_view(precinct)));
+    }
     result
+}
+
+#[cfg_attr(verus_keep_ghost, verus_spec(result =>
+    ensures crate::specs::part2_subbands_copy_result(before@.map_values(|value:PacketSubbandState|packet_subband_view(&value)),
+        match result{Err(error)=>Err(error),Ok(values)=>Ok(values@.map_values(|value:PacketSubbandState|packet_subband_view(&value)))}),
+        match result{Err(error)=>error==DecodeError::AllocationFailed,Ok(values)=>values@.map_values(|value:PacketSubbandState|packet_subband_view(&value))==before@.map_values(|value:PacketSubbandState|packet_subband_view(&value))},
+))]
+fn try_duplicate_packet_subbands(
+    before: &[PacketSubbandState],
+) -> Result<Vec<PacketSubbandState>, DecodeError> {
+    #[cfg(verus_keep_ghost)]
+    proof_decl! {
+        let ghost source=before@.map_values(|value:PacketSubbandState|packet_subband_view(&value));
+        let ghost root=|events:Seq<crate::specs::Part2JpipSnapshotEvent>|crate::specs::part2_subbands_copy_run(source,0,Seq::empty(),events);
+        let ghost mut prefix=Seq::<crate::specs::Part2JpipSnapshotEvent>::empty();
+    }
+    // The outer Vec clone reservation remains its original, separate infallible boundary.
+    let mut values = Vec::with_capacity(before.len());
+    let mut index = 0;
+    #[cfg(verus_keep_ghost)]
+    proof! {
+        assert(source.take(0) =~= Seq::empty());
+        assert forall|events:Seq<crate::specs::Part2JpipSnapshotEvent>|root(prefix+events)
+            ==crate::specs::part2_subbands_copy_run(source,0,source.take(0),events) by {assert(prefix+events =~= events);}
+    }
+    #[cfg_attr(verus_keep_ghost,verus_spec(
+        invariant index<=before.len(),values@.len()==index,
+            values@.map_values(|value:PacketSubbandState|packet_subband_view(&value))==source.take(index as int),
+            source==before@.map_values(|value:PacketSubbandState|packet_subband_view(&value)),
+            forall|events:Seq<crate::specs::Part2JpipSnapshotEvent>| #[trigger] root(events)==crate::specs::part2_subbands_copy_run(source,0,Seq::empty(),events),
+            crate::specs::part2_cold_phase(root,prefix,|events|crate::specs::part2_subbands_copy_run(source,index as nat,source.take(index as int),events)),
+        decreases before.len()-index,
+    ))]
+    while index < before.len() {
+        #[cfg(verus_keep_ghost)]
+        proof! {crate::specs::part2_subbands_copy_step(source,index as nat,source.take(index as int));}
+        let copied = before[index].try_duplicate(index);
+        #[cfg(verus_keep_ghost)]
+        proof! {
+            let child=|events|crate::specs::part2_subband_copy_run(source[index as int],index,events);
+            let next=|value:crate::specs::Part1PacketSubbandState,rest|crate::specs::part2_subbands_copy_run(source,index as nat+1,source.take(index as int).push(value),rest);
+            crate::specs::part2_subband_copy_frames(source[index as int],index,match copied{Err(error)=>Err(error),Ok(value)=>Ok(packet_subband_view(&value))});
+            if let Err(error)=copied{
+                crate::specs::part2_decode_prefix_error(root,child,next,prefix,error);
+                crate::specs::part2_subbands_copy_join(source,root,Err(error));
+            }else{
+                prefix=crate::specs::part2_decode_prefix_advance(root,child,next,prefix,source[index as int]);
+                assert(source.take(index as int).push(source[index as int]) =~= source.take(index as int+1));
+                assert(crate::specs::part2_cold_phase(root,prefix,|events|crate::specs::part2_subbands_copy_run(source,index as nat+1,source.take(index as int+1),events)));
+            }
+        }
+        values.push(copied?);
+        index += 1;
+    }
+    #[cfg(verus_keep_ghost)]
+    proof! {
+        assert(source.take(source.len() as int) =~= source);
+        crate::specs::part2_subbands_copy_end(source,root,prefix,source);
+    }
+    Ok(values)
 }
 
 #[cfg_attr(verus_keep_ghost,verus_spec(result =>
@@ -142,6 +217,53 @@ impl Clone for PacketSubbandState {
             inclusion_tree: self.inclusion_tree.clone(),
             zero_bitplane_tree: self.zero_bitplane_tree.clone(),
         }
+    }
+}
+
+impl PacketSubbandState {
+    #[cfg_attr(verus_keep_ghost,verus_spec(result =>
+                ensures crate::specs::part2_subband_copy_result(packet_subband_view(self),index,
+                    match result{Err(error)=>Err(error),Ok(value)=>Ok(packet_subband_view(&value))}),
+                    match result{Err(error)=>error==DecodeError::AllocationFailed,Ok(value)=>packet_subband_view(&value)==packet_subband_view(self)},
+            ))]
+    fn try_duplicate(&self, index: usize) -> Result<Self, DecodeError> {
+        #[cfg(verus_keep_ghost)]
+        proof_decl! {let ghost source=packet_subband_view(self);let ghost first;let ghost second;}
+        #[cfg(verus_keep_ghost)]
+        proof! {reveal(packet_subband_view);}
+        Ok(Self {
+            orientation: self.orientation,
+            first_decoder: self.first_decoder,
+            decoder_count: self.decoder_count,
+            code_blocks_across: self.code_blocks_across,
+            code_blocks_down: self.code_blocks_down,
+            inclusion_tree: {
+                let result = self.inclusion_tree.try_duplicate(super::TagTreeCopyPath {
+                    subband: index,
+                    zero: false,
+                });
+                #[cfg(verus_keep_ghost)]
+                proof! {
+                    first=tag_tree_outcome(result);
+                    if let Err(error)=result{crate::specs::part2_subband_copy_observed(source,index,first,None,Err(error));}
+                }
+                result?
+            },
+            zero_bitplane_tree: {
+                let result = self
+                    .zero_bitplane_tree
+                    .try_duplicate(super::TagTreeCopyPath {
+                        subband: index,
+                        zero: true,
+                    });
+                #[cfg(verus_keep_ghost)]
+                proof! {
+                    second=tag_tree_outcome(result);
+                    crate::specs::part2_subband_copy_observed(source,index,first,Some(second),match second{Err(error)=>Err(error),Ok(_)=>Ok(source)});
+                }
+                result?
+            },
+        })
     }
 }
 

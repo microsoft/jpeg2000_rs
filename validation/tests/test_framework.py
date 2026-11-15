@@ -1166,8 +1166,8 @@ class FrameworkTests(WorkingFiles):
             ("src/jpip/progression.rs", "current_root.input == acquisition_input", "true"),
             ("src/jpip/progression.rs", "tile_root.before == super::jpip_automatic_tiles_view(automatic_tiles@)", "true"),
             ("src/jpip/progression.rs", "events: current_root.events + completed_events", "events: completed_events"),
-            ("src/jpip/progression.rs", "super::jpip_snapshot_tile_root_error(current_root, seq![tile_capacity] + packet_events, error)",
-             "unrelated_error_claim(current_root, seq![tile_capacity] + packet_events, error)"),
+            ("src/jpip/progression.rs", "super::jpip_snapshot_tile_root_error(current_root, seq![tile_capacity] + (packet_copy_events+packet_events), error)",
+             "unrelated_error_claim(current_root, seq![tile_capacity] + (packet_copy_events+packet_events), error)"),
             ("src/packet/precinct.rs", "packet_precinct_view(self).precinct", "0"),
             ("src/jpip/progression_proof_support.rs",
              "requires crate::specs::part2_jpip_snapshot_tile_root(root), root.tile < root.headers.len()",
@@ -1297,7 +1297,7 @@ class FrameworkTests(WorkingFiles):
             ("src/jpip/progression.rs", "acquisition_input.cache == jpip_cache_view(self)", "true"),
             ("src/jpip/progression.rs", "acquisition_order == order@", "true"),
             ("src/jpip/progression.rs", "elements: order.len(), succeeded: true", "elements: order.len(), succeeded: false"),
-            ("specs/jpip_snapshot_inputs.rs", "order, 0, initial)", "order, 1, initial)"),
+            ("specs/jpip_snapshot_inputs.rs", "order, 0, initial, events)", "order, 1, initial, events)"),
             ("specs/jpip_snapshot_inputs.rs", "part2_jpip_snapshot_capacity(events, 4, tile, order.len() as usize)",
              "part2_jpip_snapshot_capacity(events, 5, tile, order.len() as usize)"),
         ):
@@ -8242,6 +8242,59 @@ class FrameworkTests(WorkingFiles):
                     self.assertRaisesRegex(ValueError, "initial Tier1 storage"):
                 framework.validate_normative_coverage(data)
 
+    def test_inventory_tagtree_copy_requires_actual_roles_owners_rollback_and_acquisition_prefix(self):
+        coverage = json.loads((framework.VALIDATION / "normative-coverage.json").read_text())
+        entry = next(item for item in coverage["requirements"] if item["id"] == "part1-complete-native-public-packet-boundaries")
+        data = dict(coverage, requirements=[entry])
+        self.assertEqual(framework.validate_normative_coverage(data)["status"], "passed")
+        read_text = Path.read_text
+        cases = (
+            ("specs/cold_tag_copy.rs", "part2_tag_copy_capacity_run", "count==0", "count==1"),
+            ("specs/cold_tag_copy.rs", "part2_tag_copy_capacity_run", "TagCopyCapacity", "PrecinctCapacity"),
+            ("specs/cold_tag_copy.rs", "part2_tag_copy_capacity_run", "actual!=context", "false"),
+            ("specs/cold_tag_copy.rs", "part2_tag_copy_capacity_run", "elements!=count", "elements!=1"),
+            ("specs/cold_tag_copy.rs", "part2_tag_copy_capacity_run", "events.drop_first()", "events"),
+            ("specs/cold_tag_copy.rs", "part2_tag_copy_run", "levels:Some(source.levels)", "levels:None"),
+            ("specs/cold_packet_copy.rs", "part2_subband_copy_run", "subband:index,zero:true", "subband:index,zero:false"),
+            ("specs/cold_packet_copy.rs", "part2_subbands_copy_run", "before.push(copied)", "before"),
+            ("specs/cold_packet_copy.rs", "part2_jpip_packet_copy_run", "Ok((Err(error),initial))", "Ok((Err(error),unrelated))"),
+            ("specs/cold_packet_copy.rs", "part2_jpip_phase_copy_run", "execution as nat>=plan.precincts.len()", "false"),
+            ("specs/jpip_copy_packets.rs", "part2_copy_packet_admit", "offset as nat>=prefix.len()", "false"),
+            ("specs/jpip_copy_packets.rs", "part2_copy_packet_finish", "state.bytes as nat+(consumed as u64) as nat", "state.bytes as nat"),
+            ("specs/jpip_copy_packets.rs", "part2_copy_packets_run", "part2_jpip_packet_copy_run(", "supplied_packet_result("),
+            ("specs/jpip_snapshot_inputs.rs", "part2_jpip_snapshot_acquired_packets", "part2_copy_packets_run(", "pure_parse_without_events("),
+            ("src/packet/tag_tree.rs", "TagTree::try_duplicate", "copy_values(&self.levels)", "copy_values(&self.nodes)"),
+            ("src/packet/tag_tree.rs", "TagTree::try_duplicate", "match copied_nodes", "match supplied_response"),
+            ("src/packet/tag_tree.rs", "TagTree::clone", "self.levels.clone()", "self.levels.try_duplicate()?"),
+            ("src/packet/precinct.rs", "try_duplicate_packet_subbands", "Vec::with_capacity(before.len())", "Vec::new()"),
+            ("src/packet/precinct.rs", "PacketSubbandState::try_duplicate", "zero: true", "zero: false"),
+            ("src/packet/precinct.rs", "decode_jpip_precinct_packet", "precinct.subbands = subbands", "precinct.subbands = Vec::new()"),
+            ("src/jpip/automatic_phases.rs", "decode_automatic_precinct", "&prefix[start..]", "&prefix[..]"),
+            ("src/jpip/progression.rs", "DatabinCache::build_automatic_snapshot", "jpip_snapshot_copy_error(", "jpip_snapshot_packet_capacity_error("),
+        )
+        for relative, symbol, before, after in cases:
+            source = framework.ROOT / relative
+            original = source.read_text()
+            body = (framework._coverage_function_body(original, framework._coverage_function_header(original, symbol))
+                    if relative.startswith("src/") else framework._coverage_spec_function_body(original, symbol))
+            pattern = re.escape(before).replace(r"\ ", r"\s*")
+            changed_body, count = re.subn(pattern, lambda _: after, body, count=1)
+            self.assertEqual(count, 1, (symbol, before))
+            changed = original.replace(body, changed_body, 1)
+
+            def altered(path, *args, **kwargs):
+                return changed if path == source else read_text(path, *args, **kwargs)
+
+            with self.subTest(symbol=symbol, before=before), mock.patch.object(Path, "read_text", altered), \
+                    self.assertRaisesRegex(ValueError, "TagTree copy storage"):
+                framework.validate_normative_coverage(data)
+        missing = copy.deepcopy(data)
+        missing["requirements"][0]["test_refs"] = [
+            ref for ref in entry["test_refs"] if (ref["path"], ref["symbol"]) not in framework._TAG_COPY_TESTS
+        ]
+        with self.assertRaisesRegex(ValueError, "TagTree copy storage requires bounded"):
+            framework.validate_normative_coverage(missing)
+
     def test_inventory_precinct_singleton_requires_actual_input_primitive_child_and_argument_frontier(self):
         coverage = json.loads((framework.VALIDATION / "normative-coverage.json").read_text())
         entry = next(item for item in coverage["requirements"] if item["id"] == framework._PRECINCT_SINGLETON_ENTRY)
@@ -8792,6 +8845,10 @@ class FrameworkTests(WorkingFiles):
                     {"path": path, "symbol": symbol} for path, symbol in sorted(cold_proofs)
                 ]
                 isolated["test_refs"] = entry["test_refs"][:1]
+                if isolated["id"] in framework._TAG_COPY_ENTRIES:
+                    isolated["test_refs"] += [
+                        {"path": path, "symbol": symbol} for path, symbol in sorted(framework._TAG_COPY_TESTS)
+                    ]
                 if isolated["id"] == framework._PRECINCT_SINGLETON_ENTRY:
                     isolated["test_refs"] += [
                         {"path": path, "symbol": symbol} for path, symbol in sorted(framework._PRECINCT_SINGLETON_TESTS)
