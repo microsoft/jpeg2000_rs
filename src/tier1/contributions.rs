@@ -94,7 +94,12 @@ impl Tier1CodeBlockDecoder {
         #[cfg(verus_keep_ghost)]
         proof_decl! {let ghost before=tier1_decoder_state(self);}
         Ok(Self {
-            plane: self.plane.clone(),
+            plane: {
+                let copied = self.plane.try_duplicate_raw(role, false);
+                #[cfg(verus_keep_ghost)]
+                proof! {if let Err(error)=copied{crate::specs::part2_ht_duplicate_primary_error(before,role,error);}}
+                copied?
+            },
             orientation: self.orientation,
             style: self.style,
             maximum_passes: self.maximum_passes,
@@ -108,7 +113,22 @@ impl Tier1CodeBlockDecoder {
             decoded_bytes: self.decoded_bytes,
             legacy_segment: self.legacy_segment.clone(),
             legacy_decode_work: self.legacy_decode_work,
-            ht_cleanup_plane: self.ht_cleanup_plane.clone(),
+            ht_cleanup_plane: match self.ht_cleanup_plane.as_ref() {
+                None => {
+                    #[cfg(verus_keep_ghost)]
+                    proof! {crate::specs::part2_decoder_cleanup_none(role);}
+                    None
+                }
+                Some(source) => {
+                    let copied = source.try_duplicate_raw(role, true);
+                    #[cfg(verus_keep_ghost)]
+                    proof! {
+                        crate::specs::part2_decoder_cleanup_observed(code_block_plane_view(source),role,super::code_block_plane_outcome(copied));
+                        if let Err(error)=copied{crate::specs::part2_ht_duplicate_cleanup_error(before,role,error);}
+                    }
+                    Some(copied?)
+                }
+            },
             ht_refinement_data: {
                 let copied =
                     super::ht_refinement::copy_ht_refinement_bytes(&self.ht_refinement_data, role);

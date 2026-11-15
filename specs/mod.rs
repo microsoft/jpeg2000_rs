@@ -116,6 +116,8 @@ pub use cold_tier1_planes::*;
 mod cold_ht_bytes;
 mod cold_ht_decoder;
 pub use cold_ht_bytes::*;
+mod cold_decoder_planes;
+pub use cold_decoder_planes::*;
 mod replay_finish;
 pub use cold_ht_decoder::*;
 pub use replay_finish::*;

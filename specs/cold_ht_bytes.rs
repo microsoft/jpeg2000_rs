@@ -37,8 +37,18 @@ pub(crate) proof fn part2_ht_bytes_frames(source:Seq<u8>,role:crate::tier1::HtRe
             (forall|calls| #[trigger] other(calls)==part2_ht_bytes_run(source,role,calls)) ==> #[trigger] part2_tier1_storage_framed(other,result),
 {reveal(part2_ht_bytes_result);part2_tier1_storage_eta(|calls|part2_ht_bytes_run(source,role,calls),result);}
 #[verifier::opaque]
-pub(crate) open spec fn part2_ht_duplicate_run(before:Tier1DecoderState,role:crate::tier1::HtRefinementCopyRole,calls:Seq<Part2Tier1StorageEvent>)->Part2Tier1Run<Tier1DecoderState> {
+pub(crate) open spec fn part2_ht_duplicate_after_cleanup(before:Tier1DecoderState,role:crate::tier1::HtRefinementCopyRole,calls:Seq<Part2Tier1StorageEvent>)->Part2Tier1Run<Tier1DecoderState> {
     part2_tier1_storage_bind(part2_ht_bytes_run(before.ht_refinement_data,role,calls),|_:Seq<u8>,rest|Some((Ok(before),rest)))
+}
+#[verifier::opaque]
+pub(crate) open spec fn part2_ht_duplicate_after_primary(before:Tier1DecoderState,role:crate::tier1::HtRefinementCopyRole,calls:Seq<Part2Tier1StorageEvent>)->Part2Tier1Run<Tier1DecoderState> {
+    part2_tier1_storage_bind(part2_decoder_cleanup_run(before.ht_cleanup_plane,role,calls),
+        |_:Option<Tier1RawPlane>,rest|part2_ht_duplicate_after_cleanup(before,role,rest))
+}
+#[verifier::opaque]
+pub(crate) open spec fn part2_ht_duplicate_run(before:Tier1DecoderState,role:crate::tier1::HtRefinementCopyRole,calls:Seq<Part2Tier1StorageEvent>)->Part2Tier1Run<Tier1DecoderState> {
+    part2_tier1_storage_bind(part2_decoder_plane_run(before.plane,role,false,calls),
+        |_:Tier1RawPlane,rest|part2_ht_duplicate_after_primary(before,role,rest))
 }
 #[verifier::opaque]
 pub(crate) open spec fn part2_ht_duplicate_result(before:Tier1DecoderState,role:crate::tier1::HtRefinementCopyRole,result:Result<Tier1DecoderState,crate::DecodeError>)->bool {
@@ -46,17 +56,52 @@ pub(crate) open spec fn part2_ht_duplicate_result(before:Tier1DecoderState,role:
 }
 pub(crate) proof fn part2_ht_duplicate_observed(before:Tier1DecoderState,role:crate::tier1::HtRefinementCopyRole,result:Result<Seq<u8>,crate::DecodeError>)
     requires part2_ht_bytes_result(before.ht_refinement_data,role,result),
+        part2_decoder_plane_result(before.plane,role,false,Ok(before.plane)),
+        part2_decoder_cleanup_result(before.ht_cleanup_plane,role,Ok(before.ht_cleanup_plane)),
     ensures part2_ht_duplicate_result(before,role,match result{Err(error)=>Err(error),Ok(_)=>Ok(before)}),
 {
-    reveal(part2_ht_duplicate_result);reveal(part2_ht_duplicate_run);
+    reveal(part2_ht_duplicate_result);reveal(part2_ht_duplicate_run);reveal(part2_ht_duplicate_after_primary);reveal(part2_ht_duplicate_after_cleanup);
     let value=match result{Err(error)=>Err(error),Ok(_)=>Ok(before)};
     part2_ht_bytes_frames(before.ht_refinement_data,role,result);
     if result.is_ok(){part2_tier1_storage_pure(Ok(before));}
     part2_tier1_storage_bind_frame(|calls|part2_ht_bytes_run(before.ht_refinement_data,role,calls),|_:Seq<u8>,rest|Some((Ok(before),rest)),result,value);
+    part2_tier1_storage_eta(|calls|part2_ht_duplicate_after_cleanup(before,role,calls),value);
+    part2_decoder_cleanup_frames(before.ht_cleanup_plane,role,Ok(before.ht_cleanup_plane));
+    part2_tier1_storage_bind_frame(|calls|part2_decoder_cleanup_run(before.ht_cleanup_plane,role,calls),
+        |_:Option<Tier1RawPlane>,rest|part2_ht_duplicate_after_cleanup(before,role,rest),Ok(before.ht_cleanup_plane),value);
+    part2_tier1_storage_eta(|calls|part2_ht_duplicate_after_primary(before,role,calls),value);
+    part2_decoder_plane_frames(before.plane,role,false,Ok(before.plane));
+    part2_tier1_storage_bind_frame(|calls|part2_decoder_plane_run(before.plane,role,false,calls),
+        |_:Tier1RawPlane,rest|part2_ht_duplicate_after_primary(before,role,rest),Ok(before.plane),value);
+}
+pub(crate) proof fn part2_ht_duplicate_primary_error(before:Tier1DecoderState,role:crate::tier1::HtRefinementCopyRole,error:crate::DecodeError)
+    requires part2_decoder_plane_result(before.plane,role,false,Err(error)),
+    ensures part2_ht_duplicate_result(before,role,Err(error)),
+{
+    reveal(part2_ht_duplicate_result);reveal(part2_ht_duplicate_run);
+    part2_decoder_plane_frames(before.plane,role,false,Err(error));
+    part2_tier1_storage_bind_frame(|calls|part2_decoder_plane_run(before.plane,role,false,calls),
+        |_:Tier1RawPlane,rest|part2_ht_duplicate_after_primary(before,role,rest),Err(error),Err(error));
+}
+pub(crate) proof fn part2_ht_duplicate_cleanup_error(before:Tier1DecoderState,role:crate::tier1::HtRefinementCopyRole,error:crate::DecodeError)
+    requires part2_decoder_plane_result(before.plane,role,false,Ok(before.plane)),
+        part2_decoder_cleanup_result(before.ht_cleanup_plane,role,Err(error)),
+    ensures part2_ht_duplicate_result(before,role,Err(error)),
+{
+    reveal(part2_ht_duplicate_result);reveal(part2_ht_duplicate_run);reveal(part2_ht_duplicate_after_primary);
+    part2_decoder_cleanup_frames(before.ht_cleanup_plane,role,Err(error));
+    part2_tier1_storage_bind_frame(|calls|part2_decoder_cleanup_run(before.ht_cleanup_plane,role,calls),
+        |_:Option<Tier1RawPlane>,rest|part2_ht_duplicate_after_cleanup(before,role,rest),Err(error),Err(error));
+    part2_tier1_storage_eta(|calls|part2_ht_duplicate_after_primary(before,role,calls),Err(error));
+    part2_decoder_plane_frames(before.plane,role,false,Ok(before.plane));
+    part2_tier1_storage_bind_frame(|calls|part2_decoder_plane_run(before.plane,role,false,calls),
+        |_:Tier1RawPlane,rest|part2_ht_duplicate_after_primary(before,role,rest),Ok(before.plane),Err(error));
 }
 pub(crate) proof fn part2_ht_duplicate_normal(before:Tier1DecoderState,role:crate::tier1::HtRefinementCopyRole)
     ensures part2_ht_duplicate_result(before,role,Ok(before)),
 {
+    part2_decoder_plane_normal(before.plane,role,false);
+    part2_decoder_cleanup_normal(before.ht_cleanup_plane,role);
     part2_ht_bytes_normal(before.ht_refinement_data,role);
     part2_ht_duplicate_observed(before,role,Ok(before.ht_refinement_data));
 }

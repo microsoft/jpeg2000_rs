@@ -1,6 +1,32 @@
 use super::*;
 
 #[test]
+fn decoder_plane_storage_real_legacy_packet_transaction_refusal_keeps_decoder_then_recovers() {
+    let limits = ResourceLimits::default();
+    let header = one_ff_legacy_contribution();
+    let mut decoder = one_bit_legacy_decoder(false);
+    let before = format!("{decoder:?}");
+    let mut expected = decoder.clone();
+    let decoded =
+        decode_code_block_contribution_body(&mut expected, &header, &[0xff], &limits).unwrap();
+    assert_eq!(
+        crate::allocation::with_refusal(0, || decode_code_block_contribution_body(
+            &mut decoder,
+            &header,
+            &[0xff],
+            &limits
+        )),
+        Err(DecodeError::AllocationFailed)
+    );
+    assert_eq!(format!("{decoder:?}"), before);
+    assert_eq!(
+        decode_code_block_contribution_body(&mut decoder, &header, &[0xff], &limits).unwrap(),
+        decoded
+    );
+    assert_eq!(format!("{decoder:?}"), format!("{expected:?}"));
+}
+
+#[test]
 fn ht_refinement_storage_packet_staging_copy_precedes_route_error_and_restores_decoder() {
     let limits = ResourceLimits::default();
     let mut decoder = literal_ht_decoder(3);
@@ -14,7 +40,7 @@ fn ht_refinement_storage_packet_staging_copy_precedes_route_error_and_restores_d
     assert_ne!(expected, Err(DecodeError::AllocationFailed));
     assert_eq!(format!("{decoder:?}"), before);
     assert_eq!(
-        crate::allocation::with_refusal(0, || decode_code_block_contribution_body(
+        crate::allocation::with_refusal(2, || decode_code_block_contribution_body(
             &mut decoder,
             &header,
             &[0xff],

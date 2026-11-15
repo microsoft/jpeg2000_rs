@@ -5601,6 +5601,12 @@ _HT_BYTE_COPY_GUARDS = {
         "if succeeded{Ok(source)}else{Err(crate::DecodeError::AllocationFailed)}", "calls.drop_first()",
     ),
     ("specs/cold_ht_bytes.rs", "part2_ht_duplicate_run"): (
+        "part2_decoder_plane_run(before.plane,role,false,calls)", "part2_ht_duplicate_after_primary(before,role,rest)",
+    ),
+    ("specs/cold_ht_bytes.rs", "part2_ht_duplicate_after_primary"): (
+        "part2_decoder_cleanup_run(before.ht_cleanup_plane,role,calls)", "part2_ht_duplicate_after_cleanup(before,role,rest)",
+    ),
+    ("specs/cold_ht_bytes.rs", "part2_ht_duplicate_after_cleanup"): (
         "part2_ht_bytes_run(before.ht_refinement_data,role,calls)", "Some((Ok(before),rest))",
     ),
     ("specs/cold_ht_decoder.rs", "part2_ht_coeff_after_refinement"): (
@@ -5624,8 +5630,11 @@ _HT_BYTE_COPY_GUARDS = {
 }
 _HT_BYTE_COPY_NATIVE_ORDER = {
     ("src/tier1/contributions.rs", "Tier1CodeBlockDecoder::try_duplicate"): (
-        "plane:self.plane.clone()", "bitplane_state:self.bitplane_state.clone()", "legacy_segment:self.legacy_segment.clone()",
-        "ht_cleanup_plane:self.ht_cleanup_plane.clone()", "ht_refinement_data:", "copy_ht_refinement_bytes(&self.ht_refinement_data,role)",
+        "plane:", "self.plane.try_duplicate_raw(role,false)", "part2_ht_duplicate_primary_error(", "copied?",
+        "bitplane_state:self.bitplane_state.clone()", "legacy_segment:self.legacy_segment.clone()",
+        "ht_cleanup_plane:match self.ht_cleanup_plane.as_ref()", "None=>", "part2_decoder_cleanup_none(role)", "Some(source)=>",
+        "source.try_duplicate_raw(role,true)", "part2_decoder_cleanup_observed(", "part2_ht_duplicate_cleanup_error(", "Some(copied?)",
+        "ht_refinement_data:", "copy_ht_refinement_bytes(&self.ht_refinement_data,role)",
         "part2_ht_duplicate_observed(", "copied?", "ht_refinement_passes:self.ht_refinement_passes",
     ),
     ("src/tier1/ht_refinement.rs", "copy_ht_refinement_bytes"): (
@@ -5648,6 +5657,36 @@ _HT_BYTE_COPY_NATIVE_ORDER = {
     ("src/packet/body.rs", "decode_code_block_contribution_body"): (
         "decoder.try_duplicate(crate::tier1::HtRefinementCopyRole::PacketStaging)", "let mut staged = duplicated?",
         "decode_code_block_contribution_body_staged(", "let decoded = decoded_result?", "*decoder = staged",
+    ),
+}
+_DECODER_PLANE_COPY_TESTS = {
+    ("src/tier1/tests.rs", "decoder_plane_storage_raw_sources_copy_without_dimension_admission_or_false_empty_event"),
+    ("src/tier1/tests.rs", "decoder_plane_storage_primary_optional_cleanup_and_byte_order_restore_all_fields"),
+    ("src/packet/tests.rs", "decoder_plane_storage_real_legacy_packet_transaction_refusal_keeps_decoder_then_recovers"),
+    ("src/decode/tests.rs", "decoder_plane_storage_real_ht_raw_selected_jph_staging_refusals_restore_exact_images"),
+}
+_DECODER_PLANE_COPY_GUARDS = {
+    ("specs/cold_decoder_planes.rs", "part2_decoder_plane_run"): (
+        "let count=source.coefficients.len()", "if count==0{Some((Ok(source),calls))}",
+        "Part2Tier1StorageEvent::DecoderPlaneCopy", "actual!=source || path!=role || optional!=cleanup || elements!=count",
+        "if succeeded{Ok(source)}else{Err(crate::DecodeError::AllocationFailed)}", "calls.drop_first()",
+    ),
+    ("specs/cold_decoder_planes.rs", "part2_decoder_cleanup_run"): (
+        "None=>Some((Ok(None),calls))", "part2_decoder_plane_run(plane,role,true,calls)", "Some((Ok(Some(copied)),rest))",
+    ),
+    ("specs/cold_ht_bytes.rs", "part2_ht_duplicate_observed"): (
+        "part2_ht_bytes_frames(before.ht_refinement_data,role,result)",
+        "part2_decoder_cleanup_frames(before.ht_cleanup_plane,role,Ok(before.ht_cleanup_plane))",
+        "part2_decoder_plane_frames(before.plane,role,false,Ok(before.plane))",
+    ),
+    ("specs/cold_ht_bytes.rs", "part2_ht_duplicate_primary_error"): (
+        "part2_decoder_plane_frames(before.plane,role,false,Err(error))",
+        "part2_ht_duplicate_after_primary(before,role,rest),Err(error),Err(error)",
+    ),
+    ("specs/cold_ht_bytes.rs", "part2_ht_duplicate_cleanup_error"): (
+        "part2_decoder_cleanup_frames(before.ht_cleanup_plane,role,Err(error))",
+        "part2_ht_duplicate_after_cleanup(before,role,rest),Err(error),Err(error)",
+        "part2_decoder_plane_frames(before.plane,role,false,Ok(before.plane))",
     ),
 }
 _ROLLBACK_OWNER_TESTS = {
@@ -13748,6 +13787,30 @@ def validate_normative_coverage(
                 if not _TIER1_INITIAL_TESTS.issubset({(ref["path"], ref["symbol"]) for ref in entry["test_refs"]}):
                     raise ValueError("initial Tier1 storage requires bounded refusal/restore/zero/ordinary-policy/row-owner/real-public controls")
     if ids & _HT_BYTE_COPY_ENTRIES:
+        for (relative, symbol), fragments in _DECODER_PLANE_COPY_GUARDS.items():
+            path = (ROOT / relative).resolve()
+            text = source_text(path)
+            body = _coverage_spec_function_body(text, symbol)
+            if body is None:
+                header = re.search(r"(?m)^([ \t]*)pub\(crate\) proof fn " + re.escape(symbol) + r"\b", text)
+                body = _coverage_function_body(text, header)
+            compact = "".join(body.split()) if body is not None else ""
+            if any("".join(fragment.split()) not in compact for fragment in fragments):
+                raise ValueError("decoder plane copies require raw source length, distinct primary/cleanup paths and exact child/error/tail binds")
+        raw_path = (ROOT / "src/tier1/state.rs").resolve()
+        raw_copy = _coverage_function_body(source_text(raw_path), function_header(raw_path, "CodeBlockPlane::try_duplicate_raw"))
+        raw_body = """Ok(Self {width:self.width,height:self.height,coefficients:{
+            let copied=crate::allocation::copy_values(&self.coefficients);
+            #[cfg(verus_keep_ghost)] proof!{crate::specs::part2_decoder_plane_observed(code_block_plane_view(self),_role,_cleanup,
+                match copied{Err(error)=>Err(error),Ok(_)=>Ok(())});}
+            copied?
+        },})"""
+        if raw_copy is None or "".join(raw_copy.split()) != "".join(raw_body.split()):
+            raise ValueError("decoder plane copies require unchanged raw width/height/coefficients and actual Copy response without dimension admission")
+        raw_clone = _coverage_function_body(source_text(raw_path), function_header(raw_path, "CodeBlockPlane::clone"))
+        if raw_clone is None or "".join(raw_clone.split()) != "".join(
+                "Self {width:self.width,height:self.height,coefficients:self.coefficients.clone(),}".split()):
+            raise ValueError("decoder plane copies must preserve the original public infallible raw Clone")
         for (relative, symbol), fragments in _HT_BYTE_COPY_GUARDS.items():
             body = _coverage_spec_function_body(source_text((ROOT / relative).resolve()), symbol)
             compact = "".join(body.split()) if body is not None else ""
@@ -13785,6 +13848,8 @@ def validate_normative_coverage(
             entry = next(item for item in coverage["requirements"] if item["id"] == _HT_BYTE_COPY_ENTRY)
             if not _HT_BYTE_COPY_TESTS.issubset({(ref["path"], ref["symbol"]) for ref in entry["test_refs"]}):
                 raise ValueError("HT byte-copy storage requires bounded staging/replay/retention/empty/error/real-public restoration controls")
+            if not _DECODER_PLANE_COPY_TESTS.issubset({(ref["path"], ref["symbol"]) for ref in entry["test_refs"]}):
+                raise ValueError("decoder plane copies require bounded raw/empty/first-later/byte-order/legacy/real-public restoration controls")
     if ids & _TAG_COPY_ENTRIES:
         owner_source = source_text((ROOT / "specs/cold_rollback_snapshot.rs").resolve())
         for symbol, fragments in _ROLLBACK_OWNER_GUARDS.items():

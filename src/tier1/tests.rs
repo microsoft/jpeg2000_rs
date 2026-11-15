@@ -1,6 +1,110 @@
 use super::*;
 
 #[test]
+fn decoder_plane_storage_raw_sources_copy_without_dimension_admission_or_false_empty_event() {
+    let source = CodeBlockPlane {
+        width: 0,
+        height: u16::MAX,
+        coefficients: vec![CoefficientState {
+            magnitude: 17,
+            magnitude_high: [1, 2, 3, 4, 5],
+            negative: true,
+            significant: false,
+            refined: true,
+            legacy_bitplane: Some(u16::MAX),
+        }],
+    };
+    let before = source.clone();
+    for cleanup in [false, true] {
+        assert_eq!(
+            crate::allocation::with_refusal(0, || source
+                .try_duplicate_raw(HtRefinementCopyRole::PacketStaging, cleanup)),
+            Err(DecodeError::AllocationFailed)
+        );
+        assert_eq!(source, before);
+        assert_eq!(
+            source
+                .try_duplicate_raw(HtRefinementCopyRole::PacketStaging, cleanup)
+                .unwrap(),
+            before
+        );
+    }
+    let empty = CodeBlockPlane {
+        width: u16::MAX,
+        height: 0,
+        coefficients: Vec::new(),
+    };
+    crate::allocation::with_refusal(0, || {
+        assert_eq!(
+            empty
+                .try_duplicate_raw(HtRefinementCopyRole::HtStaging, false)
+                .unwrap(),
+            empty
+        );
+        assert_eq!(source.clone(), before);
+        assert_eq!(
+            source.try_duplicate_raw(HtRefinementCopyRole::HtStaging, false),
+            Err(DecodeError::AllocationFailed)
+        );
+    });
+}
+
+#[test]
+fn decoder_plane_storage_primary_optional_cleanup_and_byte_order_restore_all_fields() {
+    let mut source = retained_refinement_decoder();
+    source.plane.width = 0;
+    source.ht_cleanup_plane.as_mut().unwrap().height = 0;
+    source.ht_refinement_data = vec![7];
+    let before = format!("{source:?}");
+    for role in [
+        HtRefinementCopyRole::HtStaging,
+        HtRefinementCopyRole::PacketStaging,
+    ] {
+        for after in [0, 1, 2] {
+            assert!(matches!(
+                crate::allocation::with_refusal(after, || source.try_duplicate(role)),
+                Err(DecodeError::AllocationFailed)
+            ));
+            assert_eq!(format!("{source:?}"), before);
+            assert_eq!(format!("{:?}", source.try_duplicate(role).unwrap()), before);
+        }
+    }
+    source.plane.coefficients.clear();
+    source
+        .ht_cleanup_plane
+        .as_mut()
+        .unwrap()
+        .coefficients
+        .clear();
+    source.ht_refinement_data.clear();
+    crate::allocation::with_refusal(0, || {
+        assert_eq!(
+            format!(
+                "{:?}",
+                source
+                    .try_duplicate(HtRefinementCopyRole::PacketStaging)
+                    .unwrap()
+            ),
+            format!("{source:?}")
+        );
+        source.ht_cleanup_plane = None;
+        assert_eq!(
+            format!(
+                "{:?}",
+                source
+                    .try_duplicate(HtRefinementCopyRole::HtStaging)
+                    .unwrap()
+            ),
+            format!("{source:?}")
+        );
+        assert_eq!(
+            crate::allocation::copy_values(&[1_u8]),
+            Err(DecodeError::AllocationFailed)
+        );
+    });
+}
+
+#[test]
 fn ht_refinement_storage_checked_staging_copy_keeps_clone_fields_and_empty_frontier() {
     let mut source = retained_refinement_decoder();
     source.ht_refinement_data = vec![1, 7, 0xff];
@@ -10,13 +114,13 @@ fn ht_refinement_storage_checked_staging_copy_keeps_clone_fields_and_empty_front
         HtRefinementCopyRole::PacketStaging,
     ] {
         assert!(matches!(
-            crate::allocation::with_refusal(0, || source.try_duplicate(role)),
+            crate::allocation::with_refusal(2, || source.try_duplicate(role)),
             Err(DecodeError::AllocationFailed)
         ));
         assert_eq!(format!("{source:?}"), before);
         assert_eq!(format!("{:?}", source.try_duplicate(role).unwrap()), before);
     }
-    crate::allocation::with_refusal(0, || {
+    crate::allocation::with_refusal(2, || {
         assert_eq!(format!("{:?}", source.clone()), before);
         assert!(matches!(
             source.try_duplicate(HtRefinementCopyRole::HtStaging),
@@ -24,7 +128,7 @@ fn ht_refinement_storage_checked_staging_copy_keeps_clone_fields_and_empty_front
         ));
     });
     source.ht_refinement_data.clear();
-    crate::allocation::with_refusal(0, || {
+    crate::allocation::with_refusal(2, || {
         assert_eq!(
             format!(
                 "{:?}",
@@ -135,7 +239,7 @@ fn ht_refinement_storage_retention_refusal_keeps_cleared_state_and_staging_rolls
     staged.ht_refinement_data = vec![9];
     let before = format!("{staged:?}");
     assert_eq!(
-        crate::allocation::with_refusal(0, || staged.decode_ht_staged_group(
+        crate::allocation::with_refusal(1, || staged.decode_ht_staged_group(
             &[0, 0x63, 0],
             1,
             &limits

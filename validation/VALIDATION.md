@@ -1289,7 +1289,23 @@ responses bind actual source bytes, count and distinct HT-stage/packet-stage/
 replay/retention roles. They cannot alias each other. Empty bytes consume no
 request. Public infallible decoder Clone remains unchanged; private checked
 duplication retains every original field evaluation, including earlier
-unrelated plane/entropy/legacy clones and later scalar records.
+unrelated entropy/legacy clones and later scalar records.
+Its primary plane and optional cleanup plane now copy their coefficient owners
+fallibly at their original fields, before the existing checked HT byte copy.
+These are raw copies: width, height and every coefficient field are preserved,
+and counts come from actual source vector lengths, not dimensions or a
+dimension-validating constructor. Empty/raw states remain admitted. A distinct
+`DecoderPlaneCopy` response carries the actual source, staging role,
+primary/cleanup field and count; `None` and empty coefficients consume no
+request. Exact checked primitive/prefix/bind laws carry earlier successful
+copies, first errors and unused tails through the real staging/packet/tile and
+public programs. Public plane and decoder `Clone` remain unchanged. Bounded
+controls cover raw/empty owners, both staging roles, primary/optional/byte
+ordering, legacy packet rollback and real HT raw/selected/JPH restoration;
+existing two-layer automatic HT controls still produce the actual images.
+Bitplane/legacy owners, other clones, existing growth and later buffers remain
+separate. As for bytes, fresh Copy reserve amortization need not match public
+Clone capacity; sequence models establish no physical-capacity theorem.
 Replay copying remains after original route/pass/cleanup/byte admission but
 before the unchanged append and later concatenation-size checks. Retention
 copying remains after actual refinement and statistics merge, preserving

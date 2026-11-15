@@ -9950,7 +9950,10 @@
         {"path": "specs/cold_packet_planes.rs", "symbol": "part2_plane_body_transaction_normal"},
         {"path": "specs/cold_packet_planes.rs", "symbol": "part2_plane_body_duplicate_error"},
         {"path": "specs/cold_ht_bytes.rs", "symbol": "part2_ht_duplicate_normal"},
-        {"path": "src/tier1/contributions.rs", "symbol": "Tier1CodeBlockDecoder::try_duplicate"}
+        {"path": "src/tier1/contributions.rs", "symbol": "Tier1CodeBlockDecoder::try_duplicate"},
+        {"path": "src/tier1/state.rs", "symbol": "CodeBlockPlane::try_duplicate_raw"},
+        {"path": "specs/cold_ht_bytes.rs", "symbol": "part2_ht_duplicate_primary_error"},
+        {"path": "specs/cold_ht_bytes.rs", "symbol": "part2_ht_duplicate_cleanup_error"}
       ],
       "test_refs": [
         {"path": "src/packet/tests.rs", "symbol": "mixed_packet_union_routes_literal_bytes_and_keeps_empty_count_distinctions"},
@@ -10291,7 +10294,13 @@
         {"path": "specs/cold_ht_bytes.rs", "symbol": "part2_ht_duplicate_result"},
         {"path": "specs/cold_ht_decoder.rs", "symbol": "part2_ht_coeff_after_refinement"},
         {"path": "specs/cold_ht_decoder.rs", "symbol": "part2_ht_staged_copy_admitted"},
-        {"path": "specs/cold_ht_decoder.rs", "symbol": "part2_ht_staged_after_duplicate"}
+        {"path": "specs/cold_ht_decoder.rs", "symbol": "part2_ht_staged_after_duplicate"},
+        {"path": "specs/cold_decoder_planes.rs", "symbol": "part2_decoder_plane_run"},
+        {"path": "specs/cold_decoder_planes.rs", "symbol": "part2_decoder_plane_result"},
+        {"path": "specs/cold_decoder_planes.rs", "symbol": "part2_decoder_cleanup_run"},
+        {"path": "specs/cold_decoder_planes.rs", "symbol": "part2_decoder_cleanup_result"},
+        {"path": "specs/cold_ht_bytes.rs", "symbol": "part2_ht_duplicate_after_primary"},
+        {"path": "specs/cold_ht_bytes.rs", "symbol": "part2_ht_duplicate_after_cleanup"}
       ],
       "proof_refs": [
         {"path": "src/tier1/proof_support.rs", "symbol": "tier1_decoder_state"},
@@ -10310,7 +10319,18 @@
         {"path": "specs/cold_ht_decoder.rs", "symbol": "part2_ht_staged_after_normal"},
         {"path": "specs/cold_ht_decoder.rs", "symbol": "part2_ht_staged_duplicate_error"},
         {"path": "src/tier1/contributions.rs", "symbol": "Tier1CodeBlockDecoder::try_duplicate"},
-        {"path": "src/allocation.rs", "symbol": "copy_values"}
+        {"path": "src/allocation.rs", "symbol": "copy_values"},
+        {"path": "src/tier1/state.rs", "symbol": "CodeBlockPlane::try_duplicate_raw"},
+        {"path": "src/tier1/state.rs", "symbol": "CodeBlockPlane::clone"},
+        {"path": "specs/cold_decoder_planes.rs", "symbol": "part2_decoder_plane_observed"},
+        {"path": "specs/cold_decoder_planes.rs", "symbol": "part2_decoder_plane_normal"},
+        {"path": "specs/cold_decoder_planes.rs", "symbol": "part2_decoder_plane_frames"},
+        {"path": "specs/cold_decoder_planes.rs", "symbol": "part2_decoder_cleanup_none"},
+        {"path": "specs/cold_decoder_planes.rs", "symbol": "part2_decoder_cleanup_observed"},
+        {"path": "specs/cold_decoder_planes.rs", "symbol": "part2_decoder_cleanup_normal"},
+        {"path": "specs/cold_decoder_planes.rs", "symbol": "part2_decoder_cleanup_frames"},
+        {"path": "specs/cold_ht_bytes.rs", "symbol": "part2_ht_duplicate_primary_error"},
+        {"path": "specs/cold_ht_bytes.rs", "symbol": "part2_ht_duplicate_cleanup_error"}
       ],
       "test_refs": [
         {"path": "src/tier1/tests.rs", "symbol": "ht_full_symbol_caller_distinguishes_none_empty_refinement_and_pre_refinement_plane"},
@@ -10324,7 +10344,11 @@
         {"path": "src/tier1/tests.rs", "symbol": "ht_refinement_storage_replay_copy_preserves_earlier_limits_later_length_and_state"},
         {"path": "src/tier1/tests.rs", "symbol": "ht_refinement_storage_retention_refusal_keeps_cleared_state_and_staging_rolls_back"},
         {"path": "src/packet/tests.rs", "symbol": "ht_refinement_storage_packet_staging_copy_precedes_route_error_and_restores_decoder"},
-        {"path": "src/decode/tests.rs", "symbol": "ht_refinement_storage_raw_selected_jph_retention_refusal_and_exact_restore"}
+        {"path": "src/decode/tests.rs", "symbol": "ht_refinement_storage_raw_selected_jph_retention_refusal_and_exact_restore"},
+        {"path": "src/tier1/tests.rs", "symbol": "decoder_plane_storage_raw_sources_copy_without_dimension_admission_or_false_empty_event"},
+        {"path": "src/tier1/tests.rs", "symbol": "decoder_plane_storage_primary_optional_cleanup_and_byte_order_restore_all_fields"},
+        {"path": "src/packet/tests.rs", "symbol": "decoder_plane_storage_real_legacy_packet_transaction_refusal_keeps_decoder_then_recovers"},
+        {"path": "src/decode/tests.rs", "symbol": "decoder_plane_storage_real_ht_raw_selected_jph_staging_refusals_restore_exact_images"}
       ]
     },
     {

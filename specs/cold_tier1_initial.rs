@@ -4,6 +4,7 @@ verus! {
 pub enum Part2Tier1StorageEvent {
     Coefficient {width:u16,height:u16,role:crate::tier1::CoefficientStorageRole,samples:usize,succeeded:bool},
     RefinementBytes {role:crate::tier1::HtRefinementCopyRole,source:Seq<u8>,elements:nat,succeeded:bool},
+    DecoderPlaneCopy {source:Tier1RawPlane,role:crate::tier1::HtRefinementCopyRole,cleanup:bool,elements:nat,succeeded:bool},
 }
 pub type Part2Tier1Run<T> = Option<(Result<T,crate::DecodeError>,Seq<Part2Tier1StorageEvent>)>;
 pub(crate) open spec fn part2_tier1_storage_prefix<T>(run:spec_fn(Seq<Part2Tier1StorageEvent>)->Part2Tier1Run<T>,
