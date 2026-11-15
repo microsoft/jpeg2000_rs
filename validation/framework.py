@@ -4834,6 +4834,12 @@ _PLANE_ROLE_RESULT_RUNS = {
     for old, (model, _, _) in _PLANE_ROLE_MODEL_INFO.items()
 }
 _COLD_RESULT_MODELS = {
+    "part1_jpip_precinct_packet": (
+        "part2_jpip_packet_copy_result", "specs/cold_packet_copy.rs", "part2_jpip_packet_copy_normal",
+    ),
+    "part2_jpip_precinct_phase": (
+        "part2_jpip_phase_copy_result", "specs/cold_packet_copy.rs", "part2_jpip_phase_copy_normal",
+    ),
     **_PLANE_ROLE_MODEL_INFO,
     "tier1_empty_plane": ("part1_tier1_plane_storage_result", "specs/cold_tier1_initial.rs", "part2_tier1_plane_normal"),
     "part2_tier1_initial_decoder": ("part1_tier1_initial_storage_result", "specs/cold_tier1_initial.rs", "part2_tier1_initial_normal"),
@@ -5009,6 +5015,8 @@ def _coverage_cold_relation(
         inputs = inputs.replace("tile_part", _coverage_call("crate::codestream::tile_part_owned_view", "tile_part"))
     if model == "part1_tile_precinct_packet":
         inputs = inputs.replace(r"\*\s*part", _coverage_call("crate::codestream::tile_part_owned_view", "part"))
+    if model in ("part1_jpip_precinct_packet", "part2_jpip_precinct_phase"):
+        inputs = inputs.replace("template", _coverage_call("crate::codestream::tile_part_owned_view", "template"))
     if model == "part2_tile_decode_metadata":
         inputs = inputs.replace("parts@", _coverage_call("codestream::tile_parts_owned_view", "parts@"))
     if model in ("part2_progression_tile_plan", "part2_component_plan_metadata", "part2_planned_component"):
@@ -5169,7 +5177,7 @@ _COLD_RESULT_CONTRACTS = {
         _PRECINCT_PLANNING_CONTRACTS, _SUBBAND_EXECUTION_CONTRACTS, _CODEBLOCK_VECTOR_CONTRACTS,
         _PACKET_HEADER_CONTRACTS, _PRECINCT_INITIALIZATION_CONTRACTS,
         _INITIAL_TIER1_PLANE_CONTRACTS, _DECODER_INITIALIZATION_CONTRACTS, _CODEBLOCK_PLANNING_CONTRACTS,
-        _PACKET_WRAPPER_CONTRACTS, _PLANE_ROLE_SPECIAL_CONTRACTS,
+        _PACKET_WRAPPER_CONTRACTS, _PLANE_ROLE_SPECIAL_CONTRACTS, _JPIP_PHASE_CONTRACTS,
     )
     for key, legacy in contracts.items()
     if legacy[0] in _COLD_RESULT_MODELS
@@ -5262,6 +5270,8 @@ def _coverage_cold_links(keys: set[tuple[str, str]]) -> tuple[set[tuple[str, str
         model = _COLD_RESULT_CONTRACTS[key][0]
         path, normal = metadata.get(model, ("specs/jpip_transcode.rs", "part2_jpip_validate_precinct_cold_normal"))
         run = {
+            "part2_jpip_packet_copy_result": "part2_jpip_packet_copy_run",
+            "part2_jpip_phase_copy_result": "part2_jpip_phase_copy_run",
             **{name: value[0] for name, value in _PLANE_ROLE_RESULT_RUNS.items()},
             "part1_tier1_plane_storage_result": "part2_tier1_plane_run",
             "part1_tier1_initial_storage_result": "part2_tier1_initial_run",
@@ -5408,6 +5418,8 @@ def _coverage_cold_result_body(text: str, model: str) -> bool:
         run_name, wrapped = _PLANE_ROLE_RESULT_RUNS[model]
         expected = "part2_tier1_storage_framed(|calls|" + run_name + "(" + ",".join(names[:-1] + ["calls"]) + ")," \
             + ("Ok(result)" if wrapped else "result") + ")"
+    elif model in ("part2_jpip_packet_copy_result", "part2_jpip_phase_copy_result"):
+        expected = "part2_cold_framed(|events|" + call + ",Ok(result))"
     elif model == "part1_tier1_plane_storage_result":
         expected = "part2_tier1_storage_framed(|calls|part2_tier1_plane_run(width,height,role,calls),result)"
     elif model == "part1_tier1_initial_storage_result":
@@ -5558,6 +5570,102 @@ _TIER1_INITIAL_TESTS = {
     ("src/tier1/tests.rs", "tier1_initial_storage_first_later_exact_coefficients_restore_and_separate_later_role"),
     ("src/decode/tests.rs", "tier1_initial_storage_cell_columns_rows_retain_prior_owners_and_restore"),
     ("src/decode/tests.rs", "tier1_initial_storage_public_raw_selected_container_roles_and_restore"),
+}
+_TAG_COPY_TESTS = {
+    ("src/packet/tests.rs", "tagtree_copy_storage_levels_nodes_empty_raw_sources_and_clone_restore"),
+    ("src/packet/tests.rs", "tagtree_copy_storage_packet_rollback_keeps_prior_copies_and_source_then_restores"),
+    ("src/jpip/tests.rs", "tagtree_copy_storage_automatic_phase_refusal_keeps_plan_then_decodes_real_packet"),
+}
+_TAG_COPY_ENTRIES = {
+    "part1-complete-native-public-packet-boundaries",
+    "part9-complete-nonowning-automatic-phase-results",
+    "part9-complete-original-automatic-snapshot-result",
+}
+_TAG_COPY_GUARDS = {
+    ("specs/cold_tag_copy.rs", "part2_tag_copy_capacity_run"): (
+        "if nodes{context.source.nodes.len()}else{context.source.levels.len()}",
+        "if count==0{Some((Ok(()),events))}",
+        "TagCopyCapacity {context:actual,nodes:field,elements,succeeded}",
+        "actual!=context || field!=nodes || elements!=count",
+        "if succeeded{Ok(())}else{Err(crate::DecodeError::AllocationFailed)}", "events.drop_first()",
+    ),
+    ("specs/cold_tag_copy.rs", "part2_tag_copy_run"): (
+        "Part2TagCopyContext {path,source,levels:None},false,events",
+        "Part2TagCopyContext {path,source,levels:Some(source.levels)},true,rest",
+        "Some((Ok(source),tail))",
+    ),
+    ("specs/cold_packet_copy.rs", "part2_subband_copy_run"): (
+        "source.inclusion_tree,crate::packet::TagTreeCopyPath {subband:index,zero:false}",
+        "source.zero_bitplane_tree,crate::packet::TagTreeCopyPath {subband:index,zero:true}",
+        "Part1PacketSubbandState {inclusion_tree:inclusion,zero_bitplane_tree:zero,..source}",
+    ),
+    ("specs/cold_packet_copy.rs", "part2_subbands_copy_run"): (
+        "if index>=source.len(){Some((Ok(before),events))}", "part2_subband_copy_run(source[index as int],index as usize,events)",
+        "part2_subbands_copy_run(source,index+1,before.push(copied),rest)",
+    ),
+    ("specs/cold_packet_copy.rs", "part2_jpip_packet_copy_run"): (
+        "part2_subbands_copy_run(initial.subbands,0,Seq::empty(),events)",
+        "Some((Err(error),rest))=>Some((Ok((Err(error),initial)),rest))",
+        "part2_jpip_snapshot_decode_packet(initial,part,data,sequence,layer,limits)",
+    ),
+    ("specs/cold_packet_copy.rs", "part2_jpip_phase_copy_run"): (
+        "if execution as nat>=plan.precincts.len()", "part2_jpip_packet_copy_run(plan.precincts[execution as int]",
+        "prefix.subrange(start as int,prefix.len() as int)", "precincts:plan.precincts.update(execution as int,decoded.1),..plan",
+    ),
+    ("specs/jpip_copy_packets.rs", "part2_copy_packet_admit"): (
+        "execution as nat>=state.blocked.len()", "state.blocked[execution as int]", "offset as nat>=prefix.len()",
+        "blocked:state.blocked.update(execution as int,true)", "execution as nat>=state.precincts.len()",
+    ),
+    ("specs/jpip_copy_packets.rs", "part2_copy_packet_finish"): (
+        "precincts:before.precincts.update(execution as int,decoded.1)", "!part2_jpip_cache_complete(input.cache,admit.id)",
+        "Err(error)=>Err(error)", "state.packets==u64::MAX || state.bytes as nat+(consumed as u64) as nat>u64::MAX as nat",
+        "transition:if advance{(state.transition+1) as usize}else{state.transition}",
+        "packets:if advance{0}else{packets},bytes:if advance{0}else{bytes}",
+    ),
+    ("specs/jpip_copy_packets.rs", "part2_copy_packets_run"): (
+        "part2_copy_packet_admit(input,parts,databins,order,index,state)",
+        "part2_jpip_packet_copy_run(state.precincts[admit.execution as int],admit.part",
+        "part2_copy_packet_finish(input,transitions,state,admit,decoded)",
+        "Err(error)=>Some((Err(error),rest))", "part2_copy_packets_run(input,parts,transitions,databins,order,index+1,after,rest)",
+    ),
+    ("specs/jpip_snapshot_inputs.rs", "part2_jpip_snapshot_acquired_packets"): (
+        "part2_jpip_snapshot_bind(part2_copy_packets_run(input, parts, transitions, databins, order, 0, initial, events)",
+        "part2_jpip_snapshot_capacity(events, 4, tile, order.len() as usize)",
+        "part2_jpip_snapshot_make_packets(input, tile as u16",
+    ),
+}
+_TAG_COPY_NATIVE_ORDER = {
+    ("src/packet/tag_tree.rs", "TagTree::try_duplicate"): (
+        "copy_values(&self.levels)", "match copied_levels{Err(error)=>Err(error),Ok(_)=>Ok(())}",
+        "let levels = copied_levels?", "copy_values(&self.nodes)",
+        "part2_tag_copy_capacity_observed(crate::specs::Part2TagCopyContext {path,source,levels:Some(levels@.map_values(|level:TagTreeLevel|tag_level_view(level)))},true,match copied_nodes{Err(error)=>Err(error),Ok(_)=>Ok(())})",
+        "let nodes = copied_nodes?", "Ok(Self { levels, nodes })",
+    ),
+    ("src/packet/precinct.rs", "PacketSubbandState::try_duplicate"): (
+        "orientation: self.orientation", "first_decoder: self.first_decoder", "decoder_count: self.decoder_count",
+        "code_blocks_across: self.code_blocks_across", "code_blocks_down: self.code_blocks_down",
+        "inclusion_tree:", "subband: index, zero: false", "result?", "zero_bitplane_tree:", "subband: index, zero: true", "result?",
+    ),
+    ("src/packet/precinct.rs", "try_duplicate_packet_subbands"): (
+        "Vec::with_capacity(before.len())", "while index < before.len()", "before[index].try_duplicate(index)",
+        "part2_decode_prefix_error(", "part2_decode_prefix_advance(", "values.push(copied?)", "index += 1",
+    ),
+    ("src/packet/precinct.rs", "decode_jpip_precinct_packet"): (
+        "precinct.states.clone()", "precinct.contexts.clone()", "try_duplicate_packet_subbands(&precinct.subbands)",
+        "let subbands = copied_subbands?", "decode_jpip_precinct_packet_inner(", "if result.is_err()",
+        "precinct.states = states", "precinct.contexts = contexts", "precinct.subbands = subbands",
+    ),
+    ("src/jpip/automatic_phases.rs", "decode_automatic_precinct"): (
+        "let precincts = plan.precincts_mut()", "precincts.get_mut(execution)",
+        "let result = crate::packet::decode_jpip_precinct_packet(", "&prefix[start..]", "part2_jpip_phase_copy_observed(",
+    ),
+    ("src/jpip/progression.rs", "DatabinCache::build_automatic_snapshot"): (
+        "let ghost copy_root=", "let ghost mut copy_events=", "part2_copy_packets_decode(",
+        "let decoded = decode_automatic_precinct(", "let ghost copy_decoded=", "part2_jpip_packet_copy_frames(",
+        "copy_events=crate::specs::part2_decode_prefix_advance(", "if decoded==Err(DecodeError::AllocationFailed)",
+        "jpip_snapshot_copy_error(", "match decoded", "part2_copy_packets_end(",
+        "let ghost packet_copy_events=copy_events", "packet_copy_events+packet_events",
+    ),
 }
 _PRECINCT_SINGLETON_ENTRY = "part2-complete-native-precinct-initialization"
 _PRECINCT_SINGLETON_MODELS = {("specs/cold_precinct_singleton.rs", name) for name in (
@@ -7557,7 +7665,7 @@ def validate_normative_coverage(
                 "mapping_plan.precincts[mapping_index as int].resolution,"
                 "mapping_plan.precincts[mapping_index as int].precinct))",
                 "super::jpip_snapshot_tile_acquisition_prefix(current_root, native_parts, initial_plan,",
-                "super::jpip_snapshot_tile_root_error(current_root, seq![tile_capacity] + packet_events, error)",
+                "super::jpip_snapshot_tile_root_error(current_root, seq![tile_capacity] + (packet_copy_events+packet_events), error)",
                 "super::jpip_snapshot_tile_root_advance(current_root, completed_events,",
                 "events: current_root.events + completed_events, tile: current_root.tile + 1",
                 "before: current_root.before.push(completed_parts), maximum: maximum_layers",
@@ -7756,8 +7864,7 @@ def validate_normative_coverage(
             model = source_text((ROOT / "specs/jpip_snapshot_inputs.rs").resolve())
             acquired = _coverage_spec_function_body(model, "part2_jpip_snapshot_acquired_packets")
             for fragment in (
-                "part2_jpip_snapshot_parse_packets(input, parts, transitions, databins, order, 0, initial)",
-                "part2_jpip_snapshot_bind(part2_jpip_snapshot_lift(parsed, events),",
+                "part2_jpip_snapshot_bind(part2_copy_packets_run(input, parts, transitions, databins, order, 0, initial, events),",
                 "part2_jpip_snapshot_capacity(events, 4, tile, order.len() as usize)",
                 "part2_jpip_snapshot_make_packets(input, tile as u16, styles, order, databins, state, 0, Seq::empty())",
             ):
@@ -12846,7 +12953,8 @@ def validate_normative_coverage(
                         raise ValueError(f"linked function lacks executable Verus contract: {short}; invalid fresh empty inspection owner")
                 header_contract = arbitrary_contract = selection_contract = None
                 packet_contract = None
-                if cold_contract[0] in _PLANE_ROLE_RESULT_RUNS:
+                if cold_contract[0] in _PLANE_ROLE_RESULT_RUNS or cold_contract[0] in (
+                        "part2_jpip_packet_copy_result", "part2_jpip_phase_copy_result"):
                     reader_contract = None
                 if (reference["path"], reference["symbol"]) == _MAIN_HEADER_LAYOUT:
                     ordinary_header = (
@@ -12893,7 +13001,11 @@ def validate_normative_coverage(
                     relation_prefix + r"crate::specs::(?P<model>" + re.escape(model)
                     + r")\s*\(\s*(?P<state>" + arguments + r")\s*,?\s*\)", contract,
                 )
-                if relation is None or re.search(r"\brequires\b", contract):
+                copy_phase = (reference["path"], reference["symbol"]) == (
+                    "src/jpip/automatic_phases.rs", "decode_automatic_precinct")
+                exact_copy_phase_requires = copy_phase and re.search(
+                    r"\brequires\s+start\s*<=\s*prefix\.len\(\)\s*,\s*ensures\b", contract)
+                if relation is None or (re.search(r"\brequires\b", contract) and not exact_copy_phase_requires):
                     raise ValueError(f"linked function lacks executable Verus contract: {short}; invalid storage relation")
                 if mutating:
                     state_result = relation
@@ -13511,6 +13623,41 @@ def validate_normative_coverage(
                     "part2_codeblock_cell_result", "part2_codeblock_owner_result"} for ref in entry["contract_refs"]):
                 if not _TIER1_INITIAL_TESTS.issubset({(ref["path"], ref["symbol"]) for ref in entry["test_refs"]}):
                     raise ValueError("initial Tier1 storage requires bounded refusal/restore/zero/ordinary-policy/row-owner/real-public controls")
+    if ids & _TAG_COPY_ENTRIES:
+        for (relative, symbol), fragments in _TAG_COPY_GUARDS.items():
+            body = _coverage_spec_function_body(source_text((ROOT / relative).resolve()), symbol)
+            compact = "".join(body.split()) if body is not None else ""
+            if any("".join(fragment.split()) not in compact for fragment in fragments):
+                raise ValueError("TagTree copy storage requires distinct source/count/path responses, actual copies and ordered packet/acquisition error/state/tail binds")
+            if symbol in ("part2_copy_packets_run", "part2_jpip_snapshot_acquired_packets") and "normal_calls" in compact:
+                raise ValueError("TagTree copy storage cannot replace reached responses with a normal projection")
+        for (relative, symbol), fragments in _TAG_COPY_NATIVE_ORDER.items():
+            path = (ROOT / relative).resolve()
+            body = _coverage_function_body(source_text(path), function_header(path, symbol))
+            compact = "".join(body.split()) if body is not None else ""
+            position = 0
+            for fragment in fragments:
+                token = "".join(fragment.split())
+                found = compact.find(token, position)
+                if found < 0:
+                    raise ValueError("TagTree copy storage requires original collection/field/owner/request order and actual reached refusal/rollback/public frames")
+                position = found + len(token)
+        for relative, symbol, expected in (
+            ("src/packet/tag_tree.rs", "TagTree::clone", "Self {levels:self.levels.clone(),nodes:self.nodes.clone(),}"),
+            ("src/packet/precinct.rs", "PacketSubbandState::clone", """
+                Self {orientation:self.orientation,first_decoder:self.first_decoder,decoder_count:self.decoder_count,
+                    code_blocks_across:self.code_blocks_across,code_blocks_down:self.code_blocks_down,
+                    inclusion_tree:self.inclusion_tree.clone(),zero_bitplane_tree:self.zero_bitplane_tree.clone(),}
+            """),
+        ):
+            path = (ROOT / relative).resolve()
+            body = _coverage_function_body(source_text(path), function_header(path, symbol))
+            if body is None or "".join(body.split()) != "".join(expected.split()):
+                raise ValueError("TagTree copy storage must preserve original infallible Clone trait semantics")
+        for entry in coverage["requirements"]:
+            if entry["id"] in _TAG_COPY_ENTRIES and not _TAG_COPY_TESTS.issubset(
+                    {(ref["path"], ref["symbol"]) for ref in entry["test_refs"]}):
+                raise ValueError("TagTree copy storage requires bounded first/later/empty/ordinary-error/restore/actual-caller controls")
     if _PRECINCT_SINGLETON_ENTRY in ids:
         singleton_entry = next(item for item in coverage["requirements"] if item["id"] == _PRECINCT_SINGLETON_ENTRY)
         for field, required in (("spec_refs", _PRECINCT_SINGLETON_MODELS),

@@ -1296,6 +1296,9 @@ impl DatabinCache {
                 let ghost acquisition_goal = crate::specs::part2_jpip_snapshot_parse_packets(
                     acquisition_input, acquisition_parts, acquisition_transitions, acquisition_databins,
                     acquisition_order, 0, acquisition_initial);
+                let ghost copy_root=|events:Seq<crate::specs::Part2JpipSnapshotEvent>|crate::specs::part2_copy_packets_run(
+                    acquisition_input,acquisition_parts,acquisition_transitions,acquisition_databins,acquisition_order,0,acquisition_initial,events);
+                let ghost mut copy_events=Seq::<crate::specs::Part2JpipSnapshotEvent>::empty();
             }
             #[cfg(verus_keep_ghost)]
             proof! {
@@ -1315,6 +1318,9 @@ impl DatabinCache {
                 assert(acquisition_initial.bytes == canonical.bytes);
                 assert(acquisition_initial == super::jpip_snapshot_initial_packets(
                     initial_plan, native_parts[0].coding_style.layers));
+                assert forall|events:Seq<crate::specs::Part2JpipSnapshotEvent>|copy_root(copy_events+events)
+                    ==crate::specs::part2_copy_packets_run(acquisition_input,acquisition_parts,acquisition_transitions,acquisition_databins,acquisition_order,0,acquisition_initial,events)
+                    by {assert(copy_events+events =~= events);}
                 super::jpip_snapshot_tile_acquisition_prefix(current_root, native_parts, initial_plan,
                     order_iterator, acquisition_order, acquisition_databins, acquisition_transitions, acquisition_initial);
                 assert(super::jpip_snapshot_tile_acquisition_known(current_root, acquisition_parts,
@@ -1375,6 +1381,13 @@ impl DatabinCache {
                                 parsed: jpip_parsed_packet_matrix(parsed@), offsets: offsets@, blocked: blocked@,
                                 transition: transition_index, packets: transition_packets, bytes: transition_bytes,
                             }),
+                        crate::decode::progression_plan_view(&plan).precincts.len()==precinct_count,
+                        forall|events:Seq<crate::specs::Part2JpipSnapshotEvent>| #[trigger] copy_root(events)==crate::specs::part2_copy_packets_run(
+                            acquisition_input,acquisition_parts,acquisition_transitions,acquisition_databins,acquisition_order,0,acquisition_initial,events),
+                        crate::specs::part2_cold_phase(copy_root,copy_events,|events|crate::specs::part2_copy_packets_run(
+                            acquisition_input,acquisition_parts,acquisition_transitions,acquisition_databins,acquisition_order,order_index as nat,
+                            crate::specs::Part2JpipSnapshotPacketState {precincts:crate::decode::progression_plan_view(&plan).precincts,
+                                parsed:jpip_parsed_packet_matrix(parsed@),offsets:offsets@,blocked:blocked@,transition:transition_index,packets:transition_packets,bytes:transition_bytes},events)),
                         blocked.len() == precinct_count,
                         forall|index: int| 0 <= index < order.len() ==>
                             (#[trigger] order@[index].1 as nat) < precinct_count,
@@ -1388,6 +1401,12 @@ impl DatabinCache {
             )]
             while order_index < order.len() {
                 #[cfg(verus_keep_ghost)]
+                proof_decl! {
+                    let ghost copy_before=crate::specs::Part2JpipSnapshotPacketState {
+                        precincts:crate::decode::progression_plan_view(&plan).precincts,parsed:jpip_parsed_packet_matrix(parsed@),
+                        offsets:offsets@,blocked:blocked@,transition:transition_index,packets:transition_packets,bytes:transition_bytes};
+                }
+                #[cfg(verus_keep_ghost)]
                 proof! { reveal(crate::specs::part2_jpip_snapshot_parse_packets); }
                 let (coordinate, execution) = order[order_index];
                 #[cfg(verus_keep_ghost)]
@@ -1396,6 +1415,8 @@ impl DatabinCache {
                     .get(execution)
                     .ok_or_else(|| DecodeError::malformed(0, MalformedKind::ArithmeticOverflow))?
                 {
+                    #[cfg(verus_keep_ghost)]
+                    proof! {crate::specs::part2_copy_packets_skip(acquisition_input,acquisition_parts,acquisition_transitions,acquisition_databins,acquisition_order,order_index as nat,copy_before,copy_before);}
                     order_index += 1;
                     continue;
                 }
@@ -1430,6 +1451,9 @@ impl DatabinCache {
                     *blocked.get_mut(execution).ok_or_else(|| {
                         DecodeError::malformed(0, MalformedKind::ArithmeticOverflow)
                     })? = true;
+                    #[cfg(verus_keep_ghost)]
+                    proof! {crate::specs::part2_copy_packets_skip(acquisition_input,acquisition_parts,acquisition_transitions,acquisition_databins,acquisition_order,order_index as nat,copy_before,
+                        crate::specs::Part2JpipSnapshotPacketState {blocked:blocked@,..copy_before});}
                     order_index += 1;
                     continue;
                 }
@@ -1446,7 +1470,14 @@ impl DatabinCache {
                             sequence, coordinate.layer, limits);
                     }
                 }
-                match decode_automatic_precinct(
+                #[cfg(verus_keep_ghost)]
+                proof_decl! {
+                    let ghost copy_admit=crate::specs::Part2CopyPacketDecode {coordinate,execution,part:crate::codestream::tile_part_owned_view(state),
+                        id:super::databin_id_view(databin),prefix:prefix@,offset,sequence};
+                }
+                #[cfg(verus_keep_ghost)]
+                proof! {crate::specs::part2_copy_packets_decode(acquisition_input,acquisition_parts,acquisition_transitions,acquisition_databins,acquisition_order,order_index as nat,copy_before,copy_admit);}
+                let decoded = decode_automatic_precinct(
                     &mut plan,
                     execution,
                     state,
@@ -1455,7 +1486,28 @@ impl DatabinCache {
                     sequence,
                     coordinate.layer,
                     limits,
-                ) {
+                );
+                #[cfg(verus_keep_ghost)]
+                proof_decl! {let ghost copy_decoded=(decoded,crate::decode::progression_plan_view(&plan).precincts[execution as int]);}
+                #[cfg(verus_keep_ghost)]
+                proof! {
+                    let child=|events|crate::specs::part2_jpip_packet_copy_run(copy_before.precincts[execution as int],copy_admit.part,
+                        prefix@.subrange(start as int,prefix@.len() as int),sequence,coordinate.layer,limits,events);
+                    let next=|value:(Result<usize,DecodeError>,crate::specs::Part1PacketPrecinctState),rest|match crate::specs::part2_copy_packet_finish(acquisition_input,acquisition_transitions,copy_before,copy_admit,value){
+                        Err(error)=>Some((Err(error),rest)),Ok(after)=>crate::specs::part2_copy_packets_run(acquisition_input,acquisition_parts,acquisition_transitions,acquisition_databins,acquisition_order,order_index as nat+1,after,rest)};
+                    crate::specs::part2_jpip_packet_copy_frames(copy_before.precincts[execution as int],copy_admit.part,
+                        prefix@.subrange(start as int,prefix@.len() as int),sequence,coordinate.layer,limits,copy_decoded);
+                    copy_events=crate::specs::part2_decode_prefix_advance(copy_root,child,next,copy_events,copy_decoded);
+                    if decoded==Err(DecodeError::AllocationFailed){
+                        assert(crate::specs::part2_cold_prefix(copy_root,copy_events,Err(DecodeError::AllocationFailed)));
+                        assert(crate::specs::part2_cold_framed(copy_root,Err(DecodeError::AllocationFailed)));
+                        crate::specs::part2_cold_framed_extensional(copy_root,
+                            |events|crate::specs::part2_copy_packets_run(acquisition_input,acquisition_parts,acquisition_transitions,acquisition_databins,acquisition_order,0,acquisition_initial,events),
+                            Err(DecodeError::AllocationFailed));
+                        super::jpip_snapshot_copy_error(current_root,acquisition_parts,acquisition_transitions,acquisition_databins,acquisition_order,acquisition_initial,tile_capacity,DecodeError::AllocationFailed);
+                    }
+                }
+                match decoded {
                     Ok(consumed) => {
                         if consumed == 0 {
                             return Err(DecodeError::malformed(
@@ -1557,6 +1609,13 @@ impl DatabinCache {
                     }
                     Err(error) => return Err(error),
                 }
+                #[cfg(verus_keep_ghost)]
+                proof! {
+                    let after=crate::specs::Part2JpipSnapshotPacketState {precincts:crate::decode::progression_plan_view(&plan).precincts,
+                        parsed:jpip_parsed_packet_matrix(parsed@),offsets:offsets@,blocked:blocked@,transition:transition_index,packets:transition_packets,bytes:transition_bytes};
+                    assert(crate::specs::part2_copy_packet_finish(acquisition_input,acquisition_transitions,copy_before,copy_admit,copy_decoded)==Ok(after));
+                    assert(crate::specs::part2_cold_phase(copy_root,copy_events,|events|crate::specs::part2_copy_packets_run(acquisition_input,acquisition_parts,acquisition_transitions,acquisition_databins,acquisition_order,order_index as nat+1,after,events)));
+                }
                 order_index += 1;
             }
             #[cfg(verus_keep_ghost)]
@@ -1569,6 +1628,11 @@ impl DatabinCache {
                         parsed: jpip_parsed_packet_matrix(parsed@), offsets: offsets@, blocked: blocked@,
                         transition: transition_index, packets: transition_packets, bytes: transition_bytes,
                     }));
+                let final_state=crate::specs::Part2JpipSnapshotPacketState {
+                    precincts:crate::decode::progression_plan_view(&plan).precincts,parsed:jpip_parsed_packet_matrix(parsed@),
+                    offsets:offsets@,blocked:blocked@,transition:transition_index,packets:transition_packets,bytes:transition_bytes};
+                crate::specs::part2_copy_packets_end(acquisition_input,acquisition_parts,acquisition_transitions,acquisition_databins,acquisition_order,order_index as nat,final_state);
+                assert(crate::specs::part2_cold_prefix(copy_root,copy_events,Ok(final_state)));
             }
 
             let tile_is_selected = jpip_tile_selected(selection, tile_number);
@@ -1580,7 +1644,7 @@ impl DatabinCache {
                         precincts: crate::decode::progression_plan_view(&plan).precincts,
                         parsed: jpip_parsed_packet_matrix(parsed@), offsets: offsets@, blocked: blocked@,
                         transition: transition_index, packets: transition_packets, bytes: transition_bytes,
-                    }, tile_capacity);
+                    }, tile_capacity,copy_events);
             }
             let mut packets = crate::allocation::empty_with_capacity(order.len())?;
             #[cfg(verus_keep_ghost)]
@@ -1590,6 +1654,7 @@ impl DatabinCache {
                     parsed: jpip_parsed_packet_matrix(parsed@), offsets: offsets@, blocked: blocked@,
                     transition: transition_index, packets: transition_packets, bytes: transition_bytes,
                 };
+                let ghost packet_copy_events=copy_events;
                 let ghost packet_events = seq![crate::specs::Part2JpipSnapshotEvent::Capacity {
                     site: 4, tile: tile_index, elements: order.len(), succeeded: true }];
                 let ghost packet_goal = crate::specs::part2_jpip_snapshot_make_packets(acquisition_input,
@@ -1605,7 +1670,7 @@ impl DatabinCache {
                         super::jpip_snapshot_selection_view(selection), super::jpip_packet_selection_view(packet_selection),
                         limits, Err(error)) by {
                     super::jpip_snapshot_packet_error(current_root, acquisition_parts, acquisition_transitions,
-                        acquisition_databins, acquisition_order, acquisition_initial, acquisition_final, tile_capacity, error);
+                        acquisition_databins, acquisition_order, acquisition_initial, acquisition_final, tile_capacity, error,packet_copy_events);
                 }
             }
             let mut order_index = 0_usize;
@@ -1613,6 +1678,8 @@ impl DatabinCache {
                 verus_keep_ghost,
                 verus_spec(
                     invariant order_index <= order.len(),
+                        crate::specs::part2_cold_prefix(|events|crate::specs::part2_copy_packets_run(acquisition_input,acquisition_parts,acquisition_transitions,acquisition_databins,acquisition_order,0,acquisition_initial,events),
+                            packet_copy_events,Ok(acquisition_final)),
                         super::jpip_snapshot_inputs_match(current_root.input, self, codestream, selection, packet_selection, limits),
                         current_root.input == initial_tile_root.input,
                         current_root.prefix == initial_tile_root.prefix,
@@ -1689,7 +1756,7 @@ impl DatabinCache {
                                 coordinate.resolution, tile_part.component_coding_styles) == Err(error)
                         implies crate::specs::part2_jpip_snapshot_acquired_packets(acquisition_input,
                             acquisition_parts, acquisition_transitions, acquisition_databins, acquisition_order,
-                            acquisition_initial, tile_index, tile_part.component_coding_styles, packet_events)
+                            acquisition_initial, tile_index, tile_part.component_coding_styles, packet_copy_events+packet_events)
                             == Some((Err(error), Seq::empty()))
                             && crate::specs::part2_jpip_automatic_snapshot_result(jpip_cache_view(self),
                                 codestream, super::jpip_snapshot_selection_view(selection),
@@ -1699,12 +1766,12 @@ impl DatabinCache {
                             acquisition_initial, acquisition_final, tile_index, tile_part.component_coding_styles,
                             order_index as nat, packets@.map_values(
                                 |packet: AutomaticPacket| super::jpip_automatic_packet_view(&packet)),
-                            packet_events, Seq::empty(), error);
+                            packet_events, Seq::empty(), error,packet_copy_events);
                         assert(crate::specs::part2_jpip_snapshot_tile_normal_run(current_root.input, current_root.count,
                             current_root.components, current_root.tile as usize, current_root.layout,
-                            current_root.raw, current_root.headers, seq![tile_capacity] + packet_events)
+                            current_root.raw, current_root.headers, seq![tile_capacity] + (packet_copy_events+packet_events))
                             == Some((Err(error), Seq::empty())));
-                        super::jpip_snapshot_tile_root_error(current_root, seq![tile_capacity] + packet_events, error);
+                        super::jpip_snapshot_tile_root_error(current_root, seq![tile_capacity] + (packet_copy_events+packet_events), error);
                         assert(crate::specs::part2_jpip_automatic_snapshot_result(jpip_cache_view(self),
                             codestream, super::jpip_snapshot_selection_view(selection),
                             super::jpip_packet_selection_view(packet_selection), limits, Err(error)));
@@ -1781,7 +1848,7 @@ impl DatabinCache {
             proof_decl! {
                 let ghost partition_packets = packets@.map_values(
                     |packet: AutomaticPacket| super::jpip_automatic_packet_view(&packet));
-                let ghost partition_events = seq![tile_capacity] + packet_events;
+                let ghost partition_events = seq![tile_capacity] + (packet_copy_events+packet_events);
             }
             #[cfg(verus_keep_ghost)]
             proof! {
@@ -1791,7 +1858,9 @@ impl DatabinCache {
                     implies crate::specs::part2_jpip_automatic_snapshot_result(jpip_cache_view(self), codestream,
                         super::jpip_snapshot_selection_view(selection), super::jpip_packet_selection_view(packet_selection),
                         limits, Err(error)) by {
-                    assert(partition_events =~= seq![tile_capacity] + packet_events);
+                    assert(partition_events =~= seq![tile_capacity] + (packet_copy_events+packet_events));
+                    crate::specs::part2_cold_prefix_at(|events|crate::specs::part2_copy_packets_run(acquisition_input,acquisition_parts,acquisition_transitions,acquisition_databins,acquisition_order,0,acquisition_initial,events),
+                        packet_copy_events,Ok(acquisition_final),packet_events);
                     assert(crate::specs::part2_jpip_snapshot_tile_normal_run(current_root.input, current_root.count,
                         current_root.components, current_root.tile as usize, current_root.layout,
                         current_root.raw, current_root.headers, partition_events) == Some((Err(error), Seq::empty())));
@@ -1814,6 +1883,8 @@ impl DatabinCache {
                 }
                 #[cfg(verus_keep_ghost)]
                 proof! {
+                    crate::specs::part2_cold_prefix_at(|events|crate::specs::part2_copy_packets_run(acquisition_input,acquisition_parts,acquisition_transitions,acquisition_databins,acquisition_order,0,acquisition_initial,events),
+                        packet_copy_events,Ok(acquisition_final),packet_events);
                     assert(crate::specs::part2_jpip_snapshot_tile_normal_run(current_root.input, current_root.count,
                         current_root.components, current_root.tile as usize, current_root.layout,
                         current_root.raw, current_root.headers, partition_events)
@@ -1938,7 +2009,7 @@ impl DatabinCache {
                     |part: super::AutomaticTilePart| super::jpip_automatic_tile_part_view(&part));
                 let ghost completed_packets = packets@.map_values(
                     |packet: AutomaticPacket| super::jpip_automatic_packet_view(&packet));
-                let ghost mut completed_events = seq![tile_capacity] + packet_events;
+                let ghost mut completed_events = seq![tile_capacity] + (packet_copy_events+packet_events);
             }
             #[cfg(verus_keep_ghost)]
             proof! {
@@ -1947,11 +2018,13 @@ impl DatabinCache {
                         current_root.components, current_root.tile as usize, current_root.layout,
                         current_root.raw, current_root.headers, completed_events + tail)
                         == Some((Ok((Some(completed_parts), completed_packets, tile_part.coding_style.layers)), tail)) by {
-                    assert(completed_events + tail =~= seq![tile_capacity] + (packet_events + tail));
+                    assert(completed_events + tail =~= seq![tile_capacity] + (packet_copy_events+(packet_events+tail)));
                     assert((packet_events + tail).drop_first() =~= tail);
+                    crate::specs::part2_cold_prefix_at(|events|crate::specs::part2_copy_packets_run(acquisition_input,acquisition_parts,acquisition_transitions,acquisition_databins,acquisition_order,0,acquisition_initial,events),
+                        packet_copy_events,Ok(acquisition_final),packet_events+tail);
                     assert(crate::specs::part2_jpip_snapshot_acquired_packets(acquisition_input,
                         acquisition_parts, acquisition_transitions, acquisition_databins, acquisition_order,
-                        acquisition_initial, tile_index, tile_part.component_coding_styles, packet_events + tail)
+                        acquisition_initial, tile_index, tile_part.component_coding_styles, packet_copy_events+(packet_events + tail))
                         == Some((Ok(completed_packets), tail)));
                     assert(super::jpip_snapshot_tile_finish(current_root, acquisition_parts,
                         acquisition_transitions, completed_packets, tail)

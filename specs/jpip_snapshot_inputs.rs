@@ -21,6 +21,7 @@ pub enum Part2JpipSnapshotEvent {
     Main { calls: Seq<Part2JpipStorageEvent> },
     Parse { phase: u8, index: usize, calls: Seq<Part1ColdStorageEvent> },
     PrecinctSingletonCapacity {execution:Part2PacketSubbandExecution,elements:usize,succeeded:bool},
+    TagCopyCapacity {context:Part2TagCopyContext,nodes:bool,elements:nat,succeeded:bool},
 }
 
 pub(crate) open spec fn part2_jpip_snapshot_normalized_events(
@@ -490,8 +491,7 @@ pub(crate) open spec fn part2_jpip_snapshot_acquired_packets(
     tile: usize, styles: crate::codestream::ComponentCodingStyles,
     events: Seq<Part2JpipSnapshotEvent>,
 ) -> Part2JpipSnapshotRun<Seq<Part2JpipAutomaticPacket>> {
-    let parsed = part2_jpip_snapshot_parse_packets(input, parts, transitions, databins, order, 0, initial);
-    part2_jpip_snapshot_bind(part2_jpip_snapshot_lift(parsed, events),
+    part2_jpip_snapshot_bind(part2_copy_packets_run(input, parts, transitions, databins, order, 0, initial, events),
         |state: Part2JpipSnapshotPacketState, events| {
         part2_jpip_snapshot_bind(part2_jpip_snapshot_capacity(events, 4, tile, order.len() as usize),
             |_unit: (), events| {
@@ -508,9 +508,11 @@ pub(crate) proof fn part2_jpip_snapshot_acquired_resolution_error(
     state: Part2JpipSnapshotPacketState, tile: usize, styles: crate::codestream::ComponentCodingStyles,
     index: nat, before: Seq<Part2JpipAutomaticPacket>, events: Seq<Part2JpipSnapshotEvent>,
     tail: Seq<Part2JpipSnapshotEvent>, error: crate::DecodeError,
+    copies:Seq<Part2JpipSnapshotEvent>,
 )
     requires
         part2_jpip_snapshot_parse_packets(input, parts, transitions, databins, order, 0, initial) == Ok(state),
+        part2_cold_prefix(|events|part2_copy_packets_run(input,parts,transitions,databins,order,0,initial,events),copies,Ok(state)),
         part2_jpip_snapshot_make_packets(input, tile as u16, styles, order, databins, state, 0, Seq::empty())
             == part2_jpip_snapshot_make_packets(input, tile as u16, styles, order, databins, state, index, before),
         part2_jpip_snapshot_capacity(events, 4, tile, order.len() as usize) == Some((Ok(()), tail)),
@@ -520,8 +522,9 @@ pub(crate) proof fn part2_jpip_snapshot_acquired_resolution_error(
         && part2_jpip_snapshot_resolution(input.selected, order[index as int].0.component,
             order[index as int].0.resolution, styles) == Err(error)
         ==> part2_jpip_snapshot_acquired_packets(input, parts, transitions, databins, order,
-            initial, tile, styles, events) == Some((Err(error), tail)),
+            initial, tile, styles, copies+events) == Some((Err(error), tail)),
 {
+    part2_cold_prefix_at(|events|part2_copy_packets_run(input,parts,transitions,databins,order,0,initial,events),copies,Ok(state),events);
     part2_jpip_snapshot_resolution_current_error(input, tile as u16, styles, order, databins,
         state, index, before, error);
 }
@@ -536,8 +539,8 @@ pub(crate) proof fn part2_jpip_snapshot_acquired_packets_continuation<T>(
 )
     ensures part2_jpip_snapshot_bind(part2_jpip_snapshot_acquired_packets(input, parts, transitions,
         databins, order, initial, tile, styles, events), next)
-        == part2_jpip_snapshot_bind(part2_jpip_snapshot_lift(
-            part2_jpip_snapshot_parse_packets(input, parts, transitions, databins, order, 0, initial), events),
+        == part2_jpip_snapshot_bind(
+            part2_copy_packets_run(input, parts, transitions, databins, order, 0, initial, events),
             |state: Part2JpipSnapshotPacketState, events| {
             part2_jpip_snapshot_bind(part2_jpip_snapshot_capacity(events, 4, tile, order.len() as usize),
                 |_unit: (), events| {

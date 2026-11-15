@@ -276,12 +276,13 @@ verus! {
         transitions: Seq<crate::specs::Part2JpipTransition>, databins: Seq<crate::specs::Part2JpipDatabin>,
         order: crate::specs::Part2JpipSnapshotOrder, initial: crate::specs::Part2JpipSnapshotPacketState,
         final_state: crate::specs::Part2JpipSnapshotPacketState,
-        capacity: crate::specs::Part2JpipSnapshotEvent, error: DecodeError,
+        capacity: crate::specs::Part2JpipSnapshotEvent, error: DecodeError,copies:Seq<crate::specs::Part2JpipSnapshotEvent>,
     )
         requires crate::specs::part2_jpip_snapshot_tile_root(root), root.tile < root.headers.len(), parts.len() != 0,
             root.tile <= u16::MAX as nat,
             jpip_snapshot_tile_acquisition_known(root, parts, transitions, databins, order, initial, capacity),
             crate::specs::part2_jpip_snapshot_parse_packets(root.input, parts, transitions, databins, order, 0, initial) == Ok(final_state),
+            crate::specs::part2_cold_prefix(|events|crate::specs::part2_copy_packets_run(root.input,parts,transitions,databins,order,0,initial,events),copies,Ok(final_state)),
             crate::specs::part2_jpip_snapshot_make_packets(root.input, root.tile as u16, parts[0].component_coding_styles,
                 order, databins, final_state, 0, Seq::empty()) == Err(error),
         ensures crate::specs::part2_jpip_automatic_snapshot_result(root.input.cache, root.input.stream,
@@ -291,11 +292,11 @@ verus! {
             site: 4, tile: root.tile as usize, elements: order.len() as usize, succeeded: true };
         assert(seq![accepted].drop_first() =~= Seq::empty());
         reveal(jpip_snapshot_tile_acquisition_known);
-        assert(seq![capacity, accepted] =~= seq![capacity] + seq![accepted]);
+        crate::specs::part2_cold_prefix_at(|events|crate::specs::part2_copy_packets_run(root.input,parts,transitions,databins,order,0,initial,events),copies,Ok(final_state),seq![accepted]);
         assert(crate::specs::part2_jpip_snapshot_acquired_packets(root.input, parts, transitions, databins,
-            order, initial, root.tile as usize, parts[0].component_coding_styles, seq![accepted])
+            order, initial, root.tile as usize, parts[0].component_coding_styles, copies+seq![accepted])
             == Some((Err(error), Seq::empty())));
-        jpip_snapshot_tile_root_error(root, seq![capacity, accepted], error);
+        jpip_snapshot_tile_root_error(root, seq![capacity]+(copies+seq![accepted]), error);
     }
     pub(crate) proof fn jpip_snapshot_mapping_capacity_error(
         root: crate::specs::Part2JpipSnapshotTileRoot<'_>, parts: Seq<crate::specs::Part2OwnedTilePart>,
@@ -319,10 +320,12 @@ verus! {
         order: crate::specs::Part2JpipSnapshotOrder, initial: crate::specs::Part2JpipSnapshotPacketState,
         final_state: crate::specs::Part2JpipSnapshotPacketState,
         capacity: crate::specs::Part2JpipSnapshotEvent,
+        copies:Seq<crate::specs::Part2JpipSnapshotEvent>,
     )
         requires crate::specs::part2_jpip_snapshot_tile_root(root), root.tile < root.headers.len(),
             jpip_snapshot_tile_acquisition_known(root, parts, transitions, databins, order, initial, capacity),
             crate::specs::part2_jpip_snapshot_parse_packets(root.input, parts, transitions, databins, order, 0, initial) == Ok(final_state),
+            crate::specs::part2_cold_prefix(|events|crate::specs::part2_copy_packets_run(root.input,parts,transitions,databins,order,0,initial,events),copies,Ok(final_state)),
         ensures crate::specs::part2_jpip_automatic_snapshot_result(root.input.cache, root.input.stream,
             root.input.selected, root.input.components, root.input.limits, Err(DecodeError::AllocationFailed)),
     {
@@ -330,11 +333,11 @@ verus! {
             site: 4, tile: root.tile as usize, elements: order.len() as usize, succeeded: false };
         assert(seq![refused].drop_first() =~= Seq::empty());
         reveal(jpip_snapshot_tile_acquisition_known);
-        assert(seq![capacity, refused] =~= seq![capacity] + seq![refused]);
+        crate::specs::part2_cold_prefix_at(|events|crate::specs::part2_copy_packets_run(root.input,parts,transitions,databins,order,0,initial,events),copies,Ok(final_state),seq![refused]);
         assert(crate::specs::part2_jpip_snapshot_acquired_packets(root.input, parts, transitions, databins,
-            order, initial, root.tile as usize, parts[0].component_coding_styles, seq![refused])
+            order, initial, root.tile as usize, parts[0].component_coding_styles, copies+seq![refused])
             == Some((Err(DecodeError::AllocationFailed), Seq::empty())));
-        jpip_snapshot_tile_root_error(root, seq![capacity, refused], DecodeError::AllocationFailed);
+        jpip_snapshot_tile_root_error(root, seq![capacity]+(copies+seq![refused]), DecodeError::AllocationFailed);
     }
     pub(crate) proof fn jpip_snapshot_plan_error(
         root: crate::specs::Part2JpipSnapshotTileRoot<'_>, parts: Seq<crate::specs::Part2OwnedTilePart>, error: DecodeError,
@@ -421,14 +424,37 @@ verus! {
         ensures crate::specs::part2_jpip_automatic_snapshot_result(root.input.cache, root.input.stream,
             root.input.selected, root.input.components, root.input.limits, Err(error)),
     {
+        let copies=crate::specs::part2_copy_packets_normal_calls(root.input,parts,transitions,databins,order,initial);
+        crate::specs::part2_copy_packets_normal_at(root.input,parts,transitions,databins,order,initial,Seq::empty());
+        assert(copies+Seq::empty() =~= copies);
         reveal(jpip_snapshot_tile_acquisition_known);
         assert(seq![capacity] =~= seq![capacity] + Seq::<crate::specs::Part2JpipSnapshotEvent>::empty());
         assert(crate::specs::part2_jpip_snapshot_acquired_packets(root.input, parts, transitions, databins,
-            order, initial, root.tile as usize, parts[0].component_coding_styles, Seq::empty())
+            order, initial, root.tile as usize, parts[0].component_coding_styles, copies)
             == Some((Err(error), Seq::empty())));
         assert(crate::specs::part2_jpip_snapshot_tile_normal_run(root.input, root.count, root.components, root.tile as usize,
-            root.layout, root.raw, root.headers, seq![capacity]) == Some((Err(error), Seq::empty())));
-        jpip_snapshot_tile_root_error(root, seq![capacity], error);
+            root.layout, root.raw, root.headers, seq![capacity]+copies) == Some((Err(error), Seq::empty())));
+        jpip_snapshot_tile_root_error(root, seq![capacity]+copies, error);
+    }
+    pub(crate) proof fn jpip_snapshot_copy_error(
+        root:crate::specs::Part2JpipSnapshotTileRoot<'_>,parts:Seq<crate::specs::Part2OwnedTilePart>,
+        transitions:Seq<crate::specs::Part2JpipTransition>,databins:Seq<crate::specs::Part2JpipDatabin>,
+        order:crate::specs::Part2JpipSnapshotOrder,initial:crate::specs::Part2JpipSnapshotPacketState,
+        capacity:crate::specs::Part2JpipSnapshotEvent,error:DecodeError,
+    )
+        requires crate::specs::part2_jpip_snapshot_tile_root(root),root.tile<root.headers.len(),
+            jpip_snapshot_tile_acquisition_known(root,parts,transitions,databins,order,initial,capacity),
+            crate::specs::part2_cold_framed(|events|crate::specs::part2_copy_packets_run(root.input,parts,transitions,databins,order,0,initial,events),Err(error)),
+        ensures crate::specs::part2_jpip_automatic_snapshot_result(root.input.cache,root.input.stream,root.input.selected,root.input.components,root.input.limits,Err(error)),
+    {
+        let run=|events|crate::specs::part2_copy_packets_run(root.input,parts,transitions,databins,order,0,initial,events);
+        let calls=crate::specs::part2_cold_witness(run,Err(error));
+        crate::specs::part2_cold_prefix_at(run,calls,Err(error),Seq::empty());
+        assert(calls+Seq::empty() =~= calls);
+        reveal(jpip_snapshot_tile_acquisition_known);
+        assert(crate::specs::part2_jpip_snapshot_acquired_packets(root.input,parts,transitions,databins,order,initial,
+            root.tile as usize,parts[0].component_coding_styles,calls)==Some((Err(error),Seq::empty())));
+        jpip_snapshot_tile_root_error(root,seq![capacity]+calls,error);
     }
     pub(crate) proof fn jpip_snapshot_root_emit_error(
         root: crate::specs::Part2JpipSnapshotTileRoot<'_>, available: u16, error: DecodeError,
