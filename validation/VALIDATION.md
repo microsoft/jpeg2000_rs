@@ -30,6 +30,12 @@ not global allocator, deadline or normative qualification.
 
 ### Present-tile geometry and selected reconstruction
 
+The `selected_jp2_reconstruction` controls exercise the strict selected container
+export, including fractional headroom, real crop/reduction geometry, incomplete
+coverage rejection, metadata validation, decoded limits and refusal restoration.
+Framework controls require its actual input/selection contracts, complete run
+and checked ordinary projection.
+
 The `pdf_present_tile` and `selected_reconstruction` native controls use real
 entropy/empty-packet fixtures to retain sole-tile extent, absent explicit-tile
 errors, original canvas metadata, nonzero placement/origin, reductions and

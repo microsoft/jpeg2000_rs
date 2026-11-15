@@ -820,6 +820,78 @@ pub fn decode_jp2_reconstructed(
     Ok(image)
 }
 
+/// Decode a strict JP2 tile/region/reduction selection without output clipping.
+///
+/// Selection and sample geometry match [`decode_codestream_reconstructed_selected`].
+/// Container/profile validation and reconstruction-output restrictions match
+/// [`decode_jp2_reconstructed`], including associated-header metadata. This does
+/// not automatically select a present tile or repair incomplete input.
+#[cfg_attr(verus_keep_ghost, verus_spec(result =>
+    ensures crate::specs::part2_selected_jp2_reconstruction_result(
+        input@, crate::options::decode_options_limits(options), selection,
+        crate::image::decoded_image_outcome(result)),
+        crate::image::decoded_image_outcome(result) != Err(DecodeError::AllocationFailed) ==>
+            crate::image::decoded_image_outcome(result)
+                == crate::specs::part2_selected_jp2_reconstruction_value(
+                    input@, crate::options::decode_options_limits(options), selection),
+))]
+pub fn decode_jp2_reconstructed_selected(
+    input: &[u8],
+    options: &DecodeOptions,
+    selection: &DecodeSelection,
+) -> Result<DecodedImage, DecodeError> {
+    #[cfg(verus_keep_ghost)]
+    proof! {
+        crate::specs::part2_selected_jp2_reconstruction_value_unfold(
+            input@, crate::options::decode_options_limits(options), selection);
+        crate::specs::part2_selected_jp2_reconstruction_normal(
+            input@, crate::options::decode_options_limits(options), selection);
+    }
+    let inspected = match jp2::parse_and_inspect_for_display(input, options.limits()) {
+        Ok(inspected) => inspected,
+        Err(error) => {
+            #[cfg(verus_keep_ghost)]
+            proof! {
+                crate::specs::part2_selected_jp2_reconstruction_inspection_error(
+                    input@, crate::options::decode_options_limits(options), selection, error);
+            }
+            return Err(error);
+        }
+    };
+    #[cfg(verus_keep_ghost)]
+    proof! { jp2::raw_render_file_known(jp2::raw_inspected_file_reference(&inspected)); }
+    let profile = validate_jp2_display_profile(inspected.file());
+    #[cfg(verus_keep_ghost)]
+    proof! {
+        if let Err(error) = profile {
+            crate::specs::part2_selected_jp2_reconstruction_profile_error(
+                input@, crate::options::decode_options_limits(options), selection,
+                jp2::raw_inspected_container_view(&inspected), error);
+        }
+    }
+    profile?;
+    let codestream = inspected.file().codestream(0)?;
+    let decoded = decode_codestream_reconstructed_selected(codestream.data(), options, selection);
+    #[cfg(verus_keep_ghost)]
+    proof! {
+        crate::specs::part2_selected_jp2_reconstruction_image_actual(
+            input@, crate::options::decode_options_limits(options), selection,
+            jp2::raw_inspected_container_view(&inspected),
+            crate::image::decoded_image_outcome(decoded));
+    }
+    let image = decoded?;
+    validate_jp2_reconstruction_output(inspected.file().header())?;
+    if let Some(association) = codestream.codestream_header() {
+        let header = association
+            .parsed_header()
+            .ok_or(DecodeError::UnsupportedFeature {
+                feature: "unparsed JPX header on reconstruction samples",
+            })?;
+        validate_jp2_reconstruction_output(header)?;
+    }
+    Ok(image)
+}
+
 #[cfg_attr(verus_keep_ghost, verus_spec(result =>
     ensures result == crate::specs::part2_validate_jp2_reconstruction_output(
         jp2::raw_jp2_header_view(header)),
