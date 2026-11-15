@@ -1541,6 +1541,12 @@ selection/layout reconstruction, NLT rejection and output-shape checks without
 passing through typed/clipped samples. Its value/run programs and checked
 ordinary projection are in `specs/selected_reconstruction.rs`.
 
+`decode_jp2_reconstructed_selected` adds strict container inspection/profile
+composition around that actual selected raw child. Complete cold and ordinary
+programs retain selection, genuine returned geometry, first errors and the same
+main/associated output-metadata guards as full JP2 reconstruction. This strict
+entry point never applies automatic present-tile recovery.
+
 The four raw/JP2 typed/centered present-tile recovery APIs use real preflight
 parts to select a sole tile only for an unbounded full-image request. Actual
 selection constructors, child decoder results, JP2 metadata processing/guards

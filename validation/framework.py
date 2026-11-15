@@ -2035,6 +2035,14 @@ _SELECTED_RECONSTRUCTION_CONTRACTS = {
         r"input@\s*,\s*" + _coverage_call("crate::options::decode_options_limits", "options") + r"\s*,\s*selection",
     ),
 }
+_SELECTED_JP2_RECONSTRUCTION_ENTRY = "implementation-selected-jp2-reconstruction"
+_SELECTED_JP2_RECONSTRUCTION_CONTRACTS = {
+    ("src/decode/api.rs", "decode_jp2_reconstructed_selected"): (
+        "part2_selected_jp2_reconstruction_value",
+        _coverage_call("crate::image::decoded_image_outcome", r"\1"), None,
+        r"input@\s*,\s*" + _coverage_call("crate::options::decode_options_limits", "options") + r"\s*,\s*selection",
+    ),
+}
 _PRESENT_TILE_ENTRY = "implementation-pdf-sole-present-tile"
 _PRESENT_TILE_CONTRACTS = {
     **{
@@ -5121,6 +5129,10 @@ _COLD_RESULT_MODELS = {
         "part2_selected_reconstruction_result", "specs/selected_reconstruction.rs",
         "part2_selected_reconstruction_normal",
     ),
+    "part2_selected_jp2_reconstruction_value": (
+        "part2_selected_jp2_reconstruction_result", "specs/selected_reconstruction.rs",
+        "part2_selected_jp2_reconstruction_normal",
+    ),
     "part2_present_raw_typed_value": (
         "part2_present_raw_typed_result", "specs/pdf_present_tile.rs", "part2_present_raw_normal",
     ),
@@ -5384,7 +5396,7 @@ _COLD_RESULT_CONTRACTS = {
         _RAW_LAYOUT_CONTRACTS, _RAW_TYPED_CONTRACTS, _RAW_RECONSTRUCTED_CONTRACTS,
         _JP2_RECONSTRUCTED_CONTRACTS,
         _PDF_DIMENSIONS_CONTRACTS,
-        _SELECTED_RECONSTRUCTION_CONTRACTS, _PRESENT_TILE_CONTRACTS,
+        _SELECTED_RECONSTRUCTION_CONTRACTS, _SELECTED_JP2_RECONSTRUCTION_CONTRACTS, _PRESENT_TILE_CONTRACTS,
         _RAW_INSPECTED_CONTRACTS, _JPX_SOURCE_CONTRACTS, _RAW_JPX_PUBLIC_IMAGE_CONTRACTS,
         _RAW_CONTAINER_IMAGE_CONTRACTS, _RAW_CONTAINER_COLOR_CONTRACTS,
         _SOURCE_FRAME_CONTRACTS, _RAW_RENDER_CONTRACTS, _RAW_COMPOSITION_RENDER_CONTRACTS,
@@ -5868,6 +5880,7 @@ _COLD_LOCAL_FAMILIES = {
     _JP2_RECONSTRUCTED_ENTRY: (_JP2_RECONSTRUCTED_CONTRACTS, "whole JP2 reconstructed Result"),
     _PDF_DIMENSIONS_ENTRY: (_PDF_DIMENSIONS_CONTRACTS, "JP2 dimension authority Result"),
     _SELECTED_RECONSTRUCTION_ENTRY: (_SELECTED_RECONSTRUCTION_CONTRACTS, "selected raw reconstruction Result"),
+    _SELECTED_JP2_RECONSTRUCTION_ENTRY: (_SELECTED_JP2_RECONSTRUCTION_CONTRACTS, "selected JP2 reconstruction Result"),
     _PRESENT_TILE_ENTRY: (_PRESENT_TILE_CONTRACTS, "sole present tile Result"),
     _JPX_SOURCE_ENTRY: (_JPX_SOURCE_CONTRACTS, "whole JPX source Result"),
     _JPX_LAYER_COLOR_ENTRY: (_JPX_LAYER_COLOR_CONTRACTS, "whole JPX layer color Result"),
@@ -13819,6 +13832,8 @@ def validate_normative_coverage(
                     if entry["id"] == _PDF_DIMENSIONS_ENTRY else None)
                 or (_SELECTED_RECONSTRUCTION_CONTRACTS.get((reference["path"], reference["symbol"]))
                     if entry["id"] == _SELECTED_RECONSTRUCTION_ENTRY else None)
+                or (_SELECTED_JP2_RECONSTRUCTION_CONTRACTS.get((reference["path"], reference["symbol"]))
+                    if entry["id"] == _SELECTED_JP2_RECONSTRUCTION_ENTRY else None)
                 or (_PRESENT_TILE_CONTRACTS.get((reference["path"], reference["symbol"]))
                     if entry["id"] == _PRESENT_TILE_ENTRY else None)
                 or (_JPX_SOURCE_CONTRACTS.get((reference["path"], reference["symbol"]))

@@ -102,6 +102,11 @@ explicitly rejected rather than silently bypassed; color metadata does not
 convert these samples. These are strict APIs, not incremental-input or
 damage-recovery modes.
 
+For tile, region or reduced-resolution requests, the corresponding strict
+`decode_codestream_reconstructed_selected` and `decode_jp2_reconstructed_selected`
+APIs take a `DecodeSelection`. They preserve the same centered samples and
+metadata restrictions, and never automatically recover an incomplete canvas.
+
 ### Explicit raw missing-EOC recovery
 
 `decode_codestream_recover_missing_eoc(input, options)` is a separate opt-in
