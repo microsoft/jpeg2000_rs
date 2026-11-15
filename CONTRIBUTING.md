@@ -142,6 +142,8 @@ changes, repository visibility changes or crate publication.
 ## Fuzzing
 
 The [fuzz crate](fuzz/) provides arbitrary-input and structured-input targets.
+Its explicit standalone Cargo workspace keeps the harness and lockfile
+independent of the parent decoder/image-companion workspace.
 Compile targets independently from the main crate:
 
 ```sh
