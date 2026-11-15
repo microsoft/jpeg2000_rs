@@ -42,6 +42,16 @@ pub(crate) open spec fn part2_ht_duplicate_after_cleanup(before:Tier1DecoderStat
 }
 #[verifier::opaque]
 pub(crate) open spec fn part2_ht_duplicate_after_primary(before:Tier1DecoderState,role:crate::tier1::HtRefinementCopyRole,calls:Seq<Part2Tier1StorageEvent>)->Part2Tier1Run<Tier1DecoderState> {
+    part2_tier1_storage_bind(part2_nested_bitplane_option_run(before.bitplane_state,role,false,calls),
+        |_:Option<Part1LegacyBitplane>,rest|part2_ht_duplicate_after_bitplane(before,role,rest))
+}
+#[verifier::opaque]
+pub(crate) open spec fn part2_ht_duplicate_after_bitplane(before:Tier1DecoderState,role:crate::tier1::HtRefinementCopyRole,calls:Seq<Part2Tier1StorageEvent>)->Part2Tier1Run<Tier1DecoderState> {
+    part2_tier1_storage_bind(part2_nested_legacy_option_run(before.legacy_segment,role,calls),
+        |_:Option<Tier1LegacyFrame>,rest|part2_ht_duplicate_after_legacy(before,role,rest))
+}
+#[verifier::opaque]
+pub(crate) open spec fn part2_ht_duplicate_after_legacy(before:Tier1DecoderState,role:crate::tier1::HtRefinementCopyRole,calls:Seq<Part2Tier1StorageEvent>)->Part2Tier1Run<Tier1DecoderState> {
     part2_tier1_storage_bind(part2_decoder_cleanup_run(before.ht_cleanup_plane,role,calls),
         |_:Option<Tier1RawPlane>,rest|part2_ht_duplicate_after_cleanup(before,role,rest))
 }
@@ -57,10 +67,12 @@ pub(crate) open spec fn part2_ht_duplicate_result(before:Tier1DecoderState,role:
 pub(crate) proof fn part2_ht_duplicate_observed(before:Tier1DecoderState,role:crate::tier1::HtRefinementCopyRole,result:Result<Seq<u8>,crate::DecodeError>)
     requires part2_ht_bytes_result(before.ht_refinement_data,role,result),
         part2_decoder_plane_result(before.plane,role,false,Ok(before.plane)),
+        part2_nested_bitplane_option_result(before.bitplane_state,role,false,Ok(before.bitplane_state)),
+        part2_nested_legacy_option_result(before.legacy_segment,role,Ok(before.legacy_segment)),
         part2_decoder_cleanup_result(before.ht_cleanup_plane,role,Ok(before.ht_cleanup_plane)),
     ensures part2_ht_duplicate_result(before,role,match result{Err(error)=>Err(error),Ok(_)=>Ok(before)}),
 {
-    reveal(part2_ht_duplicate_result);reveal(part2_ht_duplicate_run);reveal(part2_ht_duplicate_after_primary);reveal(part2_ht_duplicate_after_cleanup);
+    reveal(part2_ht_duplicate_after_legacy);reveal(part2_ht_duplicate_after_cleanup);
     let value=match result{Err(error)=>Err(error),Ok(_)=>Ok(before)};
     part2_ht_bytes_frames(before.ht_refinement_data,role,result);
     if result.is_ok(){part2_tier1_storage_pure(Ok(before));}
@@ -69,10 +81,61 @@ pub(crate) proof fn part2_ht_duplicate_observed(before:Tier1DecoderState,role:cr
     part2_decoder_cleanup_frames(before.ht_cleanup_plane,role,Ok(before.ht_cleanup_plane));
     part2_tier1_storage_bind_frame(|calls|part2_decoder_cleanup_run(before.ht_cleanup_plane,role,calls),
         |_:Option<Tier1RawPlane>,rest|part2_ht_duplicate_after_cleanup(before,role,rest),Ok(before.ht_cleanup_plane),value);
+    part2_ht_duplicate_nested_join(before,role,value);
+}
+pub(crate) proof fn part2_ht_duplicate_nested_join(before:Tier1DecoderState,role:crate::tier1::HtRefinementCopyRole,value:Result<Tier1DecoderState,crate::DecodeError>)
+    requires part2_decoder_plane_result(before.plane,role,false,Ok(before.plane)),
+        part2_nested_bitplane_option_result(before.bitplane_state,role,false,Ok(before.bitplane_state)),
+        part2_nested_legacy_option_result(before.legacy_segment,role,Ok(before.legacy_segment)),
+        part2_tier1_storage_framed(|calls|part2_ht_duplicate_after_legacy(before,role,calls),value),
+    ensures part2_ht_duplicate_result(before,role,value),
+{
+    reveal(part2_ht_duplicate_result);reveal(part2_ht_duplicate_run);reveal(part2_ht_duplicate_after_primary);reveal(part2_ht_duplicate_after_bitplane);
+    part2_tier1_storage_eta(|calls|part2_ht_duplicate_after_legacy(before,role,calls),value);
+    part2_nested_option_frames(before.legacy_segment,|source,rest|part2_nested_legacy_run(source,role,rest),Ok(before.legacy_segment));
+    part2_tier1_storage_bind_frame(|calls|part2_nested_legacy_option_run(before.legacy_segment,role,calls),
+        |_:Option<Tier1LegacyFrame>,rest|part2_ht_duplicate_after_legacy(before,role,rest),Ok(before.legacy_segment),value);
+    part2_tier1_storage_eta(|calls|part2_ht_duplicate_after_bitplane(before,role,calls),value);
+    part2_nested_option_frames(before.bitplane_state,|source,rest|part2_nested_bitplane_run(source,role,false,rest),Ok(before.bitplane_state));
+    part2_tier1_storage_bind_frame(|calls|part2_nested_bitplane_option_run(before.bitplane_state,role,false,calls),
+        |_:Option<Part1LegacyBitplane>,rest|part2_ht_duplicate_after_bitplane(before,role,rest),Ok(before.bitplane_state),value);
     part2_tier1_storage_eta(|calls|part2_ht_duplicate_after_primary(before,role,calls),value);
     part2_decoder_plane_frames(before.plane,role,false,Ok(before.plane));
     part2_tier1_storage_bind_frame(|calls|part2_decoder_plane_run(before.plane,role,false,calls),
         |_:Tier1RawPlane,rest|part2_ht_duplicate_after_primary(before,role,rest),Ok(before.plane),value);
+}
+pub(crate) proof fn part2_ht_duplicate_bitplane_error(before:Tier1DecoderState,role:crate::tier1::HtRefinementCopyRole,error:crate::DecodeError)
+    requires part2_decoder_plane_result(before.plane,role,false,Ok(before.plane)),
+        part2_nested_bitplane_option_result(before.bitplane_state,role,false,Err(error)),
+    ensures part2_ht_duplicate_result(before,role,Err(error)),
+{
+    reveal(part2_ht_duplicate_result);reveal(part2_ht_duplicate_run);reveal(part2_ht_duplicate_after_primary);
+    part2_nested_option_frames(before.bitplane_state,|source,rest|part2_nested_bitplane_run(source,role,false,rest),Err(error));
+    part2_tier1_storage_bind_frame(|calls|part2_nested_bitplane_option_run(before.bitplane_state,role,false,calls),
+        |_:Option<Part1LegacyBitplane>,rest|part2_ht_duplicate_after_bitplane(before,role,rest),Err(error),Err(error));
+    part2_tier1_storage_eta(|calls|part2_ht_duplicate_after_primary(before,role,calls),Err(error));
+    part2_decoder_plane_frames(before.plane,role,false,Ok(before.plane));
+    part2_tier1_storage_bind_frame(|calls|part2_decoder_plane_run(before.plane,role,false,calls),
+        |_:Tier1RawPlane,rest|part2_ht_duplicate_after_primary(before,role,rest),Ok(before.plane),Err(error));
+}
+pub(crate) proof fn part2_ht_duplicate_legacy_error(before:Tier1DecoderState,role:crate::tier1::HtRefinementCopyRole,error:crate::DecodeError)
+    requires part2_decoder_plane_result(before.plane,role,false,Ok(before.plane)),
+        part2_nested_bitplane_option_result(before.bitplane_state,role,false,Ok(before.bitplane_state)),
+        part2_nested_legacy_option_result(before.legacy_segment,role,Err(error)),
+    ensures part2_ht_duplicate_result(before,role,Err(error)),
+{
+    reveal(part2_ht_duplicate_result);reveal(part2_ht_duplicate_run);reveal(part2_ht_duplicate_after_primary);reveal(part2_ht_duplicate_after_bitplane);
+    part2_nested_option_frames(before.legacy_segment,|source,rest|part2_nested_legacy_run(source,role,rest),Err(error));
+    part2_tier1_storage_bind_frame(|calls|part2_nested_legacy_option_run(before.legacy_segment,role,calls),
+        |_:Option<Tier1LegacyFrame>,rest|part2_ht_duplicate_after_legacy(before,role,rest),Err(error),Err(error));
+    part2_tier1_storage_eta(|calls|part2_ht_duplicate_after_bitplane(before,role,calls),Err(error));
+    part2_nested_option_frames(before.bitplane_state,|source,rest|part2_nested_bitplane_run(source,role,false,rest),Ok(before.bitplane_state));
+    part2_tier1_storage_bind_frame(|calls|part2_nested_bitplane_option_run(before.bitplane_state,role,false,calls),
+        |_:Option<Part1LegacyBitplane>,rest|part2_ht_duplicate_after_bitplane(before,role,rest),Ok(before.bitplane_state),Err(error));
+    part2_tier1_storage_eta(|calls|part2_ht_duplicate_after_primary(before,role,calls),Err(error));
+    part2_decoder_plane_frames(before.plane,role,false,Ok(before.plane));
+    part2_tier1_storage_bind_frame(|calls|part2_decoder_plane_run(before.plane,role,false,calls),
+        |_:Tier1RawPlane,rest|part2_ht_duplicate_after_primary(before,role,rest),Ok(before.plane),Err(error));
 }
 pub(crate) proof fn part2_ht_duplicate_primary_error(before:Tier1DecoderState,role:crate::tier1::HtRefinementCopyRole,error:crate::DecodeError)
     requires part2_decoder_plane_result(before.plane,role,false,Err(error)),
@@ -85,22 +148,23 @@ pub(crate) proof fn part2_ht_duplicate_primary_error(before:Tier1DecoderState,ro
 }
 pub(crate) proof fn part2_ht_duplicate_cleanup_error(before:Tier1DecoderState,role:crate::tier1::HtRefinementCopyRole,error:crate::DecodeError)
     requires part2_decoder_plane_result(before.plane,role,false,Ok(before.plane)),
+        part2_nested_bitplane_option_result(before.bitplane_state,role,false,Ok(before.bitplane_state)),
+        part2_nested_legacy_option_result(before.legacy_segment,role,Ok(before.legacy_segment)),
         part2_decoder_cleanup_result(before.ht_cleanup_plane,role,Err(error)),
     ensures part2_ht_duplicate_result(before,role,Err(error)),
 {
-    reveal(part2_ht_duplicate_result);reveal(part2_ht_duplicate_run);reveal(part2_ht_duplicate_after_primary);
+    reveal(part2_ht_duplicate_after_legacy);
     part2_decoder_cleanup_frames(before.ht_cleanup_plane,role,Err(error));
     part2_tier1_storage_bind_frame(|calls|part2_decoder_cleanup_run(before.ht_cleanup_plane,role,calls),
         |_:Option<Tier1RawPlane>,rest|part2_ht_duplicate_after_cleanup(before,role,rest),Err(error),Err(error));
-    part2_tier1_storage_eta(|calls|part2_ht_duplicate_after_primary(before,role,calls),Err(error));
-    part2_decoder_plane_frames(before.plane,role,false,Ok(before.plane));
-    part2_tier1_storage_bind_frame(|calls|part2_decoder_plane_run(before.plane,role,false,calls),
-        |_:Tier1RawPlane,rest|part2_ht_duplicate_after_primary(before,role,rest),Ok(before.plane),Err(error));
+    part2_ht_duplicate_nested_join(before,role,Err(error));
 }
 pub(crate) proof fn part2_ht_duplicate_normal(before:Tier1DecoderState,role:crate::tier1::HtRefinementCopyRole)
     ensures part2_ht_duplicate_result(before,role,Ok(before)),
 {
     part2_decoder_plane_normal(before.plane,role,false);
+    part2_nested_bitplane_option_normal(before.bitplane_state,role,false);
+    part2_nested_legacy_option_normal(before.legacy_segment,role);
     part2_decoder_cleanup_normal(before.ht_cleanup_plane,role);
     part2_ht_bytes_normal(before.ht_refinement_data,role);
     part2_ht_duplicate_observed(before,role,Ok(before.ht_refinement_data));

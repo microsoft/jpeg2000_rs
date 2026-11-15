@@ -419,6 +419,13 @@ verus! {
     {
         match result { Err(error) => Err(error), Ok(state) => Ok(legacy_bitplane_view(&state)) }
     }
+
+    pub closed spec fn legacy_bitplane_option_view(source:&Option<Tier1BitplaneState>)->Option<crate::specs::Part1LegacyBitplane> {
+        match source{None=>None,Some(value)=>Some(legacy_bitplane_view(value))}
+    }
+    pub open spec fn legacy_bitplane_option_outcome(result:Result<Option<Tier1BitplaneState>,DecodeError>)->Result<Option<crate::specs::Part1LegacyBitplane>,DecodeError> {
+        match result{Err(error)=>Err(error),Ok(value)=>Ok(legacy_bitplane_option_view(&value))}
+    }
 }
 
 #[cfg(verus_keep_ghost)]
@@ -436,6 +443,16 @@ verus! {
             decoded_segments: legacy.decoded_segments, decoded_bytes: legacy.decoded_bytes,
             input: legacy.input@, passes: legacy.passes,
         }
+    }
+
+    pub open spec fn legacy_segment_outcome(result:Result<LegacySegmentState,DecodeError>)->Result<crate::specs::Tier1LegacyFrame,DecodeError> {
+        match result{Err(error)=>Err(error),Ok(value)=>Ok(legacy_segment_view(&value))}
+    }
+    pub closed spec fn legacy_segment_option_view(source:&Option<LegacySegmentState>)->Option<crate::specs::Tier1LegacyFrame> {
+        match source{None=>None,Some(value)=>Some(legacy_segment_view(value))}
+    }
+    pub open spec fn legacy_segment_option_outcome(result:Result<Option<LegacySegmentState>,DecodeError>)->Result<Option<crate::specs::Tier1LegacyFrame>,DecodeError> {
+        match result{Err(error)=>Err(error),Ok(value)=>Ok(legacy_segment_option_view(&value))}
     }
 
     pub closed spec fn tier1_decoder_state(decoder: &Tier1CodeBlockDecoder) -> crate::specs::Tier1DecoderState {

@@ -5604,6 +5604,12 @@ _HT_BYTE_COPY_GUARDS = {
         "part2_decoder_plane_run(before.plane,role,false,calls)", "part2_ht_duplicate_after_primary(before,role,rest)",
     ),
     ("specs/cold_ht_bytes.rs", "part2_ht_duplicate_after_primary"): (
+        "part2_nested_bitplane_option_run(before.bitplane_state,role,false,calls)", "part2_ht_duplicate_after_bitplane(before,role,rest)",
+    ),
+    ("specs/cold_ht_bytes.rs", "part2_ht_duplicate_after_bitplane"): (
+        "part2_nested_legacy_option_run(before.legacy_segment,role,calls)", "part2_ht_duplicate_after_legacy(before,role,rest)",
+    ),
+    ("specs/cold_ht_bytes.rs", "part2_ht_duplicate_after_legacy"): (
         "part2_decoder_cleanup_run(before.ht_cleanup_plane,role,calls)", "part2_ht_duplicate_after_cleanup(before,role,rest)",
     ),
     ("specs/cold_ht_bytes.rs", "part2_ht_duplicate_after_cleanup"): (
@@ -5630,10 +5636,11 @@ _HT_BYTE_COPY_GUARDS = {
 }
 _HT_BYTE_COPY_NATIVE_ORDER = {
     ("src/tier1/contributions.rs", "Tier1CodeBlockDecoder::try_duplicate"): (
-        "plane:", "self.plane.try_duplicate_raw(role,false)", "part2_ht_duplicate_primary_error(", "copied?",
-        "bitplane_state:self.bitplane_state.clone()", "legacy_segment:self.legacy_segment.clone()",
+        "plane:", "self.plane.try_duplicate_raw(role,false,false)", "part2_ht_duplicate_primary_error(", "copied?",
+        "bitplane_state:", "try_duplicate_bitplane(&self.bitplane_state,role,false)", "part2_ht_duplicate_bitplane_error(", "copied?",
+        "mq_context_state:self.mq_context_state", "legacy_segment:", "try_duplicate_legacy_segment(&self.legacy_segment,role)", "part2_ht_duplicate_legacy_error(", "copied?",
         "ht_cleanup_plane:match self.ht_cleanup_plane.as_ref()", "None=>", "part2_decoder_cleanup_none(role)", "Some(source)=>",
-        "source.try_duplicate_raw(role,true)", "part2_decoder_cleanup_observed(", "part2_ht_duplicate_cleanup_error(", "Some(copied?)",
+        "source.try_duplicate_raw(role,true,false)", "part2_decoder_cleanup_observed(", "part2_ht_duplicate_cleanup_error(", "Some(copied?)",
         "ht_refinement_data:", "copy_ht_refinement_bytes(&self.ht_refinement_data,role)",
         "part2_ht_duplicate_observed(", "copied?", "ht_refinement_passes:self.ht_refinement_passes",
     ),
@@ -5677,6 +5684,10 @@ _DECODER_PLANE_COPY_GUARDS = {
     ("specs/cold_ht_bytes.rs", "part2_ht_duplicate_observed"): (
         "part2_ht_bytes_frames(before.ht_refinement_data,role,result)",
         "part2_decoder_cleanup_frames(before.ht_cleanup_plane,role,Ok(before.ht_cleanup_plane))",
+        "part2_ht_duplicate_nested_join(before,role,value)",
+    ),
+    ("specs/cold_ht_bytes.rs", "part2_ht_duplicate_nested_join"): (
+        "part2_nested_option_frames(before.legacy_segment,", "part2_nested_option_frames(before.bitplane_state,",
         "part2_decoder_plane_frames(before.plane,role,false,Ok(before.plane))",
     ),
     ("specs/cold_ht_bytes.rs", "part2_ht_duplicate_primary_error"): (
@@ -5686,7 +5697,56 @@ _DECODER_PLANE_COPY_GUARDS = {
     ("specs/cold_ht_bytes.rs", "part2_ht_duplicate_cleanup_error"): (
         "part2_decoder_cleanup_frames(before.ht_cleanup_plane,role,Err(error))",
         "part2_ht_duplicate_after_cleanup(before,role,rest),Err(error),Err(error)",
-        "part2_decoder_plane_frames(before.plane,role,false,Ok(before.plane))",
+        "part2_ht_duplicate_nested_join(before,role,Err(error))",
+    ),
+}
+_DECODER_NESTED_COPY_TESTS = {
+    ("src/tier1/tests.rs", "decoder_nested_storage_raw_flags_first_later_empty_and_clone_preserve_every_field"),
+    ("src/tier1/tests.rs", "decoder_nested_storage_primary_flags_legacy_plane_flags_input_cleanup_byte_order_restore"),
+    ("src/packet/tests.rs", "decoder_nested_storage_real_legacy_retention_refusals_precede_body_error_and_restore"),
+    ("src/recovery/tests.rs", "decoder_nested_storage_real_two_layer_raw_selected_recovery_and_automatic_restore"),
+}
+_DECODER_NESTED_COPY_GUARDS = {
+    ("specs/cold_decoder_nested.rs", "part2_nested_owner_count"): (
+        "Plane {source,..}=>source.coefficients.len()",
+        "if visited{source.significance_visited.len()}else{source.significant_before.len()}",
+        "Input {source,..}=>source.input.len()",
+    ),
+    ("specs/cold_decoder_nested.rs", "part2_nested_owner_run"): (
+        "if count==0{Some((Ok(()),calls))}", "Part2Tier1StorageEvent::NestedCopy",
+        "actual!=owner || elements!=count", "if succeeded{Ok(())}else{Err(crate::DecodeError::AllocationFailed)}", "calls.drop_first()",
+    ),
+    ("specs/cold_decoder_nested.rs", "part2_nested_flags"): (
+        "source,role,legacy,visited,prior:if visited{Some(source.significant_before)}else{None}",
+    ),
+    ("specs/cold_decoder_nested.rs", "part2_nested_bitplane_run"): (
+        "part2_nested_flags(source,role,legacy,false),calls", "part2_nested_flags(source,role,legacy,true),rest", "Some((Ok(source),tail))",
+    ),
+    ("specs/cold_decoder_nested.rs", "part2_nested_option_run"): (
+        "None=>Some((Ok(None),calls))", "child(value,calls)", "Some((Ok(Some(copied)),rest))",
+    ),
+    ("specs/cold_decoder_nested.rs", "part2_nested_plane_run"): (
+        "Part2NestedCopyOwner::Plane {source,role}", "Some((Ok(source),rest))",
+    ),
+    ("specs/cold_decoder_nested.rs", "part2_nested_legacy_run"): (
+        "part2_nested_plane_run(source.plane,role,calls)", "part2_nested_legacy_after_plane(source,role,rest)",
+    ),
+    ("specs/cold_decoder_nested.rs", "part2_nested_legacy_after_plane"): (
+        "part2_nested_bitplane_option_run(source.bitplane_state,role,true,calls)", "Part2NestedCopyOwner::Input {source,role},rest", "Some((Ok(source),tail))",
+    ),
+}
+_DECODER_NESTED_COPY_NATIVE_ORDER = {
+    ("src/tier1/legacy_passes.rs", "Tier1BitplaneState::try_duplicate"): (
+        "width:self.width", "height:self.height", "bitplane:self.bitplane", "significant_before:",
+        "copy_values(&self.significant_before)", "part2_nested_flags(before,_role,_legacy,false)", "part2_nested_bitplane_first_error(", "copied?",
+        "significance_visited:", "copy_values(&self.significance_visited)", "part2_nested_flags(before,_role,_legacy,true)", "part2_nested_bitplane_observed(", "copied?",
+        "significance_propagation_complete:self.significance_propagation_complete", "magnitude_refinement_complete:self.magnitude_refinement_complete", "cleanup_complete:self.cleanup_complete",
+    ),
+    ("src/tier1/contributions.rs", "LegacySegmentState::try_duplicate"): (
+        "plane:", "self.plane.try_duplicate_raw(role,false,true)", "part2_nested_legacy_plane_error(", "copied?",
+        "next_pass:self.next_pass", "bitplane:self.bitplane", "bitplane_state:", "try_duplicate_bitplane(&self.bitplane_state,role,true)",
+        "part2_nested_legacy_flags_error(", "copied?", "mq_context_state:self.mq_context_state", "decoded_bytes:self.decoded_bytes",
+        "input:", "copy_values(&self.input)", "Part2NestedCopyOwner::Input {source:before,role}", "part2_nested_legacy_observed(", "copied?", "passes:self.passes",
     ),
 }
 _ROLLBACK_OWNER_TESTS = {
@@ -13787,7 +13847,7 @@ def validate_normative_coverage(
                 if not _TIER1_INITIAL_TESTS.issubset({(ref["path"], ref["symbol"]) for ref in entry["test_refs"]}):
                     raise ValueError("initial Tier1 storage requires bounded refusal/restore/zero/ordinary-policy/row-owner/real-public controls")
     if ids & _HT_BYTE_COPY_ENTRIES:
-        for (relative, symbol), fragments in _DECODER_PLANE_COPY_GUARDS.items():
+        for (relative, symbol), fragments in {**_DECODER_PLANE_COPY_GUARDS, **_DECODER_NESTED_COPY_GUARDS}.items():
             path = (ROOT / relative).resolve()
             text = source_text(path)
             body = _coverage_spec_function_body(text, symbol)
@@ -13801,8 +13861,11 @@ def validate_normative_coverage(
         raw_copy = _coverage_function_body(source_text(raw_path), function_header(raw_path, "CodeBlockPlane::try_duplicate_raw"))
         raw_body = """Ok(Self {width:self.width,height:self.height,coefficients:{
             let copied=crate::allocation::copy_values(&self.coefficients);
-            #[cfg(verus_keep_ghost)] proof!{crate::specs::part2_decoder_plane_observed(code_block_plane_view(self),_role,_cleanup,
-                match copied{Err(error)=>Err(error),Ok(_)=>Ok(())});}
+            #[cfg(verus_keep_ghost)] proof!{
+                let result=match copied{Err(error)=>Err(error),Ok(_)=>Ok(())};
+                if _legacy{crate::specs::part2_nested_plane_observed(code_block_plane_view(self),_role,result);}
+                else{crate::specs::part2_decoder_plane_observed(code_block_plane_view(self),_role,_cleanup,result);}
+            }
             copied?
         },})"""
         if raw_copy is None or "".join(raw_copy.split()) != "".join(raw_body.split()):
@@ -13811,12 +13874,26 @@ def validate_normative_coverage(
         if raw_clone is None or "".join(raw_clone.split()) != "".join(
                 "Self {width:self.width,height:self.height,coefficients:self.coefficients.clone(),}".split()):
             raise ValueError("decoder plane copies must preserve the original public infallible raw Clone")
+        for relative, symbol, original in (
+            ("src/tier1/legacy_passes.rs", "Tier1BitplaneState::clone", """Self {
+                width:self.width,height:self.height,bitplane:self.bitplane,significant_before:self.significant_before.clone(),
+                significance_visited:self.significance_visited.clone(),significance_propagation_complete:self.significance_propagation_complete,
+                magnitude_refinement_complete:self.magnitude_refinement_complete,cleanup_complete:self.cleanup_complete,}"""),
+            ("src/tier1/contributions.rs", "LegacySegmentState::clone", """Self {
+                plane:self.plane.clone(),next_pass:self.next_pass,bitplane:self.bitplane,bitplane_state:self.bitplane_state.clone(),
+                mq_context_state:self.mq_context_state,reset_contexts_before_mq:self.reset_contexts_before_mq,
+                decoded_segments:self.decoded_segments,decoded_bytes:self.decoded_bytes,input:self.input.clone(),passes:self.passes,}"""),
+        ):
+            path = (ROOT / relative).resolve()
+            body = _coverage_function_body(source_text(path), function_header(path, symbol))
+            if body is None or "".join(body.split()) != "".join(original.split()):
+                raise ValueError("decoder nested copies must preserve the original infallible Clone fields")
         for (relative, symbol), fragments in _HT_BYTE_COPY_GUARDS.items():
             body = _coverage_spec_function_body(source_text((ROOT / relative).resolve()), symbol)
             compact = "".join(body.split()) if body is not None else ""
             if any("".join(fragment.split()) not in compact for fragment in fragments):
                 raise ValueError("HT byte-copy storage requires distinct real roles/sources/counts, exact cleared/rollback state and ordered response/tail binds")
-        for (relative, symbol), fragments in _HT_BYTE_COPY_NATIVE_ORDER.items():
+        for (relative, symbol), fragments in {**_HT_BYTE_COPY_NATIVE_ORDER, **_DECODER_NESTED_COPY_NATIVE_ORDER}.items():
             path = (ROOT / relative).resolve()
             body = _coverage_function_body(source_text(path), function_header(path, symbol))
             compact = "".join(body.split()) if body is not None else ""
@@ -13850,6 +13927,8 @@ def validate_normative_coverage(
                 raise ValueError("HT byte-copy storage requires bounded staging/replay/retention/empty/error/real-public restoration controls")
             if not _DECODER_PLANE_COPY_TESTS.issubset({(ref["path"], ref["symbol"]) for ref in entry["test_refs"]}):
                 raise ValueError("decoder plane copies require bounded raw/empty/first-later/byte-order/legacy/real-public restoration controls")
+            if not _DECODER_NESTED_COPY_TESTS.issubset({(ref["path"], ref["symbol"]) for ref in entry["test_refs"]}):
+                raise ValueError("decoder nested copies require bounded raw/empty/first-later/legacy/public/automatic restoration controls")
     if ids & _TAG_COPY_ENTRIES:
         owner_source = source_text((ROOT / "specs/cold_rollback_snapshot.rs").resolve())
         for symbol, fragments in _ROLLBACK_OWNER_GUARDS.items():

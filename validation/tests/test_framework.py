@@ -8305,12 +8305,12 @@ class FrameworkTests(WorkingFiles):
             ("specs/cold_decoder_planes.rs", "part2_decoder_plane_run", "calls.drop_first()", "calls"),
             ("specs/cold_decoder_planes.rs", "part2_decoder_cleanup_run", "Ok(None),calls", "Ok(None),calls.drop_first()"),
             ("specs/cold_ht_bytes.rs", "part2_ht_duplicate_run", "before.plane,role,false", "before.plane,role,true"),
-            ("specs/cold_ht_bytes.rs", "part2_ht_duplicate_after_primary", "before.ht_cleanup_plane", "None"),
+            ("specs/cold_ht_bytes.rs", "part2_ht_duplicate_after_legacy", "before.ht_cleanup_plane", "None"),
             ("src/tier1/state.rs", "CodeBlockPlane::try_duplicate_raw", "copy_values(&self.coefficients)", "copy_values(&[])"),
             ("src/tier1/state.rs", "CodeBlockPlane::try_duplicate_raw", "width: self.width", "width: 1"),
             ("src/tier1/state.rs", "CodeBlockPlane::clone", "self.coefficients.clone()", "Vec::new()"),
-            ("src/tier1/contributions.rs", "Tier1CodeBlockDecoder::try_duplicate", "self.plane.try_duplicate_raw(role, false)", "self.plane.try_duplicate_raw(role, true)"),
-            ("src/tier1/contributions.rs", "Tier1CodeBlockDecoder::try_duplicate", "source.try_duplicate_raw(role, true)", "source.try_duplicate_raw(role, false)"),
+            ("src/tier1/contributions.rs", "Tier1CodeBlockDecoder::try_duplicate", "self.plane.try_duplicate_raw(role, false, false)", "self.plane.try_duplicate_raw(role, true, false)"),
+            ("src/tier1/contributions.rs", "Tier1CodeBlockDecoder::try_duplicate", "source.try_duplicate_raw(role, true, false)", "source.try_duplicate_raw(role, false, false)"),
         )
         for relative, symbol, before, after in cases:
             source = framework.ROOT / relative
@@ -8333,6 +8333,57 @@ class FrameworkTests(WorkingFiles):
             ref for ref in entry["test_refs"] if (ref["path"], ref["symbol"]) not in framework._DECODER_PLANE_COPY_TESTS
         ]
         with self.assertRaisesRegex(ValueError, "decoder plane copies require bounded"):
+            framework.validate_normative_coverage(missing)
+
+    def test_inventory_decoder_nested_copies_require_raw_owner_counts_paths_sources_and_field_order(self):
+        coverage = json.loads((framework.VALIDATION / "normative-coverage.json").read_text())
+        entry = next(item for item in coverage["requirements"] if item["id"] == framework._HT_BYTE_COPY_ENTRY)
+        data = dict(coverage, requirements=[entry])
+        self.assertEqual(framework.validate_normative_coverage(data)["status"], "passed")
+        read_text = Path.read_text
+        cases = (
+            ("specs/cold_decoder_nested.rs", "part2_nested_owner_count", "source.coefficients.len()", "source.width as nat * source.height as nat"),
+            ("specs/cold_decoder_nested.rs", "part2_nested_owner_count", "source.significance_visited.len()", "source.significant_before.len()"),
+            ("specs/cold_decoder_nested.rs", "part2_nested_owner_count", "source.input.len()", "1"),
+            ("specs/cold_decoder_nested.rs", "part2_nested_owner_run", "count==0", "count==1"),
+            ("specs/cold_decoder_nested.rs", "part2_nested_owner_run", "NestedCopy", "RefinementBytes"),
+            ("specs/cold_decoder_nested.rs", "part2_nested_owner_run", "actual!=owner", "false"),
+            ("specs/cold_decoder_nested.rs", "part2_nested_owner_run", "elements!=count", "elements!=1"),
+            ("specs/cold_decoder_nested.rs", "part2_nested_owner_run", "calls.drop_first()", "calls"),
+            ("specs/cold_decoder_nested.rs", "part2_nested_flags", "Some(source.significant_before)", "None"),
+            ("specs/cold_decoder_nested.rs", "part2_nested_bitplane_run", "legacy,false),calls", "legacy,true),calls"),
+            ("specs/cold_decoder_nested.rs", "part2_nested_option_run", "Ok(None),calls", "Ok(None),calls.drop_first()"),
+            ("specs/cold_decoder_nested.rs", "part2_nested_legacy_run", "source.plane", "supplied_plane"),
+            ("specs/cold_decoder_nested.rs", "part2_nested_legacy_after_plane", "source.bitplane_state,role,true", "source.bitplane_state,role,false"),
+            ("specs/cold_ht_bytes.rs", "part2_ht_duplicate_after_primary", "before.bitplane_state", "None"),
+            ("specs/cold_ht_bytes.rs", "part2_ht_duplicate_after_bitplane", "before.legacy_segment", "None"),
+            ("src/tier1/legacy_passes.rs", "Tier1BitplaneState::try_duplicate", "copy_values(&self.significance_visited)", "copy_values(&self.significant_before)"),
+            ("src/tier1/contributions.rs", "LegacySegmentState::try_duplicate", "try_duplicate_raw(role, false, true)", "try_duplicate_raw(role, false, false)"),
+            ("src/tier1/contributions.rs", "LegacySegmentState::try_duplicate", "copy_values(&self.input)", "copy_values(&[])"),
+            ("src/tier1/legacy_passes.rs", "Tier1BitplaneState::clone", "self.significant_before.clone()", "Vec::new()"),
+            ("src/tier1/contributions.rs", "LegacySegmentState::clone", "self.input.clone()", "Vec::new()"),
+        )
+        for relative, symbol, before, after in cases:
+            source = framework.ROOT / relative
+            original = source.read_text()
+            body = (framework._coverage_function_body(original, framework._coverage_function_header(original, symbol))
+                    if relative.startswith("src/") else framework._coverage_spec_function_body(original, symbol))
+            pattern = re.escape(before).replace(r"\ ", r"\s*")
+            changed_body, count = re.subn(pattern, lambda _: after, body, count=1)
+            self.assertEqual(count, 1, (symbol, before))
+            changed = original.replace(body, changed_body, 1)
+
+            def altered(path, *args, **kwargs):
+                return changed if path == source else read_text(path, *args, **kwargs)
+
+            with self.subTest(symbol=symbol, before=before), mock.patch.object(Path, "read_text", altered), \
+                    self.assertRaisesRegex(ValueError, "decoder plane copies|decoder nested copies|HT byte-copy storage"):
+                framework.validate_normative_coverage(data)
+        missing = copy.deepcopy(data)
+        missing["requirements"][0]["test_refs"] = [
+            ref for ref in entry["test_refs"] if (ref["path"], ref["symbol"]) not in framework._DECODER_NESTED_COPY_TESTS
+        ]
+        with self.assertRaisesRegex(ValueError, "decoder nested copies require bounded"):
             framework.validate_normative_coverage(missing)
 
     def test_inventory_rollback_snapshot_owners_require_real_roles_counts_and_partial_owner_order(self):
@@ -8990,6 +9041,9 @@ class FrameworkTests(WorkingFiles):
                     ]
                     isolated["test_refs"] += [
                         {"path": path, "symbol": symbol} for path, symbol in sorted(framework._DECODER_PLANE_COPY_TESTS)
+                    ]
+                    isolated["test_refs"] += [
+                        {"path": path, "symbol": symbol} for path, symbol in sorted(framework._DECODER_NESTED_COPY_TESTS)
                     ]
                 if isolated["id"] in framework._TAG_COPY_ENTRIES:
                     isolated["test_refs"] += [

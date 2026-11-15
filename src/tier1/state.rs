@@ -349,13 +349,15 @@ impl Clone for CodeBlockPlane {
 
 impl CodeBlockPlane {
     #[cfg_attr(verus_keep_ghost, verus_spec(result =>
-        ensures crate::specs::part2_decoder_plane_result(code_block_plane_view(self),_role,_cleanup,code_block_plane_outcome(result)),
+        ensures if _legacy{crate::specs::part2_tier1_storage_framed(|calls|crate::specs::part2_nested_plane_run(code_block_plane_view(self),_role,calls),code_block_plane_outcome(result))}
+            else{crate::specs::part2_decoder_plane_result(code_block_plane_view(self),_role,_cleanup,code_block_plane_outcome(result))},
             match result{Err(error)=>error==DecodeError::AllocationFailed,Ok(value)=>code_block_plane_view(&value)==code_block_plane_view(self)},
     ))]
     pub(super) fn try_duplicate_raw(
         &self,
         _role: super::HtRefinementCopyRole,
         _cleanup: bool,
+        _legacy: bool,
     ) -> Result<Self, DecodeError> {
         Ok(Self {
             width: self.width,
@@ -363,8 +365,11 @@ impl CodeBlockPlane {
             coefficients: {
                 let copied = crate::allocation::copy_values(&self.coefficients);
                 #[cfg(verus_keep_ghost)]
-                proof! {crate::specs::part2_decoder_plane_observed(code_block_plane_view(self),_role,_cleanup,
-                match copied{Err(error)=>Err(error),Ok(_)=>Ok(())});}
+                proof! {
+                    let result=match copied{Err(error)=>Err(error),Ok(_)=>Ok(())};
+                    if _legacy{crate::specs::part2_nested_plane_observed(code_block_plane_view(self),_role,result);}
+                    else{crate::specs::part2_decoder_plane_observed(code_block_plane_view(self),_role,_cleanup,result);}
+                }
                 copied?
             },
         })

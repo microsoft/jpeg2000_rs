@@ -35,6 +35,47 @@ impl Clone for LegacySegmentState {
 }
 
 impl LegacySegmentState {
+    #[cfg_attr(verus_keep_ghost, verus_spec(result =>
+        ensures crate::specs::part2_nested_legacy_result(legacy_segment_view(self),role,super::legacy_segment_outcome(result)),
+            match result{Err(error)=>error==DecodeError::AllocationFailed,Ok(value)=>super::legacy_segment_outcome(Ok(value))==Ok(legacy_segment_view(self))},
+    ))]
+    fn try_duplicate(&self, role: super::HtRefinementCopyRole) -> Result<Self, DecodeError> {
+        #[cfg(verus_keep_ghost)]
+        proof_decl! {let ghost before=legacy_segment_view(self);}
+        Ok(Self {
+            plane: {
+                let copied = self.plane.try_duplicate_raw(role, false, true);
+                #[cfg(verus_keep_ghost)]
+                proof! {if let Err(error)=copied{crate::specs::part2_nested_legacy_plane_error(before,role,error);}}
+                copied?
+            },
+            next_pass: self.next_pass,
+            bitplane: self.bitplane,
+            bitplane_state: {
+                let copied =
+                    super::legacy_passes::try_duplicate_bitplane(&self.bitplane_state, role, true);
+                #[cfg(verus_keep_ghost)]
+                proof! {if let Err(error)=copied{crate::specs::part2_nested_legacy_flags_error(before,role,error);}}
+                copied?
+            },
+            mq_context_state: self.mq_context_state,
+            reset_contexts_before_mq: self.reset_contexts_before_mq,
+            decoded_segments: self.decoded_segments,
+            decoded_bytes: self.decoded_bytes,
+            input: {
+                let copied = crate::allocation::copy_values(&self.input);
+                #[cfg(verus_keep_ghost)]
+                proof! {
+                    let result=match copied{Err(error)=>Err(error),Ok(_)=>Ok(())};
+                    crate::specs::part2_nested_owner_observed(crate::specs::Part2NestedCopyOwner::Input {source:before,role},result);
+                    crate::specs::part2_nested_legacy_observed(before,role,result);
+                }
+                copied?
+            },
+            passes: self.passes,
+        })
+    }
+
     #[cfg_attr(verus_keep_ghost, verus_spec(
         ensures legacy_segment_view(final(self)) == crate::specs::part1_legacy_append(
             legacy_segment_view(old(self)), input@, passes),
@@ -45,6 +86,32 @@ impl LegacySegmentState {
         #[cfg(verus_keep_ghost)]
         proof! {
             assert(self.input@ =~= legacy_segment_view(old(self)).input + input@);
+        }
+    }
+}
+
+#[cfg_attr(verus_keep_ghost, verus_spec(result =>
+    ensures crate::specs::part2_nested_legacy_option_result(super::legacy_segment_option_view(source),role,super::legacy_segment_option_outcome(result)),
+        match result{Err(error)=>error==DecodeError::AllocationFailed,Ok(value)=>super::legacy_segment_option_view(&value)==super::legacy_segment_option_view(source)},
+))]
+fn try_duplicate_legacy_segment(
+    source: &Option<LegacySegmentState>,
+    role: super::HtRefinementCopyRole,
+) -> Result<Option<LegacySegmentState>, DecodeError> {
+    match source.as_ref() {
+        None => {
+            #[cfg(verus_keep_ghost)]
+            proof! {crate::specs::part2_nested_option_none(|value,rest|crate::specs::part2_nested_legacy_run(value,role,rest));}
+            Ok(None)
+        }
+        Some(value) => {
+            let copied = value.try_duplicate(role);
+            #[cfg(verus_keep_ghost)]
+            proof! {
+                crate::specs::part2_nested_legacy_frames(legacy_segment_view(value),role,super::legacy_segment_outcome(copied));
+                crate::specs::part2_nested_option_observed(legacy_segment_view(value),|source,rest|crate::specs::part2_nested_legacy_run(source,role,rest),super::legacy_segment_outcome(copied));
+            }
+            Ok(Some(copied?))
         }
     }
 }
@@ -95,7 +162,7 @@ impl Tier1CodeBlockDecoder {
         proof_decl! {let ghost before=tier1_decoder_state(self);}
         Ok(Self {
             plane: {
-                let copied = self.plane.try_duplicate_raw(role, false);
+                let copied = self.plane.try_duplicate_raw(role, false, false);
                 #[cfg(verus_keep_ghost)]
                 proof! {if let Err(error)=copied{crate::specs::part2_ht_duplicate_primary_error(before,role,error);}}
                 copied?
@@ -106,12 +173,23 @@ impl Tier1CodeBlockDecoder {
             next_pass: self.next_pass,
             bitplane: self.bitplane,
             zero_bitplanes: self.zero_bitplanes,
-            bitplane_state: self.bitplane_state.clone(),
+            bitplane_state: {
+                let copied =
+                    super::legacy_passes::try_duplicate_bitplane(&self.bitplane_state, role, false);
+                #[cfg(verus_keep_ghost)]
+                proof! {if let Err(error)=copied{crate::specs::part2_ht_duplicate_bitplane_error(before,role,error);}}
+                copied?
+            },
             mq_context_state: self.mq_context_state,
             reset_contexts_before_mq: self.reset_contexts_before_mq,
             decoded_segments: self.decoded_segments,
             decoded_bytes: self.decoded_bytes,
-            legacy_segment: self.legacy_segment.clone(),
+            legacy_segment: {
+                let copied = try_duplicate_legacy_segment(&self.legacy_segment, role);
+                #[cfg(verus_keep_ghost)]
+                proof! {if let Err(error)=copied{crate::specs::part2_ht_duplicate_legacy_error(before,role,error);}}
+                copied?
+            },
             legacy_decode_work: self.legacy_decode_work,
             ht_cleanup_plane: match self.ht_cleanup_plane.as_ref() {
                 None => {
@@ -120,7 +198,7 @@ impl Tier1CodeBlockDecoder {
                     None
                 }
                 Some(source) => {
-                    let copied = source.try_duplicate_raw(role, true);
+                    let copied = source.try_duplicate_raw(role, true, false);
                     #[cfg(verus_keep_ghost)]
                     proof! {
                         crate::specs::part2_decoder_cleanup_observed(code_block_plane_view(source),role,super::code_block_plane_outcome(copied));

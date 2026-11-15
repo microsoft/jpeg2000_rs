@@ -1,6 +1,38 @@
 use super::*;
 
 #[test]
+fn decoder_nested_storage_real_legacy_retention_refusals_precede_body_error_and_restore() {
+    let limits = ResourceLimits::default();
+    let mut decoder =
+        Tier1CodeBlockDecoder::new(1, 1, 2, SubbandOrientation::Ll, Tier1CodingStyle::default())
+            .unwrap();
+    let header = one_ff_legacy_contribution();
+    decode_code_block_contribution_body(&mut decoder, &header, &[0xff], &limits).unwrap();
+    let before = format!("{decoder:?}");
+    let expected = decode_code_block_contribution_body(&mut decoder, &header, &[], &limits);
+    assert!(matches!(expected, Err(DecodeError::MalformedInput { .. })));
+    assert_eq!(format!("{decoder:?}"), before);
+    // This completed cleanup retains the legacy plane/input, not a current bitplane state.
+    for after in [1, 2] {
+        assert_eq!(
+            crate::allocation::with_refusal(after, || decode_code_block_contribution_body(
+                &mut decoder,
+                &header,
+                &[],
+                &limits
+            )),
+            Err(DecodeError::AllocationFailed)
+        );
+        assert_eq!(format!("{decoder:?}"), before);
+        assert_eq!(
+            decode_code_block_contribution_body(&mut decoder, &header, &[], &limits),
+            expected
+        );
+        assert_eq!(format!("{decoder:?}"), before);
+    }
+}
+
+#[test]
 fn decoder_plane_storage_real_legacy_packet_transaction_refusal_keeps_decoder_then_recovers() {
     let limits = ResourceLimits::default();
     let header = one_ff_legacy_contribution();

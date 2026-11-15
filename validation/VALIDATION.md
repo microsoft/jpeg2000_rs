@@ -1288,8 +1288,8 @@ responses retain their own width/height/role/count, while refinement-byte
 responses bind actual source bytes, count and distinct HT-stage/packet-stage/
 replay/retention roles. They cannot alias each other. Empty bytes consume no
 request. Public infallible decoder Clone remains unchanged; private checked
-duplication retains every original field evaluation, including earlier
-unrelated entropy/legacy clones and later scalar records.
+duplication retains every original field evaluation, including fixed context
+records and later scalar fields.
 Its primary plane and optional cleanup plane now copy their coefficient owners
 fallibly at their original fields, before the existing checked HT byte copy.
 These are raw copies: width, height and every coefficient field are preserved,
@@ -1303,7 +1303,29 @@ public programs. Public plane and decoder `Clone` remain unchanged. Bounded
 controls cover raw/empty owners, both staging roles, primary/optional/byte
 ordering, legacy packet rollback and real HT raw/selected/JPH restoration;
 existing two-layer automatic HT controls still produce the actual images.
-Bitplane/legacy owners, other clones, existing growth and later buffers remain
+The remaining nested owners in that same private checked duplicate are now
+fallible as well: current bitplane `significant_before` then
+`significance_visited`, followed at the original legacy field by its raw plane,
+optional bitplane's two flag owners, then retained input bytes. These flag
+elements are allocation-free Copy bools; raw coefficients and bytes reuse the
+qualified raw-plane/Copy helpers. Width, height, bitplane, flags, raw vectors,
+scalar counters, MQ context and completion records remain exact. No geometry,
+route, bitplane or shape admission is added to a copy, including malformed raw
+states or unequal flag lengths.
+Distinct `NestedCopy` owner contexts bind actual source records, staging role,
+current-versus-legacy flags, before-versus-visited owner, prior copied before
+flags and actual native lengths/responses. Legacy plane and input contexts
+cannot alias primary/cleanup/HT-byte responses. None and empty owners consume no
+request; arrays, scalar/MQ records and borrowed slices add none. Actual child
+Results, earlier copied owners, first errors and unused tails bind through the
+existing checked decoder/packet/tile/automatic/public state programs and checked
+normal projections, without supplied successful results or new caller premises.
+All public infallible Clone implementations remain unchanged. Bounded controls
+cover raw/unequal/empty/None states, all nested first/later refusal frontiers,
+restoration and original ordinary-error priority, real retained legacy packet
+rollback, two-layer raw/selected/recovery/automatic output and existing HT paths.
+Other callers' clones (including legacy snapshot/restore), unrelated
+decoder/precinct collections, existing growth/appending and later buffers remain
 separate. As for bytes, fresh Copy reserve amortization need not match public
 Clone capacity; sequence models establish no physical-capacity theorem.
 Replay copying remains after original route/pass/cleanup/byte admission but

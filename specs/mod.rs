@@ -118,6 +118,8 @@ mod cold_ht_decoder;
 pub use cold_ht_bytes::*;
 mod cold_decoder_planes;
 pub use cold_decoder_planes::*;
+mod cold_decoder_nested;
+pub use cold_decoder_nested::*;
 mod replay_finish;
 pub use cold_ht_decoder::*;
 pub use replay_finish::*;

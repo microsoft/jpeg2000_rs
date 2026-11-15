@@ -1,5 +1,129 @@
 use super::*;
 
+fn nested_copy_raw_flags() -> Tier1BitplaneState {
+    Tier1BitplaneState {
+        width: 0,
+        height: u16::MAX,
+        bitplane: u16::MAX,
+        significant_before: vec![true, false, true],
+        significance_visited: vec![false],
+        significance_propagation_complete: true,
+        magnitude_refinement_complete: false,
+        cleanup_complete: true,
+    }
+}
+
+#[test]
+fn decoder_nested_storage_raw_flags_first_later_empty_and_clone_preserve_every_field() {
+    let mut source = nested_copy_raw_flags();
+    let before = source.clone();
+    for role in [
+        HtRefinementCopyRole::HtStaging,
+        HtRefinementCopyRole::PacketStaging,
+    ] {
+        for legacy in [false, true] {
+            for after in [0, 1] {
+                assert_eq!(
+                    crate::allocation::with_refusal(after, || source.try_duplicate(role, legacy)),
+                    Err(DecodeError::AllocationFailed)
+                );
+                assert_eq!(source, before);
+                assert_eq!(source.try_duplicate(role, legacy).unwrap(), before);
+            }
+        }
+    }
+    source.significant_before.clear();
+    assert_eq!(
+        crate::allocation::with_refusal(0, || source
+            .try_duplicate(HtRefinementCopyRole::PacketStaging, true)),
+        Err(DecodeError::AllocationFailed)
+    );
+    source.significance_visited.clear();
+    crate::allocation::with_refusal(0, || {
+        assert_eq!(source.clone(), source);
+        assert_eq!(
+            source
+                .try_duplicate(HtRefinementCopyRole::HtStaging, false)
+                .unwrap(),
+            source
+        );
+        assert_eq!(
+            crate::allocation::copy_values(&[1_u8]),
+            Err(DecodeError::AllocationFailed)
+        );
+    });
+}
+
+#[test]
+fn decoder_nested_storage_primary_flags_legacy_plane_flags_input_cleanup_byte_order_restore() {
+    let mut source = retained_refinement_decoder();
+    source.bitplane_state = Some(nested_copy_raw_flags());
+    let legacy = source.legacy_segment.as_mut().unwrap();
+    legacy.plane.width = 0;
+    legacy.plane.height = u16::MAX;
+    legacy.bitplane_state = Some(nested_copy_raw_flags());
+    source.ht_refinement_data = vec![7];
+    let before = format!("{source:?}");
+    for role in [
+        HtRefinementCopyRole::HtStaging,
+        HtRefinementCopyRole::PacketStaging,
+    ] {
+        for after in [0, 1, 2, 3, 4, 5, 6, 7, 8] {
+            assert!(matches!(
+                crate::allocation::with_refusal(after, || source.try_duplicate(role)),
+                Err(DecodeError::AllocationFailed)
+            ));
+            assert_eq!(format!("{source:?}"), before);
+            assert_eq!(format!("{:?}", source.try_duplicate(role).unwrap()), before);
+        }
+    }
+    source.plane.coefficients.clear();
+    source
+        .ht_cleanup_plane
+        .as_mut()
+        .unwrap()
+        .coefficients
+        .clear();
+    source.ht_refinement_data.clear();
+    for flags in [
+        &mut source.bitplane_state,
+        &mut source.legacy_segment.as_mut().unwrap().bitplane_state,
+    ] {
+        let flags = flags.as_mut().unwrap();
+        flags.significant_before.clear();
+        flags.significance_visited.clear();
+    }
+    let legacy = source.legacy_segment.as_mut().unwrap();
+    legacy.plane.coefficients.clear();
+    legacy.input.clear();
+    crate::allocation::with_refusal(0, || {
+        assert_eq!(
+            format!(
+                "{:?}",
+                source
+                    .try_duplicate(HtRefinementCopyRole::PacketStaging)
+                    .unwrap()
+            ),
+            format!("{source:?}")
+        );
+        source.bitplane_state = None;
+        source.legacy_segment = None;
+        assert_eq!(
+            format!(
+                "{:?}",
+                source
+                    .try_duplicate(HtRefinementCopyRole::HtStaging)
+                    .unwrap()
+            ),
+            format!("{source:?}")
+        );
+        assert_eq!(
+            crate::allocation::copy_values(&[1_u8]),
+            Err(DecodeError::AllocationFailed)
+        );
+    });
+}
+
 #[test]
 fn decoder_plane_storage_raw_sources_copy_without_dimension_admission_or_false_empty_event() {
     let source = CodeBlockPlane {
@@ -17,14 +141,17 @@ fn decoder_plane_storage_raw_sources_copy_without_dimension_admission_or_false_e
     let before = source.clone();
     for cleanup in [false, true] {
         assert_eq!(
-            crate::allocation::with_refusal(0, || source
-                .try_duplicate_raw(HtRefinementCopyRole::PacketStaging, cleanup)),
+            crate::allocation::with_refusal(0, || source.try_duplicate_raw(
+                HtRefinementCopyRole::PacketStaging,
+                cleanup,
+                false
+            )),
             Err(DecodeError::AllocationFailed)
         );
         assert_eq!(source, before);
         assert_eq!(
             source
-                .try_duplicate_raw(HtRefinementCopyRole::PacketStaging, cleanup)
+                .try_duplicate_raw(HtRefinementCopyRole::PacketStaging, cleanup, false)
                 .unwrap(),
             before
         );
@@ -37,13 +164,13 @@ fn decoder_plane_storage_raw_sources_copy_without_dimension_admission_or_false_e
     crate::allocation::with_refusal(0, || {
         assert_eq!(
             empty
-                .try_duplicate_raw(HtRefinementCopyRole::HtStaging, false)
+                .try_duplicate_raw(HtRefinementCopyRole::HtStaging, false, false)
                 .unwrap(),
             empty
         );
         assert_eq!(source.clone(), before);
         assert_eq!(
-            source.try_duplicate_raw(HtRefinementCopyRole::HtStaging, false),
+            source.try_duplicate_raw(HtRefinementCopyRole::HtStaging, false, false),
             Err(DecodeError::AllocationFailed)
         );
     });
@@ -60,7 +187,7 @@ fn decoder_plane_storage_primary_optional_cleanup_and_byte_order_restore_all_fie
         HtRefinementCopyRole::HtStaging,
         HtRefinementCopyRole::PacketStaging,
     ] {
-        for after in [0, 1, 2] {
+        for after in [0, 3, 4] {
             assert!(matches!(
                 crate::allocation::with_refusal(after, || source.try_duplicate(role)),
                 Err(DecodeError::AllocationFailed)
@@ -77,7 +204,7 @@ fn decoder_plane_storage_primary_optional_cleanup_and_byte_order_restore_all_fie
         .coefficients
         .clear();
     source.ht_refinement_data.clear();
-    crate::allocation::with_refusal(0, || {
+    crate::allocation::with_refusal(4, || {
         assert_eq!(
             format!(
                 "{:?}",
@@ -114,13 +241,13 @@ fn ht_refinement_storage_checked_staging_copy_keeps_clone_fields_and_empty_front
         HtRefinementCopyRole::PacketStaging,
     ] {
         assert!(matches!(
-            crate::allocation::with_refusal(2, || source.try_duplicate(role)),
+            crate::allocation::with_refusal(4, || source.try_duplicate(role)),
             Err(DecodeError::AllocationFailed)
         ));
         assert_eq!(format!("{source:?}"), before);
         assert_eq!(format!("{:?}", source.try_duplicate(role).unwrap()), before);
     }
-    crate::allocation::with_refusal(2, || {
+    crate::allocation::with_refusal(4, || {
         assert_eq!(format!("{:?}", source.clone()), before);
         assert!(matches!(
             source.try_duplicate(HtRefinementCopyRole::HtStaging),
@@ -128,7 +255,7 @@ fn ht_refinement_storage_checked_staging_copy_keeps_clone_fields_and_empty_front
         ));
     });
     source.ht_refinement_data.clear();
-    crate::allocation::with_refusal(2, || {
+    crate::allocation::with_refusal(4, || {
         assert_eq!(
             format!(
                 "{:?}",
