@@ -3347,6 +3347,109 @@
       ]
     },
     {
+      "id": "implementation-selected-raw-reconstruction",
+      "topic": "Selected raw reconstruction for PDF interpolation and genuine recovered tile geometry. Actual raw parsing, selection and layout reconstruction precede typed-domain NLT rejection and output-shape checks, retaining centered i64 fractions/overshoot, native tile/region/reduction grids and all first errors. No intermediate typed/clipped image, sample copy, retry or missing-pixel synthesis. Complete ordered cold and ordinary programs bind real child calls; coverage/lifetimes/conformance and unrelated PDF policies are not claimed.",
+      "implementation_refs": [
+        {"path": "src/decode/api.rs", "symbol": "decode_codestream_reconstructed_selected"},
+        {"path": "src/decode/pdf_present_tile.rs", "symbol": "decode_codestream_reconstructed_recover_present_tile_selected"},
+        {"path": "src/decode/execution.rs", "symbol": "decode_layout_selected"},
+        {"path": "src/decode/api.rs", "symbol": "validate_reconstruction_transforms"},
+        {"path": "src/decode/api.rs", "symbol": "validate_reconstructed_output_shape"}
+      ],
+      "spec_refs": [
+        {"path": "specs/selected_reconstruction.rs", "symbol": "part2_selected_reconstruction_result"},
+        {"path": "specs/selected_reconstruction.rs", "symbol": "part2_selected_reconstruction_run"},
+        {"path": "specs/selected_reconstruction.rs", "symbol": "part2_selected_reconstruction_value_run"},
+        {"path": "specs/selected_reconstruction.rs", "symbol": "part2_selected_reconstruction_layout_run"},
+        {"path": "specs/selected_reconstruction.rs", "symbol": "part2_selected_reconstruction_value"},
+        {"path": "specs/selected_reconstruction.rs", "symbol": "part2_selected_reconstruction_selected_value"}
+      ],
+      "contract_refs": [
+        {"path": "src/decode/api.rs", "symbol": "decode_codestream_reconstructed_selected"}
+      ],
+      "proof_refs": [
+        {"path": "specs/selected_reconstruction.rs", "symbol": "part2_selected_reconstruction_value_unfold"},
+        {"path": "specs/selected_reconstruction.rs", "symbol": "part2_selected_reconstruction_normal"},
+        {"path": "specs/selected_reconstruction.rs", "symbol": "part2_selected_reconstruction_parse_error"},
+        {"path": "specs/selected_reconstruction.rs", "symbol": "part2_selected_reconstruction_layout_error"},
+        {"path": "specs/selected_reconstruction.rs", "symbol": "part2_selected_reconstruction_value_frames"},
+        {"path": "specs/selected_reconstruction.rs", "symbol": "part2_selected_reconstruction_value_normal"}
+      ],
+      "test_refs": [
+        {"path": "src/decode/raw_typed_result_tests.rs", "symbol": "selected_reconstruction_preserves_fractional_headroom_tile_region_and_reduction"},
+        {"path": "src/decode/raw_typed_result_tests.rs", "symbol": "selected_reconstruction_keeps_invalid_selection_nlt_limits_and_refusal_errors"}
+      ]
+    },
+    {
+      "id": "implementation-pdf-sole-present-tile",
+      "topic": "Explicit sole-present-tile damaged-coverage recovery for full unbounded requests only. Actual preflight parts determine a sole tile; explicit tiles/regions keep ordinary selection semantics and absent tiles still fail. Actual raw/JP2 typed or centered child and real metadata guards determine samples, placement, reduction and first errors. Reports retain full source canvas metadata distinct from the genuine returned crop. Checked full intended-canvas wide-sample accounting uses actual final mapped component count, is conservative for subsampling and not a global live/peak allocation budget. No fabricated pixels, byte repair, native fallback, decoder retry, result bank or relaxed strict default; other policies and broad coverage/lifetime/normative qualification remain separate.",
+      "implementation_refs": [
+        {"path": "src/decode/pdf_present_tile.rs", "symbol": "decode_codestream_recover_present_tile_selected"},
+        {"path": "src/decode/pdf_present_tile.rs", "symbol": "decode_codestream_reconstructed_recover_present_tile_selected"},
+        {"path": "src/decode/pdf_present_tile.rs", "symbol": "decode_jp2_recover_present_tile_selected"},
+        {"path": "src/decode/pdf_present_tile.rs", "symbol": "decode_jp2_reconstructed_recover_present_tile_selected"},
+        {"path": "src/decode/pdf_present_tile.rs", "symbol": "automatic_tile"},
+        {"path": "src/decode/pdf_present_tile.rs", "symbol": "effective_selection"},
+        {"path": "src/decode/pdf_present_tile.rs", "symbol": "ceil_scale"},
+        {"path": "src/decode/pdf_present_tile.rs", "symbol": "canvas_sample_bytes"},
+        {"path": "src/decode/pdf_present_tile.rs", "symbol": "finish_report"},
+        {"path": "src/decode/raw_typed_result_tests.rs", "symbol": "pdf_present_tile_keeps_actual_extent_canvas_and_explicit_selection"},
+        {"path": "src/decode/raw_typed_result_tests.rs", "symbol": "pdf_present_tile_preserves_nonzero_placement_reduction_and_fractional_headroom"},
+        {"path": "src/decode/raw_typed_result_tests.rs", "symbol": "pdf_present_tile_retains_full_intended_canvas_limit_and_real_errors"}
+      ],
+      "spec_refs": [
+        {"path": "specs/pdf_present_tile.rs", "symbol": "part2_present_tile_index"},
+        {"path": "specs/pdf_present_tile.rs", "symbol": "part2_present_tile_effective"},
+        {"path": "specs/pdf_present_tile.rs", "symbol": "part2_present_ceil_scale"},
+        {"path": "specs/pdf_present_tile.rs", "symbol": "part2_present_canvas_bytes"},
+        {"path": "specs/pdf_present_tile.rs", "symbol": "part2_present_tile_report"},
+        {"path": "specs/pdf_present_tile.rs", "symbol": "part2_present_raw_typed_result"},
+        {"path": "specs/pdf_present_tile.rs", "symbol": "part2_present_raw_typed_run"},
+        {"path": "specs/pdf_present_tile.rs", "symbol": "part2_present_raw_typed_value"},
+        {"path": "specs/pdf_present_tile.rs", "symbol": "part2_present_raw_reconstructed_result"},
+        {"path": "specs/pdf_present_tile.rs", "symbol": "part2_present_raw_reconstructed_run"},
+        {"path": "specs/pdf_present_tile.rs", "symbol": "part2_present_raw_reconstructed_value"},
+        {"path": "specs/pdf_present_tile.rs", "symbol": "part2_present_jp2_typed_result"},
+        {"path": "specs/pdf_present_tile.rs", "symbol": "part2_present_jp2_typed_run"},
+        {"path": "specs/pdf_present_tile.rs", "symbol": "part2_present_jp2_typed_value"},
+        {"path": "specs/pdf_present_tile.rs", "symbol": "part2_present_jp2_reconstructed_result"},
+        {"path": "specs/pdf_present_tile.rs", "symbol": "part2_present_jp2_reconstructed_run"},
+        {"path": "specs/pdf_present_tile.rs", "symbol": "part2_present_jp2_reconstructed_value"}
+      ],
+      "contract_refs": [
+        {"path": "src/decode/pdf_present_tile.rs", "symbol": "decode_codestream_recover_present_tile_selected"},
+        {"path": "src/decode/pdf_present_tile.rs", "symbol": "decode_codestream_reconstructed_recover_present_tile_selected"},
+        {"path": "src/decode/pdf_present_tile.rs", "symbol": "decode_jp2_recover_present_tile_selected"},
+        {"path": "src/decode/pdf_present_tile.rs", "symbol": "decode_jp2_reconstructed_recover_present_tile_selected"},
+        {"path": "src/decode/pdf_present_tile.rs", "symbol": "automatic_tile"},
+        {"path": "src/decode/pdf_present_tile.rs", "symbol": "effective_selection"},
+        {"path": "src/decode/pdf_present_tile.rs", "symbol": "ceil_scale"},
+        {"path": "src/decode/pdf_present_tile.rs", "symbol": "canvas_sample_bytes"},
+        {"path": "src/decode/pdf_present_tile.rs", "symbol": "finish_report"}
+      ],
+      "proof_refs": [
+        {"path": "specs/pdf_present_tile.rs", "symbol": "part2_present_raw_value_unfold"},
+        {"path": "specs/pdf_present_tile.rs", "symbol": "part2_present_raw_normal"},
+        {"path": "specs/pdf_present_tile.rs", "symbol": "part2_present_raw_parse_error"},
+        {"path": "specs/pdf_present_tile.rs", "symbol": "part2_present_raw_choice_error"},
+        {"path": "specs/pdf_present_tile.rs", "symbol": "part2_present_raw_typed_actual"},
+        {"path": "specs/pdf_present_tile.rs", "symbol": "part2_present_raw_reconstructed_actual"},
+        {"path": "specs/pdf_present_tile.rs", "symbol": "part2_present_jp2_value_unfold"},
+        {"path": "specs/pdf_present_tile.rs", "symbol": "part2_present_jp2_normal"},
+        {"path": "specs/pdf_present_tile.rs", "symbol": "part2_present_jp2_inspection_error"},
+        {"path": "specs/pdf_present_tile.rs", "symbol": "part2_present_jp2_profile_error"},
+        {"path": "specs/pdf_present_tile.rs", "symbol": "part2_present_jp2_layout_error"},
+        {"path": "specs/pdf_present_tile.rs", "symbol": "part2_present_jp2_choice_error"},
+        {"path": "specs/pdf_present_tile.rs", "symbol": "part2_present_jp2_typed_actual"},
+        {"path": "specs/pdf_present_tile.rs", "symbol": "part2_present_jp2_reconstructed_actual"}
+      ],
+      "test_refs": [
+        {"path": "src/decode/raw_typed_result_tests.rs", "symbol": "pdf_present_tile_keeps_actual_extent_canvas_and_explicit_selection"},
+        {"path": "src/decode/raw_typed_result_tests.rs", "symbol": "pdf_present_tile_preserves_nonzero_placement_reduction_and_fractional_headroom"},
+        {"path": "src/decode/raw_typed_result_tests.rs", "symbol": "pdf_present_tile_retains_full_intended_canvas_limit_and_real_errors"}
+      ]
+    },
+    {
       "id": "part1-complete-native-raw-layout-result",
       "topic": "Complete actual raw-byte CodestreamLayout and CodestreamInfo Results, not parsed-header/layout admission: raw parser creation/input limit, actual main-header traversal/final reader, checked global tile count and limit, SOT, TLM/PLM/PPM selection, all inherited physical owners and original clones, real complete tile reader, ordered partial persistent commits/payload append, EOC/count/trailing errors, actual physical ROI iterator and full profile classification. Every Result error and all returned image/style/quantization/ROI/progression/MCT/extensions/profile/counters/consumed/source-payload fields compose from real input. Main traversal uses the actual pre-loop input length derived from the real prologue; no silent frame assumption. Public closed ghost models use checked unfolding lemmas, not external axioms. The real limit-error constructor has its complete typed return contract. A ghost-only shared sequence projection supports native selection without executing Vec-to-slice dereference in proof. All original native owners/scopes/clone/move/drop order remain; only an unused Copy-error closure argument is named for the specification frontend. Strict inventory binds all three actual complete contracts, raw model roots, full returned projections, real reader/counter/eight-state/payload suffix and terminal Results, primitive error constructor and actual decode consumers. Prior inventory meanings, producer relays and four unconditional owned handoff checks remain; exact guards recognize stronger ghost-only wrapper/ROI/length proofs. This is as-implemented raw layout, not independent selected-edition normative correspondence, full normalization/public pixels, general production cfg/erasure/lifetimes/coverage, official conformance or release qualification.",
       "implementation_refs": [
