@@ -6050,6 +6050,27 @@ class FrameworkTests(WorkingFiles):
             {framework._PRESENT_TILE_ENTRY}, framework._PRESENT_TILE_CONTRACTS, 9, isolate=False,
         )
 
+    def test_inventory_binds_selected_jp2_reconstruction_to_actual_input_selection(self):
+        self._assert_complete_packet_contract_bindings(
+            {framework._SELECTED_JP2_RECONSTRUCTION_ENTRY},
+            framework._SELECTED_JP2_RECONSTRUCTION_CONTRACTS, 1, isolate=False,
+        )
+
+    def test_inventory_selected_jp2_reconstruction_requires_run_and_normal_projection(self):
+        coverage = json.loads((framework.VALIDATION / "normative-coverage.json").read_text())
+        entry = next(item for item in coverage["requirements"]
+                     if item["id"] == framework._SELECTED_JP2_RECONSTRUCTION_ENTRY)
+        for field, symbol in (
+            ("spec_refs", "part2_selected_jp2_reconstruction_run"),
+            ("proof_refs", "part2_selected_jp2_reconstruction_normal"),
+        ):
+            changed = copy.deepcopy(entry)
+            changed[field] = [ref for ref in changed[field] if ref["symbol"] != symbol]
+            with self.subTest(field=field), self.assertRaisesRegex(
+                ValueError, "selected JP2 reconstruction Result|checked cold normal|complete cold run",
+            ):
+                framework.validate_normative_coverage(dict(coverage, requirements=[changed]))
+
     def test_inventory_present_tile_requires_all_program_runs_and_normal_projections(self):
         coverage = json.loads((framework.VALIDATION / "normative-coverage.json").read_text())
         entry = next(item for item in coverage["requirements"]
