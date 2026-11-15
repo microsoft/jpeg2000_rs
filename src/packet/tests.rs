@@ -1,6 +1,39 @@
 use super::*;
 
 #[test]
+fn ht_cleanup_scratch_storage_packet_first_later_rows_roll_back_full_decoder_and_restore() {
+    let limits = ResourceLimits::default();
+    let mut header = literal_empty_ht_contribution(1, 1);
+    header.data_length = 3;
+    header.segment_lengths[0] = 3;
+    let source = literal_ht_decoder(1);
+    let before = format!("{source:?}");
+    let mut expected = source.clone();
+    let result =
+        decode_code_block_contribution_body(&mut expected, &header, &[0, 0x63, 0], &limits)
+            .unwrap();
+    for after in [2, 3] {
+        let mut decoder = source.clone();
+        assert_eq!(
+            crate::allocation::with_refusal(after, || decode_code_block_contribution_body(
+                &mut decoder,
+                &header,
+                &[0, 0x63, 0],
+                &limits
+            )),
+            Err(DecodeError::AllocationFailed)
+        );
+        assert_eq!(format!("{decoder:?}"), before);
+        assert_eq!(
+            decode_code_block_contribution_body(&mut decoder, &header, &[0, 0x63, 0], &limits)
+                .unwrap(),
+            result
+        );
+        assert_eq!(format!("{decoder:?}"), format!("{expected:?}"));
+    }
+}
+
+#[test]
 fn bitplane_initial_storage_packet_legacy_first_later_refusal_keeps_decoder_then_recovers() {
     let limits = ResourceLimits::default();
     let header = one_ff_legacy_contribution();

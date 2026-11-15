@@ -6377,7 +6377,7 @@ fn tier1_plane_storage_real_ht_raw_selected_container_cleanup_restore() {
     let ftyp = container.windows(4).position(|p| p == b"ftyp").unwrap();
     container[ftyp + 4..ftyp + 8].copy_from_slice(b"jph ");
     container[ftyp + 12..ftyp + 16].copy_from_slice(b"jph ");
-    for after in [27, 28] {
+    for after in [27, 30] {
         assert!(matches!(
             crate::allocation::with_refusal(after, || decode_codestream(&bytes, &options)),
             Err(DecodeError::AllocationFailed)
@@ -6399,6 +6399,77 @@ fn tier1_plane_storage_real_ht_raw_selected_container_cleanup_restore() {
         expected
     );
     assert_eq!(decode_jph(&container, &options).unwrap(), expected);
+}
+
+#[test]
+fn ht_cleanup_scratch_storage_raw_selected_jph_rows_and_automatic_restore_real_image() {
+    let mut bytes = prepared_codestream(1, 1, 1, &[0, 0x10], &[0xe4, 0xfe, 0, 0x63, 0]);
+    let siz = bytes.windows(2).position(|p| p == [0xff, 0x51]).unwrap();
+    bytes[siz + 4..siz + 6].copy_from_slice(&0x4000_u16.to_be_bytes());
+    let cod = bytes.windows(2).position(|p| p == [0xff, 0x52]).unwrap();
+    bytes.splice(cod..cod, segment(0xff50, &[0, 2, 0, 0, 0, 8]));
+    let cod = bytes.windows(2).position(|p| p == [0xff, 0x52]).unwrap();
+    bytes[cod + 9] = 0;
+    bytes[cod + 12] = 0x40;
+    let options = DecodeOptions::default();
+    let selection = DecodeSelection::full_image();
+    let expected = decode_codestream(&bytes, &options).unwrap();
+    let mut jph = jp2_for_codestream(&bytes, 1, 1);
+    jph[20..24].copy_from_slice(b"jph ");
+    jph[28..32].copy_from_slice(b"jph ");
+    for after in [28, 29] {
+        assert_eq!(
+            crate::allocation::with_refusal(after, || decode_codestream(&bytes, &options))
+                .unwrap_err(),
+            DecodeError::AllocationFailed
+        );
+        assert_eq!(
+            crate::allocation::with_refusal(after + 1, || decode_codestream_selected(
+                &bytes, &options, &selection
+            ))
+            .unwrap_err(),
+            DecodeError::AllocationFailed
+        );
+        assert_eq!(
+            crate::allocation::with_refusal(after + 12, || decode_jph(&jph, &options)).unwrap_err(),
+            DecodeError::AllocationFailed
+        );
+    }
+    assert_eq!(decode_codestream(&bytes, &options).unwrap(), expected);
+    assert_eq!(
+        decode_codestream_selected(&bytes, &options, &selection).unwrap(),
+        expected
+    );
+    assert_eq!(decode_jph(&jph, &options).unwrap(), expected);
+    let limits = ResourceLimits::default();
+    let tile = bytes.windows(2).position(|p| p == [0xff, 0x90]).unwrap();
+    let packet = tile + 14;
+    let mut cache = crate::jpip::DatabinCache::new(limits);
+    for (class, source) in [
+        (6, &bytes[..tile]),
+        (2, &bytes[tile..packet]),
+        (0, &bytes[packet..bytes.len() - 2]),
+    ] {
+        let id = crate::jpip::DatabinId::new(class, 0, 0).unwrap();
+        cache
+            .insert(
+                crate::jpip::JpipFragment::new(id, 0, source.to_vec(), true, None, &limits)
+                    .unwrap(),
+            )
+            .unwrap();
+    }
+    let packets = crate::jpip::JpipPacketSelection::all_components();
+    for selected in [false, true] {
+        let mut decoder = crate::jpip::JpipAutomaticProgressiveDecoder::new(0);
+        let update = if selected {
+            decoder.update_selected(&cache, &options, &selection, &packets)
+        } else {
+            decoder.update(&cache, &options)
+        }
+        .unwrap();
+        assert_eq!(update.image(), Some(&expected));
+        assert_eq!(decoder.decoded_layers(), 1);
+    }
 }
 
 #[test]
@@ -6975,7 +7046,7 @@ fn ht_refinement_storage_raw_selected_jph_retention_refusal_and_exact_restore() 
     let mut jph = jp2_for_codestream(&bytes, 1, 1);
     jph[20..24].copy_from_slice(b"jph ");
     jph[28..32].copy_from_slice(b"jph ");
-    for after in [34, 35] {
+    for after in [36, 37] {
         assert!(matches!(
             crate::allocation::with_refusal(after, || decode_codestream(&bytes, &options)),
             Err(DecodeError::AllocationFailed)

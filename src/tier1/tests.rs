@@ -1,6 +1,136 @@
 use super::*;
 
 #[test]
+fn ht_cleanup_scratch_storage_raw_metadata_rows_first_later_and_exact_output_restore() {
+    let limits = ResourceLimits::default();
+    let mut plane = CodeBlockPlane::new(1, 2).unwrap();
+    plane.coefficients[0] = CoefficientState {
+        magnitude: 17,
+        magnitude_high: [1, 2, 3, 4, 5],
+        significant: true,
+        ..CoefficientState::default()
+    };
+    let before = plane.clone();
+    let cleanup = parse_ht_block_segments(&[0xfa, 2, 0], None, &limits)
+        .unwrap()
+        .cleanup();
+    let metadata = plane_metadata(1, 2, vec![plane_quad(0, 0, 3, 2)]);
+    let expected = reconstruct_ht_cleanup_plane(&plane, cleanup, &metadata, 2, 3, &limits).unwrap();
+    for after in [1, 2] {
+        assert_eq!(
+            crate::allocation::with_refusal(after, || reconstruct_ht_cleanup_plane(
+                &plane, cleanup, &metadata, 2, 3, &limits
+            )),
+            Err(DecodeError::AllocationFailed)
+        );
+        assert_eq!(plane, before);
+        assert_eq!(
+            reconstruct_ht_cleanup_plane(&plane, cleanup, &metadata, 2, 3, &limits).unwrap(),
+            expected
+        );
+    }
+    let malformed = plane_metadata(3, 0, Vec::new());
+    let ordinary = reconstruct_ht_cleanup_plane(&plane, cleanup, &malformed, 255, 0, &limits);
+    assert_ne!(ordinary, Err(DecodeError::AllocationFailed));
+    for after in [1, 2] {
+        assert_eq!(
+            crate::allocation::with_refusal(after, || reconstruct_ht_cleanup_plane(
+                &plane, cleanup, &malformed, 255, 0, &limits
+            )),
+            Err(DecodeError::AllocationFailed)
+        );
+        assert_eq!(
+            reconstruct_ht_cleanup_plane(&plane, cleanup, &malformed, 255, 0, &limits),
+            ordinary
+        );
+    }
+}
+
+#[test]
+fn ht_cleanup_scratch_storage_original_width_plane_admission_and_empty_quad_order() {
+    let limits = ResourceLimits::default();
+    let plane = CodeBlockPlane::new(1, 1).unwrap();
+    let cleanup = parse_ht_block_segments(&[0, 0x63, 0], None, &limits)
+        .unwrap()
+        .cleanup();
+    let empty = plane_metadata(1, 1, Vec::new());
+    let expected = reconstruct_ht_cleanup_plane(&plane, cleanup, &empty, 255, 0, &limits);
+    assert_ne!(expected, Err(DecodeError::AllocationFailed));
+    for after in [1, 2] {
+        assert_eq!(
+            crate::allocation::with_refusal(after, || reconstruct_ht_cleanup_plane(
+                &plane, cleanup, &empty, 255, 0, &limits
+            )),
+            Err(DecodeError::AllocationFailed)
+        );
+        assert_eq!(
+            reconstruct_ht_cleanup_plane(&plane, cleanup, &empty, 255, 0, &limits),
+            expected
+        );
+    }
+    crate::allocation::with_refusal(0, || {
+        assert_eq!(
+            reconstruct_ht_cleanup_plane(
+                &plane,
+                cleanup,
+                &plane_metadata(0, 1, Vec::new()),
+                0,
+                0,
+                &limits
+            ),
+            Err(invalid_code_block())
+        );
+        let raw = CodeBlockPlane {
+            width: 0,
+            height: 1,
+            coefficients: Vec::new(),
+        };
+        assert_eq!(
+            reconstruct_ht_cleanup_plane(&raw, cleanup, &empty, 0, 0, &limits),
+            Err(invalid_code_block())
+        );
+        assert_eq!(
+            crate::allocation::copy_values(&[1_u8]),
+            Err(DecodeError::AllocationFailed)
+        );
+    });
+}
+
+#[test]
+fn ht_cleanup_scratch_storage_real_decoder_refusal_keeps_prior_refinement_before_clear() {
+    let limits = ResourceLimits::default();
+    let mut base = tier1_plane_storage_ht_decoder();
+    base.ht_refinement_data = vec![7];
+    base.ht_refinement_passes = 1;
+    let before = format!("{base:?}");
+    let mut expected = base.clone();
+    let result = expected
+        .decode_high_throughput_segments(&[0, 0x63, 0], 1, Some(&[0]), 1, &limits)
+        .unwrap();
+    for after in [1, 2] {
+        let mut decoder = base.clone();
+        assert_eq!(
+            crate::allocation::with_refusal(after, || decoder.decode_high_throughput_segments(
+                &[0, 0x63, 0],
+                1,
+                Some(&[0]),
+                1,
+                &limits
+            )),
+            Err(DecodeError::AllocationFailed)
+        );
+        assert_eq!(format!("{decoder:?}"), before);
+        assert_eq!(
+            decoder
+                .decode_high_throughput_segments(&[0, 0x63, 0], 1, Some(&[0]), 1, &limits)
+                .unwrap(),
+            result
+        );
+        assert_eq!(format!("{decoder:?}"), format!("{expected:?}"));
+    }
+}
+
+#[test]
 fn bitplane_initial_storage_raw_values_first_later_restore_empty_and_original_admission() {
     let mut plane = CodeBlockPlane {
         width: 0,
@@ -765,7 +895,7 @@ fn tier1_plane_storage_cleanup_output_copy_refusals_restore_state_and_output() {
     let result = expected
         .decode_high_throughput_segments(&[0, 0x63, 0], 1, None, 0, &limits)
         .unwrap();
-    for after in [0, 1] {
+    for after in [0, 3] {
         let mut actual = base.clone();
         let before = format!("{actual:?}");
         assert_eq!(
@@ -830,7 +960,7 @@ fn tier1_plane_storage_refinement_roles_preserve_rollback_and_cleared_partial_st
             .unwrap();
         assert_eq!(format!("{actual:?}"), format!("{expected:?}"));
     }
-    for after in [2, 3] {
+    for after in [4, 5] {
         let mut actual = tier1_plane_storage_ht_decoder();
         actual.ht_refinement_data = vec![7];
         actual.ht_refinement_passes = 1;

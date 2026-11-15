@@ -8487,6 +8487,56 @@ class FrameworkTests(WorkingFiles):
         with self.assertRaisesRegex(ValueError, "initial bitplane storage requires bounded"):
             framework.validate_normative_coverage(missing)
 
+    def test_inventory_ht_exponent_storage_requires_actual_row_count_response_and_field_order(self):
+        coverage = json.loads((framework.VALIDATION / "normative-coverage.json").read_text())
+        entry = next(item for item in coverage["requirements"] if item["id"] == "part15-complete-actual-cleanup-plane")
+        data = dict(coverage, requirements=[entry])
+        self.assertEqual(framework.validate_normative_coverage(data)["status"], "passed")
+        read_text = Path.read_text
+        cases = (
+            ("specs/cold_ht_exponents.rs", "part2_ht_exponent_count", "metadata.width", "metadata.height"),
+            ("specs/cold_ht_exponents.rs", "part2_ht_exponent_context", "input:cleanup.mag_sgn.bytes", "input:Seq::empty()"),
+            ("specs/cold_ht_exponents.rs", "part2_ht_exponent_context", "part2_ht_exponent_count(metadata)", "0"),
+            ("specs/cold_ht_exponents.rs", "part2_ht_exponent_context", "else{None}", "else{Some(Seq::empty())}"),
+            ("specs/cold_ht_exponents.rs", "part2_ht_exponent_capacity_run", "context.metadata_width", "context.plane_width"),
+            ("specs/cold_ht_exponents.rs", "part2_ht_exponent_capacity_run", "HtExponentCapacity", "BitplaneInitialCapacity"),
+            ("specs/cold_ht_exponents.rs", "part2_ht_exponent_capacity_run", "actual!=context", "false"),
+            ("specs/cold_ht_exponents.rs", "part2_ht_exponent_capacity_run", "field!=current", "false"),
+            ("specs/cold_ht_exponents.rs", "part2_ht_exponent_capacity_run", "elements!=count", "elements!=1"),
+            ("specs/cold_ht_exponents.rs", "part2_ht_exponent_capacity_run", "calls.drop_first()", "calls"),
+            ("specs/cold_ht_exponents.rs", "part2_ht_exponent_ready", "ht_magsgn_initial(cleanup.mag_sgn.bytes,work)", "Ok(())"),
+            ("specs/cold_ht_exponents.rs", "part2_ht_exponent_after_plane", "work,false),false,calls", "work,true),true,calls"),
+            ("specs/cold_ht_exponents.rs", "part2_ht_exponent_after_plane", "work),calls))", "work),Seq::empty()))"),
+            ("specs/cold_ht_exponents.rs", "part2_ht_exponent_current", "work),rest))", "work),Seq::empty()))"),
+            ("src/tier1/ht_cleanup.rs", "reconstruct_ht_cleanup_plane", "usize::from(metadata.width)", "usize::from(plane.width())"),
+            ("src/tier1/ht_cleanup.rs", "reconstruct_ht_cleanup_plane", "filled_values(0_u8, exponent_count)", "filled_values(1_u8, exponent_count)"),
+            ("src/tier1/ht_cleanup.rs", "reconstruct_ht_cleanup_plane", "previous_exponents: {", "current_exponents: {"),
+            ("src/tier1/ht_cleanup.rs", "reconstruct_ht_cleanup_plane", "let output = output_result?", "let output = supplied_success?"),
+        )
+        for relative, symbol, before, after in cases:
+            source = framework.ROOT / relative
+            original = source.read_text()
+            body = (framework._coverage_function_body(original, framework._coverage_function_header(original, symbol))
+                    if relative.startswith("src/") else framework._coverage_spec_function_body(original, symbol))
+            pattern = re.escape(before).replace(r"\ ", r"\s*")
+            changed_body, count = re.subn(pattern, lambda _: after, body, count=1)
+            self.assertEqual(count, 1, (symbol, before))
+            changed = original.replace(body, changed_body, 1)
+
+            def altered(path, *args, **kwargs):
+                return changed if path == source else read_text(path, *args, **kwargs)
+
+            with self.subTest(symbol=symbol, before=before), mock.patch.object(Path, "read_text", altered), \
+                    self.assertRaisesRegex(ValueError, "remaining plane storage|HT exponent storage"):
+                framework.validate_normative_coverage(data)
+
+        missing = copy.deepcopy(data)
+        missing["requirements"][0]["test_refs"] = [
+            ref for ref in entry["test_refs"] if (ref["path"], ref["symbol"]) not in framework._HT_EXPONENT_TESTS
+        ]
+        with self.assertRaisesRegex(ValueError, "HT exponent storage requires bounded"):
+            framework.validate_normative_coverage(missing)
+
     def test_inventory_rollback_snapshot_owners_require_real_roles_counts_and_partial_owner_order(self):
         coverage = json.loads((framework.VALIDATION / "normative-coverage.json").read_text())
         entry = next(item for item in coverage["requirements"] if item["id"] == "part1-complete-native-public-packet-boundaries")
@@ -9169,6 +9219,10 @@ class FrameworkTests(WorkingFiles):
                     if {"path": path, "symbol": symbol} in entry["test_refs"]
                     and {"path": path, "symbol": symbol} not in isolated["test_refs"]
                 ]
+                if isolated["id"] == "part15-complete-actual-cleanup-plane":
+                    isolated["test_refs"] += [
+                        {"path": path, "symbol": symbol} for path, symbol in sorted(framework._HT_EXPONENT_TESTS)
+                    ]
                 if framework._COLD_RESULT_CONTRACTS.get(key, ("",))[0] in {
                         "part1_tier1_plane_storage_result", "part1_tier1_initial_storage_result", "part1_tier1_configured_storage_result",
                         "part2_codeblock_cell_result", "part2_codeblock_owner_result"}:

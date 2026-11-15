@@ -5322,6 +5322,17 @@ def _coverage_cold_links(keys: set[tuple[str, str]]) -> tuple[set[tuple[str, str
         }.get(model, model.removesuffix("_result") + "_run")
         models.update(((path, model), (path, run)))
         proofs.add((path, normal))
+        if key == ("src/tier1/ht_cleanup.rs", "reconstruct_ht_cleanup_plane"):
+            models.update(("specs/cold_ht_exponents.rs", symbol) for symbol in (
+                "Part2HtExponentContext", "part2_ht_exponent_count", "part2_ht_exponent_context",
+                "part2_ht_exponent_capacity_run", "part2_ht_exponent_capacity_result",
+                "part2_ht_exponent_ready", "part2_ht_exponent_current", "part2_ht_exponent_after_plane",
+            ))
+            proofs.update(("specs/cold_ht_exponents.rs", symbol) for symbol in (
+                "part2_ht_exponent_capacity_observed", "part2_ht_exponent_capacity_frames",
+                "part2_ht_exponent_after_normal", "part2_ht_exponent_join",
+                "part2_ht_exponent_first_error", "part2_ht_exponent_current_observed",
+            ))
         if model in ("part1_tier1_plane_storage_result", "part1_tier1_initial_storage_result", "part1_tier1_configured_storage_result"):
             models |= _TIER1_INITIAL_MODELS
             proofs |= _TIER1_INITIAL_PROOFS
@@ -6163,7 +6174,45 @@ _PLANE_ROLE_TESTS = {
     ("src/tier1/tests.rs", "tier1_plane_storage_refinement_roles_preserve_rollback_and_cleared_partial_state"),
     ("src/decode/tests.rs", "tier1_plane_storage_real_ht_raw_selected_container_cleanup_restore"),
 }
+_HT_EXPONENT_TESTS = {
+    ("src/tier1/tests.rs", "ht_cleanup_scratch_storage_raw_metadata_rows_first_later_and_exact_output_restore"),
+    ("src/tier1/tests.rs", "ht_cleanup_scratch_storage_original_width_plane_admission_and_empty_quad_order"),
+    ("src/tier1/tests.rs", "ht_cleanup_scratch_storage_real_decoder_refusal_keeps_prior_refinement_before_clear"),
+    ("src/packet/tests.rs", "ht_cleanup_scratch_storage_packet_first_later_rows_roll_back_full_decoder_and_restore"),
+    ("src/decode/tests.rs", "ht_cleanup_scratch_storage_raw_selected_jph_rows_and_automatic_restore_real_image"),
+}
 _PLANE_ROLE_GUARDS = {
+    ("specs/cold_ht_exponents.rs", "part2_ht_exponent_count"): (
+        "(metadata.width as nat+1)/2+1",
+    ),
+    ("specs/cold_ht_exponents.rs", "part2_ht_exponent_context"): (
+        "plane_width:plane.width,plane_height:plane.height,metadata_width:metadata.width,metadata_height:metadata.height",
+        "input:cleanup.mag_sgn.bytes,maximum_u,bitplanes,work",
+        "previous:if current{Some(Seq::new(part2_ht_exponent_count(metadata),|_:int|0u8))}else{None}",
+    ),
+    ("specs/cold_ht_exponents.rs", "part2_ht_exponent_capacity_run"): (
+        "let count=(context.metadata_width as nat+1)/2+1",
+        "if count==0{Some((Ok(()),calls))}else if calls.len()==0{None}",
+        "Part2Tier1StorageEvent::HtExponentCapacity {context:actual,current:field,elements,succeeded}",
+        "actual!=context || field!=current || elements!=count",
+        "Some((if succeeded{Ok(())}else{Err(crate::DecodeError::AllocationFailed)},calls.drop_first()))",
+    ),
+    ("specs/cold_ht_exponents.rs", "part2_ht_exponent_ready"): (
+        "match ht_magsgn_initial(cleanup.mag_sgn.bytes,work)",
+        "Err(error)=>Err(error)", "let quads=(metadata.width as nat+1)/2",
+        "metadata.width as nat+1>usize::MAX || quads+1>usize::MAX",
+        "else if quads==0", "else{Ok(quads+1)}",
+    ),
+    ("specs/cold_ht_exponents.rs", "part2_ht_exponent_after_plane"): (
+        "match part2_ht_exponent_ready(cleanup,metadata,work)",
+        "Err(_)=>Some((ht_cleanup_plane(plane,cleanup,metadata,maximum_u,bitplanes,work),calls))",
+        "part2_ht_exponent_context(plane,cleanup,metadata,maximum_u,bitplanes,work,false),false,calls)",
+        "|_:(),rest|part2_ht_exponent_current(plane,cleanup,metadata,maximum_u,bitplanes,work,rest)",
+    ),
+    ("specs/cold_ht_exponents.rs", "part2_ht_exponent_current"): (
+        "part2_ht_exponent_context(plane,cleanup,metadata,maximum_u,bitplanes,work,true),true,calls)",
+        "|_:(),rest|Some((ht_cleanup_plane(plane,cleanup,metadata,maximum_u,bitplanes,work),rest))",
+    ),
     ("specs/cold_tier1_initial.rs", "part2_tier1_plane_run"): (
         "Part2Tier1StorageEvent::Coefficient",
         "actual_width!=width || actual_height!=height || actual_role!=role || samples!=count",
@@ -6180,6 +6229,7 @@ _PLANE_ROLE_GUARDS = {
     ),
     ("specs/cold_tier1_planes.rs", "part2_plane_cleanup_run"): (
         "if metadata.width==0", "part2_tier1_plane_run(", "CoefficientStorageRole::CleanupOutput",
+        "part2_ht_exponent_after_plane(plane,cleanup,metadata,maximum_u,bitplanes,maximum_work,rest)",
     ),
     ("specs/cold_tier1_planes.rs", "part2_plane_prepare_run"): (
         "part2_plane_prepare_admit(", "Err(error)=>Some((Err(error),calls))", "part2_plane_cleanup_run(", "part2_plane_prepare_tail(output,admitted.1,rest)",
@@ -6227,7 +6277,15 @@ _PLANE_ROLE_NATIVE_ORDER = {
         "code_block_plane_from_dimensions(self.width, self.height, role)", "let mut output = output_result?", "output.coefficients.len() != self.coefficients.len()", "while index < self.coefficients.len()",
     ),
     ("src/tier1/ht_cleanup.rs", "reconstruct_ht_cleanup_plane"): (
-        "if metadata.width == 0", "CoefficientStorageRole::CleanupOutput", "let output = output_result?", "ht_magsgn_from_input(", "previous_exponents:", "while quad_index",
+        "if metadata.width == 0", "CoefficientStorageRole::CleanupOutput", "let output = output_result?", "ht_magsgn_from_input(",
+        "let doubled_quads = usize::from(metadata.width)", "let quads_per_row = doubled_quads", "if quads_per_row == 0",
+        "let exponent_count = quads_per_row", "previous_exponents:",
+        "part2_ht_exponent_context(source,segment,rows,maximum_u,decoded_bitplanes,work,false),false,result)",
+        "part2_ht_exponent_first_error(source,segment,rows,maximum_u,decoded_bitplanes,work,error)",
+        "current_exponents:",
+        "part2_ht_exponent_context(source,segment,rows,maximum_u,decoded_bitplanes,work,true),true,result)",
+        "part2_ht_exponent_current_observed(source,segment,rows,maximum_u,decoded_bitplanes,work,result)",
+        "statistics: ht_statistics_zero()", "while quad_index",
     ),
     ("src/tier1/ht_cleanup.rs", "prepare_ht_cleanup_symbols"): (
         "decode_ht_cleanup_segment_metadata(", "ht_significant_bitplanes(", ".checked_sub(skipped_bitplanes)",
@@ -14311,7 +14369,16 @@ def validate_normative_coverage(
             positions = [compact.find("".join(fragment.split())) for fragment in fragments]
             if any(position < 0 for position in positions) or positions != sorted(positions):
                 raise ValueError("remaining plane storage requires unchanged real constructor/copy/entropy/field/owner order")
+            if symbol == "reconstruct_ht_cleanup_plane":
+                for field in ("previous_exponents", "current_exponents"):
+                    if f"{field}:{{letfilled=crate::allocation::filled_values(0_u8,exponent_count);" not in compact:
+                        raise ValueError("HT exponent storage requires actual zero-filled metadata-count owners at the original field frontiers")
+                if compact.count("crate::allocation::filled_values(0_u8,exponent_count)") != 2:
+                    raise ValueError("HT exponent storage cannot duplicate or hoist a scratch-owner request")
         for entry in coverage["requirements"]:
+            if entry["id"] == "part15-complete-actual-cleanup-plane":
+                if not _HT_EXPONENT_TESTS.issubset({(ref["path"], ref["symbol"]) for ref in entry["test_refs"]}):
+                    raise ValueError("HT exponent storage requires bounded raw/decoder/packet/public refusal/restore controls")
             if entry["id"] in {"part15-complete-actual-cleanup-plane", "part15-cleanup-only-actual-symbol-caller",
                               "part15-complete-actual-refinement-plane", "part15-complete-substantive-segment-byte-entry",
                               "part15-complete-retained-refinement-and-placeholder-steps", "part1-complete-native-grid-progression-composition"}:

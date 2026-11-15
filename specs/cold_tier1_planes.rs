@@ -29,7 +29,7 @@ pub(crate) open spec fn part2_plane_cleanup_run(plane:Tier1RawPlane,cleanup:HtCl
     calls:Seq<Part2Tier1StorageEvent>)->Part2Tier1Run<(Tier1RawPlane,crate::tier1::Tier1PassStatistics)> {
     if metadata.width==0{Some((Err(ht_reader_error(crate::MalformedKind::InvalidCodeBlock)),calls))}else{
         part2_tier1_storage_bind(part2_tier1_plane_run(plane.width,plane.height,crate::tier1::CoefficientStorageRole::CleanupOutput,calls),
-            |_:Tier1RawPlane,rest|Some((ht_cleanup_plane(plane,cleanup,metadata,maximum_u,bitplanes,maximum_work),rest)))
+            |_:Tier1RawPlane,rest|part2_ht_exponent_after_plane(plane,cleanup,metadata,maximum_u,bitplanes,maximum_work,rest))
     }
 }
 pub(crate) open spec fn part2_plane_cleanup_result(plane:Tier1RawPlane,cleanup:HtCleanupSegmentState,metadata:HtMetadataOutput,maximum_u:u8,bitplanes:u16,maximum_work:u64,
@@ -43,10 +43,13 @@ pub(crate) proof fn part2_plane_cleanup_normal(plane:Tier1RawPlane,cleanup:HtCle
     if metadata.width==0{part2_tier1_storage_pure(result);}else{
         let role=crate::tier1::CoefficientStorageRole::CleanupOutput;
         part2_tier1_plane_normal(plane.width,plane.height,role);
-        let output=tier1_empty_plane(plane.width,plane.height);if output.is_ok(){part2_tier1_storage_pure(result);}
+        let output=tier1_empty_plane(plane.width,plane.height);if output.is_ok(){
+            part2_ht_exponent_after_normal(plane,cleanup,metadata,maximum_u,bitplanes,maximum_work);
+            part2_tier1_storage_eta(|calls|part2_ht_exponent_after_plane(plane,cleanup,metadata,maximum_u,bitplanes,maximum_work,calls),result);
+        }
         part2_tier1_plane_frames(plane.width,plane.height,role,output);
         part2_tier1_storage_bind_frame(|calls|part2_tier1_plane_run(plane.width,plane.height,role,calls),
-            |_:Tier1RawPlane,rest|Some((result,rest)),output,result);
+            |_:Tier1RawPlane,rest|part2_ht_exponent_after_plane(plane,cleanup,metadata,maximum_u,bitplanes,maximum_work,rest),output,result);
     }
 }
 pub(crate) proof fn part2_plane_cleanup_error(plane:Tier1RawPlane,cleanup:HtCleanupSegmentState,metadata:HtMetadataOutput,maximum_u:u8,bitplanes:u16,maximum_work:u64,error:crate::DecodeError)
@@ -55,7 +58,7 @@ pub(crate) proof fn part2_plane_cleanup_error(plane:Tier1RawPlane,cleanup:HtClea
 {
     part2_tier1_plane_frames(plane.width,plane.height,crate::tier1::CoefficientStorageRole::CleanupOutput,Err(error));
     part2_tier1_storage_bind_frame(|calls|part2_tier1_plane_run(plane.width,plane.height,crate::tier1::CoefficientStorageRole::CleanupOutput,calls),
-        |_:Tier1RawPlane,rest|Some((ht_cleanup_plane(plane,cleanup,metadata,maximum_u,bitplanes,maximum_work),rest)),Err(error),Err(error));
+        |_:Tier1RawPlane,rest|part2_ht_exponent_after_plane(plane,cleanup,metadata,maximum_u,bitplanes,maximum_work,rest),Err(error),Err(error));
 }
 pub(crate) open spec fn part2_plane_prepare_admit(plane:Tier1RawPlane,cleanup:HtCleanupSegmentState,passes:u32,maximum_u:u8,skipped:u16,work:u64)
     ->Result<(HtMetadataOutput,u16),crate::DecodeError> {

@@ -126,6 +126,8 @@ mod cold_legacy_packets;
 pub use cold_legacy_packets::*;
 mod cold_bitplane_initial;
 pub use cold_bitplane_initial::*;
+mod cold_ht_exponents;
+pub use cold_ht_exponents::*;
 mod cold_legacy_bitplanes;
 pub use cold_legacy_bitplanes::*;
 mod replay_finish;

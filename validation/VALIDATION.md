@@ -1380,6 +1380,23 @@ real MQ/legacy packet/raw/full-selected/container/recovery/automatic restoration
 HT execution does not call this legacy setup; existing real HT controls remain
 positive without invented initial-flag requests. Other later buffers,
 collection copies and existing-capacity growth remain separate.
+HT cleanup reconstruction now fallibly fills its two fresh previous/current
+exponent-row owners at their original struct-field frontiers, after the single
+qualified output-plane construction, actual MagSgn reader and checked count
+arithmetic. Each count is `(metadata.width + 1) / 2 + 1`, not the plane width
+or sample count. Metadata-width-zero, plane admission and reader errors still
+precede these requests. Empty quad sequences still reach both positive-length
+row owners; later overwrites and row swaps add no requests.
+Distinct `HtExponentCapacity` responses retain actual input/source descriptors,
+field role, count and the previous zero-filled owner. Checked first/later binds
+preserve the earlier output/reader owners, exact entropy/statistics result,
+partial/cleared/staged state and unused response tails through the existing
+decoder/packet/tile/public composition. Bounded raw-metadata, decoder, packet,
+raw/selected/JPH and automatic controls exercise refusal and exact restoration.
+The separate metadata quad and previous/current pattern constructors, refinement
+reader buffers, unrelated collection copies and existing growth remain outside
+this increment. Sequence contracts make no host-availability or physical-capacity
+claim; public Clone behavior and proof/runtime boundaries remain unchanged.
 Replay copying remains after original route/pass/cleanup/byte admission but
 before the unchanged append and later concatenation-size checks. Retention
 copying remains after actual refinement and statistics merge, preserving

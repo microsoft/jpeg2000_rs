@@ -7,6 +7,7 @@ pub enum Part2Tier1StorageEvent {
     DecoderPlaneCopy {source:Tier1RawPlane,role:crate::tier1::HtRefinementCopyRole,cleanup:bool,elements:nat,succeeded:bool},
     NestedCopy {owner:Part2NestedCopyOwner,elements:nat,succeeded:bool},
     BitplaneInitialCapacity {plane:Tier1RawPlane,bitplane:u16,visited:bool,prior:Option<Seq<bool>>,elements:nat,succeeded:bool},
+    HtExponentCapacity {context:Part2HtExponentContext,current:bool,elements:nat,succeeded:bool},
 }
 pub type Part2Tier1Run<T> = Option<(Result<T,crate::DecodeError>,Seq<Part2Tier1StorageEvent>)>;
 pub(crate) open spec fn part2_tier1_storage_prefix<T>(run:spec_fn(Seq<Part2Tier1StorageEvent>)->Part2Tier1Run<T>,

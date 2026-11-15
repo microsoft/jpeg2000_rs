@@ -10642,7 +10642,15 @@
         {"path": "specs/mod.rs", "symbol": "tier1_set_magnitude"},
         {"path": "specs/mod.rs", "symbol": "tier1_mark_coefficient"},
         {"path": "specs/mod.rs", "symbol": "tier1_statistics_zero"},
-        {"path": "specs/mod.rs", "symbol": "tier1_statistics_increment"}
+        {"path": "specs/mod.rs", "symbol": "tier1_statistics_increment"},
+        {"path": "specs/cold_ht_exponents.rs", "symbol": "Part2HtExponentContext"},
+        {"path": "specs/cold_ht_exponents.rs", "symbol": "part2_ht_exponent_count"},
+        {"path": "specs/cold_ht_exponents.rs", "symbol": "part2_ht_exponent_context"},
+        {"path": "specs/cold_ht_exponents.rs", "symbol": "part2_ht_exponent_capacity_run"},
+        {"path": "specs/cold_ht_exponents.rs", "symbol": "part2_ht_exponent_capacity_result"},
+        {"path": "specs/cold_ht_exponents.rs", "symbol": "part2_ht_exponent_ready"},
+        {"path": "specs/cold_ht_exponents.rs", "symbol": "part2_ht_exponent_current"},
+        {"path": "specs/cold_ht_exponents.rs", "symbol": "part2_ht_exponent_after_plane"}
       ],
       "proof_refs": [
         {"path": "src/tier1/proof_support.rs", "symbol": "ht_plane_view"},
@@ -10670,7 +10678,13 @@
         {"path": "specs/cold_tier1_initial.rs", "symbol": "part2_tier1_configured_initial_error"},
         {"path": "specs/cold_tier1_initial.rs", "symbol": "part2_tier1_call_observed"},
         {"path": "specs/cold_tier1_initial.rs", "symbol": "part2_tier1_call_normal"},
-        {"path": "src/allocation.rs", "symbol": "filled_values"}
+        {"path": "src/allocation.rs", "symbol": "filled_values"},
+        {"path": "specs/cold_ht_exponents.rs", "symbol": "part2_ht_exponent_capacity_observed"},
+        {"path": "specs/cold_ht_exponents.rs", "symbol": "part2_ht_exponent_capacity_frames"},
+        {"path": "specs/cold_ht_exponents.rs", "symbol": "part2_ht_exponent_after_normal"},
+        {"path": "specs/cold_ht_exponents.rs", "symbol": "part2_ht_exponent_join"},
+        {"path": "specs/cold_ht_exponents.rs", "symbol": "part2_ht_exponent_first_error"},
+        {"path": "specs/cold_ht_exponents.rs", "symbol": "part2_ht_exponent_current_observed"}
       ],
       "test_refs": [
         {"path": "src/tier1/tests.rs", "symbol": "ht_cleanup_plane_places_literal_full_words_flags_and_ignores_old_coefficients"},
@@ -10686,7 +10700,12 @@
         {"path": "src/tier1/tests.rs", "symbol": "tier1_initial_storage_admission_refusal_and_late_policy_order"},
         {"path": "src/tier1/tests.rs", "symbol": "tier1_initial_storage_first_later_exact_coefficients_restore_and_separate_later_role"},
         {"path": "src/decode/tests.rs", "symbol": "tier1_initial_storage_cell_columns_rows_retain_prior_owners_and_restore"},
-        {"path": "src/decode/tests.rs", "symbol": "tier1_initial_storage_public_raw_selected_container_roles_and_restore"}
+        {"path": "src/decode/tests.rs", "symbol": "tier1_initial_storage_public_raw_selected_container_roles_and_restore"},
+        {"path": "src/tier1/tests.rs", "symbol": "ht_cleanup_scratch_storage_raw_metadata_rows_first_later_and_exact_output_restore"},
+        {"path": "src/tier1/tests.rs", "symbol": "ht_cleanup_scratch_storage_original_width_plane_admission_and_empty_quad_order"},
+        {"path": "src/tier1/tests.rs", "symbol": "ht_cleanup_scratch_storage_real_decoder_refusal_keeps_prior_refinement_before_clear"},
+        {"path": "src/packet/tests.rs", "symbol": "ht_cleanup_scratch_storage_packet_first_later_rows_roll_back_full_decoder_and_restore"},
+        {"path": "src/decode/tests.rs", "symbol": "ht_cleanup_scratch_storage_raw_selected_jph_rows_and_automatic_restore_real_image"}
       ]
     },
     {

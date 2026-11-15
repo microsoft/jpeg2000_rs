@@ -435,6 +435,11 @@ pub(super) fn reconstruct_ht_cleanup_plane(
     limits: &ResourceLimits,
 ) -> Result<(CodeBlockPlane, Tier1PassStatistics), DecodeError> {
     #[cfg(verus_keep_ghost)]
+    proof_decl! {
+        let ghost source=code_block_plane_view(plane);let ghost segment=ht_cleanup_segment_view(&cleanup);let ghost rows=ht_cleanup_metadata_view(metadata);
+        let ghost work=crate::limits::resource_work_limit(limits);
+    }
+    #[cfg(verus_keep_ghost)]
     proof! {crate::specs::part2_plane_cleanup_normal(code_block_plane_view(plane),ht_cleanup_segment_view(&cleanup),ht_cleanup_metadata_view(metadata),maximum_u,decoded_bitplanes,crate::limits::resource_work_limit(limits));}
     if metadata.width == 0 {
         return Err(invalid_code_block());
@@ -464,8 +469,26 @@ pub(super) fn reconstruct_ht_cleanup_plane(
     let mut state = HtCleanupPlaneReconstruction {
         output,
         reader,
-        previous_exponents: vec![0_u8; exponent_count],
-        current_exponents: vec![0_u8; exponent_count],
+        previous_exponents: {
+            let filled = crate::allocation::filled_values(0_u8, exponent_count);
+            #[cfg(verus_keep_ghost)]
+            proof! {
+                let result=match filled{Err(error)=>Err(error),Ok(_)=>Ok(())};
+                crate::specs::part2_ht_exponent_capacity_observed(crate::specs::part2_ht_exponent_context(source,segment,rows,maximum_u,decoded_bitplanes,work,false),false,result);
+                if let Err(error)=filled{crate::specs::part2_ht_exponent_first_error(source,segment,rows,maximum_u,decoded_bitplanes,work,error);}
+            }
+            filled?
+        },
+        current_exponents: {
+            let filled = crate::allocation::filled_values(0_u8, exponent_count);
+            #[cfg(verus_keep_ghost)]
+            proof! {
+                let result=match filled{Err(error)=>Err(error),Ok(_)=>Ok(())};
+                crate::specs::part2_ht_exponent_capacity_observed(crate::specs::part2_ht_exponent_context(source,segment,rows,maximum_u,decoded_bitplanes,work,true),true,result);
+                crate::specs::part2_ht_exponent_current_observed(source,segment,rows,maximum_u,decoded_bitplanes,work,result);
+            }
+            filled?
+        },
         statistics: ht_statistics_zero(),
     };
     #[cfg(verus_keep_ghost)]
