@@ -62,11 +62,6 @@ jobs:
           python -B "$RUNNER_TEMP/check-release.py" source --tag "$TAG_NAME" --mode "$MODE" \
             --approved-commit "$APPROVED_COMMIT" --approved-sha256 "$APPROVED_SHA256" \
             --wait-for-checks --output "$RUNNER_TEMP/release-source.json" --github-output "$GITHUB_OUTPUT"
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
-        with:
-          ref: ${{ steps.source.outputs.commit }}
-          fetch-depth: 0
-          persist-credentials: false
       - uses: dtolnay/rust-toolchain@683b588c487a69d01f6c6ddf40f036ff682cc2c8
         with:
           toolchain: 1.98.1
@@ -130,11 +125,6 @@ jobs:
           python -B "$RUNNER_TEMP/check-release.py" source --tag "$TAG_NAME" --mode publish
           --approved-commit "$COMMIT" --approved-sha256 "$ARCHIVE_SHA256"
           --output "$RUNNER_TEMP/release-source-recheck.json"
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
-        with:
-          ref: ${{ needs.validate.outputs.commit }}
-          fetch-depth: 0
-          persist-credentials: false
       - uses: dtolnay/rust-toolchain@683b588c487a69d01f6c6ddf40f036ff682cc2c8
         with:
           toolchain: 1.98.1

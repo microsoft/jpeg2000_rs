@@ -33,6 +33,9 @@ Before using the workflow:
    exact merged release-branch head, not a development tip, an older reachable
    tag, or an unmerged PR head. The dispatch SHA, reviewed integration and tag
    commit must be identical.
+   Each job checks out the immutable dispatch SHA once and validates that
+   checkout in place; neither workflow inputs nor helper outputs select a
+   replacement checkout before running Cargo.
    This initial publisher accepts stable version tags, not prereleases.
 5. A crate owner must configure crates.io Trusted Publishing for
    `microsoft/jpeg2000_rs`, workflow filename `release.yml`, environment
