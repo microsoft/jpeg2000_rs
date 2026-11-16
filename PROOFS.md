@@ -57,6 +57,12 @@ one managed request without exhausting host memory or replacing an allocator.
 Tests retain original bytes/owners on refusal and exact subsequent success.
 It does not intercept every allocation in a public decode or inspection call.
 
+Legacy entropy-prefix extension also uses the checked byte helper. Refusal
+preserves pending bytes and pass counts, so a retry replays the prefix once;
+the already-charged attempted work is retained. Its source/result-bound event
+records a helper call, not physical vector growth or allocator availability.
+This does not introduce raw/JP2 feed/resume state.
+
 This is bounded coverage, not complete allocation recovery: other creation,
 growth, nested vectors and clones remain infallible. The complete automatic,
 progressive and semantic public Results described below are retained through

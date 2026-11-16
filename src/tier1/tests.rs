@@ -7654,6 +7654,60 @@ fn zero_byte_mq_continuation_replays_the_buffered_prefix() {
 }
 
 #[test]
+fn legacy_input_extension_refusal_preserves_pending_prefix_and_retries_once() {
+    let limits = ResourceLimits::default();
+    for prefix in [vec![0], vec![0; 9]] {
+        let mut decoder = Tier1CodeBlockDecoder::new(
+            1,
+            1,
+            4,
+            SubbandOrientation::Ll,
+            Tier1CodingStyle::default(),
+        )
+        .unwrap();
+        decoder
+            .decode_legacy_contribution(&prefix, 1, &limits)
+            .unwrap();
+        let pending = decoder.legacy_segment.as_ref().unwrap();
+        let incoming = vec![0; pending.input.capacity() + 1];
+        let before_pending = format!("{pending:?}");
+        let before_plane = decoder.plane().clone();
+        let before_pass = decoder.next_pass();
+        let before_bytes = decoder.decoded_bytes();
+        let mut expected = decoder.clone();
+        expected
+            .decode_legacy_contribution(&incoming, 1, &limits)
+            .unwrap();
+
+        assert_eq!(
+            crate::allocation::with_refusal(0, || {
+                decoder.decode_legacy_contribution(&incoming, 1, &limits)
+            }),
+            Err(DecodeError::AllocationFailed),
+        );
+        assert_eq!(
+            format!("{:?}", decoder.legacy_segment.as_ref().unwrap()),
+            before_pending,
+        );
+        assert_eq!(decoder.plane(), &before_plane);
+        assert_eq!(decoder.next_pass(), before_pass);
+        assert_eq!(decoder.decoded_bytes(), before_bytes);
+
+        decoder
+            .decode_legacy_contribution(&incoming, 1, &limits)
+            .unwrap();
+        assert_eq!(decoder.plane(), expected.plane());
+        assert_eq!(decoder.next_pass(), expected.next_pass());
+        assert_eq!(decoder.decoded_bytes(), expected.decoded_bytes());
+        assert_eq!(
+            format!("{:?}", decoder.legacy_segment),
+            format!("{:?}", expected.legacy_segment),
+        );
+        assert!(decoder.legacy_decode_work > expected.legacy_decode_work);
+    }
+}
+
+#[test]
 fn legacy_partial_pass_midpoints_are_coefficient_local() {
     let mut plane = CodeBlockPlane::new(2, 1).unwrap();
     plane.mark_significant_at_bitplane(0, 0, 3, false).unwrap();

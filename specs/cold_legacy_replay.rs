@@ -1,9 +1,67 @@
-//! Input-derived legacy snapshot and fallible restoration, including partial writes.
+//! Input-derived legacy snapshot, checked input extension and fallible restoration.
 use super::*;
 verus! {
 pub struct Part2LegacyCaps {pub passes:u32,pub bytes:u64,pub input:u64,pub work:u64}
 pub(crate) open spec fn part2_legacy_caps(passes:u32,bytes:u64,input:u64,work:u64)->Part2LegacyCaps {Part2LegacyCaps {passes,bytes,input,work}}
 pub type Part2LegacyResult=(Result<(),crate::DecodeError>,Tier1DecoderState);
+pub(crate) open spec fn part2_legacy_append_response(
+    source:Tier1LegacyFrame,input:Seq<u8>,passes:u32,succeeded:bool,
+)->Result<Tier1LegacyFrame,crate::DecodeError> {
+    if input.len()==0 || succeeded {Ok(part1_legacy_append(source,input,passes))}
+    else {Err(crate::DecodeError::AllocationFailed)}
+}
+pub(crate) open spec fn part2_legacy_append_run(
+    source:Tier1LegacyFrame,input:Seq<u8>,passes:u32,calls:Seq<Part2Tier1StorageEvent>,
+)->Part2Tier1Run<Tier1LegacyFrame> {
+    if input.len()==0 {Some((Ok(part1_legacy_append(source,input,passes)),calls))}
+    else if calls.len()==0 {None}
+    else {match calls[0] {
+        Part2Tier1StorageEvent::LegacyInputExtension {source:actual,bytes,passes:count,elements,succeeded}=>
+            if actual!=source || bytes!=input || count!=passes || elements!=input.len() {None}
+            else {Some((part2_legacy_append_response(source,input,passes,succeeded),calls.drop_first()))},
+        _=>None,
+    }}
+}
+#[verifier::opaque]
+pub(crate) open spec fn part2_legacy_append_result(
+    source:Tier1LegacyFrame,input:Seq<u8>,passes:u32,result:Result<Tier1LegacyFrame,crate::DecodeError>,
+)->bool {
+    part2_tier1_storage_framed(|calls|part2_legacy_append_run(source,input,passes,calls),result)
+}
+pub(crate) proof fn part2_legacy_append_observed(
+    source:Tier1LegacyFrame,input:Seq<u8>,passes:u32,after:Seq<u8>,extended:Result<(),crate::DecodeError>,
+)
+    requires storage_extension_result(source.input,input,after,extended),
+    ensures part2_legacy_append_result(source,input,passes,match extended{
+        Err(error)=>Err(error),Ok(())=>Ok(part1_legacy_append(source,input,passes)),
+    }),
+{
+    reveal(part2_legacy_append_result);
+    let result=match extended{Err(error)=>Err(error),Ok(())=>Ok(part1_legacy_append(source,input,passes))};
+    if input.len()==0 {part2_tier1_storage_pure(result);}
+    else {
+        let succeeded=extended.is_ok();
+        let prefix=seq![Part2Tier1StorageEvent::LegacyInputExtension {source,bytes:input,passes,elements:input.len(),succeeded}];
+        assert(result==part2_legacy_append_response(source,input,passes,succeeded));
+        assert forall|tail|part2_legacy_append_run(source,input,passes,prefix+tail)==Some((result,tail)) by {
+            assert((prefix+tail).drop_first() =~= tail);
+        }
+        assert(part2_tier1_storage_prefix(|calls|part2_legacy_append_run(source,input,passes,calls),prefix,result));
+    }
+}
+pub(crate) proof fn part2_legacy_append_normal(source:Tier1LegacyFrame,input:Seq<u8>,passes:u32)
+    ensures part2_legacy_append_result(source,input,passes,Ok(part1_legacy_append(source,input,passes))),
+{
+    part2_legacy_append_observed(source,input,passes,source.input+input,Ok(()));
+}
+pub(crate) proof fn part2_legacy_append_frames(
+    source:Tier1LegacyFrame,input:Seq<u8>,passes:u32,result:Result<Tier1LegacyFrame,crate::DecodeError>,
+)
+    requires part2_legacy_append_result(source,input,passes,result),
+    ensures part2_tier1_storage_framed(|calls|part2_legacy_append_run(source,input,passes,calls),result),
+{
+    reveal(part2_legacy_append_result);
+}
 pub(crate) open spec fn part2_legacy_snapshot_flags(before:Tier1DecoderState,calls:Seq<Part2Tier1StorageEvent>)->Part2Tier1Run<Tier1LegacyFrame> {
     part2_tier1_storage_bind(part2_nested_bitplane_option_run(before.bitplane_state,crate::tier1::HtRefinementCopyRole::LegacySnapshot,true,calls),
         |_:Option<Part1LegacyBitplane>,rest|Some((Ok(part1_legacy_snapshot(before)),rest)))
@@ -133,10 +191,19 @@ pub(crate) open spec fn part2_legacy_replay_after_restored(source:Tier1LegacyFra
             |decoded:HtDecoderResult,rest|Some((Ok(part1_legacy_contribution_finish(decoded,source)),rest))),
     }
 }
+pub(crate) open spec fn part2_legacy_replay_after_appended(
+    before:Tier1DecoderState,caps:Part2LegacyCaps,appended:Result<Tier1LegacyFrame,crate::DecodeError>,
+    calls:Seq<Part2Tier1StorageEvent>,
+)->Part2Tier1Run<Part2LegacyResult> {
+    match appended {
+        Err(error)=>Some((Ok((Err(error),before)),calls)),
+        Ok(source)=>part2_tier1_storage_bind(part2_legacy_restore_run(part2_legacy_replay_clear(before),source,calls),
+            |restored:Part2LegacyResult,rest|part2_legacy_replay_after_restored(source,caps,restored,rest)),
+    }
+}
 pub(crate) open spec fn part2_legacy_replay_after_source(before:Tier1DecoderState,input:Seq<u8>,replay:u32,caps:Part2LegacyCaps,source:Tier1LegacyFrame,calls:Seq<Part2Tier1StorageEvent>)->Part2Tier1Run<Part2LegacyResult> {
-    let appended=part1_legacy_append(source,input,replay);
-    part2_tier1_storage_bind(part2_legacy_restore_run(part2_legacy_replay_clear(before),appended,calls),
-        |restored:Part2LegacyResult,rest|part2_legacy_replay_after_restored(appended,caps,restored,rest))
+    part2_tier1_storage_resume(part2_legacy_append_run(source,input,replay,calls),
+        |appended:Result<Tier1LegacyFrame,crate::DecodeError>,rest|part2_legacy_replay_after_appended(before,caps,appended,rest))
 }
 pub(crate) open spec fn part2_legacy_replay_run(before:Tier1DecoderState,input:Seq<u8>,replay:u32,caps:Part2LegacyCaps,calls:Seq<Part2Tier1StorageEvent>)->Part2Tier1Run<Part2LegacyResult> {
     match before.legacy_segment{
@@ -182,8 +249,40 @@ pub(crate) proof fn part2_legacy_replay_snapshot_error(before:Tier1DecoderState,
             Ok(source)=>part2_legacy_replay_after_source(before,input,replay,caps,source,rest),
         },Err(error),Ok((Err(error),part2_legacy_replay_clear(before))));
 }
+pub(crate) proof fn part2_legacy_replay_append_error(before:Tier1DecoderState,input:Seq<u8>,replay:u32,caps:Part2LegacyCaps,error:crate::DecodeError)
+    requires part2_legacy_snapshot_result(part2_legacy_replay_clear(before),Ok(part2_legacy_replay_source(before))) || before.legacy_segment.is_some(),
+        part2_legacy_append_result(part2_legacy_replay_source(before),input,replay,Err(error)),
+    ensures part2_legacy_replay_result(before,input,replay,caps,(Err(error),before)),
+{
+    let source=part2_legacy_replay_source(before);
+    part2_legacy_append_frames(source,input,replay,Err(error));
+    part2_tier1_storage_pure::<Part2LegacyResult>(Ok((Err(error),before)));
+    part2_tier1_resume_frame(|calls|part2_legacy_append_run(source,input,replay,calls),
+        |appended:Result<Tier1LegacyFrame,crate::DecodeError>,rest|part2_legacy_replay_after_appended(before,caps,appended,rest),
+        Err(error),Ok((Err(error),before)));
+    part2_legacy_replay_bind(before,input,replay,caps,(Err(error),before));
+}
+pub(crate) proof fn part2_legacy_replay_appended_bind(
+    before:Tier1DecoderState,input:Seq<u8>,replay:u32,caps:Part2LegacyCaps,result:Part2LegacyResult,
+)
+    requires part2_legacy_snapshot_result(part2_legacy_replay_clear(before),Ok(part2_legacy_replay_source(before))) || before.legacy_segment.is_some(),
+        part2_legacy_append_result(part2_legacy_replay_source(before),input,replay,Ok(part1_legacy_append(part2_legacy_replay_source(before),input,replay))),
+        part2_tier1_storage_framed(|calls|part2_legacy_replay_after_appended(before,caps,Ok(part1_legacy_append(part2_legacy_replay_source(before),input,replay)),calls),Ok(result)),
+    ensures part2_legacy_replay_result(before,input,replay,caps,result),
+{
+    let source=part2_legacy_replay_source(before);
+    let appended=Ok(part1_legacy_append(source,input,replay));
+    part2_legacy_append_frames(source,input,replay,appended);
+    part2_tier1_storage_eta(|calls|part2_legacy_replay_after_appended(before,caps,
+        Ok(part1_legacy_append(part2_legacy_replay_source(before),input,replay)),calls),Ok(result));
+    part2_tier1_resume_frame(|calls|part2_legacy_append_run(source,input,replay,calls),
+        |value:Result<Tier1LegacyFrame,crate::DecodeError>,rest|part2_legacy_replay_after_appended(before,caps,value,rest),
+        appended,Ok(result));
+    part2_legacy_replay_bind(before,input,replay,caps,result);
+}
 pub(crate) proof fn part2_legacy_replay_restored(before:Tier1DecoderState,input:Seq<u8>,replay:u32,caps:Part2LegacyCaps,restored:Part2LegacyResult)
     requires part2_legacy_snapshot_result(part2_legacy_replay_clear(before),Ok(part2_legacy_replay_source(before))) || before.legacy_segment.is_some(),
+        part2_legacy_append_result(part2_legacy_replay_source(before),input,replay,Ok(part1_legacy_append(part2_legacy_replay_source(before),input,replay))),
         part2_legacy_restore_result(part2_legacy_replay_clear(before),part1_legacy_append(part2_legacy_replay_source(before),input,replay),restored),
     ensures part2_legacy_replay_result(before,input,replay,caps,part2_legacy_replay_finish(part1_legacy_append(part2_legacy_replay_source(before),input,replay),caps,restored)),
 {
@@ -202,11 +301,13 @@ pub(crate) proof fn part2_legacy_replay_restored(before:Tier1DecoderState,input:
     part2_tier1_storage_eta(|calls|part2_legacy_replay_after_restored(source,caps,restored,calls),Ok(result));
     part2_tier1_storage_bind_frame(|calls|part2_legacy_restore_run(part2_legacy_replay_clear(before),source,calls),
         |restored:Part2LegacyResult,rest|part2_legacy_replay_after_restored(source,caps,restored,rest),Ok(restored),Ok(result));
-    part2_legacy_replay_bind(before,input,replay,caps,result);
+    part2_tier1_storage_eta(|calls|part2_legacy_replay_after_appended(before,caps,Ok(source),calls),Ok(result));
+    part2_legacy_replay_appended_bind(before,input,replay,caps,result);
 }
 pub(crate) proof fn part2_legacy_replay_segment_observed(before:Tier1DecoderState,input:Seq<u8>,replay:u32,caps:Part2LegacyCaps,restored:Part2LegacyResult,decoded:HtDecoderResult)
     requires restored.0==Ok(()),
         part2_legacy_snapshot_result(part2_legacy_replay_clear(before),Ok(part2_legacy_replay_source(before))) || before.legacy_segment.is_some(),
+        part2_legacy_append_result(part2_legacy_replay_source(before),input,replay,Ok(part1_legacy_append(part2_legacy_replay_source(before),input,replay))),
         part2_legacy_restore_result(part2_legacy_replay_clear(before),part1_legacy_append(part2_legacy_replay_source(before),input,replay),restored),
         part2_legacy_segment_result(restored.1,part1_legacy_append(part2_legacy_replay_source(before),input,replay).input,replay,caps,decoded),
     ensures part2_legacy_replay_result(before,input,replay,caps,part1_legacy_contribution_finish(decoded,part1_legacy_append(part2_legacy_replay_source(before),input,replay))),
@@ -221,7 +322,8 @@ pub(crate) proof fn part2_legacy_replay_segment_observed(before:Tier1DecoderStat
     part2_legacy_restore_frames(part2_legacy_replay_clear(before),source,restored);
     part2_tier1_storage_bind_frame(|calls|part2_legacy_restore_run(part2_legacy_replay_clear(before),source,calls),
         |restored:Part2LegacyResult,rest|part2_legacy_replay_after_restored(source,caps,restored,rest),Ok(restored),Ok(result));
-    part2_legacy_replay_bind(before,input,replay,caps,result);
+    part2_tier1_storage_eta(|calls|part2_legacy_replay_after_appended(before,caps,Ok(source),calls),Ok(result));
+    part2_legacy_replay_appended_bind(before,input,replay,caps,result);
 }
 pub(crate) proof fn part2_legacy_replay_normal(before:Tier1DecoderState,input:Seq<u8>,replay:u32,caps:Part2LegacyCaps)
     ensures part2_legacy_replay_result(before,input,replay,caps,part1_legacy_replay(before,input,replay,caps.passes,caps.bytes,caps.input,caps.work)),
@@ -229,6 +331,7 @@ pub(crate) proof fn part2_legacy_replay_normal(before:Tier1DecoderState,input:Se
     reveal(part1_legacy_replay);
     let source=part1_legacy_append(part2_legacy_replay_source(before),input,replay);
     if before.legacy_segment.is_none(){part2_legacy_snapshot_normal(part2_legacy_replay_clear(before));}
+    part2_legacy_append_normal(part2_legacy_replay_source(before),input,replay);
     part2_legacy_restore_normal(part2_legacy_replay_clear(before),source);
     part2_legacy_replay_restored(before,input,replay,caps,(Ok(()),part1_legacy_restore(part2_legacy_replay_clear(before),source)));
 }
