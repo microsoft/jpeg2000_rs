@@ -92,8 +92,37 @@ under its own exact authorization.
 The registry package is `jpeg2000-decoder`, imported in Rust as
 `jpeg2000_decoder`. Repository URLs remain `microsoft/jpeg2000_rs`.
 Experimental [version 0.1.0](https://crates.io/crates/jpeg2000-decoder/0.1.0)
-has been published manually. Confirm current ownership and appropriate token
-or publisher permissions before preparing any subsequent version.
+and bounded maintenance [version 0.1.1](https://crates.io/crates/jpeg2000-decoder/0.1.1)
+are published. Confirm current ownership and appropriate token or publisher
+permissions before preparing any subsequent version.
+
+## Unpublished 0.2 development
+
+The development manifest is version 0.2.0 with `publish = false`. It includes
+the newer PDF recovery/centered-output APIs and default-off deadline,
+initial-MQ compatibility and buffered incremental profiles. None of those
+additions is implied by installing the bounded 0.1.1 maintenance crate.
+The default proof profile does not qualify the optional native coordinators;
+all [profile boundaries](SUPPORTED.md#build-and-runtime-profiles) remain.
+
+This version preparation is not a release cut or approval. An owner must still
+select and authorize an exact `release/0.2` candidate, enable publication in
+that reviewed candidate, qualify the actual integrated source/archive, and
+approve its immutable tag and publication request as described above. No
+release ref, tag, workflow dispatch or upload follows from a development merge.
+
+## Published bounded maintenance 0.1.1
+
+- Release branch: `release/0.1`; tag: `v0.1.1`.
+- Exact source: `8562d6545742c2d6da18009edc4815605b4ac485`.
+- Published archive SHA256:
+  `c2a5c22a01937c6e212aeb4bc0a832e3ef06b746cf7d5b44a2ff2565cdfa7c35`.
+- Operator publication workflow: `43866558872`, with exact registry checksum
+  and fresh registry-consumer checks.
+
+This contains the bounded compatible whole-packet-prefix correction, not the
+newer full-main capabilities. Its source/archive receipts and the original
+0.1.0 publication below retain their distinct identities.
 
 ## Published experimental baseline
 
