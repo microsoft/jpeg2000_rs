@@ -117,6 +117,48 @@ publish the crate or change `publish = false`.
   evidence in ignored `target/`. Use issues/PRs for execution tracking rather
   than committing session plans, run reports or approval records.
 
+## CodeQL on pull requests
+
+The [CodeQL workflow](.github/workflows/codeql.yml) uses advanced setup so that
+`pull_request` events, including pull requests from forks, can produce the
+required CodeQL result. GitHub's managed default setup excludes fork pull
+requests, leaving them blocked when CodeQL is a required check.
+The workflow preserves the existing Actions and Python analysis scope, push
+scans on `main` and `release/*`, and weekly scans. It does not analyze the Rust
+decoder or replace its tests, numerical validation or Verus checks.
+
+The workflow uses GitHub-hosted runners, does not persist checkout credentials,
+and does not run repository build commands or request repository secrets.
+Fork pull requests retain GitHub's restricted token permissions; code scanning
+supports uploading their results through the `pull_request` event. Do not
+replace this trigger with `pull_request_target` or enable write tokens for
+untrusted forks.
+
+Switching from default setup requires an authorized maintainer:
+
+1. Review the workflow change before switching configuration. An upstream
+   repository branch can qualify the migration PR under the old default setup;
+   fork PRs cannot obtain its required CodeQL result.
+2. In repository **Settings > Advanced Security > CodeQL analysis**, select
+   **Switch to advanced** and confirm **Disable CodeQL**. This disables the
+   managed default configuration, not the required CodeQL branch protection.
+   Default setup must be disabled before the advanced workflow can upload
+   results; adding the YAML file alone is not sufficient.
+3. Run or rerun the migration PR's advanced workflow after the setting changes,
+   approving fork workflow execution if GitHub requires it. Require successful
+   analysis for both languages and the actual `CodeQL` check from the Code
+   Scanning app (ID `57789`), not merely a similarly named Actions job.
+4. Merge the reviewed workflow with all existing required checks intact.
+   Synchronize existing fork PRs to trigger the new workflow, and verify that
+   they receive a successful CodeQL result before declaring the issue fixed.
+   Rerunning an old managed-default run does not activate the new workflow.
+
+Keep all twelve checks and their app identities in the main ruleset, including
+CodeQL, as audited by [the review policy checker](validation/review_policy.py).
+Do not remove the security requirement or synthesize a passing replacement.
+See GitHub's [advanced setup instructions](https://docs.github.com/en/code-security/how-tos/find-and-fix-code-vulnerabilities/configure-code-scanning/configuring-advanced-setup-for-code-scanning)
+and [setup trigger comparison](https://docs.github.com/en/code-security/concepts/code-scanning/setup-types).
+
 ## Coordinated proof work
 
 The repository's [Verus proof worker](.github/agents/verus-proof-worker.agent.md)
