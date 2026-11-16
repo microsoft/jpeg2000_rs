@@ -6,10 +6,11 @@ and proofs attached to the production implementation.
 The Cargo package is `jpeg2000-decoder`; Rust code imports it as
 `jpeg2000_decoder`. The repository remains
 [`microsoft/jpeg2000_rs`](https://github.com/microsoft/jpeg2000_rs).
-Experimental [version 0.1.0](https://crates.io/crates/jpeg2000-decoder/0.1.0)
-is published, with [versioned API documentation](https://docs.rs/jpeg2000-decoder/0.1.0/jpeg2000_decoder/).
-The development branch keeps registry publication disabled; every subsequent
-release requires separate exact-candidate authorization and qualification.
+Experimental maintenance [version 0.1.1](https://crates.io/crates/jpeg2000-decoder/0.1.1)
+is published. This branch is **unpublished 0.2 development**: its additional PDF
+recovery, centered-output, deadline, MQ and buffered incremental APIs are not
+part of that bounded maintenance release. Registry publication remains disabled;
+every release requires separate exact-candidate authorization and qualification.
 
 The library decodes raw codestreams and JP2/JPH containers, provides explicit
 JPX codestream and frame selection, and supports bounded JPIP databin
