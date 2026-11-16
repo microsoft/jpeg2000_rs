@@ -3503,7 +3503,8 @@ class FrameworkTests(WorkingFiles):
         entry = next(item for item in coverage["requirements"] if item["id"] == framework._RAW_JPX_PUBLIC_IMAGE_ENTRY)
         read_text = Path.read_text
         for name, anchor, before, after, expected in (
-            ("src/decode/api.rs", "pub fn decode_jpx_codestream(", "jp2::parse(input, options.limits())?", "jp2::parse_and_inspect(input, options.limits())?", "actual raw/index/selection/header/color/target handoffs"),
+            ("src/decode/api.rs", "pub fn decode_jpx_codestream(", "let parsed_file = jp2::parse(input, options.limits())", "let parsed_file = jp2::parse_and_inspect(input, options.limits())", "actual raw/index/selection/header/color/target handoffs"),
+            ("src/decode/api.rs", "pub fn decode_jpx_codestream(", "part2_decode_jpx_typed_container_error(", "unrelated_container_error(", "actual raw/index/selection/header/color/target handoffs"),
             ("src/decode/api.rs", "pub fn decode_jpx_codestream(", "decode_jpx_file_selected(&file, codestream_index, options, selection)", "decode_jpx_file_selected(&file, 0, options, selection)", "actual raw/index/selection/header/color/target handoffs"),
             ("src/decode/api.rs", "pub fn decode_jpx_codestream(", "convert_associated_selected_color(&decoded, header, target, options.limits())", "convert_associated_selected_color(&decoded, header, [0, 0, 1, 1], options.limits())", "actual raw/index/selection/header/color/target handoffs"),
             ("src/decode/output.rs", "pub(super) fn decode_jpx_file_selected(", "codestream::parse_layout(selected.data(), options.limits())", "codestream::parse_layout(&unrelated, options.limits())", "actual module-level selected producer"),
@@ -5071,6 +5072,8 @@ class FrameworkTests(WorkingFiles):
             ("limits.maximum_compatible_brands()", "u32::MAX"),
             ("if previous.equals(compatible)", "if false"),
             ("compatible_brands.push(compatible)", "compatible_brands.push(brand)"),
+            ("inspection_values(\n        compatible_brand_count,", "inspection_values(\n        0,"),
+            ("InspectionCollection::FileTypeBrands", "InspectionCollection::Layers"),
         ):
             self.assertIn(before, original[begin:])
             changed = original[:begin] + original[begin:].replace(before, after, 1)
@@ -5091,6 +5094,7 @@ class FrameworkTests(WorkingFiles):
             ("src/jp2/container.rs", "box_reader_from_input(input, limits)?", "BoxReader::new(input, limits)?", "actual shared-reader"),
             ("specs/jp2_file_type.rs", "count > maximum_brands as nat", "false", "complete actual admission"),
             ("specs/jp2_file_type.rs", "previous.contains(brand)", "false", "complete actual admission"),
+            ("specs/jp2_file_type.rs", "part2_file_type_preflight(input, maximum)", "part2_file_type_preflight(input, u32::MAX)", "complete actual admission"),
         ):
             source = framework.ROOT / name
             original = source.read_text()
@@ -9683,8 +9687,10 @@ class FrameworkTests(WorkingFiles):
             (framework._RAW_INSPECTED_ENTRY, "specs/cold_inspection_storage.rs", "part2_inspection_capacity",
              "Part2JpipSnapshotEvent::InspectionCapacity", "Part2JpipSnapshotEvent::Parse"),
             (framework._RAW_INSPECTED_ENTRY, "specs/jp2_inspection.rs", "part2_inspection_cold_run",
+             "part2_parse_container_cold_run(input, *limits, events)", "part2_parse_container_cold_run(seq![], *limits, events)"),
+            (framework._RAW_INSPECTED_ENTRY, "specs/jp2_inspection.rs", "part2_inspection_after_container",
              "InspectionCollection::Infos(display_first)", "InspectionCollection::Layers"),
-            (framework._RAW_INSPECTED_ENTRY, "specs/jp2_inspection.rs", "part2_inspection_cold_run",
+            (framework._RAW_INSPECTED_ENTRY, "specs/jp2_inspection.rs", "part2_inspection_after_container",
              "as usize, events)", "as usize, events.drop_first())"),
             (framework._RAW_INSPECTED_ENTRY, "src/jp2/container.rs", "parse_and_inspect_mode",
              "inspection_values(\n        codestream_count,", "inspection_values(\n        1,"),

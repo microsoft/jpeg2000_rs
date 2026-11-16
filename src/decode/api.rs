@@ -1271,7 +1271,15 @@ pub fn decode_jpx_codestream(
             crate::options::decode_options_limits(options), None);
         super::associated_typed_outcome_known();
     }
-    let file = jp2::parse(input, options.limits())?;
+    let parsed_file = jp2::parse(input, options.limits());
+    #[cfg(verus_keep_ghost)]
+    proof! {
+        if let Err(error) = parsed_file {
+            crate::specs::part2_decode_jpx_typed_container_error(input@, codestream_index,
+                crate::options::decode_options_limits(options), None, error);
+        }
+    }
+    let file = parsed_file?;
     #[cfg(verus_keep_ghost)]
     proof! { jp2::raw_render_file_known(&file); }
     let decoded_result = decode_jpx_file(&file, codestream_index, options);
@@ -1307,7 +1315,15 @@ pub fn decode_jpx_codestream_selected(
             crate::options::decode_options_limits(options), Some(crate::options::decode_selection_view(selection)));
         super::associated_typed_outcome_known();
     }
-    let file = jp2::parse(input, options.limits())?;
+    let parsed_file = jp2::parse(input, options.limits());
+    #[cfg(verus_keep_ghost)]
+    proof! {
+        if let Err(error) = parsed_file {
+            crate::specs::part2_decode_jpx_typed_container_error(input@, codestream_index,
+                crate::options::decode_options_limits(options), Some(crate::options::decode_selection_view(selection)), error);
+        }
+    }
+    let file = parsed_file?;
     #[cfg(verus_keep_ghost)]
     proof! { jp2::raw_render_file_known(&file); }
     let decoded_result = decode_jpx_file_selected(&file, codestream_index, options, selection);
@@ -1341,7 +1357,15 @@ pub fn decode_jpx_codestream_color(
             crate::options::decode_options_limits(options), None);
         super::associated_typed_outcome_known();
     }
-    let file = jp2::parse(input, options.limits())?;
+    let parsed_file = jp2::parse(input, options.limits());
+    #[cfg(verus_keep_ghost)]
+    proof! {
+        if let Err(error) = parsed_file {
+            crate::specs::part2_decode_jpx_color_container_error(input@, codestream_index,
+                crate::options::decode_options_limits(options), None, error);
+        }
+    }
+    let file = parsed_file?;
     #[cfg(verus_keep_ghost)]
     proof! { jp2::raw_render_file_known(&file); }
     let (decoded, header) = match decode_jpx_file(&file, codestream_index, options) {
@@ -1380,7 +1404,15 @@ pub fn decode_jpx_codestream_color_selected(
             crate::options::decode_options_limits(options), Some(crate::options::decode_selection_view(selection)));
         super::associated_typed_outcome_known();
     }
-    let file = jp2::parse(input, options.limits())?;
+    let parsed_file = jp2::parse(input, options.limits());
+    #[cfg(verus_keep_ghost)]
+    proof! {
+        if let Err(error) = parsed_file {
+            crate::specs::part2_decode_jpx_color_container_error(input@, codestream_index,
+                crate::options::decode_options_limits(options), Some(crate::options::decode_selection_view(selection)), error);
+        }
+    }
+    let file = parsed_file?;
     #[cfg(verus_keep_ghost)]
     proof! { jp2::raw_render_file_known(&file); }
     if !file.file_type().is_jpx_compatible() {

@@ -1565,6 +1565,8 @@
         {"path": "src/decode/output.rs", "symbol": "apply_jp2_output"}
       ],
       "spec_refs": [
+        {"path": "specs/jp2_file_type.rs", "symbol": "part2_parse_container_cold_result"},
+        {"path": "specs/jp2_file_type.rs", "symbol": "part2_parse_container_cold_run"},
         {"path": "specs/jpx_public_images.rs", "symbol": "part2_decode_jpx_selected_layout"},
         {"path": "specs/cold_decode_packets.rs", "symbol": "part2_layout_decode_result"},
         {"path": "specs/cold_decode_packets.rs", "symbol": "part2_layout_decode_run"},
@@ -1603,6 +1605,7 @@
         {"path": "specs/raw_layout.rs", "symbol": "part1_parse_layout_with_cold_storage"}
       ],
       "proof_refs": [
+        {"path": "specs/jp2_file_type.rs", "symbol": "part2_parse_container_cold_normal"},
         {"path": "src/decode/api.rs", "symbol": "decode_jpx_codestream"},
         {"path": "specs/cold_decode_packets.rs", "symbol": "part2_layout_decode_normal"},
         {"path": "src/decode/api.rs", "symbol": "decode_jpx_codestream_selected"},
@@ -2096,6 +2099,8 @@
         {"path": "src/jp2/container.rs", "symbol": "parse"}
       ],
       "spec_refs": [
+        {"path": "specs/jp2_file_type.rs", "symbol": "part2_parse_container_cold_result"},
+        {"path": "specs/jp2_file_type.rs", "symbol": "part2_parse_container_cold_run"},
         {"path": "specs/jp2_file_type.rs", "symbol": "part2_container_prologue"},
         {"path": "specs/jp2_header.rs", "symbol": "part2_parse_jp2_header_profile"},
         {"path": "specs/jp2_container.rs", "symbol": "part2_parse_container"},
@@ -2108,6 +2113,7 @@
         {"path": "specs/jp2_container.rs", "symbol": "part2_container_error"}
       ],
       "proof_refs": [
+        {"path": "specs/jp2_file_type.rs", "symbol": "part2_parse_container_cold_normal"},
         {"path": "src/jp2/proof_support.rs", "symbol": "raw_jp2_file_outcome"},
         {"path": "src/jp2/proof_support.rs", "symbol": "raw_jp2_file_view"},
         {"path": "src/jp2/proof_support.rs", "symbol": "raw_container_state"},
@@ -2645,7 +2651,7 @@
     },
     {
       "id": "part2-complete-native-raw-file-type-result",
-      "topic": "Complete actual raw file-type payload and JP2/JPX/JPH profile Results: checked payload offset/length, compatible-brand count before duplicates, every ordered native brand, minor version and exact profile error offsets. The actual public parse prologue has a checked prefix-error/returned-file-type relation using actual shared reader/signature/ftyp/profile producers; this is not complete later container parsing. No parsed-file/result bank, successful-parser premise or owner inversion. Primary brand and parser reader initialization add explicit shared-producer call targets, to qualify separately with prior extraction/debug differences. Native owning declarations/error/loop order are preserved. Later headers/associations/layers/composition/terminal/public/normative/cfg/erasure/lifetimes/release remain separate.",
+      "topic": "Complete actual raw file-type payload and JP2/JPX/JPH profile Results: checked offset/length/count preflight, then reached compatible-brand capacity response before ordered duplicates/brands, minor version and exact profile offsets. Empty lists make no request; non-refusal results retain the prior exact byte relation. The public parse cold run composes this actual role/count/result/tail with the shared reader/signature/ftyp/profile prefix and unchanged later result, not a blanket allocation-error alternative. No parsed-file/result bank, successful-parser premise, owner inversion or physical-capacity axiom. Primary brand and reader initialization retain their explicit shared-producer extraction/debug boundaries. Whole fallibility, later storage, independent normative/cfg/erasure/lifetimes/release remain separate.",
       "implementation_refs": [
         {"path": "src/jp2/container.rs", "symbol": "parse_file_type"},
         {"path": "src/jp2/container.rs", "symbol": "validate_file_type_profile"},
@@ -2655,6 +2661,11 @@
       ],
       "spec_refs": [
         {"path": "specs/jp2_file_type.rs", "symbol": "part2_parse_file_type"},
+        {"path": "specs/jp2_file_type.rs", "symbol": "part2_file_type_preflight"},
+        {"path": "specs/jp2_file_type.rs", "symbol": "part2_file_type_cold_run"},
+        {"path": "specs/jp2_file_type.rs", "symbol": "part2_file_type_cold_result"},
+        {"path": "specs/jp2_file_type.rs", "symbol": "part2_container_file_type_prefix"},
+        {"path": "specs/jp2_file_type.rs", "symbol": "part2_parse_container_cold_run"},
         {"path": "specs/jp2_file_type.rs", "symbol": "part2_file_type_brand_at"},
         {"path": "specs/jp2_file_type.rs", "symbol": "part2_file_type_brands_prefix"},
         {"path": "specs/jp2_file_type.rs", "symbol": "part2_validate_file_type_profile"},
@@ -2667,12 +2678,16 @@
       "proof_refs": [
         {"path": "specs/jp2_file_type.rs", "symbol": "part2_file_type_brands_step"},
         {"path": "specs/jp2_file_type.rs", "symbol": "part2_file_type_brands_error"},
+        {"path": "specs/jp2_file_type.rs", "symbol": "part2_file_type_cold_normal"},
+        {"path": "specs/jp2_file_type.rs", "symbol": "part2_file_type_cold_refused"},
+        {"path": "specs/jp2_file_type.rs", "symbol": "part2_parse_container_cold_file_type_error"},
         {"path": "src/jp2/proof_support.rs", "symbol": "file_type_view"},
         {"path": "src/jp2/proof_support.rs", "symbol": "file_type_outcome"},
         {"path": "src/jp2/proof_support.rs", "symbol": "container_prefix_relation"}
       ],
       "test_refs": [
         {"path": "src/jp2/tests.rs", "symbol": "actual_raw_file_type_preserves_primary_minor_and_every_ordered_compatible_brand"},
+        {"path": "src/jp2/tests.rs", "symbol": "actual_raw_file_type_refusal_preserves_input_and_exact_retry"},
         {"path": "src/jp2/tests.rs", "symbol": "actual_raw_file_type_keeps_length_then_count_then_ordered_duplicate_error_priority"},
         {"path": "src/jp2/tests.rs", "symbol": "actual_raw_file_type_retains_exact_jp2_jpx_jph_profile_admission_and_error_offsets"},
         {"path": "src/jp2/tests.rs", "symbol": "actual_raw_file_type_checks_header_offset_first_and_preserves_unread_header_fields"},

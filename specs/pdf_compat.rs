@@ -34,6 +34,36 @@ pub(crate) open spec fn part2_pdf_file_value(
     }}
 }
 
+pub(crate) open spec fn part2_pdf_file_cold_run(
+    input: Seq<u8>, limits: &crate::ResourceLimits, events: Seq<Part2JpipSnapshotEvent>,
+) -> Part2ColdRun<Option<Part2RawJp2File>> {
+    if part2_pdf_raw_input(input) { Some((Ok(None), events)) }
+    else { part2_jpip_snapshot_bind(part2_parse_container_cold_run(input, *limits, events),
+        |file, rest| Some((if part2_pdf_file_profile(file) { Ok(Some(file)) }
+            else { Err(part2_pdf_invalid_profile()) }, rest))) }
+}
+
+pub(crate) proof fn part2_pdf_file_cold_normal(input: Seq<u8>, limits: &crate::ResourceLimits)
+    ensures part2_cold_framed(|events| part2_pdf_file_cold_run(input, limits, events),
+        part2_pdf_file_value(input, limits)),
+{
+    if part2_pdf_raw_input(input) {
+        part2_cold_pure::<Option<Part2RawJp2File>>(Ok(None));
+    } else {
+        part2_parse_container_cold_normal(input, *limits, Seq::empty());
+        part2_parse_container_cold_frames(input, *limits, part2_parse_container(input, *limits));
+        if let Ok(file) = part2_parse_container(input, *limits) {
+            part2_cold_pure(if part2_pdf_file_profile(file) { Ok(Some(file)) }
+                else { Err(part2_pdf_invalid_profile()) });
+        }
+        part2_cold_bind(
+            |events| part2_parse_container_cold_run(input, *limits, events),
+            |file, rest| Some((if part2_pdf_file_profile(file) { Ok(Some(file)) }
+                else { Err(part2_pdf_invalid_profile()) }, rest)),
+            part2_parse_container(input, *limits), part2_pdf_file_value(input, limits));
+    }
+}
+
 pub(crate) open spec fn part2_pdf_original_input(input: Seq<u8>, file: Option<Part2RawJp2File>) -> Seq<u8> {
     match file { None => input, Some(file) => file.streams[0].1 }
 }
@@ -98,10 +128,8 @@ pub(crate) open spec fn part2_pdf_prepare_after_file_run(
 pub(crate) open spec fn part2_pdf_prepare_run(
     input: Seq<u8>, limits: &crate::ResourceLimits, events: Seq<Part2JpipSnapshotEvent>,
 ) -> Part2ColdRun<Part2PdfPrepared> {
-    match part2_pdf_file_value(input, limits) {
-        Err(error) => Some((Err(error), events)),
-        Ok(file) => part2_pdf_prepare_after_file_run(input, file, limits, events),
-    }
+    part2_jpip_snapshot_bind(part2_pdf_file_cold_run(input, limits, events),
+        |file, rest| part2_pdf_prepare_after_file_run(input, file, limits, rest))
 }
 
 pub(crate) open spec fn part2_pdf_prepare_result(
@@ -151,6 +179,29 @@ pub(crate) proof fn part2_pdf_prepare_copy_actual(
     if let Ok(bytes) = result { part2_cold_pure(Ok(part2_pdf_prepared_copy(file, original, frame, bytes))); }
     part2_cold_bind(|events| part2_pdf_copy_run(original, events),
         |bytes: Seq<u8>, rest| Some((Ok(part2_pdf_prepared_copy(file, original, frame, bytes)), rest)), result, output);
+    part2_pdf_file_cold_normal(input, limits);
+    part2_cold_bind(
+        |events| part2_pdf_file_cold_run(input, limits, events),
+        |parsed_file, rest| part2_pdf_prepare_after_file_run(input, parsed_file, limits, rest),
+        Ok(file), output);
+}
+
+pub(crate) proof fn part2_pdf_prepare_container_error(
+    input: Seq<u8>, limits: &crate::ResourceLimits, error: crate::DecodeError,
+)
+    requires !part2_pdf_raw_input(input),
+        part2_parse_container_cold_result(input, *limits, Err(error)),
+    ensures part2_pdf_prepare_result(input, limits, Err(error)),
+{
+    part2_parse_container_cold_frames(input, *limits, Err(error));
+    part2_cold_bind(
+        |events| part2_parse_container_cold_run(input, *limits, events),
+        |file, rest| Some((if part2_pdf_file_profile(file) { Ok(Some(file)) }
+            else { Err(part2_pdf_invalid_profile()) }, rest)), Err(error), Err(error));
+    part2_cold_bind(
+        |events| part2_pdf_file_cold_run(input, limits, events),
+        |file, rest| part2_pdf_prepare_after_file_run(input, file, limits, rest),
+        Err(error), Err(error));
 }
 
 pub(crate) proof fn part2_pdf_prepare_normal(input: Seq<u8>, limits: &crate::ResourceLimits)
@@ -166,11 +217,19 @@ pub(crate) proof fn part2_pdf_prepare_normal(input: Seq<u8>, limits: &crate::Res
                     part2_cold_pure::<Part2PdfPrepared>(part2_pdf_prepare_value(input, limits));
                 } else { match raw_recovery_admit(original.len() as usize, frame.1, limits) {
                     Err(_) => part2_cold_pure::<Part2PdfPrepared>(part2_pdf_prepare_value(input, limits)),
-                    Ok(()) => part2_pdf_prepare_copy_actual(input, limits, file, frame, raw_repair_response(original, true)),
+                    Ok(()) => {
+                        part2_pdf_prepare_copy_actual(input, limits, file, frame, raw_repair_response(original, true));
+                        return;
+                    },
                 }},
             }
         },
     }
+    part2_pdf_file_cold_normal(input, limits);
+    part2_cold_bind(
+        |events| part2_pdf_file_cold_run(input, limits, events),
+        |file, rest| part2_pdf_prepare_after_file_run(input, file, limits, rest),
+        part2_pdf_file_value(input, limits), part2_pdf_prepare_value(input, limits));
 }
 
 pub(crate) open spec fn part2_pdf_validate_layout(

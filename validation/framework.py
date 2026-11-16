@@ -3491,10 +3491,12 @@ _FILE_TYPE_CONTRACTS = {
 }
 _FILE_TYPE_MODELS = {("specs/jp2_file_type.rs", name) for name in (
     "part2_parse_file_type", "part2_file_type_brand_at", "part2_file_type_brands_prefix",
-    "part2_validate_file_type_profile", "part2_container_prologue",
+    "part2_validate_file_type_profile", "part2_container_prologue", "part2_file_type_preflight",
+    "part2_file_type_cold_run", "part2_container_file_type_prefix", "part2_parse_container_cold_run",
 )}
 _FILE_TYPE_PROOFS = {("specs/jp2_file_type.rs", name) for name in (
     "part2_file_type_brands_step", "part2_file_type_brands_error",
+    "part2_file_type_cold_refused", "part2_parse_container_cold_file_type_error",
 )} | {("src/jp2/proof_support.rs", name) for name in (
     "file_type_view", "file_type_outcome", "container_prefix_relation",
 )}
@@ -5207,6 +5209,12 @@ _COLD_RESULT_MODELS = {
     "part2_decode_raw_reconstructed_codestream": (
         "part2_decode_reconstructed_cold_result", "specs/raw_decode.rs", "part2_decode_reconstructed_cold_normal",
     ),
+    "part2_parse_file_type": (
+        "part2_file_type_cold_result", "specs/jp2_file_type.rs", "part2_file_type_cold_normal",
+    ),
+    "part2_parse_container": (
+        "part2_parse_container_cold_result", "specs/jp2_file_type.rs", "part2_parse_container_cold_normal",
+    ),
     "part2_decode_jp2_reconstructed_value": (
         "part2_decode_jp2_reconstructed_result", "specs/container_reconstruction.rs",
         "part2_decode_jp2_reconstructed_normal",
@@ -5510,7 +5518,8 @@ _COLD_RESULT_CONTRACTS = {
         _SELECTED_RECONSTRUCTION_CONTRACTS, _SELECTED_JP2_RECONSTRUCTION_CONTRACTS, _PRESENT_TILE_CONTRACTS,
         _PDF_TRAILERS_CONTRACTS,
         _PDF_COMMON_CONTRACTS,
-        _RAW_INSPECTED_CONTRACTS, _JPX_SOURCE_CONTRACTS, _RAW_JPX_PUBLIC_IMAGE_CONTRACTS,
+        _RAW_INSPECTED_CONTRACTS, _RAW_CONTAINER_CONTRACTS, _FILE_TYPE_CONTRACTS,
+        _JPX_SOURCE_CONTRACTS, _RAW_JPX_PUBLIC_IMAGE_CONTRACTS,
         _RAW_CONTAINER_IMAGE_CONTRACTS, _RAW_CONTAINER_COLOR_CONTRACTS,
         _SOURCE_FRAME_CONTRACTS, _RAW_RENDER_CONTRACTS, _RAW_COMPOSITION_RENDER_CONTRACTS,
         _RAW_JPX_INSPECTION_CONTRACTS, _EFFECTIVE_LAYER_CONTRACTS, _GENERAL_LAYER_CONTRACTS,
@@ -7871,13 +7880,17 @@ _INSPECTION_STORAGE_GUARDS = {
 }
 _INSPECTION_CONTAINER_GUARDS = {
     ("specs/jp2_inspection.rs", "part2_inspection_cold_run"): (
-        "part2_parse_container(input, *limits)", "Err(error) => Some((Err(error), events))",
+        "part2_parse_container_cold_run(input, *limits, events)",
+        "part2_inspection_after_container(file, limits, display_first, rest)",
+    ),
+    ("specs/jp2_inspection.rs", "part2_inspection_after_container"): (
         "part2_inspection_capacity(crate::allocation::InspectionCollection::Infos(display_first)",
         "part2_inspection_count(file, display_first) as usize, events)",
         "part2_inspected_cold_streams(file, limits, 0, Seq::empty(), display_first, rest)",
     ),
     ("src/jp2/container.rs", "parse_and_inspect_mode"): (
-        "let file = parse(input, limits)?", "inspection_count(&file, display_first)",
+        "let parsed_file = parse(input, limits)", "part2_inspection_cold_container_error(",
+        "let file = parsed_file?", "inspection_count(&file, display_first)",
         "inspection_values(codestream_count,", "crate::allocation::InspectionCollection::Infos(display_first)",
         "let mut inspected_codestreams = reserved?", "while index < codestream_count",
         "codestream::parse(codestream_box.data, limits)", "validate_container_codestream(",
@@ -8441,6 +8454,8 @@ _RESOLVED_COPY_PROOFS = {("specs/cold_resolved_copy.rs", name) for name in (
 
 for _contracts, _models, _proofs in (
     (_RAW_INSPECTED_CONTRACTS, _RAW_INSPECTED_MODELS, _RAW_INSPECTED_PROOFS),
+    (_RAW_CONTAINER_CONTRACTS, _RAW_CONTAINER_MODELS, _RAW_CONTAINER_PROOFS),
+    (_FILE_TYPE_CONTRACTS, _FILE_TYPE_MODELS, _FILE_TYPE_PROOFS),
     (_RAW_JPX_PUBLIC_IMAGE_CONTRACTS, _RAW_JPX_PUBLIC_IMAGE_MODELS, _RAW_JPX_PUBLIC_IMAGE_PROOFS),
     (_RAW_CONTAINER_IMAGE_CONTRACTS, _RAW_CONTAINER_IMAGE_MODELS, _RAW_CONTAINER_IMAGE_PROOFS),
     (_RAW_CONTAINER_COLOR_CONTRACTS, _RAW_CONTAINER_COLOR_MODELS, _RAW_CONTAINER_COLOR_PROOFS),
@@ -10928,7 +10943,10 @@ def validate_normative_coverage(
                 ("decode_jpx_codestream_color", False, True), ("decode_jpx_codestream_color_selected", True, True),
             ):
                 body = _coverage_function_body(source_text(path), function_header(path, name))
-                required = ["jp2::parse(input, options.limits())?", "jp2::raw_render_file_known(&file)"]
+                required = ["let parsed_file = jp2::parse(input, options.limits())",
+                            "let file = parsed_file?", "jp2::raw_render_file_known(&file)",
+                            "part2_decode_jpx_color_container_error(" if color
+                            else "part2_decode_jpx_typed_container_error("]
                 required.append(("let (decoded, header) = match " if color else "let decoded_result = ")
                     + ("decode_jpx_file_selected" if selected else "decode_jpx_file")
                     + "(&file, codestream_index, options"
@@ -11266,7 +11284,8 @@ def validate_normative_coverage(
                 "inspection_count": ("let count = file.codestream_count()", "if display_first",
                     "file.file_type().is_compatible_with(BoxType::JP2_BRAND)",
                     "!file.file_type().is_jpx_compatible()", "!file.file_type().is_jph_compatible()", "count.min(1)"),
-                "parse_and_inspect_mode": ("parse(input, limits)?", "inspection_count(&file, display_first)",
+                "parse_and_inspect_mode": ("let parsed_file = parse(input, limits)", "let file = parsed_file?",
+                    "part2_inspection_cold_container_error(", "inspection_count(&file, display_first)",
                     "let parsed = codestream::parse(codestream_box.data, limits)",
                     "let info = match parsed", "return Err(error)",
                     "jph != info.profile.is_part15()", "Some(association) => association.parsed.as_ref()",
@@ -11875,6 +11894,8 @@ def validate_normative_coverage(
                 "box_ref.header.payload_offset()?", "box_ref.payload.len() < 8",
                 "if compatible_brand_count_u64 > u64::from(limits.maximum_compatible_brands())",
                 "let brand = box_type_from_bytes(",
+                "inspection_values(compatible_brand_count, crate::allocation::InspectionCollection::FileTypeBrands,)",
+                "let mut compatible_brands: Vec<BoxType> = reserved?",
                 "read_box_type_at(box_ref.payload, position, payload_offset)?",
                 "if previous.equals(compatible)", "compatible_brands.push(compatible)",
                 "minor_version: read_u32(",
@@ -11890,19 +11911,29 @@ def validate_normative_coverage(
                 raise ValueError("raw file-type prefix requires actual public parser error/type relation")
             body = _coverage_function_body(text, header)
             required = ("box_reader_from_input(input, limits)?", "required_box(&mut reader, 0)?",
-                        "required_box(&mut reader, 1)?", "parse_file_type(file_type_box, limits)?",
+                        "required_box(&mut reader, 1)?", "let parsed_file_type = parse_file_type(file_type_box, limits)",
+                        "part2_parse_container_cold_file_type_error(", "let file_type = parsed_file_type?",
                         "validate_file_type_profile(&file_type, file_type_box.header.offset())?")
             if body is None or any("".join(item.split()) not in "".join(body.split()) for item in required):
                 raise ValueError("raw file-type prefix requires actual shared-reader/signature/payload/profile producers")
             model = source_text((ROOT / "specs/jp2_file_type.rs").resolve())
             handoffs = {
-                "part2_parse_file_type": ("payload.len() < 8 || payload.len() % 4 != 0",
-                    "count > maximum_brands as nat", "part2_file_type_brands_prefix(payload, offset, count)"),
+                "part2_file_type_preflight": ("payload.len() < 8 || payload.len() % 4 != 0",
+                    "count > maximum_brands as nat", "Ok((offset, count as usize))"),
+                "part2_parse_file_type": ("part2_file_type_preflight(input, maximum_brands)",
+                    "part2_file_type_brands_prefix(input.1, offset, count as nat)"),
                 "part2_file_type_brands_prefix": ("previous.contains(brand)", "Ok(previous.push(brand))"),
-                "part2_container_prologue": ("part2_box_reader_from_input(input, limits)",
+                "part2_container_file_type_prefix": ("part2_box_reader_from_input(input, limits)",
                     "part2_box_reader_required(reader, 0)", "part2_box_reader_required(first.1, 1)",
-                    "signature.1 != seq![0x0du8, 0x0au8, 0x87u8, 0x0au8]",
+                    "signature.1 != seq![0x0du8, 0x0au8, 0x87u8, 0x0au8]"),
+                "part2_container_prologue": ("part2_container_file_type_prefix(input, limits)",
                     "part2_validate_file_type_profile(file_type, file_type_box.0.1)"),
+                "part2_file_type_cold_run": ("part2_file_type_preflight(input, maximum)",
+                    "part2_inspection_capacity(crate::allocation::InspectionCollection::FileTypeBrands, count, events)",
+                    "Some((part2_parse_file_type(input, maximum), rest))"),
+                "part2_parse_container_cold_run": ("part2_container_file_type_prefix(input, limits)",
+                    "part2_file_type_cold_run(file_type_box, crate::limits::resource_compatible_brand_limit(&limits), events)",
+                    "Some((part2_parse_container(input, limits), rest))"),
             }
             for name, fragments in handoffs.items():
                 actual = _coverage_spec_function_body(model, name)

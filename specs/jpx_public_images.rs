@@ -53,16 +53,21 @@ pub(crate) proof fn part2_jpx_request_cold_actual(
     }
 }
 
+pub(crate) open spec fn part2_decode_jpx_typed_after_container(
+    raw: Part2RawJp2File, index: usize, limits: &crate::ResourceLimits,
+    requested: Option<Part2DecodeSelection>, events: Seq<Part2JpipSnapshotEvent>,
+) -> Part2ColdRun<Part1DecodedTypedImage> {
+    part2_jpip_snapshot_bind(
+        part2_jpx_request_cold_run(part2_raw_jpx_decode_input(raw), index, limits, requested, events),
+        |decoded: (Part1DecodedTypedImage, Option<Part2AssociatedHeader>), tail| Some((Ok(decoded.0), tail)))
+}
+
 pub(crate) open spec fn part2_decode_jpx_typed_cold_run(
     input: Seq<u8>, index: usize, limits: &crate::ResourceLimits,
     requested: Option<Part2DecodeSelection>, events: Seq<Part2JpipSnapshotEvent>,
 ) -> Part2ColdRun<Part1DecodedTypedImage> {
-    match part2_parse_container(input, *limits) {
-        Err(error) => Some((Err(error), events)),
-        Ok(raw) => part2_jpip_snapshot_bind(
-            part2_jpx_request_cold_run(part2_raw_jpx_decode_input(raw), index, limits, requested, events),
-            |decoded: (Part1DecodedTypedImage, Option<Part2AssociatedHeader>), tail| Some((Ok(decoded.0), tail))),
-    }
+    part2_jpip_snapshot_bind(part2_parse_container_cold_run(input, *limits, events),
+        |raw, rest| part2_decode_jpx_typed_after_container(raw, index, limits, requested, rest))
 }
 
 pub closed spec fn part2_decode_jpx_typed_cold_result(
@@ -93,6 +98,12 @@ pub(crate) proof fn part2_decode_jpx_typed_cold_normal(
                 decoded, part2_decode_raw_jpx_typed(input, index, limits, requested));
         },
     }
+    part2_parse_container_cold_normal(input, *limits, Seq::empty());
+    part2_parse_container_cold_frames(input, *limits, part2_parse_container(input, *limits));
+    part2_cold_bind(
+        |events| part2_parse_container_cold_run(input, *limits, events),
+        |raw, rest| part2_decode_jpx_typed_after_container(raw, index, limits, requested, rest),
+        part2_parse_container(input, *limits), part2_decode_raw_jpx_typed(input, index, limits, requested));
 }
 
 pub(crate) proof fn part2_decode_jpx_typed_cold_actual(
@@ -115,6 +126,27 @@ pub(crate) proof fn part2_decode_jpx_typed_cold_actual(
         |events| part2_jpx_request_cold_run(file, index, limits, requested, events),
         |value: (Part1DecodedTypedImage, Option<Part2AssociatedHeader>), tail| Some((Ok(value.0), tail)),
         decoded, match decoded { Err(error) => Err(error), Ok(value) => Ok(value.0) });
+    part2_parse_container_cold_normal(input, *limits, Seq::empty());
+    part2_parse_container_cold_frames(input, *limits, Ok(raw));
+    part2_cold_bind(
+        |events| part2_parse_container_cold_run(input, *limits, events),
+        |file, rest| part2_decode_jpx_typed_after_container(file, index, limits, requested, rest),
+        Ok(raw), match decoded { Err(error) => Err(error), Ok(value) => Ok(value.0) });
+}
+
+pub(crate) proof fn part2_decode_jpx_typed_container_error(
+    input: Seq<u8>, index: usize, limits: &crate::ResourceLimits,
+    requested: Option<Part2DecodeSelection>, error: crate::DecodeError,
+)
+    requires part2_parse_container_cold_result(input, *limits, Err(error)),
+    ensures part2_decode_jpx_typed_cold_result(input, index, limits, requested, Err(error)),
+{
+    reveal(part2_decode_jpx_typed_cold_result);
+    part2_parse_container_cold_frames(input, *limits, Err(error));
+    part2_cold_bind(
+        |events| part2_parse_container_cold_run(input, *limits, events),
+        |raw, rest| part2_decode_jpx_typed_after_container(raw, index, limits, requested, rest),
+        Err(error), Err(error));
 }
 
 pub(crate) open spec fn part2_jpx_color_cold_finish(
@@ -163,10 +195,8 @@ pub(crate) open spec fn part2_decode_jpx_color_cold_run(
     input: Seq<u8>, index: usize, limits: &crate::ResourceLimits,
     requested: Option<Part2DecodeSelection>, events: Seq<Part2JpipSnapshotEvent>,
 ) -> Part2ColdRun<Part2ConvertedImage> {
-    match part2_parse_container(input, *limits) {
-        Err(error) => Some((Err(error), events)),
-        Ok(raw) => part2_jpx_color_file_cold_run(part2_raw_jpx_decode_input(raw), index, limits, requested, events),
-    }
+    part2_jpip_snapshot_bind(part2_parse_container_cold_run(input, *limits, events),
+        |raw, rest| part2_jpx_color_file_cold_run(part2_raw_jpx_decode_input(raw), index, limits, requested, rest))
 }
 
 pub closed spec fn part2_decode_jpx_color_cold_result(
@@ -249,6 +279,27 @@ pub(crate) proof fn part2_decode_jpx_color_cold_normal(
             }
         },
     }
+    part2_parse_container_cold_normal(input, *limits, Seq::empty());
+    part2_parse_container_cold_frames(input, *limits, part2_parse_container(input, *limits));
+    part2_cold_bind(
+        |events| part2_parse_container_cold_run(input, *limits, events),
+        |raw, rest| part2_jpx_color_file_cold_run(part2_raw_jpx_decode_input(raw), index, limits, requested, rest),
+        part2_parse_container(input, *limits), part2_decode_raw_jpx_color(input, index, limits, requested));
+}
+
+pub(crate) proof fn part2_decode_jpx_color_container_error(
+    input: Seq<u8>, index: usize, limits: &crate::ResourceLimits,
+    requested: Option<Part2DecodeSelection>, error: crate::DecodeError,
+)
+    requires part2_parse_container_cold_result(input, *limits, Err(error)),
+    ensures part2_decode_jpx_color_cold_result(input, index, limits, requested, Err(error)),
+{
+    reveal(part2_decode_jpx_color_cold_result);
+    part2_parse_container_cold_frames(input, *limits, Err(error));
+    part2_cold_bind(
+        |events| part2_parse_container_cold_run(input, *limits, events),
+        |raw, rest| part2_jpx_color_file_cold_run(part2_raw_jpx_decode_input(raw), index, limits, requested, rest),
+        Err(error), Err(error));
 }
 
 pub(crate) proof fn part2_decode_jpx_color_source_error(
@@ -292,6 +343,12 @@ pub(crate) proof fn part2_decode_jpx_color_source_error(
                 intermediate, Err(error));
         },
     }
+    part2_parse_container_cold_normal(input, *limits, Seq::empty());
+    part2_parse_container_cold_frames(input, *limits, Ok(raw));
+    part2_cold_bind(
+        |events| part2_parse_container_cold_run(input, *limits, events),
+        |source, rest| part2_jpx_color_file_cold_run(part2_raw_jpx_decode_input(source), index, limits, requested, rest),
+        Ok(raw), Err(error));
 }
 
 pub(crate) open spec fn part2_decode_jpx_selected_layout(

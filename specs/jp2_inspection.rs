@@ -155,16 +155,21 @@ pub(crate) open spec fn part2_inspected_cold_streams(
     }
 }
 
+pub(crate) open spec fn part2_inspection_after_container(
+    file: Part2RawJp2File, limits: &crate::ResourceLimits, display_first: bool,
+    events: Seq<Part2JpipSnapshotEvent>,
+) -> Part2ColdRun<Part2RawInspectedContainer> {
+    part2_jpip_snapshot_bind(part2_inspection_capacity(crate::allocation::InspectionCollection::Infos(display_first),
+        part2_inspection_count(file, display_first) as usize, events),
+        |_: (), rest| part2_inspected_cold_streams(file, limits, 0, Seq::empty(), display_first, rest))
+}
+
 pub(crate) open spec fn part2_inspection_cold_run(
     input: Seq<u8>, limits: &crate::ResourceLimits, display_first: bool,
     events: Seq<Part2JpipSnapshotEvent>,
 ) -> Part2ColdRun<Part2RawInspectedContainer> {
-    match part2_parse_container(input, *limits) {
-        Err(error) => Some((Err(error), events)),
-        Ok(file) => part2_jpip_snapshot_bind(part2_inspection_capacity(crate::allocation::InspectionCollection::Infos(display_first),
-            part2_inspection_count(file, display_first) as usize, events),
-            |_: (), rest| part2_inspected_cold_streams(file, limits, 0, Seq::empty(), display_first, rest)),
-    }
+    part2_jpip_snapshot_bind(part2_parse_container_cold_run(input, *limits, events),
+        |file, rest| part2_inspection_after_container(file, limits, display_first, rest))
 }
 
 pub closed spec fn part2_inspection_cold_result(
@@ -252,6 +257,27 @@ pub(crate) proof fn part2_inspection_cold_normal(
                 Ok(()), part2_inspected_codestreams(file, limits, 0, Seq::empty(), display_first));
         },
     }
+    part2_parse_container_cold_normal(input, *limits, Seq::empty());
+    part2_parse_container_cold_frames(input, *limits, part2_parse_container(input, *limits));
+    part2_cold_bind(
+        |events| part2_parse_container_cold_run(input, *limits, events),
+        |file, rest| part2_inspection_after_container(file, limits, display_first, rest),
+        part2_parse_container(input, *limits),
+        part2_parse_and_inspect_container_mode(input, limits, display_first));
+}
+
+pub(crate) proof fn part2_inspection_cold_container_error(
+    input: Seq<u8>, limits: &crate::ResourceLimits, display_first: bool, error: crate::DecodeError,
+)
+    requires part2_parse_container_cold_result(input, *limits, Err(error)),
+    ensures part2_inspection_cold_result(input, limits, display_first, Err(error)),
+{
+    reveal(part2_inspection_cold_result);
+    part2_parse_container_cold_frames(input, *limits, Err(error));
+    part2_cold_bind(
+        |events| part2_parse_container_cold_run(input, *limits, events),
+        |file, rest| part2_inspection_after_container(file, limits, display_first, rest),
+        Err(error), Err(error));
 }
 
 pub(crate) proof fn part2_inspection_cold_start(input: Seq<u8>, limits: &crate::ResourceLimits,
@@ -263,10 +289,14 @@ pub(crate) proof fn part2_inspection_cold_start(input: Seq<u8>, limits: &crate::
 {
     let collection = crate::allocation::InspectionCollection::Infos(display_first);
     let count = part2_inspection_count(file, display_first) as usize;
-    let prefix = part2_inspection_capacity_calls(collection, count);
+    let parsed = part2_parse_container_cold_calls(input, *limits);
+    let capacity = part2_inspection_capacity_calls(collection, count);
+    let prefix = parsed + capacity;
     assert forall|tail: Seq<Part2JpipSnapshotEvent>|
         part2_inspection_cold_run(input, limits, display_first, prefix + tail)
             == part2_inspected_cold_streams(file, limits, 0, Seq::empty(), display_first, tail) by {
+        assert(prefix + tail =~= parsed + (capacity + tail));
+        part2_parse_container_cold_normal(input, *limits, capacity + tail);
         part2_inspection_capacity_normal(collection, count, tail);
     }
     prefix
@@ -285,6 +315,12 @@ pub(crate) proof fn part2_inspection_capacity_refused(input: Seq<u8>, limits: &c
     part2_cold_bind(|events| part2_inspection_capacity(collection, count, events),
         |_: (), rest| part2_inspected_cold_streams(file, limits, 0, Seq::empty(), display_first, rest),
         Err(error), Err(error));
+    part2_parse_container_cold_normal(input, *limits, Seq::empty());
+    part2_parse_container_cold_frames(input, *limits, Ok(file));
+    part2_cold_bind(
+        |events| part2_parse_container_cold_run(input, *limits, events),
+        |file, rest| part2_inspection_after_container(file, limits, display_first, rest),
+        Ok(file), Err(error));
 }
 
 pub(crate) proof fn part2_inspection_cold_parse_error(
