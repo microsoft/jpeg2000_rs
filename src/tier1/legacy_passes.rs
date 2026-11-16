@@ -457,6 +457,8 @@ fn decode_significance_propagation(
         )
     )]
     while stripe_y < height {
+        #[cfg(all(feature = "cooperative-deadlines", not(verus_keep_ghost)))]
+        crate::deadline::checkpoint()?;
         #[cfg(verus_keep_ghost)]
         proof! { reveal(crate::specs::part1_legacy_stripes); }
         let stripe_rows = crate::refinement::tier1_stripe_rows(height, stripe_y);
@@ -682,6 +684,8 @@ fn decode_magnitude_refinement(
         )
     )]
     while stripe_y < height {
+        #[cfg(all(feature = "cooperative-deadlines", not(verus_keep_ghost)))]
+        crate::deadline::checkpoint()?;
         #[cfg(verus_keep_ghost)]
         proof! { reveal(crate::specs::part1_legacy_stripes); }
         let stripe_rows = crate::refinement::tier1_stripe_rows(height, stripe_y);
@@ -891,6 +895,8 @@ pub(super) fn decode_cleanup(
         )
     )]
     while stripe_y < height {
+        #[cfg(all(feature = "cooperative-deadlines", not(verus_keep_ghost)))]
+        crate::deadline::checkpoint()?;
         #[cfg(verus_keep_ghost)]
         proof! { reveal(crate::specs::part1_legacy_stripes); }
         let stripe_rows = crate::refinement::tier1_stripe_rows(height, stripe_y);

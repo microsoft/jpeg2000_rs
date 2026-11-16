@@ -243,6 +243,8 @@ impl Tier1CodeBlockDecoder {
             decreases pass_count - decoded,
         ))]
         while decoded < pass_count {
+            #[cfg(all(feature = "cooperative-deadlines", not(verus_keep_ghost)))]
+            crate::deadline::checkpoint()?;
             #[cfg(verus_keep_ghost)]
             proof_decl! {let ghost before_step=crate::specs::Part1LegacySegmentRun {decoder:tier1_decoder_state(self),
             symbols:crate::specs::Part1LegacySymbols::Mq(crate::mq::mq_decoder_view(decoder)),statistics};let ghost remaining=(pass_count-decoded) as nat;}
@@ -371,6 +373,8 @@ impl Tier1CodeBlockDecoder {
             decreases pass_count - decoded,
         ))]
         while decoded < pass_count {
+            #[cfg(all(feature = "cooperative-deadlines", not(verus_keep_ghost)))]
+            crate::deadline::checkpoint()?;
             #[cfg(verus_keep_ghost)]
             proof_decl! {let ghost before_step=crate::specs::Part1LegacySegmentRun {decoder:tier1_decoder_state(self),
             symbols:crate::specs::Part1LegacySymbols::Raw(raw_bit_reader_view(reader)),statistics};let ghost remaining=(pass_count-decoded) as nat;}

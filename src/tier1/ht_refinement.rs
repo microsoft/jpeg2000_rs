@@ -76,6 +76,8 @@ pub(super) fn ht_collect_cleanup_significance(
         decreases coefficients.len() - index,
     ))]
     while index < coefficients.len() {
+        #[cfg(all(feature = "cooperative-deadlines", not(verus_keep_ghost)))]
+        crate::deadline::checkpoint_periodic(index)?;
         output.push(coefficients[index].significant);
         index += 1;
     }
@@ -218,6 +220,8 @@ impl HtRefinementPlaneState<'_> {
             decreases stripe_passes,
         ))]
         while stripe_y < height {
+            #[cfg(all(feature = "cooperative-deadlines", not(verus_keep_ghost)))]
+            crate::deadline::checkpoint()?;
             #[cfg(verus_keep_ghost)]
             proof! { reveal(crate::specs::ht_magref_stripes); }
             let rows = crate::refinement::ht_stripe_rows(height, stripe_y);

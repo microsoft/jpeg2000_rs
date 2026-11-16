@@ -35,6 +35,7 @@ include = [
 [features]
 default = []
 verus = ["dep:vstd"]
+cooperative-deadlines = []
 
 [dependencies]
 vstd = { version = "=0.0.0-2026-10-04-0306", optional = true }

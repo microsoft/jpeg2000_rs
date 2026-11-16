@@ -127,6 +127,7 @@ struct Invocation<'a> {
     input: &'a str,
     selection: DecodeSelection,
     options: DecodeOptions,
+    deadline_ms: Option<u64>,
 }
 
 fn parse_invocation(arguments: &[String]) -> Result<Invocation<'_>, String> {
@@ -152,13 +153,20 @@ fn parse_invocation(arguments: &[String]) -> Result<Invocation<'_>, String> {
         None => (requested.as_str(), false),
     };
     let selecting = matches!(operation, "select" | "select-color");
-    let base_length = if selecting { 7 } else { 4 };
+    let deadline = operation == "decode-deadline";
+    let base_length = if deadline {
+        5
+    } else if selecting {
+        7
+    } else {
+        4
+    };
     if arguments.len() != base_length + if limited { 2 } else { 0 } {
         return Err("incorrect number of operation arguments".to_owned());
     }
     let format = arguments[2].as_str();
     let supported = match operation {
-        "decode" | "select" => matches!(format, "raw" | "jp2" | "jph" | "jpx"),
+        "decode" | "select" | "decode-deadline" => matches!(format, "raw" | "jp2" | "jph" | "jpx"),
         "convert" | "select-color" => matches!(format, "jp2" | "jph" | "jpx"),
         "render" => format == "jpx",
         "render-layer" | "render-frame" => format.parse::<usize>().is_ok(),
@@ -188,7 +196,48 @@ fn parse_invocation(arguments: &[String]) -> Result<Invocation<'_>, String> {
         input: &arguments[3],
         selection,
         options,
+        deadline_ms: if deadline {
+            Some(
+                arguments[4]
+                    .parse::<u64>()
+                    .map_err(|error| format!("invalid deadline milliseconds: {error}"))?,
+            )
+        } else {
+            None
+        },
     })
+}
+
+fn decode_with_deadline(
+    input: &[u8],
+    format: &str,
+    options: &DecodeOptions,
+    milliseconds: u64,
+) -> Result<TypedImage, DecodeError> {
+    #[cfg(feature = "cooperative-deadlines")]
+    {
+        let deadline = std::time::Instant::now()
+            .checked_add(std::time::Duration::from_millis(milliseconds))
+            .ok_or(DecodeError::UnsupportedFeature {
+                feature: "deadline beyond the platform Instant range",
+            })?;
+        jpeg2000_decoder::with_decode_deadline(deadline, || match format {
+            "raw" => decode_codestream(input, options),
+            "jp2" => decode_jp2(input, options),
+            "jph" => decode_jph(input, options),
+            "jpx" => decode_jpx_codestream(input, 0, options),
+            _ => Err(DecodeError::UnsupportedFeature {
+                feature: "deadline observation input format",
+            }),
+        })
+    }
+    #[cfg(not(feature = "cooperative-deadlines"))]
+    {
+        let _ = (input, format, options, milliseconds);
+        Err(DecodeError::UnsupportedFeature {
+            feature: "enable cooperative-deadlines for deadline observation",
+        })
+    }
 }
 
 fn print_selected_image(image: &TypedImage) {
@@ -309,6 +358,7 @@ fn main() {
         input,
         selection,
         options,
+        deadline_ms,
     } = parse_invocation(&arguments).unwrap_or_else(|error| {
         eprintln!(
             "{error}\nusage: validation_decoder <decode|convert|inspect|ingest> <format> <input>\n\
@@ -316,6 +366,7 @@ fn main() {
              <all|tile-indices> <all|x,y,width,height>\n\
              or: validation_decoder decode-limited <format> <input> \
              <decoded-bytes|work-units> <limit>\n\
+             or: validation_decoder decode-deadline <raw|jp2|jph|jpx> <input> <milliseconds>\n\
              or: validation_decoder <render|render-layer|render-frame|reconstruct|progressive> \
              <jpx|layer-index|frame-index|jpip|auto|packet-lengths> <input>\n\
              Limited decode/convert/select/select-color/render/render-layer/render-frame/\
@@ -332,6 +383,19 @@ fn main() {
         }
     };
     match (operation, format) {
+        ("decode-deadline", format) => {
+            let milliseconds = deadline_ms.expect("deadline operation was parsed");
+            let started = std::time::Instant::now();
+            let result = decode_with_deadline(&input, format, &options, milliseconds);
+            eprintln!(
+                "DEADLINE_OBSERVATION\tbudget_ms={milliseconds}\telapsed_ns={}",
+                started.elapsed().as_nanos()
+            );
+            match result {
+                Ok(image) => print_image(&image),
+                Err(error) => print_error(error),
+            }
+        }
         ("decode", "raw") => match decode_codestream(&input, &options) {
             Ok(image) => print_image(&image),
             Err(error) => print_error(error),

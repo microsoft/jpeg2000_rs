@@ -6,6 +6,43 @@ restricted, or standards-derived vectors.
 
 ## Running the checks
 
+### Cooperative deadline profile
+
+Run `cargo test --all-features deadline` and the MSRV equivalent. These native
+controls cover expired entry before callbacks, actual-clock expiry during a
+delayed operation before managed reservation, distinct allocation/resource
+errors, earliest nested scopes, error/unwind/thread restoration and exact
+subsequent PDF typed/centered recovery. They are not mathematical lifetime,
+allocator or clock proofs. The default pinned verifier profile is unchanged;
+the unsupported verifier-plus-deadline feature combination must fail explicitly.
+
+Named checkpoints cover managed reservation entry/exit and bulk operations;
+1024-entry copy/fill loops; codestream work-charge boundaries; JP2 boxes;
+packet progression; tile/component reconstruction; legacy pass/stripe and HT
+quad-row processing; 1D wavelet entry and 1024-sample lifting/scaling loops;
+typed output, ordinary component transforms and the instrumented NLT inverse
+loop. This is a declared checkpoint set, not every allocation/work instruction.
+Opaque host/standard-library operations and other intervals are not preempted.
+
+The normal optimized `validation_decoder` harness supports
+`decode-deadline <raw|jp2|jph|jpx> <input> <milliseconds>`. Build it with
+`cargo build --release --example validation_decoder --features cooperative-deadlines`.
+Its `DEADLINE_OBSERVATION` stderr record measures the codec scope after file
+loading and before sample formatting; stdout retains the normal IMAGE/ERR
+protocol. With the feature off, requesting this operation gives an explicit
+UnsupportedFeature error, never an unbounded success fallback.
+
+Finite observation: a2048x2048 P5 input with sample `(13*x+17*y)&255`, encoded by
+the existing pinned OpenJPEG executable with `-n 5`, took2213.14ms with a generous
+60000ms scope and produced byte-identical baseline pixels. Three runs each at
+0/1/5/20ms all returned DeadlineExceeded; measured elapsed ranges were
+0.000501 to0.003526ms,1.158259 to1.194546ms,5.801603 to5.966860ms and
+23.130609 to23.866160ms. Maximum observed overrun was3.866160ms. This is one
+finite shared-host workload, **not** a universal latency/SLA or hard deadline.
+Input PGMSHA256b1615d5dc55cfd8021f7dee72042666a233dad225f8d5fc0848831230a604b98;
+J2KSHA256819493cc6db164945c1681d67bbe5fb2a69369865fe633e512f7a17322eb464a;
+outputSHA256aaea64bfb7cd0b696094d0b946fcca4119c3f4a870d18e21b1db195cd10a5af4.
+
 ### JP2 reconstruction-domain output
 
 `cargo test --lib -- reconstructed_output` includes the strict raw and JP2

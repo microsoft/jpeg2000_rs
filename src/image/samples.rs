@@ -261,6 +261,8 @@ impl DecodedComponent {
                 )
             )]
             while index < self.samples.len() {
+                #[cfg(all(feature = "cooperative-deadlines", not(verus_keep_ghost)))]
+                crate::deadline::checkpoint_periodic(index)?;
                 #[cfg(verus_keep_ghost)]
                 proof! {
                     crate::proofs::production_impl::production_decoded_signed_step(
@@ -316,6 +318,8 @@ impl DecodedComponent {
                 )
             )]
             while index < self.samples.len() {
+                #[cfg(all(feature = "cooperative-deadlines", not(verus_keep_ghost)))]
+                crate::deadline::checkpoint_periodic(index)?;
                 #[cfg(verus_keep_ghost)]
                 proof! {
                     crate::proofs::production_impl::production_decoded_unsigned_step(
