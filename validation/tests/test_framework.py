@@ -6050,6 +6050,33 @@ class FrameworkTests(WorkingFiles):
             {framework._PRESENT_TILE_ENTRY}, framework._PRESENT_TILE_CONTRACTS, 9, isolate=False,
         )
 
+    def test_inventory_binds_trailer_policy_to_actual_sources_outputs_and_state(self):
+        self._assert_complete_packet_contract_bindings(
+            {framework._PDF_TRAILERS_ENTRY}, framework._PDF_TRAILERS_CONTRACTS, 11, isolate=False,
+        )
+
+    def test_inventory_trailers_require_all_complete_programs_and_normal_projections(self):
+        coverage = json.loads((framework.VALIDATION / "normative-coverage.json").read_text())
+        entry = next(item for item in coverage["requirements"]
+                     if item["id"] == framework._PDF_TRAILERS_ENTRY)
+        for field, names in (
+            ("spec_refs", (
+                "packet_run", "planned_run", "tile_run", "layout_run", "raw_typed_run",
+                "raw_reconstructed_run", "jp2_typed_run", "jp2_reconstructed_run",
+            )),
+            ("proof_refs", (
+                "packet_normal", "planned_normal", "tile_normal", "layout_normal", "raw_normal", "jp2_normal",
+            )),
+        ):
+            for name in names:
+                symbol = "part2_trailer_" + name
+                changed = copy.deepcopy(entry)
+                changed[field] = [ref for ref in changed[field] if ref["symbol"] != symbol]
+                with self.subTest(field=field, symbol=symbol), self.assertRaisesRegex(
+                    ValueError, "bounded terminal trailer Result|checked cold normal|complete cold run",
+                ):
+                    framework.validate_normative_coverage(dict(coverage, requirements=[changed]))
+
     def test_inventory_binds_selected_jp2_reconstruction_to_actual_input_selection(self):
         self._assert_complete_packet_contract_bindings(
             {framework._SELECTED_JP2_RECONSTRUCTION_ENTRY},

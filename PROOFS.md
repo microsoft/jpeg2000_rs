@@ -1534,6 +1534,29 @@ is not entropy success and never fabricates absent pixels. Default APIs and
 limits remain unchanged; this is not EOC/MQ/trailer/tile recovery, a cooperative
 deadline, complete allocation coverage or independent conformance qualification.
 
+## Bounded terminal-trailer recovery
+
+The four explicit raw/JP2 typed/centered trailer APIs compose actual parsing,
+selection, per-tile metadata/grid planning, packet execution, reconstruction and
+output processing. `specs/pdf_trailers.rs` supplies complete cold and ordinary
+programs at each boundary, including the actual cumulative counter and report.
+The packet-local admission/finish definitions are in `specs/packet_tile.rs`.
+
+The ordinary packet finisher is unchanged. Only its completion-stage
+`TrailingData` result can reach the new checked admission: a positive unclaimed
+suffix in the final part, every distinct scheduled packet/body completed, all
+packet-length and packed-header metadata absent, and a cumulative count at most
+sixteen. The resumed completion scan does not repeat packet/entropy execution.
+Every other error is propagated. A separate bounded metadata scan checks the
+existing work cap; no global cumulative work or allocation API is introduced.
+
+Private per-call values carry the allowance across selected tiles. No new
+thread-local scope, storage trust adapter, axiom, pin/budget change or lifetime
+claim is introduced. Native finite/open-ended, cumulative16/17, valid PLT/PPT,
+partial packet, empty-final-part, resource/refusal and strict-after-recovery
+controls are finite behavior evidence, not normative padding or complete
+allocation/deadline/resumable-decoding qualification.
+
 ## Selected reconstruction and sole-present-tile recovery
 
 `decode_codestream_reconstructed_selected` composes actual raw parsing,

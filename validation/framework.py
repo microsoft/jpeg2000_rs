@@ -2044,6 +2044,63 @@ _SELECTED_JP2_RECONSTRUCTION_CONTRACTS = {
     ),
 }
 _PRESENT_TILE_ENTRY = "implementation-pdf-sole-present-tile"
+_PDF_TRAILERS_ENTRY = "implementation-pdf-bounded-terminal-trailers"
+_PDF_TRAILERS_CONTRACTS = {
+    **{
+        ("src/decode/pdf_trailers.rs", name): (
+            model, _coverage_call(projection, r"\1"), None,
+            r"input@\s*,\s*" + _coverage_call("crate::options::decode_selection_view", "selection")
+            + r"\s*,\s*" + _coverage_call("crate::options::decode_options_limits", "options"),
+        ) for name, model, projection in (
+            ("decode_codestream_recover_trailer_selected", "part2_trailer_raw_typed_value", "trailer_typed_outcome"),
+            ("decode_codestream_reconstructed_recover_trailer_selected", "part2_trailer_raw_reconstructed_value", "trailer_reconstructed_outcome"),
+            ("decode_jp2_recover_trailer_selected", "part2_trailer_jp2_typed_value", "trailer_typed_outcome"),
+            ("decode_jp2_reconstructed_recover_trailer_selected", "part2_trailer_jp2_reconstructed_value", "trailer_reconstructed_outcome"),
+        )
+    },
+    ("src/decode/pdf_trailers.rs", "decode_planned_trailer_tile"): (
+        "part2_trailer_planned_value", _coverage_call("trailer_components_outcome", r"\1"), None,
+        _coverage_call("progression_plan_view", r"&\s*plan") + r"\s*,\s*"
+        + _coverage_call("codestream::tile_parts_owned_view", "parts@") + r"\s*,\s*"
+        + _coverage_call("codestream::tile_part_owned_view", "first")
+        + r"\s*,\s*size\s*,\s*standard\s*,\s*counts@\s*,\s*limits\s*,\s*"
+        + _coverage_call("prepared_components_view", "prepared@") + r"\s*,\s*work\s*,\s*discarded",
+    ),
+    ("src/decode/pdf_trailers.rs", "decode_trailer_tile"): (
+        "part2_trailer_tile_value", _coverage_call("trailer_tile_outcome", r"\1"), None,
+        r"size\s*,\s*tile\s*,\s*" + _coverage_call("codestream::tile_parts_owned_view", "parts@") + r"\s*,\s*"
+        + _coverage_call("codestream::codestream_profile_capabilities", "profile") + r"\s*,\s*discard\s*,\s*limits\s*,\s*"
+        + _coverage_call("prepared_components_view", "prepared@") + r"\s*,\s*initial\s*,\s*work\s*,\s*discarded",
+    ),
+    ("src/decode/pdf_trailers.rs", "decode_trailer_layout"): (
+        "part2_trailer_layout_value", _coverage_call("trailer_layout_outcome", r"\1"), None,
+        _coverage_call("codestream::decoder_layout_input_view", "layout") + r"\s*,\s*"
+        + _coverage_call("crate::options::decode_selection_view", "requested") + r"\s*,\s*limits",
+    ),
+    ("src/packet/tile.rs", "decode_progression_tile_packets_recover_trailer_selected"): (
+        "part2_trailer_packet_value", r"\1",
+        _coverage_call("packet_precinct_vector_view", _coverage_call("final", "precincts")),
+        _coverage_call("crate::codestream::tile_parts_owned_view", "tile_parts@") + r"\s*,\s*"
+        + _coverage_call("packet_grid_view", "grid") + r"\s*,\s*"
+        + _coverage_call("packet_precinct_vector_view", _coverage_call("old", "precincts")) + r"\s*,\s*"
+        + _coverage_call("packet_selection_view", "maximum_resolution_counts") + r"\s*,\s*limits\s*,\s*discarded",
+    ),
+    ("src/packet/tile.rs", "tile_trailer_metadata_free"): (
+        "part2_tile_trailer_metadata_free", r"\1", None,
+        _coverage_call("crate::codestream::tile_parts_owned_view", "parts@"),
+    ),
+    ("src/packet/tile.rs", "admit_completed_tile_trailer"): (
+        "part2_tile_trailer_admission", r"\1", None,
+        _coverage_call("progression_tile_parameters_view", "params") + r"\s*,\s*"
+        + _coverage_call("progression_tile_progress_view", "p") + r"\s*,\s*discarded",
+    ),
+    ("src/packet/tile.rs", "finish_progression_tile_packets_recover_trailer"): (
+        "part2_tile_trailer_finish", r"\1",
+        _coverage_call("progression_tile_progress_view", _coverage_call("final", "p")),
+        _coverage_call("progression_tile_parameters_view", "params") + r"\s*,\s*"
+        + _coverage_call("progression_tile_progress_view", _coverage_call("old", "p")) + r"\s*,\s*discarded",
+    ),
+}
 _PRESENT_TILE_CONTRACTS = {
     **{
         ("src/decode/pdf_present_tile.rs", name): (
@@ -5133,6 +5190,15 @@ _COLD_RESULT_MODELS = {
         "part2_selected_jp2_reconstruction_result", "specs/selected_reconstruction.rs",
         "part2_selected_jp2_reconstruction_normal",
     ),
+    **{
+        "part2_trailer_" + name + "_value": (
+            "part2_trailer_" + name + "_result", "specs/pdf_trailers.rs", "part2_trailer_" + normal,
+        ) for name, normal in (
+            ("packet", "packet_normal"), ("planned", "planned_normal"), ("tile", "tile_normal"),
+            ("layout", "layout_normal"), ("raw_typed", "raw_normal"), ("raw_reconstructed", "raw_normal"),
+            ("jp2_typed", "jp2_normal"), ("jp2_reconstructed", "jp2_normal"),
+        )
+    },
     "part2_present_raw_typed_value": (
         "part2_present_raw_typed_result", "specs/pdf_present_tile.rs", "part2_present_raw_normal",
     ),
@@ -5397,6 +5463,7 @@ _COLD_RESULT_CONTRACTS = {
         _JP2_RECONSTRUCTED_CONTRACTS,
         _PDF_DIMENSIONS_CONTRACTS,
         _SELECTED_RECONSTRUCTION_CONTRACTS, _SELECTED_JP2_RECONSTRUCTION_CONTRACTS, _PRESENT_TILE_CONTRACTS,
+        _PDF_TRAILERS_CONTRACTS,
         _RAW_INSPECTED_CONTRACTS, _JPX_SOURCE_CONTRACTS, _RAW_JPX_PUBLIC_IMAGE_CONTRACTS,
         _RAW_CONTAINER_IMAGE_CONTRACTS, _RAW_CONTAINER_COLOR_CONTRACTS,
         _SOURCE_FRAME_CONTRACTS, _RAW_RENDER_CONTRACTS, _RAW_COMPOSITION_RENDER_CONTRACTS,
@@ -5791,7 +5858,7 @@ def _coverage_cold_result_body(text: str, model: str) -> bool:
             + ("Ok(result)" if wrapped else "result") + ")"
         if model == "part2_ht_replay_result":
             expected += "&&(result.0!=Err(crate::DecodeError::AllocationFailed)==>result==ht_decode_refinement_contribution(before,input,passes,maximum_bytes,work))"
-    elif model in ("part2_jpip_packet_copy_result", "part2_jpip_phase_copy_result"):
+    elif model in ("part2_jpip_packet_copy_result", "part2_jpip_phase_copy_result", "part2_trailer_packet_result"):
         expected = "part2_cold_framed(|events|" + call + ",Ok(result))"
     elif model == "part1_tier1_plane_storage_result":
         expected = "part2_tier1_storage_framed(|calls|part2_tier1_plane_run(width,height,role,calls),result)"
@@ -5882,6 +5949,7 @@ _COLD_LOCAL_FAMILIES = {
     _SELECTED_RECONSTRUCTION_ENTRY: (_SELECTED_RECONSTRUCTION_CONTRACTS, "selected raw reconstruction Result"),
     _SELECTED_JP2_RECONSTRUCTION_ENTRY: (_SELECTED_JP2_RECONSTRUCTION_CONTRACTS, "selected JP2 reconstruction Result"),
     _PRESENT_TILE_ENTRY: (_PRESENT_TILE_CONTRACTS, "sole present tile Result"),
+    _PDF_TRAILERS_ENTRY: (_PDF_TRAILERS_CONTRACTS, "bounded terminal trailer Result"),
     _JPX_SOURCE_ENTRY: (_JPX_SOURCE_CONTRACTS, "whole JPX source Result"),
     _JPX_LAYER_COLOR_ENTRY: (_JPX_LAYER_COLOR_CONTRACTS, "whole JPX layer color Result"),
     _SOURCE_OPACITY_ENTRY: (_SOURCE_OPACITY_CONTRACTS, "whole source opacity Result"),
@@ -13836,6 +13904,8 @@ def validate_normative_coverage(
                     if entry["id"] == _SELECTED_JP2_RECONSTRUCTION_ENTRY else None)
                 or (_PRESENT_TILE_CONTRACTS.get((reference["path"], reference["symbol"]))
                     if entry["id"] == _PRESENT_TILE_ENTRY else None)
+                or (_PDF_TRAILERS_CONTRACTS.get((reference["path"], reference["symbol"]))
+                    if entry["id"] == _PDF_TRAILERS_ENTRY else None)
                 or (_JPX_SOURCE_CONTRACTS.get((reference["path"], reference["symbol"]))
                     if entry["id"] == _JPX_SOURCE_ENTRY else None)
                 or (_JPX_LAYER_COLOR_CONTRACTS.get((reference["path"], reference["symbol"]))

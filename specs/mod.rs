@@ -199,6 +199,8 @@ mod pdf_dimensions;
 pub use pdf_dimensions::*;
 mod pdf_present_tile;
 pub use pdf_present_tile::*;
+mod pdf_trailers;
+pub use pdf_trailers::*;
 mod container_colors;
 pub use container_colors::*;
 mod jpx_public_images;
