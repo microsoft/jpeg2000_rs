@@ -192,8 +192,9 @@ the reached inherited/committed owners reuse `copy_values`, never deep
 POC construction, 14 is inheritance after quantization copying, and 15 is
 commit after the fifth store but before progression-slot lookup.
 
-Site 16 reserves the reached layout payload slot after successful persistent
-configuration, MCT and extension stores, before inserting the borrowed payload.
+Site 82, distinct from MCT array site 16, reserves the reached layout payload
+slot after successful persistent configuration, MCT and extension stores,
+before inserting the borrowed payload.
 On refusal the cold result retains those committed fields and the original
 payload sequence, not a rolled-back configuration or an already-pushed payload.
 Normal witnesses and arbitrary-tail frames include this ordered request.

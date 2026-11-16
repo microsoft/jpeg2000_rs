@@ -7945,14 +7945,14 @@ _INSPECTION_LAYER_GUARDS = {
 _QUANTIZATION_COLD_GUARDS = {
     ("src/codestream/layout.rs", "Parser::parse_layout"): (
         "crate::allocation::reserve_additional(&mut tile_part_payloads, 1)",
-        "site: 16, elements: 1, succeeded: false,",
+        "site: 82, elements: 1, succeeded: false,",
         "part1_cold_layout_sot_commit_error(cold_sot, read_calls, commit_calls + refused, error)",
         "tile_part_payloads.push(payload)",
     ),
     ("specs/cold_layout.rs", "part1_cold_commit_payload"): (
         "part1_cold_commit_state(state, commit, events)",
         "Err(_) => Some((committed, rest))",
-        "part1_quantization_storage_request(16, 1, rest)",
+        "part1_quantization_storage_request(82, 1, rest)",
         "Some((Ok(()), tail)) => Some((committed, tail))",
         "(committed.1.0, committed.1.1, committed.1.2, state.3)",
     ),
