@@ -10,7 +10,9 @@ single RFC, and this library does not implement every part of that family.
 |---|---|---|
 | Default decoder | Default features; pinned verifier adds `verus` | Existing expressed contracts, explicit `--no-lifetime`, five documented Rust-only adapters; source-function coverage remains not measured |
 | Cooperative deadlines | Opt-in `cooperative-deadlines` | Real caller-selected clock/TLS scopes and named checkpoints, native/MSRV tests and finite latency observations; not included in pinned Verus qualification |
+| Initial empty MQ compatibility | Opt-in `pdf-mq-recovery`, common PDF decode APIs only | Narrow real-MQ virtual-fill policy, actual recovery count, native scope/restoration/replay tests; not pinned Verus qualification or a normative legality decision |
 | Combined proof/deadline profile | `verus_keep_ghost` with `cooperative-deadlines` | Explicitly rejected, not a successful receipt with clock behavior silently omitted |
+| Combined proof/MQ-recovery profile | `verus_keep_ghost` with `pdf-mq-recovery` | Explicitly rejected; native scoped policy is not silently omitted from a proof claim |
 
 Enabling deadlines without installing an active scope retains ordinary decoder
 results. The feature supplies no arbitrary global timeout or cross-thread token.

@@ -33,8 +33,11 @@ impl Tier1CodeBlockDecoder {
     ) -> Result<(), DecodeError> {
         #[cfg(verus_keep_ghost)]
         proof! { reveal(crate::specs::part1_legacy_segment_admission); }
-        // Later terminated passes can carry no bytes; an initial empty block cannot.
-        if pass_count == 0 || (input.is_empty() && self.next_pass == 0) {
+        let initial_empty = input.is_empty() && self.next_pass == 0;
+        #[cfg(all(feature = "pdf-mq-recovery", not(verus_keep_ghost)))]
+        let initial_empty =
+            initial_empty && !crate::pdf_mq::permits(self.style, self.next_pass, pass_count);
+        if pass_count == 0 || initial_empty {
             return Err(invalid_code_block());
         }
         let next_pass = self
@@ -64,7 +67,11 @@ impl Tier1CodeBlockDecoder {
         {
             return Err(invalid_code_block());
         }
-        if input.is_empty()
+        let needs_termination = input.is_empty();
+        #[cfg(all(feature = "pdf-mq-recovery", not(verus_keep_ghost)))]
+        let needs_termination =
+            needs_termination && !crate::pdf_mq::permits(self.style, self.next_pass, pass_count);
+        if needs_termination
             && next_pass != self.maximum_passes
             && !self.style.pass_plan(next_pass - 1).terminates_segment
         {
@@ -97,6 +104,9 @@ impl Tier1CodeBlockDecoder {
             crate::specs::part2_legacy_segment_primary_consequence(before,input@,pass_count,caps,(Err(error),tier1_decoder_state(self)));
         }}
         admitted?;
+        #[cfg(all(feature = "pdf-mq-recovery", not(verus_keep_ghost)))]
+        let empty_prefix =
+            input.is_empty() && crate::pdf_mq::permits(self.style, self.next_pass, pass_count);
         let coding_mode = self.style.pass_plan(self.next_pass).coding_mode;
         let statistics;
         if matches!(coding_mode, Tier1CodingMode::Mq) {
@@ -162,7 +172,12 @@ impl Tier1CodeBlockDecoder {
             }
         }
 
-        self.commit_legacy_segment(input.len(), pass_count, statistics)
+        let decoded = self.commit_legacy_segment(input.len(), pass_count, statistics)?;
+        #[cfg(all(feature = "pdf-mq-recovery", not(verus_keep_ghost)))]
+        if empty_prefix {
+            crate::pdf_mq::record_prefix()?;
+        }
+        Ok(decoded)
     }
 
     #[cfg_attr(verus_keep_ghost, verus_spec(result =>

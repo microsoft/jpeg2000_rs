@@ -6,6 +6,17 @@ restricted, or standards-derived vectors.
 
 ## Running the checks
 
+### Optional native initial-MQ compatibility
+
+Run `cargo test --all-features pdf_mq` and the MSRV equivalent. These controls
+execute the original handcrafted one-pass/zero-byte input, compare actual
+virtual fill with physical FF data, replay later real bytes from the pre-fill
+snapshot and retain strict rejection outside the common PDF scope. Actual
+excluded styles, resource/refusal/deadline errors, thread isolation and
+error/unwind restoration remain distinct. The `pdf-mq-recovery` feature is off
+by default and outside pinned Verus qualification; combined builds must fail.
+Reference acceptance does not settle initial-contribution legality in #293.
+
 ### Cooperative deadline profile
 
 Run `cargo test --all-features deadline` and the MSRV equivalent. These native

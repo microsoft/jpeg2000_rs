@@ -195,9 +195,20 @@ Missing canvas pixels are never synthesized.
 `inspect_pdf_compatible(input, options)` returns owned full-SIZ coding metadata
 under the same bounded container/EOC admission. It does not execute packets or
 entropy, select a crop, discard a trailer or promise a decoded image.
-Initial empty MQ contributions are still rejected (`empty_initial_mq_prefixes`
-is currently zero); cooperative deadlines, complete fallibility and raw/JP2
-feed/resume remain separate. Existing strict and individual recovery APIs are unchanged.
+Initial empty MQ contributions are rejected by default. The optional native-only
+`pdf-mq-recovery` feature allows only a first, exactly one-pass, unterminated
+legacy MQ contribution through the common PDF decode APIs; termination checks,
+HT/mixed modes and later empty prefixes are not generalized. It executes real
+MQ virtual FF fill and reports `empty_initial_mq_prefixes`, preserving the
+pre-fill snapshot for later real-byte replay. Strict and individual recovery
+APIs remain unchanged.
+
+This scoped TLS policy is native/MSRV-tested, **not included in pinned Verus
+qualification**; the unsupported combined verifier/profile build is rejected.
+The supplied handcrafted control is not independently established conforming;
+normative initial-contribution legality remains open in #293. Complete
+fallibility and raw/JP2 feed/resume remain separate. A caller-selected
+`cooperative-deadlines` scope covers repair and decode without resetting it.
 These are final-input compatibility APIs, not `NeedMoreData` or streaming-pause detection.
 
 ### Explicit bounded terminal-trailer recovery

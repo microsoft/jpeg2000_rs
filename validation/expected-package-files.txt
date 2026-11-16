@@ -317,6 +317,7 @@ src/packet/tag_tree.rs
 src/packet/tests.rs
 src/packet/tile.rs
 src/packet.rs
+src/pdf_mq.rs
 src/recovery/tests.rs
 src/recovery.rs
 src/refinement/composition.rs

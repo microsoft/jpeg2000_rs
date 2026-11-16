@@ -39,6 +39,18 @@ an all-feature Verus proof. Full source-function coverage remains `not-measured`
 
 ## Fallible-storage foundation and remaining boundary
 
+### Optional native initial-MQ compatibility
+
+The default proof profile retains initial empty-MQ rejection and all existing
+contracts. Opt-in `pdf-mq-recovery` enables a separately qualified native TLS
+policy only during common PDF packet decoding. It executes the existing MQ
+virtual end-fill and pre-fill snapshot replay; no coefficient plane is supplied
+as an expected result. Its admission, counter and native scope effects are not
+part of default proof-key coverage. Combined pinned-Verus/profile builds fail
+explicitly. Native tests cover actual output, excluded styles, later real-byte
+replay, failure/restoration/unwind/thread boundaries and deadline composition.
+This is neither mathematical TLS qualification nor normative closure of #293.
+
 [The storage helpers](src/allocation.rs) use the already-pinned vstd
 `Vec::try_reserve` contract, without new trusted declarations or verifier
 exclusions. Their [models](specs/allocation.rs) retain sequence contents on

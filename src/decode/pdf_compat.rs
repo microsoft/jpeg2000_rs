@@ -14,7 +14,7 @@ pub struct PdfRecovery {
     pub appended_eoc: bool,
     pub ignored_container_dimensions: bool,
     pub selected_present_tile: Option<u16>,
-    /// Currently zero: initial empty MQ contributions remain unsupported.
+    /// Actual initial one-pass MQ recoveries under native `pdf-mq-recovery`; zero otherwise.
     pub empty_initial_mq_prefixes: u32,
     pub discarded_tile_trailer_bytes: u64,
     pub original_codestream_bytes: u64,
@@ -282,8 +282,13 @@ pub fn decode_pdf_compatible(
         None => requested,
         Some(value) => value,
     };
+    #[cfg(any(not(feature = "pdf-mq-recovery"), verus_keep_ghost))]
     let decoded_result =
         super::pdf_trailers::decode_trailer_layout(&layout, selected, options.limits());
+    #[cfg(all(feature = "pdf-mq-recovery", not(verus_keep_ghost)))]
+    let ((decoded, trailer), empty_mq_prefixes) = crate::pdf_mq::with_policy(|| {
+        super::pdf_trailers::decode_trailer_layout(&layout, selected, options.limits())
+    })?;
     #[cfg(verus_keep_ghost)]
     proof! {
         if let Ok(raw) = crate::specs::part1_parse_layout(encoded@, crate::options::decode_options_limits(options)) {
@@ -292,6 +297,7 @@ pub fn decode_pdf_compatible(
                 super::pdf_trailers::trailer_layout_outcome(decoded_result));
         }
     }
+    #[cfg(any(not(feature = "pdf-mq-recovery"), verus_keep_ghost))]
     let (decoded, trailer) = decoded_result?;
     let mut image = typed_layout(
         &layout,
@@ -319,6 +325,11 @@ pub fn decode_pdf_compatible(
         trailer.discarded_tile_trailer_bytes,
         report.full_canvas_sample_bytes,
     );
+    #[cfg(all(feature = "pdf-mq-recovery", not(verus_keep_ghost)))]
+    let recovery = PdfRecovery {
+        empty_initial_mq_prefixes: empty_mq_prefixes,
+        ..recovery
+    };
     Ok(PdfDecodedImage { image, recovery })
 }
 
@@ -373,8 +384,13 @@ pub fn decode_pdf_reconstructed(
         None => requested,
         Some(value) => value,
     };
+    #[cfg(any(not(feature = "pdf-mq-recovery"), verus_keep_ghost))]
     let decoded_result =
         super::pdf_trailers::decode_trailer_layout(&layout, selected, options.limits());
+    #[cfg(all(feature = "pdf-mq-recovery", not(verus_keep_ghost)))]
+    let ((image, trailer), empty_mq_prefixes) = crate::pdf_mq::with_policy(|| {
+        super::pdf_trailers::decode_trailer_layout(&layout, selected, options.limits())
+    })?;
     #[cfg(verus_keep_ghost)]
     proof! {
         if let Ok(raw) = crate::specs::part1_parse_layout(encoded@, crate::options::decode_options_limits(options)) {
@@ -383,6 +399,7 @@ pub fn decode_pdf_reconstructed(
                 super::pdf_trailers::trailer_layout_outcome(decoded_result));
         }
     }
+    #[cfg(any(not(feature = "pdf-mq-recovery"), verus_keep_ghost))]
     let (image, trailer) = decoded_result?;
     super::api::validate_reconstruction_transforms(&layout)?;
     super::api::validate_reconstructed_output_shape(encoded.len(), &layout, &image)?;
@@ -413,6 +430,11 @@ pub fn decode_pdf_reconstructed(
         trailer.discarded_tile_trailer_bytes,
         report.full_canvas_sample_bytes,
     );
+    #[cfg(all(feature = "pdf-mq-recovery", not(verus_keep_ghost)))]
+    let recovery = PdfRecovery {
+        empty_initial_mq_prefixes: empty_mq_prefixes,
+        ..recovery
+    };
     Ok(PdfReconstructedImage { image, recovery })
 }
 
