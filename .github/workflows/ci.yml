@@ -24,6 +24,7 @@ jobs:
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
       - run: cargo test --all-targets --locked
+      - run: cargo test --all-targets --features cooperative-deadlines --locked
       - run: cargo test --doc --locked
       - run: cargo check --release --all-targets --locked
 
@@ -34,6 +35,7 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
       - run: rustup toolchain install 1.88.0 --profile minimal
       - run: cargo +1.88.0 test --no-default-features --all-targets --locked
+      - run: cargo +1.88.0 test --no-default-features --all-targets --features cooperative-deadlines --locked
       - run: cargo +1.88.0 test --no-default-features --doc --locked
       - run: cargo +1.88.0 check --no-default-features --release --all-targets --locked
 
