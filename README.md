@@ -93,6 +93,30 @@ For tile, region or reduced-resolution requests, the corresponding strict
 APIs take a `DecodeSelection`. They preserve the same centered samples and
 metadata restrictions, and never automatically recover an incomplete canvas.
 
+### Opt-in cooperative deadlines (native-only profile)
+
+Enable the `cooperative-deadlines` Cargo feature to export
+`with_decode_deadline(Instant, operation)` and `DecodeError::DeadlineExceeded`.
+The caller supplies the absolute deadline; no global timeout is selected.
+Nested scopes use the earliest deadline. Entry and exit are checked, including
+an error return; expiry at the exit checkpoint takes precedence. Prior
+thread-local state is restored on returns and native Rust unwinding.
+
+Checks occur before/after managed reservations and bulk operations, at parser,
+box, packet, tile/component and coding-pass/stripe stages, and periodically in
+named sample loops. This is cooperative cancellation, not hard preemption,
+cross-thread cancellation or a saved decoder continuation. Native allocators,
+opaque bulk/host operations and uninstrumented intervals cannot be interrupted.
+Low-level mutable objects may already be changed on cancellation; use a fresh
+decode rather than treating expiry as a resumable state.
+
+**Qualification boundary:** real clock/TLS effects are native-tested, not
+covered by the pinned Verus profile. The feature is off by default. Existing
+default decoder contracts and verification flags are unchanged; trying to
+verify with this feature enabled fails explicitly rather than silently erasing
+checks or weakening models. See [profiles](SUPPORTED.md) and
+[checkpoint observations](validation/VALIDATION.md#cooperative-deadline-profile).
+
 ### Explicit raw missing-EOC recovery
 
 `decode_codestream_recover_missing_eoc(input, options)` is a separate opt-in

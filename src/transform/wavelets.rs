@@ -15,6 +15,8 @@ pub fn inverse_5_3(
     high: &[i64],
     low_pass_first: bool,
 ) -> Result<Vec<i64>, DecodeError> {
+    #[cfg(all(feature = "cooperative-deadlines", not(verus_keep_ghost)))]
+    crate::deadline::checkpoint()?;
     #[cfg(verus_keep_ghost)]
     proof! {crate::specs::part2_wavelet_sequence_normal(low@,high@,low_pass_first,false,None);}
     let interleaved = interleave(low, high, low_pass_first);
@@ -47,6 +49,8 @@ pub fn inverse_9_7(
     high: &[i64],
     low_pass_first: bool,
 ) -> Result<Vec<i64>, DecodeError> {
+    #[cfg(all(feature = "cooperative-deadlines", not(verus_keep_ghost)))]
+    crate::deadline::checkpoint()?;
     #[cfg(verus_keep_ghost)]
     proof! {crate::specs::part2_wavelet_sequence_normal(low@,high@,low_pass_first,true,None);}
     let interleaved = interleave(low, high, low_pass_first);
@@ -165,6 +169,8 @@ pub(super) fn interleave(
         )
     )]
     while index < length {
+        #[cfg(all(feature = "cooperative-deadlines", not(verus_keep_ghost)))]
+        crate::deadline::checkpoint_periodic(index)?;
         #[cfg(verus_keep_ghost)]
         proof! { crate::proofs::production_impl::production_index_parity(index); }
         let low_position = (index & 1 == 0) == low_pass_first;
@@ -213,6 +219,8 @@ pub(super) fn inverse_lift(
         )
     )]
     while index < samples.len() {
+        #[cfg(all(feature = "cooperative-deadlines", not(verus_keep_ghost)))]
+        crate::deadline::checkpoint_periodic(index)?;
         #[cfg(verus_keep_ghost)]
         proof! {
             crate::proofs::production_impl::production_lifting_sample_frame(
@@ -313,6 +321,8 @@ pub(super) fn scale_parity(
         )
     )]
     while index < samples.len() {
+        #[cfg(all(feature = "cooperative-deadlines", not(verus_keep_ghost)))]
+        crate::deadline::checkpoint_periodic(index)?;
         #[cfg(verus_keep_ghost)]
         proof! { crate::proofs::production_impl::production_index_parity(index); }
         if (index & 1 == 0) == low_parity {

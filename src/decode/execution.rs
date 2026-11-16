@@ -436,6 +436,8 @@ pub(super) fn decode_layout_selected(
         )
     )]
     while selected_tile < selection.tiles.len() {
+        #[cfg(all(feature = "cooperative-deadlines", not(verus_keep_ghost)))]
+        crate::deadline::checkpoint()?;
         #[cfg(verus_keep_ghost)]
         proof! {
             codestream::decoder_layout_input_fields(layout);
@@ -683,6 +685,8 @@ pub(super) fn reconstruct_planned_tile(
         decreases plan.components.len() - component_index,
     ))]
     while component_index < plan.components.len() {
+        #[cfg(all(feature = "cooperative-deadlines", not(verus_keep_ghost)))]
+        crate::deadline::checkpoint()?;
         #[cfg(verus_keep_ghost)]
         proof! {
             crate::proofs::production_impl::production_reconstruct_components_step(initial, plans, precincts,
@@ -1271,6 +1275,8 @@ pub(super) fn decode_layout(
         )
     )]
     while tile < tile_count {
+        #[cfg(all(feature = "cooperative-deadlines", not(verus_keep_ghost)))]
+        crate::deadline::checkpoint()?;
         #[cfg(verus_keep_ghost)]
         proof! { codestream::decoder_layout_input_fields(layout); reveal_with_fuel(crate::specs::part2_full_layout_tiles, 1); reveal(layout_accumulation_view); }
         let tile_index = match u16::try_from(tile) {

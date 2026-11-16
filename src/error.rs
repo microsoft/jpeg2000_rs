@@ -175,6 +175,9 @@ pub enum DecodeError {
     },
     /// Storage reservation was refused, including an unrepresentable capacity.
     AllocationFailed,
+    /// An explicitly scoped cooperative deadline expired at a checkpoint.
+    #[cfg(feature = "cooperative-deadlines")]
+    DeadlineExceeded,
 }
 
 impl DecodeError {
@@ -258,6 +261,8 @@ impl fmt::Display for DecodeError {
                 "resource limit exceeded for {resource:?}: limit {limit}, actual {actual}"
             ),
             Self::AllocationFailed => write!(formatter, "memory allocation failed"),
+            #[cfg(feature = "cooperative-deadlines")]
+            Self::DeadlineExceeded => write!(formatter, "cooperative decode deadline exceeded"),
             Self::Io { kind } => write!(formatter, "I/O failure: {kind:?}"),
         }
     }

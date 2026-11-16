@@ -40,15 +40,20 @@ pub(crate) fn inspection_values<T>(
     ensures crate::specs::storage_reservation_result(old(values)@, final(values)@, result),
 ))]
 fn reserve_additional<T>(values: &mut Vec<T>, additional: usize) -> Result<(), DecodeError> {
+    #[cfg(all(feature = "cooperative-deadlines", not(verus_keep_ghost)))]
+    crate::deadline::checkpoint()?;
     #[cfg(test)]
     if core::mem::size_of::<T>() != 0 && additional > values.capacity().saturating_sub(values.len())
     {
         refuse_managed_request()?;
     }
-    match values.try_reserve(additional) {
+    let result = match values.try_reserve(additional) {
         Ok(()) => Ok(()),
         Err(_) => Err(DecodeError::AllocationFailed),
-    }
+    };
+    #[cfg(all(feature = "cooperative-deadlines", not(verus_keep_ghost)))]
+    crate::deadline::checkpoint()?;
+    result
 }
 
 #[cfg_attr(verus_keep_ghost, verus_spec(result =>
@@ -72,6 +77,8 @@ pub(crate) fn zero_i64_values(count: usize) -> Result<Vec<i64>, DecodeError> {
     }
     let mut values = empty_with_capacity(count)?;
     values.resize(count, 0_i64);
+    #[cfg(all(feature = "cooperative-deadlines", not(verus_keep_ghost)))]
+    crate::deadline::checkpoint()?;
     #[cfg(verus_keep_ghost)]
     proof! {
         assert forall|i:int|0<=i<count implies values@[i]==0i64 by {
@@ -93,6 +100,8 @@ pub(crate) fn copy_i64_values(source: &[i64]) -> Result<Vec<i64>, DecodeError> {
     }
     let mut values = empty_with_capacity(source.len())?;
     values.extend_from_slice(source);
+    #[cfg(all(feature = "cooperative-deadlines", not(verus_keep_ghost)))]
+    crate::deadline::checkpoint()?;
     #[cfg(verus_keep_ghost)]
     proof! {
         assert forall|i:int|0<=i<source.len() implies values@[i]==source@[i] by {
@@ -114,6 +123,8 @@ pub(crate) fn none_values<T>(count: usize) -> Result<Vec<Option<T>>, DecodeError
         decreases count - values.len(),
     ))]
     while values.len() < count {
+        #[cfg(all(feature = "cooperative-deadlines", not(verus_keep_ghost)))]
+        crate::deadline::checkpoint_periodic(values.len())?;
         values.push(None);
         #[cfg(verus_keep_ghost)]
         proof! {
@@ -140,6 +151,8 @@ pub(crate) fn copy_values<T: Copy>(source: &[T]) -> Result<Vec<T>, DecodeError> 
         decreases source.len() - index,
     ))]
     while index < source.len() {
+        #[cfg(all(feature = "cooperative-deadlines", not(verus_keep_ghost)))]
+        crate::deadline::checkpoint_periodic(index)?;
         values.push(source[index]);
         index += 1;
         #[cfg(verus_keep_ghost)]
@@ -169,6 +182,8 @@ pub(crate) fn filled_values<T: Copy>(value: T, count: usize) -> Result<Vec<T>, D
         decreases count - index,
     ))]
     while index < count {
+        #[cfg(all(feature = "cooperative-deadlines", not(verus_keep_ghost)))]
+        crate::deadline::checkpoint_periodic(index)?;
         values.push(value);
         #[cfg(verus_keep_ghost)]
         proof! { assert(Seq::new(index as nat + 1, |_: int| value) =~= Seq::new(index as nat, |_: int| value).push(value)); }
@@ -189,6 +204,8 @@ pub(crate) fn extend_bytes(values: &mut Vec<u8>, bytes: &[u8]) -> Result<(), Dec
     #[cfg(verus_keep_ghost)]
     proof_decl! { let ghost previous = values@; }
     values.extend_from_slice(bytes);
+    #[cfg(all(feature = "cooperative-deadlines", not(verus_keep_ghost)))]
+    crate::deadline::checkpoint()?;
     #[cfg(verus_keep_ghost)]
     proof! { assert(values@ =~= previous + bytes@); }
     Ok(())

@@ -494,6 +494,8 @@ impl Tier1CodeBlockDecoder {
         passes: u8,
         limits: &ResourceLimits,
     ) -> Result<(), DecodeError> {
+        #[cfg(all(feature = "cooperative-deadlines", not(verus_keep_ghost)))]
+        crate::deadline::checkpoint()?;
         #[cfg(verus_keep_ghost)]
         proof! { reveal(crate::specs::part1_legacy_contribution); }
         #[cfg(verus_keep_ghost)]
