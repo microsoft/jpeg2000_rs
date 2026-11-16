@@ -320,9 +320,72 @@ pub(super) fn selection_region(
 }
 
 #[cfg_attr(verus_keep_ghost, verus_spec(result =>
-    ensures selected_tiles_outcome(result) == crate::specs::part2_select_intersecting_tiles(
+    ensures result == crate::specs::part2_intersecting_tile_count(
         crate::codestream::selection_geometry_view(size), explicit_tiles@, region@, tile_count,
     ),
+        match result { Err(_) => true, Ok(count) =>
+            crate::specs::part2_select_intersecting_tiles(crate::codestream::selection_geometry_view(size),
+                explicit_tiles@, region@, tile_count).get_Ok_0().len() == count },
+))]
+fn intersecting_tile_count(
+    size: &ImageSize,
+    explicit_tiles: &[u16],
+    region: [u32; 4],
+    tile_count: u64,
+) -> Result<usize, DecodeError> {
+    #[cfg(verus_keep_ghost)]
+    proof! { crate::codestream::selection_geometry_known_fields(size); }
+    let mut count = 0_usize;
+    let mut tile = 0_u64;
+    #[cfg(verus_keep_ghost)]
+    proof! { crate::proofs::production_impl::production_selected_tiles_empty(crate::codestream::selection_geometry_view(size), explicit_tiles@, region@); }
+    #[cfg_attr(verus_keep_ghost, verus_spec(
+        invariant tile <= tile_count, count as int <= tile, count <= u16::MAX as usize + 1,
+            match crate::specs::part2_selected_tiles_prefix(crate::codestream::selection_geometry_view(size),
+                explicit_tiles@, region@, tile as nat) {
+                Ok(tiles) => tiles.len() == count, Err(_) => false,
+            },
+        decreases tile_count - tile,
+    ))]
+    while tile < tile_count {
+        #[cfg(verus_keep_ghost)]
+        proof! {
+            crate::proofs::production_impl::production_selected_tiles_step(crate::codestream::selection_geometry_view(size), explicit_tiles@, region@, tile as nat);
+            crate::proofs::production_impl::production_selected_tiles_error(crate::codestream::selection_geometry_view(size), explicit_tiles@, region@, tile as nat + 1, tile_count as nat);
+        }
+        let tile_index = match u16::try_from(tile) {
+            Ok(index) => index,
+            Err(_) => return Err(arithmetic_overflow()),
+        };
+        let bounds = size.tile_bounds(tile_index)?;
+        if bounds.x0 < region[2]
+            && bounds.x1 > region[0]
+            && bounds.y0 < region[3]
+            && bounds.y1 > region[1]
+        {
+            if !explicit_tiles.is_empty() && !tile_list_contains(explicit_tiles, tile_index)? {
+                return Err(DecodeError::InvalidSelection {
+                    reason: SelectionError::RegionOutsideSelectedTiles,
+                });
+            }
+            count = count.checked_add(1).ok_or_else(arithmetic_overflow)?;
+        }
+        tile = tile.checked_add(1).ok_or_else(arithmetic_overflow)?;
+    }
+    if count == 0 {
+        return Err(DecodeError::InvalidSelection {
+            reason: SelectionError::RegionOutsideSelectedTiles,
+        });
+    }
+    Ok(count)
+}
+
+#[cfg_attr(verus_keep_ghost, verus_spec(result =>
+    ensures crate::specs::part2_select_tiles_result(crate::codestream::selection_geometry_view(size),
+        explicit_tiles@, region@, tile_count, selected_tiles_outcome(result)),
+        selected_tiles_outcome(result) != Err(DecodeError::AllocationFailed) ==>
+            selected_tiles_outcome(result) == crate::specs::part2_select_intersecting_tiles(
+                crate::codestream::selection_geometry_view(size), explicit_tiles@, region@, tile_count),
 ))]
 pub(super) fn select_intersecting_tiles(
     size: &ImageSize,
@@ -331,13 +394,28 @@ pub(super) fn select_intersecting_tiles(
     tile_count: u64,
 ) -> Result<Vec<u16>, DecodeError> {
     #[cfg(verus_keep_ghost)]
-    proof! { crate::codestream::selection_geometry_known_fields(size); }
-    let mut tiles = Vec::new();
+    proof! {
+        crate::codestream::selection_geometry_known_fields(size);
+        crate::specs::part2_select_tiles_normal(crate::codestream::selection_geometry_view(size),
+            explicit_tiles@, region@, tile_count);
+    }
+    let count = intersecting_tile_count(size, explicit_tiles, region, tile_count)?;
+    let reserved = crate::allocation::empty_with_capacity(count);
+    #[cfg(verus_keep_ghost)]
+    proof! {
+        crate::specs::part2_select_tiles_capacity_observed(crate::codestream::selection_geometry_view(size),
+            explicit_tiles@, region@, tile_count, count,
+            crate::allocation::inspection_capacity_outcome(reserved));
+    }
+    let mut tiles = reserved?;
     let mut tile = 0_u64;
     #[cfg(verus_keep_ghost)]
     proof! { crate::proofs::production_impl::production_selected_tiles_empty(crate::codestream::selection_geometry_view(size), explicit_tiles@, region@); }
     #[cfg_attr(verus_keep_ghost, verus_spec(
         invariant tile <= tile_count,
+        crate::specs::part2_select_tiles_result(crate::codestream::selection_geometry_view(size),
+            explicit_tiles@, region@, tile_count, crate::specs::part2_select_intersecting_tiles(
+                crate::codestream::selection_geometry_view(size), explicit_tiles@, region@, tile_count)),
         crate::specs::part2_selected_tiles_prefix(crate::codestream::selection_geometry_view(size),
             explicit_tiles@, region@, tile as nat) == Ok(tiles@),
         decreases tile_count - tile,
@@ -423,9 +501,11 @@ pub(super) fn explicit_tiles_from_selection(
 }
 
 #[cfg_attr(verus_keep_ghost, verus_spec(result =>
-    ensures validated_selection_outcome(result) == crate::specs::part2_validate_selection(
-        crate::codestream::selection_geometry_view(size), crate::options::decode_selection_view(selection),
-    ),
+    ensures crate::specs::part2_validate_selection_result(crate::codestream::selection_geometry_view(size),
+        crate::options::decode_selection_view(selection), validated_selection_outcome(result)),
+        validated_selection_outcome(result) != Err(DecodeError::AllocationFailed) ==>
+            validated_selection_outcome(result) == crate::specs::part2_validate_selection(
+                crate::codestream::selection_geometry_view(size), crate::options::decode_selection_view(selection)),
 ))]
 pub(super) fn validate_selection(
     size: &ImageSize,
@@ -435,6 +515,8 @@ pub(super) fn validate_selection(
     proof! {
         crate::codestream::selection_geometry_known_fields(size);
         reveal(crate::specs::part2_validate_selection);
+        crate::specs::part2_validate_selection_normal(crate::codestream::selection_geometry_view(size),
+            crate::options::decode_selection_view(selection));
     }
     let image_x1 = size
         .x_origin
@@ -476,7 +558,14 @@ pub(super) fn validate_selection(
         image_x1,
         image_y1,
     )?;
-    let tiles = select_intersecting_tiles(size, &explicit_tiles, region, tile_count)?;
+    let selected = select_intersecting_tiles(size, &explicit_tiles, region, tile_count);
+    #[cfg(verus_keep_ghost)]
+    proof! {
+        crate::specs::part2_validate_selection_from_tiles(crate::codestream::selection_geometry_view(size),
+            crate::options::decode_selection_view(selection), explicit_tiles@, region@, tile_count,
+            selected_tiles_outcome(selected));
+    }
+    let tiles = selected?;
     Ok(ValidatedSelection {
         tiles,
         region,

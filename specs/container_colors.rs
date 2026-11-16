@@ -4,6 +4,60 @@ use super::*;
 
 verus! {
 
+pub(crate) open spec fn part2_color_selection_size_run(
+    size: Part2SelectionGeometry, components: Seq<crate::codestream::ComponentInfo>, count: u16,
+    requested: Part2DecodeSelection, events: Seq<Part2JpipSnapshotEvent>,
+) -> Part2ColdRun<(Part2DecodeSelection, Seq<u32>)> {
+    part2_jpip_snapshot_bind(part2_validate_selection_run(size, requested, events),
+        |selected: Part2ValidatedSelection, rest|
+            Some((part2_color_selection_context(size.2, size.3, components, count, selected), rest)))
+}
+
+pub(crate) open spec fn part2_color_selection_size_result(
+    size: Part2SelectionGeometry, components: Seq<crate::codestream::ComponentInfo>, count: u16,
+    requested: Part2DecodeSelection, result: Result<(Part2DecodeSelection, Seq<u32>), crate::DecodeError>,
+) -> bool {
+    part2_cold_framed(|events| part2_color_selection_size_run(size, components, count, requested, events), result)
+}
+
+pub(crate) proof fn part2_color_selection_size_actual(
+    size: Part2SelectionGeometry, components: Seq<crate::codestream::ComponentInfo>, count: u16,
+    requested: Part2DecodeSelection, selected: Result<Part2ValidatedSelection, crate::DecodeError>,
+)
+    requires part2_validate_selection_result(size, requested, selected),
+    ensures part2_color_selection_size_result(size, components, count, requested, match selected {
+        Err(error) => Err(error), Ok(value) => part2_color_selection_context(size.2, size.3, components, count, value),
+    }),
+{
+    let result = match selected {
+        Err(error) => Err(error), Ok(value) => part2_color_selection_context(size.2, size.3, components, count, value),
+    };
+    part2_cold_pure(result);
+    part2_cold_bind(|events| part2_validate_selection_run(size, requested, events),
+        |selected: Part2ValidatedSelection, rest|
+            Some((part2_color_selection_context(size.2, size.3, components, count, selected), rest)), selected, result);
+}
+
+pub(crate) proof fn part2_color_selection_size_normal(
+    size: Part2SelectionGeometry, components: Seq<crate::codestream::ComponentInfo>, count: u16,
+    requested: Part2DecodeSelection,
+)
+    ensures part2_color_selection_size_result(size, components, count, requested,
+        part2_color_selection_requested(size, components, count, requested)),
+{
+    part2_validate_selection_normal(size, requested);
+    part2_color_selection_size_actual(size, components, count, requested, part2_validate_selection(size, requested));
+}
+
+pub(crate) open spec fn part2_color_selection_layout_run(
+    layout: Part1CompleteLayout, requested: Part2DecodeSelection, events: Seq<Part2JpipSnapshotEvent>,
+) -> Part2ColdRun<(Part2DecodeSelection, Seq<u32>)> {
+    let size = part2_decoder_input_from_raw(layout).size;
+    part2_color_selection_size_run(crate::codestream::selection_geometry_view(&size),
+        crate::codestream::image_size_component_infos(&size),
+        crate::codestream::image_size_component_count(&size), requested, events)
+}
+
 pub(crate) open spec fn part2_color_selection_layout(
     layout: Part1CompleteLayout, requested: Part2DecodeSelection,
 ) -> Result<(Part2DecodeSelection, Seq<u32>), crate::DecodeError> {
@@ -18,7 +72,7 @@ pub(crate) open spec fn part2_color_selection_cold_run(
     events: Seq<Part2JpipSnapshotEvent>,
 ) -> Part2ColdRun<(Part2DecodeSelection, Seq<u32>)> {
     part2_jpip_snapshot_bind(part2_cold_parse(input, limits, 3, 0, events),
-        |layout: Part1CompleteLayout, rest| Some((part2_color_selection_layout(layout, requested), rest)))
+        |layout: Part1CompleteLayout, rest| part2_color_selection_layout_run(layout, requested, rest))
 }
 
 pub(crate) open spec fn part2_color_selection_cold_result(
@@ -26,6 +80,35 @@ pub(crate) open spec fn part2_color_selection_cold_result(
     result: Result<(Part2DecodeSelection, Seq<u32>), crate::DecodeError>,
 ) -> bool {
     part2_cold_framed(|events| part2_color_selection_cold_run(input, limits, requested, events), result)
+}
+
+pub(crate) proof fn part2_color_selection_cold_observed(
+    input: Seq<u8>, limits: &crate::ResourceLimits, requested: Part2DecodeSelection,
+    parsed: Part1CompleteLayoutResult, result: Result<(Part2DecodeSelection, Seq<u32>), crate::DecodeError>,
+)
+    requires part1_parse_layout_cold_result(input, limits, parsed),
+        match parsed {
+            Err(error) => result == Err(error),
+            Ok(layout) => {
+                let size = part2_decoder_input_from_raw(layout).size;
+                part2_color_selection_size_result(crate::codestream::selection_geometry_view(&size),
+                    crate::codestream::image_size_component_infos(&size),
+                    crate::codestream::image_size_component_count(&size), requested, result)
+            },
+        },
+    ensures part2_color_selection_cold_result(input, limits, requested, result),
+{
+    part2_cold_parse_actual(input, limits, 3, 0, parsed);
+    if let Ok(layout) = parsed {
+        let size = part2_decoder_input_from_raw(layout).size;
+        part2_cold_framed_extensional(
+            |events| part2_color_selection_size_run(crate::codestream::selection_geometry_view(&size),
+                crate::codestream::image_size_component_infos(&size),
+                crate::codestream::image_size_component_count(&size), requested, events),
+            |events| part2_color_selection_layout_run(layout, requested, events), result);
+    }
+    part2_cold_bind(|events| part2_cold_parse(input, limits, 3, 0, events),
+        |layout: Part1CompleteLayout, rest| part2_color_selection_layout_run(layout, requested, rest), parsed, result);
 }
 
 pub(crate) proof fn part2_color_selection_cold_actual(
@@ -40,12 +123,13 @@ pub(crate) proof fn part2_color_selection_cold_actual(
     let result = match parsed {
         Err(error) => Err(error), Ok(layout) => part2_color_selection_layout(layout, requested),
     };
-    part2_cold_parse_then_actual(input, limits, 3, 0, parsed,
-        |layout: Part1CompleteLayout| part2_color_selection_layout(layout, requested));
-    part2_cold_framed_extensional(
-        |events| part2_jpip_snapshot_bind(part2_cold_parse(input, limits, 3, 0, events),
-            |layout: Part1CompleteLayout, rest| Some((part2_color_selection_layout(layout, requested), rest))),
-        |events| part2_color_selection_cold_run(input, limits, requested, events), result);
+    if let Ok(layout) = parsed {
+        let size = part2_decoder_input_from_raw(layout).size;
+        part2_color_selection_size_normal(crate::codestream::selection_geometry_view(&size),
+            crate::codestream::image_size_component_infos(&size),
+            crate::codestream::image_size_component_count(&size), requested);
+    }
+    part2_color_selection_cold_observed(input, limits, requested, parsed, result);
 }
 
 pub(crate) proof fn part2_color_selection_cold_normal(

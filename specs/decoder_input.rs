@@ -227,4 +227,154 @@ pub(crate) open spec fn part2_decode_typed_layout_value_input(
     }
 }
 
+pub(crate) open spec fn part2_intersecting_tile_count(
+    size: Part2SelectionGeometry, explicit: Seq<u16>, region: Seq<u32>, count: u64,
+) -> Result<usize, crate::DecodeError> {
+    match part2_select_intersecting_tiles(size, explicit, region, count) {
+        Err(error) => Err(error), Ok(tiles) => Ok(tiles.len() as usize),
+    }
+}
+
+pub(crate) open spec fn part2_select_tiles_run(
+    size: Part2SelectionGeometry, explicit: Seq<u16>, region: Seq<u32>, count: u64,
+    events: Seq<Part2JpipSnapshotEvent>,
+) -> Part2ColdRun<Seq<u16>> {
+    let normal = part2_select_intersecting_tiles(size, explicit, region, count);
+    match normal {
+        Err(error) => Some((Err(error), events)),
+        Ok(tiles) => if events.len() == 0 { None } else {
+            match events[0] {
+                Part2JpipSnapshotEvent::SelectionCapacity {
+                    size: actual_size, explicit: actual_explicit, region: actual_region, count: actual_count,
+                    elements, succeeded,
+                } => if actual_size != size || actual_explicit != explicit || actual_region != region
+                    || actual_count != count || elements != tiles.len() {
+                    None
+                } else {
+                    Some((if succeeded { normal } else { Err(crate::DecodeError::AllocationFailed) },
+                        events.drop_first()))
+                },
+                _ => None,
+            }
+        },
+    }
+}
+
+pub(crate) open spec fn part2_select_tiles_result(
+    size: Part2SelectionGeometry, explicit: Seq<u16>, region: Seq<u32>, count: u64,
+    result: Result<Seq<u16>, crate::DecodeError>,
+) -> bool {
+    part2_cold_framed(|events| part2_select_tiles_run(size, explicit, region, count, events), result)
+}
+
+pub(crate) proof fn part2_select_tiles_normal(
+    size: Part2SelectionGeometry, explicit: Seq<u16>, region: Seq<u32>, count: u64,
+)
+    ensures part2_select_tiles_result(size, explicit, region, count,
+        part2_select_intersecting_tiles(size, explicit, region, count)),
+{
+    let normal = part2_select_intersecting_tiles(size, explicit, region, count);
+    match normal {
+        Err(_) => { part2_cold_pure::<Seq<u16>>(normal); },
+        Ok(tiles) => {
+            let calls = seq![Part2JpipSnapshotEvent::SelectionCapacity {
+                size, explicit, region, count, elements: tiles.len(), succeeded: true,
+            }];
+            assert forall|tail: Seq<Part2JpipSnapshotEvent>|
+                part2_select_tiles_run(size, explicit, region, count, calls + tail) == Some((normal, tail)) by {
+                assert((calls + tail).drop_first() =~= tail);
+            }
+            assert(part2_cold_prefix(|events| part2_select_tiles_run(size, explicit, region, count, events), calls, normal));
+        },
+    }
+}
+
+pub(crate) proof fn part2_select_tiles_capacity_observed(
+    size: Part2SelectionGeometry, explicit: Seq<u16>, region: Seq<u32>, count: u64,
+    elements: usize, response: Result<(), crate::DecodeError>,
+)
+    requires part2_select_intersecting_tiles(size, explicit, region, count).is_ok(),
+        part2_select_intersecting_tiles(size, explicit, region, count).get_Ok_0().len() == elements,
+        response.is_err() ==> response == Err(crate::DecodeError::AllocationFailed),
+    ensures part2_select_tiles_result(size, explicit, region, count, match response {
+        Err(error) => Err(error), Ok(()) => part2_select_intersecting_tiles(size, explicit, region, count),
+    }),
+{
+    let normal = part2_select_intersecting_tiles(size, explicit, region, count);
+    let result = match response { Err(error) => Err(error), Ok(()) => normal };
+    let calls = seq![Part2JpipSnapshotEvent::SelectionCapacity {
+        size, explicit, region, count, elements: elements as nat, succeeded: response.is_ok(),
+    }];
+    assert forall|tail: Seq<Part2JpipSnapshotEvent>|
+        part2_select_tiles_run(size, explicit, region, count, calls + tail) == Some((result, tail)) by {
+        assert((calls + tail).drop_first() =~= tail);
+    }
+    assert(part2_cold_prefix(|events| part2_select_tiles_run(size, explicit, region, count, events), calls, result));
+}
+
+pub(crate) open spec fn part2_validate_selection_run(
+    size: Part2SelectionGeometry, requested: Part2DecodeSelection, events: Seq<Part2JpipSnapshotEvent>,
+) -> Part2ColdRun<Part2ValidatedSelection> {
+    match part2_validate_selection(size, requested) {
+        Err(error) => Some((Err(error), events)),
+        Ok(selected) => part2_jpip_snapshot_bind(
+            part2_select_tiles_run(size, part2_selection_explicit(requested.0).get_Ok_0(),
+                selected.1, part2_selection_tile_count(size).get_Ok_0(), events),
+            |tiles: Seq<u16>, rest| Some((Ok((tiles, selected.1, selected.2)), rest))),
+    }
+}
+
+pub(crate) open spec fn part2_validate_selection_result(
+    size: Part2SelectionGeometry, requested: Part2DecodeSelection,
+    result: Result<Part2ValidatedSelection, crate::DecodeError>,
+) -> bool {
+    part2_cold_framed(|events| part2_validate_selection_run(size, requested, events), result)
+}
+
+pub(crate) proof fn part2_validate_selection_normal(
+    size: Part2SelectionGeometry, requested: Part2DecodeSelection,
+)
+    ensures part2_validate_selection_result(size, requested, part2_validate_selection(size, requested)),
+{
+    reveal(part2_validate_selection);
+    let normal = part2_validate_selection(size, requested);
+    match normal {
+        Err(_) => { part2_cold_pure::<Part2ValidatedSelection>(normal); },
+        Ok(selected) => {
+            let explicit = part2_selection_explicit(requested.0).get_Ok_0();
+            let count = part2_selection_tile_count(size).get_Ok_0();
+            part2_select_tiles_normal(size, explicit, selected.1, count);
+            part2_cold_pure(Ok(selected));
+            part2_cold_bind(|events| part2_select_tiles_run(size, explicit, selected.1, count, events),
+                |tiles: Seq<u16>, rest| Some((Ok((tiles, selected.1, selected.2)), rest)),
+                Ok(selected.0), Ok(selected));
+        },
+    }
+}
+
+pub(crate) proof fn part2_validate_selection_from_tiles(
+    size: Part2SelectionGeometry, requested: Part2DecodeSelection, explicit: Seq<u16>,
+    region: Seq<u32>, count: u64, result: Result<Seq<u16>, crate::DecodeError>,
+)
+    requires part2_selection_explicit(requested.0) == Ok(explicit),
+        part2_selection_tile_count(size) == Ok(count),
+        part2_validate_selection(size, requested) == match part2_select_intersecting_tiles(size, explicit, region, count) {
+            Err(error) => Err(error), Ok(tiles) => Ok((tiles, region, requested.2)),
+        },
+        part2_select_tiles_result(size, explicit, region, count, result),
+    ensures part2_validate_selection_result(size, requested, match result {
+        Err(error) => Err(error), Ok(tiles) => Ok((tiles, region, requested.2)),
+    }),
+{
+    let mapped = match result { Err(error) => Err(error), Ok(tiles) => Ok((tiles, region, requested.2)) };
+    let child = |events| part2_select_tiles_run(size, explicit, region, count, events);
+    let next = |tiles: Seq<u16>, rest| Some((Ok((tiles, region, requested.2)), rest));
+    part2_cold_pure(mapped);
+    part2_cold_bind(child, next, result, mapped);
+    assert forall|events: Seq<Part2JpipSnapshotEvent>|
+        part2_validate_selection_run(size, requested, events) == part2_jpip_snapshot_bind(child(events), next) by {};
+    part2_cold_framed_extensional(|events| part2_jpip_snapshot_bind(child(events), next),
+        |events| part2_validate_selection_run(size, requested, events), mapped);
+}
+
 }

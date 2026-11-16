@@ -740,21 +740,27 @@ pub(crate) proof fn part2_trailer_selected_normal(
     }
 }
 
+pub(crate) open spec fn part2_trailer_after_selection_run(
+    input: Part2DecoderLayoutInput, selection: Part2ValidatedSelection, limits: &crate::ResourceLimits,
+    events: Seq<Part2JpipSnapshotEvent>,
+) -> Part2ColdRun<Part2TrailerReconstructed> {
+    if selection.1.len() != 4 { Some((Err(part1_block_placement_error(false)), events)) }
+    else {
+        let initial = Part2DecodedLayoutTile { prepared: Seq::empty(), counters: (0, 0, 0), mct_work: 0 };
+        part2_trailer_selected_run(&input.size, input.parts, input.capabilities, selection.0,
+            [selection.1[0], selection.1[1], selection.1[2], selection.1[3]], selection.2, limits, 0, initial, 0, events)
+    }
+}
+
 pub(crate) open spec fn part2_trailer_layout_run(
     input: Part2DecoderLayoutInput, requested: Part2DecodeSelection, limits: &crate::ResourceLimits,
     events: Seq<Part2JpipSnapshotEvent>,
 ) -> Part2ColdRun<Part2TrailerReconstructed> {
     match part2_decoder_execution_admission(input) {
         Err(error) => Some((Err(error), events)),
-        Ok(()) => match part2_validate_selection(crate::codestream::selection_geometry_view(&input.size), requested) {
-            Err(error) => Some((Err(error), events)),
-            Ok(selection) => if selection.1.len() != 4 { Some((Err(part1_block_placement_error(false)), events)) }
-                else {
-                    let initial = Part2DecodedLayoutTile { prepared: Seq::empty(), counters: (0, 0, 0), mct_work: 0 };
-                    part2_trailer_selected_run(&input.size, input.parts, input.capabilities, selection.0,
-                        [selection.1[0], selection.1[1], selection.1[2], selection.1[3]], selection.2, limits, 0, initial, 0, events)
-                },
-        },
+        Ok(()) => part2_jpip_snapshot_bind(
+            part2_validate_selection_run(crate::codestream::selection_geometry_view(&input.size), requested, events),
+            |selection: Part2ValidatedSelection, rest| part2_trailer_after_selection_run(input, selection, limits, rest)),
     }
 }
 
@@ -790,17 +796,26 @@ pub(crate) proof fn part2_trailer_layout_normal(
     let result = part2_trailer_layout_value(input, requested, limits);
     match part2_decoder_execution_admission(input) {
         Err(_) => part2_cold_pure::<Part2TrailerReconstructed>(result),
-        Ok(()) => match part2_validate_selection(crate::codestream::selection_geometry_view(&input.size), requested) {
-            Err(_) => part2_cold_pure::<Part2TrailerReconstructed>(result),
-            Ok(selection) => if selection.1.len() != 4 {
-                part2_cold_pure::<Part2TrailerReconstructed>(result);
-            } else {
-                let initial = Part2DecodedLayoutTile { prepared: Seq::empty(), counters: (0, 0, 0), mct_work: 0 };
-                let region = [selection.1[0], selection.1[1], selection.1[2], selection.1[3]];
-                part2_trailer_selected_normal(&input.size, input.parts, input.capabilities, selection.0, region, selection.2, limits, 0, initial, 0);
-                part2_decode_eta(
-                    |events| part2_trailer_selected_run(&input.size, input.parts, input.capabilities, selection.0, region, selection.2, limits, 0, initial, 0, events), result);
-            },
+        Ok(()) => {
+            let size = crate::codestream::selection_geometry_view(&input.size);
+            let selected = part2_validate_selection(size, requested);
+            part2_validate_selection_normal(size, requested);
+            match selected {
+                Err(_) => part2_cold_pure::<Part2TrailerReconstructed>(result),
+                Ok(selection) => if selection.1.len() != 4 {
+                    part2_cold_pure::<Part2TrailerReconstructed>(result);
+                } else {
+                    let initial = Part2DecodedLayoutTile { prepared: Seq::empty(), counters: (0, 0, 0), mct_work: 0 };
+                    let region = [selection.1[0], selection.1[1], selection.1[2], selection.1[3]];
+                    part2_trailer_selected_normal(&input.size, input.parts, input.capabilities, selection.0, region, selection.2, limits, 0, initial, 0);
+                    part2_decode_eta(
+                        |events| part2_trailer_selected_run(&input.size, input.parts, input.capabilities, selection.0, region, selection.2, limits, 0, initial, 0, events), result);
+                },
+            }
+            let child = |events| part2_validate_selection_run(size, requested, events);
+            let next = |selection: Part2ValidatedSelection, rest| part2_trailer_after_selection_run(input, selection, limits, rest);
+            part2_cold_bind(child, next, selected, result);
+            part2_decode_eta(|events| part2_jpip_snapshot_bind(child(events), next), result);
         },
     }
 }

@@ -5105,6 +5105,15 @@ _PLANE_ROLE_RESULT_RUNS.update({
     "part2_coefficient_progression_result": ("part2_extraction_progression_run", False),
 })
 _COLD_RESULT_MODELS = {
+    "part2_select_intersecting_tiles": (
+        "part2_select_tiles_result", "specs/decoder_input.rs", "part2_select_tiles_normal",
+    ),
+    "part2_validate_selection": (
+        "part2_validate_selection_result", "specs/decoder_input.rs", "part2_validate_selection_normal",
+    ),
+    "part2_color_selection_requested": (
+        "part2_color_selection_size_result", "specs/container_colors.rs", "part2_color_selection_size_normal",
+    ),
     "part1_jpip_precinct_packet": (
         "part2_jpip_packet_copy_result", "specs/cold_packet_copy.rs", "part2_jpip_packet_copy_normal",
     ),
@@ -5556,6 +5565,24 @@ _COLD_RESULT_CONTRACTS = {
     ),
 }
 _COLD_RESULT_CONTRACTS.update(_LEGACY_PACKET_STORAGE_CONTRACTS)
+_COLD_RESULT_CONTRACTS.update({
+    ("src/decode/selection.rs", "select_intersecting_tiles"): _coverage_cold_relation((
+        "part2_select_intersecting_tiles", _coverage_call("selected_tiles_outcome", r"\1"), None,
+        _coverage_call("crate::codestream::selection_geometry_view", "size")
+        + r"\s*,\s*explicit_tiles@\s*,\s*region@\s*,\s*tile_count",
+    )),
+    ("src/decode/selection.rs", "validate_selection"): _coverage_cold_relation((
+        "part2_validate_selection", _coverage_call("validated_selection_outcome", r"\1"), None,
+        _coverage_call("crate::codestream::selection_geometry_view", "size")
+        + r"\s*,\s*" + _coverage_call("crate::options::decode_selection_view", "selection"),
+    )),
+    ("src/decode/output.rs", "color_selection_for_size"): _coverage_cold_relation((
+        "part2_color_selection_requested", _coverage_call("color_selection_outcome", r"\1"), None,
+        _coverage_call("crate::codestream::selection_geometry_view", "size")
+        + r"\s*,\s*" + _coverage_call("crate::codestream::image_size_component_infos", "size")
+        + r"\s*,\s*size\.components\s*,\s*" + _coverage_call("crate::options::decode_selection_view", "requested"),
+    )),
+})
 for _axis, _extent in (("horizontal", "output_width"), ("vertical", "output_height"), ("level", None)):
     for _suffix, _irreversible in (("5_3", "false"), ("9_7", "true"), ("arbitrary", r"!\s*" + _coverage_call("crate::codestream::raw_kernel_view", r"\*\s*kernel") + r"\.0")):
         _wavelet_inputs = (_coverage_call("wavelet_level_view", "level") if _extent is None else
@@ -8707,6 +8734,45 @@ def validate_normative_coverage(
     ids: set[str] = set()
     contract_functions: set[tuple[str, str]] = set()
     for entry in coverage["requirements"]:
+        if entry["id"] == "part2-complete-native-container-selection-output":
+            for relative, symbol, required in (
+                ("src/decode/selection.rs", "select_intersecting_tiles", (
+                    "let count = intersecting_tile_count(size, explicit_tiles, region, tile_count)?",
+                    "let reserved = crate::allocation::empty_with_capacity(count)",
+                    "explicit_tiles@, region@, tile_count, count,",
+                    "let mut tiles = reserved?", "tiles.push(tile_index)",
+                )),
+                ("specs/decoder_input.rs", "part2_select_tiles_run", (
+                    "part2_select_intersecting_tiles(size, explicit, region, count)",
+                    "Err(error) => Some((Err(error), events))",
+                    "actual_size != size || actual_explicit != explicit || actual_region != region",
+                    "actual_count != count || elements != tiles.len()",
+                    "events.drop_first()",
+                )),
+                ("specs/decoder_input.rs", "part2_validate_selection_run", (
+                    "part2_validate_selection(size, requested)",
+                    "part2_select_tiles_run(size, part2_selection_explicit(requested.0).get_Ok_0(),",
+                    "selected.1, part2_selection_tile_count(size).get_Ok_0(), events)",
+                )),
+                ("specs/cold_decode_packets.rs", "part2_layout_decode_run", (
+                    "part2_validate_selection_run(crate::codestream::selection_geometry_view(&input.size), selection, events)",
+                    "part2_layout_after_selection_run(input, selected, limits, rest)",
+                )),
+                ("specs/pdf_trailers.rs", "part2_trailer_layout_run", (
+                    "part2_validate_selection_run(crate::codestream::selection_geometry_view(&input.size), requested, events)",
+                    "part2_trailer_after_selection_run(input, selection, limits, rest)",
+                )),
+                ("specs/container_colors.rs", "part2_color_selection_cold_run", (
+                    "part2_cold_parse(input, limits, 3, 0, events)",
+                    "part2_color_selection_layout_run(layout, requested, rest)",
+                )),
+            ):
+                path = (ROOT / relative).resolve()
+                text = source_text(path)
+                body = (_coverage_function_body(text, function_header(path, symbol))
+                        if relative.startswith("src/") else _coverage_spec_function_body(text, symbol))
+                if body is None or any("".join(item.split()) not in "".join(body.split()) for item in required):
+                    raise ValueError("selected tile storage requires exact preflight, capacity context and reached continuation")
         if entry["id"] == "part2-complete-native-mct-graph-production":
             if (not _RESOLVED_COPY_MODELS.issubset({(r["path"], r["symbol"]) for r in entry["spec_refs"]})
                     or not _RESOLVED_COPY_PROOFS.issubset({(r["path"], r["symbol"]) for r in entry["proof_refs"]})):
@@ -13957,6 +14023,10 @@ def validate_normative_coverage(
                     "selected_tiles_outcome", "part2_select_intersecting_tiles",
                     selection_geometry + r"\s*,\s*explicit_tiles@\s*,\s*region@\s*,\s*tile_count",
                 ),
+                ("src/decode/selection.rs", "intersecting_tile_count"): (
+                    None, "part2_intersecting_tile_count",
+                    selection_geometry + r"\s*,\s*explicit_tiles@\s*,\s*region@\s*,\s*tile_count",
+                ),
                 ("src/decode/selection.rs", "explicit_tiles_from_selection"): (
                     "selected_tiles_outcome", "part2_selection_explicit",
                     r"crate::options::tile_selection_view\s*\(\s*selection\s*\)",
@@ -14423,6 +14493,14 @@ def validate_normative_coverage(
                     raise ValueError(f"linked function lacks executable Verus contract: {short}; invalid exact Copy-fill storage relation")
             cold_contract = _COLD_RESULT_CONTRACTS.get((reference["path"], reference["symbol"]))
             if cold_contract is not None:
+                if cold_contract[0] in (
+                        "part2_select_tiles_result", "part2_validate_selection_result", "part2_color_selection_size_result"):
+                    projection, model, inputs = selection_contract
+                    outcome = _coverage_call(projection, r"\1")
+                    ordinary = (outcome + r"\s*!=\s*Err\(\s*DecodeError::AllocationFailed\s*\)\s*==>\s*"
+                                + outcome + r"\s*==\s*" + _coverage_call("crate::specs::" + model, inputs))
+                    if re.search(named_prefix + r".*?" + ordinary, contract, re.S) is None:
+                        raise ValueError(f"linked function lacks executable Verus contract: {short}; missing exact ordinary selection projection")
                 old_mct = _RECONSTRUCTION_CONTRACTS.get((reference["path"], reference["symbol"]))
                 if old_mct is not None and old_mct[0].startswith(("part2_mct_", "part2_finish_prepared")):
                     guard = re.search(

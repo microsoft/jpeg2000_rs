@@ -5,6 +5,8 @@ use super::*;
 verus! {
 
 pub enum Part2JpipSnapshotEvent {
+    SelectionCapacity { size: Part2SelectionGeometry, explicit: Seq<u16>, region: Seq<u32>, count: u64,
+        elements: nat, succeeded: bool },
     CoefficientReconstructionCalls {context:Part2CoefficientReconstructionContext,calls:Seq<Part2Tier1StorageEvent>},
     TilePlaneCalls {params:Part1TilePacketParameters,initial:Part1TilePacketExecution,calls:Seq<Part2Tier1StorageEvent>},
     Tier1Initial {context:Part2Tier1CallContext,calls:Seq<Part2Tier1StorageEvent>},

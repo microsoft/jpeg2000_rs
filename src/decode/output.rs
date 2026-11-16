@@ -40,14 +40,24 @@ pub(super) fn color_selection(
         codestream::selection_geometry_known_fields(&layout.info.image_size);
     }
     let size = &layout.info.image_size;
-    color_selection_for_size(size, requested)
+    let result = color_selection_for_size(size, requested);
+    #[cfg(verus_keep_ghost)]
+    proof! {
+        crate::specs::part2_color_selection_cold_observed(input@, limits,
+            crate::options::decode_selection_view(requested), codestream::complete_layout_outcome(parsed),
+            color_selection_outcome(result));
+    }
+    result
 }
 
 #[cfg_attr(verus_keep_ghost, verus_spec(result =>
-    ensures color_selection_outcome(result) == crate::specs::part2_color_selection_requested(
-        crate::codestream::selection_geometry_view(size), crate::codestream::image_size_component_infos(size),
-        size.components, crate::options::decode_selection_view(requested),
-    ),
+    ensures crate::specs::part2_color_selection_size_result(crate::codestream::selection_geometry_view(size),
+        crate::codestream::image_size_component_infos(size), size.components,
+        crate::options::decode_selection_view(requested), color_selection_outcome(result)),
+        color_selection_outcome(result) != Err(DecodeError::AllocationFailed) ==>
+            color_selection_outcome(result) == crate::specs::part2_color_selection_requested(
+                crate::codestream::selection_geometry_view(size), crate::codestream::image_size_component_infos(size),
+                size.components, crate::options::decode_selection_view(requested)),
 ))]
 pub(super) fn color_selection_for_size(
     size: &ImageSize,
@@ -55,7 +65,14 @@ pub(super) fn color_selection_for_size(
 ) -> Result<(DecodeSelection, [u32; 4]), DecodeError> {
     #[cfg(verus_keep_ghost)]
     proof! { crate::codestream::selection_geometry_known_fields(size); }
-    let validated = validate_selection(size, requested)?;
+    let selected = validate_selection(size, requested);
+    #[cfg(verus_keep_ghost)]
+    proof! {
+        crate::specs::part2_color_selection_size_actual(crate::codestream::selection_geometry_view(size),
+            crate::codestream::image_size_component_infos(size), size.components,
+            crate::options::decode_selection_view(requested), super::validated_selection_outcome(selected));
+    }
+    let validated = selected?;
     color_selection_from_validated(size, validated)
 }
 
