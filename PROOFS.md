@@ -39,6 +39,23 @@ an all-feature Verus proof. Full source-function coverage remains `not-measured`
 
 ## Fallible-storage foundation and remaining boundary
 
+### Optional native buffered incremental input
+
+The default-off `incremental-input` feature exposes source assembly, explicit
+EOF and typed/centered buffered snapshot replay. It invokes existing strict or
+explicitly selected final PDF APIs, but its framing, cache, sparse assembly,
+publication and cumulative wrapper accounting are **not** pinned Verus
+contracts. Native tests, including actual packet boundaries, allocation retry
+and clock-exit cancellation, are not mathematical continuation, allocator or
+clock proofs. Combined pinned-Verus/profile builds fail explicitly.
+
+This adds no default-profile trusted adapter, axiom, weaker contract or changed
+verification flag. Default proof-key coverage must not be described as proof
+of this optional coordinator. It retains source, not entropy-decoder state;
+backend counters remain stage-local and inherited full-allocation coverage,
+lifetime and independent conformance limitations remain unchanged. See
+[the runtime profile](README.md#opt-in-incremental-rawjp2-input-bufferedreplay).
+
 ### Optional native initial-MQ compatibility
 
 The default proof profile retains initial empty-MQ rejection and all existing

@@ -11,8 +11,10 @@ single RFC, and this library does not implement every part of that family.
 | Default decoder | Default features; pinned verifier adds `verus` | Existing expressed contracts, explicit `--no-lifetime`, five documented Rust-only adapters; source-function coverage remains not measured |
 | Cooperative deadlines | Opt-in `cooperative-deadlines` | Real caller-selected clock/TLS scopes and named checkpoints, native/MSRV tests and finite latency observations; not included in pinned Verus qualification |
 | Initial empty MQ compatibility | Opt-in `pdf-mq-recovery`, common PDF decode APIs only | Narrow real-MQ virtual-fill policy, actual recovery count, native scope/restoration/replay tests; not pinned Verus qualification or a normative legality decision |
+| Buffered incremental raw/JP2 input | Opt-in `incremental-input` | Explicit EOF, bounded source/sparse assembly, typed/centered strict packet snapshots and ordinary final decode; buffered replay, not saved entropy state or pinned Verus qualification |
 | Combined proof/deadline profile | `verus_keep_ghost` with `cooperative-deadlines` | Explicitly rejected, not a successful receipt with clock behavior silently omitted |
 | Combined proof/MQ-recovery profile | `verus_keep_ghost` with `pdf-mq-recovery` | Explicitly rejected; native scoped policy is not silently omitted from a proof claim |
+| Combined proof/incremental profile | `verus_keep_ghost` with `incremental-input` | Explicitly rejected; native framing/replay orchestration is not silently omitted from a proof claim |
 
 Enabling deadlines without installing an active scope retains ordinary decoder
 results. The feature supplies no arbitrary global timeout or cross-thread token.
@@ -370,7 +372,11 @@ as input/work.
 - Implicit execution of unknown enumerated color spaces or external
   profile-number registry values.
 - Arbitrary semantic interpretation of XML, UUID, and application metadata.
-- General streaming incremental decoder state and internal parallelism.
+- Saved entropy-decoder streaming state and internal parallelism. Opt-in
+  buffered/replay input is described in the [API guide](README.md#opt-in-incremental-rawjp2-input-bufferedreplay);
+  partial previews require one inline tile/part without length/packed-header
+  tables and representable snapshot framing. Final exact-input decoding keeps
+  the ordinary selected decoder's supported profiles and restrictions.
 
 Unsupported capabilities remain typed errors. Reserved fields, contradictory
 signaling, and malformed structures are not accepted as supported extensions.

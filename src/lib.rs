@@ -25,6 +25,14 @@ compile_error!(
 #[cfg(all(feature = "pdf-mq-recovery", not(verus_keep_ghost)))]
 mod pdf_mq;
 
+#[cfg(all(verus_keep_ghost, feature = "incremental-input"))]
+compile_error!(
+    "incremental-input is a runtime-only qualification profile; buffered framing/replay orchestration is not included in pinned Verus qualification. Verify without this opt-in feature."
+);
+
+#[cfg(all(feature = "incremental-input", not(verus_keep_ghost)))]
+pub mod incremental;
+
 #[cfg(verus_keep_ghost)]
 use vstd::prelude::*;
 
