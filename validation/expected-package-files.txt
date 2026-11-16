@@ -244,6 +244,9 @@ src/image/proof_support.rs
 src/image/samples.rs
 src/image/tests.rs
 src/image.rs
+src/incremental/framing.rs
+src/incremental/tests.rs
+src/incremental.rs
 src/jp2/box_reader.rs
 src/jp2/clone_support.rs
 src/jp2/color.rs

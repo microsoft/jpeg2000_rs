@@ -6,6 +6,51 @@ restricted, or standards-derived vectors.
 
 ## Running the checks
 
+### Incremental input profile
+
+Run `cargo test --lib --features incremental-input incremental::tests` and the
+MSRV equivalent; repeat with `--all-features` for deadline composition. These
+native controls exercise all split points of the original raw/JP2 public
+control, one-byte packet previews, a real independently encoded two-layer
+8x8 contribution, sparse/duplicate/conflicting input, source identity,
+allocation refusal and same-owner retry, final gaps/closure, malformed
+framing, strict versus explicit final recovery, preserved JP2 footers, and
+absolute/ambient/exit deadline cancellation. An 8192-byte COM header received
+and polled one byte at a time stays below 1,000,000 wrapper work units and
+16 decoder attempts. This checks waiting-header cost, not a CPU theorem.
+
+The default-off runtime profile buffers/replays through the existing decoder;
+it does not retain entropy state. Contiguous assembly is linear, but requested
+full preview replay and sparse staging can be quadratic. Work reports separate
+cumulative wrapper byte work and actual replay attempts/bytes; backend
+input/work/output limits retain their ordinary stage-local meaning. Existing
+full-allocation (#287), lifetime and independent-conformance boundaries remain.
+No-data polling performs no replay. Packet previews are strict, provisional
+snapshots; only explicit final EOF enables separately requested PDF recovery.
+Combined pinned-Verus/profile builds must fail explicitly.
+
+Finite optimized public-consumer observation on a generated 32x24 P5 image,
+sample `(13*x+17*y+3*x*y)&255`, origin `(3,5)`, OpenJPEG 2.4.0
+`-n 3 -r 8,4,1 -d 3,5 -T 3,5`: reversible raw/JP2, irreversible raw (`-I`)
+and four-tile JP2 (`-t 16,12`) passed 160 cases. These combine chunks
+1/2/7/64/4096, typed/centered output, full image/region `(5,8,20,12)` with one
+discarded level, and feed-only/every-chunk preview requests. All final images
+and geometry matched ordinary selected decoding; full reversible samples
+also matched the independent generating formula. Irreversible planes retained
+fractional headroom. All 12 original-v2 PDF controls retained exact typed and
+centered final success/recovery reports or errors.
+
+Feed-then-final took 0.120425--0.671793ms, exactly one attempt, at most1002
+replay bytes and3007 wrapper units. Every-chunk polling took
+0.249526--115.673955ms, at most856 attempts,480641 replay bytes and1034936
+wrapper units. These are finite incremental-only shared-host observations,
+not latency guarantees, saved entropy work, global allocator bounds or the
+canonical 45-case resource qualification.
+Generating PGM SHA256:
+`693772b2d3700e26db64eb1f68ae783d832ee85b27c28f215c1d647fe60d9fa6`;
+encoder SHA256:
+`8b0901e43e2bf72cba2748183f032dfe5064b1dec8082b3b93e2eb1ee3597c71`.
+
 ### Optional native initial-MQ compatibility
 
 Run `cargo test --all-features pdf_mq` and the MSRV equivalent. These controls

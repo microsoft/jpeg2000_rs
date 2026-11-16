@@ -107,6 +107,46 @@ For tile, region or reduced-resolution requests, the corresponding strict
 APIs take a `DecodeSelection`. They preserve the same centered samples and
 metadata restrictions, and never automatically recover an incomplete canvas.
 
+### Opt-in incremental raw/JP2 input (buffered/replay)
+
+Enable `incremental-input` and use `incremental::IncrementalDecoder::new`
+with an `IncrementalFormat`, immutable options and selection. `feed` appends;
+`feed_at` also accepts sparse, out-of-order input and identical overlap.
+Conflicting overlap reports its exact byte offset without changing retained
+bytes. Feeding never runs the codec. Progress reports consumed/retained source,
+gaps, committed bytes, decode attempts, replay bytes and wrapper work.
+
+Request a typed `decode` or centered `decode_reconstructed` preview explicitly.
+`NeedMoreData` publishes nothing; `Preview` is provisional, never completion.
+An incomplete packet does not replace the committed output. Partial previews
+support one inline tile/part without length or packed-header tables; other
+layouts report `PreviewUnavailable` until ordinary decoding is possible.
+Snapshots report synthetic EOC and rewritten tile-part/container lengths;
+original bytes, including received JP2 footers, remain unchanged.
+
+Call `finish` (or `finish_at`) **only at actual EOF**. It seals input; unresolved
+gaps then produce `Truncated`, not an indefinite wait. The first final call
+decodes the exact original input with the ordinary selected API, including its
+full geometry, metadata and centered-headroom rules. Strict EOF failures stay
+errors. Only the separately named `new_pdf_compatible` constructor requests
+the existing common PDF recovery policies, and only after EOF.
+
+This initial implementation buffers and replays, **not saved entropy state**.
+Each new eligible snapshot/final request invokes the single existing decoder;
+repeated same-prefix calls return `Unchanged` without decoding/copying an image.
+Retain the previous image separately for each output mode. Avoid polling after
+every byte when previews are unnecessary: feed small chunks and decode at EOF.
+Contiguous feed is linear; sparse updates stage retained data and can be
+quadratic. Wrapper work is cumulatively capped, but backend work/output limits
+remain stage-local, not a global CPU or live-memory bound. Allocation refusal
+preserves input for retry while attempted work stays charged. With deadlines,
+`with_deadline` only sets/tightens the absolute deadline; expiry cancels the
+object permanently, including ambient-scope and publication-exit expiry.
+
+The feature is off by default and outside pinned Verus qualification; combined
+proof/profile builds fail explicitly. See [profiles](SUPPORTED.md) and
+[incremental validation](validation/VALIDATION.md#incremental-input-profile).
+
 ### Opt-in cooperative deadlines (native-only profile)
 
 Enable the `cooperative-deadlines` Cargo feature to export
