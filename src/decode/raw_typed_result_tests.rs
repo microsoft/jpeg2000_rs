@@ -1,5 +1,77 @@
 use super::*;
 
+#[cfg(feature = "cooperative-deadlines")]
+#[test]
+fn cooperative_deadline_pdf_modes_preserve_recovery_and_error_categories() {
+    use std::time::{Duration, Instant};
+    let options = DecodeOptions::default();
+    let selection = DecodeSelection::full_image();
+    let original = dimension_recovery_codestream();
+    let mut missing = original.clone();
+    let sot = missing
+        .windows(2)
+        .position(|pair| pair == [255, 144])
+        .unwrap();
+    missing[sot + 6..sot + 10].copy_from_slice(&0_u32.to_be_bytes());
+    missing.truncate(missing.len() - 2);
+    let mut sole = terminal_trailer_codestream(4, false);
+    sole[8..12].copy_from_slice(&2_u32.to_be_bytes());
+    for input in [
+        original,
+        missing.clone(),
+        jp2_for_codestream(&missing, 99, 1),
+        jp2_for_codestream(&sole, 99, 1),
+    ] {
+        let expected = crate::decode_pdf_compatible(&input, &options, &selection).unwrap();
+        let centered = crate::decode_pdf_reconstructed(&input, &options, &selection).unwrap();
+        assert_eq!(
+            crate::with_decode_deadline(Instant::now(), || {
+                crate::decode_pdf_compatible(&input, &options, &selection)
+            })
+            .unwrap_err(),
+            DecodeError::DeadlineExceeded,
+        );
+        assert_eq!(
+            crate::with_decode_deadline(Instant::now() + Duration::from_secs(60), || {
+                crate::decode_pdf_compatible(&input, &options, &selection)
+            })
+            .unwrap(),
+            expected,
+        );
+        assert_eq!(
+            crate::with_decode_deadline(Instant::now() + Duration::from_secs(60), || {
+                crate::decode_pdf_reconstructed(&input, &options, &selection)
+            })
+            .unwrap(),
+            centered,
+        );
+        let limited = DecodeOptions::new(
+            ResourceLimits::HARDENED
+                .with_maximum_decoded_bytes(1)
+                .unwrap(),
+        );
+        assert!(matches!(
+            crate::with_decode_deadline(Instant::now() + Duration::from_secs(60), || {
+                crate::decode_pdf_compatible(&input, &limited, &selection)
+            }),
+            Err(DecodeError::LimitExceeded {
+                resource: Resource::DecodedBytes,
+                ..
+            })
+        ));
+        let refused = crate::allocation::with_refusal(0, || {
+            crate::with_decode_deadline(Instant::now() + Duration::from_secs(60), || {
+                crate::decode_pdf_compatible(&input, &options, &selection)
+            })
+        });
+        assert_eq!(refused.unwrap_err(), DecodeError::AllocationFailed);
+        assert_eq!(
+            crate::decode_pdf_compatible(&input, &options, &selection).unwrap(),
+            expected
+        );
+    }
+}
+
 #[test]
 fn pdf_common_recovers_raw_and_container_eoc_without_relaxing_other_errors() {
     let options = DecodeOptions::default();

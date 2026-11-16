@@ -1264,6 +1264,8 @@ pub(super) fn run_progression_tile_packets<'a, 'data>(
         decreases p.remaining_packets,
     ))]
     loop {
+        #[cfg(all(feature = "cooperative-deadlines", not(verus_keep_ghost)))]
+        crate::deadline::checkpoint()?;
         #[cfg(verus_keep_ghost)]
         proof_decl! {let ghost prior=progression_tile_execution_view(precincts,p);}
         #[cfg(verus_keep_ghost)]

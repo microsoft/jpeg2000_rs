@@ -652,6 +652,8 @@ pub(super) fn decode_ht_cleanup_segment_metadata(
         )
     )]
     while quad_row < quad_rows {
+        #[cfg(all(feature = "cooperative-deadlines", not(verus_keep_ghost)))]
+        crate::deadline::checkpoint()?;
         #[cfg(verus_keep_ghost)]
         proof_decl! { let ghost before = ht_metadata_row_view(&readers, &quads, &previous_patterns, significant_samples); }
         #[cfg(verus_keep_ghost)]

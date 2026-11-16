@@ -207,6 +207,8 @@ impl<'a> BoxReader<'a> {
         super::box_reader_input_reference(final(self)) == super::box_reader_input_reference(old(self)),
     ))]
     fn next_box(&mut self) -> Result<Option<BoxRef<'a>>, DecodeError> {
+        #[cfg(all(feature = "cooperative-deadlines", not(verus_keep_ghost)))]
+        crate::deadline::checkpoint()?;
         #[cfg(verus_keep_ghost)]
         proof_decl! { let ghost position = super::box_reader_state(self).position; }
         #[cfg(verus_keep_ghost)]

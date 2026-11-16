@@ -7,6 +7,16 @@ compile_error!(
     "Enable the verification feature: cargo verus verify --features verus -- --no-lifetime"
 );
 
+#[cfg(all(verus_keep_ghost, feature = "cooperative-deadlines"))]
+compile_error!(
+    "cooperative-deadlines is a native-only qualification profile; pinned Verus does not verify clock/TLS effects. Verify without this opt-in feature."
+);
+
+#[cfg(all(feature = "cooperative-deadlines", not(verus_keep_ghost)))]
+mod deadline;
+#[cfg(all(feature = "cooperative-deadlines", not(verus_keep_ghost)))]
+pub use deadline::with_decode_deadline;
+
 #[cfg(verus_keep_ghost)]
 use vstd::prelude::*;
 

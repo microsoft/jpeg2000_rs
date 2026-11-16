@@ -310,6 +310,8 @@ impl<'a> Parser<'a> {
         ensures (result, parser_view(final(self))) == crate::specs::part1_codestream_charge_work(parser_view(old(self)), amount),
     ))]
     pub(super) fn charge_work(&mut self, amount: u64) -> Result<(), DecodeError> {
+        #[cfg(all(feature = "cooperative-deadlines", not(verus_keep_ghost)))]
+        crate::deadline::checkpoint_work(self.work_units, amount)?;
         self.work_units = match self.work_units.checked_add(amount) {
             Some(value) => value,
             None => return Err(self.malformed_here(MalformedKind::ArithmeticOverflow)),
