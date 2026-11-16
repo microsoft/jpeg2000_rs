@@ -168,7 +168,7 @@ fn validate_variable_precision(
         input@, jp2::raw_jp2_file_view(file),
         codestream::complete_codestream_info_view(info), limits),
 ))]
-fn validate_header(
+pub(super) fn validate_header(
     input: &[u8],
     file: &jp2::Jp2File<'_>,
     info: &codestream::CodestreamInfo,

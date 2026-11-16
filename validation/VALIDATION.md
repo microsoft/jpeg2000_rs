@@ -28,6 +28,16 @@ The original bundle's four public JP2 controls are replayed separately; no
 private PDF/native renderer is needed. Passing controls are bounded evidence,
 not global allocator, deadline or normative qualification.
 
+### Common PDF recovery
+
+The `pdf_common` native controls use the actual typed/centered/inspection exports
+for raw and container EOC loss, contradictory dimensions, combined sole-tile and
+trailer damage, exact repair/report bytes, full-canvas limits, real grids/fractions,
+metadata/profile errors and refusal restoration. Complete-framing inspection is
+explicitly distinguished from packet decoding. Framework controls bind all eight
+runtime contracts, require all four complete programs/normal links, and reject
+lost copy input/count/verdict/tail checks.
+
 ### Bounded terminal trailers
 
 The `pdf_trailer` native controls exercise all four actual public output domains

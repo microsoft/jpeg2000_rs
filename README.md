@@ -137,6 +137,31 @@ profile and resource checks remain, including limits on declared metadata.
 These APIs have no global recovery toggle, copy, retry or automatic EOC repair.
 They do not supply the separate deadline, absent-tile, MQ or trailer policies.
 
+### Common PDF recovery and inspection
+
+`decode_pdf_compatible(input, options, selection)` and
+`decode_pdf_reconstructed(input, options, selection)` compose the implemented
+policies in one explicit call for raw input or a single-codestream Part1 JP2:
+bounded missing-EOC repair, SIZ dimension authority, genuine sole-present-tile
+selection and cumulative terminal-trailer admission. JPX/JPH containers and
+Part15 codestreams are outside this facade; use their existing explicit APIs.
+
+The result carries `PdfRecovery` flags, exact trailer bytes, original/effective
+**codestream** byte counts, preflight/copy accounting and any full intended-canvas
+sample bound. Whole JP2 input limits are still enforced. A repair makes one
+fallible raw-codestream copy of length plus two after the accepted structural
+preflight; there is no failed-decode retry, input-prefix search or container rewrite.
+Component/precision/sign/BPCC checks and centered-output metadata guards remain.
+Missing canvas pixels are never synthesized.
+
+`inspect_pdf_compatible(input, options)` returns owned full-SIZ coding metadata
+under the same bounded container/EOC admission. It does not execute packets or
+entropy, select a crop, discard a trailer or promise a decoded image.
+Initial empty MQ contributions are still rejected (`empty_initial_mq_prefixes`
+is currently zero); cooperative deadlines, complete fallibility and raw/JP2
+feed/resume remain separate. Existing strict and individual recovery APIs are unchanged.
+These are final-input compatibility APIs, not `NeedMoreData` or streaming-pause detection.
+
 ### Explicit bounded terminal-trailer recovery
 
 The four `*_recover_trailer_selected(input, options, selection)` APIs cover

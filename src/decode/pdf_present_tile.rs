@@ -66,7 +66,7 @@ verus! {
     ensures result == crate::specs::part2_present_tile_index(
         codestream::decoder_layout_input_view(layout), crate::options::decode_selection_view(requested)),
 ))]
-fn automatic_tile(
+pub(super) fn automatic_tile(
     layout: &codestream::CodestreamLayout<'_>,
     requested: &DecodeSelection,
 ) -> Result<Option<u16>, DecodeError> {
@@ -127,7 +127,10 @@ fn automatic_tile(
     ensures present_optional_selection_view(result) == crate::specs::part2_present_tile_effective(
         tile, crate::options::decode_selection_view(requested)),
 ))]
-fn effective_selection(tile: Option<u16>, requested: &DecodeSelection) -> Option<DecodeSelection> {
+pub(super) fn effective_selection(
+    tile: Option<u16>,
+    requested: &DecodeSelection,
+) -> Option<DecodeSelection> {
     tile.map(
         #[cfg_attr(verus_keep_ghost, verus_spec(result: DecodeSelection =>
             ensures crate::options::decode_selection_value_view(result)
@@ -191,7 +194,7 @@ fn canvas_sample_bytes(
         codestream::selection_geometry_view(size), crate::options::decode_selection_view(requested),
         selected_present_tile, components, limits),
 ))]
-fn finish_report(
+pub(super) fn finish_report(
     size: &codestream::ImageSize,
     requested: &DecodeSelection,
     selected_present_tile: Option<u16>,

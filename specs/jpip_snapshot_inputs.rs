@@ -24,6 +24,7 @@ pub enum Part2JpipSnapshotEvent {
     PrecinctSingletonCapacity {execution:Part2PacketSubbandExecution,elements:usize,succeeded:bool},
     TagCopyCapacity {context:Part2TagCopyContext,nodes:bool,elements:nat,succeeded:bool},
     RollbackOwnerCapacity {context:Part2RollbackOwnerContext,elements:nat,succeeded:bool},
+    PdfEocCopy { input: Seq<u8>, elements: usize, succeeded: bool },
 }
 
 pub(crate) open spec fn part2_jpip_snapshot_normalized_events(

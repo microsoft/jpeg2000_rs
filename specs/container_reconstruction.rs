@@ -11,12 +11,12 @@ pub(crate) open spec fn part2_validate_jp2_reconstruction_output(
     } else { Ok(()) }
 }
 
-pub(crate) open spec fn part2_jp2_reconstructed_output(
-    inspected: Part2RawInspectedContainer, image: Part1DecodedImageModel,
+pub(crate) open spec fn part2_jp2_reconstructed_file_output(
+    file: Part2RawJp2File, image: Part1DecodedImageModel,
 ) -> Result<Part1DecodedImageModel, crate::DecodeError> {
-    match part2_validate_jp2_reconstruction_output(inspected.0.header) {
+    match part2_validate_jp2_reconstruction_output(file.header) {
         Err(error) => Err(error),
-        Ok(()) => match inspected.0.streams[0].2 {
+        Ok(()) => match file.streams[0].2 {
             None => Ok(image),
             Some(association) => match association.2 {
                 None => Err(crate::DecodeError::UnsupportedFeature {
@@ -28,6 +28,12 @@ pub(crate) open spec fn part2_jp2_reconstructed_output(
             },
         },
     }
+}
+
+pub(crate) open spec fn part2_jp2_reconstructed_output(
+    inspected: Part2RawInspectedContainer, image: Part1DecodedImageModel,
+) -> Result<Part1DecodedImageModel, crate::DecodeError> {
+    part2_jp2_reconstructed_file_output(inspected.0, image)
 }
 
 pub(crate) open spec fn part2_jp2_reconstructed_after_inspection(
