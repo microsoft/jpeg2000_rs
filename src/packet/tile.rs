@@ -976,6 +976,203 @@ fn finish_progression_tile_packets(
     })
 }
 
+#[cfg_attr(verus_keep_ghost, verus_spec(result =>
+    ensures result == crate::specs::part2_tile_trailer_metadata_free(
+        crate::codestream::tile_parts_owned_view(parts@)),
+))]
+fn tile_trailer_metadata_free(parts: &[TilePartPayload<'_>]) -> bool {
+    #[cfg(verus_keep_ghost)]
+    proof! {
+        reveal(crate::codestream::tile_parts_owned_view);
+        reveal(crate::codestream::tile_part_owned_view);
+    }
+    let mut index = 0_usize;
+    #[cfg_attr(verus_keep_ghost, verus_spec(
+        invariant index <= parts.len(),
+            forall|i: int| 0 <= i < index ==>
+                crate::specs::part2_tile_trailer_part_metadata_free(
+                    crate::codestream::tile_parts_owned_view(parts@)[i]),
+        decreases parts.len() - index,
+    ))]
+    while index < parts.len() {
+        let part = &parts[index];
+        if part.packet_lengths.is_present() || part.packed_packet_headers.is_present() {
+            #[cfg(verus_keep_ghost)]
+            proof! {
+                reveal(crate::codestream::tile_parts_owned_view);
+                reveal(crate::codestream::tile_part_owned_view);
+                assert(!crate::specs::part2_tile_trailer_part_metadata_free(
+                    crate::codestream::tile_parts_owned_view(parts@)[index as int]));
+                assert(!crate::specs::part2_tile_trailer_metadata_free(
+                    crate::codestream::tile_parts_owned_view(parts@)));
+            }
+            return false;
+        }
+        index += 1;
+    }
+    true
+}
+
+#[cfg_attr(verus_keep_ghost, verus_spec(result =>
+    ensures result == crate::specs::part2_tile_trailer_admission(
+        progression_tile_parameters_view(params), progression_tile_progress_view(p), discarded),
+))]
+fn admit_completed_tile_trailer(
+    params: &ProgressionTileParameters<'_, '_>,
+    p: &ProgressionTileProgress<'_>,
+    discarded: u8,
+) -> Result<u8, DecodeError> {
+    #[cfg(verus_keep_ghost)]
+    proof! {
+        reveal(progression_tile_parameters_view);
+        reveal(progression_tile_progress_view);
+        reveal(packet_grid_view);
+        reveal(crate::codestream::tile_parts_owned_view);
+        reveal(crate::codestream::tile_part_owned_view);
+    }
+    let part = match params.tile_parts.get(p.current_tile_part) {
+        Some(part) => part,
+        None => return Err(packet_reader_error(0, MalformedKind::InvalidTilePart)),
+    };
+    let invalid = packet_reader_error(p.offset, MalformedKind::TrailingData);
+    if p.current_tile_part as u128 + 1 != params.tile_parts.len() as u128
+        || p.packets == 0
+        || p.packets != params.grid.packet_count
+        || p.seen.len() as u128 != u128::from(params.grid.packet_count)
+        || !all_progression_packets_seen(&p.seen)
+        || p.packed_offset != 0
+        || p.offset >= part.data.len()
+        || discarded > 16
+    {
+        return Err(invalid);
+    }
+    let unclaimed = part.data.len() - p.offset;
+    if unclaimed > usize::from(16 - discarded) {
+        return Err(invalid);
+    }
+    if params.tile_parts.len() as u64 > params.limits.maximum_work_units() {
+        return Err(DecodeError::LimitExceeded {
+            resource: Resource::WorkUnits,
+            limit: params.limits.maximum_work_units(),
+            actual: params.tile_parts.len() as u64,
+        });
+    }
+    if !tile_trailer_metadata_free(params.tile_parts) {
+        return Err(invalid);
+    }
+    Ok(discarded + unclaimed as u8)
+}
+
+#[cfg_attr(verus_keep_ghost, verus_spec(result =>
+    ensures (result, progression_tile_progress_view(final(p))) == crate::specs::part2_tile_trailer_finish(
+        progression_tile_parameters_view(params), progression_tile_progress_view(old(p)), discarded),
+))]
+fn finish_progression_tile_packets_recover_trailer(
+    params: &ProgressionTileParameters<'_, '_>,
+    p: &mut ProgressionTileProgress<'_>,
+    discarded: u8,
+) -> Result<(TilePacketDecode, u8), DecodeError> {
+    match finish_progression_tile_packets(params, p) {
+        Ok(decoded) => Ok((decoded, discarded)),
+        Err(error) => {
+            if !matches!(
+                error,
+                DecodeError::MalformedInput {
+                    kind: MalformedKind::TrailingData,
+                    ..
+                }
+            ) {
+                return Err(error);
+            }
+            let discarded = admit_completed_tile_trailer(params, p, discarded)?;
+            let part = match params.tile_parts.get(p.current_tile_part) {
+                Some(part) => part,
+                None => return Err(packet_reader_error(0, MalformedKind::InvalidTilePart)),
+            };
+            p.offset = part.data.len();
+            let decoded = finish_progression_tile_packets(params, p)?;
+            Ok((decoded, discarded))
+        }
+    }
+}
+
+#[cfg_attr(verus_keep_ghost, verus_spec(result =>
+    ensures crate::specs::part2_trailer_packet_result(
+        crate::codestream::tile_parts_owned_view(tile_parts@), packet_grid_view(grid),
+        packet_precinct_vector_view(old(precincts)), packet_selection_view(maximum_resolution_counts),
+        limits, discarded, (result, packet_precinct_vector_view(final(precincts)))),
+        result != Err(DecodeError::AllocationFailed) ==>
+            (result, packet_precinct_vector_view(final(precincts))) == crate::specs::part2_trailer_packet_value(
+                crate::codestream::tile_parts_owned_view(tile_parts@), packet_grid_view(grid),
+                packet_precinct_vector_view(old(precincts)), packet_selection_view(maximum_resolution_counts), limits, discarded),
+))]
+pub(crate) fn decode_progression_tile_packets_recover_trailer_selected(
+    tile_parts: &[TilePartPayload<'_>],
+    grid: &PacketGrid,
+    precincts: &mut [PacketPrecinctDecoder],
+    maximum_resolution_counts: Option<&[u8]>,
+    limits: &ResourceLimits,
+    discarded: u8,
+) -> Result<(TilePacketDecode, u8), DecodeError> {
+    #[cfg(verus_keep_ghost)]
+    proof_decl! { let ghost initial = packet_precinct_vector_view(precincts); }
+    #[cfg(verus_keep_ghost)]
+    proof! {
+        crate::specs::part2_trailer_packet_normal(crate::codestream::tile_parts_owned_view(tile_parts@),
+            packet_grid_view(grid), initial, packet_selection_view(maximum_resolution_counts), limits, discarded);
+    }
+    let prepared = prepare_progression_tile_input(
+        tile_parts,
+        grid,
+        precincts,
+        maximum_resolution_counts,
+        limits,
+    );
+    #[cfg(verus_keep_ghost)]
+    proof! {
+        if let Err(error) = prepared {
+            crate::specs::part2_trailer_packet_input_error(crate::codestream::tile_parts_owned_view(tile_parts@),
+                packet_grid_view(grid), initial, packet_selection_view(maximum_resolution_counts), limits, discarded, error);
+        }
+    }
+    let input = prepared?;
+    let params = ProgressionTileParameters {
+        tile_parts,
+        grid,
+        input: &input,
+        selection: maximum_resolution_counts,
+        limits,
+    };
+    let progress_result = progression_tile_progress_new(&params);
+    #[cfg(verus_keep_ghost)]
+    proof! {
+        if let Err(error) = progress_result {
+            crate::specs::part2_trailer_packet_progress_error(crate::codestream::tile_parts_owned_view(tile_parts@),
+                packet_grid_view(grid), initial, packet_selection_view(maximum_resolution_counts), limits, discarded,
+                progression_tile_preparation_view(&input), error);
+        }
+    }
+    let mut progress = progress_result?;
+    #[cfg(verus_keep_ghost)]
+    proof_decl! { let ghost before_progress = progression_tile_progress_view(&progress); }
+    #[cfg(verus_keep_ghost)]
+    proof! {
+        crate::specs::part2_packet_stage_values(crate::codestream::tile_parts_owned_view(tile_parts@),
+            packet_grid_view(grid), initial, packet_selection_view(maximum_resolution_counts), limits,
+            progression_tile_preparation_view(&input), before_progress);
+    }
+    let decoded = run_progression_tile_packets(&params, precincts, &mut progress);
+    #[cfg(verus_keep_ghost)]
+    proof! {
+        crate::specs::part2_trailer_packet_actual(crate::codestream::tile_parts_owned_view(tile_parts@),
+            packet_grid_view(grid), initial, packet_selection_view(maximum_resolution_counts), limits, discarded,
+            progression_tile_preparation_view(&input), before_progress,
+            (decoded, progression_tile_execution_view(precincts, &progress)));
+    }
+    decoded?;
+    finish_progression_tile_packets_recover_trailer(&params, &mut progress, discarded)
+}
+
 #[cfg_attr(verus_keep_ghost,verus_spec(result =>
     ensures crate::specs::part2_packet_result(crate::codestream::tile_parts_owned_view(tile_parts@),packet_grid_view(grid),
             packet_precinct_vector_view(old(precincts)),packet_selection_view(maximum_resolution_counts),limits,

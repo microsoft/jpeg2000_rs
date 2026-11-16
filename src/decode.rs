@@ -286,6 +286,8 @@ mod api;
 mod pdf_dimensions;
 #[cfg_attr(verus_keep_ghost, verifier::verify)]
 mod pdf_present_tile;
+#[cfg_attr(verus_keep_ghost, verifier::verify)]
+mod pdf_trailers;
 use api::typed_layout;
 pub use api::{
     decode_codestream, decode_codestream_reconstructed, decode_codestream_reconstructed_selected,
@@ -311,6 +313,12 @@ pub use pdf_present_tile::{
     decode_codestream_recover_present_tile_selected,
     decode_jp2_reconstructed_recover_present_tile_selected,
     decode_jp2_recover_present_tile_selected,
+};
+pub use pdf_trailers::{
+    TileTrailerRecoveredImage, TileTrailerRecoveredReconstructedImage, TileTrailerRecoveryReport,
+    decode_codestream_reconstructed_recover_trailer_selected,
+    decode_codestream_recover_trailer_selected, decode_jp2_reconstructed_recover_trailer_selected,
+    decode_jp2_recover_trailer_selected,
 };
 #[cfg_attr(verus_keep_ghost, verifier::verify)]
 mod arithmetic;

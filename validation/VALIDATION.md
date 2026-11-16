@@ -28,6 +28,16 @@ The original bundle's four public JP2 controls are replayed separately; no
 private PDF/native renderer is needed. Passing controls are bounded evidence,
 not global allocator, deadline or normative qualification.
 
+### Bounded terminal trailers
+
+The `pdf_trailer` native controls exercise all four actual public output domains
+with complete finite/open-ended packets and exact0/1/4/16 versus17-byte outcomes.
+Two-tile8+8/8+9 controls test the single cumulative allowance. Real valid PLT/PPT
+baselines, incomplete headers/bodies, empty final parts and nonfinal suffixes
+retain their precise admission/error distinction. Limits/refusal and strict
+next-call behavior remain tested. Framework controls bind all eleven runtime
+contracts and require all eight complete cold programs and checked normal links.
+
 ### Present-tile geometry and selected reconstruction
 
 The `selected_jp2_reconstruction` controls exercise the strict selected container
