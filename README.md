@@ -50,6 +50,20 @@ minimum-version guarantee and uses its own toolchain.
 See the [Cargo-Verus instructions](PROOFS.md#reproduce-verification).
 Package publication from the development branch is disabled.
 
+## Use with the image crate
+
+The experimental [`jpeg2000-image` companion](adapters/image/README.md)
+implements `image::ImageDecoder` and opt-in `ImageReader` hooks. It provides
+normalized U16 grayscale/RGB output, straight whole-image alpha, and explicit
+color policy for raw codestreams. Its narrower supported profile, input caps,
+memory-accounting limitations and unsupported cases are documented separately.
+
+It is a separate workspace package, not a decoder feature or part of the
+decoder's verification claim. Root Cargo commands still select only the
+decoder by default; build the adapter with `cargo test -p jpeg2000-image --locked`.
+The companion keeps publication disabled and does not replace the standalone
+packaged-decoder consumer gate.
+
 ## Decode a JP2 image
 
 ```no_run
