@@ -137,7 +137,9 @@ pub fn decode_codestream_reconstructed_selected(
     ensures result == crate::specs::part2_validate_reconstruction_transforms(
         codestream::decoder_layout_input_view(layout)),
 ))]
-fn validate_reconstruction_transforms(layout: &CodestreamLayout<'_>) -> Result<(), DecodeError> {
+pub(super) fn validate_reconstruction_transforms(
+    layout: &CodestreamLayout<'_>,
+) -> Result<(), DecodeError> {
     #[cfg(verus_keep_ghost)]
     proof! { codestream::decoder_layout_input_fields(layout); }
     if !layout
@@ -188,7 +190,7 @@ fn validate_reconstruction_transforms(layout: &CodestreamLayout<'_>) -> Result<(
         input_bytes, layout.tile_parts.len(), layout.info.image_size.components,
         crate::image::decoded_image_view(*image)),
 ))]
-fn validate_reconstructed_output_shape(
+pub(super) fn validate_reconstructed_output_shape(
     input_bytes: usize,
     layout: &CodestreamLayout<'_>,
     image: &DecodedImage,

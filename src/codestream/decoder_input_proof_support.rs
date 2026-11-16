@@ -16,6 +16,15 @@ verus! {
         reveal(complete_layout_outcome);
     }
 
+    pub(crate) proof fn decoder_layout_complete_info_matches_raw(layout: &CodestreamLayout<'_>)
+        ensures match complete_layout_outcome(Ok(*layout)) {
+            Err(_) => false,
+            Ok(raw) => complete_codestream_info_view(&layout.info) == (raw.0, raw.1, raw.2, raw.3),
+        },
+    {
+        reveal(complete_layout_outcome);
+    }
+
     pub(crate) proof fn jpip_precinct_layout_fields(layout: &CodestreamLayout<'_>)
         ensures match complete_layout_outcome(Ok(*layout)) {
             Err(_) => false,

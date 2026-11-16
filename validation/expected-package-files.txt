@@ -150,8 +150,10 @@ specs/packet_input.rs
 specs/packet_orchestration.rs
 specs/packet_progression.rs
 specs/packet_tile.rs
+specs/pdf_compat.rs
 specs/pdf_dimensions.rs
 specs/pdf_present_tile.rs
+specs/pdf_trailers.rs
 specs/persistent_tile_configuration.rs
 specs/raw_decode.rs
 specs/raw_layout.rs
@@ -215,8 +217,10 @@ src/decode/execution.rs
 src/decode/geometry.rs
 src/decode/jpx_source_result_tests.rs
 src/decode/output.rs
+src/decode/pdf_compat.rs
 src/decode/pdf_dimensions.rs
 src/decode/pdf_present_tile.rs
+src/decode/pdf_trailers.rs
 src/decode/planning.rs
 src/decode/proof_support.rs
 src/decode/raw_typed_result_tests.rs

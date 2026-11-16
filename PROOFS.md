@@ -1534,6 +1534,51 @@ is not entropy success and never fabricates absent pixels. Default APIs and
 limits remain unchanged; this is not EOC/MQ/trailer/tile recovery, a cooperative
 deadline, complete allocation coverage or independent conformance qualification.
 
+## Common compatible PDF pipeline
+
+The common typed, centered and owned-inspection APIs compose actual raw/Part1 JP2
+metadata, accepted EOC framing/admission, one repair reservation, layout parsing,
+all-BPCC header checks, present-tile selection, trailer layout decoding and actual
+output processing. `specs/pdf_compat.rs` binds complete ordinary and cold programs
+to every child and report. The dedicated `PdfEocCopy` event describes the actual
+encoded input, requested length plus two and reservation response, with exact
+unused-tail conservation. It is not a new physical allocation or a decoder bank.
+
+Checked owner projections bind the full returned inspection metadata to the same
+parsed layout. The shared reconstruction-output model is factored by actual file
+metadata rather than fabricating an inspected container. No packet compatibility
+thread-local state, added storage trust, axiom, pin/budget/lifetime-mode change or
+weakened strict contract is introduced. Native controls distinguish inspection
+success from genuine packet success and exercise combined damage, preserved grids,
+fractions, metadata/resource errors and same-process refusal recovery.
+
+This is the implemented common EOC/dimension/tile/trailer/output capability, not
+initial-empty-MQ compatibility, cooperative deadlines, complete allocation
+coverage, saved entropy state, lifetime verification or independent conformance.
+
+## Bounded terminal-trailer recovery
+
+The four explicit raw/JP2 typed/centered trailer APIs compose actual parsing,
+selection, per-tile metadata/grid planning, packet execution, reconstruction and
+output processing. `specs/pdf_trailers.rs` supplies complete cold and ordinary
+programs at each boundary, including the actual cumulative counter and report.
+The packet-local admission/finish definitions are in `specs/packet_tile.rs`.
+
+The ordinary packet finisher is unchanged. Only its completion-stage
+`TrailingData` result can reach the new checked admission: a positive unclaimed
+suffix in the final part, every distinct scheduled packet/body completed, all
+packet-length and packed-header metadata absent, and a cumulative count at most
+sixteen. The resumed completion scan does not repeat packet/entropy execution.
+Every other error is propagated. A separate bounded metadata scan checks the
+existing work cap; no global cumulative work or allocation API is introduced.
+
+Private per-call values carry the allowance across selected tiles. No new
+thread-local scope, storage trust adapter, axiom, pin/budget change or lifetime
+claim is introduced. Native finite/open-ended, cumulative16/17, valid PLT/PPT,
+partial packet, empty-final-part, resource/refusal and strict-after-recovery
+controls are finite behavior evidence, not normative padding or complete
+allocation/deadline/resumable-decoding qualification.
+
 ## Selected reconstruction and sole-present-tile recovery
 
 `decode_codestream_reconstructed_selected` composes actual raw parsing,

@@ -283,9 +283,13 @@ struct ValidatedSelection {
 #[cfg_attr(verus_keep_ghost, verifier::verify)]
 mod api;
 #[cfg_attr(verus_keep_ghost, verifier::verify)]
+mod pdf_compat;
+#[cfg_attr(verus_keep_ghost, verifier::verify)]
 mod pdf_dimensions;
 #[cfg_attr(verus_keep_ghost, verifier::verify)]
 mod pdf_present_tile;
+#[cfg_attr(verus_keep_ghost, verifier::verify)]
+mod pdf_trailers;
 use api::typed_layout;
 pub use api::{
     decode_codestream, decode_codestream_reconstructed, decode_codestream_reconstructed_selected,
@@ -294,6 +298,10 @@ pub use api::{
     decode_jph_color, decode_jph_color_selected, decode_jph_selected, decode_jpx_codestream,
     decode_jpx_codestream_color, decode_jpx_codestream_color_selected,
     decode_jpx_codestream_selected,
+};
+pub use pdf_compat::{
+    PdfDecodedImage, PdfReconstructedImage, PdfRecovery, decode_pdf_compatible,
+    decode_pdf_reconstructed, inspect_pdf_compatible,
 };
 pub use pdf_dimensions::{
     Jp2DimensionInspection, Jp2DimensionRecoveredImage, Jp2DimensionRecoveredReconstructedImage,
@@ -311,6 +319,12 @@ pub use pdf_present_tile::{
     decode_codestream_recover_present_tile_selected,
     decode_jp2_reconstructed_recover_present_tile_selected,
     decode_jp2_recover_present_tile_selected,
+};
+pub use pdf_trailers::{
+    TileTrailerRecoveredImage, TileTrailerRecoveredReconstructedImage, TileTrailerRecoveryReport,
+    decode_codestream_reconstructed_recover_trailer_selected,
+    decode_codestream_recover_trailer_selected, decode_jp2_reconstructed_recover_trailer_selected,
+    decode_jp2_recover_trailer_selected,
 };
 #[cfg_attr(verus_keep_ghost, verifier::verify)]
 mod arithmetic;

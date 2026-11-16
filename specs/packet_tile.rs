@@ -442,6 +442,70 @@ pub open spec fn part1_tile_finish(params:Part1TilePacketParameters,p:Part1TileP
     }
 }
 
+pub(crate) open spec fn part2_tile_trailer_part_metadata_free(part: super::Part2OwnedTilePart) -> bool {
+    !part1_tile_length_present_owned(part)
+        && matches!(part.packed_packet_headers.source, super::Part1PackedHeaderSource::None)
+}
+
+pub(crate) open spec fn part2_tile_trailer_metadata_free(parts: Seq<super::Part2OwnedTilePart>) -> bool {
+    forall|i: int| 0 <= i < parts.len() ==> part2_tile_trailer_part_metadata_free(parts[i])
+}
+
+pub(crate) open spec fn part2_tile_trailer_admission(
+    params: Part1TilePacketParameters, p: Part1TilePacketProgress, discarded: u8,
+) -> Result<u8, crate::DecodeError> {
+    let invalid = super::part1_packet_reader_error(p.offset, crate::MalformedKind::TrailingData);
+    if p.current_tile_part >= params.parts.len() {
+        Err(ht_reader_error(crate::MalformedKind::InvalidTilePart))
+    } else if p.current_tile_part as int + 1 != params.parts.len()
+        || p.packets == 0 || p.packets != params.grid.packet_count
+        || p.seen.len() != params.grid.packet_count as nat || !part1_tile_all_seen(p.seen)
+        || p.packed_offset != 0 || p.offset >= params.parts[p.current_tile_part as int].data.len()
+        || discarded > 16 {
+        Err(invalid)
+    } else {
+        let unclaimed = params.parts[p.current_tile_part as int].data.len() - p.offset;
+        if unclaimed > 16 - discarded {
+            Err(invalid)
+        } else if params.parts.len() > params.caps.work {
+            Err(crate::DecodeError::LimitExceeded {
+                resource: crate::Resource::WorkUnits, limit: params.caps.work,
+                actual: params.parts.len() as u64,
+            })
+        } else if !part2_tile_trailer_metadata_free(params.parts) {
+            Err(invalid)
+        } else { Ok((discarded + unclaimed) as u8) }
+    }
+}
+
+pub(crate) open spec fn part2_tile_trailer_finish(
+    params: Part1TilePacketParameters, p: Part1TilePacketProgress, discarded: u8,
+) -> (Result<(crate::packet::TilePacketDecode, u8), crate::DecodeError>, Part1TilePacketProgress) {
+    let first = part1_tile_finish(params, p);
+    match first.0 {
+        Ok(decoded) => (Ok((decoded, discarded)), first.1),
+        Err(error) => if !matches!(error, crate::DecodeError::MalformedInput {
+            kind: crate::MalformedKind::TrailingData, ..
+        }) {
+            (Err(error), first.1)
+        } else {
+            match part2_tile_trailer_admission(params, first.1, discarded) {
+                Err(error) => (Err(error), first.1),
+                Ok(discarded) => {
+                    let progress = Part1TilePacketProgress {
+                        offset: params.parts[first.1.current_tile_part as int].data.len() as usize,
+                        ..first.1
+                    };
+                    let finished = part1_tile_finish(params, progress);
+                    (match finished.0 {
+                        Err(error) => Err(error), Ok(decoded) => Ok((decoded, discarded)),
+                    }, finished.1)
+                },
+            }
+        },
+    }
+}
+
 pub open spec fn part1_progression_tile_decode(
     parts:Seq<crate::codestream::TilePartPayload<'_>>,grid:Part1PacketGrid,precincts:Seq<Part1PacketPrecinctState>,
     selection:Option<Seq<u8>>,limits:&crate::ResourceLimits,
