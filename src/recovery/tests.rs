@@ -207,7 +207,7 @@ fn decode(bytes: &[u8]) -> Result<RawRecoveredImage, DecodeError> {
 }
 
 fn refuses_without_reservation(bytes: &[u8]) {
-    refuses_without_reservation_after(bytes, 11);
+    refuses_without_reservation_after(bytes, 12);
 }
 
 fn refuses_without_reservation_after(bytes: &[u8], strict_requests: usize) {
@@ -470,11 +470,11 @@ fn one_atomic_reservation_refusal_and_unwind_leave_exact_same_process_success() 
         );
     });
     // The decode also extends legacy input and copies the initial LL sample owner.
-    allocation::with_refusal(70, || {
+    allocation::with_refusal(71, || {
         assert_eq!(decode(&bytes).unwrap_err(), DecodeError::AllocationFailed);
         assert_eq!(decode(&bytes).unwrap(), expected);
     });
-    allocation::with_refusal(71, || {
+    allocation::with_refusal(72, || {
         assert_eq!(decode(&bytes).unwrap(), expected);
         assert_eq!(
             allocation::empty_with_capacity::<u8>(1),
@@ -533,7 +533,7 @@ fn reconstructed_recovery_retains_centered_planes_geometry_and_report() {
             decode_codestream_reconstructed_recover_missing_eoc(&finite, &options).unwrap_err(),
             strict_error
         );
-        allocation::with_refusal(11, || {
+        allocation::with_refusal(12, || {
             assert_eq!(
                 decode_codestream_reconstructed_recover_missing_eoc(&finite, &options).unwrap_err(),
                 strict_error
@@ -561,7 +561,7 @@ fn reconstructed_recovery_refusal_limits_and_genuine_errors_preserve_recovery() 
             expected
         );
     });
-    allocation::with_refusal(70, || {
+    allocation::with_refusal(71, || {
         assert_eq!(
             decode_codestream_reconstructed_recover_missing_eoc(&bytes, &options).unwrap_err(),
             DecodeError::AllocationFailed
@@ -571,7 +571,7 @@ fn reconstructed_recovery_refusal_limits_and_genuine_errors_preserve_recovery() 
             expected
         );
     });
-    allocation::with_refusal(71, || {
+    allocation::with_refusal(72, || {
         assert_eq!(
             decode_codestream_reconstructed_recover_missing_eoc(&bytes, &options).unwrap(),
             expected

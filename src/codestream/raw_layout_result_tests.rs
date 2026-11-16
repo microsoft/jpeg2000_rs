@@ -2,6 +2,44 @@ use super::persistent_tile_configuration::interleaved_persistent_parts;
 use super::*;
 
 #[test]
+fn payload_growth_first_and_later_refusals_restore_exact_borrowed_layout() {
+    let limits = ResourceLimits::default();
+    let mut probe = Vec::<TilePartPayload<'_>>::new();
+    crate::allocation::reserve_additional(&mut probe, 1).unwrap();
+    let capacity = probe.capacity();
+    let count = u8::try_from(capacity + 1).unwrap();
+    let mut bytes = SOC.to_be_bytes().to_vec();
+    bytes.extend(siz());
+    bytes.extend(segment(COD, &[0, 0, 0, 1, 0, 0, 2, 2, 0, 1]));
+    bytes.extend(segment(QCD, &[0, 0]));
+    for part in 0..count {
+        let mut sot = 0_u16.to_be_bytes().to_vec();
+        sot.extend(15_u32.to_be_bytes());
+        sot.extend([part, count]);
+        bytes.extend(segment(SOT, &sot));
+        bytes.extend(SOD.to_be_bytes());
+        bytes.push(part);
+    }
+    bytes.extend(EOC.to_be_bytes());
+    let expected = parse_layout(&bytes, &limits).unwrap();
+    // Nine initial owners and two quantization copies precede the first payload.
+    for after in [11, 12 + 2 * capacity] {
+        crate::allocation::with_refusal(after, || {
+            assert!(matches!(
+                parse_layout(&bytes, &limits),
+                Err(DecodeError::AllocationFailed)
+            ));
+            let restored = parse_layout(&bytes, &limits).unwrap();
+            assert_eq!(restored.info, expected.info);
+            assert_eq!(restored.tile_parts, expected.tile_parts);
+            for (actual, original) in restored.tile_parts.iter().zip(&expected.tile_parts) {
+                assert!(core::ptr::eq(actual.data.as_ptr(), original.data.as_ptr()));
+            }
+        });
+    }
+}
+
+#[test]
 fn actual_complete_raw_layout_result_keeps_interleaved_source_parts_and_public_info() {
     let limits = ResourceLimits::default();
     for last_roi in [None, Some(9)] {

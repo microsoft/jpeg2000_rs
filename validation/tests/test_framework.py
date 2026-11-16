@@ -8258,6 +8258,15 @@ class FrameworkTests(WorkingFiles):
         entry = next(item for item in coverage["requirements"] if item["id"] == framework._RAW_LAYOUT_ENTRY)
         read_text = Path.read_text
         for relative, symbol, before, after in (
+            ("src/codestream/layout.rs", "Parser::parse_layout",
+             "reserve_additional(&mut tile_part_payloads, 1)", "reserve_additional(&mut tile_part_payloads, 2)"),
+            ("specs/cold_layout.rs", "part1_cold_commit_payload",
+             "part1_quantization_storage_request(16, 1, rest)", "part1_quantization_storage_request(16, 2, rest)"),
+            ("specs/cold_layout.rs", "part1_cold_commit_payload",
+             "committed.1.2, state.3", "committed.1.2, committed.1.3"),
+            ("specs/cold_layout.rs", "part1_cold_layout_after_extensions_copy",
+             "Some(((committed.0, after, tile_parts, committed.1), tail))",
+             "Some(((committed.0, after, tile_parts, committed.1), events))"),
             ("specs/cold_mct_copy.rs", "part1_mct_copy_site",
              "MctCopyPath::ProgressionBitmap(_, _, _, _) => 81", "MctCopyPath::ProgressionBitmap(_, _, _, _) => 80"),
             ("specs/cold_bitmap.rs", "part1_bitmap_count",

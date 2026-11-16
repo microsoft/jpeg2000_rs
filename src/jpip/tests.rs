@@ -1146,8 +1146,8 @@ fn automatic_managed_allocation_refusals_preserve_state_and_recover_exact_images
     for selected in [false, true] {
         let mut refusals = 0;
         let mut reached_end = false;
-        // Two packets add three outer owners before their two TagTree owner pairs.
-        for ordinal in 0..32 + 3 * 8 + 2 * 8 + 2 * 2 * 2 + 2 * 3 {
+        // Include payload growth in each reached snapshot and decode parse.
+        for ordinal in 0..128 {
             let mut decoder = JpipAutomaticProgressiveDecoder::new(0);
             let result = crate::allocation::with_refusal(ordinal, || {
                 if selected {

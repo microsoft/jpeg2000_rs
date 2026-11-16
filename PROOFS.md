@@ -176,6 +176,15 @@ the reached inherited/committed owners reuse `copy_values`, never deep
 POC construction, 14 is inheritance after quantization copying, and 15 is
 commit after the fifth store but before progression-slot lookup.
 
+Site 16 reserves the reached layout payload slot after successful persistent
+configuration, MCT and extension stores, before inserting the borrowed payload.
+On refusal the cold result retains those committed fields and the original
+payload sequence, not a rolled-back configuration or an already-pushed payload.
+Normal witnesses and arbitrary-tail frames include this ordered request.
+First and later physical growth refusals retain exact same-process retry
+metadata, payload values and source borrows. Logical requests do not assert
+that every call needs a new physical allocation.
+
 [`cold_progression.rs`](specs/cold_progression.rs) links actual primitive
 responses to flat records. [`cold_header_progression.rs`](specs/cold_header_progression.rs)
 binds those responses inside the executing header traversals, retaining seen

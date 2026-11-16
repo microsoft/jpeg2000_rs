@@ -8281,7 +8281,7 @@ fn fresh_progression_bitmap_main_and_later_tile_restore_persistent_and_raw_frame
     bytes.splice(at..at, poc(&[[0, 0, 0, 2, 1, 1, 0]]));
     let limits = ResourceLimits::default();
     let expected = parse_layout(&bytes, &limits).unwrap();
-    for after in [2, 20] {
+    for after in [2, 21] {
         assert!(matches!(
             crate::allocation::with_refusal(after, || parse_layout(&bytes, &limits)),
             Err(DecodeError::AllocationFailed)
@@ -9009,7 +9009,7 @@ fn payload_owner_storage_raw_main_tile_graph_and_extension_roles_restore() {
         .unwrap();
     extensions.splice(at..at, segment(DFS, &[0, 1, 1, 0x40]));
     let limits = ResourceLimits::default();
-    for (bytes, afters) in [(&matrix, &[1, 27][..]), (&extensions, &[13, 19][..])] {
+    for (bytes, afters) in [(&matrix, &[1, 28][..]), (&extensions, &[13, 20][..])] {
         let expected = parse_layout(bytes, &limits).unwrap();
         for &after in afters {
             assert!(matches!(
@@ -9082,7 +9082,7 @@ fn part2_owner_storage_raw_restores_main_and_persistent_nested_owners() {
     bytes.splice(at..at, segment(DFS, &[0, 1, 1, 0x40]));
     let limits = ResourceLimits::default();
     let expected = parse_layout(&bytes, &limits).unwrap();
-    for after in [11, 16] {
+    for after in [11, 17] {
         assert!(matches!(
             crate::allocation::with_refusal(after, || parse_layout(&bytes, &limits)),
             Err(DecodeError::AllocationFailed)
@@ -9126,7 +9126,7 @@ fn mct_owner_storage_raw_inheritance_restores_after_prior_persistent_commit() {
     bytes.splice(at..at, array.iter().copied().chain(mco(&[])));
     let limits = ResourceLimits::default();
     let expected = parse_layout(&bytes, &limits).unwrap();
-    for after in [13, 18] {
+    for after in [13, 19] {
         assert!(matches!(
             crate::allocation::with_refusal(after, || parse_layout(&bytes, &limits)),
             Err(DecodeError::AllocationFailed)

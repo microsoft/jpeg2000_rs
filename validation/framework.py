@@ -7916,6 +7916,24 @@ _INSPECTION_LAYER_GUARDS = {
 }
 
 _QUANTIZATION_COLD_GUARDS = {
+    ("src/codestream/layout.rs", "Parser::parse_layout"): (
+        "crate::allocation::reserve_additional(&mut tile_part_payloads, 1)",
+        "site: 16, elements: 1, succeeded: false,",
+        "part1_cold_layout_sot_commit_error(cold_sot, read_calls, commit_calls + refused, error)",
+        "tile_part_payloads.push(payload)",
+    ),
+    ("specs/cold_layout.rs", "part1_cold_commit_payload"): (
+        "part1_cold_commit_state(state, commit, events)",
+        "Err(_) => Some((committed, rest))",
+        "part1_quantization_storage_request(16, 1, rest)",
+        "Some((Ok(()), tail)) => Some((committed, tail))",
+        "(committed.1.0, committed.1.1, committed.1.2, state.3)",
+    ),
+    ("specs/cold_layout.rs", "part1_cold_layout_after_extensions_copy"): (
+        "part1_cold_tile_part_run(input, events)",
+        "part1_cold_commit_payload(state, Part1PersistentTileCommit",
+        "Some(((committed.0, after, tile_parts, committed.1), tail))",
+    ),
     ("specs/cold_bitmap.rs", "part1_bitmap_count"): (
         "records.len() == 0 { None }",
         "part1_poc_validation_shape(offset, layers, styles, 0, 0, 0)",
@@ -8335,6 +8353,7 @@ _QUANTIZATION_COLD_GUARDS = {
 _QUANTIZATION_ROOT_MODELS = {
     ("specs/cold_layout.rs", name) for name in (
         "part1_cold_layout_continuation", "part1_cold_layout_prefix", "part1_quantized_layout_cold_run",
+        "part1_cold_commit_payload", "part1_cold_commit_payload_normal_calls",
     )
 } | {("specs/cold_quantization.rs", name) for name in (
     "part1_main_header_cold_run", "part1_prepare_main_quantization",
@@ -8348,6 +8367,8 @@ _QUANTIZATION_ROOT_PROOFS = {
     ("specs/cold_layout.rs", name) for name in (
         "part1_cold_layout_advance_normal", "part1_quantized_layout_cold_frame",
         "part1_quantized_layout_cold_normal", "part1_quantized_layout_cold_projection",
+        "part1_cold_commit_payload_normal", "part1_cold_commit_payload_frame",
+        "part1_cold_commit_payload_projection",
     )
 } | {("specs/cold_layout_continuations.rs", name) for name in (
     "part1_cold_layout_sot_commit_error", "part1_cold_layout_sot_copy_error", "part1_cold_layout_sot_read_error",
@@ -13286,7 +13307,12 @@ def validate_normative_coverage(
                 "previous_persistent_state", "persistent_commit",
             )
             checkpoint = (
-                r"\s*".join(stores) + r"\s*" + _coverage_call("tile_part_payloads.push", "payload")
+                r"\s*".join(stores)
+                + r"\s*let\s+reserved\s*=\s*"
+                + _coverage_call("crate::allocation::reserve_additional", r"&mut\s+tile_part_payloads", "1")
+                + r"\s*;\s*#\[\s*cfg\s*\(\s*verus_keep_ghost\s*\)\s*\]\s*proof!\s*\{"
+                + r"[\s\S]*?\n[ \t]*\}\s*reserved\s*\?\s*;\s*"
+                + _coverage_call("tile_part_payloads.push", "payload")
                 + r"\s*;\s*#\[\s*cfg\s*\(\s*verus_keep_ghost\s*\)\s*\]\s*proof!\s*\{\s*"
                 + r"\s*".join(_coverage_call("reveal", name) + r"\s*;" for name in (
                     "persistent_tile_state_view", "persistent_tile_configuration_view",
