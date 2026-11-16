@@ -76,17 +76,32 @@ impl LegacySegmentState {
         })
     }
 
-    #[cfg_attr(verus_keep_ghost, verus_spec(
-        ensures legacy_segment_view(final(self)) == crate::specs::part1_legacy_append(
-            legacy_segment_view(old(self)), input@, passes),
+    #[cfg_attr(verus_keep_ghost, verus_spec(result =>
+        ensures crate::specs::part2_legacy_append_result(
+            legacy_segment_view(old(self)), input@, passes,
+            match result { Err(error) => Err(error), Ok(()) => Ok(legacy_segment_view(final(self))) }),
+            match result {
+            Ok(()) => legacy_segment_view(final(self)) == crate::specs::part1_legacy_append(
+                legacy_segment_view(old(self)), input@, passes),
+            Err(error) => error == DecodeError::AllocationFailed
+                && legacy_segment_view(final(self)) == legacy_segment_view(old(self)),
+        },
     ))]
-    fn append(&mut self, input: &[u8], passes: u32) {
-        self.input.extend_from_slice(input);
+    fn append(&mut self, input: &[u8], passes: u32) -> Result<(), DecodeError> {
+        #[cfg(verus_keep_ghost)]
+        proof_decl! { let ghost before = legacy_segment_view(self); }
+        let extended = crate::allocation::extend_bytes(&mut self.input, input);
+        #[cfg(verus_keep_ghost)]
+        proof! {
+            crate::specs::part2_legacy_append_observed(before, input@, passes, self.input@, extended);
+        }
+        extended?;
         self.passes = passes;
         #[cfg(verus_keep_ghost)]
         proof! {
             assert(self.input@ =~= legacy_segment_view(old(self)).input + input@);
         }
+        Ok(())
     }
 }
 
@@ -543,6 +558,7 @@ impl Tier1CodeBlockDecoder {
                 None => crate::specs::part1_legacy_snapshot(crate::specs::Tier1DecoderState { legacy_segment: None, ..before_replay }),
             };
         }
+        let had_segment = self.legacy_segment.is_some();
         let mut segment = match self.legacy_segment.take() {
             Some(segment) => segment,
             None => {
@@ -557,7 +573,18 @@ impl Tier1CodeBlockDecoder {
             assert(tier1_decoder_state(self) == (crate::specs::Tier1DecoderState { legacy_segment: None, ..before_replay }));
             assert(legacy_segment_view(&segment) == replay_model);
         }
-        segment.append(input, replay_passes);
+        if let Err(error) = segment.append(input, replay_passes) {
+            if had_segment {
+                self.legacy_segment = Some(segment);
+            }
+            #[cfg(verus_keep_ghost)]
+            proof! {
+                assert(tier1_decoder_state(self) == before_replay);
+                crate::specs::part2_legacy_replay_append_error(
+                    before_replay, input@, replay_passes, super::legacy_storage_limits(limits), error);
+            }
+            return Err(error);
+        }
         #[cfg(verus_keep_ghost)]
         proof! {
             assert(legacy_segment_view(&segment) == (crate::specs::Tier1LegacyFrame {

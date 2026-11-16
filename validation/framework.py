@@ -6243,6 +6243,7 @@ _DECODER_NESTED_COPY_NATIVE_ORDER = {
 }
 _LEGACY_SNAPSHOT_ENTRY = "part1-complete-native-mixed-code-block-body"
 _LEGACY_SNAPSHOT_TESTS = {
+    ("src/tier1/tests.rs", "legacy_input_extension_refusal_preserves_pending_prefix_and_retries_once"),
     ("src/tier1/tests.rs", "legacy_snapshot_storage_raw_snapshot_first_later_empty_and_exact_source_restore"),
     ("src/tier1/tests.rs", "legacy_snapshot_storage_restore_refusal_exposes_exact_partial_fields_without_consuming_source"),
     ("src/tier1/tests.rs", "legacy_snapshot_storage_real_replay_refusal_retains_admission_and_partial_restore_frames"),
@@ -6250,6 +6251,15 @@ _LEGACY_SNAPSHOT_TESTS = {
     ("src/recovery/tests.rs", "legacy_snapshot_storage_two_layer_raw_selected_recovery_snapshot_restore_roles_and_automatic"),
 }
 _LEGACY_SNAPSHOT_GUARDS = {
+    ("specs/cold_legacy_replay.rs", "part2_legacy_append_response"): (
+        "input.len()==0 || succeeded", "Ok(part1_legacy_append(source,input,passes))",
+        "Err(crate::DecodeError::AllocationFailed)",
+    ),
+    ("specs/cold_legacy_replay.rs", "part2_legacy_append_run"): (
+        "input.len()==0", "Some((Ok(part1_legacy_append(source,input,passes)),calls))",
+        "calls.len()==0", "LegacyInputExtension", "actual!=source || bytes!=input || count!=passes || elements!=input.len()",
+        "part2_legacy_append_response(source,input,passes,succeeded)", "calls.drop_first()",
+    ),
     ("specs/cold_legacy_replay.rs", "part2_legacy_snapshot_run"): (
         "part2_nested_plane_run(before.plane,crate::tier1::HtRefinementCopyRole::LegacySnapshot,calls)", "part2_legacy_snapshot_flags(before,rest)",
     ),
@@ -6269,8 +6279,12 @@ _LEGACY_SNAPSHOT_GUARDS = {
         "Err(error)=>Some((Ok((Err(error),part2_legacy_replay_clear(before))),rest))",
     ),
     ("specs/cold_legacy_replay.rs", "part2_legacy_replay_after_source"): (
-        "let appended=part1_legacy_append(source,input,replay)", "part2_legacy_restore_run(part2_legacy_replay_clear(before),appended,calls)",
-        "part2_legacy_replay_after_restored(appended,caps,restored,rest)",
+        "part2_legacy_append_run(source,input,replay,calls)", "part2_legacy_replay_after_appended(before,caps,appended,rest)",
+    ),
+    ("specs/cold_legacy_replay.rs", "part2_legacy_replay_after_appended"): (
+        "Err(error)=>Some((Ok((Err(error),before)),calls))",
+        "part2_legacy_restore_run(part2_legacy_replay_clear(before),source,calls)",
+        "part2_legacy_replay_after_restored(source,caps,restored,rest)",
     ),
     ("specs/cold_legacy_replay.rs", "part2_legacy_replay_after_restored"): (
         "Err(_)=>Some((Ok(restored),calls))", "part2_legacy_segment_run(restored.1,source.input,source.passes,caps,calls)",
@@ -6292,6 +6306,11 @@ _LEGACY_SNAPSHOT_GUARDS = {
     ),
 }
 _LEGACY_SNAPSHOT_NATIVE_ORDER = {
+    ("src/tier1/contributions.rs", "LegacySegmentState::append"): (
+        "legacy_segment_view(self)", "crate::allocation::extend_bytes(&mut self.input,input)",
+        "part2_legacy_append_observed(before,input@,passes,self.input@,extended)", "extended?",
+        "self.passes=passes", "Ok(())",
+    ),
     ("src/tier1/contributions.rs", "Tier1CodeBlockDecoder::legacy_segment_snapshot"): (
         "Ok(LegacySegmentState", "self.plane.try_duplicate_raw(", "HtRefinementCopyRole::LegacySnapshot,false,true", "part2_legacy_snapshot_plane_error(", "copied?",
         "next_pass:self.next_pass", "bitplane:self.bitplane", "try_duplicate_bitplane(", "&self.bitplane_state", "HtRefinementCopyRole::LegacySnapshot,true",
@@ -6305,8 +6324,10 @@ _LEGACY_SNAPSHOT_NATIVE_ORDER = {
         "self.decoded_segments=segment.decoded_segments", "self.decoded_bytes=segment.decoded_bytes", "Ok(())",
     ),
     ("src/tier1/contributions.rs", "Tier1CodeBlockDecoder::decode_legacy_replay"): (
-        "match self.legacy_segment.take()", "Some(segment)=>segment", "self.legacy_segment_snapshot()", "part2_legacy_replay_snapshot_error(", "copied?",
-        "segment.append(input,replay_passes)", "self.restore_legacy_segment(&segment)", "part2_legacy_replay_restored(", "restored?",
+        "let had_segment=self.legacy_segment.is_some()", "match self.legacy_segment.take()", "Some(segment)=>segment", "self.legacy_segment_snapshot()", "part2_legacy_replay_snapshot_error(", "copied?",
+        "if let Err(error)=segment.append(input,replay_passes)", "if had_segment", "self.legacy_segment=Some(segment)",
+        "part2_legacy_replay_append_error(", "return Err(error)",
+        "self.restore_legacy_segment(&segment)", "part2_legacy_replay_restored(", "restored?",
         "self.decode_legacy_segment(&segment.input,segment.passes,limits)", "part2_legacy_replay_segment_observed(", "decoded?", "self.commit_legacy_replay(segment)",
     ),
     ("src/packet/body.rs", "decode_legacy_code_block_segment"): (
@@ -15317,6 +15338,7 @@ def validate_normative_coverage(
         if partial is None or "".join(partial.split()) != "Tier1DecoderState{plane:source.plane,next_pass:source.next_pass,bitplane:source.bitplane,..before}":
             raise ValueError("legacy snapshot/restore storage requires exact earlier plane/pass/bitplane writes and untouched later fields on refusal")
         for symbol, arguments, value in (
+            ("part2_legacy_append_result", "source,input,passes", "result"),
             ("part2_legacy_snapshot_result", "before", "result"),
             ("part2_legacy_restore_result", "before,source", "Ok(result)"),
             ("part2_legacy_replay_result", "before,input,replay,caps", "Ok(result)"),
