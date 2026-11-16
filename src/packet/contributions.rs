@@ -442,7 +442,11 @@ pub(super) fn read_header_segment(
         length_bits,
     )?;
     // A later layer can finish a buffered entropy segment without adding bytes.
-    if segment_length == 0 && segments.routing == Some(false) && first_pass == 0 {
+    let initial_empty = segment_length == 0 && segments.routing == Some(false) && first_pass == 0;
+    #[cfg(all(feature = "pdf-mq-recovery", not(verus_keep_ghost)))]
+    let initial_empty =
+        initial_empty && !crate::pdf_mq::permits(context.tier1_style, first_pass, actual_passes);
+    if initial_empty {
         return Err(packet_reader_error(
             reader.bytes_consumed(),
             MalformedKind::InvalidPacketHeader,

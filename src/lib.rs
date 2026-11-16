@@ -17,6 +17,14 @@ mod deadline;
 #[cfg(all(feature = "cooperative-deadlines", not(verus_keep_ghost)))]
 pub use deadline::with_decode_deadline;
 
+#[cfg(all(verus_keep_ghost, feature = "pdf-mq-recovery"))]
+compile_error!(
+    "pdf-mq-recovery is a native-only qualification profile; pinned Verus does not verify its scoped TLS policy. Verify without this opt-in feature."
+);
+
+#[cfg(all(feature = "pdf-mq-recovery", not(verus_keep_ghost)))]
+mod pdf_mq;
+
 #[cfg(verus_keep_ghost)]
 use vstd::prelude::*;
 
