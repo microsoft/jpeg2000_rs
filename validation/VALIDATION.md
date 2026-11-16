@@ -6,6 +6,26 @@ restricted, or standards-derived vectors.
 
 ## Running the checks
 
+### Reached JP2 file-type storage
+
+`cargo test --lib actual_raw_file_type` checks primary/minor/ordered brands,
+preflight-before-reservation errors, exact refusal/retry and no request for an
+empty compatible-brand list. Container, JPX and decode refusal selectors retain
+their original later owners after the new first managed reservation.
+
+The supplied separate allocation-control executable was also compiled at
+MSRV with the real test allocator. On the original 171-byte `consistent.jp2`
+control, refusal of actual request1 previously aborted at compatible-brand
+vector growth (16 bytes). It now returns `AllocationFailed` and exact pixels
+recover in the same process. First-ever inspection, with zero previous
+decode/inspection calls, also recovers exact metadata and pixels after
+request1. The hook remains outside the unsafe-free production crate and
+refuses one finite request; no actual system memory exhaustion is induced.
+This is not a full allocation sweep: this image has86 observed decode
+requests, and other remaining storage sites under #287 are not thereby
+qualified. Managed logical refusals and actual allocator refusals are distinct
+controls. Standard physical capacity/availability is not a new Verus theorem.
+
 ### Incremental input profile
 
 Run `cargo test --lib --features incremental-input incremental::tests` and the

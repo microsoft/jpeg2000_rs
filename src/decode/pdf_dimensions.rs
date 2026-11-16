@@ -259,7 +259,7 @@ pub fn inspect_jp2_recover_dimensions<'a>(
     #[cfg(verus_keep_ghost)]
     proof! {
         if let Err(error) = parsed_file {
-            crate::specs::part2_dimension_inspection_pure_error(
+            crate::specs::part2_dimension_inspection_container_error(
                 input@, crate::options::decode_options_limits(options), error);
         }
     }

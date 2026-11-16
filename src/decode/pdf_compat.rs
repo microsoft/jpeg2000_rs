@@ -110,7 +110,15 @@ fn prepare_pdf_input<'a>(
     let file = if input.first() == Some(&0xff) && input.get(1) == Some(&0x4f) {
         None
     } else {
-        let file = jp2::parse(input, options.limits())?;
+        let parsed_file = jp2::parse(input, options.limits());
+        #[cfg(verus_keep_ghost)]
+        proof! {
+            if let Err(error) = parsed_file {
+                crate::specs::part2_pdf_prepare_container_error(
+                    input@, crate::options::decode_options_limits(options), error);
+            }
+        }
+        let file = parsed_file?;
         #[cfg(verus_keep_ghost)]
         proof! { jp2::raw_render_file_known(&file); }
         let kind = file.file_type();

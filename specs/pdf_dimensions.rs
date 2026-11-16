@@ -202,10 +202,8 @@ pub(crate) open spec fn part2_dimension_inspection_after_file(
 pub(crate) open spec fn part2_dimension_inspection_run(
     input: Seq<u8>, limits: &crate::ResourceLimits, events: Seq<Part2JpipSnapshotEvent>,
 ) -> Part2ColdRun<Part2DimensionInspection> {
-    match part2_parse_container(input, *limits) {
-        Err(error) => Some((Err(error), events)),
-        Ok(file) => part2_dimension_inspection_after_file(input, file, limits, events),
-    }
+    part2_jpip_snapshot_bind(part2_parse_container_cold_run(input, *limits, events),
+        |file, rest| part2_dimension_inspection_after_file(input, file, limits, rest))
 }
 
 pub closed spec fn part2_dimension_inspection_result(
@@ -253,12 +251,36 @@ pub(crate) proof fn part2_dimension_inspection_value_unfold(input: Seq<u8>, limi
 pub(crate) proof fn part2_dimension_inspection_pure_error(
     input: Seq<u8>, limits: &crate::ResourceLimits, error: crate::DecodeError,
 )
-    requires forall|events: Seq<Part2JpipSnapshotEvent>|
-        #[trigger] part2_dimension_inspection_run(input, limits, events) == Some((Err(error), events)),
+    requires match part2_parse_container(input, *limits) {
+        Err(found) => error == found,
+        Ok(file) => file.streams.len() == 0 && error == crate::DecodeError::CodestreamIndexOutOfRange {
+            index: 0, codestreams: file.streams.len() as usize,
+        },
+    },
     ensures part2_dimension_inspection_result(input, limits, Err(error)),
 {
     reveal(part2_dimension_inspection_result);
     part2_cold_pure::<Part2DimensionInspection>(Err(error));
+    part2_parse_container_cold_normal(input, *limits, Seq::empty());
+    part2_parse_container_cold_frames(input, *limits, part2_parse_container(input, *limits));
+    part2_cold_bind(
+        |events| part2_parse_container_cold_run(input, *limits, events),
+        |file, rest| part2_dimension_inspection_after_file(input, file, limits, rest),
+        part2_parse_container(input, *limits), Err(error));
+}
+
+pub(crate) proof fn part2_dimension_inspection_container_error(
+    input: Seq<u8>, limits: &crate::ResourceLimits, error: crate::DecodeError,
+)
+    requires part2_parse_container_cold_result(input, *limits, Err(error)),
+    ensures part2_dimension_inspection_result(input, limits, Err(error)),
+{
+    reveal(part2_dimension_inspection_result);
+    part2_parse_container_cold_frames(input, *limits, Err(error));
+    part2_cold_bind(
+        |events| part2_parse_container_cold_run(input, *limits, events),
+        |file, rest| part2_dimension_inspection_after_file(input, file, limits, rest),
+        Err(error), Err(error));
 }
 
 pub(crate) proof fn part2_dimension_inspection_info_join(
@@ -285,7 +307,13 @@ pub(crate) proof fn part2_dimension_inspection_info_join(
         |events| part2_jpip_snapshot_bind(part2_cold_info(file.streams[0].1, limits, 9, 0, events),
             |info: Part2RawCodestreamInfo, rest|
                 Some((part2_dimension_inspection_finish(input, file, info, limits), rest))),
-        |events| part2_dimension_inspection_run(input, limits, events), result);
+        |events| part2_dimension_inspection_after_file(input, file, limits, events), result);
+    part2_parse_container_cold_normal(input, *limits, Seq::empty());
+    part2_parse_container_cold_frames(input, *limits, Ok(file));
+    part2_cold_bind(
+        |events| part2_parse_container_cold_run(input, *limits, events),
+        |parsed_file, rest| part2_dimension_inspection_after_file(input, parsed_file, limits, rest),
+        Ok(file), result);
 }
 
 pub(crate) proof fn part2_dimension_inspection_info_actual(

@@ -929,11 +929,11 @@ mod tests {
             assert_eq!(super::inspection::inspect_file(inspected.file(), &[], &limits).unwrap_err(), ordinary);
             assert_eq!(crate::allocation::copy_values(&[1_u8]), Err(DecodeError::AllocationFailed));
         });
-        assert_eq!(crate::allocation::with_refusal(12, || inspect_jpx_layers(&bytes, &limits)).err(), Some(DecodeError::AllocationFailed));
+        assert_eq!(crate::allocation::with_refusal(13, || inspect_jpx_layers(&bytes, &limits)).err(), Some(DecodeError::AllocationFailed));
         assert_eq!(inspect_jpx_layers(&bytes, &limits).unwrap(), expected);
         let options = DecodeOptions::default();
-        assert_eq!(crate::allocation::with_refusal(12, || render_jpx_frame(&bytes, usize::MAX, &options)).err(), Some(DecodeError::AllocationFailed));
-        assert_eq!(crate::allocation::with_refusal(12, || render_jpx_composition(&bytes, &options)).err(), Some(DecodeError::AllocationFailed));
+        assert_eq!(crate::allocation::with_refusal(13, || render_jpx_frame(&bytes, usize::MAX, &options)).err(), Some(DecodeError::AllocationFailed));
+        assert_eq!(crate::allocation::with_refusal(13, || render_jpx_composition(&bytes, &options)).err(), Some(DecodeError::AllocationFailed));
     }
 
     #[test]

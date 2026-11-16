@@ -5,6 +5,7 @@ use vstd::prelude::*;
 #[derive(Clone, Copy)]
 #[cfg_attr(not(verus_keep_ghost), derive(Debug, Eq, PartialEq))]
 pub(crate) enum InspectionCollection {
+    FileTypeBrands,
     Infos(bool),
     Layers,
 }

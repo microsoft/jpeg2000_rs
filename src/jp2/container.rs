@@ -361,7 +361,14 @@ fn parse_and_inspect_mode<'a>(
         crate::specs::part2_parse_and_inspect_container_mode_unfold(input@, limits, display_first);
         crate::specs::part2_inspection_cold_normal(input@, limits, display_first);
     }
-    let file = parse(input, limits)?;
+    let parsed_file = parse(input, limits);
+    #[cfg(verus_keep_ghost)]
+    proof! {
+        if let Err(error) = parsed_file {
+            crate::specs::part2_inspection_cold_container_error(input@, limits, display_first, error);
+        }
+    }
+    let file = parsed_file?;
     let codestream_count = inspection_count(&file, display_first);
     let reserved = crate::allocation::inspection_values(
         codestream_count,
@@ -584,12 +591,20 @@ pub(crate) fn validate_selected_header(
 }
 
 #[cfg_attr(verus_keep_ghost, verus_spec(result =>
-    ensures super::raw_jp2_file_outcome(result) == crate::specs::part2_parse_container(input@, *limits),
-        super::container_prefix_relation(result, crate::specs::part2_container_prologue(input@, *limits)),
+    ensures crate::specs::part2_parse_container_cold_result(input@, *limits, super::raw_jp2_file_outcome(result)),
+        super::raw_jp2_file_outcome(result) != Err(DecodeError::AllocationFailed) ==>
+            super::raw_jp2_file_outcome(result) == crate::specs::part2_parse_container(input@, *limits),
+        super::raw_jp2_file_outcome(result) != Err(DecodeError::AllocationFailed) ==>
+            super::container_prefix_relation(result, crate::specs::part2_container_prologue(input@, *limits)),
 ))]
 pub fn parse<'a>(input: &'a [u8], limits: &ResourceLimits) -> Result<Jp2File<'a>, DecodeError> {
     #[cfg(verus_keep_ghost)]
-    proof! { reveal(crate::specs::part2_container_prologue); reveal(crate::specs::part2_parse_container); }
+    proof! {
+        reveal(crate::specs::part2_container_file_type_prefix);
+        reveal(crate::specs::part2_container_prologue);
+        reveal(crate::specs::part2_parse_container);
+        crate::specs::part2_parse_container_cold_normal(input@, *limits, Seq::empty());
+    }
     let mut reader = box_reader_from_input(input, limits)?;
     let signature = required_box(&mut reader, 0)?;
     if !signature.header.box_type().equals(BoxType::SIGNATURE)
@@ -617,7 +632,15 @@ pub fn parse<'a>(input: &'a [u8], limits: &ResourceLimits) -> Result<Jp2File<'a>
             MalformedKind::InvalidBoxOrder,
         ));
     }
-    let file_type = parse_file_type(file_type_box, limits)?;
+    let parsed_file_type = parse_file_type(file_type_box, limits);
+    #[cfg(verus_keep_ghost)]
+    proof! {
+        if let Err(error) = parsed_file_type {
+            crate::specs::part2_parse_container_cold_file_type_error(
+                input@, *limits, super::box_reference_view(file_type_box), super::box_reader_state(&reader), error);
+        }
+    }
+    let file_type = parsed_file_type?;
     validate_file_type_profile(&file_type, file_type_box.header.offset())?;
     if !file_type.is_compatible_with(BoxType::JP2_BRAND)
         && !file_type.is_jpx_compatible()
@@ -659,6 +682,7 @@ pub fn parse<'a>(input: &'a [u8], limits: &ResourceLimits) -> Result<Jp2File<'a>
                         compositing_layers@, &composition, metadata_boxes, metadata_depth, box_count),
                     super::file_type_view(&file_type), *limits),
                 expected == crate::specs::part2_parse_container(input@, *limits),
+                crate::specs::part2_parse_container_cold_result(input@, *limits, expected),
                 crate::specs::part2_container_prologue(input@, *limits)
                     == Ok((super::file_type_view(&file_type), prefix_reader)),
             ensures expected == crate::specs::part2_container_finish(
@@ -1029,8 +1053,11 @@ pub fn parse<'a>(input: &'a [u8], limits: &ResourceLimits) -> Result<Jp2File<'a>
 }
 
 #[cfg_attr(verus_keep_ghost, verus_spec(result =>
-    ensures super::file_type_outcome(result) == crate::specs::part2_parse_file_type(
-        super::box_reference_view(box_ref), crate::limits::resource_compatible_brand_limit(limits)),
+    ensures crate::specs::part2_file_type_cold_result(super::box_reference_view(box_ref),
+            crate::limits::resource_compatible_brand_limit(limits), super::file_type_outcome(result)),
+        super::file_type_outcome(result) != Err(DecodeError::AllocationFailed) ==>
+            super::file_type_outcome(result) == crate::specs::part2_parse_file_type(
+                super::box_reference_view(box_ref), crate::limits::resource_compatible_brand_limit(limits)),
 ))]
 pub(super) fn parse_file_type(
     box_ref: BoxRef<'_>,
@@ -1039,6 +1066,9 @@ pub(super) fn parse_file_type(
     #[cfg(verus_keep_ghost)]
     proof! {
         reveal(crate::specs::part2_parse_file_type);
+        reveal(crate::specs::part2_file_type_preflight);
+        crate::specs::part2_file_type_cold_normal(super::box_reference_view(box_ref),
+            crate::limits::resource_compatible_brand_limit(limits), Seq::empty());
         reveal(crate::specs::part2_file_type_brands_prefix);
     }
     let payload_offset = box_ref.header.payload_offset()?;
@@ -1075,7 +1105,18 @@ pub(super) fn parse_file_type(
         box_ref.payload[2],
         box_ref.payload[3],
     ]);
-    let mut compatible_brands: Vec<BoxType> = Vec::new();
+    let reserved = crate::allocation::inspection_values(
+        compatible_brand_count,
+        crate::allocation::InspectionCollection::FileTypeBrands,
+    );
+    #[cfg(verus_keep_ghost)]
+    proof! {
+        if let Err(error) = reserved {
+            crate::specs::part2_file_type_cold_refused(super::box_reference_view(box_ref),
+                crate::limits::resource_compatible_brand_limit(limits), payload_offset, compatible_brand_count, error);
+        }
+    }
+    let mut compatible_brands: Vec<BoxType> = reserved?;
     let mut position = 8_usize;
     #[cfg(verus_keep_ghost)]
     proof! { assert(compatible_brands@ =~= Seq::empty()); }
@@ -1084,6 +1125,13 @@ pub(super) fn parse_file_type(
         verus_spec(
             invariant position <= box_ref.payload.len(),
                 position >= 8,
+                compatible_brand_count == (box_ref.payload.len() - 8) / 4,
+                crate::specs::part2_file_type_preflight(super::box_reference_view(box_ref),
+                    crate::limits::resource_compatible_brand_limit(limits)) == Ok((payload_offset, compatible_brand_count)),
+                crate::specs::part2_file_type_cold_result(super::box_reference_view(box_ref),
+                    crate::limits::resource_compatible_brand_limit(limits),
+                    crate::specs::part2_parse_file_type(super::box_reference_view(box_ref),
+                        crate::limits::resource_compatible_brand_limit(limits))),
                 box_ref.payload.len() % 4 == 0, position % 4 == 0,
                 crate::specs::part2_box_payload_offset(super::box_header_view(box_ref.header)) == Ok(payload_offset),
                 ((box_ref.payload.len() - 8) / 4) as nat <= crate::limits::resource_compatible_brand_limit(limits),
@@ -1108,7 +1156,14 @@ pub(super) fn parse_file_type(
             verus_keep_ghost,
             verus_spec(
                 invariant prior <= compatible_brands.len(),
+                    crate::specs::part2_file_type_preflight(super::box_reference_view(box_ref),
+                        crate::limits::resource_compatible_brand_limit(limits)) == Ok((payload_offset, compatible_brand_count)),
+                    crate::specs::part2_file_type_cold_result(super::box_reference_view(box_ref),
+                        crate::limits::resource_compatible_brand_limit(limits),
+                        crate::specs::part2_parse_file_type(super::box_reference_view(box_ref),
+                            crate::limits::resource_compatible_brand_limit(limits))),
                     position >= 8, position < box_ref.payload.len(),
+                    compatible_brand_count == (box_ref.payload.len() - 8) / 4,
                     position % 4 == 0, box_ref.payload.len() % 4 == 0,
                     crate::specs::part2_box_payload_offset(super::box_header_view(box_ref.header)) == Ok(payload_offset),
                     ((box_ref.payload.len() - 8) / 4) as nat <= crate::limits::resource_compatible_brand_limit(limits),

@@ -2046,6 +2046,14 @@ Header-offset/length admission, brand-count limits and first duplicate-brand
 errors retain native priority. The JP2/JPX/JPH profile gate has a complete
 as-implemented Result, including exact error offsets.
 
+After offset/length/count checks, the known compatible-brand count is reserved
+through the existing fallible inspection-capacity helper. Empty lists make no
+request. The source-derived cold run retains its role/count, actual helper
+result and tail before ordered brand decoding; refusal is typed and normal
+results keep the complete prior byte/profile relation. This fixes the reached
+first allocator request, not the remaining full allocation surface. No
+physical-capacity axiom or allocator-availability assumption is introduced.
+
 The actual public `parse` uses the checked shared reader initializer. Its
 checked prefix relation covers input/reader/signature/file-type/profile/brand
 admission errors and preservation of the complete file-type value in any
@@ -2053,6 +2061,11 @@ successful returned file. This is intentionally a **prefix relation**, not a
 complete public container parsing Result: later headers, associations, layers,
 composition and terminal admission remain separate. No parsed-file/result bank
 or assumed successful parser is introduced.
+
+The bounded storage response composes through actual container inspection,
+JPX typed/color APIs and PDF dimension/common recovery runs. Non-refusal
+results retain the prior exact pure model; allocation errors require the
+reached, preflight-qualified request, not a blanket decoder error alternative.
 
 The primary-brand initializer and public parser reader initialization add
 explicit shared-producer call targets to the previously documented native
