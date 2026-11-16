@@ -26,6 +26,13 @@ requests, and other remaining storage sites under #287 are not thereby
 qualified. Managed logical refusals and actual allocator refusals are distinct
 controls. Standard physical capacity/availability is not a new Verus theorem.
 
+The next actual request2 (1216-byte codestream descriptor growth) is separately
+checked by `actual_container_stream_growth_refusal_preserves_borrowed_payloads_and_exact_retry`.
+First/later managed growth controls use17 borrowed streams; header/count errors
+still precede the growth request. The supplied real allocator/MSRV control now
+recovers exact pixels and first-ever inspection metadata after request2 as
+well. This is still not full #287 coverage or proof of physical growth policy.
+
 ### Incremental input profile
 
 Run `cargo test --lib --features incremental-input incremental::tests` and the

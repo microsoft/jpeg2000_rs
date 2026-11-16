@@ -210,7 +210,7 @@ pub(crate) open spec fn part2_parse_container_cold_run(
         Err(error) => Some((Err(error), events)),
         Ok((file_type_box, _)) => part2_jpip_snapshot_bind(
             part2_file_type_cold_run(file_type_box, crate::limits::resource_compatible_brand_limit(&limits), events),
-            |_: Part2FileType, rest| Some((part2_parse_container(input, limits), rest))),
+            |_: Part2FileType, rest| part2_parse_container_after_file_type_run(input, limits, rest)),
     }
 }
 
@@ -220,7 +220,8 @@ pub(crate) open spec fn part2_parse_container_cold_calls(
     match part2_container_file_type_prefix(input, limits) {
         Err(_) => Seq::empty(),
         Ok((file_type_box, _)) => part2_file_type_cold_calls(
-            file_type_box, crate::limits::resource_compatible_brand_limit(&limits)),
+            file_type_box, crate::limits::resource_compatible_brand_limit(&limits))
+            + part2_parse_container_after_file_type_calls(input, limits),
     }
 }
 
@@ -240,6 +241,15 @@ pub(crate) proof fn part2_parse_container_cold_frames(
     reveal(part2_parse_container_cold_result);
 }
 
+pub(crate) proof fn part2_parse_container_cold_observed(
+    input: Seq<u8>, limits: crate::ResourceLimits, result: Result<Part2RawJp2File, crate::DecodeError>,
+)
+    requires part2_cold_framed(|events| part2_parse_container_cold_run(input, limits, events), result),
+    ensures part2_parse_container_cold_result(input, limits, result),
+{
+    reveal(part2_parse_container_cold_result);
+}
+
 pub(crate) proof fn part2_parse_container_cold_normal(
     input: Seq<u8>, limits: crate::ResourceLimits, tail: Seq<Part2JpipSnapshotEvent>,
 )
@@ -254,14 +264,22 @@ pub(crate) proof fn part2_parse_container_cold_normal(
         Err(error) => { part2_cold_pure::<Part2RawJp2File>(Err(error)); },
         Ok((file_type_box, _)) => {
             let maximum = crate::limits::resource_compatible_brand_limit(&limits);
-            part2_file_type_cold_normal(file_type_box, maximum, tail);
+            let rest = part2_parse_container_after_file_type_calls(input, limits);
+            let continue_run = |_: Part2FileType, rest|
+                part2_parse_container_after_file_type_run(input, limits, rest);
+            part2_file_type_cold_normal(file_type_box, maximum, rest + tail);
             reveal(part2_file_type_cold_result);
-            if let Ok(_) = part2_parse_file_type(file_type_box, maximum) {
-                part2_cold_pure(part2_parse_container(input, limits));
+            if let Ok(value) = part2_parse_file_type(file_type_box, maximum) {
+                part2_parse_container_after_file_type_normal(input, limits, tail);
+                part2_cold_framed_extensional(
+                    |events| part2_parse_container_after_file_type_run(input, limits, events),
+                    |events| continue_run(value, events), part2_parse_container(input, limits));
             }
+            assert((part2_file_type_cold_calls(file_type_box, maximum) + rest) + tail
+                =~= part2_file_type_cold_calls(file_type_box, maximum) + (rest + tail));
             part2_cold_bind(
                 |events| part2_file_type_cold_run(file_type_box, maximum, events),
-                |_: Part2FileType, rest| Some((part2_parse_container(input, limits), rest)),
+                continue_run,
                 part2_parse_file_type(file_type_box, maximum), part2_parse_container(input, limits));
         },
     }
@@ -280,7 +298,27 @@ pub(crate) proof fn part2_parse_container_cold_file_type_error(
     let maximum = crate::limits::resource_compatible_brand_limit(&limits);
     part2_cold_bind(
         |events| part2_file_type_cold_run(file_type_box, maximum, events),
-        |_: Part2FileType, rest| Some((part2_parse_container(input, limits), rest)), Err(error), Err(error));
+        |_: Part2FileType, rest| part2_parse_container_after_file_type_run(input, limits, rest), Err(error), Err(error));
+}
+
+pub(crate) proof fn part2_parse_container_cold_start(
+    input: Seq<u8>, limits: crate::ResourceLimits, file_type: Part2FileType, reader: Part2BoxReaderState,
+) -> (prefix: Seq<Part2JpipSnapshotEvent>)
+    requires part2_container_prologue(input, limits) == Ok((file_type, reader)),
+    ensures forall|tail: Seq<Part2JpipSnapshotEvent>|
+        part2_parse_container_cold_run(input, limits, prefix + tail)
+            == part2_container_boxes_cold_run(input, reader, part2_container_initial_state(), file_type, limits, tail),
+{
+    reveal(part2_container_prologue);
+    let source = part2_container_file_type_prefix(input, limits)->Ok_0;
+    let maximum = crate::limits::resource_compatible_brand_limit(&limits);
+    let prefix = part2_file_type_cold_calls(source.0, maximum);
+    assert forall|tail: Seq<Part2JpipSnapshotEvent>|
+        part2_parse_container_cold_run(input, limits, prefix + tail)
+            == part2_container_boxes_cold_run(input, reader, part2_container_initial_state(), file_type, limits, tail) by {
+        part2_file_type_cold_normal(source.0, maximum, tail);
+    }
+    prefix
 }
 
 pub(crate) proof fn part2_file_type_brands_step(payload: Seq<u8>, offset: u64, count: nat)

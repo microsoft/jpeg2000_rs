@@ -2067,6 +2067,15 @@ JPX typed/color APIs and PDF dimension/common recovery runs. Non-refusal
 results retain the prior exact pure model; allocation errors require the
 reached, preflight-qualified request, not a blanket decoder error alternative.
 
+Codestream-descriptor growth additionally reserves one logical element only
+after the original header/count/profile checks. The cold box traversal binds
+each reached reservation to the actual reader, box and container state; its
+successful-prefix and refusal constructors retain the exact remaining tail.
+First and later native growth failures return typed errors without changing
+borrowed payloads. These are logical reservation records, not a claim that
+every call requires a physical allocation or a new capacity/availability
+theorem. The ordinary non-refusal traversal and terminal results are unchanged.
+
 The primary-brand initializer and public parser reader initialization add
 explicit shared-producer call targets to the previously documented native
 extraction differences. Their qualification must be exact and separate;

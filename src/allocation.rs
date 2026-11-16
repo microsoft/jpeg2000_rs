@@ -6,6 +6,7 @@ use vstd::prelude::*;
 #[cfg_attr(not(verus_keep_ghost), derive(Debug, Eq, PartialEq))]
 pub(crate) enum InspectionCollection {
     FileTypeBrands,
+    Codestreams,
     Infos(bool),
     Layers,
 }
@@ -54,6 +55,34 @@ fn reserve_additional<T>(values: &mut Vec<T>, additional: usize) -> Result<(), D
     };
     #[cfg(all(feature = "cooperative-deadlines", not(verus_keep_ghost)))]
     crate::deadline::checkpoint()?;
+    result
+}
+
+#[cfg_attr(verus_keep_ghost, verus_spec(result =>
+    ensures crate::specs::storage_reservation_result(old(values)@, final(values)@, result),
+        crate::specs::part2_inspection_capacity_result(_collection, additional, inspection_capacity_outcome(result)),
+))]
+pub(crate) fn inspection_reserve<T>(
+    values: &mut Vec<T>,
+    additional: usize,
+    _collection: InspectionCollection,
+) -> Result<(), DecodeError> {
+    let result = if additional == 0 {
+        Ok(())
+    } else {
+        reserve_additional(values, additional)
+    };
+    #[cfg(verus_keep_ghost)]
+    proof! {
+        match result {
+            Err(error) => {
+                crate::specs::part2_inspection_capacity_observed(_collection, additional, Err(error));
+            },
+            Ok(()) => {
+                crate::specs::part2_inspection_capacity_observed(_collection, additional, Ok(()));
+            },
+        }
+    }
     result
 }
 
