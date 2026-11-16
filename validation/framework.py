@@ -3211,6 +3211,8 @@ _RAW_CONTAINER_MODELS = {
         "part2_parse_container", "part2_container_boxes", "part2_container_step",
         "part2_container_finish", "part2_container_attach", "part2_container_initial_state",
         "part2_container_next_stream_count", "part2_container_error",
+        "part2_container_step_reserves", "part2_container_step_cold_run",
+        "part2_container_boxes_cold_run", "part2_parse_container_after_file_type_run",
     )
 } | {
     ("specs/jp2_file_type.rs", "part2_container_prologue"),
@@ -3223,7 +3225,10 @@ _RAW_CONTAINER_PROOFS = {
         "raw_codestream_association_view", "raw_jp2_header_view", "raw_composition_option",
         "raw_compositing_layers_view",
     )
-}
+} | {("specs/jp2_container.rs", name) for name in (
+    "part2_container_step_cold_normal", "part2_container_boxes_cold_normal",
+    "part2_parse_container_cold_advance", "part2_parse_container_stream_refused",
+)}
 _ASSOCIATION_CLONE_CONTRACTS = {
     ("src/jp2/clone_support.rs", "optional_jp2_header_clone"): (
         "part2_optional_jp2_header_clone", _coverage_call("super::optional_jp2_header_view", r"&\s*\1"), None,
@@ -11348,6 +11353,9 @@ def validate_normative_coverage(
                 "codestream_box.codestream_header = Some(association)",
                 "!codestream_headers.is_empty() && codestream_headers.len() != codestream_boxes.len()",
                 "validate_layer_references(&compositing_layers, codestream_boxes.len())?",
+                "let reserved = crate::allocation::inspection_reserve(&mut codestream_boxes, 1, crate::allocation::InspectionCollection::Codestreams,)",
+                "part2_parse_container_stream_refused(", "reserved?",
+                "part2_parse_container_cold_advance(",
                 "Jp2File { file_type, header, codestreams: codestream_boxes, compositing_layers, composition, metadata_boxes, metadata_depth, box_count, }",
             )
             if body is None or any("".join(item.split()) not in "".join(body.split()) for item in required):
@@ -11364,6 +11372,21 @@ def validate_normative_coverage(
                 "part2_container_finish": ("state.associations.len() != 0 && state.associations.len() != state.streams.len()", "part2_validate_layer_references(",
                     "streams: part2_container_attach(", "metadata_depth: state.metadata_depth", "box_count: state.box_count"),
                 "part2_parse_container": ("part2_container_prologue(input, limits)", "part2_container_initial_state()"),
+                "part2_container_step_reserves": (
+                    "input.0.0 == crate::jp2::BoxType::CONTIGUOUS_CODESTREAM",
+                    "part2_container_step(input, state, file_type, limits).is_ok()"),
+                "part2_container_step_cold_run": (
+                    "part2_container_step_reserves(input, state, file_type, limits)",
+                    "part2_inspection_capacity(crate::allocation::InspectionCollection::Codestreams, 1, events)",
+                    "Some((part2_container_step(input, state, file_type, limits), rest))"),
+                "part2_container_boxes_cold_run": (
+                    "part2_box_reader_next_ref(reader)",
+                    "next.1.position <= reader.position || next.1.position > input.len()",
+                    "part2_container_step_cold_run(box_ref, state, file_type, limits, events)",
+                    "part2_container_boxes_cold_run(input, next.1, updated, file_type, limits, rest)"),
+                "part2_parse_container_after_file_type_run": (
+                    "part2_container_prologue(input, limits)",
+                    "part2_container_boxes_cold_run(input, prefix.1, part2_container_initial_state(), prefix.0, limits, events)"),
             }.items():
                 actual = _coverage_spec_function_body(model, name)
                 if actual is None or any("".join(item.split()) not in "".join(actual.split()) for item in required):
@@ -11933,7 +11956,7 @@ def validate_normative_coverage(
                     "Some((part2_parse_file_type(input, maximum), rest))"),
                 "part2_parse_container_cold_run": ("part2_container_file_type_prefix(input, limits)",
                     "part2_file_type_cold_run(file_type_box, crate::limits::resource_compatible_brand_limit(&limits), events)",
-                    "Some((part2_parse_container(input, limits), rest))"),
+                    "part2_parse_container_after_file_type_run(input, limits, rest)"),
             }
             for name, fragments in handoffs.items():
                 actual = _coverage_spec_function_body(model, name)

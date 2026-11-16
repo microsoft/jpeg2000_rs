@@ -4247,6 +4247,8 @@ class FrameworkTests(WorkingFiles):
             ("let mut box_count = 2_u64", "let mut box_count = 3_u64"),
             ("metadata_depth = metadata_depth.max(depth)", "metadata_depth = depth"),
             ("codestream_box.codestream_header = Some(association)", "codestream_box.codestream_header = None"),
+            ("inspection_reserve(\n                &mut codestream_boxes,\n                1,", "inspection_reserve(\n                &mut codestream_boxes,\n                0,"),
+            ("part2_parse_container_stream_refused(", "unrelated_stream_refusal("),
         ):
             self.assertIn(before, original)
             changed = original.replace(before, after, 1)
@@ -4268,6 +4270,8 @@ class FrameworkTests(WorkingFiles):
             ("Some(part2_codestream_association_clone(associations[i]))", "None"),
             ("metadata_depth: state.metadata_depth", "metadata_depth: 0"),
             ("box_count: state.box_count", "box_count: 0"),
+            ("part2_container_step(input, state, file_type, limits).is_ok()", "true"),
+            ("part2_container_step_cold_run(box_ref, state, file_type, limits, events)", "part2_container_step_cold_run(box_ref, state, file_type, limits, events.drop_first())"),
         ):
             self.assertIn(before, original)
             changed = original.replace(before, after, 1)

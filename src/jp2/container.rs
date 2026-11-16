@@ -667,12 +667,17 @@ pub fn parse<'a>(input: &'a [u8], limits: &ResourceLimits) -> Result<Jp2File<'a>
     let mut metadata_depth = 0_u32;
     let mut box_count = 2_u64;
     #[cfg(verus_keep_ghost)]
-    proof_decl! { let ghost expected = crate::specs::part2_parse_container(input@, *limits); }
+    proof_decl! {
+        let ghost expected = crate::specs::part2_parse_container(input@, *limits);
+        let ghost mut storage_prefix: Seq<crate::specs::Part2JpipSnapshotEvent> = Seq::empty();
+    }
     #[cfg(verus_keep_ghost)]
     proof! {
         assert(super::raw_codestreams_view(codestream_boxes@) =~= Seq::<crate::specs::Part2RawCodestream>::empty());
         assert(super::raw_codestream_associations_view(codestream_headers@) =~= Seq::<crate::specs::Part2RawCodestreamAssociation>::empty());
         assert(super::raw_compositing_layers_view(compositing_layers@) =~= Seq::<crate::specs::Part2RawCompositingLayer>::empty());
+        storage_prefix = crate::specs::part2_parse_container_cold_start(
+            input@, *limits, super::file_type_view(&file_type), prefix_reader);
     }
     #[cfg_attr(
         verus_keep_ghost,
@@ -683,6 +688,12 @@ pub fn parse<'a>(input: &'a [u8], limits: &ResourceLimits) -> Result<Jp2File<'a>
                     super::file_type_view(&file_type), *limits),
                 expected == crate::specs::part2_parse_container(input@, *limits),
                 crate::specs::part2_parse_container_cold_result(input@, *limits, expected),
+                forall|tail: Seq<crate::specs::Part2JpipSnapshotEvent>|
+                    crate::specs::part2_parse_container_cold_run(input@, *limits, storage_prefix + tail)
+                        == crate::specs::part2_container_boxes_cold_run(input@, super::box_reader_state(&reader),
+                            super::raw_container_state(&parsed_header, codestream_boxes@, codestream_headers@,
+                                compositing_layers@, &composition, metadata_boxes, metadata_depth, box_count),
+                            super::file_type_view(&file_type), *limits, tail),
                 crate::specs::part2_container_prologue(input@, *limits)
                     == Ok((super::file_type_view(&file_type), prefix_reader)),
             ensures expected == crate::specs::part2_container_finish(
@@ -700,6 +711,7 @@ pub fn parse<'a>(input: &'a [u8], limits: &ResourceLimits) -> Result<Jp2File<'a>
         proof! { reveal(crate::specs::part2_container_boxes); reveal(crate::specs::part2_container_step); }
         #[cfg(verus_keep_ghost)]
         proof_decl! {
+            let ghost previous_reader = super::box_reader_state(&reader);
             let ghost previous_state = super::raw_container_state(&parsed_header, codestream_boxes@, codestream_headers@,
                 compositing_layers@, &composition, metadata_boxes, metadata_depth, box_count);
         }
@@ -889,6 +901,21 @@ pub fn parse<'a>(input: &'a [u8], limits: &ResourceLimits) -> Result<Jp2File<'a>
                     MalformedKind::InvalidBoxContents,
                 ));
             }
+            let reserved = crate::allocation::inspection_reserve(
+                &mut codestream_boxes,
+                1,
+                crate::allocation::InspectionCollection::Codestreams,
+            );
+            #[cfg(verus_keep_ghost)]
+            proof! {
+                if let Err(error) = reserved {
+                    crate::specs::part2_parse_container_stream_refused(
+                        input@, *limits, super::file_type_view(&file_type), storage_prefix,
+                        previous_reader, previous_state, super::box_reader_state(&reader),
+                        super::box_reference_view(box_ref), error);
+                }
+            }
+            reserved?;
             codestream_boxes.push(CodestreamBox {
                 header: box_ref.header,
                 data: box_ref.payload,
@@ -922,6 +949,11 @@ pub fn parse<'a>(input: &'a [u8], limits: &ResourceLimits) -> Result<Jp2File<'a>
                     super::file_type_view(&file_type), *limits)
                 == Ok(super::raw_container_state(&parsed_header, codestream_boxes@, codestream_headers@,
                     compositing_layers@, &composition, metadata_boxes, metadata_depth, box_count)));
+            storage_prefix = crate::specs::part2_parse_container_cold_advance(
+                input@, *limits, super::file_type_view(&file_type), storage_prefix,
+                previous_reader, previous_state, super::box_reader_state(&reader), super::box_reference_view(box_ref),
+                super::raw_container_state(&parsed_header, codestream_boxes@, codestream_headers@,
+                    compositing_layers@, &composition, metadata_boxes, metadata_depth, box_count));
         }
     }
 

@@ -5400,7 +5400,7 @@ fn packed_storage_raw_container_selected_and_reconstruction_refuse_only_after_pa
         Err(DecodeError::AllocationFailed)
     ));
     assert!(matches!(
-        crate::allocation::with_refusal(37, || decode_jp2(&jp2, &options)),
+        crate::allocation::with_refusal(38, || decode_jp2(&jp2, &options)),
         Err(DecodeError::AllocationFailed)
     ));
     let raw = decode_codestream(&bytes, &options).unwrap();
@@ -5479,7 +5479,7 @@ fn grid_storage_raw_selected_container_refusal_preserves_parse_and_restores() {
         Err(DecodeError::AllocationFailed)
     ));
     assert!(matches!(
-        crate::allocation::with_refusal(27, || decode_jp2(&jp2, &options)),
+        crate::allocation::with_refusal(28, || decode_jp2(&jp2, &options)),
         Err(DecodeError::AllocationFailed)
     ));
     let expected = decode_codestream(&bytes, &options).unwrap();
@@ -5858,7 +5858,7 @@ fn tile_metadata_storage_raw_selected_container_refusal_and_restore() {
         Err(DecodeError::AllocationFailed)
     ));
     assert!(matches!(
-        crate::allocation::with_refusal(24, || decode_jp2_selected(&jp2, &options, &selection)),
+        crate::allocation::with_refusal(25, || decode_jp2_selected(&jp2, &options, &selection)),
         Err(DecodeError::AllocationFailed)
     ));
     let expected = decode_codestream(&bytes, &options).unwrap();
@@ -6351,7 +6351,7 @@ fn tier1_initial_storage_public_raw_selected_container_roles_and_restore() {
         Err(DecodeError::AllocationFailed)
     ));
     assert!(matches!(
-        crate::allocation::with_refusal(32, || decode_jp2(&jp2, &options)),
+        crate::allocation::with_refusal(33, || decode_jp2(&jp2, &options)),
         Err(DecodeError::AllocationFailed)
     ));
     let expected = decode_codestream(&bytes, &options).unwrap();
@@ -9119,7 +9119,7 @@ fn quantization_output_storage_actual_ht_raw_selected_jph_reconstructed_and_auto
         DecodeError::AllocationFailed
     );
     assert_eq!(
-        crate::allocation::with_refusal(48, || decode_jph(&jph, &options)).unwrap_err(),
+        crate::allocation::with_refusal(49, || decode_jph(&jph, &options)).unwrap_err(),
         DecodeError::AllocationFailed
     );
     assert_eq!(
@@ -9197,7 +9197,7 @@ fn ht_cleanup_significance_storage_actual_raw_selected_jph_reconstruction_and_au
         DecodeError::AllocationFailed
     );
     assert_eq!(
-        crate::allocation::with_refusal(54, || decode_jph(&jph, &options)).unwrap_err(),
+        crate::allocation::with_refusal(55, || decode_jph(&jph, &options)).unwrap_err(),
         DecodeError::AllocationFailed
     );
     assert_eq!(
@@ -9274,7 +9274,7 @@ fn coefficient_extraction_storage_real_ht_raw_selected_jph_reconstruction_and_au
         DecodeError::AllocationFailed
     );
     assert_eq!(
-        crate::allocation::with_refusal(47, || decode_jph(&jph, &options)).unwrap_err(),
+        crate::allocation::with_refusal(48, || decode_jph(&jph, &options)).unwrap_err(),
         DecodeError::AllocationFailed
     );
     assert_eq!(
