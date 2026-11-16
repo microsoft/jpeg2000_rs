@@ -209,6 +209,7 @@ src/color/output.rs
 src/color/proof_support.rs
 src/color/tests.rs
 src/color.rs
+src/deadline.rs
 src/decode/api.rs
 src/decode/arithmetic.rs
 src/decode/code_blocks.rs

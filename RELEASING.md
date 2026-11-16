@@ -211,6 +211,22 @@ profile support, a global memory bound, an upstream `image` integration, or part
 of the decoder's Verus proof claim. Synthetic fixtures exercise API behavior,
 not official conformance.
 
+### Image companion package
+
+The source workspace also contains the separate
+[`jpeg2000-image`](adapters/image/README.md) companion. It uses the workspace
+decoder during development, whereas `cargo package -p jpeg2000-image --locked`
+verifies against its declared registry dependency. The
+[adapter workflow](.github/workflows/image-adapter.yml) tests both boundaries.
+This does not replace the narrower unpacked-decoder probe above.
+
+Both packages retain `publish = false`. Adding the companion does not authorize
+a registry name claim, version/tag, upload, or changes to the frozen release
+branch. Any companion publication needs its own exact-candidate authorization,
+including the decoder dependency version, package inventory, notices, supported
+profile and platform results. Its code and tests are outside the decoder's
+shipped package and Verus proof claim.
+
 ## Conformance evidence
 
 - Reconcile the selected standards editions with the specification inventory.

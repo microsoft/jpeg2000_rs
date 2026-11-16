@@ -518,9 +518,13 @@ impl TypedImage {
                 ));
             }
             validate_bytes(sample_count, 8, limits)?;
+            #[cfg(all(feature = "cooperative-deadlines", not(verus_keep_ghost)))]
+            crate::deadline::checkpoint()?;
             let mut output = Vec::with_capacity(sample_count);
             let mut sample_index = 0_usize;
             while sample_index < sample_count {
+                #[cfg(all(feature = "cooperative-deadlines", not(verus_keep_ghost)))]
+                crate::deadline::checkpoint_periodic(sample_index)?;
                 let source = match &component.samples {
                     TypedSamples::Signed(samples) => {
                         i128::from(*samples.get(sample_index).ok_or_else(invalid_image)?)

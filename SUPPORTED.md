@@ -4,6 +4,20 @@ This document describes implementation scope, not certification. JPEG 2000 is
 the ISO/IEC 15444 and corresponding ITU-T T.8xx standards family. It is not a
 single RFC, and this library does not implement every part of that family.
 
+## Build and runtime profiles
+
+| Profile | Selection | Qualification boundary |
+|---|---|---|
+| Default decoder | Default features; pinned verifier adds `verus` | Existing expressed contracts, explicit `--no-lifetime`, five documented Rust-only adapters; source-function coverage remains not measured |
+| Cooperative deadlines | Opt-in `cooperative-deadlines` | Real caller-selected clock/TLS scopes and named checkpoints, native/MSRV tests and finite latency observations; not included in pinned Verus qualification |
+| Combined proof/deadline profile | `verus_keep_ghost` with `cooperative-deadlines` | Explicitly rejected, not a successful receipt with clock behavior silently omitted |
+
+Enabling deadlines without installing an active scope retains ordinary decoder
+results. The feature supplies no arbitrary global timeout or cross-thread token.
+See [the API](src/deadline.rs) and [observations](validation/VALIDATION.md#cooperative-deadline-profile).
+Additional infallible allocations under #287 and uninstrumented/native/host
+intervals remain limitations; checkpoint counts are not a hard wall-clock bound.
+
 ## Conformance claim and evidence matrix
 
 The scope below freezes the implementation families being qualified; it does

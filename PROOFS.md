@@ -15,6 +15,28 @@ contracts and models. Exact run counts and source/tool hashes belong in fresh
 CI artifacts, not committed result snapshots. Independent model-to-standard
 review and official conformance testing remain separate.
 
+## Native-only cooperative deadline profile
+
+The optional `cooperative-deadlines` feature is **outside** this pinned proof
+profile. Its real `Instant`/thread-local scope and checkpoint effects are
+native/MSRV-tested; no mathematical clock, restoration, latency, lifetime or
+active-deadline decoder Result claim is made. The feature is off by default.
+The existing verifier command selects `verus` without cooperative deadlines and
+retains the strong default contracts and five existing Rust-only adapter
+boundaries. It does not claim verification of the optional profile.
+
+A combined `verus_keep_ghost`/`cooperative-deadlines` build fails explicitly.
+This prevents a successful proof receipt from silently dropping enabled clock
+checks. No blanket deadline alternative, caller availability premise, changed
+solver/pin/budget, trusted clock axiom or additional default-profile exclusion
+is used. A file being hashed or included in the archive is not evidence that
+every Cargo-feature branch in that file was verified.
+
+Use the [supported build profiles](SUPPORTED.md#build-and-runtime-profiles) and
+[native validation observations](validation/VALIDATION.md#cooperative-deadline-profile)
+when reporting this API. Native `--all-features` tests exercise it, but are not
+an all-feature Verus proof. Full source-function coverage remains `not-measured`.
+
 ## Fallible-storage foundation and remaining boundary
 
 [The storage helpers](src/allocation.rs) use the already-pinned vstd

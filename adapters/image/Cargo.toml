@@ -1,0 +1,19 @@
+[package]
+name = "jpeg2000-image"
+version = "0.1.0"
+edition = "2024"
+rust-version = "1.88"
+description = "External image crate adapter for jpeg2000-decoder"
+license = "MIT"
+repository = "https://github.com/microsoft/jpeg2000_rs"
+publish = false
+
+[dependencies]
+image = { version = "0.25.10", default-features = false }
+jpeg2000-decoder = { path = "../..", version = "=0.1.0", default-features = false }
+
+[lints.rust]
+unsafe_code = "forbid"
+
+[lints.clippy]
+all = "deny"

@@ -53,6 +53,8 @@ fn apply_component_transform(
         )
     )]
     while index < length {
+        #[cfg(all(feature = "cooperative-deadlines", not(verus_keep_ghost)))]
+        crate::deadline::checkpoint_periodic(index)?;
         match apply_component_pixel(image, index, irreversible) {
             Ok(()) => {}
             Err(error) => {

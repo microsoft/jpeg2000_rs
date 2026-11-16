@@ -520,6 +520,8 @@ pub(super) fn reconstruct_ht_cleanup_plane(
         decreases metadata.quads.len() - quad_index,
     ))]
     while quad_index < metadata.quads.len() {
+        #[cfg(all(feature = "cooperative-deadlines", not(verus_keep_ghost)))]
+        crate::deadline::checkpoint_periodic(quad_index)?;
         let quad = *metadata
             .quads
             .get(quad_index)

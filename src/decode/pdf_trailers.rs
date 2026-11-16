@@ -354,6 +354,8 @@ pub(super) fn decode_trailer_layout(
         decreases selection.tiles.len() - index,
     ))]
     while index < selection.tiles.len() {
+        #[cfg(all(feature = "cooperative-deadlines", not(verus_keep_ghost)))]
+        crate::deadline::checkpoint()?;
         #[cfg(verus_keep_ghost)]
         proof! {
             codestream::decoder_layout_input_fields(layout);
