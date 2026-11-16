@@ -497,11 +497,14 @@ pub(crate) use tag_tree::{tag_tree_from_dimensions, tag_tree_new};
 #[cfg_attr(verus_keep_ghost, verifier::verify)]
 mod tile;
 pub use tile::decode_progression_tile_packets;
-pub(crate) use tile::decode_progression_tile_packets_selected;
 #[cfg(test)]
 use tile::{
     account_progression_packet, prepare_progression_tile_input, progression_tile_progress_new,
     run_progression_tile_packets,
+};
+pub(crate) use tile::{
+    decode_progression_tile_packets_recover_trailer_selected,
+    decode_progression_tile_packets_selected,
 };
 
 #[cfg(test)]

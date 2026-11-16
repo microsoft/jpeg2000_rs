@@ -151,6 +151,52 @@ profile and resource checks remain, including limits on declared metadata.
 These APIs have no global recovery toggle, copy, retry or automatic EOC repair.
 They do not supply the separate deadline, absent-tile, MQ or trailer policies.
 
+### Common PDF recovery and inspection
+
+`decode_pdf_compatible(input, options, selection)` and
+`decode_pdf_reconstructed(input, options, selection)` compose the implemented
+policies in one explicit call for raw input or a single-codestream Part1 JP2:
+bounded missing-EOC repair, SIZ dimension authority, genuine sole-present-tile
+selection and cumulative terminal-trailer admission. JPX/JPH containers and
+Part15 codestreams are outside this facade; use their existing explicit APIs.
+
+The result carries `PdfRecovery` flags, exact trailer bytes, original/effective
+**codestream** byte counts, preflight/copy accounting and any full intended-canvas
+sample bound. Whole JP2 input limits are still enforced. A repair makes one
+fallible raw-codestream copy of length plus two after the accepted structural
+preflight; there is no failed-decode retry, input-prefix search or container rewrite.
+Component/precision/sign/BPCC checks and centered-output metadata guards remain.
+Missing canvas pixels are never synthesized.
+
+`inspect_pdf_compatible(input, options)` returns owned full-SIZ coding metadata
+under the same bounded container/EOC admission. It does not execute packets or
+entropy, select a crop, discard a trailer or promise a decoded image.
+Initial empty MQ contributions are still rejected (`empty_initial_mq_prefixes`
+is currently zero); cooperative deadlines, complete fallibility and raw/JP2
+feed/resume remain separate. Existing strict and individual recovery APIs are unchanged.
+These are final-input compatibility APIs, not `NeedMoreData` or streaming-pause detection.
+
+### Explicit bounded terminal-trailer recovery
+
+The four `*_recover_trailer_selected(input, options, selection)` APIs cover
+raw/JP2 input and typed/centered reconstruction output. After all scheduled
+packets and bodies complete, they may discard at most sixteen terminal bytes,
+cumulatively across the selected tiles in this call. Only a final tile part
+without packet-length tables or packed-header metadata anywhere in that tile is
+eligible. The report gives the exact `discarded_tile_trailer_bytes`.
+
+The completion scan resumes at the actual unclaimed suffix; packet headers,
+bodies and entropy are never retried. No earlier input prefix is searched,
+copied or trimmed. Genuine packet errors, strict container/profile checks,
+selection geometry and centered-output restrictions remain unchanged. The
+additional metadata scan obeys the existing work cap; existing decoder counters
+remain stage-local, not a new global work/allocation budget.
+
+This is explicit damaged-input policy, not normative JPEG 2000 padding or
+permitted whole-packet truncation support. Strict APIs still reject trailers.
+No shared mode or allowance state is installed. EOC, dimensions, missing tiles,
+MQ compatibility, cooperative deadlines and feed/resume remain separate.
+
 ### Explicit sole-present-tile recovery
 
 The `*_recover_present_tile_selected(input, options, selection)` APIs are

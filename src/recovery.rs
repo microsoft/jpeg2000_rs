@@ -197,7 +197,11 @@ pub fn decode_codestream_reconstructed_recover_missing_eoc(
 #[cfg_attr(verus_keep_ghost, verus_spec(result =>
     ensures result == crate::specs::raw_recovery_admit(input_bytes, work, limits),
 ))]
-fn admit_repair(input_bytes: usize, work: u64, limits: &ResourceLimits) -> Result<(), DecodeError> {
+pub(crate) fn admit_repair(
+    input_bytes: usize,
+    work: u64,
+    limits: &ResourceLimits,
+) -> Result<(), DecodeError> {
     let total = input_bytes
         .checked_add(2)
         .ok_or(DecodeError::MalformedInput {
@@ -230,7 +234,7 @@ fn admit_repair(input_bytes: usize, work: u64, limits: &ResourceLimits) -> Resul
 #[cfg_attr(verus_keep_ghost, verus_spec(result =>
     ensures crate::specs::raw_repair_result(input@, repair_outcome(result)),
 ))]
-fn append_eoc(input: &[u8]) -> Result<Vec<u8>, DecodeError> {
+pub(crate) fn append_eoc(input: &[u8]) -> Result<Vec<u8>, DecodeError> {
     let total = input
         .len()
         .checked_add(2)

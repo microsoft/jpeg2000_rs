@@ -1,6 +1,529 @@
 use super::*;
 
 #[test]
+fn pdf_common_recovers_raw_and_container_eoc_without_relaxing_other_errors() {
+    let options = DecodeOptions::default();
+    let selection = DecodeSelection::full_image();
+    let original = dimension_recovery_codestream();
+    let expected = decode_codestream(&original, &options).unwrap();
+    let centered =
+        decode_codestream_reconstructed_selected(&original, &options, &selection).unwrap();
+    let mut missing = original.clone();
+    let sot = missing
+        .windows(2)
+        .position(|pair| pair == [255, 144])
+        .unwrap();
+    missing[sot + 6..sot + 10].copy_from_slice(&0_u32.to_be_bytes());
+    missing.truncate(missing.len() - 2);
+    let container = jp2_for_codestream(&missing, 99, 1);
+    for (input, ignored) in [(&missing[..], false), (&container[..], true)] {
+        let typed = crate::decode_pdf_compatible(input, &options, &selection).unwrap();
+        assert_eq!(typed.image, expected);
+        assert!(typed.recovery.appended_eoc);
+        assert_eq!(typed.recovery.ignored_container_dimensions, ignored);
+        assert_eq!(
+            typed.recovery.original_codestream_bytes,
+            missing.len() as u64
+        );
+        assert_eq!(
+            typed.recovery.effective_codestream_bytes,
+            missing.len() as u64 + 2
+        );
+        assert_eq!(typed.recovery.repair_copy_bytes, missing.len() as u64 + 2);
+        let wide = crate::decode_pdf_reconstructed(input, &options, &selection).unwrap();
+        assert_eq!(wide.image, centered);
+        assert_eq!(wide.recovery, typed.recovery);
+        let info = crate::inspect_pdf_compatible(input, &options).unwrap();
+        assert_eq!((info.image_size.width, info.image_size.height), (1, 1));
+    }
+    assert!(decode_codestream(&missing, &options).is_err());
+    assert!(decode_jp2(&container, &options).is_err());
+    let mut finite = original.clone();
+    finite.truncate(finite.len() - 2);
+    assert!(crate::decode_pdf_compatible(&finite, &options, &selection).is_err());
+    let finite_container = jp2_for_codestream(&finite, 1, 1);
+    assert!(crate::inspect_pdf_compatible(&finite_container, &options).is_err());
+    let sod = original
+        .windows(2)
+        .position(|pair| pair == [255, 147])
+        .unwrap();
+    let mut broken = original[..sod + 3].to_vec();
+    broken.extend_from_slice(&[255, 217]);
+    let length = (broken.len() - 2 - sot) as u32;
+    broken[sot + 6..sot + 10].copy_from_slice(&length.to_be_bytes());
+    assert!(crate::inspect_pdf_compatible(&broken, &options).is_ok());
+    assert!(crate::decode_pdf_compatible(&broken, &options, &selection).is_err());
+    let limited = DecodeOptions::new(
+        ResourceLimits::HARDENED
+            .with_maximum_decoded_bytes(1)
+            .unwrap(),
+    );
+    assert!(matches!(
+        crate::decode_pdf_compatible(&missing, &limited, &selection),
+        Err(DecodeError::LimitExceeded {
+            resource: Resource::DecodedBytes,
+            ..
+        })
+    ));
+    let refused = crate::allocation::with_refusal(0, || {
+        crate::decode_pdf_compatible(&missing, &options, &selection)
+    });
+    assert_eq!(refused.unwrap_err(), DecodeError::AllocationFailed);
+    assert_eq!(
+        crate::decode_pdf_compatible(&missing, &options, &selection)
+            .unwrap()
+            .image,
+        expected
+    );
+}
+
+#[test]
+fn pdf_common_keeps_headroom_output_metadata_profiles_and_reduced_grids() {
+    let options = DecodeOptions::default();
+    let selection = DecodeSelection::full_image();
+    let mut fractional = prepared_codestream(1, 1, 0, &[0x42, 0x44, 0], &[0xcf, 0xb4, 0x04, 0x09]);
+    let cod = fractional
+        .windows(2)
+        .position(|pair| pair == [255, 82])
+        .unwrap();
+    fractional[cod + 9] = 0;
+    let bytes = with_terminal_trailer(fractional, 4, false);
+    let container = jp2_for_codestream(&bytes, 99, 1);
+    let wide = crate::decode_pdf_reconstructed(&container, &options, &selection).unwrap();
+    assert_eq!(
+        wide.image.component(0).unwrap().samples(),
+        &[-765 * (1 << 14)]
+    );
+    assert_eq!(wide.image.component(0).unwrap().fraction_bits(), 16);
+    assert!(wide.recovery.ignored_container_dimensions);
+    assert_eq!(wide.recovery.discarded_tile_trailer_bytes, 4);
+    let original = dimension_recovery_codestream();
+    let mapped = jp2_reconstruction_with_metadata(&original, &box32(*b"cmap", &[0, 0, 0, 0]));
+    assert_eq!(
+        crate::decode_pdf_compatible(&mapped, &options, &selection)
+            .unwrap()
+            .image,
+        decode_jp2(&mapped, &options).unwrap()
+    );
+    assert!(matches!(
+        crate::decode_pdf_reconstructed(&mapped, &options, &selection),
+        Err(DecodeError::UnsupportedFeature {
+            feature: "JP2 output transforms on reconstruction samples"
+        })
+    ));
+    let mut jpx = jp2_for_codestream(&original, 1, 1);
+    jpx.splice(12..32, box32(*b"ftyp", b"jpx \0\0\0\0jp2 jpx "));
+    assert!(decode_jp2(&jpx, &options).is_ok());
+    assert!(matches!(
+        crate::decode_pdf_compatible(&jpx, &options, &selection),
+        Err(DecodeError::MalformedInput {
+            kind: MalformedKind::InvalidProfile,
+            ..
+        })
+    ));
+    let reduced = prepared_codestream(
+        8,
+        8,
+        1,
+        &[0x40, 0x40, 0x48, 0x48, 0x50, 0x48, 0x48, 0x50],
+        &[0, 0, 0],
+    );
+    let damaged = with_terminal_trailer(reduced.clone(), 4, false);
+    let container = jp2_for_codestream(&damaged, 99, 77);
+    for selected in [
+        DecodeSelection::full_image().with_discard_levels(1),
+        DecodeSelection::full_image().with_discard_levels(2),
+        DecodeSelection::full_image().with_region(crate::ImageRegion::new(1, 1, 5, 5)),
+    ] {
+        let expected =
+            decode_codestream_reconstructed_selected(&reduced, &options, &selected).unwrap();
+        let actual = crate::decode_pdf_reconstructed(&container, &options, &selected).unwrap();
+        assert_eq!(actual.image, expected);
+        assert!(actual.recovery.ignored_container_dimensions);
+        assert_eq!(actual.recovery.discarded_tile_trailer_bytes, 4);
+    }
+}
+
+#[test]
+fn pdf_common_composes_dimension_tile_and_trailer_policies_with_genuine_geometry() {
+    let options = DecodeOptions::default();
+    let selection = DecodeSelection::full_image();
+    let mut bytes = terminal_trailer_codestream(4, false);
+    bytes[8..12].copy_from_slice(&2_u32.to_be_bytes());
+    let container = jp2_for_codestream(&bytes, 99, 1);
+    let recovered = crate::decode_pdf_compatible(&container, &options, &selection).unwrap();
+    assert_eq!((recovered.image.width(), recovered.image.height()), (1, 1));
+    assert_eq!(
+        recovered.image.component(0).unwrap().samples(),
+        &TypedSamples::Unsigned(vec![1])
+    );
+    assert!(!recovered.recovery.appended_eoc);
+    assert!(recovered.recovery.ignored_container_dimensions);
+    assert_eq!(recovered.recovery.selected_present_tile, Some(0));
+    assert_eq!(recovered.recovery.discarded_tile_trailer_bytes, 4);
+    assert_eq!(recovered.recovery.full_canvas_sample_bytes, Some(16));
+    let info = crate::inspect_pdf_compatible(&container, &options).unwrap();
+    assert_eq!((info.image_size.width, info.image_size.height), (2, 1));
+    let wide = crate::decode_pdf_reconstructed(&container, &options, &selection).unwrap();
+    assert_eq!(wide.image.typed(options.limits()).unwrap(), recovered.image);
+    assert_eq!(wide.recovery, recovered.recovery);
+    assert!(crate::decode_pdf_compatible(&container, &options, &DecodeSelection::tile(1)).is_err());
+    let limited = DecodeOptions::new(
+        ResourceLimits::HARDENED
+            .with_maximum_decoded_bytes(15)
+            .unwrap(),
+    );
+    assert!(matches!(
+        crate::decode_pdf_compatible(&container, &limited, &selection),
+        Err(DecodeError::LimitExceeded {
+            resource: Resource::DecodedBytes,
+            limit: 15,
+            actual: 16
+        })
+    ));
+    let mut bad = jp2_for_codestream(&bytes, 99, 1);
+    let ihdr = bad.windows(4).position(|part| part == b"ihdr").unwrap() + 4;
+    bad[ihdr + 8..ihdr + 10].copy_from_slice(&2_u16.to_be_bytes());
+    assert!(matches!(
+        crate::decode_pdf_compatible(&bad, &options, &selection),
+        Err(DecodeError::MalformedInput {
+            kind: MalformedKind::ContainerCodestreamMismatch,
+            ..
+        })
+    ));
+    assert!(decode_jp2(&container, &options).is_err());
+}
+
+fn with_terminal_trailer(mut bytes: Vec<u8>, count: usize, open_ended: bool) -> Vec<u8> {
+    let sot = bytes
+        .windows(2)
+        .position(|pair| pair == [255, 144])
+        .unwrap();
+    let psot = u32::from_be_bytes(bytes[sot + 6..sot + 10].try_into().unwrap());
+    let length = if open_ended { 0 } else { psot + count as u32 };
+    bytes[sot + 6..sot + 10].copy_from_slice(&length.to_be_bytes());
+    let end = bytes.len() - 2;
+    bytes.splice(end..end, std::iter::repeat_n(0xee, count));
+    bytes
+}
+
+fn terminal_trailer_codestream(count: usize, open_ended: bool) -> Vec<u8> {
+    with_terminal_trailer(dimension_recovery_codestream(), count, open_ended)
+}
+
+#[test]
+fn pdf_trailer_preserves_selected_geometry_reduction_and_fractional_headroom() {
+    let options = DecodeOptions::default();
+    let original = prepared_codestream(
+        8,
+        8,
+        1,
+        &[0x40, 0x40, 0x48, 0x48, 0x50, 0x48, 0x48, 0x50],
+        &[0, 0, 0],
+    );
+    let bytes = with_terminal_trailer(original.clone(), 4, false);
+    for selection in [
+        DecodeSelection::full_image().with_discard_levels(1),
+        DecodeSelection::full_image().with_discard_levels(2),
+        DecodeSelection::full_image().with_region(crate::ImageRegion::new(1, 1, 5, 5)),
+    ] {
+        let expected =
+            decode_codestream_reconstructed_selected(&original, &options, &selection).unwrap();
+        let wide = crate::decode_codestream_reconstructed_recover_trailer_selected(
+            &bytes, &options, &selection,
+        )
+        .unwrap();
+        assert_eq!(wide.image, expected);
+        assert_eq!(wide.report.discarded_tile_trailer_bytes, 4);
+        let typed = crate::decode_codestream_recover_trailer_selected(&bytes, &options, &selection)
+            .unwrap();
+        assert_eq!(typed.image, expected.typed(options.limits()).unwrap());
+        let jp2 = jp2_for_codestream(&bytes, 8, 8);
+        assert_eq!(
+            crate::decode_jp2_reconstructed_recover_trailer_selected(&jp2, &options, &selection)
+                .unwrap(),
+            wide
+        );
+    }
+    let mut fractional = prepared_codestream(1, 1, 0, &[0x42, 0x44, 0], &[0xcf, 0xb4, 0x04, 0x09]);
+    let cod = fractional
+        .windows(2)
+        .position(|pair| pair == [255, 82])
+        .unwrap();
+    fractional[cod + 9] = 0;
+    let bytes = with_terminal_trailer(fractional, 4, false);
+    let wide = crate::decode_codestream_reconstructed_recover_trailer_selected(
+        &bytes,
+        &options,
+        &DecodeSelection::full_image(),
+    )
+    .unwrap();
+    assert_eq!(
+        wide.image.component(0).unwrap().samples(),
+        &[-765 * (1 << 14)]
+    );
+    assert_eq!(wide.image.component(0).unwrap().fraction_bits(), 16);
+}
+
+#[test]
+fn pdf_trailer_bounds_complete_packets_and_preserves_all_output_domains() {
+    let options = DecodeOptions::default();
+    let selection = DecodeSelection::full_image();
+    let original = dimension_recovery_codestream();
+    let expected = decode_codestream(&original, &options).unwrap();
+    let wide = decode_codestream_reconstructed_selected(&original, &options, &selection).unwrap();
+    for open in [false, true] {
+        for count in [0, 1, 4, 16] {
+            let bytes = terminal_trailer_codestream(count, open);
+            if count > 0 {
+                assert!(matches!(
+                    decode_codestream(&bytes, &options),
+                    Err(DecodeError::MalformedInput {
+                        kind: MalformedKind::TrailingData,
+                        ..
+                    })
+                ));
+            }
+            let recovered =
+                crate::decode_codestream_recover_trailer_selected(&bytes, &options, &selection)
+                    .unwrap();
+            assert_eq!(recovered.image, expected);
+            assert_eq!(recovered.report.discarded_tile_trailer_bytes, count as u8);
+            let reconstructed = crate::decode_codestream_reconstructed_recover_trailer_selected(
+                &bytes, &options, &selection,
+            )
+            .unwrap();
+            assert_eq!(reconstructed.image, wide);
+            assert_eq!(reconstructed.report, recovered.report);
+            let container = jp2_for_codestream(&bytes, 1, 1);
+            assert_eq!(
+                crate::decode_jp2_recover_trailer_selected(&container, &options, &selection)
+                    .unwrap(),
+                recovered
+            );
+            assert_eq!(
+                crate::decode_jp2_reconstructed_recover_trailer_selected(
+                    &container, &options, &selection
+                )
+                .unwrap(),
+                reconstructed
+            );
+        }
+        let bytes = terminal_trailer_codestream(17, open);
+        let container = jp2_for_codestream(&bytes, 1, 1);
+        for error in [
+            crate::decode_codestream_recover_trailer_selected(&bytes, &options, &selection)
+                .unwrap_err(),
+            crate::decode_codestream_reconstructed_recover_trailer_selected(
+                &bytes, &options, &selection,
+            )
+            .unwrap_err(),
+            crate::decode_jp2_recover_trailer_selected(&container, &options, &selection)
+                .unwrap_err(),
+            crate::decode_jp2_reconstructed_recover_trailer_selected(
+                &container, &options, &selection,
+            )
+            .unwrap_err(),
+        ] {
+            assert!(matches!(
+                error,
+                DecodeError::MalformedInput {
+                    kind: MalformedKind::TrailingData,
+                    ..
+                }
+            ));
+        }
+    }
+}
+
+#[test]
+fn pdf_trailer_requires_complete_bodies_final_parts_and_absent_length_metadata() {
+    fn update_length(bytes: &mut [u8]) {
+        let sot = bytes
+            .windows(2)
+            .position(|pair| pair == [255, 144])
+            .unwrap();
+        let length = (bytes.len() - 2 - sot) as u32;
+        bytes[sot + 6..sot + 10].copy_from_slice(&length.to_be_bytes());
+    }
+
+    fn append_final(mut bytes: Vec<u8>, count: usize) -> Vec<u8> {
+        let sot = bytes
+            .windows(2)
+            .position(|pair| pair == [255, 144])
+            .unwrap();
+        bytes[sot + 11] = 2;
+        bytes.truncate(bytes.len() - 2);
+        let mut header = vec![0, 0];
+        header.extend_from_slice(&(14 + count as u32).to_be_bytes());
+        header.extend_from_slice(&[1, 2]);
+        bytes.extend(segment(0xff90, &header));
+        bytes.extend_from_slice(&[255, 147]);
+        bytes.extend(std::iter::repeat_n(0xee, count));
+        bytes.extend_from_slice(&[255, 217]);
+        bytes
+    }
+
+    let options = DecodeOptions::default();
+    let selection = DecodeSelection::full_image();
+    let original = dimension_recovery_codestream();
+    let expected = decode_codestream(&original, &options).unwrap();
+    let layout = codestream::parse_layout(&original, options.limits()).unwrap();
+    let first = &layout.tile_parts[0];
+    let mut plan = plan_progression_tile(
+        &layout.info.image_size,
+        first.coding_style,
+        &first.quantization,
+        options.limits(),
+    )
+    .unwrap();
+    let (grid, precincts) = plan.packet_execution();
+    let packet = crate::packet::decode_progression_tile_packets(
+        &layout.tile_parts,
+        grid,
+        precincts,
+        options.limits(),
+    )
+    .unwrap();
+    assert_eq!(packet.packets, 1);
+    let header_bytes = packet.packet_header_bytes as usize;
+    assert!(0 < header_bytes && header_bytes < first.data.len());
+    let sod = original
+        .windows(2)
+        .position(|pair| pair == [255, 147])
+        .unwrap();
+
+    let mut plt = original.clone();
+    plt.splice(sod..sod, segment(0xff58, &[0, first.data.len() as u8]));
+    update_length(&mut plt);
+    assert_eq!(decode_codestream(&plt, &options).unwrap(), expected);
+    let mut packed = vec![0];
+    packed.extend_from_slice(&first.data[..header_bytes]);
+    let mut ppt = original[..sod].to_vec();
+    ppt.extend(segment(0xff61, &packed));
+    ppt.extend_from_slice(&[255, 147]);
+    ppt.extend_from_slice(&first.data[header_bytes..]);
+    ppt.extend_from_slice(&[255, 217]);
+    update_length(&mut ppt);
+    assert_eq!(decode_codestream(&ppt, &options).unwrap(), expected);
+    for mut bytes in [plt, ppt] {
+        let end = bytes.len() - 2;
+        bytes.splice(end..end, [0xee; 4]);
+        update_length(&mut bytes);
+        assert_eq!(
+            crate::decode_codestream_recover_trailer_selected(&bytes, &options, &selection)
+                .unwrap_err(),
+            decode_codestream(&bytes, &options).unwrap_err()
+        );
+    }
+
+    for kept in [1, first.data.len() - 1] {
+        let mut bytes = original[..sod + 2 + kept].to_vec();
+        bytes.extend_from_slice(&[255, 217]);
+        update_length(&mut bytes);
+        let error = decode_codestream(&bytes, &options).unwrap_err();
+        assert_eq!(
+            crate::decode_codestream_recover_trailer_selected(&bytes, &options, &selection)
+                .unwrap_err(),
+            error,
+        );
+    }
+    let intact = append_final(original, 0);
+    assert_eq!(decode_codestream(&intact, &options).unwrap(), expected);
+    let final_trailer = append_final(dimension_recovery_codestream(), 4);
+    let recovered =
+        crate::decode_codestream_recover_trailer_selected(&final_trailer, &options, &selection)
+            .unwrap();
+    assert_eq!(recovered.image, expected);
+    assert_eq!(recovered.report.discarded_tile_trailer_bytes, 4);
+    let nonfinal = append_final(terminal_trailer_codestream(4, false), 0);
+    assert!(matches!(
+        crate::decode_codestream_recover_trailer_selected(&nonfinal, &options, &selection),
+        Err(DecodeError::MalformedInput {
+            kind: MalformedKind::TrailingData,
+            ..
+        })
+    ));
+}
+
+#[test]
+fn pdf_trailer_allowance_is_cumulative_and_does_not_change_other_calls() {
+    let options = DecodeOptions::default();
+    let selection = DecodeSelection::full_image();
+    for (second_count, admitted) in [(8, true), (9, false)] {
+        let mut bytes = terminal_trailer_codestream(8, false);
+        let second = terminal_trailer_codestream(second_count, false);
+        let sot = second
+            .windows(2)
+            .position(|pair| pair == [255, 144])
+            .unwrap();
+        let mut part = second[sot..second.len() - 2].to_vec();
+        part[4..6].copy_from_slice(&1_u16.to_be_bytes());
+        bytes.truncate(bytes.len() - 2);
+        bytes.extend_from_slice(&part);
+        bytes.extend_from_slice(&[255, 217]);
+        bytes[8..12].copy_from_slice(&2_u32.to_be_bytes());
+        let result =
+            crate::decode_codestream_recover_trailer_selected(&bytes, &options, &selection);
+        if admitted {
+            let recovered = result.unwrap();
+            assert_eq!(recovered.report.discarded_tile_trailer_bytes, 16);
+            assert_eq!((recovered.image.width(), recovered.image.height()), (2, 1));
+            assert_eq!(
+                recovered.image.component(0).unwrap().samples(),
+                &TypedSamples::Unsigned(vec![1, 1])
+            );
+            let tile = crate::decode_codestream_recover_trailer_selected(
+                &bytes,
+                &options,
+                &DecodeSelection::tile(1),
+            )
+            .unwrap();
+            assert_eq!(tile.report.discarded_tile_trailer_bytes, 8);
+            assert_eq!((tile.image.width(), tile.image.x_origin()), (1, 1));
+        } else {
+            assert!(matches!(
+                result,
+                Err(DecodeError::MalformedInput {
+                    kind: MalformedKind::TrailingData,
+                    ..
+                })
+            ));
+        }
+    }
+    let bytes = terminal_trailer_codestream(4, false);
+    let limited = DecodeOptions::new(
+        ResourceLimits::HARDENED
+            .with_maximum_decoded_bytes(1)
+            .unwrap(),
+    );
+    assert!(matches!(
+        crate::decode_codestream_recover_trailer_selected(&bytes, &limited, &selection),
+        Err(DecodeError::LimitExceeded {
+            resource: Resource::DecodedBytes,
+            ..
+        })
+    ));
+    let expected =
+        crate::decode_codestream_recover_trailer_selected(&bytes, &options, &selection).unwrap();
+    let refused = crate::allocation::with_refusal(0, || {
+        crate::decode_codestream_recover_trailer_selected(&bytes, &options, &selection)
+    });
+    assert_eq!(refused.unwrap_err(), DecodeError::AllocationFailed);
+    assert_eq!(
+        crate::decode_codestream_recover_trailer_selected(&bytes, &options, &selection).unwrap(),
+        expected
+    );
+    assert!(matches!(
+        decode_codestream(&bytes, &options),
+        Err(DecodeError::MalformedInput {
+            kind: MalformedKind::TrailingData,
+            ..
+        })
+    ));
+}
+
+#[test]
 fn selected_jp2_reconstruction_preserves_headroom_geometry_and_strict_coverage() {
     let options = DecodeOptions::default();
     let mut fractional = prepared_codestream(1, 1, 0, &[0x42, 0x44, 0], &[0xcf, 0xb4, 0x04, 0x09]);
