@@ -1197,7 +1197,7 @@ fn fresh_inspection_collection_and_later_stream_restore_prior_owner_order() {
     );
     let limits = ResourceLimits::default();
     let expected = parse_and_inspect(&bytes, &limits).unwrap();
-    for after in [2, 14] {
+    for after in [2, 15] {
         assert_eq!(
             crate::allocation::with_refusal(after, || parse_and_inspect(&bytes, &limits)).err(),
             Some(DecodeError::AllocationFailed)
@@ -1220,7 +1220,7 @@ fn fresh_inspection_collection_and_later_stream_restore_prior_owner_order() {
         &[image_header_box(64, 32), image_header_box(17, 9)],
     );
     let ordinary = parse_and_inspect(&later, &limits).unwrap_err();
-    crate::allocation::with_refusal(14, || {
+    crate::allocation::with_refusal(15, || {
         assert_eq!(parse_and_inspect(&later, &limits).unwrap_err(), ordinary);
         assert_eq!(
             crate::allocation::copy_values(&[1_u8]),
@@ -1245,7 +1245,7 @@ fn fresh_inspection_display_count_skips_unselected_stream_and_restores() {
         .err(),
         Some(DecodeError::AllocationFailed)
     );
-    crate::allocation::with_refusal(14, || {
+    crate::allocation::with_refusal(15, || {
         let restored = super::container::parse_and_inspect_for_display(&bytes, &limits).unwrap();
         assert_eq!(restored.codestreams(), expected.codestreams());
         assert_eq!(restored.file().codestream_count(), 2);

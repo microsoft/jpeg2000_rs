@@ -37,6 +37,33 @@ pub(crate) open spec fn part1_cold_commit_state(
     }
 }
 
+pub(crate) open spec fn part1_cold_commit_payload(
+    state: Part1PersistentTileState, commit: Part1PersistentTileCommit, events: Seq<Part1ColdStorageEvent>,
+) -> Option<((Result<(), crate::DecodeError>, Part1PersistentTileState), Seq<Part1ColdStorageEvent>)> {
+    match part1_cold_commit_state(state, commit, events) {
+        None => None,
+        Some((committed, rest)) => match committed.0 {
+            Err(_) => Some((committed, rest)),
+            Ok(()) => match part1_quantization_storage_request(16, 1, rest) {
+                None => None,
+                Some((Ok(()), tail)) => Some((committed, tail)),
+                Some((Err(error), tail)) => Some(((Err(error),
+                    (committed.1.0, committed.1.1, committed.1.2, state.3)), tail)),
+            },
+        },
+    }
+}
+
+pub(crate) open spec fn part1_cold_commit_payload_normal_calls(
+    state: Part1PersistentTileState, commit: Part1PersistentTileCommit,
+) -> Seq<Part1ColdStorageEvent> {
+    part1_commit_quantization_normal_calls(commit.position, commit.start, commit.index,
+        state.3.len() as usize, commit.previous_roi, commit.payload, state.0)
+        + if part1_commit_persistent_tile_state(state, commit).0.is_ok() {
+            seq![Part1ColdStorageEvent { site: 16, elements: 1, succeeded: true }]
+        } else { Seq::empty() }
+}
+
 pub(crate) open spec fn part1_cold_layout_read_input<'a>(
     reader: Part1CodestreamReader<'a>, main: Part1MainHeader<'a>,
     state: Part1PersistentTileState, tile: (usize, u32, u16, u8, u8),
@@ -69,7 +96,7 @@ pub(crate) open spec fn part1_cold_layout_after_extensions_copy<'a>(
         Some(((result, after), rest)) => match result {
             Err(error) => Some(((Err(error), after, tile_parts, state), rest)),
             Ok((payload, parameters, extensions)) => {
-                match part1_cold_commit_state(state, Part1PersistentTileCommit {
+                match part1_cold_commit_payload(state, Part1PersistentTileCommit {
                     position: after.position, start: tile.0, index, previous_roi: selected.0, payload,
                     parameters: (parameters.arrays, parameters.records, parameters.order), extensions,
                 }, rest) {
@@ -293,6 +320,28 @@ pub(crate) proof fn part1_cold_commit_normal(
         state.3.len() as usize, commit.previous_roi, commit.payload, state.0);
 }
 
+pub(crate) proof fn part1_cold_commit_payload_normal(
+    state: Part1PersistentTileState, commit: Part1PersistentTileCommit,
+)
+    ensures forall|tail: Seq<Part1ColdStorageEvent>|
+        part1_cold_commit_payload(state, commit, part1_cold_commit_payload_normal_calls(state, commit) + tail)
+            == Some((part1_commit_persistent_tile_state(state, commit), tail)),
+{
+    part1_cold_commit_normal(state, commit);
+    let before = part1_commit_quantization_normal_calls(commit.position, commit.start, commit.index,
+        state.3.len() as usize, commit.previous_roi, commit.payload, state.0);
+    let reserved = if part1_commit_persistent_tile_state(state, commit).0.is_ok() {
+        seq![Part1ColdStorageEvent { site: 16, elements: 1, succeeded: true }]
+    } else { Seq::empty() };
+    assert forall|tail: Seq<Part1ColdStorageEvent>|
+        part1_cold_commit_payload(state, commit, (before + reserved) + tail)
+            == Some((part1_commit_persistent_tile_state(state, commit), tail)) by {
+        assert((before + reserved) + tail =~= before + (reserved + tail));
+        if reserved.len() > 0 { assert((reserved + tail).drop_first() =~= tail); }
+        else { assert(reserved + tail =~= tail); }
+    }
+}
+
 pub(crate) proof fn part1_cold_layout_after_extensions_normal<'a>(
     reader: Part1CodestreamReader<'a>, main: Part1MainHeader<'a>, tile_parts: u32,
     state: Part1PersistentTileState, tile: (usize, u32, u16, u8, u8),
@@ -322,9 +371,8 @@ pub(crate) proof fn part1_cold_layout_after_extensions_normal<'a>(
                 position: normal.1.position, start: tile.0, index, previous_roi: selected.0, payload,
                 parameters: (parameters.arrays, parameters.records, parameters.order), extensions,
             };
-            part1_cold_commit_normal(state, commit);
-            part1_commit_quantization_normal_calls(commit.position, commit.start, commit.index,
-                state.3.len() as usize, commit.previous_roi, commit.payload, state.0)
+            part1_cold_commit_payload_normal(state, commit);
+            part1_cold_commit_payload_normal_calls(state, commit)
         },
     };
     let calls = read_calls + committed;
@@ -342,7 +390,7 @@ pub(crate) proof fn part1_cold_layout_after_extensions_normal<'a>(
                     position: normal.1.position, start: tile.0, index, previous_roi: selected.0, payload,
                     parameters: (parameters.arrays, parameters.records, parameters.order), extensions,
                 };
-                assert(part1_cold_commit_state(state, commit, committed + tail)
+                assert(part1_cold_commit_payload(state, commit, committed + tail)
                     == Some((part1_commit_persistent_tile_state(state, commit), tail)));
             },
         }
@@ -551,6 +599,20 @@ pub(crate) proof fn part1_cold_commit_projection(
     }
 }
 
+pub(crate) proof fn part1_cold_commit_payload_projection(
+    state: Part1PersistentTileState, commit: Part1PersistentTileCommit,
+    events: Seq<Part1ColdStorageEvent>, result: (Result<(), crate::DecodeError>, Part1PersistentTileState),
+    rest: Seq<Part1ColdStorageEvent>,
+)
+    requires part1_cold_commit_payload(state, commit, events) == Some((result, rest)),
+        result.0 != Err(crate::DecodeError::AllocationFailed),
+    ensures result == part1_commit_persistent_tile_state(state, commit),
+{
+    if let Some((committed, after)) = part1_cold_commit_state(state, commit, events) {
+        part1_cold_commit_projection(state, commit, events, committed, after);
+    }
+}
+
 pub(crate) proof fn part1_cold_layout_inherited_projection<'a>(
     reader: Part1CodestreamReader<'a>, main: Part1MainHeader<'a>, tile_parts: u32,
     state: Part1PersistentTileState, tile: (usize, u32, u16, u8, u8),
@@ -592,8 +654,8 @@ pub(crate) proof fn part1_cold_layout_inherited_projection<'a>(
                     position: read.1.position, start: tile.0, index, previous_roi: selected.0, payload,
                     parameters: (parameters.arrays, parameters.records, parameters.order), extensions,
                 };
-                if let Some((committed, after)) = part1_cold_commit_state(state, commit, after_read) {
-                    part1_cold_commit_projection(state, commit, after_read, committed, after);
+                if let Some((committed, after)) = part1_cold_commit_payload(state, commit, after_read) {
+                    part1_cold_commit_payload_projection(state, commit, after_read, committed, after);
                 }
             }
         }
@@ -693,6 +755,22 @@ pub(crate) proof fn part1_cold_commit_frame(
     }
 }
 
+pub(crate) proof fn part1_cold_commit_payload_frame(
+    state: Part1PersistentTileState, commit: Part1PersistentTileCommit,
+    events: Seq<Part1ColdStorageEvent>, result: (Result<(), crate::DecodeError>, Part1PersistentTileState),
+    rest: Seq<Part1ColdStorageEvent>, tail: Seq<Part1ColdStorageEvent>,
+)
+    requires part1_cold_commit_payload(state, commit, events) == Some((result, rest)),
+    ensures part1_cold_commit_payload(state, commit, events + tail) == Some((result, rest + tail)),
+{
+    if let Some((committed, after)) = part1_cold_commit_state(state, commit, events) {
+        part1_cold_commit_frame(state, commit, events, committed, after, tail);
+        if committed.0.is_ok() {
+            assert((after + tail).drop_first() =~= after.drop_first() + tail);
+        }
+    }
+}
+
 pub(crate) proof fn part1_cold_layout_after_extensions_frame<'a>(
     reader: Part1CodestreamReader<'a>, main: Part1MainHeader<'a>, tile_parts: u32,
     state: Part1PersistentTileState, tile: (usize, u32, u16, u8, u8),
@@ -714,8 +792,8 @@ pub(crate) proof fn part1_cold_layout_after_extensions_frame<'a>(
                 position: read.1.position, start: tile.0, index: tile.2 as usize, previous_roi: selected.0, payload,
                 parameters: (parameters.arrays, parameters.records, parameters.order), extensions,
             };
-            if let Some((committed, after)) = part1_cold_commit_state(state, commit, after_read) {
-                part1_cold_commit_frame(state, commit, after_read, committed, after, tail);
+            if let Some((committed, after)) = part1_cold_commit_payload(state, commit, after_read) {
+                part1_cold_commit_payload_frame(state, commit, after_read, committed, after, tail);
             }
         }
     }

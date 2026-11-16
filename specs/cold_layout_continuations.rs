@@ -193,9 +193,12 @@ pub(crate) open spec fn part1_cold_layout_sot_commit_rejected(
     commit_calls: Seq<Part1ColdStorageEvent>, error: crate::DecodeError,
 ) -> bool {
     match part1_cold_tile_part_run(part1_cold_layout_sot_input(ctx), read_calls) {
-        Some(((Ok((payload, _, _)), reader), rest)) => rest.len() == 0 &&
-            match part1_commit_quantization_cold_run(reader.position, ctx.tile.0, ctx.tile.2 as usize,
-                ctx.root.state.3.len() as usize, ctx.selected.0, payload, ctx.root.state.0, commit_calls) {
+        Some(((Ok((payload, parameters, extensions)), reader), rest)) => rest.len() == 0 &&
+            match part1_cold_commit_payload(ctx.root.state, Part1PersistentTileCommit {
+                position: reader.position, start: ctx.tile.0, index: ctx.tile.2 as usize,
+                previous_roi: ctx.selected.0, payload,
+                parameters: (parameters.arrays, parameters.records, parameters.order), extensions,
+            }, commit_calls) {
                 Some(((Err(actual), _), tail)) => actual == error && tail.len() == 0,
                 _ => false,
             },
@@ -217,8 +220,6 @@ pub(crate) proof fn part1_cold_layout_sot_commit_error(
     reveal(part1_cold_layout_tile_part);
     reveal(part1_cold_layout_inherited);
     reveal(part1_cold_layout_after_inherited_copy);
-    reveal(part1_cold_commit_state);
-    reveal(part1_cold_commit_finish);
     let quantization = part1_cold_layout_sot_copy(ctx, true);
     let progression = part1_cold_layout_sot_progression_copy(ctx, true);
     let mct_calls = part1_cold_layout_sot_mct_calls(ctx);
@@ -247,18 +248,15 @@ pub(crate) proof fn part1_cold_layout_sot_commit_error(
             previous_roi: ctx.selected.0, payload,
             parameters: (parameters.arrays, parameters.records, parameters.order), extensions,
         };
-        let configured = part1_commit_quantization_cold_run(commit.position, commit.start, commit.index,
-            ctx.root.state.3.len() as usize, commit.previous_roi, commit.payload, ctx.root.state.0, commit_calls);
-        assert(configured.is_some());
-        let (updated, after) = configured.unwrap();
+        let committed = part1_cold_commit_payload(ctx.root.state, commit, commit_calls);
+        assert(committed.is_some());
+        let (updated, after) = committed.unwrap();
         assert(updated.0 == Err(error));
         assert(after =~= Seq::<Part1ColdStorageEvent>::empty());
-        assert(part1_cold_commit_state(ctx.root.state, commit, commit_calls)
-            == Some(((Err(error), (updated.1, ctx.root.state.1, ctx.root.state.2, ctx.root.state.3)), Seq::empty())));
         assert(part1_cold_layout_after_extensions_copy(ctx.reader, ctx.root.main, (ctx.root.parts + 1) as u32,
             ctx.root.state, ctx.tile, ctx.lengths, ctx.headers, ctx.selected, read_calls + commit_calls)
                 == Some(((Err(error), result.1, (ctx.root.parts + 1) as u32,
-                    (updated.1, ctx.root.state.1, ctx.root.state.2, ctx.root.state.3)), Seq::empty())));
+                    updated.1), Seq::empty())));
     }
     part1_cold_layout_error(ctx.root, calls, error);
 }

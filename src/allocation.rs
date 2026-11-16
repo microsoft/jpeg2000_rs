@@ -41,7 +41,10 @@ pub(crate) fn inspection_values<T>(
 #[cfg_attr(verus_keep_ghost, verus_spec(result =>
     ensures crate::specs::storage_reservation_result(old(values)@, final(values)@, result),
 ))]
-fn reserve_additional<T>(values: &mut Vec<T>, additional: usize) -> Result<(), DecodeError> {
+pub(crate) fn reserve_additional<T>(
+    values: &mut Vec<T>,
+    additional: usize,
+) -> Result<(), DecodeError> {
     #[cfg(all(feature = "cooperative-deadlines", not(verus_keep_ghost)))]
     crate::deadline::checkpoint()?;
     #[cfg(test)]

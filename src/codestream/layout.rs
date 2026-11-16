@@ -1453,6 +1453,45 @@ impl<'a> Parser<'a> {
                         .get_mut(tile_index)
                         .ok_or_else(|| parser.malformed_here(MalformedKind::InvalidTilePart))? =
                         Some(tile_extensions);
+                    let reserved =
+                        crate::allocation::reserve_additional(&mut tile_part_payloads, 1);
+                    #[cfg(verus_keep_ghost)]
+                    proof! {
+                        if let Err(error) = reserved {
+                            reveal(crate::specs::part1_commit_quantization_cold_result);
+                            crate::specs::part1_cold_tile_part_calls(tile_input,
+                                (Ok((persistent_commit.payload, crate::specs::Part1MctParameters {
+                                    arrays: persistent_commit.parameters.0, records: persistent_commit.parameters.1,
+                                    order: persistent_commit.parameters.2 }, persistent_commit.extensions)), parser_view(&parser)));
+                            let read_calls = choose|calls: Seq<crate::specs::Part1ColdStorageEvent>|
+                                crate::specs::part1_cold_tile_part_run(tile_input, calls)
+                                    == Some(((Ok((persistent_commit.payload, crate::specs::Part1MctParameters {
+                                        arrays: persistent_commit.parameters.0, records: persistent_commit.parameters.1,
+                                        order: persistent_commit.parameters.2 }, persistent_commit.extensions)), parser_view(&parser)), Seq::empty()));
+                            let commit_calls = choose|calls: Seq<crate::specs::Part1ColdStorageEvent>|
+                                #[trigger] crate::specs::part1_commit_quantization_cold_run(persistent_commit.position,
+                                    persistent_commit.start, persistent_commit.index, previous_payloads.len() as usize,
+                                    persistent_commit.previous_roi, persistent_commit.payload, previous_persistent_state.0, calls)
+                                        == Some(((configured, super::persistent_tile_configuration_sequences_view(
+                                            tile_roi_shifts@, tile_coding_styles@, tile_quantizations@,
+                                            tile_component_style_parts@, tile_component_quantizations@, tile_progression_changes@)), Seq::empty()));
+                            let refused = seq![crate::specs::Part1ColdStorageEvent {
+                                site: 16, elements: 1, succeeded: false,
+                            }];
+                            crate::specs::part1_commit_quantization_cold_frame(persistent_commit.position,
+                                persistent_commit.start, persistent_commit.index, previous_payloads.len() as usize,
+                                persistent_commit.previous_roi, persistent_commit.payload, previous_persistent_state.0,
+                                commit_calls, refused,
+                                (configured, super::persistent_tile_configuration_sequences_view(
+                                    tile_roi_shifts@, tile_coding_styles@, tile_quantizations@,
+                                    tile_component_style_parts@, tile_component_quantizations@, tile_progression_changes@)),
+                                Seq::empty());
+                            assert(Seq::<crate::specs::Part1ColdStorageEvent>::empty() + refused =~= refused);
+                            assert(refused.drop_first() =~= Seq::<crate::specs::Part1ColdStorageEvent>::empty());
+                            crate::specs::part1_cold_layout_sot_commit_error(cold_sot, read_calls, commit_calls + refused, error);
+                        }
+                    }
+                    reserved?;
                     tile_part_payloads.push(payload);
                     #[cfg(verus_keep_ghost)]
                     proof! {
