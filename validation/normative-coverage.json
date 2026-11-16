@@ -3414,6 +3414,74 @@
       ]
     },
     {
+      "id": "implementation-common-pdf-recovery",
+      "topic": "Common raw/single-codestream Part1 JP2 compatible typed, centered and owned-inspection APIs. Actual file metadata, accepted structural EOC admission and one bounded raw repair copy precede real layout parsing; all-BPCC header validation ignores dimensions only. Actual parts drive sole-tile selection, trailer decoding, native geometry, typed/NLT/palette/associated guards and full intended-canvas limits. Reports retain actual flags, byte/work domains and counts. No generic retry, decoder/result bank, copied or fabricated pixels, thread-local packet policy, empty-MQ/deadline acceptance or changed strict default. Complete ordered cold and ordinary programs bind all real children and exact unused tails; broad fallibility, clock/resume, lifetime, normative and source-function coverage remain separate.",
+      "implementation_refs": [
+        {"path": "src/decode/pdf_compat.rs", "symbol": "invalid_profile"},
+        {"path": "src/decode/pdf_compat.rs", "symbol": "effective_input"},
+        {"path": "src/decode/pdf_compat.rs", "symbol": "prepare_pdf_input"},
+        {"path": "src/decode/pdf_compat.rs", "symbol": "validate_pdf_layout"},
+        {"path": "src/decode/pdf_compat.rs", "symbol": "finish_recovery"},
+        {"path": "src/decode/pdf_compat.rs", "symbol": "decode_pdf_compatible"},
+        {"path": "src/decode/pdf_compat.rs", "symbol": "decode_pdf_reconstructed"},
+        {"path": "src/decode/pdf_compat.rs", "symbol": "inspect_pdf_compatible"},
+        {"path": "src/decode/raw_typed_result_tests.rs", "symbol": "pdf_common_recovers_raw_and_container_eoc_without_relaxing_other_errors"},
+        {"path": "src/decode/raw_typed_result_tests.rs", "symbol": "pdf_common_composes_dimension_tile_and_trailer_policies_with_genuine_geometry"},
+        {"path": "src/decode/raw_typed_result_tests.rs", "symbol": "pdf_common_keeps_headroom_output_metadata_profiles_and_reduced_grids"}
+      ],
+      "spec_refs": [
+        {"path": "specs/pdf_compat.rs", "symbol": "Part2PdfPrepared"},
+        {"path": "specs/pdf_compat.rs", "symbol": "part2_pdf_invalid_profile"},
+        {"path": "specs/pdf_compat.rs", "symbol": "part2_pdf_file_value"},
+        {"path": "specs/pdf_compat.rs", "symbol": "part2_pdf_effective_input"},
+        {"path": "specs/pdf_compat.rs", "symbol": "part2_pdf_copy_run"},
+        {"path": "specs/pdf_compat.rs", "symbol": "part2_pdf_prepare_result"},
+        {"path": "specs/pdf_compat.rs", "symbol": "part2_pdf_prepare_run"},
+        {"path": "specs/pdf_compat.rs", "symbol": "part2_pdf_prepare_value"},
+        {"path": "specs/pdf_compat.rs", "symbol": "part2_pdf_validate_layout"},
+        {"path": "specs/pdf_compat.rs", "symbol": "part2_pdf_finish_recovery"},
+        {"path": "specs/pdf_compat.rs", "symbol": "part2_pdf_typed_result"},
+        {"path": "specs/pdf_compat.rs", "symbol": "part2_pdf_typed_run"},
+        {"path": "specs/pdf_compat.rs", "symbol": "part2_pdf_typed_value"},
+        {"path": "specs/pdf_compat.rs", "symbol": "part2_pdf_reconstructed_result"},
+        {"path": "specs/pdf_compat.rs", "symbol": "part2_pdf_reconstructed_run"},
+        {"path": "specs/pdf_compat.rs", "symbol": "part2_pdf_reconstructed_value"},
+        {"path": "specs/pdf_compat.rs", "symbol": "part2_pdf_inspect_result"},
+        {"path": "specs/pdf_compat.rs", "symbol": "part2_pdf_inspect_run"},
+        {"path": "specs/pdf_compat.rs", "symbol": "part2_pdf_inspect_value"},
+        {"path": "specs/container_reconstruction.rs", "symbol": "part2_jp2_reconstructed_file_output"}
+      ],
+      "contract_refs": [
+        {"path": "src/decode/pdf_compat.rs", "symbol": "invalid_profile"},
+        {"path": "src/decode/pdf_compat.rs", "symbol": "effective_input"},
+        {"path": "src/decode/pdf_compat.rs", "symbol": "prepare_pdf_input"},
+        {"path": "src/decode/pdf_compat.rs", "symbol": "validate_pdf_layout"},
+        {"path": "src/decode/pdf_compat.rs", "symbol": "finish_recovery"},
+        {"path": "src/decode/pdf_compat.rs", "symbol": "decode_pdf_compatible"},
+        {"path": "src/decode/pdf_compat.rs", "symbol": "decode_pdf_reconstructed"},
+        {"path": "src/decode/pdf_compat.rs", "symbol": "inspect_pdf_compatible"}
+      ],
+      "proof_refs": [
+        {"path": "specs/pdf_compat.rs", "symbol": "part2_pdf_copy_actual"},
+        {"path": "specs/pdf_compat.rs", "symbol": "part2_pdf_prepare_copy_actual"},
+        {"path": "specs/pdf_compat.rs", "symbol": "part2_pdf_prepare_normal"},
+        {"path": "specs/pdf_compat.rs", "symbol": "part2_pdf_value_unfold"},
+        {"path": "specs/pdf_compat.rs", "symbol": "part2_pdf_after_parse_normal"},
+        {"path": "specs/pdf_compat.rs", "symbol": "part2_pdf_after_prepare_normal"},
+        {"path": "specs/pdf_compat.rs", "symbol": "part2_pdf_normal"},
+        {"path": "specs/pdf_compat.rs", "symbol": "part2_pdf_prepare_error"},
+        {"path": "specs/pdf_compat.rs", "symbol": "part2_pdf_parse_error"},
+        {"path": "specs/pdf_compat.rs", "symbol": "part2_pdf_decoded_actual"},
+        {"path": "specs/pdf_compat.rs", "symbol": "part2_pdf_inspect_actual"},
+        {"path": "src/codestream/decoder_input_proof_support.rs", "symbol": "decoder_layout_complete_info_matches_raw"}
+      ],
+      "test_refs": [
+        {"path": "src/decode/raw_typed_result_tests.rs", "symbol": "pdf_common_recovers_raw_and_container_eoc_without_relaxing_other_errors"},
+        {"path": "src/decode/raw_typed_result_tests.rs", "symbol": "pdf_common_composes_dimension_tile_and_trailer_policies_with_genuine_geometry"},
+        {"path": "src/decode/raw_typed_result_tests.rs", "symbol": "pdf_common_keeps_headroom_output_metadata_profiles_and_reduced_grids"}
+      ]
+    },
+    {
       "id": "implementation-pdf-bounded-terminal-trailers",
       "topic": "Explicit raw/JP2 typed/centered terminal-trailer recovery after actual complete scheduled packet/body execution. Only the final part, with no packet-length or packed-header metadata anywhere in the tile, may discard bytes within one sixteen-byte counter shared by selected tiles in this decode. The ordinary completion scan alone resumes; no packet/entropy retry, input-prefix search, copied/repaired stream, fabricated samples, hidden thread-local mode or changed strict default. Exact reports and actual selected geometry/errors/limits remain. Complete ordered cold and ordinary programs bind the real parser, metadata/grid/packet/reconstruction/assembly and JP2 children; this is not normative padding, global allocation/work accounting, deadline, lifetime or measured source-function coverage.",
       "implementation_refs": [

@@ -1534,6 +1534,28 @@ is not entropy success and never fabricates absent pixels. Default APIs and
 limits remain unchanged; this is not EOC/MQ/trailer/tile recovery, a cooperative
 deadline, complete allocation coverage or independent conformance qualification.
 
+## Common compatible PDF pipeline
+
+The common typed, centered and owned-inspection APIs compose actual raw/Part1 JP2
+metadata, accepted EOC framing/admission, one repair reservation, layout parsing,
+all-BPCC header checks, present-tile selection, trailer layout decoding and actual
+output processing. `specs/pdf_compat.rs` binds complete ordinary and cold programs
+to every child and report. The dedicated `PdfEocCopy` event describes the actual
+encoded input, requested length plus two and reservation response, with exact
+unused-tail conservation. It is not a new physical allocation or a decoder bank.
+
+Checked owner projections bind the full returned inspection metadata to the same
+parsed layout. The shared reconstruction-output model is factored by actual file
+metadata rather than fabricating an inspected container. No packet compatibility
+thread-local state, added storage trust, axiom, pin/budget/lifetime-mode change or
+weakened strict contract is introduced. Native controls distinguish inspection
+success from genuine packet success and exercise combined damage, preserved grids,
+fractions, metadata/resource errors and same-process refusal recovery.
+
+This is the implemented common EOC/dimension/tile/trailer/output capability, not
+initial-empty-MQ compatibility, cooperative deadlines, complete allocation
+coverage, saved entropy state, lifetime verification or independent conformance.
+
 ## Bounded terminal-trailer recovery
 
 The four explicit raw/JP2 typed/centered trailer APIs compose actual parsing,

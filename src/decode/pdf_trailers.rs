@@ -300,7 +300,7 @@ fn decode_trailer_tile(
             trailer_layout_outcome(result) == crate::specs::part2_trailer_layout_value(
                 codestream::decoder_layout_input_view(layout), crate::options::decode_selection_view(requested), limits),
 ))]
-fn decode_trailer_layout(
+pub(super) fn decode_trailer_layout(
     layout: &CodestreamLayout<'_>,
     requested: &DecodeSelection,
     limits: &ResourceLimits,

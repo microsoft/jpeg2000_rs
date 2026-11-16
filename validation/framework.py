@@ -2045,6 +2045,44 @@ _SELECTED_JP2_RECONSTRUCTION_CONTRACTS = {
 }
 _PRESENT_TILE_ENTRY = "implementation-pdf-sole-present-tile"
 _PDF_TRAILERS_ENTRY = "implementation-pdf-bounded-terminal-trailers"
+_PDF_COMMON_ENTRY = "implementation-common-pdf-recovery"
+_PDF_COMMON_CONTRACTS = {
+    ("src/decode/pdf_compat.rs", "invalid_profile"): (
+        "part2_pdf_invalid_profile", r"\1", None, "",
+    ),
+    ("src/decode/pdf_compat.rs", "effective_input"): (
+        "part2_pdf_effective_input", r"\1@", None, _coverage_call("prepared_pdf_input_view", "prepared"),
+    ),
+    ("src/decode/pdf_compat.rs", "prepare_pdf_input"): (
+        "part2_pdf_prepare_value", _coverage_call("prepared_pdf_input_outcome", r"\1"), None,
+        r"input@\s*,\s*" + _coverage_call("crate::options::decode_options_limits", "options"),
+    ),
+    ("src/decode/pdf_compat.rs", "validate_pdf_layout"): (
+        "part2_pdf_validate_layout", r"\1", None,
+        r"input@\s*,\s*" + _coverage_call("prepared_pdf_input_view", "prepared") + r"\s*,\s*"
+        + _coverage_call("codestream::complete_codestream_info_view", r"&\s*layout\.info") + r"\s*,\s*"
+        + _coverage_call("crate::options::decode_options_limits", "options"),
+    ),
+    ("src/decode/pdf_compat.rs", "finish_recovery"): (
+        "part2_pdf_finish_recovery", r"\1", None,
+        _coverage_call("prepared_pdf_input_view", "prepared")
+        + r"\s*,\s*ignored\s*,\s*selected\s*,\s*trailer\s*,\s*full_canvas_sample_bytes",
+    ),
+    **{
+        ("src/decode/pdf_compat.rs", name): (
+            model, _coverage_call(projection, r"\1"), None,
+            r"input@\s*,\s*" + _coverage_call("crate::options::decode_selection_view", "requested")
+            + r"\s*,\s*" + _coverage_call("crate::options::decode_options_limits", "options"),
+        ) for name, model, projection in (
+            ("decode_pdf_compatible", "part2_pdf_typed_value", "pdf_typed_outcome"),
+            ("decode_pdf_reconstructed", "part2_pdf_reconstructed_value", "pdf_reconstructed_outcome"),
+        )
+    },
+    ("src/decode/pdf_compat.rs", "inspect_pdf_compatible"): (
+        "part2_pdf_inspect_value", _coverage_call("codestream::complete_codestream_info_outcome", r"\1"), None,
+        r"input@\s*,\s*" + _coverage_call("crate::options::decode_options_limits", "options"),
+    ),
+}
 _PDF_TRAILERS_CONTRACTS = {
     **{
         ("src/decode/pdf_trailers.rs", name): (
@@ -5199,6 +5237,13 @@ _COLD_RESULT_MODELS = {
             ("jp2_typed", "jp2_normal"), ("jp2_reconstructed", "jp2_normal"),
         )
     },
+    **{
+        "part2_pdf_" + name + "_value": (
+            "part2_pdf_" + name + "_result", "specs/pdf_compat.rs", "part2_pdf_" + normal,
+        ) for name, normal in (
+            ("prepare", "prepare_normal"), ("typed", "normal"), ("reconstructed", "normal"), ("inspect", "normal"),
+        )
+    },
     "part2_present_raw_typed_value": (
         "part2_present_raw_typed_result", "specs/pdf_present_tile.rs", "part2_present_raw_normal",
     ),
@@ -5464,6 +5509,7 @@ _COLD_RESULT_CONTRACTS = {
         _PDF_DIMENSIONS_CONTRACTS,
         _SELECTED_RECONSTRUCTION_CONTRACTS, _SELECTED_JP2_RECONSTRUCTION_CONTRACTS, _PRESENT_TILE_CONTRACTS,
         _PDF_TRAILERS_CONTRACTS,
+        _PDF_COMMON_CONTRACTS,
         _RAW_INSPECTED_CONTRACTS, _JPX_SOURCE_CONTRACTS, _RAW_JPX_PUBLIC_IMAGE_CONTRACTS,
         _RAW_CONTAINER_IMAGE_CONTRACTS, _RAW_CONTAINER_COLOR_CONTRACTS,
         _SOURCE_FRAME_CONTRACTS, _RAW_RENDER_CONTRACTS, _RAW_COMPOSITION_RENDER_CONTRACTS,
@@ -5950,12 +5996,23 @@ _COLD_LOCAL_FAMILIES = {
     _SELECTED_JP2_RECONSTRUCTION_ENTRY: (_SELECTED_JP2_RECONSTRUCTION_CONTRACTS, "selected JP2 reconstruction Result"),
     _PRESENT_TILE_ENTRY: (_PRESENT_TILE_CONTRACTS, "sole present tile Result"),
     _PDF_TRAILERS_ENTRY: (_PDF_TRAILERS_CONTRACTS, "bounded terminal trailer Result"),
+    _PDF_COMMON_ENTRY: (_PDF_COMMON_CONTRACTS, "common PDF recovery Result"),
     _JPX_SOURCE_ENTRY: (_JPX_SOURCE_CONTRACTS, "whole JPX source Result"),
     _JPX_LAYER_COLOR_ENTRY: (_JPX_LAYER_COLOR_CONTRACTS, "whole JPX layer color Result"),
     _SOURCE_OPACITY_ENTRY: (_SOURCE_OPACITY_CONTRACTS, "whole source opacity Result"),
 }
 
 _COLD_SOURCE_BODIES = {
+    _PDF_COMMON_ENTRY: ("specs/pdf_compat.rs", "part2_pdf_copy_run", """
+        if input.len() + 2 > usize::MAX { Some((raw_repair_response(input, true), events)) }
+        else if events.len() == 0 { None }
+        else { match events[0] {
+            Part2JpipSnapshotEvent::PdfEocCopy { input: actual, elements, succeeded } =>
+                if actual != input || elements != input.len() + 2 { None }
+                else { Some((raw_repair_response(input, succeeded), events.drop_first())) },
+            _ => None,
+        }}
+    """, "common PDF recovery requires actual bounded-copy input/count/verdict and exact tail"),
     _RAW_TYPED_ENTRY: ("specs/raw_decode.rs", "part2_decode_raw_cold_run", """
         part2_decode_raw_value_cold_run(input, limits, match requested {
             None => None, Some(value) => Some(crate::options::decode_selection_view(value)),
@@ -13906,6 +13963,8 @@ def validate_normative_coverage(
                     if entry["id"] == _PRESENT_TILE_ENTRY else None)
                 or (_PDF_TRAILERS_CONTRACTS.get((reference["path"], reference["symbol"]))
                     if entry["id"] == _PDF_TRAILERS_ENTRY else None)
+                or (_PDF_COMMON_CONTRACTS.get((reference["path"], reference["symbol"]))
+                    if entry["id"] == _PDF_COMMON_ENTRY else None)
                 or (_JPX_SOURCE_CONTRACTS.get((reference["path"], reference["symbol"]))
                     if entry["id"] == _JPX_SOURCE_ENTRY else None)
                 or (_JPX_LAYER_COLOR_CONTRACTS.get((reference["path"], reference["symbol"]))
