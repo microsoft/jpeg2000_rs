@@ -4572,24 +4572,36 @@ fn output_storage_copy_and_header_preserve_raw_values_priority_empty_and_retry()
     });
     header.component_mappings.clear();
     let definition = ChannelDefinition::new(ChannelType::Opacity, ChannelAssociation::WholeImage);
-    header.channel_definition_records = vec![jp2::ChannelDefinitionRecord {
-        channel: 0,
-        definition,
-    }; 17];
+    header.channel_definition_records = vec![
+        jp2::ChannelDefinitionRecord {
+            channel: 0,
+            definition,
+        };
+        17
+    ];
     let defined = apply_jp2_output(image(), &header, &limits).unwrap();
-    assert_eq!(defined.components()[0].channel_definitions(), vec![definition; 17]);
+    assert_eq!(
+        defined.components()[0].channel_definitions(),
+        vec![definition; 17]
+    );
     for after in [3, 4] {
         assert_eq!(
             crate::allocation::with_refusal(after, || apply_jp2_output(image(), &header, &limits)),
             Err(DecodeError::AllocationFailed)
         );
-        assert_eq!(apply_jp2_output(image(), &header, &limits).unwrap(), defined);
+        assert_eq!(
+            apply_jp2_output(image(), &header, &limits).unwrap(),
+            defined
+        );
     }
     header.channel_definition_records[0].channel = u16::MAX;
     let invalid_channel = apply_jp2_output(image(), &header, &limits).unwrap_err();
     assert_ne!(invalid_channel, DecodeError::AllocationFailed);
     crate::allocation::with_refusal(3, || {
-        assert_eq!(apply_jp2_output(image(), &header, &limits), Err(invalid_channel));
+        assert_eq!(
+            apply_jp2_output(image(), &header, &limits),
+            Err(invalid_channel)
+        );
         assert_eq!(
             crate::allocation::empty_with_capacity::<u8>(1),
             Err(DecodeError::AllocationFailed)
@@ -4599,7 +4611,10 @@ fn output_storage_copy_and_header_preserve_raw_values_priority_empty_and_retry()
     header.channel_definition_records[0].channel = 0;
     header.channel_definition_records[1].channel = u16::MAX;
     crate::allocation::with_refusal(4, || {
-        assert_eq!(apply_jp2_output(image(), &header, &limits), Err(invalid_channel));
+        assert_eq!(
+            apply_jp2_output(image(), &header, &limits),
+            Err(invalid_channel)
+        );
         assert_eq!(
             crate::allocation::empty_with_capacity::<u8>(1),
             Err(DecodeError::AllocationFailed)

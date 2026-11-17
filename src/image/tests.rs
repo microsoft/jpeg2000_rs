@@ -42,7 +42,10 @@ fn checked_channel_definitions_preserve_prior_owner_order_repeats_and_retry() {
     component.try_add_channel_definition(definition).unwrap();
     expected.extend([distinct, definition]);
     assert_eq!(component.channel_definitions(), expected);
-    assert_eq!(component.samples(), &TypedSamples::Signed(vec![i64::MIN, i64::MAX]));
+    assert_eq!(
+        component.samples(),
+        &TypedSamples::Signed(vec![i64::MIN, i64::MAX])
+    );
 
     let mut target = TypedComponent::from_parts(
         17,
@@ -65,7 +68,10 @@ fn checked_channel_definitions_preserve_prior_owner_order_repeats_and_retry() {
     assert_eq!(target.width(), 17);
     assert_eq!(target.samples(), &TypedSamples::Unsigned(vec![u64::MAX]));
     let empty = TypedComponent::from_parts(
-        0, 0, crate::codestream::ComponentInfo::default(), TypedSamples::Signed(vec![]),
+        0,
+        0,
+        crate::codestream::ComponentInfo::default(),
+        TypedSamples::Signed(vec![]),
     );
     crate::allocation::with_refusal(0, || {
         target.try_copy_channel_definitions(&empty).unwrap();
