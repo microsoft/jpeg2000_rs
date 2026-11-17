@@ -5,6 +5,7 @@ use super::*;
 verus! {
 
 pub enum Part2JpipSnapshotEvent {
+    ChannelDefinitionCapacity {context:Part2ChannelStorageContext,elements:nat,succeeded:bool},
     OutputHeaderCalls {context:Part2OutputStorageContext,calls:Seq<Part2Tier1StorageEvent>},
     TypedImageCalls {source:Part1DecodedImageModel,maximum:u64,calls:Seq<Part2Tier1StorageEvent>},
     AssemblyCalls {context:Part2AssemblyOwnerContext,calls:Seq<Part2Tier1StorageEvent>},

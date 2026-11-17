@@ -245,16 +245,19 @@ pub(crate) open spec fn part2_container_step_cold_run(
         part2_jpip_snapshot_bind(
             part2_inspection_capacity(crate::allocation::InspectionCollection::Codestreams, 1, events),
             |_: (), rest| Some((part2_container_step(input, state, file_type, limits), rest)))
-    } else { Some((part2_container_step(input, state, file_type, limits), events)) }
+    } else { part2_container_headers_run(input,state,file_type,limits,events) }
 }
 
 pub(crate) open spec fn part2_container_step_cold_calls(
     input: Part2BoxReference, state: Part2RawContainerState,
     file_type: Part2FileType, limits: crate::ResourceLimits,
 ) -> Seq<Part2JpipSnapshotEvent> {
-    if part2_container_step_reserves(input, state, file_type, limits) {
-        part2_inspection_capacity_calls(crate::allocation::InspectionCollection::Codestreams, 1)
-    } else { Seq::empty() }
+    choose|calls| #[trigger] part2_container_step_cold_prefix(input,state,file_type,limits,calls)
+}
+pub(crate) open spec fn part2_container_step_cold_prefix(input:Part2BoxReference,state:Part2RawContainerState,
+    file_type:Part2FileType,limits:crate::ResourceLimits,calls:Seq<Part2JpipSnapshotEvent>)->bool {
+    forall|tail:Seq<Part2JpipSnapshotEvent>| #[trigger] part2_container_step_cold_run(input,state,file_type,limits,calls+tail)
+        ==Some((part2_container_step(input,state,file_type,limits),tail))
 }
 
 pub(crate) proof fn part2_container_step_cold_normal(
@@ -275,7 +278,15 @@ pub(crate) proof fn part2_container_step_cold_normal(
         part2_cold_bind(
             |events| part2_inspection_capacity(crate::allocation::InspectionCollection::Codestreams, 1, events),
             |_: (), rest| Some((result, rest)), Ok(()), result);
+    }else{
+        part2_container_headers_normal(input,state,file_type,limits);
     }
+    let witness=part2_cold_witness(|events|part2_container_step_cold_run(input,state,file_type,limits,events),result);
+    assert forall|rest:Seq<Part2JpipSnapshotEvent>|part2_container_step_cold_run(input,state,file_type,limits,witness+rest)
+        ==Some((result,rest)) by{
+        part2_cold_prefix_at(|events|part2_container_step_cold_run(input,state,file_type,limits,events),witness,result,rest);
+    }
+    assert(part2_container_step_cold_prefix(input,state,file_type,limits,witness));
 }
 
 pub(crate) proof fn part2_container_step_cold_refused(

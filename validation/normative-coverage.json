@@ -2367,6 +2367,8 @@
         {"path": "src/jp2/container.rs", "symbol": "parse"}
       ],
       "spec_refs": [
+        {"path": "specs/cold_channel_storage.rs", "symbol": "part2_layer_header_storage_result"},
+        {"path": "specs/cold_channel_storage.rs", "symbol": "part2_layer_header_storage_run"},
         {"path": "specs/jp2_layer.rs", "symbol": "part2_parse_codestream_registration"},
         {"path": "specs/jp2_layer.rs", "symbol": "part2_registration_entry"},
         {"path": "specs/jp2_layer.rs", "symbol": "part2_registration_prefix"},
@@ -2386,6 +2388,7 @@
         {"path": "src/jp2/composition.rs", "symbol": "parse_compositing_layer"}
       ],
       "proof_refs": [
+        {"path": "specs/cold_channel_storage.rs", "symbol": "part2_layer_header_storage_normal"},
         {"path": "src/jp2/proof_support.rs", "symbol": "registration_outcome"},
         {"path": "src/jp2/proof_support.rs", "symbol": "full_color_group_view"},
         {"path": "src/jp2/proof_support.rs", "symbol": "color_group_outcome"},
@@ -2449,6 +2452,8 @@
         {"path": "src/jp2/container.rs", "symbol": "parse"}
       ],
       "spec_refs": [
+        {"path": "specs/cold_channel_storage.rs", "symbol": "part2_codestream_header_storage_result"},
+        {"path": "specs/cold_channel_storage.rs", "symbol": "part2_codestream_header_storage_run"},
         {"path": "specs/jp2_associated_header.rs", "symbol": "part2_parse_codestream_header"},
         {"path": "specs/jp2_associated_header.rs", "symbol": "part2_associated_header_boxes"},
         {"path": "specs/jp2_associated_header.rs", "symbol": "part2_associated_header_step"},
@@ -2461,6 +2466,7 @@
         {"path": "src/jp2/headers.rs", "symbol": "parse_codestream_header"}
       ],
       "proof_refs": [
+        {"path": "specs/cold_channel_storage.rs", "symbol": "part2_codestream_header_storage_normal"},
         {"path": "src/jp2/proof_support.rs", "symbol": "raw_header_option"},
         {"path": "src/jp2/proof_support.rs", "symbol": "associated_header_state"},
         {"path": "src/jp2/proof_support.rs", "symbol": "raw_jp2_header_outcome"},
@@ -2522,6 +2528,8 @@
         {"path": "src/jp2/container.rs", "symbol": "parse"}
       ],
       "spec_refs": [
+        {"path": "specs/cold_channel_storage.rs", "symbol": "part2_jp2_header_storage_result"},
+        {"path": "specs/cold_channel_storage.rs", "symbol": "part2_jp2_header_storage_run"},
         {"path": "specs/jp2_header.rs", "symbol": "part2_parse_jp2_header"},
         {"path": "specs/jp2_header.rs", "symbol": "part2_parse_jp2_header_profile"},
         {"path": "specs/jp2_header.rs", "symbol": "part2_unspecified_jph_color"},
@@ -2546,6 +2554,7 @@
         {"path": "src/jp2/headers.rs", "symbol": "unspecified_jph_color"}
       ],
       "proof_refs": [
+        {"path": "specs/cold_channel_storage.rs", "symbol": "part2_jp2_header_storage_normal"},
         {"path": "src/jp2/proof_support.rs", "symbol": "raw_header_state"},
         {"path": "src/jp2/proof_support.rs", "symbol": "raw_jp2_header_view"},
         {"path": "src/jp2/proof_support.rs", "symbol": "raw_jp2_header_outcome"},
@@ -2572,6 +2581,7 @@
       "topic": "Complete actual raw Palette Result: entry count, ordered precision/signed columns and every row-major scalar value derive from actual borrowed bytes through real bit-depth/scalar producers. Sarah DEV-2032F100C3: actual wire admission and its complete model require NE1..1024 before descriptor/table interpretation, while full255column admission, signed/38bit scalar producers, arbitrary private Palette states, lazy offsets, initial short-prefix priority and original native column/value owners remain. Unchanged public OpenJPEG PCLR executed1048576 complete-payload contexts over allu16NE and16column/precision/sign configurations, with16384accepted1032192rejected16793600values/zero mismatches; bounded raw-producer interoperability, not selected-edition certification. Internal partial rows derive from actual prior raw rows, without supplied descriptor/row/value banks, validity premises, owner inversion or executing clones. Full/associated/partial/header/file callers retain their actual raw model composition. Independent normative review, coverage/cfg/erasure/lifetimes/release remain separate.",
       "implementation_refs": [
         {"path": "src/jp2/color.rs", "symbol": "parse_palette"},
+        {"path": "src/jp2/headers.rs", "symbol": "parse_codestream_header_box"},
         {"path": "src/jp2/headers.rs", "symbol": "parse_jp2_header"},
         {"path": "src/jp2/headers.rs", "symbol": "parse_codestream_header"}
       ],
@@ -2643,6 +2653,7 @@
       "topic": "Complete actual raw resolution primitive/superbox and metadata byte-copy Results. Preserve all six fields, signed exponents, unknown boxes, duplicate-before-payload priority, exact initial input limits, and native progress-before-reader-error behavior, not a normative correction. Complete native ordered reader continuation, not a supplied box/result bank. One actual borrowed reader initializer is retargeted to the existing checked shared producer, requiring explicit future native audit; no allocation/owner/body relocation. Nested metadata-tree inspection, whole header/container/public, coverage/cfg/erasure/lifetimes/release remain independent.",
       "implementation_refs": [
         {"path": "src/jp2/metadata.rs", "symbol": "parse_resolution"},
+        {"path": "src/jp2/headers.rs", "symbol": "parse_codestream_header_box"},
         {"path": "src/jp2/metadata.rs", "symbol": "parse_resolution_superbox"},
         {"path": "src/jp2/metadata.rs", "symbol": "copy_bytes"},
         {"path": "src/jp2/composition.rs", "symbol": "parse_layer_opacity"},
@@ -2680,11 +2691,30 @@
       "topic": "Complete actual raw component-mapping/channel-definition Results with every ordered record, native validity admission, repeats and lazy relative errors. Sarah DEV-3DB90259D8: Cn remains a bounded physical channel index; Asoc is colour-index metadata, not bounded by the physical channel count in the raw record parser. Preserve all wire associations, record order/count/type/sentinels and lazy offset errors without claiming full one-channel RGB decoding or colour-space-aware validity. Actual helper and complete model share the distinction, with an unconditional association-independence property and real public original CDEF-handler evidence. Source-derived byte folds, not supplied records or owner reconstruction. Original shared Copy constructor routing unchanged. Palette normative HOLD, whole header/container/public, cfg/erasure/lifetimes/release remain separate.",
       "implementation_refs": [
         {"path": "src/jp2/color.rs", "symbol": "parse_component_mapping"},
+        {"path": "src/jp2/headers.rs", "symbol": "parse_codestream_header_box"},
         {"path": "src/jp2/color.rs", "symbol": "parse_channel_definition"},
         {"path": "src/jp2/headers.rs", "symbol": "parse_jp2_header"},
         {"path": "src/jp2/headers.rs", "symbol": "parse_codestream_header"}
       ],
       "spec_refs": [
+        {"path": "specs/cold_channel_storage.rs", "symbol": "part2_channel_storage_result"},
+        {"path": "specs/cold_channel_storage.rs", "symbol": "part2_channel_storage_run"},
+        {"path": "specs/cold_channel_storage.rs", "symbol": "part2_channel_storage_count"},
+        {"path": "specs/cold_channel_storage.rs", "symbol": "part2_channel_capacity_run"},
+        {"path": "specs/cold_channel_storage.rs", "symbol": "part2_header_storage_step_run"},
+        {"path": "specs/cold_channel_storage.rs", "symbol": "part2_header_storage_boxes_run"},
+        {"path": "specs/cold_channel_storage.rs", "symbol": "part2_main_header_storage_machine"},
+        {"path": "specs/cold_channel_storage.rs", "symbol": "part2_associated_header_storage_machine"},
+        {"path": "specs/cold_channel_storage.rs", "symbol": "part2_layer_header_storage_machine"},
+        {"path": "specs/cold_channel_storage.rs", "symbol": "part2_jp2_header_storage_run"},
+        {"path": "specs/cold_channel_storage.rs", "symbol": "part2_codestream_header_storage_after"},
+        {"path": "specs/cold_channel_storage.rs", "symbol": "part2_codestream_header_storage_at"},
+        {"path": "specs/cold_channel_storage.rs", "symbol": "part2_associated_header_box_storage_result"},
+        {"path": "specs/cold_channel_storage.rs", "symbol": "part2_codestream_header_storage_run"},
+        {"path": "specs/cold_channel_storage.rs", "symbol": "part2_layer_header_storage_run"},
+        {"path": "specs/cold_container_headers.rs", "symbol": "part2_container_header_request"},
+        {"path": "specs/cold_container_headers.rs", "symbol": "part2_container_headers_run"},
+        {"path": "specs/jp2_container.rs", "symbol": "part2_container_step_cold_run"},
         {"path": "specs/jp2_channel_header.rs", "symbol": "part2_parse_component_mapping"},
         {"path": "specs/jp2_channel_header.rs", "symbol": "part2_mapping_entry"},
         {"path": "specs/jp2_channel_header.rs", "symbol": "part2_parse_channel_definition"},
@@ -2697,6 +2727,47 @@
         {"path": "src/jp2/color.rs", "symbol": "parse_channel_definition"}
       ],
       "proof_refs": [
+        {"path": "specs/cold_channel_storage.rs", "symbol": "part2_channel_storage_normal"},
+        {"path": "specs/cold_channel_storage.rs", "symbol": "part2_channel_capacity_observed"},
+        {"path": "specs/cold_channel_storage.rs", "symbol": "part2_channel_storage_refused"},
+        {"path": "specs/cold_channel_storage.rs", "symbol": "part2_channel_storage_frames"},
+        {"path": "specs/cold_channel_storage.rs", "symbol": "part2_header_storage_step_normal"},
+        {"path": "specs/cold_channel_storage.rs", "symbol": "part2_header_storage_step_error"},
+        {"path": "specs/cold_channel_storage.rs", "symbol": "part2_header_storage_boxes_normal"},
+        {"path": "specs/cold_channel_storage.rs", "symbol": "part2_header_storage_advance"},
+        {"path": "specs/cold_channel_storage.rs", "symbol": "part2_header_storage_reached_error"},
+        {"path": "specs/cold_channel_storage.rs", "symbol": "part2_header_storage_root_advance"},
+        {"path": "specs/cold_channel_storage.rs", "symbol": "part2_header_storage_root_error"},
+        {"path": "specs/cold_channel_storage.rs", "symbol": "part2_header_storage_machines_valid"},
+        {"path": "specs/cold_channel_storage.rs", "symbol": "part2_main_header_storage_value"},
+        {"path": "specs/cold_channel_storage.rs", "symbol": "part2_associated_header_storage_value"},
+        {"path": "specs/cold_channel_storage.rs", "symbol": "part2_layer_header_storage_value"},
+        {"path": "specs/cold_channel_storage.rs", "symbol": "part2_jp2_header_storage_normal"},
+        {"path": "specs/cold_channel_storage.rs", "symbol": "part2_jp2_header_storage_observed"},
+        {"path": "specs/cold_channel_storage.rs", "symbol": "part2_jp2_header_storage_frames"},
+        {"path": "specs/cold_channel_storage.rs", "symbol": "part2_layer_header_storage_normal"},
+        {"path": "specs/cold_channel_storage.rs", "symbol": "part2_layer_header_storage_observed"},
+        {"path": "specs/cold_channel_storage.rs", "symbol": "part2_layer_header_storage_frames"},
+        {"path": "specs/cold_channel_storage.rs", "symbol": "part2_header_storage_resume_frame"},
+        {"path": "specs/cold_channel_storage.rs", "symbol": "part2_codestream_header_storage_normal"},
+        {"path": "specs/cold_channel_storage.rs", "symbol": "part2_codestream_header_storage_first"},
+        {"path": "specs/cold_channel_storage.rs", "symbol": "part2_codestream_header_storage_prefix"},
+        {"path": "specs/cold_channel_storage.rs", "symbol": "part2_codestream_header_storage_advance"},
+        {"path": "specs/cold_channel_storage.rs", "symbol": "part2_codestream_header_storage_error"},
+        {"path": "specs/cold_channel_storage.rs", "symbol": "part2_associated_header_box_storage_normal"},
+        {"path": "specs/cold_channel_storage.rs", "symbol": "part2_associated_header_box_storage_error"},
+        {"path": "specs/cold_channel_storage.rs", "symbol": "part2_associated_header_box_storage_frames"},
+        {"path": "specs/cold_channel_storage.rs", "symbol": "part2_codestream_header_storage_box_error"},
+        {"path": "src/jp2/headers.rs", "symbol": "parse_codestream_header_box"},
+        {"path": "specs/cold_channel_storage.rs", "symbol": "part2_codestream_header_storage_observed"},
+        {"path": "specs/cold_channel_storage.rs", "symbol": "part2_codestream_header_storage_frames"},
+        {"path": "specs/cold_container_headers.rs", "symbol": "part2_container_headers_normal"},
+        {"path": "specs/cold_container_headers.rs", "symbol": "part2_container_main_header_error"},
+        {"path": "specs/cold_container_headers.rs", "symbol": "part2_container_associated_header_error"},
+        {"path": "specs/cold_container_headers.rs", "symbol": "part2_container_layer_header_error"},
+        {"path": "specs/cold_container_headers.rs", "symbol": "part2_parse_container_header_error"},
+        {"path": "src/jp2/box_reader.rs", "symbol": "channel_storage_box_kinds_known"},
+        {"path": "specs/jp2_semantic_errors.rs", "symbol": "part2_jp2_header_semantic_errors"},
         {"path": "src/jp2/proof_support.rs", "symbol": "component_mapping_outcome"},
         {"path": "src/jp2/proof_support.rs", "symbol": "channel_definition_records_view"},
         {"path": "src/jp2/proof_support.rs", "symbol": "channel_definition_records_outcome"},
@@ -2708,6 +2779,9 @@
         {"path": "proofs/spec_properties/mod.rs", "symbol": "channel_definition_admission_is_independent_of_association"}
       ],
       "test_refs": [
+        {"path": "src/jp2/tests.rs", "symbol": "channel_storage_preflight_record_errors_first_later_and_exact_retry"},
+        {"path": "src/jp2/tests.rs", "symbol": "channel_storage_main_associated_fallback_and_layer_keep_refusals_and_semantics"},
+        {"path": "src/jp2/tests.rs", "symbol": "channel_storage_container_main_associated_layer_first_later_and_exact_retry"},
         {"path": "src/jp2/tests.rs", "symbol": "actual_raw_component_mapping_retains_order_repeats_and_every_record_field"},
         {"path": "src/jp2/tests.rs", "symbol": "actual_raw_component_mapping_covers_every_method_and_column_byte"},
         {"path": "src/jp2/tests.rs", "symbol": "actual_raw_component_mapping_keeps_length_conversion_limit_and_lazy_error_priority"},
@@ -2723,6 +2797,7 @@
       "topic": "Complete actual raw color specification Result with method, precedence, approximation and every optional ICC byte. Sarah DEV-629A0A9C39: extract the original common three-byte prefix validation as the sole shared checked producer used by selected-color parsing and by ignored later COLR boxes in full/associated headers. Preserve selected-color semantic/profile/byte-copy admission and lazy errors; do not interpret or allocate irrelevant later ICC data. Actual native profile copying is checked exact/successful; no supplied profile/color bank, owner inversion or runtime proof clone. This does not assert conversion support or selected-edition certification. Whole header/container/public, normative/cfg/erasure/lifetimes/release remain separate.",
       "implementation_refs": [
         {"path": "src/jp2/color.rs", "symbol": "parse_color_specification"},
+        {"path": "src/jp2/headers.rs", "symbol": "parse_codestream_header_box"},
         {"path": "src/jp2/color.rs", "symbol": "validate_color_specification_prefix"},
         {"path": "src/jp2/color.rs", "symbol": "copy_profile"},
         {"path": "src/jp2/color.rs", "symbol": "ColorSpecification::icc_profile"},
@@ -2757,6 +2832,7 @@
       "topic": "Complete actual raw 14byte image-header/bit-depth/BPCC Results: every native Copy ImageHeader field, width/height/components/pixels-before-precision/flags error priority, all256depth encodings including variable/signed/38bit ceiling, ordered component length/precision errors and lazy relative-offset arithmetic. No prevalidated/successful header or depth bank, owner inversion, changed admission/caps or native statement/owner/scope changes. One existing empty-arg pixel-error closure has a checked contract; helper visibility becomes parent-only for native tests. Header/associated-container assembly, final raw public parsing, normative/cfg/erasure/lifetimes/release remain separate.",
       "implementation_refs": [
         {"path": "src/jp2/headers.rs", "symbol": "parse_image_header"},
+        {"path": "src/jp2/headers.rs", "symbol": "parse_codestream_header_box"},
         {"path": "src/jp2/headers.rs", "symbol": "parse_bit_depth"},
         {"path": "src/jp2/headers.rs", "symbol": "validate_bpcc"},
         {"path": "src/jp2/headers.rs", "symbol": "parse_jp2_header"},
@@ -14206,6 +14282,7 @@
         {
           "path": "src/jp2/headers.rs", "symbol": "parse_codestream_header"
         },
+        {"path": "src/jp2/headers.rs", "symbol": "parse_codestream_header_box"},
         {
           "path": "src/jpx/inspection.rs", "symbol": "effective_layer_count"
         },

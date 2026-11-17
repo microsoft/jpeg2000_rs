@@ -283,6 +283,8 @@ pub struct ChannelDefinitionRecord {
 
 #[cfg_attr(verus_keep_ghost, verifier::verify)]
 mod box_reader;
+#[cfg(verus_keep_ghost)]
+pub use box_reader::channel_storage_box_kinds_known;
 #[cfg_attr(verus_keep_ghost, verifier::verify)]
 mod clone_support;
 use box_reader::{

@@ -590,7 +590,11 @@ pub(super) fn parse_component_mapping(
 }
 
 #[cfg_attr(verus_keep_ghost, verus_spec(result =>
-    ensures super::channel_definition_records_outcome(result) == crate::specs::part2_parse_channel_definition(
+    ensures crate::specs::part2_channel_storage_result(crate::specs::Part2ChannelStorageContext {
+        input:super::box_reference_view(box_ref),channels:output_channels,base:base_offset,
+    },super::channel_definition_records_outcome(result)),
+    super::channel_definition_records_outcome(result) != Err(DecodeError::AllocationFailed) ==>
+        super::channel_definition_records_outcome(result) == crate::specs::part2_parse_channel_definition(
         super::box_reference_view(box_ref), output_channels, base_offset),
 ))]
 pub(super) fn parse_channel_definition(
@@ -598,6 +602,12 @@ pub(super) fn parse_channel_definition(
     output_channels: u16,
     base_offset: u64,
 ) -> Result<Vec<ChannelDefinitionRecord>, DecodeError> {
+    #[cfg(verus_keep_ghost)]
+    proof! {
+        crate::specs::part2_channel_storage_normal(crate::specs::Part2ChannelStorageContext {
+            input:super::box_reference_view(box_ref),channels:output_channels,base:base_offset,
+        });
+    }
     if box_ref.payload.len() < 2 {
         return Err(DecodeError::malformed(
             add_offset(base_offset, box_ref.header.offset())?,
@@ -617,7 +627,19 @@ pub(super) fn parse_channel_definition(
             MalformedKind::InvalidBoxLength,
         ));
     }
-    let mut records = Vec::with_capacity(usize::from(entries));
+    let reserved = crate::allocation::empty_with_capacity(usize::from(entries));
+    #[cfg(verus_keep_ghost)]
+    proof! {
+        let context=crate::specs::Part2ChannelStorageContext {
+            input:super::box_reference_view(box_ref),channels:output_channels,base:base_offset,
+        };
+        let response=crate::allocation::inspection_capacity_outcome(reserved);
+        crate::specs::part2_channel_capacity_observed(context,response);
+        if reserved.is_err(){
+            crate::specs::part2_channel_storage_refused(context,response);
+        }
+    }
+    let mut records = reserved?;
     let mut offset = 2_usize;
     #[cfg(verus_keep_ghost)]
     proof! {
@@ -628,6 +650,9 @@ pub(super) fn parse_channel_definition(
         verus_keep_ghost,
         verus_spec(
             invariant offset <= box_ref.payload.len(),
+                crate::specs::part2_channel_storage_result(crate::specs::Part2ChannelStorageContext {
+                    input:super::box_reference_view(box_ref),channels:output_channels,base:base_offset,
+                },crate::specs::part2_parse_channel_definition(super::box_reference_view(box_ref),output_channels,base_offset)),
                 2 <= offset,
                 (offset - 2) % 6 == 0,
                 box_ref.payload.len() == 2 + entries as nat * 6,
