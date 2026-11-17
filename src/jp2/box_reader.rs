@@ -27,6 +27,8 @@ verus! {
             BoxType::COLOR_SPECIFICATION != BoxType::IMAGE_HEADER,
             BoxType::COLOR_SPECIFICATION != BoxType::BITS_PER_COMPONENT,
             BoxType::COLOR_GROUP != BoxType::CODESTREAM_REGISTRATION,
+            BoxType::OPACITY != BoxType::CODESTREAM_REGISTRATION,
+            BoxType::OPACITY != BoxType::COLOR_GROUP,
             BoxType::JP2_HEADER != BoxType::SIGNATURE,
             BoxType::JP2_HEADER != BoxType::FILE_TYPE,
             BoxType::JP2_HEADER != BoxType::CONTIGUOUS_CODESTREAM,

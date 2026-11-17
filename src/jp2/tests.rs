@@ -2121,6 +2121,170 @@ fn actual_raw_channel_definition_keeps_exact_lengths_full_count_and_lazy_offsets
 }
 
 #[test]
+fn layer_metadata_storage_registration_keeps_preflight_record_priority_and_exact_retry() {
+    let limits = ResourceLimits::default();
+    let payload = [0, 2, 0, 3, 0, 0, 1, 1, 1, 2];
+    let parse = || {
+        super::composition::parse_codestream_registration(
+            raw_metadata_box(&payload, *b"creg", 19),
+            u64::MAX,
+            &limits,
+        )
+    };
+    let expected = parse().unwrap();
+    crate::allocation::with_refusal(1, || {
+        let retained = parse().unwrap();
+        assert_eq!(parse(), Err(DecodeError::AllocationFailed));
+        assert_eq!(retained, expected);
+        assert_eq!(parse().unwrap(), expected);
+    });
+    let mut excessive = vec![0, 1, 0, 1];
+    for _ in 0..=limits.maximum_codestreams() {
+        excessive.extend_from_slice(&[0, 0, 1, 1, 0, 0]);
+    }
+    for payload in [&[][..], &[0; 10][..], &[0; 11][..], &excessive] {
+        let input = raw_metadata_box(payload, *b"creg", 19);
+        let expected = super::composition::parse_codestream_registration(input, 100, &limits);
+        assert!(expected.is_err());
+        crate::allocation::with_refusal(0, || {
+            assert_eq!(
+                super::composition::parse_codestream_registration(input, 100, &limits),
+                expected
+            );
+            assert_eq!(
+                crate::allocation::empty_with_capacity::<u8>(1),
+                Err(DecodeError::AllocationFailed)
+            );
+        });
+    }
+    let invalid = [0, 1, 0, 1, 0, 0, 0, 1, 0, 0];
+    for base in [100, u64::MAX] {
+        let input = raw_metadata_box(&invalid, *b"creg", 19);
+        let expected = super::composition::parse_codestream_registration(input, base, &limits);
+        assert!(expected.is_err());
+        assert_eq!(
+            crate::allocation::with_refusal(0, || {
+                super::composition::parse_codestream_registration(input, base, &limits)
+            }),
+            Err(DecodeError::AllocationFailed)
+        );
+        assert_eq!(
+            super::composition::parse_codestream_registration(input, base, &limits),
+            expected
+        );
+    }
+}
+
+#[test]
+fn layer_metadata_storage_opacity_keeps_empty_eager_offsets_keys_and_exact_retry() {
+    let payload = [2, 1, 0, 255, 128, 17];
+    let input = raw_metadata_box(&payload, *b"opct", 19);
+    let expected = super::composition::parse_layer_opacity(input, 100).unwrap();
+    crate::allocation::with_refusal(0, || {
+        assert!(super::metadata::copy_bytes(&[]).unwrap().is_empty());
+        assert_eq!(
+            super::composition::parse_layer_opacity(input, 100),
+            Err(DecodeError::AllocationFailed)
+        );
+        assert_eq!(
+            super::composition::parse_layer_opacity(input, 100).unwrap(),
+            expected
+        );
+    });
+    for bytes in [
+        &[][..],
+        &[0][..],
+        &[1][..],
+        &[2][..],
+        &[2, 1][..],
+        &[2, 0, 7][..],
+        &[3, 1, 7][..],
+    ] {
+        for base in [100, u64::MAX] {
+            let input = raw_metadata_box(bytes, *b"opct", 19);
+            let expected = super::composition::parse_layer_opacity(input, base);
+            crate::allocation::with_refusal(0, || {
+                assert_eq!(
+                    super::composition::parse_layer_opacity(input, base),
+                    expected
+                );
+                assert_eq!(
+                    crate::allocation::empty_with_capacity::<u8>(1),
+                    Err(DecodeError::AllocationFailed)
+                );
+            });
+        }
+    }
+    let expected = super::composition::parse_layer_opacity(input, u64::MAX);
+    assert!(matches!(
+        expected,
+        Err(DecodeError::MalformedInput {
+            kind: MalformedKind::ArithmeticOverflow,
+            ..
+        })
+    ));
+    crate::allocation::with_refusal(0, || {
+        assert_eq!(
+            super::composition::parse_layer_opacity(input, u64::MAX),
+            expected
+        );
+        assert_eq!(
+            crate::allocation::empty_with_capacity::<u8>(1),
+            Err(DecodeError::AllocationFailed)
+        );
+    });
+}
+
+#[test]
+fn layer_metadata_storage_layer_container_and_exclusion_propagate_actual_refusals() {
+    let limits = ResourceLimits::default();
+    let registration = box32(*b"creg", &[0, 1, 0, 1, 0, 0, 1, 1, 0, 0]);
+    let mut layer = registration.clone();
+    layer.extend(box32(*b"cgrp", &raw_jp2_header_color()));
+    layer.extend(box32(*b"opct", &[2, 1, 7]));
+    let parse_layer = || parse_compositing_layer(raw_metadata_box(&layer, *b"jplh", 19), &limits);
+    let expected_layer = parse_layer().unwrap();
+    for after in 0..3 {
+        assert_eq!(
+            crate::allocation::with_refusal(after, parse_layer),
+            Err(DecodeError::AllocationFailed)
+        );
+        assert_eq!(parse_layer().unwrap(), expected_layer);
+    }
+    let mut excluded = registration.clone();
+    excluded.extend(&registration);
+    let input = raw_metadata_box(&excluded, *b"jplh", 19);
+    let expected = parse_compositing_layer(input, &limits);
+    assert!(matches!(
+        expected,
+        Err(DecodeError::MalformedInput {
+            kind: MalformedKind::InvalidBoxOrder,
+            ..
+        })
+    ));
+    crate::allocation::with_refusal(1, || {
+        assert_eq!(parse_compositing_layer(input, &limits), expected);
+        assert_eq!(
+            crate::allocation::empty_with_capacity::<u8>(1),
+            Err(DecodeError::AllocationFailed)
+        );
+    });
+    let mut header = raw_jp2_header_image(7, 1);
+    header.extend(raw_jp2_header_color());
+    let mut bytes = raw_container_start(true, Some(&header));
+    bytes.extend(box32(*b"jplh", &layer));
+    bytes.extend(box32(*b"jp2c", &[0, 255, 128, 17]));
+    let expected = parse(&bytes, &limits).unwrap();
+    for after in 1..=4 {
+        assert_eq!(
+            crate::allocation::with_refusal(after, || parse(&bytes, &limits)),
+            Err(DecodeError::AllocationFailed)
+        );
+        assert_eq!(parse(&bytes, &limits).unwrap(), expected);
+    }
+}
+
+#[test]
 fn layer_group_storage_group_keeps_child_priority_spare_capacity_and_later_growth() {
     let limits = ResourceLimits::default();
     let color = raw_jp2_header_color();

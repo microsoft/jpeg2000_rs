@@ -2168,7 +2168,7 @@ class FrameworkTests(WorkingFiles):
         read_text = Path.read_text
         for before, after in (
             ("position.checked_add(6)", "position.checked_add(12)"),
-            ("copy_bytes(&box_ref.payload[2..])?", "copy_bytes(&box_ref.payload[2..3])?"),
+            ("copy_bytes(&box_ref.payload[2..])", "copy_bytes(&box_ref.payload[2..3])"),
             ("payload: box_ref.payload,", "payload: &[],"),
         ):
             self.assertIn(before, original)
@@ -5201,6 +5201,57 @@ class FrameworkTests(WorkingFiles):
              "part2_layer_append_capacity_observed(", "unrelated_layer_reply("),
             (framework._RAW_CONTAINER_ENTRY, "src/jp2/container.rs",
              "part2_container_layer_append_error(context,error)", "unrelated_layer_error(context,error)"),
+        )
+        for ident, relative, before, after in mutations:
+            entry = next(item for item in coverage["requirements"] if item["id"] == ident)
+            source = framework.ROOT / relative
+            original = read_text(source)
+            self.assertIn(before, original)
+            changed = original.replace(before, after, 1)
+
+            def altered(path, *args, **kwargs):
+                return changed if path == source else read_text(path, *args, **kwargs)
+
+            with self.subTest(ident=ident, before=before), mock.patch.object(Path, "read_text", altered), \
+                    self.assertRaisesRegex(ValueError, "storage|whole raw|actual native owners|executable Verus"):
+                framework.validate_normative_coverage(dict(coverage, requirements=[entry]))
+
+    def test_inventory_registration_opacity_storage_binds_admission_roles_source_reply_and_tails(self):
+        coverage = json.loads((framework.VALIDATION / "normative-coverage.json").read_text())
+        read_text = Path.read_text
+        mutations = (
+            (framework._RAW_LAYER_HEADER_ENTRY, "specs/cold_layer_metadata.rs",
+             "count=((payload.len()-4)/6) as nat", "count=((payload.len()-4)/5) as nat"),
+            (framework._RAW_LAYER_HEADER_ENTRY, "specs/cold_layer_metadata.rs",
+             "part2_box_add_offset(context.base,context.input.0.1).is_ok()", "true"),
+            (framework._RAW_LAYER_HEADER_ENTRY, "specs/cold_layer_metadata.rs",
+             "payload[0]==2 && payload[1]!=0", "payload[0]==2"),
+            (framework._RAW_LAYER_HEADER_ENTRY, "specs/cold_layer_metadata.rs",
+             "actual!=context || elements!=count {None}", "actual!=context || elements!=count+1 {None}"),
+            (framework._RAW_LAYER_HEADER_ENTRY, "specs/cold_layer_metadata.rs",
+             "events.drop_first()", "events"),
+            (framework._RAW_LAYER_HEADER_ENTRY, "specs/cold_layer_metadata.rs",
+             "Part2LayerMetadataCapacityContext::Registration {context},events",
+             "Part2LayerMetadataCapacityContext::Opacity {context},events"),
+            (framework._RAW_LAYER_HEADER_ENTRY, "specs/cold_channel_storage.rs",
+             "CODESTREAM_REGISTRATION && !state.has_registration", "CODESTREAM_REGISTRATION"),
+            (framework._RAW_LAYER_HEADER_ENTRY, "specs/cold_channel_storage.rs",
+             "OPACITY && state.layer.opacity.is_none() && state.layer.definitions.len()==0",
+             "OPACITY && state.layer.opacity.is_none()"),
+            (framework._RAW_LAYER_HEADER_ENTRY, "src/jp2/composition.rs",
+             "empty_with_capacity(count)", "empty_with_capacity(count+1)"),
+            (framework._RAW_LAYER_HEADER_ENTRY, "src/jp2/composition.rs",
+             "crate::allocation::inspection_capacity_outcome(reserved)", "Ok(())"),
+            (framework._RAW_LAYER_HEADER_ENTRY, "src/jp2/composition.rs",
+             "crate::allocation::inspection_capacity_outcome(copied)", "Ok(())"),
+            (framework._RAW_LAYER_HEADER_ENTRY, "src/jp2/composition.rs",
+             "part2_header_storage_request_opacity_error(context,error)", "unrelated_opacity_error(context,error)"),
+            (framework._RESOLUTION_ENTRY, "src/jp2/metadata.rs",
+             "storage_copy_result(input@,result)", "storage_copy_result(input@.take(0),result)"),
+            (framework._RESOLUTION_ENTRY, "src/jp2/metadata.rs",
+             "part2_copy_metadata_bytes(input@)", "part2_copy_metadata_bytes(input@.take(0))"),
+            (framework._RESOLUTION_ENTRY, "src/jp2/metadata.rs",
+             "input.len()==0 ==> result.is_ok()", "true"),
         )
         for ident, relative, before, after in mutations:
             entry = next(item for item in coverage["requirements"] if item["id"] == ident)
@@ -10422,7 +10473,8 @@ class FrameworkTests(WorkingFiles):
         for reference in references:
             key = (reference["path"], reference["symbol"])
             cold_contract = framework._COLD_RESULT_CONTRACTS.get(key)
-            model = cold_contract[0] if cold_contract else recipes[key][0]
+            model = ("storage_copy_result" if key == ("src/jp2/metadata.rs", "copy_bytes")
+                     else cold_contract[0] if cold_contract else recipes[key][0])
             entry = next(entry for entry in entries if reference in entry["contract_refs"] or reference in entry["proof_refs"])
             claimed_consumer = reference in entry["contract_refs"]
             coverage = copy.deepcopy(original_coverage)

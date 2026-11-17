@@ -191,7 +191,21 @@ pub(super) fn parse_compositing_layer<'a>(
                     MalformedKind::InvalidBoxOrder,
                 ));
             }
-            let parsed = parse_codestream_registration(child, base_offset, limits)?;
+            let result = parse_codestream_registration(child, base_offset, limits);
+            #[cfg(verus_keep_ghost)]
+            proof! {
+                if let Err(error)=result {
+                    if error==DecodeError::AllocationFailed {
+                        let context=crate::specs::Part2RegistrationStorageContext {
+                            input:super::box_reference_view(child),base:base_offset,limits:*limits};
+                        crate::specs::part2_header_storage_request_registration_error(context,error);
+                        crate::specs::part2_header_storage_root_error(root,storage_prefix,machine,previous_reader,previous_state,
+                            super::box_reference_view(child),crate::specs::Part2HeaderStorageRequest::Registration {context},error);
+                        crate::specs::part2_layer_header_storage_observed(super::box_reference_view(box_ref),*limits,Err(error));
+                    }
+                }
+            }
+            let parsed = result?;
             horizontal_grid_size = parsed.0;
             vertical_grid_size = parsed.1;
             registrations = parsed.2;
@@ -226,7 +240,21 @@ pub(super) fn parse_compositing_layer<'a>(
                     MalformedKind::InvalidBoxOrder,
                 ));
             }
-            opacity = Some(parse_layer_opacity(child, base_offset)?);
+            let parsed = parse_layer_opacity(child, base_offset);
+            #[cfg(verus_keep_ghost)]
+            proof! {
+                if let Err(error)=parsed {
+                    if error==DecodeError::AllocationFailed {
+                        let context=crate::specs::Part2OpacityStorageContext {
+                            input:super::box_reference_view(child),base:base_offset};
+                        crate::specs::part2_header_storage_request_opacity_error(context,error);
+                        crate::specs::part2_header_storage_root_error(root,storage_prefix,machine,previous_reader,previous_state,
+                            super::box_reference_view(child),crate::specs::Part2HeaderStorageRequest::Opacity {context},error);
+                        crate::specs::part2_layer_header_storage_observed(super::box_reference_view(box_ref),*limits,Err(error));
+                    }
+                }
+            }
+            opacity = Some(parsed?);
         } else if child_type.equals(BoxType::CHANNEL_DEFINITION) {
             if !channel_definition_records.is_empty() || opacity.is_some() {
                 return Err(DecodeError::malformed(
@@ -280,7 +308,11 @@ pub(super) fn parse_compositing_layer<'a>(
 
 #[allow(clippy::manual_is_multiple_of)]
 #[cfg_attr(verus_keep_ghost, verus_spec(result =>
-    ensures super::registration_outcome(result) == crate::specs::part2_parse_codestream_registration(
+    ensures crate::specs::part2_registration_storage_result(crate::specs::Part2RegistrationStorageContext {
+        input:super::box_reference_view(box_ref),base:base_offset,limits:*limits,
+    },super::registration_outcome(result)),
+    super::registration_outcome(result) != Err(DecodeError::AllocationFailed) ==>
+        super::registration_outcome(result) == crate::specs::part2_parse_codestream_registration(
         super::box_reference_view(box_ref), base_offset, limits),
 ))]
 pub(super) fn parse_codestream_registration(
@@ -288,6 +320,13 @@ pub(super) fn parse_codestream_registration(
     base_offset: u64,
     limits: &ResourceLimits,
 ) -> Result<(u16, u16, Vec<CodestreamRegistration>), DecodeError> {
+    #[cfg(verus_keep_ghost)]
+    proof_decl! {
+        let ghost storage_context=crate::specs::Part2RegistrationStorageContext {
+            input:super::box_reference_view(box_ref),base:base_offset,limits:*limits};
+    }
+    #[cfg(verus_keep_ghost)]
+    proof! { crate::specs::part2_registration_storage_normal(storage_context); }
     if box_ref.payload.len() < 10 || (box_ref.payload.len() - 4) % 6 != 0 {
         return Err(DecodeError::malformed(
             add_offset(base_offset, box_ref.header.offset())?,
@@ -310,7 +349,15 @@ pub(super) fn parse_codestream_registration(
             count as u64,
         ));
     }
-    let mut registrations = Vec::with_capacity(count);
+    let reserved = crate::allocation::empty_with_capacity(count);
+    #[cfg(verus_keep_ghost)]
+    proof! {
+        crate::specs::part2_layer_metadata_capacity_observed(
+            crate::specs::Part2LayerMetadataCapacityContext::Registration {context:storage_context},
+            crate::allocation::inspection_capacity_outcome(reserved));
+        if let Err(error)=reserved {crate::specs::part2_registration_storage_refused(storage_context,error);}
+    }
+    let mut registrations = reserved?;
     let mut position = 4_usize;
     #[cfg(verus_keep_ghost)]
     proof! {
@@ -331,6 +378,10 @@ pub(super) fn parse_codestream_registration(
                 vertical_grid_size == crate::specs::part2_box_u16([box_ref.payload[2], box_ref.payload[3]]),
                 count == (box_ref.payload.len() - 4) / 6,
                 count as u64 <= crate::limits::resource_codestream_limit(limits) as u64,
+                storage_context==(crate::specs::Part2RegistrationStorageContext {
+                    input:super::box_reference_view(box_ref),base:base_offset,limits:*limits}),
+                crate::specs::part2_registration_storage_result(storage_context,
+                    crate::specs::part2_parse_codestream_registration(super::box_reference_view(box_ref),base_offset,limits)),
                 crate::specs::part2_registration_prefix(super::box_reference_view(box_ref),
                     base_offset, ((position - 4) / 6) as nat) == Ok(registrations@),
             decreases box_ref.payload.len() - position,
@@ -517,13 +568,22 @@ pub(super) fn parse_color_group(
 }
 
 #[cfg_attr(verus_keep_ghost, verus_spec(result =>
-    ensures super::opacity_outcome(result) == crate::specs::part2_parse_layer_opacity(
+    ensures crate::specs::part2_opacity_storage_result(crate::specs::Part2OpacityStorageContext {
+        input:super::box_reference_view(box_ref),base:base_offset,
+    },super::opacity_outcome(result)),
+    super::opacity_outcome(result) != Err(DecodeError::AllocationFailed) ==>
+        super::opacity_outcome(result) == crate::specs::part2_parse_layer_opacity(
         super::box_reference_view(box_ref), base_offset),
 ))]
 pub(super) fn parse_layer_opacity(
     box_ref: BoxRef<'_>,
     base_offset: u64,
 ) -> Result<LayerOpacity, DecodeError> {
+    #[cfg(verus_keep_ghost)]
+    proof! {
+        crate::specs::part2_opacity_storage_normal(crate::specs::Part2OpacityStorageContext {
+            input:super::box_reference_view(box_ref),base:base_offset});
+    }
     let offset = add_offset(base_offset, box_ref.header.offset())?;
     let Some(opacity_type) = box_ref.payload.first() else {
         return Err(DecodeError::malformed(
@@ -548,9 +608,19 @@ pub(super) fn parse_layer_opacity(
                     MalformedKind::InvalidBoxContents,
                 ));
             }
+            let copied = copy_bytes(&box_ref.payload[2..]);
+            #[cfg(verus_keep_ghost)]
+            proof! {
+                let context=crate::specs::Part2OpacityStorageContext {
+                    input:super::box_reference_view(box_ref),base:base_offset};
+                crate::specs::part2_layer_metadata_capacity_observed(
+                    crate::specs::Part2LayerMetadataCapacityContext::Opacity {context},
+                    crate::allocation::inspection_capacity_outcome(copied));
+                if let Err(error)=copied {crate::specs::part2_opacity_storage_refused(context,error);}
+            }
             Ok(LayerOpacity::ChromaKey {
                 channels,
-                values: copy_bytes(&box_ref.payload[2..])?,
+                values: copied?,
             })
         }
         0..=2 => Err(DecodeError::malformed(

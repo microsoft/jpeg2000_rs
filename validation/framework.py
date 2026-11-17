@@ -5116,6 +5116,8 @@ _PLANE_ROLE_RESULT_RUNS.update({
     "part2_coefficient_progression_result": ("part2_extraction_progression_run", False),
 })
 _COLD_RESULT_MODELS = {
+    "part2_parse_codestream_registration": ("part2_registration_storage_result", "specs/cold_layer_metadata.rs", "part2_registration_storage_normal"),
+    "part2_parse_layer_opacity": ("part2_opacity_storage_result", "specs/cold_layer_metadata.rs", "part2_opacity_storage_normal"),
     "part2_parse_color_specification": ("part2_color_storage_result", "specs/cold_color_storage.rs", "part2_color_storage_normal"),
     "part2_parse_color_group": ("part2_color_group_storage_result", "specs/cold_color_storage.rs", "part2_color_group_storage_normal"),
     "part2_parse_palette": ("part2_palette_storage_result", "specs/cold_palette_storage.rs", "part2_palette_storage_normal"),
@@ -5404,6 +5406,15 @@ def _coverage_cold_relation(
             + _coverage_call("super::box_reference_view", "box_ref")
             + (r"\s*,\s*limits\s*:\s*\*\s*limits" if model == "part2_parse_color_group" else "")
             + r"\s*,\s*base\s*:\s*base_offset\s*,?\s*\}"
+        )
+    if model in {"part2_parse_codestream_registration", "part2_parse_layer_opacity"}:
+        context = "Part2RegistrationStorageContext" if model == "part2_parse_codestream_registration" else "Part2OpacityStorageContext"
+        inputs = (
+            r"crate::specs::" + context + r"\s*\{\s*input\s*:\s*"
+            + _coverage_call("super::box_reference_view", "box_ref")
+            + r"\s*,\s*base\s*:\s*base_offset"
+            + (r"\s*,\s*limits\s*:\s*\*\s*limits" if model == "part2_parse_codestream_registration" else "")
+            + r"\s*,?\s*\}"
         )
     if model == "part2_parse_palette":
         inputs = (
@@ -8785,6 +8796,103 @@ _LAYER_APPEND_NATIVE = {
 }
 _RAW_CONTAINER_MODELS.update(_LAYER_APPEND_GUARDS)
 _RAW_CONTAINER_PROOFS.update(_LAYER_APPEND_PROOFS)
+_LAYER_METADATA_GUARDS = {
+    ("specs/cold_layer_metadata.rs", "part2_registration_storage_count"): (
+        "payload=context.input.1", "payload.len()<10 || (payload.len()-4)%6!=0",
+        "horizontal==0 || vertical==0", "count=((payload.len()-4)/6) as nat",
+        "count as u64>crate::limits::resource_codestream_limit(&context.limits) as u64 {0}else{count}",
+    ),
+    ("specs/cold_layer_metadata.rs", "part2_opacity_storage_count"): (
+        "part2_box_add_offset(context.base,context.input.0.1).is_ok()", "payload.len()<3 {0}",
+        "payload[0]==2 && payload[1]!=0 {(payload.len()-2) as nat}else{0}",
+    ),
+    ("specs/cold_layer_metadata.rs", "part2_layer_metadata_capacity_count"): (
+        "Registration {context}=>part2_registration_storage_count(context)",
+        "Opacity {context}=>part2_opacity_storage_count(context)",
+    ),
+    ("specs/cold_layer_metadata.rs", "part2_layer_metadata_capacity_run"): (
+        "part2_layer_metadata_capacity_count(context)", "if count==0 {Some((Ok(()),events))}",
+        "actual!=context || elements!=count {None}",
+        "if succeeded{Ok(())}else{Err(crate::DecodeError::AllocationFailed)}", "events.drop_first()",
+    ),
+    ("specs/cold_layer_metadata.rs", "part2_layer_metadata_capacity_result"): (
+        "part2_cold_framed(|events|part2_layer_metadata_capacity_run(context,events),result)",
+    ),
+    ("specs/cold_layer_metadata.rs", "part2_registration_storage_run"): (
+        "Part2LayerMetadataCapacityContext::Registration {context},events",
+        "Some((part2_parse_codestream_registration(context.input,context.base,&context.limits),rest))",
+    ),
+    ("specs/cold_layer_metadata.rs", "part2_registration_storage_result"): (
+        "part2_cold_framed(|events|part2_registration_storage_run(context,events),result)",
+    ),
+    ("specs/cold_layer_metadata.rs", "part2_opacity_storage_run"): (
+        "Part2LayerMetadataCapacityContext::Opacity {context},events",
+        "Some((part2_parse_layer_opacity(context.input,context.base),rest))",
+    ),
+    ("specs/cold_layer_metadata.rs", "part2_opacity_storage_result"): (
+        "part2_cold_framed(|events|part2_opacity_storage_run(context,events),result)",
+    ),
+    ("specs/cold_channel_storage.rs", "part2_layer_header_storage_machine"): (
+        "input.0.0==crate::jp2::BoxType::CODESTREAM_REGISTRATION && !state.has_registration",
+        "Part2RegistrationStorageContext {input,base,limits}",
+        "input.0.0==crate::jp2::BoxType::OPACITY && state.layer.opacity.is_none() && state.layer.definitions.len()==0",
+        "Part2OpacityStorageContext {input,base}",
+    ),
+    ("specs/cold_palette_storage.rs", "part2_header_storage_request_run"): (
+        "part2_registration_storage_run(context,events)", "part2_opacity_storage_run(context,events)",
+    ),
+    ("specs/cold_palette_storage.rs", "part2_header_storage_request_value"): (
+        "Part2HeaderStorageRequest::Registration {context}=>crate::allocation::inspection_capacity_outcome(",
+        "part2_parse_codestream_registration(context.input,context.base,&context.limits)",
+        "Part2HeaderStorageRequest::Opacity {context}=>crate::allocation::inspection_capacity_outcome(",
+        "part2_parse_layer_opacity(context.input,context.base)",
+    ),
+}
+_LAYER_METADATA_PROOFS = {("specs/cold_layer_metadata.rs", name) for name in (
+    "part2_layer_metadata_capacity_observed", "part2_layer_metadata_capacity_frames",
+    "part2_registration_storage_normal", "part2_registration_storage_refused", "part2_registration_storage_frames",
+    "part2_opacity_storage_normal", "part2_opacity_storage_refused", "part2_opacity_storage_frames",
+)} | {("specs/cold_palette_storage.rs", name) for name in (
+    "part2_header_storage_request_registration_error", "part2_header_storage_request_opacity_error",
+)}
+_LAYER_METADATA_NATIVE = {
+    ("src/jp2/composition.rs", "parse_codestream_registration"): (
+        "box_ref.payload.len() < 10 || (box_ref.payload.len() - 4) % 6 != 0",
+        "horizontal_grid_size == 0 || vertical_grid_size == 0",
+        "count as u64 > u64::from(limits.maximum_codestreams())",
+        "let reserved = crate::allocation::empty_with_capacity(count)",
+        "Part2LayerMetadataCapacityContext::Registration {context:storage_context}",
+        "crate::allocation::inspection_capacity_outcome(reserved)",
+        "part2_registration_storage_refused(storage_context,error)", "let mut registrations = reserved?",
+        "while position < box_ref.payload.len()", "horizontal_subsampling == 0",
+    ),
+    ("src/jp2/composition.rs", "parse_layer_opacity"): (
+        "let offset = add_offset(base_offset, box_ref.header.offset())?",
+        "let Some(opacity_type) = box_ref.payload.first()", "box_ref.payload.len() < 3",
+        "let channels = box_ref.payload[1]", "if channels == 0",
+        "let copied = copy_bytes(&box_ref.payload[2..])",
+        "Part2LayerMetadataCapacityContext::Opacity {context}",
+        "crate::allocation::inspection_capacity_outcome(copied)",
+        "part2_opacity_storage_refused(context,error)", "values: copied?",
+    ),
+    ("src/jp2/composition.rs", "parse_compositing_layer"): (
+        "if has_registration", "let result = parse_codestream_registration(child, base_offset, limits)",
+        "part2_header_storage_request_registration_error(context,error)",
+        "Part2HeaderStorageRequest::Registration {context}", "let parsed = result?",
+        "has_registration = true",
+        "if opacity.is_some() || !channel_definition_records.is_empty()",
+        "let parsed = parse_layer_opacity(child, base_offset)",
+        "part2_header_storage_request_opacity_error(context,error)",
+        "Part2HeaderStorageRequest::Opacity {context}", "opacity = Some(parsed?)",
+    ),
+    ("src/jp2/metadata.rs", "copy_bytes"): (
+        "if input.is_empty()", "Vec::new()", "crate::allocation::empty_with_capacity(input.len())?",
+        "while index < input.len()", "input.get(index)", "Ok(output)",
+    ),
+}
+_RAW_LAYER_HEADER_MODELS.update(_LAYER_METADATA_GUARDS)
+_RAW_LAYER_HEADER_PROOFS.update(_LAYER_METADATA_PROOFS)
+_RESOLUTION_MODELS.add(("specs/allocation.rs", "storage_copy_result"))
 
 _OUTPUT_STORAGE_GUARDS = {
     ("specs/cold_output_storage.rs", "part2_definition_storage_result"): (
@@ -13055,10 +13163,10 @@ def validate_normative_coverage(
                 ),
                 "parse_layer_opacity": (
                     "add_offset(base_offset, box_ref.header.offset())?", "let channels = box_ref.payload[1]",
-                    "copy_bytes(&box_ref.payload[2..])?", "channels == 0",
+                    "let copied = copy_bytes(&box_ref.payload[2..])", "values: copied?", "channels == 0",
                 ),
                 "parse_compositing_layer": (
-                    "box_reader_from_input(box_ref.payload, limits)?", "parse_codestream_registration(child, base_offset, limits)?",
+                    "box_reader_from_input(box_ref.payload, limits)?", "let result = parse_codestream_registration(child, base_offset, limits)",
                     "opacity.is_some() || !channel_definition_records.is_empty()",
                     "let parsed = parse_channel_definition(child, u16::MAX, base_offset)", "channel_definition_records = parsed?",
                     "inspect_metadata_box(child, limits, 1, u32::MAX - 1)?",
@@ -15986,6 +16094,15 @@ def validate_normative_coverage(
                     r"final\(\s*values\s*\)@\s*,\s*\1",
                 ),
             }.get(short) if reference["path"] == "src/allocation.rs" else None
+            if (reference["path"], reference["symbol"]) == ("src/jp2/metadata.rs", "copy_bytes"):
+                if not _coverage_extraction_normal_arguments(
+                        contract, "super::metadata_bytes_outcome", "part2_copy_metadata_bytes", r"input\s*@"):
+                    raise ValueError(f"linked function lacks executable Verus contract: {short}; missing exact ordinary metadata-copy projection")
+                if "input.len()==0==>result.is_ok()" not in "".join(contract.split()):
+                    raise ValueError(f"linked function lacks executable Verus contract: {short}; missing request-free empty metadata-copy result")
+                header_contract = arbitrary_contract = selection_contract = None
+                packet_contract = None
+                storage_contract = ("storage_copy_result", r"input@\s*,\s*\1")
             if (reference["path"], reference["symbol"]) == (
                     "src/jpip/automatic_headers.rs", "normalize_main_header"):
                 storage_contract = (
@@ -16029,7 +16146,8 @@ def validate_normative_coverage(
                 if cold_contract[0] in {
                         "part2_channel_storage_result", "part2_jp2_header_storage_result",
                         "part2_codestream_header_storage_result", "part2_layer_header_storage_result",
-                        "part2_color_storage_result", "part2_color_group_storage_result"}:
+                        "part2_color_storage_result", "part2_color_group_storage_result",
+                        "part2_registration_storage_result", "part2_opacity_storage_result"}:
                     legacy = {
                         **_CHANNEL_HEADER_CONTRACTS, **_RAW_JP2_HEADER_CONTRACTS,
                         **_ASSOCIATED_HEADER_CONTRACTS, **_RAW_LAYER_HEADER_CONTRACTS, **_COLOR_HEADER_CONTRACTS,
@@ -16038,6 +16156,8 @@ def validate_normative_coverage(
                                   else "super::raw_compositing_layer_outcome" if cold_contract[0] == "part2_layer_header_storage_result"
                                   else "super::color_specification_outcome" if cold_contract[0] == "part2_color_storage_result"
                                   else "super::color_group_outcome" if cold_contract[0] == "part2_color_group_storage_result"
+                                  else "super::registration_outcome" if cold_contract[0] == "part2_registration_storage_result"
+                                  else "super::opacity_outcome" if cold_contract[0] == "part2_opacity_storage_result"
                                   else "super::raw_jp2_header_outcome")
                     if not _coverage_extraction_normal_arguments(contract, projection, legacy[0], legacy[3]):
                         raise ValueError(f"linked function lacks executable Verus contract: {short}; missing exact ordinary CDEF/header projection")
@@ -17285,6 +17405,11 @@ def validate_normative_coverage(
         (_RAW_CONTAINER_ENTRY, _LAYER_APPEND_GUARDS, _LAYER_APPEND_PROOFS, {
             ("src/jp2/tests.rs", "layer_group_storage_container_keeps_first_later_growth_and_late_validation"),
         }, _LAYER_APPEND_NATIVE),
+        (_RAW_LAYER_HEADER_ENTRY, _LAYER_METADATA_GUARDS, _LAYER_METADATA_PROOFS, {
+            ("src/jp2/tests.rs", "layer_metadata_storage_registration_keeps_preflight_record_priority_and_exact_retry"),
+            ("src/jp2/tests.rs", "layer_metadata_storage_opacity_keeps_empty_eager_offsets_keys_and_exact_retry"),
+            ("src/jp2/tests.rs", "layer_metadata_storage_layer_container_and_exclusion_propagate_actual_refusals"),
+        }, _LAYER_METADATA_NATIVE),
     ):
         if color_entry_id not in ids:
             continue
