@@ -523,7 +523,7 @@ fn precinct_singleton_storage_first_later_refusals_restore_exact_owners() {
         &limits,
     )
     .unwrap();
-    for after in 0..4 {
+    for after in [0, 1, 5, 6] {
         let decoders = vec![one_bit_legacy_decoder(false)];
         assert!(matches!(
             crate::allocation::with_refusal(after, || PacketPrecinctDecoder::new(
@@ -666,6 +666,83 @@ fn precinct_singleton_storage_real_full_selected_packet_callers_restore() {
             );
         }
     }
+}
+
+#[test]
+fn precinct_context_storage_preserves_prefixes_refusals_preflight_and_held_capacity() {
+    let style = Tier1CodingStyle {
+        force_high_throughput: true,
+        ..Tier1CodingStyle::default()
+    };
+    let state = CodeBlockPacketState {
+        included: true,
+        zero_bitplanes: Some(u16::MAX),
+        lblock: u8::MAX,
+        total_passes: u32::MAX,
+        high_throughput: Some(true),
+    };
+    let context = CodeBlockPacketContext {
+        leaf_x: u32::MAX,
+        leaf_y: u32::MAX,
+        layer: u16::MAX,
+        maximum_zero_bitplanes: u16::MAX,
+        tier1_style: style,
+    };
+    let states = vec![state];
+    let contexts = vec![context; 2];
+    let expected =
+        prepare_precinct_contexts(states.clone(), contexts.clone(), 7, 3, u16::MAX, style).unwrap();
+    for after in [0, 1] {
+        let prior_states = states.clone();
+        let prior_contexts = contexts.clone();
+        crate::allocation::with_refusal(after, || {
+            assert_eq!(
+                prepare_precinct_contexts(prior_states, prior_contexts, 7, 3, u16::MAX, style),
+                Err(DecodeError::AllocationFailed)
+            );
+            assert_eq!(
+                prepare_precinct_contexts(states.clone(), contexts.clone(), 7, 3, u16::MAX, style)
+                    .unwrap(),
+                expected
+            );
+        });
+    }
+    let prior_states = states.clone();
+    let prior_contexts = contexts.clone();
+    crate::allocation::with_refusal(0, || {
+        assert_eq!(
+            prepare_precinct_contexts(prior_states, prior_contexts, 0, 0, 0, style).unwrap(),
+            (states.clone(), contexts.clone())
+        );
+        assert_eq!(
+            prepare_precinct_contexts(Vec::new(), Vec::new(), 1, 0, 0, style),
+            Err(packet_arithmetic_overflow())
+        );
+        if let Ok(too_many) = usize::try_from(u64::from(u32::MAX) + 2) {
+            assert_eq!(
+                prepare_precinct_contexts(Vec::new(), Vec::new(), too_many, 1, 0, style),
+                Err(packet_arithmetic_overflow())
+            );
+        }
+        assert_eq!(
+            crate::allocation::copy_values(&[1_u8]),
+            Err(DecodeError::AllocationFailed)
+        );
+    });
+    let mut held_states = Vec::with_capacity(16);
+    held_states.extend_from_slice(&states);
+    let mut held_contexts = Vec::with_capacity(16);
+    held_contexts.extend_from_slice(&contexts);
+    crate::allocation::with_refusal(0, || {
+        assert_eq!(
+            prepare_precinct_contexts(held_states, held_contexts, 7, 3, u16::MAX, style).unwrap(),
+            expected
+        );
+        assert_eq!(
+            crate::allocation::copy_values(&[1_u8]),
+            Err(DecodeError::AllocationFailed)
+        );
+    });
 }
 
 #[test]
@@ -4515,7 +4592,7 @@ fn packet_precinct_storage_subbands_and_ordered_tree_refusals_restore_every_owne
         )
     };
     let expected = make().unwrap();
-    for after in [0, 1, 2] {
+    for after in [0, 1, 2, 3, 4, 5] {
         let executions = vec![packet_precinct_storage_execution()];
         assert_eq!(
             crate::allocation::with_refusal(after, || packet_precinct_from_subbands(

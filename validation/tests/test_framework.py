@@ -8253,6 +8253,32 @@ class FrameworkTests(WorkingFiles):
                     self.assertRaisesRegex(ValueError, "fallible copy storage"):
                 framework.validate_normative_coverage(dict(coverage, requirements=[entry]))
 
+    def test_inventory_precinct_owner_storage_rejects_count_role_and_prelude_source_changes(self):
+        coverage = json.loads((framework.VALIDATION / "normative-coverage.json").read_text())
+        entry = next(item for item in coverage["requirements"]
+                     if item["id"] == "part2-complete-native-precinct-initialization")
+        read_text = Path.read_text
+        for relative, before, after in (
+            ("src/packet/precinct.rs", "reserve_additional(&mut states, count)",
+             "reserve_additional(&mut states, count + 1)"),
+            ("src/packet/precinct.rs", "u32::try_from(count - 1)", "u32::try_from(count - 2)"),
+            ("specs/cold_packet_precinct.rs", "count,across,maximum_zero,style,false)",
+             "count,across,maximum_zero,style,true)"),
+            ("specs/cold_packet_precinct.rs", "PrecinctDecoders {before,total,row,style}",
+             "PrecinctDecoders {before,total:0,row,style}"),
+        ):
+            source = framework.ROOT / relative
+            original = read_text(source)
+            changed = original.replace(before, after, 1)
+            self.assertNotEqual(original, changed)
+
+            def altered(path, *args, **kwargs):
+                return changed if path == source else read_text(path, *args, **kwargs)
+
+            with self.subTest(mutation=before), mock.patch.object(Path, "read_text", altered), \
+                    self.assertRaisesRegex(ValueError, "nested precinct fresh storage"):
+                framework.validate_normative_coverage(dict(coverage, requirements=[entry]))
+
     def test_inventory_codeblock_growth_rejects_changed_count_phase_and_coordinate_frontier(self):
         coverage = json.loads((framework.VALIDATION / "normative-coverage.json").read_text())
         entry = next(item for item in coverage["requirements"]

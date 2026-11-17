@@ -5101,6 +5101,9 @@ _PLANE_ROLE_RESULT_RUNS.update({
     "part2_coefficient_progression_result": ("part2_extraction_progression_run", False),
 })
 _COLD_RESULT_MODELS = {
+    "part2_precinct_contexts": (
+        "part2_precinct_contexts_result", "specs/cold_packet_precinct.rs", "part2_precinct_contexts_normal",
+    ),
     "part2_collect_tile_parts": (
         "part2_collected_parts_result", "specs/decoder_input.rs", "part2_collected_parts_normal",
     ),
@@ -7012,12 +7015,18 @@ _PACKET_PRECINCT_STORAGE_MODELS = _TAG_STORAGE_MODELS | {("specs/cold_packet_pre
     "part2_precinct_capacity_run", "part2_precinct_capacity_result", "part2_precinct_tree_prelude", "part2_precinct_tree_context",
     "part2_precinct_finish_trees", "part2_precinct_state_rows", "part2_precinct_state_after_inclusion",
     "part2_precinct_initial", "part2_precinct_state_run", "part2_precinct_state_result",
-)} | {("specs/cold_precinct_storage.rs", "part2_precinct_plan_finish")}
+    "part2_precinct_context_capacity_context", "part2_precinct_contexts_run", "part2_precinct_contexts_result",
+    "part2_precinct_decoder_capacity_context", "part2_precinct_prelude_run", "part2_precinct_prelude_result",
+)} | {("specs/cold_precinct_storage.rs", name) for name in (
+    "part2_precinct_plan_finish", "part2_planning_capacity_count", "part2_planning_capacity_run", "part2_planning_capacity_result",
+)}
 _PACKET_PRECINCT_STORAGE_PROOFS = _TAG_STORAGE_PROOFS | {("specs/cold_packet_precinct.rs", name) for name in (
     "part2_precinct_capacity_observed", "part2_precinct_state_rows_normal", "part2_precinct_after_inclusion_normal",
     "part2_precinct_state_normal", "part2_precinct_state_refused", "part2_precinct_state_start",
     "part2_precinct_state_inclusion_step", "part2_precinct_state_zero_step", "part2_precinct_state_join", "part2_precinct_state_frames",
-)} | {("specs/cold_precinct_storage.rs", "part2_precinct_rows_end")}
+    "part2_precinct_contexts_normal", "part2_precinct_contexts_refused", "part2_precinct_prelude_normal",
+    "part2_precinct_prelude_contexts_refused", "part2_precinct_prelude_decoder_observed",
+)} | {("specs/cold_precinct_storage.rs", name) for name in ("part2_precinct_rows_end", "part2_planning_capacity_observed")}
 _PACKET_PRECINCT_STORAGE_TESTS = {
     ("src/packet/tests.rs", "packet_precinct_storage_tag_nodes_admission_refusal_and_exact_restore"),
     ("src/packet/tests.rs", "packet_precinct_storage_subbands_and_ordered_tree_refusals_restore_every_owner"),
@@ -7053,8 +7062,26 @@ _PACKET_PRECINCT_STORAGE_GUARDS = {
         "before:prepared.0,total:prepared.1,execution:row,index:index as usize,zero,inclusion,maximum:",
     ),
     ("specs/cold_packet_precinct.rs", "part2_precinct_state_rows"): (
-        "part2_precinct_tree_prelude(", "Err(error)=>Some((Err(error),events))",
+        "part2_precinct_prelude_run(before,total,row,style,limits,events)",
         "part2_precinct_tree_context(prepared,row,index,false,None,limits)", "part2_precinct_state_after_inclusion(",
+    ),
+    ("specs/cold_packet_precinct.rs", "part2_precinct_context_capacity_context"): (
+        "Part2PlanningCapacityContext::PrecinctContexts {states,contexts,count,across,maximum_zero,style,contexts_owner}",
+    ),
+    ("specs/cold_packet_precinct.rs", "part2_precinct_contexts_run"): (
+        "part2_precinct_contexts(states,contexts,count,across,maximum_zero,style)",
+        "Err(error)=>Some((Err(error),events))",
+        "part2_precinct_context_capacity_context(states,contexts,count,across,maximum_zero,style,false)",
+        "part2_precinct_context_capacity_context(states,contexts,count,across,maximum_zero,style,true)",
+    ),
+    ("specs/cold_packet_precinct.rs", "part2_precinct_decoder_capacity_context"): (
+        "Part2PlanningCapacityContext::PrecinctDecoders {before,total,row,style}",
+    ),
+    ("specs/cold_packet_precinct.rs", "part2_precinct_prelude_run"): (
+        "part2_precinct_tree_prelude(before,total,row,style,limits)",
+        "Err(error)=>Some((Err(error),events))",
+        "part2_precinct_contexts_run(before.states,before.contexts,row.decoders.len() as usize,row.across,row.maximum_zero,style,events)",
+        "part2_precinct_decoder_capacity_context(before,total,row,style)",
     ),
     ("specs/cold_packet_precinct.rs", "part2_precinct_state_after_inclusion"): (
         "part2_precinct_tree_context(prepared,row,index,true,Some(inclusion),limits)",
@@ -7066,6 +7093,12 @@ _PACKET_PRECINCT_STORAGE_GUARDS = {
     ),
 }
 _PACKET_PRECINCT_NATIVE_ORDER = {
+    ("src/packet/precinct.rs", "prepare_precinct_contexts"): (
+        "if count != 0", "across == 0 || u32::try_from(count - 1).is_err()",
+        "reserve_additional(&mut states, count)", "reserved?",
+        "reserve_additional(&mut contexts, count)", "reserved?;}let mut local_index = 0_usize",
+        "while local_index < count", "states.push(state)", "contexts.push(",
+    ),
     ("src/packet/tag_tree.rs", "tag_tree_from_dimensions"): (
         "if width == 0 || height == 0", "let mut levels = Vec::new()", "loop {", "levels.push(",
         "usize::try_from(next_total)", "let filled = crate::allocation::filled_values(", "TagTreeNode {",
@@ -7074,7 +7107,8 @@ _PACKET_PRECINCT_NATIVE_ORDER = {
     ("src/packet/precinct.rs", "packet_precinct_from_subbands"): (
         "if executions.len() > 3", "let mut states = Vec::new()", "let mut contexts = Vec::new()", "let mut decoders = Vec::new()",
         "empty_with_capacity(executions.len())", "part2_precinct_capacity_observed(", "let mut subbands = reserved?",
-        "while execution_index < executions.len()", "prepare_precinct_contexts(", "decoders.append(",
+        "while execution_index < executions.len()", "prepare_precinct_contexts(",
+        "reserve_additional(&mut decoders, execution.decoders.len())", "decoders.append(",
         "let inclusion_result = tag_tree_new(", "let inclusion_tree = inclusion_result?", "let zero_result = tag_tree_new(",
         "let zero_bitplane_tree = zero_result?", "subbands.push(subband)",
     ),
@@ -14584,6 +14618,16 @@ def validate_normative_coverage(
                     raise ValueError(f"linked function lacks executable Verus contract: {short}; invalid exact Copy-fill storage relation")
             cold_contract = _COLD_RESULT_CONTRACTS.get((reference["path"], reference["symbol"]))
             if cold_contract is not None:
+                if cold_contract[0] == "part2_precinct_contexts_result":
+                    outcome = _coverage_call("precinct_contexts_outcome", r"\1")
+                    inputs = _PRECINCT_INITIALIZATION_CONTRACTS[(reference["path"], reference["symbol"])][3]
+                    ordinary = (outcome + r"\s*!=\s*Err\(\s*DecodeError::AllocationFailed\s*\)\s*==>\s*"
+                                + outcome + r"\s*==\s*" + _coverage_call("crate::specs::part2_precinct_contexts", inputs))
+                    admitted = (outcome + r"\s*==\s*Err\(\s*DecodeError::AllocationFailed\s*\)\s*==>\s*"
+                                + _coverage_call("crate::specs::part2_precinct_contexts", inputs) + r"\s*\.is_ok\(\)")
+                    if (re.search(named_prefix + r".*?" + ordinary, contract, re.S) is None
+                            or re.search(named_prefix + r".*?" + admitted, contract, re.S) is None):
+                        raise ValueError(f"linked function lacks executable Verus contract: {short}; missing exact context projection/preflight")
                 if cold_contract[0] == "part2_collected_parts_result":
                     outcome = _coverage_call("collected_tile_parts_outcome", r"\1")
                     ordinary = (outcome + r"\s*!=\s*Err\(\s*DecodeError::AllocationFailed\s*\)\s*==>\s*"

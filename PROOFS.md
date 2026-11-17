@@ -39,6 +39,21 @@ an all-feature Verus proof. Full source-function coverage remains `not-measured`
 
 ## Fallible-storage foundation and remaining boundary
 
+### Precinct preparation ownership
+
+Context preparation validates the count/linear-index and across-zero errors
+before two checked reservations, then fills both vectors without growth.
+Existing state/context prefixes and all raw leaf metadata remain unchanged.
+This intentionally moves storage after complete semantic preflight. Decoder
+append growth stays after context preparation and before either TagTree child.
+
+Cold contexts bind both original arrays, count/grid/style, owner discriminator,
+the complete source row/prior precinct state, actual responses and event tails.
+The reached prelude composes these storage calls through the actual constructor,
+without supplied context/decoder outcomes or an allocator-availability premise.
+Empty inputs and held capacity avoid physical requests; logical reservations
+are not a claim that every successful call reaches the host allocator.
+
 ### Planned codeblock growth
 
 The actual codeblock cell checks geometry and constructs/configures its decoder
