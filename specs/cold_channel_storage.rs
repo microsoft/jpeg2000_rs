@@ -280,6 +280,8 @@ pub(crate) open spec fn part2_main_header_storage_machine(payload:Seq<u8>,limits
             }else if input.0.0==crate::jp2::BoxType::COMPONENT_MAPPING && state.mappings.len()==0 && palette_columns<=u8::MAX {
                 Some(Part2HeaderStorageRequest::Mapping {context:Part2MappingStorageContext {
                     input,components:state.image.components,palette_columns:palette_columns as u8,limits,base}})
+            }else if input.0.0==crate::jp2::BoxType::COLOR_SPECIFICATION && state.color.is_none() {
+                Some(Part2HeaderStorageRequest::Color {context:Part2ColorStorageContext {input,base}})
             }else{None}},
         step:|input,state|part2_raw_header_step(input,state,limits,base),
         finish:|state|part2_raw_header_finish(state,base,allow),
@@ -302,6 +304,8 @@ pub(crate) open spec fn part2_associated_header_storage_machine(payload:Seq<u8>,
                 && palette_columns<=u8::MAX {
                 Some(Part2HeaderStorageRequest::Mapping {context:Part2MappingStorageContext {
                     input,components:state.header.image.components,palette_columns:palette_columns as u8,limits,base}})
+            }else if input.0.0==crate::jp2::BoxType::COLOR_SPECIFICATION && !state.color_override {
+                Some(Part2HeaderStorageRequest::Color {context:Part2ColorStorageContext {input,base}})
             }else{None}},
         step:|input,state|part2_associated_header_step(input,state,limits,base),
         finish:|state|part2_associated_header_finish(state,base),
@@ -314,6 +318,13 @@ pub(crate) open spec fn part2_layer_header_storage_machine(payload:Seq<u8>,limit
         request:|input:Part2BoxReference,state:Part2RawLayerState|
             if input.0.0==crate::jp2::BoxType::CHANNEL_DEFINITION && state.layer.definitions.len()==0 && state.layer.opacity.is_none(){
                 Some(Part2HeaderStorageRequest::Channel {context:Part2ChannelStorageContext {input,channels:u16::MAX,base}})
+            }else if input.0.0==crate::jp2::BoxType::COLOR_GROUP && state.layer.colors.len()==0 {
+                match part2_box_payload_offset(input.0) {
+                    Err(_)=>None,Ok(relative)=>match part2_box_add_offset(base,relative) {
+                        Err(_)=>None,Ok(nested_base)=>Some(Part2HeaderStorageRequest::ColorGroup {
+                            context:Part2ColorGroupStorageContext {input,limits,base:nested_base}}),
+                    },
+                }
             }else{None},
         step:|input,state|part2_raw_layer_step(input,state,limits,base),
         finish:|state:Part2RawLayerState|Ok(state.layer),
@@ -353,6 +364,11 @@ pub(crate) proof fn part2_header_storage_machines_valid(payload:Seq<u8>,limits:c
                     assert(context==(Part2MappingStorageContext {
                         input,components:state.image.components,palette_columns:count as u8,limits,base}));
                 },
+                Part2HeaderStorageRequest::Color {context}=>{
+                    assert(input.0.0==crate::jp2::BoxType::COLOR_SPECIFICATION && state.color.is_none());
+                    assert(context==(Part2ColorStorageContext {input,base}));
+                },
+                Part2HeaderStorageRequest::ColorGroup {context}=>{assert(false);},
             }
         }
     }
@@ -383,6 +399,11 @@ pub(crate) proof fn part2_header_storage_machines_valid(payload:Seq<u8>,limits:c
                     assert(context==(Part2MappingStorageContext {
                         input,components:state.header.image.components,palette_columns:count as u8,limits,base}));
                 },
+                Part2HeaderStorageRequest::Color {context}=>{
+                    assert(input.0.0==crate::jp2::BoxType::COLOR_SPECIFICATION && !state.color_override);
+                    assert(context==(Part2ColorStorageContext {input,base}));
+                },
+                Part2HeaderStorageRequest::ColorGroup {context}=>{assert(false);},
             }
         }
     }

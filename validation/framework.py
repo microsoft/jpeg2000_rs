@@ -3459,6 +3459,9 @@ _COLOR_HEADER_PROOFS = {
         "full_color_specification_view", "color_specification_outcome", "optional_profile_bytes",
     )
 } | {("src/jp2/color.rs", "copy_profile")}
+_COLOR_HEADER_MODELS = {("specs/jp2_color_header.rs", name) for name in (
+    "part2_parse_color_specification", "part2_validate_color_specification_prefix",
+)}
 _IMAGE_HEADER_ENTRY = "part2-complete-native-raw-image-header-result"
 _IMAGE_HEADER_CONTRACTS = {
     ("src/jp2/headers.rs", "parse_image_header"): (
@@ -5113,6 +5116,8 @@ _PLANE_ROLE_RESULT_RUNS.update({
     "part2_coefficient_progression_result": ("part2_extraction_progression_run", False),
 })
 _COLD_RESULT_MODELS = {
+    "part2_parse_color_specification": ("part2_color_storage_result", "specs/cold_color_storage.rs", "part2_color_storage_normal"),
+    "part2_parse_color_group": ("part2_color_group_storage_result", "specs/cold_color_storage.rs", "part2_color_group_storage_normal"),
     "part2_parse_palette": ("part2_palette_storage_result", "specs/cold_palette_storage.rs", "part2_palette_storage_normal"),
     "part2_parse_component_mapping": ("part2_mapping_storage_result", "specs/cold_palette_storage.rs", "part2_mapping_storage_normal"),
     "part2_palette_component": ("part2_palette_component_storage_result", "specs/cold_output_storage.rs", "part2_palette_component_storage_normal"),
@@ -5392,6 +5397,14 @@ def _coverage_cold_relation(
             + _coverage_call("super::box_reference_view", "box_ref")
             + r"\s*,\s*channels\s*:\s*output_channels\s*,\s*base\s*:\s*base_offset\s*,?\s*\}"
         )
+    if model in {"part2_parse_color_specification", "part2_parse_color_group"}:
+        context = "Part2ColorStorageContext" if model == "part2_parse_color_specification" else "Part2ColorGroupStorageContext"
+        inputs = (
+            r"crate::specs::" + context + r"\s*\{\s*input\s*:\s*"
+            + _coverage_call("super::box_reference_view", "box_ref")
+            + (r"\s*,\s*limits\s*:\s*\*\s*limits" if model == "part2_parse_color_group" else "")
+            + r"\s*,\s*base\s*:\s*base_offset\s*,?\s*\}"
+        )
     if model == "part2_parse_palette":
         inputs = (
             r"crate::specs::Part2PaletteStorageContext\s*\{\s*input\s*:\s*"
@@ -5600,6 +5613,7 @@ _COLD_RESULT_CONTRACTS = {
         _PDF_COMMON_CONTRACTS,
         _RAW_INSPECTED_CONTRACTS, _RAW_CONTAINER_CONTRACTS, _FILE_TYPE_CONTRACTS,
         _CHANNEL_HEADER_CONTRACTS, _RAW_JP2_HEADER_CONTRACTS, _ASSOCIATED_HEADER_CONTRACTS, _RAW_LAYER_HEADER_CONTRACTS,
+        _COLOR_HEADER_CONTRACTS,
         _JPX_SOURCE_CONTRACTS, _RAW_JPX_PUBLIC_IMAGE_CONTRACTS,
         _RAW_CONTAINER_IMAGE_CONTRACTS, _RAW_CONTAINER_COLOR_CONTRACTS,
         _SOURCE_FRAME_CONTRACTS, _RAW_RENDER_CONTRACTS, _RAW_COMPOSITION_RENDER_CONTRACTS,
@@ -8571,6 +8585,140 @@ _CHANNEL_STORAGE_GUARDS[("specs/cold_channel_storage.rs", "part2_associated_head
     "input.0.0==crate::jp2::BoxType::PALETTE && !state.palette_override && !state.mapping_override && !state.definition_override",
     "input.0.0==crate::jp2::BoxType::COMPONENT_MAPPING && !state.mapping_override && !state.definition_override",
     "palette_columns<=u8::MAX", "input,components:state.header.image.components,palette_columns:palette_columns as u8,limits,base",
+)
+_COLOR_STORAGE_GUARDS = {
+    ("specs/cold_color_storage.rs", "part2_color_profile_count"): (
+        "payload=context.input.1", "payload.len()<4 || payload.len()-3>u64::MAX as nat {0}",
+        "payload[0]==2 || payload[0]==3 {(payload.len()-3) as nat}else{0}",
+    ),
+    ("specs/cold_color_storage.rs", "part2_color_capacity_run"): (
+        "part2_color_profile_count(context)", "if count==0 {Some((Ok(()),events))}",
+        "actual!=context || elements!=count {None}",
+        "if succeeded{Ok(())}else{Err(crate::DecodeError::AllocationFailed)}", "events.drop_first()",
+    ),
+    ("specs/cold_color_storage.rs", "part2_color_capacity_result"): (
+        "part2_cold_framed(|events|part2_color_capacity_run(context,events),result)",
+    ),
+    ("specs/cold_color_storage.rs", "part2_color_storage_run"): (
+        "part2_color_capacity_run(context,events)",
+        "Some((part2_parse_color_specification(context.input,context.base),rest))",
+    ),
+    ("specs/cold_color_storage.rs", "part2_color_storage_result"): (
+        "part2_cold_framed(|events|part2_color_storage_run(context,events),result)",
+    ),
+    ("specs/cold_channel_storage.rs", "part2_main_header_storage_machine"): (
+        "input.0.0==crate::jp2::BoxType::COLOR_SPECIFICATION && state.color.is_none()",
+        "Part2HeaderStorageRequest::Color {context:Part2ColorStorageContext {input,base}}",
+    ),
+    ("specs/cold_channel_storage.rs", "part2_associated_header_storage_machine"): (
+        "input.0.0==crate::jp2::BoxType::COLOR_SPECIFICATION && !state.color_override",
+        "Part2HeaderStorageRequest::Color {context:Part2ColorStorageContext {input,base}}",
+    ),
+}
+_COLOR_GROUP_STORAGE_GUARDS = {
+    ("specs/cold_color_storage.rs", "part2_color_group_storage_accept"): (
+        "updated=colors.push(color)", "updated.len() as u64>crate::limits::resource_component_limit(&limits) as u64",
+        "actual:updated.len() as u64", "else{Ok(updated)}",
+    ),
+    ("specs/cold_color_storage.rs", "part2_color_group_storage_step_value"): (
+        "input.0.0!=crate::jp2::BoxType::COLOR_SPECIFICATION", "part2_parse_color_specification(input,context.base)",
+        "part2_color_group_storage_accept(colors,color,context.limits)",
+    ),
+    ("specs/cold_color_storage.rs", "part2_color_group_storage_step_run"): (
+        "input.0.0!=crate::jp2::BoxType::COLOR_SPECIFICATION",
+        "part2_color_storage_run(Part2ColorStorageContext {input,base:context.base},events)",
+        "Some((part2_color_group_storage_accept(colors,color,context.limits),rest))",
+    ),
+    ("specs/cold_color_storage.rs", "part2_color_group_storage_boxes_run"): (
+        "part2_box_reader_next_ref(reader)", "part2_color_group_finish(colors,context.base)",
+        "next.1.position<=reader.position || next.1.position>context.input.1.len()",
+        "part2_resolution_progress_error(context.base,reader.position)", "part2_box_rebase_error(error,context.base)",
+        "part2_color_group_storage_step_run(context,input,colors,events)",
+        "part2_color_group_storage_boxes_run(context,next.1,updated,rest)",
+    ),
+    ("specs/cold_color_storage.rs", "part2_color_group_storage_run"): (
+        "part2_box_reader_from_input(context.input.1,context.limits)", "Err(error)=>Some((Err(error),events))",
+        "part2_color_group_storage_boxes_run(context,reader,Seq::empty(),events)",
+    ),
+    ("specs/cold_color_storage.rs", "part2_color_group_storage_result"): (
+        "part2_cold_framed(|events|part2_color_group_storage_run(context,events),result)",
+    ),
+    ("specs/cold_palette_storage.rs", "part2_header_storage_request_run"): (
+        "Part2HeaderStorageRequest::Color {context}=>part2_jpip_snapshot_bind(part2_color_storage_run(context,events)",
+        "Part2HeaderStorageRequest::ColorGroup {context}=>part2_jpip_snapshot_bind(part2_color_group_storage_run(context,events)",
+    ),
+    ("specs/cold_channel_storage.rs", "part2_layer_header_storage_machine"): (
+        "input.0.0==crate::jp2::BoxType::COLOR_GROUP && state.layer.colors.len()==0",
+        "part2_box_payload_offset(input.0)", "part2_box_add_offset(base,relative)",
+        "context:Part2ColorGroupStorageContext {input,limits,base:nested_base}",
+    ),
+}
+_COLOR_STORAGE_PROOFS = {("specs/cold_color_storage.rs", name) for name in (
+    "part2_color_capacity_observed", "part2_color_capacity_frames",
+    "part2_color_storage_normal", "part2_color_storage_refused", "part2_color_storage_frames",
+)}
+_COLOR_GROUP_STORAGE_PROOFS = {("specs/cold_color_storage.rs", name) for name in (
+    "part2_color_group_storage_step_normal", "part2_color_group_storage_boxes_normal",
+    "part2_color_group_storage_normal", "part2_color_group_storage_observed",
+    "part2_color_group_storage_frames", "part2_color_group_storage_root_advance", "part2_color_group_storage_root_error",
+)} | {("specs/cold_palette_storage.rs", name) for name in (
+    "part2_header_storage_request_color_error", "part2_header_storage_request_color_group_error",
+)}
+_COLOR_STORAGE_NATIVE = {
+    ("src/jp2/color.rs", "copy_profile"): (
+        "if source.is_empty()", "Vec::new()", "crate::allocation::empty_with_capacity(source.len())?",
+        "while index < source.len()", "profile.push(", "source.get(index)", "Ok(profile)",
+    ),
+    ("src/jp2/color.rs", "parse_color_specification"): (
+        "validate_color_specification_prefix(box_ref, base_offset)?", "u64::try_from(box_ref.payload.len() - 3)",
+        "method_value == 2", "profile_bytes == 0", "let copied = copy_profile(&box_ref.payload[3..])",
+        "crate::allocation::inspection_capacity_outcome(copied)", "part2_color_storage_refused(context,error)",
+        "icc_profile = Some(copied?)", "method_value == 3", "profile_bytes == 0",
+        "let copied = copy_profile(&box_ref.payload[3..])", "crate::allocation::inspection_capacity_outcome(copied)",
+        "part2_color_storage_refused(context,error)", "icc_profile = Some(copied?)",
+    ),
+    ("src/jp2/headers.rs", "parse_codestream_header_box"): (
+        "first_override_allowed(*color_override)", "let parsed = parse_color_specification(box_ref, base_offset)",
+        "part2_header_storage_request_color_error(context,error)", "Part2HeaderStorageRequest::Color {context}",
+        "header.color = parsed?", "*color_override = true", "validate_color_specification_prefix(box_ref, base_offset)?",
+    ),
+    ("src/jp2/headers.rs", "parse_jp2_header_profile"): (
+        "if color.is_none()", "let parsed = parse_color_specification(box_ref, base_offset)",
+        "part2_header_storage_request_color_error(context,error)", "Part2HeaderStorageRequest::Color {context}",
+        "color = Some(parsed?)", "validate_color_specification_prefix(box_ref, base_offset)?",
+    ),
+}
+_COLOR_GROUP_STORAGE_NATIVE = {
+    ("src/jp2/composition.rs", "parse_color_group"): (
+        "part2_color_group_storage_normal(context)", "box_reader_from_input(box_ref.payload, limits)?",
+        "let ghost previous_reader=", "if !child.header.box_type().equals(BoxType::COLOR_SPECIFICATION)",
+        "let parsed = parse_color_specification(child, base_offset)", "part2_color_group_storage_root_error(",
+        "colors.push(parsed?)", "colors.len() as u64 > u64::from(limits.maximum_components())",
+        "part2_color_group_storage_root_advance(",
+    ),
+    ("src/jp2/composition.rs", "parse_compositing_layer"): (
+        "if !color_group.is_empty()", "let group_base = add_offset(base_offset, child.header.payload_offset()?)?",
+        "let parsed = parse_color_group(child, limits, group_base)",
+        "part2_header_storage_request_color_group_error(context,error)", "Part2HeaderStorageRequest::ColorGroup {context}",
+        "color_group = parsed?",
+    ),
+}
+_COLOR_HEADER_MODELS.update(_COLOR_STORAGE_GUARDS)
+_COLOR_HEADER_PROOFS.update(_COLOR_STORAGE_PROOFS)
+_RAW_LAYER_HEADER_MODELS.update(_COLOR_GROUP_STORAGE_GUARDS)
+_RAW_LAYER_HEADER_PROOFS.update(_COLOR_GROUP_STORAGE_PROOFS)
+_CHANNEL_STORAGE_GUARDS[("specs/cold_channel_storage.rs", "part2_main_header_storage_machine")] += (
+    "input.0.0==crate::jp2::BoxType::COLOR_SPECIFICATION && state.color.is_none()",
+    "Part2HeaderStorageRequest::Color {context:Part2ColorStorageContext {input,base}}",
+)
+_CHANNEL_STORAGE_GUARDS[("specs/cold_channel_storage.rs", "part2_associated_header_storage_machine")] += (
+    "input.0.0==crate::jp2::BoxType::COLOR_SPECIFICATION && !state.color_override",
+    "Part2HeaderStorageRequest::Color {context:Part2ColorStorageContext {input,base}}",
+)
+_CHANNEL_STORAGE_GUARDS[("specs/cold_channel_storage.rs", "part2_layer_header_storage_machine")] += (
+    "input.0.0==crate::jp2::BoxType::COLOR_GROUP && state.layer.colors.len()==0",
+    "part2_box_payload_offset(input.0)", "part2_box_add_offset(base,relative)",
+    "context:Part2ColorGroupStorageContext {input,limits,base:nested_base}",
 )
 
 _OUTPUT_STORAGE_GUARDS = {
@@ -12836,7 +12984,8 @@ def validate_normative_coverage(
                     "position.checked_add(6)",
                 ),
                 "parse_color_group": (
-                    "box_reader_from_input(box_ref.payload, limits)?", "colors.push(parse_color_specification(child, base_offset)?)",
+                    "box_reader_from_input(box_ref.payload, limits)?",
+                    "let parsed = parse_color_specification(child, base_offset)", "colors.push(parsed?)",
                     "colors.len() as u64 > u64::from(limits.maximum_components())",
                 ),
                 "parse_layer_opacity": (
@@ -12972,7 +13121,8 @@ def validate_normative_coverage(
                 "*palette_override || *mapping_override || *definition_override", "*mapping_override || *definition_override",
                 "if *resolution_override", "if image_override && matches!(header.image.bit_depth, ComponentBitDepth::Variable) != saw_bpcc",
                 "header.nested_box_count = nested_box_count",
-                "if crate::refinement::first_override_allowed(*color_override) { header.color = parse_color_specification(box_ref, base_offset)?; *color_override = true; } else { validate_color_specification_prefix(box_ref, base_offset)?; }",
+                "if crate::refinement::first_override_allowed(*color_override) { let parsed = parse_color_specification(box_ref, base_offset);",
+                "header.color = parsed?; *color_override = true; } else { validate_color_specification_prefix(box_ref, base_offset)?; }",
             )
             if body is None or any("".join(item.split()) not in "".join(body.split()) for item in required):
                 raise ValueError("whole associated-header Result requires actual clone/clear/order/retained metadata handoffs")
@@ -13019,8 +13169,8 @@ def validate_normative_coverage(
                 "box_reader_from_input(payload, limits)?", "required_box(&mut reader, 0)",
                 "parse_image_header(image_box, limits, base_offset)?",
                 "reader.position <= previous_position || reader.position > payload.len()",
-                "parse_color_specification(box_ref, base_offset)?", "if color.is_none()",
-                "if color.is_none() { color = Some(parse_color_specification(box_ref, base_offset)?); } else { validate_color_specification_prefix(box_ref, base_offset)?; }",
+                "if color.is_none() { let parsed = parse_color_specification(box_ref, base_offset);",
+                "color = Some(parsed?); } else { validate_color_specification_prefix(box_ref, base_offset)?; }",
                 "let parsed = parse_palette(box_ref, base_offset)", "palette = Some(parsed?)",
                 "validate_bpcc(box_ref, image, base_offset)?",
                 "parse_component_mapping(box_ref, image.components, palette_columns, limits, base_offset,)",
@@ -13240,18 +13390,17 @@ def validate_normative_coverage(
         if entry["id"] == _COLOR_HEADER_ENTRY:
             if {(ref["path"], ref["symbol"]) for ref in entry["contract_refs"]} != set(_COLOR_HEADER_CONTRACTS):
                 raise ValueError("whole raw color Result requires actual full color parser contract")
-            if {("specs/jp2_color_header.rs", name) for name in (
-                    "part2_parse_color_specification", "part2_validate_color_specification_prefix")} != {
+            if _COLOR_HEADER_MODELS != {
                     (ref["path"], ref["symbol"]) for ref in entry["spec_refs"]} \
                     or not _COLOR_HEADER_PROOFS.issubset({(ref["path"], ref["symbol"]) for ref in entry["proof_refs"]}):
                 raise ValueError("whole raw color Result requires complete method/metadata/ICC-copy bridges")
             path = (ROOT / "src/jp2/color.rs").resolve()
             body = _coverage_function_body(source_text(path), function_header(path, "parse_color_specification"))
             required = ("validate_color_specification_prefix(box_ref, base_offset)?", "method_value == 1", "box_ref.payload.len() != 7",
-                        "method_value == 2", "method_value == 3", "copy_profile(&box_ref.payload[3..])?",
+                        "method_value == 2", "method_value == 3", "copy_profile(&box_ref.payload[3..])",
                         "precedence: box_ref.payload[1]", "approximation: box_ref.payload[2]", "icc_profile,")
             if body is None or any("".join(item.split()) not in "".join(body.split()) for item in required) \
-                    or "".join(body.split()).count("copy_profile(&box_ref.payload[3..])?") != 2:
+                    or "".join(body.split()).count("copy_profile(&box_ref.payload[3..])") != 2:
                 raise ValueError("whole raw color Result requires actual method/metadata/full-ICC handoffs")
             prefix = _coverage_function_body(source_text(path), function_header(path, "validate_color_specification_prefix"))
             prefix_required = ("box_ref.payload.len() < 3", "add_offset(base_offset, box_ref.header.offset())?",
@@ -15814,13 +15963,16 @@ def validate_normative_coverage(
             if cold_contract is not None:
                 if cold_contract[0] in {
                         "part2_channel_storage_result", "part2_jp2_header_storage_result",
-                        "part2_codestream_header_storage_result", "part2_layer_header_storage_result"}:
+                        "part2_codestream_header_storage_result", "part2_layer_header_storage_result",
+                        "part2_color_storage_result", "part2_color_group_storage_result"}:
                     legacy = {
                         **_CHANNEL_HEADER_CONTRACTS, **_RAW_JP2_HEADER_CONTRACTS,
-                        **_ASSOCIATED_HEADER_CONTRACTS, **_RAW_LAYER_HEADER_CONTRACTS,
+                        **_ASSOCIATED_HEADER_CONTRACTS, **_RAW_LAYER_HEADER_CONTRACTS, **_COLOR_HEADER_CONTRACTS,
                     }[(reference["path"], reference["symbol"])]
                     projection = ("super::channel_definition_records_outcome" if cold_contract[0] == "part2_channel_storage_result"
                                   else "super::raw_compositing_layer_outcome" if cold_contract[0] == "part2_layer_header_storage_result"
+                                  else "super::color_specification_outcome" if cold_contract[0] == "part2_color_storage_result"
+                                  else "super::color_group_outcome" if cold_contract[0] == "part2_color_group_storage_result"
                                   else "super::raw_jp2_header_outcome")
                     if not _coverage_extraction_normal_arguments(contract, projection, legacy[0], legacy[3]):
                         raise ValueError(f"linked function lacks executable Verus contract: {short}; missing exact ordinary CDEF/header projection")
@@ -17055,6 +17207,40 @@ def validate_normative_coverage(
             if symbol == "parse" and compact.count(
                     "validate_layer_references(&compositing_layers,codestream_boxes.len())?") != 1:
                 raise ValueError("whole raw container Result requires checked association storage before the single original late layer-reference admission")
+    for color_entry_id, model_guards, proved, controls, native_order in (
+        (_COLOR_HEADER_ENTRY, _COLOR_STORAGE_GUARDS, _COLOR_STORAGE_PROOFS, {
+            ("src/jp2/color.rs", "color_storage_empty_private_copy_is_request_free"),
+            ("src/jp2/tests.rs", "color_storage_profiles_keep_opaque_bytes_preflight_and_exact_retry"),
+            ("src/jp2/tests.rs", "color_storage_headers_keep_selection_inheritance_and_exact_retry"),
+        }, _COLOR_STORAGE_NATIVE),
+        (_RAW_LAYER_HEADER_ENTRY, _COLOR_GROUP_STORAGE_GUARDS, _COLOR_GROUP_STORAGE_PROOFS, {
+            ("src/jp2/tests.rs", "color_storage_groups_keep_order_nested_refusals_and_parse_before_limits"),
+        }, _COLOR_GROUP_STORAGE_NATIVE),
+    ):
+        if color_entry_id not in ids:
+            continue
+        entry = next(item for item in coverage["requirements"] if item["id"] == color_entry_id)
+        if not set(model_guards).issubset({(ref["path"], ref["symbol"]) for ref in entry["spec_refs"]}) \
+                or not proved.issubset({(ref["path"], ref["symbol"]) for ref in entry["proof_refs"]}) \
+                or not set(native_order).issubset({(ref["path"], ref["symbol"]) for ref in entry["implementation_refs"]}) \
+                or not controls.issubset({(ref["path"], ref["symbol"]) for ref in entry["test_refs"]}):
+            raise ValueError("checked colour storage requires actual copy/header/group producers and bounded refusal/retry/priority controls")
+        for (relative, symbol), fragments in model_guards.items():
+            body = _coverage_spec_function_body(source_text((ROOT / relative).resolve()), symbol)
+            compact = "".join(body.split()) if body is not None else ""
+            if any("".join(fragment.split()) not in compact for fragment in fragments):
+                raise ValueError("checked colour storage requires exact opaque source/count/reply/reader/limit/arbitrary-tail programs")
+        for (relative, symbol), fragments in native_order.items():
+            path = (ROOT / relative).resolve()
+            body = _coverage_function_body(source_text(path), function_header(path, symbol))
+            compact = "".join(body.split()) if body is not None else ""
+            position = 0
+            for fragment in fragments:
+                token = "".join(fragment.split())
+                found = compact.find(token, position)
+                if found < 0:
+                    raise ValueError("checked colour storage requires original preflight/selection/group/limit order and actual propagated allocation Results")
+                position = found + len(token)
     for palette_entry_id, model_guards, proved, controls, native_order in (
         (_PALETTE_RESULT_ENTRY, _PALETTE_PARSER_STORAGE_GUARDS, _PALETTE_PARSER_STORAGE_PROOFS,
          {("src/jp2/tests.rs", "palette_storage_parser_keeps_column_value_preflight_and_exact_retry")},

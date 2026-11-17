@@ -2402,7 +2402,7 @@
     },
     {
       "id": "part2-complete-native-raw-compositing-layer-result",
-      "topic": "Complete actual raw registration,color-group,opacity and borrowed compositing-layer Results: all grids/ordered duplicate registrations/full color metadata/ICC bytes/definitions/key bytes/nested metadata/header/payload and exact errors. Original payload reference preserved, native owners/scopes retained, no supplied parsed-layer bank or validity premise. Registration errors use lazy offsets while opacity offset is eager, component limits follow actual color parsing, mutual opacity/definition exclusion preserved. Two checked reader initializer retargets need explicit future native audit; no whole composition/container/public/normative/cfg/erasure/lifetimes/release claim.",
+      "topic": "Complete actual raw registration,color-group,opacity and borrowed compositing-layer Results, including ordered checked opaque ICC child copies and exact reader/first-error/arbitrary-tail composition. All grids/ordered duplicate registrations/full color metadata/ICC bytes/definitions/key bytes/nested metadata/header/payload retained. Original payload reference preserved; no supplied parsed-layer bank or valid-ICC premise. Registration errors use lazy offsets while opacity offset is eager; component limits follow actual color parsing and group append; mutual opacity/definition exclusion preserved. General colour-group/layer vector growth remains separate, as do whole conformance/cfg/erasure/lifetimes/release claims.",
       "implementation_refs": [
         {"path": "src/jp2/composition.rs", "symbol": "parse_codestream_registration"},
         {"path": "src/jp2/composition.rs", "symbol": "parse_color_group"},
@@ -2411,6 +2411,14 @@
         {"path": "src/jp2/container.rs", "symbol": "parse"}
       ],
       "spec_refs": [
+        {"path": "specs/cold_color_storage.rs", "symbol": "part2_color_group_storage_result"},
+        {"path": "specs/cold_color_storage.rs", "symbol": "part2_color_group_storage_run"},
+        {"path": "specs/cold_color_storage.rs", "symbol": "part2_color_group_storage_accept"},
+        {"path": "specs/cold_color_storage.rs", "symbol": "part2_color_group_storage_step_value"},
+        {"path": "specs/cold_color_storage.rs", "symbol": "part2_color_group_storage_step_run"},
+        {"path": "specs/cold_color_storage.rs", "symbol": "part2_color_group_storage_boxes_run"},
+        {"path": "specs/cold_palette_storage.rs", "symbol": "part2_header_storage_request_run"},
+        {"path": "specs/cold_channel_storage.rs", "symbol": "part2_layer_header_storage_machine"},
         {"path": "specs/cold_channel_storage.rs", "symbol": "part2_layer_header_storage_result"},
         {"path": "specs/cold_channel_storage.rs", "symbol": "part2_layer_header_storage_run"},
         {"path": "specs/jp2_layer.rs", "symbol": "part2_parse_codestream_registration"},
@@ -2432,6 +2440,15 @@
         {"path": "src/jp2/composition.rs", "symbol": "parse_compositing_layer"}
       ],
       "proof_refs": [
+        {"path": "specs/cold_color_storage.rs", "symbol": "part2_color_group_storage_normal"},
+        {"path": "specs/cold_color_storage.rs", "symbol": "part2_color_group_storage_step_normal"},
+        {"path": "specs/cold_color_storage.rs", "symbol": "part2_color_group_storage_boxes_normal"},
+        {"path": "specs/cold_color_storage.rs", "symbol": "part2_color_group_storage_observed"},
+        {"path": "specs/cold_color_storage.rs", "symbol": "part2_color_group_storage_frames"},
+        {"path": "specs/cold_color_storage.rs", "symbol": "part2_color_group_storage_root_advance"},
+        {"path": "specs/cold_color_storage.rs", "symbol": "part2_color_group_storage_root_error"},
+        {"path": "specs/cold_palette_storage.rs", "symbol": "part2_header_storage_request_color_error"},
+        {"path": "specs/cold_palette_storage.rs", "symbol": "part2_header_storage_request_color_group_error"},
         {"path": "specs/cold_channel_storage.rs", "symbol": "part2_layer_header_storage_normal"},
         {"path": "src/jp2/proof_support.rs", "symbol": "registration_outcome"},
         {"path": "src/jp2/proof_support.rs", "symbol": "full_color_group_view"},
@@ -2446,6 +2463,7 @@
         {"path": "src/limits.rs", "symbol": "ResourceLimits::maximum_codestreams"}
       ],
       "test_refs": [
+        {"path": "src/jp2/tests.rs", "symbol": "color_storage_groups_keep_order_nested_refusals_and_parse_before_limits"},
         {"path": "src/jp2/tests.rs", "symbol": "actual_raw_layer_registration_retains_grids_all_fields_order_and_duplicate_indices"},
         {"path": "src/jp2/tests.rs", "symbol": "actual_raw_layer_registration_keeps_length_grid_count_and_record_error_priority"},
         {"path": "src/jp2/tests.rs", "symbol": "actual_raw_layer_registration_covers_every_subsampling_byte_and_exact_offset_boundary"},
@@ -2882,10 +2900,11 @@
     },
     {
       "id": "part2-complete-native-raw-color-header-result",
-      "topic": "Complete actual raw color specification Result with method, precedence, approximation and every optional ICC byte. Sarah DEV-629A0A9C39: extract the original common three-byte prefix validation as the sole shared checked producer used by selected-color parsing and by ignored later COLR boxes in full/associated headers. Preserve selected-color semantic/profile/byte-copy admission and lazy errors; do not interpret or allocate irrelevant later ICC data. Actual native profile copying is checked exact/successful; no supplied profile/color bank, owner inversion or runtime proof clone. This does not assert conversion support or selected-edition certification. Whole header/container/public, normative/cfg/erasure/lifetimes/release remain separate.",
+      "topic": "Complete actual raw color specification Result with method, precedence, approximation and every optional opaque ICC byte, including checked source-derived nonempty profile capacity, actual normalized reply, first refusal and arbitrary tail. Original common three-byte prefix validation remains the sole shared producer for selected parsing and ignored later COLR boxes in full/associated headers. Preserve prefix/method/nonempty/lazy-offset/selection/error order; irrelevant later ICC data is not interpreted or copied. Empty private copies are request-free. No supplied profile/color bank, valid-ICC premise, owner inversion, runtime proof clone, expanded conversion support or conformance/cfg/erasure/lifetime/release claim.",
       "implementation_refs": [
         {"path": "src/jp2/color.rs", "symbol": "parse_color_specification"},
         {"path": "src/jp2/headers.rs", "symbol": "parse_codestream_header_box"},
+        {"path": "src/jp2/headers.rs", "symbol": "parse_jp2_header_profile"},
         {"path": "src/jp2/color.rs", "symbol": "validate_color_specification_prefix"},
         {"path": "src/jp2/color.rs", "symbol": "copy_profile"},
         {"path": "src/jp2/color.rs", "symbol": "ColorSpecification::icc_profile"},
@@ -2893,6 +2912,13 @@
         {"path": "src/jp2/headers.rs", "symbol": "parse_codestream_header"}
       ],
       "spec_refs": [
+        {"path": "specs/cold_color_storage.rs", "symbol": "part2_color_storage_result"},
+        {"path": "specs/cold_color_storage.rs", "symbol": "part2_color_storage_run"},
+        {"path": "specs/cold_color_storage.rs", "symbol": "part2_color_profile_count"},
+        {"path": "specs/cold_color_storage.rs", "symbol": "part2_color_capacity_run"},
+        {"path": "specs/cold_color_storage.rs", "symbol": "part2_color_capacity_result"},
+        {"path": "specs/cold_channel_storage.rs", "symbol": "part2_main_header_storage_machine"},
+        {"path": "specs/cold_channel_storage.rs", "symbol": "part2_associated_header_storage_machine"},
         {"path": "specs/jp2_color_header.rs", "symbol": "part2_parse_color_specification"},
         {"path": "specs/jp2_color_header.rs", "symbol": "part2_validate_color_specification_prefix"}
       ],
@@ -2901,12 +2927,20 @@
         {"path": "src/jp2/color.rs", "symbol": "validate_color_specification_prefix"}
       ],
       "proof_refs": [
+        {"path": "specs/cold_color_storage.rs", "symbol": "part2_color_storage_normal"},
+        {"path": "specs/cold_color_storage.rs", "symbol": "part2_color_capacity_observed"},
+        {"path": "specs/cold_color_storage.rs", "symbol": "part2_color_capacity_frames"},
+        {"path": "specs/cold_color_storage.rs", "symbol": "part2_color_storage_refused"},
+        {"path": "specs/cold_color_storage.rs", "symbol": "part2_color_storage_frames"},
         {"path": "src/jp2/proof_support.rs", "symbol": "full_color_specification_view"},
         {"path": "src/jp2/proof_support.rs", "symbol": "color_specification_outcome"},
         {"path": "src/jp2/proof_support.rs", "symbol": "optional_profile_bytes"},
         {"path": "src/jp2/color.rs", "symbol": "copy_profile"}
       ],
       "test_refs": [
+        {"path": "src/jp2/color.rs", "symbol": "color_storage_empty_private_copy_is_request_free"},
+        {"path": "src/jp2/tests.rs", "symbol": "color_storage_profiles_keep_opaque_bytes_preflight_and_exact_retry"},
+        {"path": "src/jp2/tests.rs", "symbol": "color_storage_headers_keep_selection_inheritance_and_exact_retry"},
         {"path": "src/jp2/tests.rs", "symbol": "actual_raw_color_header_preserves_enumerated_method_and_all_metadata_bytes"},
         {"path": "src/jp2/tests.rs", "symbol": "actual_raw_color_header_copies_every_restricted_and_unrestricted_icc_byte"},
         {"path": "src/jp2/tests.rs", "symbol": "actual_raw_color_header_preserves_exact_length_method_and_lazy_offset_errors"},

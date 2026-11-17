@@ -157,7 +157,10 @@ pub(super) fn parse_compositing_layer<'a>(
     )]
     loop {
         #[cfg(verus_keep_ghost)]
-        proof! { reveal(crate::specs::part2_raw_layer_boxes); reveal(crate::specs::part2_raw_layer_step); }
+        proof! {
+            super::channel_storage_box_kinds_known();
+            reveal(crate::specs::part2_raw_layer_boxes); reveal(crate::specs::part2_raw_layer_step);
+        }
         #[cfg(verus_keep_ghost)]
         proof_decl! {
             let ghost previous_reader=super::box_reader_state(&reader);
@@ -200,11 +203,22 @@ pub(super) fn parse_compositing_layer<'a>(
                     MalformedKind::InvalidBoxOrder,
                 ));
             }
-            color_group = parse_color_group(
-                child,
-                limits,
-                add_offset(base_offset, child.header.payload_offset()?)?,
-            )?;
+            let group_base = add_offset(base_offset, child.header.payload_offset()?)?;
+            let parsed = parse_color_group(child, limits, group_base);
+            #[cfg(verus_keep_ghost)]
+            proof! {
+                if let Err(error)=parsed {
+                    if error==DecodeError::AllocationFailed {
+                        let context=crate::specs::Part2ColorGroupStorageContext {
+                            input:super::box_reference_view(child),limits:*limits,base:group_base};
+                        crate::specs::part2_header_storage_request_color_group_error(context,error);
+                        crate::specs::part2_header_storage_root_error(root,storage_prefix,machine,previous_reader,previous_state,
+                            super::box_reference_view(child),crate::specs::Part2HeaderStorageRequest::ColorGroup {context},error);
+                        crate::specs::part2_layer_header_storage_observed(super::box_reference_view(box_ref),*limits,Err(error));
+                    }
+                }
+            }
+            color_group = parsed?;
         } else if child_type.equals(BoxType::OPACITY) {
             if opacity.is_some() || !channel_definition_records.is_empty() {
                 return Err(DecodeError::malformed(
@@ -368,7 +382,11 @@ pub(super) fn parse_codestream_registration(
 }
 
 #[cfg_attr(verus_keep_ghost, verus_spec(result =>
-    ensures super::color_group_outcome(result) == crate::specs::part2_parse_color_group(
+    ensures crate::specs::part2_color_group_storage_result(crate::specs::Part2ColorGroupStorageContext {
+        input:super::box_reference_view(box_ref),limits:*limits,base:base_offset,
+    },super::color_group_outcome(result)),
+    super::color_group_outcome(result) != Err(DecodeError::AllocationFailed) ==>
+        super::color_group_outcome(result) == crate::specs::part2_parse_color_group(
         super::box_reference_view(box_ref), *limits, base_offset),
 ))]
 pub(super) fn parse_color_group(
@@ -376,26 +394,52 @@ pub(super) fn parse_color_group(
     limits: &ResourceLimits,
     base_offset: u64,
 ) -> Result<Vec<ColorSpecification>, DecodeError> {
+    #[cfg(verus_keep_ghost)]
+    proof_decl! {
+        let ghost context=crate::specs::Part2ColorGroupStorageContext {
+            input:super::box_reference_view(box_ref),limits:*limits,base:base_offset};
+        let ghost mut storage_prefix=Seq::<crate::specs::Part2JpipSnapshotEvent>::empty();
+    }
+    #[cfg(verus_keep_ghost)]
+    proof! { crate::specs::part2_color_group_storage_normal(context); }
     let mut reader = box_reader_from_input(box_ref.payload, limits)?;
     let mut colors = Vec::new();
     #[cfg(verus_keep_ghost)]
     proof_decl! { let ghost expected = crate::specs::part2_parse_color_group(
     super::box_reference_view(box_ref), *limits, base_offset); }
     #[cfg(verus_keep_ghost)]
-    proof! { assert(super::full_color_group_view(colors@) =~= Seq::<crate::specs::Part2ColorSpecification>::empty()); }
+    proof! {
+        assert(super::full_color_group_view(colors@) =~= Seq::<crate::specs::Part2ColorSpecification>::empty());
+        assert forall|tail:Seq<crate::specs::Part2JpipSnapshotEvent>|
+            crate::specs::part2_color_group_storage_run(context,storage_prefix+tail)
+                ==crate::specs::part2_color_group_storage_boxes_run(context,super::box_reader_state(&reader),
+                    super::full_color_group_view(colors@),tail) by {assert(storage_prefix+tail =~= tail);}
+    }
     #[cfg_attr(
         verus_keep_ghost,
         verus_spec(
             invariant_except_break expected == crate::specs::part2_color_group_boxes(
                 box_ref.payload@, super::box_reader_state(&reader), super::full_color_group_view(colors@), *limits, base_offset),
                 expected == crate::specs::part2_parse_color_group(super::box_reference_view(box_ref), *limits, base_offset),
+                context==(crate::specs::Part2ColorGroupStorageContext {
+                    input:super::box_reference_view(box_ref),limits:*limits,base:base_offset}),
+                crate::specs::part2_color_group_storage_result(context,expected),
+                crate::specs::part2_cold_phase(|events|crate::specs::part2_color_group_storage_run(context,events),storage_prefix,
+                    |events|crate::specs::part2_color_group_storage_boxes_run(context,super::box_reader_state(&reader),
+                        super::full_color_group_view(colors@),events)),
             ensures expected == crate::specs::part2_color_group_finish(super::full_color_group_view(colors@), base_offset),
+                crate::specs::part2_color_group_storage_result(context,expected),
             decreases box_ref.payload.len() as int - reader.position as int,
         )
     )]
     loop {
         #[cfg(verus_keep_ghost)]
         proof! { reveal(crate::specs::part2_color_group_boxes); }
+        #[cfg(verus_keep_ghost)]
+        proof_decl! {
+            let ghost previous_reader=super::box_reader_state(&reader);
+            let ghost previous_colors=super::full_color_group_view(colors@);
+        }
         let previous_position = reader.position;
         let Some(next) = reader.next_box_ref() else {
             break;
@@ -420,7 +464,17 @@ pub(super) fn parse_color_group(
         }
         #[cfg(verus_keep_ghost)]
         proof_decl! { let ghost previous = colors@; }
-        colors.push(parse_color_specification(child, base_offset)?);
+        let parsed = parse_color_specification(child, base_offset);
+        #[cfg(verus_keep_ghost)]
+        proof! {
+            if let Err(error)=parsed {
+                if error==DecodeError::AllocationFailed {
+                    crate::specs::part2_color_group_storage_root_error(context,storage_prefix,previous_reader,previous_colors,
+                        super::box_reference_view(child),error);
+                }
+            }
+        }
+        colors.push(parsed?);
         #[cfg(verus_keep_ghost)]
         proof! {
             assert(super::full_color_group_view(colors@) =~=
@@ -432,6 +486,11 @@ pub(super) fn parse_color_group(
                 u64::from(limits.maximum_components()),
                 colors.len() as u64,
             ));
+        }
+        #[cfg(verus_keep_ghost)]
+        proof! {
+            storage_prefix=crate::specs::part2_color_group_storage_root_advance(context,storage_prefix,previous_reader,previous_colors,
+                super::box_reference_view(child),super::full_color_group_view(colors@));
         }
     }
     if colors.is_empty() {

@@ -2121,6 +2121,175 @@ fn actual_raw_channel_definition_keeps_exact_lengths_full_count_and_lazy_offsets
 }
 
 #[test]
+fn color_storage_profiles_keep_opaque_bytes_preflight_and_exact_retry() {
+    for method in [2, 3] {
+        let payload = [method, 173, 219, 0, 255, 128, 17];
+        let input = raw_metadata_box(&payload, *b"colr", 19);
+        let parse = || parse_color_specification(input, u64::MAX);
+        let expected = parse().unwrap();
+        assert_eq!((expected.precedence, expected.approximation), (173, 219));
+        assert_eq!(expected.icc_profile(), Some(&payload[3..]));
+        crate::allocation::with_refusal(1, || {
+            let retained = parse().unwrap();
+            assert_eq!(parse(), Err(DecodeError::AllocationFailed));
+            assert_eq!(retained, expected);
+            assert_eq!(parse().unwrap(), expected);
+        });
+    }
+    for payload in [
+        &[][..],
+        &[2, 0][..],
+        &[2, 0, 0][..],
+        &[3, 0, 0][..],
+        &[0, 0, 0, 7][..],
+        &[1, 0, 0, 7][..],
+        &[1, 0, 0, 0, 0, 0, 17][..],
+    ] {
+        for base in [100, u64::MAX] {
+            let input = raw_metadata_box(payload, *b"colr", 19);
+            let expected = parse_color_specification(input, base);
+            crate::allocation::with_refusal(0, || {
+                assert_eq!(parse_color_specification(input, base), expected);
+                assert_eq!(
+                    crate::allocation::empty_with_capacity::<u8>(1),
+                    Err(DecodeError::AllocationFailed)
+                );
+            });
+        }
+    }
+}
+
+#[test]
+fn color_storage_headers_keep_selection_inheritance_and_exact_retry() {
+    let limits = ResourceLimits::default();
+    let first = box32(*b"colr", &[2, 173, 219, 7, 0, 255]);
+    let later = box32(*b"colr", &[3, 5, 7, 11]);
+    let mut plain = raw_jp2_header_image(7, 1);
+    plain.extend(raw_jp2_header_color());
+    let defaults = parse_jp2_header(&plain, &limits, 100).unwrap();
+    let mut complete = raw_jp2_header_image(7, 1);
+    complete.extend(&first);
+    let expected = parse_jp2_header(&complete, &limits, 100).unwrap();
+    assert_eq!(
+        crate::allocation::with_refusal(0, || parse_jp2_header(&complete, &limits, 100)),
+        Err(DecodeError::AllocationFailed)
+    );
+    for inherited in [None, Some(&defaults)] {
+        assert_eq!(
+            crate::allocation::with_refusal(0, || {
+                parse_codestream_header(&complete, inherited, &limits, 100)
+            }),
+            Err(DecodeError::AllocationFailed)
+        );
+        assert_eq!(
+            parse_codestream_header(&complete, inherited, &limits, 100).unwrap(),
+            expected
+        );
+    }
+    assert_eq!(
+        crate::allocation::with_refusal(0, || {
+            parse_codestream_header(&first, Some(&defaults), &limits, 100)
+        }),
+        Err(DecodeError::AllocationFailed)
+    );
+    let mut overrides = first.clone();
+    overrides.extend(&later);
+    crate::allocation::with_refusal(1, || {
+        assert_eq!(
+            parse_codestream_header(&overrides, Some(&defaults), &limits, 100)
+                .unwrap()
+                .color,
+            expected.color
+        );
+        assert_eq!(
+            crate::allocation::empty_with_capacity::<u8>(1),
+            Err(DecodeError::AllocationFailed)
+        );
+    });
+    for ignored in [later, box32(*b"colr", &[0, 0, 0])] {
+        let mut header = plain.clone();
+        header.extend(ignored);
+        crate::allocation::with_refusal(0, || {
+            assert_eq!(
+                parse_jp2_header(&header, &limits, 100).unwrap().color,
+                defaults.color
+            );
+            assert_eq!(
+                crate::allocation::empty_with_capacity::<u8>(1),
+                Err(DecodeError::AllocationFailed)
+            );
+        });
+    }
+    assert_eq!(parse_jp2_header(&complete, &limits, 100).unwrap(), expected);
+}
+
+#[test]
+fn color_storage_groups_keep_order_nested_refusals_and_parse_before_limits() {
+    let limits = ResourceLimits::default();
+    let mut payload = box32(*b"colr", &[2, 173, 219, 7]);
+    payload.extend(box32(*b"colr", &[3, 5, 7, 11]));
+    let group = || {
+        super::composition::parse_color_group(
+            raw_metadata_box(&payload, *b"cgrp", 19),
+            &limits,
+            u64::MAX,
+        )
+    };
+    let expected = group().unwrap();
+    let layer_payload = box32(*b"cgrp", &payload);
+    let layer = || parse_compositing_layer(raw_metadata_box(&layer_payload, *b"jplh", 19), &limits);
+    let expected_layer = layer().unwrap();
+    for after in [0, 1] {
+        assert_eq!(
+            crate::allocation::with_refusal(after, group),
+            Err(DecodeError::AllocationFailed)
+        );
+        assert_eq!(group().unwrap(), expected);
+        assert_eq!(
+            crate::allocation::with_refusal(after, layer),
+            Err(DecodeError::AllocationFailed)
+        );
+        assert_eq!(layer().unwrap(), expected_layer);
+    }
+    let tight = limits.with_geometry_limits_for_test(0, 3, 2, 6, 1);
+    let input = raw_metadata_box(&payload, *b"cgrp", 19);
+    assert_eq!(
+        crate::allocation::with_refusal(0, || {
+            super::composition::parse_color_group(input, &tight, 100)
+        }),
+        Err(DecodeError::AllocationFailed)
+    );
+    assert_eq!(
+        super::composition::parse_color_group(input, &tight, 100),
+        Err(DecodeError::LimitExceeded {
+            resource: Resource::Components,
+            limit: 0,
+            actual: 1
+        })
+    );
+    for bytes in [
+        &[][..],
+        &[0][..],
+        &box32(*b"free", &[]),
+        &box32(*b"colr", &[0, 0, 0]),
+    ] {
+        let input = raw_metadata_box(bytes, *b"cgrp", 19);
+        let expected = super::composition::parse_color_group(input, &tight, 100);
+        assert!(expected.is_err());
+        crate::allocation::with_refusal(0, || {
+            assert_eq!(
+                super::composition::parse_color_group(input, &tight, 100),
+                expected
+            );
+            assert_eq!(
+                crate::allocation::empty_with_capacity::<u8>(1),
+                Err(DecodeError::AllocationFailed)
+            );
+        });
+    }
+}
+
+#[test]
 fn palette_storage_parser_keeps_column_value_preflight_and_exact_retry() {
     let payload = [0, 2, 2, 7, 135, 0, 255, 1, 128];
     let input = raw_metadata_box(&payload, *b"pclr", 7);

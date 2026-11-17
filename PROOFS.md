@@ -39,6 +39,25 @@ an all-feature Verus proof. Full source-function coverage remains `not-measured`
 
 ## Fallible-storage foundation and remaining boundary
 
+### Selected opaque ICC metadata
+
+The private profile-byte copy reserves checked storage before its original
+ordered byte loop. Empty private copies make no request. Selected restricted
+and unrestricted COLR methods retain every opaque byte, precedence and
+approximation; prefix, method, nonempty-profile and lazy-offset admission
+are unchanged. Ignored later COLR boxes still validate only their prefix
+without interpreting or allocating irrelevant profiles.
+
+[`cold_color_storage.rs`](specs/cold_color_storage.rs) binds the actual box,
+base, admitted profile count, normalized allocation response and arbitrary
+tail. Main and associated headers consume those replies through the existing
+typed header request program. Its colour-group reader/fold composes each actual
+COLR child in order, preserves the parse/append-before-component-limit priority,
+and propagates first refusals through layer and container callers.
+General colour-group/layer vector growth remains a separate storage boundary.
+Opaque-byte acceptance is not ICC validity, conversion support or conformance;
+no allocator-availability premise or verifier setting is added.
+
 ### JP2 output metadata and sample copies
 
 The direct-copy and mapped component vectors now reserve checked metadata

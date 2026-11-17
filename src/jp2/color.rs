@@ -137,7 +137,11 @@ pub(super) fn validate_color_specification_prefix(
 }
 
 #[cfg_attr(verus_keep_ghost, verus_spec(result =>
-    ensures super::color_specification_outcome(result) == crate::specs::part2_parse_color_specification(
+    ensures crate::specs::part2_color_storage_result(crate::specs::Part2ColorStorageContext {
+        input:super::box_reference_view(box_ref),base:base_offset,
+    },super::color_specification_outcome(result)),
+    super::color_specification_outcome(result) != Err(DecodeError::AllocationFailed) ==>
+        super::color_specification_outcome(result) == crate::specs::part2_parse_color_specification(
         super::box_reference_view(box_ref), base_offset),
 ))]
 pub(super) fn parse_color_specification(
@@ -146,6 +150,9 @@ pub(super) fn parse_color_specification(
 ) -> Result<ColorSpecification, DecodeError> {
     #[cfg(verus_keep_ghost)]
     proof! {
+        crate::specs::part2_color_storage_normal(crate::specs::Part2ColorStorageContext {
+            input:super::box_reference_view(box_ref),base:base_offset,
+        });
         reveal(crate::specs::part2_parse_color_specification);
         reveal(crate::specs::part2_validate_color_specification_prefix);
     }
@@ -176,7 +183,14 @@ pub(super) fn parse_color_specification(
                 MalformedKind::InvalidBoxLength,
             ));
         }
-        icc_profile = Some(copy_profile(&box_ref.payload[3..])?);
+        let copied = copy_profile(&box_ref.payload[3..]);
+        #[cfg(verus_keep_ghost)]
+        proof! {
+            let context=crate::specs::Part2ColorStorageContext {input:super::box_reference_view(box_ref),base:base_offset};
+            crate::specs::part2_color_capacity_observed(context,crate::allocation::inspection_capacity_outcome(copied));
+            if let Err(error)=copied {crate::specs::part2_color_storage_refused(context,error);}
+        }
+        icc_profile = Some(copied?);
         ColorMethod::RestrictedIcc { profile_bytes }
     } else if method_value == 3 {
         if profile_bytes == 0 {
@@ -185,7 +199,14 @@ pub(super) fn parse_color_specification(
                 MalformedKind::InvalidBoxLength,
             ));
         }
-        icc_profile = Some(copy_profile(&box_ref.payload[3..])?);
+        let copied = copy_profile(&box_ref.payload[3..]);
+        #[cfg(verus_keep_ghost)]
+        proof! {
+            let context=crate::specs::Part2ColorStorageContext {input:super::box_reference_view(box_ref),base:base_offset};
+            crate::specs::part2_color_capacity_observed(context,crate::allocation::inspection_capacity_outcome(copied));
+            if let Err(error)=copied {crate::specs::part2_color_storage_refused(context,error);}
+        }
+        icc_profile = Some(copied?);
         ColorMethod::AnyIcc { profile_bytes }
     } else {
         return Err(DecodeError::malformed(
@@ -202,10 +223,14 @@ pub(super) fn parse_color_specification(
 }
 
 #[cfg_attr(verus_keep_ghost, verus_spec(result =>
-    ensures result.is_ok(), result.ok().unwrap()@ == source@,
+    ensures crate::specs::storage_copy_result(source@,result),
 ))]
 fn copy_profile(source: &[u8]) -> Result<Vec<u8>, DecodeError> {
-    let mut profile = Vec::with_capacity(source.len());
+    let mut profile = if source.is_empty() {
+        Vec::new()
+    } else {
+        crate::allocation::empty_with_capacity(source.len())?
+    };
     let mut index = 0_usize;
     #[cfg_attr(
         verus_keep_ghost,
@@ -225,7 +250,19 @@ fn copy_profile(source: &[u8]) -> Result<Vec<u8>, DecodeError> {
             .checked_add(1)
             .ok_or_else(|| DecodeError::malformed(0, MalformedKind::ArithmeticOverflow))?;
     }
+    #[cfg(verus_keep_ghost)]
+    proof! { assert(profile@ =~= source@); }
     Ok(profile)
+}
+
+#[test]
+#[cfg(test)]
+fn color_storage_empty_private_copy_is_request_free() {
+    crate::allocation::with_refusal(0, || {
+        assert_eq!(copy_profile(&[]).unwrap(), Vec::<u8>::new());
+        assert_eq!(copy_profile(&[7]), Err(DecodeError::AllocationFailed));
+        assert_eq!(copy_profile(&[7]).unwrap(), vec![7]);
+    });
 }
 
 #[cfg_attr(verus_keep_ghost, verus_spec(result =>
