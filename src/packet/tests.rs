@@ -523,7 +523,7 @@ fn precinct_singleton_storage_first_later_refusals_restore_exact_owners() {
         &limits,
     )
     .unwrap();
-    for after in [0, 1, 5, 6] {
+    for after in [0, 1, 6, 8] {
         let decoders = vec![one_bit_legacy_decoder(false)];
         assert!(matches!(
             crate::allocation::with_refusal(after, || PacketPrecinctDecoder::new(
@@ -666,6 +666,43 @@ fn precinct_singleton_storage_real_full_selected_packet_callers_restore() {
             );
         }
     }
+}
+
+#[test]
+fn tagtree_storage_levels_nodes_preflight_and_exact_retry() {
+    let limits = ResourceLimits::default();
+    for (width, height) in [(1, 1), (3, 2), (127, 65)] {
+        let expected = tag_tree_new(width, height, &limits).unwrap();
+        for after in [0, 1] {
+            assert_eq!(
+                crate::allocation::with_refusal(after, || tag_tree_new(width, height, &limits)),
+                Err(DecodeError::AllocationFailed)
+            );
+            assert_eq!(tag_tree_new(width, height, &limits).unwrap(), expected);
+        }
+    }
+    crate::allocation::with_refusal(0, || {
+        assert_eq!(
+            tag_tree_from_dimensions(0, 1, u64::MAX),
+            Err(packet_reader_error(0, MalformedKind::InvalidTagTree))
+        );
+        assert_eq!(
+            tag_tree_from_dimensions(1, 0, u64::MAX),
+            Err(packet_reader_error(0, MalformedKind::InvalidTagTree))
+        );
+        assert_eq!(
+            tag_tree_from_dimensions(3, 2, 6),
+            Err(packet_reader_limit(Resource::TagTreeNodes, 6, 8))
+        );
+        assert_eq!(
+            tag_tree_from_dimensions(u32::MAX, u32::MAX, u64::MAX),
+            Err(packet_reader_error(0, MalformedKind::ArithmeticOverflow))
+        );
+        assert_eq!(
+            crate::allocation::copy_values(&[1_u8]),
+            Err(DecodeError::AllocationFailed)
+        );
+    });
 }
 
 #[test]
@@ -4546,7 +4583,7 @@ fn packet_precinct_storage_execution() -> PacketSubbandExecution {
 #[test]
 fn packet_precinct_storage_tag_nodes_admission_refusal_and_exact_restore() {
     let expected = tag_tree_from_dimensions(3, 2, 9).unwrap();
-    crate::allocation::with_refusal(0, || {
+    crate::allocation::with_refusal(1, || {
         assert_eq!(
             tag_tree_from_dimensions(0, 2, 9),
             Err(packet_reader_error(0, MalformedKind::InvalidTagTree))
@@ -4592,7 +4629,7 @@ fn packet_precinct_storage_subbands_and_ordered_tree_refusals_restore_every_owne
         )
     };
     let expected = make().unwrap();
-    for after in [0, 1, 2, 3, 4, 5] {
+    for after in 0..8 {
         let executions = vec![packet_precinct_storage_execution()];
         assert_eq!(
             crate::allocation::with_refusal(after, || packet_precinct_from_subbands(

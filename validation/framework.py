@@ -7009,7 +7009,8 @@ _TAG_STORAGE_MODELS = {("specs/cold_tag_storage.rs", name) for name in (
     "part2_tag_storage_admit", "part2_tag_storage_run", "part2_tag_storage_prefix", "part1_tag_storage_result", "part2_precinct_tree_run",
 )}
 _TAG_STORAGE_PROOFS = {("specs/cold_tag_storage.rs", name) for name in (
-    "part2_tag_storage_normal", "part2_tag_storage_observed", "part2_precinct_tree_observed", "part2_precinct_tree_normal",
+    "part2_tag_storage_normal", "part2_tag_storage_observed", "part2_tag_storage_levels_refused",
+    "part2_precinct_tree_observed", "part2_precinct_tree_normal",
 )}
 _PACKET_PRECINCT_STORAGE_MODELS = _TAG_STORAGE_MODELS | {("specs/cold_packet_precinct.rs", name) for name in (
     "part2_precinct_capacity_run", "part2_precinct_capacity_result", "part2_precinct_tree_prelude", "part2_precinct_tree_context",
@@ -7028,6 +7029,7 @@ _PACKET_PRECINCT_STORAGE_PROOFS = _TAG_STORAGE_PROOFS | {("specs/cold_packet_pre
     "part2_precinct_prelude_contexts_refused", "part2_precinct_prelude_decoder_observed",
 )} | {("specs/cold_precinct_storage.rs", name) for name in ("part2_precinct_rows_end", "part2_planning_capacity_observed")}
 _PACKET_PRECINCT_STORAGE_TESTS = {
+    ("src/packet/tests.rs", "tagtree_storage_levels_nodes_preflight_and_exact_retry"),
     ("src/packet/tests.rs", "packet_precinct_storage_tag_nodes_admission_refusal_and_exact_restore"),
     ("src/packet/tests.rs", "packet_precinct_storage_subbands_and_ordered_tree_refusals_restore_every_owner"),
     ("src/packet/tests.rs", "packet_precinct_storage_empty_and_ordinary_priority_consume_no_later_request"),
@@ -7036,8 +7038,10 @@ _PACKET_PRECINCT_STORAGE_TESTS = {
 _PACKET_PRECINCT_STORAGE_GUARDS = {
     ("specs/cold_tag_storage.rs", "part2_tag_storage_run"): (
         "part2_tag_storage_admit(width,height,maximum)", "Err(error)=>Some((Err(error),calls))",
-        "if built.total==0", "call.width!=width || call.height!=height || call.maximum!=maximum || call.built!=built",
-        "Err(crate::DecodeError::AllocationFailed)", "calls.drop_first()",
+        "if built.total==0", "call.width!=width || call.height!=height || call.maximum!=maximum || call.built!=built || !call.levels",
+        "else if !call.succeeded", "else if calls.len()<2", "let nodes=calls[1]",
+        "nodes.width!=width || nodes.height!=height || nodes.maximum!=maximum || nodes.built!=built || nodes.levels",
+        "Err(crate::DecodeError::AllocationFailed)", "calls.drop_first().drop_first()",
     ),
     ("specs/cold_tag_storage.rs", "part2_tag_storage_prefix"): (
         "forall|tail:Seq<Part2TagStorageEvent>| #[trigger] part2_tag_storage_run(width,height,maximum,prefix+tail)==Some((result,tail))",
@@ -7100,8 +7104,10 @@ _PACKET_PRECINCT_NATIVE_ORDER = {
         "while local_index < count", "states.push(state)", "contexts.push(",
     ),
     ("src/packet/tag_tree.rs", "tag_tree_from_dimensions"): (
-        "if width == 0 || height == 0", "let mut levels = Vec::new()", "loop {", "levels.push(",
-        "usize::try_from(next_total)", "let filled = crate::allocation::filled_values(", "TagTreeNode {",
+        "if width == 0 || height == 0", "let mut level_plan = [TagTreeLevel {", "let mut level_count = 0_usize",
+        "loop {", "level_plan[level_count] =", "level_count += 1", "usize::try_from(next_total)",
+        "copy_values(&level_plan[..level_count])", "part2_tag_storage_levels_refused(", "let levels = copied_levels?",
+        "let filled = crate::allocation::filled_values(", "TagTreeNode {",
         "}, total_nodes,", "part2_tag_storage_observed(", "let nodes = filled?",
     ),
     ("src/packet/precinct.rs", "packet_precinct_from_subbands"): (

@@ -1,8 +1,8 @@
-//! One actual fresh TagTree node owner; caller envelopes carry real tree roles.
+//! Fresh TagTree level/node owners; caller envelopes carry real tree roles.
 use super::*;
 verus! {
 pub struct Part2TagStorageEvent {
-    pub width:u32,pub height:u32,pub maximum:u64,pub built:Part1TagBuild,pub succeeded:bool,
+    pub width:u32,pub height:u32,pub maximum:u64,pub built:Part1TagBuild,pub levels:bool,pub succeeded:bool,
 }
 pub(crate) open spec fn part2_tag_storage_admit(width:u32,height:u32,maximum:u64)->Result<Part1TagBuild,crate::DecodeError> {
     if width==0 || height==0 {Err(part1_packet_reader_error(0,crate::MalformedKind::InvalidTagTree))}
@@ -15,8 +15,13 @@ pub(crate) open spec fn part2_tag_storage_run(width:u32,height:u32,maximum:u64,c
         Ok(built)=>if built.total==0 {Some((part1_tag_initial(width,height,maximum),calls))}
         else if calls.len()==0 {None}else{
             let call=calls[0];
-            if call.width!=width || call.height!=height || call.maximum!=maximum || call.built!=built {None}
-            else{Some((if call.succeeded {part1_tag_initial(width,height,maximum)}else{Err(crate::DecodeError::AllocationFailed)},calls.drop_first()))}
+            if call.width!=width || call.height!=height || call.maximum!=maximum || call.built!=built || !call.levels {None}
+            else if !call.succeeded {Some((Err(crate::DecodeError::AllocationFailed),calls.drop_first()))}
+            else if calls.len()<2 {None}else{
+                let nodes=calls[1];
+                if nodes.width!=width || nodes.height!=height || nodes.maximum!=maximum || nodes.built!=built || nodes.levels {None}
+                else{Some((if nodes.succeeded {part1_tag_initial(width,height,maximum)}else{Err(crate::DecodeError::AllocationFailed)},calls.drop_first().drop_first()))}
+            }
         },
     }
 }
@@ -31,11 +36,13 @@ pub(crate) proof fn part2_tag_storage_normal(width:u32,height:u32,maximum:u64)
 {
     let result=part1_tag_initial(width,height,maximum);
     let prefix=match part2_tag_storage_admit(width,height,maximum) {
-        Err(_)=>Seq::empty(),Ok(built)=>if built.total==0 {Seq::empty()}else{seq![Part2TagStorageEvent {width,height,maximum,built,succeeded:true}]},
+        Err(_)=>Seq::empty(),Ok(built)=>if built.total==0 {Seq::empty()}else{seq![
+            Part2TagStorageEvent {width,height,maximum,built,levels:true,succeeded:true},
+            Part2TagStorageEvent {width,height,maximum,built,levels:false,succeeded:true}]},
     };
     assert forall|tail:Seq<Part2TagStorageEvent>|part2_tag_storage_run(width,height,maximum,prefix+tail)==Some((result,tail)) by{
         match part2_tag_storage_admit(width,height,maximum) {
-            Ok(built)=>if built.total>0 {assert((prefix+tail).drop_first() =~= tail);}else{assert(prefix+tail =~= tail);},
+            Ok(built)=>if built.total>0 {assert((prefix+tail).drop_first().drop_first() =~= tail);}else{assert(prefix+tail =~= tail);},
             Err(_)=>{assert(prefix+tail =~= tail);},
         }
     }
@@ -47,11 +54,24 @@ pub(crate) proof fn part2_tag_storage_observed(width:u32,height:u32,maximum:u64,
     ensures part1_tag_storage_result(width,height,maximum,if result.is_ok(){part1_tag_initial(width,height,maximum)}else{Err(crate::DecodeError::AllocationFailed)}),
 {
     let value=if result.is_ok(){part1_tag_initial(width,height,maximum)}else{Err(crate::DecodeError::AllocationFailed)};
-    let prefix=if built.total==0{Seq::empty()}else{seq![Part2TagStorageEvent {width,height,maximum,built,succeeded:result.is_ok()}]};
+    let prefix=if built.total==0{Seq::empty()}else{seq![
+        Part2TagStorageEvent {width,height,maximum,built,levels:true,succeeded:true},
+        Part2TagStorageEvent {width,height,maximum,built,levels:false,succeeded:result.is_ok()}]};
     assert forall|tail:Seq<Part2TagStorageEvent>|part2_tag_storage_run(width,height,maximum,prefix+tail)==Some((value,tail)) by{
-        if built.total==0{assert(prefix+tail =~= tail);}else{assert((prefix+tail).drop_first() =~= tail);}
+        if built.total==0{assert(prefix+tail =~= tail);}else{assert((prefix+tail).drop_first().drop_first() =~= tail);}
     }
     assert(part2_tag_storage_prefix(width,height,maximum,prefix,value));
+}
+pub(crate) proof fn part2_tag_storage_levels_refused(width:u32,height:u32,maximum:u64,built:Part1TagBuild)
+    requires part2_tag_storage_admit(width,height,maximum)==Ok(built),built.total>0,
+    ensures part1_tag_storage_result(width,height,maximum,Err(crate::DecodeError::AllocationFailed)),
+{
+    let prefix=seq![Part2TagStorageEvent {width,height,maximum,built,levels:true,succeeded:false}];
+    assert forall|tail:Seq<Part2TagStorageEvent>|
+        part2_tag_storage_run(width,height,maximum,prefix+tail)==Some((Err(crate::DecodeError::AllocationFailed),tail)) by{
+        assert((prefix+tail).drop_first() =~= tail);
+    }
+    assert(part2_tag_storage_prefix(width,height,maximum,prefix,Err(crate::DecodeError::AllocationFailed)));
 }
 pub struct Part2PrecinctTreeContext {
     pub before:Part1PacketPrecinctState,pub total:u64,pub execution:Part2PacketSubbandExecution,pub index:usize,
