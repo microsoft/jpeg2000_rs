@@ -41,6 +41,7 @@ specs/cold_grid.rs
 specs/cold_grid_geometry.rs
 specs/cold_grid_plan.rs
 specs/cold_header_progression.rs
+specs/cold_header_storage.rs
 specs/cold_ht_bytes.rs
 specs/cold_ht_decoder.rs
 specs/cold_ht_exponents.rs

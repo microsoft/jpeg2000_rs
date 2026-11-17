@@ -313,7 +313,7 @@ pub(crate) open spec fn part2_container_boxes_cold_run(
 {
     let next = part2_box_reader_next_ref(reader);
     match next.0 {
-        None => Some((part2_container_finish(state, file_type), events)),
+        None => part2_container_finish_storage_run(state,file_type,events),
         Some(result) => if next.1.position <= reader.position || next.1.position > input.len() {
             Some((Err(part2_container_error(reader.position as u64, crate::MalformedKind::InvalidBoxLength)), events))
         } else {
@@ -336,7 +336,7 @@ pub(crate) open spec fn part2_container_boxes_cold_calls(
 {
     let next = part2_box_reader_next_ref(reader);
     match next.0 {
-        None => Seq::empty(),
+        None => part2_container_finish_storage_calls(state,file_type),
         Some(result) => if next.1.position <= reader.position || next.1.position > input.len() {
             Seq::empty()
         } else {
@@ -369,7 +369,11 @@ pub(crate) proof fn part2_container_boxes_cold_normal(
     reveal_with_fuel(part2_container_boxes_cold_calls, 1);
     let next = part2_box_reader_next_ref(reader);
     match next.0 {
-        None => { part2_cold_pure(part2_container_finish(state, file_type)); },
+        None => {
+            part2_container_finish_storage_normal(state,file_type);
+            part2_container_finish_storage_frames(state,file_type,part2_container_finish(state,file_type));
+            part2_container_finish_storage_prefix(state,file_type,tail);
+        },
         Some(result) => if next.1.position <= reader.position || next.1.position > input.len() {
             part2_cold_pure::<Part2RawJp2File>(Err(part2_container_error(
                 reader.position as u64, crate::MalformedKind::InvalidBoxLength)));

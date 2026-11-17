@@ -93,6 +93,36 @@ palette/nonlinear/color scratch and other owners remain separate broad #287
 work. Finite fixture observations and focused proofs do not replace full
 source/archive qualification of the final integrated tree.
 
+Private checked header copies now retain the original ICC, palette-column,
+palette-value, mapping and definition owners in their original allocation
+order. Empty vectors make no request; `Some(empty)` remains distinct from
+`None`, and arbitrary raw counts or invalid metadata are copied without new
+validation. Existing public `Clone` bodies and signatures remain unchanged.
+[`cold_header_storage.rs`](specs/cold_header_storage.rs) binds each actual
+source, role, count and normalized copy reply, including the first refusal and
+arbitrary remaining tail. Associated copies retain the original borrowed
+box header and payload reference while independently owning copied metadata.
+
+The associated-header fallback composes the checked default copy before its
+original second reader. The association bank reserves after original header
+admission and parsing but before publishing the association. Final attachment
+copies execute in source order after the original header/stream/count checks
+and before the original late layer-reference validation. Earlier successful
+attachment prefixes remain actual local state; no rollback is invented.
+[`cold_container_headers.rs`](specs/cold_container_headers.rs) composes those
+requests, the actual cloned stream bank and a proved terminal parse phase into
+the complete container/file-type program. The terminal phase is proved from
+the actual EOF reader transition, not assumed or supplied as a result bank.
+
+The supported 199-byte empty-associated-header inheritance control extends
+the one-record CDEF fixture to 91 actual requests, covering inherited metadata
+copy, association-bank growth and attached metadata copy. Every modified-source
+request returns typed refusal followed by exact same-process pixels. This is
+finite development evidence, not final archive or full-surface qualification.
+Other JPX layer growth, parser palette/ICC and nonlinear/color scratch owners
+remain separate; no physical allocator availability, lifetime, exhaustive
+coverage or optional clock-orchestration theorem is implied.
+
 ### Centered-to-typed output ownership
 
 Typed-image component metadata now uses checked storage before any component

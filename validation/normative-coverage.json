@@ -2220,7 +2220,10 @@
         {"path": "src/jp2/container.rs", "symbol": "parse_and_inspect_mode"},
         {"path": "src/jp2/container.rs", "symbol": "parse_and_inspect"},
         {"path": "src/jp2/container.rs", "symbol": "parse"},
-        {"path": "src/jp2/clone_support.rs", "symbol": "codestream_association_clone"}
+        {"path": "src/jp2/clone_support.rs", "symbol": "try_copy_header_values"},
+        {"path": "src/jp2/clone_support.rs", "symbol": "try_jp2_header_clone"},
+        {"path": "src/jp2/clone_support.rs", "symbol": "try_codestream_association_clone"},
+        {"path": "src/jp2/headers.rs", "symbol": "parse_codestream_header"}
       ],
       "contract_refs": [
         {"path": "src/jp2/container.rs", "symbol": "parse"}
@@ -2241,7 +2244,29 @@
         {"path": "specs/jp2_container.rs", "symbol": "part2_container_attach"},
         {"path": "specs/jp2_container.rs", "symbol": "part2_container_initial_state"},
         {"path": "specs/jp2_container.rs", "symbol": "part2_container_next_stream_count"},
-        {"path": "specs/jp2_container.rs", "symbol": "part2_container_error"}
+        {"path": "specs/jp2_container.rs", "symbol": "part2_container_error"},
+        {"path": "specs/cold_header_storage.rs", "symbol": "part2_header_clone_count"},
+        {"path": "specs/cold_header_storage.rs", "symbol": "part2_header_clone_capacity_run"},
+        {"path": "specs/cold_header_storage.rs", "symbol": "part2_header_clone_capacity_result"},
+        {"path": "specs/cold_header_storage.rs", "symbol": "part2_header_clone_prefix_run"},
+        {"path": "specs/cold_header_storage.rs", "symbol": "part2_header_clone_storage_run"},
+        {"path": "specs/cold_header_storage.rs", "symbol": "part2_header_clone_storage_result"},
+        {"path": "specs/cold_header_storage.rs", "symbol": "part2_association_clone_storage_run"},
+        {"path": "specs/cold_header_storage.rs", "symbol": "part2_association_clone_storage_result"},
+        {"path": "specs/cold_channel_storage.rs", "symbol": "part2_codestream_header_storage_after"},
+        {"path": "specs/cold_channel_storage.rs", "symbol": "part2_codestream_header_storage_cloned"},
+        {"path": "specs/cold_container_headers.rs", "symbol": "part2_association_append_admitted"},
+        {"path": "specs/cold_container_headers.rs", "symbol": "part2_association_append_capacity_run"},
+        {"path": "specs/cold_container_headers.rs", "symbol": "part2_association_append_capacity_result"},
+        {"path": "specs/cold_container_headers.rs", "symbol": "part2_container_association_append_run"},
+        {"path": "specs/cold_container_headers.rs", "symbol": "part2_container_headers_run"},
+        {"path": "specs/cold_container_headers.rs", "symbol": "part2_container_attach_storage_run"},
+        {"path": "specs/cold_container_headers.rs", "symbol": "part2_container_attach_storage_result"},
+        {"path": "specs/cold_container_headers.rs", "symbol": "part2_container_finish_storage_admit"},
+        {"path": "specs/cold_container_headers.rs", "symbol": "part2_container_finish_storage_tail"},
+        {"path": "specs/cold_container_headers.rs", "symbol": "part2_container_finish_storage_run"},
+        {"path": "specs/cold_container_headers.rs", "symbol": "part2_container_finish_storage_result"},
+        {"path": "specs/cold_container_headers.rs", "symbol": "part2_parse_container_finish_phase"}
       ],
       "proof_refs": [
         {"path": "specs/jp2_file_type.rs", "symbol": "part2_parse_container_cold_normal"},
@@ -2258,9 +2283,28 @@
         {"path": "src/jp2/proof_support.rs", "symbol": "raw_codestream_association_view"},
         {"path": "src/jp2/proof_support.rs", "symbol": "raw_jp2_header_view"},
         {"path": "src/jp2/proof_support.rs", "symbol": "raw_composition_option"},
-        {"path": "src/jp2/proof_support.rs", "symbol": "raw_compositing_layers_view"}
+        {"path": "src/jp2/proof_support.rs", "symbol": "raw_compositing_layers_view"},
+        {"path": "src/jp2/proof_support.rs", "symbol": "raw_codestream_association_outcome"},
+        {"path": "specs/cold_header_storage.rs", "symbol": "part2_header_clone_capacity_observed"},
+        {"path": "specs/cold_header_storage.rs", "symbol": "part2_header_clone_capacity_frames"},
+        {"path": "specs/cold_header_storage.rs", "symbol": "part2_header_clone_copied"},
+        {"path": "specs/cold_header_storage.rs", "symbol": "part2_header_clone_stage"},
+        {"path": "specs/cold_header_storage.rs", "symbol": "part2_header_clone_storage_frames"},
+        {"path": "specs/cold_header_storage.rs", "symbol": "part2_association_clone_from_header"},
+        {"path": "specs/cold_header_storage.rs", "symbol": "part2_association_clone_storage_frames"},
+        {"path": "specs/cold_channel_storage.rs", "symbol": "part2_codestream_header_storage_clone_error"},
+        {"path": "specs/cold_container_headers.rs", "symbol": "part2_association_append_capacity_observed"},
+        {"path": "specs/cold_container_headers.rs", "symbol": "part2_container_association_append_error"},
+        {"path": "specs/cold_container_headers.rs", "symbol": "part2_container_attach_storage_stage"},
+        {"path": "specs/cold_container_headers.rs", "symbol": "part2_container_finish_storage_normal"},
+        {"path": "specs/cold_container_headers.rs", "symbol": "part2_container_finish_storage_prefix"},
+        {"path": "specs/cold_container_headers.rs", "symbol": "part2_parse_container_finish_begin"},
+        {"path": "specs/cold_container_headers.rs", "symbol": "part2_parse_container_attach_error"}
       ],
       "test_refs": [
+        {"path": "src/jp2/tests.rs", "symbol": "checked_header_storage_copies_each_raw_owner_and_retries_after_refusal"},
+        {"path": "src/jp2/tests.rs", "symbol": "checked_header_storage_preserves_empty_options_and_raw_invalid_fields_without_requests"},
+        {"path": "src/jp2/tests.rs", "symbol": "checked_association_storage_preserves_payload_optional_owners_and_exact_retry"},
         {"path": "src/jp2/tests.rs", "symbol": "actual_raw_container_retains_complete_header_and_original_uninspected_codestream_bytes"},
         {"path": "src/jp2/tests.rs", "symbol": "actual_container_stream_growth_refusal_preserves_borrowed_payloads_and_exact_retry"},
         {"path": "src/jp2/tests.rs", "symbol": "actual_raw_container_attaches_every_owned_association_without_changing_other_streams"},
@@ -2449,16 +2493,20 @@
       "topic": "Complete actual associated codestream-header Result: initial full-parse priority, real default cloning and every inherited/overridden image/color/ICC/count/palette/mapping/definition/resolution field. Sarah DEV-629A0A9C39: first provided color override retains full semantic parsing; subsequent COLR boxes use the shared three-byte prefix validator without interpreting or allocating irrelevant later color/ICC data. Preserve framing/reader/resource/counter/common-prefix/error order, vector clears and override-only BPCC requirement. Defaults are an actual native input, not asserted raw-derived/valid or supplied successful parser outputs. Whole file/tree/public/normative/cfg/erasure/lifetimes/release remain separate.",
       "implementation_refs": [
         {"path": "src/jp2/headers.rs", "symbol": "parse_codestream_header"},
-        {"path": "src/jp2/container.rs", "symbol": "parse"}
+        {"path": "src/jp2/container.rs", "symbol": "parse"},
+        {"path": "src/jp2/clone_support.rs", "symbol": "try_copy_header_values"},
+        {"path": "src/jp2/clone_support.rs", "symbol": "try_jp2_header_clone"}
       ],
       "spec_refs": [
         {"path": "specs/cold_channel_storage.rs", "symbol": "part2_codestream_header_storage_result"},
         {"path": "specs/cold_channel_storage.rs", "symbol": "part2_codestream_header_storage_run"},
+        {"path": "specs/cold_header_storage.rs", "symbol": "part2_header_clone_storage_result"},
+        {"path": "specs/cold_header_storage.rs", "symbol": "part2_header_clone_storage_run"},
+        {"path": "specs/cold_header_storage.rs", "symbol": "part2_header_clone_count"},
         {"path": "specs/jp2_associated_header.rs", "symbol": "part2_parse_codestream_header"},
         {"path": "specs/jp2_associated_header.rs", "symbol": "part2_associated_header_boxes"},
         {"path": "specs/jp2_associated_header.rs", "symbol": "part2_associated_header_step"},
         {"path": "specs/jp2_associated_header.rs", "symbol": "part2_associated_header_finish"},
-        {"path": "specs/jp2_associated_header.rs", "symbol": "part2_jp2_header_clone"},
         {"path": "specs/jp2_header.rs", "symbol": "part2_parse_jp2_header"},
         {"path": "specs/jp2_color_header.rs", "symbol": "part2_validate_color_specification_prefix"}
       ],
@@ -2467,10 +2515,11 @@
       ],
       "proof_refs": [
         {"path": "specs/cold_channel_storage.rs", "symbol": "part2_codestream_header_storage_normal"},
+        {"path": "specs/cold_channel_storage.rs", "symbol": "part2_codestream_header_storage_clone_error"},
+        {"path": "src/jp2/clone_support.rs", "symbol": "try_jp2_header_clone"},
         {"path": "src/jp2/proof_support.rs", "symbol": "raw_header_option"},
         {"path": "src/jp2/proof_support.rs", "symbol": "associated_header_state"},
-        {"path": "src/jp2/proof_support.rs", "symbol": "raw_jp2_header_outcome"},
-        {"path": "src/jp2/clone_support.rs", "symbol": "jp2_header_clone"}
+        {"path": "src/jp2/proof_support.rs", "symbol": "raw_jp2_header_outcome"}
       ],
       "test_refs": [
         {"path": "src/jp2/tests.rs", "symbol": "actual_raw_associated_header_complete_first_parse_preempts_defaults_and_fallback_errors"},
@@ -2488,6 +2537,7 @@
       "id": "part2-complete-native-owned-header-clone-producers",
       "topic": "Actual shared executing color/palette/optional-palette/header clone producers preserve complete arbitrary metadata with original field clone bodies and owner cleanup scopes. Public Clone wrappers delegate; checked header body uses real checked color/optional-palette routing. No valid-metadata premise, owner reconstruction or proof-induced clone. Original derived native bodies observed exact except extraction/debug parameter labels and two header field-call retargets; optional/default routing/wrappers require full fresh native audit. Native lifetime/cfg/erasure/whole file/public/normative/release claims remain separate.",
       "implementation_refs": [
+        {"path": "src/jp2.rs", "symbol": "Jp2Header::clone"},
         {"path": "src/jp2/clone_support.rs", "symbol": "color_specification_clone"},
         {"path": "src/jp2/clone_support.rs", "symbol": "palette_clone"},
         {"path": "src/jp2/clone_support.rs", "symbol": "optional_palette_clone"},
@@ -2708,6 +2758,7 @@
         {"path": "specs/cold_channel_storage.rs", "symbol": "part2_layer_header_storage_machine"},
         {"path": "specs/cold_channel_storage.rs", "symbol": "part2_jp2_header_storage_run"},
         {"path": "specs/cold_channel_storage.rs", "symbol": "part2_codestream_header_storage_after"},
+        {"path": "specs/cold_channel_storage.rs", "symbol": "part2_codestream_header_storage_cloned"},
         {"path": "specs/cold_channel_storage.rs", "symbol": "part2_codestream_header_storage_at"},
         {"path": "specs/cold_channel_storage.rs", "symbol": "part2_associated_header_box_storage_result"},
         {"path": "specs/cold_channel_storage.rs", "symbol": "part2_codestream_header_storage_run"},

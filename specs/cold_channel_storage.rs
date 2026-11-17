@@ -526,14 +526,22 @@ pub(crate) open spec fn part2_codestream_header_storage_start(payload:Seq<u8>,de
         },
     }
 }
+pub(crate) open spec fn part2_codestream_header_storage_cloned(payload:Seq<u8>,header:Part2RawJp2Header,
+    limits:crate::ResourceLimits,base:u64,events:Seq<Part2JpipSnapshotEvent>)->Part2ColdRun<Part2RawJp2Header> {
+    match part2_codestream_header_storage_start(payload,Some(header),limits,base) {
+        Err(error)=>Some((Err(error),events)),
+        Ok((reader,state))=>part2_header_storage_boxes_run(part2_associated_header_storage_machine(payload,limits,base),reader,state,events),
+    }
+}
 pub(crate) open spec fn part2_codestream_header_storage_after(first:Result<Part2RawJp2Header,crate::DecodeError>,
     payload:Seq<u8>,defaults:Option<Part2RawJp2Header>,limits:crate::ResourceLimits,base:u64,events:Seq<Part2JpipSnapshotEvent>)->Part2ColdRun<Part2RawJp2Header> {
     match first{
         Ok(header)=>Some((Ok(header),events)),
         Err(crate::DecodeError::AllocationFailed)=>Some((Err(crate::DecodeError::AllocationFailed),events)),
-        Err(_)=>match part2_codestream_header_storage_start(payload,defaults,limits,base){
-            Err(error)=>Some((Err(error),events)),
-            Ok((reader,state))=>part2_header_storage_boxes_run(part2_associated_header_storage_machine(payload,limits,base),reader,state,events),
+        Err(_)=>match defaults{
+            None=>Some((Err(part2_raw_header_missing(base)),events)),
+            Some(header)=>part2_jpip_snapshot_bind(part2_header_clone_storage_run(header,events),
+                |cloned:Part2RawJp2Header,rest|part2_codestream_header_storage_cloned(payload,cloned,limits,base,rest)),
         },
     }
 }
@@ -555,10 +563,18 @@ pub(crate) proof fn part2_codestream_header_storage_normal(payload:Seq<u8>,defau
     part2_jp2_header_storage_normal(payload,limits,base,false);part2_jp2_header_storage_frames(payload,limits,base,false,first);
     part2_cold_pure(result);
     if first.is_err(){
-        if let Ok((reader,state))=part2_codestream_header_storage_start(payload,defaults,limits,base){
-            part2_header_storage_machines_valid(payload,limits,base,false);
-            part2_associated_header_storage_value(payload,reader,state,limits,base);
-            part2_header_storage_boxes_normal(part2_associated_header_storage_machine(payload,limits,base),reader,state);
+        if let Some(header)=defaults{
+            if let Ok((reader,state))=part2_codestream_header_storage_start(payload,defaults,limits,base){
+                part2_header_storage_machines_valid(payload,limits,base,false);
+                part2_associated_header_storage_value(payload,reader,state,limits,base);
+                part2_header_storage_boxes_normal(part2_associated_header_storage_machine(payload,limits,base),reader,state);
+            }
+            part2_decode_eta(|events|part2_codestream_header_storage_cloned(payload,header,limits,base,events),result);
+            part2_header_clone_storage_normal(header);
+            part2_header_clone_storage_frames(header,Ok(header));
+            part2_cold_bind(|events|part2_header_clone_storage_run(header,events),
+                |cloned:Part2RawJp2Header,rest|part2_codestream_header_storage_cloned(payload,cloned,limits,base,rest),
+                Ok(header),result);
         }
     }
     part2_decode_eta(|events|part2_codestream_header_storage_after(first,payload,defaults,limits,base,events),result);
@@ -577,6 +593,23 @@ pub(crate) proof fn part2_codestream_header_storage_first(payload:Seq<u8>,defaul
             |first,rest|part2_codestream_header_storage_after(first,payload,defaults,limits,base,rest),first,first);
     }
 }
+pub(crate) proof fn part2_codestream_header_storage_clone_error(payload:Seq<u8>,defaults:Option<Part2RawJp2Header>,
+    limits:crate::ResourceLimits,base:u64,first:Result<Part2RawJp2Header,crate::DecodeError>,
+    header:Part2RawJp2Header,error:crate::DecodeError)
+    requires part2_jp2_header_storage_result(payload,limits,base,false,first),
+        first.is_err(),first!=Err(crate::DecodeError::AllocationFailed),defaults==Some(header),
+        part2_header_clone_storage_result(header,Err(error)),
+    ensures part2_codestream_header_storage_result(payload,defaults,limits,base,Err(error)),
+{
+    part2_header_clone_storage_frames(header,Err(error));
+    part2_cold_bind(|events|part2_header_clone_storage_run(header,events),
+        |cloned:Part2RawJp2Header,rest|part2_codestream_header_storage_cloned(payload,cloned,limits,base,rest),
+        Err(error),Err(error));
+    part2_decode_eta(|events|part2_codestream_header_storage_after(first,payload,defaults,limits,base,events),Err(error));
+    part2_jp2_header_storage_frames(payload,limits,base,false,first);
+    part2_header_storage_resume_frame(|events|part2_jp2_header_storage_run(payload,limits,base,false,events),
+        |first,rest|part2_codestream_header_storage_after(first,payload,defaults,limits,base,rest),first,Err(error));
+}
 pub closed spec fn part2_codestream_header_storage_at(payload:Seq<u8>,defaults:Option<Part2RawJp2Header>,limits:crate::ResourceLimits,base:u64,
     reader:Part2BoxReaderState,state:Part2AssociatedHeaderState,prefix:Seq<Part2JpipSnapshotEvent>)->bool {
     part2_cold_phase(|events|part2_codestream_header_storage_run(payload,defaults,limits,base,events),prefix,
@@ -586,13 +619,20 @@ pub(crate) proof fn part2_codestream_header_storage_prefix(payload:Seq<u8>,defau
     first:Result<Part2RawJp2Header,crate::DecodeError>,reader:Part2BoxReaderState,state:Part2AssociatedHeaderState)->(prefix:Seq<Part2JpipSnapshotEvent>)
     requires part2_jp2_header_storage_result(payload,limits,base,false,first),first.is_err(),first!=Err(crate::DecodeError::AllocationFailed),
         part2_codestream_header_storage_start(payload,defaults,limits,base)==Ok((reader,state)),
+        match defaults {None=>true,Some(header)=>part2_header_clone_storage_result(header,Ok(header))},
     ensures part2_codestream_header_storage_at(payload,defaults,limits,base,reader,state,prefix),
 {
     part2_jp2_header_storage_frames(payload,limits,base,false,first);
-    let prefix=part2_cold_witness(|events|part2_jp2_header_storage_run(payload,limits,base,false,events),first);
+    let before=part2_cold_witness(|events|part2_jp2_header_storage_run(payload,limits,base,false,events),first);
+    let header=defaults.get_Some_0();
+    part2_header_clone_storage_frames(header,Ok(header));
+    let copied=part2_cold_witness(|events|part2_header_clone_storage_run(header,events),Ok(header));
+    let prefix=before+copied;
     assert forall|tail:Seq<Part2JpipSnapshotEvent>|part2_codestream_header_storage_run(payload,defaults,limits,base,prefix+tail)
         ==part2_header_storage_boxes_run(part2_associated_header_storage_machine(payload,limits,base),reader,state,tail) by{
-        part2_cold_prefix_at(|events|part2_jp2_header_storage_run(payload,limits,base,false,events),prefix,first,tail);
+        assert((before+copied)+tail =~= before+(copied+tail));
+        part2_cold_prefix_at(|events|part2_jp2_header_storage_run(payload,limits,base,false,events),before,first,copied+tail);
+        part2_cold_prefix_at(|events|part2_header_clone_storage_run(header,events),copied,Ok(header),tail);
     }
     prefix
 }

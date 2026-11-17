@@ -1197,7 +1197,8 @@ fn fresh_inspection_collection_and_later_stream_restore_prior_owner_order() {
     );
     let limits = ResourceLimits::default();
     let expected = parse_and_inspect(&bytes, &limits).unwrap();
-    for after in [2, 15] {
+    // The association bank now reserves before the original inspection targets.
+    for after in [3, 16] {
         assert_eq!(
             crate::allocation::with_refusal(after, || parse_and_inspect(&bytes, &limits)).err(),
             Some(DecodeError::AllocationFailed)
@@ -1220,7 +1221,7 @@ fn fresh_inspection_collection_and_later_stream_restore_prior_owner_order() {
         &[image_header_box(64, 32), image_header_box(17, 9)],
     );
     let ordinary = parse_and_inspect(&later, &limits).unwrap_err();
-    crate::allocation::with_refusal(15, || {
+    crate::allocation::with_refusal(16, || {
         assert_eq!(parse_and_inspect(&later, &limits).unwrap_err(), ordinary);
         assert_eq!(
             crate::allocation::copy_values(&[1_u8]),
@@ -3619,6 +3620,88 @@ fn actual_native_metadata_clone_keeps_invalid_palette_metadata_without_a_validit
         super::clone_support::palette_clone(source.palette.as_ref().unwrap()),
         source.palette.unwrap()
     );
+}
+
+#[test]
+fn checked_header_storage_copies_each_raw_owner_and_retries_after_refusal() {
+    let source = raw_associated_defaults();
+    let expected = source.clone();
+    assert_eq!(
+        super::clone_support::try_jp2_header_clone(&source).unwrap(),
+        expected
+    );
+    for after in 0..5 {
+        assert_eq!(
+            crate::allocation::with_refusal(after, || {
+                super::clone_support::try_jp2_header_clone(&source)
+            }),
+            Err(DecodeError::AllocationFailed)
+        );
+        assert_eq!(source, expected);
+        assert_eq!(
+            super::clone_support::try_jp2_header_clone(&source).unwrap(),
+            expected
+        );
+    }
+}
+
+#[test]
+fn checked_header_storage_preserves_empty_options_and_raw_invalid_fields_without_requests() {
+    let mut source = raw_associated_defaults();
+    source.image.width = 0;
+    source.image.components = 0;
+    source.color.icc_profile = Some(Vec::new());
+    source.palette = Some(Palette {
+        entries: u16::MAX,
+        columns: Vec::new(),
+        values: Vec::new(),
+    });
+    source.component_mappings.clear();
+    source.channel_definition_records.clear();
+    let expected = source.clone();
+    crate::allocation::with_refusal(0, || {
+        assert_eq!(
+            super::clone_support::try_jp2_header_clone(&source).unwrap(),
+            expected
+        );
+        assert_eq!(
+            crate::allocation::empty_with_capacity::<u8>(1),
+            Err(DecodeError::AllocationFailed)
+        );
+    });
+    assert_eq!(source, expected);
+}
+
+#[test]
+fn checked_association_storage_preserves_payload_optional_owners_and_exact_retry() {
+    let payload = [0, 128, 255, 17];
+    let mut source = CodestreamHeaderAssociation {
+        header: raw_metadata_box(&payload, *b"jpch", u64::MAX).header,
+        payload: &payload,
+        parsed: Some(raw_associated_defaults()),
+    };
+    for after in 0..5 {
+        assert_eq!(
+            crate::allocation::with_refusal(after, || {
+                super::clone_support::try_codestream_association_clone(&source)
+            }),
+            Err(DecodeError::AllocationFailed)
+        );
+        let copied = super::clone_support::try_codestream_association_clone(&source).unwrap();
+        assert_eq!(copied, source);
+        assert_eq!(copied.payload.as_ptr(), payload.as_ptr());
+    }
+    source.parsed = None;
+    crate::allocation::with_refusal(0, || {
+        assert_eq!(
+            super::clone_support::try_codestream_association_clone(&source).unwrap(),
+            source
+        );
+        assert_eq!(
+            crate::allocation::empty_with_capacity::<u8>(1),
+            Err(DecodeError::AllocationFailed)
+        );
+    });
 }
 
 #[test]

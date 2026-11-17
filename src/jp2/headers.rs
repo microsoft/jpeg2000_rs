@@ -35,21 +35,21 @@ pub(super) fn parse_codestream_header(
         Err(DecodeError::AllocationFailed) => return Err(DecodeError::AllocationFailed),
         Err(_) => {}
     }
-    #[allow(
-        clippy::redundant_closure,
-        reason = "Checked closure exposes the full native clone contract to the pinned verifier"
-    )]
-    let mut header = defaults.map(
-        #[cfg_attr(verus_keep_ghost, verus_spec(result: Jp2Header =>
-            ensures super::raw_jp2_header_view(&result) == super::raw_jp2_header_view(default_header),
-        ))]
-        |default_header| super::clone_support::jp2_header_clone(default_header),
-    ).ok_or_else(
+    let default_header = defaults.ok_or_else(
         #[cfg_attr(verus_keep_ghost, verus_spec(result: DecodeError =>
             ensures result == crate::specs::part2_raw_header_missing(base_offset),
         ))]
         || DecodeError::malformed(base_offset, MalformedKind::MissingRequiredStructure),
     )?;
+    let copied = super::clone_support::try_jp2_header_clone(default_header);
+    #[cfg(verus_keep_ghost)]
+    proof! {
+        if let Err(error)=super::raw_jp2_header_outcome(copied) {
+            crate::specs::part2_codestream_header_storage_clone_error(payload@,super::raw_header_option(defaults),
+                *limits,base_offset,first_value,super::raw_jp2_header_view(default_header),error);
+        }
+    }
+    let mut header = copied?;
     let mut reader = box_reader_from_input(payload, limits)?;
     let mut image_override = false;
     let mut color_override = false;
