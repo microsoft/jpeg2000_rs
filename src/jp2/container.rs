@@ -910,7 +910,24 @@ pub fn parse<'a>(input: &'a [u8], limits: &ResourceLimits) -> Result<Jp2File<'a>
                     }
                 }
             }
-            compositing_layers.push(layer_result?);
+            let layer = layer_result?;
+            let reserved = crate::allocation::reserve_additional(&mut compositing_layers, 1);
+            #[cfg(verus_keep_ghost)]
+            proof! {
+                let context=crate::specs::Part2LayerAppendContext {
+                    input:super::box_reference_view(box_ref),before:previous_state,
+                    file_type:super::file_type_view(&file_type),limits:*limits,
+                    parsed:super::raw_compositing_layer_view(&layer)};
+                crate::specs::part2_layer_append_capacity_observed(
+                    context,crate::allocation::inspection_capacity_outcome(reserved));
+                if let Err(error)=reserved {
+                    crate::specs::part2_container_layer_append_error(context,error);
+                    crate::specs::part2_parse_container_header_error(input@,*limits,super::file_type_view(&file_type),
+                        storage_prefix,previous_reader,previous_state,super::box_reader_state(&reader),super::box_reference_view(box_ref),error);
+                }
+            }
+            reserved?;
+            compositing_layers.push(layer);
         } else if box_type.equals(BoxType::COMPOSITION) {
             if !file_type.is_jpx_compatible() {
                 return Err(DecodeError::malformed(

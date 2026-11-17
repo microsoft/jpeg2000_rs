@@ -91,6 +91,53 @@ pub struct Part2ColorGroupStorageContext {
     pub limits:crate::ResourceLimits,
     pub base:u64,
 }
+pub struct Part2ColorGroupAppendContext {
+    pub group:Part2ColorGroupStorageContext,
+    pub input:Part2BoxReference,
+    pub before:Seq<Part2ColorSpecification>,
+    pub parsed:Part2ColorSpecification,
+}
+pub(crate) open spec fn part2_color_group_append_admitted(context:Part2ColorGroupAppendContext)->bool {
+    context.input.0.0==crate::jp2::BoxType::COLOR_SPECIFICATION &&
+        part2_parse_color_specification(context.input,context.group.base)==Ok(context.parsed)
+}
+pub(crate) open spec fn part2_color_group_append_capacity_run(context:Part2ColorGroupAppendContext,
+    events:Seq<Part2JpipSnapshotEvent>)->Part2ColdRun<()> {
+    if !part2_color_group_append_admitted(context) || events.len()==0 {None}
+    else {match events[0] {
+        Part2JpipSnapshotEvent::ColorGroupAppendCapacity {context:actual,elements,succeeded}=>
+            if actual!=context || elements!=1 {None}
+            else{Some((if succeeded{Ok(())}else{Err(crate::DecodeError::AllocationFailed)},events.drop_first()))},
+        _=>None,
+    }}
+}
+pub closed spec fn part2_color_group_append_capacity_result(context:Part2ColorGroupAppendContext,
+    result:Result<(),crate::DecodeError>)->bool {
+    part2_cold_framed(|events|part2_color_group_append_capacity_run(context,events),result)
+}
+pub(crate) proof fn part2_color_group_append_capacity_observed(context:Part2ColorGroupAppendContext,
+    result:Result<(),crate::DecodeError>)
+    requires part2_color_group_append_admitted(context),
+        result==Ok(()) || result==Err(crate::DecodeError::AllocationFailed),
+    ensures part2_color_group_append_capacity_result(context,result),
+{
+    let prefix=seq![Part2JpipSnapshotEvent::ColorGroupAppendCapacity {context,elements:1,succeeded:result.is_ok()}];
+    assert forall|tail:Seq<Part2JpipSnapshotEvent>|
+        part2_color_group_append_capacity_run(context,prefix+tail)==Some((result,tail)) by {
+        assert((prefix+tail).drop_first() =~= tail);
+    }
+    assert(part2_cold_prefix(|events|part2_color_group_append_capacity_run(context,events),prefix,result));
+}
+pub(crate) proof fn part2_color_group_append_capacity_frames(context:Part2ColorGroupAppendContext,
+    result:Result<(),crate::DecodeError>)
+    requires part2_color_group_append_capacity_result(context,result),
+    ensures part2_cold_framed(|events|part2_color_group_append_capacity_run(context,events),result),
+        forall|other:spec_fn(Seq<Part2JpipSnapshotEvent>)->Part2ColdRun<()>|
+            (forall|events| #[trigger] other(events)==part2_color_group_append_capacity_run(context,events)) ==>
+                #[trigger] part2_cold_framed(other,result),
+{
+    part2_decode_eta(|events|part2_color_group_append_capacity_run(context,events),result);
+}
 pub(crate) open spec fn part2_color_group_storage_accept(colors:Seq<Part2ColorSpecification>,
     color:Part2ColorSpecification,limits:crate::ResourceLimits)->Result<Seq<Part2ColorSpecification>,crate::DecodeError> {
     let updated=colors.push(color);
@@ -107,13 +154,20 @@ pub(crate) open spec fn part2_color_group_storage_step_value(context:Part2ColorG
         Err(error)=>Err(error),Ok(color)=>part2_color_group_storage_accept(colors,color,context.limits),
     }}
 }
+pub(crate) open spec fn part2_color_group_storage_copied_run(context:Part2ColorGroupStorageContext,
+    input:Part2BoxReference,colors:Seq<Part2ColorSpecification>,parsed:Part2ColorSpecification,
+    events:Seq<Part2JpipSnapshotEvent>)->Part2ColdRun<Seq<Part2ColorSpecification>> {
+    part2_jpip_snapshot_bind(part2_color_group_append_capacity_run(
+        Part2ColorGroupAppendContext {group:context,input,before:colors,parsed},events),
+        |_:(),rest|Some((part2_color_group_storage_accept(colors,parsed,context.limits),rest)))
+}
 pub(crate) open spec fn part2_color_group_storage_step_run(context:Part2ColorGroupStorageContext,
     input:Part2BoxReference,colors:Seq<Part2ColorSpecification>,events:Seq<Part2JpipSnapshotEvent>)
     ->Part2ColdRun<Seq<Part2ColorSpecification>> {
     if input.0.0!=crate::jp2::BoxType::COLOR_SPECIFICATION {
         Some((Err(part2_image_box_error(context.base,input.0,crate::MalformedKind::InvalidBoxContents)),events))
     }else{part2_jpip_snapshot_bind(part2_color_storage_run(Part2ColorStorageContext {input,base:context.base},events),
-        |color:Part2ColorSpecification,rest|Some((part2_color_group_storage_accept(colors,color,context.limits),rest)))}
+        |color:Part2ColorSpecification,rest|part2_color_group_storage_copied_run(context,input,colors,color,rest))}
 }
 pub(crate) proof fn part2_color_group_storage_step_normal(context:Part2ColorGroupStorageContext,
     input:Part2BoxReference,colors:Seq<Part2ColorSpecification>)
@@ -129,9 +183,18 @@ pub(crate) proof fn part2_color_group_storage_step_normal(context:Part2ColorGrou
         let child=Part2ColorStorageContext {input,base:context.base};
         let parsed=part2_parse_color_specification(input,context.base);
         part2_color_storage_normal(child);part2_color_storage_frames(child,parsed);
-        if let Ok(color)=parsed {part2_cold_pure(part2_color_group_storage_accept(colors,color,context.limits));}
+        if let Ok(color)=parsed {
+            let append=Part2ColorGroupAppendContext {group:context,input,before:colors,parsed:color};
+            let accepted=part2_color_group_storage_accept(colors,color,context.limits);
+            part2_color_group_append_capacity_observed(append,Ok(()));
+            part2_color_group_append_capacity_frames(append,Ok(()));
+            part2_cold_pure(accepted);
+            part2_cold_bind(|events|part2_color_group_append_capacity_run(append,events),
+                |_:(),rest|Some((accepted,rest)),Ok(()),accepted);
+            part2_decode_eta(|events|part2_color_group_storage_copied_run(context,input,colors,color,events),accepted);
+        }
         part2_cold_bind(|events|part2_color_storage_run(child,events),
-            |color:Part2ColorSpecification,rest|Some((part2_color_group_storage_accept(colors,color,context.limits),rest)),parsed,result);
+            |color:Part2ColorSpecification,rest|part2_color_group_storage_copied_run(context,input,colors,color,rest),parsed,result);
     }
     part2_decode_eta(|events|part2_color_group_storage_step_run(context,input,colors,events),result);
 }
@@ -260,7 +323,7 @@ pub(crate) proof fn part2_color_group_storage_root_error(context:Part2ColorGroup
     let child=Part2ColorStorageContext {input,base:context.base};
     part2_color_storage_frames(child,Err(error));
     part2_cold_bind(|events|part2_color_storage_run(child,events),
-        |color:Part2ColorSpecification,rest|Some((part2_color_group_storage_accept(colors,color,context.limits),rest)),Err(error),Err(error));
+        |color:Part2ColorSpecification,rest|part2_color_group_storage_copied_run(context,input,colors,color,rest),Err(error),Err(error));
     part2_decode_eta(|events|part2_color_group_storage_step_run(context,input,colors,events),Err(error));
     part2_cold_bind(|events|part2_color_group_storage_step_run(context,input,colors,events),
         |updated:Seq<Part2ColorSpecification>,rest|part2_color_group_storage_boxes_run(context,part2_box_reader_next_ref(reader).1,updated,rest),
@@ -269,5 +332,34 @@ pub(crate) proof fn part2_color_group_storage_root_error(context:Part2ColorGroup
     part2_decode_eta(|events|part2_color_group_storage_boxes_run(context,reader,colors,events),Err(error));
     part2_cold_prefix_result(|events|part2_color_group_storage_run(context,events),
         |events|part2_color_group_storage_boxes_run(context,reader,colors,events),prefix,Err(error));
+}
+pub(crate) proof fn part2_color_group_storage_root_append_error(context:Part2ColorGroupAppendContext,
+    prefix:Seq<Part2JpipSnapshotEvent>,reader:Part2BoxReaderState,error:crate::DecodeError)
+    requires part2_cold_phase(|events|part2_color_group_storage_run(context.group,events),prefix,
+            |events|part2_color_group_storage_boxes_run(context.group,reader,context.before,events)),
+        part2_box_reader_next_ref(reader).0==Some(Ok(context.input)),
+        reader.position<part2_box_reader_next_ref(reader).1.position<=context.group.input.1.len(),
+        part2_color_group_append_admitted(context),
+        part2_color_storage_result(Part2ColorStorageContext {input:context.input,base:context.group.base},Ok(context.parsed)),
+        part2_color_group_append_capacity_result(context,Err(error)),
+    ensures part2_color_group_storage_result(context.group,Err(error)),
+{
+    let group=context.group;let input=context.input;let colors=context.before;let parsed=context.parsed;
+    let child=Part2ColorStorageContext {input,base:group.base};
+    part2_color_group_append_capacity_frames(context,Err(error));
+    part2_cold_bind(|events|part2_color_group_append_capacity_run(context,events),
+        |_:(),rest|Some((part2_color_group_storage_accept(colors,parsed,group.limits),rest)),Err(error),Err(error));
+    part2_decode_eta(|events|part2_color_group_storage_copied_run(group,input,colors,parsed,events),Err(error));
+    part2_color_storage_frames(child,Ok(parsed));
+    part2_cold_bind(|events|part2_color_storage_run(child,events),
+        |color:Part2ColorSpecification,rest|part2_color_group_storage_copied_run(group,input,colors,color,rest),Ok(parsed),Err(error));
+    part2_decode_eta(|events|part2_color_group_storage_step_run(group,input,colors,events),Err(error));
+    part2_cold_bind(|events|part2_color_group_storage_step_run(group,input,colors,events),
+        |updated:Seq<Part2ColorSpecification>,rest|part2_color_group_storage_boxes_run(group,part2_box_reader_next_ref(reader).1,updated,rest),
+        Err(error),Err(error));
+    reveal_with_fuel(part2_color_group_storage_boxes_run,1);
+    part2_decode_eta(|events|part2_color_group_storage_boxes_run(group,reader,colors,events),Err(error));
+    part2_cold_prefix_result(|events|part2_color_group_storage_run(group,events),
+        |events|part2_color_group_storage_boxes_run(group,reader,colors,events),prefix,Err(error));
 }
 }

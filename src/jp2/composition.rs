@@ -474,7 +474,21 @@ pub(super) fn parse_color_group(
                 }
             }
         }
-        colors.push(parsed?);
+        let color = parsed?;
+        let reserved = crate::allocation::reserve_additional(&mut colors, 1);
+        #[cfg(verus_keep_ghost)]
+        proof! {
+            let append=crate::specs::Part2ColorGroupAppendContext {
+                group:context,input:super::box_reference_view(child),before:previous_colors,
+                parsed:super::full_color_specification_view(&color)};
+            crate::specs::part2_color_group_append_capacity_observed(
+                append,crate::allocation::inspection_capacity_outcome(reserved));
+            if let Err(error)=reserved {
+                crate::specs::part2_color_group_storage_root_append_error(append,storage_prefix,previous_reader,error);
+            }
+        }
+        reserved?;
+        colors.push(color);
         #[cfg(verus_keep_ghost)]
         proof! {
             assert(super::full_color_group_view(colors@) =~=
