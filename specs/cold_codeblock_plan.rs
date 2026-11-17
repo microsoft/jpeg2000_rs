@@ -6,18 +6,68 @@ pub(crate) open spec fn part2_tier1_cell_context(grid:[u32;4],clip:[u32;4],block
     Part2Tier1CallContext {width:geometry.2,height:geometry.3,significant:subband.significant_bitplanes,orientation:subband.orientation,style,
         allowed:policy.0,bound:policy.1,grid,clip,block,indices,before}
 }
+pub(crate) open spec fn part2_codeblock_growth_context(grid:[u32;4],clip:[u32;4],block:[u32;2],subband:crate::decode::SubbandGeometry,
+    style:crate::tier1::Tier1CodingStyle,policy:(bool,u8),indices:(usize,usize),before:Part2PlannedCodeBlocks,
+    geometry:(u32,u32,u16,u16),placements:bool)->Part2PlanningCapacityContext {
+    Part2PlanningCapacityContext::CodeBlockGrowth {
+        cell:part2_tier1_cell_context(grid,clip,block,subband,style,policy,indices,before,geometry),
+        subband,geometry,placements,
+    }
+}
+pub(crate) open spec fn part2_codeblock_after_decoder_growth_run(grid:[u32;4],clip:[u32;4],block:[u32;2],subband:crate::decode::SubbandGeometry,
+    style:crate::tier1::Tier1CodingStyle,policy:(bool,u8),indices:(usize,usize),before:Part2PlannedCodeBlocks,
+    geometry:(u32,u32,u16,u16),events:Seq<Part2JpipSnapshotEvent>)->Part2ColdRun<Part2PlannedCodeBlocks> {
+    if geometry.0<subband.x0 || geometry.1<subband.y0 {Some((Err(part1_block_placement_error(true)),events))}
+    else {part2_jpip_snapshot_bind(
+        part2_planning_capacity_run(part2_codeblock_growth_context(grid,clip,block,subband,style,policy,indices,before,geometry,true),events),
+        |_:(),rest|Some((part2_planned_codeblock_cell(grid,clip,block,subband,style,policy,indices,before),rest)))}
+}
+pub(crate) open spec fn part2_codeblock_after_decoder_run(grid:[u32;4],clip:[u32;4],block:[u32;2],subband:crate::decode::SubbandGeometry,
+    style:crate::tier1::Tier1CodingStyle,policy:(bool,u8),indices:(usize,usize),before:Part2PlannedCodeBlocks,
+    geometry:(u32,u32,u16,u16),events:Seq<Part2JpipSnapshotEvent>)->Part2ColdRun<Part2PlannedCodeBlocks> {
+    part2_jpip_snapshot_bind(
+        part2_planning_capacity_run(part2_codeblock_growth_context(grid,clip,block,subband,style,policy,indices,before,geometry,false),events),
+        |_:(),rest|part2_codeblock_after_decoder_growth_run(grid,clip,block,subband,style,policy,indices,before,geometry,rest))
+}
 pub(crate) open spec fn part2_codeblock_cell_run(grid:[u32;4],clip:[u32;4],block:[u32;2],subband:crate::decode::SubbandGeometry,
     style:crate::tier1::Tier1CodingStyle,policy:(bool,u8),indices:(usize,usize),before:Part2PlannedCodeBlocks,events:Seq<Part2JpipSnapshotEvent>)->Part2ColdRun<Part2PlannedCodeBlocks> {
     match part2_planned_codeblock_geometry(grid,clip,block) {
         Err(error)=>Some((Err(error),events)),
         Ok(geometry)=>part2_jpip_snapshot_bind(part2_tier1_call_run(part2_tier1_cell_context(grid,clip,block,subband,style,policy,indices,before,geometry),events),
-            |_:Tier1DecoderState,rest|Some((part2_planned_codeblock_cell(grid,clip,block,subband,style,policy,indices,before),rest))),
+            |_:Tier1DecoderState,rest|part2_codeblock_after_decoder_run(grid,clip,block,subband,style,policy,indices,before,geometry,rest)),
     }
 }
 #[verifier::opaque]
 pub(crate) open spec fn part2_codeblock_cell_result(grid:[u32;4],clip:[u32;4],block:[u32;2],subband:crate::decode::SubbandGeometry,
     style:crate::tier1::Tier1CodingStyle,policy:(bool,u8),indices:(usize,usize),before:Part2PlannedCodeBlocks,result:Result<Part2PlannedCodeBlocks,crate::DecodeError>)->bool {
     part2_cold_framed(|events|part2_codeblock_cell_run(grid,clip,block,subband,style,policy,indices,before,events),result)
+}
+pub(crate) proof fn part2_codeblock_after_decoder_normal(grid:[u32;4],clip:[u32;4],block:[u32;2],subband:crate::decode::SubbandGeometry,
+    style:crate::tier1::Tier1CodingStyle,policy:(bool,u8),indices:(usize,usize),before:Part2PlannedCodeBlocks,geometry:(u32,u32,u16,u16))
+    requires part2_planned_codeblock_geometry(grid,clip,block)==Ok(geometry),
+        part2_tier1_configured_decoder(geometry.2,geometry.3,subband.significant_bitplanes,subband.orientation,style,policy.0,policy.1).is_ok(),
+    ensures part2_cold_framed(
+        |events|part2_codeblock_after_decoder_run(grid,clip,block,subband,style,policy,indices,before,geometry,events),
+        part2_planned_codeblock_cell(grid,clip,block,subband,style,policy,indices,before)),
+{
+    reveal(part2_planning_capacity_result);
+    let result=part2_planned_codeblock_cell(grid,clip,block,subband,style,policy,indices,before);
+    let first=part2_codeblock_growth_context(grid,clip,block,subband,style,policy,indices,before,geometry,false);
+    let last=part2_codeblock_growth_context(grid,clip,block,subband,style,policy,indices,before,geometry,true);
+    part2_planning_capacity_observed(first,Ok(()));
+    if geometry.0<subband.x0 || geometry.1<subband.y0 {part2_cold_pure(result);}
+    else {
+        part2_planning_capacity_observed(last,Ok(()));
+        part2_cold_pure(result);
+        part2_cold_bind(|events|part2_planning_capacity_run(last,events),
+            |_:(),rest|Some((result,rest)),Ok(()),result);
+        part2_decode_eta(|events|part2_jpip_snapshot_bind(part2_planning_capacity_run(last,events),
+            |_:(),rest|Some((result,rest))),result);
+    }
+    part2_cold_bind(|events|part2_planning_capacity_run(first,events),
+        |_:(),rest|part2_codeblock_after_decoder_growth_run(grid,clip,block,subband,style,policy,indices,before,geometry,rest),Ok(()),result);
+    part2_decode_eta(|events|part2_jpip_snapshot_bind(part2_planning_capacity_run(first,events),
+        |_:(),rest|part2_codeblock_after_decoder_growth_run(grid,clip,block,subband,style,policy,indices,before,geometry,rest)),result);
 }
 pub(crate) proof fn part2_codeblock_cell_normal(grid:[u32;4],clip:[u32;4],block:[u32;2],subband:crate::decode::SubbandGeometry,
     style:crate::tier1::Tier1CodingStyle,policy:(bool,u8),indices:(usize,usize),before:Part2PlannedCodeBlocks)
@@ -31,8 +81,12 @@ pub(crate) proof fn part2_codeblock_cell_normal(grid:[u32;4],clip:[u32;4],block:
             let context=part2_tier1_cell_context(grid,clip,block,subband,style,policy,indices,before,geometry);
             part2_tier1_call_normal(context);
             let decoder=part2_tier1_configured_decoder(geometry.2,geometry.3,subband.significant_bitplanes,subband.orientation,style,policy.0,policy.1);
-            if decoder.is_ok(){part2_cold_pure(result);}
-            part2_cold_bind(|events|part2_tier1_call_run(context,events),|_:Tier1DecoderState,rest|Some((result,rest)),decoder,result);
+            if decoder.is_ok(){
+                part2_codeblock_after_decoder_normal(grid,clip,block,subband,style,policy,indices,before,geometry);
+                part2_decode_eta(|events|part2_codeblock_after_decoder_run(grid,clip,block,subband,style,policy,indices,before,geometry,events),result);
+            }
+            part2_cold_bind(|events|part2_tier1_call_run(context,events),
+                |_:Tier1DecoderState,rest|part2_codeblock_after_decoder_run(grid,clip,block,subband,style,policy,indices,before,geometry,rest),decoder,result);
         },
     }
 }
@@ -47,8 +101,40 @@ pub(crate) proof fn part2_codeblock_cell_decoder_observed(grid:[u32;4],clip:[u32
     if let Err(error)=result {
         reveal(part2_codeblock_cell_result);
         part2_cold_bind(|events|part2_tier1_call_run(context,events),
-            |_:Tier1DecoderState,rest|Some((part2_planned_codeblock_cell(grid,clip,block,subband,style,policy,indices,before),rest)),Err(error),Err(error));
+            |_:Tier1DecoderState,rest|part2_codeblock_after_decoder_run(grid,clip,block,subband,style,policy,indices,before,geometry,rest),Err(error),Err(error));
     }
+}
+pub(crate) proof fn part2_codeblock_cell_growth_refused(grid:[u32;4],clip:[u32;4],block:[u32;2],subband:crate::decode::SubbandGeometry,
+    style:crate::tier1::Tier1CodingStyle,policy:(bool,u8),indices:(usize,usize),before:Part2PlannedCodeBlocks,
+    geometry:(u32,u32,u16,u16),decoder:Tier1DecoderState,placements:bool,error:crate::DecodeError)
+    requires part2_planned_codeblock_geometry(grid,clip,block)==Ok(geometry),
+        part1_tier1_configured_storage_result(geometry.2,geometry.3,subband.significant_bitplanes,subband.orientation,style,policy.0,policy.1,Ok(decoder)),
+        part2_planning_capacity_result(part2_codeblock_growth_context(grid,clip,block,subband,style,policy,indices,before,geometry,placements),Err(error)),
+        placements ==> geometry.0>=subband.x0 && geometry.1>=subband.y0
+            && part2_planning_capacity_result(part2_codeblock_growth_context(grid,clip,block,subband,style,policy,indices,before,geometry,false),Ok(())),
+    ensures part2_codeblock_cell_result(grid,clip,block,subband,style,policy,indices,before,Err(error)),
+{
+    reveal(part2_codeblock_cell_result);
+    reveal(part2_planning_capacity_result);
+    let context=part2_tier1_cell_context(grid,clip,block,subband,style,policy,indices,before,geometry);
+    part2_tier1_call_observed(context,Ok(decoder));
+    let result=part2_planned_codeblock_cell(grid,clip,block,subband,style,policy,indices,before);
+    let first=part2_codeblock_growth_context(grid,clip,block,subband,style,policy,indices,before,geometry,false);
+    let last=part2_codeblock_growth_context(grid,clip,block,subband,style,policy,indices,before,geometry,true);
+    if placements {
+        part2_cold_bind(|events|part2_planning_capacity_run(last,events),
+            |_:(),rest|Some((result,rest)),Err(error),Err(error));
+        part2_decode_eta(|events|part2_jpip_snapshot_bind(part2_planning_capacity_run(last,events),
+            |_:(),rest|Some((result,rest))),Err(error));
+    }
+    part2_cold_bind(|events|part2_planning_capacity_run(first,events),
+        |_:(),rest|part2_codeblock_after_decoder_growth_run(grid,clip,block,subband,style,policy,indices,before,geometry,rest),
+        if placements {Ok(())}else{Err(error)},Err(error));
+    part2_decode_eta(|events|part2_jpip_snapshot_bind(part2_planning_capacity_run(first,events),
+        |_:(),rest|part2_codeblock_after_decoder_growth_run(grid,clip,block,subband,style,policy,indices,before,geometry,rest)),Err(error));
+    part2_cold_bind(|events|part2_tier1_call_run(context,events),
+        |_:Tier1DecoderState,rest|part2_codeblock_after_decoder_run(grid,clip,block,subband,style,policy,indices,before,geometry,rest),
+        Ok(decoder),Err(error));
 }
 pub(crate) proof fn part2_codeblock_cell_frames(grid:[u32;4],clip:[u32;4],block:[u32;2],subband:crate::decode::SubbandGeometry,
     style:crate::tier1::Tier1CodingStyle,policy:(bool,u8),indices:(usize,usize),before:Part2PlannedCodeBlocks,result:Result<Part2PlannedCodeBlocks,crate::DecodeError>)

@@ -68,7 +68,7 @@ fn bitplane_initial_storage_real_raw_selected_jp2_first_later_refusals_restore_i
     let selection = DecodeSelection::full_image();
     let container = jp2_for_codestream(&reference, 1, 1);
     let expected = decode_codestream(&reference, &options).unwrap();
-    for after in [29, 30] {
+    for after in [30, 31] {
         assert_eq!(
             crate::allocation::with_refusal(after, || decode_codestream(&reference, &options))
                 .unwrap_err(),
@@ -5386,21 +5386,21 @@ fn packed_storage_raw_container_selected_and_reconstruction_refuse_only_after_pa
     })
     .unwrap();
     assert!(matches!(
-        crate::allocation::with_refusal(27, || decode_codestream(&bytes, &options)),
+        crate::allocation::with_refusal(28, || decode_codestream(&bytes, &options)),
         Err(DecodeError::AllocationFailed)
     ));
     assert!(matches!(
-        crate::allocation::with_refusal(29, || decode_codestream_selected(
+        crate::allocation::with_refusal(30, || decode_codestream_selected(
             &bytes, &options, &selection
         )),
         Err(DecodeError::AllocationFailed)
     ));
     assert!(matches!(
-        crate::allocation::with_refusal(27, || decode_codestream_reconstructed(&bytes, &options)),
+        crate::allocation::with_refusal(28, || decode_codestream_reconstructed(&bytes, &options)),
         Err(DecodeError::AllocationFailed)
     ));
     assert!(matches!(
-        crate::allocation::with_refusal(42, || decode_jp2(&jp2, &options)),
+        crate::allocation::with_refusal(43, || decode_jp2(&jp2, &options)),
         Err(DecodeError::AllocationFailed)
     ));
     let raw = decode_codestream(&bytes, &options).unwrap();
@@ -5420,7 +5420,7 @@ fn preparation_storage_public_outer_and_bitmap_refusal_restore_raw_and_container
     bytes[cod + 9] = 0;
     let bytes = pack_packet_header(bytes, false, &[0]);
     let jp2 = jp2_for_codestream(&bytes, 1, 1);
-    for after in [26, 28] {
+    for after in [27, 29] {
         assert!(matches!(
             crate::allocation::with_refusal(after, || decode_codestream(&bytes, &options)),
             Err(DecodeError::AllocationFailed)
@@ -5438,7 +5438,7 @@ fn preparation_storage_public_outer_and_bitmap_refusal_restore_raw_and_container
             Err(DecodeError::AllocationFailed)
         ));
     }
-    for after in [39, 41] {
+    for after in [40, 42] {
         assert!(matches!(
             crate::allocation::with_refusal(after, || decode_jp2(&jp2, &options)),
             Err(DecodeError::AllocationFailed)
@@ -5959,7 +5959,7 @@ fn component_subband_storage_first_later_component_refusal_preserves_source_and_
             &limits,
         )
     };
-    for after in [4, 5, 12] {
+    for after in [4, 5, 13] {
         assert!(matches!(
             crate::allocation::with_refusal(after, plan),
             Err(DecodeError::AllocationFailed)
@@ -6222,7 +6222,7 @@ fn precinct_storage_ordered_component_fold_retains_source_and_restores_exact_own
         )
     };
     let expected = plan().unwrap();
-    for after in [6, 7, 13, 14] {
+    for after in [6, 7, 14, 15] {
         assert!(matches!(
             crate::allocation::with_refusal(after, plan),
             Err(DecodeError::AllocationFailed)
@@ -6269,7 +6269,8 @@ fn packet_precinct_storage_public_raw_selected_container_roles_and_restore() {
     let options = DecodeOptions::default();
     let selection = DecodeSelection::full_image();
     let jp2 = jp2_for_codestream(&bytes, 1, 1);
-    for after in [23, 24, 25] {
+    // Container frontiers straddle the new placement reservation.
+    for (after, container_after) in [(24, 36), (25, 37), (26, 39)] {
         assert!(matches!(
             crate::allocation::with_refusal(after, || decode_codestream(&bytes, &options)),
             Err(DecodeError::AllocationFailed)
@@ -6281,7 +6282,7 @@ fn packet_precinct_storage_public_raw_selected_container_roles_and_restore() {
             Err(DecodeError::AllocationFailed)
         ));
         assert!(matches!(
-            crate::allocation::with_refusal(after + 13, || decode_jp2(&jp2, &options)),
+            crate::allocation::with_refusal(container_after, || decode_jp2(&jp2, &options)),
             Err(DecodeError::AllocationFailed)
         ));
     }
@@ -6291,6 +6292,121 @@ fn packet_precinct_storage_public_raw_selected_container_roles_and_restore() {
         expected
     );
     assert_eq!(decode_jp2(&jp2, &options).unwrap(), expected);
+}
+
+#[test]
+fn planned_codeblock_growth_keeps_both_owner_refusals_and_error_frontiers() {
+    let (subband, style) = precinct_storage_inputs();
+    let mut constructor_requests = None;
+    for after in 0..64 {
+        let configured = crate::allocation::with_refusal(after, || {
+            crate::tier1::tier1_configured_decoder(
+                1,
+                1,
+                subband.significant_bitplanes,
+                subband.orientation,
+                style,
+                false,
+                74,
+            )
+        });
+        match configured {
+            Err(error) => assert_eq!(error, DecodeError::AllocationFailed),
+            Ok(_) => {
+                constructor_requests = Some(after);
+                break;
+            }
+        }
+    }
+    let prefix = constructor_requests.expect("bounded configured-decoder requests");
+    let seed = |decoders, placements, decoder_index| PlannedCodeBlocks {
+        decoders: Vec::with_capacity(decoders),
+        placements: Vec::with_capacity(placements),
+        decoder_index,
+        planned_code_blocks: 17,
+    };
+    let cell = |band, state| {
+        append_planned_codeblock(
+            [0, 0, 1, 1],
+            [0, 0, 1, 1],
+            [0, 0],
+            band,
+            style,
+            (false, 74),
+            (7, 11),
+            state,
+        )
+    };
+    for after in [prefix, prefix + 1] {
+        let state = seed(0, 0, 0);
+        crate::allocation::with_refusal(after, || {
+            assert_eq!(
+                cell(subband, state).err(),
+                Some(DecodeError::AllocationFailed)
+            );
+            let expected = reference_planned_cell(
+                [0, 0, 1, 1],
+                [0, 0, 1, 1],
+                [0, 0],
+                subband,
+                style,
+                (false, 74),
+                (7, 11),
+                seed(0, 0, 0),
+            );
+            assert!(assert_planned_blocks_equal(
+                cell(subband, seed(0, 0, 0)),
+                expected
+            ));
+        });
+    }
+    let mut bad = subband;
+    bad.x0 = 1;
+    let state = seed(1, 0, 0);
+    crate::allocation::with_refusal(prefix, || {
+        assert_eq!(cell(bad, state).err(), Some(arithmetic_overflow()));
+        assert_eq!(
+            crate::allocation::copy_values(&[1_u8]),
+            Err(DecodeError::AllocationFailed)
+        );
+    });
+    let state = seed(1, 0, usize::MAX);
+    crate::allocation::with_refusal(prefix, || {
+        assert_eq!(
+            cell(subband, state).err(),
+            Some(DecodeError::AllocationFailed)
+        );
+        assert_eq!(
+            cell(subband, seed(1, 0, usize::MAX)).err(),
+            Some(arithmetic_overflow())
+        );
+    });
+    let state = seed(1, 0, usize::MAX);
+    crate::allocation::with_refusal(prefix + 1, || {
+        assert_eq!(cell(subband, state).err(), Some(arithmetic_overflow()));
+        assert_eq!(
+            crate::allocation::copy_values(&[1_u8]),
+            Err(DecodeError::AllocationFailed)
+        );
+    });
+    let expected = reference_planned_cell(
+        [0, 0, 1, 1],
+        [0, 0, 1, 1],
+        [0, 0],
+        subband,
+        style,
+        (false, 74),
+        (7, 11),
+        seed(1, 1, 0),
+    );
+    let state = seed(1, 1, 0);
+    crate::allocation::with_refusal(prefix, || {
+        assert!(assert_planned_blocks_equal(cell(subband, state), expected));
+        assert_eq!(
+            crate::allocation::copy_values(&[1_u8]),
+            Err(DecodeError::AllocationFailed)
+        );
+    });
 }
 
 #[test]
@@ -6379,7 +6495,7 @@ fn tier1_plane_storage_real_ht_raw_selected_container_cleanup_restore() {
     let ftyp = container.windows(4).position(|p| p == b"ftyp").unwrap();
     container[ftyp + 4..ftyp + 8].copy_from_slice(b"jph ");
     container[ftyp + 12..ftyp + 16].copy_from_slice(b"jph ");
-    for after in [33, 36] {
+    for after in [34, 37] {
         assert!(matches!(
             crate::allocation::with_refusal(after, || decode_codestream(&bytes, &options)),
             Err(DecodeError::AllocationFailed)
@@ -6419,7 +6535,7 @@ fn ht_metadata_storage_raw_selected_jph_and_automatic_restore_actual_image() {
     let mut jph = jp2_for_codestream(&bytes, 1, 1);
     jph[20..24].copy_from_slice(b"jph ");
     jph[28..32].copy_from_slice(b"jph ");
-    for after in [30, 31, 32] {
+    for after in [31, 32, 33] {
         assert_eq!(
             crate::allocation::with_refusal(after, || decode_codestream(&bytes, &options))
                 .unwrap_err(),
@@ -6490,7 +6606,7 @@ fn ht_cleanup_scratch_storage_raw_selected_jph_rows_and_automatic_restore_real_i
     let mut jph = jp2_for_codestream(&bytes, 1, 1);
     jph[20..24].copy_from_slice(b"jph ");
     jph[28..32].copy_from_slice(b"jph ");
-    for after in [34, 35] {
+    for after in [35, 36] {
         assert_eq!(
             crate::allocation::with_refusal(after, || decode_codestream(&bytes, &options))
                 .unwrap_err(),
@@ -6561,7 +6677,7 @@ fn decoder_plane_storage_real_ht_raw_selected_jph_staging_refusals_restore_exact
     let mut container = jp2_for_codestream(&bytes, 1, 1);
     container[20..24].copy_from_slice(b"jph ");
     container[28..32].copy_from_slice(b"jph ");
-    let after = 29;
+    let after = 30;
     assert!(matches!(
         crate::allocation::with_refusal(after, || decode_codestream(&bytes, &options)),
         Err(DecodeError::AllocationFailed)
@@ -7119,7 +7235,7 @@ fn ht_refinement_scratch_storage_actual_raw_selected_jph_masks_and_automatic_res
     let mut jph = jp2_for_codestream(&bytes, 1, 1);
     jph[20..24].copy_from_slice(b"jph ");
     jph[28..32].copy_from_slice(b"jph ");
-    for after in [42, 43] {
+    for after in [43, 44] {
         assert_eq!(
             crate::allocation::with_refusal(after, || decode_codestream(&bytes, &options))
                 .unwrap_err(),
@@ -7190,7 +7306,7 @@ fn ht_refinement_storage_raw_selected_jph_retention_refusal_and_exact_restore() 
     let mut jph = jp2_for_codestream(&bytes, 1, 1);
     jph[20..24].copy_from_slice(b"jph ");
     jph[28..32].copy_from_slice(b"jph ");
-    for after in [45, 46] {
+    for after in [46, 47] {
         assert!(matches!(
             crate::allocation::with_refusal(after, || decode_codestream(&bytes, &options)),
             Err(DecodeError::AllocationFailed)
@@ -9165,22 +9281,22 @@ fn quantization_output_storage_actual_ht_raw_selected_jph_reconstructed_and_auto
     jph[20..24].copy_from_slice(b"jph ");
     jph[28..32].copy_from_slice(b"jph ");
     assert_eq!(
-        crate::allocation::with_refusal(38, || decode_codestream(&bytes, &options)).unwrap_err(),
+        crate::allocation::with_refusal(39, || decode_codestream(&bytes, &options)).unwrap_err(),
         DecodeError::AllocationFailed
     );
     assert_eq!(
-        crate::allocation::with_refusal(40, || decode_codestream_selected(
+        crate::allocation::with_refusal(41, || decode_codestream_selected(
             &bytes, &options, &selection
         ))
         .unwrap_err(),
         DecodeError::AllocationFailed
     );
     assert_eq!(
-        crate::allocation::with_refusal(53, || decode_jph(&jph, &options)).unwrap_err(),
+        crate::allocation::with_refusal(54, || decode_jph(&jph, &options)).unwrap_err(),
         DecodeError::AllocationFailed
     );
     assert_eq!(
-        crate::allocation::with_refusal(38, || decode_codestream_reconstructed(&bytes, &options))
+        crate::allocation::with_refusal(39, || decode_codestream_reconstructed(&bytes, &options))
             .unwrap_err(),
         DecodeError::AllocationFailed
     );
@@ -9243,22 +9359,22 @@ fn ht_cleanup_significance_storage_actual_raw_selected_jph_reconstruction_and_au
     jph[20..24].copy_from_slice(b"jph ");
     jph[28..32].copy_from_slice(b"jph ");
     assert_eq!(
-        crate::allocation::with_refusal(44, || decode_codestream(&bytes, &options)).unwrap_err(),
+        crate::allocation::with_refusal(45, || decode_codestream(&bytes, &options)).unwrap_err(),
         DecodeError::AllocationFailed
     );
     assert_eq!(
-        crate::allocation::with_refusal(46, || decode_codestream_selected(
+        crate::allocation::with_refusal(47, || decode_codestream_selected(
             &bytes, &options, &selection
         ))
         .unwrap_err(),
         DecodeError::AllocationFailed
     );
     assert_eq!(
-        crate::allocation::with_refusal(59, || decode_jph(&jph, &options)).unwrap_err(),
+        crate::allocation::with_refusal(60, || decode_jph(&jph, &options)).unwrap_err(),
         DecodeError::AllocationFailed
     );
     assert_eq!(
-        crate::allocation::with_refusal(44, || decode_codestream_reconstructed(&bytes, &options))
+        crate::allocation::with_refusal(45, || decode_codestream_reconstructed(&bytes, &options))
             .unwrap_err(),
         DecodeError::AllocationFailed
     );
@@ -9320,22 +9436,22 @@ fn coefficient_extraction_storage_real_ht_raw_selected_jph_reconstruction_and_au
     jph[20..24].copy_from_slice(b"jph ");
     jph[28..32].copy_from_slice(b"jph ");
     assert_eq!(
-        crate::allocation::with_refusal(37, || decode_codestream(&bytes, &options)).unwrap_err(),
+        crate::allocation::with_refusal(38, || decode_codestream(&bytes, &options)).unwrap_err(),
         DecodeError::AllocationFailed
     );
     assert_eq!(
-        crate::allocation::with_refusal(39, || decode_codestream_selected(
+        crate::allocation::with_refusal(40, || decode_codestream_selected(
             &bytes, &options, &selection
         ))
         .unwrap_err(),
         DecodeError::AllocationFailed
     );
     assert_eq!(
-        crate::allocation::with_refusal(52, || decode_jph(&jph, &options)).unwrap_err(),
+        crate::allocation::with_refusal(53, || decode_jph(&jph, &options)).unwrap_err(),
         DecodeError::AllocationFailed
     );
     assert_eq!(
-        crate::allocation::with_refusal(37, || decode_codestream_reconstructed(&bytes, &options))
+        crate::allocation::with_refusal(38, || decode_codestream_reconstructed(&bytes, &options))
             .unwrap_err(),
         DecodeError::AllocationFailed
     );

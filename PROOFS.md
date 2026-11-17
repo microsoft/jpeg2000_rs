@@ -39,6 +39,18 @@ an all-feature Verus proof. Full source-function coverage remains `not-measured`
 
 ## Fallible-storage foundation and remaining boundary
 
+### Planned codeblock growth
+
+The actual codeblock cell checks geometry and constructs/configures its decoder
+before reserving decoder-vector growth. It pushes that decoder, checks both
+relative placement coordinates, reserves placement-vector growth, inserts the
+placement, then checks the final decoder-index increment in the original order.
+The cold context distinguishes both vectors and retains the actual cell,
+geometry, prior owned state, one-element request, response and tail. A refusal
+does not pretend private construction was rolled back or publish a partial image.
+Normal results remain the original deterministic cell; no physical-capacity or
+allocation-availability premise is added.
+
 ### Collected payload ownership
 
 The internal per-tile collector counts matching parts, reserves once, then
