@@ -39,6 +39,16 @@ an all-feature Verus proof. Full source-function coverage remains `not-measured`
 
 ## Fallible-storage foundation and remaining boundary
 
+### Completed precinct publication
+
+Component planning checks one additional precinct slot at the reached append,
+after child planning and replacement of its private placements/count, before
+publishing the precinct or advancing its ordinal. The cold loop retains the
+prior buffers, complete actual child and component/resolution/precinct location.
+A refusal does not pretend the private assignments rolled back. Successful
+results and earlier error ordering remain unchanged; held capacity need not
+cause a physical allocation. No allocator-availability premise is introduced.
+
 ### TagTree level ownership
 
 TagTree geometry and node-limit checks now use a fixed stack plan matching the

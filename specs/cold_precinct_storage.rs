@@ -13,6 +13,7 @@ pub enum Part2PlanningCapacityContext {
     PrecinctContexts {states:Seq<Part1CodeBlockPacketState>,contexts:Seq<crate::packet::CodeBlockPacketContext>,
         count:usize,across:u32,maximum_zero:u16,style:crate::tier1::Tier1CodingStyle,contexts_owner:bool},
     PrecinctDecoders {before:Part1PacketPrecinctState,total:u64,row:Part2PacketSubbandExecution,style:crate::tier1::Tier1CodingStyle},
+    PrecinctPublication {location:(u16,u8,u32),before:Part2ComponentPlanBuffers,planned:Part2PlannedPrecinct},
 }
 pub(crate) open spec fn part2_planning_capacity_count(context:Part2PlanningCapacityContext)->usize {
     match context {
@@ -21,6 +22,7 @@ pub(crate) open spec fn part2_planning_capacity_count(context:Part2PlanningCapac
         Part2PlanningCapacityContext::CodeBlockGrowth {..}=>1,
         Part2PlanningCapacityContext::PrecinctContexts {count,..}=>count,
         Part2PlanningCapacityContext::PrecinctDecoders {row,..}=>row.decoders.len() as usize,
+        Part2PlanningCapacityContext::PrecinctPublication {..}=>1,
     }
 }
 pub(crate) open spec fn part2_planning_capacity_run(context:Part2PlanningCapacityContext,events:Seq<Part2JpipSnapshotEvent>)->Part2ColdRun<()> {

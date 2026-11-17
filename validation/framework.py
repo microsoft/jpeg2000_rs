@@ -7132,13 +7132,15 @@ _PRECINCT_OWNER_PROOFS = {("specs/cold_precinct_storage.rs", name) for name in (
     "part2_precinct_owner_start", "part2_precinct_rows_step", "part2_precinct_owner_frames", "part2_precinct_owner_join",
 )}
 _RESOLUTION_PLAN_MODELS = _PRECINCT_OWNER_MODELS | {("specs/cold_resolution_plan.rs", name) for name in (
-    "part2_component_after_precinct", "part2_resolution_precincts_run", "part2_resolution_plan_run", "part2_resolution_next",
+    "part2_component_after_precinct", "part2_precinct_publication_context", "part2_resolution_precincts_run",
+    "part2_resolution_plan_run", "part2_resolution_next",
 )}
 _RESOLUTION_PLAN_PROOFS = _PRECINCT_OWNER_PROOFS | {("specs/cold_resolution_plan.rs", name) for name in (
     "part2_cold_bind_associative", "part2_resolution_precincts_normal", "part2_resolution_plan_normal", "part2_resolution_plan_start",
     "part2_resolution_plan_step", "part2_resolution_precinct_step", "part2_resolution_precinct_end", "part2_component_plan_join",
 )}
 _PRECINCT_OWNER_TESTS = {("src/decode/tests.rs", name) for name in (
+    "precinct_publication_storage_refuses_after_child_and_reuses_held_capacity",
     "precinct_storage_execution_frontier_empty_and_later_range_error_restore",
     "precinct_storage_decoder_admission_zero_overflow_and_later_geometry_restore",
     "precinct_storage_ordered_component_fold_retains_source_and_restores_exact_owners",
@@ -7147,6 +7149,7 @@ _PRECINCT_OWNER_TESTS = {("src/decode/tests.rs", name) for name in (
 _PRECINCT_OWNER_GUARDS = {
     ("specs/cold_precinct_storage.rs", "part2_planning_capacity_count"): (
         "Executions {range,..}=>range.1", "Decoders {blocks,..}=>(blocks[0] as nat*blocks[1] as nat) as usize",
+        "PrecinctPublication {..}=>1",
     ),
     ("specs/cold_precinct_storage.rs", "part2_planning_capacity_run"): (
         "if count==0 {Some((Ok(()),events))}", "Part2JpipSnapshotEvent::PlanningCapacity",
@@ -7171,7 +7174,11 @@ _PRECINCT_OWNER_GUARDS = {
     ),
     ("specs/cold_resolution_plan.rs", "part2_resolution_precincts_run"): (
         "part2_planned_precinct_origin(", "Err(error)=>Some((Err(error),events))", "part2_precinct_owner_run(",
-        "precinct+1,part2_component_after_precinct(before,planned),rest)",
+        "part2_planning_capacity_run(part2_precinct_publication_context(component,resolution,precinct as u32,before,planned),rest)",
+        "precinct+1,part2_component_after_precinct(before,planned),tail)",
+    ),
+    ("specs/cold_resolution_plan.rs", "part2_precinct_publication_context"): (
+        "Part2PlanningCapacityContext::PrecinctPublication {location:(component,resolution,precinct),before,planned}",
     ),
     ("specs/cold_resolution_plan.rs", "part2_resolution_plan_run"): (
         "part2_resolution_plan_metadata(", "Err(error)=>Some((Err(error),events))", "part2_resolution_precincts_run(",
@@ -7179,6 +7186,14 @@ _PRECINCT_OWNER_GUARDS = {
     ),
 }
 _PRECINCT_OWNER_NATIVE_ORDER = {
+    "plan_tile_component": (
+        "prepare_component_plan_metadata(", "prepare_resolution_plan_metadata(", "derive_planned_precinct_origin(",
+        "let planned_result = plan_packet_precinct(", "let planned = planned_result?",
+        "builder.placements = planned.placements", "builder.planned_code_blocks = planned.planned_code_blocks",
+        "reserve_additional(&mut builder.precincts, 1)", "let context=crate::specs::part2_precinct_publication_context(component,resolution,precinct,before,row)",
+        "part2_planning_capacity_observed(context,outcome)", "reserved?", "builder.precincts.push(planned.precinct)",
+        "precinct = precinct.checked_add(1)",
+    ),
     "plan_packet_precinct": (
         "executions: {", "if range.1 == 0", "empty_with_capacity(range.1)", "part2_planning_capacity_observed(",
         "part2_precinct_owner_refused(", "part2_precinct_owner_start(", "reserved? }, placements,",

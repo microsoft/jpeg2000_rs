@@ -581,8 +581,10 @@ pub(crate) fn plan_tile_component(
                             (data.first_subband,data.subband_count),meta.tier1_style,(policy.0,policy.1),(component,resolution,precinct,before.precincts.len() as usize),
                             before.placements,before.planned_code_blocks,resolution<=meta.output_resolution,limits,events),
                         |row:crate::specs::Part2PlannedPrecinct,rest|crate::specs::part2_jpip_snapshot_bind(
-                            crate::specs::part2_resolution_precincts_run(component,resolution,meta,resolution_data,policy,limits,precinct as nat+1,crate::specs::part2_component_after_precinct(before,row),rest),
-                            |after:crate::specs::Part2ComponentPlanBuffers,tail|crate::specs::part2_resolution_next(size,component,selection.0,meta,policy,limits,resolution as nat,after,tail))) by {}
+                            crate::specs::part2_planning_capacity_run(crate::specs::part2_precinct_publication_context(component,resolution,precinct,before,row),rest),
+                            |_:(),tail|crate::specs::part2_jpip_snapshot_bind(
+                                crate::specs::part2_resolution_precincts_run(component,resolution,meta,resolution_data,policy,limits,precinct as nat+1,crate::specs::part2_component_after_precinct(before,row),tail),
+                                |after:crate::specs::Part2ComponentPlanBuffers,last|crate::specs::part2_resolution_next(size,component,selection.0,meta,policy,limits,resolution as nat,after,last)))) by {}
             }
             let planned_result = plan_packet_precinct(
                 [origin[0], origin[1], data.band_size[0], data.band_size[1]],
@@ -605,8 +607,10 @@ pub(crate) fn plan_tile_component(
                 let child=|events|crate::specs::part2_precinct_owner_run(band,data.block_size,meta.subbands,range,meta.tier1_style,(policy.0,policy.1),location,
                     before.placements,before.planned_code_blocks,resolution<=meta.output_resolution,limits,events);
                 let next=|row:crate::specs::Part2PlannedPrecinct,rest|crate::specs::part2_jpip_snapshot_bind(
-                    crate::specs::part2_resolution_precincts_run(component,resolution,meta,resolution_data,policy,limits,precinct as nat+1,crate::specs::part2_component_after_precinct(before,row),rest),
-                    |after:crate::specs::Part2ComponentPlanBuffers,tail|crate::specs::part2_resolution_next(size,component,selection.0,meta,policy,limits,resolution as nat,after,tail));
+                    crate::specs::part2_planning_capacity_run(crate::specs::part2_precinct_publication_context(component,resolution,precinct,before,row),rest),
+                    |_:(),tail|crate::specs::part2_jpip_snapshot_bind(
+                        crate::specs::part2_resolution_precincts_run(component,resolution,meta,resolution_data,policy,limits,precinct as nat+1,crate::specs::part2_component_after_precinct(before,row),tail),
+                        |after:crate::specs::Part2ComponentPlanBuffers,last|crate::specs::part2_resolution_next(size,component,selection.0,meta,policy,limits,resolution as nat,after,last)));
                 crate::specs::part2_precinct_owner_frames(band,data.block_size,meta.subbands,range,meta.tier1_style,(policy.0,policy.1),location,
                     before.placements,before.planned_code_blocks,resolution<=meta.output_resolution,limits,planned_precinct_outcome(planned_result));
                 assert forall|events|root(prefix+events)==crate::specs::part2_jpip_snapshot_bind(child(events),next) by {}
@@ -625,6 +629,27 @@ pub(crate) fn plan_tile_component(
             proof! { reveal(planned_precinct_view); }
             builder.placements = planned.placements;
             builder.planned_code_blocks = planned.planned_code_blocks;
+            let reserved = crate::allocation::reserve_additional(&mut builder.precincts, 1);
+            #[cfg(verus_keep_ghost)]
+            proof! {
+                reveal(crate::specs::part2_planning_capacity_result);
+                let context=crate::specs::part2_precinct_publication_context(component,resolution,precinct,before,row);
+                let outcome=crate::allocation::inspection_capacity_outcome(reserved);
+                crate::specs::part2_planning_capacity_observed(context,outcome);
+                let child=|events|crate::specs::part2_planning_capacity_run(context,events);
+                let next=|_:(),rest|crate::specs::part2_jpip_snapshot_bind(
+                    crate::specs::part2_resolution_precincts_run(component,resolution,meta,resolution_data,policy,limits,precinct as nat+1,crate::specs::part2_component_after_precinct(before,row),rest),
+                    |after:crate::specs::Part2ComponentPlanBuffers,tail|crate::specs::part2_resolution_next(size,component,selection.0,meta,policy,limits,resolution as nat,after,tail));
+                assert forall|events|root(prefix+events)==crate::specs::part2_jpip_snapshot_bind(child(events),next) by {}
+                match outcome {
+                    Err(error)=>{
+                        crate::specs::part2_decode_prefix_error(root,child,next,prefix,error);
+                        crate::specs::part2_component_plan_join(size,coding_styles,codestream::quantization_owner_view(quantizations),roi_shifts,component,selection,policy,source_precincts,planned_code_blocks,limits,root,Err(error));
+                    },
+                    Ok(())=>{prefix=crate::specs::part2_decode_prefix_advance(root,child,next,prefix,());},
+                }
+            }
+            reserved?;
             builder.precincts.push(planned.precinct);
             #[cfg(verus_keep_ghost)]
             proof! {

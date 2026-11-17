@@ -6996,6 +6996,7 @@
         {"path": "specs/cold_packet_precinct.rs", "symbol": "part2_precinct_state_result"},
         {"path": "specs/cold_precinct_storage.rs", "symbol": "part2_precinct_plan_finish"},
         {"path": "specs/cold_resolution_plan.rs", "symbol": "part2_component_after_precinct"},
+        {"path": "specs/cold_resolution_plan.rs", "symbol": "part2_precinct_publication_context"},
         {"path": "specs/cold_resolution_plan.rs", "symbol": "part2_resolution_precincts_run"},
         {"path": "specs/cold_resolution_plan.rs", "symbol": "part2_resolution_plan_run"},
         {"path": "specs/cold_resolution_plan.rs", "symbol": "part2_resolution_next"},
@@ -7127,6 +7128,7 @@
         {"path": "src/decode/tests.rs", "symbol": "precinct_storage_execution_frontier_empty_and_later_range_error_restore"},
         {"path": "src/decode/tests.rs", "symbol": "precinct_storage_decoder_admission_zero_overflow_and_later_geometry_restore"},
         {"path": "src/decode/tests.rs", "symbol": "precinct_storage_ordered_component_fold_retains_source_and_restores_exact_owners"},
+        {"path": "src/decode/tests.rs", "symbol": "precinct_publication_storage_refuses_after_child_and_reuses_held_capacity"},
         {"path": "src/decode/tests.rs", "symbol": "precinct_storage_raw_selected_container_roles_and_restore"},
         {"path": "src/decode/tests.rs", "symbol": "actual_selected_tile_plan_and_public_owner_boundary_bind_every_field_and_first_error"},
         {"path": "src/decode/tests.rs", "symbol": "component_subband_storage_subband_admission_empty_late_error_and_restore"},
@@ -7271,6 +7273,7 @@
         {"path": "src/decode/tests.rs", "symbol": "precinct_storage_execution_frontier_empty_and_later_range_error_restore"},
         {"path": "src/decode/tests.rs", "symbol": "precinct_storage_decoder_admission_zero_overflow_and_later_geometry_restore"},
         {"path": "src/decode/tests.rs", "symbol": "precinct_storage_ordered_component_fold_retains_source_and_restores_exact_owners"},
+        {"path": "src/decode/tests.rs", "symbol": "precinct_publication_storage_refuses_after_child_and_reuses_held_capacity"},
         {"path": "src/decode/tests.rs", "symbol": "precinct_storage_raw_selected_container_roles_and_restore"}
       ]
     },
@@ -7333,6 +7336,7 @@
         {"path": "src/decode/tests.rs", "symbol": "precinct_storage_execution_frontier_empty_and_later_range_error_restore"},
         {"path": "src/decode/tests.rs", "symbol": "precinct_storage_decoder_admission_zero_overflow_and_later_geometry_restore"},
         {"path": "src/decode/tests.rs", "symbol": "precinct_storage_ordered_component_fold_retains_source_and_restores_exact_owners"},
+        {"path": "src/decode/tests.rs", "symbol": "precinct_publication_storage_refuses_after_child_and_reuses_held_capacity"},
         {"path": "src/decode/tests.rs", "symbol": "precinct_storage_raw_selected_container_roles_and_restore"}
       ]
     },
@@ -7451,6 +7455,7 @@
         {"path": "src/decode/tests.rs", "symbol": "precinct_storage_execution_frontier_empty_and_later_range_error_restore"},
         {"path": "src/decode/tests.rs", "symbol": "precinct_storage_decoder_admission_zero_overflow_and_later_geometry_restore"},
         {"path": "src/decode/tests.rs", "symbol": "precinct_storage_ordered_component_fold_retains_source_and_restores_exact_owners"},
+        {"path": "src/decode/tests.rs", "symbol": "precinct_publication_storage_refuses_after_child_and_reuses_held_capacity"},
         {"path": "src/decode/tests.rs", "symbol": "precinct_storage_raw_selected_container_roles_and_restore"}
       ]
     },
