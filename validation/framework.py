@@ -5082,6 +5082,7 @@ _PLANE_ROLE_RESULT_RUNS = {
     for old, (model, _, _) in _PLANE_ROLE_MODEL_INFO.items()
 }
 _PLANE_ROLE_RESULT_RUNS.update({
+    "part2_prepared_views_result": ("part2_prepared_views_run", False),
     "part2_prepare_init_result": ("part2_prepare_init_run", False),
     "part2_prepare_band_result": ("part2_prepare_band_stage_run", True),
     "part2_prepare_plane_copy_result": ("part2_prepare_plane_copy_run", False),
@@ -5104,6 +5105,9 @@ _PLANE_ROLE_RESULT_RUNS.update({
     "part2_coefficient_progression_result": ("part2_extraction_progression_run", False),
 })
 _COLD_RESULT_MODELS = {
+    "part2_assemble_prepared": (
+        "part2_assemble_prepared_storage_result", "specs/cold_prepare_copies.rs", "part2_assemble_prepared_storage_normal",
+    ),
     "part1_prepare_init_prefix": (
         "part2_prepare_init_result", "specs/cold_prepare_copies.rs", "part2_prepare_init_normal",
     ),
@@ -5578,6 +5582,12 @@ _COLD_RESULT_CONTRACTS = {
 }
 _COLD_RESULT_CONTRACTS.update(_LEGACY_PACKET_STORAGE_CONTRACTS)
 _COLD_RESULT_CONTRACTS.update({
+    ("src/decode/reconstruction.rs", "assemble_prepared_components"): _coverage_cold_relation(
+        _RECONSTRUCTION_CONTRACTS[("src/decode/reconstruction.rs", "assemble_prepared_components")]),
+    ("src/decode/reconstruction.rs", "prepared_tile_views"): (
+        "part2_prepared_views_result",
+        _coverage_call("prepared_components_view", "prepared@") + r"\s*,\s*" + _coverage_call("prepared_tiles_outcome", r"\1"),
+    ),
     ("src/decode/selection.rs", "select_intersecting_tiles"): _coverage_cold_relation((
         "part2_select_intersecting_tiles", _coverage_call("selected_tiles_outcome", r"\1"), None,
         _coverage_call("crate::codestream::selection_geometry_view", "size")
@@ -5804,6 +5814,7 @@ _COLD_INNER_RUNS = {
 def _coverage_cold_links(keys: set[tuple[str, str]]) -> tuple[set[tuple[str, str]], set[tuple[str, str]]]:
     models, proofs = set(), set()
     metadata = {model: (path, normal) for model, path, normal in _COLD_RESULT_MODELS.values()}
+    metadata["part2_prepared_views_result"] = ("specs/cold_prepare_copies.rs", "part2_prepared_views_observed")
     for key in keys & _COLD_RESULT_CONTRACTS.keys():
         model = _COLD_RESULT_CONTRACTS[key][0]
         path, normal = metadata.get(model, ("specs/jpip_transcode.rs", "part2_jpip_validate_precinct_cold_normal"))
@@ -5825,6 +5836,9 @@ def _coverage_cold_links(keys: set[tuple[str, str]]) -> tuple[set[tuple[str, str
         }.get(model, model.removesuffix("_result") + "_run")
         models.update(((path, model), (path, run)))
         proofs.add((path, normal))
+        if model in ("part2_prepared_views_result", "part2_assemble_prepared_storage_result", "part2_layout_decode_result", "part2_coefficient_progression_result"):
+            models |= _PREPARED_VIEWS_MODELS
+            proofs |= _PREPARED_VIEWS_PROOFS
         if model in ("part2_extraction_tile_result", "part2_coefficient_progression_result"):
             models |= _PREPARED_COMPONENT_MODELS
             proofs |= _PREPARED_COMPONENT_PROOFS
@@ -7931,6 +7945,16 @@ _CLEANUP_SIGNIFICANCE_TESTS = {
     ("src/decode/tests.rs", "ht_cleanup_significance_storage_actual_raw_selected_jph_reconstruction_and_automatic_restore"),
 }
 
+_PREPARED_VIEWS_MODELS = {("specs/cold_prepare_copies.rs", name) for name in (
+    "part2_prepared_views_run", "part2_prepared_views_result", "part2_prepared_view_calls_run",
+    "part2_assemble_prepared_storage_run", "part2_assemble_prepared_storage_result",
+)} | {("specs/cold_extraction_tile.rs", "part2_extraction_progression_finish_run")}
+_PREPARED_VIEWS_PROOFS = {("specs/cold_prepare_copies.rs", name) for name in (
+    "part2_prepared_views_observed", "part2_prepared_view_calls_observed", "part2_assemble_prepared_storage_normal",
+    "part2_assemble_prepared_views_refused",
+)} | {("specs/cold_extraction_tile.rs", name) for name in (
+    "part2_extraction_progression_finish_normal", "part2_coefficient_progression_views_refused",
+)}
 _PREPARED_COMPONENT_MODELS = {("specs/cold_extraction_tile.rs", name) for name in (
     "part2_prepared_component_capacity_run", "part2_prepared_component_capacity_result",
     "part2_extraction_components_after_child",
@@ -7941,6 +7965,21 @@ _PREPARED_COMPONENT_PROOFS = {("specs/cold_extraction_tile.rs", name) for name i
     "part2_coefficient_progression_publication_refused",
 )}
 _COEFFICIENT_EXTRACTION_GUARDS = {
+    ("specs/cold_prepare_copies.rs", "part2_prepared_views_run"): (
+        "if source.len()==0", "PreparedViewsCapacity {source:actual,elements,succeeded}",
+        "actual!=source || elements!=source.len()", "Err(crate::DecodeError::AllocationFailed)", "calls.drop_first()",
+    ),
+    ("specs/cold_prepare_copies.rs", "part2_prepared_view_calls_run"): (
+        "if source.len()==0", "PreparedViewCalls {source:actual,calls}", "actual!=source",
+        "part2_prepared_views_run(source,calls)", "if rest.len()==0", "events.drop_first()",
+    ),
+    ("specs/cold_prepare_copies.rs", "part2_assemble_prepared_storage_run"): (
+        "part2_prepared_view_calls_run(source,events)", "part2_assemble_prepared(size,views,selection,maximum)",
+    ),
+    ("specs/cold_extraction_tile.rs", "part2_extraction_progression_finish_run"): (
+        "if effect.0.is_err()", "part2_prepared_views_run(effect.1,calls)",
+        "part2_extraction_progression_finish(size,global,maximum,effect)",
+    ),
     ("specs/cold_extraction_tile.rs", "part2_prepared_component_capacity_run"): (
         "PreparedComponentCapacity {context:actual,elements,succeeded}", "actual!=context || elements!=1",
         "Err(crate::DecodeError::AllocationFailed)", "calls.drop_first()",
@@ -7985,6 +8024,15 @@ _COEFFICIENT_EXTRACTION_GUARDS = {
     ),
 }
 _COEFFICIENT_EXTRACTION_NATIVE_ORDER = {
+    ("src/decode/reconstruction.rs", "prepared_tile_views"): (
+        "let reserved = if prepared.is_empty()", "Ok(Vec::new())", "empty_with_capacity(prepared.len())",
+        "part2_prepared_views_observed(", "let mut tiles = reserved?", "while index < prepared.len()",
+        ".as_tile_component()", "tiles.push(tile)",
+    ),
+    ("src/decode/reconstruction.rs", "assemble_prepared_components"): (
+        "let views = prepared_tile_views(prepared)", "part2_assemble_prepared_views_refused(", "let tiles = views?",
+        "match selection", "assemble_image(", "assemble_selected_image(",
+    ),
     ("src/decode/execution.rs", "reconstruct_planned_tile"): (
         "let component_result =", "prepare_tile_component_with_kernel(", "let component = component_result?",
         "reserve_additional(prepared, 1)", "Part2PreparedComponentContext",
@@ -8009,6 +8057,7 @@ _COEFFICIENT_EXTRACTION_NATIVE_ORDER = {
     ),
 }
 _COEFFICIENT_EXTRACTION_TESTS = {
+    ("src/decode/tests.rs", "prepared_view_storage_preserves_borrows_raw_metadata_empty_and_retry"),
     ("src/decode/tests.rs", "prepared_component_storage_keeps_prior_prefix_work_and_held_capacity"),
 } | {
     ("src/decode/tests.rs", "coefficient_extraction_storage_" + suffix) for suffix in (

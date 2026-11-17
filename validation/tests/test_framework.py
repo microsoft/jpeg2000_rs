@@ -8253,6 +8253,33 @@ class FrameworkTests(WorkingFiles):
                     self.assertRaisesRegex(ValueError, "fallible copy storage"):
                 framework.validate_normative_coverage(dict(coverage, requirements=[entry]))
 
+    def test_inventory_prepared_views_require_raw_source_count_nested_exhaustion_and_tail(self):
+        coverage = json.loads((framework.VALIDATION / "normative-coverage.json").read_text())
+        entry = next(item for item in coverage["requirements"]
+                     if item["id"] == "part1-complete-standard-plan-coordinator")
+        read_text = Path.read_text
+        for relative, symbol, before, after in (
+            ("src/decode/reconstruction.rs", "prepared_tile_views", "empty_with_capacity(prepared.len())",
+             "empty_with_capacity(1)"),
+            ("specs/cold_prepare_copies.rs", "part2_prepared_views_run", "elements!=source.len()", "elements!=1"),
+            ("specs/cold_prepare_copies.rs", "part2_prepared_views_run", "calls.drop_first()", "calls"),
+            ("specs/cold_prepare_copies.rs", "part2_prepared_view_calls_run", "if rest.len()==0", "if true"),
+            ("specs/cold_prepare_copies.rs", "part2_prepared_view_calls_run", "actual!=source", "false"),
+        ):
+            source = framework.ROOT / relative
+            original = read_text(source)
+            body = (framework._coverage_function_body(original, framework._coverage_function_header(original, symbol))
+                    if relative.startswith("src/") else framework._coverage_spec_function_body(original, symbol))
+            self.assertIn(before, body)
+            changed = original.replace(body, body.replace(before, after, 1), 1)
+
+            def altered(path, *args, **kwargs):
+                return changed if path == source else read_text(path, *args, **kwargs)
+
+            with self.subTest(mutation=before), mock.patch.object(Path, "read_text", altered), \
+                    self.assertRaisesRegex(ValueError, "coefficient extraction"):
+                framework.validate_normative_coverage(dict(coverage, requirements=[entry]))
+
     def test_inventory_prepared_component_requires_exact_child_ordinal_prefix_and_tail(self):
         coverage = json.loads((framework.VALIDATION / "normative-coverage.json").read_text())
         entry = next(item for item in coverage["requirements"]

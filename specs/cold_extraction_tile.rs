@@ -311,10 +311,28 @@ pub(crate) open spec fn part2_extraction_progression_finish(size:Part1AssemblySi
         }}
     }}
 }
+pub(crate) open spec fn part2_extraction_progression_finish_run(size:Part1AssemblySize,global:crate::codestream::CodingStyle,maximum:u64,effect:Part2ExtractionComponentsEffect,
+    calls:Seq<Part2Tier1StorageEvent>)->Part2Tier1Run<Part1DecodedImageModel> {
+    if effect.0.is_err(){Some((Err(effect.0.get_Err_0()),calls))}else{
+        part2_tier1_storage_bind(part2_prepared_views_run(effect.1,calls),
+            |_:Seq<Part1AssemblyTile>,rest|Some((part2_extraction_progression_finish(size,global,maximum,effect),rest)))
+    }
+}
+pub(crate) proof fn part2_extraction_progression_finish_normal(size:Part1AssemblySize,global:crate::codestream::CodingStyle,maximum:u64,effect:Part2ExtractionComponentsEffect)
+    ensures part2_tier1_storage_framed(|calls|part2_extraction_progression_finish_run(size,global,maximum,effect,calls),part2_extraction_progression_finish(size,global,maximum,effect)),
+{
+    let result=part2_extraction_progression_finish(size,global,maximum,effect);
+    part2_tier1_storage_pure(result);
+    if effect.0.is_ok(){
+        part2_prepared_views_observed(effect.1,Ok(()));
+        part2_tier1_storage_bind_frame(|calls|part2_prepared_views_run(effect.1,calls),
+            |_:Seq<Part1AssemblyTile>,rest|Some((part2_extraction_progression_finish(size,global,maximum,effect),rest)),Ok(effect.1),result);
+    }
+}
 pub(crate) open spec fn part2_extraction_progression_run(size:Part1AssemblySize,plans:Seq<Part1PreparePlan>,precincts:Seq<Seq<Tier1RawPlane>>,styles:crate::codestream::ComponentCodingStyles,
     global:crate::codestream::CodingStyle,maximum:u64,calls:Seq<Part2Tier1StorageEvent>)->Part2Tier1Run<Part1DecodedImageModel> {
     part2_tier1_storage_bind(part2_extraction_components_run(Seq::empty(),plans,precincts,styles,Seq::empty(),maximum,plans.len(),calls),
-        |effect:Part2ExtractionComponentsEffect,rest|Some((part2_extraction_progression_finish(size,global,maximum,effect),rest)))
+        |effect:Part2ExtractionComponentsEffect,rest|part2_extraction_progression_finish_run(size,global,maximum,effect,rest))
 }
 pub closed spec fn part2_coefficient_progression_result(size:Part1AssemblySize,plans:Seq<Part1PreparePlan>,precincts:Seq<Seq<Tier1RawPlane>>,styles:crate::codestream::ComponentCodingStyles,
     global:crate::codestream::CodingStyle,maximum:u64,result:Result<Part1DecodedImageModel,crate::DecodeError>)->bool {
@@ -333,7 +351,7 @@ pub(crate) proof fn part2_coefficient_progression_publication_refused(size:Part1
     part2_tier1_storage_pure(Err::<Part1DecodedImageModel,crate::DecodeError>(crate::DecodeError::AllocationFailed));
     part2_tier1_storage_bind_frame(
         |calls|part2_extraction_components_run(Seq::empty(),context.plans,context.precincts,context.styles,Seq::empty(),context.maximum,context.plans.len(),calls),
-        |value:Part2ExtractionComponentsEffect,rest|Some((part2_extraction_progression_finish(size,global,context.maximum,value),rest)),Ok(effect),Err(crate::DecodeError::AllocationFailed));
+        |value:Part2ExtractionComponentsEffect,rest|part2_extraction_progression_finish_run(size,global,context.maximum,value,rest),Ok(effect),Err(crate::DecodeError::AllocationFailed));
 }
 pub(crate) proof fn part2_coefficient_progression_normal(size:Part1AssemblySize,plans:Seq<Part1PreparePlan>,precincts:Seq<Seq<Tier1RawPlane>>,styles:crate::codestream::ComponentCodingStyles,
     global:crate::codestream::CodingStyle,maximum:u64)
@@ -342,9 +360,11 @@ pub(crate) proof fn part2_coefficient_progression_normal(size:Part1AssemblySize,
     reveal(part2_coefficient_progression_result);
     let effect=part2_reconstruct_components_prefix(Seq::empty(),plans,precincts,styles,Seq::empty(),maximum,plans.len());
     let result=part1_progression_prepared_image(size,plans,precincts,styles,global,maximum);
-    part2_extraction_components_normal(Seq::empty(),plans,precincts,styles,Seq::empty(),maximum,plans.len());part2_tier1_storage_pure(result);
+    part2_extraction_components_normal(Seq::empty(),plans,precincts,styles,Seq::empty(),maximum,plans.len());
+    part2_extraction_progression_finish_normal(size,global,maximum,effect);
+    part2_tier1_storage_eta(|calls|part2_extraction_progression_finish_run(size,global,maximum,effect,calls),result);
     part2_tier1_storage_bind_frame(|calls|part2_extraction_components_run(Seq::empty(),plans,precincts,styles,Seq::empty(),maximum,plans.len(),calls),
-        |value:Part2ExtractionComponentsEffect,rest|Some((part2_extraction_progression_finish(size,global,maximum,value),rest)),Ok(effect),result);
+        |value:Part2ExtractionComponentsEffect,rest|part2_extraction_progression_finish_run(size,global,maximum,value,rest),Ok(effect),result);
 }
 pub(crate) proof fn part2_coefficient_progression_error(size:Part1AssemblySize,plans:Seq<Part1PreparePlan>,precincts:Seq<Seq<Tier1RawPlane>>,styles:crate::codestream::ComponentCodingStyles,
     global:crate::codestream::CodingStyle,maximum:u64,index:nat,before:Seq<Part1AssemblyTile>,error:crate::DecodeError)
@@ -358,6 +378,21 @@ pub(crate) proof fn part2_coefficient_progression_error(size:Part1AssemblySize,p
     part2_extraction_components_error(Seq::empty(),plans,precincts,styles,Seq::empty(),maximum,index+1,plans.len(),effect);
     part2_tier1_storage_pure(Err::<Part1DecodedImageModel,crate::DecodeError>(error));
     part2_tier1_storage_bind_frame(|calls|part2_extraction_components_run(Seq::empty(),plans,precincts,styles,Seq::empty(),maximum,plans.len(),calls),
-        |value:Part2ExtractionComponentsEffect,rest|Some((part2_extraction_progression_finish(size,global,maximum,value),rest)),Ok(effect),Err(error));
+        |value:Part2ExtractionComponentsEffect,rest|part2_extraction_progression_finish_run(size,global,maximum,value,rest),Ok(effect),Err(error));
+}
+pub(crate) proof fn part2_coefficient_progression_views_refused(size:Part1AssemblySize,plans:Seq<Part1PreparePlan>,precincts:Seq<Seq<Tier1RawPlane>>,styles:crate::codestream::ComponentCodingStyles,
+    global:crate::codestream::CodingStyle,maximum:u64,prepared:Seq<Part1AssemblyTile>,error:crate::DecodeError)
+    requires part2_reconstruct_components_prefix(Seq::empty(),plans,precincts,styles,Seq::empty(),maximum,plans.len())==(Ok(()),prepared),
+        part2_prepared_views_result(prepared,Err(error)),
+    ensures part2_coefficient_progression_result(size,plans,precincts,styles,global,maximum,Err(error)),
+{
+    reveal(part2_coefficient_progression_result);
+    let effect=(Ok(()),prepared);
+    part2_tier1_storage_bind_frame(|calls|part2_prepared_views_run(prepared,calls),
+        |_:Seq<Part1AssemblyTile>,rest|Some((part2_extraction_progression_finish(size,global,maximum,effect),rest)),Err(error),Err(error));
+    part2_tier1_storage_eta(|calls|part2_extraction_progression_finish_run(size,global,maximum,effect,calls),Err(error));
+    part2_extraction_components_normal(Seq::empty(),plans,precincts,styles,Seq::empty(),maximum,plans.len());
+    part2_tier1_storage_bind_frame(|calls|part2_extraction_components_run(Seq::empty(),plans,precincts,styles,Seq::empty(),maximum,plans.len(),calls),
+        |value:Part2ExtractionComponentsEffect,rest|part2_extraction_progression_finish_run(size,global,maximum,value,rest),Ok(effect),Err(error));
 }
 }

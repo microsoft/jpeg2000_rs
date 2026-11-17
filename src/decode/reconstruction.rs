@@ -1301,12 +1301,20 @@ pub(super) fn finish_prepared_component(
 }
 
 #[cfg_attr(verus_keep_ghost, verus_spec(result =>
-    ensures prepared_tiles_outcome(result) == Ok(prepared_components_view(prepared@)),
+    ensures crate::specs::part2_prepared_views_result(prepared_components_view(prepared@),prepared_tiles_outcome(result)),
+        match result{Err(error)=>error==DecodeError::AllocationFailed,Ok(_)=>prepared_tiles_outcome(result)==Ok(prepared_components_view(prepared@))},
 ))]
 pub(super) fn prepared_tile_views<'a>(
     prepared: &'a [PreparedTileComponent],
 ) -> Result<Vec<TileComponent<'a>>, DecodeError> {
-    let mut tiles = Vec::with_capacity(prepared.len());
+    let reserved = if prepared.is_empty() {
+        Ok(Vec::new())
+    } else {
+        crate::allocation::empty_with_capacity(prepared.len())
+    };
+    #[cfg(verus_keep_ghost)]
+    proof! {crate::specs::part2_prepared_views_observed(prepared_components_view(prepared@),crate::allocation::inspection_capacity_outcome(reserved));}
+    let mut tiles = reserved?;
     let mut index = 0_usize;
     #[cfg_attr(verus_keep_ghost, verus_spec(
         invariant index <= prepared.len(),
@@ -1334,7 +1342,9 @@ pub(super) fn prepared_tile_views<'a>(
 }
 
 #[cfg_attr(verus_keep_ghost, verus_spec(result =>
-    ensures crate::image::decoded_image_outcome(result) == crate::specs::part2_assemble_prepared(
+    ensures crate::specs::part2_assemble_prepared_storage_result(crate::image::assembly_size_view(size),prepared_components_view(prepared@),selection,
+        crate::limits::resource_decoded_bytes_limit(limits),crate::image::decoded_image_outcome(result)),
+    crate::image::decoded_image_outcome(result)!=Err(DecodeError::AllocationFailed) ==> crate::image::decoded_image_outcome(result) == crate::specs::part2_assemble_prepared(
         crate::image::assembly_size_view(size), prepared_components_view(prepared@), selection,
         crate::limits::resource_decoded_bytes_limit(limits)),
 ))]
@@ -1344,7 +1354,12 @@ pub(super) fn assemble_prepared_components(
     selection: Option<([u32; 4], u8)>,
     limits: &ResourceLimits,
 ) -> Result<DecodedImage, DecodeError> {
-    let tiles = prepared_tile_views(prepared)?;
+    #[cfg(verus_keep_ghost)]
+    proof! {crate::specs::part2_assemble_prepared_storage_normal(crate::image::assembly_size_view(size),prepared_components_view(prepared@),selection,crate::limits::resource_decoded_bytes_limit(limits));}
+    let views = prepared_tile_views(prepared);
+    #[cfg(verus_keep_ghost)]
+    proof! {if let Err(error)=views{crate::specs::part2_assemble_prepared_views_refused(crate::image::assembly_size_view(size),prepared_components_view(prepared@),selection,crate::limits::resource_decoded_bytes_limit(limits),error);}}
+    let tiles = views?;
     match selection {
         None => assemble_image(size, &tiles, limits),
         Some((region, levels)) => assemble_selected_image(size, &tiles, region, levels, limits),
@@ -1433,7 +1448,15 @@ pub fn decode_progression_prepared_image(
             .checked_add(1)
             .ok_or_else(arithmetic_overflow)?;
     }
-    let tile_components = prepared_tile_views(&prepared)?;
+    let views = prepared_tile_views(&prepared);
+    #[cfg(verus_keep_ghost)]
+    proof! {
+        if let Err(error)=views {
+            crate::specs::part2_coefficient_progression_views_refused(crate::image::assembly_size_view(size),plans,precincts,plan.component_coding_styles,plan.coding_style,
+                crate::limits::resource_decoded_bytes_limit(limits),prepared_components_view(prepared@),error);
+        }
+    }
+    let tile_components = views?;
     let component_transform = if !plan.coding_style.multiple_component_transform {
         ComponentTransform::None
     } else {

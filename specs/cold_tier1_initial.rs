@@ -2,6 +2,7 @@
 use super::*;
 verus! {
 pub enum Part2Tier1StorageEvent {
+    PreparedViewsCapacity {source:Seq<Part1AssemblyTile>,elements:nat,succeeded:bool},
     PreparedComponentCapacity {context:Part2PreparedComponentContext,elements:nat,succeeded:bool},
     PrepareWorkingCapacity {context:Part2PrepareWorkingContext,elements:nat,succeeded:bool},
     PrecinctContributions {context:Part2PrecinctContributionsContext,elements:nat,succeeded:bool},

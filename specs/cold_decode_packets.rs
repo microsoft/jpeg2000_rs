@@ -304,7 +304,7 @@ pub(crate) open spec fn part2_full_decode_run(size: &crate::codestream::ImageSiz
     limits: &crate::ResourceLimits, count: u64, tile: u64, before: Part2DecodedLayoutTile, events: Seq<Part2JpipSnapshotEvent>) -> Part2ColdRun<Part1DecodedImageModel>
     decreases if tile < count { count as int - tile as int } else { 0int },
 {
-    if tile >= count { Some((part2_assemble_prepared(crate::image::assembly_size_view(size), before.prepared, None, crate::limits::resource_decoded_bytes_limit(limits)), events)) }
+    if tile >= count { part2_assemble_prepared_storage_run(crate::image::assembly_size_view(size), before.prepared, None, crate::limits::resource_decoded_bytes_limit(limits),events) }
     else if tile > u16::MAX as u64 { Some((Err(part1_block_placement_error(true)), events)) }
     else { part2_jpip_snapshot_bind(part2_collected_parts_run(parts, tile as u16, events),
         |selected: Seq<Part2OwnedTilePart>, rest| part2_jpip_snapshot_bind(
@@ -330,7 +330,10 @@ pub(crate) proof fn part2_full_decode_normal(size: &crate::codestream::ImageSize
 {
     reveal_with_fuel(part2_full_decode_run, 1); reveal_with_fuel(part2_full_layout_tiles, 1); reveal(part2_tile_decode_result);
     let result = part2_full_layout_tiles(size, parts, caps, limits, count, tile, before);
-    if tile >= count || tile > u16::MAX as u64 { part2_cold_pure::<Part1DecodedImageModel>(result); }
+    if tile >= count {
+        part2_assemble_prepared_storage_normal(crate::image::assembly_size_view(size),before.prepared,None,crate::limits::resource_decoded_bytes_limit(limits));
+        part2_decode_eta(|events|part2_assemble_prepared_storage_run(crate::image::assembly_size_view(size),before.prepared,None,crate::limits::resource_decoded_bytes_limit(limits),events),result);
+    }else if tile > u16::MAX as u64 { part2_cold_pure::<Part1DecodedImageModel>(result); }
     else {
         let collected = part2_collect_tile_parts(parts, tile as u16);
         part2_collected_parts_normal(parts, tile as u16);
@@ -373,7 +376,7 @@ pub(crate) open spec fn part2_selected_decode_run(size: &crate::codestream::Imag
     events: Seq<Part2JpipSnapshotEvent>) -> Part2ColdRun<Part1DecodedImageModel>
     decreases if index < tiles.len() { tiles.len() - index } else { 0int },
 {
-    if index >= tiles.len() { Some((part2_assemble_prepared(crate::image::assembly_size_view(size), before.prepared, Some((region, discard)), crate::limits::resource_decoded_bytes_limit(limits)), events)) }
+    if index >= tiles.len() { part2_assemble_prepared_storage_run(crate::image::assembly_size_view(size), before.prepared, Some((region, discard)), crate::limits::resource_decoded_bytes_limit(limits),events) }
     else { part2_jpip_snapshot_bind(part2_collected_parts_run(parts, tiles[index as int], events),
         |selected: Seq<Part2OwnedTilePart>, rest|
             part2_jpip_snapshot_bind(
@@ -399,7 +402,10 @@ pub(crate) proof fn part2_selected_decode_normal(size: &crate::codestream::Image
 {
     reveal_with_fuel(part2_selected_decode_run, 1); reveal_with_fuel(part2_selected_layout_tiles, 1); reveal(part2_tile_decode_result);
     let result = part2_selected_layout_tiles(size, parts, caps, tiles, region, discard, limits, index, before);
-    if index >= tiles.len() { part2_cold_pure::<Part1DecodedImageModel>(result); }
+    if index >= tiles.len() {
+        part2_assemble_prepared_storage_normal(crate::image::assembly_size_view(size),before.prepared,Some((region,discard)),crate::limits::resource_decoded_bytes_limit(limits));
+        part2_decode_eta(|events|part2_assemble_prepared_storage_run(crate::image::assembly_size_view(size),before.prepared,Some((region,discard)),crate::limits::resource_decoded_bytes_limit(limits),events),result);
+    }
     else {
         let collected = part2_collect_tile_parts(parts, tiles[index as int]);
         part2_collected_parts_normal(parts, tiles[index as int]);

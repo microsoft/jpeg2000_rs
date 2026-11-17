@@ -638,12 +638,30 @@ pub(super) fn decode_layout_selected(
     }
     #[cfg(verus_keep_ghost)]
     proof! { reveal_with_fuel(crate::specs::part2_selected_layout_tiles, 1); reveal(layout_accumulation_view); }
-    assemble_prepared_components(
+    let assembled = assemble_prepared_components(
         &layout.info.image_size,
         &prepared,
         Some((selection.region, selection.discard_levels)),
         limits,
-    )
+    );
+    #[cfg(verus_keep_ghost)]
+    proof! {
+        reveal_with_fuel(crate::specs::part2_selected_decode_run,1);
+        reveal(crate::specs::part2_layout_decode_result);
+        let root=|events|crate::specs::part2_layout_decode_run(source,requested_input,limits,events);
+        let child=|events|crate::specs::part2_assemble_prepared_storage_run(crate::image::assembly_size_view(&layout.info.image_size),
+            prepared_components_view(prepared@),Some((selection.region,selection.discard_levels)),crate::limits::resource_decoded_bytes_limit(limits),events);
+        crate::specs::part2_decode_eta(child,crate::image::decoded_image_outcome(assembled));
+        assert(source.size==layout.info.image_size);
+        assert forall|events|root(prefix+events)==child(events) by {
+            assert(crate::specs::part2_layout_decode_run(source,requested_input,limits,prefix+events)
+                ==crate::specs::part2_selected_decode_run(&source.size,source.parts,source.capabilities,selection.tiles@,
+                    selection.region,selection.discard_levels,limits,selected_tile as nat,
+                    layout_accumulation_view(prepared@,(total_packets,total_precincts,total_code_blocks),total_mct_work),events));
+        }
+        crate::specs::part2_cold_prefix_result(root,child,prefix,crate::image::decoded_image_outcome(assembled));
+    }
+    assembled
 }
 
 #[cfg_attr(verus_keep_ghost, verus_spec(result =>
@@ -1500,5 +1518,22 @@ pub(super) fn decode_layout(
     }
     #[cfg(verus_keep_ghost)]
     proof! { reveal_with_fuel(crate::specs::part2_full_layout_tiles, 1); reveal(layout_accumulation_view); }
-    assemble_prepared_components(&layout.info.image_size, &prepared, None, limits)
+    let assembled = assemble_prepared_components(&layout.info.image_size, &prepared, None, limits);
+    #[cfg(verus_keep_ghost)]
+    proof! {
+        reveal_with_fuel(crate::specs::part2_full_decode_run,1);
+        reveal(crate::specs::part2_layout_decode_result);
+        let root=|events|crate::specs::part2_layout_decode_run(source,None,limits,events);
+        let child=|events|crate::specs::part2_assemble_prepared_storage_run(crate::image::assembly_size_view(&layout.info.image_size),
+            prepared_components_view(prepared@),None,crate::limits::resource_decoded_bytes_limit(limits),events);
+        crate::specs::part2_decode_eta(child,crate::image::decoded_image_outcome(assembled));
+        assert(source.size==layout.info.image_size);
+        assert forall|events|root(prefix+events)==child(events) by {
+            assert(crate::specs::part2_layout_decode_run(source,None,limits,prefix+events)
+                ==crate::specs::part2_full_decode_run(&source.size,source.parts,source.capabilities,limits,tile_count,tile,
+                    layout_accumulation_view(prepared@,(total_packets,total_precincts,total_code_blocks),total_mct_work),events));
+        }
+        crate::specs::part2_cold_prefix_result(root,child,prefix,crate::image::decoded_image_outcome(assembled));
+    }
+    assembled
 }

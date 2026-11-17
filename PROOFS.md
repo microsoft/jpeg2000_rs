@@ -39,6 +39,16 @@ an all-feature Verus proof. Full source-function coverage remains `not-measured`
 
 ## Fallible-storage foundation and remaining boundary
 
+### Borrowed prepared views
+
+The final prepared-to-tile view vector now uses checked metadata storage and
+continues borrowing the original sample slices without copying or validating
+their raw metadata. Empty input makes no request. Its source-qualified reply
+and exact nested-call envelope compose before assembly in full/selected layout
+decoding and before transform dispatch in the direct progression caller.
+Every non-refusal ordinary result is retained; later assembly/output storage
+is a separate boundary, not silently included in this increment.
+
 ### Completed reconstructed component publication
 
 The prepared component output checks one slot after actual component

@@ -3408,6 +3408,66 @@ fn complete_standard_prepare_preserves_all_ordered_rejections() {
 }
 
 #[test]
+fn prepared_view_storage_preserves_borrows_raw_metadata_empty_and_retry() {
+    use super::reconstruction::prepared_tile_views;
+    let prepared = [
+        PreparedTileComponent {
+            component: u16::MAX,
+            x: u32::MAX,
+            y: 7,
+            width: 0,
+            height: 9,
+            fraction_bits: u8::MAX,
+            samples: vec![i64::MIN, 17],
+        },
+        PreparedTileComponent {
+            component: 1,
+            x: 3,
+            y: 5,
+            width: 1,
+            height: 1,
+            fraction_bits: 16,
+            samples: vec![-17],
+        },
+    ];
+    assert!(matches!(
+        crate::allocation::with_refusal(0, || prepared_tile_views(&prepared)),
+        Err(DecodeError::AllocationFailed)
+    ));
+    let views = prepared_tile_views(&prepared).unwrap();
+    assert_eq!(views.len(), prepared.len());
+    for (view, source) in views.iter().zip(&prepared) {
+        assert_eq!(
+            (
+                view.component,
+                view.x,
+                view.y,
+                view.width,
+                view.height,
+                view.fraction_bits
+            ),
+            (
+                source.component,
+                source.x,
+                source.y,
+                source.width,
+                source.height,
+                source.fraction_bits
+            )
+        );
+        assert_eq!(view.samples, source.samples);
+        assert_eq!(view.samples.as_ptr(), source.samples.as_ptr());
+    }
+    crate::allocation::with_refusal(0, || {
+        assert!(prepared_tile_views(&[]).unwrap().is_empty());
+        assert_eq!(
+            crate::allocation::copy_values(&[1_u8]),
+            Err(DecodeError::AllocationFailed)
+        );
+    });
+}
+
+#[test]
 fn prepared_component_storage_keeps_prior_prefix_work_and_held_capacity() {
     use super::execution::reconstruct_planned_tile;
     let bytes = component_subband_storage_fixture(1);

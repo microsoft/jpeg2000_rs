@@ -230,6 +230,76 @@ pub(crate) proof fn part2_prepare_init_band_error(bands:Seq<crate::decode::Subba
     part2_tier1_storage_bind_frame(|calls|part2_prepare_working_capacity_run(context,calls),
         |_:(),rest|part2_prepare_init_prefix_run(bands,fraction,maximum,selected as nat,rest),Ok(()),Err(error));
 }
+pub(crate) open spec fn part2_prepared_views_run(source:Seq<Part1AssemblyTile>,calls:Seq<Part2Tier1StorageEvent>)->Part2Tier1Run<Seq<Part1AssemblyTile>> {
+    if source.len()==0{Some((Ok(source),calls))}else if calls.len()==0{None}else{match calls[0] {
+        Part2Tier1StorageEvent::PreparedViewsCapacity {source:actual,elements,succeeded}=>
+            if actual!=source || elements!=source.len(){None}else{Some((if succeeded{Ok(source)}else{Err(crate::DecodeError::AllocationFailed)},calls.drop_first()))},
+        _=>None,
+    }}
+}
+pub(crate) open spec fn part2_prepared_views_result(source:Seq<Part1AssemblyTile>,result:Result<Seq<Part1AssemblyTile>,crate::DecodeError>)->bool {
+    part2_tier1_storage_framed(|calls|part2_prepared_views_run(source,calls),result)
+}
+pub(crate) proof fn part2_prepared_views_observed(source:Seq<Part1AssemblyTile>,response:Result<(),crate::DecodeError>)
+    requires response==Ok(()) || (source.len()>0 && response==Err(crate::DecodeError::AllocationFailed)),
+    ensures part2_prepared_views_result(source,match response{Err(error)=>Err(error),Ok(())=>Ok(source)}),
+{
+    let result=match response{Err(error)=>Err(error),Ok(())=>Ok(source)};
+    let prefix=if source.len()==0{Seq::empty()}else{seq![Part2Tier1StorageEvent::PreparedViewsCapacity {source,elements:source.len(),succeeded:response.is_ok()}]};
+    assert forall|tail:Seq<Part2Tier1StorageEvent>|part2_prepared_views_run(source,prefix+tail)==Some((result,tail)) by{
+        if source.len()==0{assert(prefix+tail =~= tail);}else{assert((prefix+tail).drop_first() =~= tail);}
+    }
+    assert(part2_tier1_storage_prefix(|calls|part2_prepared_views_run(source,calls),prefix,result));
+}
+pub(crate) open spec fn part2_prepared_view_calls_run(source:Seq<Part1AssemblyTile>,events:Seq<Part2JpipSnapshotEvent>)->Part2ColdRun<Seq<Part1AssemblyTile>> {
+    if source.len()==0{Some((Ok(source),events))}else if events.len()==0{None}else{match events[0] {
+        Part2JpipSnapshotEvent::PreparedViewCalls {source:actual,calls}=>if actual!=source{None}else{
+            match part2_prepared_views_run(source,calls){Some((result,rest))=>if rest.len()==0{Some((result,events.drop_first()))}else{None},None=>None}
+        },
+        _=>None,
+    }}
+}
+pub(crate) proof fn part2_prepared_view_calls_observed(source:Seq<Part1AssemblyTile>,result:Result<Seq<Part1AssemblyTile>,crate::DecodeError>)
+    requires part2_prepared_views_result(source,result),
+    ensures part2_cold_framed(|events|part2_prepared_view_calls_run(source,events),result),
+{
+    let run=|calls|part2_prepared_views_run(source,calls);
+    let calls=choose|prefix| #[trigger] part2_tier1_storage_prefix(run,prefix,result);
+    assert(calls+Seq::empty() =~= calls);
+    assert(run(calls)==Some((result,Seq::empty())));
+    let prefix=if source.len()==0{Seq::empty()}else{seq![Part2JpipSnapshotEvent::PreparedViewCalls {source,calls}]};
+    assert forall|tail:Seq<Part2JpipSnapshotEvent>|part2_prepared_view_calls_run(source,prefix+tail)==Some((result,tail)) by{
+        if source.len()==0{assert(prefix+tail =~= tail);}else{assert((prefix+tail).drop_first() =~= tail);}
+    }
+    assert(part2_cold_prefix(|events|part2_prepared_view_calls_run(source,events),prefix,result));
+    part2_decode_eta(|events|part2_prepared_view_calls_run(source,events),result);
+}
+pub(crate) open spec fn part2_assemble_prepared_storage_run(size:Part1AssemblySize,source:Seq<Part1AssemblyTile>,selection:Option<([u32;4],u8)>,maximum:u64,
+    events:Seq<Part2JpipSnapshotEvent>)->Part2ColdRun<Part1DecodedImageModel> {
+    part2_jpip_snapshot_bind(part2_prepared_view_calls_run(source,events),
+        |views:Seq<Part1AssemblyTile>,rest|Some((part2_assemble_prepared(size,views,selection,maximum),rest)))
+}
+pub(crate) open spec fn part2_assemble_prepared_storage_result(size:Part1AssemblySize,source:Seq<Part1AssemblyTile>,selection:Option<([u32;4],u8)>,maximum:u64,
+    result:Result<Part1DecodedImageModel,crate::DecodeError>)->bool {
+    part2_cold_framed(|events|part2_assemble_prepared_storage_run(size,source,selection,maximum,events),result)
+}
+pub(crate) proof fn part2_assemble_prepared_storage_normal(size:Part1AssemblySize,source:Seq<Part1AssemblyTile>,selection:Option<([u32;4],u8)>,maximum:u64)
+    ensures part2_assemble_prepared_storage_result(size,source,selection,maximum,part2_assemble_prepared(size,source,selection,maximum)),
+{
+    let result=part2_assemble_prepared(size,source,selection,maximum);
+    part2_prepared_views_observed(source,Ok(()));
+    part2_prepared_view_calls_observed(source,Ok(source));part2_cold_pure(result);
+    part2_cold_bind(|events|part2_prepared_view_calls_run(source,events),
+        |views:Seq<Part1AssemblyTile>,rest|Some((part2_assemble_prepared(size,views,selection,maximum),rest)),Ok(source),result);
+}
+pub(crate) proof fn part2_assemble_prepared_views_refused(size:Part1AssemblySize,source:Seq<Part1AssemblyTile>,selection:Option<([u32;4],u8)>,maximum:u64,error:crate::DecodeError)
+    requires part2_prepared_views_result(source,Err(error)),
+    ensures part2_assemble_prepared_storage_result(size,source,selection,maximum,Err(error)),
+{
+    part2_prepared_view_calls_observed(source,Err(error));
+    part2_cold_bind(|events|part2_prepared_view_calls_run(source,events),
+        |views:Seq<Part1AssemblyTile>,rest|Some((part2_assemble_prepared(size,views,selection,maximum),rest)),Err(error),Err(error));
+}
 pub(crate) open spec fn part2_prepare_samples_run(role:Part2PrepareCopyRole,source:Seq<i64>,calls:Seq<Part2Tier1StorageEvent>)->Part2Tier1Run<Seq<i64>> {
     part2_tier1_storage_bind(part2_prepare_copy_capacity_run(role,source.len(),calls),|_:(),rest|Some((Ok(source),rest)))
 }
