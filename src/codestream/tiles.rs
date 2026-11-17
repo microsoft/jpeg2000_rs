@@ -1,6 +1,8 @@
 //! Tile-part header/payload parsing and owned tile-part construction.
 
 use super::coding_style::new_component_coding_styles;
+#[cfg(verus_keep_ghost)]
+use super::mct_copy::copy_outcome;
 use super::quantization::new_component_quantizations;
 use super::reader::{read_u16, read_u32};
 use super::tile_header_traversal::TileHeaderAccumulator;
@@ -13,8 +15,8 @@ use super::{
 use super::{
     component_style_owner_view, mct_parameters_view, optional_segment_view, owned_extensions_view,
     packed_packet_headers_view, packet_lengths_view, parsed_coding_style_view,
-    parsed_quantization_owner_view, parser_view, progression_changes_view, quantization_view,
-    roi_shifts_view, segment_slots_view, tile_component_configuration_outcome,
+    parsed_quantization_owner_view, parser_view, progression_changes_view, quantization_owner_view,
+    quantization_view, roi_shifts_view, segment_slots_view, tile_component_configuration_outcome,
     tile_data_window_outcome, tile_part_header_outcome, tile_part_header_view,
     tile_part_owned_view, tile_part_read_outcome,
 };
@@ -50,6 +52,80 @@ impl<'a> Clone for TilePartPayload<'a> {
     }
 }
 impl<'a> TilePartPayload<'a> {
+    #[cfg_attr(verus_keep_ghost, verus_spec(result =>
+        ensures crate::specs::part1_mct_copy_result(
+            crate::specs::part2_payload_duplicate_tail(tile_part_owned_view(self), 0), copy_outcome(result)),
+            match result { Err(error) => error == DecodeError::AllocationFailed,
+                Ok(value) => tile_part_owned_view(&value) == tile_part_owned_view(self) },
+    ))]
+    pub(crate) fn try_duplicate(&self) -> Result<Self, DecodeError> {
+        #[cfg(verus_keep_ghost)]
+        proof_decl! {
+            let ghost source = tile_part_owned_view(self);
+            let ghost mut done = Seq::<crate::specs::Part1MctCopyRequest>::empty();
+        }
+        #[cfg(verus_keep_ghost)]
+        proof! {
+            reveal(quantization_owner_view); reveal(copy_outcome);
+            crate::specs::part1_mct_copy_observed(super::MctCopyPath::Order, 0, Ok(()));
+            assert(done + crate::specs::part2_payload_duplicate_tail(source, 0)
+                =~= crate::specs::part2_payload_duplicate_tail(source, 0));
+        }
+        let copied = self
+            .component_quantizations
+            .try_duplicate_for(super::MctCopyPath::CollectedQuantizations);
+        #[cfg(verus_keep_ghost)]
+        proof! {
+            done = crate::specs::part2_payload_duplicate_advance(source, 0, done, copy_outcome(copied));
+        }
+        let component_quantizations = copied?;
+        let copied = self
+            .progression_changes
+            .try_duplicate_for(super::MctCopyPath::CollectedProgression);
+        #[cfg(verus_keep_ghost)]
+        proof! {
+            done = crate::specs::part2_payload_duplicate_advance(source, 1, done, copy_outcome(copied));
+        }
+        let progression_changes = copied?;
+        let copied = match &self.multiple_component_transform {
+            None => Ok(None),
+            Some(transform) => match transform.try_duplicate() {
+                Err(error) => Err(error),
+                Ok(value) => Ok(Some(value)),
+            },
+        };
+        #[cfg(verus_keep_ghost)]
+        proof! { done = crate::specs::part2_payload_duplicate_advance(source, 2, done, copy_outcome(copied)); }
+        let multiple_component_transform = copied?;
+        let copied = self.part2_extensions.try_duplicate_with(true);
+        #[cfg(verus_keep_ghost)]
+        proof! { done = crate::specs::part2_payload_duplicate_advance(source, 3, done, copy_outcome(copied)); }
+        let part2_extensions = copied?;
+        #[cfg(verus_keep_ghost)]
+        proof! {
+            reveal_with_fuel(crate::specs::part2_payload_duplicate_tail, 1);
+            assert(done =~= crate::specs::part2_payload_duplicate_tail(source, 0));
+        }
+        Ok(Self {
+            tile_index: self.tile_index,
+            tile_part_index: self.tile_part_index,
+            tile_part_count: self.tile_part_count,
+            coding_style: self.coding_style,
+            quantization: self.quantization,
+            component_coding_styles: self.component_coding_styles,
+            component_quantizations,
+            roi_shifts: self.roi_shifts,
+            progression_changes,
+            multiple_component_transform,
+            part2_extensions,
+            packet_lengths: self.packet_lengths,
+            packed_packet_headers: self.packed_packet_headers,
+            has_functional_header_marker: self.has_functional_header_marker,
+            has_roi_marker: self.has_roi_marker,
+            data: self.data,
+        })
+    }
+
     pub fn uniform_for_packet_decoding(
         tile_index: u16,
         tile_part_index: u8,

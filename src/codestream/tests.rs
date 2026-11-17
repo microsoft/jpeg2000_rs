@@ -4768,6 +4768,45 @@ fn raw_owned_tile_part_fixture(variant: usize) -> TilePartPayload<'static> {
 }
 
 #[test]
+fn collected_payload_copy_refusals_restore_all_raw_nested_owners_and_borrows() {
+    for variant in [0, 1, 7, 23] {
+        let source = raw_owned_tile_part_fixture(variant);
+        let before = source.clone();
+        let mut reached_end = false;
+        for after in 0..128 {
+            let refused = crate::allocation::with_refusal(after, || {
+                let copied = match source.try_duplicate() {
+                    Ok(copied) => {
+                        assert_eq!(copied, source);
+                        assert!(core::ptr::eq(copied.data, source.data));
+                        return false;
+                    }
+                    Err(error) => {
+                        assert_eq!(error, DecodeError::AllocationFailed);
+                        source.try_duplicate().unwrap()
+                    }
+                };
+                assert_eq!(copied, source);
+                assert!(core::ptr::eq(copied.data, source.data));
+                if !source.component_quantizations.quantizations.is_empty() {
+                    assert_ne!(
+                        copied.component_quantizations.quantizations.as_ptr(),
+                        source.component_quantizations.quantizations.as_ptr()
+                    );
+                }
+                true
+            });
+            assert_eq!(source, before);
+            if !refused {
+                reached_end = true;
+                break;
+            }
+        }
+        assert!(reached_end, "bounded complete payload-copy sweep");
+    }
+}
+
+#[test]
 fn actual_owned_tile_part_clone_preserves_every_raw_field_and_independent_nested_buffers() {
     for variant in 0..24 {
         let source = raw_owned_tile_part_fixture(variant);
@@ -4818,6 +4857,65 @@ fn actual_owned_tile_part_clone_preserves_every_raw_field_and_independent_nested
         assert_eq!(format!("{source:?}"), before);
         assert_ne!(copied, source);
     }
+}
+
+#[test]
+fn collected_payload_storage_empty_first_later_refusals_restore_order_and_sources() {
+    let source = (0..4)
+        .map(|index| {
+            let mut part = raw_owned_tile_part_fixture(index);
+            part.tile_index = u16::try_from(index % 2).unwrap();
+            part.tile_part_index = u8::try_from(index).unwrap();
+            part
+        })
+        .collect::<Vec<_>>();
+    let before = source.clone();
+    let expected = crate::decode::collect_tile_parts(&source, 1).unwrap();
+    crate::allocation::with_refusal(0, || {
+        assert!(
+            crate::decode::collect_tile_parts(&[], 1)
+                .unwrap()
+                .is_empty()
+        );
+        assert!(
+            crate::decode::collect_tile_parts(&source, u16::MAX)
+                .unwrap()
+                .is_empty()
+        );
+        assert_eq!(
+            crate::allocation::copy_values(&[1_u8]),
+            Err(DecodeError::AllocationFailed)
+        );
+    });
+    let mut reached_end = false;
+    for after in 0..256 {
+        let refused = crate::allocation::with_refusal(after, || {
+            let restored = match crate::decode::collect_tile_parts(&source, 1) {
+                Err(error) => {
+                    assert_eq!(error, DecodeError::AllocationFailed);
+                    crate::decode::collect_tile_parts(&source, 1).unwrap()
+                }
+                Ok(actual) => {
+                    assert_eq!(actual, expected);
+                    return false;
+                }
+            };
+            assert_eq!(restored, expected);
+            for (actual, original) in restored
+                .iter()
+                .zip(source.iter().filter(|part| part.tile_index == 1))
+            {
+                assert!(core::ptr::eq(actual.data, original.data));
+            }
+            true
+        });
+        assert_eq!(source, before);
+        if !refused {
+            reached_end = true;
+            break;
+        }
+    }
+    assert!(reached_end, "bounded selected payload-copy sweep");
 }
 
 #[test]

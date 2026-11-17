@@ -1899,7 +1899,7 @@ class FrameworkTests(WorkingFiles):
     def test_inventory_binds_actual_owned_payload_copy_and_ordered_tile_collection(self):
         self._assert_complete_packet_contract_bindings(
             {"part2-complete-native-owned-tile-collection"},
-            framework._TILE_COLLECTION_CONTRACTS, 2,
+            framework._TILE_COLLECTION_CONTRACTS, 1,
         )
 
     def test_contract_method_resolution_handles_clone_trait_and_rejects_other_or_ambiguous_impls(self):
@@ -8251,6 +8251,32 @@ class FrameworkTests(WorkingFiles):
 
             with self.subTest(before=before), mock.patch.object(Path, "read_text", altered), \
                     self.assertRaisesRegex(ValueError, "fallible copy storage"):
+                framework.validate_normative_coverage(dict(coverage, requirements=[entry]))
+
+    def test_inventory_collected_payload_storage_rejects_misbound_sources_roles_and_tails(self):
+        coverage = json.loads((framework.VALIDATION / "normative-coverage.json").read_text())
+        entry = next(item for item in coverage["requirements"]
+                     if item["id"] == "part2-complete-native-owned-tile-collection")
+        read_text = Path.read_text
+        for relative, before, after in (
+            ("src/decode/execution.rs", "empty_with_capacity(count)", "empty_with_capacity(1)"),
+            ("src/codestream/tiles.rs", "MctCopyPath::CollectedQuantizations", "MctCopyPath::CollectedProgression"),
+            ("specs/cold_mct_copy.rs", "MctCopyPath::CollectedQuantizations => 83", "MctCopyPath::CollectedQuantizations => 84"),
+            ("specs/decoder_input.rs", "if actual != source", "if actual == source"),
+            ("specs/decoder_input.rs", "actual_tile != tile", "actual_tile != 0"),
+            ("specs/decoder_input.rs", "elements != count", "elements != 1"),
+            ("specs/decoder_input.rs", "if rest.len() != 0", "if false"),
+        ):
+            source = framework.ROOT / relative
+            original = read_text(source)
+            changed = original.replace(before, after, 1)
+            self.assertNotEqual(original, changed)
+
+            def altered(path, *args, **kwargs):
+                return changed if path == source else read_text(path, *args, **kwargs)
+
+            with self.subTest(mutation=before), mock.patch.object(Path, "read_text", altered), \
+                    self.assertRaisesRegex(ValueError, "collected payload storage"):
                 framework.validate_normative_coverage(dict(coverage, requirements=[entry]))
 
     def test_inventory_selection_storage_rejects_misbound_capacity_and_erased_stages(self):

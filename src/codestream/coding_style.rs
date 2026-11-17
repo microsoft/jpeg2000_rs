@@ -3,7 +3,7 @@
 use super::geometry::selection_geometry_arithmetic;
 use super::{
     CodingStyle, ComponentCodingStyles, DecodeError, DecompositionDirection, MAX_COMPONENTS,
-    MalformedKind, Parser, Part2Extensions, ProgressionChange, ProgressionChanges,
+    MalformedKind, MctCopyPath, Parser, Part2Extensions, ProgressionChange, ProgressionChanges,
     ProgressionOrder, Segment, Tier1CodingStyle, WaveletTransform,
 };
 #[cfg(verus_keep_ghost)]
@@ -54,6 +54,25 @@ impl ProgressionChanges {
         proof! { reveal(progression_changes_view); }
         let records = crate::allocation::copy_values(&self.records)?;
         Ok(Self { records })
+    }
+
+    #[cfg_attr(verus_keep_ghost, verus_spec(result =>
+        ensures crate::specs::part1_mct_copy_result(
+            crate::specs::part1_mct_copy_leaf(_path, progression_changes_view(self).len() as usize),
+            super::mct_copy::copy_outcome(result)),
+            match result {
+                Err(error) => error == DecodeError::AllocationFailed,
+                Ok(owner) => progression_changes_view(&owner) == progression_changes_view(self),
+            },
+    ))]
+    pub(super) fn try_duplicate_for(&self, _path: MctCopyPath) -> Result<Self, DecodeError> {
+        let result = self.try_duplicate();
+        #[cfg(verus_keep_ghost)]
+        proof! {
+            reveal(progression_changes_view);
+            crate::specs::part1_mct_copy_observed(_path, self.records.len(), super::mct_copy::copy_outcome(result));
+        }
+        result
     }
 
     #[cfg_attr(verus_keep_ghost, verus_spec(result => ensures result@ == progression_changes_view(self),))]

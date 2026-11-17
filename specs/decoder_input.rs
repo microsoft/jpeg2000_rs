@@ -227,6 +227,198 @@ pub(crate) open spec fn part2_decode_typed_layout_value_input(
     }
 }
 
+pub(crate) open spec fn part2_payload_copy_run(
+    source: Part2OwnedTilePart, events: Seq<Part2JpipSnapshotEvent>,
+) -> Part2ColdRun<Part2OwnedTilePart> {
+    if events.len() == 0 { None } else {
+        match events[0] {
+            Part2JpipSnapshotEvent::CollectedPayloadCopy { source: actual, calls } => if actual != source { None } else {
+                match part1_mct_copy_run(part2_payload_duplicate_tail(source, 0), calls) {
+                    Some((response, rest)) => if rest.len() != 0 { None } else {
+                        Some((match response { Err(error) => Err(error), Ok(()) => Ok(source) }, events.drop_first()))
+                    },
+                    None => None,
+                }
+            },
+            _ => None,
+        }
+    }
+}
+
+pub(crate) open spec fn part2_payload_copy_result(
+    source: Part2OwnedTilePart, result: Result<Part2OwnedTilePart, crate::DecodeError>,
+) -> bool {
+    part2_cold_framed(|events| part2_payload_copy_run(source, events), result)
+}
+
+pub(crate) proof fn part2_payload_copy_observed(
+    source: Part2OwnedTilePart, result: Result<Part2OwnedTilePart, crate::DecodeError>,
+)
+    requires part1_mct_copy_result(part2_payload_duplicate_tail(source, 0),
+        match result { Err(error) => Err(error), Ok(_) => Ok(()) }),
+        result.is_ok() ==> result == Ok(source),
+    ensures part2_payload_copy_result(source, result),
+{
+    reveal(part1_mct_copy_result);
+    let response = match result { Err(error) => Err(error), Ok(_) => Ok(()) };
+    let calls = choose|calls| part1_mct_copy_run(part2_payload_duplicate_tail(source, 0), calls)
+        == Some((response, Seq::empty()));
+    let prefix = seq![Part2JpipSnapshotEvent::CollectedPayloadCopy { source, calls }];
+    assert forall|tail: Seq<Part2JpipSnapshotEvent>|
+        part2_payload_copy_run(source, prefix + tail) == Some((result, tail)) by {
+        assert((prefix + tail).drop_first() =~= tail);
+    }
+    assert(part2_cold_prefix(|events| part2_payload_copy_run(source, events), prefix, result));
+}
+
+pub(crate) proof fn part2_payload_copy_normal(source: Part2OwnedTilePart)
+    ensures part2_payload_copy_result(source, Ok(source)),
+{
+    reveal(part1_mct_copy_result);
+    let requests = part2_payload_duplicate_tail(source, 0);
+    part1_mct_copy_normal(requests, Seq::empty());
+    assert(part1_mct_copy_run(requests, part1_mct_copy_normal_calls(requests)) == Some((Ok(()), Seq::empty())));
+    part2_payload_copy_observed(source, Ok(source));
+}
+
+#[verifier::opaque]
+pub(crate) open spec fn part2_collected_part_count(parts: Seq<Part2OwnedTilePart>, tile: u16, index: nat) -> nat
+    decreases if index < parts.len() { parts.len() - index } else { 0int },
+{
+    if index >= parts.len() { 0 } else {
+        (if parts[index as int].tile_index == tile { 1nat } else { 0nat })
+            + part2_collected_part_count(parts, tile, index + 1)
+    }
+}
+
+pub(crate) proof fn part2_collected_count_matches(
+    parts: Seq<Part2OwnedTilePart>, tile: u16, index: nat, before: Seq<Part2OwnedTilePart>,
+)
+    ensures part2_collect_tile_parts_run(parts, tile, index, before).len()
+        == before.len() + part2_collected_part_count(parts, tile, index),
+    decreases if index < parts.len() { parts.len() - index } else { 0int },
+{
+    reveal_with_fuel(part2_collect_tile_parts_run, 1);
+    reveal_with_fuel(part2_collected_part_count, 1);
+    if index < parts.len() {
+        let next = if parts[index as int].tile_index == tile { before.push(parts[index as int]) } else { before };
+        part2_collected_count_matches(parts, tile, index + 1, next);
+    }
+}
+
+pub(crate) open spec fn part2_collected_capacity_run(
+    parts: Seq<Part2OwnedTilePart>, tile: u16, events: Seq<Part2JpipSnapshotEvent>,
+) -> Part2ColdRun<()> {
+    let count = part2_collected_part_count(parts, tile, 0);
+    if count == 0 { Some((Ok(()), events)) } else if events.len() == 0 { None } else {
+        match events[0] {
+            Part2JpipSnapshotEvent::CollectedPartsCapacity { source, tile: actual_tile, elements, succeeded } =>
+                if source != parts || actual_tile != tile || elements != count { None } else {
+                    Some((if succeeded { Ok(()) } else { Err(crate::DecodeError::AllocationFailed) }, events.drop_first()))
+                },
+            _ => None,
+        }
+    }
+}
+
+pub(crate) open spec fn part2_collected_capacity_result(
+    parts: Seq<Part2OwnedTilePart>, tile: u16, result: Result<(), crate::DecodeError>,
+) -> bool {
+    part2_cold_framed(|events| part2_collected_capacity_run(parts, tile, events), result)
+}
+
+pub(crate) proof fn part2_collected_capacity_observed(
+    parts: Seq<Part2OwnedTilePart>, tile: u16, elements: usize, response: Result<(), crate::DecodeError>,
+)
+    requires elements == part2_collected_part_count(parts, tile, 0),
+        response == Ok(()) || (elements > 0 && response == Err(crate::DecodeError::AllocationFailed)),
+    ensures part2_collected_capacity_result(parts, tile, response),
+{
+    if elements == 0 { part2_cold_pure::<()>(response); } else {
+        let prefix = seq![Part2JpipSnapshotEvent::CollectedPartsCapacity {
+            source: parts, tile, elements: elements as nat, succeeded: response.is_ok(),
+        }];
+        assert forall|tail: Seq<Part2JpipSnapshotEvent>|
+            part2_collected_capacity_run(parts, tile, prefix + tail) == Some((response, tail)) by {
+            assert((prefix + tail).drop_first() =~= tail);
+        }
+        assert(part2_cold_prefix(|events| part2_collected_capacity_run(parts, tile, events), prefix, response));
+    }
+}
+
+#[verifier::opaque]
+pub(crate) open spec fn part2_collected_loop_run(
+    parts: Seq<Part2OwnedTilePart>, tile: u16, index: nat, before: Seq<Part2OwnedTilePart>,
+    events: Seq<Part2JpipSnapshotEvent>,
+) -> Part2ColdRun<Seq<Part2OwnedTilePart>>
+    decreases if index < parts.len() { parts.len() - index } else { 0int },
+{
+    if index >= parts.len() { Some((Ok(before), events)) }
+    else if parts[index as int].tile_index != tile {
+        part2_collected_loop_run(parts, tile, index + 1, before, events)
+    } else {
+        part2_jpip_snapshot_bind(part2_payload_copy_run(parts[index as int], events),
+            |copied: Part2OwnedTilePart, rest| part2_collected_loop_run(parts, tile, index + 1, before.push(copied), rest))
+    }
+}
+
+pub(crate) open spec fn part2_collected_parts_run(
+    parts: Seq<Part2OwnedTilePart>, tile: u16, events: Seq<Part2JpipSnapshotEvent>,
+) -> Part2ColdRun<Seq<Part2OwnedTilePart>> {
+    part2_jpip_snapshot_bind(part2_collected_capacity_run(parts, tile, events),
+        |_: (), rest| part2_collected_loop_run(parts, tile, 0, Seq::empty(), rest))
+}
+
+pub(crate) open spec fn part2_collected_parts_result(
+    parts: Seq<Part2OwnedTilePart>, tile: u16, result: Result<Seq<Part2OwnedTilePart>, crate::DecodeError>,
+) -> bool {
+    part2_cold_framed(|events| part2_collected_parts_run(parts, tile, events), result)
+}
+
+pub(crate) proof fn part2_collected_loop_normal(
+    parts: Seq<Part2OwnedTilePart>, tile: u16, index: nat, before: Seq<Part2OwnedTilePart>,
+)
+    ensures part2_cold_framed(|events| part2_collected_loop_run(parts, tile, index, before, events),
+        Ok(part2_collect_tile_parts_run(parts, tile, index, before))),
+    decreases if index < parts.len() { parts.len() - index } else { 0int },
+{
+    reveal_with_fuel(part2_collected_loop_run, 1);
+    reveal_with_fuel(part2_collect_tile_parts_run, 1);
+    let result = Ok(part2_collect_tile_parts_run(parts, tile, index, before));
+    if index >= parts.len() { part2_cold_pure(result); }
+    else if parts[index as int].tile_index != tile {
+        part2_collected_loop_normal(parts, tile, index + 1, before);
+        part2_decode_eta(|events| part2_collected_loop_run(parts, tile, index + 1, before, events), result);
+    } else {
+        part2_payload_copy_normal(parts[index as int]);
+        part2_collected_loop_normal(parts, tile, index + 1, before.push(parts[index as int]));
+        part2_decode_eta(|events| part2_collected_loop_run(parts, tile, index + 1, before.push(parts[index as int]), events), result);
+        part2_cold_bind(|events| part2_payload_copy_run(parts[index as int], events),
+            |copied: Part2OwnedTilePart, rest| part2_collected_loop_run(parts, tile, index + 1, before.push(copied), rest),
+            Ok(parts[index as int]), result);
+    }
+}
+
+pub(crate) proof fn part2_collected_parts_normal(parts: Seq<Part2OwnedTilePart>, tile: u16)
+    ensures part2_collected_parts_result(parts, tile, part2_collect_tile_parts(parts, tile)),
+{
+    let count = part2_collected_part_count(parts, tile, 0);
+    if count == 0 { part2_cold_pure::<()>(Ok(())); } else {
+        let prefix = seq![Part2JpipSnapshotEvent::CollectedPartsCapacity { source: parts, tile, elements: count, succeeded: true }];
+        assert forall|tail: Seq<Part2JpipSnapshotEvent>|
+            part2_collected_capacity_run(parts, tile, prefix + tail) == Some((Ok(()), tail)) by {
+            assert((prefix + tail).drop_first() =~= tail);
+        }
+        assert(part2_cold_prefix(|events| part2_collected_capacity_run(parts, tile, events), prefix, Ok(())));
+    }
+    part2_collected_loop_normal(parts, tile, 0, Seq::empty());
+    part2_decode_eta(|events| part2_collected_loop_run(parts, tile, 0, Seq::empty(), events),
+        part2_collect_tile_parts(parts, tile));
+    part2_cold_bind(|events| part2_collected_capacity_run(parts, tile, events),
+        |_: (), rest| part2_collected_loop_run(parts, tile, 0, Seq::empty(), rest),
+        Ok(()), part2_collect_tile_parts(parts, tile));
+}
+
 pub(crate) open spec fn part2_intersecting_tile_count(
     size: Part2SelectionGeometry, explicit: Seq<u16>, region: Seq<u32>, count: u64,
 ) -> Result<usize, crate::DecodeError> {

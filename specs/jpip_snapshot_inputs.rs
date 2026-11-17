@@ -5,6 +5,8 @@ use super::*;
 verus! {
 
 pub enum Part2JpipSnapshotEvent {
+    CollectedPayloadCopy { source: Part2OwnedTilePart, calls: Seq<Part1ColdStorageEvent> },
+    CollectedPartsCapacity { source: Seq<Part2OwnedTilePart>, tile: u16, elements: nat, succeeded: bool },
     SelectionCapacity { size: Part2SelectionGeometry, explicit: Seq<u16>, region: Seq<u32>, count: u64,
         elements: nat, succeeded: bool },
     CoefficientReconstructionCalls {context:Part2CoefficientReconstructionContext,calls:Seq<Part2Tier1StorageEvent>},

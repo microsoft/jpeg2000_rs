@@ -871,6 +871,12 @@ verus! {
         values.map_values(|value: TilePartPayload| tile_part_owned_view(&value))
     }
 
+    pub open spec fn tile_part_copy_outcome(value: Result<TilePartPayload<'_>, DecodeError>)
+        -> Result<crate::specs::Part2OwnedTilePart, DecodeError>
+    {
+        match value { Err(error) => Err(error), Ok(value) => Ok(tile_part_owned_view(&value)) }
+    }
+
     pub proof fn tile_part_owned_tile_known(value: &TilePartPayload<'_>)
         ensures tile_part_owned_view(value).tile_index == value.tile_index,
     {

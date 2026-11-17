@@ -676,29 +676,28 @@ pub(crate) open spec fn part2_trailer_selected_run(
             part2_assemble_prepared(crate::image::assembly_size_view(size), before.prepared, Some((region, discard)),
                 crate::limits::resource_decoded_bytes_limit(limits)), discarded), events))
     } else {
-        match part2_collect_tile_parts(parts, tiles[index as int]) {
-            Err(error) => Some((Err(error), events)),
-            Ok(selected) => part2_jpip_snapshot_bind(
+        part2_jpip_snapshot_bind(part2_collected_parts_run(parts, tiles[index as int], events),
+            |selected: Seq<Part2OwnedTilePart>, rest| part2_jpip_snapshot_bind(
                 part2_trailer_tile_run(size, tiles[index as int], selected, caps, discard, limits,
-                    before.prepared, before.counters, before.mct_work, discarded, events),
-                |after: (Part2DecodedLayoutTile, u8), rest|
-                    part2_trailer_selected_run(size, parts, caps, tiles, region, discard, limits, index + 1, after.0, after.1, rest)),
-        }
+                    before.prepared, before.counters, before.mct_work, discarded, rest),
+                |after: (Part2DecodedLayoutTile, u8), tail|
+                    part2_trailer_selected_run(size, parts, caps, tiles, region, discard, limits, index + 1, after.0, after.1, tail)))
     }
 }
 
 pub(crate) proof fn part2_trailer_selected_step(
     size: &crate::codestream::ImageSize, parts: Seq<Part2OwnedTilePart>, caps: Option<(u32, Seq<u16>)>,
     tiles: Seq<u16>, region: [u32; 4], discard: u8, limits: &crate::ResourceLimits,
-    index: nat, before: Part2DecodedLayoutTile, discarded: u8, selected: Seq<Part2OwnedTilePart>,
+    index: nat, before: Part2DecodedLayoutTile, discarded: u8,
 )
-    requires index < tiles.len(), part2_collect_tile_parts(parts, tiles[index as int]) == Ok(selected),
+    requires index < tiles.len(),
     ensures forall|events| #[trigger] part2_trailer_selected_run(size, parts, caps, tiles, region, discard, limits, index, before, discarded, events)
-        == part2_jpip_snapshot_bind(
+        == part2_jpip_snapshot_bind(part2_collected_parts_run(parts, tiles[index as int], events),
+            |selected: Seq<Part2OwnedTilePart>, rest| part2_jpip_snapshot_bind(
             part2_trailer_tile_run(size, tiles[index as int], selected, caps, discard, limits,
-                before.prepared, before.counters, before.mct_work, discarded, events),
-            |after: (Part2DecodedLayoutTile, u8), rest|
-                part2_trailer_selected_run(size, parts, caps, tiles, region, discard, limits, index + 1, after.0, after.1, rest)),
+                before.prepared, before.counters, before.mct_work, discarded, rest),
+            |after: (Part2DecodedLayoutTile, u8), tail|
+                part2_trailer_selected_run(size, parts, caps, tiles, region, discard, limits, index + 1, after.0, after.1, tail))),
 {
     reveal_with_fuel(part2_trailer_selected_run, 1);
 }
@@ -718,7 +717,9 @@ pub(crate) proof fn part2_trailer_selected_normal(
     if index >= tiles.len() {
         part2_cold_pure::<Part2TrailerReconstructed>(result);
     } else {
-        match part2_collect_tile_parts(parts, tiles[index as int]) {
+        let collected = part2_collect_tile_parts(parts, tiles[index as int]);
+        part2_collected_parts_normal(parts, tiles[index as int]);
+        match collected {
             Err(_) => part2_cold_pure::<Part2TrailerReconstructed>(result),
             Ok(selected) => {
                 let tile = tiles[index as int];
@@ -735,8 +736,28 @@ pub(crate) proof fn part2_trailer_selected_normal(
                     |after: (Part2DecodedLayoutTile, u8), rest|
                         part2_trailer_selected_run(size, parts, caps, tiles, region, discard, limits, index + 1, after.0, after.1, rest),
                     decoded, result);
+                part2_decode_eta(|events| part2_jpip_snapshot_bind(
+                    part2_trailer_tile_run(size, tile, selected, caps, discard, limits,
+                        before.prepared, before.counters, before.mct_work, discarded, events),
+                    |after: (Part2DecodedLayoutTile, u8), rest|
+                        part2_trailer_selected_run(size, parts, caps, tiles, region, discard, limits, index + 1, after.0, after.1, rest)),
+                    result);
             },
         }
+        part2_cold_bind(|events| part2_collected_parts_run(parts, tiles[index as int], events),
+            |selected: Seq<Part2OwnedTilePart>, rest| part2_jpip_snapshot_bind(
+                part2_trailer_tile_run(size, tiles[index as int], selected, caps, discard, limits,
+                    before.prepared, before.counters, before.mct_work, discarded, rest),
+                |after: (Part2DecodedLayoutTile, u8), tail|
+                    part2_trailer_selected_run(size, parts, caps, tiles, region, discard, limits, index + 1, after.0, after.1, tail)),
+            collected, result);
+        part2_decode_eta(|events| part2_jpip_snapshot_bind(part2_collected_parts_run(parts, tiles[index as int], events),
+            |selected: Seq<Part2OwnedTilePart>, rest| part2_jpip_snapshot_bind(
+                part2_trailer_tile_run(size, tiles[index as int], selected, caps, discard, limits,
+                    before.prepared, before.counters, before.mct_work, discarded, rest),
+                |after: (Part2DecodedLayoutTile, u8), tail|
+                    part2_trailer_selected_run(size, parts, caps, tiles, region, discard, limits, index + 1, after.0, after.1, tail))),
+            result);
     }
 }
 
