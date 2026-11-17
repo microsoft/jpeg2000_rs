@@ -8253,6 +8253,32 @@ class FrameworkTests(WorkingFiles):
                     self.assertRaisesRegex(ValueError, "fallible copy storage"):
                 framework.validate_normative_coverage(dict(coverage, requirements=[entry]))
 
+    def test_inventory_precinct_publication_rejects_count_location_and_child_tail_changes(self):
+        coverage = json.loads((framework.VALIDATION / "normative-coverage.json").read_text())
+        entry = next(item for item in coverage["requirements"]
+                     if item["id"] == "part2-complete-native-component-tile-planning")
+        read_text = Path.read_text
+        for relative, before, after in (
+            ("src/decode/planning.rs", "reserve_additional(&mut builder.precincts, 1)",
+             "reserve_additional(&mut builder.precincts, 2)"),
+            ("specs/cold_resolution_plan.rs", "location:(component,resolution,precinct),before,planned",
+             "location:(component,resolution,0),before,planned"),
+            ("specs/cold_resolution_plan.rs",
+             "part2_precinct_publication_context(component,resolution,precinct as u32,before,planned),rest)",
+             "part2_precinct_publication_context(component,resolution,precinct as u32,before,planned),events)"),
+        ):
+            source = framework.ROOT / relative
+            original = read_text(source)
+            changed = original.replace(before, after, 1)
+            self.assertNotEqual(original, changed)
+
+            def altered(path, *args, **kwargs):
+                return changed if path == source else read_text(path, *args, **kwargs)
+
+            with self.subTest(mutation=before), mock.patch.object(Path, "read_text", altered), \
+                    self.assertRaisesRegex(ValueError, "resolution/precinct fresh storage"):
+                framework.validate_normative_coverage(dict(coverage, requirements=[entry]))
+
     def test_inventory_tagtree_storage_rejects_level_owner_source_and_consumption_changes(self):
         coverage = json.loads((framework.VALIDATION / "normative-coverage.json").read_text())
         entry = next(item for item in coverage["requirements"]

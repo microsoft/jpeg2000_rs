@@ -9,6 +9,10 @@ pub(crate) proof fn part2_cold_bind_associative<A,B,C>(run:Part2ColdRun<A>,
 pub(crate) open spec fn part2_component_after_precinct(before:Part2ComponentPlanBuffers,planned:Part2PlannedPrecinct)->Part2ComponentPlanBuffers {
     Part2ComponentPlanBuffers {precincts:before.precincts.push(planned.precinct),placements:planned.placements,planned_code_blocks:planned.planned_code_blocks}
 }
+pub(crate) open spec fn part2_precinct_publication_context(component:u16,resolution:u8,precinct:u32,
+    before:Part2ComponentPlanBuffers,planned:Part2PlannedPrecinct)->Part2PlanningCapacityContext {
+    Part2PlanningCapacityContext::PrecinctPublication {location:(component,resolution,precinct),before,planned}
+}
 #[verifier::opaque]
 pub(crate) open spec fn part2_resolution_precincts_run(component:u16,resolution:u8,meta:Part2ComponentPlanMetadata,data:Part2ResolutionPlanMetadata,
     policy:(bool,u8,bool),limits:&crate::ResourceLimits,precinct:nat,before:Part2ComponentPlanBuffers,events:Seq<Part2JpipSnapshotEvent>)
@@ -21,7 +25,9 @@ pub(crate) open spec fn part2_resolution_precincts_run(component:u16,resolution:
             Ok(origin)=>part2_jpip_snapshot_bind(part2_precinct_owner_run([origin[0],origin[1],data.band_size[0],data.band_size[1]],data.block_size,
                 meta.subbands,(data.first_subband,data.subband_count),meta.tier1_style,(policy.0,policy.1),(component,resolution,precinct as u32,before.precincts.len() as usize),
                 before.placements,before.planned_code_blocks,resolution<=meta.output_resolution,limits,events),
-                |planned:Part2PlannedPrecinct,rest|part2_resolution_precincts_run(component,resolution,meta,data,policy,limits,precinct+1,part2_component_after_precinct(before,planned),rest)),
+                |planned:Part2PlannedPrecinct,rest|part2_jpip_snapshot_bind(
+                    part2_planning_capacity_run(part2_precinct_publication_context(component,resolution,precinct as u32,before,planned),rest),
+                    |_:(),tail|part2_resolution_precincts_run(component,resolution,meta,data,policy,limits,precinct+1,part2_component_after_precinct(before,planned),tail))),
         }
     }
 }
@@ -48,6 +54,7 @@ pub(crate) proof fn part2_resolution_precincts_normal(component:u16,resolution:u
     decreases if precinct<data.precincts_in_resolution{(data.precincts_in_resolution as int-precinct) as nat}else{0nat},
 {
     reveal_with_fuel(part2_resolution_precincts_run,1);reveal_with_fuel(part2_component_plan_precincts,1);reveal(part2_precinct_owner_result);
+    reveal(part2_planning_capacity_result);
     let result=part2_component_plan_precincts(component,resolution,meta,data,policy,limits,precinct,before);
     if precinct>=data.precincts_in_resolution {part2_cold_pure::<Part2ComponentPlanBuffers>(result);}else{
         match part2_planned_precinct_origin(data.first_precinct,data.geometry.precincts_across,precinct as u32,data.band_size) {
@@ -61,12 +68,19 @@ pub(crate) proof fn part2_resolution_precincts_normal(component:u16,resolution:u
                 let planned=part2_planned_precinct(band,data.block_size,meta.subbands,range,meta.tier1_style,(policy.0,policy.1),location,before.placements,before.planned_code_blocks,selected,limits);
                 if let Ok(value)=planned {
                     let after=part2_component_after_precinct(before,value);
+                    let context=part2_precinct_publication_context(component,resolution,precinct as u32,before,value);
+                    part2_planning_capacity_observed(context,Ok(()));
                     part2_resolution_precincts_normal(component,resolution,meta,data,policy,limits,precinct+1,after);
                     part2_decode_eta(|events|part2_resolution_precincts_run(component,resolution,meta,data,policy,limits,precinct+1,after,events),
                         part2_component_plan_precincts(component,resolution,meta,data,policy,limits,precinct+1,after));
+                    part2_cold_bind(|events|part2_planning_capacity_run(context,events),
+                        |_:(),tail|part2_resolution_precincts_run(component,resolution,meta,data,policy,limits,precinct+1,after,tail),
+                        Ok(()),part2_component_plan_precincts(component,resolution,meta,data,policy,limits,precinct+1,after));
                 }
                 part2_cold_bind(|events|part2_precinct_owner_run(band,data.block_size,meta.subbands,range,meta.tier1_style,(policy.0,policy.1),location,before.placements,before.planned_code_blocks,selected,limits,events),
-                    |planned:Part2PlannedPrecinct,rest|part2_resolution_precincts_run(component,resolution,meta,data,policy,limits,precinct+1,part2_component_after_precinct(before,planned),rest),planned,result);
+                    |planned:Part2PlannedPrecinct,rest|part2_jpip_snapshot_bind(
+                        part2_planning_capacity_run(part2_precinct_publication_context(component,resolution,precinct as u32,before,planned),rest),
+                        |_:(),tail|part2_resolution_precincts_run(component,resolution,meta,data,policy,limits,precinct+1,part2_component_after_precinct(before,planned),tail)),planned,result);
             },
         }
     }
@@ -142,8 +156,10 @@ pub(crate) proof fn part2_resolution_precinct_step(size:&crate::codestream::Imag
             (data.first_subband,data.subband_count),meta.tier1_style,(policy.0,policy.1),(component,resolution as u8,precinct as u32,before.precincts.len() as usize),
             before.placements,before.planned_code_blocks,resolution<=meta.output_resolution,limits,events),
             |planned:Part2PlannedPrecinct,rest|part2_jpip_snapshot_bind(
-                part2_resolution_precincts_run(component,resolution as u8,meta,data,policy,limits,precinct+1,part2_component_after_precinct(before,planned),rest),
-                |after:Part2ComponentPlanBuffers,tail|part2_resolution_next(size,component,tile,meta,policy,limits,resolution,after,tail))),
+                part2_planning_capacity_run(part2_precinct_publication_context(component,resolution as u8,precinct as u32,before,planned),rest),
+                |_:(),tail|part2_jpip_snapshot_bind(
+                    part2_resolution_precincts_run(component,resolution as u8,meta,data,policy,limits,precinct+1,part2_component_after_precinct(before,planned),tail),
+                    |after:Part2ComponentPlanBuffers,last|part2_resolution_next(size,component,tile,meta,policy,limits,resolution,after,last)))),
 {
     reveal_with_fuel(part2_resolution_precincts_run,1);
     assert forall|events:Seq<Part2JpipSnapshotEvent>|
@@ -153,13 +169,32 @@ pub(crate) proof fn part2_resolution_precinct_step(size:&crate::codestream::Imag
             (data.first_subband,data.subband_count),meta.tier1_style,(policy.0,policy.1),(component,resolution as u8,precinct as u32,before.precincts.len() as usize),
             before.placements,before.planned_code_blocks,resolution<=meta.output_resolution,limits,events),
             |planned:Part2PlannedPrecinct,rest|part2_jpip_snapshot_bind(
-                part2_resolution_precincts_run(component,resolution as u8,meta,data,policy,limits,precinct+1,part2_component_after_precinct(before,planned),rest),
-                |after:Part2ComponentPlanBuffers,tail|part2_resolution_next(size,component,tile,meta,policy,limits,resolution,after,tail))) by{
+                part2_planning_capacity_run(part2_precinct_publication_context(component,resolution as u8,precinct as u32,before,planned),rest),
+                |_:(),tail|part2_jpip_snapshot_bind(
+                    part2_resolution_precincts_run(component,resolution as u8,meta,data,policy,limits,precinct+1,part2_component_after_precinct(before,planned),tail),
+                    |after:Part2ComponentPlanBuffers,last|part2_resolution_next(size,component,tile,meta,policy,limits,resolution,after,last)))) by{
         part2_cold_bind_associative(part2_precinct_owner_run([origin[0],origin[1],data.band_size[0],data.band_size[1]],data.block_size,meta.subbands,
             (data.first_subband,data.subband_count),meta.tier1_style,(policy.0,policy.1),(component,resolution as u8,precinct as u32,before.precincts.len() as usize),
             before.placements,before.planned_code_blocks,resolution<=meta.output_resolution,limits,events),
-            |planned:Part2PlannedPrecinct,rest|part2_resolution_precincts_run(component,resolution as u8,meta,data,policy,limits,precinct+1,part2_component_after_precinct(before,planned),rest),
+            |planned:Part2PlannedPrecinct,rest|part2_jpip_snapshot_bind(
+                part2_planning_capacity_run(part2_precinct_publication_context(component,resolution as u8,precinct as u32,before,planned),rest),
+                |_:(),tail|part2_resolution_precincts_run(component,resolution as u8,meta,data,policy,limits,precinct+1,part2_component_after_precinct(before,planned),tail)),
             |after:Part2ComponentPlanBuffers,rest|part2_resolution_next(size,component,tile,meta,policy,limits,resolution,after,rest));
+        assert forall|planned:Part2PlannedPrecinct,rest:Seq<Part2JpipSnapshotEvent>|
+            part2_jpip_snapshot_bind(part2_jpip_snapshot_bind(
+                #[trigger] part2_planning_capacity_run(part2_precinct_publication_context(component,resolution as u8,precinct as u32,before,planned),rest),
+                |_:(),tail|part2_resolution_precincts_run(component,resolution as u8,meta,data,policy,limits,precinct+1,part2_component_after_precinct(before,planned),tail)),
+                |after:Part2ComponentPlanBuffers,tail|part2_resolution_next(size,component,tile,meta,policy,limits,resolution,after,tail))
+            ==part2_jpip_snapshot_bind(
+                part2_planning_capacity_run(part2_precinct_publication_context(component,resolution as u8,precinct as u32,before,planned),rest),
+                |_:(),tail|part2_jpip_snapshot_bind(
+                    part2_resolution_precincts_run(component,resolution as u8,meta,data,policy,limits,precinct+1,part2_component_after_precinct(before,planned),tail),
+                    |after:Part2ComponentPlanBuffers,last|part2_resolution_next(size,component,tile,meta,policy,limits,resolution,after,last))) by{
+            part2_cold_bind_associative(
+                part2_planning_capacity_run(part2_precinct_publication_context(component,resolution as u8,precinct as u32,before,planned),rest),
+                |_:(),tail|part2_resolution_precincts_run(component,resolution as u8,meta,data,policy,limits,precinct+1,part2_component_after_precinct(before,planned),tail),
+                |after:Part2ComponentPlanBuffers,tail|part2_resolution_next(size,component,tile,meta,policy,limits,resolution,after,tail));
+        }
     }
 }
 pub(crate) proof fn part2_resolution_precinct_end(component:u16,resolution:u8,meta:Part2ComponentPlanMetadata,data:Part2ResolutionPlanMetadata,
