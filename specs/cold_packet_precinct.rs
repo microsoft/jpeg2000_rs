@@ -30,6 +30,76 @@ pub(crate) proof fn part2_precinct_capacity_observed(context:Part2PrecinctCapaci
     }
     assert(part2_cold_prefix(|events|part2_precinct_capacity_run(context,events),prefix,result));
 }
+pub(crate) open spec fn part2_precinct_context_capacity_context(
+    states:Seq<Part1CodeBlockPacketState>,contexts:Seq<crate::packet::CodeBlockPacketContext>,
+    count:usize,across:u32,maximum_zero:u16,style:crate::tier1::Tier1CodingStyle,contexts_owner:bool,
+) -> Part2PlanningCapacityContext {
+    Part2PlanningCapacityContext::PrecinctContexts {states,contexts,count,across,maximum_zero,style,contexts_owner}
+}
+pub(crate) open spec fn part2_precinct_contexts_run(
+    states:Seq<Part1CodeBlockPacketState>,contexts:Seq<crate::packet::CodeBlockPacketContext>,
+    count:usize,across:u32,maximum_zero:u16,style:crate::tier1::Tier1CodingStyle,events:Seq<Part2JpipSnapshotEvent>,
+) -> Part2ColdRun<(Seq<Part1CodeBlockPacketState>,Seq<crate::packet::CodeBlockPacketContext>)> {
+    let result=part2_precinct_contexts(states,contexts,count,across,maximum_zero,style);
+    match result {
+        Err(error)=>Some((Err(error),events)),
+        Ok(_)=>part2_jpip_snapshot_bind(
+            part2_planning_capacity_run(part2_precinct_context_capacity_context(states,contexts,count,across,maximum_zero,style,false),events),
+            |_:(),rest|part2_jpip_snapshot_bind(
+                part2_planning_capacity_run(part2_precinct_context_capacity_context(states,contexts,count,across,maximum_zero,style,true),rest),
+                |_:(),tail|Some((result,tail)))),
+    }
+}
+pub(crate) open spec fn part2_precinct_contexts_result(
+    states:Seq<Part1CodeBlockPacketState>,contexts:Seq<crate::packet::CodeBlockPacketContext>,
+    count:usize,across:u32,maximum_zero:u16,style:crate::tier1::Tier1CodingStyle,
+    result:Result<(Seq<Part1CodeBlockPacketState>,Seq<crate::packet::CodeBlockPacketContext>),crate::DecodeError>,
+) -> bool {
+    part2_cold_framed(|events|part2_precinct_contexts_run(states,contexts,count,across,maximum_zero,style,events),result)
+}
+pub(crate) proof fn part2_precinct_contexts_normal(
+    states:Seq<Part1CodeBlockPacketState>,contexts:Seq<crate::packet::CodeBlockPacketContext>,
+    count:usize,across:u32,maximum_zero:u16,style:crate::tier1::Tier1CodingStyle,
+)
+    ensures part2_precinct_contexts_result(states,contexts,count,across,maximum_zero,style,
+        part2_precinct_contexts(states,contexts,count,across,maximum_zero,style)),
+{
+    reveal(part2_planning_capacity_result);
+    let result=part2_precinct_contexts(states,contexts,count,across,maximum_zero,style);
+    part2_cold_pure(result);
+    if result.is_ok() {
+        let first=part2_precinct_context_capacity_context(states,contexts,count,across,maximum_zero,style,false);
+        let last=part2_precinct_context_capacity_context(states,contexts,count,across,maximum_zero,style,true);
+        part2_planning_capacity_observed(first,Ok(()));
+        part2_planning_capacity_observed(last,Ok(()));
+        part2_cold_bind(|events|part2_planning_capacity_run(last,events),|_:(),tail|Some((result,tail)),Ok(()),result);
+        part2_decode_eta(|events|part2_jpip_snapshot_bind(part2_planning_capacity_run(last,events),|_:(),tail|Some((result,tail))),result);
+        part2_cold_bind(|events|part2_planning_capacity_run(first,events),
+            |_:(),rest|part2_jpip_snapshot_bind(part2_planning_capacity_run(last,rest),|_:(),tail|Some((result,tail))),Ok(()),result);
+    }
+}
+pub(crate) proof fn part2_precinct_contexts_refused(
+    states:Seq<Part1CodeBlockPacketState>,contexts:Seq<crate::packet::CodeBlockPacketContext>,
+    count:usize,across:u32,maximum_zero:u16,style:crate::tier1::Tier1CodingStyle,contexts_owner:bool,error:crate::DecodeError,
+)
+    requires part2_precinct_contexts(states,contexts,count,across,maximum_zero,style).is_ok(),
+        part2_planning_capacity_result(part2_precinct_context_capacity_context(states,contexts,count,across,maximum_zero,style,contexts_owner),Err(error)),
+        contexts_owner ==> part2_planning_capacity_result(
+            part2_precinct_context_capacity_context(states,contexts,count,across,maximum_zero,style,false),Ok(())),
+    ensures part2_precinct_contexts_result(states,contexts,count,across,maximum_zero,style,Err(error)),
+{
+    reveal(part2_planning_capacity_result);
+    let result=part2_precinct_contexts(states,contexts,count,across,maximum_zero,style);
+    let first=part2_precinct_context_capacity_context(states,contexts,count,across,maximum_zero,style,false);
+    let last=part2_precinct_context_capacity_context(states,contexts,count,across,maximum_zero,style,true);
+    if contexts_owner {
+        part2_cold_bind(|events|part2_planning_capacity_run(last,events),|_:(),tail|Some((result,tail)),Err(error),Err(error));
+        part2_decode_eta(|events|part2_jpip_snapshot_bind(part2_planning_capacity_run(last,events),|_:(),tail|Some((result,tail))),Err(error));
+    }
+    part2_cold_bind(|events|part2_planning_capacity_run(first,events),
+        |_:(),rest|part2_jpip_snapshot_bind(part2_planning_capacity_run(last,rest),|_:(),tail|Some((result,tail))),
+        if contexts_owner {Ok(())}else{Err(error)},Err(error));
+}
 pub(crate) open spec fn part2_precinct_tree_prelude(before:Part1PacketPrecinctState,total:u64,row:Part2PacketSubbandExecution,
     style:crate::tier1::Tier1CodingStyle,limits:&crate::ResourceLimits)->Result<(Part1PacketPrecinctState,u64),crate::DecodeError> {
     if row.across==0 || row.down==0 || row.maximum_zero==0 || row.maximum_zero>crate::tier1::MAX_TIER1_BITPLANES {
@@ -47,6 +117,97 @@ pub(crate) open spec fn part2_precinct_tree_prelude(before:Part1PacketPrecinctSt
             Err(error)=>Err(error),Ok(contexts)=>Ok((Part1PacketPrecinctState {states:contexts.0,contexts:contexts.1,decoders:before.decoders+row.decoders,..before},next as u64)),
         }}
     }
+}
+pub(crate) open spec fn part2_precinct_decoder_capacity_context(
+    before:Part1PacketPrecinctState,total:u64,row:Part2PacketSubbandExecution,style:crate::tier1::Tier1CodingStyle,
+) -> Part2PlanningCapacityContext {
+    Part2PlanningCapacityContext::PrecinctDecoders {before,total,row,style}
+}
+pub(crate) open spec fn part2_precinct_prelude_run(
+    before:Part1PacketPrecinctState,total:u64,row:Part2PacketSubbandExecution,
+    style:crate::tier1::Tier1CodingStyle,limits:&crate::ResourceLimits,events:Seq<Part2JpipSnapshotEvent>,
+) -> Part2ColdRun<(Part1PacketPrecinctState,u64)> {
+    let result=part2_precinct_tree_prelude(before,total,row,style,limits);
+    match result {
+        Err(error)=>Some((Err(error),events)),
+        Ok(_)=>part2_jpip_snapshot_bind(
+            part2_precinct_contexts_run(before.states,before.contexts,row.decoders.len() as usize,row.across,row.maximum_zero,style,events),
+            |_: (Seq<Part1CodeBlockPacketState>,Seq<crate::packet::CodeBlockPacketContext>),rest|
+                part2_jpip_snapshot_bind(part2_planning_capacity_run(part2_precinct_decoder_capacity_context(before,total,row,style),rest),
+                    |_:(),tail|Some((result,tail)))),
+    }
+}
+pub(crate) open spec fn part2_precinct_prelude_result(
+    before:Part1PacketPrecinctState,total:u64,row:Part2PacketSubbandExecution,
+    style:crate::tier1::Tier1CodingStyle,limits:&crate::ResourceLimits,
+    result:Result<(Part1PacketPrecinctState,u64),crate::DecodeError>,
+) -> bool {
+    part2_cold_framed(|events|part2_precinct_prelude_run(before,total,row,style,limits,events),result)
+}
+pub(crate) proof fn part2_precinct_prelude_normal(
+    before:Part1PacketPrecinctState,total:u64,row:Part2PacketSubbandExecution,
+    style:crate::tier1::Tier1CodingStyle,limits:&crate::ResourceLimits,
+)
+    ensures part2_precinct_prelude_result(before,total,row,style,limits,part2_precinct_tree_prelude(before,total,row,style,limits)),
+{
+    reveal(part2_planning_capacity_result);
+    let result=part2_precinct_tree_prelude(before,total,row,style,limits);
+    part2_cold_pure(result);
+    if result.is_ok() {
+        let count=row.decoders.len() as usize;
+        let contexts=part2_precinct_contexts(before.states,before.contexts,count,row.across,row.maximum_zero,style);
+        part2_precinct_contexts_normal(before.states,before.contexts,count,row.across,row.maximum_zero,style);
+        let capacity=part2_precinct_decoder_capacity_context(before,total,row,style);
+        part2_planning_capacity_observed(capacity,Ok(()));
+        part2_cold_bind(|events|part2_planning_capacity_run(capacity,events),
+            |_:(),tail|Some((result,tail)),Ok(()),result);
+        part2_decode_eta(|events|part2_jpip_snapshot_bind(part2_planning_capacity_run(capacity,events),
+            |_:(),tail|Some((result,tail))),result);
+        part2_cold_bind(|events|part2_precinct_contexts_run(before.states,before.contexts,count,row.across,row.maximum_zero,style,events),
+            |_: (Seq<Part1CodeBlockPacketState>,Seq<crate::packet::CodeBlockPacketContext>),rest|
+                part2_jpip_snapshot_bind(part2_planning_capacity_run(capacity,rest),|_:(),tail|Some((result,tail))),contexts,result);
+    }
+}
+pub(crate) proof fn part2_precinct_prelude_contexts_refused(
+    before:Part1PacketPrecinctState,total:u64,row:Part2PacketSubbandExecution,
+    style:crate::tier1::Tier1CodingStyle,limits:&crate::ResourceLimits,error:crate::DecodeError,
+)
+    requires part2_precinct_tree_prelude(before,total,row,style,limits).is_ok(),
+        part2_precinct_contexts_result(before.states,before.contexts,row.decoders.len() as usize,
+            row.across,row.maximum_zero,style,Err(error)),
+    ensures part2_precinct_prelude_result(before,total,row,style,limits,Err(error)),
+{
+    let result=part2_precinct_tree_prelude(before,total,row,style,limits);
+    let capacity=part2_precinct_decoder_capacity_context(before,total,row,style);
+    part2_cold_bind(|events|part2_precinct_contexts_run(before.states,before.contexts,row.decoders.len() as usize,row.across,row.maximum_zero,style,events),
+        |_: (Seq<Part1CodeBlockPacketState>,Seq<crate::packet::CodeBlockPacketContext>),rest|
+            part2_jpip_snapshot_bind(part2_planning_capacity_run(capacity,rest),|_:(),tail|Some((result,tail))),
+        Err(error),Err(error));
+}
+pub(crate) proof fn part2_precinct_prelude_decoder_observed(
+    before:Part1PacketPrecinctState,total:u64,row:Part2PacketSubbandExecution,
+    style:crate::tier1::Tier1CodingStyle,limits:&crate::ResourceLimits,prepared:(Part1PacketPrecinctState,u64),
+    response:Result<(),crate::DecodeError>,
+)
+    requires part2_precinct_tree_prelude(before,total,row,style,limits)==Ok(prepared),
+        part2_precinct_contexts_result(before.states,before.contexts,row.decoders.len() as usize,
+            row.across,row.maximum_zero,style,Ok((prepared.0.states,prepared.0.contexts))),
+        part2_planning_capacity_result(part2_precinct_decoder_capacity_context(before,total,row,style),response),
+    ensures part2_precinct_prelude_result(before,total,row,style,limits,
+        match response {Err(error)=>Err(error),Ok(())=>Ok(prepared)}),
+{
+    reveal(part2_planning_capacity_result);
+    let result=match response {Err(error)=>Err(error),Ok(())=>Ok(prepared)};
+    let capacity=part2_precinct_decoder_capacity_context(before,total,row,style);
+    part2_cold_pure(Ok(prepared));
+    part2_cold_bind(|events|part2_planning_capacity_run(capacity,events),
+        |_:(),tail|Some((Ok(prepared),tail)),response,result);
+    part2_decode_eta(|events|part2_jpip_snapshot_bind(part2_planning_capacity_run(capacity,events),
+        |_:(),tail|Some((Ok(prepared),tail))),result);
+    part2_cold_bind(|events|part2_precinct_contexts_run(before.states,before.contexts,row.decoders.len() as usize,row.across,row.maximum_zero,style,events),
+        |_: (Seq<Part1CodeBlockPacketState>,Seq<crate::packet::CodeBlockPacketContext>),rest|
+            part2_jpip_snapshot_bind(part2_planning_capacity_run(capacity,rest),|_:(),tail|Some((Ok(prepared),tail))),
+        Ok((prepared.0.states,prepared.0.contexts)),result);
 }
 pub(crate) open spec fn part2_precinct_tree_context(prepared:(Part1PacketPrecinctState,u64),row:Part2PacketSubbandExecution,index:nat,zero:bool,inclusion:Option<Part1TagTree>,
     limits:&crate::ResourceLimits)->Part2PrecinctTreeContext {
@@ -66,11 +227,10 @@ pub(crate) open spec fn part2_precinct_state_rows(executions:Seq<Part2PacketSubb
 {
     if index>=executions.len(){Some((Ok(before),events))}else{
         let row=executions[index as int];
-        match part2_precinct_tree_prelude(before,total,row,style,limits) {
-            Err(error)=>Some((Err(error),events)),
-            Ok(prepared)=>part2_jpip_snapshot_bind(part2_precinct_tree_run(part2_precinct_tree_context(prepared,row,index,false,None,limits),events),
-                |inclusion:Part1TagTree,rest|part2_precinct_state_after_inclusion(executions,style,limits,index,before,total,prepared,inclusion,rest)),
-        }
+        part2_jpip_snapshot_bind(part2_precinct_prelude_run(before,total,row,style,limits,events),
+            |prepared:(Part1PacketPrecinctState,u64),rest|part2_jpip_snapshot_bind(
+                part2_precinct_tree_run(part2_precinct_tree_context(prepared,row,index,false,None,limits),rest),
+                |inclusion:Part1TagTree,tail|part2_precinct_state_after_inclusion(executions,style,limits,index,before,total,prepared,inclusion,tail)))
     }
 }
 #[verifier::opaque]
@@ -95,7 +255,9 @@ pub(crate) proof fn part2_precinct_state_rows_normal(executions:Seq<Part2PacketS
     let result=part2_precinct_initialization_run(executions,style,limits,index,before,total);
     if index>=executions.len(){part2_cold_pure::<Part1PacketPrecinctState>(result);}else{
         let row=executions[index as int];
-        match part2_precinct_tree_prelude(before,total,row,style,limits) {
+        let prepared_result=part2_precinct_tree_prelude(before,total,row,style,limits);
+        part2_precinct_prelude_normal(before,total,row,style,limits);
+        match prepared_result {
             Err(_)=>{part2_cold_pure::<Part1PacketPrecinctState>(result);},
             Ok(prepared)=>{
                 let context=part2_precinct_tree_context(prepared,row,index,false,None,limits);
@@ -107,8 +269,19 @@ pub(crate) proof fn part2_precinct_state_rows_normal(executions:Seq<Part2PacketS
                 }
                 part2_cold_bind(|events|part2_precinct_tree_run(context,events),
                     |inclusion:Part1TagTree,rest|part2_precinct_state_after_inclusion(executions,style,limits,index,before,total,prepared,inclusion,rest),inclusion,result);
+                part2_decode_eta(|events|part2_jpip_snapshot_bind(part2_precinct_tree_run(context,events),
+                    |inclusion:Part1TagTree,rest|part2_precinct_state_after_inclusion(executions,style,limits,index,before,total,prepared,inclusion,rest)),result);
             },
         }
+        part2_cold_bind(|events|part2_precinct_prelude_run(before,total,row,style,limits,events),
+            |prepared:(Part1PacketPrecinctState,u64),rest|part2_jpip_snapshot_bind(
+                part2_precinct_tree_run(part2_precinct_tree_context(prepared,row,index,false,None,limits),rest),
+                |inclusion:Part1TagTree,tail|part2_precinct_state_after_inclusion(executions,style,limits,index,before,total,prepared,inclusion,tail)),
+            prepared_result,result);
+        part2_decode_eta(|events|part2_jpip_snapshot_bind(part2_precinct_prelude_run(before,total,row,style,limits,events),
+            |prepared:(Part1PacketPrecinctState,u64),rest|part2_jpip_snapshot_bind(
+                part2_precinct_tree_run(part2_precinct_tree_context(prepared,row,index,false,None,limits),rest),
+                |inclusion:Part1TagTree,tail|part2_precinct_state_after_inclusion(executions,style,limits,index,before,total,prepared,inclusion,tail))),result);
     }
 }
 pub(crate) proof fn part2_precinct_after_inclusion_normal(executions:Seq<Part2PacketSubbandExecution>,style:crate::tier1::Tier1CodingStyle,limits:&crate::ResourceLimits,
@@ -188,11 +361,13 @@ pub(crate) proof fn part2_precinct_state_start(component:u16,resolution:u8,preci
     prefix
 }
 pub(crate) proof fn part2_precinct_state_inclusion_step(executions:Seq<Part2PacketSubbandExecution>,style:crate::tier1::Tier1CodingStyle,limits:&crate::ResourceLimits,
-    index:nat,before:Part1PacketPrecinctState,total:u64,prepared:(Part1PacketPrecinctState,u64))
-    requires index<executions.len(),part2_precinct_tree_prelude(before,total,executions[index as int],style,limits)==Ok(prepared),
+    index:nat,before:Part1PacketPrecinctState,total:u64)
+    requires index<executions.len(),
     ensures forall|events:Seq<Part2JpipSnapshotEvent>| #[trigger] part2_precinct_state_rows(executions,style,limits,index,before,total,events)
-        ==part2_jpip_snapshot_bind(part2_precinct_tree_run(part2_precinct_tree_context(prepared,executions[index as int],index,false,None,limits),events),
-            |inclusion:Part1TagTree,rest|part2_precinct_state_after_inclusion(executions,style,limits,index,before,total,prepared,inclusion,rest)),
+        ==part2_jpip_snapshot_bind(part2_precinct_prelude_run(before,total,executions[index as int],style,limits,events),
+            |prepared:(Part1PacketPrecinctState,u64),rest|part2_jpip_snapshot_bind(
+                part2_precinct_tree_run(part2_precinct_tree_context(prepared,executions[index as int],index,false,None,limits),rest),
+                |inclusion:Part1TagTree,tail|part2_precinct_state_after_inclusion(executions,style,limits,index,before,total,prepared,inclusion,tail))),
 {reveal_with_fuel(part2_precinct_state_rows,2);reveal_with_fuel(part2_precinct_state_after_inclusion,1);}
 pub(crate) proof fn part2_precinct_state_zero_step(executions:Seq<Part2PacketSubbandExecution>,style:crate::tier1::Tier1CodingStyle,limits:&crate::ResourceLimits,
     index:nat,before:Part1PacketPrecinctState,total:u64,prepared:(Part1PacketPrecinctState,u64),inclusion:Part1TagTree)

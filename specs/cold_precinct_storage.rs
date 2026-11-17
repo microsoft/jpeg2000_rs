@@ -10,12 +10,17 @@ pub enum Part2PlanningCapacityContext {
         placements:Seq<crate::decode::ProgressionCodeBlockPlacement>,total:u64,selected:bool},
     CodeBlockGrowth {cell:Part2Tier1CallContext,subband:crate::decode::SubbandGeometry,
         geometry:(u32,u32,u16,u16),placements:bool},
+    PrecinctContexts {states:Seq<Part1CodeBlockPacketState>,contexts:Seq<crate::packet::CodeBlockPacketContext>,
+        count:usize,across:u32,maximum_zero:u16,style:crate::tier1::Tier1CodingStyle,contexts_owner:bool},
+    PrecinctDecoders {before:Part1PacketPrecinctState,total:u64,row:Part2PacketSubbandExecution,style:crate::tier1::Tier1CodingStyle},
 }
 pub(crate) open spec fn part2_planning_capacity_count(context:Part2PlanningCapacityContext)->usize {
     match context {
         Part2PlanningCapacityContext::Executions {range,..}=>range.1,
         Part2PlanningCapacityContext::Decoders {blocks,..}=>(blocks[0] as nat*blocks[1] as nat) as usize,
         Part2PlanningCapacityContext::CodeBlockGrowth {..}=>1,
+        Part2PlanningCapacityContext::PrecinctContexts {count,..}=>count,
+        Part2PlanningCapacityContext::PrecinctDecoders {row,..}=>row.decoders.len() as usize,
     }
 }
 pub(crate) open spec fn part2_planning_capacity_run(context:Part2PlanningCapacityContext,events:Seq<Part2JpipSnapshotEvent>)->Part2ColdRun<()> {

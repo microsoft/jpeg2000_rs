@@ -303,10 +303,14 @@ impl PacketSubbandState {
 }
 
 #[cfg_attr(verus_keep_ghost, verus_spec(result =>
-    ensures precinct_contexts_outcome(result) == crate::specs::part2_precinct_contexts(
-        packet_states_view(before_states@),
-        before_contexts@, count, across, maximum_zero, tier1_style,
-    ),
+    ensures crate::specs::part2_precinct_contexts_result(packet_states_view(before_states@),before_contexts@,
+        count,across,maximum_zero,tier1_style,precinct_contexts_outcome(result)),
+        precinct_contexts_outcome(result) == Err(DecodeError::AllocationFailed) ==>
+            crate::specs::part2_precinct_contexts(packet_states_view(before_states@),before_contexts@,
+                count,across,maximum_zero,tier1_style).is_ok(),
+        precinct_contexts_outcome(result) != Err(DecodeError::AllocationFailed) ==>
+            precinct_contexts_outcome(result) == crate::specs::part2_precinct_contexts(
+                packet_states_view(before_states@),before_contexts@,count,across,maximum_zero,tier1_style),
 ))]
 pub(crate) fn prepare_precinct_contexts(
     before_states: Vec<CodeBlockPacketState>,
@@ -321,12 +325,45 @@ pub(crate) fn prepare_precinct_contexts(
         let ghost initial_states = before_states@.map_values(|state: CodeBlockPacketState| code_block_packet_state_view(&state));
         let ghost initial_contexts = before_contexts@;
     }
+    #[cfg(verus_keep_ghost)]
+    proof! {
+        crate::specs::part2_precinct_contexts_normal(initial_states,initial_contexts,count,across,maximum_zero,tier1_style);
+    }
     let mut states = before_states;
     let mut contexts = before_contexts;
+    if count != 0 {
+        if across == 0 || u32::try_from(count - 1).is_err() {
+            return Err(packet_arithmetic_overflow());
+        }
+        let reserved = crate::allocation::reserve_additional(&mut states, count);
+        #[cfg(verus_keep_ghost)]
+        proof! {
+            crate::specs::part2_planning_capacity_observed(
+                crate::specs::part2_precinct_context_capacity_context(initial_states,initial_contexts,count,across,maximum_zero,tier1_style,false),
+                crate::allocation::inspection_capacity_outcome(reserved));
+            if let Err(error)=reserved {
+                crate::specs::part2_precinct_contexts_refused(initial_states,initial_contexts,count,across,maximum_zero,tier1_style,false,error);
+            }
+        }
+        reserved?;
+        let reserved = crate::allocation::reserve_additional(&mut contexts, count);
+        #[cfg(verus_keep_ghost)]
+        proof! {
+            crate::specs::part2_planning_capacity_observed(
+                crate::specs::part2_precinct_context_capacity_context(initial_states,initial_contexts,count,across,maximum_zero,tier1_style,true),
+                crate::allocation::inspection_capacity_outcome(reserved));
+            if let Err(error)=reserved {
+                crate::specs::part2_precinct_contexts_refused(initial_states,initial_contexts,count,across,maximum_zero,tier1_style,true,error);
+            }
+        }
+        reserved?;
+    }
     let mut local_index = 0_usize;
     #[cfg_attr(verus_keep_ghost, verus_spec(
         invariant
             local_index <= count,
+            count as nat <= u32::MAX as nat + 1,
+            count == 0 || across != 0,
             local_index as nat <= u32::MAX as nat + 1,
             local_index == 0 || across != 0,
             states@.map_values(|state: CodeBlockPacketState| code_block_packet_state_view(&state))
@@ -370,6 +407,10 @@ pub(crate) fn prepare_precinct_contexts(
         local_index = local_index
             .checked_add(1)
             .ok_or_else(packet_arithmetic_overflow)?;
+    }
+    #[cfg(verus_keep_ghost)]
+    proof! {
+        crate::specs::part2_precinct_contexts_normal(initial_states,initial_contexts,count,across,maximum_zero,tier1_style);
     }
     Ok((states, contexts))
 }
@@ -658,21 +699,76 @@ pub(crate) fn packet_precinct_from_subbands(
             return Err(invalid_packet_header());
         }
         let first_decoder = decoders.len();
-        let prepared = prepare_precinct_contexts(
+        #[cfg(verus_keep_ghost)]
+        proof_decl! {
+            let ghost prelude_child=|events|crate::specs::part2_precinct_prelude_run(previous_state,previous_total,row,tier1_style,limits,events);
+            let ghost next_prepared=|prepared:(crate::specs::Part1PacketPrecinctState,u64),rest|
+                crate::specs::part2_jpip_snapshot_bind(
+                    crate::specs::part2_precinct_tree_run(crate::specs::part2_precinct_tree_context(prepared,row,execution_index as nat,false,None,limits),rest),
+                    |inclusion:crate::specs::Part1TagTree,tail|
+                        crate::specs::part2_precinct_state_after_inclusion(original,tier1_style,limits,execution_index as nat,
+                            previous_state,previous_total,prepared,inclusion,tail));
+        }
+        #[cfg(verus_keep_ghost)]
+        proof! {
+            crate::specs::part2_precinct_state_inclusion_step(original,tier1_style,limits,execution_index as nat,previous_state,previous_total);
+            assert forall|events|root(prefix+events)==crate::specs::part2_jpip_snapshot_bind(prelude_child(events),next_prepared) by {
+                assert(root(prefix+events)==crate::specs::part2_precinct_state_rows(original,tier1_style,limits,
+                    execution_index as nat,previous_state,previous_total,events));
+            }
+        }
+        let prepared_result = prepare_precinct_contexts(
             states,
             contexts,
             count,
             execution.code_blocks_across,
             execution.maximum_zero_bitplanes,
             tier1_style,
-        )?;
+        );
+        #[cfg(verus_keep_ghost)]
+        proof_decl! {let ghost contexts_reply=precinct_contexts_outcome(prepared_result);}
+        #[cfg(verus_keep_ghost)]
+        proof! {
+            if let Err(error)=prepared_result {
+                if error==DecodeError::AllocationFailed {
+                    assert(crate::specs::part2_precinct_tree_prelude(previous_state,previous_total,row,tier1_style,limits).is_ok());
+                    crate::specs::part2_precinct_prelude_contexts_refused(previous_state,previous_total,row,tier1_style,limits,error);
+                    crate::specs::part2_decode_prefix_error(root,prelude_child,next_prepared,prefix,error);
+                    crate::specs::part2_precinct_state_join(component,resolution,precinct,tier1_style,original,limits,root,Err(error));
+                }
+            }
+        }
+        let prepared = prepared_result?;
         states = prepared.0;
         contexts = prepared.1;
         #[cfg(verus_keep_ghost)]
         proof_decl! {
             let ghost previous_decoders = decoders@;
             let ghost row_decoders = execution.decoders@;
+            let ghost expected_prepared=crate::specs::part2_precinct_tree_prelude(previous_state,previous_total,row,tier1_style,limits).get_Ok_0();
         }
+        let reserved = if execution.decoders.is_empty() {
+            Ok(())
+        } else {
+            crate::allocation::reserve_additional(&mut decoders, execution.decoders.len())
+        };
+        #[cfg(verus_keep_ghost)]
+        proof! {
+            assert(crate::specs::part2_precinct_tree_prelude(previous_state,previous_total,row,tier1_style,limits)==Ok(expected_prepared));
+            crate::specs::part2_planning_capacity_observed(
+                crate::specs::part2_precinct_decoder_capacity_context(previous_state,previous_total,row,tier1_style),
+                crate::allocation::inspection_capacity_outcome(reserved));
+            crate::specs::part2_precinct_prelude_decoder_observed(previous_state,previous_total,row,tier1_style,limits,
+                expected_prepared,crate::allocation::inspection_capacity_outcome(reserved));
+            match reserved {
+                Err(error)=>{
+                    crate::specs::part2_decode_prefix_error(root,prelude_child,next_prepared,prefix,error);
+                    crate::specs::part2_precinct_state_join(component,resolution,precinct,tier1_style,original,limits,root,Err(error));
+                },
+                Ok(_)=>{prefix=crate::specs::part2_decode_prefix_advance(root,prelude_child,next_prepared,prefix,expected_prepared);},
+            }
+        }
+        reserved?;
         decoders.append(&mut execution.decoders);
         #[cfg(verus_keep_ghost)]
         proof! {
@@ -685,10 +781,11 @@ pub(crate) fn packet_precinct_from_subbands(
         #[cfg(verus_keep_ghost)]
         proof! {
             assert(crate::specs::part2_precinct_tree_prelude(previous_state,previous_total,row,tier1_style,limits)==Ok(tree_prepared));
-            crate::specs::part2_precinct_state_inclusion_step(original,tier1_style,limits,execution_index as nat,previous_state,previous_total,tree_prepared);
             assert forall|events:Seq<crate::specs::Part2JpipSnapshotEvent>| #[trigger] root(prefix+events)
                 ==crate::specs::part2_jpip_snapshot_bind(crate::specs::part2_precinct_tree_run(crate::specs::part2_precinct_tree_context(tree_prepared,row,execution_index as nat,false,None,limits),events),
-                    |inclusion:crate::specs::Part1TagTree,rest|crate::specs::part2_precinct_state_after_inclusion(original,tier1_style,limits,execution_index as nat,previous_state,previous_total,tree_prepared,inclusion,rest)) by {}
+                    |inclusion:crate::specs::Part1TagTree,rest|crate::specs::part2_precinct_state_after_inclusion(original,tier1_style,limits,execution_index as nat,previous_state,previous_total,tree_prepared,inclusion,rest)) by {
+                assert(root(prefix+events)==next_prepared(tree_prepared,events));
+            }
         }
         let inclusion_result = tag_tree_new(
             execution.code_blocks_across,
