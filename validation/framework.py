@@ -8023,12 +8023,41 @@ _CLEANUP_SIGNIFICANCE_TESTS = {
 }
 
 _OUTPUT_STORAGE_GUARDS = {
+    ("specs/cold_output_storage.rs", "part2_definition_storage_result"): (
+        "part2_tier1_storage_framed(|calls|part2_typed_capacity_run(context,calls),response)",
+    ),
+    ("specs/cold_typed_storage.rs", "part2_typed_capacity_count"): (
+        "Part2TypedCapacityContext::Definition {..}=>1",
+        "Part2TypedCapacityContext::DefinitionCopy {source,..}=>source.1.len()",
+    ),
+    ("specs/cold_typed_storage.rs", "part2_typed_capacity_run"): (
+        "if actual!=context || elements!=count {None}else{",
+        "if succeeded{Ok(())}else{Err(crate::DecodeError::AllocationFailed)}", "calls.drop_first()",
+    ),
     ("specs/cold_output_storage.rs", "part2_output_capacity_count"): (
         "if context.header.1.len()==0{context.image.1.len()}else{context.header.1.len()}",
     ),
     ("specs/cold_output_storage.rs", "part2_output_copy_run"): (
         "part2_typed_capacity_run(Part2TypedCapacityContext::Copy {source},calls)",
-        "|_:(),rest|Some((part2_typed_component_copy(source),rest))",
+        "part2_typed_capacity_run(part2_output_definition_copy_context(source),rest)",
+        "|_:(),tail|Some((part2_typed_component_copy(source),tail))",
+    ),
+    ("specs/cold_output_storage.rs", "part2_output_definition_copy_context"): (
+        "Part2TypedCapacityContext::DefinitionCopy {source,target:(source.0,Seq::empty())}",
+    ),
+    ("specs/cold_output_storage.rs", "part2_output_definition_run"): (
+        "if record.0 as nat>=components.len(){Some((Err(part2_color_input_error()),calls))}",
+        "Part2TypedCapacityContext::Definition {source:components[record.0 as int],definition:record.1}",
+        "|_:(),rest|Some((part2_output_apply_definition(components,record),rest))",
+    ),
+    ("specs/cold_output_storage.rs", "part2_output_definitions_run"): (
+        "if count==0{Some((Ok(mapped),calls))}",
+        "part2_output_definitions_run(mapped,records,(count-1) as nat,calls)",
+        "part2_output_definition_run(before,records[count-1],rest)",
+    ),
+    ("specs/cold_output_storage.rs", "part2_output_finish_run"): (
+        "part2_output_definitions_run(mapped,context.header.2,context.header.2.len(),calls)",
+        "context.image.0.0,context.image.0.1,context.image.0.2,context.image.0.3,defined,context.components,context.maximum",
     ),
     ("specs/cold_output_storage.rs", "part2_output_inputs"): (
         "Seq::new(context.image.1.len(),|i:int|(context.image.1[i],context.image.2[i]))",
@@ -8054,7 +8083,7 @@ _OUTPUT_STORAGE_GUARDS = {
     ),
     ("specs/cold_output_storage.rs", "part2_output_storage_run"): (
         "part2_typed_capacity_run(Part2TypedCapacityContext::Output {context},calls)",
-        "part2_output_components_run(context,part2_output_capacity_count(context),rest)", "part2_output_finish(context,mapped)",
+        "part2_output_components_run(context,part2_output_capacity_count(context),rest)", "part2_output_finish_run(context,mapped,tail)",
     ),
     ("specs/cold_output_storage.rs", "part2_output_calls_run"): (
         "if actual!=context{None}else{", "part2_output_storage_run(context,calls)",
@@ -8062,6 +8091,9 @@ _OUTPUT_STORAGE_GUARDS = {
     ),
 }
 _OUTPUT_STORAGE_PROOFS = {("specs/cold_output_storage.rs", name) for name in (
+    "part2_definition_storage_observed", "part2_definition_storage_frames", "part2_output_definition_copy_refused",
+    "part2_output_definition_normal", "part2_output_definitions_normal", "part2_output_definitions_error",
+    "part2_output_finish_normal", "part2_output_storage_definition_error",
     "part2_output_copy_normal", "part2_output_copy_refused", "part2_output_copy_frames",
     "part2_output_component_normal", "part2_output_components_normal", "part2_output_components_error",
     "part2_output_component_copy_error", "part2_output_storage_owner_refused", "part2_output_storage_component_error",
@@ -8075,7 +8107,8 @@ _OUTPUT_STORAGE_NATIVE_ORDER = {
         "copied.push(*source_samples.get(index).ok_or_else(invalid_jp2_output)?)",
         "TypedSamples::Unsigned(source_samples)", "let reserved = if source_samples.is_empty()",
         "crate::allocation::empty_with_capacity(source_samples.len())", "part2_output_copy_refused(source_value)", "let mut copied = reserved?",
-        "let mut copied = crate::image::typed_component_from_parts(", "copied.add_channel_definition(",
+        "let mut copied = crate::image::typed_component_from_parts(", "let definitions = copied.try_copy_channel_definitions(source)",
+        "part2_output_definition_copy_refused(source_value, error)", "definitions?",
     ),
     "apply_jp2_output": (
         "if header.component_mappings.is_empty()", "let reserved = if decoded.components().is_empty()",
@@ -8088,7 +8121,41 @@ _OUTPUT_STORAGE_NATIVE_ORDER = {
         "part2_output_storage_owner_refused(context)",
         "let mut mapped = reserved?", "let source = decoded.component(mapping.component)?", "let result = copy_typed_component(source)",
         "part2_output_component_copy_error(", "part2_output_storage_component_error(", "map_palette_component(source, palette, column)?",
-        "component.add_channel_definition(record.definition)", "crate::image::typed_image_from_components_with_origin(",
+        "let component = components .get_mut(usize::from(record.channel)) .ok_or_else(invalid_jp2_output)?",
+        "let appended = component.try_add_channel_definition(record.definition)",
+        "part2_output_storage_definition_error(", "appended?", "crate::image::typed_image_from_components_with_origin(",
+    ),
+}
+_OUTPUT_DEFINITION_NATIVE_ORDER = {
+    "TypedComponent::try_add_channel_definition": (
+        "let ghost source = typed_component_output_view(self)",
+        "let reserved = crate::allocation::reserve_additional(&mut self.channel_definitions, 1)",
+        "Part2TypedCapacityContext::Definition { source, definition: channel_definition_view(definition), }",
+        "crate::allocation::inspection_capacity_outcome(reserved)", "reserved?",
+        "self.add_channel_definition(definition)", "Ok(())",
+    ),
+    "TypedComponent::try_copy_channel_definitions": (
+        "let copied = if source.channel_definitions.is_empty()", "Ok(Vec::new())",
+        "crate::allocation::empty_with_capacity(source.channel_definitions.len())",
+        "Part2TypedCapacityContext::DefinitionCopy { source: typed_component_output_view(source), target: typed_component_output_view(self), }",
+        "crate::allocation::inspection_capacity_outcome(copied)", "let mut copied = copied?",
+        "copied.push(source.channel_definitions[index])", "self.channel_definitions = copied", "Ok(())",
+    ),
+}
+_OUTPUT_DEFINITION_CONTRACTS = {
+    "TypedComponent::try_add_channel_definition": (
+        "ensures crate::specs::part2_definition_storage_result(crate::specs::Part2TypedCapacityContext::Definition { source: typed_component_output_view(old(self)), definition: channel_definition_view(definition), }, result)",
+        "result == Ok(()) || result == Err(DecodeError::AllocationFailed)",
+        "typed_component_view(final(self)) == typed_component_view(old(self))",
+        "typed_component_definitions(final(self)) == if result.is_ok() { typed_component_definitions(old(self)).push(definition) } else { typed_component_definitions(old(self)) }",
+        "typed_component_output_view(final(self)) == if result.is_ok() { (typed_component_output_view(old(self)).0, typed_component_output_view(old(self)).1.push(channel_definition_view(definition))) } else { typed_component_output_view(old(self)) }",
+    ),
+    "TypedComponent::try_copy_channel_definitions": (
+        "ensures crate::specs::part2_definition_storage_result(crate::specs::Part2TypedCapacityContext::DefinitionCopy { source: typed_component_output_view(source), target: typed_component_output_view(old(self)), }, result)",
+        "result == Ok(()) || result == Err(DecodeError::AllocationFailed)",
+        "typed_component_view(final(self)) == typed_component_view(old(self))",
+        "typed_component_definitions(final(self)) == if result.is_ok() { typed_component_definitions(source) } else { typed_component_definitions(old(self)) }",
+        "typed_component_output_view(final(self)) == if result.is_ok() { (typed_component_output_view(old(self)).0, typed_component_output_view(source).1) } else { typed_component_output_view(old(self)) }",
     ),
 }
 
@@ -16336,6 +16403,29 @@ def validate_normative_coverage(
                 if found < 0:
                     raise ValueError("checked output storage requires original metadata/source/copy/definition/admission order and observed refusals")
                 position = found + len(token)
+        helper_refs = {("src/image/layout.rs", symbol) for symbol in _OUTPUT_DEFINITION_NATIVE_ORDER}
+        if not helper_refs.issubset({(ref["path"], ref["symbol"]) for ref in output_entry["proof_refs"]}):
+            raise ValueError("checked output storage requires checked definition append/copy producers")
+        for symbol, fragments in _OUTPUT_DEFINITION_NATIVE_ORDER.items():
+            path = (ROOT / "src/image/layout.rs").resolve()
+            text = source_text(path)
+            header = function_header(path, symbol)
+            body = _coverage_function_body(text, header)
+            compact = "".join(body.split()) if body is not None else ""
+            position = 0
+            for fragment in fragments:
+                token = "".join(fragment.split())
+                found = compact.find(token, position)
+                if found < 0:
+                    raise ValueError("checked output storage requires observed checked definition storage before mutation")
+                position = found + len(token)
+            start = text.rfind("#[cfg_attr", 0, header.start())
+            contract = "".join(text[start:header.start()].split()) if start >= 0 else ""
+            if any("".join(fragment.split()) not in contract for fragment in _OUTPUT_DEFINITION_CONTRACTS[symbol]):
+                raise ValueError("checked output storage requires actual definition source/record/reply and exact final or preserved state")
+        if ("src/image/tests.rs", "checked_channel_definitions_preserve_prior_owner_order_repeats_and_retry") not in {
+                (ref["path"], ref["symbol"]) for ref in output_entry["test_refs"]}:
+            raise ValueError("checked output storage requires bounded prior-definition refusal and exact retry controls")
         if ("src/decode/tests.rs", "output_storage_copy_and_header_preserve_raw_values_priority_empty_and_retry") not in {
                 (ref["path"], ref["symbol"]) for ref in output_entry["test_refs"]}:
             raise ValueError("checked output storage requires bounded raw/signed/unsigned/empty/first-later/priority/retry controls")

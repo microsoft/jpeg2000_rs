@@ -264,6 +264,92 @@ impl TypedComponent {
         }
     }
 
+    #[cfg_attr(verus_keep_ghost, verus_spec(result =>
+        ensures crate::specs::part2_definition_storage_result(
+            crate::specs::Part2TypedCapacityContext::Definition {
+                source: typed_component_output_view(old(self)),
+                definition: channel_definition_view(definition),
+            }, result),
+            result == Ok(()) || result == Err(DecodeError::AllocationFailed),
+            typed_component_view(final(self)) == typed_component_view(old(self)),
+            typed_component_definitions(final(self)) == if result.is_ok() {
+                typed_component_definitions(old(self)).push(definition)
+            } else { typed_component_definitions(old(self)) },
+            typed_component_output_view(final(self)) == if result.is_ok() {
+                (typed_component_output_view(old(self)).0,
+                    typed_component_output_view(old(self)).1.push(channel_definition_view(definition)))
+            } else { typed_component_output_view(old(self)) },
+    ))]
+    pub(crate) fn try_add_channel_definition(
+        &mut self,
+        definition: ChannelDefinition,
+    ) -> Result<(), DecodeError> {
+        #[cfg(verus_keep_ghost)]
+        proof_decl! { let ghost source = typed_component_output_view(self); }
+        let reserved = crate::allocation::reserve_additional(&mut self.channel_definitions, 1);
+        #[cfg(verus_keep_ghost)]
+        proof! {
+            crate::specs::part2_definition_storage_observed(
+                crate::specs::Part2TypedCapacityContext::Definition {
+                    source, definition: channel_definition_view(definition),
+                }, crate::allocation::inspection_capacity_outcome(reserved));
+        }
+        reserved?;
+        self.add_channel_definition(definition);
+        Ok(())
+    }
+
+    #[cfg_attr(verus_keep_ghost, verus_spec(result =>
+        ensures crate::specs::part2_definition_storage_result(
+            crate::specs::Part2TypedCapacityContext::DefinitionCopy {
+                source: typed_component_output_view(source),
+                target: typed_component_output_view(old(self)),
+            }, result),
+            result == Ok(()) || result == Err(DecodeError::AllocationFailed),
+            typed_component_view(final(self)) == typed_component_view(old(self)),
+            typed_component_definitions(final(self)) == if result.is_ok() {
+                typed_component_definitions(source)
+            } else { typed_component_definitions(old(self)) },
+            typed_component_output_view(final(self)) == if result.is_ok() {
+                (typed_component_output_view(old(self)).0, typed_component_output_view(source).1)
+            } else { typed_component_output_view(old(self)) },
+    ))]
+    pub(crate) fn try_copy_channel_definitions(
+        &mut self,
+        source: &Self,
+    ) -> Result<(), DecodeError> {
+        let copied = if source.channel_definitions.is_empty() {
+            Ok(Vec::new())
+        } else {
+            crate::allocation::empty_with_capacity(source.channel_definitions.len())
+        };
+        #[cfg(verus_keep_ghost)]
+        proof! {
+            crate::specs::part2_definition_storage_observed(
+                crate::specs::Part2TypedCapacityContext::DefinitionCopy {
+                    source: typed_component_output_view(source),
+                    target: typed_component_output_view(self),
+                }, crate::allocation::inspection_capacity_outcome(copied));
+        }
+        let mut copied = copied?;
+        let mut index = 0_usize;
+        #[cfg_attr(verus_keep_ghost, verus_spec(
+            invariant index <= source.channel_definitions.len(),
+                copied@ == source.channel_definitions@.take(index as int),
+            decreases source.channel_definitions.len() - index,
+        ))]
+        while index < source.channel_definitions.len() {
+            copied.push(source.channel_definitions[index]);
+            index += 1;
+            #[cfg(verus_keep_ghost)]
+            proof! { assert(copied@ =~= source.channel_definitions@.take(index as int)); }
+        }
+        #[cfg(verus_keep_ghost)]
+        proof! { assert(copied@ =~= source.channel_definitions@); }
+        self.channel_definitions = copied;
+        Ok(())
+    }
+
     #[cfg_attr(
         verus_keep_ghost,
         verus_spec(

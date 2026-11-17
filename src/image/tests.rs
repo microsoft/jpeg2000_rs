@@ -1,6 +1,89 @@
 use super::*;
 
 #[test]
+fn checked_channel_definitions_preserve_prior_owner_order_repeats_and_retry() {
+    let definition = ChannelDefinition::new(
+        ChannelType::Unspecified,
+        ChannelAssociation::Color(u16::MAX),
+    );
+    let mut component = TypedComponent::from_parts(
+        0,
+        u32::MAX,
+        crate::codestream::ComponentInfo::default(),
+        TypedSamples::Signed(vec![i64::MIN, i64::MAX]),
+    );
+    crate::allocation::with_refusal(0, || {
+        assert_eq!(
+            component.try_add_channel_definition(definition),
+            Err(DecodeError::AllocationFailed)
+        );
+        assert!(component.channel_definitions().is_empty());
+        component.try_add_channel_definition(definition).unwrap();
+    });
+    while component.channel_definitions.len() < component.channel_definitions.capacity() {
+        component.add_channel_definition(definition);
+    }
+    let previous = component.channel_definitions().to_vec();
+    crate::allocation::with_refusal(0, || {
+        assert_eq!(
+            component.try_add_channel_definition(definition),
+            Err(DecodeError::AllocationFailed)
+        );
+        assert_eq!(component.channel_definitions(), previous);
+        component.try_add_channel_definition(definition).unwrap();
+    });
+    let mut expected = previous;
+    expected.push(definition);
+    let distinct = ChannelDefinition::new(
+        ChannelType::PremultipliedOpacity,
+        ChannelAssociation::Unassociated,
+    );
+    component.try_add_channel_definition(distinct).unwrap();
+    component.try_add_channel_definition(definition).unwrap();
+    expected.extend([distinct, definition]);
+    assert_eq!(component.channel_definitions(), expected);
+    assert_eq!(
+        component.samples(),
+        &TypedSamples::Signed(vec![i64::MIN, i64::MAX])
+    );
+
+    let mut target = TypedComponent::from_parts(
+        17,
+        0,
+        crate::codestream::ComponentInfo::default(),
+        TypedSamples::Unsigned(vec![u64::MAX]),
+    );
+    let prior = ChannelDefinition::new(ChannelType::Opacity, ChannelAssociation::WholeImage);
+    target.add_channel_definition(prior);
+    crate::allocation::with_refusal(0, || {
+        assert_eq!(
+            target.try_copy_channel_definitions(&component),
+            Err(DecodeError::AllocationFailed)
+        );
+        assert_eq!(target.channel_definitions(), [prior]);
+        target.try_copy_channel_definitions(&component).unwrap();
+    });
+    assert_eq!(target.channel_definitions(), expected);
+    assert_eq!(component.channel_definitions(), expected);
+    assert_eq!(target.width(), 17);
+    assert_eq!(target.samples(), &TypedSamples::Unsigned(vec![u64::MAX]));
+    let empty = TypedComponent::from_parts(
+        0,
+        0,
+        crate::codestream::ComponentInfo::default(),
+        TypedSamples::Signed(vec![]),
+    );
+    crate::allocation::with_refusal(0, || {
+        target.try_copy_channel_definitions(&empty).unwrap();
+        assert!(target.channel_definitions().is_empty());
+        assert_eq!(
+            crate::allocation::empty_with_capacity::<u8>(1),
+            Err(DecodeError::AllocationFailed)
+        );
+    });
+}
+
+#[test]
 fn native_mct_wavelet_partitions_match_signed_integer_intervals() {
     for value in [
         i64::MIN,

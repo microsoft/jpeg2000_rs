@@ -14064,6 +14064,16 @@
         {"path": "src/decode/output.rs", "symbol": "apply_jp2_output"}
       ],
       "proof_refs": [
+        {"path": "specs/cold_output_storage.rs", "symbol": "part2_definition_storage_observed"},
+        {"path": "specs/cold_output_storage.rs", "symbol": "part2_definition_storage_frames"},
+        {"path": "specs/cold_output_storage.rs", "symbol": "part2_output_definition_copy_refused"},
+        {"path": "specs/cold_output_storage.rs", "symbol": "part2_output_definition_normal"},
+        {"path": "specs/cold_output_storage.rs", "symbol": "part2_output_definitions_normal"},
+        {"path": "specs/cold_output_storage.rs", "symbol": "part2_output_definitions_error"},
+        {"path": "specs/cold_output_storage.rs", "symbol": "part2_output_finish_normal"},
+        {"path": "specs/cold_output_storage.rs", "symbol": "part2_output_storage_definition_error"},
+        {"path": "src/image/layout.rs", "symbol": "TypedComponent::try_add_channel_definition"},
+        {"path": "src/image/layout.rs", "symbol": "TypedComponent::try_copy_channel_definitions"},
         {"path": "specs/cold_output_storage.rs", "symbol": "part2_output_copy_normal"},
         {"path": "specs/cold_output_storage.rs", "symbol": "part2_output_copy_refused"},
         {"path": "specs/cold_output_storage.rs", "symbol": "part2_output_copy_frames"},
@@ -14089,6 +14099,13 @@
         {"path": "src/image/layout.rs", "symbol": "TypedComponent::add_channel_definition"}
       ],
       "spec_refs": [
+        {"path": "specs/cold_output_storage.rs", "symbol": "part2_definition_storage_result"},
+        {"path": "specs/cold_typed_storage.rs", "symbol": "part2_typed_capacity_count"},
+        {"path": "specs/cold_typed_storage.rs", "symbol": "part2_typed_capacity_run"},
+        {"path": "specs/cold_output_storage.rs", "symbol": "part2_output_definition_copy_context"},
+        {"path": "specs/cold_output_storage.rs", "symbol": "part2_output_definition_run"},
+        {"path": "specs/cold_output_storage.rs", "symbol": "part2_output_definitions_run"},
+        {"path": "specs/cold_output_storage.rs", "symbol": "part2_output_finish_run"},
         {"path": "specs/cold_output_storage.rs", "symbol": "part2_output_capacity_count"},
         {"path": "specs/cold_output_storage.rs", "symbol": "part2_output_copy_run"},
         {"path": "specs/cold_output_storage.rs", "symbol": "part2_output_inputs"},
@@ -14111,11 +14128,12 @@
         {"path": "specs/mod.rs", "symbol": "part2_typed_image_component"}
       ],
       "test_refs": [
+        {"path": "src/image/tests.rs", "symbol": "checked_channel_definitions_preserve_prior_owner_order_repeats_and_retry"},
         {"path": "src/decode/tests.rs", "symbol": "output_storage_copy_and_header_preserve_raw_values_priority_empty_and_retry"},
         {"path": "src/decode/tests.rs", "symbol": "whole_output_header_matches_independent_native_order_and_admission_oracle"},
         {"path": "src/image/tests.rs", "symbol": "typed_image_admission_preserves_native_count_origin_shape_and_error_priority"}
       ],
-      "topic": "Complete actual unconditional output-header Result on native typed-image/header/caps: actual CMAP order, direct versus palette CDEF behavior, ordered duplicate CDEF append and first bad channel, final origin/count/area/cardinality/cumulative-byte admission and every output field/error. Unread header metadata/count hints stay unvalidated. No valid/normalized-header, successful mapping, shape or adequate-budget premise. Earlier parsing/association and selected target composition remain separate."
+      "topic": "Complete actual unconditional output-header Result on native typed-image/header/caps: actual CMAP order, direct versus palette CDEF behavior, checked source-definition copy and ordered duplicate CDEF append after channel admission, exact prior state on refusal, first bad channel, final origin/count/area/cardinality/cumulative-byte admission and every output field/error. Reached storage source/count/record/reply frames compose through exhausted output calls. Unread header metadata/count hints stay unvalidated. No valid/normalized-header, successful mapping, shape or adequate-budget premise. CDEF parser storage, JPX general-layer definition growth and earlier parsing/association remain separate."
     },
     {
       "contract_refs": [

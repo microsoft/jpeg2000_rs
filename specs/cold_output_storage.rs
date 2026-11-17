@@ -1,6 +1,23 @@
 //! Reached JP2 metadata and typed sample copies, before original output admission.
 use super::*;
 verus! {
+pub closed spec fn part2_definition_storage_result(context:Part2TypedCapacityContext,response:Result<(),crate::DecodeError>)->bool {
+    part2_tier1_storage_framed(|calls|part2_typed_capacity_run(context,calls),response)
+}
+pub(crate) proof fn part2_definition_storage_observed(context:Part2TypedCapacityContext,response:Result<(),crate::DecodeError>)
+    requires response==Ok(()) || (response==Err(crate::DecodeError::AllocationFailed) && part2_typed_capacity_count(context)>0),
+    ensures part2_definition_storage_result(context,response),
+{
+    part2_typed_capacity_observed(context,response);
+}
+pub(crate) proof fn part2_definition_storage_frames(context:Part2TypedCapacityContext,response:Result<(),crate::DecodeError>)
+    requires part2_definition_storage_result(context,response),
+    ensures part2_tier1_storage_framed(|calls|part2_typed_capacity_run(context,calls),response),
+        forall|other:spec_fn(Seq<Part2Tier1StorageEvent>)->Part2Tier1Run<()>|
+            (forall|calls| #[trigger] other(calls)==part2_typed_capacity_run(context,calls)) ==> #[trigger] part2_tier1_storage_framed(other,response),
+{
+    part2_tier1_storage_eta(|calls|part2_typed_capacity_run(context,calls),response);
+}
 pub struct Part2OutputStorageContext {
     pub image:Part1DecodedTypedImage,
     pub header:Part2OutputHeader,
@@ -15,7 +32,12 @@ pub(crate) open spec fn part2_output_inputs(context:Part2OutputStorageContext)->
 }
 pub(crate) open spec fn part2_output_copy_run(source:Part2TypedComponentOutput,calls:Seq<Part2Tier1StorageEvent>)->Part2Tier1Run<Part2TypedComponentOutput> {
     part2_tier1_storage_bind(part2_typed_capacity_run(Part2TypedCapacityContext::Copy {source},calls),
-        |_:(),rest|Some((part2_typed_component_copy(source),rest)))
+        |_:(),rest|part2_tier1_storage_bind(
+            part2_typed_capacity_run(part2_output_definition_copy_context(source),rest),
+            |_:(),tail|Some((part2_typed_component_copy(source),tail))))
+}
+pub(crate) open spec fn part2_output_definition_copy_context(source:Part2TypedComponentOutput)->Part2TypedCapacityContext {
+    Part2TypedCapacityContext::DefinitionCopy {source,target:(source.0,Seq::empty())}
 }
 pub closed spec fn part2_output_copy_result(source:Part2TypedComponentOutput,result:Result<Part2TypedComponentOutput,crate::DecodeError>)->bool {
     part2_tier1_storage_framed(|calls|part2_output_copy_run(source,calls),result)
@@ -25,15 +47,32 @@ pub(crate) proof fn part2_output_copy_normal(source:Part2TypedComponentOutput)
 {
     let context=Part2TypedCapacityContext::Copy {source};
     part2_typed_capacity_observed(context,Ok(()));part2_tier1_storage_pure(part2_typed_component_copy(source));
+    part2_typed_capacity_observed(part2_output_definition_copy_context(source),Ok(()));
+    part2_tier1_storage_bind_frame(|calls|part2_typed_capacity_run(part2_output_definition_copy_context(source),calls),
+        |_:(),tail|Some((part2_typed_component_copy(source),tail)),Ok(()),part2_typed_component_copy(source));
     part2_tier1_storage_bind_frame(|calls|part2_typed_capacity_run(context,calls),
-        |_:(),rest|Some((part2_typed_component_copy(source),rest)),Ok(()),part2_typed_component_copy(source));
+        |_:(),rest|part2_tier1_storage_bind(part2_typed_capacity_run(part2_output_definition_copy_context(source),rest),
+            |_:(),tail|Some((part2_typed_component_copy(source),tail))),Ok(()),part2_typed_component_copy(source));
 }
 pub(crate) proof fn part2_output_copy_refused(source:Part2TypedComponentOutput)
     requires part2_tier1_storage_framed(|calls|part2_typed_capacity_run(Part2TypedCapacityContext::Copy {source},calls),Err(crate::DecodeError::AllocationFailed)),
     ensures part2_output_copy_result(source,Err(crate::DecodeError::AllocationFailed)),
 {
     part2_tier1_storage_bind_frame(|calls|part2_typed_capacity_run(Part2TypedCapacityContext::Copy {source},calls),
-        |_:(),rest|Some((part2_typed_component_copy(source),rest)),Err(crate::DecodeError::AllocationFailed),Err(crate::DecodeError::AllocationFailed));
+        |_:(),rest|part2_tier1_storage_bind(part2_typed_capacity_run(part2_output_definition_copy_context(source),rest),
+            |_:(),tail|Some((part2_typed_component_copy(source),tail))),Err(crate::DecodeError::AllocationFailed),Err(crate::DecodeError::AllocationFailed));
+}
+pub(crate) proof fn part2_output_definition_copy_refused(source:Part2TypedComponentOutput,error:crate::DecodeError)
+    requires part2_definition_storage_result(part2_output_definition_copy_context(source),Err(error)),
+    ensures part2_output_copy_result(source,Err(error)),
+{
+    part2_definition_storage_frames(part2_output_definition_copy_context(source),Err(error));
+    part2_tier1_storage_bind_frame(|calls|part2_typed_capacity_run(part2_output_definition_copy_context(source),calls),
+        |_:(),tail|Some((part2_typed_component_copy(source),tail)),Err(error),Err(error));
+    part2_typed_capacity_observed(Part2TypedCapacityContext::Copy {source},Ok(()));
+    part2_tier1_storage_bind_frame(|calls|part2_typed_capacity_run(Part2TypedCapacityContext::Copy {source},calls),
+        |_:(),rest|part2_tier1_storage_bind(part2_typed_capacity_run(part2_output_definition_copy_context(source),rest),
+            |_:(),tail|Some((part2_typed_component_copy(source),tail))),Ok(()),Err(error));
 }
 pub(crate) proof fn part2_output_copy_frames(source:Part2TypedComponentOutput,result:Result<Part2TypedComponentOutput,crate::DecodeError>)
     requires part2_output_copy_result(source,result),
@@ -89,10 +128,89 @@ pub(crate) open spec fn part2_output_finish(context:Part2OutputStorageContext,ma
         Ok(defined)=>part2_typed_image_from_parts(context.image.0.0,context.image.0.1,context.image.0.2,context.image.0.3,defined,context.components,context.maximum),
     }
 }
+pub(crate) open spec fn part2_output_definition_run(
+    components:Seq<Part2TypedComponentOutput>,record:(u16,ColorDefinition),calls:Seq<Part2Tier1StorageEvent>,
+)->Part2Tier1Run<Seq<Part2TypedComponentOutput>> {
+    if record.0 as nat>=components.len(){Some((Err(part2_color_input_error()),calls))}
+    else{part2_tier1_storage_bind(
+        part2_typed_capacity_run(Part2TypedCapacityContext::Definition {source:components[record.0 as int],definition:record.1},calls),
+        |_:(),rest|Some((part2_output_apply_definition(components,record),rest)))}
+}
+#[verifier::opaque]
+pub(crate) open spec fn part2_output_definitions_run(
+    mapped:Seq<Part2TypedComponentOutput>,records:Seq<(u16,ColorDefinition)>,count:nat,calls:Seq<Part2Tier1StorageEvent>,
+)->Part2Tier1Run<Seq<Part2TypedComponentOutput>>
+    decreases count,
+{
+    if count==0{Some((Ok(mapped),calls))}else{
+        part2_tier1_storage_bind(part2_output_definitions_run(mapped,records,(count-1) as nat,calls),
+            |before:Seq<Part2TypedComponentOutput>,rest|part2_output_definition_run(before,records[count-1],rest))
+    }
+}
+pub(crate) proof fn part2_output_definition_normal(components:Seq<Part2TypedComponentOutput>,record:(u16,ColorDefinition))
+    ensures part2_tier1_storage_framed(|calls|part2_output_definition_run(components,record,calls),part2_output_apply_definition(components,record)),
+{
+    let result=part2_output_apply_definition(components,record);
+    part2_tier1_storage_pure(result);
+    if (record.0 as nat) < components.len(){
+        let context=Part2TypedCapacityContext::Definition {source:components[record.0 as int],definition:record.1};
+        part2_typed_capacity_observed(context,Ok(()));
+        part2_tier1_storage_bind_frame(|calls|part2_typed_capacity_run(context,calls),
+            |_:(),rest|Some((result,rest)),Ok(()),result);
+    }
+}
+pub(crate) proof fn part2_output_definitions_normal(mapped:Seq<Part2TypedComponentOutput>,records:Seq<(u16,ColorDefinition)>,count:nat)
+    ensures part2_tier1_storage_framed(|calls|part2_output_definitions_run(mapped,records,count,calls),
+        part2_output_definition_prefix(mapped,records,count)),
+    decreases count,
+{
+    reveal_with_fuel(part2_output_definitions_run,1);
+    reveal_with_fuel(part2_output_definition_prefix,1);
+    let result=part2_output_definition_prefix(mapped,records,count);
+    if count==0{part2_tier1_storage_pure(result);}else{
+        let prior=part2_output_definition_prefix(mapped,records,(count-1) as nat);
+        part2_output_definitions_normal(mapped,records,(count-1) as nat);
+        if let Ok(before)=prior{
+            part2_output_definition_normal(before,records[count-1]);
+            part2_tier1_storage_eta(|calls|part2_output_definition_run(before,records[count-1],calls),result);
+        }
+        part2_tier1_storage_bind_frame(|calls|part2_output_definitions_run(mapped,records,(count-1) as nat,calls),
+            |before:Seq<Part2TypedComponentOutput>,rest|part2_output_definition_run(before,records[count-1],rest),prior,result);
+    }
+}
+pub(crate) proof fn part2_output_definitions_error(mapped:Seq<Part2TypedComponentOutput>,records:Seq<(u16,ColorDefinition)>,from:nat,to:nat,error:crate::DecodeError)
+    requires from<=to,
+        part2_tier1_storage_framed(|calls|part2_output_definitions_run(mapped,records,from,calls),Err(error)),
+    ensures part2_tier1_storage_framed(|calls|part2_output_definitions_run(mapped,records,to,calls),Err(error)),
+    decreases to-from,
+{
+    if from<to{
+        reveal_with_fuel(part2_output_definitions_run,1);
+        part2_output_definitions_error(mapped,records,from,(to-1) as nat,error);
+        part2_tier1_storage_bind_frame(|calls|part2_output_definitions_run(mapped,records,(to-1) as nat,calls),
+            |before:Seq<Part2TypedComponentOutput>,rest|part2_output_definition_run(before,records[to-1],rest),Err(error),Err(error));
+    }
+}
+pub(crate) open spec fn part2_output_finish_run(context:Part2OutputStorageContext,mapped:Seq<Part2TypedComponentOutput>,calls:Seq<Part2Tier1StorageEvent>)->Part2Tier1Run<Part1DecodedTypedImage> {
+    part2_tier1_storage_bind(part2_output_definitions_run(mapped,context.header.2,context.header.2.len(),calls),
+        |defined:Seq<Part2TypedComponentOutput>,rest|Some((part2_typed_image_from_parts(
+            context.image.0.0,context.image.0.1,context.image.0.2,context.image.0.3,defined,context.components,context.maximum),rest)))
+}
+pub(crate) proof fn part2_output_finish_normal(context:Part2OutputStorageContext,mapped:Seq<Part2TypedComponentOutput>)
+    ensures part2_tier1_storage_framed(|calls|part2_output_finish_run(context,mapped,calls),part2_output_finish(context,mapped)),
+{
+    let definitions=part2_output_definition_prefix(mapped,context.header.2,context.header.2.len());
+    part2_output_definitions_normal(mapped,context.header.2,context.header.2.len());
+    if let Ok(defined)=definitions{part2_tier1_storage_pure(part2_output_finish(context,mapped));}
+    part2_tier1_storage_bind_frame(|calls|part2_output_definitions_run(mapped,context.header.2,context.header.2.len(),calls),
+        |defined:Seq<Part2TypedComponentOutput>,rest|Some((part2_typed_image_from_parts(
+            context.image.0.0,context.image.0.1,context.image.0.2,context.image.0.3,defined,context.components,context.maximum),rest)),
+        definitions,part2_output_finish(context,mapped));
+}
 pub(crate) open spec fn part2_output_storage_run(context:Part2OutputStorageContext,calls:Seq<Part2Tier1StorageEvent>)->Part2Tier1Run<Part1DecodedTypedImage> {
     part2_tier1_storage_bind(part2_typed_capacity_run(Part2TypedCapacityContext::Output {context},calls),
         |_:(),rest|part2_tier1_storage_bind(part2_output_components_run(context,part2_output_capacity_count(context),rest),
-            |mapped:Seq<Part2TypedComponentOutput>,tail|Some((part2_output_finish(context,mapped),tail))))
+            |mapped:Seq<Part2TypedComponentOutput>,tail|part2_output_finish_run(context,mapped,tail)))
 }
 pub closed spec fn part2_output_storage_result(context:Part2OutputStorageContext,result:Result<Part1DecodedTypedImage,crate::DecodeError>)->bool {
     part2_tier1_storage_framed(|calls|part2_output_storage_run(context,calls),result)
@@ -157,7 +275,7 @@ pub(crate) proof fn part2_output_storage_owner_refused(context:Part2OutputStorag
 {
     part2_tier1_storage_bind_frame(|calls|part2_typed_capacity_run(Part2TypedCapacityContext::Output {context},calls),
         |_:(),rest|part2_tier1_storage_bind(part2_output_components_run(context,part2_output_capacity_count(context),rest),
-            |mapped:Seq<Part2TypedComponentOutput>,tail|Some((part2_output_finish(context,mapped),tail))),
+            |mapped:Seq<Part2TypedComponentOutput>,tail|part2_output_finish_run(context,mapped,tail)),
         Err(crate::DecodeError::AllocationFailed),Err(crate::DecodeError::AllocationFailed));
 }
 pub(crate) proof fn part2_output_storage_component_error(context:Part2OutputStorageContext,index:nat,before:Seq<Part2TypedComponentOutput>,error:crate::DecodeError)
@@ -176,11 +294,45 @@ pub(crate) proof fn part2_output_storage_component_error(context:Part2OutputStor
     assert(part2_tier1_storage_framed(|calls|part2_output_components_run(context,index+1,calls),Err(error)));
     part2_output_components_error(context,index+1,part2_output_capacity_count(context),error);
     part2_tier1_storage_bind_frame(|calls|part2_output_components_run(context,part2_output_capacity_count(context),calls),
-        |mapped:Seq<Part2TypedComponentOutput>,tail|Some((part2_output_finish(context,mapped),tail)),Err(error),Err(error));
+        |mapped:Seq<Part2TypedComponentOutput>,tail|part2_output_finish_run(context,mapped,tail),Err(error),Err(error));
     part2_typed_capacity_observed(Part2TypedCapacityContext::Output {context},Ok(()));
     part2_tier1_storage_bind_frame(|calls|part2_typed_capacity_run(Part2TypedCapacityContext::Output {context},calls),
         |_:(),rest|part2_tier1_storage_bind(part2_output_components_run(context,part2_output_capacity_count(context),rest),
-            |mapped:Seq<Part2TypedComponentOutput>,tail|Some((part2_output_finish(context,mapped),tail))),Ok(()),Err(error));
+            |mapped:Seq<Part2TypedComponentOutput>,tail|part2_output_finish_run(context,mapped,tail)),Ok(()),Err(error));
+}
+pub(crate) proof fn part2_output_storage_definition_error(
+    context:Part2OutputStorageContext,mapped:Seq<Part2TypedComponentOutput>,index:nat,before:Seq<Part2TypedComponentOutput>,error:crate::DecodeError,
+)
+    requires index<context.header.2.len(),
+        part2_output_components_value(context,part2_output_capacity_count(context))==Ok(mapped),
+        part2_output_definition_prefix(mapped,context.header.2,index)==Ok(before),
+        (context.header.2[index as int].0 as nat) < before.len(),
+        part2_definition_storage_result(Part2TypedCapacityContext::Definition {
+            source:before[context.header.2[index as int].0 as int],definition:context.header.2[index as int].1},Err(error)),
+    ensures part2_output_storage_result(context,Err(error)),
+{
+    let record=context.header.2[index as int];
+    let capacity=Part2TypedCapacityContext::Definition {source:before[record.0 as int],definition:record.1};
+    part2_definition_storage_frames(capacity,Err(error));
+    part2_tier1_storage_bind_frame(|calls|part2_typed_capacity_run(capacity,calls),
+        |_:(),rest|Some((part2_output_apply_definition(before,record),rest)),Err(error),Err(error));
+    part2_tier1_storage_eta(|calls|part2_output_definition_run(before,record,calls),Err(error));
+    part2_output_definitions_normal(mapped,context.header.2,index);
+    reveal_with_fuel(part2_output_definitions_run,1);
+    part2_tier1_storage_bind_frame(|calls|part2_output_definitions_run(mapped,context.header.2,index,calls),
+        |before:Seq<Part2TypedComponentOutput>,rest|part2_output_definition_run(before,record,rest),Ok(before),Err(error));
+    part2_output_definitions_error(mapped,context.header.2,index+1,context.header.2.len(),error);
+    part2_tier1_storage_bind_frame(|calls|part2_output_definitions_run(mapped,context.header.2,context.header.2.len(),calls),
+        |defined:Seq<Part2TypedComponentOutput>,rest|Some((part2_typed_image_from_parts(
+            context.image.0.0,context.image.0.1,context.image.0.2,context.image.0.3,defined,context.components,context.maximum),rest)),Err(error),Err(error));
+    part2_tier1_storage_eta(|calls|part2_output_finish_run(context,mapped,calls),Err(error));
+    part2_output_components_normal(context,part2_output_capacity_count(context));
+    part2_tier1_storage_bind_frame(|calls|part2_output_components_run(context,part2_output_capacity_count(context),calls),
+        |mapped:Seq<Part2TypedComponentOutput>,tail|part2_output_finish_run(context,mapped,tail),Ok(mapped),Err(error));
+    part2_typed_capacity_observed(Part2TypedCapacityContext::Output {context},Ok(()));
+    part2_tier1_storage_bind_frame(|calls|part2_typed_capacity_run(Part2TypedCapacityContext::Output {context},calls),
+        |_:(),rest|part2_tier1_storage_bind(part2_output_components_run(context,part2_output_capacity_count(context),rest),
+            |mapped:Seq<Part2TypedComponentOutput>,tail|part2_output_finish_run(context,mapped,tail)),Ok(()),Err(error));
 }
 pub(crate) proof fn part2_output_storage_frames(context:Part2OutputStorageContext,result:Result<Part1DecodedTypedImage,crate::DecodeError>)
     requires part2_output_storage_result(context,result),
@@ -319,12 +471,15 @@ pub(crate) proof fn part2_output_storage_normal(context:Part2OutputStorageContex
     let result=part2_apply_output_header(context.image,context.header,context.components,context.maximum);
     if context.header.1.len()==0{assert(part2_output_inputs(context).take(count as int) =~= part2_output_inputs(context));}
     part2_output_components_normal(context,count);
-    if let Ok(value)=mapped{part2_tier1_storage_pure(part2_output_finish(context,value));}
+    if let Ok(value)=mapped{
+        part2_output_finish_normal(context,value);
+        part2_tier1_storage_eta(|calls|part2_output_finish_run(context,value,calls),part2_output_finish(context,value));
+    }
     part2_tier1_storage_bind_frame(|calls|part2_output_components_run(context,count,calls),
-        |mapped:Seq<Part2TypedComponentOutput>,tail|Some((part2_output_finish(context,mapped),tail)),mapped,result);
+        |mapped:Seq<Part2TypedComponentOutput>,tail|part2_output_finish_run(context,mapped,tail),mapped,result);
     part2_typed_capacity_observed(Part2TypedCapacityContext::Output {context},Ok(()));
     part2_tier1_storage_bind_frame(|calls|part2_typed_capacity_run(Part2TypedCapacityContext::Output {context},calls),
         |_:(),rest|part2_tier1_storage_bind(part2_output_components_run(context,count,rest),
-            |mapped:Seq<Part2TypedComponentOutput>,tail|Some((part2_output_finish(context,mapped),tail))),Ok(()),result);
+            |mapped:Seq<Part2TypedComponentOutput>,tail|part2_output_finish_run(context,mapped,tail)),Ok(()),result);
 }
 }
