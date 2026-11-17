@@ -6103,11 +6103,13 @@ _TIER1_INITIAL_PROOFS = {("specs/cold_tier1_initial.rs", name) for name in (
 )}
 _TIER1_PLAN_MODELS = _TIER1_INITIAL_MODELS | {("specs/cold_codeblock_plan.rs", name) for name in (
     "part2_tier1_cell_context", "part2_codeblock_cell_run", "part2_codeblock_cell_result", "part2_codeblock_columns_run", "part2_codeblock_rows_run",
+    "part2_codeblock_growth_context", "part2_codeblock_after_decoder_run", "part2_codeblock_after_decoder_growth_run",
 )}
 _TIER1_PLAN_PROOFS = _TIER1_INITIAL_PROOFS | {("specs/cold_codeblock_plan.rs", name) for name in (
     "part2_codeblock_cell_normal", "part2_codeblock_cell_decoder_observed", "part2_codeblock_cell_frames", "part2_codeblock_columns_normal",
     "part2_codeblock_rows_normal", "part2_codeblock_owner_start", "part2_codeblock_rows_step", "part2_codeblock_columns_step",
     "part2_codeblock_columns_end", "part2_codeblock_owner_join",
+    "part2_codeblock_after_decoder_normal", "part2_codeblock_cell_growth_refused",
 )}
 _TIER1_INITIAL_TESTS = {
     ("src/tier1/tests.rs", "tier1_initial_storage_admission_refusal_and_late_policy_order"),
@@ -6951,6 +6953,20 @@ _TIER1_INITIAL_GUARDS = {
     ),
     ("specs/cold_codeblock_plan.rs", "part2_codeblock_cell_run"): (
         "part2_planned_codeblock_geometry(", "Err(error)=>Some((Err(error),events))", "part2_tier1_call_run(",
+        "part2_codeblock_after_decoder_run(grid,clip,block,subband,style,policy,indices,before,geometry,rest)",
+    ),
+    ("specs/cold_codeblock_plan.rs", "part2_codeblock_growth_context"): (
+        "cell:part2_tier1_cell_context(grid,clip,block,subband,style,policy,indices,before,geometry)",
+        "subband,geometry,placements",
+    ),
+    ("specs/cold_codeblock_plan.rs", "part2_codeblock_after_decoder_run"): (
+        "part2_codeblock_growth_context(grid,clip,block,subband,style,policy,indices,before,geometry,false)",
+        "part2_codeblock_after_decoder_growth_run(grid,clip,block,subband,style,policy,indices,before,geometry,rest)",
+    ),
+    ("specs/cold_codeblock_plan.rs", "part2_codeblock_after_decoder_growth_run"): (
+        "if geometry.0<subband.x0 || geometry.1<subband.y0",
+        "part2_codeblock_growth_context(grid,clip,block,subband,style,policy,indices,before,geometry,true)",
+        "part2_planned_codeblock_cell(grid,clip,block,subband,style,policy,indices,before)",
     ),
     ("specs/cold_codeblock_plan.rs", "part2_codeblock_columns_run"): (
         "part2_codeblock_cell_run(", "column+1,after,rest)",
@@ -8734,6 +8750,30 @@ def validate_normative_coverage(
     ids: set[str] = set()
     contract_functions: set[tuple[str, str]] = set()
     for entry in coverage["requirements"]:
+        if entry["id"] == "part2-complete-native-codeblock-vectors":
+            path = (ROOT / "src/decode/planning.rs").resolve()
+            body = _coverage_function_body(source_text(path), function_header(path, "append_planned_codeblock"))
+            native = "" if body is None else "".join(body.split())
+            cursor = 0
+            for step in (
+                "derive_planned_codeblock_geometry(grid, clip, block)?",
+                "let decoder = decoder_result?",
+                "reserve_additional(&mut state.decoders, 1)",
+                "state.decoders.push(decoder)",
+                "let placement = ProgressionCodeBlockPlacement",
+                "x.checked_sub(subband.x0)", "y.checked_sub(subband.y0)",
+                "reserve_additional(&mut state.placements, 1)",
+                "state.placements.push(placement)",
+                "state.decoder_index = state.decoder_index.checked_add(1)",
+            ):
+                at = native.find("".join(step.split()), cursor)
+                if at < 0:
+                    raise ValueError("codeblock growth requires original decoder/coordinate/placement/index commit order")
+                cursor = at + len("".join(step.split()))
+            count_body = _coverage_spec_function_body(
+                source_text((ROOT / "specs/cold_precinct_storage.rs").resolve()), "part2_planning_capacity_count")
+            if count_body is None or "CodeBlockGrowth{..}=>1" not in "".join(count_body.split()):
+                raise ValueError("codeblock growth requires exact one-element growth request")
         if entry["id"] == "part2-complete-native-owned-tile-collection":
             for relative, symbol, required in (
                 ("src/decode/execution.rs", "collect_tile_parts", (

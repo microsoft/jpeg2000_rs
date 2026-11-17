@@ -1157,14 +1157,39 @@ pub(crate) fn append_planned_codeblock(
     let decoder = decoder_result?;
     #[cfg(verus_keep_ghost)]
     proof_decl! { let ghost decoded = crate::tier1::tier1_decoder_state(&decoder); }
+    let reserved = crate::allocation::reserve_additional(&mut state.decoders, 1);
+    #[cfg(verus_keep_ghost)]
+    proof! {
+        crate::specs::part2_planning_capacity_observed(
+            crate::specs::part2_codeblock_growth_context(grid,clip,block,subband,style,policy,indices,before,(x,y,width,height),false),
+            crate::allocation::inspection_capacity_outcome(reserved));
+        if let Err(error)=reserved {
+            crate::specs::part2_codeblock_cell_growth_refused(grid,clip,block,subband,style,policy,indices,before,
+                (x,y,width,height),decoded,false,error);
+        }
+    }
+    reserved?;
     state.decoders.push(decoder);
-    state.placements.push(ProgressionCodeBlockPlacement {
+    let placement = ProgressionCodeBlockPlacement {
         precinct_index: indices.0,
         decoder_index: state.decoder_index,
         subband_index: indices.1,
         x: x.checked_sub(subband.x0).ok_or_else(arithmetic_overflow)?,
         y: y.checked_sub(subband.y0).ok_or_else(arithmetic_overflow)?,
-    });
+    };
+    let reserved = crate::allocation::reserve_additional(&mut state.placements, 1);
+    #[cfg(verus_keep_ghost)]
+    proof! {
+        crate::specs::part2_planning_capacity_observed(
+            crate::specs::part2_codeblock_growth_context(grid,clip,block,subband,style,policy,indices,before,(x,y,width,height),true),
+            crate::allocation::inspection_capacity_outcome(reserved));
+        if let Err(error)=reserved {
+            crate::specs::part2_codeblock_cell_growth_refused(grid,clip,block,subband,style,policy,indices,before,
+                (x,y,width,height),decoded,true,error);
+        }
+    }
+    reserved?;
+    state.placements.push(placement);
     state.decoder_index = state
         .decoder_index
         .checked_add(1)
