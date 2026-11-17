@@ -231,7 +231,9 @@ pub(super) fn convert_selected_color(
 }
 
 #[cfg_attr(verus_keep_ghost, verus_spec(result =>
-    ensures associated_typed_outcome(result) == crate::specs::part2_apply_associated_output(
+    ensures crate::specs::part2_associated_output_result(crate::image::typed_image_value_view(decoded),jp2::associated_header_option(header),
+        crate::limits::resource_component_limit(limits),crate::limits::resource_decoded_bytes_limit(limits),associated_typed_outcome(result)),
+    associated_typed_outcome(result)!=Err(DecodeError::AllocationFailed) ==> associated_typed_outcome(result) == crate::specs::part2_apply_associated_output(
         crate::image::typed_image_value_view(decoded), jp2::associated_header_option(header),
         crate::limits::resource_component_limit(limits), crate::limits::resource_decoded_bytes_limit(limits),
     ),
@@ -242,8 +244,26 @@ pub(super) fn apply_associated_output<'a>(
     header: Option<&'a jp2::Jp2Header>,
     limits: &ResourceLimits,
 ) -> Result<(TypedImage, Option<&'a jp2::Jp2Header>), DecodeError> {
+    #[cfg(verus_keep_ghost)]
+    proof_decl! {let ghost source=crate::image::typed_image_value_view(decoded);}
+    #[cfg(verus_keep_ghost)]
+    proof! {
+        reveal(associated_typed_outcome);
+        crate::specs::part2_associated_output_normal(source,jp2::associated_header_option(header),
+            crate::limits::resource_component_limit(limits),crate::limits::resource_decoded_bytes_limit(limits));
+    }
     let image = match header {
-        Some(header) => apply_jp2_output(decoded, header, limits)?,
+        Some(header) => {
+            let result = apply_jp2_output(decoded, header, limits);
+            #[cfg(verus_keep_ghost)]
+            proof! {
+                if let Err(error)=result {
+                    crate::specs::part2_associated_output_error(source,jp2::associated_header_view(header),
+                        crate::limits::resource_component_limit(limits),crate::limits::resource_decoded_bytes_limit(limits),error);
+                }
+            }
+            result?
+        }
         None => decoded,
     };
     Ok((image, header))
@@ -297,7 +317,9 @@ pub(super) fn convert_associated_color(
 }
 
 #[cfg_attr(verus_keep_ghost, verus_spec(result =>
-    ensures crate::color::converted_image_result(result) == crate::specs::part2_finish_associated_selected_output(
+    ensures crate::specs::part2_selected_output_result(crate::image::typed_image_value_view(decoded),jp2::associated_header_option(header),target,
+        crate::limits::resource_component_limit(limits),crate::limits::resource_decoded_bytes_limit(limits),crate::limits::resource_work_limit(limits),crate::color::converted_image_result(result)),
+    crate::color::converted_image_result(result)!=Err(DecodeError::AllocationFailed) ==> crate::color::converted_image_result(result) == crate::specs::part2_finish_associated_selected_output(
         crate::image::typed_image_value_view(decoded), jp2::associated_header_option(header), target,
         crate::limits::resource_component_limit(limits), crate::limits::resource_decoded_bytes_limit(limits),
         crate::limits::resource_work_limit(limits),
@@ -309,7 +331,22 @@ pub(super) fn finish_associated_selected_output(
     target: [u32; 4],
     limits: &ResourceLimits,
 ) -> Result<crate::color::ConvertedImage, DecodeError> {
-    let (mapped, header) = apply_associated_output(decoded, header, limits)?;
+    #[cfg(verus_keep_ghost)]
+    proof_decl! {let ghost source=crate::image::typed_image_value_view(decoded);}
+    #[cfg(verus_keep_ghost)]
+    proof! {
+        crate::specs::part2_selected_output_normal(source,jp2::associated_header_option(header),target,
+            crate::limits::resource_component_limit(limits),crate::limits::resource_decoded_bytes_limit(limits),crate::limits::resource_work_limit(limits));
+    }
+    let output = apply_associated_output(decoded, header, limits);
+    #[cfg(verus_keep_ghost)]
+    proof! {
+        if let Err(error)=output {
+            crate::specs::part2_selected_output_error(source,jp2::associated_header_option(header),target,
+                crate::limits::resource_component_limit(limits),crate::limits::resource_decoded_bytes_limit(limits),crate::limits::resource_work_limit(limits),error);
+        }
+    }
+    let (mapped, header) = output?;
     convert_associated_selected_color(&mapped, header, target, limits)
 }
 
@@ -420,7 +457,18 @@ pub(crate) fn decode_jpx_file<'a>(
             codestream::complete_codestream_info_view(&info), crate::image::decoded_typed_image_outcome(decoded_result));
     }
     let decoded = decoded_result?;
-    apply_associated_output(decoded, associated_header, options.limits())
+    #[cfg(verus_keep_ghost)]
+    proof_decl! {let ghost output_source=crate::image::typed_image_value_view(decoded);}
+    let output = apply_associated_output(decoded, associated_header, options.limits());
+    #[cfg(verus_keep_ghost)]
+    proof! {
+        if let Err(error)=output {
+            crate::specs::part2_jpx_cold_output_error(jp2::jpx_file_decode_view(file),codestream_index,crate::options::decode_options_limits(options),
+                jp2::codestream_source_view(selected),jp2::associated_header_view(associated_header.unwrap()),
+                codestream::complete_codestream_info_view(&info),output_source,error);
+        }
+    }
+    output
 }
 
 #[cfg_attr(verus_keep_ghost, verus_spec(result =>
@@ -524,15 +572,27 @@ pub(super) fn decode_jpx_file_selected<'a>(
         }
     }
     let decoded = converted?;
-    let image = match associated_header {
-        Some(header) => apply_jp2_output(decoded, header, options.limits())?,
-        None => decoded,
-    };
-    Ok((image, associated_header))
+    #[cfg(verus_keep_ghost)]
+    proof_decl! {let ghost output_source=crate::image::typed_image_value_view(decoded);}
+    let output = apply_associated_output(decoded, associated_header, options.limits());
+    #[cfg(verus_keep_ghost)]
+    proof! {
+        if let Err(error)=output {
+            if let Ok(raw)=crate::specs::part1_parse_layout(jp2::codestream_source_view(selected).0,crate::options::decode_options_limits(options)) {
+                crate::specs::part2_jpx_selected_output_error(jp2::jpx_file_decode_view(file),codestream_index,crate::options::decode_options_limits(options),
+                    crate::options::decode_selection_view(selection),jp2::codestream_source_view(selected),jp2::associated_header_view(associated_header.unwrap()),raw,source_image,output_source,error);
+            }
+        }
+    }
+    output
 }
 
 #[cfg_attr(verus_keep_ghost, verus_spec(result =>
-    ensures crate::image::decoded_typed_image_outcome(result) == crate::specs::part2_apply_output_header(
+    ensures crate::specs::part2_output_storage_result(crate::specs::Part2OutputStorageContext {
+        image:crate::image::typed_image_value_view(decoded),header:jp2::output_header_view(header),
+        components:crate::limits::resource_component_limit(limits),maximum:crate::limits::resource_decoded_bytes_limit(limits),
+    },crate::image::decoded_typed_image_outcome(result)),
+    crate::image::decoded_typed_image_outcome(result)!=Err(DecodeError::AllocationFailed) ==> crate::image::decoded_typed_image_outcome(result) == crate::specs::part2_apply_output_header(
         crate::image::typed_image_value_view(decoded), jp2::output_header_view(header),
         crate::limits::resource_component_limit(limits), crate::limits::resource_decoded_bytes_limit(limits),
     ),
@@ -546,20 +606,41 @@ pub(super) fn apply_jp2_output(
     proof_decl! {
         let ghost input_components = crate::image::typed_components_output_view(crate::image::typed_image_components(&decoded));
         let ghost raw_header = jp2::output_header_view(header);
+        let ghost context=crate::specs::Part2OutputStorageContext {
+            image:crate::image::typed_image_value_view(decoded),header:raw_header,
+            components:crate::limits::resource_component_limit(limits),maximum:crate::limits::resource_decoded_bytes_limit(limits),
+        };
     }
     #[cfg(verus_keep_ghost)]
     proof! {
         assert(input_components =~= Seq::new(crate::image::typed_image_value_view(decoded).1.len(),
             |i: int| (crate::image::typed_image_value_view(decoded).1[i], crate::image::typed_image_value_view(decoded).2[i])));
+        crate::specs::part2_output_storage_normal(context);
     }
     let mut components = if header.component_mappings.is_empty() {
-        let mut copied = Vec::with_capacity(decoded.components().len());
+        let reserved = if decoded.components().is_empty() {
+            Ok(Vec::new())
+        } else {
+            crate::allocation::empty_with_capacity(decoded.components().len())
+        };
+        #[cfg(verus_keep_ghost)]
+        proof! {
+            crate::specs::part2_typed_capacity_observed(crate::specs::Part2TypedCapacityContext::Output {context},
+                crate::allocation::inspection_capacity_outcome(reserved));
+            if reserved.is_err(){crate::specs::part2_output_storage_owner_refused(context);}
+        }
+        let mut copied = reserved?;
         let component_count = decoded.components().len();
         let mut component_index = 0_usize;
         #[cfg_attr(
             verus_keep_ghost,
             verus_spec(
                 invariant component_index <= component_count,
+                context==(crate::specs::Part2OutputStorageContext {
+                    image:crate::image::typed_image_value_view(decoded),header:raw_header,
+                    components:crate::limits::resource_component_limit(limits),maximum:crate::limits::resource_decoded_bytes_limit(limits),
+                }),
+                crate::specs::part2_output_storage_result(context,crate::specs::part2_apply_output_header(context.image,context.header,context.components,context.maximum)),
                 component_count == input_components.len(),
                 raw_header == jp2::output_header_view(header),
                 raw_header.1.len() == 0,
@@ -571,12 +652,19 @@ pub(super) fn apply_jp2_output(
             )
         )]
         while component_index < component_count {
-            let component = copy_typed_component(
-                decoded
-                    .components()
-                    .get(component_index)
-                    .ok_or_else(invalid_jp2_output)?,
-            )?;
+            let source = decoded
+                .components()
+                .get(component_index)
+                .ok_or_else(invalid_jp2_output)?;
+            let result = copy_typed_component(source);
+            #[cfg(verus_keep_ghost)]
+            proof! {
+                if let Err(error)=result {
+                    crate::specs::part2_output_component_copy_error(context,component_index as nat,crate::image::typed_component_output_view(source),error);
+                    crate::specs::part2_output_storage_component_error(context,component_index as nat,crate::image::typed_components_output_view(copied@),error);
+                }
+            }
+            let component = result?;
             #[cfg(verus_keep_ghost)]
             proof! {
                 crate::proofs::production_impl::production_typed_components_output_push(copied@, component);
@@ -597,7 +685,14 @@ pub(super) fn apply_jp2_output(
         proof! {
             crate::proofs::production_impl::production_output_mapping_empty(input_components, raw_header);
         }
-        let mut mapped = Vec::with_capacity(header.component_mappings.len());
+        let reserved = crate::allocation::empty_with_capacity(header.component_mappings.len());
+        #[cfg(verus_keep_ghost)]
+        proof! {
+            crate::specs::part2_typed_capacity_observed(crate::specs::Part2TypedCapacityContext::Output {context},
+                crate::allocation::inspection_capacity_outcome(reserved));
+            if reserved.is_err(){crate::specs::part2_output_storage_owner_refused(context);}
+        }
+        let mut mapped = reserved?;
         #[cfg(verus_keep_ghost)]
         proof! { assert(crate::image::typed_components_output_view(mapped@) =~= Seq::empty()); }
         let mut mapping_index = 0_usize;
@@ -605,6 +700,11 @@ pub(super) fn apply_jp2_output(
             verus_keep_ghost,
             verus_spec(
                 invariant mapping_index <= header.component_mappings.len(),
+                context==(crate::specs::Part2OutputStorageContext {
+                    image:crate::image::typed_image_value_view(decoded),header:raw_header,
+                    components:crate::limits::resource_component_limit(limits),maximum:crate::limits::resource_decoded_bytes_limit(limits),
+                }),
+                crate::specs::part2_output_storage_result(context,crate::specs::part2_apply_output_header(context.image,context.header,context.components,context.maximum)),
                 raw_header == jp2::output_header_view(header),
                 raw_header.1.len() > 0,
                 input_components == crate::image::typed_components_output_view(crate::image::typed_image_components(&decoded)),
@@ -627,7 +727,17 @@ pub(super) fn apply_jp2_output(
                 .ok_or_else(invalid_jp2_output)?;
             let source = decoded.component(mapping.component)?;
             let component = match mapping.mapping_type {
-                jp2::MappingType::Direct => copy_typed_component(source)?,
+                jp2::MappingType::Direct => {
+                    let result = copy_typed_component(source);
+                    #[cfg(verus_keep_ghost)]
+                    proof! {
+                        if let Err(error)=result {
+                            crate::specs::part2_output_component_copy_error(context,mapping_index as nat,crate::image::typed_component_output_view(source),error);
+                            crate::specs::part2_output_storage_component_error(context,mapping_index as nat,crate::image::typed_components_output_view(mapped@),error);
+                        }
+                    }
+                    result?
+                }
                 jp2::MappingType::Palette { column } => {
                     let palette = header.palette.as_ref().ok_or_else(invalid_jp2_output)?;
                     map_palette_component(source, palette, column)?
@@ -656,6 +766,11 @@ pub(super) fn apply_jp2_output(
         verus_keep_ghost,
         verus_spec(
             invariant definition_index <= header.channel_definition_records.len(),
+            context==(crate::specs::Part2OutputStorageContext {
+                image:crate::image::typed_image_value_view(decoded),header:raw_header,
+                components:crate::limits::resource_component_limit(limits),maximum:crate::limits::resource_decoded_bytes_limit(limits),
+            }),
+            crate::specs::part2_output_storage_result(context,crate::specs::part2_apply_output_header(context.image,context.header,context.components,context.maximum)),
             raw_header == jp2::output_header_view(header),
             input_components == crate::image::typed_components_output_view(crate::image::typed_image_components(&decoded)),
             input_components == Seq::new(crate::image::typed_image_value_view(decoded).1.len(),
@@ -711,14 +826,28 @@ pub(super) fn apply_jp2_output(
 #[cfg_attr(
     verus_keep_ghost,
     verus_spec(result =>
-        ensures crate::image::typed_component_output(result)
+        ensures crate::specs::part2_output_copy_result(crate::image::typed_component_output_view(source),crate::image::typed_component_output(result)),
+        crate::image::typed_component_output(result)!=Err(DecodeError::AllocationFailed) ==> crate::image::typed_component_output(result)
             == crate::specs::part2_typed_component_copy(crate::image::typed_component_output_view(source)),
     )
 )]
 pub(super) fn copy_typed_component(source: &TypedComponent) -> Result<TypedComponent, DecodeError> {
+    #[cfg(verus_keep_ghost)]
+    proof_decl! {let ghost source_value=crate::image::typed_component_output_view(source);}
     let samples = match source.samples() {
         TypedSamples::Signed(source_samples) => {
-            let mut copied = Vec::with_capacity(source_samples.len());
+            let reserved = if source_samples.is_empty() {
+                Ok(Vec::new())
+            } else {
+                crate::allocation::empty_with_capacity(source_samples.len())
+            };
+            #[cfg(verus_keep_ghost)]
+            proof! {
+                let context=crate::specs::Part2TypedCapacityContext::Copy {source:source_value};
+                crate::specs::part2_typed_capacity_observed(context,crate::allocation::inspection_capacity_outcome(reserved));
+                if reserved.is_err(){crate::specs::part2_output_copy_refused(source_value);}
+            }
+            let mut copied = reserved?;
             let mut index = 0_usize;
             #[cfg_attr(
                 verus_keep_ghost,
@@ -737,7 +866,18 @@ pub(super) fn copy_typed_component(source: &TypedComponent) -> Result<TypedCompo
             TypedSamples::Signed(copied)
         }
         TypedSamples::Unsigned(source_samples) => {
-            let mut copied = Vec::with_capacity(source_samples.len());
+            let reserved = if source_samples.is_empty() {
+                Ok(Vec::new())
+            } else {
+                crate::allocation::empty_with_capacity(source_samples.len())
+            };
+            #[cfg(verus_keep_ghost)]
+            proof! {
+                let context=crate::specs::Part2TypedCapacityContext::Copy {source:source_value};
+                crate::specs::part2_typed_capacity_observed(context,crate::allocation::inspection_capacity_outcome(reserved));
+                if reserved.is_err(){crate::specs::part2_output_copy_refused(source_value);}
+            }
+            let mut copied = reserved?;
             let mut index = 0_usize;
             #[cfg_attr(
                 verus_keep_ghost,
@@ -794,6 +934,7 @@ pub(super) fn copy_typed_component(source: &TypedComponent) -> Result<TypedCompo
     proof! {
         assert(crate::image::typed_component_definitions(&copied)
             =~= crate::image::typed_component_definitions(source));
+        crate::specs::part2_output_copy_normal(crate::image::typed_component_output_view(source));
     }
     Ok(copied)
 }

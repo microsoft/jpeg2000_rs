@@ -1087,6 +1087,22 @@ pub(crate) open spec fn part2_trailer_jp2_typed_finish(
     }
 }
 
+pub(crate) open spec fn part2_trailer_jp2_typed_finish_run(inspected:Part2RawInspectedContainer,limits:&crate::ResourceLimits,decoded:Part2TrailerTyped,
+    events:Seq<Part2JpipSnapshotEvent>)->Part2ColdRun<Part2TrailerTyped> {
+    part2_jpip_snapshot_bind(part2_single_output_run(inspected,limits,decoded.0,events),
+        |image:Part1DecodedTypedImage,rest|Some((Ok((image,decoded.1)),rest)))
+}
+pub(crate) proof fn part2_trailer_jp2_typed_finish_normal(inspected:Part2RawInspectedContainer,limits:&crate::ResourceLimits,decoded:Part2TrailerTyped)
+    ensures part2_cold_framed(|events|part2_trailer_jp2_typed_finish_run(inspected,limits,decoded,events),part2_trailer_jp2_typed_finish(inspected,limits,decoded)),
+        forall|other:spec_fn(Seq<Part2JpipSnapshotEvent>)->Part2ColdRun<Part2TrailerTyped>|
+            (forall|events| #[trigger] other(events)==part2_trailer_jp2_typed_finish_run(inspected,limits,decoded,events)) ==> #[trigger] part2_cold_framed(other,part2_trailer_jp2_typed_finish(inspected,limits,decoded)),
+{
+    let mapped=part2_single_output(inspected,limits,decoded.0);part2_single_output_normal(inspected,limits,decoded.0);
+    if let Ok(value)=mapped{part2_cold_pure(Ok((value,decoded.1)));}
+    part2_cold_bind(|events|part2_single_output_run(inspected,limits,decoded.0,events),
+        |image:Part1DecodedTypedImage,rest|Some((Ok((image,decoded.1)),rest)),mapped,part2_trailer_jp2_typed_finish(inspected,limits,decoded));
+    part2_decode_eta(|events|part2_trailer_jp2_typed_finish_run(inspected,limits,decoded,events),part2_trailer_jp2_typed_finish(inspected,limits,decoded));
+}
 pub(crate) open spec fn part2_trailer_jp2_reconstructed_finish(
     inspected: Part2RawInspectedContainer, decoded: Part2TrailerReconstructed,
 ) -> Result<Part2TrailerReconstructed, crate::DecodeError> {
@@ -1103,7 +1119,7 @@ pub(crate) open spec fn part2_trailer_jp2_typed_after_inspection(
         Err(error) => Some((Err(error), events)),
         Ok(()) => part2_jpip_snapshot_bind(
             part2_trailer_raw_typed_run(inspected.0.streams[0].1, requested, limits, events),
-            |decoded: Part2TrailerTyped, rest| Some((part2_trailer_jp2_typed_finish(inspected, limits, decoded), rest))),
+            |decoded: Part2TrailerTyped, rest|part2_trailer_jp2_typed_finish_run(inspected,limits,decoded,rest)),
     }
 }
 
@@ -1249,15 +1265,37 @@ pub(crate) proof fn part2_trailer_jp2_typed_actual(
 {
     reveal(part2_trailer_jp2_typed_result); reveal(part2_trailer_raw_typed_result);
     let result = match decoded { Err(error) => Err(error), Ok(value) => part2_trailer_jp2_typed_finish(inspected, limits, value) };
-    if let Ok(value) = decoded { part2_cold_pure(part2_trailer_jp2_typed_finish(inspected, limits, value)); }
+    if let Ok(value) = decoded {part2_trailer_jp2_typed_finish_normal(inspected,limits,value);}
     part2_cold_bind(|events| part2_trailer_raw_typed_run(inspected.0.streams[0].1, requested, limits, events),
-        |value: Part2TrailerTyped, rest| Some((part2_trailer_jp2_typed_finish(inspected, limits, value), rest)), decoded, result);
+        |value: Part2TrailerTyped, rest|part2_trailer_jp2_typed_finish_run(inspected,limits,value,rest), decoded, result);
     part2_decode_eta(|events| part2_trailer_jp2_typed_after_inspection(inspected, requested, limits, events), result);
     part2_single_inspection_actual(input, limits, false, Ok(inspected));
     part2_cold_bind(|events| part2_single_inspection_run(input, limits, false, events),
         |value: Part2RawInspectedContainer, rest| part2_trailer_jp2_typed_after_inspection(value, requested, limits, rest), Ok(inspected), result);
 }
 
+pub(crate) proof fn part2_trailer_jp2_output_error(input:Seq<u8>,requested:Part2DecodeSelection,limits:&crate::ResourceLimits,
+    inspected:Part2RawInspectedContainer,decoded:Part2TrailerTyped,error:crate::DecodeError)
+    requires part2_inspection_cold_result(input,limits,true,Ok(inspected)),part2_single_profile(inspected,false)==Ok(()),
+        part2_trailer_raw_typed_result(inspected.0.streams[0].1,requested,limits,Ok(decoded)),
+        part2_output_storage_result(Part2OutputStorageContext {image:decoded.0,header:part2_raw_associated_header(inspected.0.header).0,
+            components:crate::limits::resource_component_limit(limits),maximum:crate::limits::resource_decoded_bytes_limit(limits)},Err(error)),
+    ensures part2_trailer_jp2_typed_result(input,requested,limits,Err(error)),
+{
+    reveal(part2_trailer_jp2_typed_result);reveal(part2_trailer_raw_typed_result);
+    part2_single_inspection_actual(input,limits,false,Ok(inspected));
+    part2_apply_output_observed(decoded.0,part2_raw_associated_header(inspected.0.header).0,
+        crate::limits::resource_component_limit(limits),crate::limits::resource_decoded_bytes_limit(limits),Err(error));
+    part2_decode_eta(|events|part2_single_output_run(inspected,limits,decoded.0,events),Err(error));
+    part2_cold_bind(|events|part2_single_output_run(inspected,limits,decoded.0,events),
+        |image:Part1DecodedTypedImage,rest|Some((Ok((image,decoded.1)),rest)),Err(error),Err::<Part2TrailerTyped,_>(error));
+    part2_decode_eta(|events|part2_trailer_jp2_typed_finish_run(inspected,limits,decoded,events),Err(error));
+    part2_cold_bind(|events|part2_trailer_raw_typed_run(inspected.0.streams[0].1,requested,limits,events),
+        |decoded:Part2TrailerTyped,rest|part2_trailer_jp2_typed_finish_run(inspected,limits,decoded,rest),Ok(decoded),Err(error));
+    part2_decode_eta(|events|part2_trailer_jp2_typed_after_inspection(inspected,requested,limits,events),Err(error));
+    part2_cold_bind(|events|part2_single_inspection_run(input,limits,false,events),
+        |value:Part2RawInspectedContainer,rest|part2_trailer_jp2_typed_after_inspection(value,requested,limits,rest),Ok(inspected),Err(error));
+}
 pub(crate) proof fn part2_trailer_jp2_reconstructed_actual(
     input: Seq<u8>, requested: Part2DecodeSelection, limits: &crate::ResourceLimits,
     inspected: Part2RawInspectedContainer, decoded: Result<Part2TrailerReconstructed, crate::DecodeError>,

@@ -5082,6 +5082,8 @@ _PLANE_ROLE_RESULT_RUNS = {
     for old, (model, _, _) in _PLANE_ROLE_MODEL_INFO.items()
 }
 _PLANE_ROLE_RESULT_RUNS.update({
+    "part2_output_copy_result": ("part2_output_copy_run", False),
+    "part2_output_storage_result": ("part2_output_storage_run", False),
     "part2_typed_samples_result": ("part2_typed_samples_run", False),
     "part2_typed_image_result": ("part2_typed_image_run", False),
     "part2_assembly_plane_result": ("part2_assembly_plane_run", True),
@@ -5110,6 +5112,10 @@ _PLANE_ROLE_RESULT_RUNS.update({
     "part2_coefficient_progression_result": ("part2_extraction_progression_run", False),
 })
 _COLD_RESULT_MODELS = {
+    "part2_typed_component_copy": ("part2_output_copy_result", "specs/cold_output_storage.rs", "part2_output_copy_normal"),
+    "part2_apply_output_header": ("part2_output_storage_result", "specs/cold_output_storage.rs", "part2_output_storage_normal"),
+    "part2_apply_associated_output": ("part2_associated_output_result", "specs/cold_output_storage.rs", "part2_associated_output_normal"),
+    "part2_finish_associated_selected_output": ("part2_selected_output_result", "specs/cold_output_storage.rs", "part2_selected_output_normal"),
     "part1_decoded_component_typed_samples": ("part2_typed_samples_result", "specs/cold_typed_storage.rs", "part2_typed_samples_normal"),
     "part1_decoded_image_typed": ("part2_typed_image_result", "specs/cold_typed_storage.rs", "part2_typed_image_normal"),
     "part2_typed_layout": ("part2_typed_layout_result", "specs/cold_typed_storage.rs", "part2_typed_layout_normal"),
@@ -5597,6 +5603,18 @@ _COLD_RESULT_CONTRACTS = {
 }
 _COLD_RESULT_CONTRACTS.update(_LEGACY_PACKET_STORAGE_CONTRACTS)
 _COLD_RESULT_CONTRACTS.update({
+    ("src/decode/output.rs", "copy_typed_component"): (
+        "part2_output_copy_result",
+        _coverage_call("crate::image::typed_component_output_view", "source") + r"\s*,\s*" + _coverage_call("crate::image::typed_component_output", r"\1"),
+    ),
+    ("src/decode/output.rs", "apply_jp2_output"): (
+        "part2_output_storage_result",
+        r"crate::specs::Part2OutputStorageContext\s*\{\s*image\s*:\s*" + _coverage_call("crate::image::typed_image_value_view", "decoded")
+        + r"\s*,\s*header\s*:\s*" + _coverage_call("jp2::output_header_view", "header")
+        + r"\s*,\s*components\s*:\s*" + _coverage_call("crate::limits::resource_component_limit", "limits")
+        + r"\s*,\s*maximum\s*:\s*" + _coverage_call("crate::limits::resource_decoded_bytes_limit", "limits")
+        + r"\s*,?\s*\}\s*,\s*" + _coverage_call("crate::image::decoded_typed_image_outcome", r"\1"),
+    ),
     ("src/image/samples.rs", "DecodedImage::typed"): (
         "part2_typed_image_result",
         _coverage_call("decoded_image_view", r"\*\s*self") + r"\s*,\s*" + _coverage_call("crate::limits::resource_decoded_bytes_limit", "limits")
@@ -6178,9 +6196,9 @@ _COLD_SOURCE_BODIES = {
     """, "whole raw layout requires raw byte/reader model, not a result bank: part1_parse_layout"),
     _JPX_SOURCE_ENTRY: ("specs/jpx_source.rs", "part2_jpx_cold_image", """
         part2_jpip_snapshot_bind(part2_decode_raw_cold_run(source.0, limits, None, events),
-            |image: Part1DecodedTypedImage, rest| Some((part2_apply_associated_output(image, Some(header),
+            |image: Part1DecodedTypedImage, rest| part2_associated_output_run(image, Some(header),
                 crate::limits::resource_component_limit(limits),
-                crate::limits::resource_decoded_bytes_limit(limits)), rest)))
+                crate::limits::resource_decoded_bytes_limit(limits), rest))
     """, "whole JPX source Result requires complete physical/source models, not supplied banks or trimming"),
     _EFFECTIVE_LAYER_ENTRY: ("specs/jpx_dispatch.rs", "part2_effective_layer_cold_run", """
         if layers.len() == 0 {
@@ -8002,6 +8020,76 @@ _CLEANUP_SIGNIFICANCE_TESTS = {
     ("src/tier1/tests.rs", "ht_cleanup_significance_storage_actual_replay_prior_decoder_and_exact_restore"),
     ("src/packet/tests.rs", "ht_cleanup_significance_storage_actual_packet_flag_refusal_rollback_and_restore"),
     ("src/decode/tests.rs", "ht_cleanup_significance_storage_actual_raw_selected_jph_reconstruction_and_automatic_restore"),
+}
+
+_OUTPUT_STORAGE_GUARDS = {
+    ("specs/cold_output_storage.rs", "part2_output_capacity_count"): (
+        "if context.header.1.len()==0{context.image.1.len()}else{context.header.1.len()}",
+    ),
+    ("specs/cold_output_storage.rs", "part2_output_copy_run"): (
+        "part2_typed_capacity_run(Part2TypedCapacityContext::Copy {source},calls)",
+        "|_:(),rest|Some((part2_typed_component_copy(source),rest))",
+    ),
+    ("specs/cold_output_storage.rs", "part2_output_inputs"): (
+        "Seq::new(context.image.1.len(),|i:int|(context.image.1[i],context.image.2[i]))",
+    ),
+    ("specs/cold_output_storage.rs", "part2_output_selected_source"): (
+        "if context.header.1.len()==0{Ok(input[index as int])}else{part2_typed_image_component(input,context.header.1[index as int].0)}",
+    ),
+    ("specs/cold_output_storage.rs", "part2_output_direct"): (
+        "context.header.1.len()==0 || context.header.1[index as int].1==crate::jp2::MappingType::Direct",
+    ),
+    ("specs/cold_output_storage.rs", "part2_output_component_run"): (
+        "part2_output_selected_source(context,index)", "Err(error)=>Some((Err(error),calls))",
+        "if part2_output_direct(context,index){part2_output_copy_run(source,calls)}",
+        "else{Some((part2_output_component_value(context,index),calls))}",
+    ),
+    ("specs/cold_output_storage.rs", "part2_output_components_run"): (
+        "part2_output_components_run(context,(count-1) as nat,calls)",
+        "part2_output_component_run(context,(count-1) as nat,rest)", "Some((Ok(before.push(component)),tail))",
+    ),
+    ("specs/cold_output_storage.rs", "part2_output_finish"): (
+        "part2_output_definition_prefix(mapped,context.header.2,context.header.2.len())",
+        "part2_typed_image_from_parts(context.image.0.0,context.image.0.1,context.image.0.2,context.image.0.3,defined,context.components,context.maximum)",
+    ),
+    ("specs/cold_output_storage.rs", "part2_output_storage_run"): (
+        "part2_typed_capacity_run(Part2TypedCapacityContext::Output {context},calls)",
+        "part2_output_components_run(context,part2_output_capacity_count(context),rest)", "part2_output_finish(context,mapped)",
+    ),
+    ("specs/cold_output_storage.rs", "part2_output_calls_run"): (
+        "if actual!=context{None}else{", "part2_output_storage_run(context,calls)",
+        "if rest.len()==0{Some((result,events.drop_first()))}else{None}",
+    ),
+}
+_OUTPUT_STORAGE_PROOFS = {("specs/cold_output_storage.rs", name) for name in (
+    "part2_output_copy_normal", "part2_output_copy_refused", "part2_output_copy_frames",
+    "part2_output_component_normal", "part2_output_components_normal", "part2_output_components_error",
+    "part2_output_component_copy_error", "part2_output_storage_owner_refused", "part2_output_storage_component_error",
+    "part2_output_storage_frames", "part2_output_calls_observed", "part2_output_storage_normal",
+)}
+_OUTPUT_STORAGE_NATIVE_ORDER = {
+    "copy_typed_component": (
+        "TypedSamples::Signed(source_samples)", "let reserved = if source_samples.is_empty()",
+        "crate::allocation::empty_with_capacity(source_samples.len())", "Part2TypedCapacityContext::Copy {source:source_value}",
+        "part2_typed_capacity_observed(context,crate::allocation::inspection_capacity_outcome(reserved))", "part2_output_copy_refused(source_value)", "let mut copied = reserved?",
+        "copied.push(*source_samples.get(index).ok_or_else(invalid_jp2_output)?)",
+        "TypedSamples::Unsigned(source_samples)", "let reserved = if source_samples.is_empty()",
+        "crate::allocation::empty_with_capacity(source_samples.len())", "part2_output_copy_refused(source_value)", "let mut copied = reserved?",
+        "let mut copied = crate::image::typed_component_from_parts(", "copied.add_channel_definition(",
+    ),
+    "apply_jp2_output": (
+        "if header.component_mappings.is_empty()", "let reserved = if decoded.components().is_empty()",
+        "crate::allocation::empty_with_capacity(decoded.components().len())",
+        "part2_typed_capacity_observed(crate::specs::Part2TypedCapacityContext::Output {context},crate::allocation::inspection_capacity_outcome(reserved))",
+        "part2_output_storage_owner_refused(context)", "let mut copied = reserved?",
+        "let result = copy_typed_component(source)", "part2_output_component_copy_error(", "part2_output_storage_component_error(", "let component = result?",
+        "let reserved = crate::allocation::empty_with_capacity(header.component_mappings.len())",
+        "part2_typed_capacity_observed(crate::specs::Part2TypedCapacityContext::Output {context},crate::allocation::inspection_capacity_outcome(reserved))",
+        "part2_output_storage_owner_refused(context)",
+        "let mut mapped = reserved?", "let source = decoded.component(mapping.component)?", "let result = copy_typed_component(source)",
+        "part2_output_component_copy_error(", "part2_output_storage_component_error(", "map_palette_component(source, palette, column)?",
+        "component.add_channel_definition(record.definition)", "crate::image::typed_image_from_components_with_origin(",
+    ),
 }
 
 _TYPED_STORAGE_MODELS = {("specs/cold_typed_storage.rs", name) for name in (
@@ -11654,7 +11742,8 @@ def validate_normative_coverage(
                 "let centered = decoded_result?",
                 "let converted = typed_layout(&layout, centered, selection.discard_levels(), options.limits(),)",
                 "part2_jpx_selected_conversion_error(", "let decoded = converted?",
-                "apply_jp2_output(decoded, header, options.limits())?", "Ok((image, associated_header))",
+                "let output = apply_associated_output(decoded, associated_header, options.limits())",
+                "part2_jpx_selected_output_error(", "output",
                 "codestream::decoder_layout_main_info_matches_raw(&layout)",
                 "jp2::associated_header_reference_selectors(selected, jp2::jpx_file_header_reference(file))",
             )) or any(name + "(" in "".join(body.split()) for name in ("decode_typed_layout", "decode_codestream_selected", "validate_part1_output_shape")):
@@ -11717,7 +11806,8 @@ def validate_normative_coverage(
                     "part2_decode_raw_codestream_selection_value(codestream@, crate::options::decode_options_limits(options), &expanded)",
                 ) if selected else (
                     "let decoded = match decode_codestream(codestream, options)",
-                    "apply_jp2_output(decoded, inspected.file().header(), options.limits())?",
+                    "let output = apply_jp2_output(decoded, inspected.file().header(), options.limits())",
+                    "part2_decode_color_output_error(", "let mapped = output?",
                     "crate::color::convert_jp2_color(&mapped, &inspected.file().header().color, options.limits())",
                 ))
                 if body is None or any("".join(item.split()) not in "".join(body.split()) for item in required):
@@ -13353,7 +13443,18 @@ def validate_normative_coverage(
                         codestream::complete_codestream_info_view(&info), crate::image::decoded_typed_image_outcome(decoded_result));
                 }
                 let decoded = decoded_result?;
-                apply_associated_output(decoded, associated_header, options.limits())
+                #[cfg(verus_keep_ghost)]
+                proof_decl! {let ghost output_source=crate::image::typed_image_value_view(decoded);}
+                let output = apply_associated_output(decoded, associated_header, options.limits());
+                #[cfg(verus_keep_ghost)]
+                proof! {
+                    if let Err(error)=output {
+                        crate::specs::part2_jpx_cold_output_error(jp2::jpx_file_decode_view(file),codestream_index,crate::options::decode_options_limits(options),
+                            jp2::codestream_source_view(selected),jp2::associated_header_view(associated_header.unwrap()),
+                            codestream::complete_codestream_info_view(&info),output_source,error);
+                    }
+                }
+                output
             """
             if "".join(body.split()) != "".join(expected.split()):
                 raise ValueError("whole JPX source Result requires actual executing source/header/raw decoder/output handoffs")
@@ -15106,6 +15207,17 @@ def validate_normative_coverage(
                     if re.search(named_prefix + r".*?" + ordinary, contract, re.S) is None:
                         raise ValueError(f"linked function lacks executable Verus contract: {short}; missing exact ordinary selection projection")
                 old_mct = _RECONSTRUCTION_CONTRACTS.get((reference["path"], reference["symbol"]))
+                if cold_contract[0] in ("part2_associated_output_result", "part2_selected_output_result"):
+                    selected = cold_contract[0] == "part2_selected_output_result"
+                    projection = "crate::color::converted_image_result" if selected else "associated_typed_outcome"
+                    model = "part2_finish_associated_selected_output" if selected else "part2_apply_associated_output"
+                    inputs = _coverage_call("crate::image::typed_image_value_view", "decoded") + r"\s*,\s*" \
+                        + _coverage_call("jp2::associated_header_option", "header") + (r"\s*,\s*target" if selected else "") \
+                        + r"\s*,\s*" + _coverage_call("crate::limits::resource_component_limit", "limits") \
+                        + r"\s*,\s*" + _coverage_call("crate::limits::resource_decoded_bytes_limit", "limits") \
+                        + (r"\s*,\s*" + _coverage_call("crate::limits::resource_work_limit", "limits") if selected else "")
+                    if not _coverage_extraction_normal_arguments(contract, projection, model, inputs):
+                        raise ValueError(f"linked function lacks executable Verus contract: {short}; missing exact ordinary associated output projection")
                 if cold_contract[0] in ("part2_typed_samples_result", "part2_typed_image_result"):
                     samples = cold_contract[0] == "part2_typed_samples_result"
                     projection = "decoded_typed_samples_outcome" if samples else "decoded_typed_image_outcome"
@@ -15614,6 +15726,11 @@ def validate_normative_coverage(
                     contract, named_result, component_contract_arguments[0], component_contract_arguments[1],
                 )
             )
+            if cold_contract is not None and cold_contract[0] in ("part2_output_copy_result", "part2_output_storage_result"):
+                projection = "crate::image::typed_component_output" if cold_contract[0] == "part2_output_copy_result" else "crate::image::decoded_typed_image_outcome"
+                component_arguments_bound = _coverage_extraction_normal_arguments(
+                    contract, projection, component_contract_arguments[0], component_contract_arguments[1],
+                )
             arbitrary_arguments_bound = (
                 arbitrary_contract is None
                 or _coverage_result_arguments(contract, named_result, arbitrary_contract[1], arbitrary_contract[2])
@@ -16198,6 +16315,30 @@ def validate_normative_coverage(
                 position = found + len(token)
         if not _BITPLANE_INITIAL_TESTS.issubset({(ref["path"], ref["symbol"]) for ref in entry["test_refs"]}):
             raise ValueError("initial bitplane storage requires bounded raw/empty/first-later/error/present-state/real-public restoration controls")
+    if "part2-complete-native-output-header" in ids:
+        output_entry = next(item for item in coverage["requirements"] if item["id"] == "part2-complete-native-output-header")
+        if not set(_OUTPUT_STORAGE_GUARDS).issubset({(ref["path"], ref["symbol"]) for ref in output_entry["spec_refs"]}) \
+                or not _OUTPUT_STORAGE_PROOFS.issubset({(ref["path"], ref["symbol"]) for ref in output_entry["proof_refs"]}):
+            raise ValueError("checked output storage requires complete source/copy/prefix/error/nested-call models and proved frames")
+        for (relative, symbol), fragments in _OUTPUT_STORAGE_GUARDS.items():
+            body = _coverage_spec_function_body(source_text((ROOT / relative).resolve()), symbol)
+            compact = "".join(body.split()) if body is not None else ""
+            if any("".join(fragment.split()) not in compact for fragment in fragments):
+                raise ValueError("checked output storage requires exact source/header/caps/count/copy/definition/admission/reply/tail production")
+        for symbol, fragments in _OUTPUT_STORAGE_NATIVE_ORDER.items():
+            path = (ROOT / "src/decode/output.rs").resolve()
+            body = _coverage_function_body(source_text(path), function_header(path, symbol))
+            compact = "".join(body.split()) if body is not None else ""
+            position = 0
+            for fragment in fragments:
+                token = "".join(fragment.split())
+                found = compact.find(token, position)
+                if found < 0:
+                    raise ValueError("checked output storage requires original metadata/source/copy/definition/admission order and observed refusals")
+                position = found + len(token)
+        if ("src/decode/tests.rs", "output_storage_copy_and_header_preserve_raw_values_priority_empty_and_retry") not in {
+                (ref["path"], ref["symbol"]) for ref in output_entry["test_refs"]}:
+            raise ValueError("checked output storage requires bounded raw/signed/unsigned/empty/first-later/priority/retry controls")
     if "part1-complete-decoded-typed-conversion" in ids:
         for (relative, symbol), fragments in _TYPED_STORAGE_GUARDS.items():
             body = _coverage_spec_function_body(source_text((ROOT / relative).resolve()), symbol)

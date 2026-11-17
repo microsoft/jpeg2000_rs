@@ -40,6 +40,20 @@ pub(crate) proof fn part2_typed_decode_finish_error(bytes:usize,input:Part2Decod
     part2_cold_bind(|events|part2_typed_layout_run(input,decoded,discard,limits,events),
         |image:Part1DecodedTypedImage,rest|Some((part2_typed_decode_output(bytes,input,image),rest)),Err(error),Err(error));
 }
+pub(crate) proof fn part2_typed_decode_finish_image(bytes:usize,input:Part2DecoderLayoutInput,requested:Option<Part2DecodeSelection>,limits:&crate::ResourceLimits,
+    decoded:Part1DecodedImageModel,image:Part1DecodedTypedImage)
+    requires part2_typed_layout_result(input,decoded,match requested{None=>0u8,Some(selection)=>selection.2},limits,Ok(image)),
+        part2_typed_decode_output(bytes,input,image)==Ok(image),
+    ensures part2_cold_framed(|events|part2_typed_decode_finish_run(bytes,input,requested,limits,decoded,events),Ok(image)),
+        forall|other:spec_fn(Seq<Part2JpipSnapshotEvent>)->Part2ColdRun<Part1DecodedTypedImage>|
+            (forall|events| #[trigger] other(events)==part2_typed_decode_finish_run(bytes,input,requested,limits,decoded,events)) ==> #[trigger] part2_cold_framed(other,Ok(image)),
+{
+    let discard=match requested{None=>0u8,Some(selection)=>selection.2};
+    part2_typed_layout_frames(input,decoded,discard,limits,Ok(image));part2_cold_pure(Ok(image));
+    part2_cold_bind(|events|part2_typed_layout_run(input,decoded,discard,limits,events),
+        |image:Part1DecodedTypedImage,rest|Some((part2_typed_decode_output(bytes,input,image),rest)),Ok(image),Ok(image));
+    part2_decode_eta(|events|part2_typed_decode_finish_run(bytes,input,requested,limits,decoded,events),Ok(image));
+}
 pub(crate) open spec fn part2_typed_decode_run(bytes: usize, input: Part2DecoderLayoutInput, requested: Option<Part2DecodeSelection>,
     limits: &crate::ResourceLimits, events: Seq<Part2JpipSnapshotEvent>) -> Part2ColdRun<Part1DecodedTypedImage> {
     part2_jpip_snapshot_bind(part2_layout_decode_run(input, requested, limits, events),

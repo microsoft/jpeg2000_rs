@@ -32,9 +32,9 @@ pub(crate) open spec fn part2_jpx_cold_image(
     events: Seq<Part2JpipSnapshotEvent>,
 ) -> Part2ColdRun<(Part1DecodedTypedImage, Option<Part2AssociatedHeader>)> {
     part2_jpip_snapshot_bind(part2_decode_raw_cold_run(source.0, limits, None, events),
-        |image: Part1DecodedTypedImage, rest| Some((part2_apply_associated_output(image, Some(header),
+        |image: Part1DecodedTypedImage, rest|part2_associated_output_run(image, Some(header),
             crate::limits::resource_component_limit(limits),
-            crate::limits::resource_decoded_bytes_limit(limits)), rest)))
+            crate::limits::resource_decoded_bytes_limit(limits),rest))
 }
 
 pub(crate) open spec fn part2_jpx_cold_run(
@@ -62,19 +62,22 @@ pub(crate) open spec fn part2_jpx_selected_finish(input: Part2DecoderLayoutInput
 pub(crate) open spec fn part2_jpx_selected_finish_run(input:Part2DecoderLayoutInput,header:Part2AssociatedHeader,requested:Part2DecodeSelection,
     limits:&crate::ResourceLimits,decoded:Part1DecodedImageModel,events:Seq<Part2JpipSnapshotEvent>)->Part2ColdRun<(Part1DecodedTypedImage,Option<Part2AssociatedHeader>)> {
     part2_jpip_snapshot_bind(part2_typed_layout_run(input,decoded,requested.2,limits,events),
-        |image:Part1DecodedTypedImage,rest|Some((part2_apply_associated_output(image,Some(header),crate::limits::resource_component_limit(limits),
-            crate::limits::resource_decoded_bytes_limit(limits)),rest)))
+        |image:Part1DecodedTypedImage,rest|part2_associated_output_run(image,Some(header),crate::limits::resource_component_limit(limits),
+            crate::limits::resource_decoded_bytes_limit(limits),rest))
 }
 pub(crate) proof fn part2_jpx_selected_finish_normal(input:Part2DecoderLayoutInput,header:Part2AssociatedHeader,requested:Part2DecodeSelection,limits:&crate::ResourceLimits,decoded:Part1DecodedImageModel)
     ensures part2_cold_framed(|events|part2_jpx_selected_finish_run(input,header,requested,limits,decoded,events),part2_jpx_selected_finish(input,header,requested,limits,decoded)),
 {
     let typed=part2_typed_layout_input(input,decoded,requested.2,limits);
     part2_typed_layout_normal(input,decoded,requested.2,limits);part2_typed_layout_frames(input,decoded,requested.2,limits,typed);
-    if let Ok(image)=typed{part2_cold_pure(part2_apply_associated_output(image,Some(header),crate::limits::resource_component_limit(limits),
-        crate::limits::resource_decoded_bytes_limit(limits)));}
+    if let Ok(image)=typed{
+        part2_associated_output_normal(image,Some(header),crate::limits::resource_component_limit(limits),crate::limits::resource_decoded_bytes_limit(limits));
+        part2_associated_output_frames(image,Some(header),crate::limits::resource_component_limit(limits),crate::limits::resource_decoded_bytes_limit(limits),
+            part2_apply_associated_output(image,Some(header),crate::limits::resource_component_limit(limits),crate::limits::resource_decoded_bytes_limit(limits)));
+    }
     part2_cold_bind(|events|part2_typed_layout_run(input,decoded,requested.2,limits,events),
-        |image:Part1DecodedTypedImage,rest|Some((part2_apply_associated_output(image,Some(header),crate::limits::resource_component_limit(limits),
-            crate::limits::resource_decoded_bytes_limit(limits)),rest)),typed,part2_jpx_selected_finish(input,header,requested,limits,decoded));
+        |image:Part1DecodedTypedImage,rest|part2_associated_output_run(image,Some(header),crate::limits::resource_component_limit(limits),
+            crate::limits::resource_decoded_bytes_limit(limits),rest),typed,part2_jpx_selected_finish(input,header,requested,limits,decoded));
 }
 pub(crate) open spec fn part2_jpx_selected_layout_run(source: Part2CodestreamSource, header: Part2AssociatedHeader,
     layout: Part1CompleteLayout, limits: &crate::ResourceLimits, requested: Part2DecodeSelection,
@@ -156,15 +159,15 @@ pub(crate) proof fn part2_jpx_cold_normal(
                         part2_decode_raw_cold_normal(source.0, limits, None);
                         part2_decode_raw_cold_frames(source.0, limits, None, decoded);
                         if let Ok(image) = decoded {
-                            part2_cold_pure(part2_apply_associated_output(image, Some(header),
-                                crate::limits::resource_component_limit(limits),
-                                crate::limits::resource_decoded_bytes_limit(limits)));
+                            part2_associated_output_normal(image,Some(header),crate::limits::resource_component_limit(limits),crate::limits::resource_decoded_bytes_limit(limits));
+                            part2_associated_output_frames(image,Some(header),crate::limits::resource_component_limit(limits),crate::limits::resource_decoded_bytes_limit(limits),
+                                part2_apply_associated_output(image,Some(header),crate::limits::resource_component_limit(limits),crate::limits::resource_decoded_bytes_limit(limits)));
                         }
                         part2_cold_bind(
                             |events| part2_decode_raw_cold_run(source.0, limits, None, events),
-                            |image: Part1DecodedTypedImage, rest| Some((part2_apply_associated_output(image, Some(header),
+                            |image: Part1DecodedTypedImage, rest|part2_associated_output_run(image, Some(header),
                                 crate::limits::resource_component_limit(limits),
-                                crate::limits::resource_decoded_bytes_limit(limits)), rest)),
+                                crate::limits::resource_decoded_bytes_limit(limits),rest),
                             decoded, match decoded { Err(error) => Err(error), Ok(image) =>
                                 part2_apply_associated_output(image, Some(header),
                                     crate::limits::resource_component_limit(limits),
@@ -245,14 +248,15 @@ pub(crate) proof fn part2_jpx_cold_image_actual(
     part2_cold_info_actual(source.0, limits, 5, index, Ok(info));
     part2_decode_raw_cold_frames(source.0, limits, None, decoded);
     if let Ok(image) = decoded {
-        part2_cold_pure(part2_apply_associated_output(image, Some(header),
-            crate::limits::resource_component_limit(limits), crate::limits::resource_decoded_bytes_limit(limits)));
+        part2_associated_output_normal(image,Some(header),crate::limits::resource_component_limit(limits),crate::limits::resource_decoded_bytes_limit(limits));
+        part2_associated_output_frames(image,Some(header),crate::limits::resource_component_limit(limits),crate::limits::resource_decoded_bytes_limit(limits),
+            part2_apply_associated_output(image,Some(header),crate::limits::resource_component_limit(limits),crate::limits::resource_decoded_bytes_limit(limits)));
     }
     part2_cold_bind(
         |events| part2_decode_raw_cold_run(source.0, limits, None, events),
-        |image: Part1DecodedTypedImage, rest| Some((part2_apply_associated_output(image, Some(header),
+        |image: Part1DecodedTypedImage, rest|part2_associated_output_run(image, Some(header),
             crate::limits::resource_component_limit(limits),
-            crate::limits::resource_decoded_bytes_limit(limits)), rest)), decoded, result);
+            crate::limits::resource_decoded_bytes_limit(limits),rest), decoded, result);
     part2_cold_bind(
         |events| part2_cold_info(source.0, limits, 5, index, events),
         |info: Part2RawCodestreamInfo, rest| match part2_jpx_cold_validate(source, header, info) {
@@ -318,10 +322,53 @@ pub(crate) proof fn part2_jpx_selected_conversion_error(input:Part2JpxDecodeInpu
     let parsed=part2_decoder_input_from_raw(layout);
     part2_typed_layout_frames(parsed,decoded,requested.2,limits,Err(error));
     part2_cold_bind(|events|part2_typed_layout_run(parsed,decoded,requested.2,limits,events),
-        |image:Part1DecodedTypedImage,rest|Some((part2_apply_associated_output(image,Some(header),crate::limits::resource_component_limit(limits),
-            crate::limits::resource_decoded_bytes_limit(limits)),rest)),Err(error),Err(error));
+        |image:Part1DecodedTypedImage,rest|part2_associated_output_run(image,Some(header),crate::limits::resource_component_limit(limits),
+            crate::limits::resource_decoded_bytes_limit(limits),rest),Err(error),Err(error));
     part2_cold_bind(|events|part2_layout_decode_run(parsed,Some(requested),limits,events),
         |image:Part1DecodedImageModel,rest|part2_jpx_selected_finish_run(parsed,header,requested,limits,image,rest),Ok(decoded),Err(error));
+    part2_decode_eta(|events|part2_jpx_selected_layout_run(source,header,layout,limits,requested,events),Err(error));
+    part2_cold_parse_actual(source.0,limits,6,index,Ok(layout));
+    part2_cold_bind(|events|part2_cold_parse(source.0,limits,6,index,events),
+        |layout:Part1CompleteLayout,rest|part2_jpx_selected_layout_run(source,header,layout,limits,requested,rest),Ok(layout),Err(error));
+}
+pub(crate) proof fn part2_jpx_cold_output_error(input:Part2JpxDecodeInput,index:usize,limits:&crate::ResourceLimits,
+    source:Part2CodestreamSource,header:Part2AssociatedHeader,info:Part2RawCodestreamInfo,image:Part1DecodedTypedImage,error:crate::DecodeError)
+    requires part2_jpx_cold_header(input,index)==Ok((source,header)),part1_parse_info_cold_result(source.0,limits,Ok(info)),
+        part2_jpx_cold_validate(source,header,info)==Ok(()),part2_decode_raw_cold_result(source.0,limits,None,Ok(image)),
+        part2_associated_output_result(image,Some(header),crate::limits::resource_component_limit(limits),crate::limits::resource_decoded_bytes_limit(limits),Err(error)),
+    ensures part2_jpx_cold_result(input,index,limits,Err(error)),
+{
+    part2_cold_info_actual(source.0,limits,5,index,Ok(info));
+    part2_decode_raw_cold_frames(source.0,limits,None,Ok(image));
+    part2_associated_output_frames(image,Some(header),crate::limits::resource_component_limit(limits),crate::limits::resource_decoded_bytes_limit(limits),Err(error));
+    part2_cold_bind(|events|part2_decode_raw_cold_run(source.0,limits,None,events),
+        |image:Part1DecodedTypedImage,rest|part2_associated_output_run(image,Some(header),crate::limits::resource_component_limit(limits),
+            crate::limits::resource_decoded_bytes_limit(limits),rest),Ok(image),Err(error));
+    part2_decode_eta(|events|part2_jpx_cold_image(source,header,limits,events),Err(error));
+    part2_cold_bind(|events|part2_cold_info(source.0,limits,5,index,events),
+        |info:Part2RawCodestreamInfo,rest|match part2_jpx_cold_validate(source,header,info){
+            Err(error)=>Some((Err(error),rest)),Ok(())=>part2_jpx_cold_image(source,header,limits,rest),
+        },Ok(info),Err(error));
+}
+pub(crate) proof fn part2_jpx_selected_output_error(input:Part2JpxDecodeInput,index:usize,limits:&crate::ResourceLimits,requested:Part2DecodeSelection,
+    source:Part2CodestreamSource,header:Part2AssociatedHeader,layout:Part1CompleteLayout,centered:Part1DecodedImageModel,image:Part1DecodedTypedImage,error:crate::DecodeError)
+    requires part2_jpx_cold_header(input,index)==Ok((source,header)),part1_parse_layout_cold_result(source.0,limits,Ok(layout)),
+        part2_jpx_cold_validate(source,header,(layout.0,layout.1,layout.2,layout.3))==Ok(()),
+        part2_layout_decode_result(part2_decoder_input_from_raw(layout),Some(requested),limits,Ok(centered)),
+        part2_typed_layout_result(part2_decoder_input_from_raw(layout),centered,requested.2,limits,Ok(image)),
+        part2_associated_output_result(image,Some(header),crate::limits::resource_component_limit(limits),crate::limits::resource_decoded_bytes_limit(limits),Err(error)),
+    ensures part2_jpx_selected_cold_result(input,index,limits,requested,Err(error)),
+{
+    reveal(part2_layout_decode_result);
+    let parsed=part2_decoder_input_from_raw(layout);
+    part2_associated_output_frames(image,Some(header),crate::limits::resource_component_limit(limits),crate::limits::resource_decoded_bytes_limit(limits),Err(error));
+    part2_typed_layout_frames(parsed,centered,requested.2,limits,Ok(image));
+    part2_cold_bind(|events|part2_typed_layout_run(parsed,centered,requested.2,limits,events),
+        |image:Part1DecodedTypedImage,rest|part2_associated_output_run(image,Some(header),crate::limits::resource_component_limit(limits),
+            crate::limits::resource_decoded_bytes_limit(limits),rest),Ok(image),Err(error));
+    part2_decode_eta(|events|part2_jpx_selected_finish_run(parsed,header,requested,limits,centered,events),Err(error));
+    part2_cold_bind(|events|part2_layout_decode_run(parsed,Some(requested),limits,events),
+        |centered:Part1DecodedImageModel,rest|part2_jpx_selected_finish_run(parsed,header,requested,limits,centered,rest),Ok(centered),Err(error));
     part2_decode_eta(|events|part2_jpx_selected_layout_run(source,header,layout,limits,requested,events),Err(error));
     part2_cold_parse_actual(source.0,limits,6,index,Ok(layout));
     part2_cold_bind(|events|part2_cold_parse(source.0,limits,6,index,events),

@@ -379,6 +379,25 @@ pub(crate) open spec fn part2_present_jp2_typed_finish(
     }
 }
 
+pub(crate) open spec fn part2_present_jp2_typed_finish_run(inspected:Part2RawInspectedContainer,source:Part2DecoderLayoutInput,
+    requested:Part2DecodeSelection,tile:Option<u16>,image:Part1DecodedTypedImage,limits:&crate::ResourceLimits,
+    events:Seq<Part2JpipSnapshotEvent>)->Part2ColdRun<Part2PresentTyped> {
+    part2_jpip_snapshot_bind(part2_single_output_run(inspected,limits,image,events),
+        |mapped:Part1DecodedTypedImage,rest|Some((part2_present_typed_finish(source,requested,tile,mapped,limits),rest)))
+}
+pub(crate) proof fn part2_present_jp2_typed_finish_normal(inspected:Part2RawInspectedContainer,source:Part2DecoderLayoutInput,
+    requested:Part2DecodeSelection,tile:Option<u16>,image:Part1DecodedTypedImage,limits:&crate::ResourceLimits)
+    ensures part2_cold_framed(|events|part2_present_jp2_typed_finish_run(inspected,source,requested,tile,image,limits,events),part2_present_jp2_typed_finish(inspected,source,requested,tile,image,limits)),
+        forall|other:spec_fn(Seq<Part2JpipSnapshotEvent>)->Part2ColdRun<Part2PresentTyped>|
+            (forall|events| #[trigger] other(events)==part2_present_jp2_typed_finish_run(inspected,source,requested,tile,image,limits,events)) ==> #[trigger] part2_cold_framed(other,part2_present_jp2_typed_finish(inspected,source,requested,tile,image,limits)),
+{
+    let mapped=part2_single_output(inspected,limits,image);part2_single_output_normal(inspected,limits,image);
+    if let Ok(value)=mapped{part2_cold_pure(part2_present_typed_finish(source,requested,tile,value,limits));}
+    part2_cold_bind(|events|part2_single_output_run(inspected,limits,image,events),
+        |mapped:Part1DecodedTypedImage,rest|Some((part2_present_typed_finish(source,requested,tile,mapped,limits),rest)),mapped,
+        part2_present_jp2_typed_finish(inspected,source,requested,tile,image,limits));
+    part2_decode_eta(|events|part2_present_jp2_typed_finish_run(inspected,source,requested,tile,image,limits,events),part2_present_jp2_typed_finish(inspected,source,requested,tile,image,limits));
+}
 pub(crate) open spec fn part2_present_jp2_reconstructed_finish(
     inspected: Part2RawInspectedContainer, source: Part2DecoderLayoutInput,
     requested: Part2DecodeSelection, tile: Option<u16>,
@@ -399,8 +418,7 @@ pub(crate) open spec fn part2_present_jp2_typed_after_layout(
         Ok(tile) => part2_jpip_snapshot_bind(
             part2_decode_raw_value_cold_run(inspected.0.streams[0].1, limits,
                 Some(part2_present_tile_requested(tile, requested)), events),
-            |image: Part1DecodedTypedImage, rest|
-                Some((part2_present_jp2_typed_finish(inspected, source, requested, tile, image, limits), rest))),
+            |image: Part1DecodedTypedImage, rest|part2_present_jp2_typed_finish_run(inspected,source,requested,tile,image,limits,rest)),
     }
 }
 
@@ -684,11 +702,10 @@ pub(crate) proof fn part2_present_jp2_typed_actual(
     };
     part2_single_inspection_actual(input, limits, false, Ok(inspected));
     part2_cold_parse_actual(bytes, limits, 11, 0, Ok(parsed));
-    if let Ok(image) = decoded { part2_cold_pure(part2_present_jp2_typed_finish(inspected, source, requested, tile, image, limits)); }
+    if let Ok(image) = decoded {part2_present_jp2_typed_finish_normal(inspected,source,requested,tile,image,limits);}
     part2_cold_bind(
         |events| part2_decode_raw_value_cold_run(bytes, limits, Some(part2_present_tile_requested(tile, requested)), events),
-        |image: Part1DecodedTypedImage, rest|
-            Some((part2_present_jp2_typed_finish(inspected, source, requested, tile, image, limits), rest)),
+        |image: Part1DecodedTypedImage, rest|part2_present_jp2_typed_finish_run(inspected,source,requested,tile,image,limits,rest),
         decoded, result);
     part2_cold_bind(|events| part2_cold_parse(bytes, limits, 11, 0, events),
         |raw: Part1CompleteLayout, rest| part2_present_jp2_typed_after_layout(
@@ -698,6 +715,34 @@ pub(crate) proof fn part2_present_jp2_typed_actual(
             part2_present_jp2_typed_after_inspection(value, requested, limits, rest), Ok(inspected), result);
 }
 
+pub(crate) proof fn part2_present_jp2_output_error(input:Seq<u8>,inspected:Part2RawInspectedContainer,parsed:Part1CompleteLayout,
+    requested:Part2DecodeSelection,tile:Option<u16>,limits:&crate::ResourceLimits,image:Part1DecodedTypedImage,error:crate::DecodeError)
+    requires part2_inspection_cold_result(input,limits,true,Ok(inspected)),part2_single_profile(inspected,false)==Ok(()),
+        part1_parse_layout(inspected.0.streams[0].1,limits)==Ok(parsed),part1_parse_layout_cold_result(inspected.0.streams[0].1,limits,Ok(parsed)),
+        part2_present_tile_index(part2_decoder_input_from_raw(parsed),requested)==Ok(tile),
+        part2_decode_raw_value_cold_result(inspected.0.streams[0].1,limits,Some(part2_present_tile_requested(tile,requested)),Ok(image)),
+        part2_output_storage_result(Part2OutputStorageContext {image,header:part2_raw_associated_header(inspected.0.header).0,
+            components:crate::limits::resource_component_limit(limits),maximum:crate::limits::resource_decoded_bytes_limit(limits)},Err(error)),
+    ensures part2_present_jp2_typed_result(input,requested,limits,Err(error)),
+{
+    reveal(part2_present_jp2_typed_result);
+    let bytes=inspected.0.streams[0].1;let source=part2_decoder_input_from_raw(parsed);
+    part2_single_inspection_actual(input,limits,false,Ok(inspected));part2_cold_parse_actual(bytes,limits,11,0,Ok(parsed));
+    part2_apply_output_observed(image,part2_raw_associated_header(inspected.0.header).0,
+        crate::limits::resource_component_limit(limits),crate::limits::resource_decoded_bytes_limit(limits),Err(error));
+    part2_decode_eta(|events|part2_single_output_run(inspected,limits,image,events),Err(error));
+    part2_cold_bind(|events|part2_single_output_run(inspected,limits,image,events),
+        |mapped:Part1DecodedTypedImage,rest|Some((part2_present_typed_finish(source,requested,tile,mapped,limits),rest)),Err(error),Err(error));
+    part2_decode_eta(|events|part2_present_jp2_typed_finish_run(inspected,source,requested,tile,image,limits,events),Err(error));
+    part2_cold_bind(|events|part2_decode_raw_value_cold_run(bytes,limits,Some(part2_present_tile_requested(tile,requested)),events),
+        |image:Part1DecodedTypedImage,rest|part2_present_jp2_typed_finish_run(inspected,source,requested,tile,image,limits,rest),Ok(image),Err(error));
+    part2_decode_eta(|events|part2_present_jp2_typed_after_layout(inspected,source,requested,limits,events),Err(error));
+    part2_cold_bind(|events|part2_cold_parse(bytes,limits,11,0,events),
+        |raw:Part1CompleteLayout,rest|part2_present_jp2_typed_after_layout(inspected,part2_decoder_input_from_raw(raw),requested,limits,rest),Ok(parsed),Err(error));
+    part2_decode_eta(|events|part2_present_jp2_typed_after_inspection(inspected,requested,limits,events),Err(error));
+    part2_cold_bind(|events|part2_single_inspection_run(input,limits,false,events),
+        |value:Part2RawInspectedContainer,rest|part2_present_jp2_typed_after_inspection(value,requested,limits,rest),Ok(inspected),Err(error));
+}
 pub(crate) proof fn part2_present_jp2_reconstructed_actual(
     input: Seq<u8>, inspected: Part2RawInspectedContainer, parsed: Part1CompleteLayout,
     requested: Part2DecodeSelection, tile: Option<u16>, limits: &crate::ResourceLimits,

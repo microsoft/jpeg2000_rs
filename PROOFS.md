@@ -39,6 +39,24 @@ an all-feature Verus proof. Full source-function coverage remains `not-measured`
 
 ## Fallible-storage foundation and remaining boundary
 
+### JP2 output metadata and sample copies
+
+The direct-copy and mapped component vectors now reserve checked metadata
+before their original source, palette, definition and final output admission.
+Signed and unsigned sample copies use checked storage while retaining their
+original copy loops and native checkpoint order. Empty owners make no request;
+raw samples, geometry, origins, component information and definitions retain
+their original values and first semantic errors.
+
+[`cold_output_storage.rs`](specs/cold_output_storage.rs) composes the actual
+source/header/caps, exact count, ordered component copies, first refusal and
+arbitrary tail. Exhausted nested calls bind full/selected JP2/JPH, JPX, color,
+dimension authority, present-tile, terminal-trailer and common PDF output.
+The existing public infallible definition API is unchanged. Nonempty definition
+growth, palette/nonlinear/color scratch and other owners remain outside these
+two measured producers; neither a passing small-fixture matrix nor these
+default proofs establishes complete allocation-surface recovery.
+
 ### Centered-to-typed output ownership
 
 Typed-image component metadata now uses checked storage before any component

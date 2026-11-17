@@ -331,7 +331,21 @@ pub fn decode_pdf_compatible(
     if let Some(file) = &prepared.file {
         #[cfg(verus_keep_ghost)]
         proof! { jp2::raw_render_file_known(file); }
-        image = apply_jp2_output(image, file.header(), options.limits())?;
+        #[cfg(verus_keep_ghost)]
+        proof_decl! {let ghost output_source=crate::image::typed_image_value_view(image);}
+        let output = apply_jp2_output(image, file.header(), options.limits());
+        #[cfg(verus_keep_ghost)]
+        proof! {
+            if let Err(error)=output {
+                if let Ok(raw)=crate::specs::part1_parse_layout(encoded@,crate::options::decode_options_limits(options)) {
+                    if let Ok(value)=recovered {
+                        crate::specs::part2_pdf_output_error(input@,prepared_pdf_input_view(&prepared),raw,
+                            crate::options::decode_selection_view(requested),ignored,chosen,crate::options::decode_options_limits(options),value,output_source,error);
+                    }
+                }
+            }
+        }
+        image = output?;
     }
     let report = finish_report(
         &layout.info.image_size,

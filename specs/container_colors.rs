@@ -161,12 +161,46 @@ pub(crate) open spec fn part2_color_cold_finish(
     }
 }
 
+pub(crate) open spec fn part2_color_cold_finish_run(file:Part2RawJp2File,limits:&crate::ResourceLimits,target:Option<Seq<u32>>,decoded:Part1DecodedTypedImage,
+    events:Seq<Part2JpipSnapshotEvent>)->Part2ColdRun<Part2ConvertedImage> {
+    let header=part2_raw_associated_header(file.header);
+    match target {
+        None=>part2_jpip_snapshot_bind(part2_apply_output_run(decoded,header.0,crate::limits::resource_component_limit(limits),crate::limits::resource_decoded_bytes_limit(limits),events),
+            |mapped:Part1DecodedTypedImage,rest|Some((color_convert_jp2(mapped.1,mapped.2,mapped.0,header.2,
+                crate::limits::resource_decoded_bytes_limit(limits),crate::limits::resource_work_limit(limits)),rest))),
+        Some(target)=>part2_selected_output_run(decoded,Some(header),[target[0],target[1],target[2],target[3]],
+            crate::limits::resource_component_limit(limits),crate::limits::resource_decoded_bytes_limit(limits),crate::limits::resource_work_limit(limits),events),
+    }
+}
+pub(crate) proof fn part2_color_cold_finish_normal(file:Part2RawJp2File,limits:&crate::ResourceLimits,target:Option<Seq<u32>>,decoded:Part1DecodedTypedImage)
+    ensures part2_cold_framed(|events|part2_color_cold_finish_run(file,limits,target,decoded,events),part2_color_cold_finish(file,limits,target,decoded)),
+        forall|other:spec_fn(Seq<Part2JpipSnapshotEvent>)->Part2ColdRun<Part2ConvertedImage>|
+            (forall|events| #[trigger] other(events)==part2_color_cold_finish_run(file,limits,target,decoded,events)) ==> #[trigger] part2_cold_framed(other,part2_color_cold_finish(file,limits,target,decoded)),
+{
+    let header=part2_raw_associated_header(file.header);
+    let components=crate::limits::resource_component_limit(limits);let maximum=crate::limits::resource_decoded_bytes_limit(limits);let work=crate::limits::resource_work_limit(limits);
+    match target {
+        None=>{
+            let mapped=part2_apply_output_header(decoded,header.0,components,maximum);part2_apply_output_normal(decoded,header.0,components,maximum);
+            if let Ok(value)=mapped{part2_cold_pure(color_convert_jp2(value.1,value.2,value.0,header.2,maximum,work));}
+            part2_cold_bind(|events|part2_apply_output_run(decoded,header.0,components,maximum,events),
+                |mapped:Part1DecodedTypedImage,rest|Some((color_convert_jp2(mapped.1,mapped.2,mapped.0,header.2,maximum,work),rest)),
+                mapped,part2_color_cold_finish(file,limits,target,decoded));
+        },
+        Some(value)=>{
+            let region=[value[0],value[1],value[2],value[3]];
+            part2_selected_output_normal(decoded,Some(header),region,components,maximum,work);
+            part2_selected_output_frames(decoded,Some(header),region,components,maximum,work,part2_finish_associated_selected_output(decoded,Some(header),region,components,maximum,work));
+        },
+    }
+    part2_decode_eta(|events|part2_color_cold_finish_run(file,limits,target,decoded,events),part2_color_cold_finish(file,limits,target,decoded));
+}
 pub(crate) open spec fn part2_color_after_selection_cold(
     file: Part2RawJp2File, limits: &crate::ResourceLimits, expanded: (Part2DecodeSelection, Seq<u32>),
     events: Seq<Part2JpipSnapshotEvent>,
 ) -> Part2ColdRun<Part2ConvertedImage> {
     part2_jpip_snapshot_bind(part2_decode_raw_value_cold_run(file.streams[0].1, limits, Some(expanded.0), events),
-        |decoded: Part1DecodedTypedImage, tail| Some((part2_color_cold_finish(file, limits, Some(expanded.1), decoded), tail)))
+        |decoded: Part1DecodedTypedImage, tail|part2_color_cold_finish_run(file,limits,Some(expanded.1),decoded,tail))
 }
 
 pub(crate) open spec fn part2_color_file_cold_run(
@@ -178,7 +212,7 @@ pub(crate) open spec fn part2_color_file_cold_run(
     } else {
         match requested {
             None => part2_jpip_snapshot_bind(part2_decode_raw_value_cold_run(file.streams[0].1, limits, None, events),
-                |decoded: Part1DecodedTypedImage, tail| Some((part2_color_cold_finish(file, limits, None, decoded), tail))),
+                |decoded: Part1DecodedTypedImage, tail|part2_color_cold_finish_run(file,limits,None,decoded,tail)),
             Some(requested) => part2_jpip_snapshot_bind(
                 part2_color_selection_cold_run(file.streams[0].1, limits, requested, events),
                 |expanded: (Part2DecodeSelection, Seq<u32>), tail|
@@ -217,10 +251,10 @@ pub(crate) proof fn part2_color_cold_after_image_normal(
 {
     let decoded = part2_decode_raw_codestream_value(file.streams[0].1, limits, Some(expanded.0));
     part2_decode_raw_value_cold_normal(file.streams[0].1, limits, Some(expanded.0));
-    if let Ok(image) = decoded { part2_cold_pure(part2_color_cold_finish(file, limits, Some(expanded.1), image)); }
+    if let Ok(image) = decoded {part2_color_cold_finish_normal(file,limits,Some(expanded.1),image);}
     part2_cold_bind(
         |events| part2_decode_raw_value_cold_run(file.streams[0].1, limits, Some(expanded.0), events),
-        |image: Part1DecodedTypedImage, tail| Some((part2_color_cold_finish(file, limits, Some(expanded.1), image), tail)),
+        |image: Part1DecodedTypedImage, tail|part2_color_cold_finish_run(file,limits,Some(expanded.1),image,tail),
         decoded, match decoded { Err(error) => Err(error),
             Ok(image) => part2_color_cold_finish(file, limits, Some(expanded.1), image) });
 }
@@ -250,11 +284,11 @@ pub(crate) proof fn part2_color_file_cold_normal(
             None => {
                 let decoded = part2_decode_raw_codestream_value(file.streams[0].1, limits, None);
                 part2_decode_raw_value_cold_normal(file.streams[0].1, limits, None);
-                if let Ok(image) = decoded { part2_cold_pure(part2_color_cold_finish(file, limits, None, image)); }
+                if let Ok(image) = decoded {part2_color_cold_finish_normal(file,limits,None,image);}
                 part2_decode_raw_codestream_selection_none(file.streams[0].1, limits);
                 part2_cold_bind(
                     |events| part2_decode_raw_value_cold_run(file.streams[0].1, limits, None, events),
-                    |image: Part1DecodedTypedImage, tail| Some((part2_color_cold_finish(file, limits, None, image), tail)),
+                    |image: Part1DecodedTypedImage, tail|part2_color_cold_finish_run(file,limits,None,image,tail),
                     decoded, part2_decode_file_color(file, limits, requested, jph));
             },
             Some(selected) => {
@@ -330,7 +364,7 @@ pub(crate) proof fn part2_decode_color_source_error(
         None => {
             part2_cold_bind(
                 |events| part2_decode_raw_value_cold_run(file.streams[0].1, limits, None, events),
-                |image: Part1DecodedTypedImage, tail| Some((part2_color_cold_finish(file, limits, None, image), tail)),
+                |image: Part1DecodedTypedImage, tail|part2_color_cold_finish_run(file,limits,None,image,tail),
                 Err(error), Err(error));
         },
         Some(selected) => {
@@ -340,7 +374,7 @@ pub(crate) proof fn part2_decode_color_source_error(
             if let Some(value) = expanded {
                 part2_cold_bind(
                     |events| part2_decode_raw_value_cold_run(file.streams[0].1, limits, Some(value.0), events),
-                    |image: Part1DecodedTypedImage, tail| Some((part2_color_cold_finish(file, limits, Some(value.1), image), tail)),
+                    |image: Part1DecodedTypedImage, tail|part2_color_cold_finish_run(file,limits,Some(value.1),image,tail),
                     Err(error), Err(error));
             }
             part2_cold_bind(
@@ -354,6 +388,53 @@ pub(crate) proof fn part2_decode_color_source_error(
         Ok(inspected), Err(error));
 }
 
+pub(crate) proof fn part2_decode_color_output_error(input:Seq<u8>,limits:&crate::ResourceLimits,requested:Option<Part2DecodeSelection>,jph:bool,
+    inspected:Part2RawInspectedContainer,expanded:Option<(Part2DecodeSelection,Seq<u32>)>,image:Part1DecodedTypedImage,error:crate::DecodeError)
+    requires if jph{part2_inspect_jph_cold_result(input,limits,Ok(inspected))}else{part2_inspection_cold_result(input,limits,true,Ok(inspected))},
+        part2_single_profile(inspected,jph)==Ok(()),
+        match requested {
+            None=>expanded.is_none() && part2_decode_raw_value_cold_result(inspected.0.streams[0].1,limits,None,Ok(image))
+                &&part2_output_storage_result(Part2OutputStorageContext {image,header:part2_raw_associated_header(inspected.0.header).0,
+                    components:crate::limits::resource_component_limit(limits),maximum:crate::limits::resource_decoded_bytes_limit(limits)},Err(error)),
+            Some(selected)=>match expanded {
+                None=>false,
+                Some(value)=>part2_color_selection_cold_result(inspected.0.streams[0].1,limits,selected,Ok(value))
+                    &&part2_decode_raw_value_cold_result(inspected.0.streams[0].1,limits,Some(value.0),Ok(image))
+                    &&part2_selected_output_result(image,Some(part2_raw_associated_header(inspected.0.header)),[value.1[0],value.1[1],value.1[2],value.1[3]],
+                        crate::limits::resource_component_limit(limits),crate::limits::resource_decoded_bytes_limit(limits),crate::limits::resource_work_limit(limits),Err(error)),
+            },
+        },
+    ensures part2_decode_color_cold_result(input,limits,requested,jph,Err(error)),
+{
+    reveal(part2_decode_color_cold_result);
+    part2_single_inspection_actual(input,limits,jph,Ok(inspected));
+    let file=inspected.0;let header=part2_raw_associated_header(file.header);
+    let components=crate::limits::resource_component_limit(limits);let maximum=crate::limits::resource_decoded_bytes_limit(limits);let work=crate::limits::resource_work_limit(limits);
+    match requested {
+        None=>{
+            part2_apply_output_observed(image,header.0,components,maximum,Err(error));
+            part2_cold_bind(|events|part2_apply_output_run(image,header.0,components,maximum,events),
+                |mapped:Part1DecodedTypedImage,rest|Some((color_convert_jp2(mapped.1,mapped.2,mapped.0,header.2,maximum,work),rest)),Err(error),Err(error));
+            part2_decode_eta(|events|part2_color_cold_finish_run(file,limits,None,image,events),Err(error));
+            part2_cold_bind(|events|part2_decode_raw_value_cold_run(file.streams[0].1,limits,None,events),
+                |image:Part1DecodedTypedImage,rest|part2_color_cold_finish_run(file,limits,None,image,rest),Ok(image),Err(error));
+        },
+        Some(selected)=>{
+            if let Some(value)=expanded {
+                part2_selected_output_frames(image,Some(header),[value.1[0],value.1[1],value.1[2],value.1[3]],components,maximum,work,Err(error));
+                part2_decode_eta(|events|part2_color_cold_finish_run(file,limits,Some(value.1),image,events),Err(error));
+                part2_cold_bind(|events|part2_decode_raw_value_cold_run(file.streams[0].1,limits,Some(value.0),events),
+                    |image:Part1DecodedTypedImage,rest|part2_color_cold_finish_run(file,limits,Some(value.1),image,rest),Ok(image),Err(error));
+                part2_decode_eta(|events|part2_color_after_selection_cold(file,limits,value,events),Err(error));
+                part2_cold_bind(|events|part2_color_selection_cold_run(file.streams[0].1,limits,selected,events),
+                    |value,rest|part2_color_after_selection_cold(file,limits,value,rest),Ok(value),Err(error));
+            }
+        },
+    }
+    part2_decode_eta(|events|part2_color_file_cold_run(file,limits,requested,jph,events),Err(error));
+    part2_cold_bind(|events|part2_single_inspection_run(input,limits,jph,events),
+        |value:Part2RawInspectedContainer,rest|part2_color_file_cold_run(value.0,limits,requested,jph,rest),Ok(inspected),Err(error));
+}
 pub(crate) closed spec fn part2_color_selection_raw(
     input: Seq<u8>, limits: &crate::ResourceLimits, requested: Part2DecodeSelection,
 ) -> Result<(Part2DecodeSelection, Seq<u32>), crate::DecodeError> {
