@@ -13,6 +13,76 @@ pub struct Part2AssociationAppendContext {
     pub limits:crate::ResourceLimits,
     pub parsed:Part2RawJp2Header,
 }
+pub struct Part2LayerAppendContext {
+    pub input:Part2BoxReference,
+    pub before:Part2RawContainerState,
+    pub file_type:Part2FileType,
+    pub limits:crate::ResourceLimits,
+    pub parsed:Part2RawCompositingLayer,
+}
+pub(crate) open spec fn part2_layer_append_admitted(context:Part2LayerAppendContext)->bool {
+    part2_container_header_request(context.input,context.before,context.file_type,context.limits)
+        ==Some(Part2ContainerHeaderRequest::Layer {input:context.input}) &&
+        part2_parse_compositing_layer(context.input,context.limits)==Ok(context.parsed)
+}
+pub(crate) open spec fn part2_layer_append_capacity_run(context:Part2LayerAppendContext,
+    events:Seq<Part2JpipSnapshotEvent>)->Part2ColdRun<()> {
+    if !part2_layer_append_admitted(context) || events.len()==0 {None}
+    else {match events[0] {
+        Part2JpipSnapshotEvent::LayerAppendCapacity {context:actual,elements,succeeded}=>
+            if actual!=context || elements!=1 {None}
+            else{Some((if succeeded{Ok(())}else{Err(crate::DecodeError::AllocationFailed)},events.drop_first()))},
+        _=>None,
+    }}
+}
+pub closed spec fn part2_layer_append_capacity_result(context:Part2LayerAppendContext,
+    result:Result<(),crate::DecodeError>)->bool {
+    part2_cold_framed(|events|part2_layer_append_capacity_run(context,events),result)
+}
+pub(crate) proof fn part2_layer_append_capacity_observed(context:Part2LayerAppendContext,
+    result:Result<(),crate::DecodeError>)
+    requires part2_layer_append_admitted(context),
+        result==Ok(()) || result==Err(crate::DecodeError::AllocationFailed),
+    ensures part2_layer_append_capacity_result(context,result),
+{
+    let prefix=seq![Part2JpipSnapshotEvent::LayerAppendCapacity {context,elements:1,succeeded:result.is_ok()}];
+    assert forall|tail:Seq<Part2JpipSnapshotEvent>|
+        part2_layer_append_capacity_run(context,prefix+tail)==Some((result,tail)) by {
+        assert((prefix+tail).drop_first() =~= tail);
+    }
+    assert(part2_cold_prefix(|events|part2_layer_append_capacity_run(context,events),prefix,result));
+}
+pub(crate) proof fn part2_layer_append_capacity_frames(context:Part2LayerAppendContext,
+    result:Result<(),crate::DecodeError>)
+    requires part2_layer_append_capacity_result(context,result),
+    ensures part2_cold_framed(|events|part2_layer_append_capacity_run(context,events),result),
+        forall|other:spec_fn(Seq<Part2JpipSnapshotEvent>)->Part2ColdRun<()>|
+            (forall|events| #[trigger] other(events)==part2_layer_append_capacity_run(context,events)) ==>
+                #[trigger] part2_cold_framed(other,result),
+{
+    part2_decode_eta(|events|part2_layer_append_capacity_run(context,events),result);
+}
+pub(crate) open spec fn part2_container_layer_append_run(context:Part2LayerAppendContext,
+    events:Seq<Part2JpipSnapshotEvent>)->Part2ColdRun<Part2RawContainerState> {
+    part2_jpip_snapshot_bind(part2_layer_append_capacity_run(context,events),
+        |_:(),rest|Some((part2_container_step(context.input,context.before,context.file_type,context.limits),rest)))
+}
+pub(crate) proof fn part2_container_layer_append_normal(context:Part2LayerAppendContext)
+    requires part2_layer_append_admitted(context),
+    ensures part2_cold_framed(|events|part2_container_layer_append_run(context,events),
+            part2_container_step(context.input,context.before,context.file_type,context.limits)),
+        forall|other:spec_fn(Seq<Part2JpipSnapshotEvent>)->Part2ColdRun<Part2RawContainerState>|
+            (forall|events| #[trigger] other(events)==part2_container_layer_append_run(context,events)) ==>
+                #[trigger] part2_cold_framed(other,part2_container_step(context.input,context.before,context.file_type,context.limits)),
+{
+    let result=part2_container_step(context.input,context.before,context.file_type,context.limits);
+    part2_layer_append_capacity_observed(context,Ok(()));
+    part2_layer_append_capacity_frames(context,Ok(()));
+    part2_cold_pure(result);
+    part2_cold_bind(|events|part2_layer_append_capacity_run(context,events),
+        |_:(),rest|Some((result,rest)),Ok(()),result);
+    part2_decode_eta(|events|part2_container_layer_append_run(context,events),result);
+}
 pub(crate) open spec fn part2_association_append_admitted(context:Part2AssociationAppendContext)->bool {
     match part2_container_header_request(context.input,context.before,context.file_type,context.limits) {
         Some(Part2ContainerHeaderRequest::Associated {payload,defaults,base})=>
@@ -112,7 +182,8 @@ pub(crate) open spec fn part2_container_headers_run(input:Part2BoxReference,stat
                     Part2AssociationAppendContext {input,before:state,file_type,limits,parsed},rest)),
         Some(Part2ContainerHeaderRequest::Layer {input:layer})=>
             part2_jpip_snapshot_bind(part2_layer_header_storage_run(layer,limits,events),
-                |_:Part2RawCompositingLayer,rest|Some((result,rest))),
+                |parsed:Part2RawCompositingLayer,rest|part2_container_layer_append_run(
+                    Part2LayerAppendContext {input,before:state,file_type,limits,parsed},rest)),
     }
 }
 pub(crate) proof fn part2_container_headers_normal(input:Part2BoxReference,state:Part2RawContainerState,
@@ -149,8 +220,13 @@ pub(crate) proof fn part2_container_headers_normal(input:Part2BoxReference,state
         Some(Part2ContainerHeaderRequest::Layer {input:layer})=>{
             let parsed=part2_parse_compositing_layer(layer,limits);
             part2_layer_header_storage_normal(layer,limits);part2_layer_header_storage_frames(layer,limits,parsed);
+            if let Ok(value)=parsed {
+                part2_container_layer_append_normal(Part2LayerAppendContext {
+                    input,before:state,file_type,limits,parsed:value});
+            }
             part2_cold_bind(|events|part2_layer_header_storage_run(layer,limits,events),
-                |_:Part2RawCompositingLayer,rest|Some((result,rest)),parsed,result);
+                |value:Part2RawCompositingLayer,rest|part2_container_layer_append_run(
+                    Part2LayerAppendContext {input,before:state,file_type,limits,parsed:value},rest),parsed,result);
         },
     }
     part2_decode_eta(|events|part2_container_headers_run(input,state,file_type,limits,events),result);
@@ -212,7 +288,27 @@ pub(crate) proof fn part2_container_layer_header_error(input:Part2BoxReference,s
     assert(!part2_container_step_reserves(input,state,file_type,limits));
     part2_layer_header_storage_frames(layer,limits,Err(error));
     part2_cold_bind(|events|part2_layer_header_storage_run(layer,limits,events),
-        |_:Part2RawCompositingLayer,rest|Some((part2_container_step(input,state,file_type,limits),rest)),Err(error),Err(error));
+        |parsed:Part2RawCompositingLayer,rest|part2_container_layer_append_run(
+            Part2LayerAppendContext {input,before:state,file_type,limits,parsed},rest),Err(error),Err(error));
+}
+pub(crate) proof fn part2_container_layer_append_error(context:Part2LayerAppendContext,error:crate::DecodeError)
+    requires part2_layer_append_admitted(context),
+        part2_layer_header_storage_result(context.input,context.limits,Ok(context.parsed)),
+        part2_layer_append_capacity_result(context,Err(error)),
+    ensures part2_cold_framed(|events|part2_container_step_cold_run(
+        context.input,context.before,context.file_type,context.limits,events),Err(error)),
+{
+    let input=context.input;let state=context.before;let file_type=context.file_type;let limits=context.limits;
+    crate::jp2::channel_storage_box_kinds_known();
+    assert(!part2_container_step_reserves(input,state,file_type,limits));
+    part2_layer_append_capacity_frames(context,Err(error));
+    part2_cold_bind(|events|part2_layer_append_capacity_run(context,events),
+        |_:(),rest|Some((part2_container_step(input,state,file_type,limits),rest)),Err(error),Err(error));
+    part2_decode_eta(|events|part2_container_layer_append_run(context,events),Err(error));
+    part2_layer_header_storage_frames(input,limits,Ok(context.parsed));
+    part2_cold_bind(|events|part2_layer_header_storage_run(input,limits,events),
+        |parsed:Part2RawCompositingLayer,rest|part2_container_layer_append_run(
+            Part2LayerAppendContext {input,before:state,file_type,limits,parsed},rest),Ok(context.parsed),Err(error));
 }
 pub(crate) proof fn part2_parse_container_header_error(input:Seq<u8>,limits:crate::ResourceLimits,file_type:Part2FileType,
     prefix:Seq<Part2JpipSnapshotEvent>,before_reader:Part2BoxReaderState,before:Part2RawContainerState,

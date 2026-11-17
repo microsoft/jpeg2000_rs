@@ -2259,6 +2259,10 @@
         {"path": "specs/cold_container_headers.rs", "symbol": "part2_association_append_capacity_run"},
         {"path": "specs/cold_container_headers.rs", "symbol": "part2_association_append_capacity_result"},
         {"path": "specs/cold_container_headers.rs", "symbol": "part2_container_association_append_run"},
+        {"path": "specs/cold_container_headers.rs", "symbol": "part2_layer_append_admitted"},
+        {"path": "specs/cold_container_headers.rs", "symbol": "part2_layer_append_capacity_run"},
+        {"path": "specs/cold_container_headers.rs", "symbol": "part2_layer_append_capacity_result"},
+        {"path": "specs/cold_container_headers.rs", "symbol": "part2_container_layer_append_run"},
         {"path": "specs/cold_container_headers.rs", "symbol": "part2_container_headers_run"},
         {"path": "specs/cold_container_headers.rs", "symbol": "part2_container_attach_storage_run"},
         {"path": "specs/cold_container_headers.rs", "symbol": "part2_container_attach_storage_result"},
@@ -2295,6 +2299,10 @@
         {"path": "specs/cold_channel_storage.rs", "symbol": "part2_codestream_header_storage_clone_error"},
         {"path": "specs/cold_container_headers.rs", "symbol": "part2_association_append_capacity_observed"},
         {"path": "specs/cold_container_headers.rs", "symbol": "part2_container_association_append_error"},
+        {"path": "specs/cold_container_headers.rs", "symbol": "part2_layer_append_capacity_observed"},
+        {"path": "specs/cold_container_headers.rs", "symbol": "part2_layer_append_capacity_frames"},
+        {"path": "specs/cold_container_headers.rs", "symbol": "part2_container_layer_append_normal"},
+        {"path": "specs/cold_container_headers.rs", "symbol": "part2_container_layer_append_error"},
         {"path": "specs/cold_container_headers.rs", "symbol": "part2_container_attach_storage_stage"},
         {"path": "specs/cold_container_headers.rs", "symbol": "part2_container_finish_storage_normal"},
         {"path": "specs/cold_container_headers.rs", "symbol": "part2_container_finish_storage_prefix"},
@@ -2302,6 +2310,7 @@
         {"path": "specs/cold_container_headers.rs", "symbol": "part2_parse_container_attach_error"}
       ],
       "test_refs": [
+        {"path": "src/jp2/tests.rs", "symbol": "layer_group_storage_container_keeps_first_later_growth_and_late_validation"},
         {"path": "src/jp2/tests.rs", "symbol": "checked_header_storage_copies_each_raw_owner_and_retries_after_refusal"},
         {"path": "src/jp2/tests.rs", "symbol": "checked_header_storage_preserves_empty_options_and_raw_invalid_fields_without_requests"},
         {"path": "src/jp2/tests.rs", "symbol": "checked_association_storage_preserves_payload_optional_owners_and_exact_retry"},
@@ -2402,7 +2411,7 @@
     },
     {
       "id": "part2-complete-native-raw-compositing-layer-result",
-      "topic": "Complete actual raw registration,color-group,opacity and borrowed compositing-layer Results, including ordered checked opaque ICC child copies and exact reader/first-error/arbitrary-tail composition. All grids/ordered duplicate registrations/full color metadata/ICC bytes/definitions/key bytes/nested metadata/header/payload retained. Original payload reference preserved; no supplied parsed-layer bank or valid-ICC premise. Registration errors use lazy offsets while opacity offset is eager; component limits follow actual color parsing and group append; mutual opacity/definition exclusion preserved. General colour-group/layer vector growth remains separate, as do whole conformance/cfg/erasure/lifetimes/release claims.",
+      "topic": "Complete actual raw registration,color-group,opacity and borrowed compositing-layer Results, including ordered checked opaque ICC child copies, checked colour-group append, and exact reader/first-error/arbitrary-tail composition. Append reserves after the actual child parse/copy and before the original component limit, binding source/retained prefix/parsed child/count/actual reply. All grids/ordered duplicate registrations/full color metadata/ICC bytes/definitions/key bytes/nested metadata/header/payload retained. Original payload reference preserved; no supplied parsed-layer bank, physical-capacity inference or valid-ICC premise. Lazy registration versus eager opacity offsets and mutual opacity/definition exclusion remain. Other conditional storage owners and whole conformance/cfg/erasure/lifetimes/release claims remain separate.",
       "implementation_refs": [
         {"path": "src/jp2/composition.rs", "symbol": "parse_codestream_registration"},
         {"path": "src/jp2/composition.rs", "symbol": "parse_color_group"},
@@ -2416,6 +2425,10 @@
         {"path": "specs/cold_color_storage.rs", "symbol": "part2_color_group_storage_accept"},
         {"path": "specs/cold_color_storage.rs", "symbol": "part2_color_group_storage_step_value"},
         {"path": "specs/cold_color_storage.rs", "symbol": "part2_color_group_storage_step_run"},
+        {"path": "specs/cold_color_storage.rs", "symbol": "part2_color_group_append_admitted"},
+        {"path": "specs/cold_color_storage.rs", "symbol": "part2_color_group_append_capacity_run"},
+        {"path": "specs/cold_color_storage.rs", "symbol": "part2_color_group_append_capacity_result"},
+        {"path": "specs/cold_color_storage.rs", "symbol": "part2_color_group_storage_copied_run"},
         {"path": "specs/cold_color_storage.rs", "symbol": "part2_color_group_storage_boxes_run"},
         {"path": "specs/cold_palette_storage.rs", "symbol": "part2_header_storage_request_run"},
         {"path": "specs/cold_channel_storage.rs", "symbol": "part2_layer_header_storage_machine"},
@@ -2447,6 +2460,9 @@
         {"path": "specs/cold_color_storage.rs", "symbol": "part2_color_group_storage_frames"},
         {"path": "specs/cold_color_storage.rs", "symbol": "part2_color_group_storage_root_advance"},
         {"path": "specs/cold_color_storage.rs", "symbol": "part2_color_group_storage_root_error"},
+        {"path": "specs/cold_color_storage.rs", "symbol": "part2_color_group_append_capacity_observed"},
+        {"path": "specs/cold_color_storage.rs", "symbol": "part2_color_group_append_capacity_frames"},
+        {"path": "specs/cold_color_storage.rs", "symbol": "part2_color_group_storage_root_append_error"},
         {"path": "specs/cold_palette_storage.rs", "symbol": "part2_header_storage_request_color_error"},
         {"path": "specs/cold_palette_storage.rs", "symbol": "part2_header_storage_request_color_group_error"},
         {"path": "specs/cold_channel_storage.rs", "symbol": "part2_layer_header_storage_normal"},
@@ -2463,6 +2479,7 @@
         {"path": "src/limits.rs", "symbol": "ResourceLimits::maximum_codestreams"}
       ],
       "test_refs": [
+        {"path": "src/jp2/tests.rs", "symbol": "layer_group_storage_group_keeps_child_priority_spare_capacity_and_later_growth"},
         {"path": "src/jp2/tests.rs", "symbol": "color_storage_groups_keep_order_nested_refusals_and_parse_before_limits"},
         {"path": "src/jp2/tests.rs", "symbol": "actual_raw_layer_registration_retains_grids_all_fields_order_and_duplicate_indices"},
         {"path": "src/jp2/tests.rs", "symbol": "actual_raw_layer_registration_keeps_length_grid_count_and_record_error_priority"},

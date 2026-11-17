@@ -53,8 +53,16 @@ base, admitted profile count, normalized allocation response and arbitrary
 tail. Main and associated headers consume those replies through the existing
 typed header request program. Its colour-group reader/fold composes each actual
 COLR child in order, preserves the parse/append-before-component-limit priority,
-and propagates first refusals through layer and container callers.
-General colour-group/layer vector growth remains a separate storage boundary.
+and propagates first refusals through layer and container callers. Colour-group
+growth reserves after the actual child COLR parse/copy and before publishing the
+next colour or checking its original component limit. Its source, retained
+prefix, parsed child and actual append reply are framed separately from profile
+copying; held capacity is reused without inferring physical capacity in proofs.
+Retained container layers likewise reserve after the actual child layer parse
+and original order/count admission, before append and late layer-reference
+validation. Their complete append context and actual reply compose through
+[`cold_container_headers.rs`](specs/cold_container_headers.rs).
+Other conditional storage owners remain separate boundaries.
 Opaque-byte acceptance is not ICC validity, conversion support or conformance;
 no allocator-availability premise or verifier setting is added.
 

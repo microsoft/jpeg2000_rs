@@ -4314,7 +4314,11 @@ class FrameworkTests(WorkingFiles):
             source = framework.ROOT / relative
             original = read_text(source)
             self.assertIn(before, original)
-            changed = original.replace(before, after, 1)
+            if relative == "specs/cold_container_headers.rs" and before == "actual!=context || elements!=1 {None}":
+                start = original.index("pub(crate) open spec fn part2_association_append_capacity_run")
+                changed = original[:start] + original[start:].replace(before, after, 1)
+            else:
+                changed = original.replace(before, after, 1)
 
             def altered(path, *args, **kwargs):
                 return changed if path == source else read_text(path, *args, **kwargs)
@@ -5151,6 +5155,52 @@ class FrameworkTests(WorkingFiles):
              "context:Part2ColorGroupStorageContext {input,limits,base}"),
             (framework._RAW_LAYER_HEADER_ENTRY, "src/jp2/composition.rs",
              "part2_header_storage_request_color_group_error(context,error)", "unrelated_group_error(context,error)"),
+        )
+        for ident, relative, before, after in mutations:
+            entry = next(item for item in coverage["requirements"] if item["id"] == ident)
+            source = framework.ROOT / relative
+            original = read_text(source)
+            self.assertIn(before, original)
+            changed = original.replace(before, after, 1)
+
+            def altered(path, *args, **kwargs):
+                return changed if path == source else read_text(path, *args, **kwargs)
+
+            with self.subTest(ident=ident, before=before), mock.patch.object(Path, "read_text", altered), \
+                    self.assertRaisesRegex(ValueError, "storage|whole raw|actual native owners|executable Verus"):
+                framework.validate_normative_coverage(dict(coverage, requirements=[entry]))
+
+    def test_inventory_group_layer_appends_bind_actual_child_prefix_reply_and_late_limits(self):
+        coverage = json.loads((framework.VALIDATION / "normative-coverage.json").read_text())
+        read_text = Path.read_text
+        mutations = (
+            (framework._RAW_LAYER_HEADER_ENTRY, "specs/cold_color_storage.rs",
+             "actual!=context || elements!=1 {None}", "actual!=context || elements!=2 {None}"),
+            (framework._RAW_LAYER_HEADER_ENTRY, "specs/cold_color_storage.rs",
+             "part2_parse_color_specification(context.input,context.group.base)==Ok(context.parsed)", "true"),
+            (framework._RAW_LAYER_HEADER_ENTRY, "specs/cold_color_storage.rs",
+             "Part2ColorGroupAppendContext {group:context,input,before:colors,parsed},events",
+             "Part2ColorGroupAppendContext {group:context,input,before:Seq::empty(),parsed},events"),
+            (framework._RAW_LAYER_HEADER_ENTRY, "specs/cold_color_storage.rs",
+             "part2_color_group_storage_copied_run(context,input,colors,color,rest)",
+             "Some((part2_color_group_storage_accept(colors,color,context.limits),rest))"),
+            (framework._RAW_LAYER_HEADER_ENTRY, "src/jp2/composition.rs",
+             "reserve_additional(&mut colors, 1)", "reserve_additional(&mut colors, 2)"),
+            (framework._RAW_LAYER_HEADER_ENTRY, "src/jp2/composition.rs",
+             "part2_color_group_append_capacity_observed(", "unrelated_group_reply("),
+            (framework._RAW_CONTAINER_ENTRY, "specs/cold_container_headers.rs",
+             "actual!=context || elements!=1 {None}", "actual!=context || elements!=2 {None}"),
+            (framework._RAW_CONTAINER_ENTRY, "specs/cold_container_headers.rs",
+             "part2_parse_compositing_layer(context.input,context.limits)==Ok(context.parsed)", "true"),
+            (framework._RAW_CONTAINER_ENTRY, "specs/cold_container_headers.rs",
+             "Part2LayerAppendContext {input,before:state,file_type,limits,parsed},rest",
+             "Part2LayerAppendContext {input,before:state,file_type,limits,parsed},events"),
+            (framework._RAW_CONTAINER_ENTRY, "src/jp2/container.rs",
+             "reserve_additional(&mut compositing_layers, 1)", "reserve_additional(&mut compositing_layers, 2)"),
+            (framework._RAW_CONTAINER_ENTRY, "src/jp2/container.rs",
+             "part2_layer_append_capacity_observed(", "unrelated_layer_reply("),
+            (framework._RAW_CONTAINER_ENTRY, "src/jp2/container.rs",
+             "part2_container_layer_append_error(context,error)", "unrelated_layer_error(context,error)"),
         )
         for ident, relative, before, after in mutations:
             entry = next(item for item in coverage["requirements"] if item["id"] == ident)

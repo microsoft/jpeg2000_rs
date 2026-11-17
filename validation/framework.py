@@ -8627,7 +8627,23 @@ _COLOR_GROUP_STORAGE_GUARDS = {
     ("specs/cold_color_storage.rs", "part2_color_group_storage_step_run"): (
         "input.0.0!=crate::jp2::BoxType::COLOR_SPECIFICATION",
         "part2_color_storage_run(Part2ColorStorageContext {input,base:context.base},events)",
-        "Some((part2_color_group_storage_accept(colors,color,context.limits),rest))",
+        "part2_color_group_storage_copied_run(context,input,colors,color,rest)",
+    ),
+    ("specs/cold_color_storage.rs", "part2_color_group_append_admitted"): (
+        "context.input.0.0==crate::jp2::BoxType::COLOR_SPECIFICATION",
+        "part2_parse_color_specification(context.input,context.group.base)==Ok(context.parsed)",
+    ),
+    ("specs/cold_color_storage.rs", "part2_color_group_append_capacity_run"): (
+        "!part2_color_group_append_admitted(context) || events.len()==0 {None}",
+        "actual!=context || elements!=1 {None}",
+        "if succeeded{Ok(())}else{Err(crate::DecodeError::AllocationFailed)}", "events.drop_first()",
+    ),
+    ("specs/cold_color_storage.rs", "part2_color_group_append_capacity_result"): (
+        "part2_cold_framed(|events|part2_color_group_append_capacity_run(context,events),result)",
+    ),
+    ("specs/cold_color_storage.rs", "part2_color_group_storage_copied_run"): (
+        "Part2ColorGroupAppendContext {group:context,input,before:colors,parsed},events",
+        "Some((part2_color_group_storage_accept(colors,parsed,context.limits),rest))",
     ),
     ("specs/cold_color_storage.rs", "part2_color_group_storage_boxes_run"): (
         "part2_box_reader_next_ref(reader)", "part2_color_group_finish(colors,context.base)",
@@ -8661,6 +8677,8 @@ _COLOR_GROUP_STORAGE_PROOFS = {("specs/cold_color_storage.rs", name) for name in
     "part2_color_group_storage_step_normal", "part2_color_group_storage_boxes_normal",
     "part2_color_group_storage_normal", "part2_color_group_storage_observed",
     "part2_color_group_storage_frames", "part2_color_group_storage_root_advance", "part2_color_group_storage_root_error",
+    "part2_color_group_append_capacity_observed", "part2_color_group_append_capacity_frames",
+    "part2_color_group_storage_root_append_error",
 )} | {("specs/cold_palette_storage.rs", name) for name in (
     "part2_header_storage_request_color_error", "part2_header_storage_request_color_group_error",
 )}
@@ -8693,7 +8711,12 @@ _COLOR_GROUP_STORAGE_NATIVE = {
         "part2_color_group_storage_normal(context)", "box_reader_from_input(box_ref.payload, limits)?",
         "let ghost previous_reader=", "if !child.header.box_type().equals(BoxType::COLOR_SPECIFICATION)",
         "let parsed = parse_color_specification(child, base_offset)", "part2_color_group_storage_root_error(",
-        "colors.push(parsed?)", "colors.len() as u64 > u64::from(limits.maximum_components())",
+        "let color = parsed?", "let reserved = crate::allocation::reserve_additional(&mut colors, 1)",
+        "Part2ColorGroupAppendContext { group:context,input:super::box_reference_view(child),before:previous_colors,parsed:super::full_color_specification_view(&color)}",
+        "part2_color_group_append_capacity_observed(",
+        "append,crate::allocation::inspection_capacity_outcome(reserved)",
+        "part2_color_group_storage_root_append_error(", "reserved?", "colors.push(color)",
+        "colors.len() as u64 > u64::from(limits.maximum_components())",
         "part2_color_group_storage_root_advance(",
     ),
     ("src/jp2/composition.rs", "parse_compositing_layer"): (
@@ -8720,6 +8743,48 @@ _CHANNEL_STORAGE_GUARDS[("specs/cold_channel_storage.rs", "part2_layer_header_st
     "part2_box_payload_offset(input.0)", "part2_box_add_offset(base,relative)",
     "context:Part2ColorGroupStorageContext {input,limits,base:nested_base}",
 )
+_LAYER_APPEND_GUARDS = {
+    ("specs/cold_container_headers.rs", "part2_layer_append_admitted"): (
+        "part2_container_header_request(context.input,context.before,context.file_type,context.limits)",
+        "Some(Part2ContainerHeaderRequest::Layer {input:context.input})",
+        "part2_parse_compositing_layer(context.input,context.limits)==Ok(context.parsed)",
+    ),
+    ("specs/cold_container_headers.rs", "part2_layer_append_capacity_run"): (
+        "!part2_layer_append_admitted(context) || events.len()==0 {None}",
+        "actual!=context || elements!=1 {None}",
+        "if succeeded{Ok(())}else{Err(crate::DecodeError::AllocationFailed)}", "events.drop_first()",
+    ),
+    ("specs/cold_container_headers.rs", "part2_layer_append_capacity_result"): (
+        "part2_cold_framed(|events|part2_layer_append_capacity_run(context,events),result)",
+    ),
+    ("specs/cold_container_headers.rs", "part2_container_layer_append_run"): (
+        "part2_layer_append_capacity_run(context,events)",
+        "Some((part2_container_step(context.input,context.before,context.file_type,context.limits),rest))",
+    ),
+    ("specs/cold_container_headers.rs", "part2_container_headers_run"): (
+        "part2_layer_header_storage_run(layer,limits,events)",
+        "parsed:Part2RawCompositingLayer,rest|part2_container_layer_append_run(",
+        "Part2LayerAppendContext {input,before:state,file_type,limits,parsed},rest",
+    ),
+}
+_LAYER_APPEND_PROOFS = {("specs/cold_container_headers.rs", name) for name in (
+    "part2_layer_append_capacity_observed", "part2_layer_append_capacity_frames",
+    "part2_container_layer_append_normal", "part2_container_layer_append_error",
+)}
+_LAYER_APPEND_NATIVE = {
+    ("src/jp2/container.rs", "parse"): (
+        "if actual as u64 > u64::from(limits.maximum_layers())",
+        "let layer_result = parse_compositing_layer(box_ref, limits)", "let layer = layer_result?",
+        "let reserved = crate::allocation::reserve_additional(&mut compositing_layers, 1)",
+        "Part2LayerAppendContext {input:super::box_reference_view(box_ref),before:previous_state,file_type:super::file_type_view(&file_type),limits:*limits,parsed:super::raw_compositing_layer_view(&layer)}",
+        "part2_layer_append_capacity_observed(",
+        "context,crate::allocation::inspection_capacity_outcome(reserved)",
+        "part2_container_layer_append_error(context,error)", "part2_parse_container_header_error(",
+        "reserved?", "compositing_layers.push(layer)", "validate_layer_references(&compositing_layers, codestream_boxes.len())?",
+    ),
+}
+_RAW_CONTAINER_MODELS.update(_LAYER_APPEND_GUARDS)
+_RAW_CONTAINER_PROOFS.update(_LAYER_APPEND_PROOFS)
 
 _OUTPUT_STORAGE_GUARDS = {
     ("specs/cold_output_storage.rs", "part2_definition_storage_result"): (
@@ -12877,7 +12942,7 @@ def validate_normative_coverage(
                 "box_type.equals(BoxType::SIGNATURE) || box_type.equals(BoxType::FILE_TYPE)",
                 "parse_jp2_header_profile(", "file_type.is_jph_compatible()",
                 "parse_codestream_header(", "let layer_result = parse_compositing_layer(box_ref, limits)",
-                "compositing_layers.push(layer_result?)",
+                "let layer = layer_result?", "compositing_layers.push(layer)",
                 "part2_container_main_header_error(", "part2_container_associated_header_error(",
                 "part2_container_layer_header_error(", "part2_parse_container_header_error(",
                 "parse_composition(box_ref, limits)?", "inspect_metadata_box(box_ref, limits, 1, u32::MAX - 1)?",
@@ -12985,7 +13050,7 @@ def validate_normative_coverage(
                 ),
                 "parse_color_group": (
                     "box_reader_from_input(box_ref.payload, limits)?",
-                    "let parsed = parse_color_specification(child, base_offset)", "colors.push(parsed?)",
+                    "let parsed = parse_color_specification(child, base_offset)", "let color = parsed?", "colors.push(color)",
                     "colors.len() as u64 > u64::from(limits.maximum_components())",
                 ),
                 "parse_layer_opacity": (
@@ -17215,7 +17280,11 @@ def validate_normative_coverage(
         }, _COLOR_STORAGE_NATIVE),
         (_RAW_LAYER_HEADER_ENTRY, _COLOR_GROUP_STORAGE_GUARDS, _COLOR_GROUP_STORAGE_PROOFS, {
             ("src/jp2/tests.rs", "color_storage_groups_keep_order_nested_refusals_and_parse_before_limits"),
+            ("src/jp2/tests.rs", "layer_group_storage_group_keeps_child_priority_spare_capacity_and_later_growth"),
         }, _COLOR_GROUP_STORAGE_NATIVE),
+        (_RAW_CONTAINER_ENTRY, _LAYER_APPEND_GUARDS, _LAYER_APPEND_PROOFS, {
+            ("src/jp2/tests.rs", "layer_group_storage_container_keeps_first_later_growth_and_late_validation"),
+        }, _LAYER_APPEND_NATIVE),
     ):
         if color_entry_id not in ids:
             continue
