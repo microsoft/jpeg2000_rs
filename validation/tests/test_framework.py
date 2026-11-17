@@ -8253,6 +8253,36 @@ class FrameworkTests(WorkingFiles):
                     self.assertRaisesRegex(ValueError, "fallible copy storage"):
                 framework.validate_normative_coverage(dict(coverage, requirements=[entry]))
 
+    def test_inventory_prepare_working_rejects_lost_charge_stage_source_and_tail(self):
+        coverage = json.loads((framework.VALIDATION / "normative-coverage.json").read_text())
+        entry = next(item for item in coverage["requirements"]
+                     if item["id"] == "part1-complete-standard-plan-coordinator")
+        read_text = Path.read_text
+        for relative, before, after in (
+            ("src/decode/reconstruction.rs", "empty_with_capacity(selected)", "empty_with_capacity(1)"),
+            ("src/decode/reconstruction.rs", "filled_values(false, length)", "filled_values(false, 1)"),
+            ("specs/cold_prepare_copies.rs", "(before.0,ordinary.1.1)", "before"),
+            ("specs/cold_prepare_copies.rs", "Part2PrepareWorkingContext::Owner {bands,selected,fraction,maximum}",
+             "Part2PrepareWorkingContext::Owner {bands:Seq::empty(),selected,fraction,maximum}"),
+            ("specs/cold_prepare_copies.rs", "actual!=context || elements!=count", "actual!=context || elements!=1"),
+            ("specs/cold_prepare_copies.rs", "calls.drop_first()", "calls"),
+        ):
+            source = framework.ROOT / relative
+            original = read_text(source)
+            if before == "calls.drop_first()":
+                body = framework._coverage_spec_function_body(original, "part2_prepare_working_capacity_run")
+                changed = original.replace(body, body.replace(before, after, 1), 1)
+            else:
+                changed = original.replace(before, after, 1)
+            self.assertNotEqual(original, changed)
+
+            def altered(path, *args, **kwargs):
+                return changed if path == source else read_text(path, *args, **kwargs)
+
+            with self.subTest(mutation=before), mock.patch.object(Path, "read_text", altered), \
+                    self.assertRaisesRegex(ValueError, "preparation working storage"):
+                framework.validate_normative_coverage(dict(coverage, requirements=[entry]))
+
     def test_inventory_precinct_contributions_require_actual_count_prefix_and_jpip_rollback_tail(self):
         coverage = json.loads((framework.VALIDATION / "normative-coverage.json").read_text())
         entry = next(item for item in coverage["requirements"]

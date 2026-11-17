@@ -2,6 +2,7 @@
 use super::*;
 verus! {
 pub enum Part2Tier1StorageEvent {
+    PrepareWorkingCapacity {context:Part2PrepareWorkingContext,elements:nat,succeeded:bool},
     PrecinctContributions {context:Part2PrecinctContributionsContext,elements:nat,succeeded:bool},
     Coefficient {width:u16,height:u16,role:crate::tier1::CoefficientStorageRole,samples:usize,succeeded:bool},
     RefinementBytes {role:crate::tier1::HtRefinementCopyRole,source:Seq<u8>,elements:nat,succeeded:bool},

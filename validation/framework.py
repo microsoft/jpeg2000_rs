@@ -5082,6 +5082,8 @@ _PLANE_ROLE_RESULT_RUNS = {
     for old, (model, _, _) in _PLANE_ROLE_MODEL_INFO.items()
 }
 _PLANE_ROLE_RESULT_RUNS.update({
+    "part2_prepare_init_result": ("part2_prepare_init_run", False),
+    "part2_prepare_band_result": ("part2_prepare_band_stage_run", True),
     "part2_prepare_plane_copy_result": ("part2_prepare_plane_copy_run", False),
     "part2_wavelet_gather_result": ("part2_wavelet_gather_run", False),
     "part2_wavelet_interleave_result": ("part2_wavelet_interleave_run", False),
@@ -5102,6 +5104,12 @@ _PLANE_ROLE_RESULT_RUNS.update({
     "part2_coefficient_progression_result": ("part2_extraction_progression_run", False),
 })
 _COLD_RESULT_MODELS = {
+    "part1_prepare_init_prefix": (
+        "part2_prepare_init_result", "specs/cold_prepare_copies.rs", "part2_prepare_init_normal",
+    ),
+    "part1_prepare_append_band": (
+        "part2_prepare_band_result", "specs/cold_prepare_copies.rs", "part2_prepare_band_stage_normal",
+    ),
     "part2_precinct_contexts": (
         "part2_precinct_contexts_result", "specs/cold_packet_precinct.rs", "part2_precinct_contexts_normal",
     ),
@@ -5762,7 +5770,22 @@ for _header_symbol, _header_model, _raw_pattern, _header_outcome in (
         ) + r"\s*,?\s*\}\s*,\s*\(\s*" + _header_outcome + r"\s*\)",
     )
 
+_COLD_RESULT_CONTRACTS.update({
+    ("src/decode/reconstruction.rs", "initialize_prepare_working"): (
+        "part2_prepare_init_result",
+        r"bands@\s*,\s*selected\s*,\s*fraction\s*,\s*" + _coverage_call("crate::limits::resource_decoded_bytes_limit", "limits")
+        + r"\s*,\s*" + _coverage_call("prepare_working_outcome", r"\1"),
+    ),
+    ("src/decode/reconstruction.rs", "append_prepare_subband"): (
+        "part2_prepare_band_result",
+        _coverage_call("old", "working") + r"@\s*,\s*bands@\s*,\s*index\s*,\s*fraction\s*,\s*"
+        + _coverage_call("crate::limits::resource_decoded_bytes_limit", "limits")
+        + r"\s*,\s*\(\s*\1\s*,\s*" + _coverage_call("final", "working") + r"@\s*\)",
+    ),
+})
+
 _COLD_INNER_RUNS = {
+    "part2_prepare_band_result": "part2_prepare_band_stage_run",
     "part1_uniform_geometry_cold_result": "part2_uniform_geometry_run",
     "part1_progression_plan_cold_result": "part2_grid_plan_run",
     "part1_progression_tile_cold_result": "part2_packet_run",
@@ -5802,6 +5825,9 @@ def _coverage_cold_links(keys: set[tuple[str, str]]) -> tuple[set[tuple[str, str
         }.get(model, model.removesuffix("_result") + "_run")
         models.update(((path, model), (path, run)))
         proofs.add((path, normal))
+        if model in ("part2_prepare_init_result", "part2_prepare_band_result", "part2_extraction_component_result", "part2_coefficient_component_result"):
+            models |= _PREPARE_WORKING_MODELS
+            proofs |= _PREPARE_WORKING_PROOFS
         if model in ("part2_plane_payload_result", "part2_plane_precinct_result", "part2_jpip_inner_result",
                      "part2_jpip_packet_copy_result", "part2_jpip_phase_copy_result"):
             models |= _PRECINCT_CONTRIBUTION_MODELS
@@ -5948,7 +5974,8 @@ def _coverage_cold_result_body(text: str, model: str) -> bool:
     if model in _PLANE_ROLE_RESULT_RUNS:
         run_name, wrapped = _PLANE_ROLE_RESULT_RUNS[model]
         count = (["collections.len()"] if model == "part2_mct_line_stage_result" else
-                 ["stages.len()"] if model == "part2_mct_line_transform_result" else [])
+                 ["stages.len()"] if model == "part2_mct_line_transform_result" else
+                 ["Part2PrepareBandStage::Samples"] if model == "part2_prepare_band_result" else [])
         expected = "part2_tier1_storage_framed(|calls|" + run_name + "(" + ",".join(names[:-1] + count + ["calls"]) + ")," \
             + ("Ok(result)" if wrapped else "result") + ")"
         if model == "part2_ht_replay_result":
@@ -6461,6 +6488,55 @@ _BITPLANE_INITIAL_NATIVE_ORDER = {
         "reader.validate_predictable_termination()?", "self.commit_legacy_segment(input.len(),pass_count,statistics)",
     ),
 }
+_PREPARE_WORKING_MODELS = {("specs/cold_prepare_copies.rs", name) for name in (
+    "part2_prepare_working_count", "part2_prepare_working_capacity_run", "part2_prepare_working_capacity_result",
+    "part2_prepare_band_rank", "part2_prepare_band_stage_run", "part2_prepare_band_result",
+    "part2_prepare_init_prefix_run", "part2_prepare_init_run", "part2_prepare_init_result",
+)} | {("specs/cold_extraction_reconstruction.rs", name) for name in (
+    "part2_extraction_component_preflight", "part2_extraction_component_after_init_run",
+)}
+_PREPARE_WORKING_PROOFS = {("specs/cold_prepare_copies.rs", name) for name in (
+    "part2_prepare_working_capacity_observed", "part2_prepare_band_stage_normal", "part2_prepare_band_refused_at",
+    "part2_prepare_init_prefix_normal", "part2_prepare_init_normal", "part2_prepare_init_owner_refused",
+    "part2_prepare_init_prefix_error", "part2_prepare_init_band_error",
+)} | {("specs/cold_extraction_reconstruction.rs", name) for name in (
+    "part2_extraction_component_after_init_normal", "part2_extraction_component_after_init_observed", "part2_extraction_component_init_error",
+)}
+_PREPARE_WORKING_GUARDS = {
+    ("specs/cold_prepare_copies.rs", "part2_prepare_working_capacity_run"): (
+        "part2_prepare_working_count(context)", "if count==0", "PrepareWorkingCapacity {context:actual,elements,succeeded}",
+        "actual!=context || elements!=count", "calls.drop_first()",
+    ),
+    ("specs/cold_prepare_copies.rs", "part2_prepare_band_stage_run"): (
+        "part1_prepare_append_band(before,bands,index,fraction,maximum)", "if ordinary.0.is_err()",
+        "Part2PrepareWorkingContext::Band {before,bands,index,fraction,maximum,stage}",
+        "Err(error)=>Some((Ok((Err(error),(before.0,ordinary.1.1))),rest))",
+        "Part2PrepareBandStage::Visited,rest)", "Part2PrepareBandStage::Descriptor,rest)",
+    ),
+    ("specs/cold_prepare_copies.rs", "part2_prepare_init_run"): (
+        "Part2PrepareWorkingContext::Owner {bands,selected,fraction,maximum}", "part2_prepare_init_prefix_run(bands,fraction,maximum,selected as nat,rest)",
+    ),
+    ("specs/cold_extraction_reconstruction.rs", "part2_extraction_component_run"): (
+        "part2_extraction_component_preflight(plan,style,kernel)",
+        "part2_prepare_init_run(plan.subbands,selected,part1_prepare_fraction(reversible),maximum,calls)",
+        "part2_extraction_component_after_init_run(plan,precincts,style,kernel,maximum,rest)",
+    ),
+}
+_PREPARE_WORKING_NATIVE_ORDER = {
+    "initialize_prepare_working": (
+        "let reserved = if selected == 0", "Ok(Vec::new())", "empty_with_capacity(selected)",
+        "part2_prepare_working_capacity_observed(", "bands: reserved?", "while index < selected",
+        "append_prepare_subband(", "part2_prepare_init_band_error(",
+    ),
+    "append_prepare_subband": (
+        "bands.get(index)", "checked_area_u32(geometry.width, geometry.height)", "working.bytes =",
+        "if working.bytes > limits.maximum_decoded_bytes()", "filled_values(0_i64, length)",
+        "let samples = samples_result?", "filled_values(false, length)", "let visited = visited_result?",
+        "reserve_additional(&mut working.bands, 1)", "reserved?", "working.bands.push(WorkingSubband",
+    ),
+}
+_PREPARE_WORKING_ENTRIES = {"part1-complete-standard-plan-coordinator", "part2-complete-native-arbitrary-kernel-preparation"}
+
 _PRECINCT_CONTRIBUTION_MODELS = {("specs/cold_packet_payload.rs", name) for name in (
     "part2_precinct_contributions_run", "part2_precinct_contributions_result", "part2_plane_payload_prepared_run",
     "part2_jpip_inner_inline", "part2_jpip_inner_finish", "part2_jpip_inner_run", "part2_jpip_inner_result",
@@ -14793,7 +14869,10 @@ def validate_normative_coverage(
                     "src/jpip/automatic_phases.rs", "decode_automatic_precinct")
                 exact_copy_phase_requires = copy_phase and re.search(
                     r"\brequires\s+start\s*<=\s*prefix\.len\(\)\s*,\s*ensures\b", contract)
-                if relation is None or (re.search(r"\brequires\b", contract) and not exact_copy_phase_requires):
+                exact_prepare_band_requires = (reference["path"], reference["symbol"]) == (
+                    "src/decode/reconstruction.rs", "append_prepare_subband") and re.search(
+                    r"\brequires\s+old\(working\)\.bands\.len\(\)\s*<\s*usize::MAX\s*,\s*ensures\b", contract)
+                if relation is None or (re.search(r"\brequires\b", contract) and not (exact_copy_phase_requires or exact_prepare_band_requires)):
                     raise ValueError(f"linked function lacks executable Verus contract: {short}; invalid storage relation")
                 if mutating:
                     state_result = relation
@@ -15149,12 +15228,13 @@ def validate_normative_coverage(
                     contract, named_result, prepare_contract_arguments[0], prepare_contract_arguments[1],
                 )
             )
-            if cold_contract is not None and short in ("prepare_tile_component", "collect_prepare_coefficients", "copy_prepare_plane"):
+            if cold_contract is not None and short in ("prepare_tile_component", "collect_prepare_coefficients", "copy_prepare_plane", "initialize_prepare_working"):
                 prepare_arguments_bound = _coverage_extraction_normal_arguments(
                     contract,
                     {"prepare_tile_component": "prepared_component_outcome",
                      "collect_prepare_coefficients": "crate::transform::quantized_coefficients_outcome",
-                     "copy_prepare_plane": "prepare_fold_outcome"}[short],
+                     "copy_prepare_plane": "prepare_fold_outcome",
+                     "initialize_prepare_working": "prepare_working_outcome"}[short],
                     prepare_contract_arguments[0], prepare_contract_arguments[1],
                 )
             component_contract_arguments = {
@@ -15782,6 +15862,28 @@ def validate_normative_coverage(
                 position = found + len(token)
         if not _BITPLANE_INITIAL_TESTS.issubset({(ref["path"], ref["symbol"]) for ref in entry["test_refs"]}):
             raise ValueError("initial bitplane storage requires bounded raw/empty/first-later/error/present-state/real-public restoration controls")
+    if ids & _PREPARE_WORKING_ENTRIES:
+        for (relative, symbol), fragments in _PREPARE_WORKING_GUARDS.items():
+            body = _coverage_spec_function_body(source_text((ROOT / relative).resolve()), symbol)
+            compact = "".join(body.split()) if body is not None else ""
+            if any("".join(fragment.split()) not in compact for fragment in fragments):
+                raise ValueError("preparation working storage requires exact raw owners, stages, counts, charged errors and tails")
+        for symbol, fragments in _PREPARE_WORKING_NATIVE_ORDER.items():
+            path = (ROOT / "src/decode/reconstruction.rs").resolve()
+            body = _coverage_function_body(source_text(path), function_header(path, symbol))
+            compact = "".join(body.split()) if body is not None else ""
+            position = 0
+            for fragment in fragments:
+                token = "".join(fragment.split())
+                found = compact.find(token, position)
+                if found < 0:
+                    raise ValueError("preparation working storage requires original geometry/charge/sample/visited/descriptor order")
+                position = found + len(token)
+        for entry in coverage["requirements"]:
+            if entry["id"] in _PREPARE_WORKING_ENTRIES and (
+                    "src/decode/tests.rs", "prepare_working_storage_preserves_charged_prefixes_and_semantic_frontiers") not in {
+                        (ref["path"], ref["symbol"]) for ref in entry["test_refs"]}:
+                raise ValueError("preparation working storage requires bounded charged-prefix/refusal/semantic/empty/restore controls")
     if ids & _PRECINCT_CONTRIBUTION_ENTRIES:
         for (relative, symbol), fragments in _PRECINCT_CONTRIBUTION_GUARDS.items():
             body = _coverage_spec_function_body(source_text((ROOT / relative).resolve()), symbol)

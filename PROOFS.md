@@ -39,6 +39,18 @@ an all-feature Verus proof. Full source-function coverage remains `not-measured`
 
 ## Fallible-storage foundation and remaining boundary
 
+### Preparation working owners
+
+The working subband descriptor collection now reserves through checked storage
+before its original traversal. Each append retains geometry and cumulative
+byte charging before checked zero-sample, visited and descriptor-growth stages.
+Refusal retains the prior bands and already-updated byte charge; it does not
+pretend the private counter rolled back. Distinct source-qualified stages retain
+the raw bands, index, fraction, limit, prior working state, count and actual
+reply/tail. Initializer failures compose into the actual standard and arbitrary
+component preparation callers. Empty initialization is request-free, while
+every non-refusal ordinary result/error remains unchanged.
+
 ### Packet contribution buffers and header-only callers
 
 Precinct payload decoding initializes its contribution buffer through checked
