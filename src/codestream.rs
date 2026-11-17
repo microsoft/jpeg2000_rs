@@ -505,6 +505,8 @@ pub(crate) enum MctCopyPath {
     FreshPart2(FreshPart2Path),
     ProfileWords(u16, usize, usize),
     ProgressionBitmap(usize, u16, u16, usize),
+    CollectedQuantizations,
+    CollectedProgression,
 }
 
 #[derive(Clone, Copy)]

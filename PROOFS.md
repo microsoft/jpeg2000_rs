@@ -39,6 +39,24 @@ an all-feature Verus proof. Full source-function coverage remains `not-measured`
 
 ## Fallible-storage foundation and remaining boundary
 
+### Collected payload ownership
+
+The internal per-tile collector counts matching parts, reserves once, then
+fallibly copies only those owners. Unselected parts no longer incur discarded
+deep clones. This intentionally changes allocation timing/filtering, not
+successful field values, duplicate order or borrowed packet/data identity.
+Public `Clone` implementations retain their existing infallible Rust type.
+
+The checked copy covers component quantizations, progression records, resolved
+MCT stages/collections/indices/matrices/offsets and every nested Part2 owner.
+Flat owners reuse existing checked copy producers; no allocating `Clone`
+remains in this collector. Source-qualified capacity/copy events compose the
+actual count, role, response and tail through full/selected decoding and PDF
+trailer recovery. Cold sites 83/84 distinguish collected quantization and
+progression copies; the parent event retains the complete source owner.
+Normal projections preserve the original deterministic results. Other #287
+storage owners and physical allocator availability remain separate.
+
 ### Selected tile collection
 
 Selection validates and counts all intersecting tiles before one checked

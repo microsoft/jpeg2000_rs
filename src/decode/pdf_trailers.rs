@@ -379,16 +379,36 @@ pub(super) fn decode_trailer_layout(
             reveal_with_fuel(crate::specs::part2_trailer_selected_value, 1);
         }
         let tile = *selection.tiles.get(index).ok_or_else(invalid_decode)?;
-        let parts = collect_tile_parts(&layout.tile_parts, tile)?;
         #[cfg(verus_keep_ghost)]
-        proof_decl! { let ghost before = layout_accumulation_view(prepared@, counters, work); }
+        proof_decl! {
+            let ghost before = layout_accumulation_view(prepared@, counters, work);
+            let ghost root = |events| crate::specs::part2_trailer_layout_run(source, requested_input, limits, events);
+            let ghost next_tile = |after: (crate::specs::Part2DecodedLayoutTile, u8), rest|
+                crate::specs::part2_trailer_selected_run(&source.size, source.parts, source.capabilities, selection.tiles@,
+                    selection.region, selection.discard_levels, limits, index as nat + 1, after.0, after.1, rest);
+            let ghost after_parts = |selected: Seq<crate::specs::Part2OwnedTilePart>, rest|
+                crate::specs::part2_jpip_snapshot_bind(
+                    crate::specs::part2_trailer_tile_run(&source.size, tile, selected, source.capabilities,
+                        selection.discard_levels, limits, before.prepared, before.counters, before.mct_work, discarded, rest),
+                    next_tile);
+        }
+        let collected = collect_tile_parts(&layout.tile_parts, tile);
         #[cfg(verus_keep_ghost)]
         proof! {
+            let child = |events| crate::specs::part2_collected_parts_run(source.parts, tile, events);
+            crate::specs::part2_trailer_selected_step(&source.size, source.parts, source.capabilities, selection.tiles@,
+                selection.region, selection.discard_levels, limits, index as nat, before, discarded);
             assert forall|tail: Seq<crate::specs::Part2JpipSnapshotEvent>|
-                crate::specs::part2_trailer_layout_run(source, requested_input, limits, prefix + tail)
-                    == crate::specs::part2_trailer_selected_run(&source.size, source.parts, source.capabilities,
-                        selection.tiles@, selection.region, selection.discard_levels, limits, index as nat, before, discarded, tail) by {}
+                root(prefix + tail) == crate::specs::part2_jpip_snapshot_bind(child(tail), after_parts) by {
+                assert(root(prefix + tail) == crate::specs::part2_trailer_selected_run(&source.size, source.parts,
+                    source.capabilities, selection.tiles@, selection.region, selection.discard_levels, limits, index as nat, before, discarded, tail));
+            }
+            match collected_tile_parts_outcome(collected) {
+                Err(error) => crate::specs::part2_decode_prefix_error(root, child, after_parts, prefix, error),
+                Ok(selected) => { prefix = crate::specs::part2_decode_prefix_advance(root, child, after_parts, prefix, selected); },
+            }
         }
+        let parts = collected?;
         let decoded_result = decode_trailer_tile(
             &layout.info.image_size,
             tile,
@@ -403,18 +423,11 @@ pub(super) fn decode_trailer_layout(
         );
         #[cfg(verus_keep_ghost)]
         proof! {
-            let root = |events| crate::specs::part2_trailer_layout_run(source, requested_input, limits, events);
             let child = |events| crate::specs::part2_trailer_tile_run(&source.size, tile, codestream::tile_parts_owned_view(parts@),
                 source.capabilities, selection.discard_levels, limits, before.prepared, before.counters, before.mct_work, discarded, events);
-            let next = |after: (crate::specs::Part2DecodedLayoutTile, u8), rest|
-                crate::specs::part2_trailer_selected_run(&source.size, source.parts, source.capabilities, selection.tiles@,
-                    selection.region, selection.discard_levels, limits, index as nat + 1, after.0, after.1, rest);
-            crate::specs::part2_trailer_selected_step(&source.size, source.parts, source.capabilities, selection.tiles@,
-                selection.region, selection.discard_levels, limits, index as nat, before, discarded, codestream::tile_parts_owned_view(parts@));
+            let next = next_tile;
             assert forall|tail| root(prefix + tail) == crate::specs::part2_jpip_snapshot_bind(child(tail), next) by {
-                assert(root(prefix + tail) == crate::specs::part2_trailer_selected_run(
-                    &source.size, source.parts, source.capabilities, selection.tiles@, selection.region,
-                    selection.discard_levels, limits, index as nat, before, discarded, tail));
+                assert(root(prefix + tail) == after_parts(codestream::tile_parts_owned_view(parts@), tail));
             }
             match trailer_tile_outcome(decoded_result) {
                 Err(error) => crate::specs::part2_decode_prefix_error(root, child, next, prefix, error),

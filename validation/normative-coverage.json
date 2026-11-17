@@ -6588,6 +6588,8 @@
         {"path": "specs/mod.rs", "symbol": "part2_decode_tile_parts_at"},
         {"path": "specs/mod.rs", "symbol": "part2_decode_tile_parts_owned"},
         {"path": "specs/mod.rs", "symbol": "part2_collect_tile_parts"},
+        {"path": "specs/decoder_input.rs", "symbol": "part2_collected_parts_run"},
+        {"path": "specs/decoder_input.rs", "symbol": "part2_collected_parts_result"},
         {"path": "specs/mod.rs", "symbol": "part2_assemble_prepared"}
       ],
       "contract_refs": [
@@ -6601,6 +6603,7 @@
         {"path": "src/decode/selection.rs", "symbol": "validate_selection"},
         {"path": "src/decode/proof_support.rs", "symbol": "validated_selection_view"},
         {"path": "src/decode/execution.rs", "symbol": "collect_tile_parts"},
+        {"path": "specs/decoder_input.rs", "symbol": "part2_collected_parts_normal"},
         {"path": "src/decode/execution.rs", "symbol": "decode_tile_parts_at"},
         {"path": "src/decode/reconstruction.rs", "symbol": "assemble_prepared_components"},
         {"path": "src/codestream/proof_support.rs", "symbol": "tile_parts_owned_view"}
@@ -6648,11 +6651,13 @@
     },
     {
       "id": "part2-complete-native-owned-tile-collection",
-      "topic": "Complete actual same-order owned TilePartPayload copy and ordered per-tile source collection: every raw copy/quantization/progression/MCT/Part2/kernel/nonlinear/registration/length/header/flag/data field derives from original actual owners. Actual manual Clone bodies retain former derived field order and same Vec/Option clone operations; no defaults, normalized metadata, allocation identity claim, assumed clone or successful result bank. Collector clones EVERY original source part before filtering, preserving actual allocation/error/duplicate order and unused invalid fields. Both actual layout paths use sole collector. Complete logical observations, not opaque allocation identity; whole layout/raw-parser/file/F2/F4/final F8 and publication remain separate.",
+      "topic": "Complete actual same-order owned TilePartPayload copy and ordered per-tile source collection: every raw quantization/progression/MCT/Part2/kernel/nonlinear/registration/length/header/flag/data field derives from actual owners. Public manual Clone APIs retain their existing infallible type and field semantics. Internal collection counts matching parts, reserves once and fallibly duplicates ONLY selected owners, intentionally avoiding allocation for unselected clones. Precise source-qualified capacity and nested copy calls retain typed refusals, every successful value/duplicate order, borrows and arbitrary event tails; no defaults, normalized metadata, allocator availability premise, supplied copies or codec-result bank. Full/selected decoding and PDF trailer recovery compose the reached collection stage. Whole raw-parser/file/F2/F4/final F8, lifetime-enabled replay and publication remain separate.",
       "implementation_refs": [
         {"path": "src/decode/execution.rs", "symbol": "decode_layout"},
         {"path": "src/decode/execution.rs", "symbol": "decode_layout_selected"},
         {"path": "src/decode/execution.rs", "symbol": "collect_tile_parts"},
+        {"path": "src/codestream/tiles.rs", "symbol": "TilePartPayload::clone"},
+        {"path": "src/codestream/tiles.rs", "symbol": "TilePartPayload::try_duplicate"},
         {"path": "src/codestream/extensions.rs", "symbol": "Part2Extensions::clone"},
         {"path": "src/codestream/extensions.rs", "symbol": "ArbitraryKernel::clone"},
         {"path": "src/codestream/extensions.rs", "symbol": "KernelLiftingStep::clone"},
@@ -6663,13 +6668,29 @@
       "spec_refs": [
         {"path": "specs/mod.rs", "symbol": "part2_tile_part_copy"},
         {"path": "specs/mod.rs", "symbol": "part2_collect_tile_parts"},
-        {"path": "specs/mod.rs", "symbol": "part2_collect_tile_parts_run"}
+        {"path": "specs/mod.rs", "symbol": "part2_collect_tile_parts_run"},
+        {"path": "specs/decoder_input.rs", "symbol": "part2_payload_copy_run"},
+        {"path": "specs/decoder_input.rs", "symbol": "part2_payload_copy_result"},
+        {"path": "specs/decoder_input.rs", "symbol": "part2_collected_part_count"},
+        {"path": "specs/decoder_input.rs", "symbol": "part2_collected_capacity_run"},
+        {"path": "specs/decoder_input.rs", "symbol": "part2_collected_capacity_result"},
+        {"path": "specs/decoder_input.rs", "symbol": "part2_collected_loop_run"},
+        {"path": "specs/decoder_input.rs", "symbol": "part2_collected_parts_run"},
+        {"path": "specs/decoder_input.rs", "symbol": "part2_collected_parts_result"},
+        {"path": "specs/cold_mct_copy.rs", "symbol": "part1_mct_collection_duplicate_step"},
+        {"path": "specs/cold_mct_copy.rs", "symbol": "part1_mct_collection_duplicate_tail"},
+        {"path": "specs/cold_mct_copy.rs", "symbol": "part1_mct_collections_duplicate_requests"},
+        {"path": "specs/cold_mct_copy.rs", "symbol": "part1_mct_stage_duplicate_requests"},
+        {"path": "specs/cold_mct_copy.rs", "symbol": "part1_mct_stages_duplicate_requests"},
+        {"path": "specs/cold_mct_copy.rs", "symbol": "part1_mct_transform_duplicate_requests"},
+        {"path": "specs/cold_mct_copy.rs", "symbol": "part2_payload_duplicate_step"},
+        {"path": "specs/cold_mct_copy.rs", "symbol": "part2_payload_duplicate_tail"}
       ],
       "contract_refs": [
-        {"path": "src/codestream/tiles.rs", "symbol": "TilePartPayload::clone"},
         {"path": "src/decode/execution.rs", "symbol": "collect_tile_parts"}
       ],
       "proof_refs": [
+        {"path": "src/codestream/tiles.rs", "symbol": "TilePartPayload::clone"},
         {"path": "src/codestream/proof_support.rs", "symbol": "tile_part_owned_view"},
         {"path": "src/codestream/proof_support.rs", "symbol": "tile_parts_owned_view"},
         {"path": "src/codestream/proof_support.rs", "symbol": "tile_part_owned_tile_known"},
@@ -6679,11 +6700,29 @@
         {"path": "src/codestream/proof_support.rs", "symbol": "owned_nonlinear_view"},
         {"path": "src/codestream/proof_support.rs", "symbol": "owned_decomposition_view"},
         {"path": "src/codestream/proof_support.rs", "symbol": "owned_arbitrary_decomposition_view"},
-        {"path": "src/decode/proof_support.rs", "symbol": "collected_tile_parts_outcome"}
+        {"path": "src/decode/proof_support.rs", "symbol": "collected_tile_parts_outcome"},
+        {"path": "src/codestream/proof_support.rs", "symbol": "tile_part_copy_outcome"},
+        {"path": "src/codestream/tiles.rs", "symbol": "TilePartPayload::try_duplicate"},
+        {"path": "src/codestream/mct_copy.rs", "symbol": "MultipleComponentTransform::try_duplicate"},
+        {"path": "src/codestream/mct_copy.rs", "symbol": "MctStage::try_duplicate"},
+        {"path": "src/codestream/mct_copy.rs", "symbol": "MctCollection::try_duplicate"},
+        {"path": "src/codestream/mct_copy.rs", "symbol": "copy_values_for"},
+        {"path": "src/codestream/quantization.rs", "symbol": "ComponentQuantizations::try_duplicate_for"},
+        {"path": "src/codestream/coding_style.rs", "symbol": "ProgressionChanges::try_duplicate_for"},
+        {"path": "specs/decoder_input.rs", "symbol": "part2_payload_copy_observed"},
+        {"path": "specs/decoder_input.rs", "symbol": "part2_payload_copy_normal"},
+        {"path": "specs/decoder_input.rs", "symbol": "part2_collected_capacity_observed"},
+        {"path": "specs/decoder_input.rs", "symbol": "part2_collected_count_matches"},
+        {"path": "specs/decoder_input.rs", "symbol": "part2_collected_loop_normal"},
+        {"path": "specs/decoder_input.rs", "symbol": "part2_collected_parts_normal"},
+        {"path": "specs/cold_mct_copy.rs", "symbol": "part1_mct_collection_duplicate_advance"},
+        {"path": "specs/cold_mct_copy.rs", "symbol": "part2_payload_duplicate_advance"}
       ],
       "test_refs": [
         {"path": "src/codestream/tests.rs", "symbol": "actual_owned_tile_part_clone_preserves_every_raw_field_and_independent_nested_buffers"},
-        {"path": "src/codestream/tests.rs", "symbol": "actual_ordered_tile_collection_copies_raw_non_normalized_fields_and_retains_duplicate_order"}
+        {"path": "src/codestream/tests.rs", "symbol": "actual_ordered_tile_collection_copies_raw_non_normalized_fields_and_retains_duplicate_order"},
+        {"path": "src/codestream/tests.rs", "symbol": "collected_payload_copy_refusals_restore_all_raw_nested_owners_and_borrows"},
+        {"path": "src/codestream/tests.rs", "symbol": "collected_payload_storage_empty_first_later_refusals_restore_order_and_sources"}
       ]
     },
     {

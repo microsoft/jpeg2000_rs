@@ -2405,10 +2405,6 @@ _LAYOUT_DECODING_CONTRACTS = {
 }
 
 _TILE_COLLECTION_CONTRACTS = {
-    ("src/codestream/tiles.rs", "TilePartPayload::clone"): (
-        "part2_tile_part_copy", _coverage_call("tile_part_owned_view", r"&\s*\1"), None,
-        _coverage_call("tile_part_owned_view", "self"),
-    ),
     ("src/decode/execution.rs", "collect_tile_parts"): (
         "part2_collect_tile_parts", _coverage_call("collected_tile_parts_outcome", r"\1"), None,
         _coverage_call("codestream::tile_parts_owned_view", "parts@") + r"\s*,\s*tile",
@@ -5105,6 +5101,9 @@ _PLANE_ROLE_RESULT_RUNS.update({
     "part2_coefficient_progression_result": ("part2_extraction_progression_run", False),
 })
 _COLD_RESULT_MODELS = {
+    "part2_collect_tile_parts": (
+        "part2_collected_parts_result", "specs/decoder_input.rs", "part2_collected_parts_normal",
+    ),
     "part2_select_intersecting_tiles": (
         "part2_select_tiles_result", "specs/decoder_input.rs", "part2_select_tiles_normal",
     ),
@@ -5540,6 +5539,7 @@ _COLD_RESULT_CONTRACTS = {
         _SOURCE_OPACITY_CONTRACTS, _JPIP_PROGRESSIVE_CONTRACTS, _JPIP_TRANSCODE_CONTRACTS,
         _MAIN_COMPONENT_FINALIZATION_CONTRACTS, _TILE_COMPONENT_FINALIZATION_CONTRACTS,
         _PERSISTENT_TILE_CONFIGURATION_CONTRACTS,
+        _TILE_COLLECTION_CONTRACTS,
         _TRANSFORM_GRAPH_CONTRACTS,
         _TRANSFORM_ARRAY_BYTES_CONTRACTS, _TRANSFORM_FRAGMENT_CONTRACTS, _COLLECTION_FRAGMENT_CONTRACTS,
         _TRANSFORM_COLLECTION_BYTES_CONTRACTS, _TRANSFORM_ROUTING_BYTES_CONTRACTS,
@@ -7842,14 +7842,14 @@ _PACKED_STORAGE_GUARDS = {
         "prepared:decoded.prepared,counters,mct_work:decoded.mct_work",
     ),
     ("specs/cold_decode_packets.rs", "part2_full_decode_run"): (
-        "part2_collect_tile_parts(parts, tile as u16)",
-        "part2_tile_decode_run(size, tile as u16, selected, caps, None, limits, before.prepared, before.counters, before.mct_work, events)",
-        "part2_full_decode_run(size, parts, caps, limits, count, (tile + 1) as u64, after, rest)",
+        "part2_collected_parts_run(parts, tile as u16, events)",
+        "part2_tile_decode_run(size, tile as u16, selected, caps, None, limits, before.prepared, before.counters, before.mct_work, rest)",
+        "part2_full_decode_run(size, parts, caps, limits, count, (tile + 1) as u64, after, tail)",
     ),
     ("specs/cold_decode_packets.rs", "part2_selected_decode_run"): (
-        "part2_collect_tile_parts(parts, tiles[index as int])",
-        "part2_tile_decode_run(size, tiles[index as int], selected, caps, Some(discard), limits, before.prepared, before.counters, before.mct_work, events)",
-        "part2_selected_decode_run(size, parts, caps, tiles, region, discard, limits, index + 1, after, rest)",
+        "part2_collected_parts_run(parts, tiles[index as int], events)",
+        "part2_tile_decode_run(size, tiles[index as int], selected, caps, Some(discard), limits, before.prepared, before.counters, before.mct_work, rest)",
+        "part2_selected_decode_run(size, parts, caps, tiles, region, discard, limits, index + 1, after, tail)",
     ),
     ("specs/cold_decode_finish.rs", "part2_typed_decode_run"): (
         "part2_layout_decode_run(input, requested, limits, events)",
@@ -8734,6 +8734,57 @@ def validate_normative_coverage(
     ids: set[str] = set()
     contract_functions: set[tuple[str, str]] = set()
     for entry in coverage["requirements"]:
+        if entry["id"] == "part2-complete-native-owned-tile-collection":
+            for relative, symbol, required in (
+                ("src/decode/execution.rs", "collect_tile_parts", (
+                    "let reserved = if count == 0", "crate::allocation::empty_with_capacity(count)",
+                    "if part.tile_index == tile", "let copied = part.try_duplicate()",
+                    "codestream::tile_part_copy_outcome(copied)",
+                    "part2_decode_prefix_error(root, child, next, prefix, error)",
+                    "part2_decode_prefix_advance(root, child, next, prefix, after)",
+                )),
+                ("src/codestream/tiles.rs", "TilePartPayload::try_duplicate", (
+                    "let ghost source = tile_part_owned_view(self)",
+                    "try_duplicate_for(super::MctCopyPath::CollectedQuantizations)",
+                    "try_duplicate_for(super::MctCopyPath::CollectedProgression)",
+                    "transform.try_duplicate()", "self.part2_extensions.try_duplicate_with(true)",
+                    "data: self.data",
+                )),
+                ("specs/cold_mct_copy.rs", "part1_mct_copy_site", (
+                    "MctCopyPath::CollectedQuantizations => 83",
+                    "MctCopyPath::CollectedProgression => 84",
+                )),
+                ("specs/decoder_input.rs", "part2_payload_copy_run", (
+                    "CollectedPayloadCopy { source: actual, calls }",
+                    "actual != source", "part1_mct_copy_run(part2_payload_duplicate_tail(source, 0), calls)",
+                    "rest.len() != 0", "events.drop_first()",
+                )),
+                ("specs/decoder_input.rs", "part2_collected_capacity_run", (
+                    "part2_collected_part_count(parts, tile, 0)",
+                    "source != parts || actual_tile != tile || elements != count",
+                    "events.drop_first()",
+                )),
+                ("specs/decoder_input.rs", "part2_collected_loop_run", (
+                    "parts[index as int].tile_index != tile",
+                    "part2_payload_copy_run(parts[index as int], events)",
+                    "part2_collected_loop_run(parts, tile, index + 1, before.push(copied), rest)",
+                )),
+                ("specs/cold_mct_copy.rs", "part2_payload_duplicate_step", (
+                    "value.component_quantizations.1.len()", "value.progression_changes.len()",
+                    "part1_mct_transform_duplicate_requests(stages)",
+                    "part1_part2_role_requests(true, part1_part2_copy_requests(value.part2_extensions))",
+                )),
+            ):
+                path = (ROOT / relative).resolve()
+                text = source_text(path)
+                body = (_coverage_function_body(text, function_header(path, symbol))
+                        if relative.startswith("src/") else _coverage_spec_function_body(text, symbol))
+                if body is None or any("".join(item.split()) not in "".join(body.split()) for item in required):
+                    raise ValueError("collected payload storage requires exact source, count, role and response tail")
+                if relative.startswith("src/") and ".clone(" in "".join(body.split()):
+                    raise ValueError("collected payload storage must not use allocating Clone")
+                if symbol == "collect_tile_parts" and body.index("if part.tile_index") > body.index("part.try_duplicate"):
+                    raise ValueError("collected payload storage must filter before duplicating owners")
         if entry["id"] == "part2-complete-native-container-selection-output":
             for relative, symbol, required in (
                 ("src/decode/selection.rs", "select_intersecting_tiles", (
@@ -14493,6 +14544,13 @@ def validate_normative_coverage(
                     raise ValueError(f"linked function lacks executable Verus contract: {short}; invalid exact Copy-fill storage relation")
             cold_contract = _COLD_RESULT_CONTRACTS.get((reference["path"], reference["symbol"]))
             if cold_contract is not None:
+                if cold_contract[0] == "part2_collected_parts_result":
+                    outcome = _coverage_call("collected_tile_parts_outcome", r"\1")
+                    ordinary = (outcome + r"\s*!=\s*Err\(\s*DecodeError::AllocationFailed\s*\)\s*==>\s*"
+                                + outcome + r"\s*==\s*" + _coverage_call("crate::specs::part2_collect_tile_parts",
+                                    _coverage_call("codestream::tile_parts_owned_view", "parts@"), "tile"))
+                    if re.search(named_prefix + r".*?" + ordinary, contract, re.S) is None:
+                        raise ValueError(f"linked function lacks executable Verus contract: {short}; missing exact ordinary collection projection")
                 if cold_contract[0] in (
                         "part2_select_tiles_result", "part2_validate_selection_result", "part2_color_selection_size_result"):
                     projection, model, inputs = selection_contract
