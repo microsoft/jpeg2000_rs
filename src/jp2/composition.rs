@@ -225,9 +225,11 @@ pub(super) fn parse_compositing_layer<'a>(
             proof! {
                 if let Err(error)=parsed {
                     if error==DecodeError::AllocationFailed {
+                        let context=crate::specs::Part2ChannelStorageContext {
+                            input:super::box_reference_view(child),channels:u16::MAX,base:base_offset};
+                        crate::specs::part2_header_storage_request_channel_error(context,error);
                         crate::specs::part2_header_storage_root_error(root,storage_prefix,machine,previous_reader,previous_state,
-                            super::box_reference_view(child),crate::specs::Part2ChannelStorageContext {
-                                input:super::box_reference_view(child),channels:u16::MAX,base:base_offset},error);
+                            super::box_reference_view(child),crate::specs::Part2HeaderStorageRequest::Channel {context},error);
                         crate::specs::part2_layer_header_storage_observed(super::box_reference_view(box_ref),*limits,Err(error));
                     }
                 }

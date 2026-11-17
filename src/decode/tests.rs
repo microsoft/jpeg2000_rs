@@ -4923,6 +4923,82 @@ fn whole_output_header_matches_independent_native_order_and_admission_oracle() {
 }
 
 #[test]
+fn palette_storage_mapped_samples_keep_preflight_lookup_priority_empty_and_exact_retry() {
+    use super::output::invalid_jp2_output;
+    use crate::codestream::ComponentInfo;
+
+    let info = ComponentInfo {
+        precision: 0,
+        signed: true,
+        x_subsampling: 0,
+        ..ComponentInfo::default()
+    };
+    let source = TypedComponent::from_parts(17, 0, info, TypedSamples::Unsigned(vec![0]));
+    for signed in [false, true] {
+        let palette = jp2::Palette::for_test(
+            1,
+            vec![jp2::PaletteColumn {
+                precision: 8,
+                signed,
+            }],
+            vec![if signed { -1 } else { 17 }],
+        );
+        let expected = map_palette_component(&source, &palette, 0).unwrap();
+        assert_eq!(
+            crate::allocation::with_refusal(0, || map_palette_component(&source, &palette, 0)),
+            Err(DecodeError::AllocationFailed)
+        );
+        assert_eq!(
+            map_palette_component(&source, &palette, 0).unwrap(),
+            expected
+        );
+        assert_eq!((expected.width(), expected.height()), (17, 0));
+    }
+    let palette = jp2::Palette::for_test(
+        1,
+        vec![jp2::PaletteColumn {
+            precision: 8,
+            signed: false,
+        }],
+        vec![0],
+    );
+    let invalid_index =
+        TypedComponent::from_parts(0, 0, info, TypedSamples::Unsigned(vec![u64::MAX]));
+    assert_eq!(
+        map_palette_component(&invalid_index, &palette, 0),
+        Err(invalid_jp2_output())
+    );
+    assert_eq!(
+        crate::allocation::with_refusal(0, || map_palette_component(&invalid_index, &palette, 0)),
+        Err(DecodeError::AllocationFailed)
+    );
+    let empty = TypedComponent::from_parts(u32::MAX, 0, info, TypedSamples::Signed(Vec::new()));
+    let expected = map_palette_component(&empty, &palette, 0).unwrap();
+    crate::allocation::with_refusal(0, || {
+        assert_eq!(
+            map_palette_component(&empty, &palette, 0).unwrap(),
+            expected
+        );
+        assert_eq!(
+            crate::allocation::empty_with_capacity::<u8>(1),
+            Err(DecodeError::AllocationFailed)
+        );
+    });
+    for column in [1, u8::MAX] {
+        crate::allocation::with_refusal(0, || {
+            assert_eq!(
+                map_palette_component(&source, &palette, column),
+                Err(invalid_jp2_output())
+            );
+            assert_eq!(
+                crate::allocation::empty_with_capacity::<u8>(1),
+                Err(DecodeError::AllocationFailed)
+            );
+        });
+    }
+}
+
+#[test]
 fn palette_component_mapping_matches_independent_complete_native_oracle() {
     use crate::codestream::ComponentInfo;
     use crate::image::{ChannelAssociation, ChannelDefinition, ChannelType};

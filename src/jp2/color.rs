@@ -229,12 +229,25 @@ fn copy_profile(source: &[u8]) -> Result<Vec<u8>, DecodeError> {
 }
 
 #[cfg_attr(verus_keep_ghost, verus_spec(result =>
-    ensures super::palette_outcome(result) == crate::specs::part2_parse_palette(
+    ensures crate::specs::part2_palette_storage_result(crate::specs::Part2PaletteStorageContext {
+        input:super::box_reference_view(box_ref),base:base_offset,
+    },super::palette_outcome(result)),
+    super::palette_outcome(result) != Err(DecodeError::AllocationFailed) ==>
+        super::palette_outcome(result) == crate::specs::part2_parse_palette(
         super::box_reference_view(box_ref), base_offset),
 ))]
 pub(super) fn parse_palette(box_ref: BoxRef<'_>, base_offset: u64) -> Result<Palette, DecodeError> {
     #[cfg(verus_keep_ghost)]
-    proof! { reveal(crate::specs::part2_parse_palette); }
+    proof_decl! {
+        let ghost storage_context=crate::specs::Part2PaletteStorageContext {
+            input:super::box_reference_view(box_ref),base:base_offset,
+        };
+    }
+    #[cfg(verus_keep_ghost)]
+    proof! {
+        reveal(crate::specs::part2_parse_palette);
+        crate::specs::part2_palette_storage_normal(storage_context);
+    }
     if box_ref.payload.len() < 3 {
         return Err(DecodeError::malformed(
             add_offset(base_offset, box_ref.header.offset())?,
@@ -258,7 +271,16 @@ pub(super) fn parse_palette(box_ref: BoxRef<'_>, base_offset: u64) -> Result<Pal
             MalformedKind::InvalidBoxLength,
         ));
     }
-    let mut columns = Vec::with_capacity(usize::from(columns));
+    let reserved_columns = crate::allocation::empty_with_capacity(usize::from(columns));
+    #[cfg(verus_keep_ghost)]
+    proof! {
+        crate::specs::part2_palette_capacity_observed(storage_context,crate::specs::Part2PaletteStorageRole::Columns,
+            crate::allocation::inspection_capacity_outcome(reserved_columns));
+        if let Err(error)=reserved_columns {
+            crate::specs::part2_palette_storage_columns_refused(storage_context,error);
+        }
+    }
+    let mut columns = reserved_columns?;
     let mut bytes_per_entry = 0_usize;
     let mut descriptor = 3_usize;
     #[cfg(verus_keep_ghost)]
@@ -270,6 +292,13 @@ pub(super) fn parse_palette(box_ref: BoxRef<'_>, base_offset: u64) -> Result<Pal
         verus_keep_ghost,
         verus_spec(
             invariant descriptor <= descriptor_end,
+               storage_context==(crate::specs::Part2PaletteStorageContext {
+                   input:super::box_reference_view(box_ref),base:base_offset,
+               }),
+               crate::specs::part2_palette_storage_result(storage_context,
+                   crate::specs::part2_parse_palette(super::box_reference_view(box_ref),base_offset)),
+               crate::specs::part2_palette_capacity_result(storage_context,
+                   crate::specs::Part2PaletteStorageRole::Columns,Ok(())),
                 3 <= descriptor,
                 descriptor_end == 3 + box_ref.payload[2] as nat,
                 descriptor_end <= box_ref.payload.len(),
@@ -351,7 +380,21 @@ pub(super) fn parse_palette(box_ref: BoxRef<'_>, base_offset: u64) -> Result<Pal
             ))]
         || DecodeError::malformed(base_offset, MalformedKind::ArithmeticOverflow),
     )?;
-    let mut values = Vec::with_capacity(value_count);
+    let reserved_values = crate::allocation::empty_with_capacity(value_count);
+    #[cfg(verus_keep_ghost)]
+    proof! {
+        assert(crate::specs::part2_palette_values_admit(storage_context)==Ok(()));
+        assert(crate::specs::part2_palette_capacity_count(storage_context,crate::specs::Part2PaletteStorageRole::Values)
+            ==value_count);
+        assert(value_count>0) by(nonlinear_arith)
+            requires entries>0,columns@.len()>0,value_count as nat==entries as nat*columns@.len();
+        crate::specs::part2_palette_capacity_observed(storage_context,crate::specs::Part2PaletteStorageRole::Values,
+            crate::allocation::inspection_capacity_outcome(reserved_values));
+        if let Err(error)=reserved_values {
+            crate::specs::part2_palette_storage_values_refused(storage_context,error);
+        }
+    }
+    let mut values = reserved_values?;
     let mut offset = descriptor_end;
     let mut entry = 0_u16;
     #[cfg(verus_keep_ghost)]
@@ -363,6 +406,11 @@ pub(super) fn parse_palette(box_ref: BoxRef<'_>, base_offset: u64) -> Result<Pal
         verus_keep_ghost,
         verus_spec(
             invariant entry <= entries,
+                storage_context==(crate::specs::Part2PaletteStorageContext {
+                    input:super::box_reference_view(box_ref),base:base_offset,
+                }),
+                crate::specs::part2_palette_storage_result(storage_context,
+                    crate::specs::part2_parse_palette(super::box_reference_view(box_ref),base_offset)),
                 box_ref.payload.len() >= 3,
                 entries > 0,
                 entries <= 1024,
@@ -400,6 +448,11 @@ pub(super) fn parse_palette(box_ref: BoxRef<'_>, base_offset: u64) -> Result<Pal
             verus_keep_ghost,
             verus_spec(
                 invariant column <= columns.len(),
+                    storage_context==(crate::specs::Part2PaletteStorageContext {
+                        input:super::box_reference_view(box_ref),base:base_offset,
+                    }),
+                    crate::specs::part2_palette_storage_result(storage_context,
+                        crate::specs::part2_parse_palette(super::box_reference_view(box_ref),base_offset)),
                     box_ref.payload.len() >= 3,
                     entry < entries,
                     entries > 0,
@@ -491,7 +544,11 @@ pub(super) fn parse_palette(box_ref: BoxRef<'_>, base_offset: u64) -> Result<Pal
 }
 
 #[cfg_attr(verus_keep_ghost, verus_spec(result =>
-    ensures super::component_mapping_outcome(result) == crate::specs::part2_parse_component_mapping(
+    ensures crate::specs::part2_mapping_storage_result(crate::specs::Part2MappingStorageContext {
+        input:super::box_reference_view(box_ref),components,palette_columns,limits:*limits,base:base_offset,
+    },super::component_mapping_outcome(result)),
+    super::component_mapping_outcome(result) != Err(DecodeError::AllocationFailed) ==>
+        super::component_mapping_outcome(result) == crate::specs::part2_parse_component_mapping(
         super::box_reference_view(box_ref), components, palette_columns, limits, base_offset),
 ))]
 pub(super) fn parse_component_mapping(
@@ -501,6 +558,14 @@ pub(super) fn parse_component_mapping(
     limits: &ResourceLimits,
     base_offset: u64,
 ) -> Result<Vec<ComponentMapping>, DecodeError> {
+    #[cfg(verus_keep_ghost)]
+    proof_decl! {
+        let ghost storage_context=crate::specs::Part2MappingStorageContext {
+            input:super::box_reference_view(box_ref),components,palette_columns,limits:*limits,base:base_offset,
+        };
+    }
+    #[cfg(verus_keep_ghost)]
+    proof! { crate::specs::part2_mapping_storage_normal(storage_context); }
     if box_ref.payload.is_empty() || !box_ref.payload.len().is_multiple_of(4) {
         return Err(DecodeError::malformed(
             add_offset(base_offset, box_ref.header.offset())?,
@@ -521,7 +586,15 @@ pub(super) fn parse_component_mapping(
             u64::from(entries),
         ));
     }
-    let mut mappings = Vec::with_capacity(entry_count);
+    let reserved = crate::allocation::empty_with_capacity(entry_count);
+    #[cfg(verus_keep_ghost)]
+    proof! {
+        crate::specs::part2_mapping_capacity_observed(storage_context,crate::allocation::inspection_capacity_outcome(reserved));
+        if let Err(error)=reserved {
+            crate::specs::part2_mapping_storage_refused(storage_context,error);
+        }
+    }
+    let mut mappings = reserved?;
     let mut offset = 0_usize;
     #[cfg(verus_keep_ghost)]
     proof! {
@@ -532,6 +605,11 @@ pub(super) fn parse_component_mapping(
         verus_keep_ghost,
         verus_spec(
             invariant offset <= box_ref.payload.len(),
+                storage_context==(crate::specs::Part2MappingStorageContext {
+                    input:super::box_reference_view(box_ref),components,palette_columns,limits:*limits,base:base_offset,
+                }),
+                crate::specs::part2_mapping_storage_result(storage_context,crate::specs::part2_parse_component_mapping(
+                    super::box_reference_view(box_ref),components,palette_columns,limits,base_offset)),
                 offset % 4 == 0,
                 box_ref.payload.len() % 4 == 0,
                 entry_count == box_ref.payload.len() / 4,

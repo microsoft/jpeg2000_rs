@@ -74,14 +74,14 @@ pub struct Part2HeaderStorageMachine<S,T> {
     pub payload:Seq<u8>,
     pub base:u64,
     pub prepare:spec_fn(S)->Result<S,crate::DecodeError>,
-    pub request:spec_fn(Part2BoxReference,S)->Option<Part2ChannelStorageContext>,
+    pub request:spec_fn(Part2BoxReference,S)->Option<Part2HeaderStorageRequest>,
     pub step:spec_fn(Part2BoxReference,S)->Result<S,crate::DecodeError>,
     pub finish:spec_fn(S)->Result<T,crate::DecodeError>,
 }
 pub(crate) open spec fn part2_header_storage_machine_valid<S,T>(machine:Part2HeaderStorageMachine<S,T>)->bool {
     forall|input,state|match #[trigger] (machine.request)(input,state) {
         None=>true,
-        Some(context)=>match part2_parse_channel_definition(context.input,context.channels,context.base) {
+        Some(request)=>match part2_header_storage_request_value(request) {
             Err(error)=>(machine.step)(input,state)==Err(error),Ok(_)=>true,
         },
     }
@@ -91,8 +91,8 @@ pub(crate) open spec fn part2_header_storage_step_run<S,T>(
 )->Part2ColdRun<S> {
     match (machine.request)(input,state) {
         None=>Some(((machine.step)(input,state),events)),
-        Some(context)=>part2_jpip_snapshot_bind(part2_channel_storage_run(context,events),
-            |_:Seq<Part2ChannelRecord>,rest|Some(((machine.step)(input,state),rest))),
+        Some(request)=>part2_jpip_snapshot_bind(part2_header_storage_request_run(request,events),
+            |_:(),rest|Some(((machine.step)(input,state),rest))),
     }
 }
 pub(crate) proof fn part2_header_storage_step_normal<S,T>(
@@ -105,25 +105,25 @@ pub(crate) proof fn part2_header_storage_step_normal<S,T>(
 {
     let result=(machine.step)(input,state);
     part2_cold_pure(result);
-    if let Some(context)=(machine.request)(input,state){
-        let parsed=part2_parse_channel_definition(context.input,context.channels,context.base);
-        part2_channel_storage_normal(context);part2_channel_storage_frames(context,parsed);
-        part2_cold_bind(|events|part2_channel_storage_run(context,events),
-            |_:Seq<Part2ChannelRecord>,rest|Some((result,rest)),parsed,result);
+    if let Some(request)=(machine.request)(input,state){
+        let parsed=part2_header_storage_request_value(request);
+        part2_header_storage_request_normal(request);part2_header_storage_request_frames(request,parsed);
+        part2_cold_bind(|events|part2_header_storage_request_run(request,events),
+            |_:(),rest|Some((result,rest)),parsed,result);
     }
     part2_decode_eta(|events|part2_header_storage_step_run(machine,input,state,events),result);
 }
 pub(crate) proof fn part2_header_storage_step_error<S,T>(
-    machine:Part2HeaderStorageMachine<S,T>,input:Part2BoxReference,state:S,context:Part2ChannelStorageContext,error:crate::DecodeError,
+    machine:Part2HeaderStorageMachine<S,T>,input:Part2BoxReference,state:S,request:Part2HeaderStorageRequest,error:crate::DecodeError,
 )
-    requires (machine.request)(input,state)==Some(context),part2_channel_storage_result(context,Err(error)),
+    requires (machine.request)(input,state)==Some(request),part2_header_storage_request_result(request,Err(error)),
     ensures part2_cold_framed(|events|part2_header_storage_step_run(machine,input,state,events),Err(error)),
         forall|other:spec_fn(Seq<Part2JpipSnapshotEvent>)->Part2ColdRun<S>|
             (forall|events| #[trigger] other(events)==part2_header_storage_step_run(machine,input,state,events)) ==> #[trigger] part2_cold_framed(other,Err(error)),
 {
-    part2_channel_storage_frames(context,Err(error));
-    part2_cold_bind(|events|part2_channel_storage_run(context,events),
-        |_:Seq<Part2ChannelRecord>,rest|Some(((machine.step)(input,state),rest)),Err(error),Err(error));
+    part2_header_storage_request_frames(request,Err(error));
+    part2_cold_bind(|events|part2_header_storage_request_run(request,events),
+        |_:(),rest|Some(((machine.step)(input,state),rest)),Err(error),Err(error));
     part2_decode_eta(|events|part2_header_storage_step_run(machine,input,state,events),Err(error));
 }
 #[verifier::opaque]
@@ -219,16 +219,16 @@ pub(crate) proof fn part2_header_storage_advance<S,T>(machine:Part2HeaderStorage
     assert(part2_header_storage_advance_prefix(machine,reader,state,updated,prefix));
 }
 pub(crate) proof fn part2_header_storage_reached_error<S,T>(machine:Part2HeaderStorageMachine<S,T>,reader:Part2BoxReaderState,state:S,
-    input:Part2BoxReference,context:Part2ChannelStorageContext,error:crate::DecodeError)
+    input:Part2BoxReference,request:Part2HeaderStorageRequest,error:crate::DecodeError)
     requires part2_box_reader_next_ref(reader).0==Some(Ok(input)),
         reader.position<part2_box_reader_next_ref(reader).1.position<=machine.payload.len(),
         (machine.prepare)(state).is_ok(),
-        (machine.request)(input,(machine.prepare)(state).get_Ok_0())==Some(context),
-        part2_channel_storage_result(context,Err(error)),
+        (machine.request)(input,(machine.prepare)(state).get_Ok_0())==Some(request),
+        part2_header_storage_request_result(request,Err(error)),
     ensures part2_cold_framed(|events|part2_header_storage_boxes_run(machine,reader,state,events),Err(error)),
 {
     let prepared=(machine.prepare)(state).get_Ok_0();
-    part2_header_storage_step_error(machine,input,prepared,context,error);
+    part2_header_storage_step_error(machine,input,prepared,request,error);
     part2_cold_bind(|events|part2_header_storage_step_run(machine,input,prepared,events),
         |updated:S,rest|part2_header_storage_boxes_run(machine,part2_box_reader_next_ref(reader).1,updated,rest),Err(error),Err(error));
     reveal_with_fuel(part2_header_storage_boxes_run,1);
@@ -252,15 +252,15 @@ pub(crate) proof fn part2_header_storage_root_advance<S,T>(root:spec_fn(Seq<Part
 }
 pub(crate) proof fn part2_header_storage_root_error<S,T>(root:spec_fn(Seq<Part2JpipSnapshotEvent>)->Part2ColdRun<T>,
     prefix:Seq<Part2JpipSnapshotEvent>,machine:Part2HeaderStorageMachine<S,T>,reader:Part2BoxReaderState,state:S,
-    input:Part2BoxReference,context:Part2ChannelStorageContext,error:crate::DecodeError)
+    input:Part2BoxReference,request:Part2HeaderStorageRequest,error:crate::DecodeError)
     requires part2_cold_phase(root,prefix,|events|part2_header_storage_boxes_run(machine,reader,state,events)),
         part2_box_reader_next_ref(reader).0==Some(Ok(input)),
         reader.position<part2_box_reader_next_ref(reader).1.position<=machine.payload.len(),
-        (machine.prepare)(state).is_ok(),(machine.request)(input,(machine.prepare)(state).get_Ok_0())==Some(context),
-        part2_channel_storage_result(context,Err(error)),
+        (machine.prepare)(state).is_ok(),(machine.request)(input,(machine.prepare)(state).get_Ok_0())==Some(request),
+        part2_header_storage_request_result(request,Err(error)),
     ensures part2_cold_framed(root,Err(error)),
 {
-    part2_header_storage_reached_error(machine,reader,state,input,context,error);
+    part2_header_storage_reached_error(machine,reader,state,input,request,error);
     part2_cold_prefix_result(root,|events|part2_header_storage_boxes_run(machine,reader,state,events),prefix,Err(error));
 }
 
@@ -272,8 +272,14 @@ pub(crate) open spec fn part2_main_header_storage_machine(payload:Seq<u8>,limits
             else{Ok(Part2RawHeaderState {nested:(state.nested+1) as u32,..state})},
         request:|input:Part2BoxReference,state:Part2RawHeaderState|{
             let count=if state.mappings.len()==0{state.image.components as nat}else{state.mappings.len()};
+            let palette_columns=match state.palette {None=>0,Some(palette)=>palette.1.len()};
             if input.0.0==crate::jp2::BoxType::CHANNEL_DEFINITION && state.definitions.len()==0 && count<=u16::MAX{
-                Some(Part2ChannelStorageContext {input,channels:count as u16,base})
+                Some(Part2HeaderStorageRequest::Channel {context:Part2ChannelStorageContext {input,channels:count as u16,base}})
+            }else if input.0.0==crate::jp2::BoxType::PALETTE && state.palette.is_none() {
+                Some(Part2HeaderStorageRequest::Palette {context:Part2PaletteStorageContext {input,base}})
+            }else if input.0.0==crate::jp2::BoxType::COMPONENT_MAPPING && state.mappings.len()==0 && palette_columns<=u8::MAX {
+                Some(Part2HeaderStorageRequest::Mapping {context:Part2MappingStorageContext {
+                    input,components:state.image.components,palette_columns:palette_columns as u8,limits,base}})
             }else{None}},
         step:|input,state|part2_raw_header_step(input,state,limits,base),
         finish:|state|part2_raw_header_finish(state,base,allow),
@@ -287,8 +293,15 @@ pub(crate) open spec fn part2_associated_header_storage_machine(payload:Seq<u8>,
             else{Ok(Part2AssociatedHeaderState {nested:(state.nested+1) as u32,..state})},
         request:|input:Part2BoxReference,state:Part2AssociatedHeaderState|{
             let count=if state.header.mappings.len()==0{state.header.image.components as nat}else{state.header.mappings.len()};
+            let palette_columns=match state.header.palette {None=>0,Some(palette)=>palette.1.len()};
             if input.0.0==crate::jp2::BoxType::CHANNEL_DEFINITION && !state.definition_override && count<=u16::MAX{
-                Some(Part2ChannelStorageContext {input,channels:count as u16,base})
+                Some(Part2HeaderStorageRequest::Channel {context:Part2ChannelStorageContext {input,channels:count as u16,base}})
+            }else if input.0.0==crate::jp2::BoxType::PALETTE && !state.palette_override && !state.mapping_override && !state.definition_override {
+                Some(Part2HeaderStorageRequest::Palette {context:Part2PaletteStorageContext {input,base}})
+            }else if input.0.0==crate::jp2::BoxType::COMPONENT_MAPPING && !state.mapping_override && !state.definition_override
+                && palette_columns<=u8::MAX {
+                Some(Part2HeaderStorageRequest::Mapping {context:Part2MappingStorageContext {
+                    input,components:state.header.image.components,palette_columns:palette_columns as u8,limits,base}})
             }else{None}},
         step:|input,state|part2_associated_header_step(input,state,limits,base),
         finish:|state|part2_associated_header_finish(state,base),
@@ -300,7 +313,7 @@ pub(crate) open spec fn part2_layer_header_storage_machine(payload:Seq<u8>,limit
         payload,base,prepare:|state:Part2RawLayerState|Ok(state),
         request:|input:Part2BoxReference,state:Part2RawLayerState|
             if input.0.0==crate::jp2::BoxType::CHANNEL_DEFINITION && state.layer.definitions.len()==0 && state.layer.opacity.is_none(){
-                Some(Part2ChannelStorageContext {input,channels:u16::MAX,base})
+                Some(Part2HeaderStorageRequest::Channel {context:Part2ChannelStorageContext {input,channels:u16::MAX,base}})
             }else{None},
         step:|input,state|part2_raw_layer_step(input,state,limits,base),
         finish:|state:Part2RawLayerState|Ok(state.layer),
@@ -315,30 +328,62 @@ pub(crate) proof fn part2_header_storage_machines_valid(payload:Seq<u8>,limits:c
     crate::jp2::channel_storage_box_kinds_known();
     let main=part2_main_header_storage_machine(payload,limits,base,allow);
     assert forall|input:Part2BoxReference,state:Part2RawHeaderState|match #[trigger] (main.request)(input,state){
-        None=>true,Some(context)=>match part2_parse_channel_definition(context.input,context.channels,context.base){
+        None=>true,Some(request)=>match part2_header_storage_request_value(request){
             Err(error)=>(main.step)(input,state)==Err(error),Ok(_)=>true,
         },
     } by {
-        if let Some(context)=(main.request)(input,state){
-            assert(input.0.0==crate::jp2::BoxType::CHANNEL_DEFINITION);
-            assert(state.definitions.len()==0);
-            let count=if state.mappings.len()==0{state.image.components as nat}else{state.mappings.len()};
-            assert(count<=u16::MAX);
-            assert(context==(Part2ChannelStorageContext {input,channels:count as u16,base}));
+        if let Some(request)=(main.request)(input,state){
+            match request {
+                Part2HeaderStorageRequest::Channel {context}=>{
+                    assert(input.0.0==crate::jp2::BoxType::CHANNEL_DEFINITION);
+                    assert(state.definitions.len()==0);
+                    let count=if state.mappings.len()==0{state.image.components as nat}else{state.mappings.len()};
+                    assert(count<=u16::MAX);
+                    assert(context==(Part2ChannelStorageContext {input,channels:count as u16,base}));
+                },
+                Part2HeaderStorageRequest::Palette {context}=>{
+                    assert(input.0.0==crate::jp2::BoxType::PALETTE);
+                    assert(state.palette.is_none());
+                    assert(context==(Part2PaletteStorageContext {input,base}));
+                },
+                Part2HeaderStorageRequest::Mapping {context}=>{
+                    let count=match state.palette {None=>0,Some(palette)=>palette.1.len()};
+                    assert(input.0.0==crate::jp2::BoxType::COMPONENT_MAPPING);
+                    assert(state.mappings.len()==0 && count<=u8::MAX);
+                    assert(context==(Part2MappingStorageContext {
+                        input,components:state.image.components,palette_columns:count as u8,limits,base}));
+                },
+            }
         }
     }
     let associated=part2_associated_header_storage_machine(payload,limits,base);
     assert forall|input:Part2BoxReference,state:Part2AssociatedHeaderState|match #[trigger] (associated.request)(input,state){
-        None=>true,Some(context)=>match part2_parse_channel_definition(context.input,context.channels,context.base){
+        None=>true,Some(request)=>match part2_header_storage_request_value(request){
             Err(error)=>(associated.step)(input,state)==Err(error),Ok(_)=>true,
         },
     } by {
-        if let Some(context)=(associated.request)(input,state){
-            assert(input.0.0==crate::jp2::BoxType::CHANNEL_DEFINITION);
-            assert(!state.definition_override);
-            let count=if state.header.mappings.len()==0{state.header.image.components as nat}else{state.header.mappings.len()};
-            assert(count<=u16::MAX);
-            assert(context==(Part2ChannelStorageContext {input,channels:count as u16,base}));
+        if let Some(request)=(associated.request)(input,state){
+            match request {
+                Part2HeaderStorageRequest::Channel {context}=>{
+                    assert(input.0.0==crate::jp2::BoxType::CHANNEL_DEFINITION);
+                    assert(!state.definition_override);
+                    let count=if state.header.mappings.len()==0{state.header.image.components as nat}else{state.header.mappings.len()};
+                    assert(count<=u16::MAX);
+                    assert(context==(Part2ChannelStorageContext {input,channels:count as u16,base}));
+                },
+                Part2HeaderStorageRequest::Palette {context}=>{
+                    assert(input.0.0==crate::jp2::BoxType::PALETTE);
+                    assert(!state.palette_override && !state.mapping_override && !state.definition_override);
+                    assert(context==(Part2PaletteStorageContext {input,base}));
+                },
+                Part2HeaderStorageRequest::Mapping {context}=>{
+                    let count=match state.header.palette {None=>0,Some(palette)=>palette.1.len()};
+                    assert(input.0.0==crate::jp2::BoxType::COMPONENT_MAPPING);
+                    assert(!state.mapping_override && !state.definition_override && count<=u8::MAX);
+                    assert(context==(Part2MappingStorageContext {
+                        input,components:state.header.image.components,palette_columns:count as u8,limits,base}));
+                },
+            }
         }
     }
 }
@@ -659,8 +704,10 @@ pub(crate) proof fn part2_codestream_header_storage_error(payload:Seq<u8>,defaul
         part2_channel_storage_result(Part2ChannelStorageContext {input,channels,base},Err(error)),
     ensures part2_codestream_header_storage_result(payload,defaults,limits,base,Err(error)),
 {
+    let context=Part2ChannelStorageContext {input,channels,base};
+    part2_header_storage_request_channel_error(context,error);
     part2_header_storage_root_error(|events|part2_codestream_header_storage_run(payload,defaults,limits,base,events),prefix,
-        part2_associated_header_storage_machine(payload,limits,base),reader,state,input,Part2ChannelStorageContext {input,channels,base},error);
+        part2_associated_header_storage_machine(payload,limits,base),reader,state,input,Part2HeaderStorageRequest::Channel {context},error);
 }
 pub open spec fn part2_associated_header_box_outcome(result:Result<(),crate::DecodeError>,state:Part2AssociatedHeaderState)
     ->Result<Part2AssociatedHeaderState,crate::DecodeError> {
@@ -683,8 +730,19 @@ pub(crate) proof fn part2_associated_header_box_storage_error(input:Part2BoxRefe
         part2_channel_storage_result(Part2ChannelStorageContext {input,channels,base},Err(error)),
     ensures part2_associated_header_box_storage_result(input,state,limits,base,Err(error)),
 {
+    let context=Part2ChannelStorageContext {input,channels,base};
+    part2_header_storage_request_channel_error(context,error);
     part2_header_storage_step_error(part2_associated_header_storage_machine(Seq::empty(),limits,base),input,state,
-        Part2ChannelStorageContext {input,channels,base},error);
+        Part2HeaderStorageRequest::Channel {context},error);
+}
+pub(crate) proof fn part2_associated_header_box_storage_request_error(input:Part2BoxReference,state:Part2AssociatedHeaderState,
+    limits:crate::ResourceLimits,base:u64,request:Part2HeaderStorageRequest,error:crate::DecodeError)
+    requires (part2_associated_header_storage_machine(Seq::empty(),limits,base).request)(input,state)==Some(request),
+        part2_header_storage_request_result(request,Err(error)),
+    ensures part2_associated_header_box_storage_result(input,state,limits,base,Err(error)),
+{
+    part2_header_storage_step_error(part2_associated_header_storage_machine(Seq::empty(),limits,base),
+        input,state,request,error);
 }
 pub(crate) proof fn part2_associated_header_box_storage_frames(input:Part2BoxReference,state:Part2AssociatedHeaderState,
     limits:crate::ResourceLimits,base:u64,payload:Seq<u8>,result:Result<Part2AssociatedHeaderState,crate::DecodeError>)

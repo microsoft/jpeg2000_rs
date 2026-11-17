@@ -2,6 +2,7 @@
 use super::*;
 verus! {
 pub enum Part2TypedCapacityContext {
+    Palette {source:Part2TypedComponentOutput,palette:Part2PaletteModel,column:u8},
     Definition {source:Part2TypedComponentOutput,definition:ColorDefinition},
     DefinitionCopy {source:Part2TypedComponentOutput,target:Part2TypedComponentOutput},
     Output {context:Part2OutputStorageContext},
@@ -11,6 +12,7 @@ pub enum Part2TypedCapacityContext {
 }
 pub(crate) open spec fn part2_typed_capacity_count(context:Part2TypedCapacityContext)->nat {
     match context {
+        Part2TypedCapacityContext::Palette {source,..}=>part2_typed_sample_count(source.0.samples),
         Part2TypedCapacityContext::Definition {..}=>1,
         Part2TypedCapacityContext::DefinitionCopy {source,..}=>source.1.len(),
         Part2TypedCapacityContext::Output {context}=>part2_output_capacity_count(context),

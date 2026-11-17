@@ -740,7 +740,17 @@ pub(super) fn apply_jp2_output(
                 }
                 jp2::MappingType::Palette { column } => {
                     let palette = header.palette.as_ref().ok_or_else(invalid_jp2_output)?;
-                    map_palette_component(source, palette, column)?
+                    let result = map_palette_component(source, palette, column);
+                    #[cfg(verus_keep_ghost)]
+                    proof! {
+                        if let Err(error)=result {
+                            crate::specs::part2_output_component_palette_error(context,mapping_index as nat,
+                                crate::image::typed_component_output_view(source),crate::jp2::palette_view(palette),column,error);
+                            crate::specs::part2_output_storage_component_error(context,mapping_index as nat,
+                                crate::image::typed_components_output_view(mapped@),error);
+                        }
+                    }
+                    result?
                 }
             };
             #[cfg(verus_keep_ghost)]
@@ -937,7 +947,10 @@ pub(super) fn copy_typed_component(source: &TypedComponent) -> Result<TypedCompo
 #[cfg_attr(
     verus_keep_ghost,
     verus_spec(result =>
-        ensures crate::image::typed_component_output(result) == crate::specs::part2_palette_component(
+        ensures crate::specs::part2_palette_component_storage_result(crate::image::typed_component_output_view(source),
+            crate::jp2::palette_view(palette),column,crate::image::typed_component_output(result)),
+        crate::image::typed_component_output(result) != Err(DecodeError::AllocationFailed) ==>
+            crate::image::typed_component_output(result) == crate::specs::part2_palette_component(
             crate::image::typed_component_view(source), crate::jp2::palette_view(palette), column,
         ),
     )
@@ -947,6 +960,11 @@ pub(super) fn map_palette_component(
     palette: &jp2::Palette,
     column: u8,
 ) -> Result<TypedComponent, DecodeError> {
+    #[cfg(verus_keep_ghost)]
+    proof! {
+        crate::specs::part2_palette_component_storage_normal(crate::image::typed_component_output_view(source),
+            crate::jp2::palette_view(palette),column);
+    }
     let descriptor = palette
         .columns()
         .get(usize::from(column))
@@ -959,16 +977,42 @@ pub(super) fn map_palette_component(
         TypedSamples::Signed(samples) => samples.len(),
         TypedSamples::Unsigned(samples) => samples.len(),
     };
-    let mut signed_samples = if descriptor.signed {
-        Vec::with_capacity(sample_count)
+    let signed_capacity = if descriptor.signed && sample_count != 0 {
+        crate::allocation::empty_with_capacity(sample_count)
     } else {
-        Vec::new()
+        Ok(Vec::new())
     };
-    let mut unsigned_samples = if descriptor.signed {
-        Vec::new()
+    #[cfg(verus_keep_ghost)]
+    proof! {
+        if descriptor.signed {
+            crate::specs::part2_typed_capacity_observed(crate::specs::Part2TypedCapacityContext::Palette {
+                source:crate::image::typed_component_output_view(source),palette:crate::jp2::palette_view(palette),column,
+            },crate::allocation::inspection_capacity_outcome(signed_capacity));
+            if signed_capacity.is_err() {
+                crate::specs::part2_palette_component_storage_refused(crate::image::typed_component_output_view(source),
+                    crate::jp2::palette_view(palette),column);
+            }
+        }
+    }
+    let mut signed_samples = signed_capacity?;
+    let unsigned_capacity = if descriptor.signed || sample_count == 0 {
+        Ok(Vec::new())
     } else {
-        Vec::with_capacity(sample_count)
+        crate::allocation::empty_with_capacity(sample_count)
     };
+    #[cfg(verus_keep_ghost)]
+    proof! {
+        if !descriptor.signed {
+            crate::specs::part2_typed_capacity_observed(crate::specs::Part2TypedCapacityContext::Palette {
+                source:crate::image::typed_component_output_view(source),palette:crate::jp2::palette_view(palette),column,
+            },crate::allocation::inspection_capacity_outcome(unsigned_capacity));
+            if unsigned_capacity.is_err() {
+                crate::specs::part2_palette_component_storage_refused(crate::image::typed_component_output_view(source),
+                    crate::jp2::palette_view(palette),column);
+            }
+        }
+    }
+    let mut unsigned_samples = unsigned_capacity?;
     let mut sample_index = 0_usize;
     #[cfg(verus_keep_ghost)]
     proof! {
@@ -980,6 +1024,9 @@ pub(super) fn map_palette_component(
         verus_keep_ghost,
         verus_spec(
             invariant sample_index <= sample_count,
+            crate::specs::part2_palette_component_storage_result(crate::image::typed_component_output_view(source),
+                crate::jp2::palette_view(palette),column,crate::specs::part2_palette_component(
+                    crate::image::typed_component_view(source),crate::jp2::palette_view(palette),column)),
             sample_count as nat == crate::specs::part2_typed_sample_count(crate::image::typed_component_view(source).samples),
             column < crate::jp2::palette_view(palette).1.len(),
             *descriptor == crate::jp2::palette_view(palette).1[column as int],
