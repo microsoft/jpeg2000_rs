@@ -3007,6 +3007,82 @@ fn complete_assembly_matches_independent_registered_coordinate_images() {
 }
 
 #[test]
+fn assembly_owner_storage_preserves_header_and_geometry_priority_empty_and_retry() {
+    let info = ComponentInfo {
+        precision: 8,
+        signed: false,
+        x_subsampling: 1,
+        y_subsampling: 1,
+        x_registration: 0,
+        y_registration: 0,
+    };
+    let limits = ResourceLimits::default();
+    let size = image_size(&[info], 1, 1);
+    let tile = TileComponent {
+        component: 0,
+        x: 0,
+        y: 0,
+        width: 1,
+        height: 1,
+        fraction_bits: 16,
+        samples: &[17],
+    };
+    let expected = assemble_image(&size, &[tile], &limits).unwrap();
+    assert_eq!(
+        crate::allocation::with_refusal(0, || assemble_image(&size, &[tile], &limits)),
+        Err(DecodeError::AllocationFailed)
+    );
+    assert_eq!(assemble_image(&size, &[tile], &limits).unwrap(), expected);
+    crate::allocation::with_refusal(0, || {
+        assert_eq!(
+            assemble_selected_image(&size, &[tile], [0, 0, 0, 1], 0, &limits),
+            Err(invalid_image())
+        );
+        assert_eq!(
+            assemble_selected_image(&size, &[tile], [0, 0, 1, 1], 0, &limits),
+            Err(DecodeError::AllocationFailed)
+        );
+    });
+    assert_eq!(
+        assemble_selected_image(&size, &[tile], [0, 0, 1, 1], 0, &limits).unwrap(),
+        expected
+    );
+    let overflow = ImageSize {
+        x_origin: u32::MAX,
+        ..size
+    };
+    crate::allocation::with_refusal(1, || {
+        assert_eq!(
+            assemble_image(&overflow, &[], &limits),
+            Err(arithmetic_overflow())
+        );
+        assert_eq!(
+            crate::allocation::copy_values(&[1_u8]),
+            Err(DecodeError::AllocationFailed)
+        );
+    });
+    let empty = image_size(&[], 1, 1);
+    crate::allocation::with_refusal(0, || {
+        assert!(
+            assemble_image(&empty, &[], &limits)
+                .unwrap()
+                .components()
+                .is_empty()
+        );
+        assert!(
+            assemble_selected_image(&empty, &[], [0, 0, 1, 1], 0, &limits)
+                .unwrap()
+                .components()
+                .is_empty()
+        );
+        assert_eq!(
+            crate::allocation::copy_values(&[1_u8]),
+            Err(DecodeError::AllocationFailed)
+        );
+    });
+}
+
+#[test]
 fn assembly_preserves_error_order_and_selected_only_sample_coverage() {
     let info = ComponentInfo {
         precision: 8,

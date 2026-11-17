@@ -155,7 +155,9 @@ pub fn decode_subband(
 }
 
 #[cfg_attr(verus_keep_ghost, verus_spec(result =>
-    ensures crate::image::decoded_image_outcome(result) == crate::specs::part1_decode_prepared_image(
+    ensures crate::specs::part2_decode_prepared_storage_result(crate::image::assembly_size_view(size),crate::image::assembly_tiles_view(tile_components@),component_transform,
+        crate::limits::resource_decoded_bytes_limit(limits),crate::image::decoded_image_outcome(result)),
+    crate::image::decoded_image_outcome(result)!=Err(DecodeError::AllocationFailed) ==> crate::image::decoded_image_outcome(result) == crate::specs::part1_decode_prepared_image(
         crate::image::assembly_size_view(size), crate::image::assembly_tiles_view(tile_components@),
         component_transform, crate::limits::resource_decoded_bytes_limit(limits)),
 ))]
@@ -165,7 +167,14 @@ pub fn decode_prepared_image(
     component_transform: ComponentTransform,
     limits: &ResourceLimits,
 ) -> Result<DecodedImage, DecodeError> {
-    let mut image = assemble_image(size, tile_components, limits)?;
+    #[cfg(verus_keep_ghost)]
+    proof! {crate::specs::part2_decode_prepared_storage_normal(crate::image::assembly_size_view(size),crate::image::assembly_tiles_view(tile_components@),component_transform,crate::limits::resource_decoded_bytes_limit(limits));}
+    let assembled = assemble_image(size, tile_components, limits);
+    #[cfg(verus_keep_ghost)]
+    proof! {
+        if let Err(error)=assembled{crate::specs::part2_decode_prepared_assembly_error(crate::image::assembly_size_view(size),crate::image::assembly_tiles_view(tile_components@),component_transform,crate::limits::resource_decoded_bytes_limit(limits),error);}
+    }
+    let mut image = assembled?;
     match component_transform {
         ComponentTransform::None => {}
         ComponentTransform::Reversible => {

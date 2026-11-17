@@ -5,6 +5,8 @@ mod allocation;
 pub use allocation::*;
 mod cold_prepare_copies;
 pub use cold_prepare_copies::*;
+mod cold_image_storage;
+pub use cold_image_storage::*;
 mod mq;
 pub use mq::*;
 mod legacy;
