@@ -55,11 +55,26 @@ pub(crate) open spec fn part2_jpx_selected_finish(input: Part2DecoderLayoutInput
     requested: Part2DecodeSelection, limits: &crate::ResourceLimits, decoded: Part1DecodedImageModel) -> Part2AssociatedImageResult {
     match part2_typed_layout_input(input, decoded, requested.2, limits) {
         Err(error) => Err(error),
-        Ok(image) => match part2_apply_output_header(image, header.0, crate::limits::resource_component_limit(limits),
-            crate::limits::resource_decoded_bytes_limit(limits)) {
-            Err(error) => Err(error), Ok(mapped) => Ok((mapped, Some(header))),
-        },
+        Ok(image) => part2_apply_associated_output(image,Some(header),crate::limits::resource_component_limit(limits),
+            crate::limits::resource_decoded_bytes_limit(limits)),
     }
+}
+pub(crate) open spec fn part2_jpx_selected_finish_run(input:Part2DecoderLayoutInput,header:Part2AssociatedHeader,requested:Part2DecodeSelection,
+    limits:&crate::ResourceLimits,decoded:Part1DecodedImageModel,events:Seq<Part2JpipSnapshotEvent>)->Part2ColdRun<(Part1DecodedTypedImage,Option<Part2AssociatedHeader>)> {
+    part2_jpip_snapshot_bind(part2_typed_layout_run(input,decoded,requested.2,limits,events),
+        |image:Part1DecodedTypedImage,rest|Some((part2_apply_associated_output(image,Some(header),crate::limits::resource_component_limit(limits),
+            crate::limits::resource_decoded_bytes_limit(limits)),rest)))
+}
+pub(crate) proof fn part2_jpx_selected_finish_normal(input:Part2DecoderLayoutInput,header:Part2AssociatedHeader,requested:Part2DecodeSelection,limits:&crate::ResourceLimits,decoded:Part1DecodedImageModel)
+    ensures part2_cold_framed(|events|part2_jpx_selected_finish_run(input,header,requested,limits,decoded,events),part2_jpx_selected_finish(input,header,requested,limits,decoded)),
+{
+    let typed=part2_typed_layout_input(input,decoded,requested.2,limits);
+    part2_typed_layout_normal(input,decoded,requested.2,limits);part2_typed_layout_frames(input,decoded,requested.2,limits,typed);
+    if let Ok(image)=typed{part2_cold_pure(part2_apply_associated_output(image,Some(header),crate::limits::resource_component_limit(limits),
+        crate::limits::resource_decoded_bytes_limit(limits)));}
+    part2_cold_bind(|events|part2_typed_layout_run(input,decoded,requested.2,limits,events),
+        |image:Part1DecodedTypedImage,rest|Some((part2_apply_associated_output(image,Some(header),crate::limits::resource_component_limit(limits),
+            crate::limits::resource_decoded_bytes_limit(limits)),rest)),typed,part2_jpx_selected_finish(input,header,requested,limits,decoded));
 }
 pub(crate) open spec fn part2_jpx_selected_layout_run(source: Part2CodestreamSource, header: Part2AssociatedHeader,
     layout: Part1CompleteLayout, limits: &crate::ResourceLimits, requested: Part2DecodeSelection,
@@ -68,7 +83,7 @@ pub(crate) open spec fn part2_jpx_selected_layout_run(source: Part2CodestreamSou
     match part2_validate_selected_header(header.1,size.geometry.0,size.geometry.1,size.components,size.uniform_bit_depth,size.uniform_signed,source.1) {
         Err(error)=>Some((Err(error),events)),
         Ok(())=>part2_jpip_snapshot_bind(part2_layout_decode_run(part2_decoder_input_from_raw(layout),Some(requested),limits,events),
-            |decoded:Part1DecodedImageModel,rest|Some((part2_jpx_selected_finish(part2_decoder_input_from_raw(layout),header,requested,limits,decoded),rest))),
+            |decoded:Part1DecodedImageModel,rest|part2_jpx_selected_finish_run(part2_decoder_input_from_raw(layout),header,requested,limits,decoded,rest)),
     }
 }
 pub(crate) proof fn part2_jpx_selected_layout_normal(source: Part2CodestreamSource, header: Part2AssociatedHeader,
@@ -85,9 +100,12 @@ pub(crate) proof fn part2_jpx_selected_layout_normal(source: Part2CodestreamSour
         let input=part2_decoder_input_from_raw(layout);
         part2_layout_decode_normal(input,Some(requested),limits);
         let decoded=part2_decode_layout_selected_value_input(input,requested,limits);
-        if let Ok(value)=decoded {part2_cold_pure(part2_jpx_selected_finish(input,header,requested,limits,value));}
+        if let Ok(value)=decoded {
+            part2_jpx_selected_finish_normal(input,header,requested,limits,value);
+            part2_decode_eta(|events|part2_jpx_selected_finish_run(input,header,requested,limits,value,events),part2_jpx_selected_finish(input,header,requested,limits,value));
+        }
         part2_cold_bind(|events|part2_layout_decode_run(input,Some(requested),limits,events),
-            |decoded:Part1DecodedImageModel,rest|Some((part2_jpx_selected_finish(input,header,requested,limits,decoded),rest)),decoded,result);
+            |decoded:Part1DecodedImageModel,rest|part2_jpx_selected_finish_run(input,header,requested,limits,decoded,rest),decoded,result);
     }
 }
 pub(crate) open spec fn part2_jpx_selected_cold_run(
@@ -281,12 +299,34 @@ pub(crate) proof fn part2_jpx_selected_decode_error(input: Part2JpxDecodeInput, 
     if let Ok(layout)=parsed {
         let decoded=part2_decoder_input_from_raw(layout);
         part2_cold_bind(|events|part2_layout_decode_run(decoded,Some(requested),limits,events),
-            |image:Part1DecodedImageModel,rest|Some((part2_jpx_selected_finish(decoded,header,requested,limits,image),rest)),Err(error),Err(error));
+            |image:Part1DecodedImageModel,rest|part2_jpx_selected_finish_run(decoded,header,requested,limits,image,rest),Err(error),Err(error));
     }
     part2_cold_bind(|events|part2_cold_parse(source.0,limits,6,index,events),
         |layout:Part1CompleteLayout,rest|part2_jpx_selected_layout_run(source,header,layout,limits,requested,rest),parsed,Err(error));
 }
 
+pub(crate) proof fn part2_jpx_selected_conversion_error(input:Part2JpxDecodeInput,index:usize,limits:&crate::ResourceLimits,requested:Part2DecodeSelection,
+    source:Part2CodestreamSource,header:Part2AssociatedHeader,layout:Part1CompleteLayout,decoded:Part1DecodedImageModel,error:crate::DecodeError)
+    requires part2_jpx_cold_header(input,index)==Ok((source,header)),
+        part1_parse_layout_cold_result(source.0,limits,Ok(layout)),
+        part2_jpx_cold_validate(source,header,(layout.0,layout.1,layout.2,layout.3))==Ok(()),
+        part2_layout_decode_result(part2_decoder_input_from_raw(layout),Some(requested),limits,Ok(decoded)),
+        part2_typed_layout_result(part2_decoder_input_from_raw(layout),decoded,requested.2,limits,Err(error)),
+    ensures part2_jpx_selected_cold_result(input,index,limits,requested,Err(error)),
+{
+    reveal(part2_layout_decode_result);
+    let parsed=part2_decoder_input_from_raw(layout);
+    part2_typed_layout_frames(parsed,decoded,requested.2,limits,Err(error));
+    part2_cold_bind(|events|part2_typed_layout_run(parsed,decoded,requested.2,limits,events),
+        |image:Part1DecodedTypedImage,rest|Some((part2_apply_associated_output(image,Some(header),crate::limits::resource_component_limit(limits),
+            crate::limits::resource_decoded_bytes_limit(limits)),rest)),Err(error),Err(error));
+    part2_cold_bind(|events|part2_layout_decode_run(parsed,Some(requested),limits,events),
+        |image:Part1DecodedImageModel,rest|part2_jpx_selected_finish_run(parsed,header,requested,limits,image,rest),Ok(decoded),Err(error));
+    part2_decode_eta(|events|part2_jpx_selected_layout_run(source,header,layout,limits,requested,events),Err(error));
+    part2_cold_parse_actual(source.0,limits,6,index,Ok(layout));
+    part2_cold_bind(|events|part2_cold_parse(source.0,limits,6,index,events),
+        |layout:Part1CompleteLayout,rest|part2_jpx_selected_layout_run(source,header,layout,limits,requested,rest),Ok(layout),Err(error));
+}
 pub type Part2FileType = (crate::jp2::BoxType, u32, Seq<crate::jp2::BoxType>);
 pub type Part2CodestreamSource = (Seq<u8>, u64, Option<(u64, Option<Part2AssociatedHeader>)>);
 pub type Part2JpxDecodeInput = (Part2FileType, Seq<Part2CodestreamSource>, Part2AssociatedHeader);

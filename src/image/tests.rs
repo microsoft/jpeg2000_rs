@@ -2750,6 +2750,119 @@ fn complete_decoded_typed_images_match_all_metadata_and_error_order() {
 }
 
 #[test]
+fn decoded_typed_storage_preserves_refusal_priority_raw_values_and_retry() {
+    let limits = ResourceLimits::default();
+    for signed in [false, true] {
+        let make_component = || DecodedComponent {
+            width: 0,
+            height: u32::MAX,
+            info: ComponentInfo {
+                precision: 8,
+                signed,
+                x_subsampling: 0,
+                y_subsampling: 255,
+                x_registration: u16::MAX,
+                y_registration: 17,
+            },
+            fraction_bits: 1,
+            samples: vec![i64::MIN, -257, -1, 0, 1, 510, i64::MAX - 1],
+        };
+        let component = make_component();
+        let image = DecodedImage {
+            width: u32::MAX,
+            height: 0,
+            x_origin: u32::MAX,
+            y_origin: 11,
+            components: vec![make_component(), make_component()],
+        };
+        let expected = reference_decoded_typed_image(&image, limits.maximum_decoded_bytes());
+        assert!(expected.is_ok());
+        for after in 0..3 {
+            assert_eq!(
+                crate::allocation::with_refusal(after, || image.typed(&limits)),
+                Err(DecodeError::AllocationFailed)
+            );
+            assert_eq!(image.typed(&limits), expected);
+        }
+        crate::allocation::with_refusal(3, || {
+            assert_eq!(image.typed(&limits), expected);
+            assert_eq!(
+                crate::allocation::copy_values(&[1_u8]),
+                Err(DecodeError::AllocationFailed)
+            );
+        });
+        assert_eq!(
+            crate::allocation::with_refusal(0, || component.typed_samples(&limits)),
+            Err(DecodeError::AllocationFailed)
+        );
+        assert_eq!(
+            component.typed_samples(&limits),
+            reference_decoded_typed_samples(&component, limits.maximum_decoded_bytes())
+        );
+        let mut malformed = make_component();
+        malformed.info.precision = 0;
+        crate::allocation::with_refusal(0, || {
+            assert_eq!(
+                malformed.typed_samples(&limits),
+                reference_decoded_typed_samples(&malformed, limits.maximum_decoded_bytes())
+            );
+            assert_eq!(
+                crate::allocation::copy_values(&[1_u8]),
+                Err(DecodeError::AllocationFailed)
+            );
+        });
+        let tiny = limits.with_maximum_decoded_bytes(1).unwrap();
+        crate::allocation::with_refusal(0, || {
+            assert_eq!(
+                component.typed_samples(&tiny),
+                reference_decoded_typed_samples(&component, 1)
+            );
+            assert_eq!(
+                crate::allocation::copy_values(&[1_u8]),
+                Err(DecodeError::AllocationFailed)
+            );
+        });
+        assert_eq!(
+            crate::allocation::with_refusal(0, || image.typed(&tiny)),
+            Err(DecodeError::AllocationFailed)
+        );
+        crate::allocation::with_refusal(1, || {
+            assert_eq!(image.typed(&tiny), reference_decoded_typed_image(&image, 1));
+            assert_eq!(
+                crate::allocation::copy_values(&[1_u8]),
+                Err(DecodeError::AllocationFailed)
+            );
+        });
+        malformed.info.precision = 8;
+        malformed.fraction_bits = 255;
+        assert!(malformed.typed_samples(&limits).is_err());
+        assert_eq!(
+            crate::allocation::with_refusal(0, || malformed.typed_samples(&limits)),
+            Err(DecodeError::AllocationFailed)
+        );
+        malformed.samples.clear();
+        let empty = DecodedImage {
+            components: vec![],
+            ..image
+        };
+        crate::allocation::with_refusal(0, || {
+            assert_eq!(
+                malformed.typed_samples(&limits),
+                reference_decoded_typed_samples(&malformed, limits.maximum_decoded_bytes())
+            );
+            assert_eq!(
+                empty.typed(&limits),
+                reference_decoded_typed_image(&empty, limits.maximum_decoded_bytes())
+            );
+            assert_eq!(
+                crate::allocation::copy_values(&[1_u8]),
+                Err(DecodeError::AllocationFailed)
+            );
+        });
+    }
+}
+
+#[test]
 fn decoded_byte_validation_matches_full_native_wide_products() {
     for samples in [0, 1, 8, usize::MAX / 8, usize::MAX / 8 + 1, usize::MAX] {
         for bytes_per_sample in [0, 1, 8, u64::MAX] {

@@ -39,6 +39,30 @@ an all-feature Verus proof. Full source-function coverage remains `not-measured`
 
 ## Fallible-storage foundation and remaining boundary
 
+### Centered-to-typed output ownership
+
+Typed-image component metadata now uses checked storage before any component
+validation. Each signed or unsigned sample vector reserves only after precision,
+byte-budget and numeric-range preflight, before rounding, level shifting or
+clipping. Empty owners make no request; raw geometry and component metadata
+are not silently validated or normalized.
+
+[`cold_typed_storage.rs`](specs/cold_typed_storage.rs) retains the entire source,
+decoded-byte maximum, role, count, actual reply and arbitrary tail. Its complete
+component fold preserves cumulative byte charging and the original numerical
+results, including first semantic failures. The exhausted nested-call envelope
+composes before nonlinear processing and output-shape checks through raw typed
+decoding, selected JPX and both PDF trailer/common finishing paths. A refused
+conversion returns no partial image and leaves the borrowed centered source
+available for exact retry. Later JP2 copies, palette/nonlinear scratch and other
+owners remain separate; this is not universal allocation recovery.
+
+Optional incremental controls reach both typed owners in raw/JP2 preview and
+final decoding, preserve the buffered input and source identity, and retry the
+same instance to exact output. Allocation failures are not memoized; charged
+work and attempted replay counters are not rolled back. This remains buffered
+replay, not saved-entropy resume, and is outside the pinned orchestration proof.
+
 ### Assembly plane sample and visited ownership
 
 The actual assembly append checks zero-sample and visited storage only after

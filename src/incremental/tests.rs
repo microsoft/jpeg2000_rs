@@ -200,6 +200,79 @@ fn incremental_refused_storage_and_decode_retain_source_for_exact_retry() {
 }
 
 #[test]
+fn incremental_late_typed_storage_refusal_retains_input_preview_final_and_retry() {
+    let options = DecodeOptions::default();
+    let selection = DecodeSelection::full_image();
+    for (bytes, format) in [
+        (&JP2[85..], IncrementalFormat::Codestream),
+        (JP2, IncrementalFormat::Jp2),
+    ] {
+        let expected = typed(bytes, format, false, &options, &selection).unwrap().0;
+        for final_input in [false, true] {
+            let mut completed_after = None;
+            for after in 0..256 {
+                let mut decoder = IncrementalDecoder::new(format, &options, &selection);
+                decoder.feed(bytes).unwrap();
+                if final_input {
+                    decoder.finish().unwrap();
+                }
+                let before = decoder.progress();
+                let source = decoder.contiguous_input().as_ptr();
+                match allocation::with_refusal(after, || decoder.decode()) {
+                    Err(IncrementalError::Decode(DecodeError::AllocationFailed)) => {
+                        assert_eq!(decoder.contiguous_input(), bytes);
+                        assert_eq!(decoder.contiguous_input().as_ptr(), source);
+                        let refused = decoder.progress();
+                        assert_eq!(refused.retained_bytes, before.retained_bytes);
+                        assert_eq!(refused.retained_end, before.retained_end);
+                        assert_eq!(refused.pending_fragments, before.pending_fragments);
+                        assert_eq!(refused.final_length, before.final_length);
+                        assert_eq!(refused.committed_bytes, before.committed_bytes);
+                        match decoder.decode().unwrap() {
+                            IncrementalUpdate::Complete { image, .. } if final_input => {
+                                assert_eq!(image, expected);
+                            }
+                            IncrementalUpdate::Preview { image, .. } if !final_input => {
+                                assert_eq!(image, expected);
+                            }
+                            result => panic!("late storage retry did not publish: {result:?}"),
+                        }
+                        assert_eq!(
+                            decoder.progress().decode_attempts,
+                            refused.decode_attempts + 1
+                        );
+                        if final_input {
+                            assert_eq!(
+                                decoder.progress().replayed_input_bytes,
+                                refused.replayed_input_bytes + bytes.len() as u64
+                            );
+                        }
+                        let published = decoder.progress();
+                        assert!(matches!(
+                            decoder.decode().unwrap(),
+                            IncrementalUpdate::Unchanged { .. }
+                        ));
+                        assert_eq!(decoder.progress(), published);
+                    }
+                    Ok(IncrementalUpdate::Complete { image, .. }) if final_input => {
+                        assert_eq!(image, expected);
+                        completed_after = Some(after);
+                        break;
+                    }
+                    Ok(IncrementalUpdate::Preview { image, .. }) if !final_input => {
+                        assert_eq!(image, expected);
+                        completed_after = Some(after);
+                        break;
+                    }
+                    result => panic!("unexpected storage sweep result: {result:?}"),
+                }
+            }
+            assert!(completed_after.is_some_and(|count| count >= 2));
+        }
+    }
+}
+
+#[test]
 fn incremental_final_truncation_limits_and_actual_malformed_errors_are_not_waiting() {
     let options = DecodeOptions::default();
     let selection = DecodeSelection::full_image();

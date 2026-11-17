@@ -505,12 +505,25 @@ pub(super) fn decode_jpx_file_selected<'a>(
                 crate::options::decode_selection_view(selection),jp2::codestream_source_view(selected),jp2::associated_header_view(associated_header.unwrap()),error);
         }
     }
-    let decoded = typed_layout(
+    let centered = decoded_result?;
+    #[cfg(verus_keep_ghost)]
+    proof_decl! {let ghost source_image=crate::image::decoded_image_view(centered);}
+    let converted = typed_layout(
         &layout,
-        decoded_result?,
+        centered,
         selection.discard_levels(),
         options.limits(),
-    )?;
+    );
+    #[cfg(verus_keep_ghost)]
+    proof! {
+        if let Err(error)=converted {
+            if let Ok(raw)=crate::specs::part1_parse_layout(jp2::codestream_source_view(selected).0,crate::options::decode_options_limits(options)) {
+                crate::specs::part2_jpx_selected_conversion_error(jp2::jpx_file_decode_view(file),codestream_index,crate::options::decode_options_limits(options),
+                    crate::options::decode_selection_view(selection),jp2::codestream_source_view(selected),jp2::associated_header_view(associated_header.unwrap()),raw,source_image,error);
+            }
+        }
+    }
+    let decoded = converted?;
     let image = match associated_header {
         Some(header) => apply_jp2_output(decoded, header, options.limits())?,
         None => decoded,

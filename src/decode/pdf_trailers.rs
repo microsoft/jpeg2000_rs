@@ -527,13 +527,27 @@ pub fn decode_codestream_recover_trailer_selected(
                 trailer_layout_outcome(decoded_result));
         }
     }
+    #[cfg(verus_keep_ghost)]
+    proof_decl! {let ghost recovered=trailer_layout_outcome(decoded_result);}
     let (decoded, report) = decoded_result?;
-    let image = typed_layout(
+    let converted = typed_layout(
         &layout,
         decoded,
         selection.discard_levels(),
         options.limits(),
-    )?;
+    );
+    #[cfg(verus_keep_ghost)]
+    proof! {
+        if let Err(error)=converted {
+            if let Ok(raw)=crate::specs::part1_parse_layout(input@,crate::options::decode_options_limits(options)) {
+                if let Ok(value)=recovered {
+                    crate::specs::part2_trailer_raw_conversion_error(input@,raw,crate::options::decode_selection_view(selection),
+                        crate::options::decode_options_limits(options),value,error);
+                }
+            }
+        }
+    }
+    let image = converted?;
     super::api::validate_part1_output_shape(input.len(), &layout, &image)?;
     Ok(TileTrailerRecoveredImage { image, report })
 }

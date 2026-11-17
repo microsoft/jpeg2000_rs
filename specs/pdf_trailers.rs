@@ -872,6 +872,20 @@ pub(crate) open spec fn part2_trailer_raw_reconstructed_finish(
         Err(error) => Err(error), Ok(image) => Ok((image, decoded.1)),
     }
 }
+pub(crate) open spec fn part2_trailer_raw_typed_finish_run(bytes:usize,source:Part2DecoderLayoutInput,requested:Part2DecodeSelection,
+    limits:&crate::ResourceLimits,decoded:Part2TrailerReconstructed,events:Seq<Part2JpipSnapshotEvent>)->Part2ColdRun<Part2TrailerTyped> {
+    part2_jpip_snapshot_bind(part2_typed_decode_finish_run(bytes,source,Some(requested),limits,decoded.0,events),
+        |image:Part1DecodedTypedImage,rest|Some((Ok((image,decoded.1)),rest)))
+}
+pub(crate) proof fn part2_trailer_raw_typed_finish_normal(bytes:usize,source:Part2DecoderLayoutInput,requested:Part2DecodeSelection,limits:&crate::ResourceLimits,decoded:Part2TrailerReconstructed)
+    ensures part2_cold_framed(|events|part2_trailer_raw_typed_finish_run(bytes,source,requested,limits,decoded,events),part2_trailer_raw_typed_finish(bytes,source,requested,limits,decoded)),
+{
+    let typed=part2_typed_decode_finish(bytes,source,Some(requested),limits,decoded.0);
+    part2_typed_decode_finish_normal(bytes,source,Some(requested),limits,decoded.0);
+    if let Ok(image)=typed{part2_cold_pure(Ok((image,decoded.1)));}
+    part2_cold_bind(|events|part2_typed_decode_finish_run(bytes,source,Some(requested),limits,decoded.0,events),
+        |image:Part1DecodedTypedImage,rest|Some((Ok((image,decoded.1)),rest)),typed,part2_trailer_raw_typed_finish(bytes,source,requested,limits,decoded));
+}
 
 pub(crate) open spec fn part2_trailer_raw_typed_after_parse(
     bytes: usize, parsed: Part1CompleteLayout, requested: Part2DecodeSelection,
@@ -879,8 +893,7 @@ pub(crate) open spec fn part2_trailer_raw_typed_after_parse(
 ) -> Part2ColdRun<Part2TrailerTyped> {
     let source = part2_decoder_input_from_raw(parsed);
     part2_jpip_snapshot_bind(part2_trailer_layout_run(source, requested, limits, events),
-        |decoded: Part2TrailerReconstructed, rest|
-            Some((part2_trailer_raw_typed_finish(bytes, source, requested, limits, decoded), rest)))
+        |decoded: Part2TrailerReconstructed, rest|part2_trailer_raw_typed_finish_run(bytes,source,requested,limits,decoded,rest))
 }
 
 pub(crate) open spec fn part2_trailer_raw_reconstructed_after_parse(
@@ -1007,11 +1020,13 @@ pub(crate) proof fn part2_trailer_raw_layout_actual(
     let typed = match decoded { Err(error) => Err(error), Ok(value) => part2_trailer_raw_typed_finish(input.len() as usize, source, requested, limits, value) };
     let wide = match decoded { Err(error) => Err(error), Ok(value) => part2_trailer_raw_reconstructed_finish(input.len() as usize, source, value) };
     if let Ok(value) = decoded {
-        part2_cold_pure(part2_trailer_raw_typed_finish(input.len() as usize, source, requested, limits, value));
+        part2_trailer_raw_typed_finish_normal(input.len() as usize,source,requested,limits,value);
+        part2_decode_eta(|events|part2_trailer_raw_typed_finish_run(input.len() as usize,source,requested,limits,value,events),
+            part2_trailer_raw_typed_finish(input.len() as usize,source,requested,limits,value));
         part2_cold_pure(part2_trailer_raw_reconstructed_finish(input.len() as usize, source, value));
     }
     part2_cold_bind(|events| part2_trailer_layout_run(source, requested, limits, events),
-        |value: Part2TrailerReconstructed, rest| Some((part2_trailer_raw_typed_finish(input.len() as usize, source, requested, limits, value), rest)),
+        |value: Part2TrailerReconstructed, rest|part2_trailer_raw_typed_finish_run(input.len() as usize,source,requested,limits,value,rest),
         decoded, typed);
     part2_cold_bind(|events| part2_trailer_layout_run(source, requested, limits, events),
         |value: Part2TrailerReconstructed, rest| Some((part2_trailer_raw_reconstructed_finish(input.len() as usize, source, value), rest)),
@@ -1025,6 +1040,27 @@ pub(crate) proof fn part2_trailer_raw_layout_actual(
         |value: Part1CompleteLayout, rest| part2_trailer_raw_reconstructed_after_parse(input.len() as usize, value, requested, limits, rest), Ok(parsed), wide);
 }
 
+pub(crate) proof fn part2_trailer_raw_conversion_error(input:Seq<u8>,parsed:Part1CompleteLayout,requested:Part2DecodeSelection,
+    limits:&crate::ResourceLimits,decoded:Part2TrailerReconstructed,error:crate::DecodeError)
+    requires part1_parse_layout_cold_result(input,limits,Ok(parsed)),
+        part2_trailer_layout_result(part2_decoder_input_from_raw(parsed),requested,limits,Ok(decoded)),
+        part2_typed_layout_result(part2_decoder_input_from_raw(parsed),decoded.0,requested.2,limits,Err(error)),
+    ensures part2_trailer_raw_typed_result(input,requested,limits,Err(error)),
+{
+    reveal(part2_trailer_raw_typed_result);
+    let source=part2_decoder_input_from_raw(parsed);let bytes=input.len() as usize;
+    part2_typed_decode_finish_error(bytes,source,Some(requested),limits,decoded.0,error);
+    part2_decode_eta(|events|part2_typed_decode_finish_run(bytes,source,Some(requested),limits,decoded.0,events),Err(error));
+    part2_cold_bind(|events|part2_typed_decode_finish_run(bytes,source,Some(requested),limits,decoded.0,events),
+        |image:Part1DecodedTypedImage,rest|Some((Ok((image,decoded.1)),rest)),Err(error),Err::<Part2TrailerTyped,_>(error));
+    part2_decode_eta(|events|part2_trailer_raw_typed_finish_run(bytes,source,requested,limits,decoded,events),Err(error));
+    part2_cold_bind(|events|part2_trailer_layout_run(source,requested,limits,events),
+        |value:Part2TrailerReconstructed,rest|part2_trailer_raw_typed_finish_run(bytes,source,requested,limits,value,rest),Ok(decoded),Err(error));
+    part2_decode_eta(|events|part2_trailer_raw_typed_after_parse(bytes,parsed,requested,limits,events),Err(error));
+    part2_cold_parse_actual(input,limits,12,0,Ok(parsed));
+    part2_cold_bind(|events|part2_cold_parse(input,limits,12,0,events),
+        |value:Part1CompleteLayout,rest|part2_trailer_raw_typed_after_parse(bytes,value,requested,limits,rest),Ok(parsed),Err(error));
+}
 pub(crate) proof fn part2_trailer_raw_normal(
     input: Seq<u8>, requested: Part2DecodeSelection, limits: &crate::ResourceLimits,
 )

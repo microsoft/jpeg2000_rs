@@ -60,12 +60,28 @@ impl DecodedImage {
     }
 
     #[cfg_attr(verus_keep_ghost, verus_spec(result =>
-        ensures decoded_typed_image_outcome(result) == crate::specs::part1_decoded_image_typed(
+        ensures crate::specs::part2_typed_image_result(decoded_image_view(*self),crate::limits::resource_decoded_bytes_limit(limits),decoded_typed_image_outcome(result)),
+        decoded_typed_image_outcome(result)!=Err(DecodeError::AllocationFailed) ==> decoded_typed_image_outcome(result) == crate::specs::part1_decoded_image_typed(
             decoded_image_view(*self), crate::limits::resource_decoded_bytes_limit(limits),
         ),
     ))]
     pub fn typed(&self, limits: &ResourceLimits) -> Result<TypedImage, DecodeError> {
-        let mut components = Vec::with_capacity(self.components.len());
+        #[cfg(verus_keep_ghost)]
+        proof_decl! {let ghost source=decoded_image_view(*self);}
+        #[cfg(verus_keep_ghost)]
+        proof! {reveal(decoded_image_view);crate::specs::part2_typed_image_normal(source,crate::limits::resource_decoded_bytes_limit(limits));}
+        let reserved = if self.components.is_empty() {
+            Ok(Vec::new())
+        } else {
+            crate::allocation::empty_with_capacity(self.components.len())
+        };
+        #[cfg(verus_keep_ghost)]
+        proof! {
+            let context=crate::specs::Part2TypedCapacityContext::Image {source,maximum:crate::limits::resource_decoded_bytes_limit(limits)};
+            crate::specs::part2_typed_capacity_observed(context,crate::allocation::inspection_capacity_outcome(reserved));
+            if reserved.is_err(){crate::specs::part2_typed_image_owner_refused(source,crate::limits::resource_decoded_bytes_limit(limits));}
+        }
+        let mut components = reserved?;
         let mut decoded_bytes = 0_u64;
         let mut index = 0_usize;
         #[cfg(verus_keep_ghost)]
@@ -79,6 +95,9 @@ impl DecodedImage {
             verus_keep_ghost,
             verus_spec(
                 invariant index <= self.components.len(),
+                source==decoded_image_view(*self),
+                source.4==decoded_components_view(self.components@),
+                crate::specs::part2_typed_image_result(source,crate::limits::resource_decoded_bytes_limit(limits),crate::specs::part1_decoded_image_typed(source,crate::limits::resource_decoded_bytes_limit(limits))),
                 components.len() == index,
                 crate::specs::part1_decoded_typed_components(
                     decoded_components_view(self.components@), crate::limits::resource_decoded_bytes_limit(limits), index as nat,
@@ -88,6 +107,8 @@ impl DecodedImage {
             )
         )]
         while index < self.components.len() {
+            #[cfg(verus_keep_ghost)]
+            proof_decl! {let ghost prior=(decoded_typed_components_view(components@),decoded_bytes);}
             #[cfg(verus_keep_ghost)]
             proof! {
                 crate::proofs::production_impl::production_decoded_typed_components_step(
@@ -117,10 +138,12 @@ impl DecodedImage {
                 Err(error) => {
                     #[cfg(verus_keep_ghost)]
                     proof! {
-                        crate::proofs::production_impl::production_decoded_typed_components_error(
+                        crate::specs::part2_typed_image_component_error(source,crate::limits::resource_decoded_bytes_limit(limits),index as nat,prior,error);
+                        if error!=DecodeError::AllocationFailed{crate::proofs::production_impl::production_decoded_typed_components_error(
                             decoded_components_view(self.components@), crate::limits::resource_decoded_bytes_limit(limits),
                             index as nat + 1, self.components.len() as nat, error,
                         );
+                        }
                     }
                     return Err(error);
                 }
@@ -197,11 +220,16 @@ impl DecodedComponent {
     }
 
     #[cfg_attr(verus_keep_ghost, verus_spec(result =>
-        ensures decoded_typed_samples_outcome(result) == crate::specs::part1_decoded_component_typed_samples(
+        ensures crate::specs::part2_typed_samples_result(decoded_component_view(*self),crate::limits::resource_decoded_bytes_limit(limits),decoded_typed_samples_outcome(result)),
+        decoded_typed_samples_outcome(result)!=Err(DecodeError::AllocationFailed) ==> decoded_typed_samples_outcome(result) == crate::specs::part1_decoded_component_typed_samples(
             decoded_component_view(*self), crate::limits::resource_decoded_bytes_limit(limits),
         ),
     ))]
     pub fn typed_samples(&self, limits: &ResourceLimits) -> Result<TypedSamples, DecodeError> {
+        #[cfg(verus_keep_ghost)]
+        proof_decl! {let ghost source=decoded_component_view(*self);}
+        #[cfg(verus_keep_ghost)]
+        proof! {reveal(decoded_component_view);crate::specs::part2_typed_samples_normal(source,crate::limits::resource_decoded_bytes_limit(limits));}
         if self.info.precision == 0 || self.info.precision > 38 {
             return Err(invalid_image());
         }
@@ -235,7 +263,18 @@ impl DecodedComponent {
             .checked_sub(1)
             .ok_or_else(arithmetic_overflow)?;
         if self.info.signed {
-            let mut output = Vec::with_capacity(self.samples.len());
+            let reserved = if self.samples.is_empty() {
+                Ok(Vec::new())
+            } else {
+                crate::allocation::empty_with_capacity(self.samples.len())
+            };
+            #[cfg(verus_keep_ghost)]
+            proof! {
+                let context=crate::specs::Part2TypedCapacityContext::Samples {source,maximum:crate::limits::resource_decoded_bytes_limit(limits)};
+                crate::specs::part2_typed_capacity_observed(context,crate::allocation::inspection_capacity_outcome(reserved));
+                if reserved.is_err(){crate::specs::part2_typed_samples_refused(source,crate::limits::resource_decoded_bytes_limit(limits));}
+            }
+            let mut output = reserved?;
             let mut index = 0;
             #[cfg(verus_keep_ghost)]
             proof! {
@@ -247,6 +286,8 @@ impl DecodedComponent {
                 verus_keep_ghost,
                 verus_spec(
                     invariant index <= self.samples.len(),
+                    source==decoded_component_view(*self),
+                    crate::specs::part2_typed_samples_result(source,crate::limits::resource_decoded_bytes_limit(limits),crate::specs::part1_decoded_component_typed_samples(source,crate::limits::resource_decoded_bytes_limit(limits))),
                     0 < self.info.precision <= 38,
                     self.info.signed,
                     signed_min == crate::specs::part1_output_minimum(self.info.precision, true),
@@ -292,7 +333,18 @@ impl DecodedComponent {
             Ok(TypedSamples::Signed(output))
         } else {
             let level_shift = 1_i64 << u32::from(shift);
-            let mut output = Vec::with_capacity(self.samples.len());
+            let reserved = if self.samples.is_empty() {
+                Ok(Vec::new())
+            } else {
+                crate::allocation::empty_with_capacity(self.samples.len())
+            };
+            #[cfg(verus_keep_ghost)]
+            proof! {
+                let context=crate::specs::Part2TypedCapacityContext::Samples {source,maximum:crate::limits::resource_decoded_bytes_limit(limits)};
+                crate::specs::part2_typed_capacity_observed(context,crate::allocation::inspection_capacity_outcome(reserved));
+                if reserved.is_err(){crate::specs::part2_typed_samples_refused(source,crate::limits::resource_decoded_bytes_limit(limits));}
+            }
+            let mut output = reserved?;
             let mut index = 0;
             #[cfg(verus_keep_ghost)]
             proof! {
@@ -304,6 +356,8 @@ impl DecodedComponent {
                 verus_keep_ghost,
                 verus_spec(
                     invariant index <= self.samples.len(),
+                    source==decoded_component_view(*self),
+                    crate::specs::part2_typed_samples_result(source,crate::limits::resource_decoded_bytes_limit(limits),crate::specs::part1_decoded_component_typed_samples(source,crate::limits::resource_decoded_bytes_limit(limits))),
                     0 < self.info.precision <= 38,
                     !self.info.signed,
                     level_shift == 1i64 << ((self.info.precision - 1) as u8),

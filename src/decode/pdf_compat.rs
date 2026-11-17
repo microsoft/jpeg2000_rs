@@ -305,14 +305,28 @@ pub fn decode_pdf_compatible(
                 super::pdf_trailers::trailer_layout_outcome(decoded_result));
         }
     }
+    #[cfg(verus_keep_ghost)]
+    proof_decl! {let ghost recovered=super::pdf_trailers::trailer_layout_outcome(decoded_result);}
     #[cfg(any(not(feature = "pdf-mq-recovery"), verus_keep_ghost))]
     let (decoded, trailer) = decoded_result?;
-    let mut image = typed_layout(
+    let converted = typed_layout(
         &layout,
         decoded,
         selected.discard_levels(),
         options.limits(),
-    )?;
+    );
+    #[cfg(verus_keep_ghost)]
+    proof! {
+        if let Err(error)=converted {
+            if let Ok(raw)=crate::specs::part1_parse_layout(encoded@,crate::options::decode_options_limits(options)) {
+                if let Ok(value)=recovered {
+                    crate::specs::part2_pdf_typed_conversion_error(input@,prepared_pdf_input_view(&prepared),raw,
+                        crate::options::decode_selection_view(requested),ignored,chosen,crate::options::decode_options_limits(options),value,error);
+                }
+            }
+        }
+    }
+    let mut image = converted?;
     super::api::validate_part1_output_shape(encoded.len(), &layout, &image)?;
     if let Some(file) = &prepared.file {
         #[cfg(verus_keep_ghost)]
