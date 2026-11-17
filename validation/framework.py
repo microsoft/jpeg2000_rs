@@ -5112,6 +5112,11 @@ _PLANE_ROLE_RESULT_RUNS.update({
     "part2_coefficient_progression_result": ("part2_extraction_progression_run", False),
 })
 _COLD_RESULT_MODELS = {
+    "part2_parse_channel_definition": ("part2_channel_storage_result", "specs/cold_channel_storage.rs", "part2_channel_storage_normal"),
+    "part2_parse_jp2_header": ("part2_jp2_header_storage_result", "specs/cold_channel_storage.rs", "part2_jp2_header_storage_normal"),
+    "part2_parse_jp2_header_profile": ("part2_jp2_header_storage_result", "specs/cold_channel_storage.rs", "part2_jp2_header_storage_normal"),
+    "part2_parse_codestream_header": ("part2_codestream_header_storage_result", "specs/cold_channel_storage.rs", "part2_codestream_header_storage_normal"),
+    "part2_parse_compositing_layer": ("part2_layer_header_storage_result", "specs/cold_channel_storage.rs", "part2_layer_header_storage_normal"),
     "part2_typed_component_copy": ("part2_output_copy_result", "specs/cold_output_storage.rs", "part2_output_copy_normal"),
     "part2_apply_output_header": ("part2_output_storage_result", "specs/cold_output_storage.rs", "part2_output_storage_normal"),
     "part2_apply_associated_output": ("part2_associated_output_result", "specs/cold_output_storage.rs", "part2_associated_output_normal"),
@@ -5375,6 +5380,14 @@ def _coverage_cold_relation(
 ) -> tuple[str, str]:
     model, outcome, state, inputs = legacy
     cold_model = _COLD_RESULT_MODELS[model][0]
+    if model == "part2_parse_jp2_header":
+        inputs += r"\s*,\s*false"
+    if model == "part2_parse_channel_definition":
+        inputs = (
+            r"crate::specs::Part2ChannelStorageContext\s*\{\s*input\s*:\s*"
+            + _coverage_call("super::box_reference_view", "box_ref")
+            + r"\s*,\s*channels\s*:\s*output_channels\s*,\s*base\s*:\s*base_offset\s*,?\s*\}"
+        )
     if model == "tier1_empty_plane":
         inputs += r"\s*,\s*_role"
     if model == "ht_copy_refinement_bytes":
@@ -5569,6 +5582,7 @@ _COLD_RESULT_CONTRACTS = {
         _PDF_TRAILERS_CONTRACTS,
         _PDF_COMMON_CONTRACTS,
         _RAW_INSPECTED_CONTRACTS, _RAW_CONTAINER_CONTRACTS, _FILE_TYPE_CONTRACTS,
+        _CHANNEL_HEADER_CONTRACTS, _RAW_JP2_HEADER_CONTRACTS, _ASSOCIATED_HEADER_CONTRACTS, _RAW_LAYER_HEADER_CONTRACTS,
         _JPX_SOURCE_CONTRACTS, _RAW_JPX_PUBLIC_IMAGE_CONTRACTS,
         _RAW_CONTAINER_IMAGE_CONTRACTS, _RAW_CONTAINER_COLOR_CONTRACTS,
         _SOURCE_FRAME_CONTRACTS, _RAW_RENDER_CONTRACTS, _RAW_COMPOSITION_RENDER_CONTRACTS,
@@ -8021,6 +8035,165 @@ _CLEANUP_SIGNIFICANCE_TESTS = {
     ("src/packet/tests.rs", "ht_cleanup_significance_storage_actual_packet_flag_refusal_rollback_and_restore"),
     ("src/decode/tests.rs", "ht_cleanup_significance_storage_actual_raw_selected_jph_reconstruction_and_automatic_restore"),
 }
+
+_CHANNEL_STORAGE_GUARDS = {
+    ("specs/cold_channel_storage.rs", "part2_channel_storage_count"): (
+        "if payload.len()<2{0}", "part2_box_u16([payload[0],payload[1]])",
+        "if count==0 || payload.len()!=2+count*6{0}else{count}",
+    ),
+    ("specs/cold_channel_storage.rs", "part2_channel_capacity_run"): (
+        "let count=part2_channel_storage_count(context)", "if count==0{Some((Ok(()),events))}",
+        "actual!=context || elements!=count", "if succeeded{Ok(())}else{Err(crate::DecodeError::AllocationFailed)}",
+        "events.drop_first()",
+    ),
+    ("specs/cold_channel_storage.rs", "part2_channel_storage_run"): (
+        "part2_channel_capacity_run(context,events)",
+        "part2_parse_channel_definition(context.input,context.channels,context.base)",
+    ),
+    ("specs/cold_channel_storage.rs", "part2_header_storage_step_run"): (
+        "match (machine.request)(input,state)", "None=>Some(((machine.step)(input,state),events))",
+        "part2_channel_storage_run(context,events)", "Some(((machine.step)(input,state),rest))",
+    ),
+    ("specs/cold_channel_storage.rs", "part2_header_storage_boxes_run"): (
+        "part2_box_reader_next_ref(reader)", "(machine.finish)(state)",
+        "next.1.position<=reader.position || next.1.position>machine.payload.len()",
+        "part2_box_rebase_error(error,machine.base)", "(machine.prepare)(state)",
+        "part2_header_storage_step_run(machine,input,prepared,events)",
+        "part2_header_storage_boxes_run(machine,next.1,updated,rest)",
+    ),
+    ("specs/cold_channel_storage.rs", "part2_main_header_storage_machine"): (
+        "state.nested==u32::MAX", "nested:(state.nested+1) as u32",
+        "state.mappings.len()==0{state.image.components as nat}else{state.mappings.len()}",
+        "state.definitions.len()==0 && count<=u16::MAX",
+        "Part2ChannelStorageContext {input,channels:count as u16,base}",
+        "part2_raw_header_step(input,state,limits,base)", "part2_raw_header_finish(state,base,allow)",
+    ),
+    ("specs/cold_channel_storage.rs", "part2_associated_header_storage_machine"): (
+        "state.nested==u32::MAX", "nested:(state.nested+1) as u32",
+        "state.header.mappings.len()==0{state.header.image.components as nat}else{state.header.mappings.len()}",
+        "!state.definition_override && count<=u16::MAX",
+        "part2_associated_header_step(input,state,limits,base)", "part2_associated_header_finish(state,base)",
+    ),
+    ("specs/cold_channel_storage.rs", "part2_layer_header_storage_machine"): (
+        "state.layer.definitions.len()==0 && state.layer.opacity.is_none()",
+        "Part2ChannelStorageContext {input,channels:u16::MAX,base}",
+        "part2_raw_layer_step(input,state,limits,base)", "Ok(state.layer)",
+    ),
+    ("specs/cold_channel_storage.rs", "part2_jp2_header_storage_run"): (
+        "part2_jp2_header_storage_start(payload,limits,base)", "Err(error)=>Some((Err(error),events))",
+        "part2_header_storage_boxes_run(part2_main_header_storage_machine(payload,limits,base,allow),reader,state,events)",
+    ),
+    ("specs/cold_channel_storage.rs", "part2_codestream_header_storage_after"): (
+        "Ok(header)=>Some((Ok(header),events))",
+        "Err(crate::DecodeError::AllocationFailed)=>Some((Err(crate::DecodeError::AllocationFailed),events))",
+        "Err(_)=>match part2_codestream_header_storage_start(payload,defaults,limits,base)",
+        "part2_header_storage_boxes_run(part2_associated_header_storage_machine(payload,limits,base),reader,state,events)",
+    ),
+    ("specs/cold_channel_storage.rs", "part2_codestream_header_storage_run"): (
+        "part2_jp2_header_storage_run(payload,limits,base,false,events)",
+        "part2_codestream_header_storage_after(first,payload,defaults,limits,base,rest)",
+    ),
+    ("specs/cold_channel_storage.rs", "part2_codestream_header_storage_at"): (
+        "part2_cold_phase(|events|part2_codestream_header_storage_run(payload,defaults,limits,base,events),prefix,",
+        "part2_header_storage_boxes_run(part2_associated_header_storage_machine(payload,limits,base),reader,state,events)",
+    ),
+    ("specs/cold_channel_storage.rs", "part2_associated_header_box_storage_result"): (
+        "part2_cold_framed(|events|part2_header_storage_step_run(part2_associated_header_storage_machine(Seq::empty(),limits,base),input,state,events),result)",
+    ),
+    ("specs/cold_channel_storage.rs", "part2_layer_header_storage_run"): (
+        "part2_layer_header_storage_start(input,limits)",
+        "part2_header_storage_boxes_run(part2_layer_header_storage_machine(input.1,limits,base),reader,state,events)",
+    ),
+    ("specs/cold_container_headers.rs", "part2_container_header_request"): (
+        "state.box_count==u64::MAX", "state.associations.len()>0", "state.composition.is_some()",
+        "part2_container_next_stream_count(state.associations.len(),limits,input.0.1).is_err()",
+        "part2_box_payload_offset(input.0)", "defaults:state.header",
+        "state.layers.len()>=usize::MAX", "state.layers.len()+1>crate::limits::resource_layer_limit(&limits) as nat",
+    ),
+    ("specs/cold_container_headers.rs", "part2_container_headers_run"): (
+        "part2_container_header_request(input,state,file_type,limits)",
+        "part2_jp2_header_storage_run(payload,limits,base,allow,events)",
+        "part2_codestream_header_storage_run(payload,defaults,limits,base,events)",
+        "part2_layer_header_storage_run(layer,limits,events)",
+    ),
+    ("specs/jp2_container.rs", "part2_container_step_cold_run"): (
+        "part2_container_step_reserves(input, state, file_type, limits)",
+        "part2_container_headers_run(input,state,file_type,limits,events)",
+    ),
+}
+_CHANNEL_STORAGE_PROOFS = {("specs/cold_channel_storage.rs", name) for name in (
+    "part2_channel_capacity_observed", "part2_channel_storage_normal", "part2_channel_storage_refused", "part2_channel_storage_frames",
+    "part2_header_storage_step_normal", "part2_header_storage_step_error", "part2_header_storage_boxes_normal",
+    "part2_header_storage_advance", "part2_header_storage_reached_error", "part2_header_storage_root_advance",
+    "part2_header_storage_root_error", "part2_header_storage_machines_valid",
+    "part2_main_header_storage_value", "part2_associated_header_storage_value", "part2_layer_header_storage_value",
+    "part2_jp2_header_storage_normal", "part2_jp2_header_storage_observed", "part2_jp2_header_storage_frames",
+    "part2_layer_header_storage_normal", "part2_layer_header_storage_observed", "part2_layer_header_storage_frames",
+    "part2_header_storage_resume_frame", "part2_codestream_header_storage_normal", "part2_codestream_header_storage_first",
+    "part2_codestream_header_storage_prefix", "part2_codestream_header_storage_observed", "part2_codestream_header_storage_frames",
+    "part2_codestream_header_storage_advance", "part2_codestream_header_storage_error",
+    "part2_associated_header_box_storage_normal", "part2_associated_header_box_storage_error",
+    "part2_associated_header_box_storage_frames", "part2_codestream_header_storage_box_error",
+)} | {("specs/cold_container_headers.rs", name) for name in (
+    "part2_container_headers_normal", "part2_container_main_header_error", "part2_container_associated_header_error",
+    "part2_container_layer_header_error", "part2_parse_container_header_error",
+)} | {
+    ("src/jp2/box_reader.rs", "channel_storage_box_kinds_known"),
+    ("src/jp2/headers.rs", "parse_codestream_header_box"),
+    ("specs/jp2_semantic_errors.rs", "part2_jp2_header_semantic_errors"),
+}
+_CHANNEL_STORAGE_TESTS = {("src/jp2/tests.rs", name) for name in (
+    "channel_storage_preflight_record_errors_first_later_and_exact_retry",
+    "channel_storage_main_associated_fallback_and_layer_keep_refusals_and_semantics",
+    "channel_storage_container_main_associated_layer_first_later_and_exact_retry",
+)}
+_CHANNEL_STORAGE_NATIVE_ORDER = {
+    ("src/jp2/color.rs", "parse_channel_definition"): (
+        "box_ref.payload.len() < 2", "let entries = read_u16",
+        "entries == 0 || box_ref.payload.len() != expected_length",
+        "let reserved = crate::allocation::empty_with_capacity(usize::from(entries))",
+        "crate::allocation::inspection_capacity_outcome(reserved)",
+        "crate::specs::part2_channel_capacity_observed(context,response)", "let mut records = reserved?",
+        "crate::refinement::channel_definition_valid(", "records.push(ChannelDefinitionRecord",
+    ),
+    ("src/jp2/headers.rs", "parse_codestream_header"): (
+        "let first = parse_jp2_header(payload, limits, base_offset)",
+        "part2_codestream_header_storage_first(", "Ok(header) => return Ok(header)",
+        "Err(DecodeError::AllocationFailed) => return Err(DecodeError::AllocationFailed)",
+        "super::clone_support::jp2_header_clone(default_header)",
+        "part2_codestream_header_storage_prefix(", "let stepped = parse_codestream_header_box(",
+        "part2_codestream_header_storage_box_error(", "stepped?", "part2_codestream_header_storage_advance(",
+    ),
+    ("src/jp2/headers.rs", "parse_codestream_header_box"): (
+        "part2_associated_header_box_storage_normal(", "if *definition_override",
+        "let parsed = parse_channel_definition(box_ref, output_channels, base_offset)",
+        "part2_associated_header_box_storage_error(", "header.channel_definition_records = parsed?",
+    ),
+    ("src/jp2/headers.rs", "parse_jp2_header_profile"): (
+        "part2_jp2_header_storage_normal(", "required_box(&mut reader, 0)",
+        "let ghost previous_reader=", "if !channel_definition_records.is_empty()",
+        "let parsed = parse_channel_definition(box_ref, output_channels, base_offset)",
+        "part2_header_storage_root_error(", "part2_jp2_header_storage_observed(",
+        "channel_definition_records = parsed?", "part2_header_storage_root_advance(",
+    ),
+    ("src/jp2/composition.rs", "parse_compositing_layer"): (
+        "part2_layer_header_storage_normal(", "let ghost previous_reader=",
+        "if !channel_definition_records.is_empty() || opacity.is_some()",
+        "let parsed = parse_channel_definition(child, u16::MAX, base_offset)",
+        "part2_header_storage_root_error(", "part2_layer_header_storage_observed(",
+        "channel_definition_records = parsed?", "part2_header_storage_root_advance(",
+    ),
+}
+_CHANNEL_HEADER_MODELS.update(_CHANNEL_STORAGE_GUARDS)
+_CHANNEL_HEADER_MODELS.add(("specs/cold_channel_storage.rs", "part2_channel_storage_result"))
+_CHANNEL_HEADER_PROOFS.update(_CHANNEL_STORAGE_PROOFS)
+for _models, _proofs, _prefix in (
+    (_RAW_JP2_HEADER_MODELS, _RAW_JP2_HEADER_PROOFS, "part2_jp2_header_storage"),
+    (_ASSOCIATED_HEADER_MODELS, _ASSOCIATED_HEADER_PROOFS, "part2_codestream_header_storage"),
+    (_RAW_LAYER_HEADER_MODELS, _RAW_LAYER_HEADER_PROOFS, "part2_layer_header_storage"),
+):
+    _models.update({("specs/cold_channel_storage.rs", _prefix + suffix) for suffix in ("_result", "_run")})
+    _proofs.add(("specs/cold_channel_storage.rs", _prefix + "_normal"))
 
 _OUTPUT_STORAGE_GUARDS = {
     ("specs/cold_output_storage.rs", "part2_definition_storage_result"): (
@@ -12177,7 +12350,10 @@ def validate_normative_coverage(
                 "box_reader_from_input(input, limits)?", "required_box(&mut reader, 0)?",
                 "box_type.equals(BoxType::SIGNATURE) || box_type.equals(BoxType::FILE_TYPE)",
                 "parse_jp2_header_profile(", "file_type.is_jph_compatible()",
-                "parse_codestream_header(", "parse_compositing_layer(box_ref, limits)?",
+                "parse_codestream_header(", "let layer_result = parse_compositing_layer(box_ref, limits)",
+                "compositing_layers.push(layer_result?)",
+                "part2_container_main_header_error(", "part2_container_associated_header_error(",
+                "part2_container_layer_header_error(", "part2_parse_container_header_error(",
                 "parse_composition(box_ref, limits)?", "inspect_metadata_box(box_ref, limits, 1, u32::MAX - 1)?",
                 "let mut box_count = 2_u64", "metadata_depth = metadata_depth.max(depth)",
                 "super::clone_support::codestream_association_clone(", ".get_mut(header_index)",
@@ -12291,7 +12467,8 @@ def validate_normative_coverage(
                 ),
                 "parse_compositing_layer": (
                     "box_reader_from_input(box_ref.payload, limits)?", "parse_codestream_registration(child, base_offset, limits)?",
-                    "opacity.is_some() || !channel_definition_records.is_empty()", "parse_channel_definition(child, u16::MAX, base_offset)?",
+                    "opacity.is_some() || !channel_definition_records.is_empty()",
+                    "let parsed = parse_channel_definition(child, u16::MAX, base_offset)", "channel_definition_records = parsed?",
                     "inspect_metadata_box(child, limits, 1, u32::MAX - 1)?",
                     "header: box_ref.header", "payload: box_ref.payload",
                 ),
@@ -12406,14 +12583,18 @@ def validate_normative_coverage(
                 raise ValueError("whole associated-header Result requires actual full/default-clone/override metadata bridges")
             path = (ROOT / "src/jp2/headers.rs").resolve()
             body = _coverage_function_body(source_text(path), function_header(path, "parse_codestream_header"))
+            box_body = _coverage_function_body(source_text(path), function_header(path, "parse_codestream_header_box"))
+            body = None if body is None or box_body is None else body + box_body
             required = (
-                "if let Ok(header) = parse_jp2_header(payload, limits, base_offset)",
+                "let first = parse_jp2_header(payload, limits, base_offset)",
+                "Ok(header) => return Ok(header)",
+                "Err(DecodeError::AllocationFailed) => return Err(DecodeError::AllocationFailed)",
                 "super::clone_support::jp2_header_clone(default_header)", "box_reader_from_input(payload, limits)?",
                 "header.palette = None", "header.component_mappings.clear()", "header.channel_definition_records.clear()",
-                "palette_override || mapping_override || definition_override", "mapping_override || definition_override",
-                "if resolution_override", "if image_override && matches!(header.image.bit_depth, ComponentBitDepth::Variable) != saw_bpcc",
+                "*palette_override || *mapping_override || *definition_override", "*mapping_override || *definition_override",
+                "if *resolution_override", "if image_override && matches!(header.image.bit_depth, ComponentBitDepth::Variable) != saw_bpcc",
                 "header.nested_box_count = nested_box_count",
-                "if crate::refinement::first_override_allowed(color_override) { header.color = parse_color_specification(box_ref, base_offset)?; color_override = true; } else { validate_color_specification_prefix(box_ref, base_offset)?; }",
+                "if crate::refinement::first_override_allowed(*color_override) { header.color = parse_color_specification(box_ref, base_offset)?; *color_override = true; } else { validate_color_specification_prefix(box_ref, base_offset)?; }",
             )
             if body is None or any("".join(item.split()) not in "".join(body.split()) for item in required):
                 raise ValueError("whole associated-header Result requires actual clone/clear/order/retained metadata handoffs")
@@ -12464,7 +12645,8 @@ def validate_normative_coverage(
                 "if color.is_none() { color = Some(parse_color_specification(box_ref, base_offset)?); } else { validate_color_specification_prefix(box_ref, base_offset)?; }",
                 "parse_palette(box_ref, base_offset)?", "validate_bpcc(box_ref, image, base_offset)?",
                 "parse_component_mapping(box_ref, image.components, palette_columns, limits, base_offset,)",
-                "parse_channel_definition(box_ref, output_channels, base_offset)?",
+                "let parsed = parse_channel_definition(box_ref, output_channels, base_offset)",
+                "channel_definition_records = parsed?",
                 "None if allow_unspecified && image.unknown_color_space",
                 "unspecified_jph_color(&channel_definition_records, base_offset)?",
                 "let (capture, display) = parse_resolution_superbox(",
@@ -15248,6 +15430,18 @@ def validate_normative_coverage(
                     raise ValueError(f"linked function lacks executable Verus contract: {short}; invalid exact Copy-fill storage relation")
             cold_contract = _COLD_RESULT_CONTRACTS.get((reference["path"], reference["symbol"]))
             if cold_contract is not None:
+                if cold_contract[0] in {
+                        "part2_channel_storage_result", "part2_jp2_header_storage_result",
+                        "part2_codestream_header_storage_result", "part2_layer_header_storage_result"}:
+                    legacy = {
+                        **_CHANNEL_HEADER_CONTRACTS, **_RAW_JP2_HEADER_CONTRACTS,
+                        **_ASSOCIATED_HEADER_CONTRACTS, **_RAW_LAYER_HEADER_CONTRACTS,
+                    }[(reference["path"], reference["symbol"])]
+                    projection = ("super::channel_definition_records_outcome" if cold_contract[0] == "part2_channel_storage_result"
+                                  else "super::raw_compositing_layer_outcome" if cold_contract[0] == "part2_layer_header_storage_result"
+                                  else "super::raw_jp2_header_outcome")
+                    if not _coverage_extraction_normal_arguments(contract, projection, legacy[0], legacy[3]):
+                        raise ValueError(f"linked function lacks executable Verus contract: {short}; missing exact ordinary CDEF/header projection")
                 if cold_contract[0] == "part2_precinct_contexts_result":
                     outcome = _coverage_call("precinct_contexts_outcome", r"\1")
                     inputs = _PRECINCT_INITIALIZATION_CONTRACTS[(reference["path"], reference["symbol"])][3]
@@ -16382,6 +16576,46 @@ def validate_normative_coverage(
                 position = found + len(token)
         if not _BITPLANE_INITIAL_TESTS.issubset({(ref["path"], ref["symbol"]) for ref in entry["test_refs"]}):
             raise ValueError("initial bitplane storage requires bounded raw/empty/first-later/error/present-state/real-public restoration controls")
+    if _CHANNEL_HEADER_ENTRY in ids:
+        channel_entry = next(item for item in coverage["requirements"] if item["id"] == _CHANNEL_HEADER_ENTRY)
+        if not set(_CHANNEL_STORAGE_GUARDS).issubset({(ref["path"], ref["symbol"]) for ref in channel_entry["spec_refs"]}) \
+                or not _CHANNEL_STORAGE_PROOFS.issubset({(ref["path"], ref["symbol"]) for ref in channel_entry["proof_refs"]}) \
+                or not _CHANNEL_STORAGE_TESTS.issubset({(ref["path"], ref["symbol"]) for ref in channel_entry["test_refs"]}):
+            raise ValueError("checked CDEF storage requires complete parser/header/container source programs, proved frames and bounded controls")
+        for (relative, symbol), fragments in _CHANNEL_STORAGE_GUARDS.items():
+            body = _coverage_spec_function_body(source_text((ROOT / relative).resolve()), symbol)
+            compact = "".join(body.split()) if body is not None else ""
+            if any("".join(fragment.split()) not in compact for fragment in fragments):
+                raise ValueError("checked CDEF storage requires actual source/count/record/reply/state/fallback/arbitrary-tail programs")
+        for (relative, symbol), fragments in _CHANNEL_STORAGE_NATIVE_ORDER.items():
+            path = (ROOT / relative).resolve()
+            body = _coverage_function_body(source_text(path), function_header(path, symbol))
+            compact = "".join(body.split()) if body is not None else ""
+            position = 0
+            for fragment in fragments:
+                token = "".join(fragment.split())
+                found = compact.find(token, position)
+                if found < 0:
+                    raise ValueError("checked CDEF storage requires original preflight/admission, observed reservation and propagated refusal before record/state publication")
+                position = found + len(token)
+            if symbol == "parse_codestream_header_box":
+                text = source_text(path)
+                header = function_header(path, symbol)
+                start = text.rfind("#[cfg_attr", 0, header.start())
+                contract = "".join(text[start:header.start()].split()) if start >= 0 else ""
+                flags = "image_override color_override saw_bpcc palette_override mapping_override definition_override resolution_override".split()
+                before = "super::associated_header_state(old(header)," + ",".join(f"*old({flag})" for flag in flags) + ",_nested_box_count)"
+                after = "super::associated_header_state(final(header)," + ",".join(f"*final({flag})" for flag in flags) + ",_nested_box_count)"
+                outcome = "crate::specs::part2_associated_header_box_outcome(result," + after + ")"
+                required = (
+                    "ensurescrate::specs::part2_associated_header_box_storage_result(super::box_reference_view(box_ref),"
+                    + before + ",*limits,base_offset," + outcome + ")",
+                    "result!=Err(DecodeError::AllocationFailed)==>" + outcome
+                    + "==crate::specs::part2_associated_header_step(super::box_reference_view(box_ref),"
+                    + before + ",*limits,base_offset)",
+                )
+                if "requires" in contract or any(fragment not in contract for fragment in required):
+                    raise ValueError("checked CDEF storage requires exact old/final boxed-header owners and unconditional storage Result")
     if "part2-complete-native-output-header" in ids:
         output_entry = next(item for item in coverage["requirements"] if item["id"] == "part2-complete-native-output-header")
         if not set(_OUTPUT_STORAGE_GUARDS).issubset({(ref["path"], ref["symbol"]) for ref in output_entry["spec_refs"]}) \

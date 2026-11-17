@@ -4827,6 +4827,41 @@ class FrameworkTests(WorkingFiles):
             {framework._CHANNEL_HEADER_ENTRY}, framework._CHANNEL_HEADER_CONTRACTS, 2, isolate=False,
         )
 
+    def test_inventory_cdef_storage_binds_source_count_record_reply_header_state_and_fallback(self):
+        coverage = json.loads((framework.VALIDATION / "normative-coverage.json").read_text())
+        coverage["requirements"] = [
+            item for item in coverage["requirements"] if item["id"] == framework._CHANNEL_HEADER_ENTRY
+        ]
+        self.assertEqual(framework.validate_normative_coverage(coverage)["status"], "passed")
+        read_text = Path.read_text
+        for relative, before, after in (
+            ("specs/cold_channel_storage.rs", "payload.len()!=2+count*6", "payload.len()!=count*6"),
+            ("specs/cold_channel_storage.rs", "actual!=context || elements!=count", "elements!=count"),
+            ("specs/cold_channel_storage.rs", "events.drop_first()", "events"),
+            ("specs/cold_channel_storage.rs", "if succeeded{Ok(())}else{Err(crate::DecodeError::AllocationFailed)}", "Ok(())"),
+            ("specs/cold_channel_storage.rs", "part2_parse_channel_definition(context.input,context.channels,context.base)", "Ok(Seq::empty())"),
+            ("specs/cold_channel_storage.rs", "part2_raw_header_step(input,state,limits,base)", "part2_raw_header_step(input,state,limits,0)"),
+            ("specs/cold_channel_storage.rs", "state.layer.definitions.len()==0 && state.layer.opacity.is_none()", "state.layer.definitions.len()==0"),
+            ("specs/cold_channel_storage.rs", "Err(crate::DecodeError::AllocationFailed)=>Some((Err(crate::DecodeError::AllocationFailed),events))", "Err(crate::DecodeError::AllocationFailed)=>None"),
+            ("specs/cold_container_headers.rs", "defaults:state.header", "defaults:None"),
+            ("src/jp2/color.rs", "crate::allocation::empty_with_capacity(usize::from(entries))", "Ok(Vec::new())"),
+            ("src/jp2/color.rs", "crate::allocation::inspection_capacity_outcome(reserved)", "Ok(())"),
+            ("src/jp2/headers.rs", "Err(DecodeError::AllocationFailed) => return Err(DecodeError::AllocationFailed)", "Err(DecodeError::AllocationFailed) => {}"),
+            ("src/jp2/headers.rs", "*final(definition_override)", "*old(definition_override)"),
+        ):
+            source = framework.ROOT / relative
+            original = source.read_text()
+            self.assertIn(before, original)
+            modified = original.replace(before, after, 1)
+
+            def altered(path, *args, **kwargs):
+                return modified if path == source else read_text(path, *args, **kwargs)
+
+            with self.subTest(relative=relative, after=after), \
+                    mock.patch.object(Path, "read_text", altered), \
+                    self.assertRaisesRegex(ValueError, "checked CDEF storage|whole raw channel"):
+                framework.validate_normative_coverage(coverage)
+
     def test_inventory_raw_channel_header_requires_every_actual_record_and_admission_bridge(self):
         coverage = json.loads((framework.VALIDATION / "normative-coverage.json").read_text())
         entry = next(item for item in coverage["requirements"] if item["id"] == framework._CHANNEL_HEADER_ENTRY)

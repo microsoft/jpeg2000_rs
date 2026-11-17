@@ -2119,6 +2119,185 @@ fn actual_raw_channel_definition_keeps_exact_lengths_full_count_and_lazy_offsets
             == ChannelDefinition::new(ChannelType::Color, ChannelAssociation::WholeImage)));
 }
 
+#[test]
+fn channel_storage_preflight_record_errors_first_later_and_exact_retry() {
+    let payload = raw_channel_definition_payload(&[(0, 0, 1), (0, 2, 0), (0, 0, 1)]);
+    let parse_valid = || parse_channel_definition(raw_image_header_box(&payload, 19), 1, u64::MAX);
+    let expected = parse_valid().unwrap();
+    for malformed in [&[][..], &[0][..], &[0, 0][..], &[0, 1][..], &[0; 9][..]] {
+        let ordinary = parse_channel_definition(raw_image_header_box(malformed, 19), 1, 100);
+        assert!(ordinary.is_err());
+        crate::allocation::with_refusal(0, || {
+            assert_eq!(
+                parse_channel_definition(raw_image_header_box(malformed, 19), 1, 100),
+                ordinary
+            );
+            assert_eq!(parse_valid(), Err(DecodeError::AllocationFailed));
+            assert_eq!(parse_valid().unwrap(), expected);
+        });
+    }
+    let invalid = raw_channel_definition_payload(&[(1, 0, 1)]);
+    for base in [100, u64::MAX] {
+        let ordinary = parse_channel_definition(raw_image_header_box(&invalid, 19), 1, base);
+        assert!(matches!(ordinary, Err(DecodeError::MalformedInput { .. })));
+        crate::allocation::with_refusal(0, || {
+            assert_eq!(
+                parse_channel_definition(raw_image_header_box(&invalid, 19), 1, base),
+                Err(DecodeError::AllocationFailed)
+            );
+            assert_eq!(
+                parse_channel_definition(raw_image_header_box(&invalid, 19), 1, base),
+                ordinary
+            );
+        });
+    }
+    crate::allocation::with_refusal(1, || {
+        let prior = parse_valid().unwrap();
+        assert_eq!(parse_valid(), Err(DecodeError::AllocationFailed));
+        assert_eq!(prior, expected);
+        assert_eq!(parse_valid().unwrap(), expected);
+    });
+}
+
+#[test]
+fn channel_storage_main_associated_fallback_and_layer_keep_refusals_and_semantics() {
+    let limits = ResourceLimits::default();
+    let records = raw_channel_definition_payload(&[(0, 0, 1), (0, 2, 0), (0, 0, 1)]);
+    let cdef = box32(*b"cdef", &records);
+    let mut plain = raw_jp2_header_image(7, 1);
+    plain.extend(raw_jp2_header_color());
+    let defaults = parse_jp2_header(&plain, &limits, 100).unwrap();
+    let mut complete = plain.clone();
+    complete.extend(&cdef);
+    let expected = parse_jp2_header(&complete, &limits, 100).unwrap();
+    assert_eq!(
+        crate::allocation::with_refusal(0, || parse_jp2_header(&complete, &limits, 100)),
+        Err(DecodeError::AllocationFailed)
+    );
+    for inherited in [None, Some(&defaults)] {
+        assert_eq!(
+            crate::allocation::with_refusal(0, || parse_codestream_header(
+                &complete, inherited, &limits, 100
+            )),
+            Err(DecodeError::AllocationFailed)
+        );
+        assert_eq!(
+            parse_codestream_header(&complete, inherited, &limits, 100).unwrap(),
+            expected
+        );
+    }
+    let fallback = parse_codestream_header(&cdef, Some(&defaults), &limits, 100).unwrap();
+    assert_eq!(
+        fallback.channel_definition_records,
+        expected.channel_definition_records
+    );
+    crate::allocation::with_refusal(0, || {
+        assert_eq!(
+            parse_codestream_header(&[], Some(&defaults), &limits, 100)
+                .unwrap()
+                .channel_definition_records,
+            defaults.channel_definition_records
+        );
+        assert_eq!(
+            parse_codestream_header(&cdef, Some(&defaults), &limits, 100),
+            Err(DecodeError::AllocationFailed)
+        );
+        assert_eq!(
+            parse_codestream_header(&cdef, Some(&defaults), &limits, 100).unwrap(),
+            fallback
+        );
+    });
+    let layer = || parse_compositing_layer(raw_metadata_box(&cdef, *b"jplh", 19), &limits);
+    let expected_layer = layer().unwrap();
+    assert_eq!(
+        crate::allocation::with_refusal(0, layer),
+        Err(DecodeError::AllocationFailed)
+    );
+    assert_eq!(layer().unwrap(), expected_layer);
+    let mut excluded = box32(*b"opct", &[0]);
+    excluded.extend(&cdef);
+    let ordinary = parse_compositing_layer(raw_metadata_box(&excluded, *b"jplh", 19), &limits);
+    crate::allocation::with_refusal(0, || {
+        assert_eq!(
+            parse_compositing_layer(raw_metadata_box(&excluded, *b"jplh", 19), &limits),
+            ordinary
+        );
+        assert_eq!(layer(), Err(DecodeError::AllocationFailed));
+    });
+    let invalid = box32(*b"cdef", &raw_channel_definition_payload(&[(1, 0, 1)]));
+    let ordinary = parse_codestream_header(&invalid, Some(&defaults), &limits, 100);
+    assert!(ordinary.is_err());
+    assert_eq!(
+        crate::allocation::with_refusal(0, || parse_codestream_header(
+            &invalid,
+            Some(&defaults),
+            &limits,
+            100
+        )),
+        Err(DecodeError::AllocationFailed)
+    );
+    assert_eq!(
+        parse_codestream_header(&invalid, Some(&defaults), &limits, 100),
+        ordinary
+    );
+    let mut invalid_complete = plain;
+    invalid_complete.extend(&invalid);
+    let ordinary = parse_codestream_header(&invalid_complete, Some(&defaults), &limits, 100);
+    assert!(ordinary.is_err());
+    for after in [0, 1] {
+        assert_eq!(
+            crate::allocation::with_refusal(after, || parse_codestream_header(
+                &invalid_complete,
+                Some(&defaults),
+                &limits,
+                100
+            )),
+            Err(DecodeError::AllocationFailed)
+        );
+        assert_eq!(
+            parse_codestream_header(&invalid_complete, Some(&defaults), &limits, 100),
+            ordinary
+        );
+    }
+    let mut duplicate = complete;
+    duplicate.extend(&cdef);
+    let ordinary = parse_jp2_header(&duplicate, &limits, 100);
+    assert!(matches!(
+        ordinary,
+        Err(DecodeError::MalformedInput {
+            kind: MalformedKind::InvalidBoxOrder,
+            ..
+        })
+    ));
+    crate::allocation::with_refusal(1, || {
+        assert_eq!(parse_jp2_header(&duplicate, &limits, 100), ordinary);
+        assert_eq!(layer(), Err(DecodeError::AllocationFailed));
+    });
+    assert!(defaults.channel_definition_records.is_empty());
+}
+
+#[test]
+fn channel_storage_container_main_associated_layer_first_later_and_exact_retry() {
+    let limits = ResourceLimits::default();
+    let cdef = box32(*b"cdef", &raw_channel_definition_payload(&[(0, 0, 1)]));
+    let mut header = raw_jp2_header_image(7, 1);
+    header.extend(raw_jp2_header_color());
+    header.extend(&cdef);
+    let mut bytes = raw_container_start(true, Some(&header));
+    bytes.extend(box32(*b"jpch", &cdef));
+    bytes.extend(box32(*b"jplh", &cdef));
+    bytes.extend(box32(*b"jp2c", &[0, 255, 128, 17]));
+    let expected = parse(&bytes, &limits).unwrap();
+    for after in 0..5 {
+        assert_eq!(
+            crate::allocation::with_refusal(after, || parse(&bytes, &limits)),
+            Err(DecodeError::AllocationFailed),
+            "reached managed owner {after}"
+        );
+        assert_eq!(parse(&bytes, &limits).unwrap(), expected);
+    }
+}
+
 fn raw_resolution_payload() -> Vec<u8> {
     let mut payload = Vec::new();
     for value in [1_u16, 257, 513, u16::MAX] {

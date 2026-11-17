@@ -62,21 +62,36 @@ program; physical capacity is never inferred from sequence length. Copy storage
 is reserved once before the original ordered fill, without periodic work or
 deadline charges beyond the existing checked-storage helper checkpoints.
 
-This is the isolated **output-side** portion of #382, not its parser closure.
-`parse_channel_definition` still has unchecked collection storage, and the
-infallible definition API still serves JPX general-layer production. Closing
-the parser requires checked storage after length/count/framing preflight and
-before record semantics, complete storage-aware JP2/associated/layer header
-state programs and container composition, and propagation rather than fallback
-for reached allocation errors in `parse_codestream_header`. No parser source
-change or weakened exact header contract is included here. Palette/nonlinear/
-color scratch and other owners remain separate; neither a passing finite
-fixture matrix nor these default proofs establishes allocation-surface recovery.
-The supplied 187-byte, one-record, canonical 1x1 gray fixture still makes 88
-actual requests: the local controlled allocator now observes typed refusal and
-exact pixel retry for requests 1 and 3–88 (87 cases); request 2 still aborts at
-the untouched parser collection. These finite observations do not qualify the
-remaining parser owner or replace source/archive qualification of this tree.
+`parse_channel_definition` now reserves its actual entry count after the
+original length/count/framing preflight and before record semantics. Empty or
+misframed CDEF payloads retain their original errors without a request; valid
+framing can reach storage refusal before a bad record or lazy offset error.
+Successful storage preserves every original ordered record and semantic error.
+
+[`cold_channel_storage.rs`](specs/cold_channel_storage.rs) binds the actual
+box bytes, channel count, base, entry count and response. Its complete generic
+reader/state traversal is instantiated by the actual main, associated and
+layer header machines, not caller-supplied result banks. Local proved framing
+adapters retain exact ordinary projections and propagate first refusals through
+arbitrary tails. [`jp2_semantic_errors.rs`](specs/jp2_semantic_errors.rs) proves
+that ordinary header semantics cannot manufacture an allocation response.
+`parse_codestream_header` retains its existing semantic fallback, but returns
+a reached allocation failure without retrying it against defaults.
+Its private checked one-box producer preserves the independent override owners
+and original execution order while separating box-state and traversal proofs;
+no verifier budget, flag or trusted boundary is changed.
+[`cold_container_headers.rs`](specs/cold_container_headers.rs) admits the three
+real header calls after the original container ordering/count/resource checks
+and composes their actual calls into the container/file-type cold program.
+
+On the supplied 187-byte, one-record, canonical 1x1 gray fixture, the controlled
+allocator observes 88 actual requests: each refusal returns typed failure and
+retries to exact pixels, including parser request 2 and output request 88.
+This closes the reproduced parser/output pair, not universal allocation
+recovery. The infallible definition API still serves JPX general-layer growth;
+palette/nonlinear/color scratch and other owners remain separate broad #287
+work. Finite fixture observations and focused proofs do not replace full
+source/archive qualification of the final integrated tree.
 
 ### Centered-to-typed output ownership
 

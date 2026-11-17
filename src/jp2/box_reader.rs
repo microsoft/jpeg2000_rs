@@ -6,6 +6,32 @@ use super::{
 #[cfg(verus_keep_ghost)]
 use vstd::prelude::*;
 
+#[cfg(verus_keep_ghost)]
+verus! {
+    pub proof fn channel_storage_box_kinds_known()
+        ensures BoxType::CHANNEL_DEFINITION != BoxType::IMAGE_HEADER,
+            BoxType::CHANNEL_DEFINITION != BoxType::BITS_PER_COMPONENT,
+            BoxType::CHANNEL_DEFINITION != BoxType::COLOR_SPECIFICATION,
+            BoxType::CHANNEL_DEFINITION != BoxType::PALETTE,
+            BoxType::CHANNEL_DEFINITION != BoxType::COMPONENT_MAPPING,
+            BoxType::CHANNEL_DEFINITION != BoxType::CODESTREAM_REGISTRATION,
+            BoxType::CHANNEL_DEFINITION != BoxType::COLOR_GROUP,
+            BoxType::CHANNEL_DEFINITION != BoxType::OPACITY,
+            BoxType::JP2_HEADER != BoxType::SIGNATURE,
+            BoxType::JP2_HEADER != BoxType::FILE_TYPE,
+            BoxType::JP2_HEADER != BoxType::CONTIGUOUS_CODESTREAM,
+            BoxType::CODESTREAM_HEADER != BoxType::SIGNATURE,
+            BoxType::CODESTREAM_HEADER != BoxType::FILE_TYPE,
+            BoxType::CODESTREAM_HEADER != BoxType::JP2_HEADER,
+            BoxType::CODESTREAM_HEADER != BoxType::CONTIGUOUS_CODESTREAM,
+            BoxType::COMPOSITING_LAYER_HEADER != BoxType::SIGNATURE,
+            BoxType::COMPOSITING_LAYER_HEADER != BoxType::FILE_TYPE,
+            BoxType::COMPOSITING_LAYER_HEADER != BoxType::JP2_HEADER,
+            BoxType::COMPOSITING_LAYER_HEADER != BoxType::CODESTREAM_HEADER,
+            BoxType::COMPOSITING_LAYER_HEADER != BoxType::CONTIGUOUS_CODESTREAM,
+    {}
+}
+
 impl BoxType {
     pub const SIGNATURE: Self = Self(0x6a50_2020);
     pub const FILE_TYPE: Self = Self(0x6674_7970);

@@ -90,7 +90,8 @@ impl CompositingLayer<'_> {
 }
 
 #[cfg_attr(verus_keep_ghost, verus_spec(result =>
-    ensures super::raw_compositing_layer_outcome(result)
+    ensures crate::specs::part2_layer_header_storage_result(super::box_reference_view(box_ref),*limits,super::raw_compositing_layer_outcome(result)),
+    super::raw_compositing_layer_outcome(result) != Err(DecodeError::AllocationFailed) ==> super::raw_compositing_layer_outcome(result)
         == crate::specs::part2_parse_compositing_layer(super::box_reference_view(box_ref), *limits),
         match &result { Err(_) => true, Ok(layer) => super::raw_compositing_layer_payload_reference(layer) == box_ref.payload },
 ))]
@@ -98,6 +99,8 @@ pub(super) fn parse_compositing_layer<'a>(
     box_ref: BoxRef<'a>,
     limits: &ResourceLimits,
 ) -> Result<CompositingLayer<'a>, DecodeError> {
+    #[cfg(verus_keep_ghost)]
+    proof! { crate::specs::part2_layer_header_storage_normal(super::box_reference_view(box_ref),*limits); }
     let base_offset = box_ref.header.payload_offset()?;
     let mut reader = box_reader_from_input(box_ref.payload, limits)?;
     let mut horizontal_grid_size = 1_u16;
@@ -112,10 +115,22 @@ pub(super) fn parse_compositing_layer<'a>(
     proof_decl! { let ghost expected = crate::specs::part2_parse_compositing_layer(
     super::box_reference_view(box_ref), *limits); }
     #[cfg(verus_keep_ghost)]
+    proof_decl! {
+        let ghost machine=crate::specs::part2_layer_header_storage_machine(box_ref.payload@,*limits,base_offset);
+        let ghost root=|events:Seq<crate::specs::Part2JpipSnapshotEvent>|crate::specs::part2_layer_header_storage_run(super::box_reference_view(box_ref),*limits,events);
+        let ghost mut storage_prefix=Seq::<crate::specs::Part2JpipSnapshotEvent>::empty();
+    }
+    #[cfg(verus_keep_ghost)]
     proof! {
         assert(registrations@ =~= Seq::<CodestreamRegistration>::empty());
         assert(super::full_color_group_view(color_group@) =~= Seq::<crate::specs::Part2ColorSpecification>::empty());
         assert(super::channel_definition_records_view(channel_definition_records@) =~= Seq::<crate::specs::Part2ChannelRecord>::empty());
+        crate::specs::part2_header_storage_machines_valid(box_ref.payload@,*limits,base_offset,false);
+        assert forall|tail:Seq<crate::specs::Part2JpipSnapshotEvent>|root(storage_prefix+tail)
+            ==crate::specs::part2_header_storage_boxes_run(machine,super::box_reader_state(&reader),
+                super::raw_compositing_layer_state(box_ref,horizontal_grid_size,vertical_grid_size,
+                    registrations@,color_group@,channel_definition_records@,&opacity,nested_metadata_boxes,has_registration),tail)
+            by { assert(storage_prefix+tail =~= tail); }
     }
     #[cfg_attr(
         verus_keep_ghost,
@@ -126,14 +141,29 @@ pub(super) fn parse_compositing_layer<'a>(
                     registrations@, color_group@, channel_definition_records@, &opacity, nested_metadata_boxes, has_registration),
                 *limits, base_offset),
                 expected == crate::specs::part2_parse_compositing_layer(super::box_reference_view(box_ref), *limits),
+                crate::specs::part2_layer_header_storage_result(super::box_reference_view(box_ref),*limits,expected),
+                machine==crate::specs::part2_layer_header_storage_machine(box_ref.payload@,*limits,base_offset),
+                root==(|events:Seq<crate::specs::Part2JpipSnapshotEvent>|crate::specs::part2_layer_header_storage_run(super::box_reference_view(box_ref),*limits,events)),
+                crate::specs::part2_header_storage_machine_valid(machine),
+                crate::specs::part2_cold_phase(root,storage_prefix,|events|crate::specs::part2_header_storage_boxes_run(
+                    machine,super::box_reader_state(&reader),
+                    super::raw_compositing_layer_state(box_ref,horizontal_grid_size,vertical_grid_size,
+                        registrations@,color_group@,channel_definition_records@,&opacity,nested_metadata_boxes,has_registration),events)),
             ensures expected == Ok(super::raw_compositing_layer_state(box_ref, horizontal_grid_size, vertical_grid_size,
                 registrations@, color_group@, channel_definition_records@, &opacity, nested_metadata_boxes, has_registration).layer),
+                crate::specs::part2_layer_header_storage_result(super::box_reference_view(box_ref),*limits,expected),
             decreases box_ref.payload.len() as int - reader.position as int,
         )
     )]
     loop {
         #[cfg(verus_keep_ghost)]
         proof! { reveal(crate::specs::part2_raw_layer_boxes); reveal(crate::specs::part2_raw_layer_step); }
+        #[cfg(verus_keep_ghost)]
+        proof_decl! {
+            let ghost previous_reader=super::box_reader_state(&reader);
+            let ghost previous_state=super::raw_compositing_layer_state(box_ref,horizontal_grid_size,vertical_grid_size,
+                registrations@,color_group@,channel_definition_records@,&opacity,nested_metadata_boxes,has_registration);
+        }
         let previous_position = reader.position;
         let Some(next) = reader.next_box_ref() else {
             break;
@@ -190,7 +220,19 @@ pub(super) fn parse_compositing_layer<'a>(
                     MalformedKind::InvalidBoxOrder,
                 ));
             }
-            channel_definition_records = parse_channel_definition(child, u16::MAX, base_offset)?;
+            let parsed = parse_channel_definition(child, u16::MAX, base_offset);
+            #[cfg(verus_keep_ghost)]
+            proof! {
+                if let Err(error)=parsed {
+                    if error==DecodeError::AllocationFailed {
+                        crate::specs::part2_header_storage_root_error(root,storage_prefix,machine,previous_reader,previous_state,
+                            super::box_reference_view(child),crate::specs::Part2ChannelStorageContext {
+                                input:super::box_reference_view(child),channels:u16::MAX,base:base_offset},error);
+                        crate::specs::part2_layer_header_storage_observed(super::box_reference_view(box_ref),*limits,Err(error));
+                    }
+                }
+            }
+            channel_definition_records = parsed?;
         } else {
             let (count, _) = inspect_metadata_box(child, limits, 1, u32::MAX - 1)?;
             nested_metadata_boxes = nested_metadata_boxes.checked_add(count).ok_or_else(
@@ -199,6 +241,12 @@ pub(super) fn parse_compositing_layer<'a>(
                 ))]
                 || DecodeError::malformed(base_offset, MalformedKind::ArithmeticOverflow),
             )?;
+        }
+        #[cfg(verus_keep_ghost)]
+        proof! {
+            storage_prefix=crate::specs::part2_header_storage_root_advance(root,storage_prefix,machine,previous_reader,previous_state,
+                super::box_reference_view(child),super::raw_compositing_layer_state(box_ref,horizontal_grid_size,vertical_grid_size,
+                    registrations@,color_group@,channel_definition_records@,&opacity,nested_metadata_boxes,has_registration));
         }
     }
     Ok(CompositingLayer {

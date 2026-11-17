@@ -752,12 +752,26 @@ pub fn parse<'a>(input: &'a [u8], limits: &ResourceLimits) -> Result<Jp2File<'a>
                     MalformedKind::InvalidBoxOrder,
                 ));
             }
-            parsed_header = Some(parse_jp2_header_profile(
+            let header_result = parse_jp2_header_profile(
                 box_ref.payload,
                 limits,
                 box_ref.header.payload_offset()?,
                 file_type.is_jph_compatible(),
-            )?);
+            );
+            #[cfg(verus_keep_ghost)]
+            proof! {
+                if let Err(error)=header_result{
+                    if error==DecodeError::AllocationFailed{
+                        crate::specs::part2_container_main_header_error(super::box_reference_view(box_ref),previous_state,
+                            super::file_type_view(&file_type),*limits,box_ref.payload@,
+                            crate::specs::part2_box_payload_offset(super::box_header_view(box_ref.header)).get_Ok_0(),
+                            crate::specs::part2_file_type_compatible(super::file_type_view(&file_type),BoxType::JPH_BRAND),error);
+                        crate::specs::part2_parse_container_header_error(input@,*limits,super::file_type_view(&file_type),
+                            storage_prefix,previous_reader,previous_state,super::box_reader_state(&reader),super::box_reference_view(box_ref),error);
+                    }
+                }
+            }
+            parsed_header = Some(header_result?);
         } else if box_type.equals(BoxType::CODESTREAM_HEADER) {
             if !file_type.is_jpx_compatible() {
                 return Err(DecodeError::malformed(
@@ -799,12 +813,25 @@ pub fn parse<'a>(input: &'a [u8], limits: &ResourceLimits) -> Result<Jp2File<'a>
                 ));
             }
             let payload_offset = box_ref.header.payload_offset()?;
-            let parsed = match parse_codestream_header(
+            let header_result = parse_codestream_header(
                 box_ref.payload,
                 parsed_header.as_ref(),
                 limits,
                 payload_offset,
-            ) {
+            );
+            #[cfg(verus_keep_ghost)]
+            proof! {
+                if let Err(error)=header_result{
+                    if error==DecodeError::AllocationFailed{
+                        crate::specs::part2_container_associated_header_error(super::box_reference_view(box_ref),previous_state,
+                            super::file_type_view(&file_type),*limits,box_ref.payload@,previous_state.header,
+                            payload_offset,error);
+                        crate::specs::part2_parse_container_header_error(input@,*limits,super::file_type_view(&file_type),
+                            storage_prefix,previous_reader,previous_state,super::box_reader_state(&reader),super::box_reference_view(box_ref),error);
+                    }
+                }
+            }
+            let parsed = match header_result {
                 Ok(header) => Some(header),
                 Err(error) => return Err(error),
             };
@@ -842,7 +869,19 @@ pub fn parse<'a>(input: &'a [u8], limits: &ResourceLimits) -> Result<Jp2File<'a>
                     actual as u64,
                 ));
             }
-            compositing_layers.push(parse_compositing_layer(box_ref, limits)?);
+            let layer_result = parse_compositing_layer(box_ref, limits);
+            #[cfg(verus_keep_ghost)]
+            proof! {
+                if let Err(error)=layer_result{
+                    if error==DecodeError::AllocationFailed{
+                        crate::specs::part2_container_layer_header_error(super::box_reference_view(box_ref),previous_state,
+                            super::file_type_view(&file_type),*limits,super::box_reference_view(box_ref),error);
+                        crate::specs::part2_parse_container_header_error(input@,*limits,super::file_type_view(&file_type),
+                            storage_prefix,previous_reader,previous_state,super::box_reader_state(&reader),super::box_reference_view(box_ref),error);
+                    }
+                }
+            }
+            compositing_layers.push(layer_result?);
         } else if box_type.equals(BoxType::COMPOSITION) {
             if !file_type.is_jpx_compatible() {
                 return Err(DecodeError::malformed(
