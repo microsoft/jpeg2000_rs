@@ -8253,6 +8253,33 @@ class FrameworkTests(WorkingFiles):
                     self.assertRaisesRegex(ValueError, "fallible copy storage"):
                 framework.validate_normative_coverage(dict(coverage, requirements=[entry]))
 
+    def test_inventory_assembly_plane_requires_charged_prior_state_role_and_publish_order(self):
+        coverage = json.loads((framework.VALIDATION / "normative-coverage.json").read_text())
+        entry = next(item for item in coverage["requirements"]
+                     if item["id"] == "part1-complete-registered-tile-image-assembly")
+        read_text = Path.read_text
+        for relative, symbol, before, after in (
+            ("src/image/assembly.rs", "append_assembly_component", "filled_values(false, count)", "filled_values(false, 1)"),
+            ("src/image/assembly.rs", "append_assembly_component", "reserve_additional(&mut image.components, 1)", "reserve_additional(&mut image.components, 2)"),
+            ("specs/cold_image_storage.rs", "part2_assembly_plane_capacity_run", "actual_stage!=stage", "false"),
+            ("specs/cold_image_storage.rs", "part2_assembly_plane_capacity_run", "calls.drop_first()", "calls"),
+            ("specs/cold_image_storage.rs", "part2_assembly_plane_after_samples_run", "context.image,preflight.1", "context.image,context.bytes"),
+            ("specs/cold_image_storage.rs", "part2_assembly_plane_after_visited_run", "plane:collected.1", "plane:initial"),
+        ):
+            source = framework.ROOT / relative
+            original = read_text(source)
+            body = (framework._coverage_function_body(original, framework._coverage_function_header(original, symbol))
+                    if relative.startswith("src/") else framework._coverage_spec_function_body(original, symbol))
+            self.assertIn(before, body)
+            changed = original.replace(body, body.replace(before, after, 1), 1)
+
+            def altered(path, *args, **kwargs):
+                return changed if path == source else read_text(path, *args, **kwargs)
+
+            with self.subTest(mutation=before), mock.patch.object(Path, "read_text", altered), \
+                    self.assertRaisesRegex(ValueError, "assembly owner storage"):
+                framework.validate_normative_coverage(dict(coverage, requirements=[entry]))
+
     def test_inventory_assembly_owner_rejects_lost_count_selected_header_source_and_tail(self):
         coverage = json.loads((framework.VALIDATION / "normative-coverage.json").read_text())
         entry = next(item for item in coverage["requirements"]
