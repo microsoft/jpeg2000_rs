@@ -447,12 +447,31 @@ pub(super) fn decode_trailer_layout(
         reveal_with_fuel(crate::specs::part2_trailer_selected_run, 1);
         reveal(layout_accumulation_view);
     }
-    let image = assemble_prepared_components(
+    let assembled = assemble_prepared_components(
         &layout.info.image_size,
         &prepared,
         Some((selection.region, selection.discard_levels)),
         limits,
-    )?;
+    );
+    #[cfg(verus_keep_ghost)]
+    proof! {
+        let size=crate::image::assembly_size_view(&layout.info.image_size);
+        let values=prepared_components_view(prepared@);
+        let maximum=crate::limits::resource_decoded_bytes_limit(limits);
+        let outcome=crate::image::decoded_image_outcome(assembled);
+        crate::specs::part2_trailer_assembly_observed(size,values,selection.region,selection.discard_levels,maximum,discarded,outcome);
+        let root=|events|crate::specs::part2_trailer_layout_run(source,requested_input,limits,events);
+        let child=|events|crate::specs::part2_trailer_assembly_run(size,values,selection.region,selection.discard_levels,maximum,discarded,events);
+        assert(source.size==layout.info.image_size);
+        assert forall|events|root(prefix+events)==child(events) by {
+            assert(crate::specs::part2_trailer_layout_run(source,requested_input,limits,prefix+events)
+                ==crate::specs::part2_trailer_selected_run(&source.size,source.parts,source.capabilities,selection.tiles@,selection.region,selection.discard_levels,limits,index as nat,
+                    layout_accumulation_view(prepared@,counters,work),discarded,events));
+        }
+        crate::specs::part2_decode_eta(child,crate::specs::part2_trailer_reported(outcome,discarded));
+        crate::specs::part2_cold_prefix_result(root,child,prefix,crate::specs::part2_trailer_reported(outcome,discarded));
+    }
+    let image = assembled?;
     Ok((
         image,
         TileTrailerRecoveryReport {

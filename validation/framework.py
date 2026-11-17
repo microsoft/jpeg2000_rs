@@ -5836,6 +5836,9 @@ def _coverage_cold_links(keys: set[tuple[str, str]]) -> tuple[set[tuple[str, str
         }.get(model, model.removesuffix("_result") + "_run")
         models.update(((path, model), (path, run)))
         proofs.add((path, normal))
+        if model == "part2_trailer_layout_result":
+            models.add(("specs/pdf_trailers.rs", "part2_trailer_assembly_run"))
+            proofs.add(("specs/pdf_trailers.rs", "part2_trailer_assembly_observed"))
         if model in ("part2_prepared_views_result", "part2_assemble_prepared_storage_result", "part2_layout_decode_result", "part2_coefficient_progression_result"):
             models |= _PREPARED_VIEWS_MODELS
             proofs |= _PREPARED_VIEWS_PROOFS
@@ -7965,6 +7968,13 @@ _PREPARED_COMPONENT_PROOFS = {("specs/cold_extraction_tile.rs", name) for name i
     "part2_coefficient_progression_publication_refused",
 )}
 _COEFFICIENT_EXTRACTION_GUARDS = {
+    ("specs/pdf_trailers.rs", "part2_trailer_assembly_run"): (
+        "part2_assemble_prepared_storage_run(size,prepared,Some((region,discard)),maximum,events)",
+        "part2_trailer_reported(Ok(image),discarded)",
+    ),
+    ("specs/pdf_trailers.rs", "part2_trailer_selected_run"): (
+        "part2_trailer_assembly_run(crate::image::assembly_size_view(size),before.prepared,region,discard,crate::limits::resource_decoded_bytes_limit(limits),discarded,events)",
+    ),
     ("specs/cold_prepare_copies.rs", "part2_prepared_views_run"): (
         "if source.len()==0", "PreparedViewsCapacity {source:actual,elements,succeeded}",
         "actual!=source || elements!=source.len()", "Err(crate::DecodeError::AllocationFailed)", "calls.drop_first()",
@@ -8024,6 +8034,10 @@ _COEFFICIENT_EXTRACTION_GUARDS = {
     ),
 }
 _COEFFICIENT_EXTRACTION_NATIVE_ORDER = {
+    ("src/decode/pdf_trailers.rs", "decode_trailer_layout"): (
+        "let assembled = assemble_prepared_components(", "part2_trailer_assembly_observed(",
+        "part2_cold_prefix_result(", "let image = assembled?",
+    ),
     ("src/decode/reconstruction.rs", "prepared_tile_views"): (
         "let reserved = if prepared.is_empty()", "Ok(Vec::new())", "empty_with_capacity(prepared.len())",
         "part2_prepared_views_observed(", "let mut tiles = reserved?", "while index < prepared.len()",
