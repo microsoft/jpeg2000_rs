@@ -37,14 +37,14 @@ fn bitplane_initial_storage_replayed_first_later_flags_raw_selected_recovery_and
     let selection = crate::DecodeSelection::full_image();
     let expected = crate::decode_codestream(GRAY0, &options).unwrap();
     let damaged = damaged(GRAY0);
-    for after in [35, 36, 57, 58] {
+    for (after, selected_after) in [(36, 36), (37, 38), (59, 60), (60, 61)] {
         assert_eq!(
             allocation::with_refusal(after, || crate::decode_codestream(GRAY0, &options))
                 .unwrap_err(),
             DecodeError::AllocationFailed
         );
         assert_eq!(
-            allocation::with_refusal(after + 1, || crate::decode_codestream_selected(
+            allocation::with_refusal(selected_after, || crate::decode_codestream_selected(
                 GRAY0, &options, &selection
             ))
             .unwrap_err(),
@@ -96,7 +96,7 @@ fn legacy_snapshot_storage_two_layer_raw_selected_recovery_snapshot_restore_role
     let selection = crate::DecodeSelection::full_image();
     let expected = crate::decode_codestream(GRAY0, &options).unwrap();
     let damaged = damaged(GRAY0);
-    for (after, selected_after) in [(33, 33), (34, 35), (56, 57)] {
+    for (after, selected_after) in [(33, 33), (34, 35), (58, 59)] {
         assert_eq!(
             allocation::with_refusal(after, || crate::decode_codestream(GRAY0, &options))
                 .unwrap_err(),
@@ -148,14 +148,14 @@ fn decoder_nested_storage_real_two_layer_raw_selected_recovery_and_automatic_res
     let options = DecodeOptions::default();
     let selection = crate::DecodeSelection::full_image();
     let expected = crate::decode_codestream(GRAY0, &options).unwrap();
-    for after in [52, 55] {
+    for (after, selected_after) in [(53, 54), (57, 57)] {
         assert_eq!(
             allocation::with_refusal(after, || crate::decode_codestream(GRAY0, &options))
                 .unwrap_err(),
             DecodeError::AllocationFailed
         );
         assert_eq!(
-            allocation::with_refusal(after + 1, || crate::decode_codestream_selected(
+            allocation::with_refusal(selected_after, || crate::decode_codestream_selected(
                 GRAY0, &options, &selection
             ))
             .unwrap_err(),
@@ -470,11 +470,11 @@ fn one_atomic_reservation_refusal_and_unwind_leave_exact_same_process_success() 
         );
     });
     // The decode also extends legacy input and copies the initial LL sample owner.
-    allocation::with_refusal(80, || {
+    allocation::with_refusal(87, || {
         assert_eq!(decode(&bytes).unwrap_err(), DecodeError::AllocationFailed);
         assert_eq!(decode(&bytes).unwrap(), expected);
     });
-    allocation::with_refusal(81, || {
+    allocation::with_refusal(88, || {
         assert_eq!(decode(&bytes).unwrap(), expected);
         assert_eq!(
             allocation::empty_with_capacity::<u8>(1),
@@ -561,7 +561,7 @@ fn reconstructed_recovery_refusal_limits_and_genuine_errors_preserve_recovery() 
             expected
         );
     });
-    allocation::with_refusal(80, || {
+    allocation::with_refusal(87, || {
         assert_eq!(
             decode_codestream_reconstructed_recover_missing_eoc(&bytes, &options).unwrap_err(),
             DecodeError::AllocationFailed
@@ -571,7 +571,7 @@ fn reconstructed_recovery_refusal_limits_and_genuine_errors_preserve_recovery() 
             expected
         );
     });
-    allocation::with_refusal(81, || {
+    allocation::with_refusal(88, || {
         assert_eq!(
             decode_codestream_reconstructed_recover_missing_eoc(&bytes, &options).unwrap(),
             expected

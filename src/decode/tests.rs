@@ -68,7 +68,7 @@ fn bitplane_initial_storage_real_raw_selected_jp2_first_later_refusals_restore_i
     let selection = DecodeSelection::full_image();
     let container = jp2_for_codestream(&reference, 1, 1);
     let expected = decode_codestream(&reference, &options).unwrap();
-    for after in [36, 37] {
+    for (after, container_after) in [(37, 49), (38, 51)] {
         assert_eq!(
             crate::allocation::with_refusal(after, || decode_codestream(&reference, &options))
                 .unwrap_err(),
@@ -82,7 +82,7 @@ fn bitplane_initial_storage_real_raw_selected_jp2_first_later_refusals_restore_i
             DecodeError::AllocationFailed
         );
         assert_eq!(
-            crate::allocation::with_refusal(after + 13, || decode_jp2(&container, &options))
+            crate::allocation::with_refusal(container_after, || decode_jp2(&container, &options))
                 .unwrap_err(),
             DecodeError::AllocationFailed
         );
@@ -3407,6 +3407,257 @@ fn complete_standard_prepare_preserves_all_ordered_rejections() {
     }
 }
 
+#[test]
+fn prepared_view_storage_preserves_borrows_raw_metadata_empty_and_retry() {
+    use super::reconstruction::prepared_tile_views;
+    let prepared = [
+        PreparedTileComponent {
+            component: u16::MAX,
+            x: u32::MAX,
+            y: 7,
+            width: 0,
+            height: 9,
+            fraction_bits: u8::MAX,
+            samples: vec![i64::MIN, 17],
+        },
+        PreparedTileComponent {
+            component: 1,
+            x: 3,
+            y: 5,
+            width: 1,
+            height: 1,
+            fraction_bits: 16,
+            samples: vec![-17],
+        },
+    ];
+    assert!(matches!(
+        crate::allocation::with_refusal(0, || prepared_tile_views(&prepared)),
+        Err(DecodeError::AllocationFailed)
+    ));
+    let views = prepared_tile_views(&prepared).unwrap();
+    assert_eq!(views.len(), prepared.len());
+    for (view, source) in views.iter().zip(&prepared) {
+        assert_eq!(
+            (
+                view.component,
+                view.x,
+                view.y,
+                view.width,
+                view.height,
+                view.fraction_bits
+            ),
+            (
+                source.component,
+                source.x,
+                source.y,
+                source.width,
+                source.height,
+                source.fraction_bits
+            )
+        );
+        assert_eq!(view.samples, source.samples);
+        assert_eq!(view.samples.as_ptr(), source.samples.as_ptr());
+    }
+    crate::allocation::with_refusal(0, || {
+        assert!(prepared_tile_views(&[]).unwrap().is_empty());
+        assert_eq!(
+            crate::allocation::copy_values(&[1_u8]),
+            Err(DecodeError::AllocationFailed)
+        );
+    });
+}
+
+#[test]
+fn prepared_component_storage_keeps_prior_prefix_work_and_held_capacity() {
+    use super::execution::reconstruct_planned_tile;
+    let bytes = component_subband_storage_fixture(1);
+    let limits = ResourceLimits::default();
+    let layout = parse_layout(&bytes, &limits).unwrap();
+    let first = &layout.tile_parts[0];
+    let size = &layout.info.image_size;
+    let plan = plan_progression_tile_at_with_component_overrides(
+        size,
+        0,
+        first.coding_style,
+        &first.component_coding_styles,
+        &first.component_quantizations,
+        &first.roi_shifts,
+        &limits,
+    )
+    .unwrap();
+    let prior = || PreparedTileComponent {
+        component: u16::MAX,
+        x: 7,
+        y: 9,
+        width: 1,
+        height: 1,
+        fraction_bits: 16,
+        samples: vec![-17],
+    };
+    let mut expected = vec![prior()];
+    let mut expected_work = 11;
+    reconstruct_planned_tile(
+        &plan,
+        first,
+        size,
+        (false, false),
+        &limits,
+        &mut expected,
+        &mut expected_work,
+    )
+    .unwrap();
+    let mut frontier = None;
+    for after in 0..64 {
+        let mut held = Vec::with_capacity(2);
+        held.push(prior());
+        let mut work = 11;
+        let result = crate::allocation::with_refusal(after, || {
+            let result = reconstruct_planned_tile(
+                &plan,
+                first,
+                size,
+                (false, false),
+                &limits,
+                &mut held,
+                &mut work,
+            );
+            if result.is_ok() {
+                assert_eq!(
+                    crate::allocation::copy_values(&[1_u8]),
+                    Err(DecodeError::AllocationFailed)
+                );
+            }
+            result
+        });
+        if result.is_ok() {
+            assert_eq!(held, expected);
+            assert_eq!(work, expected_work);
+            frontier = Some(after);
+            break;
+        }
+        assert_eq!(result, Err(DecodeError::AllocationFailed));
+    }
+    let after = frontier.expect("bounded single-component reconstruction");
+    let mut prepared = vec![prior()];
+    let mut work = 11;
+    assert_eq!(
+        crate::allocation::with_refusal(after, || reconstruct_planned_tile(
+            &plan,
+            first,
+            size,
+            (false, false),
+            &limits,
+            &mut prepared,
+            &mut work
+        )),
+        Err(DecodeError::AllocationFailed)
+    );
+    assert_eq!(prepared, vec![prior()]);
+    assert_eq!(work, 11);
+    reconstruct_planned_tile(
+        &plan,
+        first,
+        size,
+        (false, false),
+        &limits,
+        &mut prepared,
+        &mut work,
+    )
+    .unwrap();
+    assert_eq!(prepared, expected);
+    assert_eq!(work, expected_work);
+}
+
+#[test]
+fn prepare_working_storage_preserves_charged_prefixes_and_semantic_frontiers() {
+    use super::reconstruction::{append_prepare_subband, initialize_prepare_working};
+    let (mut band, _) = precinct_storage_inputs();
+    band.width = 3;
+    band.height = 2;
+    let limits = ResourceLimits::default();
+    let make = || PrepareWorking {
+        bands: vec![WorkingSubband {
+            width: 1,
+            height: 1,
+            fraction_bits: 9,
+            samples: vec![-17],
+            visited: vec![true],
+        }],
+        bytes: 11,
+    };
+    for after in 0..3 {
+        let mut working = make();
+        assert!(matches!(
+            crate::allocation::with_refusal(after, || append_prepare_subband(
+                &mut working,
+                &[band],
+                0,
+                16,
+                &limits
+            )),
+            Err(DecodeError::AllocationFailed)
+        ));
+        assert_eq!(working.bytes, 65);
+        assert_eq!(working.bands.len(), 1);
+        assert_eq!(
+            observed_working_band(working.bands.pop().unwrap()),
+            (1, 1, 9, vec![-17], vec![true])
+        );
+        let mut retry = make();
+        append_prepare_subband(&mut retry, &[band], 0, 16, &limits).unwrap();
+        assert_eq!(retry.bytes, 65);
+        assert_eq!(
+            observed_working_band(retry.bands.pop().unwrap()),
+            (3, 2, 16, vec![0; 6], vec![false; 6])
+        );
+    }
+    let limited = limits.with_maximum_decoded_bytes(64).unwrap();
+    let mut working = make();
+    crate::allocation::with_refusal(0, || {
+        assert_eq!(
+            append_prepare_subband(&mut working, &[], 0, 0, &limits),
+            Err(invalid_decode())
+        );
+        assert_eq!(working.bytes, 11);
+        assert_eq!(
+            append_prepare_subband(&mut working, &[band], 0, 0, &limited),
+            Err(DecodeError::LimitExceeded {
+                resource: Resource::DecodedBytes,
+                limit: 64,
+                actual: 65,
+            })
+        );
+        assert_eq!(working.bytes, 65);
+        assert_eq!(working.bands.len(), 1);
+        assert_eq!(
+            crate::allocation::copy_values(&[1_u8]),
+            Err(DecodeError::AllocationFailed)
+        );
+    });
+    for after in 0..5 {
+        assert!(matches!(
+            crate::allocation::with_refusal(after, || initialize_prepare_working(
+                &[band, band],
+                2,
+                16,
+                &limits
+            )),
+            Err(DecodeError::AllocationFailed)
+        ));
+    }
+    let restored = initialize_prepare_working(&[band, band], 2, 16, &limits).unwrap();
+    assert_eq!((restored.bands.len(), restored.bytes), (2, 108));
+    crate::allocation::with_refusal(0, || {
+        let empty = initialize_prepare_working(&[], 0, 0, &limits).unwrap();
+        assert!(empty.bands.is_empty());
+        assert_eq!(empty.bytes, 0);
+        assert_eq!(
+            crate::allocation::copy_values(&[1_u8]),
+            Err(DecodeError::AllocationFailed)
+        );
+    });
+}
+
 fn copy_working_band(band: &WorkingSubband) -> WorkingSubband {
     WorkingSubband {
         width: band.width,
@@ -6571,7 +6822,7 @@ fn tier1_plane_storage_real_ht_raw_selected_container_cleanup_restore() {
     let ftyp = container.windows(4).position(|p| p == b"ftyp").unwrap();
     container[ftyp + 4..ftyp + 8].copy_from_slice(b"jph ");
     container[ftyp + 12..ftyp + 16].copy_from_slice(b"jph ");
-    for after in [40, 43] {
+    for after in [41, 44] {
         assert!(matches!(
             crate::allocation::with_refusal(after, || decode_codestream(&bytes, &options)),
             Err(DecodeError::AllocationFailed)
@@ -6611,7 +6862,7 @@ fn ht_metadata_storage_raw_selected_jph_and_automatic_restore_actual_image() {
     let mut jph = jp2_for_codestream(&bytes, 1, 1);
     jph[20..24].copy_from_slice(b"jph ");
     jph[28..32].copy_from_slice(b"jph ");
-    for after in [37, 38, 39] {
+    for (after, container_after) in [(38, 50), (39, 51), (40, 53)] {
         assert_eq!(
             crate::allocation::with_refusal(after, || decode_codestream(&bytes, &options))
                 .unwrap_err(),
@@ -6625,7 +6876,8 @@ fn ht_metadata_storage_raw_selected_jph_and_automatic_restore_actual_image() {
             DecodeError::AllocationFailed
         );
         assert_eq!(
-            crate::allocation::with_refusal(after + 13, || decode_jph(&jph, &options)).unwrap_err(),
+            crate::allocation::with_refusal(container_after, || decode_jph(&jph, &options))
+                .unwrap_err(),
             DecodeError::AllocationFailed
         );
     }
@@ -6682,7 +6934,7 @@ fn ht_cleanup_scratch_storage_raw_selected_jph_rows_and_automatic_restore_real_i
     let mut jph = jp2_for_codestream(&bytes, 1, 1);
     jph[20..24].copy_from_slice(b"jph ");
     jph[28..32].copy_from_slice(b"jph ");
-    for after in [41, 42] {
+    for after in [42, 43] {
         assert_eq!(
             crate::allocation::with_refusal(after, || decode_codestream(&bytes, &options))
                 .unwrap_err(),
@@ -6753,7 +7005,7 @@ fn decoder_plane_storage_real_ht_raw_selected_jph_staging_refusals_restore_exact
     let mut container = jp2_for_codestream(&bytes, 1, 1);
     container[20..24].copy_from_slice(b"jph ");
     container[28..32].copy_from_slice(b"jph ");
-    let (after, container_after) = (36, 48);
+    let (after, container_after) = (37, 48);
     assert!(matches!(
         crate::allocation::with_refusal(after, || decode_codestream(&bytes, &options)),
         Err(DecodeError::AllocationFailed)
@@ -7311,7 +7563,7 @@ fn ht_refinement_scratch_storage_actual_raw_selected_jph_masks_and_automatic_res
     let mut jph = jp2_for_codestream(&bytes, 1, 1);
     jph[20..24].copy_from_slice(b"jph ");
     jph[28..32].copy_from_slice(b"jph ");
-    for after in [49, 50] {
+    for (after, container_after) in [(51, 63), (52, 64)] {
         assert_eq!(
             crate::allocation::with_refusal(after, || decode_codestream(&bytes, &options))
                 .unwrap_err(),
@@ -7325,7 +7577,8 @@ fn ht_refinement_scratch_storage_actual_raw_selected_jph_masks_and_automatic_res
             DecodeError::AllocationFailed
         );
         assert_eq!(
-            crate::allocation::with_refusal(after + 13, || decode_jph(&jph, &options)).unwrap_err(),
+            crate::allocation::with_refusal(container_after, || decode_jph(&jph, &options))
+                .unwrap_err(),
             DecodeError::AllocationFailed
         );
     }
@@ -7382,7 +7635,7 @@ fn ht_refinement_storage_raw_selected_jph_retention_refusal_and_exact_restore() 
     let mut jph = jp2_for_codestream(&bytes, 1, 1);
     jph[20..24].copy_from_slice(b"jph ");
     jph[28..32].copy_from_slice(b"jph ");
-    for after in [52, 53] {
+    for after in [54, 55] {
         assert!(matches!(
             crate::allocation::with_refusal(after, || decode_codestream(&bytes, &options)),
             Err(DecodeError::AllocationFailed)
@@ -8720,7 +8973,7 @@ fn coefficient_extraction_storage_first_later_prepared_placements_preserve_real_
         .iter()
         .map(crate::packet::exact_packet_precinct_snapshot)
         .collect::<Vec<_>>();
-    for after in [0, 2] {
+    for after in [5, 7] {
         assert_eq!(
             crate::allocation::with_refusal(after, || prepare_tile_component(
                 &plan, &precincts, style, &limits
@@ -8857,7 +9110,7 @@ fn wavelet_plane_storage_actual_standard_component_first_later_planes_and_restor
             .iter()
             .map(crate::packet::exact_packet_precinct_snapshot)
             .collect();
-        for after in [9, 11, 13, 10, 15, 19] {
+        for after in [18, 20, 22, 19, 24, 28] {
             assert_eq!(
                 crate::allocation::with_refusal(after, || prepare_tile_component(
                     &plan, &precincts, style, &limits
@@ -8899,7 +9152,7 @@ fn wavelet_plane_storage_actual_standard_component_first_later_planes_and_restor
     let expected =
         prepare_tile_component_with_kernel(&plan, &precincts, style, Some(&kernel), &limits)
             .unwrap();
-    for after in [9, 11, 13, 10, 15, 19] {
+    for after in [18, 20, 22, 19, 24, 28] {
         assert_eq!(
             crate::allocation::with_refusal(after, || prepare_tile_component_with_kernel(
                 &plan,
@@ -9089,7 +9342,7 @@ fn prepare_copy_storage_actual_standard_custom_component_ll_later_copy_and_resto
             .iter()
             .map(crate::packet::exact_packet_precinct_snapshot)
             .collect();
-        for after in [8, 20] {
+        for after in [17, 29] {
             assert_eq!(
                 crate::allocation::with_refusal(after, || prepare_tile_component_with_kernel(
                     &plan, &precincts, style, selected, &limits
@@ -9232,7 +9485,7 @@ fn quantization_output_storage_first_later_real_preparation_owners_and_restore()
         .iter()
         .map(crate::packet::exact_packet_precinct_snapshot)
         .collect();
-    for after in [1, 3] {
+    for after in [6, 8] {
         assert_eq!(
             crate::allocation::with_refusal(after, || prepare_tile_component(
                 &plan, &precincts, style, &limits
@@ -9357,22 +9610,22 @@ fn quantization_output_storage_actual_ht_raw_selected_jph_reconstructed_and_auto
     jph[20..24].copy_from_slice(b"jph ");
     jph[28..32].copy_from_slice(b"jph ");
     assert_eq!(
-        crate::allocation::with_refusal(45, || decode_codestream(&bytes, &options)).unwrap_err(),
+        crate::allocation::with_refusal(49, || decode_codestream(&bytes, &options)).unwrap_err(),
         DecodeError::AllocationFailed
     );
     assert_eq!(
-        crate::allocation::with_refusal(47, || decode_codestream_selected(
+        crate::allocation::with_refusal(51, || decode_codestream_selected(
             &bytes, &options, &selection
         ))
         .unwrap_err(),
         DecodeError::AllocationFailed
     );
     assert_eq!(
-        crate::allocation::with_refusal(60, || decode_jph(&jph, &options)).unwrap_err(),
+        crate::allocation::with_refusal(64, || decode_jph(&jph, &options)).unwrap_err(),
         DecodeError::AllocationFailed
     );
     assert_eq!(
-        crate::allocation::with_refusal(45, || decode_codestream_reconstructed(&bytes, &options))
+        crate::allocation::with_refusal(49, || decode_codestream_reconstructed(&bytes, &options))
             .unwrap_err(),
         DecodeError::AllocationFailed
     );
@@ -9435,22 +9688,22 @@ fn ht_cleanup_significance_storage_actual_raw_selected_jph_reconstruction_and_au
     jph[20..24].copy_from_slice(b"jph ");
     jph[28..32].copy_from_slice(b"jph ");
     assert_eq!(
-        crate::allocation::with_refusal(51, || decode_codestream(&bytes, &options)).unwrap_err(),
+        crate::allocation::with_refusal(53, || decode_codestream(&bytes, &options)).unwrap_err(),
         DecodeError::AllocationFailed
     );
     assert_eq!(
-        crate::allocation::with_refusal(53, || decode_codestream_selected(
+        crate::allocation::with_refusal(55, || decode_codestream_selected(
             &bytes, &options, &selection
         ))
         .unwrap_err(),
         DecodeError::AllocationFailed
     );
     assert_eq!(
-        crate::allocation::with_refusal(66, || decode_jph(&jph, &options)).unwrap_err(),
+        crate::allocation::with_refusal(68, || decode_jph(&jph, &options)).unwrap_err(),
         DecodeError::AllocationFailed
     );
     assert_eq!(
-        crate::allocation::with_refusal(51, || decode_codestream_reconstructed(&bytes, &options))
+        crate::allocation::with_refusal(53, || decode_codestream_reconstructed(&bytes, &options))
             .unwrap_err(),
         DecodeError::AllocationFailed
     );
@@ -9512,22 +9765,22 @@ fn coefficient_extraction_storage_real_ht_raw_selected_jph_reconstruction_and_au
     jph[20..24].copy_from_slice(b"jph ");
     jph[28..32].copy_from_slice(b"jph ");
     assert_eq!(
-        crate::allocation::with_refusal(44, || decode_codestream(&bytes, &options)).unwrap_err(),
+        crate::allocation::with_refusal(48, || decode_codestream(&bytes, &options)).unwrap_err(),
         DecodeError::AllocationFailed
     );
     assert_eq!(
-        crate::allocation::with_refusal(46, || decode_codestream_selected(
+        crate::allocation::with_refusal(50, || decode_codestream_selected(
             &bytes, &options, &selection
         ))
         .unwrap_err(),
         DecodeError::AllocationFailed
     );
     assert_eq!(
-        crate::allocation::with_refusal(59, || decode_jph(&jph, &options)).unwrap_err(),
+        crate::allocation::with_refusal(60, || decode_jph(&jph, &options)).unwrap_err(),
         DecodeError::AllocationFailed
     );
     assert_eq!(
-        crate::allocation::with_refusal(44, || decode_codestream_reconstructed(&bytes, &options))
+        crate::allocation::with_refusal(48, || decode_codestream_reconstructed(&bytes, &options))
             .unwrap_err(),
         DecodeError::AllocationFailed
     );

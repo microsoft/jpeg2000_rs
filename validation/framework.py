@@ -5069,6 +5069,7 @@ _PLANE_ROLE_MODEL_INFO = {
     "part1_multi_code_block_packet": ("part2_plane_multi_packet_result", "specs/cold_packet_payload.rs", "part2_plane_multi_packet_normal"),
     "part1_precinct_payload_after_headers": ("part2_plane_payload_after_result", "specs/cold_packet_payload.rs", "part2_plane_payload_after_normal"),
     "part1_precinct_payload": ("part2_plane_payload_result", "specs/cold_packet_payload.rs", "part2_plane_payload_normal"),
+    "part1_jpip_precinct_packet_inner": ("part2_jpip_inner_result", "specs/cold_packet_payload.rs", "part2_jpip_inner_normal"),
     "part1_precinct_packet": ("part2_plane_precinct_result", "specs/cold_packet_payload.rs", "part2_plane_precinct_normal"),
     "part1_tile_precinct_packet": ("part2_plane_tile_precinct_result", "specs/cold_packet_tile_planes.rs", "part2_plane_tile_precinct_normal"),
     "part1_tile_packet": ("part2_plane_tile_packet_result", "specs/cold_packet_tile_planes.rs", "part2_plane_tile_packet_normal"),
@@ -5081,6 +5082,9 @@ _PLANE_ROLE_RESULT_RUNS = {
     for old, (model, _, _) in _PLANE_ROLE_MODEL_INFO.items()
 }
 _PLANE_ROLE_RESULT_RUNS.update({
+    "part2_prepared_views_result": ("part2_prepared_views_run", False),
+    "part2_prepare_init_result": ("part2_prepare_init_run", False),
+    "part2_prepare_band_result": ("part2_prepare_band_stage_run", True),
     "part2_prepare_plane_copy_result": ("part2_prepare_plane_copy_run", False),
     "part2_wavelet_gather_result": ("part2_wavelet_gather_run", False),
     "part2_wavelet_interleave_result": ("part2_wavelet_interleave_run", False),
@@ -5101,6 +5105,15 @@ _PLANE_ROLE_RESULT_RUNS.update({
     "part2_coefficient_progression_result": ("part2_extraction_progression_run", False),
 })
 _COLD_RESULT_MODELS = {
+    "part2_assemble_prepared": (
+        "part2_assemble_prepared_storage_result", "specs/cold_prepare_copies.rs", "part2_assemble_prepared_storage_normal",
+    ),
+    "part1_prepare_init_prefix": (
+        "part2_prepare_init_result", "specs/cold_prepare_copies.rs", "part2_prepare_init_normal",
+    ),
+    "part1_prepare_append_band": (
+        "part2_prepare_band_result", "specs/cold_prepare_copies.rs", "part2_prepare_band_stage_normal",
+    ),
     "part2_precinct_contexts": (
         "part2_precinct_contexts_result", "specs/cold_packet_precinct.rs", "part2_precinct_contexts_normal",
     ),
@@ -5354,7 +5367,7 @@ def _coverage_cold_relation(
         inputs = inputs.replace("tile_part", _coverage_call("crate::codestream::tile_part_owned_view", "tile_part"))
     if model == "part1_tile_precinct_packet":
         inputs = inputs.replace(r"\*\s*part", _coverage_call("crate::codestream::tile_part_owned_view", "part"))
-    if model in ("part1_jpip_precinct_packet", "part2_jpip_precinct_phase"):
+    if model in ("part1_jpip_precinct_packet", "part1_jpip_precinct_packet_inner", "part2_jpip_precinct_phase"):
         inputs = inputs.replace("template", _coverage_call("crate::codestream::tile_part_owned_view", "template"))
     if model == "part2_tile_decode_metadata":
         inputs = inputs.replace("parts@", _coverage_call("codestream::tile_parts_owned_view", "parts@"))
@@ -5569,6 +5582,12 @@ _COLD_RESULT_CONTRACTS = {
 }
 _COLD_RESULT_CONTRACTS.update(_LEGACY_PACKET_STORAGE_CONTRACTS)
 _COLD_RESULT_CONTRACTS.update({
+    ("src/decode/reconstruction.rs", "assemble_prepared_components"): _coverage_cold_relation(
+        _RECONSTRUCTION_CONTRACTS[("src/decode/reconstruction.rs", "assemble_prepared_components")]),
+    ("src/decode/reconstruction.rs", "prepared_tile_views"): (
+        "part2_prepared_views_result",
+        _coverage_call("prepared_components_view", "prepared@") + r"\s*,\s*" + _coverage_call("prepared_tiles_outcome", r"\1"),
+    ),
     ("src/decode/selection.rs", "select_intersecting_tiles"): _coverage_cold_relation((
         "part2_select_intersecting_tiles", _coverage_call("selected_tiles_outcome", r"\1"), None,
         _coverage_call("crate::codestream::selection_geometry_view", "size")
@@ -5761,7 +5780,22 @@ for _header_symbol, _header_model, _raw_pattern, _header_outcome in (
         ) + r"\s*,?\s*\}\s*,\s*\(\s*" + _header_outcome + r"\s*\)",
     )
 
+_COLD_RESULT_CONTRACTS.update({
+    ("src/decode/reconstruction.rs", "initialize_prepare_working"): (
+        "part2_prepare_init_result",
+        r"bands@\s*,\s*selected\s*,\s*fraction\s*,\s*" + _coverage_call("crate::limits::resource_decoded_bytes_limit", "limits")
+        + r"\s*,\s*" + _coverage_call("prepare_working_outcome", r"\1"),
+    ),
+    ("src/decode/reconstruction.rs", "append_prepare_subband"): (
+        "part2_prepare_band_result",
+        _coverage_call("old", "working") + r"@\s*,\s*bands@\s*,\s*index\s*,\s*fraction\s*,\s*"
+        + _coverage_call("crate::limits::resource_decoded_bytes_limit", "limits")
+        + r"\s*,\s*\(\s*\1\s*,\s*" + _coverage_call("final", "working") + r"@\s*\)",
+    ),
+})
+
 _COLD_INNER_RUNS = {
+    "part2_prepare_band_result": "part2_prepare_band_stage_run",
     "part1_uniform_geometry_cold_result": "part2_uniform_geometry_run",
     "part1_progression_plan_cold_result": "part2_grid_plan_run",
     "part1_progression_tile_cold_result": "part2_packet_run",
@@ -5780,6 +5814,7 @@ _COLD_INNER_RUNS = {
 def _coverage_cold_links(keys: set[tuple[str, str]]) -> tuple[set[tuple[str, str]], set[tuple[str, str]]]:
     models, proofs = set(), set()
     metadata = {model: (path, normal) for model, path, normal in _COLD_RESULT_MODELS.values()}
+    metadata["part2_prepared_views_result"] = ("specs/cold_prepare_copies.rs", "part2_prepared_views_observed")
     for key in keys & _COLD_RESULT_CONTRACTS.keys():
         model = _COLD_RESULT_CONTRACTS[key][0]
         path, normal = metadata.get(model, ("specs/jpip_transcode.rs", "part2_jpip_validate_precinct_cold_normal"))
@@ -5801,6 +5836,22 @@ def _coverage_cold_links(keys: set[tuple[str, str]]) -> tuple[set[tuple[str, str
         }.get(model, model.removesuffix("_result") + "_run")
         models.update(((path, model), (path, run)))
         proofs.add((path, normal))
+        if model == "part2_trailer_layout_result":
+            models.add(("specs/pdf_trailers.rs", "part2_trailer_assembly_run"))
+            proofs.add(("specs/pdf_trailers.rs", "part2_trailer_assembly_observed"))
+        if model in ("part2_prepared_views_result", "part2_assemble_prepared_storage_result", "part2_layout_decode_result", "part2_coefficient_progression_result"):
+            models |= _PREPARED_VIEWS_MODELS
+            proofs |= _PREPARED_VIEWS_PROOFS
+        if model in ("part2_extraction_tile_result", "part2_coefficient_progression_result"):
+            models |= _PREPARED_COMPONENT_MODELS
+            proofs |= _PREPARED_COMPONENT_PROOFS
+        if model in ("part2_prepare_init_result", "part2_prepare_band_result", "part2_extraction_component_result", "part2_coefficient_component_result"):
+            models |= _PREPARE_WORKING_MODELS
+            proofs |= _PREPARE_WORKING_PROOFS
+        if model in ("part2_plane_payload_result", "part2_plane_precinct_result", "part2_jpip_inner_result",
+                     "part2_jpip_packet_copy_result", "part2_jpip_phase_copy_result"):
+            models |= _PRECINCT_CONTRIBUTION_MODELS
+            proofs |= _PRECINCT_CONTRIBUTION_PROOFS
         if key == ("src/tier1/ht_cleanup.rs", "reconstruct_ht_cleanup_plane"):
             models.update(("specs/cold_ht_exponents.rs", symbol) for symbol in (
                 "Part2HtExponentContext", "part2_ht_exponent_count", "part2_ht_exponent_context",
@@ -5943,7 +5994,8 @@ def _coverage_cold_result_body(text: str, model: str) -> bool:
     if model in _PLANE_ROLE_RESULT_RUNS:
         run_name, wrapped = _PLANE_ROLE_RESULT_RUNS[model]
         count = (["collections.len()"] if model == "part2_mct_line_stage_result" else
-                 ["stages.len()"] if model == "part2_mct_line_transform_result" else [])
+                 ["stages.len()"] if model == "part2_mct_line_transform_result" else
+                 ["Part2PrepareBandStage::Samples"] if model == "part2_prepare_band_result" else [])
         expected = "part2_tier1_storage_framed(|calls|" + run_name + "(" + ",".join(names[:-1] + count + ["calls"]) + ")," \
             + ("Ok(result)" if wrapped else "result") + ")"
         if model == "part2_ht_replay_result":
@@ -6456,6 +6508,98 @@ _BITPLANE_INITIAL_NATIVE_ORDER = {
         "reader.validate_predictable_termination()?", "self.commit_legacy_segment(input.len(),pass_count,statistics)",
     ),
 }
+_PREPARE_WORKING_MODELS = {("specs/cold_prepare_copies.rs", name) for name in (
+    "part2_prepare_working_count", "part2_prepare_working_capacity_run", "part2_prepare_working_capacity_result",
+    "part2_prepare_band_rank", "part2_prepare_band_stage_run", "part2_prepare_band_result",
+    "part2_prepare_init_prefix_run", "part2_prepare_init_run", "part2_prepare_init_result",
+)} | {("specs/cold_extraction_reconstruction.rs", name) for name in (
+    "part2_extraction_component_preflight", "part2_extraction_component_after_init_run",
+)}
+_PREPARE_WORKING_PROOFS = {("specs/cold_prepare_copies.rs", name) for name in (
+    "part2_prepare_working_capacity_observed", "part2_prepare_band_stage_normal", "part2_prepare_band_refused_at",
+    "part2_prepare_init_prefix_normal", "part2_prepare_init_normal", "part2_prepare_init_owner_refused",
+    "part2_prepare_init_prefix_error", "part2_prepare_init_band_error",
+)} | {("specs/cold_extraction_reconstruction.rs", name) for name in (
+    "part2_extraction_component_after_init_normal", "part2_extraction_component_after_init_observed", "part2_extraction_component_init_error",
+)}
+_PREPARE_WORKING_GUARDS = {
+    ("specs/cold_prepare_copies.rs", "part2_prepare_working_capacity_run"): (
+        "part2_prepare_working_count(context)", "if count==0", "PrepareWorkingCapacity {context:actual,elements,succeeded}",
+        "actual!=context || elements!=count", "calls.drop_first()",
+    ),
+    ("specs/cold_prepare_copies.rs", "part2_prepare_band_stage_run"): (
+        "part1_prepare_append_band(before,bands,index,fraction,maximum)", "if ordinary.0.is_err()",
+        "Part2PrepareWorkingContext::Band {before,bands,index,fraction,maximum,stage}",
+        "Err(error)=>Some((Ok((Err(error),(before.0,ordinary.1.1))),rest))",
+        "Part2PrepareBandStage::Visited,rest)", "Part2PrepareBandStage::Descriptor,rest)",
+    ),
+    ("specs/cold_prepare_copies.rs", "part2_prepare_init_run"): (
+        "Part2PrepareWorkingContext::Owner {bands,selected,fraction,maximum}", "part2_prepare_init_prefix_run(bands,fraction,maximum,selected as nat,rest)",
+    ),
+    ("specs/cold_extraction_reconstruction.rs", "part2_extraction_component_run"): (
+        "part2_extraction_component_preflight(plan,style,kernel)",
+        "part2_prepare_init_run(plan.subbands,selected,part1_prepare_fraction(reversible),maximum,calls)",
+        "part2_extraction_component_after_init_run(plan,precincts,style,kernel,maximum,rest)",
+    ),
+}
+_PREPARE_WORKING_NATIVE_ORDER = {
+    "initialize_prepare_working": (
+        "let reserved = if selected == 0", "Ok(Vec::new())", "empty_with_capacity(selected)",
+        "part2_prepare_working_capacity_observed(", "bands: reserved?", "while index < selected",
+        "append_prepare_subband(", "part2_prepare_init_band_error(",
+    ),
+    "append_prepare_subband": (
+        "bands.get(index)", "checked_area_u32(geometry.width, geometry.height)", "working.bytes =",
+        "if working.bytes > limits.maximum_decoded_bytes()", "filled_values(0_i64, length)",
+        "let samples = samples_result?", "filled_values(false, length)", "let visited = visited_result?",
+        "reserve_additional(&mut working.bands, 1)", "reserved?", "working.bands.push(WorkingSubband",
+    ),
+}
+_PREPARE_WORKING_ENTRIES = {"part1-complete-standard-plan-coordinator", "part2-complete-native-arbitrary-kernel-preparation"}
+
+_PRECINCT_CONTRIBUTION_MODELS = {("specs/cold_packet_payload.rs", name) for name in (
+    "part2_precinct_contributions_run", "part2_precinct_contributions_result", "part2_plane_payload_prepared_run",
+    "part2_jpip_inner_inline", "part2_jpip_inner_finish", "part2_jpip_inner_run", "part2_jpip_inner_result",
+)} | {("specs/cold_packet_copy.rs", name) for name in ("part2_jpip_inner_caps", "part2_jpip_packet_inner_run")}
+_PRECINCT_CONTRIBUTION_PROOFS = {("specs/cold_packet_payload.rs", name) for name in (
+    "part2_precinct_contributions_observed", "part2_plane_payload_prepared_normal", "part2_plane_payload_capacity_then",
+    "part2_jpip_inner_normal", "part2_jpip_inner_observed",
+)} | {("specs/cold_packet_copy.rs", "part2_jpip_packet_inner_observed")}
+_PRECINCT_CONTRIBUTION_GUARDS = {
+    ("specs/cold_packet_payload.rs", "part2_precinct_contributions_run"): (
+        "let count=context.state.states.len()", "if count==0", "PrecinctContributions {context:actual,elements,succeeded}",
+        "actual!=context || elements!=count", "Err(crate::DecodeError::AllocationFailed)", "calls.drop_first()",
+    ),
+    ("specs/cold_packet_payload.rs", "part2_plane_payload_run"): (
+        "part1_precinct_payload_prefix(data,packed,parameters,header_limit,work)",
+        "Err(error)=>Some((Ok((Err(error),state)),calls))", "part2_tier1_storage_resume(part2_precinct_contributions_run(",
+        "Part2PrecinctContributionsContext {state,data,packed,parameters,header_limit,work}",
+        "Err(error)=>Some((Ok((Err(error),state)),rest))", "part2_plane_payload_prepared_run(",
+    ),
+    ("specs/cold_packet_payload.rs", "part2_jpip_inner_run"): (
+        "part1_precinct_context_layer(initial,layer)", "part2_jpip_inner_inline(part,data)", "sequence,false",
+        "part2_plane_precinct_run(", "part2_jpip_inner_finish(packet)", "rest)",
+    ),
+    ("specs/cold_packet_copy.rs", "part2_jpip_packet_inner_run"): (
+        "PacketInnerCalls {initial:actual,part:actual_part,data:actual_data,sequence:actual_sequence,layer:actual_layer,caps,calls}",
+        "actual!=initial || actual_part!=part || actual_data!=data || actual_sequence!=sequence || actual_layer!=layer",
+        "caps!=part2_jpip_inner_caps(limits)", "part2_jpip_inner_run(initial,part,data,sequence,layer,limits,calls)",
+        "if rest.len()!=0", "if result.0.is_err(){initial}else{result.1}", "events.drop_first()",
+    ),
+}
+_PRECINCT_CONTRIBUTION_NATIVE_ORDER = {
+    "decode_precinct_packet_payload": (
+        "decode_precinct_packet_payload_prefix(", "let contributions_result = if precinct.states.is_empty()", "Ok(Vec::new())",
+        "crate::allocation::none_values(precinct.states.len())", "part2_precinct_contributions_observed(context,response)",
+        "part2_plane_payload_capacity_then(", "let mut contributions = contributions_result?",
+        "decode_precinct_contribution_headers(", "decode_precinct_packet_payload_after_headers(", "part2_plane_payload_observed(",
+    ),
+    "decode_jpip_precinct_packet_inner": (
+        "set_progression_context_layer(", "let inline = TilePartPayload {", "let packed_headers: &[u8] = &[]",
+        "assert(packed_headers@ =~= Seq::<u8>::empty())", "let packet_result = decode_precinct_packet(",
+        "part2_jpip_inner_observed(", "let (decoded, consumed, packed) = packet_result?", "if packed != 0",
+    ),
+}
 _ROLLBACK_OWNER_TESTS = {
     ("src/packet/tests.rs", "rollback_snapshot_storage_outer_roles_precede_children_and_restore_exact_packet"),
     ("src/packet/tests.rs", "rollback_snapshot_storage_empty_and_independent_raw_owners_keep_error_frontiers"),
@@ -6508,6 +6652,7 @@ _TAG_COPY_ENTRIES = {
     "part9-complete-nonowning-automatic-phase-results",
     "part9-complete-original-automatic-snapshot-result",
 }
+_PRECINCT_CONTRIBUTION_ENTRIES = _TAG_COPY_ENTRIES | {"part1-complete-native-precinct-composition"}
 _TAG_COPY_GUARDS = {
     ("specs/cold_tag_copy.rs", "part2_tag_copy_capacity_run"): (
         "if nodes{context.source.nodes.len()}else{context.source.levels.len()}",
@@ -6533,7 +6678,7 @@ _TAG_COPY_GUARDS = {
     ("specs/cold_packet_copy.rs", "part2_jpip_packet_copy_run"): (
         "part2_rollback_snapshot_run(initial,events)",
         "Some((Err(error),rest))=>Some((Ok((Err(error),initial)),rest))",
-        "part2_jpip_snapshot_decode_packet(initial,part,data,sequence,layer,limits)",
+        "Some((Ok(_),rest))=>part2_jpip_packet_inner_run(initial,part,data,sequence,layer,limits,rest)",
     ),
     ("specs/cold_packet_copy.rs", "part2_jpip_phase_copy_run"): (
         "if execution as nat>=plan.precincts.len()", "part2_jpip_packet_copy_run(plan.precincts[execution as int]",
@@ -7803,7 +7948,61 @@ _CLEANUP_SIGNIFICANCE_TESTS = {
     ("src/decode/tests.rs", "ht_cleanup_significance_storage_actual_raw_selected_jph_reconstruction_and_automatic_restore"),
 }
 
+_PREPARED_VIEWS_MODELS = {("specs/cold_prepare_copies.rs", name) for name in (
+    "part2_prepared_views_run", "part2_prepared_views_result", "part2_prepared_view_calls_run",
+    "part2_assemble_prepared_storage_run", "part2_assemble_prepared_storage_result",
+)} | {("specs/cold_extraction_tile.rs", "part2_extraction_progression_finish_run")}
+_PREPARED_VIEWS_PROOFS = {("specs/cold_prepare_copies.rs", name) for name in (
+    "part2_prepared_views_observed", "part2_prepared_view_calls_observed", "part2_assemble_prepared_storage_normal",
+    "part2_assemble_prepared_views_refused",
+)} | {("specs/cold_extraction_tile.rs", name) for name in (
+    "part2_extraction_progression_finish_normal", "part2_coefficient_progression_views_refused",
+)}
+_PREPARED_COMPONENT_MODELS = {("specs/cold_extraction_tile.rs", name) for name in (
+    "part2_prepared_component_capacity_run", "part2_prepared_component_capacity_result",
+    "part2_extraction_components_after_child",
+)}
+_PREPARED_COMPONENT_PROOFS = {("specs/cold_extraction_tile.rs", name) for name in (
+    "part2_prepared_component_capacity_observed", "part2_extraction_components_after_child_normal",
+    "part2_extraction_components_publication_refused", "part2_extraction_tile_publication_refused",
+    "part2_coefficient_progression_publication_refused",
+)}
 _COEFFICIENT_EXTRACTION_GUARDS = {
+    ("specs/pdf_trailers.rs", "part2_trailer_assembly_run"): (
+        "part2_assemble_prepared_storage_run(size,prepared,Some((region,discard)),maximum,events)",
+        "part2_trailer_reported(Ok(image),discarded)",
+    ),
+    ("specs/pdf_trailers.rs", "part2_trailer_selected_run"): (
+        "part2_trailer_assembly_run(crate::image::assembly_size_view(size),before.prepared,region,discard,crate::limits::resource_decoded_bytes_limit(limits),discarded,events)",
+    ),
+    ("specs/cold_prepare_copies.rs", "part2_prepared_views_run"): (
+        "if source.len()==0", "PreparedViewsCapacity {source:actual,elements,succeeded}",
+        "actual!=source || elements!=source.len()", "Err(crate::DecodeError::AllocationFailed)", "calls.drop_first()",
+    ),
+    ("specs/cold_prepare_copies.rs", "part2_prepared_view_calls_run"): (
+        "if source.len()==0", "PreparedViewCalls {source:actual,calls}", "actual!=source",
+        "part2_prepared_views_run(source,calls)", "if rest.len()==0", "events.drop_first()",
+    ),
+    ("specs/cold_prepare_copies.rs", "part2_assemble_prepared_storage_run"): (
+        "part2_prepared_view_calls_run(source,events)", "part2_assemble_prepared(size,views,selection,maximum)",
+    ),
+    ("specs/cold_extraction_tile.rs", "part2_extraction_progression_finish_run"): (
+        "if effect.0.is_err()", "part2_prepared_views_run(effect.1,calls)",
+        "part2_extraction_progression_finish(size,global,maximum,effect)",
+    ),
+    ("specs/cold_extraction_tile.rs", "part2_prepared_component_capacity_run"): (
+        "PreparedComponentCapacity {context:actual,elements,succeeded}", "actual!=context || elements!=1",
+        "Err(crate::DecodeError::AllocationFailed)", "calls.drop_first()",
+    ),
+    ("specs/cold_extraction_tile.rs", "part2_extraction_components_after_child"): (
+        "Err(error)=>Some((Ok((Err(error),before)),calls))",
+        "Part2PreparedComponentContext {before,plans,precincts,styles,kernels,maximum,index,value}",
+        "Err(error)=>(Err(error),before)", "Ok(())=>(Ok(()),before.push(value))",
+    ),
+    ("specs/cold_extraction_tile.rs", "part2_extraction_components_next"): (
+        "if before.0.is_err()", "part2_extraction_reconstruct_component_run(",
+        "part2_extraction_components_after_child(before.1,plans,precincts,styles,kernels,maximum,index,result,rest)",
+    ),
     ("specs/cold_coefficient_extraction.rs", "part2_extraction_context"): (
         "width:plane.width,height:plane.height,coefficients:plane.coefficients.len(),coordinate",
     ),
@@ -7835,6 +8034,31 @@ _COEFFICIENT_EXTRACTION_GUARDS = {
     ),
 }
 _COEFFICIENT_EXTRACTION_NATIVE_ORDER = {
+    ("src/decode/pdf_trailers.rs", "decode_trailer_layout"): (
+        "let assembled = assemble_prepared_components(", "part2_trailer_assembly_observed(",
+        "part2_cold_prefix_result(", "let image = assembled?",
+    ),
+    ("src/decode/reconstruction.rs", "prepared_tile_views"): (
+        "let reserved = if prepared.is_empty()", "Ok(Vec::new())", "empty_with_capacity(prepared.len())",
+        "part2_prepared_views_observed(", "let mut tiles = reserved?", "while index < prepared.len()",
+        ".as_tile_component()", "tiles.push(tile)",
+    ),
+    ("src/decode/reconstruction.rs", "assemble_prepared_components"): (
+        "let views = prepared_tile_views(prepared)", "part2_assemble_prepared_views_refused(", "let tiles = views?",
+        "match selection", "assemble_image(", "assemble_selected_image(",
+    ),
+    ("src/decode/execution.rs", "reconstruct_planned_tile"): (
+        "let component_result =", "prepare_tile_component_with_kernel(", "let component = component_result?",
+        "reserve_additional(prepared, 1)", "Part2PreparedComponentContext",
+        "part2_prepared_component_capacity_observed(", "part2_extraction_tile_publication_refused(",
+        "reserved?", "prepared.push(component)", "component_index = component_index",
+    ),
+    ("src/decode/reconstruction.rs", "decode_progression_prepared_image"): (
+        "let component_result = prepare_tile_component(", "let component = component_result?",
+        "reserve_additional(&mut prepared, 1)", "Part2PreparedComponentContext",
+        "part2_prepared_component_capacity_observed(", "part2_coefficient_progression_publication_refused(",
+        "reserved?", "prepared.push(component)", "component_index = component_index",
+    ),
     ("src/decode/code_blocks.rs", "collect_code_block_coefficients"): (
         "let coefficients = plane.coefficients()", "let count = coefficients.len()",
         "if count == 0", "crate::allocation::empty_with_capacity(count)", "let mut signed = allocated?",
@@ -7847,6 +8071,9 @@ _COEFFICIENT_EXTRACTION_NATIVE_ORDER = {
     ),
 }
 _COEFFICIENT_EXTRACTION_TESTS = {
+    ("src/decode/tests.rs", "prepared_view_storage_preserves_borrows_raw_metadata_empty_and_retry"),
+    ("src/decode/tests.rs", "prepared_component_storage_keeps_prior_prefix_work_and_held_capacity"),
+} | {
     ("src/decode/tests.rs", "coefficient_extraction_storage_" + suffix) for suffix in (
         "distinct_linear_coordinate_raw_values_and_restore",
         "zero_raw_shape_and_ordinary_cell_error_order",
@@ -14744,7 +14971,10 @@ def validate_normative_coverage(
                     "src/jpip/automatic_phases.rs", "decode_automatic_precinct")
                 exact_copy_phase_requires = copy_phase and re.search(
                     r"\brequires\s+start\s*<=\s*prefix\.len\(\)\s*,\s*ensures\b", contract)
-                if relation is None or (re.search(r"\brequires\b", contract) and not exact_copy_phase_requires):
+                exact_prepare_band_requires = (reference["path"], reference["symbol"]) == (
+                    "src/decode/reconstruction.rs", "append_prepare_subband") and re.search(
+                    r"\brequires\s+old\(working\)\.bands\.len\(\)\s*<\s*usize::MAX\s*,\s*ensures\b", contract)
+                if relation is None or (re.search(r"\brequires\b", contract) and not (exact_copy_phase_requires or exact_prepare_band_requires)):
                     raise ValueError(f"linked function lacks executable Verus contract: {short}; invalid storage relation")
                 if mutating:
                     state_result = relation
@@ -15100,12 +15330,13 @@ def validate_normative_coverage(
                     contract, named_result, prepare_contract_arguments[0], prepare_contract_arguments[1],
                 )
             )
-            if cold_contract is not None and short in ("prepare_tile_component", "collect_prepare_coefficients", "copy_prepare_plane"):
+            if cold_contract is not None and short in ("prepare_tile_component", "collect_prepare_coefficients", "copy_prepare_plane", "initialize_prepare_working"):
                 prepare_arguments_bound = _coverage_extraction_normal_arguments(
                     contract,
                     {"prepare_tile_component": "prepared_component_outcome",
                      "collect_prepare_coefficients": "crate::transform::quantized_coefficients_outcome",
-                     "copy_prepare_plane": "prepare_fold_outcome"}[short],
+                     "copy_prepare_plane": "prepare_fold_outcome",
+                     "initialize_prepare_working": "prepare_working_outcome"}[short],
                     prepare_contract_arguments[0], prepare_contract_arguments[1],
                 )
             component_contract_arguments = {
@@ -15733,6 +15964,53 @@ def validate_normative_coverage(
                 position = found + len(token)
         if not _BITPLANE_INITIAL_TESTS.issubset({(ref["path"], ref["symbol"]) for ref in entry["test_refs"]}):
             raise ValueError("initial bitplane storage requires bounded raw/empty/first-later/error/present-state/real-public restoration controls")
+    if ids & _PREPARE_WORKING_ENTRIES:
+        for (relative, symbol), fragments in _PREPARE_WORKING_GUARDS.items():
+            body = _coverage_spec_function_body(source_text((ROOT / relative).resolve()), symbol)
+            compact = "".join(body.split()) if body is not None else ""
+            if any("".join(fragment.split()) not in compact for fragment in fragments):
+                raise ValueError("preparation working storage requires exact raw owners, stages, counts, charged errors and tails")
+        for symbol, fragments in _PREPARE_WORKING_NATIVE_ORDER.items():
+            path = (ROOT / "src/decode/reconstruction.rs").resolve()
+            body = _coverage_function_body(source_text(path), function_header(path, symbol))
+            compact = "".join(body.split()) if body is not None else ""
+            position = 0
+            for fragment in fragments:
+                token = "".join(fragment.split())
+                found = compact.find(token, position)
+                if found < 0:
+                    raise ValueError("preparation working storage requires original geometry/charge/sample/visited/descriptor order")
+                position = found + len(token)
+        for entry in coverage["requirements"]:
+            if entry["id"] in _PREPARE_WORKING_ENTRIES and (
+                    "src/decode/tests.rs", "prepare_working_storage_preserves_charged_prefixes_and_semantic_frontiers") not in {
+                        (ref["path"], ref["symbol"]) for ref in entry["test_refs"]}:
+                raise ValueError("preparation working storage requires bounded charged-prefix/refusal/semantic/empty/restore controls")
+    if ids & _PRECINCT_CONTRIBUTION_ENTRIES:
+        for (relative, symbol), fragments in _PRECINCT_CONTRIBUTION_GUARDS.items():
+            body = _coverage_spec_function_body(source_text((ROOT / relative).resolve()), symbol)
+            compact = "".join(body.split()) if body is not None else ""
+            if any("".join(fragment.split()) not in compact for fragment in fragments):
+                raise ValueError("precinct contribution storage requires actual prefix/source/count/reply/inner/rollback/tail production")
+        for symbol, fragments in _PRECINCT_CONTRIBUTION_NATIVE_ORDER.items():
+            path = (ROOT / "src/packet/precinct.rs").resolve()
+            body = _coverage_function_body(source_text(path), function_header(path, symbol))
+            compact = "".join(body.split()) if body is not None else ""
+            position = 0
+            for fragment in fragments:
+                token = "".join(fragment.split())
+                found = compact.find(token, position)
+                if found < 0:
+                    raise ValueError("precinct contribution storage requires original prefix/reservation/header/body/inner-call order")
+                position = found + len(token)
+        for entry in coverage["requirements"]:
+            if entry["id"] in _PRECINCT_CONTRIBUTION_ENTRIES:
+                for field, required in (("spec_refs", _PRECINCT_CONTRIBUTION_MODELS), ("proof_refs", _PRECINCT_CONTRIBUTION_PROOFS)):
+                    if not required.issubset({(ref["path"], ref["symbol"]) for ref in entry[field]}):
+                        raise ValueError("precinct contribution storage requires complete buffer and JPIP inner-call producers")
+                if ("src/packet/tests.rs", "precinct_contribution_storage_keeps_prefix_priority_header_only_and_empty_frames") not in {
+                        (ref["path"], ref["symbol"]) for ref in entry["test_refs"]}:
+                    raise ValueError("precinct contribution storage requires bounded prefix/header-only/empty/rollback/restore controls")
     if ids & _TAG_COPY_ENTRIES:
         owner_source = source_text((ROOT / "specs/cold_rollback_snapshot.rs").resolve())
         for symbol, fragments in _ROLLBACK_OWNER_GUARDS.items():

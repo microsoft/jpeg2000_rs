@@ -387,7 +387,8 @@ pub fn prepare_tile_component(
 }
 
 #[cfg_attr(verus_keep_ghost, verus_spec(result =>
-    ensures prepare_working_outcome(result) == crate::specs::part1_prepare_init_prefix(bands@, fraction, crate::limits::resource_decoded_bytes_limit(limits), selected as nat),
+    ensures crate::specs::part2_prepare_init_result(bands@,selected,fraction,crate::limits::resource_decoded_bytes_limit(limits),prepare_working_outcome(result)),
+    prepare_working_outcome(result)!=Err(DecodeError::AllocationFailed) ==> prepare_working_outcome(result) == crate::specs::part1_prepare_init_prefix(bands@, fraction, crate::limits::resource_decoded_bytes_limit(limits), selected as nat),
     result.is_ok() ==> result->Ok_0.bands.len() == selected,
 ))]
 pub(super) fn initialize_prepare_working(
@@ -396,8 +397,21 @@ pub(super) fn initialize_prepare_working(
     fraction: u8,
     limits: &ResourceLimits,
 ) -> Result<PrepareWorking, DecodeError> {
+    #[cfg(verus_keep_ghost)]
+    proof! {crate::specs::part2_prepare_init_normal(bands@,selected,fraction,crate::limits::resource_decoded_bytes_limit(limits));}
+    let reserved = if selected == 0 {
+        Ok(Vec::new())
+    } else {
+        crate::allocation::empty_with_capacity(selected)
+    };
+    #[cfg(verus_keep_ghost)]
+    proof! {
+        let context=crate::specs::Part2PrepareWorkingContext::Owner {bands:bands@,selected,fraction,maximum:crate::limits::resource_decoded_bytes_limit(limits)};
+        crate::specs::part2_prepare_working_capacity_observed(context,crate::allocation::inspection_capacity_outcome(reserved));
+        if reserved.is_err(){crate::specs::part2_prepare_init_owner_refused(bands@,selected,fraction,crate::limits::resource_decoded_bytes_limit(limits));}
+    }
     let mut working = PrepareWorking {
-        bands: Vec::with_capacity(selected),
+        bands: reserved?,
         bytes: 0,
     };
     let mut index = 0_usize;
@@ -408,10 +422,14 @@ pub(super) fn initialize_prepare_working(
     }
     #[cfg_attr(verus_keep_ghost, verus_spec(
         invariant index <= selected, working.bands.len() == index,
+        crate::specs::part2_prepare_init_result(bands@,selected,fraction,crate::limits::resource_decoded_bytes_limit(limits),
+            crate::specs::part1_prepare_init_prefix(bands@,fraction,crate::limits::resource_decoded_bytes_limit(limits),selected as nat)),
         crate::specs::part1_prepare_init_prefix(bands@, fraction, crate::limits::resource_decoded_bytes_limit(limits), index as nat) == Ok(working@),
         decreases selected - index,
     ))]
     while index < selected {
+        #[cfg(verus_keep_ghost)]
+        proof_decl! {let ghost before_working=working@;}
         #[cfg(verus_keep_ghost)]
         proof! { crate::proofs::production_impl::production_prepare_init_step(bands@, fraction, crate::limits::resource_decoded_bytes_limit(limits), index as nat); }
         let operation = append_prepare_subband(&mut working, bands, index, fraction, limits);
@@ -419,8 +437,11 @@ pub(super) fn initialize_prepare_working(
             Ok(()) => {}
             Err(error) => {
                 #[cfg(verus_keep_ghost)]
-                proof! { crate::proofs::production_impl::production_prepare_init_error(
+                proof! {
+                    crate::specs::part2_prepare_init_band_error(bands@,selected,fraction,crate::limits::resource_decoded_bytes_limit(limits),index,before_working,(operation,working@));
+                    if error!=DecodeError::AllocationFailed{crate::proofs::production_impl::production_prepare_init_error(
                     bands@, fraction, crate::limits::resource_decoded_bytes_limit(limits), index as nat + 1, selected as nat, error);
+                    }
                 }
                 return Err(error);
             }
@@ -438,7 +459,8 @@ pub(super) fn initialize_prepare_working(
 
 #[cfg_attr(verus_keep_ghost, verus_spec(result =>
     requires old(working).bands.len() < usize::MAX,
-    ensures (result, final(working)@) == crate::specs::part1_prepare_append_band(old(working)@, bands@, index, fraction, crate::limits::resource_decoded_bytes_limit(limits)),
+    ensures crate::specs::part2_prepare_band_result(old(working)@,bands@,index,fraction,crate::limits::resource_decoded_bytes_limit(limits),(result,final(working)@)),
+    result!=Err(DecodeError::AllocationFailed) ==> (result, final(working)@) == crate::specs::part1_prepare_append_band(old(working)@, bands@, index, fraction, crate::limits::resource_decoded_bytes_limit(limits)),
     result.is_ok() ==> final(working).bands.len() == old(working).bands.len() + 1,
 ))]
 pub(super) fn append_prepare_subband(
@@ -448,6 +470,10 @@ pub(super) fn append_prepare_subband(
     fraction: u8,
     limits: &ResourceLimits,
 ) -> Result<(), DecodeError> {
+    #[cfg(verus_keep_ghost)]
+    proof_decl! {let ghost initial=working@;}
+    #[cfg(verus_keep_ghost)]
+    proof! {crate::specs::part2_prepare_band_stage_normal(initial,bands@,index,fraction,crate::limits::resource_decoded_bytes_limit(limits),crate::specs::Part2PrepareBandStage::Samples);}
     let geometry = *bands.get(index).ok_or_else(invalid_decode)?;
     let length = checked_area_u32(geometry.width, geometry.height)?;
     let bytes = (length as u64)
@@ -466,12 +492,42 @@ pub(super) fn append_prepare_subband(
     }
     #[cfg(verus_keep_ghost)]
     proof_decl! { let ghost before = working.bands@; }
+    let samples_result = crate::allocation::filled_values(0_i64, length);
+    #[cfg(verus_keep_ghost)]
+    proof! {
+        let stage=crate::specs::Part2PrepareBandStage::Samples;
+        let context=crate::specs::Part2PrepareWorkingContext::Band {before:initial,bands:bands@,index,fraction,maximum:crate::limits::resource_decoded_bytes_limit(limits),stage};
+        crate::specs::part2_prepare_working_capacity_observed(context,crate::allocation::inspection_capacity_outcome(samples_result));
+        if samples_result.is_err(){crate::specs::part2_prepare_band_refused_at(initial,bands@,index,fraction,crate::limits::resource_decoded_bytes_limit(limits),
+            crate::specs::Part2PrepareBandStage::Samples,stage);}
+    }
+    let samples = samples_result?;
+    let visited_result = crate::allocation::filled_values(false, length);
+    #[cfg(verus_keep_ghost)]
+    proof! {
+        let stage=crate::specs::Part2PrepareBandStage::Visited;
+        let context=crate::specs::Part2PrepareWorkingContext::Band {before:initial,bands:bands@,index,fraction,maximum:crate::limits::resource_decoded_bytes_limit(limits),stage};
+        crate::specs::part2_prepare_working_capacity_observed(context,crate::allocation::inspection_capacity_outcome(visited_result));
+        if visited_result.is_err(){crate::specs::part2_prepare_band_refused_at(initial,bands@,index,fraction,crate::limits::resource_decoded_bytes_limit(limits),
+            crate::specs::Part2PrepareBandStage::Samples,stage);}
+    }
+    let visited = visited_result?;
+    let reserved = crate::allocation::reserve_additional(&mut working.bands, 1);
+    #[cfg(verus_keep_ghost)]
+    proof! {
+        let stage=crate::specs::Part2PrepareBandStage::Descriptor;
+        let context=crate::specs::Part2PrepareWorkingContext::Band {before:initial,bands:bands@,index,fraction,maximum:crate::limits::resource_decoded_bytes_limit(limits),stage};
+        crate::specs::part2_prepare_working_capacity_observed(context,crate::allocation::inspection_capacity_outcome(reserved));
+        if reserved.is_err(){crate::specs::part2_prepare_band_refused_at(initial,bands@,index,fraction,crate::limits::resource_decoded_bytes_limit(limits),
+            crate::specs::Part2PrepareBandStage::Samples,stage);}
+    }
+    reserved?;
     working.bands.push(WorkingSubband {
         width: geometry.width,
         height: geometry.height,
         fraction_bits: fraction,
-        samples: vec![0_i64; length],
-        visited: vec![false; length],
+        samples,
+        visited,
     });
     #[cfg(verus_keep_ghost)]
     proof! {
@@ -771,12 +827,20 @@ pub(super) fn prepare_tile_component_with_kernel(
     if selected_subbands > plan.subbands.len() {
         return Err(invalid_decode());
     }
-    let mut working = initialize_prepare_working(
+    let initialized = initialize_prepare_working(
         &plan.subbands,
         selected_subbands,
         expected_fraction_bits,
         limits,
-    )?;
+    );
+    #[cfg(verus_keep_ghost)]
+    proof! {
+        if let Err(error)=initialized {
+            crate::specs::part2_extraction_component_init_error(prepare_plan_view(plan),prepare_precincts_view(precincts@),prepare_style_view(coding_style),
+                crate::transform::arbitrary_kernel_option(kernel),crate::limits::resource_decoded_bytes_limit(limits),reversible,selected_subbands,error);
+        }
+    }
+    let mut working = initialized?;
     #[cfg(verus_keep_ghost)]
     proof_decl! { let ghost initial_working = working@; }
 
@@ -1237,12 +1301,20 @@ pub(super) fn finish_prepared_component(
 }
 
 #[cfg_attr(verus_keep_ghost, verus_spec(result =>
-    ensures prepared_tiles_outcome(result) == Ok(prepared_components_view(prepared@)),
+    ensures crate::specs::part2_prepared_views_result(prepared_components_view(prepared@),prepared_tiles_outcome(result)),
+        match result{Err(error)=>error==DecodeError::AllocationFailed,Ok(_)=>prepared_tiles_outcome(result)==Ok(prepared_components_view(prepared@))},
 ))]
 pub(super) fn prepared_tile_views<'a>(
     prepared: &'a [PreparedTileComponent],
 ) -> Result<Vec<TileComponent<'a>>, DecodeError> {
-    let mut tiles = Vec::with_capacity(prepared.len());
+    let reserved = if prepared.is_empty() {
+        Ok(Vec::new())
+    } else {
+        crate::allocation::empty_with_capacity(prepared.len())
+    };
+    #[cfg(verus_keep_ghost)]
+    proof! {crate::specs::part2_prepared_views_observed(prepared_components_view(prepared@),crate::allocation::inspection_capacity_outcome(reserved));}
+    let mut tiles = reserved?;
     let mut index = 0_usize;
     #[cfg_attr(verus_keep_ghost, verus_spec(
         invariant index <= prepared.len(),
@@ -1270,7 +1342,9 @@ pub(super) fn prepared_tile_views<'a>(
 }
 
 #[cfg_attr(verus_keep_ghost, verus_spec(result =>
-    ensures crate::image::decoded_image_outcome(result) == crate::specs::part2_assemble_prepared(
+    ensures crate::specs::part2_assemble_prepared_storage_result(crate::image::assembly_size_view(size),prepared_components_view(prepared@),selection,
+        crate::limits::resource_decoded_bytes_limit(limits),crate::image::decoded_image_outcome(result)),
+    crate::image::decoded_image_outcome(result)!=Err(DecodeError::AllocationFailed) ==> crate::image::decoded_image_outcome(result) == crate::specs::part2_assemble_prepared(
         crate::image::assembly_size_view(size), prepared_components_view(prepared@), selection,
         crate::limits::resource_decoded_bytes_limit(limits)),
 ))]
@@ -1280,7 +1354,12 @@ pub(super) fn assemble_prepared_components(
     selection: Option<([u32; 4], u8)>,
     limits: &ResourceLimits,
 ) -> Result<DecodedImage, DecodeError> {
-    let tiles = prepared_tile_views(prepared)?;
+    #[cfg(verus_keep_ghost)]
+    proof! {crate::specs::part2_assemble_prepared_storage_normal(crate::image::assembly_size_view(size),prepared_components_view(prepared@),selection,crate::limits::resource_decoded_bytes_limit(limits));}
+    let views = prepared_tile_views(prepared);
+    #[cfg(verus_keep_ghost)]
+    proof! {if let Err(error)=views{crate::specs::part2_assemble_prepared_views_refused(crate::image::assembly_size_view(size),prepared_components_view(prepared@),selection,crate::limits::resource_decoded_bytes_limit(limits),error);}}
+    let tiles = views?;
     match selection {
         None => assemble_image(size, &tiles, limits),
         Some((region, levels)) => assemble_selected_image(size, &tiles, region, levels, limits),
@@ -1353,12 +1432,31 @@ pub fn decode_progression_prepared_image(
             if let Err(error)=component_result{crate::specs::part2_coefficient_progression_error(crate::image::assembly_size_view(size),plans,precincts,plan.component_coding_styles,plan.coding_style,
                 crate::limits::resource_decoded_bytes_limit(limits),component_index as nat,prepared_components_view(prepared@),error);}
         }
-        prepared.push(component_result?);
+        let component = component_result?;
+        let reserved = crate::allocation::reserve_additional(&mut prepared, 1);
+        #[cfg(verus_keep_ghost)]
+        proof! {
+            let context=crate::specs::Part2PreparedComponentContext {
+                before:prepared_components_view(prepared@),plans,precincts,styles:plan.component_coding_styles,kernels:Seq::empty(),
+                maximum:crate::limits::resource_decoded_bytes_limit(limits),index:component_index as nat,value:prepared_component_view(component)};
+            crate::specs::part2_prepared_component_capacity_observed(context,crate::allocation::inspection_capacity_outcome(reserved));
+            if reserved.is_err(){crate::specs::part2_coefficient_progression_publication_refused(crate::image::assembly_size_view(size),context,plan.coding_style);}
+        }
+        reserved?;
+        prepared.push(component);
         component_index = component_index
             .checked_add(1)
             .ok_or_else(arithmetic_overflow)?;
     }
-    let tile_components = prepared_tile_views(&prepared)?;
+    let views = prepared_tile_views(&prepared);
+    #[cfg(verus_keep_ghost)]
+    proof! {
+        if let Err(error)=views {
+            crate::specs::part2_coefficient_progression_views_refused(crate::image::assembly_size_view(size),plans,precincts,plan.component_coding_styles,plan.coding_style,
+                crate::limits::resource_decoded_bytes_limit(limits),prepared_components_view(prepared@),error);
+        }
+    }
+    let tile_components = views?;
     let component_transform = if !plan.coding_style.multiple_component_transform {
         ComponentTransform::None
     } else {

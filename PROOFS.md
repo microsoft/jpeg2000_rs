@@ -39,6 +39,56 @@ an all-feature Verus proof. Full source-function coverage remains `not-measured`
 
 ## Fallible-storage foundation and remaining boundary
 
+### Borrowed prepared views
+
+The final prepared-to-tile view vector now uses checked metadata storage and
+continues borrowing the original sample slices without copying or validating
+their raw metadata. Empty input makes no request. Its source-qualified reply
+and exact nested-call envelope compose before assembly in full/selected layout
+decoding and before transform dispatch in the direct progression caller.
+Every non-refusal ordinary result is retained; later assembly/output storage
+is a separate boundary, not silently included in this increment.
+
+### Completed reconstructed component publication
+
+The prepared component output checks one slot after actual component
+reconstruction and before publishing the value or advancing its ordinal.
+The cold frame retains prior output values, the plans and precinct sources,
+styles, kernels, limit, exact child value and ordinal. Refusal leaves prior
+output/work unchanged; earlier child failures retain their priority.
+The shared direct progression caller records the same checked stage, which
+can succeed without a physical request when its capacity is already held.
+Its separate initial output reservation remains outside this increment.
+
+### Preparation working owners
+
+The working subband descriptor collection now reserves through checked storage
+before its original traversal. Each append retains geometry and cumulative
+byte charging before checked zero-sample, visited and descriptor-growth stages.
+Refusal retains the prior bands and already-updated byte charge; it does not
+pretend the private counter rolled back. Distinct source-qualified stages retain
+the raw bands, index, fraction, limit, prior working state, count and actual
+reply/tail. Initializer failures compose into the actual standard and arbitrary
+component preparation callers. Empty initialization is request-free, while
+every non-refusal ordinary result/error remains unchanged.
+
+### Packet contribution buffers and header-only callers
+
+Precinct payload decoding initializes its contribution buffer through checked
+storage after actual SOP/prefix validation and before contribution headers.
+An empty state uses no request. The source-qualified response retains the
+precinct, both byte sources, parameters, header/work caps and exact element
+count. Prefix errors retain their priority; header-only operation can now
+return a typed storage refusal instead of aborting, while leaving decoders
+unchanged. Every non-refusal ordinary result is retained.
+
+The coupled JPIP inner call has its own complete source/result frame, including
+the layered contexts and actual inline source. Its outer call envelope records
+all caps, consumes exactly the nested calls and preserves the arbitrary tail.
+The existing snapshot wrapper restores the original owners on a refused inner
+buffer just as on other inner errors. Existing infallible public Clone APIs
+and remaining internal owners are not silently included in this increment.
+
 ### Completed precinct publication
 
 Component planning checks one additional precinct slot at the reached append,

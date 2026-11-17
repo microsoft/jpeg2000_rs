@@ -8253,6 +8253,126 @@ class FrameworkTests(WorkingFiles):
                     self.assertRaisesRegex(ValueError, "fallible copy storage"):
                 framework.validate_normative_coverage(dict(coverage, requirements=[entry]))
 
+    def test_inventory_prepared_views_require_raw_source_count_nested_exhaustion_and_tail(self):
+        coverage = json.loads((framework.VALIDATION / "normative-coverage.json").read_text())
+        entry = next(item for item in coverage["requirements"]
+                     if item["id"] == "part1-complete-standard-plan-coordinator")
+        read_text = Path.read_text
+        for relative, symbol, before, after in (
+            ("src/decode/reconstruction.rs", "prepared_tile_views", "empty_with_capacity(prepared.len())",
+             "empty_with_capacity(1)"),
+            ("specs/cold_prepare_copies.rs", "part2_prepared_views_run", "elements!=source.len()", "elements!=1"),
+            ("specs/cold_prepare_copies.rs", "part2_prepared_views_run", "calls.drop_first()", "calls"),
+            ("specs/cold_prepare_copies.rs", "part2_prepared_view_calls_run", "if rest.len()==0", "if true"),
+            ("specs/cold_prepare_copies.rs", "part2_prepared_view_calls_run", "actual!=source", "false"),
+            ("specs/pdf_trailers.rs", "part2_trailer_assembly_run",
+             "part2_assemble_prepared_storage_run(", "pure_assembly_without_storage("),
+            ("src/decode/pdf_trailers.rs", "decode_trailer_layout",
+             "part2_trailer_assembly_observed(", "unrelated_terminal_result("),
+        ):
+            source = framework.ROOT / relative
+            original = read_text(source)
+            body = (framework._coverage_function_body(original, framework._coverage_function_header(original, symbol))
+                    if relative.startswith("src/") else framework._coverage_spec_function_body(original, symbol))
+            self.assertIn(before, body)
+            changed = original.replace(body, body.replace(before, after, 1), 1)
+
+            def altered(path, *args, **kwargs):
+                return changed if path == source else read_text(path, *args, **kwargs)
+
+            with self.subTest(mutation=before), mock.patch.object(Path, "read_text", altered), \
+                    self.assertRaisesRegex(ValueError, "coefficient extraction"):
+                framework.validate_normative_coverage(dict(coverage, requirements=[entry]))
+
+    def test_inventory_prepared_component_requires_exact_child_ordinal_prefix_and_tail(self):
+        coverage = json.loads((framework.VALIDATION / "normative-coverage.json").read_text())
+        entry = next(item for item in coverage["requirements"]
+                     if item["id"] == "part1-complete-standard-plan-coordinator")
+        read_text = Path.read_text
+        for relative, symbol, before, after in (
+            ("src/decode/execution.rs", "reconstruct_planned_tile", "reserve_additional(prepared, 1)",
+             "reserve_additional(prepared, 2)"),
+            ("specs/cold_extraction_tile.rs", "part2_prepared_component_capacity_run",
+             "actual!=context || elements!=1", "actual!=context || elements!=2"),
+            ("specs/cold_extraction_tile.rs", "part2_prepared_component_capacity_run",
+             "calls.drop_first()", "calls"),
+            ("specs/cold_extraction_tile.rs", "part2_extraction_components_after_child",
+             "maximum,index,value}", "maximum,index:0,value}"),
+            ("specs/cold_extraction_tile.rs", "part2_extraction_components_after_child",
+             "Err(error)=>(Err(error),before)", "Err(error)=>(Err(error),Seq::empty())"),
+        ):
+            source = framework.ROOT / relative
+            original = read_text(source)
+            body = (framework._coverage_function_body(original, framework._coverage_function_header(original, symbol))
+                    if relative.startswith("src/") else framework._coverage_spec_function_body(original, symbol))
+            self.assertIn(before, body)
+            changed = original.replace(body, body.replace(before, after, 1), 1)
+
+            def altered(path, *args, **kwargs):
+                return changed if path == source else read_text(path, *args, **kwargs)
+
+            with self.subTest(mutation=before), mock.patch.object(Path, "read_text", altered), \
+                    self.assertRaisesRegex(ValueError, "coefficient extraction"):
+                framework.validate_normative_coverage(dict(coverage, requirements=[entry]))
+
+    def test_inventory_prepare_working_rejects_lost_charge_stage_source_and_tail(self):
+        coverage = json.loads((framework.VALIDATION / "normative-coverage.json").read_text())
+        entry = next(item for item in coverage["requirements"]
+                     if item["id"] == "part1-complete-standard-plan-coordinator")
+        read_text = Path.read_text
+        for relative, before, after in (
+            ("src/decode/reconstruction.rs", "empty_with_capacity(selected)", "empty_with_capacity(1)"),
+            ("src/decode/reconstruction.rs", "filled_values(false, length)", "filled_values(false, 1)"),
+            ("specs/cold_prepare_copies.rs", "(before.0,ordinary.1.1)", "before"),
+            ("specs/cold_prepare_copies.rs", "Part2PrepareWorkingContext::Owner {bands,selected,fraction,maximum}",
+             "Part2PrepareWorkingContext::Owner {bands:Seq::empty(),selected,fraction,maximum}"),
+            ("specs/cold_prepare_copies.rs", "actual!=context || elements!=count", "actual!=context || elements!=1"),
+            ("specs/cold_prepare_copies.rs", "calls.drop_first()", "calls"),
+        ):
+            source = framework.ROOT / relative
+            original = read_text(source)
+            if before == "calls.drop_first()":
+                body = framework._coverage_spec_function_body(original, "part2_prepare_working_capacity_run")
+                changed = original.replace(body, body.replace(before, after, 1), 1)
+            else:
+                changed = original.replace(before, after, 1)
+            self.assertNotEqual(original, changed)
+
+            def altered(path, *args, **kwargs):
+                return changed if path == source else read_text(path, *args, **kwargs)
+
+            with self.subTest(mutation=before), mock.patch.object(Path, "read_text", altered), \
+                    self.assertRaisesRegex(ValueError, "preparation working storage"):
+                framework.validate_normative_coverage(dict(coverage, requirements=[entry]))
+
+    def test_inventory_precinct_contributions_require_actual_count_prefix_and_jpip_rollback_tail(self):
+        coverage = json.loads((framework.VALIDATION / "normative-coverage.json").read_text())
+        entry = next(item for item in coverage["requirements"]
+                     if item["id"] == "part1-complete-native-public-packet-boundaries")
+        read_text = Path.read_text
+        for relative, before, after in (
+            ("src/packet/precinct.rs", "none_values(precinct.states.len())", "none_values(1)"),
+            ("specs/cold_packet_payload.rs", "actual!=context || elements!=count",
+             "actual!=context || elements!=1"),
+            ("specs/cold_packet_payload.rs",
+             "Part2PrecinctContributionsContext {state,data,packed,parameters,header_limit,work}",
+             "Part2PrecinctContributionsContext {state,data,packed:Seq::empty(),parameters,header_limit,work}"),
+            ("specs/cold_packet_copy.rs", "if rest.len()!=0", "if false"),
+            ("specs/cold_packet_copy.rs", "if result.0.is_err(){initial}else{result.1}", "result.1"),
+            ("specs/cold_packet_copy.rs", "caps!=part2_jpip_inner_caps(limits)", "false"),
+        ):
+            source = framework.ROOT / relative
+            original = read_text(source)
+            changed = original.replace(before, after, 1)
+            self.assertNotEqual(original, changed)
+
+            def altered(path, *args, **kwargs):
+                return changed if path == source else read_text(path, *args, **kwargs)
+
+            with self.subTest(mutation=before), mock.patch.object(Path, "read_text", altered), \
+                    self.assertRaisesRegex(ValueError, "precinct contribution storage"):
+                framework.validate_normative_coverage(dict(coverage, requirements=[entry]))
+
     def test_inventory_precinct_publication_rejects_count_location_and_child_tail_changes(self):
         coverage = json.loads((framework.VALIDATION / "normative-coverage.json").read_text())
         entry = next(item for item in coverage["requirements"]
@@ -10037,6 +10157,9 @@ class FrameworkTests(WorkingFiles):
                     isolated["spec_refs"] = [item for item in entry["spec_refs"] if item["symbol"] == model]
             if isolate:
                 cold_models, cold_proofs = framework._coverage_cold_links({key})
+                if isolated["id"] in framework._PRECINCT_CONTRIBUTION_ENTRIES:
+                    cold_models |= framework._PRECINCT_CONTRIBUTION_MODELS
+                    cold_proofs |= framework._PRECINCT_CONTRIBUTION_PROOFS
                 if isolated["id"] == framework._PRECINCT_SINGLETON_ENTRY:
                     cold_models |= framework._PRECINCT_SINGLETON_MODELS
                     cold_proofs |= framework._PRECINCT_SINGLETON_PROOFS
@@ -10061,6 +10184,11 @@ class FrameworkTests(WorkingFiles):
                     {"path": path, "symbol": symbol} for path, symbol in sorted(cold_proofs)
                 ]
                 isolated["test_refs"] = entry["test_refs"][:1]
+                if isolated["id"] in framework._PRECINCT_CONTRIBUTION_ENTRIES:
+                    isolated["test_refs"].append({
+                        "path": "src/packet/tests.rs",
+                        "symbol": "precinct_contribution_storage_keeps_prefix_priority_header_only_and_empty_frames",
+                    })
                 if isolated["id"] == framework._LEGACY_SNAPSHOT_ENTRY:
                     isolated["test_refs"] += [
                         {"path": path, "symbol": symbol} for path, symbol in sorted(framework._LEGACY_SNAPSHOT_TESTS)
