@@ -10065,6 +10065,9 @@ class FrameworkTests(WorkingFiles):
                     isolated["spec_refs"] = [item for item in entry["spec_refs"] if item["symbol"] == model]
             if isolate:
                 cold_models, cold_proofs = framework._coverage_cold_links({key})
+                if isolated["id"] in framework._PRECINCT_CONTRIBUTION_ENTRIES:
+                    cold_models |= framework._PRECINCT_CONTRIBUTION_MODELS
+                    cold_proofs |= framework._PRECINCT_CONTRIBUTION_PROOFS
                 if isolated["id"] == framework._PRECINCT_SINGLETON_ENTRY:
                     cold_models |= framework._PRECINCT_SINGLETON_MODELS
                     cold_proofs |= framework._PRECINCT_SINGLETON_PROOFS
@@ -10089,6 +10092,11 @@ class FrameworkTests(WorkingFiles):
                     {"path": path, "symbol": symbol} for path, symbol in sorted(cold_proofs)
                 ]
                 isolated["test_refs"] = entry["test_refs"][:1]
+                if isolated["id"] in framework._PRECINCT_CONTRIBUTION_ENTRIES:
+                    isolated["test_refs"].append({
+                        "path": "src/packet/tests.rs",
+                        "symbol": "precinct_contribution_storage_keeps_prefix_priority_header_only_and_empty_frames",
+                    })
                 if isolated["id"] == framework._LEGACY_SNAPSHOT_ENTRY:
                     isolated["test_refs"] += [
                         {"path": path, "symbol": symbol} for path, symbol in sorted(framework._LEGACY_SNAPSHOT_TESTS)
