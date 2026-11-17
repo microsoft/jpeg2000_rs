@@ -8253,6 +8253,30 @@ class FrameworkTests(WorkingFiles):
                     self.assertRaisesRegex(ValueError, "fallible copy storage"):
                 framework.validate_normative_coverage(dict(coverage, requirements=[entry]))
 
+    def test_inventory_selection_storage_rejects_misbound_capacity_and_erased_stages(self):
+        coverage = json.loads((framework.VALIDATION / "normative-coverage.json").read_text())
+        entry = next(item for item in coverage["requirements"]
+                     if item["id"] == "part2-complete-native-container-selection-output")
+        read_text = Path.read_text
+        for relative, before, after in (
+            ("src/decode/selection.rs", "empty_with_capacity(count)", "empty_with_capacity(1)"),
+            ("specs/decoder_input.rs", "actual_count != count", "actual_count != 0"),
+            ("specs/decoder_input.rs", "elements != tiles.len()", "elements != 1"),
+            ("specs/container_colors.rs", "part2_color_selection_layout_run(layout, requested, rest)",
+             "Some((part2_color_selection_layout(layout, requested), rest))"),
+        ):
+            source = framework.ROOT / relative
+            original = read_text(source)
+            changed = original.replace(before, after, 1)
+            self.assertNotEqual(original, changed)
+
+            def altered(path, *args, **kwargs):
+                return changed if path == source else read_text(path, *args, **kwargs)
+
+            with self.subTest(mutation=before), mock.patch.object(Path, "read_text", altered), \
+                    self.assertRaisesRegex(ValueError, "selected tile storage"):
+                framework.validate_normative_coverage(dict(coverage, requirements=[entry]))
+
     def test_inventory_quantization_cold_order_rejects_relabelled_requests_and_lost_partial_owners(self):
         coverage = json.loads((framework.VALIDATION / "normative-coverage.json").read_text())
         entry = next(item for item in coverage["requirements"] if item["id"] == framework._RAW_LAYOUT_ENTRY)
@@ -8261,7 +8285,9 @@ class FrameworkTests(WorkingFiles):
             ("src/codestream/layout.rs", "Parser::parse_layout",
              "reserve_additional(&mut tile_part_payloads, 1)", "reserve_additional(&mut tile_part_payloads, 2)"),
             ("specs/cold_layout.rs", "part1_cold_commit_payload",
-             "part1_quantization_storage_request(16, 1, rest)", "part1_quantization_storage_request(16, 2, rest)"),
+             "part1_quantization_storage_request(82, 1, rest)", "part1_quantization_storage_request(82, 2, rest)"),
+            ("specs/cold_layout.rs", "part1_cold_commit_payload",
+             "part1_quantization_storage_request(82, 1, rest)", "part1_quantization_storage_request(16, 1, rest)"),
             ("specs/cold_layout.rs", "part1_cold_commit_payload",
              "committed.1.2, state.3", "committed.1.2, committed.1.3"),
             ("specs/cold_layout.rs", "part1_cold_layout_after_extensions_copy",
@@ -10211,6 +10237,7 @@ class FrameworkTests(WorkingFiles):
             ("src/decode/selection.rs", "validate_selection_tile_rectangle", None, "part2_validate_tile_rectangle", ("explicit_tiles@, tiles_across", "explicit_tiles@, 0")),
             ("src/decode/selection.rs", "validate_selection_rectangle_cells", None, "part2_rectangle_rows", ("bounds.2 as nat - bounds.0 as nat + 1", "bounds.3 as nat - bounds.1 as nat + 1")),
             ("src/decode/selection.rs", "selection_region", "selection_region_outcome", "part2_selection_region", ("requested, image_x1, image_y1", "requested, image_y1, image_x1")),
+            ("src/decode/selection.rs", "intersecting_tile_count", None, "part2_intersecting_tile_count", ("region@, tile_count", "unrelated@, tile_count")),
             ("src/decode/selection.rs", "select_intersecting_tiles", "selected_tiles_outcome", "part2_select_intersecting_tiles", ("region@, tile_count", "unrelated@, tile_count")),
             ("src/decode/selection.rs", "explicit_tiles_from_selection", "selected_tiles_outcome", "part2_selection_explicit", ("tile_selection_view(selection)", "tile_selection_view(unrelated)")),
             ("src/decode/selection.rs", "validate_selection", "validated_selection_outcome", "part2_validate_selection", ("decode_selection_view(selection)", "decode_selection_view(unrelated)")),
@@ -10225,7 +10252,7 @@ class FrameworkTests(WorkingFiles):
             ("src/jp2/container.rs", "validate_container_codestream", None, "part2_validate_selected_header", ("header.image, codestream.image_size.width", "header.image, 0")),
             ("src/jp2/container.rs", "validate_selected_header", None, "part2_validate_selected_header", ("codestream.image_size.uniform_signed, offset", "codestream.image_size.uniform_signed, 0")),
         )
-        self.assertEqual(len(cases), 23)
+        self.assertEqual(len(cases), 24)
         for relative, symbol, projection, model, argument in cases:
             reference = {"path": relative, "symbol": symbol}
             coverage = copy.deepcopy(original_coverage)
@@ -10239,6 +10266,8 @@ class FrameworkTests(WorkingFiles):
             start = original.rfind("#[cfg_attr", 0, signature)
             contract = original[start:signature]
             expression = f"{projection}(result)" if projection else "result"
+            ensured = (f"crate::specs::{framework._COLD_RESULT_MODELS[model][0]}("
+                       if model in framework._COLD_RESULT_MODELS else expression)
             inputs = [argument]
             for parameter in ("size", "header", "limits"):
                 pattern = rf"\(\s*{parameter}\s*\)"
@@ -10248,9 +10277,9 @@ class FrameworkTests(WorkingFiles):
                     if pair not in inputs:
                         inputs.append(pair)
             mutations = [
-                (f"ensures {expression}", "ensures unrelated"),
-                (f"ensures {expression}", "ensures result.is_ok()"),
-                (f"ensures {expression}", f"ensures result.is_ok() ==> {expression}"),
+                (f"ensures {ensured}", "ensures unrelated"),
+                (f"ensures {ensured}", "ensures result.is_ok()"),
+                (f"ensures {ensured}", f"ensures result.is_ok() ==> {ensured}"),
                 (f"crate::specs::{model}(", "crate::specs::part2_typed_component_copy("),
                 (f"crate::specs::{model}(", "crate::specs::unlisted_model("),
                 *inputs,

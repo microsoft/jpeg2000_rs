@@ -39,6 +39,22 @@ an all-feature Verus proof. Full source-function coverage remains `not-measured`
 
 ## Fallible-storage foundation and remaining boundary
 
+### Selected tile collection
+
+Selection validates and counts all intersecting tiles before one checked
+reservation, then fills the collection without growth. The second geometry
+walk avoids reserving for every tile in a small ROI and preserves complete
+geometry/membership error priority before reservation. Successful results,
+tile order, region and reduction are unchanged.
+
+The cold capacity event retains the exact geometry, explicit tile set, region,
+tile count, requested element count, response and tail. Selection validation,
+selected decode, color-context expansion and PDF trailer recovery compose this
+stage through their executing callers. Normal projections remain the original
+deterministic results; no blanket AllocationFailed alternative or allocator
+availability premise replaces them. Explicit-selection cloning and the other
+remaining #287 storage owners are separate, still-open work.
+
 ### Optional native buffered incremental input
 
 The default-off `incremental-input` feature exposes source assembly, explicit
@@ -176,8 +192,9 @@ the reached inherited/committed owners reuse `copy_values`, never deep
 POC construction, 14 is inheritance after quantization copying, and 15 is
 commit after the fifth store but before progression-slot lookup.
 
-Site 16 reserves the reached layout payload slot after successful persistent
-configuration, MCT and extension stores, before inserting the borrowed payload.
+Site 82, distinct from MCT array site 16, reserves the reached layout payload
+slot after successful persistent configuration, MCT and extension stores,
+before inserting the borrowed payload.
 On refusal the cold result retains those committed fields and the original
 payload sequence, not a rolled-back configuration or an already-pushed payload.
 Normal witnesses and arbitrary-tail frames include this ordered request.

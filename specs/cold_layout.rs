@@ -44,7 +44,7 @@ pub(crate) open spec fn part1_cold_commit_payload(
         None => None,
         Some((committed, rest)) => match committed.0 {
             Err(_) => Some((committed, rest)),
-            Ok(()) => match part1_quantization_storage_request(16, 1, rest) {
+            Ok(()) => match part1_quantization_storage_request(82, 1, rest) {
                 None => None,
                 Some((Ok(()), tail)) => Some((committed, tail)),
                 Some((Err(error), tail)) => Some(((Err(error),
@@ -60,7 +60,7 @@ pub(crate) open spec fn part1_cold_commit_payload_normal_calls(
     part1_commit_quantization_normal_calls(commit.position, commit.start, commit.index,
         state.3.len() as usize, commit.previous_roi, commit.payload, state.0)
         + if part1_commit_persistent_tile_state(state, commit).0.is_ok() {
-            seq![Part1ColdStorageEvent { site: 16, elements: 1, succeeded: true }]
+            seq![Part1ColdStorageEvent { site: 82, elements: 1, succeeded: true }]
         } else { Seq::empty() }
 }
 
@@ -331,7 +331,7 @@ pub(crate) proof fn part1_cold_commit_payload_normal(
     let before = part1_commit_quantization_normal_calls(commit.position, commit.start, commit.index,
         state.3.len() as usize, commit.previous_roi, commit.payload, state.0);
     let reserved = if part1_commit_persistent_tile_state(state, commit).0.is_ok() {
-        seq![Part1ColdStorageEvent { site: 16, elements: 1, succeeded: true }]
+        seq![Part1ColdStorageEvent { site: 82, elements: 1, succeeded: true }]
     } else { Seq::empty() };
     assert forall|tail: Seq<Part1ColdStorageEvent>|
         part1_cold_commit_payload(state, commit, (before + reserved) + tail)

@@ -394,7 +394,25 @@ pub(super) fn decode_layout_selected(
         crate::specs::part2_layout_decode_normal(source,requested_input,limits);
     }
     validate_part2_execution(layout)?;
-    let selection = validate_selection(&layout.info.image_size, requested)?;
+    let selected = validate_selection(&layout.info.image_size, requested);
+    #[cfg(verus_keep_ghost)]
+    proof! {
+        reveal(crate::specs::part2_layout_decode_result);
+        let root = |events| crate::specs::part2_layout_decode_run(source, requested_input, limits, events);
+        let child = |events| crate::specs::part2_validate_selection_run(
+            codestream::selection_geometry_view(&layout.info.image_size),
+            crate::options::decode_selection_view(requested), events);
+        let next = |selection: crate::specs::Part2ValidatedSelection, rest|
+            crate::specs::part2_layout_after_selection_run(source, selection, limits, rest);
+        match selected {
+            Err(error) => crate::specs::part2_decode_prefix_error(root, child, next, prefix, error),
+            Ok(selection) => {
+                prefix = crate::specs::part2_decode_prefix_advance(root, child, next, prefix,
+                    validated_selection_view(selection));
+            },
+        }
+    }
+    let selection = selected?;
     #[cfg(verus_keep_ghost)]
     proof! {
         reveal(validated_selection_view);

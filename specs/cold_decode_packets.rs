@@ -17,6 +17,14 @@ pub(crate) open spec fn part2_packet_value_run(parts: Seq<Part2OwnedTilePart>, g
         Some(((Ok(value), after), rest)) => Some((Ok((value, after)), rest)),
     }
 }
+    pub(crate) open spec fn part2_layout_after_selection_run(input: Part2DecoderLayoutInput,
+        selection: Part2ValidatedSelection, limits: &crate::ResourceLimits,
+        events: Seq<Part2JpipSnapshotEvent>) -> Part2ColdRun<Part1DecodedImageModel> {
+        if selection.1.len() != 4 { Some((Err(part1_block_placement_error(false)), events)) }
+        else { part2_selected_decode_run(&input.size, input.parts, input.capabilities, selection.0,
+            [selection.1[0], selection.1[1], selection.1[2], selection.1[3]], selection.2, limits, 0,
+            Part2DecodedLayoutTile { prepared: Seq::empty(), counters: (0, 0, 0), mct_work: 0 }, events) }
+    }
     pub(crate) open spec fn part2_layout_decode_run(input: Part2DecoderLayoutInput, requested: Option<Part2DecodeSelection>,
         limits: &crate::ResourceLimits, events: Seq<Part2JpipSnapshotEvent>) -> Part2ColdRun<Part1DecodedImageModel> {
         let initial = Part2DecodedLayoutTile { prepared: Seq::empty(), counters: (0, 0, 0), mct_work: 0 };
@@ -29,12 +37,9 @@ pub(crate) open spec fn part2_packet_value_run(parts: Seq<Part2OwnedTilePart>, g
                         Some((Err(crate::DecodeError::MalformedInput { offset: 0, kind: crate::MalformedKind::InvalidImageGeometry }), events))
                     } else { part2_full_decode_run(&input.size, input.parts, input.capabilities, limits, count, 0, initial, events) },
                 },
-                Some(selection) => match part2_validate_selection(crate::codestream::selection_geometry_view(&input.size), selection) {
-                    Err(error) => Some((Err(error), events)),
-                    Ok(selection) => if selection.1.len() != 4 { Some((Err(part1_block_placement_error(false)), events)) }
-                        else { part2_selected_decode_run(&input.size, input.parts, input.capabilities, selection.0,
-                            [selection.1[0], selection.1[1], selection.1[2], selection.1[3]], selection.2, limits, 0, initial, events) },
-                },
+                Some(selection) => part2_jpip_snapshot_bind(
+                    part2_validate_selection_run(crate::codestream::selection_geometry_view(&input.size), selection, events),
+                    |selected: Part2ValidatedSelection, rest| part2_layout_after_selection_run(input, selected, limits, rest)),
             },
         }
     }
@@ -63,16 +68,27 @@ pub(crate) open spec fn part2_packet_value_run(parts: Seq<Part2OwnedTilePart>, g
                                 part2_full_layout_tiles(&input.size,input.parts,input.capabilities,limits,count,0,initial));
                         },
                 },
-                Some(selection) => match part2_validate_selection(crate::codestream::selection_geometry_view(&input.size), selection) {
-                    Err(_) => { part2_cold_pure::<Part1DecodedImageModel>(result); },
-                    Ok(selection) => if selection.1.len() != 4 { part2_cold_pure::<Part1DecodedImageModel>(result); }
-                        else { part2_selected_decode_normal(&input.size, input.parts, input.capabilities, selection.0,
-                            [selection.1[0], selection.1[1], selection.1[2], selection.1[3]], selection.2, limits, 0, initial);
-                            part2_decode_eta(|events|part2_selected_decode_run(&input.size,input.parts,input.capabilities,selection.0,
-                                [selection.1[0],selection.1[1],selection.1[2],selection.1[3]],selection.2,limits,0,initial,events),
-                                part2_selected_layout_tiles(&input.size,input.parts,input.capabilities,selection.0,
-                                [selection.1[0],selection.1[1],selection.1[2],selection.1[3]],selection.2,limits,0,initial));
-                    },
+                Some(selection) => {
+                    let size = crate::codestream::selection_geometry_view(&input.size);
+                    let selected = part2_validate_selection(size, selection);
+                    part2_validate_selection_normal(size, selection);
+                    match selected {
+                        Err(_) => { part2_cold_pure::<Part1DecodedImageModel>(result); },
+                        Ok(selection) => {
+                            if selection.1.len() != 4 { part2_cold_pure::<Part1DecodedImageModel>(result); }
+                            else {
+                                part2_selected_decode_normal(&input.size, input.parts, input.capabilities, selection.0,
+                                    [selection.1[0], selection.1[1], selection.1[2], selection.1[3]], selection.2, limits, 0, initial);
+                                part2_decode_eta(|events| part2_selected_decode_run(&input.size, input.parts, input.capabilities,
+                                    selection.0, [selection.1[0], selection.1[1], selection.1[2], selection.1[3]],
+                                    selection.2, limits, 0, initial, events), result);
+                            }
+                        },
+                    }
+                    let child = |events| part2_validate_selection_run(size, selection, events);
+                    let next = |selected: Part2ValidatedSelection, rest| part2_layout_after_selection_run(input, selected, limits, rest);
+                    part2_cold_bind(child, next, selected, result);
+                    part2_decode_eta(|events| part2_jpip_snapshot_bind(child(events), next), result);
                 },
             },
         }

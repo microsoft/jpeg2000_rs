@@ -75,7 +75,7 @@ fn bitplane_initial_storage_real_raw_selected_jp2_first_later_refusals_restore_i
             DecodeError::AllocationFailed
         );
         assert_eq!(
-            crate::allocation::with_refusal(after + 1, || decode_codestream_selected(
+            crate::allocation::with_refusal(after + 2, || decode_codestream_selected(
                 &reference, &options, &selection
             ))
             .unwrap_err(),
@@ -5390,7 +5390,7 @@ fn packed_storage_raw_container_selected_and_reconstruction_refuse_only_after_pa
         Err(DecodeError::AllocationFailed)
     ));
     assert!(matches!(
-        crate::allocation::with_refusal(26, || decode_codestream_selected(
+        crate::allocation::with_refusal(27, || decode_codestream_selected(
             &bytes, &options, &selection
         )),
         Err(DecodeError::AllocationFailed)
@@ -5426,7 +5426,7 @@ fn preparation_storage_public_outer_and_bitmap_refusal_restore_raw_and_container
             Err(DecodeError::AllocationFailed)
         ));
         assert!(matches!(
-            crate::allocation::with_refusal(after + 1, || decode_codestream_selected(
+            crate::allocation::with_refusal(after + 2, || decode_codestream_selected(
                 &bytes, &options, &selection
             )),
             Err(DecodeError::AllocationFailed)
@@ -5473,7 +5473,7 @@ fn grid_storage_raw_selected_container_refusal_preserves_parse_and_restores() {
         Err(DecodeError::AllocationFailed)
     ));
     assert!(matches!(
-        crate::allocation::with_refusal(16, || decode_codestream_selected(
+        crate::allocation::with_refusal(17, || decode_codestream_selected(
             &bytes, &options, &selection
         )),
         Err(DecodeError::AllocationFailed)
@@ -5664,7 +5664,7 @@ fn geometry_storage_public_raw_selected_container_roles_restore() {
             Err(DecodeError::AllocationFailed)
         ));
         assert!(matches!(
-            crate::allocation::with_refusal(after + 1, || decode_codestream_selected(
+            crate::allocation::with_refusal(after + 2, || decode_codestream_selected(
                 &bytes, &options, &selection
             )),
             Err(DecodeError::AllocationFailed)
@@ -5852,13 +5852,13 @@ fn tile_metadata_storage_raw_selected_container_refusal_and_restore() {
     let source = bytes.clone();
     crate::allocation::with_refusal(12, || parse_layout(&bytes, options.limits())).unwrap();
     assert!(matches!(
-        crate::allocation::with_refusal(12, || decode_codestream_selected(
+        crate::allocation::with_refusal(13, || decode_codestream_selected(
             &bytes, &options, &selection
         )),
         Err(DecodeError::AllocationFailed)
     ));
     assert!(matches!(
-        crate::allocation::with_refusal(27, || decode_jp2_selected(&jp2, &options, &selection)),
+        crate::allocation::with_refusal(28, || decode_jp2_selected(&jp2, &options, &selection)),
         Err(DecodeError::AllocationFailed)
     ));
     let expected = decode_codestream(&bytes, &options).unwrap();
@@ -6057,7 +6057,7 @@ fn component_subband_storage_raw_selected_container_roles_restore() {
             Err(DecodeError::AllocationFailed)
         ));
         assert!(matches!(
-            crate::allocation::with_refusal(after + 1, || decode_codestream_selected(
+            crate::allocation::with_refusal(after + 2, || decode_codestream_selected(
                 &bytes, &options, &selection
             )),
             Err(DecodeError::AllocationFailed)
@@ -6245,7 +6245,7 @@ fn precinct_storage_raw_selected_container_roles_and_restore() {
             Err(DecodeError::AllocationFailed)
         ));
         assert!(matches!(
-            crate::allocation::with_refusal(after + 1, || decode_codestream_selected(
+            crate::allocation::with_refusal(after + 2, || decode_codestream_selected(
                 &bytes, &options, &selection
             )),
             Err(DecodeError::AllocationFailed)
@@ -6275,7 +6275,7 @@ fn packet_precinct_storage_public_raw_selected_container_roles_and_restore() {
             Err(DecodeError::AllocationFailed)
         ));
         assert!(matches!(
-            crate::allocation::with_refusal(after + 1, || decode_codestream_selected(
+            crate::allocation::with_refusal(after + 2, || decode_codestream_selected(
                 &bytes, &options, &selection
             )),
             Err(DecodeError::AllocationFailed)
@@ -6345,7 +6345,7 @@ fn tier1_initial_storage_public_raw_selected_container_roles_and_restore() {
         Err(DecodeError::AllocationFailed)
     ));
     assert!(matches!(
-        crate::allocation::with_refusal(21, || decode_codestream_selected(
+        crate::allocation::with_refusal(22, || decode_codestream_selected(
             &bytes, &options, &selection
         )),
         Err(DecodeError::AllocationFailed)
@@ -6385,7 +6385,7 @@ fn tier1_plane_storage_real_ht_raw_selected_container_cleanup_restore() {
             Err(DecodeError::AllocationFailed)
         ));
         assert!(matches!(
-            crate::allocation::with_refusal(after + 1, || decode_codestream_selected(
+            crate::allocation::with_refusal(after + 2, || decode_codestream_selected(
                 &bytes, &options, &selected
             )),
             Err(DecodeError::AllocationFailed)
@@ -6426,7 +6426,7 @@ fn ht_metadata_storage_raw_selected_jph_and_automatic_restore_actual_image() {
             DecodeError::AllocationFailed
         );
         assert_eq!(
-            crate::allocation::with_refusal(after + 1, || decode_codestream_selected(
+            crate::allocation::with_refusal(after + 2, || decode_codestream_selected(
                 &bytes, &options, &selection
             ))
             .unwrap_err(),
@@ -6497,7 +6497,7 @@ fn ht_cleanup_scratch_storage_raw_selected_jph_rows_and_automatic_restore_real_i
             DecodeError::AllocationFailed
         );
         assert_eq!(
-            crate::allocation::with_refusal(after + 1, || decode_codestream_selected(
+            crate::allocation::with_refusal(after + 2, || decode_codestream_selected(
                 &bytes, &options, &selection
             ))
             .unwrap_err(),
@@ -6567,7 +6567,7 @@ fn decoder_plane_storage_real_ht_raw_selected_jph_staging_refusals_restore_exact
         Err(DecodeError::AllocationFailed)
     ));
     assert!(matches!(
-        crate::allocation::with_refusal(after + 1, || decode_codestream_selected(
+        crate::allocation::with_refusal(after + 2, || decode_codestream_selected(
             &bytes, &options, &selected
         )),
         Err(DecodeError::AllocationFailed)
@@ -7126,7 +7126,7 @@ fn ht_refinement_scratch_storage_actual_raw_selected_jph_masks_and_automatic_res
             DecodeError::AllocationFailed
         );
         assert_eq!(
-            crate::allocation::with_refusal(after + 1, || decode_codestream_selected(
+            crate::allocation::with_refusal(after + 2, || decode_codestream_selected(
                 &bytes, &options, &selection
             ))
             .unwrap_err(),
@@ -7196,7 +7196,7 @@ fn ht_refinement_storage_raw_selected_jph_retention_refusal_and_exact_restore() 
             Err(DecodeError::AllocationFailed)
         ));
         assert!(matches!(
-            crate::allocation::with_refusal(after + 1, || decode_codestream_selected(
+            crate::allocation::with_refusal(after + 2, || decode_codestream_selected(
                 &bytes, &options, &selection
             )),
             Err(DecodeError::AllocationFailed)
@@ -7483,6 +7483,63 @@ fn sarah_engineering_crg_color_context_contains_the_coded_predecessor() {
             (context.x + context.width, context.y + context.height),
             (coordinate + 1, coordinate + 1)
         );
+    }
+}
+
+#[test]
+fn selected_tile_storage_refusal_restores_small_and_multi_tile_selections() {
+    let bytes = bitplane_initial_storage_raw_reference();
+    let options = DecodeOptions::default();
+    let original = parse_layout(&bytes, options.limits())
+        .unwrap()
+        .info
+        .image_size;
+    for subdivisions in [1, 8] {
+        let mut size = original;
+        size.width = 8;
+        size.height = 8;
+        size.tile_width = 8 / subdivisions;
+        size.tile_height = 8 / subdivisions;
+        size.tiles_across = subdivisions;
+        size.tiles_down = subdivisions;
+        let requested = DecodeSelection::full_image();
+        let expected = validate_selection(&size, &requested).unwrap();
+        crate::allocation::with_refusal(0, || {
+            assert_eq!(
+                validate_selection(&size, &requested).err(),
+                Some(DecodeError::AllocationFailed)
+            );
+            let restored = validate_selection(&size, &requested).unwrap();
+            assert_eq!(restored.tiles, expected.tiles);
+            assert_eq!(restored.region, expected.region);
+            assert_eq!(restored.discard_levels, expected.discard_levels);
+        });
+        assert_eq!(expected.tiles.len(), (subdivisions * subdivisions) as usize);
+    }
+}
+
+#[test]
+fn selected_tile_storage_preflight_keeps_late_geometry_and_membership_errors_first() {
+    let bytes = bitplane_initial_storage_raw_reference();
+    let limits = ResourceLimits::default();
+    let size = parse_layout(&bytes, &limits).unwrap().info.image_size;
+    for (explicit, region, count) in [
+        (&[][..], [0, 0, 1, 1], 2),
+        (&[][..], [1, 0, 2, 1], 1),
+        (&[1][..], [0, 0, 1, 1], 1),
+    ] {
+        let expected = super::selection::select_intersecting_tiles(&size, explicit, region, count)
+            .unwrap_err();
+        crate::allocation::with_refusal(0, || {
+            assert_eq!(
+                super::selection::select_intersecting_tiles(&size, explicit, region, count),
+                Err(expected)
+            );
+            assert_eq!(
+                crate::allocation::copy_values(&[1_u8]),
+                Err(DecodeError::AllocationFailed)
+            );
+        });
     }
 }
 
@@ -9112,7 +9169,7 @@ fn quantization_output_storage_actual_ht_raw_selected_jph_reconstructed_and_auto
         DecodeError::AllocationFailed
     );
     assert_eq!(
-        crate::allocation::with_refusal(37, || decode_codestream_selected(
+        crate::allocation::with_refusal(38, || decode_codestream_selected(
             &bytes, &options, &selection
         ))
         .unwrap_err(),
@@ -9190,7 +9247,7 @@ fn ht_cleanup_significance_storage_actual_raw_selected_jph_reconstruction_and_au
         DecodeError::AllocationFailed
     );
     assert_eq!(
-        crate::allocation::with_refusal(43, || decode_codestream_selected(
+        crate::allocation::with_refusal(44, || decode_codestream_selected(
             &bytes, &options, &selection
         ))
         .unwrap_err(),
@@ -9267,7 +9324,7 @@ fn coefficient_extraction_storage_real_ht_raw_selected_jph_reconstruction_and_au
         DecodeError::AllocationFailed
     );
     assert_eq!(
-        crate::allocation::with_refusal(36, || decode_codestream_selected(
+        crate::allocation::with_refusal(37, || decode_codestream_selected(
             &bytes, &options, &selection
         ))
         .unwrap_err(),

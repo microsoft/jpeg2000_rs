@@ -1476,7 +1476,7 @@ impl<'a> Parser<'a> {
                                             tile_roi_shifts@, tile_coding_styles@, tile_quantizations@,
                                             tile_component_style_parts@, tile_component_quantizations@, tile_progression_changes@)), Seq::empty()));
                             let refused = seq![crate::specs::Part1ColdStorageEvent {
-                                site: 16, elements: 1, succeeded: false,
+                                site: 82, elements: 1, succeeded: false,
                             }];
                             crate::specs::part1_commit_quantization_cold_frame(persistent_commit.position,
                                 persistent_commit.start, persistent_commit.index, previous_payloads.len() as usize,
