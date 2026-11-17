@@ -7,6 +7,8 @@ mod cold_prepare_copies;
 pub use cold_prepare_copies::*;
 mod cold_image_storage;
 pub use cold_image_storage::*;
+mod cold_typed_storage;
+pub use cold_typed_storage::*;
 mod mq;
 pub use mq::*;
 mod legacy;

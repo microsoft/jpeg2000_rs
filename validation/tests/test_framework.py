@@ -11399,6 +11399,39 @@ class FrameworkTests(WorkingFiles):
                         self.assertRaisesRegex(ValueError, "lacks executable Verus contract"):
                     framework.validate_normative_coverage(coverage)
 
+    def test_inventory_binds_typed_storage_source_charge_reply_nested_tail_and_native_order(self):
+        coverage = json.loads((framework.VALIDATION / "normative-coverage.json").read_text())
+        coverage["requirements"] = [
+            item for item in coverage["requirements"] if item["id"] == "part1-complete-decoded-typed-conversion"
+        ]
+        self.assertEqual(framework.validate_normative_coverage(coverage)["status"], "passed")
+        read_text = Path.read_text
+        for relative, before, after in (
+            ("specs/cold_typed_storage.rs", "actual!=context || elements!=count", "elements!=count"),
+            ("specs/cold_typed_storage.rs", "elements!=count", "elements!=count+1"),
+            ("specs/cold_typed_storage.rs", "Image {source,..}=>source.4.len()", "Image {source,..}=>source.4.len()+1"),
+            ("specs/cold_typed_storage.rs", "calls.drop_first()", "calls.drop_first().drop_first()"),
+            ("specs/cold_typed_storage.rs", "if succeeded{Ok(())}else{Err(crate::DecodeError::AllocationFailed)}", "Ok(())"),
+            ("specs/cold_typed_storage.rs", "part1_accumulate_decoded_bytes(source.4.len(),before.1,maximum)", "part1_accumulate_decoded_bytes(source.4.len(),0,maximum)"),
+            ("specs/cold_typed_storage.rs", "actual!=source || cap!=maximum", "actual!=source"),
+            ("specs/cold_typed_storage.rs", "if rest.len()==0{Some((result,events.drop_first()))}else{None}", "Some((result,events.drop_first()))"),
+            ("src/image/samples.rs", "let mut components = reserved?", "let mut components = Vec::new()"),
+            ("src/image/samples.rs", "let mut output = reserved?", "let mut output = Vec::new()"),
+            ("src/decode/api.rs", "let mut image = converted?", "let mut image = decoded.typed(limits)?"),
+        ):
+            source = framework.ROOT / relative
+            original = source.read_text()
+            self.assertIn(before, original)
+            modified = original.replace(before, after, 1)
+
+            def altered(path, *args, **kwargs):
+                return modified if path == source else read_text(path, *args, **kwargs)
+
+            with self.subTest(relative=relative, after=after), \
+                    mock.patch.object(Path, "read_text", altered), \
+                    self.assertRaisesRegex(ValueError, "typed output storage requires"):
+                framework.validate_normative_coverage(coverage)
+
     def test_inventory_binds_complete_numeric_magnitude_and_every_reader_state(self):
         coverage = json.loads((framework.VALIDATION / "normative-coverage.json").read_text())
         coverage["requirements"] = [

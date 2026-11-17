@@ -470,11 +470,11 @@ fn one_atomic_reservation_refusal_and_unwind_leave_exact_same_process_success() 
         );
     });
     // The decode also extends legacy input and copies the initial LL sample owner.
-    allocation::with_refusal(90, || {
+    allocation::with_refusal(92, || {
         assert_eq!(decode(&bytes).unwrap_err(), DecodeError::AllocationFailed);
         assert_eq!(decode(&bytes).unwrap(), expected);
     });
-    allocation::with_refusal(91, || {
+    allocation::with_refusal(93, || {
         assert_eq!(decode(&bytes).unwrap(), expected);
         assert_eq!(
             allocation::empty_with_capacity::<u8>(1),

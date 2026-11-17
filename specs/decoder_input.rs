@@ -148,14 +148,19 @@ pub(crate) open spec fn part2_typed_layout_input(
 ) -> Result<Part1DecodedTypedImage, crate::DecodeError> {
     match part1_decoded_image_typed(decoded, crate::limits::resource_decoded_bytes_limit(limits)) {
         Err(error) => Err(error),
-        Ok(image) => match part2_collect_nonlinear_regions_input(input, image, discard_levels) {
+        Ok(image) => part2_typed_layout_after_typed(input,image,discard_levels,limits),
+    }
+}
+pub(crate) open spec fn part2_typed_layout_after_typed(
+    input: Part2DecoderLayoutInput, image: Part1DecodedTypedImage, discard_levels: u8, limits: &crate::ResourceLimits,
+) -> Result<Part1DecodedTypedImage, crate::DecodeError> {
+    match part2_collect_nonlinear_regions_input(input, image, discard_levels) {
             Err(error) => Err(error),
             Ok(regions) => if regions.len() == 0 { Ok(image) } else {
                 let outcome = part2_apply_nonlinear_regions(image, regions,
                     crate::limits::resource_decoded_bytes_limit(limits), crate::limits::resource_work_limit(limits));
                 match outcome.0 { Err(error) => Err(error), Ok(()) => Ok(outcome.1) }
             },
-        },
     }
 }
 

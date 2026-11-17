@@ -360,7 +360,17 @@ pub(super) fn decode_typed_layout(
         None => 0,
         Some(selection) => selection.discard_levels(),
     };
-    let image = typed_layout(layout, decoded, discard_levels, limits)?;
+    #[cfg(verus_keep_ghost)]
+    proof_decl! {let ghost source=crate::image::decoded_image_view(decoded);}
+    let converted = typed_layout(layout, decoded, discard_levels, limits);
+    #[cfg(verus_keep_ghost)]
+    proof! {
+        if let Err(error)=converted {
+            crate::specs::part2_typed_decode_conversion_error(input_bytes,codestream::decoder_layout_input_view(layout),
+                match requested{None=>None,Some(value)=>Some(crate::options::decode_selection_view(value))},limits,source,error);
+        }
+    }
+    let image = converted?;
     validate_part1_output_shape(input_bytes, layout, &image)?;
     Ok(image)
 }
@@ -440,7 +450,8 @@ pub(super) fn validate_part1_output_shape(
 }
 
 #[cfg_attr(verus_keep_ghost, verus_spec(result =>
-    ensures crate::image::decoded_typed_image_outcome(result) == crate::specs::part2_typed_layout(
+    ensures crate::specs::part2_typed_layout_result(codestream::decoder_layout_input_view(layout),crate::image::decoded_image_view(decoded),discard_levels,limits,crate::image::decoded_typed_image_outcome(result)),
+    crate::image::decoded_typed_image_outcome(result)!=Err(DecodeError::AllocationFailed) ==> crate::image::decoded_typed_image_outcome(result) == crate::specs::part2_typed_layout(
         layout, crate::image::decoded_image_view(decoded), discard_levels, limits,
     ),
 ))]
@@ -454,8 +465,18 @@ pub(super) fn typed_layout(
     proof! {
         reveal(crate::specs::part2_typed_layout);
         codestream::decoder_layout_input_fields(layout);
+        crate::specs::part2_typed_layout_normal(codestream::decoder_layout_input_view(layout),crate::image::decoded_image_view(decoded),discard_levels,limits);
     }
-    let mut image = decoded.typed(limits)?;
+    #[cfg(verus_keep_ghost)]
+    proof_decl! {let ghost source=crate::image::decoded_image_view(decoded);}
+    let converted = decoded.typed(limits);
+    #[cfg(verus_keep_ghost)]
+    proof! {
+        if let Err(error)=converted {
+            crate::specs::part2_typed_layout_conversion_error(codestream::decoder_layout_input_view(layout),source,discard_levels,limits,error);
+        }
+    }
+    let mut image = converted?;
     let regions = collect_nonlinear_regions(layout, &image, discard_levels)?;
     if !regions.is_empty() {
         image.apply_nonlinear_regions(&regions, limits)?;
