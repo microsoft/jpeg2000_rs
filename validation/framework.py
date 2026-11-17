@@ -3281,7 +3281,7 @@ _ASSOCIATED_HEADER_CONTRACTS = {
 _ASSOCIATED_HEADER_MODELS = {
     ("specs/jp2_associated_header.rs", name) for name in (
         "part2_parse_codestream_header", "part2_associated_header_boxes", "part2_associated_header_step",
-        "part2_associated_header_finish", "part2_jp2_header_clone",
+        "part2_associated_header_finish",
     )
 } | {
     ("specs/jp2_header.rs", "part2_parse_jp2_header"),
@@ -3289,7 +3289,7 @@ _ASSOCIATED_HEADER_MODELS = {
 }
 _ASSOCIATED_HEADER_PROOFS = {
     ("src/jp2/proof_support.rs", name) for name in ("raw_header_option", "associated_header_state", "raw_jp2_header_outcome")
-} | {("src/jp2/clone_support.rs", "jp2_header_clone")}
+}
 _RAW_JP2_HEADER_ENTRY = "part2-complete-native-raw-jp2-header-result"
 _RAW_JP2_HEADER_CONTRACTS = {
     ("src/jp2/headers.rs", "parse_jp2_header"): (
@@ -8086,7 +8086,12 @@ _CHANNEL_STORAGE_GUARDS = {
     ("specs/cold_channel_storage.rs", "part2_codestream_header_storage_after"): (
         "Ok(header)=>Some((Ok(header),events))",
         "Err(crate::DecodeError::AllocationFailed)=>Some((Err(crate::DecodeError::AllocationFailed),events))",
-        "Err(_)=>match part2_codestream_header_storage_start(payload,defaults,limits,base)",
+        "Err(_)=>match defaults",
+        "part2_header_clone_storage_run(header,events)",
+        "part2_codestream_header_storage_cloned(payload,cloned,limits,base,rest)",
+    ),
+    ("specs/cold_channel_storage.rs", "part2_codestream_header_storage_cloned"): (
+        "part2_codestream_header_storage_start(payload,Some(header),limits,base)",
         "part2_header_storage_boxes_run(part2_associated_header_storage_machine(payload,limits,base),reader,state,events)",
     ),
     ("specs/cold_channel_storage.rs", "part2_codestream_header_storage_run"): (
@@ -8160,7 +8165,7 @@ _CHANNEL_STORAGE_NATIVE_ORDER = {
         "let first = parse_jp2_header(payload, limits, base_offset)",
         "part2_codestream_header_storage_first(", "Ok(header) => return Ok(header)",
         "Err(DecodeError::AllocationFailed) => return Err(DecodeError::AllocationFailed)",
-        "super::clone_support::jp2_header_clone(default_header)",
+        "super::clone_support::try_jp2_header_clone(default_header)",
         "part2_codestream_header_storage_prefix(", "let stepped = parse_codestream_header_box(",
         "part2_codestream_header_storage_box_error(", "stepped?", "part2_codestream_header_storage_advance(",
     ),
@@ -8194,6 +8199,177 @@ for _models, _proofs, _prefix in (
 ):
     _models.update({("specs/cold_channel_storage.rs", _prefix + suffix) for suffix in ("_result", "_run")})
     _proofs.add(("specs/cold_channel_storage.rs", _prefix + "_normal"))
+
+_ASSOCIATION_STORAGE_GUARDS = {
+    ("specs/cold_header_storage.rs", "part2_header_clone_count"): (
+        "Some(bytes)=>bytes.len()}", "Some(palette)=>palette.1.len()}",
+        "Some(palette)=>palette.2.len()}", "Part2HeaderCloneRole::Mappings=>source.mappings.len(),",
+        "Part2HeaderCloneRole::Definitions=>source.definitions.len(),",
+    ),
+    ("specs/cold_header_storage.rs", "part2_header_clone_capacity_run"): (
+        "actual!=source || actual_role!=role || elements!=count {None}",
+        "if succeeded {Ok(())} else {Err(crate::DecodeError::AllocationFailed)}", "events.drop_first()",
+    ),
+    ("specs/cold_header_storage.rs", "part2_header_clone_capacity_result"): (
+        "part2_cold_framed(|events|part2_header_clone_capacity_run(source,role,events),response)",
+    ),
+    ("specs/cold_header_storage.rs", "part2_header_clone_prefix_run"): (
+        "part2_header_clone_prefix_run(source,(count-1) as nat,events)",
+        "part2_header_clone_capacity_run(source,part2_header_clone_role((count-1) as nat),rest)",
+    ),
+    ("specs/cold_header_storage.rs", "part2_header_clone_storage_run"): (
+        "part2_header_clone_prefix_run(source,5,events)", "Some((Ok(source),rest))",
+    ),
+    ("specs/cold_header_storage.rs", "part2_header_clone_storage_result"): (
+        "part2_cold_framed(|events|part2_header_clone_storage_run(source,events),result)",
+    ),
+    ("specs/cold_header_storage.rs", "part2_association_clone_storage_run"): (
+        "match source.2", "None=>Some((Ok(source),events))",
+        "part2_header_clone_storage_run(header,events)", "Some((Ok((source.0,source.1,Some(cloned))),rest))",
+    ),
+    ("specs/cold_header_storage.rs", "part2_association_clone_storage_result"): (
+        "part2_cold_framed(|events|part2_association_clone_storage_run(source,events),result)",
+    ),
+    ("specs/cold_channel_storage.rs", "part2_codestream_header_storage_after"): (
+        "Err(crate::DecodeError::AllocationFailed)=>Some((Err(crate::DecodeError::AllocationFailed),events))",
+        "Some(header)=>part2_jpip_snapshot_bind(part2_header_clone_storage_run(header,events)",
+        "part2_codestream_header_storage_cloned(payload,cloned,limits,base,rest)",
+    ),
+    ("specs/cold_channel_storage.rs", "part2_codestream_header_storage_cloned"): _CHANNEL_STORAGE_GUARDS[
+        ("specs/cold_channel_storage.rs", "part2_codestream_header_storage_cloned")
+    ],
+    ("specs/cold_container_headers.rs", "part2_association_append_admitted"): (
+        "part2_container_header_request(context.input,context.before,context.file_type,context.limits)",
+        "part2_parse_codestream_header(payload,defaults,context.limits,base)==Ok(context.parsed)",
+    ),
+    ("specs/cold_container_headers.rs", "part2_association_append_capacity_run"): (
+        "!part2_association_append_admitted(context)", "actual!=context || elements!=1 {None}",
+        "if succeeded {Ok(())} else {Err(crate::DecodeError::AllocationFailed)}", "events.drop_first()",
+    ),
+    ("specs/cold_container_headers.rs", "part2_association_append_capacity_result"): (
+        "part2_cold_framed(|events|part2_association_append_capacity_run(context,events),response)",
+    ),
+    ("specs/cold_container_headers.rs", "part2_container_association_append_run"): (
+        "part2_association_append_capacity_run(context,events)",
+        "part2_container_step(context.input,context.before,context.file_type,context.limits)",
+    ),
+    ("specs/cold_container_headers.rs", "part2_container_headers_run"): (
+        "part2_codestream_header_storage_run(payload,defaults,limits,base,events)",
+        "Part2AssociationAppendContext {input,before:state,file_type,limits,parsed}",
+    ),
+    ("specs/cold_container_headers.rs", "part2_container_attach_storage_run"): (
+        "part2_container_attach_storage_run(state,(count-1) as nat,events)",
+        "part2_association_clone_storage_run(state.associations[count-1],rest)",
+        "part2_container_attach_storage_update(streams,(count-1) as nat,association)",
+    ),
+    ("specs/cold_container_headers.rs", "part2_container_attach_storage_result"): (
+        "part2_cold_framed(|events|part2_container_attach_storage_run(state,count,events),result)",
+    ),
+    ("specs/cold_container_headers.rs", "part2_container_finish_storage_admit"): (
+        "state.header.is_none() || state.streams.len()==0",
+        "state.associations.len()!=0 && state.associations.len()!=state.streams.len()",
+    ),
+    ("specs/cold_container_headers.rs", "part2_container_finish_storage_tail"): (
+        "part2_validate_layer_references(state.layers,state.streams.len() as usize)",
+        "header:state.header.get_Some_0(),streams,layers:state.layers,composition:state.composition",
+    ),
+    ("specs/cold_container_headers.rs", "part2_container_finish_storage_run"): (
+        "part2_container_finish_storage_admit(state)",
+        "part2_container_attach_storage_run(state,state.associations.len(),events)",
+        "part2_container_finish_storage_tail(state,file_type,streams)",
+    ),
+    ("specs/cold_container_headers.rs", "part2_container_finish_storage_result"): (
+        "part2_cold_framed(|events|part2_container_finish_storage_run(state,file_type,events),result)",
+    ),
+    ("specs/cold_container_headers.rs", "part2_parse_container_finish_phase"): (
+        "part2_parse_container_cold_run(input,limits,prefix+tail)",
+        "part2_container_finish_storage_run(state,file_type,tail)",
+    ),
+    ("specs/jp2_container.rs", "part2_container_boxes_cold_run"): (
+        "None=>part2_container_finish_storage_run(state,file_type,events)",
+    ),
+}
+_ASSOCIATION_STORAGE_PROOFS = {
+    ("specs/cold_header_storage.rs", name) for name in (
+        "part2_header_clone_capacity_observed", "part2_header_clone_capacity_frames",
+        "part2_header_clone_copied", "part2_header_clone_stage", "part2_header_clone_storage_frames",
+        "part2_association_clone_from_header", "part2_association_clone_storage_frames",
+    )
+} | {
+    ("specs/cold_container_headers.rs", name) for name in (
+        "part2_association_append_capacity_observed", "part2_container_association_append_error",
+        "part2_container_attach_storage_stage", "part2_container_finish_storage_normal",
+        "part2_container_finish_storage_prefix", "part2_parse_container_finish_begin",
+        "part2_parse_container_attach_error",
+    )
+} | {
+    ("specs/cold_channel_storage.rs", "part2_codestream_header_storage_clone_error"),
+    ("src/jp2/proof_support.rs", "raw_codestream_association_outcome"),
+}
+_ASSOCIATION_STORAGE_NATIVE_ORDER = {
+    ("src/jp2/clone_support.rs", "try_copy_header_values"): (
+        "source.is_empty()", "Vec::new()", "crate::allocation::empty_with_capacity(source.len())?",
+        "while index < source.len()", "values.push(source[index])", "index += 1", "Ok(values)",
+    ),
+    ("src/jp2/clone_support.rs", "try_jp2_header_clone"): (
+        "let ghost original = super::raw_jp2_header_view(source)",
+        "part2_header_clone_prefix_normal(original,0)", "match &source.color.icc_profile",
+        "part2_header_clone_copied(original,0,icc_source,icc)", "let icc = icc?",
+        "try_copy_header_values(&palette.columns)", "part2_header_clone_copied(original,1,columns_source,columns)",
+        "let columns = columns?", "try_copy_header_values(&palette.values)",
+        "part2_header_clone_copied(original,2,values_source,values)", "let values = values?",
+        "try_copy_header_values(&source.component_mappings)",
+        "part2_header_clone_copied(original,3,source.component_mappings@,mappings)", "let mappings = mappings?",
+        "try_copy_header_values(&source.channel_definition_records)",
+        "part2_header_clone_copied(original,4,source.channel_definition_records@,definitions)",
+        "let definitions = definitions?", "None => None", "Some(_) => Some(icc)",
+        "part2_header_clone_success(original)", "component_mappings: mappings",
+        "channel_definition_records: definitions",
+    ),
+    ("src/jp2/clone_support.rs", "try_codestream_association_clone"): (
+        "match &source.parsed", "None =>", "part2_association_clone_storage_normal(",
+        "let cloned = try_jp2_header_clone(header)", "part2_association_clone_from_header(",
+        "super::raw_jp2_header_outcome(cloned)", "Some(cloned?)",
+        "header: Clone::clone(&source.header)", "payload: Clone::clone(&source.payload)", "parsed,",
+    ),
+    ("src/jp2/headers.rs", "parse_codestream_header"): (
+        "let first = parse_jp2_header(payload, limits, base_offset)",
+        "Err(DecodeError::AllocationFailed) => return Err(DecodeError::AllocationFailed)",
+        "let default_header = defaults.ok_or_else(",
+        "let copied = super::clone_support::try_jp2_header_clone(default_header)",
+        "part2_codestream_header_storage_clone_error(", "let mut header = copied?",
+        "box_reader_from_input(payload, limits)?", "part2_codestream_header_storage_prefix(",
+    ),
+    ("src/jp2/container.rs", "parse"): (
+        "if actual > u64::from(limits.maximum_codestreams())",
+        "let header_result = parse_codestream_header(",
+        "parsed:super::optional_jp2_header_view(&parsed).get_Some_0()",
+        "let reserved = crate::allocation::reserve_additional(&mut codestream_headers, 1)",
+        "part2_association_append_capacity_observed(",
+        "append_context,crate::allocation::inspection_capacity_outcome(reserved)",
+        "part2_container_association_append_error(append_context,error)", "reserved?",
+        "codestream_headers.push(CodestreamHeaderAssociation",
+        "!codestream_headers.is_empty() && codestream_headers.len() != codestream_boxes.len()",
+        "try_codestream_association_clone(", "part2_container_attach_storage_stage(",
+        "part2_parse_container_attach_error(", "codestream_box.codestream_header = Some(association)",
+        "validate_layer_references(&compositing_layers, codestream_boxes.len())?",
+    ),
+}
+_ASSOCIATION_STORAGE_IMPLEMENTATIONS = set(_ASSOCIATION_STORAGE_NATIVE_ORDER)
+_ASSOCIATION_STORAGE_TESTS = {("src/jp2/tests.rs", name) for name in (
+    "checked_header_storage_copies_each_raw_owner_and_retries_after_refusal",
+    "checked_header_storage_preserves_empty_options_and_raw_invalid_fields_without_requests",
+    "checked_association_storage_preserves_payload_optional_owners_and_exact_retry",
+)}
+_RAW_CONTAINER_MODELS.update(_ASSOCIATION_STORAGE_GUARDS)
+_RAW_CONTAINER_PROOFS.update(_ASSOCIATION_STORAGE_PROOFS)
+_ASSOCIATED_HEADER_MODELS.update({("specs/cold_header_storage.rs", name) for name in (
+    "part2_header_clone_storage_result", "part2_header_clone_storage_run", "part2_header_clone_count",
+)})
+_ASSOCIATED_HEADER_PROOFS.update({
+    ("src/jp2/clone_support.rs", "try_jp2_header_clone"),
+    ("specs/cold_channel_storage.rs", "part2_codestream_header_storage_clone_error"),
+})
 
 _OUTPUT_STORAGE_GUARDS = {
     ("specs/cold_output_storage.rs", "part2_definition_storage_result"): (
@@ -12356,7 +12532,7 @@ def validate_normative_coverage(
                 "part2_container_layer_header_error(", "part2_parse_container_header_error(",
                 "parse_composition(box_ref, limits)?", "inspect_metadata_box(box_ref, limits, 1, u32::MAX - 1)?",
                 "let mut box_count = 2_u64", "metadata_depth = metadata_depth.max(depth)",
-                "super::clone_support::codestream_association_clone(", ".get_mut(header_index)",
+                "super::clone_support::try_codestream_association_clone(", ".get_mut(header_index)",
                 "codestream_box.codestream_header = Some(association)",
                 "!codestream_headers.is_empty() && codestream_headers.len() != codestream_boxes.len()",
                 "validate_layer_references(&compositing_layers, codestream_boxes.len())?",
@@ -12589,7 +12765,7 @@ def validate_normative_coverage(
                 "let first = parse_jp2_header(payload, limits, base_offset)",
                 "Ok(header) => return Ok(header)",
                 "Err(DecodeError::AllocationFailed) => return Err(DecodeError::AllocationFailed)",
-                "super::clone_support::jp2_header_clone(default_header)", "box_reader_from_input(payload, limits)?",
+                "super::clone_support::try_jp2_header_clone(default_header)", "box_reader_from_input(payload, limits)?",
                 "header.palette = None", "header.component_mappings.clear()", "header.channel_definition_records.clear()",
                 "*palette_override || *mapping_override || *definition_override", "*mapping_override || *definition_override",
                 "if *resolution_override", "if image_override && matches!(header.image.bit_depth, ComponentBitDepth::Variable) != saw_bpcc",
@@ -16616,6 +16792,61 @@ def validate_normative_coverage(
                 )
                 if "requires" in contract or any(fragment not in contract for fragment in required):
                     raise ValueError("checked CDEF storage requires exact old/final boxed-header owners and unconditional storage Result")
+    if _RAW_CONTAINER_ENTRY in ids:
+        entry = next(item for item in coverage["requirements"] if item["id"] == _RAW_CONTAINER_ENTRY)
+        if not _ASSOCIATION_STORAGE_IMPLEMENTATIONS.issubset({
+                (ref["path"], ref["symbol"]) for ref in entry["implementation_refs"]}) \
+                or not _ASSOCIATION_STORAGE_TESTS.issubset({
+                    (ref["path"], ref["symbol"]) for ref in entry["test_refs"]}):
+            raise ValueError("whole raw container Result requires checked association storage producers and first/later/empty/retry controls")
+        for (relative, symbol), fragments in _ASSOCIATION_STORAGE_GUARDS.items():
+            body = _coverage_spec_function_body(source_text((ROOT / relative).resolve()), symbol)
+            compact = "".join(body.split()) if body is not None else ""
+            if any("".join(fragment.split()) not in compact for fragment in fragments):
+                raise ValueError("whole raw container Result requires checked association storage source/count/reply/owner/arbitrary-tail programs")
+            if symbol == "part2_container_finish_storage_admit" and "part2_validate_layer_references" in compact:
+                raise ValueError("whole raw container Result requires checked association storage before late layer-reference validation")
+        proof_text = source_text((ROOT / "specs/cold_header_storage.rs").resolve())
+        proof_headers = list(re.finditer(
+            r"(?m)^([ \t]*)pub(?:\(crate\))?\s+proof\s+fn\s+part2_header_clone_copied\b", proof_text))
+        proof_body = _coverage_function_body(proof_text, proof_headers[0]) if len(proof_headers) == 1 else None
+        compact = "".join(proof_body.split()) if proof_body is not None else ""
+        if any("".join(fragment.split()) not in compact for fragment in (
+                "let response=crate::allocation::inspection_capacity_outcome(result)",
+                "part2_header_clone_capacity_observed(source,part2_header_clone_role(index),response)",
+                "part2_header_clone_stage(source,index,response)")):
+            raise ValueError("whole raw container Result requires checked association storage to observe the actual normalized copy Result")
+        for (relative, symbol), fragments in _ASSOCIATION_STORAGE_NATIVE_ORDER.items():
+            path = (ROOT / relative).resolve()
+            text = source_text(path)
+            header = function_header(path, symbol)
+            body = _coverage_function_body(text, header)
+            compact = "".join(body.split()) if body is not None else ""
+            position = 0
+            for fragment in fragments:
+                token = "".join(fragment.split())
+                found = compact.find(token, position)
+                if found < 0:
+                    raise ValueError("whole raw container Result requires checked association storage at the actual source/count/reply/append/copy/admission order")
+                position = found + len(token)
+            if symbol in {"try_jp2_header_clone", "try_codestream_association_clone"}:
+                start = text.rfind("#[cfg_attr", 0, header.start())
+                contract = "".join(text[start:header.start()].split()) if start >= 0 else ""
+                if symbol == "try_jp2_header_clone":
+                    required = (
+                        "ensurescrate::specs::part2_header_clone_storage_result(super::raw_jp2_header_view(source),"
+                        "super::raw_jp2_header_outcome(result))"
+                    )
+                else:
+                    required = (
+                        "ensurescrate::specs::part2_association_clone_storage_result("
+                        "super::raw_codestream_association_view(source),super::raw_codestream_association_outcome(result))"
+                    )
+                if "requires" in contract or required not in contract:
+                    raise ValueError("whole raw container Result requires unconditional checked association storage bound to actual source and Result")
+            if symbol == "parse" and compact.count(
+                    "validate_layer_references(&compositing_layers,codestream_boxes.len())?") != 1:
+                raise ValueError("whole raw container Result requires checked association storage before the single original late layer-reference admission")
     if "part2-complete-native-output-header" in ids:
         output_entry = next(item for item in coverage["requirements"] if item["id"] == "part2-complete-native-output-header")
         if not set(_OUTPUT_STORAGE_GUARDS).issubset({(ref["path"], ref["symbol"]) for ref in output_entry["spec_refs"]}) \

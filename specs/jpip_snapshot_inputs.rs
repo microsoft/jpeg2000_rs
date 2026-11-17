@@ -5,6 +5,8 @@ use super::*;
 verus! {
 
 pub enum Part2JpipSnapshotEvent {
+    AssociationAppendCapacity {context:Part2AssociationAppendContext,elements:nat,succeeded:bool},
+    HeaderCloneCapacity {source:Part2RawJp2Header,role:Part2HeaderCloneRole,elements:nat,succeeded:bool},
     ChannelDefinitionCapacity {context:Part2ChannelStorageContext,elements:nat,succeeded:bool},
     OutputHeaderCalls {context:Part2OutputStorageContext,calls:Seq<Part2Tier1StorageEvent>},
     TypedImageCalls {source:Part1DecodedImageModel,maximum:u64,calls:Seq<Part2Tier1StorageEvent>},

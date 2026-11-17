@@ -527,6 +527,12 @@ verus! {
         (box_header_view(association.header), association.payload@, optional_jp2_header_view(&association.parsed))
     }
 
+    pub open spec fn raw_codestream_association_outcome(result: Result<CodestreamHeaderAssociation, DecodeError>)
+        -> Result<crate::specs::Part2RawCodestreamAssociation, DecodeError>
+    {
+        match result { Err(error) => Err(error), Ok(association) => Ok(raw_codestream_association_view(&association)) }
+    }
+
     pub closed spec fn raw_codestream_association_payload_reference<'a>(association: &CodestreamHeaderAssociation<'a>) -> &'a [u8] {
         association.payload
     }

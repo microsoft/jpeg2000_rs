@@ -4262,6 +4262,63 @@ class FrameworkTests(WorkingFiles):
                     self.assertRaisesRegex(ValueError, "actual source producers/counters/owned attachment/output handoffs"):
                 framework.validate_normative_coverage(dict(coverage, requirements=[entry]))
 
+    def test_inventory_checked_association_storage_binds_source_reply_tail_and_native_order(self):
+        coverage = json.loads((framework.VALIDATION / "normative-coverage.json").read_text())
+        entry = next(item for item in coverage["requirements"] if item["id"] == framework._RAW_CONTAINER_ENTRY)
+        read_text = Path.read_text
+        mutations = (
+            ("specs/cold_header_storage.rs", "elements!=count {None}", "elements!=count+1 {None}"),
+            ("specs/cold_header_storage.rs", "actual_role!=role", "actual_role==role"),
+            ("specs/cold_header_storage.rs",
+             "Part2HeaderCloneRole::Mappings=>source.mappings.len(),",
+             "Part2HeaderCloneRole::Mappings=>source.mappings.len()+1,"),
+            ("specs/cold_header_storage.rs", "events.drop_first()", "events"),
+            ("specs/cold_header_storage.rs",
+             "let response=crate::allocation::inspection_capacity_outcome(result)", "let response=Ok(())"),
+            ("specs/cold_header_storage.rs",
+             "Some((Ok((source.0,source.1,Some(cloned))),rest))", "Some((Ok(source),rest))"),
+            ("src/jp2/clone_support.rs", "empty_with_capacity(source.len())?", "empty_with_capacity(source.len()+1)?"),
+            ("src/jp2/clone_support.rs",
+             "part2_header_clone_copied(original,4,source.channel_definition_records@,definitions)",
+             "part2_header_clone_copied(original,3,source.channel_definition_records@,definitions)"),
+            ("src/jp2/clone_support.rs", "Some(_) => Some(icc)", "Some(_) => None"),
+            ("src/jp2/clone_support.rs",
+             "let cloned = try_jp2_header_clone(header)", "let cloned = Ok(header.clone())"),
+            ("src/jp2/clone_support.rs",
+             "super::raw_jp2_header_outcome(result)", "super::raw_jp2_header_outcome(Ok(source.clone()))"),
+            ("src/jp2/container.rs",
+             "reserve_additional(&mut codestream_headers, 1)", "reserve_additional(&mut codestream_headers, 2)"),
+            ("specs/cold_container_headers.rs",
+             "actual!=context || elements!=1 {None}", "actual!=context || elements!=1+1 {None}"),
+            ("specs/cold_container_headers.rs",
+             "part2_association_clone_storage_run(state.associations[count-1],rest)",
+             "part2_association_clone_storage_run(state.associations[0],rest)"),
+            ("specs/cold_container_headers.rs",
+             "if state.header.is_none() || state.streams.len()==0",
+             "if part2_validate_layer_references(state.layers,state.streams.len() as usize).is_err() || state.header.is_none() || state.streams.len()==0"),
+            ("specs/cold_container_headers.rs",
+             "file_type,header:state.header.get_Some_0(),streams,layers:state.layers",
+             "file_type,header:state.header.get_Some_0(),streams:state.streams,layers:state.layers"),
+            ("specs/cold_container_headers.rs",
+             "==part2_container_finish_storage_run(state,file_type,tail)",
+             "==part2_container_finish_storage_run(state,file_type,Seq::empty())"),
+            ("src/jp2/container.rs",
+             "validate_layer_references(&compositing_layers, codestream_boxes.len())?",
+             "validate_layer_references(&compositing_layers, codestream_boxes.len())?; validate_layer_references(&compositing_layers, codestream_boxes.len())?"),
+        )
+        for relative, before, after in mutations:
+            source = framework.ROOT / relative
+            original = read_text(source)
+            self.assertIn(before, original)
+            changed = original.replace(before, after, 1)
+
+            def altered(path, *args, **kwargs):
+                return changed if path == source else read_text(path, *args, **kwargs)
+
+            with self.subTest(relative=relative, before=before), mock.patch.object(Path, "read_text", altered), \
+                    self.assertRaisesRegex(ValueError, "checked association storage"):
+                framework.validate_normative_coverage(dict(coverage, requirements=[entry]))
+
     def test_inventory_raw_container_rejects_trimmed_attachment_and_metadata_models(self):
         coverage = json.loads((framework.VALIDATION / "normative-coverage.json").read_text())
         entry = next(item for item in coverage["requirements"] if item["id"] == framework._RAW_CONTAINER_ENTRY)
@@ -4466,7 +4523,7 @@ class FrameworkTests(WorkingFiles):
         original = source.read_text()
         read_text = Path.read_text
         for before, after in (
-            ("super::clone_support::jp2_header_clone(default_header)", "default_header.clone()"),
+            ("super::clone_support::try_jp2_header_clone(default_header)", "Ok(default_header.clone())"),
             ("header.component_mappings.clear()", "header.component_mappings.shrink_to_fit()"),
             ("if image_override && matches!", "if true && matches!"),
         ):
