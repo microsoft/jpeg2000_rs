@@ -8265,6 +8265,10 @@ class FrameworkTests(WorkingFiles):
             ("specs/cold_prepare_copies.rs", "part2_prepared_views_run", "calls.drop_first()", "calls"),
             ("specs/cold_prepare_copies.rs", "part2_prepared_view_calls_run", "if rest.len()==0", "if true"),
             ("specs/cold_prepare_copies.rs", "part2_prepared_view_calls_run", "actual!=source", "false"),
+            ("specs/pdf_trailers.rs", "part2_trailer_assembly_run",
+             "part2_assemble_prepared_storage_run(", "pure_assembly_without_storage("),
+            ("src/decode/pdf_trailers.rs", "decode_trailer_layout",
+             "part2_trailer_assembly_observed(", "unrelated_terminal_result("),
         ):
             source = framework.ROOT / relative
             original = read_text(source)
