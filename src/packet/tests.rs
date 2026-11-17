@@ -3956,6 +3956,94 @@ fn precinct_payload_prefix_checks_actual_markers_before_packed_ranges_and_budget
 }
 
 #[test]
+fn precinct_contribution_storage_keeps_prefix_priority_header_only_and_empty_frames() {
+    let limits = ResourceLimits::default();
+    for packed in [false, true] {
+        for decode_tier1 in [false, true] {
+            let mut parameters = literal_payload_parameters();
+            parameters.packed = packed;
+            parameters.decode_tier1 = decode_tier1;
+            let mut precinct = literal_packet_precinct();
+            let initial = exact_packet_precinct_snapshot(&precinct);
+            let ordinary =
+                decode_precinct_packet_payload(&[0], &[0], parameters, &mut precinct, &limits)
+                    .unwrap();
+            let expected = exact_packet_precinct_snapshot(&precinct);
+            let mut precinct = literal_packet_precinct();
+            crate::allocation::with_refusal(0, || {
+                assert_eq!(
+                    decode_precinct_packet_payload(&[], &[], parameters, &mut precinct, &limits),
+                    Err(packet_reader_error(0, MalformedKind::Truncated))
+                );
+                assert_eq!(exact_packet_precinct_snapshot(&precinct), initial);
+                assert_eq!(
+                    decode_precinct_packet_payload(&[0], &[0], parameters, &mut precinct, &limits),
+                    Err(DecodeError::AllocationFailed)
+                );
+                assert_eq!(exact_packet_precinct_snapshot(&precinct), initial);
+                assert_eq!(
+                    decode_precinct_packet_payload(&[0], &[0], parameters, &mut precinct, &limits),
+                    Ok(ordinary)
+                );
+                assert_eq!(exact_packet_precinct_snapshot(&precinct), expected);
+            });
+        }
+    }
+    let mut empty = PacketPrecinctDecoder {
+        component: 0,
+        resolution: 0,
+        precinct: 0,
+        states: Vec::new(),
+        contexts: Vec::new(),
+        decoders: Vec::new(),
+        subbands: Vec::new(),
+    };
+    crate::allocation::with_refusal(0, || {
+        assert!(
+            decode_precinct_packet_payload(
+                &[0],
+                &[],
+                literal_payload_parameters(),
+                &mut empty,
+                &limits
+            )
+            .is_ok()
+        );
+        assert_eq!(
+            crate::allocation::copy_values(&[1_u8]),
+            Err(DecodeError::AllocationFailed)
+        );
+    });
+    let template = literal_progression_tile(&[], 1, 0, 0, 1);
+    let mut precinct = literal_packet_precinct();
+    let initial = exact_packet_precinct_snapshot(&precinct);
+    let expected =
+        decode_jpip_precinct_packet(&template, &[0], 0, 7, &mut precinct, &limits).unwrap();
+    let final_state = exact_packet_precinct_snapshot(&precinct);
+    let mut saw_refusal = false;
+    for after in 0..16 {
+        let mut precinct = literal_packet_precinct();
+        let result = crate::allocation::with_refusal(after, || {
+            decode_jpip_precinct_packet(&template, &[0], 0, 7, &mut precinct, &limits)
+        });
+        match result {
+            Err(error) => {
+                assert_eq!(error, DecodeError::AllocationFailed);
+                assert_eq!(exact_packet_precinct_snapshot(&precinct), initial);
+                saw_refusal = true;
+                assert_eq!(
+                    decode_jpip_precinct_packet(&template, &[0], 0, 7, &mut precinct, &limits),
+                    Ok(expected)
+                );
+            }
+            Ok(actual) => assert_eq!(actual, expected),
+        }
+        assert_eq!(exact_packet_precinct_snapshot(&precinct), final_state);
+    }
+    assert!(saw_refusal);
+}
+
+#[test]
 fn precinct_payload_literal_inline_and_packed_streams_account_for_markers_and_real_coefficients() {
     let limits = ResourceLimits::default();
     for packed in [false, true] {

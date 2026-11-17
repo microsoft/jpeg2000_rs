@@ -108,12 +108,51 @@ pub(crate) proof fn part2_subbands_copy_normal(source:Seq<Part1PacketSubbandStat
 {
     part2_subbands_owner_normal(source);
 }
+pub(crate) open spec fn part2_jpip_inner_caps(limits:&crate::ResourceLimits)->(u64,u64,u32,u64,u64,u64) {
+    (crate::limits::resource_code_block_limit(limits),crate::limits::resource_packet_header_byte_limit(limits),crate::limits::resource_code_block_pass_limit(limits),
+        crate::limits::resource_code_block_byte_limit(limits),crate::limits::resource_input_byte_limit(limits),crate::limits::resource_work_limit(limits))
+}
+pub(crate) open spec fn part2_jpip_packet_inner_run(initial:Part1PacketPrecinctState,part:Part2OwnedTilePart,data:Seq<u8>,sequence:u16,layer:u16,
+    limits:&crate::ResourceLimits,events:Seq<Part2JpipSnapshotEvent>)->Part2ColdRun<(Result<usize,crate::DecodeError>,Part1PacketPrecinctState)> {
+    if events.len()==0 {None}else{
+        match events[0] {
+            Part2JpipSnapshotEvent::PacketInnerCalls {initial:actual,part:actual_part,data:actual_data,sequence:actual_sequence,layer:actual_layer,caps,calls}=>
+                if actual!=initial || actual_part!=part || actual_data!=data || actual_sequence!=sequence || actual_layer!=layer || caps!=part2_jpip_inner_caps(limits) {None}else{
+                    match part2_jpip_inner_run(initial,part,data,sequence,layer,limits,calls) {
+                        Some((Ok(result),rest))=>if rest.len()!=0 {None}else{
+                            Some((Ok((result.0,if result.0.is_err(){initial}else{result.1})),events.drop_first()))
+                        },
+                        _=>None,
+                    }
+                },
+            _=>None,
+        }
+    }
+}
+pub(crate) proof fn part2_jpip_packet_inner_observed(initial:Part1PacketPrecinctState,part:Part2OwnedTilePart,data:Seq<u8>,sequence:u16,layer:u16,
+    limits:&crate::ResourceLimits,result:(Result<usize,crate::DecodeError>,Part1PacketPrecinctState))
+    requires part2_jpip_inner_result(initial,part,data,sequence,layer,limits,result),
+    ensures part2_cold_framed(|events|part2_jpip_packet_inner_run(initial,part,data,sequence,layer,limits,events),
+        Ok((result.0,if result.0.is_err(){initial}else{result.1}))),
+{
+    let raw=|calls|part2_jpip_inner_run(initial,part,data,sequence,layer,limits,calls);
+    let calls=choose|prefix| #[trigger] part2_tier1_storage_prefix(raw,prefix,Ok(result));
+    assert(calls+Seq::empty() =~= calls);
+    assert(raw(calls)==Some((Ok(result),Seq::empty())));
+    let prefix=seq![Part2JpipSnapshotEvent::PacketInnerCalls {initial,part,data,sequence,layer,caps:part2_jpip_inner_caps(limits),calls}];
+    let value=(result.0,if result.0.is_err(){initial}else{result.1});
+    assert forall|tail:Seq<Part2JpipSnapshotEvent>|part2_jpip_packet_inner_run(initial,part,data,sequence,layer,limits,prefix+tail)==Some((Ok(value),tail)) by{
+        assert((prefix+tail).drop_first() =~= tail);
+    }
+    assert(part2_cold_prefix(|events|part2_jpip_packet_inner_run(initial,part,data,sequence,layer,limits,events),prefix,Ok(value)));
+    part2_decode_eta(|events|part2_jpip_packet_inner_run(initial,part,data,sequence,layer,limits,events),Ok(value));
+}
 #[verifier::opaque]
 pub(crate) open spec fn part2_jpip_packet_copy_run(initial:Part1PacketPrecinctState,part:Part2OwnedTilePart,data:Seq<u8>,sequence:u16,layer:u16,
     limits:&crate::ResourceLimits,events:Seq<Part2JpipSnapshotEvent>)->Part2ColdRun<(Result<usize,crate::DecodeError>,Part1PacketPrecinctState)> {
     match part2_rollback_snapshot_run(initial,events){
         None=>None,Some((Err(error),rest))=>Some((Ok((Err(error),initial)),rest)),
-        Some((Ok(_),rest))=>Some((Ok(part2_jpip_snapshot_decode_packet(initial,part,data,sequence,layer,limits)),rest)),
+        Some((Ok(_),rest))=>part2_jpip_packet_inner_run(initial,part,data,sequence,layer,limits,rest),
     }
 }
 pub closed spec fn part2_jpip_packet_copy_result(initial:Part1PacketPrecinctState,part:Part2OwnedTilePart,data:Seq<u8>,sequence:u16,layer:u16,
@@ -123,14 +162,20 @@ pub closed spec fn part2_jpip_packet_copy_result(initial:Part1PacketPrecinctStat
 pub(crate) proof fn part2_jpip_packet_copy_observed(initial:Part1PacketPrecinctState,part:Part2OwnedTilePart,data:Seq<u8>,sequence:u16,layer:u16,
     limits:&crate::ResourceLimits,first:Result<Seq<Part1PacketSubbandState>,crate::DecodeError>,result:(Result<usize,crate::DecodeError>,Part1PacketPrecinctState))
     requires part2_rollback_snapshot_result(initial,first),
-        match first{Err(error)=>result==(Err(error),initial),Ok(_)=>result==part2_jpip_snapshot_decode_packet(initial,part,data,sequence,layer,limits)},
+        match first{Err(error)=>result==(Err(error),initial),Ok(_)=>part2_cold_framed(
+            |events|part2_jpip_packet_inner_run(initial,part,data,sequence,layer,limits,events),Ok(result))},
     ensures part2_jpip_packet_copy_result(initial,part,data,sequence,layer,limits,result),
 {
     reveal(part2_rollback_snapshot_result);reveal(part2_jpip_packet_copy_run);
     let child=|events|part2_rollback_snapshot_run(initial,events);
-    let prefix=part2_cold_witness(child,first);
+    let before=part2_cold_witness(child,first);
+    let next=|events|part2_jpip_packet_inner_run(initial,part,data,sequence,layer,limits,events);
+    let after=if first.is_err(){Seq::empty()}else{part2_cold_witness(next,Ok(result))};
+    let prefix=before+after;
     assert forall|tail:Seq<Part2JpipSnapshotEvent>|part2_jpip_packet_copy_run(initial,part,data,sequence,layer,limits,prefix+tail)==Some((Ok(result),tail)) by{
-        part2_cold_prefix_at(child,prefix,first,tail);
+        assert(prefix+tail =~= before+(after+tail));
+        part2_cold_prefix_at(child,before,first,after+tail);
+        if first.is_ok(){part2_cold_prefix_at(next,after,Ok(result),tail);}else{assert(after+tail =~= tail);}
     }
     assert(part2_cold_prefix(|events|part2_jpip_packet_copy_run(initial,part,data,sequence,layer,limits,events),prefix,Ok(result)));
 }
@@ -147,6 +192,11 @@ pub(crate) proof fn part2_jpip_packet_copy_normal(initial:Part1PacketPrecinctSta
         part2_jpip_snapshot_decode_packet(initial,part,data,sequence,layer,limits)),
 {
     part2_rollback_snapshot_normal(initial);
+    part2_jpip_inner_normal(initial,part,data,sequence,layer,limits);
+    let packet=part1_precinct_packet_owned(part1_precinct_context_layer(initial,layer),part2_jpip_inner_inline(part,data),0,Seq::empty(),0,None,sequence,false,
+        crate::limits::resource_code_block_limit(limits),crate::limits::resource_packet_header_byte_limit(limits),crate::limits::resource_code_block_pass_limit(limits),
+        crate::limits::resource_code_block_byte_limit(limits),crate::limits::resource_input_byte_limit(limits),crate::limits::resource_work_limit(limits));
+    part2_jpip_packet_inner_observed(initial,part,data,sequence,layer,limits,part2_jpip_inner_finish(packet));
     part2_jpip_packet_copy_observed(initial,part,data,sequence,layer,limits,Ok(initial.subbands),
         part2_jpip_snapshot_decode_packet(initial,part,data,sequence,layer,limits));
 }

@@ -8253,6 +8253,34 @@ class FrameworkTests(WorkingFiles):
                     self.assertRaisesRegex(ValueError, "fallible copy storage"):
                 framework.validate_normative_coverage(dict(coverage, requirements=[entry]))
 
+    def test_inventory_precinct_contributions_require_actual_count_prefix_and_jpip_rollback_tail(self):
+        coverage = json.loads((framework.VALIDATION / "normative-coverage.json").read_text())
+        entry = next(item for item in coverage["requirements"]
+                     if item["id"] == "part1-complete-native-public-packet-boundaries")
+        read_text = Path.read_text
+        for relative, before, after in (
+            ("src/packet/precinct.rs", "none_values(precinct.states.len())", "none_values(1)"),
+            ("specs/cold_packet_payload.rs", "actual!=context || elements!=count",
+             "actual!=context || elements!=1"),
+            ("specs/cold_packet_payload.rs",
+             "Part2PrecinctContributionsContext {state,data,packed,parameters,header_limit,work}",
+             "Part2PrecinctContributionsContext {state,data,packed:Seq::empty(),parameters,header_limit,work}"),
+            ("specs/cold_packet_copy.rs", "if rest.len()!=0", "if false"),
+            ("specs/cold_packet_copy.rs", "if result.0.is_err(){initial}else{result.1}", "result.1"),
+            ("specs/cold_packet_copy.rs", "caps!=part2_jpip_inner_caps(limits)", "false"),
+        ):
+            source = framework.ROOT / relative
+            original = read_text(source)
+            changed = original.replace(before, after, 1)
+            self.assertNotEqual(original, changed)
+
+            def altered(path, *args, **kwargs):
+                return changed if path == source else read_text(path, *args, **kwargs)
+
+            with self.subTest(mutation=before), mock.patch.object(Path, "read_text", altered), \
+                    self.assertRaisesRegex(ValueError, "precinct contribution storage"):
+                framework.validate_normative_coverage(dict(coverage, requirements=[entry]))
+
     def test_inventory_precinct_publication_rejects_count_location_and_child_tail_changes(self):
         coverage = json.loads((framework.VALIDATION / "normative-coverage.json").read_text())
         entry = next(item for item in coverage["requirements"]

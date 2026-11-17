@@ -5069,6 +5069,7 @@ _PLANE_ROLE_MODEL_INFO = {
     "part1_multi_code_block_packet": ("part2_plane_multi_packet_result", "specs/cold_packet_payload.rs", "part2_plane_multi_packet_normal"),
     "part1_precinct_payload_after_headers": ("part2_plane_payload_after_result", "specs/cold_packet_payload.rs", "part2_plane_payload_after_normal"),
     "part1_precinct_payload": ("part2_plane_payload_result", "specs/cold_packet_payload.rs", "part2_plane_payload_normal"),
+    "part1_jpip_precinct_packet_inner": ("part2_jpip_inner_result", "specs/cold_packet_payload.rs", "part2_jpip_inner_normal"),
     "part1_precinct_packet": ("part2_plane_precinct_result", "specs/cold_packet_payload.rs", "part2_plane_precinct_normal"),
     "part1_tile_precinct_packet": ("part2_plane_tile_precinct_result", "specs/cold_packet_tile_planes.rs", "part2_plane_tile_precinct_normal"),
     "part1_tile_packet": ("part2_plane_tile_packet_result", "specs/cold_packet_tile_planes.rs", "part2_plane_tile_packet_normal"),
@@ -5354,7 +5355,7 @@ def _coverage_cold_relation(
         inputs = inputs.replace("tile_part", _coverage_call("crate::codestream::tile_part_owned_view", "tile_part"))
     if model == "part1_tile_precinct_packet":
         inputs = inputs.replace(r"\*\s*part", _coverage_call("crate::codestream::tile_part_owned_view", "part"))
-    if model in ("part1_jpip_precinct_packet", "part2_jpip_precinct_phase"):
+    if model in ("part1_jpip_precinct_packet", "part1_jpip_precinct_packet_inner", "part2_jpip_precinct_phase"):
         inputs = inputs.replace("template", _coverage_call("crate::codestream::tile_part_owned_view", "template"))
     if model == "part2_tile_decode_metadata":
         inputs = inputs.replace("parts@", _coverage_call("codestream::tile_parts_owned_view", "parts@"))
@@ -5801,6 +5802,10 @@ def _coverage_cold_links(keys: set[tuple[str, str]]) -> tuple[set[tuple[str, str
         }.get(model, model.removesuffix("_result") + "_run")
         models.update(((path, model), (path, run)))
         proofs.add((path, normal))
+        if model in ("part2_plane_payload_result", "part2_plane_precinct_result", "part2_jpip_inner_result",
+                     "part2_jpip_packet_copy_result", "part2_jpip_phase_copy_result"):
+            models |= _PRECINCT_CONTRIBUTION_MODELS
+            proofs |= _PRECINCT_CONTRIBUTION_PROOFS
         if key == ("src/tier1/ht_cleanup.rs", "reconstruct_ht_cleanup_plane"):
             models.update(("specs/cold_ht_exponents.rs", symbol) for symbol in (
                 "Part2HtExponentContext", "part2_ht_exponent_count", "part2_ht_exponent_context",
@@ -6456,6 +6461,49 @@ _BITPLANE_INITIAL_NATIVE_ORDER = {
         "reader.validate_predictable_termination()?", "self.commit_legacy_segment(input.len(),pass_count,statistics)",
     ),
 }
+_PRECINCT_CONTRIBUTION_MODELS = {("specs/cold_packet_payload.rs", name) for name in (
+    "part2_precinct_contributions_run", "part2_precinct_contributions_result", "part2_plane_payload_prepared_run",
+    "part2_jpip_inner_inline", "part2_jpip_inner_finish", "part2_jpip_inner_run", "part2_jpip_inner_result",
+)} | {("specs/cold_packet_copy.rs", name) for name in ("part2_jpip_inner_caps", "part2_jpip_packet_inner_run")}
+_PRECINCT_CONTRIBUTION_PROOFS = {("specs/cold_packet_payload.rs", name) for name in (
+    "part2_precinct_contributions_observed", "part2_plane_payload_prepared_normal", "part2_plane_payload_capacity_then",
+    "part2_jpip_inner_normal", "part2_jpip_inner_observed",
+)} | {("specs/cold_packet_copy.rs", "part2_jpip_packet_inner_observed")}
+_PRECINCT_CONTRIBUTION_GUARDS = {
+    ("specs/cold_packet_payload.rs", "part2_precinct_contributions_run"): (
+        "let count=context.state.states.len()", "if count==0", "PrecinctContributions {context:actual,elements,succeeded}",
+        "actual!=context || elements!=count", "Err(crate::DecodeError::AllocationFailed)", "calls.drop_first()",
+    ),
+    ("specs/cold_packet_payload.rs", "part2_plane_payload_run"): (
+        "part1_precinct_payload_prefix(data,packed,parameters,header_limit,work)",
+        "Err(error)=>Some((Ok((Err(error),state)),calls))", "part2_tier1_storage_resume(part2_precinct_contributions_run(",
+        "Part2PrecinctContributionsContext {state,data,packed,parameters,header_limit,work}",
+        "Err(error)=>Some((Ok((Err(error),state)),rest))", "part2_plane_payload_prepared_run(",
+    ),
+    ("specs/cold_packet_payload.rs", "part2_jpip_inner_run"): (
+        "part1_precinct_context_layer(initial,layer)", "part2_jpip_inner_inline(part,data)", "sequence,false",
+        "part2_plane_precinct_run(", "part2_jpip_inner_finish(packet)", "rest)",
+    ),
+    ("specs/cold_packet_copy.rs", "part2_jpip_packet_inner_run"): (
+        "PacketInnerCalls {initial:actual,part:actual_part,data:actual_data,sequence:actual_sequence,layer:actual_layer,caps,calls}",
+        "actual!=initial || actual_part!=part || actual_data!=data || actual_sequence!=sequence || actual_layer!=layer",
+        "caps!=part2_jpip_inner_caps(limits)", "part2_jpip_inner_run(initial,part,data,sequence,layer,limits,calls)",
+        "if rest.len()!=0", "if result.0.is_err(){initial}else{result.1}", "events.drop_first()",
+    ),
+}
+_PRECINCT_CONTRIBUTION_NATIVE_ORDER = {
+    "decode_precinct_packet_payload": (
+        "decode_precinct_packet_payload_prefix(", "let contributions_result = if precinct.states.is_empty()", "Ok(Vec::new())",
+        "crate::allocation::none_values(precinct.states.len())", "part2_precinct_contributions_observed(context,response)",
+        "part2_plane_payload_capacity_then(", "let mut contributions = contributions_result?",
+        "decode_precinct_contribution_headers(", "decode_precinct_packet_payload_after_headers(", "part2_plane_payload_observed(",
+    ),
+    "decode_jpip_precinct_packet_inner": (
+        "set_progression_context_layer(", "let inline = TilePartPayload {", "let packed_headers: &[u8] = &[]",
+        "assert(packed_headers@ =~= Seq::<u8>::empty())", "let packet_result = decode_precinct_packet(",
+        "part2_jpip_inner_observed(", "let (decoded, consumed, packed) = packet_result?", "if packed != 0",
+    ),
+}
 _ROLLBACK_OWNER_TESTS = {
     ("src/packet/tests.rs", "rollback_snapshot_storage_outer_roles_precede_children_and_restore_exact_packet"),
     ("src/packet/tests.rs", "rollback_snapshot_storage_empty_and_independent_raw_owners_keep_error_frontiers"),
@@ -6508,6 +6556,7 @@ _TAG_COPY_ENTRIES = {
     "part9-complete-nonowning-automatic-phase-results",
     "part9-complete-original-automatic-snapshot-result",
 }
+_PRECINCT_CONTRIBUTION_ENTRIES = _TAG_COPY_ENTRIES | {"part1-complete-native-precinct-composition"}
 _TAG_COPY_GUARDS = {
     ("specs/cold_tag_copy.rs", "part2_tag_copy_capacity_run"): (
         "if nodes{context.source.nodes.len()}else{context.source.levels.len()}",
@@ -6533,7 +6582,7 @@ _TAG_COPY_GUARDS = {
     ("specs/cold_packet_copy.rs", "part2_jpip_packet_copy_run"): (
         "part2_rollback_snapshot_run(initial,events)",
         "Some((Err(error),rest))=>Some((Ok((Err(error),initial)),rest))",
-        "part2_jpip_snapshot_decode_packet(initial,part,data,sequence,layer,limits)",
+        "Some((Ok(_),rest))=>part2_jpip_packet_inner_run(initial,part,data,sequence,layer,limits,rest)",
     ),
     ("specs/cold_packet_copy.rs", "part2_jpip_phase_copy_run"): (
         "if execution as nat>=plan.precincts.len()", "part2_jpip_packet_copy_run(plan.precincts[execution as int]",
@@ -15733,6 +15782,31 @@ def validate_normative_coverage(
                 position = found + len(token)
         if not _BITPLANE_INITIAL_TESTS.issubset({(ref["path"], ref["symbol"]) for ref in entry["test_refs"]}):
             raise ValueError("initial bitplane storage requires bounded raw/empty/first-later/error/present-state/real-public restoration controls")
+    if ids & _PRECINCT_CONTRIBUTION_ENTRIES:
+        for (relative, symbol), fragments in _PRECINCT_CONTRIBUTION_GUARDS.items():
+            body = _coverage_spec_function_body(source_text((ROOT / relative).resolve()), symbol)
+            compact = "".join(body.split()) if body is not None else ""
+            if any("".join(fragment.split()) not in compact for fragment in fragments):
+                raise ValueError("precinct contribution storage requires actual prefix/source/count/reply/inner/rollback/tail production")
+        for symbol, fragments in _PRECINCT_CONTRIBUTION_NATIVE_ORDER.items():
+            path = (ROOT / "src/packet/precinct.rs").resolve()
+            body = _coverage_function_body(source_text(path), function_header(path, symbol))
+            compact = "".join(body.split()) if body is not None else ""
+            position = 0
+            for fragment in fragments:
+                token = "".join(fragment.split())
+                found = compact.find(token, position)
+                if found < 0:
+                    raise ValueError("precinct contribution storage requires original prefix/reservation/header/body/inner-call order")
+                position = found + len(token)
+        for entry in coverage["requirements"]:
+            if entry["id"] in _PRECINCT_CONTRIBUTION_ENTRIES:
+                for field, required in (("spec_refs", _PRECINCT_CONTRIBUTION_MODELS), ("proof_refs", _PRECINCT_CONTRIBUTION_PROOFS)):
+                    if not required.issubset({(ref["path"], ref["symbol"]) for ref in entry[field]}):
+                        raise ValueError("precinct contribution storage requires complete buffer and JPIP inner-call producers")
+                if ("src/packet/tests.rs", "precinct_contribution_storage_keeps_prefix_priority_header_only_and_empty_frames") not in {
+                        (ref["path"], ref["symbol"]) for ref in entry["test_refs"]}:
+                    raise ValueError("precinct contribution storage requires bounded prefix/header-only/empty/rollback/restore controls")
     if ids & _TAG_COPY_ENTRIES:
         owner_source = source_text((ROOT / "specs/cold_rollback_snapshot.rs").resolve())
         for symbol, fragments in _ROLLBACK_OWNER_GUARDS.items():

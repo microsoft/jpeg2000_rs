@@ -39,6 +39,23 @@ an all-feature Verus proof. Full source-function coverage remains `not-measured`
 
 ## Fallible-storage foundation and remaining boundary
 
+### Packet contribution buffers and header-only callers
+
+Precinct payload decoding initializes its contribution buffer through checked
+storage after actual SOP/prefix validation and before contribution headers.
+An empty state uses no request. The source-qualified response retains the
+precinct, both byte sources, parameters, header/work caps and exact element
+count. Prefix errors retain their priority; header-only operation can now
+return a typed storage refusal instead of aborting, while leaving decoders
+unchanged. Every non-refusal ordinary result is retained.
+
+The coupled JPIP inner call has its own complete source/result frame, including
+the layered contexts and actual inline source. Its outer call envelope records
+all caps, consumes exactly the nested calls and preserves the arbitrary tail.
+The existing snapshot wrapper restores the original owners on a refused inner
+buffer just as on other inner errors. Existing infallible public Clone APIs
+and remaining internal owners are not silently included in this increment.
+
 ### Completed precinct publication
 
 Component planning checks one additional precinct slot at the reached append,
