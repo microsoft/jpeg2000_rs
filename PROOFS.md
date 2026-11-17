@@ -39,6 +39,17 @@ an all-feature Verus proof. Full source-function coverage remains `not-measured`
 
 ## Fallible-storage foundation and remaining boundary
 
+### Completed reconstructed component publication
+
+The prepared component output checks one slot after actual component
+reconstruction and before publishing the value or advancing its ordinal.
+The cold frame retains prior output values, the plans and precinct sources,
+styles, kernels, limit, exact child value and ordinal. Refusal leaves prior
+output/work unchanged; earlier child failures retain their priority.
+The shared direct progression caller records the same checked stage, which
+can succeed without a physical request when its capacity is already held.
+Its separate initial output reservation remains outside this increment.
+
 ### Preparation working owners
 
 The working subband descriptor collection now reserves through checked storage

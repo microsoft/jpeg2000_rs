@@ -3408,6 +3408,107 @@ fn complete_standard_prepare_preserves_all_ordered_rejections() {
 }
 
 #[test]
+fn prepared_component_storage_keeps_prior_prefix_work_and_held_capacity() {
+    use super::execution::reconstruct_planned_tile;
+    let bytes = component_subband_storage_fixture(1);
+    let limits = ResourceLimits::default();
+    let layout = parse_layout(&bytes, &limits).unwrap();
+    let first = &layout.tile_parts[0];
+    let size = &layout.info.image_size;
+    let plan = plan_progression_tile_at_with_component_overrides(
+        size,
+        0,
+        first.coding_style,
+        &first.component_coding_styles,
+        &first.component_quantizations,
+        &first.roi_shifts,
+        &limits,
+    )
+    .unwrap();
+    let prior = || PreparedTileComponent {
+        component: u16::MAX,
+        x: 7,
+        y: 9,
+        width: 1,
+        height: 1,
+        fraction_bits: 16,
+        samples: vec![-17],
+    };
+    let mut expected = vec![prior()];
+    let mut expected_work = 11;
+    reconstruct_planned_tile(
+        &plan,
+        first,
+        size,
+        (false, false),
+        &limits,
+        &mut expected,
+        &mut expected_work,
+    )
+    .unwrap();
+    let mut frontier = None;
+    for after in 0..64 {
+        let mut held = Vec::with_capacity(2);
+        held.push(prior());
+        let mut work = 11;
+        let result = crate::allocation::with_refusal(after, || {
+            let result = reconstruct_planned_tile(
+                &plan,
+                first,
+                size,
+                (false, false),
+                &limits,
+                &mut held,
+                &mut work,
+            );
+            if result.is_ok() {
+                assert_eq!(
+                    crate::allocation::copy_values(&[1_u8]),
+                    Err(DecodeError::AllocationFailed)
+                );
+            }
+            result
+        });
+        if result.is_ok() {
+            assert_eq!(held, expected);
+            assert_eq!(work, expected_work);
+            frontier = Some(after);
+            break;
+        }
+        assert_eq!(result, Err(DecodeError::AllocationFailed));
+    }
+    let after = frontier.expect("bounded single-component reconstruction");
+    let mut prepared = vec![prior()];
+    let mut work = 11;
+    assert_eq!(
+        crate::allocation::with_refusal(after, || reconstruct_planned_tile(
+            &plan,
+            first,
+            size,
+            (false, false),
+            &limits,
+            &mut prepared,
+            &mut work
+        )),
+        Err(DecodeError::AllocationFailed)
+    );
+    assert_eq!(prepared, vec![prior()]);
+    assert_eq!(work, 11);
+    reconstruct_planned_tile(
+        &plan,
+        first,
+        size,
+        (false, false),
+        &limits,
+        &mut prepared,
+        &mut work,
+    )
+    .unwrap();
+    assert_eq!(prepared, expected);
+    assert_eq!(work, expected_work);
+}
+
+#[test]
 fn prepare_working_storage_preserves_charged_prefixes_and_semantic_frontiers() {
     use super::reconstruction::{append_prepare_subband, initialize_prepare_working};
     let (mut band, _) = precinct_storage_inputs();

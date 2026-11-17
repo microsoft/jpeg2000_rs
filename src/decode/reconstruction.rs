@@ -1417,7 +1417,18 @@ pub fn decode_progression_prepared_image(
             if let Err(error)=component_result{crate::specs::part2_coefficient_progression_error(crate::image::assembly_size_view(size),plans,precincts,plan.component_coding_styles,plan.coding_style,
                 crate::limits::resource_decoded_bytes_limit(limits),component_index as nat,prepared_components_view(prepared@),error);}
         }
-        prepared.push(component_result?);
+        let component = component_result?;
+        let reserved = crate::allocation::reserve_additional(&mut prepared, 1);
+        #[cfg(verus_keep_ghost)]
+        proof! {
+            let context=crate::specs::Part2PreparedComponentContext {
+                before:prepared_components_view(prepared@),plans,precincts,styles:plan.component_coding_styles,kernels:Seq::empty(),
+                maximum:crate::limits::resource_decoded_bytes_limit(limits),index:component_index as nat,value:prepared_component_view(component)};
+            crate::specs::part2_prepared_component_capacity_observed(context,crate::allocation::inspection_capacity_outcome(reserved));
+            if reserved.is_err(){crate::specs::part2_coefficient_progression_publication_refused(crate::image::assembly_size_view(size),context,plan.coding_style);}
+        }
+        reserved?;
+        prepared.push(component);
         component_index = component_index
             .checked_add(1)
             .ok_or_else(arithmetic_overflow)?;

@@ -848,7 +848,20 @@ pub(super) fn reconstruct_planned_tile(
         if let Err(error)=component_result{crate::specs::part2_extraction_tile_component_error(initial,plans,precincts,first.component_coding_styles,kernels,
             codestream::image_size_component_count(size),codestream::image_size_component_infos(size),tile_part_mct_view(first),standard,initial_work,
             crate::limits::resource_work_limit(limits),crate::limits::resource_decoded_bytes_limit(limits),component_index as nat,prepared_components_view(prepared@),error);}}
-        prepared.push(component_result?);
+        let component = component_result?;
+        let reserved = crate::allocation::reserve_additional(prepared, 1);
+        #[cfg(verus_keep_ghost)]
+        proof! {
+            let context=crate::specs::Part2PreparedComponentContext {
+                before:prepared_components_view(prepared@),plans,precincts,styles:first.component_coding_styles,kernels,
+                maximum:crate::limits::resource_decoded_bytes_limit(limits),index:component_index as nat,value:crate::decode::prepared_component_view(component)};
+            crate::specs::part2_prepared_component_capacity_observed(context,crate::allocation::inspection_capacity_outcome(reserved));
+            if reserved.is_err(){crate::specs::part2_extraction_tile_publication_refused(initial,context,
+                codestream::image_size_component_count(size),codestream::image_size_component_infos(size),tile_part_mct_view(first),standard,initial_work,
+                crate::limits::resource_work_limit(limits));}
+        }
+        reserved?;
+        prepared.push(component);
         component_index = component_index
             .checked_add(1)
             .ok_or_else(arithmetic_overflow)?;

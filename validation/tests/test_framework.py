@@ -8253,6 +8253,37 @@ class FrameworkTests(WorkingFiles):
                     self.assertRaisesRegex(ValueError, "fallible copy storage"):
                 framework.validate_normative_coverage(dict(coverage, requirements=[entry]))
 
+    def test_inventory_prepared_component_requires_exact_child_ordinal_prefix_and_tail(self):
+        coverage = json.loads((framework.VALIDATION / "normative-coverage.json").read_text())
+        entry = next(item for item in coverage["requirements"]
+                     if item["id"] == "part1-complete-standard-plan-coordinator")
+        read_text = Path.read_text
+        for relative, symbol, before, after in (
+            ("src/decode/execution.rs", "reconstruct_planned_tile", "reserve_additional(prepared, 1)",
+             "reserve_additional(prepared, 2)"),
+            ("specs/cold_extraction_tile.rs", "part2_prepared_component_capacity_run",
+             "actual!=context || elements!=1", "actual!=context || elements!=2"),
+            ("specs/cold_extraction_tile.rs", "part2_prepared_component_capacity_run",
+             "calls.drop_first()", "calls"),
+            ("specs/cold_extraction_tile.rs", "part2_extraction_components_after_child",
+             "maximum,index,value}", "maximum,index:0,value}"),
+            ("specs/cold_extraction_tile.rs", "part2_extraction_components_after_child",
+             "Err(error)=>(Err(error),before)", "Err(error)=>(Err(error),Seq::empty())"),
+        ):
+            source = framework.ROOT / relative
+            original = read_text(source)
+            body = (framework._coverage_function_body(original, framework._coverage_function_header(original, symbol))
+                    if relative.startswith("src/") else framework._coverage_spec_function_body(original, symbol))
+            self.assertIn(before, body)
+            changed = original.replace(body, body.replace(before, after, 1), 1)
+
+            def altered(path, *args, **kwargs):
+                return changed if path == source else read_text(path, *args, **kwargs)
+
+            with self.subTest(mutation=before), mock.patch.object(Path, "read_text", altered), \
+                    self.assertRaisesRegex(ValueError, "coefficient extraction"):
+                framework.validate_normative_coverage(dict(coverage, requirements=[entry]))
+
     def test_inventory_prepare_working_rejects_lost_charge_stage_source_and_tail(self):
         coverage = json.loads((framework.VALIDATION / "normative-coverage.json").read_text())
         entry = next(item for item in coverage["requirements"]

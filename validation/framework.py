@@ -5825,6 +5825,9 @@ def _coverage_cold_links(keys: set[tuple[str, str]]) -> tuple[set[tuple[str, str
         }.get(model, model.removesuffix("_result") + "_run")
         models.update(((path, model), (path, run)))
         proofs.add((path, normal))
+        if model in ("part2_extraction_tile_result", "part2_coefficient_progression_result"):
+            models |= _PREPARED_COMPONENT_MODELS
+            proofs |= _PREPARED_COMPONENT_PROOFS
         if model in ("part2_prepare_init_result", "part2_prepare_band_result", "part2_extraction_component_result", "part2_coefficient_component_result"):
             models |= _PREPARE_WORKING_MODELS
             proofs |= _PREPARE_WORKING_PROOFS
@@ -7928,7 +7931,29 @@ _CLEANUP_SIGNIFICANCE_TESTS = {
     ("src/decode/tests.rs", "ht_cleanup_significance_storage_actual_raw_selected_jph_reconstruction_and_automatic_restore"),
 }
 
+_PREPARED_COMPONENT_MODELS = {("specs/cold_extraction_tile.rs", name) for name in (
+    "part2_prepared_component_capacity_run", "part2_prepared_component_capacity_result",
+    "part2_extraction_components_after_child",
+)}
+_PREPARED_COMPONENT_PROOFS = {("specs/cold_extraction_tile.rs", name) for name in (
+    "part2_prepared_component_capacity_observed", "part2_extraction_components_after_child_normal",
+    "part2_extraction_components_publication_refused", "part2_extraction_tile_publication_refused",
+    "part2_coefficient_progression_publication_refused",
+)}
 _COEFFICIENT_EXTRACTION_GUARDS = {
+    ("specs/cold_extraction_tile.rs", "part2_prepared_component_capacity_run"): (
+        "PreparedComponentCapacity {context:actual,elements,succeeded}", "actual!=context || elements!=1",
+        "Err(crate::DecodeError::AllocationFailed)", "calls.drop_first()",
+    ),
+    ("specs/cold_extraction_tile.rs", "part2_extraction_components_after_child"): (
+        "Err(error)=>Some((Ok((Err(error),before)),calls))",
+        "Part2PreparedComponentContext {before,plans,precincts,styles,kernels,maximum,index,value}",
+        "Err(error)=>(Err(error),before)", "Ok(())=>(Ok(()),before.push(value))",
+    ),
+    ("specs/cold_extraction_tile.rs", "part2_extraction_components_next"): (
+        "if before.0.is_err()", "part2_extraction_reconstruct_component_run(",
+        "part2_extraction_components_after_child(before.1,plans,precincts,styles,kernels,maximum,index,result,rest)",
+    ),
     ("specs/cold_coefficient_extraction.rs", "part2_extraction_context"): (
         "width:plane.width,height:plane.height,coefficients:plane.coefficients.len(),coordinate",
     ),
@@ -7960,6 +7985,18 @@ _COEFFICIENT_EXTRACTION_GUARDS = {
     ),
 }
 _COEFFICIENT_EXTRACTION_NATIVE_ORDER = {
+    ("src/decode/execution.rs", "reconstruct_planned_tile"): (
+        "let component_result =", "prepare_tile_component_with_kernel(", "let component = component_result?",
+        "reserve_additional(prepared, 1)", "Part2PreparedComponentContext",
+        "part2_prepared_component_capacity_observed(", "part2_extraction_tile_publication_refused(",
+        "reserved?", "prepared.push(component)", "component_index = component_index",
+    ),
+    ("src/decode/reconstruction.rs", "decode_progression_prepared_image"): (
+        "let component_result = prepare_tile_component(", "let component = component_result?",
+        "reserve_additional(&mut prepared, 1)", "Part2PreparedComponentContext",
+        "part2_prepared_component_capacity_observed(", "part2_coefficient_progression_publication_refused(",
+        "reserved?", "prepared.push(component)", "component_index = component_index",
+    ),
     ("src/decode/code_blocks.rs", "collect_code_block_coefficients"): (
         "let coefficients = plane.coefficients()", "let count = coefficients.len()",
         "if count == 0", "crate::allocation::empty_with_capacity(count)", "let mut signed = allocated?",
@@ -7972,6 +8009,8 @@ _COEFFICIENT_EXTRACTION_NATIVE_ORDER = {
     ),
 }
 _COEFFICIENT_EXTRACTION_TESTS = {
+    ("src/decode/tests.rs", "prepared_component_storage_keeps_prior_prefix_work_and_held_capacity"),
+} | {
     ("src/decode/tests.rs", "coefficient_extraction_storage_" + suffix) for suffix in (
         "distinct_linear_coordinate_raw_values_and_restore",
         "zero_raw_shape_and_ordinary_cell_error_order",
