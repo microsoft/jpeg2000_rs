@@ -5,6 +5,7 @@ use super::*;
 verus! {
 
 pub enum Part2JpipSnapshotEvent {
+    ColorProfileCapacity {context:Part2ColorStorageContext,elements:nat,succeeded:bool},
     PaletteCapacity {context:Part2PaletteStorageContext,role:Part2PaletteStorageRole,elements:nat,succeeded:bool},
     ComponentMappingCapacity {context:Part2MappingStorageContext,elements:nat,succeeded:bool},
     AssociationAppendCapacity {context:Part2AssociationAppendContext,elements:nat,succeeded:bool},

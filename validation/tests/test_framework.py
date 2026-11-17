@@ -5079,7 +5079,7 @@ class FrameworkTests(WorkingFiles):
         read_text = Path.read_text
         begin = original.index("fn parse_color_specification")
         for before, after in (
-            ("copy_profile(&box_ref.payload[3..])?", "copy_profile(&box_ref.payload[3..4])?"),
+            ("copy_profile(&box_ref.payload[3..])", "copy_profile(&box_ref.payload[3..4])"),
             ("precedence: box_ref.payload[1]", "precedence: 0"),
             ("approximation: box_ref.payload[2]", "approximation: 0"),
             ("validate_color_specification_prefix(box_ref, base_offset)?", "validate_color_specification_prefix(box_ref, 0)?"),
@@ -5113,6 +5113,57 @@ class FrameworkTests(WorkingFiles):
 
             with self.subTest(before=before), mock.patch.object(Path, "read_text", altered), \
                     self.assertRaisesRegex(ValueError, "complete lazy-error/metadata/ICC-byte model"):
+                framework.validate_normative_coverage(dict(coverage, requirements=[entry]))
+
+    def test_inventory_colour_storage_binds_sources_counts_replies_selection_and_group_tails(self):
+        coverage = json.loads((framework.VALIDATION / "normative-coverage.json").read_text())
+        read_text = Path.read_text
+        mutations = (
+            (framework._COLOR_HEADER_ENTRY, "specs/cold_color_storage.rs",
+             "payload.len()<4", "payload.len()<3"),
+            (framework._COLOR_HEADER_ENTRY, "specs/cold_color_storage.rs",
+             "payload[0]==2 || payload[0]==3", "payload[0]==2"),
+            (framework._COLOR_HEADER_ENTRY, "specs/cold_color_storage.rs",
+             "actual!=context || elements!=count {None}", "actual!=context || elements!=count+1 {None}"),
+            (framework._COLOR_HEADER_ENTRY, "specs/cold_color_storage.rs",
+             "events.drop_first()", "events"),
+            (framework._COLOR_HEADER_ENTRY, "src/jp2/color.rs",
+             "crate::allocation::inspection_capacity_outcome(copied)", "Ok(())"),
+            (framework._COLOR_HEADER_ENTRY, "src/jp2/color.rs",
+             "empty_with_capacity(source.len())?", "empty_with_capacity(source.len()+1)?"),
+            (framework._COLOR_HEADER_ENTRY, "src/jp2/headers.rs",
+             "part2_header_storage_request_color_error(context,error)", "unrelated_color_error(context,error)"),
+            (framework._COLOR_HEADER_ENTRY, "specs/cold_channel_storage.rs",
+             "COLOR_SPECIFICATION && state.color.is_none()", "COLOR_SPECIFICATION"),
+            (framework._COLOR_HEADER_ENTRY, "specs/cold_channel_storage.rs",
+             "COLOR_SPECIFICATION && !state.color_override", "COLOR_SPECIFICATION"),
+            (framework._RAW_LAYER_HEADER_ENTRY, "specs/cold_color_storage.rs",
+             "updated=colors.push(color)", "updated=colors"),
+            (framework._RAW_LAYER_HEADER_ENTRY, "specs/cold_color_storage.rs",
+             "input,base:context.base},events)", "input,base:0},events)"),
+            (framework._RAW_LAYER_HEADER_ENTRY, "specs/cold_color_storage.rs",
+             "part2_color_group_storage_boxes_run(context,next.1,updated,rest)",
+             "part2_color_group_storage_boxes_run(context,next.1,colors,rest)"),
+            (framework._RAW_LAYER_HEADER_ENTRY, "specs/cold_palette_storage.rs",
+             "part2_color_group_storage_run(context,events)", "Some((Ok(Seq::empty()),events))"),
+            (framework._RAW_LAYER_HEADER_ENTRY, "specs/cold_channel_storage.rs",
+             "context:Part2ColorGroupStorageContext {input,limits,base:nested_base}",
+             "context:Part2ColorGroupStorageContext {input,limits,base}"),
+            (framework._RAW_LAYER_HEADER_ENTRY, "src/jp2/composition.rs",
+             "part2_header_storage_request_color_group_error(context,error)", "unrelated_group_error(context,error)"),
+        )
+        for ident, relative, before, after in mutations:
+            entry = next(item for item in coverage["requirements"] if item["id"] == ident)
+            source = framework.ROOT / relative
+            original = read_text(source)
+            self.assertIn(before, original)
+            changed = original.replace(before, after, 1)
+
+            def altered(path, *args, **kwargs):
+                return changed if path == source else read_text(path, *args, **kwargs)
+
+            with self.subTest(ident=ident, before=before), mock.patch.object(Path, "read_text", altered), \
+                    self.assertRaisesRegex(ValueError, "storage|whole raw|actual native owners|executable Verus"):
                 framework.validate_normative_coverage(dict(coverage, requirements=[entry]))
 
     def test_inventory_raw_color_header_keeps_fresh_actual_color_and_model_caches(self):

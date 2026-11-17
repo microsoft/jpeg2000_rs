@@ -249,7 +249,21 @@ fn parse_codestream_header_box(
         *saw_bpcc = true;
     } else if box_type.equals(BoxType::COLOR_SPECIFICATION) {
         if crate::refinement::first_override_allowed(*color_override) {
-            header.color = parse_color_specification(box_ref, base_offset)?;
+            let parsed = parse_color_specification(box_ref, base_offset);
+            #[cfg(verus_keep_ghost)]
+            proof! {
+                if let Err(error)=parsed {
+                    if error==DecodeError::AllocationFailed {
+                        let context=crate::specs::Part2ColorStorageContext {
+                            input:super::box_reference_view(box_ref),base:base_offset};
+                        crate::specs::part2_header_storage_request_color_error(context,error);
+                        crate::specs::part2_associated_header_box_storage_request_error(
+                            super::box_reference_view(box_ref),before,*limits,base_offset,
+                            crate::specs::Part2HeaderStorageRequest::Color {context},error);
+                    }
+                }
+            }
+            header.color = parsed?;
             *color_override = true;
         } else {
             validate_color_specification_prefix(box_ref, base_offset)?;
@@ -579,7 +593,21 @@ pub(super) fn parse_jp2_header_profile(
             saw_bpcc = true;
         } else if box_type.equals(BoxType::COLOR_SPECIFICATION) {
             if color.is_none() {
-                color = Some(parse_color_specification(box_ref, base_offset)?);
+                let parsed = parse_color_specification(box_ref, base_offset);
+                #[cfg(verus_keep_ghost)]
+                proof! {
+                    if let Err(error)=parsed {
+                        if error==DecodeError::AllocationFailed {
+                            let context=crate::specs::Part2ColorStorageContext {
+                                input:super::box_reference_view(box_ref),base:base_offset};
+                            crate::specs::part2_header_storage_request_color_error(context,error);
+                            crate::specs::part2_header_storage_root_error(root,storage_prefix,machine,previous_reader,previous_state,
+                                super::box_reference_view(box_ref),crate::specs::Part2HeaderStorageRequest::Color {context},error);
+                            crate::specs::part2_jp2_header_storage_observed(payload@,*limits,base_offset,allow_unspecified,Err(error));
+                        }
+                    }
+                }
+                color = Some(parsed?);
             } else {
                 validate_color_specification_prefix(box_ref, base_offset)?;
             }
