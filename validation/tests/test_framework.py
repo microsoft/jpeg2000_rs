@@ -11422,9 +11422,22 @@ class FrameworkTests(WorkingFiles):
             ("specs/cold_output_storage.rs", "if rest.len()==0{Some((result,events.drop_first()))}else{None}", "Some((result,events.drop_first()))"),
             ("specs/cold_output_storage.rs", "Some((Ok(before.push(component)),tail))", "Some((Ok(Seq::empty()),tail))"),
             ("specs/cold_output_storage.rs", "defined,context.components,context.maximum)", "defined,context.components,u64::MAX)"),
+            ("specs/cold_typed_storage.rs", "Definition {..}=>1", "Definition {..}=>0"),
+            ("specs/cold_typed_storage.rs", "DefinitionCopy {source,..}=>source.1.len()", "DefinitionCopy {source,..}=>0"),
+            ("specs/cold_output_storage.rs", "source:components[record.0 as int],definition:record.1", "source:components[0],definition:record.1"),
+            ("specs/cold_output_storage.rs", "if record.0 as nat>=components.len()", "if false"),
+            ("specs/cold_output_storage.rs", "part2_output_definition_run(before,records[count-1],rest)", "Some((Ok(before),rest))"),
+            ("specs/cold_output_storage.rs", "part2_output_finish_run(context,mapped,tail)", "Some((part2_output_finish(context,mapped),tail))"),
             ("src/decode/output.rs", "let mut copied = reserved?", "let mut copied = Vec::new()"),
             ("src/decode/output.rs", "crate::allocation::empty_with_capacity(decoded.components().len())", "crate::allocation::empty_with_capacity(header.component_mappings.len())"),
             ("src/decode/output.rs", "crate::allocation::inspection_capacity_outcome(reserved)", "Ok(())"),
+            ("src/decode/output.rs", "component.try_add_channel_definition(record.definition)", "component.add_channel_definition(record.definition)"),
+            ("src/decode/output.rs", "copied.try_copy_channel_definitions(source)", "Ok(())"),
+            ("src/image/layout.rs", "crate::allocation::inspection_capacity_outcome(reserved)", "Ok(())"),
+            ("src/image/layout.rs", "source: typed_component_output_view(old(self))", "source: typed_component_output_view(source)"),
+            ("src/image/layout.rs", "definition: channel_definition_view(definition)", "definition: unrelated"),
+            ("src/image/layout.rs", "result == Ok(()) || result == Err(DecodeError::AllocationFailed)", "result.is_ok() || result.is_err()"),
+            ("src/image/layout.rs", "} else { typed_component_definitions(old(self)) }", "} else { Seq::empty() }"),
         ):
             source = framework.ROOT / relative
             original = source.read_text()

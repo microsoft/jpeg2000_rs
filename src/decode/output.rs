@@ -798,7 +798,18 @@ pub(super) fn apply_jp2_output(
         let component = components
             .get_mut(usize::from(record.channel))
             .ok_or_else(invalid_jp2_output)?;
-        component.add_channel_definition(record.definition);
+        let appended = component.try_add_channel_definition(record.definition);
+        #[cfg(verus_keep_ghost)]
+        proof! {
+            if let Err(error) = appended {
+                if raw_header.1.len() == 0 {
+                    assert(input_components.take(input_components.len() as int) =~= input_components);
+                }
+                crate::specs::part2_output_storage_definition_error(
+                    context, mapped_start, definition_index as nat, previous_components, error);
+            }
+        }
+        appended?;
         #[cfg(verus_keep_ghost)]
         proof! {
             let channel = record.channel as int;
@@ -906,30 +917,14 @@ pub(super) fn copy_typed_component(source: &TypedComponent) -> Result<TypedCompo
         source.info(),
         samples,
     );
-    let definition_count = source.channel_definitions().len();
-    let mut definition_index = 0_usize;
-    #[cfg_attr(
-        verus_keep_ghost,
-        verus_spec(
-            invariant definition_index <= definition_count,
-            definition_count == crate::image::typed_component_definitions(source).len(),
-            crate::image::typed_component_view(&copied) == crate::image::typed_component_view(source),
-            crate::image::typed_component_definitions(&copied)
-                == crate::image::typed_component_definitions(source).take(definition_index as int),
-            decreases definition_count - definition_index,
-        )
-    )]
-    while definition_index < definition_count {
-        copied.add_channel_definition(
-            *source
-                .channel_definitions()
-                .get(definition_index)
-                .ok_or_else(invalid_jp2_output)?,
-        );
-        definition_index = definition_index
-            .checked_add(1)
-            .ok_or_else(arithmetic_overflow)?;
+    let definitions = copied.try_copy_channel_definitions(source);
+    #[cfg(verus_keep_ghost)]
+    proof! {
+        if let Err(error) = definitions {
+            crate::specs::part2_output_definition_copy_refused(source_value, error);
+        }
     }
+    definitions?;
     #[cfg(verus_keep_ghost)]
     proof! {
         assert(crate::image::typed_component_definitions(&copied)
