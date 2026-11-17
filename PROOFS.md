@@ -39,6 +39,17 @@ an all-feature Verus proof. Full source-function coverage remains `not-measured`
 
 ## Fallible-storage foundation and remaining boundary
 
+### TagTree level ownership
+
+TagTree geometry and node-limit checks now use a fixed stack plan matching the
+existing 64-level bound. Only after complete semantic preflight is the used
+level prefix copied into checked storage, followed by the original node owner.
+The cold model distinguishes the two actual replies, retains exact dimensions,
+limits and built metadata, and frames the untouched tail at either refusal.
+This removes infallible level-vector growth without changing successful trees
+or allowing allocation refusal to hide a geometry, arithmetic or node-limit
+error. It does not claim allocator availability or full-surface OOM recovery.
+
 ### Precinct preparation ownership
 
 Context preparation validates the count/linear-index and across-zero errors

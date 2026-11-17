@@ -359,27 +359,33 @@ pub(crate) fn tag_tree_from_dimensions(
     if width == 0 || height == 0 {
         return Err(packet_reader_error(0, MalformedKind::InvalidTagTree));
     }
-    let mut levels = Vec::new();
+    // Keep the existing level bound without allocating before semantic preflight.
+    let mut level_plan = [TagTreeLevel {
+        offset: 0,
+        width: 0,
+        height: 0,
+    }; 64];
+    let mut level_count = 0_usize;
     let mut total_nodes = 0_usize;
     let mut level_width = width;
     let mut level_height = height;
     let mut remaining_levels = 64_usize;
     #[cfg(verus_keep_ghost)]
     proof! {
-        assert(levels@.map_values(|level: TagTreeLevel| tag_level_view(level)) =~= Seq::<crate::specs::Part1TagLevel>::empty());
+        assert(level_plan@.take(0).map_values(|level: TagTreeLevel| tag_level_view(level)) =~= Seq::<crate::specs::Part1TagLevel>::empty());
     }
     #[cfg_attr(verus_keep_ghost, verus_spec(
-        invariant remaining_levels <= 64, width != 0, height != 0,
+        invariant remaining_levels <= 64, level_count + remaining_levels == 64, width != 0, height != 0,
             crate::specs::part1_tag_storage_result(width,height,maximum_nodes,crate::specs::part1_tag_initial(width,height,maximum_nodes)),
         invariant_except_break
             crate::specs::part1_tag_build(width, height, crate::specs::Part1TagBuild { levels: Seq::empty(), total: 0 }, 64, maximum_nodes)
                 == crate::specs::part1_tag_build(level_width, level_height,
-                    crate::specs::Part1TagBuild { levels: levels@.map_values(|level: TagTreeLevel| tag_level_view(level)), total: total_nodes },
+                    crate::specs::Part1TagBuild { levels: level_plan@.take(level_count as int).map_values(|level: TagTreeLevel| tag_level_view(level)), total: total_nodes },
                     remaining_levels as nat, maximum_nodes),
         ensures crate::specs::part1_tag_build(width, height, crate::specs::Part1TagBuild { levels: Seq::empty(), total: 0 }, 64, maximum_nodes)
             == Ok(crate::specs::Part1TagBuild {
-                levels: levels@.map_values(|level: TagTreeLevel| tag_level_view(level)), total: total_nodes
-            }),
+                levels: level_plan@.take(level_count as int).map_values(|level: TagTreeLevel| tag_level_view(level)), total: total_nodes
+            }), total_nodes > 0,
         decreases remaining_levels,
     ))]
     loop {
@@ -405,15 +411,16 @@ pub(crate) fn tag_tree_from_dimensions(
             ));
         }
         #[cfg(verus_keep_ghost)]
-        proof_decl! { let ghost previous_levels = levels@.map_values(|level: TagTreeLevel| tag_level_view(level)); }
-        levels.push(TagTreeLevel {
+        proof_decl! { let ghost previous_levels = level_plan@.take(level_count as int).map_values(|level: TagTreeLevel| tag_level_view(level)); }
+        level_plan[level_count] = TagTreeLevel {
             offset: total_nodes,
             width: level_width,
             height: level_height,
-        });
+        };
+        level_count += 1;
         #[cfg(verus_keep_ghost)]
         proof! {
-            assert(levels@.map_values(|level: TagTreeLevel| tag_level_view(level)) =~= previous_levels.push(
+            assert(level_plan@.take(level_count as int).map_values(|level: TagTreeLevel| tag_level_view(level)) =~= previous_levels.push(
                 crate::specs::Part1TagLevel { offset: total_nodes, width: level_width, height: level_height }));
         }
         total_nodes = match usize::try_from(next_total) {
@@ -426,6 +433,19 @@ pub(crate) fn tag_tree_from_dimensions(
         level_width = ceil_div_two(level_width);
         level_height = ceil_div_two(level_height);
     }
+    let copied_levels = crate::allocation::copy_values(&level_plan[..level_count]);
+    #[cfg(verus_keep_ghost)]
+    proof! {
+        if let Err(error)=copied_levels {
+            assert(error==DecodeError::AllocationFailed);
+            assert(total_nodes>0);
+            crate::specs::part2_tag_storage_levels_refused(width,height,maximum_nodes,
+                crate::specs::Part1TagBuild {
+                    levels:level_plan@.take(level_count as int).map_values(|level:TagTreeLevel|tag_level_view(level)),
+                    total:total_nodes});
+        }
+    }
+    let levels = copied_levels?;
     let filled = crate::allocation::filled_values(
         TagTreeNode {
             low: 0,

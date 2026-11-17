@@ -7048,6 +7048,7 @@
         {"path": "specs/cold_grid_plan.rs", "symbol": "part2_tile_after_grid_plan_normal"},
         {"path": "specs/cold_tag_storage.rs", "symbol": "part2_tag_storage_normal"},
         {"path": "specs/cold_tag_storage.rs", "symbol": "part2_tag_storage_observed"},
+        {"path": "specs/cold_tag_storage.rs", "symbol": "part2_tag_storage_levels_refused"},
         {"path": "specs/cold_tag_storage.rs", "symbol": "part2_precinct_tree_observed"},
         {"path": "specs/cold_tag_storage.rs", "symbol": "part2_precinct_tree_normal"},
         {"path": "specs/cold_packet_precinct.rs", "symbol": "part2_precinct_capacity_observed"},
@@ -7119,6 +7120,7 @@
       "test_refs": [
         {"path": "src/decode/tests.rs", "symbol": "actual_component_plan_derives_full_component_and_precinct_vectors_from_real_raw_owners"},
         {"path": "src/packet/tests.rs", "symbol": "packet_precinct_storage_tag_nodes_admission_refusal_and_exact_restore"},
+        {"path": "src/packet/tests.rs", "symbol": "tagtree_storage_levels_nodes_preflight_and_exact_retry"},
         {"path": "src/packet/tests.rs", "symbol": "packet_precinct_storage_subbands_and_ordered_tree_refusals_restore_every_owner"},
         {"path": "src/packet/tests.rs", "symbol": "packet_precinct_storage_empty_and_ordinary_priority_consume_no_later_request"},
         {"path": "src/decode/tests.rs", "symbol": "packet_precinct_storage_public_raw_selected_container_roles_and_restore"},
@@ -7222,6 +7224,7 @@
         {"path": "src/decode/proof_support.rs", "symbol": "planned_precinct_outcome"},
         {"path": "specs/cold_tag_storage.rs", "symbol": "part2_tag_storage_normal"},
         {"path": "specs/cold_tag_storage.rs", "symbol": "part2_tag_storage_observed"},
+        {"path": "specs/cold_tag_storage.rs", "symbol": "part2_tag_storage_levels_refused"},
         {"path": "specs/cold_tag_storage.rs", "symbol": "part2_precinct_tree_observed"},
         {"path": "specs/cold_tag_storage.rs", "symbol": "part2_precinct_tree_normal"},
         {"path": "specs/cold_packet_precinct.rs", "symbol": "part2_precinct_capacity_observed"},
@@ -7261,6 +7264,7 @@
       "test_refs": [
         {"path": "src/decode/tests.rs", "symbol": "actual_precinct_plan_derives_all_private_packet_fields_from_raw_subband_ranges"},
         {"path": "src/packet/tests.rs", "symbol": "packet_precinct_storage_tag_nodes_admission_refusal_and_exact_restore"},
+        {"path": "src/packet/tests.rs", "symbol": "tagtree_storage_levels_nodes_preflight_and_exact_retry"},
         {"path": "src/packet/tests.rs", "symbol": "packet_precinct_storage_subbands_and_ordered_tree_refusals_restore_every_owner"},
         {"path": "src/packet/tests.rs", "symbol": "packet_precinct_storage_empty_and_ordinary_priority_consume_no_later_request"},
         {"path": "src/decode/tests.rs", "symbol": "packet_precinct_storage_public_raw_selected_container_roles_and_restore"},
@@ -7581,6 +7585,7 @@
         {"path": "proofs/production_impl/mod.rs", "symbol": "production_precinct_initialization_step"},
         {"path": "specs/cold_tag_storage.rs", "symbol": "part2_tag_storage_normal"},
         {"path": "specs/cold_tag_storage.rs", "symbol": "part2_tag_storage_observed"},
+        {"path": "specs/cold_tag_storage.rs", "symbol": "part2_tag_storage_levels_refused"},
         {"path": "specs/cold_tag_storage.rs", "symbol": "part2_precinct_tree_observed"},
         {"path": "specs/cold_tag_storage.rs", "symbol": "part2_precinct_tree_normal"},
         {"path": "specs/cold_packet_precinct.rs", "symbol": "part2_precinct_capacity_observed"},
@@ -7619,6 +7624,7 @@
         {"path": "src/packet/tests.rs", "symbol": "precinct_singleton_storage_precedes_child_admission_without_false_empty_requests"},
         {"path": "src/packet/tests.rs", "symbol": "precinct_singleton_storage_real_full_selected_packet_callers_restore"},
         {"path": "src/packet/tests.rs", "symbol": "packet_precinct_storage_tag_nodes_admission_refusal_and_exact_restore"},
+        {"path": "src/packet/tests.rs", "symbol": "tagtree_storage_levels_nodes_preflight_and_exact_retry"},
         {"path": "src/packet/tests.rs", "symbol": "packet_precinct_storage_subbands_and_ordered_tree_refusals_restore_every_owner"},
         {"path": "src/packet/tests.rs", "symbol": "packet_precinct_storage_empty_and_ordinary_priority_consume_no_later_request"},
         {"path": "src/decode/tests.rs", "symbol": "packet_precinct_storage_public_raw_selected_container_roles_and_restore"}
@@ -10090,6 +10096,7 @@
       "proof_refs": [
         {"path": "specs/cold_tag_storage.rs", "symbol": "part2_tag_storage_normal"},
         {"path": "specs/cold_tag_storage.rs", "symbol": "part2_tag_storage_observed"},
+        {"path": "specs/cold_tag_storage.rs", "symbol": "part2_tag_storage_levels_refused"},
         {"path": "specs/cold_tag_storage.rs", "symbol": "part2_precinct_tree_observed"},
         {"path": "specs/cold_tag_storage.rs", "symbol": "part2_precinct_tree_normal"},
         {"path": "src/allocation.rs", "symbol": "filled_values"},
@@ -10210,6 +10217,7 @@
           "path": "src/packet/tests.rs", "symbol": "precinct_payload_prefix_checks_actual_markers_before_packed_ranges_and_budgets"
         },
         {"path": "src/packet/tests.rs", "symbol": "packet_precinct_storage_tag_nodes_admission_refusal_and_exact_restore"},
+        {"path": "src/packet/tests.rs", "symbol": "tagtree_storage_levels_nodes_preflight_and_exact_retry"},
         {"path": "src/packet/tests.rs", "symbol": "packet_precinct_storage_subbands_and_ordered_tree_refusals_restore_every_owner"},
         {"path": "src/packet/tests.rs", "symbol": "packet_precinct_storage_empty_and_ordinary_priority_consume_no_later_request"},
         {"path": "src/decode/tests.rs", "symbol": "packet_precinct_storage_public_raw_selected_container_roles_and_restore"},

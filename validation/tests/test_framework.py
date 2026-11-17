@@ -8253,6 +8253,32 @@ class FrameworkTests(WorkingFiles):
                     self.assertRaisesRegex(ValueError, "fallible copy storage"):
                 framework.validate_normative_coverage(dict(coverage, requirements=[entry]))
 
+    def test_inventory_tagtree_storage_rejects_level_owner_source_and_consumption_changes(self):
+        coverage = json.loads((framework.VALIDATION / "normative-coverage.json").read_text())
+        entry = next(item for item in coverage["requirements"]
+                     if item["id"] == "part2-complete-native-precinct-initialization")
+        read_text = Path.read_text
+        for relative, before, after in (
+            ("src/packet/tag_tree.rs", "copy_values(&level_plan[..level_count])",
+             "copy_values(&level_plan[..1])"),
+            ("specs/cold_tag_storage.rs", "call.built!=built || !call.levels",
+             "call.built!=built || call.levels"),
+            ("specs/cold_tag_storage.rs", "nodes.built!=built || nodes.levels",
+             "nodes.built!=built || !nodes.levels"),
+            ("specs/cold_tag_storage.rs", "calls.drop_first().drop_first()", "calls.drop_first()"),
+        ):
+            source = framework.ROOT / relative
+            original = read_text(source)
+            changed = original.replace(before, after, 1)
+            self.assertNotEqual(original, changed)
+
+            def altered(path, *args, **kwargs):
+                return changed if path == source else read_text(path, *args, **kwargs)
+
+            with self.subTest(mutation=before), mock.patch.object(Path, "read_text", altered), \
+                    self.assertRaisesRegex(ValueError, "nested precinct fresh storage"):
+                framework.validate_normative_coverage(dict(coverage, requirements=[entry]))
+
     def test_inventory_precinct_owner_storage_rejects_count_role_and_prelude_source_changes(self):
         coverage = json.loads((framework.VALIDATION / "normative-coverage.json").read_text())
         entry = next(item for item in coverage["requirements"]
