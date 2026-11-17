@@ -263,9 +263,17 @@ pub(crate) proof fn part2_jpip_planned_image_actual(
     part2_jpip_transcode_cold_frames(cache, decoder.0, available, Ok(transcoded));
     let calls = part2_cold_witness(
         |events| part2_jpip_transcode_cold_run(cache, decoder.0, available, events), Ok(transcoded));
+    part2_cold_prefix_at(
+        |events| part2_jpip_transcode_cold_run(cache, decoder.0, available, events),
+        calls, Ok(transcoded), Seq::empty());
+    assert(calls + Seq::empty() =~= calls);
     part2_decode_raw_cold_frames(bytes, crate::options::decode_options_limits(options), selection, decoded);
     let image_calls = part2_cold_witness(
         |events| part2_decode_raw_cold_run(bytes, crate::options::decode_options_limits(options), selection, events), decoded);
+    part2_cold_prefix_at(
+        |events| part2_decode_raw_cold_run(bytes, crate::options::decode_options_limits(options), selection, events),
+        image_calls, decoded, Seq::empty());
+    assert(image_calls + Seq::empty() =~= image_calls);
     let events = seq![Part2JpipAutomaticEvent::Transcode { calls },
         Part2JpipAutomaticEvent::Image { calls: image_calls }];
     assert(events.drop_first() =~= seq![Part2JpipAutomaticEvent::Image { calls: image_calls }]);
@@ -401,6 +409,9 @@ pub(crate) proof fn part2_jpip_automatic_image_actual(
     part2_decode_raw_cold_frames(snapshot.0, crate::options::decode_options_limits(options), selection, decoded);
     let image_calls = part2_cold_witness(
         |events| part2_decode_raw_cold_run(snapshot.0, crate::options::decode_options_limits(options), selection, events), decoded);
+    part2_cold_prefix_at(
+        |events| part2_decode_raw_cold_run(snapshot.0, crate::options::decode_options_limits(options), selection, events),
+        image_calls, decoded, Seq::empty());
     assert(image_calls + Seq::empty() =~= image_calls);
     let events = seq![Part2JpipAutomaticEvent::Snapshot { calls: snapshot_calls },
         Part2JpipAutomaticEvent::Image { calls: image_calls }];
