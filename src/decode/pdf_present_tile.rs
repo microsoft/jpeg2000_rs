@@ -459,7 +459,19 @@ pub fn decode_jp2_recover_present_tile_selected(
         }
     }
     let decoded = decoded_result?;
-    let image = apply_jp2_output(decoded, inspected.file().header(), options.limits())?;
+    #[cfg(verus_keep_ghost)]
+    proof_decl! {let ghost output_source=crate::image::typed_image_value_view(decoded);}
+    let output = apply_jp2_output(decoded, inspected.file().header(), options.limits());
+    #[cfg(verus_keep_ghost)]
+    proof! {
+        if let Err(error)=output {
+            if let Ok(raw)=crate::specs::part1_parse_layout(source@,crate::options::decode_options_limits(options)) {
+                crate::specs::part2_present_jp2_output_error(input@,jp2::raw_inspected_container_view(&inspected),raw,
+                    crate::options::decode_selection_view(requested),tile,crate::options::decode_options_limits(options),output_source,error);
+            }
+        }
+    }
+    let image = output?;
     let report = finish_report(
         &layout.info.image_size,
         requested,

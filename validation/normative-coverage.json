@@ -1567,6 +1567,7 @@
       "id": "part2-complete-native-public-raw-jpx-codestream-results",
       "topic": "Complete actual public raw JPX codestream typed/color full-selected image/error Results from bytes/index/options/selections through actual raw container, selected-file, header, decoder, output and color producers. Intentional Sarah DEV-355FE751F9 correction: the actual selected producer passes its discard level into typed_layout and native-resolution nonlinear tile clipping; matching complete Result models retain this context. Preserve layout-before-header validation, no added full-output-shape validator, complete stored returned-header references, selected-color expansion/target ordering and unselected-payload laziness. The disabled nested item remains nonexecuting. No success banks, proof clones, reconstruction premises or alternate decoders. Progressive/JPIP/dispatch and independent normative/cfg/lifetime/release remain separate.",
       "implementation_refs": [
+        {"path": "src/decode/output.rs", "symbol": "apply_associated_output"},
         {"path": "src/decode/api.rs", "symbol": "decode_jpx_codestream"},
         {"path": "src/decode/api.rs", "symbol": "decode_jpx_codestream_selected"},
         {"path": "src/decode/api.rs", "symbol": "decode_jpx_codestream_color"},
@@ -1597,6 +1598,8 @@
         {"path": "src/decode/output.rs", "symbol": "apply_jp2_output"}
       ],
       "spec_refs": [
+        {"path": "specs/cold_output_storage.rs", "symbol": "part2_output_storage_result"},
+        {"path": "specs/cold_output_storage.rs", "symbol": "part2_output_storage_run"},
         {"path": "specs/cold_typed_storage.rs", "symbol": "part2_typed_capacity_count"},
         {"path": "specs/cold_typed_storage.rs", "symbol": "part2_typed_capacity_run"},
         {"path": "specs/cold_typed_storage.rs", "symbol": "part2_typed_samples_admit"},
@@ -1678,6 +1681,7 @@
         {"path": "specs/raw_layout.rs", "symbol": "part1_parse_layout_with_cold_storage"}
       ],
       "proof_refs": [
+        {"path": "specs/cold_output_storage.rs", "symbol": "part2_output_storage_normal"},
         {"path": "specs/cold_typed_storage.rs", "symbol": "part2_typed_capacity_observed"},
         {"path": "specs/cold_typed_storage.rs", "symbol": "part2_typed_samples_normal"},
         {"path": "specs/cold_typed_storage.rs", "symbol": "part2_typed_samples_refused"},
@@ -1790,6 +1794,10 @@
         {"path": "src/color/conversion.rs", "symbol": "convert_jp2_color"}
       ],
       "spec_refs": [
+        {"path": "specs/cold_output_storage.rs", "symbol": "part2_output_storage_result"},
+        {"path": "specs/cold_output_storage.rs", "symbol": "part2_output_storage_run"},
+        {"path": "specs/cold_output_storage.rs", "symbol": "part2_selected_output_result"},
+        {"path": "specs/cold_output_storage.rs", "symbol": "part2_selected_output_run"},
         {"path": "specs/container_colors.rs", "symbol": "part2_decode_raw_color_container"},
         {"path": "specs/jp2_inspection.rs", "symbol": "part2_parse_and_inspect_container_mode"},
         {"path": "specs/jp2_inspection.rs", "symbol": "part2_validate_jp2_display_profile"},
@@ -1822,6 +1830,8 @@
         {"path": "specs/raw_decode.rs", "symbol": "part2_decode_raw_cold_run"}
       ],
       "proof_refs": [
+        {"path": "specs/cold_output_storage.rs", "symbol": "part2_output_storage_normal"},
+        {"path": "specs/cold_output_storage.rs", "symbol": "part2_selected_output_normal"},
         {"path": "src/decode/api.rs", "symbol": "decode_jp2_color"},
         {"path": "src/decode/api.rs", "symbol": "decode_jp2_color_selected"},
         {"path": "src/decode/api.rs", "symbol": "decode_jph_color"},
@@ -1878,6 +1888,8 @@
         {"path": "src/decode/output.rs", "symbol": "apply_jp2_output"}
       ],
       "spec_refs": [
+        {"path": "specs/cold_output_storage.rs", "symbol": "part2_output_storage_result"},
+        {"path": "specs/cold_output_storage.rs", "symbol": "part2_output_storage_run"},
         {"path": "specs/container_images.rs", "symbol": "part2_decode_raw_single_container"},
         {"path": "specs/jp2_inspection.rs", "symbol": "part2_parse_and_inspect_container_mode"},
         {"path": "specs/jp2_inspection.rs", "symbol": "part2_validate_jp2_display_profile"},
@@ -1896,6 +1908,7 @@
         {"path": "specs/raw_decode.rs", "symbol": "part2_decode_raw_cold_run"}
       ],
       "proof_refs": [
+        {"path": "specs/cold_output_storage.rs", "symbol": "part2_output_storage_normal"},
         {"path": "src/decode/api.rs", "symbol": "decode_jp2"},
         {"path": "src/decode/api.rs", "symbol": "decode_jp2_selected"},
         {"path": "src/decode/api.rs", "symbol": "decode_jph"},
@@ -3204,6 +3217,8 @@
         {"path": "src/jpx/layer_decode.rs", "symbol": "decode_general_compositing_layer"}
       ],
       "spec_refs": [
+        {"path": "specs/cold_output_storage.rs", "symbol": "part2_associated_output_result"},
+        {"path": "specs/cold_output_storage.rs", "symbol": "part2_associated_output_run"},
         {"path": "specs/jpx_source.rs", "symbol": "part2_decode_jpx_codestream"},
         {"path": "specs/jpx_source.rs", "symbol": "part2_decode_jpx_source"},
         {"path": "specs/jpx_source.rs", "symbol": "part2_decode_jpx_associated"},
@@ -3231,6 +3246,7 @@
         {"path": "src/decode/output.rs", "symbol": "apply_associated_output"}
       ],
       "proof_refs": [
+        {"path": "specs/cold_output_storage.rs", "symbol": "part2_associated_output_normal"},
         {"path": "src/jp2/proof_support.rs", "symbol": "jpx_file_associated_header_reference_unfold"},
         {"path": "src/jp2/proof_support.rs", "symbol": "jpx_file_associated_header_reference"},
         {"path": "src/jp2/proof_support.rs", "symbol": "jpx_file_codestream_reference"},
@@ -11269,6 +11285,10 @@
         {"path": "src/jp2/container.rs", "symbol": "validate_selected_header"}
       ],
       "spec_refs": [
+        {"path": "specs/cold_output_storage.rs", "symbol": "part2_associated_output_result"},
+        {"path": "specs/cold_output_storage.rs", "symbol": "part2_associated_output_run"},
+        {"path": "specs/cold_output_storage.rs", "symbol": "part2_selected_output_result"},
+        {"path": "specs/cold_output_storage.rs", "symbol": "part2_selected_output_run"},
         {"path": "specs/mod.rs", "symbol": "part2_selection_tile_count"},
         {"path": "specs/mod.rs", "symbol": "part2_selection_tile_bounds"},
         {"path": "specs/mod.rs", "symbol": "part2_selection_from_parts"},
@@ -11301,6 +11321,8 @@
         {"path": "specs/mod.rs", "symbol": "part2_validate_selected_header"}
       ],
       "proof_refs": [
+        {"path": "specs/cold_output_storage.rs", "symbol": "part2_associated_output_normal"},
+        {"path": "specs/cold_output_storage.rs", "symbol": "part2_selected_output_normal"},
         {"path": "src/codestream/proof_support.rs", "symbol": "selection_geometry_known_fields"},
         {"path": "src/options.rs", "symbol": "decode_selection_view"},
         {"path": "src/jp2/proof_support.rs", "symbol": "codestream_header_association_view"},
@@ -13997,6 +14019,7 @@
         {"path": "src/decode/output.rs", "symbol": "palette_modulus"}
       ],
       "proof_refs": [
+        {"path": "specs/cold_output_storage.rs", "symbol": "part2_output_copy_normal"},
         {"path": "proofs/production_impl/mod.rs", "symbol": "production_palette_samples_empty"},
         {"path": "proofs/production_impl/mod.rs", "symbol": "production_palette_samples_step"},
         {"path": "proofs/production_impl/mod.rs", "symbol": "production_palette_samples_error"},
@@ -14006,6 +14029,8 @@
         {"path": "src/image/layout.rs", "symbol": "TypedComponent::clear_channel_definitions"}
       ],
       "spec_refs": [
+        {"path": "specs/cold_output_storage.rs", "symbol": "part2_output_copy_result"},
+        {"path": "specs/cold_output_storage.rs", "symbol": "part2_output_copy_run"},
         {"path": "specs/mod.rs", "symbol": "part2_typed_component_from_parts"},
         {"path": "specs/mod.rs", "symbol": "part2_typed_component_copy"},
         {"path": "specs/mod.rs", "symbol": "part2_palette_component"},
@@ -14020,6 +14045,7 @@
         {"path": "specs/mod.rs", "symbol": "part2_typed_sample_count"}
       ],
       "test_refs": [
+        {"path": "src/decode/tests.rs", "symbol": "output_storage_copy_and_header_preserve_raw_values_priority_empty_and_retry"},
         {"path": "src/decode/tests.rs", "symbol": "palette_component_mapping_matches_independent_complete_native_oracle"},
         {"path": "src/decode/tests.rs", "symbol": "palette_component_modulus_matches_all_native_precisions"}
       ],
@@ -14038,6 +14064,18 @@
         {"path": "src/decode/output.rs", "symbol": "apply_jp2_output"}
       ],
       "proof_refs": [
+        {"path": "specs/cold_output_storage.rs", "symbol": "part2_output_copy_normal"},
+        {"path": "specs/cold_output_storage.rs", "symbol": "part2_output_copy_refused"},
+        {"path": "specs/cold_output_storage.rs", "symbol": "part2_output_copy_frames"},
+        {"path": "specs/cold_output_storage.rs", "symbol": "part2_output_component_normal"},
+        {"path": "specs/cold_output_storage.rs", "symbol": "part2_output_components_normal"},
+        {"path": "specs/cold_output_storage.rs", "symbol": "part2_output_components_error"},
+        {"path": "specs/cold_output_storage.rs", "symbol": "part2_output_component_copy_error"},
+        {"path": "specs/cold_output_storage.rs", "symbol": "part2_output_storage_owner_refused"},
+        {"path": "specs/cold_output_storage.rs", "symbol": "part2_output_storage_component_error"},
+        {"path": "specs/cold_output_storage.rs", "symbol": "part2_output_storage_frames"},
+        {"path": "specs/cold_output_storage.rs", "symbol": "part2_output_calls_observed"},
+        {"path": "specs/cold_output_storage.rs", "symbol": "part2_output_storage_normal"},
         {"path": "proofs/production_impl/mod.rs", "symbol": "production_typed_components_output_push"},
         {"path": "proofs/production_impl/mod.rs", "symbol": "production_output_mapping_empty"},
         {"path": "proofs/production_impl/mod.rs", "symbol": "production_output_mapping_step"},
@@ -14051,6 +14089,17 @@
         {"path": "src/image/layout.rs", "symbol": "TypedComponent::add_channel_definition"}
       ],
       "spec_refs": [
+        {"path": "specs/cold_output_storage.rs", "symbol": "part2_output_capacity_count"},
+        {"path": "specs/cold_output_storage.rs", "symbol": "part2_output_copy_run"},
+        {"path": "specs/cold_output_storage.rs", "symbol": "part2_output_inputs"},
+        {"path": "specs/cold_output_storage.rs", "symbol": "part2_output_selected_source"},
+        {"path": "specs/cold_output_storage.rs", "symbol": "part2_output_direct"},
+        {"path": "specs/cold_output_storage.rs", "symbol": "part2_output_component_run"},
+        {"path": "specs/cold_output_storage.rs", "symbol": "part2_output_components_run"},
+        {"path": "specs/cold_output_storage.rs", "symbol": "part2_output_finish"},
+        {"path": "specs/cold_output_storage.rs", "symbol": "part2_output_calls_run"},
+        {"path": "specs/cold_output_storage.rs", "symbol": "part2_output_storage_result"},
+        {"path": "specs/cold_output_storage.rs", "symbol": "part2_output_storage_run"},
         {"path": "specs/mod.rs", "symbol": "part2_apply_output_header"},
         {"path": "specs/mod.rs", "symbol": "part2_output_mapping_prefix"},
         {"path": "specs/mod.rs", "symbol": "part2_output_mapped_component"},
@@ -14062,6 +14111,7 @@
         {"path": "specs/mod.rs", "symbol": "part2_typed_image_component"}
       ],
       "test_refs": [
+        {"path": "src/decode/tests.rs", "symbol": "output_storage_copy_and_header_preserve_raw_values_priority_empty_and_retry"},
         {"path": "src/decode/tests.rs", "symbol": "whole_output_header_matches_independent_native_order_and_admission_oracle"},
         {"path": "src/image/tests.rs", "symbol": "typed_image_admission_preserves_native_count_origin_shape_and_error_priority"}
       ],

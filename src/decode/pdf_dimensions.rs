@@ -341,7 +341,17 @@ pub fn decode_jp2_recover_dimensions(
             dimension_inspection_view(&inspected), crate::image::decoded_typed_image_outcome(decoded_result));
     }
     let decoded = decoded_result?;
-    let image = apply_jp2_output(decoded, inspected.file.header(), options.limits())?;
+    #[cfg(verus_keep_ghost)]
+    proof_decl! {let ghost output_source=crate::image::typed_image_value_view(decoded);}
+    let output = apply_jp2_output(decoded, inspected.file.header(), options.limits());
+    #[cfg(verus_keep_ghost)]
+    proof! {
+        if let Err(error)=output {
+            crate::specs::part2_dimension_output_error(input@,crate::options::decode_options_limits(options),
+                dimension_inspection_view(&inspected),output_source,error);
+        }
+    }
+    let image = output?;
     Ok(Jp2DimensionRecoveredImage {
         image,
         report: inspected.report,

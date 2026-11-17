@@ -371,6 +371,23 @@ pub(crate) open spec fn part2_dimension_typed_finish(
     }
 }
 
+pub(crate) open spec fn part2_dimension_typed_finish_run(inspected:Part2DimensionInspection,image:Part1DecodedTypedImage,limits:&crate::ResourceLimits,
+    events:Seq<Part2JpipSnapshotEvent>)->Part2ColdRun<Part2DimensionTyped> {
+    part2_jpip_snapshot_bind(part2_single_output_run((inspected.0,seq![inspected.1]),limits,image,events),
+        |mapped:Part1DecodedTypedImage,rest|Some((Ok((mapped,inspected.2)),rest)))
+}
+pub(crate) proof fn part2_dimension_typed_finish_normal(inspected:Part2DimensionInspection,image:Part1DecodedTypedImage,limits:&crate::ResourceLimits)
+    ensures part2_cold_framed(|events|part2_dimension_typed_finish_run(inspected,image,limits,events),part2_dimension_typed_finish(inspected,image,limits)),
+        forall|other:spec_fn(Seq<Part2JpipSnapshotEvent>)->Part2ColdRun<Part2DimensionTyped>|
+            (forall|events| #[trigger] other(events)==part2_dimension_typed_finish_run(inspected,image,limits,events)) ==> #[trigger] part2_cold_framed(other,part2_dimension_typed_finish(inspected,image,limits)),
+{
+    let input=(inspected.0,seq![inspected.1]);let mapped=part2_single_output(input,limits,image);
+    part2_single_output_normal(input,limits,image);
+    if let Ok(value)=mapped{part2_cold_pure(Ok((value,inspected.2)));}
+    part2_cold_bind(|events|part2_single_output_run(input,limits,image,events),
+        |mapped:Part1DecodedTypedImage,rest|Some((Ok((mapped,inspected.2)),rest)),mapped,part2_dimension_typed_finish(inspected,image,limits));
+    part2_decode_eta(|events|part2_dimension_typed_finish_run(inspected,image,limits,events),part2_dimension_typed_finish(inspected,image,limits));
+}
 pub(crate) open spec fn part2_dimension_reconstructed_finish(
     inspected: Part2DimensionInspection, image: Part1DecodedImageModel,
 ) -> Result<Part2DimensionReconstructed, crate::DecodeError> {
@@ -384,8 +401,7 @@ pub(crate) open spec fn part2_dimension_typed_after_inspection(
     events: Seq<Part2JpipSnapshotEvent>,
 ) -> Part2ColdRun<Part2DimensionTyped> {
     part2_jpip_snapshot_bind(part2_decode_raw_cold_run(inspected.0.streams[0].1, limits, None, events),
-        |image: Part1DecodedTypedImage, rest|
-            Some((part2_dimension_typed_finish(inspected, image, limits), rest)))
+        |image: Part1DecodedTypedImage, rest|part2_dimension_typed_finish_run(inspected,image,limits,rest))
 }
 
 pub(crate) open spec fn part2_dimension_reconstructed_after_inspection(
@@ -493,16 +509,39 @@ pub(crate) proof fn part2_dimension_typed_actual(
     };
     part2_dimension_inspection_frames(input, limits, Ok(inspected));
     part2_decode_raw_cold_frames(inspected.0.streams[0].1, limits, None, decoded);
-    if let Ok(image) = decoded { part2_cold_pure(part2_dimension_typed_finish(inspected, image, limits)); }
+    if let Ok(image) = decoded {part2_dimension_typed_finish_normal(inspected,image,limits);}
     part2_cold_bind(
         |events| part2_decode_raw_cold_run(inspected.0.streams[0].1, limits, None, events),
-        |image: Part1DecodedTypedImage, rest| Some((part2_dimension_typed_finish(inspected, image, limits), rest)),
+        |image: Part1DecodedTypedImage, rest|part2_dimension_typed_finish_run(inspected,image,limits,rest),
         decoded, result);
     part2_cold_bind(|events| part2_dimension_inspection_run(input, limits, events),
         |value: Part2DimensionInspection, rest| part2_dimension_typed_after_inspection(value, limits, rest),
         Ok(inspected), result);
 }
 
+pub(crate) proof fn part2_dimension_output_error(input:Seq<u8>,limits:&crate::ResourceLimits,inspected:Part2DimensionInspection,image:Part1DecodedTypedImage,error:crate::DecodeError)
+    requires part2_dimension_inspection_result(input,limits,Ok(inspected)),inspected.0.streams.len()>0,
+        part2_decode_raw_cold_result(inspected.0.streams[0].1,limits,None,Ok(image)),
+        part2_output_storage_result(Part2OutputStorageContext {image,header:part2_raw_associated_header(inspected.0.header).0,
+            components:crate::limits::resource_component_limit(limits),maximum:crate::limits::resource_decoded_bytes_limit(limits)},Err(error)),
+    ensures part2_dimension_typed_result(input,limits,Err(error)),
+{
+    reveal(part2_dimension_typed_result);
+    let inspection=(inspected.0,seq![inspected.1]);
+    part2_dimension_inspection_frames(input,limits,Ok(inspected));
+    part2_decode_raw_cold_frames(inspected.0.streams[0].1,limits,None,Ok(image));
+    part2_apply_output_observed(image,part2_raw_associated_header(inspected.0.header).0,
+        crate::limits::resource_component_limit(limits),crate::limits::resource_decoded_bytes_limit(limits),Err(error));
+    part2_decode_eta(|events|part2_single_output_run(inspection,limits,image,events),Err(error));
+    part2_cold_bind(|events|part2_single_output_run(inspection,limits,image,events),
+        |mapped:Part1DecodedTypedImage,rest|Some((Ok((mapped,inspected.2)),rest)),Err(error),Err::<Part2DimensionTyped,_>(error));
+    part2_decode_eta(|events|part2_dimension_typed_finish_run(inspected,image,limits,events),Err(error));
+    part2_cold_bind(|events|part2_decode_raw_cold_run(inspected.0.streams[0].1,limits,None,events),
+        |image:Part1DecodedTypedImage,rest|part2_dimension_typed_finish_run(inspected,image,limits,rest),Ok(image),Err(error));
+    part2_decode_eta(|events|part2_dimension_typed_after_inspection(inspected,limits,events),Err(error));
+    part2_cold_bind(|events|part2_dimension_inspection_run(input,limits,events),
+        |value:Part2DimensionInspection,rest|part2_dimension_typed_after_inspection(value,limits,rest),Ok(inspected),Err(error));
+}
 pub(crate) proof fn part2_dimension_reconstructed_actual(
     input: Seq<u8>, limits: &crate::ResourceLimits, inspected: Part2DimensionInspection,
     decoded: Result<Part1DecodedImageModel, crate::DecodeError>,
@@ -542,10 +581,10 @@ pub(crate) proof fn part2_dimension_decode_normal(input: Seq<u8>, limits: &crate
         let typed = part2_decode_raw_codestream(value.0.streams[0].1, limits, None);
         part2_decode_raw_cold_normal(value.0.streams[0].1, limits, None);
         part2_decode_raw_cold_frames(value.0.streams[0].1, limits, None, typed);
-        if let Ok(image) = typed { part2_cold_pure(part2_dimension_typed_finish(value, image, limits)); }
+        if let Ok(image) = typed {part2_dimension_typed_finish_normal(value,image,limits);}
         part2_cold_bind(
             |events| part2_decode_raw_cold_run(value.0.streams[0].1, limits, None, events),
-            |image: Part1DecodedTypedImage, rest| Some((part2_dimension_typed_finish(value, image, limits), rest)),
+            |image: Part1DecodedTypedImage, rest|part2_dimension_typed_finish_run(value,image,limits,rest),
             typed, part2_dimension_typed_value(input, limits));
         let reconstructed = part2_decode_raw_reconstructed_codestream(value.0.streams[0].1, limits);
         part2_decode_reconstructed_cold_normal(value.0.streams[0].1, limits);

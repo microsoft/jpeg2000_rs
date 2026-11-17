@@ -4409,6 +4409,173 @@ fn jp2_with_palette(
 }
 
 #[test]
+fn output_storage_copy_and_header_preserve_raw_values_priority_empty_and_retry() {
+    use crate::codestream::ComponentInfo;
+    use crate::image::{ChannelAssociation, ChannelDefinition, ChannelType};
+    let limits = ResourceLimits::default();
+    for signed in [false, true] {
+        let mut source = TypedComponent::from_parts(
+            0,
+            u32::MAX,
+            ComponentInfo {
+                precision: 0,
+                signed: !signed,
+                x_subsampling: 0,
+                y_subsampling: u8::MAX,
+                x_registration: u16::MAX,
+                y_registration: 17,
+            },
+            if signed {
+                TypedSamples::Signed(vec![i64::MIN, i64::MAX])
+            } else {
+                TypedSamples::Unsigned(vec![0, u64::MAX])
+            },
+        );
+        source.add_channel_definition(ChannelDefinition::new(
+            ChannelType::Unspecified,
+            ChannelAssociation::Color(u16::MAX),
+        ));
+        assert_eq!(
+            crate::allocation::with_refusal(0, || copy_typed_component(&source)),
+            Err(DecodeError::AllocationFailed)
+        );
+        assert_eq!(copy_typed_component(&source).unwrap(), source);
+        let empty = TypedComponent::from_parts(
+            source.width(),
+            source.height(),
+            source.info(),
+            if signed {
+                TypedSamples::Signed(vec![])
+            } else {
+                TypedSamples::Unsigned(vec![])
+            },
+        );
+        crate::allocation::with_refusal(0, || {
+            assert_eq!(copy_typed_component(&empty).unwrap(), empty);
+            assert_eq!(
+                crate::allocation::empty_with_capacity::<u8>(1),
+                Err(DecodeError::AllocationFailed)
+            );
+        });
+    }
+    let image = || {
+        TypedImage::for_test(
+            1,
+            1,
+            7,
+            9,
+            vec![
+                TypedComponent::from_parts(
+                    1,
+                    1,
+                    ComponentInfo::default(),
+                    TypedSamples::Signed(vec![i64::MIN]),
+                ),
+                TypedComponent::from_parts(
+                    1,
+                    1,
+                    ComponentInfo::default(),
+                    TypedSamples::Unsigned(vec![u64::MAX]),
+                ),
+            ],
+        )
+    };
+    let mut header = jp2::Jp2Header {
+        image: jp2::ImageHeader {
+            width: u32::MAX,
+            height: 0,
+            components: 0,
+            bit_depth: jp2::ComponentBitDepth::Variable,
+            unknown_color_space: true,
+            intellectual_property: true,
+        },
+        color: jp2::ColorSpecification::enumerated(u32::MAX),
+        nested_box_count: u32::MAX,
+        palette_entries: u16::MAX,
+        palette_columns: u8::MAX,
+        component_mapping_entries: u16::MAX,
+        channel_definitions: u16::MAX,
+        palette: None,
+        component_mappings: vec![],
+        channel_definition_records: vec![],
+        capture_resolution: None,
+        display_resolution: None,
+    };
+    for mapped in [false, true] {
+        if mapped {
+            header.component_mappings = vec![
+                jp2::ComponentMapping {
+                    component: 1,
+                    mapping_type: jp2::MappingType::Direct,
+                },
+                jp2::ComponentMapping {
+                    component: 0,
+                    mapping_type: jp2::MappingType::Direct,
+                },
+            ];
+        }
+        let expected = apply_jp2_output(image(), &header, &limits).unwrap();
+        for after in 0..3 {
+            assert_eq!(
+                crate::allocation::with_refusal(after, || apply_jp2_output(
+                    image(),
+                    &header,
+                    &limits
+                )),
+                Err(DecodeError::AllocationFailed)
+            );
+            assert_eq!(
+                apply_jp2_output(image(), &header, &limits).unwrap(),
+                expected
+            );
+        }
+        crate::allocation::with_refusal(3, || {
+            assert_eq!(
+                apply_jp2_output(image(), &header, &limits).unwrap(),
+                expected
+            );
+            assert_eq!(
+                crate::allocation::empty_with_capacity::<u8>(1),
+                Err(DecodeError::AllocationFailed)
+            );
+        });
+    }
+    header.component_mappings = vec![jp2::ComponentMapping {
+        component: u16::MAX,
+        mapping_type: jp2::MappingType::Palette { column: u8::MAX },
+    }];
+    let expected = apply_jp2_output(image(), &header, &limits).unwrap_err();
+    assert_ne!(expected, DecodeError::AllocationFailed);
+    assert_eq!(
+        crate::allocation::with_refusal(0, || apply_jp2_output(image(), &header, &limits)),
+        Err(DecodeError::AllocationFailed)
+    );
+    crate::allocation::with_refusal(1, || {
+        assert_eq!(
+            apply_jp2_output(image(), &header, &limits).unwrap_err(),
+            expected
+        );
+        assert_eq!(
+            crate::allocation::empty_with_capacity::<u8>(1),
+            Err(DecodeError::AllocationFailed)
+        );
+    });
+    header.component_mappings.clear();
+    let empty = || TypedImage::for_test(0, 0, u32::MAX, 1, vec![]);
+    let expected = empty();
+    crate::allocation::with_refusal(0, || {
+        assert_eq!(
+            apply_jp2_output(empty(), &header, &limits).unwrap(),
+            expected
+        );
+        assert_eq!(
+            crate::allocation::empty_with_capacity::<u8>(1),
+            Err(DecodeError::AllocationFailed)
+        );
+    });
+}
+
+#[test]
 fn whole_output_header_matches_independent_native_order_and_admission_oracle() {
     use crate::codestream::ComponentInfo;
     use crate::image::{ChannelAssociation, ChannelDefinition, ChannelType};

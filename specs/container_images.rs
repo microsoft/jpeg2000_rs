@@ -27,6 +27,20 @@ pub(crate) open spec fn part2_single_output(
         crate::limits::resource_component_limit(limits), crate::limits::resource_decoded_bytes_limit(limits))
 }
 
+pub(crate) open spec fn part2_single_output_run(inspected:Part2RawInspectedContainer,limits:&crate::ResourceLimits,image:Part1DecodedTypedImage,
+    events:Seq<Part2JpipSnapshotEvent>)->Part2ColdRun<Part1DecodedTypedImage> {
+    part2_apply_output_run(image,part2_raw_associated_header(inspected.0.header).0,
+        crate::limits::resource_component_limit(limits),crate::limits::resource_decoded_bytes_limit(limits),events)
+}
+pub(crate) proof fn part2_single_output_normal(inspected:Part2RawInspectedContainer,limits:&crate::ResourceLimits,image:Part1DecodedTypedImage)
+    ensures part2_cold_framed(|events|part2_single_output_run(inspected,limits,image,events),part2_single_output(inspected,limits,image)),
+        forall|other:spec_fn(Seq<Part2JpipSnapshotEvent>)->Part2ColdRun<Part1DecodedTypedImage>|
+            (forall|events| #[trigger] other(events)==part2_single_output_run(inspected,limits,image,events)) ==> #[trigger] part2_cold_framed(other,part2_single_output(inspected,limits,image)),
+{
+    part2_apply_output_normal(image,part2_raw_associated_header(inspected.0.header).0,
+        crate::limits::resource_component_limit(limits),crate::limits::resource_decoded_bytes_limit(limits));
+    part2_decode_eta(|events|part2_single_output_run(inspected,limits,image,events),part2_single_output(inspected,limits,image));
+}
 pub(crate) open spec fn part2_single_after_inspection(
     inspected: Part2RawInspectedContainer, limits: &crate::ResourceLimits,
     selection: Option<&crate::DecodeSelection>, jph: bool, events: Seq<Part2JpipSnapshotEvent>,
@@ -35,7 +49,7 @@ pub(crate) open spec fn part2_single_after_inspection(
         Err(error) => Some((Err(error), events)),
         Ok(()) => part2_jpip_snapshot_bind(
             part2_decode_raw_cold_run(inspected.0.streams[0].1, limits, selection, events),
-            |image: Part1DecodedTypedImage, rest| Some((part2_single_output(inspected, limits, image), rest))),
+            |image: Part1DecodedTypedImage, rest|part2_single_output_run(inspected,limits,image,rest)),
     }
 }
 
@@ -117,10 +131,10 @@ pub(crate) proof fn part2_decode_single_cold_normal(
                 let decoded = part2_decode_raw_codestream(value.0.streams[0].1, limits, selection);
                 part2_decode_raw_cold_normal(value.0.streams[0].1, limits, selection);
                 part2_decode_raw_cold_frames(value.0.streams[0].1, limits, selection, decoded);
-                if let Ok(image) = decoded { part2_cold_pure(part2_single_output(value, limits, image)); }
+                if let Ok(image) = decoded {part2_single_output_normal(value,limits,image);}
                 part2_cold_bind(
                     |events| part2_decode_raw_cold_run(value.0.streams[0].1, limits, selection, events),
-                    |image: Part1DecodedTypedImage, rest| Some((part2_single_output(value, limits, image), rest)),
+                    |image: Part1DecodedTypedImage, rest|part2_single_output_run(value,limits,image,rest),
                     decoded, match decoded { Err(error) => Err(error), Ok(image) => part2_single_output(value, limits, image) });
             },
         }
@@ -163,16 +177,37 @@ pub(crate) proof fn part2_decode_single_image_actual(
     let result = match decoded { Err(error) => Err(error), Ok(image) => part2_single_output(inspected, limits, image) };
     part2_single_inspection_actual(input, limits, jph, Ok(inspected));
     part2_decode_raw_cold_frames(inspected.0.streams[0].1, limits, selection, decoded);
-    if let Ok(image) = decoded { part2_cold_pure(part2_single_output(inspected, limits, image)); }
+    if let Ok(image) = decoded {part2_single_output_normal(inspected,limits,image);}
     part2_cold_bind(
         |events| part2_decode_raw_cold_run(inspected.0.streams[0].1, limits, selection, events),
-        |image: Part1DecodedTypedImage, rest| Some((part2_single_output(inspected, limits, image), rest)), decoded, result);
+        |image: Part1DecodedTypedImage, rest|part2_single_output_run(inspected,limits,image,rest), decoded, result);
     part2_cold_bind(
         |events| part2_single_inspection_run(input, limits, jph, events),
         |value: Part2RawInspectedContainer, rest| part2_single_after_inspection(value, limits, selection, jph, rest),
         Ok(inspected), result);
 }
 
+pub(crate) proof fn part2_decode_single_output_error(input:Seq<u8>,limits:&crate::ResourceLimits,selection:Option<&crate::DecodeSelection>,jph:bool,
+    inspected:Part2RawInspectedContainer,image:Part1DecodedTypedImage,error:crate::DecodeError)
+    requires if jph{part2_inspect_jph_cold_result(input,limits,Ok(inspected))}else{part2_inspection_cold_result(input,limits,true,Ok(inspected))},
+        part2_single_profile(inspected,jph)==Ok(()),
+        part2_decode_raw_cold_result(inspected.0.streams[0].1,limits,selection,Ok(image)),
+        part2_output_storage_result(Part2OutputStorageContext {image,header:part2_raw_associated_header(inspected.0.header).0,
+            components:crate::limits::resource_component_limit(limits),maximum:crate::limits::resource_decoded_bytes_limit(limits)},Err(error)),
+    ensures part2_decode_single_cold_result(input,limits,selection,jph,Err(error)),
+{
+    reveal(part2_decode_single_cold_result);
+    part2_single_inspection_actual(input,limits,jph,Ok(inspected));
+    part2_decode_raw_cold_frames(inspected.0.streams[0].1,limits,selection,Ok(image));
+    part2_apply_output_observed(image,part2_raw_associated_header(inspected.0.header).0,
+        crate::limits::resource_component_limit(limits),crate::limits::resource_decoded_bytes_limit(limits),Err(error));
+    part2_decode_eta(|events|part2_single_output_run(inspected,limits,image,events),Err(error));
+    part2_cold_bind(|events|part2_decode_raw_cold_run(inspected.0.streams[0].1,limits,selection,events),
+        |image:Part1DecodedTypedImage,rest|part2_single_output_run(inspected,limits,image,rest),Ok(image),Err(error));
+    part2_decode_eta(|events|part2_single_after_inspection(inspected,limits,selection,jph,events),Err(error));
+    part2_cold_bind(|events|part2_single_inspection_run(input,limits,jph,events),
+        |value:Part2RawInspectedContainer,rest|part2_single_after_inspection(value,limits,selection,jph,rest),Ok(inspected),Err(error));
+}
 pub closed spec fn part2_decode_raw_single_container(
     input: Seq<u8>, limits: &crate::ResourceLimits,
     selection: Option<&crate::DecodeSelection>, jph: bool,

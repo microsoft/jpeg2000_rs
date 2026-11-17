@@ -651,8 +651,20 @@ pub fn decode_jp2_recover_trailer_selected(
             crate::options::decode_selection_view(selection), crate::options::decode_options_limits(options),
             jp2::raw_inspected_container_view(&inspected), trailer_typed_outcome(decoded_result));
     }
+    #[cfg(verus_keep_ghost)]
+    proof_decl! {let ghost recovered=trailer_typed_outcome(decoded_result);}
     let decoded = decoded_result?;
-    let image = apply_jp2_output(decoded.image, inspected.file().header(), options.limits())?;
+    let output = apply_jp2_output(decoded.image, inspected.file().header(), options.limits());
+    #[cfg(verus_keep_ghost)]
+    proof! {
+        if let Err(error)=output {
+            if let Ok(value)=recovered {
+                crate::specs::part2_trailer_jp2_output_error(input@,crate::options::decode_selection_view(selection),
+                    crate::options::decode_options_limits(options),jp2::raw_inspected_container_view(&inspected),value,error);
+            }
+        }
+    }
+    let image = output?;
     Ok(TileTrailerRecoveredImage {
         image,
         report: decoded.report,

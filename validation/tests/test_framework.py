@@ -620,22 +620,24 @@ class FrameworkTests(WorkingFiles):
             contract = original[start:signature]
             result = re.search(r"\bverus_spec\(\s*(\w+)\s*=>", contract)[1]
             expression = f"{projection}({result})" if projection else result
+            primary = "crate::specs::part2_output_copy_result" if symbol == "copy_typed_component" else expression
             wrong_model = (
                 "part2_typed_component_copy" if model == "part2_palette_component"
                 else "part2_palette_component"
             )
             mutations = [
-                (f"ensures {expression}", "ensures unrelated"),
-                (f"ensures {expression}", f"ensures {result}.is_ok()"),
-                (f"ensures {expression}", f"ensures {result}.is_ok() ==> {expression}"),
+                (f"ensures {primary}", "ensures unrelated"),
+                (f"ensures {primary}", f"ensures {result}.is_ok()"),
+                (f"ensures {primary}", f"ensures {result}.is_ok() ==> {primary}"),
                 (f"crate::specs::{model}(", f"crate::specs::{wrong_model}("),
                 (f"crate::specs::{model}(", "crate::specs::unlisted_model("),
                 *arguments,
             ]
             if projection:
+                prefix = "" if symbol == "copy_typed_component" else "ensures "
                 mutations.extend((
-                    (f"ensures {expression}", f"ensures {projection}(unrelated)"),
-                    (f"ensures {expression}", f"ensures unlisted_projection({result})"),
+                    (f"{prefix}{expression}", f"{prefix}{projection}(unrelated)"),
+                    (f"{prefix}{expression}", f"{prefix}unlisted_projection({result})"),
                 ))
             for before, after in mutations:
                 self.assertIn(before, contract)
@@ -3634,7 +3636,7 @@ class FrameworkTests(WorkingFiles):
             ("src/decode/api.rs", "pub fn decode_jp2_color(", "jp2::parse_and_inspect_for_display(input, options.limits())", "jp2::parse_and_inspect_for_display(&unrelated, options.limits())"),
             ("src/decode/api.rs", "pub fn decode_jp2_color(", "color_selection(codestream, selection, options.limits())", "color_selection(codestream, &unrelated, options.limits())"),
             ("src/decode/api.rs", "pub fn decode_jp2_color(", "decode_codestream_selected(codestream, options, &expanded)", "decode_codestream_selected(codestream, options, selection)"),
-            ("src/decode/api.rs", "pub fn decode_jp2_color(", "apply_jp2_output(decoded, inspected.file().header(), options.limits())?", "decoded"),
+            ("src/decode/api.rs", "pub fn decode_jp2_color(", "apply_jp2_output(decoded, inspected.file().header(), options.limits())", "decoded"),
             ("src/decode/api.rs", "pub fn decode_jp2_color(", "Some(inspected.file().header()),\n        target,", "Some(inspected.file().header()),\n        [0, 0, 1, 1],"),
             ("src/decode/output.rs", "pub(super) fn color_selection(", "codestream::parse_layout(input, limits)", "codestream::parse_layout(&unrelated, limits)"),
         ):
@@ -11398,6 +11400,38 @@ class FrameworkTests(WorkingFiles):
                         mock.patch.object(Path, "read_text", altered), \
                         self.assertRaisesRegex(ValueError, "lacks executable Verus contract"):
                     framework.validate_normative_coverage(coverage)
+
+    def test_inventory_binds_checked_output_storage_source_count_reply_nested_tail_and_native_order(self):
+        coverage = json.loads((framework.VALIDATION / "normative-coverage.json").read_text())
+        coverage["requirements"] = [
+            item for item in coverage["requirements"] if item["id"] == "part2-complete-native-output-header"
+        ]
+        self.assertEqual(framework.validate_normative_coverage(coverage)["status"], "passed")
+        read_text = Path.read_text
+        for relative, before, after in (
+            ("specs/cold_output_storage.rs", "context.image.1.len()}else{context.header.1.len()", "context.image.1.len()+1}else{context.header.1.len()"),
+            ("specs/cold_output_storage.rs", "Part2TypedCapacityContext::Copy {source}", "Part2TypedCapacityContext::Copy {source:unrelated}"),
+            ("specs/cold_output_storage.rs", "(context.image.1[i],context.image.2[i])", "(context.image.1[i],context.image.2[0])"),
+            ("specs/cold_output_storage.rs", "if actual!=context{None}else{", "if false{None}else{"),
+            ("specs/cold_output_storage.rs", "if rest.len()==0{Some((result,events.drop_first()))}else{None}", "Some((result,events.drop_first()))"),
+            ("specs/cold_output_storage.rs", "Some((Ok(before.push(component)),tail))", "Some((Ok(Seq::empty()),tail))"),
+            ("specs/cold_output_storage.rs", "defined,context.components,context.maximum)", "defined,context.components,u64::MAX)"),
+            ("src/decode/output.rs", "let mut copied = reserved?", "let mut copied = Vec::new()"),
+            ("src/decode/output.rs", "crate::allocation::empty_with_capacity(decoded.components().len())", "crate::allocation::empty_with_capacity(header.component_mappings.len())"),
+            ("src/decode/output.rs", "crate::allocation::inspection_capacity_outcome(reserved)", "Ok(())"),
+        ):
+            source = framework.ROOT / relative
+            original = source.read_text()
+            self.assertIn(before, original)
+            modified = original.replace(before, after, 1)
+
+            def altered(path, *args, **kwargs):
+                return modified if path == source else read_text(path, *args, **kwargs)
+
+            with self.subTest(relative=relative, after=after), \
+                    mock.patch.object(Path, "read_text", altered), \
+                    self.assertRaisesRegex(ValueError, "checked output storage requires"):
+                framework.validate_normative_coverage(coverage)
 
     def test_inventory_binds_typed_storage_source_charge_reply_nested_tail_and_native_order(self):
         coverage = json.loads((framework.VALIDATION / "normative-coverage.json").read_text())

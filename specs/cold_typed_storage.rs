@@ -2,11 +2,16 @@
 use super::*;
 verus! {
 pub enum Part2TypedCapacityContext {
+    Output {context:Part2OutputStorageContext},
+    Copy {source:Part2TypedComponentOutput},
     Image {source:Part1DecodedImageModel,maximum:u64},
     Samples {source:Part1DecodedComponentModel,maximum:u64},
 }
 pub(crate) open spec fn part2_typed_capacity_count(context:Part2TypedCapacityContext)->nat {
-    match context {Part2TypedCapacityContext::Image {source,..}=>source.4.len(),Part2TypedCapacityContext::Samples {source,..}=>source.4.len()}
+    match context {
+        Part2TypedCapacityContext::Output {context}=>part2_output_capacity_count(context),
+        Part2TypedCapacityContext::Copy {source}=>part2_typed_sample_count(source.0.samples),
+        Part2TypedCapacityContext::Image {source,..}=>source.4.len(),Part2TypedCapacityContext::Samples {source,..}=>source.4.len()}
 }
 pub(crate) open spec fn part2_typed_capacity_run(context:Part2TypedCapacityContext,calls:Seq<Part2Tier1StorageEvent>)->Part2Tier1Run<()> {
     let count=part2_typed_capacity_count(context);
