@@ -5942,6 +5942,7 @@ class FrameworkTests(WorkingFiles):
                 ("part1_parse_info(source.0, limits)", "supplied_successful_info"),
                 ("part2_associated_codestream_header(source.2, fallback)", "part2_associated_codestream_header(None, fallback)"),
                 ("part2_decode_raw_codestream(source.0, limits, None)", "part2_decode_raw_codestream(Seq::empty(), limits, None)"),
+                ("part2_associated_output_run(image, Some(header),", "part2_associated_output_run(image, None,"),
                 ("part2_apply_associated_output(image, Some(header),", "part2_apply_associated_output(image, None,"),
             )),
         ):
@@ -5949,7 +5950,11 @@ class FrameworkTests(WorkingFiles):
             original = source.read_text()
             for before, after in changes:
                 self.assertIn(before, original)
-                changed = original.replace(before, after, 1)
+                if name == "specs/jpx_source.rs" and before.startswith("part2_apply_associated_output("):
+                    anchor = original.index("spec fn part2_decode_jpx_associated(")
+                    changed = original[:anchor] + original[anchor:].replace(before, after, 1)
+                else:
+                    changed = original.replace(before, after, 1)
 
                 def altered(path, *args, **kwargs):
                     return changed if path == source else read_text(path, *args, **kwargs)
@@ -10885,10 +10890,11 @@ class FrameworkTests(WorkingFiles):
             start = original.rfind("#[cfg_attr", 0, signature)
             contract = original[start:signature]
             expression = f"{projection}(result)"
+            primary = "crate::specs::part2_output_storage_result" if symbol == "apply_jp2_output" else expression
             mutations = [
-                (f"ensures {expression}", "ensures unrelated"),
-                (f"ensures {expression}", "ensures result.is_ok()"),
-                (f"ensures {expression}", f"ensures result.is_ok() ==> {expression}"),
+                (f"ensures {primary}", "ensures unrelated"),
+                (f"ensures {primary}", "ensures result.is_ok()"),
+                (f"ensures {primary}", f"ensures result.is_ok() ==> {primary}"),
                 (expression, f"{projection}(unrelated)"),
                 (expression, "unlisted_projection(result)"),
                 (f"crate::specs::{model}(", "crate::specs::part2_typed_component_copy("),
