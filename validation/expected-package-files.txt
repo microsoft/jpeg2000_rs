@@ -70,6 +70,7 @@ specs/cold_packet_planes.rs
 specs/cold_packet_precinct.rs
 specs/cold_packet_preparation.rs
 specs/cold_packet_tile_planes.rs
+specs/cold_palette_storage.rs
 specs/cold_part2_fresh.rs
 specs/cold_part2_header.rs
 specs/cold_payload_owners.rs

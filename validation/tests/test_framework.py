@@ -592,6 +592,7 @@ class FrameworkTests(WorkingFiles):
             )),
             ("src/decode/output.rs", "map_palette_component", "crate::image::typed_component_output",
              "part2_palette_component", (
+                ("typed_component_output_view(source)", "typed_component_output_view(unrelated)"),
                 ("typed_component_view(source)", "typed_component_view(unrelated)"),
                 ("palette_view(palette)", "palette_view(unrelated)"),
                 ("palette), column", "palette), 0"),
@@ -620,7 +621,10 @@ class FrameworkTests(WorkingFiles):
             contract = original[start:signature]
             result = re.search(r"\bverus_spec\(\s*(\w+)\s*=>", contract)[1]
             expression = f"{projection}({result})" if projection else result
-            primary = "crate::specs::part2_output_copy_result" if symbol == "copy_typed_component" else expression
+            primary = {
+                "copy_typed_component": "crate::specs::part2_output_copy_result",
+                "map_palette_component": "crate::specs::part2_palette_component_storage_result",
+            }.get(symbol, expression)
             wrong_model = (
                 "part2_typed_component_copy" if model == "part2_palette_component"
                 else "part2_palette_component"
@@ -634,7 +638,7 @@ class FrameworkTests(WorkingFiles):
                 *arguments,
             ]
             if projection:
-                prefix = "" if symbol == "copy_typed_component" else "ensures "
+                prefix = "" if symbol in {"copy_typed_component", "map_palette_component"} else "ensures "
                 mutations.extend((
                     (f"{prefix}{expression}", f"{prefix}{projection}(unrelated)"),
                     (f"{prefix}{expression}", f"{prefix}unlisted_projection({result})"),
@@ -4676,7 +4680,8 @@ class FrameworkTests(WorkingFiles):
         for before, after in (
             ("entries == 0 || entries > 1024 || columns == 0",
              "entries == 0 || entries > 1025 || columns == 0"),
-            ("let mut values = Vec::with_capacity(value_count)", "let mut values = Vec::new()"),
+            ("let reserved_values = crate::allocation::empty_with_capacity(value_count)",
+             "let reserved_values = Ok(Vec::new())"),
             ("entry = entry.checked_add(1)", "entry = entry.checked_add(2)"),
             ("descriptor.signed,\n                base_offset", "false,\n                base_offset"),
         ):
@@ -4909,7 +4914,11 @@ class FrameworkTests(WorkingFiles):
             source = framework.ROOT / relative
             original = source.read_text()
             self.assertIn(before, original)
-            modified = original.replace(before, after, 1)
+            if relative == "src/jp2/color.rs" and before == "crate::allocation::inspection_capacity_outcome(reserved)":
+                start = original.index("pub(super) fn parse_channel_definition(")
+                modified = original[:start] + original[start:].replace(before, after, 1)
+            else:
+                modified = original.replace(before, after, 1)
 
             def altered(path, *args, **kwargs):
                 return modified if path == source else read_text(path, *args, **kwargs)
@@ -4918,6 +4927,63 @@ class FrameworkTests(WorkingFiles):
                     mock.patch.object(Path, "read_text", altered), \
                     self.assertRaisesRegex(ValueError, "checked CDEF storage|whole raw channel"):
                 framework.validate_normative_coverage(coverage)
+
+    def test_inventory_palette_storage_binds_stages_sources_counts_replies_and_tails(self):
+        coverage = json.loads((framework.VALIDATION / "normative-coverage.json").read_text())
+        read_text = Path.read_text
+        mutations = (
+            (framework._PALETTE_RESULT_ENTRY, "specs/cold_palette_storage.rs",
+             "actual_role!=role", "actual_role==role"),
+            (framework._PALETTE_RESULT_ENTRY, "specs/cold_palette_storage.rs",
+             "as nat*descriptors.0.len()", "as nat*descriptors.0.len()+1"),
+            (framework._PALETTE_RESULT_ENTRY, "specs/cold_palette_storage.rs",
+             "payload.len()!=expected", "payload.len()<expected"),
+            (framework._PALETTE_RESULT_ENTRY, "specs/cold_palette_storage.rs",
+             "part2_palette_capacity_run(context,Part2PaletteStorageRole::Values,events)",
+             "part2_palette_capacity_run(context,Part2PaletteStorageRole::Columns,events)"),
+            (framework._PALETTE_RESULT_ENTRY, "specs/cold_palette_storage.rs",
+             "events.drop_first()", "events"),
+            (framework._PALETTE_RESULT_ENTRY, "src/jp2/color.rs",
+             "crate::allocation::inspection_capacity_outcome(reserved_values)", "Ok(())"),
+            (framework._PALETTE_RESULT_ENTRY, "src/jp2/color.rs",
+             "empty_with_capacity(value_count)", "empty_with_capacity(value_count+1)"),
+            (framework._CHANNEL_HEADER_ENTRY, "specs/cold_palette_storage.rs",
+             "elements!=context.input.1.len()/4 {None}", "elements!=context.input.1.len()/4+1 {None}"),
+            (framework._CHANNEL_HEADER_ENTRY, "specs/cold_palette_storage.rs",
+             "part2_mapping_storage_run(context,events)", "Some((Ok(Seq::empty()),events))"),
+            (framework._CHANNEL_HEADER_ENTRY, "specs/cold_channel_storage.rs",
+             "part2_header_storage_request_run(request,events)", "Some((Ok(()),events))"),
+            (framework._CHANNEL_HEADER_ENTRY, "specs/cold_channel_storage.rs",
+             "input,components:state.header.image.components,palette_columns:palette_columns as u8,limits,base",
+             "input,components:0,palette_columns:palette_columns as u8,limits,base"),
+            (framework._PALETTE_RESULT_ENTRY, "src/jp2/headers.rs",
+             "part2_header_storage_request_palette_error(context,error)", "unrelated_palette_error(context,error)"),
+            (framework._PALETTE_RESULT_ENTRY, "src/jp2/headers.rs",
+             "part2_header_storage_request_mapping_error(context,error)", "unrelated_mapping_error(context,error)"),
+            ("part2-complete-native-palette-component", "src/decode/output.rs",
+             "descriptor.signed && sample_count != 0", "descriptor.signed"),
+            ("part2-complete-native-palette-component", "src/decode/output.rs",
+             "crate::allocation::inspection_capacity_outcome(unsigned_capacity)", "Ok(())"),
+            ("part2-complete-native-palette-component", "specs/cold_typed_storage.rs",
+             "Part2TypedCapacityContext::Palette {source,..}=>part2_typed_sample_count(source.0.samples),",
+             "Part2TypedCapacityContext::Palette {source,..}=>part2_typed_sample_count(source.0.samples)+1,"),
+            ("part2-complete-native-palette-component", "specs/cold_output_storage.rs",
+             "part2_palette_component_storage_run(source,palette,column,calls)",
+             "Some((part2_palette_component(source.0,palette,column),calls))"),
+        )
+        for ident, relative, before, after in mutations:
+            entry = next(item for item in coverage["requirements"] if item["id"] == ident)
+            source = framework.ROOT / relative
+            original = read_text(source)
+            self.assertIn(before, original)
+            changed = original.replace(before, after, 1)
+
+            def altered(path, *args, **kwargs):
+                return changed if path == source else read_text(path, *args, **kwargs)
+
+            with self.subTest(ident=ident, before=before), mock.patch.object(Path, "read_text", altered), \
+                    self.assertRaisesRegex(ValueError, "storage|whole raw|actual native owners|executable Verus"):
+                framework.validate_normative_coverage(dict(coverage, requirements=[entry]))
 
     def test_inventory_raw_channel_header_requires_every_actual_record_and_admission_bridge(self):
         coverage = json.loads((framework.VALIDATION / "normative-coverage.json").read_text())

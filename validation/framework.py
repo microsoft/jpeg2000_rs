@@ -5082,6 +5082,7 @@ _PLANE_ROLE_RESULT_RUNS = {
     for old, (model, _, _) in _PLANE_ROLE_MODEL_INFO.items()
 }
 _PLANE_ROLE_RESULT_RUNS.update({
+    "part2_palette_component_storage_result": ("part2_palette_component_storage_run", False),
     "part2_output_copy_result": ("part2_output_copy_run", False),
     "part2_output_storage_result": ("part2_output_storage_run", False),
     "part2_typed_samples_result": ("part2_typed_samples_run", False),
@@ -5112,6 +5113,9 @@ _PLANE_ROLE_RESULT_RUNS.update({
     "part2_coefficient_progression_result": ("part2_extraction_progression_run", False),
 })
 _COLD_RESULT_MODELS = {
+    "part2_parse_palette": ("part2_palette_storage_result", "specs/cold_palette_storage.rs", "part2_palette_storage_normal"),
+    "part2_parse_component_mapping": ("part2_mapping_storage_result", "specs/cold_palette_storage.rs", "part2_mapping_storage_normal"),
+    "part2_palette_component": ("part2_palette_component_storage_result", "specs/cold_output_storage.rs", "part2_palette_component_storage_normal"),
     "part2_parse_channel_definition": ("part2_channel_storage_result", "specs/cold_channel_storage.rs", "part2_channel_storage_normal"),
     "part2_parse_jp2_header": ("part2_jp2_header_storage_result", "specs/cold_channel_storage.rs", "part2_jp2_header_storage_normal"),
     "part2_parse_jp2_header_profile": ("part2_jp2_header_storage_result", "specs/cold_channel_storage.rs", "part2_jp2_header_storage_normal"),
@@ -5388,6 +5392,19 @@ def _coverage_cold_relation(
             + _coverage_call("super::box_reference_view", "box_ref")
             + r"\s*,\s*channels\s*:\s*output_channels\s*,\s*base\s*:\s*base_offset\s*,?\s*\}"
         )
+    if model == "part2_parse_palette":
+        inputs = (
+            r"crate::specs::Part2PaletteStorageContext\s*\{\s*input\s*:\s*"
+            + _coverage_call("super::box_reference_view", "box_ref")
+            + r"\s*,\s*base\s*:\s*base_offset\s*,?\s*\}"
+        )
+    if model == "part2_parse_component_mapping":
+        inputs = (
+            r"crate::specs::Part2MappingStorageContext\s*\{\s*input\s*:\s*"
+            + _coverage_call("super::box_reference_view", "box_ref")
+            + r"\s*,\s*components\s*,\s*palette_columns\s*,\s*limits\s*:\s*\*\s*limits"
+            + r"\s*,\s*base\s*:\s*base_offset\s*,?\s*\}"
+        )
     if model == "tier1_empty_plane":
         inputs += r"\s*,\s*_role"
     if model == "ht_copy_refinement_bytes":
@@ -5617,6 +5634,16 @@ _COLD_RESULT_CONTRACTS = {
 }
 _COLD_RESULT_CONTRACTS.update(_LEGACY_PACKET_STORAGE_CONTRACTS)
 _COLD_RESULT_CONTRACTS.update({
+    ("src/jp2/color.rs", "parse_palette"): _coverage_cold_relation(
+        _PALETTE_RESULT_CONTRACTS[("src/jp2/color.rs", "parse_palette")]),
+    ("src/jp2/color.rs", "parse_component_mapping"): _coverage_cold_relation(
+        _CHANNEL_HEADER_CONTRACTS[("src/jp2/color.rs", "parse_component_mapping")]),
+    ("src/decode/output.rs", "map_palette_component"): (
+        "part2_palette_component_storage_result",
+        _coverage_call("crate::image::typed_component_output_view", "source") + r"\s*,\s*"
+        + _coverage_call("crate::jp2::palette_view", "palette") + r"\s*,\s*column\s*,\s*"
+        + _coverage_call("crate::image::typed_component_output", r"\1"),
+    ),
     ("src/decode/output.rs", "copy_typed_component"): (
         "part2_output_copy_result",
         _coverage_call("crate::image::typed_component_output_view", "source") + r"\s*,\s*" + _coverage_call("crate::image::typed_component_output", r"\1"),
@@ -8052,7 +8079,7 @@ _CHANNEL_STORAGE_GUARDS = {
     ),
     ("specs/cold_channel_storage.rs", "part2_header_storage_step_run"): (
         "match (machine.request)(input,state)", "None=>Some(((machine.step)(input,state),events))",
-        "part2_channel_storage_run(context,events)", "Some(((machine.step)(input,state),rest))",
+        "part2_header_storage_request_run(request,events)", "Some(((machine.step)(input,state),rest))",
     ),
     ("specs/cold_channel_storage.rs", "part2_header_storage_boxes_run"): (
         "part2_box_reader_next_ref(reader)", "(machine.finish)(state)",
@@ -8371,6 +8398,181 @@ _ASSOCIATED_HEADER_PROOFS.update({
     ("specs/cold_channel_storage.rs", "part2_codestream_header_storage_clone_error"),
 })
 
+_PALETTE_PARSER_STORAGE_GUARDS = {
+    ("specs/cold_palette_storage.rs", "part2_palette_columns_admit"): (
+        "payload.len()<3", "entries==0 || entries>1024 || count==0",
+        "3+count>usize::MAX as nat", "3+count>payload.len()",
+    ),
+    ("specs/cold_palette_storage.rs", "part2_palette_values_admit"): (
+        "part2_palette_columns_admit(context)", "part2_palette_descriptors(input,base,payload[2] as nat)",
+        "entries*descriptors.1 as nat", "sample_bytes>usize::MAX as nat || expected>usize::MAX as nat",
+        "payload.len()!=expected", "count>usize::MAX as nat",
+    ),
+    ("specs/cold_palette_storage.rs", "part2_palette_capacity_count"): (
+        "Part2PaletteStorageRole::Columns=>if part2_palette_columns_admit(context).is_ok() {context.input.1[2] as nat}",
+        "Part2PaletteStorageRole::Values=>if part2_palette_values_admit(context).is_ok()",
+        "part2_box_u16([context.input.1[0],context.input.1[1]]) as nat*descriptors.0.len()}else{0}",
+    ),
+    ("specs/cold_palette_storage.rs", "part2_palette_capacity_run"): (
+        "actual!=context || actual_role!=role || elements!=count {None}",
+        "if succeeded {Ok(())}else{Err(crate::DecodeError::AllocationFailed)}", "events.drop_first()",
+    ),
+    ("specs/cold_palette_storage.rs", "part2_palette_capacity_result"): (
+        "part2_cold_framed(|events|part2_palette_capacity_run(context,role,events),response)",
+    ),
+    ("specs/cold_palette_storage.rs", "part2_palette_storage_after_columns"): (
+        "part2_palette_values_admit(context)", "part2_palette_capacity_run(context,Part2PaletteStorageRole::Values,events)",
+        "Some((part2_parse_palette(context.input,context.base),rest))",
+    ),
+    ("specs/cold_palette_storage.rs", "part2_palette_storage_run"): (
+        "part2_palette_columns_admit(context)", "part2_palette_capacity_run(context,Part2PaletteStorageRole::Columns,events)",
+        "part2_palette_storage_after_columns(context,rest)",
+    ),
+    ("specs/cold_palette_storage.rs", "part2_palette_storage_result"): (
+        "part2_cold_framed(|events|part2_palette_storage_run(context,events),result)",
+    ),
+}
+_MAPPING_PARSER_STORAGE_GUARDS = {
+    ("specs/cold_palette_storage.rs", "part2_mapping_storage_admit"): (
+        "length==0 || length%4!=0", "count>u16::MAX as nat",
+        "count>crate::limits::resource_component_limit(&context.limits)",
+    ),
+    ("specs/cold_palette_storage.rs", "part2_mapping_capacity_run"): (
+        "part2_mapping_storage_admit(context)", "actual!=context || elements!=context.input.1.len()/4 {None}",
+        "if succeeded{Ok(())}else{Err(crate::DecodeError::AllocationFailed)}", "events.drop_first()",
+    ),
+    ("specs/cold_palette_storage.rs", "part2_mapping_capacity_result"): (
+        "part2_cold_framed(|events|part2_mapping_capacity_run(context,events),response)",
+    ),
+    ("specs/cold_palette_storage.rs", "part2_mapping_storage_run"): (
+        "part2_mapping_storage_admit(context)", "part2_mapping_capacity_run(context,events)",
+        "context.input,context.components,context.palette_columns,&context.limits,context.base",
+    ),
+    ("specs/cold_palette_storage.rs", "part2_mapping_storage_result"): (
+        "part2_cold_framed(|events|part2_mapping_storage_run(context,events),result)",
+    ),
+    ("specs/cold_palette_storage.rs", "part2_header_storage_request_value"): (
+        "Part2HeaderStorageRequest::Channel", "Part2HeaderStorageRequest::Palette", "Part2HeaderStorageRequest::Mapping",
+        "crate::allocation::inspection_capacity_outcome(", "part2_parse_channel_definition(context.input,context.channels,context.base)",
+        "part2_parse_palette(context.input,context.base)",
+        "part2_parse_component_mapping(context.input,context.components,context.palette_columns,&context.limits,context.base)",
+    ),
+    ("specs/cold_palette_storage.rs", "part2_header_storage_request_run"): (
+        "part2_channel_storage_run(context,events)", "part2_palette_storage_run(context,events)",
+        "part2_mapping_storage_run(context,events)", "Some((Ok(()),rest))",
+    ),
+    ("specs/cold_palette_storage.rs", "part2_header_storage_request_result"): (
+        "part2_cold_framed(|events|part2_header_storage_request_run(request,events),result)",
+    ),
+}
+_PALETTE_OUTPUT_STORAGE_GUARDS = {
+    ("specs/cold_typed_storage.rs", "part2_typed_capacity_count"): (
+        "Part2TypedCapacityContext::Palette {source,..}=>part2_typed_sample_count(source.0.samples),",
+    ),
+    ("specs/cold_output_storage.rs", "part2_palette_component_storage_admit"): (
+        "column>=palette.1.len()", "palette.1[column as int].precision==0 || palette.1[column as int].precision>38",
+    ),
+    ("specs/cold_output_storage.rs", "part2_palette_component_storage_run"): (
+        "part2_palette_component_storage_admit(palette,column)",
+        "Part2TypedCapacityContext::Palette {source,palette,column}", "Some((part2_palette_component(source.0,palette,column),rest))",
+    ),
+    ("specs/cold_output_storage.rs", "part2_palette_component_storage_result"): (
+        "part2_tier1_storage_framed(|calls|part2_palette_component_storage_run(source,palette,column,calls),result)",
+    ),
+    ("specs/cold_output_storage.rs", "part2_output_palette_component_run"): (
+        "context.header.1[index as int].1", "crate::jp2::MappingType::Palette {column}",
+        "match context.header.0", "part2_palette_component_storage_run(source,palette,column,calls)",
+    ),
+}
+_PALETTE_PARSER_STORAGE_PROOFS = {("specs/cold_palette_storage.rs", name) for name in (
+    "part2_palette_capacity_observed", "part2_palette_capacity_frames", "part2_palette_storage_normal",
+    "part2_palette_storage_columns_refused", "part2_palette_storage_values_refused", "part2_palette_storage_frames",
+)}
+_MAPPING_PARSER_STORAGE_PROOFS = {("specs/cold_palette_storage.rs", name) for name in (
+    "part2_mapping_capacity_observed", "part2_mapping_capacity_frames", "part2_mapping_storage_normal",
+    "part2_mapping_storage_refused", "part2_mapping_storage_frames", "part2_header_storage_request_normal",
+    "part2_header_storage_request_channel_error", "part2_header_storage_request_palette_error",
+    "part2_header_storage_request_mapping_error", "part2_header_storage_request_frames",
+    "part2_header_storage_discard_frame",
+)}
+_PALETTE_OUTPUT_STORAGE_PROOFS = {("specs/cold_output_storage.rs", name) for name in (
+    "part2_palette_component_storage_normal", "part2_palette_component_storage_refused",
+    "part2_palette_component_storage_frames", "part2_output_component_palette_error",
+)}
+_PALETTE_PARSER_STORAGE_NATIVE = {
+    ("src/jp2/color.rs", "parse_palette"): (
+        "box_ref.payload.len() < 3", "entries == 0 || entries > 1024 || columns == 0",
+        "descriptor_end > box_ref.payload.len()",
+        "let reserved_columns = crate::allocation::empty_with_capacity(usize::from(columns))",
+        "Part2PaletteStorageRole::Columns", "crate::allocation::inspection_capacity_outcome(reserved_columns)",
+        "part2_palette_storage_columns_refused(storage_context,error)", "let mut columns = reserved_columns?",
+        "parse_bit_depth(box_ref.payload[descriptor], base_offset)?", "box_ref.payload.len() != expected_length",
+        "let value_count = usize::from(entries).checked_mul(columns.len())",
+        "let reserved_values = crate::allocation::empty_with_capacity(value_count)",
+        "Part2PaletteStorageRole::Values", "crate::allocation::inspection_capacity_outcome(reserved_values)",
+        "part2_palette_storage_values_refused(storage_context,error)", "let mut values = reserved_values?",
+        "values.push(parse_palette_value(",
+    ),
+    ("src/jp2/headers.rs", "parse_jp2_header_profile"): (
+        "let parsed = parse_palette(box_ref, base_offset)",
+        "part2_header_storage_request_palette_error(context,error)",
+        "Part2HeaderStorageRequest::Palette {context}", "palette = Some(parsed?)",
+        "let parsed = parse_component_mapping(",
+        "part2_header_storage_request_mapping_error(context,error)",
+        "Part2HeaderStorageRequest::Mapping {context}", "component_mappings = parsed?",
+    ),
+    ("src/jp2/headers.rs", "parse_codestream_header_box"): (
+        "let parsed = parse_palette(box_ref, base_offset)",
+        "part2_header_storage_request_palette_error(context,error)",
+        "part2_associated_header_box_storage_request_error(", "Part2HeaderStorageRequest::Palette {context}",
+        "let palette = parsed?", "let parsed = parse_component_mapping(",
+        "part2_header_storage_request_mapping_error(context,error)",
+        "part2_associated_header_box_storage_request_error(", "Part2HeaderStorageRequest::Mapping {context}",
+        "header.component_mappings = parsed?",
+    ),
+}
+_MAPPING_PARSER_STORAGE_NATIVE = {
+    ("src/jp2/color.rs", "parse_component_mapping"): (
+        "box_ref.payload.is_empty() || !box_ref.payload.len().is_multiple_of(4)",
+        "let entries = u16::try_from(entry_count)", "entries > limits.maximum_components()",
+        "let reserved = crate::allocation::empty_with_capacity(entry_count)",
+        "part2_mapping_capacity_observed(storage_context,crate::allocation::inspection_capacity_outcome(reserved))",
+        "part2_mapping_storage_refused(storage_context,error)", "let mut mappings = reserved?",
+        "crate::refinement::component_mapping_valid(", "mappings.push(ComponentMapping",
+    ),
+}
+_PALETTE_OUTPUT_STORAGE_NATIVE = {
+    ("src/decode/output.rs", "map_palette_component"): (
+        ".get(usize::from(column))", "precision == 0 || precision > 38",
+        "let sample_count = match source.samples()", "descriptor.signed && sample_count != 0",
+        "crate::allocation::empty_with_capacity(sample_count)", "crate::allocation::inspection_capacity_outcome(signed_capacity)",
+        "part2_palette_component_storage_refused(", "let mut signed_samples = signed_capacity?",
+        "descriptor.signed || sample_count == 0", "crate::allocation::empty_with_capacity(sample_count)",
+        "crate::allocation::inspection_capacity_outcome(unsigned_capacity)", "part2_palette_component_storage_refused(",
+        "let mut unsigned_samples = unsigned_capacity?", "while sample_index < sample_count", "let index_status =",
+        "palette_index >= palette.entries()", "palette.value(palette_index, column)",
+    ),
+}
+_PALETTE_RESULT_MODELS.update(_PALETTE_PARSER_STORAGE_GUARDS)
+_PALETTE_RESULT_PROOFS.update(_PALETTE_PARSER_STORAGE_PROOFS)
+_PALETTE_RESULT_TESTS.add(("src/jp2/tests.rs", "palette_storage_parser_keeps_column_value_preflight_and_exact_retry"))
+_CHANNEL_HEADER_MODELS.update(_MAPPING_PARSER_STORAGE_GUARDS)
+_CHANNEL_HEADER_PROOFS.update(_MAPPING_PARSER_STORAGE_PROOFS)
+_CHANNEL_STORAGE_PROOFS.add(("specs/cold_channel_storage.rs", "part2_associated_header_box_storage_request_error"))
+_CHANNEL_HEADER_PROOFS.add(("specs/cold_channel_storage.rs", "part2_associated_header_box_storage_request_error"))
+_CHANNEL_STORAGE_TESTS.add(("src/jp2/tests.rs", "palette_storage_mapping_keeps_framing_limits_record_priority_and_exact_retry"))
+_CHANNEL_STORAGE_GUARDS[("specs/cold_channel_storage.rs", "part2_main_header_storage_machine")] += (
+    "input.0.0==crate::jp2::BoxType::PALETTE && state.palette.is_none()",
+    "input.0.0==crate::jp2::BoxType::COMPONENT_MAPPING && state.mappings.len()==0 && palette_columns<=u8::MAX",
+    "Part2HeaderStorageRequest::Palette {context:Part2PaletteStorageContext {input,base}}",
+    "input,components:state.image.components,palette_columns:palette_columns as u8,limits,base",
+)
+_CHANNEL_STORAGE_GUARDS[("specs/cold_channel_storage.rs", "part2_associated_header_storage_machine")] += (
+    "input.0.0==crate::jp2::BoxType::PALETTE && !state.palette_override && !state.mapping_override && !state.definition_override",
+    "input.0.0==crate::jp2::BoxType::COMPONENT_MAPPING && !state.mapping_override && !state.definition_override",
+    "palette_columns<=u8::MAX", "input,components:state.header.image.components,palette_columns:palette_columns as u8,limits,base",
+)
+
 _OUTPUT_STORAGE_GUARDS = {
     ("specs/cold_output_storage.rs", "part2_definition_storage_result"): (
         "part2_tier1_storage_framed(|calls|part2_typed_capacity_run(context,calls),response)",
@@ -8420,7 +8622,7 @@ _OUTPUT_STORAGE_GUARDS = {
     ("specs/cold_output_storage.rs", "part2_output_component_run"): (
         "part2_output_selected_source(context,index)", "Err(error)=>Some((Err(error),calls))",
         "if part2_output_direct(context,index){part2_output_copy_run(source,calls)}",
-        "else{Some((part2_output_component_value(context,index),calls))}",
+        "else{part2_output_palette_component_run(context,index,source,calls)}",
     ),
     ("specs/cold_output_storage.rs", "part2_output_components_run"): (
         "part2_output_components_run(context,(count-1) as nat,calls)",
@@ -8469,7 +8671,7 @@ _OUTPUT_STORAGE_NATIVE_ORDER = {
         "part2_typed_capacity_observed(crate::specs::Part2TypedCapacityContext::Output {context},crate::allocation::inspection_capacity_outcome(reserved))",
         "part2_output_storage_owner_refused(context)",
         "let mut mapped = reserved?", "let source = decoded.component(mapping.component)?", "let result = copy_typed_component(source)",
-        "part2_output_component_copy_error(", "part2_output_storage_component_error(", "map_palette_component(source, palette, column)?",
+        "part2_output_component_copy_error(", "part2_output_storage_component_error(",         "let result = map_palette_component(source, palette, column)",
         "let component = components .get_mut(usize::from(record.channel)) .ok_or_else(invalid_jp2_output)?",
         "let appended = component.try_add_channel_definition(record.definition)",
         "part2_output_storage_definition_error(", "appended?", "crate::image::typed_image_from_components_with_origin(",
@@ -12819,8 +13021,10 @@ def validate_normative_coverage(
                 "reader.position <= previous_position || reader.position > payload.len()",
                 "parse_color_specification(box_ref, base_offset)?", "if color.is_none()",
                 "if color.is_none() { color = Some(parse_color_specification(box_ref, base_offset)?); } else { validate_color_specification_prefix(box_ref, base_offset)?; }",
-                "parse_palette(box_ref, base_offset)?", "validate_bpcc(box_ref, image, base_offset)?",
+                "let parsed = parse_palette(box_ref, base_offset)", "palette = Some(parsed?)",
+                "validate_bpcc(box_ref, image, base_offset)?",
                 "parse_component_mapping(box_ref, image.components, palette_columns, limits, base_offset,)",
+                "component_mappings = parsed?",
                 "let parsed = parse_channel_definition(box_ref, output_channels, base_offset)",
                 "channel_definition_records = parsed?",
                 "None if allow_unspecified && image.unknown_color_space",
@@ -12880,9 +13084,11 @@ def validate_normative_coverage(
             body = _coverage_function_body(source_text(path), function_header(path, "parse_palette"))
             required = (
                 "entries == 0 || entries > 1024 || columns == 0", "descriptor_end > box_ref.payload.len()",
-                "let mut columns = Vec::with_capacity(usize::from(columns))",
+                "let reserved_columns = crate::allocation::empty_with_capacity(usize::from(columns))",
+                "let mut columns = reserved_columns?",
                 "parse_bit_depth(box_ref.payload[descriptor], base_offset)?",
-                "let mut values = Vec::with_capacity(value_count)",
+                "let reserved_values = crate::allocation::empty_with_capacity(value_count)",
+                "let mut values = reserved_values?",
                 "values.push(parse_palette_value(&box_ref.payload[offset..end], descriptor.precision, descriptor.signed, base_offset,)?)",
                 "column = column.checked_add(1)", "entry = entry.checked_add(1)",
                 "offset != box_ref.payload.len() || values.len() != value_count",
@@ -16163,8 +16369,10 @@ def validate_normative_coverage(
                     contract, named_result, component_contract_arguments[0], component_contract_arguments[1],
                 )
             )
-            if cold_contract is not None and cold_contract[0] in ("part2_output_copy_result", "part2_output_storage_result"):
-                projection = "crate::image::typed_component_output" if cold_contract[0] == "part2_output_copy_result" else "crate::image::decoded_typed_image_outcome"
+            if cold_contract is not None and cold_contract[0] in (
+                    "part2_output_copy_result", "part2_palette_component_storage_result", "part2_output_storage_result"):
+                projection = ("crate::image::decoded_typed_image_outcome"
+                              if cold_contract[0] == "part2_output_storage_result" else "crate::image::typed_component_output")
                 component_arguments_bound = _coverage_extraction_normal_arguments(
                     contract, projection, component_contract_arguments[0], component_contract_arguments[1],
                 )
@@ -16847,6 +17055,44 @@ def validate_normative_coverage(
             if symbol == "parse" and compact.count(
                     "validate_layer_references(&compositing_layers,codestream_boxes.len())?") != 1:
                 raise ValueError("whole raw container Result requires checked association storage before the single original late layer-reference admission")
+    for palette_entry_id, model_guards, proved, controls, native_order in (
+        (_PALETTE_RESULT_ENTRY, _PALETTE_PARSER_STORAGE_GUARDS, _PALETTE_PARSER_STORAGE_PROOFS,
+         {("src/jp2/tests.rs", "palette_storage_parser_keeps_column_value_preflight_and_exact_retry")},
+         _PALETTE_PARSER_STORAGE_NATIVE),
+        (_CHANNEL_HEADER_ENTRY, _MAPPING_PARSER_STORAGE_GUARDS, _MAPPING_PARSER_STORAGE_PROOFS,
+         {("src/jp2/tests.rs", "palette_storage_mapping_keeps_framing_limits_record_priority_and_exact_retry")},
+         _MAPPING_PARSER_STORAGE_NATIVE),
+        ("part2-complete-native-palette-component", _PALETTE_OUTPUT_STORAGE_GUARDS, _PALETTE_OUTPUT_STORAGE_PROOFS,
+         {("src/decode/tests.rs", "palette_storage_mapped_samples_keep_preflight_lookup_priority_empty_and_exact_retry")},
+         _PALETTE_OUTPUT_STORAGE_NATIVE),
+        ("part2-complete-native-output-header", _PALETTE_OUTPUT_STORAGE_GUARDS, _PALETTE_OUTPUT_STORAGE_PROOFS,
+         {("src/decode/tests.rs", "palette_storage_mapped_samples_keep_preflight_lookup_priority_empty_and_exact_retry")},
+         _PALETTE_OUTPUT_STORAGE_NATIVE),
+    ):
+        if palette_entry_id not in ids:
+            continue
+        entry = next(item for item in coverage["requirements"] if item["id"] == palette_entry_id)
+        if not set(model_guards).issubset({(ref["path"], ref["symbol"]) for ref in entry["spec_refs"]}) \
+                or not proved.issubset({(ref["path"], ref["symbol"]) for ref in entry["proof_refs"]}) \
+                or not controls.issubset({(ref["path"], ref["symbol"]) for ref in entry["test_refs"]}) \
+                or not set(native_order).issubset({(ref["path"], ref["symbol"]) for ref in entry["implementation_refs"]}):
+            raise ValueError("checked palette storage requires complete source/stage/count/reply/tail producer, proof and bounded control links")
+        for (relative, symbol), fragments in model_guards.items():
+            body = _coverage_spec_function_body(source_text((ROOT / relative).resolve()), symbol)
+            compact = "".join(body.split()) if body is not None else ""
+            if any("".join(fragment.split()) not in compact for fragment in fragments):
+                raise ValueError("checked palette storage requires actual source/descriptor/count/record/reply/arbitrary-tail programs")
+        for (relative, symbol), fragments in native_order.items():
+            path = (ROOT / relative).resolve()
+            body = _coverage_function_body(source_text(path), function_header(path, symbol))
+            compact = "".join(body.split()) if body is not None else ""
+            position = 0
+            for fragment in fragments:
+                token = "".join(fragment.split())
+                found = compact.find(token, position)
+                if found < 0:
+                    raise ValueError("checked palette storage requires original preflight/descriptor/length/record/lookup order and actual propagated allocation Results")
+                position = found + len(token)
     if "part2-complete-native-output-header" in ids:
         output_entry = next(item for item in coverage["requirements"] if item["id"] == "part2-complete-native-output-header")
         if not set(_OUTPUT_STORAGE_GUARDS).issubset({(ref["path"], ref["symbol"]) for ref in output_entry["spec_refs"]}) \

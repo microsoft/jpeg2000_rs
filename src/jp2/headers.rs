@@ -211,6 +211,7 @@ fn parse_codestream_header_box(
     }
     #[cfg(verus_keep_ghost)]
     proof! {
+        super::channel_storage_box_kinds_known();
         crate::specs::part2_associated_header_box_storage_normal(super::box_reference_view(box_ref),before,*limits,base_offset);
         reveal(crate::specs::part2_associated_header_step);
     }
@@ -260,7 +261,21 @@ fn parse_codestream_header_box(
                 MalformedKind::InvalidBoxOrder,
             ));
         }
-        let palette = parse_palette(box_ref, base_offset)?;
+        let parsed = parse_palette(box_ref, base_offset);
+        #[cfg(verus_keep_ghost)]
+        proof! {
+            if let Err(error)=parsed {
+                if error==DecodeError::AllocationFailed {
+                    let context=crate::specs::Part2PaletteStorageContext {
+                        input:super::box_reference_view(box_ref),base:base_offset};
+                    crate::specs::part2_header_storage_request_palette_error(context,error);
+                    crate::specs::part2_associated_header_box_storage_request_error(
+                        super::box_reference_view(box_ref),before,*limits,base_offset,
+                        crate::specs::Part2HeaderStorageRequest::Palette {context},error);
+                }
+            }
+        }
+        let palette = parsed?;
         header.palette_entries = palette.entries;
         header.palette_columns = u8::try_from(palette.columns.len()).map_err(
             #[cfg_attr(verus_keep_ghost, verus_spec(result: DecodeError =>
@@ -286,13 +301,28 @@ fn parse_codestream_header_box(
             )?,
             None => 0,
         };
-        header.component_mappings = parse_component_mapping(
+        let parsed = parse_component_mapping(
             box_ref,
             header.image.components,
             palette_columns,
             limits,
             base_offset,
-        )?;
+        );
+        #[cfg(verus_keep_ghost)]
+        proof! {
+            if let Err(error)=parsed {
+                if error==DecodeError::AllocationFailed {
+                    let context=crate::specs::Part2MappingStorageContext {
+                        input:super::box_reference_view(box_ref),components:header.image.components,
+                        palette_columns,limits:*limits,base:base_offset};
+                    crate::specs::part2_header_storage_request_mapping_error(context,error);
+                    crate::specs::part2_associated_header_box_storage_request_error(
+                        super::box_reference_view(box_ref),before,*limits,base_offset,
+                        crate::specs::Part2HeaderStorageRequest::Mapping {context},error);
+                }
+            }
+        }
+        header.component_mappings = parsed?;
         header.component_mapping_entries = u16::try_from(header.component_mappings.len()).map_err(
             #[cfg_attr(verus_keep_ghost, verus_spec(result: DecodeError =>
                     ensures result == crate::specs::part2_palette_arithmetic_error(base_offset),
@@ -429,7 +459,8 @@ pub(super) fn parse_jp2_header_profile(
     allow_unspecified: bool,
 ) -> Result<Jp2Header, DecodeError> {
     #[cfg(verus_keep_ghost)]
-    proof! { crate::specs::part2_jp2_header_storage_normal(payload@,*limits,base_offset,allow_unspecified); }
+    proof! {     super::channel_storage_box_kinds_known();
+    crate::specs::part2_jp2_header_storage_normal(payload@,*limits,base_offset,allow_unspecified); }
     let mut reader = box_reader_from_input(payload, limits)?;
     let image_box = required_box(&mut reader, 0).map_err(
         #[cfg_attr(verus_keep_ghost, verus_spec(result: DecodeError =>
@@ -497,7 +528,11 @@ pub(super) fn parse_jp2_header_profile(
     )]
     loop {
         #[cfg(verus_keep_ghost)]
-        proof! { reveal(crate::specs::part2_raw_header_boxes); reveal(crate::specs::part2_raw_header_step); }
+        proof! {
+            super::channel_storage_box_kinds_known();
+            reveal(crate::specs::part2_raw_header_boxes);
+            reveal(crate::specs::part2_raw_header_step);
+        }
         #[cfg(verus_keep_ghost)]
         proof_decl! {
             let ghost previous_reader=super::box_reader_state(&reader);
@@ -555,7 +590,21 @@ pub(super) fn parse_jp2_header_profile(
                     MalformedKind::InvalidBoxOrder,
                 ));
             }
-            palette = Some(parse_palette(box_ref, base_offset)?);
+            let parsed = parse_palette(box_ref, base_offset);
+            #[cfg(verus_keep_ghost)]
+            proof! {
+                if let Err(error)=parsed {
+                    if error==DecodeError::AllocationFailed {
+                        let context=crate::specs::Part2PaletteStorageContext {
+                            input:super::box_reference_view(box_ref),base:base_offset};
+                        crate::specs::part2_header_storage_request_palette_error(context,error);
+                        crate::specs::part2_header_storage_root_error(root,storage_prefix,machine,previous_reader,previous_state,
+                            super::box_reference_view(box_ref),crate::specs::Part2HeaderStorageRequest::Palette {context},error);
+                        crate::specs::part2_jp2_header_storage_observed(payload@,*limits,base_offset,allow_unspecified,Err(error));
+                    }
+                }
+            }
+            palette = Some(parsed?);
         } else if box_type.equals(BoxType::COMPONENT_MAPPING) {
             if !component_mappings.is_empty() {
                 return Err(DecodeError::malformed(
@@ -572,13 +621,28 @@ pub(super) fn parse_jp2_header_profile(
                 )?,
                 None => 0,
             };
-            component_mappings = parse_component_mapping(
+            let parsed = parse_component_mapping(
                 box_ref,
                 image.components,
                 palette_columns,
                 limits,
                 base_offset,
-            )?;
+            );
+            #[cfg(verus_keep_ghost)]
+            proof! {
+                if let Err(error)=parsed {
+                    if error==DecodeError::AllocationFailed {
+                        let context=crate::specs::Part2MappingStorageContext {
+                            input:super::box_reference_view(box_ref),components:image.components,
+                            palette_columns,limits:*limits,base:base_offset};
+                        crate::specs::part2_header_storage_request_mapping_error(context,error);
+                        crate::specs::part2_header_storage_root_error(root,storage_prefix,machine,previous_reader,previous_state,
+                            super::box_reference_view(box_ref),crate::specs::Part2HeaderStorageRequest::Mapping {context},error);
+                        crate::specs::part2_jp2_header_storage_observed(payload@,*limits,base_offset,allow_unspecified,Err(error));
+                    }
+                }
+            }
+            component_mappings = parsed?;
         } else if box_type.equals(BoxType::CHANNEL_DEFINITION) {
             if !channel_definition_records.is_empty() {
                 return Err(DecodeError::malformed(
@@ -601,9 +665,11 @@ pub(super) fn parse_jp2_header_profile(
             proof! {
                 if let Err(error)=parsed {
                     if error==DecodeError::AllocationFailed {
+                        let context=crate::specs::Part2ChannelStorageContext {
+                            input:super::box_reference_view(box_ref),channels:output_channels,base:base_offset};
+                        crate::specs::part2_header_storage_request_channel_error(context,error);
                         crate::specs::part2_header_storage_root_error(root,storage_prefix,machine,previous_reader,previous_state,
-                            super::box_reference_view(box_ref),crate::specs::Part2ChannelStorageContext {
-                                input:super::box_reference_view(box_ref),channels:output_channels,base:base_offset},error);
+                            super::box_reference_view(box_ref),crate::specs::Part2HeaderStorageRequest::Channel {context},error);
                         crate::specs::part2_jp2_header_storage_observed(payload@,*limits,base_offset,allow_unspecified,Err(error));
                     }
                 }

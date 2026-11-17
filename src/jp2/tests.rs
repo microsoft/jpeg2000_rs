@@ -2121,6 +2121,94 @@ fn actual_raw_channel_definition_keeps_exact_lengths_full_count_and_lazy_offsets
 }
 
 #[test]
+fn palette_storage_parser_keeps_column_value_preflight_and_exact_retry() {
+    let payload = [0, 2, 2, 7, 135, 0, 255, 1, 128];
+    let input = raw_metadata_box(&payload, *b"pclr", 7);
+    let expected = super::color::parse_palette(input, 13).unwrap();
+    assert_eq!(expected.value(0, 1).unwrap(), -1);
+    assert_eq!(expected.value(1, 1).unwrap(), -128);
+    for after in [0, 1] {
+        assert_eq!(
+            crate::allocation::with_refusal(after, || super::color::parse_palette(input, 13)),
+            Err(DecodeError::AllocationFailed)
+        );
+        assert_eq!(super::color::parse_palette(input, 13).unwrap(), expected);
+    }
+    for malformed in [&[][..], &[0, 0, 1, 7], &[0, 1, 2, 7]] {
+        let input = raw_metadata_box(malformed, *b"pclr", u64::MAX);
+        let expected = super::color::parse_palette(input, 13).unwrap_err();
+        crate::allocation::with_refusal(0, || {
+            assert_eq!(super::color::parse_palette(input, 13), Err(expected));
+            assert_eq!(
+                crate::allocation::empty_with_capacity::<u8>(1),
+                Err(DecodeError::AllocationFailed)
+            );
+        });
+    }
+    for malformed in [&[0, 1, 1, 255][..], &[0, 1, 1, 7]] {
+        let input = raw_metadata_box(malformed, *b"pclr", 7);
+        let expected = super::color::parse_palette(input, 13).unwrap_err();
+        assert_eq!(
+            crate::allocation::with_refusal(0, || super::color::parse_palette(input, 13)),
+            Err(DecodeError::AllocationFailed)
+        );
+        crate::allocation::with_refusal(1, || {
+            assert_eq!(super::color::parse_palette(input, 13), Err(expected));
+            assert_eq!(
+                crate::allocation::empty_with_capacity::<u8>(1),
+                Err(DecodeError::AllocationFailed)
+            );
+        });
+    }
+}
+
+#[test]
+fn palette_storage_mapping_keeps_framing_limits_record_priority_and_exact_retry() {
+    let limits = ResourceLimits::default();
+    let payload = [0, 0, 0, 0, 0, 0, 1, 0];
+    let input = raw_metadata_box(&payload, *b"cmap", 7);
+    let expected = super::color::parse_component_mapping(input, 1, 1, &limits, 13).unwrap();
+    assert_eq!(
+        crate::allocation::with_refusal(0, || {
+            super::color::parse_component_mapping(input, 1, 1, &limits, 13)
+        }),
+        Err(DecodeError::AllocationFailed)
+    );
+    assert_eq!(
+        super::color::parse_component_mapping(input, 1, 1, &limits, 13).unwrap(),
+        expected
+    );
+    let tight = limits.with_geometry_limits_for_test(1, 1, 1, 1, 1);
+    for (bytes, limit) in [
+        (&[][..], &limits),
+        (&[0, 0, 0][..], &limits),
+        (&payload[..], &tight),
+    ] {
+        let input = raw_metadata_box(bytes, *b"cmap", 7);
+        let expected = super::color::parse_component_mapping(input, 1, 1, limit, 13).unwrap_err();
+        crate::allocation::with_refusal(0, || {
+            assert_eq!(
+                super::color::parse_component_mapping(input, 1, 1, limit, 13),
+                Err(expected)
+            );
+            assert_eq!(
+                crate::allocation::empty_with_capacity::<u8>(1),
+                Err(DecodeError::AllocationFailed)
+            );
+        });
+    }
+    let bad_record = [0, 1, 0, 0];
+    let input = raw_metadata_box(&bad_record, *b"cmap", 7);
+    assert!(super::color::parse_component_mapping(input, 1, 1, &limits, 13).is_err());
+    assert_eq!(
+        crate::allocation::with_refusal(0, || {
+            super::color::parse_component_mapping(input, 1, 1, &limits, 13)
+        }),
+        Err(DecodeError::AllocationFailed)
+    );
+}
+
+#[test]
 fn channel_storage_preflight_record_errors_first_later_and_exact_retry() {
     let payload = raw_channel_definition_payload(&[(0, 0, 1), (0, 2, 0), (0, 0, 1)]);
     let parse_valid = || parse_channel_definition(raw_image_header_box(&payload, 19), 1, u64::MAX);

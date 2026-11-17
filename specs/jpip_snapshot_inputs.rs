@@ -5,6 +5,8 @@ use super::*;
 verus! {
 
 pub enum Part2JpipSnapshotEvent {
+    PaletteCapacity {context:Part2PaletteStorageContext,role:Part2PaletteStorageRole,elements:nat,succeeded:bool},
+    ComponentMappingCapacity {context:Part2MappingStorageContext,elements:nat,succeeded:bool},
     AssociationAppendCapacity {context:Part2AssociationAppendContext,elements:nat,succeeded:bool},
     HeaderCloneCapacity {source:Part2RawJp2Header,role:Part2HeaderCloneRole,elements:nat,succeeded:bool},
     ChannelDefinitionCapacity {context:Part2ChannelStorageContext,elements:nat,succeeded:bool},

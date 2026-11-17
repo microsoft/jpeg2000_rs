@@ -119,9 +119,41 @@ the one-record CDEF fixture to 91 actual requests, covering inherited metadata
 copy, association-bank growth and attached metadata copy. Every modified-source
 request returns typed refusal followed by exact same-process pixels. This is
 finite development evidence, not final archive or full-surface qualification.
-Other JPX layer growth, parser palette/ICC and nonlinear/color scratch owners
+Other JPX layer growth, remaining parser palette/ICC and nonlinear/color scratch owners
 remain separate; no physical allocator availability, lifetime, exhaustive
 coverage or optional clock-orchestration theorem is implied.
+
+`parse_palette` now checks column storage after its original entry/count and
+descriptor-length admission, before interpreting descriptors. Value storage
+remains after descriptor semantics, checked byte counts, exact payload length
+and value-count arithmetic, before the original ordered rows and scalars.
+CMAP storage is checked after framing, u16 conversion and component limits,
+before record validity. Earlier preflight errors remain request-free; a reached
+reservation can refuse before the same later descriptor, record or lookup error
+that previously followed the infallible allocation.
+
+[`cold_palette_storage.rs`](specs/cold_palette_storage.rs) binds original box
+bytes, base, actual limits, both PCLR roles, counts and normalized replies.
+The existing header reader/state machine now selects one typed Channel, PCLR or
+CMAP request and preserves its first error and arbitrary tail. Actual main and
+associated callers compose those requests at their original override/count
+admission points; layer CDEF behavior is retained. No parsed palette, mapping
+vector or successful-output bank is supplied as a premise.
+
+Palette-mapped output retains column and precision admission before checked
+signed/unsigned sample storage, then the original source-index, palette lookup
+and numeric range order. Empty sources and inactive signedness owners make no
+request. Full raw component metadata, palette, column and sample count flow
+through [`cold_output_storage.rs`](specs/cold_output_storage.rs) into the complete
+output/header program. Independent palette/scalar oracles remain unchanged.
+
+The supported 196-byte gray PCLR/CMAP control reaches 89 real allocations,
+including descriptor/value/mapping storage and the mapped sample owner.
+Modified-source refusals all return typed failure and recover exact pixels;
+original86/CDEF88/associated91 observations are preserved. These finite controls
+and focused proofs do not replace final exact-source/archive, native profile,
+resource and normal promotion qualifications. Other palette/ICC parser and
+nonlinear/color scratch or JPX growth owners remain separate broad work.
 
 ### Centered-to-typed output ownership
 

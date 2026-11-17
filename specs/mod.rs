@@ -15,6 +15,8 @@ mod cold_channel_storage;
 pub use cold_channel_storage::*;
 mod cold_header_storage;
 pub use cold_header_storage::*;
+mod cold_palette_storage;
+pub use cold_palette_storage::*;
 mod jp2_semantic_errors;
 pub use jp2_semantic_errors::*;
 mod cold_container_headers;

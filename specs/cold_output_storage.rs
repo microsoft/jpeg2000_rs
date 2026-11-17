@@ -84,6 +84,71 @@ pub(crate) open spec fn part2_output_selected_source(context:Part2OutputStorageC
     let input=part2_output_inputs(context);
     if context.header.1.len()==0{Ok(input[index as int])}else{part2_typed_image_component(input,context.header.1[index as int].0)}
 }
+pub(crate) open spec fn part2_palette_component_storage_admit(palette:Part2PaletteModel,column:u8)
+    ->Result<(),crate::DecodeError> {
+    if column>=palette.1.len() {Err(part2_color_input_error())}
+    else if palette.1[column as int].precision==0 || palette.1[column as int].precision>38 {
+        Err(part2_color_input_error())
+    }else {Ok(())}
+}
+pub(crate) open spec fn part2_palette_component_storage_run(source:Part2TypedComponentOutput,
+    palette:Part2PaletteModel,column:u8,calls:Seq<Part2Tier1StorageEvent>)->Part2Tier1Run<Part2TypedComponentOutput> {
+    match part2_palette_component_storage_admit(palette,column) {
+        Err(error)=>Some((Err(error),calls)),
+        Ok(())=>part2_tier1_storage_bind(part2_typed_capacity_run(
+            Part2TypedCapacityContext::Palette {source,palette,column},calls),
+            |_:(),rest|Some((part2_palette_component(source.0,palette,column),rest))),
+    }
+}
+pub closed spec fn part2_palette_component_storage_result(source:Part2TypedComponentOutput,
+    palette:Part2PaletteModel,column:u8,result:Result<Part2TypedComponentOutput,crate::DecodeError>)->bool {
+    part2_tier1_storage_framed(|calls|part2_palette_component_storage_run(source,palette,column,calls),result)
+}
+pub(crate) proof fn part2_palette_component_storage_normal(source:Part2TypedComponentOutput,
+    palette:Part2PaletteModel,column:u8)
+    ensures part2_palette_component_storage_result(source,palette,column,part2_palette_component(source.0,palette,column)),
+{
+    let result=part2_palette_component(source.0,palette,column);
+    part2_tier1_storage_pure(result);
+    if part2_palette_component_storage_admit(palette,column).is_ok() {
+        let context=Part2TypedCapacityContext::Palette {source,palette,column};
+        part2_typed_capacity_observed(context,Ok(()));
+        part2_tier1_storage_bind_frame(|calls|part2_typed_capacity_run(context,calls),
+            |_:(),rest|Some((result,rest)),Ok(()),result);
+    }
+}
+pub(crate) proof fn part2_palette_component_storage_refused(source:Part2TypedComponentOutput,
+    palette:Part2PaletteModel,column:u8)
+    requires part2_palette_component_storage_admit(palette,column)==Ok(()),
+        part2_tier1_storage_framed(|calls|part2_typed_capacity_run(
+            Part2TypedCapacityContext::Palette {source,palette,column},calls),Err(crate::DecodeError::AllocationFailed)),
+    ensures part2_palette_component_storage_result(source,palette,column,Err(crate::DecodeError::AllocationFailed)),
+{
+    let context=Part2TypedCapacityContext::Palette {source,palette,column};
+    part2_tier1_storage_bind_frame(|calls|part2_typed_capacity_run(context,calls),
+        |_:(),rest|Some((part2_palette_component(source.0,palette,column),rest)),
+        Err(crate::DecodeError::AllocationFailed),Err(crate::DecodeError::AllocationFailed));
+}
+pub(crate) proof fn part2_palette_component_storage_frames(source:Part2TypedComponentOutput,
+    palette:Part2PaletteModel,column:u8,result:Result<Part2TypedComponentOutput,crate::DecodeError>)
+    requires part2_palette_component_storage_result(source,palette,column,result),
+    ensures part2_tier1_storage_framed(|calls|part2_palette_component_storage_run(source,palette,column,calls),result),
+        forall|other:spec_fn(Seq<Part2Tier1StorageEvent>)->Part2Tier1Run<Part2TypedComponentOutput>|
+            (forall|calls| #[trigger] other(calls)==part2_palette_component_storage_run(source,palette,column,calls)) ==>
+                #[trigger] part2_tier1_storage_framed(other,result),
+{
+    part2_tier1_storage_eta(|calls|part2_palette_component_storage_run(source,palette,column,calls),result);
+}
+pub(crate) open spec fn part2_output_palette_component_run(context:Part2OutputStorageContext,index:nat,
+    source:Part2TypedComponentOutput,calls:Seq<Part2Tier1StorageEvent>)->Part2Tier1Run<Part2TypedComponentOutput> {
+    match context.header.1[index as int].1 {
+        crate::jp2::MappingType::Direct=>part2_output_copy_run(source,calls),
+        crate::jp2::MappingType::Palette {column}=>match context.header.0 {
+            None=>Some((Err(part2_color_input_error()),calls)),
+            Some(palette)=>part2_palette_component_storage_run(source,palette,column,calls),
+        },
+    }
+}
 pub(crate) open spec fn part2_output_direct(context:Part2OutputStorageContext,index:nat)->bool {
     context.header.1.len()==0 || context.header.1[index as int].1==crate::jp2::MappingType::Direct
 }
@@ -95,7 +160,7 @@ pub(crate) open spec fn part2_output_component_run(context:Part2OutputStorageCon
     match part2_output_selected_source(context,index) {
         Err(error)=>Some((Err(error),calls)),
         Ok(source)=>if part2_output_direct(context,index){part2_output_copy_run(source,calls)}
-            else{Some((part2_output_component_value(context,index),calls))},
+            else{part2_output_palette_component_run(context,index,source,calls)},
     }
 }
 pub(crate) proof fn part2_output_component_normal(context:Part2OutputStorageContext,index:nat)
@@ -105,8 +170,32 @@ pub(crate) proof fn part2_output_component_normal(context:Part2OutputStorageCont
         Err(error)=>{part2_tier1_storage_pure::<Part2TypedComponentOutput>(Err(error));},
         Ok(source)=>if part2_output_direct(context,index){
             part2_output_copy_normal(source);part2_output_copy_frames(source,part2_typed_component_copy(source));
-        }else{part2_tier1_storage_pure(part2_output_component_value(context,index));},
+        }else{
+            match context.header.1[index as int].1 {
+                crate::jp2::MappingType::Direct=>{
+                    part2_output_copy_normal(source);part2_output_copy_frames(source,part2_typed_component_copy(source));
+                },
+                crate::jp2::MappingType::Palette {column}=>match context.header.0 {
+                    None=>part2_tier1_storage_pure(part2_output_component_value(context,index)),
+                    Some(palette)=>{
+                        let result=part2_palette_component(source.0,palette,column);
+                        part2_palette_component_storage_normal(source,palette,column);
+                        part2_palette_component_storage_frames(source,palette,column,result);
+                    },
+                },
+            }
+        },
     }
+}
+pub(crate) proof fn part2_output_component_palette_error(context:Part2OutputStorageContext,index:nat,
+    source:Part2TypedComponentOutput,palette:Part2PaletteModel,column:u8,error:crate::DecodeError)
+    requires index<context.header.1.len(),
+        context.header.1[index as int].1==(crate::jp2::MappingType::Palette {column}),
+        part2_output_selected_source(context,index)==Ok(source),context.header.0==Some(palette),
+        part2_palette_component_storage_result(source,palette,column,Err(error)),
+    ensures part2_tier1_storage_framed(|calls|part2_output_component_run(context,index,calls),Err(error)),
+{
+    part2_palette_component_storage_frames(source,palette,column,Err(error));
 }
 pub(crate) open spec fn part2_output_components_value(context:Part2OutputStorageContext,count:nat)->Result<Seq<Part2TypedComponentOutput>,crate::DecodeError> {
     if context.header.1.len()==0{Ok(part2_output_inputs(context).take(count as int))}
