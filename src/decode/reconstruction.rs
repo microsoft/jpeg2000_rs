@@ -1360,10 +1360,16 @@ pub(super) fn assemble_prepared_components(
     #[cfg(verus_keep_ghost)]
     proof! {if let Err(error)=views{crate::specs::part2_assemble_prepared_views_refused(crate::image::assembly_size_view(size),prepared_components_view(prepared@),selection,crate::limits::resource_decoded_bytes_limit(limits),error);}}
     let tiles = views?;
-    match selection {
+    let assembled = match selection {
         None => assemble_image(size, &tiles, limits),
         Some((region, levels)) => assemble_selected_image(size, &tiles, region, levels, limits),
+    };
+    #[cfg(verus_keep_ghost)]
+    proof! {
+        crate::specs::part2_assemble_prepared_output_observed(crate::image::assembly_size_view(size),prepared_components_view(prepared@),selection,
+            crate::limits::resource_decoded_bytes_limit(limits),crate::image::decoded_image_outcome(assembled));
     }
+    assembled
 }
 
 #[cfg_attr(verus_keep_ghost, verus_spec(result =>
@@ -1471,5 +1477,11 @@ pub fn decode_progression_prepared_image(
             }
         }
     };
-    decode_prepared_image(size, &tile_components, component_transform, limits)
+    let decoded = decode_prepared_image(size, &tile_components, component_transform, limits);
+    #[cfg(verus_keep_ghost)]
+    proof! {
+        crate::specs::part2_coefficient_progression_output_observed(crate::image::assembly_size_view(size),plans,precincts,plan.component_coding_styles,plan.coding_style,
+            crate::limits::resource_decoded_bytes_limit(limits),prepared_components_view(prepared@),component_transform,crate::image::decoded_image_outcome(decoded));
+    }
+    decoded
 }

@@ -39,6 +39,32 @@ an all-feature Verus proof. Full source-function coverage remains `not-measured`
 
 ## Fallible-storage foundation and remaining boundary
 
+### Assembly plane sample and visited ownership
+
+The actual assembly append checks zero-sample and visited storage only after
+the original dimensions, cumulative byte charge and crop admission. Publication
+growth is checked after tile collection and fraction admission. Refusals retain
+the original image prefix and already-updated byte counter, including raw
+tight-capacity callers; semantic errors retain their prior order.
+Exact plane stages carry source image/bytes, geometry, tile contents, crop
+policy/caps, actual sampled values or collected plane, counts and replies/tails.
+The complete component fold stops at the actual first error and composes
+through existing full/selected/prepared/progression/PDF output programs.
+The append helper is image-parent-visible for focused raw-prefix tests only;
+no public API or allocator-availability premise is added.
+
+### Assembly component metadata ownership
+
+Full assembly now checks its outer component metadata vector before the
+original image-extent checks. Selected assembly retains its selected-header
+checks before that reservation. Empty component lists make no request.
+The cold owner retains the raw image size, borrowed tile contents, optional
+selection, decoded-byte maximum, element count and actual reply/tail.
+Its exact nested-call envelope composes through prepared assembly and the
+direct progression transform dispatcher; unsupported transform dispatch
+retains its position after borrowed views and before image assembly.
+Per-plane storage now composes through the actual component fold described above.
+
 ### Borrowed prepared views
 
 The final prepared-to-tile view vector now uses checked metadata storage and

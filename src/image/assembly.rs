@@ -16,7 +16,9 @@ use crate::{DecodeError, Resource, ResourceLimits};
 use vstd::prelude::*;
 
 #[cfg_attr(verus_keep_ghost, verus_spec(result =>
-    ensures decoded_image_outcome(result) == crate::specs::part1_assemble_image(
+    ensures crate::specs::part2_assembly_storage_result(crate::specs::Part2AssemblyOwnerContext {
+        size:assembly_size_view(size),tiles:assembly_tiles_view(tiles@),selection:None,maximum:crate::limits::resource_decoded_bytes_limit(limits)},decoded_image_outcome(result)),
+    decoded_image_outcome(result)!=Err(DecodeError::AllocationFailed) ==> decoded_image_outcome(result) == crate::specs::part1_assemble_image(
         assembly_size_view(size), assembly_tiles_view(tiles@), crate::limits::resource_decoded_bytes_limit(limits),
     ),
 ))]
@@ -25,7 +27,22 @@ pub fn assemble_image(
     tiles: &[TileComponent<'_>],
     limits: &ResourceLimits,
 ) -> Result<DecodedImage, DecodeError> {
-    let components = Vec::with_capacity(usize::from(size.components));
+    #[cfg(verus_keep_ghost)]
+    proof_decl! {let ghost context=crate::specs::Part2AssemblyOwnerContext {size:assembly_size_view(size),tiles:assembly_tiles_view(tiles@),selection:None,maximum:crate::limits::resource_decoded_bytes_limit(limits)};}
+    #[cfg(verus_keep_ghost)]
+    proof! {crate::specs::part2_assembly_storage_normal(context);}
+    let reserved = if size.components == 0 {
+        Ok(Vec::new())
+    } else {
+        crate::allocation::empty_with_capacity(usize::from(size.components))
+    };
+    #[cfg(verus_keep_ghost)]
+    proof! {
+        let response=crate::allocation::inspection_capacity_outcome(reserved);
+        crate::specs::part2_assembly_owner_observed(context,response);
+        if reserved.is_err(){crate::specs::part2_assembly_storage_refused(context,response);}
+    }
+    let components = reserved?;
     let image_x1 = size
         .x_origin
         .checked_add(size.width)
@@ -56,6 +73,8 @@ pub fn assemble_image(
         verus_keep_ghost,
         verus_spec(
             invariant component <= size.components,
+            context==(crate::specs::Part2AssemblyOwnerContext {size:assembly_size_view(size),tiles:assembly_tiles_view(tiles@),selection:None,maximum:crate::limits::resource_decoded_bytes_limit(limits)}),
+            crate::specs::part2_assembly_storage_result(context,crate::specs::part1_assemble_image(assembly_size_view(size),assembly_tiles_view(tiles@),crate::limits::resource_decoded_bytes_limit(limits))),
             image_x1 as int == size.x_origin as int + size.width as int,
             image_y1 as int == size.y_origin as int + size.height as int,
             original == (size.width, size.height, size.x_origin, size.y_origin, Seq::empty()),
@@ -74,7 +93,9 @@ pub fn assemble_image(
                 None, crate::limits::resource_decoded_bytes_limit(limits), component as nat,
             );
         }
-        match append_assembly_component(
+        #[cfg(verus_keep_ghost)]
+        proof_decl! {let ghost before=(Ok(()),image@,decoded_bytes);}
+        let appended = append_assembly_component(
             &mut image,
             &mut decoded_bytes,
             size,
@@ -82,15 +103,19 @@ pub fn assemble_image(
             component,
             ([image_x1, image_y1], None),
             limits.maximum_decoded_bytes(),
-        ) {
+        );
+        match appended {
             Ok(()) => {}
             Err(error) => {
                 #[cfg(verus_keep_ghost)]
                 proof! {
+                    crate::specs::part2_assembly_storage_plane_error(context,component as nat,before,(appended,image@,decoded_bytes));
+                    if error!=DecodeError::AllocationFailed{
                     crate::proofs::production_impl::production_assembly_components_error_persists(
                         original, 0, assembly_size_view(size), assembly_tiles_view(tiles@), (image_x1, image_y1),
                         None, crate::limits::resource_decoded_bytes_limit(limits), component as nat + 1, size.components as nat,
                     );
+                    }
                 }
                 return Err(error);
             }
@@ -234,12 +259,15 @@ pub(super) fn charge_assembly_bytes(
 }
 
 #[cfg_attr(verus_keep_ghost, verus_spec(result =>
-    ensures (result, final(image)@, *final(bytes)) == crate::specs::part1_assembly_append_plane(
+    ensures crate::specs::part2_assembly_plane_result(crate::specs::Part2AssemblyPlaneContext {
+        image:old(image)@,bytes:*old(bytes),size:assembly_size_view(size),tiles:assembly_tiles_view(tiles@),component,
+        extent:(profile.0[0],profile.0[1]),selection:profile.1,maximum},(result,final(image)@,*final(bytes))),
+    result!=Err(DecodeError::AllocationFailed) ==> (result, final(image)@, *final(bytes)) == crate::specs::part1_assembly_append_plane(
         old(image)@, *old(bytes), assembly_size_view(size), assembly_tiles_view(tiles@), component,
         (profile.0[0], profile.0[1]), profile.1, maximum,
     ),
 ))]
-fn append_assembly_component(
+pub(super) fn append_assembly_component(
     image: &mut DecodedImage,
     bytes: &mut u64,
     size: &ImageSize,
@@ -248,17 +276,36 @@ fn append_assembly_component(
     profile: ([u32; 2], AssemblySelection),
     maximum: u64,
 ) -> Result<(), DecodeError> {
+    #[cfg(verus_keep_ghost)]
+    proof_decl! {let ghost context=crate::specs::Part2AssemblyPlaneContext {image:image@,bytes:*bytes,size:assembly_size_view(size),tiles:assembly_tiles_view(tiles@),component,
+    extent:(profile.0[0],profile.0[1]),selection:profile.1,maximum};}
+    #[cfg(verus_keep_ghost)]
+    proof! {crate::specs::part2_assembly_plane_normal(context);}
     let (extent, selection) = profile;
     let dimensions = assembly_component_dimensions(size, component, extent, selection)?;
     let count = checked_area(dimensions.1, dimensions.2)?;
     charge_assembly_bytes(count, bytes, maximum)?;
     let crop = assembly_component_crop(size, dimensions, selection.is_some())?;
+    let samples_result = crate::allocation::filled_values(0_i64, count);
+    #[cfg(verus_keep_ghost)]
+    proof! {
+        crate::specs::part2_assembly_plane_capacity_observed(context,crate::specs::Part2AssemblyPlaneStage::Samples,crate::allocation::inspection_capacity_outcome(samples_result));
+        if samples_result.is_err(){crate::specs::part2_assembly_plane_samples_refused(context);}
+    }
+    let samples = samples_result?;
+    let visited_result = crate::allocation::filled_values(false, count);
+    #[cfg(verus_keep_ghost)]
+    proof! {
+        crate::specs::part2_assembly_plane_capacity_observed(context,crate::specs::Part2AssemblyPlaneStage::Visited {samples:samples@},crate::allocation::inspection_capacity_outcome(visited_result));
+        if visited_result.is_err(){crate::specs::part2_assembly_plane_visited_refused(context);}
+    }
+    let visited = visited_result?;
     let mut plane = AssemblyPlane {
         width: dimensions.1,
         height: dimensions.2,
         fraction_bits: None,
-        samples: vec![0_i64; count],
-        visited: vec![false; count],
+        samples,
+        visited,
     };
     #[cfg(verus_keep_ghost)]
     proof! {
@@ -266,11 +313,19 @@ fn append_assembly_component(
         assert(plane.visited@ =~= Seq::new(count as nat, |i: int| false));
     }
     collect_assembly_tiles(&mut plane, tiles, component, crop)?;
+    let fraction_bits = plane.fraction_bits.ok_or_else(invalid_image)?;
+    let reserved = crate::allocation::reserve_additional(&mut image.components, 1);
+    #[cfg(verus_keep_ghost)]
+    proof! {
+        crate::specs::part2_assembly_plane_capacity_observed(context,crate::specs::Part2AssemblyPlaneStage::Publish {plane:plane@},crate::allocation::inspection_capacity_outcome(reserved));
+        if reserved.is_err(){crate::specs::part2_assembly_plane_publish_refused(context,plane@);}
+    }
+    reserved?;
     image.components.push(DecodedComponent {
         width: dimensions.1,
         height: dimensions.2,
         info: dimensions.0,
-        fraction_bits: plane.fraction_bits.ok_or_else(invalid_image)?,
+        fraction_bits,
         samples: plane.samples,
     });
     #[cfg(verus_keep_ghost)]
@@ -288,7 +343,9 @@ fn append_assembly_component(
 }
 
 #[cfg_attr(verus_keep_ghost, verus_spec(result =>
-    ensures decoded_image_outcome(result) == crate::specs::part1_assemble_selected_image(
+    ensures crate::specs::part2_assembly_storage_result(crate::specs::Part2AssemblyOwnerContext {
+        size:assembly_size_view(size),tiles:assembly_tiles_view(tiles@),selection:Some((region,discard_levels)),maximum:crate::limits::resource_decoded_bytes_limit(limits)},decoded_image_outcome(result)),
+    decoded_image_outcome(result)!=Err(DecodeError::AllocationFailed) ==> decoded_image_outcome(result) == crate::specs::part1_assemble_selected_image(
         assembly_size_view(size), assembly_tiles_view(tiles@), region, discard_levels,
         crate::limits::resource_decoded_bytes_limit(limits),
     ),
@@ -300,8 +357,23 @@ pub(crate) fn assemble_selected_image(
     discard_levels: u8,
     limits: &ResourceLimits,
 ) -> Result<DecodedImage, DecodeError> {
+    #[cfg(verus_keep_ghost)]
+    proof_decl! {let ghost context=crate::specs::Part2AssemblyOwnerContext {size:assembly_size_view(size),tiles:assembly_tiles_view(tiles@),selection:Some((region,discard_levels)),maximum:crate::limits::resource_decoded_bytes_limit(limits)};}
+    #[cfg(verus_keep_ghost)]
+    proof! {crate::specs::part2_assembly_storage_normal(context);}
     let header = assembly_selected_header(region, discard_levels)?;
-    let components = Vec::with_capacity(usize::from(size.components));
+    let reserved = if size.components == 0 {
+        Ok(Vec::new())
+    } else {
+        crate::allocation::empty_with_capacity(usize::from(size.components))
+    };
+    #[cfg(verus_keep_ghost)]
+    proof! {
+        let response=crate::allocation::inspection_capacity_outcome(reserved);
+        crate::specs::part2_assembly_owner_observed(context,response);
+        if reserved.is_err(){crate::specs::part2_assembly_storage_refused(context,response);}
+    }
+    let components = reserved?;
     let mut image = DecodedImage {
         width: header.3,
         height: header.4,
@@ -324,6 +396,8 @@ pub(crate) fn assemble_selected_image(
         verus_keep_ghost,
         verus_spec(
             invariant component <= size.components,
+            context==(crate::specs::Part2AssemblyOwnerContext {size:assembly_size_view(size),tiles:assembly_tiles_view(tiles@),selection:Some((region,discard_levels)),maximum:crate::limits::resource_decoded_bytes_limit(limits)}),
+            crate::specs::part2_assembly_storage_result(context,crate::specs::part1_assemble_selected_image(assembly_size_view(size),assembly_tiles_view(tiles@),region,discard_levels,crate::limits::resource_decoded_bytes_limit(limits))),
             crate::specs::part1_assembly_selected_header(region, discard_levels) == Ok(header),
             original == (header.3, header.4, header.1, header.2, Seq::empty()),
             crate::specs::part1_assembly_components_prefix(
@@ -341,7 +415,9 @@ pub(crate) fn assemble_selected_image(
                 Some((region, header.0)), crate::limits::resource_decoded_bytes_limit(limits), component as nat,
             );
         }
-        match append_assembly_component(
+        #[cfg(verus_keep_ghost)]
+        proof_decl! {let ghost before=(Ok(()),image@,decoded_bytes);}
+        let appended = append_assembly_component(
             &mut image,
             &mut decoded_bytes,
             size,
@@ -349,16 +425,20 @@ pub(crate) fn assemble_selected_image(
             component,
             ([0, 0], Some((region, header.0))),
             limits.maximum_decoded_bytes(),
-        ) {
+        );
+        match appended {
             Ok(()) => {}
             Err(error) => {
                 #[cfg(verus_keep_ghost)]
                 proof! {
+                    crate::specs::part2_assembly_storage_plane_error(context,component as nat,before,(appended,image@,decoded_bytes));
+                    if error!=DecodeError::AllocationFailed{
                     crate::proofs::production_impl::production_assembly_components_error_persists(
                         original, 0, assembly_size_view(size), assembly_tiles_view(tiles@), (0, 0),
                         Some((region, header.0)), crate::limits::resource_decoded_bytes_limit(limits),
                         component as nat + 1, size.components as nat,
                     );
+                    }
                 }
                 return Err(error);
             }

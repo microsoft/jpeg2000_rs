@@ -277,7 +277,7 @@ pub(crate) proof fn part2_prepared_view_calls_observed(source:Seq<Part1AssemblyT
 pub(crate) open spec fn part2_assemble_prepared_storage_run(size:Part1AssemblySize,source:Seq<Part1AssemblyTile>,selection:Option<([u32;4],u8)>,maximum:u64,
     events:Seq<Part2JpipSnapshotEvent>)->Part2ColdRun<Part1DecodedImageModel> {
     part2_jpip_snapshot_bind(part2_prepared_view_calls_run(source,events),
-        |views:Seq<Part1AssemblyTile>,rest|Some((part2_assemble_prepared(size,views,selection,maximum),rest)))
+        |views:Seq<Part1AssemblyTile>,rest|part2_assembly_calls_run(Part2AssemblyOwnerContext {size,tiles:views,selection,maximum},rest))
 }
 pub(crate) open spec fn part2_assemble_prepared_storage_result(size:Part1AssemblySize,source:Seq<Part1AssemblyTile>,selection:Option<([u32;4],u8)>,maximum:u64,
     result:Result<Part1DecodedImageModel,crate::DecodeError>)->bool {
@@ -288,9 +288,12 @@ pub(crate) proof fn part2_assemble_prepared_storage_normal(size:Part1AssemblySiz
 {
     let result=part2_assemble_prepared(size,source,selection,maximum);
     part2_prepared_views_observed(source,Ok(()));
-    part2_prepared_view_calls_observed(source,Ok(source));part2_cold_pure(result);
+    part2_prepared_view_calls_observed(source,Ok(source));
+    let context=Part2AssemblyOwnerContext {size,tiles:source,selection,maximum};
+    part2_assembly_storage_normal(context);part2_assembly_calls_observed(context,result);
+    part2_decode_eta(|events|part2_assembly_calls_run(context,events),result);
     part2_cold_bind(|events|part2_prepared_view_calls_run(source,events),
-        |views:Seq<Part1AssemblyTile>,rest|Some((part2_assemble_prepared(size,views,selection,maximum),rest)),Ok(source),result);
+        |views:Seq<Part1AssemblyTile>,rest|part2_assembly_calls_run(Part2AssemblyOwnerContext {size,tiles:views,selection,maximum},rest),Ok(source),result);
 }
 pub(crate) proof fn part2_assemble_prepared_views_refused(size:Part1AssemblySize,source:Seq<Part1AssemblyTile>,selection:Option<([u32;4],u8)>,maximum:u64,error:crate::DecodeError)
     requires part2_prepared_views_result(source,Err(error)),
@@ -298,7 +301,20 @@ pub(crate) proof fn part2_assemble_prepared_views_refused(size:Part1AssemblySize
 {
     part2_prepared_view_calls_observed(source,Err(error));
     part2_cold_bind(|events|part2_prepared_view_calls_run(source,events),
-        |views:Seq<Part1AssemblyTile>,rest|Some((part2_assemble_prepared(size,views,selection,maximum),rest)),Err(error),Err(error));
+        |views:Seq<Part1AssemblyTile>,rest|part2_assembly_calls_run(Part2AssemblyOwnerContext {size,tiles:views,selection,maximum},rest),Err(error),Err(error));
+}
+pub(crate) proof fn part2_assemble_prepared_output_observed(size:Part1AssemblySize,source:Seq<Part1AssemblyTile>,selection:Option<([u32;4],u8)>,maximum:u64,
+    result:Result<Part1DecodedImageModel,crate::DecodeError>)
+    requires part2_assembly_storage_result(Part2AssemblyOwnerContext {size,tiles:source,selection,maximum},result),
+    ensures part2_assemble_prepared_storage_result(size,source,selection,maximum,result),
+{
+    let context=Part2AssemblyOwnerContext {size,tiles:source,selection,maximum};
+    part2_prepared_views_observed(source,Ok(()));
+    part2_prepared_view_calls_observed(source,Ok(source));
+    part2_assembly_calls_observed(context,result);
+    part2_decode_eta(|events|part2_assembly_calls_run(context,events),result);
+    part2_cold_bind(|events|part2_prepared_view_calls_run(source,events),
+        |views:Seq<Part1AssemblyTile>,rest|part2_assembly_calls_run(Part2AssemblyOwnerContext {size,tiles:views,selection,maximum},rest),Ok(source),result);
 }
 pub(crate) open spec fn part2_prepare_samples_run(role:Part2PrepareCopyRole,source:Seq<i64>,calls:Seq<Part2Tier1StorageEvent>)->Part2Tier1Run<Seq<i64>> {
     part2_tier1_storage_bind(part2_prepare_copy_capacity_run(role,source.len(),calls),|_:(),rest|Some((Ok(source),rest)))

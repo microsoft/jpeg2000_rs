@@ -5082,6 +5082,9 @@ _PLANE_ROLE_RESULT_RUNS = {
     for old, (model, _, _) in _PLANE_ROLE_MODEL_INFO.items()
 }
 _PLANE_ROLE_RESULT_RUNS.update({
+    "part2_assembly_plane_result": ("part2_assembly_plane_run", True),
+    "part2_assembly_storage_result": ("part2_assembly_storage_run", False),
+    "part2_decode_prepared_storage_result": ("part2_decode_prepared_storage_run", False),
     "part2_prepared_views_result": ("part2_prepared_views_run", False),
     "part2_prepare_init_result": ("part2_prepare_init_run", False),
     "part2_prepare_band_result": ("part2_prepare_band_stage_run", True),
@@ -5105,6 +5108,10 @@ _PLANE_ROLE_RESULT_RUNS.update({
     "part2_coefficient_progression_result": ("part2_extraction_progression_run", False),
 })
 _COLD_RESULT_MODELS = {
+    "part1_assembly_append_plane": ("part2_assembly_plane_result", "specs/cold_image_storage.rs", "part2_assembly_plane_normal"),
+    "part1_assemble_image": ("part2_assembly_storage_result", "specs/cold_image_storage.rs", "part2_assembly_storage_normal"),
+    "part1_assemble_selected_image": ("part2_assembly_storage_result", "specs/cold_image_storage.rs", "part2_assembly_storage_normal"),
+    "part1_decode_prepared_image": ("part2_decode_prepared_storage_result", "specs/cold_image_storage.rs", "part2_decode_prepared_storage_normal"),
     "part2_assemble_prepared": (
         "part2_assemble_prepared_storage_result", "specs/cold_prepare_copies.rs", "part2_assemble_prepared_storage_normal",
     ),
@@ -5582,6 +5589,8 @@ _COLD_RESULT_CONTRACTS = {
 }
 _COLD_RESULT_CONTRACTS.update(_LEGACY_PACKET_STORAGE_CONTRACTS)
 _COLD_RESULT_CONTRACTS.update({
+    ("src/decode/code_blocks.rs", "decode_prepared_image"): _coverage_cold_relation(
+        _RECONSTRUCTION_CONTRACTS[("src/decode/code_blocks.rs", "decode_prepared_image")]),
     ("src/decode/reconstruction.rs", "assemble_prepared_components"): _coverage_cold_relation(
         _RECONSTRUCTION_CONTRACTS[("src/decode/reconstruction.rs", "assemble_prepared_components")]),
     ("src/decode/reconstruction.rs", "prepared_tile_views"): (
@@ -5794,6 +5803,28 @@ _COLD_RESULT_CONTRACTS.update({
     ),
 })
 
+for _assembly_symbol, _assembly_selection in (
+    ("assemble_image", "None"),
+    ("assemble_selected_image", _coverage_call("Some", r"\(\s*region\s*,\s*discard_levels\s*\)")),
+):
+    _COLD_RESULT_CONTRACTS[("src/image/assembly.rs", _assembly_symbol)] = (
+        "part2_assembly_storage_result",
+        r"crate::specs::Part2AssemblyOwnerContext\s*\{\s*size\s*:\s*" + _coverage_call("assembly_size_view", "size")
+        + r"\s*,\s*tiles\s*:\s*" + _coverage_call("assembly_tiles_view", "tiles@")
+        + r"\s*,\s*selection\s*:\s*" + _assembly_selection
+        + r"\s*,\s*maximum\s*:\s*" + _coverage_call("crate::limits::resource_decoded_bytes_limit", "limits")
+        + r"\s*,?\s*\}\s*,\s*" + _coverage_call("decoded_image_outcome", r"\1"),
+    )
+
+_COLD_RESULT_CONTRACTS[("src/image/assembly.rs", "append_assembly_component")] = (
+    "part2_assembly_plane_result",
+    r"crate::specs::Part2AssemblyPlaneContext\s*\{\s*image\s*:\s*" + _coverage_call("old", "image") + r"@\s*,\s*bytes\s*:\s*\*\s*"
+    + _coverage_call("old", "bytes") + r"\s*,\s*size\s*:\s*" + _coverage_call("assembly_size_view", "size")
+    + r"\s*,\s*tiles\s*:\s*" + _coverage_call("assembly_tiles_view", "tiles@")
+    + r"\s*,\s*component\s*,\s*extent\s*:\s*\(\s*profile\.0\[0\]\s*,\s*profile\.0\[1\]\s*\)\s*,\s*selection\s*:\s*profile\.1\s*,\s*maximum\s*\}"
+    + r"\s*,\s*\(\s*\1\s*,\s*" + _coverage_call("final", "image") + r"@\s*,\s*\*\s*" + _coverage_call("final", "bytes") + r"\s*\)",
+)
+
 _COLD_INNER_RUNS = {
     "part2_prepare_band_result": "part2_prepare_band_stage_run",
     "part1_uniform_geometry_cold_result": "part2_uniform_geometry_run",
@@ -5836,6 +5867,10 @@ def _coverage_cold_links(keys: set[tuple[str, str]]) -> tuple[set[tuple[str, str
         }.get(model, model.removesuffix("_result") + "_run")
         models.update(((path, model), (path, run)))
         proofs.add((path, normal))
+        if model in ("part2_assembly_plane_result", "part2_assembly_storage_result", "part2_decode_prepared_storage_result",
+                     "part2_assemble_prepared_storage_result", "part2_coefficient_progression_result", "part2_layout_decode_result"):
+            models |= _ASSEMBLY_OWNER_MODELS
+            proofs |= _ASSEMBLY_OWNER_PROOFS
         if model == "part2_trailer_layout_result":
             models.add(("specs/pdf_trailers.rs", "part2_trailer_assembly_run"))
             proofs.add(("specs/pdf_trailers.rs", "part2_trailer_assembly_observed"))
@@ -7948,6 +7983,93 @@ _CLEANUP_SIGNIFICANCE_TESTS = {
     ("src/decode/tests.rs", "ht_cleanup_significance_storage_actual_raw_selected_jph_reconstruction_and_automatic_restore"),
 }
 
+_ASSEMBLY_OWNER_MODELS = {("specs/cold_image_storage.rs", name) for name in (
+    "part2_assembly_plane_preflight", "part2_assembly_plane_finish", "part2_assembly_plane_capacity_run",
+    "part2_assembly_plane_after_visited_run", "part2_assembly_plane_after_samples_run", "part2_assembly_plane_run",
+    "part2_assembly_plane_result", "part2_assembly_plane_value", "part2_assembly_plane_count",
+    "part2_assembly_prefix_run", "part2_assembly_body_header", "part2_assembly_body_run",
+    "part2_assembly_owner_admit", "part2_assembly_owner_run", "part2_assembly_storage_run", "part2_assembly_storage_result",
+    "part2_assembly_calls_run", "part2_decode_prepared_storage_finish", "part2_decode_prepared_storage_run", "part2_decode_prepared_storage_result",
+)} | {("specs/cold_extraction_tile.rs", name) for name in ("part2_progression_component_transform", "part2_progression_after_views_run")}
+_ASSEMBLY_OWNER_PROOFS = {("specs/cold_image_storage.rs", name) for name in (
+    "part2_assembly_plane_capacity_observed", "part2_assembly_plane_after_visited_normal",
+    "part2_assembly_plane_after_samples_normal", "part2_assembly_plane_normal", "part2_assembly_plane_samples_refused",
+    "part2_assembly_plane_visited_refused", "part2_assembly_plane_publish_refused", "part2_assembly_prefix_normal",
+    "part2_assembly_prefix_step", "part2_assembly_prefix_error", "part2_assembly_body_normal", "part2_assembly_storage_plane_error",
+    "part2_assembly_owner_observed", "part2_assembly_storage_normal", "part2_assembly_storage_refused", "part2_assembly_calls_observed",
+    "part2_decode_prepared_storage_normal", "part2_decode_prepared_assembly_error", "part2_decode_prepared_storage_frames",
+)} | {("specs/cold_prepare_copies.rs", "part2_assemble_prepared_output_observed"),
+     ("specs/cold_extraction_tile.rs", "part2_coefficient_progression_output_observed")}
+_ASSEMBLY_OWNER_GUARDS = {
+    ("specs/cold_image_storage.rs", "part2_assembly_plane_preflight"): (
+        "part1_assembly_component_dimensions(context.size,context.component,context.extent,context.selection)",
+        "part1_transform_area(dimensions.1,dimensions.2)", "part1_accumulate_decoded_bytes(count as nat,context.bytes,context.maximum)",
+        "part1_assembly_component_crop(context.size,dimensions,context.selection.is_some())",
+    ),
+    ("specs/cold_image_storage.rs", "part2_assembly_plane_capacity_run"): (
+        "AssemblyPlaneCapacity {context:actual,stage:actual_stage,elements,succeeded}",
+        "actual!=context || actual_stage!=stage || elements!=count", "calls.drop_first()",
+    ),
+    ("specs/cold_image_storage.rs", "part2_assembly_plane_run"): (
+        "part2_assembly_plane_preflight(context)", "Err(error)=>Some((Ok((Err(error),context.image,preflight.1)),calls))",
+        "Part2AssemblyPlaneStage::Samples,calls)", "part2_assembly_plane_after_samples_run(context,Seq::new(count as nat,|_:int|0i64),rest)",
+    ),
+    ("specs/cold_image_storage.rs", "part2_assembly_plane_after_samples_run"): (
+        "Err(error)=>Some((Ok((Err(error),context.image,preflight.1)),calls))",
+        "Part2AssemblyPlaneStage::Visited {samples}", "Err(error)=>Some((Ok((Err(error),context.image,preflight.1)),rest))",
+        "part2_assembly_plane_after_visited_run(context,samples,Seq::new(count as nat,|_:int|false),rest)",
+    ),
+    ("specs/cold_image_storage.rs", "part2_assembly_plane_after_visited_run"): (
+        "part1_collect_assembly_tiles(initial,context.tiles,context.component,crop)",
+        "if ordinary.0.is_err()", "Part2AssemblyPlaneStage::Publish {plane:collected.1}",
+        "Err(error)=>(Err(error),context.image,bytes)",
+    ),
+    ("specs/cold_image_storage.rs", "part2_assembly_prefix_run"): (
+        "part2_assembly_prefix_run(image,bytes,size,tiles,extent,selection,maximum,(count-1) as nat,calls)",
+        "if before.0.is_err()", "image:before.1,bytes:before.2,size,tiles,component:(count-1) as u16,extent,selection,maximum",
+    ),
+    ("specs/cold_image_storage.rs", "part2_assembly_owner_admit"): (
+        "None=>Ok(())", "part1_assembly_selected_header(region,discard)",
+    ),
+    ("specs/cold_image_storage.rs", "part2_assembly_owner_run"): (
+        "if context.size.4==0", "AssemblyOwnerCapacity {context:actual,elements,succeeded}",
+        "actual!=context || elements!=context.size.4 as nat", "calls.drop_first()",
+    ),
+    ("specs/cold_image_storage.rs", "part2_assembly_storage_run"): (
+        "part2_assembly_owner_admit(context)", "Err(error)=>Some((Err(error),calls))",
+        "part2_assembly_owner_run(context,calls)", "part2_assembly_body_run(context,rest)",
+    ),
+    ("specs/cold_image_storage.rs", "part2_assembly_calls_run"): (
+        "AssemblyCalls {context:actual,calls}", "actual!=context", "if rest.len()==0", "events.drop_first()",
+    ),
+    ("specs/cold_prepare_copies.rs", "part2_assemble_prepared_storage_run"): (
+        "part2_prepared_view_calls_run(source,events)", "Part2AssemblyOwnerContext {size,tiles:views,selection,maximum}",
+    ),
+    ("specs/cold_extraction_tile.rs", "part2_progression_after_views_run"): (
+        "part2_progression_component_transform(global)", "Err(error)=>Some((Err(error),calls))",
+        "part2_decode_prepared_storage_run(size,effect.1,transform,maximum,calls)",
+    ),
+}
+_ASSEMBLY_OWNER_NATIVE_ORDER = {
+    "append_assembly_component": (
+        "assembly_component_dimensions(", "checked_area(", "charge_assembly_bytes(", "assembly_component_crop(",
+        "filled_values(0_i64, count)", "part2_assembly_plane_samples_refused(", "let samples = samples_result?",
+        "filled_values(false, count)", "part2_assembly_plane_visited_refused(", "let visited = visited_result?",
+        "let mut plane = AssemblyPlane", "collect_assembly_tiles(", "let fraction_bits = plane.fraction_bits.ok_or_else(invalid_image)?",
+        "reserve_additional(&mut image.components, 1)", "part2_assembly_plane_publish_refused(", "reserved?",
+        "image.components.push(",
+    ),
+    "assemble_image": (
+        "let reserved = if size.components == 0", "empty_with_capacity(usize::from(size.components))",
+        "part2_assembly_owner_observed(", "let components = reserved?", "let image_x1 =",
+        "let image_y1 =", "while component < size.components",
+    ),
+    "assemble_selected_image": (
+        "let header = assembly_selected_header(region, discard_levels)?",
+        "let reserved = if size.components == 0", "empty_with_capacity(usize::from(size.components))",
+        "part2_assembly_owner_observed(", "let components = reserved?", "while component < size.components",
+    ),
+}
 _PREPARED_VIEWS_MODELS = {("specs/cold_prepare_copies.rs", name) for name in (
     "part2_prepared_views_run", "part2_prepared_views_result", "part2_prepared_view_calls_run",
     "part2_assemble_prepared_storage_run", "part2_assemble_prepared_storage_result",
@@ -7984,11 +8106,11 @@ _COEFFICIENT_EXTRACTION_GUARDS = {
         "part2_prepared_views_run(source,calls)", "if rest.len()==0", "events.drop_first()",
     ),
     ("specs/cold_prepare_copies.rs", "part2_assemble_prepared_storage_run"): (
-        "part2_prepared_view_calls_run(source,events)", "part2_assemble_prepared(size,views,selection,maximum)",
+        "part2_prepared_view_calls_run(source,events)", "part2_assembly_calls_run(Part2AssemblyOwnerContext {size,tiles:views,selection,maximum},rest)",
     ),
     ("specs/cold_extraction_tile.rs", "part2_extraction_progression_finish_run"): (
         "if effect.0.is_err()", "part2_prepared_views_run(effect.1,calls)",
-        "part2_extraction_progression_finish(size,global,maximum,effect)",
+        "part2_progression_after_views_run(size,global,maximum,effect,rest)",
     ),
     ("specs/cold_extraction_tile.rs", "part2_prepared_component_capacity_run"): (
         "PreparedComponentCapacity {context:actual,elements,succeeded}", "actual!=context || elements!=1",
@@ -14892,6 +15014,14 @@ def validate_normative_coverage(
                     if re.search(named_prefix + r".*?" + ordinary, contract, re.S) is None:
                         raise ValueError(f"linked function lacks executable Verus contract: {short}; missing exact ordinary selection projection")
                 old_mct = _RECONSTRUCTION_CONTRACTS.get((reference["path"], reference["symbol"]))
+                if cold_contract[0] == "part2_assembly_storage_result":
+                    normal_model = "part1_assemble_image" if short == "assemble_image" else "part1_assemble_selected_image"
+                    normal_inputs = _coverage_call("assembly_size_view", "size") + r"\s*,\s*" + _coverage_call("assembly_tiles_view", "tiles@")
+                    if short == "assemble_selected_image":
+                        normal_inputs += r"\s*,\s*region\s*,\s*discard_levels"
+                    normal_inputs += r"\s*,\s*" + _coverage_call("crate::limits::resource_decoded_bytes_limit", "limits")
+                    if not _coverage_extraction_normal_arguments(contract, "decoded_image_outcome", normal_model, normal_inputs):
+                        raise ValueError(f"linked function lacks executable Verus contract: {short}; missing exact ordinary assembly projection")
                 if old_mct is not None and old_mct[0].startswith(("part2_mct_", "part2_finish_prepared")):
                     guard = re.search(
                         r"\b(?P<name>\w+)\s*!=\s*Err\(\s*DecodeError::AllocationFailed\s*\)\s*==>\s*", contract,
@@ -15964,6 +16094,30 @@ def validate_normative_coverage(
                 position = found + len(token)
         if not _BITPLANE_INITIAL_TESTS.issubset({(ref["path"], ref["symbol"]) for ref in entry["test_refs"]}):
             raise ValueError("initial bitplane storage requires bounded raw/empty/first-later/error/present-state/real-public restoration controls")
+    if "part1-complete-registered-tile-image-assembly" in ids:
+        for (relative, symbol), fragments in _ASSEMBLY_OWNER_GUARDS.items():
+            body = _coverage_spec_function_body(source_text((ROOT / relative).resolve()), symbol)
+            compact = "".join(body.split()) if body is not None else ""
+            if any("".join(fragment.split()) not in compact for fragment in fragments):
+                raise ValueError("assembly owner storage requires exact raw size/tiles/selection/caps/count/reply/tail production")
+        for symbol, fragments in _ASSEMBLY_OWNER_NATIVE_ORDER.items():
+            path = (ROOT / "src/image/assembly.rs").resolve()
+            body = _coverage_function_body(source_text(path), function_header(path, symbol))
+            compact = "".join(body.split()) if body is not None else ""
+            position = 0
+            for fragment in fragments:
+                token = "".join(fragment.split())
+                found = compact.find(token, position)
+                if found < 0:
+                    raise ValueError("assembly owner storage requires original selected-header/reservation/geometry/component order")
+                position = found + len(token)
+        assembly_entry = next(item for item in coverage["requirements"] if item["id"] == "part1-complete-registered-tile-image-assembly")
+        if ("src/image/tests.rs", "assembly_owner_storage_preserves_header_and_geometry_priority_empty_and_retry") not in {
+                (ref["path"], ref["symbol"]) for ref in assembly_entry["test_refs"]}:
+            raise ValueError("assembly owner storage requires bounded refusal/header/geometry/empty/retry controls")
+        if ("src/image/tests.rs", "assembly_plane_storage_retains_charged_prefix_and_semantic_error_order") not in {
+                (ref["path"], ref["symbol"]) for ref in assembly_entry["test_refs"]}:
+            raise ValueError("assembly owner storage requires bounded sample/visited/raw-growth/charged-prefix/earlier-error controls")
     if ids & _PREPARE_WORKING_ENTRIES:
         for (relative, symbol), fragments in _PREPARE_WORKING_GUARDS.items():
             body = _coverage_spec_function_body(source_text((ROOT / relative).resolve()), symbol)
