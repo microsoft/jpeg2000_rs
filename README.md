@@ -229,16 +229,28 @@ They do not supply the separate deadline, absent-tile, MQ or trailer policies.
 `decode_pdf_reconstructed(input, options, selection)` compose the implemented
 policies in one explicit call for raw input or a single-codestream Part1 JP2:
 bounded missing-EOC repair, SIZ dimension authority, genuine sole-present-tile
-selection and cumulative terminal-trailer admission. JPX/JPH containers and
-Part15 codestreams are outside this facade; use their existing explicit APIs.
+selection and cumulative terminal-trailer admission. JP2-primary fallback files
+may advertise additional JPX compatibility. Non-JP2-primary JPX/JPH containers
+and Part15 codestreams remain outside this facade; use their explicit APIs.
 
 The result carries `PdfRecovery` flags, exact trailer bytes, original/effective
 **codestream** byte counts, preflight/copy accounting and any full intended-canvas
 sample bound. Whole JP2 input limits are still enforced. A repair makes one
 fallible raw-codestream copy of length plus two after the accepted structural
-preflight; there is no failed-decode retry, input-prefix search or container rewrite.
+preflight. The only boundary retry is the explicit PDF EOL case below; there
+is no general failed-decode retry, prefix search or container rewrite.
 Component/precision/sign/BPCC checks and centered-output metadata guards remain.
 Missing canvas pixels are never synthesized.
+
+If the original call rejects exactly where one terminal LF, CR or CRLF follows
+EOC, these PDF-only entry points may decode the complete prefix once. Strict
+APIs still reject the suffix. `discarded_pdf_eol_bytes` reports the one- or
+two-byte PDF marker; additional whitespace, arbitrary tails, truncated prefixes
+and earlier structural errors are not admitted. Valid containers ending in
+similar payload bytes are not shortened. The original attempt retains its
+input/resource checks, and allocation, limit and deadline errors are not retried.
+Codestream byte/work counters describe the successful normalized input, not
+the failed attempt or a new global work budget.
 
 `inspect_pdf_compatible(input, options)` returns owned full-SIZ coding metadata
 under the same bounded container/EOC admission. It does not execute packets or
