@@ -636,7 +636,11 @@ pub(super) fn parse_layer_opacity(
 
 #[allow(clippy::manual_is_multiple_of)]
 #[cfg_attr(verus_keep_ghost, verus_spec(result =>
-    ensures super::raw_instruction_set_outcome(result) == crate::specs::part2_parse_instruction_set(
+    ensures crate::specs::part2_instruction_storage_result(crate::specs::Part2InstructionStorageContext {
+        input:super::box_reference_view(box_ref),composition,base:base_offset,limits:*limits,
+    },super::raw_instruction_set_outcome(result)),
+    super::raw_instruction_set_outcome(result) != Err(DecodeError::AllocationFailed) ==>
+        super::raw_instruction_set_outcome(result) == crate::specs::part2_parse_instruction_set(
         super::box_reference_view(box_ref), composition, base_offset, limits),
 ))]
 pub(super) fn parse_instruction_set(
@@ -646,7 +650,15 @@ pub(super) fn parse_instruction_set(
     limits: &ResourceLimits,
 ) -> Result<CompositionInstructionSet, DecodeError> {
     #[cfg(verus_keep_ghost)]
-    proof! { reveal(crate::specs::part2_parse_instruction_set); }
+    proof_decl! {
+        let ghost storage_context=crate::specs::Part2InstructionStorageContext {
+            input:super::box_reference_view(box_ref),composition,base:base_offset,limits:*limits};
+    }
+    #[cfg(verus_keep_ghost)]
+    proof! {
+        crate::specs::part2_instruction_storage_normal(storage_context);
+        reveal(crate::specs::part2_parse_instruction_set);
+    }
     let offset = add_offset(base_offset, box_ref.header.offset())?;
     if box_ref.payload.len() < 8 {
         return Err(DecodeError::malformed(
@@ -730,7 +742,18 @@ pub(super) fn parse_instruction_set(
             count as u64,
         ));
     }
-    let mut instructions = Vec::with_capacity(count);
+    let reserved = if count == 0 {
+        Ok(Vec::new())
+    } else {
+        crate::allocation::empty_with_capacity(count)
+    };
+    #[cfg(verus_keep_ghost)]
+    proof! {
+        crate::specs::part2_instruction_capacity_observed(
+            storage_context,crate::allocation::inspection_capacity_outcome(reserved));
+        if let Err(error)=reserved {crate::specs::part2_instruction_storage_refused(storage_context,error);}
+    }
+    let mut instructions = reserved?;
     let mut position = 8_usize;
     #[cfg(verus_keep_ghost)]
     proof_decl! { let ghost expected = crate::specs::part2_parse_instruction_set(
@@ -759,6 +782,9 @@ pub(super) fn parse_instruction_set(
                 record_bytes == words * 4,
                 0 < record_bytes <= 40,
                 expected == crate::specs::part2_parse_instruction_set(super::box_reference_view(box_ref), composition, base_offset, limits),
+                storage_context==(crate::specs::Part2InstructionStorageContext {
+                    input:super::box_reference_view(box_ref),composition,base:base_offset,limits:*limits}),
+                crate::specs::part2_instruction_storage_result(storage_context,expected),
                 expected == crate::specs::part2_instruction_result(flags, repeat, tick,
                     crate::specs::part2_instruction_records(super::box_reference_view(box_ref), composition, offset,
                         flags, tick, position, instructions@)),
@@ -936,13 +962,17 @@ pub(super) fn read_u32_at(
 }
 
 #[cfg_attr(verus_keep_ghost, verus_spec(result =>
-    ensures super::raw_composition_outcome(result)
+    ensures crate::specs::part2_composition_storage_result(
+        super::box_reference_view(box_ref),*limits,super::raw_composition_outcome(result)),
+    super::raw_composition_outcome(result) != Err(DecodeError::AllocationFailed) ==> super::raw_composition_outcome(result)
         == crate::specs::part2_parse_composition(super::box_reference_view(box_ref), *limits),
 ))]
 pub(super) fn parse_composition(
     box_ref: BoxRef<'_>,
     limits: &ResourceLimits,
 ) -> Result<Composition, DecodeError> {
+    #[cfg(verus_keep_ghost)]
+    proof! {crate::specs::part2_composition_storage_normal(super::box_reference_view(box_ref),*limits);}
     let base_offset = box_ref.header.payload_offset()?;
     let mut reader = box_reader_from_input(box_ref.payload, limits)?;
     let mut options = None;
@@ -952,7 +982,22 @@ pub(super) fn parse_composition(
     proof_decl! { let ghost expected = crate::specs::part2_parse_composition(
     super::box_reference_view(box_ref), *limits); }
     #[cfg(verus_keep_ghost)]
-    proof! { assert(super::raw_instruction_sets_view(instruction_sets@) =~= Seq::<crate::specs::Part2RawInstructionSet>::empty()); }
+    proof_decl! {
+        let ghost machine=crate::specs::part2_composition_storage_machine(box_ref.payload@,*limits,base_offset);
+        let ghost root=|events:Seq<crate::specs::Part2JpipSnapshotEvent>|crate::specs::part2_composition_storage_run(
+            super::box_reference_view(box_ref),*limits,events);
+        let ghost mut storage_prefix=Seq::<crate::specs::Part2JpipSnapshotEvent>::empty();
+    }
+    #[cfg(verus_keep_ghost)]
+    proof! {
+        assert(super::raw_instruction_sets_view(instruction_sets@) =~= Seq::<crate::specs::Part2RawInstructionSet>::empty());
+        crate::specs::part2_composition_storage_machine_valid(box_ref.payload@,*limits,base_offset);
+        assert forall|tail:Seq<crate::specs::Part2JpipSnapshotEvent>|root(storage_prefix+tail)
+            ==crate::specs::part2_header_storage_boxes_run(machine,super::box_reader_state(&reader),
+                (options,super::raw_instruction_sets_view(instruction_sets@),has_unknown_boxes),tail) by {
+            assert(storage_prefix+tail =~= tail);
+        }
+    }
     #[cfg_attr(
         verus_keep_ghost,
         verus_spec(
@@ -960,14 +1005,31 @@ pub(super) fn parse_composition(
                 box_ref.payload@, super::box_reader_state(&reader), options,
                 super::raw_instruction_sets_view(instruction_sets@), has_unknown_boxes, *limits, base_offset),
                 expected == crate::specs::part2_parse_composition(super::box_reference_view(box_ref), *limits),
+                crate::specs::part2_composition_storage_result(super::box_reference_view(box_ref),*limits,expected),
+                machine==crate::specs::part2_composition_storage_machine(box_ref.payload@,*limits,base_offset),
+                root==(|events:Seq<crate::specs::Part2JpipSnapshotEvent>|crate::specs::part2_composition_storage_run(
+                    super::box_reference_view(box_ref),*limits,events)),
+                crate::specs::part2_header_storage_machine_valid(machine),
+                crate::specs::part2_cold_phase(root,storage_prefix,|events|crate::specs::part2_header_storage_boxes_run(
+                    machine,super::box_reader_state(&reader),
+                    (options,super::raw_instruction_sets_view(instruction_sets@),has_unknown_boxes),events)),
             ensures expected == crate::specs::part2_composition_finish(
                 options, super::raw_instruction_sets_view(instruction_sets@), has_unknown_boxes, base_offset),
+                crate::specs::part2_composition_storage_result(super::box_reference_view(box_ref),*limits,expected),
             decreases box_ref.payload.len() as int - reader.position as int,
         )
     )]
     loop {
         #[cfg(verus_keep_ghost)]
-        proof! { reveal(crate::specs::part2_composition_boxes); }
+        proof! {
+            super::channel_storage_box_kinds_known();
+            reveal(crate::specs::part2_composition_boxes);reveal(crate::specs::part2_composition_storage_step);
+        }
+        #[cfg(verus_keep_ghost)]
+        proof_decl! {
+            let ghost previous_reader=super::box_reader_state(&reader);
+            let ghost previous_state=(options,super::raw_instruction_sets_view(instruction_sets@),has_unknown_boxes);
+        }
         let previous_position = reader.position;
         let Some(next) = reader.next_box_ref() else {
             break;
@@ -1019,7 +1081,14 @@ pub(super) fn parse_composition(
                     MalformedKind::InvalidBoxOrder,
                 ));
             }
-            let instruction_set = parse_instruction_set(
+            #[cfg(verus_keep_ghost)]
+            proof_decl! {
+                let ghost request=crate::specs::Part2InstructionRequestContext {
+                    child:crate::specs::Part2InstructionStorageContext {
+                        input:super::box_reference_view(child),composition:options.get_Some_0(),base:base_offset,limits:*limits},
+                    before:super::raw_instruction_sets_view(instruction_sets@)};
+            }
+            let parsed = parse_instruction_set(
                 child,
                 options.ok_or_else(
                     #[cfg_attr(verus_keep_ghost, verus_spec(result: DecodeError =>
@@ -1029,7 +1098,19 @@ pub(super) fn parse_composition(
                 )?,
                 base_offset,
                 limits,
-            )?;
+            );
+            #[cfg(verus_keep_ghost)]
+            proof! {
+                if let Err(error)=parsed {
+                    if error==DecodeError::AllocationFailed {
+                        crate::specs::part2_header_storage_request_instruction_error(request,error);
+                        crate::specs::part2_header_storage_root_error(root,storage_prefix,machine,previous_reader,previous_state,
+                            super::box_reference_view(child),crate::specs::Part2HeaderStorageRequest::InstructionSet {context:request},error);
+                        crate::specs::part2_composition_storage_observed(super::box_reference_view(box_ref),*limits,Err(error));
+                    }
+                }
+            }
+            let instruction_set = parsed?;
             let actual = instruction_sets.len().checked_add(1).ok_or_else(
                 #[cfg_attr(verus_keep_ghost, verus_spec(result: DecodeError =>
                     ensures result == crate::specs::part2_palette_arithmetic_error(base_offset),
@@ -1045,6 +1126,21 @@ pub(super) fn parse_composition(
             }
             #[cfg(verus_keep_ghost)]
             proof_decl! { let ghost previous = instruction_sets@; }
+            let reserved = crate::allocation::reserve_additional(&mut instruction_sets, 1);
+            #[cfg(verus_keep_ghost)]
+            proof! {
+                let append=crate::specs::Part2InstructionAppendContext {
+                    request,parsed:super::raw_instruction_set_view(&instruction_set)};
+                crate::specs::part2_instruction_append_capacity_observed(
+                    append,crate::allocation::inspection_capacity_outcome(reserved));
+                if let Err(error)=reserved {
+                    crate::specs::part2_header_storage_request_instruction_append_error(append,error);
+                    crate::specs::part2_header_storage_root_error(root,storage_prefix,machine,previous_reader,previous_state,
+                        super::box_reference_view(child),crate::specs::Part2HeaderStorageRequest::InstructionSet {context:request},error);
+                    crate::specs::part2_composition_storage_observed(super::box_reference_view(box_ref),*limits,Err(error));
+                }
+            }
+            reserved?;
             instruction_sets.push(instruction_set);
             #[cfg(verus_keep_ghost)]
             proof! {
@@ -1053,6 +1149,11 @@ pub(super) fn parse_composition(
             }
         } else {
             has_unknown_boxes = true;
+        }
+        #[cfg(verus_keep_ghost)]
+        proof! {
+            storage_prefix=crate::specs::part2_header_storage_root_advance(root,storage_prefix,machine,previous_reader,previous_state,
+                super::box_reference_view(child),(options,super::raw_instruction_sets_view(instruction_sets@),has_unknown_boxes));
         }
     }
     let (width, height, encoded_loop_count) = options.ok_or_else(

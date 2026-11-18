@@ -2121,6 +2121,162 @@ fn actual_raw_channel_definition_keeps_exact_lengths_full_count_and_lazy_offsets
 }
 
 #[test]
+fn composition_storage_records_keep_admission_empty_eager_offsets_and_exact_retry() {
+    let limits = ResourceLimits::default();
+    let payload = raw_instruction_payload(1, 17, 19, &[0, 0]);
+    let input = raw_metadata_box(&payload, *b"inst", 19);
+    let parse = || super::composition::parse_instruction_set(input, (1, 1, 0), 100, &limits);
+    let expected = parse().unwrap();
+    crate::allocation::with_refusal(1, || {
+        let retained = parse().unwrap();
+        assert_eq!(parse(), Err(DecodeError::AllocationFailed));
+        assert_eq!(retained, expected);
+        assert_eq!(parse().unwrap(), expected);
+    });
+    for bytes in [
+        vec![],
+        raw_instruction_payload(0, 0, 0, &[]),
+        raw_instruction_payload(1, 0, 0, &[]),
+        raw_instruction_payload(1, 0, 0, &[0]),
+        raw_instruction_payload(64, 0, 0, &[]),
+    ] {
+        let input = raw_metadata_box(&bytes, *b"inst", 19);
+        let expected = super::composition::parse_instruction_set(input, (1, 1, 0), 100, &limits);
+        crate::allocation::with_refusal(0, || {
+            assert_eq!(
+                super::composition::parse_instruction_set(input, (1, 1, 0), 100, &limits),
+                expected
+            );
+            assert_eq!(
+                crate::allocation::empty_with_capacity::<u8>(1),
+                Err(DecodeError::AllocationFailed)
+            );
+        });
+    }
+    let invalid = raw_instruction_payload(2, 0, 0, &[0, 1]);
+    let input = raw_metadata_box(&invalid, *b"inst", 19);
+    let ordinary = super::composition::parse_instruction_set(input, (1, 1, 0), 100, &limits);
+    assert!(matches!(
+        ordinary,
+        Err(DecodeError::MalformedInput {
+            kind: MalformedKind::InvalidImageGeometry,
+            ..
+        })
+    ));
+    assert_eq!(
+        crate::allocation::with_refusal(0, || {
+            super::composition::parse_instruction_set(input, (1, 1, 0), 100, &limits)
+        }),
+        Err(DecodeError::AllocationFailed)
+    );
+    let input = raw_metadata_box(&payload, *b"inst", 19);
+    let ordinary = super::composition::parse_instruction_set(input, (1, 1, 0), u64::MAX, &limits);
+    crate::allocation::with_refusal(0, || {
+        assert_eq!(
+            super::composition::parse_instruction_set(input, (1, 1, 0), u64::MAX, &limits),
+            ordinary
+        );
+        assert_eq!(
+            crate::allocation::empty_with_capacity::<u8>(1),
+            Err(DecodeError::AllocationFailed)
+        );
+    });
+}
+
+#[test]
+fn composition_storage_sets_keep_child_then_limit_then_append_and_spare_capacity() {
+    let limits = ResourceLimits::default();
+    let empty_set = box32(*b"inst", &raw_instruction_payload(0, 0, 0, &[]));
+    let mut payload = raw_composition_options(0);
+    for _ in 0..5 {
+        payload.extend(&empty_set);
+    }
+    let parse = || parse_composition(raw_metadata_box(&payload, *b"comp", 19), &limits);
+    let expected = parse().unwrap();
+    for after in [0, 1] {
+        assert_eq!(
+            crate::allocation::with_refusal(after, parse),
+            Err(DecodeError::AllocationFailed)
+        );
+        assert_eq!(parse().unwrap(), expected);
+    }
+    let mut four = raw_composition_options(0);
+    for _ in 0..4 {
+        four.extend(&empty_set);
+    }
+    crate::allocation::with_refusal(1, || {
+        assert_eq!(
+            parse_composition(raw_metadata_box(&four, *b"comp", 19), &limits)
+                .unwrap()
+                .instruction_sets
+                .len(),
+            4
+        );
+        assert_eq!(
+            crate::allocation::empty_with_capacity::<u8>(1),
+            Err(DecodeError::AllocationFailed)
+        );
+    });
+    let mut payload = raw_composition_options(0);
+    payload.extend(box32(*b"inst", &raw_instruction_payload(1, 0, 1, &[0, 0])));
+    let tight = limits.with_coding_style_limits_for_test(0, 1);
+    let input = raw_metadata_box(&payload, *b"comp", 19);
+    let ordinary = parse_composition(input, &tight);
+    assert_eq!(
+        ordinary,
+        Err(DecodeError::LimitExceeded {
+            resource: Resource::Layers,
+            limit: 0,
+            actual: 1
+        })
+    );
+    assert_eq!(
+        crate::allocation::with_refusal(0, || parse_composition(input, &tight)),
+        Err(DecodeError::AllocationFailed)
+    );
+    crate::allocation::with_refusal(1, || {
+        assert_eq!(parse_composition(input, &tight), ordinary);
+        assert_eq!(
+            crate::allocation::empty_with_capacity::<u8>(1),
+            Err(DecodeError::AllocationFailed)
+        );
+    });
+}
+
+#[test]
+fn composition_storage_parent_container_propagates_child_and_set_refusals() {
+    let limits = ResourceLimits::default();
+    let mut payload = raw_composition_options(0);
+    payload.extend(box32(
+        *b"inst",
+        &raw_instruction_payload(1, 17, 19, &[0, 0]),
+    ));
+    let input = raw_metadata_box(&payload, *b"comp", 19);
+    let expected = parse_composition(input, &limits).unwrap();
+    for after in [0, 1] {
+        assert_eq!(
+            crate::allocation::with_refusal(after, || parse_composition(input, &limits)),
+            Err(DecodeError::AllocationFailed)
+        );
+        assert_eq!(parse_composition(input, &limits).unwrap(), expected);
+    }
+    let mut header = raw_jp2_header_image(7, 1);
+    header.extend(raw_jp2_header_color());
+    let mut bytes = raw_container_start(true, Some(&header));
+    bytes.extend(box32(*b"jplh", &[]));
+    bytes.extend(box32(*b"comp", &payload));
+    bytes.extend(box32(*b"jp2c", &[0, 255, 128, 17]));
+    let expected = parse(&bytes, &limits).unwrap();
+    for after in [2, 3] {
+        assert_eq!(
+            crate::allocation::with_refusal(after, || parse(&bytes, &limits)),
+            Err(DecodeError::AllocationFailed)
+        );
+        assert_eq!(parse(&bytes, &limits).unwrap(), expected);
+    }
+}
+
+#[test]
 fn layer_metadata_storage_registration_keeps_preflight_record_priority_and_exact_retry() {
     let limits = ResourceLimits::default();
     let payload = [0, 2, 0, 3, 0, 0, 1, 1, 1, 2];

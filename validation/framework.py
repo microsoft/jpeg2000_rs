@@ -5116,6 +5116,8 @@ _PLANE_ROLE_RESULT_RUNS.update({
     "part2_coefficient_progression_result": ("part2_extraction_progression_run", False),
 })
 _COLD_RESULT_MODELS = {
+    "part2_parse_instruction_set": ("part2_instruction_storage_result", "specs/cold_composition_storage.rs", "part2_instruction_storage_normal"),
+    "part2_parse_composition": ("part2_composition_storage_result", "specs/cold_composition_storage.rs", "part2_composition_storage_normal"),
     "part2_parse_codestream_registration": ("part2_registration_storage_result", "specs/cold_layer_metadata.rs", "part2_registration_storage_normal"),
     "part2_parse_layer_opacity": ("part2_opacity_storage_result", "specs/cold_layer_metadata.rs", "part2_opacity_storage_normal"),
     "part2_parse_color_specification": ("part2_color_storage_result", "specs/cold_color_storage.rs", "part2_color_storage_normal"),
@@ -5416,6 +5418,12 @@ def _coverage_cold_relation(
             + (r"\s*,\s*limits\s*:\s*\*\s*limits" if model == "part2_parse_codestream_registration" else "")
             + r"\s*,?\s*\}"
         )
+    if model == "part2_parse_instruction_set":
+        inputs = (
+            r"crate::specs::Part2InstructionStorageContext\s*\{\s*input\s*:\s*"
+            + _coverage_call("super::box_reference_view", "box_ref")
+            + r"\s*,\s*composition\s*,\s*base\s*:\s*base_offset\s*,\s*limits\s*:\s*\*\s*limits\s*,?\s*\}"
+        )
     if model == "part2_parse_palette":
         inputs = (
             r"crate::specs::Part2PaletteStorageContext\s*\{\s*input\s*:\s*"
@@ -5624,6 +5632,7 @@ _COLD_RESULT_CONTRACTS = {
         _PDF_COMMON_CONTRACTS,
         _RAW_INSPECTED_CONTRACTS, _RAW_CONTAINER_CONTRACTS, _FILE_TYPE_CONTRACTS,
         _CHANNEL_HEADER_CONTRACTS, _RAW_JP2_HEADER_CONTRACTS, _ASSOCIATED_HEADER_CONTRACTS, _RAW_LAYER_HEADER_CONTRACTS,
+        _RAW_COMPOSITION_CONTRACTS,
         _COLOR_HEADER_CONTRACTS,
         _JPX_SOURCE_CONTRACTS, _RAW_JPX_PUBLIC_IMAGE_CONTRACTS,
         _RAW_CONTAINER_IMAGE_CONTRACTS, _RAW_CONTAINER_COLOR_CONTRACTS,
@@ -8893,6 +8902,140 @@ _LAYER_METADATA_NATIVE = {
 _RAW_LAYER_HEADER_MODELS.update(_LAYER_METADATA_GUARDS)
 _RAW_LAYER_HEADER_PROOFS.update(_LAYER_METADATA_PROOFS)
 _RESOLUTION_MODELS.add(("specs/allocation.rs", "storage_copy_result"))
+_INSTRUCTION_STORAGE_GUARDS = {
+    ("specs/cold_composition_storage.rs", "part2_instruction_storage_count"): (
+        "part2_box_add_offset(context.base,context.input.0.1).is_ok() || payload.len()<8",
+        "flags=part2_box_u16([payload[0],payload[1]])", "bytes=part2_instruction_record_words(flags)*4",
+        "flags & !0x0027u16!=0 || bytes==0 {0}", "remaining%bytes!=0 {0}",
+        "count=remaining/bytes;", "count as u64>crate::limits::resource_work_limit(&context.limits) {0}else{count}",
+    ),
+    ("specs/cold_composition_storage.rs", "part2_instruction_capacity_run"): (
+        "part2_instruction_storage_count(context)", "if count==0 {Some((Ok(()),events))}",
+        "actual!=context || elements!=count {None}",
+        "if succeeded{Ok(())}else{Err(crate::DecodeError::AllocationFailed)}", "events.drop_first()",
+    ),
+    ("specs/cold_composition_storage.rs", "part2_instruction_capacity_result"): (
+        "part2_cold_framed(|events|part2_instruction_capacity_run(context,events),result)",
+    ),
+    ("specs/cold_composition_storage.rs", "part2_instruction_storage_run"): (
+        "part2_instruction_capacity_run(context,events)",
+        "Some((part2_parse_instruction_set(context.input,context.composition,context.base,&context.limits),rest))",
+    ),
+    ("specs/cold_composition_storage.rs", "part2_instruction_storage_result"): (
+        "part2_cold_framed(|events|part2_instruction_storage_run(context,events),result)",
+    ),
+}
+_COMPOSITION_STORAGE_GUARDS = {
+    ("specs/cold_composition_storage.rs", "part2_instruction_append_count_admitted"): (
+        "count=context.before.len()+1;", "count<=usize::MAX as nat",
+        "count as u64<=crate::limits::resource_layer_limit(&context.child.limits) as u64",
+    ),
+    ("specs/cold_composition_storage.rs", "part2_instruction_append_admitted"): (
+        "part2_instruction_append_count_admitted(context.request)",
+        "context.request.child.base,&context.request.child.limits)==Ok(context.parsed)",
+    ),
+    ("specs/cold_composition_storage.rs", "part2_instruction_append_capacity_run"): (
+        "!part2_instruction_append_admitted(context) || events.len()==0 {None}",
+        "actual!=context || elements!=1 {None}",
+        "if succeeded{Ok(())}else{Err(crate::DecodeError::AllocationFailed)}", "events.drop_first()",
+    ),
+    ("specs/cold_composition_storage.rs", "part2_instruction_append_capacity_result"): (
+        "part2_cold_framed(|events|part2_instruction_append_capacity_run(context,events),result)",
+    ),
+    ("specs/cold_composition_storage.rs", "part2_instruction_request_after"): (
+        "!part2_instruction_append_count_admitted(context) {Some((Ok(()),events))}",
+        "part2_instruction_append_capacity_run(Part2InstructionAppendContext {request:context,parsed},events)",
+    ),
+    ("specs/cold_composition_storage.rs", "part2_instruction_request_run"): (
+        "part2_instruction_storage_run(context.child,events)", "part2_instruction_request_after(context,parsed,rest)",
+    ),
+    ("specs/cold_composition_storage.rs", "part2_composition_storage_step"): (
+        "input.0.0==crate::jp2::BoxType::COMPOSITION_OPTIONS", "state.0.is_some() || state.1.len()>0",
+        "input.1.len()!=9", "part2_validate_composition_dimensions(width,height,&limits,base)",
+        "Some((width,height,input.1[8])),state.1,state.2",
+        "input.0.0==crate::jp2::BoxType::INSTRUCTION_SET", "part2_parse_instruction_set(input,composition,base,&limits)",
+        "count>usize::MAX as nat", "count as u64>crate::limits::resource_layer_limit(&limits) as u64",
+        "state.1.push(parsed)", "else{Ok((state.0,state.1,true))}",
+    ),
+    ("specs/cold_composition_storage.rs", "part2_composition_storage_machine"): (
+        "input.0.0==crate::jp2::BoxType::INSTRUCTION_SET && state.0.is_some()",
+        "Part2InstructionStorageContext {input,composition:state.0.get_Some_0(),base,limits},before:state.1",
+        "part2_composition_storage_step(input,state,limits,base)", "part2_composition_finish(state.0,state.1,state.2,base)",
+    ),
+    ("specs/cold_composition_storage.rs", "part2_composition_storage_start"): (
+        "part2_box_payload_offset(input.0)", "part2_box_reader_from_input(input.1,limits)",
+    ),
+    ("specs/cold_composition_storage.rs", "part2_composition_storage_run"): (
+        "part2_composition_storage_start(input,limits)", "Err(error)=>Some((Err(error),events))",
+        "part2_header_storage_boxes_run(part2_composition_storage_machine(input.1,limits,base)",
+        "reader,(None,Seq::empty(),false),events",
+    ),
+    ("specs/cold_composition_storage.rs", "part2_composition_storage_result"): (
+        "part2_cold_framed(|events|part2_composition_storage_run(input,limits,events),result)",
+    ),
+    ("specs/cold_palette_storage.rs", "part2_header_storage_request_value"): (
+        "Part2HeaderStorageRequest::InstructionSet {context}=>crate::allocation::inspection_capacity_outcome(",
+        "context.child.input,context.child.composition,context.child.base,&context.child.limits",
+    ),
+    ("specs/cold_palette_storage.rs", "part2_header_storage_request_run"): (
+        "Part2HeaderStorageRequest::InstructionSet {context}=>part2_instruction_request_run(context,events)",
+    ),
+}
+_COMPOSITION_CONTAINER_GUARDS = {
+    ("specs/cold_container_headers.rs", "part2_container_header_request"): (
+        "input.0.0==crate::jp2::BoxType::COMPOSITION",
+        "!part2_file_type_jpx(file_type) || state.header.is_none() || state.streams.len()>0",
+        "state.composition.is_some() || state.layers.len()==0", "Part2ContainerHeaderRequest::Composition {input}",
+    ),
+    ("specs/cold_container_headers.rs", "part2_container_headers_run"): (
+        "Part2ContainerHeaderRequest::Composition {input:composition}",
+        "part2_composition_storage_run(composition,limits,events)",
+    ),
+}
+_INSTRUCTION_STORAGE_PROOFS = {("specs/cold_composition_storage.rs", name) for name in (
+    "part2_instruction_capacity_observed", "part2_instruction_capacity_frames",
+    "part2_instruction_storage_normal", "part2_instruction_storage_refused", "part2_instruction_storage_frames",
+)}
+_COMPOSITION_STORAGE_PROOFS = {("specs/cold_composition_storage.rs", name) for name in (
+    "part2_instruction_append_capacity_observed", "part2_instruction_append_capacity_frames",
+    "part2_instruction_request_normal", "part2_instruction_request_child_error", "part2_instruction_request_append_error",
+    "part2_composition_storage_machine_valid", "part2_composition_storage_value",
+    "part2_composition_storage_normal", "part2_composition_storage_observed", "part2_composition_storage_frames",
+)} | {("specs/cold_palette_storage.rs", name) for name in (
+    "part2_header_storage_request_instruction_error", "part2_header_storage_request_instruction_append_error",
+)} | {("specs/cold_container_headers.rs", "part2_container_composition_error")}
+_COMPOSITION_STORAGE_NATIVE = {
+    ("src/jp2/composition.rs", "parse_instruction_set"): (
+        "let offset = add_offset(base_offset, box_ref.header.offset())?", "box_ref.payload.len() < 8",
+        "flags & !0x0027 != 0", "if record_bytes == 0", "remaining % record_bytes != 0",
+        "count as u64 > limits.maximum_work_units()", "let reserved = if count == 0",
+        "crate::allocation::empty_with_capacity(count)", "part2_instruction_capacity_observed(",
+        "crate::allocation::inspection_capacity_outcome(reserved)",
+        "part2_instruction_storage_refused(storage_context,error)", "let mut instructions = reserved?",
+        "while position < box_ref.payload.len()", "instructions.push(CompositionInstruction",
+    ),
+    ("src/jp2/composition.rs", "parse_composition"): (
+        "part2_composition_storage_normal(", "let ghost previous_reader=",
+        "let parsed = parse_instruction_set(", "part2_header_storage_request_instruction_error(request,error)",
+        "let instruction_set = parsed?", "let actual = instruction_sets.len().checked_add(1)",
+        "actual as u64 > u64::from(limits.maximum_layers())",
+        "reserve_additional(&mut instruction_sets, 1)",
+        "part2_instruction_append_capacity_observed(",
+        "append,crate::allocation::inspection_capacity_outcome(reserved)",
+        "part2_header_storage_request_instruction_append_error(append,error)", "reserved?",
+        "instruction_sets.push(instruction_set)", "part2_header_storage_root_advance(",
+    ),
+    ("src/jp2/container.rs", "parse"): (
+        "super::channel_storage_box_kinds_known()", "let parsed = parse_composition(box_ref, limits)",
+        "part2_container_composition_error(", "part2_parse_container_header_error(", "composition = Some(parsed?)",
+    ),
+}
+_RAW_COMPOSITION_MODELS.update(_INSTRUCTION_STORAGE_GUARDS)
+_RAW_COMPOSITION_MODELS.update(_COMPOSITION_STORAGE_GUARDS)
+_RAW_COMPOSITION_MODELS.update(_COMPOSITION_CONTAINER_GUARDS)
+_RAW_COMPOSITION_PROOFS.update(_INSTRUCTION_STORAGE_PROOFS | _COMPOSITION_STORAGE_PROOFS)
+_RAW_CONTAINER_MODELS.update(_COMPOSITION_CONTAINER_GUARDS)
+_RAW_CONTAINER_PROOFS.add(("specs/cold_container_headers.rs", "part2_container_composition_error"))
 
 _OUTPUT_STORAGE_GUARDS = {
     ("specs/cold_output_storage.rs", "part2_definition_storage_result"): (
@@ -13053,7 +13196,8 @@ def validate_normative_coverage(
                 "let layer = layer_result?", "compositing_layers.push(layer)",
                 "part2_container_main_header_error(", "part2_container_associated_header_error(",
                 "part2_container_layer_header_error(", "part2_parse_container_header_error(",
-                "parse_composition(box_ref, limits)?", "inspect_metadata_box(box_ref, limits, 1, u32::MAX - 1)?",
+                "let parsed = parse_composition(box_ref, limits)", "composition = Some(parsed?)",
+                "inspect_metadata_box(box_ref, limits, 1, u32::MAX - 1)?",
                 "let mut box_count = 2_u64", "metadata_depth = metadata_depth.max(depth)",
                 "super::clone_support::try_codestream_association_clone(", ".get_mut(header_index)",
                 "codestream_box.codestream_header = Some(association)",
@@ -16147,10 +16291,12 @@ def validate_normative_coverage(
                         "part2_channel_storage_result", "part2_jp2_header_storage_result",
                         "part2_codestream_header_storage_result", "part2_layer_header_storage_result",
                         "part2_color_storage_result", "part2_color_group_storage_result",
-                        "part2_registration_storage_result", "part2_opacity_storage_result"}:
+                        "part2_registration_storage_result", "part2_opacity_storage_result",
+                        "part2_instruction_storage_result", "part2_composition_storage_result"}:
                     legacy = {
                         **_CHANNEL_HEADER_CONTRACTS, **_RAW_JP2_HEADER_CONTRACTS,
                         **_ASSOCIATED_HEADER_CONTRACTS, **_RAW_LAYER_HEADER_CONTRACTS, **_COLOR_HEADER_CONTRACTS,
+                        **_RAW_COMPOSITION_CONTRACTS,
                     }[(reference["path"], reference["symbol"])]
                     projection = ("super::channel_definition_records_outcome" if cold_contract[0] == "part2_channel_storage_result"
                                   else "super::raw_compositing_layer_outcome" if cold_contract[0] == "part2_layer_header_storage_result"
@@ -16158,6 +16304,8 @@ def validate_normative_coverage(
                                   else "super::color_group_outcome" if cold_contract[0] == "part2_color_group_storage_result"
                                   else "super::registration_outcome" if cold_contract[0] == "part2_registration_storage_result"
                                   else "super::opacity_outcome" if cold_contract[0] == "part2_opacity_storage_result"
+                                  else "super::raw_instruction_set_outcome" if cold_contract[0] == "part2_instruction_storage_result"
+                                  else "super::raw_composition_outcome" if cold_contract[0] == "part2_composition_storage_result"
                                   else "super::raw_jp2_header_outcome")
                     if not _coverage_extraction_normal_arguments(contract, projection, legacy[0], legacy[3]):
                         raise ValueError(f"linked function lacks executable Verus contract: {short}; missing exact ordinary CDEF/header projection")
@@ -17410,6 +17558,16 @@ def validate_normative_coverage(
             ("src/jp2/tests.rs", "layer_metadata_storage_opacity_keeps_empty_eager_offsets_keys_and_exact_retry"),
             ("src/jp2/tests.rs", "layer_metadata_storage_layer_container_and_exclusion_propagate_actual_refusals"),
         }, _LAYER_METADATA_NATIVE),
+        (_RAW_COMPOSITION_ENTRY, _INSTRUCTION_STORAGE_GUARDS | _COMPOSITION_STORAGE_GUARDS | _COMPOSITION_CONTAINER_GUARDS,
+         _INSTRUCTION_STORAGE_PROOFS | _COMPOSITION_STORAGE_PROOFS, {
+            ("src/jp2/tests.rs", "composition_storage_records_keep_admission_empty_eager_offsets_and_exact_retry"),
+            ("src/jp2/tests.rs", "composition_storage_sets_keep_child_then_limit_then_append_and_spare_capacity"),
+            ("src/jp2/tests.rs", "composition_storage_parent_container_propagates_child_and_set_refusals"),
+        }, _COMPOSITION_STORAGE_NATIVE),
+        (_RAW_CONTAINER_ENTRY, _COMPOSITION_CONTAINER_GUARDS,
+         {("specs/cold_container_headers.rs", "part2_container_composition_error")}, {
+            ("src/jp2/tests.rs", "composition_storage_parent_container_propagates_child_and_set_refusals"),
+        }, {("src/jp2/container.rs", "parse"): _COMPOSITION_STORAGE_NATIVE[("src/jp2/container.rs", "parse")]}),
     ):
         if color_entry_id not in ids:
             continue

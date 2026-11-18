@@ -267,6 +267,7 @@ pub enum Part2HeaderStorageRequest {
     ColorGroup {context:Part2ColorGroupStorageContext},
     Registration {context:Part2RegistrationStorageContext},
     Opacity {context:Part2OpacityStorageContext},
+    InstructionSet {context:Part2InstructionRequestContext},
 }
 pub(crate) open spec fn part2_header_storage_request_value(request:Part2HeaderStorageRequest)->Result<(),crate::DecodeError> {
     match request {
@@ -284,6 +285,8 @@ pub(crate) open spec fn part2_header_storage_request_value(request:Part2HeaderSt
             part2_parse_codestream_registration(context.input,context.base,&context.limits)),
         Part2HeaderStorageRequest::Opacity {context}=>crate::allocation::inspection_capacity_outcome(
             part2_parse_layer_opacity(context.input,context.base)),
+        Part2HeaderStorageRequest::InstructionSet {context}=>crate::allocation::inspection_capacity_outcome(
+            part2_parse_instruction_set(context.child.input,context.child.composition,context.child.base,&context.child.limits)),
     }
 }
 pub(crate) open spec fn part2_header_storage_request_run(request:Part2HeaderStorageRequest,
@@ -303,6 +306,7 @@ pub(crate) open spec fn part2_header_storage_request_run(request:Part2HeaderStor
             |_:Part2RawRegistration,rest|Some((Ok(()),rest))),
         Part2HeaderStorageRequest::Opacity {context}=>part2_jpip_snapshot_bind(part2_opacity_storage_run(context,events),
             |_:Part2SourceOpacity,rest|Some((Ok(()),rest))),
+        Part2HeaderStorageRequest::InstructionSet {context}=>part2_instruction_request_run(context,events),
     }
 }
 pub closed spec fn part2_header_storage_request_result(request:Part2HeaderStorageRequest,
@@ -363,6 +367,7 @@ pub(crate) proof fn part2_header_storage_request_normal(request:Part2HeaderStora
             part2_opacity_storage_normal(context);part2_opacity_storage_frames(context,result);
             part2_header_storage_discard_frame(|events|part2_opacity_storage_run(context,events),result);
         },
+        Part2HeaderStorageRequest::InstructionSet {context}=>{part2_instruction_request_normal(context);},
     }
 }
 pub(crate) proof fn part2_header_storage_request_channel_error(context:Part2ChannelStorageContext,error:crate::DecodeError)
@@ -424,4 +429,14 @@ pub(crate) proof fn part2_header_storage_request_opacity_error(context:Part2Opac
     part2_opacity_storage_frames(context,Err(error));
     part2_header_storage_discard_frame(|events|part2_opacity_storage_run(context,events),Err(error));
 }
+pub(crate) proof fn part2_header_storage_request_instruction_error(context:Part2InstructionRequestContext,error:crate::DecodeError)
+    requires part2_instruction_storage_result(context.child,Err(error)),
+    ensures part2_header_storage_request_result(Part2HeaderStorageRequest::InstructionSet {context},Err(error)),
+{part2_instruction_request_child_error(context,error);}
+pub(crate) proof fn part2_header_storage_request_instruction_append_error(context:Part2InstructionAppendContext,error:crate::DecodeError)
+    requires part2_instruction_append_admitted(context),
+        part2_instruction_storage_result(context.request.child,Ok(context.parsed)),
+        part2_instruction_append_capacity_result(context,Err(error)),
+    ensures part2_header_storage_request_result(Part2HeaderStorageRequest::InstructionSet {context:context.request},Err(error)),
+{part2_instruction_request_append_error(context,error);}
 }

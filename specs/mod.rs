@@ -21,6 +21,8 @@ mod cold_color_storage;
 pub use cold_color_storage::*;
 mod cold_layer_metadata;
 pub use cold_layer_metadata::*;
+mod cold_composition_storage;
+pub use cold_composition_storage::*;
 mod jp2_semantic_errors;
 pub use jp2_semantic_errors::*;
 mod cold_container_headers;

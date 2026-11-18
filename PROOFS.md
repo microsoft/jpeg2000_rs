@@ -74,6 +74,17 @@ key copying. Empty private byte copies are request-free. Actual normalized
 replies compose through typed layer requests and the existing header/container
 readers, retaining opacity/definition exclusion and exact ordinary errors.
 
+[`cold_composition_storage.rs`](specs/cold_composition_storage.rs) binds actual
+instruction-record capacity after eager offset, flags, alignment and work
+admission. Empty record owners make no request; original cursor/numeric/life
+and source-region semantics follow checked storage. The existing typed reader
+machine now also composes the actual composition options, ordered child sets,
+unknown-box flag and loop fields. Each child is parsed before the original
+set-count/layer limit, followed by checked append. Source/prior-set/parsed-child/
+count/actual-reply frames preserve first errors and arbitrary tails through
+admitted container calls. No successful instruction bank or capacity premise
+is supplied; physical spare-capacity reuse is checked natively.
+
 ### JP2 output metadata and sample copies
 
 The direct-copy and mapped component vectors now reserve checked metadata

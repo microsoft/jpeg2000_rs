@@ -711,7 +711,10 @@ pub fn parse<'a>(input: &'a [u8], limits: &ResourceLimits) -> Result<Jp2File<'a>
     )]
     loop {
         #[cfg(verus_keep_ghost)]
-        proof! { reveal(crate::specs::part2_container_boxes); reveal(crate::specs::part2_container_step); }
+        proof! {
+            super::channel_storage_box_kinds_known();
+            reveal(crate::specs::part2_container_boxes); reveal(crate::specs::part2_container_step);
+        }
         #[cfg(verus_keep_ghost)]
         proof_decl! {
             let ghost previous_reader = super::box_reader_state(&reader);
@@ -945,7 +948,19 @@ pub fn parse<'a>(input: &'a [u8], limits: &ResourceLimits) -> Result<Jp2File<'a>
                     MalformedKind::InvalidBoxOrder,
                 ));
             }
-            composition = Some(parse_composition(box_ref, limits)?);
+            let parsed = parse_composition(box_ref, limits);
+            #[cfg(verus_keep_ghost)]
+            proof! {
+                if let Err(error)=parsed {
+                    if error==DecodeError::AllocationFailed {
+                        crate::specs::part2_container_composition_error(super::box_reference_view(box_ref),previous_state,
+                            super::file_type_view(&file_type),*limits,super::box_reference_view(box_ref),error);
+                        crate::specs::part2_parse_container_header_error(input@,*limits,super::file_type_view(&file_type),
+                            storage_prefix,previous_reader,previous_state,super::box_reader_state(&reader),super::box_reference_view(box_ref),error);
+                    }
+                }
+            }
+            composition = Some(parsed?);
         } else if box_type.equals(BoxType::CONTIGUOUS_CODESTREAM) {
             if parsed_header.is_none() {
                 return Err(DecodeError::malformed(

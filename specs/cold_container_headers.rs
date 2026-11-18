@@ -5,6 +5,7 @@ pub enum Part2ContainerHeaderRequest {
     Main {payload:Seq<u8>,base:u64,allow:bool},
     Associated {payload:Seq<u8>,defaults:Option<Part2RawJp2Header>,base:u64},
     Layer {input:Part2BoxReference},
+    Composition {input:Part2BoxReference},
 }
 pub struct Part2AssociationAppendContext {
     pub input:Part2BoxReference,
@@ -166,6 +167,10 @@ pub(crate) open spec fn part2_container_header_request(input:Part2BoxReference,s
         if !part2_file_type_jpx(file_type) || state.header.is_none() || state.streams.len()>0 || state.composition.is_some()
             || state.layers.len()>=usize::MAX || state.layers.len()+1>crate::limits::resource_layer_limit(&limits) as nat{None}
         else{Some(Part2ContainerHeaderRequest::Layer {input})}
+    }else if input.0.0==crate::jp2::BoxType::COMPOSITION {
+        if !part2_file_type_jpx(file_type) || state.header.is_none() || state.streams.len()>0
+            || state.composition.is_some() || state.layers.len()==0 {None}
+        else{Some(Part2ContainerHeaderRequest::Composition {input})}
     }else{None}
 }
 pub(crate) open spec fn part2_container_headers_run(input:Part2BoxReference,state:Part2RawContainerState,
@@ -184,6 +189,9 @@ pub(crate) open spec fn part2_container_headers_run(input:Part2BoxReference,stat
             part2_jpip_snapshot_bind(part2_layer_header_storage_run(layer,limits,events),
                 |parsed:Part2RawCompositingLayer,rest|part2_container_layer_append_run(
                     Part2LayerAppendContext {input,before:state,file_type,limits,parsed},rest)),
+        Some(Part2ContainerHeaderRequest::Composition {input:composition})=>
+            part2_jpip_snapshot_bind(part2_composition_storage_run(composition,limits,events),
+                |_:Part2RawComposition,rest|Some((result,rest))),
     }
 }
 pub(crate) proof fn part2_container_headers_normal(input:Part2BoxReference,state:Part2RawContainerState,
@@ -227,6 +235,12 @@ pub(crate) proof fn part2_container_headers_normal(input:Part2BoxReference,state
             part2_cold_bind(|events|part2_layer_header_storage_run(layer,limits,events),
                 |value:Part2RawCompositingLayer,rest|part2_container_layer_append_run(
                     Part2LayerAppendContext {input,before:state,file_type,limits,parsed:value},rest),parsed,result);
+        },
+        Some(Part2ContainerHeaderRequest::Composition {input:composition})=>{
+            let parsed=part2_parse_composition(composition,limits);
+            part2_composition_storage_normal(composition,limits);part2_composition_storage_frames(composition,limits,parsed);
+            part2_cold_bind(|events|part2_composition_storage_run(composition,limits,events),
+                |_:Part2RawComposition,rest|Some((result,rest)),parsed,result);
         },
     }
     part2_decode_eta(|events|part2_container_headers_run(input,state,file_type,limits,events),result);
@@ -309,6 +323,19 @@ pub(crate) proof fn part2_container_layer_append_error(context:Part2LayerAppendC
     part2_cold_bind(|events|part2_layer_header_storage_run(input,limits,events),
         |parsed:Part2RawCompositingLayer,rest|part2_container_layer_append_run(
             Part2LayerAppendContext {input,before:state,file_type,limits,parsed},rest),Ok(context.parsed),Err(error));
+}
+pub(crate) proof fn part2_container_composition_error(input:Part2BoxReference,state:Part2RawContainerState,
+    file_type:Part2FileType,limits:crate::ResourceLimits,composition:Part2BoxReference,error:crate::DecodeError)
+    requires part2_container_header_request(input,state,file_type,limits)
+            ==Some(Part2ContainerHeaderRequest::Composition {input:composition}),
+        part2_composition_storage_result(composition,limits,Err(error)),
+    ensures part2_cold_framed(|events|part2_container_step_cold_run(input,state,file_type,limits,events),Err(error)),
+{
+    crate::jp2::channel_storage_box_kinds_known();
+    assert(!part2_container_step_reserves(input,state,file_type,limits));
+    part2_composition_storage_frames(composition,limits,Err(error));
+    part2_cold_bind(|events|part2_composition_storage_run(composition,limits,events),
+        |_:Part2RawComposition,rest|Some((part2_container_step(input,state,file_type,limits),rest)),Err(error),Err(error));
 }
 pub(crate) proof fn part2_parse_container_header_error(input:Seq<u8>,limits:crate::ResourceLimits,file_type:Part2FileType,
     prefix:Seq<Part2JpipSnapshotEvent>,before_reader:Part2BoxReaderState,before:Part2RawContainerState,

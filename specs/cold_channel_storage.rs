@@ -375,6 +375,7 @@ pub(crate) proof fn part2_header_storage_machines_valid(payload:Seq<u8>,limits:c
                 Part2HeaderStorageRequest::ColorGroup {context}=>{assert(false);},
                 Part2HeaderStorageRequest::Registration {context}=>{assert(false);},
                 Part2HeaderStorageRequest::Opacity {context}=>{assert(false);},
+                Part2HeaderStorageRequest::InstructionSet {context}=>{assert(false);},
             }
         }
     }
@@ -412,6 +413,7 @@ pub(crate) proof fn part2_header_storage_machines_valid(payload:Seq<u8>,limits:c
                 Part2HeaderStorageRequest::ColorGroup {context}=>{assert(false);},
                 Part2HeaderStorageRequest::Registration {context}=>{assert(false);},
                 Part2HeaderStorageRequest::Opacity {context}=>{assert(false);},
+                Part2HeaderStorageRequest::InstructionSet {context}=>{assert(false);},
             }
         }
     }
