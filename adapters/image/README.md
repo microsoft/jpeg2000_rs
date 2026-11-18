@@ -7,10 +7,11 @@ This workspace member is not published; it does not change the decoder's
 default features, executable implementation, specifications or proof scope.
 It is a separate crate, not an optional feature of the decoder.
 
-Development builds use the workspace 0.2 decoder. A packaged adapter resolves
-the declared registry dependency (0.1.x or 0.2.x); it uses the API subset shared
-by these lines. This keeps packaging possible before the separately authorized
-0.2 publication. CI tests the workspace and packaged registry boundaries.
+Development builds use the workspace 0.3 decoder. A packaged adapter resolves
+the declared registry dependency (0.1.x, 0.2.x or 0.3.x); it uses the API subset
+shared by these lines. This keeps packaging possible while release/0.2 is
+prepared separately and before any 0.3 publication. CI tests the workspace and
+packaged registry boundaries.
 The root workspace defaults to the decoder alone;
 select `-p jpeg2000-image` to build this companion.
 
