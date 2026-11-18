@@ -6888,7 +6888,7 @@ class FrameworkTests(WorkingFiles):
 
     def test_inventory_binds_common_pdf_results_to_actual_input_layout_and_reports(self):
         self._assert_complete_packet_contract_bindings(
-            {framework._PDF_COMMON_ENTRY}, framework._PDF_COMMON_CONTRACTS, 8, isolate=False,
+            {framework._PDF_COMMON_ENTRY}, framework._PDF_COMMON_CONTRACTS, 13, isolate=False,
         )
 
     def test_inventory_common_pdf_requires_copy_input_verdict_and_exact_tail(self):
@@ -6912,6 +6912,51 @@ class FrameworkTests(WorkingFiles):
 
             with self.subTest(before=before), mock.patch.object(Path, "read_text", altered), \
                     self.assertRaisesRegex(ValueError, "actual bounded-copy"):
+                framework.validate_normative_coverage(dict(coverage, requirements=[entry]))
+
+    def test_inventory_pdf_eol_retains_exact_error_boundary_and_actual_retry(self):
+        coverage = json.loads((framework.VALIDATION / "normative-coverage.json").read_text())
+        entry = next(item for item in coverage["requirements"]
+                 if item["id"] == framework._PDF_COMMON_ENTRY)
+        source = framework.ROOT / "specs/pdf_eol.rs"
+        original, read_text = source.read_text(), Path.read_text
+        for symbol, before, after in (
+            ("part2_pdf_eol_end", "offset == end", "offset <= end"),
+            ("part2_pdf_eol_end", "input[end - 2] != 255", "false"),
+            ("part2_pdf_eol_end", "kind == crate::MalformedKind::TrailingData", "true"),
+            ("part2_pdf_eol_run", "base(input, events)", "base(Seq::empty(), events)"),
+            ("part2_pdf_eol_run", "base(input.take(end as int), rest)", "base(input, rest)"),
+            ("part2_pdf_eol_run", "finish), tail", "finish), rest"),
+            ("part2_pdf_eol_report", "discarded_pdf_eol_bytes: count", "discarded_pdf_eol_bytes: 0"),
+        ):
+            body = framework._coverage_spec_function_body(original, symbol)
+            self.assertIn(before, body)
+            changed = original.replace(body, body.replace(before, after, 1), 1)
+
+            def altered(path, *args, **kwargs):
+                return changed if path == source else read_text(path, *args, **kwargs)
+
+            with self.subTest(symbol=symbol, before=before), mock.patch.object(Path, "read_text", altered), \
+                self.assertRaisesRegex(ValueError, "common PDF EOL"):
+                framework.validate_normative_coverage(dict(coverage, requirements=[entry]))
+        changed = copy.deepcopy(entry)
+        changed["test_refs"] = [ref for ref in changed["test_refs"]
+                           if (ref["path"], ref["symbol"]) != framework._PDF_EOL_TEST]
+        with self.assertRaisesRegex(ValueError, "common PDF EOL.*controls"):
+            framework.validate_normative_coverage(dict(coverage, requirements=[changed]))
+        source = framework.ROOT / "src/decode/pdf_compat.rs"
+        original = source.read_text()
+        for symbol in framework._PDF_EOL_NATIVE_ORDER:
+            body = framework._coverage_function_body(
+                original, framework._coverage_function_header(original, symbol))
+            self.assertIn("&input[..end]", body)
+            changed_source = original.replace(body, body.replace("&input[..end]", "input", 1), 1)
+
+            def altered_native(path, *args, **kwargs):
+                return changed_source if path == source else read_text(path, *args, **kwargs)
+
+            with self.subTest(native=symbol), mock.patch.object(Path, "read_text", altered_native), \
+                    self.assertRaisesRegex(ValueError, "common PDF EOL.*original call"):
                 framework.validate_normative_coverage(dict(coverage, requirements=[entry]))
 
     def test_inventory_common_pdf_requires_all_complete_programs_and_normal_links(self):

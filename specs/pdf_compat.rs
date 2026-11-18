@@ -258,6 +258,7 @@ pub(crate) open spec fn part2_pdf_finish_recovery(
         selected_present_tile: selected,
         empty_initial_mq_prefixes: 0,
         discarded_tile_trailer_bytes: trailer as u64,
+        discarded_pdf_eol_bytes: 0,
         original_codestream_bytes: prepared.original.len() as u64,
         effective_codestream_bytes: effective,
         preflight_work_units: prepared.preflight_work,
@@ -477,6 +478,20 @@ pub closed spec fn part2_pdf_inspect_result(
 ) -> bool {
     part2_cold_framed(|events| part2_pdf_inspect_run(input, limits, events), result)
 }
+
+pub(crate) proof fn part2_pdf_contracts_unfold(input: Seq<u8>, requested: Part2DecodeSelection,
+    limits: &crate::ResourceLimits)
+    ensures
+        forall|reply: Result<Part2PdfTyped, crate::DecodeError>|
+            #[trigger] part2_pdf_typed_result(input, requested, limits, reply)
+                == part2_cold_framed(|events| part2_pdf_typed_run(input, requested, limits, events), reply),
+        forall|reply: Result<Part2PdfReconstructed, crate::DecodeError>|
+            #[trigger] part2_pdf_reconstructed_result(input, requested, limits, reply)
+                == part2_cold_framed(|events| part2_pdf_reconstructed_run(input, requested, limits, events), reply),
+        forall|reply: Result<Part2RawCodestreamInfo, crate::DecodeError>|
+            #[trigger] part2_pdf_inspect_result(input, limits, reply)
+                == part2_cold_framed(|events| part2_pdf_inspect_run(input, limits, events), reply),
+{}
 
 pub(crate) open spec fn part2_pdf_typed_parsed_value(
     input: Seq<u8>, prepared: Part2PdfPrepared, parsed: Part1CompleteLayout, requested: Part2DecodeSelection, limits: &crate::ResourceLimits,
