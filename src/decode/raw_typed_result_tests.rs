@@ -150,6 +150,43 @@ fn pdf_common_recovers_raw_and_container_eoc_without_relaxing_other_errors() {
 }
 
 #[test]
+fn pdf_common_accepts_jp2_primary_with_additional_jpx_compatibility() {
+    let options = DecodeOptions::default();
+    let selection = DecodeSelection::full_image();
+    let codestream = dimension_recovery_codestream();
+    let original = jp2_for_codestream(&codestream, 1, 1);
+    let expected = decode_jp2(&original, &options).unwrap();
+    let centered = crate::decode_jp2_reconstructed(&original, &options).unwrap();
+    for compatibility in [
+        b"jp2 \0\0\0\0jp2 jpx ".as_slice(),
+        b"jp2 \0\0\0\0jp2 jpxb".as_slice(),
+        b"jp2 \0\0\0\0jp2 jpxbjpx ".as_slice(),
+    ] {
+        let mut input = original.clone();
+        input.splice(12..32, box32(*b"ftyp", compatibility));
+        assert_eq!(decode_jp2(&input, &options).unwrap(), expected);
+        assert!(crate::jp2::parse_and_inspect(&input, options.limits()).is_ok());
+        let info = crate::inspect_pdf_compatible(&input, &options).unwrap();
+        assert_eq!((info.image_size.width, info.image_size.height), (1, 1));
+        let decoded = crate::decode_pdf_compatible(&input, &options, &selection).unwrap();
+        assert_eq!(decoded.image, expected);
+        assert!(!decoded.recovery.appended_eoc);
+        assert!(!decoded.recovery.ignored_container_dimensions);
+        assert_eq!(decoded.recovery.discarded_tile_trailer_bytes, 0);
+        assert_eq!(
+            crate::decode_pdf_reconstructed(&input, &options, &selection)
+                .unwrap()
+                .image,
+            centered,
+        );
+        input.pop();
+        assert!(decode_jp2(&input, &options).is_err());
+        assert!(crate::inspect_pdf_compatible(&input, &options).is_err());
+        assert!(crate::decode_pdf_compatible(&input, &options, &selection).is_err());
+    }
+}
+
+#[test]
 fn pdf_common_keeps_headroom_output_metadata_profiles_and_reduced_grids() {
     let options = DecodeOptions::default();
     let selection = DecodeSelection::full_image();
