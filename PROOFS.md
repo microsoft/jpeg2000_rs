@@ -85,6 +85,28 @@ count/actual-reply frames preserve first errors and arbitrary tails through
 admitted container calls. No successful instruction bank or capacity premise
 is supplied; physical spare-capacity reuse is checked natively.
 
+### Reached MCT/MCC marker registries
+
+The fresh marker program includes checked pending-fragment admission after
+actual initial-byte copying, completed-index admission after actual reassembly
+and numeric/collection construction, and retained main-header array/record
+admission before the original last-entry uniqueness checks. MCT and MCC have
+distinct source/count/path roles. A refused completion keeps the already
+removed fragment state and prior completed indexes; it does not restore an
+earlier owner or silently retain a newly constructed result.
+
+[`cold_marker_storage.rs`](specs/cold_marker_storage.rs) and
+[`cold_marker_header.rs`](specs/cold_marker_header.rs) preserve original
+fragment, scalar, collection, count, work and error priority and compose
+actual normalized replies through main/tile/public callers with arbitrary
+tails. Empty byte copies and held registry capacity remain request-free;
+an empty fragment can still require a nonempty pending registry.
+
+This bounded marker-registry refinement does not cover every MCT runtime
+scratch or borrowed-view owner. Those remaining measured owners retain their
+separate fallibility scope; no successful-owner/allocator premise, source
+coverage percentage or broader normative claim follows.
+
 ### Reached nonlinear decode owners
 
 The NLT marker program now includes its checked insertion after the original

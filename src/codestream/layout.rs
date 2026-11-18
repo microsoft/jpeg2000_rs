@@ -8,11 +8,11 @@ use super::profile::classify_codestream_profile;
 use super::reader::new_parser;
 use super::{
     ADS, ATK, CAP, CBD, COC, COD, CPF, CRG, CodestreamInfo, CodestreamLayout,
-    ComponentQuantizations, DFS, DecodeError, EOC, ImageSize, MAX_COMPONENTS, MCC, MCO, MCT,
-    MalformedKind, MctParameters, NLT, PLM, POC, PPM, PRF, PackedHeaderFrame,
-    PackedPacketHeaderSource, PackedPacketHeaders, PacketLengths, Parser, Part2Extensions,
-    ProgressionChanges, QCC, QCD, RGN, Resource, ResourceLimits, SIZ, SOC, SOT, TLM, TilePart,
-    TilePartLength, TilePartPayload,
+    ComponentQuantizations, DFS, DecodeError, EOC, FreshMarkerPath, ImageSize, MAX_COMPONENTS, MCC,
+    MCO, MCT, MalformedKind, MctCopyPath, MctParameters, NLT, PLM, POC, PPM, PRF,
+    PackedHeaderFrame, PackedPacketHeaderSource, PackedPacketHeaders, PacketLengths, Parser,
+    Part2Extensions, ProgressionChanges, QCC, QCD, RGN, Resource, ResourceLimits, SIZ, SOC, SOT,
+    TLM, TilePart, TilePartLength, TilePartPayload,
 };
 #[cfg(verus_keep_ghost)]
 use super::{
@@ -671,6 +671,20 @@ impl<'a> Parser<'a> {
                         proof_decl! {
                             let ghost appended = mct_arrays_view(mct_arrays@).push(mct_array_view(&array));
                         }
+                        let _path = MctCopyPath::FreshMarker(FreshMarkerPath::MctRetainedMain(
+                            segment.offset,
+                            mct_arrays.len(),
+                        ));
+                        let reserved = crate::allocation::reserve_additional(&mut mct_arrays, 1);
+                        #[cfg(verus_keep_ghost)]
+                        proof! {
+                            crate::specs::part1_mct_copy_observed(_path,1,super::mct_copy::copy_outcome(reserved));
+                            if let Err(error)=reserved {
+                                crate::specs::part1_cold_main_mct_array_error(initial_reader,cold_main_reader,cold_main_raw,
+                                    segment_view(segment),mct_array_view(&array),mct_pending_view(pending_mct@),completed_mct@,error);
+                            }
+                        }
+                        reserved?;
                         mct_arrays.push(array);
                         #[cfg(verus_keep_ghost)]
                         proof! { assert(mct_arrays_view(mct_arrays@) =~= appended); }
@@ -696,6 +710,20 @@ impl<'a> Parser<'a> {
                         proof_decl! {
                             let ghost appended = mct_records_view(mct_records@).push(mct_record_view(&record));
                         }
+                        let _path = MctCopyPath::FreshMarker(FreshMarkerPath::MccRetainedMain(
+                            segment.offset,
+                            mct_records.len(),
+                        ));
+                        let reserved = crate::allocation::reserve_additional(&mut mct_records, 1);
+                        #[cfg(verus_keep_ghost)]
+                        proof! {
+                            crate::specs::part1_mct_copy_observed(_path,1,super::mct_copy::copy_outcome(reserved));
+                            if let Err(error)=reserved {
+                                crate::specs::part1_cold_main_mcc_record_error(initial_reader,cold_main_reader,cold_main_raw,
+                                    segment_view(segment),mct_record_view(&record),mcc_pending_view(pending_mcc@),completed_mcc@,error);
+                            }
+                        }
+                        reserved?;
                         mct_records.push(record);
                         #[cfg(verus_keep_ghost)]
                         proof! { assert(mct_records_view(mct_records@) =~= appended); }

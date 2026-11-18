@@ -9284,6 +9284,161 @@ _TYPED_STORAGE_NATIVE_ORDER = {
     ),
 }
 
+_MCT_MARKER_OWNER_GUARDS = {
+    ("specs/cold_marker_storage.rs", "part1_fresh_marker_site"): (
+        "FreshMarkerPath::MctPending(_, _) => 86", "FreshMarkerPath::MctCompleted(_, _) => 87",
+        "FreshMarkerPath::MctRetainedMain(_, _) => 88",
+        "FreshMarkerPath::MccPending(_, _) => 89", "FreshMarkerPath::MccCompleted(_, _) => 90",
+        "FreshMarkerPath::MccRetainedMain(_, _) => 91",
+    ),
+    ("specs/cold_marker_storage.rs", "part1_fresh_prepare_mct_requests"): (
+        "segment.payload.len() >= 6", "part1_marker_value(segment.payload[0], segment.payload[1]) == 0",
+        "part1_prepare_mct_fragment(segment, limits, pending, completed).0.is_ok()",
+        "part1_fresh_leaf(FreshMarkerPath::MctInitial(segment.offset), (segment.payload.len() - 6) as usize)",
+        "+part1_fresh_leaf(FreshMarkerPath::MctPending(segment.offset, pending.len() as usize), 1)",
+    ),
+    ("specs/cold_marker_storage.rs", "part1_fresh_prepare_mct_run"): (
+        "part1_mct_copy_run(part1_fresh_prepare_mct_requests(segment, limits, pending, completed), events)",
+        "Some((Err(error), rest)) => Some(((Err(error), pending), rest))",
+    ),
+    ("specs/cold_marker_storage.rs", "part1_fresh_mct_completed_requests"): (
+        "part1_fresh_leaf(FreshMarkerPath::MctCompleted(segment.offset, completed.len() as usize), 1)",
+    ),
+    ("specs/cold_marker_storage.rs", "part1_fresh_consume_mct_run"): (
+        "part1_fresh_prepare_mct_run(segment, limits, pending, completed, events)",
+        "let removed = part1_mct_fragment_swap_remove(changed, index)",
+        "part1_fresh_mct_run(part1_fresh_mct_reassembled(state), limits, tail)",
+        "Some((Ok(array), last)) => match part1_mct_copy_run(part1_fresh_mct_completed_requests(segment, completed), last)",
+        "Some((Err(error), end)) => Some(((Err(error), removed, completed), end))",
+        "Some((Ok(()), end)) => Some(((Ok(Some(array)), removed, completed.push(segment.payload[3])), end))",
+    ),
+    ("specs/cold_marker_storage.rs", "part1_fresh_consume_mct_calls"): (
+        "part1_fresh_prepare_mct_requests(segment, limits, pending, completed)",
+        "if part1_parse_mct(part1_fresh_mct_reassembled(state), limits).is_ok()",
+        "part1_fresh_mct_completed_requests(segment, completed)",
+    ),
+}
+_MCC_MARKER_OWNER_GUARDS = {
+    ("specs/cold_marker_storage.rs", "part1_fresh_marker_site"):
+        _MCT_MARKER_OWNER_GUARDS[("specs/cold_marker_storage.rs", "part1_fresh_marker_site")],
+    ("specs/cold_marker_storage.rs", "part1_fresh_prepare_mcc_requests"): (
+        "segment.payload.len() >= 7", "part1_marker_value(segment.payload[0], segment.payload[1]) == 0",
+        "part1_prepare_mcc_fragment(segment, components, pending, completed).0.is_ok()",
+        "part1_fresh_leaf(FreshMarkerPath::MccInitial(segment.offset), (segment.payload.len() - 7) as usize)",
+        "+part1_fresh_leaf(FreshMarkerPath::MccPending(segment.offset, pending.len() as usize), 1)",
+    ),
+    ("specs/cold_marker_storage.rs", "part1_fresh_prepare_mcc_run"): (
+        "part1_mct_copy_run(part1_fresh_prepare_mcc_requests(segment, components, pending, completed), events)",
+        "Some((Err(error), rest)) => Some(((Err(error), pending), rest))",
+    ),
+    ("specs/cold_marker_storage.rs", "part1_fresh_mcc_completed_requests"): (
+        "part1_fresh_leaf(FreshMarkerPath::MccCompleted(segment.offset, completed.len() as usize), 1)",
+    ),
+    ("specs/cold_marker_storage.rs", "part1_fresh_consume_mcc_run"): (
+        "part1_fresh_prepare_mcc_run(segment, components, pending, completed, events)",
+        "let removed = part1_mcc_fragment_swap_remove(changed, index)",
+        "part1_fresh_mcc_run(part1_fresh_mcc_reassembled(state), components, limits, tail)",
+        "Some((Ok(record), last)) => match part1_mct_copy_run(part1_fresh_mcc_completed_requests(segment, completed), last)",
+        "Some((Err(error), end)) => Some(((Err(error), removed, completed), end))",
+        "Some((Ok(()), end)) => Some(((Ok(Some(record)), removed, completed.push(segment.payload[2])), end))",
+    ),
+    ("specs/cold_marker_storage.rs", "part1_fresh_consume_mcc_calls"): (
+        "part1_fresh_prepare_mcc_requests(segment, components, pending, completed)",
+        "if part1_parse_mcc(part1_fresh_mcc_reassembled(state), components, limits).is_ok()",
+        "part1_fresh_mcc_completed_requests(segment, completed)",
+    ),
+}
+_MARKER_MAIN_OWNER_GUARDS = {
+    ("specs/cold_marker_header.rs", "part1_fresh_main_mct_array_requests"): (
+        "part1_fresh_leaf(crate::codestream::FreshMarkerPath::MctRetainedMain(segment.offset, raw.arrays.len() as usize), 1)",
+    ),
+    ("specs/cold_marker_header.rs", "part1_fresh_main_mcc_record_requests"): (
+        "part1_fresh_leaf(crate::codestream::FreshMarkerPath::MccRetainedMain(segment.offset, raw.records.len() as usize), 1)",
+    ),
+    ("specs/cold_marker_header.rs", "part1_fresh_main_payload"): (
+        "part1_fresh_consume_mct_run(segment, reader.limits, raw.pending_mct, raw.completed_mct, events)",
+        "part1_fresh_consume_mcc_run(segment, raw.image_size.components, reader.limits, raw.pending_mcc, raw.completed_mcc, events)",
+        "part1_mct_copy_run(part1_fresh_main_mct_array_requests(raw, segment), rest)",
+        "part1_mct_copy_run(part1_fresh_main_mcc_record_requests(raw, segment), rest)",
+        "Some((Err(error), tail)) => Some(((Err(error), reader, changed), tail))",
+        "part1_mct_registry_unique_array(arrays, segment.offset)",
+        "part1_mct_registry_unique_record(records, segment.offset)",
+    ),
+    ("specs/cold_marker_header.rs", "part1_fresh_main_calls"): (
+        "matches!(part1_consume_mct_fragment(segment, reader.limits, raw.pending_mct, raw.completed_mct).0, Ok(Some(_)))",
+        "part1_fresh_main_mct_array_requests(raw, segment)",
+        "matches!(part1_consume_mcc_fragment(segment, raw.image_size.components, reader.limits, raw.pending_mcc, raw.completed_mcc).0, Ok(Some(_)))",
+        "part1_fresh_main_mcc_record_requests(raw, segment)",
+    ),
+}
+_MARKER_OWNER_PROOFS = {
+    family: {("specs/cold_marker_storage.rs", name) for name in (
+        f"part1_fresh_prepare_{family}_normal", f"part1_fresh_prepare_{family}_refused",
+        f"part1_fresh_prepare_{family}_projection", f"part1_fresh_consume_{family}_normal",
+        f"part1_fresh_consume_{family}_parsed", f"part1_fresh_consume_{family}_frame",
+        f"part1_fresh_consume_{family}_projection",
+    )} for family in ("mct", "mcc")
+}
+_MARKER_MAIN_OWNER_PROOFS = {("specs/cold_marker_header.rs", name) for name in (
+    "part1_fresh_main_normal", "part1_fresh_main_frame", "part1_fresh_main_projection",
+    "part1_cold_main_mct_array_error", "part1_cold_main_mcc_record_error",
+)}
+_MARKER_OWNER_NATIVE = {
+    ("src/codestream/mct_markers.rs", "Parser::prepare_mct_fragment"): (
+        "let copied = copy_flat(", "FreshMarkerPath::MctInitial(segment.offset)",
+        "part1_mct_copy_continue(Seq::empty(),first,last,copy_outcome(copied))",
+        "let data = copied?", "active_index = pending.len()",
+        "FreshMarkerPath::MctPending(segment.offset,pending.len(),)",
+        "reserve_additional(pending,1)", "part1_mct_copy_observed(_path,1,copy_outcome(reserved))",
+        "part1_mct_copy_continue(first,last,Seq::empty(),copy_outcome(reserved))",
+        "part1_fresh_prepare_mct_refused(", "reserved?", "pending.push(MctFragment",
+    ),
+    ("src/codestream/mct_markers.rs", "Parser::prepare_mcc_fragment"): (
+        "let copied = copy_flat(", "FreshMarkerPath::MccInitial(segment.offset)",
+        "part1_mct_copy_continue(Seq::empty(),first,last,copy_outcome(copied))",
+        "let data = copied?", "active_index = pending.len()",
+        "FreshMarkerPath::MccPending(segment.offset,pending.len(),)",
+        "reserve_additional(pending,1)", "part1_mct_copy_observed(_path,1,copy_outcome(reserved))",
+        "part1_mct_copy_continue(first,last,Seq::empty(),copy_outcome(reserved))",
+        "part1_fresh_prepare_mcc_refused(", "reserved?", "pending.push(MccFragment",
+    ),
+    ("src/codestream/mct_markers.rs", "Parser::consume_mct_fragment"): (
+        "let state = pending.swap_remove(active_index)", "let copied = self.parse_mct(",
+        "let array = copied?", "FreshMarkerPath::MctCompleted(segment.offset,completed.len(),)",
+        "reserve_additional(completed,1)", "part1_mct_copy_observed(_path,1,copy_outcome(reserved))",
+        "Ok(mct_array_view(&array)),copy_outcome(reserved)", "reserved?",
+        "completed.push(segment.payload[3])",
+    ),
+    ("src/codestream/mct_markers.rs", "Parser::consume_mcc_fragment"): (
+        "let state = pending.swap_remove(active_index)", "let copied = self.parse_mcc(",
+        "let record = copied?", "FreshMarkerPath::MccCompleted(segment.offset,completed.len(),)",
+        "reserve_additional(completed,1)", "part1_mct_copy_observed(_path,1,copy_outcome(reserved))",
+        "Ok(mct_record_view(&record)),copy_outcome(reserved)", "reserved?",
+        "completed.push(segment.payload[2])",
+    ),
+    ("src/codestream/layout.rs", "Parser::parse_layout"): (
+        "parser.consume_mct_fragment(", "if let Some(array) = copied?",
+        "FreshMarkerPath::MctRetainedMain(segment.offset,mct_arrays.len(),)",
+        "reserve_additional(&mut mct_arrays,1)",
+        "part1_mct_copy_observed(_path,1,super::mct_copy::copy_outcome(reserved))",
+        "part1_cold_main_mct_array_error(", "reserved?", "mct_arrays.push(array)",
+        "validate_unique_mct_array_indexes(",
+        "parser.consume_mcc_fragment(", "if let Some(record) = copied?",
+        "FreshMarkerPath::MccRetainedMain(segment.offset,mct_records.len(),)",
+        "reserve_additional(&mut mct_records,1)",
+        "part1_mct_copy_observed(_path,1,super::mct_copy::copy_outcome(reserved))",
+        "part1_cold_main_mcc_record_error(", "reserved?", "mct_records.push(record)",
+        "validate_unique_mct_record_indexes(",
+    ),
+}
+_MARKER_OWNER_TESTS = {
+    "mct": {("src/codestream/tests.rs", name) for name in (
+        "mct_marker_storage_pending_refusal_empty_spare_and_exact_retry",
+        "mct_marker_storage_completion_refusal_removed_prefix_semantic_priority_and_retry",
+    )},
+    "mcc": {("src/codestream/tests.rs", "mct_marker_storage_mcc_pending_completed_empty_spare_priority_and_retry")},
+}
+
 _NLT_MARKER_GUARDS = {
     ("specs/cold_part2_fresh.rs", "part1_nlt_insert_requests"): (
         "part1_nlt_payload(segment,components)", "count>extensions.nonlinear.len()",
@@ -10833,6 +10988,10 @@ def validate_normative_coverage(
                     not _QUANTIZATION_ROOT_MODELS.issubset({(r["path"], r["symbol"]) for r in entry["spec_refs"]})
                     or not _QUANTIZATION_ROOT_PROOFS.issubset({(r["path"], r["symbol"]) for r in entry["proof_refs"]})):
                 raise ValueError(diagnostic + " requires complete cold quantization source and normal/frame proof links")
+            if entry["id"] != "part1-complete-native-persistent-tile-configuration-commit" and (
+                    not set(_MARKER_MAIN_OWNER_GUARDS).issubset({(r["path"], r["symbol"]) for r in entry["spec_refs"]})
+                    or not _MARKER_MAIN_OWNER_PROOFS.issubset({(r["path"], r["symbol"]) for r in entry["proof_refs"]})):
+                raise ValueError(diagnostic + " requires complete checked marker storage source/normal/refusal/frame proof links")
             if entry["id"] == _RAW_LAYOUT_ENTRY and (
                     ("specs/cold_marker_header.rs", "part1_fresh_tile_payload")
                     not in {(r["path"], r["symbol"]) for r in entry["spec_refs"]}
@@ -17885,6 +18044,45 @@ def validate_normative_coverage(
                 found = compact.find(token, position)
                 if found < 0:
                     raise ValueError("checked palette storage requires original preflight/descriptor/length/record/lookup order and actual propagated allocation Results")
+                position = found + len(token)
+    marker_owner_programs = [
+        (f"part2-complete-native-{family}-fragment-production", guards, _MARKER_OWNER_PROOFS[family],
+         _MARKER_OWNER_TESTS[family],
+         {key: fragments for key, fragments in _MARKER_OWNER_NATIVE.items()
+          if key[1] in {f"Parser::prepare_{family}_fragment", f"Parser::consume_{family}_fragment"}})
+        for family, guards in (("mct", _MCT_MARKER_OWNER_GUARDS), ("mcc", _MCC_MARKER_OWNER_GUARDS))
+    ]
+    marker_owner_programs.extend(
+        (ident, _MARKER_MAIN_OWNER_GUARDS, _MARKER_MAIN_OWNER_PROOFS,
+         _MARKER_OWNER_TESTS["mct"] | _MARKER_OWNER_TESTS["mcc"],
+         {("src/codestream/layout.rs", "Parser::parse_layout"):
+          _MARKER_OWNER_NATIVE[("src/codestream/layout.rs", "Parser::parse_layout")]})
+        for ident in ("part1-complete-native-raw-layout-result", "part1-complete-native-raw-main-header-result")
+    )
+    for ident, model_guards, proved, controls, native_order in marker_owner_programs:
+        if ident not in ids:
+            continue
+        entry = next(item for item in coverage["requirements"] if item["id"] == ident)
+        if not set(model_guards).issubset({(ref["path"], ref["symbol"]) for ref in entry["spec_refs"]}) \
+                or not proved.issubset({(ref["path"], ref["symbol"]) for ref in entry["proof_refs"]}) \
+                or not controls.issubset({(ref["path"], ref["symbol"]) for ref in entry["test_refs"]}) \
+                or not set(native_order).issubset({(ref["path"], ref["symbol"]) for ref in entry["implementation_refs"]}):
+            raise ValueError("checked marker storage requires exact source/count/reply/partial-owner/tail producers and bounded controls")
+        for (relative, symbol), fragments in model_guards.items():
+            body = _coverage_spec_function_body(source_text((ROOT / relative).resolve()), symbol)
+            compact = "".join(body.split()) if body is not None else ""
+            if any("".join(fragment.split()) not in compact for fragment in fragments):
+                raise ValueError("checked marker storage requires actual MCT/MCC pending/completed/retained source/count/role/error/tail programs")
+        for (relative, symbol), fragments in native_order.items():
+            path = (ROOT / relative).resolve()
+            body = _coverage_function_body(source_text(path), function_header(path, symbol))
+            compact = "".join(body.split()) if body is not None else ""
+            position = 0
+            for fragment in fragments:
+                token = "".join(fragment.split())
+                found = compact.find(token, position)
+                if found < 0:
+                    raise ValueError("checked marker storage requires actual normalized replies and original parse/construct/reserve/append/uniqueness order")
                 position = found + len(token)
     nlt_programs = [
         ("part2-complete-native-raw-nonlinear-bytes", _NLT_MARKER_GUARDS,

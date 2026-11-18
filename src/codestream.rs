@@ -535,6 +535,12 @@ pub(crate) enum FreshMarkerPath {
     MccReassembly(usize),
     MctInitial(usize),
     MccInitial(usize),
+    MctPending(usize, usize),
+    MctCompleted(usize, usize),
+    MctRetainedMain(usize, usize),
+    MccPending(usize, usize),
+    MccCompleted(usize, usize),
+    MccRetainedMain(usize, usize),
 }
 
 #[derive(Clone, Copy)]

@@ -18,7 +18,7 @@ use super::{
     mcc_collection_references_view, mcc_fragment_outcome, mcc_fragment_view, mcc_pending_view,
     mcc_record_outcome, mcc_reference_transform_view, mct_array_outcome, mct_array_view,
     mct_fixed_precision_is_q32, mct_fragment_outcome, mct_fragment_view, mct_pending_view,
-    mct_wavelet_view, segment_tail_outcome, segment_view,
+    mct_record_view, mct_wavelet_view, segment_tail_outcome, segment_view,
 };
 #[cfg(verus_keep_ghost)]
 use vstd::prelude::*;
@@ -163,10 +163,24 @@ impl<'a> Parser<'a> {
         });
         #[cfg(verus_keep_ghost)]
         proof! {
-            crate::specs::part1_fresh_consume_mct_parsed(segment_view(segment), self.limits, input, completed_input, mct_array_outcome(copied));
             crate::specs::part1_fresh_mct_observed(crate::specs::part1_fresh_mct_reassembled(mct_fragment_view(&state)), self.limits, mct_array_outcome(copied));
+            if copied.is_err() {
+                crate::specs::part1_fresh_consume_mct_parsed(segment_view(segment), self.limits, input, completed_input, mct_array_outcome(copied), Ok(()));
+            }
         }
         let array = copied?;
+        let _path = MctCopyPath::FreshMarker(FreshMarkerPath::MctCompleted(
+            segment.offset,
+            completed.len(),
+        ));
+        let reserved = crate::allocation::reserve_additional(completed, 1);
+        #[cfg(verus_keep_ghost)]
+        proof! {
+            crate::specs::part1_mct_copy_observed(_path,1,copy_outcome(reserved));
+            crate::specs::part1_fresh_consume_mct_parsed(segment_view(segment),self.limits,input,completed_input,
+                Ok(mct_array_view(&array)),copy_outcome(reserved));
+        }
+        reserved?;
         completed.push(segment.payload[3]);
         Ok(Some(array))
     }
@@ -254,12 +268,32 @@ impl<'a> Parser<'a> {
             );
             #[cfg(verus_keep_ghost)]
             proof! {
+                let first=crate::specs::part1_fresh_leaf(FreshMarkerPath::MctInitial(segment.offset),
+                    (segment.payload@.len()-6) as usize);
+                let last=crate::specs::part1_fresh_leaf(FreshMarkerPath::MctPending(segment.offset,pending.len()),1);
+                crate::specs::part1_mct_copy_observed(MctCopyPath::FreshMarker(FreshMarkerPath::MctPending(segment.offset,pending.len())),0,Ok(()));
+                crate::specs::part1_mct_copy_continue(Seq::empty(),first,last,copy_outcome(copied));
                 if copied.is_err() { crate::specs::part1_fresh_prepare_mct_refused(segment_view(segment), self.limits, input, completed@); }
             }
             let data = copied?;
             #[cfg(verus_keep_ghost)]
             proof! { assert(data@ =~= segment.payload@.subrange(6, segment.payload.len() as int)); }
             active_index = pending.len();
+            let _path = MctCopyPath::FreshMarker(FreshMarkerPath::MctPending(
+                segment.offset,
+                pending.len(),
+            ));
+            let reserved = crate::allocation::reserve_additional(pending, 1);
+            #[cfg(verus_keep_ghost)]
+            proof! {
+                crate::specs::part1_mct_copy_observed(_path,1,copy_outcome(reserved));
+                let first=crate::specs::part1_fresh_leaf(FreshMarkerPath::MctInitial(segment.offset),
+                    (segment.payload@.len()-6) as usize);
+                let last=crate::specs::part1_fresh_leaf(FreshMarkerPath::MctPending(segment.offset,pending.len()),1);
+                crate::specs::part1_mct_copy_continue(first,last,Seq::empty(),copy_outcome(reserved));
+                if reserved.is_err() {crate::specs::part1_fresh_prepare_mct_refused(segment_view(segment),self.limits,input,completed@);}
+            }
+            reserved?;
             pending.push(MctFragment {
                 descriptor,
                 next_index: 1,
@@ -433,10 +467,24 @@ impl<'a> Parser<'a> {
         );
         #[cfg(verus_keep_ghost)]
         proof! {
-            crate::specs::part1_fresh_consume_mcc_parsed(segment_view(segment), components, self.limits, input, completed_input, mcc_record_outcome(copied));
             crate::specs::part1_fresh_mcc_observed(crate::specs::part1_fresh_mcc_reassembled(mcc_fragment_view(&state)), components, self.limits, mcc_record_outcome(copied));
+            if copied.is_err() {
+                crate::specs::part1_fresh_consume_mcc_parsed(segment_view(segment),components,self.limits,input,completed_input,mcc_record_outcome(copied),Ok(()));
+            }
         }
         let record = copied?;
+        let _path = MctCopyPath::FreshMarker(FreshMarkerPath::MccCompleted(
+            segment.offset,
+            completed.len(),
+        ));
+        let reserved = crate::allocation::reserve_additional(completed, 1);
+        #[cfg(verus_keep_ghost)]
+        proof! {
+            crate::specs::part1_mct_copy_observed(_path,1,copy_outcome(reserved));
+            crate::specs::part1_fresh_consume_mcc_parsed(segment_view(segment),components,self.limits,input,completed_input,
+                Ok(mct_record_view(&record)),copy_outcome(reserved));
+        }
+        reserved?;
         completed.push(segment.payload[2]);
         Ok(Some(record))
     }
@@ -527,12 +575,32 @@ impl<'a> Parser<'a> {
             );
             #[cfg(verus_keep_ghost)]
             proof! {
+                let first=crate::specs::part1_fresh_leaf(FreshMarkerPath::MccInitial(segment.offset),
+                    (segment.payload@.len()-7) as usize);
+                let last=crate::specs::part1_fresh_leaf(FreshMarkerPath::MccPending(segment.offset,pending.len()),1);
+                crate::specs::part1_mct_copy_observed(MctCopyPath::FreshMarker(FreshMarkerPath::MccPending(segment.offset,pending.len())),0,Ok(()));
+                crate::specs::part1_mct_copy_continue(Seq::empty(),first,last,copy_outcome(copied));
                 if copied.is_err() { crate::specs::part1_fresh_prepare_mcc_refused(segment_view(segment), components, input, completed@); }
             }
             let data = copied?;
             #[cfg(verus_keep_ghost)]
             proof! { assert(data@ =~= segment.payload@.subrange(7, segment.payload.len() as int)); }
             active_index = pending.len();
+            let _path = MctCopyPath::FreshMarker(FreshMarkerPath::MccPending(
+                segment.offset,
+                pending.len(),
+            ));
+            let reserved = crate::allocation::reserve_additional(pending, 1);
+            #[cfg(verus_keep_ghost)]
+            proof! {
+                crate::specs::part1_mct_copy_observed(_path,1,copy_outcome(reserved));
+                let first=crate::specs::part1_fresh_leaf(FreshMarkerPath::MccInitial(segment.offset),
+                    (segment.payload@.len()-7) as usize);
+                let last=crate::specs::part1_fresh_leaf(FreshMarkerPath::MccPending(segment.offset,pending.len()),1);
+                crate::specs::part1_mct_copy_continue(first,last,Seq::empty(),copy_outcome(reserved));
+                if reserved.is_err() {crate::specs::part1_fresh_prepare_mcc_refused(segment_view(segment),components,input,completed@);}
+            }
+            reserved?;
             pending.push(MccFragment {
                 record_index,
                 next_index: 1,

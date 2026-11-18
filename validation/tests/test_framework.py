@@ -5267,6 +5267,97 @@ class FrameworkTests(WorkingFiles):
                     self.assertRaisesRegex(ValueError, "storage|whole raw|actual native owners|executable Verus"):
                 framework.validate_normative_coverage(dict(coverage, requirements=[entry]))
 
+    def test_inventory_mct_marker_storage_binds_families_counts_partial_owners_actual_replies_and_tails(self):
+        coverage = json.loads((framework.VALIDATION / "normative-coverage.json").read_text())
+        read_text = Path.read_text
+        mct = "part2-complete-native-mct-fragment-production"
+        mcc = "part2-complete-native-mcc-fragment-production"
+        main = "part1-complete-native-raw-main-header-result"
+        mutations = (
+            (mct, "specs/cold_marker_storage.rs", "part1_fresh_marker_site",
+             "MctCompleted(_, _) => 87", "MctCompleted(_, _) => 86"),
+            (mct, "specs/cold_marker_storage.rs", "part1_fresh_prepare_mct_requests",
+             "pending.len() as usize), 1)", "pending.len() as usize), 2)"),
+            (mcc, "specs/cold_marker_storage.rs", "part1_fresh_prepare_mcc_requests",
+             "part1_prepare_mcc_fragment(segment, components, pending, completed).0.is_ok()", "true"),
+            (mct, "specs/cold_marker_storage.rs", "part1_fresh_prepare_mct_run",
+             "Some(((Err(error), pending), rest))", "Some(((Err(error), Seq::empty()), rest))"),
+            (mct, "specs/cold_marker_storage.rs", "part1_fresh_mct_completed_requests",
+             "completed.len() as usize", "0"),
+            (mcc, "specs/cold_marker_storage.rs", "part1_fresh_mcc_completed_requests",
+             "completed.len() as usize), 1)", "completed.len() as usize), 1+1)"),
+            (mct, "specs/cold_marker_storage.rs", "part1_fresh_consume_mct_run",
+             "part1_fresh_mct_completed_requests(segment, completed), last",
+             "part1_fresh_mct_completed_requests(segment, completed), rest"),
+            (mcc, "specs/cold_marker_storage.rs", "part1_fresh_consume_mcc_run",
+             "Some(((Err(error), removed, completed), end))",
+             "Some(((Err(error), changed, completed), end))"),
+            (mct, "specs/cold_marker_storage.rs", "part1_fresh_consume_mct_calls",
+             "part1_parse_mct(part1_fresh_mct_reassembled(state), limits).is_ok()", "true"),
+            (main, "specs/cold_marker_header.rs", "part1_fresh_main_mct_array_requests",
+             "raw.arrays.len()", "raw.records.len()"),
+            (main, "specs/cold_marker_header.rs", "part1_fresh_main_payload",
+             "part1_fresh_main_mcc_record_requests(raw, segment), rest",
+             "part1_fresh_main_mcc_record_requests(raw, segment), events"),
+            (main, "specs/cold_marker_header.rs", "part1_fresh_main_calls",
+             "Ok(Some(_))", "Ok(None)"),
+            (mct, "src/codestream/mct_markers.rs", "Parser::prepare_mct_fragment",
+             "reserve_additional(pending, 1)", "reserve_additional(pending, 2)"),
+            (mcc, "src/codestream/mct_markers.rs", "Parser::consume_mcc_fragment",
+             "copy_outcome(reserved)", "Ok(())"),
+            (mct, "src/codestream/mct_markers.rs", "Parser::consume_mct_fragment",
+             "Ok(mct_array_view(&array)),copy_outcome(reserved)",
+             "Ok(mct_array_view(&array)),Ok(())"),
+            (main, "src/codestream/layout.rs", "Parser::parse_layout",
+             "part1_cold_main_mct_array_error(", "unrelated_array_error("),
+            (main, "src/codestream/layout.rs", "Parser::parse_layout",
+             "reserve_additional(&mut mct_records, 1)", "reserve_additional(&mut mct_records, 2)"),
+        )
+        for ident, relative, symbol, before, after in mutations:
+            entry = next(item for item in coverage["requirements"] if item["id"] == ident)
+            source = framework.ROOT / relative
+            original = read_text(source)
+            if relative.startswith("specs/"):
+                body = framework._coverage_spec_function_body(original, symbol)
+            else:
+                body = framework._coverage_function_body(
+                    original, framework._coverage_function_header(original, symbol))
+            self.assertIn(before, body)
+            changed = original.replace(body, body.replace(before, after, 1), 1)
+
+            def altered(path, *args, **kwargs):
+                return changed if path == source else read_text(path, *args, **kwargs)
+
+            with self.subTest(ident=ident, symbol=symbol, before=before), \
+                    mock.patch.object(Path, "read_text", altered), \
+                    self.assertRaisesRegex(ValueError, "marker storage|executable Verus|cold"):
+                framework.validate_normative_coverage(dict(coverage, requirements=[entry]))
+
+    def test_inventory_mct_marker_storage_requires_normal_refusal_prefix_and_source_links(self):
+        coverage = json.loads((framework.VALIDATION / "normative-coverage.json").read_text())
+        for ident, field, relative, symbol in (
+            ("part2-complete-native-mct-fragment-production", "spec_refs",
+             "specs/cold_marker_storage.rs", "part1_fresh_mct_completed_requests"),
+            ("part2-complete-native-mct-fragment-production", "proof_refs",
+             "specs/cold_marker_storage.rs", "part1_fresh_consume_mct_frame"),
+            ("part2-complete-native-mcc-fragment-production", "spec_refs",
+             "specs/cold_marker_storage.rs", "part1_fresh_prepare_mcc_requests"),
+            ("part2-complete-native-mcc-fragment-production", "proof_refs",
+             "specs/cold_marker_storage.rs", "part1_fresh_consume_mcc_parsed"),
+            ("part1-complete-native-raw-main-header-result", "proof_refs",
+             "specs/cold_marker_header.rs", "part1_cold_main_mct_array_error"),
+            ("part1-complete-native-raw-layout-result", "proof_refs",
+             "specs/cold_marker_header.rs", "part1_cold_main_mcc_record_error"),
+        ):
+            entry = next(item for item in coverage["requirements"] if item["id"] == ident)
+            changed = dict(entry, **{field: [
+                ref for ref in entry[field] if (ref["path"], ref["symbol"]) != (relative, symbol)
+            ]})
+            self.assertEqual(len(changed[field]), len(entry[field]) - 1)
+            with self.subTest(ident=ident, symbol=symbol), \
+                    self.assertRaisesRegex(ValueError, "marker storage|executable Verus|cold"):
+                framework.validate_normative_coverage(dict(coverage, requirements=[changed]))
+
     def test_inventory_nlt_storage_binds_source_roles_counts_replies_partial_owners_and_tails(self):
         coverage = json.loads((framework.VALIDATION / "normative-coverage.json").read_text())
         read_text = Path.read_text
@@ -10797,6 +10888,10 @@ class FrameworkTests(WorkingFiles):
                         if {"path": path, "symbol": symbol} not in isolated["test_refs"]
                     ]
                 if key == ("src/decode/api.rs", "typed_layout") or isolated["id"] in {
+                        "part1-complete-native-raw-layout-result",
+                        "part1-complete-native-raw-main-header-result",
+                        "part2-complete-native-mct-fragment-production",
+                        "part2-complete-native-mcc-fragment-production",
                         "part2-complete-native-raw-nonlinear-bytes",
                         "part2-complete-native-nonlinear-owner-mutation",
                         "part2-complete-native-nonlinear-region-production"}:

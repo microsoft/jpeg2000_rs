@@ -4135,6 +4135,9 @@
         {"path": "src/decode/output.rs", "symbol": "decode_jpx_file"}
       ],
       "spec_refs": [
+        {"path": "specs/cold_marker_header.rs", "symbol": "part1_fresh_main_calls"},
+        {"path": "specs/cold_marker_header.rs", "symbol": "part1_fresh_main_mct_array_requests"},
+        {"path": "specs/cold_marker_header.rs", "symbol": "part1_fresh_main_mcc_record_requests"},
         {"path": "specs/cold_bitmap.rs", "symbol": "part1_bitmap_count"},
         {"path": "specs/cold_bitmap.rs", "symbol": "part1_bitmap_requests"},
         {"path": "specs/cold_bitmap.rs", "symbol": "part1_bitmap_run"},
@@ -4201,6 +4204,8 @@
         {"path": "src/codestream/layout.rs", "symbol": "parse"}
       ],
       "proof_refs": [
+        {"path": "specs/cold_marker_header.rs", "symbol": "part1_cold_main_mct_array_error"},
+        {"path": "specs/cold_marker_header.rs", "symbol": "part1_cold_main_mcc_record_error"},
         {"path": "specs/cold_bitmap.rs", "symbol": "part1_bitmap_normal"},
         {"path": "specs/cold_bitmap.rs", "symbol": "part1_bitmap_frame"},
         {"path": "specs/cold_bitmap.rs", "symbol": "part1_bitmap_projection"},
@@ -4269,6 +4274,9 @@
         {"path": "specs/cold_layout_continuations.rs", "symbol": "part1_cold_layout_sot_progression_error"}
       ],
       "test_refs": [
+        {"path": "src/codestream/tests.rs", "symbol": "mct_marker_storage_pending_refusal_empty_spare_and_exact_retry"},
+        {"path": "src/codestream/tests.rs", "symbol": "mct_marker_storage_completion_refusal_removed_prefix_semantic_priority_and_retry"},
+        {"path": "src/codestream/tests.rs", "symbol": "mct_marker_storage_mcc_pending_completed_empty_spare_priority_and_retry"},
         {"path": "src/codestream/tests.rs", "symbol": "fresh_progression_bitmap_main_and_later_tile_restore_persistent_and_raw_frames"},
         {"path": "src/jp2/tests.rs", "symbol": "fresh_progression_bitmap_container_main_and_tile_refusal_restore"},
         {"path": "src/codestream/tests.rs", "symbol": "fresh_profile_raw_first_later_duplicate_and_tile_admission_restore"},
@@ -4298,6 +4306,9 @@
         {"path": "src/codestream/extensions.rs", "symbol": "new_part2_extensions"}
       ],
       "spec_refs": [
+        {"path": "specs/cold_marker_header.rs", "symbol": "part1_fresh_main_calls"},
+        {"path": "specs/cold_marker_header.rs", "symbol": "part1_fresh_main_mct_array_requests"},
+        {"path": "specs/cold_marker_header.rs", "symbol": "part1_fresh_main_mcc_record_requests"},
         {"path": "specs/cold_bitmap.rs", "symbol": "part1_bitmap_count"},
         {"path": "specs/cold_bitmap.rs", "symbol": "part1_bitmap_requests"},
         {"path": "specs/cold_bitmap.rs", "symbol": "part1_bitmap_run"},
@@ -4363,6 +4374,8 @@
         {"path": "src/codestream/extensions.rs", "symbol": "new_part2_extensions"}
       ],
       "proof_refs": [
+        {"path": "specs/cold_marker_header.rs", "symbol": "part1_cold_main_mct_array_error"},
+        {"path": "specs/cold_marker_header.rs", "symbol": "part1_cold_main_mcc_record_error"},
         {"path": "specs/cold_bitmap.rs", "symbol": "part1_bitmap_normal"},
         {"path": "specs/cold_bitmap.rs", "symbol": "part1_bitmap_frame"},
         {"path": "specs/cold_bitmap.rs", "symbol": "part1_bitmap_projection"},
@@ -4417,6 +4430,9 @@
         {"path": "specs/cold_layout_continuations.rs", "symbol": "part1_cold_layout_sot_progression_error"}
       ],
       "test_refs": [
+        {"path": "src/codestream/tests.rs", "symbol": "mct_marker_storage_pending_refusal_empty_spare_and_exact_retry"},
+        {"path": "src/codestream/tests.rs", "symbol": "mct_marker_storage_completion_refusal_removed_prefix_semantic_priority_and_retry"},
+        {"path": "src/codestream/tests.rs", "symbol": "mct_marker_storage_mcc_pending_completed_empty_spare_priority_and_retry"},
         {"path": "src/codestream/main_header_result_tests.rs", "symbol": "actual_raw_main_header_initializers_preserve_all_physical_empty_owners"},
         {"path": "src/codestream/main_header_result_tests.rs", "symbol": "actual_raw_main_header_result_composes_all_deferred_component_orders_and_geometry"},
         {"path": "src/codestream/main_header_result_tests.rs", "symbol": "actual_raw_main_header_result_preserves_dispatch_and_finalization_first_errors"},
@@ -5626,6 +5642,10 @@
         {"path": "src/codestream/mct_markers.rs", "symbol": "Parser::parse_mct"}
       ],
       "spec_refs": [
+        {"path": "specs/cold_marker_storage.rs", "symbol": "part1_fresh_marker_site"},
+        {"path": "specs/cold_marker_storage.rs", "symbol": "part1_fresh_prepare_mct_requests"},
+        {"path": "specs/cold_marker_storage.rs", "symbol": "part1_fresh_mct_completed_requests"},
+        {"path": "specs/cold_marker_storage.rs", "symbol": "part1_fresh_consume_mct_calls"},
         {"path": "specs/cold_marker_storage.rs", "symbol": "part1_fresh_consume_mct_result"},
         {"path": "specs/cold_marker_storage.rs", "symbol": "part1_fresh_consume_mct_run"},
         {"path": "specs/cold_marker_storage.rs", "symbol": "part1_fresh_prepare_mct_result"},
@@ -5648,6 +5668,11 @@
         {"path": "src/codestream/mct_resolution.rs", "symbol": "u8_list_contains"}
       ],
       "proof_refs": [
+        {"path": "specs/cold_marker_storage.rs", "symbol": "part1_fresh_prepare_mct_refused"},
+        {"path": "specs/cold_marker_storage.rs", "symbol": "part1_fresh_prepare_mct_projection"},
+        {"path": "specs/cold_marker_storage.rs", "symbol": "part1_fresh_consume_mct_parsed"},
+        {"path": "specs/cold_marker_storage.rs", "symbol": "part1_fresh_consume_mct_frame"},
+        {"path": "specs/cold_marker_storage.rs", "symbol": "part1_fresh_consume_mct_projection"},
         {"path": "specs/cold_marker_storage.rs", "symbol": "part1_fresh_consume_mct_normal"},
         {"path": "specs/cold_marker_storage.rs", "symbol": "part1_fresh_prepare_mct_normal"},
         {"path": "src/codestream/proof_support.rs", "symbol": "mct_fragment_view"},
@@ -5660,6 +5685,8 @@
         {"path": "src/limits.rs", "symbol": "ResourceLimits::maximum_components"}
       ],
       "test_refs": [
+        {"path": "src/codestream/tests.rs", "symbol": "mct_marker_storage_pending_refusal_empty_spare_and_exact_retry"},
+        {"path": "src/codestream/tests.rs", "symbol": "mct_marker_storage_completion_refusal_removed_prefix_semantic_priority_and_retry"},
         {"path": "src/codestream/tests.rs", "symbol": "fresh_marker_fragments_preserve_prior_pending_and_completion_on_refusal"},
         {"path": "src/codestream/tests.rs", "symbol": "actual_mct_fragments_preserve_descriptors_first_matches_and_partial_commits"},
         {"path": "src/codestream/tests.rs", "symbol": "actual_mct_fragments_compose_numeric_arrays_swap_order_offsets_and_reader"},
@@ -5740,6 +5767,10 @@
         {"path": "src/codestream/mct_resolution.rs", "symbol": "u8_list_contains"}
       ],
       "spec_refs": [
+        {"path": "specs/cold_marker_storage.rs", "symbol": "part1_fresh_marker_site"},
+        {"path": "specs/cold_marker_storage.rs", "symbol": "part1_fresh_prepare_mcc_requests"},
+        {"path": "specs/cold_marker_storage.rs", "symbol": "part1_fresh_mcc_completed_requests"},
+        {"path": "specs/cold_marker_storage.rs", "symbol": "part1_fresh_consume_mcc_calls"},
         {"path": "specs/cold_marker_storage.rs", "symbol": "part1_fresh_consume_mcc_result"},
         {"path": "specs/cold_marker_storage.rs", "symbol": "part1_fresh_consume_mcc_run"},
         {"path": "specs/cold_marker_storage.rs", "symbol": "part1_fresh_prepare_mcc_result"},
@@ -5764,6 +5795,11 @@
         {"path": "src/codestream/mct_resolution.rs", "symbol": "u8_list_contains"}
       ],
       "proof_refs": [
+        {"path": "specs/cold_marker_storage.rs", "symbol": "part1_fresh_prepare_mcc_refused"},
+        {"path": "specs/cold_marker_storage.rs", "symbol": "part1_fresh_prepare_mcc_projection"},
+        {"path": "specs/cold_marker_storage.rs", "symbol": "part1_fresh_consume_mcc_parsed"},
+        {"path": "specs/cold_marker_storage.rs", "symbol": "part1_fresh_consume_mcc_frame"},
+        {"path": "specs/cold_marker_storage.rs", "symbol": "part1_fresh_consume_mcc_projection"},
         {"path": "specs/cold_marker_storage.rs", "symbol": "part1_fresh_consume_mcc_normal"},
         {"path": "specs/cold_marker_storage.rs", "symbol": "part1_fresh_prepare_mcc_normal"},
         {"path": "src/codestream/proof_support.rs", "symbol": "mcc_fragment_outcome"},
@@ -5775,6 +5811,7 @@
         {"path": "src/refinement/reconstruction.rs", "symbol": "mct_fragment_complete"}
       ],
       "test_refs": [
+        {"path": "src/codestream/tests.rs", "symbol": "mct_marker_storage_mcc_pending_completed_empty_spare_priority_and_retry"},
         {"path": "src/codestream/tests.rs", "symbol": "fresh_marker_fragments_preserve_prior_pending_and_completion_on_refusal"},
         {"path": "src/codestream/tests.rs", "symbol": "actual_mcc_fragments_preserve_all_index_headers_first_matches_and_partial_failure_commits"},
         {"path": "src/codestream/tests.rs", "symbol": "actual_mcc_fragments_compose_real_records_swap_order_offsets_and_completed_policy"},

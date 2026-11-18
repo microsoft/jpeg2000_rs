@@ -1,4 +1,4 @@
-//! Fresh marker requests at actual syntax/reassembly cutpoints, excluding growth.
+//! Fresh marker requests at actual syntax/reassembly and reached growth cutpoints.
 
 use super::*;
 use crate::codestream::{FreshMarkerPath, MctCopyPath};
@@ -12,6 +12,12 @@ pub(crate) open spec fn part1_fresh_marker_site(path: FreshMarkerPath) -> u8 {
         FreshMarkerPath::Order(_) => 67, FreshMarkerPath::MctReassembly(_) => 68,
         FreshMarkerPath::MccReassembly(_) => 69, FreshMarkerPath::MctInitial(_) => 70,
         FreshMarkerPath::MccInitial(_) => 71,
+        FreshMarkerPath::MctPending(_, _) => 86,
+        FreshMarkerPath::MctCompleted(_, _) => 87,
+        FreshMarkerPath::MctRetainedMain(_, _) => 88,
+        FreshMarkerPath::MccPending(_, _) => 89,
+        FreshMarkerPath::MccCompleted(_, _) => 90,
+        FreshMarkerPath::MccRetainedMain(_, _) => 91,
     }
 }
 
@@ -480,6 +486,7 @@ pub(crate) open spec fn part1_fresh_prepare_mct_requests(
     if segment.payload.len() >= 6 && part1_marker_value(segment.payload[0], segment.payload[1]) == 0
         && part1_prepare_mct_fragment(segment, limits, pending, completed).0.is_ok() {
         part1_fresh_leaf(FreshMarkerPath::MctInitial(segment.offset), (segment.payload.len() - 6) as usize)
+            + part1_fresh_leaf(FreshMarkerPath::MctPending(segment.offset, pending.len() as usize), 1)
     } else { Seq::empty() }
 }
 
@@ -489,6 +496,7 @@ pub(crate) open spec fn part1_fresh_prepare_mcc_requests(
     if segment.payload.len() >= 7 && part1_marker_value(segment.payload[0], segment.payload[1]) == 0
         && part1_prepare_mcc_fragment(segment, components, pending, completed).0.is_ok() {
         part1_fresh_leaf(FreshMarkerPath::MccInitial(segment.offset), (segment.payload.len() - 7) as usize)
+            + part1_fresh_leaf(FreshMarkerPath::MccPending(segment.offset, pending.len() as usize), 1)
     } else { Seq::empty() }
 }
 
@@ -522,6 +530,18 @@ pub(crate) open spec fn part1_fresh_reassembly_count(length: nat, header: usize)
     if length + header > usize::MAX { usize::MAX } else { (length + header) as usize }
 }
 
+pub(crate) open spec fn part1_fresh_mct_completed_requests(
+    segment: Part1CodestreamSegment, completed: Seq<u8>,
+) -> Seq<Part1MctCopyRequest> {
+    part1_fresh_leaf(FreshMarkerPath::MctCompleted(segment.offset, completed.len() as usize), 1)
+}
+
+pub(crate) open spec fn part1_fresh_mcc_completed_requests(
+    segment: Part1CodestreamSegment, completed: Seq<u8>,
+) -> Seq<Part1MctCopyRequest> {
+    part1_fresh_leaf(FreshMarkerPath::MccCompleted(segment.offset, completed.len() as usize), 1)
+}
+
 pub(crate) open spec fn part1_fresh_consume_mct_run(
     segment: Part1CodestreamSegment, limits: &crate::ResourceLimits, pending: Seq<Part1MctFragment>, completed: Seq<u8>,
     events: Seq<Part1ColdStorageEvent>,
@@ -545,7 +565,11 @@ pub(crate) open spec fn part1_fresh_consume_mct_run(
                         Some((Ok(()), tail)) => match part1_fresh_mct_run(part1_fresh_mct_reassembled(state), limits, tail) {
                             None => None,
                             Some((Err(error), last)) => Some(((Err(error), removed, completed), last)),
-                            Some((Ok(array), last)) => Some(((Ok(Some(array)), removed, completed.push(segment.payload[3])), last)),
+                            Some((Ok(array), last)) => match part1_mct_copy_run(part1_fresh_mct_completed_requests(segment, completed), last) {
+                                None => None,
+                                Some((Err(error), end)) => Some(((Err(error), removed, completed), end)),
+                                Some((Ok(()), end)) => Some(((Ok(Some(array)), removed, completed.push(segment.payload[3])), end)),
+                            },
                         },
                     }
                 }
@@ -577,7 +601,11 @@ pub(crate) open spec fn part1_fresh_consume_mcc_run(
                         Some((Ok(()), tail)) => match part1_fresh_mcc_run(part1_fresh_mcc_reassembled(state), components, limits, tail) {
                             None => None,
                             Some((Err(error), last)) => Some(((Err(error), removed, completed), last)),
-                            Some((Ok(record), last)) => Some(((Ok(Some(record)), removed, completed.push(segment.payload[2])), last)),
+                            Some((Ok(record), last)) => match part1_mct_copy_run(part1_fresh_mcc_completed_requests(segment, completed), last) {
+                                None => None,
+                                Some((Err(error), end)) => Some(((Err(error), removed, completed), end)),
+                                Some((Ok(()), end)) => Some(((Ok(Some(record)), removed, completed.push(segment.payload[2])), end)),
+                            },
                         },
                     }
                 }
@@ -749,6 +777,9 @@ pub(crate) open spec fn part1_fresh_consume_mct_calls(
                 first + part1_mct_copy_normal_calls(part1_fresh_leaf(FreshMarkerPath::MctReassembly(state.offset),
                     part1_fresh_reassembly_count(state.data.len(), 6)))
                     + part1_mct_copy_normal_calls(part1_fresh_mct_requests(part1_fresh_mct_reassembled(state), limits))
+                    + part1_mct_copy_normal_calls(if part1_parse_mct(part1_fresh_mct_reassembled(state), limits).is_ok() {
+                        part1_fresh_mct_completed_requests(segment, completed)
+                    } else { Seq::empty() })
             }
         },
     }
@@ -766,6 +797,9 @@ pub(crate) open spec fn part1_fresh_consume_mcc_calls(
                 first + part1_mct_copy_normal_calls(part1_fresh_leaf(FreshMarkerPath::MccReassembly(state.offset),
                     part1_fresh_reassembly_count(state.data.len(), 7)))
                     + part1_mct_copy_normal_calls(part1_fresh_mcc_requests(part1_fresh_mcc_reassembled(state), components, limits))
+                    + part1_mct_copy_normal_calls(if part1_parse_mcc(part1_fresh_mcc_reassembled(state), components, limits).is_ok() {
+                        part1_fresh_mcc_completed_requests(segment, completed)
+                    } else { Seq::empty() })
             }
         },
     }
@@ -787,10 +821,19 @@ pub(crate) proof fn part1_fresh_consume_mct_normal(
         if part2_fragment_complete(state.next_index, state.final_index) && state.data.len() as u64 <= maximum {
             let second = part1_fresh_leaf(FreshMarkerPath::MctReassembly(state.offset), part1_fresh_reassembly_count(state.data.len(), 6));
             let third = part1_fresh_mct_requests(part1_fresh_mct_reassembled(state), limits);
-            later = part1_mct_copy_normal_calls(second) + part1_mct_copy_normal_calls(third);
-            part1_mct_copy_normal(third, tail); part1_mct_copy_normal(second, part1_mct_copy_normal_calls(third) + tail);
-            part1_mct_copy_normal(third, Seq::empty()); part1_mct_copy_normal(second, part1_mct_copy_normal_calls(third));
-            assert((later + tail) =~= part1_mct_copy_normal_calls(second) + (part1_mct_copy_normal_calls(third) + tail));
+            let fourth = if part1_parse_mct(part1_fresh_mct_reassembled(state), limits).is_ok() {
+                part1_fresh_mct_completed_requests(segment, completed)
+            } else { Seq::empty() };
+            let final_calls = part1_mct_copy_normal_calls(fourth);
+            later = part1_mct_copy_normal_calls(second) + part1_mct_copy_normal_calls(third) + final_calls;
+            part1_mct_copy_normal(fourth, tail); part1_mct_copy_normal(fourth, Seq::empty());
+            part1_mct_copy_normal(third, final_calls + tail);
+            part1_mct_copy_normal(second, part1_mct_copy_normal_calls(third) + (final_calls + tail));
+            part1_mct_copy_normal(third, final_calls);
+            part1_mct_copy_normal(second, part1_mct_copy_normal_calls(third) + final_calls);
+            assert(later =~= part1_mct_copy_normal_calls(second) + (part1_mct_copy_normal_calls(third) + final_calls));
+            if fourth.len()==0 {assert(final_calls =~= Seq::<Part1ColdStorageEvent>::empty());}
+            assert((later + tail) =~= part1_mct_copy_normal_calls(second) + (part1_mct_copy_normal_calls(third) + (final_calls + tail)));
         }
     }
     part1_mct_copy_normal(first, later + tail); part1_mct_copy_normal(first, later);
@@ -817,10 +860,19 @@ pub(crate) proof fn part1_fresh_consume_mcc_normal(
         if part2_fragment_complete(state.next_index, state.final_index) && state.data.len() as u64 <= maximum {
             let second = part1_fresh_leaf(FreshMarkerPath::MccReassembly(state.offset), part1_fresh_reassembly_count(state.data.len(), 7));
             let third = part1_fresh_mcc_requests(part1_fresh_mcc_reassembled(state), components, limits);
-            later = part1_mct_copy_normal_calls(second) + part1_mct_copy_normal_calls(third);
-            part1_mct_copy_normal(third, tail); part1_mct_copy_normal(second, part1_mct_copy_normal_calls(third) + tail);
-            part1_mct_copy_normal(third, Seq::empty()); part1_mct_copy_normal(second, part1_mct_copy_normal_calls(third));
-            assert((later + tail) =~= part1_mct_copy_normal_calls(second) + (part1_mct_copy_normal_calls(third) + tail));
+            let fourth = if part1_parse_mcc(part1_fresh_mcc_reassembled(state), components, limits).is_ok() {
+                part1_fresh_mcc_completed_requests(segment, completed)
+            } else { Seq::empty() };
+            let final_calls = part1_mct_copy_normal_calls(fourth);
+            later = part1_mct_copy_normal_calls(second) + part1_mct_copy_normal_calls(third) + final_calls;
+            part1_mct_copy_normal(fourth, tail); part1_mct_copy_normal(fourth, Seq::empty());
+            part1_mct_copy_normal(third, final_calls + tail);
+            part1_mct_copy_normal(second, part1_mct_copy_normal_calls(third) + (final_calls + tail));
+            part1_mct_copy_normal(third, final_calls);
+            part1_mct_copy_normal(second, part1_mct_copy_normal_calls(third) + final_calls);
+            assert(later =~= part1_mct_copy_normal_calls(second) + (part1_mct_copy_normal_calls(third) + final_calls));
+            if fourth.len()==0 {assert(final_calls =~= Seq::<Part1ColdStorageEvent>::empty());}
+            assert((later + tail) =~= part1_mct_copy_normal_calls(second) + (part1_mct_copy_normal_calls(third) + (final_calls + tail)));
         }
     }
     part1_mct_copy_normal(first, later + tail); part1_mct_copy_normal(first, later);
@@ -912,7 +964,7 @@ pub(crate) proof fn part1_fresh_consume_mcc_reassembly_error(
 
 pub(crate) proof fn part1_fresh_consume_mct_parsed(
     segment: Part1CodestreamSegment, limits: &crate::ResourceLimits, pending: Seq<Part1MctFragment>, completed: Seq<u8>,
-    parsed: Result<Part2MctArray, crate::DecodeError>,
+    parsed: Result<Part2MctArray, crate::DecodeError>, capacity: Result<(), crate::DecodeError>,
 )
     requires match part1_prepare_mct_fragment(segment, limits, pending, completed) {
         (Ok((index, maximum)), changed) => {
@@ -922,29 +974,39 @@ pub(crate) proof fn part1_fresh_consume_mct_parsed(
             && part1_mct_copy_result(part1_fresh_leaf(FreshMarkerPath::MctReassembly(state.offset), part1_fresh_reassembly_count(state.data.len(), 6)), Ok(()))
         }, _ => false,
     },
+        parsed.is_ok() ==> part1_mct_copy_result(part1_fresh_mct_completed_requests(segment, completed), capacity),
+        parsed.is_err() ==> capacity.is_ok(),
     ensures match part1_prepare_mct_fragment(segment, limits, pending, completed) {
         (Ok((index, _)), changed) => part1_fresh_consume_mct_result(segment, limits, pending, completed,
-            (match parsed { Err(error) => Err(error), Ok(value) => Ok(Some(value)) }, part1_mct_fragment_swap_remove(changed, index),
-                if parsed.is_ok() { completed.push(segment.payload[3]) } else { completed })), _ => false,
+            (match parsed { Err(error) => Err(error), Ok(value) => match capacity {Err(error)=>Err(error),Ok(())=>Ok(Some(value))} },
+                part1_mct_fragment_swap_remove(changed, index),
+                if parsed.is_ok() && capacity.is_ok() { completed.push(segment.payload[3]) } else { completed })), _ => false,
     },
 {
-    reveal(part1_fresh_mct_result); reveal(part1_fresh_consume_mct_result);
+    reveal(part1_fresh_mct_result); reveal(part1_fresh_consume_mct_result); reveal(part1_mct_copy_result);
     let prepared = part1_prepare_mct_fragment(segment, limits, pending, completed);
     if let Ok((index, maximum)) = prepared.0 {
         let state = prepared.1[index as int];
         let raw = part1_fresh_mct_reassembled(state);
         let calls = choose|calls: Seq<Part1ColdStorageEvent>| part1_fresh_mct_run(raw, limits, calls) == Some((parsed, Seq::empty()));
+        let last = if parsed.is_ok() {
+            choose|events: Seq<Part1ColdStorageEvent>| part1_mct_copy_run(part1_fresh_mct_completed_requests(segment, completed), events)
+                == Some((capacity, Seq::empty()))
+        } else { Seq::empty() };
+        part1_fresh_mct_frame(raw, limits, calls, parsed, Seq::empty(), last);
+        assert(Seq::<Part1ColdStorageEvent>::empty() + last =~= last);
         let second = part1_fresh_leaf(FreshMarkerPath::MctReassembly(state.offset), part1_fresh_reassembly_count(state.data.len(), 6));
         let first = part1_fresh_prepare_mct_requests(segment, limits, pending, completed);
-        part1_mct_copy_normal(second, calls); part1_mct_copy_normal(first, part1_mct_copy_normal_calls(second) + calls);
-        assert(part1_fresh_consume_mct_run(segment, limits, pending, completed, part1_mct_copy_normal_calls(first) + (part1_mct_copy_normal_calls(second) + calls))
-            == Some(((match parsed { Err(error) => Err(error), Ok(value) => Ok(Some(value)) }, part1_mct_fragment_swap_remove(prepared.1, index),
-                if parsed.is_ok() { completed.push(segment.payload[3]) } else { completed }), Seq::empty())));
+        part1_mct_copy_normal(second, calls + last); part1_mct_copy_normal(first, part1_mct_copy_normal_calls(second) + (calls + last));
+        assert(part1_fresh_consume_mct_run(segment, limits, pending, completed, part1_mct_copy_normal_calls(first) + (part1_mct_copy_normal_calls(second) + (calls + last)))
+            == Some(((match parsed { Err(error) => Err(error), Ok(value) => match capacity {Err(error)=>Err(error),Ok(())=>Ok(Some(value))} },
+                part1_mct_fragment_swap_remove(prepared.1, index),
+                if parsed.is_ok() && capacity.is_ok() { completed.push(segment.payload[3]) } else { completed }), Seq::empty())));
     }
 }
 pub(crate) proof fn part1_fresh_consume_mcc_parsed(
     segment: Part1CodestreamSegment, components: u16, limits: &crate::ResourceLimits, pending: Seq<Part1MccFragment>, completed: Seq<u8>,
-    parsed: Result<Part1MctRecord, crate::DecodeError>,
+    parsed: Result<Part1MctRecord, crate::DecodeError>, capacity: Result<(), crate::DecodeError>,
 )
     requires match part1_prepare_mcc_fragment(segment, components, pending, completed) {
         (Ok((index, maximum)), changed) => {
@@ -954,24 +1016,34 @@ pub(crate) proof fn part1_fresh_consume_mcc_parsed(
             && part1_mct_copy_result(part1_fresh_leaf(FreshMarkerPath::MccReassembly(state.offset), part1_fresh_reassembly_count(state.data.len(), 7)), Ok(()))
         }, _ => false,
     },
+        parsed.is_ok() ==> part1_mct_copy_result(part1_fresh_mcc_completed_requests(segment, completed), capacity),
+        parsed.is_err() ==> capacity.is_ok(),
     ensures match part1_prepare_mcc_fragment(segment, components, pending, completed) {
         (Ok((index, _)), changed) => part1_fresh_consume_mcc_result(segment, components, limits, pending, completed,
-            (match parsed { Err(error) => Err(error), Ok(value) => Ok(Some(value)) }, part1_mcc_fragment_swap_remove(changed, index),
-                if parsed.is_ok() { completed.push(segment.payload[2]) } else { completed })), _ => false,
+            (match parsed { Err(error) => Err(error), Ok(value) => match capacity {Err(error)=>Err(error),Ok(())=>Ok(Some(value))} },
+                part1_mcc_fragment_swap_remove(changed, index),
+                if parsed.is_ok() && capacity.is_ok() { completed.push(segment.payload[2]) } else { completed })), _ => false,
     },
 {
-    reveal(part1_fresh_mcc_result); reveal(part1_fresh_consume_mcc_result);
+    reveal(part1_fresh_mcc_result); reveal(part1_fresh_consume_mcc_result); reveal(part1_mct_copy_result);
     let prepared = part1_prepare_mcc_fragment(segment, components, pending, completed);
     if let Ok((index, maximum)) = prepared.0 {
         let state = prepared.1[index as int];
         let raw = part1_fresh_mcc_reassembled(state);
         let calls = choose|calls: Seq<Part1ColdStorageEvent>| part1_fresh_mcc_run(raw, components, limits, calls) == Some((parsed, Seq::empty()));
+        let last = if parsed.is_ok() {
+            choose|events: Seq<Part1ColdStorageEvent>| part1_mct_copy_run(part1_fresh_mcc_completed_requests(segment, completed), events)
+                == Some((capacity, Seq::empty()))
+        } else { Seq::empty() };
+        part1_fresh_mcc_frame(raw, components, limits, calls, parsed, Seq::empty(), last);
+        assert(Seq::<Part1ColdStorageEvent>::empty() + last =~= last);
         let second = part1_fresh_leaf(FreshMarkerPath::MccReassembly(state.offset), part1_fresh_reassembly_count(state.data.len(), 7));
         let first = part1_fresh_prepare_mcc_requests(segment, components, pending, completed);
-        part1_mct_copy_normal(second, calls); part1_mct_copy_normal(first, part1_mct_copy_normal_calls(second) + calls);
-        assert(part1_fresh_consume_mcc_run(segment, components, limits, pending, completed, part1_mct_copy_normal_calls(first) + (part1_mct_copy_normal_calls(second) + calls))
-            == Some(((match parsed { Err(error) => Err(error), Ok(value) => Ok(Some(value)) }, part1_mcc_fragment_swap_remove(prepared.1, index),
-                if parsed.is_ok() { completed.push(segment.payload[2]) } else { completed }), Seq::empty())));
+        part1_mct_copy_normal(second, calls + last); part1_mct_copy_normal(first, part1_mct_copy_normal_calls(second) + (calls + last));
+        assert(part1_fresh_consume_mcc_run(segment, components, limits, pending, completed, part1_mct_copy_normal_calls(first) + (part1_mct_copy_normal_calls(second) + (calls + last)))
+            == Some(((match parsed { Err(error) => Err(error), Ok(value) => match capacity {Err(error)=>Err(error),Ok(())=>Ok(Some(value))} },
+                part1_mcc_fragment_swap_remove(prepared.1, index),
+                if parsed.is_ok() && capacity.is_ok() { completed.push(segment.payload[2]) } else { completed }), Seq::empty())));
     }
 }
 
@@ -1055,6 +1127,12 @@ pub(crate) proof fn part1_fresh_consume_mct_frame(
                 if unit.is_ok() {
                     if let Some((parsed, last)) = part1_fresh_mct_run(part1_fresh_mct_reassembled(state), limits, after_second) {
                         part1_fresh_mct_frame(part1_fresh_mct_reassembled(state), limits, after_second, parsed, last, tail);
+                        if parsed.is_ok() {
+                            let fourth=part1_fresh_mct_completed_requests(segment, completed);
+                            if let Some((capacity,end))=part1_mct_copy_run(fourth,last) {
+                                part1_mct_copy_frame(fourth,last,capacity,end,tail);
+                            }
+                        }
                     }
                 }
             }
@@ -1080,6 +1158,12 @@ pub(crate) proof fn part1_fresh_consume_mcc_frame(
                 if unit.is_ok() {
                     if let Some((parsed, last)) = part1_fresh_mcc_run(part1_fresh_mcc_reassembled(state), components, limits, after_second) {
                         part1_fresh_mcc_frame(part1_fresh_mcc_reassembled(state), components, limits, after_second, parsed, last, tail);
+                        if parsed.is_ok() {
+                            let fourth=part1_fresh_mcc_completed_requests(segment, completed);
+                            if let Some((capacity,end))=part1_mct_copy_run(fourth,last) {
+                                part1_mct_copy_frame(fourth,last,capacity,end,tail);
+                            }
+                        }
                     }
                 }
             }
@@ -1105,6 +1189,12 @@ pub(crate) proof fn part1_fresh_consume_mct_projection(
                     if unit.is_ok() {
                         if let Some((parsed, last)) = part1_fresh_mct_run(part1_fresh_mct_reassembled(state), limits, after_second) {
                             part1_fresh_mct_projection(part1_fresh_mct_reassembled(state), limits, after_second, parsed, last);
+                            if parsed.is_ok() {
+                                let fourth=part1_fresh_mct_completed_requests(segment, completed);
+                                if let Some((capacity,end))=part1_mct_copy_run(fourth,last) {
+                                    part1_mct_copy_projection(fourth,last,capacity,end);
+                                }
+                            }
                         }
                     }
                 }
@@ -1131,6 +1221,12 @@ pub(crate) proof fn part1_fresh_consume_mcc_projection(
                     if unit.is_ok() {
                         if let Some((parsed, last)) = part1_fresh_mcc_run(part1_fresh_mcc_reassembled(state), components, limits, after_second) {
                             part1_fresh_mcc_projection(part1_fresh_mcc_reassembled(state), components, limits, after_second, parsed, last);
+                            if parsed.is_ok() {
+                                let fourth=part1_fresh_mcc_completed_requests(segment, completed);
+                                if let Some((capacity,end))=part1_mct_copy_run(fourth,last) {
+                                    part1_mct_copy_projection(fourth,last,capacity,end);
+                                }
+                            }
                         }
                     }
                 }
