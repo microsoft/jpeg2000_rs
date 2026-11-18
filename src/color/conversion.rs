@@ -22,7 +22,11 @@ use vstd::prelude::*;
 #[cfg_attr(
     verus_keep_ghost,
     verus_spec(result =>
-        ensures converted_image_result(result) == crate::specs::color_convert_jp2(
+        ensures crate::specs::part2_color_convert_storage_result(crate::specs::Part2ColorConvertContext {
+            image:crate::image::typed_image_value_view(*image),method:crate::jp2::color_specification_method(color),
+            bytes:crate::limits::resource_decoded_bytes_limit(limits),work:crate::limits::resource_work_limit(limits),
+        },converted_image_result(result)),
+        result!=Err(DecodeError::AllocationFailed) ==> converted_image_result(result) == crate::specs::color_convert_jp2(
             crate::image::typed_image_component_views(image),
             crate::image::typed_image_definition_views(image),
             crate::image::typed_image_geometry(image), crate::jp2::color_specification_method(color),
@@ -39,7 +43,12 @@ pub fn convert_jp2_color(
     proof_decl! {
         let ghost input = crate::image::typed_image_component_views(image);
         let ghost geometry = crate::image::typed_image_geometry(image);
+        let ghost storage_context=crate::specs::Part2ColorConvertContext {
+            image:crate::image::typed_image_value_view(*image),method:crate::jp2::color_specification_method(color),
+            bytes:crate::limits::resource_decoded_bytes_limit(limits),work:crate::limits::resource_work_limit(limits)};
     }
+    #[cfg(verus_keep_ghost)]
+    proof! {crate::specs::part2_color_convert_storage_normal(storage_context);}
     if image.width() == 0 || image.height() == 0 {
         return Err(invalid_color_input());
     }
@@ -67,7 +76,14 @@ pub fn convert_jp2_color(
             return Err(unsupported(UnsupportedColorConversion::IccProfile));
         }
     };
-    let layout = channel_layout(image, color_count)?;
+    let organized = channel_layout(image, color_count);
+    #[cfg(verus_keep_ghost)]
+    proof! {
+        if let Err(error)=organized {
+            crate::specs::part2_color_convert_layout_error(storage_context,(color_count,output_space,sycc),error);
+        }
+    }
+    let layout = organized?;
     validate_components(image, &layout)?;
     validate_output_size(image, color_count, layout.alphas.len(), limits)?;
     #[cfg(verus_keep_ghost)]
@@ -83,19 +99,69 @@ pub fn convert_jp2_color(
             crate::limits::resource_decoded_bytes_limit(limits), crate::limits::resource_work_limit(limits),
         ));
     }
-    let mut channels = Vec::with_capacity(
-        color_count
-            .checked_add(layout.alphas.len())
-            .ok_or_else(arithmetic_overflow)?,
-    );
+    let channel_count = color_count
+        .checked_add(layout.alphas.len())
+        .ok_or_else(arithmetic_overflow)?;
+    let allocated = if channel_count == 0 {
+        Ok(Vec::new())
+    } else {
+        crate::allocation::empty_with_capacity(channel_count)
+    };
+    #[cfg(verus_keep_ghost)]
+    proof! {
+        assert(crate::specs::part2_color_convert_preflight(storage_context)==Ok(((color_count,output_space,sycc),(layout.colors@,layout.alphas@),pixel_count)));
+        let request=crate::specs::Part2ColorOutputCapacity::Channels {context:storage_context};
+        crate::specs::part2_color_output_capacity_observed(request,crate::allocation::inspection_capacity_outcome(allocated));
+        if let Err(error)=allocated {
+            crate::specs::part2_color_convert_owner_present(storage_context);
+            crate::specs::part2_color_convert_storage_refused(storage_context,request,error);
+        }
+    }
+    let mut channels = allocated?;
     if sycc {
         let width = usize::try_from(image.width()).map_err(|_| arithmetic_overflow())?;
         if width == 0 {
             return Err(invalid_color_input());
         }
-        let mut red = Vec::with_capacity(pixel_count);
-        let mut green = Vec::with_capacity(pixel_count);
-        let mut blue = Vec::with_capacity(pixel_count);
+        let allocated = if pixel_count == 0 {
+            Ok(Vec::new())
+        } else {
+            crate::allocation::empty_with_capacity(pixel_count)
+        };
+        #[cfg(verus_keep_ghost)]
+        proof! {
+            let request=crate::specs::Part2ColorOutputCapacity::Sycc {context:storage_context,role:0};
+            crate::specs::part2_color_output_capacity_observed(request,crate::allocation::inspection_capacity_outcome(allocated));
+            if let Err(error)=allocated {crate::specs::part2_color_convert_sycc_present(storage_context,0);
+                crate::specs::part2_color_convert_storage_refused(storage_context,request,error);}
+        }
+        let mut red = allocated?;
+        let allocated = if pixel_count == 0 {
+            Ok(Vec::new())
+        } else {
+            crate::allocation::empty_with_capacity(pixel_count)
+        };
+        #[cfg(verus_keep_ghost)]
+        proof! {
+            let request=crate::specs::Part2ColorOutputCapacity::Sycc {context:storage_context,role:1};
+            crate::specs::part2_color_output_capacity_observed(request,crate::allocation::inspection_capacity_outcome(allocated));
+            if let Err(error)=allocated {crate::specs::part2_color_convert_sycc_present(storage_context,1);
+                crate::specs::part2_color_convert_storage_refused(storage_context,request,error);}
+        }
+        let mut green = allocated?;
+        let allocated = if pixel_count == 0 {
+            Ok(Vec::new())
+        } else {
+            crate::allocation::empty_with_capacity(pixel_count)
+        };
+        #[cfg(verus_keep_ghost)]
+        proof! {
+            let request=crate::specs::Part2ColorOutputCapacity::Sycc {context:storage_context,role:2};
+            crate::specs::part2_color_output_capacity_observed(request,crate::allocation::inspection_capacity_outcome(allocated));
+            if let Err(error)=allocated {crate::specs::part2_color_convert_sycc_present(storage_context,2);
+                crate::specs::part2_color_convert_storage_refused(storage_context,request,error);}
+        }
+        let mut blue = allocated?;
         let mut pixel = 0_usize;
         #[cfg(verus_keep_ghost)]
         proof! {
@@ -105,6 +171,10 @@ pub fn convert_jp2_color(
             verus_keep_ghost,
             verus_spec(
                 invariant pixel <= pixel_count,
+                    storage_context==(crate::specs::Part2ColorConvertContext {
+                        image:(geometry,input,crate::image::typed_image_definition_views(image)),method:crate::jp2::color_specification_method(color),
+                        bytes:crate::limits::resource_decoded_bytes_limit(limits),work:crate::limits::resource_work_limit(limits)}),
+                    crate::specs::part2_color_convert_storage_result(storage_context,crate::specs::part2_color_convert_value(storage_context)),
                     sycc,
                     input == crate::image::typed_image_component_views(image),
                     geometry == crate::image::typed_image_geometry(image),
@@ -178,6 +248,10 @@ pub fn convert_jp2_color(
             verus_keep_ghost,
             verus_spec(
                 invariant color_index <= color_count,
+                    storage_context==(crate::specs::Part2ColorConvertContext {
+                        image:(geometry,input,crate::image::typed_image_definition_views(image)),method:crate::jp2::color_specification_method(color),
+                        bytes:crate::limits::resource_decoded_bytes_limit(limits),work:crate::limits::resource_work_limit(limits)}),
+                    crate::specs::part2_color_convert_storage_result(storage_context,crate::specs::part2_color_convert_value(storage_context)),
                     !sycc,
                     input == crate::image::typed_image_component_views(image),
                     geometry == crate::image::typed_image_geometry(image),
@@ -210,9 +284,13 @@ pub fn convert_jp2_color(
                 Err(error) => {
                     #[cfg(verus_keep_ghost)]
                     proof! {
-                        crate::proofs::production_impl::production_color_channels_error(
-                            input, geometry, colors, color_count, color_index as nat + 1, color_count as nat, error,
-                        );
+                        if crate::specs::color_convert_channel(input,geometry,colors,color_count,color_index)==Err(error) {
+                            crate::proofs::production_impl::production_color_channels_error(
+                                input, geometry, colors, color_count, color_index as nat + 1, color_count as nat, error,
+                            );
+                        }
+                        crate::specs::part2_color_convert_channel_error(storage_context,(color_count,output_space,sycc),
+                            (layout.colors@,layout.alphas@),pixel_count,color_index,error);
                     }
                     return Err(error);
                 }
@@ -239,6 +317,10 @@ pub fn convert_jp2_color(
         verus_keep_ghost,
         verus_spec(
             invariant alpha_index <= layout.alphas.len(),
+                storage_context==(crate::specs::Part2ColorConvertContext {
+                    image:(geometry,input,crate::image::typed_image_definition_views(image)),method:crate::jp2::color_specification_method(color),
+                    bytes:crate::limits::resource_decoded_bytes_limit(limits),work:crate::limits::resource_work_limit(limits)}),
+                crate::specs::part2_color_convert_storage_result(storage_context,crate::specs::part2_color_convert_value(storage_context)),
                 input == crate::image::typed_image_component_views(image),
                 geometry == crate::image::typed_image_geometry(image),
                 colors == layout.colors@,
@@ -269,9 +351,13 @@ pub fn convert_jp2_color(
             Err(error) => {
                 #[cfg(verus_keep_ghost)]
                 proof! {
-                    crate::proofs::production_impl::production_color_alphas_error(
-                        input, geometry, alphas, initial, alpha_index as nat + 1, alphas.len(), error,
-                    );
+                    if crate::specs::color_convert_alpha(input,geometry,alpha)==Err(error) {
+                        crate::proofs::production_impl::production_color_alphas_error(
+                            input, geometry, alphas, initial, alpha_index as nat + 1, alphas.len(), error,
+                        );
+                    }
+                    crate::specs::part2_color_convert_alpha_error(storage_context,(color_count,output_space,sycc),
+                        (layout.colors@,layout.alphas@),pixel_count,initial,alpha_index as nat,error);
                 }
                 return Err(error);
             }
@@ -294,7 +380,9 @@ pub fn convert_jp2_color(
 #[cfg_attr(
     verus_keep_ghost,
     verus_spec(result =>
-        ensures converted_channel_result(result) == crate::specs::color_convert_channel(
+        ensures crate::specs::part2_color_channel_storage_result(crate::image::typed_image_component_views(image),
+            crate::image::typed_image_geometry(image),colors@,color_count,index,converted_channel_result(result)),
+        result!=Err(DecodeError::AllocationFailed) ==> converted_channel_result(result) == crate::specs::color_convert_channel(
             crate::image::typed_image_component_views(image), crate::image::typed_image_geometry(image),
             colors@, color_count, index,
         ),
@@ -306,18 +394,27 @@ fn convert_color_channel(
     color_count: usize,
     index: usize,
 ) -> Result<ConvertedChannel, DecodeError> {
+    #[cfg(verus_keep_ghost)]
+    proof! {crate::specs::part2_color_channel_storage_normal(crate::image::typed_image_component_views(image),
+    crate::image::typed_image_geometry(image),colors@,color_count,index);}
     let component_index = *colors.get(index).ok_or_else(invalid_color_input)?;
     let component = image
         .components()
         .get(component_index)
         .ok_or_else(invalid_color_input)?;
-    let samples = normalize_component(
+    let normalized = normalize_component(
         component,
         image.width(),
         image.height(),
         image.x_origin(),
         image.y_origin(),
-    )?;
+    );
+    #[cfg(verus_keep_ghost)]
+    proof! {
+        if let Err(error)=normalized {crate::specs::part2_color_channel_storage_normalize_error(
+            crate::image::typed_image_component_views(image),crate::image::typed_image_geometry(image),colors@,color_count,index,error);}
+    }
+    let samples = normalized?;
     let channel_type = match (color_count, index) {
         (1, 0) => ConvertedChannelType::Gray,
         (3, 0) => ConvertedChannelType::Red,
@@ -334,7 +431,9 @@ fn convert_color_channel(
 #[cfg_attr(
     verus_keep_ghost,
     verus_spec(result =>
-        ensures converted_channel_result(result) == crate::specs::color_convert_alpha(
+        ensures crate::specs::part2_color_alpha_storage_result(crate::image::typed_image_component_views(image),
+            crate::image::typed_image_geometry(image),alpha,converted_channel_result(result)),
+        result!=Err(DecodeError::AllocationFailed) ==> converted_channel_result(result) == crate::specs::color_convert_alpha(
             crate::image::typed_image_component_views(image), crate::image::typed_image_geometry(image), alpha,
         ),
     )
@@ -343,17 +442,26 @@ fn convert_alpha_channel(
     image: &TypedImage,
     alpha: (usize, bool, ChannelAssociation),
 ) -> Result<ConvertedChannel, DecodeError> {
+    #[cfg(verus_keep_ghost)]
+    proof! {crate::specs::part2_color_alpha_storage_normal(crate::image::typed_image_component_views(image),
+    crate::image::typed_image_geometry(image),alpha);}
     let component = image
         .components()
         .get(alpha.0)
         .ok_or_else(invalid_color_input)?;
-    let samples = normalize_component(
+    let normalized = normalize_component(
         component,
         image.width(),
         image.height(),
         image.x_origin(),
         image.y_origin(),
-    )?;
+    );
+    #[cfg(verus_keep_ghost)]
+    proof! {
+        if let Err(error)=normalized {crate::specs::part2_color_alpha_storage_normalize_error(
+            crate::image::typed_image_component_views(image),crate::image::typed_image_geometry(image),alpha,error);}
+    }
+    let samples = normalized?;
     Ok(ConvertedChannel {
         channel_type: ConvertedChannelType::Alpha {
             premultiplied: alpha.1,

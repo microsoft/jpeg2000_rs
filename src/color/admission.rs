@@ -13,7 +13,9 @@ use vstd::prelude::*;
 #[cfg_attr(
     verus_keep_ghost,
     verus_spec(result =>
-        ensures channel_layout_result(result) == crate::specs::color_channel_layout(
+        ensures crate::specs::part2_color_layout_storage_result(crate::image::typed_image_definition_views(image),color_count,
+            channel_layout_result(result)),
+        result!=Err(DecodeError::AllocationFailed) ==> channel_layout_result(result) == crate::specs::color_channel_layout(
             crate::image::typed_image_definition_views(image), color_count,
         ),
     )
@@ -24,6 +26,8 @@ pub(super) fn channel_layout(
 ) -> Result<ChannelLayout, DecodeError> {
     #[cfg(verus_keep_ghost)]
     proof_decl! { let ghost input_definitions = crate::image::typed_image_definition_views(image); }
+    #[cfg(verus_keep_ghost)]
+    proof! {crate::specs::part2_color_layout_storage_normal(input_definitions,color_count);}
     let mut has_definitions = false;
     let component_count = image.components().len();
     let mut component_index = 0_usize;
@@ -31,6 +35,8 @@ pub(super) fn channel_layout(
         verus_keep_ghost,
         verus_spec(
             invariant component_index <= component_count,
+                crate::specs::part2_color_layout_storage_result(input_definitions,color_count,
+                    crate::specs::color_channel_layout(input_definitions,color_count)),
                 input_definitions == crate::image::typed_image_definition_views(image),
                 component_count == input_definitions.len(),
                 has_definitions == (exists|i: int| #![trigger input_definitions[i]]
@@ -62,12 +68,28 @@ pub(super) fn channel_layout(
         if component_count != color_count {
             return Err(invalid_channel_layout());
         }
-        let mut colors = Vec::with_capacity(color_count);
+        let allocated = if color_count == 0 {
+            Ok(Vec::new())
+        } else {
+            crate::allocation::empty_with_capacity(color_count)
+        };
+        #[cfg(verus_keep_ghost)]
+        proof! {
+            let request=crate::specs::Part2ColorOutputCapacity::LayoutColors {definitions:input_definitions,colors:color_count};
+            crate::specs::part2_color_output_capacity_observed(request,crate::allocation::inspection_capacity_outcome(allocated));
+            if let Err(error)=allocated {
+                crate::specs::part2_color_layout_owner_present(input_definitions,color_count);
+                crate::specs::part2_color_layout_storage_refused(input_definitions,color_count,request,error);
+            }
+        }
+        let mut colors = allocated?;
         component_index = 0;
         #[cfg_attr(
             verus_keep_ghost,
             verus_spec(
                 invariant component_index <= color_count,
+                    crate::specs::part2_color_layout_storage_result(input_definitions,color_count,
+                        crate::specs::color_channel_layout(input_definitions,color_count)),
                     input_definitions == crate::image::typed_image_definition_views(image),
                     input_definitions.len() == color_count,
                     !(exists|i: int| #![trigger input_definitions[i]]
@@ -88,7 +110,17 @@ pub(super) fn channel_layout(
         });
     }
 
-    let mut colors = vec![usize::MAX; color_count];
+    let allocated = crate::allocation::filled_values(usize::MAX, color_count);
+    #[cfg(verus_keep_ghost)]
+    proof! {
+        let request=crate::specs::Part2ColorOutputCapacity::LayoutColors {definitions:input_definitions,colors:color_count};
+        crate::specs::part2_color_output_capacity_observed(request,crate::allocation::inspection_capacity_outcome(allocated));
+        if let Err(error)=allocated {
+            crate::specs::part2_color_layout_owner_present(input_definitions,color_count);
+            crate::specs::part2_color_layout_storage_refused(input_definitions,color_count,request,error);
+        }
+    }
+    let mut colors = allocated?;
     let mut alphas = Vec::new();
     component_index = 0;
     #[cfg(verus_keep_ghost)]
@@ -100,6 +132,8 @@ pub(super) fn channel_layout(
         verus_keep_ghost,
         verus_spec(
             invariant component_index <= component_count,
+                crate::specs::part2_color_layout_storage_result(input_definitions,color_count,
+                    crate::specs::color_channel_layout(input_definitions,color_count)),
                 input_definitions == crate::image::typed_image_definition_views(image),
                 component_count == input_definitions.len(),
                 colors.len() == color_count,
@@ -130,6 +164,8 @@ pub(super) fn channel_layout(
             verus_keep_ghost,
             verus_spec(
                 invariant definition_index <= definitions.len(),
+                    crate::specs::part2_color_layout_storage_result(input_definitions,color_count,
+                        crate::specs::color_channel_layout(input_definitions,color_count)),
                     input_definitions == crate::image::typed_image_definition_views(image),
                     component_index < component_count && component_count == input_definitions.len(),
                     current_definitions == crate::image::channel_definition_views(definitions@),
@@ -225,6 +261,19 @@ pub(super) fn channel_layout(
                             return Err(error);
                         }
                     }
+                    let reserved = crate::allocation::reserve_additional(&mut alphas, 1);
+                    #[cfg(verus_keep_ghost)]
+                    proof! {
+                        assert(crate::specs::part2_color_layout_alpha_admitted(input_definitions,color_count,component_index as nat,definition_index as nat));
+                        let request=crate::specs::Part2ColorOutputCapacity::LayoutAlpha {definitions:input_definitions,colors:color_count,
+                            component:component_index as nat,record:definition_index as nat};
+                        crate::specs::part2_color_output_capacity_observed(request,crate::allocation::inspection_capacity_outcome(reserved));
+                        if let Err(error)=reserved {
+                            crate::specs::part2_color_layout_alpha_present(input_definitions,color_count,component_index as nat,definition_index as nat);
+                            crate::specs::part2_color_layout_storage_refused(input_definitions,color_count,request,error);
+                        }
+                    }
+                    reserved?;
                     alphas.push((
                         component_index,
                         matches!(definition.channel_type(), ChannelType::PremultipliedOpacity),
@@ -255,6 +304,8 @@ pub(super) fn channel_layout(
         verus_keep_ghost,
         verus_spec(
             invariant component_index <= colors.len(),
+                crate::specs::part2_color_layout_storage_result(input_definitions,color_count,
+                    crate::specs::color_channel_layout(input_definitions,color_count)),
                 input_definitions == crate::image::typed_image_definition_views(image),
                 complete == (colors@, alphas@),
                 exists|i: int| #![trigger input_definitions[i]]

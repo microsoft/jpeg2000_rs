@@ -521,7 +521,8 @@ pub(crate) proof fn part2_associated_output_frames(image:Part1DecodedTypedImage,
 pub(crate) open spec fn part2_selected_output_run(image:Part1DecodedTypedImage,header:Option<Part2AssociatedHeader>,target:[u32;4],
     components:u16,maximum:u64,work:u64,events:Seq<Part2JpipSnapshotEvent>)->Part2ColdRun<Part2ConvertedImage> {
     part2_jpip_snapshot_bind(part2_associated_output_run(image,header,components,maximum,events),
-        |mapped:(Part1DecodedTypedImage,Option<Part2AssociatedHeader>),rest|Some((part2_convert_associated_selected(mapped.0,mapped.1,target,maximum,work),rest)))
+        |mapped:(Part1DecodedTypedImage,Option<Part2AssociatedHeader>),rest|
+            part2_color_associated_storage_run(mapped.0,mapped.1,Some(target),maximum,work,rest))
 }
 pub closed spec fn part2_selected_output_result(image:Part1DecodedTypedImage,header:Option<Part2AssociatedHeader>,target:[u32;4],
     components:u16,maximum:u64,work:u64,result:Part2ConvertedImageResult)->bool {
@@ -532,9 +533,14 @@ pub(crate) proof fn part2_selected_output_normal(image:Part1DecodedTypedImage,he
 {
     let mapped=part2_apply_associated_output(image,header,components,maximum);
     part2_associated_output_normal(image,header,components,maximum);part2_associated_output_frames(image,header,components,maximum,mapped);
-    if let Ok(value)=mapped{part2_cold_pure(part2_convert_associated_selected(value.0,value.1,target,maximum,work));}
+    if let Ok(value)=mapped{
+        part2_color_associated_storage_normal(value.0,value.1,Some(target),maximum,work);
+        part2_decode_eta(|events|part2_color_associated_storage_run(value.0,value.1,Some(target),maximum,work,events),
+            part2_convert_associated_selected(value.0,value.1,target,maximum,work));
+    }
     part2_cold_bind(|events|part2_associated_output_run(image,header,components,maximum,events),
-        |mapped:(Part1DecodedTypedImage,Option<Part2AssociatedHeader>),rest|Some((part2_convert_associated_selected(mapped.0,mapped.1,target,maximum,work),rest)),
+        |mapped:(Part1DecodedTypedImage,Option<Part2AssociatedHeader>),rest|
+            part2_color_associated_storage_run(mapped.0,mapped.1,Some(target),maximum,work,rest),
         mapped,part2_finish_associated_selected_output(image,header,target,components,maximum,work));
 }
 pub(crate) proof fn part2_selected_output_error(image:Part1DecodedTypedImage,header:Option<Part2AssociatedHeader>,target:[u32;4],
@@ -544,7 +550,20 @@ pub(crate) proof fn part2_selected_output_error(image:Part1DecodedTypedImage,hea
 {
     part2_associated_output_frames(image,header,components,maximum,Err(error));
     part2_cold_bind(|events|part2_associated_output_run(image,header,components,maximum,events),
-        |mapped:(Part1DecodedTypedImage,Option<Part2AssociatedHeader>),rest|Some((part2_convert_associated_selected(mapped.0,mapped.1,target,maximum,work),rest)),Err(error),Err(error));
+        |mapped:(Part1DecodedTypedImage,Option<Part2AssociatedHeader>),rest|
+            part2_color_associated_storage_run(mapped.0,mapped.1,Some(target),maximum,work,rest),Err(error),Err(error));
+}
+pub(crate) proof fn part2_selected_output_converted_actual(image:Part1DecodedTypedImage,header:Option<Part2AssociatedHeader>,target:[u32;4],
+    components:u16,maximum:u64,work:u64,mapped:(Part1DecodedTypedImage,Option<Part2AssociatedHeader>),result:Part2ConvertedImageResult)
+    requires part2_associated_output_result(image,header,components,maximum,Ok(mapped)),
+        part2_color_associated_storage_result(mapped.0,mapped.1,Some(target),maximum,work,result),
+    ensures part2_selected_output_result(image,header,target,components,maximum,work,result),
+{
+    part2_associated_output_frames(image,header,components,maximum,Ok(mapped));
+    part2_decode_eta(|events|part2_color_associated_storage_run(mapped.0,mapped.1,Some(target),maximum,work,events),result);
+    part2_cold_bind(|events|part2_associated_output_run(image,header,components,maximum,events),
+        |mapped:(Part1DecodedTypedImage,Option<Part2AssociatedHeader>),rest|
+            part2_color_associated_storage_run(mapped.0,mapped.1,Some(target),maximum,work,rest),Ok(mapped),result);
 }
 pub(crate) proof fn part2_selected_output_frames(image:Part1DecodedTypedImage,header:Option<Part2AssociatedHeader>,target:[u32;4],
     components:u16,maximum:u64,work:u64,result:Part2ConvertedImageResult)

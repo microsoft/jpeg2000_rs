@@ -2267,6 +2267,56 @@ _JPX_LAYER_COLOR_CONTRACTS = {
         + _coverage_call("crate::limits::resource_work_limit", "limits"),
     ),
 }
+_COLOR_OUTPUT_CONTRACTS = {
+    ("src/color/conversion.rs", "convert_jp2_color"):
+        _JPX_LAYER_COLOR_CONTRACTS[("src/color/conversion.rs", "convert_jp2_color")],
+    ("src/color/admission.rs", "channel_layout"): (
+        "color_channel_layout", _coverage_call("channel_layout_result", r"\1"), None,
+        _coverage_call("crate::image::typed_image_definition_views", "image") + r"\s*,\s*color_count",
+    ),
+    ("src/color/normalization.rs", "normalize_component"): (
+        "color_normalize_component", _coverage_call("normalized_plane_result", r"\1"), None,
+        _coverage_call("crate::image::typed_component_view", "component") + r"\s*,\s*width\s*,\s*height\s*,\s*x_origin\s*,\s*y_origin",
+    ),
+    ("src/color/conversion.rs", "convert_color_channel"): (
+        "color_convert_channel", _coverage_call("converted_channel_result", r"\1"), None,
+        _coverage_call("crate::image::typed_image_component_views", "image") + r"\s*,\s*"
+        + _coverage_call("crate::image::typed_image_geometry", "image") + r"\s*,\s*colors@\s*,\s*color_count\s*,\s*index",
+    ),
+    ("src/color/conversion.rs", "convert_alpha_channel"): (
+        "color_convert_alpha", _coverage_call("converted_channel_result", r"\1"), None,
+        _coverage_call("crate::image::typed_image_component_views", "image") + r"\s*,\s*"
+        + _coverage_call("crate::image::typed_image_geometry", "image") + r"\s*,\s*alpha",
+    ),
+    ("src/color/crop.rs", "ConvertedImage::crop"): (
+        "color_crop_image", _coverage_call("converted_image_result", r"\1"), None,
+        _coverage_call("converted_image_model", r"&\s*self") + r"\s*,\s*x\s*,\s*y\s*,\s*width\s*,\s*height",
+    ),
+    ("src/color/crop.rs", "crop_plane"): (
+        "color_crop_plane", _coverage_call("normalized_plane_result", r"\1"), None,
+        r"input@\s*,\s*source_width\s*,\s*x\s*,\s*y\s*,\s*x1\s*,\s*y1",
+    ),
+    ("src/decode/output.rs", "convert_selected_color"): (
+        "color_convert_selected", _coverage_call("crate::color::converted_image_result", r"\1"), None,
+        _coverage_call("crate::image::typed_image_component_views", "image") + r"\s*,\s*"
+        + _coverage_call("crate::image::typed_image_definition_views", "image") + r"\s*,\s*"
+        + _coverage_call("crate::image::typed_image_geometry", "image") + r"\s*,\s*"
+        + _coverage_call("crate::jp2::color_specification_method", "color") + r"\s*,\s*target\s*,\s*"
+        + _coverage_call("crate::limits::resource_decoded_bytes_limit", "limits") + r"\s*,\s*"
+        + _coverage_call("crate::limits::resource_work_limit", "limits"),
+    ),
+    **{("src/decode/output.rs", symbol): (
+        model, _coverage_call("crate::color::converted_image_result", r"\1"), None,
+        _coverage_call("crate::image::typed_image_value_view", r"\*\s*image") + r"\s*,\s*"
+        + _coverage_call("jp2::associated_header_option", "header")
+        + (r"\s*,\s*target" if selected else "") + r"\s*,\s*"
+        + _coverage_call("crate::limits::resource_decoded_bytes_limit", "limits") + r"\s*,\s*"
+        + _coverage_call("crate::limits::resource_work_limit", "limits"),
+    ) for symbol, model, selected in (
+        ("convert_associated_color", "part2_convert_associated", False),
+        ("convert_associated_selected_color", "part2_convert_associated_selected", True),
+    )},
+}
 _RAW_TYPED_CONTRACTS = {
     ("src/decode/api.rs", "decode_codestream"): (
         "part2_decode_raw_codestream", _coverage_call("crate::image::decoded_typed_image_outcome", r"\1"), None,
@@ -4981,7 +5031,8 @@ _GENERAL_LAYER_HANDOFFS = (
     "clear_channel_definitions(&mut components);", "validate_layer_definition(record.definition, color_count)?;",
     "descriptors.push((component.info().precision, component.info().signed));",
     "crate::image::typed_image_from_components_with_origin(width, height, 0, 0, components, options.limits(),)?",
-    "crate::color::convert_jp2_color(&assembled, color, options.limits())?",
+    "let conversion = crate::color::convert_jp2_color(&assembled, color, options.limits());",
+    "crate::specs::part2_general_color_error(", "let converted = conversion?;",
     "owned_layer_from_image(&converted)?",
     "normalized_chroma_keys_for_components(values, descriptors.get(..color_count).ok_or_else(invalid_layer)?,)",
     "apply_chroma_key(&mut owned, &keys)?;",
@@ -5143,6 +5194,16 @@ _PLANE_ROLE_RESULT_RUNS.update({
     "part2_coefficient_progression_result": ("part2_extraction_progression_run", False),
 })
 _COLD_RESULT_MODELS = {
+    "color_channel_layout": ("part2_color_layout_storage_result", "specs/cold_color_conversion.rs", "part2_color_layout_storage_normal"),
+    "color_normalize_component": ("part2_color_normalize_storage_result", "specs/cold_color_conversion.rs", "part2_color_normalize_storage_normal"),
+    "color_convert_channel": ("part2_color_channel_storage_result", "specs/cold_color_conversion.rs", "part2_color_channel_storage_normal"),
+    "color_convert_alpha": ("part2_color_alpha_storage_result", "specs/cold_color_conversion.rs", "part2_color_alpha_storage_normal"),
+    "color_convert_jp2": ("part2_color_convert_storage_result", "specs/cold_color_conversion.rs", "part2_color_convert_storage_normal"),
+    "color_crop_image": ("part2_color_crop_storage_result", "specs/cold_color_conversion.rs", "part2_color_crop_storage_normal"),
+    "color_crop_plane": ("part2_color_crop_plane_storage_result", "specs/cold_color_conversion.rs", "part2_color_crop_plane_storage_normal"),
+    "color_convert_selected": ("part2_color_selected_storage_result", "specs/cold_color_conversion.rs", "part2_color_selected_storage_normal"),
+    "part2_convert_associated": ("part2_color_associated_storage_result", "specs/cold_color_conversion.rs", "part2_color_associated_storage_normal"),
+    "part2_convert_associated_selected": ("part2_color_associated_storage_result", "specs/cold_color_conversion.rs", "part2_color_associated_storage_normal"),
     "part2_apply_nonlinear_regions": ("part2_nlt_image_storage_result", "specs/cold_nlt_storage.rs", "part2_nlt_image_storage_normal"),
     "part2_nlt_component_mutation": ("part2_nlt_component_storage_result", "specs/cold_nlt_storage.rs", "part2_nlt_component_storage_normal"),
     "part2_collect_nonlinear_regions": ("part2_nlt_regions_storage_result", "specs/cold_nlt_regions.rs", "part2_nlt_regions_storage_normal"),
@@ -5418,11 +5479,42 @@ _COLD_RESULT_MODELS = {
 }
 
 
+_COLOR_OUTPUT_RESULT_MODELS = frozenset(_COLD_RESULT_MODELS[value[0]][0] for value in _COLOR_OUTPUT_CONTRACTS.values())
+
 def _coverage_cold_relation(
     legacy: tuple[str, str, str | None, str],
 ) -> tuple[str, str]:
     model, outcome, state, inputs = legacy
     cold_model = _COLD_RESULT_MODELS[model][0]
+    if model in {"color_convert_jp2", "color_convert_selected"}:
+        inputs = (
+            r"crate::specs::Part2ColorConvertContext\s*\{\s*image\s*:\s*"
+            + _coverage_call("crate::image::typed_image_value_view", r"\*\s*image")
+            + r"\s*,\s*method\s*:\s*" + _coverage_call("crate::jp2::color_specification_method", "color")
+            + r"\s*,\s*bytes\s*:\s*" + _coverage_call("crate::limits::resource_decoded_bytes_limit", "limits")
+            + r"\s*,\s*work\s*:\s*" + _coverage_call("crate::limits::resource_work_limit", "limits")
+            + r"\s*,?\s*\}" + (r"\s*,\s*target" if model == "color_convert_selected" else "")
+        )
+    if model == "color_normalize_component":
+        inputs = (
+            r"crate::specs::Part2ColorNormalizeContext\s*\{\s*component\s*:\s*"
+            + _coverage_call("crate::image::typed_component_view", "component")
+            + r"\s*,\s*width\s*,\s*height\s*,\s*x\s*:\s*x_origin\s*,\s*y\s*:\s*y_origin\s*,?\s*\}"
+        )
+    if model == "color_crop_image":
+        inputs = (r"crate::specs::Part2ColorCropContext\s*\{\s*image\s*:\s*"
+                  + _coverage_call("converted_image_model", r"&\s*self")
+                  + r"\s*,\s*x\s*,\s*y\s*,\s*width\s*,\s*height\s*,?\s*\}")
+    if model == "color_crop_plane":
+        inputs += r"\s*,\s*count"
+    if model in {"part2_convert_associated", "part2_convert_associated_selected"}:
+        inputs = (
+            _coverage_call("crate::image::typed_image_value_view", r"\*\s*image") + r"\s*,\s*"
+            + _coverage_call("jp2::associated_header_option", "header") + r"\s*,\s*"
+            + (r"Some\s*\(\s*target\s*\)" if model.endswith("_selected") else "None") + r"\s*,\s*"
+            + _coverage_call("crate::limits::resource_decoded_bytes_limit", "limits") + r"\s*,\s*"
+            + _coverage_call("crate::limits::resource_work_limit", "limits")
+        )
     if model in {"part2_mct_prepare_decorrelation", "part2_mct_decorrelation"}:
         component = (_coverage_call("transform_components_view", "components") if model == "part2_mct_prepare_decorrelation"
                      else _coverage_call("transform_components_view", _coverage_call("old", "components")))
@@ -5702,6 +5794,7 @@ _COLD_RESULT_CONTRACTS = {
         _CHANNEL_HEADER_CONTRACTS, _RAW_JP2_HEADER_CONTRACTS, _ASSOCIATED_HEADER_CONTRACTS, _RAW_LAYER_HEADER_CONTRACTS,
         _RAW_COMPOSITION_CONTRACTS,
         _NONLINEAR_APPLICATION_CONTRACTS, _NONLINEAR_REGIONS_CONTRACTS,
+        _COLOR_OUTPUT_CONTRACTS,
         _COLOR_HEADER_CONTRACTS,
         _JPX_SOURCE_CONTRACTS, _RAW_JPX_PUBLIC_IMAGE_CONTRACTS,
         _RAW_CONTAINER_IMAGE_CONTRACTS, _RAW_CONTAINER_COLOR_CONTRACTS,
@@ -6006,6 +6099,10 @@ _COLD_RESULT_CONTRACTS[("src/image/assembly.rs", "append_assembly_component")] =
 )
 
 _COLD_INNER_RUNS = {
+    **{name: "part2_color_output_program_run" for name in (
+        "part2_color_layout_storage_result", "part2_color_normalize_storage_result",
+        "part2_color_channel_storage_result", "part2_color_alpha_storage_result", "part2_color_crop_plane_storage_result",
+    )},
     "part2_prepare_band_result": "part2_prepare_band_stage_run",
     "part1_uniform_geometry_cold_result": "part2_uniform_geometry_run",
     "part1_progression_plan_cold_result": "part2_grid_plan_run",
@@ -6047,6 +6144,10 @@ def _coverage_cold_links(keys: set[tuple[str, str]]) -> tuple[set[tuple[str, str
         }.get(model, model.removesuffix("_result") + "_run")
         models.update(((path, model), (path, run)))
         proofs.add((path, normal))
+        if model in _COLOR_OUTPUT_RESULT_MODELS:
+            guards, color_proofs = _coverage_color_storage_guards(model)
+            models |= set(guards)
+            proofs |= color_proofs
         if model in {
                 "part2_mct_inverse_storage_result", "part2_mct_reversible_row_storage_result",
                 "part2_mct_scalar_storage_result", "part2_mct_rows_storage_result",
@@ -6229,7 +6330,21 @@ def _coverage_cold_result_body(text: str, model: str) -> bool:
         **_COLD_INNER_RUNS,
     }.get(model, model.removesuffix("_result") + "_run")
     call = run + "(" + ",".join(names[:-1] + ["events"]) + ")"
-    if model in _PLANE_ROLE_RESULT_RUNS:
+    color_program_bodies = {
+        "part2_color_layout_storage_result":
+            "part2_color_output_program_result(part2_color_layout_requests(definitions,colors),color_channel_layout(definitions,colors),result)",
+        "part2_color_normalize_storage_result":
+            "part2_color_output_program_result(part2_color_normalize_requests(context),part2_color_normalize_value(context),result)",
+        "part2_color_channel_storage_result":
+            "part2_color_output_program_result(part2_color_channel_requests(components,geometry,colors,index),color_convert_channel(components,geometry,colors,count,index),result)",
+        "part2_color_alpha_storage_result":
+            "part2_color_output_program_result(part2_color_alpha_requests(components,geometry,alpha),color_convert_alpha(components,geometry,alpha),result)",
+        "part2_color_crop_plane_storage_result":
+            "part2_color_output_program_result(seq![part2_color_crop_plane_request(source,source_width,x,y,x1,y1,count)],color_crop_plane(source,source_width,x,y,x1,y1),result)",
+    }
+    if model in color_program_bodies:
+        expected = color_program_bodies[model]
+    elif model in _PLANE_ROLE_RESULT_RUNS:
         run_name, wrapped = _PLANE_ROLE_RESULT_RUNS[model]
         count = (["collections.len()"] if model == "part2_mct_line_stage_result" else
                  ["stages.len()"] if model == "part2_mct_line_transform_result" else
@@ -9337,6 +9452,215 @@ _TYPED_STORAGE_NATIVE_ORDER = {
         "let applied = image.apply_nonlinear_regions(", "part2_typed_layout_nonlinear_error(", "applied?",
     ),
 }
+
+_COLOR_PROGRAM_GUARDS = {
+    ("specs/cold_color_conversion.rs", "part2_color_output_capacity_count"): (
+        "LayoutColors {definitions,colors}=>if part2_color_layout_has_definitions(definitions) || definitions.len()==colors {colors as nat}else{0}",
+        "LayoutAlpha {definitions,colors,component,record}=>if part2_color_layout_alpha_admitted(definitions,colors,component,record){1}else{0}",
+        "Normalize {context}=>part2_color_normalize_count(context)",
+        "CropChannels {context}=>if part2_color_crop_admitted(context){context.image.4.len()}else{0}",
+        "CropPlane {count,..}=>count as nat",
+    ),
+    ("specs/cold_color_conversion.rs", "part2_color_output_capacity_run"): (
+        "let count=part2_color_output_capacity_count(context)", "if count==0 {Some((Ok(()),events))}",
+        "actual!=context || elements!=count {None}", "events.drop_first()",
+        "if succeeded {Ok(())}else{Err(crate::DecodeError::AllocationFailed)}", "_=>None",
+    ),
+    ("specs/cold_color_conversion.rs", "part2_color_output_requests_run"): (
+        "requests.len()==0 {Some((Ok(()),events))}",
+        "part2_color_output_capacity_run(requests[0],events)", "part2_color_output_requests_run(requests.drop_first(),rest)",
+    ),
+    ("specs/cold_color_conversion.rs", "part2_color_output_program_run"): (
+        "part2_jpip_snapshot_bind(part2_color_output_requests_run(requests,events),|_:(),rest|Some((ordinary,rest)))",
+    ),
+    ("specs/cold_color_conversion.rs", "part2_color_output_program_result"): (
+        "part2_cold_framed(|events|part2_color_output_program_run(requests,ordinary,events),result)",
+    ),
+}
+_COLOR_LAYOUT_GUARDS = {
+    ("specs/cold_color_conversion.rs", "part2_color_layout_alpha_before"): (
+        "component>=definitions.len() || component>usize::MAX || record>=definitions[component as int].len()",
+        "color_layout_components_prefix(definitions,colors,component)",
+        "color_layout_definitions_prefix(before,definitions[component as int],component as usize,colors,record)",
+    ),
+    ("specs/cold_color_conversion.rs", "part2_color_layout_alpha_admitted"): (
+        "part2_color_layout_alpha_before(definitions,colors,component,record)",
+        "color_layout_definition_step(before,definitions[component as int][record as int],component as usize,colors)",
+        "after.1.len()==before.1.len()+1",
+    ),
+    ("specs/cold_color_conversion.rs", "part2_color_layout_requests"): (
+        "seq![Part2ColorOutputCapacity::LayoutColors {definitions,colors}]",
+        "part2_color_layout_has_definitions(definitions)",
+        "part2_color_layout_step_requests(definitions,colors,component,record)",
+    ),
+}
+_COLOR_NORMALIZE_GUARDS = {
+    ("specs/cold_color_conversion.rs", "part2_color_normalize_count"): (
+        "context.width==0 || context.width as nat>usize::MAX",
+        "part2_layer_area(context.width,context.height)", "Ok(count)=>count as nat",
+    ),
+    ("specs/cold_color_conversion.rs", "part2_color_normalize_value"): (
+        "color_normalize_component(context.component,context.width,context.height,context.x,context.y)",
+    ),
+}
+_COLOR_CONVERT_GUARDS = {
+    ("specs/cold_color_conversion.rs", "part2_color_convert_value"): (
+        "color_convert_jp2(context.image.1,context.image.2,context.image.0,context.method,context.bytes,context.work)",
+    ),
+    ("specs/cold_color_conversion.rs", "part2_color_convert_preflight"): (
+        "geometry.0==0 || geometry.1==0", "color_output_format(context.method)",
+        "color_channel_layout(image.2,format.0)", "color_validate_components(image.1,geometry,layout)",
+        "color_validate_output_size(geometry.0,geometry.1,format.0,layout.1.len() as usize,context.bytes,context.work)",
+        "part2_layer_area(geometry.0,geometry.1)",
+    ),
+    ("specs/cold_color_conversion.rs", "part2_color_output_capacity_count"): (
+        "LayoutAlpha {definitions,colors,component,record}=>if part2_color_layout_alpha_admitted(definitions,colors,component,record){1}else{0}",
+        "Normalize {context}=>part2_color_normalize_count(context)",
+        "Channels {context}=>match part2_color_convert_preflight(context){Err(_)=>0,Ok((format,layout,_))=>format.0 as nat+layout.1.len()}",
+        "Sycc {context,role}=>match part2_color_convert_preflight(context){Err(_)=>0,Ok((format,_,count))=>if format.2 && role<3 {count as nat}else{0}}",
+    ),
+    ("specs/cold_color_conversion.rs", "part2_color_channel_requests"): (
+        "index>=colors.len() || colors[index as int]>=components.len()",
+        "component:components[colors[index as int] as int]", "width:geometry.0,height:geometry.1,x:geometry.2,y:geometry.3",
+    ),
+    ("specs/cold_color_conversion.rs", "part2_color_convert_color_requests"): (
+        "part2_color_convert_preflight(context)", "if format.2",
+        "Sycc {context,role:0}", "Sycc {context,role:1}", "Sycc {context,role:2}",
+        "color_convert_channels_prefix(image.1,geometry,layout.0,format.0,index).is_ok()",
+        "part2_color_channel_requests(image.1,geometry,layout.0,index as usize)",
+    ),
+    ("specs/cold_color_conversion.rs", "part2_color_convert_alpha_requests"): (
+        "color_convert_colors(image.1,geometry,layout.0,format.0,format.2)",
+        "color_append_alphas_prefix(image.1,geometry,layout.1,channels,index).is_ok()",
+        "part2_color_alpha_requests(image.1,geometry,layout.1[index as int])",
+    ),
+    ("specs/cold_color_conversion.rs", "part2_color_convert_after_layout_requests"): (
+        "part2_color_convert_preflight(context).is_err(){Seq::empty()}",
+        "seq![Part2ColorOutputCapacity::Channels {context}]+part2_color_convert_color_requests(context)+part2_color_convert_alpha_requests(context)",
+    ),
+    ("specs/cold_color_conversion.rs", "part2_color_convert_requests"): (
+        "image.0.0==0 || image.0.1==0", "color_output_format(context.method)",
+        "part2_color_layout_requests(image.2,format.0)+part2_color_convert_after_layout_requests(context)",
+    ),
+}
+_COLOR_CROP_GUARDS = {
+    ("specs/cold_color_conversion.rs", "part2_color_crop_value"): (
+        "color_crop_image(context.image,context.x,context.y,context.width,context.height)",
+    ),
+    ("specs/cold_color_conversion.rs", "part2_color_crop_admitted"): (
+        "context.width>0 && context.height>0", "context.x as nat+context.width as nat<=context.image.0",
+        "context.y as nat+context.height as nat<=context.image.1",
+        "!(context.x==0 && context.y==0 && context.width==context.image.0 && context.height==context.image.1)",
+        "part2_layer_area(context.width,context.height).is_ok()",
+    ),
+    ("specs/cold_color_conversion.rs", "part2_color_crop_requests"): (
+        "!part2_color_crop_admitted(context){Seq::empty()}", "part2_layer_area(context.width,context.height).get_Ok_0()",
+        "color_crop_channels(context.image.4,context.image.0,context.x,context.y,x1,y1,index).is_ok()",
+        "part2_color_crop_plane_request(context.image.4[index as int].1,context.image.0,context.x,context.y,x1,y1,count)",
+    ),
+    ("specs/cold_color_conversion.rs", "part2_color_crop_plane_request"): (
+        "Part2ColorOutputCapacity::CropPlane {source,source_width,x,y,x1,y1,count}",
+    ),
+}
+_COLOR_SELECTED_GUARDS = {
+    ("specs/cold_color_conversion.rs", "part2_color_selected_storage_run"): (
+        "part2_jpip_snapshot_bind(part2_color_convert_storage_run(context,events)",
+        "part2_color_selected_after(context,target,converted,rest)",
+    ),
+    ("specs/cold_color_conversion.rs", "part2_color_selected_after"): (
+        "target[0]<geometry.2 || target[1]<geometry.3 || target[2]<target[0] || target[3]<target[1]",
+        "part2_color_crop_storage_run(Part2ColorCropContext {image:converted,x:(target[0]-geometry.2) as u32,y:(target[1]-geometry.3) as u32",
+    ),
+}
+_COLOR_PROGRAM_PROOFS = {("specs/cold_color_conversion.rs", name) for name in (
+    "part2_color_output_capacity_observed", "part2_color_output_requests_normal", "part2_color_output_program_normal",
+    "part2_color_output_program_refused", "part2_color_output_program_child_error", "part2_color_output_program_error_info",
+)}
+_COLOR_NATIVE_ORDER = {
+    ("src/color/admission.rs", "channel_layout"): (
+        "let allocated=if color_count==0", "empty_with_capacity(color_count)", "inspection_capacity_outcome(allocated)",
+        "let mut colors = allocated?", "filled_values(usize::MAX,color_count)", "inspection_capacity_outcome(allocated)",
+        "let mut colors = allocated?", "validate_alpha_association(", "reserve_additional(&mut alphas,1)",
+        "LayoutAlpha {definitions:input_definitions,colors:color_count", "inspection_capacity_outcome(reserved)",
+        "part2_color_layout_storage_refused(", "reserved?", "alphas.push(",
+    ),
+    ("src/color/normalization.rs", "normalize_component"): (
+        "if width == 0", "checked_area(width, height)?", "empty_with_capacity(count)",
+        "inspection_capacity_outcome(allocated)", "part2_color_normalize_storage_refused(", "let mut output = allocated?",
+        "while pixel < count", "normalized_component_at(",
+    ),
+    ("src/color/conversion.rs", "convert_jp2_color"): (
+        "channel_layout(image, color_count)", "part2_color_convert_layout_error(", "let layout = organized?",
+        "validate_components(", "validate_output_size(", "checked_area(",
+        "empty_with_capacity(channel_count)", "Part2ColorOutputCapacity::Channels", "inspection_capacity_outcome(allocated)",
+        "let mut channels = allocated?", "empty_with_capacity(pixel_count)", "role:0", "inspection_capacity_outcome(allocated)",
+        "let mut red = allocated?", "empty_with_capacity(pixel_count)", "role:1", "inspection_capacity_outcome(allocated)",
+        "let mut green = allocated?", "empty_with_capacity(pixel_count)", "role:2", "inspection_capacity_outcome(allocated)",
+        "let mut blue = allocated?", "part2_color_convert_channel_error(", "part2_color_convert_alpha_error(",
+    ),
+    ("src/color/crop.rs", "ConvertedImage::crop"): (
+        "if width == 0 || height == 0", "x.checked_add(width)", "if x == 0 && y == 0 && width == self.width && height == self.height",
+        "checked_area(width, height)?", "empty_with_capacity(self.channels.len())", "inspection_capacity_outcome(allocated)",
+        "part2_color_crop_storage_owner_refused(", "let mut channels = allocated?", "crop_plane(",
+        "part2_color_crop_storage_plane_error(",
+    ),
+    ("src/color/crop.rs", "crop_plane"): (
+        "empty_with_capacity(count)", "part2_color_crop_plane_request(input@,source_width,x,y,x1,y1,count)",
+        "inspection_capacity_outcome(allocated)", "part2_color_crop_plane_storage_refused(", "let mut samples = allocated?",
+        "while row < y1", "while column < x1",
+    ),
+}
+def _coverage_color_storage_guards(model: str) -> tuple[dict, set[tuple[str, str]]]:
+    guards = dict(_COLOR_PROGRAM_GUARDS)
+    proofs = set(_COLOR_PROGRAM_PROOFS)
+    path = "specs/cold_color_conversion.rs"
+    if model == "part2_color_layout_storage_result":
+        guards.update(_COLOR_LAYOUT_GUARDS)
+        proofs |= {(path, name) for name in ("part2_color_layout_storage_refused", "part2_color_layout_alpha_present")}
+    elif model == "part2_color_normalize_storage_result":
+        guards.update(_COLOR_NORMALIZE_GUARDS)
+        proofs.add((path, "part2_color_normalize_storage_refused"))
+    elif model in {"part2_color_crop_storage_result", "part2_color_crop_plane_storage_result"}:
+        guards.update(_COLOR_CROP_GUARDS)
+        proofs |= {(path, name) for name in ("part2_color_crop_storage_owner_refused", "part2_color_crop_storage_plane_error")}
+    else:
+        guards.update(_COLOR_LAYOUT_GUARDS | _COLOR_NORMALIZE_GUARDS | _COLOR_CONVERT_GUARDS)
+        proofs |= {(path, name) for name in ("part2_color_convert_storage_refused", "part2_color_convert_layout_error",
+            "part2_color_convert_channel_error", "part2_color_convert_alpha_error")}
+        if model in {"part2_color_selected_storage_result", "part2_color_associated_storage_result"}:
+            guards.update(_COLOR_CROP_GUARDS | _COLOR_SELECTED_GUARDS)
+            proofs |= {(path, name) for name in ("part2_color_selected_storage_convert_error", "part2_color_selected_storage_crop_actual")}
+    return guards, proofs
+
+_COLOR_STORAGE_TESTS = {
+    "layout": ("src/color/tests.rs", "color_storage_layout_first_later_alpha_refusal_and_association_priority_restore"),
+    "conversion": ("src/color/tests.rs", "color_storage_channels_normalized_and_sycc_planes_keep_limits_empty_and_exact_retry"),
+    "crop": ("src/color/tests.rs", "color_storage_crop_owner_samples_identity_and_invalid_geometry_preserve_metadata"),
+}
+_RAW_CONTAINER_COLOR_TESTS |= {_COLOR_STORAGE_TESTS["layout"], _COLOR_STORAGE_TESTS["conversion"]}
+_RAW_JPX_PUBLIC_IMAGE_TESTS |= set(_COLOR_STORAGE_TESTS.values())
+_COLOR_GENERAL_GUARDS = {
+    ("specs/jpx_general.rs", "part2_general_color_context"): (
+        "part2_general_assembled_sources_prefix(sources.0,config,width,height,sources.0.len())",
+        "part2_general_definitions(config,colors,components.0)", "part2_typed_image_from_parts(width,height,0,0,defined",
+        "Some(Part2ColorConvertContext {image,method:config.color",
+    ),
+    ("specs/jpx_general.rs", "part2_general_normalize_source_requests"): (
+        "part2_general_assembled_sources_prefix(sources.0,config,sources.1,sources.2,index)",
+        "part2_general_components_prefix(sources.0[index as int],config,sources.1,sources.2,component,initial).is_ok()",
+        "part2_color_normalize_requests(part2_general_normalize_context(sources.0[index as int],component))",
+    ),
+    ("specs/jpx_general.rs", "part2_general_color_requests"): (
+        "part2_general_normalize_requests(config,sources,limits)+part2_general_finish_color_requests(config,colors,sources,limits)",
+    ),
+    ("specs/jpx_general.rs", "part2_general_after_cold_sources_run"): (
+        "part2_color_output_program_run(part2_general_color_requests(config,colors,sources,limits),part2_general_after_cold_sources(config,colors,sources,limits),events)",
+    ),
+}
+_GENERAL_LAYER_MODELS |= set(_COLOR_GENERAL_GUARDS)
+_GENERAL_LAYER_PROOFS |= {("specs/jpx_general.rs", name) for name in (
+    "part2_general_after_cold_sources_normal", "part2_general_normalize_error", "part2_general_color_error",
+)}
 
 _MCT_RUNTIME_GUARDS = {
     ("specs/cold_mct_runtime.rs", "part2_mct_runtime_preparation"): (
@@ -13502,7 +13826,7 @@ def validate_normative_coverage(
                     "let decoded = match decode_codestream(codestream, options)",
                     "let output = apply_jp2_output(decoded, inspected.file().header(), options.limits())",
                     "part2_decode_color_output_error(", "let mapped = output?",
-                    "crate::color::convert_jp2_color(&mapped, &inspected.file().header().color, options.limits())",
+                    "crate::color::convert_jp2_color(&mapped, &inspected.file().header().color, options.limits(),)",
                 ))
                 if body is None or any("".join(item.split()) not in "".join(body.split()) for item in required):
                     raise ValueError("whole raw container color Results require actual raw/selection/expanded/core/header/color/target handoffs")
@@ -14964,9 +15288,16 @@ def validate_normative_coverage(
                 }
                 let (decoded, header) = decoded_result?;
                 #[cfg(verus_keep_ghost)] proof! { crate::decode::associated_typed_success_known(&decoded, header); }
+                #[cfg(verus_keep_ghost)] proof_decl! {let ghost associated=jp2::associated_header_option(header);}
                 let header = header.unwrap_or(file.header());
-                crate::color::convert_jp2_color(
-                    &decoded, color_override.unwrap_or(&header.color), options.limits(),)
+                let converted=crate::color::convert_jp2_color(
+                    &decoded, color_override.unwrap_or(&header.color), options.limits(),);
+                #[cfg(verus_keep_ghost)] proof! {
+                    crate::specs::part2_jpx_layer_color_actual(jp2::jpx_file_decode_view(file),codestream_index,
+                        jp2::optional_color_specification_method(color_override),crate::options::decode_options_limits(options),
+                        (crate::image::typed_image_value_view(decoded),associated),crate::color::converted_image_result(converted));
+                }
+                converted
             """
             if body is None or "".join(body.split()) != "".join(expected.split()):
                 raise ValueError("whole JPX layer color Result requires real source/header/override/conversion handoffs")
@@ -16481,6 +16812,7 @@ def validate_normative_coverage(
                 or _PACKET_PROGRESSION_CONTRACTS.get((reference["path"], reference["symbol"]))
                 or _PACKET_WRAPPER_CONTRACTS.get((reference["path"], reference["symbol"]))
                 or _RECONSTRUCTION_CONTRACTS.get((reference["path"], reference["symbol"]))
+                or _COLOR_OUTPUT_CONTRACTS.get((reference["path"], reference["symbol"]))
                 or _TILE_COMPONENT_GEOMETRY_CONTRACTS.get((reference["path"], reference["symbol"]))
                 or _RESOLUTION_STYLE_CONTRACTS.get((reference["path"], reference["symbol"]))
                 or _RESOLUTION_GEOMETRY_CONTRACTS.get((reference["path"], reference["symbol"]))
@@ -16899,6 +17231,13 @@ def validate_normative_coverage(
                     raise ValueError(f"linked function lacks executable Verus contract: {short}; invalid exact Copy-fill storage relation")
             cold_contract = _COLD_RESULT_CONTRACTS.get((reference["path"], reference["symbol"]))
             if cold_contract is not None:
+                color_legacy = _COLOR_OUTPUT_CONTRACTS.get((reference["path"], reference["symbol"]))
+                if color_legacy is not None:
+                    ordinary = (r"\1\s*!=\s*Err\(\s*DecodeError::AllocationFailed\s*\)\s*==>\s*"
+                                + color_legacy[1] + r"\s*==\s*"
+                                + _coverage_call("crate::specs::" + color_legacy[0], color_legacy[3] + r"\s*,?"))
+                    if re.search(named_prefix + r".*?" + ordinary, contract, re.S) is None:
+                        raise ValueError(f"linked function lacks executable Verus contract: {short}; missing exact ordinary color-output projection")
                 if cold_contract[0] in {"part2_nlt_image_storage_result", "part2_nlt_component_storage_result"}:
                     legacy = _NONLINEAR_APPLICATION_CONTRACTS[(reference["path"], reference["symbol"])]
                     ordinary = (
@@ -17069,7 +17408,11 @@ def validate_normative_coverage(
                 exact_prepare_band_requires = (reference["path"], reference["symbol"]) == (
                     "src/decode/reconstruction.rs", "append_prepare_subband") and re.search(
                     r"\brequires\s+old\(working\)\.bands\.len\(\)\s*<\s*usize::MAX\s*,\s*ensures\b", contract)
-                if relation is None or (re.search(r"\brequires\b", contract) and not (exact_copy_phase_requires or exact_prepare_band_requires)):
+                exact_color_crop_requires = (reference["path"], reference["symbol"]) == (
+                    "src/color/crop.rs", "crop_plane") and re.search(
+                    r"\brequires\s+x\s*<=\s*x1\s*,\s*y\s*<=\s*y1\s*,\s*ensures\b", contract)
+                if relation is None or (re.search(r"\brequires\b", contract) and not (
+                        exact_copy_phase_requires or exact_prepare_band_requires or exact_color_crop_requires)):
                     raise ValueError(f"linked function lacks executable Verus contract: {short}; invalid storage relation")
                 if mutating:
                     state_result = relation
@@ -18251,6 +18594,52 @@ def validate_normative_coverage(
                 found = compact.find(token, position)
                 if found < 0:
                     raise ValueError("checked palette storage requires original preflight/descriptor/length/record/lookup order and actual propagated allocation Results")
+                position = found + len(token)
+    for entry in coverage["requirements"]:
+        keys = {(ref["path"], ref["symbol"]) for ref in entry["contract_refs"]}
+        families = {_COLD_RESULT_CONTRACTS[key][0] for key in keys & _COLD_RESULT_CONTRACTS.keys()
+                    if _COLD_RESULT_CONTRACTS[key][0] in _COLOR_OUTPUT_RESULT_MODELS}
+        guards, color_proofs, controls = {}, set(), set()
+        for model in families:
+            selected_guards, selected_proofs = _coverage_color_storage_guards(model)
+            guards.update(selected_guards)
+            color_proofs |= selected_proofs
+            if model == "part2_color_layout_storage_result":
+                controls.add(_COLOR_STORAGE_TESTS["layout"])
+            elif model == "part2_color_normalize_storage_result":
+                controls.add(_COLOR_STORAGE_TESTS["conversion"])
+            elif model in {"part2_color_crop_storage_result", "part2_color_crop_plane_storage_result"}:
+                controls.add(_COLOR_STORAGE_TESTS["crop"])
+            elif model in {"part2_color_selected_storage_result", "part2_color_associated_storage_result"}:
+                controls |= set(_COLOR_STORAGE_TESTS.values())
+            else:
+                controls |= {_COLOR_STORAGE_TESTS["layout"], _COLOR_STORAGE_TESTS["conversion"]}
+        if entry["id"] == _GENERAL_LAYER_ENTRY:
+            guards.update(_COLOR_GENERAL_GUARDS)
+        if not guards:
+            continue
+        if not set(guards).issubset({(r["path"], r["symbol"]) for r in entry["spec_refs"]}) \
+                or not color_proofs.issubset({(r["path"], r["symbol"]) for r in entry["proof_refs"]}) \
+                or not controls.issubset({(r["path"], r["symbol"]) for r in entry["test_refs"]}):
+            raise ValueError("checked color output storage requires exact source/count/role/child/error/tail programs and bounded controls")
+        for (relative, symbol), fragments in guards.items():
+            body = _coverage_spec_function_body(source_text((ROOT / relative).resolve()), symbol)
+            compact = "".join(body.split()) if body is not None else ""
+            if any("".join(fragment.split()) not in compact for fragment in fragments):
+                raise ValueError("checked color output storage requires source-derived normalized/layout/alpha/SYCC/crop request programs")
+        native_keys = keys & _COLOR_NATIVE_ORDER.keys()
+        if "part2_color_convert_storage_result" in families:
+            native_keys |= {("src/color/admission.rs", "channel_layout"), ("src/color/normalization.rs", "normalize_component")}
+        for relative, symbol in native_keys:
+            path = (ROOT / relative).resolve()
+            body = _coverage_function_body(source_text(path), function_header(path, symbol))
+            compact = "".join(body.split()) if body is not None else ""
+            position = 0
+            for fragment in _COLOR_NATIVE_ORDER[(relative, symbol)]:
+                token = "".join(fragment.split())
+                found = compact.find(token, position)
+                if found < 0:
+                    raise ValueError("checked color output storage requires actual normalized replies and original metadata/size/geometry/sample order")
                 position = found + len(token)
     for ident in ("part2-complete-native-reversible-decorrelation-engineering",
                   "part2-complete-native-coefficient-component-reconstruction"):

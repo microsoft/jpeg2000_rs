@@ -467,10 +467,10 @@ class FrameworkTests(WorkingFiles):
         ]
         self.assertEqual(framework.validate_normative_coverage(coverage)["status"], "passed")
         self._assert_contract_text_mutations(coverage, (
-            ("ensures normalized_plane_result(result)", "ensures normalized_plane_result(unrelated)"),
-            ("ensures normalized_plane_result(result)", "ensures unlisted_projection(result)"),
-            ("ensures normalized_plane_result(result)", "ensures converted_image_result(result)"),
-            ("ensures normalized_plane_result(result)", "ensures result.is_ok()"),
+            ("normalized_plane_result(result)", "normalized_plane_result(unrelated)"),
+            ("normalized_plane_result(result)", "unlisted_projection(result)"),
+            ("normalized_plane_result(result)", "converted_image_result(result)"),
+            ("normalized_plane_result(result)", "result.is_ok()"),
             ("== crate::specs::color_normalize_component(", "== crate::specs::unlisted_model("),
         ))
 
@@ -482,10 +482,10 @@ class FrameworkTests(WorkingFiles):
         ]
         self.assertEqual(framework.validate_normative_coverage(coverage)["status"], "passed")
         self._assert_contract_text_mutations(coverage, (
-            ("ensures channel_layout_result(result)", "ensures channel_layout_result(unrelated)"),
-            ("ensures channel_layout_result(result)", "ensures unlisted_projection(result)"),
-            ("ensures channel_layout_result(result)", "ensures normalized_plane_result(result)"),
-            ("ensures channel_layout_result(result)", "ensures result.is_ok()"),
+            ("channel_layout_result(result)", "channel_layout_result(unrelated)"),
+            ("channel_layout_result(result)", "unlisted_projection(result)"),
+            ("channel_layout_result(result)", "normalized_plane_result(result)"),
+            ("channel_layout_result(result)", "result.is_ok()"),
             ("== crate::specs::color_channel_layout(", "== crate::specs::unlisted_model("),
         ))
 
@@ -5266,6 +5266,121 @@ class FrameworkTests(WorkingFiles):
             with self.subTest(ident=ident, before=before), mock.patch.object(Path, "read_text", altered), \
                     self.assertRaisesRegex(ValueError, "storage|whole raw|actual native owners|executable Verus"):
                 framework.validate_normative_coverage(dict(coverage, requirements=[entry]))
+
+    def test_inventory_color_output_storage_binds_source_roles_counts_first_errors_and_tail(self):
+        data = json.loads((framework.VALIDATION / "normative-coverage.json").read_text())
+        entries = {entry["id"]: entry for entry in data["requirements"]}
+        read_text = Path.read_text
+        layout = "part2-complete-component-channel-layout"
+        conversion = "part1-complete-typed-color-conversion"
+        crop = "part1-complete-converted-selection-crop"
+        mutations = (
+            (layout, "specs/cold_color_conversion.rs", "part2_color_output_capacity_run",
+             "actual!=context || elements!=count {None}", "actual!=context || elements!=count+1 {None}"),
+            (layout, "specs/cold_color_conversion.rs", "part2_color_output_capacity_run",
+             "events.drop_first()", "events"),
+            (layout, "specs/cold_color_conversion.rs", "part2_color_output_program_run",
+             "Some((ordinary,rest))", "Some((Err(crate::DecodeError::AllocationFailed),rest))"),
+            (layout, "specs/cold_color_conversion.rs", "part2_color_layout_alpha_admitted",
+             "after.1.len()==before.1.len()+1", "true"),
+            (conversion, "specs/cold_color_conversion.rs", "part2_color_convert_preflight",
+             "color_validate_components(image.1,geometry,layout)", "Ok(())"),
+            (conversion, "specs/cold_color_conversion.rs", "part2_color_convert_color_requests",
+             "color_convert_channels_prefix(image.1,geometry,layout.0,format.0,index).is_ok()", "true"),
+            (conversion, "specs/cold_color_conversion.rs", "part2_color_channel_requests",
+             "component:components[colors[index as int] as int]", "component:components[0]"),
+            (conversion, "specs/cold_color_conversion.rs", "part2_color_convert_alpha_requests",
+             "color_append_alphas_prefix(image.1,geometry,layout.1,channels,index).is_ok()", "true"),
+            (crop, "specs/cold_color_conversion.rs", "part2_color_crop_admitted",
+             "context.x as nat+context.width as nat<=context.image.0", "context.x as nat<=context.image.0"),
+            (crop, "specs/cold_color_conversion.rs", "part2_color_crop_requests",
+             "context.image.4[index as int].1", "Seq::empty()"),
+            (layout, "src/color/admission.rs", "channel_layout",
+             "inspection_capacity_outcome(reserved)", "Ok(())"),
+            (conversion, "src/color/normalization.rs", "normalize_component",
+             "empty_with_capacity(count)", "empty_with_capacity(count+1)"),
+            (conversion, "src/color/conversion.rs", "convert_jp2_color",
+             "inspection_capacity_outcome(allocated)", "Ok(())"),
+            (crop, "src/color/crop.rs", "crop_plane",
+             "part2_color_crop_plane_request(input@,source_width,x,y,x1,y1,count)",
+             "part2_color_crop_plane_request(input@,source_width,x,y,x1,y1,count+1)"),
+        )
+        for ident, relative, symbol, before, after in mutations:
+            path = framework.ROOT / relative
+            original = read_text(path)
+            body = (framework._coverage_spec_function_body(original, symbol) if relative.startswith("specs/") else
+                    framework._coverage_function_body(original, framework._coverage_function_header(original, symbol)))
+            self.assertIn(before, body)
+            changed = original.replace(body, body.replace(before, after, 1), 1)
+
+            def altered(source, *args, **kwargs):
+                return changed if source == path else read_text(source, *args, **kwargs)
+
+            with self.subTest(symbol=symbol, before=before), mock.patch.object(Path, "read_text", altered), \
+                    self.assertRaisesRegex(ValueError, "color output storage|executable Verus"):
+                framework.validate_normative_coverage(dict(data, requirements=[entries[ident]]))
+
+    def test_inventory_color_output_storage_keeps_every_primary_source_argument_and_result(self):
+        data = json.loads((framework.VALIDATION / "normative-coverage.json").read_text())
+        read_text = Path.read_text
+        for key in framework._COLOR_OUTPUT_CONTRACTS:
+            relative, symbol = key
+            entry = next(item for item in data["requirements"]
+                         if {"path": relative, "symbol": symbol} in item["contract_refs"])
+            path = framework.ROOT / relative
+            original = read_text(path)
+            header = framework._coverage_function_header(original, symbol)
+            signature = original.find("fn", header.start())
+            start = original.rfind("#[cfg_attr", 0, signature)
+            contract = original[start:signature]
+            model = framework._COLD_RESULT_CONTRACTS[key][0]
+            invocation = contract.index("crate::specs::" + model)
+            opening = contract.index("(", invocation)
+            depth = 1
+            closing = opening + 1
+            while depth:
+                depth += (contract[closing] == "(") - (contract[closing] == ")")
+                closing += 1
+            arguments = contract[opening + 1:closing - 1]
+            mutations = [
+                contract.replace("ensures", "ensures result.is_ok() ==>", 1),
+                contract.replace("ensures", "requires false, ensures", 1),
+                contract.replace("crate::specs::" + model, "crate::specs::unrelated_result", 1),
+                contract[:opening + 1] + "unrelated" + contract[closing - 1:],
+            ]
+            for parameter in set(re.findall(r"\b(\w+)\s*:(?!:)", original[signature:original.find("{", signature)])):
+                changed, count = re.subn(rf"(?<!:)\b{re.escape(parameter)}\b", "unrelated", arguments, count=1)
+                if count:
+                    mutations.append(contract[:opening + 1] + changed + contract[closing - 1:])
+            if re.search(r"\bself\b", original[signature:original.find("{", signature)]):
+                mutations.append(contract[:opening + 1] + arguments.replace("self", "unrelated", 1) + contract[closing - 1:])
+            for changed in mutations:
+                modified = original[:start] + changed + original[signature:]
+
+                def altered(source, *args, **kwargs):
+                    return modified if source == path else read_text(source, *args, **kwargs)
+
+                with self.subTest(symbol=symbol, changed=changed), mock.patch.object(Path, "read_text", altered), \
+                        self.assertRaisesRegex(ValueError, "executable Verus"):
+                    framework.validate_normative_coverage(dict(data, requirements=[entry]))
+
+    def test_inventory_color_output_storage_requires_normal_refusal_and_source_program_links(self):
+        data = json.loads((framework.VALIDATION / "normative-coverage.json").read_text())
+        for ident, field, path, symbol in (
+            ("part2-complete-component-channel-layout", "spec_refs", "specs/cold_color_conversion.rs", "part2_color_layout_alpha_before"),
+            ("part1-complete-normalized-component-plane", "proof_refs", "specs/cold_color_conversion.rs", "part2_color_normalize_storage_refused"),
+            ("part1-complete-typed-color-conversion", "proof_refs", "specs/cold_color_conversion.rs", "part2_color_convert_channel_error"),
+            ("part1-complete-converted-selection-crop", "proof_refs", "specs/cold_color_conversion.rs", "part2_color_output_program_child_error"),
+            ("part2-complete-native-general-layer-result", "proof_refs", "specs/jpx_general.rs", "part2_general_normalize_error"),
+        ):
+            entry = next(item for item in data["requirements"] if item["id"] == ident)
+            changed = dict(entry, **{field: [
+                ref for ref in entry[field] if (ref["path"], ref["symbol"]) != (path, symbol)
+            ]})
+            self.assertEqual(len(changed[field]), len(entry[field]) - 1)
+            with self.subTest(ident=ident, symbol=symbol), \
+                    self.assertRaisesRegex(ValueError, "executable Verus|color output storage|whole general"):
+                framework.validate_normative_coverage(dict(data, requirements=[changed]))
 
     def test_inventory_mct_runtime_storage_binds_source_roles_work_partial_pixels_and_tail(self):
         coverage = json.loads((framework.VALIDATION / "normative-coverage.json").read_text())
@@ -10957,7 +11072,7 @@ class FrameworkTests(WorkingFiles):
                         {"path": path, "symbol": symbol} for path, symbol in sorted(framework._TILE_METADATA_STORAGE_TESTS)
                         if {"path": path, "symbol": symbol} not in isolated["test_refs"]
                     ]
-                if key == ("src/decode/api.rs", "typed_layout") or isolated["id"] in {
+                if key in framework._COLOR_OUTPUT_CONTRACTS or key == ("src/decode/api.rs", "typed_layout") or isolated["id"] in {
                         "part2-complete-native-reversible-decorrelation-engineering",
                         "part2-complete-native-coefficient-component-reconstruction",
                         "part1-complete-native-raw-layout-result",
@@ -11190,7 +11305,7 @@ class FrameworkTests(WorkingFiles):
             ("src/decode/output.rs", "color_selection_for_size", "color_selection_outcome", "part2_color_selection_requested", ("decode_selection_view(requested)", "decode_selection_view(unrelated)")),
             ("src/decode/output.rs", "apply_associated_output", "associated_typed_outcome", "part2_apply_associated_output", ("typed_image_value_view(decoded)", "typed_image_value_view(unrelated)")),
             ("src/decode/output.rs", "convert_associated_color", "crate::color::converted_image_result", "part2_convert_associated", ("typed_image_value_view(*image)", "typed_image_value_view(*unrelated)")),
-            ("src/decode/output.rs", "convert_associated_selected_color", "crate::color::converted_image_result", "part2_convert_associated_selected", ("header), target", "header), unrelated")),
+            ("src/decode/output.rs", "convert_associated_selected_color", "crate::color::converted_image_result", "part2_convert_associated_selected", ("Some(target)", "Some(unrelated)")),
             ("src/decode/output.rs", "finish_associated_selected_output", "crate::color::converted_image_result", "part2_finish_associated_selected_output", ("typed_image_value_view(decoded)", "typed_image_value_view(unrelated)")),
             ("src/jp2/container.rs", "associated_header_for_codestream", "associated_header_outcome", "part2_associated_codestream_header", ("associated_header_view(fallback)", "associated_header_view(unrelated)")),
             ("src/jp2/container.rs", "validate_container_codestream", None, "part2_validate_selected_header", ("header.image, codestream.image_size.width", "header.image, 0")),
@@ -12348,9 +12463,9 @@ class FrameworkTests(WorkingFiles):
         start = original.rfind("#[cfg_attr", 0, end)
         contract = original[start:end]
         for before, after in (
-            ("ensures crate::color::converted_image_result(result)", "ensures crate::color::converted_image_result(unrelated)"),
-            ("ensures crate::color::converted_image_result(result)", "ensures unlisted_projection(result)"),
-            ("ensures crate::color::converted_image_result(result)", "ensures result.is_ok()"),
+            ("crate::color::converted_image_result(result)", "crate::color::converted_image_result(unrelated)"),
+            ("crate::color::converted_image_result(result)", "unlisted_projection(result)"),
+            ("crate::color::converted_image_result(result)", "result.is_ok()"),
             ("== crate::specs::color_convert_selected(", "== crate::specs::unlisted_model("),
             ("== crate::specs::color_convert_selected(", "== crate::specs::color_crop_image("),
             ("== crate::specs::color_convert_selected(", "== crate::specs::color_convert_jp2("),
@@ -12392,10 +12507,11 @@ class FrameworkTests(WorkingFiles):
             start = original.rfind("#[cfg_attr", 0, end)
             contract = original[start:end]
             unbound = "unrelated" if projection == "result" else projection.replace("(result)", "(unrelated)")
+            primary = projection if (reference["path"], reference["symbol"]) in framework._COLOR_OUTPUT_CONTRACTS else f"ensures {projection}"
             for before, after in (
-                (f"ensures {projection}", f"ensures {unbound}"),
-                (f"ensures {projection}", "ensures unlisted_projection(result)"),
-                (f"ensures {projection}", "ensures result.is_ok()"),
+                (primary, unbound if primary == projection else f"ensures {unbound}"),
+                (primary, "unlisted_projection(result)" if primary == projection else "ensures unlisted_projection(result)"),
+                (primary, "result.is_ok()" if primary == projection else "ensures result.is_ok()"),
                 ("== crate::specs::", "<= crate::specs::"),
             ):
                 self.assertIn(before, contract)
@@ -12448,11 +12564,12 @@ class FrameworkTests(WorkingFiles):
             contract = original[start:end]
             wrong_model = "color_convert_channel" if function == "convert_jp2_color" else "color_convert_jp2"
             unbound = "unrelated" if projection == "result" else projection.replace("(result)", "(unrelated)")
+            primary = projection if (reference["path"], reference["symbol"]) in framework._COLOR_OUTPUT_CONTRACTS else f"ensures {projection}"
             for before, after in (
-                (f"ensures {projection}", f"ensures {unbound}"),
-                (f"ensures {projection}", "ensures unlisted_projection(result)"),
-                (f"ensures {projection}", "ensures normalized_plane_result(result)"),
-                (f"ensures {projection}", "ensures result.is_ok()"),
+                (primary, unbound if primary == projection else f"ensures {unbound}"),
+                (primary, "unlisted_projection(result)" if primary == projection else "ensures unlisted_projection(result)"),
+                (primary, "normalized_plane_result(result)" if primary == projection else "ensures normalized_plane_result(result)"),
+                (primary, "result.is_ok()" if primary == projection else "ensures result.is_ok()"),
                 ("== crate::specs::", "<= crate::specs::"),
             ):
                 self.assertIn(before, contract)

@@ -5,6 +5,154 @@ use crate::{
 };
 
 #[test]
+fn color_storage_layout_first_later_alpha_refusal_and_association_priority_restore() {
+    let make = |association| {
+        let mut alpha = component(&[64, 255], 8, false, (1, 1), None);
+        for _ in 0..5 {
+            alpha.add_channel_definition(ChannelDefinition::new(ChannelType::Opacity, association));
+        }
+        image(
+            2,
+            vec![
+                component(&[17, 33], 8, false, (1, 1), Some(color(1))),
+                alpha,
+            ],
+        )
+    };
+    let input = make(ChannelAssociation::WholeImage);
+    let expected = channel_layout(&input, 1).unwrap();
+    assert_eq!(expected.colors, [0]);
+    assert_eq!(expected.alphas.len(), 5);
+    for after in 0..3 {
+        assert_eq!(
+            crate::allocation::with_refusal(after, || channel_layout(&input, 1)).err(),
+            Some(DecodeError::AllocationFailed)
+        );
+        let restored = channel_layout(&input, 1).unwrap();
+        assert_eq!(restored.colors, expected.colors);
+        assert_eq!(restored.alphas, expected.alphas);
+    }
+    let invalid = make(ChannelAssociation::Color(0));
+    let ordinary = channel_layout(&invalid, 1).err().unwrap();
+    crate::allocation::with_refusal(1, || {
+        assert_eq!(channel_layout(&invalid, 1).err(), Some(ordinary));
+        assert_eq!(
+            crate::allocation::empty_with_capacity::<u8>(1),
+            Err(DecodeError::AllocationFailed)
+        );
+    });
+}
+
+#[test]
+fn color_storage_channels_normalized_and_sycc_planes_keep_limits_empty_and_exact_retry() {
+    let limits = ResourceLimits::default();
+    for (method, count, owners) in [
+        (ENUMERATED_GRAYSCALE, 1, 3),
+        (ENUMERATED_SRGB, 3, 5),
+        (ENUMERATED_SYCC, 3, 5),
+    ] {
+        let input = image(
+            2,
+            (0..count)
+                .map(|_| component(&[17, 128], 8, false, (1, 1), None))
+                .collect(),
+        );
+        let specification = ColorSpecification::enumerated(method);
+        let expected = convert_jp2_color(&input, &specification, &limits).unwrap();
+        for after in 0..owners {
+            assert_eq!(
+                crate::allocation::with_refusal(after, || convert_jp2_color(
+                    &input,
+                    &specification,
+                    &limits
+                )),
+                Err(DecodeError::AllocationFailed)
+            );
+            assert_eq!(
+                convert_jp2_color(&input, &specification, &limits).unwrap(),
+                expected
+            );
+        }
+    }
+    let input = image(2, vec![component(&[0, 255], 8, false, (1, 1), None)]);
+    let specification = ColorSpecification::enumerated(ENUMERATED_GRAYSCALE);
+    let tight = limits.with_maximum_decoded_bytes(1).unwrap();
+    let ordinary = convert_jp2_color(&input, &specification, &tight)
+        .err()
+        .unwrap();
+    crate::allocation::with_refusal(1, || {
+        assert_eq!(
+            convert_jp2_color(&input, &specification, &tight),
+            Err(ordinary)
+        );
+        assert_eq!(
+            crate::allocation::empty_with_capacity::<u8>(1),
+            Err(DecodeError::AllocationFailed)
+        );
+    });
+    let empty = component(&[], 8, false, (1, 1), None);
+    crate::allocation::with_refusal(0, || {
+        assert_eq!(normalize_component(&empty, 1, 0, 0, 0), Ok(Vec::new()));
+        assert_eq!(
+            crate::allocation::empty_with_capacity::<u8>(1),
+            Err(DecodeError::AllocationFailed)
+        );
+    });
+}
+
+#[test]
+fn color_storage_crop_owner_samples_identity_and_invalid_geometry_preserve_metadata() {
+    let source = || {
+        ConvertedImage::from_test_channels(
+            3,
+            1,
+            ConvertedColorSpace::Grayscale,
+            vec![
+                (ConvertedChannelType::Gray, vec![17, 33, 49]),
+                (
+                    ConvertedChannelType::Alpha {
+                        premultiplied: true,
+                        association: ChannelAssociation::WholeImage,
+                    },
+                    vec![100, 200, 300],
+                ),
+            ],
+        )
+    };
+    let expected = source().crop(1, 0, 1, 1).unwrap();
+    assert_eq!(expected.channel(0).unwrap().samples(), [33]);
+    assert_eq!(expected.channel(1).unwrap().samples(), [200]);
+    for after in 0..3 {
+        let input = source();
+        assert_eq!(
+            crate::allocation::with_refusal(after, || input.crop(1, 0, 1, 1)),
+            Err(DecodeError::AllocationFailed)
+        );
+        assert_eq!(source().crop(1, 0, 1, 1).unwrap(), expected);
+    }
+    let input = source();
+    let pointer = input.channel(0).unwrap().samples().as_ptr();
+    crate::allocation::with_refusal(0, || {
+        let identity = input.crop(0, 0, 3, 1).unwrap();
+        assert_eq!(identity.channel(0).unwrap().samples().as_ptr(), pointer);
+        assert_eq!(identity, source());
+        assert_eq!(
+            crate::allocation::empty_with_capacity::<u8>(1),
+            Err(DecodeError::AllocationFailed)
+        );
+    });
+    let input = source();
+    let ordinary = source().crop(u32::MAX, 0, 1, 1).err().unwrap();
+    crate::allocation::with_refusal(0, || {
+        assert_eq!(input.crop(u32::MAX, 0, 1, 1), Err(ordinary));
+        assert_eq!(
+            crate::allocation::empty_with_capacity::<u8>(1),
+            Err(DecodeError::AllocationFailed)
+        );
+    });
+}
+
+#[test]
 fn sarah_engineering_crg_predecessor_uses_component_separation() {
     for sampling in [1_u32, 2, 4, 8, 255] {
         for registration in [0_u16, 1, 32_768, u16::MAX] {

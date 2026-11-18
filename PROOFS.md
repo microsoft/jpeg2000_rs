@@ -270,6 +270,37 @@ and focused proofs do not replace final exact-source/archive, native profile,
 resource and normal promotion qualifications. Other palette/ICC parser and
 nonlinear/color scratch or JPX growth owners remain separate broad work.
 
+### Reached color conversion and selected-output owners
+
+Channel-layout colors and alpha records, normalized component planes, converted
+channel metadata, SYCC red/green/blue planes and selected-output crop owners now
+use checked storage at their original allocation positions. Existing
+association, component, byte/work-budget, geometry and sample error order is
+preserved. Identity crops and empty owners remain request-free; refusal returns
+no partial converted image or successful fallback.
+
+[`cold_color_conversion.rs`](specs/cold_color_conversion.rs) derives request
+roles, counts and order from the original typed image, definitions, color
+method, limits and selection. Its framed program retains the original
+mathematical result after successful requests, propagates an actual normalized
+child refusal and preserves arbitrary unrelated tails. No successful image,
+allocator availability or physical capacity inferred from length is supplied
+as a premise.
+
+Actual layout, normalization, conversion and crop replies compose through
+full/selected JP2, JPH and JPX output, including layer-header fallback and
+general-layer source normalization and final conversion. General-layer source,
+dimension, count and pixel-limit invariants retain the original producer
+provenance rather than accepting a converted source bank.
+
+Focused native controls cover early and later alpha/plane refusals, empty and
+identity paths, semantic-error priority, limits, metadata and exact retry.
+External public color controls additionally exercise full/selected gray, RGB,
+SYCC, alpha and sampled ROI output. Incremental retained-input and deadline
+restoration remain native qualifications, not default clock/orchestration
+proofs. This bounded refinement does not claim universal allocation recovery,
+source-function coverage or broader color/normative certification.
+
 ### Centered-to-typed output ownership
 
 Typed-image component metadata now uses checked storage before any component
