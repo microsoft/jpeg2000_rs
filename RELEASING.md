@@ -96,20 +96,27 @@ and bounded maintenance [version 0.1.1](https://crates.io/crates/jpeg2000-decode
 are published. Confirm current ownership and appropriate token or publisher
 permissions before preparing any subsequent version.
 
-## Unpublished 0.2 development
+## Experimental 0.2 release preparation
 
-The development manifest is version 0.2.0 with `publish = false`. It includes
+The `release/0.2` decoder manifest is version 0.2.0 with
+`publish = ["crates-io"]`; `main` advances separately to unpublished 0.3
+development with publication disabled. This release includes
 the newer PDF recovery/centered-output APIs and default-off deadline,
 initial-MQ compatibility and buffered incremental profiles. None of those
 additions is implied by installing the bounded 0.1.1 maintenance crate.
 The default proof profile does not qualify the optional native coordinators;
 all [profile boundaries](SUPPORTED.md#build-and-runtime-profiles) remain.
 
-This version preparation is not a release cut or approval. An owner must still
-select and authorize an exact `release/0.2` candidate, enable publication in
-that reviewed candidate, qualify the actual integrated source/archive, and
-approve its immutable tag and publication request as described above. No
-release ref, tag, workflow dispatch or upload follows from a development merge.
+The initial zero-byte MQ case remains narrow, default-off compatibility, with
+strict decoding unchanged. Its independent standards-validity investigation
+remains [open](https://github.com/microsoft/jpeg2000_rs/issues/293); this
+experimental release does not claim that question is resolved. Optional MQ,
+deadline and incremental coordinators retain their native-only qualifications.
+
+Release preparation does not approve an immutable tag or upload. Qualify the
+reviewed candidate and actual integrated source/archive, then obtain the
+separate exact tag and publication approvals described above. No tag,
+workflow dispatch or upload follows merely from this manifest change.
 
 ## Published bounded maintenance 0.1.1
 
@@ -249,7 +256,8 @@ verifies against its declared registry dependency. The
 [adapter workflow](.github/workflows/image-adapter.yml) tests both boundaries.
 This does not replace the narrower unpacked-decoder probe above.
 
-Both packages retain `publish = false`. Adding the companion does not authorize
+The companion retains `publish = false`; only the decoder's reviewed release
+candidate permits crates.io publication. Adding the companion does not authorize
 a registry name claim, version/tag, upload, or changes to the frozen release
 branch. Any companion publication needs its own exact-candidate authorization,
 including the decoder dependency version, package inventory, notices, supported

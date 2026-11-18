@@ -7,10 +7,11 @@ The Cargo package is `jpeg2000-decoder`; Rust code imports it as
 `jpeg2000_decoder`. The repository remains
 [`microsoft/jpeg2000_rs`](https://github.com/microsoft/jpeg2000_rs).
 Experimental maintenance [version 0.1.1](https://crates.io/crates/jpeg2000-decoder/0.1.1)
-is published. This branch is **unpublished 0.2 development**: its additional PDF
+is published. This is the **experimental 0.2 release line**: its additional PDF
 recovery, centered-output, deadline, MQ and buffered incremental APIs are not
-part of that bounded maintenance release. Registry publication remains disabled;
-every release requires separate exact-candidate authorization and qualification.
+part of that bounded maintenance release. The decoder manifest permits only
+crates.io publication; an upload still requires exact source/archive
+qualification and separately approved tag and publication requests.
 
 The library decodes raw codestreams and JP2/JPH containers, provides explicit
 JPX codestream and frame selection, and supports bounded JPIP databin
@@ -49,7 +50,13 @@ code. The optional `verus` feature enables the pinned verification library;
 it does not install or run the verifier. That feature is outside the runtime
 minimum-version guarantee and uses its own toolchain.
 See the [Cargo-Verus instructions](PROOFS.md#reproduce-verification).
-Package publication from the development branch is disabled.
+Package publication from `main` remains disabled. This release line uses the
+[controlled publication workflow](RELEASING.md).
+
+Initial zero-byte MQ compatibility remains default-off and explicitly requested;
+strict decoding is unchanged. Its standards validity remains an open
+[investigation](https://github.com/microsoft/jpeg2000_rs/issues/293), not a
+conformance claim or a prerequisite for this experimental compatibility profile.
 
 ## Use with the image crate
 
