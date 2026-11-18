@@ -16,6 +16,15 @@ use super::{
 use vstd::prelude::*;
 
 impl FileType {
+    #[cfg_attr(verus_keep_ghost, verus_spec(result =>
+        ensures result == (super::file_type_view(self).0 == BoxType::JP2_BRAND),
+    ))]
+    pub(crate) fn is_jp2_primary(&self) -> bool {
+        #[cfg(verus_keep_ghost)]
+        proof! { reveal(super::file_type_view); }
+        self.brand.equals(BoxType::JP2_BRAND)
+    }
+
     #[cfg_attr(verus_keep_ghost, verus_spec(result => ensures result@ == super::file_type_view(self).2,))]
     pub fn compatible_brands(&self) -> &[BoxType] {
         &self.compatible_brands
@@ -1398,10 +1407,26 @@ pub(super) fn validate_file_type_profile(
     #[cfg(verus_keep_ghost)]
     proof! { reveal(super::file_type_view); }
     if file_type.brand.equals(BoxType::JP2_BRAND) && file_type.is_jpx_compatible() {
-        return Err(DecodeError::malformed(
-            offset,
-            MalformedKind::InvalidFileType,
-        ));
+        let mut index = 0_usize;
+        let mut jp2_compatible = false;
+        #[cfg_attr(verus_keep_ghost, verus_spec(
+            invariant index <= file_type.compatible_brands.len(),
+                jp2_compatible == exists|i:int| 0 <= i < index
+                    && file_type.compatible_brands@[i] == BoxType::JP2_BRAND,
+            decreases file_type.compatible_brands.len() - index,
+        ))]
+        while index < file_type.compatible_brands.len() {
+            if file_type.compatible_brands[index].equals(BoxType::JP2_BRAND) {
+                jp2_compatible = true;
+            }
+            index += 1;
+        }
+        if !jp2_compatible {
+            return Err(DecodeError::malformed(
+                offset,
+                MalformedKind::InvalidFileType,
+            ));
+        }
     }
     if !file_type.is_jph_compatible() {
         return Ok(());

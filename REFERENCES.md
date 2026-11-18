@@ -45,6 +45,22 @@ purchase-controlled. Its public summary is not sufficient for a clause-level
 reconciliation of the acquired 2021 source with the selected 2023 edition.
 That comparison requires an authorized full text.
 
+### JP2 primary brand and additional compatibility codes
+
+T.800 (06/2019), I.5.2, Table I.3 and the CLi definition distinguish the
+primary brand from the compatibility list. A JP2 file's required `jp2 `
+compatibility code is not exclusive: advertising registered JPX compatibility
+does not itself contradict a JP2 primary brand. T.801 (06/2021), M.8,
+separately specifies branding for files defined by the JPX extensions.
+ISO 32000-1:2008, 7.4.9, includes JP2 within the JPX formats used by JPXDecode.
+These clauses justify accepting the additional compatibility codes without
+waiving other container, colour, codestream or boundary checks. They do not
+establish conformance of an entire PDF image or resolve the selected-edition
+reconciliation identified above.
+The common PDF single-codestream profile likewise retains JP2-primary files
+with additional JPX compatibility codes; its separate restrictions on
+non-JP2-primary JPX, JPH and multiple codestreams are unchanged.
+
 The T.808 (06/2026) reference above identifies a catalog record, not an acquired
 normative text or completed edition-difference review. Public implementation
 cross-checks and JPIP regression results must not be described as a complete

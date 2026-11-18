@@ -123,7 +123,7 @@ fn prepare_pdf_input<'a>(
         proof! { jp2::raw_render_file_known(&file); }
         let kind = file.file_type();
         if !kind.is_compatible_with(jp2::BoxType::JP2_BRAND)
-            || kind.is_jpx_compatible()
+            || (kind.is_jpx_compatible() && !kind.is_jp2_primary())
             || kind.is_jph_compatible()
             || file.codestream_count() != 1
         {
