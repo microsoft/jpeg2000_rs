@@ -7,7 +7,7 @@ use super::{
     finish_associated_selected_output, invalid_decode, jp2, registered_ceil_div_u32,
 };
 #[cfg(verus_keep_ghost)]
-use super::{ImageSize, nonlinear_regions_outcome, nonlinear_regions_view};
+use super::{ImageSize, nonlinear_region_view, nonlinear_regions_outcome, nonlinear_regions_view};
 #[cfg(verus_keep_ghost)]
 use vstd::prelude::*;
 
@@ -477,9 +477,28 @@ pub(super) fn typed_layout(
         }
     }
     let mut image = converted?;
-    let regions = collect_nonlinear_regions(layout, &image, discard_levels)?;
+    #[cfg(verus_keep_ghost)]
+    proof_decl! {let ghost typed_before_nlt=crate::image::typed_image_value_view(image);}
+    let collected = collect_nonlinear_regions(layout, &image, discard_levels);
+    #[cfg(verus_keep_ghost)]
+    proof! {
+        if let Err(error)=collected {
+            crate::specs::part2_typed_layout_regions_error(codestream::decoder_layout_input_view(layout),source,
+                discard_levels,limits,typed_before_nlt,error);
+        }
+    }
+    let regions = collected?;
     if !regions.is_empty() {
-        image.apply_nonlinear_regions(&regions, limits)?;
+        let applied = image.apply_nonlinear_regions(&regions, limits);
+        #[cfg(verus_keep_ghost)]
+        proof! {
+            if let Err(error)=applied {
+                crate::specs::part2_typed_layout_nonlinear_error(codestream::decoder_layout_input_view(layout),source,
+                    discard_levels,limits,typed_before_nlt,nonlinear_regions_view(regions@),
+                    crate::image::typed_image_value_view(image),error);
+            }
+        }
+        applied?;
     }
     Ok(image)
 }
@@ -517,7 +536,11 @@ pub(super) fn nonlinear_component_extent(
 }
 
 #[cfg_attr(verus_keep_ghost, verus_spec(result =>
-    ensures nonlinear_regions_outcome(result) == crate::specs::part2_collect_nonlinear_regions(
+    ensures crate::specs::part2_nlt_regions_storage_result(crate::specs::Part2NltRegionStorageContext {
+        input:codestream::decoder_layout_input_view(layout),image:crate::image::typed_image_value_view(*image),discard:discard_levels,
+    },nonlinear_regions_outcome(result)),
+    nonlinear_regions_outcome(result) != Err(DecodeError::AllocationFailed) ==>
+        nonlinear_regions_outcome(result) == crate::specs::part2_collect_nonlinear_regions(
         layout, crate::image::typed_image_value_view(*image), discard_levels,
     ),
 ))]
@@ -526,6 +549,14 @@ pub(super) fn collect_nonlinear_regions<'a>(
     image: &TypedImage,
     discard_levels: u8,
 ) -> Result<Vec<NonlinearRegion<'a>>, DecodeError> {
+    #[cfg(verus_keep_ghost)]
+    proof_decl! {
+        let ghost storage_context=crate::specs::Part2NltRegionStorageContext {
+            input:codestream::decoder_layout_input_view(layout),image:crate::image::typed_image_value_view(*image),discard:discard_levels};
+        let ghost mut storage_prefix=Seq::<crate::specs::Part2JpipSnapshotEvent>::empty();
+    }
+    #[cfg(verus_keep_ghost)]
+    proof! {crate::specs::part2_nlt_regions_storage_normal(storage_context);}
     if discard_levels >= 32 {
         return Err(DecodeError::InvalidSelection {
             reason: SelectionError::ReductionTooLarge,
@@ -543,6 +574,11 @@ pub(super) fn collect_nonlinear_regions<'a>(
     proof! {
         codestream::decoder_layout_input_fields(layout);
         assert(nonlinear_regions_view(regions@) =~= Seq::empty());
+        assert forall|tail:Seq<crate::specs::Part2JpipSnapshotEvent>|
+            crate::specs::part2_nlt_regions_storage_run(storage_context,storage_prefix+tail)
+                ==crate::specs::part2_nlt_region_components_run(storage_context,scale,0,nonlinear_regions_view(regions@),tail) by {
+            assert(storage_prefix+tail =~= tail);
+        }
     }
     #[cfg_attr(
         verus_keep_ghost,
@@ -552,6 +588,12 @@ pub(super) fn collect_nonlinear_regions<'a>(
             image_view == crate::image::typed_image_value_view(*image),
             goal == crate::specs::part2_collect_nonlinear_regions(layout, image_view, discard_levels),
             goal == crate::specs::part2_nonlinear_component_regions(layout, image_view, scale, component as nat, nonlinear_regions_view(regions@)),
+            storage_context==(crate::specs::Part2NltRegionStorageContext {
+                input:codestream::decoder_layout_input_view(layout),image:image_view,discard:discard_levels}),
+            crate::specs::part2_nlt_regions_storage_result(storage_context,goal),
+            crate::specs::part2_cold_phase(|events|crate::specs::part2_nlt_regions_storage_run(storage_context,events),
+                storage_prefix,|events|crate::specs::part2_nlt_region_components_run(
+                    storage_context,scale,component as nat,nonlinear_regions_view(regions@),events)),
             decreases layout.info.image_size.components - component,
         )
     )]
@@ -564,6 +606,11 @@ pub(super) fn collect_nonlinear_regions<'a>(
         let (extent, tile_count) =
             nonlinear_component_extent(&layout.info.image_size, image, component)?;
         let (output_x0, output_y0, output_x1, output_y1) = extent;
+        #[cfg(verus_keep_ghost)]
+        proof! {
+            crate::specs::part2_nlt_regions_begin_tiles(storage_context,storage_prefix,component as nat,
+                extent,scale,tile_count,nonlinear_regions_view(regions@));
+        }
         #[cfg(verus_keep_ghost)]
         proof_decl! {
             let ghost tile_goal = crate::specs::part2_nonlinear_tile_regions(
@@ -584,6 +631,12 @@ pub(super) fn collect_nonlinear_regions<'a>(
                     Ok(regions) => crate::specs::part2_nonlinear_component_regions(layout, image_view, scale, component as nat + 1, regions),
                 },
                 tile_goal == crate::specs::part2_nonlinear_tile_regions(layout, component, extent, scale, tile_count, tile as nat, nonlinear_regions_view(regions@)),
+                storage_context==(crate::specs::Part2NltRegionStorageContext {
+                    input:codestream::decoder_layout_input_view(layout),image:image_view,discard:discard_levels}),
+                crate::specs::part2_nlt_regions_storage_result(storage_context,goal),
+                crate::specs::part2_cold_phase(|events|crate::specs::part2_nlt_regions_storage_run(storage_context,events),
+                    storage_prefix,|events|crate::specs::part2_nlt_region_component_tiles_run(storage_context,
+                        component as nat,extent,scale,tile_count,tile as nat,nonlinear_regions_view(regions@),events)),
                 extent == (output_x0, output_y0, output_x1, output_y1),
                 decreases tile_count - tile,
             )
@@ -633,14 +686,28 @@ pub(super) fn collect_nonlinear_regions<'a>(
                 let x1 = ceil_div_u32(bounds.x1, scale)?.min(output_x1);
                 let y1 = ceil_div_u32(bounds.y1, scale)?.min(output_y1);
                 if x0 < x1 && y0 < y1 {
-                    regions.push(NonlinearRegion {
+                    let next_region = NonlinearRegion {
                         component,
                         x0: x0.checked_sub(output_x0).ok_or_else(arithmetic_overflow)?,
                         y0: y0.checked_sub(output_y0).ok_or_else(arithmetic_overflow)?,
                         x1: x1.checked_sub(output_x0).ok_or_else(arithmetic_overflow)?,
                         y1: y1.checked_sub(output_y0).ok_or_else(arithmetic_overflow)?,
                         transform,
-                    });
+                    };
+                    let reserved = crate::allocation::reserve_additional(&mut regions, 1);
+                    #[cfg(verus_keep_ghost)]
+                    proof! {
+                        let context=crate::specs::Part2NltRegionAppendContext {
+                            source:storage_context,component,extent,scale,tile:tile_index,
+                            before:nonlinear_regions_view(before),region:nonlinear_region_view(&next_region)};
+                        crate::specs::part2_nlt_region_capacity_observed(
+                            context,crate::allocation::inspection_capacity_outcome(reserved));
+                        if let Err(error)=reserved {
+                            crate::specs::part2_nlt_regions_append_error(context,storage_prefix,tile_count,error);
+                        }
+                    }
+                    reserved?;
+                    regions.push(next_region);
                 }
             }
             #[cfg(verus_keep_ghost)]
@@ -650,6 +717,8 @@ pub(super) fn collect_nonlinear_regions<'a>(
                     Ok(None) => nonlinear_regions_view(before),
                     Ok(Some(region)) => nonlinear_regions_view(before).push(region),
                 });
+                storage_prefix=crate::specs::part2_nlt_regions_advance(storage_context,storage_prefix,component as nat,
+                    extent,scale,tile_count,tile as nat,nonlinear_regions_view(before),nonlinear_regions_view(regions@));
             }
             tile = tile.checked_add(1).ok_or_else(arithmetic_overflow)?;
         }
@@ -657,6 +726,8 @@ pub(super) fn collect_nonlinear_regions<'a>(
         proof! {
             codestream::decoder_layout_input_fields(layout);
             reveal_with_fuel(crate::specs::part2_nonlinear_tile_regions, 1);
+            crate::specs::part2_nlt_regions_finish_tiles(storage_context,storage_prefix,component as nat,
+                extent,scale,tile_count,tile as nat,nonlinear_regions_view(regions@));
         }
         component = component.checked_add(1).ok_or_else(arithmetic_overflow)?;
     }
@@ -664,6 +735,7 @@ pub(super) fn collect_nonlinear_regions<'a>(
     proof! {
         codestream::decoder_layout_input_fields(layout);
         reveal_with_fuel(crate::specs::part2_nonlinear_component_regions, 1);
+        crate::specs::part2_nlt_regions_finish(storage_context,storage_prefix,scale,component as nat,nonlinear_regions_view(regions@));
     }
     Ok(regions)
 }

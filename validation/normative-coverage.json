@@ -1598,6 +1598,9 @@
         {"path": "src/decode/output.rs", "symbol": "apply_jp2_output"}
       ],
       "spec_refs": [
+        {"path": "specs/cold_typed_storage.rs", "symbol": "part2_typed_layout_after_typed_run"},
+        {"path": "specs/cold_typed_storage.rs", "symbol": "part2_typed_layout_nonlinear_run"},
+        {"path": "specs/cold_typed_storage.rs", "symbol": "part2_typed_layout_nonlinear_value"},
         {"path": "specs/cold_output_storage.rs", "symbol": "part2_output_storage_result"},
         {"path": "specs/cold_output_storage.rs", "symbol": "part2_output_storage_run"},
         {"path": "specs/cold_typed_storage.rs", "symbol": "part2_typed_capacity_count"},
@@ -1681,6 +1684,10 @@
         {"path": "specs/raw_layout.rs", "symbol": "part1_parse_layout_with_cold_storage"}
       ],
       "proof_refs": [
+        {"path": "specs/cold_typed_storage.rs", "symbol": "part2_typed_layout_after_typed_normal"},
+        {"path": "specs/cold_typed_storage.rs", "symbol": "part2_typed_layout_nonlinear_error"},
+        {"path": "specs/cold_typed_storage.rs", "symbol": "part2_typed_layout_nonlinear_normal"},
+        {"path": "specs/cold_typed_storage.rs", "symbol": "part2_typed_layout_regions_error"},
         {"path": "specs/cold_output_storage.rs", "symbol": "part2_output_storage_normal"},
         {"path": "specs/cold_typed_storage.rs", "symbol": "part2_typed_capacity_observed"},
         {"path": "specs/cold_typed_storage.rs", "symbol": "part2_typed_samples_normal"},
@@ -3578,6 +3585,9 @@
         {"path": "src/decode/api.rs", "symbol": "decode_jp2_selected"}
       ],
       "spec_refs": [
+        {"path": "specs/cold_typed_storage.rs", "symbol": "part2_typed_layout_after_typed_run"},
+        {"path": "specs/cold_typed_storage.rs", "symbol": "part2_typed_layout_nonlinear_run"},
+        {"path": "specs/cold_typed_storage.rs", "symbol": "part2_typed_layout_nonlinear_value"},
         {"path": "specs/cold_typed_storage.rs", "symbol": "part2_typed_capacity_count"},
         {"path": "specs/cold_typed_storage.rs", "symbol": "part2_typed_capacity_run"},
         {"path": "specs/cold_typed_storage.rs", "symbol": "part2_typed_samples_admit"},
@@ -3621,6 +3631,10 @@
         {"path": "src/decode/api.rs", "symbol": "typed_layout"}
       ],
       "proof_refs": [
+        {"path": "specs/cold_typed_storage.rs", "symbol": "part2_typed_layout_after_typed_normal"},
+        {"path": "specs/cold_typed_storage.rs", "symbol": "part2_typed_layout_nonlinear_error"},
+        {"path": "specs/cold_typed_storage.rs", "symbol": "part2_typed_layout_nonlinear_normal"},
+        {"path": "specs/cold_typed_storage.rs", "symbol": "part2_typed_layout_regions_error"},
         {"path": "specs/cold_typed_storage.rs", "symbol": "part2_typed_capacity_observed"},
         {"path": "specs/cold_typed_storage.rs", "symbol": "part2_typed_samples_normal"},
         {"path": "specs/cold_typed_storage.rs", "symbol": "part2_typed_samples_refused"},
@@ -6082,6 +6096,9 @@
         {"path": "src/codestream/profile.rs", "symbol": "maximum_u32_for_bits"}
       ],
       "spec_refs": [
+        {"path": "specs/cold_mct_copy.rs", "symbol": "part1_mct_copy_site"},
+        {"path": "specs/cold_part2_fresh.rs", "symbol": "part1_nlt_insert_requests"},
+        {"path": "specs/cold_part2_fresh.rs", "symbol": "part1_p2_marker_requests"},
         {"path": "specs/cold_part2_fresh.rs", "symbol": "part1_p2_fresh_result"},
         {"path": "specs/cold_part2_fresh.rs", "symbol": "part1_p2_fresh_run"},
         {"path": "specs/cold_part2_fresh.rs", "symbol": "part1_p2_marker_result"},
@@ -6112,6 +6129,7 @@
         {"path": "src/codestream/profile.rs", "symbol": "maximum_u32_for_bits"}
       ],
       "proof_refs": [
+        {"path": "specs/cold_part2_fresh.rs", "symbol": "part1_nlt_insert_refused"},
         {"path": "specs/cold_part2_fresh.rs", "symbol": "part1_p2_fresh_normal"},
         {"path": "specs/cold_part2_fresh.rs", "symbol": "part1_p2_marker_projection"},
         {"path": "specs/cold_part2_fresh.rs", "symbol": "part1_p2_marker_storage_equivalent"},
@@ -6128,6 +6146,7 @@
         {"path": "src/refinement/headers.rs", "symbol": "cbd_signed"}
       ],
       "test_refs": [
+        {"path": "src/codestream/tests.rs", "symbol": "nlt_storage_insert_keeps_charged_prefix_overwrite_spare_capacity_and_retry"},
         {"path": "src/codestream/tests.rs", "symbol": "fresh_part2_nonlinear_points_parameters_and_no_request_restore"},
         {"path": "src/codestream/tests.rs", "symbol": "actual_nlt_preserves_all_component_selectors_precision_and_type_bytes"},
         {"path": "src/codestream/tests.rs", "symbol": "actual_nlt_preserves_gamma_words_point_widths_caps_and_tail_bytes"},
@@ -6705,6 +6724,9 @@
         {"path": "src/decode/api.rs", "symbol": "typed_layout"}
       ],
       "spec_refs": [
+        {"path": "specs/cold_typed_storage.rs", "symbol": "part2_typed_layout_after_typed_run"},
+        {"path": "specs/cold_typed_storage.rs", "symbol": "part2_typed_layout_nonlinear_run"},
+        {"path": "specs/cold_typed_storage.rs", "symbol": "part2_typed_layout_nonlinear_value"},
         {"path": "specs/cold_typed_storage.rs", "symbol": "part2_typed_capacity_count"},
         {"path": "specs/cold_typed_storage.rs", "symbol": "part2_typed_capacity_run"},
         {"path": "specs/cold_typed_storage.rs", "symbol": "part2_typed_samples_admit"},
@@ -6734,6 +6756,10 @@
         {"path": "src/decode/api.rs", "symbol": "typed_layout"}
       ],
       "proof_refs": [
+        {"path": "specs/cold_typed_storage.rs", "symbol": "part2_typed_layout_after_typed_normal"},
+        {"path": "specs/cold_typed_storage.rs", "symbol": "part2_typed_layout_nonlinear_error"},
+        {"path": "specs/cold_typed_storage.rs", "symbol": "part2_typed_layout_nonlinear_normal"},
+        {"path": "specs/cold_typed_storage.rs", "symbol": "part2_typed_layout_regions_error"},
         {"path": "specs/cold_typed_storage.rs", "symbol": "part2_typed_capacity_observed"},
         {"path": "specs/cold_typed_storage.rs", "symbol": "part2_typed_samples_normal"},
         {"path": "specs/cold_typed_storage.rs", "symbol": "part2_typed_samples_refused"},
@@ -6766,11 +6792,25 @@
       "id": "part2-complete-native-nonlinear-owner-mutation",
       "topic": "Complete actual TypedImage and TypedComponent nonlinear region Result/final owner fields on success AND failure, from real raw typed samples/region transforms/limits and derived None scratch/target/work. Actual component body preserves selected-region/rectangle/descriptor/duplicate/read/scalar-before-work order, original per-component byte-before-coverage/conversion policy, all metadata and committed component prefix on errors. No decoded/sample/scratch/result banks, normalized image/region premises, precomputed source coverage or budget success. All bounds/frames/termination derive internally; shared proved checked index/work bodies retain original operations. Genuine typed_layout invokes the sole image body and real component producer. Whole typed/parser/file/F2/F4/final F8 and hosted/main/publication remain separate.",
       "implementation_refs": [
+        {"path": "src/image/nonlinear.rs", "symbol": "nlt_scratch_values"},
         {"path": "src/decode/api.rs", "symbol": "typed_layout"},
         {"path": "src/image/nonlinear.rs", "symbol": "TypedImage::apply_nonlinear_regions"},
         {"path": "src/image/nonlinear.rs", "symbol": "TypedComponent::apply_nonlinear_regions"}
       ],
       "spec_refs": [
+        {"path": "specs/cold_nlt_storage.rs", "symbol": "part2_nlt_component_region_state"},
+        {"path": "specs/cold_nlt_storage.rs", "symbol": "part2_nlt_capacity_count"},
+        {"path": "specs/cold_nlt_storage.rs", "symbol": "part2_nlt_capacity_run"},
+        {"path": "specs/cold_nlt_storage.rs", "symbol": "part2_nlt_capacity_result"},
+        {"path": "specs/cold_nlt_storage.rs", "symbol": "part2_nlt_component_after_scratch"},
+        {"path": "specs/cold_nlt_storage.rs", "symbol": "part2_nlt_component_storage_run"},
+        {"path": "specs/cold_nlt_storage.rs", "symbol": "part2_nlt_component_storage_result"},
+        {"path": "specs/cold_nlt_storage.rs", "symbol": "part2_nlt_component_storage_outcome"},
+        {"path": "specs/cold_nlt_storage.rs", "symbol": "part2_nlt_image_component_context"},
+        {"path": "specs/cold_nlt_storage.rs", "symbol": "part2_nlt_image_component_updated"},
+        {"path": "specs/cold_nlt_storage.rs", "symbol": "part2_nlt_image_components_storage_run"},
+        {"path": "specs/cold_nlt_storage.rs", "symbol": "part2_nlt_image_storage_run"},
+        {"path": "specs/cold_nlt_storage.rs", "symbol": "part2_nlt_image_storage_result"},
         {"path": "specs/mod.rs", "symbol": "part2_apply_nonlinear_regions"},
         {"path": "specs/mod.rs", "symbol": "part2_nlt_apply_components"},
         {"path": "specs/mod.rs", "symbol": "part2_nlt_component_mutation"},
@@ -6794,6 +6834,20 @@
         {"path": "src/image/nonlinear.rs", "symbol": "TypedComponent::apply_nonlinear_regions"}
       ],
       "proof_refs": [
+        {"path": "specs/cold_nlt_storage.rs", "symbol": "part2_nlt_capacity_observed"},
+        {"path": "specs/cold_nlt_storage.rs", "symbol": "part2_nlt_capacity_frames"},
+        {"path": "specs/cold_nlt_storage.rs", "symbol": "part2_nlt_component_storage_normal"},
+        {"path": "specs/cold_nlt_storage.rs", "symbol": "part2_nlt_component_scratch_refused"},
+        {"path": "specs/cold_nlt_storage.rs", "symbol": "part2_nlt_component_samples_refused"},
+        {"path": "specs/cold_nlt_storage.rs", "symbol": "part2_nlt_component_storage_frames"},
+        {"path": "specs/cold_nlt_storage.rs", "symbol": "part2_nlt_image_components_storage_normal"},
+        {"path": "specs/cold_nlt_storage.rs", "symbol": "part2_nlt_image_storage_normal"},
+        {"path": "specs/cold_nlt_storage.rs", "symbol": "part2_nlt_image_storage_frames"},
+        {"path": "specs/cold_nlt_storage.rs", "symbol": "part2_nlt_image_storage_observed"},
+        {"path": "specs/cold_nlt_storage.rs", "symbol": "part2_nlt_image_storage_component_error"},
+        {"path": "specs/cold_nlt_storage.rs", "symbol": "part2_nlt_image_storage_advance"},
+        {"path": "specs/cold_nlt_storage.rs", "symbol": "part2_nlt_image_storage_boundary"},
+        {"path": "src/image/nonlinear.rs", "symbol": "nlt_scratch_values"},
         {"path": "src/image/proof_support.rs", "symbol": "typed_image_value_view"},
         {"path": "src/image/proof_support.rs", "symbol": "typed_component_view"},
         {"path": "src/image/proof_support.rs", "symbol": "nlt_scratch_view"},
@@ -6804,6 +6858,7 @@
         {"path": "src/image/arithmetic.rs", "symbol": "validate_bytes"}
       ],
       "test_refs": [
+        {"path": "src/image/tests.rs", "symbol": "nlt_storage_scratch_target_partial_component_frames_and_exact_source_retry"},
         {"path": "src/image/tests.rs", "symbol": "actual_nonlinear_image_mutation_preserves_every_owner_field_and_failure_prefix"}
       ]
     },
@@ -6976,6 +7031,15 @@
         {"path": "src/image/nonlinear.rs", "symbol": "TypedImage::apply_nonlinear_regions"}
       ],
       "spec_refs": [
+        {"path": "specs/cold_nlt_regions.rs", "symbol": "part2_nlt_region_append_admitted"},
+        {"path": "specs/cold_nlt_regions.rs", "symbol": "part2_nlt_region_capacity_run"},
+        {"path": "specs/cold_nlt_regions.rs", "symbol": "part2_nlt_region_capacity_result"},
+        {"path": "specs/cold_nlt_regions.rs", "symbol": "part2_nlt_region_step_value"},
+        {"path": "specs/cold_nlt_regions.rs", "symbol": "part2_nlt_region_step_run"},
+        {"path": "specs/cold_nlt_regions.rs", "symbol": "part2_nlt_region_tiles_run"},
+        {"path": "specs/cold_nlt_regions.rs", "symbol": "part2_nlt_region_components_run"},
+        {"path": "specs/cold_nlt_regions.rs", "symbol": "part2_nlt_regions_storage_run"},
+        {"path": "specs/cold_nlt_regions.rs", "symbol": "part2_nlt_regions_storage_result"},
         {"path": "specs/mod.rs", "symbol": "part2_nonlinear_transform_for"},
         {"path": "specs/mod.rs", "symbol": "part2_nonlinear_transform_for_unscoped"},
         {"path": "specs/mod.rs", "symbol": "part2_nonlinear_find"},
@@ -6994,6 +7058,18 @@
         {"path": "src/decode/api.rs", "symbol": "collect_nonlinear_regions"}
       ],
       "proof_refs": [
+        {"path": "specs/cold_nlt_regions.rs", "symbol": "part2_nlt_region_capacity_observed"},
+        {"path": "specs/cold_nlt_regions.rs", "symbol": "part2_nlt_region_capacity_frames"},
+        {"path": "specs/cold_nlt_regions.rs", "symbol": "part2_nlt_region_step_normal"},
+        {"path": "specs/cold_nlt_regions.rs", "symbol": "part2_nlt_region_tiles_normal"},
+        {"path": "specs/cold_nlt_regions.rs", "symbol": "part2_nlt_region_components_normal"},
+        {"path": "specs/cold_nlt_regions.rs", "symbol": "part2_nlt_regions_storage_normal"},
+        {"path": "specs/cold_nlt_regions.rs", "symbol": "part2_nlt_regions_storage_frames"},
+        {"path": "specs/cold_nlt_regions.rs", "symbol": "part2_nlt_regions_begin_tiles"},
+        {"path": "specs/cold_nlt_regions.rs", "symbol": "part2_nlt_regions_finish_tiles"},
+        {"path": "specs/cold_nlt_regions.rs", "symbol": "part2_nlt_regions_advance"},
+        {"path": "specs/cold_nlt_regions.rs", "symbol": "part2_nlt_regions_append_error"},
+        {"path": "specs/cold_nlt_regions.rs", "symbol": "part2_nlt_regions_finish"},
         {"path": "src/codestream/proof_support.rs", "symbol": "owned_nonlinear_list_view"},
         {"path": "src/codestream/proof_support.rs", "symbol": "owned_nonlinear_view"},
         {"path": "src/codestream/proof_support.rs", "symbol": "owned_extensions_view"},
@@ -7004,6 +7080,7 @@
         {"path": "src/decode/arithmetic.rs", "symbol": "registered_ceil_div_u32"}
       ],
       "test_refs": [
+        {"path": "src/decode/tests.rs", "symbol": "nlt_storage_region_append_no_region_reduction_and_exact_retry"},
         {"path": "src/codestream/tests.rs", "symbol": "actual_nonlinear_lookup_preserves_first_specific_then_first_default_and_all_raw_fields"},
         {"path": "src/codestream/tests.rs", "symbol": "sarah_engineering_nlt_keeps_tile_and_main_header_precedence"},
         {"path": "src/codestream/tests.rs", "symbol": "sarah_engineering_nlt_scoped_replacement_preserves_parent_and_charged_errors"},

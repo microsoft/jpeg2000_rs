@@ -20,7 +20,13 @@ use vstd::prelude::*;
 
 impl TypedImage {
     #[cfg_attr(verus_keep_ghost, verus_spec(result =>
-        ensures (result, typed_image_value_view(*final(self))) == crate::specs::part2_apply_nonlinear_regions(
+        ensures crate::specs::part2_nlt_image_storage_result(crate::specs::Part2NltImageStorageContext {
+            source:typed_image_value_view(*old(self)),regions:crate::decode::nonlinear_regions_view(regions@),
+            maximum_bytes:crate::limits::resource_decoded_bytes_limit(limits),
+            maximum_work:crate::limits::resource_work_limit(limits),
+        },(result,typed_image_value_view(*final(self)))),
+        result != Err(DecodeError::AllocationFailed) ==>
+            (result, typed_image_value_view(*final(self))) == crate::specs::part2_apply_nonlinear_regions(
             typed_image_value_view(*old(self)), crate::decode::nonlinear_regions_view(regions@),
             crate::limits::resource_decoded_bytes_limit(limits), crate::limits::resource_work_limit(limits),
         ),
@@ -37,9 +43,20 @@ impl TypedImage {
             let ghost byte_limit = crate::limits::resource_decoded_bytes_limit(limits);
             let ghost work_limit = crate::limits::resource_work_limit(limits);
             let ghost expected = crate::specs::part2_nlt_apply_components(initial, 0, region_views, byte_limit, work_limit, 0);
+            let ghost storage_context=crate::specs::Part2NltImageStorageContext {
+                source:initial,regions:region_views,maximum_bytes:byte_limit,maximum_work:work_limit};
+            let ghost mut storage_prefix=Seq::<crate::specs::Part2JpipSnapshotEvent>::empty();
         }
         #[cfg(verus_keep_ghost)]
-        proof! { reveal(crate::specs::part2_apply_nonlinear_regions); }
+        proof! {
+            reveal(crate::specs::part2_apply_nonlinear_regions);
+            crate::specs::part2_nlt_image_storage_normal(storage_context);
+            assert forall|tail:Seq<crate::specs::Part2JpipSnapshotEvent>|
+                crate::specs::part2_nlt_image_storage_run(storage_context,storage_prefix+tail)
+                    ==crate::specs::part2_nlt_image_components_storage_run(storage_context,initial,0,0,tail) by {
+                assert(storage_prefix+tail =~= tail);
+            }
+        }
         let mut work = 0_u64;
         let mut component_index = 0_usize;
         #[cfg_attr(
@@ -56,6 +73,11 @@ impl TypedImage {
                 expected == crate::specs::part2_nlt_apply_components(
                     typed_image_value_view(*self), component_index as nat, region_views, byte_limit, work_limit, work,
                 ),
+                storage_context==(crate::specs::Part2NltImageStorageContext {
+                    source:initial,regions:region_views,maximum_bytes:byte_limit,maximum_work:work_limit}),
+                crate::specs::part2_cold_phase(|events|crate::specs::part2_nlt_image_storage_run(storage_context,events),
+                    storage_prefix,|events|crate::specs::part2_nlt_image_components_storage_run(storage_context,
+                        typed_image_value_view(*self),component_index as nat,work,events)),
                 decreases self.components.len() - component_index,
             )
         )]
@@ -63,6 +85,11 @@ impl TypedImage {
             #[cfg(verus_keep_ghost)]
             proof! { reveal_with_fuel(crate::specs::part2_nlt_apply_components, 1); }
             if component_index > usize::from(u16::MAX) {
+                #[cfg(verus_keep_ghost)]
+                proof! {
+                    crate::specs::part2_nlt_image_storage_boundary(storage_context,storage_prefix,
+                        typed_image_value_view(*self),component_index as nat,work);
+                }
                 return Err(arithmetic_overflow());
             }
             let component_number = component_index as u16;
@@ -85,9 +112,20 @@ impl TypedImage {
             #[cfg(verus_keep_ghost)]
             proof! {
                 reveal(crate::specs::part2_nlt_component_mutation);
-                let ghost updated = match component_expected { Ok((value, _)) => value, Err(_) => source_view };
+                let ghost updated=typed_component_view(&self.components@[component_index as int]);
+                let ghost child=crate::specs::part2_nlt_image_component_context(storage_context,before,component_index as nat,work);
+                crate::specs::part2_nlt_component_storage_frames(child,(outcome,updated));
                 assert(typed_image_component_views(self) =~= before.1.update(component_index as int, updated));
                 assert(typed_image_definition_views(self) =~= before.2);
+                if let Err(error)=outcome {
+                    assert(updated==source_view);
+                    assert(typed_image_value_view(*self)==before);
+                    crate::specs::part2_nlt_image_storage_component_error(storage_context,storage_prefix,before,
+                        component_index as nat,work,error);
+                }else if let Ok(next_work)=outcome {
+                    storage_prefix=crate::specs::part2_nlt_image_storage_advance(storage_context,storage_prefix,before,
+                        component_index as nat,work,updated,next_work);
+                }
             }
             work = outcome?;
             component_index = component_index
@@ -95,14 +133,24 @@ impl TypedImage {
                 .ok_or_else(arithmetic_overflow)?;
         }
         #[cfg(verus_keep_ghost)]
-        proof! { reveal_with_fuel(crate::specs::part2_nlt_apply_components, 1); }
+        proof! {
+            reveal_with_fuel(crate::specs::part2_nlt_apply_components, 1);
+            crate::specs::part2_nlt_image_storage_boundary(storage_context,storage_prefix,
+                typed_image_value_view(*self),component_index as nat,work);
+        }
         Ok(())
     }
 }
 
 impl TypedComponent {
     #[cfg_attr(verus_keep_ghost, verus_spec(result =>
-        ensures (result, typed_component_view(final(self))) == crate::specs::part2_nlt_component_mutation(
+        ensures crate::specs::part2_nlt_component_storage_result(crate::specs::Part2NltComponentStorageContext {
+            source:typed_component_view(old(self)),number:component_number,regions:crate::decode::nonlinear_regions_view(regions@),
+            maximum_bytes:crate::limits::resource_decoded_bytes_limit(limits),
+            maximum_work:crate::limits::resource_work_limit(limits),initial_work,
+        },(result,typed_component_view(final(self)))),
+        result != Err(DecodeError::AllocationFailed) ==>
+            (result, typed_component_view(final(self))) == crate::specs::part2_nlt_component_mutation(
             typed_component_view(old(self)), component_number, crate::decode::nonlinear_regions_view(regions@),
             crate::limits::resource_decoded_bytes_limit(limits), crate::limits::resource_work_limit(limits), initial_work,
         ),
@@ -122,6 +170,9 @@ impl TypedComponent {
             let ghost region_views = crate::decode::nonlinear_regions_view(regions@);
             let ghost byte_limit = crate::limits::resource_decoded_bytes_limit(limits);
             let ghost work_limit = crate::limits::resource_work_limit(limits);
+            let ghost storage_context=crate::specs::Part2NltComponentStorageContext {
+                source:source_view,number:component_number,regions:region_views,
+                maximum_bytes:byte_limit,maximum_work:work_limit,initial_work};
             let ghost component_expected = crate::specs::part2_nlt_component(
                 source_view, component_number, region_views, byte_limit, work_limit, initial_work,
             );
@@ -131,14 +182,24 @@ impl TypedComponent {
             );
         }
         #[cfg(verus_keep_ghost)]
-        proof! { reveal(crate::specs::part2_nlt_component_mutation); }
+        proof! {
+            crate::specs::part2_nlt_component_storage_normal(storage_context);
+            reveal(crate::specs::part2_nlt_component_mutation);
+        }
         let mut work = initial_work;
         let source_info = self.info;
         let sample_count = match &self.samples {
             TypedSamples::Signed(samples) => samples.len(),
             TypedSamples::Unsigned(samples) => samples.len(),
         };
-        let mut output = vec![None; sample_count];
+        let scratch = nlt_scratch_values(sample_count);
+        #[cfg(verus_keep_ghost)]
+        proof! {
+            crate::specs::part2_nlt_capacity_observed(storage_context,crate::specs::Part2NltCapacityRole::Scratch,
+                crate::allocation::inspection_capacity_outcome(scratch));
+            if let Err(error)=scratch {crate::specs::part2_nlt_component_scratch_refused(storage_context,error);}
+        }
+        let mut output = scratch?;
         let mut target = None;
         #[cfg(verus_keep_ghost)]
         proof! {
@@ -163,6 +224,12 @@ impl TypedComponent {
                     component_expected == crate::specs::part2_nlt_component(
                         source_view, component_number, region_views, byte_limit, work_limit, initial_work,
                     ),
+                    storage_context==(crate::specs::Part2NltComponentStorageContext {
+                        source:source_view,number:component_number,regions:region_views,
+                        maximum_bytes:byte_limit,maximum_work:work_limit,initial_work}),
+                    crate::specs::part2_nlt_capacity_result(storage_context,crate::specs::Part2NltCapacityRole::Scratch,Ok(())),
+                    crate::specs::part2_nlt_component_storage_result(storage_context,crate::specs::part2_nlt_component_mutation(
+                        source_view,component_number,region_views,byte_limit,work_limit,initial_work)),
                     component_expected == match region_goal {
                         Err(error) => Err(error),
                         Ok(state) => crate::specs::part2_nlt_finish_component(source_view, state, byte_limit),
@@ -227,6 +294,12 @@ impl TypedComponent {
                             component_expected == crate::specs::part2_nlt_component(
                                 source_view, component_number, region_views, byte_limit, work_limit, initial_work,
                             ),
+                            storage_context==(crate::specs::Part2NltComponentStorageContext {
+                                source:source_view,number:component_number,regions:region_views,
+                                maximum_bytes:byte_limit,maximum_work:work_limit,initial_work}),
+                            crate::specs::part2_nlt_capacity_result(storage_context,crate::specs::Part2NltCapacityRole::Scratch,Ok(())),
+                            crate::specs::part2_nlt_component_storage_result(storage_context,crate::specs::part2_nlt_component_mutation(
+                                source_view,component_number,region_views,byte_limit,work_limit,initial_work)),
                             component_expected == match region_goal {
                                 Err(error) => Err(error),
                                 Ok(state) => crate::specs::part2_nlt_finish_component(source_view, state, byte_limit),
@@ -284,6 +357,12 @@ impl TypedComponent {
                                 component_expected == crate::specs::part2_nlt_component(
                                     source_view, component_number, region_views, byte_limit, work_limit, initial_work,
                                 ),
+                                storage_context==(crate::specs::Part2NltComponentStorageContext {
+                                    source:source_view,number:component_number,regions:region_views,
+                                    maximum_bytes:byte_limit,maximum_work:work_limit,initial_work}),
+                                crate::specs::part2_nlt_capacity_result(storage_context,crate::specs::Part2NltCapacityRole::Scratch,Ok(())),
+                                crate::specs::part2_nlt_component_storage_result(storage_context,crate::specs::part2_nlt_component_mutation(
+                                    source_view,component_number,region_views,byte_limit,work_limit,initial_work)),
                                 component_expected == match region_goal {
                                     Err(error) => Err(error),
                                     Ok(state) => crate::specs::part2_nlt_finish_component(source_view, state, byte_limit),
@@ -349,6 +428,8 @@ impl TypedComponent {
         #[cfg(verus_keep_ghost)]
         proof! {
             reveal_with_fuel(crate::specs::part2_nlt_component_regions, 1);
+            assert(crate::specs::part2_nlt_component_region_state(storage_context)
+                ==Ok(nlt_scratch_view(output@,target,work)));
             assert(component_expected == crate::specs::part2_nlt_finish_component(
                 source_view, nlt_scratch_view(output@, target, work), byte_limit,
             ));
@@ -356,7 +437,20 @@ impl TypedComponent {
         if let Some((precision, signed_output)) = target {
             validate_bytes(sample_count, 8, limits)?;
             if signed_output {
-                let mut samples = Vec::with_capacity(sample_count);
+                let reserved = if sample_count == 0 {
+                    Ok(Vec::new())
+                } else {
+                    crate::allocation::empty_with_capacity(sample_count)
+                };
+                #[cfg(verus_keep_ghost)]
+                proof! {
+                    crate::specs::part2_nlt_capacity_observed(storage_context,crate::specs::Part2NltCapacityRole::SignedSamples,
+                        crate::allocation::inspection_capacity_outcome(reserved));
+                    if let Err(error)=reserved {
+                        crate::specs::part2_nlt_component_samples_refused(storage_context,nlt_scratch_view(output@,target,work),true,error);
+                    }
+                }
+                let mut samples = reserved?;
                 let mut index = 0_usize;
                 #[cfg(verus_keep_ghost)]
                 proof_decl! {
@@ -379,6 +473,11 @@ impl TypedComponent {
                             component_expected == crate::specs::part2_nlt_component(
                                 source_view, component_number, region_views, byte_limit, work_limit, initial_work,
                             ),
+                            storage_context==(crate::specs::Part2NltComponentStorageContext {
+                                source:source_view,number:component_number,regions:region_views,
+                                maximum_bytes:byte_limit,maximum_work:work_limit,initial_work}),
+                            crate::specs::part2_nlt_component_storage_result(storage_context,crate::specs::part2_nlt_component_mutation(
+                                source_view,component_number,region_views,byte_limit,work_limit,initial_work)),
                             component_expected == match collected_goal {
                                 Err(error) => Err(error),
                                 Ok(values) => Ok((crate::specs::part2_nlt_updated_component(source_view, precision, signed_output, values), work)),
@@ -410,7 +509,20 @@ impl TypedComponent {
                 proof! { reveal_with_fuel(crate::specs::part2_nlt_collect_samples, 1); }
                 self.samples = TypedSamples::Signed(samples);
             } else {
-                let mut samples = Vec::with_capacity(sample_count);
+                let reserved = if sample_count == 0 {
+                    Ok(Vec::new())
+                } else {
+                    crate::allocation::empty_with_capacity(sample_count)
+                };
+                #[cfg(verus_keep_ghost)]
+                proof! {
+                    crate::specs::part2_nlt_capacity_observed(storage_context,crate::specs::Part2NltCapacityRole::UnsignedSamples,
+                        crate::allocation::inspection_capacity_outcome(reserved));
+                    if let Err(error)=reserved {
+                        crate::specs::part2_nlt_component_samples_refused(storage_context,nlt_scratch_view(output@,target,work),false,error);
+                    }
+                }
+                let mut samples = reserved?;
                 let mut index = 0_usize;
                 #[cfg(verus_keep_ghost)]
                 proof_decl! {
@@ -433,6 +545,11 @@ impl TypedComponent {
                             component_expected == crate::specs::part2_nlt_component(
                                 source_view, component_number, region_views, byte_limit, work_limit, initial_work,
                             ),
+                            storage_context==(crate::specs::Part2NltComponentStorageContext {
+                                source:source_view,number:component_number,regions:region_views,
+                                maximum_bytes:byte_limit,maximum_work:work_limit,initial_work}),
+                            crate::specs::part2_nlt_component_storage_result(storage_context,crate::specs::part2_nlt_component_mutation(
+                                source_view,component_number,region_views,byte_limit,work_limit,initial_work)),
                             component_expected == match collected_goal {
                                 Err(error) => Err(error),
                                 Ok(values) => Ok((crate::specs::part2_nlt_updated_component(source_view, precision, signed_output, values), work)),
@@ -471,6 +588,28 @@ impl TypedComponent {
         proof! { assert(component_expected == Ok((typed_component_view(self), work))); }
         Ok(work)
     }
+}
+
+#[cfg_attr(verus_keep_ghost, verus_spec(result =>
+    ensures crate::specs::storage_copy_result(Seq::new(count as nat,|_:int|None::<i128>),result),
+        count==0 ==> result.is_ok(),
+))]
+fn nlt_scratch_values(count: usize) -> Result<Vec<Option<i128>>, DecodeError> {
+    let mut values = if count == 0 {
+        Vec::new()
+    } else {
+        crate::allocation::empty_with_capacity(count)?
+    };
+    #[cfg_attr(verus_keep_ghost, verus_spec(
+        invariant values.len()<=count,forall|index:int|0<=index<values.len() ==> values@[index]==None::<i128>,
+        decreases count-values.len(),
+    ))]
+    while values.len() < count {
+        values.push(None);
+    }
+    #[cfg(verus_keep_ghost)]
+    proof! {assert(values@ =~= Seq::new(count as nat,|_:int|None::<i128>));}
+    Ok(values)
 }
 
 impl TypedImage {

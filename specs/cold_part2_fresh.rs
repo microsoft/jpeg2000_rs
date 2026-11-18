@@ -1,4 +1,4 @@
-//! Input-derived fresh Part 2 constructors; existing-owner growth is excluded.
+//! Input-derived Part 2 constructors and the reached NLT marker insertion.
 
 use super::*;
 use crate::codestream::{DecompositionDirection, FreshPart2Path, MctCopyPath};
@@ -281,6 +281,28 @@ pub(crate) open spec fn part1_p2_marker_ordinary<'a>(kind: Part2FreshKind, reade
         Part2FreshKind::Atk => part1_parse_atk(reader, segment, extensions),
     }
 }
+pub(crate) open spec fn part1_nlt_insert_requests(segment:Part1CodestreamSegment,components:u16,
+    extensions:Part2OwnedExtensions)->Seq<Part1MctCopyRequest> {
+    match part1_nlt_payload(segment,components) {
+        Err(_)=>Seq::empty(),
+        Ok(replacement)=>{
+            let count=match extensions.nonlinear_local_count {Some(count)=>count,None=>extensions.nonlinear.len() as usize};
+            if count>extensions.nonlinear.len() ||
+                matches!(extensions.nonlinear_local_count,Some(value) if value==usize::MAX) {Seq::empty()}
+            else if exists|i:int|0<=i<count && #[trigger] extensions.nonlinear[i].component==replacement.component {
+                Seq::empty()
+            }else{part1_mct_copy_leaf(MctCopyPath::NonlinearInsert(segment.offset,replacement.component,count),1)}
+        },
+    }
+}
+pub(crate) open spec fn part1_p2_marker_requests<'a>(kind:Part2FreshKind,reader:Part1CodestreamReader<'a>,
+    segment:Part1CodestreamSegment,components:u16,extensions:Part2OwnedExtensions)->Seq<Part1MctCopyRequest> {
+    let charged=part1_charge_extension_metadata(reader,segment,extensions);
+    if charged.0.is_err() {Seq::empty()}else{
+        part1_p2_fresh_requests(part1_p2_marker_input(kind,charged.1.position,segment,components))
+            + if kind==Part2FreshKind::Nlt {part1_nlt_insert_requests(segment,components,charged.2)}else{Seq::empty()}
+    }
+}
 #[verifier::opaque]
 pub(crate) open spec fn part1_p2_marker_run<'a>(kind: Part2FreshKind, reader: Part1CodestreamReader<'a>,
     segment: Part1CodestreamSegment, components: u16, extensions: Part2OwnedExtensions, events: Seq<Part1ColdStorageEvent>)
@@ -288,7 +310,7 @@ pub(crate) open spec fn part1_p2_marker_run<'a>(kind: Part2FreshKind, reader: Pa
     let charged = part1_charge_extension_metadata(reader, segment, extensions);
     if charged.0.is_err() { Some((charged, events)) } else {
         let input = part1_p2_marker_input(kind, charged.1.position, segment, components);
-        match part1_mct_copy_run(part1_p2_fresh_requests(input), events) {
+        match part1_mct_copy_run(part1_p2_marker_requests(kind,reader,segment,components,extensions), events) {
             None => None, Some((Err(error), rest)) => Some(((Err(error), charged.1, charged.2), rest)),
             Some((Ok(()), rest)) => Some((part1_p2_marker_ordinary(kind, reader, segment, components, extensions), rest)),
         }
@@ -304,7 +326,7 @@ pub(crate) open spec fn part1_p2_marker_calls(kind: Part2FreshKind, reader: Part
     segment: Part1CodestreamSegment, components: u16, extensions: Part2OwnedExtensions) -> Seq<Part1ColdStorageEvent> {
     let charged = part1_charge_extension_metadata(reader, segment, extensions);
     if charged.0.is_err() { Seq::empty() } else {
-        part1_mct_copy_normal_calls(part1_p2_fresh_requests(part1_p2_marker_input(kind, charged.1.position, segment, components)))
+        part1_mct_copy_normal_calls(part1_p2_marker_requests(kind,reader,segment,components,extensions))
     }
 }
 pub(crate) proof fn part1_p2_marker_normal<'a>(kind: Part2FreshKind, reader: Part1CodestreamReader<'a>,
@@ -319,7 +341,7 @@ pub(crate) proof fn part1_p2_marker_normal<'a>(kind: Part2FreshKind, reader: Par
     reveal(part1_parse_dfs); reveal(part1_parse_ads); reveal(part1_parse_nlt); reveal(part1_parse_atk);
     let charged = part1_charge_extension_metadata(reader, segment, extensions);
     if charged.0.is_ok() {
-        let requests = part1_p2_fresh_requests(part1_p2_marker_input(kind, charged.1.position, segment, components));
+        let requests = part1_p2_marker_requests(kind,reader,segment,components,extensions);
         part1_mct_copy_normal(requests, tail); part1_mct_copy_normal(requests, Seq::empty());
     }
     let calls = part1_p2_marker_calls(kind, reader, segment, components, extensions);
@@ -343,8 +365,14 @@ pub(crate) proof fn part1_p2_marker_refused<'a>(kind: Part2FreshKind, reader: Pa
     let charged = part1_charge_extension_metadata(reader, segment, extensions);
     let input = part1_p2_marker_input(kind, charged.1.position, segment, components);
     part1_p2_fresh_observed(input, part1_p2_fresh_failure(input));
+    part1_mct_copy_observed(MctCopyPath::Order,0,Ok(()));
+    let fresh=part1_p2_fresh_requests(input);
+    let growth=if kind==Part2FreshKind::Nlt {part1_nlt_insert_requests(segment,components,charged.2)}else{Seq::empty()};
+    part1_mct_copy_continue(Seq::empty(),fresh,growth,Err(crate::DecodeError::AllocationFailed));
+    assert((Seq::empty()+fresh)+growth =~= part1_p2_marker_requests(kind,reader,segment,components,extensions));
     let calls = choose|calls: Seq<Part1ColdStorageEvent>| part1_mct_copy_run(part1_p2_fresh_requests(input), calls)
         == Some((Err(crate::DecodeError::AllocationFailed), Seq::empty()));
+    part1_mct_copy_bind(fresh,growth,calls);
     assert(part1_p2_marker_run(kind, reader, segment, components, extensions, calls)
         == Some(((Err(crate::DecodeError::AllocationFailed), charged.1, charged.2), Seq::empty())));
 }
@@ -357,7 +385,7 @@ pub(crate) proof fn part1_p2_marker_frame<'a>(kind: Part2FreshKind, reader: Part
 {
     reveal(part1_p2_marker_run);
     let charged = part1_charge_extension_metadata(reader, segment, extensions);
-    let requests = part1_p2_fresh_requests(part1_p2_marker_input(kind, charged.1.position, segment, components));
+    let requests = part1_p2_marker_requests(kind,reader,segment,components,extensions);
     if charged.0.is_ok() { if let Some((copied, after)) = part1_mct_copy_run(requests, events) {
         part1_mct_copy_frame(requests, events, copied, after, tail);
     }}
@@ -373,7 +401,7 @@ pub(crate) proof fn part1_p2_marker_projection<'a>(kind: Part2FreshKind, reader:
     reveal(part1_p2_marker_run);
     reveal(part1_parse_dfs); reveal(part1_parse_ads); reveal(part1_parse_nlt); reveal(part1_parse_atk);
     let charged = part1_charge_extension_metadata(reader, segment, extensions);
-    let requests = part1_p2_fresh_requests(part1_p2_marker_input(kind, charged.1.position, segment, components));
+    let requests = part1_p2_marker_requests(kind,reader,segment,components,extensions);
     if charged.0.is_ok() { if let Some((copied, after)) = part1_mct_copy_run(requests, events) {
         part1_mct_copy_projection(requests, events, copied, after);
     }}
@@ -413,6 +441,30 @@ pub(crate) proof fn part1_p2_marker_storage_normal<'a>(kind: Part2FreshKind, rea
 {
     part1_p2_marker_normal(kind, reader, segment, components, extensions, Seq::empty());
     part1_p2_marker_storage_equivalent(kind, reader, segment, components, extensions, part1_p2_marker_ordinary(kind, reader, segment, components, extensions));
+}
+pub(crate) proof fn part1_nlt_insert_refused<'a>(reader:Part1CodestreamReader<'a>,segment:Part1CodestreamSegment,
+    components:u16,extensions:Part2OwnedExtensions,replacement:Part2OwnedNonlinear)
+    requires part1_charge_extension_metadata(reader,segment,extensions).0.is_ok(),
+        part1_p2_fresh_result(Part2FreshInput::Nlt(segment,components),Part2FreshValue::Nlt(Ok(replacement))),
+        part1_mct_copy_result(part1_nlt_insert_requests(segment,components,
+            part1_charge_extension_metadata(reader,segment,extensions).2),Err(crate::DecodeError::AllocationFailed)),
+    ensures part1_p2_marker_storage_result(Part2FreshKind::Nlt,reader,segment,components,extensions,
+        (Err(crate::DecodeError::AllocationFailed),part1_charge_extension_metadata(reader,segment,extensions).1,
+            part1_charge_extension_metadata(reader,segment,extensions).2)),
+{
+    let kind=Part2FreshKind::Nlt;let charged=part1_charge_extension_metadata(reader,segment,extensions);
+    let fresh=part1_p2_fresh_requests(Part2FreshInput::Nlt(segment,components));
+    let growth=part1_nlt_insert_requests(segment,components,charged.2);
+    part1_p2_fresh_observed(Part2FreshInput::Nlt(segment,components),Part2FreshValue::Nlt(Ok(replacement)));
+    part1_mct_copy_continue(fresh,growth,Seq::empty(),Err(crate::DecodeError::AllocationFailed));
+    assert((fresh+growth)+Seq::empty() =~= fresh+growth);
+    reveal(part1_mct_copy_result);reveal(part1_p2_marker_result);reveal(part1_p2_marker_run);
+    let calls=choose|calls:Seq<Part1ColdStorageEvent>|part1_mct_copy_run(fresh+growth,calls)
+        ==Some((Err(crate::DecodeError::AllocationFailed),Seq::empty()));
+    assert(part1_p2_marker_run(kind,reader,segment,components,extensions,calls)
+        ==Some(((Err(crate::DecodeError::AllocationFailed),charged.1,charged.2),Seq::empty())));
+    part1_p2_marker_storage_equivalent(kind,reader,segment,components,extensions,
+        (Err(crate::DecodeError::AllocationFailed),charged.1,charged.2));
 }
 
 }

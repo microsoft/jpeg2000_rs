@@ -80,6 +80,8 @@ impl<'a> Parser<'a> {
                 parser_view(self) == charged_parser,
                 owned_extensions_view(extensions) == charged_extensions,
                 owned_nonlinear_view(&replacement) == decoded,
+                forall|index:int|0<=index<position ==>
+                    owned_nonlinear_view(&extensions.nonlinear_transforms@[index]).component!=decoded.component,
                 goal == crate::specs::part1_parse_nlt(input, segment_view(segment), components, extension_input),
                 goal == (crate::specs::part1_nlt_replace(charged_extensions, decoded, position as nat, local_count, segment.offset).0,
                     charged_parser, crate::specs::part1_nlt_replace(charged_extensions, decoded, position as nat, local_count, segment.offset).1),
@@ -112,6 +114,19 @@ impl<'a> Parser<'a> {
             }),
             None => None,
         };
+        let _path =
+            MctCopyPath::NonlinearInsert(segment.offset, replacement.component, local_count);
+        let reserved =
+            crate::allocation::reserve_additional(&mut extensions.nonlinear_transforms, 1);
+        #[cfg(verus_keep_ghost)]
+        proof! {
+            crate::specs::part1_mct_copy_observed(
+                _path,1,super::mct_copy::copy_outcome(reserved));
+            if let Err(error)=reserved {
+                crate::specs::part1_nlt_insert_refused(input,segment_view(segment),components,extension_input,decoded);
+            }
+        }
+        reserved?;
         extensions
             .nonlinear_transforms
             .insert(local_count, replacement);

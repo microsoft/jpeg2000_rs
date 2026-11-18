@@ -217,6 +217,71 @@ fn sarah_engineering_nlt_keeps_tile_and_main_header_precedence() {
 }
 
 #[test]
+fn nlt_storage_insert_keeps_charged_prefix_overwrite_spare_capacity_and_retry() {
+    let limits = ResourceLimits::default();
+    let mut parser = new_parser(&[], &limits).unwrap();
+    let mut extensions = Part2Extensions::default();
+    let raw = |payload| Segment {
+        marker: NLT,
+        offset: 37,
+        payload,
+    };
+    let payload = [0xff, 0xff, 7, 0];
+    crate::allocation::with_refusal(0, || {
+        assert_eq!(
+            parser.parse_nlt(raw(&payload), 5, &mut extensions),
+            Err(DecodeError::AllocationFailed)
+        );
+        assert!(extensions.nonlinear_transforms.is_empty());
+        assert_eq!(extensions.nonlinear_local_count, None);
+        assert_eq!(extensions.metadata_bytes, 8);
+        assert_eq!(parser.work_units, 8);
+        parser.parse_nlt(raw(&payload), 5, &mut extensions).unwrap();
+    });
+    crate::allocation::with_refusal(0, || {
+        parser
+            .parse_nlt(raw(&[0xff, 0xff, 8, 0]), 5, &mut extensions)
+            .unwrap();
+        assert_eq!(extensions.nonlinear_transforms.len(), 1);
+        assert_eq!(
+            crate::allocation::empty_with_capacity::<u8>(1),
+            Err(DecodeError::AllocationFailed)
+        );
+    });
+    let mut later = Part2Extensions::default();
+    let payloads: Vec<_> = (0_u16..5)
+        .map(|component| {
+            let [high, low] = component.to_be_bytes();
+            [high, low, 7, 0]
+        })
+        .collect();
+    crate::allocation::with_refusal(1, || {
+        for payload in &payloads[..4] {
+            parser.parse_nlt(raw(payload), 5, &mut later).unwrap();
+        }
+        let before = later.nonlinear_transforms.clone();
+        let bytes = later.metadata_bytes;
+        let work = parser.work_units;
+        assert_eq!(
+            parser.parse_nlt(raw(&[0, 4, 7, 0]), 5, &mut later),
+            Err(DecodeError::AllocationFailed)
+        );
+        assert_eq!(later.nonlinear_transforms, before);
+        assert_eq!(later.metadata_bytes, bytes + 8);
+        assert_eq!(parser.work_units, work + 8);
+        parser.parse_nlt(raw(&[0, 4, 7, 0]), 5, &mut later).unwrap();
+        assert_eq!(later.nonlinear_transforms.len(), 5);
+    });
+    crate::allocation::with_refusal(0, || {
+        assert!(parser.parse_nlt(raw(&[0, 0]), 5, &mut extensions).is_err());
+        assert_eq!(
+            crate::allocation::empty_with_capacity::<u8>(1),
+            Err(DecodeError::AllocationFailed)
+        );
+    });
+}
+
+#[test]
 fn sarah_engineering_nlt_scoped_replacement_preserves_parent_and_charged_errors() {
     let limits = ResourceLimits::default();
     let mut parser = new_parser(&[], &limits).unwrap();

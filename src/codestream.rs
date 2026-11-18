@@ -507,6 +507,7 @@ pub(crate) enum MctCopyPath {
     ProgressionBitmap(usize, u16, u16, usize),
     CollectedQuantizations,
     CollectedProgression,
+    NonlinearInsert(usize, Option<u16>, usize),
 }
 
 #[derive(Clone, Copy)]

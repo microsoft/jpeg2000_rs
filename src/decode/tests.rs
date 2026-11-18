@@ -5507,6 +5507,67 @@ fn jp2_palette_mapping_rejects_index_range_and_output_limit() {
 }
 
 #[test]
+fn nlt_storage_region_append_no_region_reduction_and_exact_retry() {
+    let options = DecodeOptions::default();
+    let mut plain = prepared_codestream(1, 1, 1, &[0x40, 0x40], &[0]);
+    let cod = plain
+        .windows(2)
+        .position(|part| part == [0xff, 0x52])
+        .unwrap();
+    plain[cod + 9] = 0;
+    let mut bytes = plain.clone();
+    let sot = bytes
+        .windows(2)
+        .position(|part| part == [0xff, 0x90])
+        .unwrap();
+    bytes.splice(sot..sot, segment(0xff76, &[0xff, 0xff, 7, 0]));
+    let image = decode_codestream(&bytes, &options).unwrap();
+    let layout = codestream::parse_layout(&bytes, options.limits()).unwrap();
+    let expected = collect_nonlinear_regions(&layout, &image, 0).unwrap();
+    assert_eq!(expected.len(), 1);
+    assert_eq!(
+        crate::allocation::with_refusal(0, || collect_nonlinear_regions(&layout, &image, 0)).err(),
+        Some(DecodeError::AllocationFailed)
+    );
+    let retry = collect_nonlinear_regions(&layout, &image, 0).unwrap();
+    assert_eq!(
+        (
+            retry[0].component,
+            retry[0].x0,
+            retry[0].y0,
+            retry[0].x1,
+            retry[0].y1
+        ),
+        (
+            expected[0].component,
+            expected[0].x0,
+            expected[0].y0,
+            expected[0].x1,
+            expected[0].y1
+        )
+    );
+    assert!(core::ptr::eq(retry[0].transform, expected[0].transform));
+    let plain_layout = codestream::parse_layout(&plain, options.limits()).unwrap();
+    crate::allocation::with_refusal(0, || {
+        assert!(
+            collect_nonlinear_regions(&plain_layout, &image, 0)
+                .unwrap()
+                .is_empty()
+        );
+        assert_eq!(
+            collect_nonlinear_regions(&layout, &image, 32).err(),
+            Some(DecodeError::InvalidSelection {
+                reason: SelectionError::ReductionTooLarge
+            })
+        );
+        assert_eq!(
+            crate::allocation::empty_with_capacity::<u8>(1),
+            Err(DecodeError::AllocationFailed)
+        );
+    });
+}
+
+#[test]
 fn actual_nonlinear_regions_derive_last_raw_tile_owner_registered_clipping_and_error_order() {
     use crate::codestream::{ComponentInfo, NonlinearPointTransform, Part2Extensions};
     use crate::image::TypedComponent;

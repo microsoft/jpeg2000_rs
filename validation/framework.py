@@ -5116,6 +5116,9 @@ _PLANE_ROLE_RESULT_RUNS.update({
     "part2_coefficient_progression_result": ("part2_extraction_progression_run", False),
 })
 _COLD_RESULT_MODELS = {
+    "part2_apply_nonlinear_regions": ("part2_nlt_image_storage_result", "specs/cold_nlt_storage.rs", "part2_nlt_image_storage_normal"),
+    "part2_nlt_component_mutation": ("part2_nlt_component_storage_result", "specs/cold_nlt_storage.rs", "part2_nlt_component_storage_normal"),
+    "part2_collect_nonlinear_regions": ("part2_nlt_regions_storage_result", "specs/cold_nlt_regions.rs", "part2_nlt_regions_storage_normal"),
     "part2_parse_instruction_set": ("part2_instruction_storage_result", "specs/cold_composition_storage.rs", "part2_instruction_storage_normal"),
     "part2_parse_composition": ("part2_composition_storage_result", "specs/cold_composition_storage.rs", "part2_composition_storage_normal"),
     "part2_parse_codestream_registration": ("part2_registration_storage_result", "specs/cold_layer_metadata.rs", "part2_registration_storage_normal"),
@@ -5424,6 +5427,27 @@ def _coverage_cold_relation(
             + _coverage_call("super::box_reference_view", "box_ref")
             + r"\s*,\s*composition\s*,\s*base\s*:\s*base_offset\s*,\s*limits\s*:\s*\*\s*limits\s*,?\s*\}"
         )
+    if model in {"part2_apply_nonlinear_regions", "part2_nlt_component_mutation"}:
+        image = model == "part2_apply_nonlinear_regions"
+        context = "Part2NltImageStorageContext" if image else "Part2NltComponentStorageContext"
+        source = (_coverage_call("typed_image_value_view", r"\*\s*" + _coverage_call("old", "self")) if image else
+                  _coverage_call("typed_component_view", _coverage_call("old", "self")))
+        inputs = (
+            r"crate::specs::" + context + r"\s*\{\s*source\s*:\s*" + source
+            + ("" if image else r"\s*,\s*number\s*:\s*component_number")
+            + r"\s*,\s*regions\s*:\s*" + _coverage_call("crate::decode::nonlinear_regions_view", "regions@")
+            + r"\s*,\s*maximum_bytes\s*:\s*" + _coverage_call("crate::limits::resource_decoded_bytes_limit", "limits")
+            + r"\s*,\s*maximum_work\s*:\s*" + _coverage_call("crate::limits::resource_work_limit", "limits")
+            + ("" if image else r"\s*,\s*initial_work")
+            + r"\s*,?\s*\}"
+        )
+    if model == "part2_collect_nonlinear_regions":
+        inputs = (
+            r"crate::specs::Part2NltRegionStorageContext\s*\{\s*input\s*:\s*"
+            + _coverage_call("codestream::decoder_layout_input_view", "layout")
+            + r"\s*,\s*image\s*:\s*" + _coverage_call("crate::image::typed_image_value_view", r"\*\s*image")
+            + r"\s*,\s*discard\s*:\s*discard_levels\s*,?\s*\}"
+        )
     if model == "part2_parse_palette":
         inputs = (
             r"crate::specs::Part2PaletteStorageContext\s*\{\s*input\s*:\s*"
@@ -5633,6 +5657,7 @@ _COLD_RESULT_CONTRACTS = {
         _RAW_INSPECTED_CONTRACTS, _RAW_CONTAINER_CONTRACTS, _FILE_TYPE_CONTRACTS,
         _CHANNEL_HEADER_CONTRACTS, _RAW_JP2_HEADER_CONTRACTS, _ASSOCIATED_HEADER_CONTRACTS, _RAW_LAYER_HEADER_CONTRACTS,
         _RAW_COMPOSITION_CONTRACTS,
+        _NONLINEAR_APPLICATION_CONTRACTS, _NONLINEAR_REGIONS_CONTRACTS,
         _COLOR_HEADER_CONTRACTS,
         _JPX_SOURCE_CONTRACTS, _RAW_JPX_PUBLIC_IMAGE_CONTRACTS,
         _RAW_CONTAINER_IMAGE_CONTRACTS, _RAW_CONTAINER_COLOR_CONTRACTS,
@@ -5981,6 +6006,18 @@ def _coverage_cold_links(keys: set[tuple[str, str]]) -> tuple[set[tuple[str, str
         if model in ("part2_typed_samples_result", "part2_typed_image_result", "part2_typed_layout_result"):
             models |= _TYPED_STORAGE_MODELS
             proofs |= _TYPED_STORAGE_PROOFS
+        if model == "part2_typed_layout_result":
+            models |= set(_NLT_LAYOUT_GUARDS)
+            proofs |= _NLT_LAYOUT_PROOFS
+        if model in {"part2_nlt_component_storage_result", "part2_nlt_image_storage_result"}:
+            models |= set(_NLT_APPLICATION_GUARDS)
+            proofs |= _NLT_APPLICATION_PROOFS
+        if model == "part2_nlt_regions_storage_result":
+            models |= set(_NLT_REGION_GUARDS)
+            proofs |= _NLT_REGION_PROOFS
+        if key == ("src/codestream/part2_transforms.rs", "Parser::parse_nlt"):
+            models |= set(_NLT_MARKER_GUARDS)
+            proofs.add(("specs/cold_part2_fresh.rs", "part1_nlt_insert_refused"))
         if model in ("part2_assembly_plane_result", "part2_assembly_storage_result", "part2_decode_prepared_storage_result",
                      "part2_assemble_prepared_storage_result", "part2_coefficient_progression_result", "part2_layout_decode_result"):
             models |= _ASSEMBLY_OWNER_MODELS
@@ -6149,8 +6186,14 @@ def _coverage_cold_result_body(text: str, model: str) -> bool:
             + ("Ok(result)" if wrapped else "result") + ")"
         if model == "part2_ht_replay_result":
             expected += "&&(result.0!=Err(crate::DecodeError::AllocationFailed)==>result==ht_decode_refinement_contribution(before,input,passes,maximum_bytes,work))"
-    elif model in ("part2_jpip_packet_copy_result", "part2_jpip_phase_copy_result", "part2_trailer_packet_result"):
+    elif model in ("part2_jpip_packet_copy_result", "part2_jpip_phase_copy_result", "part2_trailer_packet_result",
+                   "part2_nlt_image_storage_result"):
         expected = "part2_cold_framed(|events|" + call + ",Ok(result))"
+    elif model == "part2_nlt_component_storage_result":
+        expected = (
+            "(result.0.is_err()==>result.1==context.source)&&"
+            "part2_cold_framed(|events|part2_nlt_component_storage_run(context,events),part2_nlt_component_storage_outcome(result))"
+        )
     elif model == "part1_tier1_plane_storage_result":
         expected = "part2_tier1_storage_framed(|calls|part2_tier1_plane_run(width,height,role,calls),result)"
     elif model == "part1_tier1_initial_storage_result":
@@ -9214,7 +9257,7 @@ _TYPED_STORAGE_GUARDS = {
     ),
     ("specs/cold_typed_storage.rs", "part2_typed_layout_run"): (
         "part2_typed_image_calls_run(source,crate::limits::resource_decoded_bytes_limit(limits),events)",
-        "part2_typed_layout_after_typed(input,image,discard,limits)",
+        "part2_typed_layout_after_typed_run(input,image,discard,limits,rest)",
     ),
 }
 _TYPED_STORAGE_NATIVE_ORDER = {
@@ -9235,7 +9278,207 @@ _TYPED_STORAGE_NATIVE_ORDER = {
     ),
     ("src/decode/api.rs", "typed_layout"): (
         "let converted = decoded.typed(limits)", "part2_typed_layout_conversion_error(", "let mut image = converted?",
-        "collect_nonlinear_regions(layout, &image, discard_levels)?", "image.apply_nonlinear_regions(",
+        "let collected = collect_nonlinear_regions(layout, &image, discard_levels)",
+        "part2_typed_layout_regions_error(", "let regions = collected?",
+        "let applied = image.apply_nonlinear_regions(", "part2_typed_layout_nonlinear_error(", "applied?",
+    ),
+}
+
+_NLT_MARKER_GUARDS = {
+    ("specs/cold_part2_fresh.rs", "part1_nlt_insert_requests"): (
+        "part1_nlt_payload(segment,components)", "count>extensions.nonlinear.len()",
+        "matches!(extensions.nonlinear_local_count,Some(value) if value==usize::MAX)",
+        "extensions.nonlinear[i].component==replacement.component",
+        "MctCopyPath::NonlinearInsert(segment.offset,replacement.component,count),1",
+    ),
+    ("specs/cold_part2_fresh.rs", "part1_p2_marker_requests"): (
+        "part1_charge_extension_metadata(reader,segment,extensions)", "if charged.0.is_err() {Seq::empty()}",
+        "part1_p2_fresh_requests(part1_p2_marker_input(kind,charged.1.position,segment,components))",
+        "kind==Part2FreshKind::Nlt {part1_nlt_insert_requests(segment,components,charged.2)}else{Seq::empty()}",
+    ),
+    ("specs/cold_mct_copy.rs", "part1_mct_copy_site"): ("MctCopyPath::NonlinearInsert(_, _, _) => 85",),
+}
+_NLT_APPLICATION_GUARDS = {
+    ("specs/cold_nlt_storage.rs", "part2_nlt_component_region_state"): (
+        "part2_nlt_component_regions(context.source,context.number,context.regions,0,context.maximum_work",
+        "output:Seq::new(part2_nlt_sample_count(context.source.samples),|_:int|None)",
+        "target:None,work:context.initial_work",
+    ),
+    ("specs/cold_nlt_storage.rs", "part2_nlt_capacity_count"): (
+        "Part2NltCapacityRole::Scratch=>part2_nlt_sample_count(context.source.samples)",
+        "part2_nlt_component_region_state(context)", "part1_image_byte_budget(state.output.len(),8,context.maximum_bytes)",
+        "(role==Part2NltCapacityRole::SignedSamples)==signed {state.output.len()}else{0}",
+    ),
+    ("specs/cold_nlt_storage.rs", "part2_nlt_capacity_run"): (
+        "part2_nlt_capacity_count(context,role)", "if count==0 {Some((Ok(()),events))}",
+        "actual!=context || actual_role!=role || elements!=count {None}",
+        "if succeeded{Ok(())}else{Err(crate::DecodeError::AllocationFailed)}", "events.drop_first()",
+    ),
+    ("specs/cold_nlt_storage.rs", "part2_nlt_capacity_result"): (
+        "part2_cold_framed(|events|part2_nlt_capacity_run(context,role,events),result)",
+    ),
+    ("specs/cold_nlt_storage.rs", "part2_nlt_component_after_scratch"): (
+        "part2_nlt_component_region_state(context)", "Err(error)=>Some((Err(error),events))",
+        "part1_image_byte_budget(state.output.len(),8,context.maximum_bytes)",
+        "if signed{Part2NltCapacityRole::SignedSamples}else{Part2NltCapacityRole::UnsignedSamples}",
+        "Some((part2_nlt_finish_component(context.source,state,context.maximum_bytes),rest))",
+    ),
+    ("specs/cold_nlt_storage.rs", "part2_nlt_component_storage_run"): (
+        "part2_nlt_capacity_run(context,Part2NltCapacityRole::Scratch,events)",
+        "part2_nlt_component_after_scratch(context,rest)",
+    ),
+    ("specs/cold_nlt_storage.rs", "part2_nlt_component_storage_outcome"): (
+        "match result.0 {Err(error)=>Err(error),Ok(work)=>Ok((result.1,work))}",
+    ),
+    ("specs/cold_nlt_storage.rs", "part2_nlt_component_storage_result"): (
+        "result.0.is_err() ==> result.1==context.source",
+        "part2_cold_framed(|events|part2_nlt_component_storage_run(context,events),part2_nlt_component_storage_outcome(result))",
+    ),
+    ("specs/cold_nlt_storage.rs", "part2_nlt_image_component_context"): (
+        "source:image.1[position as int],number:position as u16", "regions:context.regions",
+        "maximum_bytes:context.maximum_bytes,maximum_work:context.maximum_work,initial_work:work",
+    ),
+    ("specs/cold_nlt_storage.rs", "part2_nlt_image_component_updated"): (
+        "image.0,image.1.update(position as int,component),image.2",
+    ),
+    ("specs/cold_nlt_storage.rs", "part2_nlt_image_components_storage_run"): (
+        "position>=image.1.len()", "position>u16::MAX", "part1_transform_error(true)",
+        "part2_nlt_image_component_context(context,image,position,work)",
+        "Err(error)=>Some((Ok((Err(error),image)),rest))",
+        "part2_nlt_image_component_updated(image,position,component),position+1,next_work,rest",
+    ),
+    ("specs/cold_nlt_storage.rs", "part2_nlt_image_storage_run"): (
+        "part2_nlt_image_components_storage_run(context,context.source,0,0,events)",
+    ),
+    ("specs/cold_nlt_storage.rs", "part2_nlt_image_storage_result"): (
+        "part2_cold_framed(|events|part2_nlt_image_storage_run(context,events),Ok(result))",
+    ),
+}
+_NLT_APPLICATION_PROOFS = {("specs/cold_nlt_storage.rs", name) for name in (
+    "part2_nlt_capacity_observed", "part2_nlt_capacity_frames", "part2_nlt_component_storage_normal",
+    "part2_nlt_component_scratch_refused", "part2_nlt_component_samples_refused", "part2_nlt_component_storage_frames",
+    "part2_nlt_image_components_storage_normal", "part2_nlt_image_storage_normal", "part2_nlt_image_storage_frames",
+    "part2_nlt_image_storage_observed", "part2_nlt_image_storage_component_error", "part2_nlt_image_storage_advance",
+    "part2_nlt_image_storage_boundary",
+)}
+_NLT_REGION_GUARDS = {
+    ("specs/cold_nlt_regions.rs", "part2_nlt_region_append_admitted"): (
+        "part2_nonlinear_tile_region_input(context.source.input,context.component,context.tile,context.extent,context.scale)",
+        "Ok(Some(context.region))",
+    ),
+    ("specs/cold_nlt_regions.rs", "part2_nlt_region_capacity_run"): (
+        "!part2_nlt_region_append_admitted(context) || events.len()==0 {None}",
+        "actual!=context || elements!=1 {None}",
+        "if succeeded{Ok(())}else{Err(crate::DecodeError::AllocationFailed)}", "events.drop_first()",
+    ),
+    ("specs/cold_nlt_regions.rs", "part2_nlt_region_capacity_result"): (
+        "part2_cold_framed(|events|part2_nlt_region_capacity_run(context,events),result)",
+    ),
+    ("specs/cold_nlt_regions.rs", "part2_nlt_region_step_value"): (
+        "part2_nonlinear_tile_region_input(context.input,component,tile,extent,scale)",
+        "Err(error)=>Err(error),Ok(None)=>Ok(regions),Ok(Some(region))=>Ok(regions.push(region))",
+    ),
+    ("specs/cold_nlt_regions.rs", "part2_nlt_region_step_run"): (
+        "part2_nonlinear_tile_region_input(context.input,component,tile,extent,scale)",
+        "Err(error)=>Some((Err(error),events)),Ok(None)=>Some((Ok(regions),events))",
+        "Part2NltRegionAppendContext {source:context,component,extent,scale,tile,before:regions,region},events",
+        "Some((Ok(regions.push(region)),rest))",
+    ),
+    ("specs/cold_nlt_regions.rs", "part2_nlt_region_tiles_run"): (
+        "tile>=count", "tile>u16::MAX", "part1_block_placement_error(true)",
+        "part2_nlt_region_step_run(context,component,extent,scale,tile as u16,regions,events)",
+        "part2_nlt_region_tiles_run(context,component,extent,scale,count,tile+1,updated,rest)",
+    ),
+    ("specs/cold_nlt_regions.rs", "part2_nlt_region_components_run"): (
+        "component>=context.input.size.components",
+        "part2_nonlinear_component_extent(&context.input.size,context.image,component as u16)",
+        "part2_nlt_region_tiles_run(context,component as u16,extent,scale,count,0,regions,events)",
+        "part2_nlt_region_components_run(context,scale,component+1,updated,rest)",
+    ),
+    ("specs/cold_nlt_regions.rs", "part2_nlt_regions_storage_run"): (
+        "context.discard>=32", "crate::SelectionError::ReductionTooLarge",
+        "part2_nlt_region_components_run(context,1u32<<(context.discard as u32),0,Seq::empty(),events)",
+    ),
+    ("specs/cold_nlt_regions.rs", "part2_nlt_regions_storage_result"): (
+        "part2_cold_framed(|events|part2_nlt_regions_storage_run(context,events),result)",
+    ),
+}
+_NLT_REGION_PROOFS = {("specs/cold_nlt_regions.rs", name) for name in (
+    "part2_nlt_region_capacity_observed", "part2_nlt_region_capacity_frames", "part2_nlt_region_step_normal",
+    "part2_nlt_region_tiles_normal", "part2_nlt_region_components_normal", "part2_nlt_regions_storage_normal",
+    "part2_nlt_regions_storage_frames", "part2_nlt_regions_begin_tiles", "part2_nlt_regions_finish_tiles",
+    "part2_nlt_regions_advance", "part2_nlt_regions_append_error", "part2_nlt_regions_finish",
+)}
+_NLT_LAYOUT_GUARDS = {
+    ("specs/cold_typed_storage.rs", "part2_typed_layout_nonlinear_value"): (
+        "regions.len()==0", "part2_apply_nonlinear_regions(image,regions",
+        "match outcome.0{Err(error)=>Err(error),Ok(())=>Ok(outcome.1)}",
+    ),
+    ("specs/cold_typed_storage.rs", "part2_typed_layout_nonlinear_run"): (
+        "regions.len()==0 {Some((Ok(image),events))}", "Part2NltImageStorageContext",
+        "source:image,regions,maximum_bytes:crate::limits::resource_decoded_bytes_limit(limits)",
+        "maximum_work:crate::limits::resource_work_limit(limits)", "Err(error)=>Err(error),Ok(())=>Ok(outcome.1)",
+    ),
+    ("specs/cold_typed_storage.rs", "part2_typed_layout_after_typed_run"): (
+        "part2_nlt_regions_storage_run(Part2NltRegionStorageContext {input,image,discard},events)",
+        "part2_typed_layout_nonlinear_run(image,regions,limits,rest)",
+    ),
+}
+_NLT_LAYOUT_PROOFS = {("specs/cold_typed_storage.rs", name) for name in (
+    "part2_typed_layout_nonlinear_normal", "part2_typed_layout_after_typed_normal",
+    "part2_typed_layout_regions_error", "part2_typed_layout_nonlinear_error",
+)}
+_NLT_MARKER_NATIVE = {
+    ("src/codestream/part2_transforms.rs", "Parser::parse_nlt"): (
+        "self.charge_extension_metadata(segment, extensions)?", "let copied = self.decode_nlt_payload(segment, components)",
+        "let replacement = copied?", "if local_count > extensions.nonlinear_transforms.len()",
+        "while position < local_count", "let next_count = match extensions.nonlinear_local_count",
+        "MctCopyPath::NonlinearInsert(segment.offset, replacement.component, local_count)",
+        "reserve_additional(&mut extensions.nonlinear_transforms, 1)",
+        "_path,1,super::mct_copy::copy_outcome(reserved)",
+        "part1_nlt_insert_refused(", "reserved?", ".insert(local_count, replacement)",
+        "extensions.nonlinear_local_count = next_count",
+    ),
+}
+_NLT_APPLICATION_NATIVE = {
+    ("src/image/nonlinear.rs", "nlt_scratch_values"): (
+        "if count == 0", "Vec::new()", "crate::allocation::empty_with_capacity(count)?",
+        "while values.len() < count", "values.push(None)", "Ok(values)",
+    ),
+    ("src/image/nonlinear.rs", "TypedComponent::apply_nonlinear_regions"): (
+        "let sample_count = match &self.samples", "let scratch = nlt_scratch_values(sample_count)",
+        "Part2NltCapacityRole::Scratch", "crate::allocation::inspection_capacity_outcome(scratch)",
+        "part2_nlt_component_scratch_refused(storage_context,error)", "let mut output = scratch?",
+        "while region_index < regions.len()", "validate_bytes(sample_count, 8, limits)?", "if signed_output",
+        "let reserved = if sample_count == 0", "crate::allocation::empty_with_capacity(sample_count)",
+        "Part2NltCapacityRole::SignedSamples", "crate::allocation::inspection_capacity_outcome(reserved)",
+        "part2_nlt_component_samples_refused(", "let mut samples = reserved?",
+        "self.samples = TypedSamples::Signed(samples)",
+        "let reserved = if sample_count == 0", "crate::allocation::empty_with_capacity(sample_count)",
+        "Part2NltCapacityRole::UnsignedSamples", "crate::allocation::inspection_capacity_outcome(reserved)",
+        "part2_nlt_component_samples_refused(", "let mut samples = reserved?",
+        "self.samples = TypedSamples::Unsigned(samples)", "self.info.precision = precision",
+    ),
+    ("src/image/nonlinear.rs", "TypedImage::apply_nonlinear_regions"): (
+        "part2_nlt_image_storage_normal(storage_context)", "while component_index < self.components.len()",
+        "component.apply_nonlinear_regions(component_number, regions, work, limits)",
+        "part2_nlt_component_storage_frames(child,(outcome,updated))",
+        "part2_nlt_image_storage_component_error(", "part2_nlt_image_storage_advance(",
+        "work = outcome?", "component_index = component_index",
+        "part2_nlt_image_storage_boundary(",
+    ),
+}
+_NLT_REGION_NATIVE = {
+    ("src/decode/api.rs", "collect_nonlinear_regions"): (
+        "part2_nlt_regions_storage_normal(storage_context)", "if discard_levels >= 32",
+        "while component < layout.info.image_size.components", "nonlinear_component_extent(",
+        "part2_nlt_regions_begin_tiles(", "while tile < tile_count",
+        "extensions.nonlinear_transform_for(component)", "if x0 < x1 && y0 < y1",
+        "let next_region = NonlinearRegion", "x1: x1.checked_sub(output_x0)", "y1: y1.checked_sub(output_y0)",
+        "reserve_additional(&mut regions, 1)", "before:nonlinear_regions_view(before),region:nonlinear_region_view(&next_region)",
+        "part2_nlt_region_capacity_observed(", "crate::allocation::inspection_capacity_outcome(reserved)",
+        "part2_nlt_regions_append_error(", "reserved?", "regions.push(next_region)",
+        "part2_nlt_regions_advance(", "part2_nlt_regions_finish_tiles(", "part2_nlt_regions_finish(",
     ),
 }
 
@@ -9741,7 +9984,7 @@ _QUANTIZATION_COLD_GUARDS = {
         "let charged = part1_charge_extension_metadata(reader, segment, extensions)",
         "if charged.0.is_err() { Some((charged, events)) }",
         "part1_p2_marker_input(kind, charged.1.position, segment, components)",
-        "part1_mct_copy_run(part1_p2_fresh_requests(input), events)",
+        "part1_mct_copy_run(part1_p2_marker_requests(kind,reader,segment,components,extensions), events)",
         "Some((Err(error), rest)) => Some(((Err(error), charged.1, charged.2), rest))",
         "part1_p2_marker_ordinary(kind, reader, segment, components, extensions)",
     ),
@@ -16287,16 +16530,27 @@ def validate_normative_coverage(
                     raise ValueError(f"linked function lacks executable Verus contract: {short}; invalid exact Copy-fill storage relation")
             cold_contract = _COLD_RESULT_CONTRACTS.get((reference["path"], reference["symbol"]))
             if cold_contract is not None:
+                if cold_contract[0] in {"part2_nlt_image_storage_result", "part2_nlt_component_storage_result"}:
+                    legacy = _NONLINEAR_APPLICATION_CONTRACTS[(reference["path"], reference["symbol"])]
+                    ordinary = (
+                        r"\1\s*!=\s*Err\(\s*DecodeError::AllocationFailed\s*\)\s*==>\s*"
+                        + r"\(\s*\1\s*,\s*" + legacy[2] + r"\s*\)\s*==\s*"
+                        + _coverage_call("crate::specs::" + legacy[0], legacy[3] + r"\s*,?")
+                    )
+                    if re.search(named_prefix + r".*?" + ordinary, contract, re.S) is None:
+                        raise ValueError(f"linked function lacks executable Verus contract: {short}; missing exact ordinary nonlinear mutation projection")
                 if cold_contract[0] in {
                         "part2_channel_storage_result", "part2_jp2_header_storage_result",
                         "part2_codestream_header_storage_result", "part2_layer_header_storage_result",
                         "part2_color_storage_result", "part2_color_group_storage_result",
                         "part2_registration_storage_result", "part2_opacity_storage_result",
-                        "part2_instruction_storage_result", "part2_composition_storage_result"}:
+                        "part2_instruction_storage_result", "part2_composition_storage_result",
+                        "part2_nlt_regions_storage_result"}:
                     legacy = {
                         **_CHANNEL_HEADER_CONTRACTS, **_RAW_JP2_HEADER_CONTRACTS,
                         **_ASSOCIATED_HEADER_CONTRACTS, **_RAW_LAYER_HEADER_CONTRACTS, **_COLOR_HEADER_CONTRACTS,
                         **_RAW_COMPOSITION_CONTRACTS,
+                        **_NONLINEAR_REGIONS_CONTRACTS,
                     }[(reference["path"], reference["symbol"])]
                     projection = ("super::channel_definition_records_outcome" if cold_contract[0] == "part2_channel_storage_result"
                                   else "super::raw_compositing_layer_outcome" if cold_contract[0] == "part2_layer_header_storage_result"
@@ -16306,6 +16560,7 @@ def validate_normative_coverage(
                                   else "super::opacity_outcome" if cold_contract[0] == "part2_opacity_storage_result"
                                   else "super::raw_instruction_set_outcome" if cold_contract[0] == "part2_instruction_storage_result"
                                   else "super::raw_composition_outcome" if cold_contract[0] == "part2_composition_storage_result"
+                                  else "nonlinear_regions_outcome" if cold_contract[0] == "part2_nlt_regions_storage_result"
                                   else "super::raw_jp2_header_outcome")
                     if not _coverage_extraction_normal_arguments(contract, projection, legacy[0], legacy[3]):
                         raise ValueError(f"linked function lacks executable Verus contract: {short}; missing exact ordinary CDEF/header projection")
@@ -17630,6 +17885,50 @@ def validate_normative_coverage(
                 found = compact.find(token, position)
                 if found < 0:
                     raise ValueError("checked palette storage requires original preflight/descriptor/length/record/lookup order and actual propagated allocation Results")
+                position = found + len(token)
+    nlt_programs = [
+        ("part2-complete-native-raw-nonlinear-bytes", _NLT_MARKER_GUARDS,
+         {("specs/cold_part2_fresh.rs", "part1_nlt_insert_refused")},
+         {("src/codestream/tests.rs", "nlt_storage_insert_keeps_charged_prefix_overwrite_spare_capacity_and_retry")},
+         _NLT_MARKER_NATIVE),
+        ("part2-complete-native-nonlinear-owner-mutation", _NLT_APPLICATION_GUARDS, _NLT_APPLICATION_PROOFS,
+         {("src/image/tests.rs", "nlt_storage_scratch_target_partial_component_frames_and_exact_source_retry")},
+         _NLT_APPLICATION_NATIVE),
+        ("part2-complete-native-nonlinear-region-production", _NLT_REGION_GUARDS, _NLT_REGION_PROOFS,
+         {("src/decode/tests.rs", "nlt_storage_region_append_no_region_reduction_and_exact_retry")},
+         _NLT_REGION_NATIVE),
+    ]
+    nlt_programs.extend(
+        (entry["id"], _NLT_LAYOUT_GUARDS, _NLT_LAYOUT_PROOFS, set(),
+         {("src/decode/api.rs", "typed_layout"): _TYPED_STORAGE_NATIVE_ORDER[("src/decode/api.rs", "typed_layout")]})
+        for entry in coverage["requirements"]
+        if ("src/decode/api.rs", "typed_layout") in {
+            (ref["path"], ref["symbol"]) for ref in entry["contract_refs"]}
+    )
+    for nlt_entry_id, model_guards, proved, controls, native_order in nlt_programs:
+        if nlt_entry_id not in ids:
+            continue
+        entry = next(item for item in coverage["requirements"] if item["id"] == nlt_entry_id)
+        if not set(model_guards).issubset({(ref["path"], ref["symbol"]) for ref in entry["spec_refs"]}) \
+                or not proved.issubset({(ref["path"], ref["symbol"]) for ref in entry["proof_refs"]}) \
+                or not controls.issubset({(ref["path"], ref["symbol"]) for ref in entry["test_refs"]}) \
+                or not set(native_order).issubset({(ref["path"], ref["symbol"]) for ref in entry["implementation_refs"]}):
+            raise ValueError("checked NLT storage requires complete source/role/count/reply/owner/tail producers and bounded controls")
+        for (relative, symbol), fragments in model_guards.items():
+            body = _coverage_spec_function_body(source_text((ROOT / relative).resolve()), symbol)
+            compact = "".join(body.split()) if body is not None else ""
+            if any("".join(fragment.split()) not in compact for fragment in fragments):
+                raise ValueError("checked NLT storage requires exact marker/region/scratch/target/work/owner/first-error/arbitrary-tail programs")
+        for (relative, symbol), fragments in native_order.items():
+            path = (ROOT / relative).resolve()
+            body = _coverage_function_body(source_text(path), function_header(path, symbol))
+            compact = "".join(body.split()) if body is not None else ""
+            position = 0
+            for fragment in fragments:
+                token = "".join(fragment.split())
+                found = compact.find(token, position)
+                if found < 0:
+                    raise ValueError("checked NLT storage requires original admission/numeric/work/owner order and actual propagated allocation Results")
                 position = found + len(token)
     if "part2-complete-native-output-header" in ids:
         output_entry = next(item for item in coverage["requirements"] if item["id"] == "part2-complete-native-output-header")
