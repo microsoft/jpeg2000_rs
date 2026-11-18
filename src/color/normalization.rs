@@ -13,7 +13,10 @@ use vstd::prelude::*;
 #[cfg_attr(
     verus_keep_ghost,
     verus_spec(result =>
-        ensures normalized_plane_result(result) == crate::specs::color_normalize_component(
+        ensures crate::specs::part2_color_normalize_storage_result(crate::specs::Part2ColorNormalizeContext {
+            component:crate::image::typed_component_view(component),width,height,x:x_origin,y:y_origin,
+        },normalized_plane_result(result)),
+        result!=Err(DecodeError::AllocationFailed) ==> normalized_plane_result(result) == crate::specs::color_normalize_component(
             crate::image::typed_component_view(component), width, height, x_origin, y_origin,
         ),
     )
@@ -25,6 +28,13 @@ pub(crate) fn normalize_component(
     x_origin: u32,
     y_origin: u32,
 ) -> Result<Vec<u16>, DecodeError> {
+    #[cfg(verus_keep_ghost)]
+    proof_decl! {
+        let ghost storage_context=crate::specs::Part2ColorNormalizeContext {
+            component:crate::image::typed_component_view(component),width,height,x:x_origin,y:y_origin};
+    }
+    #[cfg(verus_keep_ghost)]
+    proof! {crate::specs::part2_color_normalize_storage_normal(storage_context);}
     if width == 0 {
         return Err(invalid_color_input());
     }
@@ -37,7 +47,18 @@ pub(crate) fn normalize_component(
     proof_decl! {
         let ghost input = crate::image::typed_component_view(component);
     }
-    let mut output = Vec::with_capacity(count);
+    let allocated = if count == 0 {
+        Ok(Vec::new())
+    } else {
+        crate::allocation::empty_with_capacity(count)
+    };
+    #[cfg(verus_keep_ghost)]
+    proof! {
+        crate::specs::part2_color_output_capacity_observed(crate::specs::Part2ColorOutputCapacity::Normalize {context:storage_context},
+            crate::allocation::inspection_capacity_outcome(allocated));
+        if let Err(error)=allocated {crate::specs::part2_color_normalize_storage_refused(storage_context,error);}
+    }
+    let mut output = allocated?;
     let mut pixel = 0_usize;
     #[cfg(verus_keep_ghost)]
     proof! {
@@ -47,6 +68,8 @@ pub(crate) fn normalize_component(
         verus_keep_ghost,
         verus_spec(
             invariant pixel <= count,
+                storage_context==(crate::specs::Part2ColorNormalizeContext {component:input,width,height,x:x_origin,y:y_origin}),
+                crate::specs::part2_color_normalize_storage_result(storage_context,crate::specs::part2_color_normalize_value(storage_context)),
                 input == crate::image::typed_component_view(component),
                 width > 0,
                 width as nat <= usize::MAX as nat,

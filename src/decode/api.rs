@@ -1086,7 +1086,20 @@ pub fn decode_jp2_color(
         }
     }
     let mapped = output?;
-    crate::color::convert_jp2_color(&mapped, &inspected.file().header().color, options.limits())
+    let converted = crate::color::convert_jp2_color(
+        &mapped,
+        &inspected.file().header().color,
+        options.limits(),
+    );
+    #[cfg(verus_keep_ghost)]
+    proof! {
+        if let Err(error)=converted {
+            crate::specs::part2_decode_raw_cold_to_value(codestream@,crate::options::decode_options_limits(options),None,Ok(output_source));
+            crate::specs::part2_decode_color_conversion_error(input@,crate::options::decode_options_limits(options),false,
+                jp2::raw_inspected_container_view(&inspected),output_source,crate::image::typed_image_value_view(mapped),error);
+        }
+    }
+    converted
 }
 
 #[cfg_attr(verus_keep_ghost, verus_spec(result =>
@@ -1339,7 +1352,20 @@ pub fn decode_jph_color(
         }
     }
     let mapped = output?;
-    crate::color::convert_jp2_color(&mapped, &inspected.file().header().color, options.limits())
+    let converted = crate::color::convert_jp2_color(
+        &mapped,
+        &inspected.file().header().color,
+        options.limits(),
+    );
+    #[cfg(verus_keep_ghost)]
+    proof! {
+        if let Err(error)=converted {
+            crate::specs::part2_decode_raw_cold_to_value(codestream@,crate::options::decode_options_limits(options),None,Ok(output_source));
+            crate::specs::part2_decode_color_conversion_error(input@,crate::options::decode_options_limits(options),true,
+                jp2::raw_inspected_container_view(&inspected),output_source,crate::image::typed_image_value_view(mapped),error);
+        }
+    }
+    converted
 }
 
 #[cfg_attr(verus_keep_ghost, verus_spec(result =>
@@ -1558,7 +1584,12 @@ pub fn decode_jpx_codestream_color(
             return Err(error);
         }
     };
-    convert_associated_color(&decoded, header, options.limits())
+    let converted = convert_associated_color(&decoded, header, options.limits());
+    #[cfg(verus_keep_ghost)]
+    proof! {crate::specs::part2_decode_jpx_color_converted_actual(input@,codestream_index,crate::options::decode_options_limits(options),
+    None,jp2::raw_jp2_file_view(&file),None,(crate::image::typed_image_value_view(decoded),jp2::associated_header_option(header)),
+    crate::color::converted_image_result(converted));}
+    converted
 }
 
 #[cfg_attr(verus_keep_ghost, verus_spec(result =>
@@ -1632,5 +1663,11 @@ pub fn decode_jpx_codestream_color_selected(
             return Err(error);
         }
     };
-    convert_associated_selected_color(&decoded, header, target, options.limits())
+    let converted = convert_associated_selected_color(&decoded, header, target, options.limits());
+    #[cfg(verus_keep_ghost)]
+    proof! {crate::specs::part2_decode_jpx_color_converted_actual(input@,codestream_index,crate::options::decode_options_limits(options),
+    Some(crate::options::decode_selection_view(selection)),jp2::raw_jp2_file_view(&file),
+    Some((crate::options::decode_selection_view(&expanded),target@)),
+    (crate::image::typed_image_value_view(decoded),jp2::associated_header_option(header)),crate::color::converted_image_result(converted));}
+    converted
 }

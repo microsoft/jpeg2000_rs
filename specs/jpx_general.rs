@@ -127,6 +127,67 @@ pub(crate) open spec fn part2_general_after_cold_sources(
     }
 }
 
+pub(crate) open spec fn part2_general_color_context(config:Part2GeneralLayerConfig,colors:usize,sources:Part2GeneralSources,
+    limits:&crate::ResourceLimits)->Option<Part2ColorConvertContext> {
+    let width=sources.1;let height=sources.2;
+    if width==0 || height==0 || width==u32::MAX || height==u32::MAX
+        || width as nat*height as nat>crate::limits::resource_pixel_limit(limits) {None}else{
+        match part2_general_assembled_sources_prefix(sources.0,config,width,height,sources.0.len()) {
+            Err(_)=>None,Ok(components)=>if components.0.len()>crate::limits::resource_component_limit(limits){None}else{
+                match part2_general_definitions(config,colors,components.0) {
+                    Err(_)=>None,Ok(defined)=>match part2_typed_image_from_parts(width,height,0,0,defined,
+                        crate::limits::resource_component_limit(limits),crate::limits::resource_decoded_bytes_limit(limits)) {
+                        Err(_)=>None,Ok(image)=>Some(Part2ColorConvertContext {image,method:config.color,
+                            bytes:crate::limits::resource_decoded_bytes_limit(limits),work:crate::limits::resource_work_limit(limits)}),
+                    },
+                }
+            },
+        }
+    }
+}
+pub(crate) open spec fn part2_general_finish_color_requests(config:Part2GeneralLayerConfig,colors:usize,sources:Part2GeneralSources,
+    limits:&crate::ResourceLimits)->Seq<Part2ColorOutputCapacity> {
+    match part2_general_color_context(config,colors,sources,limits){None=>Seq::empty(),Some(context)=>part2_color_convert_requests(context)}
+}
+pub(crate) open spec fn part2_general_normalize_context(source:Part2GeneralSource,index:nat)->Part2ColorNormalizeContext {
+    Part2ColorNormalizeContext {component:source.0.1[index as int],width:source.0.0.0,height:source.0.0.1,x:source.0.0.2,y:source.0.0.3}
+}
+pub(crate) open spec fn part2_general_normalize_source_requests(config:Part2GeneralLayerConfig,sources:Part2GeneralSources,index:nat)->Seq<Part2ColorOutputCapacity> {
+    if index>=sources.0.len(){Seq::empty()}else{
+        match part2_general_assembled_sources_prefix(sources.0,config,sources.1,sources.2,index) {
+            Err(_)=>Seq::empty(),Ok(initial)=>part2_color_output_trace(|component:nat|
+                if part2_general_components_prefix(sources.0[index as int],config,sources.1,sources.2,component,initial).is_ok() {
+                    part2_color_normalize_requests(part2_general_normalize_context(sources.0[index as int],component))
+                }else{Seq::empty()},sources.0[index as int].0.1.len()),
+        }
+    }
+}
+pub(crate) open spec fn part2_general_normalize_requests(config:Part2GeneralLayerConfig,sources:Part2GeneralSources,limits:&crate::ResourceLimits)->Seq<Part2ColorOutputCapacity> {
+    if sources.1==0 || sources.2==0 || sources.1==u32::MAX || sources.2==u32::MAX
+        || sources.1 as nat*sources.2 as nat>crate::limits::resource_pixel_limit(limits) {Seq::empty()}else{
+        part2_color_output_trace(|index|part2_general_normalize_source_requests(config,sources,index),sources.0.len())
+    }
+}
+pub(crate) open spec fn part2_general_color_requests(config:Part2GeneralLayerConfig,colors:usize,sources:Part2GeneralSources,
+    limits:&crate::ResourceLimits)->Seq<Part2ColorOutputCapacity> {
+    part2_general_normalize_requests(config,sources,limits)+part2_general_finish_color_requests(config,colors,sources,limits)
+}
+pub(crate) open spec fn part2_general_after_cold_sources_run(config:Part2GeneralLayerConfig,colors:usize,sources:Part2GeneralSources,
+    limits:&crate::ResourceLimits,events:Seq<Part2JpipSnapshotEvent>)->Part2ColdRun<Part2OwnedLayer> {
+    part2_color_output_program_run(part2_general_color_requests(config,colors,sources,limits),part2_general_after_cold_sources(config,colors,sources,limits),events)
+}
+pub(crate) proof fn part2_general_after_cold_sources_normal(config:Part2GeneralLayerConfig,colors:usize,sources:Part2GeneralSources,limits:&crate::ResourceLimits)
+    ensures part2_cold_framed(|events|part2_general_after_cold_sources_run(config,colors,sources,limits,events),part2_general_after_cold_sources(config,colors,sources,limits)),
+        forall|other:spec_fn(Seq<Part2JpipSnapshotEvent>)->Part2ColdRun<Part2OwnedLayer>|
+            (forall|events|#[trigger]other(events)==part2_general_after_cold_sources_run(config,colors,sources,limits,events))
+                ==>#[trigger]part2_cold_framed(other,part2_general_after_cold_sources(config,colors,sources,limits)),
+{
+    let requests=part2_general_color_requests(config,colors,sources,limits);
+    let value=part2_general_after_cold_sources(config,colors,sources,limits);
+    part2_color_output_program_normal(requests,value);
+    part2_decode_eta(|events|part2_color_output_program_run(requests,value,events),value);
+    part2_decode_eta(|events|part2_general_after_cold_sources_run(config,colors,sources,limits,events),value);
+}
 pub(crate) open spec fn part2_general_layer_cold_run(
     file: Part2JpxDecodeInput, config: Part2GeneralLayerConfig, layer_index: usize,
     limits: &crate::ResourceLimits, events: Seq<Part2JpipSnapshotEvent>,
@@ -135,7 +196,7 @@ pub(crate) open spec fn part2_general_layer_cold_run(
         Err(error) => Some((Err(error), events)),
         Ok(colors) => part2_jpip_snapshot_bind(
             part2_general_sources_cold_prefix(file, config, layer_index, limits, part2_general_source_count(config), events),
-            |sources, tail| Some((part2_general_after_cold_sources(config, colors, sources, limits), tail))),
+            |sources, tail| part2_general_after_cold_sources_run(config, colors, sources, limits,tail)),
     }
 }
 
@@ -212,15 +273,73 @@ pub(crate) proof fn part2_general_layer_cold_normal(
         Ok(colors) => {
             let sources = part2_general_sources_prefix(file, config, layer_index, limits, part2_general_source_count(config));
             part2_general_sources_cold_normal(file, config, layer_index, limits, part2_general_source_count(config));
-            if let Ok(value) = sources { part2_cold_pure(part2_general_after_cold_sources(config, colors, value, limits)); }
+            if let Ok(value) = sources { part2_general_after_cold_sources_normal(config, colors, value, limits); }
             part2_cold_bind(
                 |events| part2_general_sources_cold_prefix(file, config, layer_index, limits, part2_general_source_count(config), events),
-                |value, tail| Some((part2_general_after_cold_sources(config, colors, value, limits), tail)),
+                |value, tail| part2_general_after_cold_sources_run(config, colors, value, limits,tail),
                 sources, part2_decode_general_layer(file, config, layer_index, limits));
         },
     }
 }
 
+pub(crate) proof fn part2_general_color_error(file:Part2JpxDecodeInput,config:Part2GeneralLayerConfig,layer_index:usize,
+    colors:usize,sources:Part2GeneralSources,limits:&crate::ResourceLimits,context:Part2ColorConvertContext,error:crate::DecodeError)
+    requires part2_general_color_count(config.color)==Ok(colors),
+        part2_general_sources_prefix(file,config,layer_index,limits,part2_general_source_count(config))==Ok(sources),
+        part2_general_color_context(config,colors,sources,limits)==Some(context),
+        part2_color_convert_storage_result(context,Err(error)),
+        part2_color_convert_value(context)==Err(error) ==> part2_general_after_cold_sources(config,colors,sources,limits)==Err(error),
+    ensures part2_general_layer_cold_result(file,config,layer_index,limits,Err(error)),
+{
+    part2_color_convert_storage_frames(context,Err(error));
+    let requests=part2_color_convert_requests(context);
+    let ordinary=part2_general_after_cold_sources(config,colors,sources,limits);
+    part2_decode_eta(|events|part2_color_output_program_run(requests,part2_color_convert_value(context),events),Err(error));
+    let whole=part2_general_color_requests(config,colors,sources,limits);
+    assert forall|request:Part2ColorOutputCapacity|requests.contains(request) implies whole.contains(request) by {
+        part2_color_output_concat_member(part2_general_normalize_requests(config,sources,limits),requests,request);
+    }
+    part2_color_output_program_child_error(whole,ordinary,requests,part2_color_convert_value(context),error);
+    part2_decode_eta(|events|part2_color_output_program_run(whole,ordinary,events),Err(error));
+    part2_general_sources_cold_normal(file,config,layer_index,limits,part2_general_source_count(config));
+    part2_cold_bind(|events|part2_general_sources_cold_prefix(file,config,layer_index,limits,part2_general_source_count(config),events),
+        |sources,tail|part2_general_after_cold_sources_run(config,colors,sources,limits,tail),Ok(sources),Err(error));
+}
+pub(crate) proof fn part2_general_normalize_error(file:Part2JpxDecodeInput,config:Part2GeneralLayerConfig,layer_index:usize,
+    colors:usize,sources:Part2GeneralSources,limits:&crate::ResourceLimits,source_index:nat,component:nat,initial:Part2GeneralComponents,error:crate::DecodeError)
+    requires part2_general_color_count(config.color)==Ok(colors),
+        part2_general_sources_prefix(file,config,layer_index,limits,part2_general_source_count(config))==Ok(sources),
+        sources.1>0,sources.2>0,sources.1<u32::MAX,sources.2<u32::MAX,
+        sources.1 as nat*sources.2 as nat<=crate::limits::resource_pixel_limit(limits),
+        source_index<sources.0.len(),component<sources.0[source_index as int].0.1.len(),
+        part2_general_assembled_sources_prefix(sources.0,config,sources.1,sources.2,source_index)==Ok(initial),
+        part2_general_components_prefix(sources.0[source_index as int],config,sources.1,sources.2,component,initial).is_ok(),
+        part2_color_normalize_storage_result(part2_general_normalize_context(sources.0[source_index as int],component),Err(error)),
+        part2_color_normalize_value(part2_general_normalize_context(sources.0[source_index as int],component))==Err(error)
+            ==>part2_general_after_cold_sources(config,colors,sources,limits)==Err(error),
+    ensures part2_general_layer_cold_result(file,config,layer_index,limits,Err(error)),
+{
+    let context=part2_general_normalize_context(sources.0[source_index as int],component);
+    let request=Part2ColorOutputCapacity::Normalize {context};
+    let component_step=|i:nat|if part2_general_components_prefix(sources.0[source_index as int],config,sources.1,sources.2,i,initial).is_ok() {
+        part2_color_normalize_requests(part2_general_normalize_context(sources.0[source_index as int],i))
+    }else{Seq::empty()};
+    assert(component_step(component)[0]==request);
+    part2_color_output_trace_member(component_step,sources.0[source_index as int].0.1.len(),component,request);
+    let source_step=|i|part2_general_normalize_source_requests(config,sources,i);
+    part2_color_output_trace_member(source_step,sources.0.len(),source_index,request);
+    part2_color_output_concat_member(part2_general_normalize_requests(config,sources,limits),part2_general_finish_color_requests(config,colors,sources,limits),request);
+    let whole=part2_general_color_requests(config,colors,sources,limits);
+    assert forall|child:Part2ColorOutputCapacity|part2_color_normalize_requests(context).contains(child) implies whole.contains(child) by {
+        assert(child==request);
+    }
+    let ordinary=part2_general_after_cold_sources(config,colors,sources,limits);
+    part2_color_output_program_child_error(whole,ordinary,part2_color_normalize_requests(context),part2_color_normalize_value(context),error);
+    part2_decode_eta(|events|part2_color_output_program_run(whole,ordinary,events),Err(error));
+    part2_general_sources_cold_normal(file,config,layer_index,limits,part2_general_source_count(config));
+    part2_cold_bind(|events|part2_general_sources_cold_prefix(file,config,layer_index,limits,part2_general_source_count(config),events),
+        |sources,tail|part2_general_after_cold_sources_run(config,colors,sources,limits,tail),Ok(sources),Err(error));
+}
 pub(crate) proof fn part2_general_cold_error_extend(
     file: Part2JpxDecodeInput, config: Part2GeneralLayerConfig, layer_index: usize, limits: &crate::ResourceLimits,
     count: nat, total: nat, error: crate::DecodeError,
@@ -264,7 +383,7 @@ pub(crate) proof fn part2_general_layer_cold_source_error(
     part2_general_cold_error_extend(file, config, layer_index, limits, index + 1, part2_general_source_count(config), error);
     part2_cold_bind(
         |events| part2_general_sources_cold_prefix(file, config, layer_index, limits, part2_general_source_count(config), events),
-        |sources, tail| Some((part2_general_after_cold_sources(config, colors, sources, limits), tail)),
+        |sources, tail| part2_general_after_cold_sources_run(config, colors, sources, limits,tail),
         Err(error), Err(error));
 }
 

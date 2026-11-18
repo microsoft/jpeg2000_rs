@@ -19,6 +19,8 @@ mod cold_palette_storage;
 pub use cold_palette_storage::*;
 mod cold_color_storage;
 pub use cold_color_storage::*;
+mod cold_color_conversion;
+pub use cold_color_conversion::*;
 mod cold_layer_metadata;
 pub use cold_layer_metadata::*;
 mod cold_composition_storage;

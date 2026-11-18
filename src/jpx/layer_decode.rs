@@ -99,12 +99,22 @@ pub(super) fn decode_layer(
     let (decoded, header) = decoded_result?;
     #[cfg(verus_keep_ghost)]
     proof! { crate::decode::associated_typed_success_known(&decoded, header); }
+    #[cfg(verus_keep_ghost)]
+    proof_decl! {let ghost associated=jp2::associated_header_option(header);}
     let header = header.unwrap_or(file.header());
-    crate::color::convert_jp2_color(
+    let converted = crate::color::convert_jp2_color(
         &decoded,
         color_override.unwrap_or(&header.color),
         options.limits(),
-    )
+    );
+    #[cfg(verus_keep_ghost)]
+    proof! {
+        crate::specs::part2_jpx_layer_color_actual(jp2::jpx_file_decode_view(file),codestream_index,
+            jp2::optional_color_specification_method(color_override),crate::options::decode_options_limits(options),
+            (crate::image::typed_image_value_view(decoded),associated),
+            crate::color::converted_image_result(converted));
+    }
+    converted
 }
 
 #[cfg_attr(
@@ -442,6 +452,8 @@ fn decode_general_compositing_layer(
             .ok_or_else(arithmetic_overflow)?,
     )?;
 
+    #[cfg(verus_keep_ghost)]
+    proof_decl! {let ghost collected=(general_source_views(sources@),width,height);}
     let mut components = Vec::new();
     let mut descriptors = Vec::new();
     source_index = 0;
@@ -458,6 +470,12 @@ fn decode_general_compositing_layer(
         verus_keep_ghost,
         verus_spec(
             invariant source_index <= sources.len(),
+                crate::specs::part2_general_color_count(config.color)==Ok(color_count),
+                crate::specs::part2_general_sources_prefix(input,config,layer_index,limits,
+                    crate::specs::part2_general_source_count(config))==Ok(collected),
+                collected==(general_source_views(sources@),width,height),
+                width>0,height>0,width<u32::MAX,height<u32::MAX,
+                width as nat*height as nat<=crate::limits::resource_pixel_limit(limits),
                 crate::specs::part2_general_layer_cold_result(input, config, layer_index, limits,
                     crate::specs::part2_decode_general_layer(input, config, layer_index, limits)),
                 config == jp2::general_layer_config(file, layer),
@@ -501,6 +519,12 @@ fn decode_general_compositing_layer(
             verus_keep_ghost,
             verus_spec(
                 invariant component_index <= component_count,
+                    crate::specs::part2_general_color_count(config.color)==Ok(color_count),
+                    crate::specs::part2_general_sources_prefix(input,config,layer_index,limits,
+                        crate::specs::part2_general_source_count(config))==Ok(collected),
+                    collected==(general_source_views(sources@),width,height),
+                    width>0,height>0,width<u32::MAX,height<u32::MAX,
+                    width as nat*height as nat<=crate::limits::resource_pixel_limit(limits),
                     crate::specs::part2_general_layer_cold_result(input, config, layer_index, limits,
                         crate::specs::part2_decode_general_layer(input, config, layer_index, limits)),
                     source_index < sources.len(),
@@ -545,13 +569,28 @@ fn decode_general_compositing_layer(
                 .components()
                 .get(component_index)
                 .ok_or_else(invalid_layer)?;
-            let normalized = crate::color::normalize_component(
+            let normalizing = crate::color::normalize_component(
                 component,
                 image.width(),
                 image.height(),
                 image.x_origin(),
                 image.y_origin(),
-            )?;
+            );
+            #[cfg(verus_keep_ghost)]
+            proof! {
+                if let Err(error)=normalizing {
+                    if crate::specs::part2_color_normalize_value(crate::specs::part2_general_normalize_context(source,component_index as nat))==Err(error) {
+                        assert(crate::specs::part2_general_components_prefix(source,config,width,height,component_index as nat+1,initial)==Err(error));
+                        crate::specs::part2_general_components_error(source,config,width,height,initial,component_index as nat+1,source.0.1.len());
+                        assert(crate::specs::part2_general_assembled_sources_prefix(collected.0,config,width,height,source_index as nat+1)==Err(error));
+                        crate::specs::part2_general_assembled_sources_error(collected.0,config,width,height,source_index as nat+1,collected.0.len());
+                        assert(crate::specs::part2_general_after_cold_sources(config,color_count,collected,limits)==Err(error));
+                    }
+                    crate::specs::part2_general_normalize_error(input,config,layer_index,color_count,collected,limits,
+                        source_index as nat,component_index as nat,initial,error);
+                }
+            }
+            let normalized = normalizing?;
             let samples = register_samples(
                 &normalized,
                 image.width(),
@@ -602,6 +641,12 @@ fn decode_general_compositing_layer(
                 verus_keep_ghost,
                 verus_spec(
                     invariant definition_index <= definition_count,
+                        crate::specs::part2_general_color_count(config.color)==Ok(color_count),
+                        crate::specs::part2_general_sources_prefix(input,config,layer_index,limits,
+                            crate::specs::part2_general_source_count(config))==Ok(collected),
+                        collected==(general_source_views(sources@),width,height),
+                        width>0,height>0,width<u32::MAX,height<u32::MAX,
+                        width as nat*height as nat<=crate::limits::resource_pixel_limit(limits),
                         crate::specs::part2_general_layer_cold_result(input, config, layer_index, limits,
                             crate::specs::part2_decode_general_layer(input, config, layer_index, limits)),
                         definition_count == crate::image::typed_component_definitions(component).len(),
@@ -687,6 +732,12 @@ fn decode_general_compositing_layer(
             verus_keep_ghost,
             verus_spec(
                 invariant record_index <= record_count,
+                    crate::specs::part2_general_color_count(config.color)==Ok(color_count),
+                    crate::specs::part2_general_sources_prefix(input,config,layer_index,limits,
+                        crate::specs::part2_general_source_count(config))==Ok(collected),
+                    collected==(general_source_views(sources@),width,height),
+                    width>0,height>0,width<u32::MAX,height<u32::MAX,
+                    width as nat*height as nat<=crate::limits::resource_pixel_limit(limits),
                     crate::specs::part2_general_layer_cold_result(input, config, layer_index, limits,
                         crate::specs::part2_decode_general_layer(input, config, layer_index, limits)),
                     input == jp2::jpx_file_decode_view(file),
@@ -752,6 +803,12 @@ fn decode_general_compositing_layer(
             verus_keep_ghost,
             verus_spec(
                 invariant color_index <= color_count,
+                    crate::specs::part2_general_color_count(config.color)==Ok(color_count),
+                    crate::specs::part2_general_sources_prefix(input,config,layer_index,limits,
+                        crate::specs::part2_general_source_count(config))==Ok(collected),
+                    collected==(general_source_views(sources@),width,height),
+                    width>0,height>0,width<u32::MAX,height<u32::MAX,
+                    width as nat*height as nat<=crate::limits::resource_pixel_limit(limits),
                     crate::specs::part2_general_layer_cold_result(input, config, layer_index, limits,
                         crate::specs::part2_decode_general_layer(input, config, layer_index, limits)),
                 input == jp2::jpx_file_decode_view(file),
@@ -853,7 +910,19 @@ fn decode_general_compositing_layer(
         components,
         options.limits(),
     )?;
-    let converted = crate::color::convert_jp2_color(&assembled, color, options.limits())?;
+    let conversion = crate::color::convert_jp2_color(&assembled, color, options.limits());
+    #[cfg(verus_keep_ghost)]
+    proof! {
+        if let Err(error)=conversion {
+            let sources=crate::specs::part2_general_sources_prefix(input,config,layer_index,limits,
+                crate::specs::part2_general_source_count(config)).get_Ok_0();
+            let context=crate::specs::Part2ColorConvertContext {image:crate::image::typed_image_value_view(assembled),
+                method:jp2::color_specification_method(color),bytes:crate::limits::resource_decoded_bytes_limit(limits),
+                work:crate::limits::resource_work_limit(limits)};
+            crate::specs::part2_general_color_error(input,config,layer_index,color_count,sources,limits,context,error);
+        }
+    }
+    let converted = conversion?;
     let mut owned = owned_layer_from_image(&converted)?;
     if let Some(LayerOpacity::ChromaKey { channels, values }) = layer.opacity() {
         if usize::from(*channels) != color_count || descriptors.len() < color_count {

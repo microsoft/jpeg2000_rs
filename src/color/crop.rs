@@ -15,7 +15,10 @@ impl ConvertedImage {
     #[cfg_attr(
         verus_keep_ghost,
         verus_spec(result =>
-            ensures converted_image_result(result) == crate::specs::color_crop_image(
+            ensures crate::specs::part2_color_crop_storage_result(crate::specs::Part2ColorCropContext {
+                image:converted_image_model(&self),x,y,width,height,
+            },converted_image_result(result)),
+            result!=Err(DecodeError::AllocationFailed) ==> converted_image_result(result) == crate::specs::color_crop_image(
                 converted_image_model(&self), x, y, width, height,
             ),
         )
@@ -23,6 +26,10 @@ impl ConvertedImage {
     pub(crate) fn crop(self, x: u32, y: u32, width: u32, height: u32) -> Result<Self, DecodeError> {
         #[cfg(verus_keep_ghost)]
         proof_decl! { let ghost input = converted_image_model(&self); }
+        #[cfg(verus_keep_ghost)]
+        proof_decl! {let ghost storage_context=crate::specs::Part2ColorCropContext {image:input,x,y,width,height};}
+        #[cfg(verus_keep_ghost)]
+        proof! {crate::specs::part2_color_crop_storage_normal(storage_context);}
         if width == 0 || height == 0 {
             return Err(invalid_color_input());
         }
@@ -35,7 +42,18 @@ impl ConvertedImage {
             return Ok(self);
         }
         let count = checked_area(width, height)?;
-        let mut channels = Vec::with_capacity(self.channels.len());
+        let allocated = if self.channels.is_empty() {
+            Ok(Vec::new())
+        } else {
+            crate::allocation::empty_with_capacity(self.channels.len())
+        };
+        #[cfg(verus_keep_ghost)]
+        proof! {
+            crate::specs::part2_color_output_capacity_observed(crate::specs::Part2ColorOutputCapacity::CropChannels {context:storage_context},
+                crate::allocation::inspection_capacity_outcome(allocated));
+            if let Err(error)=allocated {crate::specs::part2_color_crop_storage_owner_refused(storage_context,error);}
+        }
+        let mut channels = allocated?;
         #[cfg(verus_keep_ghost)]
         proof! {
             assert(crate::proofs::internal_specs::color_crop_ready(input, x, y, width, height, x1, y1, count));
@@ -47,6 +65,8 @@ impl ConvertedImage {
             verus_keep_ghost,
             verus_spec(
                 invariant channel_index <= self.channels.len(),
+                    storage_context==(crate::specs::Part2ColorCropContext {image:input,x,y,width,height}),
+                    crate::specs::part2_color_crop_storage_result(storage_context,crate::specs::part2_color_crop_value(storage_context)),
                     input == converted_image_model(&self),
                     crate::proofs::internal_specs::color_crop_ready(input, x, y, width, height, x1, y1, count),
                     crate::specs::color_crop_channels(input.4, input.0, x, y, x1, y1, channel_index as nat)
@@ -68,9 +88,12 @@ impl ConvertedImage {
                 Err(error) => {
                     #[cfg(verus_keep_ghost)]
                     proof! {
-                        crate::proofs::production_impl::production_crop_channels_error(
-                            input.4, input.0, x, y, x1, y1, channel_index as nat + 1, input.4.len(), error,
-                        );
+                        if crate::specs::color_crop_plane(input.4[channel_index as int].1,input.0,x,y,x1,y1)==Err(error) {
+                            crate::proofs::production_impl::production_crop_channels_error(
+                                input.4, input.0, x, y, x1, y1, channel_index as nat + 1, input.4.len(), error,
+                            );
+                        }
+                        crate::specs::part2_color_crop_storage_plane_error(storage_context,channel_index as nat,count,error);
                     }
                     return Err(error);
                 }
@@ -122,7 +145,8 @@ impl ConvertedImage {
     verus_keep_ghost,
     verus_spec(result =>
         requires x <= x1, y <= y1,
-        ensures normalized_plane_result(result) == crate::specs::color_crop_plane(input@, source_width, x, y, x1, y1),
+        ensures crate::specs::part2_color_crop_plane_storage_result(input@,source_width,x,y,x1,y1,count,normalized_plane_result(result)),
+        result!=Err(DecodeError::AllocationFailed) ==> normalized_plane_result(result) == crate::specs::color_crop_plane(input@, source_width, x, y, x1, y1),
     )
 )]
 fn crop_plane(
@@ -134,7 +158,20 @@ fn crop_plane(
     y1: u32,
     count: usize,
 ) -> Result<Vec<u16>, DecodeError> {
-    let mut samples = Vec::with_capacity(count);
+    #[cfg(verus_keep_ghost)]
+    proof! {crate::specs::part2_color_crop_plane_storage_normal(input@,source_width,x,y,x1,y1,count);}
+    let allocated = if count == 0 {
+        Ok(Vec::new())
+    } else {
+        crate::allocation::empty_with_capacity(count)
+    };
+    #[cfg(verus_keep_ghost)]
+    proof! {
+        crate::specs::part2_color_output_capacity_observed(crate::specs::part2_color_crop_plane_request(input@,source_width,x,y,x1,y1,count),
+            crate::allocation::inspection_capacity_outcome(allocated));
+        if let Err(error)=allocated {crate::specs::part2_color_crop_plane_storage_refused(input@,source_width,x,y,x1,y1,count,error);}
+    }
+    let mut samples = allocated?;
     let mut row = y;
     #[cfg(verus_keep_ghost)]
     proof! {
@@ -144,6 +181,8 @@ fn crop_plane(
         verus_keep_ghost,
         verus_spec(
             invariant y <= row <= y1, x <= x1,
+                crate::specs::part2_color_crop_plane_storage_result(input@,source_width,x,y,x1,y1,count,
+                    crate::specs::color_crop_plane(input@,source_width,x,y,x1,y1)),
                 crate::specs::color_crop_rows(input@, source_width, x, y, (x1 - x) as u32, (row - y) as nat)
                     == Ok(samples@),
             decreases y1 - row,
@@ -161,6 +200,8 @@ fn crop_plane(
             verus_keep_ghost,
             verus_spec(
                 invariant x <= column <= x1, y <= row < y1,
+                    crate::specs::part2_color_crop_plane_storage_result(input@,source_width,x,y,x1,y1,count,
+                        crate::specs::color_crop_plane(input@,source_width,x,y,x1,y1)),
                     crate::specs::color_crop_rows(input@, source_width, x, y, (x1 - x) as u32, (row - y) as nat)
                         == Ok(initial),
                     crate::specs::color_crop_columns(input@, source_width, row, x, initial, (column - x) as nat)

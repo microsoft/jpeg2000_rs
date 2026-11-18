@@ -200,7 +200,11 @@ pub(super) fn color_selection_from_validated(
 #[cfg_attr(
     verus_keep_ghost,
     verus_spec(result =>
-        ensures crate::color::converted_image_result(result) == crate::specs::color_convert_selected(
+        ensures crate::specs::part2_color_selected_storage_result(crate::specs::Part2ColorConvertContext {
+            image:crate::image::typed_image_value_view(*image),method:crate::jp2::color_specification_method(color),
+            bytes:crate::limits::resource_decoded_bytes_limit(limits),work:crate::limits::resource_work_limit(limits),
+        },target,crate::color::converted_image_result(result)),
+        result!=Err(DecodeError::AllocationFailed) ==> crate::color::converted_image_result(result) == crate::specs::color_convert_selected(
             crate::image::typed_image_component_views(image), crate::image::typed_image_definition_views(image),
             crate::image::typed_image_geometry(image), crate::jp2::color_specification_method(color), target,
             crate::limits::resource_decoded_bytes_limit(limits), crate::limits::resource_work_limit(limits),
@@ -213,21 +217,36 @@ pub(super) fn convert_selected_color(
     target: [u32; 4],
     limits: &ResourceLimits,
 ) -> Result<crate::color::ConvertedImage, DecodeError> {
-    let converted = crate::color::convert_jp2_color(image, color, limits)?;
-    converted.crop(
-        target[0]
-            .checked_sub(image.x_origin())
-            .ok_or_else(invalid_decode)?,
-        target[1]
-            .checked_sub(image.y_origin())
-            .ok_or_else(invalid_decode)?,
-        target[2]
-            .checked_sub(target[0])
-            .ok_or_else(invalid_decode)?,
-        target[3]
-            .checked_sub(target[1])
-            .ok_or_else(invalid_decode)?,
-    )
+    #[cfg(verus_keep_ghost)]
+    proof_decl! {
+        let ghost context=crate::specs::Part2ColorConvertContext {image:crate::image::typed_image_value_view(*image),
+            method:crate::jp2::color_specification_method(color),bytes:crate::limits::resource_decoded_bytes_limit(limits),
+            work:crate::limits::resource_work_limit(limits)};
+    }
+    #[cfg(verus_keep_ghost)]
+    proof! {crate::specs::part2_color_selected_storage_normal(context,target);}
+    let conversion = crate::color::convert_jp2_color(image, color, limits);
+    #[cfg(verus_keep_ghost)]
+    proof! {if let Err(error)=conversion {crate::specs::part2_color_selected_storage_convert_error(context,target,error);}}
+    let converted = conversion?;
+    #[cfg(verus_keep_ghost)]
+    proof_decl! {let ghost converted_source=crate::color::converted_image_model(&converted);}
+    let x = target[0]
+        .checked_sub(image.x_origin())
+        .ok_or_else(invalid_decode)?;
+    let y = target[1]
+        .checked_sub(image.y_origin())
+        .ok_or_else(invalid_decode)?;
+    let width = target[2]
+        .checked_sub(target[0])
+        .ok_or_else(invalid_decode)?;
+    let height = target[3]
+        .checked_sub(target[1])
+        .ok_or_else(invalid_decode)?;
+    let result = converted.crop(x, y, width, height);
+    #[cfg(verus_keep_ghost)]
+    proof! {crate::specs::part2_color_selected_storage_crop_actual(context,target,converted_source,crate::color::converted_image_result(result));}
+    result
 }
 
 #[cfg_attr(verus_keep_ghost, verus_spec(result =>
@@ -270,7 +289,10 @@ pub(super) fn apply_associated_output<'a>(
 }
 
 #[cfg_attr(verus_keep_ghost, verus_spec(result =>
-    ensures crate::color::converted_image_result(result) == crate::specs::part2_convert_associated_selected(
+    ensures crate::specs::part2_color_associated_storage_result(crate::image::typed_image_value_view(*image),
+        jp2::associated_header_option(header),Some(target),crate::limits::resource_decoded_bytes_limit(limits),
+        crate::limits::resource_work_limit(limits),crate::color::converted_image_result(result)),
+    result!=Err(DecodeError::AllocationFailed) ==> crate::color::converted_image_result(result) == crate::specs::part2_convert_associated_selected(
         crate::image::typed_image_value_view(*image), jp2::associated_header_option(header), target,
         crate::limits::resource_decoded_bytes_limit(limits), crate::limits::resource_work_limit(limits),
     ),
@@ -281,6 +303,9 @@ pub(super) fn convert_associated_selected_color(
     target: [u32; 4],
     limits: &ResourceLimits,
 ) -> Result<crate::color::ConvertedImage, DecodeError> {
+    #[cfg(verus_keep_ghost)]
+    proof! {crate::specs::part2_color_associated_storage_normal(crate::image::typed_image_value_view(*image),jp2::associated_header_option(header),
+    Some(target),crate::limits::resource_decoded_bytes_limit(limits),crate::limits::resource_work_limit(limits));}
     let header = match header {
         Some(header) => header,
         None => {
@@ -290,11 +315,17 @@ pub(super) fn convert_associated_selected_color(
             });
         }
     };
-    convert_selected_color(image, &header.color, target, limits)
+    let result = convert_selected_color(image, &header.color, target, limits);
+    #[cfg(verus_keep_ghost)]
+    proof! {crate::specs::part2_color_associated_storage_actual(crate::image::typed_image_value_view(*image),jp2::associated_header_view(header),Some(target),
+    crate::limits::resource_decoded_bytes_limit(limits),crate::limits::resource_work_limit(limits),crate::color::converted_image_result(result));}
+    result
 }
 
 #[cfg_attr(verus_keep_ghost, verus_spec(result =>
-    ensures crate::color::converted_image_result(result) == crate::specs::part2_convert_associated(
+    ensures crate::specs::part2_color_associated_storage_result(crate::image::typed_image_value_view(*image),jp2::associated_header_option(header),
+        None,crate::limits::resource_decoded_bytes_limit(limits),crate::limits::resource_work_limit(limits),crate::color::converted_image_result(result)),
+    result!=Err(DecodeError::AllocationFailed) ==> crate::color::converted_image_result(result) == crate::specs::part2_convert_associated(
         crate::image::typed_image_value_view(*image), jp2::associated_header_option(header),
         crate::limits::resource_decoded_bytes_limit(limits), crate::limits::resource_work_limit(limits),
     ),
@@ -304,6 +335,9 @@ pub(super) fn convert_associated_color(
     header: Option<&jp2::Jp2Header>,
     limits: &ResourceLimits,
 ) -> Result<crate::color::ConvertedImage, DecodeError> {
+    #[cfg(verus_keep_ghost)]
+    proof! {crate::specs::part2_color_associated_storage_normal(crate::image::typed_image_value_view(*image),jp2::associated_header_option(header),
+    None,crate::limits::resource_decoded_bytes_limit(limits),crate::limits::resource_work_limit(limits));}
     let header = match header {
         Some(header) => header,
         None => {
@@ -313,7 +347,11 @@ pub(super) fn convert_associated_color(
             });
         }
     };
-    crate::color::convert_jp2_color(image, &header.color, limits)
+    let result = crate::color::convert_jp2_color(image, &header.color, limits);
+    #[cfg(verus_keep_ghost)]
+    proof! {crate::specs::part2_color_associated_storage_actual(crate::image::typed_image_value_view(*image),jp2::associated_header_view(header),None,
+    crate::limits::resource_decoded_bytes_limit(limits),crate::limits::resource_work_limit(limits),crate::color::converted_image_result(result));}
+    result
 }
 
 #[cfg_attr(verus_keep_ghost, verus_spec(result =>
@@ -347,7 +385,12 @@ pub(super) fn finish_associated_selected_output(
         }
     }
     let (mapped, header) = output?;
-    convert_associated_selected_color(&mapped, header, target, limits)
+    let converted = convert_associated_selected_color(&mapped, header, target, limits);
+    #[cfg(verus_keep_ghost)]
+    proof! {crate::specs::part2_selected_output_converted_actual(source,jp2::associated_header_option(header),target,
+    crate::limits::resource_component_limit(limits),crate::limits::resource_decoded_bytes_limit(limits),crate::limits::resource_work_limit(limits),
+    (crate::image::typed_image_value_view(mapped),jp2::associated_header_option(header)),crate::color::converted_image_result(converted));}
+    converted
 }
 
 #[cfg_attr(verus_keep_ghost, verus_spec(result =>

@@ -521,12 +521,17 @@ pub(crate) open spec fn part2_jpx_layer_cold_finish(
         crate::limits::resource_decoded_bytes_limit(limits), crate::limits::resource_work_limit(limits))
 }
 
+pub(crate) open spec fn part2_jpx_layer_color_context(input:Part2JpxDecodeInput,color_override:Option<crate::jp2::ColorMethod>,
+    decoded:(Part1DecodedTypedImage,Option<Part2AssociatedHeader>),limits:&crate::ResourceLimits)->Part2ColorConvertContext {
+    let method=match color_override {Some(color)=>color,None=>match decoded.1 {Some(header)=>header.2,None=>input.2.2}};
+    Part2ColorConvertContext {image:decoded.0,method,bytes:crate::limits::resource_decoded_bytes_limit(limits),work:crate::limits::resource_work_limit(limits)}
+}
 pub(crate) open spec fn part2_jpx_layer_cold_run(
     input: Part2JpxDecodeInput, index: usize, color_override: Option<crate::jp2::ColorMethod>,
     limits: &crate::ResourceLimits, events: Seq<Part2JpipSnapshotEvent>,
 ) -> Part2ColdRun<Part2ConvertedImage> {
     part2_jpip_snapshot_bind(part2_jpx_cold_run(input, index, limits, events),
-        |decoded, tail| Some((part2_jpx_layer_cold_finish(input, color_override, decoded, limits), tail)))
+        |decoded, tail| part2_color_convert_storage_run(part2_jpx_layer_color_context(input,color_override,decoded,limits),tail))
 }
 
 pub(crate) open spec fn part2_jpx_layer_cold_result(
@@ -545,12 +550,26 @@ pub(crate) proof fn part2_jpx_layer_cold_actual(
         Err(error) => Err(error), Ok(value) => part2_jpx_layer_cold_finish(input, color_override, value, limits),
     }),
 {
-    if let Ok(value) = decoded { part2_cold_pure(part2_jpx_layer_cold_finish(input, color_override, value, limits)); }
+    if let Ok(value) = decoded {
+        let context=part2_jpx_layer_color_context(input,color_override,value,limits);
+        part2_color_convert_storage_normal(context);
+        part2_color_convert_storage_frames(context,part2_jpx_layer_cold_finish(input,color_override,value,limits));
+    }
     part2_cold_bind(
         |events| part2_jpx_cold_run(input, index, limits, events),
-        |value, tail| Some((part2_jpx_layer_cold_finish(input, color_override, value, limits), tail)),
+        |value, tail| part2_color_convert_storage_run(part2_jpx_layer_color_context(input,color_override,value,limits),tail),
         decoded, match decoded { Err(error) => Err(error),
             Ok(value) => part2_jpx_layer_cold_finish(input, color_override, value, limits) });
+}
+pub(crate) proof fn part2_jpx_layer_color_actual(input:Part2JpxDecodeInput,index:usize,color_override:Option<crate::jp2::ColorMethod>,
+    limits:&crate::ResourceLimits,decoded:(Part1DecodedTypedImage,Option<Part2AssociatedHeader>),result:Part2ConvertedImageResult)
+    requires part2_jpx_cold_result(input,index,limits,Ok(decoded)),
+        part2_color_convert_storage_result(part2_jpx_layer_color_context(input,color_override,decoded,limits),result),
+    ensures part2_jpx_layer_cold_result(input,index,color_override,limits,result),
+{
+    part2_color_convert_storage_frames(part2_jpx_layer_color_context(input,color_override,decoded,limits),result);
+    part2_cold_bind(|events|part2_jpx_cold_run(input,index,limits,events),
+        |decoded,tail|part2_color_convert_storage_run(part2_jpx_layer_color_context(input,color_override,decoded,limits),tail),Ok(decoded),result);
 }
 
 pub(crate) proof fn part2_jpx_layer_cold_normal(

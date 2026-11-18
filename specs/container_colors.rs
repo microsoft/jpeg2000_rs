@@ -166,8 +166,9 @@ pub(crate) open spec fn part2_color_cold_finish_run(file:Part2RawJp2File,limits:
     let header=part2_raw_associated_header(file.header);
     match target {
         None=>part2_jpip_snapshot_bind(part2_apply_output_run(decoded,header.0,crate::limits::resource_component_limit(limits),crate::limits::resource_decoded_bytes_limit(limits),events),
-            |mapped:Part1DecodedTypedImage,rest|Some((color_convert_jp2(mapped.1,mapped.2,mapped.0,header.2,
-                crate::limits::resource_decoded_bytes_limit(limits),crate::limits::resource_work_limit(limits)),rest))),
+            |mapped:Part1DecodedTypedImage,rest|part2_color_convert_storage_run(Part2ColorConvertContext {
+                image:mapped,method:header.2,bytes:crate::limits::resource_decoded_bytes_limit(limits),
+                work:crate::limits::resource_work_limit(limits)},rest)),
         Some(target)=>part2_selected_output_run(decoded,Some(header),[target[0],target[1],target[2],target[3]],
             crate::limits::resource_component_limit(limits),crate::limits::resource_decoded_bytes_limit(limits),crate::limits::resource_work_limit(limits),events),
     }
@@ -182,9 +183,13 @@ pub(crate) proof fn part2_color_cold_finish_normal(file:Part2RawJp2File,limits:&
     match target {
         None=>{
             let mapped=part2_apply_output_header(decoded,header.0,components,maximum);part2_apply_output_normal(decoded,header.0,components,maximum);
-            if let Ok(value)=mapped{part2_cold_pure(color_convert_jp2(value.1,value.2,value.0,header.2,maximum,work));}
+            if let Ok(value)=mapped{
+                let context=Part2ColorConvertContext {image:value,method:header.2,bytes:maximum,work};
+                part2_color_convert_storage_normal(context);
+                part2_color_convert_storage_frames(context,part2_color_convert_value(context));
+            }
             part2_cold_bind(|events|part2_apply_output_run(decoded,header.0,components,maximum,events),
-                |mapped:Part1DecodedTypedImage,rest|Some((color_convert_jp2(mapped.1,mapped.2,mapped.0,header.2,maximum,work),rest)),
+                |mapped:Part1DecodedTypedImage,rest|part2_color_convert_storage_run(Part2ColorConvertContext {image:mapped,method:header.2,bytes:maximum,work},rest),
                 mapped,part2_color_cold_finish(file,limits,target,decoded));
         },
         Some(value)=>{
@@ -414,7 +419,7 @@ pub(crate) proof fn part2_decode_color_output_error(input:Seq<u8>,limits:&crate:
         None=>{
             part2_apply_output_observed(image,header.0,components,maximum,Err(error));
             part2_cold_bind(|events|part2_apply_output_run(image,header.0,components,maximum,events),
-                |mapped:Part1DecodedTypedImage,rest|Some((color_convert_jp2(mapped.1,mapped.2,mapped.0,header.2,maximum,work),rest)),Err(error),Err(error));
+                |mapped:Part1DecodedTypedImage,rest|part2_color_convert_storage_run(Part2ColorConvertContext {image:mapped,method:header.2,bytes:maximum,work},rest),Err(error),Err(error));
             part2_decode_eta(|events|part2_color_cold_finish_run(file,limits,None,image,events),Err(error));
             part2_cold_bind(|events|part2_decode_raw_value_cold_run(file.streams[0].1,limits,None,events),
                 |image:Part1DecodedTypedImage,rest|part2_color_cold_finish_run(file,limits,None,image,rest),Ok(image),Err(error));
@@ -434,6 +439,34 @@ pub(crate) proof fn part2_decode_color_output_error(input:Seq<u8>,limits:&crate:
     part2_decode_eta(|events|part2_color_file_cold_run(file,limits,requested,jph,events),Err(error));
     part2_cold_bind(|events|part2_single_inspection_run(input,limits,jph,events),
         |value:Part2RawInspectedContainer,rest|part2_color_file_cold_run(value.0,limits,requested,jph,rest),Ok(inspected),Err(error));
+}
+pub(crate) proof fn part2_decode_color_conversion_error(input:Seq<u8>,limits:&crate::ResourceLimits,jph:bool,
+    inspected:Part2RawInspectedContainer,image:Part1DecodedTypedImage,mapped:Part1DecodedTypedImage,error:crate::DecodeError)
+    requires if jph{part2_inspect_jph_cold_result(input,limits,Ok(inspected))}else{part2_inspection_cold_result(input,limits,true,Ok(inspected))},
+        part2_single_profile(inspected,jph)==Ok(()),
+        part2_decode_raw_value_cold_result(inspected.0.streams[0].1,limits,None,Ok(image)),
+        part2_output_storage_result(Part2OutputStorageContext {image,header:part2_raw_associated_header(inspected.0.header).0,
+            components:crate::limits::resource_component_limit(limits),maximum:crate::limits::resource_decoded_bytes_limit(limits)},Ok(mapped)),
+        part2_color_convert_storage_result(Part2ColorConvertContext {image:mapped,method:part2_raw_associated_header(inspected.0.header).2,
+            bytes:crate::limits::resource_decoded_bytes_limit(limits),work:crate::limits::resource_work_limit(limits)},Err(error)),
+    ensures part2_decode_color_cold_result(input,limits,None,jph,Err(error)),
+{
+    reveal(part2_decode_color_cold_result);
+    let file=inspected.0;let header=part2_raw_associated_header(file.header);
+    let components=crate::limits::resource_component_limit(limits);let maximum=crate::limits::resource_decoded_bytes_limit(limits);
+    let work=crate::limits::resource_work_limit(limits);
+    part2_single_inspection_actual(input,limits,jph,Ok(inspected));
+    part2_apply_output_observed(image,header.0,components,maximum,Ok(mapped));
+    part2_color_convert_storage_frames(Part2ColorConvertContext {image:mapped,method:header.2,bytes:maximum,work},Err(error));
+    part2_cold_bind(|events|part2_apply_output_run(image,header.0,components,maximum,events),
+        |mapped:Part1DecodedTypedImage,rest|part2_color_convert_storage_run(Part2ColorConvertContext {image:mapped,method:header.2,bytes:maximum,work},rest),
+        Ok(mapped),Err(error));
+    part2_decode_eta(|events|part2_color_cold_finish_run(file,limits,None,image,events),Err(error));
+    part2_cold_bind(|events|part2_decode_raw_value_cold_run(file.streams[0].1,limits,None,events),
+        |image:Part1DecodedTypedImage,rest|part2_color_cold_finish_run(file,limits,None,image,rest),Ok(image),Err(error));
+    part2_decode_eta(|events|part2_color_file_cold_run(file,limits,None,jph,events),Err(error));
+    part2_cold_bind(|events|part2_single_inspection_run(input,limits,jph,events),
+        |value:Part2RawInspectedContainer,rest|part2_color_file_cold_run(value.0,limits,None,jph,rest),Ok(inspected),Err(error));
 }
 pub(crate) closed spec fn part2_color_selection_raw(
     input: Seq<u8>, limits: &crate::ResourceLimits, requested: Part2DecodeSelection,
