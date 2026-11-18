@@ -51,6 +51,7 @@ specs/cold_ht_refinement_scratch.rs
 specs/cold_ht_significance.rs
 specs/cold_image_storage.rs
 specs/cold_inspection_storage.rs
+specs/cold_layer_metadata.rs
 specs/cold_layout.rs
 specs/cold_layout_continuations.rs
 specs/cold_legacy_bitplanes.rs

@@ -66,6 +66,14 @@ Other conditional storage owners remain separate boundaries.
 Opaque-byte acceptance is not ICC validity, conversion support or conformance;
 no allocator-availability premise or verifier setting is added.
 
+[`cold_layer_metadata.rs`](specs/cold_layer_metadata.rs) separately binds actual
+registration records and chroma-key byte copies. Registration length/grid/count
+admission precedes checked capacity; ordered record semantics and lazy offsets
+follow it. Opacity keeps its eager offset and method/length/channel checks before
+key copying. Empty private byte copies are request-free. Actual normalized
+replies compose through typed layer requests and the existing header/container
+readers, retaining opacity/definition exclusion and exact ordinary errors.
+
 ### JP2 output metadata and sample copies
 
 The direct-copy and mapped component vectors now reserve checked metadata

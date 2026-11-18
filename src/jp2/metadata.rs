@@ -118,10 +118,17 @@ pub(super) fn inspect_metadata_box(
 }
 
 #[cfg_attr(verus_keep_ghost, verus_spec(result =>
-    ensures super::metadata_bytes_outcome(result) == crate::specs::part2_copy_metadata_bytes(input@),
+    ensures crate::specs::storage_copy_result(input@,result),
+        input.len()==0 ==> result.is_ok(),
+        super::metadata_bytes_outcome(result) != Err(DecodeError::AllocationFailed) ==>
+            super::metadata_bytes_outcome(result) == crate::specs::part2_copy_metadata_bytes(input@),
 ))]
 pub(super) fn copy_bytes(input: &[u8]) -> Result<Vec<u8>, DecodeError> {
-    let mut output = Vec::with_capacity(input.len());
+    let mut output = if input.is_empty() {
+        Vec::new()
+    } else {
+        crate::allocation::empty_with_capacity(input.len())?
+    };
     let mut index = 0_usize;
     #[cfg_attr(
         verus_keep_ghost,

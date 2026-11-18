@@ -2416,10 +2416,21 @@
         {"path": "src/jp2/composition.rs", "symbol": "parse_codestream_registration"},
         {"path": "src/jp2/composition.rs", "symbol": "parse_color_group"},
         {"path": "src/jp2/composition.rs", "symbol": "parse_layer_opacity"},
+        {"path": "src/jp2/metadata.rs", "symbol": "copy_bytes"},
         {"path": "src/jp2/composition.rs", "symbol": "parse_compositing_layer"},
         {"path": "src/jp2/container.rs", "symbol": "parse"}
       ],
       "spec_refs": [
+        {"path": "specs/cold_layer_metadata.rs", "symbol": "part2_registration_storage_count"},
+        {"path": "specs/cold_layer_metadata.rs", "symbol": "part2_opacity_storage_count"},
+        {"path": "specs/cold_layer_metadata.rs", "symbol": "part2_layer_metadata_capacity_count"},
+        {"path": "specs/cold_layer_metadata.rs", "symbol": "part2_layer_metadata_capacity_run"},
+        {"path": "specs/cold_layer_metadata.rs", "symbol": "part2_layer_metadata_capacity_result"},
+        {"path": "specs/cold_layer_metadata.rs", "symbol": "part2_registration_storage_run"},
+        {"path": "specs/cold_layer_metadata.rs", "symbol": "part2_registration_storage_result"},
+        {"path": "specs/cold_layer_metadata.rs", "symbol": "part2_opacity_storage_run"},
+        {"path": "specs/cold_layer_metadata.rs", "symbol": "part2_opacity_storage_result"},
+        {"path": "specs/cold_palette_storage.rs", "symbol": "part2_header_storage_request_value"},
         {"path": "specs/cold_color_storage.rs", "symbol": "part2_color_group_storage_result"},
         {"path": "specs/cold_color_storage.rs", "symbol": "part2_color_group_storage_run"},
         {"path": "specs/cold_color_storage.rs", "symbol": "part2_color_group_storage_accept"},
@@ -2453,6 +2464,16 @@
         {"path": "src/jp2/composition.rs", "symbol": "parse_compositing_layer"}
       ],
       "proof_refs": [
+        {"path": "specs/cold_layer_metadata.rs", "symbol": "part2_layer_metadata_capacity_observed"},
+        {"path": "specs/cold_layer_metadata.rs", "symbol": "part2_layer_metadata_capacity_frames"},
+        {"path": "specs/cold_layer_metadata.rs", "symbol": "part2_registration_storage_normal"},
+        {"path": "specs/cold_layer_metadata.rs", "symbol": "part2_registration_storage_refused"},
+        {"path": "specs/cold_layer_metadata.rs", "symbol": "part2_registration_storage_frames"},
+        {"path": "specs/cold_layer_metadata.rs", "symbol": "part2_opacity_storage_normal"},
+        {"path": "specs/cold_layer_metadata.rs", "symbol": "part2_opacity_storage_refused"},
+        {"path": "specs/cold_layer_metadata.rs", "symbol": "part2_opacity_storage_frames"},
+        {"path": "specs/cold_palette_storage.rs", "symbol": "part2_header_storage_request_registration_error"},
+        {"path": "specs/cold_palette_storage.rs", "symbol": "part2_header_storage_request_opacity_error"},
         {"path": "specs/cold_color_storage.rs", "symbol": "part2_color_group_storage_normal"},
         {"path": "specs/cold_color_storage.rs", "symbol": "part2_color_group_storage_step_normal"},
         {"path": "specs/cold_color_storage.rs", "symbol": "part2_color_group_storage_boxes_normal"},
@@ -2479,6 +2500,9 @@
         {"path": "src/limits.rs", "symbol": "ResourceLimits::maximum_codestreams"}
       ],
       "test_refs": [
+        {"path": "src/jp2/tests.rs", "symbol": "layer_metadata_storage_registration_keeps_preflight_record_priority_and_exact_retry"},
+        {"path": "src/jp2/tests.rs", "symbol": "layer_metadata_storage_opacity_keeps_empty_eager_offsets_keys_and_exact_retry"},
+        {"path": "src/jp2/tests.rs", "symbol": "layer_metadata_storage_layer_container_and_exclusion_propagate_actual_refusals"},
         {"path": "src/jp2/tests.rs", "symbol": "layer_group_storage_group_keeps_child_priority_spare_capacity_and_later_growth"},
         {"path": "src/jp2/tests.rs", "symbol": "color_storage_groups_keep_order_nested_refusals_and_parse_before_limits"},
         {"path": "src/jp2/tests.rs", "symbol": "actual_raw_layer_registration_retains_grids_all_fields_order_and_duplicate_indices"},
@@ -2751,7 +2775,7 @@
     },
     {
       "id": "part2-complete-native-raw-resolution-and-metadata-copy-results",
-      "topic": "Complete actual raw resolution primitive/superbox and metadata byte-copy Results. Preserve all six fields, signed exponents, unknown boxes, duplicate-before-payload priority, exact initial input limits, and native progress-before-reader-error behavior, not a normative correction. Complete native ordered reader continuation, not a supplied box/result bank. One actual borrowed reader initializer is retargeted to the existing checked shared producer, requiring explicit future native audit; no allocation/owner/body relocation. Nested metadata-tree inspection, whole header/container/public, coverage/cfg/erasure/lifetimes/release remain independent.",
+      "topic": "Complete actual raw resolution primitive/superbox and checked metadata byte-copy Results. Preserve all six fields, signed exponents, unknown boxes, duplicate-before-payload priority, exact initial input limits, and native progress-before-reader-error behavior, not a normative correction. Metadata copying has unconditional actual source/Result storage relation, request-free empty copies and guarded exact ordinary bytes; the original ordered fill is retained. Complete native ordered reader continuation, not a supplied box/result bank. Nested metadata-tree inspection, whole header/container/public, coverage/cfg/erasure/lifetimes/release remain independent.",
       "implementation_refs": [
         {"path": "src/jp2/metadata.rs", "symbol": "parse_resolution"},
         {"path": "src/jp2/headers.rs", "symbol": "parse_codestream_header_box"},
@@ -2763,6 +2787,7 @@
         {"path": "src/jp2/container.rs", "symbol": "parse"}
       ],
       "spec_refs": [
+        {"path": "specs/allocation.rs", "symbol": "storage_copy_result"},
         {"path": "specs/jp2_resolution.rs", "symbol": "part2_parse_resolution"},
         {"path": "specs/jp2_resolution.rs", "symbol": "part2_parse_resolution_superbox"},
         {"path": "specs/jp2_resolution.rs", "symbol": "part2_resolution_boxes"},
@@ -2780,6 +2805,7 @@
         {"path": "src/jp2/box_reader.rs", "symbol": "box_reader_from_input"}
       ],
       "test_refs": [
+        {"path": "src/jp2/tests.rs", "symbol": "layer_metadata_storage_opacity_keeps_empty_eager_offsets_keys_and_exact_retry"},
         {"path": "src/jp2/tests.rs", "symbol": "actual_raw_resolution_retains_all_fields_and_every_signed_exponent_byte"},
         {"path": "src/jp2/tests.rs", "symbol": "actual_raw_resolution_keeps_exact_length_zero_fields_and_lazy_relative_errors"},
         {"path": "src/jp2/tests.rs", "symbol": "actual_raw_resolution_superbox_retains_both_orders_unknowns_and_duplicate_priority"},

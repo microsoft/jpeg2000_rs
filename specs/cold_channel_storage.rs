@@ -325,6 +325,10 @@ pub(crate) open spec fn part2_layer_header_storage_machine(payload:Seq<u8>,limit
                             context:Part2ColorGroupStorageContext {input,limits,base:nested_base}}),
                     },
                 }
+            }else if input.0.0==crate::jp2::BoxType::CODESTREAM_REGISTRATION && !state.has_registration {
+                Some(Part2HeaderStorageRequest::Registration {context:Part2RegistrationStorageContext {input,base,limits}})
+            }else if input.0.0==crate::jp2::BoxType::OPACITY && state.layer.opacity.is_none() && state.layer.definitions.len()==0 {
+                Some(Part2HeaderStorageRequest::Opacity {context:Part2OpacityStorageContext {input,base}})
             }else{None},
         step:|input,state|part2_raw_layer_step(input,state,limits,base),
         finish:|state:Part2RawLayerState|Ok(state.layer),
@@ -369,6 +373,8 @@ pub(crate) proof fn part2_header_storage_machines_valid(payload:Seq<u8>,limits:c
                     assert(context==(Part2ColorStorageContext {input,base}));
                 },
                 Part2HeaderStorageRequest::ColorGroup {context}=>{assert(false);},
+                Part2HeaderStorageRequest::Registration {context}=>{assert(false);},
+                Part2HeaderStorageRequest::Opacity {context}=>{assert(false);},
             }
         }
     }
@@ -404,6 +410,8 @@ pub(crate) proof fn part2_header_storage_machines_valid(payload:Seq<u8>,limits:c
                     assert(context==(Part2ColorStorageContext {input,base}));
                 },
                 Part2HeaderStorageRequest::ColorGroup {context}=>{assert(false);},
+                Part2HeaderStorageRequest::Registration {context}=>{assert(false);},
+                Part2HeaderStorageRequest::Opacity {context}=>{assert(false);},
             }
         }
     }

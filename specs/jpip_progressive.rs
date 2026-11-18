@@ -267,6 +267,8 @@ pub(crate) proof fn part2_jpip_planned_image_actual(
         |events| part2_jpip_transcode_cold_run(cache, decoder.0, available, events),
         calls, Ok(transcoded), Seq::empty());
     assert(calls + Seq::empty() =~= calls);
+    assert(part2_jpip_transcode_cold_run(cache,decoder.0,available,calls)
+        ==Some((Ok(transcoded),Seq::empty())));
     part2_decode_raw_cold_frames(bytes, crate::options::decode_options_limits(options), selection, decoded);
     let image_calls = part2_cold_witness(
         |events| part2_decode_raw_cold_run(bytes, crate::options::decode_options_limits(options), selection, events), decoded);
@@ -274,10 +276,16 @@ pub(crate) proof fn part2_jpip_planned_image_actual(
         |events| part2_decode_raw_cold_run(bytes, crate::options::decode_options_limits(options), selection, events),
         image_calls, decoded, Seq::empty());
     assert(image_calls + Seq::empty() =~= image_calls);
+    assert(part2_decode_raw_cold_run(bytes,crate::options::decode_options_limits(options),selection,image_calls)
+        ==Some((decoded,Seq::empty())));
     let events = seq![Part2JpipAutomaticEvent::Transcode { calls },
         Part2JpipAutomaticEvent::Image { calls: image_calls }];
     assert(events.drop_first() =~= seq![Part2JpipAutomaticEvent::Image { calls: image_calls }]);
     assert(events.drop_first().drop_first() =~= Seq::empty());
+    assert(part2_jpip_planned_transcode_call(cache,decoder.0,available,events)
+        ==Some((Ok(transcoded),events.drop_first())));
+    assert(part2_jpip_automatic_image_call(bytes,options,selection,events.drop_first())
+        ==Some((decoded,Seq::empty())));
     assert(part2_jpip_planned_cold_run(cache, decoder, options, selection, events)
         == Some((part2_jpip_planned_image_frame(cache, decoder, available, missing, decoded), Seq::empty())));
 }
